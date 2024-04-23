@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 
 #ifdef USE_OPENMODEL
-#include "AliasBRepConverter.h"
 #include "OpenModelUtils.h"
 
 #include "CADModelToTechSoftConverterBase.h"
@@ -29,7 +28,7 @@ typedef void A3DCrvBase;
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 
-class FAliasModelToTechSoftConverter : public FCADModelToTechSoftConverterBase, public IAliasBRepConverter
+class FAliasModelToTechSoftConverter : public FCADModelToTechSoftConverterBase
 {
 
 public:
@@ -38,8 +37,10 @@ public:
 	{
 	}
 
-	virtual bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference) override;
-	virtual bool AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference) override;
+	virtual bool AddGeometry(const CADLibrary::FCADModelGeometry& Geometry) override;
+
+	bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference);
+	bool AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference);
 
 protected:
 	TMap<void*, A3DTopoCoEdge*> AlEdgeToTSCoEdge;

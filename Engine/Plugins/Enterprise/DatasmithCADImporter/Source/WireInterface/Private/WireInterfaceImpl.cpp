@@ -187,14 +187,14 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 	bool FWireTranslatorImpl::Initialize(const TCHAR* InSceneFullName)
 	{
-		// TODO: Check file can be loaded with current SDK
+		// #wire_import: Check file can be loaded with current SDK
 
 		if (InSceneFullName)
 		{
 			SceneFullPath = InSceneFullName;
 		}
 
-		// TODO: Check whether this implementation can load it
+		// #wire_import: Check whether this implementation can load it
 		return true;
 	}
 
@@ -234,16 +234,17 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			CADLibrary::FImportParameters ImportParameters;
 			if (CADLibrary::FImportParameters::bGDisableCADKernelTessellation)
 			{
-				TSharedPtr<FAliasModelToTechSoftConverter> AliasToTechSoftConverter = MakeShared<FAliasModelToTechSoftConverter>(ImportParameters);
-				CADModelConverter = AliasToTechSoftConverter;
-				AliasBRepConverter = AliasToTechSoftConverter;
+				CADModelConverter = MakeShared<FAliasModelToTechSoftConverter>(ImportParameters);
 			}
 			else
 			{
-				TSharedPtr<FAliasModelToCADKernelConverter> AliasToCADKernelConverter = MakeShared<FAliasModelToCADKernelConverter>(ImportParameters);
-				CADModelConverter = AliasToCADKernelConverter;
-				AliasBRepConverter = AliasToCADKernelConverter;
+				CADModelConverter = MakeShared<FAliasModelToCADKernelConverter>(ImportParameters);
 			}
+		}
+		else
+		{
+			// Merge by group when using Alias' tessellator
+			WireSettings.bMergeGeometryByGroup = false;
 		}
 
 		bGSewByMaterial = GetConsoleBoolValue(TEXT("ds.CADTranslator.Alias.SewByMaterial"), false);
@@ -281,7 +282,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		TAlObjectPtr<AlSet> Set(AlUniverse::firstSet());
 		while (Set)
 		{
-			// TODO: Add an actor to represent the set.
+			// #wire_import: Add an actor to represent the set.
 			TAlObjectPtr<AlSetMember> SetMember(Set->firstMember());
 			while (SetMember)
 			{
@@ -309,7 +310,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		TAlDagNodePtr<AlGroupNode> GroupNode(RootNode->asGroupNodePtr());
 		if (GroupNode)
 		{
-			return WireSettings.bMergeGeomtryByGroup ? ProcessGroupNode(GroupNode) : TraverseGroupNode(GroupNode);
+			return WireSettings.bMergeGeometryByGroup ? ProcessGroupNode(GroupNode) : TraverseGroupNode(GroupNode);
 		}
 		else if (OpenModelUtils::IsGeometryValid(RootNode))
 		{
@@ -381,7 +382,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			ActorElement->SetLayer(*CsvLayerString);
 		}
 
-		OpenModelUtils::SetActorTransform(*ActorElement, *GroupNode);
+		OpenModelUtils::SetActorTransform(*ActorElement, GroupNode.Get());
 
 		for (TSharedPtr<IDatasmithActorElement>& ChildActor : ChildActors)
 		{
@@ -492,7 +493,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		}
 
 		TSharedPtr<IDatasmithActorElement> ActorElement;
-		if (ChildActors.Num() == 1)
+		if (WireSettings.bMergeGeometryByGroup && ChildActors.Num() == 1)
 		{
 			ActorElement = ChildActors[0];
 		}
@@ -516,9 +517,9 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			ActorElement->SetLayer(*CsvLayerString);
 		}
 
-		if (ChildActors.Num() > 1)
+		if (WireSettings.bMergeGeometryByGroup && ChildActors.Num() > 1)
 		{
-			OpenModelUtils::SetActorTransform(*ActorElement, *GroupNode);
+			OpenModelUtils::SetActorTransform(*ActorElement, GroupNode.Get());
 
 			for (TSharedPtr<IDatasmithActorElement>& ChildActor : ChildActors)
 			{
@@ -571,7 +572,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			ActorElement->SetLayer(*CsvLayerString);
 		}
 
-		OpenModelUtils::SetActorTransform(*ActorElement, *GeomNode);
+		OpenModelUtils::SetActorTransform(*ActorElement, GeomNode);
 
 		TAlDagNodePtr<AlShellNode> ShellNode(GeomNode->asShellNodePtr());
 		if (ShellNode && ShellNode->shell())
@@ -660,7 +661,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		if (!BodyNode->GetLayer()->isSymmetric())
 		{
-			OpenModelUtils::SetActorTransform(*ActorElement, *GroupNode);
+			OpenModelUtils::SetActorTransform(*ActorElement, GroupNode.Get());
 		}
 
 		if (WireSettings.bUseLayerAsActor && BodyNode->GetLayer() != ParentLayer)
@@ -711,7 +712,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			ActorElement->SetLayer(*CsvLayerString);
 		}
 
-		OpenModelUtils::SetActorTransform(*ActorElement, *GroupNode);
+		OpenModelUtils::SetActorTransform(*ActorElement, GroupNode.Get());
 
 		if (WireSettings.bUseLayerAsActor && PatchMesh->GetLayer() != ParentLayer)
 		{
@@ -737,7 +738,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		if (!OpenModelUtils::IsGeometryValid(GeomNode))
 		{
-			// TODO: Log an error
+			// #wire_import: Log an error
 			return TSharedPtr<IDatasmithMeshElement>();
 		}
 
@@ -769,14 +770,17 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 				ApplyMaterial(Shader, SlotIndex++);
 				Shader = TAlObjectPtr<AlShader>(Shell->nextShader(Shader.Get()));
 			}
-			// TODO: Check There are as many shaders as trim regions
+			// #wire_import: Check There are as many shaders as trim regions
+			MeshElementToParametricNode.Add(MeshElement, GeomNode.Get());
 		}
 		else
 		{
 			TAlDagNodePtr<AlSurfaceNode> SurfaceNode(GeomNode->asSurfaceNodePtr());
-			if (SurfaceNode && SurfaceNode->surface())
+			if (SurfaceNode && AlIsValid(SurfaceNode->surface()))
 			{
+				// #wire_import: Check for trim regions
 				ApplyMaterial(SurfaceNode->surface()->firstShader(), 0);
+				MeshElementToParametricNode.Add(MeshElement, GeomNode.Get());
 			}
 			else
 			{
@@ -784,13 +788,18 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 				if (MeshNode && MeshNode->mesh())
 				{
 					ApplyMaterial(MeshNode->mesh()->firstShader(), 0);
+					MeshElementToMeshNode.Add(MeshElement, MeshNode.Get());
+				}
+				else
+				{
+					// #wire_import: Log an error
+					return TSharedPtr<IDatasmithMeshElement>();
 				}
 			}
 		}
 
 		DatasmithScene->AddMesh(MeshElement);
 		GeomNodeToMeshElement.Add(GeomNode.GetHash(), MeshElement);
-		MeshElementToGeomNode.Add(MeshElement, GeomNode.Get());
 
 		return MeshElement;
 	}
@@ -805,7 +814,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		if (!BodyNode->HasContent())
 		{
-			// TODO: Log an error
+			// #wire_import: Log an error
 			return TSharedPtr<IDatasmithMeshElement>();
 		}
 
@@ -843,7 +852,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		if (!PatchMesh->HasContent())
 		{
-			// TODO: Log an error
+			// #wire_import: Log an error
 			return TSharedPtr<IDatasmithMeshElement>();
 		}
 
@@ -970,78 +979,86 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return OutMeshPayload.LodMeshes.Num() > 0;
 	}
 
-	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters)
+	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters)
 	{
+		if (WireSettings.bAliasUseNative)
+		{
+			if (AlDagNode** GeomNodePtr = MeshElementToParametricNode.Find(MeshElement))
+			{
+				TAlDagNodePtr<AlDagNode> GeomNode(*GeomNodePtr);
+
+				// #wire_import: the best way, should be to don't have to apply inverse global transform to the generated mesh
+				TAlDagNodePtr<AlMeshNode> MeshNode = OpenModelUtils::TesselateDagLeaf(*GeomNode, ETesselatorType::Fast, WireSettings.ChordTolerance);
+
+				if (MeshNode && MeshNode->mesh())
+				{
+					AlMatrix4x4 AlMatrix;
+					GeomNode->inverseGlobalTransformationMatrix(AlMatrix);
+					MeshNode->mesh()->transform(AlMatrix);
+
+					// Get the meshes from the dag nodes. Note that removing the mesh's DAG.
+					// will also removes the meshes, so we have to do it later.
+					return GetMeshDescriptionFromMeshNode(MeshNode, MeshElement, OutMeshParameters);
+				}
+			}
+			
+			if (AlMeshNode** MeshNodePtr = MeshElementToMeshNode.Find(MeshElement))
+			{
+				TAlDagNodePtr<AlMeshNode> MeshNode(*MeshNodePtr);
+				if (MeshNode)
+				{
+					return GetMeshDescriptionFromMeshNode(MeshNode, MeshElement, OutMeshParameters);
+				}
+			}
+
+			return TOptional<FMeshDescription>();
+		}
+
 		if (TSharedPtr<FBodyNode>* BodyNodePtr = MeshElementToBodyNode.Find(MeshElement))
 		{
-			return GetMeshDescriptionFromBodyNode(*BodyNodePtr, MeshElement, MeshParameters);
+			return GetMeshDescriptionFromBodyNode(*BodyNodePtr, MeshElement, OutMeshParameters);
+		}
+
+		if (AlDagNode** GeomNodePtr = MeshElementToParametricNode.Find(MeshElement))
+		{
+			return GetMeshDescriptionFromParametricNode(*GeomNodePtr, MeshElement, OutMeshParameters);
 		}
 
 		if (TSharedPtr<FPatchMesh>* PatchMeshPtr = MeshElementToPatchMesh.Find(MeshElement))
 		{
-			return GetMeshDescriptionFromPatchMesh(*PatchMeshPtr, MeshElement, MeshParameters);
+			return GetMeshDescriptionFromPatchMesh(*PatchMeshPtr, MeshElement, OutMeshParameters);
 		}
 
-		if (AlDagNode** GeomNodePtr = MeshElementToGeomNode.Find(MeshElement))
+		if (AlMeshNode** MeshNodePtr = MeshElementToMeshNode.Find(MeshElement))
 		{
-			TAlDagNodePtr<AlDagNode> GeomNode(*GeomNodePtr);
-			if (GeomNode)
-			{
-				MeshParameters = OpenModelUtils::GetMeshParameters(*GeomNode);
-				switch (GeomNode->type())
-				{
-				case kShellNodeType:
-				case kSurfaceNodeType:
-				{
-					return GetMeshDescriptionFromParametricNode(*GeomNode, MeshElement, MeshParameters);
-					break;
-				}
-
-				case kMeshNodeType:
-				{
-					return GetMeshDescriptionFromMeshNode(GeomNode->asMeshNodePtr(), MeshElement, MeshParameters);
-					break;
-				}
-
-				default:
-					break;
-				}
-			}
+			return GetMeshDescriptionFromMeshNode(*MeshNodePtr, MeshElement, OutMeshParameters);
 		}
 
 		return TOptional<FMeshDescription>();
 	}
 
-	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromBodyNode(TSharedPtr<FBodyNode>& BodyNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters)
+	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromBodyNode(TSharedPtr<FBodyNode>& BodyNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters)
 	{
-		MeshParameters = OpenModelUtils::GetMeshParameters(BodyNode->GetLayer());
+		OutMeshParameters = OpenModelUtils::GetMeshParameters(BodyNode->GetLayer());
 
-		IAliasBRepConverter* BRepConverter = nullptr;
-		TSharedPtr<CADLibrary::ICADModelConverter> ModelConverter = GetModelConverter(BRepConverter);
+		TSharedPtr<CADLibrary::ICADModelConverter> ModelConverter = GetModelConverter();
 
 		ModelConverter->InitializeProcess();
 
 		EAliasObjectReference ObjectReference = EAliasObjectReference::LocalReference;
-		if (MeshParameters.bIsSymmetric)
+		if (OutMeshParameters.bIsSymmetric)
 		{
 			// All actors of a Alias symmetric layer are defined in the world Reference i.e. they have identity transform. So Mesh actor has to be defined in the world reference.
 			ObjectReference = EAliasObjectReference::WorldReference;
 		}
-		else if (WireSettings.StitchingTechnique != EDatasmithCADStitchingTechnique::StitchingNone)
+		else if (WireSettings.bMergeGeometryByGroup)
 		{
 			// In the case of StitchingSew, AlDagNode children of a GroupNode are merged together. To be merged, they have to be defined in the reference of parent GroupNode.
 			ObjectReference = EAliasObjectReference::ParentReference;
 		}
 
-		BodyNode->IterateOnSurfaceNodes([&](const TAlDagNodePtr<AlSurfaceNode>& SurfaceNode)
-			{
-				BRepConverter->AddBRep(*SurfaceNode, BodyNode->GetSlotIndex(SurfaceNode.Get()), ObjectReference);
-			});
-
-		BodyNode->IterateOnShellNodes([&](const TAlDagNodePtr<AlShellNode>& ShellNode)
-			{
-				BRepConverter->AddBRep(*ShellNode, BodyNode->GetSlotIndex(ShellNode.Get()), ObjectReference);
-			});
+		FBodyNodeGeometry BodyNodeGeometry{ (int32)ECADModelGeometryType::BodyNode, ObjectReference, BodyNode};
+		ModelConverter->AddGeometry(BodyNodeGeometry);
 
 		ModelConverter->RepairTopology();
 
@@ -1050,14 +1067,21 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		FMeshDescription MeshDescription;
 		DatasmithMeshHelper::PrepareAttributeForStaticMesh(MeshDescription);
 
-		ModelConverter->Tessellate(MeshParameters, MeshDescription);
+		if (ModelConverter->Tessellate(OutMeshParameters, MeshDescription))
+		{
+			return TOptional<FMeshDescription>(MoveTemp(MeshDescription));
+		}
 
-		return MoveTemp(MeshDescription);
+		const TCHAR* StaticMeshLabel = MeshElement->GetLabel();
+		const TCHAR* StaticMeshName = MeshElement->GetName();
+		UE_LOG(LogWireInterface, Warning, TEXT("Failed to generate the mesh of \"%s\" (%s) StaticMesh."), StaticMeshLabel, StaticMeshName);
+
+		return TOptional<FMeshDescription>();
 	}
 
-	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters)
+	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters)
 	{
-		MeshParameters = OpenModelUtils::GetMeshParameters(PatchMesh->GetLayer());
+		OutMeshParameters = OpenModelUtils::GetMeshParameters(PatchMesh->GetLayer());
 
 		FMeshDescription MeshDescription;
 		DatasmithMeshHelper::PrepareAttributeForStaticMesh(MeshDescription);
@@ -1077,7 +1101,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 					TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = MeshElement->GetMaterialSlotAt(0);
 					const FString SlotMaterialName = MaterialIDElement ? MaterialIDElement->GetName() : FString();
 
-					OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, *SlotMaterialName, MeshDescription, MeshParameters, bMerge);
+					OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, *SlotMaterialName, MeshDescription, OutMeshParameters, bMerge);
 				}
 			});
 
@@ -1087,33 +1111,55 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return MoveTemp(MeshDescription);
 	}
 
-	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromParametricNode(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters)
+	// #wire_import: AlSurfaceNode can have trim regions. This should be handle at this stage
+	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromParametricNode(const TAlDagNodePtr<AlDagNode>& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters)
 	{
-		if (!WireSettings.bAliasUseNative)
-		{
-			return TessellateParametricNode(DagNode, MeshElement, MeshParameters);
-		}
-		else
-		{
-			// TODO: the best way, should be to don't have to apply inverse global transform to the generated mesh
-			TAlDagNodePtr<AlMeshNode> MeshNode = OpenModelUtils::TesselateDagLeaf(DagNode, ETesselatorType::Fast, WireSettings.ChordTolerance);
+		OutMeshParameters = OpenModelUtils::GetMeshParameters(DagNode.GetLayer());
 
-			if (MeshNode && MeshNode->mesh())
-			{
-				AlMatrix4x4 AlMatrix;
-				DagNode.inverseGlobalTransformationMatrix(AlMatrix);
-				MeshNode->mesh()->transform(AlMatrix);
+		TSharedPtr<CADLibrary::ICADModelConverter> ModelConverter = GetModelConverter();
 
-				// Get the meshes from the dag nodes. Note that removing the mesh's DAG.
-				// will also removes the meshes, so we have to do it later.
-				return GetMeshDescriptionFromMeshNode(MeshNode, MeshElement, MeshParameters);
-			}
+		ModelConverter->InitializeProcess();
+
+		EAliasObjectReference ObjectReference = EAliasObjectReference::LocalReference;
+
+		// All geometry are processed in world space if layers are converted to actors
+		// All actors of a Alias symmetric layer are defined in the world Reference
+		// i.e. they have identity transform. So Mesh actor has to be defined in the world reference.
+		if (OutMeshParameters.bIsSymmetric)
+		{
+			ObjectReference = EAliasObjectReference::WorldReference;
 		}
+
+		ensure(MeshElement->GetMaterialSlotCount() == 1);
+
+		FDagNodeGeometry DagNodeGeometry{ (int32)ECADModelGeometryType::DagNode, ObjectReference, DagNode };
+		if (!ModelConverter->AddGeometry(DagNodeGeometry))
+		{
+			return TOptional<FMeshDescription>();
+		}
+
+		ModelConverter->RepairTopology();
+
+		ModelConverter->SaveModel(*OutputPath, MeshElement);
+
+		FMeshDescription MeshDescription;
+		DatasmithMeshHelper::PrepareAttributeForStaticMesh(MeshDescription);
+
+		OutMeshParameters = OpenModelUtils::GetMeshParameters(*DagNode);
+
+		if (ModelConverter->Tessellate(OutMeshParameters, MeshDescription))
+		{
+			return TOptional<FMeshDescription>(MoveTemp(MeshDescription));
+		}
+
+		const TCHAR* StaticMeshLabel = MeshElement->GetLabel();
+		const TCHAR* StaticMeshName = MeshElement->GetName();
+		UE_LOG(LogWireInterface, Warning, TEXT("Failed to generate the mesh of \"%s\" (%s) StaticMesh."), StaticMeshLabel, StaticMeshName);
 
 		return TOptional<FMeshDescription>();
 	}
 
-	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromMeshNode(const TAlDagNodePtr<AlMeshNode>& MeshNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters, AlMatrix4x4* AlMeshInvGlobalMatrix)
+	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescriptionFromMeshNode(const TAlDagNodePtr<AlMeshNode>& MeshNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters, AlMatrix4x4* AlMeshInvGlobalMatrix)
 	{
 		if (!MeshNode)
 		{
@@ -1137,8 +1183,10 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = MeshElement->GetMaterialSlotAt(0);
 		const FString SlotMaterialName = MaterialIDElement ? MaterialIDElement->GetName() : FString();
 
+		OutMeshParameters = OpenModelUtils::GetMeshParameters(*MeshNode);
+
 		const bool bMerge = false;
-		OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, *SlotMaterialName, MeshDescription, MeshParameters, bMerge);
+		OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, *SlotMaterialName, MeshDescription, OutMeshParameters, bMerge);
 
 		// Build edge meta data
 		FStaticMeshOperations::DetermineEdgeHardnessesFromVertexInstanceNormals(MeshDescription);
@@ -1146,68 +1194,26 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return MoveTemp(MeshDescription);
 	}
 
-	TSharedPtr<CADLibrary::ICADModelConverter> FWireTranslatorImpl::GetModelConverter(IAliasBRepConverter*& BRepConverter) const
+	TSharedPtr<CADLibrary::ICADModelConverter> FWireTranslatorImpl::GetModelConverter() const
 	{
 		TSharedPtr<CADLibrary::ICADModelConverter> ModelConverter;
 
 		CADLibrary::FImportParameters ImportParameters;
 		if (CADLibrary::FImportParameters::bGDisableCADKernelTessellation)
 		{
-			TSharedPtr<FAliasModelToTechSoftConverter> AliasToTechSoftConverter = MakeShared<FAliasModelToTechSoftConverter>(ImportParameters);
-			ModelConverter = AliasToTechSoftConverter;
-			BRepConverter = AliasToTechSoftConverter.Get();
+			ModelConverter = MakeShared<FAliasModelToTechSoftConverter>(ImportParameters);
 		}
 		else
 		{
-			TSharedPtr<FAliasModelToCADKernelConverter> AliasToCADKernelConverter = MakeShared<FAliasModelToCADKernelConverter>(ImportParameters);
-			ModelConverter = AliasToCADKernelConverter;
-			BRepConverter = AliasToCADKernelConverter.Get();
+			ModelConverter = MakeShared<FAliasModelToCADKernelConverter>(ImportParameters);
 		}
 
-		ModelConverter->SetImportParameters(WireSettings.ChordTolerance, WireSettings.MaxEdgeLength, WireSettings.NormalTolerance, (CADLibrary::EStitchingTechnique)WireSettings.StitchingTechnique);
+		if (ModelConverter)
+		{
+			ModelConverter->SetImportParameters(WireSettings.ChordTolerance, WireSettings.MaxEdgeLength, WireSettings.NormalTolerance, (CADLibrary::EStitchingTechnique)WireSettings.StitchingTechnique);
+		}
 
 		return ModelConverter;
-	}
-
-	TOptional<FMeshDescription> FWireTranslatorImpl::TessellateParametricNode(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters)
-	{
-		// Wire unit is cm
-		IAliasBRepConverter* BRepConverter = nullptr;
-		TSharedPtr<CADLibrary::ICADModelConverter> ModelConverter = GetModelConverter(BRepConverter);
-
-		ModelConverter->InitializeProcess();
-
-		EAliasObjectReference ObjectReference = EAliasObjectReference::LocalReference;
-
-		if (MeshParameters.bIsSymmetric)
-		{
-			// All actors of a Alias symmetric layer are defined in the world Reference i.e. they have identity transform. So Mesh actor has to be defined in the world reference.
-			ObjectReference = EAliasObjectReference::WorldReference;
-		}
-
-		ensure(MeshElement->GetMaterialSlotCount() == 1);
-
-		if (!BRepConverter->AddBRep(DagNode, 0, ObjectReference))
-		{
-			return TOptional<FMeshDescription>();
-		}
-
-		ModelConverter->RepairTopology();
-
-		ModelConverter->SaveModel(*OutputPath, MeshElement);
-
-		FMeshDescription MeshDescription;
-		DatasmithMeshHelper::PrepareAttributeForStaticMesh(MeshDescription);
-
-		bool bRet = ModelConverter->Tessellate(MeshParameters, MeshDescription);
-		if (!bRet)
-		{
-			const TCHAR* StaticMeshLable = MeshElement->GetLabel();
-			const TCHAR* StaticMeshName = MeshElement->GetName();
-			UE_LOG(LogWireInterface, Warning, TEXT("Failed to generate the mesh of \"%s\" (%s) StaticMesh."), StaticMeshLable, StaticMeshName);
-		}
-
-		return MoveTemp(MeshDescription);
 	}
 
 	// Material creation
@@ -1857,7 +1863,6 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		else {
 			MaterialElement->SetParentLabel(TEXT("M_DatasmithAliasLightSource"));
 		}
-
 	}
 
 	void FWireTranslatorImpl::AddAlPhongParameters(const TAlObjectPtr<AlShader>& Shader, TSharedPtr<IDatasmithUEPbrMaterialElement> MaterialElement)

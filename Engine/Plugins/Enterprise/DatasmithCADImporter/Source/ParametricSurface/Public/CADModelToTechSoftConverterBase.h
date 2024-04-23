@@ -47,6 +47,8 @@ public:
 		return true;
 	}
 
+	virtual bool AddGeometry(const CADLibrary::FCADModelGeometry& Geometry) override { return false; }
+
 	virtual void AddSurfaceDataForMesh(const TCHAR* InFilePath, const CADLibrary::FMeshParameters& InMeshParameters, const FDatasmithTessellationOptions& InTessellationOptions, FDatasmithMeshElementPayload& OutMeshPayload) const override;
 
 protected:

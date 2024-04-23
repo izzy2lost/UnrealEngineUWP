@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 
 #ifdef USE_OPENMODEL
-#include "AliasBRepConverter.h"
 #include "OpenModelUtils.h"
 
 #include "CADModelToCADKernelConverterBase.h"
@@ -32,7 +31,7 @@ namespace UE::CADKernel
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 
-class FAliasModelToCADKernelConverter : public FCADModelToCADKernelConverterBase, public IAliasBRepConverter
+class FAliasModelToCADKernelConverter : public FCADModelToCADKernelConverterBase
 {
 
 public:
@@ -44,10 +43,12 @@ public:
 	// Begin FCADModelToCADKernelConverterBase overrides
 	virtual bool Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription) override;
 	virtual bool RepairTopology() override;
+
+	virtual bool AddGeometry(const CADLibrary::FCADModelGeometry& Geometry) override;
 	// End FCADModelToCADKernelConverterBase overrides
 
-	virtual bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference) override;
-	virtual bool AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference) override;
+	bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference);
+	bool AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference);
 
 protected:
 	TSharedPtr<UE::CADKernel::FTopologicalEdge> AddEdge(const AlTrimCurve& TrimCurve, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface);

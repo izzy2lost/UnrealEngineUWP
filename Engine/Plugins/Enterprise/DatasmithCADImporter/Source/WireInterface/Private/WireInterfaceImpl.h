@@ -6,7 +6,6 @@
 
 #ifdef USE_OPENMODEL
 
-#include "AliasBrepConverter.h"
 #include "OpenModelUtils.h"
 
 #include "IWireInterface.h"
@@ -35,7 +34,6 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 	class FBodyData;
 	struct FDagNodeInfo;
-	class IAliasBRepConverter;
 
 	class FWireTranslatorImpl : public IWireInterface
 	{
@@ -87,11 +85,10 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		/** Geometry retrieval */
 		TOptional<FMeshDescription> GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters);
-		TSharedPtr<CADLibrary::ICADModelConverter> GetModelConverter(IAliasBRepConverter*& BRepConverter) const;
-		TOptional<FMeshDescription> TessellateParametricNode(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TSharedPtr<CADLibrary::ICADModelConverter> GetModelConverter() const;
 		TOptional<FMeshDescription> GetMeshDescriptionFromBodyNode(TSharedPtr<FBodyNode>& BodyNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
 		TOptional<FMeshDescription> GetMeshDescriptionFromPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-		TOptional<FMeshDescription> GetMeshDescriptionFromParametricNode(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TOptional<FMeshDescription> GetMeshDescriptionFromParametricNode(const TAlDagNodePtr<AlDagNode>& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
 		TOptional<FMeshDescription> GetMeshDescriptionFromMeshNode(const TAlDagNodePtr<AlMeshNode>& MeshNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters, AlMatrix4x4* AlMeshInvGlobalMatrix = nullptr);
 
 	private:
@@ -102,14 +99,14 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		FWireSettings WireSettings;
 
 		TSharedPtr<CADLibrary::ICADModelConverter> CADModelConverter;
-		TSharedPtr<IAliasBRepConverter> AliasBRepConverter;
 
 		bool bSceneLoaded = false;
 
 		TMap<FString, TSharedPtr<IDatasmithBaseMaterialElement>> ShaderNameToMaterial;
 
 		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> GeomNodeToMeshElement;
-		TMap<TSharedPtr<IDatasmithMeshElement>, AlDagNode*> MeshElementToGeomNode;
+		TMap<TSharedPtr<IDatasmithMeshElement>, AlDagNode*> MeshElementToParametricNode;
+		TMap<TSharedPtr<IDatasmithMeshElement>, AlMeshNode*> MeshElementToMeshNode;
 
 		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> BodyNodeToMeshElement;
 		TMap<TSharedPtr<IDatasmithMeshElement>, TSharedPtr<FBodyNode>> MeshElementToBodyNode;

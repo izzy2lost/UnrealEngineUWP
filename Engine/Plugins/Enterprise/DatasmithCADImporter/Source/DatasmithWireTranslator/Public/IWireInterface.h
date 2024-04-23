@@ -27,7 +27,7 @@ struct FWireSettings : public FDatasmithTessellationOptions
 	bool bUseLayerAsActor = true;
 
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Wire Translation Options", meta = (ToolTip = "If set to true, all geometry nodes under a group are merged. Default is true."))
-	bool bMergeGeomtryByGroup = true;
+	bool bMergeGeometryByGroup = true;
 
 	uint32 GetHash() const
 	{

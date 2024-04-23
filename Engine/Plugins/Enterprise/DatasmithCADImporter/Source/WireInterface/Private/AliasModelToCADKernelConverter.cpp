@@ -402,6 +402,36 @@ bool FAliasModelToCADKernelConverter::RepairTopology()
 	return true;
 }
 
+bool FAliasModelToCADKernelConverter::AddGeometry(const CADLibrary::FCADModelGeometry& Geometry)
+{
+	if (Geometry.Type == (int32)ECADModelGeometryType::DagNode)
+	{
+		const FDagNodeGeometry& DagNodeGeometry = static_cast<const FDagNodeGeometry&>(Geometry);
+
+		return AddBRep(*DagNodeGeometry.DagNode, 0, DagNodeGeometry.Reference);
+	}
+	else if (Geometry.Type == (int32)ECADModelGeometryType::BodyNode)
+	{
+		const FBodyNodeGeometry& BodyNodeGeometry = static_cast<const FBodyNodeGeometry&>(Geometry);
+
+		bool bBRepAdded = true;
+		BodyNodeGeometry.BodyNode->IterateOnSurfaceNodes([&](const TAlDagNodePtr<AlSurfaceNode>& SurfaceNode)
+		{
+			bBRepAdded &= AddBRep(*SurfaceNode, BodyNodeGeometry.BodyNode->GetSlotIndex(SurfaceNode.Get()), BodyNodeGeometry.Reference);
+		});
+
+		BodyNodeGeometry.BodyNode->IterateOnShellNodes([&](const TAlDagNodePtr<AlShellNode>& ShellNode)
+		{
+			bBRepAdded &= AddBRep(*ShellNode, BodyNodeGeometry.BodyNode->GetSlotIndex(ShellNode.Get()), BodyNodeGeometry.Reference);
+		});
+
+		ensure(bBRepAdded);
+		return bBRepAdded;
+	}
+
+	return false;
+}
+
 }
 
 #endif

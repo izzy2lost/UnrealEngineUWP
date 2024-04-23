@@ -2,8 +2,6 @@
 #include "OpenModelUtils.h"
 
 #ifdef USE_OPENMODEL
-#include "AliasBRepConverter.h"
-
 #include "CADOptions.h"
 #include "DatasmithUtils.h"
 #include "DatasmithTranslator.h"
@@ -72,7 +70,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 	int32 FBodyNode::GetSlotIndex(const TAlDagNodePtr<AlDagNode>& DagNode)
 	{
-		// TODO: Add support for AlShell
+		// #wire_import: Add support for AlShell
 		if (TAlDagNodePtr<AlSurfaceNode> SurfaceNode = DagNode->asSurfaceNodePtr())
 		{
 			if (TAlObjectPtr<AlSurface> Surface = SurfaceNode->surface())
@@ -125,7 +123,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 			for (const TAlDagNodePtr<AlShellNode>& ShellNode : ShellNodes)
 			{
-				// TODO: Extract all shaders
+				// #wire_import: Extract all shaders
 				TAlObjectPtr<AlShell> Shell(ShellNode->shell());
 				if (!Shell)
 				{
@@ -223,17 +221,16 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return ActorElement->IsA(EDatasmithElementType::StaticMeshActor) || ActorElement->GetChildrenCount() > 0;
 	}
 
-	void OpenModelUtils::SetActorTransform(IDatasmithActorElement& ActorElement, const AlDagNode& InDagNode)
+	void OpenModelUtils::SetActorTransform(IDatasmithActorElement& ActorElement, const TAlDagNodePtr<AlDagNode>& DagNode)
 	{
-		// TODO: Find why no transform applied if layer is symmetrical???
-		TAlObjectPtr<AlLayer> Layer(InDagNode.layer());
-		if (Layer && Layer->isSymmetric())
+		// #wire_import: Find why no transform applied if layer is symmetrical???
+		if (DagNode.HasSymmetry())
 		{
 			return;
 		}
 
 		AlMatrix4x4 AlGlobalMatrix;
-		InDagNode.globalTransformationMatrix(AlGlobalMatrix);
+		DagNode->globalTransformationMatrix(AlGlobalMatrix);
 
 		FMatrix GlobalMatrix;
 		double* MatrixFloats = (double*)GlobalMatrix.M;

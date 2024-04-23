@@ -33,7 +33,7 @@ struct FMeshDescription;
 #define GROUPNODE_TYPE      TEXT("GroupNode")
 #define MESH_TYPE           TEXT("Mesh")
 #define MESHNODE_TYPE       TEXT("MeshNode")
-#define SHADER_TYPE         TEXT("Shell")
+#define SHADER_TYPE         TEXT("Shader")
 #define SHELLNODE_TYPE      TEXT("ShellNode")
 #define SHELL_TYPE          TEXT("Shell")
 #define SURFACE_TYPE        TEXT("Surface")
@@ -41,10 +41,7 @@ struct FMeshDescription;
 
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
-	namespace OpenModelUtils
-	{
-
-	}
+	typedef double AlMatrix4x4[4][4];
 
 	enum class ETesselatorType : uint8
 	{
@@ -151,6 +148,13 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			static_assert(std::is_base_of<AlDagNode, T>::value);
 			T* LocalPtr = TAlObjectPtr<T>::Ptr;
 			return TAlObjectPtr<AlLayer>(LocalPtr && LocalPtr->layer() ? LocalPtr->layer() : nullptr);
+		}
+
+		bool HasSymmetry() const
+		{
+			static_assert(std::is_base_of<AlDagNode, T>::value);
+			T* LocalPtr = TAlObjectPtr<T>::Ptr;
+			return (AlIsValid(LocalPtr) && LocalPtr->layer()) ? (bool)LocalPtr->layer()->isSymmetric() : false;
 		}
 
 		TAlObjectPtr<AlMesh> GetMesh() const
@@ -332,6 +336,47 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		bool bInitialized = false;
 	};
 
+	enum class ECADModelGeometryType : int32
+	{
+		DagNode,
+		MeshNode,
+		BodyNode,
+		PatchMesh,
+	};
+
+	enum class EAliasObjectReference
+	{
+		LocalReference,  
+		ParentReference, 
+		WorldReference, 
+	};
+	
+	struct FAliasGeometry : public CADLibrary::FCADModelGeometry
+	{
+		EAliasObjectReference Reference = EAliasObjectReference::LocalReference;
+	};
+
+	struct FDagNodeGeometry : public FAliasGeometry
+	{
+		TAlDagNodePtr<AlDagNode> DagNode;
+	};
+
+	struct FBodyNodeGeometry : public FAliasGeometry
+	{
+		TSharedPtr<FBodyNode> BodyNode;
+	};
+
+	struct FPatchMeshGeometry : public CADLibrary::FCADModelGeometry
+	{
+		TSharedPtr<FPatchMesh> PatchMesh;
+	};
+
+	struct FMeshNodeGeometry : public CADLibrary::FCADModelGeometry
+	{
+		TAlDagNodePtr<AlMeshNode> MeshNode;
+	};
+
+
 	namespace OpenModelUtils
 	{
 		/** Following layer hierarchy, get list of layers an actor would be in as a csv string*/
@@ -339,7 +384,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		bool ActorHasContent(const TSharedPtr<IDatasmithActorElement>& ActorElement);
 
-		void SetActorTransform(IDatasmithActorElement& OutActorElement, const AlDagNode& InDagNode);
+		void SetActorTransform(IDatasmithActorElement& OutActorElement, const TAlDagNodePtr<AlDagNode>& InDagNode);
 
 		bool IsValidActor(const TSharedPtr<IDatasmithActorElement>& ActorElement);
 
