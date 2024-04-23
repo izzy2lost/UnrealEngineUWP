@@ -766,6 +766,7 @@ void USkinWeightsPaintTool::Setup()
 	}
 
 	// modify viewport render settings to optimize for painting weights
+	FPreviewProfileController PreviewProfileController;
 	PreviewProfileToRestore = PreviewProfileController.GetActiveProfile();
 	PreviewProfileController.SetActiveProfile(UDefaultEditorProfiles::EditingProfileName.ToString());
 
@@ -1579,6 +1580,7 @@ void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 	}
 
 	// restore viewport show flags and preview settings
+	FPreviewProfileController PreviewProfileController;
 	PreviewProfileController.SetActiveProfile(PreviewProfileToRestore);
 
 	if (EditorContext.IsValid())

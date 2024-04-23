@@ -36,7 +36,7 @@ FPreviewProfileController::FPreviewProfileController()
 
 FPreviewProfileController::~FPreviewProfileController()
 {
-	if (AssetViewerSettings)
+	if (IsValid(AssetViewerSettings))
 	{
 		AssetViewerSettings->OnAssetViewerProfileAddRemoved().Remove(AssetViewerSettingsProfileAddRemoveHandle);
 		AssetViewerSettings->OnAssetViewerSettingsChanged().Remove(AssetViewerSettingsChangedHandle);
@@ -73,7 +73,7 @@ TArray<FString> FPreviewProfileController::GetPreviewProfiles(int32& OutCurrentP
 
 bool FPreviewProfileController::SetActiveProfile(const FString& ProfileName)
 {
-	if (PerProjectSettings && AssetViewerSettings)
+	if (IsValid(PerProjectSettings) && IsValid(AssetViewerSettings))
 	{
 		EnsureProfilesStateCoherence();
 

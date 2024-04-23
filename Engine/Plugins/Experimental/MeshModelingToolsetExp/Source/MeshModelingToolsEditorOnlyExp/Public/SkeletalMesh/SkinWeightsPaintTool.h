@@ -511,7 +511,6 @@ protected:
 	TWeakObjectPtr<UPersonaEditorModeManagerContext> PersonaModeManagerContext = nullptr;
 
 	// editor state to restore when exiting the paint tool
-	FPreviewProfileController PreviewProfileController;
 	FString PreviewProfileToRestore;
 
 	friend SkinPaintTool::FSkinToolDeformer;
