@@ -2,11 +2,9 @@
 
 #include "NetworkAutomationTest.h"
 #include "NetworkAutomationTestMacros.h"
-#include "Iris/IrisConstants.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilterDefinitions.h"
-#include "Iris/ReplicationSystem/Filtering/ReplicationFilteringConfig.h"
 #include "Tests/ReplicationSystem/Filtering/MockNetObjectFilter.h"
 #include "Tests/ReplicationSystem/Filtering/TestFilteringObject.h"
 #include "Tests/ReplicationSystem/ReplicationSystemServerClientTestFixture.h"
@@ -20,7 +18,6 @@ protected:
 	virtual void SetUp() override
 	{
 		InitNetObjectFilterDefinitions();
-		InitObjectScopeHysteresisProfiles();
 		FReplicationSystemServerClientTestFixture::SetUp();
 		InitMockNetObjectFilter();
 	}
@@ -28,7 +25,6 @@ protected:
 	virtual void TearDown() override
 	{
 		FReplicationSystemServerClientTestFixture::TearDown();
-		RestoreObjectScopeHysteresisProfiles();
 		RestoreFilterDefinitions();
 	}
 
@@ -44,87 +40,6 @@ protected:
 		MockNetObjectFilter->SetFunctionCallSetup(CallSetup);
 		MockNetObjectFilter->ResetFunctionCallStatus();
 	}
-
-	uint32 GetHysteresisFrameCount(const char* ProfileName) const
-	{
-		const UReplicationFilteringConfig* Config = GetDefault<UReplicationFilteringConfig>();
-		if (const FObjectScopeHysteresisProfile* Profile = Config->GetHysteresisProfiles().FindByKey(ProfileName))
-		{
-			return Profile->HysteresisFrameCount;
-		}
-
-		return Config->GetDefaultHysteresisFrameCount();
-	}
-
-	class FScopedDefaultHysteresisFrameCount
-	{
-	public:
-		FScopedDefaultHysteresisFrameCount(uint8 DefaultHysteresisFrameCount)
-		{
-			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
-			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("DefaultHysteresisFrameCount"))
-			{
-				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
-				Property->CopyCompleteValue(&PrevValue, (void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()));
-				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &DefaultHysteresisFrameCount);
-				bPrevValueIsValid = true;
-			}
-		}
-
-		~FScopedDefaultHysteresisFrameCount()
-		{
-			if (!bPrevValueIsValid)
-			{
-				return;
-			}
-
-			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
-			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("DefaultHysteresisFrameCount"))
-			{
-				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
-				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &PrevValue);
-				bPrevValueIsValid = true;
-			}
-		}
-
-		uint8 PrevValue = 0;
-		bool bPrevValueIsValid = false;
-	};
-
-	class FScopedHysteresisUpdateConnectionThrottling
-	{
-	public:
-		FScopedHysteresisUpdateConnectionThrottling(uint8 HysteresisUpdateConnectionThrottling)
-		{
-			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
-			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("HysteresisUpdateConnectionThrottling"))
-			{
-				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
-				Property->CopyCompleteValue(&PrevValue, (void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()));
-				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &HysteresisUpdateConnectionThrottling);
-				bPrevValueIsValid = true;
-			}
-		}
-
-		~FScopedHysteresisUpdateConnectionThrottling()
-		{
-			if (!bPrevValueIsValid)
-			{
-				return;
-			}
-
-			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
-			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("HysteresisUpdateConnectionThrottling"))
-			{
-				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
-				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &PrevValue);
-				bPrevValueIsValid = true;
-			}
-		}
-
-		uint8 PrevValue = 0;
-		bool bPrevValueIsValid = false;
-	};
 
 private:
 	void InitNetObjectFilterDefinitions()
@@ -162,64 +77,18 @@ private:
 		MockNetObjectFilter = nullptr;
 	}
 
-	void InitObjectScopeHysteresisProfiles()
-	{
-		const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
-		const FProperty* ProfilesProperty = NetObjectFilteringConfiglass->FindPropertyByName("HysteresisProfiles");
-		check(ProfilesProperty != nullptr);
-
-		// Save CDO state.
-		UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
-		ProfilesProperty->CopyCompleteValue(&OriginalObjectScopeHysteresisProfiles, (void*)(UPTRINT(FilteringConfig) + ProfilesProperty->GetOffset_ForInternal()));
-
-		// Modify profiles to what we need
-		TArray<FObjectScopeHysteresisProfile> NewProfiles;
-		{
-			{
-				FObjectScopeHysteresisProfile& Profile = NewProfiles.Emplace_GetRef();
-				Profile.FilterProfileName = "FiveFrames";
-				Profile.HysteresisFrameCount = 5;
-			}
-
-			{
-				FObjectScopeHysteresisProfile& Profile = NewProfiles.Emplace_GetRef();
-				Profile.FilterProfileName = "OneFrame";
-				Profile.HysteresisFrameCount = 1;
-			}
-
-			{
-				FObjectScopeHysteresisProfile& Profile = NewProfiles.Emplace_GetRef();
-				Profile.FilterProfileName = "ZeroFrames";
-				Profile.HysteresisFrameCount = 0;
-			}
-		}
-
-		ProfilesProperty->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + ProfilesProperty->GetOffset_ForInternal()), &NewProfiles);
-	}
-
-	void RestoreObjectScopeHysteresisProfiles()
-	{
-		// Restore CDO state from the saved state.
-		const UClass* NetObjectFilterDefinitionsClass = UReplicationFilteringConfig::StaticClass();
-		const FProperty* ProfilesProperty = NetObjectFilterDefinitionsClass->FindPropertyByName("HysteresisProfiles");
-		UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
-		ProfilesProperty->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + ProfilesProperty->GetOffset_ForInternal()), &OriginalObjectScopeHysteresisProfiles);
-		OriginalObjectScopeHysteresisProfiles.Empty();
-	}
-
 	void InitMockNetObjectFilter()
 	{
 		MockNetObjectFilter = CastChecked<UMockNetObjectFilter>(Server->GetReplicationSystem()->GetFilter(GetMockFilterName()));
 		MockFilterHandle = Server->GetReplicationSystem()->GetFilterHandle(GetMockFilterName());
 	}
+
 protected:
 	UMockNetObjectFilter* MockNetObjectFilter;
 	FNetObjectFilterHandle MockFilterHandle;
-	FName ObjectHysteresisProfileName;
 
 private:
 	TArray<FNetObjectFilterDefinition> OriginalFilterDefinitions;
-	TArray<FObjectScopeHysteresisProfile> OriginalObjectScopeHysteresisProfiles;
 };
 
 
@@ -1166,7 +1035,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, NestedDependentObjectIsFilteredAsPare
 	Server->SendAndDeliverTo(Client, DeliverPacket);
 	Server->PostSendUpdate();
 
-	// We expect the object to exist and the future dependent and future nested dependent objects not to exist
+	// We expect the object to exist and the future dependent and future dependent objects not to exist
 	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerFutureDependentObject->NetRefHandle), nullptr);
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerFutureNestedDependentObject->NetRefHandle), nullptr);
@@ -2403,302 +2272,6 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedConnectionWorksWithComplexGr
 	UE_NET_ASSERT_NE(LateAddedClient->GetReplicationBridge()->GetReplicatedObject(ServerObjects[3]->NetRefHandle), nullptr);
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObjects[3]->NetRefHandle), nullptr);
 	UE_NET_ASSERT_NE(LateAddedClient->GetReplicationBridge()->GetReplicatedObject(ServerSubObjects[3]->NetRefHandle), nullptr);
-}
-
-// Dynamic filtering should cause hysteresis to kick in for a filtered out object with a filter profile.
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForDynamicallyFilteredOutObjectWithFilterProfile)
-{
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	SetDynamicFilterStatus(ENetFilterStatus::Allow);
-
-	// Spawn object on server and set filter and filter profile for hysteresis
-	UReplicatedTestObject* ServerObject = Server->CreateObject({.IrisComponentCount = 0});
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
-
-	Server->UpdateAndSend({ Client });
-
-	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-
-	const uint32 HysteresisFrameCount = GetHysteresisFrameCount("FiveFrames");
-	UE_NET_ASSERT_EQ(HysteresisFrameCount, 5U);
-	for (uint32 It = 0, EndIt = HysteresisFrameCount; It < EndIt; ++It)
-	{
-		Server->UpdateAndSend({ Client });
-	}
-
-	// At this point the object should still exist on the client due to hysteresis
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-
-	Server->UpdateAndSend({ Client });
-
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-// Dynamic filtering should cause hysteresis to kick in for a filtered out object without a filter profile, thus using default hysteresis frame count.
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForDynamicallyFilteredOutObjectWithoutFilterProfile)
-{
-	constexpr uint32 DefaultHystersisFrameCount = 3;
-	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHystersisFrameCount);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	SetDynamicFilterStatus(ENetFilterStatus::Allow);
-
-	// Spawn object on server and set filter and filter profile for hysteresis
-	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
-
-	Server->UpdateAndSend({ Client });
-
-	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-
-	for (uint32 It = 0, EndIt = DefaultHystersisFrameCount; It < EndIt; ++It)
-	{
-		Server->UpdateAndSend({ Client });
-	}
-
-	// At this point the object should still exist on the client due to hysteresis
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-
-	Server->UpdateAndSend({ Client });
-
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-// Owner filtering changes should not cause hysteresis to kick in.
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForOwnerFilteredObject)
-{
-	constexpr uint32 DefaultHystersisFrameCount = 3;
-	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHystersisFrameCount);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Spawn object on server
-	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, ToOwnerFilterHandle);
-	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
-
-	// Send and deliver packet
-	Server->UpdateAndSend({ Client });
-
-	// Object should have been created on the client
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-
-	// Switch owner and make sure objects gets immediately destroyed on the client
-	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, InvalidConnectionId);
-
-	// Send and deliver packet
-	Server->UpdateAndSend({ Client });
-
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-// Exclusion group filtering changes should not cause hysteresis to kick in.
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForExclusionGroupFilteredObject)
-{
-	constexpr uint32 DefaultHystersisFrameCount = 3;
-	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHystersisFrameCount);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Spawn object on server
-	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-
-	// Add to exclusion group that allows replication to all connections.
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
-	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
-	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
-	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
-
-	// Send and deliver packet
-	Server->UpdateAndSend({ Client });
-
-	// Object should have been created on the client
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-
-	// Disallow the group to be replicated.
-	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Disallow);
-
-	// Send and deliver packet
-	Server->UpdateAndSend({ Client });
-
-	// Client object should be destroyed
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-// If an object is filtered out from the start we should not start replicating it at all
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForNewlyCreatedObject)
-{
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-
-	// Spawn object on server and set filter and filter profile for hysteresis
-	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
-
-	Server->UpdateAndSend({ Client });
-
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-// Destroyed objects are expected to be destroyed as quickly as possible.
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForDestroyedObject)
-{
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	SetDynamicFilterStatus(ENetFilterStatus::Allow);
-
-	// Spawn object on server and set filter and filter profile for hysteresis
-	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
-
-	Server->UpdateAndSend({ Client });
-
-	// Destroy object and make sure it immediately gets destroyed on the client as well.
-	const FNetRefHandle ServerNetRefHandle = ServerObject->NetRefHandle;
-	Server->DestroyObject(ServerObject);
-	ServerObject = nullptr;
-
-	Server->UpdateAndSend({ Client });
-
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerNetRefHandle), nullptr);
-}
-
-// Make sure that connection throttling does not cause objects to be filtered out too soon. Also verify throttling occurs.
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisConnectionThrottlingWorksAsExpected)
-{
-	constexpr uint8 ConnectionThrottlingFrameCount = 5;
-	FScopedHysteresisUpdateConnectionThrottling ConnectionThrottling(ConnectionThrottlingFrameCount);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Figure out hysteresis update frame.
-	{
-		SetDynamicFilterStatus(ENetFilterStatus::Allow);
-
-		// Spawn object on server and set filter and filter profile for hysteresis
-		UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-		Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "OneFrame");
-
-		Server->UpdateAndSend({ Client });
-
-		SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-
-		// As we have an hysteresis of one frame we will detect immediately when the trottling is updated
-		for (uint32 It = 0, EndIt = ConnectionThrottlingFrameCount; It < EndIt; ++It)
-		{
-			Server->UpdateAndSend({ Client });
-			if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) == nullptr)
-			{
-				break;
-			}
-		}
-
-		// Object must have been destroyed on the client by now.
-		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-	}
-
-	// Make sure object is kept alive for at least the expected frame count
-	{
-		SetDynamicFilterStatus(ENetFilterStatus::Allow);
-
-		UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-		Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
-
-		// Advance up to one frame before we expect hysteresis update
-		for (uint32 It = 0, EndIt = ConnectionThrottlingFrameCount - 1; It < EndIt; ++It)
-		{
-			Server->UpdateAndSend({ Client });
-		}
-
-		// Filter out object. Hysteresis update should be performed but the object should not be filtered out immediately as not enough frames have passed.
-		SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-
-		uint32 WaitFrameCount = 0;
-		for (uint32 It = 0, EndIt = 2U * ConnectionThrottlingFrameCount; It < EndIt; ++It)
-		{
-			++WaitFrameCount;
-			Server->UpdateAndSend({ Client });
-
-			if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) == nullptr)
-			{
-				break;
-			}
-		}
-
-		// Object must have been destroyed on the client by now.
-		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-
-		// FiveFames profile means at least five frames of waiting
-		UE_NET_ASSERT_GT(WaitFrameCount, 5U);
-
-		// This assert assumes ConnectionThrottlingFrameCount is five as well. If it's four we'd expect 4+4+1 frames.
-		UE_NET_ASSERT_EQ(WaitFrameCount, ConnectionThrottlingFrameCount + 1U);
-	}
-}
-
-// Test that a lot of objects can be filtered out on the same frame.
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, LotsOfObjectsCanBeFilteredOutViaHysteresisInOneFrame)
-{
-	constexpr uint32 HighObjectCount = 65;
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	SetDynamicFilterStatus(ENetFilterStatus::Allow);
-
-	// Spawn lots of objects on server
-	UReplicatedTestObject* ServerObjects[HighObjectCount];
-	for (UReplicatedTestObject*& ServerObject : ServerObjects)
-	{
-		ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
-		Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "OneFrame");
-	}
-
-	// Send and deliver packets until we believe all objects have been created on the client
-	for (uint32 It = 0; It < HighObjectCount; ++It)
-	{
-		Server->UpdateAndSend({ Client });
-		if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObjects[HighObjectCount - 1]->NetRefHandle) != nullptr)
-		{
-			bool bAllObjectsCreated = true;
-
-			for (const UReplicatedTestObject* ServerObject : ServerObjects)
-			{
-				if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) == nullptr)
-				{
-					bAllObjectsCreated = false;
-					break;
-				}
-			}
-			
-			if (bAllObjectsCreated)
-			{
-				break;
-			}
-		}
-	}
-
-	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-
-	// Send and deliver packet. Need to update twice to have the objects filtered out.
-	Server->UpdateAndSend({ Client });
-	Server->UpdateAndSend({ Client });
-
-	// All client objects should be destroyed
-	for (const UReplicatedTestObject* ServerObject : ServerObjects)
-	{
-		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-	}
 }
 
 } // end namespace UE::Net::Private

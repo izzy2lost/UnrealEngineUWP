@@ -6,7 +6,6 @@
 
 #include "Iris/IrisConfigInternal.h"
 #include "Iris/IrisConstants.h"
-#include "Iris/Core/BitTwiddling.h"
 #include "Iris/Core/IrisCsv.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
@@ -18,7 +17,7 @@
 #include "Iris/ReplicationSystem/DeltaCompression/DeltaCompressionBaselineInvalidationTracker.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectGroups.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilterDefinitions.h"
-#include "Iris/ReplicationSystem/Filtering/ReplicationFilteringConfig.h"
+
 #include <limits>
 
 namespace UE::Net::Private
@@ -187,8 +186,6 @@ void FReplicationFiltering::Init(FReplicationFilteringInitParams& Params)
 	check(Params.Connections != nullptr);
 	check(Params.Connections->GetMaxConnectionCount() <= std::numeric_limits<decltype(ObjectIndexToOwningConnection)::ElementType>::max());
 
-	Config = GetDefault<UReplicationFilteringConfig>();
-
 	ReplicationSystem = Params.ReplicationSystem;
 
 	Connections = Params.Connections;
@@ -236,9 +233,6 @@ void FReplicationFiltering::Init(FReplicationFilteringInitParams& Params)
 	// Owning connections
 	ObjectIndexToOwningConnection.SetNumZeroed(MaxObjectCount);
 
-	// Object scope hysteresis
-	ObjectScopeHysteresisFrameCounts.SetNumZeroed(MaxObjectCount);
-
 	// Dynamic filters
 	{
 		NetObjectFilteringInfos.SetNumUninitialized(Params.MaxObjectCount);
@@ -250,7 +244,6 @@ void FReplicationFiltering::Init(FReplicationFilteringInitParams& Params)
 	}
 
 	InitFilters();
-	InitObjectScopeHysteresis();
 }
 
 void FReplicationFiltering::Filter()
@@ -258,9 +251,6 @@ void FReplicationFiltering::Filter()
 #if UE_NET_IRIS_CSV_STATS
 	CSV_SCOPED_TIMING_STAT(Iris, Filter_PrePoll);
 #endif
-
-	++FrameIndex;
-
 	ResetRemovedConnections();
 
 	InitNewConnections();
@@ -274,8 +264,6 @@ void FReplicationFiltering::Filter()
 	UpdateOwnerAndConnectionFiltering();
 
 	UpdateSubObjectFilters();
-
-	PreUpdateObjectScopeHysteresis();
 
 	if (HasDynamicFilters())
 	{
@@ -437,7 +425,6 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 			FilterInfo.FilteredObjects.SetBit(ObjIndex);
 			this->ObjectIndexToDynamicFilterIndex[ObjIndex] = static_cast<uint8>(FilterIndex);
 			this->DynamicFilterEnabledObjects.SetBit(ObjIndex);
-			this->ObjectScopeHysteresisFrameCounts[ObjIndex] = this->GetObjectScopeHysteresisFrameCount(FilterConfigProfile);
 			return true;
 		}
 		
@@ -617,7 +604,11 @@ void FReplicationFiltering::RemoveConnection(uint32 ConnectionId)
 	
 	// Reset connection info
 	FPerConnectionInfo& ConnectionInfo = ConnectionInfos[ConnectionId];
-	ConnectionInfo.Deinit();
+	ConnectionInfo.ConnectionFilteredObjects.Empty();
+	ConnectionInfo.GroupExcludedObjects.Empty();
+	ConnectionInfo.ObjectsInScopeBeforeDynamicFiltering.Empty();
+	ConnectionInfo.GroupIncludedObjects.Empty();
+	ConnectionInfo.ObjectsInScope.Empty();
 
 	for (FFilterInfo& Info : DynamicFilterInfos)
 	{
@@ -672,7 +663,6 @@ void FReplicationFiltering::InitNewConnections()
 		{
 			ConnectionInfo.DynamicFilteredOutObjects.Init(MaxObjectCount);
 			ConnectionInfo.InProgressDynamicFilteredOutObjects.Init(MaxObjectCount);
-			ConnectionInfo.HysteresisUpdater.Init(MaxObjectCount);
 		}
 
 		// Update group exclusion filtering
@@ -877,7 +867,7 @@ void FReplicationFiltering::UpdateObjectsInScope()
 			uint32 DeletedObjects = (PrevExistingObjects & ~ExistingObjects);
 			for ( ; DeletedObjects; )
 			{
-				const uint32 LeastSignificantBit = GetLeastSignificantBit(DeletedObjects);
+				const uint32 LeastSignificantBit = DeletedObjects & uint32(-int32(DeletedObjects));
 				DeletedObjects ^= LeastSignificantBit;
 
 				const uint32 ObjectIndex = BitOffset + FPlatformMath::CountTrailingZeros(LeastSignificantBit);
@@ -901,7 +891,7 @@ void FReplicationFiltering::UpdateObjectsInScope()
 			{
 				for ( ; AddedSubObjects; )
 				{
-					const uint32 LeastSignificantBit = GetLeastSignificantBit(AddedSubObjects);
+					const uint32 LeastSignificantBit = AddedSubObjects & uint32(-int32(AddedSubObjects));
 					AddedSubObjects ^= LeastSignificantBit;
 
 					const uint32 ObjectIndex = BitOffset + FPlatformMath::CountTrailingZeros(LeastSignificantBit);
@@ -1254,13 +1244,8 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 {
 	IRIS_PROFILER_SCOPE(FReplicationFiltering_UpdateDynamicFiltering);
 
-	// Working set. Use a reasonable amount of stack.
-	constexpr uint32 TotalObjectCountOnStack = 1024;
-	constexpr uint32 FilteredOutObjectCountOnStack = 256;
-	TArray<uint32, TInlineAllocator<TotalObjectCountOnStack - FilteredOutObjectCountOnStack>> FilteredOutObjects;
-	TArray<uint32, TInlineAllocator<FilteredOutObjectCountOnStack>> FilteredOutDependentObjects;
-	TArray<uint32> FilteredOutByHysteresisObjects;
-	FilteredOutByHysteresisObjects.Reserve(256);
+	// Working set
+	TArray<uint32, TInlineAllocator<256>> DisabledDependentObjects;
 
 	uint32* AllowedObjectsData = static_cast<uint32*>(FMemory_Alloca(WordCountForObjectBitArrays * sizeof(uint32)));
 	FNetBitArrayView AllowedObjects(AllowedObjectsData, MaxObjectCount, FNetBitArrayView::NoResetNoValidate);
@@ -1281,6 +1266,7 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 
 		ConnectionInfo.InProgressDynamicFilteredOutObjects.Reset();
 		uint32* InProgressDynamicFilteredOutObjectsData = ConnectionInfo.InProgressDynamicFilteredOutObjects.GetData();
+		FNetBitArrayView InProgressDynamicFilteredOutObjects = MakeNetBitArrayView(ConnectionInfo.InProgressDynamicFilteredOutObjects);
 
 		/*
 		 * Apply dynamic filters.
@@ -1317,16 +1303,6 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 					InProgressDynamicFilteredOutObjectsData[WordIt] = (InProgressDynamicFilteredOutObjectsData[WordIt] & ~FilteredObjects) | (~FilterAllowedObjects & FilteredObjects);
 				}
 			}
-
-			// Objects in hysteresis should not be filtered out. 
-			if (HysteresisState.Mode == EHysteresisProcessingMode::Enabled)
-			{
-				if (ConnectionInfo.HysteresisUpdater.HasObjectsToUpdate())
-				{
-					FNetBitArrayView InProgressDynamicFilteredOutObjects = MakeNetBitArrayView(ConnectionInfo.InProgressDynamicFilteredOutObjects);
-					InProgressDynamicFilteredOutObjects.Combine(ConnectionInfo.HysteresisUpdater.GetUpdatedObjects(), FNetBitArrayView::AndNotOp);
-				}
-			}
 		}
 
 		/*
@@ -1334,13 +1310,12 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 		 * and try only to do the more expensive operations, such as subobject management,
 		 * for objects that have changed filter status since the previous frame.
 		 */
-		FNetBitArrayView DynamicFilteredOutObjects = MakeNetBitArrayView(ConnectionInfo.DynamicFilteredOutObjects);
 		{
 			IRIS_PROFILER_SCOPE(FReplicationFiltering_OnFilterStatusChanged);
-			FilteredOutObjects.Reset();
-			FilteredOutDependentObjects.Reset();
+			DisabledDependentObjects.Reset();
 
 			const uint32* DynamicFilterEnabledObjectsData = DynamicFilterEnabledObjects.GetData();
+			FNetBitArrayView DynamicFilteredOutObjects = MakeNetBitArrayView(ConnectionInfo.DynamicFilteredOutObjects);
 			uint32* DynamicFilteredOutObjectsData = ConnectionInfo.DynamicFilteredOutObjects.GetData();
 			for (uint32 WordIt = 0, WordEndIt = WordCountForObjectBitArrays; WordIt != WordEndIt; ++WordIt)
 			{
@@ -1361,8 +1336,8 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 					continue;
 				}
 
-				// Update dynamic filter with no longer filtered out objects, but preserve subobject information. Objects that were just filtered out will be dealt with after hysteresis.
-				DynamicFilteredOutObjectsData[WordIt] = (PrevFilteredOutObjects & SubObjects) | (NewFilteredOutObjects & PrevFilteredOutObjects);
+				// Update dynamic filter, but preserve subobject information.
+				DynamicFilteredOutObjectsData[WordIt] = (PrevFilteredOutObjects & SubObjects) | NewFilteredOutObjects;
 
 				const uint32 BitOffset = WordIt*32U;
 
@@ -1371,25 +1346,25 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 				for (uint32 DisabledObjects = NewFilteredOutObjects & ObjectsToProcess; DisabledObjects; )
 				{
 					// Extract one set bit from DisabledObjects. The code below will extract the least significant bit set and then clear it.
-					const uint32 LeastSignificantBit = GetLeastSignificantBit(DisabledObjects);
+					const uint32 LeastSignificantBit = DisabledObjects & uint32(-int32(DisabledObjects));
 					DisabledObjects ^= LeastSignificantBit;
 
-					// Store disabled objects for later processing to minimize performance impact of hysteresis
 					const uint32 ObjectIndex = BitOffset + FPlatformMath::CountTrailingZeros(LeastSignificantBit);
-
-					// Store objects for later processing after hysteresis 
-					FilteredOutObjects.Add(ObjectIndex);
+					for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
+					{						
+						DynamicFilteredOutObjects.SetBit(SubObjectIndex);
+					}
 
 					// Store dependent objects for later processing.
 					if (DependentObjects & LeastSignificantBit)
 					{
-						FilteredOutDependentObjects.Add(ObjectIndex);
+						DisabledDependentObjects.Add(ObjectIndex);
 					}
 				}
 
 				for (uint32 EnabledObjects = ~NewFilteredOutObjects & ObjectsToProcess; EnabledObjects; )
 				{
-					const uint32 LeastSignificantBit = GetLeastSignificantBit(EnabledObjects);
+					const uint32 LeastSignificantBit = EnabledObjects & uint32(-int32(EnabledObjects));
 					EnabledObjects ^= LeastSignificantBit;
 
 					const uint32 ObjectIndex = BitOffset + FPlatformMath::CountTrailingZeros(LeastSignificantBit);
@@ -1397,67 +1372,6 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 					{
 						DynamicFilteredOutObjects.ClearBit(SubObjectIndex);
 					}
-				}
-			}
-		}
-
-		// Update hysteresis
-		if (HysteresisState.Mode == EHysteresisProcessingMode::Enabled)
-		{
-			IRIS_CSV_PROFILER_SCOPE(Iris, FReplicationFiltering_ConnectionHysteresis);
-
-			// Time to update?
-			const uint32 ConnIdMod = ConnId % HysteresisState.ConnectionIdStride;
-			if (ConnIdMod == HysteresisState.ConnectionStartId)
-			{
-				FilteredOutByHysteresisObjects.Reset();
-				ConnectionInfo.HysteresisUpdater.Update(static_cast<uint8>(HysteresisState.ConnectionIdStride), FilteredOutByHysteresisObjects);
-
-				// Unconditionally filter out objects that are no longer kept in scope due to hysteresis.
-				for (const uint32 ObjectIndex : FilteredOutByHysteresisObjects)
-				{
-					DynamicFilteredOutObjects.SetBit(ObjectIndex);
-					for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
-					{
-						DynamicFilteredOutObjects.SetBit(SubObjectIndex);
-					}
-				}
-			}
-
-			// Add filtered out objects to hysteresis if supported and carry out the filtering if not.
-			{
-				// Add the amount of frames that have passed since last update since the update is going to subtract the connection update throttling value.
-				const uint32 AdjustHysteresisForUpdateThrottling = (HysteresisState.ConnectionStartId + HysteresisState.ConnectionIdStride - ConnIdMod) % HysteresisState.ConnectionIdStride;
-				for (const uint32 ObjectIndex : FilteredOutObjects)
-				{
-					if (const uint32 HysteresisFrameCount = ObjectScopeHysteresisFrameCounts[ObjectIndex])
-					{
-						// We need to adjust the hysteresis frame count to account for when it will be updated. The -1 stems from the fact that updating won't happen until next frame at the earliest.
-						const uint16 TotalHysteresisFrameCount = static_cast<uint16>(HysteresisFrameCount - 1 + AdjustHysteresisForUpdateThrottling);
-						ConnectionInfo.HysteresisUpdater.SetHysteresisFrameCount(ObjectIndex, TotalHysteresisFrameCount);
-					}
-					else
-					{
-						// Filter out
-						DynamicFilteredOutObjects.SetBit(ObjectIndex);
-						for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
-						{
-							DynamicFilteredOutObjects.SetBit(SubObjectIndex);
-						}
-					}
-				}
-			}
-		}
-		else
-		{
-			IRIS_PROFILER_SCOPE(FReplicationFiltering_ConnectionFilterOut);
-			// Filter out objects
-			for (const uint32 ObjectIndex : FilteredOutObjects)
-			{
-				DynamicFilteredOutObjects.SetBit(ObjectIndex);
-				for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
-				{
-					DynamicFilteredOutObjects.SetBit(SubObjectIndex);
 				}
 			}
 		}
@@ -1484,7 +1398,7 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 		// If any object that has a dependency that isn't filtered out we must re-enable the dependent object.
 		{
 			IRIS_PROFILER_SCOPE(FReplicationFiltering_UpdateDependentObjects);
-			for (const uint32 DependentObjectIndex : FilteredOutDependentObjects)
+			for (const uint32 DependentObjectIndex : DisabledDependentObjects)
 			{
 				if (GetDependentObjectFilterStatus(NetRefHandleManager, ConnectionInfo.ObjectsInScope, DependentObjectIndex) == ENetFilterStatus::Allow)
 				{
@@ -1521,8 +1435,6 @@ void FReplicationFiltering::PostUpdateDynamicFiltering()
 			Info.Filter->PostFilter(PostFilteringParams);
 		}
 	}
-
-	PostUpdateObjectScopeHysteresis();
 }
 
 void FReplicationFiltering::NotifyFiltersOfDirtyObjects()
@@ -2146,18 +2058,6 @@ bool FReplicationFiltering::ClearGroupInclusionFilterEffectsForObject(uint32 Obj
 		
 		GroupIncludedObjects.ClearBit(ObjectIndex);
 
-		// Dynamically filtered objects are subject to hysteresis.
-		if (HysteresisState.Mode == EHysteresisProcessingMode::Enabled)
-		{
-			const uint8 HysteresisFrameCount = DynamicFilterEnabledObjects.GetBit(ObjectIndex) ? ObjectScopeHysteresisFrameCounts[ObjectIndex] : uint8(0);
-			if (HysteresisFrameCount)
-			{
-				const uint32 ConnIdMod = ConnectionId % HysteresisState.ConnectionIdStride;
-				const uint32 AdjustHysteresisForUpdateThrottling = (HysteresisState.ConnectionStartId + HysteresisState.ConnectionIdStride - ConnIdMod) % HysteresisState.ConnectionIdStride;
-				ConnectionInfo.HysteresisUpdater.SetHysteresisFrameCount(ObjectIndex, static_cast<uint16>(HysteresisFrameCount + AdjustHysteresisForUpdateThrottling));
-			}
-		}
-
 		for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
 		{
 			GroupIncludedObjects.ClearBit(SubObjectIndex);
@@ -2507,13 +2407,6 @@ void FReplicationFiltering::InitFilters()
 	}
 }
 
-void FReplicationFiltering::InitObjectScopeHysteresis()
-{
-	HysteresisState.Mode = Config->IsObjectScopeHysteresisEnabled() ? EHysteresisProcessingMode::Enabled : EHysteresisProcessingMode::Disabled;
-	// Always allocated and maintained regardless of whether the feature is enabled or not.
-	HysteresisState.ObjectsToClear.SetNumBits(MaxObjectCount);
-}
-
 void FReplicationFiltering::RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 FilterIndex)
 {
 	UE_LOG(LogIrisFiltering, Verbose, TEXT("RemoveFromDynamicFilter removing %s from Dynamic Filter %s"), 
@@ -2528,9 +2421,6 @@ void FReplicationFiltering::RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 F
 
 	DynamicFilterEnabledObjects.ClearBit(ObjectIndex);
 	ObjectsRequiringDynamicFilterUpdate.SetBit(ObjectIndex);
-
-	// Remove from hysteresis
-	HysteresisState.ClearFromHysteresis(ObjectIndex);
 }
 
 void FReplicationFiltering::InvalidateBaselinesForObject(uint32 ObjectIndex, uint32 NewOwningConnectionId, uint32 PrevOwningConnectionId)
@@ -2612,72 +2502,6 @@ void FReplicationFiltering::BuildObjectsInFilterList(FNetBitArrayView OutObjects
 			return;
 		}
 	}
-}
-
-
-void FReplicationFiltering::PreUpdateObjectScopeHysteresis()
-{
-	if (HysteresisState.Mode == EHysteresisProcessingMode::Enabled)
-	{
-		HysteresisState.ConnectionStartId = (FrameIndex % Config->GetHysteresisUpdateConnectionThrottling());
-		HysteresisState.ConnectionIdStride = Config->GetHysteresisUpdateConnectionThrottling();
-	}
-
-	ClearObjectsFromHysteresis();
-}
-
-void FReplicationFiltering::PostUpdateObjectScopeHysteresis()
-{
-	HysteresisState.ObjectsToClearCount = 0;
-	HysteresisState.ObjectsToClear.Reset();
-}
-
-void FReplicationFiltering::ClearObjectsFromHysteresis()
-{
-	if (!HysteresisState.ObjectsToClearCount)
-	{
-		return;
-	}
-
-	IRIS_PROFILER_SCOPE(FObjectScopeHysteresisUpdater_ClearObjectsFromHysteresis);
-
-	// $IRIS TODO: Use more optimal path for low counts of objects to clear, for example passing an ArrayView instead.
-	ValidConnections.ForAllSetBits([this](uint32 ConnectionId)
-		{
-			FPerConnectionInfo& ConnectionInfo = this->ConnectionInfos[ConnectionId];
-			ConnectionInfo.HysteresisUpdater.RemoveHysteresis(MakeNetBitArrayView(this->HysteresisState.ObjectsToClear));
-		});
-}
-
-uint8 FReplicationFiltering::GetObjectScopeHysteresisFrameCount(FName ProfileName) const
-{
-	if (const FObjectScopeHysteresisProfile* Profile = Config->GetHysteresisProfiles().FindByKey(ProfileName))
-	{
-		return Profile->HysteresisFrameCount;
-	}
-
-	return Config->GetDefaultHysteresisFrameCount();
-}
-
-void FReplicationFiltering::FPerConnectionInfo::Deinit()
-{
-	ConnectionFilteredObjects.Empty();
-	GroupExcludedObjects.Empty();
-	ObjectsInScopeBeforeDynamicFiltering.Empty();
-	GroupIncludedObjects.Empty();
-	ObjectsInScope.Empty();
-	DynamicFilteredOutObjects.Empty();
-	InProgressDynamicFilteredOutObjects.Empty();
-	HysteresisUpdater.Deinit();
-}
-
-//*************************************************************************************************
-// FObjectScopeHysteresisState
-//*************************************************************************************************
-void FReplicationFiltering::FObjectScopeHysteresisState::ClearFromHysteresis(FInternalNetRefIndex NetRefIndex)
-{
-	ObjectsToClear.SetBit(NetRefIndex);
-	++ObjectsToClearCount;
 }
 
 //*************************************************************************************************
