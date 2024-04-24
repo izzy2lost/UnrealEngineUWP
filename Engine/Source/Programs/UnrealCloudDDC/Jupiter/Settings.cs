@@ -115,8 +115,15 @@ namespace Jupiter
 		public bool EnableOnDemandReplication { get; set; } = true;
 
 		public bool EnableBucketStatsTracking { get; set; } = true;
-		public bool EnablePutRefBodyIntoBlobStore { get; set; } = true;
+		public bool EnableInlineSmallBlobs { get; set; } = true;
+
+		/// <summary>
+		/// Forces the inlined blobs to also be submitted into the blob store, is the old behavior and is not recommended.
+		/// </summary>
+		public bool EnableForceSubmitRefBlobToBlobStore { get; set; } = true;
 		public bool RequirePrivatePortForEnumeration { get; set; } = true;
+
+		public long InlineBlobMaxSize { get; set; } = 32 * 1024; // default to 32 kb blobs max
 	}
 
 	public class MongoSettings

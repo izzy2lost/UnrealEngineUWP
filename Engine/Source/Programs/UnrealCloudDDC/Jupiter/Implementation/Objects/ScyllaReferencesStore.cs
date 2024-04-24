@@ -145,12 +145,6 @@ namespace Jupiter.Implementation
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.put").SetAttribute("resource.name", $"{ns}.{bucket}.{name}");
 
-			if (blob.LongLength > _settings.CurrentValue.InlineBlobMaxSize)
-			{
-				// do not inline large blobs
-				blob = Array.Empty<byte>();
-			}
-
 			// add the bucket in parallel with inserting the actual object
 			Task addBucketTask = AddBucketAsync(ns, bucket);
 

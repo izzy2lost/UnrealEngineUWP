@@ -41,8 +41,12 @@ UnrealCloudDDC:
   EnableBucketStatsTracking: {{ $config.EnableBucketStatsTracking }}
 {{- end }}
 
-{{- if hasKey $config "EnablePutRefBodyIntoBlobStore" }}
-  EnablePutRefBodyIntoBlobStore: {{ $config.EnablePutRefBodyIntoBlobStore }}
+{{- if hasKey $config "EnableForceSubmitRefBlobToBlobStore" }}
+  EnableForceSubmitRefBlobToBlobStore: {{ $config.EnableForceSubmitRefBlobToBlobStore }}
+{{- end }}
+
+{{- if hasKey $config "EnableInlineSmallBlobs" }}
+  EnableInlineSmallBlobs: {{ $config.EnableInlineSmallBlobs }}
 {{- end }}
 
 {{ if $config.StorageImplementations }}

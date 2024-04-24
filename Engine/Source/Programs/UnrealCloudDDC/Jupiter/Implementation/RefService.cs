@@ -134,10 +134,25 @@ namespace Jupiter.Implementation
 			// if we have no references we are always finalized, e.g. there are no referenced blobs to upload
 			bool isFinalized = !hasReferences;
 
-			Task objectStorePut = _referencesStore.PutAsync(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized, cancellationToken);
+			// if inlining is enabled and the blob is small we inline it, use EnableForceSubmitRefBlobToBlobStore(false) to disable the backup submission into the blob store
+			byte[] blobPayloadBytes = payload.GetView().ToArray();
+			bool putIntoBlobStore = _cloudDDCSettings.CurrentValue.EnableForceSubmitRefBlobToBlobStore;
+			bool inlineBlob = _cloudDDCSettings.CurrentValue.EnableInlineSmallBlobs;
+			if (inlineBlob && blobPayloadBytes.LongLength > _cloudDDCSettings.CurrentValue.InlineBlobMaxSize)
+			{
+				// do not inline large blobs, instead put them into the blob store
+				blobPayloadBytes = Array.Empty<byte>();
+				putIntoBlobStore = true;
+			}
+			else if (!inlineBlob)
+			{
+				putIntoBlobStore = true;
+			}
+
+			Task objectStorePut = _referencesStore.PutAsync(ns, bucket, key, blobHash, blobPayloadBytes, isFinalized, cancellationToken);
 
 			Task<BlobId>? blobStorePut = null;
-			if (_cloudDDCSettings.CurrentValue.EnablePutRefBodyIntoBlobStore)
+			if (putIntoBlobStore)
 			{
 				blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash, cancellationToken);
 			}

@@ -1,4 +1,5 @@
 # Unreleased
+* `InlineMaxBlobSize` option has moved from `Scylla` to `UnrealCloudDDC` as this can now be used to generally control if blob are inlined into the ref store (minimal practical difference as only Scylla supports inlining blobs). Resolves issue with `EnablePutRefBodyIntoBlobStore` option which will prevent these inlined blobs from also being added to the blob store.
 
 # 1.1.1
 * Fixes to helm chart when using ServiceAccounts for authentication and configuring replication
