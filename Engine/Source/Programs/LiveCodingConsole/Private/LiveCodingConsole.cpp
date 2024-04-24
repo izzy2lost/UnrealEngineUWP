@@ -187,6 +187,8 @@ public:
 		{
 			BeginExitIfRequested();
 
+			FTSTicker::GetCoreTicker().Tick(FApp::GetDeltaTime());
+
 			Slate.PumpMessages();
 			Slate.Tick();
 
