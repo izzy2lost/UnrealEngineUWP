@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "AudioMaterialSlateTypes.h"
+#include "AudioWidgetsStyle.h"
 #include "Framework/SlateDelegates.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
@@ -24,6 +25,7 @@ public:
 	, _Locked(false)
 	, _MouseUsesStep(false)
 	, _StepSize(0.01f)
+	, _AudioMaterialKnobStyle(&FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialKnobStyle>("AudioMaterialKnob.Style"))
 	{}
 
 	/** The owner object*/
@@ -68,7 +70,7 @@ public:
 	void Construct(const FArguments& InArgs);
 
 	/** Set the Value attribute */
-	void SetValue(float InValueAttribute);
+	void SetValue(const TAttribute<float>& InValueAttribute);
 
 	/** Set the TuneSpeed attribute */
 	void SetTuneSpeed(const float InMouseSpeed);

@@ -35,6 +35,9 @@ public:
 	/** Called when the button's state changes. */
 	SLATE_EVENT(FOnBooleanValueChanged, OnBooleanValueChanged)
 
+	/** Invoked when the mouse is released and a capture ends. */
+	SLATE_EVENT(FSimpleDelegate, OnMouseCaptureEnd)
+
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -51,7 +54,10 @@ public:
 
 public:
 
-	FOnBooleanValueChanged OnIsPressedStateChanged;
+	FOnBooleanValueChanged OnBooleanValueChanged;
+
+	// Holds a delegate that is executed when the mouse is let up and a capture ends.
+	FSimpleDelegate OnMouseCaptureEnd;
 
 protected:
 

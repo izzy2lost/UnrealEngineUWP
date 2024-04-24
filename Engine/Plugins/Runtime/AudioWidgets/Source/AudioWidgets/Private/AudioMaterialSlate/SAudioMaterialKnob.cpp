@@ -3,7 +3,6 @@
 
 #include "AudioMaterialSlate/SAudioMaterialKnob.h"
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
-#include "AudioWidgetsStyle.h"
 #include "Framework/Application/SlateApplication.h"
 #include "SlateOptMacros.h"
 #include "Components/Widget.h"
@@ -26,12 +25,6 @@ void SAudioMaterialKnob::Construct(const FArguments& InArgs)
 	OnMouseCaptureBegin = InArgs._OnMouseCaptureBegin;
 	OnMouseCaptureEnd = InArgs._OnMouseCaptureEnd;
 
-	//For now check if owner is not a widget -> use the default style.
-	if (!Cast<UWidget>(Owner))
-	{
-		AudioMaterialKnobStyle = &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialKnobStyle>("AudioMaterialKnob.Style");
-	}
-
 	ApplyNewMaterial();
 
 	if (InArgs._Value.IsSet())
@@ -41,9 +34,9 @@ void SAudioMaterialKnob::Construct(const FArguments& InArgs)
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-void SAudioMaterialKnob::SetValue(float InValue)
+void SAudioMaterialKnob::SetValue(const TAttribute<float>& InValueAttribute)
 {
-	CommitValue(InValue);
+	SetAttribute(ValueAttribute, InValueAttribute, EInvalidateWidgetReason::Paint);
 }
 
 void SAudioMaterialKnob::SetTuneSpeed(const float InTurnSpeed)

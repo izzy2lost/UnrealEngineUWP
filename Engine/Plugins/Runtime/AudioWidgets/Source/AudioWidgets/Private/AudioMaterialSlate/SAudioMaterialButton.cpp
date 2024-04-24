@@ -12,7 +12,8 @@ void SAudioMaterialButton::Construct(const FArguments& InArgs)
 	Owner = InArgs._Owner;
 	AudioMaterialButtonStyle = InArgs._AudioMaterialButtonStyle;
 	bIsPressedAttribute = InArgs._bIsPressedAttribute;
-	OnIsPressedStateChanged = InArgs._OnBooleanValueChanged;
+	OnBooleanValueChanged = InArgs._OnBooleanValueChanged;
+	OnMouseCaptureEnd = InArgs._OnMouseCaptureEnd;
 
 	ApplyNewMaterial();
 
@@ -115,6 +116,7 @@ FReply SAudioMaterialButton::OnMouseButtonUp(const FGeometry& MyGeometry, const 
 {
 	if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) && this->HasMouseCapture())
 	{
+		OnMouseCaptureEnd.ExecuteIfBound();
 		return FReply::Handled().ReleaseMouseCapture();
 	}
 
@@ -123,6 +125,13 @@ FReply SAudioMaterialButton::OnMouseButtonUp(const FGeometry& MyGeometry, const 
 
 void SAudioMaterialButton::CommitNewState(bool InPressedState)
 {
-	bIsPressedAttribute.Set(InPressedState);
-	OnIsPressedStateChanged.ExecuteIfBound(InPressedState);
+	if (bIsPressedAttribute.Get() != InPressedState)
+	{
+		if (!bIsPressedAttribute.IsBound())
+		{
+			bIsPressedAttribute.Set(InPressedState);
+		}
+		Invalidate(EInvalidateWidgetReason::Paint);
+		OnBooleanValueChanged.ExecuteIfBound(InPressedState);
+	}
 }

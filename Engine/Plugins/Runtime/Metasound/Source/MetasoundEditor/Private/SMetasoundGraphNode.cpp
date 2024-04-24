@@ -72,22 +72,28 @@ namespace Metasound
 			{
 				if (UMetasoundEditorGraphMember* GraphMember = MemberNode->GetMember())
 				{
+					// This may hit if the asset editor is closed while interacting with a widget 
+					// (ex. Ctrl-W is pressed mid drag before the value is committed)
+					if (bIsInputWidgetTransacting)
+					{
+						GEditor->EndTransaction();
+						if (UMetasoundEditorGraph* Graph = GraphMember->GetOwningGraph())
+						{
+							constexpr bool bPostTransaction = false;
+							GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
+							FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
+						}
+					}
+
 					if (UMetasoundEditorGraphMemberDefaultFloat* DefaultFloat = Cast<UMetasoundEditorGraphMemberDefaultFloat>(GraphMember->GetLiteral()))
 					{
-						// This may hit if the asset editor is closed while interacting with a widget 
-						// (ex. Ctrl-W is pressed mid drag before the value is committed)
-						if (bIsInputWidgetTransacting)
-						{
-							GEditor->EndTransaction();
-							if (UMetasoundEditorGraph* Graph = GraphMember->GetOwningGraph())
-							{
-								constexpr bool bPostTransaction = false;
-								GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
-								FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
-							}
-						}
 						DefaultFloat->OnDefaultValueChanged.Remove(InputSliderOnValueChangedDelegateHandle);
 						DefaultFloat->OnRangeChanged.Remove(InputSliderOnRangeChangedDelegateHandle);
+
+					}
+					else if (UMetasoundEditorGraphMemberDefaultBool* DefaultBool = Cast<UMetasoundEditorGraphMemberDefaultBool>(GraphMember->GetLiteral()))
+					{
+						DefaultBool->OnDefaultStateChanged.Remove(InputButtonOnStateChangedDelegateHandle);
 					}
 				}
 			}
@@ -1002,6 +1008,7 @@ namespace Metasound
 
 							if ((bIsNotTriggerNode && IsValid(DefaultBool)) && DefaultBool->WidgetType != EMetasoundBoolMemberDefaultWidget::None)
 							{
+								bShowContentWidget = true;
 								constexpr float WidgetPadding = 3.0f;
 								static const FVector2D ButtonDesiredSize = FVector2D(56.0f, 87.0f);
 
@@ -1023,7 +1030,19 @@ namespace Metasound
 										}
 									};
 
-								bShowContentWidget = true;
+								auto OnboolMouseCaptureEndLambda = [this]()
+									{
+										if (bIsInputWidgetTransacting)
+										{
+											GEditor->EndTransaction();
+											bIsInputWidgetTransacting = false;
+										}
+										else
+										{
+											UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
+										}
+									};
+
 								SAssignNew(OuterContentBox, SVerticalBox)
 									+ SVerticalBox::Slot()
 									.HAlign(HAlign_Right)
@@ -1040,10 +1059,27 @@ namespace Metasound
 									[
 										SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
 											.OnBooleanValueChanged_Lambda(OnboolValueChangedLambda)
+											.OnMouseCaptureEnd_Lambda(OnboolMouseCaptureEndLambda)
+											.bIsPressedAttribute(DefaultBool->GetDefault())
 									];
 
-								MaterialButtonWidget->SetPressedState(DefaultBool->GetDefault());
 								MaterialButtonWidget->SetDesiredSizeOverride(ButtonDesiredSize);
+
+
+								// Setup & clear delegate if necessary (ex. if was just saved)
+								if (InputButtonOnStateChangedDelegateHandle.IsValid())
+								{
+									DefaultBool->OnDefaultStateChanged.Remove(InputButtonOnStateChangedDelegateHandle);
+									InputButtonOnStateChangedDelegateHandle.Reset();
+								}
+
+								InputButtonOnStateChangedDelegateHandle = DefaultBool->OnDefaultStateChanged.AddLambda([Widget = MaterialButtonWidget](bool Value)
+									{
+										if (Widget.IsValid())
+										{
+											Widget->SetPressedState(Value);
+										}
+									});
 							}
 						}
 					}

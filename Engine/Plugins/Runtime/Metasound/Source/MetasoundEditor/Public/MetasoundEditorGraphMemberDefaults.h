@@ -39,6 +39,9 @@ struct FMetasoundEditorGraphMemberDefaultBoolRef
 	bool Value = false;
 };
 
+// For bool input widget
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnMetasoundBoolStateChangedEvent, bool);
+
 UCLASS(MinimalAPI)
 class UMetasoundEditorGraphMemberDefaultBool : public UMetasoundEditorGraphMemberDefaultLiteral
 {
@@ -52,6 +55,8 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Widget, meta = (DisplayName = "Widget"))
 	EMetasoundBoolMemberDefaultWidget WidgetType = EMetasoundBoolMemberDefaultWidget::None;
+
+	FOnMetasoundBoolStateChangedEvent OnDefaultStateChanged;
 
 	virtual FMetasoundFrontendLiteral GetDefault() const override;
 	virtual EMetasoundFrontendLiteralType GetLiteralType() const override;

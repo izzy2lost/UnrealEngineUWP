@@ -82,7 +82,10 @@ namespace Metasound::Editor
 		TSharedPtr<SAudioInputWidget> InputWidget;
 
 		//Button Widget for bool input.
-		TSharedPtr <SAudioMaterialButton> MaterialButtonWidget;
+		TSharedPtr<SAudioMaterialButton> MaterialButtonWidget;
+
+		// Handle for on state changed delegate for Button 
+		FDelegateHandle InputButtonOnStateChangedDelegateHandle;
 
 		// Handle for on value changed delegate for input slider 
 		FDelegateHandle InputSliderOnValueChangedDelegateHandle;

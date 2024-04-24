@@ -72,7 +72,11 @@ void UMetasoundEditorGraphMemberDefaultBool::UpdatePreviewInstance(const Metasou
 
 void UMetasoundEditorGraphMemberDefaultBool::SetDefault(const bool InDefault)
 {
-	Default.Value = InDefault;
+	if (Default.Value != InDefault)
+	{
+		Default.Value = InDefault;
+		OnDefaultStateChanged.Broadcast(InDefault);
+	}
 }
 
 const bool UMetasoundEditorGraphMemberDefaultBool::GetDefault()
