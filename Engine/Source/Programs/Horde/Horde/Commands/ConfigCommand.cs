@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
+using EpicGames.Horde;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -14,24 +15,16 @@ namespace Horde.Commands
 		[Description("Updates the server URL")]
 		public string? Server { get; set; }
 
-		readonly CmdConfig _config;
-
-		public ConfigCommand(IOptions<CmdConfig> config)
-		{
-			_config = config.Value;
-		}
-
 		/// <inheritdoc/>
-		public override async Task<int> ExecuteAsync(ILogger logger)
+		public override Task<int> ExecuteAsync(ILogger logger)
 		{
 			if (Server != null)
 			{
-				_config.Server = new Uri(Server);
-				await _config.WriteAsync();
+				HordeOptions.SetDefaultServerUrl(new Uri(Server));
 			}
 
-			logger.LogInformation("Server: {Server}", _config.Server);
-			return 0;
+			logger.LogInformation("Server: {Server}", HordeOptions.GetDefaultServerUrl());
+			return Task.FromResult<int>(0);
 		}
 	}
 }

@@ -33,22 +33,16 @@ namespace Horde.Commands
 		/// </summary>
 		public BundleCache BundleCache { get; }
 
-		/// <summary>
-		/// Configuration for the tool
-		/// </summary>
-		public CmdConfig Config { get; }
-
 		readonly HttpStorageClientFactory _storageClientFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageCommandBase(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)
+		public StorageCommandBase(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
 		{
 			_storageClientFactory = storageClientFactory;
 
 			BundleCache = bundleCache;
-			Config = config.Value;
 		}
 
 		/// <summary>

@@ -35,8 +35,8 @@ namespace Horde.Commands.Bundles
 		[Description("Clean the output folder before writing any data")]
 		public bool CleanOutput { get; set; }
 
-		public BundleCreate(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)
-			: base(storageClientFactory, bundleCache, config)
+		public BundleCreate(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
+			: base(storageClientFactory, bundleCache)
 		{
 		}
 

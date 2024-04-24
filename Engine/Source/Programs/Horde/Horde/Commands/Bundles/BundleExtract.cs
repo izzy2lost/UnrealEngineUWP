@@ -40,8 +40,8 @@ namespace Horde.Commands.Bundles
 		[Description("If set, deletes the contents of the output directory before extraction.")]
 		public bool CleanOutput { get; set; }
 
-		public BundleExtract(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)
-			: base(storageClientFactory, bundleCache, config)
+		public BundleExtract(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
+			: base(storageClientFactory, bundleCache)
 		{
 		}
 

@@ -29,18 +29,14 @@ namespace Horde
 				.AddEnvironmentVariables()
 				.Build();
 
-			CmdConfig cmdConfig = CmdConfig.Read();
-
 			using ILoggerFactory loggerFactory = CreateLoggerFactory(configuration, arguments);
 
 			IServiceCollection services = new ServiceCollection();
 			services.Configure<HordeOptions>(options => configuration.Bind("Horde", options));
-			services.Configure<HordeOptions>(options => options.ServerUrl = cmdConfig.Server);
 			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
 			services.AddSingleton(loggerFactory);
 			services.AddLogging();
 			services.AddMemoryCache();
-			services.AddSingleton(Options.Create(cmdConfig));
 			services.AddHorde();
 
 			// Execute all the commands

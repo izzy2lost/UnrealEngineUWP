@@ -21,34 +21,22 @@ namespace Horde.Commands
 			public string[]? RedirectUrls { get; set; }
 		}
 
-		[CommandLine("-Server=")]
-		[Description("The server to connect to")]
-		public string? Server { get; set; }
-
 		[CommandLine("-Token")]
 		[Description("Echo the bearer token acquired from the server to stdout")]
 		public bool Token { get; set; }
 
 		readonly IServiceProvider _serviceProvider;
 		readonly IHordeClient _hordeClient;
-		readonly CmdConfig _config;
 
-		public LoginCommand(IServiceProvider serviceProvider, IHordeClient hordeClient, IOptions<CmdConfig> config)
+		public LoginCommand(IServiceProvider serviceProvider, IHordeClient hordeClient)
 		{
 			_serviceProvider = serviceProvider;
 			_hordeClient = hordeClient;
-			_config = config.Value;
 		}
 
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			if (Server != null)
-			{
-				_config.Server = new Uri(Server);
-				await _config.WriteAsync();
-			}
-
 			using HordeHttpClient httpClient = _hordeClient.CreateHttpClient();
 
 			GetServerInfoResponse serverInfo = await httpClient.GetServerInfoAsync();

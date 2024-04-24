@@ -42,8 +42,8 @@ namespace Horde.Commands.Workspace
 		[Description("Outputs stats for the extraction operation.")]
 		public bool Stats { get; set; }
 
-		public WorkspaceSync(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)
-			: base(storageClientFactory, bundleCache, config)
+		public WorkspaceSync(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
+			: base(storageClientFactory, bundleCache)
 		{
 		}
 
