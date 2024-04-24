@@ -168,4 +168,16 @@ namespace ContentBrowserUtils
 	 * An instance name of None gives global settings.
 	 */
 	EContentBrowserItemAttributeFilter GetContentBrowserItemAttributeFilter(FName InstanceName);
+
+	/** 
+	 * Try and find a valid content browser item from a path provided from user text input.
+	 * Examples of paths:
+	 * 	- A full virtual folder or item path such as /All/Game/Maps /All/Game/Maps/Arena.Arena
+	 *  - An internal asset path such as /Game/Maps/Arena.Arena
+	 *  - An internal package name such as /Game/Maps/Arena 
+	 * 	- An internal package path such as /Game/Maps
+	 * 	- An 'export text' path / asset reference such as /Script/Engine.World'/Game/Maps/Arena.Arena'
+	 *  - A filesystem path to a uasset or umap file.
+	 */
+	FContentBrowserItem TryGetItemFromUserProvidedPath(FStringView RequestedPathView);
 }

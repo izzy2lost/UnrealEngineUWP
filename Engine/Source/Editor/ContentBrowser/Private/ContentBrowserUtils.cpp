@@ -1032,4 +1032,83 @@ EContentBrowserItemAttributeFilter ContentBrowserUtils::GetContentBrowserItemAtt
 		 | (bDisplayDevelopersContent ? EContentBrowserItemAttributeFilter::IncludeDeveloper : EContentBrowserItemAttributeFilter::IncludeNone)
 		 | (bDisplayL10NContent ? EContentBrowserItemAttributeFilter::IncludeLocalized : EContentBrowserItemAttributeFilter::IncludeNone);
 }
+
+FContentBrowserItem ContentBrowserUtils::TryGetItemFromUserProvidedPath(FStringView RequestedPathView)
+{
+	// For all types of accepted input we can trim a trailing slash if it exists
+	if (RequestedPathView.EndsWith('/'))
+	{
+		RequestedPathView.LeftChopInline(1);
+	}
+
+	UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+	FName RequestedPath(RequestedPathView);
+
+	// If the path is already a valid virtual path, go there
+	FContentBrowserItem Item = ContentBrowserData->GetItemAtPath(RequestedPath, EContentBrowserItemTypeFilter::IncludeAll);
+	if (Item.IsValid())
+	{
+		return Item;
+	}
+
+	// If the path is a non-virtual path like /Game/Maps transform it into a virtual path and try and find an item there
+	FName VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(RequestedPath);
+	if (!VirtualPath.IsNone())
+	{
+		Item = ContentBrowserData->GetItemAtPath(VirtualPath, EContentBrowserItemTypeFilter::IncludeAll);
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+	}
+
+	// If the string is a complete object path (with or without class), sync to that asset
+	FStringView ObjectPathView = RequestedPathView;
+	if (FPackageName::IsValidObjectPath(ObjectPathView) || FPackageName::ParseExportTextPath(RequestedPathView, nullptr, &ObjectPathView))
+	{
+		VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(FName(ObjectPathView));
+		Item = ContentBrowserData->GetItemAtPath(VirtualPath, EContentBrowserItemTypeFilter::IncludeFiles);
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+	}
+
+	// If the string is a filesystem path to a package, sync to that asset
+	FString PackageName;
+	if (FPackageName::IsValidLongPackageName(PackageName) || FPackageName::TryConvertFilenameToLongPackageName(FString(RequestedPathView), PackageName))
+	{
+		// Packages like /Game/Characters/Knight do not map to virtual paths in data source, assets like /Game/Characters/Knight.Knight do.
+		// See if there's an item if we duplicate the last part of the path 
+		FName InternalPath(TStringBuilder<320>(InPlace, PackageName, TEXTVIEW("."), FPackageName::GetShortName(PackageName)));
+		VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(InternalPath);
+		Item = ContentBrowserData->GetItemAtPath(RequestedPath, EContentBrowserItemTypeFilter::IncludeFiles);
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+
+		// Otherwise go up to the package path and enumerate items to see if there's an asset with the desired package name 
+		FString PackagePath = FPackageName::GetLongPackagePath(PackageName);
+		VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(FName(PackagePath));
+		FContentBrowserDataFilter Filter;
+		Filter.bRecursivePaths = false;
+		Filter.ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeFiles;
+		ContentBrowserData->EnumerateItemsUnderPath(VirtualPath, Filter, [&Item, &PackageName](FContentBrowserItem&& InItem) { 
+			FName InternalPath = InItem.GetInternalPath();	
+			if (WriteToString<256>(InternalPath).ToView().StartsWith(PackageName))
+			{
+				Item = MoveTemp(InItem);
+				return false; 
+			}
+			return true;
+		});
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+	}
+
+	return FContentBrowserItem();
+}
 #undef LOCTEXT_NAMESPACE

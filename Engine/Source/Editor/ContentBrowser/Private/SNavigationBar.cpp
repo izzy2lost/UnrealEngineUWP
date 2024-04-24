@@ -14,6 +14,12 @@
 
 #define LOCTEXT_NAMESPACE "ContentBrowser"
 
+struct FNavigationCrumb
+{
+	FString Path;
+	bool bHasChildren; // Whether to show the > button next to this location allowing navigation to children
+};
+
 // Category of list view item to choose an icon
 enum class ELocationSource
 {
@@ -104,6 +110,8 @@ void SNavigationBar::Construct(const FArguments& InArgs)
 	OnCompletePrefix = InArgs._OnCompletePrefix;
 	OnNavigateToPath = InArgs._OnNavigateToPath;
 	OnCanEditPathAsText = InArgs._OnCanEditPathAsText;
+	OnPathClicked = InArgs._OnPathClicked;
+	OnGetPathMenuContent = InArgs._GetPathMenuContent;
 
 	ComboBoxStyle = InArgs._ComboBoxStyle;
 	TextBoxStyle = InArgs._TextBoxStyle;
@@ -139,15 +147,15 @@ void SNavigationBar::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Fill)
 				[
-					SAssignNew(BreadcrumbBar, SBreadcrumbTrail<FString>)
+					SAssignNew(BreadcrumbBar, SBreadcrumbTrail<FNavigationCrumb>)
 					.Visibility(this, &SNavigationBar::GetNonEditVisibility)
 					.TextStyle(InArgs._BreadcrumbTextStyle)
 					.ButtonStyle(InArgs._BreadcrumbButtonStyle)
 					.ButtonContentPadding(InArgs._BreadcrumbButtonContentPadding)
 					.DelimiterImage(InArgs._BreadcrumbDelimiterImage)
-					.OnCrumbClicked(InArgs._OnPathClicked)
-					.HasCrumbMenuContent(InArgs._HasPathMenuContent)
-					.GetCrumbMenuContent(InArgs._GetPathMenuContent)
+					.OnCrumbClicked(this, &SNavigationBar::HandleCrumbClicked)
+					.HasCrumbMenuContent(this, &SNavigationBar::HandleHasCrumbMenuContent)
+					.GetCrumbMenuContent(this, &SNavigationBar::HandleGetCrumbMenuContent)
 				]
 				// Editable text box taking up all space
 				+ SOverlay::Slot()
@@ -216,9 +224,28 @@ void SNavigationBar::ClearPaths()
 	BreadcrumbBar->ClearCrumbs();
 }
 
-void SNavigationBar::PushPath(const FText& ElementText, const FString& FullPath)
+void SNavigationBar::PushPath(const FText& ElementText, const FString& FullPath, bool bHasChildren)
 {
-	BreadcrumbBar->PushCrumb(ElementText, FullPath);	
+	BreadcrumbBar->PushCrumb(ElementText, FNavigationCrumb{FullPath, bHasChildren});	
+}
+
+void SNavigationBar::HandleCrumbClicked(const FNavigationCrumb& Crumb)
+{
+	OnPathClicked.ExecuteIfBound(Crumb.Path);
+}
+
+bool SNavigationBar::HandleHasCrumbMenuContent(const FNavigationCrumb& Crumb)
+{
+	return Crumb.bHasChildren;
+}
+
+TSharedRef<SWidget> SNavigationBar::HandleGetCrumbMenuContent(const FNavigationCrumb& Crumb)
+{
+	if (OnGetPathMenuContent.IsBound())
+	{
+		return OnGetPathMenuContent.Execute(Crumb.Path);
+	}
+	return SNullWidget::NullWidget;
 }
 
 bool SNavigationBar::SupportsKeyboardFocus() const 
@@ -390,10 +417,10 @@ void SNavigationBar::StartEditingPath()
 	FText Text = FText::GetEmpty();
 	if (BreadcrumbBar->HasCrumbs())
 	{
-		FString Path = BreadcrumbBar->PeekCrumb();
-		if (OnCanEditPathAsText.IsBound() && OnCanEditPathAsText.Execute(Path))
+		FNavigationCrumb Crumb = BreadcrumbBar->PeekCrumb();
+		if (OnCanEditPathAsText.IsBound() && OnCanEditPathAsText.Execute(Crumb.Path))
 		{
-			Text = FText::FromString(Path);
+			Text = FText::FromString(Crumb.Path);
 		}
 	}
 	EditableText->SetText(Text);
@@ -412,7 +439,6 @@ void SNavigationBar::HandleTextChanged(const FText& NewText)
 		CompletionTimerHandle = RegisterActiveTimer(0.1f, FWidgetActiveTimerDelegate::CreateSP(this, &SNavigationBar::HandleUpdateCompletionOptions));
 	}
 }
-
 	
 void SNavigationBar::HandleTextCommitted(const FText& InText, ETextCommit::Type CommitType)
 {

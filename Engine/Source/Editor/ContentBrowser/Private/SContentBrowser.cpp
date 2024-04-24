@@ -168,10 +168,6 @@ namespace ContentBrowserSourcesWidgetSwitcherIndex
 
 namespace ContentBrowser
 {
-	// It is useful when debugging enumeration issues to shut this system off so that breakpoints set will not be triggered every tick
-	bool bCrumbsEnumerate = true;
-	FAutoConsoleVariableRef CrumbsEnumerateCVar(TEXT("ContentBrowser.Debug.CrumbsEnumerate"), bCrumbsEnumerate, TEXT("Enumerate crumbs"), ECVF_Default);
-	
 	const FContentBrowserInstanceConfig* GetConstInstanceConfig(FName ForInstance) 
 	{
 		if (ForInstance.IsNone())
@@ -509,7 +505,6 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 				[
 					SAssignNew(NavigationBar, SNavigationBar)
 					.OnPathClicked(this, &SContentBrowser::OnPathClicked)
-					.HasPathMenuContent(this, &SContentBrowser::OnHasCrumbDelimiterContent)
 					.GetPathMenuContent(this, &SContentBrowser::OnGetCrumbDelimiterContent)
 					.GetComboOptions(this, &SContentBrowser::GetRecentPaths)
 					.OnNavigateToPath(this, &SContentBrowser::OnNavigateToPath)
@@ -1634,7 +1629,7 @@ void SContentBrowser::PrepareToSyncItems(TArrayView<const FContentBrowserItem> I
 	if (!bRepopulate)
 	{
 		bRepopulate = Algo::AnyOf(ItemsToSync, [this](const FContentBrowserItem& Item) {
-			return !PathViewPtr->DoesItemExist(Item.GetVirtualPath());
+			return Item.IsFolder() && !PathViewPtr->DoesItemExist(Item.GetVirtualPath());
 		});
 	}
 	
@@ -2504,15 +2499,11 @@ void SContentBrowser::EditPathCommand()
 
 void SContentBrowser::OnNavigateToPath(const FString& NewPath)
 {
-	// If NewPath is not a valid location, the content browser will stay in its current location.
-	TArray<FName> VirtualPaths;
-	FStringView PathView = NewPath;
-	if (PathView.EndsWith('/'))
+	FContentBrowserItem Item = ContentBrowserUtils::TryGetItemFromUserProvidedPath(NewPath);
+	if (Item.IsValid())
 	{
-		PathView.LeftChopInline(1);
+		SyncToItems(MakeArrayView(&Item, 1));
 	}
-	VirtualPaths.Add(FName(PathView)); 
-	SyncToVirtualPaths(VirtualPaths);
 }
 
 void SContentBrowser::OnPathClicked( const FString& CrumbData )
@@ -2612,62 +2603,6 @@ TArray<FString> SContentBrowser::OnCompletePathPrefix(const FString& Prefix) con
 		}
 	}
 	return Results;
-}
-
-bool SContentBrowser::OnHasCrumbDelimiterContent(const FString& CrumbData) const
-{
-	const FSourcesData SourcesData = AssetViewPtr->GetSourcesData();
-	if (SourcesData.HasCollections())
-	{
-		TOptional<FCollectionNameType> CollectionClicked;
-		{
-			FString CollectionName;
-			FString CollectionTypeString;
-			if (CrumbData.Split(TEXT("?"), &CollectionName, &CollectionTypeString))
-			{
-				const int32 CollectionType = FCString::Atoi(*CollectionTypeString);
-				if (CollectionType >= 0 && CollectionType < ECollectionShareType::CST_All)
-				{
-					CollectionClicked = FCollectionNameType(FName(*CollectionName), ECollectionShareType::Type(CollectionType));
-				}
-			}
-		}
-
-		TArray<FCollectionNameType> ChildCollections;
-		if (CollectionClicked.IsSet())
-		{
-			FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
-			CollectionManagerModule.Get().GetChildCollections(CollectionClicked->Name, CollectionClicked->Type, ChildCollections);
-		}
-
-		return (ChildCollections.Num() > 0);
-	}
-	else if (SourcesData.HasVirtualPaths())
-	{
-		// The subsystems may get Deinitialize before the slate windows are close when exiting the editor
-		if (UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem())
-		{
-			FContentBrowserDataFilter SubItemsFilter;
-			SubItemsFilter.ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeFolders;
-			SubItemsFilter.bRecursivePaths = false;
-			SubItemsFilter.ItemCategoryFilter = PathViewPtr->GetContentBrowserItemCategoryFilter();
-			SubItemsFilter.ItemAttributeFilter = PathViewPtr->GetContentBrowserItemAttributeFilter();
-
-			bool bHasSubItems = false;
-			if (ContentBrowser::bCrumbsEnumerate)
-			{
-				ContentBrowserData->EnumerateItemsUnderPath(*CrumbData, SubItemsFilter, [&bHasSubItems](FContentBrowserItemData&& InSubItem)
-					{
-						bHasSubItems = true;
-				return false;
-					});
-			}
-
-			return bHasSubItems;
-		}
-	}
-
-	return false;
 }
 
 TSharedRef<SWidget> SContentBrowser::OnGetCrumbDelimiterContent(const FString& CrumbData) const
@@ -3701,13 +3636,26 @@ void SContentBrowser::UpdatePath()
 		TArray<FString> Crumbs;
 		SourcesData.VirtualPaths[0].ToString().ParseIntoArray(Crumbs, TEXT("/"), true);
 
+		FContentBrowserDataFilter SubItemsFilter;
+		SubItemsFilter.ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeFolders;
+		SubItemsFilter.bRecursivePaths = false;
+		SubItemsFilter.ItemCategoryFilter = PathViewPtr->GetContentBrowserItemCategoryFilter();
+		SubItemsFilter.ItemAttributeFilter = PathViewPtr->GetContentBrowserItemAttributeFilter();
+
 		FString CrumbPath = TEXT("/");
 		for (const FString& Crumb : Crumbs)
 		{
 			CrumbPath += Crumb;
 
+			bool bHasSubItems = false;
+			ContentBrowserData->EnumerateItemsUnderPath(*CrumbPath, SubItemsFilter, [&bHasSubItems](FContentBrowserItemData&& InSubItem)
+				{
+					bHasSubItems = true;
+					return false;
+				});
+
 			const FContentBrowserItem CrumbFolderItem = ContentBrowserData->GetItemAtPath(*CrumbPath, EContentBrowserItemTypeFilter::IncludeFolders);
-			NavigationBar->PushPath(CrumbFolderItem.IsValid() ? CrumbFolderItem.GetDisplayName() : FText::FromString(Crumb), CrumbPath);
+			NavigationBar->PushPath(CrumbFolderItem.IsValid() ? CrumbFolderItem.GetDisplayName() : FText::FromString(Crumb), CrumbPath, bHasSubItems);
 
 			CrumbPath += TEXT("/");
 		}
@@ -3732,17 +3680,21 @@ void SContentBrowser::UpdatePath()
 		for (const FCollectionNameType& CollectionPathItem : CollectionPathItems)
 		{
 			const FString CrumbData = FString::Printf(TEXT("%s?%s"), *CollectionPathItem.Name.ToString(), *FString::FromInt(CollectionPathItem.Type));
+			
+			TArray<FCollectionNameType> ChildCollections;
+			CollectionManagerModule.Get().GetChildCollections(CollectionPathItem.Name, CollectionPathItem.Type, ChildCollections);
+			const bool bHasChildren = ChildCollections.Num() > 0;
 
 			FFormatNamedArguments Args;
 			Args.Add(TEXT("CollectionName"), FText::FromName(CollectionPathItem.Name));
 			const FText DisplayName = FText::Format(LOCTEXT("CollectionPathIndicator", "{CollectionName} (Collection)"), Args);
 
-			NavigationBar->PushPath(DisplayName, CrumbData);
+			NavigationBar->PushPath(DisplayName, CrumbData, bHasChildren);
 		}
 	}
 	else
 	{
-		NavigationBar->PushPath(LOCTEXT("AllAssets", "All Assets"), TEXT(""));
+		NavigationBar->PushPath(LOCTEXT("AllAssets", "All Assets"), TEXT(""), true); 
 	}
 
 	if (ActiveSourcesWidgetIndex != NewSourcesWidgetIndex)
