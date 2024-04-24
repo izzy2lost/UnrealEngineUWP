@@ -807,7 +807,11 @@ void FPeerGroup::TickSend(FTickState& State, FHost& Host)
 
 	if (!bWillBlock)
 	{
-		return Negotiate(State);
+		if (bNegotiating)
+		{
+			return Negotiate(State);
+		}
+		return SendInternal(State);
 	}
 
 	// Non-blocking connect
