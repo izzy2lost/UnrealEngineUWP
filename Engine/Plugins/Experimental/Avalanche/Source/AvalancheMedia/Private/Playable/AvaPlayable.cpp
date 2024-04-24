@@ -256,6 +256,8 @@ EAvaPlayableCommandResult UAvaPlayable::UpdateRemoteControlCommand(const TShared
 	// during page edition and the resulting entity values are already captured.
 	InRemoteControlValues->ApplyEntityValuesToRemoteControlPreset(RemoteControlPreset);
 
+	OnRemoteControlValuesApplied();
+
 	return EAvaPlayableCommandResult::Executed;
 }
 

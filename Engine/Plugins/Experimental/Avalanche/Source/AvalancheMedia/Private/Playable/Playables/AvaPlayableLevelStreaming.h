@@ -33,6 +33,7 @@ protected:
 	virtual bool InitPlayable(const FPlayableCreationInfo& InPlayableInfo) override;
 	virtual void OnPlay() override;
 	virtual void OnEndPlay() override;
+	virtual void OnRemoteControlValuesApplied() override;
 	//~ End UAvaPlayable
 
 	//~ Begin UObject

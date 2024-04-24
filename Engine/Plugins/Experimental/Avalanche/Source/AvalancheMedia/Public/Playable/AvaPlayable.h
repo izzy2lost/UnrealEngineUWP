@@ -164,6 +164,9 @@ protected:
 	/** Called by EndPlay for derived classes implementation. */
 	virtual void OnEndPlay() {}
 
+	/** Called by UpdateRemoteControlCommand for derived classes implementation. */
+	virtual void OnRemoteControlValuesApplied() {}
+	
 	void HandleOnSequenceStarted(UAvaSequencePlayer* InSequencePlayer, UAvaSequence* InSequence);
 	void HandleOnSequenceFinished(UAvaSequencePlayer* InSequencePlayer, UAvaSequence* InSequence);
 

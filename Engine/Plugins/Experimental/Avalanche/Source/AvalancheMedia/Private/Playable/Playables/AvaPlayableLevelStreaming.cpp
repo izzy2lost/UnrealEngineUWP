@@ -13,6 +13,7 @@
 #include "Framework/AvaInstanceSettings.h"
 #include "Framework/AvaSoftAssetPtr.h"
 #include "IAvaMediaModule.h"
+#include "IAvaRemoteControlInterface.h"
 #include "Playable/AvaPlayableGroup.h"
 #include "Playable/AvaPlayableGroupManager.h"
 #include "Playback/AvaPlaybackUtils.h"
@@ -622,6 +623,34 @@ void UAvaPlayableLevelStreaming::OnEndPlay()
 		}
 
 		LevelStreaming->SetShouldBeVisible(false);
+	}
+}
+
+void UAvaPlayableLevelStreaming::OnRemoteControlValuesApplied()
+{
+	const ULevel* const Level = LevelStreaming->GetLoadedLevel();
+	if (!IsValid(Level))
+	{
+		return;
+	}
+
+	auto NotifyRemoteControlValuesApplied = 
+		[](UObject* InObject)
+		{
+			check(InObject);
+			if (InObject->GetClass()->ImplementsInterface(UAvaRemoteControlInterface::StaticClass()))
+			{
+				IAvaRemoteControlInterface::Execute_OnValuesApplied(InObject);
+			}
+		};
+
+	for (AActor* Actor : Level->Actors)
+	{
+		if (IsValid(Actor))
+		{
+			NotifyRemoteControlValuesApplied(Actor);
+			Actor->ForEachComponent(/*bNestedComps*/false, NotifyRemoteControlValuesApplied);
+		}
 	}
 }
 
