@@ -1157,6 +1157,14 @@ void UCubeGridTool::Setup()
 		[this](bool bOn) {
 			UpdateGizmoVisibility(bOn);
 		});
+	Settings->WatchProperty(Settings->bShowGrid,
+		[this](bool bShow)
+		{
+			if (ULineSetComponent* LineSet = LineSets->FindLineSet(GridLineSetID))
+			{
+				LineSet->SetVisibility(bShow);
+			}
+		});
 	Settings->WatchProperty(Settings->bCrosswiseDiagonal,
 		[this](bool bOn) {
 			InvalidatePreview();
@@ -2258,6 +2266,7 @@ void UCubeGridTool::UpdateGridLineSet()
 	LineSet->Clear();
 	DrawGridSection(*LineSet, *CubeGrid, GridBox,
 		GridLineColor, GridLineThickness, GridLineDepthBias);
+	LineSet->SetVisibility(Settings->bShowGrid);
 }
 
 void UCubeGridTool::UpdateCornerModeLineSet()
