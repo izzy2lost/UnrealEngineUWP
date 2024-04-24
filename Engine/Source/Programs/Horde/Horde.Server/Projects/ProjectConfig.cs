@@ -87,6 +87,12 @@ namespace Horde.Server.Projects
 		public JobOptions JobOptions { get; set; } = new JobOptions();
 
 		/// <summary>
+		/// Default workspace types for streams
+		/// These are added to the list of each stream's workspace types.
+		/// </summary>
+		public Dictionary<string, WorkspaceConfig> WorkspaceTypes { get; set; } = [];
+
+		/// <summary>
 		/// Telemetry store for Horde data for this project
 		/// </summary>
 		public TelemetryStoreId TelemetryStoreId { get; set; }

@@ -269,6 +269,11 @@ namespace Horde.Server.Streams
 				template.PostLoad(this);
 			}
 
+			foreach ((string wid, WorkspaceConfig wc) in projectConfig.WorkspaceTypes)
+			{
+				WorkspaceTypes.TryAdd(wid, wc);
+			}
+
 			ConfigType.MergeDefaults(AgentTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
 			ConfigType.MergeDefaults(WorkspaceTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
 			ConfigType.MergeDefaults(Templates.Select(x => (x.Id, x.Base, x)));

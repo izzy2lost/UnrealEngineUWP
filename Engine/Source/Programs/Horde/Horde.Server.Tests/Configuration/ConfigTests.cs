@@ -187,6 +187,48 @@ namespace Horde.Server.Tests.Configuration
 			Assert.AreEqual(222, workspaces["subSubType"].ConformDiskFreeSpace);
 		}
 
+		[TestMethod]
+		public void WorkspaceInheritFromProjectConfig()
+		{
+			GlobalConfig gc = new();
+			
+			List<string> autoSdkViews = ["foo", "bar"];
+			gc.Projects.Add(new ProjectConfig
+			{
+				WorkspaceTypes =
+				{
+					{ "project1", new WorkspaceConfig { AutoSdkView = autoSdkViews } },
+					{ "project2", new WorkspaceConfig { ConformDiskFreeSpace = 111 } },
+					{ "project3", new WorkspaceConfig { MinScratchSpace = 222 } },
+				},
+				Streams = [
+					new StreamConfig { WorkspaceTypes =
+					{
+						{"stream1", new WorkspaceConfig { Base = "project1", Stream = "myStream" }},
+						{"project3", new WorkspaceConfig { Stream = "otherStream" }}
+					}}
+				]
+			});
+			
+			gc.PostLoad(new ServerSettings());
+
+			Dictionary<string, WorkspaceConfig> workspaces = gc.Projects[0].Streams[0].WorkspaceTypes;
+			Assert.AreEqual(4, workspaces.Count);
+			
+			// Project-defined streams
+			CollectionAssert.AreEquivalent(autoSdkViews, workspaces["project1"].AutoSdkView);
+			Assert.AreEqual(111, workspaces["project2"].ConformDiskFreeSpace);
+			Assert.AreEqual(111, workspaces["project2"].ConformDiskFreeSpace);
+			
+			// project3 should be overridden by stream workspace type with the same name
+			Assert.AreEqual("otherStream", workspaces["project3"].Stream);
+			Assert.IsNull(workspaces["project3"].MinScratchSpace);
+			
+			// stream1 inherits from project1 workspace type
+			CollectionAssert.AreEquivalent(autoSdkViews, workspaces["stream1"].AutoSdkView);
+			Assert.AreEqual("myStream", workspaces["stream1"].Stream);
+		}
+
 		class ObjectValue
 		{
 			public string Value { get; set; } = "";
