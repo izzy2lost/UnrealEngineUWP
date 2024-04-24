@@ -31,7 +31,7 @@ TArray<UObject*> FFusionPatchJsonImporter::ImportAudioSamples(const TArray<FStri
 	return AssetToolsModule.Get().ImportAssetsAutomated(AutomatedAssetImportData);
 }
 
-bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFusionPatch* FusionPatch, const FImportArgs& ImportArgs, TArray<FString>& OutErrors)
+bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFusionPatch* FusionPatch, TArray<UObject*>& OutAdditionalImportedObjects, const FImportArgs& ImportArgs, TArray<FString>& OutErrors)
 {
 	if (!ensure(FusionPatch))
 		return false;
@@ -154,6 +154,7 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 	}
 
 	TArray<UObject*> ImportedAssets = ImportAudioSamples(AudioSampleFiles, ImportArgs.SamplesDestPath, ImportArgs.ReplaceExistingSamples);
+	OutAdditionalImportedObjects.Append(ImportedAssets);
 
 	// update the sound wave loading behavior and compression type with the selection set in the import options
 	for (UObject* Asset : ImportedAssets)
