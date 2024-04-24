@@ -4041,59 +4041,40 @@ UObject* UTextureFactory::FactoryCreateBinary
 			}
 		}
 	}
-			
-	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
-	check(CVarVirtualTexturesEnabled);
-	
-	// If the texture is larger than a certain threshold make it VT.
-	// Note that previously for re-imports we still checked size and potentially changed the VT status.
-	// But that was unintuitive for many users so now for re-imports we will end up ignoring this and respecting the existing setting below.
-
-	static const auto CVarVirtualTexturesAutoImportEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VT.EnableAutoImport"));
-	check(CVarVirtualTexturesAutoImportEnabled);
-
-	if (CVarVirtualTexturesEnabled->GetValueOnAnyThread() && CVarVirtualTexturesAutoImportEnabled->GetValueOnAnyThread())
+				
+	if ( UE::TextureUtilitiesCommon::ShouldTextureBeVirtualByAutoImportSize(Texture) )
 	{
-		const int64 VirtualTextureAutoEnableThreshold = GetDefault<UTextureImportSettings>()->AutoVTSize;
-		const int64 VirtualTextureAutoEnableThresholdPixels = VirtualTextureAutoEnableThreshold * VirtualTextureAutoEnableThreshold;
-
-		// We do this in pixels so a 8192 x 128 texture won't get VT enabled 
-		// We use the Source size instead of simple Texture2D->GetSizeX() as this uses the size of the platform data
-		// however for a new texture platform data may not be generated yet, and for an reimport of a texture this is the size of the
-		// old texture. 
-		// Using source size gives one small caveat. It looks at the size before mipmap power of two padding adjustment.
-		// Textures with more than 1 block (UDIM textures) must be imported as VT
-		if (Texture->Source.GetNumBlocks() > 1 ||
-			( (int64) Texture->Source.GetSizeX() * Texture->Source.GetSizeY() ) >= VirtualTextureAutoEnableThresholdPixels ||
-			Texture->Source.GetSizeX() > UTexture::GetMaximumDimensionOfNonVT() ||
-			Texture->Source.GetSizeY() > UTexture::GetMaximumDimensionOfNonVT() )
+		// only UTexture2D can be VT
+		if ( Texture->GetTextureClass() == ETextureClass::TwoD )
 		{
-			// only UTexture2D can be VT
-			if ( Texture->GetTextureClass() == ETextureClass::TwoD )
-			{
-				Texture->VirtualTextureStreaming = true;
-			}
-			else
-			{
-				UE_LOG(LogEditorFactories, Warning, TEXT("Texture is too large for non-VT (%d x %d) but is not a UTexture2D."),
-					Texture->Source.GetSizeX() , Texture->Source.GetSizeY());
-			}
+			Texture->VirtualTextureStreaming = true;
 		}
-	}
-
-	// if Texture is too large and should be VT but VT is not enabled, warn about that	
-	if ( ! CVarVirtualTexturesEnabled->GetValueOnAnyThread() )
-	{
-		int32 MaxDimension = FMath::Max( Texture->Source.GetSizeX() , Texture->Source.GetSizeY() );
-		bool bLargeTextureMustBeVT = MaxDimension > UTexture::GetMaximumDimensionOfNonVT();
-		if ( bLargeTextureMustBeVT )
+		else
 		{
-			UE_LOG(LogEditorFactories, Warning, TEXT("Texture is too large for non-VT (%d x %d) but VT is not enabled in this project."),
+			UE_LOG(LogEditorFactories, Warning, TEXT("Texture [%s] is too large for non-VT (%d x %d) but is not a UTexture2D."),
+				*Texture->GetName(),
 				Texture->Source.GetSizeX() , Texture->Source.GetSizeY());
 		}
-		else if ( Texture->Source.GetNumBlocks() > 1 )
+	}
+	else
+	{
+		static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
+		check(CVarVirtualTexturesEnabled);
+
+		// if Texture is too large and should be VT but VT is not enabled, warn about that	
+		if ( ! CVarVirtualTexturesEnabled->GetValueOnAnyThread() )
 		{
-			UE_LOG(LogEditorFactories, Warning, TEXT("Texture has blocks which requires VT but VT is not enabled in this project."));
+			int32 MaxDimension = FMath::Max( Texture->Source.GetSizeX() , Texture->Source.GetSizeY() );
+			bool bLargeTextureMustBeVT = MaxDimension > UTexture::GetMaximumDimensionOfNonVT();
+			if ( bLargeTextureMustBeVT )
+			{
+				UE_LOG(LogEditorFactories, Warning, TEXT("Texture is too large for non-VT (%d x %d) but VT is not enabled in this project."),
+					Texture->Source.GetSizeX() , Texture->Source.GetSizeY());
+			}
+			else if ( Texture->Source.GetNumBlocks() > 1 )
+			{
+				UE_LOG(LogEditorFactories, Warning, TEXT("Texture has blocks which requires VT but VT is not enabled in this project."));
+			}
 		}
 	}
 

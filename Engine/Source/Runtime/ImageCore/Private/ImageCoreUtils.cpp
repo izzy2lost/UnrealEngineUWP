@@ -17,7 +17,7 @@ IMAGECORE_API bool FImageCoreUtils::IsImageImportPossible(int64 Width,int64 Heig
 		return false;
 	}
 
-	int64 PixelCount = Width * Height; // mutliply is safe because of INT32_MAX check
+	int64 PixelCount = Width * Height; // multiply is safe because of INT32_MAX check
 
 	// for non-VT limitation is 16384 for W/H , and 2 GB for output surface bytes
 	// for VT the limitation is that the built VT must fit in 4 GB

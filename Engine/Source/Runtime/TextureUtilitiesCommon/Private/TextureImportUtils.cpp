@@ -579,7 +579,9 @@ namespace UE
 
 bool UE::TextureUtilitiesCommon::IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FText* OutErrorMessage)
 {
-	// code dupe from: UTextureFactory::IsImportResolutionValid
+	// note: stricter than IsImageImportPossible
+	//	IsImageImportPossible is a first check that can be done early in the loading to bail on totally impossible sizes
+	//	this is done late and uses project-specific config
 
 	// MaximumSupportedResolutionNonVT is only a popup/warning , not a hard limit
 	// Get the non-VT size limit :

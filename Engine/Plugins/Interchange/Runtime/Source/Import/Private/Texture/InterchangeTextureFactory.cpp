@@ -1457,31 +1457,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		// The texture has been imported and has no editor specific changes applied so we clear the painted flag.
 		Texture2D->bHasBeenPaintedInEditor = false;
 
-		// If the texture is larger than a certain threshold make it VT. This is explicitly done after the
-		// application of the existing settings above, so if a texture gets reimported at a larger size it will
-		// still be properly flagged as a VT (note: What about reimporting at a lower resolution?)
-		static const TConsoleVariableData<int32>* CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
-		check(CVarVirtualTexturesEnabled);
-
-		static const auto CVarVirtualTexturesAutoImportEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VT.EnableAutoImport"));
-		check(CVarVirtualTexturesAutoImportEnabled);
-
-		if (CVarVirtualTexturesEnabled->GetValueOnGameThread() && CVarVirtualTexturesAutoImportEnabled->GetValueOnGameThread())
+		if ( UE::TextureUtilitiesCommon::ShouldTextureBeVirtualByAutoImportSize(Texture2D) )
 		{
-			const int64 VirtualTextureAutoEnableThreshold = GetDefault<UTextureImportSettings>()->AutoVTSize;
-			const int64 VirtualTextureAutoEnableThresholdPixels = VirtualTextureAutoEnableThreshold * VirtualTextureAutoEnableThreshold;
-
-			// We do this in pixels so a 8192 x 128 texture won't get VT enabled 
-			// We use the Source size instead of simple Texture2D->GetSizeX() as this uses the size of the platform data
-			// however for a new texture platform data may not be generated yet, and for an reimport of a texture this is the size of the
-			// old texture. 
-			// Using source size gives one small caveat. It looks at the size before mipmap power of two padding adjustment.
-			if ( (int64) Texture2D->Source.GetSizeX() * Texture2D->Source.GetSizeY() >= VirtualTextureAutoEnableThresholdPixels ||
-				Texture2D->Source.GetSizeX() > UTexture::GetMaximumDimensionOfNonVT() ||
-				Texture2D->Source.GetSizeY() > UTexture::GetMaximumDimensionOfNonVT())
-			{
-				Texture2D->VirtualTextureStreaming = true;
-			}
+			Texture2D->VirtualTextureStreaming = true;
 		}
 #endif // WITH_EDITORONLY_DATA
 	}

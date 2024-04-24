@@ -103,6 +103,12 @@ namespace UE::TextureUtilitiesCommon
 	*  Should be called after all texture properties are set, before PostEditChange() 
 	*/
 	TEXTUREUTILITIESCOMMON_API void ApplyDefaultsForNewlyImportedTextures(UTexture * Texture, bool bIsReimport);
+	
+	/* Query if texture will be made VT automatically on import due to exceeding AutoVTSize 
+		or other conditions which require it to be VT
+		only returns true if VT is enabled and auto-VT is enabled
+	*/
+	TEXTUREUTILITIESCOMMON_API bool ShouldTextureBeVirtualByAutoImportSize(const UTexture * Texture);
 #endif
 
 	/* Get the default value for Texture->SRGB

@@ -146,6 +146,47 @@ namespace UE::TextureUtilitiesCommon
 			}
 		}
 	}
+	
+	bool ShouldTextureBeVirtualByAutoImportSize(const UTexture * Texture)
+	{
+		// If the texture is larger than a certain threshold make it VT.
+		// Note that previously for re-imports we still checked size and potentially changed the VT status.
+		// But that was unintuitive for many users so now for re-imports we will end up ignoring this and respecting the existing setting below.
+		
+		static const TConsoleVariableData<int32>* CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
+		check(CVarVirtualTexturesEnabled);
+
+		static const auto CVarVirtualTexturesAutoImportEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VT.EnableAutoImport"));
+		check(CVarVirtualTexturesAutoImportEnabled);
+
+		if (CVarVirtualTexturesEnabled->GetValueOnAnyThread() && CVarVirtualTexturesAutoImportEnabled->GetValueOnAnyThread())
+		{
+			const int64 VirtualTextureAutoEnableThreshold = GetDefault<UTextureImportSettings>()->AutoVTSize;
+
+			if ( VirtualTextureAutoEnableThreshold == 0 )
+			{
+				return false;
+			}
+
+			const int64 VirtualTextureAutoEnableThresholdPixels = VirtualTextureAutoEnableThreshold * VirtualTextureAutoEnableThreshold;
+
+			// We do this in pixels so a 8192 x 128 texture won't get VT enabled 
+			// We use the Source size instead of simple Texture2D->GetSizeX() as this uses the size of the platform data
+			// however for a new texture platform data may not be generated yet, and for an reimport of a texture this is the size of the
+			// old texture. 
+			// Using source size gives one small caveat. It looks at the size before mipmap power of two padding adjustment.
+			// Textures with more than 1 block (UDIM textures) must be imported as VT
+			if (Texture->Source.GetNumBlocks() > 1 ||
+				( (int64) Texture->Source.GetSizeX() * Texture->Source.GetSizeY() ) >= VirtualTextureAutoEnableThresholdPixels ||
+				Texture->Source.GetSizeX() > UTexture::GetMaximumDimensionOfNonVT() ||
+				Texture->Source.GetSizeY() > UTexture::GetMaximumDimensionOfNonVT() )
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
 	#endif // WITH_EDITOR
 
 	/* Get the default value for Texture->SRGB

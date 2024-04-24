@@ -36,6 +36,8 @@ namespace UE::TextureUtilitiesCommon
 		* @param OutErrorMessage Optional output for an error message
 		*
 		* @return bool true if the given height/width represent a supported texture resolution, false if not
+		*
+		* NOTE: may open a dialog box to ask user if large non-VT import is wanted!
 		*/
 	TEXTUREUTILITIESCOMMON_API bool IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FText* OutErrorMessage);
 }
