@@ -97,7 +97,7 @@ void UE_STRPROPERTY_CLASS::ExportText_Internal( FString& ValueStr, const void* P
 	}
 	else if ( StringValue.Len() > 0 )
 	{
-		ValueStr += UE_STRPROPERTY_STRINGTYPE::Printf( CHARTEXT(UE_STRPROPERTY_STRINGTYPE::ElementType, "\"%s\""), *StringValue.ReplaceCharWithEscapedChar() );
+		ValueStr += UE_STRPROPERTY_STRINGTYPE::Printf( CHARTEXT(UE_STRPROPERTY_STRINGTYPE::FmtCharType, "\"%s\""), *StringValue.ReplaceCharWithEscapedChar() );
 	}
 	else
 	{

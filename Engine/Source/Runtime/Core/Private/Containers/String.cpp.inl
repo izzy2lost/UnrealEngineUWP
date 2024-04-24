@@ -1125,7 +1125,7 @@ UE_STRING_CLASS UE_STRING_CLASS::FromBlob(const uint8* SrcBuffer,const uint32 Sr
 	// Convert and append each byte in the buffer
 	for (uint32 Count = 0; Count < SrcSize; Count++)
 	{
-		Result += UE_STRING_CLASS::Printf(CHARTEXT(ElementType, "%03d"),(uint8)SrcBuffer[Count]);
+		Result += UE_STRING_CLASS::Printf(CHARTEXT(FmtCharType, "%03d"),(uint8)SrcBuffer[Count]);
 	}
 	return Result;
 }
@@ -1160,7 +1160,7 @@ UE_STRING_CLASS UE_STRING_CLASS::FromHexBlob( const uint8* SrcBuffer, const uint
 	// Convert and append each byte in the buffer
 	for (uint32 Count = 0; Count < SrcSize; Count++)
 	{
-		Result += UE_STRING_CLASS::Printf( CHARTEXT(ElementType,  "%02X" ), (uint8)SrcBuffer[Count] );
+		Result += UE_STRING_CLASS::Printf(CHARTEXT(FmtCharType, "%02X"), (uint8)SrcBuffer[Count]);
 	}
 	return Result;
 }
@@ -1194,7 +1194,7 @@ UE_STRING_CLASS UE_STRING_CLASS::SanitizeFloat( double InFloat, const int32 InMi
 	UE::Core::Private::StripNegativeZero(InFloat);
 
 	// First create the string
-	UE_STRING_CLASS TempString = UE_STRING_CLASS::Printf(CHARTEXT(ElementType, "%f"), InFloat);
+	UE_STRING_CLASS TempString = UE_STRING_CLASS::Printf(CHARTEXT(FmtCharType, "%f"), InFloat);
 	if (!TempString.IsNumeric())
 	{
 		// String did not format as a valid decimal number so avoid messing with it

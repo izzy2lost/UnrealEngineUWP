@@ -11,9 +11,11 @@
 #define UE_STRING_CLASS                        FString
 #define UE_STRING_CHARTYPE                     TCHAR
 #define UE_STRING_CHARTYPE_IS_TCHAR            1
+#define UE_STRING_PRINTF_FMT_CHARTYPE          TCHAR
 #define UE_STRING_DEPRECATED(Version, Message)
 	#include "Containers/UnrealString.h.inl"
 #undef UE_STRING_DEPRECATED
+#undef UE_STRING_PRINTF_FMT_CHARTYPE
 #undef UE_STRING_CHARTYPE_IS_TCHAR
 #undef UE_STRING_CHARTYPE
 #undef UE_STRING_CLASS

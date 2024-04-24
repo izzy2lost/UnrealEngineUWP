@@ -23,6 +23,9 @@
 #ifndef UE_STRING_CHARTYPE_IS_TCHAR
 	#error "UnrealString.h.inl should only be included after defining UE_STRING_CHARTYPE_IS_TCHAR"
 #endif
+#ifndef UE_STRING_PRINTF_FMT_CHARTYPE
+	#error "UnrealString.h.inl should only be included after defining UE_STRING_PRINTF_FMT_CHARTYPE"
+#endif
 #ifndef UE_STRING_DEPRECATED
 	#error "UnrealString.h.inl should only be included after defining UE_STRING_DEPRECATED"
 #endif
@@ -53,6 +56,7 @@ class UE_STRING_CLASS
 public:
 	using AllocatorType = TSizedDefaultAllocator<32>;
 	using ElementType   = UE_STRING_CHARTYPE;
+	using FmtCharType   = UE_STRING_PRINTF_FMT_CHARTYPE;
 
 private:
 	/** Array holding the character data */
@@ -61,7 +65,7 @@ private:
 
 	/** Like the TIsCharEncodingCompatibleWithTCHAR trait, but for the element type of the string */
 	template <typename SrcEncoding>
-	using TIsCharEncodingCompatibleWithElementType = TIsCharEncodingCompatibleWith<SrcEncoding, ElementType>;
+	using TIsCharEncodingCompatibleWithPrintfFmt = TIsCharEncodingCompatibleWith<SrcEncoding, UE_STRING_PRINTF_FMT_CHARTYPE>;
 
 public:
 	UE_STRING_CLASS() = default;
@@ -1539,7 +1543,7 @@ public:
 	template <typename FmtType, typename... Types>
 	[[nodiscard]] static UE_STRING_CLASS Printf(const FmtType& Fmt, Types... Args)
 	{
-		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithElementType>::Value, "Formatting string must be a character array.");
+		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithPrintfFmt>::Value, "Formatting string must be a literal " PREPROCESSOR_TO_STRING(UE_STRING_PRINTF_FMT_CHARTYPE) " array.");
 		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to Printf");
 
 		return PrintfImpl((const ElementType*)Fmt, Args...);
@@ -1552,7 +1556,7 @@ public:
 	template <typename FmtType, typename... Types>
 	UE_STRING_CLASS& Appendf(const FmtType& Fmt, Types... Args)
 	{
-		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithElementType>::Value, "Formatting string must be a character array.");
+		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithPrintfFmt>::Value, "Formatting string must be a literal " PREPROCESSOR_TO_STRING(UE_STRING_PRINTF_FMT_CHARTYPE) " array.");
 		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to TString::Appendf");
 
 		AppendfImpl(*this, (const ElementType*)Fmt, Args...);
