@@ -63,6 +63,7 @@ public:
 
 	// Cook Dependencies
 	const TArray<UE::Cook::FCookDependency>& GetCookDependencies() const;
+	const TArray<UE::Cook::FCookDependency>& GetTransitiveBuildDependencies() const;
 
 	// Data about the Key and Package that are not dependencies
 	/**
@@ -96,6 +97,7 @@ private:
 	TArray<FString> ConfigDependencies;
 	TArray<FName> RuntimePackageDependencies;
 	TArray<UE::Cook::FCookDependency> CookDependencies;
+	TArray<UE::Cook::FCookDependency> TransitiveBuildDependencies;
 	FName PackageName;
 	FIoHash StoredKey;
 	FIoHash CurrentKey;
@@ -191,6 +193,11 @@ inline const TArray<FName>& FCookDependencies::GetRuntimePackageDependencies() c
 inline const TArray<UE::Cook::FCookDependency>& FCookDependencies::GetCookDependencies() const
 {
 	return CookDependencies;
+}
+
+inline const TArray<UE::Cook::FCookDependency>& FCookDependencies::GetTransitiveBuildDependencies() const
+{
+	return TransitiveBuildDependencies;
 }
 
 inline FName FCookDependencies::GetPackageName() const

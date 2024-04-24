@@ -78,6 +78,7 @@ enum class ECookDependency : uint8
 	None = 0x00,
 	File = 0x01,
 	Function = 0x02,
+	TransitiveBuild = 0x03,
 };
 
 /**
@@ -106,6 +107,18 @@ public:
 	 * UE_COOK_DEPENDENCY_FUNCTION_CALL(CppTokenUsedAsName).
 	 */
 	COREUOBJECT_API static FCookDependency Function(FName InFunctionName, FCbFieldIterator&& InArgs);
+
+	/**
+	 * Create a transitive build dependency on another package. In an incremental cook if the other package was not
+	 * cooked in a previous cook session, or its previous cook result was invalidated, the current package will also
+	 * have its cook result invalidated.
+	 *
+	 * This version of the function also adds a runtime dependency - the requested package will be staged for the
+	 * current platform. Adding a transitive build dependency without adding a runtime dependency is not yet supported
+	 * due to limitations in the cooker.
+	 */
+	COREUOBJECT_API static FCookDependency TransitiveBuildAndRuntime(FName PackageName);
+
 	/** Construct an empty dependency; it will never be invalidated. */
 	COREUOBJECT_API FCookDependency();
 
@@ -125,6 +138,11 @@ public:
 	FName GetFunctionName() const;
 	/** FunctionArgs if GetType() == Function, else FCbFieldViewIterator(). */
 	FCbFieldViewIterator GetFunctionArgs() const;
+
+	/** PackageName if GetType() == TransitiveBuild, else NAME_None. */
+	FName GetPackageName() const;
+	/** If GetType() == TransitiveBuild, whether AlsoAddRuntimeDependency was selected, otherwise false. */
+	bool IsAlsoAddRuntimeDependency() const;
 
 	/**
 	 * Comparison operator for e.g. deterministic ordering of dependencies.
@@ -161,10 +179,16 @@ private:
 		FName Name;
 		FCbFieldIterator Args;
 	};
+	struct FTransitiveBuildData
+	{
+		FName PackageName;
+		bool bAlsoAddRuntimeDependency = true;
+	};
 	union
 	{
 		FString FileName;
 		FFunctionData FunctionData;
+		FTransitiveBuildData TransitiveBuildData;
 	};
 };
 
@@ -262,6 +286,16 @@ inline FCbFieldViewIterator FCookDependency::GetFunctionArgs() const
 	return Type == ECookDependency::Function ? FunctionData.Args : FCbFieldViewIterator();
 }
 
+inline FName FCookDependency::GetPackageName() const
+{
+	return Type == ECookDependency::TransitiveBuild ? TransitiveBuildData.PackageName : NAME_None;
+}
+
+inline bool FCookDependency::IsAlsoAddRuntimeDependency() const
+{
+	return Type == ECookDependency::TransitiveBuild ? TransitiveBuildData.bAlsoAddRuntimeDependency : false;
+}
+
 inline bool FCookDependency::operator<(const FCookDependency& Other) const
 {
 	if (static_cast<uint8>(Type) != static_cast<uint8>(Other.Type))
@@ -278,7 +312,10 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 	case ECookDependency::Function:
 	{
 		int32 Compare = FunctionData.Name.Compare(Other.FunctionData.Name);
-		if (Compare != 0) return Compare < 0;
+		if (Compare != 0)
+		{
+			return Compare < 0;
+		}
 		FMemoryView ViewA;
 		FMemoryView ViewB;
 		bool bHasViewA = FunctionData.Args.TryGetRangeView(ViewA);
@@ -288,6 +325,20 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 			return bHasViewB; // If both false, return false. If only one, return true only if A is the false.
 		}
 		return ViewA.CompareBytes(ViewB) < 0;
+	}
+	case ECookDependency::TransitiveBuild:
+	{
+		// FName.Compare is lexical and case-insensitive, which is what we want
+		int32 Compare = TransitiveBuildData.PackageName.Compare(Other.TransitiveBuildData.PackageName) < 0;
+		if (Compare != 0)
+		{
+			return Compare < 0;
+		}
+		if (TransitiveBuildData.bAlsoAddRuntimeDependency != Other.TransitiveBuildData.bAlsoAddRuntimeDependency)
+		{
+			return TransitiveBuildData.bAlsoAddRuntimeDependency == false;
+		}
+		return false;
 	}
 	default:
 		checkNoEntry();

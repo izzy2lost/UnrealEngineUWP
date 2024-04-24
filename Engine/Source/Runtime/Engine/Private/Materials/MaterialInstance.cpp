@@ -62,6 +62,10 @@
 #include "VT/RuntimeVirtualTexture.h"
 #include "LocalVertexFactory.h"
 
+#if WITH_EDITOR
+#include "Cooker/CookDependency.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialInstance)
 
 DECLARE_CYCLE_STAT(TEXT("MaterialInstance CopyMatInstParams"), STAT_MaterialInstance_CopyMatInstParams, STATGROUP_Shaders);
@@ -4804,6 +4808,13 @@ void UMaterialInstance::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		TArray<FMaterialResourceForCooking>* Resources = CachedMaterialResourcesForCooking.Find(TargetPlatform);
 		UE::MaterialInterface::Private::RecordMaterialDependenciesForCook(ObjectSaveContext,
 			Resources ? *Resources : TArray<FMaterialResourceForCooking>());
+
+		UMaterialInterface* EffectiveParent = Parent ? Parent : UMaterial::GetDefaultMaterial(MD_Surface);
+		if (EffectiveParent && EffectiveParent->GetPackage() != GetPackage())
+		{
+			ObjectSaveContext.AddCookBuildDependency(UE::Cook::FCookDependency::TransitiveBuildAndRuntime(
+				EffectiveParent->GetPackage()->GetFName()));
+		}
 	}
 #endif
 }

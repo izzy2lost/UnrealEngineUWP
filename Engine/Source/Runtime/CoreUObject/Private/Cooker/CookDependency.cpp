@@ -50,6 +50,14 @@ FCookDependency FCookDependency::Function(FName InFunctionName, FCbFieldIterator
 	return Result;
 }
 
+FCookDependency FCookDependency::TransitiveBuildAndRuntime(FName PackageName)
+{
+	FCookDependency Result(ECookDependency::TransitiveBuild);
+	Result.TransitiveBuildData.PackageName = PackageName;
+	Result.TransitiveBuildData.bAlsoAddRuntimeDependency = true;
+	return Result;
+}
+
 FCookDependency::FCookDependency()
 	: Type(ECookDependency::None)
 {
@@ -93,6 +101,9 @@ FCookDependency& FCookDependency::operator=(const FCookDependency& Other)
 	case ECookDependency::Function:
 		FunctionData = Other.FunctionData;
 		break;
+	case ECookDependency::TransitiveBuild:
+		TransitiveBuildData = Other.TransitiveBuildData;
+		break;
 	default:
 		checkNoEntry();
 		break;
@@ -114,6 +125,9 @@ FCookDependency& FCookDependency::operator=(FCookDependency&& Other)
 		break;
 	case ECookDependency::Function:
 		FunctionData = MoveTemp(Other.FunctionData);
+		break;
+	case ECookDependency::TransitiveBuild:
+		TransitiveBuildData = MoveTemp(Other.TransitiveBuildData);
 		break;
 	default:
 		checkNoEntry();
@@ -176,6 +190,11 @@ void FCookDependency::UpdateHash(FCookDependencyContext& Context) const
 		(*Function)(GetFunctionArgs(), Context);
 		return;
 	}
+	case ECookDependency::TransitiveBuild:
+		// Transitive Build dependencies do not impact the hash; they instead operate by marking the package
+		// as invalidated based on the invalidation of other packages, in a separate pass after its hash is compared
+		return;
+
 	default:
 		checkNoEntry();
 		return;
@@ -194,6 +213,9 @@ void FCookDependency::Construct()
 	case ECookDependency::Function:
 		new(&FunctionData) FFunctionData();
 		break;
+	case ECookDependency::TransitiveBuild:
+		new(&TransitiveBuildData) FTransitiveBuildData();
+		break;
 	default:
 		checkNoEntry();
 		break;
@@ -211,6 +233,9 @@ void FCookDependency::Destruct()
 		break;
 	case ECookDependency::Function:
 		FunctionData.~FFunctionData();
+		break;
+	case ECookDependency::TransitiveBuild:
+		TransitiveBuildData.~FTransitiveBuildData();
 		break;
 	default:
 		checkNoEntry();
@@ -235,6 +260,10 @@ void FCookDependency::Save(FCbWriter& Writer) const
 		{
 			Writer << Iter;
 		}
+		break;
+	case ECookDependency::TransitiveBuild:
+		Writer << TransitiveBuildData.PackageName;
+		Writer << TransitiveBuildData.bAlsoAddRuntimeDependency;
 		break;
 	default:
 		checkNoEntry();
@@ -281,6 +310,22 @@ bool FCookDependency::Load(FCbFieldView Value)
 		}
 		*this = FCookDependency::Function(LocalFuncName, FCbFieldIterator::CloneRange(Field));
 		FunctionData.Args.MakeOwned();
+		return true;
+	}
+	case ECookDependency::TransitiveBuild:
+	{
+		FName LocalPackageName;
+		if (!LoadFromCompactBinary(Field++, LocalPackageName))
+		{
+			return false;
+		}
+		bool bLocalAlsoAddRuntimeDependency = Field.AsBool();
+		if ((Field++).HasError())
+		{
+			return false;
+		}
+		*this = FCookDependency::TransitiveBuildAndRuntime(LocalPackageName);
+		TransitiveBuildData.bAlsoAddRuntimeDependency = bLocalAlsoAddRuntimeDependency;
 		return true;
 	}
 	default:

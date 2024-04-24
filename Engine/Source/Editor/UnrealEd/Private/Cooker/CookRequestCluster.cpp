@@ -9,6 +9,7 @@
 #include "Algo/Unique.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Async/Async.h"
+#include "Cooker/CookDependency.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookProfiling.h"
@@ -382,11 +383,6 @@ void FRequestCluster::RemovePackageData(FPackageData* PackageData)
 	{
 		--PackagesToMarkNotInProgressCount;
 	}
-
-	if (GraphSearch)
-	{
-		GraphSearch->RemovePackageData(PackageData);
-	}
 }
 
 void FRequestCluster::SetPackageDataSuppressReason(FPackageData& PackageData, ESuppressCookReason Reason, bool* bOutExisted)
@@ -632,8 +628,6 @@ FRequestCluster::FGraphSearch::FGraphSearch(FRequestCluster& InCluster, ETravers
 	LastActivityTime = FPlatformTime::Seconds();
 	VertexAllocator.SetMaxBlockSize(1024);
 	VertexAllocator.SetMaxBlockSize(65536);
-	VertexQueryAllocator.SetMinBlockSize(1024);
-	VertexQueryAllocator.SetMaxBlockSize(1024);
 	BatchAllocator.SetMaxBlockSize(16);
 	BatchAllocator.SetMaxBlockSize(16);
 
@@ -663,22 +657,20 @@ void FRequestCluster::FGraphSearch::VisitWithoutDependencies()
 	// If we're skipping the dependencies search, handle that responsibility for the initial requests and return.
 	for (TPair<FPackageData*, FProcessingFlags>& Pair : Cluster.OwnedPackageDatas)
 	{
-		FVertexData Vertex;
-		Vertex.PackageData = Pair.Key;
+		check(Pair.Key);
+		FVertexData Vertex(Pair.Key->GetPackageName(), Pair.Key, *this);
 		VisitVertex(Vertex);
 	}
 }
 
 void FRequestCluster::FGraphSearch::StartSearch()
 {
-	Frontier.Reserve(Cluster.OwnedPackageDatas.Num());
+	VisitVertexQueue.Reserve(Cluster.OwnedPackageDatas.Num());
 	for (TPair<FPackageData*, FProcessingFlags>& Pair : Cluster.OwnedPackageDatas)
 	{
 		FVertexData& Vertex = FindOrAddVertex(Pair.Key->GetPackageName(), *Pair.Key);
 		check(Vertex.PackageData);
-		// We're iterating over OwnedPackageDatas and the Vertex is already in the Cluster so we don't need to call
-		// AddToFrontier; just add it directly.
-		Frontier.Add(&Vertex);
+		AddToVisitVertexQueue(Vertex);
 	}
 }
 
@@ -700,14 +692,14 @@ FRequestCluster::FGraphSearch::~FGraphSearch()
 		}
 		for (;;)
 		{
-			TOptional<FVertexData*> Vertex = AsyncQueueResults.Dequeue();
-			if (!Vertex)
+			if (AsyncQueueResults.Dequeue())
+			{
+				bHadActivity = true;
+			}
+			else
 			{
 				break;
 			}
-			FreeQueryData((**Vertex).QueryData);
-			(**Vertex).QueryData = nullptr;
-			bHadActivity = true;
 		}
 		if (bAsyncBatchesEmpty)
 		{
@@ -726,22 +718,6 @@ FRequestCluster::FGraphSearch::~FGraphSearch()
 	}
 }
 
-void FRequestCluster::FGraphSearch::RemovePackageData(FPackageData* PackageData)
-{
-	check(PackageData);
-	FVertexData** Vertex = Vertices.Find(PackageData->GetPackageName());
-	if (Vertex)
-	{
-		(**Vertex).PackageData = nullptr;
-	}
-
-	GraphEdges.Remove(PackageData);
-	for (TPair<FPackageData*, TArray<FPackageData*>>& Pair : GraphEdges)
-	{
-		Pair.Value.Remove(PackageData);
-	}
-}
-
 void FRequestCluster::FGraphSearch::OnNewReachablePlatforms(FPackageData* PackageData)
 {
 	FVertexData** VertexPtr = Vertices.Find(PackageData->GetPackageName());
@@ -749,44 +725,46 @@ void FRequestCluster::FGraphSearch::OnNewReachablePlatforms(FPackageData* Packag
 	{
 		return;
 	}
-	// Already in OwnedPackageDatas, so just add to Frontier directly
-	Frontier.Add(*VertexPtr);
+	AddToVisitVertexQueue(**VertexPtr);
 }
 
-void FRequestCluster::FGraphSearch::QueueEdgesFetch(FVertexData& Vertex,
-	TConstArrayView<const ITargetPlatform*> Platforms)
+void FRequestCluster::FGraphSearch::QueueEdgesFetch(FVertexData& Vertex, TConstArrayView<int32> PlatformIndexes)
 {
-	check(!Vertex.QueryData);
-	FVertexQueryData& QueryData = *AllocateQueryData();
-	Vertex.QueryData = &QueryData;
-	
-	QueryData.PackageName = Vertex.PackageData->GetPackageName();
-	QueryData.Platforms.SetNum(FetchPlatforms.Num());
+	check(Vertex.PackageData); // Caller must not call without a PackageData; doing so serves no purpose
 
-	// Store Platforms in QueryData->Platforms.bActive. All bActive values start false from constructor or from Reset
-	bool bHasPlatformAgnostic = false;
-	for (const ITargetPlatform* Platform : Platforms)
+	bool bAnyRequestedNeedsPlatformAgnostic = false;
+	bool bAnyRequested = false;
+	bool bAllHaveAlreadyCompletedFetch = false;
+
+	for (int32 PlatformIndex : PlatformIndexes)
 	{
-		int32 Index = Algo::BinarySearchBy(FetchPlatforms, Platform, [](const FFetchPlatformData& D) 
+		// The platform data may have already been requested; request it only if current status is NotRequested
+		FQueryPlatformData& QueryData = Vertex.PlatformData[PlatformIndex];
+		if (!QueryData.bSchedulerThreadFetchCompleted)
 			{
-				return D.Platform;
-			});
-		check(Index != INDEX_NONE);
-		QueryData.Platforms[Index].bActive = true;
-		if (Platform != CookerLoadingPlatformKey)
+			bAllHaveAlreadyCompletedFetch = false;
+			EAsyncQueryStatus ExpectedStatus = EAsyncQueryStatus::NotRequested;
+			if (QueryData.CompareExchangeAsyncQueryStatus(ExpectedStatus, EAsyncQueryStatus::SchedulerRequested))
 		{
-			bHasPlatformAgnostic = true;
+				bAnyRequested = true;
 		}
 	}
-	if (bHasPlatformAgnostic)
-	{
-		QueryData.Platforms[PlatformAgnosticPlatformIndex].bActive = true;
 	}
-	int32 NumPendingPlatforms = Platforms.Num() + (bHasPlatformAgnostic ? 1 : 0);
-	QueryData.PendingPlatforms.store(NumPendingPlatforms, std::memory_order_release);
 
-	PreAsyncQueue.Add(&Vertex);
-	CreateAvailableBatches(false /* bAllowIncompleteBatch */);
+	if (bAnyRequested)
+	{
+		PreAsyncQueue.Add(&Vertex);
+		CreateAvailableBatches(false /* bAllowIncompleteBatch */);
+	}
+
+	if (bAllHaveAlreadyCompletedFetch)
+	{
+		// We are contractually obligated to kick the vertex. Normally we would put it into PreAsyncQueue and that
+		// queue would take responsibility for kicking it. Also, it might still be in the AsyncQueueResults for one
+		// of the platforms so it will be kicked by TickExplore pulling it out of the AsyncQueueResults. But if all
+		// requested platforms already previously pulled it out of AsyncQueueResults, then we need to kick it again.
+		KickVertex(&Vertex);
+	}
 }
 
 void FRequestCluster::FGraphSearch::WaitForAsyncQueue(double WaitTimeSeconds)
@@ -798,6 +776,8 @@ void FRequestCluster::FGraphSearch::WaitForAsyncQueue(double WaitTimeSeconds)
 void FRequestCluster::FGraphSearch::TickExploration(bool& bOutDone)
 {
 	bool bHadActivity = false;
+
+	int32 RunawayLoopCount = 0;
 	for (;;)
 	{
 		TOptional<FVertexData*> FrontVertex = AsyncQueueResults.Dequeue();
@@ -806,35 +786,58 @@ void FRequestCluster::FGraphSearch::TickExploration(bool& bOutDone)
 			break;
 		}
 		FVertexData* Vertex = *FrontVertex;
-		ExploreEdgesContext.Explore(*Vertex);
-		FreeQueryData(Vertex->QueryData);
-		Vertex->QueryData = nullptr;
-		bHadActivity = true;
-	}
-
-	if (!Frontier.IsEmpty())
-	{
-		TArray<FVertexData*> BusyVertices;
-		for (FVertexData* Vertex : Frontier)
+		for (FQueryPlatformData& PlatformData : GetPlatformDataArray(*Vertex))
 		{
-			if (Vertex->QueryData)
+			if (!PlatformData.bSchedulerThreadFetchCompleted)
 			{
-				// Vertices that are already in the AsyncQueue can not be added again; we would clobber their
-				// QueryData. Postpone them.
-				BusyVertices.Add(Vertex);
-			}
-			else
-			{
-				VisitVertex(*Vertex);
+				PlatformData.bSchedulerThreadFetchCompleted =
+					PlatformData.GetAsyncQueryStatus() >= EAsyncQueryStatus::Complete;
+				// Note that AsyncQueryStatus might change immediately after we read it, so we might have set
+				// FetchCompleted=false but now AsyncQueryStatus is complete. In that case, whatever async thread
+				// changed the AsyncQueryStatus will also kick the vertex again and we will detect the new value when
+				// we reach the new value of the vertexdata later in AsyncQueueResults
 			}
 		}
-		bHadActivity |= BusyVertices.Num() != Frontier.Num();
-		Frontier.Reset();
-		Frontier.Append(BusyVertices);
+
+		ExploreEdgesContext.Explore(*Vertex);
+		bHadActivity = true;
+
+		if (RunawayLoopCount++ > 2 * Vertices.Num())
+		{
+			UE_LOG(LogCook, Fatal, TEXT("Infinite loop detected in FRequestCluster::TickExploration's AsyncQueueResults."));
+		}
+	}
+
+	RunawayLoopCount = 0;
+	while (!VisitVertexQueue.IsEmpty())
+	{
+		bHadActivity = true;
+		// VisitVertex might try to add other vertices onto VisitVertexQueue, so move it into a snapshot and process
+		// the snapshot. After snapshot processing is done, add on anything that was added and then move it back.
+		// We move it back even if it is empty so we can avoid reallocating when we add to it again later.
+		TSet<FVertexData*> Snapshot = MoveTemp(VisitVertexQueue);
+		VisitVertexQueue.Reset();
+		for (FVertexData* Vertex : Snapshot)
+		{
+			VisitVertex(*Vertex);
+		}
+		Snapshot.Reset();
+		Snapshot.Append(VisitVertexQueue);
+		VisitVertexQueue = MoveTemp(Snapshot);
+
+		if (RunawayLoopCount++ > 2 * Vertices.Num())
+		{
+			UE_LOG(LogCook, Fatal, TEXT("Infinite loop detected in FRequestCluster::TickExploration's VisitVertexQueue."));
+		}
 	}
 
 	if (bHadActivity)
 	{
+		++RunAwayTickLoopCount;
+		if (RunAwayTickLoopCount++ > 2 * Vertices.Num()*NumFetchPlatforms())
+		{
+			UE_LOG(LogCook, Fatal, TEXT("Infinite loop detected in reentrant calls to FRequestCluster::TickExploration."));
+		}
 		LastActivityTime = FPlatformTime::Seconds();
 		bOutDone = false;
 		return;
@@ -876,10 +879,78 @@ void FRequestCluster::FGraphSearch::TickExploration(bool& bOutDone)
 		return;
 	}
 
-	// Frontier was reset above, and it cannot be modified between there and here.
-	// If it were non-empty we would not be done.
-	check(Frontier.IsEmpty());
+	if (!VisitVertexQueue.IsEmpty() || !bAsyncQueueEmpty || !PreAsyncQueue.IsEmpty())
+	{
+		// A container ticked earlier was populated by the tick of a later container; restart tick from beginning
+		bOutDone = false;
+		return;
+	}
+
+	// We are out of direct dependency work to do, but there could be a cycle in the graph of
+	// TransitiveBuildDependencies. If so, resolve the cycle and allow those vertices' edges to be explored.
+	if (!PendingTransitiveBuildDependencyVertices.IsEmpty())
+	{
+		ResolveTransitiveBuildDependencyCycle();
+		bOutDone = false;
+		++RunAwayTickLoopCount;
+		if (RunAwayTickLoopCount++ > 2 * Vertices.Num() * NumFetchPlatforms())
+		{
+			UE_LOG(LogCook, Fatal, TEXT("Infinite loop detected in FRequestCluster::PendingTransitiveBuildDependencyVertices."));
+		}
+		return;
+	}
+
 	bOutDone = true;
+}
+
+void FRequestCluster::FGraphSearch::ResolveTransitiveBuildDependencyCycle()
+{
+	// We interpret cycles in the transitive build dependency graph to mean that every vertex in the cycle is
+	// invalidated if and only if any dependency from any vertex that points outside the cycle is invalidated (the
+	// dependency pointing outside the cycle might be either a transitive build dependency on a package outside of the
+	// cycle or a direct dependency).
+
+	// Using this definition, we can resolve as not iteratively modified, with no further calculation needed, all
+	// elements in the PendingTransitiveBuildDependencyVertices graph, when we run out of direct dependency work to do.
+	// Proof:
+
+	// Every package in the PendingTransitiveBuildDependencyVertices set is one that is not invalidated by any of its
+	// direct dependencies, but it has transitive build dependencies that might be invalidated.
+	// If we have run out of direct dependency work to do, then all there are no transitive build dependencies on any
+	// vertex not in the set.
+	// No direct dependency invalidations and no transitive build dependency invalidations, by our interpretation of a
+	// cycle above, mean that the package is not invalidated.
+
+	// Mark all of the currently fetched platforms of all packages in the PendingTransitiveBuildDependencyVertices as
+	// ignore transitive build dependencies and kick them.
+
+	FVertexData* FirstVertex = nullptr;
+	for (FVertexData* CycleVert : PendingTransitiveBuildDependencyVertices)
+	{
+		if (!FirstVertex)
+		{
+			FirstVertex = CycleVert;
+		}
+		for (FQueryPlatformData& PlatformData : GetPlatformDataArray(*CycleVert))
+		{
+			if (PlatformData.bIterativelyUnmodifiedRequested || PlatformData.bExploreRequested)
+			{
+				PlatformData.bTransitiveBuildDependenciesResolvedAsNotModified = true;
+			}
+		}
+		// We can also empty the IterativelyModifiedListeners since any remaining listeners must be in
+		// PendingTransitiveBuildDependencyVertices. Empting the list here avoids the expense of kicking
+		// for a second time each of the listeners.
+		CycleVert->IterativelyModifiedListeners.Empty();
+		KickVertex(CycleVert);
+	}
+	check(FirstVertex); // This function should not be called if PendingTransitiveBuildDependencyVertices is empty.
+	PendingTransitiveBuildDependencyVertices.Empty();
+	UE_LOG(LogCook, Display,
+		TEXT("Cycle detected in the graph of transitive build dependencies.")
+		TEXT(" No vertices in the cycle are invalidated by their direct dependencies, so marking them all as iteratively skippable.")
+		TEXT("\n\tVertex in the cycle: %s"),
+		*FirstVertex->PackageName.ToString());
 }
 
 void FRequestCluster::FGraphSearch::UpdateDisplay()
@@ -888,34 +959,34 @@ void FRequestCluster::FGraphSearch::UpdateDisplay()
 	if (FPlatformTime::Seconds() > LastActivityTime + WarningTimeout && Cluster.IsIncrementalCook())
 	{
 		FScopeLock ScopeLock(&Lock);
-		int32 NumVertices = 0;
+		int32 NumPendingRequestsInBatches = 0;
 		int32 NumBatches = AsyncQueueBatches.Num();
 		for (FQueryVertexBatch* Batch : AsyncQueueBatches)
 		{
-			NumVertices += Batch->PendingVertices;
+			NumPendingRequestsInBatches += Batch->NumPendingRequests;
 		}
 
 		UE_LOG(LogCook, Warning,
 			TEXT("FRequestCluster waited more than %.0lfs for previous build results from the oplog. ")
-			TEXT("NumPendingBatches == %d, NumPendingVertices == %d. Continuing to wait..."),
-			WarningTimeout, NumBatches, NumVertices);
+			TEXT("NumPendingBatches == %d, NumPendingRequestsInBatches == %d. Continuing to wait..."),
+			WarningTimeout, NumBatches, NumPendingRequestsInBatches);
 		LastActivityTime = FPlatformTime::Seconds();
 	}
 }
 
 void FRequestCluster::FGraphSearch::VisitVertex(FVertexData& Vertex)
 {
-	// Only called from PumpExploration thread
+	// Only called from scheduler thread
 
-	// The PackageData will not exist if the package does not exist on disk or
-	// the PackageData was removed from the FRequestCluster due to changes in the PackageData's
-	// state elsewhere in the cooker.
+	// The PackageData will not exist if the package does not exist on disk
 	if (!Vertex.PackageData)
 	{
 		return;
 	}
 
-	TArray<const ITargetPlatform*, TInlineAllocator<1>> ExplorePlatforms;
+	int32 LocalNumFetchPlatforms = NumFetchPlatforms();
+	TBitArray<> ShouldFetchPlatforms(false, LocalNumFetchPlatforms);
+	
 	FPackagePlatformData* CookerLoadingPlatform = nullptr;
 	const ITargetPlatform* FirstReachableSessionPlatform = nullptr;
 	ESuppressCookReason SuppressCookReason = ESuppressCookReason::Invalid;
@@ -924,24 +995,35 @@ void FRequestCluster::FGraphSearch::VisitVertex(FVertexData& Vertex)
 		Vertex.PackageData->GetPlatformDatasConstKeysMutableValues())
 	{
 		FPackagePlatformData& PlatformData = Pair.Value;
-		if (Pair.Key == CookerLoadingPlatformKey)
+		const ITargetPlatform* TargetPlatform = Pair.Key;
+		if (TargetPlatform == CookerLoadingPlatformKey)
 		{
-			CookerLoadingPlatform = &Pair.Value;
+			CookerLoadingPlatform = &PlatformData;
 		}
 		else if (PlatformData.IsReachable())
 		{
+			int32 PlatformIndex = Algo::BinarySearchBy(FetchPlatforms, TargetPlatform, [](const FFetchPlatformData& D)
+				{
+					return D.Platform;
+				});
+			check(PlatformIndex != INDEX_NONE);
+
 			if (!FirstReachableSessionPlatform)
 			{
-				FirstReachableSessionPlatform = Pair.Key;
+				FirstReachableSessionPlatform = TargetPlatform;
 			}
 			if (!PlatformData.IsVisitedByCluster())
 			{
-				VisitVertexForPlatform(Vertex, Pair.Key, PlatformData, SuppressCookReason);
+				VisitVertexForPlatform(Vertex, TargetPlatform, PlatformData, SuppressCookReason);
+
 				if ((TraversalTier >= ETraversalTier::FetchEdgeData) && 
 					(((TraversalTier >= ETraversalTier::FollowDependencies) && PlatformData.IsExplorable())
 						|| Cluster.IsIncrementalCook()))
 				{
-					ExplorePlatforms.Add(Pair.Key);
+					ShouldFetchPlatforms[PlatformIndex] = true;
+					Vertex.PlatformData[PlatformIndex].bExploreRequested = true;
+					// Exploration of any session platform also requires exploration of PlatformAgnosticPlatform
+					Vertex.PlatformData[PlatformAgnosticPlatformIndex].bExploreRequested = true;
 				}
 			}
 			if (PlatformData.IsCookable())
@@ -997,13 +1079,45 @@ void FRequestCluster::FGraphSearch::VisitVertex(FVertexData& Vertex)
 		CookerLoadingPlatform->SetVisitedByCluster(true);
 		if (TraversalTier >= ETraversalTier::FollowDependencies)
 		{
-			ExplorePlatforms.Add(CookerLoadingPlatformKey);
+			ShouldFetchPlatforms[CookerLoadingPlatformIndex] = true;
+			Vertex.PlatformData[CookerLoadingPlatformIndex].bExploreRequested = true;
 		}
 	}
 
-	if (!ExplorePlatforms.IsEmpty() && TraversalTier >= ETraversalTier::FetchEdgeData)
+	if (TraversalTier >= ETraversalTier::FetchEdgeData)
 	{
-		QueueEdgesFetch(Vertex, ExplorePlatforms);
+		for (int32 PlatformIndex = 0; PlatformIndex < LocalNumFetchPlatforms; ++PlatformIndex)
+		{
+			FQueryPlatformData& PlatformData = Vertex.PlatformData[PlatformIndex];
+
+			// Add on the fetch (but not the explore) of bIterativelyUnmodifiedRequested platforms
+			if (PlatformData.bIterativelyUnmodifiedRequested)
+			{
+				ShouldFetchPlatforms[PlatformIndex] = true;
+			}
+
+			// Also add the fetch (but not necessarily the explore) of PlatformAgnosticPlatform if a
+			// SessionPlatform is fetched.
+			if (ShouldFetchPlatforms[PlatformIndex] &&
+				PlatformIndex != CookerLoadingPlatformIndex && PlatformIndex != PlatformAgnosticPlatformIndex)
+			{
+				ShouldFetchPlatforms[PlatformAgnosticPlatformIndex] = true;
+			}
+		}
+
+		// Convert Bit Array to an array of indexes and fetch them if non empty
+		TArray<int32, TInlineAllocator<10>> FetchPlatformIndexes;
+		for (int32 PlatformIndex = 0; PlatformIndex < LocalNumFetchPlatforms; ++PlatformIndex)
+		{
+			if (ShouldFetchPlatforms[PlatformIndex])
+			{
+				FetchPlatformIndexes.Add(PlatformIndex);
+			}
+		}
+		if (!FetchPlatformIndexes.IsEmpty())
+		{
+			QueueEdgesFetch(Vertex, FetchPlatformIndexes);
+		}
 	}
 }
 
@@ -1045,106 +1159,232 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::Explore(FVertexData& I
 {
 	// Only called from scheduler thread
 
-	// The PackageData will not exist if the package does not exist on disk or
-	// the PackageData was removed from the FRequestCluster due to changes in the PackageData's
-	// state elsewhere in the cooker.
-	if (!InVertex.PackageData)
+	Initialize(InVertex);
+	CalculatePlatformsToProcess();
+	if (PlatformsToProcess.IsEmpty())
 	{
 		return;
 	}
 
-	Initialize(InVertex);
-	CalculatePlatformsToExplore();
+	if (!TryCalculateIterativelyUnmodified())
+	{
+		// The vertex was added as a listener to the pending data it needs. Exit from explore
+		// for now and we will reenter it later when the data becomes available.
+		return;
+	}
 	if (PlatformsToExplore.IsEmpty())
 	{
+		// We had platforms we needed to test for iteratively unmodified (for e.g. TransitiveBuildDependencies), but
+		// nothing to explore. No more work to do until/unless they become marked for explore later.
 		return;
 	}
 
 	CalculatePackageDataDependenciesPlatformAgnostic();
 	CalculateDependenciesAndIterativelySkippable();
 	QueueVisitsOfDependencies();
+	MarkExploreComplete();
 }
 
 void FRequestCluster::FGraphSearch::FExploreEdgesContext::Initialize(FVertexData& InVertex)
 {
 	Vertex = &InVertex;
+	// Vertices without a package data are never queued for fetch
 	check(Vertex->PackageData);
-	check(Vertex->QueryData);
 	PackageData = Vertex->PackageData;
-	PackageName = Vertex->QueryData->PackageName;
+	PackageName = Vertex->PackageName;
 
 	HardGameDependencies.Reset();
 	HardEditorDependencies.Reset();
 	SoftGameDependencies.Reset();
 	CookerLoadingDependencies.Reset();
+	PlatformsToProcess.Reset();
 	PlatformsToExplore.Reset();
 	PlatformDependencyMap.Reset();
 	HardDependenciesSet.Reset();
 	SkippedPackages.Reset();
+	UnreadyTransitiveBuildVertices.Reset();
 
 	LocalNumFetchPlatforms = GraphSearch.NumFetchPlatforms();
 	bFetchAnyTargetPlatform = false;
 
 	DiscoveredDependencies = Cluster.COTFS.DiscoveredDependencies.Find(PackageName);
+
+	GraphSearch.PendingTransitiveBuildDependencyVertices.Remove(Vertex);
 }
 
-void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculatePlatformsToExplore()
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculatePlatformsToProcess()
 {
-	bFetchAnyTargetPlatform = Vertex->QueryData->Platforms[PlatformAgnosticPlatformIndex].bActive;
+	FQueryPlatformData& PlatformAgnosticQueryData = Vertex->PlatformData[PlatformAgnosticPlatformIndex];
 	for (int32 PlatformIndex = 0; PlatformIndex < LocalNumFetchPlatforms; ++PlatformIndex)
 	{
-		FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
-		if (!QueryPlatformData.bActive || PlatformIndex == PlatformAgnosticPlatformIndex)
+		if (PlatformIndex == PlatformAgnosticPlatformIndex)
 		{
 			continue;
 		}
-		PlatformsToExplore.Add(PlatformIndex);
+		FQueryPlatformData& QueryPlatformData = Vertex->PlatformData[PlatformIndex];
+		if (!QueryPlatformData.bSchedulerThreadFetchCompleted)
+		{
+			continue;
+		}
+		bool bIterativelyUnmodifiedNeeded = !QueryPlatformData.bIterativelyUnmodified.IsSet();
+		bool bExploreNeeded = !QueryPlatformData.bExploreCompleted && QueryPlatformData.bExploreRequested;
+		if (!bIterativelyUnmodifiedNeeded && !bExploreNeeded)
+		{
+			continue;
+		}
+		if (bExploreNeeded && PlatformIndex != CookerLoadingPlatformIndex)
+		{
+			if (!PlatformAgnosticQueryData.bSchedulerThreadFetchCompleted)
+			{
+				continue;
+			}
+			// bExploreNeeded implies bExploreRequested, and wherever bExploreRequested is set to true we also set it
+			// to true for PlatformAgnosticQueryData.
+			check(PlatformAgnosticQueryData.bExploreRequested);
+			bFetchAnyTargetPlatform = true;
+		}
+		PlatformsToProcess.Add(PlatformIndex);
+		if (bExploreNeeded)
+		{
+			PlatformsToExplore.Add(PlatformIndex);
+		}
 	}
 }
 
-void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculateIterativelyUnmodified()
+bool FRequestCluster::FGraphSearch::FExploreEdgesContext::TryCalculateIterativelyUnmodified()
 {
 	using namespace UE::TargetDomain;
 
 	if (!Cluster.IsIncrementalCook())
 	{
-		return;
+		return true;
 	}
 
-	for (int32 PlatformIndex : PlatformsToExplore)
+	bool bAllPlatformsAreReady = true;
+	for (int32 PlatformIndex : PlatformsToProcess)
 	{
 		if (PlatformIndex == CookerLoadingPlatformIndex)
 		{
 			continue;
 		}
 
-		FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
+		FQueryPlatformData& QueryPlatformData = Vertex->PlatformData[PlatformIndex];
+		if (QueryPlatformData.bIterativelyUnmodified.IsSet())
+		{
+			continue;
+		}
+
 		FFetchPlatformData& FetchPlatformData = GraphSearch.FetchPlatforms[PlatformIndex];
 		const ITargetPlatform* TargetPlatform = FetchPlatformData.Platform;
 		FPackagePlatformData& PackagePlatformData = PackageData->FindOrAddPlatformData(TargetPlatform);
 
 		if (!PackagePlatformData.IsCookable())
 		{
-			QueryPlatformData.bIterativelyUnmodified = false;
+			SetIsIterativelyUnmodified(PlatformIndex, false);
 			continue;
 		}
 
 		UE::TargetDomain::FCookDependencies& CookDependencies = QueryPlatformData.CookAttachments.Dependencies;
 		if (!CookDependencies.HasKeyMatch())
 		{
-			QueryPlatformData.bIterativelyUnmodified = false;
+			SetIsIterativelyUnmodified(PlatformIndex, false);
 			continue;
 		}
 
 		if (!IsIterativeEnabled(PackageName, Cluster.COTFS.bHybridIterativeAllowAllClasses))
 		{
-			QueryPlatformData.bIterativelyUnmodified = false;
+			SetIsIterativelyUnmodified(PlatformIndex, false);
 			continue;
 		}
 
-		QueryPlatformData.bIterativelyUnmodified = true;
+		if (!QueryPlatformData.bTransitiveBuildDependenciesResolvedAsNotModified)
+		{
+			bool bAnyTransitiveBuildDependencyIsModified = false;
+			UnreadyTransitiveBuildVertices.Reset();
+			for (const UE::Cook::FCookDependency& TransitiveBuildDependency :
+				CookDependencies.GetTransitiveBuildDependencies())
+			{
+				FName TransitiveBuildPackageName = TransitiveBuildDependency.GetPackageName();
+				FVertexData& TransitiveBuildVertex = GraphSearch.FindOrAddVertex(TransitiveBuildPackageName);
+				if (!TransitiveBuildVertex.PackageData)
+				{
+					// A build dependency on a non-existent package can occur e.g. if the package is in an
+					// unmounted plugin. If the package does not exist we count the transitivebuilddependency
+					// as not iteratively unmodified, the same as any package that is not cooked, so mark this
+					// package as not iteratively unmodified.
+					// This is an unexpected data layout however, so log it as a warning.
+					UE_LOG(LogCook, Warning,
+						TEXT("TransitiveBuildDependency to non-existent package.")
+						TEXT(" Package %s has a transitive build dependency on package %s, which does not exist or is not mounted.")
+						TEXT(" Package %s will be marked as not iteratively skippable and will be recooked."),
+						*Vertex->PackageName.ToString(), *TransitiveBuildPackageName.ToString(),
+						*Vertex->PackageName.ToString());
+					bAnyTransitiveBuildDependencyIsModified = true;
+					break;
+				}
+
+				FQueryPlatformData& TransitivePlatformData = TransitiveBuildVertex.PlatformData[PlatformIndex];
+				if (!TransitivePlatformData.bIterativelyUnmodified.IsSet())
+				{
+					UnreadyTransitiveBuildVertices.Add(&TransitiveBuildVertex);
+					continue;
+				}
+				if (!TransitivePlatformData.bIterativelyUnmodified.GetValue())
+				{
+					bAnyTransitiveBuildDependencyIsModified = true;
+					break;
+				}
+			}
+
+			if (bAnyTransitiveBuildDependencyIsModified)
+			{
+				SetIsIterativelyUnmodified(PlatformIndex, false);
+				continue;
+			}
+			if (!UnreadyTransitiveBuildVertices.IsEmpty())
+			{
+				// Add this vertex as a listener to the TransitiveBuildVertices' TryCalculateIterativelyUnmodified
+				for (FVertexData* TransitiveBuildVertex : UnreadyTransitiveBuildVertices)
+				{
+					FQueryPlatformData& TransitivePlatformData = TransitiveBuildVertex->PlatformData[PlatformIndex];
+
+					// Do not kick the vertex again if it has already been fetched; doing so will create busy work
+					// in the case of a cycle and prevent us from detecting the cycle.
+					if (!TransitivePlatformData.bSchedulerThreadFetchCompleted)
+					{
+						TransitivePlatformData.bIterativelyUnmodifiedRequested = true;
+						GraphSearch.AddToVisitVertexQueue(*TransitiveBuildVertex);
+					}
+					// It's okay to add duplicates to IterativelyModifiedListeners; we remove them when broadcasting
+					TransitiveBuildVertex->IterativelyModifiedListeners.Add(this->Vertex);
+				}
+
+				bAllPlatformsAreReady = false;
+				continue;
+			}
+		}
+
+		SetIsIterativelyUnmodified(PlatformIndex, true);
 		PackagePlatformData.SetIterativelyUnmodified(true);
 	}
+
+	if (!bAllPlatformsAreReady)
+	{
+		GraphSearch.PendingTransitiveBuildDependencyVertices.Add(Vertex);
+		return false;
+	}
+
+	if (!Vertex->IterativelyModifiedListeners.IsEmpty())
+	{
+		Algo::Sort(Vertex->IterativelyModifiedListeners);
+		Vertex->IterativelyModifiedListeners.SetNum(Algo::Unique(Vertex->IterativelyModifiedListeners));
+		for (FVertexData* ListenerVertex : Vertex->IterativelyModifiedListeners)
+		{
+			GraphSearch.KickVertex(ListenerVertex);
+		}
+		Vertex->IterativelyModifiedListeners.Empty();
+	}
+	return true;
 }
 
 void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculatePackageDataDependenciesPlatformAgnostic()
@@ -1208,7 +1448,7 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculateDependenciesA
 
 	for (int32 PlatformIndex : PlatformsToExplore)
 	{
-		FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
+		FQueryPlatformData& QueryPlatformData = Vertex->PlatformData[PlatformIndex];
 		FFetchPlatformData& FetchPlatformData = GraphSearch.FetchPlatforms[PlatformIndex];
 		const ITargetPlatform* TargetPlatform = FetchPlatformData.Platform;
 		FPackagePlatformData& PackagePlatformData = PackageData->FindOrAddPlatformData(TargetPlatform);
@@ -1291,7 +1531,7 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::QueueVisitsOfDependenc
 			continue;
 		}
 		FPackageData& DependencyPackageData(*DependencyVertex.PackageData);
-		bool bAddToFrontier = false;
+		bool bAddToVisitVertexQueue = false;
 
 		for (int32 PlatformIndex = 0; PlatformIndex < LocalNumFetchPlatforms; ++PlatformIndex)
 		{
@@ -1323,13 +1563,31 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::QueueVisitsOfDependenc
 			}
 			if (!PlatformData.IsVisitedByCluster())
 			{
-				bAddToFrontier = true;
+				bAddToVisitVertexQueue = true;
 			}
 		}
-		if (bAddToFrontier)
+		if (bAddToVisitVertexQueue)
 		{
-			GraphSearch.AddToFrontier(DependencyVertex);
+			if (DependencyVertex.PackageData)
+			{
+				// Only pull the vertex into the cluster if it has not already been pulled into the cluster.
+				// This prevents us from trying to readd a packagedata after COTFS called Cluster->RemovePackageData.
+				if (!DependencyVertex.bPulledIntoCluster)
+				{
+					DependencyVertex.bPulledIntoCluster = true;
+					Cluster.PullIntoCluster(*DependencyVertex.PackageData);
+				}
+			}
+			GraphSearch.AddToVisitVertexQueue(DependencyVertex);
 		}
+	}
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::MarkExploreComplete()
+{
+	for (int32 PlatformIndex : PlatformsToExplore)
+	{
+		Vertex->PlatformData[PlatformIndex].bExploreCompleted = true;
 	}
 }
 
@@ -1386,11 +1644,12 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::ProcessPlatformAttachm
 {
 	bool bFoundBuildDefinitions = false;
 	ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
-	FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
+	FQueryPlatformData& QueryPlatformData = Vertex->PlatformData[PlatformIndex];
 
 	if (Cluster.IsIncrementalCook() && PackagePlatformData.IsCookable())
 	{
-		bool bIterativelyUnmodified = QueryPlatformData.bIterativelyUnmodified;
+		check(QueryPlatformData.bIterativelyUnmodified.IsSet());
+		bool bIterativelyUnmodified = QueryPlatformData.bIterativelyUnmodified.GetValue();
 		if (bIterativelyUnmodified)
 		{
 			UE::TargetDomain::FCookDependencies& CookDependencies = PlatformAttachments.Dependencies;
@@ -1427,9 +1686,9 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::ProcessPlatformAttachm
 
 	if (Cluster.bPreQueueBuildDefinitions && !bFoundBuildDefinitions)
 	{
-		FQueryPlatformData& PlatformAgnosticQueryData = Vertex->QueryData->Platforms[PlatformAgnosticPlatformIndex];
+		FQueryPlatformData& PlatformAgnosticQueryData = Vertex->PlatformData[PlatformAgnosticPlatformIndex];
 
-		if (PlatformAgnosticQueryData.bActive &&
+		if (PlatformAgnosticQueryData.bSchedulerThreadFetchCompleted &&
 			PlatformAgnosticQueryData.CookAttachments.Dependencies.HasKeyMatch())
 		{
 			Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
@@ -1438,58 +1697,52 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::ProcessPlatformAttachm
 	}
 }
 
-void FRequestCluster::FVertexQueryData::Reset()
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::SetIsIterativelyUnmodified(int32 PlatformIndex, bool bIterativelyUnmodified)
 {
-	for (FQueryPlatformData& PlatformData : Platforms)
-	{
-		PlatformData.CookAttachments.Reset();
-		PlatformData.bActive = false;
-	}
+	Vertex->PlatformData[PlatformIndex].bIterativelyUnmodified.Emplace(bIterativelyUnmodified);
 }
 
-FRequestCluster::FVertexData* FRequestCluster::FGraphSearch::AllocateVertex()
+FRequestCluster::FVertexData* FRequestCluster::FGraphSearch::AllocateVertex(FName PackageName, FPackageData* PackageData)
 {
-	return VertexAllocator.NewElement();
+	// TODO: Change TypeBlockedAllocator to have an optional Size and Align argument,
+	// and use it to allocate the array of PlatformData, to reduce cpu time of allocating the array.
+	return VertexAllocator.NewElement(PackageName, PackageData, *this);
 }
 
-FRequestCluster::FVertexQueryData* FRequestCluster::FGraphSearch::AllocateQueryData()
+FRequestCluster::FVertexData::FVertexData(FName InPackageName, UE::Cook::FPackageData* InPackageData,
+	FGraphSearch& GraphSearch)
+	: PackageName(InPackageName)
+	, PackageData(InPackageData)
 {
-	// VertexQueryAllocator uses DeferredDestruction, so this might be a resused Batch, but we don't need to Reset it
-	// during allocation because Batches are Reset during Free.
-	return VertexQueryAllocator.NewElement();
-}
-
-void FRequestCluster::FGraphSearch::FreeQueryData(FVertexQueryData* QueryData)
-{
-	QueryData->Reset();
-	VertexQueryAllocator.Free(QueryData);
+	PlatformData.Reset(new FQueryPlatformData[GraphSearch.NumFetchPlatforms()]);
 }
 
 FRequestCluster::FVertexData&
 FRequestCluster::FGraphSearch::FindOrAddVertex(FName PackageName)
 {
-	// Only called from PumpExploration thread
+	// Only called from scheduler thread
 	FVertexData*& ExistingVertex = Vertices.FindOrAdd(PackageName);
 	if (ExistingVertex)
 	{
 		return *ExistingVertex;
 	}
 
-	ExistingVertex = AllocateVertex();
+	FPackageData* PackageData = nullptr;
 	TStringBuilder<256> NameBuffer;
 	PackageName.ToString(NameBuffer);
-	ExistingVertex->PackageData = nullptr;
 	if (!FPackageName::IsScriptPackage(NameBuffer))
 	{
-		ExistingVertex->PackageData = Cluster.COTFS.PackageDatas->TryAddPackageDataByPackageName(PackageName);
+		PackageData = Cluster.COTFS.PackageDatas->TryAddPackageDataByPackageName(PackageName);
 	}
+
+	ExistingVertex = AllocateVertex(PackageName, PackageData);
 	return *ExistingVertex;
 }
 
 FRequestCluster::FVertexData&
 FRequestCluster::FGraphSearch::FindOrAddVertex(FName PackageName, FPackageData& PackageData)
 {
-	// Only called from PumpExploration thread
+	// Only called from scheduler thread
 	FVertexData*& ExistingVertex = Vertices.FindOrAdd(PackageName);
 	if (ExistingVertex)
 	{
@@ -1497,18 +1750,13 @@ FRequestCluster::FGraphSearch::FindOrAddVertex(FName PackageName, FPackageData& 
 		return *ExistingVertex;
 	}
 
-	ExistingVertex = AllocateVertex();
-	ExistingVertex->PackageData = &PackageData;
+	ExistingVertex = AllocateVertex(PackageName, &PackageData);
 	return *ExistingVertex;
 }
 
-void FRequestCluster::FGraphSearch::AddToFrontier(FVertexData& Vertex)
+void FRequestCluster::FGraphSearch::AddToVisitVertexQueue(FVertexData& Vertex)
 {
-	if (Vertex.PackageData)
-	{
-		Cluster.PullIntoCluster(*Vertex.PackageData);
-	}
-	Frontier.Add(&Vertex);
+	VisitVertexQueue.Add(&Vertex);
 }
 
 void FRequestCluster::FGraphSearch::CreateAvailableBatches(bool bAllowIncompleteBatch)
@@ -1562,8 +1810,12 @@ FRequestCluster::FQueryVertexBatch* FRequestCluster::FGraphSearch::CreateBatchOf
 	for (int32 BatchIndex = 0; BatchIndex < BatchSize; ++BatchIndex)
 	{
 		FVertexData* Vertex = PreAsyncQueue.PopFrontValue();
-		FVertexData*& ExistingVert = BatchData->Vertices.FindOrAdd(Vertex->QueryData->PackageName);
-		check(!ExistingVert); // We should not have any duplicate names in PreAsyncQueue
+		FVertexData*& ExistingVert = BatchData->Vertices.FindOrAdd(Vertex->PackageName);
+		// Each PackageName should be used by just a single vertex.
+		check(!ExistingVert || ExistingVert == Vertex);
+		// If the vertex was already previously added to the batch that's okay, just ignore the new add.
+		// A batch size of 0 is a problem but that can't happen just because a vertex is in the batch twice.
+		// A batch size smaller than the expected `BatchSize` parameter is a minor performance issue but not a problem.
 		ExistingVert = Vertex;
 	}
 	AsyncQueueBatches.Add(BatchData);
@@ -1578,13 +1830,14 @@ void FRequestCluster::FGraphSearch::OnBatchCompleted(FQueryVertexBatch* Batch)
 	AsyncResultsReadyEvent->Trigger();
 }
 
-void FRequestCluster::FGraphSearch::OnVertexCompleted()
+void FRequestCluster::FGraphSearch::KickVertex(FVertexData* Vertex)
 {
 	// The trigger occurs outside of the lock, and might get clobbered and incorrectly ignored by a call from the
-	// consumer thread if the consumer tried to consume and found the vertices empty before our caller added a vertex
-	// but then pauses and calls AsyncResultsReadyEvent->Reset after this AsyncResultsReadyEvent->Trigger.
-	// This clobbering will not cause a deadlock, because eventually DestroyBatch will be called which triggers it
-	// inside the lock. Doing the per-vertex trigger outside the lock is good for performance.
+	// scheduler thread if the scheduler tried to pop the AsyncQueueResults and found it empty before KickVertex calls
+	// Enqueue but then pauses and calls AsyncResultsReadyEvent->Reset after KicKVertex calls Trigger. This clobbering
+	// will not cause a deadlock, because eventually DestroyBatch will be called which triggers it inside the lock. Doing
+	// the per-vertex trigger outside the lock is good for performance.
+	AsyncQueueResults.Enqueue(Vertex);
 	AsyncResultsReadyEvent->Trigger();
 }
 
@@ -1605,24 +1858,46 @@ void FRequestCluster::FQueryVertexBatch::Reset()
 
 void FRequestCluster::FQueryVertexBatch::Send()
 {
+	int32 NumAddedRequests = 0;
 	for (const TPair<FName, FVertexData*>& Pair : Vertices)
 	{
 		FVertexData* Vertex = Pair.Value;
-		TArray<FQueryPlatformData>& QueryPlatforms = Vertex->QueryData->Platforms;
-		bool bAtLeastOnePlatform = false;
+		bool bAnyRequested = false;
+		bool bAllHaveAlreadyCompletedFetch = false;
 		for (int32 PlatformIndex = 0; PlatformIndex < PlatformDatas.Num(); ++PlatformIndex)
 		{
-			if (QueryPlatforms[PlatformIndex].bActive)
+			// The platform data may have already been requested; request it only if current status is NotRequested
+			FQueryPlatformData& PlatformData = Vertex->PlatformData[PlatformIndex];
+			if (!PlatformData.bSchedulerThreadFetchCompleted)
 			{
-				PlatformDatas[PlatformIndex].PackageNames.Add(Pair.Key);
+				bAllHaveAlreadyCompletedFetch = false;
+				EAsyncQueryStatus ExpectedStatus = EAsyncQueryStatus::SchedulerRequested;
+				if (PlatformData.CompareExchangeAsyncQueryStatus(ExpectedStatus,
+					EAsyncQueryStatus::AsyncRequested))
+				{
+					PlatformDatas[PlatformIndex].PackageNames.Add(Pair.Key);
+					++NumAddedRequests;
+				}
 			}
-			bAtLeastOnePlatform = true;
 		}
-		// We only check for the vertex's completion when the vertex receives a callback from the completion of a
-		// platform. Therefore we do not support Vertices in the batch that have no platforms.
-		check(bAtLeastOnePlatform);
+		if (bAllHaveAlreadyCompletedFetch)
+		{
+			// We are contractually obligated to kick the vertex. Normally we would call FCookAttachments::Fetch with it
+			// and would then kick the vertex in our callback. Also, it might still be in the AsyncQueueResults for one
+			// of the platforms so it will be kicked by TickExplore pulling it out of the AsyncQueueResults. But if all
+			// requested platforms already previously pulled it out of AsyncQueueResults, then we need to kick it again.
+			ThreadSafeOnlyVars.KickVertex(Vertex);
+		}
 	}
-	PendingVertices.store(Vertices.Num(), std::memory_order_release);
+	if (NumAddedRequests == 0)
+	{
+		// We turned out not to need to send any from this batch. Report that the batch is complete.
+		ThreadSafeOnlyVars.OnBatchCompleted(this);
+		// *this is no longer accessible
+		return;
+	}
+
+	NumPendingRequests.store(NumAddedRequests, std::memory_order_release);
 
 	for (int32 PlatformIndex = 0; PlatformIndex < PlatformDatas.Num(); ++PlatformIndex)
 	{
@@ -1672,22 +1947,45 @@ void FRequestCluster::FQueryVertexBatch::RecordCacheResults(FName PackageName, i
 	UE::TargetDomain::FCookAttachments&& CookAttachments)
 {
 	FVertexData* Vertex = Vertices.FindChecked(PackageName);
-	check(Vertex->QueryData);
-	FVertexQueryData& QueryData = *Vertex->QueryData;
-	QueryData.Platforms[PlatformIndex].CookAttachments = MoveTemp(CookAttachments);
-	if (QueryData.PendingPlatforms.fetch_sub(1, std::memory_order_acq_rel) == 1)
+	FQueryPlatformData& PlatformData = Vertex->PlatformData[PlatformIndex];
+	PlatformData.CookAttachments = MoveTemp(CookAttachments);
+
+	EAsyncQueryStatus Expected = EAsyncQueryStatus::AsyncRequested;
+	if (PlatformData.CompareExchangeAsyncQueryStatus(Expected, EAsyncQueryStatus::Complete))
 	{
-		ThreadSafeOnlyVars.AsyncQueueResults.Enqueue(Vertex);
-		bool bBatchComplete = PendingVertices.fetch_sub(1, std::memory_order_relaxed) == 1;
-		if (!bBatchComplete)
+		// Kick the vertex if it has no more platforms in pending. Otherwise keep waiting and the later
+		// call to RecordCacheResults will kick the vertex. Note that the "later call" might be another
+		// call to RecordCacheResults on a different thread executing at the same time, and we are racing.
+		// The last one to set CompareExchangeAsyncQueryStatus(EAsyncQueryStatus::Complete) will definitely
+		// see all other values as complete, because we are using std::memory_order_release. It is possible
+		// that both calls to RecordCacheResults will see all values complete, and we will kick it twice.
+		// Kicking twice is okay; it is supported and is a noop.
+		bool bAllPlatformsComplete = true;
+		int32 LocalNumFetchPlatforms = ThreadSafeOnlyVars.NumFetchPlatforms();
+		for (int32 OtherPlatformIndex = 0; OtherPlatformIndex < LocalNumFetchPlatforms; ++OtherPlatformIndex)
 		{
-			ThreadSafeOnlyVars.OnVertexCompleted();
+			if (OtherPlatformIndex == PlatformIndex)
+			{
+				continue;
+			}
+			FQueryPlatformData& OtherPlatformData = Vertex->PlatformData[OtherPlatformIndex];
+			EAsyncQueryStatus OtherStatus = OtherPlatformData.GetAsyncQueryStatus();
+			if (EAsyncQueryStatus::AsyncRequested <= OtherStatus && OtherStatus < EAsyncQueryStatus::Complete)
+			{
+				bAllPlatformsComplete = false;
+				break;
+			}
 		}
-		else
+		if (bAllPlatformsComplete)
 		{
-			ThreadSafeOnlyVars.OnBatchCompleted(this);
-			// *this is no longer accessible
+			ThreadSafeOnlyVars.KickVertex(Vertex);
 		}
+	}
+
+	if (NumPendingRequests.fetch_sub(1, std::memory_order_relaxed) == 1)
+	{
+		ThreadSafeOnlyVars.OnBatchCompleted(this);
+		// *this is no longer accessible
 	}
 }
 

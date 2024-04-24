@@ -281,9 +281,6 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 	AssetRegistry->GetDependencies(Result.PackageName, AssetDependencies,
 		UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Game);
 	RuntimeDependencies.Append(MoveTemp(AssetDependencies));
-	RuntimeDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
-	RuntimeDependencies.Sort(FNameLexicalLess());
-	RuntimeDependencies.SetNum(Algo::Unique(RuntimeDependencies), EAllowShrinking::Yes);
 
 	FPackageBuildDependencyTracker& Tracker = FPackageBuildDependencyTracker::Get();
 
@@ -312,8 +309,6 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 	Result.BuildPackageDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::Yes);
 	Result.BuildPackageDependencies.Sort(FNameLexicalLess());
 
-	Result.RuntimePackageDependencies = MoveTemp(RuntimeDependencies);
-
 #if UE_WITH_CONFIG_TRACKING
 	{
 		using namespace UE::ConfigAccessTracking;
@@ -331,9 +326,42 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 #endif
 	if (SaveResult)
 	{
-		Result.CookDependencies = MoveTemp(SaveResult->CookDependencies);
+		// Move most types of FCookDependency into this->CookDependencies, but separate out
+		// TransitiveBuildDependencies; they require different processing than other types.
+		Result.CookDependencies.Reserve(SaveResult->CookDependencies.Num());
+		for (UE::Cook::FCookDependency& CookDependency : SaveResult->CookDependencies)
+		{
+			if (CookDependency.GetType() == UE::Cook::ECookDependency::TransitiveBuild)
+			{
+				// Build dependencies from a package to itself have a performance cost and serve no
+				// purpose, so remove them. They can occur in some systems that naively add a build dependency
+				// from one object to another without checking whether the second object is in the same package.
+				FName DependencyPackageName = CookDependency.GetPackageName();
+				if (DependencyPackageName == Result.PackageName)
+				{
+					continue;
+				}
+				if (CookDependency.IsAlsoAddRuntimeDependency())
+				{
+					RuntimeDependencies.Add(DependencyPackageName);
+				}
+				Result.TransitiveBuildDependencies.Add(MoveTemp(CookDependency));
+			}
+			else
+			{
+				Result.CookDependencies.Add(MoveTemp(CookDependency));
+			}
+		}
+
 		Algo::Sort(Result.CookDependencies);
+		Algo::Sort(Result.TransitiveBuildDependencies);
 	}
+
+	RuntimeDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
+	RuntimeDependencies.Sort(FNameLexicalLess());
+	RuntimeDependencies.SetNum(Algo::Unique(RuntimeDependencies), EAllowShrinking::Yes);
+
+	Result.RuntimePackageDependencies = MoveTemp(RuntimeDependencies);
 
 	if (!Result.TryCalculateCurrentKey(OutErrorMessage))
 	{
@@ -401,6 +429,13 @@ bool LoadFromCompactBinary(FCbObjectView ObjectView, UE::TargetDomain::FCookDepe
 				return false;
 			}
 		}
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("TransitiveBuildDependencies")))
+		{
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.TransitiveBuildDependencies))
+			{
+				return false;
+			}
+		}
 		if (FieldView == Last)
 		{
 			++FieldView;
@@ -436,6 +471,10 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::TargetDomain::FCookDependenci
 	if (!CookDependencies.CookDependencies.IsEmpty())
 	{
 		Writer << "CookDependencies" << CookDependencies.CookDependencies;
+	}
+	if (!CookDependencies.TransitiveBuildDependencies.IsEmpty())
+	{
+		Writer << "TransitiveBuildDependencies" << CookDependencies.TransitiveBuildDependencies;
 	}
 
 	Writer.EndObject();

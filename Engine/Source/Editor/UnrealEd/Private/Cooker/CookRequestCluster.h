@@ -98,29 +98,37 @@ private:
 		bool bVisited = false;
 	};
 
+	/** Status for where a vertex is on the journey through having its CookDependency information fetched from DDC. */
+	enum class EAsyncQueryStatus : uint8
+	{
+		NotRequested,
+		SchedulerRequested,
+		AsyncRequested,
+		Complete,
+	};
+
 	/** Per-platform data in an active query for a vertex's dependencies/previous incremental results. */
 	struct FQueryPlatformData
 	{
-		/** Data looked up about the package's dependencies from the PackageWriter's previous cook of the package */
-		UE::TargetDomain::FCookAttachments CookAttachments;
+		EAsyncQueryStatus GetAsyncQueryStatus();
+		bool CompareExchangeAsyncQueryStatus(EAsyncQueryStatus& Expected, EAsyncQueryStatus Desired);
+
+	public:
+		// All fields other than CookAttachments and AsyncQueryStatus are read/write on Scheduler thread only
 		/**
-		 * Platforms present in the FVertexQueryData are recorded as a an array of all possible platforms, with
-		 * bActive=true for the ones that are present.
+		 * Data looked up about the package's dependencies from the PackageWriter's previous cook of the package.
+		 * Thread synchronization: this field is write-once from the async thread and is not readable until
+		 * bSchedulerThreadFetchCompleted.
 		 */
-		bool bActive = false;
-		bool bIterativelyUnmodified = false;
-	};
-
-	/** Input/output data for an active query for a vertex's dependencies/previous incrementa results. */
-	struct FVertexQueryData
-	{
-		void Reset();
-
-		FName PackageName;
-		/** Settings and Results for each of the GraphSearch's FetchPlatforms. Element n corresponds to FetchPlatform n. */
-		TArray<FQueryPlatformData> Platforms;
-		/** Number of asynchronous results from PackageWriter still being waited on. */
-		std::atomic<uint32> PendingPlatforms;
+		UE::TargetDomain::FCookAttachments CookAttachments;
+		bool bSchedulerThreadFetchCompleted = false;
+		bool bExploreRequested = false;
+		bool bExploreCompleted = false;
+		bool bIterativelyUnmodifiedRequested = false;
+		bool bTransitiveBuildDependenciesResolvedAsNotModified = false;
+		TOptional<bool> bIterativelyUnmodified;
+	private:
+		std::atomic<EAsyncQueryStatus> AsyncQueryStatus;
 	};
 
 	/**
@@ -129,10 +137,16 @@ private:
 	 */
 	struct FVertexData
 	{
+		FVertexData(FName InPackageName, UE::Cook::FPackageData* InPackageData, FGraphSearch& GraphSearch);
+
+		/* Async thread is not allowed to access PackageData, so store its name.The name is immutable for vertex lifetime. */
+		FName PackageName;
+		TArray<FVertexData*> IterativelyModifiedListeners;
 		UE::Cook::FPackageData* PackageData = nullptr;
-		/** Non-null if there as a query active for the vertex's dependencies/previous incremental results. */
-		FVertexQueryData* QueryData = nullptr;
 		bool bAnyCookable = true;
+		bool bPulledIntoCluster = false;
+		/** Settings and Results for each of the GraphSearch's FetchPlatforms. Element n corresponds to FetchPlatform n. */
+		TUniquePtr<FQueryPlatformData[]> PlatformData;
 	};
 
 	/**
@@ -165,8 +179,8 @@ private:
 		TMap<FName, FVertexData*> Vertices;
 		/** Accessor for the GraphSearch; only thread-safe functions and variables should be accessed. */
 		FGraphSearch& ThreadSafeOnlyVars;
-		/** The number of vertices that are still awaiting results. This batch is closed when PendingVertices == 0. */
-		std::atomic<uint32> PendingVertices;
+		/** Number of vertex*platform requests that still await results. Batch is done when NumPendingRequests == 0. */
+		std::atomic<uint32> NumPendingRequests;
 	};
 
 	/** Platform information that is constant (usually, some events can change it) during the cluster's lifetime. */
@@ -216,7 +230,6 @@ private:
 		void VisitWithoutDependencies();
 		/** Start a search from the Cluster's current OwnedPackageDatas. */
 		void StartSearch();
-		void RemovePackageData(FPackageData* PackageData);
 		void OnNewReachablePlatforms(FPackageData* PackageData);
 
 		/**
@@ -245,22 +258,28 @@ private:
 		public:
 			FExploreEdgesContext(FRequestCluster& InCluster, FGraphSearch& InGraphSearch);
 
-			/** Process the results from async edges fetch and queue the found dependencies-for-visiting. */
+			/**
+			 * Process the results from async edges fetch and queue the found dependencies-for-visiting. Only does
+			 * portions of the work for each FQueryPlatformData that were requested by the flags on the PlatformData.
+			 */
 			void Explore(FVertexData& InVertex);
 
 		private:
 			void Initialize(FVertexData& InVertex);
-			void CalculatePlatformsToExplore();
-			void CalculateIterativelyUnmodified();
+			void CalculatePlatformsToProcess();
+			bool TryCalculateIterativelyUnmodified();
 			void CalculatePackageDataDependenciesPlatformAgnostic();
 			void CalculateDependenciesAndIterativelySkippable();
 			void QueueVisitsOfDependencies();
+			void MarkExploreComplete();
 
 			void AddPlatformDependency(FName DependencyName, int32 PlatformIndex, EInstigator InstigatorType);
 			void AddPlatformDependencyRange(TConstArrayView<FName> Range, int32 PlatformIndex, EInstigator InstigatorType);
 			void ProcessPlatformAttachments(int32 PlatformIndex, const ITargetPlatform* TargetPlatform,
 				FFetchPlatformData& FetchPlatformData, FPackagePlatformData& PackagePlatformData,
 				UE::TargetDomain::FCookAttachments& PlatformAttachments, bool bExploreDependencies);
+
+			void SetIsIterativelyUnmodified(int32 PlatformIndex, bool bIterativelyUnmodified);
 
 		private:
 			FRequestCluster& Cluster;
@@ -272,10 +291,12 @@ private:
 			TArray<FName> HardEditorDependencies;
 			TArray<FName> SoftGameDependencies;
 			TArray<FName> CookerLoadingDependencies;
+			TArray<int32, TInlineAllocator<10>> PlatformsToProcess;
 			TArray<int32, TInlineAllocator<10>> PlatformsToExplore;
 			TMap<FName, FScratchPlatformDependencyBits> PlatformDependencyMap;
 			TSet<FName> HardDependenciesSet;
 			TSet<FName> SkippedPackages;
+			TArray<FVertexData*> UnreadyTransitiveBuildVertices;
 			FName PackageName;
 			int32 LocalNumFetchPlatforms = 0;
 			bool bFetchAnyTargetPlatform = false;
@@ -288,23 +309,21 @@ private:
 		void UpdateDisplay();
 
 		/** Asynchronously fetch the dependencies and previous incremental results for a vertex */
-		void QueueEdgesFetch(FVertexData& Vertex, TConstArrayView<const ITargetPlatform*> Platforms);
+		void QueueEdgesFetch(FVertexData& Vertex, TConstArrayView<int32> PlatformIndexes);
 		/** Calculate and store the vertex's PackageData's cookability for each reachable platform. Kick off edges fetch. */
 		void VisitVertex(FVertexData& VertexData);
 		/** Calculate and store the vertex's PackageData's cookability for the platform. */
 		void VisitVertexForPlatform(FVertexData& VertexData, const ITargetPlatform* Platform,
 			FPackagePlatformData& PlatformData, ESuppressCookReason& AccumulatedSuppressCookReason);
+		void ResolveTransitiveBuildDependencyCycle();
 
 		/** Find or add a Vertex for PackageName. If PackageData is provided, use it, otherwise look it up. */
 		FVertexData& FindOrAddVertex(FName PackageName);
 		FVertexData& FindOrAddVertex(FName PackageName, FPackageData& PackageData);
 		/** Batched allocation for vertices. */
-		FVertexData* AllocateVertex();
-		/** Batched allocation and free for QueryData. */
-		FVertexQueryData* AllocateQueryData();
-		void FreeQueryData(FVertexQueryData* QueryData);
+		FVertexData* AllocateVertex(FName PackageName, FPackageData* PackageData);
 		/** Queue a vertex for visiting and dependency traversal */
-		void AddToFrontier(FVertexData& Vertex);
+		void AddToVisitVertexQueue(FVertexData& Vertex);
 
 		// Functions that must be called only within the Lock
 		/** Allocate memory for a new batch; returned batch is not yet constructed. */
@@ -320,12 +339,14 @@ private:
 		/** Notify process thread of batch completion and deallocate it. */
 		void OnBatchCompleted(FQueryVertexBatch* Batch);
 		/** Notify process thread of vertex completion. */
-		void OnVertexCompleted();
+		void KickVertex(FVertexData* Vertex);
 
 		/** Total number of platforms known to the cluster, including the special cases. */
 		int32 NumFetchPlatforms() const;
 		/** Total number of non-special-case platforms known to the cluster.Identical to COTFS's session platforms */
 		int32 NumSessionPlatforms() const;
+
+		TArrayView<FQueryPlatformData> GetPlatformDataArray(FVertexData& Vertex);
 
 	private:
 		// Variables that are read-only during multithreading
@@ -338,13 +359,14 @@ private:
 		FExploreEdgesContext ExploreEdgesContext;
 		TMap<FPackageData*, TArray<FPackageData*>> GraphEdges;
 		TMap<FName, FVertexData*> Vertices;
-		TSet<FVertexData*> Frontier;
+		TSet<FVertexData*> VisitVertexQueue;
+		TSet<FVertexData*> PendingTransitiveBuildDependencyVertices;
 		TTypedBlockAllocatorFreeList<FVertexData> VertexAllocator;
-		TTypedBlockAllocatorResetList<FVertexQueryData> VertexQueryAllocator;
 		/** Vertices queued for async processing that are not yet numerous enough to fill a batch. */
 		TRingBuffer<FVertexData*> PreAsyncQueue;
 		/** Time-tracker for timeout warnings in Poll */
 		double LastActivityTime = 0.;
+		int32 RunAwayTickLoopCount = 0;
 
 		// Variables that are accessible from multiple threads, guarded by Lock
 		FCriticalSection Lock;
@@ -478,6 +500,31 @@ inline int32 FRequestCluster::FGraphSearch::NumFetchPlatforms() const
 inline int32 FRequestCluster::FGraphSearch::NumSessionPlatforms() const
 {
 	return FetchPlatforms.Num() - 2;
+}
+
+inline TArrayView<FRequestCluster::FQueryPlatformData> FRequestCluster::FGraphSearch::GetPlatformDataArray(
+	FVertexData& Vertex)
+{
+	return TArrayView< FQueryPlatformData>(Vertex.PlatformData.Get(), NumFetchPlatforms());
+}
+
+inline FRequestCluster::EAsyncQueryStatus FRequestCluster::FQueryPlatformData::GetAsyncQueryStatus()
+{
+	return AsyncQueryStatus.load(std::memory_order_acquire);
+}
+
+inline bool FRequestCluster::FQueryPlatformData::CompareExchangeAsyncQueryStatus(EAsyncQueryStatus& Expected,
+	EAsyncQueryStatus Desired)
+{
+	return AsyncQueryStatus.compare_exchange_strong(Expected, Desired,
+		// For the read operation to see whether we should set it, we need only relaxed memory order;
+		// we don't care about the values of other related variables that depend on it when deciding whether
+		// it is our turn to set it.
+		// For the write operation if we decide to set it, we need release memory order to guard reads of
+		// the variables that depend on it (e.g. CookAttachments).
+		std::memory_order_release /* success memory order */,
+		std::memory_order_relaxed /* failure memory order */
+	);
 }
 
 }
