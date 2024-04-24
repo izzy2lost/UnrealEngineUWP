@@ -1581,9 +1581,6 @@ void FFractureEditorModeToolkit::SetActiveTool(UFractureModalTool* InActiveTool)
 
 	ActiveTool = InActiveTool;
 
-	UFractureToolSettings* ToolSettings = GetMutableDefault<UFractureToolSettings>();
-	ToolSettings->OwnerTool = ActiveTool;
-
 	TArray<UObject*> Settings;
 	Settings.Add(GetMutableDefault<UFractureSettings>());
 
