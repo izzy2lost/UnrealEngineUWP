@@ -21,7 +21,6 @@
 #include "StaticMeshAttributes.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
-#include "Animation/AnimTypes.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxMesh"
 
@@ -382,7 +381,7 @@ namespace UE::Interchange::Private
 		FbxTime TimeStep = 0;
 		TimeStep.SetSecondDouble(TimeStepSecond);
 
-		const double SequenceLength = FMath::Max<double>(AnimationBakeTransformPayloadData.RangeEndTime - AnimationBakeTransformPayloadData.RangeStartTime, MINIMUM_ANIMATION_LENGTH);
+		const double SequenceLength = FMath::Max<double>(AnimationBakeTransformPayloadData.RangeEndTime - AnimationBakeTransformPayloadData.RangeStartTime, TimeStepSecond);
 		const int32 NumFrame = FMath::RoundToInt32(SequenceLength * AnimationBakeTransformPayloadData.BakeFrequency);
 		int32 BakeKeyCount = NumFrame + 1;
 

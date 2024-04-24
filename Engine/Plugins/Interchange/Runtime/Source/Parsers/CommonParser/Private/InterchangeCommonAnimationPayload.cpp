@@ -3,7 +3,6 @@
 #include "InterchangeCommonAnimationPayload.h"
 
 #include "CoreMinimal.h"
-#include "Animation/AnimTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeCommonAnimationPayload)
 
@@ -69,7 +68,7 @@ namespace UE::Interchange
 			}
 
 			const double BakeInterval = 1.0 / BakeFrequency;
-			const double SequenceLength = FMath::Max<double>(RangeEndTime - RangeStartTime, MINIMUM_ANIMATION_LENGTH);
+			const double SequenceLength = FMath::Max<double>(RangeEndTime - RangeStartTime, BakeInterval);
 			int32 BakeKeyCount = FMath::RoundToInt32(SequenceLength * BakeFrequency) + 1;
 
 			auto EvaluateCurve = [this](const int32& CurveIndex, double CurrentTime, float DefaultValue)
