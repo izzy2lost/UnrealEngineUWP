@@ -7,6 +7,7 @@
 #include "VerseVM/VVMArray.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMProcedure.h"
+#include "VerseVM/VVMPropertyType.h"
 #include "VerseVM/VVMShape.h"
 #include "VerseVM/VVMType.h"
 
@@ -44,34 +45,55 @@ struct VConstructor : VCell
 		/// When non-null, the name of this field. When null, this entry represents a block.
 		TWriteBarrier<VUniqueString> Name;
 
+		/// When non-null, the verse compiler has provided type information about the entry
+		TWriteBarrier<VPropertyType> PropertyType;
+
 		/// When bDynamic, a VProcedure for a default initializer or block, or nothing for an uninitialized field.
 		/// Otherwise, a constant VValue for a default field value (which may be a VProcedure for functions, which bind Self lazily).
 		TWriteBarrier<VValue> Value;
 		bool bDynamic;
 
-		static VEntry Constant(FAllocationContext Context, VUniqueString& InField, VValue InValue)
+		static VEntry Constant(FAllocationContext Context, FUtf8StringView InField, VValue InValue, VPropertyType* InPropertyType = nullptr)
+		{
+			return Constant(Context, VUniqueString::New(Context, InField), InValue, InPropertyType);
+		}
+
+		static VEntry Constant(FAllocationContext Context, VUniqueString& InField, VValue InValue, VPropertyType* InPropertyType = nullptr)
 		{
 			return VEntry{
-				{Context, InField},
-				{Context, InValue},
+				{Context,        InField},
+				{Context, InPropertyType},
+				{Context,        InValue},
 				false
             };
 		}
 
-		static VEntry Field(FAllocationContext Context, VUniqueString& InField)
+		static VEntry Field(FAllocationContext Context, FUtf8StringView InField, VPropertyType* InPropertyType = nullptr)
+		{
+			return Field(Context, VUniqueString::New(Context, InField), InPropertyType);
+		}
+
+		static VEntry Field(FAllocationContext Context, VUniqueString& InField, VPropertyType* InPropertyType = nullptr)
 		{
 			return {
 				{Context, InField},
+				{Context, InPropertyType},
 				{},
 				true
             };
 		}
 
-		static VEntry FieldInitializer(FAllocationContext Context, VUniqueString& InField, VProcedure& Code)
+		static VEntry FieldInitializer(FAllocationContext Context, FUtf8StringView InField, VProcedure& InCode, VPropertyType* InPropertyType = nullptr)
+		{
+			return FieldInitializer(Context, VUniqueString::New(Context, InField), InCode, InPropertyType);
+		}
+
+		static VEntry FieldInitializer(FAllocationContext Context, VUniqueString& InField, VProcedure& InCode, VPropertyType* InPropertyType = nullptr)
 		{
 			return {
-				{Context,      InField},
-				{Context, VValue(Code)},
+				{Context,        InField},
+				{Context, InPropertyType},
+				{Context, VValue(InCode)},
 				true
             };
 		}
@@ -79,6 +101,7 @@ struct VConstructor : VCell
 		static VEntry Block(FAllocationContext Context, VProcedure& Code)
 		{
 			return {
+				{},
 				{},
 				{Context, VValue(Code)},
 				true

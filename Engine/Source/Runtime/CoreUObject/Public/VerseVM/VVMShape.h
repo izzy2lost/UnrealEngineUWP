@@ -9,7 +9,7 @@
 #include "VVMWriteBarrier.h"
 
 class FVerseVMEngineEnvironment;
-class FVRestValueProperty;
+class FProperty;
 
 namespace Verse
 {
@@ -48,7 +48,7 @@ struct VShape : VCell
 
 			/// For shapes of UObjects, this points to the FProperty associated with this field
 			/// The caller must guarantee that the property lives as long as this shape
-			FVRestValueProperty* Property;
+			FProperty* UProperty;
 
 			/// The constant value for the given entry.
 			TWriteBarrier<VValue> Value;
@@ -62,14 +62,14 @@ struct VShape : VCell
 			: VEntry(Other) {}
 
 		static VEntry Offset() { return {}; }
-		static VEntry FProperty(FVRestValueProperty* InProperty = nullptr) { return {InProperty}; }
+		static VEntry Property(FProperty* InProperty = nullptr) { return {InProperty}; }
 		static VEntry Constant(FAccessContext Context, VValue InConstant) { return {Context, InConstant}; }
 
 		bool operator==(const VEntry& Other) const;
 
 	private:
 		VEntry();
-		VEntry(FVRestValueProperty* InProperty);
+		VEntry(FProperty* InProperty);
 		VEntry(FAccessContext Context, VValue InConstant);
 	};
 

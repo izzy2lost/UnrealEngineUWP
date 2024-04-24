@@ -20,6 +20,9 @@ inline VShape::VEntry::VEntry(const VShape::VEntry& Other)
 		case EFieldType::Offset:
 			Index = Other.Index;
 			break;
+		case EFieldType::FProperty:
+			UProperty = Other.UProperty;
+			break;
 		case EFieldType::Constant:
 			new (&Value) TWriteBarrier<VValue>(Other.Value);
 			break;
@@ -30,8 +33,8 @@ inline VShape::VEntry::VEntry()
 	: Index(0)
 	, Type(EFieldType::Offset) {}
 
-inline VShape::VEntry::VEntry(FVRestValueProperty* InProperty)
-	: Property(InProperty)
+inline VShape::VEntry::VEntry(FProperty* InProperty)
+	: UProperty(InProperty)
 	, Type(EFieldType::FProperty) {}
 
 inline VShape::VEntry::VEntry(FAccessContext Context, VValue InConstant)
@@ -49,7 +52,7 @@ inline bool VShape::VEntry::operator==(const VShape::VEntry& Other) const
 		case EFieldType::Offset:
 			return Index == Other.Index;
 		case EFieldType::FProperty:
-			return Property == Other.Property;
+			return UProperty == Other.UProperty;
 		case EFieldType::Constant:
 			return VValue::Equal(FRunningContextPromise(), Value.Get(), Other.Value.Get(),
 				[](VValue Left, VValue Right) {

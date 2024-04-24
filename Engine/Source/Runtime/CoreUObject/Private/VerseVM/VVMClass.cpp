@@ -39,6 +39,7 @@ void VConstructor::SerializeImpl(VConstructor*& This, FAllocationContext Context
 			Visitor.BeginObject();
 			Visitor.Visit(This->Entries[Index].Name, TEXT("Name"));
 			Visitor.Visit(This->Entries[Index].Value, TEXT("Value"));
+			Visitor.Visit(This->Entries[Index].PropertyType, TEXT("PropertyType"));
 			Visitor.Visit(This->Entries[Index].bDynamic, TEXT("Dynamic"));
 			Visitor.EndObject();
 		}
@@ -62,6 +63,7 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 			Visitor.BeginObject();
 			Visitor.Visit(Entries[Index].Name, TEXT("Name"));
 			Visitor.Visit(Entries[Index].Value, TEXT("Value"));
+			Visitor.Visit(Entries[Index].PropertyType, TEXT("PropertyType"));
 			Visitor.Visit(Entries[Index].bDynamic, TEXT("Dynamic"));
 			Visitor.EndObject();
 		}
@@ -73,6 +75,7 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 		{
 			Visitor.Visit(Entries[Index].Name, TEXT("Name"));
 			Visitor.Visit(Entries[Index].Value, TEXT("Value"));
+			Visitor.Visit(Entries[Index].PropertyType, TEXT("PropertyType"));
 		}
 	}
 }
@@ -184,7 +187,7 @@ UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& Archet
 		const VShape::VEntry* Field = ObjectUClass->Shape->GetField(Context, *It->Get());
 		checkSlow(Field && Field->Type == EFieldType::FProperty);
 		VValue Value = ArchetypeValues[It.GetId().AsInteger()];
-		Field->Property->ContainerPtrToValuePtr<VRestValue>(NewObject)->Set(Context, Value);
+		Field->UProperty->ContainerPtrToValuePtr<VRestValue>(NewObject)->Set(Context, Value);
 	}
 
 	// Build the sequence of VProcedures to finish object construction.

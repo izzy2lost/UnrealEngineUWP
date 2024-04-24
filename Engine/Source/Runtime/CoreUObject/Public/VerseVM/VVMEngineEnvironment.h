@@ -9,11 +9,17 @@ class FString;
 class UPackage;
 class UVerseVMClass;
 
+namespace uLang
+{
+class CTypeBase;
+}
+
 namespace Verse
 {
 struct FAllocationContext;
 struct VClass;
 struct VPackage;
+struct VPropertyType;
 enum class EPackageStage : uint8;
 
 // This interface must be implemented if Verse needs to create UObject instances.
@@ -26,11 +32,11 @@ public:
 	// Create a new UClass from an existing VClass
 	virtual UVerseVMClass* CreateUClass(FAllocationContext Context, const VClass* Class) = 0;
 
+	// Collect property information
+	virtual void CollectPropertyInfo(FAllocationContext Context, const uLang::CTypeBase* Type, VPropertyType** OutPropertyType) = 0;
+
 	// Given a UPackage name, adjust the name when the package stage is either DEAD or TEMP.
 	virtual const TCHAR* AdornPackageName(const TCHAR* PackageName, EPackageStage Stage, FString& ScratchSpace) = 0;
-
-	// Convert a verse property name to UE property name
-	virtual FString VerseToUEPropertyName(const FUtf8StringView VerseName, bool* bSetDisplayName = nullptr) = 0;
 };
 } // namespace Verse
 #endif // WITH_VERSE_VM

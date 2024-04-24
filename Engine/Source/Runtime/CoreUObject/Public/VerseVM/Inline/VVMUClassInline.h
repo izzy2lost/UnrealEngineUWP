@@ -15,7 +15,7 @@ FORCEINLINE_DEBUGGABLE FVRestValueProperty* UVerseVMClass::GetPropertyForField(V
 		V_DIE("Field: %s was not found!", *FieldName.AsString());
 	}
 	checkSlow(Field->Type == EFieldType::FProperty);
-	return Field->Property;
+	return CastFieldChecked<FVRestValueProperty>(Field->UProperty);
 }
 
 #endif // WITH_VERSE_VM
