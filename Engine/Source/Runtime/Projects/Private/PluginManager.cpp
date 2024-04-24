@@ -3245,8 +3245,8 @@ bool FPluginManager::MountExplicitlyLoadedPluginLocalizationData(const FString& 
 	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 0)
 	{
 		// Already loaded
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to mount plugin localization for '%s' as it was already referenced (ref-count: %d -> %d)."), *PluginName, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount + 1);
 		++Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount;
-		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to mount plugin localization for '%s' as the localization data was already mounted."), *PluginName);
 		return false;
 	}
 
@@ -3289,7 +3289,7 @@ bool FPluginManager::UnmountExplicitlyLoadedPluginLocalizationData(const FString
 	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 1)
 	{
 		// Not possible to unload yet
-		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as the localization data ref-count was %d."), *PluginName, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount);
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as it is still referenced (ref-count: %d -> %d)."), *PluginName, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount - 1);
 		--Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount;
 		return false;
 	}
