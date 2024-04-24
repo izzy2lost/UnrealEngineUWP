@@ -1,0 +1,143 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using System.Runtime.InteropServices;
+
+namespace EpicGames.UBA
+{
+	internal class RootPathsImpl : IRootPaths
+	{
+		IntPtr _handle = IntPtr.Zero;
+
+		#region DllImport
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern IntPtr RootPaths_Create(IntPtr logWriter);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void RootPaths_Destroy(IntPtr rootPaths);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern bool RootPaths_RegisterRoot(IntPtr rootPaths, string root, bool includeInKey);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern bool RootPaths_RegisterSystemRoots(IntPtr rootPaths);
+		#endregion
+
+		#region IDisposable
+		~RootPathsImpl() => Dispose(false);
+
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+			}
+
+			if (_handle != IntPtr.Zero)
+			{
+				RootPaths_Destroy(_handle);
+				_handle = IntPtr.Zero;
+			}
+		}
+		#endregion
+
+		public RootPathsImpl(ILogger logger)
+		{
+			_handle = RootPaths_Create(logger.GetHandle());
+		}
+
+		public bool RegisterRoot(string path, bool includeInKey)
+		{
+			return RootPaths_RegisterRoot(_handle, path, includeInKey);
+		}
+
+		public bool RegisterSystemRoots()
+		{
+			return RootPaths_RegisterSystemRoots(_handle);
+		}
+
+		public IntPtr GetHandle() => _handle;
+	}
+
+	internal class CacheClientImpl : ICacheClient
+	{
+		IntPtr _handle = IntPtr.Zero;
+		public delegate void ExitCallback(IntPtr userData, IntPtr handle);
+
+		#region DllImport
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern IntPtr ProcessStartInfo_Create(string application, string arguments, string workingDir, string description, uint priorityClass, ulong outputStatsThresholdMs, bool trackInputs, string logFile, ExitCallback? exit);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void ProcessStartInfo_Destroy(IntPtr server);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern IntPtr CacheClient_Create(IntPtr session);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern bool CacheClient_Connect(IntPtr cacheClient, string host, int port);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern bool CacheClient_WriteToCache(IntPtr cacheClient, IntPtr rootPaths, uint bucket, IntPtr info, byte[] inputs, uint inputsSize, byte[] outputs, uint outputsSize);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern bool CacheClient_FetchFromCache(IntPtr cacheClient, IntPtr rootPaths, uint bucket, IntPtr info);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void CacheClient_Destroy(IntPtr cacheClient);
+		#endregion
+
+		#region IDisposable
+		~CacheClientImpl() => Dispose(false);
+
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+			}
+
+			if (_handle != IntPtr.Zero)
+			{
+				CacheClient_Destroy(_handle);
+				_handle = IntPtr.Zero;
+			}
+		}
+		#endregion
+
+		public CacheClientImpl(ISessionServer session)
+		{
+			_handle = CacheClient_Create(session.GetHandle());
+		}
+
+		public bool Connect(string host, int port)
+		{
+			return CacheClient_Connect(_handle, host, port);
+		}
+
+		public bool WriteToCache(IRootPaths rootPaths, uint bucket, IProcess process, byte[] inputs, uint inputsSize, byte[] outputs, uint outputsSize)
+		{
+			return CacheClient_WriteToCache(_handle, rootPaths.GetHandle(), bucket, process.GetHandle(), inputs, inputsSize, outputs, outputsSize);
+		}
+
+		public bool FetchFromCache(IRootPaths rootPaths, uint bucket, ProcessStartInfo info)
+		{
+			IntPtr si = ProcessStartInfo_Create(info.Application, info.Arguments, info.WorkingDirectory, info.Description, (uint)info.Priority, info.OutputStatsThresholdMs, info.TrackInputs, info.LogFile ?? String.Empty, null);
+			bool result = CacheClient_FetchFromCache(_handle, rootPaths.GetHandle(), bucket, si);
+			ProcessStartInfo_Destroy(si);
+			return result;
+		}
+
+		public IntPtr GetHandle() => _handle;
+	}
+}

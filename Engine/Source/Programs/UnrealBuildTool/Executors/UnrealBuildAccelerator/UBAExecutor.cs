@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
@@ -24,6 +25,8 @@ namespace UnrealBuildTool
 		public string Crypto { get; private set; } = String.Empty;
 		public IServer? Server { get; private set; }
 		ISessionServer? _session;
+		ICacheClient? _cacheClient;
+		EpicGames.UBA.ILogger? _ubaLogger;
 		readonly List<IUBAAgentCoordinator> _agentCoordinators = new();
 		DirectoryReference? _rootDirRef;
 		bool _bIsCancelled;
@@ -143,6 +146,44 @@ namespace UnrealBuildTool
 			return BitConverter.ToString(bytes).Replace("-", "", StringComparison.OrdinalIgnoreCase).ToLowerInvariant(); // "1234567890abcdef1234567890abcdef";
 		}
 
+		class UBAArtifactCache : IArtifactCache
+		{
+			public ArtifactCacheState State { get => ArtifactCacheState.Available; }
+			public Task<ArtifactCacheState> WaitForReadyAsync() => Task.FromResult(ArtifactCacheState.Available);
+			public Task<ArtifactAction[]> QueryArtifactActionsAsync(IoHash[] partialKeys, CancellationToken cancellationToken) => Task.FromResult(Array.Empty<ArtifactAction>());
+			public Task<bool[]?> QueryArtifactOutputsAsync(ArtifactAction[] artifactActions, CancellationToken cancellationToken) => Task.FromResult<bool[]?>(null);
+			public Task SaveArtifactActionsAsync(ArtifactAction[] artifactActions, CancellationToken cancellationToken) => Task.CompletedTask;
+			public Task FlushChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+		}
+
+		class UBAActionArtifactCache : IActionArtifactCache
+		{
+			UBAExecutor _executor;
+			UBAArtifactCache _cache = new UBAArtifactCache();
+			public UBAActionArtifactCache(UBAExecutor executor) {  _executor = executor; }
+			public IArtifactCache ArtifactCache { get => _cache; }
+			public bool EnableReads { get => true; set { } }
+			public bool EnableWrites { get => true; set { } }
+			public bool LogCacheMisses { get => true; set { } }
+			public DirectoryReference? EngineRoot { get => null; set { } }
+			public DirectoryReference[]? DirectoryRoots { get => null; set { } }
+			public Task<bool> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
+			{
+				return Task.Factory.StartNew(() =>
+				{
+					ProcessStartInfo startInfo = _executor.GetActionStartInfo(action, out FileItem? pchItem);
+					uint bucket = _executor.GetActionCacheBucket(action);
+					using (IRootPaths rootPaths = _executor.GetActionRootPaths(action))
+					{
+						return _executor._cacheClient!.FetchFromCache(rootPaths, bucket, startInfo);
+					}
+				}, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
+			}
+
+			public Task ActionCompleteAsync(LinkedAction action, CancellationToken cancellationToken) => Task.CompletedTask;
+			public Task FlushChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+		}
+
 		private async void ActionQueueCanceled(IStorageServer? ubaStorage)
 		{
 			_bIsCancelled = true;
@@ -247,10 +288,30 @@ namespace UnrealBuildTool
 				using EpicGames.UBA.ILogger ubaLogger = EpicGames.UBA.ILogger.CreateLogger(logger);
 				using (Server = IServer.CreateServer(UBAConfig.MaxWorkers, UBAConfig.SendSize, ubaLogger, UBAConfig.bUseQuic))
 				{
+					_ubaLogger = ubaLogger;
 					using IStorageServer ubaStorageServer = IStorageServer.CreateStorageServer(Server, ubaLogger, new StorageServerCreateInfo(_rootDirRef.FullName, ((ulong)UBAConfig.StoreCapacityGb) * 1000 * 1000 * 1000, !UBAConfig.bStoreRaw, UBAConfig.Zone));
-					using ISessionServerCreateInfo serverCreateInfo = ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(_rootDirRef.FullName, ubaTraceFile.FullName, UBAConfig.bDisableCustomAlloc, false, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem, UBAConfig.bStoreObjFilesCompressed));
+					using ISessionServerCreateInfo serverCreateInfo = ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(_rootDirRef.FullName, ubaTraceFile.FullName.Replace('\\', '/'), UBAConfig.bDisableCustomAlloc, false, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem, UBAConfig.bStoreObjFilesCompressed));
 					using (_session = ISessionServer.CreateSessionServer(serverCreateInfo))
+					using (_cacheClient = ICacheClient.CreateCacheClient(_session))
 					{
+						if (!String.IsNullOrEmpty(UBAConfig.CacheServer))
+						{
+							string[] nameAndPort = UBAConfig.CacheServer.Split(':');
+							int port = 1347;
+							if (nameAndPort.Length > 1)
+							{
+								port = int.Parse(nameAndPort[1]);
+							}
+
+							if (_cacheClient.Connect(nameAndPort[0], port))
+							{
+								actionArtifactCache = new UBAActionArtifactCache(this);
+							}
+							else
+							{
+								logger.LogInformation($"Timed out trying to connect to cache server on {nameAndPort[0]}:{port}. Cache will be disabled");
+							}
+						}
 
 						ubaStorage = ubaStorageServer;
 
@@ -338,25 +399,12 @@ namespace UnrealBuildTool
 		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache, System.Action onCancel)
 		{
 			DateTime startTimeUTC = DateTime.UtcNow;
-			int maxActionArtifactCacheTasks = 64;
-			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, maxActionArtifactCacheTasks, logger);
+			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, UBAConfig.CacheMaxWorkers, logger);
 			int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 			ImmediateActionQueueRunner remoteRunner = queue.CreateManualRunner(action => RunActionRemote(queue, action));
 			queue.CancellationToken.Register(onCancel);
 
-			// Setup a notification that alerts uba when an artifact has been read from the cache
-			queue.OnArtifactsRead = (action) =>
-			{
-				HashSet<DirectoryItem> refreshedDirectories = new();
-				foreach (FileItem output in action.ProducedItems)
-				{
-					if (refreshedDirectories.Add(output.Directory))
-					{
-						session.RefreshDirectories(output.Directory.FullName);
-					}
-				}
-			};
 
 			// Start the queue
 			queue.Start();
@@ -465,27 +513,190 @@ namespace UnrealBuildTool
 				Priority = ProcessPriority,
 				OutputStatsThresholdMs = (uint)UBAConfig.OutputStatsThresholdMs,
 				UserData = action,
-				Description = action.StatusDescription,
+				Description = $"{action.StatusDescription} ({action.CommandDescription})",
 				Configuration = action.bIsGCCCompiler ? EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileClang : EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileMsvc,
 				LogFile = UBAConfig.bLogEnabled ? action.Inner.ProducedItems.First().Location.GetFileName() : null,
 			};
 
-			bool usingLtcg = true; // ltcg linking checks what pch was used and it seems like it needs to be identical in other ways than timestamp
-			pchItem = action.Inner.ProducedItems.FirstOrDefault(item => item.Name.EndsWith(".pch", StringComparison.OrdinalIgnoreCase));
-			if (pchItem != null)
+			pchItem = null;
+
+			if (_cacheClient != null && UBAConfig.bWriteCache && action.ArtifactMode.HasFlag(ArtifactMode.Enabled))
 			{
-				startInfo.Priority = System.Diagnostics.ProcessPriorityClass.AboveNormal;
-				if (!usingLtcg && action.ArtifactMode.HasFlag(ArtifactMode.PropagateInputs))
+				startInfo.TrackInputs = true;
+			}
+			else
+			{
+				// TODO: Revisit this code. This was added to make non-deterministic pch deterministic from a caskey perspective
+				// It is not used atm.
+
+				bool usingLtcg = true; // ltcg linking checks what pch was used and it seems like it needs to be identical in other ways than timestamp
+				pchItem = action.Inner.ProducedItems.FirstOrDefault(item => item.Name.EndsWith(".pch", StringComparison.OrdinalIgnoreCase));
+				if (pchItem != null)
 				{
-					startInfo.TrackInputs = true;
+					startInfo.Priority = System.Diagnostics.ProcessPriorityClass.AboveNormal;
+					if (!usingLtcg && action.ArtifactMode.HasFlag(ArtifactMode.PropagateInputs))
+					{
+						startInfo.TrackInputs = true;
+					}
+					else
+					{
+						pchItem = null;
+					}
 				}
-				else
+			}
+			return startInfo;
+		}
+
+		uint GetActionCacheBucket(LinkedAction action)
+		{
+			if (action.Target == null)
+			{
+				return 0;
+			}
+			string platform = action.Target.Platform.ToString();
+			byte[] platformBytes = System.Text.Encoding.ASCII.GetBytes(platform);
+			return (uint)IoHash.Compute(platformBytes).GetHashCode();
+		}
+
+		IRootPaths GetActionRootPaths(LinkedAction action)
+		{
+			IRootPaths rootPaths = IRootPaths.Create(_ubaLogger!);
+			foreach (DirectoryItem root in action.RootPaths)
+			{
+				rootPaths.RegisterRoot(root.FullName + "\\", true);
+			}
+
+			DirectoryReference? autoSdkDir;
+			if (UEBuildPlatformSDK.TryGetHostPlatformAutoSDKDir(out autoSdkDir))
+			{
+				rootPaths.RegisterRoot(autoSdkDir.FullName + "\\", true);
+			}
+
+			rootPaths.RegisterSystemRoots();
+			return rootPaths;
+		}
+
+		public class DepsFile
+		{
+			public class DepsData
+			{
+				public string? Source { get; init; }
+				public string? PCH { get; init; }
+				public SortedSet<string>? Includes { get; init; }
+			}
+			public string? Version { get; init; }
+			public DepsData? Data { get; init; }
+		}
+
+		bool WriteToCache(LinkedAction action, IProcess process)
+		{
+			// Collect all inputs for action
+			// We use prerequisite items plus what we find in dependency list file if it exists.
+
+			using MemoryStream inputsMemory = new(1024);
+			using (BinaryWriter writer = new(inputsMemory, System.Text.Encoding.UTF8, true))
+			{
+				writer.Write(action.CommandPath.FullName);
+
+				foreach (FileItem f in action.PrerequisiteItems)
 				{
-					pchItem = null;
+					if (f.HasExtension(".lib")) // It seems like .lib files can change without dependencies relink
+					{
+						continue;
+					}
+					
+					writer.Write(f.FullName);
+				}
+
+				if (action.DependencyListFile != null)
+				{
+					if (action.DependencyListFile.HasExtension(".json"))
+					{
+						DepsFile? deps;
+						try
+						{
+							using (System.IO.FileStream fstream = FileReference.Open(action.DependencyListFile.Location, System.IO.FileMode.Open))
+							{
+								deps = System.Text.Json.JsonSerializer.Deserialize<DepsFile>(fstream);
+							}
+						}
+						catch (Exception e)
+						{
+							_threadedLogger.LogError("Unable to open/deserialize {Dep} - {Ex}", action.DependencyListFile, e.ToString());
+							return false;
+						}
+						if (deps == null || deps.Data == null || String.IsNullOrEmpty(deps.Data.Source))
+						{
+							_threadedLogger.LogError("Unable to deserialize {Dep}", action.DependencyListFile);
+							return false;
+						}
+
+						if (deps.Data.Includes != null)
+						{
+							foreach (string f in deps.Data.Includes)
+							{
+								writer.Write(f);
+							}
+						}
+					}
+					else if (action.DependencyListFile.HasExtension(".d"))
+					{
+						using (System.IO.FileStream fstream = FileReference.Open(action.DependencyListFile.Location, System.IO.FileMode.Open))
+						{
+							StreamReader reader = new(fstream);
+							reader.ReadLine(); // Skip first which is the .o file
+							while (true)
+							{
+								string? line = reader.ReadLine();
+								if (line == null)
+								{
+									break;
+								}
+								if (line.EndsWith(" \\"))
+								{
+									line = line.Substring(0, line.Length - 2);
+								}
+								line = line.Trim();
+								string path = DirectoryReference.Combine(action.WorkingDirectory, line).FullName;
+								writer.Write(path);
+							}
+						}
+					}
+					else
+					{
+						using (System.IO.FileStream fstream = FileReference.Open(action.DependencyListFile.Location, System.IO.FileMode.Open))
+						{
+							StreamReader reader = new(fstream);
+							while (true)
+							{
+								string? line = reader.ReadLine();
+								if (line == null)
+								{
+									break;
+								}
+								string path = DirectoryReference.Combine(action.WorkingDirectory, line.Replace('/', '\\').Replace("\\\\", "\\")).FullName;
+								writer.Write(path);
+							}
+						}
+					}
 				}
 			}
 
-			return startInfo;
+			// Collect all outputs for action
+
+			using MemoryStream outputsMemory = new(1024);
+			using (BinaryWriter writer = new(outputsMemory, System.Text.Encoding.UTF8, true))
+			{
+				foreach (FileItem f in action.ProducedItems)
+				{
+					writer.Write(f.FullName);
+				}
+			}
+
+			uint bucket = GetActionCacheBucket(action);
+			using IRootPaths rootPaths = GetActionRootPaths(action);
+
+			return _cacheClient!.WriteToCache(rootPaths, bucket, process, inputsMemory.GetBuffer(), (uint)inputsMemory.Position, outputsMemory.GetBuffer(), (uint)outputsMemory.Position);
 		}
 
 		Func<Task>? RunActionLocal(ImmediateActionQueue queue, LinkedAction action)
@@ -519,6 +730,11 @@ namespace UnrealBuildTool
 					if (!enableDetour && process.ExitCode == 0)
 					{
 						_session!.RegisterNewFiles(action.ProducedItems.Where(x => FileReference.Exists(x.Location)).Select(x => x.FullName).ToArray());
+					}
+
+					if (startInfo.TrackInputs && UBAConfig.bWriteCache && enableDetour && process.ExitCode == 0 && _cacheClient != null)
+					{
+						WriteToCache(action, process);
 					}
 
 					TimeSpan processorTime = process.TotalProcessorTime;
@@ -611,12 +827,19 @@ namespace UnrealBuildTool
 						return;
 					}
 
+					IProcess process = (IProcess)s;
+
+					if (startInfo.TrackInputs && UBAConfig.bWriteCache && process.ExitCode == 0 && _cacheClient != null)
+					{
+						WriteToCache(action, process);
+					}
+
 					string additionalDescription = $"[RemoteExecutor: {e.ExecutingHost}]";
 					TimeSpan processorTime = e.TotalProcessorTime;
 					TimeSpan executionTime = e.TotalWallTime;
 					List<string> logLines = e.LogLines;
 					logLines.RemoveAll((line) => line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase));
-					ActionFinished(queue, new ExecuteResults(logLines, e.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, s as IProcess);
+					ActionFinished(queue, new ExecuteResults(logLines, e.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, process);
 				}, action.Weight, knownInputs, knownInputsCount);
 				return Task.CompletedTask;
 			};

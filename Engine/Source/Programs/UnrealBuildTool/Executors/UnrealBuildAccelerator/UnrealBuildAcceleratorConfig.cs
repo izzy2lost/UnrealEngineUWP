@@ -220,5 +220,26 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-UBADetailedLog", Value = "true")]
 		public bool bDetailedLog { get; set; } = false;
+
+		/// <summary>
+		/// Address of the uba cache service. Will automatically use cache if connected
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "Cache")]
+		[CommandLine("-UBACache=")]
+		public string? CacheServer { get; set; }
+
+		/// <summary>
+		/// Set cache to write instead of fetch
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "WriteCache")]
+		[CommandLine("-UBAWriteCache")]
+		public bool bWriteCache { get; set; }
+
+		/// <summary>
+		/// Max number of cache download tasks that can execute in parallel
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "CacheMaxWorkers")]
+		[CommandLine("-UBACacheMaxWorkers")]
+		public int CacheMaxWorkers { get; set; } = 32;
 	}
 }

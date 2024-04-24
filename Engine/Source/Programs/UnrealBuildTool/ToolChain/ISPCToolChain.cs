@@ -666,6 +666,8 @@ namespace UnrealBuildTool
 				// TODO: Remove, might work
 				CompileAction.bCanExecuteRemotelyWithSNDBS = false;
 
+				CompileAction.ArtifactMode = ArtifactMode.Enabled;
+
 				List<string> Arguments = new List<string>();
 
 				// Add the ISPC file to be compiled.

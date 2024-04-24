@@ -269,6 +269,7 @@ namespace UnrealBuildTool
 			string UsingPchFilePath = NormalizeCommandLinePath(UsingPchFile);
 			if (UsingPchFile.Name.EndsWith(".ifc"))
 			{
+				Arguments.Add("/wd4127"); // with header units pragma warning disable is not propagated and this warning is very spammy so explicitly turned off here. Hoping ms will change so warning disable is propgated from HU
 				Arguments.Add($"/translateInclude");
 				Arguments.Add($"/headerUnit:quote {PchThroughHeaderFilePath}={UsingPchFilePath}");
 			}
@@ -1529,7 +1530,26 @@ namespace UnrealBuildTool
 		{
 			VCCompileAction BaseCompileAction = new VCCompileAction(EnvVars);
 
-			BaseCompileAction.RootPaths.AddRange(GetEnvironmentBasePaths(CompileEnvironment));
+			IEnumerable<DirectoryItem> rootPaths = GetEnvironmentBasePaths(CompileEnvironment);
+
+			// TODO: Revisit this code. We want to use d1trimfile to make outputs machine independent.
+			// but want to make sure we're not causing any frustration for devs (since __FILE__ will show a relative path with lines below)
+			// Also need to find the equivalent for clang
+#if false
+			if (!Target.WindowsPlatform.Compiler.IsClang())
+			{
+				foreach (DirectoryItem rootPath in rootPaths)
+				{
+					string pathName = rootPath.FullName;
+					if (pathName.Contains(' '))
+						BaseCompileAction.Arguments.Add($"\"/d1trimfile:{pathName}\\\"");
+					else
+						BaseCompileAction.Arguments.Add($"/d1trimfile:{pathName}\\");
+				}
+			}
+#endif
+
+			BaseCompileAction.RootPaths.AddRange(rootPaths);
 
 			// Add additional response files
 			foreach (FileItem AdditionalRsp in CompileEnvironment.AdditionalResponseFiles)
@@ -1748,11 +1768,10 @@ namespace UnrealBuildTool
 					}
 				}
 
-				if (CompileEnvironment.bDeterministic && !Target.WindowsPlatform.Compiler.IsClang())
 				{
 					if (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create)
 					{
-						CompileAction.ArtifactMode |= ArtifactMode.PropagateInputs;
+						CompileAction.ArtifactMode |= ArtifactMode.Enabled | ArtifactMode.PropagateInputs;
 					}
 					else
 					{
@@ -2141,6 +2160,7 @@ namespace UnrealBuildTool
 				CompileAction.StatusDescription = Path.GetFileName(RCFile.AbsolutePath);
 				CompileAction.PrerequisiteItems.UnionWith(CompileEnvironment.ForceIncludeFiles);
 				CompileAction.PrerequisiteItems.UnionWith(CompileEnvironment.AdditionalPrerequisites);
+				CompileAction.ArtifactMode = ArtifactMode.Enabled;
 
 				// Resource tool can run remotely if possible
 				CompileAction.bCanExecuteRemotely = true;
@@ -2346,6 +2366,7 @@ namespace UnrealBuildTool
 			CompileAction.bShouldOutputStatusDescription = false;
 			CompileAction.bCanExecuteRemotely = false; // Incompatible with remote distribution
 			CompileAction.RootPaths.AddRange(GetEnvironmentBasePaths(CompileEnvironment));
+			CompileAction.ArtifactMode = ArtifactMode.Enabled;
 		}
 
 		public override IEnumerable<string> GetGlobalCommandLineArgs(CppCompileEnvironment CompileEnvironment)
@@ -2715,6 +2736,7 @@ namespace UnrealBuildTool
 			LinkAction.ProducedItems.UnionWith(ProducedItems);
 			LinkAction.PrerequisiteItems.UnionWith(PrerequisiteItems);
 			LinkAction.StatusDescription = Path.GetFileName(OutputFile.AbsolutePath);
+			LinkAction.ArtifactMode = ArtifactMode.Enabled;
 
 			// VS 15.3+ does not touch lib files if they do not contain any modifications, but we need to ensure the timestamps are updated to avoid repeatedly building them.
 			if (bBuildImportLibraryOnly || (LinkEnvironment.bHasExports && !bIsBuildingLibraryOrImportLibrary))

@@ -1195,6 +1195,8 @@ namespace UnrealBuildTool
 				CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.Create ||
 				CompileEnvironment.bAllowRemotelyCompiledPCHs;
 
+			CompileAction.ArtifactMode = ArtifactMode.Enabled;
+
 			// Two-pass compile where the preprocessor is run first to output the dependency list
 			if (PreprocessDepends)
 			{
