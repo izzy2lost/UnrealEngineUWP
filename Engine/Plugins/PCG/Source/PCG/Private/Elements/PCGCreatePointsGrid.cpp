@@ -253,6 +253,7 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 			OutPoint.SetExtents(CellSize * 0.5);
 		}
 
+		OutPoint.Steepness = Settings->PointSteepness;
 		OutPoint.Seed = PCGHelpers::ComputeSeedFromPosition(PointTransform.GetLocation());
 
 		// Discards points outside of the volume
