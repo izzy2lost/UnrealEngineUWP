@@ -27,7 +27,7 @@
 	<Option Name="SymbolServerPath" DefaultValue="" Description="A shared symbols server for your office, debugging shipped builds."/>
 	
 	<Option Name="RunCookOnTheFlyTest" DefaultValue="false" Description="To run cook on the fly test"/>
-	<Option Name="RunProjectTests" DefaultValue="false" Description="To run all tests under Project.*"/>
+	<Option Name="RunProjectTests" DefaultValue="false" Description="To run all tests under the Project Group"/>
 	
 	<Option Name="SourceBuildVersion" DefaultValue="" Description="The source build version for diffing"/>
 	
@@ -55,8 +55,8 @@
 	</Do>
 
 	<Property Name="DefaultTargetTestList" Value="$(DefaultTargetTestList)+UE.CookOnTheFly(Map=L_Expanse)" If="$(RunCookOnTheFlyTest)" />
-	<Property Name="DefaultTargetTestList" Value="$(DefaultTargetTestList)+UE.TargetAutomation(RunTest=Project.)" If="$(RunProjectTests)" />
-	<Property Name="DefaultEditorTestList" Value="$(DefaultEditorTestList)+UE.EditorAutomation(RunTest=Project.)" If="$(RunProjectTests)" />
+	<Property Name="DefaultTargetTestList" Value="$(DefaultTargetTestList)+UE.TargetAutomation(RunTest=Group:Project)" If="$(RunProjectTests)" />
+	<Property Name="DefaultEditorTestList" Value="$(DefaultEditorTestList)+UE.EditorAutomation(RunTest=Group:Project)" If="$(RunProjectTests)" />
 
 	<Property Name="ExtraStageAndPackageArguments" Value="-target=&quot;$(TargetName)&quot; -compressed -CrashReporter" />
 

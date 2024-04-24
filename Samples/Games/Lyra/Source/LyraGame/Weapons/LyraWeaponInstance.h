@@ -20,7 +20,7 @@ class UInputDeviceProperty;
  * A piece of equipment representing a weapon spawned and applied to a pawn
  */
 UCLASS()
-class ULyraWeaponInstance : public ULyraEquipmentInstance
+class LYRAGAME_API ULyraWeaponInstance : public ULyraEquipmentInstance
 {
 	GENERATED_BODY()
 
