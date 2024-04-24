@@ -365,7 +365,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		private IActionArtifactCache? _actionArtifactCache;
 
-		static ExecuteResults s_copiedFromCacheResults = new(new List<string>(), 0, TimeSpan.Zero, TimeSpan.Zero, "copied from cache");
+		static ExecuteResults s_copiedFromCacheResults = new(new List<string>(), 0, TimeSpan.Zero, TimeSpan.Zero, "[Cache]");
 
 		/// <summary>
 		/// Construct a new instance of the action queue
@@ -992,7 +992,7 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Returns the number of queued actions left (not including ArtifactCheck actions)
+		/// Returns the number of queued actions left (including queued actions that will do artifact check first)
 		/// Note, this method is lockless and will not always return accurate count
 		/// </summary>
 		/// <param name="filterFunc">Optional function to filter out actions. Return false if action should not be included</param>
@@ -1003,7 +1003,7 @@ namespace UnrealBuildTool
 			for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
 			{
 
-				if (Actions[actionIndex].Status != ActionStatus.Queued || Actions[actionIndex].Phase != ActionPhase.Compile)
+				if (Actions[actionIndex].Status != ActionStatus.Queued)
 				{
 					continue;
 				}

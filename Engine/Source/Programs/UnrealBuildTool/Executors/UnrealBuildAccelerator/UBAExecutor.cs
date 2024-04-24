@@ -110,6 +110,7 @@ namespace UnrealBuildTool
 				await writer.WriteLineAsync($"arg: {action.CommandArguments}");
 				await writer.WriteLineAsync($"dir: {action.WorkingDirectory}");
 				await writer.WriteLineAsync($"desc: {action.StatusDescription}");
+				// TODO: Add cache roots
 				if (action.Weight != 1.0f)
 				{
 					await writer.WriteLineAsync($"weight: {action.Weight}");
@@ -337,7 +338,8 @@ namespace UnrealBuildTool
 		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache, System.Action onCancel)
 		{
 			DateTime startTimeUTC = DateTime.UtcNow;
-			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, logger);
+			int maxActionArtifactCacheTasks = 64;
+			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, maxActionArtifactCacheTasks, logger);
 			int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 			ImmediateActionQueueRunner remoteRunner = queue.CreateManualRunner(action => RunActionRemote(queue, action));

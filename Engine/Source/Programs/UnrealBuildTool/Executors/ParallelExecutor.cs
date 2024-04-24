@@ -163,11 +163,12 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="actionsToExecute">Actions to be executed</param>
 		/// <param name="actionArtifactCache">Artifact cache</param>
+		/// <param name="maxActionArtifactCacheTasks">Max artifact tasks that can execute in parallel</param>
 		/// <param name="logger">Logging interface</param>
 		/// <returns>Action queue</returns>
-		public ImmediateActionQueue CreateActionQueue(IEnumerable<LinkedAction> actionsToExecute, IActionArtifactCache? actionArtifactCache, ILogger logger)
+		public ImmediateActionQueue CreateActionQueue(IEnumerable<LinkedAction> actionsToExecute, IActionArtifactCache? actionArtifactCache, int maxActionArtifactCacheTasks, ILogger logger)
 		{
-			return new(actionsToExecute, actionArtifactCache, NumParallelProcesses, "Compiling C++ source code...", x => WriteToolOutput(x), () => FlushToolOutput(), logger)
+			return new(actionsToExecute, actionArtifactCache, maxActionArtifactCacheTasks, "Compiling C++ source code...", x => WriteToolOutput(x), () => FlushToolOutput(), logger)
 			{
 				ShowCompilationTimes = bShowCompilationTimes,
 				ShowCPUUtilization = bShowCPUUtilization,
@@ -194,7 +195,7 @@ namespace UnrealBuildTool
 			bool useAutomaticQueue = true;
 			if (useAutomaticQueue)
 			{
-				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, Logger);
+				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, NumParallelProcesses, Logger);
 				int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 				queue.CreateAutomaticRunner(action => RunAction(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 				queue.Start();
@@ -206,7 +207,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, Logger);
+				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, NumParallelProcesses, Logger);
 				int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 				ImmediateActionQueueRunner runner = queue.CreateManualRunner(action => RunAction(queue, action), bUseActionWeights, actionLimit, actionLimit);
 				queue.Start();
