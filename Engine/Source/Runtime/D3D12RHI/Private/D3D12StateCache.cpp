@@ -1377,9 +1377,9 @@ void FD3D12StateCache::SetComputePipelineState(FD3D12ComputePipelineState* Compu
 			PipelineState.Compute.bNeedSetRootSignature = true;
 		}
 
-		if (bForceSet || CurrentComputePipelineState->ComputeShader != ComputePipelineState->ComputeShader)
+		if (bForceSet || CurrentComputePipelineState->GetComputeShader() != ComputePipelineState->GetComputeShader())
 		{
-			SetNewShaderData(SF_Compute, ComputePipelineState->ComputeShader);
+			SetNewShaderData(SF_Compute, FD3D12DynamicRHI::ResourceCast(ComputePipelineState->GetComputeShader()));
 		}
 
 		// Save the PSO

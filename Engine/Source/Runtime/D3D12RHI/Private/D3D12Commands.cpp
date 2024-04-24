@@ -819,7 +819,7 @@ void FD3D12CommandContext::RHISetComputePipelineState(FRHIComputePipelineState* 
 
 	StateCache.SetComputePipelineState(ComputePipelineState);
 
-	ApplyStaticUniformBuffersOnContext(*this, ComputePipelineState->ComputeShader.GetReference());
+	ApplyStaticUniformBuffersOnContext(*this, FD3D12DynamicRHI::ResourceCast(ComputePipelineState->GetComputeShader()));
 }
 
 void FD3D12CommandContext::SetUAVParameter(EShaderFrequency Frequency, uint32 UAVIndex, FD3D12UnorderedAccessView* UAV)
@@ -1485,7 +1485,7 @@ void FD3D12CommandContext::CommitComputeResourceTables()
 
 	const FD3D12ComputePipelineState* const RESTRICT ComputePSO = StateCache.GetComputePipelineState();
 
-	SetResourcesFromTables(ComputePSO->GetComputeShader());
+	SetResourcesFromTables(FD3D12DynamicRHI::ResourceCast(ComputePSO->GetComputeShader()));
 }
 
 void FD3D12CommandContext::RHISetShaderRootConstants(const FUint32Vector4& Constants)

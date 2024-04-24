@@ -1072,10 +1072,23 @@ private:
 class FRHIComputePipelineState : public FRHIResource
 {
 public:
-	FRHIComputePipelineState() : FRHIResource(RRT_ComputePipelineState) {}
+	FRHIComputePipelineState(FRHIComputeShader* InComputeShader) :
+		FRHIResource(RRT_ComputePipelineState)
+		, ComputeShader(InComputeShader)
+	{
+		check(InComputeShader);
+	}
 
 	inline void SetValid(bool InIsValid) { bIsValid = InIsValid; }
 	inline bool IsValid() const { return bIsValid; }
+
+	FORCEINLINE FRHIComputeShader* GetComputeShader() const
+	{
+		return ComputeShader;
+	}
+
+protected:
+	TRefCountPtr<FRHIComputeShader> ComputeShader;
 
 private:
 	bool bIsValid = true;
@@ -4313,19 +4326,9 @@ public:
 class FRHIComputePipelineStateFallback : public FRHIComputePipelineState
 {
 public:
-	FRHIComputePipelineStateFallback(FRHIComputeShader* InComputeShader)
-		: ComputeShader(InComputeShader)
+	FRHIComputePipelineStateFallback(FRHIComputeShader* InComputeShader) : FRHIComputePipelineState(InComputeShader)
 	{
-		check(InComputeShader);
 	}
-
-	FRHIComputeShader* GetComputeShader()
-	{
-		return ComputeShader;
-	}
-
-protected:
-	TRefCountPtr<FRHIComputeShader> ComputeShader;
 };
 
 enum class ERenderTargetActions : uint8

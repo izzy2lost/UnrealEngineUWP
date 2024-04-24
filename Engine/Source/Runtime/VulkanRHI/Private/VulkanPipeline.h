@@ -676,17 +676,12 @@ protected:
 class FVulkanComputePipeline : public FVulkanPipeline, public FRHIComputePipelineState
 {
 public:
-	FVulkanComputePipeline(FVulkanDevice* InDevice);
+	FVulkanComputePipeline(FVulkanDevice* InDevice, FVulkanComputeShader* InShader);
 	virtual ~FVulkanComputePipeline();
 
 	inline const FVulkanShaderHeader& GetShaderCodeHeader() const
 	{
-		return ComputeShader->GetCodeHeader();
-	}
-
-	inline const FVulkanComputeShader* GetShader() const
-	{
-		return ComputeShader;
+		return ResourceCast(GetComputeShader())->GetCodeHeader();
 	}
 
 	inline void Bind(VkCommandBuffer CmdBuffer)
@@ -698,11 +693,6 @@ public:
 	{
 		return *(FVulkanComputeLayout*)Layout;
 	}
-
-protected:
-	FVulkanComputeShader*	ComputeShader;
-
-	friend class FVulkanPipelineStateCacheManager;
 };
 
 class FVulkanRHIGraphicsPipelineState : public FRHIGraphicsPipelineState

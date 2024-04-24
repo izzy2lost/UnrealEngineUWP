@@ -217,9 +217,9 @@ FVulkanPipeline::~FVulkanPipeline()
 	/* we do NOT own Layout !*/
 }
 
-FVulkanComputePipeline::FVulkanComputePipeline(FVulkanDevice* InDevice)
+FVulkanComputePipeline::FVulkanComputePipeline(FVulkanDevice* InDevice, FVulkanComputeShader* InShader)
 	: FVulkanPipeline(InDevice)
-	, ComputeShader(nullptr)
+	, FRHIComputePipelineState(InShader)
 {
 	INC_DWORD_STAT(STAT_VulkanNumComputePSOs);
 }
@@ -227,15 +227,8 @@ FVulkanComputePipeline::FVulkanComputePipeline(FVulkanDevice* InDevice)
 FVulkanComputePipeline::~FVulkanComputePipeline()
 {
 	Device->NotifyDeletedComputePipeline(this);
-	
-	if (ComputeShader)
-	{
-		ComputeShader->Release();
-	}
-	
 	DEC_DWORD_STAT(STAT_VulkanNumComputePSOs);
 }
-
 
 FVulkanRHIGraphicsPipelineState::~FVulkanRHIGraphicsPipelineState()
 {
@@ -2252,10 +2245,7 @@ FVulkanComputePipeline* FVulkanPipelineStateCacheManager::GetOrCreateComputePipe
 
 FVulkanComputePipeline* FVulkanPipelineStateCacheManager::CreateComputePipelineFromShader(FVulkanComputeShader* Shader)
 {
-	FVulkanComputePipeline* Pipeline = new FVulkanComputePipeline(Device);
-
-	Pipeline->ComputeShader = Shader;
-	Pipeline->ComputeShader->AddRef();
+	FVulkanComputePipeline* Pipeline = new FVulkanComputePipeline(Device, Shader);
 
 	FVulkanDescriptorSetsLayoutInfo DescriptorSetLayoutInfo;
 	const FVulkanShaderHeader& CSHeader = Shader->GetCodeHeader();
@@ -2327,9 +2317,10 @@ FVulkanComputePipeline* FVulkanPipelineStateCacheManager::CreateComputePipelineF
 
 void FVulkanPipelineStateCacheManager::NotifyDeletedComputePipeline(FVulkanComputePipeline* Pipeline)
 {
-	if (Pipeline->ComputeShader)
+	FVulkanComputeShader* ComputeShader = ResourceCast(Pipeline->GetComputeShader());
+	if (ComputeShader)
 	{
-		const uint64 Key = Pipeline->ComputeShader->GetShaderKey();
+		const uint64 Key = ComputeShader->GetShaderKey();
 		FRWScopeLock ScopeLock(ComputePipelineLock, SLT_Write); 
 		ComputePipelineEntries.Remove(Key);
 	}

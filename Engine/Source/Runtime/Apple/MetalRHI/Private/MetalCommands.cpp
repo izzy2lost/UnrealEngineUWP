@@ -7,7 +7,6 @@
 #include "MetalRHIPrivate.h"
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
-#include "MetalComputePipelineState.h"
 #include "MetalRHIContext.h"
 #include "GlobalShader.h"
 #include "OneColorShader.h"
@@ -183,13 +182,13 @@ void FMetalRHICommandContext::RHISetComputePipelineState(FRHIComputePipelineStat
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 	
-    FMetalComputePipelineState* ComputePipeline = ResourceCast(ComputePipelineState);
+	FMetalComputeShader* ComputeShader = ResourceCast(ComputePipelineState->GetComputeShader());
 	
 	// cache this for Dispatch
 	// sets this compute shader pipeline as the current (this resets all state, so we need to set all resources after calling this)
-	Context->GetCurrentState().SetComputeShader(ComputePipeline->GetComputeShader());
+	Context->GetCurrentState().SetComputeShader(ComputeShader);
 
-    ApplyStaticUniformBuffersOnContext(*this, ComputePipeline->ComputeShader);
+    ApplyStaticUniformBuffersOnContext(*this, ComputeShader, static_cast<FMetalShaderData*>(ComputeShader));
 }
 
 void FMetalRHICommandContext::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)

@@ -11,7 +11,6 @@
 #include "MetalShaderTypes.h"
 #include "MetalVertexDeclaration.h"
 #include "MetalGraphicsPipelineState.h"
-#include "MetalComputePipelineState.h"
 #include "MetalTransitionData.h"
 
 //------------------------------------------------------------------------------
@@ -108,7 +107,7 @@ FGraphicsPipelineStateRHIRef FMetalDynamicRHI::RHICreateGraphicsPipelineState(co
 TRefCountPtr<FRHIComputePipelineState> FMetalDynamicRHI::RHICreateComputePipelineState(FRHIComputeShader* ComputeShader)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-    return new FMetalComputePipelineState(ResourceCast(ComputeShader));
+    return new FRHIComputePipelineState(ComputeShader);
 }
 
 

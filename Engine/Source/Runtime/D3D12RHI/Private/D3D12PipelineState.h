@@ -395,9 +395,6 @@ struct FD3D12ComputePipelineState : public FRHIComputePipelineState, FD3D12Pipel
 	FD3D12ComputePipelineState(FD3D12ComputeShader* InComputeShader, const FD3D12RootSignature* InRootSignature, FD3D12PipelineState* InPipelineState);
 	~FD3D12ComputePipelineState();
 
-	FORCEINLINE FD3D12ComputeShader* GetComputeShader() const { return ComputeShader; }
-
-	TRefCountPtr<FD3D12ComputeShader> ComputeShader;
 	bool bShaderNeedsGlobalConstantBuffer;
 };
 

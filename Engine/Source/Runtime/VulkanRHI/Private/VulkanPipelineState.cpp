@@ -610,7 +610,7 @@ void FVulkanCommandListContext::RHISetComputePipelineState(FRHIComputePipelineSt
 	FVulkanComputePipeline* ComputePipeline = ResourceCast(ComputePipelineState);
 	PendingComputeState->SetComputePipeline(ComputePipeline);
 
-	ApplyStaticUniformBuffers(const_cast<FVulkanComputeShader*>(ComputePipeline->GetShader()));
+	ApplyStaticUniformBuffers(ResourceCast(ComputePipeline->GetComputeShader()));
 }
 
 

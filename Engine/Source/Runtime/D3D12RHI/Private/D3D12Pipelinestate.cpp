@@ -449,8 +449,8 @@ FD3D12GraphicsPipelineState::~FD3D12GraphicsPipelineState()
 }
 
 FD3D12ComputePipelineState::FD3D12ComputePipelineState(FD3D12ComputeShader* InComputeShader, const FD3D12RootSignature* InRootSignature, FD3D12PipelineState* InPipelineState)
-	: FD3D12PipelineStateCommonData(InRootSignature, InPipelineState)
-	, ComputeShader(InComputeShader)
+	: FRHIComputePipelineState(InComputeShader)
+	, FD3D12PipelineStateCommonData(InRootSignature, InPipelineState)
 {
 	bShaderNeedsGlobalConstantBuffer = InComputeShader && InComputeShader->UsesGlobalUniformBuffer();
 }

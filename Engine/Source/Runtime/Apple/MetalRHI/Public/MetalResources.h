@@ -585,7 +585,6 @@ private:
 
 class FMetalShaderLibrary;
 class FMetalGraphicsPipelineState;
-class FMetalComputePipelineState;
 class FMetalVertexDeclaration;
 class FMetalVertexShader;
 class FMetalGeometryShader;
@@ -676,11 +675,6 @@ template<>
 struct TMetalResourceTraits<FRHIGraphicsPipelineState>
 {
 	typedef FMetalGraphicsPipelineState TConcreteType;
-};
-template<>
-struct TMetalResourceTraits<FRHIComputePipelineState>
-{
-	typedef FMetalComputePipelineState TConcreteType;
 };
 template<>
 struct TMetalResourceTraits<FRHIGPUFence>

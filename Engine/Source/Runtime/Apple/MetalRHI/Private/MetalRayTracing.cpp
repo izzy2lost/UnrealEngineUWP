@@ -10,7 +10,6 @@
 
 #include "MetalRHIContext.h"
 #include "MetalShaderTypes.h"
-#include "MetalComputePipelineState.h"
 #include "BuiltInRayTracingShaders.h"
 #include "RayTracingValidationShaders.h"
 #include "RayTracingBuiltInResources.h"

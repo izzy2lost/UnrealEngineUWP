@@ -59,7 +59,7 @@ public:
 
 	inline const FVulkanComputeShader* GetCurrentShader() const
 	{
-		return CurrentPipeline ? CurrentPipeline->GetShader() : nullptr;
+		return CurrentPipeline ? ResourceCast(CurrentPipeline->GetComputeShader()) : nullptr;
 	}
 
 	void SetUAVForUBResource(uint32 DescriptorSet, uint32 BindingIndex, FVulkanUnorderedAccessView* UAV);
