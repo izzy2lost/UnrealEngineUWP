@@ -14,6 +14,7 @@
 #include "UObject/UnrealNames.h"
 #include "Templates/Atomic.h"
 #include "Serialization/MemoryLayout.h"
+#include "Misc/Optional.h"
 #include "Misc/StringBuilder.h"
 #include "Trace/Trace.h"
 
@@ -50,9 +51,14 @@ class FName;
 /** Opaque id to a deduplicated name */
 struct FNameEntryId
 {
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = FNameEntryId;
+	
 	// Default initialize to be equal to NAME_None
 	FNameEntryId() : Value(0) {}
 	FNameEntryId(ENoInit) {}
+	explicit FNameEntryId(FIntrusiveUnsetOptionalState) : Value(~0u) {}
+	void operator=(FIntrusiveUnsetOptionalState) { Value = ~0u; }
 
 	bool IsNone() const
 	{
@@ -78,6 +84,12 @@ struct FNameEntryId
 	bool operator>(FNameEntryId Rhs) const { return Rhs.Value < Value; }
 	bool operator==(FNameEntryId Rhs) const { return Value == Rhs.Value; }
 	bool operator!=(FNameEntryId Rhs) const { return Value != Rhs.Value; }
+	
+	/** Comparison against special type for checking TOptional<FName>:IsSet */
+	bool operator==(FIntrusiveUnsetOptionalState) const
+	{
+		return Value == ~0u;
+	}
 
 	// Returns true if this FNameEntryId is not equivalent to NAME_None
 	explicit operator bool() const { return Value != 0; }
@@ -572,6 +584,9 @@ private:
 class FName
 {
 public:
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = FName;
+
 #if UE_FNAME_OUTLINE_NUMBER
 	CORE_API FNameEntryId GetComparisonIndex() const;
 	CORE_API FNameEntryId GetDisplayIndex() const;
@@ -704,6 +719,12 @@ public:
 	FORCEINLINE bool operator!=(FName Other) const
 	{
 		return !(*this == Other);
+	}
+
+	/** Special comparison operator for TOptional<FName>::IsSet */
+	inline bool operator==(FIntrusiveUnsetOptionalState I) const
+	{
+		return ComparisonIndex == I;
 	}
 
 	/** Fast non-alphabetical order that is only stable during this process' lifetime. */
@@ -920,6 +941,22 @@ public:
 		, DisplayIndex(NoInit)
 #endif
 	{}
+
+	/** Special constructor used by TOptional<FName> */
+	explicit FName(FIntrusiveUnsetOptionalState I)
+	: FName()
+	{
+		ComparisonIndex = I;
+#if WITH_CASE_PRESERVING_NAME
+		DisplayIndex = I;
+#endif
+	}
+
+	/** Special assignment operator used by TOptional<FName> */
+	inline void operator=(FIntrusiveUnsetOptionalState I)
+	{
+		*this = FName(I);
+	}
 
 	FORCEINLINE explicit FName(FMinimalName InName);
 	FORCEINLINE explicit FName(FScriptName InName);

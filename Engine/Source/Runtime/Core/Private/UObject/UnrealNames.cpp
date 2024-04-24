@@ -43,6 +43,8 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealNames, Log, All);
 
+static_assert(::HasIntrusiveUnsetOptionalState<FName>());
+
 // Console command declarations
 namespace UE::Name::Private
 {

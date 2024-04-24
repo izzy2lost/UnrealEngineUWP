@@ -158,8 +158,11 @@ void FOptionalProperty::LinkInternal(FArchive& Ar)
 	// After ValueProperty's size has been computed, compute the size of this property.
 	ElementSize = CalcSize();
 
-	// Optional properties can always be initialized by zeroing memory.
-	PropertyFlags |= CPF_ZeroConstructor;
+	// Standard non-intrusive optional properties can always be initialized by zeroing memory.
+	if (!ValueProperty->HasIntrusiveUnsetOptionalState())
+	{
+		PropertyFlags |= CPF_ZeroConstructor;
+	}
 
 	// Propagate CPF_NoDestructor, CPF_IsPlainOldData, and CPF_HasGetValueTypeHash from the value property.
 	PropertyFlags |= (ValueProperty->PropertyFlags & (CPF_NoDestructor|CPF_IsPlainOldData|CPF_HasGetValueTypeHash));

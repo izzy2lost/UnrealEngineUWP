@@ -768,6 +768,29 @@ public:
 	static CORE_API FText ChangeKey( const FTextKey& Namespace, const FTextKey& Key, const FText& Text );
 #endif
 
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<FText> state        //
+	/////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = FText;
+
+	explicit FText(FIntrusiveUnsetOptionalState)
+	: TextData(nullptr)
+	, Flags(0)
+	{
+	}
+	void operator=(FIntrusiveUnsetOptionalState)
+	{
+		TextData = nullptr;
+		Flags = 0;	
+	}
+	bool operator==(FIntrusiveUnsetOptionalState) const
+	{
+		return TextData == nullptr;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<FText> state      //
+	/////////////////////////////////////////////////
 private:
 	template <
 		typename HistoryType

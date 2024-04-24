@@ -6,6 +6,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Misc/OptionalFwd.h"
+#include "Templates/MemoryOps.h"
 #include "Templates/UnrealTemplate.h"
 #include "Serialization/Archive.h"
 
@@ -163,18 +164,13 @@ public:
 	{
 		if (&Other != this)
 		{
-			if constexpr (bUsingIntrusiveUnsetState)
+			if (Other.IsSet())
 			{
-				*(OptionalType*)&Value = *(const OptionalType*)&Other.Value;
+				Emplace(Other.GetValue());
 			}
 			else
 			{
 				Reset();
-				if (Other.Value.bIsSet)
-				{
-					::new((void*)&Value) OptionalType(*(const OptionalType*)&Other.Value);
-					Value.bIsSet = true;
-				}
 			}
 		}
 		return *this;
@@ -183,18 +179,13 @@ public:
 	{
 		if (&Other != this)
 		{
-			if constexpr (bUsingIntrusiveUnsetState)
+			if(Other.IsSet())
 			{
-				*(OptionalType*)&Value = MoveTempIfPossible(*(OptionalType*)&Other.Value);
+				Emplace(MoveTempIfPossible(Other.GetValue()));
 			}
 			else
 			{
 				Reset();
-				if (Other.Value.bIsSet)
-				{
-					::new((void*)&Value) OptionalType(MoveTempIfPossible(*(OptionalType*)&Other.Value));
-					Value.bIsSet = true;
-				}
 			}
 		}
 		return *this;
@@ -219,19 +210,16 @@ public:
 
 	void Reset()
 	{
-		if constexpr (bUsingIntrusiveUnsetState)
+		if (IsSet())
 		{
-			*(OptionalType*)&Value = FIntrusiveUnsetOptionalState{};
-		}
-		else
-		{
-			if (Value.bIsSet)
+			DestroyValue();
+			if constexpr (bUsingIntrusiveUnsetState)
+			{
+				::new((void*)&Value) OptionalType(FIntrusiveUnsetOptionalState{});
+			}
+			else
 			{
 				Value.bIsSet = false;
-
-				// We need a typedef here because VC won't compile the destructor call below if OptionalType itself has a member called OptionalType
-				typedef OptionalType OptionalDestructOptionalType;
-				((OptionalType*)&Value)->OptionalDestructOptionalType::~OptionalDestructOptionalType();
 			}
 		}
 	}
@@ -239,17 +227,10 @@ public:
 	template <typename... ArgsType>
 	OptionalType& Emplace(ArgsType&&... Args)
 	{
-		if constexpr (bUsingIntrusiveUnsetState)
+		// Destroy the member in-place before replacing it - a bit nasty, but it'll work since we don't support exceptions
+		if (IsSet())
 		{
-			// Destroy the member in-place before replacing it - a bit nasty, but it'll work since we don't support exceptions
-
-			// We need a typedef here because VC won't compile the destructor call below if OptionalType itself has a member called OptionalType
-			typedef OptionalType OptionalDestructOptionalType;
-			((OptionalType*)&Value)->OptionalDestructOptionalType::~OptionalDestructOptionalType();
-		}
-		else
-		{
-			Reset();
+			DestroyValue();
 		}
 
 		// If this fails to compile when trying to call Emplace with a non-public constructor,
@@ -406,6 +387,14 @@ public:
 	}
 
 private:
+	/** 
+	 * Destroys the value, must only be called if the value is set, and callers must then mark the value unset or construct a new value in place. 
+	 */
+	FORCEINLINE void DestroyValue()
+	{
+		DestructItem((OptionalType*)&Value);
+	}
+
 	using ValueStorageType = std::conditional_t<bUsingIntrusiveUnsetState, uint8[sizeof(OptionalType)], UE::Core::Private::TNonIntrusiveOptionalStorage<sizeof(OptionalType)>>;
 	alignas(OptionalType) ValueStorageType Value;
 };
