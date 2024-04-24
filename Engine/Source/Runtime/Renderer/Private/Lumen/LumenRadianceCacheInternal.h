@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "LumenViewState.h"
+#include "Lumen/LumenRadianceCache.h"
+#include "Lumen/LumenViewState.h"
 
 namespace LumenRadianceCache
 {

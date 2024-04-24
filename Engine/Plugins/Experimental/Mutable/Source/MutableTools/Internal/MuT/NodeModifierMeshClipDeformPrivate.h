@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MuR/Mesh.h"
 #include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodeModifierMeshClipDeform.h"
 #include "MuT/NodeMesh.h"

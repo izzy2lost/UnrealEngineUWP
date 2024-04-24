@@ -7,6 +7,7 @@
 #include "IConcertSession.h"
 #include "Widgets/Client/ClientInfoDelegate.h"
 
+#include "Misc/Attribute.h"
 #include "Misc/Optional.h"
 
 /** Util types that can be used with SClientName, etc. */

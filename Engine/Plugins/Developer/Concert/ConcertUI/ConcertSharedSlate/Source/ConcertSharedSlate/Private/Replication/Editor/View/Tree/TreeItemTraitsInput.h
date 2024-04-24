@@ -8,6 +8,8 @@
 class FName;
 class SWidget;
 
+struct FTableRowStyle;
+
 namespace UE::ConcertSharedSlate
 {
 	template<typename TTreeItemType>

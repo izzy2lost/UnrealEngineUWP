@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MuR/ParametersPrivate.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeScalarCurve.h"
 #include "MuT/NodeScalar.h"

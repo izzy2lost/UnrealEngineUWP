@@ -11,8 +11,7 @@ namespace Audio
 	// See: https://en.wikipedia.org/wiki/Digital_biquad_filter
 	// Calculations of coefficients are handled outside this class.
 	// Filter coefficients are public and are intended to be used externally.
-	UE_DEPRECATED(5.5, "Audio::FBiquad is deprecated in favor of Audio::FBiquadFilter due to performance issues")
-	class FBiquad
+	class UE_DEPRECATED(5.5, "Audio::FBiquad is deprecated in favor of Audio::FBiquadFilter due to performance issues") FBiquad
 	{
 	public:
 		FBiquad()
