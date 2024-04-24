@@ -22,6 +22,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
 
+#include "Selection/StoredMeshSelectionUtil.h"
 #include "TargetInterfaces/MeshDescriptionCommitter.h"
 #include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
@@ -41,6 +42,33 @@ using namespace UE::Geometry;
 UMultiSelectionMeshEditingTool* UEditPivotToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<UEditPivotTool>(SceneState.ToolManager);
+}
+
+void UEditPivotToolBuilder::InitializeNewTool(UMultiSelectionMeshEditingTool* NewTool, const FToolBuilderState& SceneState) const
+{
+	const TArray<TObjectPtr<UToolTarget>> Targets = SceneState.TargetManager->BuildAllSelectedTargetable(SceneState, GetTargetRequirements());
+	NewTool->SetTargets(Targets);
+	NewTool->SetWorld(SceneState.World);
+
+	if (Targets.Num() == 1)
+	{
+		if (UEditPivotTool* NewPivotTool = Cast<UEditPivotTool>(NewTool))
+		{
+			// if there is an element selection, use its frame origin as an initial pivot
+			FFrame3d Frame;
+			FAxisAlignedBox3d Bounds;
+			bool bIsElementSelection;
+			if (GetCurrentSelectionWorldFrameBounds(SceneState, Frame, Bounds, bIsElementSelection))
+			{
+				if (bIsElementSelection)
+				{
+					FTransform LocalToWorld = UE::ToolTarget::GetLocalToWorldTransform(Targets[0]);
+					LocalToWorld.SetTranslation(Frame.Origin);
+					NewPivotTool->SetInitialPivot(LocalToWorld);
+				}
+			}
+		}
+	}
 }
 
 
@@ -90,6 +118,11 @@ void UEditPivotTool::Setup()
 	DragAlignmentMechanic->AddToGizmo(ActiveGizmos[0].TransformGizmo);
 
 	Precompute();
+
+	if (bHasCustomInitialPivot)
+	{
+		ActiveGizmos[0].TransformGizmo->SetNewGizmoTransform(InitialPivot);
+	}
 
 	FText AllTheWarnings = LOCTEXT("EditPivotWarning", "WARNING: This Tool will Modify the selected StaticMesh Assets! If you do not wish to modify the original Assets, please make copies in the Content Browser first!");
 

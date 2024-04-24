@@ -27,6 +27,7 @@ class MESHMODELINGTOOLSEXP_API UEditPivotToolBuilder : public UMultiSelectionMes
 	GENERATED_BODY()
 public:
 	virtual UMultiSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+	virtual void InitializeNewTool(UMultiSelectionMeshEditingTool* NewTool, const FToolBuilderState& SceneState) const override;
 };
 
 
@@ -194,8 +195,17 @@ public:
 
 	virtual void RequestAction(EEditPivotToolActions ActionType);
 
+	void SetInitialPivot(FTransform3d InInitialPivot) 
+	{
+		bHasCustomInitialPivot = true;
+		InitialPivot = InInitialPivot;
+	}
+
 protected:
 	TArray<int> MapToFirstOccurrences;
+
+	FTransform3d InitialPivot = FTransform3d::Identity;
+	bool bHasCustomInitialPivot = false;
 
 	FTransform3d Transform;
 	UE::Geometry::FAxisAlignedBox3d ObjectBounds;
