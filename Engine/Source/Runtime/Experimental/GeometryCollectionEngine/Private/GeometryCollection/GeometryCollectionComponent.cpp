@@ -3264,6 +3264,21 @@ FGeometryCollectionDynamicData* UGeometryCollectionComponent::InitDynamicData(bo
 	return DynamicData;
 }
 
+bool UGeometryCollectionComponent::MoveComponentImpl(const FVector& Delta, const FQuat& NewRotation, bool bSweep, FHitResult* Hit, EMoveComponentFlags MoveFlags, ETeleportType Teleport)
+{
+	const bool bResult = Super::MoveComponentImpl(Delta, NewRotation, bSweep, Hit, MoveFlags, Teleport);
+
+#if WITH_EDITOR
+	// Make sure that custom renderer is updated _after_ any move has been applied to the full component hierachy.
+	if (!GetWorld()->IsGameWorld())
+	{
+		RefreshCustomRenderer();
+	}
+#endif
+
+	return bResult;
+}
+
 void UGeometryCollectionComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
 {
 	// Don't allow the primitive component to update physics as that does processing to set a transform for
@@ -3274,12 +3289,6 @@ void UGeometryCollectionComponent::OnUpdateTransform(EUpdateTransformFlags Updat
 	if (!bSkipPhysicsUpdate && PhysicsProxy)
 	{
 		PhysicsProxy->SetWorldTransform_External(GetComponentTransform());
-	}
-
-	// Make sure that custom renderer is updated at in editor.
-	if (!GetWorld()->IsGameWorld())
-	{
-		RefreshCustomRenderer();
 	}
 }
 
@@ -3798,11 +3807,13 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 			}
 		}
 
+#if WITH_EDITOR
 		// Make sure that custom renderer is updated at least once in editor.
 		if (!GetWorld()->IsGameWorld())
 		{
 			RefreshCustomRenderer();
 		}
+#endif
 	}
 }
 

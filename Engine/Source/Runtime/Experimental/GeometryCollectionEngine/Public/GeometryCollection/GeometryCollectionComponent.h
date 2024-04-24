@@ -1188,6 +1188,7 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API virtual bool ShouldCreatePhysicsState() const override;
 	GEOMETRYCOLLECTIONENGINE_API virtual bool HasValidPhysicsState() const override;
 
+	GEOMETRYCOLLECTIONENGINE_API virtual bool MoveComponentImpl(const FVector& Delta, const FQuat& NewRotation, bool bSweep, FHitResult* Hit, EMoveComponentFlags MoveFlags, ETeleportType Teleport) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport = ETeleportType::None) override;
 
 	// Mirrored from the proxy on a sync
