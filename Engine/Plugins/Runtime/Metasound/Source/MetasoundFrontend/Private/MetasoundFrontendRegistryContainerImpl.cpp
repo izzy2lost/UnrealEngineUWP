@@ -41,6 +41,17 @@ static FAutoConsoleVariableRef CVarAsyncRegistrationTasksBusyWait(
 
 namespace Metasound::Frontend
 {
+	namespace ConsoleVariables
+	{
+		static bool bDisableAsyncGraphRegistration = false;
+		FAutoConsoleVariableRef CVarMetaSoundDisableAsyncGraphRegistration(
+			TEXT("au.MetaSound.DisableAsyncGraphRegistration"),
+			Metasound::Frontend::ConsoleVariables::bDisableAsyncGraphRegistration,
+			TEXT("Disables async registration of MetaSound graphs\n")
+			TEXT("Default: false"),
+			ECVF_Default);
+	} // namespace ConsoleVariables
+
 	namespace RegistryPrivate
 	{
 		TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface, bool bAsync)
@@ -67,21 +78,22 @@ namespace Metasound::Frontend
 			// Only assets require template node processing and support document attachment
 			if (DocObject->IsAsset()) 
 			{
-				const FMetaSoundFrontendDocumentBuilder& OriginalDocBuilder = IMetaSoundAssetManager::GetChecked().AttachDocumentBuilderChecked(*DocObject);
-				const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
-				if (bContainsTemplateDependency)
+				if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 				{
-					UE_LOG(LogMetaSound, Error,
-						TEXT("Template node processing disabled but provided asset class at '%s' to register contains template nodes. Runtime graph will fail to build."),
-						*OriginalDocBuilder.GetDebugName());
+					const FMetaSoundFrontendDocumentBuilder& OriginalDocBuilder = AssetManager->AttachDocumentBuilderChecked(*DocObject);
+					const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
+					if (bContainsTemplateDependency)
+					{
+						UE_LOG(LogMetaSound, Error,
+							TEXT("Template node processing disabled but provided asset class at '%s' to register contains template nodes. Runtime graph will fail to build."),
+							*OriginalDocBuilder.GetDebugName());
+					}
 				}
 			}
 	#endif // !NO_LOGGING
 
 			// Force a copy if async registration is enabled and we need to protect against race conditions from external modifications.
-			const FMetasoundAssetBase* AssetBase = IMetaSoundAssetManager::GetChecked().GetAsAsset(*DocObject);
-			check(AssetBase);
-			const bool bForceCopy = AssetBase->IsBuilderActive() && bAsync;
+			const bool bForceCopy = DocumentInterface->IsActivelyBuilding() && bAsync;
 			if (bForceCopy)
 			{
 				return &UMetaSoundBuilderDocument::Create(*DocumentInterface.GetInterface());
@@ -433,7 +445,7 @@ namespace Metasound::Frontend
 		return MakeUnique<FNodeRegistryTransactionStream>(TransactionBuffer);
 	}
 
-	FGraphRegistryKey FRegistryContainerImpl::RegisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
+	FGraphRegistryKey FRegistryContainerImpl::RegisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface)
 	{
 		using namespace UE;
 
@@ -456,6 +468,7 @@ namespace Metasound::Frontend
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FRegistryContainerImpl::RegisterGraph key:%s, asset %s"), *RegistryKey.ToString(), *AssetPath.ToString()));
 
 		// Wait for any async tasks that are in flight which correspond to the same graph prior to building as building, if force copy is false, may mutate the serialized document
+		const bool bAsync = !ConsoleVariables::bDisableAsyncGraphRegistration;
 		if (bAsync)
 		{
 			WaitForAsyncGraphRegistration(RegistryKey);
@@ -642,7 +655,7 @@ namespace Metasound::Frontend
 		return false;
 	}
 
-	bool FRegistryContainerImpl::UnregisterGraph(const FGraphRegistryKey& InRegistryKey, const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
+	bool FRegistryContainerImpl::UnregisterGraph(const FGraphRegistryKey& InRegistryKey, const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface)
 	{
 		using namespace UE;
 		using namespace RegistryPrivate;
@@ -675,6 +688,12 @@ namespace Metasound::Frontend
 			TransactionBuffer->AddTransaction(FNodeRegistryTransaction(FNodeRegistryTransaction::ETransactionType::NodeUnregistration, NodeClassInfo, Timestamp));
 		}
 
+		// Async registration is only available if:
+		// 1. The IMetaSoundDocumentInterface is not actively modified by a builder
+		//    (built graph must be released synchronously to avoid a race condition on
+		//    reading/writing the IMetaSoundDocumentInterface on the Game Thread)
+		// 2. Async registration is globally disabled via console variable.
+		const bool bAsync = !(InDocumentInterface->IsActivelyBuilding() || ConsoleVariables::bDisableAsyncGraphRegistration);
 		if (bAsync)
 		{
 			// Wait for any async tasks that are in flight which correspond to the same graph

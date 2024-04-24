@@ -112,6 +112,9 @@ public:
 	// Base MetaSoundClass that document is published to.
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
 
+	// Returns if the document is being actively built (always true as builder documents are always being actively built)
+	virtual bool IsActivelyBuilding() const final override;
+
 private:
 	virtual FMetasoundFrontendDocument& GetDocument() override;
 

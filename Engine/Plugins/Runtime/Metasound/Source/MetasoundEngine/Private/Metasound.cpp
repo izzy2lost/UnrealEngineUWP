@@ -214,7 +214,7 @@ void UMetaSoundPatch::OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAsset
 	Metasound::FMetaSoundEngineAssetHelper::OnAsyncReferencedAssetsLoaded(*this, InAsyncReferences);
 }
 
-bool UMetaSoundPatch::IsBuilderActive() const
+bool UMetaSoundPatch::IsActivelyBuilding() const
 {
 	return bIsBuilderActive;
 }

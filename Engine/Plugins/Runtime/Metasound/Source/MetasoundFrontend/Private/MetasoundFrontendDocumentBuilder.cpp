@@ -670,6 +670,11 @@ const UClass& UMetaSoundBuilderDocument::GetBaseMetaSoundUClass() const
 	return *MetaSoundUClass;
 }
 
+bool UMetaSoundBuilderDocument::IsActivelyBuilding() const
+{
+	return true;
+}
+
 FMetasoundFrontendDocument& UMetaSoundBuilderDocument::GetDocument()
 {
 	return Document;

@@ -189,17 +189,6 @@ namespace Metasound
 			}
 		} // namespace AssetBasePrivate
 
-		namespace ConsoleVariables
-		{
-			static bool bDisableAsyncGraphRegistration = false;
-		}
-
-		FAutoConsoleVariableRef CVarMetaSoundDisableAsyncGraphRegistration(
-			TEXT("au.MetaSound.DisableAsyncGraphRegistration"),
-			Metasound::Frontend::ConsoleVariables::bDisableAsyncGraphRegistration,
-			TEXT("Disables async registration of MetaSound graphs\n")
-			TEXT("Default: false"),
-			ECVF_Default);
 		FConsoleVariableMulticastDelegate CVarMetaSoundBlockRateChanged;
 
 		FAutoConsoleVariableRef CVarMetaSoundBlockRate(
@@ -336,10 +325,7 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	check(Owner);
 	const FString AssetName = Owner->GetName();
 
-	// Register graphs async by default;
-	const bool bAsync = !ConsoleVariables::bDisableAsyncGraphRegistration;
-
-	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner, bAsync);
+	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner);
 	if (GraphRegistryKey.IsValid())
 	{
 #if WITH_EDITORONLY_DATA
@@ -462,13 +448,7 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 		UObject* OwningAsset = GetOwningAsset();
 		if (ensureAlways(OwningAsset))
 		{
-			// Async registration is only available if:
-			// 1. The IMetaSoundDocumentInterface is not actively modified by a builder
-			//    (built graph must be released synchronously to avoid a race condition on
-			//    reading/writing the IMetaSoundDocumentInterface on the Game Thread)
-			// 2. Async registration is globally disabled via console variable.
-			const bool bAsync = !(IsBuilderActive() || ConsoleVariables::bDisableAsyncGraphRegistration);
-			const bool bSuccess = FRegistryContainerImpl::Get().UnregisterGraph(GraphRegistryKey, OwningAsset, bAsync);
+			const bool bSuccess = FRegistryContainerImpl::Get().UnregisterGraph(GraphRegistryKey, OwningAsset);
 			if (!bSuccess)
 			{
 				UE_LOG(LogMetaSound, Verbose, TEXT("Failed to unregister node with key %s for asset %s. No registry entry exists with that key."), *GraphRegistryKey.ToString(), *GetOwningAssetName());

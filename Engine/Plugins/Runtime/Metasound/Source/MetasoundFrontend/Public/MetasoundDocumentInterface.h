@@ -49,6 +49,9 @@ public:
 	// Returns whether or not object data was modified.
 	virtual bool ConformObjectToDocument() = 0;
 
+	// Returns whether or not a document builder is currently active and can mutate the given interface's document
+	virtual bool IsActivelyBuilding() const = 0;
+
 private:
 	virtual FMetasoundFrontendDocument& GetDocument() = 0;
 

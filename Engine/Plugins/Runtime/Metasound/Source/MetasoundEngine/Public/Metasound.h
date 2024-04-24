@@ -178,7 +178,7 @@ public:
 		return this;
 	}
 
-	virtual bool IsBuilderActive() const override;
+	virtual bool IsActivelyBuilding() const override;
 
 protected:
 #if WITH_EDITOR

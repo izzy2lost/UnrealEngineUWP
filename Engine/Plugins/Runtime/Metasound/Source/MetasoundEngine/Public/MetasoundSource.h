@@ -273,7 +273,7 @@ public:
 	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InDeviceSampleRate) const;
 
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
-	virtual bool IsBuilderActive() const override;
+	virtual bool IsActivelyBuilding() const override;
 
 protected:
 	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override;

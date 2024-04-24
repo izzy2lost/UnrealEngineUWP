@@ -195,11 +195,8 @@ public:
 	void SetVersionedOnLoad();
 #endif // WITH_EDITORONLY_DATA
 
-	// Returns true if the IMetaSoundDocumentInterface is currently has an active builder.
-	//
-	// If true, calls to register the graph will be performed synchronously in order to avoid
-	// race conditions with an active builder.
-	virtual bool IsBuilderActive() const = 0;
+	UE_DEPRECATED(5.5, "Use IMetaSoundDocumentInterface 'IsActivelyBuilding' instead")
+	virtual bool IsBuilderActive() const { checkNoEntry(); return false; }
 
 protected:
 	void OnNotifyBeginDestroy();

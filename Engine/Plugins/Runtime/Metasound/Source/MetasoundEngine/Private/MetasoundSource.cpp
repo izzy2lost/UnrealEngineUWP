@@ -1578,7 +1578,7 @@ Metasound::SourcePrivate::FParameterRouter& UMetaSoundSource::GetParameterRouter
 	return Router;
 }
 
-bool UMetaSoundSource::IsBuilderActive() const
+bool UMetaSoundSource::IsActivelyBuilding() const
 {
 	return bIsBuilderActive;
 }
