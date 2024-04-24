@@ -68,6 +68,8 @@ namespace uba
 		void SetWritten();
 
 		void ThreadRun(bool runningRemote, void* environment);
+		void ThreadExit();
+		bool HandleSpecialApplication();
 		bool HandleMessage(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleInit(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleCreateFile(BinaryReader& reader, BinaryWriter& writer);
