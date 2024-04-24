@@ -235,9 +235,13 @@ public:
 
 public:
 
-	/** Refresh Sequencer UI. */
+	/** Refresh Sequencer UI on next tick */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	static void RefreshCurrentLevelSequence();
+
+	/** Force sequencer evaluation and UI update immediately */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	static void ForceUpdate();
 
 	/** Get the object bound to the given binding ID with the current level sequence editor */
 	UFUNCTION(BlueprintPure, Category="Level Sequence Editor")

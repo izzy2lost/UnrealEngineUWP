@@ -634,7 +634,15 @@ void ULevelSequenceEditorBlueprintLibrary::RefreshCurrentLevelSequence()
 		CurrentSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::Unknown);
 	}
 }
-	
+
+void ULevelSequenceEditorBlueprintLibrary::ForceUpdate()
+{
+	if (CurrentSequencer.IsValid())
+	{
+		CurrentSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::RefreshAllImmediately);
+	}
+}
+
 TArray<UObject*> ULevelSequenceEditorBlueprintLibrary::GetBoundObjects(FMovieSceneObjectBindingID ObjectBinding)
 {
 	TArray<UObject*> BoundObjects;
