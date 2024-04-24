@@ -36,8 +36,12 @@ AsyncBufferResultPtr TargetTextureSet::BindTo(RenderMaterial_BPPtr Material, TAr
 {
 	RenderCount++;
 
+	// clear previous callbacks
+	Callbacks.Empty();
+	
 	for(const FMaterialMappingInfo MappingInfo : MaterialMappingInfo)
 	{
+		
 		BindOnTextureUpdate(Material, MappingInfo);
 	}
 			

@@ -107,8 +107,7 @@ public:
 
 	void											SetMesh(class UMeshComponent* InPreviewMesh, class UWorld* InWorld) override;
 	bool 											SetPreviewAsset(UObject* InAsset);
-	bool 											SetPreviewAssetByName(const TCHAR* InAssetName);
-
+	
 	/** Force Refresh Details View **/
 	void											RefreshDetailsView() const;
 
@@ -170,7 +169,7 @@ private:
 
 	void											OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details);
 	void											OnPreviewMeshChangedEvent();
-	void											OnViewportSettingsChanged();
+	void											OnViewportMaterialChanged();
 	void											OnMaterialMappingChanged();
 	/** Log Graph in console */
 	void											OnLogGraph_Clicked();
@@ -274,6 +273,7 @@ private:
 	FReply											OnExportClick();
 
 	TSharedPtr<class STG_EditorViewport>			GetEditorViewport() const;	
+	void 											SetViewportPreviewMesh();
 	
 	bool											CanEnableOnRun();
 

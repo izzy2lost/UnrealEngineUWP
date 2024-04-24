@@ -4,27 +4,15 @@
 
 #include "CoreMinimal.h"
 
-#include "TG_Parameter.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "PropertyHandle.h"
 #include "IPropertyTypeCustomization.h"
-//#include "IPropertyUtilities.h"
-//#include "PropertyHandle.h"
-#include "DetailWidgetRow.h"
-//#include "DetailLayoutBuilder.h"
-//#include "ISinglePropertyView.h"
+#include "IPropertyUtilities.h"
 #include "IDetailChildrenBuilder.h"
-//#include "IDetailCustomization.h"
-#include "IDetailGroup.h"
-#include "PropertyCustomizationHelpers.h"
-#include "TG_Pin.h"
-#include "Expressions/Output/TG_Expression_Output.h"
-#include "TG_Node.h"
-#include "TG_Graph.h"
-#include "TextureGraph.h"
+
 #include "Model/Mix/ViewportSettings.h"
-#include "Widgets/Layout/SBox.h"
-#include "Widgets/Text/STextBlock.h"
+#include "Model/Mix/MixSettings.h"
 
 #define LOCTEXT_NAMESPACE "FTextureGraphEditorModule"
 
@@ -52,11 +40,15 @@ public:
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-		
+		const TSharedPtr<IPropertyUtilities> PropertyUtils = CustomizationUtils.GetPropertyUtilities();
 		if (PropertyHandle->IsValidHandle())
 		{
 			ChildBuilder.AddProperty(MaterialPropertyHandle.ToSharedRef());
-
+			MaterialPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([=, this]()
+			{
+				// refresh details
+				PropertyUtils->ForceRefresh();
+			}));
 			// In this case, we'll add the array elements directly without the header for the array name.
 			uint32 NumChildren;
 			MaterialMappingInfosPropertyHandle->GetNumChildren(NumChildren);

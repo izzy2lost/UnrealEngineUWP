@@ -206,7 +206,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 
 	FViewportSettings& ViewportSettings = EditedTextureGraph->GetSettings()->GetViewportSettings();
 
-	ViewportSettings.OnViewportMaterialChangedEvent.AddSP(this, &FTG_Editor::OnViewportSettingsChanged);
+	ViewportSettings.OnViewportMaterialChangedEvent.AddSP(this, &FTG_Editor::OnViewportMaterialChanged);
 	ViewportSettings.OnMaterialMappingChangedEvent.AddSP(this, &FTG_Editor::OnMaterialMappingChanged);
 	EditedTextureGraph->GetSettings()->OnPreviewMeshChangedEvent.AddSP(this, &FTG_Editor::OnPreviewMeshChangedEvent);
 
@@ -370,11 +370,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	}
 	
 	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
-	if (!SetPreviewAssetByName(*EditedTextureGraph->GetSettings()->GetPreviewMesh().GetPath()))
-	{
-		// The material preview mesh couldn't be found or isn't loaded.  Default to the one of the primitive types.
-		GetEditorViewport()->InitPreviewMesh();
-	}
+	SetViewportPreviewMesh();
 
 	if (bViewportIsOff)
 	{
@@ -675,10 +671,10 @@ void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph, const FInvalidatio
 
 void FTG_Editor::OnPreviewMeshChangedEvent()
 {
-	SetPreviewAsset(EditedTextureGraph->GetSettings()->GetPreviewMesh());
+	SetViewportPreviewMesh();
 }
 
-void FTG_Editor::OnViewportSettingsChanged()
+void FTG_Editor::OnViewportMaterialChanged()
 {
 	const UTG_Node* FirstTargetNode = nullptr;
 	EditedTextureGraph->Graph()->ForEachNodes([&](const UTG_Node* node, uint32 index)
@@ -985,6 +981,17 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_GraphEditor(const FSpawnTabArgs& Args)
 		];
 }
 
+void FTG_Editor::SetViewportPreviewMesh()
+{
+	TObjectPtr<UStaticMesh> PreviewMesh = EditedTextureGraph->GetSettings()->GetPreviewMesh();
+	// Set the preview mesh for the material.  
+	if (!PreviewMesh || !SetPreviewAsset(PreviewMesh))
+	{
+		// The material preview mesh couldn't be found or isn't loaded. Fallback to the one of the primitive types.
+		GetEditorViewport()->InitPreviewMesh();
+	}
+}
+
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_Viewport(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == FTG_EditorTabs::ViewportTabId);
@@ -1005,14 +1012,10 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Viewport(const FSpawnTabArgs& Args)
 
 	const FString LayoutId = FString("TG_EditorViewport");
 	ViewportTabContent->Initialize(MakeViewportFunc, DockableTab, LayoutId);
+
+	// This call must occur after the toolbar is initialized.
+	SetViewportPreviewMesh();
 	
-	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
-	if (!SetPreviewAssetByName(*EditedTextureGraph->GetSettings()->GetPreviewMesh().GetPath()))
-	{
-		// The material preview mesh couldn't be found or isn't loaded.  Default to the one of the primitive types.
-		GetEditorViewport()->InitPreviewMesh();
-	
-	}
 	return DockableTab;
 }
 
@@ -2013,15 +2016,6 @@ bool FTG_Editor::SetPreviewAsset(UObject* InAsset)
 	if (GetEditorViewport().IsValid())
 	{
 		return GetEditorViewport()->SetPreviewAsset(InAsset);
-	}
-	return false;
-}
-
-bool FTG_Editor::SetPreviewAssetByName(const TCHAR* InAssetName)
-{
-	if (GetEditorViewport().IsValid())
-	{
-		return GetEditorViewport()->SetPreviewAssetByName(InAssetName);
 	}
 	return false;
 }
