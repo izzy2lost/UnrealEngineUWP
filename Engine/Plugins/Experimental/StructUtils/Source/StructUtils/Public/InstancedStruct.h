@@ -12,12 +12,6 @@ struct FConstSharedStruct;
 template<typename BaseStructT> struct TConstSharedStruct;
 class UUserDefinedStruct;
 
-#if UE_BUILD_SHIPPING
-#define INSTANCED_STRUCT_CAST_DEBUG 0
-#else
-#define INSTANCED_STRUCT_CAST_DEBUG 1
-#endif
-
 /**
  * FInstancedStruct works similarly as instanced UObject* property but is USTRUCTs.
  * 
@@ -35,14 +29,6 @@ struct STRUCTUTILS_API FInstancedStruct
 	GENERATED_BODY()
 
 public:
-	/**
-	 * The property tree relies a lot of blind casting a void* to an FInstancedStruct in order to
-	 * dereference to get at the struct within.  Unforunately, this can be very error prone to debug
-	 * Therefore, some internal machinery has been added to help catch programming errors with the cast.
-	 * It is preferable to use this utility function over a static_cast or reinterpret_cast.
-	 * @return 
-	 */
-	static FInstancedStruct* CastFromVoid(void*);
 
 	FInstancedStruct();
 
@@ -271,36 +257,9 @@ protected:
 		StructMemory = InStructMemory;
 	}
 
-#if INSTANCED_STRUCT_CAST_DEBUG
-	static constexpr uint64 CanaryValue = 0x72745374736e4946;  // "FInstStr"
-
-	// Debug tool to catch bad casts from void*
-	uint64 BeginCanary = CanaryValue;
-#endif
-	
 	TObjectPtr<const UScriptStruct> ScriptStruct = nullptr;
 	uint8* StructMemory = nullptr;
 };
-
-inline FInstancedStruct* FInstancedStruct::CastFromVoid(void* Memory)
-{
-#if INSTANCED_STRUCT_CAST_DEBUG
-	if (Memory == nullptr)
-	{
-		return nullptr;
-	}
-
-	// Check the canary values
-	FInstancedStruct* InstancedStruct = static_cast<FInstancedStruct*>(Memory);
-	if (ensureMsgf(InstancedStruct->BeginCanary == FInstancedStruct::CanaryValue, TEXT("Bad cast from a void*")))
-	{
-		return InstancedStruct;
-	}
-	return nullptr;
-#else
-	return static_cast<FInstancedStruct*>(Memory);
-#endif
-}
 
 template<>
 struct TStructOpsTypeTraits<FInstancedStruct> : public TStructOpsTypeTraitsBase2<FInstancedStruct>

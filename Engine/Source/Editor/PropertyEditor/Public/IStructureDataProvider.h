@@ -84,20 +84,6 @@ public:
 	 */
 	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const { return ParentValueAddress; }
 
-	/**
-	 * Gets the struct type of the indirected struct held by the property holding this StructProvider
-	 * Null if dereferencing the indirection would result in a nullptr
-	 */
-	virtual const UStruct* GetIndirectedStructType(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const { return nullptr; }
-
-	/**
-	 * Gets the struct type of the indirected struct held by the property holding this StructProvider
-	 * Used when determining the value of the ExpectedBaseStructure to be cached
-	 */
-	virtual const UStruct* GetIndirectedStructType(uint8* ParentValueAddress) const { return nullptr; }
-
-	virtual bool IsIndirectedValid(uint8* ParentValueAddress) const { return false; }
-
 	UE_DEPRECATED(5.4, "Please use and override GetInstances() with ExpectedType instead.")
 	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances) const final
 	{

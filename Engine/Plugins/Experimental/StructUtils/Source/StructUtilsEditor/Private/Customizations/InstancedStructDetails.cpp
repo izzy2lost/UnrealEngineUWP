@@ -46,15 +46,22 @@ public:
 	
 	virtual bool IsValid() const override
 	{
-		ensureMsgf(false, TEXT("InstancedStructDetails does not support IsValid - get address of parent node and use IsIndirectedValid"));
-		return false;
+		bool bHasValidData = false;
+		EnumerateInstances([&bHasValidData](const UScriptStruct* ScriptStruct, uint8* Memory, UPackage* Package)
+		{
+			if (ScriptStruct && Memory)
+			{
+				bHasValidData = true;
+				return false; // Stop
+			}
+			return true; // Continue
+		});
+
+		return bHasValidData;
 	}
 	
 	virtual const UStruct* GetBaseStructure() const override
 	{
-		// TODO: Determine a way to implement this function for callers in a way that doesn't require EnumerateInstances
-		// The problem with EnumerateInstances is that nested FInstanceStructs can have pathologically bad performance
-		
 		// Taken from UClass::FindCommonBase
 		auto FindCommonBaseStruct = [](const UScriptStruct* StructA, const UScriptStruct* StructB)
 		{
@@ -65,7 +72,7 @@ public:
 			}
 			return CommonBaseStruct;
 		};
-		
+
 		const UScriptStruct* CommonStruct = nullptr;
 		EnumerateInstances([&CommonStruct, &FindCommonBaseStruct](const UScriptStruct* ScriptStruct, uint8* Memory, UPackage* Package)
 		{
@@ -75,13 +82,28 @@ public:
 			}
 			return true; // Continue
 		});
-		
+
 		return CommonStruct;
 	}
 
 	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
 	{
-		ensureMsgf(false, TEXT("InstancedStructDetails does not support GetInstances - get address of parent node and use GetValueBaseAddress & GetIndirectedStructType"));
+		// The returned instances need to be compatible with base structure.
+		// This function returns empty instances in case they are not compatible, with the idea that we have as many instances as we have outer objects.
+		EnumerateInstances([&OutInstances, ExpectedBaseStructure](const UScriptStruct* ScriptStruct, uint8* Memory, UPackage* Package)
+		{
+			TSharedPtr<FStructOnScope> Result;
+			
+			if (ExpectedBaseStructure && ScriptStruct && ScriptStruct->IsChildOf(ExpectedBaseStructure))
+			{
+				Result = MakeShared<FStructOnScope>(ScriptStruct, Memory);
+				Result->SetPackage(Package);
+			}
+
+			OutInstances.Add(Result);
+
+			return true; // Continue
+		});
 	}
 
 	virtual bool IsPropertyIndirection() const override
@@ -91,49 +113,18 @@ public:
 
 	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
 	{
-		FInstancedStruct* InstancedStruct = FInstancedStruct::CastFromVoid(ParentValueAddress);
-		if (ExpectedBaseStructure && InstancedStruct)
+		if (!ParentValueAddress)
 		{
-			const UScriptStruct* Struct = InstancedStruct->GetScriptStruct();
-			if (Struct && Struct->IsChildOf(ExpectedBaseStructure))
-			{
-				return InstancedStruct->GetMutableMemory();
-			}
+			return nullptr;
+		}
+
+		FInstancedStruct& InstancedStruct = *reinterpret_cast<FInstancedStruct*>(ParentValueAddress);
+		if (ExpectedBaseStructure && InstancedStruct.GetScriptStruct() && InstancedStruct.GetScriptStruct()->IsChildOf(ExpectedBaseStructure))
+		{
+			return InstancedStruct.GetMutableMemory();
 		}
 		
 		return nullptr;
-	}
-
-	virtual const UStruct* GetIndirectedStructType(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
-	{
-		FInstancedStruct* InstancedStruct = FInstancedStruct::CastFromVoid(ParentValueAddress);
-		if (ExpectedBaseStructure && InstancedStruct)
-		{
-			const UStruct* Struct = InstancedStruct->GetScriptStruct();
-			if (Struct && Struct->IsChildOf(ExpectedBaseStructure))
-			{
-				return Struct;
-			}
-		}
-		
-		return nullptr;
-	}
-	
-	virtual const UStruct* GetIndirectedStructType(uint8* ParentValueAddress) const override
-	{
-		FInstancedStruct* InstancedStruct = FInstancedStruct::CastFromVoid(ParentValueAddress);
-		return InstancedStruct ? InstancedStruct->GetScriptStruct() : nullptr;
-	}
-
-	virtual bool IsIndirectedValid(uint8* ParentValueAddress) const override
-	{
-		if (FInstancedStruct* InstancedStruct = FInstancedStruct::CastFromVoid(ParentValueAddress))
-		{
-			const UStruct* StructType = InstancedStruct->GetScriptStruct();
-			const uint8* ValueAddress = InstancedStruct->GetMutableMemory();
-			return StructType && ValueAddress;
-		}
-		return false;
 	}
 	
 protected:
