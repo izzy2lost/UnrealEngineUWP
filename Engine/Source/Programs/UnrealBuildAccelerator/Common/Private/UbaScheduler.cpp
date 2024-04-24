@@ -515,8 +515,11 @@ namespace uba
 		delete[] dependencies;
 		delete si;
 
-		if (m_writeToCache && exitCode == 0 && process.GetStartInfo().trackInputs)
-			m_cacheClient->WriteToCache(*m_rootPaths[0], 0, ph);
+		if (m_writeToCache && exitCode == 0)
+		{
+			// TODO: Read dep.json file
+			UBA_ASSERTF(false, TC("Not implemented"));
+		}
 
 		ph.m_process = nullptr;
 	}

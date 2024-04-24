@@ -1283,6 +1283,10 @@ namespace uba
 
 				if (process.cacheFetch)
 				{
+					if (process.returned)
+						logger.Info(L"  Cache:  Miss");
+					else
+						logger.Info(L"  Cache:  Hit");
 					cacheStats.Read(reader, m_traceView.version);
 					if (process.exitCode == 0)
 					{

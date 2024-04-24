@@ -78,7 +78,7 @@ namespace uba
 			auto root = FindRoot(path);
 			if (!root)
 			{
-				logger.Info(TC("PATH WITHOUT ROOT: %s (inside file %s)"), path.data, hint);
+				logger.Info(TC("PATH WITHOUT ROOT: %s (inside file %s at offset %u)"), path.data, hint, destPos);
 				return false;
 			}
 

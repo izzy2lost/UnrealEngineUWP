@@ -4,12 +4,14 @@
 #include "UbaCompactTables.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
-#include "UbaProcess.h"
+#include "UbaProcessStartInfo.h"
 #include "UbaRootPaths.h"
+#include "UbaSession.h"
 #include "UbaStorage.h"
 #include "UbaStorageUtils.h"
 
-#define UBA_LOG_CACHE_INFO 0
+#define UBA_LOG_WRITE_CACHE_INFO 0 // 0 = Disabled, 1 = Normal, 2 = Detailed
+#define UBA_LOG_FETCH_CACHE_INFO 0
 
 namespace uba
 {
@@ -39,12 +41,13 @@ namespace uba
 		u32 casKeyTableSizeSent = 0;
 	};
 
-	CacheClient::CacheClient(LogWriter& writer, StorageImpl& storage, NetworkClient& client, Session& session)
-	:	m_logger(writer, TC("UbaCacheClient"))
-	,	m_storage(storage)
-	,	m_client(client)
-	,	m_session(session)
+	CacheClient::CacheClient(const CacheClientCreateInfo& info)
+	:	m_logger(info.writer, TC("UbaCacheClient"))
+	,	m_storage(info.storage)
+	,	m_client(info.client)
+	,	m_session(info.session)
 	{
+		m_reportMissReason = info.reportMissReason;
 		m_client.RegisterOnConnected([this]()
 			{
 				StackBinaryWriter<1024> writer;
@@ -67,24 +70,25 @@ namespace uba
 
 	CacheClient::~CacheClient() = default;
 
-	bool CacheClient::WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessHandle& process)
+	bool CacheClient::WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info, const u8* inputs, u64 inputsSize, const u8* outputs, u64 outputsSize)
 	{
 		if (!m_connected)
 			return false;
 
-		auto& si = process.GetStartInfo();
-		if (!si.trackInputs)
+		if (!inputsSize)
 			return false;
 
-		CasKey cmdKey = GetCmdKey(rootPaths, si);
+		CasKey cmdKey = GetCmdKey(rootPaths, info);
 		if (cmdKey == CasKeyZero)
+		{
+			#if UBA_LOG_WRITE_CACHE_INFO
+			m_logger.Info(TC("WRITECACHE FAIL: %s"), info.description);
+			#endif
 			return false;
+		}
 
-		const Vector<u8>& inputs = process.GetTrackedInputs();
-		BinaryReader inputsReader(inputs.data(), 0, inputs.size());
-
-		const Vector<u8>& outputs = process.GetTrackedOutputs();
-		BinaryReader outputsReader(outputs.data(), 0, outputs.size());
+		BinaryReader inputsReader(inputs, 0, inputsSize);
+		BinaryReader outputsReader(outputs, 0, outputsSize);
 
 		Map<u32, u32> inputsStringToCasKey;
 		Map<u32, u32> outputsStringToCasKey;
@@ -124,9 +128,16 @@ namespace uba
 					return false;
 				}
 			}
-			else if (path.EndsWith(TC(".rsp"))) // Paths can be absolute in rsp files so we need to normalize those paths
+			else if (ShouldNormalize(path)) // Paths can be absolute in rsp files so we need to normalize those paths
 			{
-				casKey = AsCompressed(rootPaths.NormalizeAndHashFile(m_logger, path.data), true);
+				casKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
+				if (casKey == CasKeyZero)
+				{
+					success = false;
+					continue;
+				}
+
+				casKey = AsCompressed(casKey, true);
 			}
 			else if (path[path.count-1] == ':')
 			{
@@ -154,17 +165,33 @@ namespace uba
 			u32 pathOffset = bucket.sendPathTable.Add(qualifiedPath.c_str(), u32(qualifiedPath.size()), &requiredPathTableSize);
 
 			if (!isOutput) // Output files should be removed from input files.. For example when cl.exe compiles pch it reads previous pch file and we don't want it to be input
+			{
 				if (outputsStringToCasKey.find(pathOffset) != outputsStringToCasKey.end())
 					continue;
+				//m_logger.Info(TC("INPUT ENTRY: %s -> %u"), qualifiedPath.c_str(), pathOffset);
+			}
+			else
+			{
+				inputsStringToCasKey.erase(pathOffset);
+				//m_logger.Info(TC("OUT ENTRY: %s -> %u"), qualifiedPath.c_str(), pathOffset);
+			}
 
-			auto insres = (isOutput ? outputsStringToCasKey : inputsStringToCasKey).try_emplace(pathOffset);
+			auto& stringToCasKey = isOutput ? outputsStringToCasKey : inputsStringToCasKey;
+			auto insres = stringToCasKey.try_emplace(pathOffset);
 			
 			if (!insres.second)
+			{
+				//m_logger.Warning(TC("Input file %s exists multiple times"), qualifiedPath.c_str()); 
 				continue;
+			}
 
-			// .dep.json contains absolute paths, need to normalize file
-			if (isOutput && path.EndsWith(TC(".dep.json"))) // TODO: More data driven approach. Also, hash does not match content atm.
-				casKey = AsCompressed(rootPaths.NormalizeAndHashFile(m_logger, path.data), true);
+			// Files that needs to be normalized
+			if (isOutput && ShouldNormalize(path))
+			{
+				casKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
+				if (casKey != CasKeyZero)
+					casKey = AsCompressed(casKey, true);
+			}
 
 			// Get file caskey using storage
 			if (casKey == CasKeyZero)
@@ -173,7 +200,11 @@ namespace uba
 				if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation))
 					return false;
 				if (casKey == CasKeyZero) // If file is not found it was a temporary file that was deleted and is not really an output
+				{
+					//m_logger.Warning(TC("Can't find file %s"), path.data); 
+					stringToCasKey.erase(insres.first);
 					continue; // m_logger.Info(TC("This should never happen! (%s)"), path.data);
+				}
 			}
 
 			UBA_ASSERT(IsCompressed(casKey));
@@ -184,7 +215,7 @@ namespace uba
 			return false;
 
 		if (outputsStringToCasKey.empty())
-			m_logger.Warning(TC("NO OUTPUTS FROM process %s"), process.GetStartInfo().description); 
+			m_logger.Warning(TC("NO OUTPUTS FROM process %s"), info.description); 
 
 		// Make sure server has enough of the path table to be able to resolve offsets from cache entry
 		if (!SendPathTable(bucket, requiredPathTableSize))
@@ -199,8 +230,26 @@ namespace uba
 			return false;
 
 
-		#if UBA_LOG_CACHE_INFO
-		m_logger.Info(TC("WRITECACHE: %s -> %u %s"), si.description, bucketId, CasKeyString(cmdKey).str);
+		#if UBA_LOG_WRITE_CACHE_INFO
+		m_logger.BeginScope();
+		m_logger.Info(TC("WRITECACHE: %s -> %u %s"), info.description, bucketId, CasKeyString(cmdKey).str);
+		#if UBA_LOG_WRITE_CACHE_INFO == 2
+		for (auto& kv : inputsStringToCasKey)
+		{
+			StringBuffer<> path;
+			CasKey casKey;
+			bucket.sendCasKeyTable.GetPathAndKey(path, casKey, bucket.sendPathTable, kv.second);
+			m_logger.Info(TC("   IN: %s -> %s"), path.data, CasKeyString(casKey).str);
+		}
+		for (auto& kv : outputsStringToCasKey)
+		{
+			StringBuffer<> path;
+			CasKey casKey;
+			bucket.sendCasKeyTable.GetPathAndKey(path, casKey, bucket.sendPathTable, kv.second);
+			m_logger.Info(TC("   OUT: %s -> %s"), path.data, CasKeyString(casKey).str);
+		}
+		#endif // 2
+		m_logger.EndScope();
 		#endif
 
 		return true;
@@ -263,9 +312,12 @@ namespace uba
 		// Traverse entries and test inputs against local machine
 		u32 entryCount = reader.ReadU16();
 
-		#if UBA_LOG_CACHE_INFO
+		#if UBA_LOG_FETCH_CACHE_INFO
 		auto mg = MakeGuard([&]() { m_logger.Info(TC("FETCHCACHE %s: %s -> %u %s (%u)"), success ? TC("SUCC") : TC("FAIL"), info.description, bucketId, CasKeyString(cmdKey).str, entryCount); });
 		#endif
+
+		struct MissInfo { TString path; u32 entryIndex; CasKey cache; CasKey local; };
+		Vector<MissInfo> misses;
 
 		for (u32 i=0; i!=entryCount; ++i)
 		{
@@ -278,27 +330,27 @@ namespace uba
 				while (reader.GetPositionData() != inputEnd)
 				{
 					u32 casKeyOffset = u32(reader.Read7BitEncoded());
+					StringBuffer<MaxPath> path;
+
+					CasKey cacheCasKey;
+					CasKey localCasKey;
 
 					auto insres = offsetIsMatch.try_emplace(casKeyOffset);
 					if (insres.second)
 					{
 						if (casKeyOffset >= bucket.serverCasKeyTable.GetSize())
-						{
-							TimerScope ts2(cacheStats.fetchCasTable);
-							if (!FetchCasTable(bucket))
+							if (!FetchCasTable(bucket, cacheStats, casKeyOffset + sizeof(CasKey)))
 								return false;
-						}
 
-						StringBuffer<MaxPath> path;
-						CasKey cacheCasKey;
 						if (!GetLocalPathAndCasKey(bucket, rootPaths, path, cacheCasKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
 							return false;
-						UBA_ASSERT(IsCompressed(cacheCasKey));
+						UBA_ASSERTF(IsCompressed(cacheCasKey), TC("Cache entry for %s has uncompressed cache key for path %s (%s)"), info.description, path.data, CasKeyString(cacheCasKey).str);
 
-						CasKey localCasKey;
-						if (path.EndsWith(TC(".rsp")) || path.EndsWith(TC(".dep.json"))) // Need to normalize caskey for these files since they contain absolute paths
+						if (ShouldNormalize(path)) // Need to normalize caskey for these files since they contain absolute paths
 						{
-							localCasKey = AsCompressed(rootPaths.NormalizeAndHashFile(m_logger, path.data), true);
+							localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
+							if (localCasKey != CasKeyZero)
+								localCasKey = AsCompressed(localCasKey, true);
 						}
 						else
 						{
@@ -314,6 +366,10 @@ namespace uba
 					{
 						reader.Skip(inputEnd -  reader.GetPositionData());
 						isMatch = false;
+
+						if (m_reportMissReason && path.count) // if empty this has already been reported
+							misses.push_back({TString(path.data), i, cacheCasKey, localCasKey });
+
 						break;
 					}
 				}
@@ -335,7 +391,7 @@ namespace uba
 			{
 				u32 casKeyOffset = u32(reader.Read7BitEncoded());
 				if (casKeyOffset >= bucket.serverCasKeyTable.GetSize())
-					if (!FetchCasTable(bucket))
+					if (!FetchCasTable(bucket, cacheStats, casKeyOffset + sizeof(CasKey)))
 						return false;
 
 				TimerScope ts(cacheStats.fetchOutput);
@@ -347,8 +403,9 @@ namespace uba
 				UBA_ASSERT(IsCompressed(casKey));
 
 				FileFetcher fetcher { m_storage.m_bufferSlots };
+				fetcher.m_errorOnFail = false;
 
-				if (path.EndsWith(TC(".dep.json")))
+				if (ShouldNormalize(path))
 				{
 					// Fetch into memory, file is in special format without absolute paths
 					MemoryBlock normalizedBlock(1*1024*1024);
@@ -415,6 +472,9 @@ namespace uba
 			success = true;
 			return true;
 		}
+
+		for (auto& miss : misses)
+			m_logger.Info(TC("Cache miss on %s because of mismatch of %s (entry: %u, local: %s cache: %s)"), info.description, miss.path.data(), miss.entryIndex, CasKeyString(miss.local).str, CasKeyString(miss.cache).str);
 
 		return false;
 	}
@@ -556,7 +616,7 @@ namespace uba
 			}
 			else // If we don't have the cas key it should be one of the normalized files.... otherwise there is a bug
 			{
-				if (path.EndsWith(TC(".dep.json")))
+				if (ShouldNormalize(path))
 				{
 					FileAccessor file(m_logger, path.data);
 					if (!file.OpenMemoryRead())
@@ -614,14 +674,18 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::FetchCasTable(Bucket& bucket)
+	bool CacheClient::FetchCasTable(Bucket& bucket, CacheStats& stats, u32 requiredCasTableSize)
 	{
-		SCOPED_WRITE_LOCK(bucket.casKeyTableNetworkLock, lock);
+		TimerScope ts2(stats.fetchCasTable);
+
+		SCOPED_WRITE_LOCK(bucket.casKeyTableNetworkLock, lock); // Use one lock over both queries
+
+		if (requiredCasTableSize <= bucket.serverCasKeyTable.GetSize())
+			return true;
 
 		StackBinaryReader<SendMaxSize> reader;
 		{
-			//SCOPED_WRITE_LOCK(bucket.pathTableNetworkLock, lock);
-			u32 targetSize = ~0u;
+			u32 targetSize = requiredCasTableSize;
 			while (bucket.serverCasKeyTable.GetSize() < targetSize)
 			{
 				StackBinaryWriter<16> writer;
@@ -640,7 +704,7 @@ namespace uba
 			}
 		}
 		{
-			u32 targetSize = ~0u;
+			u32 targetSize = ~0u; // For now, read all because we don't know how much we need (it would require parsing all path offsets in caskey table
 			while (bucket.serverPathTable.GetSize() < targetSize)
 			{
 				StackBinaryWriter<16> writer;
@@ -665,16 +729,27 @@ namespace uba
 	{
 		CasKeyHasher hasher;
 
-		// Add hash of application binary to key
-		CasKey applicationCasKey;
-		bool deferCreation = true;
-		if (!m_storage.StoreCasFile(applicationCasKey, info.application, CasKeyZero, deferCreation))
-			return CasKeyZero;
-		hasher.Update(&applicationCasKey, sizeof(CasKey));
+		
+		#if PLATFORM_WINDOWS
+		// cmd.exe is special.. we can't hash it because it might be different on different os versions but should do the same thing regardless of version
+		if (Contains(info.application, TC("cmd.exe")))
+		{
+			hasher.Update(TC("cmd.exe"), 7*sizeof(tchar));
+		}
+		else
+		#endif
+		{
+			// Add hash of application binary to key
+			CasKey applicationCasKey;
+			bool deferCreation = true;
+			if (!m_storage.StoreCasFile(applicationCasKey, info.application, CasKeyZero, deferCreation))
+				return CasKeyZero;
+			hasher.Update(&applicationCasKey, sizeof(CasKey));
+		}
 
 		// Add arguments list to key
 		auto hashString = [&](const tchar* str, u64 strLen, u32 rootPos) { hasher.Update(str, strLen*sizeof(tchar)); };
-		if (!rootPaths.NormalizeString(m_logger, info.arguments, TStrlen(info.arguments), hashString, TC("")))
+		if (!rootPaths.NormalizeString(m_logger, info.arguments, TStrlen(info.arguments), hashString, TC("CmdKey")))
 			return CasKeyZero;
 
 		// Add content of rsp file to key (This will cost a bit of perf since we need to normalize.. should this be part of key?)
@@ -685,10 +760,12 @@ namespace uba
 				rspStart += 2;
 				if (auto rspEnd = TStrchr(rspStart, '"'))
 				{
+					StringBuffer<MaxPath> workingDir(info.workingDir);
+					workingDir.EnsureEndsWithSlash();
 					StringBuffer<> rsp;
-					if (rspStart[1] != ':')
-						rsp.Append(info.workingDir).EnsureEndsWithSlash();
 					rsp.Append(rspStart, rspEnd - rspStart);
+					StringBuffer<> fullPath;
+					FixPath(rsp.data, workingDir.data, workingDir.count, fullPath);
 					CasKey rspCasKey = rootPaths.NormalizeAndHashFile(m_logger, rsp.data);
 					hasher.Update(&rspCasKey, sizeof(CasKey));
 				}
@@ -698,11 +775,21 @@ namespace uba
 		return ToCasKey(hasher, false);
 	}
 
+	bool CacheClient::ShouldNormalize(const StringBufferBase& path)
+	{
+		if (path.EndsWith(TC(".dep.json"))) // Contains absolute paths
+			return true;
+		if (path.EndsWith(TC(".tlh"))) // Contains absolute path in a comment
+			return true;
+		if (path.EndsWith(TC(".rsp"))) // Contains absolute paths in some cases
+			return true;
+		if (path.EndsWith(TC(".bat"))) // Contains absolute paths in some cases
+			return true;
+		return false;
+	}
+
 	bool CacheClient::GetLocalPathAndCasKey(Bucket& bucket, const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset)
 	{
-		if (!m_connected)
-			return false;
-
 		SCOPED_READ_LOCK(bucket.casKeyTableNetworkLock, lock); // TODO: Is this needed?
 
 		StringBuffer<MaxPath> normalizedPath;

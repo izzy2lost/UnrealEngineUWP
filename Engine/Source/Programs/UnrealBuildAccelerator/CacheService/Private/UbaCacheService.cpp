@@ -49,26 +49,23 @@ namespace uba
 		return -1;
 	}
 
-	StorageServer* g_storageServer;
-	CacheServer* g_cacheServer;
+	bool g_exitRequested;
 	
 	void CtrlBreakPressed()
 	{
-		if (g_storageServer)
-		{
-			g_storageServer->SaveCasTable(true);
-			LoggerWithWriter(g_consoleLogWriter).Info(TC("CAS table saved..."));
-
-			g_cacheServer->Save();
-		}
-		abort();
+		if (!g_exitRequested)
+			LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("Exiting..."));
+		g_exitRequested = true;
 	}
 
 	#if PLATFORM_WINDOWS
 	BOOL ConsoleHandler(DWORD signal)
 	{
 		if (signal == CTRL_C_EVENT)
+		{
 			CtrlBreakPressed();
+			return TRUE;
+		}
 		return FALSE;
 	}
 	#else
@@ -227,24 +224,18 @@ namespace uba
 			return -1;
 
 		{
-			g_storageServer = &storageServer;
-			g_cacheServer = &cacheServer;
-
 			auto stopListen = MakeGuard([&]() { networkBackend.StopListen(); });
 			auto stopServer = MakeGuard([&]() { networkServer.DisconnectClients(); });
 
 			if (!networkServer.StartListen(networkBackend, port, listenIp.data))
 				return -1;
 
-			while (!IsEscapePressed())
+			while (!g_exitRequested && !IsEscapePressed())
 			{
 				Sleep(1000);
 				if (!cacheServer.RunMaintenance(false))
 					break;
 			}
-
-			g_cacheServer = nullptr;
-			g_storageServer = nullptr;
 		}
 
 		cacheServer.Save();
@@ -255,9 +246,7 @@ namespace uba
 #if PLATFORM_WINDOWS
 int wmain(int argc, wchar_t* argv[])
 {
-	int res = uba::WrappedMain(argc, argv);
-	Sleep(2000);
-	return res;
+	return uba::WrappedMain(argc, argv);
 }
 #else
 int main(int argc, char* argv[])

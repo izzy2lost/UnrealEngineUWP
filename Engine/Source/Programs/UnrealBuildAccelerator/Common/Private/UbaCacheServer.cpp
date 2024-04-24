@@ -6,6 +6,7 @@
 #include "UbaFileAccessor.h"
 #include "UbaNetworkServer.h"
 #include "UbaStorageServer.h"
+//#include <oodle2.h>
 
 namespace uba
 {
@@ -587,6 +588,22 @@ namespace uba
 						}
 					});
 
+				#if 0
+				u8* mem = bucket.m_pathTable.GetMemory();
+				u64 memLeft = bucket.m_pathTable.GetSize();
+				while (memLeft)
+				{
+					u8 buffer[256*1024];
+					auto compressor = OodleLZ_Compressor_Kraken;
+					auto compressionLevel = OodleLZ_CompressionLevel_SuperFast;
+					u64 toCompress = Min(memLeft, u64(256*1024 - 128));
+					auto compressedBlockSize = OodleLZ_Compress(compressor, mem, (OO_SINTa)toCompress, buffer, compressionLevel);
+					(void)compressedBlockSize;
+					memLeft -= toCompress;
+				}
+				#endif
+
+
 				m_logger.Detail(TC("    Bucket %u Updated cache entries with new tables (%s)"), bucketIndex, TimeToText(GetTime() - updateEntriesStart).str);
 			}
 
@@ -740,10 +757,15 @@ namespace uba
 			#endif
 
 			u32 casKeyOffset = bucket.m_casKeyTable.Add(casKey, pathOffset);
-			inputs.insert(casKeyOffset);
+			auto insres = inputs.insert(casKeyOffset);
+			if (!insres.second)
+			{
+				m_logger.Warning(TC("Input file %s exists more than once in cache entry"), path.data);
+				continue;
+			}
 			bytesForInput += Get7BitEncodedCount(casKeyOffset);
 
-			//m_logger.Info(TC("%s - %s%s"), path.data, CasKeyString(casKey).str, isInput ? TC("") : TC(" (output)"));
+			//m_logger.Info(TC("%s - %s"), path.data, CasKeyString(casKey).str);
 		}
 
 		Vector<u8> inputCasKeyOffsets;
@@ -1011,6 +1033,8 @@ namespace uba
 									StringBuffer<> path;
 									bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
 									if (path.Contains(filterString.data))
+										return true;
+									if (Contains(CasKeyString(casKey).str, filterString.data))
 										return true;
 								}
 								return false;

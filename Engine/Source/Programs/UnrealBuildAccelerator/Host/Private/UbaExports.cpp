@@ -519,7 +519,9 @@ extern "C"
 		auto networkClient = new NetworkClientWithBackend(ctorSuccess, ncci, networkBackend);
 		if (!ctorSuccess)
 			return nullptr;
-		return new CacheClient(writer, storage, *networkClient, *session);
+		CacheClientCreateInfo info{writer, storage, *networkClient, *session};
+		info.reportMissReason = true;
+		return new CacheClient(info);
 	}
 
 	bool CacheClient_Connect(uba::CacheClient* cacheClient, const uba::tchar* host, int port)
@@ -533,13 +535,13 @@ extern "C"
 		return true;
 	}
 
-	bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process)
+	bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process, const uba::u8* inputs, uba::u32 inputsSize, const uba::u8* outputs, uba::u32 outputsSize)
 	{
 		using namespace uba;
 		auto& si = process->GetStartInfo();
 		if (!si.trackInputs)
 			return false;
-		return cacheClient->WriteToCache(*rootPaths, bucket, *process);
+		return cacheClient->WriteToCache(*rootPaths, bucket, process->GetStartInfo(), inputs, inputsSize, outputs, outputsSize);
 	}
 
 	bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)

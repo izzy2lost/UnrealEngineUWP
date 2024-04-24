@@ -114,6 +114,13 @@ namespace uba
 
 	void CompactPathTable::GetString(StringBufferBase& out, u64 offset) const
 	{
+		#if UBA_DEBUG
+		{
+			SCOPED_READ_LOCK(const_cast<CompactPathTable*>(this)->m_lock, lock)
+			UBA_ASSERTF(offset < m_mem.writtenSize, TC("Reading path key from offset %llu which is out of bounds (Max %llu)"), offset, m_mem.writtenSize);
+		}
+		#endif
+
 		u32 offsets[256];
 		offsets[0] = u32(offset);
 		u32 offsetCount = 0;
@@ -282,6 +289,13 @@ namespace uba
 
 	void CompactCasKeyTable::GetPathAndKey(StringBufferBase& outPath, CasKey& outKey, const CompactPathTable& pathTable, u64 offset) const
 	{
+		#if UBA_DEBUG
+		{
+			SCOPED_READ_LOCK(const_cast<CompactCasKeyTable*>(this)->m_lock, lock)
+			UBA_ASSERTF(offset + sizeof(CasKey) < m_mem.writtenSize, TC("Reading cas key from offset %llu which is out of bounds (Max %llu)"), offset + sizeof(CasKey), m_mem.writtenSize);
+		}
+		#endif
+
 		BinaryReader reader(m_mem.memory, offset, 1000);
 		u32 stringOffset = (u32)reader.Read7BitEncoded();
 		outKey = reader.ReadCasKey();
