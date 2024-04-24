@@ -637,6 +637,9 @@
 
 // These is computed, not predefined
 #define PLATFORM_32BITS					(!PLATFORM_64BITS)
+#if !PLATFORM_64BITS
+	#error "UE only supports 64-bit platforms"
+#endif
 
 // not supported by the platform system yet or maybe ever
 #define PLATFORM_VTABLE_AT_END_OF_CLASS 0
