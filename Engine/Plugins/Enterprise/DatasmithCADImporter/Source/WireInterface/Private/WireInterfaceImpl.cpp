@@ -1057,7 +1057,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			ObjectReference = EAliasObjectReference::ParentReference;
 		}
 
-		FBodyNodeGeometry BodyNodeGeometry{ (int32)ECADModelGeometryType::BodyNode, ObjectReference, BodyNode};
+		const FBodyNodeGeometry BodyNodeGeometry( (int32)ECADModelGeometryType::BodyNode, ObjectReference, BodyNode);
 		ModelConverter->AddGeometry(BodyNodeGeometry);
 
 		ModelConverter->RepairTopology();
@@ -1132,7 +1132,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		ensure(MeshElement->GetMaterialSlotCount() == 1);
 
-		FDagNodeGeometry DagNodeGeometry{ (int32)ECADModelGeometryType::DagNode, ObjectReference, DagNode };
+		const FDagNodeGeometry DagNodeGeometry( (int32)ECADModelGeometryType::DagNode, ObjectReference, DagNode );
 		if (!ModelConverter->AddGeometry(DagNodeGeometry))
 		{
 			return TOptional<FMeshDescription>();

@@ -359,23 +359,26 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 	struct FDagNodeGeometry : public FAliasGeometry
 	{
 		TAlDagNodePtr<AlDagNode> DagNode;
+
+		FDagNodeGeometry(int32 InType, EAliasObjectReference InReference, const TAlDagNodePtr<AlDagNode>& InDagNode)
+		{
+			Type = InType;
+			Reference = InReference;
+			DagNode = InDagNode;
+		}
 	};
 
 	struct FBodyNodeGeometry : public FAliasGeometry
 	{
 		TSharedPtr<FBodyNode> BodyNode;
-	};
 
-	struct FPatchMeshGeometry : public CADLibrary::FCADModelGeometry
-	{
-		TSharedPtr<FPatchMesh> PatchMesh;
+		FBodyNodeGeometry(int32 InType, EAliasObjectReference InReference, const TSharedPtr<FBodyNode>& InBodyNode)
+		{
+			Type = InType;
+			Reference = InReference;
+			BodyNode = InBodyNode;
+		}
 	};
-
-	struct FMeshNodeGeometry : public CADLibrary::FCADModelGeometry
-	{
-		TAlDagNodePtr<AlMeshNode> MeshNode;
-	};
-
 
 	namespace OpenModelUtils
 	{
