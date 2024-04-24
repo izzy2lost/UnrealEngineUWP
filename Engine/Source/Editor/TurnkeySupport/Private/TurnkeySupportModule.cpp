@@ -267,6 +267,9 @@ public:
 			PackagingSettings->LoadSettingsForPlatform(PlatformString);
 		}
 
+		// make sure any flushed settings are reloaded
+		PackagingSettings->ReloadConfig();
+
 		return PackagingSettings;
 	}
 
@@ -1258,7 +1261,14 @@ static void MakeTurnkeyPlatformMenu(UToolMenu* ToolMenu, FName IniPlatformName, 
 
 		FToolMenuSection& ConfigSection = ToolMenu->AddSection("BuildConfig", LOCTEXT("TurnkeySection_BuildConfig", "Binary Configuration"));
 		
-		const UProjectPackagingSettings::FConfigurationInfo& ConfigInfo = UProjectPackagingSettings::ConfigurationInfo[static_cast<int32>(AllPlatformPackagingSettings->BuildConfiguration)];
+		EProjectPackagingBuildConfigurations BuildConfig = GetMutableDefault<UPlatformsMenuSettings>()->GetBuildConfigurationForPlatform(IniPlatformName);
+		// if PPBC_MAX is set, then the project default should be used instead of the per platform build config
+		if (BuildConfig == EProjectPackagingBuildConfigurations::PPBC_MAX)
+		{
+			BuildConfig = PackagingSettings->BuildConfiguration;
+		}
+
+		const UProjectPackagingSettings::FConfigurationInfo& ConfigInfo = UProjectPackagingSettings::ConfigurationInfo[static_cast<int32>(BuildConfig)];
 		ConfigSection.AddMenuEntry(
 			NAME_None,
 			FText::Format(LOCTEXT("DefaultConfiguration",  "Use Project Setting ({0})"), ConfigInfo.Name),
