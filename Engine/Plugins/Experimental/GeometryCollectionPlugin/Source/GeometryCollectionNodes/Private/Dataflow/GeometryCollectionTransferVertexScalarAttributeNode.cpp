@@ -203,7 +203,8 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfe
 								Chaos::TVector<Chaos::FRealSingle, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
 								Chaos::FRealSingle CurrentDistance = (ParticlePos - ClosestPoint).Size();
 								float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), 0, i, 1);
-								if (CurrentDistance < TriRadius)
+								float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
+								if (!FMath::IsNearlyZero(FalloffScale))
 								{
 									int32 TargetIndex = TargetVertexIntersection[j] + TargetVertexStartVal;
 									if (ensure(0 <= TargetIndex && TargetIndex < TargetFloatArray->Num()))
@@ -211,7 +212,7 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfe
 										float Value = 0.f;
 										for (int32 k = 0; k < 3; k++)
 										{
-											Value += Bary[k] * (*FloatArray)[ComponentTriangle[k] + VertexStartVal];
+											Value += FalloffScale * (Bary[k] * (*FloatArray)[ComponentTriangle[k] + VertexStartVal]);
 										}
 										(*TargetFloatArray)[TargetIndex] = FMath::Max((*TargetFloatArray)[TargetIndex], Value);
 									}
@@ -262,7 +263,8 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::NearestVertexTransfer
 					Chaos::TVector<Chaos::FRealSingle, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
 					Chaos::FRealSingle CurrentDistance = (ParticlePos - ClosestPoint).Size();
 					float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), 0, i, 1);
-					if (CurrentDistance < TriRadius)
+					float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
+					if (!FMath::IsNearlyZero(FalloffScale))
 					{
 						int32 TargetIndex = TargetVertexIntersection[j];
 						if (ensure(0 <= TargetIndex && TargetIndex < TargetFloatArray->Num()))
@@ -270,7 +272,7 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::NearestVertexTransfer
 							float Value = 0.f;
 							for (int32 k = 0; k < 3; k++)
 							{
-								Value += Bary[k] * (*FloatArray)[Sample.Indices[i][k]];
+								Value += FalloffScale * (Bary[k] * (*FloatArray)[Sample.Indices[i][k]]);
 							}
 							(*TargetFloatArray)[TargetIndex] = FMath::Max((*TargetFloatArray)[TargetIndex], Value);
 						}
@@ -367,6 +369,24 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::TriangleToVertexInter
 			OutTargetVertexIntersection.Emplace(TargetVertexIntersection0[k]);
 		}
 	}
+}
+
+
+float FGeometryCollectionTransferVertexScalarAttributeNode::CalculateFalloffScale(EDataflowTransferNodeFalloff FalloffSetting, float Threshold, float Distance)
+{
+	float Demonator = 1.0;
+	if (Distance > Threshold && !FMath::IsNearlyZero(Threshold))
+	{
+		Demonator = Distance / Threshold;
+	}
+	switch (FalloffSetting)
+	{
+	case EDataflowTransferNodeFalloff::Dataflow_Transfer_Linear:
+		return 1. / Demonator;
+	case EDataflowTransferNodeFalloff::Dataflow_Transfer_Squared:
+		return 1. / FMath::Square(Demonator);
+	}
+	return Demonator;
 }
 
 

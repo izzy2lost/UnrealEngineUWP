@@ -2,6 +2,7 @@
 
 #pragma once 
 
+#include "CoreMinimal.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
 #include "Dataflow/DataflowNode.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
@@ -16,7 +17,26 @@ namespace UE::Private {
 };
 
 
-/** Convert an vertex float array to a list of indices */
+UENUM(BlueprintType)
+enum class EDataflowTransferNodeFalloff : uint8
+{
+	/** Squared falloff based on distance from triangle*/
+	Dataflow_Transfer_Squared  UMETA(DisplayName = "Squared"),
+
+	/** Linear falloff based on distance from triangle*/
+	Dataflow_Transfer_Linear UMETA(DisplayName = "Linear"),
+
+	/** No distance falloff */
+	Dataflow_Transfer_None UMETA(DisplayName = "None"),
+	//~~~
+	//256th entry
+	Dataflow_Transfer_Dataflow_Max UMETA(Hidden)
+};
+
+
+/**
+ * Transfer float properties from a sample collection to a target collection. 
+ */
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FGeometryCollectionTransferVertexScalarAttributeNode : public FDataflowNode
 {
@@ -25,22 +45,28 @@ struct FGeometryCollectionTransferVertexScalarAttributeNode : public FDataflowNo
 
 public:
 
+	/* Target collection to transfer vertex float attribute to. */
 	UPROPERTY(Meta = (DataflowInput, DataflowOutput, DisplayName = "Collection", DataflowPassthrough = "Collection"))
 	FManagedArrayCollection Collection;
 
+	/* Sample collection to transfer vertex float attribute from. */
 	UPROPERTY(Meta = (DataflowInput, DisplayName = "FromCollection"))
 	FManagedArrayCollection FromCollection;
 
-	// The name of the vertex attribute to generate indices from.
+	/* The name of the vertex attribute to generate indices from. */
 	UPROPERTY(EditAnywhere, Category = "Dataflow", Meta = (DataflowInput, DataflowOutput, DisplayName = "Name", DataflowPassthrough = "Name"))
 	FString Name = FString("");
 
-	// Threshold based on distance from sample triangle. Anything past the threshold is not sampled. [Defualts to 1 percent (0.01)]
-	UPROPERTY(EditAnywhere, Category = "Dataflow|Scales")
+	/* Falloff of sample value based on distance from sample triangle[default: Squared] */
+	UPROPERTY(EditAnywhere, Category = "Thresholds")
+	EDataflowTransferNodeFalloff Falloff = EDataflowTransferNodeFalloff::Dataflow_Transfer_Squared;
+
+	/* Threshold based on distance from sample triangle.Values sampled past the threshold will falloff.[Defualts to 1 percent of triangle size(0.01)] */
+	UPROPERTY(EditAnywhere, Category = "Thresholds")
 	float  FalloffThreshold = 0.01f;
 
-	// Scalar for the Bounding Volume Hierarchy (BVH) target's particle search radius.
-	UPROPERTY(EditAnywhere, Category = "Dataflow|Scales")
+	/* Scalar for the Bounding Volume Hierarchy(BVH) target's particle search radius. */
+	UPROPERTY(EditAnywhere, Category = "Thresholds")
 	float  EdgeMultiplier = 1.0f;
 
 
@@ -71,7 +97,7 @@ private:
 	static UE::Private::BVH* BuildParticleSphereBVH(const TArray<FVector>& Vertices, float Radius);
 	static bool TriangleHasWeightsToTransfer(const FIntVector3& T, const TManagedArray<float>& F);
 	static void TriangleToVertexIntersections(UE::Private::BVH& VertexBVH, const TArray<FVector>& ComponentSpaceVertices, const FIntVector3& Triangle, TArray<int32>& OutTargetVertexIntersection);
-
+	static float CalculateFalloffScale(EDataflowTransferNodeFalloff FalloffSetting, float Threshold, float Distance);
 
 };
 
