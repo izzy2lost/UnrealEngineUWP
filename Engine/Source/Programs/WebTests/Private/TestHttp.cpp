@@ -698,6 +698,29 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http r
 	UserInstance.Reset();
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http request won't crash if shared ptr bound to delegate got destroyed", HTTP_TAG)
+{
+	DisableWarningsInThisTest(); // Failed writing received data to disk/application
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(30, 1024*1024));
+
+	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
+
+	FHttpRequestStreamDelegate Delegate;
+	Delegate.BindThreadSafeSP(UserInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
+	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
+	HttpRequest->ProcessRequest();
+
+	while (*UserInstance->TotalBytesReceived == 0) // Make sure it started receiving data
+	{
+		FPlatformProcess::Sleep(0.001f);
+	}
+	CHECK(*UserInstance->TotalBytesReceived < 60 * 1024 * 1024);
+	CHECK(UserInstance.GetSharedReferenceCount() == 1);
+	UserInstance.Reset();
+}
+
 class FInvalidateDelegateShutdownFixture : public FHttpModuleTestFixture
 {
 public:

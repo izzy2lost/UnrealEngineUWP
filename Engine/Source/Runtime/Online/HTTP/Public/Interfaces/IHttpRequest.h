@@ -107,7 +107,7 @@ public:
 
 	virtual void Serialize(void* V, int64 Length) override
 	{
-		if (!StreamDelegate.Execute(V, Length))
+		if (!StreamDelegate.IsBound() || !StreamDelegate.Execute(V, Length))
 		{
 			SetError();
 		}
@@ -200,8 +200,6 @@ public:
 	 *     it's thread-safe in there
 	 *   - Make sure the delegate is safe to be called until receiving the process complete callback
 	 *     or after canceling the request
-	 *     For example: don't destroy the instance even if using BindThreadSafeSP, because internally 
-	 *     it's calling Execute to handle error by returned value instead of calling ExecuteIfBound
 	 * @param StreamDelegate - delegate from which the payload should be streamed.
 	 * @return True if the delegate can be used to stream the request. False otherwise.
 	 */
