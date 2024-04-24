@@ -10,19 +10,19 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-// All InvalidFlush tests should run on zenloader only as the other loaders are not compliant.
-typedef FLoadingTests_ZenLoaderOnly_Base FLoadingTests_InvalidFlush_Base;
+// All Flush tests should run on zenloader only as the other loaders are not compliant.
+typedef FLoadingTests_ZenLoaderOnly_Base FLoadingTests_Flush_Base;
 
 /**
  * This test validates loading an object synchronously during serialize.
  */
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(
-	FLoadingTests_InvalidFlush_FromWorker,
-	FLoadingTests_InvalidFlush_Base,
-	TEXT("System.Engine.Loading.InvalidFlush.FromWorker"),
+	FLoadingTests_Flush_InvalidFromWorker,
+	FLoadingTests_Flush_Base,
+	TEXT("System.Engine.Loading.Flush.InvalidFromWorker"),
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter
 )
-bool FLoadingTests_InvalidFlush_FromWorker::RunTest(const FString& Parameters)
+bool FLoadingTests_Flush_InvalidFromWorker::RunTest(const FString& Parameters)
 {
 	AddExpectedError(TEXT("is unable to FlushAsyncLoading from the current thread"), EAutomationExpectedErrorFlags::Contains);
 	AddExpectedError(TEXT("[Callstack]"), EAutomationExpectedErrorFlags::Contains, 0 /* At least 1 occurrence */);
@@ -44,6 +44,22 @@ bool FLoadingTests_InvalidFlush_FromWorker::RunTest(const FString& Parameters)
 	);
 
 	LoadingTestScope.LoadObjects();
+
+	return true;
+}
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(
+	FLoadingTests_Flush_ValidFromCallback,
+	FLoadingTests_Flush_Base,
+	TEXT("System.Engine.Loading.Flush.ValidFromCallback"),
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter
+)
+bool FLoadingTests_Flush_ValidFromCallback::RunTest(const FString& Parameters)
+{
+	FLoadingTestsScope LoadingTestScope(this);
+
+	LoadPackageAsync(FLoadingTestsScope::PackagePath1,
+		FLoadPackageAsyncDelegate::CreateLambda([](const FName&, UPackage*, EAsyncLoadingResult::Type) { FlushAsyncLoading(); }));
 
 	return true;
 }
