@@ -272,9 +272,7 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMask
 				{
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::UAVCompute
-						: Shader.GetFrequency() == SF_Pixel
-							? ERHIAccess::SRVGraphicsPixel
-							: ERHIAccess::SRVGraphicsNonPixel;
+						: ERHIAccess::UAVGraphics;
 
 					Tracker->AssertUAV(UAV, Access, Index);
 				}
