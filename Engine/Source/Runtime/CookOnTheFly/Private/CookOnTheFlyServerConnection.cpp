@@ -282,6 +282,7 @@ private:
 			});
 
 		UE_LOG(LogCotfServerConnection, Display, TEXT("Terminating connection to server"));
+		Flush();
 		Transport.Reset();
 	}
 
@@ -310,6 +311,25 @@ private:
 	{
 		FScopeLock _(&RequestsCriticalSection);
 		PendingRequests.Remove(PendingRequest->RequestHeader.CorrelationId);
+	}
+
+	void Flush()
+	{
+		if (!PendingRequests.IsEmpty())
+		{
+			using namespace UE::Cook;
+			FCookOnTheFlyRequest SyntheticRequest;
+			FScopeLock _(&RequestsCriticalSection);
+			for (const TPair<uint32, TUniquePtr<FPendingRequest>>& Pair : PendingRequests)
+			{
+				FPendingRequest& PendingRequest = *Pair.Value;
+				SyntheticRequest.SetHeader(PendingRequest.RequestHeader);
+				FCookOnTheFlyResponse ErrorResponse(SyntheticRequest);
+				ErrorResponse.SetStatus(ECookOnTheFlyMessageStatus::Error);
+				PendingRequest.ResponsePromise.SetValue(ErrorResponse);
+			}
+			PendingRequests.Empty();
+		}
 	}
 	
 	FPendingRequest* GetRequest(uint32 CorrelationId)

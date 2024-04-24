@@ -324,6 +324,9 @@ void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* 
 		TUniquePtr<FArchive> Ar = Response.ReadBody();
 		Handler->ProcessResponse(*Ar);
 	}
-
-	check(Response.IsOk());
+	else
+	{
+		UE_LOG(LogODSC, Display, TEXT("Received error response from CookOnTheFlyServerConnection; disconnecting"));
+		CookOnTheFlyServerConnection.Reset();
+	}
 }
