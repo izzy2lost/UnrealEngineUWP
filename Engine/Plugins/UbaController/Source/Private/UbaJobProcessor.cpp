@@ -369,6 +369,24 @@ void FUbaJobProcessor::StartUba()
 		}
 	}
 
+	FString Host;
+	if (GConfig->GetString(TEXT("UbaController"), TEXT("Host"), Host, GEngineIni))
+	{
+		UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Host: \"%s\""), *Host);
+		HordeAgentManager->SetUbaHost(StringCast<ANSICHAR>(*Host).Get());
+	}
+
+	int32 Port = 0;
+	if (GConfig->GetInt(TEXT("UbaController"), TEXT("Port"), Port, GEngineIni))
+	{
+		UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Port: \"%d\""), Port);
+		HordeAgentManager->SetUbaPort(Port);
+	}
+	
+	if (GConfig->GetBool(TEXT("UbaController"), TEXT("bForceRemote"), bForceRemote, GEngineIni))
+	{
+		UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Force Remote: [%s]"), bForceRemote ? TEXT("True") : TEXT("False"));
+	}
 
 	UE_LOG(LogUbaController, Display, TEXT("Created UBA storage server: RootDir=%s"), *RootDir);
 }
@@ -448,7 +466,7 @@ uint32 FUbaJobProcessor::Run()
 			int32 LocalCoresToNotUse = 1 + activeRemote / 30; // Use one core per 30 remote ones
 			int32 MaxLocal = FMath::Max(0, MaxPossible - LocalCoresToNotUse);
 			MaxLocal = FMath::Min(MaxLocal, MaxLocalParallelJobs);
-			Scheduler_SetMaxLocalProcessors(UbaScheduler, MaxLocal);
+			Scheduler_SetMaxLocalProcessors(UbaScheduler, bForceRemote ? 0 : MaxLocal);
 
 			int32 TargetCoreCount = FMath::Max(0, int32(queued + active) - MaxLocal);
 

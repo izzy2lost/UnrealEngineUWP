@@ -83,4 +83,7 @@ private:
 
 	FCriticalSection StatsLock;
 	FDistributedBuildStats Stats;
+
+	/** If true all UBA jobs will be run remotely */
+	bool bForceRemote = false;
 };

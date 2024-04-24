@@ -186,7 +186,9 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 	};
 
 	int MachineCoreCount = 0;
-	uint32 ListenPort = 7001;
+
+	// If no host is specified, we need to start the agent in listen mode
+	const bool bUseListen = UbaHost.IsEmpty();
 
 	{
 		ON_SCOPE_EXIT{ EstimatedCoreCount -= 32; };
@@ -327,11 +329,12 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		}
 
 		// Start the UBA Agent that will connect to us, requesting for work
-		const std::string ListenPortArg = "-listen=" + std::to_string(ListenPort);
+
+		const FAnsiString AgentConnectionArg = bUseListen ? FAnsiString::Printf("-listen=%u", UbaPort) : FAnsiString::Printf("-Host=%s:%u", *UbaHost, UbaPort);
 
 		const char* UbaAgentArgs[] =
 		{
-			ListenPortArg.c_str(),
+			*AgentConnectionArg,
 			"-nopoll",				// -nopoll recommended when running on remote Horde agents to make sure they exit after completion. Otherwise, it keeps running.
 			"-listenTimeout=5",		// Agent will wait 5 seconds for this thread to connect (Server_AddClient does the connect)
 			"-quiet",				// Skip all the agent logging that would be sent over to here
@@ -362,7 +365,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 			UbaAgentCmdArgs += TEXT(" ");
 			UbaAgentCmdArgs += ANSI_TO_TCHAR(Arg);
 		}
-		UE_LOG(LogUbaHorde, Log, TEXT("Remote execution on Horde machine [%s:%d]: %s"), *Agent->GetMachineInfo().Ip, ListenPort, *UbaAgentCmdArgs);
+		UE_LOG(LogUbaHorde, Log, TEXT("Remote execution on Horde machine [%s:%u]: %s"), *Agent->GetMachineInfo().Ip, UbaPort, *UbaAgentCmdArgs);
 
 		MachineCoreCount = MachineInfo.LogicalCores;
 		EstimatedCoreCount += MachineCoreCount;
@@ -375,15 +378,20 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 	{
 		Agent->Poll(UbaCoordinatorHordeModule::bHordeForwardAgentLogs);
 
+		if (!bUseListen)
+		{
+			continue;
+		}
+
 		if (callCounter++ == 2)
 		{
 			// Add this machine as client to the remote agent
 			const FString& IpAddress = Agent->GetMachineInfo().Ip;
-			const bool bAddClientSuccess = 	m_callback(m_userData, StringCast<uba::tchar>(*IpAddress).Get(), (uint16)ListenPort);
+			const bool bAddClientSuccess = 	m_callback(m_userData, StringCast<uba::tchar>(*IpAddress).Get(), static_cast<uint16>(UbaPort));
 
 			if (!bAddClientSuccess)
 			{
-				UE_LOG(LogUbaHorde, Display, TEXT("Server_AddClient(%s:%d) failed"), *IpAddress, ListenPort);
+				UE_LOG(LogUbaHorde, Display, TEXT("Server_AddClient(%s:%u) failed"), *IpAddress, UbaPort);
 				return;
 			}
 		}

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Containers/AnsiString.h"
 #include "Containers/Array.h"
 #include "HAL/Thread.h"
 #include "UbaBase.h"
@@ -17,6 +18,8 @@ public:
 
 	inline void SetPool(const FString& InPool) { Pool = InPool; }
 	inline void SetMaxCoreCount(uint32 Count) { MaxCores = Count; }
+	inline void SetUbaHost(const FAnsiString& InHost) { UbaHost = InHost; }
+	inline void SetUbaPort(uint32 InPort) { UbaPort = InPort; }
 
 	UBACOORDINATORHORDE_API void SetTargetCoreCount(uint32 Count);
 
@@ -43,6 +46,8 @@ private:
 	FString BinariesPath;
 
 	FString Pool;
+	FAnsiString UbaHost;
+	uint32 UbaPort = 7001;
 	uint32 MaxCores = 0;
 
 	TUniquePtr<FUbaHordeMetaClient> HordeMetaClient;
@@ -60,7 +65,7 @@ private:
 	TAtomic<bool> bAskForAgents;
 
 	AddClientCallback* m_callback = nullptr;
-	void* m_userData;
+	void* m_userData = nullptr;
 
 	FUbaHordeAgentManager(const FUbaHordeAgentManager&) = delete;
 	void operator=(const FUbaHordeAgentManager&) = delete;
