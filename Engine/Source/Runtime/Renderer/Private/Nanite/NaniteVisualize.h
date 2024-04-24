@@ -5,7 +5,6 @@
 #include "NaniteShared.h"
 #include "NaniteCullRaster.h"
 
-struct FNaniteMaterialPassCommand;
 struct FScreenMessageWriter;
 
 namespace Nanite

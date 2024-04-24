@@ -42,15 +42,6 @@ RWTexture2D<uint>						ShadingMask;
 #endif
 StructuredBuffer<FNaniteRasterBinMeta>	RasterBinMeta;
 
-#if MATERIAL_DEPTH_EXPORT
-RWStructuredBuffer<uint>				MaterialHTile;
-RWTexture2D<float>						MaterialDepth;
-#endif
-
-#if MATERIAL_DEPTH_EXPORT
-ByteAddressBuffer						MaterialDepthTable;
-#endif
-
 uint EncodeTileMinMaxDepth(float MinDepth, float MaxDepth, uint PlatformConfig)
 {
 	BRANCH
@@ -117,10 +108,6 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 	// outside of Nanite.
 	if (WaveActiveAnyTrue(VisibleClusterIndex != 0xFFFFFFFF)) // Tile has Nanite coverage
 	{
-	#if MATERIAL_DEPTH_EXPORT
-		float MaterialDepthValue = 0.0f;
-	#endif
-
 		bool NanitePixelVisible = false;
 
 		if (VisibleClusterIndex != 0xFFFFFFFF)
@@ -151,14 +138,7 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 				const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 				const FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
-			#if LEGACY_CULLING
-				const uint ShadingBin = GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-			#else
 				const uint ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-			#endif
-			#if MATERIAL_DEPTH_EXPORT
-				MaterialDepthValue = asfloat(GetMaterialDepthId(ShadingBin, MaterialDepthTable));
-			#endif
 
 				const bool bIsDecalReceiver = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_DECAL_RECEIVER) != 0 && View.ShowDecalsMask > 0;
 				const bool bHasDistanceField = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_DISTANCE_FIELD_REPRESENTATION) != 0;
@@ -306,18 +286,6 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 			#endif
 			}
 		}
-
-	#if MATERIAL_DEPTH_EXPORT
-		MaterialDepth[PixelPos.xy] = MaterialDepthValue;
-
-		const float TileMinMaterialDepth = WaveActiveMin(MaterialDepthValue);
-		const float TileMaxMaterialDepth = WaveActiveMax(MaterialDepthValue);
-
-		if (WaveIsFirstLane())
-		{
-			MaterialHTile[TileIndex] = EncodeTileMinMaxDepth(TileMinMaterialDepth, TileMaxMaterialDepth, PlatformConfig);
-		}
-	#endif
 
 		// Only write out SceneDepth and expand SceneHTile if there are Nanite fragments that survive depth testing against the scene
 		bWriteDepthStencil = WaveActiveAnyTrue(NanitePixelVisible);

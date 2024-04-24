@@ -2870,7 +2870,6 @@ public:
 #endif
 
 	/** Nanite shading material commands. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
-	FNaniteMaterialCommands NaniteLumenMaterials;
 	FNaniteShadingCommands NaniteShadingCommands[ENaniteMeshPass::Num];
 
 	/** Nanite raster and shading pipelines. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */

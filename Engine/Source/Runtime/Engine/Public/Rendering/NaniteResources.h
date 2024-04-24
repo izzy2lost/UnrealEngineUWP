@@ -373,41 +373,16 @@ public:
 	bool IsRootPage(uint32 PageIndex) const { return PageIndex < NumRootPages; }
 };
 
-class FVertexFactory final : public ::FVertexFactory
-{
-	DECLARE_VERTEX_FACTORY_TYPE_API(FVertexFactory, ENGINE_API);
-
-public:
-	FVertexFactory(ERHIFeatureLevel::Type FeatureLevel) : ::FVertexFactory(FeatureLevel)
-	{
-	}
-	~FVertexFactory()
-	{
-		ReleaseResource();
-	}
-
-	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override final;
-
-	static ENGINE_API bool ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters);
-	static ENGINE_API void ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
-	static ENGINE_API void GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements);
-};
-
 class FVertexFactoryResource : public FRenderResource
 {
 public:
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 	virtual void ReleaseRHI() override;
 
-	FVertexFactory* GetVertexFactory() { return VertexFactory; }
-	FNaniteVertexFactory* GetVertexFactory2() { return VertexFactory2; }
+	FNaniteVertexFactory* GetVertexFactory() { return VertexFactory; }
 
 private:
-	// TODO: Work in progress / experimental (having two factories is temporary).
-	// VertexFactory is the legacy VS/PS shading path.
-	// VertexFactory2 is the new compute shader path.
-	class FVertexFactory* VertexFactory = nullptr;
-	class FNaniteVertexFactory* VertexFactory2 = nullptr;
+	class FNaniteVertexFactory* VertexFactory = nullptr;
 };
 
 } // namespace Nanite

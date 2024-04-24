@@ -404,12 +404,9 @@ struct FLightMapUploadInfo
 /**
  * Implements a thin data abstraction such that the UploadGeneral function can upload primitive data from
  * both scene primitives and dynamic primitives (which are not stored in the same way). 
- * Note: handling of Nanite material table upload data is not abstracted (since at present it can only come via the scene primitives).
  */
 struct FUploadDataSourceAdapterScenePrimitives
 {
-	static constexpr bool bUpdateNaniteMaterialTables = true;
-
 	FUploadDataSourceAdapterScenePrimitives(FScene& InScene, uint32 InSceneFrameNumber, TArray<FPersistentPrimitiveIndex> InPrimitivesToUpdate, TArray<EPrimitiveDirtyState> InPrimitiveDirtyState)
 		: Scene(InScene)
 		, SceneFrameNumber(InSceneFrameNumber)
@@ -899,15 +896,6 @@ FGPUScene::FRegisteredBuffers FGPUScene::UpdateBufferAllocations(FRDGBuilder& Gr
 	const uint32 InstancePayloadDataSizeReserve = FMath::RoundUpToPowerOfTwo(PayloadFloat4Count * sizeof(FVector4f));
 	BufferState.InstancePayloadDataBuffer = ResizeStructuredBufferIfNeeded(GraphBuilder, InstancePayloadDataBuffer, InstancePayloadDataSizeReserve, TEXT("GPUScene.InstancePayloadData"));
 
-	const bool bNaniteEnabled = DoesPlatformSupportNanite(GMaxRHIShaderPlatform);
-	if (UploadDataSourceAdapter.bUpdateNaniteMaterialTables && bNaniteEnabled)
-	{
-		// Nanite draw commands build raster material tables.
-		Scene.WaitForCacheNaniteMaterialBinsTask();
-
-		Scene.NaniteLumenMaterials.UpdateBufferState(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex());
-	}
-	
 	const uint32 LightMapDataBufferSize = FMath::RoundUpToPowerOfTwo(FMath::Max(LightmapDataAllocator.GetMaxSize(), InitialBufferSize));
 	BufferState.LightmapDataBuffer = ResizeStructuredBufferIfNeeded(GraphBuilder, LightmapDataBuffer, LightMapDataBufferSize * sizeof(FLightmapSceneShaderData::Data), TEXT("GPUScene.LightmapData"));
 
@@ -1071,16 +1059,12 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		FRDGScatterUploader* InstanceSceneUploader = nullptr;
 		FRDGScatterUploader* LightmapUploader = nullptr;
 
-		TStaticArray<FNaniteMaterialCommands::FUploader*, ENaniteMeshPass::Num> NaniteMaterialUploaders{ InPlace, nullptr };
-
 		int32 NumPrimitiveDataUploads = 0;
 		int32 NumLightmapDataUploads = 0;
 		int32 NumInstanceSceneDataUploads = 0;
 		int32 NumInstancePayloadDataUploads = 0; // Count of float4s
 
 		uint32 InstanceSceneDataSOAStride = 1;
-
-		bool bUseNaniteMaterialUploaders = false;
 	};
 
 	FTaskContext& TaskContext = *GraphBuilder.AllocObject<FTaskContext>();
@@ -1116,12 +1100,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		TaskContext.LightmapUploader = LightmapUploadBuffer.Begin(GraphBuilder, BufferState.LightmapDataBuffer, TaskContext.NumLightmapDataUploads, sizeof(FLightmapSceneShaderData::Data), TEXT("LightmapUploadBuffer"));
 	}
 
-	if (UploadDataSourceAdapter.bUpdateNaniteMaterialTables && bNaniteEnabled)
-	{
-		TaskContext.NaniteMaterialUploaders[ENaniteMeshPass::LumenCardCapture] = Scene.NaniteLumenMaterials.Begin(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex(), NumPrimitiveDataUploads);
-		TaskContext.bUseNaniteMaterialUploaders = true;
-	}
-
 	GraphBuilder.AddCommandListSetupTask([&TaskContext, &UploadDataSourceAdapter, bNaniteEnabled, bExecuteInParallel, FeatureLevel = FeatureLevel](FRHICommandListBase& RHICmdList)
 	{
 		SCOPED_NAMED_EVENT(UpdateGPUScene_Primitives, FColor::Green);
@@ -1130,7 +1108,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		LockIfValid(RHICmdList, TaskContext.InstancePayloadUploader);
 		LockIfValid(RHICmdList, TaskContext.InstanceSceneUploader);
 		LockIfValid(RHICmdList, TaskContext.LightmapUploader);
-		LockIfValid(RHICmdList, TaskContext.NaniteMaterialUploaders[ENaniteMeshPass::LumenCardCapture]);
 
 		FInstanceBatcher InstanceUpdates(bExecuteInParallel, TaskContext.NumPrimitiveDataUploads);
 
@@ -1379,11 +1356,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		UnlockIfValid(RHICmdList, TaskContext.InstanceSceneUploader);
 		UnlockIfValid(RHICmdList, TaskContext.LightmapUploader);
 
-		for (FNaniteMaterialCommands::FUploader* Uploader : TaskContext.NaniteMaterialUploaders)
-		{
-			UnlockIfValid(RHICmdList, Uploader);
-		}
-
 	}, PrerequisiteTask);
 
 	PrimitiveUploadBuffer.End(GraphBuilder, TaskContext.PrimitiveUploader);
@@ -1403,12 +1375,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		LightmapUploadBuffer.End(GraphBuilder, TaskContext.LightmapUploader);
 	}
 
-	if (TaskContext.bUseNaniteMaterialUploaders)
-	{
-		check(ExternalAccessQueue);
-
-		Scene.NaniteLumenMaterials.Finish(GraphBuilder, *ExternalAccessQueue, TaskContext.NaniteMaterialUploaders[ENaniteMeshPass::LumenCardCapture]);
-	}
 	const uint32 MaxPooledSize = uint32(CVarGPUSceneMaxPooledUploadBufferSize.GetValueOnRenderThread());
 	if (PrimitiveUploadBuffer.GetNumBytes() > MaxPooledSize)
 	{
@@ -1433,8 +1399,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 
 struct FUploadDataSourceAdapterDynamicPrimitives
 {
-	static constexpr bool bUpdateNaniteMaterialTables = false;
-
 	FUploadDataSourceAdapterDynamicPrimitives(
 		const TArray<FGPUScenePrimitiveCollector::FPrimitiveData, TInlineAllocator<8>>& InPrimitiveData,
 		int32 InPrimitiveIDStartOffset,

@@ -2382,7 +2382,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 
 				if (CVarLumenSceneSurfaceCacheNaniteMultiView.GetValueOnRenderThread() != 0)
 				{
-					Nanite::DrawLumenMeshCapturePass(
+					DispatchLumenMeshCapturePass(
 						GraphBuilder,
 						*Scene,
 						SharedView,
@@ -2406,7 +2406,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 					{
 						if (CardPagesToRender[PageIndex].HasNanite())
 						{
-							Nanite::DrawLumenMeshCapturePass(
+							DispatchLumenMeshCapturePass(
 								GraphBuilder,
 								*Scene,
 								SharedView,

@@ -331,8 +331,7 @@ void FShadowSceneRenderer::PostInitDynamicShadowsSetup()
 					Scene,
 					NaniteCullingViewsVolumes,
 					&Scene.NaniteRasterPipelines[ENaniteMeshPass::BasePass],
-					&Scene.NaniteShadingPipelines[ENaniteMeshPass::BasePass],
-					&Scene.NaniteLumenMaterials
+					&Scene.NaniteShadingPipelines[ENaniteMeshPass::BasePass]
 				);
 			}
 		}

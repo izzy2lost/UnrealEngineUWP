@@ -88,7 +88,6 @@ class FAtmosphereUniformShaderParameters;
 struct FSkyAtmosphereRenderContext;
 class FTexture2DResource;
 class FSimpleLightArray;
-struct FNaniteMaterialPassCommand;
 struct FScreenMessageWriter;
 struct FVolumetricFogIntegrationParameterData;
 class FLumenHardwareRayTracingUniformBufferParameters;
@@ -1340,8 +1339,6 @@ public:
 	TArray<FMeshBatchAndRelevance, SceneRenderingAllocator> RayTracedDynamicMeshElements;
 
 	TArray<FMeshBatchAndRelevance,SceneRenderingAllocator> DynamicEditorMeshElements;
-
-	TArray<FNaniteMaterialPassCommand, SceneRenderingAllocator> NaniteMaterialPassCommands;
 
 	FSimpleElementCollector SimpleElementCollector;
 

@@ -21,8 +21,6 @@ Texture2D<uint>			DbgBuffer32;
 Texture2D<float>		SceneDepth;
 Texture2D<float>		SceneZDecoded;
 Texture2D<uint4>		SceneZLayout;
-Texture2D<float>		MaterialZDecoded;
-Texture2D<uint4>		MaterialZLayout;
 Texture2D<uint>			ShadingMask;
 Texture2D<uint>			FastClearTileVis;
 
@@ -428,11 +426,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		{
 			Result = IntToColor(GetRelativeMaterialIndex(Cluster, TriIndex));
 		}
-		else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_DEPTH)
-		{
-			//const uint MaterialDepthId = GetMaterialDepthId(UnpackedMask.ShadingBin, MaterialDepthTable);
-			Result = IntToColor(0); // TODO: Remove
-		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_WRITE_MASK)
 		{
 			const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
@@ -466,36 +459,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		else if (VisualizeMode == NANITE_VISUALIZE_SCENE_Z_DECODED)
 		{
 			const float ZDecoded = SceneZDecoded[PixelPos];
-			Result = float3(pow(ZDecoded, 0.11f), 0.0f, 0.0f);
-			bApplySobel = false;
-		}
-		else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MIN || VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MAX || VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_DELTA)// || VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MASK)
-		{
-			const uint4 ZLayout = MaterialZLayout[PixelPos];
-			float2 MinMax = float2(f16tof32(ZLayout.y), f16tof32(ZLayout.y >> 16u));
-
-			if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MIN)
-			{
-				Result = float3(pow(MinMax.x, 0.11f), 0.0f, 0.0f);
-			}
-			else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MAX)
-			{
-				Result = float3(pow(MinMax.y, 0.11f), 0.0f, 0.0f);
-			}
-			else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_DELTA)
-			{
-				Result = float3(pow(MinMax.y - MinMax.x, 0.11f), 0.0f, 0.0f);
-			}
-			//else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MASK)
-			//{
-			//	Result = IntToColor((uint)ZLayout.z);
-			//}
-
-			bApplySobel = false;
-		}
-		else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_DECODED)
-		{
-			const float ZDecoded = MaterialZDecoded[PixelPos];
 			Result = float3(pow(ZDecoded, 0.11f), 0.0f, 0.0f);
 			bApplySobel = false;
 		}
@@ -754,8 +717,6 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FeedbackResults.RasterMode			= DebugValueMax;
 		FeedbackResults.RasterBin			= RasterBin;
 		FeedbackResults.ShadingBin			= GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-		FeedbackResults.LegacyShadingId		= 0;// TODO: Remove GetMaterialLegacyShadingId(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-		FeedbackResults.MaterialDepthId		= 0;// TODO: Remove GetMaterialDepthId(FeedbackResults.LegacyShadingId, MaterialDepthTable);
 		FeedbackResults.MaterialIndex		= GetRelativeMaterialIndex(Cluster, TriIndex);
 		FeedbackResults.MaterialCount		= GetMaterialCount(Cluster);
 		FeedbackResults.MaterialMode		= IsMaterialFastPath(Cluster) ? 0u : 1u;

@@ -294,7 +294,6 @@ extern TGlobalResource< FGlobalResources > GGlobalResources;
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
 	SHADER_PARAMETER(FIntVector4,					PageConstants)
-	SHADER_PARAMETER(FIntVector4,					MaterialConfig) // .x mode, .yz grid size, .w tile remap count
 	SHADER_PARAMETER(uint32,						MaxNodes)
 	SHADER_PARAMETER(uint32,						MaxVisibleClusters)
 	SHADER_PARAMETER(uint32,						RenderFlags)
@@ -304,15 +303,13 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		ClusterPageData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		VisibleClustersSWHW)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		HierarchyBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, MaterialTileRemap)
-	SHADER_PARAMETER_SRV           (ByteAddressBuffer,		MaterialDepthTable)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>,			ShadingMask)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>,		VisBuffer64)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>,		DbgBuffer64)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>,			DbgBuffer32)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, RayTracingDataBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,  ShadingBinData)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		ShadingBinData)
 
 	// Multi view
 	SHADER_PARAMETER(uint32,												MultiViewEnabled)

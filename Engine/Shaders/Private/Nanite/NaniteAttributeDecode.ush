@@ -280,7 +280,7 @@ struct FNaniteMaterialSlot
 	uint ShadingBin;
 	uint RasterBin;
 	uint FallbackRasterBin;
-	uint LegacyShadingId;
+	uint Unused;
 };
 
 FNaniteMaterialSlot UnpackMaterialSlot(uint2 Data)
@@ -288,7 +288,7 @@ FNaniteMaterialSlot UnpackMaterialSlot(uint2 Data)
 	FNaniteMaterialSlot Output;
 	Output.ShadingBin			= Data.x >> 16u;
 	Output.RasterBin			= Data.x & 0xFFFFu;
-	Output.LegacyShadingId		= Data.y >> 16u;
+	Output.Unused				= Data.y >> 16u;
 	Output.FallbackRasterBin	= Data.y & 0xFFFFu;
 	return Output;
 }
@@ -362,15 +362,6 @@ float4 LoadMaterialUVDensities(uint InRelativeMaterialIndex, uint InPrimitiveInd
 	return LoadMaterialUVDensities(GetMaterialUVDensitiesOffset(InRelativeMaterialIndex, InPrimitiveIndex));
 }
 
-uint GetMaterialLegacyShadingIdFromIndex(
-	uint InRelativeMaterialIndex,
-	uint InPrimitiveIndex,
-	uint InMeshPassIndex)
-{
-	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
-	return MaterialSlot.LegacyShadingId;
-}
-
 uint GetMaterialShadingBinFromIndex(
 	uint InRelativeMaterialIndex,
 	uint InPrimitiveIndex,
@@ -417,16 +408,6 @@ uint GetMaterialRasterBinFromIndex(
 	return RasterBin;
 }
 
-uint GetMaterialLegacyShadingId(
-	FCluster InCluster,
-	uint InPrimitiveIndex,
-	uint InMeshPassIndex,
-	uint InTriIndex)
-{
-	const uint RelativeMaterialIndex = GetRelativeMaterialIndex(InCluster, InTriIndex);
-	return GetMaterialLegacyShadingIdFromIndex(RelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
-}
-
 float4 GetMaterialUVDensities(
 	FCluster InCluster,
 	uint InPrimitiveIndex,
@@ -461,14 +442,6 @@ uint GetMaterialRasterBin(
 		InRegularSlotCount,
 		bFallbackRasterBin
 	);
-}
-
-uint GetMaterialDepthId(
-	uint InMaterialSlot,
-	ByteAddressBuffer InMaterialDepthTable)
-{
-	const uint MaterialDepthId = InMaterialDepthTable.Load(InMaterialSlot * 4);
-	return MaterialDepthId;
 }
 
 uint LoadMaterialHitProxyId(uint InPrimitiveIndex, uint InMaterialIndex, ByteAddressBuffer InMaterialHitProxyTable)

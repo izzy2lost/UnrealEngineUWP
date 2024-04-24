@@ -10,7 +10,6 @@
 class FScene;
 class FLumenPrimitiveGroup;
 class FLumenCard;
-class FNaniteCommandInfo;
 struct FNaniteShadingBin;
 struct FNaniteShadingCommand;
 
@@ -52,8 +51,7 @@ public:
 	int32 NumMeshDrawCommands = 0;
 
 	TArray<uint32, SceneRenderingAllocator> NaniteInstanceIds;
-	TArray<FNaniteCommandInfo, SceneRenderingAllocator> NaniteCommandInfos; // Legacy
-	TArray<FNaniteShadingBin, SceneRenderingAllocator> NaniteShadingBins; // WIP
+	TArray<FNaniteShadingBin, SceneRenderingAllocator> NaniteShadingBins;
 	float NaniteLODScaleFactor = 1.0f;
 
 	bool bResampleLastLighting = false;
@@ -79,8 +77,7 @@ public:
 
 	inline bool HasNanite() const
 	{
-		//return NaniteShadingBins.Num() > 0 && NaniteInstanceIds.Num() > 0;
-		return NaniteCommandInfos.Num() > 0 && NaniteInstanceIds.Num() > 0;
+		return NaniteShadingBins.Num() > 0 && NaniteInstanceIds.Num() > 0;
 	}
 };
 
@@ -117,9 +114,3 @@ void RecordLumenCardParameters(
 );
 
 }
-
-FMeshPassProcessor* CreateLumenCardNaniteMeshProcessor(
-	ERHIFeatureLevel::Type FeatureLevel,
-	const FScene* Scene,
-	const FSceneView* InViewIfDynamicMeshCommand,
-	FMeshPassDrawListContext* InDrawListContext);

@@ -4,6 +4,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "NaniteVisualizationData.h"
 #include "NaniteSceneProxy.h"
+#include "NaniteVertexFactory.h"
 #include "RHI.h"
 #include "SceneUtils.h"
 #include "ScenePrivate.h"
@@ -2316,7 +2317,7 @@ void CollectRasterPSOInitializersForPermutation(
 			PSOPrecacheData.GraphicsPSOInitializer = GraphicsPSOInit;
 		#if PSO_PRECACHING_VALIDATE
 			PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
-			PSOPrecacheData.VertexFactoryType = &Nanite::FVertexFactory::StaticType;
+			PSOPrecacheData.VertexFactoryType = &FNaniteVertexFactory::StaticType;
 		#endif
 			PSOInitializers.Add(PSOPrecacheData);
 		}
@@ -2788,7 +2789,7 @@ private:
 					#if PSO_PRECACHING_VALIDATE
 						if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
 						{
-							PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &Nanite::FVertexFactory::StaticType, nullptr, PSOCollectorIndex);
+							PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &FNaniteVertexFactory::StaticType, nullptr, PSOCollectorIndex);
 						}
 					#endif
 

@@ -96,7 +96,6 @@ struct FRasterResults
 	FRDGTextureRef	DbgBuffer64			= nullptr;
 	FRDGTextureRef	DbgBuffer32			= nullptr;
 
-	FRDGTextureRef	MaterialDepth		= nullptr;
 	FRDGTextureRef	ShadingMask			= nullptr;
 
 	FRDGBufferRef	ClearTileArgs		= nullptr;

@@ -429,86 +429,6 @@ void FResources::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) cons
 	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(PageDependencies.GetAllocatedSize());
 }
 
-void FVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
-{
-	LLM_SCOPE_BYTAG(Nanite);
-
-	FVertexStream VertexStream;
-	VertexStream.VertexBuffer = &GScreenRectangleVertexBuffer;
-	VertexStream.Offset = 0;
-
-	Streams.Add(VertexStream);
-
-	SetDeclaration(GFilterVertexDeclaration.VertexDeclarationRHI);
-}
-
-bool FVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
-{
-	bool bShouldCompile =
-		NaniteLegacyMaterialsSupported() && // TODO: Remove PS Materials
-		(Parameters.MaterialParameters.bIsUsedWithNanite || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
-		IsSupportedMaterialDomain(Parameters.MaterialParameters.MaterialDomain) &&
-		IsSupportedBlendMode(Parameters.MaterialParameters) &&
-		(Parameters.ShaderType->GetFrequency() == SF_Pixel || Parameters.ShaderType->GetFrequency() == SF_RayHitGroup) &&
-		DoesPlatformSupportNanite(Parameters.Platform);
-
-	return bShouldCompile;
-}
-
-void FVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-{
-	::FVertexFactory::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-	OutEnvironment.SetDefine(TEXT("IS_NANITE_SHADING_PASS"), 1);
-	OutEnvironment.SetDefine(TEXT("IS_NANITE_PASS"), 1);
-	OutEnvironment.SetDefine(TEXT("USE_ANALYTIC_DERIVATIVES"), 1);
-	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
-	OutEnvironment.SetDefine(TEXT("NANITE_USE_UNIFORM_BUFFER"), Parameters.ShaderType->GetFrequency() != SF_RayHitGroup);
-	OutEnvironment.SetDefine(TEXT("NANITE_USE_RAYTRACING_UNIFORM_BUFFER"), Parameters.ShaderType->GetFrequency() == SF_RayHitGroup);
-	OutEnvironment.SetDefine(TEXT("NANITE_USE_VIEW_UNIFORM_BUFFER"), 1);
-	OutEnvironment.SetDefine(TEXT("ALWAYS_EVALUATE_WORLD_POSITION_OFFSET"),
-		Parameters.MaterialParameters.bAlwaysEvaluateWorldPositionOffset ? 1 : 0);
-
-	if (NaniteSplineMeshesSupported())
-	{
-		if (Parameters.MaterialParameters.bIsUsedWithSplineMeshes || Parameters.MaterialParameters.bIsDefaultMaterial)
-		{
-			// NOTE: This effectively means the logic to deform vertices will be added to the barycentrics calculation in the
-			// Nanite shading PS, but will be branched over on instances that do not supply spline mesh parameters. If that
-			// frequently causes occupancy issues, we may want to consider ways to split the spline meshes into their own
-			// shading bin and permute the PS.
-			OutEnvironment.SetDefine(TEXT("USE_SPLINEDEFORM"), 1);
-			OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
-		}
-	}
-
-	if (NaniteSkinnedMeshesSupported())
-	{
-		if (Parameters.MaterialParameters.bIsUsedWithSkeletalMesh || Parameters.MaterialParameters.bIsDefaultMaterial)
-		{
-			OutEnvironment.SetDefine(TEXT("USE_SKINNING"), 1);
-		}
-	}
-
-	OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
-	OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
-}
-
-void FVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
-{
-	GFilterVertexDeclaration.VertexDeclarationRHI->GetInitializer(Elements);
-}
-
-IMPLEMENT_VERTEX_FACTORY_TYPE(Nanite::FVertexFactory, "/Engine/Private/Nanite/NaniteVertexFactory.ush",
-	  EVertexFactoryFlags::UsedWithMaterials
-	| EVertexFactoryFlags::SupportsStaticLighting
-	| EVertexFactoryFlags::SupportsPrimitiveIdStream
-	| EVertexFactoryFlags::SupportsNaniteRendering
-	| EVertexFactoryFlags::SupportsPSOPrecaching
-	| EVertexFactoryFlags::SupportsRayTracing
-	| EVertexFactoryFlags::SupportsLumenMeshCards
-	| EVertexFactoryFlags::SupportsLandscape
-);
-
 void FSceneProxyBase::FMaterialSection::ResetToDefaultMaterial(bool bShading, bool bRaster)
 {
 	UMaterialInterface* ShadingMaterial = bHidden ? GEngine->NaniteHiddenSectionMaterial.Get() : UMaterial::GetDefaultMaterial(MD_Surface);
@@ -552,65 +472,6 @@ float FSceneProxyBase::GetMaterialDisplacementFadeOutSize() const
 
 void FSceneProxyBase::DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* PDI, const FLightCacheInterface* LCI)
 {
-	LLM_SCOPE_BYTAG(Nanite);
-
-	FMeshBatch MeshBatch;
-	if (NaniteLegacyMaterialsSupported()) // TODO: Remove PS Materials
-	{
-		MeshBatch.VertexFactory = GVertexFactoryResource.GetVertexFactory();
-	}
-	else
-	{
-		// TODO: Remove
-		// Dummy factory that will be ignored later on
-		MeshBatch.VertexFactory = GVertexFactoryResource.GetVertexFactory2();
-	}
-
-	MeshBatch.Type = GRHISupportsRectTopology ? PT_RectList : PT_TriangleList;
-	MeshBatch.ReverseCulling = false;
-	MeshBatch.bDisableBackfaceCulling = true;
-	MeshBatch.DepthPriorityGroup = SDPG_World;
-	MeshBatch.LODIndex = INDEX_NONE;
-	MeshBatch.bWireframe = false;
-	MeshBatch.bCanApplyViewModeOverrides = false;
-	MeshBatch.LCI = LCI;
-	MeshBatch.Elements[0].IndexBuffer = &GScreenRectangleIndexBuffer;
-	MeshBatch.Elements[0].NumInstances = 1;
-	MeshBatch.Elements[0].PrimitiveIdMode = PrimID_ForceZero;
-	MeshBatch.Elements[0].PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
-	if (GRHISupportsRectTopology)
-	{
-		MeshBatch.Elements[0].FirstIndex = 9;
-		MeshBatch.Elements[0].NumPrimitives = 1;
-		MeshBatch.Elements[0].MinVertexIndex = 1;
-		MeshBatch.Elements[0].MaxVertexIndex = 3;
-	}
-	else
-	{
-		MeshBatch.Elements[0].FirstIndex = 0;
-		MeshBatch.Elements[0].NumPrimitives = 2;
-		MeshBatch.Elements[0].MinVertexIndex = 0;
-		MeshBatch.Elements[0].MaxVertexIndex = 3;
-	}
-
-	for (int32 SectionIndex = 0; SectionIndex < MaterialSections.Num(); ++SectionIndex)
-	{
-		const FMaterialSection& Section = MaterialSections[SectionIndex];
-		const FMaterialRenderProxy* MaterialProxy = Section.ShadingMaterialProxy;
-		if (!MaterialProxy)
-		{
-			continue;
-		}
-
-		MeshBatch.SegmentIndex = SectionIndex;
-		MeshBatch.MaterialRenderProxy = MaterialProxy;
-
-	#if WITH_EDITOR
-		HHitProxy* HitProxy = Section.HitProxy;
-		PDI->SetHitProxy(HitProxy);
-	#endif
-		PDI->DrawMesh(MeshBatch, FLT_MAX);
-	}
 }
 
 void FSceneProxyBase::OnMaterialsUpdated(bool bOverrideMaterialRelevance)
@@ -2927,15 +2788,8 @@ void FVertexFactoryResource::InitRHI(FRHICommandListBase& RHICmdList)
 	if (DoesPlatformSupportNanite(GMaxRHIShaderPlatform))
 	{
 		LLM_SCOPE_BYTAG(Nanite);
-
-		if (NaniteLegacyMaterialsSupported()) // TODO: Remove PS Materials
-		{
-			VertexFactory = new FVertexFactory(ERHIFeatureLevel::SM5);
-			VertexFactory->InitResource(RHICmdList);
-		}
-
-		VertexFactory2 = new FNaniteVertexFactory(ERHIFeatureLevel::SM5);
-		VertexFactory2->InitResource(RHICmdList);
+		VertexFactory = new FNaniteVertexFactory(ERHIFeatureLevel::SM5);
+		VertexFactory->InitResource(RHICmdList);
 	}
 }
 
@@ -2944,15 +2798,8 @@ void FVertexFactoryResource::ReleaseRHI()
 	if (DoesPlatformSupportNanite(GMaxRHIShaderPlatform))
 	{
 		LLM_SCOPE_BYTAG(Nanite);
-
-		if (NaniteLegacyMaterialsSupported()) // TODO: Remove PS Materials
-		{
-			delete VertexFactory;
-			VertexFactory = nullptr;
-		}
-
-		delete VertexFactory2;
-		VertexFactory2 = nullptr;
+		delete VertexFactory;
+		VertexFactory = nullptr;
 	}
 }
 

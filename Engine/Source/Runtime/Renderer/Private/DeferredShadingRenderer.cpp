@@ -1473,7 +1473,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				NaniteCullingViews,
 				&NaniteRasterPipelines,
 				&NaniteShadingPipelines,
-				&Scene->NaniteLumenMaterials,
 				InitViewTaskDatas.VisibilityTaskData->GetComputeRelevanceTask()
 			);
 		}

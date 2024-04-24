@@ -57,7 +57,7 @@ void FinalizeCustomDepthStencil(
 	FCustomDepthTextures& OutTextures
 );
 
-void MarkStencilRects(
+void MarkSceneStencilRects(
 	FRDGBuilder& GraphBuilder,
 	const FRasterContext& RasterContext,
 	FScene& Scene,
@@ -68,9 +68,8 @@ void MarkStencilRects(
 	FRDGTextureRef DepthAtlasTexture
 );
 
-void EmitMaterialIdRects(
+void EmitSceneDepthRects(
 	FRDGBuilder& GraphBuilder,
-	const FRasterResults& RasterResults,
 	const FRasterContext& RasterContext,
 	FScene& Scene,
 	FViewInfo* SharedView,
@@ -78,18 +77,6 @@ void EmitMaterialIdRects(
 	uint32 NumRects,
 	FRDGBufferSRVRef RectMinMaxBufferSRV,
 	FRDGTextureRef DepthAtlasTexture
-);
-
-void EmitMaterialDepthRects(
-	FRDGBuilder& GraphBuilder,
-	const FRasterContext& RasterContext,
-	FScene& Scene,
-	FViewInfo* SharedView,
-	FIntPoint ViewportSize,
-	uint32 NumRects,
-	FRDGBufferSRVRef RectMinMaxBufferSRV,
-	FRDGTextureRef DepthAtlasTexture,
-	bool bLegacyCulling
 );
 
 }

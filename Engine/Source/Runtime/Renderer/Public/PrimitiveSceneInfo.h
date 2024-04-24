@@ -28,7 +28,6 @@
 enum class ERayTracingPrimitiveFlags : uint8;
 
 class FIndirectLightingCacheUniformParameters;
-class FNaniteCommandInfo;
 class FPlanarReflectionSceneProxy;
 class FPrimitiveSceneInfo;
 class FPrimitiveSceneProxy;
@@ -319,7 +318,6 @@ public:
 
 	TArray<FNaniteRasterBin> NaniteRasterBins[ENaniteMeshPass::Num];
 	TArray<FNaniteShadingBin> NaniteShadingBins[ENaniteMeshPass::Num];
-	TArray<FNaniteCommandInfo> NaniteLumenCommands;
 	TArray<FNaniteMaterialSlot> NaniteMaterialSlots[ENaniteMeshPass::Num];
 
 	/** The identifier for the primitive in Scene->PrimitiveOctree. */
@@ -747,7 +745,6 @@ private:
 	void RemoveCachedMeshDrawCommands();
 
 	/** Constructs Nanite raster and shading bin information for unique material instances found within the scene. */
-	static void CacheNaniteLumenBins(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos);
 	static void CacheNaniteMaterialBins(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos);
 
 	/** Removes Nanite raster and shading bin information from the scene. */

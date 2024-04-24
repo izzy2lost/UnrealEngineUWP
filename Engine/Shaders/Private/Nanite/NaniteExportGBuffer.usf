@@ -11,7 +11,6 @@
 #include "NaniteSceneCommon.ush"
 #include "NaniteVertexDeformation.ush"
 
-ByteAddressBuffer MaterialDepthTable;
 ByteAddressBuffer MaterialHitProxyTable;
 
 uint DummyZero; // TODO: Remove me
@@ -25,7 +24,6 @@ Texture2D<UlongType> VisBuffer64;
 #if SHADING_MASK_LOAD
 Texture2D<uint> ShadingMask;
 #endif
-StructuredBuffer<uint> MaterialTileRemap;
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 
 // These are only used for custom depth/stencil output
@@ -61,53 +59,6 @@ void MarkStencilPS(
 	if (VisibleClusterIndex != 0xFFFFFFFF)
 	{
 		OutDepth = asfloat(DepthInt);
-	}
-	else
-	{
-		OutDepth = 0.0f;
-		discard;
-	}
-}
-
-void EmitMaterialDepthPS(
-	in  float4 SvPosition	: SV_Position,
-	out float  OutDepth		: SV_Depth
-)
-{
-	const uint2 PixelPos = (uint2)SvPosition.xy;
-	uint ShadingBin = 0;
-
-#if SHADING_MASK_LOAD
-	FShadingMask UnpackedMask = UnpackShadingMask(ShadingMask[PixelPos]);
-	const bool bIsNanitePixel = UnpackedMask.bIsNanitePixel;
-	ShadingBin = UnpackedMask.ShadingBin;
-#else
-	UlongType VisPixel  = VisBuffer64[PixelPos];
-
-	uint DepthInt = 0;
-	uint VisibleClusterIndex = 0;
-	uint TriIndex = 0;
-	UnpackVisPixel(VisPixel, DepthInt, VisibleClusterIndex, TriIndex);
-
-	const bool bIsNanitePixel = VisibleClusterIndex != 0xFFFFFFFF;
-	if (bIsNanitePixel)
-	{
-		FVisibleCluster VisibleCluster = GetVisibleCluster(VisibleClusterIndex);
-		FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster, false );
-		FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
-	#if LEGACY_CULLING
-		ShadingBin = GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-	#else
-		ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-	#endif
-	}
-#endif
-
-	if (bIsNanitePixel)
-	{
-		// Export material depth ID as SV_Depth.
-		const uint MaterialDepthId = GetMaterialDepthId(ShadingBin, MaterialDepthTable);
-		OutDepth = asfloat(MaterialDepthId | DummyZero); // Workaround for bug on Geforce 2080Ti. It seems the issue might be related to writing directly to OutDepth in a buffer load instruction.
 	}
 	else
 	{
@@ -156,11 +107,7 @@ void EmitSceneDepthPS(
 	#endif
 
 #if SHADING_MASK_EXPORT
-	#if LEGACY_CULLING
-		const uint ShadingBin			= GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-	#else
 		const uint ShadingBin			= GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-	#endif
 		const bool bIsDecalReceiver		= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_DECAL_RECEIVER) != 0 && View.ShowDecalsMask > 0;
 		const bool bHasDistanceField	= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_DISTANCE_FIELD_REPRESENTATION) != 0;
 		OutShadingMask = PackShadingMask(
@@ -496,56 +443,3 @@ void EmitEditorSelectionDepthPS(
 		discard;
 	}
 }
-
-float MaterialDepth;
-
-uint InstanceBaseOffset;
-
-void FullScreenVS(
-	float2 InPosition : ATTRIBUTE0,
-	uint InstanceIndex : SV_InstanceID,
-	out FNaniteFullscreenVSToPS Output,
-	out float4 Position : SV_Position
-
-)
-{
-	// Compile time constant to remove int mod ALU
-	const uint2 GridSize = uint2(1, 1);
-
-
-	Output = (FNaniteFullscreenVSToPS)0;
-
-	uint TileIndex = InstanceIndex;
-
-	float4 RectScaleOffset = Nanite.RectScaleOffset;
-
-	{
-		// Treat InstanceIndex for view indexing if multi view rendering is enabled
-		TileIndex = 0;
-
-		const uint ViewIndex = Nanite.MultiViewIndices[InstanceBaseOffset + InstanceIndex];
-		RectScaleOffset = Nanite.MultiViewRectScaleOffsets[ViewIndex];
-		Output.ViewIndex = ViewIndex;	
-	}
-
-	Output.TileIndex = TileIndex;
-
-	float2 GridStep = float2(1.0, 1.0) / (float2)GridSize;
-	uint2  GridPos  = uint2(TileIndex % GridSize.x, TileIndex / GridSize.x);
-
-	// Input position is in [0,0 .. 1,1] range.
-	float2 TilePosition = (InPosition + (float2)GridPos) * GridStep;
-	TilePosition.xy = TilePosition.xy * RectScaleOffset.xy + RectScaleOffset.zw;
-
-	const float Depth = MaterialDepth;
-	const uint MaterialBucketId = GetMaterialBucketIdFromDepth(Depth);
-
-	Position = float4(TilePosition.x * 2.0 - 1.0, 1.0 - 2.0 * TilePosition.y, Depth, 1);
-
-#if INSTANCED_STEREO
-	// Nanite fullscreen VS is run for the whole side-by-side RT and the primary (left) view, so the quads can span the line separating views, and we cannot output EyeIndex here
-	// Output.EyeIndex will be calculated in the pixel shader instead based on which view rect it is in.
-#endif
-}
-
-

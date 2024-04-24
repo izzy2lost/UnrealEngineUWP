@@ -123,7 +123,6 @@ public:
 		const TConstArrayView<FConvexVolume>& ViewList,
 		const class FNaniteRasterPipelines* RasterPipelines,
 		const class FNaniteShadingPipelines* ShadingPipelines,
-		const class FNaniteMaterialCommands* MaterialCommands = nullptr,
 		const UE::Tasks::FTask& PrerequisiteTask = {}
 	);
 

@@ -9,11 +9,15 @@
 #include "Stats/Stats.h"
 
 struct FNaniteShadingCommands;
+class  FLumenCardPassUniformParameters;
+class  FCardPageRenderData;
+class  FSceneRenderer;
 
 namespace Nanite
 {
 
 struct FRasterResults;
+struct FRasterContext;
 
 struct FShadeBinning
 {
@@ -86,3 +90,20 @@ extern bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI);
 extern uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps);
 
 } // Nanite
+
+void DispatchLumenMeshCapturePass(
+	FRDGBuilder& GraphBuilder,
+	FScene& Scene,
+	FViewInfo* SharedView,
+	TArrayView<const FCardPageRenderData> CardPagesToRender,
+	const Nanite::FRasterResults& RasterResults,
+	const Nanite::FRasterContext& RasterContext,
+	FLumenCardPassUniformParameters* PassUniformParameters,
+	FRDGBufferSRVRef RectMinMaxBufferSRV,
+	uint32 NumRects,
+	FIntPoint ViewportSize,
+	FRDGTextureRef AlbedoAtlasTexture,
+	FRDGTextureRef NormalAtlasTexture,
+	FRDGTextureRef EmissiveAtlasTexture,
+	FRDGTextureRef DepthAtlasTexture
+);

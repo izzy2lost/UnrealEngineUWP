@@ -19,7 +19,6 @@ struct FShadeBinning;
 void ExtractShadingDebug(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
-	FRDGBufferRef MaterialIndirectArgs,
 	const FShadeBinning& ShadeBinning,
 	uint32 NumShadingBins
 );

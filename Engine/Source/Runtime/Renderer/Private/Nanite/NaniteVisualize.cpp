@@ -138,10 +138,6 @@ static bool VisualizationRequiresHiZDecode(int32 ModeID)
 	case NANITE_VISUALIZE_SCENE_Z_MAX:
 	case NANITE_VISUALIZE_SCENE_Z_DELTA:
 	case NANITE_VISUALIZE_SCENE_Z_DECODED:
-	case NANITE_VISUALIZE_MATERIAL_Z_MIN:
-	case NANITE_VISUALIZE_MATERIAL_Z_MAX:
-	case NANITE_VISUALIZE_MATERIAL_Z_DELTA:
-	case NANITE_VISUALIZE_MATERIAL_Z_DECODED:
 		return true;
 
 	default:
@@ -189,8 +185,6 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SceneZDecoded)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<FUint32Vector4>, SceneZLayout)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, MaterialZDecoded)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<FUint32Vector4>, MaterialZLayout)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, FastClearTileVis)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
 	END_SHADER_PARAMETER_STRUCT()
@@ -250,13 +244,9 @@ public:
 		SHADER_PARAMETER(FUint32Vector4, HTileConfig)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float>, SceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingMask)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(TextureMetadata, SceneHTileBuffer)
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(TextureMetadata, MaterialHTileBuffer)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, SceneZDecoded)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<FUint32Vector4>, SceneZLayout)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, MaterialZDecoded)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<FUint32Vector4>, MaterialZLayout)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -532,8 +522,6 @@ void DisplayPicking(const FScene* Scene, const FNanitePickingFeedback& PickingFe
 
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Material Index: %d"), PickingFeedback.MaterialIndex)), 10, FColor::Yellow);
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Material Count: %d"), PickingFeedback.MaterialCount)), 10, FColor::Yellow);
-	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Material Depth: %.6f"), *reinterpret_cast<const float*>(&PickingFeedback.MaterialDepthId))), 10, FColor::Yellow);
-	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Legacy Shading Id: %d"), PickingFeedback.LegacyShadingId)), 10, FColor::Yellow);
 
 	Writer.EmptyLine();
 
@@ -712,8 +700,6 @@ void AddVisualizationPasses(
 
 					FRDGTextureRef SceneZDecoded = SystemTextures.Black;
 					FRDGTextureRef SceneZLayout = DefaultUintVec4;
-					FRDGTextureRef MaterialZDecoded = SystemTextures.Black;
-					FRDGTextureRef MaterialZLayout = DefaultUintVec4;
 					if (bRequiresHiZDecode && UseComputeDepthExport())
 					{
 						const uint32 PixelsWide = uint32(ViewSize.X);
@@ -726,12 +712,6 @@ void AddVisualizationPasses(
 						FRDGTextureDesc SceneZLayoutDesc = FRDGTextureDesc::Create2D(ViewSize, PF_R32G32B32A32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
 						SceneZLayout = GraphBuilder.CreateTexture(SceneZLayoutDesc, TEXT("Nanite.SceneZLayout"));
 
-						FRDGTextureDesc MaterialZDecodedDesc = FRDGTextureDesc::Create2D(ViewSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
-						MaterialZDecoded = GraphBuilder.CreateTexture(MaterialZDecodedDesc, TEXT("Nanite.MaterialZDecoded"));
-
-						FRDGTextureDesc MaterialZLayoutDesc = FRDGTextureDesc::Create2D(ViewSize, PF_R32G32B32A32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
-						MaterialZLayout = GraphBuilder.CreateTexture(MaterialZLayoutDesc, TEXT("Nanite.MaterialZLayout"));
-
 						FDepthDecodeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDepthDecodeCS::FParameters>();
 						PassParameters->View = View.ViewUniformBuffer;
 						PassParameters->InViews = GraphBuilder.CreateSRV(Data.ViewsBuffer);
@@ -739,13 +719,9 @@ void AddVisualizationPasses(
 						PassParameters->HTileConfig = FUint32Vector4(PlatformConfig, PixelsWide, 0, 0);
 						PassParameters->SceneDepth = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMetaData(SceneTextures.Depth.Target, ERDGTextureMetaDataAccess::CompressedSurface));
 						PassParameters->ShadingMask = ShadingMask;
-						PassParameters->MaterialDepthTable = nullptr;
 						PassParameters->SceneHTileBuffer = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMetaData(SceneTextures.Depth.Target, ERDGTextureMetaDataAccess::HTile));
-						PassParameters->MaterialHTileBuffer = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMetaData(Data.MaterialDepth, ERDGTextureMetaDataAccess::HTile));
 						PassParameters->SceneZDecoded = GraphBuilder.CreateUAV(SceneZDecoded);
 						PassParameters->SceneZLayout = GraphBuilder.CreateUAV(SceneZLayout);
-						PassParameters->MaterialZDecoded = GraphBuilder.CreateUAV(MaterialZDecoded);
-						PassParameters->MaterialZLayout = GraphBuilder.CreateUAV(MaterialZLayout);
 
 						auto ComputeShader = View.ShaderMap->GetShader<FDepthDecodeCS>();
 						FComputeShaderUtils::AddPass(
@@ -809,8 +785,6 @@ void AddVisualizationPasses(
 						PassParameters->SceneDepth = SceneTextures.Depth.Target;
 						PassParameters->SceneZDecoded = SceneZDecoded;
 						PassParameters->SceneZLayout = SceneZLayout;
-						PassParameters->MaterialZDecoded = MaterialZDecoded;
-						PassParameters->MaterialZLayout = MaterialZLayout;
 						PassParameters->FastClearTileVis = GetFastClearTileVis(GraphBuilder);
 						PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(HitProxyIDBuffer);
 						PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
@@ -945,7 +919,6 @@ void RenderDebugViewMode(
 	PassParameters->VisBuffer64 = RasterResults.VisBuffer64;
 	PassParameters->SceneDepth = InputDepthTexture;
 	PassParameters->ShadingMask = RasterResults.ShadingMask;
-	//PassParameters->MaterialDepthTable = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u)); // TODO: Remove
 	PassParameters->DebugViewData = GraphBuilder.CreateSRV(Scene.GetExtension<Nanite::FMaterialsSceneExtension>().CreateDebugViewModeBuffer(GraphBuilder));
 	PassParameters->EditorSelectedHitProxyIds = GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
 	PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);

@@ -54,8 +54,7 @@ struct FNaniteVisibilityQuery
 {
 	void Init(
 		const FNaniteRasterPipelines* RasterPipelines,
-		const FNaniteShadingPipelines* ShadingPipelines,
-		const FNaniteMaterialCommands* MaterialCommands)
+		const FNaniteShadingPipelines* ShadingPipelines)
 	{
 		RasterBinCount = RasterPipelines->GetBinCount();
 		ShadingBinCount = ShadingPipelines->GetBinCount();
@@ -345,12 +344,10 @@ FNaniteVisibilityQuery* FNaniteVisibility::BeginVisibilityQuery(
 	const TConstArrayView<FConvexVolume>& ViewList,
 	const class FNaniteRasterPipelines* RasterPipelines,
 	const class FNaniteShadingPipelines* ShadingPipelines,
-	const class FNaniteMaterialCommands* MaterialCommands,
 	const UE::Tasks::FTask& PrerequisiteTask
 )
 {
 	check(RasterPipelines);
-	check(MaterialCommands);
 
 	if (!bCalledBegin || ViewList.IsEmpty() || GNaniteMaterialVisibility == 0)
 	{
@@ -369,10 +366,10 @@ FNaniteVisibilityQuery* FNaniteVisibility::BeginVisibilityQuery(
 
 	const UE::Tasks::EExtendedTaskPriority ExtendedTaskPriority = bRunAsync ? UE::Tasks::EExtendedTaskPriority::None : UE::Tasks::EExtendedTaskPriority::Inline;
 
-		VisibilityQuery->CompletedEvent = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, VisibilityQuery, RasterPipelines, ShadingPipelines, MaterialCommands]
-		{
-			VisibilityQuery->Init(RasterPipelines, ShadingPipelines, MaterialCommands);
-			PerformNaniteVisibility(PrimitiveReferences, VisibilityQuery);
+	VisibilityQuery->CompletedEvent = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, VisibilityQuery, RasterPipelines, ShadingPipelines]
+	{
+		VisibilityQuery->Init(RasterPipelines, ShadingPipelines);
+		PerformNaniteVisibility(PrimitiveReferences, VisibilityQuery);
 		VisibilityQuery->Finish();
 
 	}, MakeArrayView({ Scene.GetCacheNaniteMaterialBinsTask(), PrerequisiteTask }), UE::Tasks::ETaskPriority::Normal, ExtendedTaskPriority);
