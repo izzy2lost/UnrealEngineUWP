@@ -32,6 +32,11 @@ namespace UE
 		bool DidDetectLaunch = false;
 
 		/// <summary>
+		/// Log idle timeout in seconds
+		/// </summary>
+		private float kTimeOutDuration = 10 * 60;
+
+		/// <summary>
 		/// Default constructor
 		/// </summary>
 		/// <param name="InContext"></param>
@@ -52,6 +57,12 @@ namespace UE
 			if (string.IsNullOrEmpty(GetCompletionString()))
 			{
 				Client.CommandLineParams.Add("ExecCmds", "Automation SoftQuit");
+			}
+
+			float logIdleTimeout = Globals.Params.ParseValue("LogIdleTimeout", kTimeOutDuration);
+			if (logIdleTimeout > 0)
+			{
+				kTimeOutDuration = logIdleTimeout;
 			}
 
 			return Config;
@@ -94,8 +105,6 @@ namespace UE
 		/// </summary>
 		public override void TickTest()
 		{
-			const int kTimeOutDuration = 10;
-
 			// run the base class tick;
 			base.TickTest();
 
@@ -115,9 +124,9 @@ namespace UE
 
 			// Gauntlet will timeout tests based on the -timeout argument, but we have greater insight here so can bail earlier to save
 			// tests from idling on the farm needlessly.
-			if ((DateTime.Now - LastLogTime).TotalMinutes > kTimeOutDuration)
+			if ((DateTime.Now - LastLogTime).TotalSeconds > kTimeOutDuration)
 			{
-				Log.Error("No logfile activity observed in last {0} minutes. Ending test", kTimeOutDuration);
+				Log.Error("No logfile activity observed in last {Time:0.00} minutes. Ending test", kTimeOutDuration / 60);
 				MarkTestComplete();
 				SetUnrealTestResult(TestResult.TimedOut);
 			}
