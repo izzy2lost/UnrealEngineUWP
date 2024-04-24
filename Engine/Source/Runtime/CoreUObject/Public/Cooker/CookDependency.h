@@ -329,7 +329,7 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 	case ECookDependency::TransitiveBuild:
 	{
 		// FName.Compare is lexical and case-insensitive, which is what we want
-		int32 Compare = TransitiveBuildData.PackageName.Compare(Other.TransitiveBuildData.PackageName) < 0;
+		int32 Compare = TransitiveBuildData.PackageName.Compare(Other.TransitiveBuildData.PackageName);
 		if (Compare != 0)
 		{
 			return Compare < 0;
