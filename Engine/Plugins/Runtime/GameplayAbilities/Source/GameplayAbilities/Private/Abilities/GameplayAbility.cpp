@@ -127,6 +127,13 @@ int32 UGameplayAbility::GetFunctionCallspace(UFunction* Function, FFrame* Stack)
 
 bool UGameplayAbility::CallRemoteFunction(UFunction* Function, void* Parameters, FOutParmRec* OutParms, FFrame* Stack)
 {
+	// Make sure we are not invalid when being called
+	if (!IsValid(this))
+	{
+		ABILITY_LOG(Warning, TEXT("%s:CallRemoteFunction called while 'this' was invalid. Skipping the rest of the code."), *GetPathName());
+		return false;
+	}
+
 	check(!HasAnyFlags(RF_ClassDefaultObject));
 	check(GetOuter() != nullptr);
 
