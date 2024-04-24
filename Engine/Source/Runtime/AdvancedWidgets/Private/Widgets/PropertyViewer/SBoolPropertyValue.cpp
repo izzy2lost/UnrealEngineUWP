@@ -42,9 +42,9 @@ void SBoolPropertyValue::Construct(const FArguments& InArgs)
 
 ECheckBoxState SBoolPropertyValue::HandleIsChecked() const
 {
-	if (const FBoolProperty* Property = CastField<const FBoolProperty>(Path.GetLastProperty()))
+	if (const void* Container = Path.GetContainerPtr())
 	{
-		if (const void* Container = Path.GetContainerPtr())
+		if (const FBoolProperty* Property = CastField<const FBoolProperty>(Path.GetLastProperty()))
 		{
 			const bool bValue = Property->GetPropertyValue_InContainer(Container);
 			return bValue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
@@ -56,9 +56,9 @@ ECheckBoxState SBoolPropertyValue::HandleIsChecked() const
 
 void SBoolPropertyValue::HandleCheckStateChanged(ECheckBoxState NewState)
 {
-	if (const FBoolProperty* Property = CastField<const FBoolProperty>(Path.GetLastProperty()))
+	if (void* Container = Path.GetContainerPtr())
 	{
-		if (void* Container = Path.GetContainerPtr())
+		if (const FBoolProperty* Property = CastField<const FBoolProperty>(Path.GetLastProperty()))
 		{
 			if (NotifyHook)
 			{

@@ -46,31 +46,25 @@ void SStringPropertyValue::Construct(const FArguments& InArgs)
 
 FText SStringPropertyValue::GetText() const
 {
-	if (const FStrProperty* StrProperty = CastField<const FStrProperty>(Path.GetLastProperty()))
+	if (const void* Container = Path.GetContainerPtr())
 	{
-		if (const void* Container = Path.GetContainerPtr())
+		if (const FStrProperty* StrProperty = CastField<const FStrProperty>(Path.GetLastProperty()))
 		{
-			FString OutString;
-			StrProperty->GetValue_InContainer(Container, &OutString);
-			return FText::FromString(OutString);
+				FString OutString;
+				StrProperty->GetValue_InContainer(Container, &OutString);
+				return FText::FromString(OutString);
 		}
-	}
-	else if (const FTextProperty* TextProperty = CastField<const FTextProperty>(Path.GetLastProperty()))
-	{
-		if (const void* Container = Path.GetContainerPtr())
+		else if (const FTextProperty* TextProperty = CastField<const FTextProperty>(Path.GetLastProperty()))
 		{
-			FText OutText;
-			TextProperty->GetValue_InContainer(Container, &OutText);
-			return OutText;
+				FText OutText;
+				TextProperty->GetValue_InContainer(Container, &OutText);
+				return OutText;
 		}
-	}
-	else if (const FNameProperty* NameProperty = CastField<const FNameProperty>(Path.GetLastProperty()))
-	{
-		if (const void* Container = Path.GetContainerPtr())
+		else if (const FNameProperty* NameProperty = CastField<const FNameProperty>(Path.GetLastProperty()))
 		{
-			FName OutText;
-			NameProperty->GetValue_InContainer(Container, &OutText);
-			return FText::FromName(OutText);
+				FName OutText;
+				NameProperty->GetValue_InContainer(Container, &OutText);
+				return FText::FromName(OutText);
 		}
 	}
 	return FText::GetEmpty();
@@ -79,9 +73,9 @@ FText SStringPropertyValue::GetText() const
 
 void SStringPropertyValue::OnTextCommitted(const FText& InText, ETextCommit::Type InCommitType)
 {
-	if (const FStrProperty* StrProperty = CastField<const FStrProperty>(Path.GetLastProperty()))
+	if (void* Container = Path.GetContainerPtr())
 	{
-		if (void* Container = Path.GetContainerPtr())
+		if (const FStrProperty* StrProperty = CastField<const FStrProperty>(Path.GetLastProperty()))
 		{
 			FString ToSet = InText.ToString();
 			if (NotifyHook)
@@ -93,11 +87,8 @@ void SStringPropertyValue::OnTextCommitted(const FText& InText, ETextCommit::Typ
 			{
 				NotifyHook->OnPostValueChange(Path);
 			}
-		}
-	}
-	else if (const FTextProperty* TextProperty = CastField<const FTextProperty>(Path.GetLastProperty()))
-	{
-		if (void* Container = Path.GetContainerPtr())
+			}
+		else if (const FTextProperty* TextProperty = CastField<const FTextProperty>(Path.GetLastProperty()))
 		{
 			if (NotifyHook)
 			{
@@ -109,10 +100,7 @@ void SStringPropertyValue::OnTextCommitted(const FText& InText, ETextCommit::Typ
 				NotifyHook->OnPostValueChange(Path);
 			}
 		}
-	}
-	else if (const FNameProperty* NameProperty = CastField<const FNameProperty>(Path.GetLastProperty()))
-	{
-		if (void* Container = Path.GetContainerPtr())
+		else if (const FNameProperty* NameProperty = CastField<const FNameProperty>(Path.GetLastProperty()))
 		{
 			FName ToSet = *(InText.ToString());
 			if (NotifyHook)
