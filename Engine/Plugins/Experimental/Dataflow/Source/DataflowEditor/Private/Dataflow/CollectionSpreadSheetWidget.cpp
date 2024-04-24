@@ -115,6 +115,11 @@ namespace CollectionSpreadSheetHelpers
 			return FString("<Unknown Attribute>");
 		}
 
+		if (InIdxColumn < 0 || Array->Num() <= InIdxColumn)
+		{
+			return FString("<Index out of bounds>");
+		}
+
 		return AttributeValueToString((*Array)[InIdxColumn]);
 	}
 
