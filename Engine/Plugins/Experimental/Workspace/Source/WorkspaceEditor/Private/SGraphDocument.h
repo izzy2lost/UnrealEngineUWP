@@ -41,6 +41,9 @@ class SGraphDocument : public SCompoundWidget
 	SLATE_EVENT(FOnCanPerformActionOnSelectedNodes, OnCanDuplicateSelectedNodes)
 	SLATE_EVENT(FOnDuplicateSelectedNodes, OnDuplicateSelectedNodes)
 
+	SLATE_EVENT(FSimpleDelegate, OnNavigateHistoryBack)
+	SLATE_EVENT(FSimpleDelegate, OnNavigateHistoryForward)
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedRef<FWorkspaceEditor> InHostingApp, UEdGraph* InGraph);

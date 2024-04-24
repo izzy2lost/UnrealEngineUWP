@@ -54,6 +54,8 @@ void SGraphDocument::Construct(const FArguments& InArgs, TSharedRef<FWorkspaceEd
 		.GraphToEdit(InGraph)
 		.GraphEvents(Events)
 		.AssetEditorToolkit(HostingAppPtr)
+		.OnNavigateHistoryBack(InArgs._OnNavigateHistoryBack)		
+		.OnNavigateHistoryForward(InArgs._OnNavigateHistoryForward)
 	];
 }
 
