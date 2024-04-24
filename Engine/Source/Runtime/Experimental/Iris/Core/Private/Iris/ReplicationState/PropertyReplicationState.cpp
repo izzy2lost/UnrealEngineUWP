@@ -15,8 +15,11 @@
 #include "UObject/UnrealType.h"
 #include "UObject/PropertyPortFlags.h"
 #include "Containers/StringFwd.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogIrisRepNotify, Warning, All);
+
+CSV_DECLARE_CATEGORY_EXTERN(IrisClient);
 
 namespace UE::Net
 {
@@ -476,6 +479,8 @@ void FPropertyReplicationState::CallRepNotifies(void* RESTRICT DstData, const FC
 
 				if (bShouldCallRepNotify)
 				{
+					CSV_CUSTOM_STAT(IrisClient, RepNotifyCount, 1, ECsvCustomStatOp::Accumulate);
+
 					// We only want to call RepNotify once for c-arrays
 					LastPropertyWithRepNotify = Property;
 					Object->ProcessEvent(const_cast<UFunction*>(RepNotifyFunction), const_cast<uint8*>(PrevValuePtr));

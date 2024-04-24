@@ -37,7 +37,7 @@
 
 #define UE_LOG_REPLICATIONREADER_CONN_WARNING(Format, ...) UE_LOG(LogIris, Warning, TEXT("Conn: %u ") Format, Parameters.ConnectionId, ##__VA_ARGS__)
 
-CSV_DEFINE_CATEGORY(IrisClient, true);
+CSV_DECLARE_CATEGORY_EXTERN(IrisClient);
 
 namespace UE::Net::Private
 {
