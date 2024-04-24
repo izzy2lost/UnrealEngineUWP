@@ -1434,13 +1434,27 @@ void UPCGSubsystem::DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool
 					return true;
 				});
 
+				// Process Loaded Actors first (and unsaved actors that don't have an Actor Desc yet)
+				// Do not use UPCGActorHelpers::ForEachActorInLevel as GatherAndDestroy can end up modifying the Actors array (by loading actors) in a WP World
+				TSet<FGuid> ProcessedActors;
+				const TArray<AActor*> ActorsCopy(World->PersistentLevel->Actors);
+				for (AActor* Actor : ActorsCopy)
+				{
+					if (APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(Actor))
+					{
+						ProcessedActors.Add(Actor->GetActorGuid());
+						GatherAndDestroyActors(Actor);
+					}
+				}
+				
 				FWorldPartitionHelpers::FForEachActorWithLoadingParams ForEachActorWithLoadingParams;
 				ForEachActorWithLoadingParams.bKeepReferences = true;
 				ForEachActorWithLoadingParams.ActorClasses = { APCGPartitionActor::StaticClass() };
 
-				FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&](const FWorldPartitionActorDescInstance* ActorDescInstance)
+				// Load and Process remaining actors
+				FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&GatherAndDestroyActors, &ProcessedActors](const FWorldPartitionActorDescInstance* ActorDescInstance)
 				{
-					if(AActor* Actor = ActorDescInstance->GetActor())
+					if(AActor* Actor = ActorDescInstance->GetActor(); Actor && !ProcessedActors.Contains(Actor->GetActorGuid()))
 					{
 						GatherAndDestroyActors(Actor);
 					}
