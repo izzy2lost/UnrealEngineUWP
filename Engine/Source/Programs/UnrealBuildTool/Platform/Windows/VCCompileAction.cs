@@ -201,6 +201,9 @@ namespace UnrealBuildTool
 
 		/// <inheritdoc/>
 		public double Weight { get; set; } = 1.0;
+
+		/// <inheritdoc/>
+		public bool bShouldOutputLog { get; set; } = true;
 		#endregion
 
 		#region Implementation of IAction

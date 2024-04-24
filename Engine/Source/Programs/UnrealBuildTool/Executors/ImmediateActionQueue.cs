@@ -1160,7 +1160,7 @@ namespace UnrealBuildTool
 				s_previousLineLength = message.Length;
 
 				_writeToolOutput(message);
-				if (logLines != null)
+				if (logLines != null && action.bShouldOutputLog)
 				{
 					foreach (string Line in logLines.Skip(action.bShouldOutputStatusDescription ? 0 : 1))
 					{

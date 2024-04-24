@@ -167,6 +167,12 @@ namespace UnrealBuildTool
 		bool bShouldOutputStatusDescription { get; }
 
 		/// <summary>
+		/// Whether we should output log of this action, whether executed locally or remotely.  This is useful for actions that spam
+		/// logs to console output with non critical data
+		/// </summary>
+		bool bShouldOutputLog { get; }
+
+		/// <summary>
 		/// True if any libraries produced by this action should be considered 'import libraries'
 		/// </summary>
 		bool bProducesImportLibrary { get; }
@@ -294,6 +300,9 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool bShouldOutputStatusDescription { get; set; } = true;
 
+		/// <inheritdoc/>
+		public bool bShouldOutputLog { get; set; } = true;
+
 		/// <summary>
 		/// True if any libraries produced by this action should be considered 'import libraries'
 		/// </summary>
@@ -345,6 +354,7 @@ namespace UnrealBuildTool
 			bCanExecuteInUBA = InOther.bCanExecuteInUBA;
 			bIsGCCCompiler = InOther.bIsGCCCompiler;
 			bShouldOutputStatusDescription = InOther.bShouldOutputStatusDescription;
+			bShouldOutputLog = InOther.bShouldOutputLog;
 			bProducesImportLibrary = InOther.bProducesImportLibrary;
 			bUseActionHistory = InOther.bUseActionHistory;
 			bIsHighPriority = InOther.bIsHighPriority;
@@ -367,6 +377,7 @@ namespace UnrealBuildTool
 			bCanExecuteInUBA = Reader.ReadBool();
 			bIsGCCCompiler = Reader.ReadBool();
 			bShouldOutputStatusDescription = Reader.ReadBool();
+			bShouldOutputLog = Reader.ReadBool();
 			bProducesImportLibrary = Reader.ReadBool();
 			PrerequisiteItems = Reader.ReadSortedSet(() => Reader.ReadFileItem())!;
 			ProducedItems = Reader.ReadSortedSet(() => Reader.ReadFileItem())!;
@@ -398,6 +409,7 @@ namespace UnrealBuildTool
 			Writer.WriteBool(bCanExecuteInUBA);
 			Writer.WriteBool(bIsGCCCompiler);
 			Writer.WriteBool(bShouldOutputStatusDescription);
+			Writer.WriteBool(bShouldOutputLog);
 			Writer.WriteBool(bProducesImportLibrary);
 			Writer.WriteSortedSet(PrerequisiteItems, Item => Writer.WriteFileItem(Item));
 			Writer.WriteSortedSet(ProducedItems, Item => Writer.WriteFileItem(Item));
@@ -480,6 +492,11 @@ namespace UnrealBuildTool
 			if (Object.TryGetBoolField("bShouldOutputStatusDescription", out bool bShouldOutputStatusDescription))
 			{
 				Action.bShouldOutputStatusDescription = bShouldOutputStatusDescription;
+			}
+
+			if (Object.TryGetBoolField("bShouldOutputLog", out bool bShouldOutputLog)) 
+			{
+				Action.bShouldOutputLog= bShouldOutputLog;
 			}
 
 			if (Object.TryGetBoolField("bProducesImportLibrary", out bool bProducesImportLibrary))
@@ -580,6 +597,7 @@ namespace UnrealBuildTool
 			Writer.WriteValue("bCanExecuteInUBA", Action.bCanExecuteInUBA);
 			Writer.WriteValue("bIsGCCCompiler", Action.bIsGCCCompiler);
 			Writer.WriteValue("bShouldOutputStatusDescription", Action.bShouldOutputStatusDescription);
+			Writer.WriteValue("bShouldOutputLog", Action.bShouldOutputLog);
 			Writer.WriteValue("bProducesImportLibrary", Action.bProducesImportLibrary);
 			Writer.WriteValue("Weight", Action.Weight);
 
@@ -710,6 +728,7 @@ namespace UnrealBuildTool
 		public bool bCanExecuteInUBA => Inner.bCanExecuteInUBA;
 		public bool bIsGCCCompiler => Inner.bIsGCCCompiler;
 		public bool bShouldOutputStatusDescription => Inner.bShouldOutputStatusDescription;
+		public bool bShouldOutputLog => Inner.bShouldOutputLog;
 		public bool bProducesImportLibrary => Inner.bProducesImportLibrary;
 		public bool bUseActionHistory => Inner.bUseActionHistory;
 		public bool bIsHighPriority => IsHighPriority != 0;
