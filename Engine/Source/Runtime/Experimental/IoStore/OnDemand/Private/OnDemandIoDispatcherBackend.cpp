@@ -1258,7 +1258,7 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 {
 	using namespace UE::Tasks;
 
-	FOnDemandChunkInfo ChunkInfo = IoStore.GetChunkInfo(Request->ChunkId);
+	FOnDemandChunkInfo ChunkInfo = IoStore.GetStreamingChunkInfo(Request->ChunkId);
 	if (!ChunkInfo.IsValid())
 	{
 		return false;
@@ -1387,7 +1387,7 @@ TIoStatusOr<uint64> FOnDemandIoBackend::GetSizeForChunk(const FIoChunkId& ChunkI
 {
 	OutAvailable = 0;
 
-	const FOnDemandChunkInfo ChunkInfo = IoStore.GetChunkInfo(ChunkId);
+	const FOnDemandChunkInfo ChunkInfo = IoStore.GetStreamingChunkInfo(ChunkId);
 	if (ChunkInfo.IsValid() == false)
 	{
 		return FIoStatus(EIoErrorCode::UnknownChunkID);

@@ -7,6 +7,7 @@
 #include "IO/IoContainerId.h"
 #include "IO/IoHash.h"
 #include "IO/IoStatus.h"
+#include "Misc/EnumClassFlags.h"
 #include "Misc/Guid.h"
 #include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointer.h"
@@ -344,6 +345,18 @@ enum class EOnDemandInitResult
 
 #endif // UE_IAS_CUSTOM_INITIALIZATION
 
+/** Options for controlling the behavior of mount requests. */
+enum class EOnDemandMountOptions
+{
+	/** The TOC is loaded but not installed or available for streaming. */
+	None			= 0,
+	/** Make on-demand container(s) within a TOC available for streaming. */
+	StreamOnDemand	= 1 << 0,
+	/** Download and install on-demand contianer(s) to local storage. */
+	Install			= 1 << 1
+};
+ENUM_CLASS_FLAGS(EOnDemandMountOptions);
+
 struct FOnDemandMountArgs
 {
 	/** Mount an already serialized TOC. */
@@ -356,8 +369,8 @@ struct FOnDemandMountArgs
 	FString FilePath;
 	/** Directory path for any additonal content downloaded as part of the TOC. */
 	FString InstallDirectory;
-	/** Whether to download and install container chunks to local storage. */
-	bool bInstall = true;
+	/** Mount options. */
+	EOnDemandMountOptions Options;
 };
 
 struct FOnDemandMountResult

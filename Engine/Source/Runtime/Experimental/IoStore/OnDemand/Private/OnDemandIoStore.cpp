@@ -2,6 +2,8 @@
 
 #include "OnDemandIoStore.h"
 #include "OnDemandHttpClient.h"
+#include "OnDemandInstallCache.h"
+#include "OnDemandPackageStoreBackend.h"
 
 #include "Algo/RemoveIf.h"
 #include "Algo/Transform.h"
@@ -14,12 +16,24 @@
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
+#include "IO/IoContainerHeader.h"
+#include "IO/PackageStore.h"
+#include "Misc/CommandLine.h"
 #include "Misc/CoreDelegatesInternal.h"
 #include "Misc/EncryptionKeyManager.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Serialization/MemoryReader.h"
+
+///////////////////////////////////////////////////////////////////////////////
+bool GIoStoreOnDemandInstallCacheEnabled = true;
+static FAutoConsoleVariableRef CVar_IoStoreOnDemandInstallCacheEnabled (
+	TEXT("iostore.OnDemandInstallCacheEnabled"),
+	GIoStoreOnDemandInstallCacheEnabled,
+	TEXT("Whether the on-demand install cache is enabled."),
+	ECVF_ReadOnly
+);
 
 namespace UE::IoStore
 {
@@ -29,6 +43,11 @@ extern FString GIasOnDemandTocExt;
 ///////////////////////////////////////////////////////////////////////////////
 namespace Private
 {
+
+static FString GetInstallCacheDirectory()
+{
+	return FPaths::ProjectPersistentDownloadDir() / TEXT("IoStore") / TEXT("InstallCache");
+}
 
 static void SplitHostUrl(const FStringView& Url, FStringView& OutHost, FStringView& OutRemainder)
 {
@@ -77,7 +96,52 @@ static TUniquePtr<FArchive> CreateReaderFromPlatformPackage(const FString& RelPa
 } // namespace UE::IoStore::Private
 
 ///////////////////////////////////////////////////////////////////////////////
+void LexToString(EOnDemandContainerFlags Flags, FStringBuilderBase& Out)
+{
+	static const TCHAR* Names[]
+	{
+		TEXT("None"),
+		TEXT("PendingEncryptionKey"),
+		TEXT("Mounted"),
+		TEXT("Streaming"),
+		TEXT("Installed")
+	};
+
+	if (Flags == EOnDemandContainerFlags::None)
+	{
+		Out << TEXT("None");
+		return;
+	}
+
+	for (int32 Idx = 0, Count = int32(EOnDemandContainerFlags::Count); Idx < Count; ++Idx)
+	{
+		const EOnDemandContainerFlags FlagToTest = static_cast<EOnDemandContainerFlags>(1 << Idx);
+		if (EnumHasAnyFlags(Flags, FlagToTest))
+		{
+			if (Out.Len())
+			{
+				Out << TEXT("|");
+			}
+			Out << Names[Idx + 1];
+		}
+	}
+}
+
+FString LexToString(EOnDemandContainerFlags Flags)
+{
+	TStringBuilder<128> Sb;
+	LexToString(Flags, Sb);
+	return FString(Sb.ToString(), Sb.Len());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 const FOnDemandChunkEntry FOnDemandChunkEntry::Null = {};
+
+///////////////////////////////////////////////////////////////////////////////
+FString FOnDemandContainer::UniqueName() const
+{
+	return FString::Printf(TEXT("%s-%s"), *MountId, *Name);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 FOnDemandIoStore::FOnDemandIoStore()
@@ -102,6 +166,39 @@ FOnDemandIoStore::~FOnDemandIoStore()
 
 FIoStatus FOnDemandIoStore::Initialize()
 {
+	bool bUseInstallCache = GIoStoreOnDemandInstallCacheEnabled;
+#if !UE_BUILD_SHIPPING
+	bUseInstallCache = FParse::Param(FCommandLine::Get(), TEXT("NoIAD")) == false;
+#endif
+	if (bUseInstallCache)
+	{
+		FOnDemandInstallCacheConfig CacheConfig;
+		CacheConfig.RootDirectory = Private::GetInstallCacheDirectory(); 
+#if !UE_BUILD_SHIPPING
+		CacheConfig.bDropCache = FParse::Param(FCommandLine::Get(), TEXT("Iad.DropCache"));
+#endif
+		InstallCache = MakeOnDemandInstallCache(*this, CacheConfig);
+		if (InstallCache.IsValid())
+		{
+			int32 BackendPriority = -5; // Lower than file (zero) but higher than streaming backend (-10)
+#if !UE_BUILD_SHIPPING
+			if (FParse::Param(FCommandLine::Get(), TEXT("Iad")))
+			{
+				// Bump the priority to be higher then the file system backend
+				BackendPriority = 5;
+			}
+#endif
+			FIoDispatcher::Get().Mount(InstallCache.ToSharedRef(), BackendPriority);
+			PackageStoreBackend = MakeOnDemandPackageStoreBackend();
+			FPackageStore::Get().Mount(PackageStoreBackend.ToSharedRef());
+		}
+		else
+		{
+			// Only warn until this is properly tested
+			UE_LOG(LogIoStoreOnDemand, Warning, TEXT("Failed to initialize install cache"));
+		}
+	}
+
 	OnMountPakHandle = FCoreInternalDelegates::GetOnPakMountOperation().AddLambda(
 		[this](EMountOperation Operation, const TCHAR* ContainerPath, int32 Order) -> void
 		{
@@ -146,10 +243,10 @@ FIoStatus FOnDemandIoStore::Initialize()
 	);
 
 	{
-		IPlatformFile& Ipf = IPlatformFile::GetPlatformPhysical();
 		FCurrentlyMountedPaksDelegate& Delegate = FCoreInternalDelegates::GetCurrentlyMountedPaksDelegate();
 		if (Delegate.IsBound())
 		{
+			IPlatformFile& Ipf = IPlatformFile::GetPlatformPhysical();
 			TArray<FMountedPakInfo> PakInfo = Delegate.Execute();
 			for (const FMountedPakInfo& Info : PakInfo)
 			{
@@ -172,10 +269,10 @@ FIoStatus FOnDemandIoStore::Initialize()
 					}));
 				}
 			}
-		}
 
-		// Process mount requests synchronously at startup
-		TickLoop();
+			// Process mount requests synchronously at startup
+			TickLoop();
+		}
 	}
 
 	return EIoErrorCode::Ok;
@@ -240,7 +337,17 @@ FIoStatus FOnDemandIoStore::Unmount(FStringView MountId)
 	return EIoErrorCode::Ok;
 }
 
-FOnDemandChunkInfo FOnDemandIoStore::GetChunkInfo(const FIoChunkId& ChunkId)
+FOnDemandChunkInfo FOnDemandIoStore::GetStreamingChunkInfo(const FIoChunkId& ChunkId)
+{
+	return GetChunkInfo(ChunkId, EOnDemandContainerFlags::Mounted | EOnDemandContainerFlags::Streaming);
+}
+
+FOnDemandChunkInfo FOnDemandIoStore::GetInstalledChunkInfo(const FIoChunkId& ChunkId)
+{
+	return GetChunkInfo(ChunkId, EOnDemandContainerFlags::Mounted | EOnDemandContainerFlags::Installed);
+}
+
+FOnDemandChunkInfo FOnDemandIoStore::GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags)
 {
 	TUniqueLock Lock(ContainerMutex);
 
@@ -323,13 +430,25 @@ void FOnDemandIoStore::Tick()
 			}
 		}
 
+		TStringBuilder<128> Sb;
 		TIoStatusOr<FOnDemandMountResult> MountStatus;
 		if (Status.IsOk())
 		{
 			UE::TUniqueLock Lock(ContainerMutex);
 			for (const FSharedOnDemandContainer& Container : Request->Containers)
 			{
+				if (EnumHasAnyFlags(Request->MountArgs.Options, EOnDemandMountOptions::StreamOnDemand))
+				{
+					EnumAddFlags(Container->Flags, EOnDemandContainerFlags::Streaming);
+				}
+
+				if (EnumHasAnyFlags(Container->Flags, EOnDemandContainerFlags::Mounted))
+				{
+					continue;
+				}
+
 				Containers.Add(Container);
+
 				if (Container->EncryptionKeyGuid.IsEmpty() == false)
 				{
 					FGuid KeyGuid;
@@ -343,8 +462,11 @@ void FOnDemandIoStore::Tick()
 					}
 				}
 
-				UE_LOG(LogIoStoreOnDemand, Log, TEXT("Mounting container '%s' (%d entries)"),
-					*Container->Name, Container->ChunkEntries.Num());
+				Sb.Reset();
+				LexToString(Container->Flags, Sb);
+				UE_LOG(LogIoStoreOnDemand, Log, TEXT("Mounting container '%s', Entries=%d, Flags='%s'"),
+					*Container->Name, Container->ChunkEntries.Num(), Sb.ToString());
+
 				EnumAddFlags(Container->Flags, EOnDemandContainerFlags::Mounted);
 			}
 
@@ -365,13 +487,13 @@ void FOnDemandIoStore::Tick()
 
 FIoStatus FOnDemandIoStore::ProcessMountRequest(FMountRequest& MountRequest)
 {
-	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Processing mount request, MountId='%s'"), *MountRequest.MountArgs.MountId);
+	UE_LOG(LogIoStoreOnDemand, Verbose, TEXT("Processing mount request, MountId='%s'"), *MountRequest.MountArgs.MountId);
 
 	FOnDemandMountArgs& Args = MountRequest.MountArgs;
 	FStringView Host, TocRelUrl;
 	Private::SplitHostUrl(Args.Url, Host, TocRelUrl);
 	const FStringView TocPath = FPathViews::GetPath(TocRelUrl);
-	
+
 	if (Args.Toc.IsSet())
 	{
 		CreateContainersFromToc(Args.MountId, TocPath, Args.Toc.GetValue(), MountRequest.Containers);
@@ -444,42 +566,14 @@ FIoStatus FOnDemandIoStore::ProcessMountRequest(FMountRequest& MountRequest)
 			return FIoStatusBuilder(EIoErrorCode::InvalidParameter) << TEXT("No valid host URL");
 		}
 
-		FHttpClientConfig HttpCfg;
-		HttpCfg.Endpoints.Add(FString(Host));
-		HttpCfg.PrimaryEndpoint = 0; 
-		HttpCfg.MaxRetryCount = 2;
-		TUniquePtr<FHttpClient> Client = FHttpClient::Create(MoveTemp(HttpCfg));
-
-		TAnsiStringBuilder<256> Url;
-		if (!TocRelUrl.StartsWith(TCHAR('/')))
+		TIoStatusOr<FIoBuffer> Response = FHttpClient::Get(Args.Url, 2, EHttpRedirects::Follow);
+		if (Response.IsOk() == false)
 		{
-			Url << "/";
-		}
-		Url << TocRelUrl;
-
-		FIoBuffer Body;
-		FIoStatus HttpStatus;
-		Client->Get(Url.ToView(), [&Body, &HttpStatus](TIoStatusOr<FIoBuffer> Response, uint64)
-			{
-				if (Response.IsOk())
-				{
-					Body = Response.ConsumeValueOrDie();
-				}
-				else
-				{
-					HttpStatus = Response.Status();
-				}
-			});
-
-		while (Client->Tick());
-
-		if (HttpStatus.IsOk() == false)
-		{
-			return HttpStatus;
+			return FIoStatusBuilder(EIoErrorCode::InvalidCode) << TEXT("Failed to fetch TOC from URL");
 		}
 
 		FOnDemandToc Toc;
-		FMemoryReaderView Ar(Body.GetView());
+		FMemoryReaderView Ar(Response.ValueOrDie().GetView());
 		Ar << Toc;
 
 		if (Ar.IsError() || Ar.IsCriticalError())
@@ -489,9 +583,30 @@ FIoStatus FOnDemandIoStore::ProcessMountRequest(FMountRequest& MountRequest)
 
 		CreateContainersFromToc(Args.MountId, TocPath, Toc, MountRequest.Containers);
 	}
-	else
+
+	if (MountRequest.Containers.IsEmpty())
 	{
-		return FIoStatusBuilder(EIoErrorCode::InvalidParameter) << TEXT("Invalid mount arguments");
+		UE::TUniqueLock Lock(ContainerMutex);
+		for (FSharedOnDemandContainer& Container : Containers)
+		{
+			if (Container->MountId == Args.MountId)
+			{
+				MountRequest.Containers.Add(Container);
+			}
+		}
+	}
+
+	if (EnumHasAnyFlags(Args.Options, EOnDemandMountOptions::Install))
+	{
+		if (InstallCache.IsValid() == false || PackageStoreBackend.IsValid() == false)
+		{
+			return FIoStatusBuilder(EIoErrorCode::InvalidCode) << TEXT("Install cache not configured");
+		}
+
+		if (FIoStatus Status = InstallContainers(Args.Url, MountRequest.Containers); !Status.IsOk())
+		{
+			return Status;
+		}
 	}
 
 	return EIoErrorCode::Ok;
@@ -510,8 +625,8 @@ void FOnDemandIoStore::OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey
 
 			if (FEncryptionKeyManager::Get().TryGetKey(KeyGuid, Container->EncryptionKey))
 			{
-				UE_LOG(LogIoStoreOnDemand, Log, TEXT("Mounting container '%s' (%d entries)"),
-					*WriteToString<128>(Container->Name), Container->ChunkEntries.Num());
+				UE_LOG(LogIoStoreOnDemand, Log, TEXT("Mounting container '%s', Entries=%d, Flags='%s'"),
+					*Container->Name, Container->ChunkEntries.Num(), *LexToString(Container->Flags));
 
 				EnumRemoveFlags(Container->Flags, EOnDemandContainerFlags::PendingEncryptionKey);
 				EnumAddFlags(Container->Flags, EOnDemandContainerFlags::Mounted);
@@ -584,6 +699,146 @@ void FOnDemandIoStore::CreateContainersFromToc(
 
 		Out.Add(MoveTemp(Container));
 	}
+}
+
+FIoStatus FOnDemandIoStore::InstallContainers(
+	const FString& Url,
+	const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall)
+{
+	FStringView Host, TocRelUrl;
+	Private::SplitHostUrl(Url, Host, TocRelUrl);
+	const FStringView TocPath = FPathViews::GetPath(TocRelUrl);
+	auto AnsiTocPath = StringCast<ANSICHAR>(TocPath.GetData(), TocPath.Len());
+
+	TAnsiStringBuilder<512> ChunkUrl;
+	for (const FSharedOnDemandContainer& Container : ContainersToInstall)
+	{
+		if (EnumHasAnyFlags(Container->Flags, EOnDemandContainerFlags::Installed))
+		{
+			UE_LOG(LogIoStoreOnDemand, Log, TEXT("Container '%s' is already installed, MountId='%s'"),
+				*Container->Name, *Container->MountId);
+			continue;
+		}
+
+		auto GetChunkUrl = [&AnsiTocPath, &Container](const FOnDemandChunkEntry& Entry, FAnsiStringBuilderBase& OutUrl) -> FAnsiStringBuilderBase&
+		{
+			OutUrl.Reset();
+			if (Container->ChunksDirectory.IsEmpty())
+			{
+				OutUrl << AnsiTocPath << "/" << "chunks";
+			}
+			else
+			{
+				OutUrl.Append(Container->ChunksDirectory);
+			}
+
+			const FString HashString = LexToString(Entry.Hash);
+			OutUrl << "/" << HashString.Left(2) << "/" << HashString << ".iochunk";
+
+			return OutUrl;
+		};
+
+		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Installing container, Name='%s', MountId='%s'"),
+			*Container->Name, *Container->MountId);
+
+		FIoContainerHeader ContainerHeader;
+
+		const FIoChunkId HeaderChunkId = CreateContainerHeaderChunkId(Container->ContainerId);
+		if (const FOnDemandChunkEntry* Entry = Container->ChunkEntries.Find(HeaderChunkId))
+		{
+			TIoStatusOr<FIoBuffer> Response = FHttpClient::Get(GetChunkUrl(*Entry, ChunkUrl).ToView(), 2, EHttpRedirects::Follow);
+			if (Response.IsOk() == false)
+			{
+				return FIoStatusBuilder(EIoErrorCode::InvalidCode) << TEXT("Failed to fetch container header chunk from URL");
+			}
+
+			FMemoryReaderView Ar(Response.ValueOrDie().GetView());
+			if (Ar.IsError() || Ar.IsCriticalError())
+			{
+				return FIoStatusBuilder(EIoErrorCode::FileNotOpen) << TEXT("Failed to serialize container header");
+			}
+		}
+
+		if (ContainerHeader.PackageIds.Num())
+		{
+			TConstArrayView<FFilePackageStoreEntry> PackageStoreEntries(
+				reinterpret_cast<const FFilePackageStoreEntry*>(ContainerHeader.StoreEntries.GetData()),
+				ContainerHeader.PackageIds.Num());
+
+			//TODO: Find all referenced chunks
+		}
+
+		// Download all chunks
+		const int32 MaxConcurrentRequests = 32;
+		int32 ConcurrentRequests = 0;
+
+		FHttpClientConfig HttpConfig;
+		HttpConfig.MaxConnectionCount = 8;
+		HttpConfig.MaxRetryCount = 2;
+		HttpConfig.Endpoints.Add(Url);
+
+		TUniquePtr<FHttpClient> HttpClient = FHttpClient::Create(MoveTemp(HttpConfig));
+		if (HttpClient.IsValid() == false)
+		{
+			return FIoStatusBuilder(EIoErrorCode::InvalidCode) << TEXT("Failed to initialize HTTP client");
+		}
+
+		FIoStatus Status(EIoErrorCode::Ok);
+		for (const TPair<FIoChunkId, FOnDemandChunkEntry>& Kv : Container->ChunkEntries)
+		{
+			const FIoChunkId& ChunkId			= Kv.Key;
+			const FOnDemandChunkEntry& TocEntry	= Kv.Value;
+			
+			ConcurrentRequests++;
+			HttpClient->Get(
+				GetChunkUrl(TocEntry, ChunkUrl).ToView(),
+				[this, &Status, ChunkId, ExpectedHash = TocEntry.Hash, &ConcurrentRequests]
+				(TIoStatusOr<FIoBuffer> ChunkStatus, uint64 DurationMs)
+				{
+					ConcurrentRequests--;
+					if (ChunkStatus.IsOk())
+					{
+						if (FIoStatus PutStatus = InstallCache->Put(
+							ChunkId,
+							ChunkStatus.ConsumeValueOrDie(),
+							ExpectedHash); !PutStatus.IsOk())
+						{
+							Status = PutStatus;
+						}
+					}
+					else
+					{
+						Status = ChunkStatus.Status();
+					}
+				});
+
+			while (ConcurrentRequests >= MaxConcurrentRequests)
+			{
+				HttpClient->Tick();
+			}
+
+			if (Status.IsOk() == false)
+			{
+				return Status;
+			}
+		}
+
+		while (HttpClient->Tick());
+
+		if (ContainerHeader.PackageIds.IsEmpty() == false)
+		{
+			if (FIoStatus MountStatus = PackageStoreBackend->Mount(
+				Container->UniqueName(),
+				MoveTemp(ContainerHeader)); !MountStatus.IsOk())
+			{
+				return MountStatus;
+			}
+		}
+
+		EnumAddFlags(Container->Flags, EOnDemandContainerFlags::Installed);
+	}
+
+	return EIoErrorCode::Ok;
 }
 
 } // namespace UE::IoStore

@@ -263,4 +263,59 @@ const FString& FHttpClient::GetEndpointUrl(int32 Endpoint)
 	return Endpoint == INDEX_NONE ? None : Config.Endpoints[Endpoint];
 }
 
-} //namespace UE::IoStore
+TIoStatusOr<FIoBuffer> FHttpClient::Get(FAnsiStringView Url, uint32 RetryCount, EHttpRedirects Redirects)
+{
+	using namespace HTTP;
+
+	FEventLoop::FRequestParams Params = FEventLoop::FRequestParams
+	{
+		.bAutoRedirect = Redirects == EHttpRedirects::Follow
+	};
+
+	FEventLoop Loop;
+	FIoBuffer Body;
+	TStringBuilder<128> Reason;
+	uint32 StatusCode = 0;
+	const uint32 MaxAttempts = FMath::Min(RetryCount, 3u);
+
+	for (uint32 Attempt = 0; Attempt <= MaxAttempts; ++Attempt)
+	{
+		Loop.Send(Loop.Request("GET", Url, &Params), [&Body, &Reason, &StatusCode](const FTicketStatus& Status)
+		{
+			if (Status.GetId() == FTicketStatus::EId::Response)
+			{
+				Status.GetResponse().SetDestination(&Body);
+				StatusCode = Status.GetResponse().GetStatusCode();
+				return;
+			}
+
+			if (Status.GetId() == FTicketStatus::EId::Error)
+			{
+				Reason << FString(Status.GetErrorReason());
+			}
+		});
+
+		while (Loop.Tick(-1))
+			;
+
+		if (StatusCode > 199 && StatusCode < 300)
+		{
+			return Body;
+		}
+	}
+
+	if (Reason.Len() == 0)
+	{
+		Reason << TEXT("StatusCode: ") << StatusCode;
+	}
+
+	return FIoStatus(EIoErrorCode::ReadError, Reason.ToView());
+}
+
+TIoStatusOr<FIoBuffer> FHttpClient::Get(FStringView Url, uint32 RetryCount, EHttpRedirects Redirects)
+{
+	auto AnsiUrl = StringCast<ANSICHAR>(Url.GetData(), Url.Len());
+	return Get(AnsiUrl, RetryCount, Redirects);
+}
+
+} // namespace UE::IoStore

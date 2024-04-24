@@ -14,6 +14,14 @@
 namespace UE::IoStore
 {
 
+enum class EHttpRedirects
+{
+	/** Redirects will be rejected and handled as failed requests. */
+	Disabled,
+	/** Follow redirects automatically. */
+	Follow
+};
+
 struct FHttpClientConfig
 {
 	TArray<FString> Endpoints;
@@ -42,6 +50,9 @@ public:
 	int32 GetPrimaryEndpoint() const { return Config.PrimaryEndpoint; }
 	void SetEndpoint(int32 Endpoint);
 	bool IsUsingPrimaryEndpoint() const { return CurrentEndpoint == Config.PrimaryEndpoint; }
+
+	static TIoStatusOr<FIoBuffer> Get(FAnsiStringView Url, uint32 RetryCount, EHttpRedirects Redirects);
+	static TIoStatusOr<FIoBuffer> Get(FStringView Url, uint32 RetryCount, EHttpRedirects Redirects);
 
 private:
 	struct FRequestParams

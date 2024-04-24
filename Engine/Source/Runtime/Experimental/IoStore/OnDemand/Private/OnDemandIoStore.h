@@ -17,14 +17,25 @@
 namespace UE::IoStore
 {
 
+class IOnDemandPackageStoreBackend;
+class IOnDemandInstallCache;
+using FSharedPackageStoreBackend	= TSharedPtr<IOnDemandPackageStoreBackend>;
+using FSharedInstallCache			= TSharedPtr<IOnDemandInstallCache>;
+
 ///////////////////////////////////////////////////////////////////////////////
 enum class EOnDemandContainerFlags : uint8
 {
 	None					= 0,
 	PendingEncryptionKey	= (1 << 0),
 	Mounted					= (1 << 1),
+	Streaming				= (1 << 2),
+	Installed				= (1 << 3),
+	Count
 };
 ENUM_CLASS_FLAGS(EOnDemandContainerFlags);
+
+void LexToString(EOnDemandContainerFlags Flags, FStringBuilderBase& Out);
+FString LexToString(EOnDemandContainerFlags Flags);
 
 ///////////////////////////////////////////////////////////////////////////////
 struct FOnDemandChunkEntry
@@ -57,6 +68,8 @@ struct FOnDemandContainer
 	FIoContainerId			ContainerId;
 	uint32					BlockSize = 0;
 	EOnDemandContainerFlags Flags = EOnDemandContainerFlags ::None;
+
+	FString					UniqueName() const;
 };
 
 using FSharedOnDemandContainer = TSharedPtr<FOnDemandContainer, ESPMode::ThreadSafe>;
@@ -130,9 +143,11 @@ public:
 	FIoStatus				Initialize();
 	void					Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
 	FIoStatus				Unmount(FStringView MountId);
-	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId);
+	FOnDemandChunkInfo		GetStreamingChunkInfo(const FIoChunkId& ChunkId);
+	FOnDemandChunkInfo		GetInstalledChunkInfo(const FIoChunkId& ChunkId);
 
 private:
+	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags);
 	void					TryEnterTickLoop();
 	void					TickLoop();
 	void					Tick();
@@ -144,7 +159,12 @@ private:
 								FStringView TocPath,
 								FOnDemandToc& Toc,
 								TArray<FSharedOnDemandContainer>& Out);
+	FIoStatus				InstallContainers(
+								const FString& Url,
+								const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall);
 
+	FSharedInstallCache					InstallCache;
+	FSharedPackageStoreBackend			PackageStoreBackend;
 	FDelegateHandle						OnMountPakHandle;
 	TArray<FSharedOnDemandContainer>	Containers;
 	UE::FMutex							ContainerMutex;

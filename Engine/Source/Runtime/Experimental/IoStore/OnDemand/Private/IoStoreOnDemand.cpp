@@ -2535,12 +2535,27 @@ void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& O
 
 void FIoStoreOnDemandModule::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted)
 {
-	OnCompleted(TIoStatusOr<FOnDemandMountResult>(FIoStatus(EIoErrorCode::InvalidCode, TEXT("Mount not implemented"))));
+	if (IoStore.IsValid() == false)
+	{
+		IoStore = MakeUnique<FOnDemandIoStore>();
+		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on-demand, reason '%s'"), *Status.ToString());
+			IoStore.Reset();
+			return OnCompleted(TIoStatusOr<FOnDemandMountResult>(Status));
+		}
+	}
+
+	IoStore->Mount(MoveTemp(Args), MoveTemp(OnCompleted));
 }
 
 FIoStatus FIoStoreOnDemandModule::Unmount(FStringView MountId)
 {
-	return FIoStatus(EIoErrorCode::InvalidCode, TEXT("Unmount not implemented"));
+	if (IoStore.IsValid())
+	{
+		return IoStore->Unmount(MountId);
+	}
+	return FIoStatus(EIoErrorCode::InvalidCode, TEXT("I/O store on-demand not initialized"));
 }
 
 void FIoStoreOnDemandModule::InitializeInternal()
@@ -2654,7 +2669,8 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			MountArgs.Emplace(FOnDemandMountArgs
 			{
 				.MountId = EndpointConfig.TocFilePath,
-				.FilePath = EndpointConfig.TocFilePath
+				.FilePath = EndpointConfig.TocFilePath,
+				.Options = EOnDemandMountOptions::StreamOnDemand
 			});
 		}
 	}
@@ -2664,9 +2680,24 @@ void FIoStoreOnDemandModule::InitializeInternal()
 		MountArgs.Emplace(FOnDemandMountArgs
 		{
 			.MountId = TocUrl,
-			.Url = TocUrl
+			.Url = TocUrl,
+			.Options = EOnDemandMountOptions::StreamOnDemand
 		});
 	}
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(FCommandLine::Get(), TEXT("Iad")))
+	{
+		// Temporary switch for testing installation to local storage (IAD)
+		MountArgs.Emplace(FOnDemandMountArgs
+		{
+			.MountId = EndpointConfig.TocFilePath,
+			.Url = EndpointConfig.ServiceUrls[0] / EndpointConfig.TocPath,
+			.FilePath = EndpointConfig.TocFilePath,
+			.Options = EOnDemandMountOptions::Install
+		});
+	}
+#endif
 
 	if (MountArgs)
 	{
