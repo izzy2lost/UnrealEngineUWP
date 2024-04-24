@@ -9,6 +9,7 @@
 #include "NaniteDefinitions.h"
 #include "NaniteMaterials.h"
 #include "RendererPrivateUtils.h"
+#include "PrimitiveSceneInfo.h"
 
 class FNaniteMaterialsParameters;
 
@@ -33,6 +34,11 @@ public:
 		void PostCacheNaniteMaterialBins(
 			FRDGBuilder& GraphBuilder,
 			const TConstArrayView<FPrimitiveSceneInfo*>& SceneInfosWithStaticDrawListUpdate
+		);
+
+		void PostBuildNaniteShadingCommands(
+			FRDGBuilder& GraphBuilder,
+			ENaniteMeshPass::Type MeshPass
 		);
 
 	private:

@@ -22,6 +22,7 @@
 #include "MeshPassUtils.h"
 #include "PSOPrecacheMaterial.h"
 #include "PSOPrecacheValidation.h"
+#include "Nanite/NaniteMaterialsSceneExtension.h"
 
 extern TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents;
 
@@ -524,6 +525,12 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 		if (!bForceBuildCommands)
 		{
 			ShadingPipelines.bBuildCommands = false;
+		}
+
+		FSceneExtensionsUpdaters& SceneExtensionsUpdaters = *GraphBuilder.AllocObject<FSceneExtensionsUpdaters>(Scene);
+		if (auto NaniteMaterialsUpdater = SceneExtensionsUpdaters.GetUpdaterPtr<Nanite::FMaterialsSceneExtension::FUpdater>())
+		{
+			NaniteMaterialsUpdater->PostBuildNaniteShadingCommands(GraphBuilder, MeshPass);
 		}
 	}
 }

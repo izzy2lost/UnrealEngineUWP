@@ -180,6 +180,9 @@ void FMaterialsSceneExtension::SetEnabled(bool bEnabled)
 			HitProxyIDAllocator.Reset();
 			HitProxyIDs.Reset();
 		#endif
+		#if WITH_DEBUG_VIEW_MODES
+			DebugViewData.Reset();
+		#endif
 		}
 	}
 }
@@ -632,9 +635,6 @@ void FMaterialsSceneExtension::FUpdater::PostCacheNaniteMaterialBins(
 			#if WITH_EDITOR
 				SceneData->TaskHandles[UpdateHitProxyIDsTask],
 			#endif
-			#if WITH_DEBUG_VIEW_MODES
-				SceneData->TaskHandles[UpdateDebugViewModeTask],
-			#endif
 				SceneData->TaskHandles[AllocMaterialBufferTask],
 			}
 		),
@@ -715,12 +715,31 @@ void FMaterialsSceneExtension::FUpdater::PostCacheNaniteMaterialBins(
 		bEnableAsync
 	);
 
+	if (!bEnableAsync)
+	{
+		// If disabling async, just finish the upload immediately
+		SceneData->FinishMaterialBufferUpload(GraphBuilder);
+	}
+}
+
+void FMaterialsSceneExtension::FUpdater::PostBuildNaniteShadingCommands(
+	FRDGBuilder& GraphBuilder,
+	ENaniteMeshPass::Type MeshPass
+)
+{
+	if (!SceneData->IsEnabled() || MeshPass != ENaniteMeshPass::BasePass)
+	{
+		return;
+	}
+
 #if WITH_DEBUG_VIEW_MODES
 	// Launch a task to upload current debug view mode data
 	SceneData->TaskHandles[UpdateDebugViewModeTask] = GraphBuilder.AddSetupTask(
 		[this]
 		{
 			const FNaniteShadingCommands& ShadingCommands = SceneData->Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass];
+			check(ShadingCommands.BuildCommandsTask.IsCompleted());
+
 			SceneData->DebugViewData.SetNumZeroed(ShadingCommands.MaxShadingBin + 1u);
 			for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
 			{
@@ -736,19 +755,12 @@ void FMaterialsSceneExtension::FUpdater::PostCacheNaniteMaterialBins(
 
 			}
 		},
-		MakeArrayView({ SceneData->Scene->GetCacheNaniteMaterialBinsTask() }),
+		MakeArrayView({ SceneData->Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass].BuildCommandsTask }),
 		UE::Tasks::ETaskPriority::Normal,
 		bEnableAsync
 	);
 #endif
-
-	if (!bEnableAsync)
-	{
-		// If disabling async, just finish the upload immediately
-		SceneData->FinishMaterialBufferUpload(GraphBuilder);
-	}
 }
-
 
 void FMaterialsSceneExtension::FRenderer::UpdateSceneUniformBuffer(
 	FRDGBuilder& GraphBuilder,
