@@ -4783,6 +4783,11 @@ bool UInstancedStaticMeshComponent::ComponentIsTouchingSelectionBox(const FBox& 
 		}
 	}
 
+	if (PerInstanceSMData.Num() == 0)
+	{
+		return Super::ComponentIsTouchingSelectionBox(InSelBBox, bConsiderOnlyBSP, bMustEncompassEntireComponent);
+	}
+
 	return bMustEncompassEntireComponent;
 }
 
@@ -4803,6 +4808,11 @@ bool UInstancedStaticMeshComponent::ComponentIsTouchingSelectionFrustum(const FC
 		{
 			return false;
 		}
+	}
+
+	if (PerInstanceSMData.Num() == 0)
+	{
+		return Super::ComponentIsTouchingSelectionFrustum(InFrustum, bConsiderOnlyBSP, bMustEncompassEntireComponent);		
 	}
 
 	return bMustEncompassEntireComponent;
