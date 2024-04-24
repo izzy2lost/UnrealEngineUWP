@@ -1718,7 +1718,6 @@ void FSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshB
 		MeshBatch.SegmentIndex = SectionIndex;
 		MeshBatch.LODIndex = 0; // CacheRayTracingPrimitive(...) currently assumes that primitives with CacheInstances flag only cache mesh commands for one LOD
 		MeshBatch.CastRayTracedShadow = CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
-		MeshBatch.ReverseCulling = IsCullingReversedByComponent(); // NOTE: DXR spec says that the instance matrix does not impact culling direction
 
 		MeshBatchElement.PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
 	}
@@ -2010,7 +2009,7 @@ uint32 FSceneProxy::SetMeshElementGeometrySource(
 bool FSceneProxy::IsReversedCullingNeeded(bool bUseReversedIndices) const
 {
 	// Use != to ensure consistent face directions between negatively and positively scaled primitives
-	// NOTE: This is only used by ray tracing and debug draw mesh elements
+	// NOTE: This is only used debug draw mesh elements
 	// (Nanite determines cull mode on the GPU. See ReverseWindingOrder() in NaniteRasterizer.usf)
 	const bool bReverseNeeded = IsCullingReversedByComponent() != IsLocalToWorldDeterminantNegative();
 	return bReverseNeeded && !bUseReversedIndices;

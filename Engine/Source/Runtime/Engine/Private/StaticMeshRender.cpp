@@ -1995,7 +1995,7 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 						MeshBatch.MaterialRenderProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
 						MeshBatch.VertexFactory = &RenderData->LODVertexFactories[LODIndex].VertexFactory;
 					}
-
+					MeshBatch.ReverseCulling = bReverseCulling; // overwrite what came from GetMeshElement as DXR only needs the user driven flag, not the flipping implied by the transform
 					MeshBatch.SegmentIndex = SectionIndex;
 					MeshBatch.MeshIdInPrimitive = SectionIndex;
 				}

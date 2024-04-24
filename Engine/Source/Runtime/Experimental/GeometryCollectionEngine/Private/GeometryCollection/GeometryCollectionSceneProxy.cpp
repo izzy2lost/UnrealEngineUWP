@@ -855,7 +855,6 @@ void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 			Mesh.VertexFactory = &GeometryCollectionVertexFactory;
 			Mesh.MaterialRenderProxy = MaterialProxies[SectionIndex];
 			Mesh.LODIndex = LODIndex;
-			Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
 			Mesh.bDisableBackfaceCulling = true;
 			Mesh.Type = PT_TriangleList;
 			Mesh.DepthPriorityGroup = SDPG_World;

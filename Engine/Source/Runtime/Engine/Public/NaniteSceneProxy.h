@@ -317,9 +317,13 @@ public:
 		return FilterFlags;
 	}
 
-	inline bool IsCullingReversedByComponent() const
+	bool IsCullingReversedByComponent() const override
 	{
+#if SUPPORT_REVERSE_CULLING_IN_NANITE
 		return bReverseCulling;
+#else
+		return false;
+#endif
 	}
 
 	inline const FMaterialRelevance& GetCombinedMaterialRelevance() const

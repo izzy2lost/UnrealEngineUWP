@@ -916,7 +916,6 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			BatchElement.NumPrimitives = TextBatch.IndexBufferCount / 3;
 			BatchElement.MinVertexIndex = TextBatch.VertexBufferOffset;
 			BatchElement.MaxVertexIndex = TextBatch.VertexBufferOffset + TextBatch.VertexBufferCount - 1;
-			Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
 			Mesh.bDisableBackfaceCulling = false;
 			Mesh.Type = PT_TriangleList;
 			Mesh.DepthPriorityGroup = SDPG_World;

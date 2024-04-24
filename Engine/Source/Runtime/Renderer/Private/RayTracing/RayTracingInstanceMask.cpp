@@ -273,6 +273,12 @@ void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand
 		return;
 	}
 
+	// MeshBatch.ReverseCulling is generally not what we want as the value could be set including the transform's orientation.
+	// This is because cached mesh commands are shared with rasterization.
+	// For ray tracing, only the user decision of wanting reversed culling matters, so query this directly here.
+	// In the case that that this mesh command is not associated with a primitive, the mesh batch value will still apply.
+	MeshCommand.bReverseCulling = PrimitiveSceneProxy->IsCullingReversedByComponent();
+
 	FSceneProxyRayTracingMaskInfo MaskInfo = GetSceneProxyRayTracingMaskInfo(*PrimitiveSceneProxy, nullptr);
 
 	// TODO: This should be done once all mesh commands for a mesh are combined (similar to BuildRayTracingInstanceMaskAndFlags(...) above)

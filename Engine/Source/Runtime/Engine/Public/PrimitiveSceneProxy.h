@@ -390,6 +390,8 @@ public:
 	/** Gathers shadow shapes from this proxy. */
 	virtual void GetShadowShapes(FVector PreViewTranslation, TArray<FCapsuleShape3f>& OutCapsuleShapes) const {}
 
+	virtual bool IsCullingReversedByComponent() const { return false; }
+
 #if RHI_RAYTRACING
 	// TODO: remove these individual functions in favor of ERayTracingPrimitiveFlags
 	virtual bool IsRayTracingRelevant() const { return false; }

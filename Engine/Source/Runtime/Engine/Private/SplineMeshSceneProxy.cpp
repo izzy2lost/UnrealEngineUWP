@@ -199,7 +199,7 @@ void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMate
 					MeshBatch.MaterialRenderProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
 					MeshBatch.VertexFactory = &RenderData->LODVertexFactories[LODIndex].VertexFactory;
 				}
-
+				MeshBatch.ReverseCulling = bReverseCulling;
 				MeshBatch.SegmentIndex = SectionIndex;
 				MeshBatch.MeshIdInPrimitive = SectionIndex;
 			}

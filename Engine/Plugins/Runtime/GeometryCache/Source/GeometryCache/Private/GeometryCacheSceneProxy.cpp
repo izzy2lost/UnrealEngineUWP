@@ -557,7 +557,7 @@ void FGeometryCacheSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterial
 			MeshBatch.MaterialRenderProxy = TrackProxy->Materials[MaterialIndex]->GetRenderProxy();
 			MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
 			MeshBatch.SegmentIndex = static_cast<uint8>(SegmentIndex);
-
+			MeshBatch.ReverseCulling = false; // RayTracing does not want the transform orientation baked in
 			RayTracingInstance.Materials.Add(MeshBatch);
 		}
 

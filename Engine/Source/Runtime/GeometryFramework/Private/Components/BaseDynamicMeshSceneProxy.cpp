@@ -762,7 +762,6 @@ void FBaseDynamicMeshSceneProxy::DrawRayTracingBatch(FRayTracingMaterialGatherin
 	MeshBatch.VertexFactory = &RenderBuffers.VertexFactory;
 	MeshBatch.SegmentIndex = 0;
 	MeshBatch.MaterialRenderProxy = UseMaterialProxy;
-	MeshBatch.ReverseCulling = IsLocalToWorldDeterminantNegative();
 	MeshBatch.Type = PT_TriangleList;
 	MeshBatch.DepthPriorityGroup = DepthPriority;
 	MeshBatch.bCanApplyViewModeOverrides = this->bEnableViewModeOverrides;

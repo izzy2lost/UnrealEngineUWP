@@ -139,6 +139,8 @@ public:
 
 	ENGINE_API virtual const FCardRepresentationData* GetMeshCardRepresentation() const override;
 
+	ENGINE_API virtual bool IsCullingReversedByComponent() const override { return bReverseCulling; }
+
 #if RHI_RAYTRACING
 	ENGINE_API virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const override;
 

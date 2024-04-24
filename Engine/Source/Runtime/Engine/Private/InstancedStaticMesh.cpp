@@ -1699,7 +1699,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 					MeshBatch.SegmentIndex = SectionIdx;
 					MeshBatch.MeshIdInPrimitive = SectionIdx;
 				};
-
+				MeshBatch.ReverseCulling = bReverseCulling;
 				RayTracingWPOInstanceTemplate.Materials.Add(MeshBatch);
 			}
 
@@ -1712,7 +1712,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 					DynamicMeshBatch.SegmentIndex = SectionIdx;
 					DynamicMeshBatch.MeshIdInPrimitive = SectionIdx;
 				}
-
+				DynamicMeshBatch.ReverseCulling = bReverseCulling;
 				DynamicMeshBatch.VertexFactory = &InstancedRenderData.VertexFactories[LODIndex];
 
 				RayTracingWPODynamicTemplate.Materials.Add(DynamicMeshBatch);
@@ -1940,7 +1940,8 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 				MeshBatch.SegmentIndex = SectionIdx;
 				MeshBatch.MeshIdInPrimitive = SectionIdx;
 			}
-			
+			MeshBatch.ReverseCulling = bReverseCulling;
+
 			RayTracingInstanceTemplate.Materials.Add(MeshBatch);
 		}
 
