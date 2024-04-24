@@ -18,13 +18,6 @@ public class HarmonixMidiTests : ModuleRules
 				"HarmonixMidi",
 			}
 		);
-
-		// Because we are a TEST module, we are reaching "deep" into the source code
-		// of the module we are testing, which under normal circumstances one would
-		// not do. 
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				Path.GetFullPath(Path.Combine(ModuleDirectory, "../HarmonixMidi/Private")),
-			});
+		
 	}
 }
