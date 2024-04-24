@@ -62,6 +62,9 @@ FChaosClothAssetEditor3DViewportClient::FChaosClothAssetEditor3DViewportClient(F
 
 	// Set correct flags according to current profile settings
 	SetAdvancedShowFlagsForScene(UAssetViewerSettings::Get()->Profiles[GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex].bPostProcessingEnabled);
+
+	// Disable the non-alt-key camera controls
+	bLockFlightCamera = true;
 }
 
 void FChaosClothAssetEditor3DViewportClient::RegisterDelegates()
