@@ -12,12 +12,11 @@
 #include "Graph/Nodes/MovieGraphModifierNode.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Images/SLayeredImage.h"
-#include "Widgets/Layout/SWidgetSwitcher.h"
 
 #define LOCTEXT_NAMESPACE "MovieGraphModifiersCustomization"
 
 /** Discovers collections that are pickable from a specific graph, and presents them in a list. */
-class SMovieGraphCollectionPicker final : public SCompoundWidget
+class SMovieGraphCollectionPicker final : public SMovieGraphSimplePicker<FName>
 {
 public:
 	DECLARE_DELEGATE_OneParam(FOnCollectionPicked, FName);
@@ -41,46 +40,15 @@ public:
 		OnCollectionPicked = InArgs._OnCollectionPicked;
 		OnFilter = InArgs._OnFilter;
 
+		SMovieGraphSimplePicker::Construct(SMovieGraphSimplePicker::FArguments()
+			.OnGetRowText_Lambda([](FName InCollectionName) { return FText::FromName(InCollectionName); })
+			.Title(LOCTEXT("PickCollectionHelpText", "Pick a Collection"))
+			.DataSourceEmptyMessage(LOCTEXT("NoCollectionsFoundWarning", "No collections found."))
+			.OnItemPicked(OnCollectionPicked));
+
+		// Update the data source *after* calling Construct() above because Construct() will populate DataSource based on the widget arguments, but
+		// we want to control/update it manually.
 		UpdateDataSource();
-		
-		ChildSlot
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Fill)
-		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			.Padding(5.f)
-			.AutoHeight()
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("PickCollectionHelpText", "Pick a Collection"))
-				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-			]
-			
-			+ SVerticalBox::Slot()
-			.VAlign(VAlign_Fill)
-			[
-				SNew(SWidgetSwitcher)
-				.WidgetIndex_Lambda([this] { return DataSource.IsEmpty() ? 0 : 1; })
-
-				+ SWidgetSwitcher::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Center)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("NoCollectionsFoundWarning", "No collections found."))
-				]
-
-				+ SWidgetSwitcher::Slot()
-				[
-					SNew(SListView<FName>)
-					.ListItemsSource(&DataSource)
-					.SelectionMode(ESelectionMode::Single)
-					.OnSelectionChanged(this, &SMovieGraphCollectionPicker::OnCollectionSelected)
-					.OnGenerateRow(this, &SMovieGraphCollectionPicker::GenerateRow)
-				]
-			]
-		];
 	}
 
 private:
@@ -128,50 +96,7 @@ private:
 		return CollectionNodes;
 	}
 
-	/** Handles a collection selected event. */
-	void OnCollectionSelected(const FName CollectionName, ESelectInfo::Type Type) const
-	{
-		if (OnCollectionPicked.IsBound())
-		{
-			OnCollectionPicked.Execute(CollectionName);
-		}
-
-		FSlateApplication::Get().DismissAllMenus();
-	}
-
-	/** Generates a row which displays a single collection. */
-	TSharedRef<ITableRow> GenerateRow(const FName CollectionName, const TSharedRef<STableViewBase>& InOwnerTable) const
-	{
-		return
-			SNew(STableRow<FName>, InOwnerTable)
-			.Style(FAppStyle::Get(), "TableView.AlternatingRow")
-			.ShowWires(false)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.Padding(7.f, 5.f, 7.f, 5.f)
-				.AutoWidth()
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush("Icons.FilledCircle"))
-				]
-					
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Fill)
-				[
-					SNew(STextBlock)
-					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-					.Text(FText::FromName(CollectionName))
-				]
-			];
-	}
-
 private:
-	/** The data source for the list view widget. Names of the collection nodes that can be picked. */
-	TArray<FName> DataSource;
-
 	/** The current graph being viewed. The data source will be populated from this graph. */
 	UMovieGraphConfig* CurrentGraph = nullptr;
 	
@@ -238,33 +163,28 @@ void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& I
 			.OnGetMenuContent_Lambda([ModifierNode, this]()
 			{
 				return
-					SNew(SBox)
-					.WidthOverride(200.f)
-					.HeightOverride(200.f)
-					[
-						SNew(SMovieGraphCollectionPicker)
-						.Graph(ModifierNode->GetTypedOuter<UMovieGraphConfig>())
-						.OnFilter_Lambda([ModifierNode](const FName CollectionName)
+					SNew(SMovieGraphCollectionPicker)
+					.Graph(ModifierNode->GetTypedOuter<UMovieGraphConfig>())
+					.OnFilter_Lambda([ModifierNode](const FName CollectionName)
+					{
+						if (ModifierNode.IsValid())
 						{
-							if (ModifierNode.IsValid())
-							{
-								return !ModifierNode.Get()->GetCollections().Contains(CollectionName);
-							}
+							return !ModifierNode.Get()->GetCollections().Contains(CollectionName);
+						}
 
-							return false;
-						})
-						.OnCollectionPicked_Lambda([ModifierNode, this](const FName PickedCollectionName)
+						return false;
+					})
+					.OnCollectionPicked_Lambda([ModifierNode, this](const FName PickedCollectionName)
+					{
+						if (ModifierNode.IsValid())
 						{
-							if (ModifierNode.IsValid())
-							{
-								const FScopedTransaction Transaction(LOCTEXT("AddCollectionToModifier", "Add Collection to Modifier"));
-								
-								ModifierNode->AddCollection(PickedCollectionName);
-								ListDataSource = ModifierNode->GetCollections();
-								CollectionsList->Refresh();
-							}
-						})
-					];
+							const FScopedTransaction Transaction(LOCTEXT("AddCollectionToModifier", "Add Collection to Modifier"));
+							
+							ModifierNode->AddCollection(PickedCollectionName);
+							ListDataSource = ModifierNode->GetCollections();
+							CollectionsList->Refresh();
+						}
+					});
 			})
 			.ButtonContent()
 			[

@@ -7,6 +7,7 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/ITableRow.h"
 #include "Widgets/Views/SListView.h"
@@ -243,6 +244,173 @@ private:
 	FText DataType;
 	FText DataTypePlural;
 	TArray<ListType>* DataSource = nullptr;
+};
+
+/**
+ * A simple widget that displays a list that can be picked from. Meant for use within pop-ups. Shows a title above the list, and an optional message
+ * to be displayed (instead of the list) if the data source is empty.
+ */
+template<typename DataType>
+class SMovieGraphSimplePicker : public SCompoundWidget
+{
+public:
+	DECLARE_DELEGATE_OneParam(FOnItemPicked, DataType);
+	DECLARE_DELEGATE_RetVal_OneParam(const FSlateBrush*, FGetRowIcon, DataType);
+	DECLARE_DELEGATE_RetVal_OneParam(FText, FGetRowText, DataType);
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FOnFilter, DataType);
+
+	SLATE_BEGIN_ARGS(SMovieGraphSimplePicker)
+		{}
+
+		/** Called when an item is picked in the list. */
+		SLATE_EVENT(FOnItemPicked, OnItemPicked)
+
+		/** Gets the icon for a row in the list. */
+		SLATE_EVENT(FGetRowIcon, OnGetRowIcon);
+
+		/** Gets the text for a row in the list. */
+		SLATE_EVENT(FGetRowText, OnGetRowText);
+
+		/** The title text shown within the picker widget. */
+		SLATE_ARGUMENT(FText, Title)
+
+		/** The message displayed if the data source is empty. */
+		SLATE_ARGUMENT(FText, DataSourceEmptyMessage)
+
+		/** The data that is displayed within the picker. */
+		SLATE_ARGUMENT(TArray<DataType>, DataSource);
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs)
+	{
+		OnItemPicked = InArgs._OnItemPicked;
+		OnGetRowIcon = InArgs._OnGetRowIcon;
+		OnGetRowText = InArgs._OnGetRowText;
+		Title = InArgs._Title;
+		DataSourceEmptyMessage = InArgs._DataSourceEmptyMessage;
+		DataSource = InArgs._DataSource;
+		
+		ChildSlot
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			SNew(SBox)
+			.WidthOverride(200.f)
+			.HeightOverride(200.f)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.Padding(5.f)
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(Title)
+					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+				]
+				
+				+ SVerticalBox::Slot()
+				.VAlign(VAlign_Fill)
+				[
+					SNew(SWidgetSwitcher)
+					.WidgetIndex_Lambda([this] { return DataSource.IsEmpty() ? 0 : 1; })
+
+					+ SWidgetSwitcher::Slot()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(DataSourceEmptyMessage)
+					]
+
+					+ SWidgetSwitcher::Slot()
+					[
+						SNew(SListView<DataType>)
+						.ListItemsSource(&DataSource)
+						.SelectionMode(ESelectionMode::Single)
+						.OnSelectionChanged(this, &SMovieGraphSimplePicker::OnItemSelected)
+						.OnGenerateRow(this, &SMovieGraphSimplePicker::GenerateRow)
+					]
+				]
+			]
+		];
+	}
+
+private:
+	/** Handles an item selected event. */
+	void OnItemSelected(const DataType Item, ESelectInfo::Type Type) const
+	{
+		if (OnItemPicked.IsBound())
+		{
+			OnItemPicked.Execute(Item);
+		}
+
+		FSlateApplication::Get().DismissAllMenus();
+	}
+	
+	/** Gets the row icon associated with the given item. */
+	const FSlateBrush* GetRowIcon(const DataType InItem) const
+	{
+		if (OnGetRowIcon.IsBound())
+		{
+			return OnGetRowIcon.Execute(InItem);
+		}
+
+		return FAppStyle::GetBrush("Icons.FilledCircle");
+	}
+
+	/** Gets the row text associated with the given list data. */
+	FText GetRowText(const DataType InListData) const
+	{
+		if (OnGetRowText.IsBound())
+		{
+			return OnGetRowText.Execute(InListData);
+		}
+		
+		return FText();
+	}
+
+	/** Generates a row which displays a single item. */
+	TSharedRef<ITableRow> GenerateRow(const DataType InItem, const TSharedRef<STableViewBase>& InOwnerTable) const
+	{
+		return
+			SNew(STableRow<FName>, InOwnerTable)
+			.Style(FAppStyle::Get(), "TableView.AlternatingRow")
+			.ShowWires(false)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.Padding(7.f, 5.f, 7.f, 5.f)
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.Image(GetRowIcon(InItem))
+				]
+				
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Fill)
+				[
+					SNew(STextBlock)
+					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+					.Text(GetRowText(InItem))
+				]
+			];
+	}
+
+protected:
+	/**
+	 * The data source for the list view widget. Names of the items that can be picked. Widgets that inherit from this class can optionally control
+	 * this data member directly rather than providing it as an argument.
+	 */
+	TArray<DataType> DataSource;
+
+private:
+	FOnItemPicked OnItemPicked;
+	FGetRowIcon OnGetRowIcon;
+	FGetRowText OnGetRowText;
+	FText Title;
+	FText DataSourceEmptyMessage;
 };
 
 #undef LOCTEXT_NAMESPACE

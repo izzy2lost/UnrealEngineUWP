@@ -14,6 +14,7 @@
 #include "MovieGraphRenderLayerSubsystem.generated.h"
 
 class SWidget;
+class UDataLayerAsset;
 
 /** Operation types available on condition groups. */
 UENUM(BlueprintType)
@@ -439,6 +440,87 @@ public:
 	/** The actor must be in one of the chosen sublevels in order to be a match. */
 	UPROPERTY(EditAnywhere, Category="General")
 	TArray<TSoftObjectPtr<UWorld>> Sublevels;
+};
+
+/** Query type which filters actors via Actor Layers. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorLayer final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+	virtual bool IsEditorOnly() const override;
+
+#if WITH_EDITOR
+	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
+	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
+#endif
+
+private:
+#if WITH_EDITOR
+	static const FSlateBrush* GetRowIcon(FName InLayerName);
+	static FText GetRowText(FName InLayerName);
+
+	/** Adds the provided actor layers to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddActorLayers(const TArray<FName>& InActorLayers, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+
+	/** Displays the layers which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<FName>> LayerNamesList;
+
+	/** The data source for the layer picker widget (contains all layers which are available and not yet picked). */
+	TArray<FName> LayerPickerDataSource;
+#endif
+
+public:
+	/** The actor must be in one of the actor layers with these names in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TArray<FName> LayerNames;
+};
+
+/** Query type which filters actors via World Partition Data Layers. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_DataLayer final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+
+#if WITH_EDITOR
+	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
+	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
+#endif
+
+private:
+#if WITH_EDITOR
+	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InDataLayer);
+	static FText GetRowText(TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InDataLayer);
+	
+	/** Adds the provided data layers to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddDataLayers(const TArray<const UDataLayerAsset*>& InDataLayers, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+
+	/** Displays the layers which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UDataLayerAsset>>>> DataLayersList;
+	
+	// Not ideal to store a duplicate of DataLayersList, but SListView requires TSharedPtr<...> as the data source, and UPROPERTY does not
+	// support TSharedPtr<...>
+	TArray<TSharedPtr<TSoftObjectPtr<UDataLayerAsset>>> ListDataSource;
+
+	/** Refreshes the contents of the data layer picker widget when called. */
+	FRefreshAssetViewDelegate RefreshDataLayerPicker;
+#endif
+
+public:
+	/** The actor must be in one of the these data layer assets in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayers;
 };
 
 /** A group of queries which can be added to a collection. */

@@ -16,6 +16,8 @@
 #include "Styling/SlateIconFinder.h"
 #include "UObject/Package.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "WorldPartition/DataLayer/DataLayerAsset.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 
 #if WITH_EDITOR
 #include "ActorFolderPickingMode.h"
@@ -28,6 +30,7 @@
 #include "ContentBrowserDataDragDropOp.h"
 #include "ContentBrowserDataSource.h"
 #include "ContentBrowserModule.h"
+#include "DataLayer/DataLayerDragDropOp.h"
 #include "DragAndDrop/ActorDragDropGraphEdOp.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "DragAndDrop/FolderDragDropOp.h"
@@ -37,6 +40,8 @@
 #include "Graph/MovieGraphSharedWidgets.h"
 #include "IContentBrowserSingleton.h"
 #include "ISceneOutliner.h"
+#include "LayersDragDropOp.h"
+#include "Layers/LayersSubsystem.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "SClassViewer.h"
@@ -1760,6 +1765,354 @@ void UMovieGraphConditionGroupQuery_Sublevel::AddLevels(const TArray<UWorld*>& I
 
 	constexpr bool bUpdateSources = false;
 	RefreshLevelPicker.ExecuteIfBound(bUpdateSources);
+}
+#endif	// WITH_EDITOR
+
+void UMovieGraphConditionGroupQuery_ActorLayer::Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const
+{
+	for (AActor* Actor : InActorsToQuery)
+	{
+		for (const FName& LayerName : LayerNames)
+		{
+			if (Actor->Layers.Contains(LayerName))
+			{
+				OutMatchingActors.Add(Actor);
+				break;
+			}
+		}
+	}
+}
+
+const FSlateIcon& UMovieGraphConditionGroupQuery_ActorLayer::GetIcon() const
+{
+	static const FSlateIcon ActorLayerIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.DataLayers");
+	return ActorLayerIcon;
+}
+
+const FText& UMovieGraphConditionGroupQuery_ActorLayer::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_ActorLayer", "Actor Layer");
+	return DisplayName;
+}
+
+bool UMovieGraphConditionGroupQuery_ActorLayer::IsEditorOnly() const
+{
+	// Actor Layers are only available in the editor
+	return true;
+}
+
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorLayer::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	Widgets.Add(
+		SNew(SDropTarget)
+		.OnAllowDrop_Lambda([](TSharedPtr<FDragDropOperation> InDragOperation)
+		{
+			return InDragOperation->IsOfType<FLayersDragDropOp>();
+		})
+		.OnDropped_Lambda([this](const FGeometry& Geometry, const FDragDropEvent& DragDropEvent)
+		{
+			if (const TSharedPtr<FLayersDragDropOp> LayerOperation = DragDropEvent.GetOperationAs<FLayersDragDropOp>())
+			{
+				const FMovieGraphConditionGroupQueryContentsChanged OnAddFinished = nullptr;
+				AddActorLayers(LayerOperation->Layers, OnAddFinished);
+			}
+			
+			return FReply::Handled();
+		})
+		[
+			SAssignNew(LayerNamesList, SMovieGraphSimpleList<FName>)
+			.DataSource(&LayerNames)
+			.DataType(FText::FromString("Actor Layer"))
+			.DataTypePlural(FText::FromString("Actor Layers"))
+			.OnGetRowText_Static(&GetRowText)
+			.OnGetRowIcon_Static(&GetRowIcon)
+			.OnDelete_Lambda([this](FName InLayerName)
+			{
+				const FScopedTransaction Transaction(LOCTEXT("RemoveActorLayerFromCollection", "Remove Actor Layers from Collection"));
+				Modify();
+
+				LayerNames.Remove(InLayerName);
+				LayerNamesList->Refresh();
+			})
+		]
+	);
+
+	return Widgets;
+}
+
+bool UMovieGraphConditionGroupQuery_ActorLayer::HasAddMenu() const
+{
+	return true;
+}
+
+TSharedRef<SWidget> UMovieGraphConditionGroupQuery_ActorLayer::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
+{
+	// Refresh the list's data source
+	LayerPickerDataSource.Reset();
+	if (const ULayersSubsystem* LayersSubsystem = GEditor->GetEditorSubsystem<ULayersSubsystem>())
+	{
+		LayersSubsystem->AddAllLayerNamesTo(LayerPickerDataSource);
+
+		// Don't include layers that have already been picked
+		LayerPickerDataSource.RemoveAll([this](const FName InLayerName) { return LayerNames.Contains(InLayerName); });
+	}
+	
+	return
+		SNew(SMovieGraphSimplePicker<FName>)
+		.Title(LOCTEXT("PickActorLayerHelpText", "Pick an Actor Layer"))
+		.DataSourceEmptyMessage(LOCTEXT("NoActorLayersFoundWarning", "No actor layers found."))
+		.DataSource(LayerPickerDataSource)
+		.OnGetRowIcon_Lambda([](FName ListItem)
+		{
+			return FAppStyle::Get().GetBrush("Layer.Icon16x");
+		})
+		.OnGetRowText_Lambda([](FName ListItem)
+		{
+			return FText::FromName(ListItem);
+		})
+		.OnItemPicked_Lambda([this, OnAddFinished](FName InLayerName)
+		{
+			AddActorLayers({InLayerName}, OnAddFinished);
+		});
+}
+
+const FSlateBrush* UMovieGraphConditionGroupQuery_ActorLayer::GetRowIcon(FName InLayerName)
+{
+	return FAppStyle::Get().GetBrush("Layer.Icon16x");
+}
+
+FText UMovieGraphConditionGroupQuery_ActorLayer::GetRowText(FName InLayerName)
+{
+	if (const ULayersSubsystem* LayersSubsystem = GEditor->GetEditorSubsystem<ULayersSubsystem>())
+	{
+		if (LayersSubsystem->GetLayer(InLayerName))
+		{
+			return FText::FromName(InLayerName);
+		}
+	}
+
+	return FText::Format(LOCTEXT("InvalidActorLayer", "{0} (invalid)"), FText::FromName(InLayerName));
+}
+
+void UMovieGraphConditionGroupQuery_ActorLayer::AddActorLayers(const TArray<FName>& InActorLayers, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished)
+{
+	const FScopedTransaction Transaction(LOCTEXT("AddActorLayersToCollection", "Add Actor Layers to Collection"));
+	Modify();
+
+	for (const FName& ActorLayer : InActorLayers)
+	{
+		LayerNames.AddUnique(ActorLayer);
+	}
+	
+	LayerNamesList->Refresh();
+
+	InOnAddFinished.ExecuteIfBound();
+}
+#endif	// WITH_EDITOR
+
+void UMovieGraphConditionGroupQuery_DataLayer::Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const
+{
+	for (AActor* InActor : InActorsToQuery)
+	{
+		for (const TSoftObjectPtr<UDataLayerAsset>& DataLayer : DataLayers)
+		{
+			if (InActor->ContainsDataLayer(DataLayer.Get()))
+			{
+				OutMatchingActors.Add(InActor);
+				break;
+			}
+		}
+	}
+}
+
+const FSlateIcon& UMovieGraphConditionGroupQuery_DataLayer::GetIcon() const
+{
+	static const FSlateIcon DataLayerIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "DataLayer.Editor");
+	return DataLayerIcon;
+}
+
+const FText& UMovieGraphConditionGroupQuery_DataLayer::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_DataLayer", "Data Layer");
+	return DisplayName;
+}
+
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_DataLayer::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	// Create the data source for the list view
+	ListDataSource.Empty();
+	for (TSoftObjectPtr<UDataLayerAsset>& DataLayer : DataLayers)
+	{
+		ListDataSource.Add(MakeShared<TSoftObjectPtr<UDataLayerAsset>>(DataLayer));
+	}
+
+	Widgets.Add(
+		SNew(SDropTarget)
+		.OnAllowDrop_Lambda([](TSharedPtr<FDragDropOperation> InDragOperation)
+		{
+			return InDragOperation->IsOfType<FDataLayerDragDropOp>() || InDragOperation->IsOfType<FAssetDragDropOp>();
+		})
+		.OnDropped_Lambda([this](const FGeometry& Geometry, const FDragDropEvent& DragDropEvent)
+		{
+			TArray<const UDataLayerAsset*> DroppedLayers;
+
+			// Drag-n-drop from the Data Layers editor
+			if (const TSharedPtr<FDataLayerDragDropOp> LayerOperation = DragDropEvent.GetOperationAs<FDataLayerDragDropOp>())
+			{
+				for (const TWeakObjectPtr<UDataLayerInstance>& DroppedLayer : LayerOperation->DataLayerInstances)
+				{
+					if (const UDataLayerAsset* DroppedLayerAsset = DroppedLayer->GetAsset())
+					{
+						DroppedLayers.AddUnique(DroppedLayerAsset);
+					}
+				}
+			}
+
+			// Drag-n-drop from the Content Browser
+			else if (const TSharedPtr<FAssetDragDropOp> AssetOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>())
+			{
+				for (const FAssetData& AssetData : AssetOperation->GetAssets())
+				{
+					if (const UDataLayerAsset* DataLayer = Cast<const UDataLayerAsset>(AssetData.GetAsset()))
+					{
+						DroppedLayers.AddUnique(DataLayer);
+					}
+				}
+			}
+			
+			if (!DroppedLayers.IsEmpty())
+			{
+				const FMovieGraphConditionGroupQueryContentsChanged OnAddFinished = nullptr;
+				AddDataLayers(DroppedLayers, OnAddFinished);
+			}
+			
+			return FReply::Handled();
+		})
+		[
+			SAssignNew(DataLayersList, SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UDataLayerAsset>>>)
+			.DataSource(&ListDataSource)
+			.DataType(FText::FromString("Data Layer"))
+			.DataTypePlural(FText::FromString("Data Layers"))
+			.OnGetRowText_Static(&GetRowText)
+			.OnGetRowIcon_Static(&GetRowIcon)
+			.OnDelete_Lambda([this](TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InLayer)
+			{
+				const FScopedTransaction Transaction(LOCTEXT("RemoveDataLayerFromCollection", "Remove Data Layers from Collection"));
+				Modify();
+
+				ListDataSource.Remove(InLayer);
+				DataLayers.Remove(*InLayer.Get());
+				DataLayersList->Refresh();
+
+				constexpr bool bUpdateSources = true;
+				RefreshDataLayerPicker.ExecuteIfBound(bUpdateSources);
+			})
+		]
+	);
+
+	return Widgets;
+}
+
+bool UMovieGraphConditionGroupQuery_DataLayer::HasAddMenu() const
+{
+	return true;
+}
+
+TSharedRef<SWidget> UMovieGraphConditionGroupQuery_DataLayer::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
+{
+	FAssetPickerConfig DataLayerPickerConfig;
+	{
+		DataLayerPickerConfig.SelectionMode = ESelectionMode::Single;
+		DataLayerPickerConfig.SaveSettingsName = TEXT("MovieRenderGraphDataLayerPicker");
+		DataLayerPickerConfig.RefreshAssetViewDelegates.Add(&RefreshDataLayerPicker);
+		DataLayerPickerConfig.InitialAssetViewType = EAssetViewType::Column;
+		DataLayerPickerConfig.bFocusSearchBoxWhenOpened = true;
+		DataLayerPickerConfig.bAllowNullSelection = false;
+		DataLayerPickerConfig.bShowBottomToolbar = true;
+		DataLayerPickerConfig.bAutohideSearchBar = false;
+		DataLayerPickerConfig.bAllowDragging = false;
+		DataLayerPickerConfig.bCanShowClasses = false;
+		DataLayerPickerConfig.bShowPathInColumnView = true;
+		DataLayerPickerConfig.bShowTypeInColumnView = false;
+		DataLayerPickerConfig.bSortByPathInColumnView = false;
+		DataLayerPickerConfig.HiddenColumnNames = {
+			ContentBrowserItemAttributes::ItemDiskSize.ToString(),
+			ContentBrowserItemAttributes::VirtualizedData.ToString(),
+			TEXT("PrimaryAssetType"),
+			TEXT("PrimaryAssetName")
+		};
+		DataLayerPickerConfig.AssetShowWarningText = LOCTEXT("ConditionGroupQuery_NoDataLayersFound", "No Data Layers Found");
+		DataLayerPickerConfig.Filter.ClassPaths.Add(UDataLayerAsset::StaticClass()->GetClassPathName());
+		DataLayerPickerConfig.OnAssetSelected = FOnAssetSelected::CreateLambda([this, OnAddFinished](const FAssetData& InDataLayerAsset)
+		{
+			AddDataLayers({Cast<UDataLayerAsset>(InDataLayerAsset.GetAsset())}, OnAddFinished);
+		});
+		DataLayerPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda([this](const FAssetData& InDataLayerAsset)
+		{
+			// Don't show data layers which have already been picked
+			UDataLayerAsset* DataLayer = Cast<UDataLayerAsset>(InDataLayerAsset.GetAsset());
+			return !DataLayer || DataLayers.Contains(DataLayer);
+		});
+	}
+
+	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+
+	return
+		SNew(SBox)
+		.Padding(0, 10.f, 0, 0)
+		.WidthOverride(400.f)
+		.HeightOverride(300.f)
+		[
+			ContentBrowser.CreateAssetPicker(DataLayerPickerConfig)
+		];
+}
+
+const FSlateBrush* UMovieGraphConditionGroupQuery_DataLayer::GetRowIcon(TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InDataLayer)
+{
+	return FAppStyle::Get().GetBrush("DataLayer.Editor");
+}
+
+FText UMovieGraphConditionGroupQuery_DataLayer::GetRowText(TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InDataLayer)
+{
+	if (InDataLayer.IsValid())
+	{
+		if (InDataLayer.Get()->IsValid())
+		{
+			// The first Get() returns the TSoftObjectPtr, the second Get() dereferences the TSoftObjectPtr
+			return FText::FromString(InDataLayer.Get()->Get()->GetName());
+		}
+	}
+
+	return LOCTEXT("MovieGraphDataLayerConditionGroupQuery_InvalidDataLayer", "(invalid or unloaded)");
+}
+
+void UMovieGraphConditionGroupQuery_DataLayer::AddDataLayers(const TArray<const UDataLayerAsset*>& InDataLayers, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished)
+{
+	const FScopedTransaction Transaction(LOCTEXT("AddDataLayersToCollection", "Add Data Layers to Collection"));
+	Modify();
+	
+	for (const UDataLayerAsset* DataLayer : InDataLayers)
+	{
+		if (DataLayer && !DataLayers.Contains(DataLayer))
+		{
+			DataLayers.Add(DataLayer);
+			ListDataSource.Add(MakeShared<TSoftObjectPtr<UDataLayerAsset>>(DataLayer));
+		}
+	}
+	
+	DataLayersList->Refresh();
+	FSlateApplication::Get().DismissAllMenus();
+
+	InOnAddFinished.ExecuteIfBound();
+
+	constexpr bool bUpdateSources = false;
+	RefreshDataLayerPicker.ExecuteIfBound(bUpdateSources);
 }
 #endif	// WITH_EDITOR
 
