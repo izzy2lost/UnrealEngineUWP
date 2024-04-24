@@ -1947,9 +1947,7 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			return GetToolBarVisibility();
 		})
 		[
-			UToolMenus::Get()->GenerateWidget(
-				"LevelEditor.ViewportToolbar",
-				FToolMenuContext(GetLevelViewportClient().GetEditorViewportWidget()->GetCommandList()))
+			UToolMenus::Get()->GenerateWidget("LevelEditor.ViewportToolbar", FToolMenuContext(GetCommandList()))
 		];
 
 	return 
