@@ -9,7 +9,6 @@
 
 #include "StaticMeshComponentAdapter.h"
 #include "Engine/StaticMeshActor.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/World.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/StaticMesh.h"

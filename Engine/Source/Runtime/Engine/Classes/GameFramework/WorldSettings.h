@@ -7,9 +7,11 @@
 #include "Templates/SubclassOf.h"
 #include "Interfaces/Interface_AssetUserData.h"
 #include "GameFramework/Actor.h"
-#include "Engine/MeshMerging.h"
 #include "GameFramework/DamageType.h"
 #include "GameFramework/Info.h"
+#include "MeshMerge/MeshProxySettings.h"
+#include "MeshMerge/MeshMergingSettings.h"
+#include "MeshMerge/MeshApproximationSettings.h"
 #include "Sound/AudioVolume.h"
 #include "UObject/ConstructorHelpers.h"
 #include "WorldGridPreviewer.h"
@@ -1122,3 +1124,7 @@ private: //DEPRECATED
 #endif
 };
 
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

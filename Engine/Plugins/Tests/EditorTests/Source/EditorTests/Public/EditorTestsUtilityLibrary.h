@@ -4,7 +4,7 @@
 
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Components/StaticMeshComponent.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshMergingSettings.h"
 
 #include "EditorTestsUtilityLibrary.generated.h"
 
@@ -40,3 +40,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "User Interface|Test")
 	static EUINavigationRule GetEditorWidgetNavigationRule(UWidget* Widget, EUINavigation Nav);
 };
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

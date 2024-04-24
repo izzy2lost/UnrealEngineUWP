@@ -443,7 +443,6 @@
 #include "AudioDevice.h"
 #include "Sound/SoundAttenuation.h"
 #include "IAudioExtensionPlugin.h"
-#include "Engine/MeshMerging.h"
 #include "Components/MeshComponent.h"
 #include "BoneIndices.h"
 #include "ReferenceSkeleton.h"

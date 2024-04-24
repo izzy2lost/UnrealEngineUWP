@@ -10,7 +10,6 @@
 #include "Editor/UnrealEdEngine.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "HLODOutliner.h"

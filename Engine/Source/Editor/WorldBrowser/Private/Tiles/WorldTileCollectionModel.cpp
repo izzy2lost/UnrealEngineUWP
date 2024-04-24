@@ -9,7 +9,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/SWindow.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Light.h"
 #include "Engine/StaticMeshActor.h"

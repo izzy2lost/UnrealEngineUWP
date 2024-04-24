@@ -5,7 +5,6 @@
 #include "Features/IModularFeatures.h"
 #include "IProxyLODPlugin.h"
 #include "MeshMergeData.h"
-#include "Engine/MeshMerging.h"
 #include "MaterialUtilities.h" // for FFlattenMaterial 
 #include "Engine/StaticMesh.h"
 #include "Misc/ScopedSlowTask.h"

@@ -53,6 +53,32 @@ enum class EFlattenMaterialProperties : uint8
 	NumFlattenMaterialProperties
 };
 
+/** Struct to store per section info used to populate data after (multiple) meshes are merged together */
+struct FSectionInfo
+{
+	FSectionInfo() : Material(nullptr), MaterialSlotName(NAME_None), MaterialIndex(INDEX_NONE), StartIndex(INDEX_NONE), EndIndex(INDEX_NONE), bProcessed(false) {}
+
+	/** Material used by the section */
+	class UMaterialInterface* Material;
+	/** Name value for the section */
+	FName MaterialSlotName;
+	/** List of properties enabled for the section (collision, cast shadow etc) */
+	TArray<FName> EnabledProperties;
+	/** Original index of Material in the source data */
+	int32 MaterialIndex;
+	/** Index pointing to the start set of mesh indices that belong to this section */
+	int32 StartIndex;
+	/** Index pointing to the end set of mesh indices that belong to this section */
+	int32 EndIndex;
+	/** Used while baking out materials, to check which sections are and aren't being baked out */
+	bool bProcessed;
+
+	bool operator==(const FSectionInfo& Other) const
+	{
+		return Material == Other.Material && EnabledProperties == Other.EnabledProperties;
+	}
+};
+
 /** Structure used for storing intermediate baked down material data/samples*/
 struct FFlattenMaterial
 {

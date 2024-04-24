@@ -41,7 +41,7 @@
 #include "MaterialUtilities.h"
 #include "ShaderCore.h"
 
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshApproximationSettings.h"
 
 #include "Async/Async.h"
 #include "Misc/ScopedSlowTask.h"

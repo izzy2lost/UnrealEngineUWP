@@ -19,12 +19,9 @@
 #include "Components.h"
 #include "LocalVertexFactory.h"
 #include "PrimitiveViewRelevance.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PrimitiveSceneProxy.h"
-#endif
-#include "Engine/MeshMerging.h"
 #include "UObject/UObjectHash.h"
 #include "MeshBatch.h"
+#include "MeshReductionSettings.h"
 #include "SceneManagement.h"
 #include "Components/StaticMeshComponent.h"
 #include "BodySetupEnums.h"
@@ -1582,3 +1579,11 @@ ENGINE_API void RemapPaintedVertexColors(
 	TArray<FColor>& OutOverrideColors
 	);
 #endif // #if WITH_EDITOR
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
+#include "PrimitiveSceneProxy.h"
+#endif
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

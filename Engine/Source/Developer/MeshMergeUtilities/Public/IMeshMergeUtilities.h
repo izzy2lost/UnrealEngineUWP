@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Containers/Map.h"
 #include "Containers/Array.h"
-
 #include "IMeshReductionInterfaces.h"
 
 struct FRawMeshExt;
@@ -13,6 +12,7 @@ struct FStaticMeshLODResources;
 struct FBakeOutput;
 struct FKAggregateGeom;
 struct FMaterialData;
+struct FMeshInstancingSettings;
 struct FMeshMergingSettings;
 struct FMeshProxySettings;
 struct FFlattenMaterial;

@@ -9,7 +9,6 @@
 #include "Editor/TransBuffer.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Engine/StaticMesh.h"
-#include "Engine/MeshMerging.h"
 #include "Layers/LayersSubsystem.h"
 #include "Logging/LogMacros.h"
 #include "Math/Box.h"

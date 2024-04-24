@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "Engine/MeshMerging.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-
+#include "MeshMerge/MeshMergingSettings.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "EditorLevelLibrary.generated.h"
 
 struct FCreateProxyMeshActorOptions;
@@ -439,4 +439,8 @@ public:
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "StaticMeshEditorSubsystem.h"
+#endif
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
 #endif

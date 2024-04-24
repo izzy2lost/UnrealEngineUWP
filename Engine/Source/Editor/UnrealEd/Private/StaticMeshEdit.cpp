@@ -12,7 +12,6 @@
 #include "Model.h"
 #include "EditorFramework/AssetImportData.h"
 #include "EditorFramework/ThumbnailInfo.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/StaticMesh.h"
 #include "StaticMeshAttributes.h"
 #include "Engine/StaticMeshSocket.h"

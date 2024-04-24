@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Features/IModularFeature.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "Modules/ModuleInterface.h"
 
 struct FOverlappingCorners;
@@ -155,3 +155,7 @@ public:
 	}
 };
 
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

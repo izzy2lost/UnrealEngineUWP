@@ -33,7 +33,6 @@
 #include "Materials/MaterialParameterCollection.h"
 #include "LandscapeProxy.h"
 #include "LandscapeComponent.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/StaticMesh.h"
 #include "MeshUtilities.h"
 #include "MeshRendering.h"

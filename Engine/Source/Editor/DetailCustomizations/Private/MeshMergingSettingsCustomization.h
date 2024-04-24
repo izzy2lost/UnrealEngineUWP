@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshMergingSettings.h"
 #include "HAL/Platform.h"
 #include "IDetailCustomization.h"
 #include "IPropertyTypeCustomization.h"

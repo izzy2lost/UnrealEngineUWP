@@ -3,7 +3,9 @@
 #include "MeshMergeUtilities.h"
 
 #include "Engine/MapBuildDataRegistry.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshInstancingSettings.h"
+#include "MeshMerge/MeshMergingSettings.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "Engine/StaticMeshSocket.h"
 
 #include "MaterialOptions.h"

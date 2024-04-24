@@ -8,8 +8,8 @@
 
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/StaticMesh.h"
+#include "MeshReductionSettings.h"
 #include "PerPlatformProperties.h"
 #include "PerQualityLevelProperties.h"
 

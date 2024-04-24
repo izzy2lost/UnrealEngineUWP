@@ -3,7 +3,6 @@
 #include "Subsystems/EditorActorSubsystem.h"
 
 #include "CoreMinimal.h"
-#include "Engine/MeshMerging.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "UnrealEdGlobals.h"

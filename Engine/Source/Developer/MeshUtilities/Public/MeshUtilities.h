@@ -6,7 +6,6 @@
 #include "Misc/Guid.h"
 #include "Modules/ModuleInterface.h"
 #include "Components.h"
-#include "Engine/MeshMerging.h"
 #include "MeshBuild.h"
 
 #include "IMeshMergeUtilities.h"
@@ -347,3 +346,8 @@ public:
 	 */
 	virtual void CreateImportDataFromLODModel(USkeletalMesh* InSkeletalMesh, bool bInResetReductionAsNeeded = false) const = 0;
 };
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

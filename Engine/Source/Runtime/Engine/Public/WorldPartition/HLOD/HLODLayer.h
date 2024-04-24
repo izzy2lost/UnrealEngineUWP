@@ -9,7 +9,9 @@
 #include "UObject/Object.h"
 
 #include "EngineDefines.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshMergingSettings.h"
+#include "MeshMerge/MeshProxySettings.h"
+#include "MeshMerge/MeshApproximationSettings.h"
 
 #include "WorldPartition/HLOD/HLODBuilder.h"
 
@@ -127,3 +129,8 @@ private:
 	uint32 bAlwaysLoaded_DEPRECATED : 1;
 #endif
 };
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

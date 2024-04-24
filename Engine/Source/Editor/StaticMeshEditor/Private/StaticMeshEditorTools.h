@@ -11,7 +11,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SBoxPanel.h"
-#include "Engine/MeshMerging.h"
+#include "MeshReductionSettings.h"
 #include "Engine/StaticMesh.h"
 #include "IDetailCustomization.h"
 #include "StaticMeshResources.h"

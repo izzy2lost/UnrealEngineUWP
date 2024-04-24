@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "Engine/MeshMerging.h"
 #include "IPropertyTypeCustomization.h"
 #include "Layout/Visibility.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "OverrideResetToDefault.h"
 #include "Templates/SharedPointer.h"
 

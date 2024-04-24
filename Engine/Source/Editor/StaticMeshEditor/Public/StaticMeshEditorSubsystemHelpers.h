@@ -3,14 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Kismet/BlueprintFunctionLibrary.h"
-
-#include "Engine/StaticMesh.h"
-#include "Engine/MeshMerging.h"
-#include "GameFramework/Actor.h"
 #include "BodySetupEnums.h"
+#include "Engine/StaticMesh.h"
+#include "GameFramework/Actor.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "MeshMerge/MeshMergingSettings.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "UVMapSettings.h"
-
 #include "StaticMeshEditorSubsystemHelpers.generated.h"
 
 class UStaticMeshComponent;
@@ -132,3 +131,7 @@ struct FCreateProxyMeshActorOptions : public FJoinStaticMeshActorsOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FMeshProxySettings MeshProxySettings;
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

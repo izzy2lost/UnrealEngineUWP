@@ -3,7 +3,6 @@
 #include "Engine/EngineTypes.h"
 #include "UObject/UnrealType.h"
 #include "GameFramework/Actor.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/CollisionProfile.h"
 
 #if WITH_EDITOR
@@ -17,86 +16,6 @@ FAttachmentTransformRules FAttachmentTransformRules::SnapToTargetIncludingScale(
 
 FDetachmentTransformRules FDetachmentTransformRules::KeepRelativeTransform(EDetachmentRule::KeepRelative, true);
 FDetachmentTransformRules FDetachmentTransformRules::KeepWorldTransform(EDetachmentRule::KeepWorld, true);
-
-#if WITH_EDITORONLY_DATA
-void FMeshProxySettings::PostSerialize(const FArchive& Ar)
-{
-	if (Ar.IsLoading())
-	{
-		MaterialSettings.MaterialMergeType = EMaterialMergeType::MaterialMergeType_Simplygon;
-
-		if (bGenerateNaniteEnabledMesh_DEPRECATED)
-		{
-			NaniteSettings.bEnabled = true;
-			NaniteSettings.FallbackPercentTriangles = NaniteProxyTrianglePercent_DEPRECATED / 100.0f;
-		}
-	}
-}
-
-void FMeshMergingSettings::PostSerialize(const FArchive& Ar)
-{
-	if (Ar.IsLoading())
-	{
-		FMeshMergingSettings DefaultObject;
-		if (bImportVertexColors_DEPRECATED != DefaultObject.bImportVertexColors_DEPRECATED)
-		{
-			bBakeVertexDataToMesh = bImportVertexColors_DEPRECATED;
-		}
-
-		if (bExportNormalMap_DEPRECATED != DefaultObject.bExportNormalMap_DEPRECATED)
-		{
-			MaterialSettings.bNormalMap = bExportNormalMap_DEPRECATED;
-		}
-
-		if (bExportMetallicMap_DEPRECATED != DefaultObject.bExportMetallicMap_DEPRECATED)
-		{
-			MaterialSettings.bMetallicMap = bExportMetallicMap_DEPRECATED;
-		}
-		if (bExportRoughnessMap_DEPRECATED != DefaultObject.bExportRoughnessMap_DEPRECATED)
-		{
-			MaterialSettings.bRoughnessMap = bExportRoughnessMap_DEPRECATED;
-		}
-		if (bExportSpecularMap_DEPRECATED != DefaultObject.bExportSpecularMap_DEPRECATED)
-		{
-			MaterialSettings.bSpecularMap = bExportSpecularMap_DEPRECATED;
-		}
-		if (MergedMaterialAtlasResolution_DEPRECATED != DefaultObject.MergedMaterialAtlasResolution_DEPRECATED)
-		{
-			MaterialSettings.TextureSize.X = MergedMaterialAtlasResolution_DEPRECATED;
-			MaterialSettings.TextureSize.Y = MergedMaterialAtlasResolution_DEPRECATED;
-		}
-		if (bCalculateCorrectLODModel_DEPRECATED != DefaultObject.bCalculateCorrectLODModel_DEPRECATED)
-		{
-			LODSelectionType = EMeshLODSelectionType::CalculateLOD;
-		}
-
-		if (ExportSpecificLOD_DEPRECATED != DefaultObject.ExportSpecificLOD_DEPRECATED)
-		{
-			SpecificLOD = ExportSpecificLOD_DEPRECATED;
-			LODSelectionType = EMeshLODSelectionType::SpecificLOD;
-		}
-
-		if (bGenerateNaniteEnabledMesh_DEPRECATED)
-		{
-			NaniteSettings.bEnabled = true;
-			NaniteSettings.FallbackPercentTriangles = NaniteFallbackTrianglePercent_DEPRECATED / 100.0f;
-		}
-	}
-}
-
-void FMeshApproximationSettings::PostSerialize(const FArchive& Ar)
-{
-	if (Ar.IsLoading())
-	{
-		FMeshApproximationSettings DefaultObject;
-		if (NaniteProxyTrianglePercent_DEPRECATED != DefaultObject.NaniteProxyTrianglePercent_DEPRECATED)
-		{
-			NaniteFallbackTarget = ENaniteFallbackTarget::Auto;
-			NaniteFallbackPercentTriangles = NaniteProxyTrianglePercent_DEPRECATED / 100.0f;
-		}
-	}
-}
-#endif
 
 UEngineBaseTypes::UEngineBaseTypes(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
