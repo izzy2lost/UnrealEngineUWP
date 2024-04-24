@@ -52,6 +52,13 @@ enum class EPCGSplineSamplingInteriorOrientation : uint8
 	FollowCurvature = 1
 };
 
+UENUM()
+enum class EPCGSplineSamplingSeedingMode : uint8
+{
+	SeedFromPosition = 0 UMETA(Tooltip = "Compute seed from sample position."),
+	SeedFromIndex = 1 UMETA(Tooltip = "Compute seed from sample index.")
+};
+
 USTRUCT(BlueprintType)
 struct FPCGSplineSamplerParams
 {
@@ -211,12 +218,16 @@ struct FPCGSplineSamplerParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Points", meta=(ClampMin="0", ClampMax="1", PCG_Overridable))
 	float PointSteepness = 0.5f;
 
-	/** Controls whether we will seed the sampled points using the final world position or the local position */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Seeding")
+	/** Controls the mode for computing a sample point's seed. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Seeding");
+	EPCGSplineSamplingSeedingMode SeedingMode = EPCGSplineSamplingSeedingMode::SeedFromPosition;
+
+	/** Controls whether we will seed the sampled points using the final world position or the local position. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Seeding", meta=(EditCondition = "SeedingMode==EPCGSplineSamplingSeedingMode::SeedFromPosition", EditConditionHides))
 	bool bSeedFromLocalPosition = false;
 
-	/** Controls whether we will seed the sampled points using the 3D position or the 2D (XY) position */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Seeding")
+	/** Controls whether we will seed the sampled points using the 3D position or the 2D (XY) position. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Seeding", meta=(EditCondition = "SeedingMode==EPCGSplineSamplingSeedingMode::SeedFromPosition", EditConditionHides))
 	bool bSeedFrom2DPosition = false;
 };
 
