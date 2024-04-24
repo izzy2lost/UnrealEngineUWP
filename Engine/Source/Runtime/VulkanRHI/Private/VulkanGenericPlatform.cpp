@@ -5,6 +5,7 @@
 #include "VulkanDevice.h"
 #include "HAL/FileManager.h"
 #include "Misc/CommandLine.h"
+#include "VulkanCommandBuffer.h"
 
 static TAutoConsoleVariable<int32> CVarVulkanUseProfileCheck(
 	TEXT("r.Vulkan.UseProfileCheck"),
@@ -178,4 +179,24 @@ FString FVulkanGenericPlatform::GetVulkanProfileNameForFeatureLevel(ERHIFeatureL
 		ProfileName += TEXT("_RT");
 	}
 	return ProfileName;
+}
+
+void FVulkanGenericPlatform::WriteCrashMarkerWithoutExtensions(FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding)
+{
+	// Buffer writes cannot be recorded inside of a render pass
+	if (CmdBuffer->IsOutsideRenderPass())
+	{
+		// execution barrier
+		VulkanDynamicAPI::vkCmdPipelineBarrier(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+
+		VulkanDynamicAPI::vkCmdFillBuffer(CmdBuffer->GetHandle(), DestBuffer, 0, sizeof(uint32), Entries.Num());
+		if (bAdding)
+		{
+			int32 LastIndex = Entries.Num() - 1;
+			VulkanDynamicAPI::vkCmdFillBuffer(CmdBuffer->GetHandle(), DestBuffer, (1 + LastIndex) * sizeof(uint32), sizeof(uint32), Entries[LastIndex]);
+		}
+
+		// execution barrier
+		VulkanDynamicAPI::vkCmdPipelineBarrier(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+	}
 }

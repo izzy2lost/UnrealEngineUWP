@@ -1030,11 +1030,6 @@ void FVulkanDynamicRHI::InitInstance()
 			UE_LOG(LogVulkanRHI, Display, TEXT("Wave Operations have been DISABLED (missing stages=0x%x operations=0x%x)."), MissingStageFlags, MissingOperationFlags);
 		}
 
-		if (UE::RHI::UseGPUCrashDebugging() && !Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Tried to enable GPU crash debugging but no extension found! Will use local tracepoints."));
-		}
-
 		FHardwareInfo::RegisterHardwareInfo(NAME_RHI, TEXT("Vulkan"));
 
 		SavePipelineCacheCmd = IConsoleManager::Get().RegisterConsoleCommand(
@@ -1253,7 +1248,7 @@ void FVulkanCommandListContext::RHIEndFrame()
 		#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
 			if (GpuProfiler.bTrackingGPUCrashData)
 			{
-				GpuProfiler.PushMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer(), GetNameStr());
+				GpuProfiler.PushMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer(), Device->GetCrashMarkerBuffer(), GetNameStr());
 			}
 		#endif
 			if (GpuProfiler.IsProfilingGPU())
@@ -1276,7 +1271,7 @@ void FVulkanCommandListContext::RHIEndFrame()
 		#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
 			if (GpuProfiler.bTrackingGPUCrashData)
 			{
-				GpuProfiler.PopMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer());
+				GpuProfiler.PopMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer(), Device->GetCrashMarkerBuffer());
 			}
 		#endif
 		}

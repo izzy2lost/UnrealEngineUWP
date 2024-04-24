@@ -24,6 +24,7 @@
 #define VULKAN_SUPPORTS_TRANSIENT_RESOURCE_ALLOCATOR 0
 #define VULKAN_SUPPORTS_DRIVER_PROPERTIES			0
 #define VULKAN_SUPPORTS_DESCRIPTOR_INDEXING			(VULKAN_RHI_RAYTRACING)
+#define VULKAN_SUPPORTS_GPU_CRASH_DUMPS				1
 
 #define UE_VK_API_VERSION							VK_API_VERSION_1_1
 
@@ -173,6 +174,8 @@ public:
 		// Many Android Vulkan implementations do not support wave ops in vertex and geometry shaders and we don't need them there.
 		return VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 	}
+
+	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
 
 protected:
 	static void* VulkanLib;

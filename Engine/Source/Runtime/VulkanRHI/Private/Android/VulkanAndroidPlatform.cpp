@@ -1799,4 +1799,11 @@ FString FVulkanAndroidPlatform::GetVulkanProfileNameForFeatureLevel(ERHIFeatureL
 		ProfileName += TEXT("_RT");
 	}
 	return ProfileName;
+} 
+
+void FVulkanAndroidPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding)
+{
+	ensure(Entries.Num() <= GMaxCrashBufferEntries);
+
+	WriteCrashMarkerWithoutExtensions(CmdBuffer, DestBuffer, Entries, bAdding);
 }

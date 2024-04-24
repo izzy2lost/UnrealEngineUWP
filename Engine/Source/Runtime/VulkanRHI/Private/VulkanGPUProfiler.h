@@ -192,8 +192,9 @@ struct FVulkanGPUProfiler : public FGPUProfiler
 	FVulkanCommandListContext* CmdContext;
 
 #if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	void PushMarkerForCrash(VkCommandBuffer CmdBuffer, VkBuffer DestBuffer, const TCHAR* Name);
-	void PopMarkerForCrash(VkCommandBuffer CmdBuffer, VkBuffer DestBuffer);
+	void PrepareCrashMarkerkBuffer();
+	void PushMarkerForCrash(FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TCHAR* Name);
+	void PopMarkerForCrash(FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer);
 	void DumpCrashMarkers(void* BufferData);
 #endif
 
@@ -201,7 +202,6 @@ struct FVulkanGPUProfiler : public FGPUProfiler
 	TMap<uint32, FString> CachedStrings;
 	TArray<uint32> PushPopStack;
 
-	FVulkanTimingQueryPool* LocalTracePointsQueryPool;
 	TArray<uint64> CrashMarkers;
 	bool bBeginFrame;
 };
