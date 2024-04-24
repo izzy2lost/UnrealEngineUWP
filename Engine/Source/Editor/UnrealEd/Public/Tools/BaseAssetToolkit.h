@@ -59,6 +59,7 @@ protected:
 	UNREALED_API virtual TSharedPtr<FEditorViewportClient> CreateEditorViewportClient() const;
 	UNREALED_API virtual TSharedRef<SDockTab> SpawnTab_Viewport(const FSpawnTabArgs& Args);
 	UNREALED_API virtual TSharedRef<SDockTab> SpawnTab_Details(const FSpawnTabArgs& Args);
+	UNREALED_API virtual TSharedRef<IDetailsView> CreateDetailsView();
 
 protected:
 	/** Property View */
