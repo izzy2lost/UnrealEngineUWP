@@ -364,6 +364,7 @@ struct FGfxPipelineDesc
 		uint8 NumColorAttachments;
 		uint8 bHasDepthStencil;
 		uint8 bHasResolveAttachments;
+		uint8 bHasDepthStencilResolve;
 		uint8 bHasFragmentDensityAttachment;
 		uint8 NumUsedClearValues;
 		uint32 RenderPassCompatibleHash;
@@ -385,6 +386,7 @@ struct FGfxPipelineDesc
 				NumColorAttachments == In.NumColorAttachments &&
 				bHasDepthStencil == In.bHasDepthStencil &&
 				bHasResolveAttachments == In.bHasResolveAttachments &&
+				bHasDepthStencilResolve == In.bHasDepthStencilResolve &&
 				bHasFragmentDensityAttachment == In.bHasFragmentDensityAttachment &&
 				NumUsedClearValues == In.NumUsedClearValues &&
 				RenderPassCompatibleHash == In.RenderPassCompatibleHash &&

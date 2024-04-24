@@ -594,7 +594,6 @@ void FMobileSceneRenderer::InitViews(
 	{
 		bKeepDepthContent = true;
 	}
-
 	// Update the bKeepDepthContent based on the mobile renderer status.
 	SceneTexturesConfig.bKeepDepthContent = bKeepDepthContent;
 	// If we render in a single pass MSAA targets can be memoryless
@@ -1418,6 +1417,7 @@ FRenderTargetBindingSlots FMobileSceneRenderer::InitRenderTargetBindings_Forward
 	FRDGTextureRef SceneColor = nullptr;
 	FRDGTextureRef SceneColorResolve = nullptr;
 	FRDGTextureRef SceneDepth = nullptr;
+	FRDGTextureRef SceneDepthResolve = nullptr;
 
 	// Verify using both MSAA sample count AND the scene color surface sample count, since on GLES you can't have MSAA color targets,
 	// so the color target would be created without MSAA, and MSAA is achieved through magical means (the framebuffer, being MSAA,
@@ -1435,14 +1435,14 @@ FRenderTargetBindingSlots FMobileSceneRenderer::InitRenderTargetBindings_Forward
 		{
 			SceneColor = ViewFamilyTexture;
 		}
-		SceneDepth = SceneTextures.Depth.Target;
 	}
 	else
 	{
 		SceneColor = SceneTextures.Color.Target;
 		SceneColorResolve = bMobileMSAA ? SceneTextures.Color.Resolve : nullptr;
-		SceneDepth = SceneTextures.Depth.Target;
 	}
+	SceneDepth = SceneTextures.Depth.Target;
+	SceneDepthResolve = GRHISupportsDepthStencilResolve && bMobileMSAA && SceneTextures.Depth.IsSeparate() ? SceneTextures.Depth.Resolve : nullptr;
 
 	FRenderTargetBindingSlots BasePassRenderTargets;
 	BasePassRenderTargets[0] = FRenderTargetBinding(SceneColor, SceneColorResolve, ERenderTargetLoadAction::EClear);
@@ -1459,9 +1459,9 @@ FRenderTargetBindingSlots FMobileSceneRenderer::InitRenderTargetBindings_Forward
 		BasePassRenderTargets[1] = FRenderTargetBinding(ViewFamilyTexture, nullptr, ERenderTargetLoadAction::EClear);
 	}
 	
-	BasePassRenderTargets.DepthStencil = bIsFullDepthPrepassEnabled ? 
-		FDepthStencilBinding(SceneDepth, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite) : 
-		FDepthStencilBinding(SceneDepth, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthWrite_StencilWrite);
+	BasePassRenderTargets.DepthStencil = bIsFullDepthPrepassEnabled ?
+		FDepthStencilBinding(SceneDepth, SceneDepthResolve, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite) :
+		FDepthStencilBinding(SceneDepth, SceneDepthResolve, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthWrite_StencilWrite);
 	BasePassRenderTargets.SubpassHint = ESubpassHint::None;
 	BasePassRenderTargets.NumOcclusionQueries = 0u;
 
@@ -1617,7 +1617,7 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 	});
 	
 	// resolve MSAA depth
-	if (!bIsFullDepthPrepassEnabled)
+	if (!GRHISupportsDepthStencilResolve && !bIsFullDepthPrepassEnabled)
 	{
 		AddResolveSceneDepthPass(GraphBuilder, *ViewContext.ViewInfo, SceneTextures.Depth);
 	}

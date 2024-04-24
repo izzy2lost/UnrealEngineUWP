@@ -768,6 +768,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	, NumColorAttachments(0)
 	, bHasDepthStencil(false)
 	, bHasResolveAttachments(false)
+	, bHasDepthStencilResolve(false)
 	, bHasFragmentDensityAttachment(false)
 	, NumSamples(0)
 	, NumUsedClearValues(0)
@@ -869,24 +870,15 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		CurrDesc.loadOp = RenderTargetLoadActionToVulkan(RTInfo.DepthStencilRenderTarget.DepthLoadAction);
 		CurrDesc.stencilLoadOp = RenderTargetLoadActionToVulkan(RTInfo.DepthStencilRenderTarget.StencilLoadAction);
 		bFoundClearOp = bFoundClearOp || (CurrDesc.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR || CurrDesc.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_CLEAR);
-		if (CurrDesc.samples == VK_SAMPLE_COUNT_1_BIT)
-		{
-			CurrDesc.storeOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.DepthStoreAction);
-			CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.GetStencilStoreAction());
+		CurrDesc.storeOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.DepthStoreAction);
+		CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.GetStencilStoreAction());
 
-			// Removed this temporarily as we need a way to determine if the target is actually memoryless
-			/*if (EnumHasAllFlags(Texture->UEFlags, TexCreate_Memoryless))
-			{
-				ensure(CurrDesc.storeOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
-				ensure(CurrDesc.stencilStoreOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
-			}*/
-		}
-		else
+		// Removed this temporarily as we need a way to determine if the target is actually memoryless
+		/*if (EnumHasAllFlags(Texture->UEFlags, TexCreate_Memoryless))
 		{
-			// Never want to store MSAA depth/stencil
-			CurrDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			CurrDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		}
+			ensure(CurrDesc.storeOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
+			ensure(CurrDesc.stencilStoreOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
+		}*/
 
 		const VkImageLayout DepthLayout = RTInfo.DepthStencilRenderTarget.GetDepthStencilAccess().IsDepthWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
 		const VkImageLayout StencilLayout = RTInfo.DepthStencilRenderTarget.GetDepthStencilAccess().IsStencilWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
@@ -900,6 +892,25 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		DepthReference.attachment = NumAttachmentDescriptions;
 		DepthReference.layout = DepthLayout;
 		StencilReference.stencilLayout = StencilLayout;
+
+		// Use depth/stencil resolve target only if we're MSAA and a RT has a resolve attachment
+		const bool bHasValidResolveAttachment = RTInfo.bHasResolveAttachments && RTInfo.DepthStencilResolveRenderTarget.Texture;
+		if (GRHISupportsDepthStencilResolve && CurrDesc.samples > VK_SAMPLE_COUNT_1_BIT && bHasValidResolveAttachment)
+		{
+			Desc[NumAttachmentDescriptions + 1] = Desc[NumAttachmentDescriptions];
+			Desc[NumAttachmentDescriptions + 1].samples = VK_SAMPLE_COUNT_1_BIT;
+			Desc[NumAttachmentDescriptions + 1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			Desc[NumAttachmentDescriptions + 1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			DepthStencilResolveReference.attachment = NumAttachmentDescriptions + 1;
+			DepthStencilResolveReference.layout = DepthLayout;
+			// NumColorAttachments was incremented after the last color attachment
+			ensureMsgf(NumColorAttachments < 16, TEXT("Must have room for depth resolve bit"));
+			CompatibleHashInfo.AttachmentsToResolve |= (uint16)(1 << NumColorAttachments);
+			++NumAttachmentDescriptions;
+			bHasDepthStencilResolve = true;
+		}
 
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets] = CurrDesc.loadOp;
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets + 1] = CurrDesc.stencilLoadOp;
@@ -978,6 +989,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	, NumColorAttachments(0)
 	, bHasDepthStencil(false)
 	, bHasResolveAttachments(false)
+	, bHasDepthStencilResolve(false)
 	, bHasFragmentDensityAttachment(false)
 	, NumSamples(0)
 	, NumUsedClearValues(0)
@@ -1083,12 +1095,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		CurrDesc.loadOp = RenderTargetLoadActionToVulkan(GetLoadAction(GetDepthActions(RPInfo.DepthStencilRenderTarget.Action)));
 		CurrDesc.stencilLoadOp = RenderTargetLoadActionToVulkan(GetLoadAction(GetStencilActions(RPInfo.DepthStencilRenderTarget.Action)));
 		bFoundClearOp = bFoundClearOp || (CurrDesc.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR || CurrDesc.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_CLEAR);
-		if (CurrDesc.samples != VK_SAMPLE_COUNT_1_BIT)
-		{
-			// Can't resolve MSAA depth/stencil
-			ensure(GetStoreAction(GetDepthActions(RPInfo.DepthStencilRenderTarget.Action)) != ERenderTargetStoreAction::EMultisampleResolve);
-			ensure(GetStoreAction(GetStencilActions(RPInfo.DepthStencilRenderTarget.Action)) != ERenderTargetStoreAction::EMultisampleResolve);
-		}
 
 		CurrDesc.storeOp = RenderTargetStoreActionToVulkan(GetStoreAction(GetDepthActions(RPInfo.DepthStencilRenderTarget.Action)));
 		CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(GetStoreAction(GetStencilActions(RPInfo.DepthStencilRenderTarget.Action)));
@@ -1132,7 +1138,22 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		DepthReference.layout = CurrentDepthLayout;
 		StencilReference.stencilLayout = CurrentStencilLayout;
 
-		++NumAttachmentDescriptions;
+		if (GRHISupportsDepthStencilResolve && CurrDesc.samples > VK_SAMPLE_COUNT_1_BIT && RPInfo.DepthStencilRenderTarget.ResolveTarget)
+		{
+			Desc[NumAttachmentDescriptions + 1] = Desc[NumAttachmentDescriptions];
+			Desc[NumAttachmentDescriptions + 1].samples = VK_SAMPLE_COUNT_1_BIT;
+			Desc[NumAttachmentDescriptions + 1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			Desc[NumAttachmentDescriptions + 1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			DepthStencilResolveReference.attachment = NumAttachmentDescriptions + 1;
+			DepthStencilResolveReference.layout = CurrentDepthLayout;
+			// NumColorAttachments was incremented after the last color attachment
+			ensureMsgf(NumColorAttachments < 16, TEXT("Must have room for depth resolve bit"));
+			CompatibleHashInfo.AttachmentsToResolve |= (uint16)(1 << NumColorAttachments);
+			++NumAttachmentDescriptions;
+			bHasDepthStencilResolve = true;
+		}
 
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets] = CurrDesc.loadOp;
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets + 1] = CurrDesc.stencilLoadOp;
@@ -1142,6 +1163,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		FullHashInfo.InitialLayout[MaxSimultaneousRenderTargets + 1] = CurrentStencilLayout;
 		CompatibleHashInfo.Formats[MaxSimultaneousRenderTargets] = CurrDesc.format;
 
+		++NumAttachmentDescriptions;
 
 		bHasDepthStencil = true;
 
@@ -1226,6 +1248,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 	, NumColorAttachments(0)
 	, bHasDepthStencil(false)
 	, bHasResolveAttachments(false)
+	, bHasDepthStencilResolve(false)
 	, bHasFragmentDensityAttachment(false)
 	, NumSamples(0)
 	, NumUsedClearValues(0)
@@ -1299,18 +1322,8 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 		{
 			bFoundClearOp = true;
 		}
-		if (CurrDesc.samples == VK_SAMPLE_COUNT_1_BIT)
-		{
-			CurrDesc.storeOp = RenderTargetStoreActionToVulkan(Initializer.DepthTargetStoreAction);
-			CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(Initializer.StencilTargetStoreAction);
-		}
-		else
-		{
-			// Never want to store MSAA depth/stencil
-			CurrDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			CurrDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		}
-
+		CurrDesc.storeOp = RenderTargetStoreActionToVulkan(Initializer.DepthTargetStoreAction);
+		CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(Initializer.StencilTargetStoreAction);
 		// If the initial != final we need to change the FullHashInfo and use FinalLayout
 		CurrDesc.initialLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
 		CurrDesc.finalLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
@@ -1320,6 +1333,24 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 		DepthReference.attachment = NumAttachmentDescriptions;
 		DepthReference.layout = Initializer.DepthStencilAccess.IsDepthWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
 		StencilReference.stencilLayout = Initializer.DepthStencilAccess.IsStencilWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
+
+		const bool bDepthStencilResolve = (Initializer.DepthTargetStoreAction == ERenderTargetStoreAction::EMultisampleResolve) || (Initializer.StencilTargetStoreAction == ERenderTargetStoreAction::EMultisampleResolve);
+		if (bDepthStencilResolve && GRHISupportsDepthStencilResolve && CurrDesc.samples > VK_SAMPLE_COUNT_1_BIT)
+		{
+			Desc[NumAttachmentDescriptions + 1] = Desc[NumAttachmentDescriptions];
+			Desc[NumAttachmentDescriptions + 1].samples = VK_SAMPLE_COUNT_1_BIT;
+			Desc[NumAttachmentDescriptions + 1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			Desc[NumAttachmentDescriptions + 1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			DepthStencilResolveReference.attachment = NumAttachmentDescriptions + 1;
+			DepthStencilResolveReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			// NumColorAttachments was incremented after the last color attachment
+			ensureMsgf(NumColorAttachments < 16, TEXT("Must have room for depth resolve bit"));
+			CompatibleHashInfo.AttachmentsToResolve |= (uint16)(1 << NumColorAttachments);
+			++NumAttachmentDescriptions;
+			bHasDepthStencilResolve = true;
+		}
 
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets] = CurrDesc.loadOp;
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets + 1] = CurrDesc.stencilLoadOp;

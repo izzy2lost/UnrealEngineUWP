@@ -1371,6 +1371,23 @@ public:
 	VkPhysicalDeviceShaderFloat16Int8Features  ShaderFloat16Int8Features;
 };
 
+// ***** VK_KHR_depth_stencil_resolve
+class FVulkanKHRDepthStencilResolveExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRDepthStencilResolveExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		ExtensionFlags.HasKHRDepthStencilResolve = 1;
+		GRHISupportsDepthStencilResolve = ExtensionFlags.HasKHRDepthStencilResolve;
+	}
+};
+
 // ***** VK_EXT_pipeline_creation_cache_control
 class FVulkanEXTPipelineCreationCacheControlExtension : public FVulkanDeviceExtension
 {
@@ -1483,6 +1500,7 @@ FVulkanDeviceExtensionArray FVulkanDeviceExtension::GetUESupportedDeviceExtensio
 	ADD_CUSTOM_EXTENSION(FVulkanEXTShaderDemoteToHelperInvocationExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHR16BitStorageExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRShaderFloat16Int8Extension);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRDepthStencilResolveExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanEXTPipelineCreationCacheControlExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRFragmentShaderBarycentricExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanNVComputeShaderDerivatives);

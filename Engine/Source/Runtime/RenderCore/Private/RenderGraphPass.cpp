@@ -72,12 +72,27 @@ FRHIRenderPassInfo FRDGParameterStruct::GetRenderPassInfo() const
 	if (FRDGTextureRef Texture = DepthStencil.GetTexture())
 	{
 		const FExclusiveDepthStencil ExclusiveDepthStencil = DepthStencil.GetDepthStencilAccess();
-		const ERenderTargetStoreAction StoreAction = EnumHasAnyFlags(Texture->Desc.Flags, TexCreate_Memoryless) ? ERenderTargetStoreAction::ENoAction : ERenderTargetStoreAction::EStore;
+		ERenderTargetStoreAction StoreAction = EnumHasAnyFlags(Texture->Desc.Flags, TexCreate_Memoryless) ? ERenderTargetStoreAction::ENoAction : ERenderTargetStoreAction::EStore;
+		FRDGTextureRef ResolveTexture = DepthStencil.GetResolveTexture();
+		if (ResolveTexture)
+		{
+			// Silently skip the resolve if the resolve texture is the same as the render target texture.
+			if (ResolveTexture != Texture)
+			{
+				StoreAction = ERenderTargetStoreAction::EMultisampleResolve;
+			}
+			else
+			{
+				ResolveTexture = nullptr;
+			}
+		}
+
 		const ERenderTargetStoreAction DepthStoreAction = ExclusiveDepthStencil.IsUsingDepth() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 		const ERenderTargetStoreAction StencilStoreAction = ExclusiveDepthStencil.IsUsingStencil() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 
 		auto& DepthStencilTarget = RenderPassInfo.DepthStencilRenderTarget;
 		DepthStencilTarget.DepthStencilTarget = Texture->GetRHI();
+		DepthStencilTarget.ResolveTarget = ResolveTexture ? ResolveTexture->GetRHI() : nullptr;
 		DepthStencilTarget.Action = MakeDepthStencilTargetActions(
 			MakeRenderTargetActions(DepthStencil.GetDepthLoadAction(), DepthStoreAction),
 			MakeRenderTargetActions(DepthStencil.GetStencilLoadAction(), StencilStoreAction));

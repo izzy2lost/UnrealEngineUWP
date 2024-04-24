@@ -181,6 +181,7 @@ void EnumerateTextureAccess(FRDGParameterStruct PassParameters, ERDGPassFlags Pa
 
 			if (FRDGTextureRef Texture = DepthStencil.GetTexture())
 			{
+				FRDGTextureRef ResolveTexture = DepthStencil.GetResolveTexture();
 				DepthStencil.GetDepthStencilAccess().EnumerateSubresources([&](ERHIAccess NewAccess, uint32 PlaneSlice)
 				{
 					FRDGTextureSubresourceRange Range = Texture->GetSubresourceRange();
@@ -193,6 +194,12 @@ void EnumerateTextureAccess(FRDGParameterStruct PassParameters, ERDGPassFlags Pa
 					}
 
 					AccessFunction(nullptr, Texture, NewAccess, RenderTargetAccess, Range);
+
+					if (ResolveTexture && ResolveTexture != Texture)
+					{
+						// If we're resolving depth stencil, it must be DSVWrite and ResolveDst
+						AccessFunction(nullptr, ResolveTexture, ERHIAccess::DSVWrite | ERHIAccess::ResolveDst, RenderTargetAccess, Range);
+					}
 				});
 			}
 

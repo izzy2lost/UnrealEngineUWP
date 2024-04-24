@@ -147,7 +147,12 @@ struct FVulkanSubpassDescription<VkSubpassDescription>
 		inputAttachmentCount = NumInputAttachmentReferences;
 	}
 
-	void SetShadingRateAttachment(void* /* ShadingRateAttachmentInfo */)
+	void SetDepthStencilResolveAttachment(VkSubpassDescriptionDepthStencilResolveKHR* DepthStencilResolveAttachmentDesc)
+	{
+		// No-op without VK_KHR_create_renderpass2
+	}
+
+	void SetShadingRateAttachment(VkFragmentShadingRateAttachmentInfoKHR* /* ShadingRateAttachmentInfo */)
 	{
 		// No-op without VK_KHR_create_renderpass2
 	}
@@ -195,9 +200,18 @@ struct FVulkanSubpassDescription<VkSubpassDescription2>
 		inputAttachmentCount = NumInputAttachmentReferences;
 	}
 
-	void SetShadingRateAttachment(void* ShadingRateAttachmentInfo)
+	void SetDepthStencilResolveAttachment(VkSubpassDescriptionDepthStencilResolveKHR* DepthStencilResolveAttachmentDesc)
 	{
+		const void* Next = pNext;
+		pNext = DepthStencilResolveAttachmentDesc;
+		DepthStencilResolveAttachmentDesc->pNext = Next;
+	}
+
+	void SetShadingRateAttachment(VkFragmentShadingRateAttachmentInfoKHR* ShadingRateAttachmentInfo)
+	{
+		const void* Next = pNext;
 		pNext = ShadingRateAttachmentInfo;
+		ShadingRateAttachmentInfo->pNext = Next;
 	}
 
 	void SetMultiViewMask(uint32_t Mask)
@@ -404,6 +418,26 @@ struct FVulkanFragmentShadingRateAttachmentInfo
 	}
 };
 
+struct FVulkanDepthStencilResolveSubpassDesc
+	: public VkSubpassDescriptionDepthStencilResolveKHR
+{
+	FVulkanDepthStencilResolveSubpassDesc()
+	{
+		ZeroVulkanStruct(*this, VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_DEPTH_STENCIL_RESOLVE);
+	}
+
+	void SetResolveModes(VkResolveModeFlagBits DepthMode, VkResolveModeFlagBits StencilMode)
+	{
+		depthResolveMode = DepthMode;
+		stencilResolveMode = StencilMode;
+	}
+
+	void SetReference(FVulkanAttachmentReference<VkAttachmentReference2>* AttachmentReference)
+	{
+		pDepthStencilResolveAttachment = AttachmentReference;
+	}
+};
+
 extern int32 GVulkanInputAttachmentShaderRead;
 
 template <typename TSubpassDescriptionClass, typename TSubpassDependencyClass, typename TAttachmentReferenceClass, typename TAttachmentDescriptionClass, typename TRenderPassCreateInfoClass>
@@ -430,6 +464,10 @@ public:
 												&& RTLayout.GetFragmentDensityAttachmentReference() != nullptr
 												&& Device.GetOptionalExtensions().HasKHRFragmentShadingRate 
 												&& Device.GetOptionalExtensionProperties().FragmentShadingRateFeatures.attachmentFragmentShadingRate == VK_TRUE;
+		const bool bResolveDepth =  GRHISupportsDepthStencilResolve &&
+									Device.GetOptionalExtensions().HasKHRDepthStencilResolve &&
+									RTLayout.GetHasDepthStencilResolve();
+
 		const bool bCustomResolveSubpass = RTLayout.GetSubpassHint() == ESubpassHint::CustomResolveSubpass;
 		const bool bDepthReadSubpass = bCustomResolveSubpass || (RTLayout.GetSubpassHint() == ESubpassHint::DepthReadSubpass);
 		const bool bHasDepthStencilAttachmentReference = (RTLayout.GetDepthAttachmentReference() != nullptr);
@@ -438,6 +476,15 @@ public:
 		{
 			ShadingRateAttachmentReference.SetAttachment(*RTLayout.GetFragmentDensityAttachmentReference(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT);
 			FragmentShadingRateAttachmentInfo.SetReference(&ShadingRateAttachmentReference);
+		}
+
+		if (bResolveDepth)
+		{
+			DepthStencilResolveAttachmentReference.SetAttachment(*RTLayout.GetDepthStencilResolveAttachmentReference(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_NONE);
+			// Using zero bit because it is always supported if the extension is supported, from spec: "The VK_RESOLVE_MODE_SAMPLE_ZERO_BIT mode
+			// is the only mode that is required of all implementations (that support the extension or support Vulkan 1.2 or higher)."
+			DepthStencilResolveSubpassDesc.SetResolveModes(VK_RESOLVE_MODE_SAMPLE_ZERO_BIT, VK_RESOLVE_MODE_SAMPLE_ZERO_BIT);
+			DepthStencilResolveSubpassDesc.SetReference(&DepthStencilResolveAttachmentReference);
 		}
 
 		// Grab (and optionally convert) attachment references.
@@ -498,6 +545,11 @@ public:
 				SubpassDesc.SetDepthStencilAttachment(&DepthStencilAttachmentReference);
 			}
 
+			if (!bDepthReadSubpass && bResolveDepth)
+			{
+				SubpassDesc.SetDepthStencilResolveAttachment(&DepthStencilResolveSubpassDesc);
+			}
+
 			if (bApplyFragmentShadingRate)
 			{
 				SubpassDesc.SetShadingRateAttachment(&FragmentShadingRateAttachmentInfo);
@@ -521,6 +573,11 @@ public:
 			SubpassDesc.SetInputAttachments(InputAttachments1, InputAttachment1Count);
 			// depth attachment is same as input attachment
 			SubpassDesc.SetDepthStencilAttachment(&DepthStencilAttachment);
+
+			if (bResolveDepth)
+			{
+				SubpassDesc.SetDepthStencilResolveAttachment(&DepthStencilResolveSubpassDesc);
+			}
 
 			if (bApplyFragmentShadingRate)
 			{
@@ -772,6 +829,10 @@ private:
 
 	FVulkanAttachmentReference<VkAttachmentReference2> ShadingRateAttachmentReference;
 	FVulkanFragmentShadingRateAttachmentInfo FragmentShadingRateAttachmentInfo;
+
+	// Depth stencil resolve
+	FVulkanAttachmentReference<VkAttachmentReference2> DepthStencilResolveAttachmentReference;
+	FVulkanDepthStencilResolveSubpassDesc DepthStencilResolveSubpassDesc;
 
 	FVulkanRenderPassFragmentDensityMapCreateInfoEXT FragDensityCreateInfo;
 	FVulkanRenderPassMultiviewCreateInfo MultiviewInfo;

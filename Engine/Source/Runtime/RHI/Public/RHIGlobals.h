@@ -658,6 +658,9 @@ struct FRHIGlobals
 
 	/** True if RHI supports MSAA resolve with a custom shader */
 	bool SupportsMSAAShaderResolve = false;
+
+	/** Whether Depth Stencil MSAA Resolve Targets are supported. */
+	bool SupportsDepthStencilResolve = false;
 };
 
 extern RHI_API FRHIGlobals GRHIGlobals;
@@ -828,6 +831,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHIIsDebugLayerEnabled                                GRHIGlobals.IsDebugLayerEnabled
 #define GRHIHDRNeedsVendorExtensions						   GRHIGlobals.HDRNeedsVendorExtensions
 #define GRHISupportsMSAAShaderResolve						   GRHIGlobals.SupportsMSAAShaderResolve
+#define GRHISupportsDepthStencilResolve                        GRHIGlobals.SupportsDepthStencilResolve
 
 // Utility Getters
 

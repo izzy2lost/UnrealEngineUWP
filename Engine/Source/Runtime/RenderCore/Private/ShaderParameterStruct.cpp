@@ -451,6 +451,8 @@ bool FDepthStencilBinding::Validate() const
 	}
 	else
 	{
+		checkf(!ResolveTexture,
+			TEXT("Can't have a depth stencil resolve texture when no depth stencil target texture is bound."));
 		checkf(DepthLoadAction == ERenderTargetLoadAction::ENoAction,
 			TEXT("Can't have a depth load action when no texture is bound."));
 		checkf(StencilLoadAction == ERenderTargetLoadAction::ENoAction,

@@ -508,6 +508,30 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 		{
 			AddExternalView(Texture->DefaultView);
 		}
+
+		if (InRTInfo.bHasResolveAttachments && RTLayout.GetHasDepthStencilResolve() && RTLayout.GetDepthStencilResolveAttachmentReference()->layout != VK_IMAGE_LAYOUT_UNDEFINED)
+		{
+			FRHITexture* ResolveRHITexture = InRTInfo.DepthStencilResolveRenderTarget.Texture;
+			FVulkanTexture* ResolveTexture = ResourceCast(ResolveRHITexture);
+			DepthStencilResolveRenderTargetImage = ResolveTexture->Image;
+
+			// Resolve attachments only supported for 2d/2d array textures
+			if (ResolveTexture->GetViewType() == VK_IMAGE_VIEW_TYPE_2D || ResolveTexture->GetViewType() == VK_IMAGE_VIEW_TYPE_2D_ARRAY)
+			{
+				CreateOwnedView()->InitAsTextureView(
+					ResolveTexture->Image
+					, ResolveTexture->GetViewType()
+					, ResolveTexture->GetFullAspectMask()
+					, ResolveTexture->GetDesc().Format
+					, ResolveTexture->ViewFormat
+					, MipIndex
+					, 1
+					, 0
+					, ResolveTexture->GetNumberOfArrayLevels()
+					, true
+				);
+			}
+		}
 	}
 
 	if (GRHISupportsAttachmentVariableRateShading && GRHIVariableRateShadingEnabled && GRHIAttachmentVariableRateShadingEnabled && RTLayout.GetHasFragmentDensityAttachment())
@@ -586,6 +610,19 @@ bool FVulkanFramebuffer::Matches(const FRHISetRenderTargetsInfo& InRTInfo) const
 		{
 			VkImage AImage = DepthStencilRenderTargetImage;
 			VkImage BImage = ResourceCast(B.Texture)->Image;
+			if (AImage != BImage)
+			{
+				return false;
+			}
+		}
+	}
+
+	{
+		const FRHIDepthRenderTargetView& R = InRTInfo.DepthStencilResolveRenderTarget;
+		if (R.Texture)
+		{
+			VkImage AImage = DepthStencilResolveRenderTargetImage;
+			VkImage BImage = ResourceCast(R.Texture)->Image;
 			if (AImage != BImage)
 			{
 				return false;

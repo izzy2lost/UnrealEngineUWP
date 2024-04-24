@@ -3505,6 +3505,8 @@ public:
 
 	// Depth/Stencil Render Target Info
 	FRHIDepthRenderTargetView DepthStencilRenderTarget;	
+	// Used when depth resolve is enabled.
+	FRHIDepthRenderTargetView DepthStencilResolveRenderTarget;
 	bool bClearDepth;
 	bool bClearStencil;
 
@@ -3557,8 +3559,11 @@ public:
 		// Need a separate struct so we can memzero/remove dependencies on reference counts
 		struct FHashableStruct
 		{
-			// *2 for color and resolves, depth goes in the second-to-last slot, shading rate goes in the last slot
-			FRHITexture* Texture[MaxSimultaneousRenderTargets*2 + 2];
+			// *2 for color and resolves
+			// depth goes in the third-to-last slot
+			// depth resolve goes in the second-to-last slot
+			// shading rate goes in the last slot
+			FRHITexture* Texture[MaxSimultaneousRenderTargets*2 + 3];
 			uint32 MipIndex[MaxSimultaneousRenderTargets];
 			uint32 ArraySliceIndex[MaxSimultaneousRenderTargets];
 			ERenderTargetLoadAction LoadAction[MaxSimultaneousRenderTargets];
@@ -3590,8 +3595,9 @@ public:
 					StoreAction[Index] = RTInfo.ColorRenderTarget[Index].StoreAction;
 				}
 
-				Texture[MaxSimultaneousRenderTargets] = RTInfo.DepthStencilRenderTarget.Texture;
-				Texture[MaxSimultaneousRenderTargets + 1] = RTInfo.ShadingRateTexture;
+				Texture[MaxSimultaneousRenderTargets*2] = RTInfo.DepthStencilRenderTarget.Texture;
+				Texture[MaxSimultaneousRenderTargets*2 + 1] = RTInfo.DepthStencilResolveRenderTarget.Texture;
+				Texture[MaxSimultaneousRenderTargets*2 + 2] = RTInfo.ShadingRateTexture;
 				DepthLoadAction = RTInfo.DepthStencilRenderTarget.DepthLoadAction;
 				DepthStoreAction = RTInfo.DepthStencilRenderTarget.DepthStoreAction;
 				StencilLoadAction = RTInfo.DepthStencilRenderTarget.StencilLoadAction;

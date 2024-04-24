@@ -510,6 +510,14 @@ static void GetDepthOrStencilStageAndAccessFlags(ERHIAccess Access, VkPipelineSt
 	AccessFlags = 0;
 	uint32 ProcessedRHIFlags = 0;
 
+	if (EnumHasAllFlags(Access, ERHIAccess::ResolveDst))
+	{
+		// Despite being a depth/stencil target, resolve operations are part of the color attachment output stage
+		StageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		AccessFlags |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		ProcessedRHIFlags |= (uint32)ERHIAccess::ResolveDst;
+	}
+
 	if (EnumHasAnyFlags(Access, ERHIAccess::DSVWrite))
 	{
 		StageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
