@@ -696,9 +696,10 @@ public:
 
 	/** 
 	* Replace the contents of this queue with a copy of the contents from another queue. 
+	* Returns a pointer to this queue if the copy was successful, else nullptr.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline|Queue")
-	void CopyFrom(UMoviePipelineQueue* InQueue);
+	UMoviePipelineQueue* CopyFrom(UMoviePipelineQueue* InQueue);
 	
 	/* Set the index of the given job */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline|Queue")

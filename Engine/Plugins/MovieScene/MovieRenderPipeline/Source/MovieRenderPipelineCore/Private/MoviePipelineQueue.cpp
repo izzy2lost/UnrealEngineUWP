@@ -161,12 +161,12 @@ UMoviePipelineExecutorJob* UMoviePipelineQueue::DuplicateJob(UMoviePipelineExecu
 	return NewJob;
 }
 
-void UMoviePipelineQueue::CopyFrom(UMoviePipelineQueue* InQueue)
+UMoviePipelineQueue* UMoviePipelineQueue::CopyFrom(UMoviePipelineQueue* InQueue)
 {
 	if (!InQueue)
 	{
 		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Cannot copy the contents of a null queue."));
-		return;
+		return nullptr;
 	}
 
 	// The copy should reflect the input queue's origin (ie, the queue asset it was originally based off of). Setting
@@ -186,6 +186,7 @@ void UMoviePipelineQueue::CopyFrom(UMoviePipelineQueue* InQueue)
 	// Ensure the serial number gets bumped at least once so the UI refreshes in case
 	// the queue we are copying from was empty.
 	QueueSerialNumber++;
+	return this;
 }
 
 void UMoviePipelineQueue::SetJobIndex(UMoviePipelineExecutorJob* InJob, int32 Index)
