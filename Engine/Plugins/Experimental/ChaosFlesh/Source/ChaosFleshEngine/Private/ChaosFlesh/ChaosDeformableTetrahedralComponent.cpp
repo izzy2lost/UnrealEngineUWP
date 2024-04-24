@@ -151,10 +151,17 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 					TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
 					GetOwner()->GetComponents<USkeletalMeshComponent>(SkeletalMeshComponents);
 
-					if (const TManagedArray<FTransform>* RestTransforms = Rest->FindAttribute<FTransform>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup))
+					if (const TManagedArray<FTransform3f>* RestTransforms = Rest->FindAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup))
 					{
-						TArray<FTransform> AnimationTransforms = RestTransforms->GetConstArray();
-						TArray<FTransform> ComponentPose = RestTransforms->GetConstArray();
+						auto ToDoubleLocal = [](const TArray<FTransform3f>& Src, TArray<FTransform>& Tar) {
+							// @todo : Push floats through to the solver and avoid the copy. 
+							Tar.AddUninitialized(Src.Num());
+							for (int i = 0; i < Src.Num(); i++) Tar[i] = FTransform(Src[i]);
+						};
+
+						TArray<FTransform3f> FloatRestTransform = RestTransforms->GetConstArray();
+						TArray<FTransform> AnimationTransforms; ToDoubleLocal(FloatRestTransform, AnimationTransforms);
+						TArray<FTransform> ComponentPose; ToDoubleLocal(FloatRestTransform, ComponentPose);
 
 						// Extract animated transforms from all skeletal meshes.
 						for (const USkeletalMeshComponent* SkeletalMeshComponent : SkeletalMeshComponents)
@@ -196,7 +203,7 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 						FTransform BoneSpaceXf;
 						if (AnimationTransforms.IsValidIndex(SimulationSpace.SimSpaceTransformGlobalIndex))
 						{
-							BoneSpaceXf = AnimationTransforms[SimulationSpace.SimSpaceTransformGlobalIndex];
+							BoneSpaceXf = FTransform(AnimationTransforms[SimulationSpace.SimSpaceTransformGlobalIndex]);
 						}
 						else
 						{

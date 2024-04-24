@@ -103,7 +103,7 @@ void UDeformableGameplayComponent::DetectEnvironmentCollisions(const int32 MaxNu
 	const TManagedArray<TArray<int32>>* BoneIndices = BoneWeightsFacade.FindBoneIndices();
 	const TManagedArray<TArray<float>>* BoneWeights = BoneWeightsFacade.FindBoneWeights();
 
-	const TManagedArray<FTransform>* RestTransforms = nullptr;
+	const TManagedArray<FTransform3f>* RestTransforms = nullptr;
 	if (const UFleshAsset* FleshAsset = GetRestCollection())
 	{
 		if (const FFleshCollection* Rest = FleshAsset->GetCollection())
@@ -111,7 +111,7 @@ void UDeformableGameplayComponent::DetectEnvironmentCollisions(const int32 MaxNu
 			GeometryCollection::Facades::FTransformSource TransformSource(*Rest);
 			if (TransformSource.IsValid())
 			{
-				RestTransforms = Rest->FindAttribute<FTransform>(
+				RestTransforms = Rest->FindAttribute<FTransform3f>(
 					FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
 			}
 		}
@@ -200,13 +200,13 @@ void UDeformableGameplayComponent::DetectEnvironmentCollisions(const int32 MaxNu
 					//FVector LocalPoint = RestInComponent.TransformPosition(ToDouble(RestPos));
 					
 					const FFleshCollection* Collection = GetRestCollection()->GetCollection();
-					FVector LocalPoint = (*RestTransforms)[Bones[j]].InverseTransformPosition(ToDouble(RestPos));
-					if (const TManagedArray<FTransform>* ConstTransformsPtr = Collection->FindAttributeTyped<FTransform>(FName("ComponentTransform"), FName("ComponentTransformGroup")))
+					FVector3f LocalPoint = (*RestTransforms)[Bones[j]].InverseTransformPosition(RestPos);
+					if (const TManagedArray<FTransform3f>* ConstTransformsPtr = Collection->FindAttributeTyped<FTransform3f>(FName("ComponentTransform"), FName("ComponentTransformGroup")))
 					{
-						LocalPoint = (*ConstTransformsPtr)[0].InverseTransformPosition(ToDouble(RestPos));
+						LocalPoint = (*ConstTransformsPtr)[0].InverseTransformPosition(RestPos);
 					}
 
-					SkinnedPos += AnimationInComponentSpaceTransforms[Bones[j]].TransformPosition(LocalPoint) * Weights[j];
+					SkinnedPos += AnimationInComponentSpaceTransforms[Bones[j]].TransformPosition(FVector(LocalPoint)) * Weights[j];
 					bDidSkinnedPosition = true;
 				}
 			}

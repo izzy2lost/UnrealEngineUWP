@@ -21,7 +21,7 @@ UFleshDynamicAsset::UFleshDynamicAsset(const FObjectInitializer& ObjectInitializ
 void UFleshDynamicAsset::Init()
 {
 	DynamicCollection->AddAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
-	DynamicCollection->AddAttribute<FVector3f>("ObjectState", FGeometryCollection::VerticesGroup);
+	DynamicCollection->AddAttribute<int32>("ObjectState", FGeometryCollection::VerticesGroup);
 }
 
 void UFleshDynamicAsset::Reset(const FManagedArrayCollection* InCopyFrom)
