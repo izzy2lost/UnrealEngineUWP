@@ -61,7 +61,21 @@ bool UInterchangeManager::bIsCreatingSingleton = false;
 
 namespace UE::Interchange::Private
 {
-	static TAtomic<uint64> AsyncHelperCounter = 0;
+	namespace StaticHelpers
+	{
+		static TAtomic<uint64> AsyncHelperCounter = 0;
+	
+		/**
+			 * Interchange import task will show a dialog in case user try to override an existing asset and bReplaceExisting is false,
+			 * if this optional is set, it will override or not all existing assets this Import stack tries to override.
+			 * This setting resets whenever Importing finishes.
+			 * -1:= Reset (not set)
+			 *  0:= Set and False
+			 *  1:= Set and True;
+			 */
+		static TAtomic<int8> bReplaceExistingAllDialogAnswer = -1;
+	}
+	
 
 	const FLogCategoryBase* GetLogInterchangePtr()
 	{
@@ -220,21 +234,22 @@ UE::Interchange::FImportAsyncHelper::FImportAsyncHelper()
 {
 	bCancel = false;
 
-	if (UE::Interchange::Private::AsyncHelperCounter == 0)
+	if (UE::Interchange::Private::StaticHelpers::AsyncHelperCounter == 0)
 	{
 		UInterchangeManager::GetInterchangeManager().OnImportStarted.Broadcast();
 	}
-	UE::Interchange::Private::AsyncHelperCounter++;
+	UE::Interchange::Private::StaticHelpers::AsyncHelperCounter++;
 }
 
 UE::Interchange::FImportAsyncHelper::~FImportAsyncHelper()
 {
 	CleanUp();
 
-	UE::Interchange::Private::AsyncHelperCounter--;
-	if (UE::Interchange::Private::AsyncHelperCounter == 0)
+	UE::Interchange::Private::StaticHelpers::AsyncHelperCounter--;
+	if (UE::Interchange::Private::StaticHelpers::AsyncHelperCounter == 0)
 	{
 		UInterchangeManager::GetInterchangeManager().OnImportFinished.Broadcast();
+		UInterchangeManager::GetInterchangeManager().ResetReplaceExistingAlldialogAnswerSet();
 	}
 }
 
@@ -2298,7 +2313,7 @@ void UInterchangeManager::SetInterchangeImportEnabled(bool bEnabled)
 
 bool UInterchangeManager::IsImporting()
 {
-	return UE::Interchange::Private::AsyncHelperCounter > 0;
+	return UE::Interchange::Private::StaticHelpers::AsyncHelperCounter > 0;
 }
 
 bool UInterchangeManager::ExportAsset(const UObject* Asset, bool bIsAutomated)
@@ -2718,4 +2733,24 @@ void UInterchangeManager::SetActiveMode(bool IsActive)
 		FTSTicker::GetCoreTicker().RemoveTicker(NotificationTickHandle);
 		NotificationTickHandle.Reset();
 	}
+}
+
+void UInterchangeManager::SetReplaceExistingAlldialogAnswer(bool bReplaceExistingAllDialogAnswer)
+{
+	UE::Interchange::Private::StaticHelpers::bReplaceExistingAllDialogAnswer = bReplaceExistingAllDialogAnswer ? 1 : 0;
+}
+
+void UInterchangeManager::ResetReplaceExistingAlldialogAnswerSet()
+{
+	UE::Interchange::Private::StaticHelpers::bReplaceExistingAllDialogAnswer = -1;
+}
+
+TOptional<bool> UInterchangeManager::GetReplaceExistingAlldialogAnswer()
+{
+	TOptional<bool> Result;
+	if (UE::Interchange::Private::StaticHelpers::bReplaceExistingAllDialogAnswer != -1)
+	{
+		Result = (UE::Interchange::Private::StaticHelpers::bReplaceExistingAllDialogAnswer == 1);
+	}
+	return Result;
 }

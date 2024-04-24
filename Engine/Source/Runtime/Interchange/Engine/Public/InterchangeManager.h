@@ -111,12 +111,6 @@ namespace UE
 
 			/** Whether or not to overwrite existing assets. */
 			bool bReplaceExisting = true;
-
-			/**
-			 * Interchange import task will show a dialog in case user try to override an existing asset and bReplaceExisting is false,
-			 * if this optional is set, it will override or not all existing assets this task try to override.
-			 */
-			TOptional<bool> bReplaceExistingAllDialogAnswer;
 		};
 
 		class FImportResult : protected FGCObject
@@ -748,6 +742,24 @@ public:
 	 * Example: if a skeletal mesh re-import cannot apply the existing alternate skinning data, it will enqueue a post import task to re-import those alternate skinning files.
 	 */
 	INTERCHANGEENGINE_API bool EnqueuePostImportTask(TSharedPtr<FInterchangePostImportTask> PostImportTask);
+
+
+	/**
+	* Sets the bReplaceExistingAllDialogAnswer which is responsible for:
+	* if the Import process will override or not all existing assets this Import stack tries to override.
+	*/
+	INTERCHANGEENGINE_API static void SetReplaceExistingAlldialogAnswer(bool bReplaceExistingAllDialogAnswer);
+
+	/**
+	* Checks if the bReplaceExistingAllDialogAnswer.
+	*/
+	INTERCHANGEENGINE_API static void ResetReplaceExistingAlldialogAnswerSet();
+
+	/**
+	* Gets the bReplaceExistingAllDialogAnswer.
+	*/
+	INTERCHANGEENGINE_API static TOptional<bool> GetReplaceExistingAlldialogAnswer();
+
 protected:
 
 	/** Return true if Interchange can show UI. */

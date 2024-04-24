@@ -361,6 +361,9 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 		//The node is disabled return now
 		return;
 	}
+
+	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
+
 	//If we do a reimport no need to create a package
 	if (ObjectToReimport)
 	{
@@ -441,9 +444,9 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 		{
 			const FString AssetFullName = ExistingAsset->GetFullName();
 			//If the bReplaceExistingAllDialogAnswer was set do not show again the message dialog, simply reuse the previous answer.
-			if (AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer.IsSet())
+			if (InterchangeManager.GetReplaceExistingAlldialogAnswer().IsSet())
 			{
-				bSkipObjectNoReplace = !AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer.GetValue();
+				bSkipObjectNoReplace = !InterchangeManager.GetReplaceExistingAlldialogAnswer().GetValue();
 			}
 			else
 			{
@@ -456,12 +459,12 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 					switch (DialogResult)
 					{
 						case EAppReturnType::YesAll:
-							AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer = true;
+							InterchangeManager.SetReplaceExistingAlldialogAnswer(true);
 						case EAppReturnType::Yes:
 							bSkipObjectNoReplace = false;
 							break;
 						case EAppReturnType::NoAll:
-							AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer = false;
+							InterchangeManager.SetReplaceExistingAlldialogAnswer(false);
 						case EAppReturnType::No:
 							bSkipObjectNoReplace = true;
 					}
@@ -526,7 +529,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			return;
 		}
 
-		if (UInterchangeManager::GetInterchangeManager().IsObjectBeingImported(ExistingAsset))
+		if (InterchangeManager.IsObjectBeingImported(ExistingAsset))
 		{
 			//Skip this node, it is currently being imported by another import task
 			UInterchangeResultError_Generic* Message = Factory->AddMessage<UInterchangeResultError_Generic>();
