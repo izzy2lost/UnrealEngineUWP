@@ -130,13 +130,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * @param InstanceData view to the instance data, can be struct or class.
 	 */
 	virtual void PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) {}
+#endif
 
 	/**
 	* Called after the state tree asset that contains this node is loaded from disk.
 	* @param InstanceDataView view to the instance data, can be struct or class.
 	*/
 	virtual void PostLoad(FStateTreeDataView InstanceDataView) {}
-#endif
 
 	/** Name of the node. */
 	UPROPERTY(EditDefaultsOnly, Category = "", meta=(EditCondition = "false", EditConditionHides))
