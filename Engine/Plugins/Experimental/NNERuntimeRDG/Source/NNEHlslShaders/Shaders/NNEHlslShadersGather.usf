@@ -22,12 +22,24 @@ int Axis;
 int OutputSize;
 int NumDataDimensions;
 int NumIndicesDimensions;
-int4 DataStride_IndicesStride_OutputStride[MAX_NUM_DIMENSIONS];
+int4 DataStride_IndicesStride_OutputStride_DataSizes[MAX_NUM_DIMENSIONS];
 float4 OneDivDataStride_OneDivIndicesStride_OneDivOutputStride[MAX_NUM_DIMENSIONS];
+
 
 Buffer<DATA_BUFFER_TYPE> Data;
 Buffer<INDICES_BUFFER_TYPE> Indices;
 RWBuffer<DATA_BUFFER_TYPE> Output;
+
+uint NormalizeIdx(int Idx, uint DimSize)
+{
+	return Idx < 0 ? (uint) (Idx + DimSize) : (uint) Idx;
+}
+
+// int64_t is only available from SM 6.0, therefore here we need to manually cast to int32.
+int CastInt64ToInt32(uint LSW, int MSW)
+{
+	return (MSW >> 31) == 1 ? - (int) LSW : (int) LSW;
+}
 
 [numthreads(NUM_GROUP_THREADS, 1, 1)]
 void Gather(in const uint3 DispatchThreadID : SV_DispatchThreadID)
@@ -44,7 +56,7 @@ void Gather(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 	for (int i = 0; i < NUM_OUTPUT_DIMENSIONS; i++)
 	{
 		OutputIndices[i] = (INDICES_WORK_TYPE)(OneDivDataStride_OneDivIndicesStride_OneDivOutputStride[i].z * (float)DispatchThreadIndex);
-		DispatchThreadIndex -= OutputIndices[i] * (INDICES_WORK_TYPE)DataStride_IndicesStride_OutputStride[i].z;
+		DispatchThreadIndex -= OutputIndices[i] * (INDICES_WORK_TYPE)DataStride_IndicesStride_OutputStride_DataSizes[i].z;
 	}
 
 	// Split the output indices into data and indices indices 
@@ -67,17 +79,27 @@ void Gather(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 	INDICES_WORK_TYPE IndicesIndex = 0;
 	for (int i = 0; i < NumIndicesDimensions; i++)
 	{
-		IndicesIndex += IndicesIndices[i] * DataStride_IndicesStride_OutputStride[i].y;
+		IndicesIndex += IndicesIndices[i] * DataStride_IndicesStride_OutputStride_DataSizes[i].y;
 	}
 
 	// Look up and assign the missing data index
-	DataIndices[Axis] = INDICES_BUFFER_TO_WORK_TYPE(Indices[IndicesIndex]);
+	#if HAS_64BIT_INDICES == 0
+		DataIndices[Axis] = NormalizeIdx(
+			INDICES_BUFFER_TO_WORK_TYPE(Indices[IndicesIndex]), 
+			DataStride_IndicesStride_OutputStride_DataSizes[Axis].w
+		);
+	#else
+		DataIndices[Axis] = NormalizeIdx(
+			INDICES_BUFFER_TO_WORK_TYPE(CastInt64ToInt32(Indices[IndicesIndex * 2], Indices[IndicesIndex * 2 + 1])),
+			DataStride_IndicesStride_OutputStride_DataSizes[Axis].w
+		);
+	#endif
 
 	// Compute the flattened data index
 	INDICES_WORK_TYPE DataIndex = 0;
 	for (int i = 0; i < NumDataDimensions; i++)
 	{
-		DataIndex += DataIndices[i] * DataStride_IndicesStride_OutputStride[i].x;
+		DataIndex += DataIndices[i] * DataStride_IndicesStride_OutputStride_DataSizes[i].x;
 	}
 
 	// Write the result

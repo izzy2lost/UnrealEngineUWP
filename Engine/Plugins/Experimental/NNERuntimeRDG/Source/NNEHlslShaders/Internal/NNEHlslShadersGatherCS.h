@@ -25,7 +25,8 @@ namespace UE::NNEHlslShaders::Internal
 		SHADER_USE_PARAMETER_STRUCT(TGatherCS, FHlslShaderBase)
 
 		class FGatherNumOutputDimensions : SHADER_PERMUTATION_RANGE_INT("NUM_OUTPUT_DIMENSIONS", 1, FGatherConstants::MAX_NUM_DIMENSIONS);
-		using FPermutationDomain = TShaderPermutationDomain<FGatherNumOutputDimensions>;
+		class FGather64BitIndices : SHADER_PERMUTATION_BOOL("HAS_64BIT_INDICES");
+		using FPermutationDomain = TShaderPermutationDomain<FGatherNumOutputDimensions,FGather64BitIndices>;
 
 	public:
 
@@ -34,7 +35,7 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER(int32, OutputSize)
 			SHADER_PARAMETER(int32, NumDataDimensions)
 			SHADER_PARAMETER(int32, NumIndicesDimensions)
-			SHADER_PARAMETER_ARRAY(FIntVector4, DataStride_IndicesStride_OutputStride, [FGatherConstants::MAX_NUM_DIMENSIONS])
+			SHADER_PARAMETER_ARRAY(FIntVector4, DataStride_IndicesStride_OutputStride_DataSizes, [FGatherConstants::MAX_NUM_DIMENSIONS])
 			SHADER_PARAMETER_ARRAY(FVector4f, OneDivDataStride_OneDivIndicesStride_OneDivOutputStride, [FGatherConstants::MAX_NUM_DIMENSIONS])
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, Data)
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int32>, Indices)
