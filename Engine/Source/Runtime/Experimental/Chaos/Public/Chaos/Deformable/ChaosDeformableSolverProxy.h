@@ -252,7 +252,7 @@ namespace Chaos::Softs
 			typedef FFleshThreadingProxy Source;
 
 			FFleshInputBuffer(
-				const FManagedArrayCollection InSimulationCollection,
+				const FManagedArrayCollection&& InSimulationCollection,
 				const FTransform& InWorldToComponentXf,
 				const FTransform& InComponentToBoneXf,
 				const int32 InSimSpaceBoneIndex,
@@ -279,12 +279,12 @@ namespace Chaos::Softs
 			{}
 
 			FFleshInputBuffer(
-				const FManagedArrayCollection InSimulationCollection,
+				const FManagedArrayCollection&& InSimulationCollection,
 				const FTransform& InWorldToComponentXf,
 				const FTransform& InComponentToBoneXf, 
 				const int32 InSimSpaceBoneIndex,
-				const TArray<FTransform>& InTransforms, 
-				const TArray<FTransform>& InRestTransforms, 
+				const TArray<FTransform>&& InTransforms, 
+				const TArray<FTransform>&& InRestTransforms, 
 				const bool InbEnableGravity, 
 				const float InStiffnessMultiplier, 
 				const float InDampingMultiplier, 

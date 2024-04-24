@@ -212,12 +212,12 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 
 						return FDataMapValue(
 							new Chaos::Softs::FFleshThreadingProxy::FFleshInputBuffer(
-								*GetSimulationCollection()->GetCollection(),
+								MoveTemp(*GetSimulationCollection()->GetCollection()),
 								this->GetComponentTransform(),
 								BoneSpaceXf, 
 								SimulationSpace.SimSpaceTransformGlobalIndex,
-								AnimationTransforms, 
-								ComponentPose, 
+								MoveTemp(AnimationTransforms), 
+								MoveTemp(ComponentPose), 
 								BodyForces.bApplyGravity,
 								BodyForces.StiffnessMultiplier,
 								BodyForces.DampingMultiplier,
@@ -232,7 +232,7 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 	}
 	return FDataMapValue(
 		new Chaos::Softs::FFleshThreadingProxy::FFleshInputBuffer(
-			*GetSimulationCollection()->GetCollection(),
+			MoveTemp(*GetSimulationCollection()->GetCollection()),
 			this->GetComponentTransform(),
 			GetSimSpaceRestTransform(),
 			SimulationSpace.SimSpaceTransformGlobalIndex,
