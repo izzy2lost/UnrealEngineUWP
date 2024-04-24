@@ -927,6 +927,7 @@ void FRequestCluster::FGraphSearch::ResolveTransitiveBuildDependencyCycle()
 	FVertexData* FirstVertex = nullptr;
 	for (FVertexData* CycleVert : PendingTransitiveBuildDependencyVertices)
 	{
+		check(CycleVert != nullptr); // Required hint for static analyzers.
 		if (!FirstVertex)
 		{
 			FirstVertex = CycleVert;
