@@ -16,7 +16,7 @@ namespace UnrealBuildTool.Rules
 				Target.StaticAnalyzer != StaticAnalyzer.PVSStudio)
 			{
 				string MsAdo15 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles), "System", "ADO", "msado15.dll");
-				TypeLibraries.Add(new TypeLibrary(MsAdo15, "rename(\"EOF\", \"ADOEOF\")", "msado15.tlh"));
+				TypeLibraries.Add(new TypeLibrary(MsAdo15, "rename(\"EOF\", \"ADOEOF\")", "msado15.tlh", "msado15.tli"));
 			}
 
 			PublicDependencyModuleNames.AddRange(

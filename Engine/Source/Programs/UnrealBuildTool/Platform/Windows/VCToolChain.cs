@@ -2261,7 +2261,7 @@ namespace UnrealBuildTool
 			return Result;
 		}
 
-		public override void GenerateTypeLibraryHeader(CppCompileEnvironment CompileEnvironment, ModuleRules.TypeLibrary TypeLibrary, FileReference OutputFile, IActionGraphBuilder Graph)
+		public override void GenerateTypeLibraryHeader(CppCompileEnvironment CompileEnvironment, ModuleRules.TypeLibrary TypeLibrary, FileReference OutputFile, FileReference? OutputHeader, IActionGraphBuilder Graph)
 		{
 			// Create the input file
 			StringBuilder Contents = new StringBuilder();
@@ -2335,6 +2335,8 @@ namespace UnrealBuildTool
 			CompileAction.PrerequisiteItems.Add(BatchFile);
 			CompileAction.ProducedItems.Add(ObjectFile);
 			CompileAction.ProducedItems.Add(FileItem.GetItemByFileReference(OutputFile));
+			if (OutputHeader != null)
+				CompileAction.ProducedItems.Add(FileItem.GetItemByFileReference(OutputHeader));
 			CompileAction.DeleteItems.Add(FileItem.GetItemByFileReference(OutputFile));
 			CompileAction.StatusDescription = TypeLibrary.Header;
 			CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
@@ -2343,6 +2345,7 @@ namespace UnrealBuildTool
 			CompileAction.CommandVersion = EnvVars.ToolChainVersion.ToString();
 			CompileAction.bShouldOutputStatusDescription = false;
 			CompileAction.bCanExecuteRemotely = false; // Incompatible with remote distribution
+			CompileAction.RootPaths.AddRange(GetEnvironmentBasePaths(CompileEnvironment));
 		}
 
 		public override IEnumerable<string> GetGlobalCommandLineArgs(CppCompileEnvironment CompileEnvironment)

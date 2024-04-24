@@ -684,6 +684,10 @@ namespace UnrealBuildTool
 				foreach (ModuleRules.TypeLibrary TypeLibrary in Rules.TypeLibraries)
 				{
 					AdditionalPrerequisites.Add(FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, TypeLibrary.Header)));
+					if (!String.IsNullOrEmpty(TypeLibrary.Include))
+					{
+						AdditionalPrerequisites.Add(FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, TypeLibrary.Include)));
+					}
 				}
 			}
 		}
@@ -931,7 +935,8 @@ namespace UnrealBuildTool
 			foreach (ModuleRules.TypeLibrary TypeLibrary in Rules.TypeLibraries)
 			{
 				FileReference OutputFile = FileReference.Combine(IntermediateDirectory, TypeLibrary.Header);
-				ToolChain.GenerateTypeLibraryHeader(CompileEnvironment, TypeLibrary, OutputFile, Graph);
+				FileReference? OutputInclude = TypeLibrary.Include != null ? FileReference.Combine(IntermediateDirectory, TypeLibrary.Include) : null;
+				ToolChain.GenerateTypeLibraryHeader(CompileEnvironment, TypeLibrary, OutputFile, OutputInclude, Graph);
 			}
 
 			return new List<FileItem>();

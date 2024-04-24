@@ -543,16 +543,23 @@ namespace UnrealBuildTool
 			public string Header { get; init; }
 
 			/// <summary>
+			/// Name of the output include
+			/// </summary>
+			public string? Include { get; init; }
+
+			/// <summary>
 			/// Constructor
 			/// </summary>
 			/// <param name="fileName">Name of the type library. Follows the same conventions as the filename parameter in the MSVC #import directive.</param>
 			/// <param name="attributes">Additional attributes for the import directive</param>
 			/// <param name="header">Name of the output header</param>
-			public TypeLibrary(string fileName, string attributes, string header)
+			/// <param name="include">Name of the output include</param>
+			public TypeLibrary(string fileName, string attributes, string header, string? include = null)
 			{
 				FileName = fileName;
 				Attributes = attributes;
 				Header = header;
+				Include = include;
 			}
 		}
 
