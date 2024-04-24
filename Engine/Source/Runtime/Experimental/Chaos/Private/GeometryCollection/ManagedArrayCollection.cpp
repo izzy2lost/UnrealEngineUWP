@@ -114,6 +114,10 @@ bool FManagedArrayCollection::HasAttributes(const TArray<FManagedArrayCollection
 				return false;
 			}
 		}
+		else
+		{
+			return false;
+		}
 	}
 	return true;
 }
