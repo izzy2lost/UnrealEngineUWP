@@ -1144,8 +1144,11 @@ namespace NFORDenoise
 			}
 
 			SHADER::FPermutationDomain ComputeShaderPermutationVector;
+			{
+				ComputeShaderPermutationVector.Set<SHADER::FDimensionSeparateSourceTarget>(bSeparateSourceTarget);
+			}
 
-			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,

@@ -436,6 +436,9 @@ namespace NFORDenoise
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
+
+		class FDimensionSeparateSourceTarget : SHADER_PERMUTATION_BOOL("NONLOCALMEAN_SEPARATE_SOURCE");
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionSeparateSourceTarget>;
 	};
 
 	//--------------------------------------------------------------------------------------------------------------------
