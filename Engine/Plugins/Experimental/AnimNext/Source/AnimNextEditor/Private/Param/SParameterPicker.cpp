@@ -69,7 +69,7 @@ public:
 
 	virtual bool IsPropertyIndirection() const override
 	{
-		return true;
+		return false;
 	}
 
 	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
