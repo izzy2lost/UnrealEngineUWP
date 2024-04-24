@@ -125,6 +125,12 @@ namespace UE::Interchange::GLTFMaterials
 		const FString IridescenceThicknessMinimum = TEXT("IridescenceThicknessMinimum");
 		const FString IridescenceThicknessMaximum = TEXT("IridescenceThicknessMaximum");
 
+
+		//Anisotropy Specific:
+		DECLARE_INTERCHANGE_GLTF_MI_MAP(Anisotropy);
+		const FString AnisotropyStrength = TEXT("AnisotropyStrength");
+		const FString AnisotropyRotation = TEXT("AnisotropyRotation");
+
 		namespace Configuration
 		{
 			//For StaticSwitch optimizations:
@@ -140,6 +146,7 @@ namespace UE::Interchange::GLTFMaterials
 			const FString bHasSheenTexture = TEXT("bHasSheenTexture");
 			const FString bHasTransmissionTexture = TEXT("bHasTransmissionTexture");
 			const FString bHasIridescenceTexture = TEXT("bHasIridescenceTexture");
+			const FString bHasAnisotropyTextureAndOrRotation = TEXT("bHasAnisotropyTextureAndOrRotation"); //AnistropyRotation can affect the Tangents so we check
 		}
 	}
 

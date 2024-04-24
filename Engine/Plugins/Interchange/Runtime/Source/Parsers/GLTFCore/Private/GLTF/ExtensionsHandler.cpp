@@ -219,6 +219,7 @@ namespace GLTF
 			EExtension::KHR_MaterialsSpecular,
 			EExtension::KHR_MaterialsEmissiveStrength,
 			EExtension::KHR_MaterialsIridescence,
+			EExtension::KHR_MaterialsAnisotropy,
 			EExtension::MSFT_PackingOcclusionRoughnessMetallic,
 			EExtension::MSFT_PackingNormalRoughnessMetallic 
 		};
@@ -383,6 +384,17 @@ namespace GLTF
 					Material.Iridescence.Thickness.Minimum = GetScalar(Iridescence, TEXT("iridescenceThicknessMinimum"), 100.0f);
 					Material.Iridescence.Thickness.Maximum = GetScalar(Iridescence, TEXT("iridescenceThicknessMaximum"), 400.0f);
 					GLTF::SetTextureMap(Iridescence, TEXT("iridescenceThicknessTexture"), nullptr, Asset->Textures, Material.Iridescence.Thickness.Texture, Messages);
+				}
+				break;
+				case EExtension::KHR_MaterialsAnisotropy:
+				{
+					const FJsonObject& Anisotropy = ExtObj;
+
+					Material.Anisotropy.bHasAnisotropy = true;
+
+					Material.Anisotropy.Strength = GetScalar(Anisotropy, TEXT("anisotropyStrength"), 0.0f);
+					Material.Anisotropy.Rotation = GetScalar(Anisotropy, TEXT("anisotropyRotation"), 0.0f);
+					GLTF::SetTextureMap(Anisotropy, TEXT("anisotropyTexture"), nullptr, Asset->Textures, Material.Anisotropy.Texture, Messages);
 				}
 				break;
 				default:

@@ -632,6 +632,31 @@ namespace UE::Interchange::GLTFMaterials
 					//Configuration
 					SetBool(Inputs::Configuration::bHasIridescenceTexture, false);
 				}
+
+				if (GltfMaterial.Anisotropy.bHasAnisotropy)
+				{
+					//AnisotropyTexture
+					//AnisotropyTexture_OffsetScale
+					//AnisotropyTexture_Rotation
+					//AnisotropyTexture_TexCoord
+					//AnisotropyTexture_TilingMethod
+					bool bHasAnisotropyTextureAndOrRotation = SetMap(Inputs::AnisotropyTexture, GltfMaterial.Anisotropy.Texture);
+
+					//AnisotropyStrength
+					SetScalar(Inputs::AnisotropyStrength, GltfMaterial.Anisotropy.Strength, 0);
+
+					//AnisotropyRotation
+					SetScalar(Inputs::AnisotropyRotation, GltfMaterial.Anisotropy.Rotation, 0);
+					bHasAnisotropyTextureAndOrRotation |= GltfMaterial.Anisotropy.Rotation != 0;
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasAnisotropyTextureAndOrRotation, bHasAnisotropyTextureAndOrRotation);
+				}
+				else
+				{
+					//Configuration
+					SetBool(Inputs::Configuration::bHasAnisotropyTextureAndOrRotation, false);
+				}
 			}
 			else
 			{
