@@ -635,8 +635,6 @@ void UPrimitiveComponent::CreateRenderState_Concurrent(FRegisterComponentContext
 #endif
 	)
 	{
-		SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
-
 		if (Context != nullptr)
 		{
 			Context->AddPrimitive(this);
@@ -811,8 +809,6 @@ void UPrimitiveComponent::DestroyRenderState_Concurrent()
 	{
 		World->Scene->RemovePrimitive(this);
 	}
-
-	SceneData.OwnerLastRenderTimePtr = nullptr;
 
 	Super::DestroyRenderState_Concurrent();
 }
@@ -4973,6 +4969,8 @@ void UPrimitiveComponent::AssignSceneProxy(FPrimitiveSceneProxy* InSceneProxy)
 	if (SceneProxy)
 	{
 		SceneData.bAlwaysVisible = SceneProxy->IsAlwaysVisible();
+		SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
+
 		if (SceneData.bAlwaysVisible && SceneData.OwnerLastRenderTimePtr)
 		{
 			SceneData.OwnerLastRenderTimePtr->NumAlwaysVisibleComponents.fetch_add(1, std::memory_order_relaxed);
@@ -4988,6 +4986,7 @@ void UPrimitiveComponent::ReleaseSceneProxy()
 		const uint32 NumRefs = SceneData.OwnerLastRenderTimePtr->NumAlwaysVisibleComponents.fetch_sub(1, std::memory_order_relaxed);
 		check(NumRefs > 0);
 	}
+	SceneData.OwnerLastRenderTimePtr = nullptr;
 	SceneProxy = nullptr;
 	SceneData.SceneProxy = nullptr;
 	SceneData.bAlwaysVisible = false;
