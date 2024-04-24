@@ -1905,7 +1905,15 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForMatchingPrimary
 	return nullptr;
 }
 
-bool UAssetManager::GetPrimaryAssetLoadSet(TArray<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const
+bool UAssetManager::GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const
+{
+	TArray<FSoftObjectPath> Array;
+	bool bReturnValue = GetPrimaryAssetLoadList(Array, PrimaryAssetId, LoadBundles, bLoadRecursive);
+	OutAssetLoadSet.Append(Array);
+	return bReturnValue;
+}
+
+bool UAssetManager::GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoadList, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const
 {
 	const FPrimaryAssetData* NameData = GetNameData(PrimaryAssetId);
 	if (NameData)
@@ -1915,7 +1923,7 @@ bool UAssetManager::GetPrimaryAssetLoadSet(TArray<FSoftObjectPath>& OutAssetLoad
 		if (!AssetPath.IsNull())
 		{
 			// Dynamic types can have no base asset path
-			OutAssetLoadSet.AddUnique(AssetPath);
+			OutAssetLoadList.AddUnique(AssetPath);
 		}
 
 		// Construct a temporary bundle data with the bundles specified
@@ -1939,13 +1947,13 @@ bool UAssetManager::GetPrimaryAssetLoadSet(TArray<FSoftObjectPath>& OutAssetLoad
 		{
 			for (const FTopLevelAssetPath& Path : Entry.AssetPaths)
 			{
-				OutAssetLoadSet.AddUnique(FSoftObjectPath(Path));
+				OutAssetLoadList.AddUnique(FSoftObjectPath(Path));
 			}
 		}
 	}
 	else
 	{
-		WarnAboutInvalidPrimaryAsset(PrimaryAssetId, TEXT("GetPrimaryAssetLoadSet failed to find NameData"));
+		WarnAboutInvalidPrimaryAsset(PrimaryAssetId, TEXT("GetPrimaryAssetLoadList failed to find NameData"));
 	}
 	return NameData != nullptr;
 }
@@ -1962,7 +1970,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::PreloadPrimaryAssets(const TArray<F
 
 	for (const FPrimaryAssetId& PrimaryAssetId : AssetsToLoad)
 	{
-		if (GetPrimaryAssetLoadSet(PathsToLoad, PrimaryAssetId, LoadBundles, bLoadRecursive))
+		if (GetPrimaryAssetLoadList(PathsToLoad, PrimaryAssetId, LoadBundles, bLoadRecursive))
 		{
 			if (DebugValid.Len() < MaxDebugWarningLen)
 			{
@@ -2198,7 +2206,13 @@ int32 UAssetManager::UnloadPrimaryAssetsWithType(FPrimaryAssetType PrimaryAssetT
 	return UnloadPrimaryAssets(Assets);
 }
 
-TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(TArray<FSoftObjectPath> AssetList, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, const FString& DebugName)
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(const TArray<FSoftObjectPath>& AssetList, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, const FString& DebugName)
+{
+	// Make an explicit Copy of the input array
+	return LoadAssetList(TArray<FSoftObjectPath>(AssetList), DelegateToCall, Priority, DebugName);
+}
+
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(TArray<FSoftObjectPath>&& AssetList, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, const FString& DebugName)
 {
 	TSharedPtr<FStreamableHandle> NewHandle;
 	TArray<int32> MissingChunks, ErrorChunks;
@@ -2218,12 +2232,12 @@ TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(TArray<FSoftObjectPat
 	// SynchronousLoad doesn't make sense if chunks are missing
 	if (bShouldUseSynchronousLoad && MissingChunks.Num() == 0)
 	{
-		NewHandle = StreamableManager.RequestSyncLoad(MoveTemp(AssetList), false, DebugName);
+		NewHandle = StreamableManager.RequestSyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), false, DebugName);
 		FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
 	}
 	else
 	{
-		NewHandle = StreamableManager.RequestAsyncLoad(MoveTemp(AssetList), MoveTemp(DelegateToCall), Priority, false, MissingChunks.Num() > 0, DebugName);
+		NewHandle = StreamableManager.RequestAsyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), MoveTemp(DelegateToCall), Priority, false, MissingChunks.Num() > 0, DebugName);
 
 		if (MissingChunks.Num() > 0 && NewHandle.IsValid())
 		{

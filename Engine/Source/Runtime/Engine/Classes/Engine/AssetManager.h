@@ -311,7 +311,8 @@ public:
 	ENGINE_API void GetPrimaryAssetBundleStateMap(TMap<FPrimaryAssetId, TArray<FName>>& BundleStateMap, bool bForceCurrent = false) const;
 
 	/**
-	 * Fills in a set of object paths with the assets that need to be loaded, for a given Primary Asset and bundle list
+	 * Fills in a set of object paths with the assets that need to be loaded, for a given Primary Asset and bundle list.
+	 * Prefer to use GetPrimaryAssetLoadList instead, because this overload creates additional allocation and is here just for backward compatibility.
 	 *
 	 * @param OutAssetLoadSet	Set that will have asset paths added to it
 	 * @param PrimaryAssetId	Asset that would be loaded
@@ -319,7 +320,18 @@ public:
 	 * @param bLoadRecursive	If true, this will call RecursivelyExpandBundleData and recurse into sub bundles of other primary assets loaded by a bundle reference
 	 * @return					True if primary asset id was found
 	 */
-	ENGINE_API bool GetPrimaryAssetLoadSet(TArray<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const;
+	ENGINE_API bool GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const;
+
+	/**
+	 * Fills in a array of unique object paths with the assets that need to be loaded, for a given Primary Asset and bundle list
+	 *
+	 * @param OutAssetLoadList	TArray that will have asset paths added to it
+	 * @param PrimaryAssetId	Asset that would be loaded
+	 * @param LoadBundles		List of bundles to load for those assets
+	 * @param bLoadRecursive	If true, this will call RecursivelyExpandBundleData and recurse into sub bundles of other primary assets loaded by a bundle reference
+	 * @return					True if primary asset id was found
+	 */
+	ENGINE_API bool GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoadList, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const;
 
 	/**
 	 * Preloads data for a set of assets in a specific bundle state, and returns a handle you must keep active.
@@ -335,7 +347,8 @@ public:
 	ENGINE_API virtual TSharedPtr<FStreamableHandle> PreloadPrimaryAssets(const TArray<FPrimaryAssetId>& AssetsToLoad, const TArray<FName>& LoadBundles, bool bLoadRecursive, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority);
 
 	/** Quick wrapper to async load some non primary assets with the primary streamable manager. This will not auto release the handle, release it if needed */
-	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetList(TArray<FSoftObjectPath> AssetList, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority, const FString& DebugName = FStreamableHandle::HandleDebugName_AssetList);
+	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetList(const TArray<FSoftObjectPath>& AssetList, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority, const FString& DebugName = FStreamableHandle::HandleDebugName_AssetList);
+	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetList(TArray<FSoftObjectPath>&& AssetList, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority, const FString& DebugName = FStreamableHandle::HandleDebugName_AssetList);
 
 	/** Returns a single AssetBundleInfo, matching Scope and Name */
 	ENGINE_API virtual FAssetBundleEntry GetAssetBundleEntry(const FPrimaryAssetId& BundleScope, FName BundleName) const;
