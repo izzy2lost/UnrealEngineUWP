@@ -127,9 +127,7 @@ namespace uba
 
 	bool FileAccessor::CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath)
 	{
-		#if PLATFORM_WINDOWS
 		allowRead = true; // It is not possible to have write only access to file mappings it seems
-		#endif
 
 		m_size = size;
 
@@ -137,13 +135,21 @@ namespace uba
 		if (!CreateWrite(allowRead, flagsAndAttributes, size, tempPath))
 			return false;
 
-		m_mappingHandle = uba::CreateFileMappingW(m_fileHandle, PAGE_READWRITE, size, m_fileName);
+		const tchar* realFileName = m_fileName;
+
+		#if !PLATFORM_WINDOWS
+		StringBuffer<> tempFile;
+		if (m_tempPath)
+			realFileName = tempFile.Append(m_tempPath).Append("Temp_").AppendValue(m_tempFileIndex).data;
+		#endif
+
+		m_mappingHandle = uba::CreateFileMappingW(m_fileHandle, PAGE_READWRITE, size, realFileName);
 		if (!m_mappingHandle.IsValid())
-			return m_logger.Error(TC("Failed to create memory map %s (%s)"), m_fileName, LastErrorToText().data);
+			return m_logger.Error(TC("Failed to create memory map %s (%s)"), realFileName, LastErrorToText().data);
 
 		m_data = MapViewOfFile(m_mappingHandle, FILE_MAP_WRITE, 0, size);
 		if (!m_data)
-			return m_logger.Error(TC("Failed to map view of file %s with size %llu, for write (%s)"), m_fileName, size, LastErrorToText().data);
+			return m_logger.Error(TC("Failed to map view of file %s with size %llu, for write (%s)"), realFileName, size, LastErrorToText().data);
 
 		return true;
 	}

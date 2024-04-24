@@ -36,9 +36,11 @@ namespace uba
 			root.index = index;
 			root.path = rp;
 
-			ToLower(root.path.data());
+			if (CaseInsensitiveFs)
+				ToLower(root.path.data());
+
 			if (root.path[root.path.size()-1] != PathSeparator)
-				return logger.Error(TC("Root path must end with separator"));
+				return logger.Error(TC("Root path '%s' must end with separator"), rp);
 
 			root.includeInKey = includeInKey;
 
@@ -79,7 +81,7 @@ namespace uba
 		CoTaskMemFree(path);
 
 		#else
-		UBA_ASSERT(false);
+		// no system roots
 		#endif
 		return true;
 	}
@@ -90,7 +92,10 @@ namespace uba
 			return nullptr;
 
 		StringBuffer<MaxPath> shortPath;
-		shortPath.Append(path.data, m_shortestRoot).MakeLower();
+		shortPath.Append(path.data, m_shortestRoot);
+		if (CaseInsensitiveFs)
+			shortPath.MakeLower();
+
 		StringKey key = ToStringKeyNoCheck(shortPath.data, m_shortestRoot);
 		for (u32 i=0, e=u32(m_roots.size()); i!=e; ++i)
 		{
