@@ -3729,7 +3729,17 @@ void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		FBox OldCachedLocalBox = LandscapeComponent->CachedLocalBox;
 		if (LandscapeComponent->UpdateCachedBounds(/* bInApproximateBounds= */ false))
 		{
-			UE_LOG(LogLandscape, Display, TEXT("The component %s had incorrect bounds.  The bounds have been recalculated (old CachedLocalBox: %s, new CachedLocalBox: %s)"), *GetPathName(), *OldCachedLocalBox.ToString(), *LandscapeComponent->CachedLocalBox.ToString());
+			// conservative bounds are true bounding boxes, just not as tight/optimal as they could be
+			// if it's not conservative, then visibility flashing issues can occur because of self-occlusion in culling
+			bool bOldBoxIsConservative = LandscapeComponent->CachedLocalBox.IsInsideOrOn(OldCachedLocalBox);
+			if (bOldBoxIsConservative)
+			{
+				UE_LOG(LogLandscape, Display, TEXT("The component %s had non-optimal bounds.  The bounds have been recalculated (old CachedLocalBox: %s, new CachedLocalBox: %s)"), *LandscapeComponent->GetPathName(), *OldCachedLocalBox.ToString(), *LandscapeComponent->CachedLocalBox.ToString());
+			}
+			else
+			{
+				UE_LOG(LogLandscape, Display, TEXT("The component %s had incorrect bounds.  The bounds have been recalculated (old CachedLocalBox: %s, new CachedLocalBox: %s)"), *LandscapeComponent->GetPathName(), *OldCachedLocalBox.ToString(), *LandscapeComponent->CachedLocalBox.ToString());
+			}
 			check(LandscapeComponent->CachedLocalBox.GetVolume() > 0.0);
 		}
 	}

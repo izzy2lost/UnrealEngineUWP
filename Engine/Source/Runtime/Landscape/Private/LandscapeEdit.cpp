@@ -164,7 +164,7 @@ namespace UE::Landscape::Private
 		}
 
 		double Min = DBL_MAX;
-		double Max = DBL_MIN;
+		double Max = -DBL_MAX;
 		double Average = 0.0f;
 	};
 
@@ -306,7 +306,7 @@ bool ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 			TRACE_CPUPROFILER_EVENT_SCOPE(FetchMipQuads);
 
 			double LocalMin = DBL_MAX;
-			double LocalMax = DBL_MIN;
+			double LocalMax = -DBL_MAX;
 			AllMipsQuadInfos.AddZeroed(ComputeQuadInfosCount(NumRelevantMips, TextureSize));
 			for (int32 MipIndex = 0; MipIndex < NumRelevantMips; ++MipIndex)
 			{
