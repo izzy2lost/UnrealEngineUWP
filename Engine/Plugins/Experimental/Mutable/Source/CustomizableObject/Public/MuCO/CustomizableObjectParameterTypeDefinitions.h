@@ -248,6 +248,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectProjector
 	// Just for cylindrical projectors, in radians
 	UPROPERTY()
 	float Angle = 2.0f * PI;
+
+	bool operator==(const FCustomizableObjectProjector& Other) const = default;
 };
 
 

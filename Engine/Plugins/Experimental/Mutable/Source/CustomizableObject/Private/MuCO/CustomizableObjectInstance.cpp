@@ -725,6 +725,220 @@ bool UCustomizableObjectInstance::IsParameterRelevant(const FString& ParamName) 
 }
 
 
+bool UCustomizableObjectInstance::IsParameterDirty(const FString& ParamName, const int32 RangeIndex) const
+{
+	switch (Descriptor.CustomizableObject->GetParameterTypeByName(ParamName))
+	{
+	case EMutableParameterType::None:
+		return false;
+
+	case EMutableParameterType::Projector:
+		{
+			const FCustomizableObjectProjectorParameterValue* Result = Descriptor.GetProjectorParameters().FindByPredicate([&](const FCustomizableObjectProjectorParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			const FCustomizableObjectProjectorParameterValue* ResultCommited = GetPrivate()->CommittedDescriptor.GetProjectorParameters().FindByPredicate([&](const FCustomizableObjectProjectorParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			if (Result && ResultCommited)
+			{
+				if (RangeIndex != INDEX_NONE)
+				{
+					return Result->Value == ResultCommited->Value;					
+				}
+				else
+				{
+					if (Result->RangeValues.IsValidIndex(RangeIndex) && ResultCommited->RangeValues.IsValidIndex(RangeIndex))
+					{
+						return Result->RangeValues[RangeIndex] == ResultCommited->RangeValues[RangeIndex];
+					}
+					else
+					{
+						return Result->RangeValues.Num() != ResultCommited->RangeValues.Num();
+					}
+				}
+			}
+			else
+			{
+				return Result != ResultCommited;
+			}
+		}		
+	case EMutableParameterType::Texture:
+		{
+			const FCustomizableObjectTextureParameterValue* Result = Descriptor.GetTextureParameters().FindByPredicate([&](const FCustomizableObjectTextureParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			const FCustomizableObjectTextureParameterValue* ResultCommited = GetPrivate()->CommittedDescriptor.GetTextureParameters().FindByPredicate([&](const FCustomizableObjectTextureParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			if (Result && ResultCommited)
+			{
+				if (RangeIndex != INDEX_NONE)
+				{
+					return Result->ParameterValue == ResultCommited->ParameterValue;					
+				}
+				else
+				{
+					if (Result->ParameterRangeValues.IsValidIndex(RangeIndex) && ResultCommited->ParameterRangeValues.IsValidIndex(RangeIndex))
+					{
+						return Result->ParameterRangeValues[RangeIndex] == ResultCommited->ParameterRangeValues[RangeIndex];
+					}
+					else
+					{
+						return Result->ParameterRangeValues.Num() != ResultCommited->ParameterRangeValues.Num();
+					}
+				}
+			}
+			else
+			{
+				return Result != ResultCommited;
+			}
+		}
+
+	case EMutableParameterType::Bool:
+		{
+			const FCustomizableObjectBoolParameterValue* Result = Descriptor.GetBoolParameters().FindByPredicate([&](const FCustomizableObjectBoolParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			const FCustomizableObjectBoolParameterValue* ResultCommited = GetPrivate()->CommittedDescriptor.GetBoolParameters().FindByPredicate([&](const FCustomizableObjectBoolParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			if (Result && ResultCommited)
+			{
+				if (RangeIndex != INDEX_NONE)
+				{
+					return Result->ParameterValue == ResultCommited->ParameterValue;					
+				}
+				else
+				{
+					return false;
+				}
+			}
+			else
+			{
+				return Result != ResultCommited;
+			}
+		}
+	case EMutableParameterType::Int:
+		{
+			const FCustomizableObjectIntParameterValue* Result = Descriptor.GetIntParameters().FindByPredicate([&](const FCustomizableObjectIntParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			const FCustomizableObjectIntParameterValue* ResultCommited = GetPrivate()->CommittedDescriptor.GetIntParameters().FindByPredicate([&](const FCustomizableObjectIntParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			if (Result && ResultCommited)
+			{
+				if (RangeIndex != INDEX_NONE)
+				{
+					return Result->ParameterValueName == ResultCommited->ParameterValueName;					
+				}
+				else
+				{
+					if (Result->ParameterRangeValueNames.IsValidIndex(RangeIndex) && ResultCommited->ParameterRangeValueNames.IsValidIndex(RangeIndex))
+					{
+						return Result->ParameterRangeValueNames[RangeIndex] == ResultCommited->ParameterRangeValueNames[RangeIndex];
+					}
+					else
+					{
+						return Result->ParameterRangeValueNames.Num() != ResultCommited->ParameterRangeValueNames.Num();
+					}
+				}
+			}
+			else
+			{
+				return Result != ResultCommited;
+			}
+		}
+		
+	case EMutableParameterType::Float:
+		{
+			const FCustomizableObjectFloatParameterValue* Result = Descriptor.GetFloatParameters().FindByPredicate([&](const FCustomizableObjectFloatParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			const FCustomizableObjectFloatParameterValue* ResultCommited = GetPrivate()->CommittedDescriptor.GetFloatParameters().FindByPredicate([&](const FCustomizableObjectFloatParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			if (Result && ResultCommited)
+			{
+				if (RangeIndex != INDEX_NONE)
+				{
+					return Result->ParameterValue == ResultCommited->ParameterValue;					
+				}
+				else
+				{
+					if (Result->ParameterRangeValues.IsValidIndex(RangeIndex) && ResultCommited->ParameterRangeValues.IsValidIndex(RangeIndex))
+					{
+						return Result->ParameterRangeValues[RangeIndex] == ResultCommited->ParameterRangeValues[RangeIndex];
+					}
+					else
+					{
+						return Result->ParameterRangeValues.Num() != ResultCommited->ParameterRangeValues.Num();
+					}
+				}
+			}
+			else
+			{
+				return Result != ResultCommited;
+			}
+		}
+		
+	case EMutableParameterType::Color:
+		{
+			const FCustomizableObjectVectorParameterValue* Result = Descriptor.GetVectorParameters().FindByPredicate([&](const FCustomizableObjectVectorParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			const FCustomizableObjectVectorParameterValue* ResultCommited = GetPrivate()->CommittedDescriptor.GetVectorParameters().FindByPredicate([&](const FCustomizableObjectVectorParameterValue& Value)
+				{
+					return Value.ParameterName == ParamName;
+				});
+			
+			if (Result && ResultCommited)
+			{
+				if (RangeIndex != INDEX_NONE)
+				{
+					return Result->ParameterValue == ResultCommited->ParameterValue;					
+				}
+				else
+				{
+					return false;
+				}
+			}
+			else
+			{
+				return Result != ResultCommited;
+			}
+		}
+		
+	default:
+		unimplemented();
+		return false;
+	}
+}
+
+
 void UCustomizableInstancePrivate::PostEditChangePropertyWithoutEditor()
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::PostEditChangePropertyWithoutEditor);
@@ -2478,6 +2692,12 @@ void UCustomizableObjectInstance::SetRandomValues()
 void UCustomizableObjectInstance::SetRandomValuesFromStream(const FRandomStream& InStream)
 {
 	Descriptor.SetRandomValuesFromStream(InStream);
+}
+
+
+void UCustomizableObjectInstance::SetDefaultValues()
+{
+	Descriptor.SetDefaultValues();
 }
 
 

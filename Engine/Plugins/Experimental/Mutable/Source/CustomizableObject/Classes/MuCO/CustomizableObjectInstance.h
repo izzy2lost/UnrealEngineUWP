@@ -335,6 +335,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetRandomValuesFromStream(const FRandomStream& InStream);
 
+	/** Set all parameters to their default value. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetDefaultValues();
+	
 	/** Returns the AssetUserData that was gathered from all the constituent mesh parts during the last update. 
 	  * It requires that the CustomizableObject had the bEnableAssetUserDataMerge set to true during compilation. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
@@ -375,6 +379,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	bool IsParameterRelevant(const FString& ParamName) const;
 
+	/** Return true if the parameter has changed but the Instance has not yet been updated. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	bool IsParameterDirty(const FString& ParamName, int32 RangeIndex = -1) const;
+	
 	/** For multidimensional parameters, return the number of dimensions that the given projector parameter supports. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	int32 GetProjectorValueRange(const FString& ParamName) const;

@@ -2335,6 +2335,63 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRan
 }
 
 
+void FCustomizableObjectInstanceDescriptor::SetDefaultValues()
+{
+	check(CustomizableObject);
+
+	for (FCustomizableObjectBoolParameterValue& Value : BoolParameters)
+	{	
+		Value.ParameterValue =	CustomizableObject->GetBoolParameterDefaultValue(Value.ParameterName);
+	}
+
+	for (FCustomizableObjectIntParameterValue& Value : IntParameters)
+	{
+		const int32 ParameterIndex = CustomizableObject->FindParameter(Value.ParameterName);
+		Value.ParameterValueName = CustomizableObject->FindIntParameterValueName(ParameterIndex, CustomizableObject->GetIntParameterDefaultValue(Value.ParameterValueName));
+
+		for (FString& RangeValue : Value.ParameterRangeValueNames)
+		{
+			RangeValue = Value.ParameterValueName;
+		}
+	}
+
+	for (FCustomizableObjectFloatParameterValue& Value : FloatParameters)
+	{
+		Value.ParameterValue = CustomizableObject->GetFloatParameterDefaultValue(Value.ParameterName);
+
+		for (float& RangeValue : Value.ParameterRangeValues)
+		{
+			RangeValue = Value.ParameterValue;
+		}
+	}
+
+	for (FCustomizableObjectTextureParameterValue& Value : TextureParameters)
+	{
+		Value.ParameterValue = CustomizableObject->GetTextureParameterDefaultValue(Value.ParameterName);
+
+		for (FName& RangeValue : Value.ParameterRangeValues)
+		{
+			RangeValue = Value.ParameterValue;
+		}
+	}
+
+	for (FCustomizableObjectVectorParameterValue& Value : VectorParameters)
+	{
+		Value.ParameterValue = CustomizableObject->GetColorParameterDefaultValue(Value.ParameterName);
+	}
+
+	for (FCustomizableObjectProjectorParameterValue& Value : ProjectorParameters)
+	{
+		Value.Value = CustomizableObject->GetProjectorParameterDefaultValue(Value.ParameterName);
+
+		for (FCustomizableObjectProjector& RangeValue : Value.RangeValues)
+		{
+			RangeValue = Value.Value;
+		}
+	}
+}
+
+
 bool FCustomizableObjectInstanceDescriptor::CreateMultiLayerProjector(const FName& ProjectorParamName)
 {
 	if (!FMultilayerProjector::AreDescriptorParametersValid(*this, ProjectorParamName.ToString()))
