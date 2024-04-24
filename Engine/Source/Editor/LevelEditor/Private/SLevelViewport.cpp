@@ -102,6 +102,8 @@
 #include "LevelViewportLayout.h"
 #include "EditorViewportTabContent.h"
 #include "EditorViewportCommands.h"
+#include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
+#include "ViewportToolbar/LevelViewportContext.h"
 
 static const FName LevelEditorName("LevelEditor");
 static FAutoConsoleCommand EnableInViewportMenu(TEXT("Editor.EnableInViewportMenu"), TEXT("Enables the new in-viewport property menu"), FConsoleCommandDelegate::CreateStatic(&SLevelViewport::EnableInViewportMenu));
@@ -1899,24 +1901,6 @@ TSharedRef<FEditorViewportClient> SLevelViewport::MakeEditorViewportClient()
 	return LevelViewportClient.ToSharedRef();
 }
 
-void BuildToolMenusViewportToolbar()
-{
-	// Add a ToolMenus-based viewport toolbar.
-	UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
-		"LevelEditor.ViewportToolbar", NAME_None /* parent */, EMultiBoxType::ToolBar);
-
-	// Transforms section
-	{
-		FToolMenuSection& Section = ViewportToolbarMenu->FindOrAddSection(
-			"Transforms", LOCTEXT("TransformsSectionLabel", "Transforms"));
-
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().SelectMode));
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().TranslateMode));
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().RotateMode));
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().ScaleMode));
-	}
-}
-
 TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 {
 	const TSharedRef<SLevelViewportToolBar> OldViewportToolbar = SNew(SLevelViewportToolBar)
@@ -1933,8 +1917,31 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 		})
 		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
 
-	BuildToolMenusViewportToolbar();
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	{
+		const FName LevelEditorViewportToolbarName = "LevelEditor.ViewportToolbar";
 
+		if (!UToolMenus::Get()->IsMenuRegistered(LevelEditorViewportToolbarName))
+		{
+			UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+				LevelEditorViewportToolbarName, NAME_None /* parent */, EMultiBoxType::ToolBar);
+
+			UE::LevelEditor::AddViewportToolbarTransformsSection(ViewportToolbarMenu);
+			UE::LevelEditor::AddLevelEditorViewportToolbarSettingsSection(ViewportToolbarMenu);
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+
+		ULevelViewportContext* const ContextObject = NewObject<ULevelViewportContext>();
+		ContextObject->LevelViewport = SharedThis(this);
+
+		ViewportToolbarContext.AddObject(ContextObject);
+	}
+
+	// clang-format off
 	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
 		.Visibility_Lambda([this]() -> EVisibility
 		{
@@ -1947,8 +1954,9 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			return GetToolBarVisibility();
 		})
 		[
-			UToolMenus::Get()->GenerateWidget("LevelEditor.ViewportToolbar", FToolMenuContext(GetCommandList()))
+			UToolMenus::Get()->GenerateWidget("LevelEditor.ViewportToolbar", ViewportToolbarContext)
 		];
+	// clang-format on
 
 	return 
 		SNew(SVerticalBox)
