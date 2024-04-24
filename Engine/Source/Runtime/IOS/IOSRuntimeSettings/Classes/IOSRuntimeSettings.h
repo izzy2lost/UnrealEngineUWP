@@ -258,6 +258,10 @@ public:
     UPROPERTY(GlobalConfig, EditAnywhere, Category = Build)
     FString AdditionalPlistData;
     
+	// List of any entitlements we require. The app will not initialize if the specified entitlements are not available.
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build)
+	TArray<FString> RequiredEntitlements;
+
     // Whether or not to add support for iPad devices
     UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Supports iPad"))
     bool bSupportsIPad;

@@ -295,13 +295,13 @@ void FApplePlatformMemory::SetAllocatorToUse()
     // force Ansi allocator in particular cases
     if(getenv("UE4_FORCE_MALLOC_ANSI") != nullptr)
     {
-        UE_LOG(LogTemp, Display, TEXT("Using Ansi allocator."));
+		FPlatformMisc::LowLevelOutputDebugString(TEXT("UE4_FORCE_MALLOC_ANSI is set, using Ansi allocator.\n"));
         AllocatorToUse = EMemoryAllocatorToUse::Ansi;
         return;
     }
     if (FORCE_ANSI_ALLOCATOR)
     {
-        UE_LOG(LogTemp, Display, TEXT("Using Ansi allocator."));
+		FPlatformMisc::LowLevelOutputDebugString(TEXT("FORCE_ANSI_ALLOCATOR defined, using Ansi allocator.\n"));
         AllocatorToUse = EMemoryAllocatorToUse::Ansi;
         return;
     }
@@ -310,22 +310,22 @@ void FApplePlatformMemory::SetAllocatorToUse()
  #if PLATFORM_IOS || PLATFORM_TVOS
         if(!FIOSPlatformMisc::IsEntitlementEnabled("com.apple.developer.kernel.extended-virtual-addressing"))
         {
-            UE_LOG(LogTemp, Warning, TEXT("MallocBinned2 requested but Virtual Address Space entitlement not found. Check your entitlements. Falling back to Ansi."));
+			FPlatformMisc::LowLevelOutputDebugString(TEXT("MallocBinned2 requested but Virtual Address Space entitlement not found. Check your entitlements. Falling back to Ansi.\n"));
             AllocatorToUse = EMemoryAllocatorToUse::Ansi;
             return;
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("Virtual Address Space entitlement found. Using MallocBinned2 allocator"));
+			FPlatformMisc::LowLevelOutputDebugString(TEXT("Virtual Address Space entitlement found. Using MallocBinned2 allocator.\n"));
         }
 #endif
-        UE_LOG(LogTemp, Display, TEXT("Using MallocBinned2 allocator."));
+		FPlatformMisc::LowLevelOutputDebugString(TEXT("Using MallocBinned2 allocator.\n"));
         AllocatorToUse = EMemoryAllocatorToUse::Binned2;
         return;
     }
     else
     {
-        UE_LOG(LogTemp, Display, TEXT("Defaulting to Ansi allocator."));
+		FPlatformMisc::LowLevelOutputDebugString(TEXT("Defaulting to Ansi allocator.\n"));
         AllocatorToUse = EMemoryAllocatorToUse::Ansi;
         return;
     }
