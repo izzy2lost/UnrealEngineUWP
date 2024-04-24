@@ -399,6 +399,9 @@ void FFilePackageStoreBackend::Mount(FIoContainerHeader* ContainerHeader, uint32
 			return A.Order > B.Order;
 		});
 	bNeedsContainerUpdate = true;
+
+	UE_LOG(LogFilePackageStore, Log, TEXT("Mounting container: Id=%s, Order=%u, NumPackages=%d"),
+		*LexToString(ContainerHeader->ContainerId), Order, ContainerHeader->PackageIds.Num());
 }
 
 void FFilePackageStoreBackend::Unmount(const FIoContainerHeader* ContainerHeader)
@@ -704,6 +707,9 @@ void FFilePackageStoreBackend::Update()
 		PackageEntries = FPackageIdMap(MoveTemp(Pairs));
 
 		bNeedsContainerUpdate = false;	
+
+		UE_LOG(LogFilePackageStore, Log, TEXT("Updated: NewPackages=%u, OldPackages=%u, TotalPackages=%u"),
+			TotalNewPackages, TotalOldPackages, PackageEntries.GetCapacity());
 	}
 }
 

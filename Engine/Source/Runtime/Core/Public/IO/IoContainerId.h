@@ -56,6 +56,8 @@ public:
 
 	CORE_API friend void operator<<(FStructuredArchiveSlot Slot, FIoContainerId& Value);
 
+	CORE_API friend FString LexToString(const FIoContainerId& ContainerId);
+
 private:
 	inline explicit FIoContainerId(const uint64 InId)
 		: Id(InId) { }

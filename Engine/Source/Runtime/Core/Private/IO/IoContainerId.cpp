@@ -32,3 +32,8 @@ void operator<<(FStructuredArchiveSlot Slot, FIoContainerId& Value)
 {
 	Slot << Value.Id;
 }
+
+FString LexToString(const FIoContainerId& ContainerId)
+{
+	return FString::Printf(TEXT("%llx"), ContainerId.Id);
+}
