@@ -11,6 +11,10 @@
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 #include "Metadata/Accessors/PCGAttributeExtractor.h"
 
+#include "CollisionShape.h"
+#include "Chaos/ImplicitObject.h"
+#include "PhysicsEngine/BodyInstance.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSelfPruning)
 
 #define LOCTEXT_NAMESPACE "PCGSelfPruningElement"
@@ -148,6 +152,167 @@ namespace PCGSelfPruningElement
 					IterationState.ExcludedPoints.Add(InPointRef.Point);
 				}
 			});
+		}
+
+		return true;
+	}
+
+	/** Self-pruning driven by use of collision shapes. Implementation is in practice just a secondary step after the octree query to filter out points if their collisions don`t intersect. */
+	bool CollisionExclusion(FIterationState& IterationState, FPCGContext* InOptionalContext, bool bUseComplexCollision)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSelfPruningElement::Execute::CollisionExclusion);
+
+		check(IterationState.InputPointData);
+		const UPCGPointData::PointOctree& Octree = IterationState.InputPointData->GetOctree();
+
+		int32 CheckTimeSlicingCount = 0;
+
+		TArray<const FPCGPointRef*, TInlineAllocator<256>> ElementsToTest;
+
+		while (IterationState.CurrentPointIndex < IterationState.SortedPoints.Num())
+		{
+			// Don't check too many times. Pre-increment will make sure we always at least process "TimeSliceFrequencyCheck" elements at each iteration.
+			if (++CheckTimeSlicingCount >= TimeSliceFrequencyCheck)
+			{
+				if (ShouldStop(InOptionalContext))
+				{
+					return false;
+				}
+
+				CheckTimeSlicingCount = 0;
+			}
+
+			const FPCGPointRef& PointRef = IterationState.SortedPoints[IterationState.CurrentPointIndex++];
+			if (IterationState.ExcludedPoints.Contains(PointRef.Point))
+			{
+				continue; // Point discarded from previous iteration
+			}
+
+			// Select point
+			IterationState.ExclusionPoints.Add(PointRef.Point);
+
+			// 1. Gather point refs to test against - similar to the DensityBoundsExclusion, except we write to an array temporarily
+			ElementsToTest.Reset();
+			Octree.FindElementsWithBoundsTest(FBoxCenterAndExtent(PointRef.Bounds.Origin, PointRef.Bounds.BoxExtent), [&IterationState, &ElementsToTest](const FPCGPointRef& OtherPointRef)
+			{
+				if (!IterationState.ExclusionPoints.Contains(OtherPointRef.Point) && !IterationState.ExcludedPoints.Contains(OtherPointRef.Point))
+				{
+					ElementsToTest.Add(&OtherPointRef);
+				}
+			});
+
+			// For perf reasons, we won't do the body instance setup (scale...) if there's nothing to test against
+			if (ElementsToTest.IsEmpty())
+			{
+				continue;
+			}
+
+			// Implementation note: this is a deconstruction of FBodyInstance::OverlapTestForBodiesImpl
+			// Get this point's body instance, if any. Note the -1 because we already incremented the value.
+			FBodyInstance* ThisInstance = IterationState.CollisionWrapper.GetBodyInstance(IterationState.CurrentPointIndex - 1);
+			FCollisionShape ThisCollisionShape;
+			FTransform TransformNoScale = FTransform(PointRef.Point->Transform.GetRotation(), PointRef.Point->Transform.GetLocation());
+
+			PhysicsInterfaceTypes::FInlineShapeArray TargetShapes;
+
+			if (ThisInstance)
+			{
+				// Since scale can change on a per-point basis and we can't fold it in the relative transform, we must apply scale here.
+				ThisInstance->UpdateBodyScale(PointRef.Point->Transform.GetScale3D());
+				// Implementation note: all of these bodies don't exist in the physics scene, so there's no need to lock
+				FillInlineShapeArray_AssumesLocked(TargetShapes, ThisInstance->GetPhysicsActorHandle());
+			}
+			else
+			{
+				ThisCollisionShape.SetBox(FVector3f(PointRef.Bounds.BoxExtent * PointRef.Point->Transform.GetScale3D()));
+			}
+
+			for (const FPCGPointRef* OtherPointRef : ElementsToTest)
+			{
+				FBodyInstance* OtherInstance = IterationState.CollisionWrapper.GetBodyInstance(OtherPointRef->Point - IterationState.InputPointData->GetPoints().GetData());
+
+				bool bOverlaps = true;
+				if (ThisInstance && OtherInstance)
+				{
+					// If both bodies are the same, then we can't really have them having different scales; we need to do a (temporary) copy when that happens
+					if (ThisInstance == OtherInstance && !OtherPointRef->Point->Transform.GetScale3D().Equals(PointRef.Point->Transform.GetScale3D()))
+					{
+						if (FBodyInstance** TemporaryInstance = IterationState.TemporaryBodyInstances.Find(OtherInstance))
+						{
+							OtherInstance = *TemporaryInstance;
+						}
+						else
+						{
+							OtherInstance = new FBodyInstance();
+							OtherInstance->bAutoWeld = false;
+							OtherInstance->bSimulatePhysics = false;
+							OtherInstance->InitBody(ThisInstance->GetBodySetup(), FTransform::Identity, nullptr, nullptr);
+
+							IterationState.TemporaryBodyInstances.Add(ThisInstance, OtherInstance);
+						}
+
+						OtherInstance->UpdateBodyScale(OtherPointRef->Point->Transform.GetScale3D());
+					}
+
+					FTransform OtherTransformNoScale = FTransform(OtherPointRef->Point->Transform.GetRotation(), OtherPointRef->Point->Transform.GetLocation());
+					FTransform RelativeTransform = TransformNoScale.GetRelativeTransform(OtherTransformNoScale);
+
+					{
+						// Copied more or less verbatim from FBodyInstance::OverlapTestForBodiesImpl
+						//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSelfPruningElement::Execute::CollisionExclusion::OverlapTest);
+						bOverlaps = false;
+						for (const FPhysicsShapeHandle& Shape : TargetShapes)
+						{
+							if (!Shape.GetGeometry().IsConvex())
+							{
+								continue; //we skip complex shapes - should this respect ComplexAsSimple?
+							}
+
+							bOverlaps = FPhysicsInterface::Overlap_Geom(OtherInstance, FPhysicsInterface::GetGeometryCollection(Shape), RelativeTransform, /*bOutMTD=*/nullptr, bUseComplexCollision);
+							if (bOverlaps)
+							{
+								break;
+							}
+						}
+					}
+				}
+				else if (ThisInstance)
+				{
+					FTransform RelativeTransform = TransformNoScale.GetRelativeTransform(OtherPointRef->Point->Transform);
+					FTransform GeomTransform(RelativeTransform.GetRotation(), RelativeTransform.GetLocation());
+
+					// Create collision shape for other instance
+					FCollisionShape OtherCollisionShape;
+					OtherCollisionShape.SetBox(FVector3f(OtherPointRef->Bounds.BoxExtent * RelativeTransform.GetScale3D()));
+
+					bOverlaps = FPhysicsInterface::Overlap_Geom(ThisInstance, OtherCollisionShape, GeomTransform.GetRotation(), GeomTransform, nullptr, bUseComplexCollision);
+				}
+				else if (OtherInstance)
+				{
+					OtherInstance->UpdateBodyScale(OtherPointRef->Point->Transform.GetScale3D());
+
+					FTransform OtherTransformNoScale = FTransform(OtherPointRef->Point->Transform.GetRotation(), OtherPointRef->Point->Transform.GetLocation());
+					FTransform RelativeTransform = OtherTransformNoScale.GetRelativeTransform(TransformNoScale);
+					FTransform GeomTransform(RelativeTransform.GetRotation(), RelativeTransform.GetLocation());
+
+					bOverlaps = FPhysicsInterface::Overlap_Geom(OtherInstance, ThisCollisionShape, GeomTransform.GetRotation(), GeomTransform, nullptr, bUseComplexCollision);
+				}
+
+				if (bOverlaps)
+				{
+					IterationState.ExcludedPoints.Add(OtherPointRef->Point);
+				}
+			}
+		}
+
+		// Clean up temporary instances
+		if (IterationState.CurrentPointIndex == IterationState.SortedPoints.Num())
+		{
+			for (TPair<FBodyInstance*, FBodyInstance*>& TemporaryInstance : IterationState.TemporaryBodyInstances)
+			{
+				delete TemporaryInstance.Value;
+			}
+			IterationState.TemporaryBodyInstances.Reset();
 		}
 
 		return true;
@@ -411,6 +576,10 @@ namespace PCGSelfPruningElement
 		{
 			bIsDone = PCGSelfPruningElement::DuplicatePointsExclusion(InState, InOptionalContext);
 		}
+		else if (InParameters.bUseCollisionAttribute)
+		{
+			bIsDone = PCGSelfPruningElement::CollisionExclusion(InState, InOptionalContext, InParameters.bUseComplexCollision);
+		}
 		else
 		{
 			bIsDone = PCGSelfPruningElement::DensityBoundsExclusion(InState, InOptionalContext);
@@ -493,6 +662,9 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 	FPCGSelfPruningElement::ContextType* TimeSlicedContext = static_cast<FPCGSelfPruningElement::ContextType*>(InContext);
 	check(TimeSlicedContext);
 
+	const UPCGSelfPruningSettings* Settings = TimeSlicedContext->GetInputSettings<UPCGSelfPruningSettings>();
+	check(Settings);
+
 	TimeSlicedContext->SetTimeSliceIsEnabled(true);
 
 	TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
@@ -500,7 +672,7 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 	// No global execution state.
 	EPCGTimeSliceInitResult InitResult = TimeSlicedContext->InitializePerExecutionState();
 
-	TimeSlicedContext->InitializePerIterationStates(Inputs.Num(), [&Inputs, InContext](PCGSelfPruningElement::FIterationState& OutState, const FPCGSelfPruningElement::ExecStateType&, int32 Index) -> EPCGTimeSliceInitResult
+	TimeSlicedContext->InitializePerIterationStates(Inputs.Num(), [&Inputs, Settings, InContext](PCGSelfPruningElement::FIterationState& OutState, const FPCGSelfPruningElement::ExecStateType&, int32 Index) -> EPCGTimeSliceInitResult
 	{
 		const UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(Inputs[Index].Data);
 		if (!SpatialData)
@@ -514,6 +686,16 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 		if (!OutState.InputPointData)
 		{
 			return EPCGTimeSliceInitResult::NoOperation;
+		}
+
+		if (Settings->Parameters.PruningType != EPCGSelfPruningType::RemoveDuplicates && Settings->Parameters.bUseCollisionAttribute)
+		{
+			FPCGAttributePropertyInputSelector InputSelector = Settings->Parameters.CollisionAttribute.CopyAndFixLast(OutState.InputPointData);
+
+			TUniquePtr<const IPCGAttributeAccessor> InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutState.InputPointData, InputSelector);
+			TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(OutState.InputPointData, InputSelector);
+
+			OutState.CollisionWrapper.Initialize(InputAccessor.Get(), InputKeys.Get());
 		}
 
 		return EPCGTimeSliceInitResult::Success;

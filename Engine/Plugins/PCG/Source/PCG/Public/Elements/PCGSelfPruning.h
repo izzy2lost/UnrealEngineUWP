@@ -4,6 +4,7 @@
 
 #include "PCGContext.h"
 #include "PCGSettings.h"
+#include "Data/PCGCollisionWrapperData.h"
 #include "Data/PCGPointData.h"
 #include "Elements/PCGTimeSlicedElementBase.h"
 
@@ -40,6 +41,17 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bRandomizedPruning = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "PruningType != EPCGSelfPruningType::RemoveDuplicates"))
+	bool bUseCollisionAttribute = false;
+
+	/** Specifies to use the collision from a given mesh instead of the point; note that this will be ignored in the Remove Duplicates mode. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_DiscardPropertySelection, PCG_DiscardExtraSelection, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
+	FPCGAttributePropertyInputSelector CollisionAttribute;
+
+	/** Queries against complex collision (vs. collection of convex elements in the collision) if enabled, performance warning */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
+	bool bUseComplexCollision = false;
 };
 
 namespace PCGSelfPruningElement
@@ -65,6 +77,11 @@ namespace PCGSelfPruningElement
 		FPointBitSet ExclusionPoints;
 		int32 CurrentPointIndex = 0;
 		bool bSortDone = false;
+
+		// In the case of the self-pruning using the collision, we'll need instances of the unique bodies that are used in the point data.
+		// Additionally, in the cases where two points to compare use the same instance, we'll have to do a temporary copy.
+		FPCGCollisionWrapper CollisionWrapper;
+		TMap<FBodyInstance*, FBodyInstance*> TemporaryBodyInstances;
 	};
 
 	/** Will do the self pruning on all inputs in the context. Blocking call (no time slicing). Be careful, it can be very costly. */
