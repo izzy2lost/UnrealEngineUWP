@@ -3111,9 +3111,11 @@ void FLinkerLoad::GatherImportDependencies(int32 ImportIndex, TSet<FDependencyRe
 			// don't warn about the suppressed Import.XObject dependencies
 			if (!Import.XObject)
 			{
-				UE_ASSET_LOG(LogLinker, Warning, PackagePath, TEXT("VerifyImportInner failed [(%x, %d), (%x, %d)] for %s"), 
-					Import.XObject, Import.XObject ? (Import.XObject->IsNative() ? 1 : 0) : 0, 
-					Import.SourceLinker, Import.SourceIndex, 
+				UE_ASSET_LOG(LogLinker, Warning, PackagePath, TEXT("VerifyImportInner failed [(0x%" UPTRINT_X_FMT ", %d), (0x%" UPTRINT_X_FMT ", %d)] for %s"), 
+					(UPTRINT)Import.XObject,
+					Import.XObject ? (Import.XObject->IsNative() ? 1 : 0) : 0, 
+					(UPTRINT)Import.SourceLinker,
+					Import.SourceIndex, 
 					*GetImportFullName(ImportIndex));
 			}
 			EndLoad(LoadContext);
@@ -4891,11 +4893,11 @@ void FLinkerLoad::Preload( UObject* Object )
 				{
 					if (Object->GetClass()->HasAnyClassFlags(CLASS_Deprecated))
 					{
-						UE_ASSET_LOG(LogLinker, Warning, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)SizeSerialized, ExpectedSerialSize);
+						UE_ASSET_LOG(LogLinker, Warning, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %" INT64_FMT), *Object->GetFullName(), (int32)SizeSerialized, ExpectedSerialSize);
 					}
 					else
 					{
-						UE_ASSET_LOG(LogLinker, Fatal, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)SizeSerialized, ExpectedSerialSize);
+						UE_ASSET_LOG(LogLinker, Fatal, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %" INT64_FMT), *Object->GetFullName(), (int32)SizeSerialized, ExpectedSerialSize);
 					}
 				}
 

@@ -25,7 +25,7 @@ const FString& FCborStructDeserializerBackend::GetCurrentPropertyName() const
 FString FCborStructDeserializerBackend::GetDebugString() const
 {
 	FArchive* Ar = const_cast<FArchive*>(CborReader.GetArchive());
-	return FString::Printf(TEXT("Offset: %u"), Ar ? Ar->Tell() : 0);
+	return FString::Printf(TEXT("Offset: %" UINT64_FMT), Ar ? Ar->Tell() : 0);
 }
 
 const FString& FCborStructDeserializerBackend::GetLastErrorMessage() const

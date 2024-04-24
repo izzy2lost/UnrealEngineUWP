@@ -2446,7 +2446,7 @@ public:
 				FBitArrayMemory::ModularizeWordOffset(Data, Offset);
 				uint32* ExpectedData = BaseData + WordLength;
 				uint32 ExpectedOffset = BitLength;
-				CHECK_MESSAGE(FString::Printf(TEXT("ModularizeWordOffset WordLength=%d, BitLength=%d\nExpected: Data=%d, Offset=%d\nActual:  Data=%d, Offset=%d"), WordLength, BitLength, ExpectedData - BaseData, ExpectedOffset, Data - BaseData, Offset),
+				CHECK_MESSAGE(FString::Printf(TEXT("ModularizeWordOffset WordLength=%d, BitLength=%d\nExpected: Data=%d, Offset=%d\nActual:  Data=%d, Offset=%d"), WordLength, BitLength, UE_PTRDIFF_TO_INT32(ExpectedData - BaseData), ExpectedOffset, UE_PTRDIFF_TO_INT32(Data - BaseData), Offset),
 					!(Data != ExpectedData || Offset != ExpectedOffset));
 			}
 		}

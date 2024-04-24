@@ -229,7 +229,7 @@ int32 GetOSVersionsHelper( TCHAR* OutOSVersionLabel, int32 OSVersionLabelLength,
 					}
 
 					// Add the build number as displayed by the winver utility.
-					OSVersionLabel += FString::Printf(TEXT(" [%u.%u.%u.%s]"), OsVersionInfo.dwMajorVersion, OsVersionInfo.dwMinorVersion, OsVersionInfo.dwBuildNumber, *UpdateBuildRevision);
+					OSVersionLabel += FString::Printf(TEXT(" [%u.%u.%u.%s]"), (uint32)OsVersionInfo.dwMajorVersion, (uint32)OsVersionInfo.dwMinorVersion, (uint32)OsVersionInfo.dwBuildNumber, *UpdateBuildRevision);
 				}
 				break;
 			default:
@@ -3942,7 +3942,7 @@ bool FWindowsPlatformMisc::QueryRegKey( const Windows::HKEY InKey, const TCHAR* 
 						::DWORD Value;
 						if (RegQueryValueEx(Key, InValueName, NULL, NULL, (LPBYTE)&Value, &Size) == ERROR_SUCCESS)
 						{
-							OutData = FString::Printf(TEXT("%d"), Value);
+							OutData = FString::Printf(TEXT("%u"), (uint32)Value);
 							bSuccess = true;
 						}
 						break;
@@ -3953,7 +3953,7 @@ bool FWindowsPlatformMisc::QueryRegKey( const Windows::HKEY InKey, const TCHAR* 
 						int64 Value;
 						if (RegQueryValueEx(Key, InValueName, NULL, NULL, (LPBYTE)&Value, &Size) == ERROR_SUCCESS)
 						{
-							OutData = FString::Printf(TEXT("%lld"), Value);
+							OutData = FString::Printf(TEXT("%" INT64_FMT ), Value);
 							bSuccess = true;
 						}
 						break;

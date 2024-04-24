@@ -411,12 +411,12 @@ namespace UE::Zen {
 			case RequestVerb::Get:
 				bSuccess = Is2xx || Is404;
 				VerbStr = TEXT("fetching");
-				AdditionalInfo = FString::Printf(TEXT("Received: %d bytes."), BytesReceived);
+				AdditionalInfo = FString::Printf(TEXT("Received: %zu bytes."), BytesReceived);
 				break;
 			case RequestVerb::Put:
 				bSuccess = Is2xx;
 				VerbStr = TEXT("updating");
-				AdditionalInfo = FString::Printf(TEXT("Sent: %d bytes."), BytesSent);
+				AdditionalInfo = FString::Printf(TEXT("Sent: %zu bytes."), BytesSent);
 				break;
 			case RequestVerb::Post:
 				bSuccess = Is2xx || Is404;

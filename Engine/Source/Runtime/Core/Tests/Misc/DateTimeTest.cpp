@@ -10,7 +10,7 @@
 #include "TestCommon/Expectations.h"
 #endif
 
-#define TestUnixEquivalent(Desc, A, B) if ((A).ToUnixTimestamp() != (B)) FAIL_CHECK(FString::Printf(TEXT("%s - A=%d B=%d"), Desc, (A).ToUnixTimestamp(), (B)));
+#define TestUnixEquivalent(Desc, A, B) if ((A).ToUnixTimestamp() != (B)) FAIL_CHECK(FString::Printf(TEXT("%s - A=%" INT64_FMT " B=%" INT64_FMT), Desc, (A).ToUnixTimestamp(), (B)));
 #define TestYear(Desc, A, B) if ((A.GetYear()) != (B)) FAIL_CHECK(FString::Printf(TEXT("%s - A=%d B=%d"), Desc, (A.GetYear()), (B)));
 #define TestMonth(Desc, A, B) if ((A.GetMonth()) != (B)) FAIL_CHECK(FString::Printf(TEXT("%s - A=%d B=%d"), Desc, (A.GetMonth()), B));
 #define TestMonthOfYear(Desc, A, B) if ((A.GetMonthOfYear()) != (B)) FAIL_CHECK(FString::Printf(TEXT("%s - A=%d B=%d"), Desc ,(static_cast<int32>(A.GetMonthOfYear())), static_cast<int32>(B)));

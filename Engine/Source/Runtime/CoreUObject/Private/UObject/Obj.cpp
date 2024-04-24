@@ -3439,7 +3439,7 @@ FString UObject::GetDefaultConfigFilename() const
 	if (OverridePlatform.Len())
 	{
 		bool bIsPlatformExtension = FPaths::DirectoryExists(FPaths::EnginePlatformExtensionDir(*OverridePlatform));
-		FString RegularPath = FString::Printf(TEXT("%s%s"), *FPaths::SourceConfigDir(), *OverridePlatform, *OverridePlatform, *GetClass()->ClassConfigName.ToString());
+		FString RegularPath = FString::Printf(TEXT("%s%s"), *FPaths::SourceConfigDir(), *OverridePlatform);
 		FString SelectedPath = RegularPath;
 
 		bool bPlatformConfigExistsInRegular = FPaths::DirectoryExists(*RegularPath);

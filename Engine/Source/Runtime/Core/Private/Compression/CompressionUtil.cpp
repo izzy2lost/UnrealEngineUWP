@@ -120,11 +120,11 @@ namespace FCompressionUtil
 			}
 			if (LineOffset >= 0)
 			{
-				Results.Add(FString::Printf(TEXT("%016X: %s"), LineOffset, *HexString));
+				Results.Add(FString::Printf(TEXT("%016" INT64_X_FMT ": %s"), LineOffset, *HexString));
 			}
 			else
 			{
-				Results.Add(FString::Printf(TEXT(" -%014X: %s"), -LineOffset, *HexString));
+				Results.Add(FString::Printf(TEXT(" -%014" INT64_X_FMT ": %s"), -LineOffset, *HexString));
 			}
 		}
 		return Results;

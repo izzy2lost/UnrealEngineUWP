@@ -54,10 +54,10 @@ TEST_CASE_NAMED(FFileTruncateTest, "System::Core::Misc::FileTruncate", "[.][Edit
 		{
 			const int64 ActualEOFPos = TestFile->Tell();
 			const int64 ExpectedEOFPos = (sizeof(int32) * 4);
-			REQUIRE_MESSAGE(FString::Printf(TEXT("File was not the expected size (got %d, expected %d): %s"), ActualEOFPos, ExpectedEOFPos, *TempFilename), ActualEOFPos == ExpectedEOFPos);
+			REQUIRE_MESSAGE(FString::Printf(TEXT("File was not the expected size (got %" INT64_FMT ", expected %" INT64_FMT "): %s"), ActualEOFPos, ExpectedEOFPos, *TempFilename), ActualEOFPos == ExpectedEOFPos);
 
 			const int64 ActualFileSize = TestFile->Size();
-			REQUIRE_MESSAGE(FString::Printf(TEXT("File was not the expected size (got %d, expected %d): %s"), ActualFileSize, ExpectedEOFPos, *TempFilename), ActualFileSize == ExpectedEOFPos);
+			REQUIRE_MESSAGE(FString::Printf(TEXT("File was not the expected size (got %" INT64_FMT ", expected %" INT64_FMT "): %s"), ActualFileSize, ExpectedEOFPos, *TempFilename), ActualFileSize == ExpectedEOFPos);
 		}
 
 		// Truncate the file at our test pos
@@ -66,7 +66,7 @@ TEST_CASE_NAMED(FFileTruncateTest, "System::Core::Misc::FileTruncate", "[.][Edit
 		// Validate that the size is reported correctly
 		{
 			const int64 ActualFileSize = TestFile->Size();
-			REQUIRE_MESSAGE(FString::Printf(TEXT("File was not the expected size after truncation (got %d, expected %d): %s"), ActualFileSize, ExpectedTruncatePos, *TempFilename), ActualFileSize == ExpectedTruncatePos);
+			REQUIRE_MESSAGE(FString::Printf(TEXT("File was not the expected size after truncation (got %" INT64_FMT ", expected %" INT64_FMT "): %s"), ActualFileSize, ExpectedTruncatePos, *TempFilename), ActualFileSize == ExpectedTruncatePos);
 		}
 
 		// Validate that we can't read past the truncation point
@@ -122,7 +122,7 @@ TEST_CASE_NAMED(FFileAppendTest, "System::Core::Misc::FileAppend", "[.][EditorCo
 		{
 			const int64 ActualEOFPos = TestFile->Tell();
 			const int64 ExpectedEOFPos = TestFile->Size();
-			REQUIRE_MESSAGE(FString::Printf(TEXT("File did not seek to the end when opening (got %d, expected %d): %s"), ActualEOFPos, ExpectedEOFPos, *TempFilename), ActualEOFPos == ExpectedEOFPos);
+			REQUIRE_MESSAGE(FString::Printf(TEXT("File did not seek to the end when opening (got %" INT64_FMT ", expected %" INT64_FMT "): %s"), ActualEOFPos, ExpectedEOFPos, *TempFilename), ActualEOFPos == ExpectedEOFPos);
 		}
 
 		TestData.Add(One);

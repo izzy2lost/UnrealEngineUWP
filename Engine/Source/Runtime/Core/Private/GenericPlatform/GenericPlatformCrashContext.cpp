@@ -694,7 +694,7 @@ FGenericCrashContext::FGenericCrashContext(ECrashContextType InType, const TCHAR
 
 FString FGenericCrashContext::GetTempSessionContextFilePath(uint64 ProcessID)
 {
-	return FPlatformProcess::UserTempDir() / FString::Printf(TEXT("UECrashContext-%u.xml"), ProcessID);
+	return FPlatformProcess::UserTempDir() / FString::Printf(TEXT("UECrashContext-%" UINT64_FMT ".xml"), ProcessID);
 }
 
 void FGenericCrashContext::CleanupTempSessionContextFiles(const FTimespan& ExpirationAge)

@@ -476,7 +476,7 @@ class FDerivedDataCache final
 
 					if (!bMatchesInSize || bDifferentMemory)
 					{
-						FString ErrMsg = FString::Printf(TEXT("There is a mismatch between the DDC data and the generated data for plugin (%s) for asset (%s). BytesInDDC:%d, BytesGenerated:%d, bDifferentMemory:%d, offset:%d"), DataDeriver->GetPluginName(), *DataDeriver->GetDebugContextString(), NumInDDC, NumGenerated, bDifferentMemory, DifferentOffset);
+						FString ErrMsg = FString::Printf(TEXT("There is a mismatch between the DDC data and the generated data for plugin (%s) for asset (%s). BytesInDDC:%" INT64_FMT ", BytesGenerated:%" INT64_FMT ", bDifferentMemory:%d, offset:%d"), DataDeriver->GetPluginName(), *DataDeriver->GetDebugContextString(), NumInDDC, NumGenerated, bDifferentMemory, DifferentOffset);
 						ensureMsgf(false, TEXT("%s"), *ErrMsg);
 						UE_LOG(LogDerivedDataCache, Error, TEXT("%s"), *ErrMsg );
 					}
