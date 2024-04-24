@@ -563,25 +563,6 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 	const float SignTest = dot(cross(Tri.Verts[1].PointClip.xyw - Tri.Verts[0].PointClip.xyw, Tri.Verts[2].PointClip.xyw - Tri.Verts[0].PointClip.xyw), Tri.Verts[0].PointClip.xyw);
 	Result.TwoSidedSign = CondMask(SignTest > 0.0f, -1.0f, 1.0f);
 
-	half3x3 TangentRot =
-	{
-		1, 0, 0,
-		0, 1, 0,
-		0, 0, 1
-	};
-
-#if USE_SPLINEDEFORM
-	BRANCH
-	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
-		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
-	{
-		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
-		// We have to provide a transform to be applied to the decoded/solved TangentToLocal before rotating it into world space
-		const float SplineDist = Lerp( Tri.Verts[0].SplineDist, Tri.Verts[1].SplineDist, Tri.Verts[2].SplineDist, Barycentrics ).Value;
-		TangentRot = SplineMeshCalcSliceRot(SplineMeshParams, SplineDist);
-	}
-#endif
-
 	// Only need the first UV from cluster data (used to solve the tangent frame in GetAttributeData).
 	// But we don't use any for the pixel parameters because we interpolate the UVs manually below, in case they were customized.
 	const uint NumAttributeDataCoords = 1;
@@ -598,8 +579,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 		Tri.Verts[2].TangentBasis,
 		Barycentrics,
 		InstanceData,
-		NumAttributeDataCoords,
-		TangentRot
+		NumAttributeDataCoords
 	);
 
 #if INTERPOLATE_VERTEX_COLOR

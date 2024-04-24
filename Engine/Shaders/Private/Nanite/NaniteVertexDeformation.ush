@@ -118,10 +118,15 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
 		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
 	{
-		// Deform the local position along the spline
+		// Deform the local position and tangent basis along the spline
 		// NOTE: Storing off the spline distance for use later when calculating tangent frame.
 		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
-		Output.SplineDist = SplineMeshDeformLocalPosAndNormal(SplineMeshParams, Output.Position, Output.TangentBasis.TangentZ);
+		Output.SplineDist = SplineMeshDeformLocalPosNormalTangent(
+			SplineMeshParams,
+			Output.Position,
+			Output.TangentBasis.TangentZ,
+			Output.TangentBasis.TangentXAndSign.xyz
+		);
 	}
 #endif
 
