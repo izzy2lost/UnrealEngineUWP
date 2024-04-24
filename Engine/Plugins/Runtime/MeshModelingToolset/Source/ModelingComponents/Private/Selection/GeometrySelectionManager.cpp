@@ -261,6 +261,7 @@ void UGeometrySelectionManager::SetMeshSelectionTypeAndMode(EGeometryElementType
 
 		GetTransactionsAPI()->EndUndoTransaction();
 
+		OnSelectionModified.Broadcast();
 	}
 }
 
