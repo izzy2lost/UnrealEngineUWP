@@ -54,6 +54,9 @@ public:
 	*/
 	int64 DynamicGeometrySharedBufferGenerationID = NonSharedVertexBuffers;
 
+	// Last frame when geometry was updated (only skinned geometry)
+	uint64 LastUpdatedFrame = 0;	
+
 	FRayTracingGeometryInitializer Initializer;
 
 	UE_DEPRECATED(5.5, "Use GetRHI() instead.")

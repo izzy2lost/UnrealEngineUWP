@@ -31,6 +31,7 @@ public:
 	ENGINE_API uint32 ComputeScratchBufferSize() const;
 	
 	/** Commit all pending work. Requires a scratch buffer that is at least as big as the size provided by ComputeScratchBufferSize(). */
+	UE_DEPRECATED(5.5, "This function has been deprecated. Use the version that takes GraphBuilder as input.")
 	ENGINE_API void Commit(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer);
 
 	/** Commit all pending work using render graph. This allocates a transient scratch buffer internally. */
