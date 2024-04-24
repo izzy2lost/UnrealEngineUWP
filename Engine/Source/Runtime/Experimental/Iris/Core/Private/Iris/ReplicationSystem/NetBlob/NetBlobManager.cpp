@@ -18,6 +18,9 @@ namespace UE::Net::Private
 
 static TAutoConsoleVariable<int32> CVarEnableIrisRPCs(TEXT("net.Iris.EnableRPCs"), 1, TEXT( "If > 0 let Iris replicate and execute RPCs."));
 
+static bool bThrottleRPCWarnings = true;
+static FAutoConsoleVariableRef CVarThrottleRPCWarnings(TEXT("net.Iris.ThrottleRPCWarnings"), bThrottleRPCWarnings, TEXT("Only log send failure warnings once per RPC type."));
+
 FNetBlobManager::FNetBlobManager()
 {
 }
@@ -195,7 +198,14 @@ bool FNetBlobManager::GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootOb
 
 		if (!bCanSendRpc)
 		{
-			UE_LOG(LogIris, Warning, TEXT("SendRPC %s for %s Failed. This rootobject is not yet replicated (RefHandle: %s Index: %u)."),
+			bool bLogRPCFailed = true;
+			if (UE::Net::Private::bThrottleRPCWarnings)
+			{
+				bool& bWasAlreadyLogged = RPCWarningThrottler.FindOrAdd(Function->GetFName(), false);
+				bLogRPCFailed = !bWasAlreadyLogged;
+				bWasAlreadyLogged = true;
+			}
+			UE_CLOG(bLogRPCFailed, LogIris, Warning, TEXT("SendRPC %s for %s Failed. This rootobject is not yet replicated (RefHandle: %s Index: %u)."),
 				ToCStr(Function->GetName()), *GetNameSafe(RootObject), ToCStr(OutOwnerInfo.CallerRef.GetRefHandle().ToString()), OutOwnerInfo.RootObjectIndex);
 		}
 	}
@@ -226,7 +236,15 @@ bool FNetBlobManager::GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootOb
 		
 		if (!bCanSendRpc)
 		{
-			UE_LOG(LogIris, Warning, TEXT("SendRPC %s for %s::%s Failed. The root object (RefHandle: %s Index: %u) and subobject (RefHandle: %s Index: %u) is not yet replicated."),
+			bool bLogRPCFailed = true;
+			if (UE::Net::Private::bThrottleRPCWarnings)
+			{
+				bool& bWasAlreadyLogged = RPCWarningThrottler.FindOrAdd(Function->GetFName(), false);
+				bLogRPCFailed = !bWasAlreadyLogged;
+				bWasAlreadyLogged = true;
+			}
+
+			UE_CLOG(bLogRPCFailed, LogIris, Warning, TEXT("SendRPC %s for %s::%s Failed. The root object (RefHandle: %s Index: %u) and subobject (RefHandle: %s Index: %u) is not yet replicated."),
 				ToCStr(Function->GetName()), *GetNameSafe(RootObject), *GetNameSafe(SubObject), ToCStr(OutOwnerInfo.CallerRef.ToString()), OutOwnerInfo.RootObjectIndex, ToCStr(OutOwnerInfo.TargetRef.ToString()), OutOwnerInfo.SubObjectIndex);
 		}
 	}

@@ -172,6 +172,9 @@ private:
 	TStrongObjectPtr<UPartialNetObjectAttachmentHandler> PartialNetObjectAttachmentHandler;
 	TStrongObjectPtr<UNetObjectBlobHandler> NetObjectBlobHandler;
 
+	/** Track if a warning was already logged for a specific RPC. */
+	mutable TMap<FName, bool> RPCWarningThrottler;
+
 	UReplicationSystem* ReplicationSystem = nullptr;
 	FObjectReferenceCache* ObjectReferenceCache = nullptr;
 	FReplicationConnections* Connections = nullptr;
