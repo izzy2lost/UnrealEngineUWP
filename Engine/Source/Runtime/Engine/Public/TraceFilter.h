@@ -90,6 +90,13 @@ struct FTraceFilter
 	static ENGINE_API void Unlock();
 };
 
+extern template ENGINE_API void FTraceFilter::SetObjectIsTraceable<true>(const UObject* InObject, bool bIsTraceable);
+extern template ENGINE_API void FTraceFilter::SetObjectIsTraceable<false>(const UObject* InObject, bool bIsTraceable);
+extern template ENGINE_API void FTraceFilter::MarkObjectTraceable<true>(const UObject* InObject);
+extern template ENGINE_API void FTraceFilter::MarkObjectTraceable<false>(const UObject* InObject);
+extern template ENGINE_API bool FTraceFilter::IsObjectTraceable<true>(const UObject* InObject);
+extern template ENGINE_API bool FTraceFilter::IsObjectTraceable<false>(const UObject* InObject);
+
 #define CAN_TRACE_OBJECT(Object) \
 	FTraceFilter::TObjectFilter::CanTrace(Object)
 

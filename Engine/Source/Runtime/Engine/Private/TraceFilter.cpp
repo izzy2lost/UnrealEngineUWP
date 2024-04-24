@@ -272,70 +272,76 @@ FAutoConsoleCommand FlushFilterStateCommand(TEXT("TraceFilter.FlushState"), TEXT
 		})
 	);
 
-template<>
-ENGINE_API bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject)
+template<bool bForceThreadSafe>
+bool FTraceFilter::IsObjectTraceable(const UObject* InObject)
 {
-	// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
-	return GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
-}
-
-template<>
-ENGINE_API bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject)
-{
-	check(GObjectFilterAnnotations.IsLocked());
-	// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
-	return GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
-}
-
-template<>
-ENGINE_API void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ true>(const UObject* InObject, bool bIsTraceable)
-{
-	ensure(InObject);
-		
-	FTraceFilterObjectAnnotation Annotation;
-	Annotation.bIsTraceable = bIsTraceable;
-	GObjectFilterAnnotations.AddAnnotation(InObject, Annotation);
-
-	if (bIsTraceable)
+	if constexpr (!bForceThreadSafe)
 	{
-		TRACE_OBJECT(InObject);
+		check(GObjectFilterAnnotations.IsLocked());
 	}
+
+	// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
+	return GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
 }
 
-template<>
-ENGINE_API void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ false>(const UObject* InObject, bool bIsTraceable)
+template bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject);
+template bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject);
+
+template<bool bForceThreadSafe>
+void FTraceFilter::SetObjectIsTraceable(const UObject* InObject, bool bIsTraceable)
 {
 	ensure(InObject);
 
-	check(GObjectFilterAnnotations.IsLocked());
-	TMap<const UObjectBase*, FTraceFilterObjectAnnotation>& AnnotationMap = GObjectFilterAnnotations.GetAnnotationMap();
-	if (!bIsTraceable)
+	if constexpr (bForceThreadSafe)
 	{
-		AnnotationMap.FindOrAdd(InObject).bIsTraceable = false;
+		FTraceFilterObjectAnnotation Annotation;
+		Annotation.bIsTraceable = bIsTraceable;
+		GObjectFilterAnnotations.AddAnnotation(InObject, Annotation);
+
+		if (bIsTraceable)
+		{
+			TRACE_OBJECT(InObject);
+		}
 	}
 	else
 	{
-		AnnotationMap.Remove(InObject);
-		TRACE_OBJECT(InObject);
-	}	
+		check(GObjectFilterAnnotations.IsLocked());
+		TMap<const UObjectBase*, FTraceFilterObjectAnnotation>& AnnotationMap = GObjectFilterAnnotations.GetAnnotationMap();
+		if (!bIsTraceable)
+		{
+			AnnotationMap.FindOrAdd(InObject).bIsTraceable = false;
+		}
+		else
+		{
+			AnnotationMap.Remove(InObject);
+			TRACE_OBJECT(InObject);
+		}
+	}
 }
 
-template<>
-ENGINE_API void FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject)
-{
-	ensure(InObject);	
-	FTraceFilterObjectAnnotation Annotation;
-	Annotation.bIsTraceable = true;
-	GObjectFilterAnnotations.AddAnnotation(InObject, Annotation);
-}
+template void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ true>(const UObject* InObject, bool bIsTraceable);
+template void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ false>(const UObject* InObject, bool bIsTraceable);
 
-template<>
-ENGINE_API void FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject)
+template<bool bForceThreadSafe>
+void FTraceFilter::MarkObjectTraceable(const UObject* InObject)
 {
 	ensure(InObject);
-	check(GObjectFilterAnnotations.IsLocked());
-	SetObjectIsTraceable(InObject, true);
+
+	if constexpr (bForceThreadSafe)
+	{
+		FTraceFilterObjectAnnotation Annotation;
+		Annotation.bIsTraceable = true;
+		GObjectFilterAnnotations.AddAnnotation(InObject, Annotation);
+	}
+	else
+	{
+		check(GObjectFilterAnnotations.IsLocked());
+		SetObjectIsTraceable(InObject, true);
+	}
 }
+
+template void FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject);
+template void FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject);
 
 void FTraceFilter::Init()
 {
