@@ -1343,6 +1343,11 @@ namespace Jupiter.Controllers
 
 	public class EnumerateBucketResponse
 	{
+		public EnumerateBucketResponse()
+		{
+			RefIds = null!;
+		}
+
 		public EnumerateBucketResponse(List<RefId> refIds)
 		{
 			RefIds = refIds;
