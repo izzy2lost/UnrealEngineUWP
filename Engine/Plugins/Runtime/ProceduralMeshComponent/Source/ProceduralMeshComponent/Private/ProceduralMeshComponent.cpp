@@ -216,10 +216,7 @@ public:
 				Section->VertexFactory.ReleaseResource();
 
 #if RHI_RAYTRACING
-				if (IsRayTracingEnabled())
-				{
-					Section->RayTracingGeometry.ReleaseResource();
-				}
+				Section->RayTracingGeometry.ReleaseResource();
 #endif
 
 				delete Section;

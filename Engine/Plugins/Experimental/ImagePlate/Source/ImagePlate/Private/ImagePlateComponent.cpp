@@ -80,10 +80,7 @@ namespace
 			IndexBuffer.ReleaseResource();
 			VertexFactory.ReleaseResource();
 #if RHI_RAYTRACING
-			if (IsRayTracingEnabled())
-			{
-				RayTracingGeometry.ReleaseResource();
-			}
+			RayTracingGeometry.ReleaseResource();
 #endif
 		}
 

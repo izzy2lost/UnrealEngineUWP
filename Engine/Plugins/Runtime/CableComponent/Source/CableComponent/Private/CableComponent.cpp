@@ -107,21 +107,7 @@ public:
 
 #if RHI_RAYTRACING
 		bSupportRayTracing = IsRayTracingEnabled();
-		bDynamicRayTracingGeometry = false;
-		bNeedsDynamicRayTracingGeometries = false;
-		
-		bNeedsToUpdateRayTracingCache = true;
-
-		if (IsRayTracingAllowed() && bSupportRayTracing)
-		{
-			const bool bWantsRayTracingWPO = MaterialRelevance.bUsesWorldPositionOffset;
-
-			if (bWantsRayTracingWPO)
-			{
-				bDynamicRayTracingGeometry = true;
-				bNeedsDynamicRayTracingGeometries = true;
-			}
-		}
+		bDynamicRayTracingGeometry = bSupportRayTracing && MaterialRelevance.bUsesWorldPositionOffset;
 #endif
 
 		ENQUEUE_RENDER_COMMAND(InitCableResources)(UE::RenderCommandPipe::Cable,
@@ -134,13 +120,13 @@ public:
 			if (bSupportRayTracing)
 			{
 				FRayTracingGeometry& RayTracingGeometry = StaticRayTracingGeometry;
-				UpdateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
-			}
+				CreateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
+				bNeedsToUpdateRayTracingCache = true;
 
-			if (IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
-			{
-				check(bDynamicRayTracingGeometry);
-				CreateDynamicRayTracingGeometries(RHICmdList);
+				if (bDynamicRayTracingGeometry)
+				{
+					CreateDynamicRayTracingGeometries(RHICmdList);
+				}
 			}
 #endif
 		});
@@ -304,7 +290,7 @@ public:
 				if (RayTracingGeometry.IsValid())
 				{
 					RayTracingGeometry.ReleaseResource();
-					UpdateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
+					CreateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
 					bNeedsToUpdateRayTracingCache = true;
 				}
 			}
@@ -557,6 +543,7 @@ public:
 		const FMatrix& ThisLocalToWorld = GetLocalToWorld();
 		RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
 
+		// TODO: Checking if VertexFactory.GetType()->SupportsRayTracingDynamicGeometry() should be done when initializing bDynamicRayTracingGeometry otherwise we end up with unbuilt BLAS
 		if (bEvaluateWPO && VertexFactory.GetType()->SupportsRayTracingDynamicGeometry())
 		{
 			// Use the shared vertex buffer - needs to be updated every frame
@@ -589,7 +576,7 @@ public:
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool IsRayTracingStaticRelevant() const override { return false; }
 
-	void UpdateRayTracingGeometry_RenderingThread(FRayTracingGeometry& RayTracingGeometry, FRHICommandListBase& RHICmdList)
+	void CreateRayTracingGeometry_RenderingThread(FRayTracingGeometry& RayTracingGeometry, FRHICommandListBase& RHICmdList)
 	{
 		FRayTracingGeometryInitializer Initializer;
 		static const FName DebugName("FCableSceneProxy");
@@ -647,7 +634,6 @@ private:
 
 	bool bSupportRayTracing : 1;
 	bool bDynamicRayTracingGeometry : 1;
-	bool bNeedsDynamicRayTracingGeometries : 1;
 	bool bNeedsToUpdateRayTracingCache : 1;
 
 	FRayTracingGeometry StaticRayTracingGeometry;

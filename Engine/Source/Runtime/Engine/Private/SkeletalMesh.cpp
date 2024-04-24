@@ -6949,15 +6949,17 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		return;
 	}
 
+	FRayTracingGeometry* RayTracingGeometry = MeshObject->GetRayTracingGeometry();
+
 	// GetRayTracingGeometry()->IsInitialized() is checked as a workaround for UE-92634. FSkeletalMeshSceneProxy's resources may have already been released, but proxy has not removed yet)
-	if (MeshObject->GetRayTracingGeometry() && MeshObject->GetRayTracingGeometry()->IsInitialized())
+	if (RayTracingGeometry && RayTracingGeometry->IsInitialized())
 	{
-		if(MeshObject->GetRayTracingGeometry()->IsValid())
+		if(RayTracingGeometry->IsValid())
 		{
-			check(MeshObject->GetRayTracingGeometry()->Initializer.IndexBuffer.IsValid());
+			check(RayTracingGeometry->Initializer.IndexBuffer.IsValid());
 			
 			FRayTracingInstance RayTracingInstance;
-			RayTracingInstance.Geometry = MeshObject->GetRayTracingGeometry();
+			RayTracingInstance.Geometry = RayTracingGeometry;
 
 			// Setup materials for each segment
 			const int32 LODIndex = MeshObject->GetRayTracingLOD();
@@ -6975,7 +6977,7 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 			check(LODSection.SectionElements.Num() == LODData.RenderSections.Num());
 				
 			//#dxr_todo (UE-113617): verify why this condition is not fulfilled sometimes
-			if(!ensure(LODSection.SectionElements.Num() == MeshObject->GetRayTracingGeometry()->Initializer.Segments.Num()))
+			if(!ensure(LODSection.SectionElements.Num() == RayTracingGeometry->Initializer.Segments.Num()))
 			{
 				return;
 			}
@@ -7030,7 +7032,7 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 					GeometrySections.Add(Segment);
 				}
 
-				MeshObject->GetRayTracingGeometry()->Initializer.Segments = GeometrySections;
+				RayTracingGeometry->Initializer.Segments = GeometrySections;
 
 				Context.DynamicRayTracingGeometriesToUpdate.Add(
 					FRayTracingDynamicGeometryUpdateParams
@@ -7039,8 +7041,8 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 						false,
 						LODData.GetNumVertices(),
 						LODData.GetNumVertices() * (uint32)sizeof(FVector3f),
-						MeshObject->GetRayTracingGeometry()->Initializer.TotalPrimitiveCount,
-						MeshObject->GetRayTracingGeometry(),
+						RayTracingGeometry->Initializer.TotalPrimitiveCount,
+						RayTracingGeometry,
 						MeshObject->GetRayTracingDynamicVertexBuffer(),
 						true
 					}
