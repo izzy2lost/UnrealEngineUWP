@@ -176,10 +176,12 @@ namespace Horde.Server.Jobs
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Unable to find job {JobId}", jobId);
 			}
-			if (!job.TryGetStep(stepId, out IJobStepBatch? batch, out IJobStep? step))
+			if (!job.TryGetStep(stepId, out IJobStep? step))
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Unable to find step {JobId}:{StepId}", job.Id, stepId);
 			}
+
+			IJobStepBatch batch = step.Batch;
 			if (batch.SessionId == null)
 			{
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "Batch {JobId}:{BatchId} has no session id", job.Id, batch.Id);

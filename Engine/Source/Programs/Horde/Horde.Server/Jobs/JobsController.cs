@@ -636,6 +636,7 @@ namespace Horde.Server.Jobs
 			response.Id = batch.Id;
 			response.LogId = batch.LogId?.ToString();
 			response.GroupIdx = batch.GroupIdx;
+			response.AgentType = batch.AgentType;
 			response.State = batch.State;
 			response.Error = batch.Error;
 			response.Steps.AddRange(steps);
@@ -684,6 +685,20 @@ namespace Horde.Server.Jobs
 			GetStepResponse response = new GetStepResponse();
 			response.Id = step.Id;
 			response.NodeIdx = step.NodeIdx;
+
+			// Node properties
+			response.Name = step.Name;
+			response.Inputs = step.Inputs.ToList();
+			response.OutputNames = step.OutputNames.ToList();
+			response.InputDependencies = step.InputDependencies.ToList();
+			response.OrderDependencies = step.OrderDependencies.ToList();
+			response.AllowRetry = step.AllowRetry;
+			response.RunEarly = step.RunEarly;
+			response.Warnings = step.Warnings;
+			response.Credentials = step.Credentials;
+			response.Annotations = step.Annotations;
+
+			// Step properties
 			response.State = step.State;
 			response.Outcome = step.Outcome;
 			response.Error = step.Error;
@@ -1522,9 +1537,9 @@ namespace Horde.Server.Jobs
 			try
 			{
 				NodeRef? retryNodeRef = null;
-				if (request.Retry != null && job.TryGetStep(stepId, out IJobStepBatch? batch, out IJobStep? step))
+				if (request.Retry != null && job.TryGetStep(stepId, out IJobStep? step))
 				{
-					retryNodeRef = new NodeRef(batch.GroupIdx, step.NodeIdx);
+					retryNodeRef = new NodeRef(step.Batch.GroupIdx, step.NodeIdx);
 				}
 
 				IJob? newJob = await _jobService.UpdateStepAsync(job, batchId, stepId, streamConfig, request.State, request.Outcome, null, request.AbortRequested, abortByUser, (request.LogId == null) ? null : LogId.Parse(request.LogId), null, retryByUser, request.Priority, null, request.Properties);

@@ -677,6 +677,13 @@ namespace EpicGames.Horde.Jobs
 	}
 
 	/// <summary>
+	/// Reference to the output of a step within the job
+	/// </summary>
+	/// <param name="StepId">Step producing the output</param>
+	/// <param name="OutputIdx">Index of the output from this step</param>
+	public record struct JobStepOutputRef(JobStepId StepId, int OutputIdx);
+
+	/// <summary>
 	/// Returns information about a jobstep
 	/// </summary>
 	public class GetStepResponse
@@ -690,6 +697,56 @@ namespace EpicGames.Horde.Jobs
 		/// Index of the node which this jobstep is to execute
 		/// </summary>
 		public int NodeIdx { get; set; }
+
+		/// <summary>
+		/// The name of this node 
+		/// </summary>
+		public string Name { get; set; } = String.Empty;
+
+		/// <summary>
+		/// References to inputs for this node
+		/// </summary>
+		public List<JobStepOutputRef>? Inputs { get; set; }
+
+		/// <summary>
+		/// List of output names
+		/// </summary>
+		public List<string>? OutputNames { get; set; }
+
+		/// <summary>
+		/// Indices of nodes which must have succeeded for this node to run
+		/// </summary>
+		public List<JobStepId>? InputDependencies { get; set; }
+
+		/// <summary>
+		/// Indices of nodes which must have completed for this node to run
+		/// </summary>
+		public List<JobStepId>? OrderDependencies { get; set; }
+
+		/// <summary>
+		/// Whether this node can be run multiple times
+		/// </summary>
+		public bool AllowRetry { get; set; }
+
+		/// <summary>
+		/// This node can start running early, before dependencies of other nodes in the same group are complete
+		/// </summary>
+		public bool RunEarly { get; set; }
+
+		/// <summary>
+		/// Whether to include warnings in the output (defaults to true)
+		/// </summary>
+		public bool Warnings { get; set; }
+
+		/// <summary>
+		/// List of credentials required for this node. Each entry maps an environment variable name to a credential in the form "CredentialName.PropertyName".
+		/// </summary>
+		public IReadOnlyDictionary<string, string>? Credentials { get; set; }
+
+		/// <summary>
+		/// Annotations for this node
+		/// </summary>
+		public IReadOnlyDictionary<string, string>? Annotations { get; set; }
 
 		/// <summary>
 		/// Current state of the job step. This is updated automatically when runs complete.
@@ -921,6 +978,11 @@ namespace EpicGames.Horde.Jobs
 		public int GroupIdx { get; set; }
 
 		/// <summary>
+		/// The agent type
+		/// </summary>
+		public string AgentType { get; set; } = String.Empty;
+
+		/// <summary>
 		/// The state of this batch
 		/// </summary>
 		public JobStepBatchState State { get; set; }
@@ -1028,6 +1090,31 @@ namespace EpicGames.Horde.Jobs
 	/// </summary>
 	public class GetLabelStateResponse
 	{
+		/// <summary>
+		/// Name to show for this label on the dashboard
+		/// </summary>
+		public string? DashboardName { get; set; }
+
+		/// <summary>
+		/// Category to show this label in on the dashboard
+		/// </summary>
+		public string? DashboardCategory { get; set; }
+
+		/// <summary>
+		/// Name to show for this label in UGS
+		/// </summary>
+		public string? UgsName { get; set; }
+
+		/// <summary>
+		/// Project to display this label for in UGS
+		/// </summary>
+		public string? UgsProject { get; set; }
+
+		/// <summary>
+		/// Steps to include in the status of this label
+		/// </summary>
+		public List<JobStepId> Steps { get; set; } = new List<JobStepId>();
+
 		/// <summary>
 		/// State of the label
 		/// </summary>

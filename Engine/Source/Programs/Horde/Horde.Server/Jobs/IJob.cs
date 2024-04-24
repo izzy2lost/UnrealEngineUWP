@@ -248,6 +248,22 @@ namespace Horde.Server.Jobs
 		Task<IJob?> RefreshAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
+		/// Attempt to get a batch with the given id
+		/// </summary>
+		/// <param name="batchId">The job batch id</param>
+		/// <param name="batch">Receives the batch interface on success</param>
+		/// <returns>True if the batch was found</returns>
+		bool TryGetBatch(JobStepBatchId batchId, [NotNullWhen(true)] out IJobStepBatch? batch);
+
+		/// <summary>
+		/// Attempt to get a step with the given id
+		/// </summary>
+		/// <param name="stepId">The job step id</param>
+		/// <param name="step">Receives the step interface on success</param>
+		/// <returns>True if the step was found</returns>
+		bool TryGetStep(JobStepId stepId, [NotNullWhen(true)] out IJobStep? step);
+
+		/// <summary>
 		/// Attempt to delete the job
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
@@ -388,52 +404,6 @@ namespace Horde.Server.Jobs
 			{
 				return globalConfig.Authorize(action, user);
 			}
-		}
-
-		/// <summary>
-		/// Attempts to get a step with a given ID
-		/// </summary>
-		/// <param name="job">The job document</param>
-		/// <param name="stepId">The step id</param>
-		/// <param name="step">On success, receives the step object</param>
-		/// <returns>True if the step was found</returns>
-		public static bool TryGetStep(this IJob job, JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
-		{
-			foreach (IJobStepBatch batch in job.Batches)
-			{
-				if (batch.TryGetStep(stepId, out step))
-				{
-					return true;
-				}
-			}
-
-			step = null;
-			return false;
-		}
-
-		/// <summary>
-		/// Attempts to get a step with a given ID
-		/// </summary>
-		/// <param name="job">The job document</param>
-		/// <param name="stepId">The step id</param>
-		/// <param name="batch">On success returns the batch containing the step</param>
-		/// <param name="step">On success, receives the step object</param>
-		/// <returns>True if the step was found</returns>
-		public static bool TryGetStep(this IJob job, JobStepId stepId, [NotNullWhen(true)] out IJobStepBatch? batch, [NotNullWhen(true)] out IJobStep? step)
-		{
-			foreach (IJobStepBatch currentBatch in job.Batches)
-			{
-				if (currentBatch.TryGetStep(stepId, out IJobStep? currentStep))
-				{
-					batch = currentBatch;
-					step = currentStep;
-					return true;
-				}
-			}
-
-			batch = null;
-			step = null;
-			return false;
 		}
 
 		/// <summary>
@@ -846,31 +816,17 @@ namespace Horde.Server.Jobs
 		/// </summary>
 		/// <param name="job">The job document</param>
 		/// <param name="batchId">The batch id</param>
-		/// <param name="batch">On success, receives the batch object</param>
-		/// <returns>True if the batch was found</returns>
-		public static bool TryGetBatch(this IJob job, JobStepBatchId batchId, [NotNullWhen(true)] out IJobStepBatch? batch)
-		{
-			batch = job.Batches.FirstOrDefault(x => x.Id == batchId);
-			return batch != null;
-		}
-
-		/// <summary>
-		/// Attempts to get a batch with the given id
-		/// </summary>
-		/// <param name="job">The job document</param>
-		/// <param name="batchId">The batch id</param>
 		/// <param name="stepId">The step id</param>
 		/// <param name="step">On success, receives the step object</param>
 		/// <returns>True if the batch was found</returns>
 		public static bool TryGetStep(this IJob job, JobStepBatchId batchId, JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
 		{
-			IJobStepBatch? batch;
-			if (!TryGetBatch(job, batchId, out batch))
+			if (!job.TryGetStep(stepId, out step) || step.Batch.Id != batchId)
 			{
 				step = null;
 				return false;
 			}
-			return batch.TryGetStep(stepId, out step);
+			return true;
 		}
 
 		/// <summary>
@@ -959,7 +915,22 @@ namespace Horde.Server.Jobs
 				}
 
 				// Create the response
-				responses.Add(new GetLabelStateResponse(newState, newOutcome));
+				GetLabelStateResponse response = new GetLabelStateResponse(newState, newOutcome);
+				response.DashboardName = label.DashboardName;
+				response.DashboardCategory = label.DashboardCategory;
+				response.UgsName = label.UgsName;
+				response.UgsProject = label.UgsProject;
+
+				foreach (NodeRef includedNodeRef in label.IncludedNodes)
+				{
+					IJobStep? includedStep;
+					if (stepForNode.TryGetValue(includedNodeRef, out includedStep))
+					{
+						response.Steps.Add(includedStep.Id);
+					}
+				}
+
+				responses.Add(response);
 			}
 
 			// Remove all the nodes that don't have a step
@@ -1255,6 +1226,11 @@ namespace Horde.Server.Jobs
 	public interface IJobStepBatch
 	{
 		/// <summary>
+		/// Job that this batch belongs to
+		/// </summary>
+		public IJob Job { get; }
+
+		/// <summary>
 		/// Unique id for this group
 		/// </summary>
 		public JobStepBatchId Id { get; }
@@ -1442,24 +1418,20 @@ namespace Horde.Server.Jobs
 	}
 
 	/// <summary>
-	/// Reference to another step in the job
-	/// </summary>
-	/// <param name="BatchIdx">Index of the batch</param>
-	/// <param name="StepIdx">Index of the step</param>
-	public record struct StepRef(int BatchIdx, int StepIdx);
-
-	/// <summary>
-	/// Reference to the output of a step within the job
-	/// </summary>
-	/// <param name="Step">Step producing the output</param>
-	/// <param name="OutputIdx">Index of the output from this step</param>
-	public record struct StepOutputRef(StepRef Step, int OutputIdx);
-
-	/// <summary>
 	/// Embedded jobstep document
 	/// </summary>
 	public interface IJobStep
 	{
+		/// <summary>
+		/// Job that this step belongs to
+		/// </summary>
+		public IJob Job { get; }
+
+		/// <summary>
+		/// Batch that this step belongs to
+		/// </summary>
+		public IJobStepBatch Batch { get; }
+
 		/// <summary>
 		/// Unique ID assigned to this jobstep. A new id is generated whenever a jobstep's order is changed.
 		/// </summary>
@@ -1483,7 +1455,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// References to inputs for this node
 		/// </summary>
-		public IReadOnlyList<StepOutputRef> Inputs { get; }
+		public IReadOnlyList<JobStepOutputRef> Inputs { get; }
 
 		/// <summary>
 		/// List of output names
@@ -1493,12 +1465,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Indices of nodes which must have succeeded for this node to run
 		/// </summary>
-		public IReadOnlyList<StepRef> InputDependencies { get; }
+		public IReadOnlyList<JobStepId> InputDependencies { get; }
 
 		/// <summary>
 		/// Indices of nodes which must have completed for this node to run
 		/// </summary>
-		public IReadOnlyList<StepRef> OrderDependencies { get; }
+		public IReadOnlyList<JobStepId> OrderDependencies { get; }
 
 		/// <summary>
 		/// Whether this node can be run multiple times

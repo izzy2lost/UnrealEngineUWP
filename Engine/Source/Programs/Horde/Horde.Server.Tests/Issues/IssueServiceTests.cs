@@ -228,6 +228,9 @@ namespace Horde.Server.Tests.Issues
 			return node.Object;
 		}
 
+		delegate void TryGetBatchDelegate(JobStepBatchId id, out IJobStepBatch? batch);
+		delegate void TryGetStepDelegate(JobStepId id, out IJobStep? step);
+
 		public IJob CreateJob(StreamId streamId, int change, string name, IGraph graph, TimeSpan time = default, bool promoteByDefault = true, bool updateIssues = true)
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
@@ -265,6 +268,27 @@ namespace Horde.Server.Tests.Issues
 
 			Mock<IJob> job = new Mock<IJob>(MockBehavior.Strict);
 			job.SetupGet(x => x.Id).Returns(jobId);
+
+			job.Setup(x => x.TryGetBatch(It.IsAny<JobStepBatchId>(), out It.Ref<IJobStepBatch?>.IsAny))
+				.Returns(false);
+
+			job.Setup(x => x.TryGetStep(It.IsAny<JobStepId>(), out It.Ref<IJobStep?>.IsAny))
+				.Returns(false);
+
+			foreach (IJobStepBatch batch in batches)
+			{
+				job.Setup(x => x.TryGetBatch(batch.Id, out It.Ref<IJobStepBatch?>.IsAny))
+					.Callback(new TryGetBatchDelegate((JobStepBatchId id, out IJobStepBatch? outBatch) => outBatch = batch))
+					.Returns(true);
+			}
+
+			foreach (IJobStep step in batches.SelectMany(x => x.Steps))
+			{
+				job.Setup(x => x.TryGetStep(step.Id, out It.Ref<IJobStep?>.IsAny))
+					.Callback(new TryGetStepDelegate((JobStepId id, out IJobStep? outStep) => outStep = step))
+					.Returns(true);
+			}
+
 			job.SetupGet(x => x.Name).Returns(name);
 			job.SetupGet(x => x.StreamId).Returns(streamId);
 			job.SetupGet(x => x.TemplateId).Returns(new TemplateId("test-template"));

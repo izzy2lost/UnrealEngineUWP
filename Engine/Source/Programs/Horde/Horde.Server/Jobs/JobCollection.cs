@@ -93,12 +93,55 @@ namespace Horde.Server.Jobs
 			DateTime IJob.UpdateTimeUtc => _document.UpdateTimeUtc ?? _document.UpdateTime?.UtcDateTime ?? DateTime.UnixEpoch;
 			int IJob.UpdateIndex => _document.UpdateIndex;
 
-			Dictionary<NodeRef, StepRef>? _cachedNodeRefToStepRef;
-			public IReadOnlyDictionary<NodeRef, StepRef> NodeRefToStepRef => _cachedNodeRefToStepRef ??= CreateNodeRefToStepRef();
+			Dictionary<JobStepBatchId, JobStepBatch>? _batchIdToBatch;
+			Dictionary<JobStepId, JobStep>? _stepIdToStep;
 
-			Dictionary<NodeRef, StepRef> CreateNodeRefToStepRef()
+			Dictionary<NodeRef, JobStepId>? _cachedNodeRefToStepId;
+			public IReadOnlyDictionary<NodeRef, JobStepId> NodeRefToStepId => _cachedNodeRefToStepId ??= CreateNodeRefToStepId();
+
+			bool TryGetBatch(JobStepBatchId batchId, [NotNullWhen(true)] out JobStepBatch? batch)
 			{
-				Dictionary<NodeRef, StepRef> nodeRefToStepRef = new Dictionary<NodeRef, StepRef>();
+				_batchIdToBatch ??= _batches.ToDictionary(x => x.Document.Id, x => x);
+				return _batchIdToBatch.TryGetValue(batchId, out batch);
+			}
+
+			bool IJob.TryGetBatch(JobStepBatchId batchId, [NotNullWhen(true)] out IJobStepBatch? batch)
+			{
+				if (TryGetBatch(batchId, out JobStepBatch? typedBatch))
+				{
+					batch = typedBatch;
+					return true;
+				}
+				else
+				{
+					batch = null;
+					return false;
+				}
+			}
+
+			bool TryGetStep(JobStepId stepId, [NotNullWhen(true)] out JobStep? step)
+			{
+				_stepIdToStep ??= _batches.SelectMany(x => x.Steps).ToDictionary(x => x.Document.Id, x => x);
+				return _stepIdToStep.TryGetValue(stepId, out step);
+			}
+
+			bool IJob.TryGetStep(JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
+			{
+				if (TryGetStep(stepId, out JobStep? typedStep))
+				{
+					step = typedStep;
+					return true;
+				}
+				else
+				{
+					step = null;
+					return false;
+				}
+			}
+
+			Dictionary<NodeRef, JobStepId> CreateNodeRefToStepId()
+			{
+				Dictionary<NodeRef, JobStepId> nodeRefToStepRef = new Dictionary<NodeRef, JobStepId>();
 				for (int batchIdx = 0; batchIdx < Batches.Count; batchIdx++)
 				{
 					JobStepBatch batch = Batches[batchIdx];
@@ -107,7 +150,7 @@ namespace Horde.Server.Jobs
 						JobStep step = batch.Steps[stepIdx];
 
 						NodeRef nodeRef = new NodeRef(batch.Document.GroupIdx, step.Document.NodeIdx);
-						nodeRefToStepRef[nodeRef] = new StepRef(batchIdx, stepIdx);
+						nodeRefToStepRef[nodeRef] = step.Document.Id;
 					}
 				}
 				return nodeRefToStepRef;
@@ -121,7 +164,7 @@ namespace Horde.Server.Jobs
 				_batches = document.Batches.ConvertAll(x => new JobStepBatch(this, x, graph.Groups[x.GroupIdx]));
 			}
 
-			public StepRef GetStepRef(NodeRef nodeRef) => NodeRefToStepRef[nodeRef];
+			public JobStepId GetStepId(NodeRef nodeRef) => NodeRefToStepId[nodeRef];
 
 			public Task<IJob?> RefreshAsync(CancellationToken cancellationToken = default)
 				=> _collection.GetAsync(_document.Id, cancellationToken);
@@ -197,6 +240,7 @@ namespace Horde.Server.Jobs
 			public INodeGroup Group { get; }
 			public List<JobStep> Steps { get; }
 
+			IJob IJobStepBatch.Job => Job;
 			JobStepBatchId IJobStepBatch.Id => Document.Id;
 
 			// Group properties
@@ -233,16 +277,18 @@ namespace Horde.Server.Jobs
 			public JobStepDocument Document { get; }
 			public INode Node { get; }
 
+			IJob IJobStep.Job => Job;
+			IJobStepBatch IJobStep.Batch => Batch;
 			JobStepId IJobStep.Id => Document.Id;
 			INode IJobStep.Node => Node;
 			int IJobStep.NodeIdx => Document.NodeIdx;
 
 			// Node properties
 			string IJobStep.Name => Node.Name;
-			IReadOnlyList<StepOutputRef> IJobStep.Inputs => Node.Inputs.ConvertAll(x => new StepOutputRef(Job.GetStepRef(x.NodeRef), x.OutputIdx));
+			IReadOnlyList<JobStepOutputRef> IJobStep.Inputs => Node.Inputs.ConvertAll(x => new JobStepOutputRef(Job.GetStepId(x.NodeRef), x.OutputIdx));
 			IReadOnlyList<string> IJobStep.OutputNames => Node.OutputNames;
-			IReadOnlyList<StepRef> IJobStep.InputDependencies => Node.InputDependencies.ConvertAll(x => Job.GetStepRef(x));
-			IReadOnlyList<StepRef> IJobStep.OrderDependencies => Node.OrderDependencies.ConvertAll(x => Job.GetStepRef(x));
+			IReadOnlyList<JobStepId> IJobStep.InputDependencies => Node.InputDependencies.ConvertAll(x => Job.GetStepId(x));
+			IReadOnlyList<JobStepId> IJobStep.OrderDependencies => Node.OrderDependencies.ConvertAll(x => Job.GetStepId(x));
 			bool IJobStep.AllowRetry => Node.AllowRetry;
 			bool IJobStep.RunEarly => Node.RunEarly;
 			bool IJobStep.Warnings => Node.Warnings;
