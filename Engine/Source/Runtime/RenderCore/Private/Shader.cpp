@@ -2619,16 +2619,17 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 
 	if (ShouldCompileRayTracingShadersForProject(Platform))
 	{
-		static const auto CVarCompileCHS = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.CompileMaterialCHS"));
-		static const auto CVarCompileAHS = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.CompileMaterialAHS"));
+		static FShaderPlatformCachedIniValue<int32> CVarCompileRayTracingMaterialCHS(TEXT("r.RayTracing.CompileMaterialCHS"));
+		static FShaderPlatformCachedIniValue<int32> CVarCompileRayTracingMaterialAHS(TEXT("r.RayTracing.CompileMaterialAHS"));
+
 		static const auto CVarTextureLod = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.UseTextureLod"));
 
 		KeyGen.AppendSeparator();
 		KeyGen.Append(TEXT("RAY"));
 		KeyGen.AppendDebugText(TEXT("-CHS"));
-		KeyGen.AppendBoolInt(CVarCompileCHS && CVarCompileCHS->GetBool());
+		KeyGen.AppendBoolInt(CVarCompileRayTracingMaterialCHS.Get(Platform) != 0);
 		KeyGen.AppendDebugText(TEXT("AHS"));
-		KeyGen.AppendBoolInt(CVarCompileAHS && CVarCompileAHS->GetBool());
+		KeyGen.AppendBoolInt(CVarCompileRayTracingMaterialAHS.Get(Platform) != 0);
 		KeyGen.AppendDebugText(TEXT("LOD"));
 		KeyGen.AppendBoolInt(CVarTextureLod && CVarTextureLod->GetBool());
 	}
