@@ -72,10 +72,14 @@ void FUObjectItem::CreateStatID() const
 	PROFILER_CHAR* StoragePtr = new PROFILER_CHAR[NumStorageChars];
 	FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
 
-	if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
+	// delay the delete of the StatIDStringStorage swap until after the transaction
+	UE_AUTORTFM_ONCOMMIT(
 	{
-		delete[] StoragePtr;
-	}
+		if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
+		{
+			delete[] StoragePtr;
+		}
+	});
 
 	StatID = TStatId(StatIDStringStorage);
 #endif
