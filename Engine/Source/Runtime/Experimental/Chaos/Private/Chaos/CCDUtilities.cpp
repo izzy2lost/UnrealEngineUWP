@@ -876,19 +876,13 @@ namespace Chaos
 		// logic executed in ApplySweptConstraints (i.e., contents of CCDConstraints)
 		// @todo(chaos): we could calculate the size of the Collisions array in Init
 		// @todo(chaos): could be parallelized
-		TArray<FPBDCollisionConstraint*> Collisions;
+		TSet<FPBDCollisionConstraint*> Collisions;
 		for (FCCDParticle& CCDParticle : CCDParticles)
 		{
 			CCDParticle.Particle->ParticleCollisions().VisitCollisions(
 				[&Collisions](FPBDCollisionConstraint& Collision)
 				{
-					// Avoid duplicates when both particles in the collision are CCD enabled by checking the particle ID
-					const FConstGenericParticleHandle P0 = FConstGenericParticleHandle(Collision.GetParticle0());
-					const FConstGenericParticleHandle P1 = FConstGenericParticleHandle(Collision.GetParticle1());
-					if (!P0->CCDEnabled() || !P1->CCDEnabled() || (P0->ParticleID() < P1->ParticleID()))
-					{
-						Collisions.Add(&Collision);
-					}
+					Collisions.Add(&Collision);
 					return ECollisionVisitorResult::Continue;
 				});
 		}
