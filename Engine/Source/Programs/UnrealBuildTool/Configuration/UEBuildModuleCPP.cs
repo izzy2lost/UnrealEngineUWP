@@ -257,14 +257,14 @@ namespace UnrealBuildTool
 
 				// Add the 'classes' directory, if it exists
 				DirectoryReference ClassesDirectory = DirectoryReference.Combine(ModuleDir, "Classes");
-				if (DirectoryLookupCache.DirectoryExists(ClassesDirectory))
+				if (DirectoryLookupCache.DirectoryExistsAndContainsFiles(ClassesDirectory, SearchOption.AllDirectories))
 				{
 					PublicIncludePaths.Add(ClassesDirectory);
 				}
 
 				// Add all the public directories
 				DirectoryReference PublicDirectory = DirectoryReference.Combine(ModuleDir, "Public");
-				if (DirectoryLookupCache.DirectoryExists(PublicDirectory))
+				if (DirectoryLookupCache.DirectoryExistsAndContainsFiles(PublicDirectory, SearchOption.AllDirectories))
 				{
 					PublicIncludePaths.Add(PublicDirectory);
 
@@ -274,14 +274,14 @@ namespace UnrealBuildTool
 
 				// Add the 'internal' directory, if it exists
 				DirectoryReference InternalDirectory = DirectoryReference.Combine(ModuleDir, "Internal");
-				if (DirectoryLookupCache.DirectoryExists(InternalDirectory))
+				if (DirectoryLookupCache.DirectoryExistsAndContainsFiles(InternalDirectory, SearchOption.AllDirectories))
 				{
 					InternalIncludePaths.Add(InternalDirectory);
 				}
 
 				// Add the base private directory for this module
 				DirectoryReference PrivateDirectory = DirectoryReference.Combine(ModuleDir, "Private");
-				if (DirectoryLookupCache.DirectoryExists(PrivateDirectory))
+				if (DirectoryLookupCache.DirectoryExistsAndContainsFiles(PrivateDirectory, SearchOption.AllDirectories))
 				{
 					PrivateIncludePaths.Add(PrivateDirectory);
 				}
