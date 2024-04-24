@@ -9,7 +9,8 @@
 UENUM()
 enum class EPCGMetadataStringOperation : uint16
 {
-	Append
+	Append UMETA(DisplayName="Append String"),
+	Replace UMETA(DisplayName="Replace String")
 };
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
@@ -22,8 +23,11 @@ public:
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override;
 	virtual FText GetDefaultNodeTitle() const override;
+	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
+	virtual bool OnlyExposePreconfiguredSettings() const override { return true; }
 #endif
 	virtual FString GetAdditionalTitleInformation() const override;
+	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
 
 protected:
 #if WITH_EDITOR
@@ -52,6 +56,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable, EditCondition = "Operation==EPCGMetadataStringOperation::Replace", EditConditionHides))
+	FPCGAttributePropertyInputSelector InputSource3;
 };
 
 class FPCGMetadataStringOpElement : public FPCGMetadataElementBase
