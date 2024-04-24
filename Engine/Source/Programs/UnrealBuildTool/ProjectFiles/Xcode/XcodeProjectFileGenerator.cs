@@ -80,6 +80,24 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static bool bGenerateRunOnlyProject = false;
 
+		/// <summary>
+		/// Platforms we should generate IntelliSense data for, Xcode projects should index for each Apple platform.
+		/// </summary>
+		protected override List<UnrealTargetPlatform> GetIntelliSensePlatforms()
+		{
+			if (bMakeProjectPerTarget)
+			{
+				// For now just allow indexing to work on Mac and IOS, enabling too many will make GPF and workspaces even slower
+				return new() { UnrealTargetPlatform.Mac, UnrealTargetPlatform.IOS };
+			}
+			else
+			{
+				// If sharing projects across platform targets, we are unable to index separately (due to generated headers being platform dependent)
+				// Choose Mac to be the platform for indexing
+				return new() { UnrealTargetPlatform.Mac };
+			}
+		}
+
 		public XcodeProjectFileGenerator(FileReference? InOnlyGameProject, CommandLineArguments CommandLine)
 			: base(InOnlyGameProject)
 		{

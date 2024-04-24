@@ -476,6 +476,14 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Platforms we should generate IntelliSense data for, default is only build host platform.
+		/// </summary>
+		protected virtual List<UnrealTargetPlatform> GetIntelliSensePlatforms()
+		{
+			return new() { BuildHostPlatform.Current.Platform };
+		}
+
+		/// <summary>
 		/// Allows each project generator to indicate whether target rules should be used to explicitly enable or disable plugins.
 		/// Default is false - since usually not needed for project generation unless project files indicate whether referenced plugins should be built or not.
 		/// </summary>
@@ -2139,9 +2147,8 @@ namespace UnrealBuildTool
 						ProjectFile TargetProjectFile = Targets[TargetIndex].Item1;
 						ProjectTarget CurTarget = Targets[TargetIndex].Item2;
 
-						// Ignore projects for platforms we can't build on this host
-						UnrealTargetPlatform IntellisensePlatform = BuildHostPlatform.Current.Platform;
-						if (!CurTarget.SupportedPlatforms.Any(x => x == IntellisensePlatform))
+						// Ignore projects for platforms we can't build for
+						if (!CurTarget.SupportedPlatforms.Any(x => GetIntelliSensePlatforms().Contains(x)))
 						{
 							lock (Progress)
 							{
@@ -2162,47 +2169,53 @@ namespace UnrealBuildTool
 
 						try
 						{
-							// Get the architecture from the target platform
-							UnrealArchitectures DefaultArchitecture = UnrealArchitectureConfig.ForPlatform(IntellisensePlatform).ActiveArchitectures(CurTarget.UnrealProjectFilePath, CurTarget.Name);
-
-							// Create the target descriptor
-							TargetDescriptor TargetDesc = new TargetDescriptor(CurTarget.UnrealProjectFilePath, CurTarget.Name, IntellisensePlatform, UnrealTargetConfiguration.Development, DefaultArchitecture, new CommandLineArguments(NewArguments.ToArray()));
-							TargetDesc.IntermediateEnvironment = UnrealIntermediateEnvironment.GenerateProjectFiles;
-
-							// Create the target
-							UEBuildTarget Target = UEBuildTarget.Create(TargetDesc, false, false, bUsePrecompiled, UnrealIntermediateEnvironment.GenerateProjectFiles, Logger);
-
-							AddTargetForIntellisense(Target, Logger);
-
-							// If the project generator just cares about the result of UEBuildTarget.Create, skip generating the compile environments.
-							if (ShouldGenerateIntelliSenseCompileEnvironments())
+							foreach (UnrealTargetPlatform IntellisensePlatform in GetIntelliSensePlatforms())
 							{
-								// Generate a compile environment for each module in the binary
-								CppCompileEnvironment GlobalCompileEnvironment = Target.CreateCompileEnvironmentForProjectFiles(Logger);
-								foreach (UEBuildBinary Binary in Target.Binaries)
+								if (!CurTarget.SupportedPlatforms.Contains(IntellisensePlatform))
+									continue;
+
+								// Get the architecture from the target platform
+								UnrealArchitectures DefaultArchitecture = UnrealArchitectureConfig.ForPlatform(IntellisensePlatform).ActiveArchitectures(CurTarget.UnrealProjectFilePath, CurTarget.Name);
+
+								// Create the target descriptor
+								TargetDescriptor TargetDesc = new TargetDescriptor(CurTarget.UnrealProjectFilePath, CurTarget.Name, IntellisensePlatform, UnrealTargetConfiguration.Development, DefaultArchitecture, new CommandLineArguments(NewArguments.ToArray()));
+								TargetDesc.IntermediateEnvironment = UnrealIntermediateEnvironment.GenerateProjectFiles;
+
+								// Create the target
+								UEBuildTarget Target = UEBuildTarget.Create(TargetDesc, false, false, bUsePrecompiled, UnrealIntermediateEnvironment.GenerateProjectFiles, Logger);
+
+								AddTargetForIntellisense(Target, Logger);
+
+								// If the project generator just cares about the result of UEBuildTarget.Create, skip generating the compile environments.
+								if (ShouldGenerateIntelliSenseCompileEnvironments())
 								{
-									CppCompileEnvironment BinaryCompileEnvironment = Binary.CreateBinaryCompileEnvironment(GlobalCompileEnvironment);
-									foreach (UEBuildModuleCPP Module in Binary.Modules.OfType<UEBuildModuleCPP>())
+									// Generate a compile environment for each module in the binary
+									CppCompileEnvironment GlobalCompileEnvironment = Target.CreateCompileEnvironmentForProjectFiles(Logger);
+									foreach (UEBuildBinary Binary in Target.Binaries)
 									{
-										ProjectFile? ProjectFileForIDE;
-										if (ModuleToEditorProjectFileMap.TryGetValue(Module.RulesFile, out ProjectFileForIDE) && ProjectFileForIDE == TargetProjectFile)
+										CppCompileEnvironment BinaryCompileEnvironment = Binary.CreateBinaryCompileEnvironment(GlobalCompileEnvironment);
+										foreach (UEBuildModuleCPP Module in Binary.Modules.OfType<UEBuildModuleCPP>())
 										{
-											CppCompileEnvironment ModuleCompileEnvironment = Module.CreateCompileEnvironmentForIntellisense(Target.Rules, BinaryCompileEnvironment, Logger);
-											lock (ProjectFileForIDE)
+											ProjectFile? ProjectFileForIDE;
+											if (ModuleToEditorProjectFileMap.TryGetValue(Module.RulesFile, out ProjectFileForIDE) && ProjectFileForIDE == TargetProjectFile)
 											{
-												ProjectFileForIDE.AddModule(Module, ModuleCompileEnvironment);
+												CppCompileEnvironment ModuleCompileEnvironment = Module.CreateCompileEnvironmentForIntellisense(Target.Rules, BinaryCompileEnvironment, Logger);
+												lock (ProjectFileForIDE)
+												{
+													ProjectFileForIDE.AddModuleForIntelliSense(Module, ModuleCompileEnvironment);
+												}
 											}
 										}
 									}
-								}
 
-								// If we're generating project files, then go ahead and wipe out the existing UBTMakefile for every target, to make sure that
-								// it gets a full dependency scan next time.
-								// NOTE: This is just a safeguard and doesn't have to be perfect.  We also check for newer project file timestamps in LoadUBTMakefile()
-								FileReference MakefileLocation = TargetMakefile.GetLocation(TargetDesc.ProjectFile, TargetDesc.Name, TargetDesc.Platform, TargetDesc.Architectures, TargetDesc.Configuration, TargetDesc.IntermediateEnvironment);
-								if (FileReference.Exists(MakefileLocation))
-								{
-									FileReference.Delete(MakefileLocation);
+									// If we're generating project files, then go ahead and wipe out the existing UBTMakefile for every target, to make sure that
+									// it gets a full dependency scan next time.
+									// NOTE: This is just a safeguard and doesn't have to be perfect.  We also check for newer project file timestamps in LoadUBTMakefile()
+									FileReference MakefileLocation = TargetMakefile.GetLocation(TargetDesc.ProjectFile, TargetDesc.Name, TargetDesc.Platform, TargetDesc.Architectures, TargetDesc.Configuration, TargetDesc.IntermediateEnvironment);
+									if (FileReference.Exists(MakefileLocation))
+									{
+										FileReference.Delete(MakefileLocation);
+									}
 								}
 							}
 						}
@@ -2438,8 +2451,8 @@ namespace UnrealBuildTool
 					else
 					{
 						Debug.Assert(bAllowMultiModuleReference, "ProjectFileGenerator assert", $"Unexpected multi projects for module {CurModuleFile.GetFileName()}");
-						// e.g. QAGame module would be add to both QAGame.xcodeproj and QAGameEditor.xcodeproj, use the editor one for module map
-						ProjectFile? EditorProjectFile = ProjectFiles.FirstOrDefault(x => x.ProjectTargets.Any(x => x.TargetRules!.Type == TargetType.Editor));
+						// e.g. QAGame module would be add to both QAGame.xcodeproj and QAGameEditor.xcodeproj, use the game project for module map, this way IOS workspace can have indexing
+						ProjectFile? EditorProjectFile = ProjectFiles.FirstOrDefault(x => x.ProjectTargets.Any(x => x.TargetRules!.Type == TargetType.Game));
 						if (EditorProjectFile != null)
 						{
 							ModuleToEditorProjectFileMap[CurModuleFile] = EditorProjectFile;

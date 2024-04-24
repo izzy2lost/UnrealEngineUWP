@@ -183,7 +183,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		//public string ProductRefGroupGuid = XcodeProjectFileGenerator.MakeXcodeGuid();
 
 		internal Dictionary<string, XcodeFileGroup> Groups = new();
-		internal Dictionary<XcodeSourceFile, FileReference?> BuildableFilesToResponseFile = new();
+		internal Dictionary<XcodeSourceFile, Dictionary<UnrealTargetPlatform, FileReference>> BuildableFilesToResponseFile = new();
 		internal List<Tuple<XcodeSourceFile, string>> BuildableResourceFiles = new();
 		internal List<XcodeSourceFile> AllFiles = new();
 
@@ -261,7 +261,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 						if (!ExcludedFolders.Any(x => File.Reference.ContainsName(x, BuildFileOffset)))
 						{
 							// will fill in the response file later
-							BuildableFilesToResponseFile[File] = null;
+							BuildableFilesToResponseFile[File] = new();
 						}
 					}
 				}
@@ -342,16 +342,30 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			}
 		}
 
-		public void Write(StringBuilder Content)
+		public void Write(StringBuilder Content, UnrealTargetPlatform? Platform)
 		{
 			Content.WriteLine("/* Begin PBXBuildFile section */");
-			foreach (KeyValuePair<XcodeSourceFile, FileReference?> Pair in BuildableFilesToResponseFile)
+			if (Platform == null)
+			{
+				// Shared platform project should only index for Mac
+				Platform = UnrealTargetPlatform.Mac;
+			}
+			foreach (KeyValuePair<XcodeSourceFile, Dictionary<UnrealTargetPlatform, FileReference>> Pair in BuildableFilesToResponseFile)
 			{
 				string CompileFlags = "";
-				if (Pair.Value != null)
+				if (Pair.Value.Count() > 0)
 				{
-					CompileFlags = $" settings = {{COMPILER_FLAGS = \"@{Pair.Value.FullName}\"; }};";
+					if (Pair.Value.ContainsKey(Platform.Value))
+					{
+						CompileFlags = $" settings = {{COMPILER_FLAGS = \"@{Pair.Value[Platform.Value].FullName}\"; }};";
+					}
+					else if (Pair.Value.ContainsKey(UnrealTargetPlatform.Mac))
+					{
+						// We don't have the correct response file for this platform, fall back to use the Mac version
+						CompileFlags = $" settings = {{COMPILER_FLAGS = \"@{Pair.Value[UnrealTargetPlatform.Mac].FullName}\"; }};";
+					}
 				}
+				
 				Content.WriteLine($"\t\t{Pair.Key.FileGuid} = {{isa = PBXBuildFile; fileRef = {Pair.Key.FileRefGuid};{CompileFlags} }}; /* {Pair.Key.Reference.GetFileName()} */");
 			}
 			foreach (Tuple<XcodeSourceFile, string> Resource in BuildableResourceFiles)

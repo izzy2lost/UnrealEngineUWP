@@ -15,7 +15,7 @@ using UnrealBuildBase;
 Here's how this works:
 
   * An XcodeProjectFile (subclass of generic ProjectFile class) is created, along with it - UnrealData and XcodeFileCollection objects are made
-  * High level code calls AddModule() which this code will use to cache information about the Modules in the project (including build settings, etc)
+  * High level code calls AddModuleForIntelliSense() which this code will use to cache information about the Modules in the project (including build settings, etc)
     * These are used to determine what source files can be indexed together (we use native xcode code compilation for indexing, so we make compiling succesful for best index)
     * A few #defines are removed or modified (FOO_API, etc) which would otherwise make every module a separate target
   * High level code then calls WriteProjectFile() which is the meat of all this
@@ -101,10 +101,10 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public UnrealBatchedFiles(UnrealData UnrealData, int Index, UEBuildModuleCPP Module)
 		{
 			this.Module = Module;
-			ResponseFile = FileReference.Combine(UnrealData.XcodeProjectFileLocation.ParentDirectory!, "ResponseFiles", $"{UnrealData.ProductName}{Index}.response");
+			ResponseFile = FileReference.Combine(UnrealData.XcodeProjectFileLocation.ParentDirectory!, "ResponseFiles", Module.Rules.Target.Platform.ToString(), $"{UnrealData.ProductName}{Index}.response");
 		}
 
-		public void GenerateResponseFile()
+		public void GenerateResponseFile(UnrealTargetPlatform Platform)
 		{
 			StringBuilder ResponseFileContents = new();
 			ResponseFileContents.Append("-isystem");
@@ -341,7 +341,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 		public List<UnrealBuildConfig> AllConfigs = new();
 
-		public List<UnrealBatchedFiles> BatchedFiles = new();
+		public Dictionary<UnrealTargetPlatform, List<UnrealBatchedFiles>> BatchedFiles = new();
 
 		public List<string> ExtraPreBuildScriptLines = new();
 
@@ -630,11 +630,15 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			return FinalPath;
 		}
 
-		public void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
-			// one batched files per module
-			UnrealBatchedFiles FileBatch = new UnrealBatchedFiles(this, BatchedFiles.Count + 1, Module);
-			BatchedFiles.Add(FileBatch);
+			// one batched files per module per platform
+			if (!BatchedFiles.ContainsKey(Module.Rules.Target.Platform))
+			{
+				BatchedFiles[Module.Rules.Target.Platform] = new();
+			}
+			UnrealBatchedFiles FileBatch = new UnrealBatchedFiles(this, BatchedFiles[Module.Rules.Target.Platform].Count + 1, Module);
+			BatchedFiles[Module.Rules.Target.Platform].Add(FileBatch);
 
 			if (CompileEnvironment.ForceIncludeFiles.Count == 0)
 			{
@@ -2152,7 +2156,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		private UnrealData UnrealData;
 
 		// just take the Project since it has everything we need, and is needed when adding target dependencies
-		public XcodeIndexTarget(XcodeProject Project)
+		public XcodeIndexTarget(XcodeProject Project, UnrealTargetPlatform Platform)
 			: base(XcodeTarget.Type.Index, Project.UnrealData)
 		{
 			UnrealData = Project.UnrealData;
@@ -2169,10 +2173,10 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			BuildPhases.Add(SourcesBuildPhase);
 			References.Add(SourcesBuildPhase);
 
-			foreach (KeyValuePair<XcodeSourceFile, FileReference?> Pair in Project.FileCollection.BuildableFilesToResponseFile)
+			foreach (KeyValuePair<XcodeSourceFile, Dictionary<UnrealTargetPlatform, FileReference>> Pair in Project.FileCollection.BuildableFilesToResponseFile)
 			{
 				// only add files that found a moduleto be part of (since we can't build without the build settings that come from a module)
-				if (Pair.Value != null)
+				if (Pair.Value.ContainsKey(Platform))
 				{
 					SourcesBuildPhase.AddFile(Pair.Key);
 				}
@@ -2244,11 +2248,26 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			References.Add(ProjectBuildConfigs);
 
 			// make an indexing target if we aren't just a run-only project, and it has buildable source files
-			if (!XcodeProjectFileGenerator.bGenerateRunOnlyProject && UnrealData.BatchedFiles.Count != 0)
+			if (!XcodeProjectFileGenerator.bGenerateRunOnlyProject)
 			{
-				// index isn't a dependency of run, it's simply a target that xcode will find to index from
-				XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this);
-				References.Add(IndexTarget);
+				if (Platform != null)
+				{
+					// Per platform project, check if we have files to index for that platform
+					if (UnrealData.BatchedFiles.ContainsKey(Platform.Value) && UnrealData.BatchedFiles[Platform.Value].Count() > 0)
+					{
+						XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this, Platform.Value);
+						References.Add(IndexTarget);
+					}
+				}
+				else
+				{
+					// Shared platform project, just try to index Mac target
+					if (UnrealData.BatchedFiles[UnrealTargetPlatform.Mac].Count() > 0)
+					{
+						XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this, UnrealTargetPlatform.Mac);
+						References.Add(IndexTarget);
+					}
+				}
 			}
 		}
 
@@ -2363,7 +2382,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				bHasCheckedForLegacy = true;
 				if (ProjectTargets.Count == 0)
 				{
-					throw new BuildException("Expected to have a target before AddModule is called");
+					throw new BuildException("Expected to have a target before AddModuleForIntelliSense is called");
 				}
 
 				UnrealData.InitializeUProjectFileLocation(this);
@@ -2379,17 +2398,17 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			}
 		}
 
-		public override void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public override void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
 			ConditionalCreateLegacyProject();
 
-			if (LegacyProjectFile != null)
+			if (LegacyProjectFile != null)// && Module.Rules.Target.Platform == UnrealTargetPlatform.Mac)
 			{
-				LegacyProjectFile.AddModule(Module, CompileEnvironment);
+				LegacyProjectFile.AddModuleForIntelliSense(Module, CompileEnvironment);
 				return;
 			}
 
-			UnrealData.AddModule(Module, CompileEnvironment);
+			UnrealData.AddModuleForIntelliSense(Module, CompileEnvironment);
 		}
 
 		/// <summary>
@@ -2416,21 +2435,27 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			}
 
 			// write out the response files for each batch now that everything is done
-			foreach (UnrealBatchedFiles Batch in UnrealData.BatchedFiles)
+			foreach (KeyValuePair<UnrealTargetPlatform, List<UnrealBatchedFiles>> Pair in UnrealData.BatchedFiles)
 			{
-				Batch.GenerateResponseFile();
+				foreach(UnrealBatchedFiles Batch in Pair.Value)
+				{
+					Batch.GenerateResponseFile(Pair.Key);
+				}
 			}
 		}
 
 		private void AddFileToBatch(XcodeSourceFile File, XcodeFileCollection FileCollection)
 		{
-			foreach (UnrealBatchedFiles Batch in UnrealData.BatchedFiles)
+			foreach (KeyValuePair<UnrealTargetPlatform, List<UnrealBatchedFiles>> Pair in UnrealData.BatchedFiles)
 			{
-				if (Batch.Module.ContainsFile(File.Reference))
+				foreach (UnrealBatchedFiles Batch in Pair.Value)
 				{
-					Batch.Files.Add(File);
-					FileCollection.BuildableFilesToResponseFile[File] = Batch.ResponseFile;
-					return;
+					if (Batch.Module.ContainsFile(File.Reference))
+					{
+						Batch.Files.Add(File);
+						FileCollection.BuildableFilesToResponseFile[File][Pair.Key] = Batch.ResponseFile;
+						break;
+					}
 				}
 			}
 		}
@@ -2517,7 +2542,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					Content.WriteLine(1, "objects = {");
 
 					// write out the list of files and groups
-					FileCollection.Write(Content);
+					FileCollection.Write(Content, Platform);
 
 					// now write out the project node and its recursive dependent nodes
 					XcodeProjectNode.WriteNodeAndReferences(Content, RootProject, Logger);
@@ -2602,7 +2627,8 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 			StringBuilder Content = new StringBuilder();
 			Content.WriteLine(0, "{");
-			FileCollection.Write(Content);
+			// @todo figure out how to deal with platform
+			// FileCollection.Write(Content, Platform);
 			XcodeProjectNode.WriteNodeAndReferences(Content, BuildTarget, Logger);
 			XcodeProjectNode.WriteNodeAndReferences(Content, IndexTarget, Logger);
 			XcodeProjectNode.WriteNodeAndReferences(Content, BuildDependency, Logger);

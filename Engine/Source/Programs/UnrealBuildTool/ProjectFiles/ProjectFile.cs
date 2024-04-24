@@ -249,7 +249,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="Module">The module to add</param>
 		/// <param name="CompileEnvironment">Compile environment for this module</param>
-		public virtual void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public virtual void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
 			AddIntelliSensePreprocessorDefinitions(CompileEnvironment.Definitions);
 			AddIntelliSenseIncludePaths(SystemIncludePaths, CompileEnvironment.SystemIncludePaths);

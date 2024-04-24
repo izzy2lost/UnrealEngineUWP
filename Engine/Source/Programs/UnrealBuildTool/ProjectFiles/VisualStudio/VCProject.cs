@@ -495,9 +495,9 @@ namespace UnrealBuildTool
 		}
 
 		/// <inheritdoc/>
-		public override void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public override void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
-			base.AddModule(Module, CompileEnvironment);
+			base.AddModuleForIntelliSense(Module, CompileEnvironment);
 
 			if (Settings.bUsePerFileIntellisense)
 			{
