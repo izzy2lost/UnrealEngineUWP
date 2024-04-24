@@ -4,7 +4,9 @@
 
 #include "ActorPickerMode.h"
 #include "Editor.h"
+#include "IGameplayProvider.h"
 #include "IRewindDebuggerTrackCreator.h"
+#include "LocalizationDescriptor.h"
 #include "Editor/EditorEngine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -28,6 +30,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Kismet2/DebuggerCommands.h"
 #include "RewindDebuggerSettings.h"
+#include "Widgets/Input/STextComboBox.h"
 
 #define LOCTEXT_NAMESPACE "SRewindDebugger"
 
@@ -160,21 +163,19 @@ void SRewindDebugger::SetDebugTargetActor(AActor* Actor)
 
 TSharedRef<SWidget> SRewindDebugger::MakeSelectActorMenu()
 {
-	// this menu is partially duplicated from LevelSequenceEditorActorBinding which has a similar workflow for adding actors to sequencer
-
 	FMenuBuilder MenuBuilder(true, nullptr);
 
-	// Set up a menu entry to choosing the selected actor(s) to the sequencer (maybe move this to a submenu and put each selected actor there)
+	MenuBuilder.AddSearchWidget();
+
+	// Menu entry for each actor selected in the scene
 	TArray<AActor*> SelectedActors;
 	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
 
-	if (SelectedActors.Num() >= 1)
+	MenuBuilder.BeginSection("From Selection Section", LOCTEXT("FromSelection", "From Scene Selection"));
+	if (SelectedActors.Num() > 0)
 	{
-		MenuBuilder.BeginSection("From Selection Section", LOCTEXT("FromSelection", "From Selection"));
-		if (SelectedActors.Num() == 1)
+		for(AActor* SelectedActor : SelectedActors)
 		{
-			AActor* SelectedActor = SelectedActors[0];
-
 			FText SelectedLabel = FText::FromString(SelectedActor->GetActorLabel());
 			FSlateIcon ActorIcon = FSlateIconFinder::FindIconForClass(SelectedActors[0]->GetClass());
 
@@ -183,72 +184,64 @@ TSharedRef<SWidget> SRewindDebugger::MakeSelectActorMenu()
 				SetDebugTargetActor(SelectedActor);
 			}));
 		}
-		else if (SelectedActors.Num() >= 1)
-		{
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("FromSelection", "From Selection"),
-				LOCTEXT("FromSelection_Tooltip", "Select an Actor from the list of selected Actors"),
-				FNewMenuDelegate::CreateLambda([this, SelectedActors](FMenuBuilder& SubMenuBuilder)
-				{
-					for(AActor* SelectedActor : SelectedActors)
-					{
-						FText SelectedLabel = FText::FromString(SelectedActor->GetActorLabel());
-						FSlateIcon ActorIcon = FSlateIconFinder::FindIconForClass(SelectedActors[0]->GetClass());
-
-						SubMenuBuilder.AddMenuEntry(SelectedLabel, FText(), ActorIcon, FExecuteAction::CreateLambda([this, SelectedActor]{
-							FSlateApplication::Get().DismissAllMenus();
-							SetDebugTargetActor(SelectedActor);
-						}));
-					}
-
-				})
-			);
-
-		}
-		MenuBuilder.EndSection();
 	}
-
-	// todo: add special menu item for player controlled character
-
-	MenuBuilder.BeginSection("ChooseActorSection", LOCTEXT("ChooseActor", "Choose Actor:"));
-
-	// Set up a menu entry to select any arbitrary actor
-	FSceneOutlinerInitializationOptions InitOptions;
+	else
 	{
-		// We hide the header row to keep the UI compact.
-		InitOptions.bShowHeaderRow = false;
-		InitOptions.bShowSearchBox = true;
-		InitOptions.bShowCreateNewFolder = false;
-		InitOptions.bFocusSearchBoxWhenOpened = true;
-
-		// Only want the actor label column
-		InitOptions.ColumnMap.Add(FSceneOutlinerBuiltInColumnTypes::Label(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 0));
-
-		// todo: optionally filter for only actors that have debug data
-		//InitOptions.Filters->AddFilterPredicate<FActorTreeItem>(FActorTreeItem::FFilterPredicate::CreateLambda(IsActorValidForPossession, ExistingPossessedObjects));
+		MenuBuilder.AddMenuEntry(LOCTEXT("No scene selection", "No scene selection"),
+		 LOCTEXT("SceneSelectionToolTip", "If you select an object in the scene, then it will be listed here"),
+		 FSlateIcon(),
+		  FUIAction(FExecuteAction(),
+		  	FCanExecuteAction::CreateLambda([](){return false;})));
 	}
-
-	// actor selector to allow the user to choose an actor
-	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
-	TSharedRef< SWidget > MiniSceneOutliner =
-		SNew(SBox)
-		.MaxDesiredHeight(400.0f)
-		.WidthOverride(300.0f)
-		[
-			SceneOutlinerModule.CreateActorPicker(
-				InitOptions,
-				FOnActorPicked::CreateLambda([this](AActor* Actor){
-					// Create a new binding for this actor
-					FSlateApplication::Get().DismissAllMenus();
-					SetDebugTargetActor(Actor);
-				})
-			)
-		];
-
-	MenuBuilder.AddWidget(MiniSceneOutliner, FText::GetEmpty(), true);
 	MenuBuilder.EndSection();
 
+	MenuBuilder.BeginSection("From Recording Section", LOCTEXT("FromRecording", "From Recording:"));
 
+	if (IRewindDebugger* RewindDebugger = IRewindDebugger::Instance())
+	{
+		if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
+		{
+			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+			const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
+
+			const FClassInfo* ActorClassInfo = GameplayProvider->FindClassInfo(*AActor::StaticClass()->GetPathName());
+			
+			GameplayProvider->EnumerateObjects([this, &MenuBuilder, GameplayProvider, ActorClassInfo](const FObjectInfo& ObjectInfo)
+			{
+				if (GameplayProvider->IsSubClassOf(ObjectInfo.ClassId, ActorClassInfo->Id))
+				{
+					FString ActorName = ObjectInfo.Name;
+					FText SelectedLabel = FText::FromString(ActorName);
+					FSlateIcon ActorIcon;
+
+					const FClassInfo& ClassInfo = GameplayProvider->GetClassInfo(ObjectInfo.ClassId);
+					if (UClass* FoundClass = UClass::TryFindTypeSlow<UClass>(ClassInfo.Name))
+					{
+						ActorIcon = FSlateIconFinder::FindIconForClass(FoundClass);
+					}
+					else
+					{
+						ActorIcon = FSlateIconFinder::FindIconForClass(AActor::StaticClass());
+					}
+
+					MenuBuilder.AddMenuEntry(SelectedLabel, FText(), ActorIcon, FExecuteAction::CreateLambda([this, ActorName]()
+					{
+						FSlateApplication::Get().DismissAllMenus();
+						DebugTargetActor.Set(ActorName);
+					}));
+				}
+			});
+		}
+		else
+		{
+			MenuBuilder.AddMenuEntry(LOCTEXT("No recording loaded", "No recording loaded"),
+			 LOCTEXT("NoRecordingToolTip", "Start or load a recording, and the recorded actors will be listed here"),
+			 FSlateIcon(),
+			  FUIAction(FExecuteAction(),
+				FCanExecuteAction::CreateLambda([](){return false;})));
+        }
+		
+	}
 
 	return MenuBuilder.MakeWidget();
 }
@@ -385,6 +378,7 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot() .FillWidth(1.0f)
 					[
+						// SNew(SRewindDebuggerTargetSelector)
 						SNew(SComboButton)
 						.OnGetMenuContent(this, &SRewindDebugger::MakeSelectActorMenu)
 						.ButtonContent()

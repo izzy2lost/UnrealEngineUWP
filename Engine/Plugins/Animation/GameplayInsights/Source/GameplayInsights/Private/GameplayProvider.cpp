@@ -298,6 +298,32 @@ const FClassInfo* FGameplayProvider::FindClassInfo(const TCHAR* InClassPath) con
 	return nullptr;
 }
 
+bool FGameplayProvider::IsSubClassOf(uint64 InSubClassId, uint64 InParentClassId) const
+{
+	Session.ReadAccessCheck();
+
+	uint64 ClassId = InSubClassId;
+	while(true)
+	{
+		if (ClassId == InParentClassId)
+		{
+			return true;
+		}
+		else
+		{
+			const FClassInfo& ClassInfo = GetClassInfo(ClassId);
+			if (ClassInfo.SuperId != 0)
+			{
+				ClassId = ClassInfo.SuperId;
+			}
+			else
+			{
+				return false;
+			}
+		}
+	}
+}
+
 const FObjectInfo* FGameplayProvider::FindObjectInfo(uint64 InObjectId) const
 {
 	Session.ReadAccessCheck();

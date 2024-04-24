@@ -121,6 +121,7 @@ public:
 	virtual const FClassInfo* FindClassInfo(uint64 InClassId) const = 0;
 	virtual const UClass* FindClass(uint64 InClassId) const = 0;
 	virtual const FClassInfo* FindClassInfo(const TCHAR* InClassPath) const = 0;
+	virtual bool IsSubClassOf(uint64 InSubClassId, uint64 InParentClassId) const = 0;
 	virtual const FObjectInfo* FindObjectInfo(uint64 InObjectId) const = 0;
 	virtual const FWorldInfo* FindWorldInfo(uint64 InObjectId) const = 0;
 	virtual const FWorldInfo* FindWorldInfoFromObject(uint64 InObjectId) const = 0;

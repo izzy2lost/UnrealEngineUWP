@@ -968,21 +968,17 @@ void FRewindDebugger::Tick(float DeltaTime)
 			{
 				FObjectTrace::ResetWorldElapsedTime(*World);
 				FObjectTrace::SetWorldRecordingIndex(*World, RecordingIndex);
-				
+		 		
 				TRACE_WORLD(*World);
 					
-				for (TActorIterator<AActor> Iterator(*World); Iterator; ++Iterator)
+				for (TActorIterator<AController> Iterator(*World); Iterator; ++Iterator)
 				{
-					TRACE_OBJECT_LIFETIME_BEGIN(*Iterator);
-					if (APawn* Pawn = Cast<APawn>(*Iterator))
+					if (APawn* Pawn = Iterator->GetPawn())
 					{
-						if (AController* Controller = Pawn->GetController())
-						{
-							TRACE_PAWN_POSSESS(static_cast<UObject*>(Controller), static_cast<UObject*>(Pawn));
-						}
+						TRACE_PAWN_POSSESS(static_cast<UObject*>(*Iterator), static_cast<UObject*>(Pawn));
 					}
 				}
-			}
+		 	}
 		}
 	#endif // OBJECT_TRACE_ENABLED
 	}

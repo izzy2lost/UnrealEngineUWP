@@ -160,36 +160,14 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 	}
 }
 
-bool IsActorClass(const IGameplayProvider* GameplayProvider, uint64 ClassId)
-{
-	static const FString ActorName = "Actor";
-	while(true)
-	{
-		const FClassInfo& ClassInfo = GameplayProvider->GetClassInfo(ClassId);
-		if (ActorName == ClassInfo.Name)
-		{
-			return true;
-		}
-		else
-		{
-			if (ClassInfo.SuperId != 0)
-			{
-				ClassId = ClassInfo.SuperId;
-			}
-			else
-			{
-				return false;
-			}
-		}
-	}
-}
-
 const FObjectInfo* FindOwningActorInfo(const IGameplayProvider* GameplayProvider, uint64 ObjectId)
 {
+	const FClassInfo* ActorClassInfo = GameplayProvider->FindClassInfo(*AActor::StaticClass()->GetPathName());
+	
 	while(true)
 	{
 		const FObjectInfo& ObjectInfo = GameplayProvider->GetObjectInfo(ObjectId);
-		if (IsActorClass(GameplayProvider, ObjectInfo.ClassId))
+		if (GameplayProvider->IsSubClassOf(ObjectInfo.ClassId, ActorClassInfo->Id))
 		{
 			return &ObjectInfo;
 		}

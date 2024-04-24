@@ -31,6 +31,7 @@ public:
 	virtual const FClassInfo* FindClassInfo(uint64 InClassId) const override;
 	virtual const UClass* FindClass(uint64 InClassId) const override;
 	virtual const FClassInfo* FindClassInfo(const TCHAR* InClassPath) const override;
+	virtual bool IsSubClassOf(uint64 InSubClassId, uint64 InParentClassId) const override;
 	virtual const FObjectInfo* FindObjectInfo(uint64 InObjectId) const override;
 	virtual const FWorldInfo* FindWorldInfo(uint64 InObjectId) const override;
 	virtual const FWorldInfo* FindWorldInfoFromObject(uint64 InObjectId) const override;
