@@ -639,6 +639,13 @@ void UUVEditorMode::OnToolStarted(UInteractiveToolManager* Manager, UInteractive
 		GetInteractiveToolsContext()->GetTransactionAPI()->EndUndoTransaction();
 	}
 
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ContextStore->FindContext<UToolsContextCursorAPI>();
+	if (ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI->ClearCursorOverride();		
+	}
+
 }
 
 void UUVEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
@@ -650,6 +657,14 @@ void UUVEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTo
 			Context->OnToolEnded(Tool);
 		}
 	}
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ContextStore->FindContext<UToolsContextCursorAPI>();
+	if (ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI->ClearCursorOverride();
+	}
+
 }
 
 UObject* UUVEditorMode::GetBackgroundSettingsObject()
@@ -928,6 +943,7 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 		ContextStore.AddContextObject(AssetInputsContext);
 	}
 
+	UToolsContextCursorAPI* LivePreviewToolsContextCursorAPI = LivePreviewModeManager.GetInteractiveToolsContext()->ContextObjectStore->FindContext<UToolsContextCursorAPI>();
 	UUVToolLivePreviewAPI* LivePreviewAPI = ContextStore.FindContext<UUVToolLivePreviewAPI>();
 	if (!LivePreviewAPI)
 	{
@@ -946,6 +962,17 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 				if (LivePreviewViewportClientPtr && LivePreviewViewportClientPtr->Viewport)
 				{
 					LivePreviewViewportClientPtr->FocusViewportOnBox((FBox)BoundingBox, true);
+				}
+			},
+			[LivePreviewToolsContextCursorAPI](const EMouseCursor::Type Cursor, bool bEnableOverride)
+			{
+				if(bEnableOverride)
+				{
+					LivePreviewToolsContextCursorAPI->SetCursorOverride(Cursor);
+				}
+				else
+				{
+					LivePreviewToolsContextCursorAPI->ClearCursorOverride();
 				}
 			}
 			);

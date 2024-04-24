@@ -17,6 +17,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "GenericPlatform/ICursor.h"
 
 #include "ToolContextInterfaces.generated.h"
 
@@ -172,6 +173,52 @@ struct FToolContextSnappingConfiguration
 	bool bEnableAbsoluteWorldSnapping = false;
 };
 
+
+/**
+* Users of the Tools Framework can use  UToolsContextCursorAPI to
+* access to setting and retrieving cursor overrides for tool activities.
+*/
+UCLASS()
+class INTERACTIVETOOLSFRAMEWORK_API UToolsContextCursorAPI : public UObject
+{
+	GENERATED_BODY()
+
+private:
+	EMouseCursor::Type CursorOverrideShape;
+	bool bIsCursorOverridden;
+
+public:
+
+	UToolsContextCursorAPI()
+	{
+		CursorOverrideShape = EMouseCursor::Default;
+		bIsCursorOverridden = false;
+	}
+
+	virtual ~UToolsContextCursorAPI() {}
+
+	virtual EMouseCursor::Type GetCurrentCursorOverride() const 
+	{
+		return CursorOverrideShape;
+	}
+
+	virtual bool IsCursorOverridden() const
+	{
+		return bIsCursorOverridden;
+	}
+
+	virtual void SetCursorOverride(EMouseCursor::Type CursorOverride)
+	{
+		bIsCursorOverridden = true;
+		CursorOverrideShape = CursorOverride;
+	}
+
+	virtual void ClearCursorOverride() 
+	{
+		bIsCursorOverridden = false;
+		CursorOverrideShape = EMouseCursor::Default;
+	}
+};
 
 /**
  * Users of the Tools Framework need to implement IToolsContextQueriesAPI to provide

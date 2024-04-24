@@ -54,6 +54,11 @@
 	The master class that handles tracking of the current mode.
 ------------------------------------------------------------------------------*/
 
+TAutoConsoleVariable<int32> FEditorModeTools::CVarEnableITFCursorOverrideSupport(
+	TEXT("Editor.EnableITFCursorOverrideSupport"),
+	0,
+	TEXT("Enable support for the EditorModeManager to query the InteractiveToolsContext for tool customized cursor overrides."));
+
 FEditorModeTools::FEditorModeTools()
 	: PivotShown(false)
 	, Snapping(false)
@@ -1707,9 +1712,18 @@ bool FEditorModeTools::DisallowMouseDeltaTracking() const
 bool FEditorModeTools::GetCursor(EMouseCursor::Type& OutCursor) const
 {
 	bool bHandled = false;
-	for (const UEdMode* Mode : ActiveScriptableModes)
+
+	if (CVarEnableITFCursorOverrideSupport.GetValueOnGameThread() > 0)
 	{
-		bHandled |= Mode->GetCursor(OutCursor);
+		bHandled = InteractiveToolsContext->GetCursor(OutCursor);
+	}
+
+	if (!bHandled)
+	{
+		for (const UEdMode* Mode : ActiveScriptableModes)
+		{
+			bHandled |= Mode->GetCursor(OutCursor);
+		}
 	}
 	return bHandled;
 }

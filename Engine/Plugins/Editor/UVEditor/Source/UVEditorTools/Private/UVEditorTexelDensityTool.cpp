@@ -575,8 +575,16 @@ void UUVEditorTexelDensityTool::Shutdown(EToolShutdownType ShutdownType)
 
 void UUVEditorTexelDensityTool::OnTick(float DeltaTime)
 {
+	UToolsContextCursorAPI* ToolsContextCursorAPI = GetToolManager()->GetContextObjectStore()->FindContext<UToolsContextCursorAPI>();
+
 	if (PendingAction == ETexelDensityToolAction::BeginSamping)
 	{
+		if (ToolsContextCursorAPI)
+		{
+			ToolsContextCursorAPI->SetCursorOverride(EMouseCursor::EyeDropper);			
+		}
+		LivePreviewAPI->SetCursorOverride(EMouseCursor::EyeDropper);
+
 		for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 		{
 			Target->UpdatePreviewsFromCanonical();
@@ -594,6 +602,12 @@ void UUVEditorTexelDensityTool::OnTick(float DeltaTime)
 		{
 			ApplyClick();
 			ClickedTid = IndexConstants::InvalidID;
+
+			if (ToolsContextCursorAPI)
+			{
+				ToolsContextCursorAPI->ClearCursorOverride();
+			}
+			LivePreviewAPI->ClearCursorOverride();
 
 			PendingAction = ETexelDensityToolAction::NoAction;
 			PerformBackgroundScalingTask();

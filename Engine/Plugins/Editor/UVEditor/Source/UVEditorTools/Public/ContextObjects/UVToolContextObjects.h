@@ -108,7 +108,8 @@ public:
 
 	void Initialize(UWorld* WorldIn, UInputRouter* RouterIn,
 		TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFuncIn,
-		TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn);
+		TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn,
+		TUniqueFunction<void(const EMouseCursor::Type Cursor, bool bEnableOverride)> SetCursorOverrideFuncIn);
 
 	UWorld* GetLivePreviewWorld() { return World.Get(); }
 	UInputRouter* GetLivePreviewInputRouter() { return InputRouter.Get(); }
@@ -125,6 +126,22 @@ public:
 		if (SetLivePreviewCameraToLookAtVolumeFunc)
 		{
 			SetLivePreviewCameraToLookAtVolumeFunc(BoundingBox);
+		}
+	}
+
+	void SetCursorOverride(const EMouseCursor::Type Cursor)
+	{
+		if (SetCursorOverrideFunc)
+		{
+			SetCursorOverrideFunc(Cursor, true);
+		}
+	}
+
+	void ClearCursorOverride()
+	{
+		if (SetCursorOverrideFunc)
+		{
+			SetCursorOverrideFunc(EMouseCursor::Default, false);
 		}
 	}
 
@@ -153,6 +170,7 @@ protected:
 
 	TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFunc;
 	TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFunc;
+	TUniqueFunction<void(const EMouseCursor::Type Cursor, bool bEnableOverride)> SetCursorOverrideFunc;
 };
 
 USTRUCT()

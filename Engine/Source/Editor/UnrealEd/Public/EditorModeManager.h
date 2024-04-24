@@ -646,4 +646,6 @@ private:
 	FEditorViewportClient* FocusedViewportClient = nullptr;
 
 	TMap<FName, FTypedElementSelectionSetState> StoredSelectionSets;
+
+	static TAutoConsoleVariable<int32> CVarEnableITFCursorOverrideSupport;
 };

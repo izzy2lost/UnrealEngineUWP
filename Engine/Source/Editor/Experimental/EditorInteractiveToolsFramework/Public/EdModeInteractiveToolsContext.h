@@ -271,6 +271,9 @@ public:
 	bool CapturedMouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InMouseX, int32 InMouseY);
 	bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport);
 
+	/** @return True if the context has overriden the cursor style, false if not. */
+	bool GetCursor(EMouseCursor::Type& OutCursor) const;
+
 	/** @return Ray into 3D scene at last mouse event */
 	virtual FRay GetLastWorldRay() const override;
 

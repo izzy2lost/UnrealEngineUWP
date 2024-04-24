@@ -80,18 +80,21 @@ void UUVToolEmitChangeAPI::EmitToolDependentChange(UObject* TargetObject, TUniqu
 
 void UUVToolLivePreviewAPI::Initialize(UWorld* WorldIn, UInputRouter* RouterIn,
 	TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFuncIn,
-	TUniqueFunction<void(const FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn)
+	TUniqueFunction<void(const FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn,
+	TUniqueFunction<void(const EMouseCursor::Type Cursor, bool bEnableOverride)> SetCursorOverrideFuncIn)
 {
 	World = WorldIn;
 	InputRouter = RouterIn;
 	GetLivePreviewCameraStateFunc = MoveTemp(GetLivePreviewCameraStateFuncIn);
 	SetLivePreviewCameraToLookAtVolumeFunc = MoveTemp(SetLivePreviewCameraToLookAtVolumeFuncIn);
+	SetCursorOverrideFunc = MoveTemp(SetCursorOverrideFuncIn);
 }
 
 void UUVToolLivePreviewAPI::OnToolEnded(UInteractiveTool* DeadTool)
 {
 	OnDrawHUD.RemoveAll(DeadTool);
 	OnRender.RemoveAll(DeadTool);
+	ClearCursorOverride();
 }
 
 int32 FUDIMBlock::BlockU() const

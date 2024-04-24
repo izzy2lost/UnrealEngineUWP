@@ -1632,6 +1632,13 @@ void UModelingToolsEditorMode::OnToolStarted(UInteractiveToolManager* Manager, U
 		                                            TEXT("ToolName"),
 		                                            GetToolName(*Tool));
 	}
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ContextStore->FindContext<UToolsContextCursorAPI>();
+	if (ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI->ClearCursorOverride();		
+	}
 }
 
 void UModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
@@ -1650,6 +1657,13 @@ void UModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UIn
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MeshModelingMode.ToolEnded"),
 		                                            TEXT("ToolName"),
 		                                            GetToolName(*Tool));
+	}
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ContextStore->FindContext<UToolsContextCursorAPI>();
+	if (ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI->ClearCursorOverride();		
 	}
 }
 

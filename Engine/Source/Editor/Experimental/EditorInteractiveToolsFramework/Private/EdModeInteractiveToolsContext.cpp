@@ -40,9 +40,6 @@
 
 //#define ENABLE_DEBUG_PRINTING
 
-
-
-
 class FEdModeToolsContextQueriesImpl : public IToolsContextQueriesAPI
 {
 public:
@@ -315,6 +312,13 @@ void UEditorInteractiveToolsContext::Initialize(IToolsContextQueriesAPI* Queries
 
 	// This gets set up in UInteractiveToolsContext::Initialize;
 	GizmoViewContext = ToolManager->GetContextObjectStore()->FindContext<UGizmoViewContext>();
+
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ToolManager->GetContextObjectStore()->FindContext<UToolsContextCursorAPI>();
+	if (!ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI = NewObject< UToolsContextCursorAPI >();
+		ToolManager->GetContextObjectStore()->AddContextObject(ToolsContextCursorAPI);
+	}
 }
 
 void UEditorInteractiveToolsContext::Shutdown()
@@ -1134,6 +1138,25 @@ bool UModeManagerInteractiveToolsContext::EndTracking(FEditorViewportClient* InV
 			InViewportClient->Invalidate(bForceChildViewportRedraw, bInvalidateHitProxies);
 		}
 		bIsTrackingMouse = false;
+		return true;
+	}
+
+	return false;
+}
+
+bool UModeManagerInteractiveToolsContext::GetCursor(EMouseCursor::Type& OutCursor) const
+{	
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ToolManager->GetContextObjectStore()->FindContext<UToolsContextCursorAPI>();
+
+	if (ToolsContextCursorAPI && ToolsContextCursorAPI->IsCursorOverridden())
+	{
+		OutCursor = ToolsContextCursorAPI->GetCurrentCursorOverride();
+		return true;
+	}
+
+	if (bIsTrackingMouse)
+	{
+		OutCursor = EMouseCursor::SlashedCircle;				
 		return true;
 	}
 
