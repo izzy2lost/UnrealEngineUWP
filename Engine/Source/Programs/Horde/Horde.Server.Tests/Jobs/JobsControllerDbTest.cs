@@ -48,7 +48,7 @@ namespace Horde.Server.Tests.Jobs
 #pragma warning disable CS0618 // Type or member is obsolete
 			object obj = (await JobsController.GetStepAsync(job.Id, batchId, stepId)).Value!;
 #pragma warning restore CS0618 // Type or member is obsolete
-			GetStepResponse stepRes = (obj as GetStepResponse)!;
+			GetJobStepResponse stepRes = (obj as GetJobStepResponse)!;
 			Assert.IsFalse(stepRes.AbortRequested);
 
 			UpdateStepRequest updateReq = new UpdateStepRequest();
@@ -59,7 +59,7 @@ namespace Horde.Server.Tests.Jobs
 #pragma warning disable CS0618 // Type or member is obsolete
 			obj = (await JobsController.GetStepAsync(job.Id, batchId, stepId)).Value!;
 #pragma warning restore CS0618 // Type or member is obsolete
-			stepRes = (obj as GetStepResponse)!;
+			stepRes = (obj as GetJobStepResponse)!;
 			Assert.IsTrue(stepRes.AbortRequested);
 			//	        Assert.AreEqual("Anonymous", StepRes.AbortByUser);
 		}

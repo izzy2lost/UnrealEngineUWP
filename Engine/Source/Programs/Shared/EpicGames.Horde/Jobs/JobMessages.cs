@@ -307,7 +307,7 @@ namespace EpicGames.Horde.Jobs
 	/// <summary>
 	/// Placement for a job report
 	/// </summary>
-	public enum ReportPlacement
+	public enum JobReportPlacement
 	{
 		/// <summary>
 		/// On a panel of its own
@@ -323,7 +323,7 @@ namespace EpicGames.Horde.Jobs
 	/// <summary>
 	/// Information about a report associated with a job
 	/// </summary>
-	public class GetReportResponse
+	public class GetJobReportResponse
 	{
 		/// <summary>
 		/// Name of the report
@@ -333,7 +333,7 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// Report placement
 		/// </summary>
-		public ReportPlacement Placement { get; set; }
+		public JobReportPlacement Placement { get; set; }
 
 		/// <summary>
 		/// The artifact id
@@ -348,7 +348,7 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetReportResponse(string name, ReportPlacement placement)
+		public GetJobReportResponse(string name, JobReportPlacement placement)
 		{
 			Name = name;
 			Placement = placement;
@@ -366,14 +366,14 @@ namespace EpicGames.Horde.Jobs
 		public JobId Id { get; set; }
 
 		/// <summary>
-		/// Unique id of the stream containing this job
-		/// </summary>
-		public StreamId StreamId { get; set; }
-
-		/// <summary>
 		/// Name of the job
 		/// </summary>
 		public string Name { get; set; }
+
+		/// <summary>
+		/// Unique id of the stream containing this job
+		/// </summary>
+		public StreamId StreamId { get; set; }
 
 		/// <summary>
 		/// The changelist number to build
@@ -478,7 +478,7 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// Array of jobstep batches
 		/// </summary>
-		public List<GetBatchResponse>? Batches { get; set; }
+		public List<GetJobBatchResponse>? Batches { get; set; }
 
 		/// <summary>
 		/// List of labels
@@ -493,7 +493,7 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// List of reports
 		/// </summary>
-		public List<GetReportResponse>? Reports { get; set; }
+		public List<GetJobReportResponse>? Reports { get; set; }
 
 		/// <summary>
 		/// Artifacts produced by this job
@@ -686,7 +686,7 @@ namespace EpicGames.Horde.Jobs
 	/// <summary>
 	/// Returns information about a jobstep
 	/// </summary>
-	public class GetStepResponse
+	public class GetJobStepResponse
 	{
 		/// <summary>
 		/// The unique id of the step
@@ -702,6 +702,21 @@ namespace EpicGames.Horde.Jobs
 		/// The name of this node 
 		/// </summary>
 		public string Name { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Whether this node can be run multiple times
+		/// </summary>
+		public bool AllowRetry { get; set; }
+
+		/// <summary>
+		/// This node can start running early, before dependencies of other nodes in the same group are complete
+		/// </summary>
+		public bool RunEarly { get; set; }
+
+		/// <summary>
+		/// Whether to include warnings in the output (defaults to true)
+		/// </summary>
+		public bool Warnings { get; set; }
 
 		/// <summary>
 		/// References to inputs for this node
@@ -722,21 +737,6 @@ namespace EpicGames.Horde.Jobs
 		/// Indices of nodes which must have completed for this node to run
 		/// </summary>
 		public List<JobStepId>? OrderDependencies { get; set; }
-
-		/// <summary>
-		/// Whether this node can be run multiple times
-		/// </summary>
-		public bool AllowRetry { get; set; }
-
-		/// <summary>
-		/// This node can start running early, before dependencies of other nodes in the same group are complete
-		/// </summary>
-		public bool RunEarly { get; set; }
-
-		/// <summary>
-		/// Whether to include warnings in the output (defaults to true)
-		/// </summary>
-		public bool Warnings { get; set; }
 
 		/// <summary>
 		/// List of credentials required for this node. Each entry maps an environment variable name to a credential in the form "CredentialName.PropertyName".
@@ -811,7 +811,7 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// List of reports
 		/// </summary>
-		public List<GetReportResponse>? Reports { get; set; }
+		public List<GetJobReportResponse>? Reports { get; set; }
 
 		/// <summary>
 		/// User-defined properties for this jobstep.
@@ -960,17 +960,12 @@ namespace EpicGames.Horde.Jobs
 	/// <summary>
 	/// Information about a jobstep batch
 	/// </summary>
-	public class GetBatchResponse
+	public class GetJobBatchResponse
 	{
 		/// <summary>
 		/// Unique id for this batch
 		/// </summary>
 		public JobStepBatchId Id { get; set; }
-
-		/// <summary>
-		/// The unique log file id
-		/// </summary>
-		public string? LogId { get; set; }
 
 		/// <summary>
 		/// Index of the group being executed
@@ -981,16 +976,6 @@ namespace EpicGames.Horde.Jobs
 		/// The agent type
 		/// </summary>
 		public string AgentType { get; set; } = String.Empty;
-
-		/// <summary>
-		/// The state of this batch
-		/// </summary>
-		public JobStepBatchState State { get; set; }
-
-		/// <summary>
-		/// Error code for this batch
-		/// </summary>
-		public JobStepBatchError Error { get; set; }
 
 		/// <summary>
 		/// The agent assigned to execute this group
@@ -1011,6 +996,21 @@ namespace EpicGames.Horde.Jobs
 		/// The lease that's executing this group
 		/// </summary>
 		public string? LeaseId { get; set; }
+
+		/// <summary>
+		/// The unique log file id
+		/// </summary>
+		public string? LogId { get; set; }
+
+		/// <summary>
+		/// The state of this batch
+		/// </summary>
+		public JobStepBatchState State { get; set; }
+
+		/// <summary>
+		/// Error code for this batch
+		/// </summary>
+		public JobStepBatchError Error { get; set; }
 
 		/// <summary>
 		/// The priority of this batch
@@ -1035,7 +1035,7 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// Steps within this run
 		/// </summary>
-		public List<GetStepResponse> Steps { get; set; } = new List<GetStepResponse>();
+		public List<GetJobStepResponse> Steps { get; set; } = new List<GetJobStepResponse>();
 	}
 
 	/// <summary>

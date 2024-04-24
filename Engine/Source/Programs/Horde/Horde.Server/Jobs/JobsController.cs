@@ -493,7 +493,7 @@ namespace Horde.Server.Jobs
 			{
 				if (includeBatches)
 				{
-					response.Batches = new List<GetBatchResponse>();
+					response.Batches = new List<GetJobBatchResponse>();
 					foreach (IJobStepBatch batch in job.Batches)
 					{
 						response.Batches.Add(await CreateBatchResponseAsync(batch, includeCosts, cancellationToken));
@@ -591,9 +591,9 @@ namespace Horde.Server.Jobs
 			return response;
 		}
 
-		static GetReportResponse CreateGetReportResponse(IReport report)
+		static GetJobReportResponse CreateGetReportResponse(IJobReport report)
 		{
-			GetReportResponse response = new GetReportResponse(report.Name, report.Placement);
+			GetJobReportResponse response = new GetJobReportResponse(report.Name, report.Placement);
 			response.ArtifactId = report.ArtifactId?.ToString();
 			response.Content = report.Content;
 			return response;
@@ -606,9 +606,9 @@ namespace Horde.Server.Jobs
 		/// <param name="includeCosts"></param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		async ValueTask<GetBatchResponse> CreateBatchResponseAsync(IJobStepBatch batch, bool includeCosts, CancellationToken cancellationToken)
+		async ValueTask<GetJobBatchResponse> CreateBatchResponseAsync(IJobStepBatch batch, bool includeCosts, CancellationToken cancellationToken)
 		{
-			List<GetStepResponse> steps = new List<GetStepResponse>();
+			List<GetJobStepResponse> steps = new List<GetJobStepResponse>();
 			foreach (IJobStep step in batch.Steps)
 			{
 				steps.Add(await CreateStepResponseAsync(step, cancellationToken));
@@ -630,9 +630,9 @@ namespace Horde.Server.Jobs
 		/// <param name="steps">Steps in this batch</param>
 		/// <param name="agentRate">Rate for this agent</param>
 		/// <returns>Response instance</returns>
-		static GetBatchResponse CreateGetBatchResponse(IJobStepBatch batch, List<GetStepResponse> steps, double? agentRate)
+		static GetJobBatchResponse CreateGetBatchResponse(IJobStepBatch batch, List<GetJobStepResponse> steps, double? agentRate)
 		{
-			GetBatchResponse response = new GetBatchResponse();
+			GetJobBatchResponse response = new GetJobBatchResponse();
 			response.Id = batch.Id;
 			response.LogId = batch.LogId?.ToString();
 			response.GroupIdx = batch.GroupIdx;
@@ -657,7 +657,7 @@ namespace Horde.Server.Jobs
 		/// <param name="step"></param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		async ValueTask<GetStepResponse> CreateStepResponseAsync(IJobStep step, CancellationToken cancellationToken)
+		async ValueTask<GetJobStepResponse> CreateStepResponseAsync(IJobStep step, CancellationToken cancellationToken)
 		{
 			GetThinUserInfoResponse? abortedByUserInfo = null;
 			if (step.AbortedByUserId != null)
@@ -680,9 +680,9 @@ namespace Horde.Server.Jobs
 		/// <param name="step">The step to construct from</param>
 		/// <param name="abortedByUserInfo">User that aborted this step</param>
 		/// <param name="retriedByUserInfo">User that retried this step</param>
-		static GetStepResponse CreateGetStepResponse(IJobStep step, GetThinUserInfoResponse? abortedByUserInfo, GetThinUserInfoResponse? retriedByUserInfo)
+		static GetJobStepResponse CreateGetStepResponse(IJobStep step, GetThinUserInfoResponse? abortedByUserInfo, GetThinUserInfoResponse? retriedByUserInfo)
 		{
-			GetStepResponse response = new GetStepResponse();
+			GetJobStepResponse response = new GetJobStepResponse();
 			response.Id = step.Id;
 			response.NodeIdx = step.NodeIdx;
 
@@ -1320,7 +1320,7 @@ namespace Horde.Server.Jobs
 		[HttpGet]
 		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches")]
-		[ProducesResponseType(typeof(List<GetBatchResponse>), 200)]
+		[ProducesResponseType(typeof(List<GetJobBatchResponse>), 200)]
 		public async Task<ActionResult<List<object>>> GetBatchesAsync(JobId jobId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
@@ -1344,7 +1344,7 @@ namespace Horde.Server.Jobs
 			List<object> responses = new List<object>();
 			foreach (IJobStepBatch batch in job.Batches)
 			{
-				GetBatchResponse response = await CreateBatchResponseAsync(batch, includeCosts, cancellationToken);
+				GetJobBatchResponse response = await CreateBatchResponseAsync(batch, includeCosts, cancellationToken);
 				responses.Add(response.ApplyFilter(filter));
 			}
 			return responses;
@@ -1400,7 +1400,7 @@ namespace Horde.Server.Jobs
 		[HttpGet]
 		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}")]
-		[ProducesResponseType(typeof(GetBatchResponse), 200)]
+		[ProducesResponseType(typeof(GetJobBatchResponse), 200)]
 		public async Task<ActionResult<object>> GetBatchAsync(JobId jobId, JobStepBatchId batchId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
@@ -1424,7 +1424,7 @@ namespace Horde.Server.Jobs
 			{
 				if (batch.Id == batchId)
 				{
-					GetBatchResponse response = await CreateBatchResponseAsync(batch, includeCosts, cancellationToken);
+					GetJobBatchResponse response = await CreateBatchResponseAsync(batch, includeCosts, cancellationToken);
 					return response.ApplyFilter(filter);
 				}
 			}
@@ -1443,7 +1443,7 @@ namespace Horde.Server.Jobs
 		[HttpGet]
 		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps")]
-		[ProducesResponseType(typeof(List<GetStepResponse>), 200)]
+		[ProducesResponseType(typeof(List<GetJobStepResponse>), 200)]
 		public async Task<ActionResult<List<object>>> GetStepsAsync(JobId jobId, JobStepBatchId batchId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
@@ -1469,7 +1469,7 @@ namespace Horde.Server.Jobs
 					List<object> responses = new List<object>();
 					foreach (IJobStep step in batch.Steps)
 					{
-						GetStepResponse response = await CreateStepResponseAsync(step, cancellationToken);
+						GetJobStepResponse response = await CreateStepResponseAsync(step, cancellationToken);
 						responses.Add(response.ApplyFilter(filter));
 					}
 					return responses;
@@ -1578,7 +1578,7 @@ namespace Horde.Server.Jobs
 		[HttpGet]
 		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}")]
-		[ProducesResponseType(typeof(GetStepResponse), 200)]
+		[ProducesResponseType(typeof(GetJobStepResponse), 200)]
 		public async Task<ActionResult<object>> GetStepAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
@@ -1605,7 +1605,7 @@ namespace Horde.Server.Jobs
 					{
 						if (step.Id == stepId)
 						{
-							GetStepResponse response = await CreateStepResponseAsync(step, cancellationToken);
+							GetJobStepResponse response = await CreateStepResponseAsync(step, cancellationToken);
 							return response.ApplyFilter(filter);
 						}
 					}

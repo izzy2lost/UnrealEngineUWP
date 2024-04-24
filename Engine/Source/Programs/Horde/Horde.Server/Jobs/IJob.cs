@@ -224,7 +224,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// List of reports for this step
 		/// </summary>
-		public IReadOnlyList<IReport>? Reports { get; }
+		public IReadOnlyList<IJobReport>? Reports { get; }
 
 		/// <summary>
 		/// List of downstream job triggers
@@ -292,7 +292,7 @@ namespace Horde.Server.Jobs
 		/// <param name="labelIdxToTriggerId">New trigger ID for a label in the job</param>
 		/// <param name="jobTrigger">New downstream job id</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IJob?> TryUpdateJobAsync(string? name = null, Priority? priority = null, bool? autoSubmit = null, int? autoSubmitChange = null, string? autoSubmitMessage = null, UserId? abortedByUserId = null, ObjectId? notificationTriggerId = null, List<Report>? reports = null, List<string>? arguments = null, KeyValuePair<int, ObjectId>? labelIdxToTriggerId = null, KeyValuePair<TemplateId, JobId>? jobTrigger = null, CancellationToken cancellationToken = default);
+		Task<IJob?> TryUpdateJobAsync(string? name = null, Priority? priority = null, bool? autoSubmit = null, int? autoSubmitChange = null, string? autoSubmitMessage = null, UserId? abortedByUserId = null, ObjectId? notificationTriggerId = null, List<JobReport>? reports = null, List<string>? arguments = null, KeyValuePair<int, ObjectId>? labelIdxToTriggerId = null, KeyValuePair<TemplateId, JobId>? jobTrigger = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates the state of a batch
@@ -323,7 +323,7 @@ namespace Horde.Server.Jobs
 		/// <param name="newProperties">Property changes. Any properties with a null value will be removed.</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the job was updated, false if it was deleted in the meantime</returns>
-		Task<IJob?> TryUpdateStepAsync(JobStepBatchId batchId, JobStepId stepId, JobStepState newState = default, JobStepOutcome newOutcome = default, JobStepError? newError = null, bool? newAbortRequested = null, UserId? newAbortByUserId = null, LogId? newLogId = null, ObjectId? newNotificationTriggerId = null, UserId? newRetryByUserId = null, Priority? newPriority = null, List<Report>? newReports = null, Dictionary<string, string?>? newProperties = null, CancellationToken cancellationToken = default);
+		Task<IJob?> TryUpdateStepAsync(JobStepBatchId batchId, JobStepId stepId, JobStepState newState = default, JobStepOutcome newOutcome = default, JobStepError? newError = null, bool? newAbortRequested = null, UserId? newAbortByUserId = null, LogId? newLogId = null, ObjectId? newNotificationTriggerId = null, UserId? newRetryByUserId = null, Priority? newPriority = null, List<JobReport>? newReports = null, Dictionary<string, string?>? newProperties = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempts to update the node groups to be executed for a job. Fails if another write happens in the meantime.
@@ -958,7 +958,13 @@ namespace Horde.Server.Jobs
 
 			// Add a response for everything not included elsewhere.
 			GetLabelState(unlabeledNodes, stepForNode, out LabelState otherState, out LabelOutcome otherOutcome);
-			return new GetDefaultLabelStateResponse(otherState, otherOutcome, unlabeledNodes.Select(x => graph.GetNode(x).Name).ToList());
+
+			GetDefaultLabelStateResponse defaultResponse = new GetDefaultLabelStateResponse();
+			defaultResponse.State = otherState;
+			defaultResponse.Outcome = otherOutcome;
+			defaultResponse.Nodes.AddRange(unlabeledNodes.Select(x => graph.GetNode(x).Name));
+			defaultResponse.Steps.AddRange(unlabeledNodes.Select(x => stepForNode[x].Id));
+			return defaultResponse;
 		}
 
 		/// <summary>
@@ -1562,7 +1568,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// List of reports for this step
 		/// </summary>
-		public IReadOnlyList<IReport>? Reports { get; }
+		public IReadOnlyList<IJobReport>? Reports { get; }
 
 		/// <summary>
 		/// Reports for this jobstep.
@@ -1775,7 +1781,7 @@ namespace Horde.Server.Jobs
 	/// <summary>
 	/// Report for a job or jobstep
 	/// </summary>
-	public interface IReport
+	public interface IJobReport
 	{
 		/// <summary>
 		/// Name of the report
@@ -1785,7 +1791,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Where to render the report
 		/// </summary>
-		ReportPlacement Placement { get; }
+		JobReportPlacement Placement { get; }
 
 		/// <summary>
 		/// The artifact id
@@ -1801,13 +1807,13 @@ namespace Horde.Server.Jobs
 	/// <summary>
 	/// Implementation of IReport
 	/// </summary>
-	public class Report : IReport
+	public class JobReport : IJobReport
 	{
 		/// <inheritdoc/>
 		public string Name { get; set; } = String.Empty;
 
 		/// <inheritdoc/>
-		public ReportPlacement Placement { get; set; }
+		public JobReportPlacement Placement { get; set; }
 
 		/// <inheritdoc/>
 		public ObjectId? ArtifactId { get; set; }

@@ -1034,16 +1034,16 @@ namespace Horde.Server.Jobs
 
 			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 
-			Report newReport = new Report { Name = request.Name, Placement = (ReportPlacement)request.Placement, Content = request.Content };
+			JobReport newReport = new JobReport { Name = request.Name, Placement = (JobReportPlacement)request.Placement, Content = request.Content };
 			if (request.Scope == RpcReportScope.Job)
 			{
 				_logger.LogDebug("Adding report to job {JobId}: {Name} -> {Content}", job.Id, request.Name, request.Content);
-				await _jobService.UpdateJobAsync(job, reports: new List<Report> { newReport });
+				await _jobService.UpdateJobAsync(job, reports: new List<JobReport> { newReport });
 			}
 			else
 			{
 				_logger.LogDebug("Adding report to step {JobId}:{BatchId}:{StepId}: {Name} -> {Content}", job.Id, batch.Id, request.StepId, request.Name, request.Content);
-				await _jobService.UpdateStepAsync(job, batch.Id, JobStepId.Parse(request.StepId), streamConfig, newReports: new List<Report> { newReport });
+				await _jobService.UpdateStepAsync(job, batch.Id, JobStepId.Parse(request.StepId), streamConfig, newReports: new List<JobReport> { newReport });
 			}
 
 			return new RpcCreateReportResponse();
