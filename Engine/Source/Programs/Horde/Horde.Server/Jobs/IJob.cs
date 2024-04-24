@@ -915,11 +915,13 @@ namespace Horde.Server.Jobs
 				}
 
 				// Create the response
-				GetLabelStateResponse response = new GetLabelStateResponse(newState, newOutcome);
+				GetLabelStateResponse response = new GetLabelStateResponse();
 				response.DashboardName = label.DashboardName;
 				response.DashboardCategory = label.DashboardCategory;
 				response.UgsName = label.UgsName;
 				response.UgsProject = label.UgsProject;
+				response.State = newState;
+				response.Outcome = newOutcome;
 
 				foreach (NodeRef includedNodeRef in label.IncludedNodes)
 				{
