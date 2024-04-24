@@ -1590,7 +1590,7 @@ namespace Jupiter.FunctionalTests.References
 				EnumerateBucketResponse? enumerateResponse = await response.Content.ReadFromJsonAsync<EnumerateBucketResponse>();
 
 				Assert.IsNotNull(enumerateResponse);
-				Assert.AreEqual(2, enumerateResponse.RefIds.Count);
+				Assert.AreEqual(2, enumerateResponse.RefIds.Length);
 			}
 
 			{
@@ -1600,7 +1600,7 @@ namespace Jupiter.FunctionalTests.References
 				EnumerateBucketResponse? enumerateResponse = await response.Content.ReadFromJsonAsync<EnumerateBucketResponse>();
 
 				Assert.IsNotNull(enumerateResponse);
-				Assert.AreEqual(2, enumerateResponse.RefIds.Count);
+				Assert.AreEqual(2, enumerateResponse.RefIds.Length);
 			}
 		}
 

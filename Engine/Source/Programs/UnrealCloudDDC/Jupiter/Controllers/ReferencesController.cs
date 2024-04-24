@@ -121,7 +121,7 @@ namespace Jupiter.Controllers
 			{
 				return Forbid();
 			}
-			List<RefId> refIds = await _refService.GetRecordsInBucketAsync(ns, bucket).ToListAsync();
+			RefId[] refIds = await _refService.GetRecordsInBucketAsync(ns, bucket).ToArrayAsync();
 			return Ok(new EnumerateBucketResponse(refIds));
 		}
 
@@ -1348,13 +1348,14 @@ namespace Jupiter.Controllers
 			RefIds = null!;
 		}
 
-		public EnumerateBucketResponse(List<RefId> refIds)
+		[JsonConstructor]
+		public EnumerateBucketResponse(RefId[] refIds)
 		{
 			RefIds = refIds;
 		}
 
 		[CbField("refs")]
-		public List<RefId> RefIds { get; }
+		public RefId[] RefIds { get; set; }
 	}
 
 	public class PutObjectResponse
