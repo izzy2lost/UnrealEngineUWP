@@ -39,6 +39,7 @@
 #include "UObject/FrameworkObjectVersion.h"
 #include "PSOPrecacheMaterial.h"
 #include "Materials/MaterialInterface.h"
+#include "ObjectCacheContext.h"
 
 #if WITH_EDITOR
 #include "Kismet2/ComponentEditorUtils.h"
@@ -309,12 +310,25 @@ FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateC
 		// wait until resources are released
 		FlushRenderingCommands();
 
+		FObjectCacheContextScope ObjectCacheScope;
+		for (IPrimitiveComponent* PrimitiveComponent: ObjectCacheScope.GetContext().GetPrimitiveComponents())
+		{
+			if (PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsRenderStateCreated())
+			{
+				ComponentContexts.Emplace(PrimitiveComponent, &ScenesToUpdateAllPrimitiveSceneInfos);
+			}
+		}
+
 		// recreate render state for all components.
 		for (UActorComponent* Component : TObjectRange<UActorComponent>())
 		{
-			if (Component->IsRegistered() && Component->IsRenderStateCreated())
+			// Those are obtained through FObjectCacheContext
+			if (!Component->IsA<UPrimitiveComponent>())
 			{
-				ComponentContexts.Emplace(Component, &ScenesToUpdateAllPrimitiveSceneInfos);
+				if (Component->IsRegistered() && Component->IsRenderStateCreated())
+				{
+					ComponentContexts.Emplace(Component, &ScenesToUpdateAllPrimitiveSceneInfos);
+				}
 			}
 		}
 
