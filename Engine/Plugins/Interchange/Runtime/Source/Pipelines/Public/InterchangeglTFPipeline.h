@@ -51,6 +51,11 @@ class INTERCHANGEPIPELINES_API UInterchangeGLTFPipeline : public UInterchangePip
 	UInterchangeGLTFPipeline();
 
 public:
+	
+	/** The name of the pipeline that will be display in the import dialog. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
+	FString PipelineDisplayName;
+
 	TObjectPtr<UGLTFPipelineSettings> GLTFPipelineSettings;
 
 protected:
