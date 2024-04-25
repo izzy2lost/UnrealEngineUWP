@@ -264,8 +264,8 @@ namespace Horde.Server.Tests
 					_mongoInstance = new MongoInstance();
 
 					ServerSettings ss = new ServerSettings();
-					ss.DatabaseName = _mongoInstance.DatabaseName;
-					ss.DatabaseConnectionString = _mongoInstance.ConnectionString;
+					ss.MongoDatabaseName = _mongoInstance.DatabaseName;
+					ss.MongoConnectionString = _mongoInstance.ConnectionString;
 
 					_mongoService = new MongoService(Options.Create(ss), redisService, OpenTelemetryTracers.Horde, _loggerFactory.CreateLogger<MongoService>(), _loggerFactory);
 				}

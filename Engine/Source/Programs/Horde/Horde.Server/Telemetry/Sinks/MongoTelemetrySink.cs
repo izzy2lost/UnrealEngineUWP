@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -10,6 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Telemetry;
 using Horde.Server.Server;
+using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -50,11 +49,10 @@ namespace Horde.Server.Telemetry.Sinks
 		}
 
 		readonly MongoTelemetryConfig? _config;
-		readonly IMongoCollection<EventDocument> _telemetry;
-		readonly AsyncEvent _newDataEvent = new AsyncEvent();
-		readonly AsyncEvent _flushEvent = new AsyncEvent();
-		readonly ConcurrentQueue<EventDocument> _queue = new ConcurrentQueue<EventDocument>();
-		readonly BackgroundTask _backgroundTask;
+		readonly IMongoCollection<EventDocument> _collection;
+#pragma warning disable CA2213 // False positive? _writer is disposed in DisposeAsync.
+		readonly MongoBufferedWriter<EventDocument> _writer;
+#pragma warning restore CA2213
 		readonly ITicker _cleanupTicker;
 		readonly JsonSerializerOptions _jsonOptions;
 		readonly ILogger _logger;
@@ -68,8 +66,8 @@ namespace Horde.Server.Telemetry.Sinks
 		public MongoTelemetrySink(MongoService mongoService, IClock clock, IOptions<ServerSettings> serverSettings, ILogger<MongoTelemetrySink> logger)
 		{
 			_config = serverSettings.Value.Telemetry.Select(x => x as MongoTelemetryConfig).FirstOrDefault(x => x != null);
-			_telemetry = mongoService.GetCollection<EventDocument>("Telemetry", builder => builder.Ascending(x => x.TelemetryStoreId).Descending(x => x.Id));
-			_backgroundTask = new BackgroundTask(BackgroundFlushAsync);
+			_collection = mongoService.GetCollection<EventDocument>("Telemetry", builder => builder.Ascending(x => x.TelemetryStoreId).Descending(x => x.Id));
+			_writer = new MongoBufferedWriter<EventDocument>(_collection, logger);
 			_cleanupTicker = clock.AddSharedTicker<MongoTelemetrySink>(TimeSpan.FromHours(4.0), CleanupAsync, logger);
 			_logger = logger;
 
@@ -82,7 +80,7 @@ namespace Horde.Server.Telemetry.Sinks
 		{
 			if (Enabled)
 			{
-				_backgroundTask.Start();
+				await _writer.StartAsync();
 				await _cleanupTicker.StartAsync();
 			}
 		}
@@ -91,25 +89,7 @@ namespace Horde.Server.Telemetry.Sinks
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
 			await _cleanupTicker.StopAsync();
-			await _backgroundTask.StopAsync(cancellationToken);
-		}
-
-		// Flushes the sink in the background
-		async Task BackgroundFlushAsync(CancellationToken cancellationToken)
-		{
-			Task newDataTask = _newDataEvent.Task;
-			Task flushTask = _flushEvent.Task;
-
-			while (!cancellationToken.IsCancellationRequested)
-			{
-				await newDataTask.WaitAsync(cancellationToken);
-				await Task.WhenAny(flushTask, Task.Delay(TimeSpan.FromSeconds(5.0), cancellationToken));
-
-				newDataTask = _newDataEvent.Task;
-				flushTask = _flushEvent.Task;
-
-				await FlushAsync(cancellationToken);
-			}
+			await _writer.StopAsync(cancellationToken);
 		}
 
 		async ValueTask CleanupAsync(CancellationToken cancellationToken)
@@ -123,48 +103,27 @@ namespace Horde.Server.Telemetry.Sinks
 #pragma warning disable CS0618 // Type or member is obsolete
 			ObjectId minObjectId = new ObjectId(baseTime, 0, 0, 0);
 #pragma warning restore CS0618
-			DeleteResult result = await _telemetry.DeleteManyAsync(x => x.Id < minObjectId, cancellationToken);
+			DeleteResult result = await _collection.DeleteManyAsync(x => x.Id < minObjectId, cancellationToken);
 			_logger.LogInformation("Deleted {NumItems} telemetry records", result.DeletedCount);
 		}
 
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			await _cleanupTicker.DisposeAsync();
-			await _backgroundTask.DisposeAsync();
 			await FlushAsync(default);
+			await _cleanupTicker.DisposeAsync();
+			await _writer.DisposeAsync();
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask FlushAsync(CancellationToken cancellationToken)
-		{
-			// Copy all the event documents from the queue
-			List<EventDocument> eventDocuments = new List<EventDocument>(_queue.Count);
-			while (_queue.TryDequeue(out EventDocument? eventDocument))
-			{
-				eventDocuments.Add(eventDocument);
-			}
-
-			// Insert them into the database
-			if (eventDocuments.Count > 0)
-			{
-				_logger.LogInformation("Writing {NumEvents} new telemetry events to MongoDB.", eventDocuments.Count);
-				await _telemetry.InsertManyAsync(eventDocuments, cancellationToken: cancellationToken);
-			}
-		}
+		public ValueTask FlushAsync(CancellationToken cancellationToken)
+			=> _writer.FlushAsync(cancellationToken);
 
 		/// <inheritdoc/>
 		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
 		{
 			BsonDocument bson = BsonDocument.Parse(JsonSerializer.Serialize(telemetryEvent, _jsonOptions));
-			_queue.Enqueue(new EventDocument(telemetryStoreId, bson));
-			_newDataEvent.Set();
-
-			const int FlushCount = 50;
-			if (_queue.Count > FlushCount)
-			{
-				_flushEvent.Set();
-			}
+			_writer.Write(new EventDocument(telemetryStoreId, bson));
 		}
 	}
 }
