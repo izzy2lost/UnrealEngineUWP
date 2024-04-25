@@ -377,7 +377,7 @@ void FSkeletalMeshStreamOut::ReleaseBuffers(const FContext& Context)
 				{
 					if (RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread)
 					{
-						LODResource.StaticRayTracingGeometry.ReleaseResource();
+						LODResource.StaticRayTracingGeometry.ReleaseRHIForStreaming(Batcher);
 					}
 				}
 #endif
