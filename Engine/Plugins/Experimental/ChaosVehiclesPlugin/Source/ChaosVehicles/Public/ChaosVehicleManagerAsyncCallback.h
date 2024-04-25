@@ -139,6 +139,9 @@ struct CHAOSVEHICLES_API FNetworkVehicleInputs : public FNetworkPhysicsData
 
 	/** Merge data into this input */
 	virtual void MergeData(const FNetworkPhysicsData& FromData) override;
+
+	/** Return string with input debug data */
+	virtual const FString DebugData() override;
 };
 
 template<>
@@ -203,6 +206,9 @@ struct CHAOSVEHICLES_API FNetworkVehicleStates : public FNetworkPhysicsData
 
 	/** Interpolate the data in between two inputs data */
 	virtual void InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) override;
+
+	/** Return string with state debug data */
+	virtual const FString DebugData() override;
 };
 
 template<>

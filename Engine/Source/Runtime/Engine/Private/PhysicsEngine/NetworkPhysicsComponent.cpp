@@ -404,14 +404,6 @@ void UNetworkPhysicsComponent::InitPhysics()
 	AActor* Owner = GetOwner();
 	if (Owner)
 	{
-		if (UNetworkPhysicsSettingsComponent* PhysicsSettings = Owner->GetComponentByClass<UNetworkPhysicsSettingsComponent>())
-		{
-			InputRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantInputs ? PhysicsSettings->ResimulationSettings.RedundantInputs : InputRedundancy;
-			StateRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantStates ? PhysicsSettings->ResimulationSettings.RedundantStates : StateRedundancy;
-			bCompareInputToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareInputToTriggerRewind(bCompareInputToTriggerRewind);
-			bCompareStateToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareStateToTriggerRewind(bCompareStateToTriggerRewind);
-		}
-
 		FRepMovement& RepMovement = Owner->GetReplicatedMovement_Mutable();
 		RepMovement.LocationQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
 		RepMovement.RotationQuantizationLevel = ERotatorQuantization::ShortComponents;
@@ -462,6 +454,27 @@ void UNetworkPhysicsComponent::BeginPlay()
 void UNetworkPhysicsComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
+
+	if (AActor* Owner = GetOwner())
+	{
+		if (UNetworkPhysicsSettingsComponent* PhysicsSettings = Owner->FindComponentByClass<UNetworkPhysicsSettingsComponent>())
+		{
+			InputRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantInputs ? PhysicsSettings->ResimulationSettings.RedundantInputs : InputRedundancy;
+			StateRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantStates ? PhysicsSettings->ResimulationSettings.RedundantStates : StateRedundancy;
+			bCompareInputToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareInputToTriggerRewind(bCompareInputToTriggerRewind);
+			bCompareStateToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareStateToTriggerRewind(bCompareStateToTriggerRewind);
+
+			if (ReplicatedInputs.History)
+			{
+				ReplicatedInputs.History->ResizeDataHistory(InputRedundancy);
+			}
+			if (ReplicatedStates.History)
+			{
+				ReplicatedStates.History->ResizeDataHistory(StateRedundancy);
+			}
+		}
+	}
+
 	if (UWorld* World = GetWorld())
 	{
 		if (UNetworkPhysicsSystem* NetworkManager = World->GetSubsystem<UNetworkPhysicsSystem>())
@@ -501,22 +514,6 @@ void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float 
 	QUICK_SCOPE_CYCLE_COUNTER(NetworkPhysicsComponent_AsyncPhysicsTick);
 
 	Super ::AsyncPhysicsTickComponent(DeltaTime, SimTime);
-#if DEBUG_NETWORK_PHYSICS
-	if(HasServerWorld() && !IsLocallyControlled() && InputHistory)
-	{
-		TArray<int32> LocalFrames, ServerFrames, InputFrames;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to DebugData() in UE 5.6 and remove deprecation pragma
-		InputHistory->DebugDatas(*ReplicatedInputs.History, LocalFrames, ServerFrames, InputFrames);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		UE_LOG(LogChaos, Log, TEXT("SERVER | PT | AsyncPhysicsTickComponent | Receiving %d inputs from CLIENT | Component = %s"), LocalFrames.Num(), *GetFullName());
-		for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
-		{
-			UE_LOG(LogChaos, Log, TEXT("		Debugging replicated inputs at local frame = %d | server frame = %d | Component = %s"),
-				LocalFrames[FrameIndex], ServerFrames[FrameIndex], *GetFullName());
-		}
-	}
-#endif
 
 	// Record the received states from the server into the history for future use
 	if (UWorld* World = GetWorld())
@@ -549,37 +546,34 @@ void UNetworkPhysicsComponent::SendInputData()
 		// Check that client and server have synced the physics tick offset
 		if (PlayerController && PlayerController->GetNetworkPhysicsTickOffsetAssigned())
 		{
-			const int32 LocalOffset = HasServerWorld() ? 0 : PlayerController->GetNetworkPhysicsTickOffset();
-
 			// Send latest N frames from history
-			const int32 ToFrame = InputHistory->GetLatestFrame() + 1; // ToFrame is excluded so add 1.
+			const int32 ToFrame = InputHistory->GetLatestFrame();
 			const int32 FromFrame = ToFrame - InputRedundancy;
 
-			ReplicatedInputs.History = InputHistory->CopyFramesWithOffset(FromFrame, ToFrame, LocalOffset);
-			MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedInputs, this);
+			InputHistory->CopyData(*ReplicatedInputs.History, FromFrame, ToFrame);
 
-			if (!HasServerWorld())
+			if (HasServerWorld())
 			{
-#if DEBUG_NETWORK_PHYSICS
-				FAsyncPhysicsTimestamp Timestamp = const_cast<APlayerController*>(PlayerController)->GetPhysicsTimestamp();
-
-				TArray<int32> LocalFrames, ServerFrames, InputFrames;
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to DebugData() in UE 5.6 and remove deprecation pragma
-				InputHistory->DebugDatas(*ReplicatedInputs.History, LocalFrames, ServerFrames, InputFrames);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-				UE_LOG(LogChaos, Log, TEXT("CLIENT | GT | SendInputData | Sending %d inputs from CLIENT | Component = %s"), LocalFrames.Num(), *GetFullName());
-				for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
-				{
-					UE_LOG(LogChaos, Log, TEXT("		Debugging local inputs at local frame = %d | server frame = %d | Current local frame = %d | Current server frame = %d"),
-						LocalFrames[FrameIndex], ServerFrames[FrameIndex], Timestamp.LocalFrame, Timestamp.ServerFrame);
-				}
-#endif
-
-				// if on the client we should first send the replicated inputs onto the server
-				// the RPC will then resend them onto all the other clients (except the local ones)
+				// Server sends inputs through property replication
+				MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedInputs, this);
+			}
+			else
+			{
+				// Clients send inputs through an RPC to the server
 				ServerReceiveInputData(ReplicatedInputs);
 			}
+
+#if DEBUG_NETWORK_PHYSICS
+			FAsyncPhysicsTimestamp Timestamp = const_cast<APlayerController*>(PlayerController)->GetPhysicsTimestamp();
+			if (HasServerWorld())
+			{
+				ReplicatedInputs.History->DebugData(FString::Printf(TEXT("SERVER | PT | SendInputData | CurrentLocalFrame = %d | CurrentServerFrame = %d | Component = %s"), Timestamp.LocalFrame, Timestamp.ServerFrame, *GetFullName()));
+			}
+			else
+			{
+				ReplicatedInputs.History->DebugData(FString::Printf(TEXT("CLIENT | PT | SendInputData | CurrentLocalFrame = %d | CurrentServerFrame = %d | Component = %s"), Timestamp.LocalFrame, Timestamp.ServerFrame, *GetFullName()));
+			}
+#endif
 		}
 	}
 }
@@ -589,12 +583,16 @@ void UNetworkPhysicsComponent::SendStateData()
 	if (HasServerWorld() && StateHistory)
 	{
 		// Send latest N frames from history
-		const int32 ToFrame = StateHistory->GetLatestFrame() + 1; // ToFrame is excluded so add 1.
+		const int32 ToFrame = StateHistory->GetLatestFrame();
 		const int32 FromFrame = ToFrame - StateRedundancy;
 
-		// if on server we should send the states onto all the clients through repnotify
-		ReplicatedStates.History = StateHistory->CopyFramesWithOffset(FromFrame, ToFrame, 0);
+		// If on server we should send the states onto all the clients through repnotify
+		StateHistory->CopyData(*ReplicatedStates.History, FromFrame, ToFrame);
 		MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedStates, this);
+		
+#if DEBUG_NETWORK_PHYSICS
+		ReplicatedStates.History->DebugData(FString::Printf(TEXT("SERVER | PT | SendStateData | Component = %s"), *GetFullName()));
+#endif
 	}
 }
 
@@ -612,7 +610,7 @@ void UNetworkPhysicsComponent::CorrectServerToLocalOffset(const int32 LocalToSer
 		for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
 		{
 #if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
-			UE_LOG(LogChaos, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server frame = %d | Client Frame = %d"), ServerFrames[FrameIndex], InputFrames[FrameIndex]);
+			UE_LOG(LogChaos, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server frame = %d | Client Frame = %d | [NOTE: DEPRECATED logic, deactivate by setting CVar: p.net.CmdOffsetEnabled 0]"), ServerFrames[FrameIndex], InputFrames[FrameIndex]);
 #endif
 			ServerToLocalOffset = FMath::Min(ServerToLocalOffset, ServerFrames[FrameIndex] - InputFrames[FrameIndex]);
 		}
@@ -621,7 +619,7 @@ void UNetworkPhysicsComponent::CorrectServerToLocalOffset(const int32 LocalToSer
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
-		UE_LOG(LogChaos, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server to local offset = %d | Local to server offset = %d"), ServerToLocalOffset, LocalToServerOffset);
+		UE_LOG(LogChaos, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server to local offset = %d | Local to server offset = %d | [NOTE: DEPRECATED logic, deactivate by setting CVar: p.net.CmdOffsetEnabled 0]"), ServerToLocalOffset, LocalToServerOffset);
 #endif
 	}
 }
@@ -656,7 +654,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedStates()
 				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedStates = MakeShareable(ReplicatedStates.History->Clone().Release());
 				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, PhysScene, ReceivedStates, LocalOffset]()
 				{
-					if (bCompareStateToTriggerRewind)
+					if (bCompareStateToTriggerRewind && IsLocallyControlled())
 					{
 						int32 ResimFrame = StateHistory->ReceiveNewData(*ReceivedStates, LocalOffset, /*CompareDataForRewind*/ bCompareStateToTriggerRewind);
 						if (ResimFrame != INDEX_NONE)
@@ -688,21 +686,8 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedStates()
 
 #if DEBUG_NETWORK_PHYSICS
 					{
-						TArray<int32> LocalFrames, ServerFrames, InputFrames;
-						PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to DebugData() in UE 5.6 and remove deprecation pragma
-						StateHistory->DebugDatas(*ReceivedStates, LocalFrames, ServerFrames, InputFrames);
-						PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-						UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | OnRep_SetReplicatedStates | Receiving %d states from SERVER | Local offset = %d | Component = %s "), LocalFrames.Num(), LocalOffset, *GetFullName());
-						for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
-						{
-							UE_LOG(LogChaos, Log, TEXT("		Recording replicated states at local frame = %d | server frame = %d | life time = %d | Component = %s"), ServerFrames[FrameIndex] - LocalOffset, ServerFrames[FrameIndex], InputFrames[FrameIndex], *GetFullName());
-
-							if (IsLocallyControlled() && (InputFrames[FrameIndex] != (ServerFrames[FrameIndex] - LocalOffset)))
-							{
-								UE_LOG(LogChaos, Log, TEXT("		Bad local frame compared to input frame!!!"));
-							}
-						}
+						const int32 CurrentFrame = PhysScene->GetSolver()->GetCurrentFrame();
+						ReceivedStates->DebugData(FString::Printf(TEXT("CLIENT | PT | OnRep_SetReplicatedStates | CurrentLocalFrame = %d | LocalOffset = %d | Component = %s"), CurrentFrame, LocalOffset, *GetFullName()));
 					}
 #endif
 				}, false);
@@ -732,48 +717,40 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ReplicatedInputs.History->Clone().Release());
 				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, PhysScene, ReceivedInputs, LocalOffset]()
 				{
-						if (bCompareInputToTriggerRewind && IsLocallyControlled())
+					if (bCompareInputToTriggerRewind && IsLocallyControlled())
+					{
+						int32 ResimFrame = InputHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/ bCompareInputToTriggerRewind);
+						if (ResimFrame != INDEX_NONE)
 						{
-							int32 ResimFrame = InputHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/ bCompareInputToTriggerRewind);
-							if (ResimFrame != INDEX_NONE)
+							if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
 							{
-								if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+								if (Chaos::FRewindData* RewindData = Solver->GetRewindData())
 								{
-									if (Chaos::FRewindData* RewindData = Solver->GetRewindData())
+									// Mark particle/island as resim
+									Chaos::FReadPhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetRead();
+									if (Chaos::FPBDRigidParticleHandle* POHandle = Interface.GetRigidParticle(RootPhysicsObject))
 									{
-										// Mark particle/island as resim
-										Chaos::FReadPhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetRead();
-										if (Chaos::FPBDRigidParticleHandle* POHandle = Interface.GetRigidParticle(RootPhysicsObject))
-										{
-											Solver->GetEvolution()->GetIslandManager().SetParticleResimFrame(POHandle, ResimFrame);
-										}
-
-										// Set resim frame in rewind data
-										ResimFrame = (RewindData->GetResimFrame() == INDEX_NONE) ? ResimFrame : FMath::Min(ResimFrame, RewindData->GetResimFrame());
-										RewindData->SetResimFrame(ResimFrame);
+										Solver->GetEvolution()->GetIslandManager().SetParticleResimFrame(POHandle, ResimFrame);
 									}
+
+									// Set resim frame in rewind data
+									ResimFrame = (RewindData->GetResimFrame() == INDEX_NONE) ? ResimFrame : FMath::Min(ResimFrame, RewindData->GetResimFrame());
+									RewindData->SetResimFrame(ResimFrame);
 								}
 							}
 						}
-						else
-						{
-							PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ReceiveNewData() in UE 5.6 and remove deprecation pragma
-							InputHistory->ReceiveNewDatas(*ReceivedInputs, LocalOffset);
-							PRAGMA_ENABLE_DEPRECATION_WARNINGS
-						}
+					}
+					else
+					{
+						PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ReceiveNewData() in UE 5.6 and remove deprecation pragma
+						InputHistory->ReceiveNewDatas(*ReceivedInputs, LocalOffset);
+						PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					}
 
 #if DEBUG_NETWORK_PHYSICS
 					{
-						TArray<int32> LocalFrames, ServerFrames, InputFrames;
-						PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to DebugData() in UE 5.6 and remove deprecation pragma
-						InputHistory->DebugDatas(*ReceivedInputs, LocalFrames, ServerFrames, InputFrames);
-						PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-						UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | OnRep_SetReplicatedInputs | Receiving %d inputs from SERVER | Local offset = %d | Component = %s"), LocalFrames.Num(), LocalOffset, *GetFullName());
-						for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
-						{
-							UE_LOG(LogChaos, Log, TEXT("		Recording replicated inputs at local frame = %d | server frame = %d | Component = %s"), ServerFrames[FrameIndex] - LocalOffset, ServerFrames[FrameIndex], *GetFullName());
-						}
+						const int32 CurrentFrame = PhysScene->GetSolver()->GetCurrentFrame();
+						ReceivedInputs->DebugData(FString::Printf(TEXT("CLIENT | PT | OnRep_SetReplicatedInputs | CurrentLocalFrame = %d | LocalOffset = %d | Component = %s"), CurrentFrame, LocalOffset, *GetFullName()));
 					}
 #endif
 				}, false);
@@ -810,24 +787,12 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 					InputHistory->ReceiveNewDatas(*ReceivedInputs, 0);
 					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	#if DEBUG_NETWORK_PHYSICS
+#if DEBUG_NETWORK_PHYSICS
 					{
-						TArray<int32> LocalFrames, ServerFrames, InputFrames;
-						PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to DebugData() in UE 5.6 and remove deprecation pragma
-						InputHistory->DebugDatas(*ReceivedInputs, LocalFrames, ServerFrames, InputFrames);
-						PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 						const int32 CurrentFrame = PhysScene->GetSolver()->GetCurrentFrame();
-
-						const int32 EvalOffset = CurrentFrame - InputFrames[InputFrames.Num()-1] + 4;
-						UE_LOG(LogChaos, Log, TEXT("SERVER | PT | ServerReceiveInputData | Receiving %d inputs from CLIENT | Inputs frame = %d | Server frame = %d | Eval Offset = %d | Component = %s"), LocalFrames.Num(), InputFrames[InputFrames.Num() - 1], CurrentFrame, EvalOffset, *GetFullName());
-						for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
-						{
-							UE_LOG(LogChaos, Log, TEXT("		Recording replicated inputs at local frame = %d | server frame = %d | Solver offset = %d | Component = %s"), 
-								LocalFrames[FrameIndex], ServerFrames[FrameIndex], ServerFrames[FrameIndex] - LocalFrames[FrameIndex], *GetFullName());
-						}
+						ReceivedInputs->DebugData(FString::Printf(TEXT("SERVER | PT | ServerReceiveInputData | CurrentLocalFrame = %d | Component = %s"), CurrentFrame, *GetFullName()));
 					}
-	#endif
+#endif
 				}, false);
 			}
 		}
@@ -868,16 +833,24 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 		{
 			FNetworkPhysicsData* PhysicsData = StateData.Get();
 			PhysicsData->LocalFrame = PhysicsStep;
-#if DEBUG_NETWORK_PHYSICS
-			UE_LOG(LogChaos, Log, TEXT("		Extracting history states at frame %d | Component = %s"), PhysicsStep, *GetFullName());
-#endif
 			const bool bExactFrame = PhysicsReplicationCVars::ResimulationCVars::bAllowRewindToClosestState ? !bIsSolverReset : true;
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ExtractData() in UE 5.6 and remove deprecation pragma
 			if (StateHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsData, bExactFrame) && PhysicsData->bReceivedData)
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				PhysicsData->ApplyData(ActorComponent);
+#if DEBUG_NETWORK_PHYSICS
+				UE_LOG(LogChaos, Log, TEXT("		Applying extracted state from history | bExactFrame = %d | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | ")
+					, bExactFrame, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame);
+#endif
 			}
+#if DEBUG_NETWORK_PHYSICS
+			else
+			{
+				UE_LOG(LogChaos, Log, TEXT("		FAILED to extract and apply state from history | bExactFrame = %d | -- Printing history --"), bExactFrame);
+				StateHistory->DebugData(FString::Printf(TEXT("StateHistory | Component = %s"), *GetFullName()));
+			}
+#endif
 		}
 
 		// Apply replicated inputs on server and simulated proxies (and on local player if we are resimulating)
@@ -886,10 +859,6 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 			FNetworkPhysicsData* PhysicsData = InputData.Get();
 			const int32 NextExpectedLocalFrame = PhysicsData->LocalFrame + 1;
 			PhysicsData->LocalFrame = PhysicsStep;
-
-	#if DEBUG_NETWORK_PHYSICS
-			UE_LOG(LogChaos, Log, TEXT("		Extracting history inputs at frame %d | Component = %s"), PhysicsStep, *GetFullName());
-	#endif
 
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ExtractData() in UE 5.6 and remove deprecation pragma
 			if (InputHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsData))
@@ -919,7 +888,19 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 				}
 
 				PhysicsData->ApplyData(ActorComponent);
+
+#if DEBUG_NETWORK_PHYSICS
+				UE_LOG(LogChaos, Log, TEXT("		Applying extracted input from history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | IsResim = %d | IsLocallyControlled = %d | InputDecay = %f")
+					, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, bIsSolverResim, IsLocallyControlled(), GetCurrentInputDecay(PhysicsData));
+#endif
 			}
+#if DEBUG_NETWORK_PHYSICS
+			else
+			{
+				UE_LOG(LogChaos, Log, TEXT("		FAILED to extract and apply input from history | IsResim = %d | IsLocallyControlled = %d | -- Printing history --"), bIsSolverResim, IsLocallyControlled());
+				InputHistory->DebugData(FString::Printf(TEXT("InputHistory | Component = %s"), *GetFullName()));
+			}
+#endif
 		}
 	}
 }
@@ -975,7 +956,8 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if DEBUG_NETWORK_PHYSICS
-			UE_LOG(LogChaos, Log, TEXT("		Recording local inputs at frame %d | Component = %s"), PhysicsData->LocalFrame, *GetFullName());
+				UE_LOG(LogChaos, Log, TEXT("		Recording input into history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | Input: %s ")
+					, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData());
 #endif
 		}
 
@@ -1007,7 +989,8 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if DEBUG_NETWORK_PHYSICS
-			UE_LOG(LogChaos, Log, TEXT("		Recording local states at frame %d | from input frame = %d | Component = %s"), PhysicsData->LocalFrame, PhysicsData->InputFrame, *GetFullName());
+				UE_LOG(LogChaos, Log, TEXT("		Recording state into history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | State: %s ")
+					, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData());
 #endif
 		}
 	}

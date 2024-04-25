@@ -29,6 +29,11 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 	{
 	}
 
+	FORCEINLINE TNetRewindHistory(const int32 FrameCount) :
+		Super(FrameCount)
+	{
+	}
+
 	FORCEINLINE virtual ~TNetRewindHistory() {}
 
 	virtual TUniquePtr<Chaos::FBaseRewindHistory> CreateNew() const
@@ -50,6 +55,22 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 		{
 			DataType& FrameData = Super::DataHistory[FrameIndex];
 			FrameData.ValidateData(NetworkComponent);
+		}
+	}
+
+	virtual void CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame) override
+	{
+		TNetRewindHistory& OutNetHistory = static_cast<TNetRewindHistory&>(OutHistory);
+
+		DataType FrameData;
+		for (uint32 CopyFrame = StartFrame; CopyFrame <= EndFrame; ++CopyFrame)
+		{
+			const int32 CopyIndex = Super::GetFrameIndex(CopyFrame);
+			if (CopyFrame == Super::DataHistory[CopyIndex].LocalFrame)
+			{
+				FrameData = Super::DataHistory[CopyIndex];
+				OutNetHistory.RecordData(CopyFrame, &FrameData);
+			}
 		}
 	}
 
@@ -147,6 +168,26 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 				LocalFrames[FrameIndex] = FrameData.LocalFrame;
 				ServerFrames[FrameIndex] = FrameData.ServerFrame;
 				InputFrames[FrameIndex] = FrameData.InputFrame;
+			}
+		}
+	}
+
+	/** Print custom string along with values for each entry in history */
+	FORCEINLINE virtual void DebugData(const FString& DebugText) override
+	{
+		UE_LOG(LogChaos, Log, TEXT("%s"), *DebugText);
+		UE_LOG(LogChaos, Log, TEXT("	NumFrames in data collection: %d"), Super::NumFrames);
+
+		if (Super::NumFrames >= 0)
+		{
+			for (int32 FrameIndex = 0; FrameIndex < Super::NumFrames; ++FrameIndex)
+			{
+				UE_LOG(LogChaos, Log, TEXT("		Index: %d || LocalFrame = %d || ServerFrame = %d || InputFrame = %d  ||  Data: %s")
+				, FrameIndex
+				, Super::DataHistory[FrameIndex].LocalFrame
+				, Super::DataHistory[FrameIndex].ServerFrame
+				, Super::DataHistory[FrameIndex].InputFrame
+				, *Super::DataHistory[FrameIndex].DebugData());
 			}
 		}
 	}
@@ -444,6 +485,9 @@ struct FNetworkPhysicsData
 	virtual void BuildDatas(const UActorComponent* NetworkComponent) { }
 	UE_DEPRECATED(5.4, "Deprecated, use InterpolateData instead")
 	virtual void InterpolateDatas(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) { InterpolateData(MinData, MaxData); }
+	
+	/** Return string with custom debug data */
+	virtual const FString DebugData() { return FString(" - DebugData() not implemented - "); }
 
 	friend UNetworkPhysicsComponent;
 };
@@ -660,21 +704,18 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateDataHistory(UActorComponent* Hi
 {
 	const int32 NumFrames = SetupRewindData();
 
-	APlayerController* Controller = GetPlayerController();
-	const bool bIsLocalHistory = (Controller && Controller->IsLocalController()); // FIXME: The controller is null at this point, but bIsLocalHistory isn't currently used so doesn't create an issue.
-
-	InputHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
-	StateHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory);
+	InputHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames);
+	StateHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames);
 
 	InputData = MakeUnique<typename PhysicsTraits::InputsType>();
 	StateData = MakeUnique<typename PhysicsTraits::StatesType>();
 
-	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(InputRedundancy, bIsLocalHistory);
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(InputRedundancy);
 	ReplicatedInputs.Owner = this;
 
-	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(StateRedundancy, bIsLocalHistory);
+	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(StateRedundancy);
 	ReplicatedStates.Owner = this;
-	
+
 	ActorComponent = HistoryComponent;
 	
 	AddDataHistory();
@@ -685,14 +726,11 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateInputHistory(UActorComponent* H
 {
 	const int32 NumFrames = SetupRewindData();
 
-	APlayerController* Controller = GetPlayerController();
-	const bool bIsLocalHistory = (Controller && Controller->IsLocalController()); // FIXME: The controller is null at this point, but bIsLocalHistory isn't currently used so doesn't create an issue.
-
-	InputHistory = MakeShared<TNetRewindHistory<InputsType>>(NumFrames, bIsLocalHistory);
+	InputHistory = MakeShared<TNetRewindHistory<InputsType>>(NumFrames);
 
 	InputData = MakeUnique<InputsType>();
 
-	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(InputRedundancy, bIsLocalHistory);
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(InputRedundancy);
 	ReplicatedInputs.Owner = this;
 
 	ActorComponent = HistoryComponent;

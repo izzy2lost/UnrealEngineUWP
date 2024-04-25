@@ -60,10 +60,14 @@ struct FBaseRewindHistory
 	* Can for example block received data from client from overriding server authoritative data */
 	FORCEINLINE virtual bool ShouldRecordReceivedDataOnFrame(const int32 RecordFrame) { return true; }
 
+	/** Copy data from local history into @param OutHistory
+	* @param StartFrame = Included
+	* @param EndFrame = Included */
+	virtual void CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame) {};
+
 	/** Create a polymorphic copy of only a range of frames, applying the frame offset to the copies
 	* @param StartFrame = Included
-	* @param EndFrame = Excluded
-	*/
+	* @param EndFrame = Excluded */
 	virtual TUniquePtr<FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) = 0;
 
 	/** Copy new data (received from the network) into this history, returns frame to resimulate from if @param CompareDataForRewind is set to true and compared data differ enough */
@@ -80,7 +84,10 @@ struct FBaseRewindHistory
 	/** Validate data in history buffer received from clients on the server */
 	virtual void ValidateDataInHistory(const void* ActorComponent) {}
 
-	/** Debug the data from the array of uint8 that will be transferred from client to server */
+	/** Print custom string along with values for each entry in history */
+	FORCEINLINE virtual void DebugData(const FString& DebugText) { }
+
+	/** Get arrays of frame values for each entry in the history */
 	FORCEINLINE virtual void DebugData(const Chaos::FBaseRewindHistory& NewData, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) { }
 	UE_DEPRECATED(5.4, "Deprecated, use DebugData() instead")
 	FORCEINLINE virtual void DebugDatas(const Chaos::FBaseRewindHistory& NewDatas, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) { DebugData(NewDatas, LocalFrames, ServerFrames, InputFrames); }
@@ -93,6 +100,9 @@ struct FBaseRewindHistory
 
 	/** Return the most up to date frame entry in history */
 	virtual const int32 GetLatestFrame() const { return INDEX_NONE; }
+
+	/** Resize the history */
+	virtual void ResizeDataHistory(const int32 FrameCount, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes) {}
 };
 
 /** Templated data history holding a data buffer */
@@ -101,6 +111,12 @@ struct TDataRewindHistory : public FBaseRewindHistory
 {
 	FORCEINLINE TDataRewindHistory(const int32 FrameCount, const bool bIsHistoryLocal) :
 		bIsLocalHistory(bIsHistoryLocal), DataHistory(), LatestFrame(0), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
+	{
+		DataHistory.SetNum(NumFrames);
+	}
+
+	FORCEINLINE TDataRewindHistory(const int32 FrameCount) :
+		DataHistory(), LatestFrame(0), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
 	{
 		DataHistory.SetNum(NumFrames);
 	}
@@ -140,6 +156,12 @@ public :
 	/** Extract states at a given time */
 	FORCEINLINE virtual bool ExtractData(const int32 ExtractFrame, const bool bResetSolver, void* HistoryData, const bool bExactFrame = false) override
 	{
+		// Early out if we are trying to extract data but the latest data is more than the whole buffer size old
+		if (ExtractFrame - NumFrames > GetLatestFrame())
+		{
+			return false;
+		}
+
 		const int32 ExtractIndex = GetFrameIndex(ExtractFrame);
 		if (ExtractFrame == DataHistory[ExtractIndex].LocalFrame)
 		{
@@ -321,6 +343,17 @@ public :
 		return LatestFrame;
 	}
 
+	/** Resize the history */
+	FORCEINLINE void ResizeDataHistory(const int32 FrameCount, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes) override
+	{
+		if (FrameCount > 0 && NumFrames != FrameCount)
+		{
+			NumFrames = FrameCount;
+			DataHistory.SetNum(NumFrames, AllowShrinking);
+			CurrentIndex = GetFrameIndex(CurrentFrame);
+		}
+	}
+
 	FORCEINLINE const uint32 GetFrameIndex(const int32 Frame) const
 	{
 		return FMath::Abs(Frame % NumFrames);
@@ -331,7 +364,7 @@ protected :
 	/** Check if the history is on the local/remote client*/
 	bool bIsLocalHistory;
 
-	/**  Data buffer holding the history */
+	/** Data buffer holding the history */
 	TArray<DataType> DataHistory;
 
 	/** The most up to date frame entry in history */
