@@ -7,6 +7,7 @@
 
 class FPrimitiveDrawInterface;
 class IToolsContextRenderAPI;
+class FMaterialRenderProxy;
 
 /**
  * FToolDataVisualizer is a utility class for Tool and Gizmo implementations
@@ -229,6 +230,12 @@ public:
 		InternalDrawSquare(Center, SideA, SideB, LineColor, LineThickness, bDepthTested);
 	}
 
+	/** Draw a 3D disc at given position/normal with the given parameters. Tangent axes are defined internally */
+	template<typename PointType>
+	void DrawDisc(const PointType& Position, const PointType& Normal, float Radius, int Steps, const FColor& Color, FMaterialRenderProxy* RenderProxy, bool bDepthTestedIn)
+	{
+		InternalDrawDisc(Position, Normal, Radius, Steps, Color, RenderProxy, bDepthTestedIn);
+	}
 
 protected:
 	/** We use this for drawing, extracted in InitializeFrame */
@@ -263,5 +270,6 @@ protected:
 	INTERACTIVETOOLSFRAMEWORK_API virtual void InternalDrawSquare(const FVector& Center, const FVector& SideA, const FVector& SideB, const FLinearColor& Color, float LineThickness, bool bDepthTested);
 	// actually does the X drawing
 	INTERACTIVETOOLSFRAMEWORK_API virtual void InternalDrawViewFacingX(const FVector& Position, float Width, const FLinearColor& Color, float LineThickness, bool bDepthTested);
-
+	// actually does the disc drawing
+	INTERACTIVETOOLSFRAMEWORK_API virtual void InternalDrawDisc(const FVector& Position, const FVector& Normal, float Radius, int Steps, const FColor& Color, FMaterialRenderProxy* RenderProxy, bool bDepthTested);
 };
