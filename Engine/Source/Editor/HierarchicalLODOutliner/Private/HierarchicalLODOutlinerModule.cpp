@@ -12,6 +12,7 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
+#include "HLOD/HLODSetup.h"
 #include "HLODOutliner.h"
 #include "HierarchicalLODUtilitiesModule.h"
 #include "IHierarchicalLODUtilities.h"

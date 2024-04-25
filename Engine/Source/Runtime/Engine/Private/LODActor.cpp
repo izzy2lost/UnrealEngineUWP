@@ -10,6 +10,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Engine/CollisionProfile.h"
 #include "HLOD/HLODProxyDesc.h"
+#include "HLOD/HLODSetup.h"
 #include "Misc/MapErrors.h"
 #include "Logging/MessageLog.h"
 #include "Materials/MaterialInterface.h"

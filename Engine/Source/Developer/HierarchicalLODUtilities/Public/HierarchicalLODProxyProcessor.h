@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/Guid.h"
 #include "Containers/Ticker.h"
-#include "GameFramework/WorldSettings.h"
+#include "HLOD/HLODSetup.h"
 #include "MeshUtilities.h"
 #include "IMeshReductionInterfaces.h"
 #include "UObject/StrongObjectPtr.h"
@@ -73,3 +73,7 @@ private:
 	/** Critical section to keep JobActorMap/ToProcessJobs access thread-safe */
 	FCriticalSection StateLock;	
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "GameFramework/WorldSettings.h"
+#endif

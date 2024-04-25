@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "HLOD/HLODProxyDesc.h"
+#include "HLOD/HLODSetup.h"
 #include "Materials/Material.h"
 
 #if WITH_EDITOR

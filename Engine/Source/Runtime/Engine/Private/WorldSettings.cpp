@@ -22,7 +22,6 @@
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/EnterpriseObjectVersion.h"
-#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "SceneManagement.h"
 #include "AI/AISystemBase.h"
 #include "AI/NavigationSystemConfig.h"
@@ -36,6 +35,7 @@
 #include "Editor.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "HierarchicalLOD.h"
+#include "HLOD/HLODSetup.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #endif 
 
@@ -1127,46 +1127,6 @@ void AWorldSettings::RewindForReplay()
 	CinematicTimeDilation = 1.0;
 	bWorldGravitySet = false;
 	bHighPriorityLoading = false;
-}
-
-#if WITH_EDITORONLY_DATA
-
-bool FHierarchicalSimplification::Serialize(FArchive& Ar)
-{
-	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
-
-	// Don't actually serialize, just write the custom version for PostSerialize
-	return false;
-}
-
-void FHierarchicalSimplification::PostSerialize(const FArchive& Ar)
-{
-	if (Ar.IsLoading())
-	{
-		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::HierarchicalSimplificationMethodEnumAdded)
-		{
-			SimplificationMethod = bSimplifyMesh_DEPRECATED ? EHierarchicalSimplificationMethod::Simplify : EHierarchicalSimplificationMethod::Merge;
-		}
-	}
-}
-
-#endif
-
-FMaterialProxySettings* FHierarchicalSimplification::GetSimplificationMethodMaterialSettings()
-{
-	switch (SimplificationMethod)
-	{
-	case EHierarchicalSimplificationMethod::Merge:
-		return &MergeSetting.MaterialSettings;
-
-	case EHierarchicalSimplificationMethod::Simplify:
-		return &ProxySetting.MaterialSettings;
-
-	case EHierarchicalSimplificationMethod::Approximate:
-		return &ApproximateSettings.MaterialSettings;
-	}
-
-	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

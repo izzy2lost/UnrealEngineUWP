@@ -53,6 +53,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstance.h"
 #include "UObject/ICookInfo.h"
+#include "HLOD/HLODSetup.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHierarchicalLODUtilities, Verbose, All);
 

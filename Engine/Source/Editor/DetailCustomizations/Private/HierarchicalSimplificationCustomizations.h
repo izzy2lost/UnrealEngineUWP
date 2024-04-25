@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "GameFramework/WorldSettings.h"
+#include "HLOD/HLODSetup.h"
 #include "IPropertyTypeCustomization.h"
 #include "Layout/Visibility.h"
 #include "OverrideResetToDefault.h"
@@ -29,3 +29,7 @@ protected:
 
 	TSharedPtr< IPropertyHandle > SimplificationMethodPropertyHandle;
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "GameFramework/WorldSettings.h"
+#endif

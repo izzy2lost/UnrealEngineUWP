@@ -18,6 +18,7 @@
 #include "EngineStats.h"
 #include "GameFramework/Pawn.h"
 #include "HLOD/HLODBatchingPolicy.h"
+#include "HLOD/HLODSetup.h"
 #include "PSOPrecache.h"
 #include "AI/NavigationSystemBase.h"
 #include "AI/Navigation/NavigationRelevantData.h"
@@ -4897,7 +4898,7 @@ const bool UPrimitiveComponent::ShouldGenerateAutoLOD(const int32 HierarchicalLe
 	bool bExcluded = false;
 	if (HierarchicalLevelIndex < CHAR_BIT && IsExcludedFromHLODLevel(EHLODLevelExclusion(1 << HierarchicalLevelIndex)))
 	{
-		const TArray<struct FHierarchicalSimplification>& HLODSetup = GetOwner()->GetLevel()->GetWorldSettings()->GetHierarchicalLODSetup();
+		const TArray<FHierarchicalSimplification>& HLODSetup = GetOwner()->GetLevel()->GetWorldSettings()->GetHierarchicalLODSetup();
 		if (HLODSetup.IsValidIndex(HierarchicalLevelIndex))
 		{
 			if (HLODSetup[HierarchicalLevelIndex].bAllowSpecificExclusion)

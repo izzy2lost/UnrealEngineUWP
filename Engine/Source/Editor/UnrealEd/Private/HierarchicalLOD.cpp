@@ -13,7 +13,7 @@
 #include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
 #include "Misc/MapErrors.h"
-#include "GameFramework/WorldSettings.h"
+#include "HLOD/HLODSetup.h"
 
 #include "Algo/Transform.h"
 #include "EditorLevelUtils.h"
