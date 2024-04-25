@@ -886,10 +886,33 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
 
 	TPromise<TDefaultErrorResult<FAuthLoginEASImpl>> Promise;
 	TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> Future = Promise.GetFuture();
-
-	EOS_Async(EOS_Auth_Login, AuthHandle, MoveTemp(LoginOptionsResult.GetOkValue()),
-	[this, bIsPersistentAuthLogin, PlatformUserId = LoginParams.PlatformUserId, LinkAccountFlags, bAutoLinkAccount = LoginParams.bAutoLinkAccount, Promise = MoveTemp(Promise)](const EOS_Auth_LoginCallbackInfo* Data) mutable -> void
+    
+	FEOSAuthLoginOptions LoginOptions = MoveTemp(LoginOptionsResult.GetOkValue());
+    
+#if PLATFORM_IOS
+	const EDeviceScreenOrientation OriginalDeviceOrientation = FPlatformMisc::GetAllowedDeviceOrientation();
+	// TODO move this into ASWebAuthenticationSession callbacks when they become available.
+	if (LoginOptions.Credentials->Type == EOS_ELoginCredentialType::EOS_LCT_AccountPortal)
 	{
+		FPlatformMisc::ForceUpdateDeviceOrientation(EDeviceScreenOrientation::Portrait);
+	}
+#endif
+
+	EOS_Async(EOS_Auth_Login, AuthHandle, MoveTemp(LoginOptions),
+	[this, bIsPersistentAuthLogin, PlatformUserId = LoginParams.PlatformUserId, LinkAccountFlags, bAutoLinkAccount = LoginParams.bAutoLinkAccount, Promise = MoveTemp(Promise)
+#if PLATFORM_IOS
+		, OriginalDeviceOrientation
+#endif
+	](const EOS_Auth_LoginCallbackInfo* Data) mutable -> void
+	{
+#if PLATFORM_IOS
+        // TODO move this into ASWebAuthenticationSession callbacks when they become available.
+		if (FPlatformMisc::GetAllowedDeviceOrientation() != OriginalDeviceOrientation)
+		{
+			FPlatformMisc::ForceUpdateDeviceOrientation(OriginalDeviceOrientation);
+		}
+#endif
+        
 		UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] EOS_Auth_Login Result: [%s]"), *LexToString(Data->ResultCode));
 
 		if (Data->ResultCode == EOS_EResult::EOS_Success)

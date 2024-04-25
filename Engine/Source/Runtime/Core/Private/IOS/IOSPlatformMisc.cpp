@@ -365,6 +365,16 @@ void FIOSPlatformMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation NewA
 #endif
 }
 
+void FIOSPlatformMisc::ForceUpdateDeviceOrientation(EDeviceScreenOrientation NewDeviceOrientation)
+{
+	SetAllowedDeviceOrientation(NewDeviceOrientation);
+
+	dispatch_async(dispatch_get_main_queue(), ^
+	{
+		[[IOSAppDelegate GetDelegate].IOSController setNeedsUpdateOfSupportedInterfaceOrientations];
+	});
+}
+
 bool FIOSPlatformMisc::HasPlatformFeature(const TCHAR* FeatureName)
 {
 	if (FCString::Stricmp(FeatureName, TEXT("Metal")) == 0)
