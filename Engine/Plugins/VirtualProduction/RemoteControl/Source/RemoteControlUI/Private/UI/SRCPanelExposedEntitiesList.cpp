@@ -84,41 +84,34 @@ public:
 		ActiveProtocol = InArgs._ActiveProtocol;
 		Entity = InArgs._Entity;
 
-		FSuperRowType::FArguments SuperArgs = FSuperRowType::FArguments();
-
-		SuperArgs.OnCanAcceptDrop_Lambda([this] (const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone, TSharedPtr<SRCPanelTreeNode> Node)
-		{
-			return InDropZone;
-		});
-
-		SuperArgs.OnAcceptDrop(InArgs._OnAcceptDrop);
-		SuperArgs.OnDragDetected(InArgs._OnDragDetected);
-		SuperArgs.OnDragEnter(InArgs._OnDragEnter);
-		SuperArgs.OnDragLeave(InArgs._OnDragLeave);
-
-		SuperArgs.ExpanderStyleSet(&FCoreStyle::Get());
-		SuperArgs.Padding(InArgs._Padding);
-		SuperArgs.ShowWires(false);
-		SuperArgs.Style(InArgs._Style);
+		FSuperRowType::FArguments SuperArgs = FSuperRowType::FArguments()
+			.OnCanAcceptDrop_Lambda(
+				[](const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone, TSharedPtr<SRCPanelTreeNode> Node)
+				{
+					return InDropZone;
+				})
+			.OnAcceptDrop(InArgs._OnAcceptDrop)
+			.OnDragDetected(InArgs._OnDragDetected)
+			.OnDragEnter(InArgs._OnDragEnter)
+			.OnDragLeave(InArgs._OnDragLeave)
+			.ExpanderStyleSet(&FCoreStyle::Get())
+			.Padding(InArgs._Padding)
+			.ShowWires(false)
+			.Style(InArgs._Style);
 
 		FSuperRowType::Construct(SuperArgs, OwnerTableView);
 	}
 
 	TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
 	{
-		const FName& ActiveProtocolName = ActiveProtocol.Get(NAME_None);
-
 		if (Entity.IsValid())
 		{
-			if (Entity->HasChildren() && InColumnName == RemoteControlPresetColumns::Description)
-			{
-				// -- Row is for TreeView --
-				SHorizontalBox::FSlot* InnerContentSlotNativePtr = nullptr;
+			TSharedRef<SHorizontalBox> HorizontalBox = SNew(SHorizontalBox)
+				.Clipping(EWidgetClipping::OnDemand);
 
-				TSharedRef<SWidget> TreeNode = SNew(SHorizontalBox)
-					.Clipping(EWidgetClipping::OnDemand)
-					
-					+ SHorizontalBox::Slot()
+			if (InColumnName == RemoteControlPresetColumns::OwnerName)
+			{
+				HorizontalBox->AddSlot()
 					.AutoWidth()
 					.HAlign(HAlign_Right)
 					.VAlign(VAlign_Fill)
@@ -126,35 +119,30 @@ public:
 						SAssignNew(ExpanderArrowWidget, SExpanderArrow, SharedThis(this))
 						.StyleSet(ExpanderStyleSet)
 						.ShouldDrawWires(false)
-					]
-
-					+ SHorizontalBox::Slot()
-					.FillWidth(1)
-					.Expose(InnerContentSlotNativePtr)
-					.Padding(8.f, 2.f)
-					[
-						Entity->GetWidget(InColumnName, ActiveProtocolName)
 					];
-
-				InnerContentSlot = InnerContentSlotNativePtr;
-
-				return TreeNode;
-
 			}
-			else
+
+			// todo: this alignment should be handled by the generated widgets for each column themselves
+			EHorizontalAlignment HorizontalAlignment = HAlign_Fill;
+			if (InColumnName == RemoteControlPresetColumns::Status || InColumnName == RemoteControlPresetColumns::BindingStatus)
 			{
-				const bool bAlignCenter = InColumnName == RemoteControlPresetColumns::Status || InColumnName == RemoteControlPresetColumns::BindingStatus;
-				
-				const bool bAlignLeft = InColumnName == RemoteControlPresetColumns::Mask;
-
-				return SNew(SBox)
-					.Padding(FMargin(4.f, 2.f))
-					.HAlign(bAlignCenter ? HAlign_Center : bAlignLeft ? HAlign_Left : HAlign_Fill)
-					.VAlign(VAlign_Center)
-					[
-						Entity->GetWidget(InColumnName, ActiveProtocolName)
-					];
+				HorizontalAlignment = HAlign_Center;
 			}
+			else if (InColumnName == RemoteControlPresetColumns::Mask)
+			{
+				HorizontalAlignment = HAlign_Left;
+			}
+
+			HorizontalBox->AddSlot()
+				.FillWidth(1.f)
+				.Padding(2.f, 0.f)
+				.HAlign(HorizontalAlignment)
+				.VAlign(VAlign_Center)
+				[
+					Entity->GetWidget(InColumnName, ActiveProtocol.Get(NAME_None))
+				];
+
+			return HorizontalBox;
 		}
 
 		return SNullWidget::NullWidget;
@@ -369,7 +357,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::OwnerName)
-			.DefaultLabel(LOCTEXT("RCPresetOwnerNameColumnHeader", "Owner Name"))
+			.DefaultLabel(LOCTEXT("RCPresetOwnerNameColumnHeader", "Owner"))
 			.HAlignHeader(HAlign_Center)
 			.FillWidth(0.1f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
@@ -1413,13 +1401,24 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 	MenuBuilder.BeginSection(FName(TEXT("RCGroupingType")), LOCTEXT("RCGroupingTypeHeader", "Group by"));
 
 	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RCNoGroupingLabel", "No Grouping"),
+		LOCTEXT("RCNoGroupingTooltip", "No grouping set. Show items as a flat list"),
+		FSlateIcon(),
+		FUIAction(
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, EFieldGroupType::None),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupType == EFieldGroupType::None; })),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton);
+
+	MenuBuilder.AddMenuEntry(
 		LOCTEXT("RCGroupPropertyIdLabel", "Property Id"),
 		LOCTEXT("RCGroupPropertyIdTooltip", "Group by Property Id"),
 		FSlateIcon(),
 		FUIAction(
 		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, EFieldGroupType::PropertyId),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this]() { return CurrentGroupType == EFieldGroupType::PropertyId; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupType == EFieldGroupType::PropertyId; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1431,7 +1430,7 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 		FUIAction(
 		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, EFieldGroupType::Owner),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this]() { return CurrentGroupType == EFieldGroupType::Owner; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupType == EFieldGroupType::Owner; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1448,7 +1447,7 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 		FUIAction(
 		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCGroupOrder::Ascending),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this] () { return CurrentGroupSortType == ERCGroupOrder::Ascending; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupSortType == ERCGroupOrder::Ascending; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1460,7 +1459,7 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 		FUIAction(
 		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCGroupOrder::Descending),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this]() { return CurrentGroupSortType == ERCGroupOrder::Descending; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupSortType == ERCGroupOrder::Descending; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1472,7 +1471,7 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 
 void SRCPanelExposedEntitiesList::OnCreateFieldGroup(EFieldGroupType InFieldGroupType)
 {
-	CurrentGroupType = CurrentGroupType == InFieldGroupType? EFieldGroupType::None : InFieldGroupType;
+	CurrentGroupType = InFieldGroupType;
 	CreateFieldGroup();
 	OrderGroups();
 }

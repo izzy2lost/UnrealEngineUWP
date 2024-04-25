@@ -10,9 +10,14 @@
 /** Grouping type available */
 enum class EFieldGroupType
 {
+	/** No Grouping. Will be shown as a flat list */
 	None,
+
+	/** Fields with same property id are grouped together */
 	PropertyId,
-	Owner
+
+	/** Fields with same owner are grouped together */
+	Owner,
 };
 
 ENUM_CLASS_FLAGS(EFieldGroupType)
@@ -75,6 +80,12 @@ private:
 
 	/** Field key value of this group */
 	FName FieldKey;
+
+	/** Shared owner of the entity group */
+	FName OwnerName;
+
+	/** Shared property id of the entity group */
+	FName PropertyIdName;
 
 	/** Field group type of this group */
 	EFieldGroupType GroupType = EFieldGroupType::None;
