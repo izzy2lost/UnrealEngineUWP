@@ -523,17 +523,22 @@ void FShaderMapResource::BeginCreateAllShaders()
 	{
 		for (int32 ShaderIndex = 0; ShaderIndex < Resource->GetNumShaders(); ++ShaderIndex)
 		{
-			Resource->GetShader(ShaderIndex);
+			Resource->GetShader(ShaderIndex, true /*bRequired*/);
 		}
 	});
 }
 
-FRHIShader* FShaderMapResource::CreateShaderOrCrash(int32 ShaderIndex)
+FRHIShader* FShaderMapResource::CreateShaderOrCrash(int32 ShaderIndex, bool bRequired)
 {
 	FRHIShader* Shader = nullptr;
 	// create before taking the lock. This may cause multiple creations, but it's better
 	// than a potential oversubscription deadlock, since CreateShader can spawn async tasks
-	FRHIShader* CreatedShader = CreateRHIShaderOrCrash(ShaderIndex);	// guaranteed to return non-null
+	FRHIShader* CreatedShader = CreateRHIShaderOrCrash(ShaderIndex, bRequired);	// guaranteed to return non-null if required is set
+	if (CreatedShader == nullptr)
+	{
+		check(!bRequired);
+		return nullptr;
+	}
 
 	{
 		// Most shadermaps have <100 shaders, and less than a half of them can be created. 
@@ -593,7 +598,7 @@ FSHAHash FShaderMapResource_InlineCode::GetShaderHash(int32 ShaderIndex)
 	return Code->ShaderHashes[ShaderIndex];
 }
 
-FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIndex)
+FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderMapResource_InlineCode::CreateRHIShaderOrCrash);
 #if STATS
@@ -656,8 +661,10 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	}
 	if (UNLIKELY(RHIShader == nullptr))
 	{
-		UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_InlineCode::InitRHI is unable to create a shader: frequency=%d, hash=%s."), static_cast<int32>(Frequency), *ShaderHash.ToString());
-		// unreachable
+		if (bRequired)
+		{
+			UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_InlineCode::InitRHI is unable to create a shader: frequency=%d, hash=%s."), static_cast<int32>(Frequency), *ShaderHash.ToString());
+		}
 		return nullptr;
 	}
 

@@ -359,7 +359,7 @@ public:
 		return RHIShaders[ShaderIndex].load(std::memory_order_acquire) != nullptr;
 	}
 
-	inline FRHIShader* GetShader(int32 ShaderIndex)
+	inline FRHIShader* GetShader(int32 ShaderIndex, bool bRequired = true)
 	{
 		// This is a double checked locking. This trickery arises from the fact that we're
 		// synchronizing two threads: one that takes a lock and another that doesn't.
@@ -368,7 +368,7 @@ public:
 		FRHIShader* Shader = RHIShaders[ShaderIndex].load(std::memory_order_acquire);
 		if (UNLIKELY(Shader == nullptr))
 		{
-			Shader = CreateShaderOrCrash(ShaderIndex);
+			Shader = CreateShaderOrCrash(ShaderIndex, bRequired);
 		}
 		return Shader;
 	}
@@ -434,7 +434,7 @@ protected:
 	}
 
 	/** Creates RHI shader, with a reference (so the caller can release). Never returns nullptr (inability to create is Fatal) */
-	virtual FRHIShader*	CreateRHIShaderOrCrash(int32 ShaderIndex) = 0;
+	virtual FRHIShader*	CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired) = 0;
 
 	/** Signal the shader library that it can release compressed shader code for a shader that it keeps preloaded in memory. */
 	virtual void ReleasePreloadedShaderCode(int32 ShaderIndex) { /* no-op when not using shader library */ };
@@ -446,7 +446,7 @@ protected:
 private:
 
 	/** Creates an entry in RHIShaders array and registers it among the raytracing libs if needed. Created shader is returned. */
-	RENDERCORE_API FRHIShader* CreateShaderOrCrash(int32 ShaderIndex);
+	RENDERCORE_API FRHIShader* CreateShaderOrCrash(int32 ShaderIndex, bool bRequired);
 
 	/** This lock is to prevent two threads creating the same RHIShaders element. It is only taken if the element is to be created. */
 	FCriticalSection RHIShadersCreationGuard;
@@ -548,7 +548,7 @@ public:
 
 	// FShaderMapResource interface
 	RENDERCORE_API virtual FSHAHash GetShaderHash(int32 ShaderIndex) override;
-	RENDERCORE_API virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex) override;
+	RENDERCORE_API virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired) override;
 	virtual uint32 GetSizeBytes() const override { return sizeof(*this) + GetAllocatedSize(); }
 
 	TRefCountPtr<FShaderMapResourceCode> Code;
@@ -1081,13 +1081,18 @@ public:
 
 	inline ShaderType* operator->() const { return ShaderContent; }
 
-	inline FRHIShader* GetRHIShaderBase(EShaderFrequency Frequency) const
+	inline FRHIShader* GetRHIShaderBase(EShaderFrequency Frequency, bool bRequired = true) const
 	{
 		FRHIShader* RHIShader = nullptr;
 		if(ShaderContent)
 		{
 			checkSlow(ShaderContent->GetFrequency() == Frequency);
-			RHIShader = GetResourceChecked().GetShader(ShaderContent->GetResourceIndex());
+			RHIShader = GetResourceChecked().GetShader(ShaderContent->GetResourceIndex(), bRequired);
+			if (RHIShader == nullptr)
+			{
+				UE_LOG(LogShaders, Log, TEXT("Failed to create shader for type %s with resource index %d."), GetType()->GetName(), ShaderContent->GetResourceIndex());
+				return nullptr;
+			}
 			checkSlow(RHIShader->GetFrequency() == Frequency);
 		}
 		return RHIShader;

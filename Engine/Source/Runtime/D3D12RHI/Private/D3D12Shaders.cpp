@@ -63,6 +63,7 @@ static bool ValidateShaderIsUsable(FD3D12ShaderData* InShader, EShaderFrequency 
 #if D3D12RHI_NEEDS_SHADER_FEATURE_CHECKS
 	if ((InFrequency == SF_Mesh || InFrequency == SF_Amplification) && !GRHISupportsMeshShadersTier0)
 	{
+		UE_LOG(LogD3D12RHI, Log, TEXT("Trying to create Mesh or Amplication shader but RHI doesn't support MeshShaders"));
 		return false;
 	}
 
@@ -70,6 +71,7 @@ static bool ValidateShaderIsUsable(FD3D12ShaderData* InShader, EShaderFrequency 
 	// but RT shaders are compiled to DXIL and can use wave ops (HW support is guaranteed too).
 	if (EnumHasAnyFlags(InShader->Features, EShaderCodeFeatures::WaveOps) && !GRHISupportsWaveOperations && !IsRayTracingShaderFrequency(InFrequency))
 	{
+		UE_LOG(LogD3D12RHI, Log, TEXT("Trying to create shader with WaveOps but RHI doesn't support WaveOperations"));
 		return false;
 	}
 
@@ -78,17 +80,20 @@ static bool ValidateShaderIsUsable(FD3D12ShaderData* InShader, EShaderFrequency 
 		if (GRHIBindlessSupport == ERHIBindlessSupport::Unsupported ||
 			(GRHIBindlessSupport == ERHIBindlessSupport::RayTracingOnly && !IsRayTracingShaderFrequency(InFrequency)))
 		{
+			UE_LOG(LogD3D12RHI, Log, TEXT("Trying to create shader with bindless resources or samplers but RHI doesn't support Bindless"));
 			return false;
 		}
 	}
 
 	if (InFrequency == SF_Pixel && EnumHasAnyFlags(InShader->Features, EShaderCodeFeatures::StencilRef) && !GRHISupportsStencilRefFromPixelShader)
 	{
+		UE_LOG(LogD3D12RHI, Log, TEXT("Trying to create pixel shader with stencil ref but RHI doesn't support StencilRefFromPixelShader"));
 		return false;
 	}
 
 	if (EnumHasAnyFlags(InShader->Features, EShaderCodeFeatures::BarycentricsSemantic) && !GRHIGlobals.SupportsBarycentricsSemantic)
 	{
+		UE_LOG(LogD3D12RHI, Log, TEXT("Trying to create shader with BarycentricsSemantic but RHI doesn't support BarycentricsSemantic"));
 		return false;
 	}
 #endif

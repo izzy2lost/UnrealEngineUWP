@@ -278,7 +278,7 @@ public:
 
 	// FShaderMapResource interface
 	virtual FSHAHash GetShaderHash(int32 ShaderIndex) override;
-	virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex) override;
+	virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired) override;
 	virtual void ReleasePreloadedShaderCode(int32 ShaderIndex) override;
 	virtual bool TryRelease() override;
 	virtual uint32 GetSizeBytes() const override { return sizeof(*this) + GetAllocatedSize(); }
@@ -1203,7 +1203,7 @@ FSHAHash FShaderMapResource_SharedCode::GetShaderHash(int32 ShaderIndex)
 	return LibraryInstance->Library->GetShaderHash(ShaderMapIndex, ShaderIndex);
 }
 
-FRHIShader* FShaderMapResource_SharedCode::CreateRHIShaderOrCrash(int32 ShaderIndex)
+FRHIShader* FShaderMapResource_SharedCode::CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired)
 {
 	SCOPED_LOADTIMER(FShaderMapResource_SharedCode_InitRHI);
 #if STATS
@@ -1219,8 +1219,11 @@ FRHIShader* FShaderMapResource_SharedCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	TRefCountPtr<FRHIShader> CreatedShader = LibraryInstance->GetOrCreateShader(LibraryShaderIndex);
 	if (UNLIKELY(CreatedShader == nullptr))
 	{
-		UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_SharedCode::InitRHI is unable to create a shader"));
-		// unreachable
+		if (bRequired)
+		{
+			UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_SharedCode::InitRHI is unable to create a shader"));
+		}
+
 		return nullptr;
 	}
 

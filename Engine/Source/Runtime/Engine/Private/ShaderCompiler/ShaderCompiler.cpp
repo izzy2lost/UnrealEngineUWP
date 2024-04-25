@@ -9356,10 +9356,14 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 			{
 				for (TShaderRef<FShader> GlobalShader : ComputeShadersToPrecache)
 				{
+					// PSO precache shaders are not required to all load correctly
+					bool bRequired = false;
 					const TCHAR* TypeName = GlobalShader.GetType()->GetName();
-					FRHIComputeShader* RHIComputeShader = GlobalShader.GetComputeShader();
-					check(RHIComputeShader);
-					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader, TypeName);
+					FRHIComputeShader* RHIComputeShader = static_cast<FRHIComputeShader*>(GlobalShader.GetRHIShaderBase(SF_Compute, bRequired));
+					if (RHIComputeShader)
+					{
+						PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader, TypeName);
+					}
 				}
 			});
 	}
