@@ -467,7 +467,7 @@ namespace Gauntlet
 		/// Shutdown the session by killing any remaining processes.
 		/// </summary>
 		/// <returns></returns>
-		public void Shutdown()
+		public void Shutdown(bool GenerateDumpOnKill = false)
 		{
 			// Kill any remaining client processes
 			if (ClientApps != null)
@@ -479,7 +479,7 @@ namespace Gauntlet
 					Log.Info("Shutting down {0} clients", RunningApps.Count);
 					RunningApps.ForEach(App =>
 					{
-						App.Kill();
+						App.Kill(GenerateDumpOnKill);
 						// Apps that are still running have timed out => fail
 						IDeviceUsageReporter.RecordEnd(App.Device.Name, App.Device.Platform, IDeviceUsageReporter.EventType.Test, IDeviceUsageReporter.EventState.Success);
 					});
@@ -501,12 +501,12 @@ namespace Gauntlet
 				if (ServerApp.HasExited == false)
 				{
 					Log.Info("Shutting down server");
-					ServerApp.Kill();
+					ServerApp.Kill(GenerateDumpOnKill);
 				}
 			}
 
 			// kill anything that's left
-			RunningRoles.Where(R => !R.Role.InstallOnly && R.AppInstance.HasExited == false).ToList().ForEach(R => R.AppInstance.Kill());
+			RunningRoles.Where(R => !R.Role.InstallOnly && R.AppInstance.HasExited == false).ToList().ForEach(R => R.AppInstance.Kill(GenerateDumpOnKill));
 
 			// Wait for it all to end
 			RunningRoles.Where(R => !R.Role.InstallOnly).ToList().ForEach(R => R.AppInstance.WaitForExit());

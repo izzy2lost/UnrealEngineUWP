@@ -50,7 +50,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Kills the process if its running (no need to call WaitForExit)
 		/// </summary>
-		void Kill();
+		void Kill(bool GenerateDumpOnKill = false);
 
 		/// <summary>
 		/// Waits for the process to exit normally

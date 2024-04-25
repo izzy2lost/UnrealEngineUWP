@@ -1558,7 +1558,7 @@ namespace Gauntlet
 			return ExitCode;
 		}
 
-		public void Kill()
+		public void Kill(bool GenerateDump)
 		{
 			if (!HasExited && !AndroidDevice.Disposed)
 			{

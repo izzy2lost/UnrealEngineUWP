@@ -5,12 +5,8 @@ using System.Collections.Generic;
 using System.IO;
 using AutomationTool;
 using UnrealBuildTool;
-using System.Threading;
 using System.Text.RegularExpressions;
-using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Security.Cryptography;
 using EpicGames.Core;
 
 namespace Gauntlet
@@ -1073,7 +1069,7 @@ namespace Gauntlet
 
 			// Shutdown the instance so we can access all files, but do not null it or shutdown the UnrealApp because we still need
 			// access to these objects and their resources! Final cleanup is done in CleanupTest()
-			TestInstance.Shutdown();
+			TestInstance.Shutdown(InReason == StopReason.MaxDuration || GetTestResult() == TestResult.TimedOut);
 
 			try
 			{

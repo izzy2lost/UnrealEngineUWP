@@ -6,6 +6,9 @@ using AutomationTool;
 using UnrealBuildTool;
 using Gauntlet.Utils;
 using static AutomationTool.ProcessResult;
+using EpicGames.Core;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 namespace Gauntlet
 {
@@ -170,6 +173,26 @@ namespace Gauntlet
 			return (InstallCache as DesktopCommonAppInstall<TargetDeviceWindows>).ArtifactPath;
 		}
 
+		public override bool CopyCrashDumps()
+		{
+			// On Windows platform, check only if any dmp file exists.
+			// It does not need to be fetched from a remote location.
+			ITargetDevice ThisDevice = (ITargetDevice)this;
+			DirectoryInfo DirInfo = new DirectoryInfo(ThisDevice.CrashDumpPath);
+			if (DirInfo.Exists)
+			{
+				// See if there is a crash dump for this test run
+				foreach (FileInfo CrashDumpFileInfo in DirInfo.GetFiles("*.dmp", SearchOption.AllDirectories))
+				{
+					if (CrashDumpFileInfo.Exists)
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
 		#region Legacy Implementations
 		public override IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
@@ -316,9 +339,72 @@ namespace Gauntlet
 
 	public class WindowsAppInstance : DesktopCommonAppInstance<WindowsAppInstall, TargetDeviceWindows>
 	{
+		[DllImport("dbghelp", SetLastError = true)]
+		private static extern bool MiniDumpWriteDump(SafeHandle hProcess, uint ProcessId, SafeHandle hFile, MINIDUMP_TYPE DumpType, IntPtr ExceptionParam, IntPtr UserStreamParam, IntPtr CallbackParam);
+
+		private enum MINIDUMP_TYPE
+		{
+			MiniDumpNormal = 0x00000000,
+			MiniDumpWithDataSegs = 0x00000001,
+			MiniDumpWithFullMemory = 0x00000002,
+			MiniDumpWithHandleData = 0x00000004,
+			MiniDumpFilterMemory = 0x00000008,
+			MiniDumpScanMemory = 0x00000010,
+			MiniDumpWithUnloadedModules = 0x00000020,
+			MiniDumpWithIndirectlyReferencedMemory = 0x00000040,
+			MiniDumpFilterModulePaths = 0x00000080,
+			MiniDumpWithProcessThreadData = 0x00000100,
+			MiniDumpWithPrivateReadWriteMemory = 0x00000200,
+			MiniDumpWithoutOptionalData = 0x00000400,
+			MiniDumpWithFullMemoryInfo = 0x00000800,
+			MiniDumpWithThreadInfo = 0x00001000,
+			MiniDumpWithCodeSegs = 0x00002000,
+			MiniDumpWithoutAuxiliaryState = 0x00004000,
+			MiniDumpWithFullAuxiliaryState = 0x00008000,
+			MiniDumpWithPrivateWriteCopyMemory = 0x00010000,
+			MiniDumpIgnoreInaccessibleMemory = 0x00020000,
+			MiniDumpWithTokenInformation = 0x00040000,
+			MiniDumpWithModuleHeaders = 0x00080000,
+			MiniDumpFilterTriage = 0x00100000,
+			MiniDumpWithAvxXStateContext = 0x00200000,
+			MiniDumpWithIptTrace = 0x00400000,
+			MiniDumpScanInaccessiblePartialPages = 0x00800000,
+			MiniDumpFilterWriteCombinedMemory,
+			MiniDumpValidTypeFlags = 0x01ffffff
+		}
+
 		public WindowsAppInstance(WindowsAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
 			: base(InInstall, InProcess, InProcessLogFile)
 		{ }
+
+		protected override void GenerateDump()
+		{
+			bool WroteDump = false;
+			if (!Directory.Exists(Device.CrashDumpPath))
+			{
+				Directory.CreateDirectory(Device.CrashDumpPath);
+			}
+			string DumpName = Path.Combine(Device.CrashDumpPath, Path.GetFileNameWithoutExtension(ProcessResult.ProcessObject.ProcessName) + ".dmp");
+			using (FileStream CrashDumpStream = File.Create(DumpName))
+			{
+				WroteDump = MiniDumpWriteDump(ProcessResult.ProcessObject.SafeHandle, (uint)ProcessResult.ProcessObject.Id,
+					CrashDumpStream.SafeFileHandle, MINIDUMP_TYPE.MiniDumpNormal, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+				if (!WroteDump)
+				{
+					Int32 Error = Marshal.GetLastWin32Error();
+					string ErrorMessage = new Win32Exception(Error).Message;
+					Log.Error(KnownLogEvents.Gauntlet, "Failed to write minidump. Error: {Error} (GetLastError={LastError})", ErrorMessage, Error);
+				}
+			}
+			if (!WroteDump)
+			{
+				File.Delete(DumpName);
+			}
+			else
+			{
+				Log.Info("Wrote minidump to {FileName}", DumpName);
+			}
+		}
 	}
 
 	public class Win64DeviceFactory : IDeviceFactory

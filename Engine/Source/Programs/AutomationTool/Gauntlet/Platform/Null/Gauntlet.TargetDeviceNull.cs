@@ -39,7 +39,7 @@ namespace Gauntlet
 
 		public int ExitCode { get { return 0; }}
 
-		public void Kill()
+		public void Kill(bool GenerateDump)
 		{
 			if (!HasExited)
 			{

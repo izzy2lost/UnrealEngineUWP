@@ -11,7 +11,6 @@ using UnrealBuildTool;
 using System.Text.RegularExpressions;
 using Gauntlet.Utils;
 
-
 namespace Gauntlet
 {
 	public abstract class TargetDeviceDesktopCommon : ITargetDevice
@@ -106,7 +105,12 @@ namespace Gauntlet
 			{
 				CleanArtifactDirectory(GetInstallArtifactPath());
 			}
+			// Clean crash dumps
+			ITargetDevice ThisDevice = (ITargetDevice)this;
+			CleanArtifactDirectory(ThisDevice.CrashDumpPath);
 		}
+
+		public virtual bool CopyCrashDumps() { return false; }
 
 		public virtual void InstallBuild(UnrealAppConfig AppConfig)
 		{
@@ -472,14 +476,20 @@ namespace Gauntlet
 			return ExitCode;
 		}
 
-		virtual public void Kill()
+		virtual public void Kill(bool bGenerateDump)
 		{
 			if (!HasExited)
 			{
+				if (bGenerateDump) 
+				{
+					GenerateDump();
+				}
 				WasKilled = true;
 				ProcessResult.ProcessObject.Kill(true);
 			}
 		}
+
+		virtual protected void GenerateDump() { }
 
 		/// <summary>
 		/// Reader thread when logging to file
