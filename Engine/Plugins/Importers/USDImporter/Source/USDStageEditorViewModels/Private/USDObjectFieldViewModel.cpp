@@ -503,7 +503,7 @@ void FUsdObjectFieldsViewModel::Refresh(const UE::FUsdStageWeak& InUsdStage, con
 					}
 					else if (Targets.size() > 1)
 					{
-						FString CombinedTargets = FString::Printf(TEXT("%d elements: ["));
+						FString CombinedTargets = FString::Printf(TEXT("%d elements: ["), static_cast<int32>(Targets.size()));
 						for (const pxr::SdfPath& Target : Targets)
 						{
 							CombinedTargets += UsdToUnreal::ConvertPath(Target) + TEXT(", ");
