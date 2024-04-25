@@ -9,6 +9,7 @@
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuCOE/StatePerformanceTesting.h"
 #include "Engine/SkeletalMesh.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "UObject/Package.h"
 
 class FSkeletalMeshLODRenderData;
@@ -492,12 +493,12 @@ void FRunningStressTest::FinishTest()
 
 void FRunningStressTest::CaptureInstanceParameters(UCustomizableObjectInstance* Instance, MostExpensiveInstanceData* Destination)
 {
-	Destination->BoolParameters = Instance->GetBoolParameters();
-	Destination->IntParameters = Instance->GetIntParameters();
-	Destination->FloatParameters = Instance->GetFloatParameters();
-	Destination->TextureParameters = Instance->GetTextureParameters();
-	Destination->VectorParameters = Instance->GetVectorParameters();
-	Destination->ProjectorParameters = Instance->GetProjectorParameters();
+	Destination->BoolParameters = Instance->GetPrivate()->GetDescriptor().GetBoolParameters();
+	Destination->IntParameters = Instance->GetPrivate()->GetDescriptor().GetIntParameters();
+	Destination->FloatParameters = Instance->GetPrivate()->GetDescriptor().GetFloatParameters();
+	Destination->TextureParameters = Instance->GetPrivate()->GetDescriptor().GetTextureParameters();
+	Destination->VectorParameters = Instance->GetPrivate()->GetDescriptor().GetVectorParameters();
+	Destination->ProjectorParameters = Instance->GetPrivate()->GetDescriptor().GetProjectorParameters();
 }
 
 

@@ -286,43 +286,7 @@ public:
 	/** Return true if a skeletal mesh has been generated for any component of this instance. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	bool HasAnySkeletalMesh() const;
-
-	/** Get the array of parameters in the instance that are of type "bool". */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	TArray<FCustomizableObjectBoolParameterValue>& GetBoolParameters();
-
-	const TArray<FCustomizableObjectBoolParameterValue>& GetBoolParameters() const;
-
-	/** Get the array of parameters in the instance that are of type "integer". */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	TArray<FCustomizableObjectIntParameterValue>& GetIntParameters();
-
-	const TArray<FCustomizableObjectIntParameterValue>& GetIntParameters() const;
-
-	/** Get the array of parameters in the instance that are of type "float". */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	TArray<FCustomizableObjectFloatParameterValue>& GetFloatParameters();
-
-	const TArray<FCustomizableObjectFloatParameterValue>& GetFloatParameters() const;
 	
-	/** Get the array of parameters in the instance that are of type "texture". */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	TArray<FCustomizableObjectTextureParameterValue>& GetTextureParameters();
-
-	const TArray<FCustomizableObjectTextureParameterValue>& GetTextureParameters() const;
-
-	/** Get the array of parameters in the instance that are of type "vector". */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	TArray<FCustomizableObjectVectorParameterValue>& GetVectorParameters();
-
-	const TArray<FCustomizableObjectVectorParameterValue>& GetVectorParameters() const;
-
-	/** Get the array of parameters in the instance that are of type "projector". */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	TArray<FCustomizableObjectProjectorParameterValue>& GetProjectorParameters();
-	
-	const TArray<FCustomizableObjectProjectorParameterValue>& GetProjectorParameters() const;
-
 	/** Return true if the instance has any parameters. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	bool HasAnyParameters() const;

@@ -91,7 +91,7 @@ void SCustomizableInstanceProperties::Construct(const FArguments& InArgs)
 
 		// Store which Texture Parameter values can be selected.
 		// Get default values.
-		for (const FCustomizableObjectTextureParameterValue& TextureParameter : CustomInstance->GetTextureParameters())
+		for (const FCustomizableObjectTextureParameterValue& TextureParameter : CustomInstance->GetPrivate()->GetDescriptor().GetTextureParameters())
 		{
 			const FName Value = CustomizableObject->GetTextureParameterDefaultValue(TextureParameter.ParameterName);
 			
@@ -103,7 +103,7 @@ void SCustomizableInstanceProperties::Construct(const FArguments& InArgs)
 		}
 
 		// Selected parameter
-		for (const FCustomizableObjectTextureParameterValue& TextureParameter : CustomInstance->GetTextureParameters())
+		for (const FCustomizableObjectTextureParameterValue& TextureParameter : CustomInstance->GetPrivate()->GetDescriptor().GetTextureParameters())
 		{
 			const FName& Value = TextureParameter.ParameterValue;
 			
@@ -984,7 +984,7 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 		}
 		else
 		{
-			TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetProjectorParameters();
+			TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters();
 			const int32 ProjectorParamIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
 			check(ProjectorParamIndex < ProjectorParameters.Num());
 
@@ -1315,7 +1315,7 @@ void SCustomizableInstanceProperties::Tick(const FGeometry& AllottedGeometry, co
 
 	// Check the slider values
 	// We do this because the slider "changed" event seems to be called many times per-frame
-	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetFloatParameters();
+	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetPrivate()->GetDescriptor().GetFloatParameters();
 	for (int SliderIndex = 0; SliderIndex < FloatSliders.Num() && bSlidersChanged; ++SliderIndex)
 	{
 		for (int i = 0; i < FloatParameters.Num(); ++i)
@@ -1450,7 +1450,7 @@ FReply SCustomizableInstanceProperties::OnResetAllParameters()
 {
 	CustomInstance->PreEditChange(nullptr);
 
-	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetIntParameters();
+	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters();
 	
 	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
 	const int32 NumObjectParameter = CustomObject->GetParameterCount();
@@ -1599,7 +1599,7 @@ void SCustomizableInstanceProperties::OnIntParameterChanged(int32 Value, FString
 
 void SCustomizableInstanceProperties::OnIntParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, FString ParamName)
 {
-	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetIntParameters();
+	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters();
 	
 	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
 	for (int32 i = 0; i < IntParameters.Num(); ++i)
@@ -1644,7 +1644,7 @@ void SCustomizableInstanceProperties::OnTextureParameterComboBoxSelectionChanged
 {
 	CustomInstance->PreEditChange(nullptr);
 
-	auto& TextureParameters = CustomInstance->GetTextureParameters();
+	auto& TextureParameters = CustomInstance->GetPrivate()->GetDescriptor().GetTextureParameters();
 
 	for (int i = 0; i < TextureParameters.Num(); ++i)
 	{
@@ -1726,9 +1726,9 @@ FReply SCustomizableInstanceProperties::OnProjectorLayerAdded(FString ParamName)
 	const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
 	CustomInstance->AddValueToIntRange(TextureSwitchEnumParamName);
 	check(CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName) != INDEX_NONE);
-	check(NumLayers == CustomInstance->GetIntParameters()[CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName)].ParameterRangeValueNames.Num());
+	check(NumLayers == CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters()[CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName)].ParameterRangeValueNames.Num());
 
-	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetFloatParameters();
+	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetPrivate()->GetDescriptor().GetFloatParameters();
 	
 	const FString NumLayersParamName = ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX;
 	check(CustomInstance->FindFloatParameterNameIndex(NumLayersParamName) != INDEX_NONE);
@@ -1756,7 +1756,7 @@ FReply SCustomizableInstanceProperties::OnProjectorLayerRemoved(const FString Pa
 {
 	const int32 projectorParameterIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
 	if (projectorParameterIndex == INDEX_NONE
-		|| CustomInstance->GetProjectorParameters()[projectorParameterIndex].RangeValues.Num() <= 0)
+		|| CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters()[projectorParameterIndex].RangeValues.Num() <= 0)
 	{
 		return FReply::Handled();
 	}
@@ -1766,9 +1766,9 @@ FReply SCustomizableInstanceProperties::OnProjectorLayerRemoved(const FString Pa
 	const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
 	CustomInstance->RemoveValueFromIntRange(TextureSwitchEnumParamName, RangeIndex);
 	check(CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName) != INDEX_NONE);
-	check(NumLayers == CustomInstance->GetIntParameters()[CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName)].ParameterRangeValueNames.Num());
+	check(NumLayers == CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters()[CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName)].ParameterRangeValueNames.Num());
 
-	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetFloatParameters();
+	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetPrivate()->GetDescriptor().GetFloatParameters();
 
 	const FString NumLayersParamName = ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX;
 	check(CustomInstance->FindFloatParameterNameIndex(NumLayersParamName) != INDEX_NONE);
@@ -1812,7 +1812,7 @@ FReply SCustomizableInstanceProperties::OnProjectorSelectChanged(const FString P
 
 void SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, FString ParamName, int32 RangeIndex) const
 {
-	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetIntParameters();
+	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters();
 
 	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
 	for (int32 i = 0; i < IntParameters.Num(); ++i)
@@ -1889,7 +1889,7 @@ FReply SCustomizableInstanceProperties::OnProjectorCopyTransform(const FString P
 
 	if ((ParameterIndexInObject >= 0) && (ProjectorParamIndex >= 0))
 	{
-		TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetProjectorParameters();
+		TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters();
 		FCustomizableObjectProjector Value;
 
 		if (RangeIndex == -1)

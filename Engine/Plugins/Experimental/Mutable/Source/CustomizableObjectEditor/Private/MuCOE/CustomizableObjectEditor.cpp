@@ -661,7 +661,7 @@ void FCustomizableObjectEditor::CompileOnlySelectedObjectUserPressedButton()
 	{
 		Compiler.ClearAllCompileOnlySelectedOption();
 
-		for (const FCustomizableObjectIntParameterValue& IntParam : PreviewInstance->GetIntParameters())
+		for (const FCustomizableObjectIntParameterValue& IntParam : PreviewInstance->GetPrivate()->GetDescriptor().GetIntParameters())
 		{
 			Compiler.AddCompileOnlySelectedOption(IntParam.ParameterName, IntParam.ParameterValueName);
 		}
