@@ -92,6 +92,7 @@ void FMovieSceneObjectBindingIDCustomization::CustomizeHeader(TSharedRef<IProper
 			.OnIsRecognized_Static(IsAcceptable)
 			[
 				SNew(SComboButton)
+				.IsEnabled_Lambda([this]() { return StructProperty->IsEditable(); })
 				.ToolTipText(this, &FMovieSceneObjectBindingIDCustomization::GetToolTipText)
 				.OnGetMenuContent(this, &FMovieSceneObjectBindingIDCustomization::GetPickerMenu)
 				.ContentPadding(FMargin(4.0, 2.0))
