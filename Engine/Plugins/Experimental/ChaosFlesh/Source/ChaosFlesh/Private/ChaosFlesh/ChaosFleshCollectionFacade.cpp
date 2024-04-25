@@ -88,5 +88,6 @@ namespace Chaos
 			}
 		}
 	}
-
 }
+
+#undef LOCTEXT_NAMESPACE
