@@ -72,7 +72,8 @@ UE::AssetUtils::ECreateStaticMeshResult UE::AssetUtils::CreateStaticMeshAsset(
 		BuildSettings.bRecomputeNormals = Options.bEnableRecomputeNormals;
 		BuildSettings.bRecomputeTangents = Options.bEnableRecomputeTangents;
 		BuildSettings.bGenerateLightmapUVs = Options.bGenerateLightmapUVs;
-
+		BuildSettings.bUseFullPrecisionUVs = Options.bUseFullPrecisionUVs;
+		
 		if (!Options.bAllowDistanceField)
 		{
 			BuildSettings.DistanceFieldResolutionScale = 0.0f;

@@ -79,6 +79,9 @@ namespace AssetUtils
 		// Whether to generate lightmap uvs for the generated mesh
 		bool bGenerateLightmapUVs = false;
 
+		// Whether to generate UVs with full floating point precision.
+		bool bUseFullPrecisionUVs = false;
+		
 		// Controls whether the UBodySetup on the Asset will be created (generally should be true)
 		bool bCreatePhysicsBody = true;
 		// set asset collision type
