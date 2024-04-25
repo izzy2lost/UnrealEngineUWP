@@ -11,6 +11,7 @@
 #include "ChaosFlesh/ChaosDeformableSolverActor.h"
 #include "ChaosFlesh/ChaosDeformableSolverComponent.h"
 #include "ChaosFlesh/ChaosDeformableTypes.h"
+#include "ChaosFlesh/ChaosFleshCollectionFacade.h"
 #include "ChaosFlesh/FleshDynamicAsset.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Dataflow/DataflowEngineUtil.h"
@@ -458,10 +459,12 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 				{
 					PERF_SCOPE(STAT_ChaosDeformable_UDeformableTetrahedralComponent_RenderProceduralMesh);
 
-					if (const FFleshCollection* Flesh = FleshAsset->GetCollection())
+					if (const FFleshCollection* FleshCollection = FleshAsset->GetCollection())
 					{
-						int32 NumVertices = Flesh->NumElements(FGeometryCollection::VerticesGroup);
-						int32 NumFaces = Flesh->NumElements(FGeometryCollection::FacesGroup);
+						const Chaos::FFleshCollectionFacade Flesh(*FleshCollection);
+
+						int32 NumVertices = Flesh.NumVertices();
+						int32 NumFaces = Flesh.NumFaces();
 						if (NumFaces && NumVertices)
 						{
 							if (RenderMesh && RenderMesh->Vertices.Num() != NumFaces * 3)
@@ -472,12 +475,14 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 							if (!RenderMesh)
 							{
 								RenderMesh = new FFleshRenderMesh;
+								TArray<FVector3f> Vertex;
+								Flesh.ComponentSpaceVertices(Vertex);
 
 								for (int i = 0; i < NumFaces; ++i)
 								{
-									const auto& P1 = Flesh->Vertex[Flesh->Indices[i][0]];
-									const auto& P2 = Flesh->Vertex[Flesh->Indices[i][1]];
-									const auto& P3 = Flesh->Vertex[Flesh->Indices[i][2]];
+									const auto& P1 = Vertex[Flesh.Indices[i][0]];
+									const auto& P2 = Vertex[Flesh.Indices[i][1]];
+									const auto& P3 = Vertex[Flesh.Indices[i][2]];
 
 									RenderMesh->Vertices.Add(FVector(P1));
 									RenderMesh->Vertices.Add(FVector(P2));
@@ -513,21 +518,22 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 							}
 							else
 							{
+								TArray<FVector3f> RenderVertex; 
+								Flesh.ComponentSpaceVertices(RenderVertex);
 
-								const TManagedArray<FVector3f>* RenderVertex = &Flesh->Vertex;
 								if (GetDynamicCollection())
 								{
 									const TManagedArray<FVector3f>& DynamicVertex = GetDynamicCollection()->GetPositions();
-									if (DynamicVertex.Num()) RenderVertex = &DynamicVertex;
+									if (DynamicVertex.Num()) RenderVertex = DynamicVertex.GetConstArray();
 								}
 								auto InRange = [](int32 Size, int32 Val) { return 0 <= Val && Val < Size; };
 
 								// Display only
 								for (int i = 0; i < NumFaces; ++i)
 								{
-									const auto& P1 = (*RenderVertex)[Flesh->Indices[i][0]];
-									const auto& P2 = (*RenderVertex)[Flesh->Indices[i][1]];
-									const auto& P3 = (*RenderVertex)[Flesh->Indices[i][2]];
+									const auto& P1 = RenderVertex[Flesh.Indices[i][0]];
+									const auto& P2 = RenderVertex[Flesh.Indices[i][1]];
+									const auto& P3 = RenderVertex[Flesh.Indices[i][2]];
 
 									RenderMesh->Vertices[3 * i] = FVector(P1);
 									RenderMesh->Vertices[3 * i + 1] = FVector(P2);

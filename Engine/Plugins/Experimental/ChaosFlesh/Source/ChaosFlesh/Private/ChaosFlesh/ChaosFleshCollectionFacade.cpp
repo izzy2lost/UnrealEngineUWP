@@ -12,45 +12,49 @@
 namespace Chaos 
 {
 
-	FFleshCollectionFacade::FFleshCollectionFacade(FManagedArrayCollection& InCollection)
+	FFleshCollectionFacade::FFleshCollectionFacade(FFleshCollection& InCollection)
 		: ConstCollection(InCollection)
 		, Collection(&InCollection)
 		, BoneName(InCollection, "BoneName", FTransformCollection::TransformGroup)
 		, Transform(InCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup)
+		, TransformToGeometryIndex(InCollection, "TransformToGeometryIndex", FTransformCollection::TransformGroup)
 		, Parent(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, Child(InCollection, FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup)
 		, BoneMap(InCollection, FName("BoneMap"), FName("Vertices"))
 		, Vertex(InCollection, FName("Vertex"), FName("Vertices"))
 		, Indices(InCollection, FName("Indices"), FName("Faces"))
 		, Tetrahedron(InCollection, FTetrahedralCollection::TetrahedronAttribute, FTetrahedralCollection::TetrahedralGroup)
+		, GeometryToTransformIndex(InCollection, "TransformIndex", FGeometryCollection::GeometryGroup)
 		, VertexStart(InCollection, "VertexStart", FGeometryCollection::GeometryGroup)
 		, VertexCount(InCollection, "VertexCount", FGeometryCollection::GeometryGroup)
 		, FaceStart(InCollection, "FaceStart", FGeometryCollection::GeometryGroup)
 		, FaceCount(InCollection, "FaceCount", FGeometryCollection::GeometryGroup)
 	{}
 
-	FFleshCollectionFacade::FFleshCollectionFacade(const FManagedArrayCollection& InCollection)
+	FFleshCollectionFacade::FFleshCollectionFacade(const FFleshCollection& InCollection)
 		: ConstCollection(InCollection)
 		, Collection(nullptr)
 		, BoneName(InCollection, "BoneName", FTransformCollection::TransformGroup)
 		, Transform(InCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup)
+		, TransformToGeometryIndex(InCollection, "TransformToGeometryIndex", FTransformCollection::TransformGroup)
 		, Parent(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, Child(InCollection, FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup)
 		, BoneMap(InCollection, FName("BoneMap"), FName("Vertices"))
 		, Vertex(InCollection, FName("Vertex"), FName("Vertices"))
 		, Indices(InCollection, FName("Indices"), FName("Faces"))
 		, Tetrahedron(InCollection, FTetrahedralCollection::TetrahedronAttribute, FTetrahedralCollection::TetrahedralGroup)
+		, GeometryToTransformIndex(InCollection, "TransformIndex", FGeometryCollection::GeometryGroup)
 		, VertexStart(InCollection, "VertexStart", FGeometryCollection::GeometryGroup)
 		, VertexCount(InCollection, "VertexCount", FGeometryCollection::GeometryGroup)
 		, FaceStart(InCollection, "FaceStart", FGeometryCollection::GeometryGroup)
 		, FaceCount(InCollection, "FaceCount", FGeometryCollection::GeometryGroup)
 	{}
 
-	bool FFleshCollectionFacade::IsCompletelyValid() const {
-		return BoneName.IsValid() && Transform.IsValid() && Parent.IsValid() && Child.IsValid() &&
+	bool FFleshCollectionFacade::IsValid() const {
+		return BoneName.IsValid() && Transform.IsValid() && TransformToGeometryIndex.IsValid() && Parent.IsValid() && Child.IsValid() &&
 			BoneMap.IsValid() && Vertex.IsValid() &&
 			Indices.IsValid() && Tetrahedron.IsValid() &&
-			VertexStart.IsValid() && VertexCount.IsValid() && FaceStart.IsValid() && FaceCount.IsValid();
+			GeometryToTransformIndex.IsValid() && VertexStart.IsValid() && VertexCount.IsValid() && FaceStart.IsValid() && FaceCount.IsValid();
 	}
 
 	bool FFleshCollectionFacade::IsTetrahedronValid() const {
@@ -58,15 +62,81 @@ namespace Chaos
 	}
 
 	bool FFleshCollectionFacade::IsHierarchyValid() const {
-		return Transform.IsValid() && Parent.IsValid();
+		return BoneName.IsValid() && Transform.IsValid() && Parent.IsValid() && Child.IsValid();
 	}
 
-	void FFleshCollectionFacade::ComponentSpaceVertices(TArray<FVector3f>& OutComponentSpaceVertices)
+	bool FFleshCollectionFacade::IsGeometryValid() const {
+		return TransformToGeometryIndex.IsValid() && GeometryToTransformIndex.IsValid()
+			&& VertexStart.IsValid() && VertexCount.IsValid()
+			&& FaceStart.IsValid() && FaceCount.IsValid();
+	}
+
+	int FFleshCollectionFacade::NumGeometry() const {
+		if (VertexStart.IsValid())
+		{
+			return VertexStart.Num();
+		}
+		return 0;
+	}
+
+	int FFleshCollectionFacade::NumVertices() const {
+		if (Vertex.IsValid())
+		{
+			return Vertex.Num();
+		}
+		return 0;
+	}
+
+	int FFleshCollectionFacade::NumFaces() const {
+		if (Indices.IsValid())
+		{
+			return Indices.Num();
+		}
+		return 0;
+	}
+
+	int FFleshCollectionFacade::AppendGeometry(const FFleshCollection& NewGeomerty) 
+	{
+		int32 GeomIndex = NumGeometry();
+		Collection->AppendGeometry(NewGeomerty);
+		return GeomIndex;
+	}
+
+	void FFleshCollectionFacade::GlobalMatrices(TArray<FTransform>& OutComponentTransform)
+	{
+		if (Transform.IsValid() && Parent.IsValid())
+		{
+			GeometryCollectionAlgo::GlobalMatrices(Transform.Get(), Parent.Get(), OutComponentTransform);
+		}
+	}
+
+	FTransform3f FFleshCollectionFacade::GlobalMatrix3f(int32 InIndex)
+	{
+		if (Transform.IsValid() && Parent.IsValid())
+		{
+			if (0 <= InIndex && InIndex < Transform.Num())
+			{
+				return GeometryCollectionAlgo::GlobalMatrix3f(Transform.Get(), Parent.Get(), InIndex);
+			}
+		}
+		return FTransform3f::Identity;
+	}
+
+
+	int FFleshCollectionFacade::NumTransforms() const {
+		if (Transform.IsValid())
+		{
+			return Transform.Num();
+		}
+		return 0;
+	}
+
+	void FFleshCollectionFacade::ComponentSpaceVertices(TArray<FVector3f>& OutComponentSpaceVertices) const
 	{
 		ComponentSpaceVertices(OutComponentSpaceVertices, 0, Vertex.Num());
 	}
 
-	void FFleshCollectionFacade::ComponentSpaceVertices(TArray<FVector3f>& OutComponentSpaceVertices, int32 Start, int32 Count)
+	void FFleshCollectionFacade::ComponentSpaceVertices(TArray<FVector3f>& OutComponentSpaceVertices, int32 Start, int32 Count) const
 	{
 		if (IsHierarchyValid() && Vertex.IsValid())
 		{

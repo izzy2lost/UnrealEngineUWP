@@ -15,8 +15,9 @@ void FKinematicSkeletonConstraintDataflowNode::Evaluate(Dataflow::FContext& Cont
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
-		DataType InCollection = GetValue<DataType>(Context, &Collection);
-		Chaos::FFleshCollectionFacade TetCollection(InCollection);
+		TUniquePtr<FFleshCollection> InCollection(GetValue<DataType>(Context, &Collection).NewCopy<FFleshCollection>());
+		Chaos::FFleshCollectionFacade TetCollection(*InCollection.Get());
+
 		TObjectPtr<USkeleton> Skeleton = GetValue<TObjectPtr<USkeleton>>(Context, &SkeletonIn);
 		if (Skeleton && TetCollection.IsTetrahedronValid() )
 		{
@@ -100,11 +101,11 @@ void FKinematicSkeletonConstraintDataflowNode::Evaluate(Dataflow::FContext& Cont
 						{
 							//get local coords of bound verts
 							typedef GeometryCollection::Facades::FKinematicBindingFacade FKinematics;
-							FKinematics Kinematics(InCollection); Kinematics.DefineSchema();
+							FKinematics Kinematics(*InCollection.Get()); Kinematics.DefineSchema();
 							if (Kinematics.IsValid())
 							{
 								FKinematics::FBindingKey Binding = Kinematics.SetBoneBindings(ParentIndex, BoundVerts, BoundWeights);
-								TManagedArray<TArray<FVector3f>>& LocalPos = InCollection.AddAttribute<TArray<FVector3f>>("LocalPosition", Binding.GroupName);
+								TManagedArray<TArray<FVector3f>>& LocalPos = InCollection->AddAttribute<TArray<FVector3f>>("LocalPosition", Binding.GroupName);
 								Kinematics.AddKinematicBinding(Binding);
 								auto DoubleVert = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
 								auto FloatVert = [](FVector3d V) { return FVector3f(V.X, V.Y, V.Z); };
@@ -119,8 +120,9 @@ void FKinematicSkeletonConstraintDataflowNode::Evaluate(Dataflow::FContext& Cont
 					}
 				}
 			}
-			GeometryCollection::Facades::FVertexBoneWeightsFacade(InCollection).AddBoneWeightsFromKinematicBindings();
+			GeometryCollection::Facades::FVertexBoneWeightsFacade(*InCollection.Get()).AddBoneWeightsFromKinematicBindings();
 		}
-		SetValue(Context, MoveTemp(InCollection), &Collection);
+		FManagedArrayCollection& InBaseCollection = *InCollection.Release();
+		SetValue(Context, MoveTemp(InBaseCollection), &Collection);
 	}
 }
