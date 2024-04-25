@@ -44,6 +44,13 @@ public:
 	virtual bool IsWholeLayerValue() const override { return true; }
 #endif
 
+#if WITH_EDITOR
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
+#endif
+
 	//~ Begin UDMMaterialValue
 	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
 #if WITH_EDITOR

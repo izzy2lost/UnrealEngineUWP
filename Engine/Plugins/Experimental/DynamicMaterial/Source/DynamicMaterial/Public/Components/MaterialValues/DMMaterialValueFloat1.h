@@ -24,6 +24,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void SetDefaultValue(float InDefaultValue);
 #endif
+
+#if WITH_EDITOR
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
+#endif
  
 	//~ Begin UDMMaterialValue
 	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;

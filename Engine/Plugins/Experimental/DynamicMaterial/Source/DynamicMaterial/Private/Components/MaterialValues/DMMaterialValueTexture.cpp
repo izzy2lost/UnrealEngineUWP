@@ -99,16 +99,16 @@ UDMMaterialValueTexture* UDMMaterialValueTexture::CreateMaterialValueTexture(UOb
 	return TextureValue;
 }
  
-void UDMMaterialValueTexture::PreEditChange(FProperty* PropertyAboutToChange)
+void UDMMaterialValueTexture::PreEditChange(FProperty* InPropertyAboutToChange)
 {
-	Super::PreEditChange(PropertyAboutToChange);
+	Super::PreEditChange(InPropertyAboutToChange);
  
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (PropertyAboutToChange->GetFName() == ValueName)
+	if (InPropertyAboutToChange->GetFName() == ValueName)
 	{
 		OldValue = GetValue();
 	}
@@ -119,17 +119,17 @@ bool UDMMaterialValueTexture::IsDefaultValue() const
 	return Value == DefaultValue;
 }
 
-void UDMMaterialValueTexture::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UDMMaterialValueTexture::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	// Skip parent class because we need to do extra logic.
-	Super::Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
+	FName MemberPropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
 	if (MemberPropertyName == NAME_None)
 	{
@@ -177,6 +177,24 @@ void UDMMaterialValueTexture::ResetDefaultValue()
 	{
 		DefaultValue = GetDefaultRGBTexture.Execute();
 	}
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueTexture::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueTexture::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	UTexture* ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
 }
 
 void UDMMaterialValueTexture::SetDefaultValue(UTexture* InDefaultValue)

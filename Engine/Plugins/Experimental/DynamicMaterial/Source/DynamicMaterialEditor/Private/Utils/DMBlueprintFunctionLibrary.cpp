@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DMBlueprintFunctionLibrary.h"
+#include "Utils/DMBlueprintFunctionLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
@@ -23,7 +23,6 @@
 #include "Components/PrimitiveComponent.h"
 #include "DMEDefs.h"
 #include "DMObjectMaterialProperty.h"
-#include "DMPrivate.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Engine/Texture.h"
@@ -37,6 +36,7 @@
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
+#include "Utils/DMPrivate.h"
 
 UDMMaterialStageInputValue* UDMBlueprintFunctionLibrary::FindDefaultStageOpacityInputValue(UDMMaterialStage* InStage)
 {

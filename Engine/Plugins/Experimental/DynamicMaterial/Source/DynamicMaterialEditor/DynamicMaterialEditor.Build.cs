@@ -29,6 +29,7 @@ public class DynamicMaterialEditor : ModuleRules
 				"CustomDetailsView",
 				"DeveloperSettings",
 				"DynamicMaterialShadersEditor",
+				"EditorSubsystem",
 				"EditorWidgets",
 				"InputCore",
 				"Json",

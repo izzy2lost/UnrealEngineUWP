@@ -61,6 +61,24 @@ void UDMMaterialValueFloat3RPY::ResetDefaultValue()
 	DefaultValue = FRotator::ZeroRotator;
 }
 
+TSharedPtr<FJsonValue> UDMMaterialValueFloat3RPY::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat3RPY::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	FRotator ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
+}
+
 void UDMMaterialValueFloat3RPY::SetDefaultValue(FRotator InDefaultValue)
 {
 	DefaultValue = InDefaultValue;

@@ -11,9 +11,6 @@
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Containers/ArrayView.h"
 #include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
-#include "DMPrivate.h"
-#include "Helpers/DMInputNodeBuilder.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComponentMask.h"
@@ -25,6 +22,9 @@
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMInputNodeBuilder.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageThroughput"
 

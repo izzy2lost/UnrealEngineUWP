@@ -7,10 +7,14 @@
 #include "Components/DMMaterialEffectStack.h"
 #include "Components/DMMaterialLayer.h"
 #include "DynamicMaterialEditorSettings.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Menus/DMMaterialSlotLayerAddEffectContext.h"
 #include "Menus/DMMenuContext.h"
 #include "ToolMenus.h"
+#include "Utils/DMMaterialEffectStackPresetSubsystem.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialSlotLayerAddEffectMenus"
@@ -188,6 +192,274 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
+	void SavePreset(const FToolMenuContext& InContext, const FString& InPresetName)
+	{
+		const UDMMaterialLayerObject* Layer = nullptr;
+
+		if (UDMMenuContext* MenuContext = InContext.FindContext<UDMMenuContext>())
+		{
+			Layer = MenuContext->GetLayer();
+		}
+		else if (UDMMaterialSlotLayerAddEffectContext* SlotContext = InContext.FindContext<UDMMaterialSlotLayerAddEffectContext>())
+		{
+			Layer = SlotContext->GetLayer();
+		}
+
+		if (!Layer || !IsValid(Layer))
+		{
+			return;
+		}
+
+		UDMMaterialEffectStack* EffectStack = Layer->GetEffectStack();
+
+		if (!EffectStack)
+		{
+			return;
+		}
+
+		FDMMaterialEffectStackJson Preset = EffectStack->CreatePreset();
+
+		UDMMaterialEffectStackPresetSubsystem::Get()->SavePreset(InPresetName, Preset);
+	}
+
+	bool VerifyFileName(const FText& InValue, FText& OutErrorText)
+	{
+		static const FText TooShortError = LOCTEXT("TooShortError", "Min 3 characters.");
+		static const FText TooLongError = LOCTEXT("TooLongError", "Max 50 characters.");
+		static const FText InvalidCharacterError = LOCTEXT("InvalidCharacterError", "Valid characters are A-Z, A-z, space, _ and -");
+
+		static const TArray<TPair<TCHAR, TCHAR>> ValidCharacterRanges = {
+			{'A', 'Z'},
+			{'a', 'z'},
+			{'0', '9'},
+			{' ', ' '},
+			{'-', '-'},
+			{'_', '_'}
+		};
+
+		const FString ValueStr = InValue.ToString();
+		const int32 ValueLen = ValueStr.Len();
+
+		if (ValueLen < 3)
+		{
+			OutErrorText = TooShortError;
+			return false;
+		}
+
+		if (ValueLen > 50)
+		{
+			OutErrorText = TooLongError;
+			return false;
+		}
+
+		for (int32 Index = 0; Index < ValueLen; ++Index)
+		{
+			bool bInRange = false;
+
+			for (const TPair<TCHAR, TCHAR>& ValidCharacterRange : ValidCharacterRanges)
+			{
+				if (ValueStr[Index] >= ValidCharacterRange.Key && ValueStr[Index] <= ValidCharacterRange.Value)
+				{
+					bInRange = true;
+					break;
+				}
+			}
+
+			if (!bInRange)
+			{
+				OutErrorText = InvalidCharacterError;
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	void GenerateSaveEffectsMenu(FToolMenuSection& InSection)
+	{
+		FNewToolMenuChoice RenameChoice(FNewToolMenuWidget::CreateLambda(
+			[](const FToolMenuContext& InContext) -> TSharedRef<SWidget>
+			{
+				const UDMMaterialLayerObject* Layer = nullptr;
+
+				if (UDMMenuContext* MenuContext = InContext.FindContext<UDMMenuContext>())
+				{
+					Layer = MenuContext->GetLayer();
+				}
+				else if (UDMMaterialSlotLayerAddEffectContext* SlotContext = InContext.FindContext<UDMMaterialSlotLayerAddEffectContext>())
+				{
+					Layer = SlotContext->GetLayer();
+				}
+
+				if (!Layer || !IsValid(Layer))
+				{
+					return SNullWidget::NullWidget;
+				}
+
+				UDMMaterialEffectStack* EffectStack = Layer->GetEffectStack();
+
+				if (!EffectStack)
+				{
+					return SNullWidget::NullWidget;
+				}
+
+				TWeakObjectPtr<UDMMaterialEffectStack> EffectStackWeak = EffectStack;
+
+				return SNew(SEditableTextBox)
+					.Text(LOCTEXT("NewPreset", "New Preset"))
+					.OnVerifyTextChanged_Static(&VerifyFileName)
+					.AllowContextMenu(false)
+					.ClearKeyboardFocusOnCommit(true)
+					.MinDesiredWidth(100.f)
+					.OnTextCommitted_Lambda(
+						[EffectStackWeak](const FText& InText, ETextCommit::Type InCommitType)
+						{
+							if (InCommitType != ETextCommit::OnEnter)
+							{
+								return;
+							}
+
+							UDMMaterialEffectStack* EffectStack = EffectStackWeak.Get();
+
+							if (!IsValid(EffectStack))
+							{
+								return;
+							}
+
+							FText Unused;
+
+							if (!VerifyFileName(InText, Unused))
+							{
+								return;
+							}
+
+							FDMMaterialEffectStackJson Preset = EffectStack->CreatePreset();
+
+							if (UDMMaterialEffectStackPresetSubsystem::Get()->SavePreset(InText.ToString(), Preset))
+							{
+								FNotificationInfo Info(LOCTEXT("PresetSaved", "Preset saved!"));
+								Info.ExpireDuration = 5.0f;
+								FSlateNotificationManager::Get().AddNotification(Info);
+							}
+							else
+							{
+								FNotificationInfo Info(LOCTEXT("PresetNotSaved", "Failed to save preset!"));
+								Info.ExpireDuration = 5.0f;
+								FSlateNotificationManager::Get().AddNotification(Info);
+							}
+						});
+			}));
+
+		InSection.AddSubMenu(
+			"SavePreset",
+			LOCTEXT("SavePreset", "Save Preset"),
+			TAttribute<FText>(),
+			RenameChoice
+		);
+	}
+
+	void LoadPreset(const FToolMenuContext& InContext, FString InPresetName)
+	{
+		const UDMMaterialLayerObject* Layer = nullptr;
+
+		if (UDMMenuContext* MenuContext = InContext.FindContext<UDMMenuContext>())
+		{
+			Layer = MenuContext->GetLayer();
+		}
+		else if (UDMMaterialSlotLayerAddEffectContext* SlotContext = InContext.FindContext<UDMMaterialSlotLayerAddEffectContext>())
+		{
+			Layer = SlotContext->GetLayer();
+		}
+
+		if (!Layer || !IsValid(Layer))
+		{
+			return;
+		}
+
+		UDMMaterialEffectStack* EffectStack = Layer->GetEffectStack();
+
+		if (!EffectStack)
+		{
+			return;
+		}
+
+		FDMMaterialEffectStackJson Preset;
+
+		if (UDMMaterialEffectStackPresetSubsystem::Get()->LoadPreset(InPresetName, Preset))
+		{
+			EffectStack->ApplyPreset(Preset);
+
+			FNotificationInfo Info(LOCTEXT("PresetApplied", "Preset applied!"));
+			Info.ExpireDuration = 5.0f;
+			FSlateNotificationManager::Get().AddNotification(Info);
+		}
+		else
+		{
+			FNotificationInfo Info(LOCTEXT("PresetNotApplied", "Failed to apply preset!"));
+			Info.ExpireDuration = 5.0f;
+			FSlateNotificationManager::Get().AddNotification(Info);
+		}
+	}
+
+	void GenerateLoadEffectsMenu(UToolMenu* InMenu)
+	{
+		if (!InMenu)
+		{
+			return;
+		}
+
+		const UDMMaterialEffectStackPresetSubsystem* PresetSubsystem = UDMMaterialEffectStackPresetSubsystem::Get();
+
+		if (!PresetSubsystem)
+		{
+			return;
+		}
+
+		FToolMenuSection& Section = InMenu->AddSection("LoadPreset", LOCTEXT("LoadPreset", "Load Preset"));
+
+		TArray<FString> PresetList = PresetSubsystem->GetPresetNames();
+
+		for (int32 PresetIndex = 0; PresetIndex < PresetList.Num(); ++PresetIndex)
+		{
+			FToolUIAction LoadAction;
+			LoadAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&LoadPreset, PresetList[PresetIndex]);
+
+			Section.AddMenuEntry(
+				*PresetList[PresetIndex],
+				FText::FromString(PresetList[PresetIndex]),
+				TAttribute<FText>(),
+				FSlateIcon(),
+				FToolUIActionChoice(LoadAction)
+			);
+		}
+	}
+
+	void GenerateEffectPresetMenu(UToolMenu* InMenu)
+	{
+		if (!InMenu)
+		{
+			return;
+		}
+
+		const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>();
+
+		if (!Settings)
+		{
+			return;
+		}
+
+		FToolMenuSection& Section = InMenu->AddSection("Presets", LOCTEXT("Presets", "Presets"));
+
+		GenerateSaveEffectsMenu(Section);
+
+		Section.AddSubMenu(
+			"LoadPreset",
+			LOCTEXT("LoadPreset", "Load Preset"),
+			TAttribute<FText>(),
+			FNewToolMenuChoice(FNewToolMenuDelegate::CreateStatic(&GenerateLoadEffectsMenu))
+		);
+	}
+
 	void RegisterAddEffectMenu()
 	{
 		using namespace UE::DynamicMaterialEditor::Private;
@@ -203,6 +475,7 @@ namespace UE::DynamicMaterialEditor::Private
 			[](UToolMenu* InMenu)
 			{
 				GenerateAddEffectMenu(InMenu);
+				GenerateEffectPresetMenu(InMenu);
 			}));
 	}
 }

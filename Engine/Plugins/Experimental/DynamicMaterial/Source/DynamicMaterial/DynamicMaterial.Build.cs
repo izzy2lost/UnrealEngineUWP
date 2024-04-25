@@ -23,6 +23,8 @@ public class DynamicMaterial : ModuleRules
 			new string[]
 			{
 				"Engine",
+				"Json",
+				"JsonUtilities",
 				"RenderCore"
 			}
 		);

@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DMMaterialFunctionLibrary.h"
-#include "DynamicMaterialEditorModule.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialFunction.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 
 UMaterialFunctionInterface* FDMMaterialFunctionLibrary::LoadFunction(const FString& Path)
 {
-	return LoadObject<UMaterialFunction>(nullptr, *Path, nullptr, LOAD_None, nullptr);
+	return LoadObject<UMaterialFunctionInterface>(nullptr, *Path);
 }
 
 UMaterialFunctionInterface* FDMMaterialFunctionLibrary::GetFunction(const FName& Name, const FString& Path)

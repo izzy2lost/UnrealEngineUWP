@@ -24,7 +24,6 @@
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetWidgetRenderer.h"
-#include "DMBlueprintFunctionLibrary.h"
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
@@ -37,6 +36,7 @@
 #include "Slate/SDMStage.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenus.h"
+#include "Utils/DMBlueprintFunctionLibrary.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "FDMMaterialStageSourceMenus"

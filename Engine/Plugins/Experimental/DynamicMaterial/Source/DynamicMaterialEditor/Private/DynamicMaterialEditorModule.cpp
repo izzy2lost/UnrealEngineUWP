@@ -21,7 +21,6 @@
 #include "DetailsPanel/DMPropertyTypeCustomizer.h"
 #include "DetailsPanel/DMValueDetailsRowExtensions.h"
 #include "DetailsPanel/Slate/SDMMaterialListExtensionWidget.h"
-#include "DMMaterialFunctionLibrary.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorSettings.h"
@@ -55,6 +54,7 @@
 #include "Slate/Properties/Generators/DMTextureUVPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMThroughputPropertyRowGenerator.h"
 #include "Slate/SDMEditor.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogDynamicMaterialEditor);
 

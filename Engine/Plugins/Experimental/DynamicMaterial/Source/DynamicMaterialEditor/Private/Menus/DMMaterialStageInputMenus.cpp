@@ -16,7 +16,6 @@
 #include "Components/MaterialStageInputs/DMMSISlot.h"
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
-#include "DMPrivate.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -25,6 +24,7 @@
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "ScopedTransaction.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "FDMMaterialStageInputMenus"

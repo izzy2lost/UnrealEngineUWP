@@ -11,7 +11,6 @@
 #include "Components/DMTextureUV.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialModule.h"
 #include "Materials/MaterialExpressionComponentMask.h"
@@ -23,6 +22,7 @@
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageInputTextureUV"
 

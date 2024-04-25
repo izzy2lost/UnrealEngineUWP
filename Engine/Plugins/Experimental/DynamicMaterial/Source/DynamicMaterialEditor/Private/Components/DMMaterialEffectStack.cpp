@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialEffectStack.h"
+
 #include "Components/DMMaterialEffect.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "DMComponentPath.h"
 #include "UObject/Package.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialEffectStack"
 
@@ -121,6 +123,22 @@ bool UDMMaterialEffectStack::AddEffect(UDMMaterialEffect* InEffect)
 		InEffect->Modify();
 	}
 
+	TArray<UDMMaterialEffect*> IncompatibleEffects = GetIncompatibleEffects(InEffect);
+
+	if (IncompatibleEffects.Num() == 1)
+	{
+		for (int32 ReplaceIndex = 0; ReplaceIndex < Effects.Num(); ++ReplaceIndex)
+		{
+			if (Effects[ReplaceIndex] == IncompatibleEffects[0])
+			{
+				SetEffect(ReplaceIndex, InEffect);
+				return true;
+			}
+		}
+	}
+
+	RemoveIncompatibleEffects(InEffect);
+
 	if (UDMMaterialEffectStack* OldStack = InEffect->GetEffectStack())
 	{
 		if (GUndo)
@@ -145,11 +163,25 @@ bool UDMMaterialEffectStack::AddEffect(UDMMaterialEffect* InEffect)
 	return true;
 }
 
-bool UDMMaterialEffectStack::SetEffect(int32 InIndex, UDMMaterialEffect* InEffect)
+UDMMaterialEffect* UDMMaterialEffectStack::SetEffect(int32 InIndex, UDMMaterialEffect* InEffect)
 {
-	if (!IsValid(InEffect))
+	if (!Effects.IsValidIndex(InIndex) || !IsValid(InEffect))
 	{
-		return false;
+		return nullptr;
+	}
+
+	UDMMaterialEffect* OldEffect = Effects[InIndex];
+
+	if (OldEffect)
+	{
+		if (GUndo)
+		{
+			OldEffect->Modify();
+		}
+
+		OldEffect->SetEnabled(false);
+		OldEffect->Rename(nullptr, GetTransientPackage(), UE::DynamicMaterial::RenameFlags);
+		OldEffect->SetComponentState(EDMComponentLifetimeState::Removed);
 	}
 
 	if (GUndo)
@@ -157,28 +189,14 @@ bool UDMMaterialEffectStack::SetEffect(int32 InIndex, UDMMaterialEffect* InEffec
 		InEffect->Modify();
 	}
 
-	if (UDMMaterialEffectStack* OldStack = InEffect->GetEffectStack())
-	{
-		if (GUndo)
-		{
-			OldStack->Modify();
-		}
-
-		OldStack->RemoveEffect(InEffect);
-	}
-
-	Effects.Add(InEffect);
-
+	InEffect->SetEnabled(true);
 	InEffect->Rename(nullptr, this, UE::DynamicMaterial::RenameFlags);
+	InEffect->SetComponentState(EDMComponentLifetimeState::Added);
 
-	if (IsComponentAdded())
-	{
-		InEffect->SetComponentState(EDMComponentLifetimeState::Added);
-	}
+	Effects[InIndex] = InEffect;
+	Effects[InIndex]->Update(EDMUpdateType::Structure);
 
-	InEffect->Update(EDMUpdateType::Structure);
-
-	return true;
+	return OldEffect;
 }
 
 bool UDMMaterialEffectStack::MoveEffect(int32 InIndex, int32 InNewIndex)
@@ -231,11 +249,11 @@ bool UDMMaterialEffectStack::MoveEffect(UDMMaterialEffect* InEffect, int32 InNew
 	return false;
 }
 
-bool UDMMaterialEffectStack::RemoveEffect(int32 InIndex)
+UDMMaterialEffect* UDMMaterialEffectStack::RemoveEffect(int32 InIndex)
 {
 	if (!Effects.IsValidIndex(InIndex))
 	{
-		return false;
+		return nullptr;
 	}
 
 	UDMMaterialEffect* Effect = Effects[InIndex];
@@ -253,7 +271,7 @@ bool UDMMaterialEffectStack::RemoveEffect(int32 InIndex)
 
 	Update(EDMUpdateType::Structure);
 
-	return true;
+	return Effect;
 }
 
 bool UDMMaterialEffectStack::RemoveEffect(UDMMaterialEffect* InEffect)
@@ -272,7 +290,7 @@ bool UDMMaterialEffectStack::RemoveEffect(UDMMaterialEffect* InEffect)
 
 	if (EffectIndex != INDEX_NONE)
 	{
-		return RemoveEffect(EffectIndex);
+		return !!RemoveEffect(EffectIndex);
 	}
 
 	return false;
@@ -296,6 +314,49 @@ bool UDMMaterialEffectStack::ApplyEffects(const TSharedRef<FDMMaterialBuildState
 	}
 
 	return bAppliedEffect;
+}
+
+FDMMaterialEffectStackJson UDMMaterialEffectStack::CreatePreset()
+{
+	FDMMaterialEffectStackJson Preset;
+	Preset.bEnabled = bEnabled;
+
+	Preset.Effects.Reserve(Effects.Num());
+
+	for (const TObjectPtr<UDMMaterialEffect>& Effect : Effects)
+	{
+		FDMMaterialEffectJson& EffectJson = Preset.Effects.AddDefaulted_GetRef();
+		EffectJson.Class = Effect->GetClass();
+		EffectJson.Data = Effect->JsonSerialize();
+	}
+
+	return Preset;
+}
+
+void UDMMaterialEffectStack::ApplyPreset(const FDMMaterialEffectStackJson& InPreset)
+{
+	SetEnabled(InPreset.bEnabled);
+
+	for (const FDMMaterialEffectJson& EffectJson : InPreset.Effects)
+	{
+		if (!EffectJson.Class.Get())
+		{
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid class when applying effect preset."), true, this);
+			continue;
+		}
+
+		UDMMaterialEffect* Effect = UDMMaterialEffect::CreateEffect(this, EffectJson.Class);
+
+		if (!Effect)
+		{
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed creating class when applying effect preset."), true, this);
+			continue;
+		}
+
+		Effect->JsonDeserialize(EffectJson.Data);
+
+		AddEffect(Effect);
+	}
 }
 
 UDMMaterialComponent* UDMMaterialEffectStack::GetParentComponent() const
@@ -399,6 +460,49 @@ void UDMMaterialEffectStack::PostEditUndo()
 	MarkComponentDirty();
 
 	Update(EDMUpdateType::Structure);
+}
+
+TArray<UDMMaterialEffect*> UDMMaterialEffectStack::GetIncompatibleEffects(UDMMaterialEffect* InEffect)
+{
+	if (!InEffect)
+	{
+		return {};
+	}
+
+	TArray<UDMMaterialEffect*> IncompatibleEffects;
+
+	for (const TObjectPtr<UDMMaterialEffect>& Effect : Effects)
+	{
+		if (!Effect->IsCompatibleWith(InEffect))
+		{
+			IncompatibleEffects.Add(Effect);
+		}
+	}
+
+	return IncompatibleEffects;
+}
+
+TArray<UDMMaterialEffect*> UDMMaterialEffectStack::RemoveIncompatibleEffects(UDMMaterialEffect* InEffect)
+{
+	if (!InEffect)
+	{
+		return {};
+	}
+
+	TArray<UDMMaterialEffect*> IncompatibleEffects;
+
+	for (int32 Index = Effects.Num() - 1; Index >= 0; --Index)
+	{
+		UDMMaterialEffect* Effect = Effects[Index];
+
+		if (!Effect->IsCompatibleWith(InEffect))
+		{
+			IncompatibleEffects.Add(Effect);
+			RemoveEffect(Index);
+		}
+	}
+
+	return IncompatibleEffects;
 }
 
 UDMMaterialComponent* UDMMaterialEffectStack::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const

@@ -2,12 +2,12 @@
 
 #include "Components/DMMaterialStageBlendFunction.h"
 #include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageBlendFunction"
 

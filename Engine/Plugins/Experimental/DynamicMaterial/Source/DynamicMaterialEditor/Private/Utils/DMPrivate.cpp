@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DMPrivate.h"
+#include "Utils/DMPrivate.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialStage.h"
 #include "DMDefs.h"
 #include "DynamicMaterialEditorModule.h"
-#include "MaterialExpressionIO.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "MaterialExpressionIO.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "FDMMaterialLayerReference"

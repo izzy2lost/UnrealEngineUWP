@@ -8,7 +8,8 @@
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
 #include "DMComponentPath.h"
-#include "DMPrivate.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
@@ -18,6 +19,8 @@
 #include "MaterialValueType.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialEffectFunction"
 
@@ -76,6 +79,110 @@ const TArray<TObjectPtr<UDMMaterialValue>>& UDMMaterialEffectFunction::GetInputV
 	return InputValues;
 }
 
+TSharedPtr<FJsonValue> UDMMaterialEffectFunction::JsonSerialize() const
+{
+	TArray<TSharedPtr<FJsonValue>> ValueArray;
+
+	if (MaterialFunctionPtr)
+	{
+		for (int32 InputIndex = 0; InputIndex < InputValues.Num(); ++InputIndex)
+		{
+			// Index 0 is always null
+			if (InputIndex == 0)
+			{
+				ValueArray.Add(MakeShared<FJsonValueNull>());
+			}
+			else if (InputValues[InputIndex])
+			{
+				ValueArray.Add(InputValues[InputIndex]->JsonSerialize());
+			}
+			else
+			{
+				UE::DynamicMaterialEditor::Private::LogError(TEXT("Null input found when serializing material effect function."), true, this);
+			}
+		}
+	}
+
+	return FDMJsonUtils::Serialize({
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, bEnabled), FDMJsonUtils::Serialize(bEnabled)},
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, MaterialFunctionPtr), FDMJsonUtils::Serialize(MaterialFunctionPtr)},
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, InputValues), MakeShared<FJsonValueArray>(ValueArray)},
+	});
+}
+
+bool UDMMaterialEffectFunction::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	TMap<FString, TSharedPtr<FJsonValue>> Data;
+
+	if (!FDMJsonUtils::Deserialize(InJsonValue, Data))
+	{
+		return false;
+	}
+
+	bool bSuccess = false;
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, bEnabled)))
+	{
+		bool bEnabledJson = false;
+
+		if (FDMJsonUtils::Deserialize(*JsonValue, bEnabledJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetEnabled(bEnabledJson);
+			bSuccess = true;
+		}
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, MaterialFunctionPtr)))
+	{
+		UMaterialFunctionInterface* MaterialFunctionJson = nullptr;
+
+		if (FDMJsonUtils::Deserialize(*JsonValue, MaterialFunctionJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetMaterialFunction(MaterialFunctionJson);
+			bSuccess = true;
+		}
+	}
+
+	// If there's no effect function, there's no input values
+	if (MaterialFunctionPtr)
+	{
+		if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, InputValues)))
+		{
+			const TArray<TSharedPtr<FJsonValue>>* InputValuesJson = nullptr;
+
+			if ((*JsonValue)->TryGetArray(InputValuesJson))
+			{
+				if (InputValuesJson->Num() != InputValues.Num())
+				{
+					UE::DynamicMaterialEditor::Private::LogError(TEXT("Mismatched input value count deserializing effect function."), true, this);
+					bSuccess = false;
+				}
+				else
+				{
+					// Index 0 is always nullptr, ignore it.
+					for (int32 InputIndex = 1; InputIndex < InputValues.Num(); ++InputIndex)
+					{
+						if (!InputValues[InputIndex]->JsonDeserialize((*InputValuesJson)[InputIndex]))
+						{
+							UE::DynamicMaterialEditor::Private::LogError(TEXT("Unable to deserialize input value while deserializing material effect function."), true, this);
+							bSuccess = false;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (bSuccess)
+	{
+		Update(EDMUpdateType::Structure);
+	}
+
+	return bSuccess;
+}
+
 FText UDMMaterialEffectFunction::GetEffectName() const
 {
 	if (UMaterialFunctionInterface* MaterialFunction = MaterialFunctionPtr.Get())
@@ -105,6 +212,18 @@ FText UDMMaterialEffectFunction::GetEffectDescription() const
 	}
 
 	return FText::GetEmpty();
+}
+
+bool UDMMaterialEffectFunction::IsCompatibleWith(UDMMaterialEffect* InEffect) const
+{
+	if (!MaterialFunctionPtr)
+	{
+		return false;
+	}
+
+	UDMMaterialEffectFunction* EffectFunction = Cast<UDMMaterialEffectFunction>(InEffect);
+
+	return !EffectFunction || EffectFunction->GetMaterialFunction() != MaterialFunctionPtr;
 }
 
 void UDMMaterialEffectFunction::ApplyTo(const TSharedRef<FDMMaterialBuildState>& InBuildState, TArray<UMaterialExpression*>& InOutStageExpressions,

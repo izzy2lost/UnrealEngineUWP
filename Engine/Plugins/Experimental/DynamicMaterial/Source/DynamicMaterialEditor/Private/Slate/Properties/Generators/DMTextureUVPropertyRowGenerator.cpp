@@ -4,7 +4,6 @@
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMTextureUV.h"
 #include "DMEDefs.h"
-#include "DMPrivate.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
@@ -13,6 +12,7 @@
 #include "Slate/SDMComponentEdit.h"
 #include "Slate/SDMEditor.h"
 #include "Styling/SlateIconFinder.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "DMTextureUVPropertyRowGenerator"

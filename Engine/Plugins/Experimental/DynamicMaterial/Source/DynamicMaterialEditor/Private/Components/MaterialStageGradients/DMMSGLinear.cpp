@@ -2,7 +2,6 @@
 
 #include "Components/MaterialStageGradients/DMMSGLinear.h"
 #include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionFmod.h"
@@ -11,6 +10,7 @@
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageGradientLinear"
 

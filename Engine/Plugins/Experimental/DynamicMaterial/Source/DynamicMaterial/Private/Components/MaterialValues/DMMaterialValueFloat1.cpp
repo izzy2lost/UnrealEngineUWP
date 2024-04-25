@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
  
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
@@ -52,6 +53,24 @@ void UDMMaterialValueFloat1::ApplyDefaultValue()
 void UDMMaterialValueFloat1::ResetDefaultValue()
 {
 	DefaultValue = 0.f;
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueFloat1::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat1::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	float ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
 }
 
 void UDMMaterialValueFloat1::SetDefaultValue(float InDefaultValue)

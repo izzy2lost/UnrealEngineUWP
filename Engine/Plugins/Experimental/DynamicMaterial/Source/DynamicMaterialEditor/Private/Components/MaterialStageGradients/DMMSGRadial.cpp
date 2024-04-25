@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageGradients/DMMSGRadial.h"
-#include "DMMaterialFunctionLibrary.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"

@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Helpers/DMInputNodeBuilder.h"
+#include "Utils/DMInputNodeBuilder.h"
 #include "DMEDefs.h"
-#include "DMPrivate.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionIf.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Utils/DMPrivate.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {

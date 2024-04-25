@@ -23,6 +23,11 @@ public:
 	void SetWidgetClass(TSubclassOf<UWidget> InWidgetClass);
 
 #if WITH_EDITOR
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
+
 	//~ Begin UObject
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject

@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/RenderTargetRenderers/DMRenderTargetWidgetRenderer.h"
-#include "Components/Widget.h"
 #include "Components/MaterialValues/DMMaterialValueRenderTarget.h"
+#include "Components/Widget.h"
 #include "Engine/Engine.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Slate/WidgetRenderer.h"
@@ -33,6 +33,24 @@ void UDMRenderTargetWidgetRenderer::SetWidgetClass(TSubclassOf<UWidget> InWidget
 }
 
 #if WITH_EDITOR
+TSharedPtr<FJsonValue> UDMRenderTargetWidgetRenderer::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(WidgetClass.Get());
+}
+
+bool UDMRenderTargetWidgetRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	TSubclassOf<UWidget> WidgetClassJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, WidgetClassJson))
+	{
+		SetWidgetClass(WidgetClassJson);
+		return true;
+	}
+
+	return false;
+}
+
 void UDMRenderTargetWidgetRenderer::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);

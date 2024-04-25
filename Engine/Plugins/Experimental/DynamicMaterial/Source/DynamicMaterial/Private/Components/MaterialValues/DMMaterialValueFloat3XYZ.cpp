@@ -61,6 +61,24 @@ void UDMMaterialValueFloat3XYZ::ResetDefaultValue()
 	DefaultValue = FVector::ZeroVector;
 }
 
+TSharedPtr<FJsonValue> UDMMaterialValueFloat3XYZ::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat3XYZ::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	FVector ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
+}
+
 void UDMMaterialValueFloat3XYZ::SetDefaultValue(FVector InDefaultValue)
 {
 	DefaultValue = InDefaultValue;

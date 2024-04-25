@@ -73,6 +73,24 @@ void UDMMaterialValueBool::ResetDefaultValue()
 	bDefaultValue = false;
 }
 
+TSharedPtr<FJsonValue> UDMMaterialValueBool::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueBool::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	bool bValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, bValueJson))
+	{
+		SetValue(bValueJson);
+		return true;
+	}
+
+	return false;
+}
+
 void UDMMaterialValueBool::SetDefaultValue(bool bInDefaultValue)
 {
 	bDefaultValue = bInDefaultValue;

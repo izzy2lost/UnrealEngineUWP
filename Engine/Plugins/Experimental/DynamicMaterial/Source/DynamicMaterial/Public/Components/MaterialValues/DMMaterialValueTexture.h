@@ -46,13 +46,12 @@ public:
 	void SetDefaultValue(UTexture* InDefaultValue);
 #endif // WITH_EDITOR
 
-	//~ Begin UObject
 #if WITH_EDITOR
-	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
 #endif
-	virtual void PostLoad() override;
-	//~ End UObject
 
 	//~ Begin UDMMaterialValue
 	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
@@ -64,6 +63,14 @@ public:
 	virtual void ResetDefaultValue() override;
 #endif
 	//~ End UDMMaterialValue
+
+	//~ Begin UObject
+#if WITH_EDITOR
+	virtual void PreEditChange(FProperty* InPropertyAboutToChange) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+	virtual void PostLoad() override;
+	//~ End UObject
 
 protected:
 	UDMMaterialValueTexture();

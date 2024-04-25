@@ -2,7 +2,7 @@
  
 #include "SDMPropertyEditFloat3RGBValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
-#include "DMPrivate.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "SDMPropertyEditFloat3RGBValue"

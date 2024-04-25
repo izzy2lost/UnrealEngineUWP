@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
+#include "Utils/DMJsonUtils.h"
 #include "Components/DMMaterialStage.h"
 #include "DMDefs.h"
 #include "DMMaterialEffect.generated.h"
@@ -25,7 +26,7 @@ enum class EDMMaterialEffectTarget : uint8
 };
 
 UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Effect"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialEffect : public UDMMaterialComponent
+class DYNAMICMATERIALEDITOR_API UDMMaterialEffect : public UDMMaterialComponent, public IDMJsonSerializable
 {
 	GENERATED_BODY()
 
@@ -64,6 +65,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	virtual FText GetEffectDescription() const PURE_VIRTUAL(UDMMaterialEffect::ApplyTo, return FText::GetEmpty();)
+
+	virtual bool IsCompatibleWith(UDMMaterialEffect* InEffect) const { return true; }
 
 	virtual void ApplyTo(const TSharedRef<FDMMaterialBuildState>& InBuildState, TArray<UMaterialExpression*>& InOutExpressions, 
 		int32& InOutLastExpressionOutputChannel, int32& InLastExpressionOutputIndex) const PURE_VIRTUAL(UDMMaterialEffect::ApplyTo)

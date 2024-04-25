@@ -2,8 +2,8 @@
  
 #include "SDMPropertyEditTextureValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
-#include "DMPrivate.h"
 #include "Engine/Texture.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "SDMPropertyEditTextureValue"

@@ -5,12 +5,12 @@
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageInput.h"
-#include "DMPrivate.h"
-#include "Helpers/DMInputNodeBuilder.h"
 #include "Materials/MaterialExpression.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMInputNodeBuilder.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageExpressionMathBase"
 

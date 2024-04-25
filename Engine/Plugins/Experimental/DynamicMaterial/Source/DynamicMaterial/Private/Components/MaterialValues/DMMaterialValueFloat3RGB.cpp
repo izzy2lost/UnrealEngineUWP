@@ -61,6 +61,24 @@ void UDMMaterialValueFloat3RGB::ResetDefaultValue()
 	DefaultValue = FLinearColor(0, 0, 0, 1);
 }
 
+TSharedPtr<FJsonValue> UDMMaterialValueFloat3RGB::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat3RGB::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	FLinearColor ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
+}
+
 void UDMMaterialValueFloat3RGB::SetDefaultValue(FLinearColor InDefaultValue)
 {
 	DefaultValue = InDefaultValue;

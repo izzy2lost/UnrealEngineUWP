@@ -7,11 +7,11 @@
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageThroughput.h"
 #include "DMComponentPath.h"
-#include "DMPrivate.h"
 #include "DMValueDefinition.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageInputSlot"
 

@@ -3,13 +3,14 @@
 #pragma once
 
 #include "DMMaterialComponent.h"
+#include "Utils/DMJsonUtils.h"
 #include "DMRenderTargetRenderer.generated.h"
 
 class UDMMaterialValueRenderTarget;
 template <typename T> class TSubclassOf;
 
 UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Renderer"))
-class DYNAMICMATERIAL_API UDMRenderTargetRenderer : public UDMMaterialComponent
+class DYNAMICMATERIAL_API UDMRenderTargetRenderer : public UDMMaterialComponent, public IDMJsonSerializable
 {
 	GENERATED_BODY()
 

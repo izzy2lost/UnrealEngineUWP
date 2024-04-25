@@ -2,14 +2,15 @@
 
 #include "Slate/Layers/SDMSlotLayerItem.h"
 
-#include "ContentBrowserDataDragDropOp.h"
+#include "Components/DMMaterialEffectFunction.h"
+#include "Components/DMMaterialEffectStack.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
-#include "DMPrivate.h"
+#include "ContentBrowserDataDragDropOp.h"
 #include "DragDrop/DMSlotLayerDragDropOperation.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
@@ -21,9 +22,8 @@
 #include "Slate/SDMSlot.h"
 #include "Slate/SDMStage.h"
 #include "SlateOptMacros.h"
-#include "Components/DMMaterialEffectFunction.h"
-#include "Components/DMMaterialEffectStack.h"
 #include "Styling/StyleColors.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -726,9 +726,11 @@ FReply SDMSlotLayerItem::OnLayerItemAcceptDrop(const FDragDropEvent& InDragDropE
 				if (UMaterialFunctionInterface* MaterialFunction = Cast<UMaterialFunctionInterface>(DraggedAsset.GetAsset()))
 				{
 					UDMMaterialEffectFunction* EffectFunction = UDMMaterialEffect::CreateEffect<UDMMaterialEffectFunction>(EffectStack);
-					EffectFunction->SetMaterialFunction(MaterialFunction);
 
 					// Will successfully set the function if it's valid
+					EffectFunction->SetMaterialFunction(MaterialFunction);
+
+					// If it was valid, its value will match.
 					if (EffectFunction->GetMaterialFunction() == MaterialFunction)
 					{
 						EffectStack->AddEffect(EffectFunction);

@@ -30,8 +30,6 @@
 #include "CoreGlobals.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
-#include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
@@ -49,6 +47,8 @@
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModel.h"
 #include "UObject/Package.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
 

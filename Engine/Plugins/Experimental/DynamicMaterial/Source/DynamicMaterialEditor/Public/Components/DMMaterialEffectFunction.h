@@ -31,9 +31,17 @@ public:
 
 	const TArray<TObjectPtr<UDMMaterialValue>>& GetInputValues() const;
 
+#if WITH_EDITOR
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
+#endif
+
 	//~ Begin UDMMaterialEffect
 	virtual FText GetEffectName() const override;
 	virtual FText GetEffectDescription() const override;
+	virtual bool IsCompatibleWith(UDMMaterialEffect* InEffect) const override;
 	virtual void ApplyTo(const TSharedRef<FDMMaterialBuildState>& InBuildState, TArray<UMaterialExpression*>& InOutExpressions,
 		int32& InOutLastExpressionOutputChannel, int32& InOutLastExpressionOutputIndex) const override;
 	//~ End UDMMaterialEffect

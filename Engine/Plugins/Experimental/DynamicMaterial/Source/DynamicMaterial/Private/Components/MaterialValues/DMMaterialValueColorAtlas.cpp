@@ -5,10 +5,11 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Curves/CurveLinearColor.h"
+#include "Curves/CurveLinearColorAtlas.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionAppendVector.h"
-#include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionCurveAtlasRowParameter.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
@@ -133,6 +134,73 @@ void UDMMaterialValueColorAtlas::ApplyDefaultValue()
 void UDMMaterialValueColorAtlas::ResetDefaultValue()
 {
 	DefaultValue = 0.f;
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueColorAtlas::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize({
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Value), FDMJsonUtils::Serialize(Value)},
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Atlas), FDMJsonUtils::Serialize(Atlas)},
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Curve), FDMJsonUtils::Serialize(Curve)}
+	});
+}
+
+bool UDMMaterialValueColorAtlas::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	TMap<FString, TSharedPtr<FJsonValue>> Data;
+
+	if (!FDMJsonUtils::Deserialize(InJsonValue, Data))
+	{
+		return false;
+	}
+
+	bool bSuccess = false;
+	EDMUpdateType UpdateType = EDMUpdateType::Value;
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Atlas)))
+	{
+		UCurveLinearColorAtlas* AtlasJson = nullptr;
+
+		if (FDMJsonUtils::Deserialize(*JsonValue, AtlasJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetAtlas(AtlasJson);
+			UpdateType = EDMUpdateType::Structure;
+			bSuccess = true;
+		}
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Curve)))
+	{
+		UCurveLinearColor* CurveJson = nullptr;
+
+		if (FDMJsonUtils::Deserialize(*JsonValue, CurveJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetCurve(CurveJson);
+			UpdateType = EDMUpdateType::Structure;
+			bSuccess = true;
+		}
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Value)))
+	{
+		float ValueJson;
+
+		if (FDMJsonUtils::Deserialize(*JsonValue, ValueJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetValue(ValueJson);
+			bSuccess = true;
+		}
+	}
+
+	if (bSuccess)
+	{
+		Update(UpdateType);
+	}
+
+	return bSuccess;
 }
 
 void UDMMaterialValueColorAtlas::SetDefaultValue(float InDefaultValue)

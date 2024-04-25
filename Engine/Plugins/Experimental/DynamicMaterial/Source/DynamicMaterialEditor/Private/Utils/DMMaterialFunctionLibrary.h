@@ -15,6 +15,8 @@ public:
 
 	UMaterialFunctionInterface* GetFunction(const FName& Name, const FString& Path);
 
+	UMaterialFunctionInterface* LoadFunction(const FString& Path);
+
 	UMaterialExpressionMaterialFunctionCall* MakeExpression(UMaterial* Parent, UMaterialFunctionInterface* Function, const FString& InComment);
 	UMaterialExpressionMaterialFunctionCall* MakeExpression(UMaterial* Parent, const FName& Name, const FString& Path, const FString& InComment);
 
@@ -30,6 +32,4 @@ public:
 
 protected:
 	TMap<FName, TStrongObjectPtr<UMaterialFunctionInterface>> LoadedFunctions;
-
-	UMaterialFunctionInterface* LoadFunction(const FString& Path);
 };

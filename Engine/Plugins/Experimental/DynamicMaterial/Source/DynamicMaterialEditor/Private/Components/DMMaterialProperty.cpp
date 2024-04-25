@@ -9,7 +9,6 @@
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
-#include "DMPrivate.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "Materials/MaterialExpressionConstant.h"
@@ -24,6 +23,7 @@
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialProperty"
 

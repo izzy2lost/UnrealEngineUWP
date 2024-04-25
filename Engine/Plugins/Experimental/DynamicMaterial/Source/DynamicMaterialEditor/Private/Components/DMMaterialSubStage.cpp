@@ -4,7 +4,7 @@
 
 #include "Components/DMMaterialLayer.h"
 #include "Components/MaterialStageInputs/DMMSIThroughput.h"
-#include "DMPrivate.h"
+#include "Utils/DMPrivate.h"
 
 UDMMaterialSubStage* UDMMaterialSubStage::CreateMaterialSubStage(UDMMaterialStage* InParentStage)
 {

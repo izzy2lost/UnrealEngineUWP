@@ -4,8 +4,10 @@
 
 #include "Components/DMMaterialComponent.h"
 #include "DMDefs.h"
+#include "Templates/SharedPointer.h"
 #include "DMMaterialEffectStack.generated.h"
 
+class FJsonValue;
 class UDMMaterialEffect;
 class UDMMaterialLayerObject;
 class UDMMaterialSlot;
@@ -13,6 +15,21 @@ class UDMMaterialStage;
 class UMaterialExpression;
 enum class EDMMaterialEffectTarget : uint8;
 struct FDMMaterialBuildState;
+
+struct FDMMaterialEffectJson
+{
+	TSubclassOf<UDMMaterialEffect> Class = nullptr;
+	TSharedPtr<FJsonValue> Data = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FDMMaterialEffectStackJson
+{
+	GENERATED_BODY()
+
+	bool bEnabled = false;
+	TArray<FDMMaterialEffectJson> Effects = {};
+};
 
 /**
  * Container for effects. Effects can be applied to either layers (on a per stage basis) or to slots.
@@ -71,7 +88,7 @@ public:
 	bool AddEffect(UDMMaterialEffect* InEffect);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetEffect(int32 InIndex, UDMMaterialEffect* InEffect);
+	UDMMaterialEffect* SetEffect(int32 InIndex, UDMMaterialEffect* InEffect);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Move Effect (By Index)"))
 	bool BP_MoveEffectByIndex(int32 InIndex, int32 InNewIndex)
@@ -90,12 +107,12 @@ public:
 	bool MoveEffect(UDMMaterialEffect* InEffect, int32 InNewIndex);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Remove Effect (By Index)"))
-	bool BP_RemoveEffectByIndex(int32 InIndex)
+	UDMMaterialEffect* BP_RemoveEffectByIndex(int32 InIndex)
 	{
 		return RemoveEffect(InIndex);
 	}
 
-	bool RemoveEffect(int32 InIndex);
+	UDMMaterialEffect* RemoveEffect(int32 InIndex);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Remove Effect (By Value)"))
 	bool BP_RemoveEffectByValue(UDMMaterialEffect* InEffect)
@@ -107,6 +124,12 @@ public:
 
 	bool ApplyEffects(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialEffectTarget InEffectTarget,
 		TArray<UMaterialExpression*>& InOutStageExpressions, int32& InOutLastExpressionOutputChannel, int32& InOutLastExpressionOutputIndex) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	FDMMaterialEffectStackJson CreatePreset();
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void ApplyPreset(const FDMMaterialEffectStackJson& InPreset);
 
 	//~ Begin UDMMaterialComponent
 	virtual UDMMaterialComponent* GetParentComponent() const override;
@@ -127,6 +150,10 @@ protected:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TArray<TObjectPtr<UDMMaterialEffect>> Effects;
+
+	TArray<UDMMaterialEffect*> GetIncompatibleEffects(UDMMaterialEffect* InEffect);
+
+	TArray<UDMMaterialEffect*> RemoveIncompatibleEffects(UDMMaterialEffect* InEffect);
 
 	//~ Begin UDMMaterialComponent
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;

@@ -2,8 +2,8 @@
  
 #include "SDMPropertyEditFloat1Value.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
-#include "DMPrivate.h"
 #include "DynamicMaterialEditorSettings.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/SNullWidget.h"
  

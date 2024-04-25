@@ -6,12 +6,12 @@
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/DMMaterialSubStage.h"
 #include "DMComponentPath.h"
-#include "DMPrivate.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageInputThroughput"
 

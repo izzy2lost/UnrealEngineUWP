@@ -6,7 +6,6 @@
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DMComponentPath.h"
-#include "DMPrivate.h"
 #include "Dom/JsonObject.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Factories.h"
@@ -17,6 +16,7 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialLayer"
 

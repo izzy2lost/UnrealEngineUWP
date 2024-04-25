@@ -2,7 +2,7 @@
  
 #include "SDMPropertyEditFloat4Value.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
-#include "DMPrivate.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "SDMPropertyEditFloat4Value"

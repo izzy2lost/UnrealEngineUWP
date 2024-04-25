@@ -9,6 +9,10 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "TextureResource.h"
 
+#if WITH_EDITOR
+#include "Dom/JsonValue.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "DMRenderTargetTextRenderer"
 
 namespace UE::DynamicMaterial::Private
@@ -58,6 +62,16 @@ UDMRenderTargetTextRenderer::UDMRenderTargetTextRenderer()
 }
 
 #if WITH_EDITOR
+TSharedPtr<FJsonValue> UDMRenderTargetTextRenderer::JsonSerialize() const
+{
+	return MakeShared<FJsonValueNull>();
+}
+
+bool UDMRenderTargetTextRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	return true;
+}
+
 void UDMRenderTargetTextRenderer::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);

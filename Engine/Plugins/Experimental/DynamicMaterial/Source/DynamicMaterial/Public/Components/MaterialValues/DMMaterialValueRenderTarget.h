@@ -60,6 +60,11 @@ public:
 	void FlushCreateRenderTarget();
 
 #if WITH_EDITOR
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
+
 	//~ Begin UDMMaterialValue
 	/** Render target is handled internally. */
 	virtual bool AllowEditValue() const override { return false; }

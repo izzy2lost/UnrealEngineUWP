@@ -6,8 +6,9 @@
 #include "DMDefs.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Utils/DMJsonUtils.h"
 #include "DMMaterialValue.generated.h"
- 
+
 class UDMMaterialParameter;
 class UDynamicMaterialModel;
 class UMaterial;
@@ -29,7 +30,7 @@ class UDMMaterialValue;
  * A value used inside a material. Can be exported as a material parameter.
  */
 UCLASS(BlueprintType, Abstract, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Value"))
-class DYNAMICMATERIAL_API UDMMaterialValue : public UDMMaterialLinkedComponent
+class DYNAMICMATERIAL_API UDMMaterialValue : public UDMMaterialLinkedComponent, public IDMJsonSerializable
 {
 	GENERATED_BODY()
  

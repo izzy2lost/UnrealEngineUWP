@@ -151,6 +151,83 @@ void UDMMaterialValueRenderTarget::Update(EDMUpdateType InUpdateType)
 }
 
 #if WITH_EDITOR
+TSharedPtr<FJsonValue> UDMMaterialValueRenderTarget::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize({
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, TextureSize), FDMJsonUtils::Serialize(TextureSize)},
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, TextureFormat), FDMJsonUtils::Serialize<ETextureRenderTargetFormat>(TextureFormat)},
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, ClearColor), FDMJsonUtils::Serialize(ClearColor)},
+		{GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Renderer), FDMJsonUtils::Serialize(Renderer.Get())}
+	});
+}
+
+bool UDMMaterialValueRenderTarget::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	TMap<FString, TSharedPtr<FJsonValue>> Data;
+
+	if (!FDMJsonUtils::Deserialize(InJsonValue, Data))
+	{
+		return false;
+	}
+
+	bool bSuccess = false;
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, TextureSize)))
+	{
+		FIntPoint TextureSizeJson = FIntPoint::ZeroValue;
+
+		if (FDMJsonUtils::Deserialize(*JsonValue, TextureSizeJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetTextureSize(TextureSizeJson);
+			bSuccess = true;
+		}
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, TextureFormat)))
+	{
+		ETextureRenderTargetFormat TextureFormatJson = RTF_RGBA16f;
+
+		if (FDMJsonUtils::Deserialize(*JsonValue, TextureFormatJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetTextureFormat(TextureFormatJson);
+			bSuccess = true;
+		}
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonClearColor = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, ClearColor)))
+	{
+		FLinearColor ClearColorJson = FLinearColor::Black;
+
+		if (FDMJsonUtils::Deserialize(*JsonClearColor, ClearColorJson))
+		{
+			const FDMUpdateGuard Guard;
+			SetClearColor(ClearColorJson);
+			bSuccess = true;
+		}
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonRenderer = Data.Find(GET_MEMBER_NAME_STRING_CHECKED(ThisClass, Renderer)))
+	{
+		UDMRenderTargetRenderer* RendererJson;
+
+		if (FDMJsonUtils::Deserialize(*JsonRenderer, RendererJson, this))
+		{
+			const FDMUpdateGuard Guard;
+			SetRenderer(RendererJson);
+			bSuccess = true;
+		}
+	}
+
+	if (bSuccess)
+	{
+		Update(EDMUpdateType::Value);
+	}
+
+	return bSuccess;
+}
+
 void UDMMaterialValueRenderTarget::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
 {
 	Super::PostEditorDuplicate(InMaterialModel, InParent);
