@@ -1025,14 +1025,15 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 
 	case EStateTreeDataSourceType::StateEvent:
 		{
+			// If state selection is going, return FStateTreeEvent of the event currently captured by the state selection.
 			if (CurrentlyProcessedStateSelectionEvents)
 			{
 				if (const FCompactStateTreeState* State = CurrentFrame.StateTree->GetStateFromHandle(Handle.GetState()))
 				{
-					if (const FStateTreeEvent* Event = CurrentlyProcessedStateSelectionEvents->Events[State->Depth].Get())
+					// Events are read only, but we cannot express that in FStateTreeDataView.
+					if (FStateTreeEvent* Event = CurrentlyProcessedStateSelectionEvents->Events[State->Depth].GetMutable())
 					{
-						// const_cast because events are read only, but we cannot express that in FStateTreeDataView.
-						return FStateTreeDataView(FStructView::Make(*const_cast<FStateTreeEvent*>(Event)));
+						return FStateTreeDataView(FStructView::Make(*Event));
 					}
 				}
 
@@ -1100,9 +1101,11 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataViewFromInstanceStorage(FS
 
 	case EStateTreeDataSourceType::StateEvent:
 		{
+			// Return FStateTreeEvent from shared event.
 			FStateTreeSharedEvent& SharedEvent = InstanceDataStorage.GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()).Get<FStateTreeSharedEvent>();
 			check(SharedEvent.IsValid());
-			return FStateTreeDataView(FStructView::Make(SharedEvent));
+			// Events are read only, but we cannot express that in FStateTreeDataView.
+			return FStateTreeDataView(FStructView::Make(*SharedEvent.GetMutable()));
 		}
 
 	case EStateTreeDataSourceType::ContextData:

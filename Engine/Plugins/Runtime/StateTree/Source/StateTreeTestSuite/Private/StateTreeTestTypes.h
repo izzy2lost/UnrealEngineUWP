@@ -314,6 +314,9 @@ struct FTestTask_StandInstanceData
 {
 	GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, Category = "Parameter")
+	int32 Value = 0;
+	
 	UPROPERTY()
 	int32 CurrentTick = 0;
 };
