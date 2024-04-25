@@ -23,11 +23,11 @@ namespace Jupiter.Implementation
 	public class MetricsServiceSettings
 	{
 		/// <summary>
-		/// Set to enable calulcation of metrics in the background. Adds load to database so only enable these if you intend to use it.
+		/// Set to enable calculation of metrics in the background. Adds load to database so only enable these if you intend to use it.
 		/// </summary>
 		public bool Enabled { get; set; } = false;
 
-		public TimeSpan PollFrequency { get; set; } = TimeSpan.FromHours(24);
+		public TimeSpan PollFrequency { get; set; } = TimeSpan.FromHours(6);
 	}
 
 	public class MetricsService : PollingService<MetricsState>
