@@ -2648,7 +2648,7 @@ UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindOrCreateGameFeatureP
 		return *ExistingStateMachine;
 	}
 
-	UE_LOG(LogGameFeatures, Display, TEXT("Creating GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
+	UE_LOG(LogGameFeatures, Verbose, TEXT("Creating GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
 
 	UGameFeaturePluginStateMachine* NewStateMachine = NewObject<UGameFeaturePluginStateMachine>(this);
 	GameFeaturePluginStateMachines.Add(FString(PluginIdentifier.GetIdentifyingString()), NewStateMachine);
@@ -2662,38 +2662,15 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePluginComplete(const UE::Game
 	check(Machine);
 	if (Result.HasValue())
 	{
-		//@note It's possible for the machine to still be tranitioning at this point as long as it's withing the requested destination range
-		UE_LOG(LogGameFeatures, Display, TEXT("Game feature '%s' loaded successfully. Ending state: %s, [%s, %s]"), 
-			*Machine->GetGameFeatureName(), 
-			*UE::GameFeatures::ToString(Machine->GetCurrentState()),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MinState),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MaxState));
-
 		checkf(RequestedDestination.Contains(Machine->GetCurrentState()), TEXT("Game feature '%s': Ending state %s is not in expected range [%s, %s]"), 
 			*Machine->GetGameFeatureName(), 
 			*UE::GameFeatures::ToString(Machine->GetCurrentState()), 
 			*UE::GameFeatures::ToString(RequestedDestination.MinState), 
 			*UE::GameFeatures::ToString(RequestedDestination.MaxState));
-#if WITH_EDITOR
-		if (Machine->GetCurrentState() > EGameFeaturePluginState::Mounting)
-		{
-			if (FString* Explanation = UnmountedPluginNameToExplanation.Find(Machine->GetPluginName()))
-			{
-				UnmountedPluginNameToExplanation.Remove(Machine->GetPluginName());
-			}
-		}
-#endif
 	}
 	else
 	{
-		const FString ErrorMessage = UE::GameFeatures::ToString(Result);
-		UE_LOG(LogGameFeatures, Error, TEXT("Game feature '%s' load failed. Ending state: %s, [%s, %s]. Result: %s"),
-			*Machine->GetGameFeatureName(),
-			*UE::GameFeatures::ToString(Machine->GetCurrentState()),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MinState),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MaxState),
-			*ErrorMessage);
-		SetExplanationForNotMountingPlugin(Machine->GetPluginURL(), ErrorMessage);
+		SetExplanationForNotMountingPlugin(Machine->GetPluginURL(), UE::GameFeatures::ToString(Result));
 	}
 }
 
@@ -2761,10 +2738,7 @@ void UGameFeaturesSubsystem::ChangeGameFeatureTargetStateComplete(UGameFeaturePl
 #if WITH_EDITOR
 	if (!Result.HasError() && Machine->GetCurrentState() > EGameFeaturePluginState::Mounting)
 	{
-		if (FString* Explanation = UnmountedPluginNameToExplanation.Find(Machine->GetPluginName()))
-		{
-			UnmountedPluginNameToExplanation.Remove(Machine->GetPluginName());
-		}
+		UnmountedPluginNameToExplanation.Remove(Machine->GetPluginName());
 	}
 #endif
 	CompleteDelegate.ExecuteIfBound(Result);
@@ -2784,7 +2758,7 @@ void UGameFeaturesSubsystem::BeginTermination(UGameFeaturePluginStateMachine* Ma
 
 void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* Machine)
 {
-	UE_LOG(LogGameFeatures, Display, TEXT("FinishTermination of GameFeaturePlugin. Identifier:%.*s URL:%s"), Machine->GetPluginIdentifier().GetIdentifyingString().Len(), Machine->GetPluginIdentifier().GetIdentifyingString().GetData(), *(Machine->GetPluginURL()));
+	UE_LOG(LogGameFeatures, Verbose, TEXT("FinishTermination of GameFeaturePlugin. Identifier:%.*s URL:%s"), Machine->GetPluginIdentifier().GetIdentifyingString().Len(), Machine->GetPluginIdentifier().GetIdentifyingString().GetData(), *(Machine->GetPluginURL()));
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
 }
 

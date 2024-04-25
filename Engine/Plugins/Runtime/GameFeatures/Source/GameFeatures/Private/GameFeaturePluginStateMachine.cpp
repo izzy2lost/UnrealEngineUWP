@@ -3514,7 +3514,8 @@ UE_TRACE_EVENT_END()
 
 void UGameFeaturePluginStateMachine::UpdateStateMachine()
 {
-	EGameFeaturePluginState CurrentState = GetCurrentState();
+	const EGameFeaturePluginState InitialState = GetCurrentState();
+	EGameFeaturePluginState CurrentState = InitialState;
 	if (bInUpdateStateMachine)
 	{
 		UE_LOG(LogGameFeatures, Verbose, TEXT("Game feature state machine skipping update for %s in ::UpdateStateMachine. Current State: %s"), *GetGameFeatureName(), *UE::GameFeatures::ToString(CurrentState));
@@ -3645,6 +3646,28 @@ void UGameFeaturePluginStateMachine::UpdateStateMachine()
 				// Now that callbacks are done this machine can be cleaned up
 				UGameFeaturesSubsystem::Get().FinishTermination(this);
 				MarkAsGarbage();
+			}
+		}
+
+		// Log our final state if we've finished transitioning
+		if (!bKeepProcessing && InitialState != CurrentState)
+		{
+			if (!StateStatus.TransitionResult.HasValue())
+			{
+				UE_LOG(LogGameFeatures, Error, TEXT("Game feature '%s' transition failed. Ending state: %s [%s, %s]. Result: %s"),
+					*GetGameFeatureName(),
+					*UE::GameFeatures::ToString(CurrentState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MinState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MaxState),
+					*UE::GameFeatures::ToString(StateStatus.TransitionResult));
+			}
+			else if (StateProperties.Destination.Contains(CurrentState))
+			{
+				UE_LOG(LogGameFeatures, Display, TEXT("Game feature '%s' transitioned successfully. Ending state: %s [%s, %s]"),
+					*GetGameFeatureName(),
+					*UE::GameFeatures::ToString(CurrentState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MinState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MaxState));
 			}
 		}
 
