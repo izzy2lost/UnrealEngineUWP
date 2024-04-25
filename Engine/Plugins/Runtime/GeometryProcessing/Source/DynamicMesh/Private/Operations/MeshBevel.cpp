@@ -131,11 +131,44 @@ void FMeshBevel::InitializeFromGroupTopologyEdges(const FDynamicMesh3& Mesh, con
 
 bool FMeshBevel::InitializeFromGroupTopologyFaces(const FDynamicMesh3& Mesh, const FGroupTopology& Topology, const TArray<int32>& GroupFaces)
 {
-	FGroupTopologySelection Selection;
-	Selection.SelectedGroupIDs.Append(GroupFaces);
-	TArray<int32> Triangles;
-	Topology.GetSelectedTriangles(Selection, Triangles);
-	return InitializeFromTriangleSet(Mesh, Triangles);
+	TSet<int32> GroupSelection;
+	GroupSelection.Append(GroupFaces);
+	bool bFoundAnythingToBevel = false;
+	for (int32 GroupID : GroupFaces)
+	{
+		const FGroupTopology::FGroup* Group = Topology.FindGroupByID(GroupID);
+		for (const FGroupTopology::FGroupBoundary& Boundary : Group->Boundaries)
+		{
+			for (int32 GroupEdgeID : Boundary.GroupEdges)
+			{
+				const FGroupTopology::FGroupEdge& GroupEdge = Topology.Edges[GroupEdgeID];
+				int32 OtherGroupID = GroupEdge.OtherGroupID(GroupID);
+				// Do not bevel edges where both sides are selected, or boundary edges
+				if (OtherGroupID == IndexConstants::InvalidID || GroupSelection.Contains(OtherGroupID))
+				{
+					continue;
+				}
+				if (Topology.IsIsolatedLoop(GroupEdgeID))
+				{
+					FEdgeLoop NewLoop;
+					NewLoop.InitializeFromEdges(&Mesh, Topology.Edges[GroupEdgeID].Span.Edges);
+					AddBevelEdgeLoop(Mesh, NewLoop);
+					bFoundAnythingToBevel = true;
+				}
+				else
+				{
+					AddBevelGroupEdge(Mesh, Topology, GroupEdgeID);
+					bFoundAnythingToBevel = true;
+				}
+			}
+		}
+	}
+	if (bFoundAnythingToBevel)
+	{
+		// precompute topological information necessary to apply bevel to vertices/edges/loops
+		BuildVertexSets(Mesh);
+	}
+	return bFoundAnythingToBevel;
 }
 
 bool FMeshBevel::InitializeFromTriangleSet(const FDynamicMesh3& Mesh, const TArray<int32>& Triangles)

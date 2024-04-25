@@ -178,7 +178,35 @@ bool UPolyEditBevelEdgeActivity::CanStart() const
 	if (ActivityContext)
 	{
 		const FGroupTopologySelection& Selection = ActivityContext->SelectionMechanic->GetActiveSelection();
-		return (Selection.SelectedEdgeIDs.Num() > 0) ||  (Selection.SelectedGroupIDs.Num() > 0);
+		// Search for any edges that we can bevel
+		for (int32 GroupEdge : Selection.SelectedEdgeIDs)
+		{
+			// Can't bevel boundary edges
+			if (ActivityContext->CurrentTopology->Edges[GroupEdge].Groups.B != IndexConstants::InvalidID)
+			{
+				return true;
+			}
+		}
+		for (int32 GroupID : Selection.SelectedGroupIDs)
+		{
+			const FGroupTopology::FGroup* Group = ActivityContext->CurrentTopology->FindGroupByID(GroupID);
+			if (Group)
+			{
+				for (const FGroupTopology::FGroupBoundary& Boundary : Group->Boundaries)
+				{
+					for (int32 GroupEdgeID : Boundary.GroupEdges)
+					{
+						const FGroupTopology::FGroupEdge& GroupEdge = ActivityContext->CurrentTopology->Edges[GroupEdgeID];
+						int32 OtherGroupID = GroupEdge.OtherGroupID(GroupID);
+						// Only bevel non-boundary edges where one side is not in the selection
+						if (OtherGroupID != IndexConstants::InvalidID && !Selection.SelectedGroupIDs.Contains(OtherGroupID))
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
 	}
 	return false;
 }
@@ -187,7 +215,7 @@ EToolActivityStartResult UPolyEditBevelEdgeActivity::Start()
 {
 	if (!CanStart())
 	{
-		ParentTool->GetToolManager()->DisplayMessage( LOCTEXT("OnBevelFailedMesssage", "Action requires edge or face selection."), EToolMessageLevel::UserWarning);
+		ParentTool->GetToolManager()->DisplayMessage( LOCTEXT("OnBevelFailedMesssage", "Cannot Bevel with current selection: Make sure your selection includes (or borders) non-boundary edges."), EToolMessageLevel::UserWarning);
 		return EToolActivityStartResult::FailedStart;
 	}
 
