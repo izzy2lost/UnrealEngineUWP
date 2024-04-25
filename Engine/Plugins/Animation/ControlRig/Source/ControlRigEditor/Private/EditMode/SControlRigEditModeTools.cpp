@@ -50,13 +50,16 @@ FRigSpacePickerBakeSettings SControlRigEditModeTools::BakeSpaceSettings;
 void SControlRigEditModeTools::Cleanup()
 {
 	// This is required as these hold a shared pointer to THIS OBJECT and make this class not to be destroyed when the parent class releases the shared pointer of this object
-	if (SettingsDetailsView)
+	if(FSlateApplication::IsInitialized())
 	{
-		SettingsDetailsView->SetKeyframeHandler(nullptr);
-	}
-	if (RigOptionsDetailsView)
-	{
-		RigOptionsDetailsView->SetKeyframeHandler(nullptr);
+		if (SettingsDetailsView)
+		{
+			SettingsDetailsView->SetKeyframeHandler(nullptr);
+		}
+		if (RigOptionsDetailsView)
+		{
+			RigOptionsDetailsView->SetKeyframeHandler(nullptr);
+		}
 	}
 	for (TPair<FDelegateHandle, TWeakObjectPtr<UControlRig>>& Handles : HandlesToClear)
 	{
