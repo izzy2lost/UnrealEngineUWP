@@ -56,6 +56,8 @@ public:
 	virtual void UnregisterMetadataCustomization(FName MetadataKey) override;
 	virtual URemoteControlPreset* GetActivePreset() const override;
 	virtual uint32 GetRemoteControlAssetCategory() const override;
+	virtual void RegisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) override;
+	virtual void UnregisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) override;
 	virtual void RegisterWidgetFactoryForType(UScriptStruct* RemoteControlEntityType, const FOnGenerateRCWidget& OnGenerateRCWidgetDelegate) override;
 	virtual void UnregisterWidgetFactoryForType(UScriptStruct* RemoteControlEntityType) override;
 	virtual void HighlightPropertyInDetailsPanel(const FPropertyPath& Path) const override;
@@ -78,6 +80,11 @@ public:
 	const TMap<FName, FOnCustomizeMetadataEntry>& GetEntityMetadataCustomizations() const
 	{
 		return ExternalEntityMetadataCustomizations;
+	}
+
+	TConstArrayView<TSharedRef<IRCSignatureCustomization>> GetSignatureCustomizations() const
+	{
+		return SignatureCustomizations;
 	}
 
 public:
@@ -267,6 +274,9 @@ private:
 
 	/** Map of metadata key to customization handler. */
 	TMap<FName, FOnCustomizeMetadataEntry> ExternalEntityMetadataCustomizations;
+
+	/** Registered Signature Customizations */
+	TArray<TSharedRef<IRCSignatureCustomization>> SignatureCustomizations; 
 
 	TMap<TWeakObjectPtr<UScriptStruct>, FOnGenerateRCWidget> GenerateWidgetDelegates;
 

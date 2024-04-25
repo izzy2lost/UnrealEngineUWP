@@ -31,6 +31,9 @@ void FRemoteControlCommands::RegisterCommands()
 	// Toggle Logic Editor
 	UI_COMMAND(ToggleLogicEditor, "Logic", "View the logic applied to active selection.", EUserInterfaceActionType::ToggleButton, FInputChord());
 
+	// Toggle Signature Editor
+	UI_COMMAND(ToggleSignatureEditor, "Signature", "View the current signatures available", EUserInterfaceActionType::ToggleButton, FInputChord());
+
 	// Delete Entity
 	UI_COMMAND(DeleteEntity, "Delete", "Delete the selected group/exposed entity from the list.", EUserInterfaceActionType::Button, FInputChord(EKeys::Delete));
 

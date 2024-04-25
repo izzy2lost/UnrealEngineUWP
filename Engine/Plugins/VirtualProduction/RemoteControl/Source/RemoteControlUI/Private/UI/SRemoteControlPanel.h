@@ -318,6 +318,10 @@ private:
 	bool CanToggleLogicPanel() const;
 	bool IsLogicPanelEnabled() const;
 
+	void ToggleSignatureEditor_Execute();
+	bool CanToggleSignaturePanel() const;
+	bool IsSignaturePanelEnabled() const;
+
 	void OnRCPanelToggled(ERCPanels InPanelID);
 
 	/** Called when user attempts to delete a group/exposed entity. */
@@ -401,6 +405,8 @@ private:
 	bool bIsInLiveMode = false;
 	/** Whether the logic panel is enabled or not. */
 	bool bIsLogicPanelEnabled = false;
+	/** Whether the signature panel is enabled or not. */
+	bool bIsSignaturePanelEnabled = false;
 	/** Delegate called when the live mode changes. */
 	FOnLiveModeChange OnLiveModeChange;
 	/** Holds the blueprint library picker */
@@ -467,6 +473,8 @@ private:
 	TSharedPtr<class SRCBehaviourPanel> BehaviourPanel;
 	/** Action panel UI widget for Remote Control Logic*/
 	TSharedPtr<class SRCActionPanel> ActionPanel;
+	/** Signature panel UI widget */
+	TSharedPtr<class SRCSignaturePanel> SignaturePanel;
 
 	/** LogicClipboardItems - Holds the items copied from a Logic panel
 	*

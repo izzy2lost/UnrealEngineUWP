@@ -29,6 +29,7 @@ class URCVirtualPropertyContainerBase;
 class URCVirtualPropertyInContainer;
 class URCVirtualPropertySelfContainer;
 class URemoteControlExposeRegistry;
+class URemoteControlSignatureRegistry;
 class URemoteControlBinding;
 class URemoteControlPreset;
 
@@ -705,6 +706,12 @@ public:
 	/** Generate label from Registry */
 	FName GenerateUniqueLabel(const FName InDesiredName) const;
 
+	/** Returns the preset's signature registry */
+	URemoteControlSignatureRegistry* GetSignatureRegistry() const
+	{
+		return SignatureRegistry;
+	}
+
 public:
 	/** The visual layout for this preset. */
 	UPROPERTY()
@@ -932,9 +939,13 @@ private:
 	UPROPERTY(Transient)
 	TMap<FName, FGuid> NameToGuidMap;
 
-	UPROPERTY(Instanced)
 	/** Holds exposed entities on the preset. */
+	UPROPERTY(Instanced)
 	TObjectPtr<URemoteControlExposeRegistry> Registry = nullptr;
+
+	/** Holds all signatures on the preset. */
+	UPROPERTY(Instanced)
+	TObjectPtr<URemoteControlSignatureRegistry> SignatureRegistry = nullptr;
 
 	/** Holds identities of exposed entities on the preset. */
 	UPROPERTY(Transient)

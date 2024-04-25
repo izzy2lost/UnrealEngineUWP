@@ -611,6 +611,22 @@ uint32 FRemoteControlUIModule::GetRemoteControlAssetCategory() const
 	return RemoteControlAssetCategoryBit;
 }
 
+void FRemoteControlUIModule::RegisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization)
+{
+	if (InCustomization.IsValid())
+	{
+		SignatureCustomizations.AddUnique(InCustomization.ToSharedRef());
+	}
+}
+
+void FRemoteControlUIModule::UnregisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization)
+{
+	if (InCustomization.IsValid())
+	{
+		SignatureCustomizations.Remove(InCustomization.ToSharedRef());
+	}
+}
+
 void FRemoteControlUIModule::RegisterAssetTools()
 {
 	if (FAssetToolsModule* AssetToolsModule = FModuleManager::GetModulePtr<FAssetToolsModule>("AssetTools"))
@@ -650,6 +666,7 @@ void FRemoteControlUIModule::UnbindRemoteControlCommands()
 		ActionList.UnmapAction(Commands.FindPresetInContentBrowser);
 		ActionList.UnmapAction(Commands.ToggleProtocolMappings);
 		ActionList.UnmapAction(Commands.ToggleLogicEditor);
+		ActionList.UnmapAction(Commands.ToggleSignatureEditor);
 		ActionList.UnmapAction(Commands.DeleteEntity);
 		ActionList.UnmapAction(Commands.RenameEntity);
 		ActionList.UnmapAction(Commands.CopyItem);

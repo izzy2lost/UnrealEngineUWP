@@ -26,6 +26,8 @@ enum class ERCPanels : uint8
 	RCP_Live,
 
 	RCP_Count,
+
+	RCP_Signature,
 };
 
 /** State of the RC Panels. */

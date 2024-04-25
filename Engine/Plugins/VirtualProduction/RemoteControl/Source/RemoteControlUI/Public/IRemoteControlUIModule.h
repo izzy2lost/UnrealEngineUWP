@@ -16,6 +16,7 @@ class FRCPanelWidgetRegistry;
 class IDetailCategoryBuilder;
 class IDetailLayoutBuilder;
 class IPropertyHandle;
+class IRCSignatureCustomization;
 class URCVirtualPropertyBase;
 class URemoteControlPreset;
 struct FOnGenerateGlobalRowExtensionArgs;
@@ -233,6 +234,18 @@ public:
 	 * Retrieves the advanced asset category type registered by Remote Control Module.
 	 */
 	virtual uint32 GetRemoteControlAssetCategory() const = 0;
+
+	/**
+	 * Register the given signature customization to extend the Signature Panel capabilities like Drag/Drop handling
+	 * @param InCustomization the signature customization instance to register
+	 */
+	virtual void RegisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) = 0;
+
+	/**
+	 * Unregisters the given signature customization
+	 * @param InCustomization the signature customization instance to unregister
+	 */
+	virtual void UnregisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) = 0;
 
 	/**
 	 * Register a widget factory to handle creating a widget in the control panel.

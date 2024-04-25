@@ -55,6 +55,7 @@
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "ScopedTransaction.h"
+#include "Signature/SRCSignaturePanel.h"
 #include "Styling/RemoteControlStyles.h"
 #include "Styling/ToolBarStyle.h"
 #include "Subsystems/Subsystem.h"
@@ -487,11 +488,14 @@ void SRemoteControlPanel::Construct(const FArguments& InArgs, URemoteControlPres
 		.EnableFooter(false);
 
 	ControllerPanel = SNew(SRCControllerPanel, SharedThis(this))
-		.LiveMode_Lambda([this]() { return bIsInLiveMode; })
+		.LiveMode_Lambda([this] { return bIsInLiveMode; })
 		.Visibility_Lambda([this] { return (bIsLogicPanelEnabled || bIsInLiveMode) && (ActivePanel == ERCPanels::RCP_Properties || ActivePanel == ERCPanels::RCP_Live || ActivePanel == ERCPanels::RCP_None) ? EVisibility::Visible : EVisibility::Collapsed; });
 
 	BehaviourPanel = SNew(SRCBehaviourPanel, SharedThis(this))
 		.Visibility_Lambda([this] { return !bIsInLiveMode && bIsLogicPanelEnabled && (ActivePanel == ERCPanels::RCP_Properties || ActivePanel == ERCPanels::RCP_None) ? EVisibility::Visible : EVisibility::Collapsed; });
+
+	SignaturePanel = SNew(SRCSignaturePanel, SharedThis(this))
+		.LiveMode_Lambda([this] { return bIsInLiveMode; });
 
 	ControllersAndBehavioursPanel->AddPanel(ControllerPanel.ToSharedRef(), 0.8f);
 
@@ -708,6 +712,31 @@ void SRemoteControlPanel::Construct(const FArguments& InArgs, URemoteControlPres
 				.Value(0.5f)
 				[
 					LogicPanel
+				]
+			]
+
+			// 7. (unused) Count (Index : 6)
+			+ SWidgetSwitcher::Slot()
+			[
+				SNullWidget::NullWidget
+			]
+
+			// 8. Signatures (Index : 7).
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(SSplitter)
+				.Orientation(Orient_Horizontal)
+
+				+SSplitter::Slot()
+				.Value(0.4)
+				[
+					EntityList.ToSharedRef()
+				]
+
+				+SSplitter::Slot()
+				.Value(0.6)
+				[
+					SignaturePanel.ToSharedRef()
 				]
 			]
 		];
@@ -1411,6 +1440,13 @@ void SRemoteControlPanel::BindRemoteControlCommands()
 		FIsActionButtonVisible::CreateSP(this, &SRemoteControlPanel::CanToggleLogicPanel));
 
 	ActionList.MapAction(
+		Commands.ToggleSignatureEditor,
+		FExecuteAction::CreateSP(this, &SRemoteControlPanel::ToggleSignatureEditor_Execute),
+		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanToggleSignaturePanel),
+		FIsActionChecked::CreateSP(this, &SRemoteControlPanel::IsSignaturePanelEnabled),
+		FIsActionButtonVisible::CreateSP(this, &SRemoteControlPanel::CanToggleSignaturePanel));
+
+	ActionList.MapAction(
 		Commands.DeleteEntity,
 		FExecuteAction::CreateSP(this, &SRemoteControlPanel::DeleteEntity_Execute),
 		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanDeleteEntity));
@@ -1428,22 +1464,30 @@ void SRemoteControlPanel::BindRemoteControlCommands()
 	ActionList.MapAction(
 		Commands.CopyItem,
 		FExecuteAction::CreateSP(this, &SRemoteControlPanel::CopyItem_Execute),
-		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanCopyItem));
+		FCanExecuteAction(),
+		FGetActionCheckState(),
+		FIsActionButtonVisible::CreateSP(this, &SRemoteControlPanel::CanCopyItem));
 
 	ActionList.MapAction(
 		Commands.PasteItem,
 		FExecuteAction::CreateSP(this, &SRemoteControlPanel::PasteItem_Execute),
-		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanPasteItem));
+		FCanExecuteAction(),
+		FGetActionCheckState(),
+		FIsActionButtonVisible::CreateSP(this, &SRemoteControlPanel::CanPasteItem));
 
 	ActionList.MapAction(
 		Commands.DuplicateItem,
 		FExecuteAction::CreateSP(this, &SRemoteControlPanel::DuplicateItem_Execute),
-		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanDuplicateItem));
+		FCanExecuteAction(),
+		FGetActionCheckState(),
+		FIsActionButtonVisible::CreateSP(this, &SRemoteControlPanel::CanDuplicateItem));
 
 	ActionList.MapAction(
 		Commands.UpdateValue,
 		FExecuteAction::CreateSP(this, &SRemoteControlPanel::UpdateValue_Execute),
-		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanUpdateValue));
+		FCanExecuteAction(),
+		FGetActionCheckState(),
+		FIsActionButtonVisible::CreateSP(this, &SRemoteControlPanel::CanUpdateValue));
 }
 
 void SRemoteControlPanel::OnObjectReplaced(const TMap<UObject*, UObject*>& InObjectReplaced)
@@ -1591,6 +1635,21 @@ void SRemoteControlPanel::RegisterPanels()
 			PanelDrawer->RegisterPanel(PropertiesPanel);
 
 			RegisteredDrawers.Add(PropertiesPanel->GetPanelID(), PropertiesPanel);
+		}
+
+		{// Signature Panel
+			TSharedRef<FRCPanelDrawerArgs> SignaturePanelDrawer = MakeShared<FRCPanelDrawerArgs>(ERCPanels::RCP_Signature);
+
+			SignaturePanelDrawer->bDrawnByDefault = true;
+			SignaturePanelDrawer->bRotateIconBy90 = false;
+			SignaturePanelDrawer->DrawerVisibility = bIsSignaturePanelEnabled ? EVisibility::Visible : EVisibility::Collapsed;
+			SignaturePanelDrawer->Label = LOCTEXT("SignaturePanelLabel", "Signature");
+			SignaturePanelDrawer->ToolTip = LOCTEXT("SignaturePanelTooltip", "Open Signature panel.");
+			SignaturePanelDrawer->Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GraphEditor.Function_16x"));
+
+			PanelDrawer->RegisterPanel(SignaturePanelDrawer);
+
+			RegisteredDrawers.Add(SignaturePanelDrawer->GetPanelID(), SignaturePanelDrawer);
 		}
 
 		{// Properties With Details Panel
@@ -2153,7 +2212,7 @@ void SRemoteControlPanel::GenerateToolbar()
 		.AutoWidth()
 		[
 			SNew(SComboButton)
-			.ToolTipText(LOCTEXT("RCFieldsGroupingTooltip", "Select grouping type for the fields"))
+			.ToolTipText(LOCTEXT("RSWorldSelectorTooltip", "Select World to Control"))
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
 			.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
@@ -2323,8 +2382,21 @@ void SRemoteControlPanel::RegisterAuxiliaryToolBar()
 
 			const FRemoteControlCommands& Commands = FRemoteControlCommands::Get();
 
-			ToolsSection.AddEntry(FToolMenuEntry::InitWidget("Logic"
-			, SNew(SVerticalBox)
+			ToolsSection.AddEntry(FToolMenuEntry::InitWidget("Signature",
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SAutoResizeButton)
+					.UICommand(FRemoteControlCommands::Get().ToggleSignatureEditor)
+					.ForceSmallIcons_Static(SRemoteControlPanel::ShouldForceSmallIcons)
+					.IconOverride(FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GraphEditor.Function_16x")))
+				]
+				, Commands.ToggleSignatureEditor->GetLabel())
+			);
+
+			ToolsSection.AddEntry(FToolMenuEntry::InitWidget("Logic",
+				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
 				.AutoHeight()
 				[
@@ -2333,12 +2405,11 @@ void SRemoteControlPanel::RegisterAuxiliaryToolBar()
 					.ForceSmallIcons_Static(SRemoteControlPanel::ShouldForceSmallIcons)
 					.IconOverride(FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GraphEditor.StateMachine_16x")))
 				]
-				, Commands.ToggleLogicEditor->GetLabel()
-			)
+				, Commands.ToggleLogicEditor->GetLabel())
 			);
 
-			ToolsSection.AddEntry(FToolMenuEntry::InitWidget("Protocols"
-			, SNew(SVerticalBox)
+			ToolsSection.AddEntry(FToolMenuEntry::InitWidget("Protocols",
+				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
 				.AutoHeight()
 				[
@@ -2347,8 +2418,7 @@ void SRemoteControlPanel::RegisterAuxiliaryToolBar()
 					.ForceSmallIcons_Static(SRemoteControlPanel::ShouldForceSmallIcons)
 					.IconOverride(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.StatsViewer"))
 				]
-				, Commands.ToggleProtocolMappings->GetLabel()
-			)
+				, Commands.ToggleProtocolMappings->GetLabel())
 			);
 		}
 	}
@@ -2528,6 +2598,35 @@ bool SRemoteControlPanel::IsLogicPanelEnabled() const
 	return bIsLogicPanelEnabled;
 }
 
+void SRemoteControlPanel::ToggleSignatureEditor_Execute()
+{
+	bIsSignaturePanelEnabled = !bIsSignaturePanelEnabled;
+
+	if (PanelDrawer.IsValid())
+	{
+		TSharedRef<FRCPanelDrawerArgs> SignaturePanelDrawer = RegisteredDrawers.FindChecked(ERCPanels::RCP_Signature);
+
+		SignaturePanelDrawer->DrawerVisibility = bIsSignaturePanelEnabled ? EVisibility::Visible : EVisibility::Collapsed;
+		PanelDrawer->TogglePanel(SignaturePanelDrawer, !bIsSignaturePanelEnabled);
+
+		if (!bIsSignaturePanelEnabled)
+		{
+			TSharedRef<FRCPanelDrawerArgs> PropertiesPanel = RegisteredDrawers.FindChecked(ERCPanels::RCP_Properties);
+			PanelDrawer->TogglePanel(PropertiesPanel);
+		}
+	}
+}
+
+bool SRemoteControlPanel::CanToggleSignaturePanel() const
+{
+	return true;
+}
+
+bool SRemoteControlPanel::IsSignaturePanelEnabled() const
+{
+	return bIsSignaturePanelEnabled;
+}
+
 void SRemoteControlPanel::OnRCPanelToggled(ERCPanels InPanelID)
 {
 	if (InPanelID != ActivePanel)
@@ -2556,6 +2655,10 @@ TSharedPtr<class SRCLogicPanelBase> SRemoteControlPanel::GetActiveLogicPanel() c
 	else if (ActionPanel->IsListFocused())
 	{
 		return ActionPanel;
+	}
+	else if (SignaturePanel->IsListFocused())
+	{
+		return SignaturePanel;
 	}
 
 	return nullptr;
@@ -2730,7 +2833,7 @@ bool SRemoteControlPanel::CanCopyItem() const
 
 	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		return !ActiveLogicPanel->GetSelectedLogicItems().IsEmpty();
+		return ActiveLogicPanel->CanCopyItems();
 	}
 
 	return false;
@@ -2785,7 +2888,7 @@ bool SRemoteControlPanel::CanDuplicateItem() const
 
 	if (const TSharedPtr<SRCLogicPanelBase>& ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		return !ActiveLogicPanel->GetSelectedLogicItems().IsEmpty();
+		return ActiveLogicPanel->CanDuplicateItems();
 	}
 
 	return false;

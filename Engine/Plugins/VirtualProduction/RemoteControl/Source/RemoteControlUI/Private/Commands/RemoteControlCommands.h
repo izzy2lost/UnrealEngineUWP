@@ -35,11 +35,16 @@ public:
 	 * Holds the information about UI Command that brings up a panel which holds the active protocol mappings.
 	 */
 	TSharedPtr<FUICommandInfo> ToggleProtocolMappings;
-	
+
 	/**
 	 * Holds the information about UI Command that brings up a panel which enables the RC Logical Behaviour.
 	 */
 	TSharedPtr<FUICommandInfo> ToggleLogicEditor;
+
+	/**
+	 * Holds the information about UI Command that brings up the RC Signature UI panel.
+	 */
+	TSharedPtr<FUICommandInfo> ToggleSignatureEditor;
 
 	/**
 	 * Holds the information about UI Command that deletes currently selected group/exposed entity.

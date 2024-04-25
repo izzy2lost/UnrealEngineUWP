@@ -28,6 +28,7 @@
 #include "RemoteControlLogger.h"
 #include "RemoteControlObjectVersion.h"
 #include "RemoteControlPresetRebindingManager.h"
+#include "RemoteControlSignatureRegistry.h"
 #include "RemoteControlTransactionListenerHelper.h"
 
 #include "UObject/Object.h"
@@ -672,6 +673,8 @@ URemoteControlPreset::URemoteControlPreset()
 	, RebindingManager(MakePimpl<FRemoteControlPresetRebindingManager>())
 {
 	Registry = CreateDefaultSubobject<URemoteControlExposeRegistry>(FName("ExposeRegistry"));
+
+	SignatureRegistry = CreateDefaultSubobject<URemoteControlSignatureRegistry>(TEXT("SignatureRegistry"));
 
 	PropertyIdRegistry = CreateDefaultSubobject<URemoteControlPropertyIdRegistry>(FName("PropertyIdRegistry"));
 	PropertyIdRegistry->Initialize();
