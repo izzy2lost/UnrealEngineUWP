@@ -11,6 +11,7 @@
 #include "Misc/MemStack.h"
 #include "Misc/Crc.h"
 #include "UObject/NameTypes.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #if CPUPROFILERTRACE_ENABLED
 
@@ -132,6 +133,7 @@ FCpuProfilerTraceInternal::FThreadBuffer* FCpuProfilerTraceInternal::CreateThrea
 	return ThreadBuffer;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void FCpuProfilerTraceInternal::FlushThreadBuffer(FThreadBuffer* InThreadBuffer)
 {
 	UE_TRACE_LOG(CpuProfiler, EventBatchV2, true)
@@ -313,6 +315,7 @@ uint32 FCpuProfilerTraceInternal::GetNextSpecId()
 	return (NextSpecId++) + 1;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 uint32 FCpuProfilerTrace::OutputEventType(const TCHAR* Name, const ANSICHAR* File, uint32 Line)
 {
 	uint32 SpecId = FCpuProfilerTraceInternal::GetNextSpecId();
@@ -333,6 +336,7 @@ uint32 FCpuProfilerTrace::OutputEventType(const TCHAR* Name, const ANSICHAR* Fil
 	return SpecId;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 uint32 FCpuProfilerTrace::OutputEventType(const ANSICHAR* Name, const ANSICHAR* File, uint32 Line)
 {
 	uint32 SpecId = FCpuProfilerTraceInternal::GetNextSpecId();

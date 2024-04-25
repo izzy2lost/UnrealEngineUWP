@@ -12,5 +12,7 @@ public class TraceLog : ModuleRules
 
 		bRequiresImplementModule = false;
 		PublicIncludePathModuleNames.Add("Core");
+
+		bAllowAutoRTFMInstrumentation = true;
 	}
 }

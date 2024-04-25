@@ -20,6 +20,8 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 	#include "FramePro.h"
 #endif
 
+#include "AutoRTFM/AutoRTFM.h"
+
 //------------------------------------------------------------------------
 #if FRAMEPRO_ENABLED
 
@@ -3906,6 +3908,7 @@ void FramePro::AddTimeSpan(const wchar_t* p_name_and_source_info, int64 start_ti
 }
 
 //------------------------------------------------------------------------
+UE_AUTORTFM_ALWAYS_OPEN
 void FramePro::AddTimeSpan(StringId name, const char* p_source_info, int64 start_time, int64 end_time)
 {
 	FRAMEPRO_ASSERT(start_time <= end_time);
@@ -7197,6 +7200,7 @@ namespace FramePro
 	}
 
 	//------------------------------------------------------------------------
+	UE_AUTORTFM_ALWAYS_OPEN
 	StringId FrameProTLS::RegisterString(const char* p_str)
 	{
 		FRAMEPRO_ASSERT(IsOnTLSThread());
@@ -7220,6 +7224,7 @@ namespace FramePro
 	}
 
 	//------------------------------------------------------------------------
+	UE_AUTORTFM_ALWAYS_OPEN
 	StringId FrameProTLS::RegisterString(const wchar_t* p_str)
 	{
 		FRAMEPRO_ASSERT(IsOnTLSThread());
