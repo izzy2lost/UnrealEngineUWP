@@ -64,6 +64,9 @@ public:
 		/** When to wrap the message text (default: 512) */
 		SLATE_ATTRIBUTE(float, WrapMessageAt)
 	
+		/** Minimum width for the text part of the message box. Optional for very short message text to add breathing space to the layout. */
+		SLATE_ATTRIBUTE(float, ContentMinWidth)
+
 	SLATE_END_ARGS()
 	
 	void Construct(const FArguments& InArgs);

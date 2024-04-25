@@ -40,6 +40,7 @@ public class AssetTools : ModuleRules
 				"RHI",
 				"MaterialEditor",
 				"ToolMenus",
+				"ToolWidgets",
 				"PhysicsCore",
 				"DeveloperSettings",
 				"ClassViewer",

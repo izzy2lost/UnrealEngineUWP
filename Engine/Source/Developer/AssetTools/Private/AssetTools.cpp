@@ -86,6 +86,7 @@
 #include "Dialogs/Dialogs.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "Dialog/SMessageDialog.h"
 #include "Interfaces/IPluginManager.h"
 #include "Settings/ContentBrowserSettings.h"
 #include "Algo/Count.h"
@@ -4740,13 +4741,21 @@ bool UAssetToolsImpl::CanCreateAsset(const FString& AssetName, const FString& Pa
 	{
 		// Object already exists in either the specified package or another package.  Check to see if the user wants
 		// to replace the object.
-		bool bWantReplace =
-			EAppReturnType::Yes == FMessageDialog::Open(
-				EAppMsgType::YesNo,
-				EAppReturnType::No,
-				FText::Format(
-					NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackage_F", "An object [{0}] of class [{1}] already exists in file [{2}].  Do you want to replace the existing object?  If you click 'Yes', the existing object will be deleted.  Otherwise, click 'No' and choose a unique name for your new object." ),
-					FText::FromString(AssetName), FText::FromString(ExistingObject->GetClass()->GetName()), FText::FromString(PackageName) ) );
+		TSharedRef<SMessageDialog> ConfirmDialog = SNew(SMessageDialog)
+			.Icon(FAppStyle::Get().GetBrush("Icons.WarningWithColor.Large"))
+			.Title(FText(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Title", "Overwrite Existing Object")))
+			.Message(FText::Format(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Message", "An object already exists with this name.\n\n\tName: {0}\n\tClass: {1}\n\tAsset path: {2}\n\nOverwrite the existing object?"),
+				FText::FromString(AssetName),
+				FText::FromString(ExistingObject->GetClass()->GetName()),
+				FText::FromString(PackageName)))
+			.Buttons({
+				SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonOverwrite", "Overwrite")).SetPrimary(true),
+				SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonCancel", "Cancel")),
+				})
+			.ContentMinWidth(300.0f);
+		uint32 ConfirmationResult = ConfirmDialog->ShowModal();
+
+		bool bWantReplace = ConfirmationResult == 0;
 
 		if( bWantReplace )
 		{

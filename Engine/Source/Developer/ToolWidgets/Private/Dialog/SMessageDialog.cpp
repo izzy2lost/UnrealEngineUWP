@@ -21,6 +21,7 @@ void SMessageDialog::Construct(const FArguments& InArgs)
 		.Content()
 		[
 			SAssignNew(RichTextBlock, SRichTextBlock)
+			.MinDesiredWidth(InArgs._ContentMinWidth)
 			.Text(Message)
 			.WrapTextAt(InArgs._WrapMessageAt)
 			.Decorators(InArgs._Decorators)

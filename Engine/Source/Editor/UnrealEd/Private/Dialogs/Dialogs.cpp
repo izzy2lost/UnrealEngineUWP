@@ -26,6 +26,7 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformMisc.h"
 #include "SPrimaryButton.h"
+#include "Dialog/SMessageDialog.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDialogs, Log, All);
 
@@ -987,14 +988,21 @@ bool PromptUserIfExistingObject(const FString& Name, const FString& Package, UPa
 	{
 		// Object already exists in either the specified package or another package.  Check to see if the user wants
 		// to replace the object.
-		bool bWantReplace =
-			EAppReturnType::Yes == FMessageDialog::Open(
-									EAppMsgType::YesNo,
-									FText::Format(
-									NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackage_F", "An object [{0}] of class [{1}] already exists in file [{2}].  Do you want to replace the existing object?  If you click 'Yes', the existing object will be deleted.  Otherwise, click 'No' and choose a unique name for your new object." ),
-									FText::FromString(Name),
-									FText::FromString(ExistingObject->GetClass()->GetName()),
-									FText::FromString(Package) ) );
+		TSharedRef<SMessageDialog> ConfirmDialog = SNew(SMessageDialog)
+			.Icon(FAppStyle::Get().GetBrush("Icons.WarningWithColor.Large"))
+			.Title(FText(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Title", "Overwrite Existing Object")))
+			.Message(FText::Format(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Message", "An object already exists with this name.\n\n\tName: {0}\n\tClass: {1}\n\tAsset path: {2}\n\nOverwrite the existing object?"),
+				FText::FromString(Name),
+				FText::FromString(ExistingObject->GetClass()->GetName()),
+				FText::FromString(Package)))
+			.Buttons({
+				SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonOverwrite", "Overwrite")).SetPrimary(true),
+				SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonCancel", "Cancel")),
+				})
+			.ContentMinWidth(300.0f);
+		uint32 ConfirmationResult = ConfirmDialog->ShowModal();
+
+		bool bWantReplace = ConfirmationResult == 0;
 
 		if( bWantReplace )
 		{
