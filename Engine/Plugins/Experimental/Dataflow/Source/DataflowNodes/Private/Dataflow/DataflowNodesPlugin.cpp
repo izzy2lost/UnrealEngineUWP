@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowNodesPlugin.h"
 
 #include "CoreMinimal.h"
+#include "Dataflow/DataflowCollectionAttributeKeyNodes.h"
 #include "Dataflow/DataflowSkeletalMeshNodes.h"
 #include "Dataflow/DataflowStaticMeshNodes.h"
 #include "Dataflow/DataflowNodeFactory.h"
@@ -19,6 +20,7 @@ void IDataflowNodesPlugin::StartupModule()
 	Dataflow::RegisterStaticMeshNodes();
 	Dataflow::RegisterSelectionNodes();
 	Dataflow::RegisterContextOverridesNodes();
+	Dataflow::DataflowCollectionAttributeKeyNodes();
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowCollectionAddScalarVertexPropertyNode);
 }
 
