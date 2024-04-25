@@ -5042,6 +5042,12 @@ void SAssetView::SetFilterBar(TSharedPtr<SFilterList> InFilterBar)
 	FilterBar = InFilterBar;
 }
 
+void SAssetView::SetShouldFilterItem(FOnShouldFilterItem InCallback)
+{
+	OnShouldFilterItem = MoveTemp(InCallback);
+	RequestQuickFrontendListRefresh();
+}
+
 void SAssetView::OnCompleteFiltering(double InAmortizeDuration)
 {
 	CurrentFrontendFilterTelemetry.AmortizeDuration = InAmortizeDuration;

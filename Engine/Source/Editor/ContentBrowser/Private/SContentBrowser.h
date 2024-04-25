@@ -78,6 +78,7 @@ enum class EContentBrowserViewContext : uint8
 class SContentBrowser
 	: public SCompoundWidget
 {
+	using Super = SCompoundWidget;
 public:
 
 	SLATE_BEGIN_ARGS( SContentBrowser )
@@ -410,6 +411,12 @@ private:
 
 	/** Called to handle the Content Browser settings changing */
 	void OnContentBrowserSettingsChanged(FName PropertyName);
+	
+	/**
+	 * Called when engine Cvars change to update content browser settings
+	 * e.g. private content feature
+	 */
+	void OnConsoleVariableChanged();
 
 	/** Handler for clicking the history back button */
 	FReply BackClicked();
@@ -752,6 +759,8 @@ private:
 	/** When viewing a dynamic collection, the active search query will be stashed in this variable so that it can be restored again later */
 	TOptional<FText> StashedSearchBoxText;
 
+	/** Handle to a callback for when CVars change */
+	FConsoleVariableSinkHandle CVarSinkHandle;
 public: 
 
 	/** The section of EditorPerProjectUserSettings in which to save content browser settings */

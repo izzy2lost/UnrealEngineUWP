@@ -448,6 +448,8 @@ public:
 	/** Set the filter list attached to this asset view - allows toggling of the the filter bar layout from the view options */
 	void SetFilterBar(TSharedPtr<SFilterList> InFilterBar);
 
+	/** Change the delegate bound via the widget argument OnShouldFilterAsset after construction. */
+	void SetShouldFilterItem(FOnShouldFilterItem InCallback);
 private:
 
 	/** Sets the pending selection to the current selection (used when changing views or refreshing the view). */

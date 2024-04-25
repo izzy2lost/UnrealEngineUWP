@@ -281,6 +281,8 @@ namespace ContentBrowser
 
 SContentBrowser::~SContentBrowser()
 {
+	IConsoleManager::Get().UnregisterConsoleVariableSink_Handle(CVarSinkHandle);
+
 	// Remove the listener for when view settings are changed
 	UContentBrowserSettings::OnSettingChanged().RemoveAll( this );
 
@@ -372,9 +374,13 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 	BindCommands();
 	UContentBrowserSettings::OnSettingChanged().AddSP(this, &SContentBrowser::OnContentBrowserSettingsChanged);
 
-	// Currently this controls the asset count 
+	// Currently this controls the asset count
 	const bool bShowBottomToolbar = Config != nullptr ? Config->bShowBottomToolbar : true;
 
+	// Register console variable sink for private content setting changing
+	CVarSinkHandle = IConsoleManager::Get().RegisterConsoleVariableSink_Handle(FConsoleCommandDelegate::CreateSP(this, &SContentBrowser::OnConsoleVariableChanged));
+	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
+	const bool bEnablePrivateContentFeature = EnablePublicAssetFeatureCVar && EnablePublicAssetFeatureCVar->GetBool();
 	AssetViewPtr = SNew(SAssetView)
 					   .ThumbnailLabel(Config != nullptr ? Config->ThumbnailLabel : EThumbnailLabel::ClassName)
 					   //.ThumbnailScale(Config != nullptr ? Config->ThumbnailScale : 0.18f)
@@ -384,7 +390,7 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 					   .OnItemsActivated(this, &SContentBrowser::OnItemsActivated)
 					   .OnGetItemContextMenu(this, &SContentBrowser::GetItemContextMenu, EContentBrowserViewContext::AssetView)
 					   .OnItemRenameCommitted(this, &SContentBrowser::OnItemRenameCommitted)
-					   .OnShouldFilterItem(this, &SContentBrowser::HandlePrivateContentFilter)
+					   .OnShouldFilterItem(bEnablePrivateContentFeature ? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter) : FOnShouldFilterItem())
 					   .FrontendFilters(FrontendFilters)
 					   .ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
 					   .HighlightedText(this, &SContentBrowser::GetHighlightedText)
@@ -3232,6 +3238,13 @@ void SContentBrowser::OnContentBrowserSettingsChanged(FName PropertyName)
 		// Ensure the path is set to the correct view mode
 		UpdatePath();
 	}
+}
+
+void SContentBrowser::OnConsoleVariableChanged()
+{
+	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
+	const bool bEnablePrivateContentFeature = EnablePublicAssetFeatureCVar && EnablePublicAssetFeatureCVar->GetBool();
+	AssetViewPtr->SetShouldFilterItem(bEnablePrivateContentFeature ? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter) : FOnShouldFilterItem());
 }
 
 FReply SContentBrowser::BackClicked()
