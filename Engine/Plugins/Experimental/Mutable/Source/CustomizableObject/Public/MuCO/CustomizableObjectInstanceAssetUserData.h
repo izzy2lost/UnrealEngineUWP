@@ -8,6 +8,7 @@
 #include "CustomizableObjectInstanceAssetUserData.generated.h"
 
 
+/** Additional data attached to Skeletal Meshes. */
 UCLASS(BlueprintType)
 class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstanceUserData : public UAssetUserData
 {
