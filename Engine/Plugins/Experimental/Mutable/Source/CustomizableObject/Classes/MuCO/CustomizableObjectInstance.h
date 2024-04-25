@@ -228,10 +228,6 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstance : public UObject
 public:
 	UCustomizableObjectInstance();
 	
-	const FCustomizableObjectInstanceDescriptor& GetDescriptor() const;
-	
-	void SetDescriptor(const FCustomizableObjectInstanceDescriptor& InDescriptor);
-
 	/** Broadcast when the Customizable Object Instance is updated. */
 	UPROPERTY(Transient, BlueprintAssignable, Category = CustomizableObjectInstance)
 	FObjectInstanceUpdatedDelegate UpdatedDelegate;

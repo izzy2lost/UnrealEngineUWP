@@ -308,6 +308,8 @@ public:
 	void AdditionalAssetsAsyncLoaded(UE::Tasks::FTaskEvent CompletionEvent);
 
 	FCustomizableObjectInstanceDescriptor& GetDescriptor() const;
+
+	void SetDescriptor(const FCustomizableObjectInstanceDescriptor& InDescriptor);
 	
 	UCustomizableObjectInstance* GetPublic() const;
 

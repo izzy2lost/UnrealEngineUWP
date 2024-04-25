@@ -271,27 +271,21 @@ UCustomizableObjectInstance::UCustomizableObjectInstance()
 }
 
 
-const FCustomizableObjectInstanceDescriptor& UCustomizableObjectInstance::GetDescriptor() const
-{
-	return Descriptor;
-}
-
-
-void UCustomizableObjectInstance::SetDescriptor(const FCustomizableObjectInstanceDescriptor& InDescriptor)
+void UCustomizableInstancePrivate::SetDescriptor(const FCustomizableObjectInstanceDescriptor& InDescriptor)
 {
 	UCustomizableObject* InCustomizableObject = InDescriptor.GetCustomizableObject();
-	const bool bCustomizableObjectChanged = Descriptor.GetCustomizableObject() != InCustomizableObject;
+	const bool bCustomizableObjectChanged = GetPublic()->Descriptor.GetCustomizableObject() != InCustomizableObject;
 
 #if WITH_EDITOR
 	// Bind a lambda to the PostCompileDelegate and unbind from the previous object if any.
-	PrivateData->BindObjectDelegates(GetCustomizableObject(), InCustomizableObject);
+	BindObjectDelegates(GetPublic()->GetCustomizableObject(), InCustomizableObject);
 #endif
 
-	Descriptor = InDescriptor;
+	GetPublic()->Descriptor = InDescriptor;
 
 	if (bCustomizableObjectChanged)
 	{
-		PrivateData->InitCustomizableObjectData(InCustomizableObject);
+		InitCustomizableObjectData(InCustomizableObject);
 	}
 }
 
@@ -2336,7 +2330,7 @@ UCustomizableObjectInstance* UCustomizableObjectInstance::CloneStatic(UObject* O
 
 void UCustomizableObjectInstance::CopyParametersFromInstance(UCustomizableObjectInstance* Instance)
 {
-	SetDescriptor(Instance->GetDescriptor());
+	GetPrivate()->SetDescriptor(Instance->GetPrivate()->GetDescriptor());
 }
 
 
@@ -3040,6 +3034,14 @@ UCustomizableInstancePrivate* UCustomizableObjectInstance::GetPrivate() const
 { 
 	check(PrivateData); // Currently this is initialized in the constructor so we expect it always to exist.
 	return PrivateData; 
+}
+
+
+FMutableUpdateCandidate::FMutableUpdateCandidate(UCustomizableObjectInstance* InCustomizableObjectInstance): CustomizableObjectInstance(InCustomizableObjectInstance)
+{
+	const FCustomizableObjectInstanceDescriptor& Descriptor = InCustomizableObjectInstance->GetPrivate()->GetDescriptor();
+	MinLOD = Descriptor.GetMinLod();
+	RequestedLODLevels = Descriptor.GetRequestedLODLevels();
 }
 
 
@@ -5536,11 +5538,13 @@ FCustomizableObjectInstanceDescriptor& UCustomizableInstancePrivate::GetDescript
 	return GetPublic()->Descriptor;
 }
 
+
 const TArray<TObjectPtr<UMaterialInterface>>* UCustomizableObjectInstance::GetOverrideMaterials(int32 ComponentIndex) const
 {
 	FCustomizableInstanceComponentData* ComponentData = PrivateData->GetComponentData(ComponentIndex);
 	return ComponentData ? &ComponentData->OverrideMaterials : nullptr;
 }
+
 
 void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public)
 {

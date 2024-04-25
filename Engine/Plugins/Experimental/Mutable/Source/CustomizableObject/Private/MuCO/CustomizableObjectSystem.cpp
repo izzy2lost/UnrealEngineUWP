@@ -173,7 +173,7 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 
 
 FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInstance) :
-	FUpdateContextPrivate(InInstance, InInstance.GetDescriptor())
+	FUpdateContextPrivate(InInstance, InInstance.GetPrivate()->GetDescriptor())
 {
 }
 
@@ -1282,7 +1282,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 				FString String = TEXT("DESCRIPTOR DEBUG PRINT\n");
 				String += "================================\n";				
 				String += FString::Printf(TEXT("=== DESCRIPTOR HASH ===\n%s\n"), *Context->GetCapturedDescriptorHash().ToString());
-				String += FString::Printf(TEXT("=== DESCRIPTOR ===\n%s"), *Instance->GetDescriptor().ToString());
+				String += FString::Printf(TEXT("=== DESCRIPTOR ===\n%s"), *Instance->GetPrivate()->GetDescriptor().ToString());
 				String += "================================";
 				
 				UE_LOG(LogMutable, Log, TEXT("%s"), *String);
@@ -3668,7 +3668,7 @@ int32 UCustomizableObjectSystem::TickInternal()
 			else if (LODUpdateCandidateFound)
 			{
 				UCustomizableObjectInstance* Instance = LODUpdateCandidateFound->CustomizableObjectInstance;
-				const FCustomizableObjectInstanceDescriptor& Descriptor = Instance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::NotGenerated ? Instance->GetDescriptor() : Instance->GetPrivate()->CommittedDescriptor;
+				const FCustomizableObjectInstanceDescriptor& Descriptor = Instance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::NotGenerated ? Instance->GetPrivate()->GetDescriptor() : Instance->GetPrivate()->CommittedDescriptor;
 
 				const TSharedRef<FUpdateContextPrivate> Context = MakeShared<FUpdateContextPrivate>(*Instance, Descriptor);
 
