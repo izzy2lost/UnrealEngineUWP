@@ -6,6 +6,8 @@
 #include "Experimental/Containers/RobinHoodHashTable.h"
 #include "CoroutineHandle.h"
 
+#if WITH_CPP_COROUTINES
+
 namespace CoroTask_Detail
 {
 	class FPromise;
@@ -107,3 +109,5 @@ public:
 		return *this;
 	}
 };
+
+#endif // WITH_CPP_COROUTINES

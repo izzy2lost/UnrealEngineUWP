@@ -182,7 +182,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::EGameThread) || FTaskTagScope::IsRunningDuringStaticInit();
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 		if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() &&
+#if WITH_CPP_COROUTINES
 			!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() &&
+#endif
 			!UE::Tasks::Private::IsThreadRetractingTask())
 		{
 			const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
@@ -210,7 +212,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ESlateThread);
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() &&
+#if WITH_CPP_COROUTINES
 		!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() &&
+#endif
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		bool oldValue = GSlateLoadingThreadId != 0 && FPlatformTLS::GetCurrentThreadId() == GSlateLoadingThreadId;
@@ -246,7 +250,11 @@ CORE_API bool IsInActualRenderingThread()
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread);
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
-	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() && !CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask())
+	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() 
+#if WITH_CPP_COROUTINES
+		&& !CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask()
+#endif
+		)
 	{
 		bool oldValue = FPlatformTLS::GetCurrentThreadId() == GRenderThreadId;
 		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag());
@@ -266,7 +274,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() && 
+#if WITH_CPP_COROUTINES
 		!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() && 
+#endif
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
@@ -297,7 +307,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() &&
+#if WITH_CPP_COROUTINES
 		!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() &&
+#endif
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();

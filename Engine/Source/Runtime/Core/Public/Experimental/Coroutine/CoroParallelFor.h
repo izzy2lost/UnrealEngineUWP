@@ -4,6 +4,8 @@
 #include "Async/ParallelFor.h"
 #include "Coroutine.h"
 
+#if WITH_CPP_COROUTINES
+
 template<typename BodyType, typename... ARGS>
 inline void CoroParallelFor(const TCHAR* DebugName, int32 Num, BodyType Body, EParallelForFlags Flags, ARGS&... Args)
 {
@@ -119,3 +121,5 @@ inline void CoroParallelFor(const TCHAR* DebugName, int32 Num, BodyType Body, EP
 	}
 	checkSlow(BatchItem.load(std::memory_order_relaxed) * BatchSize >= Num);
 }
+
+#endif // WITH_CPP_COROUTINES

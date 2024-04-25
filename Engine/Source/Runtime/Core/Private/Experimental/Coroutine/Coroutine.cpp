@@ -4,6 +4,8 @@
 
 #include "Experimental/Coroutine/CoroLocalVariable.h"
 
+#if WITH_CPP_COROUTINES
+
 namespace CoroTask_Detail
 {
 
@@ -53,3 +55,5 @@ bool FCoroLocalState::IsCoroLaunchedTask()
 }
 
 }
+
+#endif // WITH_CPP_COROUTINES
