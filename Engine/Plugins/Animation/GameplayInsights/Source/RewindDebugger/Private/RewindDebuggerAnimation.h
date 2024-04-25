@@ -14,6 +14,8 @@ namespace TraceServices
 	struct FFrame;
 }
 
+class UAnimInstance;
+
 // Rewind debugger extension for animation support
 //  replay of animated pose data
 //  updating animation blueprint debugger
@@ -21,7 +23,6 @@ namespace TraceServices
 class FRewindDebuggerAnimation : public IRewindDebuggerExtension
 {
 public:
-
 
 	FRewindDebuggerAnimation();
 	virtual ~FRewindDebuggerAnimation() {};
@@ -38,8 +39,10 @@ public:
 	void OnPIEStopped(bool bSimulating);
 	void OnPIESingleStepped(bool bSimulating);
 
+	UAnimInstance* GetDebugAnimInstance(uint64 ObjectId);
+
+	static FRewindDebuggerAnimation* GetInstance() { return Instance; }
 private:
-	
 	void ApplyPoseToMesh(const class IAnimationProvider* AnimationProvider, const IGameplayProvider* GameplayProvider, const TraceServices::FFrame& Frame,
 		const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, USkeletalMeshComponent* MeshComponent, uint64 ObjectId, bool bQueueForReset, bool bApplyMesh);
 	
@@ -58,9 +61,23 @@ private:
 		// mesh
 		TObjectPtr<USkeletalMeshComponent> Component;
 	};
+	
+	struct FSpawnedAnimInstanceInfo
+	{
+		// AnimInstance id
+		uint64 id;
+		// Data used for anim BP debugging
+		TObjectPtr<UAnimInstance> AnimInstance;
+	};
+	
+	FSpawnedMeshComponentInfo* SpawnMesh(uint64 ObjectId, const IGameplayProvider* GameplayProvider);
+	UAnimInstance* SpawnAnimInstance(uint64 ObjectId, const IGameplayProvider* GameplayProvider);
 
 	TMap<uint64, FSpawnedMeshComponentInfo> SpawnedMeshComponents;
+	TMap<uint64, FSpawnedAnimInstanceInfo> SpawnedAnimInstances;
 
 	TMap<uint64, FMeshComponentResetData> MeshComponentsToReset;
 	double LastScrubTime = 0.0;
+
+	static FRewindDebuggerAnimation* Instance;
 };

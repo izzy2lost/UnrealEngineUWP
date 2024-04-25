@@ -8,6 +8,7 @@
 #include "Animation/AnimBlueprintGeneratedClass.h"
 #include "Editor.h"
 #include "EdGraph/EdGraph.h"
+#include "RewindDebuggerAnimation.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "IAnimationBlueprintEditor.h"
 #include "Insights/IUnrealInsightsModule.h"
@@ -15,7 +16,6 @@
 
 #define LOCTEXT_NAMESPACE "SRewindDebuggerAnimBPTools"
 
-#if OBJECT_TRACE_ENABLED
 static bool OpenAnimBlueprintAndAttachDebugger(const TraceServices::IAnalysisSession* Session, uint64 ObjectId)
 {
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
@@ -31,8 +31,20 @@ static bool OpenAnimBlueprintAndAttachDebugger(const TraceServices::IAnalysisSes
 					if(UAnimBlueprint* AnimBlueprint = Cast<UAnimBlueprint>(InstanceClass->ClassGeneratedBy))
 					{
 						GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AnimBlueprint);
+						
+						UObject* SelectedInstance;
+#if OBJECT_TRACE_ENABLED
+						SelectedInstance = FObjectTrace::GetObjectFromId(ObjectId);
+#endif
+						if (SelectedInstance == nullptr)
+						{
+							if (FRewindDebuggerAnimation* RewindDebuggerAnimation = FRewindDebuggerAnimation::GetInstance())
+							{
+								SelectedInstance = RewindDebuggerAnimation->GetDebugAnimInstance(ObjectId);
+							}
+						}
 
-						if (UObject* SelectedInstance = FObjectTrace::GetObjectFromId(ObjectId))
+						if(SelectedInstance)
 						{
 							AnimBlueprint->SetObjectBeingDebugged(SelectedInstance);
 						}
@@ -54,17 +66,14 @@ static bool OpenAnimBlueprintAndAttachDebugger(const TraceServices::IAnalysisSes
 	}
 	return false;
 }
-#endif
 
 bool FAnimInstanceDoubleClickHandler::HandleDoubleClick(IRewindDebugger* RewindDebugger)
 {
-#if OBJECT_TRACE_ENABLED
 	TSharedPtr<FDebugObjectInfo> SelectedObject = RewindDebugger->GetSelectedComponent();
 	if (SelectedObject.IsValid())
 	{
 		return OpenAnimBlueprintAndAttachDebugger(RewindDebugger->GetAnalysisSession(), SelectedObject->ObjectId);
 	}
-#endif
 	return false;
 }
 
