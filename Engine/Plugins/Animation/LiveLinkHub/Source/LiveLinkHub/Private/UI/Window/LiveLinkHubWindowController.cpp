@@ -3,6 +3,7 @@
 #include "LiveLinkHubWindowController.h"
 
 #include "CoreGlobals.h"
+#include "Features/IModularFeatures.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -18,8 +19,6 @@ FLiveLinkHubWindowController::FLiveLinkHubWindowController(const FLiveLinkHubWin
 	: LiveLinkHubLayoutIni(Params.LiveLinkHubLayoutIni)
 	, MainTabController(MakeShared<FLiveLinkHubMainTabController>())
 {
-	LiveLinkHubComponents.Add(MainTabController);
-	
 	ModalWindowManager = InitializeSlateApplication();
 }
 
@@ -115,8 +114,11 @@ TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApp
 
 void FLiveLinkHubWindowController::InitComponents(const TSharedRef<FTabManager::FStack>& MainArea)
 {
-	const FLiveLinkHubComponentInitParams Params { SharedThis(this), MainArea };
-	for (const TSharedRef<ILiveLinkHubComponent>& LiveLinkHubComponent : LiveLinkHubComponents)
+	const FLiveLinkHubComponentInitParams Params { GetRootWindow().ToSharedRef(), MainArea };
+	MainTabController->Init(Params);
+
+	TArray<ILiveLinkHubComponent*> ExternalComponents = IModularFeatures::Get().GetModularFeatureImplementations<ILiveLinkHubComponent>(ILiveLinkHubComponent::ModularFeatureName);
+	for (ILiveLinkHubComponent* LiveLinkHubComponent : ExternalComponents)
 	{
 		LiveLinkHubComponent->Init(Params);
 	}

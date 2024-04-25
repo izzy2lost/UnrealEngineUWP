@@ -58,8 +58,6 @@ private:
 	TSharedPtr<SWindow> RootWindow;
 	/** Manages the main tab. */
 	TSharedRef<FLiveLinkHubMainTabController> MainTabController;
-	/** LiveLinkHub components */
-	TArray<TSharedRef<ILiveLinkHubComponent>> LiveLinkHubComponents;
 	/** Manages modal windows for the application. */
 	TSharedPtr<FModalWindowManager> ModalWindowManager;
 	/** Menu bar widget for the hub. */

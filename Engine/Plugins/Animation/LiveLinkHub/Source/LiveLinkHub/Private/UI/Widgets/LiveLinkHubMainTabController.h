@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "UI/Window/ILiveLinkHubComponent.h"
+#include "ILiveLinkHubComponent.h"
 
 class FSpawnTabArgs;
 class SLiveLinkHubMainTabView;
@@ -11,7 +11,6 @@ class SWindow;
 class FLiveLinkHubMainTabController : public ILiveLinkHubComponent, public TSharedFromThis<FLiveLinkHubMainTabController>
 {
 public:
-
 	//~ Begin ILiveLinkHubComponent Interface
 	virtual void Init(const FLiveLinkHubComponentInitParams& Params) override;
 	//~ End ILiveLinkHubComponent Interface
@@ -24,5 +23,5 @@ private:
 	TSharedPtr<SLiveLinkHubMainTabView> MainTabView;
 
 	/** Spawn the main tab. */
-	TSharedRef<SDockTab> SpawnMainTab(const FSpawnTabArgs& Args, TSharedPtr<SWindow> RootWindow);
+	TSharedRef<SDockTab> SpawnMainTab(const FSpawnTabArgs& Args, TSharedRef<SWindow> RootWindow);
 };
