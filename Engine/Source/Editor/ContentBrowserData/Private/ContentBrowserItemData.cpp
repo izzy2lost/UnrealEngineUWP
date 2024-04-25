@@ -16,7 +16,7 @@ FContentBrowserItemData::FContentBrowserItemData(
 	FName InItemName,
 	FText InDisplayNameOverride,
 	TSharedPtr<const IContentBrowserItemDataPayload> InPayload,
-	FName InInternalPath)
+	TOptional<FName> InInternalPath)
 	: OwnerDataSource(InOwnerDataSource)
 	, ItemFlags(InItemFlags)
 	, VirtualPath(InVirtualPath)
@@ -26,10 +26,6 @@ FContentBrowserItemData::FContentBrowserItemData(
 	, Payload(MoveTemp(InPayload))
 {
 	checkf(IsFolder() != IsFile(), TEXT("Items must be either a folder or a file!"));
-	if (CachedDisplayName.IsEmpty())
-	{
-		CachedDisplayName = FText::AsCultureInvariant(ItemName.ToString());
-	}
 }
 
 bool FContentBrowserItemData::operator==(const FContentBrowserItemData& InOther) const
@@ -122,7 +118,24 @@ FName FContentBrowserItemData::GetInvariantPath() const
 
 FName FContentBrowserItemData::GetInternalPath() const
 {
-	return InternalPath;
+	if (InternalPath.IsSet())
+	{
+		return InternalPath.GetValue();
+	}
+	if (UContentBrowserDataSource* DataSource = OwnerDataSource.Get())
+	{
+		if (!VirtualPath.IsNone())
+		{
+			FName ConvertedPath;
+			if (DataSource->TryConvertVirtualPath(VirtualPath, ConvertedPath) == EContentBrowserPathType::Internal)
+			{
+				InternalPath = ConvertedPath;
+				return ConvertedPath;
+			}
+		}
+	}
+
+	return NAME_None;
 }
 
 FName FContentBrowserItemData::GetItemName() const
@@ -132,6 +145,10 @@ FName FContentBrowserItemData::GetItemName() const
 
 FText FContentBrowserItemData::GetDisplayName() const
 {
+	if (CachedDisplayName.IsEmpty())
+	{
+		CachedDisplayName = FText::AsCultureInvariant(ItemName.ToString());
+	}
 	return CachedDisplayName;
 }
 
@@ -324,28 +341,6 @@ FContentBrowserItemData FContentBrowserItemDataTemporaryContext::FinalizeItem(co
 	return OnFinalizeItem.Execute(ItemData, InProposedName, OutErrorMsg);
 }
 
-FContentBrowserMinimalItemData::FContentBrowserMinimalItemData(const FContentBrowserItemData& InItemData)
-	: FContentBrowserMinimalItemData(InItemData.GetItemType(), InItemData.GetVirtualPath(), InItemData.GetOwnerDataSource())
-{
-
-}
-
-FContentBrowserMinimalItemData::FContentBrowserMinimalItemData(EContentBrowserItemFlags InItemType, FName InVirtualPath, const UContentBrowserDataSource* InSource)
-	: ItemType(InItemType)
-	, VirtualPath(InVirtualPath)
-	, DataSource(InSource)
-{
-
-}
-
-FString FContentBrowserMinimalItemData::ToString() const
-{
-	return FString::Printf(TEXT("%s:%s:%s"), 
-		*VirtualPath.ToString(), 
-		EnumHasAllFlags(ItemType, EContentBrowserItemFlags::Type_File) ? TEXT("File") : TEXT("Folder"),
-		DataSource ? *DataSource->GetName() : TEXT("null")
-	);
-}
 
 FContentBrowserItemDataKey::FContentBrowserItemDataKey(const FContentBrowserItemData& InItemData)
 	: ItemType(InItemData.GetItemType())

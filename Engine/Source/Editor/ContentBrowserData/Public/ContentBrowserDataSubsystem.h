@@ -18,7 +18,6 @@
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
 #include "EditorSubsystem.h"
-#include "GetOrEnumerateSink.h"
 #include "HAL/Platform.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/NamePermissionList.h"
@@ -178,26 +177,14 @@ public:
 	/**
 	 * Enumerate the items (folders and/or files) that match a previously compiled filter.
 	 */
-	void EnumerateItemsMatchingFilter(
-		const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
-	void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter,
-		TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
-	void EnumerateItemsMatchingFilter(
-		const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const;
+	void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
+	void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
 
 	/**
 	 * Enumerate the items (folders and/or files) that exist under the given virtual path.
 	 */
-	void EnumerateItemsUnderPath(const FName InPath,
-		const FContentBrowserDataFilter& InFilter,
-		TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
-	void EnumerateItemsUnderPath(const FName InPath,
-		const FContentBrowserDataFilter& InFilter,
-		TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
-	// Version which allows passing an array or a callback, allows sources to presize the array for large queries
-	void EnumerateItemsUnderPath(const FName InPath,
-		const FContentBrowserDataFilter& InFilter,
-		const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const;
+	void EnumerateItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter, TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
+	void EnumerateItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
 
 	/**
 	 * Get the items (folders and/or files) that exist under the given virtual path.

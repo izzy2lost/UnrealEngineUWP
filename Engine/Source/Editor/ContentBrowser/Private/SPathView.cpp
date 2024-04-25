@@ -339,7 +339,6 @@ protected:
 	// Remove the given item data from the tree - if this results in an item having no data from any sources, the tree
 	// item is removed. If the item was removed and had a parent, the parent is returned.
 	TSharedPtr<FTreeItem> TryRemoveFolderItemInternal(const FContentBrowserItemData& InItem);
-	TSharedPtr<FTreeItem> TryRemoveFolderItemInternal(const FContentBrowserMinimalItemData& InKey);
 
 	bool PassesTextFilter(const TSharedPtr<FTreeItem>& InItem);
 
@@ -532,8 +531,13 @@ void FPathViewData::ProcessDataUpdates(TConstArrayView<FContentBrowserItemDataUp
 
 			case EContentBrowserItemUpdateType::Moved:
 			{
-				const FContentBrowserMinimalItemData OldItemKey(ItemData.GetItemType(), ItemDataUpdate.GetPreviousVirtualPath(), ItemData.GetOwnerDataSource());
-				TSharedPtr<FTreeItem> Parent = TryRemoveFolderItemInternal(OldItemKey);
+				const FContentBrowserItemData OldMinimalItemData(ItemData.GetOwnerDataSource(),
+					ItemData.GetItemType(),
+					ItemDataUpdate.GetPreviousVirtualPath(),
+					NAME_None,
+					FText(),
+					nullptr);
+				TSharedPtr<FTreeItem> Parent = TryRemoveFolderItemInternal(OldMinimalItemData);
 				if (DoesItemPassFilter(ItemData))
 				{
 					NewItems.Emplace(AddFolderItemInternal(MoveTemp(ItemData), nullptr));
@@ -749,9 +753,7 @@ TSharedRef<FTreeItem> FPathViewData::AddFolderItemInternal(FContentBrowserItemDa
 																 ParentVirtualPath,
 																 FName(FPathViews::GetPathLeaf(PathView)),
 																 FText(),
-																 nullptr, 
-																 FName() // Assuming this is a virtual path with no internal path
-																 ),
+																 nullptr),
 					OldItemsByInvariantPath);
 				VirtualPathToItem.Add(ParentVirtualPath, ParentItem);
 				InvariantPathToItem.Add(
@@ -765,18 +767,19 @@ TSharedRef<FTreeItem> FPathViewData::AddFolderItemInternal(FContentBrowserItemDa
 	return LeafItem.ToSharedRef();
 }
 
-TSharedPtr<FTreeItem> FPathViewData::TryRemoveFolderItemInternal(const FContentBrowserItemData& InItemData)
+TSharedPtr<FTreeItem> FPathViewData::TryRemoveFolderItemInternal(const FContentBrowserItemData& InItem)
 {
-	return TryRemoveFolderItemInternal(FContentBrowserMinimalItemData(InItemData));
-}
+	if (!InItem.IsFolder())
+	{
+		// Not a folder
+		return {};
+	}
 
-TSharedPtr<FTreeItem> FPathViewData::TryRemoveFolderItemInternal(const FContentBrowserMinimalItemData& InItemKey)
-{
 	// Find the folder in the tree
-	if (TSharedPtr<FTreeItem> ItemToRemove = VirtualPathToItem.FindRef(InItemKey.GetVirtualPath()))
+	if (TSharedPtr<FTreeItem> ItemToRemove = VirtualPathToItem.FindRef(InItem.GetVirtualPath()))
 	{
 		// Only fully remove this item if every sub-item is removed (items become invalid when empty)
-		FContentBrowserItemData OldItemData = ItemToRemove->RemoveItemData(InItemKey);
+		ItemToRemove->RemoveItemData(InItem);
 		if (ItemToRemove->GetItem().IsValid())
 		{
 			return {};
@@ -796,8 +799,8 @@ TSharedPtr<FTreeItem> FPathViewData::TryRemoveFolderItemInternal(const FContentB
 			VisibleRootItems.Remove(ItemToRemove);
 		}
 
-		VirtualPathToItem.Remove(InItemKey.GetVirtualPath());
-		InvariantPathToItem.Remove(OldItemData.GetInvariantPath());
+		VirtualPathToItem.Remove(InItem.GetVirtualPath());
+		InvariantPathToItem.Remove(InItem.GetInvariantPath());
 		return ItemParent;
 	}
 
@@ -1091,12 +1094,8 @@ void SPathView::Construct( const FArguments& InArgs )
 
 	if (!InArgs._DefaultPath.IsEmpty() && InternalPathPassesBlockLists(InArgs._DefaultPath))
 	{
-		const FName VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(*InArgs._DefaultPath);
-		FName InternalPath;
-		if (ContentBrowserData->TryConvertVirtualPath(VirtualPath, InternalPath) != EContentBrowserPathType::Internal)
-		{
-			InternalPath = FName();
-		}
+		const FName VirtualPath =
+			IContentBrowserDataModule::Get().GetSubsystem()->ConvertInternalPathToVirtual(*InArgs._DefaultPath);
 		if (!TreeData->FindTreeItem(VirtualPath))
 		{
 			const FString DefaultPathLeafName = FPaths::GetPathLeaf(VirtualPath.ToString());
@@ -1105,8 +1104,7 @@ void SPathView::Construct( const FArguments& InArgs )
 				VirtualPath,
 				*DefaultPathLeafName,
 				FText(),
-				nullptr,
-				InternalPath));
+				nullptr));
 		}
 
 		SetSelectedPaths({ VirtualPath.ToString() });

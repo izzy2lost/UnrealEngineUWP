@@ -278,32 +278,6 @@ bool FContentBrowserItem::TryRemove(const FContentBrowserItemData& InOther, FTex
 	return true;
 }
 
-FContentBrowserItemData FContentBrowserItem::TryRemove(const FContentBrowserMinimalItemData& InKey, FText* OutError)
-{
-	const FContentBrowserItemData* PrimaryItemData = GetPrimaryInternalItem();
-	if (!PrimaryItemData)
-	{
-		// We are empty, nothing to do (but not a failure)
-		return FContentBrowserItemData();
-	}
-
-	// Remove the other item from our list
-	int32 Index = ItemDataArray.IndexOfByPredicate([Key=InKey](const FContentBrowserItemData& Data) { return Key == FContentBrowserMinimalItemData(Data); });
-	if (Index != INDEX_NONE)
-	{
-		FContentBrowserItemData Data = MoveTemp(ItemDataArray[Index]);
-		ItemDataArray.RemoveAt(Index);
-		return MoveTemp(Data);
-	}
-	else
-	{
-		if (OutError)
-		{
-			*OutError = LOCTEXT("RemoveError_KeyMismatch", "No data matching given key");
-		}
-		return FContentBrowserItemData();
-	}
-}
 bool FContentBrowserItem::IsFolder() const
 {
 	const FContentBrowserItemData* PrimaryItemData = GetPrimaryInternalItem();

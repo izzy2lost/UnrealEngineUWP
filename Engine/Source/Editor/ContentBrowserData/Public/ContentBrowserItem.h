@@ -20,7 +20,6 @@
 #include "ContentBrowserItem.generated.h"
 
 class FAssetThumbnail;
-class FContentBrowserMinimalItemData;
 class UContentBrowserDataSource;
 class UObject;
 struct FAssetData;
@@ -113,12 +112,6 @@ public:
 	 * @return True if the removal was possible, false otherwise.
 	 */
 	bool TryRemove(const FContentBrowserItemData& InOther, FText* OutError = nullptr);
-
-	/**
-	 * Attempt to remove an item matching the given minimal representation from this one, providing error information if the removal wasn't possible.
-	 * @return A valid item data (IsValid) if anything was removed, an invalid one otherwise. 
-	 */
-	FContentBrowserItemData TryRemove(const FContentBrowserMinimalItemData& InKey, FText* OutError = nullptr);
 
 	/**
 	 * Get the array of internal items that comprise this composite item.

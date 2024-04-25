@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ContentBrowserAssetDataSource.h"
-
-#include "Algo/Transform.h"
-#include "Async/ParallelFor.h"
 #include "ContentBrowserAssetDataCore.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
@@ -35,7 +32,6 @@
 #include "Widgets/Input/SButton.h"
 #include "Subsystems/ImportSubsystem.h"
 #include "Widgets/Images/SImage.h"
-#include "Tasks/Task.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
@@ -45,17 +41,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ContentBrowserAssetDataSource)
 
 #define LOCTEXT_NAMESPACE "ContentBrowserAssetDataSource"
-
-namespace AssetDataSource
-{
-	bool bAllowInternalParallelism = true;
-	FAutoConsoleVariableRef CVarAllowInternalParallelism(
-		TEXT("AssetDataSource.AllowInternalParallelism"),
-		bAllowInternalParallelism,
-		TEXT("Set to 0 to disable internal parallelism inside data source in case of threading issues."),
-		ECVF_Default
-	);
-}
 
 enum class EContentBrowserFolderAttributes : uint8
 {
@@ -1868,13 +1853,11 @@ bool PathPassesCompiledDataFilterRecursive(const FContentBrowserCompiledAssetDat
 	return true;
 }
 
-void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(
-	UContentBrowserDataSource* DataSource, const FContentBrowserCompiledAssetDataFilter* AssetDataFilter, 
-	const TGetOrEnumerateSink<FContentBrowserItemData>& InSink, FSubPathEnumerationFunc SubPathEnumeration, FCreateFolderItemFunc CreateFolderItem)
+void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrowserDataSource* DataSource, const FContentBrowserCompiledAssetDataFilter* AssetDataFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback, FSubPathEnumerationFunc SubPathEnumeration, FCreateFolderItemFunc CreateFolderItem)
 {
 	if (AssetDataFilter->bRunFolderQueryOnDemand)
 	{
-		auto HandleInternalPath = [&DataSource, &InSink, &AssetDataFilter, &SubPathEnumeration, &CreateFolderItem](
+		auto HandleInternalPath = [&DataSource, &InCallback, &AssetDataFilter, &SubPathEnumeration, &CreateFolderItem](
 									  const FName InInternalPath) {
 			TArray<TPair<FName, EFolderFilterState>, TInlineAllocator<16>> PathsToScan;
 			PathsToScan.Add({ InInternalPath, EFolderFilterState::None });
@@ -1884,12 +1867,12 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(
 				EFolderFilterState ParentFilterState = PathToScan.Value;
 				SubPathEnumeration(
 					PathToScan.Key,
-					[&DataSource, &InSink, &AssetDataFilter, &PathsToScan, &CreateFolderItem, ParentFilterState](
+					[&DataSource, &InCallback, &AssetDataFilter, &PathsToScan, &CreateFolderItem, ParentFilterState](
 						FName SubPath) -> bool {
 						EFolderFilterState FilterState = ParentFilterState;
 						if (PathPassesCompiledDataFilterRecursive(*AssetDataFilter, SubPath, FilterState))
 						{
-							if (!InSink.ProduceItem(CreateFolderItem(SubPath)))
+							if (!InCallback(CreateFolderItem(SubPath)))
 							{
 								return false;
 							}
@@ -1937,13 +1920,13 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(
 			while (PathsToScan.Num() > 0)
 			{
 				const FName PathToScan = PathsToScan.Pop(EAllowShrinking::No);
-				DataSource->GetRootPathVirtualTree().EnumerateSubPaths(PathToScan, [&DataSource, &InSink, &AssetDataFilter, &VirtualPathsPassedFilter, &PathsToScan, &HandleInternalPath, &CreateFolderItem](FName VirtualSubPath, FName InternalPath)
+				DataSource->GetRootPathVirtualTree().EnumerateSubPaths(PathToScan, [&DataSource, &InCallback, &AssetDataFilter, &VirtualPathsPassedFilter, &PathsToScan, &HandleInternalPath, &CreateFolderItem](FName VirtualSubPath, FName InternalPath)
 				{
 					if (VirtualPathsPassedFilter.Contains(VirtualSubPath))
 					{
 						if (!InternalPath.IsNone())
 						{
-							if (!InSink.ProduceItem(CreateFolderItem(InternalPath)))
+							if (!InCallback(CreateFolderItem(InternalPath)))
 							{
 								return false;
 							}
@@ -1952,7 +1935,7 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(
 						}
 						else
 						{
-							if (!InSink.ProduceItem(DataSource->CreateVirtualFolderItem(VirtualSubPath)))
+							if (!InCallback(DataSource->CreateVirtualFolderItem(VirtualSubPath)))
 							{
 								return false;
 							}
@@ -1977,7 +1960,7 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(
 	{
 		for (const FName& SubPath : AssetDataFilter->CachedSubPaths)
 		{
-			if (!InSink.ProduceItem(CreateFolderItem(SubPath)))
+			if (!InCallback(CreateFolderItem(SubPath)))
 			{
 				return;
 			}
@@ -1986,11 +1969,6 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(
 }
 
 void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback)
-{
-	EnumerateItemsMatchingFilter(InFilter, TGetOrEnumerateSink<FContentBrowserItemData>(MoveTemp(InCallback)));
-}
-
-void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink)
 {
 	const FContentBrowserDataFilterList* FilterList = InFilter.CompiledFilters.Find(this);
 	if (!FilterList)
@@ -2014,14 +1992,14 @@ void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContent
 		{
 			return CreateAssetFolderItem(Path);
 		};
-		EnumerateFoldersMatchingFilter(this, AssetDataFilter, InSink, EnumerateSubPaths, CreateFolderItem);
+		EnumerateFoldersMatchingFilter(this, AssetDataFilter, InCallback, EnumerateSubPaths, CreateFolderItem);
 	}
 
 	if (EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFiles) && !AssetDataFilter->bFilterExcludesAllAssets)
 	{
 		for (const FAssetData& CustomSourceAsset : AssetDataFilter->CustomSourceAssets)
 		{
-			if (!InSink.ProduceItem(CreateAssetFileItem(CustomSourceAsset)))
+			if (!InCallback(CreateAssetFileItem(CustomSourceAsset)))
 			{
 				return;
 			}
@@ -2030,7 +2008,7 @@ void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContent
 		if (const FContentBrowserCompiledUnsupportedAssetDataFilter* UnsupportedAssetDataFilter = FilterList->FindFilter<FContentBrowserCompiledUnsupportedAssetDataFilter>())
 		{
 			// Using the show unsupported asset filter
-			AssetRegistry->EnumerateAssets(UnsupportedAssetDataFilter->InclusiveFilter, [this, &InSink, &AssetDataFilter, UnsupportedAssetDataFilter](const FAssetData& AssetData)
+			AssetRegistry->EnumerateAssets(UnsupportedAssetDataFilter->InclusiveFilter, [this, &InCallback, &AssetDataFilter, UnsupportedAssetDataFilter](const FAssetData& AssetData)
 			{
 				if (ContentBrowserAssetData::IsPrimaryAsset(AssetData) && AssetData.GetOptionalOuterPathName().IsNone())
 				{
@@ -2041,96 +2019,34 @@ void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContent
 						if (!(AssetRegistry->IsAssetIncludedByFilter(AssetData, UnsupportedAssetDataFilter->ConvertIfFailInclusiveFilter) && (UnsupportedAssetDataFilter->ConvertIfFailExclusiveFilter.IsEmpty() || AssetRegistry->IsAssetExcludedByFilter(AssetData, UnsupportedAssetDataFilter->ConvertIfFailExclusiveFilter))) // Do we fail the supported filter?
 							&& (AssetRegistry->IsAssetIncludedByFilter(AssetData, UnsupportedAssetDataFilter->ShowInclusiveFilter) && (UnsupportedAssetDataFilter->ShowExclusiveFilter.IsEmpty() || AssetRegistry->IsAssetExcludedByFilter(AssetData, UnsupportedAssetDataFilter->ShowExclusiveFilter)))) // Do we pass the show filter for the unsupported asset?
 						{
-							return InSink.ProduceItem(CreateUnsupportedAssetFileItem(AssetData));
+							return InCallback(CreateUnsupportedAssetFileItem(AssetData));
 						}
 
 						// Normal item test it against the class filter
 						if ((AssetDataFilter->InclusiveFilter.ClassPaths.IsEmpty() || AssetDataFilter->InclusiveFilter.ClassPaths.Contains(AssetData.AssetClassPath)) && !AssetDataFilter->ExclusiveFilter.ClassPaths.Contains(AssetData.AssetClassPath))
 						{
-							return InSink.ProduceItem(CreateAssetFileItem(AssetData));
+							return InCallback(CreateAssetFileItem(AssetData));
 						}
 					}
 				}
 				return true;
 			});
-			return;
 		}
-
-		auto ProduceAssets = [&AssetDataFilter, &InSink, this](TArray<FAssetData>& Assets, TSet<FName> IgnorePackageNames) {
-			InSink.ReserveMore(Assets.Num());
-			for (FAssetData& AssetData : Assets)
-			{
-				if (IgnorePackageNames.Contains(AssetData.PackageName))
+		else
+		{
+			AssetRegistry->EnumerateAssets(AssetDataFilter->InclusiveFilter, [this, &InCallback, &AssetDataFilter](const FAssetData& AssetData)
 				{
-					AssetData = FAssetData{};
-				}
-			}
-
-			if (!AssetDataFilter->ExclusiveFilter.IsEmpty())
-			{
-				for (FAssetData& AssetData : Assets)
-				{
-					if (AssetRegistry->IsAssetIncludedByFilter(AssetData, AssetDataFilter->ExclusiveFilter))
+					if (ContentBrowserAssetData::IsPrimaryAsset(AssetData))
 					{
-						AssetData = FAssetData{};
+						const bool bPassesExclusiveFilter = AssetDataFilter->ExclusiveFilter.IsEmpty() || !AssetRegistry->IsAssetIncludedByFilter(AssetData, AssetDataFilter->ExclusiveFilter);
+						if (bPassesExclusiveFilter)
+						{
+							return InCallback(CreateAssetFileItem(AssetData));
+						}
 					}
-				}
-			}
-			
-			// For batches above some arbitrary threshold, run conversion in parallel
-			if (AssetDataSource::bAllowInternalParallelism && Assets.Num() > 1024 * 16)
-			{
-				TArray<FContentBrowserItemData> Converted;
-				Converted.Reserve(Assets.Num());
-				Converted.AddUninitialized(Assets.Num());
-				ParallelFor(TEXT("ConvertAssetsToContentBrowserItems"), Assets.Num(), 1024 * 16, [&Assets, &Converted, this](int32 Index) {
-					if (Assets[Index].IsValid())
-					{
-						new (&Converted[Index]) FContentBrowserItemData(CreateAssetFileItem(MoveTemp(Assets[Index])));
-					}
-					else
-					{
-						new (&Converted[Index]) FContentBrowserItemData();
-					}
+					return true;
 				});
-				for (FContentBrowserItemData& Item : Converted)
-				{
-					if (Item.IsValid())
-					{
-						InSink.ProduceItem(MoveTemp(Item));
-					}
-				}
-			}
-			else
-			{
-				for (FAssetData& AssetData : Assets)
-				{
-					if (AssetData.IsValid())
-					{
-						InSink.ProduceItem(CreateAssetFileItem(MoveTemp(AssetData)));
-					}
-				}
-			}
-		};
-
-		UE::Tasks::TTask<TArray<FAssetData>> DiskTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [AssetRegistry=AssetRegistry, &AssetDataFilter]() {
-			TArray<FAssetData> Assets;
-			FARCompiledFilter OnDiskFilter = AssetDataFilter->InclusiveFilter;
-			OnDiskFilter.bIncludeOnlyOnDiskAssets = true;
-			AssetRegistry->GetAssets(OnDiskFilter, Assets);
-			return MoveTemp(Assets);
-		});
-
-		TArray<FAssetData> InMemoryAssets;
-		AssetRegistry->GetInMemoryAssets(AssetDataFilter->InclusiveFilter, InMemoryAssets);
-
-		TSet<FName> IgnorePackages;
-		ProduceAssets(InMemoryAssets, IgnorePackages);
-		Algo::Transform(InMemoryAssets, IgnorePackages, [](const FAssetData& AssetData) { return AssetData.PackageName; });
-
-		DiskTask.BusyWait();
-		TArray<FAssetData> DiskAssets = MoveTemp(DiskTask.GetResult());
-		ProduceAssets(DiskAssets, IgnorePackages);
+		}
 	}
 }
 
@@ -2342,8 +2258,7 @@ bool UContentBrowserAssetDataSource::CreateFolder(const FName InPath, FContentBr
 		InPath,
 		*FolderItemName,
 		FText::AsCultureInvariant(FolderItemName),
-		MakeShared<FContentBrowserAssetFolderItemDataPayload>(*InternalPathString),
-		FName(InternalPathString)
+		MakeShared<FContentBrowserAssetFolderItemDataPayload>(*InternalPathString)
 		);
 
 	OutPendingItem = FContentBrowserItemDataTemporaryContext(

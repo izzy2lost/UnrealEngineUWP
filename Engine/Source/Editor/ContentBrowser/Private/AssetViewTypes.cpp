@@ -65,15 +65,6 @@ void FAssetViewItem::RemoveItemData(const FContentBrowserItemData& InItemData)
 	}
 }
 
-void FAssetViewItem::RemoveItemData(const FContentBrowserMinimalItemData& InItemKey)
-{
-	Item.TryRemove(InItemKey);
-	if (Item.IsValid())
-	{
-		ItemDataChangedEvent.Broadcast();
-	}	
-}
-
 void FAssetViewItem::ClearCachedCustomColumns()
 {
 	CachedCustomColumnData.Reset();

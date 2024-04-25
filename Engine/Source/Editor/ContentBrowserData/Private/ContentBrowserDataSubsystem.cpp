@@ -9,7 +9,6 @@
 #include "Editor.h"
 #include "Features/IModularFeatures.h"
 #include "Framework/Application/SlateApplication.h"
-#include "GetOrEnumerateSink.h"
 #include "HAL/IConsoleManager.h"
 #include "IContentBrowserDataModule.h"
 #include "Interfaces/IPluginManager.h"
@@ -302,12 +301,7 @@ void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBr
 
 void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const
 {
-	EnumerateItemsMatchingFilter(InFilter, TGetOrEnumerateSink<FContentBrowserItemData>(InCallback));
-}
-
-void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const
-{
-	for (const TPair<FName, UContentBrowserDataSource*>& ActiveDataSourcePair : ActiveDataSources)
+	for (const auto& ActiveDataSourcePair : ActiveDataSources)
 	{
 		UContentBrowserDataSource* DataSource = ActiveDataSourcePair.Value;
 
@@ -321,8 +315,7 @@ void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBr
 					check(EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFolders));
 
 					const FString MountLeafName = FPackageName::GetShortName(MountRootPart);
-					FName InternalPath; // Virtual folders have no internal path 
-					InSink.ProduceItem(FContentBrowserItemData(DataSource, EContentBrowserItemFlags::Type_Folder, MountRootPart, *MountLeafName, FText(), nullptr, InternalPath));
+					InCallback(FContentBrowserItemData(DataSource, EContentBrowserItemFlags::Type_Folder, MountRootPart, *MountLeafName, FText(), nullptr));
 				}
 			}
 
@@ -334,13 +327,13 @@ void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBr
 					for (const auto& It : VirtualFolderFilter->CachedSubPaths)
 					{
 						// how do we skip over this item if not included (Engine Content, Engine Plugins, C++ Classes, etc..)
-						InSink.ProduceItem(FContentBrowserItemData(It.Value));
+						InCallback(FContentBrowserItemData(It.Value));
 					}
 				}
 			}
 		}
 
-		DataSource->EnumerateItemsMatchingFilter(InFilter, InSink);
+		DataSource->EnumerateItemsMatchingFilter(InFilter, InCallback);
 	}
 }
 
@@ -357,15 +350,11 @@ void UContentBrowserDataSubsystem::EnumerateItemsUnderPath(const FName InPath, c
 {
 	FContentBrowserDataCompiledFilter CompiledFilter;
 	CompileFilter(InPath, InFilter, CompiledFilter);
-	EnumerateItemsMatchingFilter(CompiledFilter, MoveTemp(InCallback));
-}
 
-void UContentBrowserDataSubsystem::EnumerateItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const
-{
-	FContentBrowserDataCompiledFilter CompiledFilter;
-	CompileFilter(InPath, InFilter, CompiledFilter);
-
-	EnumerateItemsMatchingFilter(CompiledFilter, InSink);
+	EnumerateItemsMatchingFilter(CompiledFilter, [&InCallback](FContentBrowserItemData&& InItemData)
+	{
+		return InCallback(MoveTemp(InItemData));
+	});
 }
 
 TArray<FContentBrowserItem> UContentBrowserDataSubsystem::GetItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter) const
@@ -409,7 +398,7 @@ void UContentBrowserDataSubsystem::EnumerateItemsAtPath(const FName InPath, cons
 void UContentBrowserDataSubsystem::EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const
 {
 	bool bHandledVirtualFolder = false;
-	for (const TPair<FName, UContentBrowserDataSource*>& ActiveDataSourcePair : ActiveDataSources)
+	for (const auto& ActiveDataSourcePair : ActiveDataSources)
 	{
 		UContentBrowserDataSource* DataSource = ActiveDataSourcePair.Value;
 		FName InternalPath;

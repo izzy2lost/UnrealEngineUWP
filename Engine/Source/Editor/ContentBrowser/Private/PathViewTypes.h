@@ -38,7 +38,6 @@ public:
 	void AppendItemData(const FContentBrowserItemData& InItemData);
 	void RemoveItemData(const FContentBrowserItem& InItem);
 	void RemoveItemData(const FContentBrowserItemData& InItemData);
-	FContentBrowserItemData RemoveItemData(const FContentBrowserMinimalItemData& InItemKey);
 
 	/** Get the underlying Content Browser item */
 	const FContentBrowserItem& GetItem() const;
