@@ -4781,6 +4781,16 @@ namespace UnrealBuildTool
 				OutputDirectory = GetOutputDirectoryForExecutable(Unreal.EngineDirectory, Rules.File);
 			}
 
+			// We only want these defines in the launch module to not create non-deterministic Definitions.h on other modules
+			if (Rules.bWithLiveCoding && Rules.LinkType == TargetLinkType.Monolithic)
+			{
+				LaunchModule.Rules.PrivateDefinitions.Add(String.Format("UE_LIVE_CODING_ENGINE_DIR=\"{0}\"", Unreal.EngineDirectory.FullName.Replace("\\", "\\\\")));
+				if (Rules.ProjectFile != null)
+				{
+					LaunchModule.Rules.PrivateDefinitions.Add(String.Format("UE_LIVE_CODING_PROJECT=\"{0}\"", Rules.ProjectFile.FullName.Replace("\\", "\\\\")));
+				}
+			}
+
 			bool bCompileAsDLL = Rules.bShouldCompileAsDLL && bCompileMonolithic;
 			List<FileReference> OutputPaths = MakeBinaryPaths(OutputDirectory, bCompileMonolithic ? TargetName : AppName, Platform, Configuration, bCompileAsDLL ? UEBuildBinaryType.DynamicLinkLibrary : UEBuildBinaryType.Executable, Rules.Architectures, Rules.UndecoratedConfiguration, bCompileMonolithic && ProjectFile != null, Rules.ExeBinariesSubFolder, ProjectFile, Rules);
 
@@ -5214,14 +5224,6 @@ namespace UnrealBuildTool
 			if (Rules.bWithLiveCoding)
 			{
 				GlobalCompileEnvironment.Definitions.Add("WITH_LIVE_CODING=1");
-				if (Rules.LinkType == TargetLinkType.Monolithic)
-				{
-					GlobalCompileEnvironment.Definitions.Add(String.Format("UE_LIVE_CODING_ENGINE_DIR=\"{0}\"", Unreal.EngineDirectory.FullName.Replace("\\", "\\\\")));
-					if (ProjectFile != null)
-					{
-						GlobalCompileEnvironment.Definitions.Add(String.Format("UE_LIVE_CODING_PROJECT=\"{0}\"", ProjectFile.FullName.Replace("\\", "\\\\")));
-					}
-				}
 			}
 			else
 			{

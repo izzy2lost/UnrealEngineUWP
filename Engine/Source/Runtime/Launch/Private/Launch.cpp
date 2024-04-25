@@ -21,6 +21,14 @@
 	#include "Windows/WindowsHWrapper.h"
 #endif
 
+#ifdef UE_LIVE_CODING_ENGINE_DIR
+const TCHAR* GLiveCodingEngineDir = TEXT(UE_LIVE_CODING_ENGINE_DIR);
+#ifdef UE_LIVE_CODING_PROJECT
+	const TCHAR* GLiveCodingProject = TEXT(UE_LIVE_CODING_PROJECT);
+#else
+	const TCHAR* GLiveCodingProject = nullptr;
+#endif
+#endif
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, Launch);
 
