@@ -80,11 +80,6 @@ private:
 	int32 ParentChunk = 10;
 
 	/**
-	 * Internal tracking variable to remove the chunkId used when the ChunkId property changes.
-	 */
-	int32 LastChunkIdUsed = -1;
-
-	/**
 	 * Config defined value for what is the smallest chunk index the autogeneration code can generate.
 	 * If autogeneration produces a chunk index lower than this value users will need to manually define the chunk index this GFP will cook into.
 	 */

@@ -172,7 +172,6 @@ void UGameFeatureAction_AddChunkOverride::AddChunkIdOverride()
 		TArray<FString>& PluginsInChunk = GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap.FindOrAdd(ChunkId);
 		PluginsInChunk.Add(PluginName);
 		GameFeatureAction_AddChunkOverride::PluginToChunkId.Add(PluginName, ChunkId);
-		LastChunkIdUsed = ChunkId;
 		UE_LOG(LogAddChunkOverride, Log, TEXT("Plugin(%s) will cook assets into chunk(%d)"), *PluginName, ChunkId);
 
 		UAssetManager& Manager = UAssetManager::Get();
@@ -196,29 +195,27 @@ void UGameFeatureAction_AddChunkOverride::AddChunkIdOverride()
 void UGameFeatureAction_AddChunkOverride::RemoveChunkIdOverride()
 {
 #if WITH_EDITOR
-	if (LastChunkIdUsed < 0)
-	{
-		UE_LOG(LogAddChunkOverride, Verbose, TEXT("LastChunkIdUsed(%d) was invalid. Skipping override removal"), LastChunkIdUsed);
-		return;
-	}
-
 	// Remove primary asset rules by setting the override the default.
 	if (UGameFeatureData* GameFeatureData = GetTypedOuter<UGameFeatureData>())
 	{
 		FString PluginName;
 		GameFeatureData->GetPluginName(PluginName);
-
-		if (GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap.Contains(LastChunkIdUsed))
+		if (!GameFeatureAction_AddChunkOverride::PluginToChunkId.Contains(PluginName))
 		{
-			GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap[LastChunkIdUsed].Remove(PluginName);
-			if (GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap[LastChunkIdUsed].IsEmpty())
+			UE_LOG(LogAddChunkOverride, Verbose, TEXT("No chunk override found for (%s) Skipping override removal"), *PluginName);
+			return;
+		}
+
+		const int32 ChunkIdOverride = GameFeatureAction_AddChunkOverride::PluginToChunkId[PluginName];
+		if (GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap.Contains(ChunkIdOverride))
+		{
+			GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap[ChunkIdOverride].Remove(PluginName);
+			if (GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap[ChunkIdOverride].IsEmpty())
 			{
-				GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap.Remove(LastChunkIdUsed);
+				GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap.Remove(ChunkIdOverride);
 			}
 		}
-		ensure(GameFeatureAction_AddChunkOverride::PluginToChunkId.Remove(PluginName));
-		UE_LOG(LogAddChunkOverride, Log, TEXT("Removing ChunkId override (%d) for Plugin (%s)"), LastChunkIdUsed, *PluginName);
-		LastChunkIdUsed = -1;
+		UE_LOG(LogAddChunkOverride, Log, TEXT("Removing ChunkId override (%d) for Plugin (%s)"), ChunkIdOverride, *PluginName);
 
 		UAssetManager& Manager = UAssetManager::Get();
 
