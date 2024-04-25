@@ -58,7 +58,7 @@ public:
 	bool bUseSourceNameForAsset = true;
 
 	/** If set, and there is only one asset and one source, the imported asset is given this name. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True", AlwaysResetToDefault = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True"))
 	FString AssetName;
 
 	/** Translation offset applied to meshes and animations. */

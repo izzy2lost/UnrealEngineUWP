@@ -25,9 +25,9 @@ namespace UE
 	}
 }
 
-void UInterchangePipelineBase::LoadSettings(const FName PipelineStackName)
+void UInterchangePipelineBase::LoadSettings(const FName PipelineStackName, bool bResetPreDialog /*= false*/)
 {
-	LoadSettingsInternal(PipelineStackName, GEditorPerProjectIni, PropertiesStates);
+	LoadSettingsInternal(PipelineStackName, GEditorPerProjectIni, PropertiesStates, bResetPreDialog);
 }
 
 void UInterchangePipelineBase::SaveSettings(const FName PipelineStackName)
@@ -104,7 +104,7 @@ FName UInterchangePipelineBase::GetResultsPropertyName()
 	return GET_MEMBER_NAME_CHECKED(UInterchangePipelineBase, Results);
 }
 
-void UInterchangePipelineBase::LoadSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename, TMap<FName, FInterchangePipelinePropertyStates>& ParentPropertiesStates)
+void UInterchangePipelineBase::LoadSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename, TMap<FName, FInterchangePipelinePropertyStates>& ParentPropertiesStates, bool bResetPreDialog)
 {
 	int32 PortFlags = 0;
 	UClass* Class = this->GetClass();
@@ -127,9 +127,11 @@ void UInterchangePipelineBase::LoadSettingsInternal(const FName PipelineStackNam
 #if WITH_EDITOR
 		if (Property->GetBoolMetaData(FName("AlwaysResetToDefault")))
 		{
-			//Stand alone pipeline property
+			//Not loading the property value will reset it
 			continue;
 		}
+		
+		
 #endif //WITH_EDITOR
 
 		if (const FInterchangePipelinePropertyStates* PropertyStates = ParentPropertiesStates.Find(PropertyPath))
@@ -137,6 +139,12 @@ void UInterchangePipelineBase::LoadSettingsInternal(const FName PipelineStackNam
 			if (PropertyStates->IsPropertyLocked())
 			{
 				//Skip this locked property
+				continue;
+			}
+
+			//Some property need to be reset only when loading the import dialog
+			if (bResetPreDialog && PropertyStates->IsPropertyPreDialogReset())
+			{
 				continue;
 			}
 		}
@@ -201,7 +209,7 @@ void UInterchangePipelineBase::LoadSettingsInternal(const FName PipelineStackNam
 			// Load the settings if the referenced pipeline is a subobject of ours
 			if (SubPipeline->IsInOuter(this))
 			{
-				SubPipeline->LoadSettingsInternal(PipelineStackName, ConfigFilename, ParentPropertiesStates);
+				SubPipeline->LoadSettingsInternal(PipelineStackName, ConfigFilename, ParentPropertiesStates, bResetPreDialog);
 			}
 		}
 		else

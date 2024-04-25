@@ -624,6 +624,47 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						SNew(STextBlock)
 						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.Text(LOCTEXT("ResetPreDialogName", "Reset PreDialog"))
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(3.0f, 1.0f)
+					[
+						SNew(SCheckBox)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
+						.ToolTipText(LOCTEXT("ResetPreDialogTooltip", "If true this property will be reset when displaying the interchange import dialog."))
+						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
+						{
+							if (!ensure(InterchangePipelinePtr.IsValid()))
+							{
+								return;
+							}
+							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionResetPreDialogToggle", "Toggle property reset pre-dialog."), !GIsTransacting);
+							InterchangePipelinePtr->Modify();
+							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyPreDialogReset((CheckType == ECheckBoxState::Checked));
+							InterchangePipelinePtr->PostEditChange();
+						})
+						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
+						{
+							if (!InterchangePipelinePtr.IsValid())
+							{
+								return ECheckBoxState::Unchecked;
+							}
+							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
+							{
+								return PropertyStates->IsPropertyPreDialogReset() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+							}
+							return ECheckBoxState::Unchecked;
+						})
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(6.0f, 1.0f, 3.0f, 1.0f)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
 						.Text(LOCTEXT("ShowWhenBasicLayoutText", "Basic Layout"))
 					]
 					+ SHorizontalBox::Slot()

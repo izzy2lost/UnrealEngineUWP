@@ -78,7 +78,19 @@ struct FInterchangePipelinePropertyStates
 	{
 		bLocked = bLockValue;
 	}
-	
+
+	/** Return true if the property is locked. */
+	bool IsPropertyPreDialogReset() const
+	{
+		return bPreDialogReset;
+	}
+
+	void SetPropertyPreDialogReset(const bool bPreDialogResetValue)
+	{
+		bPreDialogReset = bPreDialogResetValue;
+	}
+
+
 	/** Return true if the property is visible for the specified context. */
 	bool IsPropertyVisibleInBasicLayout() const
 	{
@@ -114,6 +126,10 @@ struct FInterchangePipelinePropertyStates
 	/** If true, the property is locked. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
 	bool bLocked = false;
+
+	/** If true, the property will be reset to default when loading the import dialog. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
+	bool bPreDialogReset = false;
 
 	/** The property states for the import context. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
@@ -287,7 +303,7 @@ public:
 		return true;
 	}
 
-	INTERCHANGECORE_API void LoadSettings(const FName PipelineStackName);
+	INTERCHANGECORE_API void LoadSettings(const FName PipelineStackName, bool bResetPreDialog = false);
 
 	INTERCHANGECORE_API void SaveSettings(const FName PipelineStackName);
 
@@ -519,7 +535,7 @@ protected:
 	{
 	}
 
-	INTERCHANGECORE_API void LoadSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename, TMap<FName, FInterchangePipelinePropertyStates>& ParentPropertiesStates);
+	INTERCHANGECORE_API void LoadSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename, TMap<FName, FInterchangePipelinePropertyStates>& ParentPropertiesStates, bool bResetPreDialog);
 
 	INTERCHANGECORE_API void SaveSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename);
 

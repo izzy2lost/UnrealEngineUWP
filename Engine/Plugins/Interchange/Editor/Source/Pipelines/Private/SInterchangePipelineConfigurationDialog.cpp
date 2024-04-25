@@ -313,8 +313,9 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 					}
 					else
 					{
+						constexpr bool bResetPreDialogTrue = true;
 						//Load the settings for this pipeline
-						GeneratedPipeline->LoadSettings(Stack.StackName);
+						GeneratedPipeline->LoadSettings(Stack.StackName, bResetPreDialogTrue);
 						GeneratedPipeline->PreDialogCleanup(Stack.StackName);
 					}
 					GeneratedPipeline->SetBasicLayoutMode(bBasicLayout);
@@ -986,7 +987,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 				if (!GeneratedPipeline->IsFromReimportOrOverride() || !bStackSelectionChange)
 				{
 					//Load the settings for this pipeline
-					GeneratedPipeline->LoadSettings(Stack.StackName);
+					GeneratedPipeline->LoadSettings(Stack.StackName, bStackSelectionChange);
 					if (bStackSelectionChange)
 					{
 						//Do not reset pipeline value if we are just refreshing the filtering
