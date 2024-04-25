@@ -3,6 +3,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 
 #include "Engine/StaticMesh.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/Texture2DArray.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Kismet2/StructureEditorUtils.h"

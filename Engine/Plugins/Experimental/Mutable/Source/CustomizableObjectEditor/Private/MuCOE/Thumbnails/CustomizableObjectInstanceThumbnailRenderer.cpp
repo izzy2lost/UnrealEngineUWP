@@ -5,6 +5,7 @@
 #include "CanvasTypes.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "SceneView.h"
 #include "TextureResource.h"

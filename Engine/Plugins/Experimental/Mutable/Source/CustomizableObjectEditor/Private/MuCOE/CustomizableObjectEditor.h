@@ -6,9 +6,7 @@
 #include "EditorUndoClient.h"
 #include "GraphEditor.h"
 #include "Misc/NotifyHook.h"
-#include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
-#include "TickableEditorObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/SNumericDropDown.h"
 
@@ -156,7 +154,6 @@ class FCustomizableObjectEditor :
 	public ICustomizableObjectEditor, 
 	public FGCObject,
 	public FNotifyHook,
-	public FTickableEditorObject,
 	public FEditorUndoClient
 {
 public:
@@ -235,11 +232,6 @@ public:
 	// FNotifyHook interface
 	virtual void NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged ) override;
 
-	// FTickableGameObject interface
-	virtual bool IsTickable() const override;
-	virtual void Tick( float InDeltaTime ) override;
-	virtual TStatId GetStatId() const override;
-
 	// Delegates
 	void DeleteSelectedNodes();
 	bool CanDeleteNodes() const;
@@ -292,9 +284,7 @@ private:
 	TSharedPtr<FUICommandList> GraphEditorCommands;
 
 	// Compile the customizable object.
-	void CompileObject();
-	void CompileObjectUserPressedButton();
-	void CompileOnlySelectedObjectUserPressedButton();
+	void CompileObject(bool bOnlySelectedParameters);
 	
 	// Compile options menu callbacks
 	TSharedRef<SWidget> GenerateCompileOptionsMenuContent(TSharedRef<FUICommandList> InCommandList);
@@ -402,9 +392,6 @@ private:
 	TObjectPtr<UCustomizableObjectInstance> PreviewInstance = nullptr;
 	TArray<TObjectPtr<UCustomizableSkeletalComponent>> PreviewCustomizableSkeletalComponents;
 	TArray<TObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
-
-	/** Object compiler */
-	FCustomizableObjectCompiler Compiler;
 
 	/** List of open tool panels; used to ensure only one exists at any one time */
 	TMap< FName, TWeakPtr<class SDockableTab> > SpawnedToolPanels;

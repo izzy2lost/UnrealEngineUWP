@@ -2,6 +2,7 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 
+#include "Engine/SkeletalMesh.h"
 #include "AssetThumbnail.h"
 #include "ISinglePropertyView.h"
 #include "Modules/ModuleManager.h"

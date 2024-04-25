@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCO/StateMachine.h"
 #include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/CustomizableObjectIdentifier.h"
@@ -34,27 +35,6 @@ class UCustomizableObject;
 
 
 FGuid CUSTOMIZABLEOBJECT_API GenerateIdentifier(const UCustomizableObject& CustomizableObject);
-
-
-class CUSTOMIZABLEOBJECT_API FCustomizableObjectCompilerBase
-{
-public:
-
-	FCustomizableObjectCompilerBase() {};
-
-	// Ensure virtual destruction
-	virtual ~FCustomizableObjectCompilerBase() {};
-	
-	virtual void Compile(UCustomizableObject& Object, const FCompilationOptions& Options, bool bAsync) {};
-
-	/** Return true if no further ticks are required. In other words, all work has completed. */
-	virtual bool Tick(bool bBlocking) { return true; }
-	virtual void ForceFinishCompilation() {}
-
-	/** Provides the caller with the warning and error messages produced during compilation */
-	virtual void GetCompilationMessages(TArray<FText>& OutWarningMessages, TArray<FText>& OutErrorMessages) const = 0;
-};
-
 
 // Warning! MutableCompiledDataHeader must be the first data serialized in a stream
 struct MutableCompiledDataStreamHeader
@@ -197,24 +177,6 @@ struct FCustomizableObjectStatusTypes
 };
 
 using FCustomizableObjectStatus = FStateMachine<FCustomizableObjectStatusTypes>;
-
-
-
-enum class ECompilationStatePrivate : uint8
-{
-	None,
-	InProgress,
-	Completed
-};
-
-
-enum class ECompilationResultPrivate : uint8
-{
-	Unknown, // Not compiled yet (compilation may be in progress).
-	Success, // No errors or warnings.
-	Errors, // At least have one error. Can have warnings.
-	Warnings, // Only warnings.
-};
 
 
 USTRUCT()
@@ -724,8 +686,6 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 {
 	GENERATED_BODY()
 
-	
-
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> MutableModel;
 
 	/** Stores resources to be used by MutableModel In-Game. Cooked resources. */
@@ -883,8 +843,8 @@ public:
 	/** Unique Identifier - Deterministic. Used to locate Model and Streamable data on disk. Should not be modified. */
 	FGuid Identifier;
 
-	/** Cooked platform names. */
-	TArray<FString> CachedPlatformNames;
+	/** Cook requests. */
+	TArray<TSharedRef<FCompilationRequest>> CompileRequests;
 
 	/** List of external packages that if changed, a compilation is required.
 	 * Key is the package name. Value is the the UPackage::Guid, which is regenerated each time the packages is saved.

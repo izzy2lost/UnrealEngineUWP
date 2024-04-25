@@ -8,6 +8,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectIdentifier.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCOE/ExtensionDataCompilerInterface.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"

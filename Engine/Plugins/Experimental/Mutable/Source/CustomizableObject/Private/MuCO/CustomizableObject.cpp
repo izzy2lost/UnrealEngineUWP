@@ -333,18 +333,35 @@ void UCustomizableObject::BeginCacheForCookedPlatformData(const ITargetPlatform*
 		return;
 	}
 
-	if (Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) == INDEX_NONE)
+	const TSharedRef<FCompilationRequest>* CompileRequest = GetPrivate()->CompileRequests.FindByPredicate(
+		[&TargetPlatform](const TSharedPtr<FCompilationRequest>& Request) { return Request->GetCompileOptions().TargetPlatform == TargetPlatform; });
+	
+	if (CompileRequest)
 	{
-		// Compile and save in the CachedPlatformsData map
-		GetPrivate()->CompileForTargetPlatform(TargetPlatform);
-		GetPrivate()->CachedPlatformNames.Add(TargetPlatform->PlatformName());
+		return;
 	}
+
+	// Compile and save in the CachedPlatformsData map
+	GetPrivate()->CompileForTargetPlatform(TargetPlatform);
 }
 
 
-bool UCustomizableObject::IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform ) 
+bool UCustomizableObject::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) 
 {
-	return !TargetPlatform || Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) != INDEX_NONE;
+	if (!TargetPlatform)
+	{
+		return true;
+	}
+
+	const TSharedRef<FCompilationRequest>* CompileRequest = GetPrivate()->CompileRequests.FindByPredicate(
+		[&TargetPlatform](const TSharedRef<FCompilationRequest>& Request) { return Request->GetCompileOptions().TargetPlatform == TargetPlatform; });
+	
+	if (CompileRequest)
+	{
+		return CompileRequest->Get().GetCompilationState() == ECompilationStatePrivate::Completed;
+	}
+
+	return true;
 }
 
 
@@ -832,32 +849,26 @@ void UCustomizableObjectPrivate::CompileForTargetPlatform(const ITargetPlatform*
 		return;
 	}
 
-	const ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
-	if (!EditorModule)
+	UCustomizableObject* CustomizableObject = GetPublic();
+
+	ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
+	if (!EditorModule || !EditorModule->IsRootObject(*CustomizableObject))
 	{
 		return;
 	}
 
-	const bool bIsRootObject = EditorModule->IsRootObject(*GetPublic());
-	if (!bIsRootObject)
-	{
-		return;
-	}
+	const bool bAsync = false; // TODO PERE
 
-	const TSharedPtr<FCustomizableObjectCompilerBase> Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
-	if (!Compiler)
-	{
-		return;
-	}
-
-	FCompilationOptions Options;
-	Options.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;	// max optimization when packaging.
+	TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(*CustomizableObject, bAsync);
+	FCompilationOptions& Options = CompileRequest->GetCompileOptions();
+	Options.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;	// Force max optimization when packaging.
 	Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
 	Options.bIsCooking = true;
 	Options.TargetPlatform = TargetPlatform;
 	Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
+	CompileRequests.Add(CompileRequest);
 
-	Compiler->Compile(*GetPublic(), Options, false);
+	EditorModule->CompileCustomizableObject(CompileRequest, true);
 }
 
 
@@ -909,19 +920,13 @@ bool UCustomizableObject::ConditionalAutoCompile()
 		return false;
 	}
 
-	// Sync/Async compilation
-	if (System->IsAutoCompilationSync())
+	ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
+	if (ensure(EditorModule))
 	{
-		if (const TSharedPtr<FCustomizableObjectCompilerBase> Compiler = UCustomizableObjectSystem::GetNewCompiler())
-		{		
-			Compiler->Compile(*this, this->CompileOptions, false);
-		}
-	}
-	else
-	{
-		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-		const FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(UE_MUTABLE_OBJECTPATH(GetPathName()));
-		System->RecompileCustomizableObjectAsync(AssetData, this);
+		// Sync/Async compilation
+		TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(*this, !System->IsAutoCompilationSync());
+		CompileRequest->GetCompileOptions().bSilentCompilation = true;
+		EditorModule->CompileCustomizableObject(CompileRequest);
 	}
 
 	return IsCompiled();
@@ -2011,8 +2016,6 @@ TObjectPtr<UEdGraph>& UCustomizableObjectPrivate::GetSource() const
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-
-
 void UCustomizableObjectBulk::PostLoad()
 {
 	UObject::PostLoad();
@@ -2640,6 +2643,73 @@ FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
 
 	return Ar;
 }
+
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+FCompilationRequest::FCompilationRequest(UCustomizableObject& InCustomizableObject, bool bAsyncCompile)
+{
+	CustomizableObject = &InCustomizableObject;
+	Options = InCustomizableObject.CompileOptions;
+	bAsync = bAsyncCompile;
+}
+
+UCustomizableObject* FCompilationRequest::GetCustomizableObject()
+{
+	return CustomizableObject.Get();
+}
+
+FCompilationOptions& FCompilationRequest::GetCompileOptions()
+{
+	return Options;
+}
+
+bool FCompilationRequest::IsAsyncCompilation() const
+{
+	return bAsync;
+}
+
+void FCompilationRequest::SetCompilationState(ECompilationStatePrivate InState, ECompilationResultPrivate InResult)
+{
+	State = InState;
+	Result = InResult;
+}
+
+ECompilationStatePrivate FCompilationRequest::GetCompilationState() const
+{
+	return State;
+}
+
+ECompilationResultPrivate FCompilationRequest::GetCompilationResult() const
+{
+	return Result;
+}
+
+TArray<FText>& FCompilationRequest::GetWarnings()
+{
+	return Warnings;
+}
+
+TArray<FText>& FCompilationRequest::GetErrors()
+{
+	return Errors;
+}
+
+void FCompilationRequest::SetParameterNamesToSelectedOptions(const TMap<FString, FString>& InParamNamesToSelectedOptions)
+{
+	ParamNamesToSelectedOptions = InParamNamesToSelectedOptions;
+}
+
+const TMap<FString, FString>& FCompilationRequest::GetParameterNamesToSelectedOptions() const
+{
+	return ParamNamesToSelectedOptions;
+}
+
+bool FCompilationRequest::operator==(const FCompilationRequest& Other) const
+{
+	return CustomizableObject == Other.CustomizableObject && Options.TargetPlatform == Other.Options.TargetPlatform;
+};
 
 #endif // WITH_EDITORONLY_DATA
 

@@ -2,6 +2,7 @@
 
 #include "MuCOE/SCustomizableObjectEditorTextureAnalyzer.h"
 
+#include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Framework/Views/ITypedTableView.h"
 #include "IPropertyTable.h"

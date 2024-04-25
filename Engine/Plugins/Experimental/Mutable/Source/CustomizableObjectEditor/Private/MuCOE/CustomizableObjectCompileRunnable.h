@@ -3,8 +3,8 @@
 #pragma once
 
 #include "HAL/Runnable.h"
-#include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "MuR/Ptr.h"
 #include "MuT/Node.h"
@@ -13,6 +13,7 @@
 #include <atomic>
 
 class ITargetPlatform;
+class UCustomizableObject;
 
 
 class FCustomizableObjectCompileRunnable : public FRunnable

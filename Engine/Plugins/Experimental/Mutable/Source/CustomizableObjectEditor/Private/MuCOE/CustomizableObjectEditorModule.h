@@ -3,11 +3,12 @@
 #pragma once
 
 #include "MuCO/ICustomizableObjectEditorModule.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 
+#include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
-class FCustomizableObjectCompilerBase;
 struct FBakingConfiguration;
 class USkeletalMeshComponent;
 class FPropertyEditorModule;
@@ -38,15 +39,21 @@ public:
 	// ICustomizableObjectEditorModule interface
 	virtual FCustomizableObjectEditorLogger& GetLogger() override;
 	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages) const override;
-	virtual TSharedRef<FCustomizableObjectCompilerBase> CreateCompiler() const override;
 	virtual bool IsRootObject(const UCustomizableObject& Object) const override;
 	virtual void BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig) override;
 
+	/** Request for a given customizable object to be compiled. Async compile requests will be queued and processed sequentially. 
+	 * @param InCompilationRequest - Request to compile an object. 
+	 * @param bForceRequest - Queue request even if already in the pending list. */
+	virtual void CompileCustomizableObject(const TSharedRef<FCompilationRequest>& InCompilationRequest, bool bForceRequest = false) override;
+	virtual void CompileCustomizableObjects(const TArray<TSharedRef<FCompilationRequest>>& InCompilationRequests, bool bForceRequests = false) override;
+
+	virtual int32 Tick(bool bBlocking) override;
+
+	virtual void CancelCompileRequests() override;
+
 	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorToolBarExtensibilityManager() override { return CustomizableObjectEditor_ToolBarExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorMenuExtensibilityManager() override { return CustomizableObjectEditor_MenuExtensibilityManager; }
-
-	bool HandleSettingsSaved();
-	void RegisterSettings();
 
 private:	
 	TSharedPtr<FExtensibilityManager> CustomizableObjectEditor_ToolBarExtensibilityManager;
@@ -59,6 +66,8 @@ private:
 	void RegisterCustomDetails(FPropertyEditorModule& PropertyModule, const UClass* Class, FOnGetDetailCustomizationInstance DetailLayoutDelegate);
 
 	FCustomizableObjectEditorLogger Logger;
+	
+	FCustomizableObjectCompiler Compiler;
 
 	// Command to look for Customizable Object Instance in the player pawn of the current world and open its Customizable Object Instance Editor
 	IConsoleCommand* LaunchCOIECommand = nullptr;
@@ -67,6 +76,12 @@ private:
 	
 	static void OpenCOIE(const TArray<FString>& Arguments);
 
+	// Used to ask the user if they want to recompile uncompiled PIE COs
+	void OnPreBeginPIE(const bool bIsSimulatingInEditor);
+
 	/** Register the COI factory */
 	void RegisterFactory();
+
+	bool HandleSettingsSaved();
+	void RegisterSettings();
 };

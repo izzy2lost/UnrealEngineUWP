@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "MuCOE/CustomizableObjectCompiler.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SNumericDropDown.h"
 
@@ -11,6 +11,7 @@ namespace ESelectInfo { enum Type : int; }
 template <typename ItemType> class STreeView;
 
 // Forward declarations
+class UCustomizableObject;
 class FMutableObjectTreeElement;
 class FReferenceCollector;
 class FTabManager;
@@ -50,9 +51,6 @@ private:
 	FCompilationOptions CompileOptions;
 	TArray< TSharedPtr<FString> > DebugPlatformStrings;
 	TSharedPtr<STextComboBox> DebugPlatformCombo;
-
-	/** Object compiler. */
-	FCustomizableObjectCompiler Compiler;
 
 	/** UI callbacks */
 	void GenerateMutableGraphPressed();

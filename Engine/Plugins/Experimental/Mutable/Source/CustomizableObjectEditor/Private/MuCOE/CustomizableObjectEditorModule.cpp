@@ -7,10 +7,12 @@
 #include "ISettingsModule.h"
 #include "ISettingsSection.h"
 #include "MessageLogModule.h"
+#include "Misc/MessageDialog.h"
 #include "MuCO/CustomizableObjectSystem.h"		// For defines related to memory function replacements.
 #include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "MuCO/CustomizableSkeletalMeshActor.h"
 #include "MuCO/ICustomizableObjectModule.h"		// For instance editor command utility function
+#include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuCOE/CustomizableInstanceDetails.h"
 #include "MuCOE/CustomizableObjectCustomSettings.h"
 #include "MuCOE/CustomizableObjectCustomSettingsDetails.h"
@@ -65,6 +67,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/CustomizableObjectInstanceBaker.h"
+#include "Editor.h"
 
 class AActor;
 class FString;
@@ -249,11 +252,17 @@ void FCustomizableObjectEditorModule::StartupModule()
 		ShowOnScreenCompileWarnings();
 		return true;
 	});
+
+	FEditorDelegates::PreBeginPIE.AddRaw(this, &FCustomizableObjectEditorModule::OnPreBeginPIE);
 }
 
 
 void FCustomizableObjectEditorModule::ShutdownModule()
 {
+	FEditorDelegates::PreBeginPIE.RemoveAll(this);
+
+	check(Compiler.GetNumRemainingWork() == 0);
+
 	if( FModuleManager::Get().IsModuleLoaded( "PropertyEditor" ) )
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -580,12 +589,6 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 }
 
 
-TSharedRef<FCustomizableObjectCompilerBase> FCustomizableObjectEditorModule::CreateCompiler() const
-{
-	return MakeShared<FCustomizableObjectCompiler>();
-}
-
-
 bool FCustomizableObjectEditorModule::IsRootObject(const UCustomizableObject& Object) const
 {
 	return GraphTraversal::IsRootObject(Object);
@@ -610,5 +613,133 @@ void FCustomizableObjectEditorModule::BakeCustomizableObjectInstance(UCustomizab
 	InstanceBaker->BakeInstance(InTargetInstance, InBakingConfig, OnBakerFinishedWorkCallback);
 }
 
+
+void CompileCustomizableObjectsSync(const TSharedRef<FCompilationRequest>& CompilationRequest)
+{
+	FCustomizableObjectCompiler* SyncCompiler = new FCustomizableObjectCompiler();
+	SyncCompiler->Compile(CompilationRequest);
+	delete SyncCompiler;
+}
+
+
+void FCustomizableObjectEditorModule::CompileCustomizableObject(const TSharedRef<FCompilationRequest>& InCompilationRequest, bool bForceRequest)
+{
+	if (IsRunningGame())
+	{
+		return;
+	}
+
+	if (InCompilationRequest->IsAsyncCompilation())
+	{
+		CompileCustomizableObjects({ InCompilationRequest }, bForceRequest);
+	}
+	else
+	{
+		CompileCustomizableObjectsSync(InCompilationRequest);
+	}
+}
+
+void FCustomizableObjectEditorModule::CompileCustomizableObjects(const TArray<TSharedRef<FCompilationRequest>>& InCompilationRequests, bool bForceRequests)
+{
+	check(IsInGameThread());
+
+	if (IsRunningGame())
+	{
+		return;
+	}
+
+	TArray<TSharedRef<FCompilationRequest>> FilteredAsyncRequests;
+	FilteredAsyncRequests.Reserve(InCompilationRequests.Num());
+
+	for (const TSharedRef<FCompilationRequest>& Request : InCompilationRequests)
+	{
+		const UCustomizableObject* CustomizableObject = Request->GetCustomizableObject();
+		if (!CustomizableObject)
+		{
+			continue;
+		}
+
+		if (!Request->IsAsyncCompilation())
+		{
+			CompileCustomizableObjectsSync(Request);
+		}
+
+		else if (bForceRequests ||
+			(!CustomizableObject->GetPrivate()->IsLocked() && !Compiler.IsRequestQueued(Request)))
+		{
+			FilteredAsyncRequests.Add(Request);
+		}
+	}
+
+	Compiler.Compile(FilteredAsyncRequests);
+}
+
+
+int32 FCustomizableObjectEditorModule::Tick(bool bBlocking)
+{
+	Compiler.Tick(bBlocking);
+	return Compiler.GetNumRemainingWork();
+}
+
+
+void FCustomizableObjectEditorModule::CancelCompileRequests()
+{
+	Compiler.ForceFinishCompilation();
+	Compiler.ClearCompileRequests();
+}
+
+
+void FCustomizableObjectEditorModule::OnPreBeginPIE(const bool bIsSimulatingInEditor)
+{
+	if (IsRunningGame() || !UCustomizableObjectSystem::IsActive())
+	{
+		return;
+	}
+
+	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
+	if (!System->EditorSettings.bCompileRootObjectsOnStartPIE)
+	{
+		return;
+	}
+
+	// Find root customizable objects
+	FARFilter AssetRegistryFilter;
+	UE_MUTABLE_GET_CLASSPATHS(AssetRegistryFilter).Add(UE_MUTABLE_TOPLEVELASSETPATH(TEXT("/Script/CustomizableObject"), TEXT("CustomizableObject")));
+	AssetRegistryFilter.TagsAndValues.Add(FName("IsRoot"), FString::FromInt(1));
+
+	TArray<FAssetData> OutAssets;
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	AssetRegistryModule.Get().GetAssets(AssetRegistryFilter, OutAssets);
+
+	TArray<TSharedRef<FCompilationRequest>> Requests;
+	for (const FAssetData& Asset : OutAssets)
+	{
+		// If it is referenced by PIE it should be loaded
+		if (!Asset.IsAssetLoaded())
+		{
+			continue;
+		}
+
+		UCustomizableObject* Object = Cast<UCustomizableObject>(Asset.GetAsset());
+		if (!Object || Object->IsCompiled() || Object->GetPrivate()->IsLocked())
+		{
+			continue;
+		}
+
+		// Add uncompiled objects to the objects to cook list
+		TSharedRef<FCompilationRequest> NewRequest = MakeShared<FCompilationRequest>(*Object, true);
+		NewRequest->GetCompileOptions().bSilentCompilation = true;
+		Requests.Add(NewRequest);
+	}
+
+	if (!Requests.IsEmpty())
+	{
+		const FText Msg = FText::FromString(TEXT("Warning: one or more Customizable Objects used in PIE are uncompiled.\n\nDo you want to compile them?"));
+		if (FMessageDialog::Open(EAppMsgType::OkCancel, Msg) == EAppReturnType::Ok)
+		{
+			CompileCustomizableObjects(Requests);
+		}
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

@@ -11,9 +11,11 @@
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuR/Model.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Serialization/MemoryWriter.h"
 
 
 int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)

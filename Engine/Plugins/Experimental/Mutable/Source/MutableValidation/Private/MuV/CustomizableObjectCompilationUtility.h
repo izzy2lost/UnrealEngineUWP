@@ -1,11 +1,11 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "MuCO/CustomizableObject.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Templates/SharedPointer.h"
 
 // Forward declarations
+class UCustomizableObject;
 struct FCompilationOptions;
 
 /**
@@ -27,14 +27,5 @@ public:
 private:
 
 	/** The CO that is currently being compiled.  */
-	TStrongObjectPtr<UCustomizableObject> CustomizableObject = nullptr;
-
-	/** Variable being used to know when the compilation is running and when it is not. */
-	bool bIsTheCompilationInProcess = false;
-
-	/** Variable holding the success state of the compilation operation. */
-	bool bWasCoCompilationSuccessful = false;
-	
-	/** Callback invoked once the compilation of the target CO has been completed. It will set a value for bWasCoCompilationSuccessful. */
-	void OnCompilationFinished();
+	TStrongObjectPtr<UCustomizableObject> CustomizableObject;
 };

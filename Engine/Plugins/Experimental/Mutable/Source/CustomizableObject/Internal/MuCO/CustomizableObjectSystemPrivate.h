@@ -794,16 +794,7 @@ public:
 	// For async material loading
 	FStreamableManager StreamableManager;
 	
-#if WITH_EDITOR
-	TSharedPtr<FCustomizableObjectCompilerBase> RecompileCustomizableObjectsCompiler;
-	
-	TArray<FAssetData> ObjectsToRecompile;
-	uint32 TotalNumObjectsToRecompile = 0;
-	uint32 NumObjectsCompiled = 0;
-
-	/** Recompile progress bar handle */
-	FProgressNotificationHandle RecompileNotificationHandle;
-
+#if WITH_EDITORONLY_DATA
 	// Array to keep track of cached objects
 	TArray<FGuid> UncompiledCustomizableObjectIds;
 

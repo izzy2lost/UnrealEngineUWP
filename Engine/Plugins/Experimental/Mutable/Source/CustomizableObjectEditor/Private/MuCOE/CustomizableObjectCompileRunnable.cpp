@@ -5,7 +5,7 @@
 #include "HAL/FileManager.h"
 #include "MuCO/UnrealMutableModelDiskStreamer.h"
 #include "MuCO/UnrealToMutableTextureConversionUtils.h"
-#include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObject.h"
 #include "MuR/Model.h"
 #include "MuT/Compiler.h"
 #include "MuT/ErrorLog.h"

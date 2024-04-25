@@ -11,17 +11,11 @@
 #include "MuR/Image.h"
 #include "MuR/Types.h"
 
-#if WITH_EDITOR
-#include "Framework/Notifications/NotificationManager.h"
-#endif
-
 #include "CustomizableObjectSystem.generated.h"
 
 class IConsoleVariable;
-class FCustomizableObjectCompilerBase;
 class UCustomizableInstanceLODManagementBase;
 class ITargetPlatform;
-class SNotificationItem;
 class UCustomizableObject;
 class UDefaultImageProvider;
 class USkeletalMesh;
@@ -198,9 +192,6 @@ public:
 	virtual FString GetDesc() override;
 	// End UObject interface.
 
-	// Creates a new Customizable Object Compiler (Only does real work in editor builds). The caller is responsible for freeing the new compiler
-	static TSharedPtr<FCustomizableObjectCompilerBase> GetNewCompiler();
-
 	bool IsReplaceDiscardedWithReferenceMeshEnabled() const;
 	void SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled);
 
@@ -327,10 +318,6 @@ public:
 	bool IsMutableAnimInfoDebuggingEnabled() const;
 
 #if WITH_EDITOR
-	void RecompileCustomizableObjectAsync(const FAssetData& InAssetData, const UCustomizableObject* InObject);
-	
-	void RecompileCustomizableObjects(const TArray<FAssetData>& InObjects);
-
 	// Get the maximum size a chunk can have on a specific platform. If unspecified return MUTABLE_STREAMED_DATA_MAXCHUNKSIZE
 	uint64 GetMaxChunkSizeForPlatform(const ITargetPlatform* InTargetPlatform);
 #endif
@@ -355,17 +342,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = CustomizableObjectSystem)
 	bool IsUpdating(const UCustomizableObjectInstance* Instance) const;
 
-private:
-	// TODO: Can we move this to the editor module?
-#if WITH_EDITOR
-	// Used to ask the user if they want to recompile uncompiled PIE COs
-	void OnPreBeginPIE(const bool bIsSimulatingInEditor);
-
-	void StartNextRecompile();
-	void TickRecompileCustomizableObjects();
-#endif
-
-public:
 	/** Set Mutable's working memory limit (bytes). Mutable will flush internal caches to try to keep its memory consumption below the WorkingMemory (i.e., it is not a hard limit).
 	 * The working memory limit will especially reduce the memory required to perform Instance Updates and Texture Streaming.
  	 * Notice that Mutable does not track all its memory (e.g., UObjects memory is no tracked).

@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ConfigCacheIni.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCO/CustomizableObjectDGGUI.h"
 #include "MuCO/CustomizableObjectExtension.h"
 #include "MuCO/CustomizableObjectInstanceUsage.h"

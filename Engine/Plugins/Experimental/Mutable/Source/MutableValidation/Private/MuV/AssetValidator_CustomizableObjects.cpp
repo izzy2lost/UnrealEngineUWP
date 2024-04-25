@@ -13,6 +13,8 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuCOE/GraphTraversal.h"
 #include "UObject/NameTypes.h"
 #include "UObject/Object.h"
@@ -88,9 +90,6 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 		OnPostCOValidationHandle = FEditorDelegates::OnPostAssetValidation.AddStatic(OnPostCOsValidation);	
 	}
 	
-	// Request a compiler to be able to locate the root and to compile it
-	const TSharedPtr<FCustomizableObjectCompilerBase> Compiler = UCustomizableObjectSystem::GetNewCompiler();
-	
 	// Find out which is the root for this CO (it may be itself but that is OK)
 	UCustomizableObject* RootObject = GetRootObject(InCustomizableObject);
 	check (RootObject);
@@ -127,27 +126,27 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 	TArray<FText> CachedValidationWarnings;
 	
 	// Map with all the possible compilation states. We use this so at the end we can know if any of those states was returned by any of the compilation runs
-	TMap<ECompilationResultPrivate,bool>PossibleEndCompilationStates;
-	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Unknown, false);
-	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Success, false);
-	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Errors, false);
-	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Warnings, false);
-	PossibleEndCompilationStates.Shrink();
+	TMap<ECompilationResultPrivate,bool>PossibleEndCompilationResults;
+	PossibleEndCompilationResults.Add(ECompilationResultPrivate::Unknown, false);
+	PossibleEndCompilationResults.Add(ECompilationResultPrivate::Success, false);
+	PossibleEndCompilationResults.Add(ECompilationResultPrivate::Errors, false);
+	PossibleEndCompilationResults.Add(ECompilationResultPrivate::Warnings, false);
+	PossibleEndCompilationResults.Shrink();
 	
 	// Iterate over the compilation options that we want to test and perform the compilation
 	for	(const FCompilationOptions& Options : CompilationOptionsToTest)
 	{
 		// Run Sync compilation -> Warning : Potentially long operation -------------
-		Compiler->Compile(*RootObject, Options, false);
+		TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(*RootObject, false);
+		ICustomizableObjectEditorModule::GetChecked().CompileCustomizableObject(CompileRequest);
 		// --------------------------------------------------------------------------
 		
 		// Get compilation errors and warnings
-		TArray<FText> CompilationErrors;
-		TArray<FText> CompilationWarnings;
-		Compiler->GetCompilationMessages(CompilationWarnings, CompilationErrors);
+		const TArray<FText>& CompilationErrors = CompileRequest->GetErrors();
+		const TArray<FText>& CompilationWarnings = CompileRequest->GetWarnings();
 		
 		// Cache the messages returned by the compiler
-		for ( const FText& FoundError : CompilationErrors)
+		for (const FText& FoundError : CompilationErrors)
 		{
 			// Add message if not already present
 			if (!CachedValidationErrors.ContainsByPredicate([&FoundError](const FText& ArrayEntry)
@@ -156,7 +155,7 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 				CachedValidationErrors.Add(FoundError);
 			}
 		}
-		for ( const FText& FoundWarning : CompilationWarnings)
+		for (const FText& FoundWarning : CompilationWarnings)
 		{
 			if (!CachedValidationWarnings.ContainsByPredicate([&FoundWarning](const FText& ArrayEntry)
 				{ return FoundWarning.EqualTo(ArrayEntry);}))
@@ -166,8 +165,7 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 		}
 
 		// Flag the array with end results to have the current output as true since it was produced by this execution
-		ECompilationResultPrivate CompilationEndResult = RootObject->GetPrivate()->CompilationResult;
-		bool* Value = PossibleEndCompilationStates.Find(CompilationEndResult);
+		bool* Value = PossibleEndCompilationResults.Find(CompileRequest->GetCompilationResult());
 		check (Value);		// If this fails it may mean we are getting a compilation state we are not considering. 
 		*Value = true;
 	}
@@ -192,12 +190,12 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 	
 	// Return informed guess about what the validation state of this object should be
 
-	// If it contains invalid states then notify about it too:
-	// ECustomizableObjectCompilationState::None would mean the resource is locked (and should not be)
-	check (*PossibleEndCompilationStates.Find(ECompilationResultPrivate::Unknown) == false);
+	// If it contains invalid results then notify about it too:
+	// ECompilationResultPrivate::None would mean the resource is locked (and should not be)
+	check (*PossibleEndCompilationResults.Find(ECompilationResultPrivate::Unknown) == false);
 	
 	// If one or more tests failed to ran then the result must be invalid
-	if (*PossibleEndCompilationStates.Find(ECompilationResultPrivate::Errors) == true)
+	if (*PossibleEndCompilationResults.Find(ECompilationResultPrivate::Errors) == true)
 	{
 		// Early CO compilation error (before starting mutable compilation) -> Output is invalid
 		Result = EDataValidationResult::Invalid;

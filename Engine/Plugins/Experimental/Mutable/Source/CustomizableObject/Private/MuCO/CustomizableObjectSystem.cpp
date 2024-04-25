@@ -3,14 +3,12 @@
 #include "MuCO/CustomizableObjectSystem.h"
 
 #include "Animation/Skeleton.h"
-#include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAsset.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/SkeletalMeshLODSettings.h"
 #include "GameFramework/PlayerController.h"
-#include "Interfaces/ITargetPlatform.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
@@ -29,18 +27,18 @@
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "ContentStreaming.h"
-#include "MuCO/EditorImageProvider.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "CustomizableObjectSettings.h"
-#include "MuCO/ICustomizableObjectEditorModule.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
 #include "Logging/MessageLog.h"
 #include "Misc/ConfigCacheIni.h"
-#include "Misc/MessageDialog.h"
 #include "Engine/World.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
+#include "MuCO/EditorImageProvider.h"
 #else
 #include "Engine/Engine.h"
 #endif
@@ -593,21 +591,13 @@ void UCustomizableObjectSystem::InitSystem()
 
 void UCustomizableObjectSystem::BeginDestroy()
 {
-#if WITH_EDITOR
-	if (!IsRunningGame())
-	{
-		FEditorDelegates::PreBeginPIE.RemoveAll(this);
-	}
-
-#endif
-
 	// It could be null, for the default object.
 	if (Private)
 	{
 #if WITH_EDITOR
-		if (Private->RecompileCustomizableObjectsCompiler)
+		if (ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get())
 		{
-			Private->RecompileCustomizableObjectsCompiler->ForceFinishCompilation();
+			EditorModule->CancelCompileRequests();
 		}
 #endif
 
@@ -650,19 +640,6 @@ void UCustomizableObjectSystem::BeginDestroy()
 FString UCustomizableObjectSystem::GetDesc()
 {
 	return TEXT("Customizable Object System Singleton");
-}
-
-
-TSharedPtr<FCustomizableObjectCompilerBase> UCustomizableObjectSystem::GetNewCompiler()
-{
-	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
-	{
-		return Module->CreateCompiler();
-	}
-	else
-	{
-		return nullptr;
-	}
 }
 
 
@@ -3705,7 +3682,6 @@ int32 UCustomizableObjectSystem::TickInternal()
 	}
 
 #if WITH_EDITOR
-	TickRecompileCustomizableObjects();
 	GetPrivate()->TickMutableThreadDependencies();
 #endif
 	
@@ -3733,7 +3709,11 @@ int32 UCustomizableObjectSystem::TickInternal()
 		RemainingTasks;
 
 #if WITH_EDITOR
-	RemainingWork += static_cast<int32>(GetPrivate()->RecompileCustomizableObjectsCompiler != nullptr); // Compiler only is valid if we are compiling a CO.
+	if (Private->bBlocking)
+	{
+		ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
+		RemainingWork += EditorModule ? EditorModule->Tick(true) : 0;
+	}
 #endif
 	
 	return RemainingWork;
@@ -4033,170 +4013,6 @@ void UCustomizableObjectSystem::SetReleaseMutableTexturesImmediately(bool bRelea
 
 #if WITH_EDITOR
 
-void UCustomizableObjectSystem::OnPreBeginPIE(const bool bIsSimulatingInEditor)
-{
-	if (!EditorSettings.bCompileRootObjectsOnStartPIE || IsRunningGame())
-	{
-		return;
-	}
-	
-	// Find root customizable objects
-	FARFilter AssetRegistryFilter;
-	UE_MUTABLE_GET_CLASSPATHS(AssetRegistryFilter).Add(UE_MUTABLE_TOPLEVELASSETPATH(TEXT("/Script/CustomizableObject"), TEXT("CustomizableObject")));
-	AssetRegistryFilter.TagsAndValues.Add(FName("IsRoot"), FString::FromInt(1));
-
-	TArray<FAssetData> OutAssets;
-	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistryModule.Get().GetAssets(AssetRegistryFilter, OutAssets);
-
-	TArray<FAssetData> TempObjectsToRecompile;
-	for (const FAssetData& Asset : OutAssets)
-	{
-		// If it is referenced by PIE it should be loaded
-		if (!Asset.IsAssetLoaded())
-		{
-			continue;
-		}
-		
-		const UCustomizableObject* Object = Cast<UCustomizableObject>(Asset.GetAsset());
-		if (!Object || Object->IsCompiled() || Object->GetPrivate()->IsLocked() || Object->IsChildObject())
-		{
-			continue;
-		}
-		
-		// Add uncompiled objects to the objects to cook list
-		TempObjectsToRecompile.Add(Asset);
-	}
-
-	if (!TempObjectsToRecompile.IsEmpty())
-	{
-		const FText Msg = FText::FromString(TEXT("Warning: one or more Customizable Objects used in PIE are uncompiled.\n\nDo you want to compile them?"));
-		if (FMessageDialog::Open(EAppMsgType::OkCancel, Msg) == EAppReturnType::Ok)
-		{
-			GetPrivate()->ObjectsToRecompile.Empty(TempObjectsToRecompile.Num());
-			RecompileCustomizableObjects(TempObjectsToRecompile);
-		}
-	}
-}
-
-void UCustomizableObjectSystem::StartNextRecompile()
-{
-	if (GEngine)
-	{
-		GEngine->ForceGarbageCollection();
-	}
-
-	FAssetData Itr = GetPrivate()->ObjectsToRecompile.Pop();
-
-	if (UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(Itr.GetAsset()))
-	{
-		const FText UpdateMsg = FText::FromString(FString::Printf(TEXT("Compiling Customizable Objects:\n%s"), *CustomizableObject->GetName()));
-		FSlateNotificationManager::Get().UpdateProgressNotification(GetPrivate()->RecompileNotificationHandle, GetPrivate()->NumObjectsCompiled, GetPrivate()->TotalNumObjectsToRecompile, UpdateMsg);
-
-		// Use default options
-		FCompilationOptions Options = CustomizableObject->CompileOptions;
-		Options.bSilentCompilation = true;
-		check(GetPrivate()->RecompileCustomizableObjectsCompiler != nullptr);
-		GetPrivate()->RecompileCustomizableObjectsCompiler->Compile(*CustomizableObject, Options, !GetPrivate()->bBlocking);
-	}
-}
-
-void UCustomizableObjectSystem::RecompileCustomizableObjectAsync(const FAssetData& InAssetData,
-	const UCustomizableObject* InObject)
-{
-	if (!IsActive() || IsRunningGame())
-	{
-		return;
-	}
-	
-	if ((InObject && InObject->GetPrivate()->IsLocked()) || GetPrivate()->ObjectsToRecompile.Find((InAssetData)) != INDEX_NONE)
-	{
-		return;
-	}
-	
-	if (!GetPrivate()->ObjectsToRecompile.IsEmpty())
-	{
-		GetPrivate()->ObjectsToRecompile.Add(InAssetData);
-	}
-	else
-	{
-		RecompileCustomizableObjects({InAssetData});
-	}
-}
-
-void UCustomizableObjectSystem::RecompileCustomizableObjects(const TArray<FAssetData>& InObjects)
-{
-	if (!IsActive() || IsRunningGame())
-	{
-		return;
-	}
-
-	if (InObjects.Num())
-	{
-		if (!GetPrivate()->RecompileCustomizableObjectsCompiler)
-		{
-			GetPrivate()->RecompileCustomizableObjectsCompiler = GetNewCompiler();
-
-			if (!GetPrivate()->RecompileCustomizableObjectsCompiler)
-			{
-				return;
-			}
-		}
-
-		GetPrivate()->ObjectsToRecompile.Append(InObjects);
-
-		GetPrivate()->TotalNumObjectsToRecompile = GetPrivate()->ObjectsToRecompile.Num();
-		GetPrivate()->NumObjectsCompiled = 0;
-
-		if (GetPrivate()->RecompileNotificationHandle.IsValid())
-		{
-			++GetPrivate()->TotalNumObjectsToRecompile;
-			FSlateNotificationManager::Get().UpdateProgressNotification(GetPrivate()->RecompileNotificationHandle, GetPrivate()->NumObjectsCompiled, GetPrivate()->TotalNumObjectsToRecompile);
-		}
-		else
-		{
-			GetPrivate()->RecompileNotificationHandle = FSlateNotificationManager::Get().StartProgressNotification(FText::FromString(TEXT("Compiling Customizable Objects")), GetPrivate()->TotalNumObjectsToRecompile);
-			StartNextRecompile();
-		}
-	}
-}
-
-
-void UCustomizableObjectSystem::TickRecompileCustomizableObjects()
-{
-	bool bUpdated = false;
-	
-	if (GetPrivate()->RecompileCustomizableObjectsCompiler)
-	{
-		bUpdated = GetPrivate()->RecompileCustomizableObjectsCompiler->Tick(GetPrivate()->bBlocking);
-	}
-
-	if (bUpdated)
-	{
-		GetPrivate()->NumObjectsCompiled++;
-
-		if (!GetPrivate()->ObjectsToRecompile.IsEmpty())
-		{
-			StartNextRecompile();
-		}
-		else // All objects compiled, clean up
-		{
-			GetPrivate()->RecompileCustomizableObjectsCompiler.Reset();
-
-			// Remove progress bar
-			FSlateNotificationManager::Get().UpdateProgressNotification(GetPrivate()->RecompileNotificationHandle, GetPrivate()->NumObjectsCompiled, GetPrivate()->TotalNumObjectsToRecompile);
-			FSlateNotificationManager::Get().CancelProgressNotification(GetPrivate()->RecompileNotificationHandle);
-			GetPrivate()->RecompileNotificationHandle.Reset();
-
-			if (GEngine)
-			{
-				GEngine->ForceGarbageCollection();
-			}
-		}
-	}
-}
-
-
 void UCustomizableObjectSystem::SetWorkingMemory(int32 Bytes)
 {
 	WorkingMemory = Bytes;
@@ -4315,19 +4131,6 @@ void UCustomizableObjectSystemPrivate::OnMutableEnabledChanged(IConsoleVariable*
 			}			
 		}
 #endif // !UE_SERVER
-
-#if WITH_EDITOR
-		if (!IsRunningGame() && !FEditorDelegates::PreBeginPIE.IsBoundToObject(System))
-		{
-			FEditorDelegates::PreBeginPIE.AddUObject(System, &UCustomizableObjectSystem::OnPreBeginPIE);
-		}
-#endif
-	}
-	else
-	{
-#if WITH_EDITOR
-		FEditorDelegates::PreBeginPIE.RemoveAll(System);
-#endif
 	}
 }
 

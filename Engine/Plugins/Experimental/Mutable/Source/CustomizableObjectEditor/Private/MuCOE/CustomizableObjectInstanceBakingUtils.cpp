@@ -3,11 +3,14 @@
 #include "MuCOE/CustomizableObjectInstanceBakingUtils.h"
 
 #include "MuCOE/CustomizableObjectEditor.h"
+#include "MuCOE/CustomizableObjectEditorLogger.h"
 
 #include "Misc/MessageDialog.h"
 #include "FileHelpers.h"
 #include "ObjectTools.h"
 #include "UnrealBakeHelpers.h"
+#include "Animation/Skeleton.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"

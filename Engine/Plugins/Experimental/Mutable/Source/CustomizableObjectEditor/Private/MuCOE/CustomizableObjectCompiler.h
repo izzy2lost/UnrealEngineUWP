@@ -4,29 +4,44 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "MuCOE/CompilationMessageCache.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSource.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "UObject/GCObject.h"
+#include "TickableEditorObject.h"
+
+#include "Framework/Notifications/NotificationManager.h"
 
 class FCustomizableObjectCompileRunnable;
 class FCustomizableObjectSaveDDRunnable;
 class FReferenceCollector;
 class FRunnableThread;
 class FText;
+class UCustomizableObject;
 class UCustomizableObjectNode;
 
-
-class FCustomizableObjectCompiler : public FCustomizableObjectCompilerBase, public FGCObject
+class FCustomizableObjectCompiler : public FTickableEditorObject, public FTickableCookObject, public FGCObject
 {
 public:
 
-	CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectCompiler();
-	CUSTOMIZABLEOBJECTEDITOR_API virtual ~FCustomizableObjectCompiler() {}
+	FCustomizableObjectCompiler();
+	virtual ~FCustomizableObjectCompiler() {}
 
 	/** Check for pending compilation process. Returns true if an object has been updated. */
-	CUSTOMIZABLEOBJECTEDITOR_API virtual bool Tick(bool bBlocking) override;
+	bool Tick(bool bBlocking = false);
+	int32 GetNumRemainingWork() const;
+
+	// FTickableGameObject interface
+	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Conditional; };
+	virtual bool IsTickable() const override;
+	virtual void Tick( float InDeltaTime ) override;
+	virtual TStatId GetStatId() const override;
+
+	// FTickableCookObject interface
+	virtual void TickCook(float DeltaTime, bool bCookCompete) override;
+
 
 	/** Generate the Mutable Graph from the Unreal Graph. */
 	mu::NodePtr Export(UCustomizableObject* Object, const FCompilationOptions& Options, TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures, TArray<FMutableSourceTextureData>& OutCompilerReferencedTextures);
@@ -37,7 +52,9 @@ public:
 
 	void FinishCompilationTask();
 	void FinishSavingDerivedDataTask();
-	virtual void ForceFinishCompilation() override;
+
+	void ForceFinishCompilation();
+	void ClearCompileRequests();
 
 	void AddCompileNotification(const FText& CompilationStep) const;
 	static void RemoveCompileNotification();
@@ -45,8 +62,11 @@ public:
 	/** Load required assets and compile.
 	 *
 	 * Loads assets which reference Object's package asynchronously before calling ProcessChildObjectsRecursively. */
-	virtual void Compile(UCustomizableObject& Object, const FCompilationOptions& Options, bool bAsync) override;
+	void Compile(const TSharedRef<FCompilationRequest>& InCompileRequest);
+	void Compile(const TArray<TSharedRef<FCompilationRequest>>& InCompileRequests);
 	
+	bool IsRequestQueued(const TSharedRef<FCompilationRequest>& InCompileRequest) const;
+
 	/** FSerializableObject interface */
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override
@@ -57,17 +77,6 @@ public:
 	/** Simply add CO elements from ArrayAssetData to ArrayGCProtect when they've been loaded from ArrayAssetData */
 	void UpdateArrayGCProtect();
 
-	// This is used to restrict Group nodes to compile only the SelectedOption and discard all the others
-	void AddCompileOnlySelectedOption(const FString& ParamName, const FString& OptionValue);
-	// This clears all restrictions and let's a full compilation happen
-	void ClearAllCompileOnlySelectedOption();
-
-	// Function to clear the compiler if the editor was closed before starting the compilation 
-	void ForceFinishBeforeStartCompilation(UCustomizableObject* Object);
-
-	// Getter of AsynchronousStreamableHandlePtr
-	TSharedPtr<FStreamableHandle> GetAsynchronousStreamableHandlePtr() { return AsynchronousStreamableHandlePtr; }
-
 private:
 
 	// Object containing all error and warning logs raised during compilation.
@@ -77,67 +86,33 @@ private:
 	
 	void CompileInternal(bool bAsync = false);
 
+	void CompleteRequest(ECompilationStatePrivate State, ECompilationResultPrivate Result);
+	bool TryPopCompileRequest();
+
 	void PreloadingReferencerAssetsCallback(bool bAsync);
 	
 	void ProcessChildObjectsRecursively(UCustomizableObject* Object, FMutableGraphGenerationContext &GenerationContext);
-
-	//
-	FCompilationOptions Options;
-
-	//
-	TSharedPtr< FCustomizableObjectCompileRunnable > CompileTask;
-
-	//
-	TSharedPtr< FRunnableThread > CompileThread;
-
-	//
-	TSharedPtr< FCustomizableObjectSaveDDRunnable > SaveDDTask;
-
-	//
-	TSharedPtr< FRunnableThread > SaveDDThread;
-
-	// Cache configuration settings from ini files 
-	ECustomizableObjectNumBoneInfluences CustomizableObjectNumBoneInfluences = ECustomizableObjectNumBoneInfluences::Four;
-
-	// Protected from GC with FCustomizableObjectCompiler::AddReferencedObjects
-	TObjectPtr<UCustomizableObject> CurrentObject = nullptr;
-
-	/** Array where to put the names of the already processed child in ProcessChildObjectsRecursively */
-	TArray<FName> ArrayAlreadyProcessedChild;
-
-	TArray<FSoftObjectPath> ArrayAssetToStream;
 	
 	// Will output to Mutable Log the warning and error messages generated during the CO compilation
 	// and update the values of NumWarnings and NumErrors
 	void UpdateCompilerLogData();
 
-
 	/** If duplicated elements are found in each entry of ParameterNamesMap, a warning for
 	the parameters with repeated name will be generated */
-	void DisplayParameterWarning(struct FMutableGraphGenerationContext& GenerationContext);
+	void DisplayParameterWarning(FMutableGraphGenerationContext& GenerationContext);
 	
 	/** If duplicated node ids are found, usually due to duplicating CustomizableObjects Assets, a warning
 	for the nodes with repeated ids will be generated */
-	void DisplayDuplicatedNodeIdsWarning(struct FMutableGraphGenerationContext& GenerationContext);
+	void DisplayDuplicatedNodeIdsWarning(FMutableGraphGenerationContext& GenerationContext);
 	
 	/** Display warnings for unnamed node objects */
-	void DisplayUnnamedNodeObjectWarning(struct FMutableGraphGenerationContext& GenerationContext);
-	
-	/** Display warnings from discarded PhysicsAssets due to SkeletalBodySetups with no corresponding bones
-	in the SkeletalMesh's RefSkeleton */
-	//void DisplayDiscardedPhysicsAssetSingleWarning(struct FMutableGraphGenerationContext& GenerationContext);
+	void DisplayUnnamedNodeObjectWarning(FMutableGraphGenerationContext& GenerationContext);
 	
 	/** Display a warning for each node contains an orphan pin. */
-	void DisplayOrphanNodesWarning(struct FMutableGraphGenerationContext& GenerationContext);
+	void DisplayOrphanNodesWarning(FMutableGraphGenerationContext& GenerationContext);
 	
 	mu::NodeObjectPtr GenerateMutableRoot(UCustomizableObject* Object, FMutableGraphGenerationContext& GenerationContext, FText& ErrorMessage, bool& bOutIsRootObject);
 
-	/** Add to ArrayAssetData the FAssetData information of all referencers of static class type UCustomizableObject::StaticClass()
-	* that reference the package given by the PathName parameter
-	* @param PathName            [in]  path to the CO to be analyzed (for instance, CO->GetOuter()->GetPathName())
-	* @param ArrayReferenceNames [out] array with the package names which are referenced by the CO with PathName given as parameter
-	* @return nothing */
-	void AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames);
 
 	/** Launches the compile task in another thread when compiling a CO in the editor
 	* @param bShowNotification [in] whether to show the compiling CO notification or not
@@ -150,8 +125,12 @@ private:
 	* @return nothing */
 	void SaveCODerivedData();
 
-	/** When compiling a CO in the editor, flag to know if there's a mutable task pending to be launched through LaunchMutableCompile */
-	bool CompilationLaunchPending;
+	/** Add to ArrayAssetData the FAssetData information of all referencers of static class type UCustomizableObject::StaticClass()
+	* that reference the package given by the PathName parameter
+	* @param PathName            [in]  path to the CO to be analyzed (for instance, CO->GetOuter()->GetPathName())
+	* @param ArrayReferenceNames [out] array with the package names which are referenced by the CO with PathName given as parameter
+	* @return nothing */
+	void AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames);
 
 	/** Just used to clean ArrayAssetData
 	* @return nothing */
@@ -167,41 +146,48 @@ private:
 	* @return pointer to element if any found, nullptr otherwise */
 	FAssetData* GetCachedAssetData(const FString& PackageName);
 
-	/** Helper function to compute the value for Unreal Engine variable s.AsyncLoadingTimeLimit while asynchronous loading is used.
-	* Also assigned to MaxConvertToMutableTextureTime
-	* @return value in milliseconds to use for AsyncLoadingTimeLimit and MaxConvertToMutableTextureTime */
-	float ComputeAsyncLoadingTimeLimit();
-	
-    ECompilationResultPrivate GetCompilationResult() const;
-	
-public:
-	
-	virtual void GetCompilationMessages(TArray<FText>& OutWarningMessages, TArray<FText>& OutErrorMessages) const override;
-	
-private:
+	ECompilationResultPrivate GetCompilationResult() const;
+
+	/** Pointer to the Asynchronous Preloading process call back */
+	TSharedPtr<FStreamableHandle> AsynchronousStreamableHandlePtr;
+	TArray<FSoftObjectPath> ArrayAssetToStream;
+
+	/** Compile task and thread. */
+	TSharedPtr<FCustomizableObjectCompileRunnable> CompileTask;
+	TSharedPtr<FRunnableThread> CompileThread;
+
+	/** SaveDD task and thread. */
+	TSharedPtr<FCustomizableObjectSaveDDRunnable> SaveDDTask;
+	TSharedPtr<FRunnableThread> SaveDDThread;
+
+	// Cache configuration settings from ini files 
+	ECustomizableObjectNumBoneInfluences CustomizableObjectNumBoneInfluences = ECustomizableObjectNumBoneInfluences::Four;
+
+	/** Array where to put the names of the already processed child in ProcessChildObjectsRecursively */
+	TArray<FName> ArrayAlreadyProcessedChild;
+
 	/** Array with all the packages used to compile current Customizable Object */
 	TArray<FAssetData> ArrayAssetData;
 
 	/** Array used to protect from garbage collection those COs loaded asynchronously */
 	TArray<TObjectPtr<UCustomizableObject>> ArrayGCProtect;
 
-	/** Flag to know when asynchronous asset loading is being performed */
-	bool PreloadingReferencerAssets;
+	TSharedPtr<mu::Model, ESPMode::ThreadSafe> CurrentModel;
 
-	/** Copy of GAsyncLoadingTimeLimit while assets are loaded, previous value is restored after asset load */
-	float CurrentGAsyncLoadingTimeLimit;
+	// Protected from GC with FCustomizableObjectCompiler::AddReferencedObjects
+	TObjectPtr<UCustomizableObject> CurrentObject = nullptr;
 
-	/** Counter to know how many of the textures in ArrayTextureUnrealToMutableTask have been converted from Unreal to Mutable */
-	int32 CompletedUnrealToMutableTask;
+	FCompilationOptions CurrentOptions;
 
-	/** Time threshold used to prevent doing too much work in one tick */
-	float MaxConvertToMutableTextureTime;
+	/** Current Compilation request. */
+	TSharedPtr<FCompilationRequest> CurrentRequest;
 
-	// Stores the only option of an Int Param that should be compiled
-	TMap<FString, FString> ParamNamesToSelectedOptions;
+	/** Pending requests. */
+	TArray<TSharedRef<FCompilationRequest>> CompileRequests;
 
-	/** Pointer to the Asynchronous Preloading process call back */
-	TSharedPtr<FStreamableHandle> AsynchronousStreamableHandlePtr;
+	uint32 NumCompilationRequests = 0;
 
-	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
+	/** Compilation progress bar handle */
+	FProgressNotificationHandle CompileNotificationHandle;
+
 };

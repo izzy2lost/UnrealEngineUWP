@@ -11,6 +11,7 @@
 #include "FileHelpers.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "GraphEditorActions.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailsView.h"
@@ -20,6 +21,7 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableSkeletalComponent.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCOE/CustomizableObjectCustomSettings.h"
 #include "MuCOE/CustomizableObjectEditorActions.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
@@ -39,6 +41,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshClipMorph.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorConstant.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
@@ -172,13 +175,6 @@ FCustomizableObjectEditor::~FCustomizableObjectEditor()
 	PreviewCustomizableSkeletalComponents.Empty();
 	CustomizableObjectDetailsView.Reset();
 	GEditor->UnregisterForUndo(this);
-	Compiler.ForceFinishCompilation();
-
-	if (Compiler.GetAsynchronousStreamableHandlePtr().IsValid() && !Compiler.GetAsynchronousStreamableHandlePtr()->HasLoadCompleted())
-	{
-		Compiler.GetAsynchronousStreamableHandlePtr()->CancelHandle();
-		Compiler.ForceFinishBeforeStartCompilation(CustomizableObject);
-	}
 
 	FCoreUObjectDelegates::OnObjectModified.RemoveAll(this);
 
@@ -648,29 +644,6 @@ UCustomizableObjectInstance* FCustomizableObjectEditor::GetPreviewInstance()
 }
 
 
-void FCustomizableObjectEditor::CompileObjectUserPressedButton()
-{
-	Compiler.ClearAllCompileOnlySelectedOption();
-	CompileObject();
-}
-
-
-void FCustomizableObjectEditor::CompileOnlySelectedObjectUserPressedButton()
-{
-	if (PreviewInstance)
-	{
-		Compiler.ClearAllCompileOnlySelectedOption();
-
-		for (const FCustomizableObjectIntParameterValue& IntParam : PreviewInstance->GetPrivate()->GetDescriptor().GetIntParameters())
-		{
-			Compiler.AddCompileOnlySelectedOption(IntParam.ParameterName, IntParam.ParameterValueName);
-		}
-
-		CompileObject();
-	}
-}
-
-
 void FCustomizableObjectEditor::BindCommands()
 {
 	const FCustomizableObjectEditorCommands& Commands = FCustomizableObjectEditorCommands::Get();
@@ -679,13 +652,13 @@ void FCustomizableObjectEditor::BindCommands()
 	// Compile and options
 	ToolkitCommands->MapAction(
 		Commands.Compile,
-		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObjectUserPressedButton),
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObject, false),
 		FCanExecuteAction::CreateStatic(&UCustomizableObjectSystem::IsActive),
 		FIsActionChecked());
 
 	ToolkitCommands->MapAction(
 		Commands.CompileOnlySelected,
-		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileOnlySelectedObjectUserPressedButton),
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObject, true),
 		FCanExecuteAction::CreateStatic(&UCustomizableObjectSystem::IsActive),
 		FIsActionChecked());
 
@@ -1487,13 +1460,10 @@ void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 }
 
 
-void FCustomizableObjectEditor::CompileObject()
+void FCustomizableObjectEditor::CompileObject(bool bOnlySelectedParameters)
 {
 	// Resetting viewport parameters
 	Viewport->SetDrawDefaultUVMaterial();
-
-	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
-	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectEditor::CompileObject start."), FPlatformTime::Seconds());
 
 	if (CustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
 	{
@@ -1506,14 +1476,29 @@ void FCustomizableObjectEditor::CompileObject()
 		return;
 	}
 
-	if (CustomizableObject->GetPrivate()->GetSource())
+	if (!CustomizableObject->GetPrivate()->GetSource())
 	{
-		FCompilationOptions Options = CustomizableObject->CompileOptions;
-		Options.bSilentCompilation = false;
-		Compiler.Compile(*CustomizableObject, Options, true);
+		return;
 	}
 
-	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectEditor::CompileObject end."), FPlatformTime::Seconds());
+	TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(*CustomizableObject, true);
+	CompileRequest->GetCompileOptions().bSilentCompilation = false;
+
+	if (bOnlySelectedParameters && PreviewInstance)
+	{
+		const TArray<FCustomizableObjectIntParameterValue>& IntParameters = PreviewInstance->GetPrivate()->GetDescriptor().GetIntParameters();
+		TMap<FString, FString> ParamNamesToSelectedOptions;
+		ParamNamesToSelectedOptions.Reserve(IntParameters.Num());
+
+		for (const FCustomizableObjectIntParameterValue& IntParam : IntParameters)
+		{
+			ParamNamesToSelectedOptions.Add(IntParam.ParameterName, IntParam.ParameterValueName);
+		}
+
+		CompileRequest->SetParameterNamesToSelectedOptions(ParamNamesToSelectedOptions);
+	}
+
+	ICustomizableObjectEditorModule::GetChecked().CompileCustomizableObject(CompileRequest);
 }
 
 
@@ -1733,25 +1718,6 @@ void FCustomizableObjectEditor::NotifyPostChange( const FPropertyChangedEvent& P
 		}
 	}
 }
-
-
-bool FCustomizableObjectEditor::IsTickable() const
-{
-	return true;
-}
-
-
-void FCustomizableObjectEditor::Tick(float InDeltaTime)
-{
-	Compiler.Tick(false);
-}
-
-
-TStatId FCustomizableObjectEditor::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(FCustomizableObjectEditor, STATGROUP_Tickables);
-}
-
 
 void FCustomizableObjectEditor::CopySelectedNodes()
 {

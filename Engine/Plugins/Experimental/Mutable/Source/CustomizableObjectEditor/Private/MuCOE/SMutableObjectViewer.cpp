@@ -6,6 +6,7 @@
 #include "Framework/Views/TableViewMetadata.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
+#include "MuCO/CustomizableObject.h"
 #include "MuCOE/CustomizableObjectCompileRunnable.h"
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/SMutableCodeViewer.h"
@@ -104,6 +105,7 @@ void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObje
 void SMutableObjectViewer::GenerateMutableGraphPressed()
 {
 	// Convert from Unreal graph to Mutable graph.
+	FCustomizableObjectCompiler Compiler;
 	TArray<TSoftObjectPtr<UTexture>> RuntimeTextures;
 	TArray<FMutableSourceTextureData> CompilerTextures;
 	mu::Ptr<mu::Node> RootNode = Compiler.Export(CustomizableObject, CompileOptions, RuntimeTextures, CompilerTextures);
@@ -137,6 +139,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 		{
 			CompileOptions.DebugBias = Bias;
 
+			FCustomizableObjectCompiler Compiler;
 			RuntimeTextures.Empty();
 			CompilerTextures.Empty();
 			mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, RuntimeTextures, CompilerTextures);
@@ -157,6 +160,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	}
 
 	// Convert from Unreal graph to Mutable graph.
+	FCustomizableObjectCompiler Compiler;
 	RuntimeTextures.Empty();
 	CompilerTextures.Empty();
 	mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, RuntimeTextures, CompilerTextures);

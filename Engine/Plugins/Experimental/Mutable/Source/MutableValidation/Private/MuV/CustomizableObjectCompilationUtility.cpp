@@ -6,6 +6,8 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "MuCOE/CustomizableObjectEditorFunctionLibrary.h"
 
@@ -53,17 +55,11 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 		UE_LOG(LogMutable, Log, TEXT("(string) model_compile_platform_name : %s "), *CompilationOptions.TargetPlatform->PlatformName());
 	}
 
+	// Compilation completed successfully
+	bool bCompilationSuccess = false;
 	
 	// Run and wait for the compilation to be completed ----------------------------------------------------------------------------------------------
 	{
-		// Bind our OnCompilationFinished() method to the compilation completion callback to get notified once it is done
-		FPostCompileDelegate& PostCompilationDelegate = CustomizableObject->GetPostCompileDelegate();
-		PostCompilationDelegate.AddSP(this, &FCustomizableObjectCompilationUtility::OnCompilationFinished);
-		
-		// Create the compiler that will take care of the ASYNC compilation
-		UCustomizableObjectSystem* CustomizableObjectSystem = UCustomizableObjectSystem::GetInstanceChecked();
-		TSharedPtr<FCustomizableObjectCompilerBase> Compiler = CustomizableObjectSystem->GetNewCompiler();
-
 		// Get the memory usage before staring the compilation
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 		FLowLevelMemTracker& LowLevelMemoryTracker = FLowLevelMemTracker::Get();
@@ -89,19 +85,19 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 		mu::FGlobalMemoryCounter::Zero();
 		
 		UE_LOG(LogMutable,Display,TEXT("Compiling Customizable Object..."));
-		check(Compiler);
-		Compiler->Compile(*CustomizableObject, CompilationOptions, true);
+		TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(*InCustomizableObject, true);
+		CompileRequest->GetCompileOptions() = CompilationOptions;
+		ICustomizableObjectEditorModule::GetChecked().CompileCustomizableObject(CompileRequest);
 		
 		// Wait while the compilation takes place
 		const double CompilationStartSeconds = FPlatformTime::Seconds();
-		bIsTheCompilationInProcess = true;
-		while (bIsTheCompilationInProcess)
+		while (CompileRequest->GetCompilationState() != ECompilationStatePrivate::Completed)
 		{
 			// Tick the engine
 			CommandletHelpers::TickEngine();
 
 			// todo: Will this be required in the future? It feels odd having to tick the compiler manually when we are already ticking the engine itself
-			Compiler->Tick(false);
+			ICustomizableObjectEditorModule::GetChecked().Tick(false);
 			
 			// Cache the peak value found during the compilation of the CO
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
@@ -120,6 +116,10 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 			}
 		}
 		
+
+		bCompilationSuccess = CompileRequest->GetCompilationResult() == ECompilationResultPrivate::Success ||
+			CompileRequest->GetCompilationResult() == ECompilationResultPrivate::Warnings;
+
 		// Report the time we took to run the compilation
 		const double CompilationEndSeconds = FPlatformTime::Seconds() - CompilationStartSeconds;
 		UE_LOG(LogMutable, Display, TEXT("The compilation of the %s CO model took %f seconds."), *InCustomizableObject->GetName(), CompilationEndSeconds);
@@ -128,7 +128,8 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 			UE_LOG(LogMutable, Log, TEXT("(double) model_compile_time_ms : %f "), CompilationEndSeconds * 1000);
 
 			// Also report compilation end status
-			const ECustomizableObjectCompilationState CompilationEndResult = bWasCoCompilationSuccessful ? ECustomizableObjectCompilationState::Completed : ECustomizableObjectCompilationState::Failed;
+			const ECustomizableObjectCompilationState CompilationEndResult = bCompilationSuccess ? ECustomizableObjectCompilationState::Completed
+				: ECustomizableObjectCompilationState::Failed;
 			UE_LOG(LogMutable, Log, TEXT("(string) model_compile_end_state : %s "), *UEnum::GetValueAsString(CompilationEndResult));
 		}
 		
@@ -169,25 +170,5 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 	}
 	
 	// Return the success state of the operation
-	return bWasCoCompilationSuccessful;
-}
-
-
-void FCustomizableObjectCompilationUtility::OnCompilationFinished()
-{
-	UE_LOG(LogMutable,Display,TEXT("Compilation of CO completed!"));
-
-	// Store the success end state for the operation.
-	bWasCoCompilationSuccessful =	CustomizableObject->GetPrivate()->CompilationResult == ECompilationResultPrivate::Success ||
-									CustomizableObject->GetPrivate()->CompilationResult == ECompilationResultPrivate::Warnings;
-	if (bWasCoCompilationSuccessful)
-	{
-		UE_LOG(LogMutable, Display, TEXT("The compilation of the %s model was succesfull."), *CustomizableObject->GetName());
-	}
-	else
-	{
-		UE_LOG(LogMutable, Error, TEXT("The compilation of the %s model failed."), *CustomizableObject->GetName());
-	}
-	
-	bIsTheCompilationInProcess = false;
+	return bCompilationSuccess;
 }

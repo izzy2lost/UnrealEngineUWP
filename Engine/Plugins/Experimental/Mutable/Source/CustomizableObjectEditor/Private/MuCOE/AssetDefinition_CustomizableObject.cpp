@@ -180,9 +180,14 @@ namespace MenuExtension_CustomizableObject
 			return;
 		}
 
-		TArray<FAssetData> ObjectsToRecompile;
-
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		if (AssetRegistryModule.Get().IsLoadingAssets())
+		{
+			return;
+		}
+
+		TArray<TSharedRef<FCompilationRequest>> CompilationRequests;
+
 
 		if (RecompileType == ERecompileCO::RCO_Selected)
 		{
@@ -190,12 +195,15 @@ namespace MenuExtension_CustomizableObject
 			check(Context);
 			
 			TArray<UCustomizableObject*> Objects = Context->LoadSelectedObjects<UCustomizableObject>();
+			CompilationRequests.Reserve(Objects.Num());
+
 			for (UCustomizableObject* Object : Objects)
 			{
-				FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(Object));
-				if (AssetData.IsValid())
+				if (Object)
 				{
-					ObjectsToRecompile.Add(AssetData);
+					TSharedRef<FCompilationRequest> NewRequest = MakeShared<FCompilationRequest>(*Object, true);
+					NewRequest->GetCompileOptions().bSilentCompilation = true;
+					CompilationRequests.Add(NewRequest);
 				}
 			}
 		}
@@ -223,27 +231,28 @@ namespace MenuExtension_CustomizableObject
 
 			if (FMessageDialog::Open(EAppMsgType::OkCancel, Msg) == EAppReturnType::Ok)
 			{
-				if (RecompileType == ERecompileCO::RCO_InMemory)
-				{
-					TArray<FAssetData> OutAssets;
-					AssetRegistryModule.Get().GetAssets(AssetRegistryFilter, OutAssets);
+				TArray<FAssetData> OutAssets;
+				AssetRegistryModule.Get().GetAssets(AssetRegistryFilter, OutAssets);
 
-					for (const FAssetData& Asset : OutAssets)
-					{
-						if (Asset.IsAssetLoaded())
-						{
-							ObjectsToRecompile.Add(Asset);
-						}
-					}
-				}
-				else
+				for (const FAssetData& Asset : OutAssets)
 				{
-					AssetRegistryModule.Get().GetAssets(AssetRegistryFilter, ObjectsToRecompile);
+					if (RecompileType == ERecompileCO::RCO_InMemory && !Asset.IsAssetLoaded())
+					{
+						continue;
+					}
+
+					UCustomizableObject* Object = Cast<UCustomizableObject>(Asset.GetAsset());
+					if (Object)
+					{
+						TSharedRef<FCompilationRequest> NewRequest = MakeShared<FCompilationRequest>(*Object, true);
+						NewRequest->GetCompileOptions().bSilentCompilation = true;
+						CompilationRequests.Add(NewRequest);
+					}
 				}
 			}
 		}
 
-		UCustomizableObjectSystem::GetInstance()->RecompileCustomizableObjects(ObjectsToRecompile);
+		ICustomizableObjectEditorModule::GetChecked().CompileCustomizableObjects(CompilationRequests);
 	}
 
 	

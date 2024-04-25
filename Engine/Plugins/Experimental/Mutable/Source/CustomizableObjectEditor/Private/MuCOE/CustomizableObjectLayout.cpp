@@ -3,6 +3,7 @@
 #include "MuCOE/CustomizableObjectLayout.h"
 
 #include "Engine/StaticMesh.h"
+#include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
 #include "MuCOE/GraphTraversal.h"
@@ -94,11 +95,11 @@ void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 	if (Node && Mesh)
 	{
 		//Creating a GenerationContext
-		TUniquePtr<FCustomizableObjectCompiler> Compiler( new FCustomizableObjectCompiler() );
+		FCustomizableObjectCompiler Compiler;
 		UCustomizableObject* Object = Node->GetGraphEditor()->GetCustomizableObject();
 		FCompilationOptions Options = Object->CompileOptions;
 	
-		FMutableGraphGenerationContext GenerationContext(Object, Compiler.Get(), Options);
+		FMutableGraphGenerationContext GenerationContext(Object, &Compiler, Options);
 	
 		//Transforming skeletalmesh to mutable mesh
 		mu::MeshPtr	MutableMesh = nullptr;
@@ -125,8 +126,6 @@ void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 			// Generating blocks with the mutable mesh
 			Layout = mu::NodeLayoutBlocks::GenerateLayoutBlocks(MutableMesh, UVChannel, GridSize.X, GridSize.Y);
 		}
-	
-		Compiler.Reset();
 	
 		if (Layout)
 		{
