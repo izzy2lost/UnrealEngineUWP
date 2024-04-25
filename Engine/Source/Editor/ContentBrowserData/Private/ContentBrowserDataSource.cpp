@@ -218,8 +218,19 @@ void UContentBrowserDataSource::EnumerateItemsMatchingFilter(const FContentBrows
 {
 }
 
+void UContentBrowserDataSource::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink)
+{
+	// Call older API function if this wasn't overridden
+	EnumerateItemsMatchingFilter(InFilter, [&InSink](FContentBrowserItemData&& Item) { return InSink.ProduceItem(MoveTemp(Item)); });
+}
+
 void UContentBrowserDataSource::EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback)
 {
+}
+
+void UContentBrowserDataSource::EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink)
+{
+	EnumerateItemsAtPath(InPath, InItemTypeFilter, [&InSink](FContentBrowserItemData&& Item) { return InSink.ProduceItem(MoveTemp(Item)); });
 }
 
 bool UContentBrowserDataSource::EnumerateItemsAtPaths(const TArrayView<FContentBrowserItemPath> InPaths, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback)
@@ -581,7 +592,9 @@ FContentBrowserItemData UContentBrowserDataSource::CreateVirtualFolderItem(const
 		InFolderPath,
 		*FolderItemName,
 		MoveTemp(FolderDisplayNameOverride),
-		nullptr);
+		nullptr,
+		FName() // Virtual folders have no internal path 
+		);
 }
 
 #undef LOCTEXT_NAMESPACE

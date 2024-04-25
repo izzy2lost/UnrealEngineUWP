@@ -198,8 +198,10 @@ public:
 	 *
 	 * @param InFilter The compiled filter used to find matching items.
 	 * @param InCallback The function to invoke for each matching item (return true to continue enumeration).
+	 * @param InSink Parameter provided to receive output as either a callback or an array.
 	 */
 	virtual void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback);
+	virtual void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink);
 
 	/**
 	 * Enumerate items that have the given virtual path, optionally filtering by type, and invoking the callback for each matching item.
@@ -208,9 +210,10 @@ public:
 	 * @param InPath The virtual path to find items for.
 	 * @param InItemTypeFilter The types of items we want to find.
 	 * @param InCallback The function to invoke for each matching item (return true to continue enumeration).
+	 * @param InSink Parameter provided to receive output as either a callback or an array.
 	 */
 	virtual void EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback);
-
+	virtual void EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink);
 	
 	/**
 	 * Enumerate the items (folders and/or files) that exist at the given content browser paths.

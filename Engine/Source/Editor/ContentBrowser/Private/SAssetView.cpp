@@ -2070,7 +2070,8 @@ void SAssetView::RefreshSourceItems()
 								*FString::Printf(TEXT("/Collections/%s/%s"), ECollectionShareType::ToString(ChildCollection.Type), *ChildCollection.Name.ToString()), 
 								ChildCollection.Name, 
 								FText::FromName(ChildCollection.Name), 
-								nullptr
+								nullptr,
+								FName()
 								);
 
 							const FContentBrowserItemKey FolderItemDataKey(FolderItemData);
@@ -4858,23 +4859,23 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 		}
 	};
 
-	auto RemoveItem = [this, &bRefreshView, &ItemsPendingInplaceFrontendFilter](const FContentBrowserItemKey& InItemDataKey, const FContentBrowserItemData& InItemData)
+	auto RemoveItem = [this, &bRefreshView, &ItemsPendingInplaceFrontendFilter](const FContentBrowserItemKey& ItemKey, const FContentBrowserMinimalItemData& ItemDataKey)
 	{
-		const uint32 ItemDataKeyHash = GetTypeHash(InItemDataKey);
+		const uint32 ItemDataKeyHash = GetTypeHash(ItemKey);
 
-		if (const TSharedPtr<FAssetViewItem>* ItemToRemovePtr = AvailableBackendItems.FindByHash(ItemDataKeyHash, InItemDataKey))
+		if (const TSharedPtr<FAssetViewItem>* ItemToRemovePtr = AvailableBackendItems.FindByHash(ItemDataKeyHash, ItemKey))
 		{
 			TSharedPtr<FAssetViewItem> ItemToRemove = *ItemToRemovePtr;
 			check(ItemToRemove);
 
 			// Only fully remove this item if every sub-item is removed (items become invalid when empty)
-			ItemToRemove->RemoveItemData(InItemData);
+			ItemToRemove->RemoveItemData(ItemDataKey);
 			if (ItemToRemove->GetItem().IsValid())
 			{
 				return;
 			}
 
-			AvailableBackendItems.RemoveByHash(ItemDataKeyHash, InItemDataKey);
+			AvailableBackendItems.RemoveByHash(ItemDataKeyHash, ItemKey);
 
 			const uint32 ItemToRemoveHash = GetTypeHash(ItemToRemove);
 
@@ -4937,19 +4938,17 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 			}
 			else
 			{
-				RemoveItem(ItemDataKey, ItemData);
+				RemoveItem(ItemDataKey, FContentBrowserMinimalItemData(ItemData));
 			}
 			break;
 
 		case EContentBrowserItemUpdateType::Moved:
 			{
-				const FContentBrowserItemData OldMinimalItemData(ItemData.GetOwnerDataSource(), ItemData.GetItemType(), ItemDataUpdate.GetPreviousVirtualPath(), NAME_None, FText(), nullptr);
-				const FContentBrowserItemKey OldItemDataKey(OldMinimalItemData);
-				RemoveItem(OldItemDataKey, OldMinimalItemData);
-
+				const FContentBrowserMinimalItemData OldItemDataKey(ItemData.GetItemType(), ItemDataUpdate.GetPreviousVirtualPath(), ItemData.GetOwnerDataSource());
+				RemoveItem(ItemDataKey, OldItemDataKey);
 				if (bItemPassFilter)
 				{
-					AddItem(ItemDataKey, MoveTemp(ItemData));
+					AddItem(FContentBrowserItemKey(ItemData), MoveTemp(ItemData));
 				}
 				else
 				{
@@ -4959,7 +4958,7 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 			break;
 
 		case EContentBrowserItemUpdateType::Removed:
-			RemoveItem(ItemDataKey, ItemData);
+			RemoveItem(ItemDataKey, FContentBrowserMinimalItemData(ItemData));
 			break;
 
 		default:
