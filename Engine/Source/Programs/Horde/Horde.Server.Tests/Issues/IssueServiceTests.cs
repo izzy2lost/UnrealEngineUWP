@@ -1749,92 +1749,54 @@ namespace Horde.Server.Tests.Issues
 		public async Task GauntletTestAsync()
 		{
 			// #1
-			// Scenario: Gauntlet test event with Name property
-			// Expected: Gauntlet fingerprint using Name prefix
+			// Scenario: Gauntlet test event with a property
+			// Expected: Gauntlet fingerprint using step identifiers
 			{
 				IJob job = CreateJob(_mainStreamId, 110, "Test Build", _graph);
 				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
-					logger.LogError(KnownLogEvents.Gauntlet_TestEvent, "    Test {Name} failed", "Bar.Foo.Test");
+					logger.LogError(KnownLogEvents.Gauntlet_TestEvent, "Test {Name} failed", "Bar.Foo.Test");
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual(new IssueKey("test:Bar.Foo.Test", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
-				Assert.AreEqual("Automation test errors with Bar.Foo.Test", issues[0].Summary);
+				Assert.AreEqual(new IssueKey($"{job.StreamId}:Update Version Files", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
+				Assert.AreEqual("Automation test errors in Update Version Files", issues[0].Summary);
 			}
 			// #2
-			// Scenario: Gauntlet device event with Name property
-			// Expected: Gauntlet fingerprint using Device prefix
-			{
-				IJob job = CreateJob(_mainStreamId, 120, "Test Build", _graph);
-				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
-				{
-					logger.LogWarning(KnownLogEvents.Gauntlet_DeviceEvent, "    Device {Name} reported an issue", "Foo");
-				}
-				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
-
-				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
-				Assert.AreEqual(1, issues.Count);
-				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual(new IssueKey("device:Foo", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
-				Assert.AreEqual("Automation device warnings with Foo", issues[0].Summary);
-			}
-			// #3
-			// Scenario: Gauntlet build drop event with File and Directory property
-			// Expected: Gauntlet fingerprint using Access prefix
-			{
-				IJob job = CreateJob(_mainStreamId, 130, "Test Build", _graph);
-				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
-				{
-					logger.LogError(KnownLogEvents.Gauntlet_BuildDropEvent, "    File {File} reported an issue", "/Bar/Foo.txt");
-					logger.LogError(KnownLogEvents.Gauntlet_BuildDropEvent, "    Folder {Directory} reported an issue", "/Bar/Foo");
-				}
-				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
-
-				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
-				Assert.AreEqual(1, issues.Count);
-				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual(new IssueKey("access:/Bar/Foo.txt", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
-				Assert.AreEqual("Automation access errors with /Bar/Foo.txt and with /Bar/Foo", issues[0].Summary);
-			}
-			// #4
 			// Scenario: Gauntlet Fatal event
 			// Expected: Gauntlet fingerprint using hash prefix
 			{
-				string logMessage =
-				  "    Engine encountered a critical failure.\n"
-				+ @"Assertion failed: State.bGfxPSOSet [File:D:\build\U5M+Inc\Sync\Engine\Source\Runtime\RHI\Public\RHIValidationContext.h] [Line: 809]"
-				+ @"A Graphics PSO has to be set to set resources into a shader!"
-				+ @"	0x00007fff4b43a1f4 UnrealEditor-RHI.dll!FValidationContext::RHISetShaderParameters() [Unknown File]"
-				+ @"	0x00007fff4b3e5a01 UnrealEditor-RHI.dll!FRHICommandSetShaderParameters<FRHIGraphicsShader>::Execute() [Unknown File]"
-				+ @"	0x00007fff4b3e9a5a UnrealEditor-RHI.dll!FRHICommand<FRHICommandSetShaderParameters<FRHIGraphicsShader>,FRHICommandSetShaderParametersString1159>::ExecuteAndDestruct() [Unknown File]"
-				+ @"	0x00007fff4b3e74f7 UnrealEditor - RHI.dll!FRHICommandListBase::Execute()[Unknown File]"
-				+ @"	0x00007fff4b3f3228 UnrealEditor-RHI.dll!FRHICommandListImmediate::ExecuteAndReset() [Unknown File]"
-				+ @"	0x00007fff4b464ebf UnrealEditor-RHI.dll!FRHIComputeCommandList::SubmitCommandsHint() [Unknown File]"
-				+ @"	0x00007fff3d3066fc UnrealEditor-Renderer.dll!TBaseStaticDelegateInstance<void [Unknown File]"
-				+ @"	0x00007fff48bd7813 UnrealEditor-RenderCore.dll!FRDGBuilder::ExecutePass() [Unknown File]"
-				+ @"	0x00007fff48bd2a8a UnrealEditor-RenderCore.dll!FRDGBuilder::Execute() [Unknown File]"
-				+ @"	0x00007fff3d31fef4 UnrealEditor-Renderer.dll!FSceneRenderer::RenderThreadEnd() [Unknown File]"
-				+ @"	0x00007fff3d2ed57a UnrealEditor-Renderer.dll!`FPixelShaderUtils::AddFullscreenPass<FHZBTestPS>'::`2'::<lambda_1>::operator()() [Unknown File]"
-				+ @"	0x00007fff3d3043f9 UnrealEditor - Renderer.dll!FSceneRenderer::DoOcclusionQueries()[Unknown File]"
-				+ @"	0x00007fff3d30c888 UnrealEditor-Renderer.dll!TBaseStaticDelegateInstance<void [Unknown File]"
-				+ @"	0x00007fff501fad42 UnrealEditor-Core.dll!FNamedTaskThread::ProcessTasksNamedThread() [Unknown File]"
-				+ @"	0x00007fff501fb25e UnrealEditor-Core.dll!FNamedTaskThread::ProcessTasksUntilQuit() [Unknown File]"
-				+ @"	0x00007fff48ccbb54 UnrealEditor-RenderCore.dll!RenderingThreadMain() [Unknown File]"
-				+ @"	0x00007fff48ccff44 UnrealEditor-RenderCore.dll!FRenderingThread::Run() [Unknown File]"
-				+ @"	0x00007fff5089c862 UnrealEditor-Core.dll!FRunnableThreadWin::Run() [Unknown File]"
-				+ @"	0x00007fff5089a7bf UnrealEditor-Core.dll!FRunnableThreadWin::GuardedRun() [Unknown File]"
-				+ @"	0x00007fff8e304ed0 KERNEL32.DLL!UnknownFunction [Unknown File]"
-				+ @"	0x00007fff8f26e39b ntdll.dll!UnknownFunction [Unknown File]"
-				+ @"    Test did not run until completion. The test exited prematurely.";
+				string logMessage = "Assertion failed: State.bGfxPSOSet [File:D:\\build\\U5M+Inc\\Sync\\Engine\\Source\\Runtime\\RHI\\Public\\RHIValidationContext.h] [Line: 809]\n"
+				+ "A Graphics PSO has to be set to set resources into a shader!";
+				string logCallstack = "	0x00007fff4b43a1f4 UnrealEditor-RHI.dll!FValidationContext::RHISetShaderParameters() [Unknown File]\n"
+				+ "	0x00007fff4b3e5a01 UnrealEditor-RHI.dll!FRHICommandSetShaderParameters<FRHIGraphicsShader>::Execute() [Unknown File]\n"
+				+ "	0x00007fff4b3e9a5a UnrealEditor-RHI.dll!FRHICommand<FRHICommandSetShaderParameters<FRHIGraphicsShader>,FRHICommandSetShaderParametersString1159>::ExecuteAndDestruct() [Unknown File]\n"
+				+ "	0x00007fff4b3e74f7 UnrealEditor - RHI.dll!FRHICommandListBase::Execute()[Unknown File]\n"
+				+ "	0x00007fff4b3f3228 UnrealEditor-RHI.dll!FRHICommandListImmediate::ExecuteAndReset() [Unknown File]\n"
+				+ "	0x00007fff4b464ebf UnrealEditor-RHI.dll!FRHIComputeCommandList::SubmitCommandsHint() [Unknown File]\n"
+				+ "	0x00007fff3d3066fc UnrealEditor-Renderer.dll!TBaseStaticDelegateInstance<void [Unknown File]\n"
+				+ "	0x00007fff48bd7813 UnrealEditor-RenderCore.dll!FRDGBuilder::ExecutePass() [Unknown File]\n"
+				+ "	0x00007fff48bd2a8a UnrealEditor-RenderCore.dll!FRDGBuilder::Execute() [Unknown File]\n"
+				+ "	0x00007fff3d31fef4 UnrealEditor-Renderer.dll!FSceneRenderer::RenderThreadEnd() [Unknown File]\n"
+				+ "	0x00007fff3d2ed57a UnrealEditor-Renderer.dll!`FPixelShaderUtils::AddFullscreenPass<FHZBTestPS>'::`2'::<lambda_1>::operator()() [Unknown File]\n"
+				+ "	0x00007fff3d3043f9 UnrealEditor - Renderer.dll!FSceneRenderer::DoOcclusionQueries()[Unknown File]\n"
+				+ "	0x00007fff3d30c888 UnrealEditor-Renderer.dll!TBaseStaticDelegateInstance<void [Unknown File]\n"
+				+ "	0x00007fff501fad42 UnrealEditor-Core.dll!FNamedTaskThread::ProcessTasksNamedThread() [Unknown File]\n"
+				+ "	0x00007fff501fb25e UnrealEditor-Core.dll!FNamedTaskThread::ProcessTasksUntilQuit() [Unknown File]\n"
+				+ "	0x00007fff48ccbb54 UnrealEditor-RenderCore.dll!RenderingThreadMain() [Unknown File]\n"
+				+ "	0x00007fff48ccff44 UnrealEditor-RenderCore.dll!FRenderingThread::Run() [Unknown File]\n"
+				+ "	0x00007fff5089c862 UnrealEditor-Core.dll!FRunnableThreadWin::Run() [Unknown File]\n"
+				+ "	0x00007fff5089a7bf UnrealEditor-Core.dll!FRunnableThreadWin::GuardedRun() [Unknown File]\n"
+				+ "	0x00007fff8e304ed0 KERNEL32.DLL!UnknownFunction [Unknown File]\n"
+				+ "	0x00007fff8f26e39b ntdll.dll!UnknownFunction [Unknown File]\n";
 
-				IJob job = CreateJob(_mainStreamId, 140, "Test Build", _graph);
+				IJob job = CreateJob(_mainStreamId, 120, "Test Build", _graph);
 				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
-					logger.LogError(KnownLogEvents.Gauntlet_FatalEvent, "{Message}", logMessage);
+					logger.LogError(KnownLogEvents.Gauntlet_FatalEvent, "{Message}\n{Callstack}", logMessage, logCallstack);
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
@@ -1842,11 +1804,12 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
+				Assert.AreEqual(37, issues[0].Fingerprints[0].Keys.First().Name.Length);
 				Assert.AreEqual("Automation fatal errors in Update Version Files", issues[0].Summary);
 			}
-			// #5
+			// #3
 			// Scenario: Gauntlet Test event
-			// Expected: Gauntlet fingerprint using hash prefix
+			// Expected: Gauntlet fingerprint using hash prefix and job step salt
 			{
 				string[] logErrors =
 				{
@@ -1862,7 +1825,7 @@ namespace Horde.Server.Tests.Issues
 				"	Expected 'SimpleValueWithMetaSkipDataZenAndDirect::Get meta equality' to be true."
 				};
 
-				IJob job = CreateJob(_mainStreamId, 150, "Test Build", _graph);
+				IJob job = CreateJob(_mainStreamId, 130, "Test Build", _graph);
 				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
 					foreach (string error in logErrors)
@@ -1875,7 +1838,9 @@ namespace Horde.Server.Tests.Issues
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
+				Assert.AreEqual(10, issues[0].Fingerprints[0].Keys.Count);
 				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
+				Assert.AreEqual($":{job.StreamId}:Update Version Files", issues[0].Fingerprints[0].Keys.First().Name.Substring(37));
 				Assert.AreEqual("Automation test errors in Update Version Files", issues[0].Summary);
 			}
 		}
