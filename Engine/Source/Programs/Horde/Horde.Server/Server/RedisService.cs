@@ -32,6 +32,11 @@ namespace Horde.Server.Server
 		/// </summary>
 		public RedisConnectionPool ConnectionPool { get; }
 
+		/// <summary>
+		/// Flag for whether the connection is read-only
+		/// </summary>
+		public bool ReadOnlyMode { get; }
+
 		RedisProcess? _redisProcess;
 		readonly ILogger<RedisService> _logger;
 
@@ -39,8 +44,9 @@ namespace Horde.Server.Server
 		/// Constructor
 		/// </summary>
 		public RedisService(IOptions<ServerSettings> options, ILogger<RedisService> logger)
-			: this(options.Value.RedisConnectionConfig, -1, logger)
+			: this(options.Value.RedisConnectionString, -1, logger)
 		{
+			ReadOnlyMode = options.Value.RedisReadOnlyMode;
 		}
 
 		/// <summary>
@@ -65,7 +71,7 @@ namespace Horde.Server.Server
 				}
 				else
 				{
-					throw new Exception($"Unable to connect to Redis. Please set {nameof(ServerSettings.RedisConnectionConfig)} in {ServerApp.ServerConfigFile}");
+					throw new Exception($"Unable to connect to Redis. Please set {nameof(ServerSettings.RedisConnectionString)} in {ServerApp.ServerConfigFile}");
 				}
 			}
 

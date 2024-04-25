@@ -187,7 +187,10 @@ public class ServerStatusService : IHostedService
 		}
 
 		string data = JsonSerializer.Serialize(status);
-		await redis.HashSetAsync(RedisHashKey(), id, data);
+		if(!_redis.ReadOnlyMode)
+		{
+			await redis.HashSetAsync(RedisHashKey(), id, data);
+		}
 	}
 
 	private static async Task<SubsystemStatus> GetSubsystemStatusFromRedisAsync(IDatabase redis, string id, string name)

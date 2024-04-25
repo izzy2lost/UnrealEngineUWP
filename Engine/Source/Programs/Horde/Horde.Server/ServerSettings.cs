@@ -432,14 +432,32 @@ namespace Horde.Server
 		public string? ComputeTunnelAddress { get; set; }
 
 		/// <summary>
+		/// Connection string for the Mongo database
+		/// </summary>
+		public string? MongoConnectionString { get; set; }
+
+		/// <summary>
 		/// MongoDB connection string
 		/// </summary>
-		public string? DatabaseConnectionString { get; set; }
+		[Obsolete("Use MongoConnectionString instead")]
+		public string? DatabaseConnectionString
+		{ 
+			get => MongoConnectionString; 
+			set => MongoConnectionString = value;
+		}
 
 		/// <summary>
 		/// MongoDB database name
 		/// </summary>
-		public string DatabaseName { get; set; } = "Horde";
+		public string MongoDatabaseName { get; set; } = "Horde";
+
+		/// <inheritdoc cref="DatabaseName"/>
+		[Obsolete("Replace references to DatabaseName with MongoDatabaseName")]
+		public string DatabaseName
+		{
+			get => MongoDatabaseName;
+			set => MongoDatabaseName = value;
+		}
 
 		/// <summary>
 		/// Optional certificate to trust in order to access the database (eg. AWS public cert for TLS)
@@ -450,7 +468,15 @@ namespace Horde.Server
 		/// Access the database in read-only mode (avoids creating indices or updating content)
 		/// Useful for debugging a local instance of HordeServer against a production database.
 		/// </summary>
-		public bool DatabaseReadOnlyMode { get; set; } = false;
+		public bool MongoReadOnlyMode { get; set; } = false;
+
+		/// <inheritdoc cref="MongoReadOnlyMode"/>
+		[Obsolete("Replace DatabaseReadOnlyMode with MongoReadOnlyMode")]
+		public bool DatabaseReadOnlyMode
+		{
+			get => MongoReadOnlyMode;
+			set => MongoReadOnlyMode = value;
+		}
 
 		/// <summary>
 		/// Shutdown the current server process if memory usage reaches this threshold (specified in MB)
@@ -641,7 +667,20 @@ namespace Horde.Server
 		/// Setting it to null will disable Redis use and connection
 		/// See format at https://stackexchange.github.io/StackExchange.Redis/Configuration.html
 		/// </summary>
-		public string? RedisConnectionConfig { get; set; }
+		public string? RedisConnectionString { get; set; }
+
+		/// <inheritdoc cref="RedisConnectionString"/>
+		[Obsolete("Use RedisConnectionString instead")]
+		public string? RedisConnectionConfig
+		{ 
+			get => RedisConnectionString;
+			set => RedisConnectionString = value;
+		}
+
+		/// <summary>
+		/// Whether to disable writes to Redis.
+		/// </summary>
+		public bool RedisReadOnlyMode { get; set; }
 
 		/// <summary>
 		/// Type of write cache to use in log service

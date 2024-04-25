@@ -287,7 +287,7 @@ namespace Horde.Server.Server
 
 			try
 			{
-				ReadOnlyMode = Settings.DatabaseReadOnlyMode;
+				ReadOnlyMode = Settings.MongoReadOnlyMode;
 				if (Settings.DatabasePublicCert != null)
 				{
 					X509Store localTrustStore = new X509Store(StoreName.Root);
@@ -309,7 +309,7 @@ namespace Horde.Server.Server
 					}
 				}
 
-				string? connectionString = Settings.DatabaseConnectionString;
+				string? connectionString = Settings.MongoConnectionString;
 				if (connectionString == null)
 				{
 					if (IsPortInUse(DefaultMongoPort))
@@ -343,7 +343,7 @@ namespace Horde.Server.Server
 				//TestSslConnection(MongoSettings.Server.Host, MongoSettings.Server.Port, Logger);
 
 				_client = new MongoClient(mongoSettings);
-				Database = _client.GetDatabase(Settings.DatabaseName);
+				Database = _client.GetDatabase(Settings.MongoDatabaseName);
 
 				SingletonsV1 = GetCollection<BsonDocument>("Singletons");
 				SingletonsV2 = GetCollection<BsonDocument>("SingletonsV2");

@@ -853,7 +853,7 @@ namespace Horde.Server
 			// Notifications can be triggered from any instance, so always make sure we're ticking the background task.
 			services.AddHostedService(provider => (NotificationService)provider.GetRequiredService<INotificationService>());
 
-			if (settings.IsRunModeActive(RunMode.Worker) && !settings.DatabaseReadOnlyMode)
+			if (settings.IsRunModeActive(RunMode.Worker) && !settings.MongoReadOnlyMode)
 			{
 				services.AddHostedService<AgentReportService>();
 				services.AddHostedService<BisectService>();
@@ -906,7 +906,7 @@ namespace Horde.Server
 			// Task sources. Order of registration is important here; it dictates the priority in which sources are served.
 			services.AddSingleton<JobTaskSource>();
 
-			if (!settings.DatabaseReadOnlyMode)
+			if (!settings.MongoReadOnlyMode)
 			{
 				services.AddHostedService<JobTaskSource>(provider => provider.GetRequiredService<JobTaskSource>());
 				services.AddSingleton<ConformTaskSource>();
