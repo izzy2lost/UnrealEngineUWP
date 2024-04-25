@@ -455,6 +455,15 @@ public:
 		RHI->RHIUnlockBufferMGPU(RHICmdList, Buffer, GPUIndex);
 	}
 
+	virtual FTextureReferenceRHIRef RHICreateTextureReference(FRHICommandListBase& RHICmdList, FRHITexture* InReferencedTexture)
+	{
+		return RHI->RHICreateTextureReference(RHICmdList, InReferencedTexture);
+	}
+	virtual void RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* NewTexture)
+	{
+		RHI->RHIUpdateTextureReference(RHICmdList, TextureRef, NewTexture);
+	}
+
 	virtual FShaderResourceViewRHIRef RHICreateShaderResourceView(class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) override final
 	{
 		return RHI->RHICreateShaderResourceView(RHICmdList, Resource, ViewDesc);
@@ -462,6 +471,11 @@ public:
 	virtual FUnorderedAccessViewRHIRef RHICreateUnorderedAccessView(class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) override final
 	{
 		return RHI->RHICreateUnorderedAccessView(RHICmdList, Resource, ViewDesc);
+	}
+
+	virtual FRHIResourceCollectionRef RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+	{
+		return RHI->RHICreateResourceCollection(RHICmdList, InMembers);
 	}
 
 	virtual FRHICalcTextureSizeResult RHICalcTexturePlatformSize(FRHITextureDesc const& Desc, uint32 FirstMipIndex) override final

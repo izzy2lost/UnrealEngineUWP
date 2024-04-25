@@ -69,7 +69,35 @@ inline void ValidateShaderParameters(FRHIShader* RHIShader, RHIValidation::FTrac
 			}
 			break;
 		case FRHIShaderParameterResource::EType::ResourceCollection:
-			// TODO: christopher.waters - ResourceCollection validation
+			if (const FRHIResourceCollection* ResourceCollection = static_cast<const FRHIResourceCollection*>(Parameter.Resource))
+			{
+				for (const FRHIResourceCollectionMember& Member : ResourceCollection->Members)
+				{
+					switch (Member.Type)
+					{
+					case FRHIResourceCollectionMember::EType::Texture:
+						if (FRHITexture* Texture = static_cast<FRHITexture*>(Member.Resource))
+						{
+							Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
+						}
+						break;
+					case FRHIResourceCollectionMember::EType::TextureReference:
+						if (FRHITextureReference* Texture = static_cast<FRHITextureReference*>(Member.Resource))
+						{
+							Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
+						}
+						break;
+					case FRHIResourceCollectionMember::EType::ShaderResourceView:
+						if (FRHIShaderResourceView* SRV = static_cast<FRHIShaderResourceView*>(Parameter.Resource))
+						{
+							Tracker->Assert(SRV->GetViewIdentity(), InRequiredAccess);
+						}
+						break;
+					default:
+						break;
+					}
+				}
+			}
 			break;
 		default:
 			checkf(false, TEXT("Unhandled resource type?"));

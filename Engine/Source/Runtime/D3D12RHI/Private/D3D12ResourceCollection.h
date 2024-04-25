@@ -11,20 +11,24 @@
 
 class FD3D12Buffer;
 class FD3D12ResourceCollection;
+class FD3D12RHITextureReference;
 class FD3D12ShaderResourceView;
 
 class FD3D12ResourceCollection : public FRHIResourceCollection, public FD3D12DeviceChild, public FD3D12LinkedAdapterObject<FD3D12ResourceCollection>
 {
 public:
-	FD3D12ResourceCollection(FD3D12Device* InParent, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers);
+	FD3D12ResourceCollection(FD3D12Device* InParent, FRHICommandListBase& RHICmdList, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers);
 	~FD3D12ResourceCollection();
 
 	virtual FRHIDescriptorHandle GetBindlessHandle() const final;
 
-	FD3D12ShaderResourceView* GetShaderResourceView() const { return ShaderResourceView.Get(); }
+	FD3D12ShaderResourceView* GetShaderResourceView() const { return BufferSRV.Get(); }
 
-	TRefCountPtr<FD3D12Buffer> Buffer;
-	TSharedPtr<FD3D12ShaderResourceView> ShaderResourceView;
+	TRefCountPtr<FD3D12Buffer>           Buffer;
+	TSharedPtr<FD3D12ShaderResourceView> BufferSRV;
+
+	TArray<FD3D12ShaderResourceView*>    AllSrvs;
+	TArray<FD3D12RHITextureReference*>   AllTextureReferences;
 };
 
 template<>

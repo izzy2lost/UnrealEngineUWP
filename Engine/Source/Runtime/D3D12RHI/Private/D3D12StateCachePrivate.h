@@ -417,8 +417,10 @@ protected:
 			uint32 CurrentShaderCBCounts     [SF_NumStandardFrequencies] = {};
 			uint32 CurrentShaderUAVCounts    [SF_NumStandardFrequencies] = {};
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 			TArray<FD3D12ShaderResourceView*> QueuedBindlessSRVs[SF_NumStandardFrequencies];
 			TArray<FD3D12UnorderedAccessView*> QueuedBindlessUAVs[SF_NumStandardFrequencies];
+#endif
 		} Common = {};
 	} PipelineState = {};
 
@@ -754,12 +756,22 @@ public:
 
 	void ForceSetComputeRootSignature() { PipelineState.Compute.bNeedSetRootSignature = true; }
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	void QueueBindlessSRV(EShaderFrequency ShaderFrequency, FD3D12ShaderResourceView* SRV)
 	{
 		PipelineState.Common.QueuedBindlessSRVs[ShaderFrequency].Emplace(SRV);
+	}
+	void QueueBindlessSRVs(EShaderFrequency ShaderFrequency, TConstArrayView<FD3D12ShaderResourceView*> SRVs)
+	{
+		PipelineState.Common.QueuedBindlessSRVs[ShaderFrequency].Append(SRVs);
 	}
 	void QueueBindlessUAV(EShaderFrequency ShaderFrequency, FD3D12UnorderedAccessView* UAV)
 	{
 		PipelineState.Common.QueuedBindlessUAVs[ShaderFrequency].Emplace(UAV);
 	}
+	void QueueBindlessUAVs(EShaderFrequency ShaderFrequency, TConstArrayView<FD3D12UnorderedAccessView*> UAVs)
+	{
+		PipelineState.Common.QueuedBindlessUAVs[ShaderFrequency].Append(UAVs);
+	}
+#endif
 };

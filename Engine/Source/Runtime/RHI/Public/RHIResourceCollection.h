@@ -12,7 +12,6 @@ struct FRHIResourceCollectionMember
 		Texture,
 		TextureReference,
 		ShaderResourceView,
-		UnorderedAccessView,
 		Sampler,
 	};
 
@@ -34,10 +33,6 @@ struct FRHIResourceCollectionMember
 		: FRHIResourceCollectionMember(FRHIResourceCollectionMember::EType::ShaderResourceView, InView)
 	{
 	}
-	FRHIResourceCollectionMember(FRHIUnorderedAccessView* InUAV)
-		: FRHIResourceCollectionMember(FRHIResourceCollectionMember::EType::UnorderedAccessView, InUAV)
-	{
-	}
 	FRHIResourceCollectionMember(FRHISamplerState* InSamplerState)
 		: FRHIResourceCollectionMember(FRHIResourceCollectionMember::EType::Sampler, InSamplerState)
 	{
@@ -52,11 +47,25 @@ class FRHIResourceCollection : public FRHIResource
 public:
 	FRHIResourceCollection(TConstArrayView<FRHIResourceCollectionMember> InMembers)
 		: FRHIResource(RRT_ResourceCollection)
+		, Members(InMembers)
 	{
-		Resources.Reserve(InMembers.Num());
-		for (const FRHIResourceCollectionMember& Member : InMembers)
+		for (const FRHIResourceCollectionMember& Member : Members)
 		{
-			Resources.Emplace(Member.Resource);
+			if (Member.Resource)
+			{
+				Member.Resource->AddRef();
+			}
+		}
+	}
+	FRHIResourceCollection(const FRHIResourceCollection&) = delete;
+	~FRHIResourceCollection()
+	{
+		for (const FRHIResourceCollectionMember& Member : Members)
+		{
+			if (Member.Resource)
+			{
+				Member.Resource->Release();
+			}
 		}
 	}
 
@@ -65,5 +74,5 @@ public:
 		return FRHIDescriptorHandle();
 	}
 
-	TArray<TRefCountPtr<FRHIResource>> Resources;
+	TArray<FRHIResourceCollectionMember> Members;
 };

@@ -8,11 +8,57 @@
 #include "D3D12CommandContext.h"
 #include "D3D12TextureReference.h"
 
-FD3D12ResourceCollection::FD3D12ResourceCollection(FD3D12Device* InParent, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+FD3D12ResourceCollection::FD3D12ResourceCollection(FD3D12Device* InParent, FRHICommandListBase& RHICmdList, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers)
 	: FRHIResourceCollection(InMembers)
 	, FD3D12DeviceChild(InParent)
-	, Buffer(InBuffer)
+	, Buffer(InBuffer->GetLinkedObject(InParent->GetGPUIndex()))
 {
+	const uint32 GpuIndex = InParent->GetGPUIndex();
+
+	TArray<FRHIDescriptorHandle> Handles;
+	Handles.Reserve(InMembers.Num());
+
+	for (const FRHIResourceCollectionMember& Member : InMembers)
+	{
+		switch (Member.Type)
+		{
+		case FRHIResourceCollectionMember::EType::Texture:
+		{
+			if (FRHITextureReference* TextureReferenceRHI = static_cast<FRHITexture*>(Member.Resource)->GetTextureReference())
+			{
+				FD3D12RHITextureReference* TextureReference = FD3D12CommandContext::RetrieveObject<FD3D12RHITextureReference>(TextureReferenceRHI, GpuIndex);
+				Handles.Emplace(TextureReference->GetDefaultBindlessHandle());
+				AllTextureReferences.Emplace(TextureReference);
+			}
+			else
+			{
+				FD3D12Texture* Texture = FD3D12CommandContext::RetrieveTexture(static_cast<FRHITexture*>(Member.Resource), GpuIndex);
+				Handles.Emplace(Texture->GetDefaultBindlessHandle());
+				AllSrvs.Emplace(Texture->GetShaderResourceView());
+			}
+		}
+		break;
+		case FRHIResourceCollectionMember::EType::TextureReference:
+		{
+			FD3D12RHITextureReference* TextureReference = FD3D12CommandContext::RetrieveObject<FD3D12RHITextureReference>(Member.Resource, GpuIndex);
+			Handles.Emplace(TextureReference->GetDefaultBindlessHandle());
+			AllTextureReferences.Emplace(TextureReference);
+		}
+		break;
+		case FRHIResourceCollectionMember::EType::ShaderResourceView:
+		{
+			FD3D12ShaderResourceView_RHI* ShaderResourceView = FD3D12CommandContext::RetrieveObject<FD3D12ShaderResourceView_RHI>(Member.Resource, GpuIndex);
+			Handles.Emplace(ShaderResourceView->GetBindlessHandle());
+			AllSrvs.Emplace(ShaderResourceView);
+		}
+		break;
+		}
+	}
+
+	constexpr D3D12_RESOURCE_STATES States = D3D12_RESOURCE_STATE_GENERIC_READ;
+	const TArray<uint32> CollectionMemory = UE::RHICore::CreateResourceCollectionArray<FRHIDescriptorHandle>(Handles);
+	InBuffer->UploadResourceData(RHICmdList, FRHIGPUMask::FromIndex(GpuIndex), States, CollectionMemory.GetData(), CollectionMemory.GetTypeSize() * CollectionMemory.Num());
+
 	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
 	SRVDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 	SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -21,15 +67,15 @@ FD3D12ResourceCollection::FD3D12ResourceCollection(FD3D12Device* InParent, FD3D1
 	SRVDesc.Buffer.NumElements = UE::RHICore::CalculateResourceCollectionMemorySize(InMembers) / 4;
 	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 
-	ShaderResourceView = MakeShared<FD3D12ShaderResourceView>(InParent);
-	ShaderResourceView->CreateView(InBuffer, SRVDesc, FD3D12ShaderResourceView::EFlags::None);
+	BufferSRV = MakeShared<FD3D12ShaderResourceView>(InParent);
+	BufferSRV->CreateView(InBuffer, SRVDesc, FD3D12ShaderResourceView::EFlags::None);
 }
 
 FD3D12ResourceCollection::~FD3D12ResourceCollection() = default;
 
 FRHIDescriptorHandle FD3D12ResourceCollection::GetBindlessHandle() const
 {
-	return ShaderResourceView->GetBindlessHandle();
+	return BufferSRV->GetBindlessHandle();
 }
 
 static FD3D12Buffer* CreateCollectionBuffer(FD3D12DynamicRHI& RHI, FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
@@ -50,49 +96,7 @@ FRHIResourceCollectionRef FD3D12DynamicRHI::RHICreateResourceCollection(FRHIComm
 
 	return GetAdapter().CreateLinkedObject<FD3D12ResourceCollection>(FRHIGPUMask::All(), [&RHICmdList, Buffer, InMembers](FD3D12Device* Device)
 	{
-		const uint32 GpuIndex = Device->GetGPUIndex();
-
-		TArray<FRHIDescriptorHandle> Handles;
-
-		for (const FRHIResourceCollectionMember& Member : InMembers)
-		{
-			switch (Member.Type)
-			{
-			case FRHIResourceCollectionMember::EType::Texture:
-			{
-				FD3D12Texture* Texture = FD3D12CommandContext::RetrieveTexture(static_cast<FRHITexture*>(Member.Resource), GpuIndex);
-				Handles.Emplace(Texture->GetDefaultBindlessHandle());
-			}
-			break;
-			case FRHIResourceCollectionMember::EType::TextureReference:
-			{
-				FD3D12RHITextureReference* TextureReference = FD3D12CommandContext::RetrieveObject<FD3D12RHITextureReference>(Member.Resource, GpuIndex);
-				Handles.Emplace(TextureReference->GetDefaultBindlessHandle());
-			}
-			break;
-			case FRHIResourceCollectionMember::EType::ShaderResourceView:
-			{
-				FD3D12ShaderResourceView_RHI* ShaderResourceView = FD3D12CommandContext::RetrieveObject<FD3D12ShaderResourceView_RHI>(Member.Resource, GpuIndex);
-				Handles.Emplace(ShaderResourceView->GetBindlessHandle());
-			}
-			break;
-			case FRHIResourceCollectionMember::EType::UnorderedAccessView:
-			{
-				FD3D12UnorderedAccessView_RHI* UnorderedAccessView = FD3D12CommandContext::RetrieveObject<FD3D12UnorderedAccessView_RHI>(Member.Resource, GpuIndex);
-				Handles.Emplace(UnorderedAccessView->GetBindlessHandle());
-			}
-			break;
-			}
-		}
-
-		FD3D12Buffer* GpuBuffer = Buffer->GetLinkedObject(GpuIndex);
-		FD3D12ResourceCollection* ResourceCollection = new FD3D12ResourceCollection(Device, GpuBuffer, InMembers);
-
-		constexpr D3D12_RESOURCE_STATES States = D3D12_RESOURCE_STATE_GENERIC_READ;
-		const TArray<uint32> CollectionMemory = UE::RHICore::CreateResourceCollectionArray<FRHIDescriptorHandle>(Handles);
-		GpuBuffer->UploadResourceData(RHICmdList, FRHIGPUMask::FromIndex(GpuIndex), States, CollectionMemory.GetData(), CollectionMemory.GetTypeSize() * CollectionMemory.Num());
-
-		return ResourceCollection;
+		return new FD3D12ResourceCollection(Device, RHICmdList, Buffer, InMembers);
 	});
 }
 

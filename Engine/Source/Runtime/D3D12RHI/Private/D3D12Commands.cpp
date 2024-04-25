@@ -8,6 +8,7 @@ D3D12Commands.cpp: D3D RHI commands implementation.
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
 #include "D3D12ResourceCollection.h"
+#include "D3D12TextureReference.h"
 
 static int32 GD3D12AllowDiscardResources = 1;
 static FAutoConsoleVariableRef CVarD3D12AllowDiscardResources(
@@ -945,12 +946,23 @@ struct FD3D12ResourceBinder
 	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
 	{
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		FD3D12ResourceCollection* D3D12ResourceCollection = FD3D12CommandContext::RetrieveObject<FD3D12ResourceCollection>(ResourceCollection, GpuIndex);
-		FD3D12ShaderResourceView* D3D12ShaderResourceView = D3D12ResourceCollection ? D3D12ResourceCollection->GetShaderResourceView() : nullptr;
-
 		if (bBindlessResources)
 		{
-			Context.StateCache.QueueBindlessSRV(Frequency, D3D12ShaderResourceView);
+			if (FD3D12ResourceCollection* D3D12ResourceCollection = FD3D12CommandContext::RetrieveObject<FD3D12ResourceCollection>(ResourceCollection, GpuIndex))
+			{
+				FD3D12ShaderResourceView* D3D12ShaderResourceView = D3D12ResourceCollection->GetShaderResourceView();
+				Context.StateCache.QueueBindlessSRV(Frequency, D3D12ShaderResourceView);
+				Context.StateCache.QueueBindlessSRVs(Frequency, D3D12ResourceCollection->AllSrvs);
+
+				// We have to go through each TextureReference to get the most recent version.
+				for (FD3D12RHITextureReference* TextureReference : D3D12ResourceCollection->AllTextureReferences)
+				{
+					if (FD3D12Texture* Texture = GetD3D12TextureFromRHITexture(TextureReference))
+					{
+						Context.StateCache.QueueBindlessSRV(Frequency, Texture->GetShaderResourceView());
+					}
+				}
+			}
 		}
 		else
 		{

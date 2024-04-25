@@ -28,8 +28,6 @@ namespace UE::RHICore
 			return static_cast<const FRHITextureReference*>(Member.Resource)->GetBindlessHandle();
 		case FRHIResourceCollectionMember::EType::ShaderResourceView:
 			return static_cast<const FRHIShaderResourceView*>(Member.Resource)->GetBindlessHandle();
-		case FRHIResourceCollectionMember::EType::UnorderedAccessView:
-			return static_cast<const FRHIUnorderedAccessView*>(Member.Resource)->GetBindlessHandle();
 		}
 
 		return FRHIDescriptorHandle();
