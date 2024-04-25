@@ -449,6 +449,7 @@ RaytracingAccelerationStructure TLAS;
 uint ThreadCount;
 uint GroupCount;
 
+uint HitLightingShadowMode;
 uint HitLightingDirectLighting;
 uint HitLightingSkylight;
 uint UseReflectionCaptures;
@@ -545,15 +546,14 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 				Context.InstanceMask = RAY_TRACING_MASK_FAR_FIELD;
 				Ray.TMax = FarFieldMaxTraceDistance;
 			}
+			
+			Context.bHitLightingDirectLighting = HitLightingDirectLighting != 0;
+			Context.bHitLightingSkylight = HitLightingSkylight != 0;
+			Context.bUseReflectionCaptures = UseReflectionCaptures != 0;
+			Context.HitLightingShadowMode = HitLightingShadowMode;
+			Context.HitLightingShadowMaxTraceDistance = MaxTraceDistance;
 
-			Result = TraceAndCalculateRayTracedLighting(
-				TLAS,
-				Ray,
-				Context,
-				MaxTraceDistance,
-				HitLightingDirectLighting != 0,
-				HitLightingSkylight != 0,
-				UseReflectionCaptures != 0);
+			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context);
 
 			#define DEBUG_VISUAL_ASSERT_ON_RETRACE_MISS 0
 			#if DEBUG_VISUAL_ASSERT_ON_RETRACE_MISS && DIM_HIT_LIGHTING

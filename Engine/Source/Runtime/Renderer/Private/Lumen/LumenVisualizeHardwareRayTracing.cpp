@@ -397,6 +397,7 @@ class FLumenVisualizeHardwareRayTracing : public FLumenHardwareRayTracingShaderB
 
 		SHADER_PARAMETER(int, ThreadCount)
 		SHADER_PARAMETER(int, GroupCount)
+		SHADER_PARAMETER(uint32, HitLightingShadowMode)
 		SHADER_PARAMETER(uint32, HitLightingDirectLighting)
 		SHADER_PARAMETER(uint32, HitLightingSkylight)
 		SHADER_PARAMETER(uint32, UseReflectionCaptures)
@@ -836,8 +837,9 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 
 			PassParameters->ThreadCount = RayGenThreadCount;
 			PassParameters->GroupCount = RayGenGroupCount;
+			PassParameters->HitLightingShadowMode = LumenHardwareRayTracing::GetHitLightingShadowMode();
 			PassParameters->HitLightingDirectLighting = LumenHardwareRayTracing::UseHitLightingDirectLighting() ? 1 : 0;
-			PassParameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight() ? 1 : 0;
+			PassParameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight(DiffuseIndirectMethod) ? 1 : 0;
 			PassParameters->UseReflectionCaptures = LumenHardwareRayTracing::UseReflectionCapturesForHitLighting();
 			PassParameters->MaxRayAllocationCount = RayCount;
 			PassParameters->MaxTraceDistance = MaxTraceDistance;

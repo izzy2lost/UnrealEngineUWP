@@ -112,6 +112,7 @@ class FLumenRadianceCacheHardwareRayTracing : public FLumenHardwareRayTracingSha
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWTraceHitTexture)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FBatchRadianceCacheTracingParameters, BatchTracingParameters)
+		SHADER_PARAMETER(uint32, HitLightingShadowMode)
 		SHADER_PARAMETER(uint32, HitLightingDirectLighting)
 		SHADER_PARAMETER(uint32, HitLightingSkylight)
 		SHADER_PARAMETER(float, FarFieldBias)
@@ -354,6 +355,7 @@ void DispatchRayGenOrComputeShader(
 	const FLumenCardTracingParameters& TracingParameters,
 	LumenRadianceCache::FBatchRadianceCacheTracingParameters& BatchTracingParameters,
 	const FLumenRadianceCacheHardwareRayTracing::FPermutationDomain& PermutationVector,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	bool bInlineRayTracing,
 	bool bUseFarField,
 	FRDGBufferRef HardwareRayTracingIndirectArgsBuffer,
@@ -375,8 +377,9 @@ void DispatchRayGenOrComputeShader(
 
 	PassParameters->HardwareRayTracingIndirectArgs = HardwareRayTracingIndirectArgsBuffer;
 	PassParameters->BatchTracingParameters = BatchTracingParameters;
+	PassParameters->HitLightingShadowMode = LumenHardwareRayTracing::GetHitLightingShadowMode();
 	PassParameters->HitLightingDirectLighting = LumenHardwareRayTracing::UseHitLightingDirectLighting() ? 1 : 0;
-	PassParameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight() ? 1 : 0;
+	PassParameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight(DiffuseIndirectMethod) ? 1 : 0;
 	PassParameters->NearFieldMaxTraceDistance = PassParameters->BatchTracingParameters.IndirectTracingParameters.MaxTraceDistance;
 	PassParameters->NearFieldSceneRadius = Lumen::GetNearFieldSceneRadius(View, bUseFarField);
 	PassParameters->FarFieldBias = LumenHardwareRayTracing::GetFarFieldBias();
@@ -441,6 +444,7 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 		const FViewInfo& View = InputArray[BaseRadianceCacheIndex].View;
 		const FSceneTextureParameters& SceneTextures = GetSceneTextureParameters(GraphBuilder, View);
 		const uint32 BatchSize = FMath::Min(LumenRadianceCache::MaxBatchSize, InputArray.Num() - BaseRadianceCacheIndex);
+		const EDiffuseIndirectMethod DiffuseIndirectMethod = EDiffuseIndirectMethod::Lumen;
 
 		// Compute temporary atlas size
 		// Overflow is possible however unlikely - only nearby probes trace at max resolution
@@ -511,7 +515,7 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 			TEXT("Lumen.RadianceCache.TraceHit"));
 
 		const bool bInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
-		const bool bUseHitLighting = LumenRadianceCache::UseHitLighting(View, EDiffuseIndirectMethod::Lumen);
+		const bool bUseHitLighting = LumenRadianceCache::UseHitLighting(View, DiffuseIndirectMethod);
 		checkf(ComputePassFlags != ERDGPassFlags::AsyncCompute || bInlineRayTracing, TEXT("Async Lumen HWRT is only supported for inline ray tracing"));
 
 		// Setup indirect parameters
@@ -557,6 +561,7 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 				TracingParameters,
 				BatchTracingParameters,
 				PermutationVector,
+				DiffuseIndirectMethod,
 				bInlineRayTracing,
 				bUseFarField,
 				HardwareRayTracingIndirectArgsBuffer,
@@ -648,6 +653,7 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 				TracingParameters,
 				BatchTracingParameters,
 				PermutationVector,
+				DiffuseIndirectMethod,
 				bInlineRayTracing,
 				bUseFarField,
 				HardwareRayTracingIndirectArgsBuffer,

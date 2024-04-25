@@ -33,8 +33,8 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingLightingMode(
 	0,
 	TEXT("Determines the ray hit lighting mode:\n")
 	TEXT("0 - Use Lumen Surface Cache for ray hit lighting. This method gives the best GI and reflection performance, but quality will be limited by how well surface cache represents given scene.\n")
-	TEXT("1 - Calculate lighting at a ray hit point for GI and reflections. This will improve both GI and reflection quality, but greatly increases GPU cost, as full material and lighting will be evaluated at every hit point. Lumen Surface Cache will still be used for secondary bounces.")
-	TEXT("2 - Calculate lighting at a ray hit point for reflections. This will improve reflection quality, but increases GPU cost, as full material needs to be evaluated and shadow rays traced. Lumen Surface Cache will still be used for GI and secondary bounces, including GI seen in reflections.\n"),
+	TEXT("1 - Calculate lighting at a ray hit point for GI and reflections. This will improve both GI and reflection quality, but greatly increases GPU cost, as full material and lighting will be evaluated at every hit point. Lumen Surface Cache will still be used for secondary bounces.\n")
+	TEXT("2 - Calculate lighting at a ray hit point for reflections. This will improve reflection quality, but increases GPU cost, as full material needs to be evaluated and shadow rays traced. Lumen Surface Cache will still be used for GI and secondary bounces, including GI seen in reflections."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
@@ -45,10 +45,23 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingDirectL
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingShadowMode(
+	TEXT("r.Lumen.HardwareRayTracing.HitLighting.ShadowMode"),
+	1,
+	TEXT("Which shadow mode to use for calculating direct lighting in ray hits:\n")
+	TEXT("0 - Disabled shadows\n")
+	TEXT("1 - Hard shadows, but less noise\n")
+	TEXT("2 - Area shadows, but more noise"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingSkylight(
 	TEXT("r.Lumen.HardwareRayTracing.HitLighting.Skylight"),
-	0,
-	TEXT("Whether to calculate unshadowed skylight when doing Hit Lighting or sample shadowed skylight from the Surface Cache."),
+	2,
+	TEXT("Whether to calculate unshadowed skylight when doing Hit Lighting or sample shadowed skylight from the Surface Cache.\n")
+	TEXT("0 - Disabled\n")
+	TEXT("1 - Enabled\n")
+	TEXT("2 - Enabled only for standalone Lumen Reflections"),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
@@ -189,7 +202,6 @@ LumenHardwareRayTracing::EHitLightingMode LumenHardwareRayTracing::GetHitLightin
 	if (DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen)
 	{
 		// Force HitLightingForReflections when using standalone Lumen Reflections
-		// #kris_todo: also needs to force bHitLightingSkylight
 		return LumenHardwareRayTracing::EHitLightingMode::HitLightingForReflections;
 	}
 
@@ -216,13 +228,24 @@ LumenHardwareRayTracing::EHitLightingMode LumenHardwareRayTracing::GetHitLightin
 #endif
 }
 
+uint32 LumenHardwareRayTracing::GetHitLightingShadowMode()
+{
+	return FMath::Clamp(CVarLumenHardwareRayTracingHitLightingShadowMode.GetValueOnRenderThread(), 0, 2);
+}
+
 bool LumenHardwareRayTracing::UseHitLightingDirectLighting()
 {
 	return CVarLumenHardwareRayTracingHitLightingDirectLighting.GetValueOnRenderThread() != 0;
 }
 
-bool LumenHardwareRayTracing::UseHitLightingSkylight()
+bool LumenHardwareRayTracing::UseHitLightingSkylight(EDiffuseIndirectMethod DiffuseIndirectMethod)
 {
+	if (CVarLumenHardwareRayTracingHitLightingSkylight.GetValueOnRenderThread() == 2)
+	{
+		// Standalone Lumen Reflections enabled sky light by default in mode 2
+		return DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen;
+	}
+
 	return CVarLumenHardwareRayTracingHitLightingSkylight.GetValueOnRenderThread() != 0;
 }
 

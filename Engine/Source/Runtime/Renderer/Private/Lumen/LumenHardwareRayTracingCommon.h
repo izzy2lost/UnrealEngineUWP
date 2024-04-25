@@ -38,8 +38,9 @@ namespace LumenHardwareRayTracing
 	
 	// Hit Lighting
 	EHitLightingMode GetHitLightingMode(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
+	uint32 GetHitLightingShadowMode();
 	bool UseHitLightingDirectLighting();
-	bool UseHitLightingSkylight();
+	bool UseHitLightingSkylight(EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseReflectionCapturesForHitLighting();
 }
 

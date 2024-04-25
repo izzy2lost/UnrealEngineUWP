@@ -153,6 +153,13 @@ struct FRayTracedLightingContext
 	bool bIsShadowRay;
 	bool bUseBookmark;
 	bool bMeshSectionVisibilityTest;
+	
+	// Hit-lighting
+	float HitLightingShadowMaxTraceDistance;
+	uint HitLightingShadowMode;
+	bool bHitLightingDirectLighting;
+	bool bHitLightingSkylight;
+	bool bUseReflectionCaptures;
 };
 
 FRayTracedLightingContext CreateRayTracedLightingContext(
@@ -185,6 +192,13 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	Context.bIsShadowRay = false;
 	Context.bUseBookmark = false;
 	Context.bMeshSectionVisibilityTest = bMeshSectionVisibilityTest;
+	
+	Context.HitLightingShadowMode = 1;
+	Context.bHitLightingDirectLighting = true;
+	Context.bHitLightingSkylight = false;
+	Context.bUseReflectionCaptures = false;
+	Context.HitLightingShadowMaxTraceDistance = 0.0f;
+	
 	return Context;
 }
 
@@ -608,16 +622,8 @@ float3 CalculateDirectLighting(
 	inout FPackedMaterialClosestHitPayload Payload,
 	RandomSequence RandSequence,
 	float3 RayHitTranslatedWorldPosition,
-	float3 RayHitWorldNormal,
-	float MaxTraceDistance)
+	float3 RayHitWorldNormal)
 {
-	float MaxNormalBias = 0.05;
-	uint ReflectedShadowsType = 1; // Point sampled shadows, as soft shadows can be too noisy with 1 sample and no denosing
-	bool bShouldDoDirectLighting = true;
-	bool bShouldDoEmissiveAndIndirectLighting = false;
-	bool bTopLayerRayTraceSkyLightContribution = false;
-	bool bDecoupleSampleGeneration = false;
-
 	float3 DirectLighting = 0.0f;
 	AccumulateResults(
 		Payload,
@@ -626,13 +632,13 @@ float3 CalculateDirectLighting(
 		TLAS,
 		RandSequence,
 		Context.TraceCoord,
-		MaxNormalBias,
-		MaxTraceDistance,
-		ReflectedShadowsType,
-		bShouldDoDirectLighting,
-		bShouldDoEmissiveAndIndirectLighting,
-		bTopLayerRayTraceSkyLightContribution,
-		bDecoupleSampleGeneration,
+		/*MaxNormalBias*/ 0.05f,
+		Context.HitLightingShadowMaxTraceDistance,
+		Context.HitLightingShadowMode,
+		Context.bHitLightingDirectLighting,
+		/*bShouldDoEmissiveAndIndirectLighting*/ false,
+		/*bTopLayerRayTraceSkyLightContribution*/ false,
+		/*bDecoupleSampleGeneration*/ false,
 		Context.RayCone,
 		DirectLighting);
 	return DirectLighting;
@@ -728,10 +734,6 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 	in RaytracingAccelerationStructure TLAS,
 	in FRayDesc Ray,
 	in FRayTracedLightingContext Context,
-	float MaxTraceDistance,
-	bool bHitLightingDirectLighting,
-	bool bHitLightingSkylight,
-	bool bUseReflectionCaptures,
 	inout FLumenRayHitBookmark Bookmark
 )
 {
@@ -778,7 +780,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 			Payload.SetIgnoreTranslucentMaterials();
 		#endif
 
-			if (bHitLightingSkylight)
+			if (Context.bHitLightingSkylight)
 			{
 				Payload.SetEnableSkyLightContribution();
 			}
@@ -837,12 +839,12 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 				// Accumulate roughness in order to terminate recursive rays earlier on rough surfaces
 				ReflectionPathRoughness = 1.0f - (1.0f - ReflectionPathRoughness) * (1.0f - LumenMaterial.TopLayerRoughness);
 
-				if (bHitLightingDirectLighting)
+				if (Context.bHitLightingDirectLighting)
 				{
-					Radiance += CalculateDirectLighting(TLAS, Ray, Context, Payload, RandSequence, RayHitTranslatedWorldPosition, Payload.GetWorldNormal(), MaxTraceDistance);
+					Radiance += CalculateDirectLighting(TLAS, Ray, Context, Payload, RandSequence, RayHitTranslatedWorldPosition, Payload.GetWorldNormal());
 				}
 	
-				if (bHitLightingSkylight)
+				if (Context.bHitLightingSkylight)
 				{
 					// Blend between rough reflections approximation and a single reflection ray
 					if (ReflectionBounceIndex + 1 < Context.MaxReflectionBounces)
@@ -854,7 +856,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 					Radiance += LumenMaterial.DiffuseColor * Payload.GetIndirectIrradiance();
 
 					// Add specular part
-					if (bUseReflectionCaptures)
+					if (Context.bUseReflectionCaptures)
 					{
 						if (1.0f - NextReflectionRayAlpha > 0.0f)
 						{
@@ -902,7 +904,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 						Payload.HitT,
 						Payload.GetSceneInstanceIndex());
 
-					if (!bHitLightingDirectLighting && !bHitLightingSkylight)
+					if (!Context.bHitLightingDirectLighting && !Context.bHitLightingSkylight)
 					{
 						Radiance += Diffuse_Lambert(LumenMaterial.ApproxFullyRoughDiffuseColor) * (SurfaceCacheSample.DirectLighting + SurfaceCacheSample.IndirectLighting);
 					}
@@ -1018,15 +1020,11 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 	in RaytracingAccelerationStructure TLAS,
 	in FRayDesc Ray,
-	inout FRayTracedLightingContext Context,
-	float MaxTraceDistance,
-	bool bHitLightingDirectLighting,
-	bool bHitLightingSkylight,
-	bool bUseReflectionCaptures)
+	inout FRayTracedLightingContext Context)
 {
 	Context.bUseBookmark = false;
 	FLumenRayHitBookmark Bookmark;
-	return TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, MaxTraceDistance, bHitLightingDirectLighting, bHitLightingSkylight, bUseReflectionCaptures, Bookmark);
+	return TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, Bookmark);
 }
 
 #endif // !COMPUTESHADER

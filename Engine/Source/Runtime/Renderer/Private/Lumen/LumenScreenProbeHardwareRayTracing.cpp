@@ -111,6 +111,7 @@ class FLumenScreenProbeGatherHardwareRayTracing : public FLumenHardwareRayTracin
 		SHADER_PARAMETER_STRUCT_INCLUDE(FScreenProbeParameters, ScreenProbeParameters)
 
 		// Constants
+		SHADER_PARAMETER(uint32, HitLightingShadowMode)
 		SHADER_PARAMETER(uint32, HitLightingDirectLighting)
 		SHADER_PARAMETER(uint32, HitLightingSkylight)
 		SHADER_PARAMETER(float, NearFieldMaxTraceDistance)
@@ -311,6 +312,7 @@ void DispatchRayGenOrComputeShader(
 	const FCompactedTraceParameters& CompactedTraceParameters,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	const FLumenScreenProbeGatherHardwareRayTracingRGS::FPermutationDomain& PermutationVector,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	bool bInlineRayTracing,
 	ERDGPassFlags ComputePassFlags)
 {
@@ -336,9 +338,10 @@ void DispatchRayGenOrComputeShader(
 
 		const bool bUseFarField = LumenScreenProbeGather::UseFarField(*View.Family);
 		const float NearFieldMaxTraceDistance = Lumen::GetMaxTraceDistance(View);
-
+		
+		Parameters->HitLightingShadowMode = LumenHardwareRayTracing::GetHitLightingShadowMode();
 		Parameters->HitLightingDirectLighting = LumenHardwareRayTracing::UseHitLightingDirectLighting() ? 1 : 0;
-		Parameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight() ? 1 : 0;
+		Parameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight(DiffuseIndirectMethod) ? 1 : 0;
 		Parameters->NearFieldMaxTraceDistance = NearFieldMaxTraceDistance;
 		Parameters->FarFieldMaxTraceDistance = bUseFarField ? Lumen::GetFarFieldMaxTraceDistance() : NearFieldMaxTraceDistance;
 		Parameters->NearFieldMaxTraceDistanceDitherScale = Lumen::GetNearFieldMaxTraceDistanceDitherScale(bUseFarField);
@@ -401,11 +404,12 @@ void RenderHardwareRayTracingScreenProbe(
 	FIntPoint RayTracingResolution = FIntPoint(ScreenProbeParameters.ScreenProbeAtlasViewSize.X * ScreenProbeParameters.ScreenProbeAtlasViewSize.Y * NumTracesPerProbe, 1);
 	int32 MaxRayCount = RayTracingResolution.X * RayTracingResolution.Y;
 
+	const EDiffuseIndirectMethod DiffuseIndirectMethod = EDiffuseIndirectMethod::Lumen;
 	const bool bFarField = LumenScreenProbeGather::UseFarField(*View.Family);
 	const bool bInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
 	const bool bUseRadianceCache = LumenScreenProbeGather::UseRadianceCache();
 	const bool bUseImportanceSampling = LumenScreenProbeGather::UseImportanceSampling(View);
-	const bool bUseHitLighting = LumenScreenProbeGather::UseHitLighting(View, EDiffuseIndirectMethod::Lumen);
+	const bool bUseHitLighting = LumenScreenProbeGather::UseHitLighting(View, DiffuseIndirectMethod);
 
 	// Default tracing for near field
 	{
@@ -429,7 +433,7 @@ void RenderHardwareRayTracingScreenProbe(
 		PermutationVector = FLumenScreenProbeGatherHardwareRayTracing::RemapPermutation(PermutationVector);
 
 		DispatchRayGenOrComputeShader(GraphBuilder, Scene, SceneTextures, View, ScreenProbeParameters, TracingParameters, IndirectTracingParameters,
-			CompactedTraceParameters, RadianceCacheParameters, PermutationVector, bInlineRayTracing, ComputePassFlags);
+			CompactedTraceParameters, RadianceCacheParameters, PermutationVector, DiffuseIndirectMethod, bInlineRayTracing, ComputePassFlags);
 	}
 
 	if (bFarField)
@@ -454,7 +458,7 @@ void RenderHardwareRayTracingScreenProbe(
 		PermutationVector = FLumenScreenProbeGatherHardwareRayTracing::RemapPermutation(PermutationVector);
 
 		DispatchRayGenOrComputeShader(GraphBuilder, Scene, SceneTextures, View, ScreenProbeParameters, TracingParameters, IndirectTracingParameters,
-			CompactedTraceParameters, RadianceCacheParameters, PermutationVector, bInlineRayTracing, ComputePassFlags);
+			CompactedTraceParameters, RadianceCacheParameters, PermutationVector, DiffuseIndirectMethod, bInlineRayTracing, ComputePassFlags);
 	}
 }
 #else // RHI_RAYTRACING

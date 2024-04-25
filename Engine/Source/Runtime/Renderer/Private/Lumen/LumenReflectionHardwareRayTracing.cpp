@@ -125,7 +125,8 @@ class FLumenReflectionHardwareRayTracing : public FLumenHardwareRayTracingShader
 		SHADER_PARAMETER(float, RelativeDepthThickness)
 		SHADER_PARAMETER(float, SampleSceneColorNormalTreshold)
 		SHADER_PARAMETER(int32, SampleSceneColor)
-
+	
+		SHADER_PARAMETER(uint32, HitLightingShadowMode)
 		SHADER_PARAMETER(uint32, HitLightingDirectLighting)
 		SHADER_PARAMETER(uint32, HitLightingSkylight)
 		SHADER_PARAMETER(uint32, UseReflectionCaptures)
@@ -362,6 +363,7 @@ void DispatchRayGenOrComputeShader(
 	const FCompactedReflectionTraceParameters& CompactedTraceParameters,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	const FLumenReflectionHardwareRayTracing::FPermutationDomain& PermutationVector,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	uint32 RayCount,
 	bool bApplySkyLight,
 	bool bIsHitLightingForceEnabled,
@@ -402,9 +404,10 @@ void DispatchRayGenOrComputeShader(
 		Parameters->RelativeDepthThickness = GLumenReflectionSampleSceneColorRelativeDepthThreshold * View.ViewMatrices.GetPerProjectionDepthThicknessScale();
 		Parameters->SampleSceneColorNormalTreshold = LumenReflections::GetSampleSceneColorNormalTreshold();
 		Parameters->SampleSceneColor = bSampleSceneColorAtHit ? 1 : 0;
-
+		
+		Parameters->HitLightingShadowMode = LumenHardwareRayTracing::GetHitLightingShadowMode();
 		Parameters->HitLightingDirectLighting = LumenHardwareRayTracing::UseHitLightingDirectLighting() ? 1 : 0;
-		Parameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight() ? 1 : 0;
+		Parameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight(DiffuseIndirectMethod) ? 1 : 0;
 		Parameters->UseReflectionCaptures = LumenHardwareRayTracing::UseReflectionCapturesForHitLighting();
 		
 		Parameters->FarFieldBias = LumenHardwareRayTracing::GetFarFieldBias();
@@ -513,7 +516,7 @@ void RenderLumenHardwareRayTracingReflections(
 		PermutationVector = FLumenReflectionHardwareRayTracing::RemapPermutation(PermutationVector);
 
 		DispatchRayGenOrComputeShader(GraphBuilder, SceneTextures, SceneTextureParameters, Scene, View, TracingParameters, ReflectionTracingParameters, ReflectionTileParameters, CompactedTraceParameters, RadianceCacheParameters,
-			PermutationVector, RayCount, bApplySkyLight, bIsHitLightingForceEnabled, bUseRadianceCache, bInlineRayTracing, bSampleSceneColorAtHit, bNeedTraceHairVoxel, ComputePassFlags);
+			PermutationVector, DiffuseIndirectMethod, RayCount, bApplySkyLight, bIsHitLightingForceEnabled, bUseRadianceCache, bInlineRayTracing, bSampleSceneColorAtHit, bNeedTraceHairVoxel, ComputePassFlags);
 	}
 
 	// Far Field
@@ -545,7 +548,7 @@ void RenderLumenHardwareRayTracingReflections(
 
 		// Trace continuation rays
 		DispatchRayGenOrComputeShader(GraphBuilder, SceneTextures, SceneTextureParameters, Scene, View, TracingParameters, ReflectionTracingParameters, ReflectionTileParameters, CompactedTraceParameters, RadianceCacheParameters,
-			PermutationVector, RayCount, bApplySkyLight, bIsHitLightingForceEnabled, bUseRadianceCache, bInlineRayTracing, bSampleSceneColorAtHit, bNeedTraceHairVoxel, ComputePassFlags);
+			PermutationVector, DiffuseIndirectMethod, RayCount, bApplySkyLight, bIsHitLightingForceEnabled, bUseRadianceCache, bInlineRayTracing, bSampleSceneColorAtHit, bNeedTraceHairVoxel, ComputePassFlags);
 	}
 
 	// Hit Lighting
@@ -580,7 +583,7 @@ void RenderLumenHardwareRayTracingReflections(
 			PermutationVector = FLumenReflectionHardwareRayTracing::RemapPermutation(PermutationVector);
 
 			DispatchRayGenOrComputeShader(GraphBuilder, SceneTextures, SceneTextureParameters, Scene, View, TracingParameters, ReflectionTracingParameters, ReflectionTileParameters, CompactedTraceParameters, RadianceCacheParameters,
-				PermutationVector, RayCount, bApplySkyLight, bIsHitLightingForceEnabled, bUseRadianceCache, bUseInline, bSampleSceneColorAtHit, bNeedTraceHairVoxel, ComputePassFlags);
+				PermutationVector, DiffuseIndirectMethod, RayCount, bApplySkyLight, bIsHitLightingForceEnabled, bUseRadianceCache, bUseInline, bSampleSceneColorAtHit, bNeedTraceHairVoxel, ComputePassFlags);
 		}
 	}
 #endif
