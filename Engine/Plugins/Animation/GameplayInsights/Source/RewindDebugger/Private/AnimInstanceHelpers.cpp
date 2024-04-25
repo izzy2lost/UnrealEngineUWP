@@ -32,7 +32,7 @@ static bool OpenAnimBlueprintAndAttachDebugger(const TraceServices::IAnalysisSes
 					{
 						GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AnimBlueprint);
 						
-						UObject* SelectedInstance;
+						UObject* SelectedInstance = nullptr;
 #if OBJECT_TRACE_ENABLED
 						SelectedInstance = FObjectTrace::GetObjectFromId(ObjectId);
 #endif
