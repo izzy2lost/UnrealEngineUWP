@@ -14,16 +14,21 @@ void FComposureUtils::SetEngineShowFlagsForPostprocessingOnly(FEngineShowFlags& 
 	EngineShowFlags.ScreenSpaceAO = false;
 	EngineShowFlags.LightShafts = false;
 	EngineShowFlags.Lighting = false;
+	EngineShowFlags.SkyLighting = false;
 	EngineShowFlags.DeferredLighting = false;
 	EngineShowFlags.Decals = false;
 	EngineShowFlags.Translucency = false;
 	EngineShowFlags.AntiAliasing = false;
+	EngineShowFlags.TemporalAA = false;
 	EngineShowFlags.MotionBlur = false;
 	EngineShowFlags.Bloom = false;
 	EngineShowFlags.EyeAdaptation = false;
 	EngineShowFlags.VolumetricFog = false;
 	EngineShowFlags.Atmosphere = false;
 	EngineShowFlags.Fog = false;
+	EngineShowFlags.LocalExposure = false;
+	EngineShowFlags.GlobalIllumination = false;
+	EngineShowFlags.LumenReflections = false;
 
 #if !UE_BUILD_OPTIMIZED_SHOWFLAGS
 	// Development-only flags
