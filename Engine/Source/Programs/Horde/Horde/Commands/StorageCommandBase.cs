@@ -5,7 +5,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
-using Microsoft.Extensions.Options;
 
 namespace Horde.Commands
 {

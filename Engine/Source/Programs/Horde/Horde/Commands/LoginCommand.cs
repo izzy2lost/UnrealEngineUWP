@@ -6,7 +6,6 @@ using EpicGames.Horde;
 using EpicGames.Horde.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Horde.Commands
 {
