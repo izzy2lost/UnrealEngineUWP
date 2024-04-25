@@ -46,6 +46,15 @@ static TAutoConsoleVariable<int32> CVarUseIOSRHIThread(
 													ECVF_Default | ECVF_RenderThreadSafe
 													);
 
+// If precaching is active we should not need the file cache.
+// however, precaching and filecache are compatible with each other, there maybe some scenarios in which both could be used.
+static TAutoConsoleVariable<bool> CVarEnableMetalPSOFileCacheWhenPrecachingActive(
+	TEXT("r.Metal.EnablePSOFileCacheWhenPrecachingActive"),
+	false,
+	TEXT("false: If precaching is available (r.PSOPrecaching=1, then disable the PSO filecache. (default)\n")
+	TEXT("true: Allow both PSO file cache and precaching."),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 
 static void ValidateTargetedRHIFeatureLevelExists(EShaderPlatform Platform)
 {
@@ -630,8 +639,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GSupportsWideMRT = true;
 	GSupportsSeparateRenderTargetBlendState = (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
 
-	GRHISupportsPipelineFileCache = true;
 	GRHISupportsPSOPrecaching = true;
+	GRHISupportsPipelineFileCache = !GRHISupportsPSOPrecaching || CVarEnableMetalPSOFileCacheWhenPrecachingActive.GetValueOnAnyThread();
 	
 	// Appears to be no queryable value for max texture_buffer size and its not specified in the docs.  However,
 	// current testing across Apple Silicon macs, AMD and iPhone all quote a max value of 268435456 (1 << 28)

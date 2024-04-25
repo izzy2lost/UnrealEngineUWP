@@ -3120,6 +3120,11 @@ void FPipelineFileCacheManager::Initialize(uint32 InGameVersion)
 
 bool FPipelineFileCacheManager::ShouldEnableFileCache()
 {
+	if (!GRHISupportsPipelineFileCache)
+	{
+		return false;
+	}
+
 #if PLATFORM_IOS
 	if (CVarAlwaysGeneratePOSSOFileCache.GetValueOnAnyThread() == 0)
 	{
@@ -3133,7 +3138,8 @@ bool FPipelineFileCacheManager::ShouldEnableFileCache()
 		}
 	}
 #endif
-	return GRHISupportsPipelineFileCache;
+
+	return true;
 }
 
 void FPipelineFileCacheManager::PreCompileComplete()
@@ -3173,6 +3179,7 @@ void FPipelineFileCacheManager::ClearOSPipelineCache()
 				FTimespan DataTime(0, 0, FileInfo.st_atime);
 				if (ExecutableTime > DataTime)
 				{
+					UE_LOG(LogTemp, Display, TEXT("Clearing functions.data"));
 					unlink(TCHAR_TO_UTF8(*Result));
 				}
 			}
@@ -3182,6 +3189,7 @@ void FPipelineFileCacheManager::ClearOSPipelineCache()
 				FTimespan MapsTime(0, 0, FileInfo.st_atime);
 				if (ExecutableTime > MapsTime)
 				{
+					UE_LOG(LogTemp, Display, TEXT("Clearing functions.maps"));
 					unlink(TCHAR_TO_UTF8(*Result));
 				}
 			}
