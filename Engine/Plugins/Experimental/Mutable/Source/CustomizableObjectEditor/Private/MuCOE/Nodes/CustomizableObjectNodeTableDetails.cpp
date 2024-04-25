@@ -337,16 +337,16 @@ void FCustomizableObjectNodeTableDetails::GenerateMeshColumnComboBoxOptions()
 	AnimMeshColumnOptionNames.Empty();
 	LayoutMeshColumnOptionNames.Empty();
 
+	// Add first element to clear selection
+	AnimMeshColumnOptionNames.Add(MakeShareable(new FString("- Nothing Selected -")));
+	LayoutMeshColumnOptionNames.Add(MakeShareable(new FString("- Nothing Selected -")));
+
 	const UScriptStruct* TableStruct = Node->GetTableNodeStruct();
 
 	if (!TableStruct)
 	{
 		return;
 	}
-
-	// Add first element to clear selection
-	AnimMeshColumnOptionNames.Add(MakeShareable(new FString("- Nothing Selected -")));
-	LayoutMeshColumnOptionNames.Add(MakeShareable(new FString("- Nothing Selected -")));
 
 	// Get mesh columns only
 	for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
