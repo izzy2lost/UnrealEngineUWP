@@ -55,7 +55,7 @@ namespace EpicGames.Horde
 		/// Gets the default server URL for the current user
 		/// </summary>
 		/// <returns>Default URL</returns>
-		public static Uri GetDefaultServerUrl()
+		public static Uri? GetDefaultServerUrl()
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
@@ -101,7 +101,7 @@ namespace EpicGames.Horde
 					}
 				}
 			}
-			return new Uri("http://localhost:5000/");
+			return null;
 		}
 
 		/// <summary>

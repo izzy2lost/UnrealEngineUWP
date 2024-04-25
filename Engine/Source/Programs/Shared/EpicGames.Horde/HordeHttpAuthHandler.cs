@@ -280,7 +280,7 @@ namespace EpicGames.Horde
 			{
 				if (httpClient.BaseAddress == null)
 				{
-					throw new Exception("No http client is configured for Horde. Call IServiceCollection.AddHordeHttpClient().");
+					throw new Exception("Horde base address is not configured.");
 				}
 
 				serverUrl = httpClient.BaseAddress;
