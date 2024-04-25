@@ -3,6 +3,7 @@
 #include "Components/CQTestBlueprintHelper.h"
 #include "Equipment/LyraEquipmentManagerComponent.h"
 #include "Equipment/LyraPickupDefinition.h"
+#include "Misc/Paths.h"
 #include "ObjectBuilder.h"
 #include "Utilities/ShooterTestsActorTest.h"
 #include "Weapons/LyraWeaponInstance.h"
