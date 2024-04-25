@@ -84,7 +84,7 @@ struct FStringView
 
 ////////////////////////////////////////////////////////////////////////////////
 struct FString
-	: protected std::string
+	: public std::string
 {
 	typedef std::string Super;
 	using Super::Super;
