@@ -387,7 +387,7 @@ bool LoadELF(const string& obj_file, MmapWrapper* map_wrapper,
 #if defined(__linux__)
   OSHandle fd = open(obj_file.c_str(), O_RDONLY);
 #else
-  OSHandle fd = CreateFile(obj_file.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  OSHandle fd = CreateFileA(obj_file.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 #endif
   // TODO Format the error messages with better info per OS
   if (fd == OSHandleInvalid) {

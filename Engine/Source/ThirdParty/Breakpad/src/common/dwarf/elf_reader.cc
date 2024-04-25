@@ -203,10 +203,10 @@ class ElfSectionReader {
     int prot_flags = PROT_READ;
     int flags = MAP_SHARED;
 #endif
-    void* contents_aligned_ = CreateOSMapping(NULL, size_aligned_, prot_flags, flags, fd, offset_aligned);
+    void* contents_aligned_2 = CreateOSMapping(NULL, size_aligned_, prot_flags, flags, fd, offset_aligned);
 
     // Set where the offset really should begin.
-    contents_ = reinterpret_cast<char *>(contents_aligned_) +
+    contents_ = reinterpret_cast<char *>(contents_aligned_2) +
                 (header_.sh_offset - offset_aligned);
 
     // Check for and handle any compressed contents.
@@ -1047,7 +1047,7 @@ ElfReader::ElfReader(const string &path)
 
 // Not a simple function wrapper, CreateFile has a lot of flags
 #if defined(_WIN32) || defined(_WIN64)
-  fd_ = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  fd_ = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 #else
   fd_ = open(path.c_str(), O_RDONLY);
 #endif
@@ -1261,7 +1261,7 @@ static bool IsNonStrippedELFBinaryImpl(const string &path, const OSHandle fd,
 static bool IsNonStrippedELFBinaryHelper(const string &path,
                                          bool debug_only) {
 #if defined(_WIN32) || defined(_WIN64)
-  const OSHandle fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  const OSHandle fd = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 #else
   const OSHandle fd = open(path.c_str(), O_RDONLY);
 #endif

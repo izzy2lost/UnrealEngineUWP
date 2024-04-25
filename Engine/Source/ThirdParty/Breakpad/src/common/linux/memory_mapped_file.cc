@@ -62,7 +62,7 @@ bool MemoryMappedFile::Map(const char* path, size_t offset) {
 #if defined(__linux__)
   OSHandle fd = sys_open(path, O_RDONLY, 0);
 #else
-  OSHandle fd = CreateFile(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  OSHandle fd = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 #endif
 
   if (fd == OSHandleInvalid) {
