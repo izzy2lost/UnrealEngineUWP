@@ -1,0 +1,327 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include  "PlainPropsBuildSchema.h"
+#include  "PlainPropsInternalBuild.h"
+#include  "PlainPropsInternalFormat.h"
+#include "Algo/Compare.h"
+#include "Algo/Find.h"
+
+namespace PlainProps
+{
+
+static const TCHAR* ToString(FLeafType Leaf)
+{
+	const TCHAR* Leaves[8][4] = {
+		{TEXT("bool"),		TEXT("ERR_b16"),	TEXT("ERR_b32"),	TEXT("ERR_b64")},
+		{TEXT("int8"),		TEXT("int16"),		TEXT("int32"),		TEXT("int64")},
+		{TEXT("uint8"),		TEXT("uint16"),		TEXT("uint32"),		TEXT("uint64")},
+		{TEXT("ERR_fp8"),	TEXT("ERR_fp16"),	TEXT("float"),		TEXT("double")},
+		{TEXT("hex8"),		TEXT("hex16"),		TEXT("hex32"),		TEXT("hex64")},
+		{TEXT("enum8"),		TEXT("enum16"),		TEXT("enum32"),		TEXT("enum64")},
+		{TEXT("utf8"),		TEXT("utf16"),		TEXT("utf32"),		TEXT("ERR_utf64")},
+		{TEXT("ERR_oob"),	TEXT("ERR_oob"),	TEXT("ERR_oob"),	TEXT("ERR_oob")}};
+
+	return Leaves[(uint8)Leaf.Type][(uint8)Leaf.Width];
+}
+
+
+static FString PrintMemberSchema(FMemberType Type, FOptionalSchemaId InnerSchema, TConstArrayView<FMemberType> InnerRangeTypes)
+{
+	switch (Type.GetKind())
+	{
+	case EMemberKind::Leaf:		return ToString(Type.AsLeaf());
+	case EMemberKind::Struct:	return FString::Printf(TEXT("Struct [%d]%s%s"), InnerSchema.Get().Idx, Type.AsStruct().IsSuper ? TEXT(" (super)") : TEXT(""), Type.AsStruct().IsDynamic ? TEXT(" (dynamic)") : TEXT(""));
+	case EMemberKind::Range:	return TEXT("Range of ") + PrintMemberSchema(InnerRangeTypes[0], InnerSchema, InnerRangeTypes.RightChop(1));
+	}
+	return "Illegal member kind";
+}
+
+static FString PrintMemberSchema(FMemberSchema Schema)
+{
+	return PrintMemberSchema(Schema.Type, Schema.InnerSchema, Schema.InnerRangeTypes);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+static void MarkInheritanceChainUsed(TArrayView<FBuiltStructSchema> OutStructs)
+{
+	for (const FBuiltStructSchema& Struct : OutStructs)
+	{
+		if (Struct.bUsed)
+		{
+			for (FOptionalStructSchemaId Super = Struct.Super; Super && !OutStructs[Super.Get().Idx].bUsed; Super = OutStructs[Super.Get().Idx].Super)
+			{
+				OutStructs[Super.Get().Idx].bUsed = true;
+			}
+		}
+	}
+}
+
+FSchemasBuilder::FSchemasBuilder(TConstArrayView<TUniquePtr<FStructDeclaration>> InStructs, TConstArrayView<TUniquePtr<FEnumDeclaration>> InEnums, const FDebugIds& InDebug)
+: Debug(InDebug)
+{
+	Structs.Reserve(InStructs.Num());
+	Enums.Reserve(InEnums.Num());
+	for (const TUniquePtr<FStructDeclaration>& Declaration : InStructs)
+	{
+		Structs.Emplace(*Declaration, *this, Debug);
+	}
+	for (const TUniquePtr<FEnumDeclaration>& Declaration : InEnums)
+	{
+		Enums.Emplace(*Declaration);
+	}
+}
+
+FBuiltSchemas FSchemasBuilder::Build() const
+{
+	FBuiltSchemas Out;
+	Out.Structs.Reserve(Structs.Num());
+	for (const FStructSchemaBuilder& Struct : Structs)
+	{
+		Out.Structs.Add(Struct.Build());
+	}
+	Out.Enums.Reserve(Enums.Num());
+	for (const FEnumSchemaBuilder& Enum : Enums)
+	{
+		Out.Enums.Add(Enum.Build());
+	}
+
+	MarkInheritanceChainUsed(Out.Structs);
+
+	return Out;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+static bool RequiresDynamicStructSchema(const FMemberSchema& A, const FMemberSchema& B)
+{
+	if (A.InnerSchema != B.InnerSchema && A.Type.GetKind() == B.Type.GetKind())
+	{
+		if (A.Type.IsStruct())
+		{
+			return true;
+		}
+		else if (A.Type.IsRange() && A.InnerRangeTypes.Last().IsStruct() && B.InnerRangeTypes.Last().IsStruct())
+		{
+			// Same range size and nested range sizes
+			return	A.Type == B.Type &&	Algo::Compare(	MakeArrayView(A.InnerRangeTypes).LeftChop(1),
+														MakeArrayView(B.InnerRangeTypes).LeftChop(1));
+		}
+	}
+
+	return false;
+		
+}
+
+static void SetIsDynamic(FMemberType& InOut)
+{
+	FStructType Type = InOut.AsStruct();
+	Type.IsDynamic = true;
+	InOut = FMemberType(Type);
+}
+
+void FStructSchemaBuilder::NoteMembersRecursively(const FBuiltStruct& Struct)
+{
+	checkf(!bBuilt, TEXT("Noted new members after building, built schema lack these memebers! Build() also returns pointers into NotedMembers which mustn't grow."));
+	check(Declaration.Occupancy != EMemberPresence::RequireAll || Struct.NumMembers == Declaration.NumMembers);
+	bMissingMemberNoted |= Struct.NumMembers < static_cast<uint32>(Declaration.NumMembers + !!Declaration.Super);
+	
+	for (const FBuiltMember& Member : MakeArrayView(Struct.Members, Struct.NumMembers))
+	{
+		if (FMemberSchema* Schema = NotedMembers.Find(Member.Name))
+		{
+			if (RequiresDynamicStructSchema(*Schema, Member.Schema))
+			{
+				SetIsDynamic(Schema->Type.IsStruct() ? Schema->Type : Schema->InnerRangeTypes.Last());
+				Schema->InnerSchema = {};
+			}
+			else
+			{
+				checkf(*Schema == Member.Schema, TEXT("Member '%s' in '%s' first added as %s and later as %s."),
+					*Debug.Print(Member.Name), *Debug.Print(Declaration.Type), *PrintMemberSchema(*Schema), *PrintMemberSchema(Member.Schema));
+			}
+		}
+		else
+		{
+			NotedMembers.Add(Member.Name, Member.Schema);
+		}
+		
+		const FMemberSchema& Schema = Member.Schema;
+		if (EMemberKind Kind = Schema.Type.GetKind(); Kind == EMemberKind::Leaf)
+		{
+			if (ELeafType::Enum == Schema.Type.AsLeaf().Type)
+			{
+				AllSchemas.NoteValue(static_cast<FEnumSchemaId>(Schema.InnerSchema.Get()), Member.Value.Leaf);
+			}
+		}
+		else if (Kind == EMemberKind::Struct)
+		{
+			AllSchemas.NoteMembers(static_cast<FStructSchemaId>(Schema.InnerSchema.Get()), *Member.Value.Struct);
+		}
+		else if (Member.Value.Range && IsStructOrEnum(MakeArrayView(Schema.InnerRangeTypes).Last()))
+		{
+			NoteRangeRecursively(Schema.Type.AsRange().MaxSize, Schema.InnerRangeTypes, Schema.InnerSchema.Get(), *Member.Value.Range);
+		}
+	}
+}
+
+template<class T>
+TConstArrayView64<T> MakeArrayView(const T* Data, uint64 Num)
+{
+	return TConstArrayView64<T>(Data, static_cast<int64>(Num));
+}
+
+template<typename IntType>
+void NoteEnumValues(FSchemasBuilder& AllSchemas, FEnumSchemaId Enum, const IntType* Values, uint64 Num)
+{
+	for (IntType Value : TConstArrayView64<IntType>(Values, Num))
+	{
+		AllSchemas.NoteValue(Enum, Value);
+	}
+}
+
+static void NoteEnumRange(FSchemasBuilder& Out, FLeafType Leaf, FEnumSchemaId Enum, const FBuiltRange& Range)
+{
+	check(Leaf.Type == ELeafType::Enum);
+	switch (Leaf.Width)
+	{
+	case ELeafWidth::B8:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint8* >(Range.Data), Range.Num); break;
+	case ELeafWidth::B16:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint16*>(Range.Data), Range.Num); break;
+	case ELeafWidth::B32:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint32*>(Range.Data), Range.Num); break;
+	case ELeafWidth::B64:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint64*>(Range.Data), Range.Num); break;
+	}
+}
+
+void FStructSchemaBuilder::NoteRangeRecursively(ERangeSizeType NumType, TConstArrayView<FMemberType> Types, FSchemaId InnermostSchema, const FBuiltRange& Range)
+{
+	FMemberType Type = Types[0];
+	switch (Type.GetKind())
+	{
+	case EMemberKind::Struct:
+		for (const TUniquePtr<const FBuiltStruct>& Struct : Range.AsStructs())
+		{
+			AllSchemas.NoteMembers(static_cast<FStructSchemaId>(InnermostSchema), *Struct);
+		}
+		break;
+	case EMemberKind::Range:
+		for (const FBuiltRange* InnerRange : Range.AsRanges())
+		{
+			if (InnerRange)
+			{
+				NoteRangeRecursively(Type.AsRange().MaxSize, Types.RightChop(1), InnermostSchema, *InnerRange);
+			}
+		}
+		break;
+	case EMemberKind::Leaf:
+		NoteEnumRange(/* out */ AllSchemas, Type.AsLeaf(), static_cast<FEnumSchemaId>(InnermostSchema), Range);
+		break;
+	}
+}
+
+FBuiltStructSchema FStructSchemaBuilder::Build() const
+{
+	FBuiltStructSchema Out = { Declaration.Type };
+	Out.bDense = Declaration.Occupancy == EMemberPresence::RequireAll || !bMissingMemberNoted;
+	Out.Super = Declaration.Super;
+	
+	if (int32 Num = NotedMembers.Num())
+	{
+		Out.bUsed = true;
+		Out.MemberNames.Reserve(Num);
+		Out.MemberSchemas.Reserve(Num);
+
+		// Add generated super struct before declared members
+		if (Declaration.Super)
+		{
+			for (const TPair<FOptionalMemberId, FMemberSchema>& NotedMember : NotedMembers)
+			{
+				if (NotedMember.Key == NoId)
+				{
+					Out.MemberSchemas.Add(&NotedMember.Value);
+					break;
+				}
+			}
+		}
+
+		for (FMemberId Name : Declaration.GetMemberOrder())
+		{
+			if (const FMemberSchema* Schema = NotedMembers.Find(ToOptional(Name)))
+			{
+				Out.MemberNames.Add(Name);
+				Out.MemberSchemas.Add(Schema);
+			}
+		}
+	}
+
+	bBuilt = true; 
+	check(NotedMembers.Num() == Out.MemberSchemas.Num());
+	return Out;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+FBuiltEnumSchema FEnumSchemaBuilder::Build() const
+{
+	FBuiltEnumSchema Out = { Declaration.Type };
+	Out.Mode = Declaration.Mode;
+	Out.Width = Declaration.Width;
+
+	if (int32 Num = NotedConstants.Num())
+	{
+		Out.bUsed = true;
+		Out.Names.Reserve(Num);
+		Out.Constants.Reserve(Num);
+		for (FEnumerator Enumerator : Declaration.GetEnumerators())
+		{
+			if (NotedConstants.Contains(Enumerator.Constant))
+			{
+				Out.Names.Add(Enumerator.Name);
+				Out.Constants.Add(Enumerator.Constant);
+			}
+		}
+	}
+	
+	bBuilt = true; 
+	check(	NotedConstants.Num() == Out.Constants.Num() || 
+			NotedConstants.Num() == Out.Constants.Num() + (Out.Mode == EEnumMode::Flag) );
+	return Out;
+}
+
+void FEnumSchemaBuilder::NoteValue(uint64 Value)
+{
+	if (Declaration.Mode == EEnumMode::Flag)
+	{
+		if (Value == 0)
+		{
+			// Don't validate 0 flag is declared, it isn't
+			NotedConstants.Add(Value);
+		}
+		else
+		{
+			const int32 NumValidated = NotedConstants.Num();
+			while (Value != 0)
+			{
+				uint64 HiBit = uint64(1) << FMath::FloorLog2_64(Value);
+				NotedConstants.Add(HiBit);
+				Value &= ~HiBit;
+			}
+
+			for (int32 Idx = NumValidated, Num = NotedConstants.Num(); Idx < Num; ++Idx)
+			{
+				uint64 Flag = NotedConstants.Get(FSetElementId::FromInteger(Idx));
+				checkf(Algo::FindBy(Declaration.GetEnumerators(), Flag, &FEnumerator::Constant), TEXT("Enum flag %d is undeclared"), Flag);
+			}
+		}
+	}
+	else
+	{
+		bool bValidated;
+		NotedConstants.FindOrAdd(Value, /* out */ &bValidated);
+		if (!bValidated)
+		{
+			checkf(Algo::FindBy(Declaration.GetEnumerators(), Value, &FEnumerator::Constant), TEXT("Enum value %d is undeclared"), Value);
+		}
+	}
+}
+
+} // namespace PlainProps
