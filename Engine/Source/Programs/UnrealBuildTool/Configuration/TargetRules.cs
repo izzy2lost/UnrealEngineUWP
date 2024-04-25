@@ -1262,6 +1262,17 @@ namespace UnrealBuildTool
 		public bool bEnableStackProtection { get; set; }
 
 		/// <summary>
+		/// Compile client-only code.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bWithClientCode
+		{
+			get => bWithClientCodeOverride ?? (Type != TargetType.Server);
+			set => bWithClientCodeOverride = value;
+		}
+		private bool? bWithClientCodeOverride;
+
+		/// <summary>
 		/// Compile server-only code.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]

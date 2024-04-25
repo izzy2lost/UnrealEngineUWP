@@ -5182,6 +5182,9 @@ namespace UnrealBuildTool
 				GlobalCompileEnvironment.Definitions.Add("WITH_EDITORONLY_DATA=0");
 			}
 
+			// Check if client-only code should be compiled out.
+			GlobalCompileEnvironment.Definitions.Add(String.Format("WITH_CLIENT_CODE={0}", Rules.bWithClientCode ? 1 : 0));
+
 			// Check if server-only code should be compiled out.
 			GlobalCompileEnvironment.Definitions.Add(String.Format("WITH_SERVER_CODE={0}", Rules.bWithServerCode ? 1 : 0));
 

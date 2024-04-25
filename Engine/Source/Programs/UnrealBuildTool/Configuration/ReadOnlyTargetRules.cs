@@ -225,6 +225,8 @@ namespace UnrealBuildTool
 
 		public bool bUseInlining => Inner.bUseInlining;
 
+		public bool bWithClientCode => Inner.bWithClientCode;
+
 		public bool bWithServerCode => Inner.bWithServerCode;
 
 		public bool bFNameOutlineNumber => Inner.bFNameOutlineNumber;
