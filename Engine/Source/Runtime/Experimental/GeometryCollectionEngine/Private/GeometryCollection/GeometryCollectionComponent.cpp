@@ -3270,9 +3270,12 @@ bool UGeometryCollectionComponent::MoveComponentImpl(const FVector& Delta, const
 
 #if WITH_EDITOR
 	// Make sure that custom renderer is updated _after_ any move has been applied to the full component hierachy.
-	if (!GetWorld()->IsGameWorld())
+	if (UWorld* World = GetWorld())
 	{
-		RefreshCustomRenderer();
+		if (!World->IsGameWorld())
+		{
+			RefreshCustomRenderer();
+		}
 	}
 #endif
 
