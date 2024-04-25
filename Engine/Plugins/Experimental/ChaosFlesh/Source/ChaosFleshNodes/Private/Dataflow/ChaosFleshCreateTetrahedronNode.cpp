@@ -35,7 +35,6 @@
 // FCreateTetrahedronDataflowNode
 //=============================================================================
 
-
 void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&Collection))
@@ -161,8 +160,12 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 				TManagedArray<int32>* ToGroupToTransformIndex = ToCollection.FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
 				TManagedArray<int32>* TransformToGroupIndex = ToCollection.FindAttribute<int32>("TransformToGeometryIndex", FTransformCollection::TransformGroup);
 				TManagedArray<FString>* ToTransformName = ToCollection.FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+				TManagedArray<FTransform3f>* ToTransform = ToCollection.FindAttribute<FTransform3f>("Transform", FTransformCollection::TransformGroup);
 				TManagedArray<int32>* ToParentIndex = ToCollection.FindAttribute<int32>("Parent", FTransformCollection::TransformGroup);
 				TManagedArray<TSet<int32> >* ToChildIndex = ToCollection.FindAttribute< TSet<int32> >(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup);
+				TManagedArray<FVector3f>* ToVertex = ToCollection.FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
+				TManagedArray<int32>* ToVertexCount = ToCollection.FindAttribute<int32>("VertexCount", FGeometryCollection::GeometryGroup);
+				TManagedArray<int32>* ToVertexStart = ToCollection.FindAttribute<int32>("VertexStart", FGeometryCollection::GeometryGroup);
 
 				if (SourceGroupToTransformIndex && SourceTransformName && ToGroupToTransformIndex && ToTransformName && ToParentIndex && SourceParentIndex && ToChildIndex)
 				{
@@ -194,6 +197,7 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 							{
 								// set the name
 								(*ToTransformName)[ToGeomTransformIndex] = TetName;
+				
 								// set transform to geometry and geometry to transform mappings
 								(*TransformToGroupIndex)[ToGeomTransformIndex] = GeomIndex;
 								(*ToGroupToTransformIndex)[GeomIndex] = ToGeomTransformIndex;
@@ -202,6 +206,16 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 								if ((*ToParentIndex)[ToGeomTransformIndex] != INDEX_NONE)
 								{
 									(*ToChildIndex)[(*ToParentIndex)[ToGeomTransformIndex]].Add(ToGeomTransformIndex);
+								}
+
+								if (ToGeomTransformIndex != INDEX_NONE)
+								{
+									int32 VertexEnd = (*ToVertexStart)[GeomIndex] + (*ToVertexCount)[GeomIndex];
+									FTransform3f ParentTransform = GeometryCollectionAlgo::GlobalMatrix3f(*ToTransform, *ToParentIndex, ToGeomTransformIndex);
+									for (int Vdx = (*ToVertexStart)[GeomIndex]; Vdx < VertexEnd; Vdx++)
+									{
+										(*ToVertex)[Vdx] = ParentTransform.InverseTransformPosition((*ToVertex)[Vdx]);
+									}
 								}
 							}
 						}
