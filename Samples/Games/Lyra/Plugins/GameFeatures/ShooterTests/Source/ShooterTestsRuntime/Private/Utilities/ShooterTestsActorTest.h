@@ -89,8 +89,6 @@ struct ShooterTestsActorBaseTest : public TTest<Derived, AsserterType>
 	FGameplayTag GameplayCueCharacterSpawnTag;
 };
 
-/// Class derived from ShooterTestsActorBaseTest to inherit map and player loading while extending functionality to test animations based on input actions.
-
 /**
  * Implementation of our base class used to share functionality of sharing a Pawn and a level for tests.
  * Inherits from `ShooterTestsActorBaseTest<Derived, AsserterType>` to provide us our testing functionality and to handle our initial World setup.
