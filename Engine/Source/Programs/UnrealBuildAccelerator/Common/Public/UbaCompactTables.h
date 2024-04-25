@@ -16,7 +16,7 @@ namespace uba
 	public:
 		enum Version : u8 { V0, V1 };
 
-		CompactPathTable(u64 reserveSize, Version version, u64 reservePathCount = 0, u64 reserveSegmentCount = 0);
+		CompactPathTable(u64 reserveSize, Version version, bool caseSensitive, u64 reservePathCount = 0, u64 reserveSegmentCount = 0);
 
 		u32 Add(const tchar* str, u64 strLen, u32* outRequiredCasTableSize = nullptr);
 		u32 AddNoLock(const tchar* str, u64 strLen);
@@ -40,6 +40,7 @@ namespace uba
 		UnorderedMap<StringKey, u32> m_segmentOffsets;
 		u64 m_reserveSize;
 		Version m_version;
+		bool m_caseInsensitive;
 	};
 
 	class CompactCasKeyTable

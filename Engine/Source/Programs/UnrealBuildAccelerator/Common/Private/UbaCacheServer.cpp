@@ -10,7 +10,9 @@
 
 namespace uba
 {
-	static constexpr u32 CacheFileVersion = 1;
+	static constexpr u32 CacheFileVersion = 2;
+
+	bool IsCaseInsensitive(u64 id) { return (id & (1ull << 32)) == 0; }
 
 	struct CacheServer::CacheEntry
 	{
@@ -21,17 +23,18 @@ namespace uba
 
 	struct CacheServer::ConnectionBucket
 	{
-		ConnectionBucket() : pathTable(CachePathTableMaxSize, CompactPathTable::V1), casKeyTable(CacheCasKeyTableMaxSize) {}
+		ConnectionBucket(u64 i) : pathTable(CachePathTableMaxSize, CompactPathTable::V1, IsCaseInsensitive(i)), casKeyTable(CacheCasKeyTableMaxSize), id(i) {}
 		CompactPathTable pathTable;
 		CompactCasKeyTable casKeyTable;
 
 		ReaderWriterLock cacheEntryLookupLock;
 		UnorderedMap<CasKey, CacheEntry> cacheEntryLookup;
+		u64 id;
 	};
 
 	struct CacheServer::Connection
 	{
-		UnorderedMap<u32, ConnectionBucket> buckets;
+		UnorderedMap<u64, ConnectionBucket> buckets;
 	};
 
 	struct CacheServer::CacheEntries
@@ -42,7 +45,7 @@ namespace uba
 
 	struct CacheServer::Bucket
 	{
-		Bucket() : m_pathTable(CachePathTableMaxSize, CompactPathTable::V1), m_casKeyTable(CacheCasKeyTableMaxSize) {}
+		Bucket(u64 id) : m_pathTable(CachePathTableMaxSize, CompactPathTable::V1, IsCaseInsensitive(id)), m_casKeyTable(CacheCasKeyTableMaxSize) {}
 		ReaderWriterLock m_cacheEntryLookupLock;
 		UnorderedMap<CasKey, CacheEntries> m_cacheEntryLookup;
 
@@ -120,8 +123,8 @@ namespace uba
 		u32 bucketCount = reader.ReadU32();
 		while (bucketCount--)
 		{
-			u32 bucketId = reader.ReadU32();
-			Bucket& bucket = m_buckets[bucketId];
+			u64 id = reader.ReadU64();
+			Bucket& bucket = m_buckets.try_emplace(id, id).first->second;
 
 			u32 pathTableSize = reader.ReadU32();
 			if (pathTableSize)
@@ -631,6 +634,22 @@ namespace uba
 		lock.Leave();
 	}
 
+	CacheServer::ConnectionBucket& CacheServer::GetConnectionBucket(const ConnectionInfo& connectionInfo, BinaryReader& reader)
+	{
+		u64 id = reader.Read7BitEncoded();
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
+		auto& connection = m_connections[connectionInfo.GetId()];
+		return connection.buckets.try_emplace(id, id).first->second;
+	}
+
+	CacheServer::Bucket& CacheServer::GetBucket(BinaryReader& reader)
+	{
+		u64 id = reader.Read7BitEncoded();
+		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+		return m_buckets.try_emplace(id, id).first->second;
+		
+	}
+
 	bool CacheServer::HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
 	{
 		switch (messageType)
@@ -642,53 +661,36 @@ namespace uba
 				return m_logger.Error(TC("Different network versions. Client: %u, Server: %u. Disconnecting"), clientVersion, CacheNetworkVersion);
 			SCOPED_READ_LOCK(m_maintenanceLock, lock);
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
-			m_connections[connectionInfo.GetId()];
+			m_connections.try_emplace(connectionInfo.GetId());
 			return true;
 		}
 		case CacheMessageType_StorePathTable:
 		{
-			u32 bucketId = u32(reader.Read7BitEncoded());
-			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-			auto& connection = m_connections[connectionInfo.GetId()];
-			auto& connectionBucket = connection.buckets[bucketId];
-			lock.Leave();
-			connectionBucket.pathTable.ReadMem(reader, false);
+			GetConnectionBucket(connectionInfo, reader).pathTable.ReadMem(reader, false);
 			return true;
 		}
 		case CacheMessageType_StoreCasTable:
 		{
-			u32 bucketId = u32(reader.Read7BitEncoded());
-			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-			auto& connection = m_connections[connectionInfo.GetId()];
-			auto& connectionBucket = connection.buckets[bucketId];
-			lock.Leave();
-			connectionBucket.casKeyTable.ReadMem(reader, false);
+			GetConnectionBucket(connectionInfo, reader).casKeyTable.ReadMem(reader, false);
 			return true;
 		}
 		case CacheMessageType_StoreEntry:
 		{
-			u32 bucketId = u32(reader.Read7BitEncoded());
-			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-			auto& connection = m_connections[connectionInfo.GetId()];
-			auto& connectionBucket = connection.buckets[bucketId];
-			lock.Leave();
-			return HandleStoreEntry(bucketId, connectionBucket, reader, writer);
+			auto& bucket = GetConnectionBucket(connectionInfo, reader);
+			return HandleStoreEntry(bucket, reader, writer);
 		}
 		case CacheMessageType_StoreEntryDone:
 		{
-			u32 bucketId = u32(reader.Read7BitEncoded());
-			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-			auto& connection = m_connections[connectionInfo.GetId()];
-			auto& connectionBucket = connection.buckets[bucketId];
-			lock.Leave();
+			auto& connectionBucket = GetConnectionBucket(connectionInfo, reader);
 			CasKey cmdKey = reader.ReadCasKey();
 
 			SCOPED_WRITE_LOCK(connectionBucket.cacheEntryLookupLock, lock2);
 			auto findIt = connectionBucket.cacheEntryLookup.find(cmdKey);
 			if (findIt != connectionBucket.cacheEntryLookup.end())
 			{
+				u64 id = connectionBucket.id;
 				SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
-				Bucket& bucket = m_buckets[bucketId];
+				Bucket& bucket = m_buckets.try_emplace(id, id).first->second;
 				bucketsLock.Leave();
 
 				SCOPED_WRITE_LOCK(bucket.m_cacheEntryLookupLock, lock3);
@@ -720,7 +722,7 @@ namespace uba
 		}
 	}
 
-	bool CacheServer::HandleStoreEntry(u32 bucketId, ConnectionBucket& connectionBucket, BinaryReader& reader, BinaryWriter& writer)
+	bool CacheServer::HandleStoreEntry(ConnectionBucket& connectionBucket, BinaryReader& reader, BinaryWriter& writer)
 	{
 		CasKey cmdKey = reader.ReadCasKey();
 
@@ -731,9 +733,9 @@ namespace uba
 		u64 bytesForInput = 0;
 
 		u64 outputStartOffset = reader.GetPosition();
-
+		u64 id = connectionBucket.id;
 		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
-		Bucket& bucket = m_buckets[bucketId];
+		Bucket& bucket = m_buckets.try_emplace(id, id).first->second;
 		bucketsLock.Leave();
 
 		while (reader.GetLeft())
@@ -901,12 +903,7 @@ namespace uba
 
 	bool CacheServer::HandleFetchPathTable(BinaryReader& reader, BinaryWriter& writer)
 	{
-		u32 bucketId = u32(reader.Read7BitEncoded());
-
-		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
-		Bucket& bucket = m_buckets[bucketId];
-		bucketsLock.Leave();
-
+		Bucket& bucket = GetBucket(reader);
 		u32 haveSize = reader.ReadU32();
 		u32 size = bucket.m_pathTable.GetSize();
 		writer.WriteU32(size);
@@ -917,12 +914,7 @@ namespace uba
 
 	bool CacheServer::HandleFetchCasTable(BinaryReader& reader, BinaryWriter& writer)
 	{
-		u32 bucketId = u32(reader.Read7BitEncoded());
-
-		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
-		Bucket& bucket = m_buckets[bucketId];
-		bucketsLock.Leave();
-
+		Bucket& bucket = GetBucket(reader);
 		u32 haveSize = reader.ReadU32();
 		u32 size = bucket.m_casKeyTable.GetSize();
 		writer.WriteU32(size);
@@ -933,12 +925,7 @@ namespace uba
 
 	bool CacheServer::HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer)
 	{
-		u32 bucketId = u32(reader.Read7BitEncoded());
-
-		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
-		Bucket& bucket = m_buckets[bucketId];
-		bucketsLock.Leave();
-
+		Bucket& bucket = GetBucket(reader);
 		CasKey cmdKey = reader.ReadCasKey();
 
 		u16& entryCount = *(u16*)writer.AllocWrite(2);

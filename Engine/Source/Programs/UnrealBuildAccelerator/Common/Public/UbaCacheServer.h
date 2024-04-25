@@ -30,8 +30,15 @@ namespace uba
 
 		struct Connection;
 		struct ConnectionBucket;
+		struct CacheEntry;
+		struct CacheEntries;
+		struct Bucket;
+
+		ConnectionBucket& GetConnectionBucket(const ConnectionInfo& connectionInfo, BinaryReader& reader);
+		Bucket& GetBucket(BinaryReader& reader);
+
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
-		bool HandleStoreEntry(u32 bucketId, ConnectionBucket& bucket, BinaryReader& reader, BinaryWriter& writer);
+		bool HandleStoreEntry(ConnectionBucket& bucket, BinaryReader& reader, BinaryWriter& writer);
 		bool HandleFetchPathTable(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleFetchCasTable(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer);
@@ -46,12 +53,8 @@ namespace uba
 		ReaderWriterLock m_maintenanceLock;
 		Atomic<u32> m_addsSinceMaintenance;
 
-		struct CacheEntry;
-		struct CacheEntries;
-		struct Bucket;
-
 		ReaderWriterLock m_bucketsLock;
-		Map<u32, Bucket> m_buckets;
+		Map<u64, Bucket> m_buckets;
 
 		ReaderWriterLock m_connectionsLock;
 		Map<u32, Connection> m_connections;

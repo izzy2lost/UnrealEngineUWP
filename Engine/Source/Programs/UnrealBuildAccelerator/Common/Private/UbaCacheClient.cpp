@@ -15,13 +15,15 @@
 
 namespace uba
 {
+	u64 MakeId(u32 bucketId) { return u64(bucketId) | (u64(!CaseInsensitiveFs) << 32); }
+
 	struct CacheClient::Bucket
 	{
 		Bucket(u32 id_)
 		:	id(id_)
-		,	serverPathTable(CachePathTableMaxSize, CompactPathTable::V1)
+		,	serverPathTable(CachePathTableMaxSize, CompactPathTable::V1, CaseInsensitiveFs)
 		,	serverCasKeyTable(CacheCasKeyTableMaxSize)
-		,	sendPathTable(CachePathTableMaxSize, CompactPathTable::V1)
+		,	sendPathTable(CachePathTableMaxSize, CompactPathTable::V1, CaseInsensitiveFs)
 		,	sendCasKeyTable(CacheCasKeyTableMaxSize)
 		{
 		}
@@ -300,7 +302,7 @@ namespace uba
 			// Fetch entries.. server will provide as many as fits. TODO: Should it be possible to ask for more entries?
 			StackBinaryWriter<32> writer;
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchEntries, writer);
-			writer.Write7BitEncoded(bucket.id);
+			writer.Write7BitEncoded(MakeId(bucket.id));
 			writer.WriteCasKey(cmdKey);
 			if (!msg.Send(reader))
 				return false;
@@ -508,7 +510,7 @@ namespace uba
 		{
 			StackBinaryWriter<SendMaxSize> writer;
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StorePathTable, writer);
-			writer.Write7BitEncoded(bucket.id);
+			writer.Write7BitEncoded(MakeId(bucket.id));
 			u32 toSend = Min(requiredPathTableSize - bucket.pathTableSizeSent, u32(m_client.GetMessageMaxSize() - 32));
 			left -= toSend;
 			writer.WriteBytes(bucket.sendPathTable.GetMemory() + bucket.pathTableSizeSent, toSend);
@@ -532,7 +534,7 @@ namespace uba
 		{
 			StackBinaryWriter<SendMaxSize> writer;
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreCasTable, writer);
-			writer.Write7BitEncoded(bucket.id);
+			writer.Write7BitEncoded(MakeId(bucket.id));
 			u32 toSend = Min(requiredCasTableSize - bucket.casKeyTableSizeSent, u32(m_client.GetMessageMaxSize() - 32));
 			left -= toSend;
 			writer.WriteBytes(bucket.sendCasKeyTable.GetMemory() + bucket.casKeyTableSizeSent, toSend);
@@ -552,7 +554,7 @@ namespace uba
 			StackBinaryWriter<SendMaxSize> writer;
 
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreEntry, writer);
-			writer.Write7BitEncoded(bucket.id);
+			writer.Write7BitEncoded(MakeId(bucket.id));
 			writer.WriteCasKey(cmdKey);
 
 			writer.Write7BitEncoded(outputsStringToCasKey.size());
@@ -666,7 +668,7 @@ namespace uba
 		// Send done.. confirm to server
 		StackBinaryWriter<SendMaxSize> writer;
 		NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreEntryDone, writer);
-		writer.Write7BitEncoded(bucket.id);
+		writer.Write7BitEncoded(MakeId(bucket.id));
 		writer.WriteCasKey(cmdKey);
 		if (!msg.Send(reader))
 			return false;
@@ -690,7 +692,7 @@ namespace uba
 			{
 				StackBinaryWriter<16> writer;
 				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchCasTable, writer);
-				writer.Write7BitEncoded(bucket.id);
+				writer.Write7BitEncoded(MakeId(bucket.id));
 				writer.WriteU32(bucket.serverCasKeyTable.GetSize());
 
 				reader.Reset();
@@ -709,7 +711,7 @@ namespace uba
 			{
 				StackBinaryWriter<16> writer;
 				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchPathTable, writer);
-				writer.Write7BitEncoded(bucket.id);
+				writer.Write7BitEncoded(MakeId(bucket.id));
 				writer.WriteU32(bucket.serverPathTable.GetSize());
 
 				reader.Reset();

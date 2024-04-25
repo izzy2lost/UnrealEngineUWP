@@ -5,14 +5,15 @@
 
 namespace uba
 {
-	CompactPathTable::CompactPathTable(u64 reserveSize, Version version, u64 reservePathCount, u64 reserveSegmentCount)
+	CompactPathTable::CompactPathTable(u64 reserveSize, Version version, bool caseInsensitive, u64 reservePathCount, u64 reserveSegmentCount)
+	:	m_reserveSize(reserveSize)
+	,	m_version(version)
+	,	m_caseInsensitive(caseInsensitive)
 	{
-		m_reserveSize = reserveSize;
 		if (reservePathCount)
 			m_offsets.reserve(reservePathCount);
 		if (reserveSegmentCount)
 			m_segmentOffsets.reserve(reserveSegmentCount);
-		m_version = version;
 	}
 
 	u32 CompactPathTable::Add(const tchar* str, u64 strLen, u32* outRequiredCasTableSize)
@@ -33,7 +34,7 @@ namespace uba
 
 		const tchar* stringKeyString = str;
 		StringBuffer<MaxPath> tempStringKeyStr;
-		if (CaseInsensitiveFs)
+		if (m_caseInsensitive)
 			stringKeyString = tempStringKeyStr.Append(str).MakeLower().data;
 
 		return InternalAdd(str, stringKeyString, strLen);
@@ -41,7 +42,7 @@ namespace uba
 
 	u32 CompactPathTable::InternalAdd(const tchar* str, const tchar* stringKeyString, u64 strLen)
 	{
-		StringKey key = ToStringKey(stringKeyString, strLen);
+		StringKey key = ToStringKeyNoCheck(stringKeyString, strLen);
 		auto insres = m_offsets.try_emplace(key);
 		if (!insres.second)
 			return insres.first->second;
@@ -206,7 +207,7 @@ namespace uba
 				reader2.SkipString();
 				StringBuffer<> str;
 				GetString(str, offset);
-				if (CaseInsensitiveFs)
+				if (m_caseInsensitive)
 					str.MakeLower();
 				m_offsets.try_emplace(ToStringKeyNoCheck(str.data, str.count), offset);
 			}
@@ -227,7 +228,7 @@ namespace uba
 				}
 				StringBuffer<> str;
 				GetString(str, offset);
-				if (CaseInsensitiveFs)
+				if (m_caseInsensitive)
 					str.MakeLower();
 				m_offsets.try_emplace(ToStringKeyNoCheck(str.data, str.count), offset);
 			}
