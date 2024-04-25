@@ -25,6 +25,7 @@ class SAudioMaterialMeter;
 class SAudioMeter;
 class UWorld;
 
+struct FAudioMaterialMeterStyle;
 
 /**
  * An audio meter widget.
@@ -160,8 +161,12 @@ namespace AudioWidgets
 		UE_DEPRECATED(5.4, "Use the FAudioMeter constructor that uses Audio::FDeviceId.")
 		FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); 
 		
-		//** OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus. , InbUseAudioMaterialWidget: Is the AudioMaterialWidgets used for analyzer visualization.*/
-		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr, bool InbUseAudioMaterialWidget = false); 
+		//** OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.*/
+		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); 
+
+		//** Constructs the Meter using AudioMaterialMeter with the given style. OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.
+		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const FAudioMaterialMeterStyle* AudioMaterialMeterStyle, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
+
 		~FAudioMeter();
 
 		UAudioBus* GetAudioBus() const;

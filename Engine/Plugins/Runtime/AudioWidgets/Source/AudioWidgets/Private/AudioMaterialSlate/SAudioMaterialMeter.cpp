@@ -3,7 +3,6 @@
 
 #include "AudioMaterialSlate/SAudioMaterialMeter.h"
 #include "AudioMaterialSlate/AudioMaterialMeter.h"
-#include "AudioWidgetsStyle.h"
 #include "Components/AudioComponent.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
@@ -21,11 +20,6 @@ void SAudioMaterialMeter::Construct(const FArguments& InArgs)
 
 	Style = InArgs._AudioMaterialMeterStyle;
 	MeterChannelInfoAttribute = InArgs._MeterChannelInfo;
-
-	if (!Cast<UWidget>(Owner))
-	{
-		Style = &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
-	}
 
 	ApplyNewMaterial();
 }

@@ -27,12 +27,6 @@ void SAudioMaterialSlider::Construct(const FArguments& InArgs)
 	OnValueChanged = InArgs._OnValueChanged;
 	OnValueCommitted = InArgs._OnValueCommitted;
 
-	//For now check if owner is not a widget -> use the default style.
-	if (!Cast<UWidget>(Owner))
-	{
-		AudioMaterialSliderStyle = &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialSliderStyle>("AudioMaterialSlider.Style");
-	}
-
 	ApplyNewMaterial();
 
 	if (InArgs._ValueAttribute.IsSet())

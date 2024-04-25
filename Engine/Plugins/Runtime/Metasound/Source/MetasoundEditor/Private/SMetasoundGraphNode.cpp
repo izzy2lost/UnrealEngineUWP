@@ -775,8 +775,12 @@ namespace Metasound
 						{
 							if (bUseAudioMaterialWidgets)
 							{
+								const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+								check(EditorSettings)
+
 								SAssignNew(InputWidget, SAudioMaterialLabeledSlider)
 									.Owner(GraphMember->GetOwningGraph())
+									.Style(EditorSettings->GetSliderStyle())
 									.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
 									.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
 									.OnValueChanged_Lambda(OnValueChangedLambda)
@@ -899,12 +903,12 @@ namespace Metasound
 
 							if (bUseAudioMaterialWidgets)
 							{
-								const UMetasoundEditorSettings* MetasoundSettings = GetDefault<UMetasoundEditorSettings>();
-								check(MetasoundSettings)
+								const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+								check(EditorSettings)
 
 								SAssignNew(InputWidget, SAudioMaterialLabeledKnob)
 									.Owner(GraphMember->GetOwningGraph())
-									.Style(MetasoundSettings->GetKnobStyle())
+									.Style(EditorSettings->GetKnobStyle())
 									.OnValueChanged_Lambda(OnValueChangedLambda)
 									.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
 									.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
@@ -1043,6 +1047,15 @@ namespace Metasound
 										}
 									};
 
+								const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+								check(EditorSettings)
+
+									SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
+									.AudioMaterialButtonStyle(EditorSettings->GetButtonStyle())
+									.OnBooleanValueChanged_Lambda(OnboolValueChangedLambda)
+									.OnMouseCaptureEnd_Lambda(OnboolMouseCaptureEndLambda)
+									.bIsPressedAttribute(DefaultBool->GetDefault());
+
 								SAssignNew(OuterContentBox, SVerticalBox)
 									+ SVerticalBox::Slot()
 									.HAlign(HAlign_Right)
@@ -1057,10 +1070,7 @@ namespace Metasound
 									.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
 									.AutoHeight()
 									[
-										SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
-											.OnBooleanValueChanged_Lambda(OnboolValueChangedLambda)
-											.OnMouseCaptureEnd_Lambda(OnboolMouseCaptureEndLambda)
-											.bIsPressedAttribute(DefaultBool->GetDefault())
+										MaterialButtonWidget.ToSharedRef()										
 									];
 
 								MaterialButtonWidget->SetDesiredSizeOverride(ButtonDesiredSize);

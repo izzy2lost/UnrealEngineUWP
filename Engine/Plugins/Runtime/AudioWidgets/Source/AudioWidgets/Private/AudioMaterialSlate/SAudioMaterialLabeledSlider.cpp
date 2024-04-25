@@ -40,6 +40,7 @@ void SAudioMaterialLabeledSlider::Construct(const SAudioMaterialLabeledSlider::F
 	SAssignNew(Slider, SAudioMaterialSlider)
 		.ValueAttribute(SliderValueAttribute.Get())
 		.Owner(InArgs._Owner)
+		.AudioMaterialSliderStyle(Style)
 		.Orientation(Orientation.Get())
 		.OnValueChanged_Lambda([this](float Value)
 		{

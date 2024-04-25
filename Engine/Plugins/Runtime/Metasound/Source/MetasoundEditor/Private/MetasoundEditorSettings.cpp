@@ -45,3 +45,42 @@ const FAudioMaterialKnobStyle* UMetasoundEditorSettings::GetKnobStyle() const
 
 	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialKnobStyle>("AudioMaterialKnob.Style");
 }
+
+const FAudioMaterialSliderStyle* UMetasoundEditorSettings::GetSliderStyle() const
+{
+	if (const UObject* Style = SliderStyleOverride.TryLoad())
+	{
+		if (const USlateWidgetStyleAsset* SlateWidgetStyleAsset = CastChecked<USlateWidgetStyleAsset>(Style))
+		{
+			return SlateWidgetStyleAsset->GetStyle<FAudioMaterialSliderStyle>();
+		}
+	}
+
+	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialSliderStyle>("AudioMaterialSlider.Style");
+}
+
+const FAudioMaterialButtonStyle* UMetasoundEditorSettings::GetButtonStyle() const
+{
+	if (const UObject* Style = ButtonStyleOverride.TryLoad())
+	{
+		if (const USlateWidgetStyleAsset* SlateWidgetStyleAsset = CastChecked<USlateWidgetStyleAsset>(Style))
+		{
+			return SlateWidgetStyleAsset->GetStyle<FAudioMaterialButtonStyle>();
+		}
+	}
+
+	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialButtonStyle>("AudioMaterialButton.Style");
+}
+
+const FAudioMaterialMeterStyle* UMetasoundEditorSettings::GetMeterStyle() const
+{
+	if (const UObject* Style = MeterStyleOverride.TryLoad())
+	{
+		if (const USlateWidgetStyleAsset* SlateWidgetStyleAsset = CastChecked<USlateWidgetStyleAsset>(Style))
+		{
+			return SlateWidgetStyleAsset->GetStyle<FAudioMaterialMeterStyle>();
+		}
+	}
+
+	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
+}

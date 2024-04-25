@@ -1256,13 +1256,18 @@ namespace Metasound
 
 					if (!OutputMeter.IsValid())
 					{
-						bool bUseAudioMaterialWidgets = false;
-						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
-						{
-							bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
-						}
+						const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+						check(EditorSettings)
+						const bool bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
 
-						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, nullptr, bUseAudioMaterialWidgets);
+						if (bUseAudioMaterialWidgets)
+						{										
+							OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, EditorSettings->GetMeterStyle(), nullptr);
+						}						
+						else
+						{
+							OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, nullptr);
+						}
 					}
 					else if (OutputMeter->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)
 					{

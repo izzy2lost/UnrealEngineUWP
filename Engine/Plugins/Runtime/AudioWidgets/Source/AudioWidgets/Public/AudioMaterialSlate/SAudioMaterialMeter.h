@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "AudioMaterialSlateTypes.h"
 #include "AudioMeterTypes.h"
+#include "AudioWidgetsStyle.h"
 #include "Framework/SlateDelegates.h"
 #include "SAudioMeter.h"
 #include "Styling/ISlateStyle.h"
@@ -21,6 +22,7 @@ class AUDIOWIDGETS_API SAudioMaterialMeter : public SAudioMeterBase
 public:
 	SLATE_BEGIN_ARGS(SAudioMaterialMeter)
 	: _Orientation(EOrientation::Orient_Vertical)
+	, _AudioMaterialMeterStyle(&FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style"))
 	{}
 
 	/** The meter's orientation. */

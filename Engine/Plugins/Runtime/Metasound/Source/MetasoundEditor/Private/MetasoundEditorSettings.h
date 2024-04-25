@@ -11,6 +11,9 @@
 
 class USlateWidgetStyleAsset;
 struct FAudioMaterialKnobStyle;
+struct FAudioMaterialButtonStyle;
+struct FAudioMaterialSliderStyle;
+struct FAudioMaterialMeterStyle;
 
 UENUM()
 enum class EMetasoundActiveAnalyzerEnvelopeDirection : uint8
@@ -182,8 +185,30 @@ public:
 	
 	/**Override the Knob Style used in the Metasound Editor.*/
 	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Knob Style"))
-	FSoftObjectPath KnobStyleOverride;
+	FSoftObjectPath KnobStyleOverride;	
 	
-	/** Get the AudioMaterialKnob Style. if KnobStyleOverride is not set, returns default style.*/
-	const FAudioMaterialKnobStyle* GetKnobStyle() const;
+	/**Override the Slider Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Slider Style"))
+	FSoftObjectPath SliderStyleOverride;
+
+	/**Override the Button Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Button Style"))
+	FSoftObjectPath ButtonStyleOverride;	
+	
+	/**Override the Meter Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Meter Style"))
+	FSoftObjectPath MeterStyleOverride;	
+		
+	/** Get the AudioMaterialKnob Style. If KnobStyleOverride is not set, returns default style.*/
+	const FAudioMaterialKnobStyle* GetKnobStyle() const;	
+
+	/** Get the AudioMaterialSlider Style. If SliderStyleOverride is not set, returns default style.*/
+	const FAudioMaterialSliderStyle* GetSliderStyle() const;	
+	
+	/** Get the AudioMaterialButton Style. If ButtonStyleOverride is not set, returns default style.*/
+	const FAudioMaterialButtonStyle* GetButtonStyle() const;	
+	
+	/** Get the AudioMaterialMeter Style. If MeterStyleOverride is not set, returns default style.*/
+	const FAudioMaterialMeterStyle* GetMeterStyle() const;
+
 };
