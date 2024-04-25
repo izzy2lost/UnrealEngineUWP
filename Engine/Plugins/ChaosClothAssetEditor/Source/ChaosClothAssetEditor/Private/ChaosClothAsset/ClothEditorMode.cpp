@@ -1214,6 +1214,9 @@ void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 	if (bDynamicMeshComponentInitDeferred)
 	{
 		ReinitializeDynamicMeshComponents();
+
+		// The first time we get a valid mesh, refocus the camera on it
+		FirstTimeFocusRestSpaceViewport();
 	}
 
 	if (PreviewScene->GetWorld())
