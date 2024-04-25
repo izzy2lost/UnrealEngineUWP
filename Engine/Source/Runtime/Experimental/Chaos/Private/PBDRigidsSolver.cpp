@@ -1459,7 +1459,7 @@ namespace Chaos
 
 		GetEvolution()->GetBroadPhase().GetIgnoreCollisionManager().PushProducerStorageData_External(MarshallingManager.GetExternalTimestamp_External());
 
-		if (ShouldApplyRewindCallbacks() && !IsShuttingDown())
+		if (MRewindCallback && !IsShuttingDown())
 		{
 			MRewindCallback->InjectInputs_External(MarshallingManager.GetInternalStep_External(), NumSteps);
 		}
@@ -1861,16 +1861,16 @@ namespace Chaos
 			SimCallbackObject->PostInitialize_Internal();
 		}
 
-		if (MRewindCallback && MRewindData && !IsShuttingDown())
+		if (MRewindCallback && !IsShuttingDown())
 		{
-			MRewindCallback->ProcessInputs_Internal(MRewindData->CurrentFrame(), PushData.SimCallbackInputs);
+			MRewindCallback->ProcessInputs_Internal(GetCurrentFrame(), PushData.SimCallbackInputs);
 		}
 	}
 
 	void FPBDRigidsSolver::ConditionalApplyRewind_Internal()
 	{
 		// Note: checking MRewindData->IsResim() can lead to recursion into this function on the last resim frame since the call to AdvanceSolver is what advances RewindData's internal frame
-		if(!IsShuttingDown() && ShouldApplyRewindCallbacks() && MRewindData && !GetEvolution()->IsResimming())
+		if(!IsShuttingDown() && ShouldApplyRewindCallbacks() && !GetEvolution()->IsResimming())
 		{
 			const int32 LastStep = MRewindData->CurrentFrame() - 1;
 			const int32 ResimStep = MRewindCallback->TriggerRewindIfNeeded_Internal(LastStep);

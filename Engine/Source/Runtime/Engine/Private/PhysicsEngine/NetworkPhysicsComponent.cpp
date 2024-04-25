@@ -1139,6 +1139,13 @@ int32 UNetworkPhysicsComponent::SetupRewindData()
 {
 	int32 NumFrames = UPhysicsSettings::Get()->GetPhysicsHistoryCount();
 
+	AActor* Owner = GetOwner();
+	// Don't let this actor initialize RewindData if the actor is not using resimulation
+	if (Owner && Owner->GetPhysicsReplicationMode() != EPhysicsReplicationMode::Resimulation)
+	{
+		return NumFrames;
+	}
+
 	if (FPhysScene* PhysScene = GetWorld()->GetPhysicsScene())
 	{
 		if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())

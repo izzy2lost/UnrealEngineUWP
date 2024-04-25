@@ -496,7 +496,7 @@ namespace Chaos
 
 		while(FPushPhysicsData* PushData = MarshallingManager.StepInternalTime_External())
 		{
-			if(ShouldApplyRewindCallbacks() && !bIsShuttingDown)
+			if(MRewindCallback && !bIsShuttingDown)
 			{
 				MRewindCallback->ProcessInputs_External(PushData->InternalStep, PushData->SimCallbackInputs);
 			}
