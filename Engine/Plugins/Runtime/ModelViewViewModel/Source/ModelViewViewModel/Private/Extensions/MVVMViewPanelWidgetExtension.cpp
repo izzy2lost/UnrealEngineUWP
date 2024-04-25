@@ -188,7 +188,7 @@ void UMVVMViewPanelWidgetExtension::ReplaceAllSlots(TArrayView<TTuple<UPanelSlot
 		const int32 MinSlotNum = FMath::Min(OldSlotsNum, NewSlotsNum);
 
 		// as long as we're within the boundaries of both arrays, compare and replace elements
-		for (int32 SlotIndex = 0; SlotIndex < MinSlotNum; SlotIndex++)
+		for (int32 SlotIndex = MinSlotNum - 1; SlotIndex >= 0; --SlotIndex)
 		{
 			if (OldSlots[SlotIndex] != NewSlots[SlotIndex].Key)
 			{
