@@ -719,6 +719,9 @@ private:
 	/** Called by STreeView when the user double-clicks on an item in the tree */
 	void OnOutlinerTreeDoubleClick( FSceneOutlinerTreeItemPtr TreeItem );
 
+	/** Called by STreeView when the user single-clicks on an item in the tree */
+	void OnOutlinerTreeSingleClick( FSceneOutlinerTreeItemPtr TreeItem ) const;
+
 	/** Called by STreeView when an item is scrolled into view */
 	void OnOutlinerTreeItemScrolledIntoView( FSceneOutlinerTreeItemPtr TreeItem, const TSharedPtr<ITableRow>& Widget );
 

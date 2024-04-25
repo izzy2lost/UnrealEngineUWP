@@ -72,6 +72,8 @@ public:
 	virtual void OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection) {}
 	/** Called by the outliner when a tree item is double clicked */
 	virtual void OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item) {}
+	/** Called by the outliner when a tree item is single-clicked */
+	virtual void OnItemClicked(FSceneOutlinerTreeItemPtr Item) {}
 	/** Called by the outliner when search box text is changed */
 	virtual void OnFilterTextChanged(const FText& InFilterText) {}
 	/** Called by the outliner when search box text is committed (by pressing enter) */

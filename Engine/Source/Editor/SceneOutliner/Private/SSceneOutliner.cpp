@@ -276,6 +276,9 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 			// Called when the user double-clicks with LMB on an item in the list
 			.OnMouseButtonDoubleClick( this, &SSceneOutliner::OnOutlinerTreeDoubleClick )
 
+			// Called when the user single-clicks with LMB on an item in the list
+			.OnMouseButtonClick( this, &SSceneOutliner::OnOutlinerTreeSingleClick )
+
 			// Called when an item is scrolled into view
 			.OnItemScrolledIntoView( this, &SSceneOutliner::OnOutlinerTreeItemScrolledIntoView )
 
@@ -1970,6 +1973,11 @@ void SSceneOutliner::OnOutlinerTreeDoubleClick( FSceneOutlinerTreeItemPtr TreeIt
 	Mode->OnItemDoubleClick(TreeItem);
 
 	OnDoubleClickOnTreeEvent.Broadcast(TreeItem);
+}
+
+void SSceneOutliner::OnOutlinerTreeSingleClick(FSceneOutlinerTreeItemPtr TreeItem) const
+{
+	Mode->OnItemClicked(TreeItem);
 }
 
 void SSceneOutliner::OnOutlinerTreeItemScrolledIntoView( FSceneOutlinerTreeItemPtr TreeItem, const TSharedPtr<ITableRow>& Widget )
