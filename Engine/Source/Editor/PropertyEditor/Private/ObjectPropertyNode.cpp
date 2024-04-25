@@ -415,7 +415,7 @@ bool FObjectPropertyNode::GetReadAddressUncached(const FPropertyNode& InNode,
  * @param InItem		The property to get objects from.
  * @param OutAddresses	Storage array for all of the objects' addresses.
  */
-bool FObjectPropertyNode::GetReadAddressUncached(const FPropertyNode& InNode, FReadAddressListData& OutAddresses ) const
+bool FObjectPropertyNode::GetReadAddressUncached(const FPropertyNode& InPropertyNode, FReadAddressListData& OutAddresses ) const
 {
 	// Are any objects selected for property editing?
 	if( !GetNumObjects())
@@ -423,7 +423,7 @@ bool FObjectPropertyNode::GetReadAddressUncached(const FPropertyNode& InNode, FR
 		return false;
 	}
 
-	const FProperty* InItemProperty = InNode.GetProperty();
+	const FProperty* InItemProperty = InPropertyNode.GetProperty();
 	// Is there a InItemProperty bound to the InItemProperty window?
 	if( !InItemProperty )
 	{
@@ -437,7 +437,39 @@ bool FObjectPropertyNode::GetReadAddressUncached(const FPropertyNode& InNode, FR
 		const UObject* TempObject = GetUObject(ObjIndex);
 		if (TempObject != nullptr)
 		{
-			OutAddresses.Add(TempObject, InNode.GetValueBaseAddressFromObject(TempObject));
+			OutAddresses.Add(TempObject, InPropertyNode.GetValueBaseAddressFromObject(TempObject));
+		}
+	}
+
+	// Everything checked out and we have usable addresses.
+	return true;
+}
+
+bool FObjectPropertyNode::InternalGetReadAddressUncached(const FPropertyNode& InPropertyNode, FUncachedPropertyNodeAddresses& OutAddresses) const
+{
+	// Are any objects selected for property editing?
+	if( !GetNumObjects())
+	{
+		return false;
+	}
+
+	const FProperty* InItemProperty = InPropertyNode.GetProperty();
+	// Is there a InItemProperty bound to the InItemProperty window?
+	if( !InItemProperty )
+	{
+		return false;
+	}
+
+
+	// Write addresses to the output.
+	for (int32 ObjIndex = 0 ; ObjIndex < GetNumObjects() ; ++ObjIndex)
+	{
+		const UObject* TempObject = GetUObject(ObjIndex);
+		if (TempObject != nullptr)
+		{
+			uint8* Address = InPropertyNode.GetValueBaseAddressFromObject(TempObject);
+			constexpr bool bIsStruct = false;
+			OutAddresses.Emplace(FAddressPair(TempObject, Address, bIsStruct));
 		}
 	}
 
