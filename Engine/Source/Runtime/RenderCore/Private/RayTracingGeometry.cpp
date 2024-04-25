@@ -278,11 +278,11 @@ void FRayTracingGeometry::ReleaseResource()
 		RayTracingGeometryHandle = INDEX_NONE;
 	}
 
+	FRenderResource::ReleaseResource();
+
 	// Release any resource references held by the initializer.
 	// This includes index and vertex buffers used for building the BLAS.
 	Initializer = FRayTracingGeometryInitializer{};
-
-	FRenderResource::ReleaseResource();
 }
 
 void FRayTracingGeometry::BoostBuildPriority(float InBoostValue) const
