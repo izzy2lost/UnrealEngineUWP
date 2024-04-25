@@ -39,15 +39,20 @@ export const PreflightRedirector: React.FC = () => {
    // whether a template is specified
    const templateId = !query.get("templateId") ? "" : query.get("templateId")!;
 
-   const version = !query.get("version") ? "" : query.get("version")!;
+   // explicit version otherwise keys off there being parameters
+   let version = !query.get("version") ? "" : query.get("version")!;
 
-   const parameters:string[] = [];
+   const parameters: string[] = [];
 
    query.forEach((value, key) => {
       if (key.startsWith("id")) {
          parameters.push(`${key}=${value}`);
       }
    })
+
+   if (parameters.length) {
+      version = "2";
+   }
 
    if (!change) {
       setError("No preflight change specified");
@@ -68,14 +73,14 @@ export const PreflightRedirector: React.FC = () => {
 
    let stream = projectStore.streamByFullname(streamName);
 
-   if (!stream) {      
+   if (!stream) {
 
       stream = projectStore.streamById(streamName?.replace("//", "").replaceAll("/", "-").toLowerCase());
 
       if (!stream) {
-         stream = projectStore.streamByFullname(streamName + "-VS");   
-      }      
-      
+         stream = projectStore.streamByFullname(streamName + "-VS");
+      }
+
    }
 
    if (!stream) {

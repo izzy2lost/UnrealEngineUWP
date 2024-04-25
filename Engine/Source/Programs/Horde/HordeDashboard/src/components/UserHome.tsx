@@ -963,7 +963,7 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
       const view = labels.filter(a => {
          const idx = labels.indexOf(a)!;
-         if (!job.labels) {
+         if (idx === -1 || !job.labels?.length) {
             return false;
          }
          return job.labels[idx].state !== LabelState.Unspecified;
