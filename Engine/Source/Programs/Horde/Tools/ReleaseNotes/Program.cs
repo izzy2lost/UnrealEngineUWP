@@ -87,28 +87,29 @@ namespace CreateReleaseNotes
 				if (changeNumbers.Add(change.Number))
 				{
 					string description = change.Description;
-					if (!Regex.IsMatch(description, @"^\s*#rnx\s*$", RegexOptions.Multiline))
+
+					Match jiraMatch = Regex.Match(description, @"^\s*#jira ([a-zA-Z]+-[0-9]+.*)$");
+					string? jiraTicket = jiraMatch.Success ? jiraMatch.Groups[1].Value : null;
+
+					description = Regex.Replace(description, @"^[a-zA-Z]+:\s*", "");
+					description = Regex.Replace(description, @"^\s*#.*$", "", RegexOptions.Multiline);
+					description = Regex.Replace(description, @"\n\s*", "\n");
+					description = description.Trim();
+
+					if (!Regex.IsMatch(change.Description, @"^\s*#rnx\s*$", RegexOptions.Multiline))
 					{
-						Match jiraMatch = Regex.Match(description, @"^\s*#jira ([a-zA-Z]+-[0-9]+.*)$");
-						string? jiraTicket = jiraMatch.Success ? jiraMatch.Groups[1].Value : null;
-
-						description = Regex.Replace(description, @"^[a-zA-Z]+:\s*", "");
-						description = Regex.Replace(description, @"^\s*#.*$", "", RegexOptions.Multiline);
-						description = Regex.Replace(description, @"\n[^\n]*\n", "\n");
-						description = description.Trim();
-
 						parsedChanges.Add(new ChangeInfo(change.Number, description, jiraTicket));
-
-						string logDescription = description.Replace("\r", "", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal);
-
-						const int MaxDescriptionLength = 80;
-						if (logDescription.Length > MaxDescriptionLength)
-						{
-							logDescription = logDescription.Substring(0, MaxDescriptionLength);
-						}
-
-						logger.LogInformation("{Change}: {Description}", change.Number, logDescription);
 					}
+
+					string logDescription = Regex.Replace(description, @"\s+", " ");
+
+					const int MaxDescriptionLength = 80;
+					if (logDescription.Length > MaxDescriptionLength)
+					{
+						logDescription = logDescription.Substring(0, MaxDescriptionLength);
+					}
+
+					logger.LogInformation("{Change} {Author,-20} {Description}", change.Number, change.User.ToLower(), logDescription);
 				}
 			}
 
