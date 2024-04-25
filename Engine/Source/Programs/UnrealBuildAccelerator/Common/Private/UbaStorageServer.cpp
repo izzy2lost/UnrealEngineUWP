@@ -212,7 +212,8 @@ namespace uba
 		m_externalFileMappings.try_emplace(fileNameKey, ExternalFileMapping{mappingHandle, mappingOffset, fileSize});
 		externalFileLock.Leave();
 
-		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+		bool fileIsCompressed = false;
+		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 			return false;
 
 		return true;
@@ -239,7 +240,7 @@ namespace uba
 		u8* fileMem = MapViewOfFile(mapping.mappingHandle, FILE_MAP_READ, mapping.mappingOffset, mapping.fileSize);
 		UBA_ASSERT(fileMem);
 		auto memClose = MakeGuard([&](){ UnmapViewOfFile(fileMem, mapping.fileSize, from); });
-		return StorageImpl::WriteCompressed(out, from, InvalidFileHandle, fileMem, mapping.fileSize, toFile);
+		return StorageImpl::WriteCompressed(out, from, InvalidFileHandle, fileMem, mapping.fileSize, toFile, nullptr, 0);
 	}
 
 	bool StorageServer::IsDisallowedPath(const tchar* fileName)
@@ -434,7 +435,9 @@ namespace uba
 							return false;
 						}
 
-						if (!AddCasFile(hint.data, casKey, false))
+						bool deferCreation = false;
+						bool fileIsCompressed = false;
+						if (!AddCasFile(hint.data, casKey, deferCreation, fileIsCompressed))
 						{
 							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Can't add cas file to database"), CasKeyString(casKey).str, hint.data);
 							writer.WriteU16(0);

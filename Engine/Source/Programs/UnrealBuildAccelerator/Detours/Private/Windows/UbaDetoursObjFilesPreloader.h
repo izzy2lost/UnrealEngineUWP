@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "UbaCompressedObjFileHeader.h"
 #include "UbaDetoursUtilsWin.h"
 #include "UbaEvent.h"
 #include <oodle2.h>
@@ -175,8 +176,8 @@ namespace uba
 				if (!preload.objMem)
 					continue;
 				preload.objCompressedSize = objFileSize.QuadPart;
-				preload.objDecompressedSize = *(u64*)preload.objMem;
-				preload.objReadOffset = 8;
+				preload.objDecompressedSize = *(u64*)(preload.objMem + sizeof(CompressedObjFileHeader));
+				preload.objReadOffset = 8 + sizeof(CompressedObjFileHeader);
 				preload.objWriteOffset = 0;
 				preload.objLeft = preload.objDecompressedSize;
 				CloseHandle(objFileMappingHandle);
@@ -229,6 +230,7 @@ namespace uba
 				}
 
 				BinaryReader reader(preload.objMem, preload.objReadOffset, preload.objCompressedSize);
+
 				u32 compressedBlockSize = reader.ReadU32();
 				u32 decompressedBlockSize = reader.ReadU32();
 
@@ -241,7 +243,7 @@ namespace uba
 
 				OO_SINTa decompLen = OodleLZ_Decompress(reader.GetPositionData(), (OO_SINTa)compressedBlockSize, destMem, (OO_SINTa)decompressedBlockSize,
 					OodleLZ_FuzzSafe_Yes, OodleLZ_CheckCRC_No, OodleLZ_Verbosity_None, NULL, 0, NULL, NULL, decoderMem, decoredMemSize);
-				UBA_ASSERT(decompLen == decompressedBlockSize);(void)decompLen;
+				UBA_ASSERTF(decompLen == decompressedBlockSize, TC("Failed to decompress .obj file %s (%s)"), info.name, info.originalName);(void)decompLen;
 
 				bool isDone = preload.objLeft.fetch_sub(decompressedBlockSize) == decompressedBlockSize;
 				if (!isDone)

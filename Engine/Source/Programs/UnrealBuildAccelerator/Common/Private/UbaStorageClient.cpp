@@ -672,7 +672,7 @@ namespace uba
 		return true;
 	}
 
-	bool StorageClient::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation)
+	bool StorageClient::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation, bool fileIsCompressed)
 	{
 		UBA_ASSERTF(false, TC("This StoreCasFile function should not be used on the client side"));
 		return true;

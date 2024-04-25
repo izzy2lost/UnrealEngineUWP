@@ -54,10 +54,7 @@ namespace uba
 	public:
 		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
 		{
-			return EndsWith(file, fileLen, TC(".h.obj"))
-				|| EndsWith(file, fileLen, TC(".c.obj"))
-				|| EndsWith(file, fileLen, TC(".cc.obj"))
-				|| EndsWith(file, fileLen, TC(".cpp.obj"))
+			return EndsWith(file, fileLen, TC(".obj"))
 				|| EndsWith(file, fileLen, TC(".dep.json"))
 				|| EndsWith(file, fileLen, TC(".rc2.res")) // Not really an obj file.. 
 				;// || EndsWith(file, fileLen, TC(".h.pch") // Not tested enough

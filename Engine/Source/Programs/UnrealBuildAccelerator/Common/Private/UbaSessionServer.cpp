@@ -270,7 +270,8 @@ namespace uba
 				// Make sure cas entry exists and caskey is calculated (cas content creation is deferred in case client already has it)
 				CasKey casKey;
 				bool deferCreation = true;
-				if (!m_storage.StoreCasFile(casKey, fileName.data, CasKeyZero, deferCreation) || casKey == CasKeyZero)
+				bool fileIsCompressed = false;
+				if (!m_storage.StoreCasFile(casKey, fileName.data, CasKeyZero, deferCreation, fileIsCompressed) || casKey == CasKeyZero)
 					continue;
 
 				auto& ki = keys[keysIndex++];
@@ -383,7 +384,8 @@ namespace uba
 
 			CasKey casKey;
 			bool deferCreation = true;
-			if (!m_storage.StoreCasFile(casKey, path, CasKeyZero, deferCreation))
+			bool fileIsCompressed = false;
+			if (!m_storage.StoreCasFile(casKey, path, CasKeyZero, deferCreation, fileIsCompressed))
 				return false;
 			UBA_ASSERTF(casKey != CasKeyZero, TC("Failed to store cas for %s when calculating key for tracked inputs on %s"), path, fileName);
 			hasher.Update(&casKey, sizeof(CasKey));
@@ -583,14 +585,16 @@ namespace uba
 						if (!GetDirectoryOfCurrentModule(m_logger, dir))
 							return false;
 						u64 dirCount = dir.count;
+						bool deferCreation = true;
+						bool fileIsCompressed = false;
 						if (binAsVersion && m_agentBinaryKey == CasKeyZero)
 						{
 							UBA_ASSERT(IsWindows);
 							dir.Append(PathSeparator).Append(UBA_AGENT_EXECUTABLE);
-							m_storage.StoreCasFile(m_agentBinaryKey, dir.data, CasKeyZero, true);
+							m_storage.StoreCasFile(m_agentBinaryKey, dir.data, CasKeyZero, deferCreation, fileIsCompressed);
 						}
 						dir.Resize(dirCount).Append(PathSeparator).Append(UBA_DETOURS_LIBRARY);
-						if (!m_storage.StoreCasFile(m_detoursBinaryKey, dir.data, CasKeyZero, true))
+						if (!m_storage.StoreCasFile(m_detoursBinaryKey, dir.data, CasKeyZero, deferCreation, fileIsCompressed))
 							return m_logger.Error(TC("Failed to create cas for %s"), dir.data);
 						UBA_ASSERT(m_detoursBinaryKey != CasKeyZero);
 					}
@@ -1396,7 +1400,8 @@ namespace uba
 			}
 		}
 
-		if (!m_storage.StoreCasFile(out, fileName, casKeyOverride, deferCreation)) // We can defer the creation of the cas file since client might already have it
+		bool fileIsCompressed = false;
+		if (!m_storage.StoreCasFile(out, fileName, casKeyOverride, deferCreation, fileIsCompressed)) // We can defer the creation of the cas file since client might already have it
 			return false;
 
 		if (out != CasKeyZero)

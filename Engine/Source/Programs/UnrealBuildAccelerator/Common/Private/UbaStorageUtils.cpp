@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorageUtils.h"
+#include "UbaCompressedObjFileHeader.h"
 #include "UbaStorage.h"
 #include "UbaFileAccessor.h"
 #include "UbaStats.h"
@@ -401,7 +402,7 @@ namespace uba
 		return true;
 	}
 
-	bool FileFetcher::RetrieveFile(Logger& logger, NetworkClient& client, const CasKey& casKey, const tchar* destination, MemoryBlock* destinationMem)
+	bool FileFetcher::RetrieveFile(Logger& logger, NetworkClient& client, const CasKey& casKey, const tchar* destination, bool destinationIsCompressed, MemoryBlock* destinationMem)
 	{
 		u8* slot = m_bufferSlots.Pop();
 		auto sg = MakeGuard([&](){ m_bufferSlots.Push(slot); });
@@ -463,6 +464,22 @@ namespace uba
 			if (!destinationFile.CreateWrite(false, DefaultAttributes(), sizeOnDisk, m_tempPath.data))
 				return false;
 
+
+		auto WriteDestination = [&](const void* source, u64 sourceSize, u64 sourceOffset = 0)
+			{
+				if (!destinationMem)
+				{
+					if (!destinationFile.Write(source, sourceSize, sourceOffset))
+						return false;
+				}
+				else
+				{
+					void* mem = destinationMem->Allocate(sourceSize, 1, TC(""));
+					memcpy(mem, source, sourceSize);
+				}
+				return true;
+			};
+
 		//u8* writePos = writeMem;
 
 		// This is here just to prevent server from getting a million messages at the same time.
@@ -473,16 +490,40 @@ namespace uba
 			m_retrieveOneBatchAtTheTimeLock.EnterWrite();
 		auto oatg = MakeGuard([&]() { if (oneAtTheTime) m_retrieveOneBatchAtTheTimeLock.LeaveWrite(); });
 
+		u32 readIndex = 0;
 
-		bool sendSegmentMessage = responseSize == 0;
-		u64 leftUncompressed = actualSize;
-		readBuffer += sizeof(u64); // Size is stored first
-		u64 maxReadSize = BufferSlotHalfSize - sizeof(u64);
-
-		if (actualSize)
+		if (destinationIsCompressed)
 		{
+			CompressedObjFileHeader header { casKey };
+			if (!WriteDestination(&header, sizeof(header)))
+				return false;
+
+			if (!WriteDestination(readBuffer, responseSize))
+				return false;
+
 			u64 leftCompressed = fileSize - responseSize;
-			u32 readIndex = 0;
+			while (leftCompressed)
+			{
+				if (fetchId == u16(~0))
+					return logger.Error(TC("Cas content error (2). Server believes %s was only one segment but client sees more. "));//UncompressedSize: %llu LeftUncompressed: %llu Size: %llu Left to read: %llu ResponseSize: %u. (%s)"), destination, actualSize, leftUncompressed, fileSize, left, responseSize, CasKeyString(casKey).str);
+				if (!SendBatchMessages(logger, client, fetchId, slot, BufferSlotSize, leftCompressed, sizeOfFirstMessage, readIndex, responseSize))
+					return logger.Error(TC("Failed to send batched messages to server (%s)"), CasKeyString(casKey).str);
+
+				if (!WriteDestination(slot, responseSize))
+					return false;
+
+				leftCompressed -= responseSize;
+			}
+			actualSize = sizeof(header) + fileSize;
+		}
+		else if (actualSize)
+		{
+			bool sendSegmentMessage = responseSize == 0;
+			u64 leftUncompressed = actualSize;
+			readBuffer += sizeof(u64); // Size is stored first
+			u64 maxReadSize = BufferSlotHalfSize - sizeof(u64);
+
+			u64 leftCompressed = fileSize - responseSize;
 			do
 			{
 				// First read in a full decompressable block
@@ -561,16 +602,9 @@ namespace uba
 					if (decompLen != uncompressedSize)
 						return logger.Error(TC("Expected %u but got %i when decompressing %u bytes for file %s"), uncompressedSize, int(decompLen), compressedSize, destination);
 
-					if (!destinationMem)
-					{
-						if (!destinationFile.Write(decompressBuffer, uncompressedSize, actualSize - leftUncompressed))
-							return false;
-					}
-					else
-					{
-						void* mem = destinationMem->Allocate(uncompressedSize, 1, TC(""));
-						memcpy(mem, decompressBuffer, uncompressedSize);
-					}
+					if (!WriteDestination(decompressBuffer, uncompressedSize, actualSize - leftUncompressed))
+						return false;
+
 					leftUncompressed -= uncompressedSize;
 				}
 

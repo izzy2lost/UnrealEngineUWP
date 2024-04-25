@@ -2,6 +2,7 @@
 
 #include "UbaSession.h"
 #include "UbaBottleneck.h"
+#include "UbaCompressedObjFileHeader.h"
 #include "UbaFileAccessor.h"
 #include "UbaProcess.h"
 #include "UbaStorage.h"
@@ -9,6 +10,7 @@
 #include "UbaApplicationRules.h"
 #include "UbaPathUtils.h"
 #include "UbaProtocol.h"
+#include "UbaStorageUtils.h"
 #include "UbaWorkManager.h"
 
 #if PLATFORM_WINDOWS
@@ -2046,6 +2048,8 @@ namespace uba
 
 		auto writeFile = [&](WrittenFile& file)
 		{
+			bool shouldEvictFromMemory = IsRarelyReadAfterWritten(process, file.name.c_str(), file.name.size()) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold;
+
 			if (ShouldWriteToDisk(file.name.c_str(), file.name.size()))
 			{
 				// This is to kill I/O when writing lots of pdb/dlls in parallel
@@ -2074,8 +2078,11 @@ namespace uba
 				if (m_storeObjFilesCompressed && EndsWith(file.name.c_str(), file.name.size(), TC(".obj")))
 				{
 					Storage::WriteResult res;
-					if (!m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str()))
+					CompressedObjFileHeader header { CalculateCasKey(mem, fileSize, true, m_workManager) };
+
+					if (!m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str(), &header, sizeof(header)))
 						return false;
+					shouldEvictFromMemory = true;
 				}
 				else
 				{
@@ -2131,7 +2138,7 @@ namespace uba
 				uba::DeleteFileW(file.name.c_str());
 			}
 
-			if (IsRarelyReadAfterWritten(process, file.name.c_str(), file.name.size()) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold)
+			if (shouldEvictFromMemory)
 			{
 				m_workManager->AddWork([mh = file.mappingHandle]()
 					{

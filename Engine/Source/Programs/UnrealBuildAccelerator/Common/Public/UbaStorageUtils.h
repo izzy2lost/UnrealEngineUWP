@@ -35,7 +35,7 @@ namespace uba
 
 	struct FileFetcher
 	{
-		bool RetrieveFile(Logger& logger, NetworkClient& client, const CasKey& casKey, const tchar* destination, MemoryBlock* destinationMem = nullptr);
+		bool RetrieveFile(Logger& logger, NetworkClient& client, const CasKey& casKey, const tchar* destination, bool destinationIsCompressed, MemoryBlock* destinationMem = nullptr);
 
 		BufferSlots& m_bufferSlots;
 		StringBuffer<> m_tempPath;

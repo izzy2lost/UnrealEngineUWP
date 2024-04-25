@@ -2,6 +2,7 @@
 
 #include "UbaStorage.h"
 #include "UbaBottleneck.h"
+#include "UbaCompressedObjFileHeader.h"
 #include "UbaFileAccessor.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaDirectoryIterator.h"
@@ -234,10 +235,10 @@ namespace uba
 		if (!uba::GetFileSizeEx(fileSize, readHandle))
 			return m_logger.Error(TC("GetFileSize failed for %s (%s)"), from, LastErrorToText().data);
 
-		return WriteCompressed(out, from, readHandle, 0, fileSize, to);
+		return WriteCompressed(out, from, readHandle, 0, fileSize, to, nullptr, 0);
 	}
 
-	bool StorageImpl::WriteCompressed(WriteResult& out, const tchar* from, FileHandle readHandle, u8* readMem, u64 fileSize, const tchar* to)
+	bool StorageImpl::WriteCompressed(WriteResult& out, const tchar* from, FileHandle readHandle, u8* readMem, u64 fileSize, const tchar* to, const void* header, u64 headerSize)
 	{
 		StorageStats& stats = Stats();
 
@@ -251,6 +252,9 @@ namespace uba
 		FileAccessor destinationFile(m_logger, to);
 		if (!destinationFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 			return false;
+		if (headerSize)
+			if (!destinationFile.Write(header, headerSize))
+				return false;
 		if (!destinationFile.Write(&fileSize, sizeof(u64))) // Store file size first in compressed file
 			return false;
 #else
@@ -494,15 +498,18 @@ namespace uba
 		return true;
 	}
 
-	bool StorageImpl::WriteCasFileNoCheck(WriteResult& out, const tchar* fileName, const tchar* casFile, bool storeCompressed)
+	bool StorageImpl::WriteCasFileNoCheck(WriteResult& out, const tchar* fileName, bool fileIsCompressed, const tchar* casFile, bool storeCompressed)
 	{
-		if (storeCompressed)
+		if (storeCompressed && !fileIsCompressed)
 		{
 			if (!WriteCompressed(out, fileName, casFile))
 				return false;
 		}
 		else
 		{
+			if (!storeCompressed)
+				return m_logger.Error(TC("Write compressed file to uncompressed store not implemented"));
+
 			FileHandle readHandle;
 			if (!OpenFileSequentialRead(m_logger, fileName, readHandle))
 				return m_logger.Error(TC("Failed to open file %s for read (%s)"), fileName, LastErrorToText().data);
@@ -515,9 +522,18 @@ namespace uba
 			if (!destinationFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 				return false;
 
+			if (fileIsCompressed)
+			{
+				CompressedObjFileHeader header;
+				if (!ReadFile(m_logger, fileName, readHandle, &header, sizeof(header)))
+					return false;
+				fileSize -= sizeof(header);
+			}
+
 			u8* slot= m_bufferSlots.Pop();
 			auto _ = MakeGuard([&](){ m_bufferSlots.Push(slot); });
 			u64 left = fileSize;
+
 			while (left)
 			{
 				u32 toRead = u32(Min(left, BufferSlotSize));
@@ -538,7 +554,7 @@ namespace uba
 		return true;
 	}
 
-	bool StorageImpl::WriteCasFile(WriteResult& out, const tchar* fileName, const CasKey& casKey)
+	bool StorageImpl::WriteCasFile(WriteResult& out, const tchar* fileName, bool fileIsCompressed, const CasKey& casKey)
 	{
 		UBA_ASSERT(IsCompressed(casKey) == m_storeCompressed);
 		StringBuffer<> casFile;
@@ -551,7 +567,7 @@ namespace uba
 		//UBA_ASSERT(false);
 #endif
 
-		return WriteCasFileNoCheck(out, fileName, casFile.data, IsCompressed(casKey));
+		return WriteCasFileNoCheck(out, fileName, fileIsCompressed, casFile.data, IsCompressed(casKey));
 	}
 
 	void StorageImpl::CasEntryAccessed(const CasKey& casKey)
@@ -819,7 +835,7 @@ namespace uba
 	}
 
 
-	bool StorageImpl::AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation)
+	bool StorageImpl::AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation, bool fileIsCompressed)
 	{
 		UBA_ASSERTF(IsCompressed(casKey) == m_storeCompressed, TC("CasKey compress mode must match storage compress mode (%s)"), fileName);
 		SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
@@ -853,8 +869,10 @@ namespace uba
 			auto res = m_deferredCasCreationLookup.try_emplace(casKey);
 			if (res.second)
 			{
-				res.first->second = fileName;
-				auto res2 = m_deferredCasCreationLookupByName.try_emplace(res.first->second.c_str(), casKey);
+				DeferedCasCreation& dcc = res.first->second;
+				dcc.fileName = fileName;
+				dcc.fileIsCompressed = fileIsCompressed;
+				auto res2 = m_deferredCasCreationLookupByName.try_emplace(dcc.fileName.c_str(), casKey);
 				UBA_ASSERT(res2.second); (void)res2;
 			}
 			return true;
@@ -865,7 +883,7 @@ namespace uba
 
 		WriteResult res;
 #if !UBA_USE_SPARSEFILE
-		if (!WriteCasFileNoCheck(res, fileName, casFile.data, IsCompressed(casKey)))
+		if (!WriteCasFileNoCheck(res, fileName, fileIsCompressed, casFile.data, IsCompressed(casKey)))
 			return false;
 #else
 
@@ -1654,7 +1672,7 @@ namespace uba
 		return true;
 	}
 
-	bool StorageImpl::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation)
+	bool StorageImpl::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation, bool fileIsCompressed)
 	{
 		StringBuffer<> forKey;
 		forKey.Append(fileName);
@@ -1674,7 +1692,7 @@ namespace uba
 			if (fileEntry.casKey != CasKeyZero)
 			{
 				UBA_ASSERT(casKeyOverride == CasKeyZero || casKeyOverride == fileEntry.casKey);
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 			}
 			out = fileEntry.casKey;
@@ -1706,14 +1724,14 @@ namespace uba
 			if (casKeyOverride != CasKeyZero && casKeyOverride != fileEntry.casKey)
 			{
 				fileEntry.casKey = casKeyOverride;
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 				out = fileEntry.casKey;
 				return true;
 			}
 			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten)
 			{
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 				out = fileEntry.casKey;
 				return true;
@@ -1723,14 +1741,26 @@ namespace uba
 		fileEntry.size = fileSize;
 		fileEntry.lastWritten = lastWritten;
 		if (casKeyOverride == CasKeyZero)
-			fileEntry.casKey = CalculateCasKey(fileName, fileHandle, fileSize, m_storeCompressed);
+		{
+			if (fileIsCompressed)
+			{
+				CompressedObjFileHeader header;
+				if (!ReadFile(m_logger, fileName, fileHandle, &header, sizeof(header)))
+					return m_logger.Error(TC("Failed to read header of compressed file %s (%s)"), fileName, LastErrorToText().data);
+				fileEntry.casKey = AsCompressed(header.casKey, m_storeCompressed);
+			}
+			else
+			{
+				fileEntry.casKey = CalculateCasKey(fileName, fileHandle, fileSize, m_storeCompressed);
+			}
+		}
 		else
 			fileEntry.casKey = casKeyOverride;
 
 		if (fileEntry.casKey == CasKeyZero)
 			return false;
 
-		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 			return false;
 
 		out = fileEntry.casKey;
@@ -1765,12 +1795,13 @@ namespace uba
 		if (findIt == m_deferredCasCreationLookup.end())
 			return false;
 		casEntry.verified = true;
-		StringBuffer<> deferredCreation(findIt->second);
+		StringBuffer<> deferredCreation(findIt->second.fileName);
+		bool fileIsCompressed = findIt->second.fileIsCompressed;
 		m_deferredCasCreationLookupByName.erase(deferredCreation.data);
 		m_deferredCasCreationLookup.erase(findIt);
 		deferredLock.Leave();
 		WriteResult res;
-		if (!WriteCasFile(res, deferredCreation.data, casKey))
+		if (!WriteCasFile(res, deferredCreation.data, fileIsCompressed, casKey))
 			return false;
 #if UBA_USE_SPARSEFILE
 		casEntry.mappingHandle = res.mappingHandle;
@@ -1818,7 +1849,8 @@ namespace uba
 		if (!fileName)
 			return false;
 		WriteResult res;
-		if (!WriteCasFile(res, fileName, casKey))
+		bool fileIsCompressed = false; // TODO: This needs to be supported
+		if (!WriteCasFile(res, fileName, fileIsCompressed, casKey))
 			return false;
 		casEntry.exists = true;
 		entryLock.Leave();
@@ -2039,10 +2071,13 @@ namespace uba
 
 					if (writeCompressed)
 					{
+						// TODO: This should be more general.. send in header?
 						FileAccessor destinationFile(m_logger, destination);
-						if (!destinationFile.CreateMemoryWrite(false, fileAttributes, mappedView.size, m_tempPath.data))
+						if (!destinationFile.CreateMemoryWrite(false, fileAttributes, mappedView.size + sizeof(CompressedObjFileHeader), m_tempPath.data))
 							return false;
-						memcpy(destinationFile.GetData(), mappedView.memory, mappedView.size);
+						u8* mem = destinationFile.GetData();
+						*(CompressedObjFileHeader*)mem = { casKey };
+						memcpy(mem + sizeof(CompressedObjFileHeader), mappedView.memory, mappedView.size);
 						return destinationFile.Close();
 					}
 

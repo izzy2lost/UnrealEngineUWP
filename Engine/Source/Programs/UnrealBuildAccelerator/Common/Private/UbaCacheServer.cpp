@@ -1076,7 +1076,9 @@ namespace uba
 			return false;
 
 		CasKey key;
-		if (!m_storage.StoreCasFile(key, tempFile.data))
+		bool deferCreation = false;
+		bool fileIsCompressed = false;
+		if (!m_storage.StoreCasFile(key, tempFile.data, CasKeyZero, deferCreation, fileIsCompressed))
 			return false;
 
 		writer.WriteCasKey(key);

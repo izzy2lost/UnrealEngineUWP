@@ -520,7 +520,7 @@ extern "C"
 		if (!ctorSuccess)
 			return nullptr;
 		CacheClientCreateInfo info{writer, storage, *networkClient, *session};
-		info.reportMissReason = true;
+		//info.reportMissReason = true;
 		return new CacheClient(info);
 	}
 

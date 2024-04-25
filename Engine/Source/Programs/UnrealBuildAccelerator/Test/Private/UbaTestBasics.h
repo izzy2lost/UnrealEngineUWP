@@ -314,7 +314,7 @@ namespace uba
 	{
 		for (u32 i=0;i!=2; ++i)
 		{
-			CompactPathTable table(64*1024, CompactPathTable::Version(i));
+			CompactPathTable table(64*1024, CompactPathTable::Version(i), CaseInsensitiveFs);
 
 			StringBuffer<> str;
 			str.Append("foo").EnsureEndsWithSlash().Append("bar");
@@ -331,7 +331,7 @@ namespace uba
 			if (!str.Equals(str2.data))
 				return false;
 
-			CompactPathTable table2(64*1024, CompactPathTable::Version(i));
+			CompactPathTable table2(64*1024, CompactPathTable::Version(i), CaseInsensitiveFs);
 			BinaryReader reader(table.GetMemory(), 0, table.GetSize());
 			table2.ReadMem(reader, true);
 			u32 offset2 = table2.Add(str.data, str.count);

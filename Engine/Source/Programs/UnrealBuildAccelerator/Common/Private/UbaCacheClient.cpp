@@ -199,7 +199,8 @@ namespace uba
 			if (casKey == CasKeyZero)
 			{
 				bool deferCreation = true;
-				if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation))
+				bool fileIsCompressed = m_session.ShouldStoreObjFilesCompressed() && path.EndsWith(TC(".obj"));
+				if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation, fileIsCompressed))
 					return false;
 				if (casKey == CasKeyZero) // If file is not found it was a temporary file that was deleted and is not really an output
 				{
@@ -357,7 +358,8 @@ namespace uba
 						else
 						{
 							bool deferCreation = true;
-							m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation);
+							bool fileIsCompressed = m_session.ShouldStoreObjFilesCompressed() && path.EndsWith(TC(".obj"));
+							m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation, fileIsCompressed);
 							UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
 						}
 
@@ -411,7 +413,8 @@ namespace uba
 				{
 					// Fetch into memory, file is in special format without absolute paths
 					MemoryBlock normalizedBlock(1*1024*1024);
-					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, &normalizedBlock))
+					bool destinationIsCompressed = false;
+					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed, &normalizedBlock))
 						return false;
 					u32 rootOffsets = *(u32*)normalizedBlock.memory;
 					char* fileStart = (char*)normalizedBlock.memory + sizeof(u32);
@@ -461,8 +464,8 @@ namespace uba
 				}
 				else
 				{
-					UBA_ASSERT(!m_session.ShouldStoreObjFilesCompressed()); // TODO: Implement Retrieve .obj that is not decompressing
-					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data))
+					bool destinationIsCompressed = m_session.ShouldStoreObjFilesCompressed() && path.EndsWith(TC(".obj"));
+					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed))
 						return false;
 				}
 				if (!m_storage.FakeCopy(casKey, path.data, fetcher.m_size, fetcher.m_lastWritten, false))
@@ -494,7 +497,8 @@ namespace uba
 			return false;
 
 		FileFetcher fetcher { m_storage.m_bufferSlots };
-		if (!fetcher.RetrieveFile(m_logger, m_client, statusFileCasKey, destinationFile))
+		bool destinationIsCompressed = false;
+		if (!fetcher.RetrieveFile(m_logger, m_client, statusFileCasKey, destinationFile, destinationIsCompressed))
 			return false;
 		return true;
 	}
@@ -744,7 +748,8 @@ namespace uba
 			// Add hash of application binary to key
 			CasKey applicationCasKey;
 			bool deferCreation = true;
-			if (!m_storage.StoreCasFile(applicationCasKey, info.application, CasKeyZero, deferCreation))
+			bool fileIsCompressed = false;
+			if (!m_storage.StoreCasFile(applicationCasKey, info.application, CasKeyZero, deferCreation, fileIsCompressed))
 				return CasKeyZero;
 			hasher.Update(&applicationCasKey, sizeof(CasKey));
 		}
