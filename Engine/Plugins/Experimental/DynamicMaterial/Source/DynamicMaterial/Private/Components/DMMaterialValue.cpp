@@ -307,7 +307,17 @@ void UDMMaterialValue::SetMIDParameter(UMaterialInstanceDynamic* InMID) const
 {
 	checkNoEntry();
 }
- 
+
+TSharedPtr<FJsonValue> UDMMaterialValue::JsonSerialize() const
+{
+	return nullptr;
+}
+
+bool UDMMaterialValue::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	return false;
+}
+
 #if WITH_EDITOR
 void UDMMaterialValue::DoClean()
 {

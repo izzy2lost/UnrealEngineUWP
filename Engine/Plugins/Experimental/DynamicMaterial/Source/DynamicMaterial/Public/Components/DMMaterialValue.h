@@ -130,6 +130,11 @@ public:
 #endif
  
 	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const;
+
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
  
 	//~ Begin UDMMaterialComponent
 	virtual void Update(EDMUpdateType InUpdateType = EDMUpdateType::Value) override;

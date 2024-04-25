@@ -43,6 +43,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	bool IsUpdating() const { return bUpdating; }
 
+	//~ Begin IDMJsonSerializable
+	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
+
 	//~ Begin UObject
 	virtual void PostLoad() override;
 	//~ End UObject

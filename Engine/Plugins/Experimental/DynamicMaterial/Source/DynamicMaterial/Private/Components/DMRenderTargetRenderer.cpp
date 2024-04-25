@@ -66,6 +66,16 @@ void UDMRenderTargetRenderer::FlushUpdateRenderTarget()
 	}
 }
 
+TSharedPtr<FJsonValue> UDMRenderTargetRenderer::JsonSerialize() const
+{
+	return nullptr;
+}
+
+bool UDMRenderTargetRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	return false;
+}
+
 void UDMRenderTargetRenderer::PostLoad()
 {
 	Super::PostLoad();
