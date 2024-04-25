@@ -1825,6 +1825,11 @@ bool FEditorBuildUtils::EditorBuildVirtualTexture(UWorld* InWorld)
 				FAssetCompilingManager::Get().ProcessAsyncTasks();
 				FGlobalComponentRecreateRenderStateContext Context;
 			}
+
+			// FGlobalComponentRecreateRenderStateContext can create new shaderJobs, make sure to wait on them.
+			FAssetCompilingManager::Get().FinishAllCompilation();
+			FAssetCompilingManager::Get().ProcessAsyncTasks();
+
 		}
 
 		SubBuildTask.EnterProgressFrame(1.0f);

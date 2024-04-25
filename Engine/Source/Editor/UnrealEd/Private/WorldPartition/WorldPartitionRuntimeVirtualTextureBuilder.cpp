@@ -121,6 +121,10 @@ bool UWorldPartitionRuntimeVirtualTextureBuilder::RunInternal(UWorld* World, con
 			FAssetCompilingManager::Get().ProcessAsyncTasks();
 			FGlobalComponentRecreateRenderStateContext Context;
 		}
+
+		// FGlobalComponentRecreateRenderStateContext can create new shaderJobs, make sure to wait on them.
+		FAssetCompilingManager::Get().FinishAllCompilation();
+		FAssetCompilingManager::Get().ProcessAsyncTasks();
 				
 		for (URuntimeVirtualTextureComponent* Component : Components[1])
 		{
