@@ -309,6 +309,7 @@ EOS_EResult FEOSSDKManager::Initialize()
 			UE_LOG(LogEOSSDK, Warning, TEXT("EOS_Initialize failed error:%s"), *LexToString(EosResult));
 		}
 
+		OnPostInitializeSDK.Broadcast(EosResult);
 		return EosResult;
 	}
 }
