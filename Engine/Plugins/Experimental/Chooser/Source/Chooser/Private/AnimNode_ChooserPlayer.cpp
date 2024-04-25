@@ -25,8 +25,6 @@ FAnimNode_ChooserPlayer::FAnimNode_ChooserPlayer()
 
 UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateContext& Context)
 {
-	using namespace UE::Anim;
-
 	if (Chooser.IsValid())
 	{
 		// reset settings to default
@@ -35,7 +33,7 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 		const FObjectChooserBase& ChooserBase = Chooser.Get<FObjectChooserBase>();
 		if (bStartFromMatchingPose)
 		{
-			if (IPoseSearchProvider* PoseSearchProvider = IPoseSearchProvider::Get())
+			if (UE::Anim::IPoseSearchProvider* PoseSearchProvider = UE::Anim::IPoseSearchProvider::Get())
 			{
 				TArray<const UObject*, TInlineAllocator<128>> ChosenAssets;
 				ChooserBase.ChooseMulti(ChooserContext, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&ChosenAssets](UObject* InResult)
@@ -44,12 +42,7 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 						return FObjectChooserBase::EIteratorStatus::Continue;
 					}));
 
-
-				IPoseSearchProvider::FSearchPlayingAsset PlayingAsset;
-				PlayingAsset.Asset = GetAnimAsset();
-				PlayingAsset.AccumulatedTime = GetAccumulatedTime();
-
-				const IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, ChosenAssets, PlayingAsset, IPoseSearchProvider::FSearchFutureAsset() );
+				const UE::Anim::IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, ChosenAssets, GetAnimAsset(), GetAccumulatedTime());
 				if (UAnimationAsset* SelectedAnimationAsset = Cast<UAnimationAsset>(SearchResult.SelectedAsset))
 				{
 					if (!SearchResult.bIsFromContinuingPlaying)

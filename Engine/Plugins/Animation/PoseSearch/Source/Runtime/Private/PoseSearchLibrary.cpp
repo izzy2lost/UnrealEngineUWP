@@ -589,7 +589,7 @@ void UPoseSearchLibrary::MotionMatch(
 	TArray<UObject*> AssetsToSearch,
 	const FName PoseHistoryName,
 	const FPoseSearchContinuingProperties ContinuingProperties,
-	const FPoseSearchFutureProperties Future,
+	FPoseSearchFutureProperties Future,
 	FPoseSearchBlueprintResult& Result,
 	const int32 DebugSessionUniqueIdentifier)
 {
@@ -613,7 +613,6 @@ void UPoseSearchLibrary::MotionMatchMulti(
 	TArray<UObject*> AssetsToSearch,
 	const FName PoseHistoryName,
 	const FPoseSearchContinuingProperties ContinuingProperties,
-	const FPoseSearchFutureProperties Future,
 	FPoseSearchBlueprintResult& Result,
 	const int32 DebugSessionUniqueIdentifier)
 {
@@ -633,13 +632,13 @@ void UPoseSearchLibrary::MotionMatchMulti(
 	}
 
 	TArray<const UObject*>& AssetsToSearchConst = reinterpret_cast<TArray<const UObject*>&>(AssetsToSearch);
-	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, FPoseSearchFutureProperties(), Result, DebugSessionUniqueIdentifier);
 }
 
 void UPoseSearchLibrary::MotionMatch(
-	const TArrayView<UAnimInstance*> AnimInstances,
-	const TArrayView<const UE::PoseSearch::FRole> Roles,
-	const TArrayView<const UObject*> AssetsToSearch,
+	TArrayView<UAnimInstance*> AnimInstances,
+	TArrayView<const UE::PoseSearch::FRole> Roles,
+	TArrayView<const UObject*> AssetsToSearch,
 	const FName PoseHistoryName,
 	const FPoseSearchContinuingProperties& ContinuingProperties,
 	const FPoseSearchFutureProperties& Future,
@@ -680,82 +679,37 @@ void UPoseSearchLibrary::MotionMatch(
 
 	FMemMark Mark(FMemStack::Get());
 
-	TArray<const UE::PoseSearch::IPoseHistory*, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> PoseHistories;
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+	TArray<FColor, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> HistoryCollectorColors;
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+
+	// MemStackPoseHistories will hold future poses to match AssetSamplerBase (at FutureAnimationStartTime) TimeToFutureAnimationStart seconds in the future
+	TArray<FMemStackPoseHistory, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> MemStackPoseHistories;
 	for (UAnimInstance* AnimInstance : AnimInstances)
 	{
 		if (const FAnimNode_PoseSearchHistoryCollector_Base* PoseHistoryNode = FindPoseHistoryNode(PoseHistoryName, AnimInstance))
 		{
-			PoseHistories.Add(&PoseHistoryNode->GetPoseHistory());
+			MemStackPoseHistories.AddDefaulted_GetRef().Init(&PoseHistoryNode->GetPoseHistory());
+
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+#if WITH_EDITORONLY_DATA
+			HistoryCollectorColors.Emplace(PoseHistoryNode->DebugColor.ToFColor(true));
+#else // WITH_EDITORONLY_DATA
+			HistoryCollectorColors.Emplace(FColor::Red);
+#endif // WITH_EDITORONLY_DATA
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG && WITH_EDITORONLY_DATA
 		}
 	}
 
-	if (PoseHistories.Num() != AnimInstances.Num())
+	if (MemStackPoseHistories.Num() != AnimInstances.Num())
 	{
 		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchLibrary::MotionMatch - Couldn't find pose history with name '%s'"), *PoseHistoryName.ToString());
 		return;
 	}
 
-	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, Future, DebugSessionUniqueIdentifier);
-	if (SearchResult.IsValid())
-	{
-		const UPoseSearchDatabase* Database = SearchResult.Database.Get();
-		const FSearchIndexAsset* SearchIndexAsset = SearchResult.GetSearchIndexAsset();
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetAnimationAssetBase(*SearchIndexAsset))
-		{
-			Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
-			Result.SelectedTime = SearchResult.AssetTime;
-			Result.bLoop = SearchIndexAsset->IsLooping();
-			Result.bIsMirrored = SearchIndexAsset->IsMirrored();
-			Result.BlendParameters = SearchIndexAsset->GetBlendParameters();
-			Result.SelectedDatabase = Database;
-			Result.SearchCost = SearchResult.PoseCost.GetTotalCost();
-			
-			// figuring out the WantedPlayRate
-			Result.WantedPlayRate = 1.f;
-			if (Future.Animation && Future.IntervalTime > 0.f)
-			{
-				if (const UPoseSearchFeatureChannel_PermutationTime* PermutationTimeChannel = Database->Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_PermutationTime>())
-				{
-					const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-					if (!SearchIndex.IsValuesEmpty())
-					{
-						TConstArrayView<float> ResultData = Database->GetSearchIndex().GetPoseValues(SearchResult.PoseIdx);
-						const float ActualIntervalTime = PermutationTimeChannel->GetPermutationTime(ResultData);
-						Result.WantedPlayRate = ActualIntervalTime / Future.IntervalTime;
-					}
-				}
-			}
-		}
-	}
-}
-	
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
-	const TArrayView<UAnimInstance*> AnimInstances,
-	const TArrayView<const UE::PoseSearch::FRole> Roles,
-	const TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
-	const TArrayView<const UObject*> AssetsToSearch,
-	const FPoseSearchContinuingProperties& ContinuingProperties,
-	const FPoseSearchFutureProperties& Future,
-	const int32 DebugSessionUniqueIdentifier)
-{
-	check(!AnimInstances.IsEmpty() && AnimInstances.Num() == Roles.Num() && AnimInstances.Num() == PoseHistories.Num());
-
-	using namespace UE::PoseSearch;
-
-	FSearchResult SearchResult;
-
-	FMemMark Mark(FMemStack::Get());
-
-	TArray<const UE::PoseSearch::IPoseHistory*, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> InternalPoseHistories;
-	InternalPoseHistories = PoseHistories;
-
-	// MemStackPoseHistories will hold future poses to match AssetSamplerBase (at FutureAnimationStartTime) TimeToFutureAnimationStart seconds in the future
-	TArray<FMemStackPoseHistory, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> MemStackPoseHistories;
 	float FutureIntervalTime = Future.IntervalTime;
 	if (Future.Animation)
 	{
-		MemStackPoseHistories.SetNum(InternalPoseHistories.Num());
-
 		float FutureAnimationTime = Future.AnimationTime;
 		if (FutureAnimationTime < FiniteDelta)
 		{
@@ -772,12 +726,10 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 
 		for (int32 RoleIndex = 0; RoleIndex < Roles.Num(); ++RoleIndex)
 		{
-			MemStackPoseHistories[RoleIndex].Init(InternalPoseHistories[RoleIndex]);
-
 			// extracting 2 poses to be able to calculate velocities
 			FCSPose<FCompactPose> ComponentSpacePose;
 			FCompactPose Pose;
-			Pose.SetBoneContainer(&AnimInstances[RoleIndex]->GetRequiredBonesOnAnyThread());
+			Pose.SetBoneContainer(&AnimInstances[0]->GetRequiredBonesOnAnyThread());
 
 			// @todo: add input BlendParameters to support sampling FutureAnimation blendspaces and support for multi character
 			const UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(Future.Animation);
@@ -807,21 +759,94 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 			if (FAnimInstanceProxy* AnimInstanceProxy = UAnimInstanceProxyProvider::GetAnimInstanceProxy(AnimInstances[RoleIndex]))
 			{
-				MemStackPoseHistories[RoleIndex].DebugDraw(*AnimInstanceProxy, FColor::Orange);
+				MemStackPoseHistories[RoleIndex].DebugDraw(*AnimInstanceProxy, HistoryCollectorColors[RoleIndex]);
 			}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-
-			InternalPoseHistories[RoleIndex] = MemStackPoseHistories[RoleIndex].GetThisOrPoseHistory();
 		}
 	}
 
+	TArray<const UE::PoseSearch::IPoseHistory*, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> PoseHistories;
+	for (const FMemStackPoseHistory& MemStackPoseHistory : MemStackPoseHistories)
+	{
+		PoseHistories.Add(MemStackPoseHistory.GetThisOrPoseHistory());
+	}
+
+	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, DebugSessionUniqueIdentifier, FutureIntervalTime);
+	if (SearchResult.IsValid())
+	{
+		const UPoseSearchDatabase* Database = SearchResult.Database.Get();
+		const FSearchIndexAsset* SearchIndexAsset = SearchResult.GetSearchIndexAsset();
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetAnimationAssetBase(*SearchIndexAsset))
+		{
+			Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
+			Result.SelectedTime = SearchResult.AssetTime;
+			Result.bLoop = SearchIndexAsset->IsLooping();
+			Result.bIsMirrored = SearchIndexAsset->IsMirrored();
+			Result.BlendParameters = SearchIndexAsset->GetBlendParameters();
+			Result.SelectedDatabase = Database;
+			Result.SearchCost = SearchResult.PoseCost.GetTotalCost();
+			
+			// figuring out the WantedPlayRate
+			Result.WantedPlayRate = 1.f;
+			if (Future.Animation)
+			{
+				if (const UPoseSearchFeatureChannel_PermutationTime* PermutationTimeChannel = Database->Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_PermutationTime>())
+				{
+					const FSearchIndex& SearchIndex = Database->GetSearchIndex();
+					if (!SearchIndex.IsValuesEmpty())
+					{
+						TConstArrayView<float> ResultData = Database->GetSearchIndex().GetPoseValues(SearchResult.PoseIdx);
+						const float ActualIntervalTime = PermutationTimeChannel->GetPermutationTime(ResultData);
+						Result.WantedPlayRate = ActualIntervalTime / FutureIntervalTime;
+					}
+				}
+			}
+		}
+	}
+}
+
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
+	const FAnimationBaseContext& Context,
+	TArrayView<const UObject*> AssetsToSearch,
+	const FPoseSearchContinuingProperties& ContinuingProperties)
+{
+	using namespace UE::PoseSearch;
+
+	const IPoseHistory* PoseHistory = nullptr;
+	if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
+	{
+		PoseHistory = &PoseHistoryProvider->GetPoseHistory();
+	}
+
+	UAnimInstance* AnimInstance = Cast<UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
+	check(AnimInstance);
+
+	return MotionMatch(MakeArrayView(&AnimInstance, 1), MakeArrayView(&DefaultRole, 1), MakeArrayView(&PoseHistory, 1), AssetsToSearch, ContinuingProperties, Context.GetCurrentNodeId());
+}
+	
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
+	TArrayView<UAnimInstance*> AnimInstances,
+	TArrayView<const UE::PoseSearch::FRole> Roles,
+	TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
+	TArrayView<const UObject*> AssetsToSearch,
+	const FPoseSearchContinuingProperties& ContinuingProperties,
+	const int32 DebugSessionUniqueIdentifier,
+	float DesiredPermutationTimeOffset)
+{
+	check(!AnimInstances.IsEmpty() && AnimInstances.Num() == Roles.Num() && AnimInstances.Num() == PoseHistories.Num());
+
+	using namespace UE::PoseSearch;
+
+	FSearchResult SearchResult;
+
+	FMemMark Mark(FMemStack::Get());
 	FSearchResult ReconstructedPreviousSearchResult;
-	FSearchContext SearchContext(FutureIntervalTime, nullptr, ReconstructedPreviousSearchResult);
+	FSearchContext SearchContext(DesiredPermutationTimeOffset, nullptr, ReconstructedPreviousSearchResult);
 
 	// @todo: all assets in AssetsToSearch should have a consistent Roles requirements, or else the search will throw an error!
 	for (int32 RoleIndex = 0; RoleIndex < Roles.Num(); ++RoleIndex)
 	{
-		SearchContext.AddRole(Roles[RoleIndex], AnimInstances[RoleIndex], InternalPoseHistories[RoleIndex]);
+		SearchContext.AddRole(Roles[RoleIndex], AnimInstances[RoleIndex], PoseHistories[RoleIndex]);
 	}
 
 	// budgeting some stack allocations for simple use cases. bigger requests of AnimationAssets contining 
@@ -1015,37 +1040,4 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	return SearchResult;
 }
 
-// deprecated signatures
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
-	const FAnimationBaseContext& Context,
-	TArrayView<const UObject*> AssetsToSearch,
-	const FPoseSearchContinuingProperties& ContinuingProperties)
-{
-	using namespace UE::PoseSearch;
-
-	const IPoseHistory* PoseHistory = nullptr;
-	if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
-	{
-		PoseHistory = &PoseHistoryProvider->GetPoseHistory();
-	}
-
-	UAnimInstance* AnimInstance = Cast<UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
-	check(AnimInstance);
-
-	return MotionMatch(MakeArrayView(&AnimInstance, 1), MakeArrayView(&DefaultRole, 1), MakeArrayView(&PoseHistory, 1), 
-		AssetsToSearch, ContinuingProperties, FPoseSearchFutureProperties(), Context.GetCurrentNodeId());
-}
-		
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
-	TArrayView<UAnimInstance*> AnimInstances,
-	TArrayView<const UE::PoseSearch::FRole> Roles,
-	TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories,
-	TArrayView<const UObject*> AssetsToSearch,
-	const FPoseSearchContinuingProperties& ContinuingProperties,
-	const int32 DebugSessionUniqueIdentifier,
-	float DesiredPermutationTimeOffset)
-{
-	return MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, FPoseSearchFutureProperties(), DebugSessionUniqueIdentifier);
-}
-	
 #undef LOCTEXT_NAMESPACE

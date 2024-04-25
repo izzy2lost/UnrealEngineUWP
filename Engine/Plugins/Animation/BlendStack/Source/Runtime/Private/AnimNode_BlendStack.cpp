@@ -6,7 +6,6 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimNode_Inertialization.h"
-#include "Animation/AnimPoseSearchProvider.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
 #include "BlendStack/AnimNode_BlendStackInput.h"
@@ -55,17 +54,6 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 			BlendProfile->FillSkeletonBoneDurationsArray(TotalBlendInTimePerBone, BlendTime, Skeleton);
 			BlendTime = *Algo::MaxElement(TotalBlendInTimePerBone);
 		}
-	}
-
-	// if a negative AccumulatedTime is requested, we just delay the playback of the animation asset by -AccumulatedTime
-	// this is useful when we want to land exacly at the selected frame for example during "stitches": 
-	// consider the case where you want to play an animation A at a time n, A[n], after a blend of b seconds,
-	// eventually provided by a stitch search. That'd mean to start blending in into the animation A at time n-b, 
-	// that can be negative, and since the pose A[n-b] would be invalid we just use A[0] delayed by n-b seconds	
-	if (AccumulatedTime < 0.f)
-	{
-		ActivationDelay = FMath::Max(ActivationDelay - AccumulatedTime, 0.f);
-		AccumulatedTime = 0.f;
 	}
 
 	BlendOption = InBlendOption;
@@ -396,10 +384,6 @@ float FBlendStackAnimPlayer::GetBlendInPercentage() const
 {
 	if (FMath::IsNearlyZero(TotalBlendInTime))
 	{
-		if (TimeToActivation > 0.f)
-		{
-			return 0.f;
-		}
 		return 1.f;
 	}
 
@@ -813,70 +797,6 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend,
 	const FVector& BlendParameters, float PlayRate, float ActivationDelay, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
-	using namespace UE::Anim;
-
-	bool bNeedToBlendTo = true;
-	if (StitchDatabase)
-	{
-		if (IPoseSearchProvider* PoseSearchProvider = IPoseSearchProvider::Get())
-		{
-			// looking for an animation stitch from the StitchDatabase that will connect, in BlendTime seconds, 
-			// the currently playing animation pose to the pose from AnimationAsset at AccumulatedTime + BlendTime
-			const UObject* AssetToSearch = StitchDatabase.Get();
-
-			IPoseSearchProvider::FSearchPlayingAsset PlayingAsset;
-			PlayingAsset.Asset = GetAnimAsset();
-			PlayingAsset.AccumulatedTime = GetAccumulatedTime();
-
-			IPoseSearchProvider::FSearchFutureAsset FutureAsset;
-			FutureAsset.Asset = AnimationAsset;
-			FutureAsset.AccumulatedTime = AccumulatedTime + BlendTime;
-			FutureAsset.IntervalTime = BlendTime;
-
-			const IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, MakeArrayView(&AssetToSearch, 1), PlayingAsset, FutureAsset);
-			if (UAnimationAsset* StitchAnimationAsset = Cast<UAnimationAsset>(SearchResult.SelectedAsset))
-			{
-				if (SearchResult.Dissimilarity <= StitchBlendMaxCost)
-				{
-					// blend to the selected animation stitch
-					InternalBlendTo(Context, StitchAnimationAsset, SearchResult.TimeOffsetSeconds, false, SearchResult.bMirrored, MirrorDataTable,
-						StitchBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, SearchResult.WantedPlayRate, ActivationDelay, GroupName, GroupRole, GroupMethod);
-
-					// blend with an ActivationDelay of BlendTime - StitchBlendTime + ActivationDelay seconds
-					// to the AnimationAsset at AccumulatedTime + BlendTime - StitchBlendTime seconds in the future,
-					// so at BlendTime seconds ahead the AnimationAsset is playing the fully blended in pose at AccumulatedTime + BlendTime
-					InternalBlendTo(Context, AnimationAsset, AccumulatedTime + BlendTime - StitchBlendTime, bLoop, bMirrored, MirrorDataTable,
-						StitchBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, PlayRate, BlendTime - StitchBlendTime + ActivationDelay, GroupName, GroupRole, GroupMethod);
-
-					bNeedToBlendTo = false;
-				}
-				else
-				{
-					UE_LOG(LogBlendStack, Display, TEXT("FAnimNode_BlendStack_Standalone::BlendTo StitchDatabase '%s' search cost is %f, above StitchBlendMaxCost %f. Defaulting to regular blend"), *GetNameSafe(StitchDatabase), SearchResult.Dissimilarity, StitchBlendMaxCost);
-				}
-			}
-			else
-			{
-				UE_LOG(LogBlendStack, Error, TEXT("FAnimNode_BlendStack_Standalone::BlendTo cannot use StitchDatabase '%s', because of missing IPoseSearchProvider::Search couldn't select a StitchAnimationAsset. Defaulting to regular blend"), *GetNameSafe(StitchDatabase));
-			}
-		}
-		else
-		{
-			UE_LOG(LogBlendStack, Error, TEXT("FAnimNode_BlendStack_Standalone::BlendTo cannot use StitchDatabase '%s', because of missing IPoseSearchProvider (is PoseSearch plugin enabled?). Defaulting to regular blend"), *GetNameSafe(StitchDatabase));
-		}
-	}
-
-	if (bNeedToBlendTo)
-	{
-		InternalBlendTo(Context, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable,
-			BlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, PlayRate, ActivationDelay, GroupName, GroupRole, GroupMethod);
-	}
-}
-
-void FAnimNode_BlendStack_Standalone::InternalBlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
-	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend,
-	const FVector& BlendParameters, float PlayRate, float ActivationDelay, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
-{
 	const bool bBlendStackIsEmpty = AnimPlayers.IsEmpty();
 
 	// If the blend stack is empty, we shouldn't blend. Pop into the requested pose.
@@ -893,7 +813,7 @@ void FAnimNode_BlendStack_Standalone::InternalBlendTo(const FAnimationUpdateCont
 
 	// If we don't add a new player, re-use the same graph...
 	int32 NewSamplePoseLinkIndex = CurrentSamplePoseLink;
-	if (!bBlendStackIsEmpty && AnimPlayers[0].GetBlendInPercentage() < 1.0f &&
+	if (!bBlendStackIsEmpty &&  AnimPlayers[0].GetBlendInPercentage() < 1.0f &&
 		AnimPlayers[0].GetCurrentBlendInTime() < MaxBlendInTimeToOverrideAnimation &&
 		FMath::IsNearlyEqual(AnimPlayers[0].GetTimeToActivation(), ActivationDelay))
 	{
