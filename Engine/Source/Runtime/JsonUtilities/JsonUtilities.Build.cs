@@ -14,5 +14,7 @@ public class JsonUtilities : ModuleRules
 				"Json",
 			}
 		);
+
+		bAllowAutoRTFMInstrumentation = true;
 	}
 }
