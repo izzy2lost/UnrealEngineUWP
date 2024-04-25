@@ -117,7 +117,7 @@ public class PoolUpdateServiceTest : TestSetup
 		agent = (await AgentService.GetAgentAsync(agent.Id))!;
 		
 		// Assert
-		Assert.AreEqual(conformRequested, agent.RequestConform);
+		Assert.AreEqual(conformRequested, agent.RequestFullConform);
 	}
 
 	private async Task<IAgent> CreateAutoConformAgentAsync(int freeDiskSpaceMb, params int?[] autoConformThresholdsMb)
