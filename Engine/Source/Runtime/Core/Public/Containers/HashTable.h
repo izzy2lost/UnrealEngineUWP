@@ -195,13 +195,20 @@ class FHashTable
 {
 public:
 					FHashTable( uint32 InHashSize = 1024, uint32 InIndexSize = 0 );
-					FHashTable( const FHashTable& Other );
+					FHashTable(const FHashTable& Other);
+					FHashTable(FHashTable&& Other);
 					~FHashTable();
 
 	void			Clear();
 	void			Clear( uint32 InHashSize, uint32 InIndexSize = 0 );
 	void			Free();
+	/** 
+	 * Increases or decreases the size of the index but not the hash lookup.
+	 * If the previous size was empty, allocates the hash at its desired size.
+	 */
 	CORE_API void	Resize( uint32 NewIndexSize );
+	inline uint32	GetIndexSize() { return IndexSize; }
+	inline uint32	GetHashSize() { return HashSize; }
 
 	// Functions used to search
 	uint32			First( uint32 Key ) const;
@@ -209,6 +216,7 @@ public:
 	bool			IsValid( uint32 Index ) const;
 	
 	void			Add( uint32 Key, uint32 Index );
+	// Safe to call concurrently with other threads calling Add_Concurrent with different values for Index.
 	void			Add_Concurrent( uint32 Key, uint32 Index );
 	void			Remove( uint32 Key, uint32 Index );
 
@@ -216,6 +224,7 @@ public:
 	CORE_API float	AverageSearch() const;
 
 	FHashTable&		operator=(const FHashTable& Other);
+	FHashTable&		operator=(FHashTable&& Other);
 
 protected:
 	// Avoids allocating hash until first add
@@ -267,6 +276,20 @@ FORCEINLINE FHashTable::FHashTable( const FHashTable& Other )
 	}
 }
 
+FORCEINLINE FHashTable::FHashTable(FHashTable&& Other )
+	: HashSize( Other.HashSize )
+	, HashMask( Other.HashMask )
+	, IndexSize( Other.IndexSize )
+	, Hash(Other.Hash)
+	, NextIndex(Other.NextIndex)
+{
+	Other.HashSize = 0;
+	Other.HashMask = 0;
+	Other.IndexSize = 0;
+	Other.Hash = EmptyHash;
+	Other.NextIndex = nullptr;
+}
+
 FORCEINLINE FHashTable& FHashTable::operator=(const FHashTable& Other)
 {
 	Free();
@@ -282,6 +305,24 @@ FORCEINLINE FHashTable& FHashTable::operator=(const FHashTable& Other)
 		FMemory::Memcpy(Hash, Other.Hash, HashSize * 4);
 		FMemory::Memcpy(NextIndex, Other.NextIndex, IndexSize * 4);
 	}
+	return *this;
+}
+
+FORCEINLINE FHashTable& FHashTable::operator=(FHashTable&& Other)
+{
+	Free();
+
+	HashSize = Other.HashSize;
+	HashMask = Other.HashMask;
+	IndexSize = Other.IndexSize;
+	Hash = Other.Hash;
+	NextIndex = Other.NextIndex;
+
+	Other.HashSize = 0;
+	Other.HashMask = 0;
+	Other.IndexSize = 0;
+	Other.Hash = EmptyHash;
+	Other.NextIndex = nullptr;
 	return *this;
 }
 
