@@ -173,6 +173,12 @@ class UMaterialParameterCollection : public UObject
 		return *UniformBufferStruct;
 	}
 
+	/** Returns whether this instance loaded correctly and is in valid state. */
+	bool HasValidUniformBufferStruct() const
+	{
+		return UniformBufferStruct.IsValid();
+	}
+
 	/** Create an instance for this collection in every world. */
 	ENGINE_API void SetupWorldParameterCollectionInstances();
 
@@ -195,6 +201,3 @@ private:
 
 	void UpdateDefaultResource(bool bRecreateUniformBuffer);
 };
-
-
-

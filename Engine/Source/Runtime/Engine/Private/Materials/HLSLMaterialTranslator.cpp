@@ -2597,7 +2597,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 
 		// Check that the parameter collection loaded succesfully.
 		UMaterialParameterCollection* ParameterCollection = EnvironmentDefines->ParameterCollections[CollectionIndex];
-		if (!ParameterCollection)
+		if (!ParameterCollection || !ParameterCollection->HasValidUniformBufferStruct())
 		{
 			UE_LOG(LogMaterial, Warning, TEXT("Null parameter collection found in environment defines while translating material."));
 			continue;
