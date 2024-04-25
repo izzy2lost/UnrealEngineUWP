@@ -63,6 +63,12 @@ public:
 	// IDynamicMeshOperatorFactory API, for generating noise preview meshes
 	virtual TUniquePtr<UE::Geometry::FDynamicMeshOperator> MakeNewOperator() override;
 
+	virtual void ConfigureCutterSettings() override
+	{
+		CutterSettings->bDrawSitesToggleEnabled = false;
+		CutterSettings->bNoisePreviewHasScale = true;
+	}
+
 protected:
 	virtual void ClearVisualizations() override;
 

@@ -69,6 +69,12 @@ public:
 
 	void GenerateSliceTransforms(const FFractureToolContext& Context, TArray<FTransform>& CuttingPlaneTransforms);
 
+	virtual void ConfigureCutterSettings() override
+	{
+		CutterSettings->bDrawSitesToggleEnabled = false;
+		CutterSettings->bNoisePreviewToggleEnabled = false; // TODO: support noise preview for slices
+	}
+
 	// Slicing
 	UPROPERTY(EditAnywhere, Category = Slicing)
 	TObjectPtr<UFractureSliceSettings> SliceSettings;

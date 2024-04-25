@@ -137,10 +137,8 @@ void UFractureCutterSettings::TransferNoiseSettings(FNoiseSettings& NoiseSetting
 UFractureToolCutterBase::UFractureToolCutterBase(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
 {
-	CutterSettings = NewObject<UFractureCutterSettings>(GetTransientPackage(), UFractureCutterSettings::StaticClass());
-	CutterSettings->OwnerTool = this;
-	CollisionSettings = NewObject<UFractureCollisionSettings>(GetTransientPackage(), UFractureCollisionSettings::StaticClass());
-	CollisionSettings->OwnerTool = this;
+	CutterSettings = GetMutableDefault<UFractureCutterSettings>();
+	CollisionSettings = GetMutableDefault<UFractureCollisionSettings>();
 }
 
 bool UFractureToolCutterBase::CanExecute() const

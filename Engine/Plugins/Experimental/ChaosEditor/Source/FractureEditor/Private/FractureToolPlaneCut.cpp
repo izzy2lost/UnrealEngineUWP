@@ -146,9 +146,6 @@ void UFractureToolPlaneCut::Setup(TWeakPtr<FFractureEditorModeToolkit> InToolkit
 	GizmoSettings->Setup(this);
 	PlaneCutSettings->bCanCutWithMultiplePlanes = !GizmoSettings->bUseGizmo;
 	NotifyOfPropertyChangeByTool(PlaneCutSettings);
-	CutterSettings->bDrawSitesToggleEnabled = false;
-	CutterSettings->bNoisePreviewHasScale = true;
-	CutterSettings->bDrawNoisePreview = true; // default-enable the plane noise preview
 
 	// Initialize the background compute object for the noise preview
 	if (GEditor && !NoisePreview)

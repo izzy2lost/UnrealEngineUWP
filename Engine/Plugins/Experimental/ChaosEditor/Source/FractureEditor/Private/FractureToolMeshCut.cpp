@@ -28,10 +28,6 @@ UFractureToolMeshCut::UFractureToolMeshCut(const FObjectInitializer& ObjInit)
 {
 	MeshCutSettings = NewObject<UFractureMeshCutSettings>(GetTransientPackage(), UFractureMeshCutSettings::StaticClass());
 	MeshCutSettings->OwnerTool = this;
-	CutterSettings->bDrawSitesToggleEnabled = false;
-	CutterSettings->bNoisePreviewToggleEnabled = false;
-	DisableNoiseSettings();
-	DisableGroutSetting();
 }
 
 FText UFractureToolMeshCut::GetDisplayText() const

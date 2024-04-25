@@ -108,7 +108,7 @@ public:
 
 	/** Whether to show a solid preview of the cutting geometry, including any noise displacement */
 	UPROPERTY(EditAnywhere, Category = Visualization, meta = (EditCondition = "bNoisePreviewToggleEnabled", HideEditConditionToggle, EditConditionHides))
-	bool bDrawNoisePreview = false;
+	bool bDrawNoisePreview = true;
 
 	// This flag allows tools to disable the above bDrawNoisePreview option if/when it is not applicable
 	UPROPERTY()
@@ -234,6 +234,19 @@ public:
 	{
 		Super::Setup(InToolkit);
 		CutterSettings->UpdateActiveMaterialNames(GetSelectedComponentMaterialNames(true));
+		CutterSettings->OwnerTool = this;
+		CollisionSettings->OwnerTool = this;
+		ConfigureCutterSettings();
+	}
+
+	// Set tool-specific defaults for the cutter settings (e.g., disable grout/noise if needed)
+	virtual void ConfigureCutterSettings()
+	{
+		CutterSettings->bDrawSitesToggleEnabled = true;
+		CutterSettings->bNoisePreviewToggleEnabled = true;
+		CutterSettings->bNoisePreviewHasScale = false;
+		CutterSettings->bGroutSettingEnabled = true;
+		CutterSettings->bNoiseSettingsEnabled = true;
 	}
 
 	virtual void SelectedBonesChanged() override
@@ -259,18 +272,6 @@ public:
 		{
 			CutterSettings->bGroupFracture = true;
 		}
-	}
-
-	void DisableGroutSetting()
-	{
-		CutterSettings->bGroutSettingEnabled = false;
-		CutterSettings->Grout = 0;
-	}
-
-	void DisableNoiseSettings()
-	{
-		CutterSettings->bNoiseSettingsEnabled = false;
-		CutterSettings->Amplitude = 0;
 	}
 
 protected:
