@@ -5563,6 +5563,12 @@ void AActor::MarkComponentsAsGarbage(bool bModify)
 		Component->OnComponentDestroyed(true);
 		Component->MarkAsGarbage();
 	}
+
+	// Do a second pass to make sure all non-component subobjects are garbage as it is not valid for an object to have a garbage outer
+	ForEachObjectWithOuter(this, [](UObject* Object)
+	{
+		Object->MarkAsGarbage();
+	}, true, RF_MirroredGarbage);
 }
 
 void AActor::ReregisterAllComponents()
