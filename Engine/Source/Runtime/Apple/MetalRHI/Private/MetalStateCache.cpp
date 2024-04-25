@@ -1180,7 +1180,7 @@ void FMetalStateCache::SetVertexStream(uint32 const Index, FMetalBufferPtr Buffe
 	if(IsMetalBindlessEnabled())
 	{
 		// Update GPU VA (assuming the offset has changed since last time).
-		if (Buffer)
+		if (Buffer || Bytes)
 		{
 			if (Bytes != nil)
 			{
