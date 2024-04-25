@@ -200,6 +200,9 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 		ActorLabel = *InActor->GetActorLabel(false);
 	}
 
+	ActorLabelString = ActorLabel.ToString();
+	ActorDisplayClassNameString = GetDisplayClassName().ToString();
+
 	Container = nullptr;
 }
 
@@ -209,7 +212,7 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 	ActorPath = DescData.ActorPath;
 	ActorNativeClass = DescData.NativeClass;
 	NativeClass = *DescData.NativeClass->GetPathName();
-	ActorName = *FPaths::GetExtension(ActorPath.ToString());
+	ActorName = *GetActorNameString();
 
 	auto DeprecateClass = [this](FArchive& Archive)
 	{
@@ -248,6 +251,9 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 		Serialize(*DescData.GetArchive());
 		DeprecateClass(*DescData.GetArchive());
 	}
+
+	ActorLabelString = ActorLabel.ToString();
+	ActorDisplayClassNameString = GetDisplayClassName().ToString();
 
 	Container = nullptr;
 }
@@ -453,7 +459,7 @@ FString FWorldPartitionActorDesc::ToString(EToStringMode Mode) const
 			TEXT(" BaseClass:%s NativeClass:%s Name:%s Label:%s SpatiallyLoaded:%s Bounds:%s RuntimeGrid:%s EditorOnly:%s RuntimeOnly:%s HLODRelevant:%s ListedInSceneOutliner:%s IsMainWorldOnly:%s"),
 			*BaseClass.ToString(), 
 			*NativeClass.ToString(), 
-			*GetActorName().ToString(),
+			*GetActorNameString(),
 			*GetActorLabel().ToString(),
 			GetBoolStr(bIsSpatiallyLoaded),
 			*BoundsStr,
@@ -720,7 +726,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FGuid FixupContentBundleGuid = ContentBundlePaths::GetContentBundleGuidFromExternalActorPackagePath(ActorPackage.ToString());
 			if (ContentBundleGuid != FixupContentBundleGuid)
 			{
-				UE_LOG(LogWorldPartition, Log, TEXT("ActorDesc ContentBundleGuid was fixed up: %s"), *GetActorName().ToString());
+				UE_LOG(LogWorldPartition, Log, TEXT("ActorDesc ContentBundleGuid was fixed up: %s"), *GetActorNameString());
 				ContentBundleGuid = FixupContentBundleGuid;
 			}
 		}
@@ -764,6 +770,21 @@ FBox FWorldPartitionActorDesc::GetRuntimeBounds() const
 FName FWorldPartitionActorDesc::GetActorName() const
 {
 	return ActorName;
+}
+
+const FString& FWorldPartitionActorDesc::GetActorNameString() const
+{
+	return ActorPath.GetSubPathString();
+}
+
+const FString& FWorldPartitionActorDesc::GetActorLabelString() const
+{
+	return ActorLabelString;
+}
+
+const FString& FWorldPartitionActorDesc::GetDisplayClassNameString() const
+{
+	return ActorDisplayClassNameString;
 }
 
 FName FWorldPartitionActorDesc::GetActorLabelOrName() const

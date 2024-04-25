@@ -471,28 +471,28 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 		{
 			if (AActor* Actor = ActorItem->Actor.Get())
 			{
-				return Actor->GetFName().ToString();
+				return Actor->GetName();
 			}
 		}
 		else if (const FComponentTreeItem* ComponentItem = Item.CastTo<FComponentTreeItem>())
 		{
 			if (UActorComponent* Component = ComponentItem->Component.Get())
 			{
-				return Component->GetFName().ToString();
+				return Component->GetName();
 			}
 		}
 		else if (const FActorDescTreeItem* ActorDescItem = Item.CastTo<FActorDescTreeItem>())
 		{
 			if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 			{
-				return ActorDescInstance->GetActorName().ToString();
+				return ActorDescInstance->GetActorNameString();
 			}
 		}
 		else if (const FActorFolderTreeItem* ActorFolderItem = Item.CastTo<FActorFolderTreeItem>())
 		{
 			if (const UActorFolder* ActorFolder = Cast<UActorFolder>(ActorFolderItem->GetActorFolder()))
 			{
-				return ActorFolder->GetFName().ToString();
+				return ActorFolder->GetName();
 			}
 		}
 

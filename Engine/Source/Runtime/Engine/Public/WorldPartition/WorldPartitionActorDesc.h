@@ -198,6 +198,11 @@ public:
 	ENGINE_API FName GetActorLabelOrName() const;
 	ENGINE_API FName GetDisplayClassName() const;
 
+	// Faster accessors for names as strings
+	ENGINE_API const FString& GetActorNameString() const;
+	ENGINE_API const FString& GetActorLabelString() const;
+	ENGINE_API const FString& GetDisplayClassNameString() const;
+
 	inline bool IsDefaultActorDesc() const { return bIsDefaultActorDesc; }
 		
 	virtual bool IsChildContainerInstance() const { return false; }
@@ -435,6 +440,8 @@ protected:
 	// Transient
 	UClass*							ActorNativeClass;
 	FName							ActorName;
+	FString							ActorLabelString;
+	FString							ActorDisplayClassNameString;
 	UActorDescContainer*			Container;
 	bool							bIsDefaultActorDesc;
 

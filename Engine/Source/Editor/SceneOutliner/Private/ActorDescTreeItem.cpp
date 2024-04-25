@@ -233,7 +233,7 @@ FActorDescTreeItem::FActorDescTreeItem(const FGuid& InActorGuid, UActorDescConta
 {
 	if (const FWorldPartitionActorDescInstance* const ActorDescInstance = *ActorDescHandle)
 	{
-		DisplayString = ActorDescInstance->GetActorLabel().ToString();
+		DisplayString = ActorDescInstance->GetActorLabelString();
 	}
 	else
 	{
@@ -251,7 +251,7 @@ FActorDescTreeItem::FActorDescTreeItem(const FWorldPartitionActorDescInstance* I
 {
 	if (const FWorldPartitionActorDescInstance* const ActorDescInstance = *ActorDescHandle)
 	{
-		DisplayString = ActorDescInstance->GetActorLabel().ToString();
+		DisplayString = ActorDescInstance->GetActorLabelString();
 	}
 	else
 	{

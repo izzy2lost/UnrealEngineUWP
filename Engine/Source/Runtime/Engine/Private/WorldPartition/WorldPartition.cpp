@@ -1988,7 +1988,7 @@ UActorDescContainerInstance* UWorldPartition::RegisterActorDescContainerInstance
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Found existing actor descriptor guid `%s`: Actor: '%s' from package '%s'"),
 					*ActorDesc->GetGuid().ToString(),
-					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetActorNameString(),
 					*ActorDesc->GetActorPackage().ToString());
 				return false;
 			}

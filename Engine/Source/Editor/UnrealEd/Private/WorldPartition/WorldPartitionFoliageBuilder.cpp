@@ -114,7 +114,7 @@ bool UWorldPartitionFoliageBuilder::RunInternal(UWorld* World, const FCellInfo& 
 		AInstancedFoliageActor* IFA = Cast<AInstancedFoliageActor>(ActorDescInstance->GetActor());
 		if (!IFA)
 		{
-			UE_LOG(LogWorldPartitionFoliageBuilder, Error, TEXT("Foliage actor failed to load: %s (%s)"), *PartitionActorDesc->GetActorName().ToString(), *PartitionActorDesc->GetActorPackage().ToString());
+			UE_LOG(LogWorldPartitionFoliageBuilder, Error, TEXT("Foliage actor failed to load: %s (%s)"), *PartitionActorDesc->GetActorNameString(), *PartitionActorDesc->GetActorPackage().ToString());
 			return false;
 		}
 
@@ -134,7 +134,7 @@ bool UWorldPartitionFoliageBuilder::RunInternal(UWorld* World, const FCellInfo& 
 				UPackage* PackageToDelete = nullptr;
 				UPackage* PackageToAdd = nullptr;
 
-				UE_LOG(LogWorldPartitionFoliageBuilder, Display, TEXT("Repairing invalid foliage actor: %s->%s "), *PartitionActorDesc->GetActorName().ToString(), *ExpectedActorName);
+				UE_LOG(LogWorldPartitionFoliageBuilder, Display, TEXT("Repairing invalid foliage actor: %s->%s "), *PartitionActorDesc->GetActorNameString(), *ExpectedActorName);
 
 				const FString ExpectedActorPath = FString::Printf(TEXT("%s.%s"), *World->PersistentLevel->GetPathName(), *ExpectedActorName);
 				
@@ -146,7 +146,7 @@ bool UWorldPartitionFoliageBuilder::RunInternal(UWorld* World, const FCellInfo& 
 					AInstancedFoliageActor* DupIFA = Cast<AInstancedFoliageActor>(DupActorDescInstance->GetActor());
 					if (!DupIFA)
 					{
-						UE_LOG(LogWorldPartitionFoliageBuilder, Error, TEXT("Foliage actor failed to load: %s (%s)"), *DupActorDescInstance->GetActorName().ToString(), *DupActorDescInstance->GetActorPackage().ToString());
+						UE_LOG(LogWorldPartitionFoliageBuilder, Error, TEXT("Foliage actor failed to load: %s (%s)"), *DupActorDescInstance->GetActorNameString(), *DupActorDescInstance->GetActorPackage().ToString());
 						return false;
 					}
 
@@ -225,7 +225,7 @@ bool UWorldPartitionFoliageBuilder::RunInternal(UWorld* World, const FCellInfo& 
 		{	
 			check(IFA->GetGridSize() != NewGridSize);
 			// Harvest Instances from existing IFA and build up instance bounds
-			UE_LOG(LogWorldPartitionFoliageBuilder, Display, TEXT("Processing existing foliage actor: %s (%s)"), *PartitionActorDesc->GetActorName().ToString(), *PartitionActorDesc->GetActorPackage().ToString());
+			UE_LOG(LogWorldPartitionFoliageBuilder, Display, TEXT("Processing existing foliage actor: %s (%s)"), *PartitionActorDesc->GetActorNameString(), *PartitionActorDesc->GetActorPackage().ToString());
 		
 			IFA->ForEachFoliageInfo([IFA, &FoliageToAdd, &InstanceBounds, &NumInstances](UFoliageType* FoliageType, FFoliageInfo& FoliageInfo)
 			{

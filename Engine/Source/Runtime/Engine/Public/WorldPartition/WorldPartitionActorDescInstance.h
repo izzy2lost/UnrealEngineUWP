@@ -117,6 +117,10 @@ public:
 	FName GetDisplayClassName() const { return ActorDesc->GetDisplayClassName(); }
 	
 	ENGINE_API const FText& GetUnloadedReason() const;
+
+	ENGINE_API const FString& GetActorNameString() const;
+	ENGINE_API const FString& GetActorLabelString() const;
+	ENGINE_API const FString& GetDisplayClassNameString() const;
 		
 protected:
 	ENGINE_API virtual FBox GetLocalEditorBounds() const { return ActorDesc->GetEditorBounds(); }

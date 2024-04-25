@@ -131,7 +131,7 @@ bool FWorldPartitionActorDescInstance::StartAsyncLoad()
 
 			if ((Result != EAsyncLoadingResult::Succeeded) || !Package)
 			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("Can't load actor guid `%s` ('%s') from package '%s'"), *GetGuid().ToString(), *GetActorName().ToString(), *ActorPackage.ToString());
+				UE_LOG(LogWorldPartition, Warning, TEXT("Can't load actor guid `%s` ('%s') from package '%s'"), *GetGuid().ToString(), *GetActorNameString(), *ActorPackage.ToString());
 				UnloadedReason = &FailedToLoad;
 				return;
 			}
@@ -140,7 +140,7 @@ bool FWorldPartitionActorDescInstance::StartAsyncLoad()
 
 			if (!ActorPtr.IsValid())
 			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("Can't find actor guid `%s` ('%s') in package '%s'"), *GetGuid().ToString(), *GetActorName().ToString(), *ActorPackage.ToString());
+				UE_LOG(LogWorldPartition, Warning, TEXT("Can't find actor guid `%s` ('%s') in package '%s'"), *GetGuid().ToString(), *GetActorNameString(), *ActorPackage.ToString());
 				UnloadedReason = &FailedToLoad;
 				return;
 			}
@@ -214,6 +214,21 @@ const FText& FWorldPartitionActorDescInstance::GetUnloadedReason() const
 {
 	static FText Unloaded(LOCTEXT("UnloadedReason", "Unloaded"));
 	return UnloadedReason ? *UnloadedReason : Unloaded;
+}
+
+const FString& FWorldPartitionActorDescInstance::GetActorNameString() const
+{
+	return ActorDesc->GetActorNameString();
+}
+
+const FString& FWorldPartitionActorDescInstance::GetActorLabelString() const
+{
+	return ActorDesc->GetActorLabelString();
+}
+
+const FString& FWorldPartitionActorDescInstance::GetDisplayClassNameString() const
+{
+	return ActorDesc->GetDisplayClassNameString();
 }
 
 FString FWorldPartitionActorDescInstance::ToString(FWorldPartitionActorDesc::EToStringMode Mode) const

@@ -63,7 +63,7 @@ struct FGetInfo
 		{
 			if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 			{
-				return ActorDescInstance->GetDisplayClassName().ToString();
+				return ActorDescInstance->GetDisplayClassNameString();
 			}
 		}
 
@@ -171,7 +171,7 @@ void FTypeInfoColumn::PopulateSearchStrings( const ISceneOutlinerTreeItem& Item,
 		FString String = FGetInfo()(Item);
 		if (String.Len())
 		{
-			OutSearchStrings.Add(String);
+			OutSearchStrings.Add(MoveTemp(String));
 		}
 	}
 }

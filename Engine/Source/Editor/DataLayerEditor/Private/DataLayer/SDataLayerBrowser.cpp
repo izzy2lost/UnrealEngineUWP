@@ -102,7 +102,7 @@ void SDataLayerBrowser::Construct(const FArguments& InArgs)
 		{
 			if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 			{
-				return ActorDescInstance->GetActorName().ToString();
+				return ActorDescInstance->GetActorNameString();
 			}
 		}
 		return FString();

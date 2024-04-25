@@ -207,7 +207,7 @@ void TActorDescList<DescType>::AddActorDescriptor(DescType* ActorDesc)
 {
 	check(!bIsProxy);
 	check(ActorDesc);
-	checkf(!ActorsByGuid.Contains(ActorDesc->GetGuid()), TEXT("Duplicated actor descriptor guid '%s' detected: `%s`"), *ActorDesc->GetGuid().ToString(), *ActorDesc->GetActorName().ToString());
+	checkf(!ActorsByGuid.Contains(ActorDesc->GetGuid()), TEXT("Duplicated actor descriptor guid '%s' detected: `%s`"), *ActorDesc->GetGuid().ToString(), *ActorDesc->GetActorNameString());
 
 	TUniquePtr<DescType>* NewActorDesc = new(ActorDescList) TUniquePtr<DescType>(ActorDesc);
 	ActorsByGuid.Add(ActorDesc->GetGuid(), NewActorDesc);

@@ -119,7 +119,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 			else if (!ActorDesc->GetNativeClass().IsValid())
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Invalid actor native class: Actor: '%s' (guid '%s') from package '%s'"),
-					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetActorNameString(),
 					*ActorDesc->GetGuid().ToString(),
 					*ActorDesc->GetActorPackage().ToString());
 				InvalidActors.Emplace(Asset);
@@ -128,7 +128,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Unknown actor base class `%s`: Actor: '%s' (guid '%s') from package '%s'"),
 					*ActorDesc->GetBaseClass().ToString(),
-					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetActorNameString(),
 					*ActorDesc->GetGuid().ToString(),
 					*ActorDesc->GetActorPackage().ToString());
 				InvalidActors.Emplace(Asset);
@@ -143,8 +143,8 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Duplicate actor descriptor in package `%s`: Actor: '%s' -> Existing actor '%s'"), 
 					*ActorDesc->GetActorPackage().ToString(), 
-					*ActorDesc->GetActorName().ToString(), 
-					*ExistingDescPackage->GetActorName().ToString());
+					*ActorDesc->GetActorNameString(), 
+					*ExistingDescPackage->GetActorNameString());
 
 				// No need to add all actors in the same package several times as we only want to open the package for delete when repairing
 				if (ValidActorDescs.Contains(ActorDesc->GetGuid()))
@@ -159,9 +159,9 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 				check(ExistingActorDesc->GetGuid() == ActorDesc->GetGuid());
 				UE_LOG(LogWorldPartition, Warning, TEXT("Duplicate actor descriptor guid `%s`: Actor: '%s' from package '%s' -> Existing actor '%s' from package '%s'"), 
 					*ActorDesc->GetGuid().ToString(), 
-					*ActorDesc->GetActorName().ToString(), 
+					*ActorDesc->GetActorNameString(), 
 					*ActorDesc->GetActorPackage().ToString(),
-					*ExistingActorDesc->GetActorName().ToString(),
+					*ExistingActorDesc->GetActorNameString(),
 					*ExistingActorDesc->GetActorPackage().ToString());
 				InvalidActors.Emplace(Asset);
 			}
@@ -269,7 +269,7 @@ void UActorDescContainer::UnregisterActorDescriptor(FWorldPartitionActorDesc* Ac
 {
 	FActorDescList::RemoveActorDescriptor(ActorDesc);
 	ActorDesc->SetContainer(nullptr);
-	verifyf(ActorsByName.Remove(ActorDesc->GetActorName()), TEXT("Missing actor '%s' from container '%s'"), *ActorDesc->GetActorName().ToString(), *ContainerPackageName.ToString());
+	verifyf(ActorsByName.Remove(ActorDesc->GetActorName()), TEXT("Missing actor '%s' from container '%s'"), *ActorDesc->GetActorNameString(), *ContainerPackageName.ToString());
 }
 
 bool UActorDescContainer::ShouldHandleActorEvent(const AActor* Actor, bool bInUseLoadedPath) const

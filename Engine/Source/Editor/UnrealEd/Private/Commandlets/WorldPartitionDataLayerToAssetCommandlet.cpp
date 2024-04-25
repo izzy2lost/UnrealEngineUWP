@@ -510,7 +510,7 @@ bool UDataLayerToAssetCommandlet::RemapActorDataLayersToAssets(TStrongObjectPtr<
 				FString DataLayerString = FString::JoinBy(ActDescDataLayers.ToArray(), TEXT(", "), [](const FName& DataLayerName) { return DataLayerName.ToString(); });
 
 				UE_LOG(LogDataLayerToAssetCommandlet, Error, TEXT("Actor %s failed to load. Its data layers %s will not be remapped to a data layer asset."),
-					*ActorDescInstance->GetActorName().ToString(), *DataLayerString);
+					*ActorDescInstance->GetActorNameString(), *DataLayerString);
 				if (!bIgnoreActorLoadingErrors)
 				{
 					ActorConversionErrors++;
