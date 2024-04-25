@@ -5656,6 +5656,7 @@ void FDetailKeyFrameCacheAndHandler::OnKeyPropertyClicked(const IPropertyHandle&
 	{
 		return;
 	}
+	FScopedTransaction ScopedTransaction(LOCTEXT("KeyAttribute", "Key Attribute"), !GIsTransacting);
 	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
 
 	TArray<UObject*> Objects;
