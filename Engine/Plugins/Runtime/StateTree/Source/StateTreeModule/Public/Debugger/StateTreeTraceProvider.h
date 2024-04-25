@@ -47,6 +47,12 @@ private:
 
 	struct FStateTreeDebugIdPair
 	{
+		FStateTreeDebugIdPair(const TWeakObjectPtr<const UStateTree>& WeakStateTree, const FStateTreeIndex16 Id)
+			: WeakStateTree(WeakStateTree)
+			, Id(Id)
+		{
+		}
+
 		TWeakObjectPtr<const UStateTree> WeakStateTree;
 		FStateTreeIndex16 Id;
 	};
