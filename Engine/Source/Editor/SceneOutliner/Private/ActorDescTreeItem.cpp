@@ -26,10 +26,6 @@
 #include "ToolMenus.h"
 #include "LevelEditorViewport.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "Misc/ArchiveMD5.h"
-#include "Misc/SecureHash.h"
-#include "UObject/ObjectKey.h"
-
 
 #define LOCTEXT_NAMESPACE "SceneOutliner_ActorDescTreeItem"
 
@@ -267,13 +263,7 @@ FActorDescTreeItem::FActorDescTreeItem(const FWorldPartitionActorDescInstance* I
 
 FSceneOutlinerTreeItemID FActorDescTreeItem::ComputeTreeItemID(FGuid InActorGuid, UActorDescContainerInstance* InContainerInstance)
 {
-	FArchiveMD5 Ar;
-	Ar << InActorGuid;
-
-	FObjectKey ContainerKey(InContainerInstance);
-	Ar << ContainerKey;
-
-	return FSceneOutlinerTreeItemID(Ar.GetGuidFromHash());
+	return FSceneOutlinerTreeItemID(FGuid::Combine(InActorGuid, InContainerInstance->GetContainerActorGuid()));
 }
 
 bool FActorDescTreeItem::ShouldDisplayInOutliner(const FWorldPartitionActorDescInstance* InActorDescInstance)

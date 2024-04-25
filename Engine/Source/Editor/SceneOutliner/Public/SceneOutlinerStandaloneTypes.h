@@ -27,7 +27,7 @@ struct FFolderKey
 
 FORCEINLINE uint32 GetTypeHash(FFolderKey Key)
 {
-	return HashCombine(GetTypeHash(Key.Path), GetTypeHash(Key.RootObjectKey));
+	return HashCombineFast(GetTypeHash(Key.Path), GetTypeHash(Key.RootObjectKey));
 }
 
 /** Variant type that defines an identifier for a tree item. Assumes 'trivial relocatability' as with many unreal containers. */
@@ -143,7 +143,7 @@ public:
 			default:																		break;
 		}
 
-		return HashCombine((uint8)Type, Hash);
+		return HashCombineFast((uint8)Type, Hash);
 	}
 
 	friend uint32 GetTypeHash(const FSceneOutlinerTreeItemID& ItemID)
