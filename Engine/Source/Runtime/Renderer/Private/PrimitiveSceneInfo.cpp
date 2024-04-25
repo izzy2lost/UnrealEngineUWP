@@ -419,7 +419,6 @@ FRayTracingGeometry* FPrimitiveSceneInfo::GetValidStaticRayTracingGeometry(int8&
 	{
 		if (StaticRayTracingGeometries[InOutLODIndex]->HasPendingBuildRequest())
 		{
-			ensure(StaticRayTracingGeometries[InOutLODIndex]->IsValid());
 			StaticRayTracingGeometries[InOutLODIndex]->BoostBuildPriority();
 		}
 		else if (StaticRayTracingGeometries[InOutLODIndex]->IsValid())

@@ -140,10 +140,8 @@ public:
 	RENDERCORE_API void MakeResident(FRHICommandList& RHICmdList);
 	RENDERCORE_API void Evict();
 	
-	bool HasPendingBuildRequest() const
-	{
-		return RayTracingBuildRequestIndex != INDEX_NONE;
-	}
+	RENDERCORE_API bool HasPendingBuildRequest() const;
+
 	RENDERCORE_API void BoostBuildPriority(float InBoostValue = 0.01f) const;
 
 	// FRenderResource interface

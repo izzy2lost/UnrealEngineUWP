@@ -285,6 +285,18 @@ void FRayTracingGeometry::ReleaseResource()
 	Initializer = FRayTracingGeometryInitializer{};
 }
 
+bool FRayTracingGeometry::HasPendingBuildRequest() const
+{
+	const bool bHasPendingBuildRequest = RayTracingBuildRequestIndex != INDEX_NONE;
+
+	if (bHasPendingBuildRequest)
+	{
+		ensure(IsValid());
+	}
+
+	return bHasPendingBuildRequest;
+}
+
 void FRayTracingGeometry::BoostBuildPriority(float InBoostValue) const
 {
 	check(HasPendingBuildRequest());
