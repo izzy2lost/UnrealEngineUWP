@@ -873,6 +873,11 @@ namespace RayTracing
 							continue;
 						}
 
+						if (Geometry->IsEvicted())
+						{
+							continue;
+						}
+
 						// If geometry still has pending build request then add to list which requires a force build
 						if (Geometry->HasPendingBuildRequest())
 						{

@@ -1650,7 +1650,7 @@ int32 FSceneProxy::GetFirstValidRaytracingGeometryLODIndex() const
 	for (; LODIndex < NumLODs; ++LODIndex)
 	{
 		const FRayTracingGeometry& RayTracingGeometry = RenderData->LODResources[LODIndex].RayTracingGeometry;
-		if (RayTracingGeometry.IsValid() && !RayTracingGeometry.HasPendingBuildRequest())
+		if (RayTracingGeometry.IsValid() && !RayTracingGeometry.IsEvicted() && !RayTracingGeometry.HasPendingBuildRequest())
 		{
 			return LODIndex;
 		}

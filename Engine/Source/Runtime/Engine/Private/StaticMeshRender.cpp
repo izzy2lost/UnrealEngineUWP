@@ -1934,7 +1934,7 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			{
 				CurrentLODResources.RayTracingGeometry.BoostBuildPriority();
 			}
-			else if (CurrentLODResources.RayTracingGeometry.IsValid())
+			else if (CurrentLODResources.RayTracingGeometry.IsValid() && !CurrentLODResources.RayTracingGeometry.IsEvicted())
 			{
 				break;
 			}
@@ -1967,7 +1967,7 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 	}
 	else
 	{
-		check(Geometry.IsValid() && !Geometry.HasPendingBuildRequest());
+		check(Geometry.IsValid() && !Geometry.IsEvicted() && !Geometry.HasPendingBuildRequest());
 	}
 
 	{

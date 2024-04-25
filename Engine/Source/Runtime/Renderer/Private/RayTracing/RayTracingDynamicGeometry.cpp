@@ -321,7 +321,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		bRefit = false;
 	}
 
-	if (!Geometry.IsValid())
+	if (!Geometry.IsValid() || Geometry.IsEvicted())
 	{
 		bRefit = false;
 	}

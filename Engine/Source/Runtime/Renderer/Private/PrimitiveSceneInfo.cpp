@@ -393,7 +393,7 @@ bool FPrimitiveSceneInfo::IsCachedRayTracingGeometryValid() const
 		check(CachedRayTracingGeometry->GetRHI() == CachedRayTracingInstance.GeometryRHI);
 		check(!CachedRayTracingGeometry->GetRequiresBuild() && !CachedRayTracingGeometry->HasPendingBuildRequest());
 
-		return CachedRayTracingGeometry->IsValid();
+		return CachedRayTracingGeometry->IsValid() && !CachedRayTracingGeometry->IsEvicted();
 	}
 
 	return false;
@@ -421,7 +421,7 @@ FRayTracingGeometry* FPrimitiveSceneInfo::GetValidStaticRayTracingGeometry(int8&
 		{
 			StaticRayTracingGeometries[InOutLODIndex]->BoostBuildPriority();
 		}
-		else if (StaticRayTracingGeometries[InOutLODIndex]->IsValid())
+		else if (StaticRayTracingGeometries[InOutLODIndex]->IsValid() && !StaticRayTracingGeometries[InOutLODIndex]->IsEvicted())
 		{
 			return StaticRayTracingGeometries[InOutLODIndex];
 		}
@@ -440,7 +440,7 @@ FRHIRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometryInstance
 			StaticRayTracingGeometries[LodLevel]->BoostBuildPriority();
 			return nullptr;
 		}
-		else if (StaticRayTracingGeometries[LodLevel]->IsValid())
+		else if (StaticRayTracingGeometries[LodLevel]->IsValid() && !StaticRayTracingGeometries[LodLevel]->IsEvicted())
 		{
 			return StaticRayTracingGeometries[LodLevel]->GetRHI();
 		}

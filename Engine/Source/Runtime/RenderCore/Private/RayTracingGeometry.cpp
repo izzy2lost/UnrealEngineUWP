@@ -204,14 +204,15 @@ bool FRayTracingGeometry::IsValid() const
 	// can't check IsInitialized() because current implementation of hair ray tracing support doesn't initialize resource
 	//check(IsInitialized());
 
-	const bool bIsValidAndNotEvicted = EnumHasAllFlags(GeometryState, EGeometryStateFlags::Valid) && !EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted);
+	const bool bIsValid = EnumHasAllFlags(GeometryState, EGeometryStateFlags::Valid);
 
-	if (bIsValidAndNotEvicted)
+	if (bIsValid)
 	{
-		check(RayTracingGeometryRHI != nullptr && Initializer.TotalPrimitiveCount > 0);
+		check(Initializer.TotalPrimitiveCount > 0);
+		check(RayTracingGeometryRHI != nullptr || EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted));
 	}
 
-	return bIsValidAndNotEvicted;
+	return bIsValid;
 }
 
 bool FRayTracingGeometry::IsEvicted() const
@@ -291,7 +292,7 @@ bool FRayTracingGeometry::HasPendingBuildRequest() const
 
 	if (bHasPendingBuildRequest)
 	{
-		ensure(IsValid());
+		ensure(IsValid() && !IsEvicted());
 	}
 
 	return bHasPendingBuildRequest;

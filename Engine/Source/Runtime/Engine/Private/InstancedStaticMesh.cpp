@@ -1642,7 +1642,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 		{
 			CurrentLODResources.RayTracingGeometry.BoostBuildPriority();
 		}
-		else if (CurrentLODResources.RayTracingGeometry.IsValid())
+		else if (CurrentLODResources.RayTracingGeometry.IsValid() && !CurrentLODResources.RayTracingGeometry.IsEvicted())
 		{
 			RayTracingGeometry = &CurrentLODResources.RayTracingGeometry;
 			break;

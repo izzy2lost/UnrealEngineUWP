@@ -224,7 +224,7 @@ void FSkeletalMeshStreamIn::DoFinishUpdate(const FContext& Context)
 			if (LODResource.GetNumVertices() > 0 && LODResource.bReferencedByStaticSkeletalMeshObjects_RenderThread)
 			{
 				// Under very rare circumstances that we switch ray tracing on/off right in the middle of streaming RayTracingGeometryRHI might not be valid.
-				if (IsRayTracingEnabled() && ensure(LODResource.StaticRayTracingGeometry.IsValid()))
+				if (IsRayTracingEnabled() && ensure(LODResource.StaticRayTracingGeometry.IsValid() && !LODResource.StaticRayTracingGeometry.IsEvicted()))
 				{
 					LODResource.StaticRayTracingGeometry.RequestBuildIfNeeded(FRHICommandListImmediate::Get(), ERTAccelerationStructureBuildPriority::Normal);
 				}
