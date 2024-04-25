@@ -93,6 +93,7 @@ public:
 
 private:
 	friend class UClothEditorWeightMapPaintTool;
+	friend class FWeightMapNodeChange;
 
 	const TArray<float>& GetVertexWeights() const { return VertexWeights; }
 	TArray<float>& GetVertexWeights() { return VertexWeights; }

@@ -1967,6 +1967,71 @@ void UClothEditorWeightMapPaintTool::ClearHiddenAction()
 	GetToolManager()->PostInvalidation();
 }
 
+
+//
+// Object encapsulating a change to the AddWeightMap node's values. Used for Undo/Redo.
+//
+class FWeightMapNodeChange : public FToolCommandChange
+{
+
+public:
+	
+	FWeightMapNodeChange(FGuid NodeGuid, const TArray<float>& Weights, TArray<float>& RenderWeights, EChaosClothAssetWeightMapOverrideType MapOverrideType, const FString& WeightMapName) :
+		NodeGuid(NodeGuid),
+		SavedWeights(Weights),
+		SavedRenderWeights(RenderWeights),
+		SavedMapOverrideType(MapOverrideType),
+		SavedWeightMapName(WeightMapName)
+	{}
+	
+
+private:
+
+	FGuid NodeGuid;
+
+	TArray<float> SavedWeights;
+
+	// Note we could store only one set of weights and use a bool to determine whether we are updating sim or render vertices, however in the future 
+	// we may enable writing both weight maps to the node at once.
+	TArray<float> SavedRenderWeights;
+
+	EChaosClothAssetWeightMapOverrideType SavedMapOverrideType;
+	FString SavedWeightMapName;
+
+	virtual FString ToString() const override { return TEXT("WeightMapNodeUpdateChange"); }
+
+	virtual void Apply(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	virtual void Revert(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	void SwapApplyRevert(UObject* Object)
+	{
+		if (UDataflow* const Dataflow = Cast<UDataflow>(Object))
+		{
+			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->GetDataflow()->FindBaseNode(NodeGuid))
+			{
+				if (FChaosClothAssetAddWeightMapNode* const Node = BaseNode->AsType<FChaosClothAssetAddWeightMapNode>())
+				{
+					Swap(Node->GetVertexWeights(), SavedWeights);
+					Swap(Node->GetRenderVertexWeights(), SavedRenderWeights);
+					Swap(Node->MapOverrideType, SavedMapOverrideType);
+					Swap(Node->Name, SavedWeightMapName);
+
+					Node->Invalidate();
+				}
+			}
+		}
+	}
+
+};
+
+
 void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 {
 	check(ActiveWeightMap);
@@ -1974,6 +2039,21 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 	GetCurrentWeightMap(CurrentWeights);
 
 	check(WeightMapNodeToUpdate);
+
+	// Save previous state for undo
+	if (UDataflow* const Dataflow = ClothEditorContextObject->GetDataflowAsset())
+	{
+		TUniquePtr<FWeightMapNodeChange> Change = MakeUnique<FWeightMapNodeChange>(
+			WeightMapNodeToUpdate->GetGuid(), 
+			WeightMapNodeToUpdate->GetVertexWeights(),
+			WeightMapNodeToUpdate->GetRenderVertexWeights(), 
+			WeightMapNodeToUpdate->MapOverrideType, 
+			WeightMapNodeToUpdate->Name);
+
+		GetToolManager()->GetContextTransactionsAPI()->AppendChange(Dataflow, MoveTemp(Change), LOCTEXT("WeightMapNodeChangeDescription", "Update Weight Map Node"));
+	}
+
+
 	WeightMapNodeToUpdate->MapOverrideType = UpdateWeightMapProperties->MapOverrideType;
 	WeightMapNodeToUpdate->Name = UpdateWeightMapProperties->Name;
 

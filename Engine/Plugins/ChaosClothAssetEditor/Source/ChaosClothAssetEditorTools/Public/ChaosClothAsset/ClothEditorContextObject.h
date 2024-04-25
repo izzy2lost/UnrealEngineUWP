@@ -5,6 +5,7 @@
 #include "UObject/Object.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
+#include "Dataflow/DataflowObject.h"
 #include "ClothEditorContextObject.generated.h"
 
 class UDataflow;
@@ -62,6 +63,21 @@ public:
 	void SetDataflowContext(TWeakPtr<Dataflow::FEngineContext> InDataflowContext)
 	{
 		DataflowContext = InDataflowContext;
+	}
+
+	UDataflow* GetDataflowAsset() const
+	{
+		if (const TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowGraphEditor.Pin())
+		{
+			if (UEdGraph* const EdGraph = GraphEditor->GetCurrentGraph())
+			{
+				if (UDataflow* const Dataflow = Cast<UDataflow>(EdGraph))
+				{
+					return Dataflow;
+				}
+			}
+		}
+		return nullptr;
 	}
 
 	void SetClothCollection(UE::Chaos::ClothAsset::EClothPatternVertexType ViewMode, TWeakPtr<FManagedArrayCollection> ClothCollection, bool bInUsingInputCollection);
