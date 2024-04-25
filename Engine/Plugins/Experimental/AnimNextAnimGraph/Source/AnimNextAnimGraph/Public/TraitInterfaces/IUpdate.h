@@ -52,6 +52,9 @@ namespace UE::AnimNext
 		// Returns whether or not this trait is blending out
 		bool IsBlendingOut() const { return !!bIsBlendingOut; }
 
+		// Returns whether or not this trait is newly relevant
+		bool IsNewlyRelevant() const { return !!bIsNewlyRelevant; }
+
 		// Creates a new instance of the update state with the total weight scaled by the supplied weight
 		FTraitUpdateState WithWeight(float Weight) const
 		{
@@ -77,10 +80,18 @@ namespace UE::AnimNext
 		}
 
 		// Creates a new instance of the update state marking it as blending out
-		FTraitUpdateState AsBlendingOut() const
+		FTraitUpdateState AsBlendingOut(bool InIsBlendingOut = true) const
 		{
 			FTraitUpdateState Result(*this);
-			Result.bIsBlendingOut = true;
+			Result.bIsBlendingOut = InIsBlendingOut;
+			return Result;
+		}
+
+		// Creates a new instance of the update state marking it as newly relevant
+		FTraitUpdateState AsNewlyRelevant(bool InIsNewlyRelevant = true) const
+		{
+			FTraitUpdateState Result(*this);
+			Result.bIsNewlyRelevant = InIsNewlyRelevant;
 			return Result;
 		}
 
@@ -95,7 +106,10 @@ namespace UE::AnimNext
 		float TotalTrajectoryWeight = 1.0f;
 
 		// Whether or not we are blending out
-		int32 bIsBlendingOut = false;
+		int8 bIsBlendingOut = false;
+
+		// Whether or not we newly became relevant
+		int8 bIsNewlyRelevant = false;
 	};
 
 	static_assert(sizeof(FTraitUpdateState) <= 16, "Keep the size to 16 bytes for efficient copying");
@@ -217,6 +231,9 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IUpdate, 0x59d24dc5)
 
+		// Called before the first update when a trait stack becomes relevant
+		virtual void OnBecomeRelevant(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const;
+
 		// Called before a traits children are updated
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const;
 
@@ -250,6 +267,12 @@ namespace UE::AnimNext
 	template<>
 	struct TTraitBinding<IUpdate> : FTraitBinding
 	{
+		// @see IUpdate::OnBecomeRelevant
+		void OnBecomeRelevant(FUpdateTraversalContext& Context, const FTraitUpdateState& TraitState) const
+		{
+			GetInterface()->OnBecomeRelevant(Context, *this, TraitState);
+		}
+
 		// @see IUpdate::PreUpdate
 		void PreUpdate(FUpdateTraversalContext& Context, const FTraitUpdateState& TraitState) const
 		{

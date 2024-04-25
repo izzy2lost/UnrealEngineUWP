@@ -55,6 +55,8 @@ namespace UE::AnimNext
 			FTraitPtr FalseChild;
 
 			int32 PreviousChildIndex = INDEX_NONE;
+			bool bWasTrueChildRelevant = false;
+			bool bWasFalseChildRelevant = false;
 		};
 
 		// IUpdate impl

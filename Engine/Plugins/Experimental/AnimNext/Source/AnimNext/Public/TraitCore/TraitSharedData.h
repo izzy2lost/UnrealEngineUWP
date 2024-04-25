@@ -9,6 +9,53 @@
 
 #include "TraitSharedData.generated.h"
 
+namespace UE::AnimNext
+{
+	struct FTraitBinding;
+}
+
+#define ANIM_NEXT_IMPL_EXECUTE_LATENT_CONSTRUCTOR_FOR_PROPERTY(PropertyName) \
+	/* @see GetLatentPropertyIndex below for details */ \
+	[&Binding, LatentPropertyHandles](int32 LatentPropertyIndex) \
+	{ \
+		const UE::AnimNext::FLatentPropertyHandle LatentPropertyHandle = LatentPropertyHandles[LatentPropertyIndex - 1]; \
+		if (LatentPropertyHandle.IsOffsetValid()) \
+		{ \
+			/* We remove the 'const' explicitly to avoid exposing a mutable version of the getter */ \
+			new(const_cast<decltype(PropertyName)*>(Binding.GetLatentProperty<decltype(PropertyName)>(LatentPropertyHandle))) decltype(PropertyName)(); \
+		} \
+	}(GetLatentPropertyIndex(offsetof(Self, PropertyName))); \
+
+#define ANIM_NEXT_IMPL_DEFINE_LATENT_CONSTRUCTOR(EnumeratorMacro) \
+	/** @see FAnimNextTraitSharedData::ConstructLatentProperties */ \
+	static void ConstructLatentProperties(const UE::AnimNext::FTraitBinding& Binding) \
+	{ \
+		/* Construct our latent properties */ \
+		const UE::AnimNext::FLatentPropertyHandle* LatentPropertyHandles = Binding.GetLatentPropertyHandles(); \
+		EnumeratorMacro(ANIM_NEXT_IMPL_EXECUTE_LATENT_CONSTRUCTOR_FOR_PROPERTY) \
+	} \
+
+#define ANIM_NEXT_IMPL_EXECUTE_LATENT_DESTRUCTOR_FOR_PROPERTY(PropertyName) \
+	/* @see GetLatentPropertyIndex below for details */ \
+	[&Binding, LatentPropertyHandles](int32 LatentPropertyIndex) \
+	{ \
+		const UE::AnimNext::FLatentPropertyHandle LatentPropertyHandle = LatentPropertyHandles[LatentPropertyIndex - 1]; \
+		if (LatentPropertyHandle.IsOffsetValid()) \
+		{ \
+			/* We remove the 'const' explicitly to avoid exposing a mutable version of the getter */ \
+			const_cast<decltype(PropertyName)*>(Binding.GetLatentProperty<decltype(PropertyName)>(LatentPropertyHandle))->~decltype(PropertyName)(); \
+		} \
+	}(GetLatentPropertyIndex(offsetof(Self, PropertyName))); \
+
+#define ANIM_NEXT_IMPL_DEFINE_LATENT_DESTRUCTOR(EnumeratorMacro) \
+	/** @see FAnimNextTraitSharedData::DestructLatentProperties */ \
+	static void DestructLatentProperties(const UE::AnimNext::FTraitBinding& Binding) \
+	{ \
+		/* Destruct our latent properties */ \
+		const UE::AnimNext::FLatentPropertyHandle* LatentPropertyHandles = Binding.GetLatentPropertyHandles(); \
+		EnumeratorMacro(ANIM_NEXT_IMPL_EXECUTE_LATENT_DESTRUCTOR_FOR_PROPERTY) \
+	} \
+
 #define ANIM_NEXT_IMPL_GET_LATENT_PROPERTY_INDEX_FOR_PROPERTY(PropertyName) \
 	LatentPropertyIndex--; \
 	if (LatentPropertyOffset == offsetof(Self, PropertyName)) \
@@ -35,7 +82,7 @@
 	} \
 
 #define ANIM_NEXT_IMPL_DEFINE_LATENT_GETTER(PropertyName) \
-	decltype(PropertyName) Get##PropertyName(const UE::AnimNext::FTraitBinding& Binding) const \
+	const decltype(PropertyName)& Get##PropertyName(const UE::AnimNext::FTraitBinding& Binding) const \
 	{ \
 		/* We need a mapping of latent property name/offset to latent property index */ \
 		/* This can be built once at runtime using the UE reflection and cached on first call or using a constexpr function, see below */ \
@@ -64,6 +111,8 @@
   */
 #define GENERATE_TRAIT_LATENT_PROPERTIES(SharedDataType, EnumeratorMacro) \
 	using Self = SharedDataType; \
+	ANIM_NEXT_IMPL_DEFINE_LATENT_CONSTRUCTOR(EnumeratorMacro) \
+	ANIM_NEXT_IMPL_DEFINE_LATENT_DESTRUCTOR(EnumeratorMacro) \
 	ANIM_NEXT_IMPL_DEFINE_GET_LATENT_PROPERTY_INDEX(EnumeratorMacro) \
 	EnumeratorMacro(ANIM_NEXT_IMPL_DEFINE_LATENT_GETTER) \
 
@@ -82,6 +131,16 @@ USTRUCT()
 struct FAnimNextTraitSharedData
 {
 	GENERATED_BODY()
+
+	/**
+	 * Constructs the latent properties on the bound trait instance
+	 */
+	static void ConstructLatentProperties(const UE::AnimNext::FTraitBinding& Binding) {}
+
+	/**
+	 * Destructs the latent properties on the bound trait instance
+	 */
+	static void DestructLatentProperties(const UE::AnimNext::FTraitBinding& Binding) {}
 
 	/**
 	  * Returns the latent property index from a latent property offset

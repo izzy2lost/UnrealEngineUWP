@@ -31,6 +31,19 @@ namespace UE::AnimNext
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
 		Binding.GetStackInterface(DiscreteBlendTrait);
 
+		// If we were previously relevant, update our status
+		if (InstanceData->PreviousChildIndex != INDEX_NONE)
+		{
+			if (InstanceData->PreviousChildIndex == TRUE_CHILD_INDEX)
+			{
+				InstanceData->bWasTrueChildRelevant = true;
+			}
+			else
+			{
+				InstanceData->bWasFalseChildRelevant = true;
+			}
+		}
+
 		const int32 DestinationChildIndex = DiscreteBlendTrait.GetBlendDestinationChildIndex(Context);
 		if (InstanceData->PreviousChildIndex != DestinationChildIndex)
 		{
@@ -53,11 +66,10 @@ namespace UE::AnimNext
 		const float BlendWeightTrue = DiscreteBlendTrait.GetBlendWeight(Context, TRUE_CHILD_INDEX);
 		if (InstanceData->TrueChild.IsValid() && FAnimWeight::IsRelevant(BlendWeightTrue))
 		{
-			FTraitUpdateState TraitStateTrue = TraitState.WithWeight(BlendWeightTrue);
-			if (DestinationChildIndex != TRUE_CHILD_INDEX)
-			{
-				TraitStateTrue = TraitStateTrue.AsBlendingOut();
-			}
+			FTraitUpdateState TraitStateTrue = TraitState
+				.WithWeight(BlendWeightTrue)
+				.AsBlendingOut(DestinationChildIndex != TRUE_CHILD_INDEX)
+				.AsNewlyRelevant(!InstanceData->bWasTrueChildRelevant);
 
 			TraversalQueue.Push(InstanceData->TrueChild, TraitStateTrue);
 		}
@@ -65,11 +77,10 @@ namespace UE::AnimNext
 		const float BlendWeightFalse = 1.0f - BlendWeightTrue;
 		if (InstanceData->FalseChild.IsValid() && FAnimWeight::IsRelevant(BlendWeightFalse))
 		{
-			FTraitUpdateState TraitStateFalse = TraitState.WithWeight(BlendWeightFalse);
-			if (DestinationChildIndex != FALSE_CHILD_INDEX)
-			{
-				TraitStateFalse = TraitStateFalse.AsBlendingOut();
-			}
+			FTraitUpdateState TraitStateFalse = TraitState
+				.WithWeight(BlendWeightFalse)
+				.AsBlendingOut(DestinationChildIndex != FALSE_CHILD_INDEX)
+				.AsNewlyRelevant(!InstanceData->bWasFalseChildRelevant);
 
 			TraversalQueue.Push(InstanceData->FalseChild, TraitStateFalse);
 		}
@@ -161,10 +172,12 @@ namespace UE::AnimNext
 		if (ChildIndex == TRUE_CHILD_INDEX)
 		{
 			InstanceData->TrueChild.Reset();
+			InstanceData->bWasTrueChildRelevant = false;
 		}
 		else if (ChildIndex == FALSE_CHILD_INDEX)
 		{
 			InstanceData->FalseChild.Reset();
+			InstanceData->bWasFalseChildRelevant = false;
 		}
 	}
 }

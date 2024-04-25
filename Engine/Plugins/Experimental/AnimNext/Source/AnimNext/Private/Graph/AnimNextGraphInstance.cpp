@@ -85,6 +85,11 @@ bool FAnimNextGraphInstance::IsRoot() const
 	return this == RootGraphInstance;
 }
 
+bool FAnimNextGraphInstance::HasUpdated() const
+{
+	return bHasUpdatedOnce;
+}
+
 void FAnimNextGraphInstance::AddStructReferencedObjects(FReferenceCollector& Collector)
 {
 	if (!IsRoot())
@@ -150,6 +155,11 @@ void FAnimNextGraphInstance::CollectInputTraitEvents(UE::AnimNext::FTraitEventLi
 	Swap(OutInputEvents, RootGraphInstance->InputEventList);
 }
 
+void FAnimNextGraphInstance::Update()
+{
+	bHasUpdatedOnce = true;
+}
+
 void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles, void* DestinationBasePtr, bool bIsFrozen)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_RigVM);
@@ -181,6 +191,7 @@ void FAnimNextGraphInstance::Freeze()
 	GraphInstancePtr.Reset();
 	ExtendedExecuteContext.Reset();
 	Components.Empty();
+	bHasUpdatedOnce = false;
 }
 
 void FAnimNextGraphInstance::Thaw()

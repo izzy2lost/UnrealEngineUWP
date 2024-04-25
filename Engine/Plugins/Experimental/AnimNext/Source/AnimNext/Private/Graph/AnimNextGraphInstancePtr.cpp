@@ -64,6 +64,11 @@ bool FAnimNextGraphInstancePtr::IsRoot() const
 	return Impl ? Impl->IsRoot() : true;
 }
 
+bool FAnimNextGraphInstancePtr::HasUpdated() const
+{
+	return Impl ? Impl->HasUpdated() : false;
+}
+
 void FAnimNextGraphInstancePtr::AddStructReferencedObjects(FReferenceCollector& Collector)
 {
 	if (Impl)
@@ -105,4 +110,10 @@ void FAnimNextGraphInstancePtr::CollectInputTraitEvents(UE::AnimNext::FTraitEven
 {
 	check(Impl);
 	Impl->CollectInputTraitEvents(OutInputEvents);
+}
+
+void FAnimNextGraphInstancePtr::Update()
+{
+	check(Impl);
+	Impl->Update();
 }

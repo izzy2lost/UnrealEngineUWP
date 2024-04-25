@@ -73,9 +73,11 @@ namespace UE::AnimNext
 		FName CurrentActiveEntryPoint = NAME_None;
 		if (bHasActiveSubGraph)
 		{
-			const FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[InstanceData->CurrentlyActiveSubGraphIndex];
+			FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[InstanceData->CurrentlyActiveSubGraphIndex];
 			CurrentActiveSubGraph = SubGraphSlot.SubGraph;
 			CurrentActiveEntryPoint = SubGraphSlot.EntryPoint;
+
+			SubGraphSlot.bWasRelevant = true;
 		}
 
 		const TObjectPtr<const UAnimNextGraph> DesiredSubGraph = SharedData->GetSubGraph(Binding);
@@ -147,15 +149,15 @@ namespace UE::AnimNext
 
 		for (int32 SubGraphIndex = 0; SubGraphIndex < NumSubGraphs; ++SubGraphIndex)
 		{
+			const FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[SubGraphIndex];
 			const float BlendWeight = DiscreteBlendTrait.GetBlendWeight(Context, SubGraphIndex);
 
-			FTraitUpdateState SubGraphTraitState = TraitState.WithWeight(BlendWeight);
-			if (SubGraphIndex != InstanceData->CurrentlyActiveSubGraphIndex)
-			{
-				SubGraphTraitState = SubGraphTraitState.AsBlendingOut();
-			}
+			FTraitUpdateState SubGraphTraitState = TraitState
+				.WithWeight(BlendWeight)
+				.AsBlendingOut(SubGraphIndex != InstanceData->CurrentlyActiveSubGraphIndex)
+				.AsNewlyRelevant(!SubGraphSlot.bWasRelevant);
 
-			TraversalQueue.Push(InstanceData->SubGraphSlots[SubGraphIndex].GraphInstance.GetGraphRootPtr(), SubGraphTraitState);
+			TraversalQueue.Push(SubGraphSlot.GraphInstance.GetGraphRootPtr(), SubGraphTraitState);
 		}
 	}
 
@@ -228,6 +230,7 @@ namespace UE::AnimNext
 			}
 
 			SubGraphEntry.State = ESlotState::Inactive;
+			SubGraphEntry.bWasRelevant = false;
 		}
 	}
 

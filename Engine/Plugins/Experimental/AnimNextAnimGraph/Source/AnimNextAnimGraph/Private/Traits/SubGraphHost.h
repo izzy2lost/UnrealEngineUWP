@@ -51,7 +51,7 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_TRAIT(FSubGraphHostTrait, 0xb1085d7b, FBaseTrait)
 
-		enum class ESlotState
+		enum class ESlotState : uint8
 		{
 			ActiveWithGraph,
 			ActiveWithReferencePose,
@@ -71,6 +71,9 @@ namespace UE::AnimNext
 
 			// The current slot state
 			ESlotState State = ESlotState::Inactive;
+
+			// Whether or not this slot state was previously relevant
+			bool bWasRelevant = false;
 		};
 
 		using FSharedData = FAnimNextSubGraphHostTraitSharedData;

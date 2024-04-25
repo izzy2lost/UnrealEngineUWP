@@ -75,6 +75,9 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns whether or not this graph instance is the root graph instance or false otherwise
 	bool IsRoot() const;
 
+	// Returns whether or not this graph instance has updated at least once
+	bool HasUpdated() const;
+
 	// Adds strong/hard object references during GC
 	void AddStructReferencedObjects(class FReferenceCollector& Collector);
 
@@ -104,6 +107,9 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 
 	// Collects all currently queued input trait events (thread safe)
 	void CollectInputTraitEvents(UE::AnimNext::FTraitEventList& OutInputEvents);
+
+	// Called each time the graph updates
+	void Update();
 
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
@@ -151,6 +157,9 @@ private:
 
 	// Lock to ensure input event list actions are thread safe
 	FRWLock InputEventListLock;
+
+	// Whether or not this graph has updated once
+	bool bHasUpdatedOnce = false;
 
 	friend UAnimNextGraph;					// The graph is the one that allocates instances
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance

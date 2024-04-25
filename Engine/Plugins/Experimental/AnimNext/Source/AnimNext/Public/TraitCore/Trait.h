@@ -69,13 +69,19 @@ class FArchive;
 	} \
 	void TraitName::ConstructTraitInstance(const UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FTraitBinding& Binding) const \
 	{ \
+		/* Construct the base struct first */ \
 		FInstanceData* Data = new(Binding.GetInstanceData<FInstanceData>()) FInstanceData(); \
+		/* Then construct our latent properties, the Construct implementation below might need them */ \
+		FSharedData::ConstructLatentProperties(Binding); \
+		/* Construct our typed instance last */ \
 		Data->Construct(Context, Binding); \
 	} \
 	void TraitName::DestructTraitInstance(const UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FTraitBinding& Binding) const \
 	{ \
+		/* Destruction is reverse order of construction above */ \
 		FInstanceData* Data = Binding.GetInstanceData<FInstanceData>(); \
 		Data->Destruct(Context, Binding); \
+		FSharedData::DestructLatentProperties(Binding); \
 		Data->~FInstanceData(); \
 	}
 

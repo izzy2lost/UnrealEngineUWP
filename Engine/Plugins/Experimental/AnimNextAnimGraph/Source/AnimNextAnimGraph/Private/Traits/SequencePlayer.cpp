@@ -25,18 +25,6 @@ namespace UE::AnimNext
 		FTrait::FInstanceData::Construct(Context, Binding);
 
 		IGarbageCollection::RegisterWithGC(Context, Binding);
-
-		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
-
-		// Cache the anim sequence we'll play during construction, we don't allow it to change afterwards
-		InstanceData->AnimSequence = SharedData->GetAnimSequence(Binding);
-
-		if (InstanceData->AnimSequence)
-		{
-			const float SequenceLength = InstanceData->AnimSequence->GetPlayLength();
-			InternalTimeAccumulator = FMath::Clamp(SharedData->GetStartPosition(Binding), 0.0f, SequenceLength);
-		}
 	}
 
 	void FSequencePlayerTrait::FInstanceData::Destruct(const FExecutionContext& Context, const FTraitBinding& Binding)
@@ -98,6 +86,25 @@ namespace UE::AnimNext
 
 			InstanceData->InternalTimeAccumulator = FMath::Clamp(ProgressRatio, 0.0f, 1.0f) * SequenceLength;
 		}
+	}
+
+	void FSequencePlayerTrait::OnBecomeRelevant(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
+	{
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		// Cache the anim sequence we'll play during construction, we don't allow it to change afterwards
+		InstanceData->AnimSequence = SharedData->GetAnimSequence(Binding);
+
+		float InternalTimeAccumulator = 0.0f;
+		if (UAnimSequence* AnimSeq = InstanceData->AnimSequence.Get())
+		{
+			const float StartPosition = SharedData->GetStartPosition(Binding);
+			const float SequenceLength = AnimSeq->GetPlayLength();
+			InternalTimeAccumulator = FMath::Clamp(StartPosition, 0.0f, SequenceLength);
+		}
+
+		InstanceData->InternalTimeAccumulator = InternalTimeAccumulator;
 	}
 
 	void FSequencePlayerTrait::PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const

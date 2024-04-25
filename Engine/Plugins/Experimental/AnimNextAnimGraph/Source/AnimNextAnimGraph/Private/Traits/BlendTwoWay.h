@@ -54,6 +54,9 @@ namespace UE::AnimNext
 		{
 			FTraitPtr ChildA;
 			FTraitPtr ChildB;
+
+			bool bWasChildARelevant = false;
+			bool bWasChildBRelevant = false;
 		};
 
 		// IEvaluate impl

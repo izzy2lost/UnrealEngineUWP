@@ -156,6 +156,15 @@ namespace UE::AnimNext
 		}
 	}
 
+	void IUpdate::OnBecomeRelevant(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
+	{
+		TTraitBinding<IUpdate> SuperBinding;
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
+		{
+			SuperBinding.OnBecomeRelevant(Context, TraitState);
+		}
+	}
+
 	void IUpdate::PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
 	{
 		TTraitBinding<IUpdate> SuperBinding;
@@ -462,6 +471,13 @@ namespace UE::AnimNext
 		Private::FUpdateEventBookkeepingList RootParentBookkeepingEntryList;
 		TraversalContext.RootParentBookkeepingEntryList = &RootParentBookkeepingEntryList;
 
+		const FTraitUpdateState RootState =
+			FTraitUpdateState(DeltaTime)
+			.AsNewlyRelevant(!GraphInstance.HasUpdated());
+
+		// Update the graph instance itself
+		GraphInstance.Update();
+
 		// Grab our input events, we'll propagate them down the graph as we traverse
 		GraphInstance.CollectInputTraitEvents(TraversalContext.InputEventList);
 
@@ -475,7 +491,7 @@ namespace UE::AnimNext
 		}
 
 		// Add the graph root to start the update process
-		Private::FUpdateEntry RootEntry(GraphInstance.GetGraphRootPtr(), FTraitUpdateState(DeltaTime));
+		Private::FUpdateEntry RootEntry(GraphInstance.GetGraphRootPtr(), RootState);
 		TraversalContext.PushUpdateEntry(&RootEntry);
 
 		while (Private::FUpdateEntry* Entry = TraversalContext.PopUpdateEntry())
@@ -497,11 +513,19 @@ namespace UE::AnimNext
 				const bool bIsFrozen = false;	// Not yet supported
 				Entry->TraitStack.SnapshotLatentProperties(bIsFrozen);
 
+				const bool bImplementsIUpdate = Entry->TraitStack.GetInterface(Entry->UpdateTrait);
+
+				// Before we PreUpdate, signal that we became newly relevant
+				if (bImplementsIUpdate && Entry->TraitState.IsNewlyRelevant())
+				{
+					Entry->UpdateTrait.OnBecomeRelevant(TraversalContext, Entry->TraitState);
+				}
+
 				// Raise our input events
 				Private::RaiseTraitEvents(TraversalContext, Entry, TraversalContext.InputEventList);
 
-				// If this trait stack implements IUpdate, call into it
-				if (Entry->TraitStack.GetInterface(Entry->UpdateTrait))
+				// Main update before our children
+				if (bImplementsIUpdate)
 				{
 					Entry->UpdateTrait.PreUpdate(TraversalContext, Entry->TraitState);
 				}

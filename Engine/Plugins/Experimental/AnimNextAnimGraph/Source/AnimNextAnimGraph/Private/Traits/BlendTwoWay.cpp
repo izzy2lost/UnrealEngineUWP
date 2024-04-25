@@ -57,11 +57,16 @@ namespace UE::AnimNext
 				// We need to blend a child that isn't instanced yet, allocate it
 				InstanceData->ChildA = Context.AllocateNodeInstance(Binding, SharedData->ChildA);
 			}
+			else
+			{
+				InstanceData->bWasChildARelevant = true;
+			}
 
 			if (!FAnimWeight::IsRelevant(BlendWeightB))
 			{
 				// We no longer need this child, release it
 				InstanceData->ChildB.Reset();
+				InstanceData->bWasChildBRelevant = false;
 			}
 		}
 
@@ -72,11 +77,16 @@ namespace UE::AnimNext
 				// We need to blend a child that isn't instanced yet, allocate it
 				InstanceData->ChildB = Context.AllocateNodeInstance(Binding, SharedData->ChildB);
 			}
+			else
+			{
+				InstanceData->bWasChildBRelevant = true;
+			}
 
 			if (FAnimWeight::IsFullWeight(BlendWeightB))
 			{
 				// We no longer need this child, release it
 				InstanceData->ChildA.Reset();
+				InstanceData->bWasChildARelevant = false;
 			}
 		}
 	}
@@ -92,12 +102,12 @@ namespace UE::AnimNext
 		if (InstanceData->ChildA.IsValid())
 		{
 			const float BlendWeightA = 1.0f - BlendWeightB;
-			TraversalQueue.Push(InstanceData->ChildA, TraitState.WithWeight(BlendWeightA));
+			TraversalQueue.Push(InstanceData->ChildA, TraitState.WithWeight(BlendWeightA).AsNewlyRelevant(!InstanceData->bWasChildARelevant));
 		}
 
 		if (InstanceData->ChildB.IsValid())
 		{
-			TraversalQueue.Push(InstanceData->ChildB, TraitState.WithWeight(BlendWeightB));
+			TraversalQueue.Push(InstanceData->ChildB, TraitState.WithWeight(BlendWeightB).AsNewlyRelevant(!InstanceData->bWasChildBRelevant));
 		}
 	}
 
