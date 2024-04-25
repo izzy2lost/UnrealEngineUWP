@@ -389,7 +389,7 @@ namespace Gauntlet
 				Match M = LogRegex.Match(CommandArguments);
 				if (M.Success)
 				{
-					LogFile = M.Groups[2].Value;
+					LogFile = !string.IsNullOrEmpty(M.Groups[1].Value) ? M.Groups[1].Value : M.Groups[2].Value;
 				}
 
 				// Explicitly set log file when not already defined if not build machine
