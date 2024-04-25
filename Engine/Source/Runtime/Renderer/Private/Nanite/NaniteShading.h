@@ -40,12 +40,18 @@ FShadeBinning ShadeBinning(
 	const TConstArrayView<FRDGTextureRef> ClearTargets
 );
 
+enum class EBuildShadingCommandsMode : uint8
+{
+	Default = 0,
+	Custom,
+};
+
 void BuildShadingCommands(
 	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
 	ENaniteMeshPass::Type MeshPass,
 	FNaniteShadingCommands& ShadingCommands,
-	bool bForceBuildCommands
+	EBuildShadingCommandsMode Mode = EBuildShadingCommandsMode::Default
 );
 
 bool LoadBasePassPipeline(

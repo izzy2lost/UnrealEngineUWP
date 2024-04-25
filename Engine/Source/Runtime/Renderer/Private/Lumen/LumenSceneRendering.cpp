@@ -2272,7 +2272,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 				QUICK_SCOPE_CYCLE_COUNTER(NaniteMeshPass);
 
 				// Should have launched earlier in the frame, but ensure we have built Lumen commands here just in case (launched early will make this a no-op)
-				Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::LumenCardCapture, Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture], false);
+				Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::LumenCardCapture, Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture]);
 
 				const FIntPoint DepthStencilAtlasSize = CardCaptureAtlas.Size;
 				const FIntRect DepthAtlasRect = FIntRect(0, 0, DepthStencilAtlasSize.X, DepthStencilAtlasSize.Y);

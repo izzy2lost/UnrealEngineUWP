@@ -301,6 +301,49 @@ bool FMaterialsSceneExtension::ProcessBufferDefragmentation()
 	return true;
 }
 
+void FMaterialsSceneExtension::PostBuildNaniteShadingCommands(
+	FRDGBuilder& GraphBuilder,
+	const UE::Tasks::FTask& BuildDependency,
+	ENaniteMeshPass::Type MeshPass
+)
+{
+	if (!IsEnabled() || MeshPass != ENaniteMeshPass::BasePass)
+	{
+		return;
+	}
+
+#if WITH_DEBUG_VIEW_MODES
+
+	const bool bEnableAsync = CVarNaniteMaterialBufferAsyncUpdates.GetValueOnRenderThread();
+
+	// Launch a task to upload current debug view mode data
+	TaskHandles[UpdateDebugViewModeTask] = GraphBuilder.AddSetupTask(
+		[this, BuildDependency]
+		{
+			const FNaniteShadingCommands& ShadingCommands = Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass];
+			check(BuildDependency.IsCompleted());
+
+			DebugViewData.SetNumZeroed(ShadingCommands.MaxShadingBin + 1u);
+			for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
+			{
+				if (ShadingCommand.Pipeline != nullptr)
+				{
+					const FNaniteShadingPipeline* ShadingPipeline = ShadingCommand.Pipeline.Get();
+					FNaniteMaterialDebugViewInfo& DebugData = DebugViewData[ShadingCommand.ShadingBin];
+
+					// Shading pipelines only run as compute shaders
+					DebugData.InstructionCountCS = ShadingPipeline->InstructionCount;
+					DebugData.LWCComplexityCS = ShadingPipeline->LWCComplexity;
+				}
+
+			}
+		},
+		MakeArrayView({ BuildDependency }),
+		UE::Tasks::ETaskPriority::Normal,
+		bEnableAsync
+	);
+#endif
+}
 
 FMaterialsSceneExtension::FMaterialBuffers::FMaterialBuffers() :
 	PrimitiveDataBuffer(
@@ -313,7 +356,6 @@ FMaterialsSceneExtension::FMaterialBuffers::FMaterialBuffers() :
 	)
 {
 }
-
 
 FMaterialsSceneExtension::FUpdater::FUpdater(FMaterialsSceneExtension& InSceneData) :
 	SceneData(&InSceneData),
@@ -720,46 +762,6 @@ void FMaterialsSceneExtension::FUpdater::PostCacheNaniteMaterialBins(
 		// If disabling async, just finish the upload immediately
 		SceneData->FinishMaterialBufferUpload(GraphBuilder);
 	}
-}
-
-void FMaterialsSceneExtension::FUpdater::PostBuildNaniteShadingCommands(
-	FRDGBuilder& GraphBuilder,
-	ENaniteMeshPass::Type MeshPass
-)
-{
-	if (!SceneData->IsEnabled() || MeshPass != ENaniteMeshPass::BasePass)
-	{
-		return;
-	}
-
-#if WITH_DEBUG_VIEW_MODES
-	// Launch a task to upload current debug view mode data
-	SceneData->TaskHandles[UpdateDebugViewModeTask] = GraphBuilder.AddSetupTask(
-		[this]
-		{
-			const FNaniteShadingCommands& ShadingCommands = SceneData->Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass];
-			check(ShadingCommands.BuildCommandsTask.IsCompleted());
-
-			SceneData->DebugViewData.SetNumZeroed(ShadingCommands.MaxShadingBin + 1u);
-			for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
-			{
-				if (ShadingCommand.Pipeline != nullptr)
-				{
-					const FNaniteShadingPipeline* ShadingPipeline = ShadingCommand.Pipeline.Get();
-					FNaniteMaterialDebugViewInfo& DebugData = SceneData->DebugViewData[ShadingCommand.ShadingBin];
-
-					// Shading pipelines only run as compute shaders
-					DebugData.InstructionCountCS = ShadingPipeline->InstructionCount;
-					DebugData.LWCComplexityCS = ShadingPipeline->LWCComplexity;
-				}
-
-			}
-		},
-		MakeArrayView({ SceneData->Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass].BuildCommandsTask }),
-		UE::Tasks::ETaskPriority::Normal,
-		bEnableAsync
-	);
-#endif
 }
 
 void FMaterialsSceneExtension::FRenderer::UpdateSceneUniformBuffer(

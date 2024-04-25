@@ -36,11 +36,6 @@ public:
 			const TConstArrayView<FPrimitiveSceneInfo*>& SceneInfosWithStaticDrawListUpdate
 		);
 
-		void PostBuildNaniteShadingCommands(
-			FRDGBuilder& GraphBuilder,
-			ENaniteMeshPass::Type MeshPass
-		);
-
 	private:
 		FMaterialsSceneExtension* SceneData = nullptr;
 		TConstArrayView<FPrimitiveSceneInfo*> AddedList;
@@ -77,6 +72,12 @@ public:
 #if WITH_DEBUG_VIEW_MODES
 	FRDGBufferRef CreateDebugViewModeBuffer(FRDGBuilder& GraphBuilder) const;
 #endif
+
+	void PostBuildNaniteShadingCommands(
+		FRDGBuilder& GraphBuilder,
+		const UE::Tasks::FTask& BuildDependency,
+		ENaniteMeshPass::Type MeshPass
+	);
 
 private:
 	enum ETask : uint32

@@ -424,10 +424,10 @@ bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
 	}
 }
 
-void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshPass::Type MeshPass, FNaniteShadingCommands& ShadingCommands, bool bForceBuildCommands)
+void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshPass::Type MeshPass, FNaniteShadingCommands& ShadingCommands, EBuildShadingCommandsMode Mode)
 {
 	FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[MeshPass];
-	if (ShadingPipelines.bBuildCommands || bForceBuildCommands)
+	if (ShadingPipelines.bBuildCommands || Mode == EBuildShadingCommandsMode::Custom)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommands);
 		const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
@@ -522,15 +522,14 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 
 		}, ShadingCommands.SetupTask);
 
-		if (!bForceBuildCommands)
+		if (Mode == EBuildShadingCommandsMode::Default)
 		{
 			ShadingPipelines.bBuildCommands = false;
-		}
 
-		FSceneExtensionsUpdaters& SceneExtensionsUpdaters = *GraphBuilder.AllocObject<FSceneExtensionsUpdaters>(Scene);
-		if (auto NaniteMaterialsUpdater = SceneExtensionsUpdaters.GetUpdaterPtr<Nanite::FMaterialsSceneExtension::FUpdater>())
-		{
-			NaniteMaterialsUpdater->PostBuildNaniteShadingCommands(GraphBuilder, MeshPass);
+			if (auto MaterialsExtension = Scene.GetExtensionPtr<Nanite::FMaterialsSceneExtension>())
+			{
+				MaterialsExtension->PostBuildNaniteShadingCommands(GraphBuilder, ShadingCommands.BuildCommandsTask, MeshPass);
+			}
 		}
 	}
 }
