@@ -310,77 +310,83 @@ void FEnvQueryInstance::ExecuteOneStep(double TimeLimit)
 
 	const bool bDoingLastTest = (CurrentTest >= OptionItem.Tests.Num() - 1);
 	bool bStepDone = true;
+	bIsCurrentlyRunningAsync = false;
 	CurrentStepTimeLimit = TimeLimit;
 
 	if (CurrentTest < 0)
 	{
-		SCOPE_CYCLE_COUNTER(STAT_AI_EQS_GeneratorTime);
-		DEC_DWORD_STAT_BY(STAT_AI_EQS_NumItems, Items.Num());
-
-		RawData.Reset();
-		Items.Reset();
-		ItemType = OptionItem.ItemType;
-		bPassOnSingleResult = false;
-		ValueSize = (ItemType->GetDefaultObject<UEnvQueryItemType>())->GetValueSize();
-
 		bool bRunGenerator = true;
 #if USE_EQS_DEBUGGER
 		int32 LastValidItems = 0;
-		if (bStoreDebugInfo)
+#endif
+		if (!OptionItem.Generator->IsCurrentlyRunningAsync())
 		{
-			UEnvQueryGenerator_Composite* CompositeGen = Cast<UEnvQueryGenerator_Composite>(OptionItem.Generator);
-			TArray<UEnvQueryGenerator*> GeneratorList;
+			SCOPE_CYCLE_COUNTER(STAT_AI_EQS_GeneratorTime);
+			DEC_DWORD_STAT_BY(STAT_AI_EQS_NumItems, Items.Num());
 
-			if (CompositeGen)
+			RawData.Reset();
+			Items.Reset();
+			ItemType = OptionItem.ItemType;
+			bPassOnSingleResult = false;
+			ValueSize = (ItemType->GetDefaultObject<UEnvQueryItemType>())->GetValueSize();
+
+#if USE_EQS_DEBUGGER
+			if (bStoreDebugInfo)
 			{
-				// resolve nested composites while on it
-				GeneratorList.Append(CompositeGen->Generators);
-				for (int32 InnerIdx = 0; InnerIdx < GeneratorList.Num(); InnerIdx++)
+				UEnvQueryGenerator_Composite* CompositeGen = Cast<UEnvQueryGenerator_Composite>(OptionItem.Generator);
+				TArray<UEnvQueryGenerator*> GeneratorList;
+
+				if (CompositeGen)
 				{
-					UEnvQueryGenerator_Composite* InnerCompositeGen = Cast<UEnvQueryGenerator_Composite>(GeneratorList[InnerIdx]);
-					if (InnerCompositeGen)
+					// resolve nested composites while on it
+					GeneratorList.Append(CompositeGen->Generators);
+					for (int32 InnerIdx = 0; InnerIdx < GeneratorList.Num(); InnerIdx++)
 					{
-						GeneratorList.Append(InnerCompositeGen->Generators);
-						GeneratorList.RemoveAt(InnerIdx, EAllowShrinking::No);
-						InnerIdx--;
+						UEnvQueryGenerator_Composite* InnerCompositeGen = Cast<UEnvQueryGenerator_Composite>(GeneratorList[InnerIdx]);
+						if (InnerCompositeGen)
+						{
+							GeneratorList.Append(InnerCompositeGen->Generators);
+							GeneratorList.RemoveAt(InnerIdx, EAllowShrinking::No);
+							InnerIdx--;
+						}
 					}
 				}
-			}
 
-			DebugData.PrepareOption(*this, GeneratorList, OptionItem.Tests.Num());
+				DebugData.PrepareOption(*this, GeneratorList, OptionItem.Tests.Num());
 
-			// special case for composite generator: run each inner generator separately and record times
-			if (GeneratorList.Num())
-			{
-				bRunGenerator = false;
-				DebugData.CurrentOptionGeneratorIdx = 0;
-				for (int32 GeneratorIdx = 0; GeneratorIdx < GeneratorList.Num() - 1; GeneratorIdx++)
+				// special case for composite generator: run each inner generator separately and record times
+				if (GeneratorList.Num())
 				{
+					bRunGenerator = false;
+					DebugData.CurrentOptionGeneratorIdx = 0;
+					for (int32 GeneratorIdx = 0; GeneratorIdx < GeneratorList.Num() - 1; GeneratorIdx++)
 					{
-						FScopeCycleCounterUObject GeneratorScope(GeneratorList[GeneratorIdx]);
-						GeneratorList[GeneratorIdx]->GenerateItems(*this);
+						{
+							FScopeCycleCounterUObject GeneratorScope(GeneratorList[GeneratorIdx]);
+							GeneratorList[GeneratorIdx]->GenerateItems(*this);
+						}
+
+						const double GenTime = FPlatformTime::Seconds();
+						const double StepExecutionTime = GenTime - StepStartTime;
+						StepStartTime += StepExecutionTime;
+						TotalExecutionTime += StepExecutionTime;
+						StartTime = GenTime;
+						NumProcessedItems = Items.Num() - LastValidItems;
+						LastValidItems = Items.Num();
+						DebugData.CurrentOptionGeneratorIdx++;
+						DebugData.Store(*this, FloatCastChecked<float>(StepExecutionTime, /* Precision */ 1. / 512.), false);
+						NumProcessedItems = 0;
 					}
 
-					const double GenTime = FPlatformTime::Seconds();
-					const double StepExecutionTime = GenTime - StepStartTime;
-					StepStartTime += StepExecutionTime;
-					TotalExecutionTime += StepExecutionTime;
-					StartTime = GenTime;
-					NumProcessedItems = Items.Num() - LastValidItems;
-					LastValidItems = Items.Num();
-					DebugData.CurrentOptionGeneratorIdx++;
-					DebugData.Store(*this, FloatCastChecked<float>(StepExecutionTime, /* Precision */ 1./512.), false);
-					NumProcessedItems = 0;
+					{
+						FScopeCycleCounterUObject GeneratorScope(GeneratorList.Last());
+						GeneratorList.Last()->GenerateItems(*this);
+					}
+					DebugData.CurrentOptionGeneratorIdx = INDEX_NONE;
 				}
-
-				{
-					FScopeCycleCounterUObject GeneratorScope(GeneratorList.Last());
-					GeneratorList.Last()->GenerateItems(*this);
-				}
-				DebugData.CurrentOptionGeneratorIdx = INDEX_NONE;
 			}
-		}
 #endif // USE_EQS_DEBUGGER
+		}
 
 		if (bRunGenerator)
 		{
@@ -400,7 +406,13 @@ void FEnvQueryInstance::ExecuteOneStep(double TimeLimit)
 #endif // UE_BUILD_SHIPPING
 		}
 
-		FinalizeGeneration();
+		bIsCurrentlyRunningAsync |= OptionItem.Generator->IsCurrentlyRunningAsync();
+		bStepDone = !bIsCurrentlyRunningAsync;
+
+		if (bStepDone)
+		{
+			FinalizeGeneration();
+		}
 
 #if USE_EQS_DEBUGGER
 		NumProcessedItems = Items.Num() - LastValidItems;
@@ -412,26 +424,29 @@ void FEnvQueryInstance::ExecuteOneStep(double TimeLimit)
 
 		UEnvQueryTest* TestObject = OptionItem.Tests[CurrentTest];
 
-		// item generator uses this flag to alter the scoring behavior
-		bPassOnSingleResult = (bDoingLastTest && Mode == EEnvQueryRunMode::SingleResult && TestObject->CanRunAsFinalCondition());
-
-		if (bPassOnSingleResult && (CurrentTestStartingItem == 0))
+		if (!TestObject->IsCurrentlyRunningAsync())
 		{
-			// Since we know we're the last test that is a final condition, if we were scoring previously we should sort the tests now before we test them
-			bool bSortTests = false;
-			for (int32 TestIndex = 0; TestIndex < OptionItem.Tests.Num() - 1; ++TestIndex)
-			{
-				if (OptionItem.Tests[TestIndex]->TestPurpose != EEnvTestPurpose::Filter)
-				{
-					// Found one.  We should sort.
-					bSortTests = true;
-					break;
-				}
-			}
+			// item generator uses this flag to alter the scoring behavior
+			bPassOnSingleResult = (bDoingLastTest && Mode == EEnvQueryRunMode::SingleResult && TestObject->CanRunAsFinalCondition());
 
-			if (bSortTests)
+			if (bPassOnSingleResult && (CurrentTestStartingItem == 0))
 			{
-				SortScores();
+				// Since we know we're the last test that is a final condition, if we were scoring previously we should sort the tests now before we test them
+				bool bSortTests = false;
+				for (int32 TestIndex = 0; TestIndex < OptionItem.Tests.Num() - 1; ++TestIndex)
+				{
+					if (OptionItem.Tests[TestIndex]->TestPurpose != EEnvTestPurpose::Filter)
+					{
+						// Found one.  We should sort.
+						bSortTests = true;
+						break;
+					}
+				}
+
+				if (bSortTests)
+				{
+					SortScores();
+				}
 			}
 		}
 
@@ -442,9 +457,10 @@ void FEnvQueryInstance::ExecuteOneStep(double TimeLimit)
 			TestObject->RunTest(*this);
 		}
 
-		bStepDone = CurrentTestStartingItem >= Items.Num() || bFoundSingleResult
-			// or no items processed ==> this means error
-			|| (ItemsAlreadyProcessed == CurrentTestStartingItem);
+		bIsCurrentlyRunningAsync |= TestObject->IsCurrentlyRunningAsync();
+		bStepDone = !bIsCurrentlyRunningAsync && (CurrentTestStartingItem >= Items.Num() || bFoundSingleResult
+			// or no items processed ==> this means error, unless this test is running async
+			|| (ItemsAlreadyProcessed == CurrentTestStartingItem));
 
 		if (bStepDone)
 		{
@@ -461,7 +477,7 @@ void FEnvQueryInstance::ExecuteOneStep(double TimeLimit)
 	TotalExecutionTime += StepExecutionTime;
 
 #if USE_EQS_DEBUGGER
-	if (bStoreDebugInfo)
+	if (bStoreDebugInfo && !bIsCurrentlyRunningAsync)
 	{
 		DebugData.Store(*this, FloatCastChecked<float>(StepExecutionTime, /* Precision */ 1./512.), bStepDone);
 	}
@@ -477,7 +493,7 @@ void FEnvQueryInstance::ExecuteOneStep(double TimeLimit)
 	}
 
 	// sort results or switch to next option when all tests are performed
-	if (IsFinished() == false && (OptionItem.Tests.Num() == CurrentTest || NumValidItems <= 0))
+	if (!bIsCurrentlyRunningAsync && IsFinished() == false && (OptionItem.Tests.Num() == CurrentTest || NumValidItems <= 0))
 	{
 		if (NumValidItems > 0)
 		{

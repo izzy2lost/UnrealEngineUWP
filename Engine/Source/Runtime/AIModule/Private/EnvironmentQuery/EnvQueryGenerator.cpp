@@ -7,6 +7,7 @@
 UEnvQueryGenerator::UEnvQueryGenerator(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	bAutoSortTests = true;
+	bCanRunAsync = false;
 }
 
 void UEnvQueryGenerator::UpdateNodeVersion()

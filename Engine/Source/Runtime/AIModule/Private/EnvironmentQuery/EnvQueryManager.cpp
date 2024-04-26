@@ -448,13 +448,14 @@ void UEnvQueryManager::Tick(float DeltaTime)
 		SCOPE_CYCLE_COUNTER(STAT_AI_EQS_TickWork);
 		
 		const int32 NumRunningQueries = RunningQueries.Num();
+		int32 NumQueriesRunningAsync = 0;
 		int32 Index = 0;
 
 		while ((TimeLeft > 0.0) 
 			&& (Index < NumRunningQueries) 
 			// make sure we account for queries that have finished (been aborted)
 			// before UEnvQueryManager::Tick has been called
-			&& (QueriesFinishedDuringUpdate + NumRunningQueriesAbortedSinceLastUpdate < NumRunningQueries))
+			&& (QueriesFinishedDuringUpdate + NumRunningQueriesAbortedSinceLastUpdate + NumQueriesRunningAsync < NumRunningQueries))
 		{
 			const double StepStartTime = FPlatformTime::Seconds();
 			double ResultHandlingDuration = 0.;
@@ -533,6 +534,13 @@ void UEnvQueryManager::Tick(float DeltaTime)
 					}
 
 					++QueriesFinishedDuringUpdate;
+					++Index;
+				}
+
+				// If current Query is waiting on results to be processed asynchronously, check for results next frame.
+				else if (QueryInstancePtr->IsCurrentlyRunningAsync())
+				{
+					++NumQueriesRunningAsync;
 					++Index;
 				}
 				// If we're testing queries using breadth, move on to the next query.

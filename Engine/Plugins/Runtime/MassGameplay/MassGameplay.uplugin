@@ -25,6 +25,10 @@
 			"Type": "Runtime"
 		},
 		{
+			"Name": "MassEQS",
+			"Type": "Runtime"
+		},
+		{
 			"Name": "MassSignals",
 			"Type": "Runtime"
 		},
