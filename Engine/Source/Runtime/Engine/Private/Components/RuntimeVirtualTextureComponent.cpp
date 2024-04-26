@@ -3,26 +3,41 @@
 #include "Components/RuntimeVirtualTextureComponent.h"
 
 #include "Async/TaskGraphInterfaces.h"
-#include "GameDelegates.h"
+#include "ComponentRecreateRenderStateContext.h"
 #include "Engine/Texture.h"
 #include "Engine/World.h"
-#include "Logging/MessageLog.h"
+#include "GameDelegates.h"
 #include "GameFramework/Actor.h"
+#include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
 #include "Misc/MapErrors.h"
+#include "RenderUtils.h"
+#include "RHIGlobals.h"
 #include "SceneInterface.h"
+#include "SceneUtils.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "VT/VirtualTexture.h"
 #include "VT/VirtualTextureBuilder.h"
-#include "RenderUtils.h"
-#include "RHIGlobals.h"
-#include "SceneUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RuntimeVirtualTextureComponent)
 
 #define LOCTEXT_NAMESPACE "URuntimeVirtualTextureComponent"
+
+static TAutoConsoleVariable<int32> CVarVTStreamingMipsShowInEditor(
+	TEXT("r.VT.RVT.StreamingMips.UseInEditor"),
+	1,
+	TEXT("Use streaming mips for RVT when in Editor.\n")
+	TEXT("  0: Never use.\n")
+	TEXT("  1: Use the setting from RVT component (default).\n")
+	TEXT("  2: Always use when available.\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+		{
+			FGlobalComponentRecreateRenderStateContext Context;
+		}),
+	ECVF_Default);
+
 
 URuntimeVirtualTextureComponent::URuntimeVirtualTextureComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -234,9 +249,13 @@ bool URuntimeVirtualTextureComponent::IsStreamingLowMips(EShadingPath ShadingPat
 	checkf(IsActiveInWorld(), TEXT("This function should never be called for a world where we're inactive"));
 	
 #if WITH_EDITOR
-	if (!bUseStreamingLowMipsInEditor && GIsEditor)
+	if (GIsEditor)
 	{
-		return false;
+		const int32 ShowStreamingMipsInEditor = CVarVTStreamingMipsShowInEditor.GetValueOnAnyThread();
+		if (ShowStreamingMipsInEditor == 0 || (ShowStreamingMipsInEditor == 1 && !bUseStreamingMipsInEditor))
+		{
+			return false;
+		}
 	}
 #endif
 	return VirtualTexture != nullptr && StreamingTexture != nullptr && StreamingTexture->GetVirtualTexture(ShadingPath) != nullptr;
@@ -382,7 +401,8 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 bool URuntimeVirtualTextureComponent::CanEditChange(const FProperty* InProperty) const
 {
 	bool bCanEdit = Super::CanEditChange(InProperty);
-	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URuntimeVirtualTextureComponent, bUseStreamingLowMipsInEditor))
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URuntimeVirtualTextureComponent, bUseStreamingMipsInEditor) || 
+		InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URuntimeVirtualTextureComponent, bUseStreamingMipsOnly))
 	{
 		bCanEdit &= GetVirtualTexture() != nullptr && GetStreamingTexture() != nullptr;
 	}

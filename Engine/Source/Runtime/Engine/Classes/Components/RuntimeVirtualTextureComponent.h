@@ -89,9 +89,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "Fixed Color", HideAlphaChannel, EditCondition = bUseStreamingMipsFixedColor))
 	FLinearColor StreamingMipsFixedColor;
 
+	/** Whenever streaming low mips are in use, only show the streaming mips and never show runtime generated pages. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "Use Only Streaming Texture"))
+	bool bUseStreamingMipsOnly = false;
+
 	/** Use streaming low mips when rendering in editor. Set true to view and debug the baked streaming low mips. */
-	UPROPERTY(EditAnywhere, Transient, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "View in Editor"))
-	bool bUseStreamingLowMipsInEditor = false;
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "View in Editor"))
+	bool bUseStreamingMipsInEditor = false;
 
 #if WITH_EDITOR
 	/** Delegate handle for our function called on PIE end. */
@@ -145,6 +149,9 @@ public:
 
 	/** Public getter for streaming mips fixed color. */
 	ENGINE_API FLinearColor GetStreamingMipsFixedColor() const;
+
+	/** Public getter for using streaming low mips only. */
+	ENGINE_API bool IsStreamingLowMipsOnly() { return bUseStreamingMipsOnly; }
 
 	/** Public getter for lossy compression setting. */
 	TEnumAsByte<ETextureLossyCompressionAmount> GetLossyCompressionAmount() const { return LossyCompressionAmount; }

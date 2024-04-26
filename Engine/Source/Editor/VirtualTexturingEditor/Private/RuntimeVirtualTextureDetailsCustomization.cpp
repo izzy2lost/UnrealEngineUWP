@@ -313,7 +313,7 @@ bool FRuntimeVirtualTextureComponentDetailsCustomization::IsBuildStreamedMipsEna
 {
 	if (URuntimeVirtualTextureComponent* Component = RuntimeVirtualTextureComponent.Get())
 	{
-		return Component->GetVirtualTexture() != nullptr;
+		return Component->GetVirtualTexture() != nullptr && Component->NumStreamingMips() > 0;
 	}
 	return false;
 }
