@@ -16,21 +16,40 @@ namespace PCGAttributePropertySelectorConstants
 	static const TCHAR* ExtraSeparator = TEXT(".");
 	static const TCHAR PropertyPrefixChar = PropertyPrefix[0];
 	static const TCHAR ExtraSeparatorChar = ExtraSeparator[0];
+
+	static const FString ExportTextLeftSentinel = TEXT("PCGBegin(");
+	static const FString ExportTextRightSentinel = TEXT(")PCGEnd");
 }
 
 bool FPCGAttributePropertySelector::ExportTextItem(FString& ValueStr, FPCGAttributePropertySelector const& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
 {
-	// Quoted string
-	ValueStr = FString(TEXT("\"")) + ToString() + TEXT("\"");
+	// String guarded by sentinels, don't use `"` because it can be used in the selector.
+	TStringBuilder<256> StringBuilder;
+	StringBuilder.Append(PCGAttributePropertySelectorConstants::ExportTextLeftSentinel);
+	StringBuilder.Append(ToString());
+	StringBuilder.Append(PCGAttributePropertySelectorConstants::ExportTextRightSentinel);
+
+	ValueStr = StringBuilder.ToString();
 	return true;
 }
 
 bool FPCGAttributePropertySelector::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText)
 {
-	FString Token;
-	int NumCharsRead;
-	FParse::QuotedString(Buffer, Token, &NumCharsRead);
-	Update(Token);
+	const FStringView BufferView(Buffer);
+
+	using PCGAttributePropertySelectorConstants::ExportTextLeftSentinel;
+	using PCGAttributePropertySelectorConstants::ExportTextRightSentinel;
+
+	if (!BufferView.StartsWith(ExportTextLeftSentinel) || !BufferView.EndsWith(ExportTextRightSentinel))
+	{
+		// Didn't find our sentinels, abort
+		return false;
+	}
+
+	const int32 Start = ExportTextLeftSentinel.Len();
+	const int32 End = BufferView.Len() - ExportTextRightSentinel.Len();
+
+	Update(FString(BufferView.SubStr(Start, End - Start)));
 	return true;
 }
 
@@ -232,23 +251,7 @@ bool FPCGAttributePropertySelector::Update(const FString& NewValue)
 	}
 	else
 	{
-		TArray<FString> NewValuesTemp;
-		NewValue.ParseIntoArray(NewValuesTemp, PCGAttributePropertySelectorConstants::ExtraSeparator, /*InCullEmpty=*/ false);
-
-		// We can't sanitize the first name because of the `@` and `$` that are valid symbols here, but are not for the sanitizer.
-		// Also if we have parsed nothing, just add a single empty string.
-		NewValues.Emplace(NewValuesTemp.IsEmpty() ? FString() : std::move(NewValuesTemp[0]));
-
-		// Then we make sure extra names are not containing non-alphanumerical chars by sanitizing it
-		for (int i = 1; i < NewValuesTemp.Num(); ++i)
-		{
-			FPCGMetadataAttributeBase::SanitizeName(NewValuesTemp[i]);
-
-			if (!NewValuesTemp[i].IsEmpty())
-			{
-				NewValues.Emplace(std::move(NewValuesTemp[i]));
-			}
-		}
+		NewValue.ParseIntoArray(NewValues, PCGAttributePropertySelectorConstants::ExtraSeparator, /*InCullEmpty=*/ false);
 	}
 
 	const FString& NewName = NewValues[0];

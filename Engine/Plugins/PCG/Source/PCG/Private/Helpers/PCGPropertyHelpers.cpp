@@ -220,7 +220,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 		Property = ArrayProperty->Inner;
 	}
 
-	using ExtractablePropertyTuple = TTuple<FName, const FProperty*>;
+	using ExtractablePropertyTuple = TTuple<FString, const FProperty*>;
 	TArray<ExtractablePropertyTuple> ExtractableProperties;
 
 	using GetAddressFunc = TFunction<const void* (const void*)>;
@@ -280,8 +280,8 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 				{
 					// We use authored name as attribute name to avoid issue with noisy property names, like in UUserDefinedStructs, where some random number is appended to the property name.
 					// By default, it will just return the property name anyway.
-					const FString AuthoredName = UnderlyingClass->GetAuthoredNameForField(ChildProperty);
-					ExtractableProperties.Emplace(FName(AuthoredName), ChildProperty);
+					FString AuthoredName = UnderlyingClass->GetAuthoredNameForField(ChildProperty);
+					ExtractableProperties.Emplace(std::move(AuthoredName), ChildProperty);
 				}
 			}
 		}
@@ -290,7 +290,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 	{
 		// For non struct/object, there is just a single property to extract with no shenanigans for address indirection.
 		const FName AttributeName = (Parameters.OutputAttributeName == PCGMetadataAttributeConstants::SourceNameAttributeName) ? Property->GetFName() : Parameters.OutputAttributeName;
-		ExtractableProperties.Emplace(AttributeName, Property);
+		ExtractableProperties.Emplace(AttributeName.ToString(), Property);
 		// Identity
 		AddressFunc = [](const void* InAddress) { return InAddress; };
 	}
@@ -327,10 +327,13 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 
 		for (ExtractablePropertyTuple& ExtractableProperty : ExtractableProperties)
 		{
-			const FName AttributeName = ExtractableProperty.Get<0>();
+			FString AttributeName = ExtractableProperty.Get<0>();
 			const FProperty* FinalProperty = ExtractableProperty.Get<1>();
 
-			if (!Metadata->SetAttributeFromDataProperty(AttributeName, EntryKey, ContainerPtr, FinalProperty, /*bCreate=*/ true))
+			// Make sure the Attribute name is sanitized, to prevent cases where property names have unsupported characters.
+			FPCGMetadataAttributeBase::SanitizeName(AttributeName);
+
+			if (!Metadata->SetAttributeFromDataProperty(FName(AttributeName), EntryKey, ContainerPtr, FinalProperty, /*bCreate=*/ true))
 			{
 				LogError(FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())), OptionalContext);
 				bValidOperation = false;
