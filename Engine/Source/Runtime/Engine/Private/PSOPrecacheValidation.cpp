@@ -418,22 +418,6 @@ void PSOCollectorStats::UpdateCSVStats(EPSOPrecacheResult PSOPrecacheResult)
 
 using PSOMissStringBuilder = TStringBuilder<2048>;
 
-static const TCHAR* GetPSOPrecacheResultName(EPSOPrecacheResult Result)
-{
-	const TCHAR* PSOPrecacheResultString = nullptr;
-	switch (Result)
-	{
-	case EPSOPrecacheResult::Unknown:			PSOPrecacheResultString = TEXT("Unknown"); break;
-	case EPSOPrecacheResult::Active:			PSOPrecacheResultString = TEXT("Precaching"); break;
-	case EPSOPrecacheResult::Complete:			PSOPrecacheResultString = TEXT("Precached"); break;
-	case EPSOPrecacheResult::Missed:			PSOPrecacheResultString = TEXT("Missed"); break;
-	case EPSOPrecacheResult::TooLate:			PSOPrecacheResultString = TEXT("Too Late"); break;
-	case EPSOPrecacheResult::NotSupported:		PSOPrecacheResultString = TEXT("Precache Untracked"); break;
-	case EPSOPrecacheResult::Untracked:			PSOPrecacheResultString = TEXT("Untracked"); break;
-	}
-	return PSOPrecacheResultString;
-}
-
 static const TCHAR* GetPSOMissTypeName(EPSOPrecacheMissType Type)
 {
 	const TCHAR* ResultString = nullptr;
@@ -458,7 +442,7 @@ static void LogGeneralPSOMissInfo(
 {
 	StringBuilder.Appendf(TEXT("\n\nPSO PRECACHING MISS:"));
 	StringBuilder.Appendf(TEXT("\n\tType:\t\t\t\t\t%s"), GetPSOMissTypeName(MissType));
-	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), GetPSOPrecacheResultName(PrecacheResult));
+	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), LexToString(PrecacheResult));
 	StringBuilder.Appendf(TEXT("\n\tMaterial:\t\t\t\t%s"), Material ? *Material->GetAssetName() : TEXT("Unknown"));
 	StringBuilder.Appendf(TEXT("\n\tVertexFactoryType:\t\t%s"), VFType ? VFType->GetName() : TEXT("None"));
 #if MESH_DRAW_COMMAND_STATS
@@ -979,7 +963,7 @@ void LogPSOMissInfo(
 	PSOMissStringBuilder StringBuilder;
 	StringBuilder.Appendf(TEXT("\n\nPSO PRECACHING MISS:"));
 	StringBuilder.Appendf(TEXT("\n\tType:\t\t\t\t\t%s"), TEXT("Compute"));
-	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), GetPSOPrecacheResultName(PrecacheResult));
+	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), LexToString(PrecacheResult));
 	StringBuilder.Appendf(TEXT("\n\tMaterial:\t\t\t\t%s"), Material ? *Material->GetAssetName() : TEXT("Unknown"));
 	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(EShadingPath::Deferred, PSOCollectorIndex));
 	StringBuilder.Appendf(TEXT("\n\tCompute Shader Hash:\t%s"), *(ComputeShader.GetHash().ToString()));

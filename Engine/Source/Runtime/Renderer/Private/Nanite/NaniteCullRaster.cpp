@@ -2844,10 +2844,10 @@ private:
 
 					FComputeShaderUtils::ValidateIndirectArgsBuffer(IndirectArgsBuffer->GetSize(), RasterizerPass.IndirectOffset);
 
-					EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(ShaderRHI);
-					SetComputePipelineState(RHICmdList, ShaderRHI, PSOPrecacheResult);
+					SetComputePipelineState(RHICmdList, ShaderRHI);
 
 				#if PSO_PRECACHING_VALIDATE
+					EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(ShaderRHI);
 					PSOCollectorStats::CheckComputePipelineStateInCache(*ShaderRHI, PSOPrecacheResult, RasterizerPass.ComputeMaterialProxy, PSOCollectorIndex);
 				#endif
 

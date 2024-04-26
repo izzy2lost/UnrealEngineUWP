@@ -120,7 +120,7 @@ static int32 GPSOExcludePrecachePSOsInFileCache = 0;
 static FAutoConsoleVariableRef CVarPSOFileCacheExcludePrecachePSO(
 														   TEXT("r.ShaderPipelineCache.ExcludePrecachePSO"),
 														   GPSOExcludePrecachePSOsInFileCache,
-														   TEXT("1 excludes saving runtime-precached graphics PSOs in the file cache, 0 (default) includes them. Excluding precached PSOs currently requires r.PSOPrecaching = 1 and r.PSOPrecache.Validation != 0."),
+														   TEXT("1 excludes saving runtime-precached graphics PSOs in the file cache, 0 (default) includes them. Excluding precached PSOs requires PSO precaching to be enabled."),
 														   ECVF_ReadOnly
 														   );
 

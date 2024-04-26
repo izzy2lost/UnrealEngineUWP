@@ -9301,7 +9301,8 @@ void VerifyGlobalShaders(EShaderPlatform Platform, bool bLoadedFromCacheFile, co
 
 void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, const ITargetPlatform* TargetPlatform)
 {
-	if (!GRHISupportsPSOPrecaching)
+	static IConsoleVariable* PrecacheGlobalComputeShadersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecache.GlobalComputeShaders"));
+	if (!GRHISupportsPSOPrecaching || !PipelineStateCache::IsPSOPrecachingEnabled() || PrecacheGlobalComputeShadersCVar == nullptr || PrecacheGlobalComputeShadersCVar->GetInt() == 0)
 	{
 		return;
 	}
@@ -9347,10 +9348,10 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 			GlobalShaderType->GetName(), ShaderPermutationPerGlobalShaderType);
 		*/
 	}
-
-	static IConsoleVariable* PrecacheGlobalComputeShadersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecache.GlobalComputeShaders"));
-	if (PipelineStateCache::IsPSOPrecachingEnabled() && PrecacheGlobalComputeShadersCVar != nullptr && PrecacheGlobalComputeShadersCVar->GetInt() > 0 && ComputeShadersToPrecache.Num() > 0)
+	
+	if (ComputeShadersToPrecache.Num() > 0)
 	{
+		UE_LOG(LogShaders, Display, TEXT("Precaching %d global compute shaders"), ComputeShadersToPrecache.Num());
 		ENQUEUE_RENDER_COMMAND(PrecachePSOsForGlobalShaders)(
 			[ComputeShadersToPrecache](FRHICommandListImmediate& RHICmdList)
 			{
