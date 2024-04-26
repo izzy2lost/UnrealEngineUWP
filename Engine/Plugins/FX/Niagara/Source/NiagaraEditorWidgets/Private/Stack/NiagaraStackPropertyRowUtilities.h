@@ -6,14 +6,14 @@
 #include "Stack/SNiagaraStackTableRow.h"
 #include "Templates/SharedPointer.h"
 
-class IPropertyHandle;
 class FMenuBuilder;
+class UNiagaraStackPropertyRow;
 
 class FNiagaraStackPropertyRowUtilities
 {
 public:
-	static SNiagaraStackTableRow::FOnFillRowContextMenu CreateOnFillRowContextMenu(TSharedPtr<IPropertyHandle> PropertyHandle, const FNodeWidgetActions& GeneratedPropertyNodeWidgetActions);
+	static SNiagaraStackTableRow::FOnFillRowContextMenu CreateOnFillRowContextMenu(UNiagaraStackPropertyRow& PropertyRow, const FNodeWidgetActions& GeneratedPropertyNodeWidgetActions);
 
 private:
-	static void OnFillPropertyRowContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<IPropertyHandle> PropertyHandle, FNodeWidgetActions PropertyNodeWidgetActions);
+	static void OnFillPropertyRowContextMenu(FMenuBuilder& MenuBuilder, TWeakObjectPtr<UNiagaraStackPropertyRow> PropertyRowWeak, FNodeWidgetActions PropertyNodeWidgetActions);
 };

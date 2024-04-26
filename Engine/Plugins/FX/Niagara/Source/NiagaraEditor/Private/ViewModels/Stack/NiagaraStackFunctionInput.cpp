@@ -313,12 +313,29 @@ void UNiagaraStackFunctionInput::Copy(UNiagaraClipboardContent* ClipboardContent
 	if (ClipboardInput != nullptr)
 	{
 		ClipboardContent->FunctionInputs.Add(ClipboardInput);
+		FNiagaraClipboardPortableValue InputPortableValue;
+		if (ClipboardInput->ValueMode == ENiagaraClipboardFunctionInputValueMode::Local)
+		{
+			FNiagaraVariant LocalValue;
+			LocalValue.SetBytes(ClipboardInput->Local.GetData(), ClipboardInput->Local.Num());
+			InputPortableValue = FNiagaraClipboardPortableValue::CreateFromTypedValue(InputType, LocalValue);
+		}
+		else if (ClipboardInput->ValueMode == ENiagaraClipboardFunctionInputValueMode::Data)
+		{
+			FNiagaraVariant DataValue;
+			DataValue.SetDataInterface(ClipboardInput->Data);
+			InputPortableValue = FNiagaraClipboardPortableValue::CreateFromTypedValue(InputType, DataValue);
+		}
+		if (InputPortableValue.IsValid())
+		{
+			ClipboardContent->PortableValues.Add(InputPortableValue);
+		}
 	}
 }
 
 bool UNiagaraStackFunctionInput::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
 {
-	if (ClipboardContent->FunctionInputs.Num() == 0 || GetIsEnabledAndOwnerIsEnabled() == false)
+	if ((ClipboardContent->FunctionInputs.Num() == 0 && ClipboardContent->PortableValues.Num() == 0) || GetIsEnabledAndOwnerIsEnabled() == false)
 	{
 		// Empty clipboard, or disabled don't allow paste, but be silent.
 		return false;
@@ -353,11 +370,28 @@ bool UNiagaraStackFunctionInput::TestCanPasteWithMessage(const UNiagaraClipboard
 		}
 		return false;
 	}
-	else
+	else if (ClipboardContent->FunctionInputs.Num() > 1)
 	{
 		OutMessage = LOCTEXT("CantPasteMultipleInputs", "Can't paste multiple inputs onto a single input.");
 		return false;
 	}
+	else if (ClipboardContent->PortableValues.Num() == 1)
+	{
+		if (ClipboardContent->PortableValues[0].IsValid())
+		{
+			if (ClipboardContent->PortableValues[0].CanUpdateTypedValue(InputType))
+			{
+				OutMessage = LOCTEXT("PasteValueMessage", "Paste the value from the clipboard here.");
+				return true;
+			}
+			else
+			{
+				OutMessage = LOCTEXT("UnsupportedPortableValueMessage", "Pasting the copied value to this input is unsupported.");
+				return false;
+			}
+		}
+	}
+	return false;
 }
 
 FText UNiagaraStackFunctionInput::GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const
@@ -367,18 +401,45 @@ FText UNiagaraStackFunctionInput::GetPasteTransactionText(const UNiagaraClipboar
 
 void UNiagaraStackFunctionInput::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
 {
-	if (ensureMsgf(ClipboardContent != nullptr && ClipboardContent->FunctionInputs.Num() == 1, TEXT("Clipboard must not be null, and must contain a single input.  Call TestCanPasteWithMessage to validate")))
+	if (ensureMsgf(ClipboardContent != nullptr && (ClipboardContent->FunctionInputs.Num() == 1 || ClipboardContent->PortableValues.Num() == 1),
+		TEXT("Clipboard must not be null, and must contain a single input or portable value.  Call TestCanPasteWithMessage to validate")))
 	{
-		if (const UNiagaraClipboardFunctionInput* ClipboardInput = ClipboardContent->FunctionInputs[0])
+		
+		if (ClipboardContent->FunctionInputs.Num() == 1)
 		{
-			if (FNiagaraEditorUtilities::AreTypesAssignable(ClipboardInput->InputType, InputType))
+			if (const UNiagaraClipboardFunctionInput* ClipboardInput = ClipboardContent->FunctionInputs[0])
 			{
-				SetValueFromClipboardFunctionInput(*ClipboardInput);	
+				if (FNiagaraEditorUtilities::AreTypesAssignable(ClipboardInput->InputType, InputType))
+				{
+					SetValueFromClipboardFunctionInput(*ClipboardInput);
+				}
+				else
+				{
+					SetClipboardContentViaConversionScript(*ClipboardInput);
+				}
 			}
-			else
+		}
+		else if (ClipboardContent->PortableValues.Num() == 1)
+		{
+			FNiagaraVariant InputValue;
+			if (ClipboardContent->PortableValues[0].TryUpdateTypedValue(InputType, InputValue))
 			{
-				SetClipboardContentViaConversionScript(*ClipboardInput);
-			}			
+				const UNiagaraClipboardFunctionInput* ClipboardInput = nullptr;
+				if (InputValue.GetMode() == ENiagaraVariantMode::Bytes)
+				{
+					TArray<uint8> ValueBytes;
+					ValueBytes.Append(InputValue.GetBytes(), InputValue.GetNumBytes());
+					ClipboardInput = UNiagaraClipboardFunctionInput::CreateLocalValue(GetTransientPackage(), NAME_None, InputType, TOptional<bool>(), ValueBytes);
+				}
+				else if (InputValue.GetMode() == ENiagaraVariantMode::DataInterface)
+				{
+					ClipboardInput = UNiagaraClipboardFunctionInput::CreateDataValue(GetTransientPackage(), NAME_None, InputType, TOptional<bool>(), InputValue.GetDataInterface());
+				}
+				if (ClipboardInput != nullptr)
+				{
+					SetValueFromClipboardFunctionInput(*ClipboardInput);
+				}
+			}
 		}
 	}
 }

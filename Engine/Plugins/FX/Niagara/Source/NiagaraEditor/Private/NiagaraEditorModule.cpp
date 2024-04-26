@@ -40,6 +40,7 @@
 #include "TypeEditorUtilities/NiagaraColorTypeEditorUtilities.h"
 #include "TypeEditorUtilities/NiagaraMatrixTypeEditorUtilities.h"
 #include "TypeEditorUtilities/NiagaraDataInterfaceCurveTypeEditorUtilities.h"
+#include "TypeEditorUtilities/NiagaraDistributionPropertyEditorUtilities.h"
 
 #include "NiagaraSystemCompilingManager.h"
 #include "NiagaraEditorStyle.h"
@@ -1346,6 +1347,16 @@ void FNiagaraEditorModule::StartupModule()
 	RegisterTypeUtilities(FNiagaraTypeDefinition(UNiagaraDataInterfaceVector4Curve::StaticClass()), MakeShared<FNiagaraDataInterfaceVectorCurveTypeEditorUtilities, ESPMode::ThreadSafe>());
 	RegisterTypeUtilities(FNiagaraTypeDefinition(UNiagaraDataInterfaceColorCurve::StaticClass()), MakeShared<FNiagaraDataInterfaceColorCurveTypeEditorUtilities, ESPMode::ThreadSafe>());
 
+	TSharedRef<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe> DistributionPropertyUtilities = MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>();
+	RegisterPropertyUtilities(FNiagaraDistributionFloat::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+	RegisterPropertyUtilities(FNiagaraDistributionVector2::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+	RegisterPropertyUtilities(FNiagaraDistributionVector3::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+	RegisterPropertyUtilities(FNiagaraDistributionColor::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+	RegisterPropertyUtilities(FNiagaraDistributionRangeFloat::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+	RegisterPropertyUtilities(FNiagaraDistributionRangeVector2::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+	RegisterPropertyUtilities(FNiagaraDistributionRangeVector3::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+	RegisterPropertyUtilities(FNiagaraDistributionRangeColor::StaticStruct(), MakeShared<FNiagaraDistributionPropertyEditorUtilities, ESPMode::ThreadSafe>());
+
 	FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
 
 	FNiagaraOpInfo::Init();
@@ -1800,6 +1811,12 @@ void FNiagaraEditorModule::RegisterTypeUtilities(FNiagaraTypeDefinition Type, TS
 	TypeEditorsCS.Unlock();
 }
 
+void FNiagaraEditorModule::RegisterPropertyUtilities(const UScriptStruct* InStruct, TSharedRef<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> InPropertyUtilities)
+{
+	TypeEditorsCS.Lock();
+	StructToPropertyUtilitiesMap.Add(InStruct, InPropertyUtilities);
+	TypeEditorsCS.Unlock();
+}
 
 TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> FNiagaraEditorModule::GetTypeUtilities(const FNiagaraTypeDefinition& Type)
 {
@@ -1818,6 +1835,15 @@ TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> FNiagaraEditorModul
 	}
 
 	return TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe>();
+}
+
+TSharedPtr<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> FNiagaraEditorModule::GetPropertyUtilities(const UScriptStruct& Struct)
+{
+	TypeEditorsCS.Lock();
+	TSharedRef<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe>* PropertyUtilities = StructToPropertyUtilitiesMap.Find(&Struct);
+	TypeEditorsCS.Unlock();
+
+	return PropertyUtilities != nullptr ? *PropertyUtilities : TSharedPtr<INiagaraEditorPropertyUtilities>();
 }
 
 void FNiagaraEditorModule::RegisterWidgetProvider(TSharedRef<INiagaraEditorWidgetProvider> InWidgetProvider)

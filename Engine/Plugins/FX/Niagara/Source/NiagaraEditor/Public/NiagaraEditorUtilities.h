@@ -113,7 +113,7 @@ namespace FNiagaraEditorUtilities
 	TSet<FName> GetSystemConstantNames();
 
 	/** Resets the variables value to default, either based on the struct, or if available through registered type utilities. */
-	void ResetVariableToDefaultValue(FNiagaraVariable& Variable);
+	void NIAGARAEDITOR_API ResetVariableToDefaultValue(FNiagaraVariable& Variable);
 
 	/** Fills DefaultData with the types default, either based on the struct, or if available through registered type utilities. */
 	void NIAGARAEDITOR_API GetTypeDefaultValue(const FNiagaraTypeDefinition& Type, TArray<uint8>& DefaultData);

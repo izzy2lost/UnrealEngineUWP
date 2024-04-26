@@ -17,7 +17,7 @@ class UEdGraphPin;
 class FNiagaraStackFunctionInputBinder
 {
 public:
-	FNiagaraStackFunctionInputBinder();
+	NIAGARAEDITOR_API FNiagaraStackFunctionInputBinder();
 
 	bool TryBind(
 		UNiagaraScript* InScript,
@@ -31,7 +31,7 @@ public:
 		bool bInIsRequired,
 		FText& OutErrorMessage);
 
-	bool TryBind(
+	NIAGARAEDITOR_API bool TryBind(
 		UNiagaraScript* InScript,
 		TArray<UNiagaraScript*> InDependentScripts,
 		FCompileConstantResolver InConstantResolver,
@@ -69,7 +69,7 @@ public:
 
 	TArray<uint8> GetData() const;
 
-	void SetData(const uint8* InValue, int32 InSize);
+	NIAGARAEDITOR_API void SetData(const uint8* InValue, int32 InSize);
 
 private:
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FInputMatchesPredicate, FNiagaraVariable);

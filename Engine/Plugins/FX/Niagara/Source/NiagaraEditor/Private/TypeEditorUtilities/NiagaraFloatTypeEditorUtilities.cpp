@@ -7,7 +7,9 @@
 #include "NiagaraEditorSettings.h"
 #include "NiagaraEditorStyle.h"
 #include "SNiagaraParameterEditor.h"
+#include "NiagaraClipboard.h"
 #include "NiagaraTypes.h"
+#include "NiagaraVariant.h"
 #include "Math/UnitConversion.h"
 #include "Widgets/SNiagaraNumericDropDown.h"
 #include "Widgets/Input/SNumericEntryBox.h"
@@ -266,4 +268,33 @@ bool FNiagaraEditorFloatTypeUtilities::SetValueFromPinDefaultString(const FStrin
 FText FNiagaraEditorFloatTypeUtilities::GetSearchTextFromValue(const FNiagaraVariable& AllocatedVariable) const
 {
 	return FText::FromString(GetPinDefaultStringFromValue(AllocatedVariable));
+}
+
+bool FNiagaraEditorFloatTypeUtilities::TryUpdateClipboardPortableValueFromTypedValue(const FNiagaraTypeDefinition& InSourceType, const FNiagaraVariant& InSourceValue, FNiagaraClipboardPortableValue& InTargetClipboardPortableValue) const
+{
+	if (InSourceType == FNiagaraTypeDefinition::GetFloatDef() && InSourceValue.GetNumBytes() == FNiagaraTypeDefinition::GetFloatDef().GetSize())
+	{
+		FNiagaraVariable Temp(InSourceType, NAME_None);
+		Temp.SetData(InSourceValue.GetBytes());
+		float FloatValue = Temp.GetValue<FNiagaraFloat>().Value;
+		InTargetClipboardPortableValue.ValueString = LexToString(FloatValue);
+		return true;
+	}
+	return false;
+}
+
+bool FNiagaraEditorFloatTypeUtilities::TryUpdateTypedValueFromClipboardPortableValue(const FNiagaraClipboardPortableValue& InSourceClipboardPortableValue, const FNiagaraTypeDefinition& InTargetType, FNiagaraVariant& InTargetValue) const
+{
+	float FloatValue;
+	if (InTargetType == FNiagaraTypeDefinition::GetFloatDef() &&
+		LexTryParseString(FloatValue, *InSourceClipboardPortableValue.ValueString))
+	{
+		FNiagaraFloat NiagaraFloatValue;
+		NiagaraFloatValue.Value = FloatValue;
+		FNiagaraVariable Temp(InTargetType, NAME_None);
+		Temp.SetValue<FNiagaraFloat>(NiagaraFloatValue);
+		InTargetValue.SetBytes(Temp.GetData(), Temp.GetSizeInBytes());
+		return true;
+	}
+	return false;
 }

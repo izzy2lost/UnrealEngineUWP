@@ -49,9 +49,20 @@ struct FNiagaraDistributionBase
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	int32 MaxLutSampleCount = 64;
 
+	bool operator==(const FNiagaraDistributionBase& Other) const
+	{
+		return
+			Mode == Other.Mode &&
+			ParameterBinding == Other.ParameterBinding &&
+			ChannelConstantsAndRanges == Other.ChannelConstantsAndRanges &&
+			ChannelCurves == Other.ChannelCurves &&
+			MaxLutSampleCount == Other.MaxLutSampleCount;
+	}
+
 	virtual bool AllowBinding() const { return true; }
 	virtual bool AllowCurves() const { return true; }
 	virtual bool DisplayAsColor() const { return false; }
+	virtual int32 GetBaseNumberOfChannels() const { return 0; }
 	virtual void UpdateValuesFromDistribution() { }
 
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition(); }
@@ -113,6 +124,7 @@ struct FNiagaraDistributionRangeFloat : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 1; }
 	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
@@ -137,6 +149,7 @@ struct FNiagaraDistributionRangeVector2 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 2; }
 	virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
@@ -161,6 +174,7 @@ struct FNiagaraDistributionRangeVector3 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 3; }
 	virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec3Def(); }
 #endif
@@ -186,6 +200,7 @@ struct FNiagaraDistributionRangeColor : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	virtual bool DisplayAsColor() const { return true; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 4; }
 	virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
@@ -206,7 +221,12 @@ struct FNiagaraDistributionFloat : public FNiagaraDistributionBase
 	NIAGARA_API FNiagaraStatelessRangeFloat CalculateRange(const float Default = 0.0f) const;
 
 #if WITH_EDITORONLY_DATA
-	virtual void UpdateValuesFromDistribution() override;
+	bool operator==(const FNiagaraDistributionFloat& Other) const
+	{
+		return (FNiagaraDistributionBase)*this == (FNiagaraDistributionBase)Other && Values == Other.Values;
+	}
+	virtual int32 GetBaseNumberOfChannels() const override { return 1; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
 };
@@ -228,7 +248,8 @@ struct FNiagaraDistributionVector2 : public FNiagaraDistributionBase
 	NIAGARA_API FNiagaraStatelessRangeVector2 CalculateRange(const FVector2f& Default = FVector2f::ZeroVector) const;
 
 #if WITH_EDITORONLY_DATA
-	virtual void UpdateValuesFromDistribution() override;
+	virtual int32 GetBaseNumberOfChannels() const override { return 2; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
 };
@@ -250,7 +271,8 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 	NIAGARA_API FNiagaraStatelessRangeVector3 CalculateRange(const FVector3f& Default = FVector3f::ZeroVector) const;
 
 #if WITH_EDITORONLY_DATA
-	virtual void UpdateValuesFromDistribution() override;
+	virtual int32 GetBaseNumberOfChannels() const override { return 3; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec3Def(); }
 #endif
 };
@@ -271,7 +293,8 @@ struct FNiagaraDistributionColor : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool DisplayAsColor() const override { return true; }
-	virtual void UpdateValuesFromDistribution() override;
+	virtual int32 GetBaseNumberOfChannels() const override { return 4; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
 };

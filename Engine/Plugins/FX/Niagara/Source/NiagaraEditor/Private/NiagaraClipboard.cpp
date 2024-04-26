@@ -13,6 +13,10 @@
 #include "NiagaraNodeFunctionCall.h"
 #include "Engine/UserDefinedEnum.h"
 #include "Engine/UserDefinedStruct.h"
+#include "NiagaraEditorModule.h"
+#include "INiagaraEditorTypeUtilities.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "PropertyHandle.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraClipboard)
 
@@ -169,6 +173,162 @@ UNiagaraClipboardFunction* UNiagaraClipboardFunction::CreateAssignmentFunction(U
 	}
 	
 	return NewFunction;
+}
+
+FNiagaraClipboardPortableValue FNiagaraClipboardPortableValue::CreateFromStructValue(const UScriptStruct& TargetStruct, uint8* StructMemory)
+{
+	FNiagaraClipboardPortableValue PortableValue;
+	TargetStruct.ExportText(PortableValue.ValueString, StructMemory, nullptr, nullptr, PPF_Copy, nullptr);
+	return PortableValue;
+}
+
+FNiagaraClipboardPortableValue FNiagaraClipboardPortableValue::CreateFromTypedValue(const FNiagaraTypeDefinition& InType, const FNiagaraVariant& InValue)
+{
+	FNiagaraClipboardPortableValue PortableValue;
+
+	TSharedPtr<INiagaraEditorTypeUtilities> InputTypeUtilities = FNiagaraEditorModule::Get().GetTypeUtilities(InType);
+	if (InputTypeUtilities.IsValid() &&	InputTypeUtilities->SupportsClipboardPortableValues())
+	{
+		if (InputTypeUtilities->TryUpdateClipboardPortableValueFromTypedValue(InType, InValue, PortableValue) == false)
+		{
+			PortableValue.Reset();
+		}
+	}
+
+	if (PortableValue.IsValid() == false)
+	{
+		if (InType.GetStruct() != nullptr &&
+			InType.GetStruct()->IsA<UScriptStruct>() &&
+			InType.GetSize() == InValue.GetNumBytes())
+		{
+			UScriptStruct* ValueStruct = CastChecked<UScriptStruct>(InType.GetStruct());
+			PortableValue = CreateFromStructValue(*ValueStruct, InValue.GetBytes());
+		}
+	}
+
+	if (PortableValue.IsValid() == false)
+	{
+		PortableValue.Reset();
+	}
+	return PortableValue;
+}
+
+FNiagaraClipboardPortableValue FNiagaraClipboardPortableValue::CreateFromPropertyHandle(const IPropertyHandle& InPropertyHandle)
+{
+	FNiagaraClipboardPortableValue PortableValue;
+	FProperty* Property = InPropertyHandle.GetProperty();
+	if (Property != nullptr)
+	{
+		UScriptStruct* ValueStruct = nullptr;
+		if (Property->IsA(FStructProperty::StaticClass()))
+		{
+			FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+			ValueStruct = StructProperty->Struct;
+			TSharedPtr<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> PropertyUtilities = FNiagaraEditorModule::Get().GetPropertyUtilities(*ValueStruct);
+			if (PropertyUtilities.IsValid() && PropertyUtilities->SupportsClipboardPortableValues())
+			{
+				if (PropertyUtilities->TryUpdateClipboardPortableValueFromProperty(InPropertyHandle, PortableValue) == false)
+				{
+					PortableValue.Reset();
+				}
+			}
+		}
+
+		if (PortableValue.IsValid() == false)
+		{
+			if (InPropertyHandle.GetValueAsFormattedString(PortableValue.ValueString, PPF_Copy) != FPropertyAccess::Success)
+			{
+				PortableValue.Reset();
+			}
+		}
+	}
+
+	return PortableValue;
+}
+
+bool FNiagaraClipboardPortableValue::CanUpdateTypedValue(const FNiagaraTypeDefinition& InTargetType) const
+{
+	if (IsValid() == false)
+	{
+		return false;
+	}
+
+	TSharedPtr<INiagaraEditorTypeUtilities> TargetTypeUtilities = FNiagaraEditorModule::Get().GetTypeUtilities(InTargetType);
+	if (TargetTypeUtilities.IsValid() && TargetTypeUtilities->SupportsClipboardPortableValues())
+	{
+		return TargetTypeUtilities->CanUpdateTypedValueFromClipboardPortableValue(*this, InTargetType);
+	}
+	if (InTargetType.GetStruct() != nullptr && InTargetType.GetStruct()->IsA<UScriptStruct>())
+	{
+		UScriptStruct* TargetStruct = CastChecked<UScriptStruct>(InTargetType.GetStruct());
+		TArray<uint8> ValueBytes;
+		ValueBytes.AddDefaulted(InTargetType.GetSize());
+		return TryUpdateStructValue(*TargetStruct, ValueBytes.GetData());
+	}
+	return false;
+}
+
+bool FNiagaraClipboardPortableValue::TryUpdateStructValue(const UScriptStruct& TargetStruct, uint8* StructMemory) const
+{
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose);
+	FErrorPipe ErrorPipe;
+	return TargetStruct.ImportText(*ValueString, StructMemory, nullptr, PPF_Copy, &ErrorPipe, TargetStruct.GetName()) != nullptr && ErrorPipe.NumErrors == 0;
+}
+
+bool FNiagaraClipboardPortableValue::TryUpdateTypedValue(const FNiagaraTypeDefinition& InTargetType, FNiagaraVariant& InTargetValue) const
+{
+	if (IsValid() == false)
+	{
+		return false;
+	}
+
+	TSharedPtr<INiagaraEditorTypeUtilities> TargetTypeUtilities = FNiagaraEditorModule::Get().GetTypeUtilities(InTargetType);
+	if (TargetTypeUtilities.IsValid() && TargetTypeUtilities->SupportsClipboardPortableValues())
+	{
+		if (TargetTypeUtilities->TryUpdateTypedValueFromClipboardPortableValue(*this, InTargetType, InTargetValue))
+		{
+			return true;
+		}
+	}
+	if (InTargetType.GetStruct() != nullptr && InTargetType.GetStruct()->IsA<UScriptStruct>())
+	{
+		UScriptStruct* TargetStruct = CastChecked<UScriptStruct>(InTargetType.GetStruct());
+		TArray<uint8> ValueBytes;
+		ValueBytes.AddDefaulted(TargetStruct->GetStructureSize());
+		if (TryUpdateStructValue(*TargetStruct, ValueBytes.GetData()))
+		{
+			InTargetValue.SetBytes(ValueBytes.GetData(), ValueBytes.Num());
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FNiagaraClipboardPortableValue::TryUpdatePropertyHandle(IPropertyHandle& InTargetPropertyHandle) const
+{
+	if (IsValid() == false)
+	{
+		return false;
+	}
+
+	FProperty* Property = InTargetPropertyHandle.GetProperty();
+	if (Property != nullptr)
+	{
+		if (Property->IsA(FStructProperty::StaticClass()))
+		{
+			FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+			TSharedPtr<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> PropertyUtilities = FNiagaraEditorModule::Get().GetPropertyUtilities(*StructProperty->Struct);
+			if (PropertyUtilities.IsValid() && PropertyUtilities->SupportsClipboardPortableValues())
+			{
+				if (PropertyUtilities->TryUpdatePropertyFromClipboardPortableValue(*this, InTargetPropertyHandle))
+				{
+					return true;
+				}
+			}
+		}
+		return InTargetPropertyHandle.SetValueFromFormattedString(ValueString) == FPropertyAccess::Success;
+	}
+	return false;
 }
 
 UNiagaraClipboardContent* UNiagaraClipboardContent::Create()

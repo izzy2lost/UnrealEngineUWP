@@ -67,6 +67,9 @@ public:
 	/** Sets the current mode for this distribution. */
 	virtual void SetDistributionMode(ENiagaraDistributionEditorMode InMode) = 0;
 
+	/** A delegate which is called whenever the distribution mode has changed. */
+	virtual FSimpleMulticastDelegate& OnDistributionEditorModeChanged() = 0;
+
 	/** 
 		Gets a constant or range value by channel index and value index. 
 		@param ChannelIndex the index of the channel to get.

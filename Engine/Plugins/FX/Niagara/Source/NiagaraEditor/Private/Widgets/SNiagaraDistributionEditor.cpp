@@ -23,15 +23,11 @@ class SNiagaraDistributionModeSelector : public SComboButton
 {
 public:
 	SLATE_BEGIN_ARGS(SNiagaraDistributionModeSelector) { }
-		SLATE_EVENT(FSimpleDelegate, OnDistributionModeChanged)
 	SLATE_END_ARGS();
 
 	void Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
 	{
-		
 		DistributionAdapter = InDistributionAdapter;
-		OnDistributionChangedDelegate = InArgs._OnDistributionModeChanged;
-
 		SComboButton::Construct(SComboButton::FArguments()
 			.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
 			.ContentPadding(FMargin(0))
@@ -104,12 +100,10 @@ private:
 	{
 		DistributionAdapter->SetDistributionMode(InSelectedMode);
 		UpdateCachedValues();
-		OnDistributionChangedDelegate.ExecuteIfBound();
 	}
 
 private:
 	TSharedPtr<INiagaraDistributionAdapter> DistributionAdapter;
-	FSimpleDelegate OnDistributionChangedDelegate;
 
 	mutable TOptional<ENiagaraDistributionEditorMode> ModeCache;
 	mutable const FSlateBrush* ModeIconCache = nullptr;
@@ -120,7 +114,6 @@ class SNiagaraDistributionBindingEditor : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SNiagaraDistributionBindingEditor) { }
-		//SLATE_EVENT(FSimpleDelegate, OnDistributionModeChanged)
 	SLATE_END_ARGS();
 
 	void Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
@@ -619,7 +612,7 @@ private:
 void SNiagaraDistributionEditor::Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
 {
 	DistributionAdapter = InDistributionAdapter;
-
+	DistributionAdapter->OnDistributionEditorModeChanged().AddSP(this, &SNiagaraDistributionEditor::OnDistributionModeChanged);
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -628,7 +621,6 @@ void SNiagaraDistributionEditor::Construct(const FArguments& InArgs, TSharedRef<
 		.Padding(0, 0, 5, 0)
 		[
 			SNew(SNiagaraDistributionModeSelector, InDistributionAdapter)
-			.OnDistributionModeChanged(this, &SNiagaraDistributionEditor::OnDistributionModeChanged)
 		]
 		+ SHorizontalBox::Slot()
 		[

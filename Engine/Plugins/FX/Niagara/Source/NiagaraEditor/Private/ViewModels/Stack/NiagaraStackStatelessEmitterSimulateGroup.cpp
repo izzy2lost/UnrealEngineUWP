@@ -82,6 +82,8 @@ public:
 			StatelessModule->Modify();
 			StatelessModule->SetIsModuleEnabled(true);
 			StatelessModule->PostEditChange();
+			StackEditorData->Modify();
+			StackEditorData->SetStatelessModuleShowWhenDisabled(UNiagaraStackStatelessModuleItem::GenerateStackEditorDataKey(StatelessModule), true);
 			OnItemAdded.ExecuteIfBound(StatelessModule);
 		}
 	}
@@ -287,6 +289,7 @@ void UNiagaraStackStatelessModuleItem::SetIsEnabledInternal(bool bInIsEnabled)
 		StatelessModule->Modify();
 		StatelessModule->SetIsModuleEnabled(bInIsEnabled);
 		StatelessModule->PostEditChange();
+		GetStackEditorData().Modify();
 		GetStackEditorData().SetStatelessModuleShowWhenDisabled(GetStackEditorDataKey(), true);
 		OnDataObjectModified().Broadcast({ StatelessModule }, ENiagaraDataObjectChange::Changed);
 		RefreshChildren();

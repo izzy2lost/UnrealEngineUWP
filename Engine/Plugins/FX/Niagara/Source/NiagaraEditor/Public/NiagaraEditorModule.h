@@ -19,6 +19,7 @@ class FNiagaraRecentAndFavoritesManager;
 class IAssetTools;
 class IAssetTypeActions;
 class INiagaraEditorTypeUtilities;
+class INiagaraEditorPropertyUtilities;
 class UNiagaraDataInterface;
 class UNiagaraSettings;
 class USequencerSettings;
@@ -187,12 +188,18 @@ public:
 	/** Registers niagara editor type utilities for a specific type. */
 	void RegisterTypeUtilities(FNiagaraTypeDefinition Type, TSharedRef<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> EditorUtilities);
 
+	/** Registers niagara editor property utilities for a specific struct type. */
+	void RegisterPropertyUtilities(const UScriptStruct* InStruct, TSharedRef<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> PropertyUtilities);
+
 	/** Register/unregister niagara editor settings. */
 	void RegisterSettings();
 	void UnregisterSettings();
 	
 	/** Gets Niagara editor type utilities for a specific type if there are any registered. */
 	TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> NIAGARAEDITOR_API GetTypeUtilities(const FNiagaraTypeDefinition& Type);
+
+	/** Gets Niagara editor property utilities for a specific struct if there are any registered. */
+	TSharedPtr<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> NIAGARAEDITOR_API GetPropertyUtilities(const UScriptStruct& Struct);
 
 	NIAGARAEDITOR_API void RegisterWidgetProvider(TSharedRef<INiagaraEditorWidgetProvider> InWidgetProvider);
 	NIAGARAEDITOR_API void UnregisterWidgetProvider(TSharedRef<INiagaraEditorWidgetProvider> InWidgetProvider);
@@ -404,6 +411,7 @@ private:
 	FCriticalSection TypeEditorsCS;
 	TMap<FNiagaraTypeDefinition, TSharedRef<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe>> TypeToEditorUtilitiesMap;
 	TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> EnumTypeUtilities;
+	TMap<const UScriptStruct*, TSharedRef<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe>> StructToPropertyUtilitiesMap;
 
 	FOnScriptApplied OnScriptAppliedDelegate;
 

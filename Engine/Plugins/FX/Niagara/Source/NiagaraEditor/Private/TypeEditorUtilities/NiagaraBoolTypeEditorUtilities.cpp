@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NiagaraBoolTypeEditorUtilities.h"
+#include "NiagaraClipboard.h"
 #include "NiagaraTypes.h"
+#include "NiagaraVariant.h"
 #include "SNiagaraParameterEditor.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SBoxPanel.h"
@@ -83,6 +85,35 @@ bool FNiagaraEditorBoolTypeUtilities::SetValueFromPinDefaultString(const FString
 		FNiagaraBool BoolValue;
 		BoolValue.SetValue(bBoolValue);
 		Variable.SetValue<FNiagaraBool>(BoolValue);
+		return true;
+	}
+	return false;
+}
+
+bool FNiagaraEditorBoolTypeUtilities::TryUpdateClipboardPortableValueFromTypedValue(const FNiagaraTypeDefinition& InSourceType, const FNiagaraVariant& InSourceValue, FNiagaraClipboardPortableValue& InTargetClipboardPortableValue) const
+{
+	if (InSourceType == FNiagaraTypeDefinition::GetBoolDef() && InSourceValue.GetNumBytes() == FNiagaraTypeDefinition::GetBoolDef().GetSize())
+	{
+		FNiagaraVariable Temp(InSourceType, NAME_None);
+		Temp.SetData(InSourceValue.GetBytes());
+		bool BoolValue = Temp.GetValue<FNiagaraBool>().GetValue();
+		InTargetClipboardPortableValue.ValueString = LexToString(BoolValue);
+		return true;
+	}
+	return false;
+}
+
+bool FNiagaraEditorBoolTypeUtilities::TryUpdateTypedValueFromClipboardPortableValue(const FNiagaraClipboardPortableValue& InSourceClipboardPortableValue, const FNiagaraTypeDefinition& InTargetType, FNiagaraVariant& InTargetValue) const
+{
+	bool BoolValue;
+	if (InTargetType == FNiagaraTypeDefinition::GetBoolDef() &&
+		LexTryParseString(BoolValue, *InSourceClipboardPortableValue.ValueString))
+	{
+		FNiagaraBool NiagaraBoolValue;
+		NiagaraBoolValue.SetValue(BoolValue);
+		FNiagaraVariable Temp(InTargetType, NAME_None);
+		Temp.SetValue<FNiagaraBool>(NiagaraBoolValue);
+		InTargetValue.SetBytes(Temp.GetData(), Temp.GetSizeInBytes());
 		return true;
 	}
 	return false;
