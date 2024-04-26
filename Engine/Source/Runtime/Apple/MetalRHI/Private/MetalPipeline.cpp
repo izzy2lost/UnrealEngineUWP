@@ -620,7 +620,7 @@ static bool ConfigureRenderPipelineDescriptor(TDescriptorType* RenderPipelineDes
 	check(NumActiveTargets <= MaxSimultaneousRenderTargets);
 	if (PixelShader)
 	{
-		if (PixelShader->Bindings.InOutMask.Bitmask == 0 && PixelShader->Bindings.NumUAVs == 0 && PixelShader->Bindings.bDiscards == false)
+		if (PixelShader->Bindings.InOutMask.Bitmask == 0 && PixelShader->Bindings.NumUAVs == 0 && !EnumHasAnyFlags(PixelShader->Bindings.Flags, EMetalBindingsFlags::PixelDiscard))
 		{
 			UE_LOG(LogMetal, Error, TEXT("Pixel shader has no outputs which is not permitted. No Discards, In-Out Mask: %x\nNumber UAVs: %d\nSource Code:\n%s"), PixelShader->Bindings.InOutMask.Bitmask, PixelShader->Bindings.NumUAVs, *NSStringToFString(PixelShader->GetSourceCode()));
 			return false;

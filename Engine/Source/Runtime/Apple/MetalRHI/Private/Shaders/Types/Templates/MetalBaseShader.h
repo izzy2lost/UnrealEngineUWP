@@ -46,9 +46,6 @@ struct FMetalShaderData
     /** External bindings for this shader. */
     FMetalShaderBindings Bindings;
     
-    // List of memory copies from RHIUniformBuffer to packed uniforms
-    TArray<CrossCompiler::FUniformBufferCopyInfo> UniformBuffersCopyInfo;
-
     /* Argument encoders for shader IABs */
     TMap<uint32, MTL::ArgumentEncoder*> ArgumentEncoders;
 
@@ -154,7 +151,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	// If this triggers than a level above us has failed to provide valid shader data and the cook is probably bogus
 	UE_CLOG(Header.SourceLen == 0 || Header.SourceCRC == 0, LogMetal, Fatal, TEXT("Invalid Shader Bytecode provided."));
 
-	bDeviceFunctionConstants = Header.bDeviceFunctionConstants;
+	bDeviceFunctionConstants = (Header.bDeviceFunctionConstants == 0 ? false : true);
 
 	// remember where the header ended and code (precompiled or source) begins
 	int32 CodeOffset = Ar.Tell();
@@ -210,7 +207,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 		GlslCodeNSString->retain();
 	}
 
-	bHasFunctionConstants = (Header.bDeviceFunctionConstants);
+	bHasFunctionConstants = (Header.bDeviceFunctionConstants == 0 ? false : true);
 
 	ConstantValueHash = 0;
 
@@ -375,7 +372,6 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 
 		GetCompiledFunction(true);
 	}
-	UniformBuffersCopyInfo = Header.UniformBuffersCopyInfo;
 	SideTableBinding = Header.SideTable;
 
 	UE::RHICore::InitStaticUniformBufferSlots(this);

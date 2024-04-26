@@ -299,13 +299,10 @@ void BuildMetalShaderOutput(
 	Header.CompileFlags |= (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_BoundsChecking) ? (1 << CFLAG_BoundsChecking) : 0);
 	Header.CompileFlags |= (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive) ? (1 << CFLAG_Archive) : 0);
 
-	Header.CompilerVersion = FMetalCompilerToolchain::Get()->GetCompilerVersion((EShaderPlatform)ShaderInput.Target.Platform).Version;
-	Header.CompilerBuild = FMetalCompilerToolchain::Get()->GetTargetVersion((EShaderPlatform)ShaderInput.Target.Platform).Version;
 	Header.Version = Version;
 	Header.SideTable = -1;
 	Header.SourceLen = SourceCRCLen;
 	Header.SourceCRC = SourceCRC;
-	Header.Bindings.bDiscards = false;
 	Header.Bindings.ConstantBuffers = ConstantBuffers;
     
 	FShaderParameterMap& ParameterMap = ShaderOutput.ParameterMap;
@@ -366,7 +363,7 @@ void BuildMetalShaderOutput(
 		// For fragment shaders that discard but don't output anything we need at least a depth-stencil surface, so we need a way to validate this at runtime.
 		if (FCStringAnsi::Strstr(USFSource, "discard_fragment()") != nullptr)
 		{
-			Header.Bindings.bDiscards = true;
+			EnumAddFlags(Header.Bindings.Flags, EMetalBindingsFlags::PixelDiscard);
 		}
 	}
 
@@ -459,9 +456,6 @@ void BuildMetalShaderOutput(
 		Header.Bindings.PackedGlobalArrays.Add(Info);
 	}
 
-	// Setup Packed Uniform Buffers info
-	Header.Bindings.PackedUniformBuffers.Reserve(PackedUniformBuffersSize.Num());
-	
 	// In this mode there should only be 0 or 1 packed UB that contains all the aligned & named global uniform parameters
 	check(PackedUniformBuffersSize.Num() <= 1);
 	for (auto Iterator = PackedUniformBuffersSize.CreateIterator(); Iterator; ++Iterator)
@@ -523,7 +517,9 @@ void BuildMetalShaderOutput(
 #if UE_METAL_USE_METAL_SHADER_CONVERTER
     if (bUseMetalShaderConverter)
     {
-        // Only needed for VS Input (to generate the stage-in function used to convert inputs).
+		EnumAddFlags(Header.Bindings.Flags, EMetalBindingsFlags::UseMetalShaderConverter);
+				
+		// Only needed for VS Input (to generate the stage-in function used to convert inputs).
         if (Frequency == SF_Vertex)
         {
             Header.Bindings.IRConverterReflectionJSON = ANSI_TO_TCHAR(ShaderReflectionJSON);
@@ -536,8 +532,15 @@ void BuildMetalShaderOutput(
         }
 
         Header.Bindings.RSNumCBVs = NumCBVs;
-        Header.Bindings.bDiscards = bUsesDiscard;
         Header.Bindings.OutputSizeVS = OutputSizeVS;
+		if (bUsesDiscard)
+		{
+			EnumAddFlags(Header.Bindings.Flags, EMetalBindingsFlags::PixelDiscard);
+		}
+		else
+		{
+			EnumRemoveFlags(Header.Bindings.Flags, EMetalBindingsFlags::PixelDiscard);
+		}
 
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
         Header.Bindings.MaxInputPrimitivesPerMeshThreadgroupGS = MaxInputPrimitivesPerMeshThreadgroupGS;
@@ -568,7 +571,7 @@ void BuildMetalShaderOutput(
 		Header.RayTracing.InstanceIndexBuffer = CCHeader.RayTracingInstanceIndexBuffer;
 	}
 
-	Header.bDeviceFunctionConstants = (FCStringAnsi::Strstr(USFSource, "#define __METAL_DEVICE_CONSTANT_INDEX__ 1") != nullptr);
+	Header.bDeviceFunctionConstants = (FCStringAnsi::Strstr(USFSource, "#define __METAL_DEVICE_CONSTANT_INDEX__ 1") != nullptr) ? 1 : 0;
 	Header.SideTable = CCHeader.SideTable;
 	Header.Bindings.ArgumentBufferMasks = CCHeader.ArgumentBuffers;
 	Header.Bindings.ArgumentBuffers = 0;
