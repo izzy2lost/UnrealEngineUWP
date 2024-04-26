@@ -203,6 +203,11 @@ namespace Jupiter
 		/// Is also a speed up on larger datasets
 		/// </summary>
 		public bool PerPrefixListing { get; set; } = true;
+
+		/// <summary>
+		/// Max number of keys returned in a single request when listing S3
+		/// </summary>
+		public int PerPrefixMaxKeys { get; set; } = 10_000;
 	}
 
 	public class GCSettings

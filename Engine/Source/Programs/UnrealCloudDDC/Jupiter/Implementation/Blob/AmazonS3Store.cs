@@ -432,7 +432,7 @@ namespace Jupiter.Implementation
 					{
 						BucketName = _bucketName,
 						Prefix = hashPrefix,
-						MaxKeys = 10_000
+						MaxKeys = _settings.CurrentValue.PerPrefixMaxKeys
 					};
 
 					ListObjectsV2Response response;
