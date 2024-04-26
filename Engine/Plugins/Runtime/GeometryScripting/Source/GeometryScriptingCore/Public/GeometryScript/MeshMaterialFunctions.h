@@ -198,6 +198,7 @@ public:
 	 * N in-use MaterialIDs to the range [0,N-1]. Optionally compute a Compacted list of Materials.
 	 * @param SourceMaterialList Input Material list, assumption is that SourceMaterialList.Num() == number of MaterialIDs on mesh at input
 	 * @param CompactedMaterialList new Compacted Material list, one-to-one with new compacted MaterialIDs
+	 * @param bRemoveDuplicateMaterials Whether to also remove duplicate materials from the compacted list
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -205,6 +206,7 @@ public:
 		UDynamicMesh* TargetMesh, 
 		TArray<UMaterialInterface*> SourceMaterialList,
 		TArray<UMaterialInterface*>& CompactedMaterialList,
+		bool bRemoveDuplicateMaterials = false,
 		UGeometryScriptDebug* Debug = nullptr);
 
 };
