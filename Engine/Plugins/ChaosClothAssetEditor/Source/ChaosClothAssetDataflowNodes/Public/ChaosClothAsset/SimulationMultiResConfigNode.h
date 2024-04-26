@@ -6,7 +6,7 @@
 #include "SimulationMultiResConfigNode.generated.h"
 
 /** Experimental Solver multires configuration node. */
-USTRUCT(Meta = (DataflowCloth))
+USTRUCT(Meta = (DataflowCloth, Experimental))
 struct FChaosClothAssetSimulationMultiResConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -42,5 +42,4 @@ public:
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
-	virtual bool IsExperimental() override { return true; }
 };

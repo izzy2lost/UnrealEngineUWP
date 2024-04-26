@@ -8,7 +8,7 @@
 #include "SimulationStretchOverrideConfigNode.generated.h"
 
 /** Stretching constraint property override configuration node. */
-USTRUCT(Meta = (DataflowCloth))
+USTRUCT(Meta = (DataflowCloth, Experimental))
 struct FChaosClothAssetSimulationStretchOverrideConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -89,5 +89,4 @@ public:
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
-	virtual bool IsExperimental() override { return true; }
 };

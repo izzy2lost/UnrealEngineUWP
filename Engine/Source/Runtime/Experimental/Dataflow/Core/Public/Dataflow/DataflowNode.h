@@ -85,7 +85,9 @@ struct FDataflowNode
 	UE_DEPRECATED(5.4, "FDataflowNode::CopyNodeProperties is deprecated.")
 	DATAFLOWCORE_API void CopyNodeProperties(const TSharedPtr<FDataflowNode> CopyFromDataflowNode);
 
+	UE_DEPRECATED(5.4, "FDataflowNode::IsDeprecated is deprecated.")
 	virtual bool IsDeprecated() { return false; }
+	UE_DEPRECATED(5.4, "FDataflowNode::IsExperimental is deprecated.")
 	virtual bool IsExperimental() { return false; }
 
 	//
@@ -343,13 +345,7 @@ namespace Dataflow
 	//
 
 #define DATAFLOW_NODE_REGISTER_CREATION_FACTORY(A)									\
-	::Dataflow::FNodeFactory::GetInstance()->RegisterNode(							\
-		{A::StaticType(),A::StaticDisplay(),A::StaticCategory(),					\
-			A::StaticTags(),A::StaticToolTip()},									\
-		[](const ::Dataflow::FNewNodeParameters& InParam){							\
-				TUniquePtr<A> Val = MakeUnique<A>(::Dataflow::FNodeParameters{		\
-					InParam.Name, InParam.OwningObject}, InParam.Guid);				\
-				Val->ValidateProperties();Val->ValidateConnections();return Val;});
+	::Dataflow::FNodeFactory::RegisterNodeFromType<A>();
 
 #define DATAFLOW_NODE_RENDER_TYPE(A, B)												\
 	virtual TArray<::Dataflow::FRenderingParameter> GetRenderParametersImpl() const {		\

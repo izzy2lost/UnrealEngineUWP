@@ -131,19 +131,18 @@ TArray<FOverlayWidgetInfo> SDataflowEdNode::GetOverlayWidgets(bool bSelected, co
 	return Widgets;
 }
 
-
 void SDataflowEdNode::UpdateErrorInfo()
 {
 	if (DataflowGraphNode)
 	{
 		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
 		{
-			if (DataflowNode->IsExperimental())
+			if (Dataflow::FNodeFactory::IsNodeExperimental(DataflowNode->GetType()))
 			{
 				ErrorMsg = FString(TEXT("Experimental"));
 				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
 			} 
-			else if (DataflowNode->IsDeprecated())
+			if (Dataflow::FNodeFactory::IsNodeDeprecated(DataflowNode->GetType()))
 			{
 				ErrorMsg = FString(TEXT("Deprecated"));
 				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
@@ -152,7 +151,6 @@ void SDataflowEdNode::UpdateErrorInfo()
 	}
 	
 }
-
 
 FReply SDataflowEdNode::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
@@ -187,11 +185,10 @@ void SDataflowEdNode::AddReferencedObjects(FReferenceCollector& Collector)
 	}
 }
 
-
 //
 // Add a menu option to create a graph node.
 //
-TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName & InNodeTypeName)
+TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName & InNodeTypeName, const FName& InOverrideNodeName)
 {
 	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
 	{
@@ -199,7 +196,11 @@ TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAc
 		if (Param.IsValid())
 		{
 			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
-			const FText NodeName = FText::FromString(Param.DisplayName.ToString());
+			FText NodeName = FText::FromString(Param.DisplayName.ToString());
+			if (!InOverrideNodeName.IsNone())
+			{
+				NodeName = FText::FromName(InOverrideNodeName);
+			}
 			const FText Category = FText::FromString(Param.Category.ToString().IsEmpty() ? FString("Dataflow") : Param.Category.ToString());
 			const FText Tags = FText::FromString(Param.Tags);
 			TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NewNodeAction(

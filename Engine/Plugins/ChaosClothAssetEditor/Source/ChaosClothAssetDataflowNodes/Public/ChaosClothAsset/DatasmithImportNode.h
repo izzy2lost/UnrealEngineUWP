@@ -39,7 +39,7 @@ public:
 };
 
 /** Import a file from a third party garment construction package compatible with the Datasmith scene format. */
-USTRUCT(meta = (DataflowCloth))
+USTRUCT(meta = (DataflowCloth, Deprecated = "5.4"))
 struct FChaosClothAssetDatasmithImportNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -64,7 +64,6 @@ private:
 	//~ Begin FDataflowNode interface
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void Serialize(FArchive& Archive) override;
-	virtual bool IsDeprecated() override { return true; }
 	//~ End FDataflowNode interface
 
 	bool EvaluateImpl(Dataflow::FContext& Context, FManagedArrayCollection& OutCollection) const;

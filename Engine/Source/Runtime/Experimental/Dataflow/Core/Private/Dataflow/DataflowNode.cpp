@@ -8,6 +8,7 @@
 #include "Serialization/ObjectWriter.h"
 #include "Serialization/ObjectReader.h"
 #include "Templates/TypeHash.h"
+#include "Dataflow/DataflowNodeFactory.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowNode)
 
@@ -676,91 +677,9 @@ bool FDataflowNode::ValidateConnections()
 
 FString FDataflowNode::GetToolTip()
 {
-	if (const TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
-	{
-#if WITH_EDITORONLY_DATA
-		if (const UStruct* Struct = ScriptOnStruct->GetStruct())
-		{
-			FString OutStr, InputsStr, OutputsStr;
+	Dataflow::FFactoryParameters FactoryParameters = ::Dataflow::FNodeFactory::GetInstance()->GetParameters(GetType());
 
-			FText StructText = Struct->GetToolTipText();
-
-			OutStr.Appendf(TEXT("%s\n\n%s\n"), *GetDisplayName().ToString(), *StructText.ToString());
-
-			for (FPropertyValueIterator PropertyIt(FProperty::StaticClass(), Struct, ScriptOnStruct->GetStructMemory()); PropertyIt; ++PropertyIt)
-			{
-				const FProperty* const Property = PropertyIt.Key();
-				check(Property);
-
-				if (Property->HasMetaData(TEXT("Tooltip")))
-				{
-					FString ToolTipStr = Property->GetToolTipText(true).ToString();
-					if (ToolTipStr.Len() > 0)
-					{
-						TArray<FString> OutArr;
-						ToolTipStr.ParseIntoArray(OutArr, TEXT(":\r\n"));
-						
-						if (OutArr.Num() == 0)
-						{
-							break;
-						}
-
-						TArray<const FProperty*> PropertyChain;
-						PropertyIt.GetPropertyChain(PropertyChain);
-
-						const FName PropName(GetPropertyFullName(PropertyChain));
-
-						const FString& MainTooltipText = (OutArr.Num() > 1) ? OutArr[1] : OutArr[0];
-
-						if (Property->HasMetaData(FDataflowNode::DataflowInput) &&
-							Property->HasMetaData(FDataflowNode::DataflowOutput) &&
-							Property->HasMetaData(FDataflowNode::DataflowPassthrough))
-						{
-							if (Property->HasMetaData(FDataflowNode::DataflowIntrinsic))
-							{
-								InputsStr.Appendf(TEXT("    %s [Intrinsic] - %s\n"), *PropName.ToString(), *MainTooltipText);
-							}
-							else
-							{
-								InputsStr.Appendf(TEXT("    %s - %s\n"), *PropName.ToString(), *MainTooltipText);
-							}
-
-							OutputsStr.Appendf(TEXT("    %s [Passthrough] - %s\n"), *PropName.ToString(), *MainTooltipText);
-						}					
-						else if (Property->HasMetaData(FDataflowNode::DataflowInput))
-						{
-							if (Property->HasMetaData(FDataflowNode::DataflowIntrinsic))
-							{
-								InputsStr.Appendf(TEXT("    %s [Intrinsic] - %s\n"), *PropName.ToString(), *MainTooltipText);
-							}
-							else
-							{
-								InputsStr.Appendf(TEXT("    %s - %s\n"), *PropName.ToString(), *MainTooltipText);
-							}
-						}
-						else if (Property->HasMetaData(FDataflowNode::DataflowOutput))
-						{
-							OutputsStr.Appendf(TEXT("    %s - %s\n"), *PropName.ToString(), *MainTooltipText);
-						}
-					}
-				}
-			}
-
-			if (InputsStr.Len() > 0)
-			{
-				OutStr.Appendf(TEXT("\n Input(s) :\n % s"), *InputsStr);
-			}
-			if (OutputsStr.Len() > 0)
-			{
-				OutStr.Appendf(TEXT("\n Output(s):\n%s"), *OutputsStr);
-			}
-
-			return OutStr;
-		}
-#endif
-	}
-
-	return "";
+	return FactoryParameters.ToolTip;
 }
 
 FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName)

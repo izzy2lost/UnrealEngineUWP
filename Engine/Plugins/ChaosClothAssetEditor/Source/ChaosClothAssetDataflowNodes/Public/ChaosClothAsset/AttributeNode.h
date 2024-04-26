@@ -29,7 +29,7 @@ enum class EChaosClothAssetNodeAttributeType : uint8
 };
 
 /** Create a new attribute for the specified group. */
-USTRUCT(Meta = (DataflowCloth))
+USTRUCT(Meta = (DataflowCloth, Experimental))
 struct FChaosClothAssetAttributeNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -74,7 +74,6 @@ private:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void OnSelected(Dataflow::FContext& Context) override;
 	virtual void OnDeselected() override;
-	virtual bool IsExperimental() override { return true; }
 	//~ End FDataflowNode interface
 
 	TArray<FName> CachedCollectionGroupNames;

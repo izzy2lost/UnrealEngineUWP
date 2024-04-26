@@ -1704,6 +1704,18 @@ public:
 
 };
 
+// Example to deprecate a Dataflow node
+ //USTRUCT(meta = (Deprecated = "5.1"))
+ //struct FLogStringDataflowNode : public FDataflowNode
+
+ // Example to version up a Dataflow node, the type name needs to be versioned up
+ // Important: don't change the display name!
+  //USTRUCT()
+  //struct FLogStringDataflowNode_v3 : public FDataflowNode
+
+// Example of experimental Dataflow node
+ //USTRUCT(meta = (Experimental))
+ //struct FLogStringDataflowNode_v2 : public FDataflowNode
 
 namespace Dataflow
 {
