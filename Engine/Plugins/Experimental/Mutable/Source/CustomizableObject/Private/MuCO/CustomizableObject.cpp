@@ -2442,6 +2442,19 @@ bool FMutableSkinWeightProfileInfo::operator==(const FMutableSkinWeightProfileIn
 }
 
 
+FIntegerParameterUIData::FIntegerParameterUIData(const FMutableParamUIMetadata& InParamUIMetadata)
+{
+	ParamUIMetadata = InParamUIMetadata;
+}
+
+
+FMutableParameterData::FMutableParameterData(const FMutableParamUIMetadata& InParamUIMetadata, EMutableParameterType InType)
+{
+	ParamUIMetadata = InParamUIMetadata;
+	Type = InType;
+}
+
+
 #if WITH_EDITORONLY_DATA
 FArchive& operator<<(FArchive& Ar, FMutableRemappedBone& RemappedBone)
 {
