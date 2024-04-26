@@ -89,8 +89,8 @@ struct FD3D12PendingDescriptorUpdates
 // Helper container for all context related bindless state.
 struct FD3D12ContextBindlessState
 {
-	FD3D12PendingDescriptorUpdates   PendingDescriptorRollbacks;
 	FD3D12DescriptorHeapPtr          CurrentGpuHeap;
+	bool							 bRequestNewGpuHeap = false;
 
 	// All heaps used on the context. Used for lifetime management.
 	TArray<FD3D12DescriptorHeapPtr> UsedHeaps;
@@ -98,12 +98,12 @@ struct FD3D12ContextBindlessState
 	FD3D12ContextBindlessState() = default;
 	~FD3D12ContextBindlessState()
 	{
-		check(PendingDescriptorRollbacks.IsEmpty());
+		check(!bRequestNewGpuHeap);
 	}
 
 	bool HasAnyPending() const
 	{
-		return UsedHeaps.Num() > 0 || PendingDescriptorRollbacks.Num() > 0;
+		return UsedHeaps.Num() > 0 || bRequestNewGpuHeap;
 	}
 };
 
@@ -119,7 +119,9 @@ public:
 	FRHIDescriptorHandle Allocate();
 	void                 Free(FRHIDescriptorHandle InHandle);
 
-	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, FD3D12View* View);
+	void Recycle(FD3D12DescriptorHeap* DescriptorHeap);
+
+	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View);
 	void UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* View);
 
 	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
@@ -136,11 +138,23 @@ public:
 
 private:
 	void CopyCpuHeap(FD3D12DescriptorHeap* DestinationHeap);
-	void CreateHeapOnState(FD3D12ContextBindlessState& State);
+	void AssignHeapToState(FD3D12ContextBindlessState& State);
 	void FinalizeHeapOnState(FD3D12ContextBindlessState& State);
 
-	FD3D12DescriptorHeapPtr      CpuHeap;
-	FRHIHeapDescriptorAllocator  Allocator;
+	FRHIHeapDescriptorAllocator		Allocator;
+
+	FD3D12DescriptorHeapPtr			CpuHeap;	
+
+	struct FGpuHeapData
+	{
+		FD3D12DescriptorHeapPtr		GpuHeap;
+		TArray<FRHIDescriptorHandle> UpdatedHandles;
+		bool						bInUse = true;
+	};
+
+	FCriticalSection				GpuHeapsCS;
+	int32							ActiveGpuHeapIndex;
+	TArray<FGpuHeapData>			GpuHeaps;
 };
 
 #endif
@@ -172,7 +186,9 @@ public:
 	void                 ImmediateFree(FRHIDescriptorHandle InHandle);
 	void                 DeferredFreeFromDestructor(FRHIDescriptorHandle InHandle);
 
-	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, FD3D12View* View);
+	void Recycle(FD3D12DescriptorHeap* DescriptorHeap);
+
+	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View);
 	void UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* SourceView);
 
 	void FinalizeContext(FD3D12CommandContext& Context);

@@ -501,6 +501,9 @@ void FD3D12DynamicRHI::RHIProcessDeleteQueue()
 				case FD3D12DeferredDeleteObject::EType::BindlessDescriptor:
 					ObjectToDelete.BindlessDescriptor.Device->GetBindlessDescriptorManager().ImmediateFree(ObjectToDelete.BindlessDescriptor.Handle);
 					break;
+				case FD3D12DeferredDeleteObject::EType::BindlessDescriptorHeap:
+					ObjectToDelete.DescriptorHeap->GetParentDevice()->GetBindlessDescriptorManager().Recycle(ObjectToDelete.DescriptorHeap);
+					break;
 #endif
 				case FD3D12DeferredDeleteObject::EType::CPUAllocation:
 					FMemory::Free(ObjectToDelete.CPUAllocation);

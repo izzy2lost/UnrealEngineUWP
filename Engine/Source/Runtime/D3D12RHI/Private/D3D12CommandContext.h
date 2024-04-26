@@ -50,6 +50,7 @@ struct FD3D12DeferredDeleteObject
 		DescriptorHeap,
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 		BindlessDescriptor,
+		BindlessDescriptorHeap,
 #endif
 		CPUAllocation,
 		DescriptorBlock,
@@ -99,10 +100,16 @@ struct FD3D12DeferredDeleteObject
 		, Heap(InHeap)
 	{}
 
-	explicit FD3D12DeferredDeleteObject(FD3D12DescriptorHeap* InDescriptorHeap)
-		: Type(EType::DescriptorHeap)
+	explicit FD3D12DeferredDeleteObject(FD3D12DescriptorHeap* InDescriptorHeap, EType Type)
+		: Type(Type)
 		, DescriptorHeap(InDescriptorHeap)
-	{}
+	{
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		check(Type == EType::BindlessDescriptorHeap || Type == EType::DescriptorHeap);
+#else
+		check(Type == EType::DescriptorHeap);
+#endif
+	}
 
 	explicit FD3D12DeferredDeleteObject(ID3D12Object* D3DObject)
 		: Type(EType::D3DObject)

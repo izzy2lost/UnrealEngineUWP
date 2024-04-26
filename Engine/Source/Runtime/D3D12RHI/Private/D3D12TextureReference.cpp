@@ -15,7 +15,7 @@ FD3D12RHITextureReference::FD3D12RHITextureReference(FD3D12Device* InDevice, FD3
 	{
 		InReferencedTexture->AddRenameListener(this);
 
-		InDevice->GetBindlessDescriptorManager().UpdateDescriptorImmediately(BindlessHandle, InReferencedTexture->GetShaderResourceView());
+		InDevice->GetBindlessDescriptorManager().InitializeDescriptor(BindlessHandle, InReferencedTexture->GetShaderResourceView());
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 }

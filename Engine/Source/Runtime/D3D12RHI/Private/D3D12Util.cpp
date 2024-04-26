@@ -1971,6 +1971,12 @@ DEFINE_STAT(STAT_D3D12DecommitTransientResourceTime);
 
 DEFINE_STAT(STAT_D3D12UAVBarriers);
 
+DEFINE_STAT(STAT_D3D12BindlessResourceHeaps);
+DEFINE_STAT(STAT_D3D12BindlessResourceHeapsVersioned);
+DEFINE_STAT(STAT_D3D12BindlessResourceDescriptorsInitialized);
+DEFINE_STAT(STAT_D3D12BindlessResourceDescriptorsUpdated);
+DEFINE_STAT(STAT_D3D12BindlessResourceGPUDescriptorsCopied);
+
 DEFINE_STAT(STAT_D3D12NewBoundShaderStateTime);
 DEFINE_STAT(STAT_D3D12CreateBoundShaderStateTime);
 DEFINE_STAT(STAT_D3D12NumBoundShaderState);

@@ -251,7 +251,7 @@ void FD3D12View::InitializeBindlessSlot()
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (BindlessHandle.IsValid())
 	{
-		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptorImmediately(BindlessHandle, this);
+		GetParentDevice()->GetBindlessDescriptorManager().InitializeDescriptor(BindlessHandle, this);
 	}
 #endif
 }

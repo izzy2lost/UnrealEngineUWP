@@ -32,6 +32,35 @@ void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12Descripto
 	);
 }
 
+void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, FD3D12DescriptorHeap* SourceHeap, TConstArrayView<FRHIDescriptorHandle> Handles)
+{
+	SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors HeapToHeap Scattered (%d)"), FColor::Turquoise, Handles.Num());
+
+	const int32 NumDescriptors = Handles.Num();
+	const D3D12_DESCRIPTOR_HEAP_TYPE D3DHeapType = Translate(TargetHeap->GetType());
+
+	TArray<D3D12_CPU_DESCRIPTOR_HANDLE> DstDescriptors;
+	TArray<D3D12_CPU_DESCRIPTOR_HANDLE> SrcDescriptors;
+	TArray<UINT> CopyCounts;
+
+	DstDescriptors.SetNumUninitialized(NumDescriptors);
+	SrcDescriptors.SetNumUninitialized(NumDescriptors);
+	CopyCounts.SetNumUninitialized(NumDescriptors);
+
+	for (int32 Index = 0; Index < NumDescriptors; Index++)
+	{
+		DstDescriptors[Index] = TargetHeap->GetCPUSlotHandle(Handles[Index].GetIndex());
+		SrcDescriptors[Index] = SourceHeap->GetCPUSlotHandle(Handles[Index].GetIndex());
+		CopyCounts[Index] = 1;
+	}
+
+	Device->GetDevice()->CopyDescriptors(
+		NumDescriptors, DstDescriptors.GetData(), CopyCounts.GetData(),
+		NumDescriptors, SrcDescriptors.GetData(), CopyCounts.GetData(),
+		D3DHeapType
+	);
+}
+
 void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, TConstArrayView<FRHIDescriptorHandle> DstHandles, TConstArrayView<FD3D12OfflineDescriptor> SrcOfflineDescriptors)
 {
 	SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors Scattered (%d)"), FColor::Turquoise, DstHandles.Num());
@@ -163,11 +192,6 @@ FD3D12DescriptorManager::FD3D12DescriptorManager(FD3D12Device* Device, FD3D12Des
 }
 
 FD3D12DescriptorManager::~FD3D12DescriptorManager() = default;
-
-void FD3D12DescriptorManager::UpdateDescriptorImmediately(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle)
-{
-	UE::D3D12Descriptors::CopyDescriptor(GetParentDevice(), GetHeap(), InHandle, InSourceCpuHandle);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FD3D12OnlineDescriptorManager
@@ -560,7 +584,7 @@ void FD3D12DescriptorHeapManager::DeferredFreeHeap(FD3D12DescriptorHeap* InHeap)
 			if (GlobalHeap.IsHeapAChild(InHeap))
 			{
 				InHeap->AddRef();
-				FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap);
+				FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap, FD3D12DeferredDeleteObject::EType::DescriptorHeap);
 				return;
 			}
 		}
@@ -568,7 +592,7 @@ void FD3D12DescriptorHeapManager::DeferredFreeHeap(FD3D12DescriptorHeap* InHeap)
 	else
 	{
 		InHeap->AddRef();
-		FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap);
+		FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap, FD3D12DeferredDeleteObject::EType::DescriptorHeap);
 	}
 }
 
