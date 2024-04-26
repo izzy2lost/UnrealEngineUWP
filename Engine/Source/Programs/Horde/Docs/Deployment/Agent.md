@@ -41,7 +41,11 @@ The -H parameter and value are not required when using an unauthenticated server
 
 ### General
 
-Agent settings are configured through the [`appsettings.json`](AgentSettings.md) file in the server directory.
+Agent settings are configured through the [`Agent.json`](AgentSettings.md) file. On Windows, this file is stored
+at `C:\ProgramData\Epic\Horde\Agent\Agent.json`. On other platforms, it is stored in the `Data` folder under the
+application directory by default. Settings in this file are applied on top of the `appsettings.json` file distributed
+alongside the agent executable.
+
 All Horde-specific settings are stored under the `horde` top-level key, with middleware and standard .NET settings
 under other root keys.
 

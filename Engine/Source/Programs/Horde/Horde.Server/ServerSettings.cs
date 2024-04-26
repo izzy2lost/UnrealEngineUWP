@@ -462,7 +462,15 @@ namespace Horde.Server
 		/// <summary>
 		/// Optional certificate to trust in order to access the database (eg. AWS public cert for TLS)
 		/// </summary>
-		public string? DatabasePublicCert { get; set; }
+		public string? MongoPublicCertificate { get; set; }
+
+		/// <inheritdoc cref="MongoPublicCertificate"/>
+		[Obsolete("Replace DatabasePublicCert with MongoPublicCertificate")]
+		public string? DatabasePublicCert
+		{
+			get => MongoPublicCertificate;
+			set => MongoPublicCertificate = value;
+		}
 
 		/// <summary>
 		/// Access the database in read-only mode (avoids creating indices or updating content)
