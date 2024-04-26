@@ -89,6 +89,11 @@ bool FGameplayInteractionContext::Tick(const float DeltaTime)
 	
 	const FStateTreeReference& StateTreeReference = Definition->StateTreeReference;
 	const UStateTree* StateTree = StateTreeReference.GetStateTree();
+	if (StateTree == nullptr)
+	{
+		return false;
+	}
+	
 	FStateTreeExecutionContext StateTreeContext(*ContextActor, *StateTree, StateTreeInstanceData);
 
 	EStateTreeRunStatus RunStatus = EStateTreeRunStatus::Unset;
@@ -102,13 +107,23 @@ bool FGameplayInteractionContext::Tick(const float DeltaTime)
 
 void FGameplayInteractionContext::Deactivate()
 {
-	if (Definition == nullptr)
+	if (Definition == nullptr || ContextActor == nullptr)
 	{
 		return;
 	}
 
 	const FStateTreeReference& StateTreeReference = Definition->StateTreeReference;
 	const UStateTree* StateTree = StateTreeReference.GetStateTree();
+	if (StateTree == nullptr)
+	{
+		UE_VLOG_UELOG(ContextActor, LogGameplayInteractions, Error,
+			TEXT("Failed to deactivate interaction for %s. Definition %s doesn't point to a valid StateTree asset."),
+			*GetNameSafe(ContextActor),
+			*Definition.GetFullName());
+		
+		return;
+	}
+	
 	FStateTreeExecutionContext StateTreeContext(*ContextActor, *StateTree, StateTreeInstanceData);
 
 	if (SetContextRequirements(StateTreeContext))
@@ -136,13 +151,18 @@ void FGameplayInteractionContext::SendEvent(const FStateTreeEvent& Event)
 
 void FGameplayInteractionContext::SendEvent(const FGameplayTag Tag, const FConstStructView Payload, const FName Origin)
 {
-	if (Definition == nullptr)
+	if (Definition == nullptr || !IsValid())
 	{
 		return;
 	}
 	
 	const FStateTreeReference& StateTreeReference = Definition->StateTreeReference;
 	const UStateTree* StateTree = StateTreeReference.GetStateTree();
+	if (!StateTree)
+	{
+		return;
+	}
+	
 	const FStateTreeExecutionContext StateTreeContext(*ContextActor, *StateTree, StateTreeInstanceData);
 	StateTreeContext.SendEvent(Tag, Payload, Origin);
 }
