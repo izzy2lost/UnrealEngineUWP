@@ -178,7 +178,7 @@ private:
 
 	double PreviousTraceTime = -1;
 	double CurrentScrubTime = 0;
-	TRange<double> CurrentViewRange {0, 0};
+	TRange<double> CurrentViewRange {0, 10};
 	TRange<double> CurrentTraceRange {0, 0};
 	uint16 RecordingIndex = 0;
 

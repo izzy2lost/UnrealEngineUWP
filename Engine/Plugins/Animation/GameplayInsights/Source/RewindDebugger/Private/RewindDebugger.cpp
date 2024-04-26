@@ -221,10 +221,21 @@ void FRewindDebugger::OnPIESingleStepped(bool bSimulating)
 
 void FRewindDebugger::OnPIEStopped(bool bSimulating)
 {
+	if (IsRecording() && bPIESimulating)
+	{
+#if OBJECT_TRACE_ENABLED
+		UWorld* World = GetWorldToVisualize();
+		SetCurrentScrubTime(FObjectTrace::GetWorldElapsedTime(World));
+#endif // OBJECT_TRACE_ENABLED
+	}
+	
+	bTraceFileLoaded = IsRecording();
+	
 	bPIEStarted = false;
 	bPIESimulating = false;
 
 	StopRecording();
+	
 }
 
 bool FRewindDebugger::GetTargetActorPosition(FVector& OutPosition) const
@@ -501,8 +512,6 @@ void FRewindDebugger::ClearTrace()
 	
 	bTraceFileLoaded = false;
 	TargetObjectIds.Empty();
-	CurrentViewRange.SetLowerBoundValue(0);
-	CurrentViewRange.SetUpperBoundValue(0);
 	CurrentTraceRange.SetLowerBoundValue(0);
 	CurrentTraceRange.SetUpperBoundValue(0);
 	RecordingDuration.Set(0.0);
@@ -762,15 +771,13 @@ UWorld* FRewindDebugger::GetWorldToVisualize() const
 
 	UWorld* World = nullptr;
 
-#if WITH_EDITOR
 	UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
 	if (GIsEditor && EditorEngine != nullptr && World == nullptr)
 	{
-		// lets use PlayWorld during PIE/Simulate and regular world from editor otherwise, to draw debug information
-		World = EditorEngine->PlayWorld != nullptr ? ToRawPtr(EditorEngine->PlayWorld) : EditorEngine->GetEditorWorldContext().World();
+		// when a trace file is loaded, use the editor world, otherwise use the play world
+		World = bTraceFileLoaded ?  EditorEngine->GetEditorWorldContext().World() : ToRawPtr(EditorEngine->PlayWorld);
 	}
 
-#endif
 	if (!GIsEditor && World == nullptr)
 	{
 		World = GEngine->GetWorld();
@@ -987,7 +994,7 @@ void FRewindDebugger::Tick(float DeltaTime)
 	{
 		const IAnimationProvider* AnimationProvider = Session->ReadProvider<IAnimationProvider>("AnimationProvider");
 		const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
-
+		
 		if (AnimationProvider && GameplayProvider)
 		{
 			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
@@ -995,9 +1002,8 @@ void FRewindDebugger::Tick(float DeltaTime)
 			double RecordingDurationValue = GameplayProvider->GetRecordingDuration();
 			if (IsTraceFileLoaded() && RecordingDurationValue > RecordingDuration.Get())
 			{
-				// while trace file is loading up, recording duration changes - autoscroll
-				SetCurrentScrubTime(RecordingDurationValue);
-				TrackCursorDelegate.ExecuteIfBound(false);	
+				// while trace file is loading up, force the trace range to update.
+				SetCurrentViewRange(GetCurrentViewRange());
 			}
 			RecordingDuration.Set(RecordingDurationValue);
 			

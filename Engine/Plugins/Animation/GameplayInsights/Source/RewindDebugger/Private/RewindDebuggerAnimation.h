@@ -57,7 +57,7 @@ private:
 		// mesh component object id
 		uint64 id;
 		// actor to hold the mesh component
-		TObjectPtr<AActor> Actor;
+		TWeakObjectPtr<AActor> Actor;
 		// mesh
 		TObjectPtr<USkeletalMeshComponent> Component;
 	};
@@ -67,7 +67,7 @@ private:
 		// AnimInstance id
 		uint64 id;
 		// Data used for anim BP debugging
-		TObjectPtr<UAnimInstance> AnimInstance;
+		TWeakObjectPtr<UAnimInstance> AnimInstance;
 	};
 	
 	FSpawnedMeshComponentInfo* SpawnMesh(uint64 ObjectId, const IGameplayProvider* GameplayProvider);
@@ -77,7 +77,7 @@ private:
 	TMap<uint64, FSpawnedAnimInstanceInfo> SpawnedAnimInstances;
 
 	TMap<uint64, FMeshComponentResetData> MeshComponentsToReset;
-	double LastScrubTime = 0.0;
+	double LastScrubTime = -1;
 
 	static FRewindDebuggerAnimation* Instance;
 };

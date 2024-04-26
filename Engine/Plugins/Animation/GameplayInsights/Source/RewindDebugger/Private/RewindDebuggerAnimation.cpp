@@ -42,15 +42,15 @@ void FRewindDebuggerAnimation::ClearSpawnedComponents()
 {
 	for(auto& MeshComponentInfo : SpawnedMeshComponents)
 	{
-		if(MeshComponentInfo.Value.Component)
+		if(MeshComponentInfo.Value.Actor.IsValid())
 		{
-			MeshComponentInfo.Value.Component->UnregisterComponent();
-			MeshComponentInfo.Value.Component->MarkAsGarbage();
-			MeshComponentInfo.Value.Component = nullptr;
-		}
+			if(MeshComponentInfo.Value.Component)
+			{
+				MeshComponentInfo.Value.Component->UnregisterComponent();
+				MeshComponentInfo.Value.Component->MarkAsGarbage();
+				MeshComponentInfo.Value.Component = nullptr;
+			}
 
-		if(MeshComponentInfo.Value.Actor)
-		{
 			MeshComponentInfo.Value.Actor->Destroy();
 			MeshComponentInfo.Value.Actor = nullptr;
 		}
@@ -62,6 +62,7 @@ void FRewindDebuggerAnimation::ClearSpawnedComponents()
 void FRewindDebuggerAnimation::Clear(IRewindDebugger* RewindDebugger)
 {
 	ClearSpawnedComponents();
+	LastScrubTime = -1;
 }
 
 void FRewindDebuggerAnimation::Initialize()
@@ -114,6 +115,9 @@ void FRewindDebuggerAnimation::OnPIESingleStepped(bool bSimulating)
 void FRewindDebuggerAnimation::OnPIEStopped(bool bSimulating)
 {
 	MeshComponentsToReset.Empty();
+	
+	// clear last scrub time so that poses will reapply
+	LastScrubTime = -1;
 }
 
 
@@ -136,9 +140,6 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 		FTransform ComponentWorldTransform;
 		if (const FSkeletalMeshInfo* SkeletalMeshInfo = AnimationProvider->FindSkeletalMeshInfo(PoseMessage->MeshId))
 		{
-			AnimationProvider->GetSkeletalMeshComponentSpacePose(*PoseMessage, *SkeletalMeshInfo, ComponentWorldTransform, MeshComponent->GetEditableComponentSpaceTransforms());
-			MeshComponent->ApplyEditedComponentSpaceTransforms();
-
 			if (bApplyMesh)
 			{
 				const FObjectInfo* SkeletalMeshObjectInfo = GameplayProvider->FindObjectInfo(PoseMessage->MeshId);
@@ -149,6 +150,9 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 					MeshComponent->SetSkeletalMesh(SkeletalMesh);
 				}
 			}
+			
+			AnimationProvider->GetSkeletalMeshComponentSpacePose(*PoseMessage, *SkeletalMeshInfo, ComponentWorldTransform, MeshComponent->GetEditableComponentSpaceTransforms());
+			MeshComponent->ApplyEditedComponentSpaceTransforms();
 			
 			if (bQueueForReset)
 			{
@@ -204,7 +208,6 @@ FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::S
 	ActorSpawnParameters.bHideFromSceneOutliner = true;
 	ActorSpawnParameters.ObjectFlags |= RF_Transient;
 
-
 	MeshComponentInfo->Actor = World->SpawnActor<AActor>(ActorSpawnParameters);
 
 	if(const FObjectInfo* ActorInfo = FindOwningActorInfo(GameplayProvider, ObjectId))
@@ -212,7 +215,7 @@ FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::S
 		MeshComponentInfo->Actor->SetActorLabel(FString(TEXT("RewindDebugger: ") + FString(ActorInfo->Name)));
 	}
 
-	MeshComponentInfo->Component = NewObject<USkeletalMeshComponent>(MeshComponentInfo->Actor);
+	MeshComponentInfo->Component = NewObject<USkeletalMeshComponent>(MeshComponentInfo->Actor.Get());
 	MeshComponentInfo->Component->PrimaryComponentTick.bStartWithTickEnabled = false;
 	MeshComponentInfo->Component->PrimaryComponentTick.bCanEverTick = false;
 
@@ -226,12 +229,19 @@ FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::S
 
 UAnimInstance* FRewindDebuggerAnimation::SpawnAnimInstance(uint64 ObjectId, const IGameplayProvider* GameplayProvider)
 {
-	if (FSpawnedAnimInstanceInfo* FoundInfo = SpawnedAnimInstances.Find(ObjectId))
+	FSpawnedAnimInstanceInfo* AnimInstanceInfo = SpawnedAnimInstances.Find(ObjectId);
+	if (AnimInstanceInfo)
 	{
-		return FoundInfo->AnimInstance;
+		if (AnimInstanceInfo->AnimInstance.IsValid())
+		{
+			return AnimInstanceInfo->AnimInstance.Get();
+		}
 	}
-	
-	FSpawnedAnimInstanceInfo* AnimInstanceInfo = &SpawnedAnimInstances.Add(ObjectId);
+
+	if (AnimInstanceInfo == nullptr)
+	{
+		AnimInstanceInfo = &SpawnedAnimInstances.Add(ObjectId);
+	}
 
 	if (const FObjectInfo* ObjectInfo = GameplayProvider->FindObjectInfo(ObjectId))
 	{
@@ -243,7 +253,7 @@ UAnimInstance* FRewindDebuggerAnimation::SpawnAnimInstance(uint64 ObjectId, cons
 				if (const FSpawnedMeshComponentInfo* MeshInfo = SpawnedMeshComponents.Find(ObjectInfo->OuterId))
 				{
 					AnimInstanceInfo->AnimInstance = NewObject<UAnimInstance>(MeshInfo->Component, ClassPtr.Get());
-					return AnimInstanceInfo->AnimInstance;
+					return AnimInstanceInfo->AnimInstance.Get();
 				}
 			}
 		}
@@ -257,7 +267,7 @@ UAnimInstance* FRewindDebuggerAnimation::GetDebugAnimInstance(uint64 ObjectId)
 {
 	if (FSpawnedAnimInstanceInfo* FoundInfo = SpawnedAnimInstances.Find(ObjectId))
 	{
-		return FoundInfo->AnimInstance;
+		return FoundInfo->AnimInstance.Get();
 	}
 	return nullptr;
 }
@@ -275,10 +285,11 @@ void FRewindDebuggerAnimation::Update(float DeltaTime, IRewindDebugger* RewindDe
 	if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
-		double CurrentTraceTime = RewindDebugger->CurrentTraceTime();
 		
+		double CurrentTraceTime = RewindDebugger->CurrentTraceTime();
 		if (CurrentTraceTime != LastScrubTime)
 		{
+			LastScrubTime = CurrentTraceTime;
 			const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*Session);
 			TraceServices::FFrame Frame;
 			if (FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, Frame))
@@ -319,10 +330,21 @@ void FRewindDebuggerAnimation::Update(float DeltaTime, IRewindDebugger* RewindDe
 							{
 								// display pose on a spawned mesh component
 								FSpawnedMeshComponentInfo* MeshComponentInfo = SpawnedMeshComponents.Find(ObjectId);
+								if (MeshComponentInfo)
+								{
+									if (!MeshComponentInfo->Actor.IsValid())
+									{
+										// if the actor has been deleted, clear cached data and create it again
+										SpawnedMeshComponents.Remove(ObjectId);
+										MeshComponentInfo = nullptr;
+									}
+								}
+									
 								if (MeshComponentInfo == nullptr)
 								{
 									MeshComponentInfo = SpawnMesh(ObjectId, GameplayProvider);
 									bLoadMesh = true;
+									LastScrubTime = -1;
 								}
 								
 								MeshComponent = MeshComponentInfo->Component;
