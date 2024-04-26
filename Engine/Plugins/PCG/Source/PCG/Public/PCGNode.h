@@ -142,8 +142,11 @@ public:
 	/** True if the edge is being used by the node. UI will gray out unused pins. */
 	virtual bool IsEdgeUsedByNodeExecution(const UPCGEdge* InEdge) const;
 
-	/** Returns the first connected pin on the node */
+	/** Returns the first connected input pin on the node. */
 	const UPCGPin* GetFirstConnectedInputPin() const;
+
+	/** Returns the first connected output pin on the node. */
+	const UPCGPin* GetFirstConnectedOutputPin() const;
 
 	const TArray<TObjectPtr<UPCGPin>>& GetInputPins() const { return InputPins; }
 	const TArray<TObjectPtr<UPCGPin>>& GetOutputPins() const { return OutputPins; }

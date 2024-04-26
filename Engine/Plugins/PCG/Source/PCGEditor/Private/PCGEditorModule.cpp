@@ -8,8 +8,13 @@
 #include "PCGEditorSettings.h"
 #include "PCGEditorStyle.h"
 #include "PCGEditorUtils.h"
+#include "PCGModule.h"
 #include "PCGSubsystem.h"
 #include "PCGVolumeFactory.h"
+#include "Data/PCGSpatialData.h"
+#include "Data/PCGSplineData.h"
+#include "DataVisualizations/PCGSpatialDataVisualization.h"
+#include "DataVisualizations/PCGSplineDataVisualization.h"
 
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
@@ -37,6 +42,7 @@ void FPCGEditorModule::StartupModule()
 {
 	RegisterDetailsCustomizations();
 	RegisterSettings();
+	RegisterPCGDataVisualizations();
 
 	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FPCGEditorModule::RegisterMenuExtensions));
 
@@ -51,6 +57,7 @@ void FPCGEditorModule::StartupModule()
 
 void FPCGEditorModule::ShutdownModule()
 {
+	UnregisterPCGDataVisualizations();
 	UnregisterSettings();
 	UnregisterDetailsCustomizations();
 	UnregisterMenuExtensions();
@@ -405,6 +412,18 @@ void FPCGEditorModule::UnregisterSettings()
 	{
 		SettingsModule->UnregisterSettings("Editor", "ContentEditors", "PCGEditor");
 	}
+}
+
+void FPCGEditorModule::RegisterPCGDataVisualizations()
+{
+	FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetMutablePCGDataVisualizationRegistry();
+	DataVisRegistry.InternalRegistry.Add(UPCGSpatialData::StaticClass(), MakeUnique<const IPCGSpatialDataVisualization>());
+	DataVisRegistry.InternalRegistry.Add(UPCGSplineData::StaticClass(), MakeUnique<const IPCGSplineDataVisualization>());
+}
+
+void FPCGEditorModule::UnregisterPCGDataVisualizations()
+{
+	FPCGModule::GetMutablePCGDataVisualizationRegistry().InternalRegistry.Empty();
 }
 
 IMPLEMENT_MODULE(FPCGEditorModule, PCGEditor);

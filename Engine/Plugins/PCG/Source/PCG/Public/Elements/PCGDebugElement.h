@@ -8,11 +8,6 @@
 
 #include "PCGDebugElement.generated.h"
 
-namespace PCGDebugElement
-{
-	void ExecuteDebugDisplay(FPCGContext* Context, AActor* TargetActor = nullptr);
-}
-
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCG_API UPCGDebugSettings : public UPCGSettings
 {

@@ -17,30 +17,6 @@
 
 #define LOCTEXT_NAMESPACE "FPCGModule"
 
-class FPCGModule final : public IModuleInterface
-{
-public:
-	//~ IModuleInterface implementation
-
-#if WITH_EDITOR
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-#endif
-
-	virtual bool SupportsDynamicReloading() override
-	{
-		return true;
-	}
-
-	//~ End IModuleInterface implementation
-
-private:
-#if WITH_EDITOR
-	void RegisterNativeElementDeterminismTests();
-	void DeregisterNativeElementDeterminismTests();
-#endif
-};
-
 #if WITH_EDITOR
 void FPCGModule::StartupModule()
 {
@@ -58,6 +34,11 @@ void FPCGModule::ShutdownModule()
 	PCGDeterminismTests::FNativeTestRegistry::Destroy();
 }
 
+FPCGModule& FPCGModule::GetPCGModuleChecked()
+{
+	return FModuleManager::GetModuleChecked<FPCGModule>("PCG");
+}
+
 void FPCGModule::RegisterNativeElementDeterminismTests()
 {
 	PCGDeterminismTests::FNativeTestRegistry::RegisterTestFunction(UPCGDifferenceSettings::StaticClass(), PCGDeterminismTests::DifferenceElement::RunTestSuite);
@@ -68,7 +49,6 @@ void FPCGModule::DeregisterNativeElementDeterminismTests()
 {
 	PCGDeterminismTests::FNativeTestRegistry::DeregisterTestFunction(UPCGDifferenceSettings::StaticClass());
 }
-
 #endif
 
 IMPLEMENT_MODULE(FPCGModule, PCG);

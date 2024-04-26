@@ -731,6 +731,19 @@ const UPCGPin* UPCGNode::GetFirstConnectedInputPin() const
 	return nullptr;
 }
 
+const UPCGPin* UPCGNode::GetFirstConnectedOutputPin() const
+{
+	for (const UPCGPin* OutputPin : OutputPins)
+	{
+		if (OutputPin && OutputPin->EdgeCount() > 0)
+		{
+			return OutputPin;
+		}
+	}
+
+	return nullptr;
+}
+
 void UPCGNode::SetSettingsInterface(UPCGSettingsInterface* InSettingsInterface, bool bUpdatePins)
 {
 	const bool bDifferentInterface = (SettingsInterface.Get() != InSettingsInterface);

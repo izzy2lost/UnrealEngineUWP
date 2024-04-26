@@ -7,7 +7,10 @@
 #include "PCGGraph.h"
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
-#include "Elements/PCGDebugElement.h"
+
+#if WITH_EDITOR
+#include "PCGDataVisualization.h"
+#endif
 
 #include "HAL/IConsoleManager.h"
 #include "Utils/PCGExtraCapture.h"
@@ -342,7 +345,25 @@ void IPCGElement::DebugDisplay(FPCGContext* Context) const
 	Context->InputData = ElementOutputs;
 	Context->OutputData = FPCGDataCollection();
 
-	PCGDebugElement::ExecuteDebugDisplay(Context);
+	// In the case of a node with multiple output pins, we will select only the inputs from the first non-empty pin.
+	const UPCGPin* FirstOutPin = Context->Node ? Context->Node->GetFirstConnectedOutputPin() : nullptr;
+
+	const FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetConstPCGDataVisualizationRegistry();
+	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
+
+	for (const FPCGTaggedData& Input : Inputs)
+	{
+		// Skip output if we're filtering on the first pin or the the data is null.
+		if (!Input.Data || (FirstOutPin && FirstOutPin->Properties.Label != Input.Pin))
+		{
+			continue;
+		}
+
+		if (const IPCGDataVisualization* DataVis = DataVisRegistry.GetDataVisualization(Input.Data->GetClass()))
+		{
+			DataVis->ExecuteDebugDisplay(Context, Input.Data, Context->GetTargetActor(nullptr));
+		}
+	}
 
 	Context->InputData = ElementInputs;
 	Context->OutputData = ElementOutputs;

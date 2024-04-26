@@ -6,13 +6,12 @@
 #include "Modules/ModuleInterface.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
-class IAssetTypeActions;
-
 // Logs
 DECLARE_LOG_CATEGORY_EXTERN(LogPCGEditor, Log, All);
 
 class FMenuBuilder;
 class FPCGEditorGraphNodeFactory;
+class IAssetTypeActions;
 
 class FPCGEditorModule : public IModuleInterface
 {
@@ -31,6 +30,8 @@ protected:
 	void PopulateMenuActions(FMenuBuilder& MenuBuilder);
 	void RegisterSettings();
 	void UnregisterSettings();
+	void RegisterPCGDataVisualizations();
+	void UnregisterPCGDataVisualizations();
 
 	void OnPostEngineInit();
 	void RegisterOnEditorModeChange();
