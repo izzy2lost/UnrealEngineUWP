@@ -509,6 +509,12 @@ struct FInternalOptionalPinManager : public FOptionalPinManager
 						NewPin->PinFriendlyName = FText::FromString(PropertyEntry.PropertyFriendlyName.IsEmpty() ? PinName.ToString() : PropertyEntry.PropertyFriendlyName);
 						NewPin->bNotConnectable = !PropertyEntry.bIsSetValuePinVisible;
 						NewPin->bDefaultValueIsIgnored = !PropertyEntry.bIsSetValuePinVisible;
+						
+						if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(OuterProperty))
+						{
+							NewPin->DefaultValue = EnumProperty->GetEnum()->GetNameStringByIndex(0);
+						}
+						
 						Schema->ConstructBasicPinTooltip(*NewPin, PropertyEntry.PropertyTooltip, NewPin->PinToolTip);
 					}
 				}
