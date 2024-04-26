@@ -144,7 +144,7 @@ bool UGameViewportSubsystem::AddToScreen(UWidget* Widget, ULocalPlayer* Player, 
 	UGameViewportClient* ViewportClient = World->GetGameViewport();
 	if (!ViewportClient)
 	{
-		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("No game viewport was found."), *Widget->GetName()), ELogVerbosity::Warning);
+		FFrame::KismetExecutionMessage(TEXT("No game viewport was found."), ELogVerbosity::Warning);
 		return false;
 	}
 

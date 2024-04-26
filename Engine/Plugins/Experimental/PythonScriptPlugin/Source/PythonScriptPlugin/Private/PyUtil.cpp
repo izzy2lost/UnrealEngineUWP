@@ -664,7 +664,7 @@ int ValidateContainerLenParam(PyObject* InPyObj, int32 &OutLen, const char* InPy
 
 	if (OutLen < 0)
 	{
-		SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("'len' must be positive"), UTF8_TO_TCHAR(InPythonArgName)));
+		SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("'%s' must be positive"), UTF8_TO_TCHAR(InPythonArgName)));
 		return -1;
 	}
 
@@ -675,7 +675,7 @@ int ValidateContainerIndexParam(const Py_ssize_t InIndex, const Py_ssize_t InLen
 {
 	if (InIndex < 0 || InIndex >= InLen)
 	{
-		SetPythonError(PyExc_IndexError, InErrorCtxt, *FString::Printf(TEXT("Index %d is out-of-bounds (len: %d) for property '%s' (%s)"), InIndex, InLen, *InProp->GetName(), *InProp->GetClass()->GetName()));
+		SetPythonError(PyExc_IndexError, InErrorCtxt, *FString::Printf(TEXT("Index %zd is out-of-bounds (len: %zd) for property '%s' (%s)"), InIndex, InLen, *InProp->GetName(), *InProp->GetClass()->GetName()));
 		return -1;
 	}
 

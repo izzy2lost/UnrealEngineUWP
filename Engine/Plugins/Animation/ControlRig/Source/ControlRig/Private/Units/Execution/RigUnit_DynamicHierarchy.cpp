@@ -38,7 +38,7 @@ bool FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(
 		if(OutErrorMessage)
 		{
 			static constexpr TCHAR ErrorMessageFormat[] = TEXT("Node has hit the Procedural Element Limit. Check the Class Settings under Hierarchy.");
-			*OutErrorMessage = FString::Printf(ErrorMessageFormat, *FRigUnit_PrepareForExecution::EventName.ToString());
+			*OutErrorMessage = ErrorMessageFormat;
 		}
 		return false;
 	}

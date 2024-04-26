@@ -1602,7 +1602,7 @@ bool URigVMCompiler::TraverseExpression(const FRigVMExprAST* InExpr, FRigVMCompi
 			{
 				if(!BlockInfo->ExecuteStateOperand.IsValid())
 				{
-					static constexpr TCHAR Format[] = TEXT("BlockExecuteState_%zu");
+					static constexpr TCHAR Format[] = TEXT("BlockExecuteState_%u");
 					const FString BlockStateName = FString::Printf(Format, NextBlockHash.GetValue());
 					BlockInfo->ExecuteStateOperand = WorkData.AddProperty(
 						ERigVMMemoryType::Work,

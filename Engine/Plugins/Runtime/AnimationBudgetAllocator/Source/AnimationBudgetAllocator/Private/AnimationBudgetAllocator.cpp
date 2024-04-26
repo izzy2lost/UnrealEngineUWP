@@ -741,7 +741,7 @@ void FAnimationBudgetAllocator::Update(float DeltaSeconds)
 					{
 						if(GAnimationBudgetDebugShowAddresses != 0)
 						{
-							DebugString += FString::Printf(TEXT("0x%llx %d %s %s\n"), &ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
+							DebugString += FString::Printf(TEXT("0x%" UPTRINT_x_FMT " %d %s %s\n"), (UPTRINT)&ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
 						}
 						else
 						{
@@ -850,7 +850,7 @@ void FAnimationBudgetAllocator::OnHUDPostRender(AHUD* HUD, UCanvas* Canvas)
 						{
 							if(GAnimationBudgetDebugShowAddresses != 0)
 							{
-								DebugString += FString::Printf(TEXT("0x%llx %d %s %s\n"), &ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
+								DebugString += FString::Printf(TEXT("0x%" UPTRINT_x_FMT " %d %s %s\n"), (UPTRINT)&ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
 							}
 							else
 							{

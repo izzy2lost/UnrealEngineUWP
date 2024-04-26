@@ -183,20 +183,20 @@ FString FPropertyValueImpl::GetPropertyValueArray() const
 					if ( FArrayProperty* ArrayProperty = CastField<FArrayProperty>(NodeProperty) )
 					{
 						FScriptArrayHelper ArrayHelper(ArrayProperty, Addr);
-						String = FString::Printf( TEXT("%(%d)"), ArrayHelper.Num() );
+						String = FString::Printf( TEXT("%%(%d)"), ArrayHelper.Num() );
 					}
 					else if ( CastField<FSetProperty>(NodeProperty) != nullptr )	
 					{
-						String = FString::Printf( TEXT("%(%d)"), FScriptSetHelper::Num(Addr) );
+						String = FString::Printf( TEXT("%%(%d)"), FScriptSetHelper::Num(Addr) );
 					}
 					else if (FMapProperty* MapProperty = CastField<FMapProperty>(NodeProperty))
 					{
 						FScriptMapHelper MapHelper(MapProperty, Addr);
-						String = FString::Printf(TEXT("%(%d)"), MapHelper.Num());
+						String = FString::Printf(TEXT("%%(%d)"), MapHelper.Num());
 					}
 					else
 					{
-						String = FString::Printf( TEXT("%[%d]"), NodeProperty->ArrayDim );
+						String = FString::Printf( TEXT("%%[%d]"), NodeProperty->ArrayDim );
 					}
 				}
 			}

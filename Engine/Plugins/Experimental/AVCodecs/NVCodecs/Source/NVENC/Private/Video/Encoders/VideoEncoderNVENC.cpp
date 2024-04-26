@@ -386,11 +386,11 @@ FAVResult FEncoderNVENC::CreateD3D11Device(TSharedRef<FAVDevice> const& InDevice
 	HRESULT Result = InDevice->GetContext<FVideoContextD3D11>()->Device->QueryInterface(__uuidof(IDXGIDevice), (void**)DXGIDevice.GetInitReference());
 	if (Result != S_OK)
 	{
-		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("ID3D11Device::QueryInterface() failed 0x%X - %s."), Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
+		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("ID3D11Device::QueryInterface() failed 0x%X - %s."), (uint32)Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
 	}
 	else if ((Result = DXGIDevice->GetAdapter(Adapter.GetInitReference())) != S_OK)
 	{
-		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("DXGIDevice::GetAdapter() failed 0x%X - %s."), Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
+		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("DXGIDevice::GetAdapter() failed 0x%X - %s."), (uint32)Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
 	}
 
 	uint32 DeviceFlags = 0;
@@ -410,7 +410,7 @@ FAVResult FEncoderNVENC::CreateD3D11Device(TSharedRef<FAVDevice> const& InDevice
 			 OutEncoderDeviceContext.GetInitReference()))
 		!= S_OK)
 	{
-		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("D3D11CreateDevice() failed 0x%X - %s."), Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
+		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("D3D11CreateDevice() failed 0x%X - %s."), (uint32)Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
 	}
 
 	return FAVResult(EAVResult::Success, TEXT("Created D3D11 device for NVENC."), TEXT("D3D11"));

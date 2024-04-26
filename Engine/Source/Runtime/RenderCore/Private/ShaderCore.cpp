@@ -1421,15 +1421,15 @@ int HandleShaderCompileException(Windows::LPEXCEPTION_POINTERS Info, FString& Ou
 		if (ExceptionCodeToString(Info->ExceptionRecord->ExceptionCode, ExCodeStr))
 		{
 			OutExMsg = FString::Printf(
-				TEXT("Exception: %s, address=0x%016x\n"),
+				TEXT("Exception: %s, address=0x%016" UINT64_x_FMT "\n"),
 				*ExCodeStr,
 				(uint64)Info->ExceptionRecord->ExceptionAddress);
 		}
 		else
 		{
 			OutExMsg = FString::Printf(
-				TEXT("Exception code: 0x%08x, address=0x%016x\n"),
-				Info->ExceptionRecord->ExceptionCode,
+				TEXT("Exception code: 0x%08x, address=0x%016" UINT64_x_FMT "\n"),
+				(uint32)Info->ExceptionRecord->ExceptionCode,
 				(uint64)Info->ExceptionRecord->ExceptionAddress);
 		}
 	}

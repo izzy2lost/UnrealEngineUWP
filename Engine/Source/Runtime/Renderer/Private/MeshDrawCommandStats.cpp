@@ -167,7 +167,7 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 							FString& PassFriendlyNames = StatCollections[CategoryBudget.Collection].CategoryPassFriendlyNames[CategoryBudget.CategoryName];
 
 							FCoreDelegates::EOnScreenMessageSeverity Severity = CategoryBudget.PrimitiveBudget < *PrimitiveCount ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
-							OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - %s (%s)"), 
+							OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5" UINT64_FMT "K / %5dK - %s (%s)"), 
 									*PrimitiveCount / 1000, 
 									CategoryBudget.PrimitiveBudget / 1000, 
 									*(CategoryBudget.CategoryName.ToString()),

@@ -1830,7 +1830,7 @@ void FD3D12Adapter::DumpTrackedAllocationData(FOutputDevice& OutputDevice, bool 
 			Flags += EnumHasAnyFlags(ResourceDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) ? "|UAV" : "UAV";
 		}
 
-		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %d - Height: %d - DepthOrArraySize: %d - MipLevels: %d - Flags: %s - Resident: %s\n"), 
+		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %" UINT64_FMT " - Height: %d - DepthOrArraySize: %d - MipLevels: %d - Flags: %s - Resident: %s\n"), 
 			*AllocationData.ResourceAllocation->GetResource()->GetName().ToString(), 
 			AllocationData.AllocationSize / (1024.0f * 1024),
 			ResourceDesc.Width, ResourceDesc.Height, ResourceDesc.DepthOrArraySize, ResourceDesc.MipLevels,
@@ -1863,7 +1863,7 @@ void FD3D12Adapter::DumpTrackedAllocationData(FOutputDevice& OutputDevice, bool 
 			continue;
 		}
 
-		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %d - UAV: %s - Resident: %s\n"), 
+		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %" UINT64_FMT " - UAV: %s - Resident: %s\n"), 
 			*AllocationData.ResourceAllocation->GetResource()->GetName().ToString(), 
 			AllocationData.AllocationSize / (1024.0f * 1024),
 			ResourceDesc.Width,

@@ -969,7 +969,7 @@ struct FExposureSettings
 
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("%d,%d"), FixedEV100, bFixed ? 1 : 0);
+		return FString::Printf(TEXT("%f,%d"), FixedEV100, bFixed ? 1 : 0);
 	}
 
 	void SetFromString(const TCHAR *In)

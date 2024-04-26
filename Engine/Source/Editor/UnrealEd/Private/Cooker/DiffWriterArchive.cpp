@@ -598,7 +598,7 @@ void FAccumulator::OnSecondSaveComplete(int64 InHeaderSize)
 	if (HeaderSize != InHeaderSize)
 	{
 		MessageCallback(ELogVerbosity::Error, FString::Printf(
-			TEXT("%s: Indeterministic header size. When saving the package twice into memory, first header size %d != second header size %d. Callstacks for indeterminism in the exports will be incorrect.")
+			TEXT("%s: Indeterministic header size. When saving the package twice into memory, first header size %" INT64_FMT " != second header size %" INT64_FMT ". Callstacks for indeterminism in the exports will be incorrect.")
 			TEXT("\n\tDumping differences from first and second memory saves."),
 			*this->Filename, HeaderSize, InHeaderSize));
 
@@ -965,7 +965,7 @@ void FAccumulator::CompareWithPreviousForSection(const FPackageData& SourcePacka
 		}
 
 		MessageCallback(ELogVerbosity::Display, FString::Printf(
-			TEXT("%s: Logging %d bytes around offset: %lld (%016X) in the OnDisk package:"),
+			TEXT("%s: Logging %d bytes around offset: %" INT64_FMT " (%016" INT64_X_FMT ") in the OnDisk package:"),
 			*SectionFilename,
 			BytesToLog, LocalOffset, LocalOffset
 		));
@@ -978,7 +978,7 @@ void FAccumulator::CompareWithPreviousForSection(const FPackageData& SourcePacka
 		}
 
 		MessageCallback(ELogVerbosity::Display, FString::Printf(
-			TEXT("%s: Logging %d bytes around offset: %lld (%016X) in the InMemory package:"),
+			TEXT("%s: Logging %d bytes around offset: %" INT64_FMT " (%016" INT64_X_FMT ") in the InMemory package:"),
 			*SectionFilename, BytesToLog, LocalOffset, LocalOffset
 		));
 		HexDumpLines = FCompressionUtil::HexDumpLines(DestPackage.Data + DestPackage.StartOffset,

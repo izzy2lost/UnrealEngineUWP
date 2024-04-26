@@ -476,7 +476,7 @@ bool FFbxImportAssetsAutomationTest::RunTest(const FString& Parameters)
 				FString LodFile = BaseLODFile.Replace(TEXT("_lod00"), *LodIndexString);
 				if (!FPaths::FileExists(LodFile))
 				{
-					ExecutionInfo.AddError(FString::Printf(TEXT("%s: Cannot Add Lod because file %s do not exist on disk!"), *LodFile));
+					ExecutionInfo.AddError(FString::Printf(TEXT("%s: Cannot Add Lod because file %s do not exist on disk!"), *CleanFilename, *LodFile));
 					CurTestSuccessful = false;
 					continue;
 				}

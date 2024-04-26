@@ -419,7 +419,7 @@ void UMovieSceneCapture::Initialize(TSharedPtr<FSceneViewport> InSceneViewport, 
 	FormatMappings.Reserve(10);
 	if (FrameRate == FMath::RoundToDouble(FrameRate))
 	{
-		FormatMappings.Add(TEXT("fps"), FString::Printf(TEXT("%d"), FMath::RoundToInt(FrameRate)));
+		FormatMappings.Add(TEXT("fps"), FString::Printf(TEXT("%" INT64_FMT), FMath::RoundToInt(FrameRate)));
 	}
 	else
 	{

@@ -11777,7 +11777,7 @@ void UEngine::LogPerformanceCapture(UWorld* World, const FString& MapName, const
 		PerfSnapshot.AverageFrameTime = FString::Printf(TEXT("%0.2f"), StatUnitData->FrameTime);
 		PerfSnapshot.AverageGameThreadTime = FString::Printf(TEXT("%0.2f"), StatUnitData->GameThreadTime);
 		PerfSnapshot.AverageRenderThreadTime = FString::Printf(TEXT("%0.2f"), StatUnitData->RenderThreadTime);
-		PerfSnapshot.AverageGPUTime = FString::Printf(TEXT("%0.2f"), StatUnitData->GPUFrameTime);
+		PerfSnapshot.AverageGPUTime = FString::Printf(TEXT("%0.2f"), StatUnitData->GPUFrameTime[0]);
 		// PerfSnapshot.PercentOfFramesAtLeast60FPS = ???;	// @todo
 		// PerfSnapshot.PercentOfFramesAtLeast60FPS = ???;	// @todo
 
@@ -19340,7 +19340,7 @@ int32 UEngine::RenderStatFrameCounter(UWorld* World, FViewport* Viewport, FCanva
 	UFont* Font = FPlatformProperties::SupportsWindowedMode() ? GetSmallFont() : GetMediumFont();
 	const int32 RowHeight = FMath::TruncToInt(Font->GetMaxCharHeight() * 1.1f);
 
-	Canvas->DrawShadowedString(X, Y, *FString::Printf(TEXT("FC: %d"), GFrameCounter), Font, FColor::Green);
+	Canvas->DrawShadowedString(X, Y, *FString::Printf(TEXT("FC: %" UINT64_FMT), GFrameCounter), Font, FColor::Green);
 	Y += RowHeight;
 
 	return Y;

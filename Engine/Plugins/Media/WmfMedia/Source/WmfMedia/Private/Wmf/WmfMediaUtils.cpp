@@ -664,7 +664,7 @@ namespace WmfMedia
 			}
 			else if (Guid == MF_MT_INTERLACE_MODE)
 			{
-				Dump += FString::Printf(TEXT("\t%s: %d (%s)\n"), *GuidName, Item.ulVal, *InterlaceModeToString((MFVideoInterlaceMode)Item.ulVal));
+				Dump += FString::Printf(TEXT("\t%s: %lu (%s)\n"), *GuidName, Item.ulVal, *InterlaceModeToString((MFVideoInterlaceMode)Item.ulVal));
 			}
 			else if (Guid == MF_MT_PIXEL_ASPECT_RATIO)
 			{
@@ -684,7 +684,7 @@ namespace WmfMedia
 				{
 					MFVideoArea* Area = (MFVideoArea*)Item.caub.pElems;
 
-					Dump += FString::Printf(TEXT("\t%s: (%f,%f) (%d,%d)\n"),
+					Dump += FString::Printf(TEXT("\t%s: (%f,%f) (%ld,%ld)\n"),
 						*GuidName,
 						Area->OffsetX.value + (static_cast<float>(Area->OffsetX.fract) / 65536.0f),
 						Area->OffsetY.value + (static_cast<float>(Area->OffsetY.fract) / 65536.0f),
@@ -697,11 +697,11 @@ namespace WmfMedia
 				switch (Item.vt)
 				{
 				case VT_UI4:
-					Dump += FString::Printf(TEXT("\t%s: %d\n"), *GuidName, Item.ulVal);
+					Dump += FString::Printf(TEXT("\t%s: %lu\n"), *GuidName, Item.ulVal);
 					break;
 
 				case VT_UI8:
-					Dump += FString::Printf(TEXT("\t%s: %ll\n"), *GuidName, Item.uhVal.QuadPart);
+					Dump += FString::Printf(TEXT("\t%s: %llu\n"), *GuidName, Item.uhVal.QuadPart);
 					break;
 
 				case VT_R8:
@@ -1004,17 +1004,17 @@ namespace WmfMedia
 	FString GuidToString(const GUID& Guid)
 	{
 		return FString::Printf(TEXT("%08x-%04x-%04x-%02x%02x%02x%02x%02x%02x%02x%02x"),
-			Guid.Data1,
-			Guid.Data2,
-			Guid.Data3,
-			Guid.Data4[0],
-			Guid.Data4[1],
-			Guid.Data4[2],
-			Guid.Data4[3],
-			Guid.Data4[4],
-			Guid.Data4[5],
-			Guid.Data4[6],
-			Guid.Data4[7]
+			(uint32)Guid.Data1,
+			(uint32)Guid.Data2,
+			(uint32)Guid.Data3,
+			(uint32)Guid.Data4[0],
+			(uint32)Guid.Data4[1],
+			(uint32)Guid.Data4[2],
+			(uint32)Guid.Data4[3],
+			(uint32)Guid.Data4[4],
+			(uint32)Guid.Data4[5],
+			(uint32)Guid.Data4[6],
+			(uint32)Guid.Data4[7]
 		);
 	}
 
@@ -1434,7 +1434,7 @@ namespace WmfMedia
 
 		if (BufferLength == 0)
 		{
-			return FString::Printf(TEXT("0x%08x"), Result);
+			return FString::Printf(TEXT("0x%08x"), (uint32)Result);
 		}
 
 		// remove line break

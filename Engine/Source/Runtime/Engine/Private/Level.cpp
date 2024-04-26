@@ -3015,7 +3015,7 @@ void ULevel::FixupActorFolders()
 				const FString NewPath = FString::Printf(TEXT("%s_%s"), *NewParent->GetPath().ToString(), *FGuid::NewGuid().ToString());
 				const FFolder NewFolder = FFolder(OldFolder.GetRootObject(), FName(NewPath));
 				FLevelActorFoldersHelper::RenameFolder(this, OldFolder, NewFolder);
-				const FString NewPath2 = FString::Printf(TEXT("%s/DuplicateFolder_%s"), *NewParent->GetPath().ToString(), *FolderToDelete->GetLabel(), *FGuid::NewGuid().ToString());
+				const FString NewPath2 = FString::Printf(TEXT("%s/DuplicateFolder_%s_%s"), *NewParent->GetPath().ToString(), *FolderToDelete->GetLabel(), *FGuid::NewGuid().ToString());
 				const FFolder NewFolder2 = FFolder(OldFolder.GetRootObject(), FName(NewPath2));
 				FLevelActorFoldersHelper::RenameFolder(this, NewFolder, NewFolder2);
 				// Then delete (mark as deleted) this folder

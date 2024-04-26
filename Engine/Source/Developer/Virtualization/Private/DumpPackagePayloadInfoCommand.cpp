@@ -18,7 +18,7 @@ FString BytesToString(int64 SizeInBytes)
 {
 	if (SizeInBytes < (8 *1024))
 	{
-		return FString::Printf(TEXT("%4d bytes"), SizeInBytes);
+		return FString::Printf(TEXT("%4" INT64_FMT " bytes"), SizeInBytes);
 	}
 	else if (SizeInBytes < (1024 * 1024))
 	{

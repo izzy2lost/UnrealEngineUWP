@@ -2268,8 +2268,8 @@ void PythonizeValueImpl(const FProperty* InProp, const void* InPropValue, const 
 			else // Use the path string as default value.
 			{
 				OutPythonDefaultValue += bUseStrictTyping
-					? FString::Printf(TEXT("%sFieldPath(\"%s\")"), UnrealNamespace, *GetPropertyPythonName(FieldPathProp), *FieldPathStrValue)
-					: FString::Printf(TEXT("FieldPath(\"%s\")"), *GetPropertyPythonName(FieldPathProp), *FieldPathStrValue);
+					? FString::Printf(TEXT("%sFieldPath(\"%s\")"), UnrealNamespace, *FieldPathStrValue)
+					: FString::Printf(TEXT("FieldPath(\"%s\")"), *FieldPathStrValue);
 			}
 		}
 		else if (const FObjectPropertyBase* ObjProp = CastField<const FObjectPropertyBase>(InProp))

@@ -678,7 +678,7 @@ FString FVisualLoggerHelpers::GenerateTemporaryFilename(const FString& FileExt)
 FString FVisualLoggerHelpers::GenerateFilename(const FString& TempFileName, const FString& Prefix, double StartRecordingTime, double EndTimeStamp)
 {
 	const FString FullFilename = FString::Printf(TEXT("%s_%s"), *Prefix, *TempFileName);
-	const FString TimeFrameString = FString::Printf(TEXT("%d-%d_"), FMath::TruncToInt(StartRecordingTime), FMath::TruncToInt(EndTimeStamp));
+	const FString TimeFrameString = FString::Printf(TEXT("%" INT64_FMT "-%" INT64_FMT "_"), FMath::TruncToInt(StartRecordingTime), FMath::TruncToInt(EndTimeStamp));
 	return FullFilename.Replace(TEXT("VTEMP_"), *TimeFrameString, ESearchCase::CaseSensitive);
 }
 

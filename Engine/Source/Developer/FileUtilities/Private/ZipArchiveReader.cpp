@@ -85,7 +85,7 @@ FZipArchiveReader::FImpl::FImpl(IFileHandle* InFileHandle, FOutputDevice* ErrorH
 		if (ErrorHandler)
 		{
 			ErrorHandler->Log(LogZipArchive.GetCategoryName(), ELogVerbosity::Display,
-				FString::Printf(TEXT("Could not create ZipSourceFunction: %s"), zip_error_strerror(&ZipError)));
+				FString::Printf(TEXT("Could not create ZipSourceFunction: %hs"), zip_error_strerror(&ZipError)));
 		}
 		zip_error_fini(&ZipError);
 		Destruct();
@@ -99,7 +99,7 @@ FZipArchiveReader::FImpl::FImpl(IFileHandle* InFileHandle, FOutputDevice* ErrorH
 		if (ErrorHandler)
 		{
 			ErrorHandler->Log(LogZipArchive.GetCategoryName(), ELogVerbosity::Display,
-				FString::Printf(TEXT("Could not parse zip file: %s"), zip_error_strerror(&ZipError)));
+				FString::Printf(TEXT("Could not parse zip file: %hs"), zip_error_strerror(&ZipError)));
 		}
 		zip_error_fini(&ZipError);
 		Destruct();
@@ -228,7 +228,7 @@ bool FZipArchiveReader::FImpl::TryReadFile(FStringView FileName, TArray<uint8>& 
 		if (ErrorHandler)
 		{
 			ErrorHandler->Log(LogZipArchive.GetCategoryName(), ELogVerbosity::Display,
-				FString::Printf(TEXT("Embedded file %s has size " UINT64_FMT " which is too large to store in a TArray."),
+				FString::Printf(TEXT("Embedded file %.*s has size %" UINT64_FMT " which is too large to store in a TArray."),
 					FileName.Len(), FileName.GetData(), ZipFileStat.size));
 		}
 		return false;

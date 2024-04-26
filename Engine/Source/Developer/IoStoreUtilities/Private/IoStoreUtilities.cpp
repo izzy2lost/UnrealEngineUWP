@@ -7107,11 +7107,11 @@ namespace DescribeUtils
 				FExportDesc* ExportDesc = ExportByKeyMap.FindRef(Key);
 				if (ExportDesc && bIncludeName)
 				{
-					return FString::Printf(TEXT("0x%llX '%s'"), PackageObjectIndex.Value(), *ExportDesc->FullName.ToString());
+					return FString::Printf(TEXT("0x%" UINT64_X_FMT " '%s'"), PackageObjectIndex.Value(), *ExportDesc->FullName.ToString());
 				}
 				else
 				{
-					return FString::Printf(TEXT("0x%llX"), PackageObjectIndex.Value());
+					return FString::Printf(TEXT("0x%" UINT64_X_FMT), PackageObjectIndex.Value());
 				}
 			}
 			else if (PackageObjectIndex.IsScriptImport())
@@ -7119,20 +7119,20 @@ namespace DescribeUtils
 				const FScriptObjectDesc* ScriptObjectDesc = ScriptObjectByGlobalIdMap.Find(PackageObjectIndex);
 				if (ScriptObjectDesc && bIncludeName)
 				{
-					return FString::Printf(TEXT("0x%llX '%s'"), PackageObjectIndex.Value(), *ScriptObjectDesc->FullName.ToString());
+					return FString::Printf(TEXT("0x%" UINT64_X_FMT " '%s'"), PackageObjectIndex.Value(), *ScriptObjectDesc->FullName.ToString());
 				}
 				else
 				{
-					return FString::Printf(TEXT("0x%llX"), PackageObjectIndex.Value());
+					return FString::Printf(TEXT("0x%" UINT64_X_FMT), PackageObjectIndex.Value());
 				}
 			}
 			else if (PackageObjectIndex.IsExport())
 			{
-				return FString::Printf(TEXT("%d"), PackageObjectIndex.Value());
+				return FString::Printf(TEXT("%" UINT64_X_FMT), PackageObjectIndex.Value());
 			}
 			else
 			{
-				return FString::Printf(TEXT("0x%llX"), PackageObjectIndex.Value());
+				return FString::Printf(TEXT("0x%" UINT64_X_FMT), PackageObjectIndex.Value());
 			}
 		}
 	};

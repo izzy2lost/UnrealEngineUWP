@@ -676,12 +676,12 @@ static FString MakeResourceDescDebugString(const D3D12_RESOURCE_DESC& Desc)
 		ResourceDescString = TEXT("Unknown");
 		break;
 	case D3D12_RESOURCE_DIMENSION_BUFFER:
-		ResourceDescString = FString::Printf(TEXT("Buffer %d bytes"), Desc.Width);
+		ResourceDescString = FString::Printf(TEXT("Buffer %" UINT64_FMT " bytes"), Desc.Width);
 		break;
 	case D3D12_RESOURCE_DIMENSION_TEXTURE1D:
 	case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
 	case D3D12_RESOURCE_DIMENSION_TEXTURE3D:
-		ResourceDescString = FString::Printf(TEXT("Texture %dx%dx%d %s"), Desc.Width, Desc.Height, Desc.DepthOrArraySize, LexToString(Desc.Format));
+		ResourceDescString = FString::Printf(TEXT("Texture %" UINT64_FMT "x%dx%d %s"), Desc.Width, Desc.Height, Desc.DepthOrArraySize, LexToString(Desc.Format));
 	}
 	return ResourceDescString;
 }

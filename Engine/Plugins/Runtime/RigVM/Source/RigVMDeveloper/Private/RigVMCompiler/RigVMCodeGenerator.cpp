@@ -927,7 +927,7 @@ FString FRigVMCodeGenerator::DumpHeader(const FRigVMExtendedExecuteContext& Cont
 	Lines.Emplace();
 	
 	Lines.Add(Format(RigVM_UClassDefinitionFormat, *ModuleName.ToUpper(), *ClassName));
-	Lines.Add(Format(RigVM_GetVMHashFormat, FString::Printf(TEXT("%lu"), VM->GetVMHash())));
+	Lines.Add(Format(RigVM_GetVMHashFormat, FString::Printf(TEXT("%u"), VM->GetVMHash())));
 	Lines.Add(Format(RigVM_GetEntryNamesFormat, *FString::Join(FormattedEntries, RigVM_CommaSeparator)));
 	Lines.Emplace();
 	Lines.Add(FString(RigVM_DeclareInitializeFormat));

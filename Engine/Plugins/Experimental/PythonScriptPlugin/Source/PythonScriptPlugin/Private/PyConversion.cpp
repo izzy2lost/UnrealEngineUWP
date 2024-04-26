@@ -647,7 +647,7 @@ FPyConversionResult PythonizeEnumEntry(const int64 Val, const UEnum* EnumType, P
 		}
 	}
 
-	PYCONVERSION_RETURN(FPyConversionResult::Failure(), TEXT("PythonizeEnumEntry"), *FString::Printf(TEXT("Cannot pythonize '%d' (int64) as '%s'"), Val, *PyUtil::GetFriendlyTypename(PyEnumType)));
+	PYCONVERSION_RETURN(FPyConversionResult::Failure(), TEXT("PythonizeEnumEntry"), *FString::Printf(TEXT("Cannot pythonize '%" INT64_FMT "' (int64) as '%s'"), Val, *PyUtil::GetFriendlyTypename(PyEnumType)));
 }
 
 PyObject* PythonizeEnumEntry(const int64 Val, const UEnum* EnumType, const ESetErrorState SetErrorState)

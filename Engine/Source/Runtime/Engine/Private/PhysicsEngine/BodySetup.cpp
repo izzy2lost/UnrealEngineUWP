@@ -1278,7 +1278,7 @@ bool ShouldSkipDDC(UBodySetup* InSetup, FString& OutReason)
 
 			if (VerticeCount >= SkipDDCThreshold)
 			{
-				OutReason = FString::Printf(TEXT("AggGeom Vertice Count %ld"), VerticeCount);
+				OutReason = FString::Printf(TEXT("AggGeom Vertice Count %d"), VerticeCount);
 				return false;
 			}
 		}

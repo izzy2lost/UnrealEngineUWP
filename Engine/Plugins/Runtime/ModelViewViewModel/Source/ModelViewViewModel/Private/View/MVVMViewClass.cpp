@@ -540,7 +540,7 @@ FString FMVVMViewClass_Binding::ToString(const UMVVMViewClass* ViewClass, FToStr
 	{
 		AddNewLine();
 		StringBuilder << TEXT("Sources: 0x");
-		StringBuilder << FString::Printf(TEXT("%x"), SourceBitField);
+		StringBuilder << FString::Printf(TEXT("%" UINT64_x_FMT), SourceBitField);
 	}
 
 	if (Args.bAddFlags)

@@ -345,7 +345,7 @@ namespace RigVMTypeUtils
 		{
 			if (InClassArgType == EClassArgType::AsClass)
 			{
-				return FString::Printf(RigVMTypeUtils::TSubclassOfPrefix, Class->GetPrefixCPP(), *Class->GetName());
+				return FString::Printf(RigVMTypeUtils::TSubclassOfTemplate, Class->GetPrefixCPP(), *Class->GetName());
 			}
 			else if (Class->IsChildOf(UInterface::StaticClass()))
 			{

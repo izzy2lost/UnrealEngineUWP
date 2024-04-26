@@ -811,7 +811,7 @@ FString FCompressedFileBuffer::GetDDCKeyString(const uint8* UncompressedFile, co
 {
 	FString KeyString;
 
-	KeyString += FString::Printf(TEXT("_F:%s_C:%s_B:%d_"), *CompressionFormat.ToString(), *FCompression::GetCompressorDDCSuffix(CompressionFormat), BlockSize);
+	KeyString += FString::Printf(TEXT("_F:%s_C:%s_B:%" INT64_FMT "_"), *CompressionFormat.ToString(), *FCompression::GetCompressorDDCSuffix(CompressionFormat), BlockSize);
 	
 	FSHA1 HashState;
 	HashState.Update(UncompressedFile, UncompressedFileSize);
@@ -3673,16 +3673,16 @@ bool AuditPakFiles( const FString& InputPath, bool bOnlyDeleted, const FString& 
 			}
 			else if (Itr.Value.PakPriority == HighestPakPriority)
 			{
-				WriteCSVLine( FString::Printf( TEXT("%s,Fresh,%s,,%d,,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
+				WriteCSVLine( FString::Printf( TEXT("%s,Fresh,%s,,%d,,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
 			}
 			else
 			{
-				WriteCSVLine( FString::Printf( TEXT("%s,Inherited,%s,,%d,,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText  ) );
+				WriteCSVLine( FString::Printf( TEXT("%s,Inherited,%s,,%d,,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText  ) );
 			}
 		}
 		else if (DeletedRevision->PakPriority == Itr.Value.PakPriority)
 		{
-			WriteCSVLine( FString::Printf( TEXT("%s,Moved,%s,%s,%d,,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
+			WriteCSVLine( FString::Printf( TEXT("%s,Moved,%s,%s,%d,,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
 		}
 		else if (DeletedRevision->PakPriority > Itr.Value.PakPriority)
 		{
@@ -3691,7 +3691,7 @@ bool AuditPakFiles( const FString& InputPath, bool bOnlyDeleted, const FString& 
 		}
 		else if (DeletedRevision->PakPriority < Itr.Value.PakPriority)
 		{
-			WriteCSVLine( FString::Printf( TEXT("%s,Restored,%s,%s,%d,%d,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, DeletedRevision->PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
+			WriteCSVLine( FString::Printf( TEXT("%s,Restored,%s,%s,%d,%d,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, DeletedRevision->PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
 		}
 
 		if( bFileExists && bSortByOrdering && bHasOpenOrder )

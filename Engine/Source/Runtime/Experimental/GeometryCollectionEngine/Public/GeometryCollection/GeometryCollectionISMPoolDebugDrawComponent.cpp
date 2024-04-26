@@ -341,7 +341,7 @@ void UGeometryCollectionISMPoolDebugDrawComponent::GetOnScreenMessages(TMultiMap
 		UStaticMesh const* StaticMesh = SelectedComponent->GetStaticMesh();
 		const int32 NumLods = StaticMesh ? StaticMesh->GetNumLODs() : 0;
 
-		FString ISMDescription = FString::Printf(TEXT("Type=%s   Count=%d   Bounds=(%f., %f., %f.)   CullDistance=(%f - %f)   NumLods= %d    NumMaterials=%d   CustomDataSize=%d"), 
+		FString ISMDescription = FString::Printf(TEXT("Type=%s   Count=%d   Bounds=(%f., %f., %f.)   CullDistance=(%d - %d)   NumLods= %d    NumMaterials=%d   CustomDataSize=%d"), 
 			ISMType, NumInstances, BoundsSize.X, BoundsSize.Z, BoundsSize.Z, StartCullDistance, EndCullDistance, NumLods, NumMaterials, NumCustomDataFloats);
 
 		for (int32 LodIndex = 0; LodIndex < NumLods; ++LodIndex)

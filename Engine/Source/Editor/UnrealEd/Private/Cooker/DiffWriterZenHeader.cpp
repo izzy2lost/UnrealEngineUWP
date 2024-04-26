@@ -426,7 +426,7 @@ FStringView FZenPackageExportsForDiff::GetExportPackageRelativePath(uint64 Publi
 	FString& ExportPath = ExportPaths.FindOrAdd(PublicExportHash);
 	if (ExportPath.IsEmpty())
 	{
-		ExportPath = FString::Printf(TEXT("<UnknownExport.%u>"), PublicExportHash);
+		ExportPath = FString::Printf(TEXT("<UnknownExport.%" UINT64_FMT ">"), PublicExportHash);
 	}
 	return ExportPath;
 }

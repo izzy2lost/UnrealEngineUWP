@@ -56,7 +56,7 @@ bool FAnalyticsPerfTracker::Tick(float DeltaTime)
 		double Now = FPlatformTime::Seconds();
 		if (WindowExpired(Now))
 		{
-			LogFile.Serialize(*FString::Printf(TEXT("%s,%s,%s,%f,%f,%f,%d,%d,%d,%d,%d"),
+			LogFile.Serialize(*FString::Printf(TEXT("%s,%s,%s,%f,%f,%f,%d,%d,%" UINT64_FMT ",%" UINT64_FMT ",%" UINT64_FMT),
 				*StartDate,
 				*CL,
 				*RunID,

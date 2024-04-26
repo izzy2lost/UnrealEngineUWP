@@ -1838,7 +1838,7 @@ bool TrySavePackage(UPackage* Package)
 			});
 
 		FString Message = FString::Printf(TEXT("Could not save package to EditorDomain because BulkData size is too large. ")
-			TEXT("Package=%s, BulkDataSize=%d, EditorDomain.MaxBulkDataSize=%d")
+			TEXT("Package=%s, BulkDataSize=%" UINT64_FMT ", EditorDomain.MaxBulkDataSize=%" INT64_FMT)
 			TEXT("\n\tWe did not detect this until after trying to save the package, which is bad for performance. Resave the package ")
 			TEXT("or debug why the size was not detected by the BulkDataRegistry."),
 			*WriteToString<256>(PackageName), PackageWriter->GetBulkDataSize(), GMaxBulkDataSize);

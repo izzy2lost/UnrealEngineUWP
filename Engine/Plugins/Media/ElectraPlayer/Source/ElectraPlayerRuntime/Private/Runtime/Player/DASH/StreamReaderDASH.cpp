@@ -752,7 +752,7 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<cons
 					Request->ConnectionInfo = *ci;
 				}
 				StreamSelector->ReportDownloadEnd(ds);
-				return CreateError(FString::Printf(TEXT("Track preparation of init segment \"%s\" failed. %d"), *LoadReq->URL, *parseError.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
+				return CreateError(FString::Printf(TEXT("Track preparation of init segment \"%s\" failed. %s"), *LoadReq->URL, *parseError.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
 			}
 		}
 		else

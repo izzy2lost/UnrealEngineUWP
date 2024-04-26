@@ -195,7 +195,7 @@ public:
 
 	FString ToDebugString() const
 	{
-		return FString::Printf(TEXT("{Cmd: %u, Index: %u, Depth: %u, Ptr: %x}"), CmdIndex, ArrayIndex, ArrayDepth, DataPtr);
+		return FString::Printf(TEXT("{Cmd: %u, Index: %u, Depth: %u, Ptr: 0x%08" UPTRINT_x_FMT "}"), CmdIndex, ArrayIndex, ArrayDepth, (UPTRINT)DataPtr);
 	}
 
 	friend bool operator==(const FRepSharedPropertyKey& A, const FRepSharedPropertyKey& B)

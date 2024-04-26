@@ -2380,11 +2380,11 @@ bool GetSdkInfoFromTurnkey(FString Line, FName& PlatformName, FString& DeviceId,
 		FParse::Value(*Info, *FString::Printf(TEXT("Allowed_%s="), *Name), Max);
 		FParse::Value(*Info, *FString::Printf(TEXT("Current_%s="), *Name), Current);
 		// also handle no name at all (for device, etc)
-		FParse::Value(*Info, *FString::Printf(TEXT("MinAllowed="), *Name), Min);
-		FParse::Value(*Info, *FString::Printf(TEXT("MaxAllowed="), *Name), Max);
-		FParse::Value(*Info, *FString::Printf(TEXT("Allowed="), *Name), Min);
-		FParse::Value(*Info, *FString::Printf(TEXT("Allowed="), *Name), Max);
-		FParse::Value(*Info, *FString::Printf(TEXT("Current=")), Current);
+		FParse::Value(*Info, TEXT("MinAllowed="), Min);
+		FParse::Value(*Info, TEXT("MaxAllowed="), Max);
+		FParse::Value(*Info, TEXT("Allowed="), Min);
+		FParse::Value(*Info, TEXT("Allowed="), Max);
+		FParse::Value(*Info, TEXT("Current="), Current);
 		SdkInfo.SDKVersions.Add(Name, { Min, Max, Current });
 	}
 

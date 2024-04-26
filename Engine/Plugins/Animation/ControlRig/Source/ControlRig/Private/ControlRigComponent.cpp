@@ -1924,7 +1924,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the PreConstructionEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the PreConstructionEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}
@@ -1938,7 +1938,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the PostConstructionEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the PostConstructionEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}
@@ -1952,7 +1952,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the InitEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the InitEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}
@@ -1966,7 +1966,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the ForwardsSolveEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the ForwardsSolveEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}

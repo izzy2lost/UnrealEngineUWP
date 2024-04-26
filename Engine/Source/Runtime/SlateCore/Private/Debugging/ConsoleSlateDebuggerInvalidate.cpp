@@ -761,7 +761,7 @@ void FConsoleSlateDebuggerInvalidate::HandlePaintDebugInfo(const FPaintArgs& InA
 			InOutDrawElements
 			, InOutLayerId
 			, InAllottedGeometry.ToPaintGeometry(FVector2f(1.f, 1.f), FSlateLayoutTransform(TextElementLocation))
-			, FString::Printf(TEXT("Slate Performance Threshold Reached: %d"), LastPerformanceThresholdFrameCount)
+			, FString::Printf(TEXT("Slate Performance Threshold Reached: %" UINT64_FMT), LastPerformanceThresholdFrameCount)
 			, NormalFontInfo
 			, ESlateDrawEffect::None
 			, FLinearColor::Red);

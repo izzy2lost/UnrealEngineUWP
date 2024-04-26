@@ -547,7 +547,7 @@ protected:
 public:
 	inline FString MemoryUsage() const
 	{
-		return FString::Printf(TEXT("ListSize %llu  Blocks Count %d  Free %llu  Mem %llukb   Linked Mem %llukb"),
+		return FString::Printf(TEXT("ListSize %zu  Blocks Count %d  Free %zu  Mem %zukb   Linked Mem %zukb"),
 			ListHeads.GetLength(), AllocatedCount, (FreeBlocks.GetLength() * sizeof(int32) / 1024),
 			ListBlocks.GetLength(), (LinkedListElements.GetLength() * sizeof(int32) / 1024));
 	}

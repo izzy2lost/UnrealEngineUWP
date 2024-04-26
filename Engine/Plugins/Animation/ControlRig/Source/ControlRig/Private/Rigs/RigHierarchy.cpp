@@ -5362,7 +5362,7 @@ void URigHierarchy::CleanupInvalidCaches()
 	{
 		// Give the validation hierarchy a unique name for debug purposes and to avoid possible memory reuse
 		static TAtomic<uint32> HierarchyNameIndex = 0;
-		static constexpr TCHAR Format[] = TEXT("CacheValidationHierarchy_%zu");
+		static constexpr TCHAR Format[] = TEXT("CacheValidationHierarchy_%u");
 		const FString ValidationHierarchyName = FString::Printf(Format, uint32(++HierarchyNameIndex));
 		
 		HierarchyForCacheValidation = NewObject<URigHierarchy>(this, *ValidationHierarchyName, RF_Transient);

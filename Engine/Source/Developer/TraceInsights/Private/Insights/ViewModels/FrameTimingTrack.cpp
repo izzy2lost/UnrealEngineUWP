@@ -545,21 +545,21 @@ bool FFrameTimingTrack::FindFrame(const FTimingEventSearchParameters& InParamete
 
 const FString FFrameTimingTrack::GetShortFrameName(const uint64 InFrameIndex) const
 {
-	return FString::Printf(TEXT("%d"), InFrameIndex);
+	return FString::Printf(TEXT("%" UINT64_FMT), InFrameIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const FString FFrameTimingTrack::GetFrameName(const uint64 InFrameIndex) const
 {
-	return FString::Printf(TEXT("%s Frame %d"), FFrameTrackDrawHelper::FrameTypeToString(FrameType), InFrameIndex);
+	return FString::Printf(TEXT("%s Frame %" UINT64_FMT), FFrameTrackDrawHelper::FrameTypeToString(FrameType), InFrameIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const FString FFrameTimingTrack::GetCompleteFrameName(const uint64 InFrameIndex, const double InFrameDuration) const
 {
-	return FString::Printf(TEXT("%s Frame %d (%s)"), FFrameTrackDrawHelper::FrameTypeToString(FrameType), InFrameIndex, *TimeUtils::FormatTimeAuto(InFrameDuration));
+	return FString::Printf(TEXT("%s Frame %" UINT64_FMT " (%s)"), FFrameTrackDrawHelper::FrameTypeToString(FrameType), InFrameIndex, *TimeUtils::FormatTimeAuto(InFrameDuration));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

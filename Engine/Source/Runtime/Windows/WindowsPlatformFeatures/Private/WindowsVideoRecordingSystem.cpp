@@ -220,7 +220,7 @@ void FWindowsVideoRecordingSystem::NextRecording()
 {
 	if (Parameters.bAutoContinue)
 	{
-		CurrentFilename = FString::Printf(TEXT("%s_%d.mp4"), *BaseFilename, ++RecordingIndex);
+		CurrentFilename = FString::Printf(TEXT("%s_%" UINT64_FMT ".mp4"), *BaseFilename, ++RecordingIndex);
 	}
 	else
 	{

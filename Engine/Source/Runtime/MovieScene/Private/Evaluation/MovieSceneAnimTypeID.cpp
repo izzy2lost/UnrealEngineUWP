@@ -4,7 +4,7 @@
 
 FString LexToString(const FMovieSceneAnimTypeID& AnimTypeID)
 {
-	return FString::Printf(TEXT("%#010x"), AnimTypeID.ID);
+	return FString::Printf(TEXT("%#010" UINT64_x_FMT), AnimTypeID.ID);
 }
 
 uint64 FMovieSceneAnimTypeID::Initialize(uint64* StaticPtr, uint32 Seed)

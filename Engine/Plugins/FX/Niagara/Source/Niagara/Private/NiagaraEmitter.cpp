@@ -1763,7 +1763,7 @@ void FVersionedNiagaraEmitterData::CacheFromCompiledData(const FNiagaraDataSetCo
 				if (ScriptCBufferSize > RHIMaxCBufferSize)
 				{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-					GEngine->AddOnScreenDebugMessage(uint64(this), 1.f, FColor::Red, *FString::Printf(TEXT("GPU Simulation(%s) is disabled due to using too much constant buffer space (%d/%d)."), GetDebugSimName(), ScriptCBufferSize, RHIMaxCBufferSize));
+					GEngine->AddOnScreenDebugMessage(uint64(this), 1.f, FColor::Red, *FString::Printf(TEXT("GPU Simulation(%s) is disabled due to using too much constant buffer space (%" UINT64_FMT "/%" UINT64_FMT ")."), GetDebugSimName(), ScriptCBufferSize, RHIMaxCBufferSize));
 #endif
 					bIsAllowedToExecute = false;
 				}

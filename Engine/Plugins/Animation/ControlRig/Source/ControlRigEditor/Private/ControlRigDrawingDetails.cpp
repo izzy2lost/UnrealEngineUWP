@@ -281,7 +281,7 @@ void FControlRigDrawContainerDetails::ImportCurvesFromFBX(const FString& InFileP
 				}
 				else
 				{
-					Instruction.Name = *FString::Printf(TEXT("%s_Line%d"), FbxCurveNode->GetName(), LineIndex);
+					Instruction.Name = *FString::Printf(TEXT("%hs_Line%d"), FbxCurveNode->GetName(), LineIndex);
 				}
 				Instruction.Positions.Reset();
 

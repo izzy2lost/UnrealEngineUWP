@@ -42,7 +42,7 @@ PyTypeObject InitializePyActorIteratorType(const char* InTypeName, const char* I
 			}
 			if (!IterWorld)
 			{
-				PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("'world' cannot be 'None'"), *PyUtil::GetFriendlyTypename(PyWorldObj)));
+				PyUtil::SetPythonError(PyExc_TypeError, InSelf, TEXT("'world' cannot be 'None'"));
 				return -1;
 			}
 
@@ -128,7 +128,7 @@ PyObject* GetBlueprintGeneratedTypes(PyObject* InSelf, PyObject* InArgs)
 							FString& AssetToGenerate = AssetsToGenerate.AddDefaulted_GetRef();
 							if (!PyConversion::Nativize(ValueItem, AssetToGenerate))
 							{
-								PyUtil::SetPythonError(PyExc_TypeError, TEXT("get_blueprint_generated_types"), *FString::Printf(TEXT("Cannot convert argument %d (%s) at index %d to 'string'"), ArgIndex, *PyUtil::GetFriendlyTypename(PyArg), SequenceIndex));
+								PyUtil::SetPythonError(PyExc_TypeError, TEXT("get_blueprint_generated_types"), *FString::Printf(TEXT("Cannot convert argument %zd (%s) at index %zd to 'string'"), ArgIndex, *PyUtil::GetFriendlyTypename(PyArg), SequenceIndex));
 								return nullptr;
 							}
 						}
@@ -139,7 +139,7 @@ PyObject* GetBlueprintGeneratedTypes(PyObject* InSelf, PyObject* InArgs)
 					FString& AssetToGenerate = AssetsToGenerate.AddDefaulted_GetRef();
 					if (!PyConversion::Nativize(PyArg, AssetToGenerate))
 					{
-						PyUtil::SetPythonError(PyExc_TypeError, TEXT("get_blueprint_generated_types"), *FString::Printf(TEXT("Cannot convert argument %d (%s) to 'string'"), ArgIndex, *PyUtil::GetFriendlyTypename(PyArg)));
+						PyUtil::SetPythonError(PyExc_TypeError, TEXT("get_blueprint_generated_types"), *FString::Printf(TEXT("Cannot convert argument %zd (%s) to 'string'"), ArgIndex, *PyUtil::GetFriendlyTypename(PyArg)));
 						return nullptr;
 					}
 				}

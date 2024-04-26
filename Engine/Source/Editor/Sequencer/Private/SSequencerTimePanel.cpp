@@ -327,8 +327,8 @@ FText SSequencerTimePanel::GetSupportedTimeRange() const
 	int64 Seconds =  (TotalMaxSeconds % 60   );
 
 	FString String = Days > 0
-		? FString::Printf(TEXT("+/- %02dd %02dh %02dm %02ds"), Days, Hours, Minutes, Seconds)
-		: FString::Printf(TEXT("+/- %02dh %02dm %02ds"), Hours, Minutes, Seconds);
+		? FString::Printf(TEXT("+/- %02" INT64_FMT "d %02" INT64_FMT "h %02" INT64_FMT "m %02" INT64_FMT "s"), Days, Hours, Minutes, Seconds)
+		: FString::Printf(TEXT("+/- %02" INT64_FMT "h %02" INT64_FMT "m %02" INT64_FMT "s"), Hours, Minutes, Seconds);
 
 	return FText::FromString(String);
 }

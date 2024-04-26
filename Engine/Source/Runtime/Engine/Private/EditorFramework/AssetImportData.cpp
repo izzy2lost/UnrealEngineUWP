@@ -46,7 +46,7 @@ FString FAssetImportInfo::ToJson() const
 
 	for (int32 Index = 0; Index < SourceFiles.Num(); ++Index)
 	{
-		Json += FString::Printf(TEXT("{ \"RelativeFilename\" : \"%s\", \"Timestamp\" : \"%d\", \"FileMD5\" : \"%s\", \"DisplayLabelName\" : \"%s\" }"),
+		Json += FString::Printf(TEXT("{ \"RelativeFilename\" : \"%s\", \"Timestamp\" : \"%" INT64_FMT "\", \"FileMD5\" : \"%s\", \"DisplayLabelName\" : \"%s\" }"),
 			*SourceFiles[Index].RelativeFilename,
 			SourceFiles[Index].Timestamp.ToUnixTimestamp(),
 			*LexToString(SourceFiles[Index].FileHash),

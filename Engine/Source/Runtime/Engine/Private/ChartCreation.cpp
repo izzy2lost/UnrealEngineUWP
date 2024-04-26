@@ -186,7 +186,7 @@ void FDumpFPSChartToEndpoint::HandleBasicStats()
 	PrintToEndpoint(FString::Printf(TEXT("\tWindow Mode: %s"), *WindowMode));
 	PrintToEndpoint(FString::Printf(TEXT("\tResolution: %dx%d"), GameResolution.X, GameResolution.Y));
 
-	PrintToEndpoint(FString::Printf(TEXT("%i frames collected over %4.2f seconds, disregarding %4.2f seconds (%d frames) for a %4.2f FPS average"),
+	PrintToEndpoint(FString::Printf(TEXT("%" INT64_FMT " frames collected over %4.2f seconds, disregarding %4.2f seconds (%d frames) for a %4.2f FPS average"),
 		Chart.GetNumFrames(),
 		WallClockTimeFromStartOfCharting,
 		Chart.TimeDisregarded,

@@ -339,7 +339,7 @@ struct FSavedCue
 
 	FString GetDebugName() const
 	{
-		return FString::Printf(TEXT("[%s 0x%X] @ (Frame %d/%dms)"), *FGlobalCueTypeTable::Get().GetTypeName(ID), (int64)this, Frame, Time);
+		return FString::Printf(TEXT("[%s 0x%" INT64_FMT "] @ (Frame %d/%dms)"), *FGlobalCueTypeTable::Get().GetTypeName(ID), (int64)this, Frame, Time);
 	}
 
 	FNetSimCueTypeId ID = 0;

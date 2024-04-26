@@ -132,7 +132,7 @@ static void LogFailedHRESULT(const TCHAR* FailedExpressionStr, HRESULT Result)
 {
 	if (Result == E_OUTOFMEMORY)
 	{
-		const FString ErrorReport = FString::Printf(TEXT("%s failed: Result=0x%08x (E_OUTOFMEMORY)"), FailedExpressionStr, Result);
+		const FString ErrorReport = FString::Printf(TEXT("%s failed: Result=0x%08x (E_OUTOFMEMORY)"), FailedExpressionStr, (uint32)Result);
 		FSCWErrorCode::Report(FSCWErrorCode::OutOfMemory, ErrorReport);
 		UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("%s"), *ErrorReport);
 	}

@@ -394,7 +394,7 @@ static uint32 PutDerivedDataInCache(
 
 		if (UE_LOG_ACTIVE(LogAudio,Verbose))
 		{
-			LogString += FString::Printf(TEXT("  Chunk%d %d bytes %s\n"),
+			LogString += FString::Printf(TEXT("  Chunk%d %" INT64_FMT " bytes %s\n"),
 				ChunkIndex,
 				Chunk.BulkData.GetBulkDataSize(),
 				*ChunkDerivedDataKey

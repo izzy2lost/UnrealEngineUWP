@@ -1657,9 +1657,9 @@ void FDeferredShadingSceneRenderer::RayTracingDisplayPicking(const FRayTracingPi
 		Writer.EmptyLine();
 
 		FRayTracingAccelerationStructureSize SizeInfo = Geometry->GetSizeInfo();
-		Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Result Size: %u"), SizeInfo.ResultSize)), 10, FColor::Yellow);
-		Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Build Scratch Size: %u"), SizeInfo.BuildScratchSize)), 10, FColor::Yellow);
-		Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Update Scratch Size: %u"), SizeInfo.UpdateScratchSize)), 10, FColor::Yellow);
+		Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Result Size: %" UINT64_FMT), SizeInfo.ResultSize)), 10, FColor::Yellow);
+		Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Build Scratch Size: %" UINT64_FMT), SizeInfo.BuildScratchSize)), 10, FColor::Yellow);
+		Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Update Scratch Size: %" UINT64_FMT), SizeInfo.UpdateScratchSize)), 10, FColor::Yellow);
 	}
 	else
 	{

@@ -62,7 +62,7 @@ void FTestStatsInterface::Test(UWorld* InWorld, const TCHAR* Cmd)
 
 	if (StatsToRead.Num() == 0)
 	{
-		UE_LOG_ONLINE_STATS(Warning, TEXT("[FTestStatsInterface::Test] No stat names were specified. Please add the stat names you want to use for the test."), *Subsystem);
+		UE_LOG_ONLINE_STATS(Warning, TEXT("[FTestStatsInterface::Test] No stat names were specified. Please add the stat names you want to use for the test."));
 
 		bOverallSuccess = false;
 		return;

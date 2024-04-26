@@ -191,7 +191,7 @@ void FTestSharingInterface::OnNewsFeedRead(int32 LocalPlayer, bool bWasSuccessfu
 	SharingInterface->ClearOnReadNewsFeedCompleteDelegate_Handle(LocalPlayer, DelegateHandle);
 	if( ++ResponsesReceived == MAX_LOCAL_PLAYERS )
 	{
-		UE_LOG_ONLINE_SHARING(Display, TEXT("FTestSharingInterface TESTS COMPLETED"), LocalPlayer, bWasSuccessful);
+		UE_LOG_ONLINE_SHARING(Display, TEXT("FTestSharingInterface TESTS COMPLETED"));
 		delete this;
 	}
 }

@@ -1586,7 +1586,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		DrawContext.DrawText
 		(
 			DbgX, DbgY,
-			FString::Printf(TEXT("D: %llu ms + %llu ms + %llu ms + %llu ms = %llu ms | + %llu ms = %llu ms (%d fps)"),
+			FString::Printf(TEXT("D: %" UINT64_FMT " ms + %" UINT64_FMT " ms + %" UINT64_FMT " ms + %" UINT64_FMT " ms = %" UINT64_FMT " ms | + %" UINT64_FMT " ms = %" UINT64_FMT " ms (%" INT64_FMT " fps)"),
 				AvgPreDrawTracksDurationMs, // pre-draw tracks time
 				AvgDrawTracksDurationMs, // draw tracks time
 				AvgPostDrawTracksDurationMs, // post-draw tracks time

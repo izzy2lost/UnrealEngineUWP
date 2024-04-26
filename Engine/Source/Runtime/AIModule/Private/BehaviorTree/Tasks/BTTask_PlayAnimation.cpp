@@ -93,9 +93,9 @@ EBTNodeResult::Type UBTTask_PlayAnimation::AbortTask(UBehaviorTreeComponent& Own
 
 FString UBTTask_PlayAnimation::GetStaticDescription() const
 {
-	return FString::Printf(TEXT("%s: '%s'"), *Super::GetStaticDescription(), *GetNameSafe(AnimationToPlay)
+	return FString::Printf(TEXT("%s: '%s'%s%s"), *Super::GetStaticDescription(), *GetNameSafe(AnimationToPlay)
 		, bLooping ? TEXT(", looping") : TEXT("")
-		, bNonBlocking ? TEXT(", non-blocking") : TEXT("blocking"));
+		, bNonBlocking ? TEXT(", non-blocking") : TEXT(", blocking"));
 }
 
 void UBTTask_PlayAnimation::OnAnimationTimerDone()

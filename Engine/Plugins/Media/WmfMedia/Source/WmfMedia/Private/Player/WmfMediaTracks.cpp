@@ -1512,7 +1512,7 @@ bool FWmfMediaTracks::AddStreamToTracks(uint32 StreamIndex, bool IsVideoDevice, 
 
 	for (DWORD TypeIndex = 0; TypeIndex < NumMediaTypes; ++TypeIndex)
 	{
-		OutInfo += FString::Printf(TEXT("\tFormat %i\n"), TypeIndex);
+		OutInfo += FString::Printf(TEXT("\tFormat %u\n"), (uint32)TypeIndex);
 
 		// get media type
 		TComPtr<IMFMediaType> MediaType;

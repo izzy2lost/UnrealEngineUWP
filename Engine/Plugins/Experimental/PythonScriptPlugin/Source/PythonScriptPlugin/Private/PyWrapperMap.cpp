@@ -761,14 +761,14 @@ FPyWrapperMap* FPyWrapperMap::CastPyObject(PyObject* InPyObject, PyTypeObject* I
 						FPyObjectPtr PairSequence = FPyObjectPtr::StealReference(PySequence_Fast(PairItem, ""));
 						if (!PairSequence)
 						{
-							PyUtil::SetPythonError(PyExc_TypeError, NewMap.Get(), *FString::Printf(TEXT("Failed to convert item at index %d to a sequence"), SequenceIndex));
+							PyUtil::SetPythonError(PyExc_TypeError, NewMap.Get(), *FString::Printf(TEXT("Failed to convert item at index %zd to a sequence"), SequenceIndex));
 							return nullptr;
 						}
 
 						const Py_ssize_t PairLen = PySequence_Fast_GET_SIZE(PairSequence.Get());
 						if (PairLen != 2)
 						{
-							PyUtil::SetPythonError(PyExc_TypeError, NewMap.Get(), *FString::Printf(TEXT("Failed to convert item at index %d as it was not a pair (len != 2)"), SequenceIndex));
+							PyUtil::SetPythonError(PyExc_TypeError, NewMap.Get(), *FString::Printf(TEXT("Failed to convert item at index %zd as it was not a pair (len != 2)"), SequenceIndex));
 							return nullptr;
 						}
 

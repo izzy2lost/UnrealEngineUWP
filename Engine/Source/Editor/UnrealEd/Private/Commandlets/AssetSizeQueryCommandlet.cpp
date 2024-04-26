@@ -244,7 +244,7 @@ int32 UAssetSizeQueryCommandlet::Main(const FString& FullCommandLine)
 			for (TPair<FTopLevelAssetPath, int64>& ClassSizePair : FilteredClassCompressedSizes)
 			{
 				// we add to both maps at the same time to we know the lookup succeeds.
-				Lines.Add(FString::Printf(TEXT("%s,%lld,%lld"), *ClassSizePair.Key.ToString(), FilteredClassMatchedAssets[ClassSizePair.Key].Num(), ClassSizePair.Value));
+				Lines.Add(FString::Printf(TEXT("%s,%d,%" INT64_FMT), *ClassSizePair.Key.ToString(), FilteredClassMatchedAssets[ClassSizePair.Key].Num(), ClassSizePair.Value));
 			}
 		}
 		else if (OutputCSVType == EOutputCSVType::Assets)

@@ -917,7 +917,7 @@ bool UTextAssetCommandlet::DoTextAssetProcessing(const FProcessingArgs& InArgs)
 
 		if (CSVWriter != nullptr)
 		{
-			FString CSVLine = FString::Printf(TEXT("%f,%i,%f,%f,%f,%f\n"), TotalTime, NumFiles, AvgFileTime, MinFileTime, MaxFileTime, IterationPackageLoadTime);
+			FString CSVLine = FString::Printf(TEXT("%f,%" INT64_FMT ",%f,%f,%f,%f\n"), TotalTime, NumFiles, AvgFileTime, MinFileTime, MaxFileTime, IterationPackageLoadTime);
 			CSVWriter->Serialize(TCHAR_TO_ANSI(*CSVLine), CSVLine.Len());
 		}
 

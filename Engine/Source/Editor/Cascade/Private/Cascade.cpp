@@ -4864,7 +4864,7 @@ void ParticleSystem_DumpInfo(UParticleSystem* InParticleSystem)
 						for (int32 ModuleIdx = 0; ModuleIdx < LODLevel->Modules.Num(); ModuleIdx++)
 						{
 							UParticleModule* Module = LODLevel->Modules[ModuleIdx];
-							ModuleDump += FString::Printf(TEXT("0x%08x,"), PTRINT(Module));
+							ModuleDump += FString::Printf(TEXT("0x%08" PTRINT_FMT ","), PTRINT(Module));
 						}
 						UE_LOG(LogCascade, Log, TEXT("%s"), *ModuleDump);
 					}

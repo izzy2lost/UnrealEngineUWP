@@ -1590,7 +1590,7 @@ int64 PutDerivedDataInCache(FTexturePlatformData* DerivedData, const FString& De
 				);
 			}
 
-			LogString += FString::Printf(TEXT("  Mip%d %dx%d %d bytes%s %s\n"),
+			LogString += FString::Printf(TEXT("  Mip%d %dx%d %" UINT64_FMT " bytes%s %s\n"),
 				MipIndex,
 				Mip.SizeX,
 				Mip.SizeY,

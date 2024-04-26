@@ -833,7 +833,7 @@ void FSocketSubsystemSteam::DumpAllOpenSteamSessions()
 	for (TUniqueNetIdMap<FSteamP2PConnectionInfo>::TConstIterator It(AcceptedConnections); It; ++It)
 	{
 		UE_LOG_ONLINE(Verbose, TEXT("- Connection %s"), *It->Key->ToDebugString());
-		UE_LOG_ONLINE(Verbose, TEXT("--  Last Update Time: %d"), It->Value.LastReceivedTime);
+		UE_LOG_ONLINE(Verbose, TEXT("--  Last Update Time: %f"), It->Value.LastReceivedTime);
 		FString ConnectedChannels(TEXT(""));
 		for (int32 i = 0; i < It->Value.ConnectedChannels.Num(); ++i)
 		{

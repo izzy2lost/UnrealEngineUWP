@@ -420,7 +420,7 @@ bool UAssetRegUtilCommandlet::GenerateOrderFile(TMap<FString, int64>& OutputOrde
 		for (TMap<FString, int64>::TConstIterator It(OutputOrderMap); It; ++It)
 		{
 			FString OutputLine;
-			OutputLine = FString::Printf(TEXT("\"%s\" %llu\n"), *It->Key, NewOrderIndex++);
+			OutputLine = FString::Printf(TEXT("\"%s\" %d\n"), *It->Key, NewOrderIndex++);
 			OutArc->Serialize(const_cast<ANSICHAR*>(StringCast<ANSICHAR>(*OutputLine).Get()), OutputLine.Len());
 		}
 

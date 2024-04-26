@@ -115,7 +115,7 @@ namespace CollisionAutomationTests
 		if (Diff > Tolerance)
 		{
 			//UE_LOG(CollisionAutomationTestLog, Log, TEXT("%d:HitResult=(%s)"), iTest+1, *OutHits[iHits].ToString());
-			TestBase->AddError(FString::Printf(TEXT("Test %d:%s %s mismatch. Should be %df but is actually %f."), TestIndex, *TestName, *ParameterName, ExpectedFloat, ResultFloat));
+			TestBase->AddError(FString::Printf(TEXT("Test %d:%s %s mismatch. Should be %f but is actually %f."), TestIndex, *TestName, *ParameterName, ExpectedFloat, ResultFloat));
 		}
 	}
 

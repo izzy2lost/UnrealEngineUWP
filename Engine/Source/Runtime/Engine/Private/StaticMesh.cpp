@@ -4834,7 +4834,7 @@ void UStaticMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	{
 		Bounds = GetRenderData()->Bounds;
 	}
-	const FString ApproxSizeStr = FString::Printf(TEXT("%dx%dx%d"), FMath::RoundToInt(Bounds.BoxExtent.X * 2.0f), FMath::RoundToInt(Bounds.BoxExtent.Y * 2.0f), FMath::RoundToInt(Bounds.BoxExtent.Z * 2.0f));
+	const FString ApproxSizeStr = FString::Printf(TEXT("%" INT64_FMT "x%" INT64_FMT "x%" INT64_FMT), FMath::RoundToInt(Bounds.BoxExtent.X * 2.0f), FMath::RoundToInt(Bounds.BoxExtent.Y * 2.0f), FMath::RoundToInt(Bounds.BoxExtent.Z * 2.0f));
 
 	// Get name of default collision profile
 	FName DefaultCollisionName = NAME_None;

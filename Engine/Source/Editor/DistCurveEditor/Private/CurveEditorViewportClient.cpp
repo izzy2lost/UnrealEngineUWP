@@ -1203,7 +1203,7 @@ void FCurveEditorViewportClient::DrawEntry(FViewport* Viewport, FCanvas* Canvas,
 				FString KeyComment;
 				if (bSnapToFrames)
 				{
-					KeyComment = FString::Printf(TEXT("(%df,%3.2f)"), FMath::RoundToInt(NewKey.X/InSnapAmount), NewKey.Y);
+					KeyComment = FString::Printf(TEXT("(%" INT64_FMT "f,%3.2f)"), FMath::RoundToInt(NewKey.X/InSnapAmount), NewKey.Y);
 				}
 				else
 				{

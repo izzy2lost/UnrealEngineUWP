@@ -419,7 +419,7 @@ void FUsdObjectFieldsViewModel::Refresh(const UE::FUsdStageWeak& InUsdStage, con
 				// Just show arrays as readonly strings for now
 				if (VtValue.IsArrayValued())
 				{
-					FString Stringified = FString::Printf(TEXT("%d elements: "), VtValue.GetArraySize());
+					FString Stringified = FString::Printf(TEXT("%zu elements: "), VtValue.GetArraySize());
 
 					// This array it's too large to even stringify fast enough, so for now just show the element count
 					if (VtValue.GetArraySize() > 5000)

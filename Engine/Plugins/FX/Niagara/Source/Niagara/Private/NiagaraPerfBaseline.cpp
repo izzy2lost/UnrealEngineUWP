@@ -1214,7 +1214,7 @@ void FNiagaraPerfBaselineHandler::Tick(UWorld* World, float DeltaSeconds)
 					{
 						BaselineGenerationState = EBaselineGenState::Generating;
 
-						FString Message = FString::Printf(TEXT("Generating Niagara Perf Baselines..."), WorldTimeToGenerate - World->GetTimeSeconds());
+						FString Message = TEXT("Generating Niagara Perf Baselines...");
 						GEngine->AddOnScreenDebugMessage(GenBaselineMessageID, 4.0f, FColor::White, Message);
 					}
 					else

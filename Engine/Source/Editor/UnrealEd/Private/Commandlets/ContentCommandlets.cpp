@@ -3227,7 +3227,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 
 			// dump out a line to the .csv file
 			// @todo: sort by size to Excel's 65536 limit gets the biggest objects
-			FString CSVLine = FString::Printf(TEXT("%s,%s,%d%s"), *Object.PackageName, *Object.ObjectName, Object.SerialSize, LINE_TERMINATOR);
+			FString CSVLine = FString::Printf(TEXT("%s,%s,%" INT64_FMT "%s"), *Object.PackageName, *Object.ObjectName, Object.SerialSize, LINE_TERMINATOR);
 			CSVFile->Serialize(TCHAR_TO_ANSI(*CSVLine), CSVLine.Len());
 		}
 	}

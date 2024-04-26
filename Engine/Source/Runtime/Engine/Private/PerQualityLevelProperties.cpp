@@ -520,7 +520,7 @@ FString FPerQualityLevelFloat::ToString() const
 
 	for (int32 QL : QualityLevels)
 	{
-		Result = FString::Printf(TEXT("%s, %s=%d"), *Result, *QualityLevelProperty::QualityLevelToFName(QL).ToString(), PerQuality.FindChecked(QL));
+		Result = FString::Printf(TEXT("%s, %s=%f"), *Result, *QualityLevelProperty::QualityLevelToFName(QL).ToString(), PerQuality.FindChecked(QL));
 	}
 #endif
 

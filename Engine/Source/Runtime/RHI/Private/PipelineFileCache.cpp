@@ -928,7 +928,7 @@ FString FPipelineCacheFileFormatPSO::CommonToString() const
 	Mask = UsageMask;
 	Count = BindCount;
 #endif
-	return FString::Printf(TEXT("\"%d,%llu\""), Count, Mask);
+	return FString::Printf(TEXT("\"%" INT64_FMT ",%" UINT64_FMT "\""), Count, Mask);
 }
 
 FString FPipelineCacheFileFormatPSO::ToStringReadable() const

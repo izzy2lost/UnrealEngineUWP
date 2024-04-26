@@ -18,7 +18,7 @@ struct FCellCoord
 
 	inline FString ToString() const
 	{
-		return FString::Printf(TEXT("%d_%d_%d_%d"), X, Y, Z, Level);
+		return FString::Printf(TEXT("%" INT64_FMT "_%" INT64_FMT "_%" INT64_FMT "_%d"), X, Y, Z, Level);
 	}
 
 	inline bool operator==(const FCellCoord& Other) const

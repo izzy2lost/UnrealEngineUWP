@@ -850,7 +850,7 @@ public:
 			CacheSize = (uint32)TotalSize;
 
 			{
-				FScopedTimeToLog Timer4(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: SavePSOCacheInternal serialize %s %d "), *BinaryCacheFileInfo.Filename, TotalSize));
+				FScopedTimeToLog Timer4(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: SavePSOCacheInternal serialize %s %zu "), *BinaryCacheFileInfo.Filename, TotalSize));
 
 				SetCacheOffset((uint32)Archive.Tell());
 

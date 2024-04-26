@@ -489,7 +489,7 @@ public:
 		{
 			return TEXT("00000000000000000000");
 		}
-		return FString::Printf(TEXT("%04u%016x"), uint32(GraphBuilderIndex), static_cast<uint64>(reinterpret_cast<size_t>(Ptr)));
+		return FString::Printf(TEXT("%04u%016" UINT64_x_FMT), uint32(GraphBuilderIndex), static_cast<uint64>(reinterpret_cast<size_t>(Ptr)));
 	}
 
 	FString GetUniqueResourceName(const FRDGResource* Resource)
