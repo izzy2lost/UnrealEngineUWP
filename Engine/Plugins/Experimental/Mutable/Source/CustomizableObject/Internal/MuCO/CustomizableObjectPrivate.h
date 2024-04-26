@@ -558,14 +558,10 @@ template<> struct TCanBulkSerialize<FMorphTargetVertexData> { enum { Value = tru
 
 
 USTRUCT()
-struct CUSTOMIZABLEOBJECT_API FIntegerParameterUIData
+struct FIntegerParameterUIData
 {
 	GENERATED_BODY()
 
-	FIntegerParameterUIData() = default;
-	
-	FIntegerParameterUIData(const FMutableParamUIMetadata& InParamUIMetadata);
-	
 	UPROPERTY()
 	FMutableParamUIMetadata ParamUIMetadata;
 
@@ -574,13 +570,9 @@ struct CUSTOMIZABLEOBJECT_API FIntegerParameterUIData
 
 
 USTRUCT()
-struct CUSTOMIZABLEOBJECT_API FMutableParameterData
+struct FMutableParameterData
 {
 	GENERATED_BODY()
-
-	FMutableParameterData() = default;
-	
-	FMutableParameterData(const FMutableParamUIMetadata& InParamUIMetadata, EMutableParameterType InType);
 
 	UPROPERTY()
 	FMutableParamUIMetadata ParamUIMetadata;
@@ -602,7 +594,7 @@ struct CUSTOMIZABLEOBJECT_API FMutableParameterData
 
 
 USTRUCT()
-struct CUSTOMIZABLEOBJECT_API FMutableStateData
+struct FMutableStateData
 {
 	GENERATED_BODY()
 
