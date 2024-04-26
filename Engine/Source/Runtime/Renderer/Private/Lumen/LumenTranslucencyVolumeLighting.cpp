@@ -268,7 +268,7 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumLowResProbesPr
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.LowResProbeResolution"),
 	GTranslucencyVolumeRadianceCacheFrustumProbesLowResProbeResolution,
 	TEXT("Low resolution probes a re used to initialise the frustrum probes on camera cut or if temporal reprojection cannot happen. This is a warm up resolution before reprojection + temporal update happen. The number of rays traced for the probe will be ProbeResolution ^ 2. Must be within [4, 8]."),
-	ECVF_RenderThreadSafe
+	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 int32 GTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution = 16;
@@ -276,7 +276,7 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbesProbeRes
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.ProbeResolution"),
 	GTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution,
 	TEXT("Resolution of the frustum probes's 2d radiance layout.  The number of rays traced for the probe will be ProbeResolution ^ 2. Must be within [4, 64]."),
-	ECVF_RenderThreadSafe
+	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 int32 GTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize = 4;
@@ -284,7 +284,7 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbesFroxelSi
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.FroxelSize"),
 	GTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize,
 	TEXT("Size of a frustum probes in the translucency froxel grid, in froxel."),
-	ECVF_RenderThreadSafe
+	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 int32 GTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame = 2;
@@ -292,7 +292,7 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbesRefineTr
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.RefineTracePerFrame"),
 	GTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame,
 	TEXT("Size of a frustum probes in the translucency froxel grid, in froxel. Must be within [1, 8]."),
-	ECVF_RenderThreadSafe
+	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 int32 GTranslucencyVolumeRadianceCacheFrustumProbesDebug = 0;
