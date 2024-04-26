@@ -27,6 +27,7 @@ class MASSENTITY_API UMassSubsystemBase : public UWorldSubsystem
 
 public:
 	static bool AreRuntimeMassSubsystemsAllowed(UObject* Outer);
+	UE::Mass::Subsystems::FInitializationState GetInitializationState() const { return InitializationState; }
 
 protected:
 	//~USubsystem interface
@@ -58,6 +59,9 @@ UCLASS(Abstract)
 class MASSENTITY_API UMassTickableSubsystemBase : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
+
+public:
+	UE::Mass::Subsystems::FInitializationState GetInitializationState() const { return InitializationState; }
 
 protected:
 	//~USubsystem interface
