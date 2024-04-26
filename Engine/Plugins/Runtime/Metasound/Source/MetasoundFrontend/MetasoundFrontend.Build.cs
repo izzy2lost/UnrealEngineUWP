@@ -16,21 +16,11 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"AudioExtensions",
-					"AudioMixer",
 					"Core",
 					"CoreUObject",
-					"Engine",
 					"Serialization",
 					"SignalProcessing",
 					"MetasoundGraphCore"
-
-				}
-			);
-
-			PrivateDependencyModuleNames.AddRange
-			(
-				new string[]
-				{
 				}
 			);
 

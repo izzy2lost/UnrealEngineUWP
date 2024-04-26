@@ -14,11 +14,11 @@
 #include "MetasoundWaveTable.h"
 #include "Analysis/MetasoundFrontendAnalyzerRegistry.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerAudioBuffer.h"
-#include "Analysis/MetasoundFrontendVertexAnalyzerAudioBusWriter.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerEnvelopeFollower.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerForwardValue.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerTriggerDensity.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerTriggerToTime.h"
+#include "Analysis/MetasoundVertexAnalyzerAudioBusWriter.h"
 #include "Interfaces/MetasoundDeprecatedInterfaces.h"
 #include "Interfaces/MetasoundInterface.h"
 #include "Interfaces/MetasoundInterfaceBindingsPrivate.h"
@@ -118,8 +118,9 @@ public:
 		FMetasoundFrontendRegistryContainer::Get()->RegisterPendingNodes();
 
 		// Register Analyzers
+
+		// TODO: Determine if we can move this registration to Frontend where it likely belongs
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerAudioBuffer)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerAudioBusWriter)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerEnvelopeFollower)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardBool)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardFloat)
@@ -128,6 +129,8 @@ public:
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardString)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerTriggerDensity)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerTriggerToTime)
+
+		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Engine::FVertexAnalyzerAudioBusWriter)
 
 		// Register passthrough output analyzers
 		UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(

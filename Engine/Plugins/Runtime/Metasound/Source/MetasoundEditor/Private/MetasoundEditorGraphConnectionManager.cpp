@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MetasoundEditorGraphConnectionManager.h"
 
-#include "Analysis/MetasoundFrontendVertexAnalyzerAudioBusWriter.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerEnvelopeFollower.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerForwardValue.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerTriggerDensity.h"
+#include "Analysis/MetasoundVertexAnalyzerAudioBusWriter.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundVertex.h"
@@ -82,8 +82,8 @@ namespace Metasound
 			if (GraphAnalyzerView.IsValid())
 			{
 				const uint32 AudioBusID = InAudioBus->GetUniqueID();
-				const FName AnalyzerName = Frontend::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
-				const FName AnalyzerMemberName = Frontend::FVertexAnalyzerAudioBusWriter::GetAnalyzerMemberName(InDeviceID, AudioBusID);
+				const FName AnalyzerName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
+				const FName AnalyzerMemberName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerMemberName(InDeviceID, AudioBusID);
 				AnalyzerInstanceID = GraphAnalyzerView->AddAnalyzerForSpecifiedOutput(InNodeID, InOutputName, AnalyzerName, AnalyzerMemberName);
 			}
 
@@ -94,7 +94,7 @@ namespace Metasound
 		{
 			if (GraphAnalyzerView.IsValid())
 			{
-				const FName AnalyzerName = Frontend::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
+				const FName AnalyzerName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
 				GraphAnalyzerView->RemoveAnalyzerInstance(AnalyzerName, InAnalyzerInstanceID);
 			}
 		}
