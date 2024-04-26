@@ -148,6 +148,8 @@ namespace UE::ImageWidgets
 		StatusBarExtender = InArgs._StatusBarExtender;
 
 		DrawSettings = InArgs._DrawSettings;
+		OnLeftMouseButtonPressed = InArgs._OnLeftMouseButtonPressed;
+		OnLeftMouseButtonReleased = InArgs._OnLeftMouseButtonReleased;
 
 		auto GetImageSize = [this]
 		{
@@ -177,6 +179,16 @@ namespace UE::ImageWidgets
 			}
 			return 1.0f;
 		};
+
+		auto HandleOnLeftMouseButtonPressed = [this]()
+		{
+			OnLeftMouseButtonPressed.ExecuteIfBound();
+		};
+
+		auto HandleOnLeftMouseButtonReleased = [this]()
+		{
+			OnLeftMouseButtonReleased.ExecuteIfBound();
+		};
 		
 		ImageViewportClient = MakeShareable(new FImageViewportClient(
 			StaticCastWeakPtr<SEditorViewport>(AsWeak()),
@@ -184,7 +196,10 @@ namespace UE::ImageWidgets
 			FDrawImage::CreateLambda(DrawImage),
 			FGetDrawSettings::CreateLambda(GetDrawSettings),
 			FGetDPIScaleFactor::CreateLambda(GetDPIScaleFactor),
-			InArgs._ControllerSettings.DefaultZoomMode));
+			FOnLeftMouseButtonPressed::CreateLambda(HandleOnLeftMouseButtonPressed),
+			FOnLeftMouseButtonReleased::CreateLambda(HandleOnLeftMouseButtonReleased),
+			InArgs._ControllerSettings.DefaultZoomMode)
+			);
 
 		SEditorViewport::Construct(SEditorViewport::FArguments());
 	}

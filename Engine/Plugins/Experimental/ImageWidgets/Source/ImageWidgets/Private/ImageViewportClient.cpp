@@ -99,17 +99,21 @@ void DestroyCheckerTexture(TStrongObjectPtr<UTexture2D>& CheckerTexture)
 
 FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEditorViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
                                            FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
-                                           SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode)
+                                           FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode)
 	: FEditorViewportClient(nullptr, nullptr, InEditorViewport)
 	, GetImageSize(MoveTemp(InGetImageSize))
 	, DrawImage(MoveTemp(InDrawImage))
 	, GetDrawSettings(MoveTemp(InGetDrawSettings))
 	, GetDPIScaleFactor(MoveTemp(InGetDPIScaleFactor))
+	, OnLeftMouseButtonPressed(MoveTemp(InOnLeftMouseButtonPressed))
+	, OnLeftMouseButtonReleased(MoveTemp(InOnLeftMouseButtonReleased))
 	, Controller(static_cast<FImageViewportController::EZoomMode>(DefaultZoomMode))
 {
 	check(GetImageSize.IsBound());
 	check(DrawImage.IsBound());
 	check(GetDrawSettings.IsBound());
+	check(OnLeftMouseButtonPressed.IsBound());
+	check(OnLeftMouseButtonReleased.IsBound());
 
 	SetRealtime(true);
 }
@@ -227,6 +231,18 @@ bool FImageViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 			Controller.Reset(GetImageSize.Execute(), GetViewportSizeWithDPIScaling());
 
 			return true;
+		}
+	}
+
+	if (EventArgs.Key == EKeys::LeftMouseButton)
+	{
+		if(EventArgs.Event == IE_Pressed)
+		{
+			OnLeftMouseButtonPressed.Execute();
+		}
+		else if(EventArgs.Event == IE_Released)
+		{
+			OnLeftMouseButtonReleased.Execute();
 		}
 	}
 

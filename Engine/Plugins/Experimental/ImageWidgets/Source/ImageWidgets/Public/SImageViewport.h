@@ -14,7 +14,7 @@ namespace UE::ImageWidgets
 	class FStatusBarExtension;
 	class IImageViewer;
 	class SImageViewportToolbar;
-
+	
 	/**
 	 * Generic viewport for displaying and interacting with 2D image-like content.
 	 * The drawing of the images is deferred to an @ref IImageViewer implementation that needs to be provided upon construction. This viewport only uses the 
@@ -106,22 +106,29 @@ namespace UE::ImageWidgets
 			EDefaultZoomMode DefaultZoomMode = EDefaultZoomMode::Fit;
 		};
 
-		SLATE_BEGIN_ARGS(SImageViewport)
-			{
-			}
+		DECLARE_DELEGATE(FOnLeftMouseButtonPressed);
+		DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
 
-			/** Extensions for the viewport toolbar; valid hooks are "ToolbarLeft", "ToolbarCenter", "ToolbarRight" */
-			SLATE_ARGUMENT(TSharedPtr<FExtender>, ToolbarExtender)
+		SLATE_BEGIN_ARGS(SImageViewport){}
 
-			/** Extensions for the viewport status bar; valid hooks are "StatusBarLeft", "StatusBarCenter", "StatusBarRight" */
-			SLATE_ARGUMENT(TSharedPtr<FStatusBarExtender>, StatusBarExtender)
+		/** Extensions for the viewport toolbar; valid hooks are "ToolbarLeft", "ToolbarCenter", "ToolbarRight" */
+		SLATE_ARGUMENT(TSharedPtr<FExtender>, ToolbarExtender)
 
-			/** Settings for drawing viewport contents other than the actual image */
-			SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
+		/** Extensions for the viewport status bar; valid hooks are "StatusBarLeft", "StatusBarCenter", "StatusBarRight" */
+		SLATE_ARGUMENT(TSharedPtr<FStatusBarExtender>, StatusBarExtender)
 
-			/** Settings for controlling the viewport */
-			SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
+		/** Settings for drawing viewport contents other than the actual image */
+		SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
 
+		/** Settings for controlling the viewport */
+		SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
+
+		/** Left mouse button pressed event bubbled up from the viewport */
+		SLATE_EVENT(FOnLeftMouseButtonPressed, OnLeftMouseButtonPressed)
+
+		/** Left mouse button released event bubbled up from the viewport */
+		SLATE_EVENT(FOnLeftMouseButtonReleased, OnLeftMouseButtonReleased)
+		
 		SLATE_END_ARGS()
 
 		IMAGEWIDGETS_API SImageViewport();
@@ -214,5 +221,9 @@ namespace UE::ImageWidgets
 
 		/** Status bar extensions provided by the call to @ref Construct(). This pointer is reset after the extensions were applied during construction. */
 		TSharedPtr<FStatusBarExtender> StatusBarExtender;
+
+		/** Left Mouse buttons pressed and released events triggered to tell the widget containing the viewport. These are initialized from the constructor.*/
+		FOnLeftMouseButtonPressed OnLeftMouseButtonPressed;
+		FOnLeftMouseButtonReleased OnLeftMouseButtonReleased;
 	};
 }

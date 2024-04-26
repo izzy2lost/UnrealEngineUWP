@@ -15,6 +15,8 @@ namespace UE::ImageWidgets
 	DECLARE_DELEGATE_ThreeParams(FDrawImage, FViewport*, FCanvas*, const IImageViewer::FDrawProperties&)
 	DECLARE_DELEGATE_RetVal(SImageViewport::FDrawSettings, FGetDrawSettings)
 	DECLARE_DELEGATE_RetVal(float, FGetDPIScaleFactor)
+	DECLARE_DELEGATE(FOnLeftMouseButtonPressed);
+	DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
 
 	/**
 	 * Viewport client for controlling the camera and drawing viewport contents. 
@@ -24,7 +26,7 @@ namespace UE::ImageWidgets
 	public:
 		FImageViewportClient(const TWeakPtr<SEditorViewport>& InViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
 		                     FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
-		                     SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode);
+		                     FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode);
 		virtual ~FImageViewportClient() override;
 
 		virtual void Draw(FViewport* InViewport, FCanvas* Canvas) override;
@@ -63,12 +65,14 @@ namespace UE::ImageWidgets
 		void CreateOrDestroyCheckerTextureIfSettingsChanged(const SImageViewport::FDrawSettings& DrawSettings);
 
 		FVector2d GetViewportSizeWithDPIScaling() const;
-
+		
 		FGetImageSize GetImageSize;
 		FDrawImage DrawImage;
 		FGetDrawSettings GetDrawSettings;
 		FGetDPIScaleFactor GetDPIScaleFactor;
-
+		FOnLeftMouseButtonPressed OnLeftMouseButtonPressed;
+		FOnLeftMouseButtonReleased OnLeftMouseButtonReleased;
+		
 		bool bDragging = false;
 		FIntPoint DraggingStart;
 
