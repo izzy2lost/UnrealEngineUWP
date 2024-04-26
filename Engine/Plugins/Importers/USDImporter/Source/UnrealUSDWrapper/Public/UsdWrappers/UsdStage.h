@@ -46,13 +46,6 @@ namespace UE
 		bool operator==(const FUsdStageBase& Other) const;
 		bool operator!=(const FUsdStageBase& Other) const;
 
-#if USE_USD_SDK
-		// This is for the UE-210206 workaround. For more details see the comment
-		// at the bottom of UnrealUSDWrapper.h
-		bool operator==(const pxr::UsdStageWeakPtr& Other) const;
-		bool operator!=(const pxr::UsdStageWeakPtr& Other) const;
-#endif	  // USE_USD_SDK
-
 		// Auto conversion from/to PtrType. We use concrete pointer types here
 		// because we should also be able to convert between them
 	public:
