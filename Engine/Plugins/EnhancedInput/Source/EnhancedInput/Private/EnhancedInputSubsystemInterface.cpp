@@ -1090,10 +1090,11 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 				OldMappings.RemoveAtSwap(Idx);
 			}
 		}
-		for (const UInputAction* Action : RemovedActions)
-		{
-			PlayerInput->ActionInstanceData.Remove(Action);
-		}	
+
+		// Actions that are no longer mapped to a key may have been "In progress" by the player
+		// Notify the player input object so that it can reconcile this state and call the "Canceled" event
+		// on the next evaluation of the input.
+		PlayerInput->NotifyInputActionsUnmapped(RemovedActions);
 	}
 
 	// Perform a modifier calculation pass on the default data to initialize values correctly.

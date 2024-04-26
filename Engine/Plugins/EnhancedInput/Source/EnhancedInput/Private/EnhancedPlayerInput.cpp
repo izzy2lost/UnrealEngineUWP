@@ -26,6 +26,11 @@ namespace UE
 		static FAutoConsoleVariableRef CVarEnableDefaultMappingContexts(TEXT("EnhancedInput.EnableDefaultMappingContexts"),
 			EnableDefaultMappingContexts,
 			TEXT("Should the UEnhancedInputDeveloperSettings::DefaultMappingContexts be applied to every UEnhancedPlayerInput?"));
+
+		static int32 ReconcileRemovedMappingDelegates = 1;
+		static FAutoConsoleVariableRef CVarReconcileRemovedMappingDelegates(TEXT("EnhancedInput.ReconcileRemovedMappingDelegates"),
+			ReconcileRemovedMappingDelegates,
+			TEXT("When the mappings are rebuilt, they have been 'in process'. If this is true, we will set their value to zero so that they fire the 'Canceled' event on their next evaluation."));
 	}
 }
 
@@ -760,6 +765,16 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		ActionData.TriggerStateTracker = FTriggerStateTracker();
 	}
 
+	// Remove any input actions that are no longer mapped to the player. At this point they will have been evaluated and 
+	// fired any "Canceled" input events needed
+	for (const UInputAction* IA : ActionsThatHaveBeenRemovedFromMappings)
+	{
+		ActionInstanceData.Remove(IA);
+	}
+
+	// We can clear our queue of mappings that have been removed on the next iteration directly after a key rebuild.
+	ActionsThatHaveBeenRemovedFromMappings.Reset();
+
 	LastFrameTime = CurrentTime;
 	KeysPressedThisTick.Reset();
 	bIsFlushingInputThisFrame = false;
@@ -830,7 +845,8 @@ void UEnhancedPlayerInput::ConditionalBuildKeyMappings_Internal() const
 		if (!LastInjectedActions.Contains(Action) &&
 			!InputsInjectedThisTick.Contains(Action) &&		// This will be empty for most calls, but could potentially contain data.
 			//EngineDefinedActionMappings.ContainsByPredicate(HasActionMapping) && // TODO: EngineDefinedActionMappings are non-rebindable action/key pairings but we have our own systems to handle this...
-			!EnhancedActionMappings.ContainsByPredicate(HasActionMapping))
+			!EnhancedActionMappings.ContainsByPredicate(HasActionMapping) && 
+			!ActionsThatHaveBeenRemovedFromMappings.Contains(Action))
 		{
 			Itr.RemoveCurrent();
 		}
@@ -859,6 +875,37 @@ bool UEnhancedPlayerInput::IsKeyHandledByAction(FKey Key) const
 {
 	// Determines if the key event is handled or not.
 	return EnhancedKeyBinds.Contains(Key) || Super::IsKeyHandledByAction(Key);
+}
+
+void UEnhancedPlayerInput::NotifyInputActionsUnmapped(const TSet<const UInputAction*>& RemovedInputActions)
+{
+	if (UE::Input::ReconcileRemovedMappingDelegates)
+	{
+		// Instead of totally removing the action instance data so that it stops being processed,
+		// we should instead set the value to zero. This will make it so that upon the next evaluation 
+		// of this action instance data, the "Canceled" event will be fired instead there being
+		// no notification at all. We will queue these action instances for removal from the 
+		// instance data after they have been re-evaluated
+		for (const UInputAction* Action : RemovedInputActions)
+		{
+			if (FInputActionInstance* ActionData = ActionInstanceData.Find(Action))
+			{
+				ActionData->Value.Reset();
+			}
+		}
+
+		ActionsThatHaveBeenRemovedFromMappings = RemovedInputActions;
+	}
+	// ... this is the legacy behavior of just removing the data from the instance data cache
+	else
+	{
+		for (const UInputAction* Action : RemovedInputActions)
+		{			
+			ActionInstanceData.Remove(Action);
+		}
+		
+		UE_LOG(LogEnhancedInput, VeryVerbose, TEXT("[%hs] EnhancedInput.ReconcileRemovedMappingDelegates is false! Using the legacy behavior to remove action instance data. Canceled events will not be fired."), __func__);
+	}
 }
 
 FInputActionInstance& UEnhancedPlayerInput::FindOrAddActionEventData(TObjectPtr<const UInputAction> Action) const
