@@ -596,7 +596,6 @@ namespace AutomationTool.Tests
 			CheckEventGroup(logEvents, 2, 1, LogLevel.Warning, KnownLogEvents.Compiler);
 		}
 
-		[Ignore]
 		[TestMethod]
 		public void DockerErrorMatcher()
 		{
@@ -698,6 +697,50 @@ namespace AutomationTool.Tests
 				Assert.AreEqual(8, logEvents.Count);
 				CheckEventGroup(logEvents.Slice(1, 6), 1, 6, LogLevel.Warning, KnownLogEvents.Engine_ShaderCompiler);
 			}
+		}
+
+		[TestMethod]
+		public void ThreadSanitizerErrorMatcher()
+		{
+			string[] lines =
+			{
+				@"==================",
+				@"WARNING: ThreadSanitizer: data race (pid=21089)",
+				@"  Write of size 1 at 0x00004060ea38 by thread T25:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:172:33 (CitySampleEditor+0x2c0f2f44) (BuildId: 6622c84dbb6a946e)",
+				@"",
+				@"  Previous write of size 1 at 0x00004060ea38 by thread T20:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:172:33 (CitySampleEditor+0x2c0f2f44) (BuildId: 6622c84dbb6a946e)",
+				@"",
+				@"  Location is global '??' at 0x000000000000 (CitySampleEditor+0x4060ea38)",
+				@"",
+				@"  Thread T25 'Backgro-ker #19' (tid=21138, running) created by thread T7 at:",
+				@"    #0 pthread_create /src/build/llvm-src/compiler-rt/lib/tsan/rtl/tsan_interceptors_posix.cpp:1048 (CitySampleEditor+0x10351c92) (BuildId: 6622c84dbb6a946e)",
+				@"    #1 FRunnableThreadPThread::CreateThreadWithName(unsigned long*, pthread_attr_t*, void* (*)(void*), void*, char const*) /mnt/horde/++UE5/Sync/Engine/Source/Runtime/Core/Private/HAL/PThreadRunnableThread.h:90:10 (CitySampleEditor+0x2bd32c50) (BuildId: 6622c84dbb6a946e)",
+				@"",
+				@"  Thread T20 'Backgro-ker #14' (tid=21133, running) created by thread T5 at:",
+				@"    #0 pthread_create /src/build/llvm-src/compiler-rt/lib/tsan/rtl/tsan_interceptors_posix.cpp:1048 (CitySampleEditor+0x10351c92) (BuildId: 6622c84dbb6a946e)",
+				@"    #1 FRunnableThreadPThread::CreateThreadWithName(unsigned long*, pthread_attr_t*, void* (*)(void*), void*, char const*) /mnt/horde/++UE5/Sync/Engine/Source/Runtime/Core/Private/HAL/PThreadRunnableThread.h:90:10 (CitySampleEditor+0x2bd32c50) (BuildId: 6622c84dbb6a946e)",
+				@"",
+				@"SUMMARY: ThreadSanitizer: data race /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:172:33 in FPaths::IsStaged()",
+				@"=================="
+			};
+
+			List<LogEvent> logEvents = Parse(lines);
+			Assert.AreEqual(20, logEvents[0].LineCount);
+			CheckEventGroup(logEvents, 0, 20, LogLevel.Error, KnownLogEvents.Sanitizer_Thread);
+
+			Assert.AreEqual("/mnt/horde/++UE5/Sync/Engine/Source/Runtime/Core/Private/HAL/PThreadRunnableThread.h", logEvents[12].GetProperty("SourceFile").ToString());
+			Assert.AreEqual("90", logEvents[12].GetProperty("Line").ToString());
+			Assert.AreEqual("10", logEvents[12].GetProperty("Column").ToString());
+			Assert.AreEqual("FRunnableThreadPThread::CreateThreadWithName(unsigned long*, pthread_attr_t*, void* (*)(void*), void*, char const*)", logEvents[12].GetProperty("Symbol").ToString());
+
+			// Summary
+			Assert.AreEqual("/mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp", logEvents[18].GetProperty("SummarySourceFile").ToString());
+			Assert.AreEqual("172", logEvents[18].GetProperty("Line").ToString());
+			Assert.AreEqual("33", logEvents[18].GetProperty("Column").ToString());
+			Assert.AreEqual("FPaths::IsStaged()", logEvents[18].GetProperty("Symbol").ToString());
+			Assert.AreEqual("data race", logEvents[18].GetProperty("SummaryReason").ToString());
 		}
 
 		[TestMethod]

@@ -663,6 +663,115 @@ namespace Horde.Server.Tests.Issues
 		}
 
 		[TestMethod]
+		public async Task ThreadSanitizerDeduplicateSimilarIssuesTestAsync()
+		{
+			// We have three unique errors reported, but we key issues on the file since file lines change over time without fixes, so only two unique issues should be found
+			string[] lines =
+			{
+				@"==================",
+				@"WARNING: ThreadSanitizer: data race (pid=45069)",
+				@"  Write of size 1 at 0x0000408ba588 by thread T15:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 (CitySampleEditor+0x2c2561a3) (BuildId: 7ca67a0f97321f67)",
+				@"    #1 FGenericPlatformMisc::ProjectDir() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/GenericPlatform/GenericPlatformMisc.cpp:1264:19 (CitySampleEditor+0x2be6a866) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"  Previous write of size 1 at 0x0000408ba588 by thread T13:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 (CitySampleEditor+0x2c2561a3) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"SUMMARY: ThreadSanitizer: data race /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 in FPaths::IsStaged()",
+				@"==================",
+				@"",
+				@"==================",
+				@"WARNING: ThreadSanitizer: data race (pid=45069)",
+				@"  Write of size 1 at 0x0000408ba588 by thread T23:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:172:33 (CitySampleEditor+0x2c256324) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"  Thread T23 'Backgro-ker #17' (tid=45131, running) created by thread T15 at:",
+				@"    #0 pthread_create /src/build/llvm-src/compiler-rt/lib/tsan/rtl/tsan_interceptors_posix.cpp:1048 (CitySampleEditor+0x103ffc92) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"SUMMARY: ThreadSanitizer: data race /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:172:33 in FPaths::IsStaged()",
+				@"==================",
+				@"",
+				@"==================",
+				@"WARNING: ThreadSanitizer: data race (pid=45069)",
+				@"  Read of size 1 at 0x0000408b68d8 by thread T47 (mutexes: write M0, write M1):",
+				@"    #0 IsEngineStartupModuleLoadingComplete() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/CoreGlobals.cpp:297:9 (CitySampleEditor+0x2c1bb5c8) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"SUMMARY: ThreadSanitizer: data race /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/CoreGlobals.cpp:297:9 in IsEngineStartupModuleLoadingComplete()",
+				@"=================="
+			};
+
+			IJob job = CreateJob(_mainStreamId, 120, "Generate SomeJobs TSAN Report", _graph);
+			await ParseEventsAsync(job, 0, 0, lines);
+			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
+
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			Assert.AreEqual(2, issues.Count);
+
+			IIssue issue1 = issues[0];
+			Assert.AreEqual(issue1.Fingerprints.Count, 1);
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("ThreadSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("data race", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("CoreGlobals.cpp", StringComparison.OrdinalIgnoreCase));
+
+			IIssue issue2 = issues[1];
+			Assert.AreEqual(issue2.Fingerprints.Count, 1);
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("ThreadSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("data race", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("Paths.cpp", StringComparison.OrdinalIgnoreCase));
+		}
+
+		[TestMethod]
+		public async Task ThreadSanitizerEnsureUniqueIssuesForSameFileTestAsync()
+		{
+			// Generate two errors for the same file and line number but with a different summary reason. We should get two issues as the problems are unique
+			string[] lines =
+			{
+				@"==================",
+				@"WARNING: ThreadSanitizer: data race (pid=45069)",
+				@"  Write of size 1 at 0x0000408ba588 by thread T15:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 (CitySampleEditor+0x2c2561a3) (BuildId: 7ca67a0f97321f67)",
+				@"    #1 FGenericPlatformMisc::ProjectDir() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/GenericPlatform/GenericPlatformMisc.cpp:1264:19 (CitySampleEditor+0x2be6a866) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"  Previous write of size 1 at 0x0000408ba588 by thread T13:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 (CitySampleEditor+0x2c2561a3) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"SUMMARY: ThreadSanitizer: data race /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 in FPaths::IsStaged()",
+				@"==================",
+				@"",
+				@"==================",
+				@"WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=45069)",
+				@"  Write of size 1 at 0x0000408ba588 by thread T15:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 (CitySampleEditor+0x2c2561a3) (BuildId: 7ca67a0f97321f67)",
+				@"    #1 FGenericPlatformMisc::ProjectDir() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/GenericPlatform/GenericPlatformMisc.cpp:1264:19 (CitySampleEditor+0x2be6a866) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"  Previous write of size 1 at 0x0000408ba588 by thread T13:",
+				@"    #0 FPaths::IsStaged() /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:164:33 (CitySampleEditor+0x2c2561a3) (BuildId: 7ca67a0f97321f67)",
+				@"",
+				@"SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) /mnt/horde/++UE5/Sync/Engine/Source/./Runtime/Core/Private/Misc/Paths.cpp:172:33 in FPaths::IsStaged()",
+				@"==================",
+			};
+
+			IJob job = CreateJob(_mainStreamId, 120, "Generate SomeJobs TSAN Report", _graph);
+			await ParseEventsAsync(job, 0, 0, lines);
+			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
+
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			Assert.AreEqual(2, issues.Count);
+
+			IIssue issue1 = issues[0];
+			Assert.AreEqual(issue1.Fingerprints.Count, 1);
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("ThreadSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("lock-order-inversion", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("Paths.cpp", StringComparison.OrdinalIgnoreCase));
+
+			IIssue issue2 = issues[1];
+			Assert.AreEqual(issue2.Fingerprints.Count, 1);
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("ThreadSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("data race", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("Paths.cpp", StringComparison.OrdinalIgnoreCase)); 
+		}
+
+		[TestMethod]
 		public async Task AutoSdkWarningTestAsync()
 		{
 			// #1

@@ -76,6 +76,7 @@
 
 	<!-- Arguments for phases, keep in mind that these are passed to both the DDCCleanupCommandlet and RunUnreal -->
 	<Option Name="EnableBasePhaseTests" DefaultValue="true" Description="Enable the base phase perf tests."/>
+	<Property Name="EnableBasePhaseTests" Value="false" If="$(WithTSAN)"/>
 	<Option Name="ColdArgs" DefaultValue="-ddc=Cold -NoAssetRegistryCacheRead" Description="Arguments to unreal for the cold phase"/>
 	<Option Name="WarmArgs" DefaultValue="-ddc=Warm" Description="Arguments to unreal for the warm phase"/>
 
@@ -183,17 +184,14 @@
 
 	<!-- Gauntlet arguments for all runs -->
 	<Property Name="GauntletArgs" Value="-build=editor -tempdir=&quot;$(RootDir)/Tests&quot;"/>
-	<!-- TSAN prints to stdout/stderr. Using -VeryVerbose allows those streams to be redirected and captured by Gauntlet -->
-	<Property Name="GauntletArgs" Value="$(GauntletArgs) -VeryVerbose" If="'$(WithTSAN)'=='true'"/>
-	<Property Name="GauntletArgs" Value="$(GauntletArgs) -verbose" If="'$(WithTSAN)'=='false'"/>
 	<Property Name="GauntletArgs" Value="$(GauntletArgs) -branch=$(Branch) -ECBranch=&quot;$(Branch)&quot; -ECChangelist=&quot;$(Change)&quot;"/>
-	<Property Name="GauntletArgs" Value="$(GauntletArgs) -maxduration=28800"/>
+	<Property Name="GauntletArgs" Value="$(GauntletArgs) -verbose -maxduration=7200"/>
 
 	<!-- Gauntlet arguments for profile runs -->
 	<Property Name="ProfileArgs" Value="-tracefiletrunc"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -EnablePlugins=$(ExtraPluginsCommaDelims)" If="'$(ExtraPluginsCommaDelims)' != ''"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -SuppressLogWarnings -SuppressLogErrors"/>
-	<Property Name="ProfileArgs" Value="$(ProfileArgs) -GameInstanceLostTimerSeconds=3600"/>
+	<Property Name="ProfileArgs" Value="$(ProfileArgs) -GameInstanceLostTimerSeconds=600"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -NoLoadLevelAtStartup -Benchmarking -NODDCCLEANUP"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -NoShaderDistrib -VerboseShaderLogging"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -ResumeOnCriticalFailure"/>
@@ -214,6 +212,8 @@
 	<Property Name="ExtraTelemetryArgs" Value="$(ExtraTelemetryArgs) -JobLink=&quot;$(HordeDashboardURL)/job/$(UE_HORDE_JOBID)?step=$(UE_HORDE_STEPID)&quot;" If="'$(HordeDashboardURL)' != ''"/>
 
 	<!-- The main test running macro logic that is expanded with platform and dependency node names -->
+	<Property Name="TestOutputDir" Value=""/>
+	<Property Name="RunTestLogPath" Value=""/>
 	<Macro Name="RunTest" Arguments="TestNameSuffix;Platform;ProjectName;ProjectTarget;NodeName;Phase;Iteration;Args;EditorArgs">
 		<Property Name="TestName" Value="EditorPerf$(Phase)$(TestNameSuffix)"/>
 		<Property Name="AssetRegistryCacheRootFolderArg" Value="-AssetRegistryCacheRootFolder=&quot;$(AssetRegistryCache_Folder)&quot;"/>
@@ -264,6 +264,17 @@
 		</Do>		
 	</Macro>
 	
+	<Property Name="GenerateTSANReportNodeName" Value=""/>
+	<Property Name="GenerateTSANReportNodeList" Value=""/>
+	<Macro Name="GenerateTSANReport" Arguments="NodeName;TestOutputDir;Phase;TestNameSuffix">
+		<Property Name="LogFilePath" Value="$(TestOutputDir)/$(Phase)$(TestNameSuffix)/Editor/EditorOutput.log"/>
+		<Property Name="GenerateTSANReportNodeName" Value="Generate $(NodeName) TSAN Report"/>
+		<Node Name="$(GenerateTSANReportNodeName)">
+			<Command Name="LogThreadSanitizerOutput" Arguments="-logfile=&quot;$(LogFilePath)&quot;" />
+		</Node>
+		<Property Name="GenerateTSANReportNodeList" Value="$(GenerateTSANReportNodeList); $(GenerateTSANReportNodeName)"/>
+	</Macro>
+	
 	<!-- The main editor workflows test running macro logic that is expanded with platform and dependency node names -->
 	<Macro Name="RunEditorWorkflowsTest" Arguments="Platform;ProjectName;NodeName">
 		<Property Name="TestName" Value="Editor.Workflows"/>
@@ -277,7 +288,7 @@
 		<Property Name="ReportParams" Value="-WriteTestResultsForHorde -HordeTestDataKey=&quot;$(NodeName)$(PreflightSuffix)&quot;"/>
 		<Property Name="AllGauntletArgs" Value="-Project=$(ProjectName) -Platform=$(Platform) $(GauntletArgs) $(ReportParams) $(LogOutputParams)"/>
 
-		<Property Name="TestArg" Value="-test=$($(ProjectName)__GauntletTest)" />
+		<Property Name="TestArg" Value="-test=EditorTests" />
 		<Property Name="RunArgs" Value="$(TestArg) $(TestFilterArgs) -editorargs=&quot;$(EditorArgs)&quot;"/>
 
 		<Command Name="RunUnreal" Arguments="$(AllGauntletArgs) $(ProfileArgs) $(RunArgs) -sessionlabel=&quot;$(TestName)&quot; -tracefile=&quot;$(TraceFilePath)&quot;" />
@@ -361,6 +372,7 @@
 				<Property Name="RunNodeList" Value=""/>
 				<!--Each node in this the nested loops below, they need to depend on predecessors--> 
 				<Property Name="UploadNodeList" Value=""/>
+				
 				<Agent Name="EditorPerf Agent $(Platform) $(Project)" Type="EditorPerf$(Platform)">
 					<ForEach Name="Phase" Values="$(Phases)">
 						<Do If="$(EnableBasePhaseTests)">
@@ -372,8 +384,10 @@
 									<Expand Name="RunTest" TestNameSuffix="NoZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeName)" Phase="$(Phase)" Iteration="$(Iteration)" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(NoZenLoaderTestArgs)"/>
 								</Node>
 								<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeName)"/>
+								<Expand Name="GenerateTSANReport" NodeName="$(RunNodeName)" TestOutputDir="$(TestOutputDir)" Phase="$(Phase)" TestNameSuffix="NoZenLoader" If="$(WithTSAN)"/>
 							</ForEach>
 						</Do>
+						
 						<!-- Setup Zen Loader tests for this phase -->
 						<Do>
 							<!--Zen Loader TestRun if enabled--> 
@@ -382,12 +396,15 @@
 								<Expand Name="RunTest" TestNameSuffix="ZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderTestArgs)"/>
 							</Node>
 							<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenName)" If="$(EnableZenLoaderTest)"/>
+							<Expand Name="GenerateTSANReport" NodeName="$(RunNodeZenName)" TestOutputDir="$(TestOutputDir)" Phase="$(Phase)" TestNameSuffix="ZenLoader" If="$(EnableZenLoaderTest) And $(WithTSAN)"/>
+							
 							<!--Zen Loader Async TestRun if enabled--> 
 							<Property Name="RunNodeZenAsyncName" Value="Run $(OutputName) $(Phase) ZenLoader Async"/>
 							<Node Name="$(RunNodeZenAsyncName)" Requires="$(RunNodeRequires);$(RunNodeList)" If="$(EnableZenLoaderAsyncThreadTest)">
 								<Expand Name="RunTest" TestNameSuffix="ZenLoaderAsync" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenAsyncName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderAsyncTestArgs)"/>
 							</Node>
 							<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenAsyncName)" If="$(EnableZenLoaderAsyncThreadTest)"/>
+							<Expand Name="GenerateTSANReport" NodeName="$(RunNodeZenAsyncName)" TestOutputDir="$(TestOutputDir)" Phase="$(Phase)" TestNameSuffix="ZenLoaderAsync" If="$(EnableZenLoaderAsyncThreadTest) And $(WithTSAN)"/>
 
 							<!--Zen Store DDC TestRun if enabled--> 
 							<Property Name="RunNodeZenStoreDDCName" Value="Run $(OutputName) $(Phase) ZenLoader Store DDC"/>
@@ -395,7 +412,9 @@
 								<Expand Name="RunTest" TestNameSuffix="ZenStoreAsyncDDC" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenStoreDDCName)" Phase="$(Phase)" Iteration="1" Args="$(ZenStoreDDCPhaseArgs)" EditorArgs="$(ProjectCombinedArgs) $(ZenStoreDDCTestArgs)"/>
 							</Node>
 							<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenStoreDDCName)" If="$(EnableZenStoreDDCTest)"/>
+							<Expand Name="GenerateTSANReport" NodeName="$(RunNodeZenStoreDDCName)" TestOutputDir="$(TestOutputDir)" Phase="$(Phase)" TestNameSuffix="ZenStoreAsyncDDC" If="$(EnableZenStoreDDCTest) And $(WithTSAN)"/>
 						</Do>
+						
 						<!--Warm only test runs e.g LazyLoad--> 
 						<Do If="'$(Phase)' == 'Warm'">
 							<!--Legacy LazyLoad TestRun if enabled--> 
@@ -404,14 +423,18 @@
 								<Expand Name="RunTest" TestNameSuffix="NoZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeLazyLoadName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(LazyLoadTestArgs) $(NoZenLoaderTestArgs)"/>
 							</Node>
 							<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeLazyLoadName)" If="$(EnableLazyLoadNoZenLoaderTest)"/>
+							<Expand Name="GenerateTSANReport" NodeName="$(RunNodeLazyLoadName)" TestOutputDir="$(TestOutputDir)" Phase="$(Phase)" TestNameSuffix="NoZenLoader" If="$(EnableLazyLoadNoZenLoaderTest) And $(WithTSAN)"/>
+							
 							<!--Zen LazyLoad TestRun if enabled--> 
 							<Property Name="RunNodeLazyLoadZenName" Value="Run $(OutputName) $(Phase) LazyLoad ZenLoader"/>
 							<Node Name="$(RunNodeLazyLoadZenName)" Requires="$(RunNodeRequires);$(RunNodeList)" If="$(EnableLazyLoadZenLoaderTest)">
 								<Expand Name="RunTest" TestNameSuffix="ZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeLazyLoadZenName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(LazyLoadZenTestArgs)"/>
 							</Node>
 							<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeLazyLoadZenName)" If="$(EnableLazyLoadZenLoaderTest)"/>
+							<Expand Name="GenerateTSANReport" NodeName="$(RunNodeLazyLoadZenName)" TestOutputDir="$(TestOutputDir)" Phase="$(Phase)" TestNameSuffix="ZenLoader" If="$(EnableLazyLoadZenLoaderTest) And $(WithTSAN)"/>
 						</Do>
 					</ForEach>
+					
 					<Property Name="RunNodeUploadPhaseTraces" Value="Upload $(OutputName) Traces"/>
 					<Node Name="$(RunNodeUploadPhaseTraces)">
 						<Expand Name="UploadTestTraces" Platform="$(Platform)" ProjectName="$(Project)"/>
@@ -419,7 +442,7 @@
 					<Property Name="UploadNodeList" Value="$(RunNodeUploadPhaseTraces)"/>
 				</Agent>
 				<Label Category="$(RunCategory)" Name="$(Project) Editor Run" Requires="$(RunNodeRequires);$(RunNodeList);$(UploadNodeList)" UgsBadge="$(Project) Editor Run"/>
-				<Property Name="RunGraphNodes" Value="$(RunGraphNodes);$(RunNodeList);$(UploadNodeList)"/>
+				<Property Name="RunGraphNodes" Value="$(RunGraphNodes);$(RunNodeList);$(GenerateTSANReportNodeList);$(UploadNodeList)"/>
 
 				<!--Baseline the Results--> 
 				<Property Name="BaselineNodeName" Value="Baseline $(OutputName)"/>
