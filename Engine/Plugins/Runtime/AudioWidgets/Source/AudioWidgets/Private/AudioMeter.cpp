@@ -165,7 +165,6 @@ namespace AudioWidgets
 	FAudioMeter::FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
 		: FAudioMeter(InNumChannels, InWorld.GetAudioDevice().GetDeviceID(), InExternalAudioBus)
 	{
-		
 	}
 
 	FAudioMeter::FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const TObjectPtr<UAudioBus> InExternalAudioBus)
@@ -180,15 +179,15 @@ namespace AudioWidgets
 			.MeterPeakColor(FLinearColor(0.24349f, 0.708333f, 0.357002f, 1.0f))
 			.MeterClippingColor(FLinearColor(1.0f, 0.0f, 0.112334f, 1.0f))
 			.MeterScaleColor(FLinearColor(0.017642f, 0.017642f, 0.017642f, 1.0f))
-			.MeterScaleLabelColor(FLinearColor(0.442708f, 0.442708f, 0.442708f, 1.0f));	
+			.MeterScaleLabelColor(FLinearColor(0.442708f, 0.442708f, 0.442708f, 1.0f));
 
 		Init(InNumChannels, InAudioDeviceId, InExternalAudioBus);
 	}
 
-	FAudioMeter::FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const FAudioMaterialMeterStyle* AudioMaterialMeterStyle, TObjectPtr<UAudioBus> InExternalAudioBus)
+	FAudioMeter::FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const FAudioMaterialMeterStyle& AudioMaterialMeterStyle, TObjectPtr<UAudioBus> InExternalAudioBus)
 	{
-		Widget = SNew(SAudioMaterialMeter)	
-			.AudioMaterialMeterStyle(AudioMaterialMeterStyle);
+		Widget = SNew(SAudioMaterialMeter)
+			.AudioMaterialMeterStyle(&AudioMaterialMeterStyle);
 
 		Init(InNumChannels, InAudioDeviceId, InExternalAudioBus);
 	}

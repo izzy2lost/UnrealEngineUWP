@@ -1258,25 +1258,30 @@ namespace Metasound
 				if (ensure(GEditor))
 				{
 					const Audio::FDeviceId AudioDeviceId = GEditor->GetMainAudioDeviceID();
+					constexpr UAudioBus* DefaultBus = nullptr;
 
 					if (!OutputMeter.IsValid())
 					{
 						const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
 						check(EditorSettings)
 						const bool bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
-
 						if (bUseAudioMaterialWidgets)
-						{										
-							OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, EditorSettings->GetMeterStyle(), nullptr);
-						}						
-						else
 						{
-							OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, nullptr);
+							const FAudioMaterialMeterStyle* MeterStyle = EditorSettings->GetMeterStyle();
+							if (ensureMsgf(MeterStyle, TEXT("Failed to find MaterialMeterStyle when attempting to build MetaSound Editor output meter. Falling back to default non-material meter.")))
+							{
+								OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, *MeterStyle, DefaultBus);
+							}
+						}
+
+						if (!OutputMeter.IsValid())
+						{
+							OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, DefaultBus);
 						}
 					}
 					else if (OutputMeter->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)
 					{
-						OutputMeter->Init(MetaSoundSource->NumChannels, AudioDeviceId, nullptr);
+						OutputMeter->Init(MetaSoundSource->NumChannels, AudioDeviceId, DefaultBus);
 					}
 
 					const uint32 MetaSoundNumChannels = static_cast<uint32>(MetaSoundSource->NumChannels);
