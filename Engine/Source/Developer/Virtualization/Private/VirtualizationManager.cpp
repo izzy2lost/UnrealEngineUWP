@@ -1853,7 +1853,9 @@ void FVirtualizationManager::CachePayloads(TArrayView<FPushRequest> Requests, co
 		{
 			for (const FPushRequest& Request : Requests)
 			{
-				UE_LOG(LogVirtualization, Warning, TEXT("Failed to cache payload '%s' to backend '%s'"), *LexToString(Request.GetIdentifier()), *BackendToCache->GetDebugName());
+				UE_CLOG(Request.GetResult().WasError(), LogVirtualization, Warning, TEXT("Failed to cache payload '%s' to backend '%s'"),
+					*LexToString(Request.GetIdentifier()),
+					*BackendToCache->GetDebugName());
 			}
 		}
 

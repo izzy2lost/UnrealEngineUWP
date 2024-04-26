@@ -158,6 +158,12 @@ struct FPushResult
 		return Status == EStatus::Pushed;
 	}
 
+	/** Returns true if the payload experienced an error during upload */
+	bool WasError() const
+	{
+		return Status < EStatus::Pending;
+	}
+
 	/** Returns true if the payload is stored in the target backend(s) after the operation completed */
 	bool IsVirtualized() const
 	{
