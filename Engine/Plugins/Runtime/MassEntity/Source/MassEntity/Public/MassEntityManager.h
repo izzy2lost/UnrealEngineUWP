@@ -12,6 +12,7 @@
 #include "Containers/MpscQueue.h"
 #include "MassRequirementAccessDetector.h"
 #include "Templates/FunctionFwd.h"
+#include "MassEntityManagerStorage.h"
 
 
 struct FMassEntityQuery;
@@ -23,6 +24,18 @@ class FOutputDevice;
 struct FMassDebugger;
 enum class EMassFragmentAccess : uint8;
 enum class EForkProcessRole : uint8;
+namespace UE::Mass::Private
+{
+	struct FEntityStorageInitializer;
+}
+
+// Only Editor builds enable Mass to use the concurrent entity reservation implementation
+// Non-editor builds will devirtualize to a single threaded implementation only
+#if UE_EDITOR
+#define MASS_CONCURRENT_RESERVE 1
+#else
+#define MASS_CONCURRENT_RESERVE 0
+#endif
 
 /** 
  * The type responsible for hosting Entities managing Archetypes.
@@ -48,23 +61,6 @@ struct MASSENTITY_API FMassEntityManager : public TSharedFromThis<FMassEntityMan
 private:
 	// Index 0 is reserved so we can treat that index as an invalid entity handle
 	constexpr static int32 NumReservedEntities = 1;
-
-	struct FEntityData
-	{
-		TSharedPtr<FMassArchetypeData> CurrentArchetype;
-		int32 SerialNumber = 0;
-
-		void Reset()
-		{
-			CurrentArchetype.Reset();
-			SerialNumber = 0;
-		}
-
-		bool IsValid() const
-		{
-			return SerialNumber != 0 && CurrentArchetype.IsValid();
-		}
-	};
 	
 public:
 	struct FScopedProcessing
@@ -97,7 +93,9 @@ public:
 	// End of FGCObject interface
 	void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
 
+	// Default to use single threaded implementation
 	void Initialize();
+	void Initialize(const FMassEntityManagerStorageInitParams& InitializationParams);
 	void PostInitialize();
 	void Deinitialize();
 
@@ -556,15 +554,20 @@ public:
 	void DebugGetArchetypeFragmentTypes(const FMassArchetypeHandle& Archetype, TArray<const UScriptStruct*>& InOutFragmentList) const;
 	int32 DebugGetArchetypeEntitiesCount(const FMassArchetypeHandle& Archetype) const;
 	int32 DebugGetArchetypeEntitiesCountPerChunk(const FMassArchetypeHandle& Archetype) const;
-	int32 DebugGetEntityCount() const { return Entities.Num() - NumReservedEntities - EntityFreeIndexList.Num(); }
-	int32 DebugGetArchetypesCount() const { return AllArchetypes.Num(); }
+	int32 DebugGetEntityCount() const;
+	int32 DebugGetArchetypesCount() const;
 	void DebugRemoveAllEntities();
-	void DebugForceArchetypeDataVersionBump() { ++ArchetypeDataVersion; }
+	void DebugForceArchetypeDataVersionBump();
 	void DebugGetArchetypeStrings(const FMassArchetypeHandle& Archetype, TArray<FName>& OutFragmentNames, TArray<FName>& OutTagNames);
-	FMassEntityHandle DebugGetEntityIndexHandle(const int32 EntityIndex) const { return Entities.IsValidIndex(EntityIndex) ? FMassEntityHandle(EntityIndex, Entities[EntityIndex].SerialNumber) : FMassEntityHandle(); }
-	const FString& DebugGetName() const { return DebugName; }
+	FMassEntityHandle DebugGetEntityIndexHandle(const int32 EntityIndex) const;
+	const FString& DebugGetName() const;
 
-	FMassRequirementAccessDetector& GetRequirementAccessDetector() { return RequirementAccessDetector; }
+	FMassRequirementAccessDetector& GetRequirementAccessDetector();
+
+	// For use by the friend MassDebugger
+	UE::Mass::IEntityStorageInterface& DebugGetEntityStorageInterface();
+	// For use by the friend MassDebugger
+	const UE::Mass::IEntityStorageInterface& DebugGetEntityStorageInterface() const;
 #endif // WITH_MASSENTITY_DEBUG
 
 protected:
@@ -611,9 +614,23 @@ private:
 
 	TSharedRef<FEntityCreationContext> InternalBatchCreateReservedEntities(const FMassArchetypeHandle& ArchetypeHandle,
 		const FMassArchetypeSharedFragmentValues& SharedFragmentValues, TConstArrayView<FMassEntityHandle> ReservedEntities);
+	
+#if MASS_CONCURRENT_RESERVE
+	UE::Mass::IEntityStorageInterface& GetEntityStorageInterface();
+	const UE::Mass::IEntityStorageInterface& GetEntityStorageInterface() const;
+#else
+	UE::Mass::FSingleThreadedEntityStorage& GetEntityStorageInterface();
+	const UE::Mass::FSingleThreadedEntityStorage& GetEntityStorageInterface() const;
+#endif
+	
 private:
-	TChunkedArray<FEntityData> Entities;
-	TArray<int32> EntityFreeIndexList;
+
+	friend struct UE::Mass::Private::FEntityStorageInitializer;
+	using FEntityStorageContainerType = TVariant<
+		FEmptyVariantState,
+		UE::Mass::FSingleThreadedEntityStorage,
+		UE::Mass::FConcurrentEntityStorage>;
+	FEntityStorageContainerType EntityStorage;
 
 	std::atomic<bool> bCommandBufferFlushingInProgress = false;
 	/**
@@ -625,8 +642,7 @@ private:
 	 */
 	uint8 OpenedCommandBufferIndex = 0;
 	TStaticArray<TSharedPtr<FMassCommandBuffer>, 2> DeferredCommandBuffers;
-
-	std::atomic<int32> SerialNumberGenerator = 0;
+	
 	std::atomic<int32> ProcessingScopeCount = 0;
 
 	// the "version" number increased every time an archetype gets added

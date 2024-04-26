@@ -4,6 +4,7 @@
 #if WITH_MASSENTITY_DEBUG
 #include "MassProcessor.h"
 #include "MassEntityManager.h"
+#include "MassEntityManagerStorage.h"
 #include "MassEntitySubsystem.h"
 #include "MassArchetypeTypes.h"
 #include "MassArchetypeData.h"
@@ -563,21 +564,20 @@ void FMassDebugger::OutputArchetypeDescription(FOutputDevice& Ar, const FMassArc
 
 void FMassDebugger::OutputEntityDescription(FOutputDevice& Ar, const FMassEntityManager& EntityManager, const int32 EntityIndex, const TCHAR* InPrefix)
 {
-	if (EntityIndex >= EntityManager.Entities.Num())
+	if (EntityIndex >= EntityManager.DebugGetEntityStorageInterface().Num())
 	{
 		Ar.Logf(ELogVerbosity::Log, TEXT("Unable to list fragments values for out of range index in EntityManager owned by %s"), *GetPathNameSafe(EntityManager.GetOwner()));
 		return;
 	}
-
-	const FMassEntityManager::FEntityData& EntityData = EntityManager.Entities[EntityIndex];
-	if (!EntityData.IsValid())
+	
+	if (!EntityManager.DebugGetEntityStorageInterface().IsValid(EntityIndex))
 	{
 		Ar.Logf(ELogVerbosity::Log, TEXT("Unable to list fragments values for invalid entity in EntityManager owned by %s"), *GetPathNameSafe(EntityManager.GetOwner()));
 	}
-
+	
 	FMassEntityHandle Entity;
 	Entity.Index = EntityIndex;
-	Entity.SerialNumber = EntityData.SerialNumber;
+	Entity.SerialNumber = EntityManager.DebugGetEntityStorageInterface().GetSerialNumber(EntityIndex);
 	OutputEntityDescription(Ar, EntityManager, Entity, InPrefix);
 }
 
@@ -590,8 +590,7 @@ void FMassDebugger::OutputEntityDescription(FOutputDevice& Ar, const FMassEntity
 
 	Ar.Logf(ELogVerbosity::Log, TEXT("Listing fragments values for Entity[%s] in EntityManager owned by %s"), *Entity.DebugGetDescription(), *GetPathNameSafe(EntityManager.GetOwner()));
 
-	const FMassEntityManager::FEntityData& EntityData = EntityManager.Entities[Entity.Index];
-	FMassArchetypeData* Archetype = EntityData.CurrentArchetype.Get();
+	FMassArchetypeData* Archetype = EntityManager.DebugGetEntityStorageInterface().GetArchetypeAsShared(Entity.Index).Get();
 	if (Archetype == nullptr)
 	{
 		Ar.Logf(ELogVerbosity::Log, TEXT("Unable to list fragments values for invalid entity in EntityManager owned by %s"), *GetPathNameSafe(EntityManager.GetOwner()));

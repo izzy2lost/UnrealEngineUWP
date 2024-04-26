@@ -113,7 +113,14 @@ void UMassEntityEditorSubsystem::InitializeMassInternals()
 	// in the header file.
 	EditorTickFunction = new UE::Mass::FMassEditorTickFunction(*this);
 
-	EntityManager->Initialize();
+	FMassEntityManagerStorageInitParams InitParams;
+	InitParams.Emplace<FMassEntityManager_InitParams_Concurrent>(
+		FMassEntityManager_InitParams_Concurrent
+		{
+			.MaxEntityCount = 1llu << 28,
+			.MaxEntitiesPerPage = 1 << 16
+		});
+	EntityManager->Initialize(InitParams);
 
 	// set up ProcessingPhasesConfig
 	TConstArrayView<FMassProcessingPhaseConfig> MainPhasesConfig = GET_MASS_CONFIG_VALUE(GetProcessingPhasesConfig());

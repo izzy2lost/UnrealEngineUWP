@@ -3,6 +3,7 @@
 #include "MassEntityManager.h"
 #include "MassArchetypeData.h"
 #include "MassCommandBuffer.h"
+#include "MassEntityManagerStorage.h"
 #include "HAL/IConsoleManager.h"
 #include "Engine/World.h"
 #include "UObject/UObjectIterator.h"
@@ -38,10 +39,86 @@ namespace UE::Mass::Private
 			}
 		}
 	}
+
+	// Index 0 is a sentinel for an Empty/Unset EntityHandle
+	constexpr int32 InvalidEntityIndex = 0;
 }
 
-//////////////////////////////////////////////////////////////////////
-// FMassEntityManager
+#if MASS_CONCURRENT_RESERVE
+UE::Mass::IEntityStorageInterface& FMassEntityManager::GetEntityStorageInterface()
+{
+	using namespace UE::Mass;
+	struct StorageSelector
+	{
+		UE::Mass::IEntityStorageInterface* operator()(FEmptyVariantState&) const
+		{
+			checkf(false, TEXT("Attempt to use EntityStorageInterface without initialization"));
+			return nullptr;
+		}
+		UE::Mass::IEntityStorageInterface* operator()(FSingleThreadedEntityStorage& Storage) const
+		{
+			return &Storage;
+		}
+		UE::Mass::IEntityStorageInterface* operator()(FConcurrentEntityStorage& Storage) const
+		{
+			return &Storage;
+		}
+	};
+
+	UE::Mass::IEntityStorageInterface* Interface = Visit(StorageSelector{}, EntityStorage);
+
+	return *Interface;
+}
+
+const UE::Mass::IEntityStorageInterface& FMassEntityManager::GetEntityStorageInterface() const
+{
+	using namespace UE::Mass;
+	struct StorageSelector
+	{
+		const UE::Mass::IEntityStorageInterface* operator()(const FEmptyVariantState&) const
+		{
+			checkf(false, TEXT("Attempt to use EntityStorageInterface without initialization"));
+			return nullptr;
+		}
+		const UE::Mass::IEntityStorageInterface* operator()(const FSingleThreadedEntityStorage& Storage) const
+		{
+			return &Storage;
+		}
+		const UE::Mass::IEntityStorageInterface* operator()(const FConcurrentEntityStorage& Storage) const
+		{
+			return &Storage;
+		}
+	};
+
+	const UE::Mass::IEntityStorageInterface* Interface = Visit(StorageSelector{}, EntityStorage);
+
+	return *Interface;
+}
+#else
+UE::Mass::FSingleThreadedEntityStorage& FMassEntityManager::GetEntityStorageInterface()
+{
+	// Get will assert if not initialized
+	return EntityStorage.Get<UE::Mass::FSingleThreadedEntityStorage>();
+}
+
+const UE::Mass::FSingleThreadedEntityStorage& FMassEntityManager::GetEntityStorageInterface() const
+{
+	// Get will assert if not initialized
+	return EntityStorage.Get<UE::Mass::FSingleThreadedEntityStorage>();
+}
+#endif
+
+#if WITH_MASSENTITY_DEBUG
+UE::Mass::IEntityStorageInterface& FMassEntityManager::DebugGetEntityStorageInterface()
+{
+	return GetEntityStorageInterface();
+}
+
+const UE::Mass::IEntityStorageInterface& FMassEntityManager::DebugGetEntityStorageInterface() const
+{
+	return GetEntityStorageInterface();
+}
+#endif
 
 FMassEntityManager::FMassEntityManager(UObject* InOwner)
 	: ObserverManager(*this)
@@ -51,6 +128,9 @@ FMassEntityManager::FMassEntityManager(UObject* InOwner)
 	DebugName = InOwner ? (InOwner->GetName() + TEXT("_EntityManager")) : TEXT("Unset");
 #endif
 }
+
+//////////////////////////////////////////////////////////////////////
+// FMassEntityManager
 
 FMassEntityManager::~FMassEntityManager()
 {
@@ -62,8 +142,7 @@ FMassEntityManager::~FMassEntityManager()
 
 void FMassEntityManager::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 {
-	SIZE_T MyExtraSize = Entities.GetAllocatedSize()
-		+ EntityFreeIndexList.GetAllocatedSize()
+	SIZE_T MyExtraSize = GetEntityStorageInterface().GetAllocatedSize()
 		+ FragmentHashToArchetypeMap.GetAllocatedSize()
 		+ FragmentTypeToArchetypeMap.GetAllocatedSize();
 
@@ -94,13 +173,42 @@ void FMassEntityManager::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Struct.AddStructReferencedObjects(Collector);
 	}
-
+ 
 	const class UScriptStruct* ScriptStruct = FMassObserverManager::StaticStruct();
 	TWeakObjectPtr<const UScriptStruct> ScriptStructPtr{ScriptStruct};
 	Collector.AddReferencedObjects(ScriptStructPtr, &ObserverManager);
 }
 
 void FMassEntityManager::Initialize()
+{
+	FMassEntityManagerStorageInitParams InitializationParams;
+	InitializationParams.Emplace<FMassEntityManager_InitParams_SingleThreaded>();
+	Initialize(InitializationParams);
+}
+
+namespace UE::Mass::Private
+{
+	struct FEntityStorageInitializer
+	{
+		void operator()(const FMassEntityManager_InitParams_SingleThreaded& Params)
+		{
+			EntityStorage->Emplace<UE::Mass::FSingleThreadedEntityStorage>();
+		}
+		void operator()(const FMassEntityManager_InitParams_Concurrent& Params)
+		{
+#if MASS_CONCURRENT_RESERVE
+			EntityStorage->Emplace<UE::Mass::FConcurrentEntityStorage>();
+			EntityStorage->Get<UE::Mass::FConcurrentEntityStorage>().Initialize(Params);
+#else
+			checkf(false, TEXT("Mass does not support this storage backend"));
+#endif
+		}
+		
+		FMassEntityManager::FEntityStorageContainerType* EntityStorage = nullptr;
+	};
+}
+
+void FMassEntityManager::Initialize(const FMassEntityManagerStorageInitParams& InitializationParams)
 {
 	if (bInitialized)
 	{
@@ -109,9 +217,11 @@ void FMassEntityManager::Initialize()
 		return;
 	}
 
+	Visit(UE::Mass::Private::FEntityStorageInitializer{&EntityStorage}, InitializationParams);
+
 	// Index 0 is reserved so we can treat that index as an invalid entity handle
-	Entities.Add();
-	SerialNumberGenerator.fetch_add(FMath::Max(1,NumReservedEntities));
+	const FMassEntityHandle SentinelEntity = GetEntityStorageInterface().AcquireOne();
+	check(SentinelEntity.Index == UE::Mass::Private::InvalidEntityIndex);
 
 	for (TSharedPtr<FMassCommandBuffer>& CommandBuffer : DeferredCommandBuffers)
 	{
@@ -197,6 +307,8 @@ void FMassEntityManager::Deinitialize()
 		FMassDebugger::UnregisterEntityManager(*this);
 #endif // WITH_MASSENTITY_DEBUG
 
+		EntityStorage.Emplace<FEmptyVariantState>();
+		
 		bInitialized = false;
 	}
 	else
@@ -401,15 +513,15 @@ FMassArchetypeHandle FMassEntityManager::GetArchetypeForEntity(FMassEntityHandle
 {
 	if (IsEntityValid(Entity))
 	{
-		return FMassArchetypeHelper::ArchetypeHandleFromData(Entities[Entity.Index].CurrentArchetype);
+		return FMassArchetypeHelper::ArchetypeHandleFromData(GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index));
 	}
 	return FMassArchetypeHandle();
 }
 
 FMassArchetypeHandle FMassEntityManager::GetArchetypeForEntityUnsafe(FMassEntityHandle Entity) const
 {
-	check(Entities.IsValidIndex(Entity.Index));
-	return FMassArchetypeHelper::ArchetypeHandleFromData(Entities[Entity.Index].CurrentArchetype);
+	check(GetEntityStorageInterface().IsValidIndex(Entity.Index));
+	return FMassArchetypeHelper::ArchetypeHandleFromData(GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index));
 }
 
 void FMassEntityManager::ForEachArchetypeFragmentType(const FMassArchetypeHandle& ArchetypeHandle, TFunction< void(const UScriptStruct* /*FragmentType*/)> Function)
@@ -468,19 +580,16 @@ FMassEntityHandle FMassEntityManager::CreateEntity(TConstArrayView<FInstancedStr
 	const FMassEntityHandle Entity = ReserveEntity();
 	InternalBuildEntity(Entity, ArchetypeHandle, SharedFragmentValues);
 
-	const FEntityData& EntityData = Entities[Entity.Index];
-	EntityData.CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
 
 	return Entity;
 }
 
 FMassEntityHandle FMassEntityManager::ReserveEntity()
 {
-	// @todo: Need to add thread safety to the reservation of an entity
-	FMassEntityHandle Result;
-	Result.Index = (EntityFreeIndexList.Num() > 0) ? EntityFreeIndexList.Pop(EAllowShrinking::No) : Entities.Add();
-	Result.SerialNumber = SerialNumberGenerator.fetch_add(1);
-	Entities[Result.Index].SerialNumber = Result.SerialNumber;
+	FMassEntityHandle Result = GetEntityStorageInterface().AcquireOne();
 
 	return Result;
 }
@@ -523,8 +632,9 @@ void FMassEntityManager::BuildEntity(FMassEntityHandle Entity, TConstArrayView<F
 
 	InternalBuildEntity(Entity, ArchetypeHandle, SharedFragmentValues);
 
-	const FEntityData& EntityData = Entities[Entity.Index];
-	EntityData.CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
 }
 
 TConstArrayView<FMassEntityHandle> FMassEntityManager::BatchReserveEntities(const int32 Count, TArray<FMassEntityHandle>& InOutEntities)
@@ -581,12 +691,15 @@ void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollection
 	// to update the manager's information on these entities (stored in FMassEntityManager::Entities)
 	for (FMassEntityHandle& Entity : EntityHandles)
 	{
-		check(Entities.IsValidIndex(Entity.Index));
+		check(GetEntityStorageInterface().IsValidIndex(Entity.Index));
 
-		FEntityData& EntityData = Entities[Entity.Index];
-		checkf(EntityData.SerialNumber != 0, TEXT("Failing this check means we're trying to build entities that have not been reserved yet. Consider using BatchCreateEntities"));
-		Entity.SerialNumber = EntityData.SerialNumber;
-		EntityData.CurrentArchetype = TargetArchetypeHandle.DataPtr;
+		const UE::Mass::IEntityStorageInterface::EEntityState EntityState = GetEntityStorageInterface().GetEntityState(Entity.Index);
+		checkf(EntityState == UE::Mass::IEntityStorageInterface::EEntityState::Reserved, TEXT("Trying to build entities that are not reserved. Check all handles are reserved or consider using BatchCreateEntities"));
+
+		const int32 SerialNumber = GetEntityStorageInterface().GetSerialNumber(Entity.Index);
+		Entity.SerialNumber = SerialNumber;
+		
+		GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, TargetArchetypeHandle.DataPtr);
 	}
 
 	TargetArchetypeHandle.DataPtr->BatchAddEntities(EntityHandles, SharedFragmentValues, TargetArchetypeEntityRanges);
@@ -645,11 +758,10 @@ TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::Inter
 	for (FMassEntityHandle Entity : ReservedEntities)
 	{
 		check(IsEntityValid(Entity));
-		FEntityData& EntityData = Entities[Entity.Index];
-		checkf(!EntityData.CurrentArchetype.IsValid(), TEXT("Batch creating reserved entities can only use entities that have not been constructed yet."));
-		checkf(EntityData.SerialNumber != 0, TEXT("Failing this check means we're trying to build entities that have not been reserved yet"));
-		EntityData.CurrentArchetype = ArchetypeHandle.DataPtr;
-		EntityData.SerialNumber = Entity.SerialNumber;
+		const UE::Mass::IEntityStorageInterface::EEntityState EntityState = GetEntityStorageInterface().GetEntityState(Entity.Index);
+		checkf(EntityState == UE::Mass::IEntityStorageInterface::EEntityState::Reserved, TEXT("Trying to build entities that are not reserved. Check all handles are reserved or consider using BatchCreateEntities"));
+		
+		GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, ArchetypeHandle.DataPtr);
 	}
 
 	FMassArchetypeEntityCollection::FEntityRangeArray TargetArchetypeEntityRanges;
@@ -675,8 +787,7 @@ void FMassEntityManager::DestroyEntity(FMassEntityHandle Entity)
 	
 	CheckIfEntityIsActive(Entity);
 
-	const FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* Archetype = EntityData.CurrentArchetype.Get();
+	FMassArchetypeData* Archetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
 
 	if (Archetype)
 	{
@@ -692,30 +803,27 @@ void FMassEntityManager::BatchDestroyEntities(TConstArrayView<FMassEntityHandle>
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchDestroyEntities);
 
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
-	
-	EntityFreeIndexList.Reserve(EntityFreeIndexList.Num() + InEntities.Num());
 
 	// @todo optimize, we can make savings by implementing Archetype->RemoveEntities()
 	for (const FMassEntityHandle Entity : InEntities)
 	{
-		if (Entities.IsValidIndex(Entity.Index) == false)
+		if (GetEntityStorageInterface().IsValidIndex(Entity.Index) == false)
 		{
 			continue;
 		}
 
-		FEntityData& EntityData = Entities[Entity.Index];
-		if (EntityData.SerialNumber != Entity.SerialNumber)
+		const int32 SerialNumber = GetEntityStorageInterface().GetSerialNumber(Entity.Index);
+		if (SerialNumber != Entity.SerialNumber)
 		{
 			continue;
 		}
 
-		FMassArchetypeData* Archetype = EntityData.CurrentArchetype.Get();
+		FMassArchetypeData* Archetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
 		check(Archetype);
 		ObserverManager.OnPreEntityDestroyed(Archetype->GetCompositionDescriptor(), Entity);
 		Archetype->RemoveEntity(Entity);
 
-		EntityData.Reset();
-		EntityFreeIndexList.Add(Entity.Index);
+		GetEntityStorageInterface().ReleaseOne(Entity);
 	}
 }
 
@@ -740,24 +848,13 @@ void FMassEntityManager::BatchDestroyEntityChunks(const FMassArchetypeEntityColl
 
 		FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(EntityCollection.GetArchetype());
 		ArchetypeData.BatchDestroyEntityChunks(EntityCollection.GetRanges(), EntitiesRemoved);
-
-		EntityFreeIndexList.Reserve(EntityFreeIndexList.Num() + EntitiesRemoved.Num());
+		
+		GetEntityStorageInterface().Release(EntitiesRemoved);
 	}
 	else
 	{
 		UE::Mass::Private::ConvertArchetypelessSubchunksIntoEntityHandles(EntityCollection.GetRanges(), EntitiesRemoved);
-	}
-
-	for (const FMassEntityHandle& Entity : EntitiesRemoved)
-	{
-		check(Entities.IsValidIndex(Entity.Index));
-
-		FEntityData& EntityData = Entities[Entity.Index];
-		if (!bValidArchetype || EntityData.SerialNumber == Entity.SerialNumber)
-		{
-			EntityData.Reset();
-			EntityFreeIndexList.Add(Entity.Index);
-		}
+		GetEntityStorageInterface().ForceRelease(EntitiesRemoved);
 	}
 }
 
@@ -780,8 +877,9 @@ void FMassEntityManager::AddFragmentToEntity(FMassEntityHandle Entity, const USc
 	CheckIfEntityIsActive(Entity);
 
 	FMassFragmentBitSet Fragments = InternalAddFragmentListToEntityChecked(Entity, FMassFragmentBitSet(*FragmentType));
-	FEntityData& EntityData = Entities[Entity.Index];
-	void* FragmentData = EntityData.CurrentArchetype->GetFragmentDataForEntity(FragmentType, Entity.Index);
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	void* FragmentData = CurrentArchetype->GetFragmentDataForEntity(FragmentType, Entity.Index);
 	Initializer(FragmentData, *FragmentType);
 
 	const FMassArchetypeCompositionDescriptor Descriptor(MoveTemp(Fragments));
@@ -800,8 +898,7 @@ void FMassEntityManager::AddCompositionToEntity_GetDelta(FMassEntityHandle Entit
 {
 	CheckIfEntityIsActive(Entity);
 
-	FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* OldArchetype = EntityData.CurrentArchetype.Get();
+	FMassArchetypeData* OldArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
 	check(OldArchetype);
 
 	InDescriptor.Fragments -= OldArchetype->GetCompositionDescriptor().Fragments;
@@ -817,13 +914,14 @@ void FMassEntityManager::AddCompositionToEntity_GetDelta(FMassEntityHandle Entit
 
 		const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(NewDescriptor);
 
-		if (ensure(NewArchetypeHandle.DataPtr != EntityData.CurrentArchetype))
+		if (ensure(NewArchetypeHandle.DataPtr.Get() != OldArchetype))
 		{
 			// Move the entity over
 			FMassArchetypeData& NewArchetype = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(NewArchetypeHandle);
 			NewArchetype.CopyDebugNamesFrom(*OldArchetype);
-			EntityData.CurrentArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
-			EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+			OldArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
+
+			GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 
 			ObserverManager.OnPostCompositionAdded(Entity, InDescriptor);
 		}
@@ -836,8 +934,7 @@ void FMassEntityManager::RemoveCompositionFromEntity(FMassEntityHandle Entity, c
 
 	if(InDescriptor.IsEmpty() == false)
 	{
-		FEntityData& EntityData = Entities[Entity.Index];
-		FMassArchetypeData* OldArchetype = EntityData.CurrentArchetype.Get();
+		FMassArchetypeData* OldArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
 		check(OldArchetype);
 
 		FMassArchetypeCompositionDescriptor NewDescriptor = OldArchetype->GetCompositionDescriptor();
@@ -854,13 +951,13 @@ void FMassEntityManager::RemoveCompositionFromEntity(FMassEntityHandle Entity, c
 
 			const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(NewDescriptor);
 
-			if (ensure(NewArchetypeHandle.DataPtr != EntityData.CurrentArchetype))
+			if (ensure(NewArchetypeHandle.DataPtr.Get() != OldArchetype))
 			{
 				// Move the entity over
 				FMassArchetypeData& NewArchetype = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(NewArchetypeHandle);
 				NewArchetype.CopyDebugNamesFrom(*OldArchetype);
-				EntityData.CurrentArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
-				EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+				OldArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
+				GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 			}
 		}
 	}
@@ -874,24 +971,22 @@ const FMassArchetypeCompositionDescriptor& FMassEntityManager::GetArchetypeCompo
 
 void FMassEntityManager::InternalBuildEntity(FMassEntityHandle Entity, const FMassArchetypeHandle& ArchetypeHandle, const FMassArchetypeSharedFragmentValues& SharedFragmentValues)
 {
-	FEntityData& EntityData = Entities[Entity.Index];
-	EntityData.CurrentArchetype = ArchetypeHandle.DataPtr;
-	EntityData.CurrentArchetype->AddEntity(Entity, SharedFragmentValues);
+	const TSharedPtr<FMassArchetypeData>& NewArchetype = ArchetypeHandle.DataPtr;
+	GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, ArchetypeHandle.DataPtr);
+	NewArchetype->AddEntity(Entity, SharedFragmentValues);
 
-	ObserverManager.OnPostCompositionAdded(Entity, EntityData.CurrentArchetype->GetCompositionDescriptor());
+	ObserverManager.OnPostCompositionAdded(Entity, NewArchetype->GetCompositionDescriptor());
 }
 
 void FMassEntityManager::InternalReleaseEntity(FMassEntityHandle Entity)
 {
-	FEntityData& EntityData = Entities[Entity.Index];
-	EntityData.Reset();
-	EntityFreeIndexList.Add(Entity.Index);
+	// Using force release by bypass serial number check since we have verified the validity of the handle earlier.
+	GetEntityStorageInterface().ForceReleaseOne(Entity);
 }
 
 FMassFragmentBitSet FMassEntityManager::InternalAddFragmentListToEntityChecked(FMassEntityHandle Entity, const FMassFragmentBitSet& InFragments)
 {
-	const FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* OldArchetype = EntityData.CurrentArchetype.Get();
+	TSharedPtr<FMassArchetypeData>& OldArchetype = GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index);
 	check(OldArchetype);
 
 	UE_CLOG(OldArchetype->GetFragmentBitSet().HasAny(InFragments), LogMass, Log
@@ -909,20 +1004,20 @@ FMassFragmentBitSet FMassEntityManager::InternalAddFragmentListToEntityChecked(F
 void FMassEntityManager::InternalAddFragmentListToEntity(FMassEntityHandle Entity, const FMassFragmentBitSet& InFragments)
 {
 	checkf(InFragments.IsEmpty() == false, TEXT("%hs is intended for internal calls with non empty NewFragments parameter"), __FUNCTION__);
-	check(Entities.IsValidIndex(Entity.Index));
-	FEntityData& EntityData = Entities[Entity.Index];
-	check(EntityData.CurrentArchetype.IsValid());
-	const FMassArchetypeData* OldArchetype = EntityData.CurrentArchetype.Get();
+	check(GetEntityStorageInterface().IsValidIndex(Entity.Index));
+	TSharedPtr<FMassArchetypeData>& OldArchetype = GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index);
+	check(OldArchetype.IsValid());
 
 	// fetch or create the new archetype
-	const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(EntityData.CurrentArchetype, InFragments);
-	checkf(NewArchetypeHandle.DataPtr != EntityData.CurrentArchetype, TEXT("%hs is intended for internal calls with non overlapping fragment list."), __FUNCTION__);
+	const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(OldArchetype, InFragments);
+	checkf(NewArchetypeHandle.DataPtr != OldArchetype, TEXT("%hs is intended for internal calls with non overlapping fragment list."), __FUNCTION__);
 
 	// Move the entity over
 	FMassArchetypeData& NewArchetype = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(NewArchetypeHandle);
 	NewArchetype.CopyDebugNamesFrom(*OldArchetype);
-	EntityData.CurrentArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
-	EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+	OldArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
+
+	GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 }
 
 void FMassEntityManager::AddFragmentInstanceListToEntity(FMassEntityHandle Entity, TConstArrayView<FInstancedStruct> FragmentInstanceList)
@@ -933,9 +1028,10 @@ void FMassEntityManager::AddFragmentInstanceListToEntity(FMassEntityHandle Entit
 	checkf(FragmentInstanceList.Num() > 0, TEXT("Need to specify at least one fragment instances for this operation"));
 
 	const FMassArchetypeCompositionDescriptor Descriptor(InternalAddFragmentListToEntityChecked(Entity, FMassFragmentBitSet(FragmentInstanceList)));
-
-	const FEntityData& EntityData = Entities[Entity.Index];
-	EntityData.CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
+	
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
 
 	ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
 }
@@ -951,8 +1047,7 @@ void FMassEntityManager::RemoveFragmentListFromEntity(FMassEntityHandle Entity, 
 
 	CheckIfEntityIsActive(Entity);
 	
-	FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* OldArchetype = EntityData.CurrentArchetype.Get();
+	FMassArchetypeData* OldArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
 	check(OldArchetype);
 
 	const FMassFragmentBitSet FragmentsToRemove(FragmentList);
@@ -972,7 +1067,8 @@ void FMassEntityManager::RemoveFragmentListFromEntity(FMassEntityHandle Entity, 
 		FMassArchetypeData& NewArchetype = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(NewArchetypeHandle);
 		NewArchetype.CopyDebugNamesFrom(*OldArchetype);
 		OldArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
-		EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+		
+		GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 	}
 }
 
@@ -984,9 +1080,8 @@ void FMassEntityManager::SwapTagsForEntity(FMassEntityHandle Entity, const UScri
 
 	checkf((OldTagType != nullptr) && OldTagType->IsChildOf(FMassTag::StaticStruct()), TEXT("%hs works only with tags while '%s' is not one."), __FUNCTION__, *GetPathNameSafe(OldTagType));
 	checkf((NewTagType != nullptr) && NewTagType->IsChildOf(FMassTag::StaticStruct()), TEXT("%hs works only with tags while '%s' is not one."), __FUNCTION__, *GetPathNameSafe(NewTagType));
-
-	FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* CurrentArchetype = EntityData.CurrentArchetype.Get();
+	
+	TSharedPtr<FMassArchetypeData>& CurrentArchetype = GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index);
 	check(CurrentArchetype);
 
 	FMassTagBitSet NewTagBitSet = CurrentArchetype->GetTagBitSet();
@@ -995,12 +1090,13 @@ void FMassEntityManager::SwapTagsForEntity(FMassEntityHandle Entity, const UScri
 	
 	if (NewTagBitSet != CurrentArchetype->GetTagBitSet())
 	{
-		const FMassArchetypeHandle NewArchetypeHandle = InternalCreateSimilarArchetype(EntityData.CurrentArchetype, NewTagBitSet);
+		const FMassArchetypeHandle NewArchetypeHandle = InternalCreateSimilarArchetype(CurrentArchetype, NewTagBitSet);
 		checkSlow(NewArchetypeHandle.IsValid());
 
 		// Move the entity over
-		EntityData.CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetypeHandle.DataPtr.Get());
-		EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+		CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetypeHandle.DataPtr.Get());
+		
+		GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 	}
 }
 
@@ -1009,9 +1105,8 @@ void FMassEntityManager::AddTagToEntity(FMassEntityHandle Entity, const UScriptS
 	checkf((TagType != nullptr) && TagType->IsChildOf(FMassTag::StaticStruct()), TEXT("%hs works only with tags while '%s' is not one."), __FUNCTION__, *GetPathNameSafe(TagType));
 
 	CheckIfEntityIsActive(Entity);
-
-	FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* CurrentArchetype = EntityData.CurrentArchetype.Get();
+	
+	TSharedPtr<FMassArchetypeData>& CurrentArchetype = GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index);
 	check(CurrentArchetype);
 
 	if (CurrentArchetype->HasTagType(TagType) == false)
@@ -1019,12 +1114,12 @@ void FMassEntityManager::AddTagToEntity(FMassEntityHandle Entity, const UScriptS
 		//FMassTagBitSet NewTags = CurrentArchetype->GetTagBitSet() - *TagType;
 		FMassTagBitSet NewTags = CurrentArchetype->GetTagBitSet();
 		NewTags.Add(*TagType);
-		const FMassArchetypeHandle NewArchetypeHandle = InternalCreateSimilarArchetype(EntityData.CurrentArchetype, NewTags);
+		const FMassArchetypeHandle NewArchetypeHandle = InternalCreateSimilarArchetype(CurrentArchetype, NewTags);
 		checkSlow(NewArchetypeHandle.IsValid());
 
 		// Move the entity over
-		EntityData.CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetypeHandle.DataPtr.Get());
-		EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+		CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetypeHandle.DataPtr.Get());
+		GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 
 		FMassArchetypeCompositionDescriptor CompositionDelta;
 		FMassTagBitSet TagDelta;
@@ -1040,8 +1135,7 @@ void FMassEntityManager::RemoveTagFromEntity(FMassEntityHandle Entity, const USc
 
 	CheckIfEntityIsActive(Entity);
 
-	FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* CurrentArchetype = EntityData.CurrentArchetype.Get();
+	TSharedPtr<FMassArchetypeData>& CurrentArchetype = GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index);
 	check(CurrentArchetype);
 
 	if (CurrentArchetype->HasTagType(TagType))
@@ -1054,12 +1148,12 @@ void FMassEntityManager::RemoveTagFromEntity(FMassEntityHandle Entity, const USc
 		
 		// CurrentArchetype->GetTagBitSet() -  *TagType
 		const FMassTagBitSet NewTagComposition = CurrentArchetype->GetTagBitSet() - TagDelta;
-		const FMassArchetypeHandle NewArchetypeHandle = InternalCreateSimilarArchetype(EntityData.CurrentArchetype, NewTagComposition);
+		const FMassArchetypeHandle NewArchetypeHandle = InternalCreateSimilarArchetype(CurrentArchetype, NewTagComposition);
 		checkSlow(NewArchetypeHandle.IsValid());
 
 		// Move the entity over
-		EntityData.CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetypeHandle.DataPtr.Get());
-		EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+		CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetypeHandle.DataPtr.Get());
+		GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 	}
 }
 
@@ -1071,9 +1165,8 @@ bool FMassEntityManager::AddConstSharedFragmentToEntity(const FMassEntityHandle 
 	}
 
 	CheckIfEntityIsActive(Entity);
-
-	FEntityData& EntityData = Entities[Entity.Index];
-	FMassArchetypeData* CurrentArchetype = EntityData.CurrentArchetype.Get();
+	
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index).Get();
 	check(CurrentArchetype);
 
 	const UScriptStruct* StructType = InConstSharedFragment.GetScriptStruct();
@@ -1107,7 +1200,7 @@ bool FMassEntityManager::AddConstSharedFragmentToEntity(const FMassEntityHandle 
 	CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetype, &NewSharedFragmentValues);
 
 	// Change the entity archetype
-	EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+	GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 
 	return true;
 }
@@ -1145,10 +1238,9 @@ void FMassEntityManager::BatchChangeTagsForEntities(TConstArrayView<FMassArchety
 
 			for (const FMassEntityHandle& Entity : EntitiesBeingMoved)
 			{
-				check(Entities.IsValidIndex(Entity.Index));
-
-				FEntityData& EntityData = Entities[Entity.Index];
-				EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+				check(GetEntityStorageInterface().IsValidIndex(Entity.Index));
+				
+				GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 			}
 
 			if (bTagsAddedAreObserved)
@@ -1196,10 +1288,9 @@ void FMassEntityManager::BatchChangeFragmentCompositionForEntities(TConstArrayVi
 
 				for (const FMassEntityHandle& Entity : EntitiesBeingMoved)
 				{
-					check(Entities.IsValidIndex(Entity.Index));
+					check(GetEntityStorageInterface().IsValidIndex(Entity.Index));
 
-					FEntityData& EntityData = Entities[Entity.Index];
-					EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+					GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 				}
 
 				if (bFragmentsAddedAreObserved)
@@ -1262,10 +1353,9 @@ void FMassEntityManager::BatchAddFragmentInstancesForEntities(TConstArrayView<FM
 
 				for (const FMassEntityHandle& Entity : EntitiesBeingMoved)
 				{
-					check(Entities.IsValidIndex(Entity.Index));
+					check(GetEntityStorageInterface().IsValidIndex(Entity.Index));
 
-					FEntityData& EntityData = Entities[Entity.Index];
-					EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+					GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 				}
 
 				TargetArchetypeHandle = NewArchetypeHandle;
@@ -1323,10 +1413,9 @@ void FMassEntityManager::BatchAddSharedFragmentsForEntities(TConstArrayView<FMas
 
 		for (const FMassEntityHandle& Entity : EntitiesBeingMoved)
 		{
-			check(Entities.IsValidIndex(Entity.Index));
-
-			FEntityData& EntityData = Entities[Entity.Index];
-			EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+			check(GetEntityStorageInterface().IsValidIndex(Entity.Index));
+			
+			GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 		}
 	}
 }
@@ -1338,17 +1427,19 @@ void FMassEntityManager::MoveEntityToAnotherArchetype(FMassEntityHandle Entity, 
 	FMassArchetypeData& NewArchetype = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(NewArchetypeHandle);
 
 	// Move the entity over
-	FEntityData& EntityData = Entities[Entity.Index];
-	EntityData.CurrentArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
-	EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	CurrentArchetype->MoveEntityToAnotherArchetype(Entity, NewArchetype);
+	GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 }
 
 void FMassEntityManager::SetEntityFragmentsValues(FMassEntityHandle Entity, TArrayView<const FInstancedStruct> FragmentInstanceList)
 {
 	CheckIfEntityIsActive(Entity);
 
-	const FEntityData& EntityData = Entities[Entity.Index];
-	EntityData.CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
 }
 
 void FMassEntityManager::BatchSetEntityFragmentsValues(const FMassArchetypeEntityCollection& SparseEntities, TArrayView<const FInstancedStruct> FragmentInstanceList)
@@ -1369,8 +1460,9 @@ void* FMassEntityManager::InternalGetFragmentDataChecked(FMassEntityHandle Entit
 	// note that FragmentType is guaranteed to be of valid type - it's either statically checked by the template versions
 	// or `checkf`ed by the non-template one
 	CheckIfEntityIsActive(Entity);
-	const FEntityData& EntityData = Entities[Entity.Index];
-	return EntityData.CurrentArchetype->GetFragmentDataForEntityChecked(FragmentType, Entity.Index);
+	const FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	return CurrentArchetype->GetFragmentDataForEntityChecked(FragmentType, Entity.Index);
 }
 
 void* FMassEntityManager::InternalGetFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const
@@ -1378,8 +1470,9 @@ void* FMassEntityManager::InternalGetFragmentDataPtr(FMassEntityHandle Entity, c
 	// note that FragmentType is guaranteed to be of valid type - it's either statically checked by the template versions
 	// or `checkf`ed by the non-template one
 	CheckIfEntityIsActive(Entity);
-	const FEntityData& EntityData = Entities[Entity.Index];
-	return EntityData.CurrentArchetype->GetFragmentDataForEntity(FragmentType, Entity.Index);
+	const FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	return CurrentArchetype->GetFragmentDataForEntity(FragmentType, Entity.Index);
 }
 
 const FConstSharedStruct* FMassEntityManager::InternalGetConstSharedFragmentPtr(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const
@@ -1387,8 +1480,9 @@ const FConstSharedStruct* FMassEntityManager::InternalGetConstSharedFragmentPtr(
 	// note that ConstSharedFragmentType is guaranteed to be of valid type - it's either statically checked by the template versions
 	// or `checkf`ed by the non-template one
 	CheckIfEntityIsActive(Entity);
-	const FEntityData& EntityData = Entities[Entity.Index];
-	const FConstSharedStruct* SharedFragment = EntityData.CurrentArchetype->GetSharedFragmentValues(Entity).GetConstSharedFragments().FindByPredicate(FStructTypeEqualOperator(ConstSharedFragmentType));
+	const FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	const FConstSharedStruct* SharedFragment = CurrentArchetype->GetSharedFragmentValues(Entity).GetConstSharedFragments().FindByPredicate(FStructTypeEqualOperator(ConstSharedFragmentType));
 	return SharedFragment;
 }
 
@@ -1397,20 +1491,22 @@ const FSharedStruct* FMassEntityManager::InternalGetSharedFragmentPtr(FMassEntit
 	// note that SharedFragmentType is guaranteed to be of valid type - it's either statically checked by the template versions
 	// or `checkf`ed by the non-template one
 	CheckIfEntityIsActive(Entity);
-	const FEntityData& EntityData = Entities[Entity.Index];
-	const FSharedStruct* SharedFragment = EntityData.CurrentArchetype->GetSharedFragmentValues(Entity).GetSharedFragments().FindByPredicate(FStructTypeEqualOperator(SharedFragmentType));
+	const FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
+	check(CurrentArchetype);
+	const FSharedStruct* SharedFragment = CurrentArchetype->GetSharedFragmentValues(Entity).GetSharedFragments().FindByPredicate(FStructTypeEqualOperator(SharedFragmentType));
 	return SharedFragment;
 }
 
 bool FMassEntityManager::IsEntityValid(FMassEntityHandle Entity) const
 {
-	return (Entity.Index > 0) && Entities.IsValidIndex(Entity.Index) && (Entities[Entity.Index].SerialNumber == Entity.SerialNumber);
+	return (Entity.Index != UE::Mass::Private::InvalidEntityIndex) && GetEntityStorageInterface().IsValidIndex(Entity.Index) && (GetEntityStorageInterface().GetSerialNumber(Entity.Index) == Entity.SerialNumber);
 }
 
 bool FMassEntityManager::IsEntityBuilt(FMassEntityHandle Entity) const
 {
 	CheckIfEntityIsValid(Entity);
-	return Entities[Entity.Index].CurrentArchetype.IsValid();
+	const UE::Mass::IEntityStorageInterface::EEntityState CurrentState = GetEntityStorageInterface().GetEntityState(Entity.Index);
+	return CurrentState == UE::Mass::IEntityStorageInterface::EEntityState::Created;
 }
 
 void FMassEntityManager::CheckIfEntityIsValid(FMassEntityHandle Entity) const
@@ -1772,25 +1868,39 @@ int32 FMassEntityManager::DebugGetArchetypeEntitiesCountPerChunk(const FMassArch
 	return Archetype.IsValid() ? FMassArchetypeHelper::ArchetypeDataFromHandleChecked(Archetype).GetNumEntitiesPerChunk() : 0;
 }
 
+int32 FMassEntityManager::DebugGetEntityCount() const
+{
+	return GetEntityStorageInterface().Num() - NumReservedEntities - GetEntityStorageInterface().ComputeFreeSize();
+}
+
+int32 FMassEntityManager::DebugGetArchetypesCount() const
+{
+	return AllArchetypes.Num();
+}
+
 void FMassEntityManager::DebugRemoveAllEntities()
 {
-	for (int EntityIndex = NumReservedEntities; EntityIndex < Entities.Num(); ++EntityIndex)
+	for (int EntityIndex = NumReservedEntities, EndIndex = GetEntityStorageInterface().Num(); EntityIndex < EndIndex; ++EntityIndex)
 	{
-		FEntityData& EntityData = Entities[EntityIndex];
-		if (EntityData.IsValid() == false)
+		if (GetEntityStorageInterface().IsValid(EntityIndex) == false)
 		{
 			// already dead
 			continue;
 		}
-		const TSharedPtr<FMassArchetypeData>& Archetype = EntityData.CurrentArchetype;
+		FMassArchetypeData* Archetype = GetEntityStorageInterface().GetArchetype(EntityIndex);
+		check(Archetype);
 		FMassEntityHandle Entity;
 		Entity.Index = EntityIndex;
-		Entity.SerialNumber = EntityData.SerialNumber;
+		Entity.SerialNumber = GetEntityStorageInterface().GetSerialNumber(EntityIndex);
 		Archetype->RemoveEntity(Entity);
 
-		EntityData.Reset();
-		EntityFreeIndexList.Add(EntityIndex);
+		GetEntityStorageInterface().ForceReleaseOne(Entity);
 	}
+}
+
+void FMassEntityManager::DebugForceArchetypeDataVersionBump()
+{
+	++ArchetypeDataVersion;
 }
 
 void FMassEntityManager::DebugGetArchetypeStrings(const FMassArchetypeHandle& Archetype, TArray<FName>& OutFragmentNames, TArray<FName>& OutTagNames)
@@ -1810,6 +1920,21 @@ void FMassEntityManager::DebugGetArchetypeStrings(const FMassArchetypeHandle& Ar
 	}
 
 	ArchetypeRef.GetTagBitSet().DebugGetIndividualNames(OutTagNames);
+}
+
+FMassEntityHandle FMassEntityManager::DebugGetEntityIndexHandle(const int32 EntityIndex) const
+{
+	return GetEntityStorageInterface().IsValidIndex(EntityIndex) ? FMassEntityHandle(EntityIndex, GetEntityStorageInterface().GetSerialNumber(EntityIndex)) : FMassEntityHandle();
+}
+
+const FString& FMassEntityManager::DebugGetName() const
+{
+	return DebugName;
+}
+
+FMassRequirementAccessDetector& FMassEntityManager::GetRequirementAccessDetector()
+{
+	return RequirementAccessDetector;
 }
 
 #endif // WITH_MASSENTITY_DEBUG
