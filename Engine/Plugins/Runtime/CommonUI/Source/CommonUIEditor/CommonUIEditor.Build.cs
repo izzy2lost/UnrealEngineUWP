@@ -31,13 +31,6 @@ public class CommonUIEditor : ModuleRules
 			}
         );
 
-		PrivateIncludePaths.AddRange(
-			new string[]
-			{
-				System.IO.Path.Combine(GetModuleDirectory("CommonUI"), "Private"),
-			}
-		);
-
 		PrivateIncludePathModuleNames.AddRange(
 			new string[] {
 				"DataTableEditor",
