@@ -5430,9 +5430,10 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 			{
 				FIoContainerSettings ContainerSettings;
 				ContainerSettings.ContainerId = ContainerTarget->ContainerId;
+				ContainerSettings.ContainerFlags = ContainerTarget->ContainerFlags; 
 				if (Arguments.bCreateDirectoryIndex)
 				{
-					ContainerSettings.ContainerFlags = ContainerTarget->ContainerFlags | EIoContainerFlags::Indexed;
+					ContainerSettings.ContainerFlags |= EIoContainerFlags::Indexed;
 				}
 				if (EnumHasAnyFlags(ContainerTarget->ContainerFlags, EIoContainerFlags::Encrypted))
 				{
