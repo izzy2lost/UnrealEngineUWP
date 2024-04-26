@@ -711,7 +711,10 @@ void FTextHistory::MarkDisplayStringUpToDate()
 {
 	if (CanUpdateDisplayString())
 	{
-		FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), GlobalRevision, LocalRevision);
+		UE_AUTORTFM_OPEN(
+		{
+			FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), GlobalRevision, LocalRevision);
+		});
 	}
 	else
 	{
