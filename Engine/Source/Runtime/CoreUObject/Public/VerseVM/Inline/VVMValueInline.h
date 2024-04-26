@@ -50,11 +50,6 @@ inline VValue::VValue(UObject* Object)
 	checkSlow(IsUObject());
 }
 
-inline VValue::VValue(VInt Int)
-	: VValue(Int.Value)
-{
-}
-
 inline bool VValue::IsInt() const
 {
 	return IsInt32() || IsCellOfType<VHeapInt>();

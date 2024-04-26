@@ -40,7 +40,6 @@ struct VValue
 
 	VValue(UObject* Object);
 
-	VValue(VInt Int);
 	static VValue FromInt32(int32 Int32)
 	{
 		VValue Result;

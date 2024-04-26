@@ -20,8 +20,8 @@ struct VRational : VHeapValue
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	TWriteBarrier<VValue> Numerator;
-	TWriteBarrier<VValue> Denominator;
+	TWriteBarrier<VInt> Numerator;
+	TWriteBarrier<VInt> Denominator;
 
 	static VRational& Add(FRunningContext Context, VRational& Lhs, VRational& Rhs);
 	static VRational& Sub(FRunningContext Context, VRational& Lhs, VRational& Rhs);
@@ -39,15 +39,10 @@ struct VRational : VHeapValue
 
 	void Reduce(FRunningContext Context);
 	void NormalizeSigns(FRunningContext Context);
-	bool IsZero() const { return Numerator.Get().AsInt().IsZero(); }
+	bool IsZero() const { return Numerator.Get().IsZero(); }
 	bool IsReduced() const { return bIsReduced; }
 
 	static VRational& New(FAllocationContext Context, VInt InNumerator, VInt InDenominator)
-	{
-		return *new (Context.AllocateFastCell(sizeof(VRational))) VRational(Context, InNumerator, InDenominator);
-	}
-
-	static VRational& New(FAllocationContext Context, VValue InNumerator, VValue InDenominator)
 	{
 		return *new (Context.AllocateFastCell(sizeof(VRational))) VRational(Context, InNumerator, InDenominator);
 	}
@@ -61,16 +56,6 @@ struct VRational : VHeapValue
 	static void SerializeImpl(VRational*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
-	VRational(FAllocationContext Context, VValue InNumerator, VValue InDenominator)
-		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
-		, bIsReduced(false)
-	{
-		checkSlow(InDenominator.IsInt() && InNumerator.IsInt());
-		checkSlow(!InDenominator.AsInt().IsZero());
-		Numerator.Set(Context, InNumerator);
-		Denominator.Set(Context, InDenominator);
-	}
-
 	VRational(FAllocationContext Context, VInt InNumerator, VInt InDenominator)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 		, bIsReduced(false)

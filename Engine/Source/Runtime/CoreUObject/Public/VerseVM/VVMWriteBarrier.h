@@ -26,9 +26,9 @@ namespace Verse
 template <typename T>
 struct TWriteBarrier
 {
-	static constexpr bool bIsVValue = std::is_same_v<T, VValue>;
+	static constexpr bool bIsVValue = std::is_same_v<T, VValue> || std::is_same_v<T, VInt>;
 	static constexpr bool bIsAux = IsTAux<T>;
-	using TValue = typename std::conditional_t<bIsAux, T, typename std::conditional_t<bIsVValue, VValue, T*>>;
+	using TValue = typename std::conditional_t<bIsVValue || bIsAux, T, T*>;
 	using TEncodedValue = typename std::conditional<bIsVValue, uint64, T*>::type;
 
 	TWriteBarrier() = default;

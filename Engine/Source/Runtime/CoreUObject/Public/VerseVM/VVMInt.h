@@ -17,48 +17,54 @@
 
 namespace Verse
 {
-struct VInt
+struct VInt : VValue
 {
+	// Be careful using this! Only classes expecting a uninitialized int should use this such as:
+	//	TWriteBarrier, VConstrainedInt, etc.
+	explicit VInt()
+		: VValue()
+	{
+	}
 	explicit VInt(VValue InValue)
-		: Value(InValue)
+		: VValue(InValue)
 	{
 		checkSlow(InValue.IsInt());
 	}
 	explicit VInt(int32 InInt32)
-		: Value(VValue::FromInt32(InInt32))
+		: VValue(VValue::FromInt32(InInt32))
 	{
 	}
 	VInt(int64) = delete; // nb: use a constructor that takes F*Context explicitly
 	VInt(FAllocationContext Context, int64 Int64)
+		: VValue(Int64 >= INT32_MIN && Int64 <= INT32_MAX
+					 ? VValue::FromInt32(static_cast<int32>(Int64))
+					 : VHeapInt::FromInt64(Context, Int64))
 	{
-		if (Int64 >= INT32_MIN && Int64 <= INT32_MAX)
-		{
-			Value = VValue::FromInt32(static_cast<int32>(Int64));
-		}
-		else
-		{
-			Value = VHeapInt::FromInt64(Context, Int64);
-		}
 	}
-	VInt(VHeapInt& N);
+	VInt(VHeapInt& N)
+		: VValue(N.IsInt32()
+					 ? VValue::FromInt32(N.AsInt32())
+					 : VValue(N))
+	{
+	}
 
 	bool IsZero() const
 	{
-		if (Value.IsInt32())
+		if (IsInt32())
 		{
-			return Value.AsInt32() == 0;
+			return AsInt32() == 0;
 		}
-		VHeapInt& HeapInt = Value.StaticCast<VHeapInt>();
+		VHeapInt& HeapInt = StaticCast<VHeapInt>();
 		return HeapInt.IsZero();
 	}
 
 	bool IsNegative() const
 	{
-		if (Value.IsInt32())
+		if (IsInt32())
 		{
-			return Value.AsInt32() < 0;
+			return AsInt32() < 0;
 		}
-		VHeapInt& HeapInt = Value.StaticCast<VHeapInt>();
+		VHeapInt& HeapInt = StaticCast<VHeapInt>();
 		return HeapInt.GetSign();
 	}
 
@@ -87,10 +93,6 @@ struct VInt
 	friend uint32 GetTypeHash(VInt Int);
 
 private:
-	friend struct VValue;
-
-	VValue Value;
-
 	VFloat ConvertToFloatSlowPath() const;
 
 	static VInt AddSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);

@@ -6,37 +6,25 @@
 
 #include "Math/GuardedInt.h"
 #include "VerseVM/VVMInt.h"
-#include "VerseVM/VVMValue.h"
 
 namespace Verse
 {
-inline VInt::VInt(VHeapInt& N)
-{
-	if (N.IsInt32())
-	{
-		Value = VValue::FromInt32(N.AsInt32());
-	}
-	else
-	{
-		Value = N;
-	}
-}
 
 inline VFloat VInt::ConvertToFloat() const
 {
-	if (Value.IsInt32())
+	if (IsInt32())
 	{
-		return VFloat(Value.AsInt32());
+		return VFloat(AsInt32());
 	}
 
-	return Value.StaticCast<VHeapInt>().ConvertToFloat();
+	return StaticCast<VHeapInt>().ConvertToFloat();
 }
 
 inline VInt VInt::Add(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		const int64 Result64 = static_cast<int64>(Lhs.Value.AsInt32()) + static_cast<int64>(Rhs.Value.AsInt32());
+		const int64 Result64 = static_cast<int64>(Lhs.AsInt32()) + static_cast<int64>(Rhs.AsInt32());
 		return VInt(Context, Result64);
 	}
 	else
@@ -46,9 +34,9 @@ inline VInt VInt::Add(FRunningContext Context, VInt Lhs, VInt Rhs)
 }
 inline VInt VInt::Sub(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		const int64 Result64 = static_cast<int64>(Lhs.Value.AsInt32()) - static_cast<int64>(Rhs.Value.AsInt32());
+		const int64 Result64 = static_cast<int64>(Lhs.AsInt32()) - static_cast<int64>(Rhs.AsInt32());
 		return VInt(Context, Result64);
 	}
 	else
@@ -58,9 +46,9 @@ inline VInt VInt::Sub(FRunningContext Context, VInt Lhs, VInt Rhs)
 }
 inline VInt VInt::Mul(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		const int64 Result64 = static_cast<int64>(Lhs.Value.AsInt32()) * static_cast<int64>(Rhs.Value.AsInt32());
+		const int64 Result64 = static_cast<int64>(Lhs.AsInt32()) * static_cast<int64>(Rhs.AsInt32());
 		return VInt(Context, Result64);
 	}
 	else
@@ -71,9 +59,9 @@ inline VInt VInt::Mul(FRunningContext Context, VInt Lhs, VInt Rhs)
 inline VInt VInt::Div(FRunningContext Context, VInt Lhs, VInt Rhs, bool* bOutHasNonZeroRemainder /*= nullptr*/)
 {
 	checkf(!Rhs.IsZero(), TEXT("Division by 0 is undefined!"));
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		if (Rhs.Value.AsInt32() == -1 && Lhs.Value.AsInt32() == INT32_MIN)
+		if (Rhs.AsInt32() == -1 && Lhs.AsInt32() == INT32_MIN)
 		{
 			if (bOutHasNonZeroRemainder)
 			{
@@ -81,8 +69,8 @@ inline VInt VInt::Div(FRunningContext Context, VInt Lhs, VInt Rhs, bool* bOutHas
 			}
 			return VInt(Context, int64(INT32_MAX) + 1);
 		}
-		const int32 Lhs32 = Lhs.Value.AsInt32();
-		const int32 Rhs32 = Rhs.Value.AsInt32();
+		const int32 Lhs32 = Lhs.AsInt32();
+		const int32 Rhs32 = Rhs.AsInt32();
 		const int32 Result32 = Lhs32 / Rhs32;
 		if (bOutHasNonZeroRemainder)
 		{
@@ -98,13 +86,13 @@ inline VInt VInt::Div(FRunningContext Context, VInt Lhs, VInt Rhs, bool* bOutHas
 inline VInt VInt::Mod(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
 	checkf(!Rhs.IsZero(), TEXT("Division by 0 is undefined!"));
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		if (Rhs.Value.AsInt32() == -1 || Rhs.Value.AsInt32() == 1)
+		if (Rhs.AsInt32() == -1 || Rhs.AsInt32() == 1)
 		{
 			return VInt(0);
 		}
-		const int32 Result32 = Lhs.Value.AsInt32() % Rhs.Value.AsInt32();
+		const int32 Result32 = Lhs.AsInt32() % Rhs.AsInt32();
 		return VInt(Result32);
 	}
 	else
@@ -114,18 +102,18 @@ inline VInt VInt::Mod(FRunningContext Context, VInt Lhs, VInt Rhs)
 }
 inline VInt VInt::Neg(FRunningContext Context, VInt x)
 {
-	if (x.Value.IsInt32())
+	if (x.IsInt32())
 	{
-		const int64 r64 = static_cast<int64>(x.Value.AsInt32());
+		const int64 r64 = static_cast<int64>(x.AsInt32());
 		return VInt(Context, -r64);
 	}
 	return VInt::NegSlowPath(Context, x);
 }
 inline VInt VInt::Abs(FRunningContext Context, VInt x)
 {
-	if (x.Value.IsInt32())
+	if (x.IsInt32())
 	{
-		const int64 r64 = static_cast<int64>(x.Value.AsInt32());
+		const int64 r64 = static_cast<int64>(x.AsInt32());
 		return VInt(Context, r64 < 0 ? -r64 : r64);
 	}
 	return VInt::AbsSlowPath(Context, x);
@@ -134,9 +122,9 @@ inline VInt VInt::Abs(FRunningContext Context, VInt x)
 template <typename ContextType>
 inline bool VInt::Eq(ContextType Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		return Lhs.Value.AsInt32() == Rhs.Value.AsInt32();
+		return Lhs.AsInt32() == Rhs.AsInt32();
 	}
 	else
 	{
@@ -146,36 +134,36 @@ inline bool VInt::Eq(ContextType Context, VInt Lhs, VInt Rhs)
 
 inline bool VInt::Lt(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		return Lhs.Value.AsInt32() < Rhs.Value.AsInt32();
+		return Lhs.AsInt32() < Rhs.AsInt32();
 	}
 	return VInt::LtSlowPath(Context, Lhs, Rhs);
 }
 
 inline bool VInt::Gt(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		return Lhs.Value.AsInt32() > Rhs.Value.AsInt32();
+		return Lhs.AsInt32() > Rhs.AsInt32();
 	}
 	return VInt::GtSlowPath(Context, Lhs, Rhs);
 }
 
 inline bool VInt::Lte(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		return Lhs.Value.AsInt32() <= Rhs.Value.AsInt32();
+		return Lhs.AsInt32() <= Rhs.AsInt32();
 	}
 	return VInt::LteSlowPath(Context, Lhs, Rhs);
 }
 
 inline bool VInt::Gte(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() && Rhs.IsInt32())
 	{
-		return Lhs.Value.AsInt32() >= Rhs.Value.AsInt32();
+		return Lhs.AsInt32() >= Rhs.AsInt32();
 	}
 	return VInt::GteSlowPath(Context, Lhs, Rhs);
 }
@@ -273,7 +261,7 @@ inline VInt VInt::ModSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs)
 template <typename ContextType>
 inline bool VInt::EqSlowPath(ContextType Context, VInt Lhs, VInt Rhs)
 {
-	if (Lhs.Value.IsInt32() || Rhs.Value.IsInt32())
+	if (Lhs.IsInt32() || Rhs.IsInt32())
 	{
 		return false;
 	}
@@ -286,13 +274,13 @@ inline bool VInt::EqSlowPath(ContextType Context, VInt Lhs, VInt Rhs)
 
 inline VInt VInt::NegSlowPath(FRunningContext Context, VInt N)
 {
-	VHeapInt& NHeap = N.Value.StaticCast<VHeapInt>();
+	VHeapInt& NHeap = N.StaticCast<VHeapInt>();
 	return VInt(*VHeapInt::UnaryMinus(Context, NHeap));
 }
 
 inline VInt VInt::AbsSlowPath(FRunningContext Context, VInt N)
 {
-	VHeapInt& NHeap = N.Value.StaticCast<VHeapInt>();
+	VHeapInt& NHeap = N.StaticCast<VHeapInt>();
 	return VInt(NHeap.GetSign() ? *VHeapInt::UnaryMinus(Context, NHeap) : NHeap);
 }
 
@@ -328,18 +316,18 @@ inline bool VInt::GteSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs)
 
 inline VHeapInt& VInt::AsHeapInt(FRunningContext Context, VInt N)
 {
-	return N.Value.IsInt32()
-			 ? VHeapInt::FromInt64(Context, N.Value.AsInt32())
-			 : N.Value.StaticCast<VHeapInt>();
+	return N.IsInt32()
+			 ? VHeapInt::FromInt64(Context, N.AsInt32())
+			 : N.StaticCast<VHeapInt>();
 }
 
 inline bool VInt::IsInt64() const
 {
-	if (Value.IsInt32())
+	if (IsInt32())
 	{
 		return true;
 	}
-	if (VHeapInt* HeapInt = Value.DynamicCast<VHeapInt>())
+	if (VHeapInt* HeapInt = DynamicCast<VHeapInt>())
 	{
 		return HeapInt->IsInt64();
 	}
@@ -348,14 +336,14 @@ inline bool VInt::IsInt64() const
 
 inline int64 VInt::AsInt64() const
 {
-	if (Value.IsInt32())
+	if (IsInt32())
 	{
-		return static_cast<int64>(Value.AsInt32());
+		return static_cast<int64>(AsInt32());
 	}
 	else
 	{
 		checkSlow(IsInt64());
-		return Value.StaticCast<VHeapInt>().AsInt64();
+		return StaticCast<VHeapInt>().AsInt64();
 	}
 }
 
@@ -378,15 +366,15 @@ inline uint32 VInt::AsUint32() const
 
 inline uint32 GetTypeHash(VInt Int)
 {
-	if (Int.Value.IsInt32())
+	if (Int.IsInt32())
 	{
-		return ::GetTypeHash(Int.Value.AsInt32());
+		return ::GetTypeHash(Int.AsInt32());
 	}
 	if (Int.IsInt64())
 	{
 		return ::GetTypeHash(Int.AsInt64());
 	}
-	return GetTypeHash(Int.Value.StaticCast<VHeapInt>());
+	return GetTypeHash(Int.StaticCast<VHeapInt>());
 }
 } // namespace Verse
 #endif // WITH_VERSE_VM

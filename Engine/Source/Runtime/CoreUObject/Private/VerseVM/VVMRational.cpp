@@ -18,55 +18,55 @@ TGlobalTrivialEmergentTypePtr<&VRational::StaticCppClassInfo> VRational::GlobalT
 
 VRational& VRational::Add(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
-	if (VInt::Eq(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()))
+	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
 		return VRational::New(Context,
-			VInt::Add(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-			Lhs.Denominator.Get().AsInt());
+			VInt::Add(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+			Lhs.Denominator.Get());
 	}
 
 	return VRational::New(
 		Context,
 		VInt::Add(Context,
-			VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-			VInt::Mul(Context, Rhs.Numerator.Get().AsInt(), Lhs.Denominator.Get().AsInt())),
-		VInt::Mul(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()));
+			VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+			VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get())),
+		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()));
 }
 
 VRational& VRational::Sub(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
-	if (VInt::Eq(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()))
+	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
 		return VRational::New(Context,
-			VInt::Sub(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-			Lhs.Denominator.Get().AsInt());
+			VInt::Sub(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+			Lhs.Denominator.Get());
 	}
 
 	return VRational::New(
 		Context,
 		VInt::Sub(Context,
-			VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-			VInt::Mul(Context, Rhs.Numerator.Get().AsInt(), Lhs.Denominator.Get().AsInt())),
-		VInt::Mul(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()));
+			VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+			VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get())),
+		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()));
 }
 
 VRational& VRational::Mul(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
 	return VRational::New(Context,
-		VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Numerator.Get().AsInt()),
-		VInt::Mul(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()));
+		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Numerator.Get()),
+		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()));
 }
 
 VRational& VRational::Div(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
 	return VRational::New(Context,
-		VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-		VInt::Mul(Context, Lhs.Denominator.Get().AsInt(), Rhs.Numerator.Get().AsInt()));
+		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Numerator.Get()));
 }
 
 VRational& VRational::Neg(FRunningContext Context, VRational& N)
 {
-	return VRational::New(Context, VInt::Neg(Context, N.Numerator.Get().AsInt()), N.Denominator.Get().AsInt());
+	return VRational::New(Context, VInt::Neg(Context, N.Numerator.Get()), N.Denominator.Get());
 }
 
 bool VRational::Eq(FRunningContext Context, VRational& Lhs, VRational& Rhs)
@@ -76,56 +76,56 @@ bool VRational::Eq(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 	Rhs.Reduce(Context);
 	Rhs.NormalizeSigns(Context);
 
-	return VInt::Eq(Context, Lhs.Numerator.Get().AsInt(), Rhs.Numerator.Get().AsInt())
-		&& VInt::Eq(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt());
+	return VInt::Eq(Context, Lhs.Numerator.Get(), Rhs.Numerator.Get())
+		&& VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get());
 }
 
 bool VRational::Gt(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
-	if (VInt::Eq(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()))
+	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
-		return VInt::Gt(Context, Lhs.Numerator.Get().AsInt(), Rhs.Numerator.Get().AsInt());
+		return VInt::Gt(Context, Lhs.Numerator.Get(), Rhs.Numerator.Get());
 	}
 
 	return VInt::Gt(Context,
-		VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-		VInt::Mul(Context, Rhs.Numerator.Get().AsInt(), Lhs.Denominator.Get().AsInt()));
+		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
 bool VRational::Lt(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
-	if (VInt::Eq(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()))
+	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
-		return VInt::Lt(Context, Lhs.Numerator.Get().AsInt(), Rhs.Numerator.Get().AsInt());
+		return VInt::Lt(Context, Lhs.Numerator.Get(), Rhs.Numerator.Get());
 	}
 
 	return VInt::Lt(Context,
-		VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-		VInt::Mul(Context, Rhs.Numerator.Get().AsInt(), Lhs.Denominator.Get().AsInt()));
+		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
 bool VRational::Gte(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
-	if (VInt::Eq(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()))
+	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
-		return VInt::Gte(Context, Lhs.Numerator.Get().AsInt(), Rhs.Numerator.Get().AsInt());
+		return VInt::Gte(Context, Lhs.Numerator.Get(), Rhs.Numerator.Get());
 	}
 
 	return VInt::Gte(Context,
-		VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-		VInt::Mul(Context, Rhs.Numerator.Get().AsInt(), Lhs.Denominator.Get().AsInt()));
+		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
 bool VRational::Lte(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 {
-	if (VInt::Eq(Context, Lhs.Denominator.Get().AsInt(), Rhs.Denominator.Get().AsInt()))
+	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
-		return VInt::Lte(Context, Lhs.Numerator.Get().AsInt(), Rhs.Numerator.Get().AsInt());
+		return VInt::Lte(Context, Lhs.Numerator.Get(), Rhs.Numerator.Get());
 	}
 
 	return VInt::Lte(Context,
-		VInt::Mul(Context, Lhs.Numerator.Get().AsInt(), Rhs.Denominator.Get().AsInt()),
-		VInt::Mul(Context, Rhs.Numerator.Get().AsInt(), Lhs.Denominator.Get().AsInt()));
+		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
+		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
 VInt VRational::Floor(FRunningContext Context) const
@@ -161,8 +161,8 @@ void VRational::Reduce(FRunningContext Context)
 		return;
 	}
 
-	VInt A = Numerator.Get().AsInt();
-	VInt B = Denominator.Get().AsInt();
+	VInt A = Numerator.Get();
+	VInt B = Denominator.Get();
 	while (!VInt::Eq(Context, B, VInt(0)))
 	{
 		VInt Remainder = VInt::Mod(Context, A, B);
@@ -170,19 +170,25 @@ void VRational::Reduce(FRunningContext Context)
 		B = Remainder;
 	}
 
-	Numerator.Set(Context, VInt::Div(Context, Numerator.Get().AsInt(), A));
-	Denominator.Set(Context, VInt::Div(Context, Denominator.Get().AsInt(), A));
+	VInt NewNumerator = VInt::Div(Context, Numerator.Get(), A);
+	VInt NewDenominator = VInt::Div(Context, Denominator.Get(), A);
+
+	Numerator.Set(Context, NewNumerator);
+	Denominator.Set(Context, NewDenominator);
 	bIsReduced = true;
 }
 
 void VRational::NormalizeSigns(FRunningContext Context)
 {
-	VInt Denom = Denominator.Get().AsInt();
+	VInt Denom = Denominator.Get();
 	if (VInt::Lt(Context, Denom, VInt(0)))
 	{
 		// The denominator is < 0, so we need to normalize the signs
-		Numerator.Set(Context, VInt::Neg(Context, Numerator.Get().AsInt()));
-		Denominator.Set(Context, VInt::Neg(Context, Denom));
+		VInt NewNumerator = VInt::Neg(Context, Numerator.Get());
+		VInt NewDenominator = VInt::Neg(Context, Denom);
+
+		Numerator.Set(Context, NewNumerator);
+		Denominator.Set(Context, NewDenominator);
 	}
 }
 
@@ -197,11 +203,11 @@ void VRational::SerializeImpl(VRational*& This, FAllocationContext Context, FAbs
 {
 	if (Visitor.IsLoading())
 	{
-		VValue ScratchNumerator;
-		VValue ScratchDenominator;
+		VInt ScratchNumerator;
+		VInt ScratchDenominator;
 		Visitor.Visit(ScratchNumerator, TEXT("Numerator"));
 		Visitor.Visit(ScratchDenominator, TEXT("Denominator"));
-		This = &VRational::New(Context, ScratchNumerator, ScratchDenominator);
+		This = &VRational::New(Context, ScratchNumerator.AsInt(), ScratchDenominator.AsInt());
 	}
 	else
 	{
