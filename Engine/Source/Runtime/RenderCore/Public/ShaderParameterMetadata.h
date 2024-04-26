@@ -266,9 +266,36 @@ public:
 
 	private:
 		friend class FShaderParametersMetadata;
-#if WITH_EDITOR
-		void HashLayout(FMemoryHasherBlake3& SignatureData);
-#endif
+		
+		template<typename FHasherType, typename FHashType>
+		void HashLayout(TMemoryHasher<FHasherType, FHashType>& Hasher)
+		{
+			Hasher << Offset;
+			Hasher << reinterpret_cast<uint8&>(BaseType);
+
+			Hasher.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+			Hasher << NumElements;
+
+			const bool bIsRHIResource = IsShaderParameterTypeReadOnlyRHIResource(BaseType);
+			const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
+
+			if (BaseType == UBMT_INT32 ||
+				BaseType == UBMT_UINT32 ||
+				BaseType == UBMT_FLOAT32)
+			{
+				Hasher << reinterpret_cast<uint8&>(Precision);
+				Hasher << NumRows;
+				Hasher << NumColumns;
+			}
+			else if (BaseType == UBMT_INCLUDED_STRUCT || BaseType == UBMT_NESTED_STRUCT)
+			{
+				const_cast<FShaderParametersMetadata*>(Struct)->HashLayout(Hasher);
+			}
+			else if (bIsRHIResource || bIsRDGResource)
+			{
+				Hasher.Serialize(const_cast<TCHAR*>(ShaderType), FCString::Strlen(ShaderType));
+			}
+		}
 
 		const TCHAR* Name;
 		const TCHAR* ShaderType;
@@ -491,8 +518,16 @@ private:
 	/** Hash about the entire memory layout of the structure. */
 	uint32 LayoutHash = 0;
 
+	template<typename FHasherType, typename FHashType>
+	void HashLayout(TMemoryHasher<FHasherType, FHashType>& Hasher)
+	{
+		for (FMember& CurrentMember : Members)
+		{
+			CurrentMember.HashLayout(Hasher);
+		}
+	}
+
 #if WITH_EDITOR
-	void HashLayout(FMemoryHasherBlake3& SignatureData);
 	
 	/** Strong persistable hash representing the binary layout of the entire parameter structure */
 	FBlake3Hash LayoutSignature;

@@ -476,42 +476,6 @@ void FShaderParametersMetadata::Append(FShaderKeyGenerator& KeyGen) const
 	KeyGen.Append(LayoutSignature);
 }
 
-void FShaderParametersMetadata::FMember::HashLayout(FMemoryHasherBlake3& Hasher)
-{
-	Hasher << Offset;
-	Hasher << reinterpret_cast<uint8&>(BaseType);
-
-	Hasher.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
-	Hasher << NumElements;
-
-	const bool bIsRHIResource = IsShaderParameterTypeReadOnlyRHIResource(BaseType);
-	const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
-
-	if (BaseType == UBMT_INT32 ||
-		BaseType == UBMT_UINT32 ||
-		BaseType == UBMT_FLOAT32)
-	{
-		Hasher << reinterpret_cast<uint8&>(Precision);
-		Hasher << NumRows;
-		Hasher << NumColumns;
-	}
-	else if (BaseType == UBMT_INCLUDED_STRUCT || BaseType == UBMT_NESTED_STRUCT)
-	{
-		const_cast<FShaderParametersMetadata*>(Struct)->HashLayout(Hasher);
-	}
-	else if (bIsRHIResource || bIsRDGResource)
-	{
-		Hasher.Serialize(const_cast<TCHAR*>(ShaderType), FCString::Strlen(ShaderType));
-	}
-}
-
-void FShaderParametersMetadata::HashLayout(FMemoryHasherBlake3& SignatureData) 
-{
-	for (FMember& CurrentMember : Members)
-	{
-		CurrentMember.HashLayout(SignatureData);
-	}
-}
 #endif // WITH_EDITOR
 
 void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitializer* OutLayoutInitializer)
@@ -809,51 +773,11 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	// Compute the hash of the RHI layout.
 	LayoutInitializer.ComputeHash();
 	
-	// Compute the hash about the entire layout of the structure.
+	// Fast runtime-compatible hash about the entire layout of the structure.
 	{
-		uint32 RootStructureHash = 0;
-		RootStructureHash = HashCombine(RootStructureHash, GetTypeHash(int32(GetSize())));
-
-		for (const FMember& CurrentMember : Members)
-		{
-			EUniformBufferBaseType BaseType = CurrentMember.GetBaseType();
-			const FShaderParametersMetadata* ChildStruct = CurrentMember.GetStructMetadata();
-
-			uint32 MemberHash = 0;
-			MemberHash = HashCombine(MemberHash, GetTypeHash(int32(CurrentMember.GetOffset())));
-			MemberHash = HashCombine(MemberHash, GetTypeHash(uint8(BaseType)));
-			static_assert(EUniformBufferBaseType_NumBits <= 8, "Invalid EUniformBufferBaseType_NumBits");
-			MemberHash = HashCombine(MemberHash, FCrc::Strihash_DEPRECATED(CurrentMember.GetName()));
-			MemberHash = HashCombine(MemberHash, GetTypeHash(int32(CurrentMember.GetNumElements())));
-
-			const bool bIsRHIResource = IsShaderParameterTypeReadOnlyRHIResource(BaseType);
-			const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
-
-			if (BaseType == UBMT_INT32 ||
-				BaseType == UBMT_UINT32 ||
-				BaseType == UBMT_FLOAT32)
-			{
-				MemberHash = HashCombine(MemberHash, GetTypeHash(uint8(CurrentMember.GetNumRows())));
-				MemberHash = HashCombine(MemberHash, GetTypeHash(uint8(CurrentMember.GetNumColumns())));
-			}
-			else if (BaseType == UBMT_INCLUDED_STRUCT || BaseType == UBMT_NESTED_STRUCT)
-			{
-				if (!ChildStruct->IsLayoutInitialized())
-				{
-					const_cast<FShaderParametersMetadata*>(ChildStruct)->InitializeLayout();
-				}
-
-				MemberHash = HashCombine(MemberHash, ChildStruct->GetLayoutHash());
-			}
-			else if (bIsRHIResource || bIsRDGResource)
-			{
-				MemberHash = HashCombine(MemberHash, FCrc::Strihash_DEPRECATED(CurrentMember.GetShaderType()));
-			}
-
-			RootStructureHash = HashCombine(RootStructureHash, MemberHash);
-		}
-
-		LayoutHash = RootStructureHash;
+		TMemoryHasher<FXxHash64Builder, FXxHash64> FastHasher;
+		HashLayout(FastHasher);
+		LayoutHash = (uint32)FastHasher.Finalize().Hash; // note: decimating 64 bit hash to 32 bits to avoid data format changes & API deprecation
 	}
 
 	if (UseCase == EUseCase::UniformBuffer)
@@ -864,6 +788,7 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	Layout = RHICreateUniformBufferLayout(LayoutInitializer);
 
 #if WITH_EDITOR
+	// second stronger hash for use in DDC keys
 	FMemoryHasherBlake3 Hasher;
 	HashLayout(Hasher);
 	LayoutSignature = Hasher.Finalize();
