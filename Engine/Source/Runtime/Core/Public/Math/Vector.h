@@ -2340,7 +2340,7 @@ FORCEINLINE FString TVector<T>::ToCompactString() const
 {
     if(IsNearlyZero())
     {
-        return FString::Printf(TEXT("V(0)"));
+        return FString(TEXT("V(0)"));
     }
 
     FString ReturnString(TEXT("V("));

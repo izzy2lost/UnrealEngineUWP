@@ -808,7 +808,7 @@ FORCEINLINE FString TRotator<T>::ToCompactString() const
 {
 	if( IsNearlyZero() )
 	{
-		return FString::Printf(TEXT("R(0)"));
+		return FString(TEXT("R(0)"));
 	}
 
 	FString ReturnString(TEXT("R("));
