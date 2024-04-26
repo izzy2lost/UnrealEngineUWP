@@ -250,6 +250,30 @@ FChannel* FChannel::FindChannel(const ANSICHAR* ChannelName)
 
 	return nullptr;
 }
+	
+///////////////////////////////////////////////////////////////////////////////
+FChannel* FChannel::FindChannel(FChannelId ChannelId)
+{
+	using namespace Private;
+
+	FChannel* ChannelLists[] =
+	{
+		AtomicLoadAcquire(&GNewChannelList),
+		AtomicLoadAcquire(&GHeadChannel),
+	};
+	for (FChannel* Channel : ChannelLists)
+	{
+		for (; Channel != nullptr; Channel = Channel->Next)
+		{
+			if (Channel->Name.Hash == ChannelId)
+			{
+				return Channel;
+			}
+		}
+	}
+
+	return nullptr;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 void FChannel::EnumerateChannels(ChannelIterCallback Func, void* User)
@@ -270,6 +294,7 @@ void FChannel::EnumerateChannels(ChannelIterCallback Func, void* User)
 			Info.Desc = Channel->Args.Desc;
 			Info.bIsEnabled = Channel->IsEnabled();
 			Info.bIsReadOnly = Channel->Args.bReadOnly;
+			Info.Id = Channel->Name.Hash;
 			bool Result = Func(Info, User);
 			if (!Result)
 			{

@@ -194,6 +194,20 @@ void StartWorkerThread()
 {
 	Private::Writer_WorkerCreate();
 }
+	
+////////////////////////////////////////////////////////////////////////////////
+FChannel* FindChannel(const TCHAR* ChannelName)
+{
+	ANSICHAR ChannelNameA[64];
+	ToAnsiCheap(ChannelNameA, ChannelName);
+	return FChannel::FindChannel(ChannelNameA);
+}
+	
+////////////////////////////////////////////////////////////////////////////////
+FChannel* FindChannel(FChannelId ChannelId)
+{
+	return FChannel::FindChannel(ChannelId);
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////

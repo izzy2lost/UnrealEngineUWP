@@ -52,10 +52,13 @@ public:
 	static bool			Toggle(const ANSICHAR* ChannelName, bool bEnabled);
 	static void			ToggleAll(bool bEnabled);
 	static void			PanicDisableAll(); // Disabled channels wont be logged with UE_TRACE_LOG
-	static FChannel*	FindChannel(const ANSICHAR* ChannelName);
+	static FChannel* FindChannel(const ANSICHAR* ChannelName);
+	static FChannel* FindChannel(FChannelId ChannelId);
 	static void			EnumerateChannels(ChannelIterCallback Func, void* User);
-	bool				Toggle(bool bEnabled);
-	bool				IsEnabled() const;
+	TRACELOG_API bool	Toggle(bool bEnabled);
+	bool	IsEnabled() const;
+	bool	IsReadOnly() const { return Args.bReadOnly; };
+	uint32	GetName(const ANSICHAR** OutName) const;
 	explicit			operator bool () const;
 	bool				operator | (const FChannel& Rhs) const;
 
@@ -70,6 +73,17 @@ private:
 	volatile int32		Enabled;
 	InitArgs			Args;
 };
+
+inline uint32 FChannel::GetName(const ANSICHAR** OutName) const
+{
+	if (OutName != nullptr)
+	{
+		*OutName = Name.Ptr;
+		return Name.Len;
+	}
+	return 0;
+}
+
 
 } // namespace Trace
 } // namespace UE
