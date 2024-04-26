@@ -11,7 +11,7 @@ class USkeletalMesh;
 
 // @todo(deprecate), rename to FKinematicTetrahedralConstraintDataflowNode
 // ... This should really be a mode on the KinematicConstraint. 
-USTRUCT(meta = (DataflowFlesh))
+USTRUCT(meta = (DataflowFlesh, Deprecated = "5.4"))
 struct FKinematicTetrahedralBindingsDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()

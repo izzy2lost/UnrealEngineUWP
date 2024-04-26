@@ -21,7 +21,7 @@ namespace UE {
 }
 
 
-USTRUCT(meta = (DataflowFlesh))
+USTRUCT(meta = (DataflowFlesh, Deprecated = "5.4"))
 struct FGenerateTetrahedralCollectionDataflowNodes : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()

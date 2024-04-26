@@ -10,7 +10,7 @@
 #include "ChaosFleshConstructTetGridNode.generated.h"
 
 
-USTRUCT(meta = (DataflowFlesh))
+USTRUCT(meta = (DataflowFlesh, Deprecated = "5.4"))
 struct FConstructTetGridNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()

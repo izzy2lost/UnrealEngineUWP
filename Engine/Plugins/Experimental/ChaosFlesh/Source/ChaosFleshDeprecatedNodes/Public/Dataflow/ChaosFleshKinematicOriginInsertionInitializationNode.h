@@ -10,7 +10,7 @@
 class USkeletalMesh;
 
 // @todo(deprecate), rename to FKinematicSomethingBetterThanThisNameDataflowNode
-USTRUCT(meta = (DataflowFlesh))
+USTRUCT(meta = (DataflowFlesh, Deprecated = "5.4"))
 struct FKinematicOriginInsertionInitializationDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
