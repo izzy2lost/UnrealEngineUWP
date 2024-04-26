@@ -943,6 +943,19 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 	FParameterRouter& Router = UMetaSoundSource::GetParameterRouter();
 	TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel = Router.FindOrCreateDataChannelForReader(InParams.AudioDeviceID, InParams.InstanceID);
 
+	if (InParams.StartTime > 0.0f)
+	{
+		if (IsInterfaceDeclared(SourceStartTimeInterface::GetVersion()))
+		{
+			InDefaultParameters.Add({ SourceStartTimeInterface::Inputs::StartTime, InParams.StartTime });
+		}
+		else
+		{
+			const FString AssetName = GetName();
+			UE_LOG(LogMetaSound, Warning, TEXT("A non-zero StartTime (%.2f) was used in asset '%s' that doesn't implement the Start Time interface. StartTime will be ignored."), InParams.StartTime, *AssetName);
+		}
+	}
+
 	FOperatorBuilderSettings BuilderSettings = FOperatorBuilderSettings::GetDefaultSettings();
 	// Graph analyzer currently only enabled for preview sounds (but can theoretically be supported for all sounds)
 	BuilderSettings.bPopulateInternalDataReferences = InParams.bIsPreviewSound;

@@ -107,6 +107,7 @@ namespace Audio
 			InitParams.NumFramesPerCallback = MONO_PCM_BUFFER_SAMPLES;
 			InitParams.InstanceID = InArgs.InstanceID;
 			InitParams.bIsPreviewSound = InArgs.bIsPreviewSound;
+			InitParams.StartTime = InArgs.StartTime;
 
 			SoundGenerator = InArgs.SoundWave->CreateSoundGenerator(InitParams, MoveTemp(InDefaultParams));
 

@@ -132,6 +132,7 @@ namespace Metasound::Engine
 		{
 			Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(SourceInterface::CreateInterface(*UMetaSoundSource::StaticClass()), MakeUnique<SourceInterface::FUpdateInterface>()));
 			Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(SourceOneShotInterface::CreateInterface(*UMetaSoundSource::StaticClass())));
+			Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(SourceStartTimeInterface::CreateInterface(*UMetaSoundSource::StaticClass())));
 		}
 
 		RegisterAudioFormatInterfaces();

@@ -72,6 +72,7 @@ namespace Audio
 			Args.LoopingMode = LoopingMode;
 			Args.bIsSeeking = bIsSeeking;
 			Args.bForceSyncDecode = bForceSyncDecode;
+			Args.StartTime = SeekTime;
 			MixerSourceBuffer = FMixerSourceBuffer::Create(Args);
 
 			bIsValid = MixerSourceBuffer.IsValid();

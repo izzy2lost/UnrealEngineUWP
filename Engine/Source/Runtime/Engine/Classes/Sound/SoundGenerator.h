@@ -24,6 +24,7 @@ struct FSoundGeneratorInitParams
 	uint64 InstanceID = 0;
 	bool bIsPreviewSound = false;
 	FString GraphName;
+	float StartTime = 0.0f;
 };
 
 class ISoundGenerator

@@ -67,6 +67,53 @@ namespace Metasound::Frontend
 
 #undef AUDIO_PARAMETER_INTERFACE_NAMESPACE
 
+#define AUDIO_PARAMETER_INTERFACE_NAMESPACE "UE.Source.StartTime"
+	namespace SourceStartTimeInterface
+	{
+		const FMetasoundFrontendVersion& GetVersion()
+		{
+			static const FMetasoundFrontendVersion Version = { AUDIO_PARAMETER_INTERFACE_NAMESPACE, { 1, 0 } };
+			return Version;
+		}
+
+		namespace Inputs
+		{
+			const FName StartTime = AUDIO_PARAMETER_INTERFACE_MEMBER_DEFINE("StartTime");
+		}
+
+		Audio::FParameterInterfacePtr CreateInterface(const UClass& InClass)
+		{
+			struct FInterface : public Audio::FParameterInterface
+			{
+				FInterface(const FTopLevelAssetPath& InClassPath)
+					: FParameterInterface(SourceStartTimeInterface::GetVersion().Name, SourceStartTimeInterface::GetVersion().Number.ToInterfaceVersion())
+				{
+					constexpr bool bIsModifiable = true;
+					constexpr bool bIsDefault = false;
+					UClassOptions = TArray<FClassOptions>
+					{
+						{ InClassPath, bIsModifiable, bIsDefault }
+					};
+
+					Inputs =
+					{
+						{
+							LOCTEXT("StartTime", "Start Time"),
+							LOCTEXT("StartTime Description", "The StartTime of the source passed into the MetaSound from the Gameplay API."),
+							GetMetasoundDataTypeName<FTime>(),
+							Inputs::StartTime
+						}
+					};
+				}
+			};
+
+			return MakeShared<FInterface>(InClass.GetClassPathName());
+		}
+	} // namespace SourceStartTimeInterface
+
+#undef AUDIO_PARAMETER_INTERFACE_NAMESPACE
+
+
 #define AUDIO_PARAMETER_INTERFACE_NAMESPACE "UE.Source"
 	namespace SourceInterfaceV1_0
 	{

@@ -1191,6 +1191,7 @@ namespace Audio
 		BufferInitArgs.LoopingMode = InWaveInstance->LoopingMode;
 		BufferInitArgs.bIsSeeking = bIsSeeking;
 		BufferInitArgs.bIsPreviewSound = bActiveSoundIsPreviewSound;
+		BufferInitArgs.StartTime = InWaveInstance->StartTime;
 
 		MixerSourceBuffer = FMixerSourceBuffer::Create(BufferInitArgs, MoveTemp(DefaultParameters));
 		

@@ -56,6 +56,7 @@ namespace Audio
 		FMixerBuffer* Buffer = nullptr;
 		USoundWave* SoundWave = nullptr;
 		ELoopingMode LoopingMode = ELoopingMode::LOOP_Never;
+		float StartTime = 0.0f;
 		bool bIsSeeking = false;
 		bool bForceSyncDecode = false;
 		bool bIsPreviewSound = false;
