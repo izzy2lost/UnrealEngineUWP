@@ -868,25 +868,97 @@ bool FDesktopPlatformBase::GetOidcTokenStatus(const FString& RootDir, const FStr
 	return false;
 }
 
-bool FDesktopPlatformBase::GetHordeUrl(FString& OutHordeUrl)
+FString FDesktopPlatformBase::ReadHordeUrlWithoutCache()
 {
-	struct FServerUrlInitializer
+	FString Url = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_URL"));
+	if (!Url.IsEmpty())
 	{
-		static FString Get(IDesktopPlatform* DesktopPlatform)
+		return Url;
+	}
+
+#if PLATFORM_WINDOWS
+	if (FWindowsPlatformMisc::QueryRegKey(HKEY_CURRENT_USER, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
+	{
+		return Url;
+	}
+
+	if (FWindowsPlatformMisc::QueryRegKey(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
+	{
+		return Url;
+	}
+#else
+	FString FileName = FPaths::Combine(FPlatformProcess::UserHomeDir(), TEXT(".horde.json"));
+
+	FString FileContents;
+	if (FFileHelper::LoadFileToString(FileContents, *FileName))
+	{
+		TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(FileContents);
+
+		TSharedPtr<FJsonObject> Object;
+		if (FJsonSerializer::Deserialize(Reader, Object) && Object.IsValid() && Object->TryGetStringField(TEXT("Url"), Url))
 		{
-			FString Url;
-			if (!GConfig->GetString(TEXT("/Script/UnrealEd.EditorSettings"), TEXT("HordeUrl"), Url, GEditorSettingsIni) || Url.IsEmpty())
-			{
-				DesktopPlatform->GetDefaultHordeUrl(Url);
-			}
 			return Url;
 		}
-	};
+	}
+#endif
 
-	static FString CachedValue = FServerUrlInitializer::Get(this);
+	return FString();
+}
 
-	OutHordeUrl = CachedValue;
+bool FDesktopPlatformBase::GetHordeUrl(FString& OutHordeUrl)
+{
+	if (!bInitializedHordeServerUrl)
+	{
+		HordeServerUrl = ReadHordeUrlWithoutCache();
+		bInitializedHordeServerUrl = true;
+	}
+
+	OutHordeUrl = HordeServerUrl;
 	return !OutHordeUrl.IsEmpty();
+}
+
+void FDesktopPlatformBase::SetHordeUrl(const FString& HordeUrl)
+{
+	HordeServerUrl = HordeUrl;
+	bInitializedHordeServerUrl = true;
+
+#if PLATFORM_WINDOWS
+	if (HordeUrl.IsEmpty())
+	{
+		FPlatformMisc::DeleteStoredValue(TEXT("Epic Games"), TEXT("Horde"), TEXT("Url"));
+	}
+	else
+	{
+		FPlatformMisc::SetStoredValue(TEXT("Epic Games"), TEXT("Horde"), TEXT("Url"), HordeUrl);
+	}
+#else
+	FString FileName = FPaths::Combine(FPlatformProcess::UserHomeDir(), TEXT(".horde.json"));
+
+	// Read the existing json file
+	TSharedPtr<FJsonObject> Object;
+
+	FString FileContents;
+	if (FFileHelper::LoadFileToString(FileContents, *FileName))
+	{
+		TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(FileContents);
+		FJsonSerializer::Deserialize(Reader, Object);
+	}
+
+	// Update the object with the new URL
+	if (!Object.IsValid())
+	{
+		Object = MakeShared<FJsonObject>();
+	}
+	Object->SetStringField(TEXT("Url"), HordeUrl);
+
+	// Write it back out agai
+	FString OutputFileContents;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputFileContents);
+	if (FJsonSerializer::Serialize(Object.ToSharedRef(), *Writer))
+	{
+		FFileHelper::SaveStringToFile(OutputFileContents, *FileName);
+	}
+#endif
 }
 
 bool FDesktopPlatformBase::GetHordeAccessToken(const FString& HordeUrl, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin)
@@ -905,39 +977,6 @@ bool FDesktopPlatformBase::GetHordeAccessToken(const FString& HordeUrl, bool bUn
 
 	FString BaseArguments = FString::Printf(TEXT(" --HordeUrl=\"%s\""), *HordeUrl);
 	return GetOidcAccessTokenInternal(FPaths::EngineDir(), BaseArguments, bUnattended, Warn, OutToken, OutTokenExpiresAt, bOutWasInteractiveLogin);
-}
-
-bool FDesktopPlatformBase::GetDefaultHordeUrl(FString& OutHordeUrl)
-{
-	struct FServerUrlInitializer
-	{
-		static FString Get()
-		{
-			FString Url = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_URL"));
-			if (!Url.IsEmpty())
-			{
-				return Url;
-			}
-
-#if PLATFORM_WINDOWS
-			if (FWindowsPlatformMisc::QueryRegKey(HKEY_CURRENT_USER, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
-			{
-				return Url;
-			}
-
-			if (FWindowsPlatformMisc::QueryRegKey(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
-			{
-				return Url;
-			}
-#endif
-			return FString();
-		}
-	};
-
-	static FString CachedValue = FServerUrlInitializer::Get();
-
-	OutHordeUrl = CachedValue;
-	return !OutHordeUrl.IsEmpty();
 }
 
 bool FDesktopPlatformBase::GetOidcAccessTokenInternal(const FString& RootDir, const FString& BaseArguments, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin)

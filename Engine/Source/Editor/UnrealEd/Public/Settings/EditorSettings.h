@@ -119,7 +119,7 @@ class UEditorSettings : public UObject
 	// =====================================================================
 
 	/** URL of the Horde server */
-	UPROPERTY(EditAnywhere, config, Category = "Horde", meta = (DisplayName = "Horde Server URL", ConfigRestartRequired = true))
+	UPROPERTY(EditAnywhere, Category = "Horde", meta = (DisplayName = "Horde Server URL", ConfigRestartRequired = true))
 	FString HordeUrl;
 
 	// =====================================================================

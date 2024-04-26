@@ -16,6 +16,8 @@
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/UnrealType.h"
+#include "IDesktopPlatform.h"
+#include "DesktopPlatformModule.h"
 
 UEditorSettings::UEditorSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -32,6 +34,12 @@ UEditorSettings::UEditorSettings(const FObjectInitializer& ObjectInitializer)
 	FPlatformMisc::GetStoredValue(TEXT("Epic Games"), TEXT("GlobalDataCachePath"), TEXT("UE-LocalDataCachePath"), GlobalLocalDDCPath.Path);
 	FPlatformMisc::GetStoredValue(TEXT("Epic Games"), TEXT("GlobalDataCachePath"), TEXT("UE-SharedDataCachePath"), GlobalSharedDDCPath.Path);
 	FPlatformMisc::GetStoredValue(TEXT("Epic Games"), TEXT("GlobalDataCachePath"), TEXT("UE-S3DataCachePath"), GlobalS3DDCPath.Path);
+
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::TryGet();
+	if (DesktopPlatform != nullptr)
+	{
+		DesktopPlatform->GetHordeUrl(HordeUrl);
+	}
 }
 
 bool UEditorSettings::CanEditChange(const FProperty* InProperty) const
@@ -109,6 +117,14 @@ void UEditorSettings::PostEditChangeProperty( struct FPropertyChangedEvent& Prop
 		else
 		{
 			FPlatformMisc::SetStoredValue(TEXT("Epic Games"), TEXT("GlobalDataCachePath"), TEXT("UE-S3DataCachePath"), GlobalS3DDCPath.Path);
+		}
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UEditorSettings, HordeUrl))
+	{
+		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::TryGet();
+		if (DesktopPlatform != nullptr)
+		{
+			DesktopPlatform->SetHordeUrl(HordeUrl);
 		}
 	}
 

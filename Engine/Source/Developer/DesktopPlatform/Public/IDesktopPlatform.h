@@ -486,12 +486,19 @@ public:
 	virtual bool GetOidcTokenStatus(const FString& RootDir, const FString& ProjectFileName, const FString& ProviderIdentifier, FFeedbackContext* Warn, int& OutStatus) = 0;
 
 	/**
-	* Get the URL of the configured Horde server.
+	* Get the URL of the configured Horde server for the current user account.
 	*
 	* @param OutHordeUrl        URL of the Horde server
 	* @return true if a valid URL is returned.
 	*/
 	virtual bool GetHordeUrl(FString& OutHordeUrl) = 0;
+
+	/**
+	* Set the URL of the configured Horde server for the current user account.
+	*
+	* @param HordeUrl        URL of the Horde server
+	*/
+	virtual void SetHordeUrl(const FString& HordeUrl) = 0;
 
 	/**
 	* Gets an access token for the given Horde Server.
@@ -505,12 +512,4 @@ public:
 	* @return true if the task completed successfully.
 	*/
 	virtual bool GetHordeAccessToken(const FString& HordeUrl, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin) = 0;
-
-	/**
-	* Get the URL of the configured Horde server for the system, ignoring the default editor settings.
-	*
-	* @param OutHordeUrl        URL of the Horde server
-	* @return true if a valid URL is returned.
-	*/
-	virtual bool GetDefaultHordeUrl(FString& OutHordeUrl) = 0;
 };
