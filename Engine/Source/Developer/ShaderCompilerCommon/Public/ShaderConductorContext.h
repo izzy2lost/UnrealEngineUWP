@@ -211,6 +211,7 @@ namespace CrossCompiler
 
 		/** Rewrites the specified HLSL shader source code. This allows to reduce the HLSL code by removing unused global resources for instance.
 		This will update the internally loaded source (see 'LoadSource'), so the output parameter 'OutSource' is optional. */
+		UE_DEPRECATED(5.5, "DXC rewriter has been deprecated since UE5.5. FShaderConductorContext::RewriteHlsl will be removed in future versions.")
 		bool RewriteHlsl(const FShaderConductorOptions& Options, FString* OutSource = nullptr);
 
         /** Compiles the specified HLSL shader source code to DXIL. */

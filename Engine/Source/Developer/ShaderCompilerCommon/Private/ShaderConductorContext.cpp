@@ -678,44 +678,7 @@ namespace CrossCompiler
 
 	bool FShaderConductorContext::RewriteHlsl(const FShaderConductorOptions& Options, FString* OutSource)
 	{
-		// Convert descriptors for ShaderConductor interface
-		ShaderConductor::Compiler::SourceDesc ScSourceDesc;
-		ConvertScSourceDesc(*Intermediates, ScSourceDesc);
-
-		ShaderConductor::Compiler::Options ScOptions;
-		constexpr bool bIgnoreExtraDxcArgs = true;
-		ConvertScOptions(*Intermediates, Options, ScOptions, bIgnoreExtraDxcArgs);
-
-		// Rewrite HLSL with wrapper function to catch exceptions from ShaderConductor
-		bool bSucceeded = false;
-		ShaderConductor::Compiler::ResultDesc ResultDesc;
-		ScRewriteWrapper(ScSourceDesc, ScOptions, ResultDesc);
-
-		if (!ResultDesc.hasError && ResultDesc.target.Size() > 1)
-		{
-			// Note: We don't want to include the '\0' included in the result string (thanks to DxcCreateBlob), hence the -1
-			check(reinterpret_cast<const ANSICHAR*>(ResultDesc.target.Data())[ResultDesc.target.Size() - 1] == '\0');
-			FAnsiStringView ResultView(reinterpret_cast<const ANSICHAR*>(ResultDesc.target.Data()), ResultDesc.target.Size() - 1);
-
-			// Copy rewritten HLSL code into intermediate source code.
-			Intermediates->ShaderSource.CopyAnsi(ResultView);
-
-			// Mark the internal shader source as intermediate code
-			Intermediates->bIsIntermediateCode = true;
-
-			// If output source is specified, also convert to TCHAR string
-			if (OutSource != nullptr)
-			{
-				OutSource->Empty();
-				OutSource->Append(ResultView);
-			}
-			bSucceeded = true;
-		}
-
-		// Append compile error and warning to output reports
-		ConvertScCompileErrors(ResultDesc.errorWarningMsg, Errors);
-
-		return bSucceeded;
+		return false; // DXC rewriter is no longer supported and this function has been deprecated since UE5.5
 	}
 
     bool FShaderConductorContext::CompileHlslToDxil(const FShaderConductorOptions& Options, TArray<uint32>& OutDxil)
