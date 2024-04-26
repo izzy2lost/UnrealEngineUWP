@@ -1,7 +1,5 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "MuCO/CustomizableObjectUIData.h"
 
 #include "MuCO/CustomizableObjectCustomVersion.h"
