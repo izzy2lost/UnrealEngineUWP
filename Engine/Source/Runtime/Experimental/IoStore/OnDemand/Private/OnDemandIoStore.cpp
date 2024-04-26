@@ -353,7 +353,7 @@ FOnDemandChunkInfo FOnDemandIoStore::GetChunkInfo(const FIoChunkId& ChunkId, EOn
 
 	for (FSharedOnDemandContainer& Container : Containers)
 	{
-		if (EnumHasAnyFlags(Container->Flags, EOnDemandContainerFlags::Mounted))
+		if (EnumHasAllFlags(Container->Flags, ContainerFlags))
 		{
 			if (const FOnDemandChunkEntry* Entry = Container->ChunkEntries.Find(ChunkId))
 			{
