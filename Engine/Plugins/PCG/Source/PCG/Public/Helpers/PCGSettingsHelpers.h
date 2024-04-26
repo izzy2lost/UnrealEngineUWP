@@ -2,9 +2,12 @@
 
 #pragma once
 
+#include "PCGComponent.h"
+#include "PCGContext.h"
 #include "PCGModule.h"
 #include "PCGParamData.h"
 #include "PCGSettings.h"
+#include "Data/PCGSpatialData.h"
 #include "Metadata/PCGMetadataAttributeTpl.h"
 #include "Metadata/PCGMetadataAttributeTraits.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
@@ -202,6 +205,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			return true;
 		});
+	}
+
+	inline const UPCGSpatialData* ComputeBoundingShape(const FPCGContext* Context, FName BoundingShapeLabel, bool& bOutUnionWasCreated)
+	{
+		const UPCGSpatialData* BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(BoundingShapeLabel, bOutUnionWasCreated);
+
+		// Fallback to getting bounds from actor
+		if (!BoundingShape && Context->SourceComponent.IsValid())
+		{
+			check(bOutUnionWasCreated == false);
+			BoundingShape = Cast<UPCGSpatialData>(Context->SourceComponent->GetActorPCGData());
+		}
+
+		return BoundingShape;
 	}
 
 	struct FPCGGetAllOverridableParamsConfig

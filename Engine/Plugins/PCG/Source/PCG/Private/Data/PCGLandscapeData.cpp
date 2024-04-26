@@ -6,9 +6,9 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialDataTpl.h"
 #include "Data/PCGSurfaceData.h"
-#include "Data/PCGWorldData.h"
 #include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGWorldQueryHelpers.h"
 
 #include "ChaosInterfaceWrapperCore.h"
 #include "Landscape.h"
@@ -106,7 +106,7 @@ void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>
 
 	if (DataProps.bGetPhysicalMaterial)
 	{
-		Metadata->CreateAttribute<FSoftObjectPath>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent*/false);
+		Metadata->CreateAttribute<FSoftObjectPath>(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent*/false);
 	}
 
 	if (DataProps.bGetComponentCoordinates)
@@ -415,7 +415,7 @@ bool UPCGLandscapeData::ProjectPoint(const FTransform& InTransform, const FBox& 
 
 	if (DataProps.bGetPhysicalMaterial && OutMetadata && LandscapeCollisionComponent)
 	{
-		if (FPCGMetadataAttribute<FSoftObjectPath>* PhysicalMaterialAttribute = OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute))
+		if (FPCGMetadataAttribute<FSoftObjectPath>* PhysicalMaterialAttribute = OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute))
 		{
 			if(UPhysicalMaterial* PhysicalMaterial = LandscapeCollisionComponent->GetPhysicalMaterial(static_cast<float>(ComponentLocalPoint.X), static_cast<float>(ComponentLocalPoint.Y), EHeightfieldSource::Complex))
 			{

@@ -4,6 +4,7 @@
 
 #include "PCGVolumeData.h"
 #include "PCGSurfaceData.h"
+#include "Helpers/PCGWorldQueryHelpers.h"
 
 #include "Engine/EngineTypes.h"
 
@@ -33,7 +34,8 @@ enum class EPCGWorldQuerySelectLandscapeHits : uint8
 
 namespace PCGWorldRayHitConstants
 {
-	const FName PhysicalMaterialReferenceAttribute = TEXT("PhysicalMaterial");
+	UE_DEPRECATED(5.5, "Please use 'PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute' instead.")
+	const FName PhysicalMaterialReferenceAttribute = PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute;
 }
 
 USTRUCT(BlueprintType)
@@ -46,10 +48,10 @@ struct FPCGWorldCommonQueryParams
 #endif
 
 	/** If true, will ignore hits/overlaps on content created from PCG. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Culling", meta = (PCG_Overridable))
 	bool bIgnorePCGHits = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Culling", meta = (PCG_Overridable))
 	bool bIgnoreSelfHits = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Advanced", meta = (PCG_Overridable))
@@ -73,8 +75,11 @@ struct FPCGWorldCommonQueryParams
 	bool bIgnoreLandscapeHits_DEPRECATED = false;
 #endif
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
 	bool bGetReferenceToActorHit = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
+	bool bGetReferenceToPhysicalMaterial = false;
 
 	// Not exposed, will be filled in when initializing this
 	UPROPERTY()
@@ -83,6 +88,36 @@ struct FPCGWorldCommonQueryParams
 protected:
 	/** Sets up the data we need to efficiently perform the queries */
 	void Initialize();
+};
+
+USTRUCT(BlueprintType)
+struct FPCGWorldRaycastQueryParams : public FPCGWorldCommonQueryParams
+{
+	GENERATED_BODY()
+
+	void Initialize();
+	void PostSerialize(const FArchive& Ar);
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Culling", meta = (PCG_Overridable))
+	bool bIgnoreBackfaceHits = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
+	bool bGetImpact = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
+	bool bGetDistance = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable))
+	bool bGetImpactNormal = false;
+};
+
+template<>
+struct TStructOpsTypeTraits<FPCGWorldRaycastQueryParams> : public TStructOpsTypeTraitsBase2<FPCGWorldRaycastQueryParams>
+{
+	enum
+	{
+		WithPostSerialize = true,
+	};
 };
 
 USTRUCT(BlueprintType)
@@ -100,6 +135,43 @@ struct FPCGWorldVolumetricQueryParams : public FPCGWorldCommonQueryParams
 
 template<>
 struct TStructOpsTypeTraits<FPCGWorldVolumetricQueryParams> : public TStructOpsTypeTraitsBase2<FPCGWorldVolumetricQueryParams>
+{
+	enum
+	{
+		WithPostSerialize = true,
+	};
+};
+
+USTRUCT(BlueprintType)
+struct FPCGWorldRayHitQueryParams : public FPCGWorldRaycastQueryParams
+{
+	GENERATED_BODY()
+
+	void Initialize();
+	void PostSerialize(const FArchive& Ar);
+
+	/** Set ray parameters including origin, direction and length explicitly rather than deriving these from the generating actor bounds. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (DisplayName = "Set Ray Parameters", PCG_Overridable))
+	bool bOverrideDefaultParams = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable, EditCondition = "bOverrideDefaultParams", EditConditionHides))
+	FVector RayOrigin = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable, EditCondition = "bOverrideDefaultParams", EditConditionHides))
+	FVector RayDirection = FVector(0.0, 0.0, -1.0);
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable, EditCondition = "bOverrideDefaultParams", EditConditionHides))
+	double RayLength = 1.0e+5; // 100m
+
+	// TODO: see in FCollisionQueryParams if there are some flags we want to expose
+	// examples: bReturnFaceIndex, bReturnPhysicalMaterial, some ignore patterns
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
+	bool bApplyMetadataFromLandscape = false;
+};
+
+template<>
+struct TStructOpsTypeTraits<FPCGWorldRayHitQueryParams> : public TStructOpsTypeTraitsBase2<FPCGWorldRayHitQueryParams>
 {
 	enum
 	{
@@ -140,49 +212,6 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (ShowOnlyInnerProperties))
 	FPCGWorldVolumetricQueryParams QueryParams;
-};
-
-USTRUCT(BlueprintType)
-struct FPCGWorldRayHitQueryParams : public FPCGWorldCommonQueryParams
-{
-	GENERATED_BODY()
-
-	void Initialize();
-	void PostSerialize(const FArchive& Ar);
-
-	/** Set ray parameters including origin, direction and length explicitly rather than deriving these from the generating actor bounds. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (DisplayName = "Set Ray Parameters", PCG_Overridable))
-	bool bOverrideDefaultParams = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable, EditCondition = "bOverrideDefaultParams", EditConditionHides))
-	FVector RayOrigin = FVector::ZeroVector;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable, EditCondition = "bOverrideDefaultParams", EditConditionHides))
-	FVector RayDirection = FVector(0.0, 0.0, -1.0);
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable, EditCondition = "bOverrideDefaultParams", EditConditionHides))
-	double RayLength = 1.0e+5; // 100m
-
-	// TODO: see in FCollisionQueryParams if there are some flags we want to expose
-	// examples: bReturnFaceIndex, bReturnPhysicalMaterial, some ignore patterns
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
-	bool bIgnoreBackfaceHits = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
-	bool bApplyMetadataFromLandscape = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
-	bool bGetReferenceToPhysicalMaterial = false;
-};
-
-template<>
-struct TStructOpsTypeTraits<FPCGWorldRayHitQueryParams> : public TStructOpsTypeTraitsBase2<FPCGWorldRayHitQueryParams>
-{
-	enum
-	{
-		WithPostSerialize = true,
-	};
 };
 
 /** Executes collision queries against world collision. */

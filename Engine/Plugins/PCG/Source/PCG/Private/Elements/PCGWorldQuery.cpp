@@ -8,6 +8,7 @@
 #include "Data/PCGPointData.h"
 #include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGWorldQueryHelpers.h"
 
 #include "GameFramework/Actor.h"
 #include "LandscapeProxy.h"
@@ -149,7 +150,7 @@ bool FPCGWorldRayHitQueryElement::ExecuteInternal(FPCGContext* Context) const
 
 	if (Data->QueryParams.bGetReferenceToPhysicalMaterial && Data->Metadata)
 	{
-		Data->Metadata->FindOrCreateAttribute(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
+		Data->Metadata->FindOrCreateAttribute(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
 	}
 	else
 	{

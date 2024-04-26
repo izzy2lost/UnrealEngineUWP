@@ -335,20 +335,6 @@ namespace PCGSurfaceSamplerHelpers
 	using ContextType = FPCGSurfaceSamplerElement::ContextType;
 	using ExecStateType = FPCGSurfaceSamplerElement::ExecStateType;
 
-	const UPCGSpatialData* FindBoundingShape(const FPCGContext* Context, bool& bOutUnionWasCreated)
-	{
-		const UPCGSpatialData* BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel, bOutUnionWasCreated);
-
-		// Fallback to getting bounds from actor
-		if (!BoundingShape && Context->SourceComponent.IsValid())
-		{
-			check(bOutUnionWasCreated == false);
-			BoundingShape = Cast<UPCGSpatialData>(Context->SourceComponent->GetActorPCGData());
-		}
-
-		return BoundingShape;
-	}
-
 	EPCGTimeSliceInitResult InitializePerExecutionData(ContextType* Context, ExecStateType& OutState)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::InitializePerExecutionData);
@@ -374,29 +360,27 @@ namespace PCGSurfaceSamplerHelpers
 		}
 
 		// Grab the Bounding Shape input if there is one.
-		const TArray<FPCGTaggedData> BoundingShapeInputs = Context->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel);
-		FBox& BoundingShapeBounds = OutState.BoundingShapeBounds;
 		if (!Settings->bUnbounded)
 		{
 			bool bUnionWasCreated;
-			OutState.BoundingShape = FindBoundingShape(Context, bUnionWasCreated);
-			if (OutState.BoundingShape && bUnionWasCreated)
-			{
-				Context->TrackObject(OutState.BoundingShape);
-			}
-
+			OutState.BoundingShape = PCGSettingsHelpers::ComputeBoundingShape(Context, PCGSurfaceSamplerConstants::BoundingShapeLabel, bUnionWasCreated);
 			if (OutState.BoundingShape)
 			{
-				BoundingShapeBounds = OutState.BoundingShape->GetBounds();
+				if (bUnionWasCreated)
+				{
+					Context->TrackObject(OutState.BoundingShape);
+				}
+
+				OutState.BoundingShapeBounds = OutState.BoundingShape->GetBounds();
 			}
 
-			if (!BoundingShapeBounds.IsValid)
+			if (!OutState.BoundingShapeBounds.IsValid)
 			{
 				// The bounding shape bounds is invalid, such as an empty intersection, so no operation will need to be performed.
 				return EPCGTimeSliceInitResult::NoOperation;
 			}
 		}
-		else if (BoundingShapeInputs.Num() > 0)
+		else if (Context->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel).Num() > 0)
 		{
 			PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("BoundsIgnored", "The bounds of the Bounding Shape input pin will be ignored because the Unbounded option is enabled."));
 		}
