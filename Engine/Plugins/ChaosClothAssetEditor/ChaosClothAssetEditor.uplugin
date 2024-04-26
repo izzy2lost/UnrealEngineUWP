@@ -67,17 +67,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "DatasmithImporter",
-			"Enabled": true
-		},
-		{
-			"Name": "DatasmithCloTranslator",
-			"Enabled": true,
-			"SupportedTargetPlatforms": [
-				"Win64"
-			]
-		},
-		{
 			"Name": "USDImporter",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [

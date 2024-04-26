@@ -13,7 +13,12 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
-		
+
+		PrivateIncludePathModuleNames.AddRange(
+			new string[] {
+				"DatasmithCore",  // Deprecated in 5.5 (remove in 5.7), for DatasmithCloth.h
+		});
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -27,13 +32,10 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"DataflowCore",
 				"DataflowEditor",
 				"DataflowEngine",
-				"DatasmithCore",
-				"DatasmithImporter",
 				"DesktopWidgets",  // For SFilePathPicker
 				"DetailCustomizations",
 				"DynamicMesh",
 				"Engine",
-				"ExternalSource",
 				"GeometryCore",
 				"InputCore",
 				"MeshConversion",

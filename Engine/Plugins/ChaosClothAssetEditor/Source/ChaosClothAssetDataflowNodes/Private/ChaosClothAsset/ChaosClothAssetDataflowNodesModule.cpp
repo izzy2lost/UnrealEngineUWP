@@ -160,9 +160,6 @@ namespace UE::Chaos::ClothAsset
 				PropertyModule->RegisterCustomPropertyTypeLayout(FChaosClothAssetImportedFloatValue::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FImportedValueCustomization::MakeInstance));
 				PropertyModule->RegisterCustomPropertyTypeLayout(FChaosClothAssetImportedIntValue::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FImportedValueCustomization::MakeInstance));
 			}
-
-			// Register modular features
-			FChaosClothAssetDatasmithImportNode::RegisterModularFeature();
 		}
 
 		virtual void ShutdownModule() override
@@ -189,9 +186,6 @@ namespace UE::Chaos::ClothAsset
 					PropertyModule->UnregisterCustomPropertyTypeLayout(FChaosClothAssetImportedIntValue::StaticStruct()->GetFName());
 				}
 			}
-
-			// Unregister modular features
-			FChaosClothAssetDatasmithImportNode::UnregisterModularFeature();
 		}
 	};
 }  // End namespace UE::Chaos::ClothAsset
