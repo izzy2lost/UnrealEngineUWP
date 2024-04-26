@@ -111,12 +111,20 @@ public:
 
 	void Unregister(const FRegisteredSchemaTranslatorHandle& TranslatorHandle);
 
+	int32 GetExternalSchemaTranslatorCount();
+
 protected:
 	FRegisteredSchemaTranslatorHandle Register(const FString& SchemaName, FCreateTranslator CreateFunction);
 
 	FSchemaTranslatorsStack* FindSchemaTranslatorStack(const FString& SchemaName);
 
 	TArray<TPair<FString, FSchemaTranslatorsStack>> RegisteredSchemaTranslators;
+
+private:
+	// Small machinery that lets us collect basic analytics about how many custom schema translators are being used in this session
+	friend class FUsdSchemasModule;
+	void ResetExternalTranslatorCount();
+	int32 ExternalSchemaTranslatorCount = 0;
 };
 
 class FRegisteredSchemaTranslator

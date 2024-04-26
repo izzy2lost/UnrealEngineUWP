@@ -2094,7 +2094,7 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 		UE::USDStageImporter::Private::SendAnalytics(ImportContext, nullptr, TEXT("Import"), PublishedAssetsAndDependencies, ElapsedSeconds);
 		UE_LOG(LogUsd, Log, TEXT("Imported '%s' in %.3f seconds."), *ImportContext.FilePath, ElapsedSeconds);
 
-		UsdUtils::CollectSchemaAnalytics(ImportContext.Stage, TEXT("Import"));
+		UsdUnreal::Analytics::CollectSchemaAnalytics(ImportContext.Stage, TEXT("Import"));
 	}
 
 	UE::USDStageImporter::Private::CloseStageIfNeeded(ImportContext);
@@ -2313,7 +2313,7 @@ bool UUsdStageImporter::ReimportSingleAsset(
 		UE::USDStageImporter::Private::SendAnalytics(ImportContext, ReimportedObject, TEXT("Reimport"), {ReimportedObject}, ElapsedSeconds);
 		UE_LOG(LogUsd, Log, TEXT("Re-imported '%s' in %.3f seconds."), *ImportContext.FilePath, ElapsedSeconds);
 
-		UsdUtils::CollectSchemaAnalytics(ImportContext.Stage, TEXT("Reimport"));
+		UsdUnreal::Analytics::CollectSchemaAnalytics(ImportContext.Stage, TEXT("Reimport"));
 	}
 
 	UE::USDStageImporter::Private::CloseStageIfNeeded(ImportContext);

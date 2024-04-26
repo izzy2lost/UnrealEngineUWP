@@ -569,5 +569,6 @@ namespace UsdUtils
 #endif	  // USE_USD_SDK
 
 	/** Collects how many times each schema shows up on the provided stage and send it as an analytics event */
+	UE_DEPRECATED(5.5, "This function has been moved to the USDSchemasModule")
 	USDUTILITIES_API void CollectSchemaAnalytics(const UE::FUsdStage& Stage, const FString& EventName);
 }	 // namespace UsdUtils

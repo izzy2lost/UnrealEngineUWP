@@ -106,6 +106,8 @@ FRegisteredSchemaTranslatorHandle FUsdSchemaTranslatorRegistry::Register(const F
 
 	SchemaTranslatorsStack->Push(RegisteredSchemaTranslator);
 
+	ExternalSchemaTranslatorCount++;
+
 	return RegisteredSchemaTranslator.Handle;
 #else
 	return FRegisteredSchemaTranslatorHandle();
@@ -130,6 +132,11 @@ void FUsdSchemaTranslatorRegistry::Unregister(const FRegisteredSchemaTranslatorH
 			break;
 		}
 	}
+}
+
+int32 FUsdSchemaTranslatorRegistry::GetExternalSchemaTranslatorCount()
+{
+	return ExternalSchemaTranslatorCount;
 }
 
 FUsdSchemaTranslationContext::FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache2& InAssetCache)
@@ -158,6 +165,11 @@ FUsdSchemaTranslatorRegistry::FSchemaTranslatorsStack* FUsdSchemaTranslatorRegis
 	{
 		return nullptr;
 	}
+}
+
+void FUsdSchemaTranslatorRegistry::ResetExternalTranslatorCount()
+{
+	ExternalSchemaTranslatorCount = 0;
 }
 
 void FUsdSchemaTranslationContext::CompleteTasks()
