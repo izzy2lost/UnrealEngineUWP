@@ -2,6 +2,8 @@
 
 #include "Components/WidgetComponent.h"
 #include "Engine/GameInstance.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "Materials/Material.h"
 #include "PrimitiveViewRelevance.h"
 #include "PrimitiveSceneProxy.h"
@@ -1712,6 +1714,14 @@ ULocalPlayer* UWidgetComponent::GetOwnerPlayer() const
 	if (OwnerPlayer)
 	{
 		return OwnerPlayer;
+	}
+
+	if (APawn* OwningPawn = Cast<APawn>(GetOwner()))
+	{
+		if (APlayerController* OwningController = Cast<APlayerController>(OwningPawn->GetController()))
+		{
+			return OwningController->GetLocalPlayer();
+		}
 	}
 	
 	if (UWorld* LocalWorld = GetWorld())
