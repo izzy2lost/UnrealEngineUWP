@@ -24,11 +24,18 @@
 
 #define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(Name) \
     SCOPED_NAMED_EVENT_TCHAR(Name, FColor::Green)
+
+// Uses cached Insights SpecId to avoid string lookup
+#define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_FAST(TraceSpecId, Name) \
+	FScopedNamedEvent ANONYMOUS_VARIABLE(NamedEvent_)(FColor::Green, Name);\
+	TRACE_CPUPROFILER_EVENT_SCOPE_USE(TraceSpecId, Name, PREPROCESSOR_JOIN(MetaSound_NamedEventScope_, __LINE__), true)
+
 #else
 // Metasound CPU profiler trace *not* enabled
 
 #define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Name)
 #define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(Name)
+#define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_FAST(TraceSpecId, Name)
 
 #endif
 
