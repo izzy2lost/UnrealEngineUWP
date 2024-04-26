@@ -1210,3 +1210,31 @@ template struct FGenericGeomPhysicsInterfaceUsingSpatialAcceleration<TACCEL, FPh
 
 DEFINE_GENERIC_GEOM_FOR_ACCEL(Chaos::IDefaultChaosSpatialAcceleration)
 DEFINE_GENERIC_GEOM_FOR_ACCEL(IExternalSpatialAcceleration)
+
+namespace Chaos::Private
+{
+	bool FGenericPhysicsInterface_Internal::SpherecastMulti(const UWorld* World, float QueryRadius, TArray<FHitResult>& OutHits, FVector Start, FVector End, ECollisionChannel TraceChannel, const FCollisionQueryParams& Params, const FCollisionResponseParams& ResponseParams, const FCollisionObjectQueryParams& ObjectParams)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_Collision_SceneQueryTotal);
+		SCOPE_CYCLE_COUNTER(STAT_Collision_SpherecastMultiple_Internal);
+		CSV_SCOPED_TIMING_STAT(SceneQuery, SpherecastMultiple_Internal);
+
+		Chaos::EnsureIsInPhysicsThreadContext();
+
+		if ((World == NULL) || (World->GetPhysicsScene() == NULL))
+		{
+			return false;
+		}
+
+		if (QueryRadius > UE_SMALL_NUMBER)
+		{
+			using PTTraits = TSQTraits<ChaosInterface::FPTSweepHit, ESweepOrRay::Sweep, ESingleMultiOrTest::Multi>;
+			return TSceneCastCommonImp<PTTraits, FGeomSQAdditionalInputs>(World, OutHits, FGeomSQAdditionalInputs(FCollisionShape::MakeSphere(QueryRadius), FQuat::Identity), Start, End, TraceChannel, Params, ResponseParams, ObjectParams, FDefaultAccelContainer{});
+		}
+		else
+		{
+			using PTTraits = TSQTraits<ChaosInterface::FPTRaycastHit, ESweepOrRay::Raycast, ESingleMultiOrTest::Multi>;
+			return TSceneCastCommonImp<PTTraits, FRaycastSQAdditionalInputs>(World, OutHits, FRaycastSQAdditionalInputs(), Start, End, TraceChannel, Params, ResponseParams, ObjectParams, FDefaultAccelContainer{});
+		}
+	};
+}

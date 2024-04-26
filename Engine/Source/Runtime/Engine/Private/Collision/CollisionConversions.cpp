@@ -16,6 +16,7 @@
 
 #include "PhysicsEngine/CollisionQueryFilterCallback.h"
 #include "Engine/ActorInstanceManagerInterface.h"
+#include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 
@@ -232,11 +233,24 @@ const FPhysicsShape* GetGTShape<false>(const FPhysicsShape* PTShape, const FPhys
 
 const FPhysicsActor* GetGTActor(const Chaos::FGeometryParticleHandle* PTActor)
 {
-	//TODO: need to pass in context so that in PT we always return null
-	//In frozen GT this is ok because object can't be unregistered while we're holding on to this
-	//On PT this is only true if we acquire a gt lock which is not great
-	auto Proxy = static_cast<const Chaos::FSingleParticlePhysicsProxy*>(PTActor->PhysicsProxy());
-	return Proxy->GetParticle_LowLevel();
+	const IPhysicsProxyBase* Proxy = PTActor->PhysicsProxy();
+	if (Proxy)
+	{
+		const EPhysicsProxyType ProxyType = Proxy->GetType();
+		switch (ProxyType)
+		{
+		case EPhysicsProxyType::ClusterUnionProxy:
+			return static_cast<const Chaos::FClusterUnionPhysicsProxy*>(Proxy)->GetParticle_External();
+		case EPhysicsProxyType::GeometryCollectionType:
+			return static_cast<const FGeometryCollectionPhysicsProxy*>(Proxy)->GetInitialRootParticle_External();
+		case EPhysicsProxyType::SingleParticleProxy:
+			return static_cast<const Chaos::FSingleParticlePhysicsProxy*>(Proxy)->GetParticle_LowLevel();
+		default:
+			break;
+		}
+	}
+
+	return nullptr;
 }
 
 template <typename THitLocation>
