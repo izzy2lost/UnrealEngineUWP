@@ -21,7 +21,11 @@
 #include "LevelEditor.h"
 #include "IAssetViewport.h"
 #include "MainFrameLog.h"
+#include "Editor/EditorPerProjectUserSettings.h"
+#include "Misc/MessageDialog.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+
+#define LOCTEXT_NAMESPACE "MainFrameHandler"
 
 const FText StaticGetApplicationTitle( const bool bIncludeGameName );
 
@@ -161,12 +165,24 @@ public:
 				}
 
 				// If there were packages to save, or switching project, then the user already had a chance to bail out of exiting.
-				if ( !bOkToExit && !bHadPackagesToSave && FUnrealEdMisc::Get().GetPendingProjectName().IsEmpty() )
+				const bool bPromptedForExit = bHadPackagesToSave || !FUnrealEdMisc::Get().GetPendingProjectName().IsEmpty();
+				if ( !bOkToExit && !bPromptedForExit )
 				{
 					FUnrealEdMisc::Get().ClearPendingProjectName();
 					FUnrealEdMisc::Get().AllowSavingLayoutOnClose(true);
 					FUnrealEdMisc::Get().ForceDeletePreferences(false);
 					FUnrealEdMisc::Get().ClearConfigRestoreFilenames();
+				}
+				else if (bOkToExit && !bPromptedForExit && GetDefault<UEditorPerProjectUserSettings>()->bConfirmEditorClose)
+				{
+					const EAppReturnType::Type Response = FMessageDialog::Open(
+						EAppMsgCategory::Info,
+						EAppMsgType::YesNo,
+						LOCTEXT("ConfirmClose", "Are you sure you want to close the Unreal Editor?"),
+						LOCTEXT("ConfirmCloseTitle", "Close Editor")
+					);
+
+					bOkToExit = (Response == EAppReturnType::Yes);
 				}
 			}
 			
@@ -256,3 +272,5 @@ private:
 	/** The window that all of the editor is parented to. */
 	TWeakPtr<SWindow> RootWindowPtr;
 };
+
+#undef LOCTEXT_NAMESPACE

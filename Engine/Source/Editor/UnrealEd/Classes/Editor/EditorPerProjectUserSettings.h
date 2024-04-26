@@ -95,6 +95,10 @@ class UEditorPerProjectUserSettings : public UObject
 	UPROPERTY(EditAnywhere, config, Category = Import)
 	uint32 bAnimationReimportWarnings: 1;
 
+	/** If enabled, you'll be asked to confirm if you really want to close the editor. */
+	UPROPERTY(EditAnywhere, Config, Category = Behavior)
+	uint32 bConfirmEditorClose: 1;
+
 	/** Select to make Distributions use the curves, not the baked lookup tables. */
 	UPROPERTY(config)
 	uint32 bUseCurvesForDistributions:1; //(GDistributionType == 0)
