@@ -7,11 +7,28 @@
 #include "MVVMViewClassExtension.generated.h"
 
 class UMVVMView;
-class UMVVMBlueprintViewExtension;
 class UUserWidget;
 
+class UMVVMViewExtension;
+class UMVVMViewClassExtension;
+
 /**
- * A runtime extension class to define MVVM-related properties and behaviour. This information comes from the
+ * A runtime extension class instance. This information is per instance of a UMVVMViewClassExtension
+ */
+UCLASS(MinimalAPI, Within=MVVMView)
+class UMVVMViewExtension : public UObject
+{
+	GENERATED_BODY()
+
+protected:
+	UMVVMView* GetView() const
+	{
+		return GetOuterUMVVMView();
+	}
+};
+
+/**
+ * A runtime extension class to define MVVM-related properties and behavior. This information comes from the
  * corresponding UMVVMBlueprintViewExtension class. This class provides a hook into the MVVM runtime initializations.
  */
 UCLASS(MinimalAPI)
@@ -21,12 +38,17 @@ class UMVVMViewClassExtension : public UObject
 
 public:
 	//~ Functions to be overriden in a user-defined UMVVMViewMyWidgetExtension class
-	virtual void OnViewConstructed(UUserWidget* UserWidget, UMVVMView* View) {};
-	virtual void OnSourcesInitialized(UUserWidget* UserWidget, UMVVMView* View) {};
-	virtual void OnBindingsInitialized(UUserWidget* UserWidget, UMVVMView* View) {};
-	virtual void OnEventsInitialized(UUserWidget* UserWidget, UMVVMView* View) {};
-	virtual void OnEventsUninitialized(UUserWidget* UserWidget, UMVVMView* View) {};
-	virtual void OnBindingsUninitialized(UUserWidget* UserWidget, UMVVMView* View) {};
-	virtual void OnSourcesUninitialized(UUserWidget* UserWidget, UMVVMView* View) {};
-	virtual void OnViewDestructed(UUserWidget* UserWidget, UMVVMView* View) {};
+
+	/** When the view is constructed. The class extension can create a view instance if needed or return nullptr. */
+	virtual UMVVMViewExtension* ViewConstructed(UUserWidget* UserWidget, UMVVMView* View)
+	{
+		return nullptr;
+	}
+	virtual void OnSourcesInitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) {};
+	virtual void OnBindingsInitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) {};
+	virtual void OnEventsInitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) {};
+	virtual void OnEventsUninitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) {};
+	virtual void OnBindingsUninitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) {};
+	virtual void OnSourcesUninitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) {};
+	virtual void OnViewDestructed(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) {};
 };

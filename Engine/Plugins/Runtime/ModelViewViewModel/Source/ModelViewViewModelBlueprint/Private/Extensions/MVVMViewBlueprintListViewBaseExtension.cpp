@@ -178,11 +178,11 @@ void UMVVMViewBlueprintListViewBaseExtension::Compile(UE::MVVM::Compiler::IMVVMB
 						if (const FMVVMBlueprintViewModelContext* ViewModelContext = EntryBPView->FindViewModel(EntryViewModelId))
 						{
 							// Create the corresponding runtime extension
-							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewListViewBaseExtension::StaticClass());
-							UMVVMViewListViewBaseExtension* NewExtension = CastChecked<UMVVMViewListViewBaseExtension>(NewExtensionObj);
+							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewListViewBaseClassExtension::StaticClass());
+							UMVVMViewListViewBaseClassExtension* NewExtension = CastChecked<UMVVMViewListViewBaseClassExtension>(NewExtensionObj);
 
 							const FName EntryViewModelName = ViewModelContext->GetViewModelName();
-							NewExtension->Initialize(UMVVMViewListViewBaseExtension::FInitListViewBaseExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue()));
+							NewExtension->Initialize(UMVVMViewListViewBaseClassExtension::FInitListViewBaseExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue()));
 						
 						}
 					}

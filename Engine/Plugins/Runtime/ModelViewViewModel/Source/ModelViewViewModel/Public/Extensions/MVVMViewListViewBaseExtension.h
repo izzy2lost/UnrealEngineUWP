@@ -4,6 +4,7 @@
 
 #include "Bindings/MVVMCompiledBindingLibrary.h"
 #include "MVVMViewClassExtension.h"
+#include "UObject/ObjectKey.h"
 #include "MVVMViewListViewBaseExtension.generated.h"
 
 class UListViewBase;
@@ -11,14 +12,14 @@ class UMVVMView;
 class UUserWidget;
 
 UCLASS()
-class MODELVIEWVIEWMODEL_API UMVVMViewListViewBaseExtension : public UMVVMViewClassExtension
+class MODELVIEWVIEWMODEL_API UMVVMViewListViewBaseClassExtension : public UMVVMViewClassExtension
 {
 	GENERATED_BODY()
 
 public:
 	//~ Begin UMVVMViewClassExtension overrides
-	virtual void OnSourcesInitialized(UUserWidget* UserWidget, UMVVMView* View) override;
-	virtual void OnSourcesUninitialized(UUserWidget* UserWidget, UMVVMView* View) override;
+	virtual void OnSourcesInitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) override;
+	virtual void OnSourcesUninitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) override;
 	//~ End UMVVMViewClassExtension overrides
 
 #if WITH_EDITOR
@@ -56,6 +57,5 @@ private:
 	UPROPERTY()
 	FMVVMVCompiledFieldPath WidgetPath;
 
-	UPROPERTY(Transient)
-	TWeakObjectPtr<UListViewBase> CachedListViewWidget;
+	TMap<FObjectKey, TWeakObjectPtr<UListViewBase>> CachedListViewWidgets;
 };
