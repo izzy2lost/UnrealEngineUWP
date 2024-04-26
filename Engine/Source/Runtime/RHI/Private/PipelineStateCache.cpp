@@ -3349,13 +3349,19 @@ void DumpPipelineCacheStats()
 static TMap<uint32, FRHIVertexDeclaration*> GVertexDeclarationCache;
 static FCriticalSection GVertexDeclarationLock;
 
-void PipelineStateCache::Shutdown()
+void PipelineStateCache::WaitForAllTasks()
 {
 	GComputePipelineCache.WaitTasksComplete();
 	GWorkGraphPipelineCache.WaitTasksComplete();
 	GGraphicsPipelineCache.WaitTasksComplete();
 	GPrecacheGraphicsPipelineCache.WaitTasksComplete();
 	GPrecacheComputePipelineCache.WaitTasksComplete();
+}
+
+void PipelineStateCache::Shutdown()
+{
+	WaitForAllTasks();
+
 #if RHI_RAYTRACING
 	GRayTracingPipelineCache.Shutdown();
 #endif

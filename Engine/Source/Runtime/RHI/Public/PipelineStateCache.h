@@ -134,6 +134,9 @@ namespace PipelineStateCache
 
 	extern RHI_API void ReportFrameHitchToCSV();
 
+	// Waits for any pending tasks to complete.
+	extern RHI_API void WaitForAllTasks();
+
 	/* Clears all pipeline cached state. Called on shutdown, calling GetAndOrCreate after this will recreate state */
 	extern RHI_API void Shutdown();
 

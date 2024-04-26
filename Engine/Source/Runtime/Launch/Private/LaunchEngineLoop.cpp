@@ -193,6 +193,7 @@
 	#include "DynamicResolutionState.h"
 	#include "EngineModule.h"
 	#include "DumpGPU.h"
+	#include "PSOPrecacheMaterial.h"
 	#include "VisualizeTexture.h"
 
 #if !UE_SERVER
@@ -5055,12 +5056,12 @@ void FEngineLoop::Exit()
 #endif // WITH_EDITOR
 	FModuleManager::Get().UnloadModule("WorldBrowser", true);
 
-	// Clean up all cached pipelines, before the garbage collector shuts down.
-	ENQUEUE_RENDER_COMMAND(ShutdownPipelineStateCache)([](FRHICommandListImmediate& RHICmdList)
-	{
-		PipelineStateCache::Shutdown();
-	});
-	FlushRenderingCommands();
+
+#if WITH_ENGINE	
+	// Reset any in progress PSO compile requests, reduces pipelinestatecache task wait time.
+	ClearMaterialPSORequests();
+#endif
+	PipelineStateCache::WaitForAllTasks();
 
 	AppPreExit();
 
