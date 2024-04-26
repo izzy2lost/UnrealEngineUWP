@@ -812,6 +812,15 @@ public:
 	 */
 	static CORE_API FString PrettyMemory( uint64 Memory );
 
+	/**
+	* Return true if the platform can allocate a lot more virtual memory than physical memory
+	* It's true for most platforms, but iOS needs a special entitlement and Linux a kernel config for this
+	*/
+	FORCEINLINE static bool CanOverallocateVirtualMemory()
+	{
+		return true;
+	}
+
 protected:
 	friend struct FGenericStatsUpdater;
 

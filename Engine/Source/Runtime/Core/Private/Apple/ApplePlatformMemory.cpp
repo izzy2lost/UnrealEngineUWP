@@ -307,8 +307,7 @@ void FApplePlatformMemory::SetAllocatorToUse()
     }
     if (USE_MALLOC_BINNED2)
     {
- #if PLATFORM_IOS || PLATFORM_TVOS
-        if(!FIOSPlatformMisc::IsEntitlementEnabled("com.apple.developer.kernel.extended-virtual-addressing"))
+        if(!CanOverallocateVirtualMemory())
         {
 			FPlatformMisc::LowLevelOutputDebugString(TEXT("MallocBinned2 requested but Virtual Address Space entitlement not found. Check your entitlements. Falling back to Ansi.\n"));
             AllocatorToUse = EMemoryAllocatorToUse::Ansi;
@@ -318,7 +317,6 @@ void FApplePlatformMemory::SetAllocatorToUse()
         {
 			FPlatformMisc::LowLevelOutputDebugString(TEXT("Virtual Address Space entitlement found. Using MallocBinned2 allocator.\n"));
         }
-#endif
 		FPlatformMisc::LowLevelOutputDebugString(TEXT("Using MallocBinned2 allocator.\n"));
         AllocatorToUse = EMemoryAllocatorToUse::Binned2;
         return;
@@ -850,6 +848,15 @@ bool FApplePlatformMemory::GetLLMAllocFunctions(void*_Nonnull(*_Nonnull&OutAlloc
 #else
     return false;
 #endif
+}
+
+static bool FApplePlatformMemory::CanOverallocateVirtualMemory()
+{
+#if PLATFORM_IOS || PLATFORM_TVOS
+	static bool bHasExtendedVirtualAddressingEntitlement = FIOSPlatformMisc::IsEntitlementEnabled("com.apple.developer.kernel.extended-virtual-addressing");
+	return bHasExtendedVirtualAddressingEntitlement;
+#endif
+	return true;	// 64 bit Mac process can allocate ~18 exabytes of addressable space
 }
 
 NS_ASSUME_NONNULL_END

@@ -151,6 +151,8 @@ struct CORE_API FApplePlatformMemory : public FGenericPlatformMemory
 	
 	/** Setup the current default CFAllocator to use our malloc functions. */
 	static void ConfigureDefaultCFAllocator(void);
+
+	static bool CanOverallocateVirtualMemory();
 	
 	static vm_address_t NanoRegionStart;
 	static vm_address_t NanoRegionEnd;
