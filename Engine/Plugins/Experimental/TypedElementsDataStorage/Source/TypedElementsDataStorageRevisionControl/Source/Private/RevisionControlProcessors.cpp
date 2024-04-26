@@ -53,7 +53,7 @@ TAutoConsoleVariable<bool> CVarEnableOverlayOpenForAdd(
 	TEXT("Enables overlays for files that are newly added."),
 	ECVF_Default);
 
-static int32 gOverlayAlpha = 51;
+static int32 gOverlayAlpha = 20; // [0..100]
 TAutoConsoleVariable<int32> CVarOverlayAlpha(
 	TEXT("SourceControl.Overlays.Alpha"),
 	gOverlayAlpha,
@@ -69,13 +69,16 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 	bool bSelected = ObjectContext.HasColumn<FTypedElementSelectionColumn>();
 	if (!bIgnored && !bSelected)
 	{
+		// Convert CVar value from [0..100] to [0..255] range.
+		int32 Alpha = FMath::Lerp<float>(0.f, 255.f, CVarOverlayAlpha.GetValueOnGameThread() / 100.f);
+
 		// Check if the package is outdated because there is a newer version available.
 		if (SCCContext.HasColumn<FSCCNotCurrentTag>())
 		{
 			if (CVarEnableOverlayNotAtHeadRevision.GetValueOnGameThread())
 			{
 				// Yellow.
-				return FColor(225, 255, 61, CVarOverlayAlpha.GetValueOnGameThread());
+				return FColor(225, 255, 61, Alpha);
 			}
 		}
 
@@ -85,7 +88,7 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 			if (CVarEnableOverlayCheckedOutByOtherUser.GetValueOnGameThread())
 			{
 				// Red.
-				return FColor(239, 53, 53, CVarOverlayAlpha.GetValueOnGameThread());
+				return FColor(239, 53, 53, Alpha);
 			}
 		}
 
@@ -99,7 +102,7 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 					if (StatusColumn->Modification == ESCCModification::Added)
 					{
 						// Blue.
-						return FColor(0, 112, 224, CVarOverlayAlpha.GetValueOnGameThread());
+						return FColor(0, 112, 224, Alpha);
 					}
 				}
 			}
@@ -111,7 +114,7 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 			if (CVarEnableOverlayCheckedOut.GetValueOnGameThread())
 			{
 				// Green.
-				return FColor(31, 228, 75, CVarOverlayAlpha.GetValueOnGameThread());
+				return FColor(31, 228, 75, Alpha);
 			}
 		}
 	}

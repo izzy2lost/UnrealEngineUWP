@@ -79,20 +79,18 @@ void SetFeedbackEnabled(FViewportClient* ViewportClient, ESourceControlStatus St
 
 uint8 GetFeedbackOpacity(FViewportClient* ViewportClient)
 {
-	uint8 Opacity = 128;
+	uint8 Opacity = 0;
 
 	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("SourceControl.Overlays.Alpha")); ensure(CVar))
 	{
 		Opacity = CVar->GetInt();
 	}
 
-	return FMath::Lerp<float>(0.f, 100.f, Opacity / 255.f);
+	return Opacity;
 }
 
 void SetFeedbackOpacity(FViewportClient* ViewportClient, uint8 Opacity)
 {
-	Opacity = FMath::Lerp<float>(0.f, 255.f, Opacity / 100.f);
-
 	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("SourceControl.Overlays.Alpha")); ensure(CVar))
 	{
 		CVar->Set(Opacity);
