@@ -126,7 +126,7 @@ LumenRadianceCache::FRadianceCacheInputs GetFinalGatherRadianceCacheInputs(const
 	}
 }
 
-extern int32 GLumenTranslucencyVolume;
+extern TAutoConsoleVariable<int32> CVarLumenTranslucencyVolume;
 extern int32 GLumenVisualizeTranslucencyVolumeRadianceCache;
 
 void FDeferredShadingSceneRenderer::RenderLumenRadianceCacheVisualization(FRDGBuilder& GraphBuilder, const FMinimalSceneTextures& SceneTextures)
@@ -138,7 +138,7 @@ void FDeferredShadingSceneRenderer::RenderLumenRadianceCacheVisualization(FRDGBu
 	if (Views.Num() == 1
 		&& View.ViewState
 		&& bAnyLumenActive
-		&& (LumenScreenProbeGather::UseRadianceCache() || (GLumenVisualizeTranslucencyVolumeRadianceCache && GLumenTranslucencyVolume))
+		&& (LumenScreenProbeGather::UseRadianceCache() || (GLumenVisualizeTranslucencyVolumeRadianceCache && CVarLumenTranslucencyVolume.GetValueOnRenderThread()))
 		&& GLumenRadianceCacheVisualize != 0)
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "VisualizeLumenRadianceCache");

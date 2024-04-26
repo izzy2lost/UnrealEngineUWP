@@ -26,106 +26,93 @@
 
 #endif
 
-int32 GLumenTranslucencyVolume = 1;
-FAutoConsoleVariableRef CVarLumenTranslucencyVolume(
+TAutoConsoleVariable<int32> CVarLumenTranslucencyVolume(
 	TEXT("r.Lumen.TranslucencyVolume.Enable"),
-	GLumenTranslucencyVolume,
+	1,
 	TEXT(""),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GLumenTranslucencyVolumeTraceFromVolume = 1;
-FAutoConsoleVariableRef CVarLumenTranslucencyVolumeTraceFromVolume(
+static TAutoConsoleVariable<int32> CVarLumenTranslucencyVolumeTraceFromVolume(
 	TEXT("r.Lumen.TranslucencyVolume.TraceFromVolume"),
-	GLumenTranslucencyVolumeTraceFromVolume,
+	1,
 	TEXT("Whether to ray trace from the translucency volume's voxels to gather indirect lighting.  Only makes sense to disable if TranslucencyVolume.RadianceCache is enabled."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyFroxelGridPixelSize = 32;
-FAutoConsoleVariableRef CVarTranslucencyFroxelGridPixelSize(
+static TAutoConsoleVariable<int32> CVarTranslucencyFroxelGridPixelSize(
 	TEXT("r.Lumen.TranslucencyVolume.GridPixelSize"),
-	GTranslucencyFroxelGridPixelSize,
+	32,
 	TEXT("Size of a cell in the translucency grid, in pixels."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GTranslucencyGridDistributionLogZScale = .01f;
-FAutoConsoleVariableRef CVarTranslucencyGridDistributionLogZScale(
+static TAutoConsoleVariable<float> CVarTranslucencyGridDistributionLogZScale(
 	TEXT("r.Lumen.TranslucencyVolume.GridDistributionLogZScale"),
-	GTranslucencyGridDistributionLogZScale,
+	.01f,
 	TEXT(""),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GTranslucencyGridDistributionLogZOffset = 1.0f;
-FAutoConsoleVariableRef CVarTranslucencyGridDistributionLogZOffset(
+static TAutoConsoleVariable<float> CVarTranslucencyGridDistributionLogZOffset(
 	TEXT("r.Lumen.TranslucencyVolume.GridDistributionLogZOffset"),
-	GTranslucencyGridDistributionLogZOffset,
+	1.0f,
 	TEXT(""),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GTranslucencyGridDistributionZScale = 4.0f;
-FAutoConsoleVariableRef CVarTranslucencyGridDistributionZScale(
+static TAutoConsoleVariable<float> CVarTranslucencyGridDistributionZScale(
 	TEXT("r.Lumen.TranslucencyVolume.GridDistributionZScale"),
-	GTranslucencyGridDistributionZScale,
+	4.0f,
 	TEXT(""),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GTranslucencyGridEndDistanceFromCamera = 8000;
-FAutoConsoleVariableRef CVarTranslucencyGridEndDistanceFromCamera(
+static TAutoConsoleVariable<float> CVarTranslucencyGridEndDistanceFromCamera(
 	TEXT("r.Lumen.TranslucencyVolume.EndDistanceFromCamera"),
-	GTranslucencyGridEndDistanceFromCamera,
+	8000.0f,
 	TEXT(""),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeSpatialFilter = 1;
-FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilter(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeSpatialFilter(
 	TEXT("r.Lumen.TranslucencyVolume.SpatialFilter"),
-	GTranslucencyVolumeSpatialFilter,
+	1,
 	TEXT("Whether to use a spatial filter on the volume traces."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-int32 GTranslucencyVolumeSpatialFilterSampleCount = 3;
-FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilterSampleCount(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeSpatialFilterSampleCount(
 	TEXT("r.Lumen.TranslucencyVolume.SpatialFilter.SampleCount"),
-	GTranslucencyVolumeSpatialFilterSampleCount,
+	3,
 	TEXT("When r.Lumen.TranslucencyVolume.SpatialFilter.Mode=1, this controls the effective sample count of the separable filter; that will be SampleCount*2+1. Default to a [-3,3] filter of 7 sample."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GTranslucencyVolumeSpatialFilterStandardDeviation = 5.0f; // default to not being a sharp filter
-FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilterStandardDeviation(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeSpatialFilterStandardDeviation(
 	TEXT("r.Lumen.TranslucencyVolume.SpatialFilter.StandardDeviation"),
-	GTranslucencyVolumeSpatialFilterStandardDeviation,
+	5.0f, // default to a flat filter
 	TEXT("When r.Lumen.TranslucencyVolume.SpatialFilter.Mode=1, The standard deviation of the Gaussian filter in Pixel. If a large value, the filter will become a cube filter. While when getting closer to 0, the filter will become a sharper Gaussian filter. Default to 5 meaning not a sharp flilter, close to a box filter for the default SampleCount of 3."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeTemporalReprojection = 1;
-FAutoConsoleVariableRef CVarTranslucencyVolumeTemporalReprojection(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeTemporalReprojection(
 	TEXT("r.Lumen.TranslucencyVolume.TemporalReprojection"),
-	GTranslucencyVolumeTemporalReprojection,
+	1,
 	TEXT("Whether to use temporal reprojection."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-int32 GTranslucencyVolumeJitter = 1;
-FAutoConsoleVariableRef CVarTranslucencyVolumeJitter(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeJitter(
 	TEXT("r.Lumen.TranslucencyVolume.Temporal.Jitter"),
-	GTranslucencyVolumeJitter,
+	1,
 	TEXT("Whether to apply jitter to each frame's translucency GI computation, achieving temporal super sampling."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-float GTranslucencyVolumeHistoryWeight = .9f;
-FAutoConsoleVariableRef CVarTranslucencyVolumeHistoryWeight(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeHistoryWeight(
 	TEXT("r.Lumen.TranslucencyVolume.Temporal.HistoryWeight"),
-	GTranslucencyVolumeHistoryWeight,
+	0.9,
 	TEXT("How much the history value should be weighted each frame.  This is a tradeoff between visible jittering and responsiveness."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
@@ -136,90 +123,79 @@ TAutoConsoleVariable<int32> CVarLumenTranslucencyVolumeTemporalMaxRayDirections(
 	TEXT("Number of possible random directions from froxel center when sampling the lumen scene."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
-float GTranslucencyVolumeTraceStepFactor = 2;
-FAutoConsoleVariableRef CVarTranslucencyVolumeTraceStepFactor(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeTraceStepFactor(
 	TEXT("r.Lumen.TranslucencyVolume.TraceStepFactor"),
-	GTranslucencyVolumeTraceStepFactor,
+	2,
 	TEXT("."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-int32 GTranslucencyVolumeTracingOctahedronResolution = 3;
-FAutoConsoleVariableRef CVarTranslucencyVolumeTracingOctahedronResolution(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeTracingOctahedronResolution(
 	TEXT("r.Lumen.TranslucencyVolume.TracingOctahedronResolution"),
-	GTranslucencyVolumeTracingOctahedronResolution,
+	3,
 	TEXT("Resolution of the tracing octahedron.  Determines how many traces are done per voxel of the translucency lighting volume."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GTranslucencyVolumeVoxelTraceStartDistanceScale = 1.0f;
-FAutoConsoleVariableRef CVarTranslucencyVoxelTraceStartDistanceScale(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeVoxelTraceStartDistanceScale(
 	TEXT("r.Lumen.TranslucencyVolume.VoxelTraceStartDistanceScale"),
-	GTranslucencyVolumeVoxelTraceStartDistanceScale,
+	1.0f,
 	TEXT("."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-float GTranslucencyVolumeMaxRayIntensity = 20.0f;
-FAutoConsoleVariableRef CVarTranslucencyVolumeMaxRayIntensity(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeMaxRayIntensity(
 	TEXT("r.Lumen.TranslucencyVolume.MaxRayIntensity"),
-	GTranslucencyVolumeMaxRayIntensity,
+	20.0f,
 	TEXT("."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-int32 GLumenTranslucencyVolumeRadianceCache = 1;
-FAutoConsoleVariableRef CVarLumenTranslucencyVolumeRadianceCache(
+static TAutoConsoleVariable<int32> CVarLumenTranslucencyVolumeRadianceCache(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache"),
-	GLumenTranslucencyVolumeRadianceCache,
+	1,
 	TEXT("Whether to use the Radiance Cache for Translucency"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-int32 GTranslucencyVolumeRadianceCacheNumMipmaps = 3;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheNumMipmaps(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheNumMipmaps(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.NumMipmaps"),
-	GTranslucencyVolumeRadianceCacheNumMipmaps,
+	3,
 	TEXT("Number of radiance cache mipmaps."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent = 2500.0f;
-FAutoConsoleVariableRef CVarLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent(
+static TAutoConsoleVariable<float> CVarLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.ClipmapWorldExtent"),
-	GLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent,
+	2500.0f,
 	TEXT("World space extent of the first clipmap"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase = 2.0f;
-FAutoConsoleVariableRef CVarLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase(
+static TAutoConsoleVariable<float> CVarLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.ClipmapDistributionBase"),
-	GLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase,
+	2.0f,
 	TEXT("Base of the Pow() that controls the size of each successive clipmap relative to the first."),
 	ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheNumProbesToTraceBudget = 200;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheNumProbesToTraceBudget(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheNumProbesToTraceBudget(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.NumProbesToTraceBudget"),
-	GTranslucencyVolumeRadianceCacheNumProbesToTraceBudget,
+	200,
 	TEXT(""),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheGridResolution = 24;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheResolution(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheGridResolution(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.GridResolution"),
-	GTranslucencyVolumeRadianceCacheGridResolution,
+	24,
 	TEXT("Resolution of the probe placement grid within each clipmap"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheProbeResolution = 8;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheProbeResolution(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheProbeResolution(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.ProbeResolution"),
-	GTranslucencyVolumeRadianceCacheProbeResolution,
+	8,
 	TEXT("Resolution of the probe's 2d radiance layout.  The number of rays traced for the probe will be ProbeResolution ^ 2"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
@@ -231,90 +207,79 @@ static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheProbeAtlas
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GTranslucencyVolumeRadianceCacheReprojectionRadiusScale = 10.0f;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheProbeReprojectionRadiusScale(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeRadianceCacheReprojectionRadiusScale(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.ReprojectionRadiusScale"),
-	GTranslucencyVolumeRadianceCacheReprojectionRadiusScale,
+	10.0f,
 	TEXT(""),
 	ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheFarField = 0;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFarField(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheFarField(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FarField"),
-	GTranslucencyVolumeRadianceCacheFarField,
+	0,
 	TEXT("Whether to trace against the FarField representation"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheStats = 0;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheStats(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheStats(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.Stats"),
-	GTranslucencyVolumeRadianceCacheStats,
+	0,
 	TEXT("GPU print out Radiance Cache update stats."),
 	ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheFrustumProbes = 0;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbes(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheFrustumProbes(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes"),
-	GTranslucencyVolumeRadianceCacheFrustumProbes,
+	0,
 	TEXT("Enable the use of probes generated on view fruxtum froxels as radiance cache, instead of using a worls space radiance cache."),
 	ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheFrustumProbesLowResProbeResolution = 6;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumLowResProbesProbeResolution(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheFrustumLowResProbesProbeResolution(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.LowResProbeResolution"),
-	GTranslucencyVolumeRadianceCacheFrustumProbesLowResProbeResolution,
+	6,
 	TEXT("Low resolution probes a re used to initialise the frustrum probes on camera cut or if temporal reprojection cannot happen. This is a warm up resolution before reprojection + temporal update happen. The number of rays traced for the probe will be ProbeResolution ^ 2. Must be within [4, 8]."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
-int32 GTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution = 16;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.ProbeResolution"),
-	GTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution,
+	16,
 	TEXT("Resolution of the frustum probes's 2d radiance layout.  The number of rays traced for the probe will be ProbeResolution ^ 2. Must be within [4, 64]."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
-int32 GTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize = 4;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.FroxelSize"),
-	GTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize,
+	4,
 	TEXT("Size of a frustum probes in the translucency froxel grid, in froxel."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
-int32 GTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame = 2;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.RefineTracePerFrame"),
-	GTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame,
+	2,
 	TEXT("Size of a frustum probes in the translucency froxel grid, in froxel. Must be within [1, 8]."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
-int32 GTranslucencyVolumeRadianceCacheFrustumProbesDebug = 0;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheFrustumProbesDebug(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheFrustumProbesDebug(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.FrustumProbes.Debug"),
-	GTranslucencyVolumeRadianceCacheFrustumProbesDebug,
+	0,
 	TEXT("Print debug information about the trace frustum probe froxel."),
 	ECVF_RenderThreadSafe
 );
 
-float GTranslucencyVolumeGridCenterOffsetFromDepthBuffer = 0.5f;
-FAutoConsoleVariableRef CVarTranslucencyVolumeGridCenterOffsetFromDepthBuffer(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeGridCenterOffsetFromDepthBuffer(
 	TEXT("r.Lumen.TranslucencyVolume.GridCenterOffsetFromDepthBuffer"),
-	GTranslucencyVolumeGridCenterOffsetFromDepthBuffer,
+	0.5f,
 	TEXT("Offset in grid units to move grid center sample out form the depth buffer along the Z direction. -1 means disabled. This reduces sample self intersection with geometry when tracing the global distance field buffer, and thus reduces flickering in those areas, as well as results in less leaking sometimes. Set to -1 to disable."),
 	ECVF_RenderThreadSafe
 );
 
-float GTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset = 1.0f;
-FAutoConsoleVariableRef CVarTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset(
+static TAutoConsoleVariable<float> CVarTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset(
 	TEXT("r.Lumen.TranslucencyVolume.OffsetThresholdToAcceptDepthBufferOffset"),
-	GTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset,
+	1.0f,
 	TEXT("Offset in grid units to accept a sample to be moved forward in front of the depth buffer. This is to avoid moving all samples behind the depth buffer forward which would affect the lighting of translucent and volumetric at edges of mesh. Default to 1.0 to only allow moving the first layer of froxel intersecting depth."),
 	ECVF_RenderThreadSafe
 );
@@ -328,7 +293,7 @@ namespace LumenTranslucencyVolume
 		// Ideally we'd use LumenSceneViewDistance directly, but direct shadowing via translucency lighting volume only covers 5000.0f units by default (r.TranslucencyLightingVolumeOuterDistance), 
 		//		so there isn't much point covering beyond that.  
 		const float ViewDistanceScale = FMath::Clamp(View.FinalPostProcessSettings.LumenSceneViewDistance / 20000.0f, .1f, 100.0f);
-		return FMath::Clamp<float>(GTranslucencyGridEndDistanceFromCamera * ViewDistanceScale, 1.0f, 100000.0f);
+		return FMath::Clamp<float>(CVarTranslucencyGridEndDistanceFromCamera.GetValueOnRenderThread() * ViewDistanceScale, 1.0f, 100000.0f);
 	}
 }
 
@@ -340,7 +305,7 @@ namespace LumenTranslucencyVolumeRadianceCache
 
 		for (; ClipmapIndex < LumenRadianceCache::MaxClipmaps; ++ClipmapIndex)
 		{
-			const float ClipmapExtent = GLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent * FMath::Pow(GLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase, ClipmapIndex);
+			const float ClipmapExtent = CVarLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent.GetValueOnRenderThread() * FMath::Pow(CVarLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase.GetValueOnRenderThread(), ClipmapIndex);
 
 			if (ClipmapExtent > DistanceToCover)
 			{
@@ -353,18 +318,18 @@ namespace LumenTranslucencyVolumeRadianceCache
 
 	int32 GetClipmapGridResolution()
 	{
-		const int32 GridResolution = GTranslucencyVolumeRadianceCacheGridResolution;
+		const int32 GridResolution = CVarTranslucencyVolumeRadianceCacheGridResolution.GetValueOnRenderThread();
 		return FMath::Clamp(GridResolution, 1, 256);
 	}
 
 	int32 GetProbeResolution()
 	{
-		return GTranslucencyVolumeRadianceCacheProbeResolution;
+		return CVarTranslucencyVolumeRadianceCacheProbeResolution.GetValueOnRenderThread();
 	}
 
 	int32 GetNumMipmaps()
 	{
-		return GTranslucencyVolumeRadianceCacheNumMipmaps;
+		return CVarTranslucencyVolumeRadianceCacheNumMipmaps.GetValueOnRenderThread();
 	}
 
 	int32 GetFinalProbeResolution()
@@ -380,9 +345,9 @@ namespace LumenTranslucencyVolumeRadianceCache
 	LumenRadianceCache::FRadianceCacheInputs SetupRadianceCacheInputs(const FViewInfo& View)
 	{
 		LumenRadianceCache::FRadianceCacheInputs Parameters = LumenRadianceCache::GetDefaultRadianceCacheInputs();
-		Parameters.ReprojectionRadiusScale = GTranslucencyVolumeRadianceCacheReprojectionRadiusScale;
-		Parameters.ClipmapWorldExtent = GLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent;
-		Parameters.ClipmapDistributionBase = GLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase;
+		Parameters.ReprojectionRadiusScale = CVarTranslucencyVolumeRadianceCacheReprojectionRadiusScale.GetValueOnRenderThread();
+		Parameters.ClipmapWorldExtent = CVarLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent.GetValueOnRenderThread();
+		Parameters.ClipmapDistributionBase = CVarLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase.GetValueOnRenderThread();
 		Parameters.RadianceProbeClipmapResolution = GetClipmapGridResolution();
 		Parameters.ProbeAtlasResolutionInProbes = FIntPoint(GetProbeAtlasResolutionInProbes(), GetProbeAtlasResolutionInProbes());
 		Parameters.NumRadianceProbeClipmaps = GetNumClipmaps(LumenTranslucencyVolume::GetEndDistanceFromCamera(View));
@@ -390,15 +355,15 @@ namespace LumenTranslucencyVolumeRadianceCache
 		Parameters.FinalProbeResolution = GetFinalProbeResolution();
 		Parameters.FinalRadianceAtlasMaxMip = GetNumMipmaps() - 1;
 		const float TraceBudgetScale = View.Family->bCurrentlyBeingEdited ? 10.0f : 1.0f;
-		Parameters.NumProbesToTraceBudget = GTranslucencyVolumeRadianceCacheNumProbesToTraceBudget * TraceBudgetScale;
-		Parameters.RadianceCacheStats = GTranslucencyVolumeRadianceCacheStats;
+		Parameters.NumProbesToTraceBudget = CVarTranslucencyVolumeRadianceCacheNumProbesToTraceBudget.GetValueOnRenderThread() * TraceBudgetScale;
+		Parameters.RadianceCacheStats = CVarTranslucencyVolumeRadianceCacheStats.GetValueOnRenderThread();
 		return Parameters;
 	}
 };
 
 static bool GetVolumeRadianceCacheFrustumProbes()
 {
-	return GTranslucencyVolumeRadianceCacheFrustumProbes > 0;
+	return CVarTranslucencyVolumeRadianceCacheFrustumProbes.GetValueOnRenderThread() > 0;
 }
 
 const static uint32 MaxTranslucencyVolumeConeDirections = 64;
@@ -472,8 +437,8 @@ FLumenTranslucencyLightingParameters GetLumenTranslucencyLightingParameters(
 
 void GetTranslucencyGridZParams(float NearPlane, float FarPlane, FVector& OutZParams, int32& OutGridSizeZ)
 {
-	OutGridSizeZ = FMath::TruncToInt(FMath::Log2((FarPlane - NearPlane) * GTranslucencyGridDistributionLogZScale) * GTranslucencyGridDistributionZScale) + 1;
-	OutZParams = FVector(GTranslucencyGridDistributionLogZScale, GTranslucencyGridDistributionLogZOffset, GTranslucencyGridDistributionZScale);
+	OutGridSizeZ = FMath::TruncToInt(FMath::Log2((FarPlane - NearPlane) * CVarTranslucencyGridDistributionLogZScale.GetValueOnRenderThread()) * CVarTranslucencyGridDistributionZScale.GetValueOnRenderThread()) + 1;
+	OutZParams = FVector(CVarTranslucencyGridDistributionLogZScale.GetValueOnRenderThread(), CVarTranslucencyGridDistributionLogZOffset.GetValueOnRenderThread(), CVarTranslucencyGridDistributionZScale.GetValueOnRenderThread());
 }
 
 FVector TranslucencyVolumeTemporalRandom(uint32 FrameNumber)
@@ -481,7 +446,7 @@ FVector TranslucencyVolumeTemporalRandom(uint32 FrameNumber)
 	// Center of the voxel
 	FVector RandomOffsetValue(.5f, .5f, .5f);
 
-	if (GTranslucencyVolumeJitter)
+	if (CVarTranslucencyVolumeJitter.GetValueOnRenderThread())
 	{
 		RandomOffsetValue = FVector(Halton(FrameNumber & 1023, 2), Halton(FrameNumber & 1023, 3), Halton(FrameNumber & 1023, 5));
 	}
@@ -974,7 +939,7 @@ IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeIntegrateCS, "/Engine/Private/Lumen/L
 
 FLumenTranslucencyLightingVolumeParameters GetTranslucencyLightingVolumeParameters(const FViewInfo& View)
 {
-	const int32 TranslucencyFroxelGridPixelSize = FMath::Max(1, GTranslucencyFroxelGridPixelSize);
+	const int32 TranslucencyFroxelGridPixelSize = FMath::Max(1, CVarTranslucencyFroxelGridPixelSize.GetValueOnRenderThread());
 	const FIntPoint GridSizeXY = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), TranslucencyFroxelGridPixelSize);
 	const float FarPlane = LumenTranslucencyVolume::GetEndDistanceFromCamera(View);
 	const uint32 ViewStateFrameIndex = View.ViewState ? View.ViewState->GetFrameIndex() : 0;
@@ -992,23 +957,23 @@ FLumenTranslucencyLightingVolumeParameters GetTranslucencyLightingVolumeParamete
 
 	Parameters.FrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(ViewStateFrameIndex);
 	Parameters.UnjitteredClipToTranslatedWorld = FMatrix44f(View.ViewMatrices.ComputeInvProjectionNoAAMatrix() * View.ViewMatrices.GetTranslatedViewMatrix().GetTransposed());		// LWC_TODO: Precision loss?
-	Parameters.GridCenterOffsetFromDepthBuffer = GTranslucencyVolumeGridCenterOffsetFromDepthBuffer;
-	Parameters.GridCenterOffsetThresholdToAcceptDepthBufferOffset = FMath::Max(0, GTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset);
-	Parameters.FroxelDirectionJitterFrameIndex = GTranslucencyVolumeJitter ? int32(ViewStateFrameIndex % FMath::Max(1, CVarLumenTranslucencyVolumeTemporalMaxRayDirections.GetValueOnRenderThread())) : -1;
+	Parameters.GridCenterOffsetFromDepthBuffer = CVarTranslucencyVolumeGridCenterOffsetFromDepthBuffer.GetValueOnRenderThread();
+	Parameters.GridCenterOffsetThresholdToAcceptDepthBufferOffset = FMath::Max(0, CVarTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset.GetValueOnRenderThread());
+	Parameters.FroxelDirectionJitterFrameIndex = CVarTranslucencyVolumeJitter.GetValueOnRenderThread() ? int32(ViewStateFrameIndex % FMath::Max(1, CVarLumenTranslucencyVolumeTemporalMaxRayDirections.GetValueOnRenderThread())) : -1;
 
 	Parameters.BlueNoise = CreateUniformBufferImmediate(GetBlueNoiseGlobalParameters(), EUniformBufferUsage::UniformBuffer_SingleDraw);
 		
-	Parameters.TranslucencyVolumeTracingOctahedronResolution = GTranslucencyVolumeTracingOctahedronResolution;
+	Parameters.TranslucencyVolumeTracingOctahedronResolution = CVarTranslucencyVolumeTracingOctahedronResolution.GetValueOnRenderThread();
 
 	// Froxel probes
-	Parameters.TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution = FMath::Clamp(GTranslucencyVolumeRadianceCacheFrustumProbesLowResProbeResolution, 2, 8);
-	Parameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution = FMath::Clamp(GTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution, 4, 64);
-	const uint32 FrustomProbeFroxelSize = FMath::Max(1u, (uint32)GTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize);
+	Parameters.TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution = FMath::Clamp(CVarTranslucencyVolumeRadianceCacheFrustumLowResProbesProbeResolution.GetValueOnRenderThread(), 2, 8);
+	Parameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution = FMath::Clamp(CVarTranslucencyVolumeRadianceCacheFrustumProbesProbeResolution.GetValueOnRenderThread(), 4, 64);
+	const uint32 FrustomProbeFroxelSize = FMath::Max(1u, (uint32)CVarTranslucencyVolumeRadianceCacheFrustumProbesFroxelSize.GetValueOnRenderThread());
 	Parameters.TranslucencyVolumeTracingFroxelProbesFroxelSize = FUintVector(FrustomProbeFroxelSize, FrustomProbeFroxelSize, 1u); // No reduction of probe placement along depth
 	Parameters.TranslucencyVolumeTracingFroxelProbesGridSize = FUintVector::DivideAndRoundUp(FUintVector(TranslucencyGridSize), Parameters.TranslucencyVolumeTracingFroxelProbesFroxelSize);
 	Parameters.TranslucencyVolumeTracingFroxelProbePixelSizeShift = FMath::FloorLog2(TranslucencyFroxelGridPixelSize * FrustomProbeFroxelSize);
 	Parameters.TranslucencyVolumeTracingFroxelProbeHZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(TranslucencyFroxelGridPixelSize * FrustomProbeFroxelSize) - 1, 0.0f);
-	Parameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame = FMath::Clamp(GTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame, 1, 8);
+	Parameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame = FMath::Clamp(CVarTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame.GetValueOnRenderThread(), 1, 8);
 	
 	Parameters.FurthestHZBTexture = View.HZB;
 	Parameters.HZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(TranslucencyFroxelGridPixelSize) - 1, 0.0f);
@@ -1071,7 +1036,7 @@ void TraceVoxelsTranslucencyVolume(
 
 	PassParameters->SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;
 
-	const bool bTraceFromVolume = GLumenTranslucencyVolumeTraceFromVolume != 0;
+	const bool bTraceFromVolume = CVarLumenTranslucencyVolumeTraceFromVolume.GetValueOnRenderThread() != 0;
 
 	FTranslucencyVolumeTraceVoxelsCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FDynamicSkyLight>(bDynamicSkyLight);
@@ -1082,9 +1047,10 @@ void TraceVoxelsTranslucencyVolume(
 
 	const FIntVector GroupSize = FComputeShaderUtils::GetGroupCount(VolumeTraceRadiance->Desc.GetSize(), FTranslucencyVolumeTraceVoxelsCS::GetGroupSize());
 
+	const int32 TranslucencyVolumeTracingOctahedronResolution= CVarTranslucencyVolumeTracingOctahedronResolution.GetValueOnRenderThread();
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("%s %ux%u", bTraceFromVolume ? TEXT("TraceVoxels") : TEXT("RadianceCacheInterpolate"), GTranslucencyVolumeTracingOctahedronResolution, GTranslucencyVolumeTracingOctahedronResolution),
+		RDG_EVENT_NAME("%s %ux%u", bTraceFromVolume ? TEXT("TraceVoxels") : TEXT("RadianceCacheInterpolate"), TranslucencyVolumeTracingOctahedronResolution, TranslucencyVolumeTracingOctahedronResolution),
 		ComputePassFlags,
 		ComputeShader,
 		PassParameters,
@@ -1165,11 +1131,11 @@ LumenRadianceCache::FUpdateInputs FDeferredShadingSceneRenderer::GetLumenTranslu
 	const LumenRadianceCache::FRadianceCacheInputs RadianceCacheInputs = LumenTranslucencyVolumeRadianceCache::SetupRadianceCacheInputs(View);
 
 	FRadianceCacheConfiguration Configuration;
-	Configuration.bFarField = GTranslucencyVolumeRadianceCacheFarField != 0;
+	Configuration.bFarField = CVarTranslucencyVolumeRadianceCacheFarField.GetValueOnRenderThread() != 0;
 
 	FMarkUsedRadianceCacheProbes MarkUsedRadianceCacheProbesCallbacks;
 
-	if (GLumenTranslucencyVolume && GLumenTranslucencyVolumeRadianceCache 
+	if (CVarLumenTranslucencyVolume.GetValueOnRenderThread() && CVarLumenTranslucencyVolumeRadianceCache.GetValueOnRenderThread()
 		&& !GetVolumeRadianceCacheFrustumProbes()) // no need to request radiance cache if we use froxel probes.
 	{
 		MarkUsedRadianceCacheProbesCallbacks.AddLambda([VolumeParameters, ComputePassFlags](
@@ -1232,13 +1198,13 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 	ERDGPassFlags ComputePassFlags)
 {
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LumenTranslucencyVolumeLighting);
-	if (GLumenTranslucencyVolume)
+	if (CVarLumenTranslucencyVolume.GetValueOnRenderThread())
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "TranslucencyVolumeLighting");
 
 		const FMatrix44f UnjitteredPrevWorldToClip = FMatrix44f(View.PrevViewInfo.ViewMatrices.GetViewMatrix() * View.PrevViewInfo.ViewMatrices.ComputeProjectionNoAAMatrix());		// LWC_TODO: Precision loss?
 
-		if (GLumenTranslucencyVolumeRadianceCache && !RadianceCacheParameters.RadianceProbeIndirectionTexture)
+		if (CVarLumenTranslucencyVolumeRadianceCache.GetValueOnRenderThread() && !RadianceCacheParameters.RadianceProbeIndirectionTexture)
 		{
 			LumenRadianceCache::TInlineArray<LumenRadianceCache::FUpdateInputs> InputArray;
 			LumenRadianceCache::TInlineArray<LumenRadianceCache::FUpdateOutputs> OutputArray;
@@ -1277,15 +1243,15 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 
 			FLumenTranslucencyLightingVolumeTraceSetupParameters TraceSetupParameters;
 			{
-				TraceSetupParameters.StepFactor = FMath::Clamp(GTranslucencyVolumeTraceStepFactor, .1f, 10.0f);
+				TraceSetupParameters.StepFactor = FMath::Clamp(CVarTranslucencyVolumeTraceStepFactor.GetValueOnRenderThread(), .1f, 10.0f);
 				TraceSetupParameters.MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
-				TraceSetupParameters.VoxelTraceStartDistanceScale = GTranslucencyVolumeVoxelTraceStartDistanceScale;
-				TraceSetupParameters.MaxRayIntensity = GTranslucencyVolumeMaxRayIntensity;
+				TraceSetupParameters.VoxelTraceStartDistanceScale = CVarTranslucencyVolumeVoxelTraceStartDistanceScale.GetValueOnRenderThread();
+				TraceSetupParameters.MaxRayIntensity = CVarTranslucencyVolumeMaxRayIntensity.GetValueOnRenderThread();
 			}
 
 			const FIntVector OctahedralAtlasSize(
-				TranslucencyGridSize.X * GTranslucencyVolumeTracingOctahedronResolution, 
-				TranslucencyGridSize.Y * GTranslucencyVolumeTracingOctahedronResolution,
+				TranslucencyGridSize.X * CVarTranslucencyVolumeTracingOctahedronResolution.GetValueOnRenderThread(),
+				TranslucencyGridSize.Y * CVarTranslucencyVolumeTracingOctahedronResolution.GetValueOnRenderThread(),
 				TranslucencyGridSize.Z);
 
 			FRDGTextureDesc VolumeTraceRadianceDesc(FRDGTextureDesc::Create3D(OctahedralAtlasSize, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
@@ -1576,7 +1542,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						PassParameters->RayTracingThreadGroupSize = FIntPoint(1, 1);
 					#endif
 
-						const bool bDebugFroxelProbesUpdateIndirectArgs = GTranslucencyVolumeRadianceCacheFrustumProbesDebug > 0;
+						const bool bDebugFroxelProbesUpdateIndirectArgs = CVarTranslucencyVolumeRadianceCacheFrustumProbesDebug.GetValueOnRenderThread() > 0;
 						if (bDebugFroxelProbesUpdateIndirectArgs)
 						{
 							ShaderPrint::SetEnabled(true);
@@ -1880,7 +1846,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 				}
 			}
 
-			if (Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily) && GLumenTranslucencyVolumeTraceFromVolume != 0)
+			if (Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily) && CVarLumenTranslucencyVolumeTraceFromVolume.GetValueOnRenderThread() != 0)
 			{
 				HardwareRayTraceTranslucencyVolume(
 					GraphBuilder,
@@ -1911,7 +1877,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					ComputePassFlags);
 			}
 
-			if (GTranslucencyVolumeSpatialFilter)
+			if (CVarTranslucencyVolumeSpatialFilter.GetValueOnRenderThread())
 			{
 				for (int32 PassIndex = 0; PassIndex < 3; PassIndex++) // 3 passes for the separable filter , one for each axis
 				{
@@ -1930,9 +1896,9 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
 
 					PassParameters->SpatialFilterDirection = FIntVector3(PassIndex == 0 ? 1 : 0, PassIndex == 1 ? 1 : 0, PassIndex == 2 ? 1 : 0);
-					PassParameters->SpatialFilterSampleCount = FMath::Max(1, GTranslucencyVolumeSpatialFilterSampleCount);
+					PassParameters->SpatialFilterSampleCount = FMath::Max(1, CVarTranslucencyVolumeSpatialFilterSampleCount.GetValueOnRenderThread());
 
-					const float GaussianFilterStandardDev = FMath::Max(0.1, GTranslucencyVolumeSpatialFilterStandardDeviation);
+					const float GaussianFilterStandardDev = FMath::Max(0.1, CVarTranslucencyVolumeSpatialFilterStandardDeviation.GetValueOnRenderThread());
 					PassParameters->SpatialFilterGaussParams = FVector3f(GaussianFilterStandardDev, 1.0f/(2.0f*GaussianFilterStandardDev*GaussianFilterStandardDev), 1.0/(GaussianFilterStandardDev*FMath::Sqrt(2.0f*PI)));
 
 					FTranslucencyVolumeSpatialSeparableFilterCS::FPermutationDomain PermutationVector;
@@ -1987,7 +1953,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 				PassParameters->VolumeParameters = VolumeParameters;
 
 				const bool bUseTemporalReprojection =
-					GTranslucencyVolumeTemporalReprojection
+					CVarTranslucencyVolumeTemporalReprojection.GetValueOnRenderThread()
 					&& View.ViewState
 					&& !View.bCameraCut
 					&& !View.bPrevTransformsReset
@@ -1995,7 +1961,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					&& TranslucencyGIVolumeHistory0
 					&& TranslucencyGIVolumeHistory0->Desc == LumenTranslucencyGIDesc0;
 
-				PassParameters->HistoryWeight = GTranslucencyVolumeHistoryWeight;
+				PassParameters->HistoryWeight = CVarTranslucencyVolumeHistoryWeight.GetValueOnRenderThread();
 				const int32 PreviousFrameIndexOffset = View.bStatePrevViewInfoIsReadOnly ? 0 : 1;
 				PassParameters->PreviousFrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(View.ViewState ? View.ViewState->GetFrameIndex() - PreviousFrameIndexOffset : 0);
 				PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
@@ -2031,7 +1997,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 			View.GetOwnLumenTranslucencyGIVolume().HistoryTexture1 = TranslucencyGIVolumeNewHistory1;
 
 			View.GetOwnLumenTranslucencyGIVolume().GridZParams = (FVector)VolumeParameters.TranslucencyGIGridZParams;
-			View.GetOwnLumenTranslucencyGIVolume().GridPixelSizeShift = FMath::FloorLog2(GTranslucencyFroxelGridPixelSize);
+			View.GetOwnLumenTranslucencyGIVolume().GridPixelSizeShift = FMath::FloorLog2(CVarTranslucencyFroxelGridPixelSize.GetValueOnRenderThread());
 			View.GetOwnLumenTranslucencyGIVolume().GridSize = TranslucencyGridSize;
 		}
 	}
