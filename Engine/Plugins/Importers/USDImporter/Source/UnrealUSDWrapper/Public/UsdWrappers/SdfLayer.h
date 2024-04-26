@@ -90,10 +90,15 @@ namespace UE
 		FSdfLayerBase& operator=(const FSdfLayerWeak& Other);
 		FSdfLayerBase& operator=(FSdfLayerWeak&& Other);
 
-		template<typename OtherPtrType>
-		bool operator==(const FSdfLayerBase<OtherPtrType>& Other) const;
-		template<typename OtherPtrType>
-		bool operator!=(const FSdfLayerBase<OtherPtrType>& Other) const;
+		bool operator==(const FSdfLayerBase& Other) const;
+		bool operator!=(const FSdfLayerBase& Other) const;
+
+#if USE_USD_SDK
+		// This is for the UE-210206 workaround. For more details see the comment
+		// at the bottom of UnrealUSDWrapper.h
+		bool operator==(const pxr::SdfLayerWeakPtr& Other) const;
+		bool operator!=(const pxr::SdfLayerWeakPtr& Other) const;
+#endif	  // #if USE_USD_SDK
 
 		explicit operator bool() const;
 

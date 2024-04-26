@@ -132,6 +132,20 @@ namespace UE
 		return !(*this == Other);
 	}
 
+#if USE_USD_SDK
+	template<typename PtrType>
+	bool FUsdStageBase<PtrType>::operator==(const pxr::UsdStageWeakPtr& Other) const
+	{
+		return pxr::UsdStageWeakPtr{*this} == Other;
+	}
+
+	template<typename PtrType>
+	bool FUsdStageBase<PtrType>::operator!=(const pxr::UsdStageWeakPtr& Other) const
+	{
+		return !(*this == Other);
+	}
+#endif	  // USE_USD_SDK
+
 	template<typename PtrType>
 	FUsdStageBase<PtrType>::~FUsdStageBase()
 	{

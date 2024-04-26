@@ -1092,6 +1092,25 @@ void UnrealUSDWrapper::ClearDiagnosticDelegate()
 #endif	  // USE_USD_SDK
 }
 
+#if USE_USD_SDK
+bool operator==(const pxr::SdfLayerRefPtr& LHS, const pxr::SdfLayerWeakPtr& RHS)
+{
+    return RHS.PointsTo(*LHS);
+}
+bool operator==(const pxr::SdfLayerWeakPtr& LHS, const pxr::SdfLayerWeakPtr& RHS)
+{
+    return LHS.GetUniqueIdentifier() == RHS.GetUniqueIdentifier();
+}
+bool operator==(const pxr::UsdStageRefPtr& LHS, const pxr::UsdStageWeakPtr& RHS)
+{
+    return RHS.PointsTo(*LHS);
+}
+bool operator==(const pxr::UsdStageWeakPtr& LHS, const pxr::UsdStageWeakPtr& RHS)
+{
+    return LHS.GetUniqueIdentifier() == RHS.GetUniqueIdentifier();
+}
+#endif      // USE_USD_SDK
+
 class FUnrealUSDWrapperModule : public IUnrealUSDWrapperModule
 {
 public:

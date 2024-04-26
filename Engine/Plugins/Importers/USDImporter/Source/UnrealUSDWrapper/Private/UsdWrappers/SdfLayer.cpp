@@ -124,28 +124,30 @@ namespace UE
 	}
 
 	template<typename PtrType>
-	template<typename OtherPtrType>
-	bool FSdfLayerBase<PtrType>::operator==(const FSdfLayerBase<OtherPtrType>& Other) const
+	bool FSdfLayerBase<PtrType>::operator==(const FSdfLayerBase<PtrType>& Other) const
 	{
 		return Impl->GetInner() == Other.Impl->GetInner();
 	}
 
-	template bool UNREALUSDWRAPPER_API FSdfLayer::operator==(const FSdfLayer& Other) const;
-	template bool UNREALUSDWRAPPER_API FSdfLayer::operator==(const FSdfLayerWeak& Other) const;
-	template bool UNREALUSDWRAPPER_API FSdfLayerWeak::operator==(const FSdfLayer& Other) const;
-	template bool UNREALUSDWRAPPER_API FSdfLayerWeak::operator==(const FSdfLayerWeak& Other) const;
-
 	template<typename PtrType>
-	template<typename OtherPtrType>
-	bool FSdfLayerBase<PtrType>::operator!=(const FSdfLayerBase<OtherPtrType>& Other) const
+	bool FSdfLayerBase<PtrType>::operator!=(const FSdfLayerBase<PtrType>& Other) const
 	{
 		return !(*this == Other);
 	}
 
-	template bool UNREALUSDWRAPPER_API FSdfLayer::operator!=(const FSdfLayer& Other) const;
-	template bool UNREALUSDWRAPPER_API FSdfLayer::operator!=(const FSdfLayerWeak& Other) const;
-	template bool UNREALUSDWRAPPER_API FSdfLayerWeak::operator!=(const FSdfLayer& Other) const;
-	template bool UNREALUSDWRAPPER_API FSdfLayerWeak::operator!=(const FSdfLayerWeak& Other) const;
+#if USE_USD_SDK
+	template<typename PtrType>
+	bool FSdfLayerBase<PtrType>::operator==(const pxr::SdfLayerWeakPtr& Other) const
+	{
+		return pxr::SdfLayerWeakPtr{*this} == Other;
+	}
+
+	template<typename PtrType>
+	bool FSdfLayerBase<PtrType>::operator!=(const pxr::SdfLayerWeakPtr& Other) const
+	{
+		return !(*this == Other);
+	}
+#endif	  // USE_USD_SDK
 
 	template<typename PtrType>
 	FSdfLayerBase<PtrType>::operator bool() const

@@ -30,19 +30,27 @@
 
 #if USE_USD_SDK
 PXR_NAMESPACE_OPEN_SCOPE
-	class GfMatrix4d;
-	class SdfPath;
-	class TfToken;
-	class UsdAttribute;
-	class UsdGeomMesh;
-	class UsdPrim;
-	class UsdStage;
-	class UsdStageCache;
+    class GfMatrix4d;
+    class SdfPath;
+    class TfToken;
+    class UsdAttribute;
+    class UsdGeomMesh;
+    class UsdPrim;
+    class UsdStage;
+    class UsdStageCache;
 
-	template<typename T>
-	class TfRefPtr;
+    template<typename T>
+    class TfRefPtr;
+    template<typename T>
+    class TfWeakPtr;
+
+    using UsdStageRefPtr = TfRefPtr<UsdStage>;
+    using UsdStageWeakPtr = TfWeakPtr<UsdStage>;
+
+    using SdfLayerRefPtr = TfRefPtr<SdfLayer>;
+    using SdfLayerWeakPtr = TfWeakPtr<SdfLayer>;
 PXR_NAMESPACE_CLOSE_SCOPE
-#endif	  // #if USE_USD_SDK
+#endif      // #if USE_USD_SDK
 
 class IUsdPrim;
 class FUsdDiagnosticDelegate;
@@ -531,3 +539,32 @@ struct UNREALUSDWRAPPER_API FUsdDelegates
 	static FUsdImportDelegate OnPreUsdImport;
 	static FUsdImportDelegate OnPostUsdImport;
 };
+
+#if USE_USD_SDK
+// This is a temp patch, because somewhere around cl 32323934 (so for 5.5, with USD 24.03,
+// see UE-210206 and UE-211302) the comparison operator between const SdfLayerRefPtr and SdfLayerWeakPtr
+// was leading to a crash, without any related change on our side. These operators are not defined by
+// USD so they are implicitly generated, so to work around it we just define them here and implement
+// them in a way that doesn't crash.
+//
+// We can't make these templated for any type as the implementations can't be generated on modules
+// that have RTTI disabled. This unfortunately means that we may get the same issues if we make some
+// ptr::TfRefPtr<T> and compare with pxr::TfWeakPtr<T>, but that should hopefully be rare in general.
+// We mostly use these pointer types when manipulating layers and stages.
+//
+// Additionally, spelling out the types here also lets us just forward declare them easily and not put
+// more USD includes in this header file.
+//
+// Note that for this workaround to work on Clang it was also necessary to define these operators on
+// the UE::FSdfLayer wrapper:
+//
+//	bool operator==(const pxr::SdfLayerWeakPtr& Other) const;
+// 	bool operator!=(const pxr::SdfLayerWeakPtr& Other) const;
+//
+// Otherwise we'd end up with ambiguous comparisons as the FSdfLayer types have implicit conversion
+// operators to the underlying pxr::SdfLayerWeakPtr/pxr::SdfLayerRefPtr
+UNREALUSDWRAPPER_API bool operator==(const pxr::SdfLayerRefPtr& LHS, const pxr::SdfLayerWeakPtr& RHS);
+UNREALUSDWRAPPER_API bool operator==(const pxr::SdfLayerWeakPtr& LHS, const pxr::SdfLayerWeakPtr& RHS);
+UNREALUSDWRAPPER_API bool operator==(const pxr::UsdStageRefPtr& LHS, const pxr::UsdStageWeakPtr& RHS);
+UNREALUSDWRAPPER_API bool operator==(const pxr::UsdStageWeakPtr& LHS, const pxr::UsdStageWeakPtr& RHS);
+#endif      // USE_USD_SDK
