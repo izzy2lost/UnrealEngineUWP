@@ -28,6 +28,7 @@
 
 namespace Chaos
 {
+class FCharacterGroundConstraintContainer;
 class FPBDConstraintContainer;
 class FPBDJointConstraints;
 }
@@ -197,6 +198,9 @@ public:
 
 	/** Traces all joint constraints in the provided container */
 	static CHAOS_API void TraceJointsConstraints(Chaos::FPBDJointConstraints& InJointConstraints);
+
+	/** Traces all character ground constraints in the provided container */
+	static CHAOS_API void TraceCharacterGroundConstraints(Chaos::FCharacterGroundConstraintContainer& InConstraints);
 
 	/** Traces a Particle pair MidPhase as binary data */
 	static CHAOS_API void TraceCollisionConstraint(const Chaos::FPBDCollisionConstraint* CollisionConstraint);

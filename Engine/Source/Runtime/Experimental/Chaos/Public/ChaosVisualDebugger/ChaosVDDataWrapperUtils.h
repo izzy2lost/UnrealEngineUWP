@@ -8,10 +8,12 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 
+struct FChaosVDCharacterGroundConstraint;
 struct FChaosVDJointConstraint;
 
 namespace Chaos
 {
+	class FCharacterGroundConstraintHandle;
 	class FPBDJointConstraintHandle;
 
 	namespace VisualDebugger
@@ -61,6 +63,9 @@ private:
 
 	/** Creates and populates a FChaosVDJointConstraint with the data of the provided FPBDJointConstraintHandle */
 	static FChaosVDJointConstraint BuildJointDataWrapper(const Chaos::FPBDJointConstraintHandle* ConstaintHanlde);
+
+	/** Creates and populates a FChaosVDChartacterGroundConstraint with the data of the provided FCharacterGroundConstraintHandle */
+	static FChaosVDCharacterGroundConstraint BuildCharacterGroundConstraintDataWrapper(const Chaos::FCharacterGroundConstraintHandle* ConstaintHanlde);
 
 	/** Converts a Chaos::FVec3 to a FVector. It is worth notice that FVector is double precision and FVec3 is single */
 	static FVector ConvertToFVector(const Chaos::FVec3f& VectorRef) { return FVector(VectorRef); }

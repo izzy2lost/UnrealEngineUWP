@@ -447,6 +447,29 @@ void AChaosVDParticleActor::UpdateMeshInstancesSelectionState()
 	});
 }
 
+void AChaosVDParticleActor::GetCharacterGroundConstraintData(TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>& OutConstraintsFound)
+{
+	if (const TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>* Constraints = GetCharacterGroundConstraintArray())
+	{
+		OutConstraintsFound.Reserve(Constraints->Num());
+
+		for (const TSharedPtr<FChaosVDCharacterGroundConstraint>& Constraint : *Constraints)
+		{
+			OutConstraintsFound.Add(Constraint);
+		}
+	}
+}
+
+bool AChaosVDParticleActor::HasCharacterGroundConstraintData()
+{
+	if (const TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>* Constraints = GetCharacterGroundConstraintArray())
+	{
+		return Constraints->Num() > 0;
+	}
+
+	return false;
+}
+
 void AChaosVDParticleActor::PushSelectionToProxies()
 {
 	UpdateMeshInstancesSelectionState();
@@ -471,6 +494,30 @@ const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::G
 		if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoActor->GetCollisionDataComponent())
 		{
 			return CollisionDataComponent->GetMidPhasesForParticle(ParticleDataPtr->ParticleIndex, EChaosVDParticlePairSlot::Any);
+		}
+	}
+
+	return nullptr;
+}
+
+const TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>* AChaosVDParticleActor::GetCharacterGroundConstraintArray() const
+{
+	if (!ParticleDataPtr.IsValid())
+	{
+		return nullptr;
+	}
+
+	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr.IsValid())
+	{
+		return nullptr;
+	}
+
+	if (AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(ParticleDataPtr->SolverID))
+	{
+		if (const UChaosVDSolverCharacterGroundConstraintDataComponent* ConstraintDataComponent = SolverInfoActor->GetCharacterGroundConstraintDataComponent())
+		{
+			return ConstraintDataComponent->GetConstraintsForParticle(ParticleDataPtr->ParticleIndex);
 		}
 	}
 

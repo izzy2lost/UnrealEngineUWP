@@ -19,4 +19,5 @@ public:
 	static const FName CollisionDataDetails;
 	static const FName SceneQueryDataDetails;
 	static const FName JointsDataDetails;
+	static const FName CharacterGroundConstraintDataDetails;
 };

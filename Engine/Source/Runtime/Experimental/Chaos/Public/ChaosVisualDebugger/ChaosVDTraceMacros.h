@@ -153,6 +153,14 @@
 			}
 	#endif
 
+	#ifndef CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS
+		#define CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS(DataChannel, InConstraints) \
+			{ \
+				CVD_SCOPED_DATA_CHANNEL_OVERRIDE(DataChannel) \
+				FChaosVisualDebuggerTrace::TraceCharacterGroundConstraints(InConstraints); \
+			}
+	#endif
+
 	#ifndef CVD_TRACE_CONSTRAINTS_CONTAINER
 		#define CVD_TRACE_CONSTRAINTS_CONTAINER(ContainerView) \
 			FChaosVisualDebuggerTrace::TraceConstraintsContainer(ContainerView);
@@ -244,6 +252,10 @@
 
 	#ifndef CVD_TRACE_JOINT_CONSTRAINTS
 		#define CVD_TRACE_JOINT_CONSTRAINTS(DataChannel, InJointConstraints)
+	#endif
+
+	#ifndef CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS
+		#define CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS(DataChannel, InConstraints)
 	#endif
 
 	#ifndef CVD_TRACE_CONSTRAINTS_CONTAINER

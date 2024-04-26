@@ -9,6 +9,7 @@
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
 #include "Compression/OodleDataCompressionUtil.h"
+#include "Trace/DataProcessors/ChaosVDCharacterGroundConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDJointConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDMidPhaseDataProcessor.h"
@@ -228,6 +229,10 @@ void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 	TSharedPtr<FChaosVDJointConstraintDataProcessor> JointConstraintDataProcessor = MakeShared<FChaosVDJointConstraintDataProcessor>();
 	JointConstraintDataProcessor->SetTraceProvider(AsShared());
 	RegisterDataProcessor(JointConstraintDataProcessor);
+
+	TSharedPtr<FChaosVDCharacterGroundConstraintDataProcessor> CharacterGroundConstraintDataProcessor = MakeShared<FChaosVDCharacterGroundConstraintDataProcessor>();
+	CharacterGroundConstraintDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(CharacterGroundConstraintDataProcessor);
 
 	TSharedPtr<FChaosVDArchiveHeaderProcessor> ArchiveHeaderDataProcessor = MakeShared<FChaosVDArchiveHeaderProcessor>();
 	ArchiveHeaderDataProcessor->SetTraceProvider(AsShared());

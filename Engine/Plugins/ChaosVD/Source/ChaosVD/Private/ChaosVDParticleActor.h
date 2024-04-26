@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
+#include "ChaosVDCharacterGroundConstraintDataProviderInterface.h"
 #include "ChaosVDCollisionDataProviderInterface.h"
 #include "ChaosVDGeometryDataComponent.h"
 #include "ChaosVDSceneObjectBase.h"
@@ -53,7 +55,8 @@ ENUM_CLASS_FLAGS(EChaosVDHideParticleFlags)
 /** Actor used to represent a Chaos Particle in the Visual Debugger's world */
 UCLASS(HideCategories=(Transform))
 class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider,
-								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface, public IChaosVDGeometryOwnerInterface, public IChaosVDSelectableObject
+								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface, public IChaosVDGeometryOwnerInterface, public IChaosVDSelectableObject,
+								public IChaosVDCharacterGroundConstraintDataProviderInterface
 {
 	GENERATED_BODY()
 
@@ -107,6 +110,11 @@ public:
 	virtual FName GetProviderName() override;
 	// END IChaosVDCollisionDataProvider Interface
 
+	// BEGIN IChaosVDCharacterGroundConstraintDataProviderInterface
+	virtual void GetCharacterGroundConstraintData(TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>& OutConstraintsFound) override;
+	virtual bool HasCharacterGroundConstraintData() override;
+	// END IChaosVDCharacterGroundConstraintDataProviderInterface
+
 	void SetIsServerParticle(bool bNewIsServer) { bIsServer = bNewIsServer; }
 	bool GetIsServerParticle() const { return bIsServer; }
 
@@ -131,6 +139,8 @@ protected:
 	void ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutExtractedGeometryDataHandles);
 
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetCollisionMidPhasesArray() const;
+
+	const TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>* GetCharacterGroundConstraintArray() const;
 
 	void UpdateShapeDataComponents();
 

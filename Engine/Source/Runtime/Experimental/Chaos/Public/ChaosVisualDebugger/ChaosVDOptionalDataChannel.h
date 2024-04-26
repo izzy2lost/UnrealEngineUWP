@@ -152,6 +152,7 @@ CVD_DECLARE_OPTIONAL_DATA_CHANNEL(PostConstraintSolve);						// Particle positio
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionEnd);							// Final particle positions, including destruction and user callbacks.
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(SceneQueries);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(JointConstraints);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(CharacterGroundConstraints);
 
 #else  //WITH_CHAOS_VISUAL_DEBUGGER
 

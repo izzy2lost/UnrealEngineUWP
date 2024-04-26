@@ -7,6 +7,7 @@
 #include "Engine/StaticMesh.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
+#include "Visualizers/ChaosVDCharacterGroundConstraintsDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDJointConstraintsDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDSceneQueryDataComponentVisualizer.h"
@@ -210,6 +211,44 @@ struct FChaosVDJointsDebugDrawSettings
     float ConstraintAxisLength = 10.0f;
 };
 
+USTRUCT()
+struct FChaosVDCharacterGroundConstraintDebugDrawSettings
+{
+	GENERATED_BODY()
+
+	/** The depth priority used for while drawing data. Can be World or Foreground (with this one the shapes will be drawn on top of the geometry and be always visible) */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriority = ESceneDepthPriorityGroup::SDPG_Foreground;
+
+	/** Scale to apply to the force vector before draw it. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float ForceScale = 0.01f;
+
+	/** Scale to apply to the torque vector before draw it. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float TorqueScale = 0.01f;
+
+	/** Scale to apply to anything that does not have a dedicated scale setting before draw it. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float GeneralScale = 1.0f;
+
+	/** Line thickness to use as a base to calculate the different line thickness values used to debug draw the data. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float BaseLineThickness = 2.0f;
+
+	/** Color used for normal force vector */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor NormalForceColor = FColor(255, 0, 0);
+
+	/** Color used for radial force vector */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor RadialForceColor = FColor(255, 255, 0);
+
+	/** Color used for torque vector */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor TorqueColor = FColor(255, 0, 255);
+};
+
 /** Structure holding the settings using to debug draw Particles shape based on their shape type on the Chaos Visual Debugger */
 USTRUCT()
 struct FChaosDebugDrawColorsByShapeType
@@ -319,6 +358,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDJointsDataVisualizationFlags"))
 	uint32 GlobalJointsDataVisualizationFlags = static_cast<uint32>(EChaosVDJointsDataVisualizationFlags::ActorConnector | EChaosVDJointsDataVisualizationFlags::DrawKinematic);
 
+	/** Set of flags to enable/disable visualization of specific character ground constraint data as debug draw */
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCharacterGroundConstraintDataVisualizationFlags"))
+	uint32 GlobalCharacterGroundConstraintDataVisualizationFlags = static_cast<uint32>(EChaosVDCharacterGroundConstraintDataVisualizationFlags::EnableDraw | EChaosVDCharacterGroundConstraintDataVisualizationFlags::GroundQueryDistance | EChaosVDCharacterGroundConstraintDataVisualizationFlags::GroundQueryNormal | EChaosVDCharacterGroundConstraintDataVisualizationFlags::TargetDeltaPosition);
+
 	/** If true, text information (if available) will be drawn alongside any other debug draw shape */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
 	bool bShowDebugText = false;
@@ -331,6 +374,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization",  meta=(EditCondition = "GlobalParticleDataVisualizationFlags != 0", EditConditionHides))
 	FChaosVDJointsDebugDrawSettings JointsDataDebugDrawSettings;
+
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization", meta = (EditCondition = "GlobalParticleDataVisualizationFlags != 0", EditConditionHides))
+	FChaosVDCharacterGroundConstraintDebugDrawSettings CharacterGroundConstraintDataDebugDrawSettings;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
 	EChaosVDParticleDebugColorMode ParticleColorMode;

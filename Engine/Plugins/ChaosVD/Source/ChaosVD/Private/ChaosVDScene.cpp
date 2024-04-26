@@ -28,6 +28,7 @@
 #include "Selection.h"
 #include "UObject/Package.h"
 #include "WorldPersistentFolders.h"
+#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Elements/Actor/ActorElementData.h"
 #include "Elements/Component/ComponentElementData.h"
@@ -338,6 +339,17 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 		if (UChaosVDSceneQueryDataComponent* QueryDataComponent = SceneQueriesContainer->GetSceneQueryDataComponent())
 		{
 			QueryDataComponent->UpdateQueriesFromFrameData(InNewGameFrameData);
+		}
+	}
+
+	for (int32 SolverID : AvailableSolversIds)
+	{
+		if (AChaosVDSolverInfoActor* SolverDataInfoContainer = SolverDataContainerBySolverID.FindChecked(SolverID))
+		{
+			if (UChaosVDSolverCharacterGroundConstraintDataComponent* DataContainer = SolverDataInfoContainer->GetCharacterGroundConstraintDataComponent())
+			{
+				DataContainer->UpdateConstraintData(InNewGameFrameData.RecordedCharacterGroundConstraints);
+			}
 		}
 	}
 }
