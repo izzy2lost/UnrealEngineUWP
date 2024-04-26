@@ -2178,6 +2178,8 @@ void SGraphPanel::RemoveNode(const UEdGraphNode* Node)
 			break;
 		}
 	}
+
+	NodeToWidgetLookup.Remove(Node);
 }
 
 TSharedPtr<SGraphNode> SGraphPanel::GetNodeWidgetFromGuid(FGuid Guid) const
