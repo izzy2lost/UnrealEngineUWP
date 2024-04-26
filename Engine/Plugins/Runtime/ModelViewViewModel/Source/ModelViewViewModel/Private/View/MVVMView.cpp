@@ -76,11 +76,20 @@ void UMVVMView::Construct()
 	check(bConstructed == false);
 
 	// Create an independent copy of extensions per view.
-	check(Extensions.IsEmpty());
+	ensure(Extensions.IsEmpty());
 	Extensions.Reset(GeneratedViewClass->GetViewClassExtensions().Num());
 	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
 	{
-		Extensions.Add(Extension->ViewConstructed(GetUserWidget(), this));
+		UMVVMViewClassExtension* ViewExtension = DuplicateObject<UMVVMViewClassExtension>(Extension, this);
+		if (ensure(ViewExtension))
+		{
+			Extensions.Add(ViewExtension);
+		}
+	}
+
+	for (UMVVMViewClassExtension* Extension : Extensions)
+	{
+		Extension->OnViewConstructed(GetUserWidget(), this);
 	}
 
 	if (GeneratedViewClass->DoesInitializeSourcesOnConstruct())
@@ -113,11 +122,9 @@ void UMVVMView::Destruct()
 	UninitializeEvents();
 	UninitializeSources(); // and bindings
 
-	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
-	check(ClassExtensions.Num() == Extensions.Num());
-	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
-		ClassExtensions[Index]->OnViewDestructed(GetUserWidget(), this, Extensions[Index]);
+		Extension->OnViewDestructed(GetUserWidget(), this);
 	}
 }
 
@@ -163,18 +170,16 @@ void UMVVMView::InitializeSources()
 		InitializeSourceBindingsCommon();
 	}
 
-	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
-	check(ClassExtensions.Num() == Extensions.Num());
-	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
-		ClassExtensions[Index]->OnSourcesInitialized(GetUserWidget(), this, Extensions[Index]);
+		Extension->OnSourcesInitialized(GetUserWidget(), this);
 	}
 
 	if (GeneratedViewClass->DoesInitializeBindingsOnConstruct())
 	{
-		for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+		for (UMVVMViewClassExtension* Extension : Extensions)
 		{
-			ClassExtensions[Index]->OnBindingsInitialized(GetUserWidget(), this, Extensions[Index]);
+			Extension->OnBindingsInitialized(GetUserWidget(), this);
 		}
 	}
 
@@ -196,11 +201,9 @@ void UMVVMView::UninitializeSources()
 		UninitializeBindings();
 	}
 
-	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
-	check(ClassExtensions.Num() == Extensions.Num());
-	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
-		ClassExtensions[Index]->OnSourcesUninitialized(GetUserWidget(), this, Extensions[Index]);
+		Extension->OnSourcesUninitialized(GetUserWidget(), this);
 	}
 
 	if (GeneratedViewClass->DoesListenToViewModelCollectionChanged())
@@ -331,11 +334,9 @@ void UMVVMView::InitializeBindings()
 
 	InitializeSourceBindingsCommon();
 
-	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
-	check(ClassExtensions.Num() == Extensions.Num());
-	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
-		ClassExtensions[Index]->OnBindingsInitialized(GetUserWidget(), this, Extensions[Index]);
+		Extension->OnBindingsInitialized(GetUserWidget(), this);
 	}
 }
 
@@ -370,11 +371,9 @@ void UMVVMView::UninitializeBindings()
 
 	bBindingsInitialized = false;
 
-	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
-	check(ClassExtensions.Num() == Extensions.Num());
-	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
-		ClassExtensions[Index]->OnBindingsUninitialized(GetUserWidget(), this, Extensions[Index]);
+		Extension->OnBindingsUninitialized(GetUserWidget(), this);
 	}
 
 	const TArrayView<const FMVVMViewClass_Source> ClassSources = GeneratedViewClass->GetSources();
@@ -1028,11 +1027,9 @@ void UMVVMView::InitializeEvents()
 		BindEvent(ClassEvent, FMVVMViewClass_EventKey(Index));
 	}
 
-	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
-	check(ClassExtensions.Num() == Extensions.Num());
-	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
-		ClassExtensions[Index]->OnEventsInitialized(GetUserWidget(), this, Extensions[Index]);
+		Extension->OnEventsInitialized(GetUserWidget(), this);
 	}
 
 	bEventsInitialized = true;
@@ -1050,11 +1047,9 @@ void UMVVMView::UninitializeEvents()
 	
 	bEventsInitialized = false;
 
-	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
-	check(ClassExtensions.Num() == Extensions.Num());
-	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
-		ClassExtensions[Index]->OnEventsUninitialized(GetUserWidget(), this, Extensions[Index]);
+		Extension->OnEventsUninitialized(GetUserWidget(), this);
 	}
 
 	for (int32 Index = BoundEvents.Num() - 1; Index >= 0; --Index)

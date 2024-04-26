@@ -10,7 +10,7 @@
 
 class UMVVMBlueprintView;
 class UMVVMViewClass;
-class UMVVMViewPanelWidgetClassExtension;
+class UMVVMViewPanelWidgetExtension;
 class UUserWidget;
 class UWidgetBlueprintGeneratedClass;
 
@@ -64,7 +64,7 @@ private:
 	FName PanelPropertyName;
 
 	UPROPERTY()
-	TObjectPtr<UMVVMViewPanelWidgetClassExtension> ExtensionObj;
+	TObjectPtr<UMVVMViewPanelWidgetExtension> ExtensionObj;
 
 	UE::MVVM::FCompiledBindingLibraryCompiler::FFieldPathHandle WidgetPathHandle;
 

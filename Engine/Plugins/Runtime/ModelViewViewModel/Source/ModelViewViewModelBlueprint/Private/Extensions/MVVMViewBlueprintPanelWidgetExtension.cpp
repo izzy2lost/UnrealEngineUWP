@@ -196,11 +196,11 @@ void UMVVMViewBlueprintPanelWidgetExtension::Compile(UE::MVVM::Compiler::IMVVMBl
 						if (const FMVVMBlueprintViewModelContext* ViewModelContext = EntryBPView->FindViewModel(EntryViewModelId))
 						{
 							// Create the corresponding runtime extension
-							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewPanelWidgetClassExtension::StaticClass());
-							UMVVMViewPanelWidgetClassExtension* NewExtension = CastChecked<UMVVMViewPanelWidgetClassExtension>(NewExtensionObj);
+							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewPanelWidgetExtension::StaticClass());
+							UMVVMViewPanelWidgetExtension* NewExtension = CastChecked<UMVVMViewPanelWidgetExtension>(NewExtensionObj);
 
 							const FName EntryViewModelName = ViewModelContext->GetViewModelName();
-							NewExtension->Initialize(UMVVMViewPanelWidgetClassExtension::FInitPanelWidgetExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue(), EntryWidgetClass, SlotObj, PanelPropertyName, ViewModelContext->NotifyFieldValueClass));
+							NewExtension->Initialize(UMVVMViewPanelWidgetExtension::FInitPanelWidgetExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue(), EntryWidgetClass, SlotObj, PanelPropertyName, ViewModelContext->NotifyFieldValueClass));
 						}
 					}
 				}

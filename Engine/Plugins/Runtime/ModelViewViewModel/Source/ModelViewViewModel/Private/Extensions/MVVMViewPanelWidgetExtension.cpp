@@ -15,154 +15,8 @@
 
 #define LOCTEXT_NAMESPACE "MVVMViewPanelWidgetExtension"
 
-void UMVVMViewPanelWidgetExtension::Initialize(UMVVMViewPanelWidgetClassExtension* InClassExtension, UPanelWidget* InPanelWidget)
-{
-	ClassExtension = InClassExtension;
-	PanelWidget = InPanelWidget;
-}
-
-void UMVVMViewPanelWidgetExtension::BP_SetItems(const TArray<UObject*>& InItems)
-{
-	if (!PanelWidget || !ClassExtension)
-	{
-		return;
-	}
-
-	// Store all the reusable slots in a temporary array so that we don't re-create them.
-	TArray<TTuple<UPanelSlot*, TScriptInterface<INotifyFieldValueChanged>>> PreviousSlots;
-	for (UPanelSlot* Slot : PanelWidget->GetSlots())
-	{
-		if (UUserWidget* Content = Cast<UUserWidget>(Slot->Content))
-		{
-			// The class of the content should strictly match the EntryWidgetClass.
-			if (Content->GetClass() == ClassExtension->GetEntryWidgetClass().Get())
-			{
-				if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(Content))
-				{
-					TScriptInterface<INotifyFieldValueChanged> Interface = View->GetViewModel(ClassExtension->GetEntryViewModelName());
-					if (Interface.GetObject() && Interface.GetObject()->GetClass() == ClassExtension->GetEntryViewModelClass())
-					{
-						PreviousSlots.Emplace(Slot, Interface);
-					}
-				}
-			}
-		}
-	}
-
-	UClass* SelectedVMClass = ClassExtension->GetEntryViewModelClass();
-	UUserWidget* OwningUserWidget = GetUserWidget();
-
-	TArray<TTuple<UPanelSlot*, UWidget*>> NewSlots;
-	for (int32 ItemIndex = 0; ItemIndex < InItems.Num(); ++ItemIndex)
-	{
-		if (UObject* Item = InItems[ItemIndex])
-		{
-			const TTuple<UPanelSlot*, TScriptInterface<INotifyFieldValueChanged>>* FoundObject = PreviousSlots.FindByPredicate([Item](const auto& Other)
-				{
-					return Other.Value.GetObject() == Item;
-				});
-
-			if (Item && OwningUserWidget && Item->GetClass() != SelectedVMClass)
-			{
-				UE::MVVM::FMessageLog Log(OwningUserWidget);
-				Log.Warning(FText::Format(LOCTEXT("SetPanelWidgetItemsViewmodelTypeMismatch", "The item {0} passed as an entry of widget {1} is not a viewmodel of the selected type {2}.")
-					, FText::FromString(Item->GetName()), FText::FromString(PanelWidget->GetName()), FText::FromString(SelectedVMClass->GetName())
-				));
-			}
-
-			if (!FoundObject)
-			{
-				UUserWidget* EntryWidget = UUserWidget::CreateWidgetInstance(*PanelWidget, ClassExtension->GetEntryWidgetClass(), NAME_None);
-				ensure(EntryWidget);
-
-				SetViewModelOnEntryWidget(EntryWidget, Item, OwningUserWidget);
-				NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(ClassExtension->GetSlotTemplate(), EntryWidget));
-			}
-			else
-			{
-				NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(FoundObject->Key, FoundObject->Key->Content));
-			}
-		}
-		else
-		{
-			UE::MVVM::FMessageLog Log(OwningUserWidget);
-			Log.Warning(FText::Format(LOCTEXT("SetPanelWidgetItemsViewmodelNullObject", "The item at index {0} passed as an entry of widget {1} is null. An entry widget won't be generated for this item.")
-				, ItemIndex, FText::FromString(PanelWidget->GetName())
-			));
-		}
-	}
-
-	ReplaceAllSlots(NewSlots);
-}
-
-void UMVVMViewPanelWidgetExtension::SetViewModelOnEntryWidget(UUserWidget* EntryWidget, UObject* ViewModelObject, UUserWidget* OwningUserWidget)
-{
-	if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(EntryWidget))
-	{
-		if (ViewModelObject->Implements<UNotifyFieldValueChanged>())
-		{
-			View->SetViewModel(ClassExtension->GetEntryViewModelName(), ViewModelObject);
-		}
-		else
-		{
-			if (OwningUserWidget)
-			{
-				UE::MVVM::FMessageLog Log(OwningUserWidget);
-				Log.Error(FText::Format(LOCTEXT("SetViewModelOnEntryWidgetFailNotViewModel", "Trying to set an object that is not a viewmodel on entries of panel-type widget '{0}'. If you do not wish to set viewmodels on the entries of this widget, please remove the corresonding Viewmodel extension from it.")
-					, FText::FromName(ClassExtension->GetWidgetName())
-				));
-			}
-		}
-	}
-}
-
-void UMVVMViewPanelWidgetExtension::ReplaceAllSlots(TArrayView<TTuple<UPanelSlot*, UWidget*>> NewSlots)
-{
-	if (!PanelWidget || !ClassExtension)
-	{
-		return;
-	}
-
-	const TArray<UPanelSlot*>& OldSlots = PanelWidget->GetSlots();
-	const int32 OldSlotsNum = OldSlots.Num();
-	const int32 NewSlotsNum = NewSlots.Num();
-	const int32 MinSlotNum = FMath::Min(OldSlotsNum, NewSlotsNum);
-
-	// as long as we're within the boundaries of both arrays, compare and replace elements
-	for (int32 SlotIndex = MinSlotNum-1; SlotIndex >= 0; --SlotIndex)
-	{
-		if (OldSlots[SlotIndex] != NewSlots[SlotIndex].Key)
-		{
-			PanelWidget->RemoveChildAt(SlotIndex);
-			UPanelSlot* NewSlot = PanelWidget->InsertChildAt(SlotIndex, NewSlots[SlotIndex].Value, NewSlots[SlotIndex].Key);
-		}
-	}
-
-	// If we have more old slots than new ones, remove all the extra ones.
-	if (OldSlotsNum > NewSlotsNum)
-	{
-		for (int32 SlotIndex = OldSlotsNum - 1; SlotIndex >= NewSlotsNum; SlotIndex--)
-		{
-			PanelWidget->RemoveChildAt(SlotIndex);
-		}
-	}
-	// If we have more new slots than old ones, simply append the new ones.
-	else if (NewSlotsNum > OldSlotsNum)
-	{
-		for (int32 SlotIndex = OldSlotsNum; SlotIndex < NewSlotsNum; SlotIndex++)
-		{
-			UPanelSlot* NewSlot = PanelWidget->AddChild(NewSlots[SlotIndex].Value, NewSlots[SlotIndex].Key);
-		}
-	}
-}
-
-UUserWidget* UMVVMViewPanelWidgetExtension::GetUserWidget() const
-{
-	return GetView()->GetOuterUUserWidget();
-}
-
 #if WITH_EDITOR
-void UMVVMViewPanelWidgetClassExtension::Initialize(UMVVMViewPanelWidgetClassExtension::FInitPanelWidgetExtensionArgs InArgs)
+void UMVVMViewPanelWidgetExtension::Initialize(UMVVMViewPanelWidgetExtension::FInitPanelWidgetExtensionArgs InArgs)
 {
 	WidgetName = InArgs.WidgetName;
 	WidgetPath = InArgs.WidgetPath;
@@ -174,11 +28,16 @@ void UMVVMViewPanelWidgetClassExtension::Initialize(UMVVMViewPanelWidgetClassExt
 }
 #endif
 
-UMVVMViewExtension* UMVVMViewPanelWidgetClassExtension::ViewConstructed(UUserWidget* UserWidget, UMVVMView* View)
+void UMVVMViewPanelWidgetExtension::OnViewConstructed(UUserWidget* UserWidget, UMVVMView* View)
 {
 	check(View->GetViewClass());
-
-	UMVVMViewPanelWidgetExtension* ResultExtension = nullptr;
+	CachedOwningUserWidget = UserWidget;
+	// Set the extension object on the runtime user widget.
+	FObjectPropertyBase* FoundObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), PanelPropertyName);
+	if (ensureAlwaysMsgf(FoundObjectProperty, TEXT("The compiler should have added the property")))
+	{
+		FoundObjectProperty->SetObjectPropertyValue_InContainer(UserWidget, this);
+	}
 
 	// Fetch and cache the panel widget
 	TValueOrError<UE::MVVM::FFieldContext, void> FieldPathResult = View->GetViewClass()->GetBindingLibrary().EvaluateFieldPath(UserWidget, WidgetPath);
@@ -190,16 +49,7 @@ UMVVMViewExtension* UMVVMViewPanelWidgetClassExtension::ViewConstructed(UUserWid
 		{
 			if (UPanelWidget* PanelWidget = Cast<UPanelWidget>(ObjectResult.GetValue()))
 			{
-				ResultExtension = NewObject<UMVVMViewPanelWidgetExtension>(View);
-				ResultExtension->Initialize(this, PanelWidget);
-
-				// Set the extension object on the runtime user widget.
-				FObjectPropertyBase* FoundPanelObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), PanelPropertyName);
-				bool bValidPanelObject = FoundPanelObjectProperty && FoundPanelObjectProperty->PropertyClass->IsChildOf(UMVVMViewPanelWidgetExtension::StaticClass());
-				if (ensureAlwaysMsgf(bValidPanelObject, TEXT("The compiler should have added the property")))
-				{
-					FoundPanelObjectProperty->SetObjectPropertyValue_InContainer(UserWidget, ResultExtension);
-				}
+				CachedPanelWidget = PanelWidget;
 			}
 			else
 			{
@@ -224,16 +74,145 @@ UMVVMViewExtension* UMVVMViewPanelWidgetClassExtension::ViewConstructed(UUserWid
 			, FText::FromName(WidgetName)
 		));
 	}
-
-	return ResultExtension;
 }
 
-void UMVVMViewPanelWidgetClassExtension::OnViewDestructed(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension)
+void UMVVMViewPanelWidgetExtension::OnViewDestructed(UUserWidget* UserWidget, UMVVMView* View)
 {
-	FObjectPropertyBase* FoundPanelObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), PanelPropertyName);
-	if (ensureAlwaysMsgf(FoundPanelObjectProperty, TEXT("The compiler should have added the property")))
+	FObjectPropertyBase* FoundObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), PanelPropertyName);
+	if (ensureAlwaysMsgf(FoundObjectProperty, TEXT("The compiler should have added the property")))
 	{
-		FoundPanelObjectProperty->SetObjectPropertyValue_InContainer(UserWidget, nullptr);
+		FoundObjectProperty->SetObjectPropertyValue_InContainer(UserWidget, nullptr);
+	}
+}
+
+void UMVVMViewPanelWidgetExtension::BP_SetItems(const TArray<UObject*>& InItems)
+{
+	if (UPanelWidget* PanelWidgetPtr = CachedPanelWidget.Get())
+	{
+		// Store all the reusable slots in a temporary array so that we don't re-create them.
+		TArray<TTuple<UPanelSlot*, TScriptInterface<INotifyFieldValueChanged>>> PreviousSlots;
+		for (UPanelSlot* Slot : PanelWidgetPtr->GetSlots())
+		{
+			if (UUserWidget* Content = Cast<UUserWidget>(Slot->Content))
+			{
+				// The class of the content should strictly match the EntryWidgetClass.
+				if (Content->GetClass() == EntryWidgetClass.Get())
+				{
+					if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(Content))
+					{
+						TScriptInterface<INotifyFieldValueChanged> Interface = View->GetViewModel(EntryViewModelName);
+						if (Interface.GetObject() && Interface.GetObject()->GetClass() == EntryViewModelClass)
+						{
+							PreviousSlots.Emplace(Slot, Interface);
+						}
+					}
+				}
+			}
+		}
+
+		UClass* SelectedVMClass = EntryViewModelClass.Get();
+		UUserWidget* OwningUserWidget = CachedOwningUserWidget.Get();
+
+		TArray<TTuple<UPanelSlot*, UWidget*>> NewSlots;
+		for (int32 ItemIndex = 0; ItemIndex < InItems.Num(); ++ItemIndex)
+		{
+			if (UObject* Item = InItems[ItemIndex])
+			{
+				const TTuple<UPanelSlot*, TScriptInterface<INotifyFieldValueChanged>>* FoundObject = PreviousSlots.FindByPredicate([Item](const auto& Other)
+					{
+						return Other.Value.GetObject() == Item;
+					});
+
+				if (Item && OwningUserWidget && Item->GetClass() != SelectedVMClass)
+				{
+					UE::MVVM::FMessageLog Log(OwningUserWidget);
+					Log.Warning(FText::Format(LOCTEXT("SetPanelWidgetItemsViewmodelTypeMismatch", "The item {0} passed as an entry of widget {1} is not a viewmodel of the selected type {2}.")
+						, FText::FromString(Item->GetName()), FText::FromString(PanelWidgetPtr->GetName()), FText::FromString(SelectedVMClass->GetName())
+					));
+				}
+
+				if (!FoundObject)
+				{
+					UUserWidget* EntryWidget = UUserWidget::CreateWidgetInstance(*PanelWidgetPtr, EntryWidgetClass, NAME_None);
+					ensure(EntryWidget);
+
+					SetViewModelOnEntryWidget(EntryWidget, Item, OwningUserWidget);
+					NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(SlotTemplate, EntryWidget));
+				}
+				else
+				{
+					NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(FoundObject->Key, FoundObject->Key->Content));
+				}
+			}
+			else
+			{
+				UE::MVVM::FMessageLog Log(OwningUserWidget);
+				Log.Warning(FText::Format(LOCTEXT("SetPanelWidgetItemsViewmodelNullObject", "The item at index {0} passed as an entry of widget {1} is null. An entry widget won't be generated for this item.")
+					, ItemIndex, FText::FromString(PanelWidgetPtr->GetName())
+				));
+			}
+		}
+
+		ReplaceAllSlots(NewSlots);
+	}
+}
+
+void UMVVMViewPanelWidgetExtension::SetViewModelOnEntryWidget(UUserWidget* EntryWidget, UObject* ViewModelObject, UUserWidget* OwningUserWidget)
+{
+	if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(EntryWidget))
+	{
+		if (ViewModelObject->Implements<UNotifyFieldValueChanged>())
+		{
+			View->SetViewModel(EntryViewModelName, ViewModelObject);
+		}
+		else
+		{
+			if (OwningUserWidget)
+			{
+				UE::MVVM::FMessageLog Log(OwningUserWidget);
+				Log.Error(FText::Format(LOCTEXT("SetViewModelOnEntryWidgetFailNotViewModel", "Trying to set an object that is not a viewmodel on entries of panel-type widget '{0}'. If you do not wish to set viewmodels on the entries of this widget, please remove the corresonding Viewmodel extension from it.")
+					, FText::FromName(WidgetName)
+				));
+			}
+		}
+	}
+}
+
+void UMVVMViewPanelWidgetExtension::ReplaceAllSlots(TArrayView<TTuple<UPanelSlot*, UWidget*>> NewSlots)
+{
+	if (UPanelWidget* PanelWidgetPtr = CachedPanelWidget.Get())
+	{
+		const TArray<UPanelSlot*>& OldSlots = PanelWidgetPtr->GetSlots();
+		const int32 OldSlotsNum = OldSlots.Num();
+		const int32 NewSlotsNum = NewSlots.Num();
+		const int32 MinSlotNum = FMath::Min(OldSlotsNum, NewSlotsNum);
+
+		// as long as we're within the boundaries of both arrays, compare and replace elements
+		for (int32 SlotIndex = MinSlotNum - 1; SlotIndex >= 0; --SlotIndex)
+		{
+			if (OldSlots[SlotIndex] != NewSlots[SlotIndex].Key)
+			{
+				PanelWidgetPtr->RemoveChildAt(SlotIndex);
+				UPanelSlot* NewSlot = PanelWidgetPtr->InsertChildAt(SlotIndex, NewSlots[SlotIndex].Value, NewSlots[SlotIndex].Key);
+			}
+		}
+
+		// If we have more old slots than new ones, remove all the extra ones.
+		if (OldSlotsNum > NewSlotsNum)
+		{
+			for (int32 SlotIndex = OldSlotsNum - 1; SlotIndex >= NewSlotsNum; SlotIndex--)
+			{
+				PanelWidgetPtr->RemoveChildAt(SlotIndex);
+			}
+		}
+		// If we have more new slots than old ones, simply append the new ones.
+		else if (NewSlotsNum > OldSlotsNum)
+		{
+			for (int32 SlotIndex = OldSlotsNum; SlotIndex < NewSlotsNum; SlotIndex++)
+			{
+				UPanelSlot* NewSlot = PanelWidgetPtr->AddChild(NewSlots[SlotIndex].Value, NewSlots[SlotIndex].Key);
+			}
+		}
 	}
 }
 

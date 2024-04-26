@@ -12,38 +12,14 @@ class UPanelWidget;
 class UUserWidget;
 
 UCLASS()
-class MODELVIEWVIEWMODEL_API UMVVMViewPanelWidgetExtension : public UMVVMViewExtension
-{
-	GENERATED_BODY()
-
-public:
-	void Initialize(UMVVMViewPanelWidgetClassExtension* ClassExtension, UPanelWidget* PanelWidget);
-
-	UFUNCTION(BlueprintCallable, Category = PanelWidget, meta = (AllowPrivateAccess = true, DisplayName = "Set Items", ViewmodelBlueprintWidgetExtension = "EntryViewModel"))
-	void BP_SetItems(const TArray<UObject*>& InItems);
-
-private:
-	void SetViewModelOnEntryWidget(UUserWidget* EntryWidget, UObject* ViewModelObject, UUserWidget* OwningUserWidget);
-	void ReplaceAllSlots(TArrayView<TTuple<UPanelSlot*, UWidget*>> NewSlots);
-	UUserWidget* GetUserWidget() const;
-
-private:
-	UPROPERTY(Transient)
-	TObjectPtr<UPanelWidget> PanelWidget;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMVVMViewPanelWidgetClassExtension> ClassExtension;
-};
-
-UCLASS()
-class MODELVIEWVIEWMODEL_API UMVVMViewPanelWidgetClassExtension : public UMVVMViewClassExtension
+class MODELVIEWVIEWMODEL_API UMVVMViewPanelWidgetExtension : public UMVVMViewClassExtension
 {
 	GENERATED_BODY()
 
 public:
 	//~ Begin UMVVMViewClassExtension overrides
-	virtual UMVVMViewExtension* ViewConstructed(UUserWidget* UserWidget, UMVVMView* View) override;
-	virtual void OnViewDestructed(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension) override;
+	virtual void OnViewConstructed(UUserWidget* UserWidget, UMVVMView* View) override;
+	virtual void OnViewDestructed(UUserWidget* UserWidget, UMVVMView* View) override;
 	//~ End UMVVMViewClassExtension overrides
 
 #if WITH_EDITOR
@@ -72,31 +48,17 @@ public:
 
 #endif
 
-public:
-	FName GetWidgetName() const
-	{ 
-		return WidgetName;
-	}
-	
 	FName GetEntryViewModelName() const
 	{ 
 		return EntryViewModelName; 
 	}
 	
-	UPanelSlot* GetSlotTemplate() const
-	{ 
-		return SlotTemplate;
-	}
+	UFUNCTION(BlueprintCallable, Category = PanelWidget, meta = (AllowPrivateAccess = true, DisplayName = "Set Items", ViewmodelBlueprintWidgetExtension = "EntryViewModel"))
+	virtual void BP_SetItems(const TArray<UObject*>& InItems);
 
-	TSubclassOf<UUserWidget> GetEntryWidgetClass() const
-	{
-		return EntryWidgetClass;
-	}
-
-	UClass* GetEntryViewModelClass() const
-	{
-		return EntryViewModelClass;
-	}
+private:
+	void SetViewModelOnEntryWidget(UUserWidget* EntryWidget, UObject* ViewModelObject, UUserWidget* OwningUserWidget);
+	void ReplaceAllSlots(TArrayView<TTuple<UPanelSlot*, UWidget*>> NewSlots);
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "MVVM Extension")
@@ -111,12 +73,18 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "MVVM Extension")
 	TObjectPtr<UPanelSlot> SlotTemplate;
 
-	UPROPERTY(VisibleAnywhere, Category = "MVVM Extension")
+	UPROPERTY()
 	FName PanelPropertyName;
 
-	UPROPERTY(VisibleAnywhere, Category = "MVVM Extension")
-	TObjectPtr<UClass> EntryViewModelClass;
+	UPROPERTY()
+	TObjectPtr<UClass> EntryViewModelClass = nullptr;
 
 	UPROPERTY()
 	FMVVMVCompiledFieldPath WidgetPath;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UPanelWidget> CachedPanelWidget;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UUserWidget> CachedOwningUserWidget;
 };
