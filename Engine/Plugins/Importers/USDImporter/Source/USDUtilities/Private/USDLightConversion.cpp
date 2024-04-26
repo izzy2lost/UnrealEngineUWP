@@ -32,6 +32,7 @@
 #include "pxr/usd/usdLux/domeLight.h"
 #include "pxr/usd/usdLux/lightAPI.h"
 #include "pxr/usd/usdLux/rectLight.h"
+#include "pxr/usd/usdLux/shadowAPI.h"
 #include "pxr/usd/usdLux/shapingAPI.h"
 #include "pxr/usd/usdLux/sphereLight.h"
 #include "USDIncludesEnd.h"
@@ -115,6 +116,18 @@ bool UsdToUnreal::ConvertLight(const pxr::UsdPrim& Prim, ULightComponentBase& Li
 	{
 		LightComponent->bUseTemperature = UsdUtils::GetUsdValue<bool>(LightAPI.GetEnableColorTemperatureAttr(), UsdTimeCode);
 		LightComponent->Temperature = UsdUtils::GetUsdValue<float>(LightAPI.GetColorTemperatureAttr(), UsdTimeCode);
+	}
+
+	if (const pxr::UsdLuxShadowAPI ShadowAPI{Prim})
+	{
+		if (pxr::UsdAttribute Attr = ShadowAPI.GetShadowEnableAttr())
+		{
+			bool bEnable = true;
+			if (Attr.Get(&bEnable, UsdTimeCode))
+			{
+				LightComponentBase.SetCastShadows(bEnable);
+			}
+		}
 	}
 
 	return true;
@@ -468,6 +481,32 @@ bool UnrealToUsd::ConvertLightComponent(const ULightComponentBase& LightComponen
 		pxr::GfVec4f LinearColor = UnrealToUsd::ConvertColor(LightComponent.LightColor);
 		Attr.Set<pxr::GfVec3f>(pxr::GfVec3f(LinearColor[0], LinearColor[1], LinearColor[2]), UsdTimeCode);
 		UsdUtils::NotifyIfOverriddenOpinion(Attr);
+	}
+
+	// Only author shadow stuff if we need to, as it involves applying an API schema. We don't want to
+	// open up an USD stage -> Change a light intensity and save -> End up adding she shadow API schema and attribute
+	// just to put the default value of true
+	bool bPrimCastsShadows = true;
+	if (pxr::UsdLuxShadowAPI ExistingShadowAPI{Prim})
+	{
+		if (pxr::UsdAttribute Attr = ExistingShadowAPI.GetShadowEnableAttr())
+		{
+			bool bEnable = true;
+			if (Attr.Get(&bEnable, UsdTimeCode))
+			{
+				bPrimCastsShadows = bEnable;
+			}
+		}
+	}
+	const bool bComponentCastsShadows = static_cast<bool>(LightComponent.CastShadows);
+	if (bComponentCastsShadows != bPrimCastsShadows)
+	{
+		pxr::UsdLuxShadowAPI ShadowAPI = pxr::UsdLuxShadowAPI::Apply(Prim);
+		if (pxr::UsdAttribute Attr = ShadowAPI.CreateShadowEnableAttr())
+		{
+			Attr.Set(bComponentCastsShadows, UsdTimeCode);
+			UsdUtils::NotifyIfOverriddenOpinion(Attr);
+		}
 	}
 
 	return true;
