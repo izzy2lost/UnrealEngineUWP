@@ -440,6 +440,7 @@ protected:
 	// Transient
 	UClass*							ActorNativeClass;
 	FName							ActorName;
+	FString							ActorNameString;
 	FString							ActorLabelString;
 	FString							ActorDisplayClassNameString;
 	UActorDescContainer*			Container;
