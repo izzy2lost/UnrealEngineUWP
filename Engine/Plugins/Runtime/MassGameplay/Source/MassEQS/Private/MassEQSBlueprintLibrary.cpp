@@ -92,19 +92,22 @@ TArray<FMassEnvQueryEntityInfoBlueprintWrapper> UMassEQSBlueprintLibrary::GetEnv
 
 	TArray<FMassEnvQueryEntityInfoBlueprintWrapper> ResultInfo = {};
 
-	const FEnvQueryResult* QueryResult = QueryInstance->GetQueryResult();
-	const TSubclassOf<UEnvQueryItemType> ItemType = QueryResult->ItemType;
-	const EEnvQueryRunMode::Type RunMode = QueryInstance->GetRunMode();
-
-	if (QueryResult && (QueryResult->GetRawStatus() == EEnvQueryStatus::Success) && (ItemType.Get() != nullptr) && ItemType->IsChildOf(UEnvQueryItemType_MassEntityHandle::StaticClass()))
+	if (const FEnvQueryResult* QueryResult = QueryInstance->GetQueryResult())
 	{
-		if (RunMode != EEnvQueryRunMode::AllMatching)
+		const TSubclassOf<UEnvQueryItemType> ItemType = QueryResult->ItemType;
+		const EEnvQueryRunMode::Type RunMode = QueryInstance->GetRunMode();
+
+		if ((QueryResult->GetRawStatus() == EEnvQueryStatus::Success) 
+			&& ItemType && ItemType->IsChildOf(UEnvQueryItemType_MassEntityHandle::StaticClass()))
 		{
-			ResultInfo.Add(GetItemAsEntityInfoBPWrapper(QueryResult, 0));
-		}
-		else
-		{
-			GetAllAsEntityInfoBPWrappers(QueryResult, ResultInfo);
+			if (RunMode != EEnvQueryRunMode::AllMatching)
+			{
+				ResultInfo.Add(GetItemAsEntityInfoBPWrapper(QueryResult, 0));
+			}
+			else
+			{
+				GetAllAsEntityInfoBPWrappers(QueryResult, ResultInfo);
+			}
 		}
 	}
 
