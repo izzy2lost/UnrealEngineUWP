@@ -119,6 +119,19 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bShouldFilterNotifies = false;
 	
+	// database used to search for an animation stitch to use as blend
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stitch|Experimental", meta = (PinHiddenByDefault))
+	TObjectPtr<UObject> StitchDatabase;
+
+	// blend time in seconds used to blend into and out from a stitch animation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stitch|Experimental", meta = (PinHiddenByDefault))
+	float StitchBlendTime = 0.1f;
+
+	// if the cost from searching StitchDatabase is above StitchBlendMaxCost, blend stack will perform a regular blend,
+	// and not using the returned stitch animation as blend
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stitch|Experimental", meta = (PinHiddenByDefault))
+	float StitchBlendMaxCost = 100.f;
+
 	// FAnimNode_Base interface
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
@@ -145,6 +158,12 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	int32 GetMaxActiveBlends() const { return MaxActiveBlends; }
 
 protected:
+	void InternalBlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, 
+		bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime,
+		const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, 
+		bool bUseInertialBlend, const FVector& BlendParameters, float PlayRate, float ActivationDelay,
+		FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod Method);
+
 	static void BlendWithPose(FAnimationPoseData& InOutPoseData, const FAnimationPoseData& OtherPoseData, const float InOutPoseWeight);
 	static void BlendWithPosePerBone(FAnimationPoseData& InOutPoseData, const FAnimationPoseData& OtherPoseData, TConstArrayView<float> OtherPoseWeights);
 
@@ -177,7 +196,7 @@ protected:
 private:
 	void PopLastAnimPlayer();
 	void InitializeSample(const FAnimationInitializeContext& Context, FBlendStackAnimPlayer& SamplePlayer);
-	void EvaluateSample(FPoseContext& Output, const int32 PlayerIndex);
+	bool EvaluateSample(FPoseContext& Output, const int32 PlayerIndex);
 	void UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex);
 	void CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex);
 	bool IsSampleGraphAvailableForPlayer(const int32 PlayerIndex);
@@ -195,9 +214,14 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinShownByDefault))
 	TObjectPtr<UAnimationAsset> AnimationAsset;
 
-	// requested animation time. If negative, the animation will play from the beginning uninterrupted
+	// requested animation time
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
 	float AnimationTime = -1.f;
+
+	// delay in seconds before activating AnimationAsset playing from AnimationTime
+	// assets queued with an ActivationDelayTime will be discarded when a new blend gets requested
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
+	float ActivationDelayTime = 0.f;
 
 	// requested AnimationAsset looping
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
@@ -215,8 +239,8 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault, ClampMin = "0"))
 	float BlendTime = 0.2f;
 
-	// if AnimationTime and MaxAnimationDeltaTime are positive and the currently playing animation total time differs more than MaxAnimationDeltaTime from AnimationTime
-	// (animation desynchronized from the requested time) the blend stack will force a blend into the same animation
+	// if MaxAnimationDeltaTime is positive and the currently playing animation accumulated time differs more than MaxAnimationDeltaTime from AnimationTime
+	// (animation desynchronized from the requested time) this blend stack will force a blend into the same animation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
 	float MaxAnimationDeltaTime = -1.f;
 

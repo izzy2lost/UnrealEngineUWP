@@ -94,7 +94,7 @@ struct POSESEARCH_API FPoseSearchFutureProperties
 public:
 	// Animation to play (it'll start at AnimationTime seconds)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	TObjectPtr<UObject> Animation;
+	TObjectPtr<const UObject> Animation;
 
 	// Start time for Animation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
@@ -188,7 +188,7 @@ public:
 		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
 		const FPoseSearchContinuingProperties ContinuingProperties,
-		FPoseSearchFutureProperties Future,
+		const FPoseSearchFutureProperties Future,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
@@ -209,13 +209,14 @@ public:
 		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
 		const FPoseSearchContinuingProperties ContinuingProperties,
+		const FPoseSearchFutureProperties Future,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
 	static void MotionMatch(
-		TArrayView<UAnimInstance*> AnimInstances,
-		TArrayView<const UE::PoseSearch::FRole> Roles,
-		TArrayView<const UObject*> AssetsToSearch,
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
 		const FPoseSearchContinuingProperties& ContinuingProperties,
 		const FPoseSearchFutureProperties& Future,
@@ -223,10 +224,21 @@ public:
 		const int32 DebugSessionUniqueIdentifier);
 
 	static UE::PoseSearch::FSearchResult MotionMatch(
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
+		const TArrayView<const UObject*> AssetsToSearch,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
+		const FPoseSearchFutureProperties& Future,
+		const int32 DebugSessionUniqueIdentifier);
+
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
+	static UE::PoseSearch::FSearchResult MotionMatch(
 		const FAnimationBaseContext& Context,
 		TArrayView<const UObject*> AssetsToSearch,
 		const FPoseSearchContinuingProperties& ContinuingProperties);
-
+		
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
 	static UE::PoseSearch::FSearchResult MotionMatch(
 		TArrayView<UAnimInstance*> AnimInstances,
 		TArrayView<const UE::PoseSearch::FRole> Roles,
