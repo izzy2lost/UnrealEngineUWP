@@ -78,10 +78,10 @@ FStateTreeDebugger::FStateTreeDebugger()
 	: StateTreeModule(FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule"))
 	, ScrubState(EventCollections)
 {
-	TracingStateChangedHandle = UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([this](const bool bTracesEnabled)
+	TracingStateChangedHandle = UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([this](const EStateTreeTraceStatus TraceStatus)
 		{
 			// StateTree traces got enabled in the current process so let's analyse it if not already analysing something.
-			if (bTracesEnabled && !IsAnalysisSessionActive())
+			if (TraceStatus == EStateTreeTraceStatus::TracesStarted && !IsAnalysisSessionActive())
 			{
 				RequestAnalysisOfLatestTrace();
 			}
@@ -869,23 +869,29 @@ bool FStateTreeDebugger::ProcessEvent(const FStateTreeInstanceDebugId InstanceId
 	}
 	else
 	{
-		const TraceServices::FFrame& LastFrame = ExistingCollection->FrameSpans.Last().Frame;
+		const UE::StateTreeDebugger::FFrameSpan& LastSpan = ExistingCollection->FrameSpans.Last();
+		const TraceServices::FFrame& LastFrame = LastSpan.Frame;
+		const uint64 FrameIndexOffset = ExistingCollection->ContiguousTracesData.IsEmpty()
+			? 0
+			: (ExistingCollection->FrameSpans[ExistingCollection->ContiguousTracesData.Last().LastSpanIndex].Frame.Index + 1);
+
 		// Add new frame span for new larger frame index
-		if (Frame.Index > LastFrame.Index)
+		if (Frame.Index + FrameIndexOffset > LastFrame.Index)
 		{
 			bShouldAddFrameToSpans = true;
+
+			// Apply current offset to the frame index
+			FrameToAddInSpans.Index += FrameIndexOffset;
 		}
 		else if (Frame.Index < LastFrame.Index && Frame.StartTime > LastFrame.StartTime)
 		{
-			// Some events are buffered and can be sent from an older world recording
-			// time in case of late recording (e.g., ActiveStatesEvent) so if we want to aggregate the events
-			// with existing data we'll snap it to the most recent time to not break the timelines
-			RecordingWorldTime = FMath::Max(RecordingWorldTime, RecordingDuration);
-
 			// Frame index will restart at 0 if a new session is started,
 			// in that case we offset the frame we store to append to existing data
-			FrameToAddInSpans.Index += LastFrame.Index + 1;
 			bShouldAddFrameToSpans = true;
+
+			const UE::StateTreeDebugger::FInstanceEventCollection::FContiguousTraceInfo& TraceInfo =
+				ExistingCollection->ContiguousTracesData.Emplace_GetRef(ExistingCollection->FrameSpans.Num()-1);
+			FrameToAddInSpans.Index += ExistingCollection->FrameSpans[TraceInfo.LastSpanIndex].Frame.Index + 1;
 		}
 	}
 

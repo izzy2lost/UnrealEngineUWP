@@ -348,9 +348,9 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 
 	IStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule");
 	bRecording = StateTreeModule.IsTracing();
-	UE::StateTree::Delegates::OnTracingStateChanged.AddSPLambda(this, [&bRecording=bRecording](const bool bTracesEnabled)
+	UE::StateTree::Delegates::OnTracingStateChanged.AddSPLambda(this, [&bRecording=bRecording](const EStateTreeTraceStatus TraceStatus)
 		{
-			bRecording = bTracesEnabled;
+			bRecording = TraceStatus == EStateTreeTraceStatus::TracesStarted;
 		});
 
 	// Bind callbacks to the debugger delegates
@@ -936,11 +936,14 @@ void SStateTreeDebuggerView::OnDebuggerScrubStateChanged(const UE::StateTreeDebu
 		if (bShouldPopScopeStack)
 		{
 			// Pop scope and remove associated element if empty
-			TSharedPtr<FStateTreeDebuggerEventTreeElement> Scope = ScopeStack.Pop();
-			if (Scope->Children.IsEmpty())
+			if (ensureMsgf(ScopeStack.Num() > 0, TEXT("Expected to pop an entry in the scope stack but it is already empty.")))
 			{
-				TArray<TSharedPtr<FStateTreeDebuggerEventTreeElement>>& TreeElements = ScopeStack.IsEmpty() ? EventsTreeElements : ScopeStack.Top()->Children;
-				TreeElements.Remove(Scope);
+				TSharedPtr<FStateTreeDebuggerEventTreeElement> Scope = ScopeStack.Pop();
+				if (Scope->Children.IsEmpty())
+				{
+					TArray<TSharedPtr<FStateTreeDebuggerEventTreeElement>>& TreeElements = ScopeStack.IsEmpty() ? EventsTreeElements : ScopeStack.Top()->Children;
+					TreeElements.Remove(Scope);
+				}
 			}
 			// We don't want to create a child when a scope is popped.
 			continue;

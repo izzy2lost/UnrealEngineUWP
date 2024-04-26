@@ -58,32 +58,65 @@ bool FStateTreeDebuggerInstanceTrack::UpdateInternal()
 		const TConstArrayView<UE::StateTreeDebugger::FFrameSpan> Spans = EventCollection.FrameSpans;
 		const TConstArrayView<FStateTreeTraceEventVariantType> Events = EventCollection.Events;
 		const uint32 NumStateChanges = EventCollection.ActiveStatesChanges.Num();
-		
-		for (uint32 StateChangeIndex = 0; StateChangeIndex < NumStateChanges; ++StateChangeIndex)
-		{
-			const uint32 SpanIndex = EventCollection.ActiveStatesChanges[StateChangeIndex].SpanIndex;
-			const uint32 EventIndex = EventCollection.ActiveStatesChanges[StateChangeIndex].EventIndex;
-			const FStateTreeTraceActiveStatesEvent& Event = Events[EventIndex].Get<FStateTreeTraceActiveStatesEvent>();
-				
-			FString StatePath = Event.GetValueString(*StateTree);
-			UE::StateTreeDebugger::FFrameSpan Span = EventCollection.FrameSpans[SpanIndex];
-			SStateTreeDebuggerEventTimelineView::FTimelineEventData::EventWindow& Window = EventData->Windows.AddDefaulted_GetRef();
-			Window.Color = MakeRandomColor(GetTypeHash(StatePath));
-			Window.Description = FText::FromString(StatePath);
-			Window.TimeStart = Span.GetWorldTimeStart();
 
-			// When there is another state change after the current one in the list we use
-			// the end time of the previous frame span to close the window. Not using the start time
-			// since we might have a gap in case of multiple recordings during the same game session.
-			if (StateChangeIndex < NumStateChanges-1)
+		TArray<UE::StateTreeDebugger::FInstanceEventCollection::FContiguousTraceInfo> TracesInfo = EventCollection.ContiguousTracesData;
+		// Append the on going trace info to "stopped" previous trace
+		if (NumStateChanges > 0)
+		{
+			TracesInfo.Emplace(EventCollection.ActiveStatesChanges.Last().SpanIndex);
+		}
+
+		int32 StateChangeEndIndex = INDEX_NONE;
+		for (int32 TraceIndex = 0; TraceIndex < TracesInfo.Num(); TraceIndex++)
+		{
+			UE::StateTreeDebugger::FInstanceEventCollection::FContiguousTraceInfo TraceInfo = TracesInfo[TraceIndex];
+			// Start at first event for the first trace or from the end index of the previous trace 
+			const int32 StateChangeBeginIndex = (StateChangeEndIndex == INDEX_NONE) ? 0 : StateChangeEndIndex;
+
+			// Find the starting index of the next trace to stop our iteration
+			StateChangeEndIndex = EventCollection.ActiveStatesChanges.IndexOfByPredicate(
+				[LastSpanIndex = TraceInfo.LastSpanIndex](const UE::StateTreeDebugger::FInstanceEventCollection::FActiveStatesChangePair& Pair)
+				{
+					return Pair.SpanIndex > LastSpanIndex;
+				});
+
+			// When not found means we are processing the last (or the only) trace
+			if (StateChangeEndIndex == INDEX_NONE)
 			{
-				const uint32 EndSpanIndex = EventCollection.ActiveStatesChanges[StateChangeIndex+1].SpanIndex-1;
-				check(EventCollection.FrameSpans.IsValidIndex(EndSpanIndex));
-				Window.TimeEnd = EventCollection.FrameSpans[EndSpanIndex].GetWorldTimeEnd();
+				StateChangeEndIndex = NumStateChanges;
 			}
-			else
+
+			for (int32 StateChangeIndex = StateChangeBeginIndex; StateChangeIndex < StateChangeEndIndex; ++StateChangeIndex)
 			{
-				Window.TimeEnd = Debugger->IsActiveInstance(RecordingDuration, InstanceId) ? RecordingDuration : EventCollection.FrameSpans.Last().GetWorldTimeEnd();
+				const uint32 SpanIndex = EventCollection.ActiveStatesChanges[StateChangeIndex].SpanIndex;
+				const uint32 EventIndex = EventCollection.ActiveStatesChanges[StateChangeIndex].EventIndex;
+				const FStateTreeTraceActiveStatesEvent& Event = Events[EventIndex].Get<FStateTreeTraceActiveStatesEvent>();
+				
+				FString StatePath = Event.GetValueString(*StateTree);
+				UE::StateTreeDebugger::FFrameSpan Span = EventCollection.FrameSpans[SpanIndex];
+				SStateTreeDebuggerEventTimelineView::FTimelineEventData::EventWindow& Window = EventData->Windows.AddDefaulted_GetRef();
+				Window.Color = MakeRandomColor(GetTypeHash(StatePath));
+				Window.Description = FText::FromString(StatePath);
+				Window.TimeStart = Span.GetWorldTimeStart();
+
+				// For the last received event we use either the current recording duration if the instance is still active
+				if (StateChangeIndex == (NumStateChanges - 1))
+				{
+					// or the last recorded frame time.
+					Window.TimeEnd = Debugger->IsActiveInstance(RecordingDuration, InstanceId)
+						? RecordingDuration
+						: EventCollection.FrameSpans.Last().GetWorldTimeEnd();
+				}
+				else
+				{
+					// When there is another state change after the current one in the list we use it to close the window.
+					// If the event is not the last of that specific trace then we use the start time of the next span.
+					// Otherwise, we use the end time of the last frame that was part of that trace.
+					const int32 NextStateChangeSpanIndex = EventCollection.ActiveStatesChanges[StateChangeIndex+1].SpanIndex;
+					Window.TimeEnd = (StateChangeIndex < (StateChangeEndIndex - 1))
+						? EventCollection.FrameSpans[NextStateChangeSpanIndex].GetWorldTimeStart()
+						: EventCollection.FrameSpans[NextStateChangeSpanIndex - 1].GetWorldTimeEnd(); //TraceInfo.LastRecordingTime;
+				}
 			}
 		}
 

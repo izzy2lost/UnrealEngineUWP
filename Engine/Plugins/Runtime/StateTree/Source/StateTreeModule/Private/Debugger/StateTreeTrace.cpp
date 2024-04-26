@@ -214,15 +214,21 @@ struct FInstanceEventBufferedData
 
 	FInstanceEventBufferedData() = default;
 	explicit FInstanceEventBufferedData(
-		const double RecordingWorldTime,
 		const UStateTree* StateTree,
 		const FStateTreeInstanceDebugId InstanceId,
 		const FString& InstanceName)
 		: InstanceName(InstanceName)
 		, WeakStateTree(StateTree)
 		, InstanceId(InstanceId)
-		, LifetimeRecordingWorldTime(RecordingWorldTime)
 	{
+	}
+
+	void CloseRecording(double WorldTime) const
+	{
+		// Output and empty active states event at the last recorded world time to close active states
+		UE_TRACE_LOG(StateTreeDebugger, WorldTimestampEvent, StateTreeDebugChannel) << WorldTimestampEvent.WorldTime(WorldTime);
+		FActiveStates EmptyState;
+		EmptyState.Output(InstanceId);
 	}
 
 	void Trace() const
@@ -231,18 +237,10 @@ struct FInstanceEventBufferedData
 		{
 			if (const UStateTree* StateTree = WeakStateTree.Get())
 			{
-				// Force a world time update since we are tracing an event from the past
-				UE_TRACE_LOG(StateTreeDebugger, WorldTimestampEvent, StateTreeDebugChannel)
-					<< WorldTimestampEvent.WorldTime(LifetimeRecordingWorldTime);
-
 				OutputInstanceLifetimeEvent(InstanceId, StateTree, *InstanceName, EStateTreeTraceEventType::Push);
 
 				if (ActiveStates.IsValid())
 				{
-					// Force a world time update since we are tracing an event from the past
-					UE_TRACE_LOG(StateTreeDebugger, WorldTimestampEvent, StateTreeDebugChannel)
-						<< WorldTimestampEvent.WorldTime(ActiveStatesRecordingWorldTime);
-
 					ActiveStates.Output(InstanceId);
 				}
 			}
@@ -253,8 +251,6 @@ struct FInstanceEventBufferedData
 	FString InstanceName;
 	TWeakObjectPtr<const UStateTree> WeakStateTree;
 	FStateTreeInstanceDebugId InstanceId;
-	double LifetimeRecordingWorldTime = 0;
-	double ActiveStatesRecordingWorldTime = 0;
 };
 
 /** Struct to keep track of the buffered event data and flush them. */
@@ -291,28 +287,33 @@ struct FBufferedDataList
 
 		TGuardValue<bool> GuardReentry(bFlushing, true);
 
-		if (FlushedVersion != CurrentVersion)
-		{
-			FlushedVersion = CurrentVersion;
+		const bool bTraceLifetimeEvents = FlushedVersion != CurrentVersion;
+		FlushedVersion = CurrentVersion;
 
-			// Trace asset events first since they are required for instance lifetime event types.
-			// Events are preserved in case the trace session is stopped and then a new one gets started
-			// in the same game session. In which case we need to output the ids to that new trace.
+		// Trace asset events first since they are required for instance lifetime event types.
+		// Events are preserved in case the trace session is stopped and then a new one gets started
+		// in the same game session. In which case we need to output the ids to that new trace.
+		if (bTraceLifetimeEvents)
+		{
 			for (const FAssetDebugIdEventBufferedData& AssetDebugIdEventData : AssetDebugIdEvents)
 			{
 				AssetDebugIdEventData.Trace();
 			}
+		}
 
-			// Then trace instance lifetime events since they are required for other event types.
-			// It is also associated to an older world time.
-			// Events are also preserved for the same reason as AssetDebugIdEvents.
+		TraceWorldTime();
+
+		// Then trace instance lifetime events since they are required for other event types.
+		// They are associated to an older world time but to simplify the logic on the analysis side
+		// we will send them as if the instances were created at the beginning of the recording.
+		// Events are also preserved for the same reason as AssetDebugIdEvents.
+		if (bTraceLifetimeEvents)
+		{
 			for (TPair<FStateTreeInstanceDebugId, FInstanceEventBufferedData>& Pair : InstanceLifetimeEvents)
 			{
 				Pair.Value.Trace();
 			}
 		}
-
-		TraceWorldTime();
 
 		if (InstanceId.IsValid())
 		{
@@ -367,8 +368,13 @@ struct FBufferedDataList
 		}
 	}
 
-	void BumpTraceVersion()
+	void OnStoppingTraces()
 	{
+		for (TPair<FStateTreeInstanceDebugId, FInstanceEventBufferedData>& Pair : InstanceLifetimeEvents)
+		{
+			Pair.Value.CloseRecording(TracedRecordingWorldTime);
+		}
+
 		// Bump version so shareable data will be flush in the next trace (e.g. Asset ids, instance lifetime events, etc.)
 		CurrentVersion++;
 
@@ -489,12 +495,12 @@ void RegisterGlobalDelegates()
 #endif// OBJECT_TRACE_ENABLED
 		});
 
-	GTracingStateChangedDelegateHandle = UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([](const bool bTracesEnabled)
+	GTracingStateChangedDelegateHandle = UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([](const EStateTreeTraceStatus TraceStatus)
 	{
-		// Bump trace version when disabling traces so next trace will flush buffered events that are still relevant.
-		if (!bTracesEnabled)
+		// Traces are about to be stopped so allow the buffered events to react.
+		if (TraceStatus == EStateTreeTraceStatus::StoppingTrace)
 		{
-			GBufferedEvents.BumpTraceVersion();
+			GBufferedEvents.OnStoppingTraces();
 		}
 	});
 }
@@ -584,7 +590,7 @@ void OutputInstanceLifetimeEvent(
 	{
 		if (EventType == EStateTreeTraceEventType::Push)
 		{
-			GBufferedEvents.InstanceLifetimeEvents.Emplace(InstanceId, FInstanceEventBufferedData(GBufferedEvents.RecordingWorldTime, StateTree, InstanceId, InstanceName));
+			GBufferedEvents.InstanceLifetimeEvents.Emplace(InstanceId, FInstanceEventBufferedData(StateTree, InstanceId, InstanceName));
 		}
 		else if (EventType == EStateTreeTraceEventType::Pop)
 		{
@@ -761,7 +767,6 @@ void OutputActiveStatesEventTrace(
 		if (FInstanceEventBufferedData* ExisingBufferedData = GBufferedEvents.InstanceLifetimeEvents.Find(InstanceId))
 		{
 			ExisingBufferedData->ActiveStates= FInstanceEventBufferedData::FActiveStates(ActiveFrames);
-			ExisingBufferedData->ActiveStatesRecordingWorldTime = GBufferedEvents.RecordingWorldTime;
 		}
 	}
 }

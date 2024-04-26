@@ -5,6 +5,7 @@
 #include "StateTreeTypes.h"
 
 #if WITH_STATETREE_DEBUGGER
+#include "Debugger/StateTreeDebuggerTypes.h"
 #include "Debugger/StateTreeTrace.h"
 #include "Debugger/StateTreeTraceModule.h"
 #include "Features/IModularFeatures.h"
@@ -188,7 +189,7 @@ bool FStateTreeModule::StartTraces(int32& OutTraceId)
 	if (UE::StateTree::Delegates::OnTracingStateChanged.IsBound())
 	{
 		UE_LOG(LogStateTree, Log, TEXT("StateTree traces enabled"));
-		UE::StateTree::Delegates::OnTracingStateChanged.Broadcast(bIsTracing);
+		UE::StateTree::Delegates::OnTracingStateChanged.Broadcast(EStateTreeTraceStatus::TracesStarted);
 	}
 
 	return bAreTracesStarted;
@@ -214,6 +215,12 @@ void FStateTreeModule::StopTraces()
 		return;
 	}
 
+	if (UE::StateTree::Delegates::OnTracingStateChanged.IsBound())
+	{
+		UE_LOG(LogStateTree, Log, TEXT("Stopping StateTree traces..."));
+		UE::StateTree::Delegates::OnTracingStateChanged.Broadcast(EStateTreeTraceStatus::StoppingTrace);
+	}
+
 	UE::Trace::ToggleChannel(TEXT("StateTreeDebugChannel"), false);
 	UE::Trace::ToggleChannel(TEXT("FrameChannel"), false);
 
@@ -236,8 +243,8 @@ void FStateTreeModule::StopTraces()
 
 	if (UE::StateTree::Delegates::OnTracingStateChanged.IsBound())
 	{
-		UE_LOG(LogStateTree, Log, TEXT("StateTree traces disabled"));
-		UE::StateTree::Delegates::OnTracingStateChanged.Broadcast(bIsTracing);
+		UE_LOG(LogStateTree, Log, TEXT("StateTree traces stopped"));
+		UE::StateTree::Delegates::OnTracingStateChanged.Broadcast(EStateTreeTraceStatus::TracesStopped);
 	}
 #endif // WITH_STATETREE_DEBUGGER
 }

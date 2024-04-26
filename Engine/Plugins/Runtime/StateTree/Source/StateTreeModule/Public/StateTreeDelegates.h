@@ -5,6 +5,7 @@
 #include "Delegates/Delegate.h"
 
 class UStateTree;
+enum class EStateTreeTraceStatus : uint8;
 
 namespace UE::StateTree::Delegates
 {
@@ -69,7 +70,7 @@ extern STATETREEMODULE_API FOnRequestEditorHash OnRequestEditorHash;
 #if WITH_STATETREE_DEBUGGER
 
 /** Called by the StateTree module when StateTree traces are enabled/disabled. */
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnTracingStateChanged, bool /*bTracesEnabled*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnTracingStateChanged, EStateTreeTraceStatus);
 extern STATETREEMODULE_API FOnTracingStateChanged OnTracingStateChanged;
 
 #endif // WITH_STATETREE_DEBUGGER

@@ -145,6 +145,18 @@ bool FStateTreeTraceProvider::GetAssetFromDebugId(const FStateTreeIndex16 AssetD
 	return ExistingPair != nullptr;
 }
 
+bool FStateTreeTraceProvider::GetAssetFromInstanceId(const FStateTreeInstanceDebugId InstanceId, TWeakObjectPtr<const UStateTree>& WeakStateTree) const
+{
+	if (const uint32* IndexPtr = InstanceIdToDebuggerEntryTimelines.Find(InstanceId))
+	{
+		check(Descriptors.Num() == EventsTimelines.Num());
+		WeakStateTree = Descriptors[*IndexPtr].StateTree;
+		return true;
+	}
+
+	return false;
+}
+
 void FStateTreeTraceProvider::GetInstances(TArray<UE::StateTreeDebugger::FInstanceDescriptor>& OutInstances) const
 {
 	OutInstances = Descriptors;
