@@ -577,7 +577,7 @@ bool GenerateRayLocalLight(
 		// where the projection becomes extreme.
 
 		// Clip ray to max angle to limit penumbra sizes
-		float ClampedLength = DistToLight * 0.75 * saturate(1.5 / (CosTheta + CotMaxRayAngleFromLight * SinTheta));
+		float ClampedLength = DistToLight * saturate(1.5 / (CosTheta + CotMaxRayAngleFromLight * SinTheta));
 
 		OutRayStart = TranslatedWorldPosition;
 		OutRayEnd = TranslatedWorldPosition + Dir * ClampedLength;
