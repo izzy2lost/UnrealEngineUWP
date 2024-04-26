@@ -130,8 +130,7 @@ mu::NodeProjectorPtr GenerateMutableSourceProjector(const UEdGraphPin* Pin, FMut
 			check(false);
 		}
 
-		GenerationContext.ParameterUIDataMap.Add(TypedNodeParam->ParameterName, FParameterUIData(
-			TypedNodeParam->ParameterName,
+		GenerationContext.ParameterUIDataMap.Add(TypedNodeParam->ParameterName, FMutableParameterData(
 			TypedNodeParam->ParamUIMetadata,
 			EMutableParameterType::Projector));
 	}

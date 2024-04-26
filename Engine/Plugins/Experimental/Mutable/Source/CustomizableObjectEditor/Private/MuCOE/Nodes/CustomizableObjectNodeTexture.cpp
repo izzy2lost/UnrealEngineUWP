@@ -4,6 +4,7 @@
 
 #include "ISinglePropertyView.h"
 #include "Modules/ModuleManager.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "Widgets/Images/SImage.h"

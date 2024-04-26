@@ -19,6 +19,7 @@
 #include "ObjectEditorUtils.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Modules/ModuleManager.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeExternalPin.h"
 

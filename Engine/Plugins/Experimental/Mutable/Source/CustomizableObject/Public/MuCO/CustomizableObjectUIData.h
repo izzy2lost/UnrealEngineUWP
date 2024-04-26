@@ -2,10 +2,9 @@
 
 #pragma once
 
+#include "InstancedStruct.h"
 #include "Engine/Texture2D.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
-#include "MuCO/CustomizableObjectCustomVersion.h"
-#include "MuR/System.h"
 
 #include "CustomizableObjectUIData.generated.h"
 
@@ -13,27 +12,23 @@ class UTexture2D;
 
 
 USTRUCT(BlueprintType)
-struct FMutableParamUIMetadata
+struct FMutableUIMetadata
 {
 	GENERATED_BODY()
-
-	FMutableParamUIMetadata()
-		: UIOrder(0)
-	{}
 
 	/** This is the name to be shown in UI */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	FString ObjectFriendlyName;
 
-	/** This is the name of the section where the parameter will be placed in UI */
+	/** This is the name of the section where the object will be placed in UI */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	FString UISectionName;
 
-	/** This is the order of the parameter inside its section */
+	/** This is the order of the object inside its section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
-	int32 UIOrder;
+	int32 UIOrder = 0;
 
-	/** Thumnbail for UI */
+	/** Thumbnail for UI */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	TSoftObjectPtr<UTexture2D> UIThumbnail;
 
@@ -45,280 +40,33 @@ struct FMutableParamUIMetadata
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	TMap<FString, TSoftObjectPtr<UObject>> ExtraAssets;
 
+	friend FArchive& operator<<(FArchive& Ar, FMutableUIMetadata& Struct);
+};
+
+
+USTRUCT(BlueprintType)
+struct FMutableParamUIMetadata : public FMutableUIMetadata
+{
+	GENERATED_BODY()
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	float MinimumValue = 0.0f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	float MaximumValue = 1.0f;
 
-	bool operator ==(const FMutableParamUIMetadata& Other) const
-	{
-		if (ObjectFriendlyName != Other.ObjectFriendlyName || UISectionName != Other.UISectionName || UIOrder != Other.UIOrder || UIThumbnail != Other.UIThumbnail)
-		{
-			return false;
-		}
-
-		if (!ExtraInformation.OrderIndependentCompareEqual(Other.ExtraInformation))
-		{
-			return false;
-		}
-
-		if (!ExtraAssets.OrderIndependentCompareEqual(Other.ExtraAssets))
-		{
-			return false;
-		}
-
-		return true;
-	}
-
-	bool operator !=(const FMutableParamUIMetadata& Other) const
-	{
-		return !(*this == Other);
-	}
-
-	friend FArchive& operator <<(FArchive& Ar, FMutableParamUIMetadata& Metadata)
-	{
-		Ar.UsingCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-		Ar << Metadata.ObjectFriendlyName;
-		Ar << Metadata.UISectionName;
-		Ar << Metadata.UIOrder;
-
-		//Ar << Metadata.UIThumbnail;
-		if (Ar.IsLoading())
-		{
-			FString StringRef;
-			Ar << StringRef;
-			Metadata.UIThumbnail = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(StringRef));
-		}
-		else
-		{
-			FString StringRef = Metadata.UIThumbnail.ToSoftObjectPath().ToString();
-			Ar << StringRef;
-		}
-
-		Ar << Metadata.ExtraInformation;
-
-		//Ar << Metadata.ExtraAssets;
-		if (Ar.IsLoading())
-		{
-			int32 NumReferencedAssets = 0;
-			Ar << NumReferencedAssets;
-			Metadata.ExtraAssets.Empty(NumReferencedAssets);
-
-			for (int32 i = 0; i < NumReferencedAssets; ++i)
-			{
-				FString Key, StringRef;
-				Ar << Key;
-				Ar << StringRef;
-
-				Metadata.ExtraAssets.Add(Key, TSoftObjectPtr<UObject>(FSoftObjectPath(StringRef)));
-			}
-		}
-		else
-		{
-			int32 NumReferencedAssets = Metadata.ExtraAssets.Num();
-			Ar << NumReferencedAssets;
-
-			for (TPair<FString, TSoftObjectPtr<UObject>>& AssetPair : Metadata.ExtraAssets)
-			{
-				FString StringRef = AssetPair.Value.ToSoftObjectPath().ToString();
-				Ar << AssetPair.Key;
-				Ar << StringRef;
-			}
-		}
-
-		// Update structure
-		if (Ar.CustomVer(FCustomizableObjectCustomVersion::GUID) >= FCustomizableObjectCustomVersion::BeforeCustomVersionWasAdded)
-		{
-			Ar << Metadata.MinimumValue;
-			Ar << Metadata.MaximumValue;
-		}
-
-		return Ar;
-	}
-
-#if WITH_EDITOR
-
-	/** Only called in the BeginCacheForCookPlatform to include new references in the final package */
-	void LoadResources()
-	{
-		UIThumbnail.LoadSynchronous();
-
-		for (const TPair<FString, TSoftObjectPtr<UObject>>& a : ExtraAssets)
-		{
-			a.Value.LoadSynchronous();
-		}
-	}
-
-#endif
-};
-
-USTRUCT(BlueprintType)
-struct FIntegerParameterUIData
-{
-	GENERATED_BODY()
-
-	FIntegerParameterUIData()
-	{
-
-	}
-
-	FIntegerParameterUIData(
-		const FString& ParamName,
-		const FMutableParamUIMetadata& InParamFriendlyName) :
-		  Name(ParamName)
-		, ParamUIMetadata(InParamFriendlyName)
-	{
-
-	}
-
-	/** Integer parameter option name */
-	UPROPERTY(BlueprintReadWrite, Category = UI)
-	FString Name;
-
-	UPROPERTY(BlueprintReadWrite, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
-	FMutableParamUIMetadata ParamUIMetadata;
-
-	bool operator ==(const FIntegerParameterUIData& Other) const
-	{
-		if (Name != Other.Name || ParamUIMetadata != Other.ParamUIMetadata)
-		{
-			return false;
-		}
-
-		return true;
-	}
-
-	bool operator !=(const FIntegerParameterUIData& Other) const
-	{
-		return !(*this == Other);
-	}
-
-	friend FArchive& operator <<(FArchive& Ar, FIntegerParameterUIData& UIData)
-	{
-		Ar << UIData.Name;
-		Ar << UIData.ParamUIMetadata;
-
-		return Ar;
-	}
-
-#if WITH_EDITOR
-
-	/** Only called in the BeginCacheForCookPlatform to include new references in the final package */
-	void LoadResources()
-	{
-		ParamUIMetadata.LoadResources();
-	}
-
-#endif
+	friend FArchive& operator<<(FArchive& Ar, FMutableParamUIMetadata& Struct);
 };
 
 
 USTRUCT(BlueprintType)
-struct FParameterUIData
+struct FMutableStateUIMetadata : public FMutableUIMetadata
 {
 	GENERATED_BODY()
 
-	FParameterUIData() 
-	{
-	}
-
-	FParameterUIData(
-		const FString& ParamName,
-		const FMutableParamUIMetadata& InParamUIMetadata,
-		EMutableParameterType ParamType) :
-		Name(ParamName),
-		ParamUIMetadata(InParamUIMetadata),
-		Type(ParamType)
-	{
-
-	}
-
-	/** Parameter name */
-	UPROPERTY(BlueprintReadWrite, Category = UI)
-	FString Name;
-
-	UPROPERTY(BlueprintReadWrite, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
-	FMutableParamUIMetadata ParamUIMetadata;
-
-	/** Parameter type, using uint8 since the enum in declared in the class it is used */
-	UPROPERTY(BlueprintReadWrite, Category = UI)
-	EMutableParameterType Type = EMutableParameterType::None;
-
-	/** In the case of an integer parameter, store here all options */
-	UPROPERTY(BlueprintReadWrite, Category = UI)
-	TArray<FIntegerParameterUIData> ArrayIntegerParameterOption;
-
-	/** In the case of an integer parameter, how are the different options selected (one, one or none, etc...) */
-	UPROPERTY(BlueprintReadWrite, Category = UI)
-	ECustomizableObjectGroupType IntegerParameterGroupType = ECustomizableObjectGroupType::COGT_ONE_OR_NONE;
-
-	/** Not really relevant for UI, but apparently bDontCompressRuntimeTextures_DEPRECATED was used to decided some texture properties at runtime. */
-	UPROPERTY()
-	ETextureCompressionStrategy TextureCompressionStrategy = ETextureCompressionStrategy::None;
-
-	/** If this is enabled, texture streaming won't be used for this state, and full images will be generated when an instance is first updated. */
-	UPROPERTY()
-	bool bDisableTextureStreaming = false;
-
-	/** In this mode instances and their temp data will be reused between updates. It will be much faster but spend as much as ten times the memory.
-	    Useful for customization lockers with few characters that are going to have their parameters changed many times, not for in-game */
-	UPROPERTY(BlueprintReadWrite, Category = CustomizableObject)
-	bool bLiveUpdateMode = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = CustomizableObject)
-	bool bReuseInstanceTextures = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = CustomizableObject)
-	TMap<FString, FString> ForcedParameterValues;
-
-	bool operator ==(const FParameterUIData& Other) const
-	{
-		if (Name != Other.Name || ParamUIMetadata != Other.ParamUIMetadata || Type != Other.Type 
-			|| ArrayIntegerParameterOption != Other.ArrayIntegerParameterOption || IntegerParameterGroupType != Other.IntegerParameterGroupType 
-			|| bLiveUpdateMode != Other.bLiveUpdateMode || bReuseInstanceTextures != Other.bReuseInstanceTextures
-			|| bDisableTextureStreaming != Other.bDisableTextureStreaming
-			|| !ForcedParameterValues.OrderIndependentCompareEqual(Other.ForcedParameterValues)
-			)
-		{
-			return false;
-		}
-
-		return true;
-	}
-
-	friend FArchive& operator <<(FArchive& Ar, FParameterUIData& UIData)
-	{
-		Ar << UIData.Name;
-		Ar << UIData.ParamUIMetadata;
-		Ar << UIData.Type;
-		Ar << UIData.ArrayIntegerParameterOption;
-		Ar << UIData.IntegerParameterGroupType;
-		Ar << UIData.TextureCompressionStrategy;
-		Ar << UIData.bDisableTextureStreaming;
-		Ar << UIData.bLiveUpdateMode;
-		Ar << UIData.bReuseInstanceTextures;
-		Ar << UIData.ForcedParameterValues;
-
-		return Ar;
-	}
-
-#if WITH_EDITOR
-
-	/** Only called in the BeginCacheForCookPlatform to include new references in the final package */
-	void LoadResources()
-	{
-		ParamUIMetadata.LoadResources();
-
-		for (FIntegerParameterUIData& intParam : ArrayIntegerParameterOption)
-		{
-			intParam.LoadResources();
-		}
-	}
-
-#endif
+	friend FArchive& operator<<(FArchive& Ar, FMutableStateUIMetadata& Struct);
 };
+
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "MuCO/UnrealPortabilityHelpers.h"

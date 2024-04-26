@@ -3,6 +3,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeCurve.h"
 
 #include "Curves/CurveBase.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/RemapPins/CustomizableObjectNodeRemapPinsByPosition.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"

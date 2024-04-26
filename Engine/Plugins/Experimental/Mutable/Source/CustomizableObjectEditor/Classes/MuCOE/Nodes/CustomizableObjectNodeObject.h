@@ -58,6 +58,8 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectState
 {
 	GENERATED_USTRUCT_BODY()
 
+	friend UCustomizableObjectNodeObject;
+	
 	UPROPERTY(EditAnywhere, Category=CustomizableObject)
 	FString Name;
 
@@ -93,9 +95,12 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectState
 	TMap<FString, FString> ForcedParameterValues;
 
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "State UI Metadata"))
-	FMutableParamUIMetadata StateUIMetadata;
+	FMutableStateUIMetadata UIMetadata;
 
+private:
 	// Deprecated
+	UPROPERTY()
+	FMutableParamUIMetadata StateUIMetadata_DEPRECATED;
 	
 	/** This is now TextureCompressionStrategy.  */
 	UPROPERTY()

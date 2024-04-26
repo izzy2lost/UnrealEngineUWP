@@ -43,6 +43,8 @@
 #endif
 
 
+#include "MuCO/CustomizableObjectCustomVersion.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObject)
 
 #define LOCTEXT_NAMESPACE "CustomizableObject"
@@ -595,6 +597,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 		MemoryWriter << LocalModelResources.EditorOnlyClothingMeshToMeshVertData;
 	}
 }
+
 
 void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
 {
@@ -1522,43 +1525,36 @@ FString UCustomizableObject::FindIntParameterValueName(int32 ParamIndex, int32 P
 }
 
 
-FParameterUIData UCustomizableObject::GetParameterUIMetadata(const FString& ParamName) const
+FMutableParamUIMetadata UCustomizableObject::GetParameterUIMetadata(const FString& ParamName) const
 {
-	const FParameterUIData* ParameterUIData = Private->GetModelResources().ParameterUIDataMap.Find(ParamName);
-
-	return ParameterUIData ? *ParameterUIData : FParameterUIData();
+	const FMutableParameterData* ParameterData = Private->GetModelResources().ParameterUIDataMap.Find(ParamName);
+	return ParameterData ? ParameterData->ParamUIMetadata : FMutableParamUIMetadata();
 }
 
 
-FParameterUIData UCustomizableObject::GetParameterUIMetadataFromIndex(int32 ParamIndex) const
+FMutableParamUIMetadata UCustomizableObject::GetIntParameterOptionUIMetadata(const FString& ParamName, const FString& OptionName) const
 {
-	return GetParameterUIMetadata(GetParameterName(ParamIndex));
+	const int32 ParameterIndex = FindParameter(ParamName);
+	if (ParameterIndex == INDEX_NONE)
+	{
+		return {};
+	}
+	
+	const FMutableParameterData* ParameterData = Private->GetModelResources().ParameterUIDataMap.Find(ParamName);
+	if (!ParameterData)
+	{
+		return {};
+	}
+
+	const FIntegerParameterUIData* IntegerParameterUIData = ParameterData->ArrayIntegerParameterOption.Find(OptionName);
+	return IntegerParameterUIData ? IntegerParameterUIData->ParamUIMetadata : FMutableParamUIMetadata();
 }
 
 
-FParameterUIData UCustomizableObject::GetStateUIMetadata(const FString& StateName) const
+FMutableStateUIMetadata UCustomizableObject::GetStateUIMetadata(const FString& StateName) const
 {
-	return GetPrivate()->GetStateUIMetadata(StateName);
-}
-
-
-FParameterUIData UCustomizableObjectPrivate::GetStateUIMetadata(const FString& StateName) const
-{
-	const FParameterUIData* StateUIData = GetModelResources().StateUIDataMap.Find(StateName);
-
-	return StateUIData ? *StateUIData : FParameterUIData();
-}
-
-
-FParameterUIData UCustomizableObject::GetStateUIMetadataFromIndex(int32 StateIndex) const
-{
-	return GetPrivate()->GetStateUIMetadataFromIndex(StateIndex);
-}
-
-
-FParameterUIData UCustomizableObjectPrivate::GetStateUIMetadataFromIndex(int32 StateIndex) const
-{
-	return GetStateUIMetadata(GetStateName(StateIndex));
+	const FMutableStateData* StateData = Private->GetModelResources().StateUIDataMap.Find(StateName);
+	return StateData ? StateData->StateUIMetadata : FMutableStateUIMetadata();
 }
 
 
@@ -1730,10 +1726,16 @@ bool UCustomizableObject::IsParameterMultidimensional(const int32& InParamIndex)
 }
 
 
-void UCustomizableObjectPrivate::ApplyStateForcedValuesToParameters( int32 State, mu::Parameters* Parameters)
+void UCustomizableObjectPrivate::ApplyStateForcedValuesToParameters(int32 State, mu::Parameters* Parameters)
 {
-	FParameterUIData StateMetaData = GetStateUIMetadataFromIndex(State);
-	for (const TPair<FString, FString>& ForcedParameter : StateMetaData.ForcedParameterValues)
+	const FString& ParameterName = GetPublic()->GetParameterName(State);
+	const FMutableStateData* StateData = GetModelResources().StateUIDataMap.Find(ParameterName);
+	if (!StateData)
+	{
+		return;
+	}
+	
+	for (const TPair<FString, FString>& ForcedParameter : StateData->ForcedParameterValues)
 	{
 		int32 ForcedParameterIndex = FindParameter(ForcedParameter.Key);
 		if (ForcedParameterIndex == INDEX_NONE)
@@ -1773,7 +1775,6 @@ void UCustomizableObjectPrivate::ApplyStateForcedValuesToParameters( int32 State
 			}
 		}
 	}
-
 }
 
 
@@ -1871,6 +1872,37 @@ void FSkeletonCache::Add(const TArray<uint16>& Key, USkeleton* Value)
 			SkeletonIterator.RemoveCurrent();
 		}
 	}
+}
+
+
+FArchive& operator<<(FArchive& Ar, FIntegerParameterUIData& Struct)
+{
+	Ar << Struct.ParamUIMetadata;
+	
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FMutableParameterData& Struct)
+{
+	Ar << Struct.ParamUIMetadata;
+	Ar << Struct.Type;
+	Ar << Struct.ArrayIntegerParameterOption;
+	Ar << Struct.IntegerParameterGroupType;
+	
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FMutableStateData& Struct)
+{
+	Ar << Struct.StateUIMetadata;
+	Ar << Struct.bLiveUpdateMode;
+	Ar << Struct.bDisableTextureStreaming;
+	Ar << Struct.bReuseInstanceTextures;
+	Ar << Struct.ForcedParameterValues;
+
+	return Ar;
 }
 
 
