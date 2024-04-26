@@ -2,4 +2,6 @@
 
 #include "Modules/Boilerplate/ModuleBoilerplate.h"
 
+#if !IS_MONOLITHIC
 REPLACEMENT_OPERATOR_NEW_AND_DELETE
+#endif
