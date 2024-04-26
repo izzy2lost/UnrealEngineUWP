@@ -166,6 +166,7 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 
 		if (bIsSpatiallyLoaded)
 		{
+			CellDesc.Bounds = FCellCoord::GetCellBounds(CellCoord, CellSize);
 			CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize);
 		}
 	}
