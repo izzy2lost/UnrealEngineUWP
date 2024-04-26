@@ -2,6 +2,10 @@
 
 #pragma once
 
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
+#include "Delegates/Delegate.h"
+#include "Misc/Guid.h"
 
 struct FTraceStatus
 {

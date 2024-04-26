@@ -103,11 +103,7 @@ namespace Metasound
 		public:
 			static const FName EditorName;
 
-			FEditor()
-				: GraphConnectionManager(MakeUnique<FGraphConnectionManager>())
-			{
-			}
-
+			FEditor();
 			virtual ~FEditor();
 
 			virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;

@@ -4,6 +4,7 @@
 
 #include <type_traits>
 #include "Containers/ConsumeAllMpmcQueue.h"
+#include "Templates/UniquePtr.h"
 #include "QuartzCompileTimeVisitor.h"
 
 

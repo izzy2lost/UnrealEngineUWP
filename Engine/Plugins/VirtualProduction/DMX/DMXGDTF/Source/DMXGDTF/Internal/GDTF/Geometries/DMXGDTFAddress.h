@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "GenericPlatform/GenericPlatform.h"
+#include "HAL/Platform.h"
 
 namespace UE::DMX::GDTF
 {

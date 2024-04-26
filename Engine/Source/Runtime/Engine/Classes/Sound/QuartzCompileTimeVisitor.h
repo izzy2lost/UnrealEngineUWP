@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Templates/Function.h"
 #include <type_traits>
 
 // forwards

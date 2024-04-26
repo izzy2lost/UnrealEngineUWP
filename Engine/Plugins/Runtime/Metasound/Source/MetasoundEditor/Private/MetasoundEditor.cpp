@@ -645,6 +645,11 @@ namespace Metasound
 
 		const FName FEditor::EditorName = "MetaSoundEditor";
 
+		FEditor::FEditor()
+		: GraphConnectionManager(MakeUnique<FGraphConnectionManager>())
+		{
+		}
+
 		void FEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 		{
 			WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_MetasoundEditor", "MetaSound Editor"));

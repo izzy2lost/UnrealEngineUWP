@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "CoreTypes.h"
 
+template <typename FuncType> class TFunctionRef;
 class UClass;
-
+class UPackage;
 class UTexture2D;
 
 #if WITH_EDITORONLY_DATA
