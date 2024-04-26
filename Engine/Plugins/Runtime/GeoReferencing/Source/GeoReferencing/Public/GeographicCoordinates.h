@@ -66,29 +66,6 @@ class GEOREFERENCING_API UGeographicCoordinatesFunctionLibrary : public UBluepri
 		GeographicCoordinates.ToSeparateTexts(OutLatitude, OutLongitude, OutAltitude, IntegralDigitsLatLon, IntegralDigitsAlti, bAsDMS);
 	}
 
-	/**
-	 * Get the Coordinates as a float approximation.
-	 * USE WISELY as we can't guarantee there will no be rounding due to IEEE754 float encoding !
-	 **/
-	UE_DEPRECATED(5.0, "BP now support doubles, Function useless and can lead to precision issues")
-	UFUNCTION(BlueprintPure, Category = "GeoReferencing", meta = (DeprecatedFunction, DeprecationMessage = "BP now support doubles, Function useless and can lead to precision issues"))
-	static void ToFloatApproximation(UPARAM(ref) FGeographicCoordinates& GeographicCoordinates, float& OutLatitude, float& OutLongitude, float& OutAltitude)
-	{
-		OutLatitude  = static_cast<float>(GeographicCoordinates.Latitude);
-		OutLongitude = static_cast<float>(GeographicCoordinates.Longitude);
-		OutAltitude  = static_cast<float>(GeographicCoordinates.Altitude);
-	}
-
-	/**
-	 * Set the Coordinates from float approximation.
-	 * USE WISELY as we can't guarantee there will no be rounding due to IEEE754 float encoding !
-	 **/
-	UE_DEPRECATED(5.0, "BP now support doubles, Function useless and can lead to precision issues")
-	UFUNCTION(BlueprintPure, Category = "GeoReferencing|Coordinates", meta = (DeprecatedFunction, DeprecationMessage = "BP now support doubles, Function useless and can lead to precision issues"))
-	static FGeographicCoordinates MakeGeographicCoordinatesApproximation(const float& InLatitude, const float& InLongitude, const float& InAltitude)
-	{
-		return FGeographicCoordinates(static_cast<double>(InLongitude), static_cast<double>(InLatitude), static_cast<double>(InAltitude));
-	}
 
 
 	/**

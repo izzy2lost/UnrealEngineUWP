@@ -5,8 +5,6 @@
 #include "CoreMinimal.h"
 
 #include "GeographicCoordinates.h"
-#include "CartesianCoordinates.h"
-
 #include "Ellipsoid.generated.h"
 
 USTRUCT(BlueprintType)

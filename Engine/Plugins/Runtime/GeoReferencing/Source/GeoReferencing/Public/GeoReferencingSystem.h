@@ -9,7 +9,6 @@
 
 // Double precision structures
 #include "GeographicCoordinates.h"
-#include "CartesianCoordinates.h"
 #include "Ellipsoid.h"
 
 #include "GeoReferencingSystem.generated.h"
@@ -51,81 +50,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "GeoReferencing", meta = (WorldContext = "WorldContextObject"))
 	static AGeoReferencingSystem* GetGeoReferencingSystem(UObject* WorldContextObject);
 
-	// Deprecate all previous functions that were relying on Double precision placeholders
-
-#pragma region Old deprecated Prototypes
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void EngineToProjected(const FVector& EngineCoordinates, FCartesianCoordinates& ProjectedCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void ProjectedToEngine(const FCartesianCoordinates& ProjectedCoordinates, FVector& EngineCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void EngineToECEF(const FVector& EngineCoordinates, FCartesianCoordinates& ECEFCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void ECEFToEngine(const FCartesianCoordinates& ECEFCoordinates, FVector& EngineCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void ProjectedToGeographic(const FCartesianCoordinates& ProjectedCoordinates, FGeographicCoordinates& GeographicCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void GeographicToProjected(const FGeographicCoordinates& GeographicCoordinates, FCartesianCoordinates& ProjectedCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void ProjectedToECEF(const FCartesianCoordinates& ProjectedCoordinates, FCartesianCoordinates& ECEFCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void ECEFToProjected(const FCartesianCoordinates& ECEFCoordinates, FCartesianCoordinates& ProjectedCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void GeographicToECEF(const FGeographicCoordinates& GeographicCoordinates, FCartesianCoordinates& ECEFCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|Transformations", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void ECEFToGeographic(const FCartesianCoordinates& ECEFCoordinates, FGeographicCoordinates& GeographicCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|ENU", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void GetENUVectorsAtProjectedLocation(const FCartesianCoordinates& ProjectedCoordinates, FVector& East, FVector& North, FVector& Up);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|ENU", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void GetENUVectorsAtECEFLocation(const FCartesianCoordinates& ECEFCoordinates, FVector& East, FVector& North, FVector& Up);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|ENU", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	void GetECEFENUVectorsAtECEFLocation(const FCartesianCoordinates& ECEFCoordinates, FVector& ECEFEast, FVector& ECEFNorth, FVector& ECEFUp);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|TangentTransforms", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	FTransform GetTangentTransformAtProjectedLocation(const FCartesianCoordinates& ProjectedCoordinates);
-
-	UE_DEPRECATED(5.0, "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead.")
-	UFUNCTION(BlueprintCallable, Category = "GeoReferencing|TangentTransforms", meta = (DeprecatedFunction, DeprecationMessage = "FCartesianCoordinates is deprecated : Use the version that uses a FVector instead."))
-	FTransform GetTangentTransformAtECEFLocation(const FCartesianCoordinates& ECEFCoordinates);
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-#pragma endregion
-
 #pragma region New Prototypes for Blueprints
 	// We want to keep the same function names, but with a change in some argument types. UBT doesn't support that unless
 	// we create the new functions with a K2_ prefix and use the meta/Displayname tag to keep the same name. 
 	// To allow for a simple C++ usage too, we keep the C++ functions doing the actual work separately
-
+	// Now that we have used them for the BP Nodes, we can't move the UFUNCTION declaration to the actual new C++ function. Leave them here...
 
 	/**
 	* Convert a Vector expressed in ENGINE space to the PROJECTED CRS
