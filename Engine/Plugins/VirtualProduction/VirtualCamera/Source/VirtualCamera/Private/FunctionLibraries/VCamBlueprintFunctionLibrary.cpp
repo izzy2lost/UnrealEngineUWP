@@ -713,6 +713,16 @@ void UVCamBlueprintFunctionLibrary::SetPlaybackSpeed(float Value)
 #endif
 }
 
+bool UVCamBlueprintFunctionLibrary::IsAssetDirty(const FAssetData& AssetData)
+{
+	UPackage* Package = AssetData.GetPackage();
+	if (Package && Package->IsDirty())
+	{
+		return true;
+	}
+	return false;
+}
+
 #if WITH_EDITOR
 TWeakPtr<ISequencer> UVCamBlueprintFunctionLibrary::GetSequencer()
 {

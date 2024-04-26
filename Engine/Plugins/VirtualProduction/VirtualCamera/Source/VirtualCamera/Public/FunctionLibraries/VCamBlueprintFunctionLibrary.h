@@ -243,6 +243,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
 	static bool MultiTraceHitProxyOnViewport(const FVector2D& InScreenPosition, EVCamTargetViewportID InTargetViewport, FVCamTraceHitProxyQueryParams InQueryParams, TArray<FVCamTraceHitProxyResult>& Result);
 
+	/* Checks if the asset is dirty */
+	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
+	static bool IsAssetDirty(const FAssetData& AssetData);
+
 private:
 
 #if WITH_EDITOR
