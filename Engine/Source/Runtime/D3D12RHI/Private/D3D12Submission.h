@@ -3,11 +3,12 @@
 #pragma once
 
 #include "Async/TaskGraphInterfaces.h"
-#include "D3D12RHICommon.h"
+#include "D3D12BindlessDescriptors.h"
+#include "D3D12Query.h"
 #include "D3D12Queue.h"
+#include "D3D12RHICommon.h"
 #include "Templates/Function.h"
 #include "Templates/RefCounting.h"
-#include "D3D12BindlessDescriptors.h"
 #include "RHIBreadcrumbs.h"
 
 enum class ED3D12QueueType;
@@ -130,86 +131,6 @@ public:
 	void operator delete(void* Pointer)
 	{
 		MemoryPool.Push(Pointer);
-	}
-};
-
-enum class ED3D12QueryType
-{
-	None,
-	CommandListBegin,
-	CommandListEnd,
-	PipelineStats,
-	IdleBegin,
-	IdleEnd,
-	AdjustedMicroseconds,
-	AdjustedRaw,
-	Occlusion
-};
-
-enum class ED3D12QueryPosition
-{
-	// Query result should be written before any future command list work is started.
-	TopOfPipe,
-
-	// Query result should be written after all prior command list work has completed.
-	BottomOfPipe
-};
-
-// The location of a single (timestamp or occlusion) query result.
-struct FD3D12QueryLocation
-{
-	// The heap in which the result is contained.
-	FD3D12QueryHeap* Heap = nullptr;
-
-	// The index of the query within the heap.
-	uint32 Index = 0;
-
-	ED3D12QueryType Type = ED3D12QueryType::None;
-
-	// The location into which the result is written by the interrupt thread.
-	void* Target = nullptr;
-
-	// Reads the query result from the heap
-	inline void CopyResultTo(void* Dst) const;
-
-	template <typename TValueType>
-	inline TValueType GetResult() const;
-
-	FD3D12QueryLocation() = default;
-	FD3D12QueryLocation(FD3D12QueryHeap* Heap, uint32 Index, ED3D12QueryType Type, void* Target)
-		: Heap	(Heap  )
-		, Index	(Index )
-		, Type	(Type  )
-		, Target(Target)
-	{}
-
-	operator bool() const { return Heap != nullptr; }
-};
-
-struct FD3D12QueryRange
-{
-	TRefCountPtr<FD3D12QueryHeap> Heap;
-	uint32 Start = 0, End = 0;
-
-	FD3D12QueryRange() = default;
-	FD3D12QueryRange(FD3D12QueryHeap* Heap, uint32 Start, uint32 End)
-		: Heap(Heap)
-		, Start(Start)
-		, End(End)
-	{}
-
-	inline bool IsFull() const;
-
-	bool operator == (FD3D12QueryRange const& RHS) const
-	{
-		return Heap  == RHS.Heap
-			&& Start == RHS.Start
-			&& End   == RHS.End;
-	}
-
-	bool operator < (FD3D12QueryRange const& RHS) const
-	{
-		return Start < RHS.Start;
 	}
 };
 
