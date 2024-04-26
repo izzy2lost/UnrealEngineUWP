@@ -12,6 +12,7 @@
 #include "Stats/StatsTrace.h"
 #include "RHIGPUReadback.h"
 #include "HAL/PlatformFileManager.h"
+#include "ShaderPermutationUtils.h"
 
 #if WITH_EDITOR
 #include "DerivedDataCache.h"
@@ -287,16 +288,24 @@ class FTranscodePageToGPU_CS : public FGlobalShader
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 
-		const uint32 GroupSize = PermutationVector.Get<FGroupSizeDim>();
-		
-		const uint32 MinWaveSize = FDataDrivenShaderPlatformInfo::GetMinimumWaveSize(Parameters.Platform);
-		const uint32 MaxWaveSize = FDataDrivenShaderPlatformInfo::GetMaximumWaveSize(Parameters.Platform);
-		if (GroupSize < MinWaveSize || GroupSize > MaxWaveSize)
+		if (!UE::ShaderPermutationUtils::ShouldCompileWithWaveSize(Parameters, PermutationVector.Get<FGroupSizeDim>()))
 		{
 			return false;
 		}
 		
 		return DoesPlatformSupportNanite(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!UE::ShaderPermutationUtils::ShouldPrecacheWithWaveSize(Parameters, PermutationVector.Get<FGroupSizeDim>()))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)

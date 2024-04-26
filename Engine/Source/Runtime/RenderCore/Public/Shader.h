@@ -878,7 +878,7 @@ public:
 	static bool ShouldCompilePermutation(const FShaderPermutationParameters&) { return true; }
 
 	/** Can be overridden by FShader subclasses to determine whether a specific permutation should be precached. */
-	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) { return ShouldCompilePermutation(Parameters) ? EShaderPermutationPrecacheRequest::Precached : EShaderPermutationPrecacheRequest::NotUsed; }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::Precached; }
 
 	/** Can be overridden by FShader subclasses to determine whether compilation is valid. */
 	static bool ValidateCompiledResult(EShaderPlatform InPlatform, const FShaderParameterMap& InParameterMap, TArray<FString>& OutError) { return true; }

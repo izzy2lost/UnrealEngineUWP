@@ -300,7 +300,7 @@ public:
 	using ShaderMetaType = FGlobalShaderType;
 	using FPermutationParameters = FGlobalShaderPermutationParameters;
 
-	FGlobalShader() : FShader() {}
+	FGlobalShader() = default;
 
 	RENDERCORE_API FGlobalShader(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
 	
@@ -311,10 +311,8 @@ public:
 		SetUniformBufferParameter(BatchedParameters, ViewUniformBufferParameter, ViewUniformBuffer);
 	}
 
-	static inline bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return FShader::ShouldCompilePermutation(Parameters);
-	}
+	using FShader::ShouldCompilePermutation;
+	using FShader::ShouldPrecachePermutation;
 	
 	static inline void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& Environment) { };
 };

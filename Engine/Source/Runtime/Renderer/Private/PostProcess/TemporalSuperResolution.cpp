@@ -14,6 +14,7 @@
 #include "ShaderPlatformCachedIniValue.h"
 #include "PostProcess/PostProcessVisualizeBuffer.h"
 #include "DynamicResolutionState.h"
+#include "ShaderPermutationUtils.h"
 
 #define COMPILE_TSR_DEBUG_PASSES (!UE_BUILD_SHIPPING)
 
@@ -549,19 +550,9 @@ public:
 
 		int32 WaveSize = PermutationVector.Get<FWaveSizeOps>();
 
-		ERHIFeatureSupport WaveOpsSupport = FTSRShader::SupportsWaveOps(Parameters.Platform);
-		if (WaveSize != 0)
+		if (!UE::ShaderPermutationUtils::ShouldCompileWithWaveSize(Parameters, PermutationVector.Get<FWaveSizeOps>()))
 		{
-			if (WaveOpsSupport == ERHIFeatureSupport::Unsupported)
-			{
-				return false;
-			}
-
-			if (WaveSize < int32(FDataDrivenShaderPlatformInfo::GetMinimumWaveSize(Parameters.Platform)) ||
-				WaveSize > int32(FDataDrivenShaderPlatformInfo::GetMaximumWaveSize(Parameters.Platform)))
-			{
-				return false;
-			}
+			return false;
 		}
 
 		if (!FTSRShader::ShouldCompile32or16BitPermutation(Parameters.Platform, PermutationVector.Get<FTSRShader::F16BitVALUDim>()))
@@ -1045,20 +1036,9 @@ class FTSRResolveHistoryCS : public FTSRShader
 			return false;
 		}
 
-		if (PermutationVector.Get<FNyquistDim>())
+		if (!UE::ShaderPermutationUtils::ShouldCompileWithWaveSize(Parameters, PermutationVector.Get<FNyquistDim>()))
 		{
-			int32 WaveSize = PermutationVector.Get<FNyquistDim>();
-
-			if (FTSRShader::SupportsWaveOps(Parameters.Platform) == ERHIFeatureSupport::Unsupported)
-			{
-				return false;
-			}
-
-			if (WaveSize < int32(FDataDrivenShaderPlatformInfo::GetMinimumWaveSize(Parameters.Platform)) ||
-				WaveSize > int32(FDataDrivenShaderPlatformInfo::GetMaximumWaveSize(Parameters.Platform)))
-			{
-				return false;
-			}
+			return false;
 		}
 
 		if (!FTSRShader::ShouldCompile32or16BitPermutation(Parameters.Platform, PermutationVector.Get<FTSRShader::F16BitVALUDim>()))
@@ -1067,6 +1047,18 @@ class FTSRResolveHistoryCS : public FTSRShader
 		}
 
 		return FTSRShader::ShouldCompilePermutation(Parameters);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!UE::ShaderPermutationUtils::ShouldPrecacheWithWaveSize(Parameters, PermutationVector.Get<FNyquistDim>()))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)

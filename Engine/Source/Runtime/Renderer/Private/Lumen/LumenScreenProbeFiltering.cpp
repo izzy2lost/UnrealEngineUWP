@@ -13,6 +13,7 @@
 #include "PixelShaderUtils.h"
 #include "ReflectionEnvironment.h"
 #include "DistanceFieldAmbientOcclusion.h"
+#include "ShaderPermutationUtils.h"
 
 int32 GLumenScreenProbeSpatialFilterNumPasses = 3;
 FAutoConsoleVariableRef GVarLumenScreenProbeSpatialFilterNumPasses(
@@ -260,12 +261,24 @@ class FScreenProbeConvertToIrradianceCS : public FGlobalShader
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 
-		if (PermutationVector.Get<FWaveOpWaveSize>() > 0 && !RHISupportsWaveOperations(Parameters.Platform))
+		if (!UE::ShaderPermutationUtils::ShouldCompileWithWaveSize(Parameters, PermutationVector.Get<FWaveOpWaveSize>()))
 		{
 			return false;
 		}
 
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!UE::ShaderPermutationUtils::ShouldPrecacheWithWaveSize(Parameters, PermutationVector.Get<FWaveOpWaveSize>()))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 
 	static uint32 GetThreadGroupSize(uint32 GatherResolution)
