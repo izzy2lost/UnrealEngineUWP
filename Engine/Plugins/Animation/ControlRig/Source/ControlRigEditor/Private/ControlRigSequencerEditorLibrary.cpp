@@ -271,6 +271,15 @@ static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelS
 		NewSection->Modify();
 
 		Track->SetTrackName(FName(*ObjectName));
+		if (bIsAdditiveControlRig)
+		{
+			const FString AdditiveObjectName = ObjectName + TEXT(" (Layered)");
+			Track->SetDisplayName(FText::FromString(AdditiveObjectName));
+		}
+		else
+		{
+			Track->SetDisplayName(FText::FromString(ObjectName));
+		}
 		UControlRigSequencerEditorLibrary::MarkLayeredModeOnTrackDisplay(Track);
 
 		if (SharedSequencer.IsValid())
@@ -3100,17 +3109,12 @@ bool UControlRigSequencerEditorLibrary::MarkLayeredModeOnTrackDisplay(UMovieScen
 		return false;
 	}
 
-	static constexpr TCHAR LayeredTag[] =  TEXT(" (Layered)");
-	const FString TrackName = InTrack->GetTrackName().ToString();
 	if (ControlRig->IsAdditive())
 	{
-		const FString AdditiveObjectName = TrackName + LayeredTag;
-		InTrack->SetDisplayName(FText::FromString(AdditiveObjectName));
 		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
 	}
 	else
 	{
-		InTrack->SetDisplayName(FText::FromString(TrackName));
 		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
 	}
 
