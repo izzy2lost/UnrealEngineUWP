@@ -2,7 +2,6 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureFromColor.h"
 
-#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 
 class UCustomizableObjectNodeRemapPins;

@@ -15,7 +15,6 @@
 #include "Misc/UObjectToken.h"
 #include "Logging/MessageLog.h"
 #include "Containers/Queue.h"
-#include "MuCO/CustomizableObjectCustomVersion.h"
 
 class UCustomizableObjectNodeRemapPins;
 
@@ -77,19 +76,6 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 		for (FCustomizableObjectState& s : States)
 		{
 			s.bDisableTextureStreaming = s.TextureCompressionStrategy != ETextureCompressionStrategy::None;
-		}
-	}
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::StateUIMetadata)
-	{
-		for (FCustomizableObjectState& State : States)
-		{
-			State.UIMetadata.ObjectFriendlyName = State.StateUIMetadata_DEPRECATED.ObjectFriendlyName;
-			State.UIMetadata.UISectionName = State.StateUIMetadata_DEPRECATED.UISectionName;
-			State.UIMetadata.UIOrder = State.StateUIMetadata_DEPRECATED.UIOrder;
-			State.UIMetadata.UIThumbnail = State.StateUIMetadata_DEPRECATED.UIThumbnail;
-			State.UIMetadata.ExtraInformation = State.StateUIMetadata_DEPRECATED.ExtraInformation;
-			State.UIMetadata.ExtraAssets = State.StateUIMetadata_DEPRECATED.ExtraAssets;
 		}
 	}
 }

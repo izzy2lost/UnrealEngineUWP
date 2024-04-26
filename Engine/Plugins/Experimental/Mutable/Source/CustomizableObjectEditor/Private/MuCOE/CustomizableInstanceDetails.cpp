@@ -626,8 +626,8 @@ bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 
 			if (CustomInstance->IsParameterRelevant(ParameterSortInfo.ParamIndexInObject) && IsVisible(ParameterSortInfo.ParamIndexInObject))
 			{
+				ParameterSortInfo.ParamUIOrder = CustomizableObject->GetParameterUIMetadataFromIndex(ParameterSortInfo.ParamIndexInObject).ParamUIMetadata.UIOrder;
 				ParameterSortInfo.ParamName = CustomizableObject->GetParameterName(ParameterSortInfo.ParamIndexInObject);
-				ParameterSortInfo.ParamUIOrder = CustomizableObject->GetParameterUIMetadata(ParameterSortInfo.ParamName).UIOrder;
 				ParametersTree.Add(ParameterSortInfo);
 			}
 		}
@@ -684,8 +684,8 @@ bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 			ParameterSortInfo.ParamIndexInObject = ParamIndexInObject;
 			if ((!CustomInstance->GetPrivate()->bShowOnlyRelevantParameters || CustomInstance->IsParameterRelevant(ParameterSortInfo.ParamIndexInObject)) && IsVisible(ParameterSortInfo.ParamIndexInObject))
 			{
+				ParameterSortInfo.ParamUIOrder = CustomizableObject->GetParameterUIMetadataFromIndex(ParameterSortInfo.ParamIndexInObject).ParamUIMetadata.UIOrder;
 				ParameterSortInfo.ParamName = CustomizableObject->GetParameterName(ParameterSortInfo.ParamIndexInObject);
-				ParameterSortInfo.ParamUIOrder = CustomizableObject->GetParameterUIMetadata(ParameterSortInfo.ParamName).UIOrder;
 				ParametersTree.Add(ParameterSortInfo);
 			}
 		}
@@ -782,10 +782,12 @@ void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 Pa
 void FCustomizableInstanceDetails::FillChildrenMap(int32 ParamIndexInObject)
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	const FString& ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
+	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
+	FParameterUIData UIData = CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject);
 
-	if (const FString* ParentName = UIMetadata.ExtraInformation.Find(FString("__ParentParamName")))
+	const FString* ParentName = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__ParentParamName"));
+
+	if (ParentName)
 	{
 		ParamChildren.Add(*ParentName, ParamIndexInObject);
 		ParamHasParent.Add(ParamIndexInObject, true);
@@ -796,18 +798,18 @@ void FCustomizableInstanceDetails::FillChildrenMap(int32 ParamIndexInObject)
 bool FCustomizableInstanceDetails::IsVisible(int32 ParamIndexInObject)
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	const FString& ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
-	const FString* ParentName = UIMetadata.ExtraInformation.Find(FString("__ParentParamName"));
+	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
+	FParameterUIData UIData = CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject);
+	FString* ParentName = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__ParentParamName"));
 
-	const bool IsAProjectorParam = ParamName.EndsWith(FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX)
+	bool IsAProjectorParam = ParamName.EndsWith(FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX)
 		|| (ParamName.EndsWith(FMultilayerProjector::IMAGE_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
 		|| (ParamName.EndsWith(FMultilayerProjector::OPACITY_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
 		|| (ParamName.EndsWith(FMultilayerProjector::POSE_PARAMETER_POSTFIX));
 
 	if (!IsAProjectorParam && ParentName && CustomInstance->GetPrivate()->bShowOnlyRelevantParameters)
 	{
-		const FString* Value = UIMetadata.ExtraInformation.Find(FString("__DisplayWhenParentValueEquals"));
+		FString* Value = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__DisplayWhenParentValueEquals"));
 
 		if (Value && CustomizableObject->FindParameter(*ParentName) != INDEX_NONE && CustomInstance->GetIntParameterSelectedOption(*ParentName) != *Value)
 		{
@@ -831,9 +833,8 @@ IDetailGroup* FCustomizableInstanceDetails::GenerateParameterSection(const int32
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
 
-	const FString& ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	const FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
-	const FString SectionName = UIMetadata.UISectionName.IsEmpty() ? "Miscellaneous" : UIMetadata.UISectionName;
+	FMutableParamUIMetadata UIData = CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject).ParamUIMetadata;
+	FString SectionName = UIData.UISectionName.IsEmpty() ? "Miscellaneous" : UIData.UISectionName;
 	IDetailGroup* CurrentSection = nullptr;
 
 	if (GeneratedSections.Contains(SectionName))
@@ -1014,8 +1015,8 @@ void FCustomizableInstanceDetails::OnIntParameterComboBoxChanged(TSharedPtr<FStr
 TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateFloatWidget(const int32 ParamIndexInObject)
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	const FString& ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	const FMutableParamUIMetadata& UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
+	const FMutableParamUIMetadata& UIMetadata = CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject).ParamUIMetadata;
+	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 
 	if (const TSoftObjectPtr<UObject>* FloatDecoratorAsset = UIMetadata.ExtraAssets.Find(UIMetadataKeyWords::FloatDecoratorName))
 	{

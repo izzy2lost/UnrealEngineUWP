@@ -463,8 +463,8 @@ void SCustomizableInstanceProperties::ResetParamBox()
 				ParameterSortInfo.PropertyCOIndex = CustomizableObject->GetStateParameterIndex(CustomInstance->GetPrivate()->GetState(), ParamIndexInState);
 				if (CustomInstance->IsParameterRelevant(ParameterSortInfo.PropertyCOIndex))
 				{
+					ParameterSortInfo.UIOrder = CustomizableObject->GetParameterUIMetadataFromIndex(ParameterSortInfo.PropertyCOIndex).ParamUIMetadata.UIOrder;
 					ParameterSortInfo.ParameterName = CustomizableObject->GetParameterName(ParameterSortInfo.PropertyCOIndex);
-					ParameterSortInfo.UIOrder = CustomizableObject->GetParameterUIMetadata(ParameterSortInfo.ParameterName).UIOrder;
 					ParamIndexesInState.Add(ParameterSortInfo);
 				}
 			}
@@ -488,8 +488,8 @@ void SCustomizableInstanceProperties::ResetParamBox()
 				ParameterSortInfo.PropertyCOIndex = ParamIndexInObject;
 				if (!CustomInstance->GetPrivate()->bShowOnlyRelevantParameters || CustomInstance->IsParameterRelevant(ParameterSortInfo.PropertyCOIndex))
 				{
+					ParameterSortInfo.UIOrder = CustomizableObject->GetParameterUIMetadataFromIndex(ParameterSortInfo.PropertyCOIndex).ParamUIMetadata.UIOrder;
 					ParameterSortInfo.ParameterName = CustomizableObject->GetParameterName(ParameterSortInfo.PropertyCOIndex);
-					ParameterSortInfo.UIOrder = CustomizableObject->GetParameterUIMetadata(ParameterSortInfo.ParameterName).UIOrder;
 					ParamIndexesInObject.Add(ParameterSortInfo);
 				}
 			}
@@ -534,10 +534,12 @@ void SCustomizableInstanceProperties::RecursivelyAddParamAndChildren(int32 Param
 void SCustomizableInstanceProperties::FillChildrenMap(int32 ParamIndexInObject)
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	const FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
+	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
+	FParameterUIData UIData = CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject);
 
-	if (const FString* ParentName = UIMetadata.ExtraInformation.Find(FString("__ParentParamName")))
+	const FString* ParentName = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__ParentParamName"));
+
+	if (ParentName)
 	{
 		ParamChildren.Add(*ParentName, ParamIndexInObject);
 		ParamHasParent.Add(ParamIndexInObject, true);
@@ -552,14 +554,14 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 
 	TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 	
-	const FString& ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
+	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 
 	TSharedPtr<SVerticalBox> ActualParamBox = ParamBox;
 	TSharedPtr<SHorizontalBox> ParameterBox;
 
-	FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
-	FString* ParentName = UIMetadata.ExtraInformation.Find(FString("__ParentParamName"));
-	bool bHasCollapsibleChildren = UIMetadata.ExtraInformation.Find(FString("__HasCollapsibleChildren")) != nullptr;
+	FParameterUIData UIData = CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject);
+	FString* ParentName = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__ParentParamName"));
+	bool bHasCollapsibleChildren = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__HasCollapsibleChildren")) != nullptr;
 
 	bool bHideParam = ParamName.EndsWith(FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX)
 		|| (ParamName.EndsWith(FMultilayerProjector::IMAGE_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
@@ -585,7 +587,7 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 
 	if (ParentName)
 	{
-		if (UIMetadata.ExtraInformation.Find(FString("CollapseUnderParent")))
+		if (UIData.ParamUIMetadata.ExtraInformation.Find(FString("CollapseUnderParent")))
 		{
 			const FMutableParamExpandableArea* ParentExpandableAreaPtr = ParamNameToExpandableAreaMap.Find(*ParentName);
 
@@ -597,7 +599,7 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 
 		if (CustomInstance->GetPrivate()->bShowOnlyRelevantParameters)
 		{
-			FString *Value = UIMetadata.ExtraInformation.Find(FString("__DisplayWhenParentValueEquals"));
+			FString *Value = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__DisplayWhenParentValueEquals"));
 			if (Value && CustomInstance->GetIntParameterSelectedOption(*ParentName) != *Value)
 			{
 				return;
@@ -713,8 +715,8 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 			[
 				SAssignNew(Slider, SSpinBox<float>)
 				.Value(this, &SCustomizableInstanceProperties::GetSliderValue, SliderIndex)
-				.MinValue(CustomizableObject->GetParameterUIMetadata(ParamName).MinimumValue)
-				.MaxValue(CustomizableObject->GetParameterUIMetadata(ParamName).MaximumValue)
+				.MinValue(CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject).ParamUIMetadata.MinimumValue)
+				.MaxValue(CustomizableObject->GetParameterUIMetadataFromIndex(ParamIndexInObject).ParamUIMetadata.MaximumValue)
 				.OnValueChanged(this, &SCustomizableInstanceProperties::OnFloatParameterChanged, SliderIndex)
 				.OnBeginSliderMovement(this, &SCustomizableInstanceProperties::OnFloatParameterSliderBegin)
 				.OnEndSliderMovement(this, &SCustomizableInstanceProperties::OnFloatParameterSliderEnd)

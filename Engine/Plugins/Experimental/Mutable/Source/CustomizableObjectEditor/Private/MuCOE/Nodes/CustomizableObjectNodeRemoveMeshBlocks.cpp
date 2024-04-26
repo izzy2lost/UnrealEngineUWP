@@ -2,7 +2,6 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeRemoveMeshBlocks.h"
 
-#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectLayout.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/ICustomizableObjectEditor.h"

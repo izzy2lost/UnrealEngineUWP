@@ -145,7 +145,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			TextureNode->SetDefaultValue(FName(TypedNodeParam->DefaultValue->GetPathName()));			
 		}
 
-		GenerationContext.ParameterUIDataMap.Add(TypedNodeParam->ParameterName, FMutableParameterData(
+		GenerationContext.ParameterUIDataMap.Add(TypedNodeParam->ParameterName, FParameterUIData(
+			TypedNodeParam->ParameterName,
 			TypedNodeParam->ParamUIMetadata,
 			EMutableParameterType::Texture));
 

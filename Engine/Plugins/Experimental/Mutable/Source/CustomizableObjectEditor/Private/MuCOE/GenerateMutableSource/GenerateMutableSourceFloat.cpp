@@ -102,7 +102,8 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 		ScalarNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
 		ScalarNode->SetDefaultValue(FloatParameterNode->DefaultValue);
 
-		GenerationContext.ParameterUIDataMap.Add(FloatParameterNode->ParameterName, FMutableParameterData(
+		GenerationContext.ParameterUIDataMap.Add(FloatParameterNode->ParameterName, FParameterUIData(
+			FloatParameterNode->ParameterName,
 			FloatParameterNode->ParamUIMetadata,
 			EMutableParameterType::Float));
 	}
@@ -122,16 +123,16 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 		EnumParameterNode->SetValueCount(NumSelectors);
 		EnumParameterNode->SetDefaultValueIndex(DefaultValue);
 
-		FMutableParameterData ParameterUIData(EnumParamNode->ParamUIMetadata, EMutableParameterType::Int);
+		FParameterUIData ParameterUIData(EnumParamNode->ParameterName, EnumParamNode->ParamUIMetadata, EMutableParameterType::Int);
 		ParameterUIData.IntegerParameterGroupType = ECustomizableObjectGroupType::COGT_ONE;
 
 		for (int SelectorIndex = 0; SelectorIndex < NumSelectors; ++SelectorIndex)
 		{
 			EnumParameterNode->SetValue(SelectorIndex, (float)SelectorIndex, EnumParamNode->Values[SelectorIndex].Name);
 
-			ParameterUIData.ArrayIntegerParameterOption.Add(
+			ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(
 				EnumParamNode->Values[SelectorIndex].Name,
-				FIntegerParameterUIData(EnumParamNode->Values[SelectorIndex].ParamUIMetadata));
+				EnumParamNode->Values[SelectorIndex].ParamUIMetadata));
 		}
 
 		Result = EnumParameterNode;

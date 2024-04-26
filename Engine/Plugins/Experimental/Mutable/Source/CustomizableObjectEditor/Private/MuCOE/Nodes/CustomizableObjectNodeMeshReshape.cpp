@@ -2,7 +2,6 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshReshape.h"
 
-#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshReshapeCommon.h"
 

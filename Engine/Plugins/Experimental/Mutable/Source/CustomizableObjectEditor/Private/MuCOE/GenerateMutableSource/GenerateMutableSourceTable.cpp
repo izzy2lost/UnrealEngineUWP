@@ -858,9 +858,9 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 		// Getting Table and row names to access the information
 		TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
 
-		FMutableParameterData ParameterUIData(TableNode->ParamUIMetadata, EMutableParameterType::Int);
+		FParameterUIData ParameterUIData(TableNode->ParameterName, TableNode->ParamUIMetadata, EMutableParameterType::Int);
 		ParameterUIData.IntegerParameterGroupType = TableNode->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
-		FMutableParameterData& ParameterUIDataRef = GenerationContext.ParameterUIDataMap.Add(TableNode->ParameterName, ParameterUIData);
+		FParameterUIData& ParameterUIDataRef = GenerationContext.ParameterUIDataMap.Add(TableNode->ParameterName, ParameterUIData);
 
 		if (TableNode->ParamUIMetadataColumn.IsNone())
 		{
@@ -893,7 +893,7 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 				if (uint8* CellData = GetCellData(RowNames[NameIndex], *DataTable, *ColumnProperty))
 				{
 					FMutableParamUIMetadata Value = *(FMutableParamUIMetadata*)CellData;
-					ParameterUIDataRef.ArrayIntegerParameterOption.Add(RowNames[NameIndex].ToString(), FIntegerParameterUIData(Value));
+					ParameterUIDataRef.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(RowNames[NameIndex].ToString(), Value));
 				}
 			}
 		}

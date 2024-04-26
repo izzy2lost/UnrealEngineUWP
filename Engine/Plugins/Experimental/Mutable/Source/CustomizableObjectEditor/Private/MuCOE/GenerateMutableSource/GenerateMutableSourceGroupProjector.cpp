@@ -356,8 +356,10 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			GenerationContext.AddParameterNameUnique(originalGroup, NodeScalarParamName);
 			NodeScalarParam->SetDefaultValue(0.f);
 
-			GenerationContext.ParameterUIDataMap.Add(NodeScalarParamName,
-				FMutableParameterData(ProjParamNode->ParamUIMetadata, EMutableParameterType::Int));
+			GenerationContext.ParameterUIDataMap.Add(NodeScalarParamName, FParameterUIData(
+				NodeScalarParamName,
+				ProjParamNode->ParamUIMetadata,
+				EMutableParameterType::Int));
 
 			mu::Ptr<mu::NodeRangeFromScalar> NodeRangeFromScalar = new mu::NodeRangeFromScalar;
 			NodeRangeFromScalar->SetSize(NodeScalarParam);
@@ -375,10 +377,11 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			PoseEnumParameterNode->SetDefaultValueIndex(0);
 			GroupProjectorTempData.PoseOptionsParameter = PoseEnumParameterNode;
 
-			
-			GenerationContext.ParameterUIDataMap.Add(PoseNodeEnumParamName,
-				FMutableParameterData(ProjParamNode->ParamUIMetadata, EMutableParameterType::Int));
-			
+			GenerationContext.ParameterUIDataMap.Add(PoseNodeEnumParamName, FParameterUIData(
+				PoseNodeEnumParamName,
+				ProjParamNode->ParamUIMetadata,
+				EMutableParameterType::Int));
+
 			mu::NodeScalarParameterPtr OpacityParameterNode = new mu::NodeScalarParameter;
 			FString OpacityParameterNodeName = ProjParamNode->ParameterName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
 			OpacityParameterNode->SetName(OpacityParameterNodeName);
@@ -391,14 +394,11 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			OpacityMetadata.ObjectFriendlyName = FString("Opacity");
 			GroupProjectorTempData.NodeOpacityParameter = OpacityParameterNode;
 
-			{
-				FMutableParameterData ParameterUIData;
-				ParameterUIData.ParamUIMetadata = OpacityMetadata;
-				ParameterUIData.Type = EMutableParameterType::Float;
-			
-				GenerationContext.ParameterUIDataMap.Add(OpacityParameterNodeName, ParameterUIData);
-			}
-			
+			GenerationContext.ParameterUIDataMap.Add(OpacityParameterNodeName, FParameterUIData(
+				OpacityParameterNodeName,
+				OpacityMetadata,
+				EMutableParameterType::Float));
+
 			if (ArrayOptionImage.Num() == 0)
 			{
 				FString msg = FString::Printf(TEXT("The group projection node must have at least one option image connected to a texture or at least one valid element in Option Images Data Table."));
@@ -449,26 +449,22 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			EnumParameterNode->SetRangeCount(1);
 			EnumParameterNode->SetRange(0, NodeRangeFromScalar);
 
+			FParameterUIData ParameterUIData(NodeEnumParamName, ProjParamNode->ParamUIMetadata, EMutableParameterType::Int);
+			ParameterUIData.IntegerParameterGroupType = ECustomizableObjectGroupType::COGT_ONE;
+			ParameterUIData.ParamUIMetadata.ExtraInformation.Add(FString("UseThumbnails"));
+
+			for (int ImageIndex = 0; ImageIndex < ArrayOptionImage.Num(); ++ImageIndex)
 			{
-				FMutableParameterData ParameterUIData;
-				ParameterUIData.ParamUIMetadata = ProjParamNode->ParamUIMetadata;
-				ParameterUIData.Type = EMutableParameterType::Int;
-				ParameterUIData.IntegerParameterGroupType = ECustomizableObjectGroupType::COGT_ONE;
-				ParameterUIData.ParamUIMetadata.ExtraInformation.Add(FString("UseThumbnails"));
+				EnumParameterNode->SetValue(ImageIndex, (float)ImageIndex, ArrayOptionImage[ImageIndex].OptionName);
 
-				for (int ImageIndex = 0; ImageIndex < ArrayOptionImage.Num(); ++ImageIndex)
-				{
-					EnumParameterNode->SetValue(ImageIndex, (float)ImageIndex, ArrayOptionImage[ImageIndex].OptionName);
-
-					FMutableParamUIMetadata OptionMetadata = ParameterUIData.ParamUIMetadata;
-					OptionMetadata.UIThumbnail = ArrayOptionImage[ImageIndex].OptionImage;
-					ParameterUIData.ArrayIntegerParameterOption.Add(
-						ArrayOptionImage[ImageIndex].OptionName,
-						FIntegerParameterUIData(OptionMetadata));
-				}
-
-				GenerationContext.ParameterUIDataMap.Add(NodeEnumParamName, ParameterUIData);
+				FMutableParamUIMetadata optionMetadata = ParameterUIData.ParamUIMetadata;
+				optionMetadata.UIThumbnail = ArrayOptionImage[ImageIndex].OptionImage;
+				ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(
+					ArrayOptionImage[ImageIndex].OptionName,
+					optionMetadata));
 			}
+
+			GenerationContext.ParameterUIDataMap.Add(NodeEnumParamName, ParameterUIData);
 
 			mu::NodeImageSwitchPtr SwitchNode = new mu::NodeImageSwitch;
 			SwitchNode->SetParameter(EnumParameterNode);

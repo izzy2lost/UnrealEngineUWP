@@ -3,7 +3,6 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeEditMaterial.h"
 
 #include "MaterialTypes.h"
-#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditor_Deprecated.h"
 #include "MuCOE/CustomizableObjectLayout.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"

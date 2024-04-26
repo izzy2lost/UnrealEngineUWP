@@ -3,7 +3,6 @@
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
 
 #include "Containers/Queue.h"
-#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditor.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "MuCOE/CustomizableObjectGraph.h"

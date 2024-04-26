@@ -986,7 +986,8 @@ void UCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 
 	// From user-controlled per-state flag?
 	const FString CurrentState = Instance.GetCurrentState();
-	if (const FMutableStateData* State = Instance.GetCustomizableObject()->GetPrivate()->GetModelResources().StateUIDataMap.Find(CurrentState))
+	const FParameterUIData* State = Instance.GetCustomizableObject()->GetPrivate()->GetModelResources().StateUIDataMap.Find(CurrentState);	
+	if (State)
 	{
 		bOutNeverStream = State->bDisableTextureStreaming;
 	}
@@ -3254,7 +3255,7 @@ namespace impl
 		SystemPrivateData->ExtensionDataStreamer->SetActiveObject(CustomizableObject);
 
 		FString StateName = CandidateInstance->GetCustomizableObject()->GetStateName(CandidateInstance->GetPrivate()->GetState());
-		const FMutableStateData* StateData = CandidateInstance->GetCustomizableObject()->GetPrivate()->GetModelResources().StateUIDataMap.Find(StateName);
+		const FParameterUIData* StateData = CandidateInstance->GetCustomizableObject()->GetPrivate()->GetModelResources().StateUIDataMap.Find(StateName);
 
 		Operation->bLiveUpdateMode = false;
 

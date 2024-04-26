@@ -6,7 +6,6 @@
 #include "AssetThumbnail.h"
 #include "ISinglePropertyView.h"
 #include "Modules/ModuleManager.h"
-#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditor.h"
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/CustomizableObjectLayout.h"

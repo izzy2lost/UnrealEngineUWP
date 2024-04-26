@@ -981,14 +981,14 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			ObjectNode->SetStateProperties(StateIndex, State.TextureCompressionStrategy, State.bBuildOnlyFirstLOD, GenerationContext.FirstLODAvailable, NumExtraLODsToBuildAfterFirstLOD);
 
 			// UI Data
-			FMutableStateData StateUIData;
-			StateUIData.StateUIMetadata = State.UIMetadata;
-			StateUIData.bDisableTextureStreaming = State.bDisableTextureStreaming;
-			StateUIData.bLiveUpdateMode = State.bLiveUpdateMode;
-			StateUIData.bReuseInstanceTextures = State.bReuseInstanceTextures;
-			StateUIData.ForcedParameterValues = State.ForcedParameterValues;
+			FParameterUIData ParameterUIData(State.Name, State.StateUIMetadata, EMutableParameterType::None);
+			ParameterUIData.TextureCompressionStrategy = State.TextureCompressionStrategy;
+			ParameterUIData.bDisableTextureStreaming = State.bDisableTextureStreaming;
+			ParameterUIData.bLiveUpdateMode = State.bLiveUpdateMode;
+			ParameterUIData.bReuseInstanceTextures = State.bReuseInstanceTextures;
+			ParameterUIData.ForcedParameterValues = State.ForcedParameterValues;
 
-			GenerationContext.StateUIDataMap.Add(State.Name, StateUIData);
+			GenerationContext.StateUIDataMap.Add(State.Name, ParameterUIData);
 		}
 
 		// Update the current automatic LOD policy
@@ -1238,7 +1238,8 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 		int32 ChildIndex = 0;
 
 		// UI data
-		FMutableParameterData ParameterUIData(
+		FParameterUIData ParameterUIData(
+			TypedNodeGroup->GroupName,
 			TypedNodeGroup->ParamUIMetadata,
 			EMutableParameterType::Int);
 
@@ -1270,16 +1271,17 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 					LeftSplit.Split(".", &LeftSplit, nullptr);
 					GenerationContext.CustomizableObjectPathMap.Add(CustomizableObjectNodeObject->Identifier.ToString(), LeftSplit);
 					GenerationContext.GroupNodeMap.Add(CustomizableObjectNodeObject->Identifier.ToString(), FCustomizableObjectIdPair(TypedNodeGroup->GroupName, ChildNode->GetName()));
-					ParameterUIData.ArrayIntegerParameterOption.Add(
+					ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(
 						CustomizableObjectNodeObject->ObjectName,
-				FIntegerParameterUIData(CustomizableObjectNodeObject->ParamUIMetadata));
+						CustomizableObjectNodeObject->ParamUIMetadata));
 
 					if (TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_TOGGLE)
 					{
 						GenerationContext.AddParameterNameUnique(CustomizableObjectNodeObject, CustomizableObjectNodeObject->ObjectName);
 						
 						// UI Data is only relevant when the group node is set to Toggle
-						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FMutableParameterData(
+						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FParameterUIData(
+							CustomizableObjectNodeObject->ObjectName,
 							CustomizableObjectNodeObject->ParamUIMetadata,
 							EMutableParameterType::Int));
 					}
@@ -1342,7 +1344,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 							{
 								ParameterUIData.ParamUIMetadata.ExtraInformation.Add(FString("CollapseUnderParent"));
 
-								FMutableParameterData ParentParameterUIData;
+								FParameterUIData ParentParameterUIData;
 								ParentParameterUIData.ParamUIMetadata.ExtraInformation.Add(FString("__HasCollapsibleChildren"));
 								GenerationContext.ParameterUIDataMap.Add(*ParentParamName, ParentParameterUIData);
 							}
@@ -1378,9 +1380,9 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 					LeftSplit.Split(".", &LeftSplit, nullptr);
 					GenerationContext.CustomizableObjectPathMap.Add(CustomizableObjectNodeObject->Identifier.ToString(), LeftSplit);
 					GenerationContext.GroupNodeMap.Add(CustomizableObjectNodeObject->Identifier.ToString(), FCustomizableObjectIdPair(TypedNodeGroup->GroupName, ChildNode->GetName()));
-					ParameterUIData.ArrayIntegerParameterOption.Add(
+					ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(
 						CustomizableObjectNodeObject->ObjectName,
-						FIntegerParameterUIData(CustomizableObjectNodeObject->ParamUIMetadata));
+						CustomizableObjectNodeObject->ParamUIMetadata));
 
 					if (CustomizableObjectNodeObject->ObjectName.IsEmpty())
 					{
@@ -1392,7 +1394,8 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 						GenerationContext.AddParameterNameUnique(CustomizableObjectNodeObject, CustomizableObjectNodeObject->ObjectName);
 
 						// UI Data is only relevant when the group node is set to Toggle
-						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FMutableParameterData(
+						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FParameterUIData(
+							CustomizableObjectNodeObject->ObjectName,
 							CustomizableObjectNodeObject->ParamUIMetadata,
 							EMutableParameterType::Int));
 					}
@@ -1415,7 +1418,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			ChildIndex++;
 		}
 
-		const FMutableParameterData* ChildFilledUIData = GenerationContext.ParameterUIDataMap.Find(TypedNodeGroup->GroupName);
+		const FParameterUIData* ChildFilledUIData = GenerationContext.ParameterUIDataMap.Find(TypedNodeGroup->GroupName);
 		if (ChildFilledUIData && ChildFilledUIData->ParamUIMetadata.ExtraInformation.Find(FString("__HasCollapsibleChildren")))
 		{
 			// Some child param filled the HasCollapsibleChildren UI info, refill it so it's not lost
@@ -1424,15 +1427,16 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 
 		if (TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_TOGGLE)
 		{
-			for (const TTuple<FString, FIntegerParameterUIData>& BooleanParam : ParameterUIData.ArrayIntegerParameterOption)
+			for (const FIntegerParameterUIData& BooleanParam : ParameterUIData.ArrayIntegerParameterOption)
 			{
-				FMutableParameterData ParameterUIDataBoolean(
-					BooleanParam.Value.ParamUIMetadata,
+				FParameterUIData ParameterUIDataBoolean(
+					BooleanParam.Name,
+					BooleanParam.ParamUIMetadata,
 					EMutableParameterType::Bool);
 
 				ParameterUIDataBoolean.ParamUIMetadata.ExtraInformation = ParameterUIData.ParamUIMetadata.ExtraInformation;
 
-				GenerationContext.ParameterUIDataMap.Add(BooleanParam.Key, ParameterUIDataBoolean);
+				GenerationContext.ParameterUIDataMap.Add(BooleanParam.Name, ParameterUIDataBoolean);
 			}
 		}
 		else

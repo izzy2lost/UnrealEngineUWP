@@ -45,7 +45,7 @@ class UPhysicsAsset;
 class UTexture2D;
 struct FAnimBpOverridePhysicsAssetsInfo;
 struct FMutableGraphGenerationContext;
-struct FMutableParameterData;
+struct FParameterUIData;
 struct FMutableRefSkeletalMeshData;
 struct FMutableRefSocket;
 struct FMutableSkinWeightProfileInfo;
@@ -702,8 +702,8 @@ struct FMutableGraphGenerationContext
 	TArray<const UCustomizableObjectNode*> NoNameNodeObjectArray;
 	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
 	TMap<FString, FString> CustomizableObjectPathMap;
-	TMap<FString, FMutableParameterData> ParameterUIDataMap;
-	TMap<FString, FMutableStateData> StateUIDataMap;
+	TMap<FString, FParameterUIData> ParameterUIDataMap;
+	TMap<FString, FParameterUIData> StateUIDataMap;
 	TMultiMap<const UCustomizableObjectNodeObjectGroup*, FGroupProjectorTempData> ProjectorGroupMap;
 	//TMap<UPhysicsAsset*, uint32> DiscartedPhysicsAssetMap;
 

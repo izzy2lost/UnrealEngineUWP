@@ -623,20 +623,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FString GetStateParameterName(const FString& StateName, int32 ParameterIndex) const;
 	FString GetStateParameterName(int32 StateIndex, int32 ParameterIndex) const;
-	
-	/** Return the metadata associated to a parameter. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	FMutableParamUIMetadata GetParameterUIMetadata(const FString& ParamName) const;
 
-	/** Return the metadata associated to an int parameter option. */
+	/** Return the metadata associated to an object state by name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	FMutableParamUIMetadata GetIntParameterOptionUIMetadata(const FString& ParamName, const FString& OptionName) const;
-	
-	/** Return the metadata associated to a state. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	FMutableStateUIMetadata GetStateUIMetadata(const FString& StateName) const;
+	FParameterUIData GetStateUIMetadata(const FString& StateName) const;
 
-	
+	/** Return the metadata associated to an object state by state index. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	FParameterUIData GetStateUIMetadataFromIndex(int32 StateIndex) const;
+
+	/** Return the metadata associated to an object parameter by parameter name. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	FParameterUIData GetParameterUIMetadata(const FString& ParamName) const;
+
+	/** Return the metadata associated to an object parameter by parameter index (from 0 to GetParameterCount-1). */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	FParameterUIData GetParameterUIMetadataFromIndex(int32 ParamIndex) const;
+
 private:
 	/** Textures marked as low priority will generate defaulted resident mips (if texture streaming is enabled).
 	  * Generating defaulted resident mips greatly reduce initial generation times. */
