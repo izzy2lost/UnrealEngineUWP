@@ -343,13 +343,18 @@ namespace UE::Net
 		return UE::Net::Private::bIgnoreStaticActorDestruction;
 	}
 
+	uint32 CountReplicatedSubObjectsOfActor(AActor* ReplicatedActor)
+	{
+		return UE::Net::FSubObjectRegistryGetter::CountReplicatedSubObjectsOfActor(ReplicatedActor);
+	}
+
 	bool bDiscardTornOffActorRPCs = true;
 	FAutoConsoleVariableRef CVarNetDiscardTornOffActorRPCs(
 		TEXT("net.DiscardTornOffActorRPCs"),
 		bDiscardTornOffActorRPCs,
 		TEXT("If enabled, discard RPCs if the actor has been torn off."),
 		ECVF_Default);
-}
+} // end namespace UE::Net
 
 #if UE_BUILD_SHIPPING
 #define DEBUG_REMOTEFUNCTION(Format, ...)

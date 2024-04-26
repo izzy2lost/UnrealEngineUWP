@@ -372,6 +372,9 @@ namespace UE::Net
 	};
 
 	bool ShouldIgnoreStaticActorDestruction();
+
+	/** Utility function that counts the number of replicated subobjects owned by a given actor. Be aware that this function is not cheap because it needs to iterate and count all replicated components and their subobjects too. */
+	ENGINE_API uint32 CountReplicatedSubObjectsOfActor(AActor* ReplicatedActor);
 }
 
 using FConnectionMap = TMap<TSharedRef<const FInternetAddr>, TObjectPtr<UNetConnection>, FDefaultSetAllocator, FInternetAddrConstKeyMapFuncs<TObjectPtr<UNetConnection>>>;
