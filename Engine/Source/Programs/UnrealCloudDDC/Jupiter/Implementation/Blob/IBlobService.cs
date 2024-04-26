@@ -44,6 +44,14 @@ public interface IBlobService
 	// Delete a object
 	Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken = default);
 
+	/// <summary>
+	/// Delete the object from multiple namespaces at once, extra efficient if they are all in the same storage pool
+	/// </summary>
+	/// <param name="namespaces">The namespaces to delete the blob from</param>
+	/// <param name="blob">The identifier of the blob to delete</param>
+	/// <param name="cancellationToken"></param>
+	Task DeleteObjectAsync(List<NamespaceId> namespaces, BlobId blob, CancellationToken cancellationToken = default);
+
 	// delete the whole namespace
 	Task DeleteNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken = default);
 

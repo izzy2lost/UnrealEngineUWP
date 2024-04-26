@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -195,6 +196,19 @@ namespace Jupiter.Implementation
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await backend.DeleteAsync(blobIdentifier.AsS3Key());
+		}
+
+		public async Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
+		{
+			List<NamespaceId> namespaceIds = namespaces.ToList();
+			IEnumerable<string> storagePools = namespaceIds.Select(ns => _namespacePolicyResolver.GetPoliciesForNs(ns).StoragePool);
+
+			Dictionary<string, NamespaceId> storagePoolsToClean = storagePools.ToDictionary(storagePool => storagePool, storagePool => namespaceIds.FirstOrDefault(id => _namespacePolicyResolver.GetPoliciesForNs(id).StoragePool == storagePool));
+
+			foreach ((string _, NamespaceId ns) in storagePoolsToClean)
+			{
+				await GetBackend(ns).DeleteAsync(blob.AsS3Key(), CancellationToken.None);
+			}
 		}
 	}
 

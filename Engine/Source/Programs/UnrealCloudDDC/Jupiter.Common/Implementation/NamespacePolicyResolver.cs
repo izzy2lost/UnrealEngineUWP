@@ -9,7 +9,6 @@ namespace Jupiter.Common
 {
 	public interface INamespacePolicyResolver
 	{
-		public IEnumerable<(NamespaceId, NamespacePolicy)> GetAllPolicies();
 		public NamespacePolicy GetPoliciesForNs(NamespaceId ns);
 
 		static NamespaceId JupiterInternalNamespace => new NamespaceId("jupiter-internal");
@@ -81,14 +80,6 @@ namespace Jupiter.Common
 			if (!authSettings.CurrentValue.Enabled)
 			{
 				_namespaceSettings.CurrentValue.Policies.TryAdd("*", new NamespacePolicy() { Acls = new List<AclEntry> { new() { Claims = new List<string> { "*" } } } });
-			}
-		}
-
-		public IEnumerable<(NamespaceId, NamespacePolicy)> GetAllPolicies()
-		{
-			foreach (KeyValuePair<string, NamespacePolicy> pair in _namespaceSettings.CurrentValue.Policies)
-			{
-				yield return (new NamespaceId(pair.Key), pair.Value);
 			}
 		}
 

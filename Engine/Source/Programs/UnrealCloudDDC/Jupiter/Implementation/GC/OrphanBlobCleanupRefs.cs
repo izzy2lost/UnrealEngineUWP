@@ -219,20 +219,9 @@ namespace Jupiter.Implementation
 			_deletedBlobCounter.Add(1);
 			_logger.LogInformation("GC Orphan blob {Blob} from {StoragePool} which was last modified at {LastModifiedTime}", blob, storagePoolName, lastModifiedTime);
 
-			// if the blob was not found to have a reference in any of the namespace that share a storage pool then the blob is not used anymore and should be deleted from all the namespaces
-			await Parallel.ForEachAsync(namespacesThatSharePool, cancellationToken, async (ns, ctx) =>
-			{
-				await RemoveBlobAsync(ns, blob, ctx);
-			});
-			return true;
-
-		}
-
-		private async Task RemoveBlobAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
-		{
 			try
 			{
-				await _blobService.DeleteObjectAsync(ns, blob, cancellationToken);
+				await _blobService.DeleteObjectAsync(namespacesThatSharePool, blob, cancellationToken);
 			}
 			catch (BlobNotFoundException)
 			{
@@ -240,8 +229,11 @@ namespace Jupiter.Implementation
 			}
 			catch (Exception e)
 			{
-				_logger.LogWarning("Failed to delete blob {Blob} from {Namespace} due to {Error}", blob, ns, e.Message);
+				_logger.LogWarning("Failed to delete blob {Blob} from {StoragePool} due to {Error}", blob, storagePoolName, e.Message);
 			}
+			
+			return true;
+
 		}
 
 		private IAsyncEnumerable<NamespaceId> ListNamespaces()

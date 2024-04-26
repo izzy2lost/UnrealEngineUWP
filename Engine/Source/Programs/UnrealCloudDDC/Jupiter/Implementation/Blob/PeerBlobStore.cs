@@ -207,6 +207,12 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
+		public Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
+		{
+			// not applicable
+			return Task.CompletedTask;
+		}
+
 		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			// not applicable

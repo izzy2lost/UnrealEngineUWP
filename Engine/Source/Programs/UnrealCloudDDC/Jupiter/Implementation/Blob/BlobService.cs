@@ -825,6 +825,31 @@ public class BlobService : IBlobService
 		throw new NamespaceNotFoundException(ns);
 	}
 
+	public async Task DeleteObjectAsync(List<NamespaceId> namespaces, BlobId blob, CancellationToken cancellationToken = default)
+	{
+		// remove the object from the tracking first, if this times out we do not want to end up with a inconsistent blob index
+		// if the blob store delete fails on the other hand we will still run a delete again during GC (as the blob is still orphaned at that point)
+		// this assumes that blob gc is based on scanning the root blob store
+
+		await Parallel.ForEachAsync(namespaces, cancellationToken, async (ns, token) =>
+		{
+			await _blobIndex.RemoveBlobFromRegionAsync(ns, blob, cancellationToken: cancellationToken);
+			await _blobIndex.RemoveReferencesAsync(ns, blob, null, cancellationToken);
+		});
+
+		// let each blob store figure out how it could effectively clear a storage pool
+		foreach (IBlobStore store in _blobStores)
+		{
+			using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.DeleteObjectFromStoragePool")
+					.SetAttribute("operation.name", "HierarchicalStore.DeleteObjectFromStoragePool")
+					.SetAttribute("resource.name", blob.ToString())
+					.SetAttribute("BlobStore", store.GetType().Name)
+				;
+
+			await store.DeleteObjectAsync(namespaces, blob);
+		}
+	}
+
 	public async Task DeleteNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken = default)
 	{
 		bool deletedAtLeastOnce = false;

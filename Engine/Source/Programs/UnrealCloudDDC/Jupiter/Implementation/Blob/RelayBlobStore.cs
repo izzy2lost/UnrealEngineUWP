@@ -106,6 +106,11 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
+		public Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
+		{
+			throw new NotImplementedException("DeleteObjectAsync from multiple namespaces is not supported on the relay blob store");
+		}
+
 		public Task DeleteObjectAsync(NamespaceId ns, BlobId blob)
 		{
 			throw new NotImplementedException("DeleteObjects is not supported on the relay blob store");

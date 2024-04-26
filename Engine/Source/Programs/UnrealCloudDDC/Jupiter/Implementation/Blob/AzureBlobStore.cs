@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -144,6 +145,19 @@ namespace Jupiter.Implementation
 		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blobIdentifier)
 		{
 			await GetBackend(ns).DeleteAsync(GetPath(blobIdentifier), CancellationToken.None);
+		}
+
+		public async Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
+		{
+			List<NamespaceId> namespaceIds = namespaces.ToList();
+			List<string> storagePools = namespaceIds.Select(ns => _namespacePolicyResolver.GetPoliciesForNs(ns).StoragePool).Distinct().ToList();
+
+			Dictionary<string, NamespaceId> storagePoolsToClean = storagePools.ToDictionary(storagePool => storagePool, storagePool => namespaceIds.FirstOrDefault(id => _namespacePolicyResolver.GetPoliciesForNs(id).StoragePool == storagePool));
+
+			foreach ((string _, NamespaceId ns) in storagePoolsToClean)
+			{
+				await GetBackend(ns).DeleteAsync(GetPath(blob), CancellationToken.None);
+			}
 		}
 
 		public async Task DeleteNamespaceAsync(NamespaceId ns)

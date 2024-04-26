@@ -89,6 +89,16 @@ namespace Jupiter.Implementation
 
 		public Task DeleteObjectAsync(NamespaceId ns, BlobId blob) => GetBackend(ns).DeleteAsync(GetPath(blob));
 
+		public Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
+		{
+			foreach (NamespaceId ns in namespaces)
+			{
+				DeleteObjectAsync(ns, blob);
+			}
+
+			return Task.CompletedTask;
+		}
+
 		public Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck = false) => GetBackend(ns).ExistsAsync(GetPath(blob));
 
 		public Task DeleteNamespaceAsync(NamespaceId ns)

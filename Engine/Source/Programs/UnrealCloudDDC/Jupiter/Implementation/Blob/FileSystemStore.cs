@@ -131,6 +131,15 @@ namespace Jupiter.Implementation
 			await GetBackend(ns).DeleteAsync(path, CancellationToken.None);
 		}
 
+		public async Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId objectName)
+		{
+			string path = GetFilesystemPath(objectName);
+			foreach (NamespaceId ns in namespaces)
+			{
+				await GetBackend(ns).DeleteAsync(path, CancellationToken.None);
+			}
+		}
+		
 		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			DirectoryInfo namespaceDirectory = GetFilesystemPath(ns).ToDirectoryInfo();
