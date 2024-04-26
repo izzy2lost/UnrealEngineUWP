@@ -362,7 +362,7 @@ bool IsHair(FLumenMaterialData In)
 
 bool HasBackfaceDiffuse(FLumenMaterialData In)
 {
-	return In.bHasBackfaceDiffuse || In.ShadingID == SHADINGMODELID_TWOSIDED_FOLIAGE || In.ShadingID == SHADINGMODELID_SUBSURFACE || In.bIsHair || In.ShadingID == SHADINGMODELID_HAIR;
+	return In.bHasBackfaceDiffuse || In.ShadingID == SHADINGMODELID_TWOSIDED_FOLIAGE || In.ShadingID == SHADINGMODELID_SUBSURFACE;
 }
 
 bool IsClearCoat(FLumenMaterialData In)
@@ -402,13 +402,18 @@ bool ComputeIndirectLighting(FLumenMaterialData In)
 // Return true if the material has a hemispherical domain
 bool HasHemisphericalVisibility(FLumenMaterialData In)
 {
-	return !HasBackfaceDiffuse(In);
+	return !HasBackfaceDiffuse(In) && !IsHair(In);
 }
 
 // Return true if the material has a spherical domain (vs. hemispherical domain)
 bool HasSphericalVisibility(FLumenMaterialData In)
 {
-	return HasBackfaceDiffuse(In);
+	return HasBackfaceDiffuse(In) || IsHair(In);
+}
+
+bool SupportsScreenTraces(FLumenMaterialData In)
+{
+	return !IsHair(In);
 }
 
 bool HasBentNormal(FLumenMaterialData In)

@@ -111,8 +111,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		}
 		#endif
 
-		bool bBackfaceRay;
-		float3 ProbeWorldNormalForBiasing = GetScreenProbeNormalForBiasing(ScreenProbeAtlasCoord, Ray.Direction, bBackfaceRay);
+		float3 ProbeWorldNormalForBiasing = GetScreenProbeNormalForBiasing(ScreenProbeAtlasCoord, Ray.Direction);
 		Ray.Origin += NormalBias * ProbeWorldNormalForBiasing;
 
 		FRayCone RayCone = (FRayCone)0;

@@ -42,6 +42,7 @@ struct FScreenProbeMaterial
 	float SceneDepth;
 	bool bIsValid;
 	bool bHasBackfaceDiffuse;
+	bool bSupportsScreenTraces;
 };
 
 FScreenProbeMaterial GetScreenProbeMaterial(uint2 PixelPos)
@@ -52,6 +53,7 @@ FScreenProbeMaterial GetScreenProbeMaterial(uint2 PixelPos)
 	Out.SceneDepth = Material.SceneDepth;
 	Out.bIsValid = IsValid(Material);
 	Out.bHasBackfaceDiffuse = HasBackfaceDiffuse(Material);
+	Out.bSupportsScreenTraces = SupportsScreenTraces(Material);
 	return Out;
 }
 
@@ -88,7 +90,7 @@ void WriteDownsampledProbeMaterial(float2 ScreenUV, uint2 ScreenProbeAtlasCoord,
 		ProbeWorldVelocity = ProbeTranslatedWorldPosition - GetPrevTranslatedWorldPosition(ProbeHistoryScreenPosition);
 	}
 
-	RWScreenProbeWorldSpeed[ScreenProbeAtlasCoord] = EncodeScreenProbeSpeed(length(ProbeWorldVelocity), ProbeMaterial.bHasBackfaceDiffuse);
+	RWScreenProbeWorldSpeed[ScreenProbeAtlasCoord] = EncodeScreenProbeSpeed(length(ProbeWorldVelocity), ProbeMaterial.bHasBackfaceDiffuse, ProbeMaterial.bSupportsScreenTraces);
 
 	RWScreenProbeTranslatedWorldPosition[ScreenProbeAtlasCoord] = ProbeTranslatedWorldPosition;
 }
@@ -665,6 +667,7 @@ void ScreenProbeTileClassificationMarkCS(
 				}
 
 				const bool bHasBackfaceDiffuse = HasBackfaceDiffuse(Material);
+				const bool bSupportsScreenTraces = SupportsScreenTraces(Material);
 				const float DiffuseLerp = GetDiffuseLerp(Material.Roughness, bHasBackfaceDiffuse);
 				const float LumenSpecularRayAlpha = LumenCombineReflectionsAlpha(Material.Roughness, bHasBackfaceDiffuse);
 				if ((DiffuseLerp < 1.0f && LumenSpecularRayAlpha < 1.0f) || IsClearCoat(Material))
