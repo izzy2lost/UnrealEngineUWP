@@ -73,14 +73,16 @@ FSimpleMulticastDelegate FKismetCompilerContext::OnPostCompile;
 // Stats for this module
 DECLARE_CYCLE_STAT(TEXT("Create Schema"), EKismetCompilerStats_CreateSchema, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Create Function List"), EKismetCompilerStats_CreateFunctionList, STATGROUP_KismetCompiler );
-DECLARE_CYCLE_STAT(TEXT("Expansion"), EKismetCompilerStats_Expansion, STATGROUP_KismetCompiler )
+DECLARE_CYCLE_STAT(TEXT("Expansion"), EKismetCompilerStats_Expansion, STATGROUP_KismetCompiler)
+DECLARE_CYCLE_STAT(TEXT("Validate"), EKismetCompilerStats_Validate, STATGROUP_KismetCompiler )
 DECLARE_CYCLE_STAT(TEXT("Expand Node"), EKismetCompilerStats_ExpandNode, STATGROUP_KismetCompiler )
 DECLARE_CYCLE_STAT(TEXT("Post Expansion Step"), EKismetCompilerStats_PostExpansionStep, STATGROUP_KismetCompiler )
 DECLARE_CYCLE_STAT(TEXT("Process uber"), EKismetCompilerStats_ProcessUbergraph, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Process func"), EKismetCompilerStats_ProcessFunctionGraph, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Generate Function Graph"), EKismetCompilerStats_GenerateFunctionGraphs, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Precompile Function"), EKismetCompilerStats_PrecompileFunction, STATGROUP_KismetCompiler );
-DECLARE_CYCLE_STAT(TEXT("Compile Function"), EKismetCompilerStats_CompileFunction, STATGROUP_KismetCompiler );
+DECLARE_CYCLE_STAT(TEXT("Compile Function"), EKismetCompilerStats_CompileFunction, STATGROUP_KismetCompiler);
+DECLARE_CYCLE_STAT(TEXT("Create Locals and Register Nets"), EKismetCompilerStats_CreateLocalsAndRegisterNets, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Postcompile Function"), EKismetCompilerStats_PostcompileFunction, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Finalization"), EKismetCompilerStats_FinalizationWork, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Code Gen"), EKismetCompilerStats_CodeGenerationTime, STATGROUP_KismetCompiler);
@@ -346,7 +348,7 @@ namespace UE::KismetCompiler::Private
 	// that's what the underlying delegate signature requires.
 	// Failure to do so will lead to incorrect UFunction signatures in the skeleton class,
 	// which can cause compilation errors.
-	static void MatchNodesToDelegateSignatures(UBlueprint* BP)
+	static void MatchNodesToDelegateSignatures(const UBlueprint* BP)
 	{
 		check(BP);
 
@@ -3852,6 +3854,8 @@ void FKismetCompilerContext::DetermineNodeExecLinks(UEdGraphNode* SourceNode, TM
 
 void FKismetCompilerContext::CreateLocalsAndRegisterNets(FKismetFunctionContext& Context, FField**& FunctionPropertyStorageLocation)
 {
+	BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_CreateLocalsAndRegisterNets);
+
 	// Create any user defined variables, this must occur before registering nets so that the properties are in place
 	CreateUserDefinedLocalVariablesForFunction(Context, FunctionPropertyStorageLocation);
 
@@ -4072,6 +4076,8 @@ void FKismetCompilerContext::CreateAndProcessUbergraph()
 
 		// Do some cursory validation (pin types match, inputs to outputs, pins never point to their parent node, etc...)
 		{
+			BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_Validate);
+
 			UbergraphContext = new FKismetFunctionContext(MessageLog, Schema, NewClass, Blueprint);
 			FunctionList.Add(UbergraphContext);
 			UbergraphContext->SourceGraph = ConsolidatedEventGraph;

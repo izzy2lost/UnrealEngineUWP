@@ -59,6 +59,7 @@ public class Kismet : ModuleRules
 				"SubobjectEditor",
 				"SubobjectDataInterface",
 				"ToolWidgets",
+				"TraceLog"
 			}
 			);
 
