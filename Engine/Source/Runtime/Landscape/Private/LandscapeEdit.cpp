@@ -7179,6 +7179,12 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 			}
 		}
 
+		if (CurrentWeightmapTexture != nullptr)
+		{
+			// sanity check - only final weightmaps are allowed more than one mip
+			ensure((CurrentWeightmapTexture->Source.GetNumMips() == 1) || bIsFinalWeightmap);
+		}
+
 		bool NeedsUpdateResource = false;
 		// No suitable weightmap texture
 		if (CurrentWeightmapTexture == nullptr)
@@ -7189,12 +7195,17 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 			int32 WeightmapSize = (SubsectionSizeQuads + 1) * NumSubsections;
 
 			// We need a new weightmap texture
-			CurrentWeightmapTexture = TargetProxy->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8, nullptr, false, bIsFinalWeightmap); //dmb-nomips
+			CurrentWeightmapTexture = TargetProxy->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8, nullptr, /* bCompress = */ false, /* bMipChain= */ bIsFinalWeightmap); //dmb-nomips
 
 			// Alloc dummy mips
 			if (bIsFinalWeightmap)
 			{
 				CreateEmptyTextureMips(CurrentWeightmapTexture, true);
+			}
+			else
+			{
+				// sanity check - only final weightmaps are allowed more than one mip
+				check(CurrentWeightmapTexture->Source.GetNumMips() == 1);
 			}
 
 			CurrentWeightmapTexture->PostEditChange();
@@ -7237,6 +7248,8 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 					// Copy the data
 					if (ensure(DataInterface != nullptr)) // it's not safe to skip the copy
 					{
+						// sanity check - only final weightmaps are allowed more than one mip
+						ensure((CurrentWeightmapTexture->Source.GetNumMips() == 1) || bIsFinalWeightmap);
 						DataInterface->CopyTextureChannel(CurrentWeightmapTexture, ChanIdx, OldWeightmapTexture, AllocInfo.WeightmapTextureChannel);
 						DataInterface->ZeroTextureChannel(OldWeightmapTexture, AllocInfo.WeightmapTextureChannel);
 						// UE_LOG(LogLandscape, Log, TEXT("Copying old channel (%s).%d to new channel (%s).%d"), *OldWeightmapTexture->GetName(), AllocInfo.WeightmapTextureChannel, *CurrentWeightmapTexture->GetName(), ChanIdx);

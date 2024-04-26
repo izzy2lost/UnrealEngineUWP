@@ -20,6 +20,7 @@ LandscapeEditInterface.cpp: Landscape editing interface
 #include "LandscapeDataAccess.h"
 #include "LandscapeEdit.h"
 #include "LandscapeRender.h"
+#include "LandscapePrivate.h"
 #include "ComponentReregisterContext.h"
 #include "Algo/Transform.h"
 #include "TextureCompiler.h"
@@ -4355,7 +4356,16 @@ void FLandscapeTextureDataInterface::CopyTextureChannel(UTexture2D* Dest, int32 
 	int32 MipSize = Dest->Source.GetSizeX();
 	check(Dest->Source.GetSizeX() == Dest->Source.GetSizeY() && Src->Source.GetSizeX() == Dest->Source.GetSizeX());
 
-	for( int32 MipIdx=0;MipIdx<DestDataInfo->NumMips();MipIdx++ )
+	int32 NumMips = DestDataInfo->NumMips();
+	int32 SrcMips = SrcDataInfo->NumMips();
+	if (SrcMips != NumMips)
+	{
+		UE_LOG(LogLandscape, Warning, TEXT("Unexpected mip count mismatch when copying landscape texture channels from '%s' (%d mips) to '%s' (%d mips) -- mip data may be lost, or left uninitialized"),
+			*Src->GetPathName(), SrcMips, *Dest->GetPathName(), NumMips);
+		NumMips = FMath::Min(NumMips, SrcMips);
+	}
+
+	for( int32 MipIdx=0;MipIdx< NumMips;MipIdx++ )
 	{
 		uint8* DestTextureData = (uint8*)DestDataInfo->GetMipData(MipIdx);
 		uint8* SrcTextureData = (uint8*)SrcDataInfo->GetMipData(MipIdx);
