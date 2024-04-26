@@ -42,6 +42,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 			{
 				if (GetDefault<UMVVMDeveloperProjectSettings>()->IsExtensionSupportedForPanelClass(Panel->GetClass()))
 				{
+					FName NAME_ViewmodelExtension = "ViewmodelExtension";
 					Widget = Panel;
 					WidgetBlueprintEditor = InWidgetBlueprintEditor;
 
@@ -54,6 +55,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 
 						// Add a button that controls adding/removing the extension on the panel widget
 						MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
+						.RowTag(NAME_ViewmodelExtension)
 						.NameContent()
 						[
 							SNew(STextBlock)
@@ -92,7 +94,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 							]
 						];
 
-						if (UMVVMViewBlueprintPanelWidgetExtension* PanelExtension = GetPanelWidgetExtension())
+						if (UMVVMBlueprintViewExtension_PanelWidget* PanelExtension = GetPanelWidgetExtension())
 						{
 							IDetailPropertyRow* PanelExtensionPropertyRow = MVVMCategory.AddExternalObjects({ PanelExtension});
 							TSharedPtr<IPropertyHandle> PanelExtensionObjectHandle = PanelExtensionPropertyRow->GetPropertyHandle();
@@ -106,6 +108,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 
 							// "Entry Viewmodel" property row
 							MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
+								.RowTag(NAME_ViewmodelExtension)
 								.NameContent()
 								[
 									SNew(STextBlock)
@@ -146,13 +149,14 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 							TSharedPtr<IPropertyHandle> SlotPropertyHandle = SlotDetailRow->GetPropertyHandle();
 
 							SlotDetailRow->CustomWidget(true)
+								.RowTag(NAME_ViewmodelExtension)
 								.NameContent()
 								[
 									SNew(STextBlock)
 									.Text(LOCTEXT("SlotTemplate", "Slot Template"))
 									.Font(IDetailLayoutBuilder::GetDetailFont())
 								]
-							.ValueContent()
+								.ValueContent()
 								[
 									SlotPropertyHandle->CreatePropertyValueWidget()
 								];
@@ -180,7 +184,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 
 FReply FMVVMPanelWidgetExtensionCustomizationExtender::ModifyExtension()
 {
-	if (UMVVMViewBlueprintPanelWidgetExtension* PanelExtension = GetPanelWidgetExtension())
+	if (UMVVMBlueprintViewExtension_PanelWidget* PanelExtension = GetPanelWidgetExtension())
 	{
 		if (UPanelWidget* WidgetPtr = Widget.Get())
 		{
@@ -204,8 +208,8 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CreatePanelWidgetViewExtens
 		{
 			if (Extension->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName()).IsEmpty())
 			{
-				UMVVMBlueprintViewExtension* NewExtension = Extension->CreateBlueprintWidgetExtension(UMVVMViewBlueprintPanelWidgetExtension::StaticClass(), WidgetPtr->GetFName());
-				UMVVMViewBlueprintPanelWidgetExtension* NewPanelWidgetExtension = CastChecked<UMVVMViewBlueprintPanelWidgetExtension>(NewExtension);
+				UMVVMBlueprintViewExtension* NewExtension = Extension->CreateBlueprintWidgetExtension(UMVVMBlueprintViewExtension_PanelWidget::StaticClass(), WidgetPtr->GetFName());
+				UMVVMBlueprintViewExtension_PanelWidget* NewPanelWidgetExtension = CastChecked<UMVVMBlueprintViewExtension_PanelWidget>(NewExtension);
 				NewPanelWidgetExtension->WidgetName = WidgetPtr->GetFName();
 
 				UPanelSlot* SlotObj = NewObject<UPanelSlot>(NewPanelWidgetExtension, WidgetPtr->GetSlotClass(), NAME_None, RF_Transactional);
@@ -215,7 +219,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CreatePanelWidgetViewExtens
 	}
 }
 
-UMVVMViewBlueprintPanelWidgetExtension* FMVVMPanelWidgetExtensionCustomizationExtender::GetPanelWidgetExtension() const
+UMVVMBlueprintViewExtension_PanelWidget* FMVVMPanelWidgetExtensionCustomizationExtender::GetPanelWidgetExtension() const
 {
 	if (UMVVMWidgetBlueprintExtension_View* ViewClass = GetExtensionViewForSelectedWidgetBlueprint())
 	{
@@ -223,7 +227,7 @@ UMVVMViewBlueprintPanelWidgetExtension* FMVVMPanelWidgetExtensionCustomizationEx
 		{
 			for (UMVVMBlueprintViewExtension* Extension : ViewClass->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName()))
 			{
-				if (UMVVMViewBlueprintPanelWidgetExtension* PanelWidgetExtension = Cast<UMVVMViewBlueprintPanelWidgetExtension>(Extension))
+				if (UMVVMBlueprintViewExtension_PanelWidget* PanelWidgetExtension = Cast<UMVVMBlueprintViewExtension_PanelWidget>(Extension))
 				{
 					return PanelWidgetExtension;
 				}
@@ -292,7 +296,7 @@ FText FMVVMPanelWidgetExtensionCustomizationExtender::OnGetSelectedViewModel() c
 	{
 		if (EntryClass)
 		{
-			if (UMVVMViewBlueprintPanelWidgetExtension* PanelWidgetExtension = GetPanelWidgetExtension())
+			if (UMVVMBlueprintViewExtension_PanelWidget* PanelWidgetExtension = GetPanelWidgetExtension())
 			{
 				if (const UUserWidget* EntryUserWidget = Cast<UUserWidget>(EntryClass->ClassDefaultObject))
 				{
@@ -360,7 +364,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::SetEntryViewModel(FGuid InE
 	{
 		if (const UPanelWidget* WidgetPtr = Widget.Get())
 		{
-			if (UMVVMViewBlueprintPanelWidgetExtension* PanelWidgetExtension = GetPanelWidgetExtension())
+			if (UMVVMBlueprintViewExtension_PanelWidget* PanelWidgetExtension = GetPanelWidgetExtension())
 			{
 				if (PanelWidgetExtension->EntryViewModelId != InEntryViewModelId)
 				{

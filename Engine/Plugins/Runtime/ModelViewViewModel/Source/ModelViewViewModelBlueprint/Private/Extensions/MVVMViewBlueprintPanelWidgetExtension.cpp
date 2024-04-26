@@ -19,13 +19,13 @@
 
 #define LOCTEXT_NAMESPACE "MVVMViewBlueprintPanelWidgetExtension"
 
-TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty> UMVVMViewBlueprintPanelWidgetExtension::AddProperties()
+TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty> UMVVMBlueprintViewExtension_PanelWidget::AddProperties()
 {
 	TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty> PropertiesToAdd;
 	PanelPropertyName = FName(FText::Format(LOCTEXT("ExtensionVariableName", "{0}_{1}"), FText::FromName(WidgetName), FText::FromString(TEXT("Viewmodel_Extension"))).ToString());
 
 	UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty Property;
-	Property.AuthoritativeClass = UMVVMViewPanelWidgetExtension::StaticClass();
+	Property.AuthoritativeClass = UMVVMPanelWidgetViewExtension::StaticClass();
 	Property.DisplayName = FText::FromName(PanelPropertyName);
 	Property.Name = PanelPropertyName;
 	Property.CategoryName = TEXT("PanelWidgetExtension");
@@ -35,7 +35,7 @@ TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty> UMVVMViewBlueprintP
 	return PropertiesToAdd;
 }
 
-void UMVVMViewBlueprintPanelWidgetExtension::Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class)
+void UMVVMBlueprintViewExtension_PanelWidget::Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class)
 {
 	check (Compiler);
 	auto VerifyViewmodelTypeMatch = [this, Compiler](const TSubclassOf<UUserWidget> InEntryWidgetClass, const FMVVMBlueprintPropertyPath& EntryViewModelPath, const FName& PropertyName)
@@ -166,7 +166,7 @@ void UMVVMViewBlueprintPanelWidgetExtension::Precompile(UE::MVVM::Compiler::IMVV
 	}
 }
 
-void UMVVMViewBlueprintPanelWidgetExtension::Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
+void UMVVMBlueprintViewExtension_PanelWidget::Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
 {
 	check(Compiler);
 
@@ -196,11 +196,11 @@ void UMVVMViewBlueprintPanelWidgetExtension::Compile(UE::MVVM::Compiler::IMVVMBl
 						if (const FMVVMBlueprintViewModelContext* ViewModelContext = EntryBPView->FindViewModel(EntryViewModelId))
 						{
 							// Create the corresponding runtime extension
-							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewPanelWidgetExtension::StaticClass());
-							UMVVMViewPanelWidgetExtension* NewExtension = CastChecked<UMVVMViewPanelWidgetExtension>(NewExtensionObj);
+							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewPanelWidgetClassExtension::StaticClass());
+							UMVVMViewPanelWidgetClassExtension* NewExtension = CastChecked<UMVVMViewPanelWidgetClassExtension>(NewExtensionObj);
 
 							const FName EntryViewModelName = ViewModelContext->GetViewModelName();
-							NewExtension->Initialize(UMVVMViewPanelWidgetExtension::FInitPanelWidgetExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue(), EntryWidgetClass, SlotObj, PanelPropertyName, ViewModelContext->NotifyFieldValueClass));
+							NewExtension->Initialize(UMVVMViewPanelWidgetClassExtension::FInitPanelWidgetExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue(), EntryWidgetClass, SlotObj, PanelPropertyName, ViewModelContext->NotifyFieldValueClass));
 						}
 					}
 				}
@@ -209,7 +209,7 @@ void UMVVMViewBlueprintPanelWidgetExtension::Compile(UE::MVVM::Compiler::IMVVMBl
 	}	
 }
 
-const UMVVMBlueprintView* UMVVMViewBlueprintPanelWidgetExtension::GetEntryWidgetBlueprintView(const UUserWidget* EntryUserWidget) const
+const UMVVMBlueprintView* UMVVMBlueprintViewExtension_PanelWidget::GetEntryWidgetBlueprintView(const UUserWidget* EntryUserWidget) const
 {
 	if (const UWidgetBlueprint* EntryBlueprint = Cast<UWidgetBlueprint>(EntryUserWidget->GetClass()->ClassGeneratedBy))
 	{
@@ -224,7 +224,7 @@ const UMVVMBlueprintView* UMVVMViewBlueprintPanelWidgetExtension::GetEntryWidget
 	return nullptr;
 }
 
-bool UMVVMViewBlueprintPanelWidgetExtension::WidgetRenamed(FName OldName, FName NewName)
+bool UMVVMBlueprintViewExtension_PanelWidget::WidgetRenamed(FName OldName, FName NewName)
 {
 	if (WidgetName == OldName)
 	{

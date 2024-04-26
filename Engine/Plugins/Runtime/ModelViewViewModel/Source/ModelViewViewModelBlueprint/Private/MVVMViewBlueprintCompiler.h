@@ -18,10 +18,12 @@ class FWidgetBlueprintCompilerContext;
 class UEdGraph;
 class UMVVMBlueprintView;
 class UMVVMBlueprintViewConversionFunction;
+class UMVVMBlueprintViewExtension;
 class UMVVMBlueprintViewEvent;
 class UMVVMViewClass;
 class UMVVMViewClassExtension;
 class UWidgetBlueprintGeneratedClass;
+
 namespace  UE::MVVM
 {
 	enum class EBindingMessageType : uint8;
@@ -43,6 +45,7 @@ private:
 	struct FGeneratedWriteFieldPathContext;
 	struct FCompilerBinding;
 	struct FCompilerEvent;
+	struct FCompilerExtension;
 
 public:
 	FMVVMViewBlueprintCompiler(FWidgetBlueprintCompilerContext& InCreationContext, UMVVMBlueprintView* BlueprintView);
@@ -78,6 +81,7 @@ private:
 	void CreateWidgetMap(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreateBindingList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreateEventList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
+	void CreateExtensionList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreateRequiredProperties(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreatePublicFunctionsDeclaration(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 
@@ -305,7 +309,7 @@ private:
 
 		TArray<TSharedPtr<FGeneratedReadFieldPathContext>> ReadPaths;
 		TSharedPtr<FGeneratedWriteFieldPathContext> WritePath;
-		TWeakObjectPtr<UMVVMBlueprintViewConversionFunction> ConversionFunction = nullptr;
+		TWeakObjectPtr<UMVVMBlueprintViewConversionFunction> ConversionFunction;
 
 		FCompiledBindingLibraryCompiler::FBindingHandle BindingHandle;
 		FCompiledBindingLibraryCompiler::FFieldPathHandle ConversionFunctionHandle;
@@ -314,11 +318,11 @@ private:
 	TArray<TSharedRef<FCompilerBinding>> ValidBindings;
 
 	/**
-	 * The list of all the valid binding to iterates on.
+	 * The list of all the valid event to iterates on.
 	 */
 	struct FCompilerEvent
 	{
-		TWeakObjectPtr<UMVVMBlueprintViewEvent> Event = nullptr;
+		TWeakObjectPtr<UMVVMBlueprintViewEvent> Event;
 
 		TArray<TSharedPtr<FGeneratedReadFieldPathContext>> ReadPaths;
 		TSharedPtr<FGeneratedWriteFieldPathContext> WritePath;
@@ -330,6 +334,15 @@ private:
 		FCompiledBindingLibraryCompiler::FFieldPathHandle DelegateFieldPathHandle;
 	};
 	TArray<TSharedRef<FCompilerEvent>> ValidEvents;
+
+	/**
+	 * The list of all the valid extension to iterates on.
+	 */
+	struct FCompilerExtension
+	{
+		TWeakObjectPtr<UMVVMBlueprintViewExtension> Extension;
+	};
+	TArray<TSharedRef<FCompilerExtension>> ValidExtensions;
 
 	/**
 	 * List of public expose function

@@ -47,6 +47,7 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 				if (GetExtensionViewForSelectedWidgetBlueprint())
 				{
 					IDetailCategoryBuilder& MVVMCategory = InDetailLayout.EditCategory("ListEntries");
+					FName NAME_ViewmodelExtension = "ViewmodelExtension";
 
 					// Fetch the entry widget class handle.
 					TArray<TSharedRef<IPropertyHandle>> ListEntryProperties;
@@ -64,6 +65,7 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 
 					// Add a button that controls adding/removing the extension on the ListViewBase widget
 					MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
+					.RowTag(NAME_ViewmodelExtension)
 					.NameContent()
 					[
 						SNew(STextBlock)
@@ -104,6 +106,7 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 
 					// Add a combobox that allows selecting from the viewmodels in the entry widgets
 					MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
+					.RowTag(NAME_ViewmodelExtension)
 					.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMVVMListViewBaseExtensionCustomizationExtender::GetEntryViewModelVisibility)))
 					.NameContent()
 					[
@@ -141,7 +144,7 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 
 FReply FMVVMListViewBaseExtensionCustomizationExtender::ModifyExtension()
 {
-	if (UMVVMViewBlueprintListViewBaseExtension* ListBaseViewExtension = GetListBaseViewExtension())
+	if (UMVVMBlueprintViewExtension_ListViewBase* ListBaseViewExtension = GetListBaseViewExtension())
 	{
 		if (UListViewBase* WidgetPtr = Widget.Get())
 		{
@@ -165,15 +168,15 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CreateListBaseViewExtensio
 		{
 			if (Extension->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName()).IsEmpty())
 			{
-				UMVVMBlueprintViewExtension* NewExtension = Extension->CreateBlueprintWidgetExtension(UMVVMViewBlueprintListViewBaseExtension::StaticClass(), WidgetPtr->GetFName());
-				UMVVMViewBlueprintListViewBaseExtension* NewListViewExtension = CastChecked<UMVVMViewBlueprintListViewBaseExtension>(NewExtension);
+				UMVVMBlueprintViewExtension* NewExtension = Extension->CreateBlueprintWidgetExtension(UMVVMBlueprintViewExtension_ListViewBase::StaticClass(), WidgetPtr->GetFName());
+				UMVVMBlueprintViewExtension_ListViewBase* NewListViewExtension = CastChecked<UMVVMBlueprintViewExtension_ListViewBase>(NewExtension);
 				NewListViewExtension->WidgetName = WidgetPtr->GetFName();
 			}
 		}
 	}
 }
 
-UMVVMViewBlueprintListViewBaseExtension* FMVVMListViewBaseExtensionCustomizationExtender::GetListBaseViewExtension() const
+UMVVMBlueprintViewExtension_ListViewBase* FMVVMListViewBaseExtensionCustomizationExtender::GetListBaseViewExtension() const
 {
 	if (UMVVMWidgetBlueprintExtension_View* ViewClass = GetExtensionViewForSelectedWidgetBlueprint())
 	{
@@ -181,7 +184,7 @@ UMVVMViewBlueprintListViewBaseExtension* FMVVMListViewBaseExtensionCustomization
 		{
 			for (UMVVMBlueprintViewExtension* Extension : ViewClass->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName()))
 			{
-				if (UMVVMViewBlueprintListViewBaseExtension* ListViewBaseExtension = Cast<UMVVMViewBlueprintListViewBaseExtension>(Extension))
+				if (UMVVMBlueprintViewExtension_ListViewBase* ListViewBaseExtension = Cast<UMVVMBlueprintViewExtension_ListViewBase>(Extension))
 				{
 					return ListViewBaseExtension;
 				}
@@ -251,7 +254,7 @@ FText FMVVMListViewBaseExtensionCustomizationExtender::OnGetSelectedViewModel() 
 	{
 		if (EntryClass)
 		{
-			if (UMVVMViewBlueprintListViewBaseExtension* ListBaseViewExtension = GetListBaseViewExtension())
+			if (UMVVMBlueprintViewExtension_ListViewBase* ListBaseViewExtension = GetListBaseViewExtension())
 			{
 				if (const UUserWidget* EntryUserWidget = Cast<UUserWidget>(EntryClass->ClassDefaultObject))
 				{
@@ -319,7 +322,7 @@ void FMVVMListViewBaseExtensionCustomizationExtender::SetEntryViewModel(FGuid In
 	{
 		if (const UListViewBase* WidgetPtr = Widget.Get())
 		{
-			if (UMVVMViewBlueprintListViewBaseExtension* ListBaseViewExtension = GetListBaseViewExtension())
+			if (UMVVMBlueprintViewExtension_ListViewBase* ListBaseViewExtension = GetListBaseViewExtension())
 			{
 				if (ListBaseViewExtension->EntryViewModelId != InEntryViewModelId)
 				{

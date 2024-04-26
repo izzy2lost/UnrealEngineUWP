@@ -12,7 +12,7 @@ class FReply;
 class IPropertyHandle;
 class SWidget;
 class UListViewBase;
-class UMVVMViewBlueprintListViewBaseExtension;
+class UMVVMBlueprintViewExtension_ListViewBase;
 class UMVVMWidgetBlueprintExtension_View;
 
 namespace  UE::MVVM
@@ -50,7 +50,7 @@ private:
 	void CreateListBaseViewExtensionIfNotExisting();
 
 	/** Get the MVVMViewBlueprintListViewBaseExtension for this widget in the blueprint view class. */
-	UMVVMViewBlueprintListViewBaseExtension* GetListBaseViewExtension() const;
+	UMVVMBlueprintViewExtension_ListViewBase* GetListBaseViewExtension() const;
 
 	/** Get the MVVM blueprint view class of this widget blueprint. */
 	UMVVMWidgetBlueprintExtension_View* GetExtensionViewForSelectedWidgetBlueprint() const;

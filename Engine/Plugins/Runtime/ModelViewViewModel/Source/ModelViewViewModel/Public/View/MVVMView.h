@@ -14,6 +14,7 @@ template <typename InterfaceType> class TScriptInterface;
 
 class UMVVMViewClass;
 class UMVVMViewClassExtension;
+class UMVVMViewExtension;
 struct FMVVMViewClass_Binding;
 struct FMVVMViewClass_Event;
 struct FMVVMViewClass_Source;
@@ -222,7 +223,7 @@ private:
 	TArray<FBoundEvent> BoundEvents;
 
 	UPROPERTY(VisibleAnywhere, Transient, Category = "View")
-	TArray<TObjectPtr<UMVVMViewClassExtension>> Extensions;
+	TArray<TObjectPtr<UMVVMViewExtension>> Extensions;
 
 	/** Bitfield that represents the valid sources. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "View")

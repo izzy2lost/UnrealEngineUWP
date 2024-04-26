@@ -12,7 +12,7 @@ class FReply;
 class IPropertyHandle;
 class SWidget;
 class UPanelWidget;
-class UMVVMViewBlueprintPanelWidgetExtension;
+class UMVVMBlueprintViewExtension_PanelWidget;
 class UMVVMWidgetBlueprintExtension_View;
 
 namespace  UE::MVVM
@@ -47,7 +47,7 @@ private:
 	void CreatePanelWidgetViewExtensionIfNotExisting();
 
 	/** Get the MVVMViewBlueprintPanelWidgetExtension for this widget in the blueprint view class. */
-	UMVVMViewBlueprintPanelWidgetExtension* GetPanelWidgetExtension() const;
+	UMVVMBlueprintViewExtension_PanelWidget* GetPanelWidgetExtension() const;
 
 	/** Get the MVVM blueprint view class of this widget blueprint. */
 	UMVVMWidgetBlueprintExtension_View* GetExtensionViewForSelectedWidgetBlueprint() const;

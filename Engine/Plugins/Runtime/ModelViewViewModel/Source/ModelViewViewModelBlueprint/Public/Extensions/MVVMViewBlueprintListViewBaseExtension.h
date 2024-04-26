@@ -23,7 +23,7 @@ namespace UE::MVVM::Compiler
 }
 
 UCLASS()
-class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMViewBlueprintListViewBaseExtension : public UMVVMBlueprintViewExtension
+class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewExtension_ListViewBase : public UMVVMBlueprintViewExtension
 {
 	GENERATED_BODY()
 

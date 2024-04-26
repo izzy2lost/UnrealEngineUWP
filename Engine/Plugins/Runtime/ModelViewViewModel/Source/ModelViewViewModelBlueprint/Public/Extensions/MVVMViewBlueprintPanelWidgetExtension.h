@@ -10,7 +10,7 @@
 
 class UMVVMBlueprintView;
 class UMVVMViewClass;
-class UMVVMViewPanelWidgetExtension;
+class UMVVMViewPanelWidgetClassExtension;
 class UUserWidget;
 class UWidgetBlueprintGeneratedClass;
 
@@ -27,7 +27,7 @@ namespace UE::MVVM::Compiler
 }
 
 UCLASS()
-class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMViewBlueprintPanelWidgetExtension : public UMVVMBlueprintViewExtension
+class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewExtension_PanelWidget : public UMVVMBlueprintViewExtension
 {
 	GENERATED_BODY()
 
@@ -64,7 +64,7 @@ private:
 	FName PanelPropertyName;
 
 	UPROPERTY()
-	TObjectPtr<UMVVMViewPanelWidgetExtension> ExtensionObj;
+	TObjectPtr<UMVVMViewPanelWidgetClassExtension> ExtensionObj;
 
 	UE::MVVM::FCompiledBindingLibraryCompiler::FFieldPathHandle WidgetPathHandle;
 

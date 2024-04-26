@@ -388,6 +388,7 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 		CreateWidgetMap(Context);
 		CreateBindingList(Context);
 		CreateEventList(Context);
+		CreateExtensionList(Context);
 		CreateRequiredProperties(Context);
 		CreatePublicFunctionsDeclaration(Context);
 	}
@@ -720,6 +721,25 @@ void FMVVMViewBlueprintCompiler::CreateEventList(const FWidgetBlueprintCompilerC
 }
 
 
+void FMVVMViewBlueprintCompiler::CreateExtensionList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context)
+{
+	for (int32 Index = BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->BlueprintExtensions.Num() - 1; Index >= 0; --Index)
+	{
+		FMVVMExtensionItem& Extension = BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->BlueprintExtensions[Index];
+		if (Extension.ExtensionObj == nullptr)
+		{
+			BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->BlueprintExtensions.RemoveAtSwap(Index);
+			break;
+		}
+
+		TSharedRef<FCompilerExtension> ValidExtension = MakeShared<FCompilerExtension>();
+		ValidExtension->Extension = Extension.ExtensionObj;
+
+		ValidExtensions.Add(ValidExtension);
+	}
+}
+
+
 void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context)
 {
 	ensure(Context.GetCompileType() == EKismetCompileType::SkeletonOnly);
@@ -1037,11 +1057,13 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 		}
 	}
 
-	for (FMVVMExtensionItem& Extension : BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->BlueprintExtensions)
+	// Extension can define properties.
+	for (TSharedRef<FCompilerExtension>& Extension : ValidExtensions)
 	{
-		if (ensure(Extension.ExtensionObj))
+		UMVVMBlueprintViewExtension* ExtensionPtr = Extension->Extension.Get();
+		if (ensure(ExtensionPtr))
 		{
-			TArray<Compiler::FBlueprintViewUserWidgetProperty> Properties = Extension.ExtensionObj->AddProperties();
+			TArray<Compiler::FBlueprintViewUserWidgetProperty> Properties = ExtensionPtr->AddProperties();
 			for (const Compiler::FBlueprintViewUserWidgetProperty& Property : Properties)
 			{
 				FCompilerUserWidgetProperty& CompilerUserWidgetProperty = NeededUserWidgetProperties.AddDefaulted_GetRef();
@@ -3320,11 +3342,12 @@ void FMVVMViewBlueprintCompiler::PreCompileViewExtensions(UWidgetBlueprintGenera
 
 	FExposedCompiler ExposedCompiler(this, Class);
 
-	for (FMVVMExtensionItem& Extension : BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->BlueprintExtensions)
+	for (TSharedRef<FCompilerExtension>& Extension : ValidExtensions)
 	{
-		if (ensure(Extension.ExtensionObj))
+		UMVVMBlueprintViewExtension* ExtensionPtr = Extension->Extension.Get();
+		if (ensure(ExtensionPtr))
 		{
-			Extension.ExtensionObj->Precompile(&ExposedCompiler, Class);
+			ExtensionPtr->Precompile(&ExposedCompiler, Class);
 		}
 	}
 }
@@ -3395,11 +3418,12 @@ void FMVVMViewBlueprintCompiler::CompileViewExtensions(const FCompiledBindingLib
 
 	FExposedCompiler ExposedCompiler(this, CompileResult, ViewExtension);
 
-	for (FMVVMExtensionItem& Extension : BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->BlueprintExtensions)
+	for (TSharedRef<FCompilerExtension>& Extension : ValidExtensions)
 	{
-		if (ensure(Extension.ExtensionObj))
+		UMVVMBlueprintViewExtension* ExtensionPtr = Extension->Extension.Get();
+		if (ensure(ExtensionPtr))
 		{
-			Extension.ExtensionObj->Compile(&ExposedCompiler, Class, ViewExtension);
+			ExtensionPtr->Compile(&ExposedCompiler, Class, ViewExtension);
 		}
 	}
 }
