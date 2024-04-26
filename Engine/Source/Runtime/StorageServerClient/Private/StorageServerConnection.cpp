@@ -19,6 +19,7 @@
 #include "StorageSocketConnectionBackend.h"
 #include "StoragePlatformConnectionBackend.h"
 #include "GenericPlatform/GenericPlatformHostCommunication.h"
+#include "Engine/Engine.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -499,13 +500,14 @@ bool FStorageServerConnection::Initialize(TArrayView<const FString> InHostAddres
 	{
 		return false;
 	}
-
+	
 	return ConnectionBackend->Initialize(InHostAddresses, InPort, InProjectNameOverride, InPlatformNameOverride);
 }
 
 void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageStoreEntryResource&&)> Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerPackageStoreRequest);
+	ShowDebugMessage();
 
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath).Append("/entries?fieldfilter=packagestoreentry");
@@ -537,6 +539,8 @@ void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageSto
 
 void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path)> Callback)
 {
+	ShowDebugMessage();
+
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath).Append("/files?filter=client");
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CbObject);
@@ -608,6 +612,8 @@ int64 FStorageServerConnection::ChunkSizeRequest(const FIoChunkId& ChunkId)
 bool FStorageServerConnection::ReadChunkRequest(const FIoChunkId& ChunkId, uint64 Offset, uint64 Size, TFunctionRef<void(FStorageServerResponse&)> OnResponse)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ZenHttpClient::ReadChunkRequest);
+
+	ShowDebugMessage();
 
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath) << "/" << ChunkId;
@@ -712,6 +718,19 @@ bool FStorageServerConnection::CreatePlatformBackend(const FString& HostAddresse
 FStorageConnectionBackend* FStorageServerConnection::GetConnectionBackend() const
 {
 	return ConnectionBackend.Get();
+}
+
+void FStorageServerConnection::ShowDebugMessage()
+{
+	static bool bShowDebugMessage = true;
+
+	if ((bShowDebugMessage) && (GEngine))
+	{
+		FString ZenConnectionDebugMsg;
+		ZenConnectionDebugMsg = FString::Printf(TEXT("ZenServer streaming from %s"), *ConnectionBackend->GetHostName());
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 86400.0f, FColor::White, ZenConnectionDebugMsg, false);
+		bShowDebugMessage = false;
+	}
 }
 
 #endif

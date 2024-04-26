@@ -157,6 +157,11 @@ public:
 	IStorageConnectionSocket* AcquireSocketFromPool() override;
 	void ReleaseSocket(IStorageConnectionSocket* Socket, bool bKeepAlive) override;
 
+	FString GetHostName() override
+	{
+		return Hostname.ToString();
+	}
+
 protected:
 	bool InitializeInternal(TArrayView<const FString> InHostAddresses, int32 Port) override;
 

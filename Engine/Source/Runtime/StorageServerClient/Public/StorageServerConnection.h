@@ -207,6 +207,7 @@ public:
 	virtual IStorageConnectionSocket* AcquireSocketFromPool() = 0;
 	virtual IStorageConnectionSocket* AcquireNewSocket(float TimeoutSeconds = -1.f) = 0;
 	virtual void ReleaseSocket(IStorageConnectionSocket* Socket, bool bKeepAlive) = 0;
+	virtual FString GetHostName() = 0;
 	
 protected:
 	void InitOplog(const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride);
@@ -242,6 +243,8 @@ private:
 	bool CreatePlatformBackend(const FString& HostAddresses, int32 Port);
 
 	FStorageConnectionBackend* GetConnectionBackend() const;
+
+	void ShowDebugMessage();
 
 	ISocketSubsystem& SocketSubsystem;
 	TAnsiStringBuilder<1024> OplogPath;
