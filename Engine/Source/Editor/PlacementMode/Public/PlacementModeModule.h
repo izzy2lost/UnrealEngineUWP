@@ -11,7 +11,7 @@ struct FPlacementCategory : FPlacementCategoryInfo
 	FPlacementCategory(const FPlacementCategoryInfo& SourceInfo)
 		: FPlacementCategoryInfo(SourceInfo)
 	{
-
+		
 	}
 
 	FPlacementCategory(FPlacementCategory&& In)
@@ -108,6 +108,15 @@ public:
 	virtual void GetItemsForCategory(FName CategoryName, TArray<TSharedPtr<FPlaceableItem>>& OutItems) const;
 
 	virtual void GetFilteredItemsForCategory(FName CategoryName, TArray<TSharedPtr<FPlaceableItem>>& OutItems, TFunctionRef<bool(const TSharedPtr<FPlaceableItem>&)> Filter) const;
+
+	/**
+	 * Puts the FPlaceableItem instances with names matching the FNames in ItemNames for the placement category CategoryName in the OutItems TArray
+	 * 
+	 * @param CategoryName the name of the Placement category that contains the FPlaceableItems
+	 * @param OutItems  the TArray to fill with the Items that match the names in ItemNames
+	 * @param ItemNames the names of the FPlaceableItem instances to put in OutItems
+	 */
+	virtual void GetItemsWithNamesForCategory( FName CategoryName, TArray<TSharedPtr<FPlaceableItem>>& OutItems, const TArray<FName>& ItemNames  ) const override;
 
 	virtual void RegenerateItemsForCategory(FName Category) override;
 

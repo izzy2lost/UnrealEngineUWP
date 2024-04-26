@@ -16,6 +16,7 @@
 #include "Textures/SlateIcon.h"
 
 class FNamePermissionList;
+class FBuilderInput;
 
 /**
  * Struct that defines an identifier for a particular placeable item in this module.
@@ -250,6 +251,7 @@ private:
 /** Structure of built-in placement categories. Defined as functions to enable external use without linkage */
 struct FBuiltInPlacementCategories
 {
+	static FName Favorites()		{ static FName Name("Favorites");		return Name; }
 	static FName RecentlyPlaced()	{ static FName Name("RecentlyPlaced");	return Name; }
 	static FName Basic()			{ static FName Name("Basic");			return Name; }
 	static FName Lights()			{ static FName Name("Lights");			return Name; }
@@ -430,6 +432,15 @@ public:
 	 * @param Filter 		Filter predicate used to filter out items. Return true to pass the filter, false otherwise
 	 */
 	virtual void GetFilteredItemsForCategory(FName Category, TArray<TSharedPtr<FPlaceableItem>>& OutItems, TFunctionRef<bool(const TSharedPtr<FPlaceableItem>&)> Filter) const = 0;
+
+	/**
+	 * Puts the items that should be shown for Category CategoryName in the OutItems array
+	 * 
+	 * @param CategoryName the name of the category to get the items for
+	 * @param OutItems the array of FPlaceableItems to put the items in
+	 * @param ItemNames the names of the FPlaceableItems to get and put in the OutItems array
+	 */
+	virtual void GetItemsWithNamesForCategory( FName CategoryName, TArray<TSharedPtr<FPlaceableItem>>& OutItems, const TArray<FName>& ItemNames ) const = 0;
 
 	/**
 	 * Instruct the category associated with the specified unique handle that it should regenerate its items

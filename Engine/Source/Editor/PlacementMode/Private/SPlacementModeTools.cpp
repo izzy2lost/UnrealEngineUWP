@@ -22,11 +22,14 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "AssetSelection.h"
+#include "SAssetDropTarget.h"
 #include "ActorFactories/ActorFactory.h"
 #include "ScopedTransaction.h"
-#include "PlacementModeCommands.h"
 #include "Layout/CategoryDrivenContentBuilder.h"
-#include "Widgets/Layout/SScrollBox.h"
+#include "ToolkitBuilder.h"
+#include "Styles/SlateBrushTemplates.h"
+#include "Layout/WidgetPath.h"
+#include "Styling/CoreStyle.h"
 
 #define LOCTEXT_NAMESPACE "PlacementMode"
 
@@ -123,25 +126,43 @@ public:
 		TSharedPtr<FAssetThumbnailPool> ThumbnailPool = UThumbnailManager::Get().GetSharedThumbnailPool();
 
 		Thumbnail = MakeShareable(new FAssetThumbnail(Asset, InArgs._Width, InArgs._Height, ThumbnailPool));
+		
+		if ( CVarEnableCategoryContentChooserView->GetBool() )
+		{
+			TSharedPtr<SImage> ThumbnailImage;
 
-		FAssetThumbnailConfig Config;
-		Config.bForceGenericThumbnail = InArgs._AlwaysUseGenericThumbnail;
-		Config.ClassThumbnailBrushOverride = InArgs._ClassThumbnailBrushOverride;
-		Config.AssetTypeColorOverride = InArgs._AssetTypeColorOverride;
-		ChildSlot
-		[
-			Thumbnail->MakeThumbnailWidget( Config )
-		];
+			// figure out the proper image to show based on whether the asset is a class type
+			TWeakObjectPtr<UClass> ThumbnailClass = MakeWeakObjectPtr( const_cast<UClass*>( FClassIconFinder::GetIconClassForAssetData( Asset, &bIsClassType ) ) );
+			const FName AssetClassName = Asset.AssetClassPath.GetAssetName();
+			const FName DefaultThumbnail = bIsClassType ? NAME_None : FName( *FString::Printf( TEXT("ClassThumbnail.%s"), *AssetClassName.ToString() ) );
+			const FSlateBrush* ThumbnailBrush = !InArgs._ClassThumbnailBrushOverride.IsNone() ?
+				FClassIconFinder::FindThumbnailForClass( nullptr,  InArgs._ClassThumbnailBrushOverride ) :
+				FClassIconFinder::FindThumbnailForClass( ThumbnailClass.Get(), DefaultThumbnail );
+
+			ChildSlot[ SAssignNew( ThumbnailImage, SImage ).Image( ThumbnailBrush ) ];
+		}
+		else
+		{
+			FAssetThumbnailConfig Config;
+			Config.bForceGenericThumbnail = InArgs._AlwaysUseGenericThumbnail;
+			Config.ClassThumbnailBrushOverride = InArgs._ClassThumbnailBrushOverride;
+			Config.AssetTypeColorOverride = InArgs._AssetTypeColorOverride;
+			ChildSlot[ Thumbnail->MakeThumbnailWidget( Config ) ];			
+		}
 	}
 
 private:
 
 	FAssetData Asset;
 	TSharedPtr< FAssetThumbnail > Thumbnail;
+
+	/** Indicates whether the Asset is a class type */
+	bool bIsClassType;
 };
 
 void SPlacementAssetEntry::Construct(const FArguments& InArgs, const TSharedPtr<const FPlaceableItem>& InItem)
 {	
+	OnGetMenuContent = InArgs._OnGetMenuContent;
 	bIsPressed = false;
 
 	Item = InItem;
@@ -190,18 +211,44 @@ void SPlacementAssetEntry::Construct(const FArguments& InArgs, const TSharedPtr<
 
 	NormalImage = &ButtonStyle.Normal;
 	HoverImage = &ButtonStyle.Hovered;
-	PressedImage = &ButtonStyle.Pressed; 
-
-	// Create doc link widget if there is a class to link to
-	TSharedRef<SWidget> DocWidget = SNew(SSpacer);
-	if(DocClass != NULL)
+	PressedImage = &ButtonStyle.Pressed;
+	const bool bIsClassicView = !CVarEnableCategoryContentChooserView->GetBool();
+	float ThumbnailBoxWidth = 40;
+	
+	float TextFillWidth = 0.99;
+	const FMargin DragHandlePadding{ 0.f,0.f,8.f, 0.f };
+	
+	FMargin WholeAssetPadding{ 8.f, 2.f, 12.f, 2.f };
+	const FSlateBrush* WholeAssetBackgroundBrush{ FAppStyle::Get().GetBrush( "PlacementBrowser.Asset.Background" ) };
+	FMargin ThumbnailBoxPadding{ 8.f ,4.f,8.f, 4.f };
+	FMargin AssetTextPadding{ 9, 0, 0, 1 };
+	TSharedRef<SWidget> DraggableAssetEndWidget = SNullWidget::NullWidget;
+	
+	if ( bIsClassicView )
 	{
-		DocWidget = FEditorClassUtils::GetDocumentationLinkWidget(DocClass);
-		DocWidget->SetCursor( EMouseCursor::Default );
+		// Create doc link widget if there is a class to link to
+		TSharedRef<SWidget> DocWidget = SNew( SSpacer );
+		if( DocClass != NULL )
+		{
+			DocWidget = FEditorClassUtils::GetDocumentationLinkWidget( DocClass );
+			DocWidget->SetCursor( EMouseCursor::Default );
+		}
+		DraggableAssetEndWidget = DocWidget;
 	}
-
+	else
+	{
+		WholeAssetPadding = 0;
+		WholeAssetBackgroundBrush = FAppStyle::Get().GetBrush("PlacementBrowser.Asset.ThumbnailBackground");
+		ThumbnailBoxPadding = FMargin{ 4.f,4.f,0.f, 4.f };
+		AssetTextPadding = FMargin{ 4, 0, 8, 1 };
+		DraggableAssetEndWidget = SNew(SBox )
+									.Padding( DragHandlePadding )
+									[  SNew(SImage).Image( FSlateBrushTemplates::DragHandle() ) ];
+		ThumbnailBoxWidth = 20;
+	}
+	
 	ChildSlot
-	.Padding(FMargin(8.f, 2.f, 12.f, 2.f))
+	.Padding( WholeAssetPadding )
 	[
 
 		SNew(SOverlay)
@@ -209,7 +256,7 @@ void SPlacementAssetEntry::Construct(const FArguments& InArgs, const TSharedPtr<
 		+SOverlay::Slot()
 		[
 			SNew(SBorder)
-			.BorderImage( FAppStyle::Get().GetBrush("PlacementBrowser.Asset.Background"))
+			.BorderImage( WholeAssetBackgroundBrush)
 			.Cursor( EMouseCursor::GrabHand )
 			.ToolTip( AssetEntryToolTip )
 			.Padding(0)
@@ -218,13 +265,13 @@ void SPlacementAssetEntry::Construct(const FArguments& InArgs, const TSharedPtr<
 				SNew( SHorizontalBox )
 
 				+ SHorizontalBox::Slot()
-				.Padding(8.0f, 4.f)
+				.Padding( ThumbnailBoxPadding )
 				.AutoWidth()
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				[
 					SNew( SBox )
-					.WidthOverride(40)
+					.WidthOverride( ThumbnailBoxWidth )
 					.HeightOverride(40)
 					[
 						SNew( SPlacementAssetThumbnail, Item->AssetData )
@@ -243,22 +290,21 @@ void SPlacementAssetEntry::Construct(const FArguments& InArgs, const TSharedPtr<
 					.BorderImage(FAppStyle::Get().GetBrush("PlacementBrowser.Asset.LabelBack"))
 					[
 						SNew( SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.Padding(9, 0, 0, 1)
+						+SHorizontalBox::Slot()	
+						.FillContentWidth( TextFillWidth )
+						.Padding( AssetTextPadding )
 						.VAlign(VAlign_Center)
 						[
 							SNew( STextBlock )
 							.TextStyle( FAppStyle::Get(), "PlacementBrowser.Asset.Name" )
 							.Text( Item->DisplayName )
-							.HighlightText(InArgs._HighlightText)
+							.OverflowPolicy( ETextOverflowPolicy::Ellipsis )
+							.HighlightText(  InArgs._HighlightText )
 						]
-
 						+ SHorizontalBox::Slot()
-						.VAlign(VAlign_Center)
-						.AutoWidth()
-						[
-							DocWidget
-						]
+								.VAlign( VAlign_Center )
+								.AutoWidth()
+								[ DraggableAssetEndWidget ]
 					]
 				]
 			]
@@ -281,6 +327,22 @@ FReply SPlacementAssetEntry::OnMouseButtonDown(const FGeometry& MyGeometry, cons
 		bIsPressed = true;
 
 		return FReply::Handled().DetectDrag( SharedThis( this ), MouseEvent.GetEffectingButton() );
+	}
+
+	// Create the context menu to be launched on right mouse click. 
+	if ( CVarEnableCategoryContentChooserView->GetBool() && MouseEvent.GetEffectingButton() == EKeys::RightMouseButton )
+	{
+		FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
+
+		FSlateApplication::Get().PushMenu(
+			AsShared(),
+			WidgetPath,
+			OnGetMenuContent.IsBound() ? OnGetMenuContent.Execute() : SNullWidget::NullWidget,
+			MouseEvent.GetScreenSpacePosition(),
+			FPopupTransitionEffect( FPopupTransitionEffect::ContextMenu )
+			);
+
+		return FReply::Handled();
 	}
 
 	return FReply::Unhandled();
@@ -600,11 +662,29 @@ void SPlacementModeTools::Construct( const FArguments& InArgs, TSharedRef<SDockT
 	bRefreshRecentlyPlaced = false;
 	bUpdateShownItems = true;
 
-	FCategoryDrivenContentBuilderArgs Args("PlacementModes");
+	FCategoryDrivenContentBuilderArgs Args( "PlacementModes", UE::DisplayBuilders::FBuilderKeys::Get().PlaceActors() );
+	Args.FavoritesCommandName = FBuiltInPlacementCategories::Favorites();
+	Args.ActiveCategoryName = FBuiltInPlacementCategories::Basic();
+	Args.GetDecoratedButtonDelegate.BindLambda( [ this ] ( TSharedRef<SWidget> UndecoratedButtonWidget )
+	{
+		return SNew( SAssetDropTarget )
+			.bOnlyRecognizeOnDragEnter( false )
+			.OnAssetsDropped_Lambda( [ this ] ( const FDragDropEvent& Event, TArrayView<FAssetData> InAssets )
+			{
+				if ( InAssets.Num() == 1 )
+				{
+					CategoryContentBuilder->AddFavorite( InAssets[0].AssetName );
+				}
+			})
+			[
+				UndecoratedButtonWidget	
+			];
+	});
+
+	
+
 	CategoryContentBuilder = MakeShared<FCategoryDrivenContentBuilder>( Args );
-	CategoryContentBuilder->ProvideSelectedCategoryContentDelegate.BindSP(this, &SPlacementModeTools::ProvideCategoryContent);
-	UniformWrapPanel = SNew( SUniformWrapPanel );
-	SAssignNew(CustomContent, SBox);
+	CategoryContentBuilder->UpdateContentForCategoryDelegate.BindSP( SharedThis( this ), &SPlacementModeTools::UpdateContentForCategory );
 
 	ActiveTabName = FBuiltInPlacementCategories::Basic();
 
@@ -644,7 +724,7 @@ void SPlacementModeTools::Construct( const FArguments& InArgs, TSharedRef<SDockT
 			.FillHeight(1)
 			[
 				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.BorderImage( FSlateBrushTemplates::Panel() )
 				.Visibility_Lambda( [] () { return CVarEnableCategoryContentChooserView->GetBool()   ? EVisibility::Visible : EVisibility::Collapsed; })
 				.Padding(0)
 				[
@@ -762,13 +842,18 @@ void SPlacementModeTools::UpdateShownItems()
 	}
 	else if (Category->CustomGenerator)
 	{
-		UniformWrapPanel->AddSlot()[Category->CustomGenerator()];
+		CategoryContentBuilder->FillWithBuilder( Category->CustomGenerator() );
 		CustomContent->SetContent(Category->CustomGenerator());
 
 		CustomContent->SetVisibility(EVisibility::Visible);
 		DataDrivenContent->SetVisibility(EVisibility::Collapsed);
 
 		FilterLabelPtr->SetText(Category->DisplayName);
+	}
+	else if ( IsFavoritesCategorySelected() )
+	{
+		IPlacementModeModule::Get().RegenerateItemsForCategory( FBuiltInPlacementCategories::AllClasses() );
+		PlacementModeModule.GetItemsWithNamesForCategory( FBuiltInPlacementCategories::AllClasses(), FavoriteItems, CategoryContentBuilder->GetFavorites() );
 	}
 	else
 	{
@@ -839,39 +924,62 @@ TSharedRef<ITableRow> SPlacementModeTools::OnGenerateWidgetForItem(TSharedPtr<FP
 
 TSharedRef<SWidget> SPlacementModeTools::GetPlacementAssetWidget( const TSharedPtr<FPlaceableItem>& InItem ) const
 {
-	return SNew(SPlacementAssetEntry, InItem.ToSharedRef())
-		.HighlightText(this, &SPlacementModeTools::GetHighlightText);
+	TSharedRef<SPlacementAssetEntry> Entry =  SNew( SPlacementAssetEntry, InItem.ToSharedRef() )
+		.HighlightText(this, &SPlacementModeTools::GetHighlightText)
+		.Clipping( EWidgetClipping::ClipToBounds )
+		.OnGetMenuContent_Lambda( [this, &InItem] ()
+		{
+			return CategoryContentBuilder.IsValid() ? CategoryContentBuilder->CreateFavoritesContextMenu( InItem->NativeName ) : SNullWidget::NullWidget;
+		});
+	return Entry;
 }
 
-TSharedRef<SWidget> SPlacementModeTools::ProvideCategoryContent(const FName& CategoryName)
+void SPlacementModeTools::UpdateContentForCategory( FName CategoryName, FText CategoryLabel )
 {
-	if (CVarEnableCategoryContentChooserView->GetBool())
+	if ( CVarEnableCategoryContentChooserView->GetBool() )
 	{
-		SetActiveTab(CategoryName);
-		UniformWrapPanel->ClearChildren();
+		SetActiveTab( CategoryName );
+		CustomContent = SNew( SBox );
+		FavoriteItems.Empty();
+
+		CategoryContentBuilder->ClearCategoryContent();
+		
+		// if the Category name is not none, the user updated the category, so clear out the search ~ the Category choice should override it.
+		// The call of UpdateShownItems below will update search state based on this setting.
+		if ( !CategoryName.IsNone() )
+		{
+			SearchBoxPtr->SetText( FText::GetEmpty());
+		}
+		
 		UpdateShownItems();
 
-		// else, add the items found for the category (and potentially filtered)to our display boxes to show 
-		if ( !FilteredItems.IsEmpty() && UniformWrapPanel->GetChildren()->Num() == 0 )
+		const FPlacementCategoryInfo* Category = IPlacementModeModule::Get().GetRegisteredPlacementCategory( CategoryName );
+		if ( Category && Category->CustomGenerator )
+		{
+			CategoryContentBuilder->FillWithBuilder( Category->CustomGenerator() );
+			return;
+		}
+
+		 if ( IsFavoritesCategorySelected() )
+		{
+				for ( const TSharedPtr<FPlaceableItem>& Item : FavoriteItems )
+				{
+					CategoryContentBuilder->AddBuilder( GetPlacementAssetWidget( Item ) );
+				}				
+		}
+		else
 		{
 			for (const TSharedPtr<FPlaceableItem>& Item : FilteredItems)
 			{
-				UniformWrapPanel->AddSlot()
-				[
-					GetPlacementAssetWidget(Item)
-				];
+				CategoryContentBuilder->AddBuilder( GetPlacementAssetWidget(Item) );
 			}
 		}
-
-		return UniformWrapPanel->GetChildren()->Num() == 0 ?
-			SNullWidget::NullWidget :
-			SNew( SScrollBox )
-						+ SScrollBox::Slot()
-						[
-							UniformWrapPanel.ToSharedRef()
-						];
 	}
-	return SNullWidget::NullWidget;
+}
+
+bool SPlacementModeTools::IsFavoritesCategorySelected() const
+{
+	return ActiveTabName == FBuiltInPlacementCategories::Favorites() && !IsSearchActive();
 }
 
 void SPlacementModeTools::OnCategoryChanged(const ECheckBoxState NewState, FName InCategory)
@@ -925,14 +1033,19 @@ void SPlacementModeTools::UpdatePlacementCategories()
 
 	TArray<FPlacementCategoryInfo> Categories;
 	IPlacementModeModule::Get().GetSortedCategories(Categories);
-	
-	// register will make a command to load each Category
-	FPlacementModeCommands::Register();
-	// set the commands as the Categories in our category content chooser
-	CategoryContentBuilder->SetCommands(FPlacementModeCommands::Get().GetPlacementToolkitCategoryCommands());
-	
+
+	TArray<UE::DisplayBuilders::FBuilderInput> BuilderInputArray;
+
 	for (const FPlacementCategoryInfo& Category : Categories)
 	{
+		const UE::DisplayBuilders::FBuilderInput& InputInfo = UE::DisplayBuilders::FBuilderInput( Category.UniqueHandle, Category.DisplayName,
+		Category.DisplayIcon, EUserInterfaceActionType::ToggleButton );
+		BuilderInputArray.Add( InputInfo );
+		
+		if ( Category.UniqueHandle == FBuiltInPlacementCategories::Favorites() && !CVarEnableCategoryContentChooserView->GetBool() )
+		{
+			continue;
+		}
 		if (Category.UniqueHandle == FBuiltInPlacementCategories::Basic())
 		{
 			BasicTabExists = true;
@@ -958,7 +1071,8 @@ void SPlacementModeTools::UpdatePlacementCategories()
 			]
 		];
 	}
-
+	CategoryContentBuilder->InitializeCategoryButtons( BuilderInputArray );
+	
 	if (TabToActivate.IsNone())
 	{
 		if (BasicTabExists)
@@ -1007,11 +1121,15 @@ void SPlacementModeTools::OnSearchChanged(const FText& InFilterText)
 		bUpdateShownItems = true;
 	}
 
+	const FText OldText = SearchTextFilter->GetRawFilterText();
 	SearchTextFilter->SetRawFilterText( InFilterText );
 	SearchBoxPtr->SetError( SearchTextFilter->GetFilterErrorText() );
 
-	// update the category content which may have changed on search
-	CategoryContentBuilder->UpdateWidget();
+	if ( !OldText.EqualToCaseIgnored( InFilterText ) )
+	{
+		CategoryContentBuilder->SetShowNoCategorySelection( IsSearchActive() );
+		CategoryContentBuilder->UpdateWidget();
+	}
 }
 
 void SPlacementModeTools::OnSearchCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)

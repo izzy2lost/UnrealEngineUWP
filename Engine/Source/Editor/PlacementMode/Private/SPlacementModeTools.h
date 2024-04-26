@@ -28,6 +28,7 @@ public:
 
 		/** Highlight this text in the text block */
 		SLATE_ATTRIBUTE(FText, HighlightText)
+		SLATE_EVENT( FOnGetContent, OnGetMenuContent )
 
 	SLATE_END_ARGS()
 
@@ -39,9 +40,14 @@ public:
 
 	bool IsPressed() const;
 
+
 	TSharedPtr<const FPlaceableItem> Item;
 
 private:
+	
+	/** Delegate to execute to get the menu content of this button */
+	FOnGetContent OnGetMenuContent;
+	
 	const FSlateBrush* GetBorder() const;
 
 	bool bIsPressed;
@@ -102,13 +108,12 @@ public:
 	TSharedRef<SWidget> GetPlacementAssetWidget(const TSharedPtr<FPlaceableItem>& InItem) const;
 
 	/**
-	 * Given FName CategoryName as the Category that has been clicked, it should return the
-	 * TSharedRef<SWidget> that contains the content for that Category
-	 * 
-	 * @param CategoryName the name of the Category that the user has clicked
-	 * @return 
+	 * Given FName CategoryName as the Category that has been clicked, update the FCategoryDrivenContentBuilder with the proper content for the category
+	 *
+	 * @param CategoryName the name of the currently chosen Category
+	 * @param CategoryLabel the label for the currently chosen Category 
 	 */
-	TSharedRef<SWidget> ProvideCategoryContent(const FName& CategoryName);
+	void UpdateContentForCategory( FName CategoryName, FText CategoryLabel );
 
 private:
 
@@ -130,6 +135,11 @@ private:
 	/** Check if a search is active */
 	bool IsSearchActive() const;
 
+	/**
+	 * returns true is the favorites category is selected, else it returns false
+	 */
+	bool IsFavoritesCategorySelected() const;
+	
 	/** Update the list of shown items */
 	void UpdateShownItems();
 
@@ -211,9 +221,9 @@ private:
 	/** List view that shows placeable items */
 	TSharedPtr<SListView<TSharedPtr<FPlaceableItem>>> ListView;
 
-	/** Wrap panel containing the draggable content  */
-	TSharedPtr<SUniformWrapPanel> UniformWrapPanel;
-	
-	/** The FCategoryDrivenContentBuilder  which will build the UI for this mode, if defined */
+	/** The FCategoryDrivenContentBuilder which will build the UI for this mode, if defined */
 	TSharedPtr<FCategoryDrivenContentBuilder> CategoryContentBuilder;
+
+	/** Array of favorite items to show in the favorites view */
+	TArray<TSharedPtr<FPlaceableItem>> FavoriteItems;
 };

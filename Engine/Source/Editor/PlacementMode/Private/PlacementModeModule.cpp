@@ -119,11 +119,21 @@ void FPlacementModeModule::StartupModule()
 
 	RegisterPlacementCategory(
 		FPlacementCategoryInfo(
-			NSLOCTEXT("PlacementMode", "RecentlyPlaced", "Recently Placed"),
+			NSLOCTEXT("PlacementMode", "Favorites", "Favorites"),
+			FSlateIcon(),
+			FBuiltInPlacementCategories::Favorites(),
+			TEXT("Favorites"),
+			TNumericLimits<int32>::Lowest(),
+			false
+		));
+	
+	RegisterPlacementCategory(
+		FPlacementCategoryInfo(
+			NSLOCTEXT("PlacementMode", "RecentlyPlaced", "Recent"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.Recent"),
 			FBuiltInPlacementCategories::RecentlyPlaced(),
 			TEXT("PMRecentlyPlaced"),
-			TNumericLimits<int32>::Lowest(),
+			TNumericLimits<int32>::Lowest() + 1,
 			false
 		)
 	);
@@ -641,6 +651,24 @@ void FPlacementModeModule::GetFilteredItemsForCategory(FName CategoryName, TArra
 	}
 }
 
+void FPlacementModeModule::GetItemsWithNamesForCategory( FName CategoryName, TArray<TSharedPtr<FPlaceableItem>>& OutItems, const TArray<FName>& ItemNames ) const
+{
+	const FPlacementCategory* Category = Categories.Find(CategoryName);
+	if (Category)
+	{
+		for (const TTuple<FGuid, TSharedPtr<FPlaceableItem>>& Pair : Category->Items)
+		{
+			TSharedPtr<FPlaceableItem> Item = Pair.Value;
+			FName Name = FName( Item->NativeName );
+
+			if ( ItemNames.Contains( Name ) )
+			{
+				OutItems.Add(Pair.Value);
+			}
+		}
+	}
+}
+
 void FPlacementModeModule::RegenerateItemsForCategory(FName Category)
 {
 	if (Category == FBuiltInPlacementCategories::RecentlyPlaced())
@@ -651,7 +679,7 @@ void FPlacementModeModule::RegenerateItemsForCategory(FName Category)
 	{
 		RefreshVolumes();
 	}
-	else if (Category == FBuiltInPlacementCategories::AllClasses())
+	else if (Category == FBuiltInPlacementCategories::AllClasses() || Category == FBuiltInPlacementCategories::Favorites())
 	{
 		RefreshAllPlaceableClasses();
 	}
