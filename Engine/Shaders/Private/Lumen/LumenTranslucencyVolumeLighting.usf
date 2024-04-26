@@ -728,9 +728,9 @@ void UpdateFroxelProbesMainCS(
 		float HitDist110 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
 		float HitDist111 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
 
-		float3 HitDistX0 = lerp(lerp(HitDist000, HitDist001, LerpUVs.zzz), lerp(HitDist010, HitDist011, LerpUVs.zzz), LerpUVs.yyy);
-		float3 HitDistX1 = lerp(lerp(HitDist100, HitDist101, LerpUVs.zzz), lerp(HitDist110, HitDist111, LerpUVs.zzz), LerpUVs.yyy);
-		TraceHitDistance = lerp(HitDistX0, HitDistX1, LerpUVs.xxx);
+		float HitDistX0 = lerp(lerp(HitDist000, HitDist001, LerpUVs.z), lerp(HitDist010, HitDist011, LerpUVs.z), LerpUVs.y);
+		float HitDistX1 = lerp(lerp(HitDist100, HitDist101, LerpUVs.z), lerp(HitDist110, HitDist111, LerpUVs.z), LerpUVs.y);
+		TraceHitDistance = lerp(HitDistX0, HitDistX1, LerpUVs.x);
 	#endif
 
 		// Adapt to current exposure

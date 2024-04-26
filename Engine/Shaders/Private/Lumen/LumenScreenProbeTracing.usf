@@ -109,7 +109,7 @@ void ScreenProbeTraceScreenTexturesCS(
 			float3 ScreenProbeNormal = GetScreenProbeNormalForBiasing(ScreenProbeAtlasCoord, RayWorldDirection, bBackfaceRay);
 			
 			// Skip screen traces for material not supporting screen traced or for backfacing rays for two-sided foliage, as they immediately self-intersect and cause a feedback loop
-			if (bBackfaceRay && GetScreenProbeIsTwoSidedFoliage(ScreenProbeAtlasCoord) || !GetScreenProbeSupportsScreenTraces(ScreenProbeAtlasCoord))
+			if ((bBackfaceRay && GetScreenProbeIsTwoSidedFoliage(ScreenProbeAtlasCoord)) || !GetScreenProbeSupportsScreenTraces(ScreenProbeAtlasCoord))
 			{
 				return;
 			}
