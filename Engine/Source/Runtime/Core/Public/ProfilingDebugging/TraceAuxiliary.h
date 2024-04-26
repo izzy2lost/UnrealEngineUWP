@@ -147,7 +147,21 @@ public:
 	 *  Enable previously selected channels. This method can be called multiple times
 	 *  as channels can be announced on module loading.
 	 */
-	static CORE_API void EnableChannels();
+	static CORE_API void EnableCommandlineChannels();
+
+	/**
+	 * Enable channels to emit events belonging to this category.
+	 * @note Note that presets cannot be used when specifying channel ids.
+	 * @param ChannelIds List of channels (or a preset) to enable. 
+	 */
+	static CORE_API void EnableChannels(TConstArrayView<uint32> ChannelIds);
+
+	/**
+	 * Disable channels to mute events belonging to this category.
+	 * @note Note that presets cannot be used when specifying channel ids.
+	 * @param ChannelIds List of channels (or a preset) to disable. 
+	 */
+	static CORE_API void DisableChannels(TConstArrayView<uint32> ChannelIds);
 
 	/**
 	 * Disable channels to stop recording traces with them.
@@ -195,7 +209,12 @@ public:
 	 * Used when process is panicking. Stops all tracing immediately to avoid further allocations. Process is not
 	 * expected to continue after this call.
 	 */
-	 static CORE_API void Panic();
+	static CORE_API void Panic();
+
+	/**
+	 * Get the settings used to initialize TraceLog
+	 */
+	static CORE_API struct UE::Trace::FInitializeDesc const* GetInitializeDesc();
 
 	/**
 	 * Delegate that triggers when a connection is established. Gives subscribers a chance to trace events that appear

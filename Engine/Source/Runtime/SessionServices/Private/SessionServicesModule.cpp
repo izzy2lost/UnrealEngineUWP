@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
-#include "Misc/CoreMisc.h"
-#include "Misc/App.h"
-#include "Modules/ModuleManager.h"
 #include "IMessagingModule.h"
 #include "ISessionManager.h"
-#include "SessionManager.h"
 #include "ISessionService.h"
-#include "SessionService.h"
 #include "ISessionServicesModule.h"
-
+#include "Misc/App.h"
+#include "Misc/CoreMisc.h"
+#include "Modules/ModuleManager.h"
+#include "SessionManager.h"
+#include "SessionService.h"
+#include "TraceController.h"
 
 /**
  * Implements the SessionServices module.
@@ -112,6 +112,16 @@ public:
 		return SessionService;
 	}
 
+	virtual TSharedPtr<ITraceController> GetTraceController() override
+	{
+		if (!TraceController.IsValid() && MessageBusPtr.IsValid())
+		{
+			TraceController = MakeShareable(new FTraceController(MessageBusPtr.Pin().ToSharedRef()));
+		}
+
+		return TraceController;
+	}
+
 public:
 
 	//~ IModuleInterface interface
@@ -123,6 +133,7 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+		TraceController.Reset();
 		SessionManager.Reset();
 		SessionService.Reset();
 	}
@@ -137,6 +148,9 @@ private:
 
 	/** Holds the session service singleton. */
 	TSharedPtr<ISessionService> SessionService;
+
+	/** Holds the control for Tracing */
+	TSharedPtr<FTraceController> TraceController;
 };
 
 

@@ -176,6 +176,7 @@
 	#include "DeviceProfiles/DeviceProfileManager.h"
 	#include "Commandlets/Commandlet.h"
 	#include "EngineService.h"
+	#include "TraceService.h"
 	#include "ContentStreaming.h"
 	#include "HighResScreenshot.h"
 	#include "Misc/HotReloadInterface.h"
@@ -4812,6 +4813,7 @@ int32 FEngineLoop::Init()
 		}
 
 		EngineService = new FEngineService();
+		TraceService = new FTraceService();
 	}
 
 	{
@@ -4846,7 +4848,7 @@ int32 FEngineLoop::Init()
 		GetMoviePlayer()->WaitForMovieToFinish();
     }
 
-	FTraceAuxiliary::EnableChannels();
+	FTraceAuxiliary::EnableCommandlineChannels();
 
 #if !UE_SERVER
 	// initialize media framework
@@ -4967,6 +4969,9 @@ void FEngineLoop::Exit()
 	// shut down messaging
 	delete EngineService;
 	EngineService = nullptr;
+
+	delete TraceService;
+	TraceService = nullptr;
 
 	if (SessionService.IsValid())
 	{

@@ -9,6 +9,7 @@
 #endif
 
 class FEngineService;
+class FTraceService;
 class FPendingCleanupObjects;
 class ISessionService;
 class FSlateRenderer;
@@ -187,6 +188,9 @@ private:
 
 	/** Holds the engine service. */
 	FEngineService* EngineService;
+
+	/** Trace control service */
+	FTraceService* TraceService;
 
 	/** Holds the application session service. */
 	TSharedPtr<ISessionService> SessionService;
