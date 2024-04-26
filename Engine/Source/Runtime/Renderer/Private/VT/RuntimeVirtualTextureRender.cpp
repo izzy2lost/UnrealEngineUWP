@@ -382,7 +382,7 @@ namespace RuntimeVirtualTexture
 
 		static FRHIBlendState* GetBlendState(uint8 OutputAttributeMask)
 		{
-			return TStaticBlendState< CW_RED, BO_Max, BF_One, BF_One, BO_Add, BF_One, BF_One >::GetRHI();
+			return TStaticBlendState< CW_RED, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_One >::GetRHI();
 		}
 	};
 

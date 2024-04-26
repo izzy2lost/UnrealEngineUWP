@@ -131,7 +131,7 @@ void FPixelShaderInOut_MainPS(
 	float PackedHeight = PackWorldHeight(WorldHeight, ResolvedView.RuntimeVirtualTexturePackHeight);
 	Out.MRT[0] = float4(PackedHeight, 0, 0, 1);
 #elif defined(OUT_DISPLACEMENT)
-	Out.MRT[0] = float4(Displacement, 0, 0, 1);
+	Out.MRT[0] = float4(Displacement, 0, 0, 1) * Opacity;
 #endif
 }
 
