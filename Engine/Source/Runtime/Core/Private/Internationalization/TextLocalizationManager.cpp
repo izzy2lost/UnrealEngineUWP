@@ -1106,6 +1106,7 @@ bool FTextLocalizationManager::GetLocResID(const FTextKey& Namespace, const FTex
 }
 #endif
 
+UE_AUTORTFM_ALWAYS_OPEN
 uint16 FTextLocalizationManager::GetTextRevision() const
 {
 	FReadScopeLock ScopeLock(TextRevisionRW);
@@ -1125,6 +1126,7 @@ uint16 FTextLocalizationManager::GetLocalRevisionForTextId(const FTextId& InText
 	return 0;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void FTextLocalizationManager::GetTextRevisions(const FTextId& InTextId, uint16& OutGlobalTextRevision, uint16& OutLocalTextRevision) const
 {
 	FReadScopeLock ScopeLock(TextRevisionRW);

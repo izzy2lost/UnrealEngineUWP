@@ -687,9 +687,7 @@ void FTextHistory::UpdateDisplayStringIfOutOfDate()
 	{
 		uint16 CurrentGlobalRevision = 0;
 		uint16 CurrentLocalRevision = 0;
-		UE_AUTORTFM_OPEN({
-			FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), CurrentGlobalRevision, CurrentLocalRevision);
-		});
+		FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), CurrentGlobalRevision, CurrentLocalRevision);
 
 		if (GlobalRevision != CurrentGlobalRevision || LocalRevision != CurrentLocalRevision)
 		{
@@ -711,10 +709,7 @@ void FTextHistory::MarkDisplayStringUpToDate()
 {
 	if (CanUpdateDisplayString())
 	{
-		UE_AUTORTFM_OPEN(
-		{
-			FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), GlobalRevision, LocalRevision);
-		});
+		FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), GlobalRevision, LocalRevision);
 	}
 	else
 	{
