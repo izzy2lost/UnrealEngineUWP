@@ -482,9 +482,6 @@ void UNetObjectGridFilter::CalculateCellBox(const UNetObjectGridFilter::FPerObje
 	FVector MinPosition = Position - CullDistance;
 	FVector MaxPosition = Position + CullDistance;
 
-	MinPosition = MinPosition.ComponentMax(Config->MinPos);
-	MaxPosition = MaxPosition.ComponentMin(Config->MaxPos);
-
 	const int64 MinX = FPlatformMath::FloorToInt(MinPosition.X/Config->CellSizeX);
 	const int64 MinY = FPlatformMath::FloorToInt(MinPosition.Y/Config->CellSizeY);
 	const int64 MaxX = FPlatformMath::FloorToInt(MaxPosition.X/Config->CellSizeX);

@@ -1206,6 +1206,11 @@ void UObjectReplicationBridge::UpdateInstancesWorldLocation()
 			FWorldLocations::FObjectInfo CachedObjectInfo;
 			
 			GetInstanceWorldObjectInfoFunction(ObjectData.RefHandle, ReplicatedInstances[InternalObjectIndex], CachedObjectInfo.WorldLocation, CachedObjectInfo.CullDistance);
+
+			// Check the position lies within world boundaries.
+			ensureMsgf(CachedObjectInfo.WorldLocation.X >= WorldLocations.GetWorldMinPos().X && CachedObjectInfo.WorldLocation.X <= WorldLocations.GetWorldMaxPos().X && 
+					   CachedObjectInfo.WorldLocation.Y >= WorldLocations.GetWorldMinPos().Y && CachedObjectInfo.WorldLocation.Y <= WorldLocations.GetWorldMaxPos().Y, TEXT("Object %s with position %s lies outside configured world boundary."), ToCStr(NetRefHandleManager->PrintObjectFromIndex((InternalObjectIndex))), *CachedObjectInfo.WorldLocation.ToString());
+			
 			WorldLocations.SetObjectInfo(InternalObjectIndex, CachedObjectInfo);
 		}
 	};

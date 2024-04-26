@@ -3,6 +3,8 @@
 #include "Iris/ReplicationSystem/WorldLocations.h"
 #include "Iris/Core/IrisMemoryTracker.h"
 
+#include UE_INLINE_GENERATED_CPP_BY_NAME(WorldLocations)
+
 namespace UE::Net
 {
 
@@ -11,6 +13,9 @@ void FWorldLocations::Init(const FWorldLocationsInitParams& InitParams)
 	ValidInfoIndexes.Init(InitParams.MaxObjectCount);
 	ObjectsWithDirtyInfo.Init(InitParams.MaxObjectCount);
 	ObjectsRequiringFrequentWorldLocationUpdate.Init(InitParams.MaxObjectCount);
+
+	MinWorldPos = GetDefault<UWorldLocationsConfig>()->MinPos;
+	MaxWorldPos = GetDefault<UWorldLocationsConfig>()->MaxPos;
 }
 
 void FWorldLocations::InitObjectInfoCache(uint32 ObjectIndex)
@@ -46,16 +51,18 @@ void FWorldLocations::SetObjectInfo(uint32 ObjectIndex, const FWorldLocations::F
 	FObjectInfo& TargetObjectInfo = StoredObjectInfo[ObjectIndex];
 	const bool bHasInfoChanged = ObjectsWithDirtyInfo.GetBit(ObjectIndex) || TargetObjectInfo.WorldLocation != ObjectInfo.WorldLocation || TargetObjectInfo.CullDistance != ObjectInfo.CullDistance;
 	TargetObjectInfo = ObjectInfo;
+	TargetObjectInfo.WorldLocation = ClampPositionToBoundary(ObjectInfo.WorldLocation);
 
 	ObjectsWithDirtyInfo.SetBitValue(ObjectIndex, bHasInfoChanged);
 }
 
 void FWorldLocations::UpdateWorldLocation(uint32 ObjectIndex, const FVector& WorldLocation)
 {
+	const FVector InBoundsWorldLocation = ClampPositionToBoundary(WorldLocation);
 	checkSlow(ValidInfoIndexes.GetBit(ObjectIndex));
 	FVector& TargetWorldLocation = StoredObjectInfo[ObjectIndex].WorldLocation;
-	TargetWorldLocation = WorldLocation;
-	const bool bHasInfoChanged = ObjectsWithDirtyInfo.GetBit(ObjectIndex) || TargetWorldLocation != WorldLocation;
+	TargetWorldLocation = InBoundsWorldLocation;
+	const bool bHasInfoChanged = ObjectsWithDirtyInfo.GetBit(ObjectIndex) || TargetWorldLocation != InBoundsWorldLocation;
 	
 	ObjectsWithDirtyInfo.SetBitValue(ObjectIndex, bHasInfoChanged);
 }
@@ -63,6 +70,11 @@ void FWorldLocations::UpdateWorldLocation(uint32 ObjectIndex, const FVector& Wor
 void FWorldLocations::ResetObjectsWithDirtyInfo()
 {
 	ObjectsWithDirtyInfo.Reset();
+}
+
+FVector FWorldLocations::ClampPositionToBoundary(const FVector& Position)
+{
+	return Position.BoundToBox(GetWorldMinPos(), GetWorldMaxPos());
 }
 
 }

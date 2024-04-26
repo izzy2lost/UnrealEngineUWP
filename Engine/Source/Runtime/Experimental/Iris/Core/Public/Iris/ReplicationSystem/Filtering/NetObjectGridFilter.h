@@ -75,14 +75,6 @@ public:
 	UPROPERTY(Config)
 	float DefaultCullDistance = 15000.0f;
 
-	/** Coordinates will be clamped to MinPos and MaxPos. */
-	UPROPERTY(Config)
-	FVector MinPos = {-0.5f*2097152.0f, -0.5f*2097152.0f, -0.5f*2097152.0f};
-
-	/** Coordinates will be clamped to MinPos and MaxPos. */
-	UPROPERTY(Config)
-	FVector MaxPos = {+0.5f*2097152.0f, +0.5f*2097152.0f, +0.5f*2097152.0f};
-
 	/** 
 	 * If true: use the exact distance between an object and the viewer to determine if the object is relevant or should be culled out.
 	 * When false: consider all objects within a grid cell to be relevant when a viewer is located within the cell. This can extend the relevant distance of objects beyond their cull distance. 
