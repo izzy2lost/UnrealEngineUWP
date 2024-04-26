@@ -602,11 +602,6 @@ bool AWaterZone::UpdateWaterInfoTexture()
 				}
 			}
 		}
-
-		if (bHasIncompleteShaderMaps)
-		{
-			return false;
-		}
 #endif // WITH_EDITOR
 
 		// The render path for rendering the water info texture without scene captures is executed within the scene renderer.
@@ -650,6 +645,14 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		}
 
 		UE_LOG(LogWater, Verbose, TEXT("Water Zone (%s) queued Water Info texture update"), *GetNameSafe(this));
+
+#if WITH_EDITOR
+		// Ensure that we try to render again next frame if the materials haven't all been compiled.
+		if (bHasIncompleteShaderMaps)
+		{
+			return false;
+		}
+#endif // WITH_EDITOR
 	}
 
 	return true;
