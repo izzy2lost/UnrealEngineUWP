@@ -316,7 +316,7 @@ void FStateGraph::RemoveAllNodes()
 
 void FStateGraph::Run()
 {
-	const double Now = FPlatformTime::Seconds();
+	double Now = FPlatformTime::Seconds();
 
 	if (Status == EStatus::NotStarted)
 	{
@@ -332,6 +332,8 @@ void FStateGraph::Run()
 	{
 		return;
 	}
+
+	Now = FPlatformTime::Seconds();
 
 	if (bRunning)
 	{
@@ -396,6 +398,7 @@ void FStateGraph::Run()
 				}
 
 				// Get node again in case CheckDependencies() removed the node.
+				Now = FPlatformTime::Seconds();
 				Node = GetNodeRef(NodeName);
 				if (Node)
 				{
@@ -406,6 +409,7 @@ void FStateGraph::Run()
 						return;
 					}
 
+					Now = FPlatformTime::Seconds();
 					++Blocked;
 				}
 				else
@@ -424,6 +428,7 @@ void FStateGraph::Run()
 				return;
 			}
 
+			Now = FPlatformTime::Seconds();
 			Node = GetNodeRef(NodeName);
 			if (!Node)
 			{
@@ -440,6 +445,7 @@ void FStateGraph::Run()
 			}
 
 			// Get node again in case Start() removed the node.
+			Now = FPlatformTime::Seconds();
 			Node = GetNodeRef(NodeName);
 			if (Node)
 			{
@@ -481,6 +487,7 @@ void FStateGraph::Run()
 						return;
 					}
 
+					Now = FPlatformTime::Seconds();
 					Node = GetNodeRef(NodeName);
 					if (Node)
 					{
@@ -489,6 +496,8 @@ void FStateGraph::Run()
 						{
 							return;
 						}
+
+						Now = FPlatformTime::Seconds();
 					}
 
 					break;
