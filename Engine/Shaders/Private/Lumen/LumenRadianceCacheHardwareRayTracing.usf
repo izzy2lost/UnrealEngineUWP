@@ -19,6 +19,9 @@
 #define RAY_TRACING_PASS_FAR_FIELD		1
 #define RAY_TRACING_PASS_HIT_LIGHTING	2
 
+float MinTraceDistance;
+float MaxTraceDistance;
+
 // Index into temporary compacted atlas of probe traces
 uint2 GetTraceTileAtlasCoord(uint TraceTileIndex, uint2 CoordInTraceTile)
 {

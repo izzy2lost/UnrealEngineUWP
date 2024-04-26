@@ -5,9 +5,6 @@
 #define RADIANCE_CACHE_TRACE_TILE_SIZE_1D (RADIANCE_CACHE_TRACE_TILE_SIZE_2D * RADIANCE_CACHE_TRACE_TILE_SIZE_2D)
 #define TRACE_TILE_GROUP_STRIDE 128
 
-float MinTraceDistance;
-float MaxTraceDistance;
-
 void GetProbeTraceDataNoOffset(float4 InProbeTraceData, out float3 ProbeWorldCenter, out uint ClipmapIndex, out uint ProbeIndex)
 {
 	ProbeWorldCenter = InProbeTraceData.xyz;

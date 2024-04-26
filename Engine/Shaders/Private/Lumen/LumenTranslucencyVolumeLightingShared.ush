@@ -24,9 +24,11 @@ float GridCenterOffsetFromDepthBuffer;
 float GridCenterOffsetThresholdToAcceptDepthBufferOffset;
 
 // Froxel probes parameters
+uint  TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
 uint  TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
 uint3 TranslucencyVolumeTracingFroxelProbesFroxelSize;
 uint3 TranslucencyVolumeTracingFroxelProbesGridSize;
+uint  TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
 
 float ComputeDepthFromZSlice(float ZSlice)
 {
@@ -85,12 +87,13 @@ void GetProbeTracingUV(
 void GetFroxelProbeTracingUV(
 	float2 TracingTexelCoord,
 	float2 ProbeTexelCenter,
+	float FroxelProbesOctahedronResolution,
 	out float2 ProbeUV,
 	out float ConeHalfAngle)
 {
-	ProbeUV = (TracingTexelCoord + ProbeTexelCenter) / float(TranslucencyVolumeTracingFroxelProbesOctahedronResolution);
+	ProbeUV = (TracingTexelCoord + ProbeTexelCenter) / float(FroxelProbesOctahedronResolution);
 	// Evenly distributing the sphere solid angle among all cones
-	ConeHalfAngle = acosFast(1.0f - 1.0f / (float) (TranslucencyVolumeTracingFroxelProbesOctahedronResolution * TranslucencyVolumeTracingFroxelProbesOctahedronResolution));
+	ConeHalfAngle = acosFast(1.0f - 1.0f / (float) (FroxelProbesOctahedronResolution * FroxelProbesOctahedronResolution));
 }
 
 float2 GetProbeTexelCenter(uint2 GridCoordinate)

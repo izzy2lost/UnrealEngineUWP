@@ -68,9 +68,11 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenTranslucencyLightingVolumeParameters, )
 	SHADER_PARAMETER(float, GridCenterOffsetFromDepthBuffer)
 	SHADER_PARAMETER(float, GridCenterOffsetThresholdToAcceptDepthBufferOffset)
 	SHADER_PARAMETER(FVector2f, ViewportUVToHZBBufferUV)
+	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution)
 	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingFroxelProbesOctahedronResolution)
 	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingFroxelProbePixelSizeShift)
 	SHADER_PARAMETER(float, TranslucencyVolumeTracingFroxelProbeHZBMipLevel)
+	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame)
 	SHADER_PARAMETER(FUintVector, TranslucencyVolumeTracingFroxelProbesFroxelSize)
 	SHADER_PARAMETER(FUintVector, TranslucencyVolumeTracingFroxelProbesGridSize)
 END_SHADER_PARAMETER_STRUCT()
@@ -99,18 +101,6 @@ extern void HardwareRayTraceTranslucencyVolume(
 	FRDGTextureRef VolumeTraceHitDistance,
 	FRDGTextureRef VolumeFroxelProbeRadiance,
 	ERDGPassFlags ComputePassFlags
-);
-
-extern void HardwareRayTraceTranslucencyVolumeFroxelProbes(
-	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
-	const FLumenCardTracingParameters& TracingParameters,
-	FLumenTranslucencyLightingVolumeParameters VolumeParameters,
-	FLumenTranslucencyLightingVolumeTraceSetupParameters TraceSetupParameters,
-	FRDGTextureRef VolumeFroxelProbeRadiance,
-	FRDGTextureRef VolumeFroxelProbeHitDistance,
-	ERDGPassFlags ComputePassFlags,
-	const bool bDynamicSkyLight
 );
 
 namespace LumenTranslucencyVolumeRadianceCache

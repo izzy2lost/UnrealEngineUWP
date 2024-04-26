@@ -341,6 +341,13 @@ public:
 	TRefCountPtr<IPooledRenderTarget> TranslucencyVolume0;
 	TRefCountPtr<IPooledRenderTarget> TranslucencyVolume1;
 
+	// View froxel probes
+	TRefCountPtr<IPooledRenderTarget> ViewFroxelProbesRadiance;
+	TRefCountPtr<IPooledRenderTarget> ViewFroxelProbesDistance;
+	const uint32 FroxelProbeLFSRStartState = 1;
+	uint32 FroxelProbeLFSRState = FroxelProbeLFSRStartState;
+	float ViewFroxelProbesHistoryPreExposure = 1.0f;
+
 	FRadianceCacheState RadianceCacheState;
 	FRadianceCacheState TranslucencyVolumeRadianceCacheState;
 
@@ -356,6 +363,9 @@ public:
 		TranslucencyVolume0.SafeRelease();
 		TranslucencyVolume1.SafeRelease();
 
+		ViewFroxelProbesRadiance.SafeRelease();
+		ViewFroxelProbesDistance.SafeRelease();
+
 		RadianceCacheState.ReleaseTextures();
 		TranslucencyVolumeRadianceCacheState.ReleaseTextures();
 	}
@@ -370,6 +380,8 @@ public:
 		TRANSFER_LUMEN_RESOURCE(NormalHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume0);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume1);
+		TRANSFER_LUMEN_RESOURCE(ViewFroxelProbesRadiance);
+		TRANSFER_LUMEN_RESOURCE(ViewFroxelProbesDistance);
 
 		#undef TRANSFER_LUMEN_RESOURCE
 

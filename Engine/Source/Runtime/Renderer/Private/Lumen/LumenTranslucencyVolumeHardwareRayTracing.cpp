@@ -82,40 +82,7 @@ IMPLEMENT_GLOBAL_SHADER(FLumenTranslucencyVolumeHardwareRayTracingRGS, "/Engine/
 IMPLEMENT_GLOBAL_SHADER(FLumenTranslucencyVolumeHardwareRayTracingCS, "/Engine/Private/Lumen/LumenTranslucencyVolumeHardwareRayTracing.usf", "LumenTranslucencyVolumeHardwareRayTracingCS", SF_Compute);
 
 
-class FTranslucencyVolumeTraceFroxelProbesRayTracing : public FLumenHardwareRayTracingShaderBase
-{
-	DECLARE_LUMEN_RAYTRACING_SHADER(FTranslucencyVolumeTraceFroxelProbesRayTracing)
-
-	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FDynamicSkyLight>;
-
-	// Parameters
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeTraceRadiance)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWVolumeTraceHitDistance)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float3>, VolumeFroxelProbeRadiance)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(Parameters, ShaderDispatchType, Lumen::ESurfaceCacheSampling::AlwaysResidentPagesWithoutFeedback, OutEnvironment);
-	}
-
-	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
-	{
-		return ERayTracingPayloadType::LumenMinimal;
-	}
-};
-
-IMPLEMENT_LUMEN_RAYGEN_AND_COMPUTE_RAYTRACING_SHADERS(FTranslucencyVolumeTraceFroxelProbesRayTracing)
-
-IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeTraceFroxelProbesRayTracingRGS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelProbesRayTracingRGS", SF_RayGen);
-IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeTraceFroxelProbesRayTracingCS,  "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelProbesRayTracingCS", SF_Compute);
-
-
+extern void PrepareLumenHardwareRayTracingTranslucencyVolumeLumenMaterial2(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingTranslucencyVolumeLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
 	if (Lumen::UseHardwareRayTracedTranslucencyVolume(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
@@ -133,17 +100,9 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingTranslucencyVo
 				OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 			}
 		}
-
-		for (int32 DynamicSkyLight = 0; DynamicSkyLight < 2; ++DynamicSkyLight)
-		{
-			FTranslucencyVolumeTraceFroxelProbesRayTracingRGS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FTranslucencyVolumeTraceFroxelProbesRayTracingRGS::FDynamicSkyLight>(DynamicSkyLight > 0);
-
-			TShaderRef<FTranslucencyVolumeTraceFroxelProbesRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FTranslucencyVolumeTraceFroxelProbesRayTracingRGS>(PermutationVector);
-
-			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
-		}
 	}
+
+	PrepareLumenHardwareRayTracingTranslucencyVolumeLumenMaterial2(View, OutRayGenShaders);
 }
 
 #endif // RHI_RAYTRACING
@@ -209,77 +168,6 @@ void HardwareRayTraceTranslucencyVolume(
 				GraphBuilder,
 				RDG_EVENT_NAME("HardwareRayTracing (raygen) %ux%u", DispatchResolution.X, DispatchResolution.Y),
 				View, 
-				PermutationVector,
-				PassParameters,
-				DispatchResolution,
-				bUseMinimalPayload);
-		}
-	}
-
-#else
-	unimplemented();
-#endif // RHI_RAYTRACING
-}
-
-
-void HardwareRayTraceTranslucencyVolumeFroxelProbes(
-	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
-	const FLumenCardTracingParameters& TracingParameters,
-	FLumenTranslucencyLightingVolumeParameters VolumeParameters,
-	FLumenTranslucencyLightingVolumeTraceSetupParameters TraceSetupParameters,
-	FRDGTextureRef VolumeFroxelProbeRadiance,
-	FRDGTextureRef VolumeFroxelProbeHitDistance,
-	ERDGPassFlags ComputePassFlags,
-	const bool bDynamicSkyLight
-)
-{
-#if RHI_RAYTRACING
-	bool bUseMinimalPayload = true;
-	bool bInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
-
-	checkf(ComputePassFlags != ERDGPassFlags::AsyncCompute || bInlineRayTracing, TEXT("Async Lumen HWRT is only supported for inline ray tracing"));
-
-	// Cast rays
-	{
-		FTranslucencyVolumeTraceFroxelProbesRayTracingRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeTraceFroxelProbesRayTracingRGS::FParameters>();
-
-		SetLumenHardwareRayTracingSharedParameters(
-			GraphBuilder,
-			GetSceneTextureParameters(GraphBuilder, View),
-			View,
-			TracingParameters,
-			&PassParameters->SharedParameters);
-
-		PassParameters->RWVolumeTraceRadiance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadiance);
-		PassParameters->RWVolumeTraceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeHitDistance);
-		PassParameters->VolumeFroxelProbeRadiance = VolumeFroxelProbeRadiance;
-		PassParameters->VolumeParameters = VolumeParameters;
-		PassParameters->TraceSetupParameters = TraceSetupParameters;
-
-		FTranslucencyVolumeTraceFroxelProbesRayTracingRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FTranslucencyVolumeTraceFroxelProbesRayTracingRGS::FDynamicSkyLight>(bDynamicSkyLight);
-
-		const FIntPoint DispatchResolution(VolumeFroxelProbeRadiance->Desc.Extent * FIntPoint(VolumeFroxelProbeRadiance->Desc.Depth, 1));
-
-		if (bInlineRayTracing)
-		{
-			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(DispatchResolution, FTranslucencyVolumeTraceFroxelProbesRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()));
-			FTranslucencyVolumeTraceFroxelProbesRayTracingCS::AddLumenRayTracingDispatch(
-				GraphBuilder,
-				RDG_EVENT_NAME("HardwareRayTracing FroxelProbes (inline) %ux%u", DispatchResolution.X, DispatchResolution.Y),
-				View,
-				PermutationVector,
-				PassParameters,
-				GroupCount,
-				ComputePassFlags);
-		}
-		else
-		{
-			FTranslucencyVolumeTraceFroxelProbesRayTracingRGS::AddLumenRayTracingDispatch(
-				GraphBuilder,
-				RDG_EVENT_NAME("HardwareRayTracing FroxelProbes (raygen) %ux%u", DispatchResolution.X, DispatchResolution.Y),
-				View,
 				PermutationVector,
 				PassParameters,
 				DispatchResolution,

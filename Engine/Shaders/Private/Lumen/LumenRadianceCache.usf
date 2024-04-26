@@ -40,6 +40,9 @@ RWBuffer<uint> RWProbeFreeList;
 RWBuffer<uint> RWProbeLastUsedFrame;
 uint MaxNumProbes;
 
+float MinTraceDistance;
+float MaxTraceDistance;
+
 #ifdef MarkRadianceProbesUsedByVisualizeCS
 
 [numthreads(1, 1, 1)]
