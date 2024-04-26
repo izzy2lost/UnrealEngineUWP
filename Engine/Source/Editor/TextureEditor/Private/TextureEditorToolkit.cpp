@@ -2475,6 +2475,7 @@ bool FTextureEditorToolkit::HandleMipLevelCheckBoxIsEnabled( ) const
 void FTextureEditorToolkit::HandleMipLevelChanged(int32 NewMipLevel)
 {
 	SpecifiedMipLevel = FMath::Clamp<int32>(NewMipLevel, MIPLEVEL_MIN, GetMaxMipLevel().Get(MIPLEVEL_MAX));
+	PopulateQuickInfo(); // so PreviewEffectiveTexture{Width,Height} get updated immediately
 
 	MipLevelTextBlock->SetText(FText::Format(LOCTEXT("MipLevel", "Mip Level {0}"), SpecifiedMipLevel));
 }
