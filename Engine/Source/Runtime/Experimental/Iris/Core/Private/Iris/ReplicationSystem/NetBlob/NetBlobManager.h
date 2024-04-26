@@ -49,6 +49,8 @@ public:
 	bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 	bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 
+	bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex)  const;
+
 	enum class EProcessMode 
 	{
 		ProcessObjectsGoingOutOfScope,
@@ -122,6 +124,8 @@ private:
 		void ProcessQueue(EProcessMode ProcessMode);
 		void ResetProcessQueue();
 		void PrepareAndProcessOOBAttachmentQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager, FNetBitArray& OutConnetionsPendingImmediateSend);
+
+		bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex)  const;
 	
 	private:
 		struct FNetObjectAttachmentQueueEntry

@@ -596,8 +596,28 @@ bool UObjectReplicationBridge::WriteNetRefHandleCreationInfo(FReplicationBridgeS
 	const UE::Net::FReplicationProtocol* Protocol = GetReplicationSystem()->GetReplicationProtocol(Handle);
 	WriteUint64(Context.SerializationContext.GetBitStreamWriter(), Protocol->ProtocolIdentifier);
 
-	// Write Type header
-	return WriteCreationHeader(Context.SerializationContext, Handle);
+	// Write Type header, if there is a cached one, use it!
+	if (TUniquePtr<const FCreationHeader>* CachedHeader = CachedCreationHeaders.Find(Handle))
+	{
+		return WriteCreationHeader(Context.SerializationContext, (*CachedHeader).Get());
+	}
+	else
+	{
+		return WriteCreationHeader(Context.SerializationContext, Handle);
+	}
+}
+
+bool UObjectReplicationBridge::CacheNetRefHandleCreationInfo(FNetRefHandle Handle)
+{
+	TUniquePtr<const FCreationHeader> Header(GetCreationHeader(Handle));
+
+	if (Header)
+	{
+		CachedCreationHeaders.Add(Handle, MoveTemp(Header));
+		return true;
+	}
+
+	return false;
 }
 
 void UObjectReplicationBridge::EndReplication(UObject* Instance, EEndReplicationFlags EndReplicationFlags, FEndReplicationParameters* Parameters)
@@ -638,11 +658,15 @@ void UObjectReplicationBridge::DetachInstanceFromRemote(FNetRefHandle Handle, ER
 	}
 
 	// $IRIS TODO: Cleanup any pending creation data if we have not yet instantiated the instance.
+
+	Super::DetachInstanceFromRemote(Handle, DestroyReason, DestroyFlags);
 }
 
 void UObjectReplicationBridge::DetachInstance(FNetRefHandle RefHandle)
 {
 	UnregisterInstance(RefHandle);
+	CachedCreationHeaders.Remove(RefHandle);
+	Super::DetachInstance(RefHandle);
 }
 
 void UObjectReplicationBridge::UnregisterInstance(FNetRefHandle RefHandle)

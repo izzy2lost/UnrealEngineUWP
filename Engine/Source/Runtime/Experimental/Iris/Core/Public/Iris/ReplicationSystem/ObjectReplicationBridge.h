@@ -210,6 +210,7 @@ protected:
 	IRISCORE_API virtual void UpdateInstancesWorldLocation() override;
 	IRISCORE_API virtual void PruneStaleObjects() override;	
 	IRISCORE_API virtual bool WriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle) override;
+	IRISCORE_API virtual bool CacheNetRefHandleCreationInfo(FNetRefHandle Handle) override;
 	IRISCORE_API virtual FReplicationBridgeCreateNetRefHandleResult CreateNetRefHandleFromRemote(FNetRefHandle RootObjectNetHandle, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context) override;
 	IRISCORE_API virtual void SubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle) override;
 	IRISCORE_API virtual void PostApplyInitialState(FNetRefHandle Handle) override;
@@ -226,11 +227,17 @@ protected:
 	* but only ever is replicated when we first instantiate an object of the specific type 
 	*/
 
+	/** Allocate and fill in creation header. */
+	virtual TUniquePtr<FCreationHeader> GetCreationHeader(FNetRefHandle Handle) { return nullptr; };
+
+	/** Write creation header. */
+	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* CreationHeader) { return false; };
+
 	/** Write data required to instantiate the Handle. */
 	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) { return false; };
 
 	/** Create Header and read data required to instantiate the Handle. */
-	virtual FCreationHeader* ReadCreationHeader(UE::Net::FNetSerializationContext& Context) { return nullptr; };
+	virtual TUniquePtr<FCreationHeader> ReadCreationHeader(UE::Net::FNetSerializationContext& Context) { return nullptr; };
 
 	/** Called when we instantiate/find object instance requested by remote. */
 	virtual FObjectReplicationBridgeInstantiateResult BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* Header) { return FObjectReplicationBridgeInstantiateResult(); };
@@ -447,6 +454,9 @@ private:
 
 	// Array of dormant objects that has requested a flush
 	TArray<FNetRefHandle> DormantHandlesPendingFlush;
+
+	// When we flush objects, we might need to defer sending creation info.
+	TMap<FNetRefHandle, TUniquePtr<const FCreationHeader>> CachedCreationHeaders;
 
 	// Objects which has object references and could be affected by garbage collection.
 	UE::Net::FNetBitArray ObjectsWithObjectReferences;

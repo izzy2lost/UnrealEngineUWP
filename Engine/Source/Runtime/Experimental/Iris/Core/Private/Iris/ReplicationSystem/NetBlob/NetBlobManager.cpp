@@ -560,6 +560,17 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::ResetProcessQueue()
 	ProcessContext.Reset();
 }
 
+bool FNetBlobManager::HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex) const
+{
+	return AttachmentSendQueue.HasUnprocessedReliableAttachments(InternalIndex);
+}
+
+bool FNetBlobManager::FNetObjectAttachmentSendQueue::HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex)  const
+{
+	// For the moment we only need to check the AttachmentQueue as reliable attachments are not schedules as immediate.
+	return AttachmentQueue.ContainsByPredicate([&InternalIndex](const FNetObjectAttachmentQueueEntry& Entry) { return (Entry.OwnerIndex == InternalIndex || Entry.SubObjectIndex == InternalIndex) && Entry.Attachment->IsReliable();} );
+}
+
 void FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessQueue(EProcessMode ProcessMode)
 {
 	if (!ProcessContext.IsValid())

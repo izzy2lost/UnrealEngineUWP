@@ -2,7 +2,9 @@
 
 #include "Iris/ReplicationSystem/ReplicationBridge.h"
 #include "Containers/ArrayView.h"
+#include "HAL/IConsoleManager.h"
 #include "Iris/IrisConfigInternal.h"
+#include "Iris/Core/IrisCsv.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Net/Core/NetBitArray.h"
@@ -30,6 +32,14 @@ DEFINE_LOG_CATEGORY(LogIrisBridge)
 
 #define UE_LOG_REPLICATIONBRIDGE(Category, Format, ...)  UE_LOG(LogIrisBridge, Category, TEXT("ReplicationBridge(%u)::") Format, ReplicationSystem->GetId(), ##__VA_ARGS__)
 
+
+static bool bEnableFlushReliableRPCOnDestroy = true;
+static FAutoConsoleVariableRef CVarEnableFlushReliableRPCOnDestroy(
+	TEXT("net.Iris.EnableFlushReliableRPCOnDestroy"),
+	bEnableFlushReliableRPCOnDestroy,
+	TEXT("When true EEndReplicationFlags::Flush flag will be appended in EndReplication if we have pending unprocessed attachments/RPC:s when destroying a replicated object.")
+);
+
 /**
  * ReplicationBridge Implementation
  */
@@ -45,6 +55,11 @@ UReplicationBridge::UReplicationBridge()
 bool UReplicationBridge::WriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle)
 {
 	return true;
+}
+
+bool UReplicationBridge::CacheNetRefHandleCreationInfo(FNetRefHandle Handle)
+{
+	return false;
 }
 
 FReplicationBridgeCreateNetRefHandleResult UReplicationBridge::CreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
@@ -201,6 +216,11 @@ void UReplicationBridge::CallDetachInstanceFromRemote(FNetRefHandle Handle, ERep
 void UReplicationBridge::CallPruneStaleObjects()
 {
 	PruneStaleObjects();
+}
+
+bool UReplicationBridge::CallCacheNetRefHandleCreationInfo(FNetRefHandle Handle)
+{
+	return CacheNetRefHandleCreationInfo(Handle);
 }
 
 bool UReplicationBridge::CallWriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle)
@@ -466,7 +486,7 @@ void UReplicationBridge::DestroyLocalNetHandle(FNetRefHandle Handle, EEndReplica
 	InternalDetachInstanceFromNetRefHandle(Handle);
 
 	// Allow derived bridges to cleanup any instance info they have stored
-	DetachInstance(Handle);
+	CallDetachInstance(Handle);
 
 	// If the object is in any groups we need to remove it to make sure that we update filtering
 	GetReplicationSystem()->RemoveFromAllGroups(Handle);
@@ -533,17 +553,21 @@ void UReplicationBridge::EndReplication(FNetRefHandle Handle, EEndReplicationFla
 	const FInternalNetRefIndex InternalReplicationIndex = NetRefHandleManager->GetInternalIndex(Handle);
 	if (NetRefHandleManager->IsLocal(InternalReplicationIndex))
 	{
+		FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalReplicationIndex);
 		if (EnumHasAnyFlags(EndReplicationFlags, EEndReplicationFlags::TearOff))
 		{
-			// Add handle to list of objects pending tear off and indicate that it should be destroyed during next update
+			// Add handle to list of objects pending EndReplication indicate that it should be destroyed during next update
 			// We need to do this to cover the case where the torn off object not yet has been added to the scope.
-			constexpr bool bIsImmediate = true;
-			TearOff(Handle, EndReplicationFlags, bIsImmediate);
+			AddPendingEndReplication(Handle, EndReplicationFlags);
 
 			// We do however copy the final state data and mark object to stop propagating state changes
 			// Note: Current implementation keeps the mapping between instance and handle alive so that we can handle the case where we both start replication 
 			// and tear the object off during the same frame
-			InternalTearOff(Handle);
+			InternalTearOff(Handle, ECacheCreationInfo::Yes);
+
+			// Detach instance as we must assume that we should not access the object after this call.
+			ObjectData.bPendingEndReplication = 1U;
+			InternalDetachInstanceFromNetRefHandle(Handle);
 		}
 		else 
 		{
@@ -555,14 +579,31 @@ void UReplicationBridge::EndReplication(FNetRefHandle Handle, EEndReplicationFla
 				InternalAddDestructionInfo(Handle, *Parameters);
 			}
 
-			// If the flush flag is set, we have to explicitly copy the final state and propagate pending changes as we do not expect the source object to be kept alive after the call to EndReplication
-			if (EnumHasAnyFlags(EndReplicationFlags, EEndReplicationFlags::Flush))
+			// New objects, destroyed during the same frame with posted attachments(RPC):s needs to request a flush to ensure that they get a scope update
+			const UE::Net::Private::FNetBlobManager& NetBlobManager = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetBlobManager();
+			const bool bAllowAutoFlushOfUnProcessedReliableRPCs = bEnableFlushReliableRPCOnDestroy && ObjectData.bNeedsFullCopyAndQuantize;
+			if (bAllowAutoFlushOfUnProcessedReliableRPCs && NetBlobManager.HasUnprocessedReliableAttachments(InternalReplicationIndex))
 			{
-				InternalFlushStateData(Handle);
+				EnumAddFlags(EndReplicationFlags, EEndReplicationFlags::Flush);
 			}
 
-			NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalReplicationIndex).bPendingEndReplication = 1U;
-			DestroyLocalNetHandle(Handle, EndReplicationFlags);	
+			if (EnumHasAnyFlags(EndReplicationFlags, EEndReplicationFlags::Flush))
+			{
+				// Defer destroy until after scope update to allow create/destroy on same frame
+				AddPendingEndReplication(Handle, EndReplicationFlags);
+			
+				// Capture final state
+				InternalFlushStateData(Handle, ECacheCreationInfo::Yes);
+
+				// Detach instance as we must assume that we should not access the object after this call.
+				ObjectData.bPendingEndReplication = 1U;
+				InternalDetachInstanceFromNetRefHandle(Handle);
+			}
+			else
+			{
+				ObjectData.bPendingEndReplication = 1U;
+				DestroyLocalNetHandle(Handle, EndReplicationFlags);	
+			}	
 		}
 	}
 	else
@@ -636,24 +677,27 @@ void UReplicationBridge::RemoveDestructionInfosForGroup(UE::Net::FNetObjectGroup
 void UReplicationBridge::TearOffHandlesPendingTearOff()
 {
 	// Initiate tear off
-	for (FTearOffInfo Info : MakeArrayView(HandlesPendingTearOff))
+	for (FPendingEndReplicationInfo Info : MakeArrayView(HandlesPendingEndReplication))
 	{
-		InternalTearOff(Info.Handle);
+		if (EnumHasAnyFlags(Info.DestroyFlags, EEndReplicationFlags::TearOff))
+		{
+			InternalTearOff(Info.Handle, ECacheCreationInfo::Yes);
+		}
 	}
 }
 
-void UReplicationBridge::UpdateHandlesPendingTearOff()
+void UReplicationBridge::UpdateHandlesPendingEndReplication()
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	TArray<FTearOffInfo, TInlineAllocator<32>> ObjectsStillPendingTearOff;
-	for (FTearOffInfo Info : MakeArrayView(HandlesPendingTearOff))
+	TArray<FPendingEndReplicationInfo, TInlineAllocator<32>> ObjectsStillPendingEndReplication;
+	for (FPendingEndReplicationInfo Info : MakeArrayView(HandlesPendingEndReplication))
 	{
 		if (FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager->GetInternalIndex(Info.Handle))
 		{
-			// Immediate tear-off or object that no longer are referenced by any connections are destroyed
-			if (NetRefHandleManager->GetNetObjectRefCount(ObjectInternalIndex) == 0U || Info.bIsImmediate)
+			// Immediate destroy or objects that are no longer are referenced by any connections are destroyed
+			if (NetRefHandleManager->GetNetObjectRefCount(ObjectInternalIndex) == 0U || Info.Immediate == EPendingEndReplicationImmediate::Yes)
 			{
 				FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectInternalIndex);
 				ObjectData.bPendingEndReplication = 1U;
@@ -661,10 +705,10 @@ void UReplicationBridge::UpdateHandlesPendingTearOff()
 			}
 			else
 			{
-				// If the object is still in scope remove it from scope as objects being torn-off should not be added to new connections
+				// If the object is still in scope remove it from scope as objects pending EndReplication should not be added to new connections after the first update.
 				if (NetRefHandleManager->IsScopableIndex(ObjectInternalIndex))
 				{
-					// Mark object and subobjects as no longer scopable, and that we should not propagate changed states
+					// Mark object and subobjects as no longer scopeable, and that we should not propagate changed states
 					NetRefHandleManager->RemoveFromScope(ObjectInternalIndex);
 					for (FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectInternalIndex))
 					{
@@ -672,26 +716,30 @@ void UReplicationBridge::UpdateHandlesPendingTearOff()
 					}
 				}
 			
-				// Keep object in the pending tear-off list until the object is no longer referenced by any ReplicationWriter
-				constexpr bool bIsImmediate = false;
-				ObjectsStillPendingTearOff.Add(FTearOffInfo(Info.Handle, Info.DestroyFlags, bIsImmediate));
+				// Keep object in the pending EndReplication-list until the object is no longer referenced by any ReplicationWriter
+				ObjectsStillPendingEndReplication.Add(FPendingEndReplicationInfo(Info.Handle, Info.DestroyFlags, EPendingEndReplicationImmediate::No));
 			}
 		}
 	}
 
-	HandlesPendingTearOff.Reset();
-	HandlesPendingTearOff.Insert(ObjectsStillPendingTearOff.GetData(), ObjectsStillPendingTearOff.Num(), 0);
+	HandlesPendingEndReplication.Reset();
+	HandlesPendingEndReplication.Insert(ObjectsStillPendingEndReplication.GetData(), ObjectsStillPendingEndReplication.Num(), 0);
+
+	CSV_CUSTOM_STAT(Iris, NumHandlesPendingEndRepliction, (float)HandlesPendingEndReplication.Num(), ECsvCustomStatOp::Set);
 }
 
-void UReplicationBridge::TearOff(FNetRefHandle Handle, EEndReplicationFlags DestroyFlags, bool bIsImmediate)
+void UReplicationBridge::AddPendingEndReplication(FNetRefHandle Handle, EEndReplicationFlags DestroyFlags, EPendingEndReplicationImmediate Immediate)
 {
-	if (!HandlesPendingTearOff.FindByPredicate([&](const FTearOffInfo& Info){ return Info.Handle == Handle; }))
+	if (ensure(EnumHasAnyFlags(DestroyFlags, EEndReplicationFlags::Flush | EEndReplicationFlags::TearOff)))
 	{
-		HandlesPendingTearOff.Add(FTearOffInfo(Handle, DestroyFlags, bIsImmediate));
-	}	
+		if (!HandlesPendingEndReplication.FindByPredicate([&](const FPendingEndReplicationInfo& Info){ return Info.Handle == Handle; }))
+		{
+			HandlesPendingEndReplication.Add(FPendingEndReplicationInfo(Handle, DestroyFlags, Immediate));
+		}
+	}
 }
 
-void UReplicationBridge::InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex)
+void UReplicationBridge::InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex, ECacheCreationInfo CacheCreationInfo)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -709,25 +757,34 @@ void UReplicationBridge::InternalFlushStateData(UE::Net::FNetSerializationContex
 		return;
 	}
 
-	for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(InternalObjectIndex))
+	if (ObjectData.InstanceProtocol)
 	{
-		InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, SubObjectInternalIndex);
+		if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll | EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
+		{
+			CallPreSendUpdateSingleHandle(ObjectData.RefHandle);
+		}
+
+		// Cache creation info
+		if (CacheCreationInfo == ECacheCreationInfo::Yes)
+		{
+			ObjectData.bHasCachedCreationInfo =  CallCacheNetRefHandleCreationInfo(ObjectData.RefHandle) ? 1U : 0U;
+		}
+
+		FReplicationInstanceOperationsInternal::QuantizeObjectStateData(ChangeMaskWriter, ChangeMaskCache, *NetRefHandleManager, SerializationContext, InternalObjectIndex);
+
+		// Clear the quantize flag since it was done directly here.
+		NetRefHandleManager->GetDirtyObjectsToQuantize().ClearBit(InternalObjectIndex);
 	}
 
-	if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll | EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
+	for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(InternalObjectIndex))
 	{
-		CallPreSendUpdateSingleHandle(ObjectData.RefHandle);
-	} 
-
-	FReplicationInstanceOperationsInternal::QuantizeObjectStateData(ChangeMaskWriter, ChangeMaskCache, *NetRefHandleManager, SerializationContext, InternalObjectIndex);
-
-	// Clear the quantize flag since it was done directly here.
-	NetRefHandleManager->GetDirtyObjectsToQuantize().ClearBit(InternalObjectIndex);
+		InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, SubObjectInternalIndex, CacheCreationInfo);
+	}
 
 	// $IRIS TODO:  Should we also clear the DirtyTracker flags for this flushed object ?
 }
 
-void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle)
+void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle, ECacheCreationInfo CacheCreationInfo)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -751,7 +808,7 @@ void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle)
 	SerializationContext.SetInternalContext(&InternalContext);
 	SerializationContext.SetNetStatsContext(ReplicationSystem->GetReplicationSystemInternal()->GetNetTypeStats().GetNetStatsContext());
 
-	InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, InternalObjectIndex);
+	InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, InternalObjectIndex, CacheCreationInfo);
 
 	// Iterate over connections and propagate dirty changemasks to all connections already scoping this object
 	if (ChangeMaskCache.Indices.Num() > 0)
@@ -770,7 +827,7 @@ void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle)
 	}
 }
 
-void UReplicationBridge::InternalTearOff(FNetRefHandle Handle)
+void UReplicationBridge::InternalTearOff(FNetRefHandle Handle, ECacheCreationInfo CacheCreationInfo)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -789,12 +846,6 @@ void UReplicationBridge::InternalTearOff(FNetRefHandle Handle)
 	// Copy state data and tear off now
 	if (!ObjectData.bTearOff)
 	{
-		// Mark subobjects for TearOff as well.
-		for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(InternalObjectIndex))
-		{
-			InternalTearOff(NetRefHandleManager->GetNetRefHandleFromInternalIndex(SubObjectInternalIndex));
-		}	
-
 		UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("TearOff %s"), *Handle.ToString());
 
 		// Force copy of final state data as we will detach the object after scope update
@@ -807,14 +858,26 @@ void UReplicationBridge::InternalTearOff(FNetRefHandle Handle)
 		SerializationContext.SetInternalContext(&InternalContext);
 		SerializationContext.SetNetStatsContext(ReplicationSystem->GetReplicationSystemInternal()->GetNetTypeStats().GetNetStatsContext());
 
-		if (ObjectData.InstanceProtocol && EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll | EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
+		if (ObjectData.InstanceProtocol)
 		{
-			CallPreSendUpdateSingleHandle(Handle);
-		} 
+			if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll | EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
+			{
+				CallPreSendUpdateSingleHandle(Handle);
+			} 
+
+			// Cache creation info
+			if (CacheCreationInfo == ECacheCreationInfo::Yes)
+			{
+				ObjectData.bHasCachedCreationInfo =  CallCacheNetRefHandleCreationInfo(Handle) ? 1U : 0U;
+			}
+		}
 
 		if (ObjectData.InstanceProtocol && ObjectData.Protocol->InternalTotalSize > 0U)
 		{
 			FReplicationInstanceOperationsInternal::QuantizeObjectStateData(ChangeMaskWriter, ChangeMaskCache, *NetRefHandleManager, SerializationContext, InternalObjectIndex);
+
+			// Clear the quantize flag since it was done directly here.
+			NetRefHandleManager->GetDirtyObjectsToQuantize().ClearBit(InternalObjectIndex);
 		}
 		else
 		{
@@ -840,6 +903,12 @@ void UReplicationBridge::InternalTearOff(FNetRefHandle Handle)
 		};
 		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
 		ValidConnections.ForAllSetBits(UpdateDirtyChangeMasks);		
+
+		// TearOff subobjects as well.
+		for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(InternalObjectIndex))
+		{
+			InternalTearOff(NetRefHandleManager->GetNetRefHandleFromInternalIndex(SubObjectInternalIndex), CacheCreationInfo);
+		}	
 
 		// Mark object as being torn-off and that we should no longer propagate state changes
 		ObjectData.bTearOff = 1U;

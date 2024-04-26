@@ -973,8 +973,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffResend
 	UE_NET_ASSERT_EQ(Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle)), nullptr);
 }
 
-// Test TearOff for new object and resend (should not work or is this what we want?)
-#if 0 // Until we either keep object around but out of scope, or cache creation info + deps
+// Test TearOff for new object and resend, this requires creation info to be cached.
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmediateOnNewlyCreatedObjectResend)
 {
 	UReplicationSystem* ReplicationSystem = Server->ReplicationSystem;
@@ -995,14 +994,10 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmedi
 	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
 
 	// Send and deliver packet
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, false);
-	Server->PostSendUpdate();
+	Server->UpdateAndSend({Client}, false);
 
 	// Send and deliver packet
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, true);
-	Server->PostSendUpdate();
+	Server->UpdateAndSend({Client});
 
 	// Client should have created a object
 	UE_NET_ASSERT_EQ(NumObjectsCreatedOnClientBeforeReplication + 1, Client->CreatedObjects.Num());
@@ -1015,8 +1010,55 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmedi
 	// Verify that we replicated the expected state
 	UE_NET_ASSERT_EQ(ServerObject->IntA, ClientObjectThatWillBeTornOff->IntA);
 }
-#endif
 
+// Test TearOff for new subobject and resend, this requires creation info to be cached.
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmediateOnNewlyCreatedSubObjectResend)
+{
+	UReplicationSystem* ReplicationSystem = Server->ReplicationSystem;
+
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// We should not have any created objects
+	const int32 NumObjectsCreatedOnClientBeforeReplication = Client->CreatedObjects.Num();
+
+	// Spawn object on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0,0);
+
+	// Set state
+	ServerObject->IntA = 1;
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Spawn second object on server as a subobject
+	UTestReplicatedIrisObject* ServerSubObject = Server->CreateSubObject(ServerObject->NetRefHandle, 0, 0);
+
+	// Set state
+	ServerSubObject->IntA = 1;
+
+	// TearOff the subobject before first replication
+	Server->ReplicationBridge->EndReplication(ServerSubObject, EEndReplicationFlags::TearOff);
+
+	// Send and drop
+	Server->UpdateAndSend({Client}, false);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Client should have created a object + subobject
+	UE_NET_ASSERT_EQ(NumObjectsCreatedOnClientBeforeReplication + 2, Client->CreatedObjects.Num());
+
+	// But as we have torn off the subobject it should no longer be a replicated object
+	UE_NET_ASSERT_TRUE(Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle)) != nullptr);
+	UE_NET_ASSERT_TRUE(Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle)) == nullptr);
+
+	// We should be able to get the object from the created objects array to validate the state
+	UTestReplicatedIrisObject* ClientSubObjectThatWillBeTornOff = Cast<UTestReplicatedIrisObject>(Client->CreatedObjects[NumObjectsCreatedOnClientBeforeReplication + 1].Get());
+
+	// Verify that we replicated the expected state
+	UE_NET_ASSERT_EQ(ServerSubObject->IntA, ClientSubObjectThatWillBeTornOff->IntA);
+}
 
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDefferedTearOffOnNewlyCreatedObjectResend)
 {

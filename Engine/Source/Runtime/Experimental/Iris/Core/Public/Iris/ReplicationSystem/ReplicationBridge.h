@@ -200,6 +200,13 @@ protected:
 	 */
 	IRISCORE_API virtual bool WriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 
+	/**
+	 * Cache info required to allow deferred writing of NetRefHandleCreationInfo
+	 * @param Handle The handle of the object to store creation data for.
+	 * return whether cached data is stored or not.
+	*/
+	IRISCORE_API virtual bool CacheNetRefHandleCreationInfo(FNetRefHandle Handle);
+
 	/** Read data required to instantiate NetObject from bitstream. */
 	IRISCORE_API virtual FReplicationBridgeCreateNetRefHandleResult CreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context);
 
@@ -283,14 +290,21 @@ private:
 	void DetachSubObjectInstancesFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 	void DestroyNetObjectFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 
-	// Adds the Handle to the list of handles pending tear-off, if bIsImmediate is true the object will be destroyed after the next update, otherwise
-	// it will be kept around until EndReplication is called.
-	void TearOff(FNetRefHandle Handle, EEndReplicationFlags DestroyFlags, bool bIsImmediate);
+	enum class EPendingEndReplicationImmediate : uint8
+	{
+		Yes,
+		No,
+	};
+
+	// Adds the Handle to the list of handles pending deferred EndReplication, if bIsImmediate is true the object will be destroyed after the next update, otherwise
+	// it will be kept around until the handle is no longer ref-counted by any connection. It will however be removed from the set of scopeable objects after the first update so new connections will not add it to their scope.
+	void AddPendingEndReplication(FNetRefHandle Handle, EEndReplicationFlags DestroyFlags, EPendingEndReplicationImmediate Immediate = EPendingEndReplicationImmediate::No);
 
 	FReplicationBridgeCreateNetRefHandleResult CallCreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context);
 	void CallPreSendUpdate(float DeltaSeconds);	
 	void CallPreSendUpdateSingleHandle(FNetRefHandle Handle);
 	void CallUpdateInstancesWorldLocation();
+	bool CallCacheNetRefHandleCreationInfo(FNetRefHandle Handle);
 	bool CallWriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 	bool CallWriteNetRefHandleDestructionInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 	void CallSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle);
@@ -301,14 +315,19 @@ private:
 	void CallDetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 
 private:
+	// Specifies if we should capture and cache CreationHeader or not for flush and tearoff.
+	enum class ECacheCreationInfo : uint8
+	{
+		No,
+		Yes
+	};
 
-	void InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex);
-
+	void InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex, ECacheCreationInfo CacheCreationInfo);
 	// Internal method to copy state data for Handle
-	void InternalFlushStateData(FNetRefHandle Handle);
+	void InternalFlushStateData(FNetRefHandle Handle, ECacheCreationInfo CacheCreationInfo);
 
 	// Internal method to copy state data for Handle and any SubObjects and mark them as being torn-off
-	void InternalTearOff(FNetRefHandle OwnerHandle);
+	void InternalTearOff(FNetRefHandle OwnerHandle, ECacheCreationInfo CacheCreationInfo);
 
 	// Destroy all SubObjects owned by provided handle
 	void InternalDestroySubObjects(FNetRefHandle OwnerHandle, EEndReplicationFlags Flags);
@@ -330,8 +349,8 @@ private:
 	// Tear-off all handles in the PendingTearOff list that has not yet been torn-off
 	void TearOffHandlesPendingTearOff();
 
-	// Update all the handles pending tear-off
-	void UpdateHandlesPendingTearOff();
+	// Update all the handles pending EndReplication
+	void UpdateHandlesPendingEndReplication();
 
 	void SetNetPushIdOnFragments(const TArrayView<const UE::Net::FReplicationFragment*const>& Fragments, const UE::Net::Private::FNetPushObjectHandle& PushHandle);
 	void ClearNetPushIdOnFragments(const TArrayView<const UE::Net::FReplicationFragment*const>& Fragments);
@@ -371,15 +390,15 @@ private:
 	// We use this to be able ask remote to destroy static objects
 	TMap<FNetRefHandle, FDestructionInfo> StaticObjectsPendingDestroy;
 
-	struct FTearOffInfo
+	struct FPendingEndReplicationInfo
 	{
-		FTearOffInfo(FNetRefHandle InHandle, EEndReplicationFlags InDestroyFlags, bool bInIsImmediate) : Handle(InHandle), DestroyFlags(InDestroyFlags), bIsImmediate(bInIsImmediate) {}
+		FPendingEndReplicationInfo(FNetRefHandle InHandle, EEndReplicationFlags InDestroyFlags, EPendingEndReplicationImmediate InImmediate) : Handle(InHandle), DestroyFlags(InDestroyFlags), Immediate(InImmediate) {}
 
 		FNetRefHandle Handle;
 		EEndReplicationFlags DestroyFlags;
-		bool bIsImmediate;
+		EPendingEndReplicationImmediate Immediate;
 	};
-	TArray<FTearOffInfo> HandlesPendingTearOff;
+	TArray<FPendingEndReplicationInfo> HandlesPendingEndReplication;
 };
 
 inline FReplicationBridgeSerializationContext::FReplicationBridgeSerializationContext(UE::Net::FNetSerializationContext& InSerialiazationContext, uint32 InConnectionId, bool bInIsDestructionInfo)

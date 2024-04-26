@@ -102,51 +102,81 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHand
 
 bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle)
 {
-	UE::Net::FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
+	TUniquePtr<FCreationHeader> Header(GetCreationHeader(Handle));
+	return WriteCreationHeader(Context, Header.Get());
+}
 
-	uint16 NumComponentsToSpawn = 0U;
-	uint16 NumIrisComponentsToSpawn = 0U;
-	uint16 NumDynamicComponentsToSpawn = 0U;
-	uint16 NumConnectionFilteredComponentsToSpawn = 0U;
-	uint16 NumObjectReferenceComponentsToSpawn = 0U;
-	bool bForceFailToInstantiateOnRemote = false;
-
+TUniquePtr<UObjectReplicationBridge::FCreationHeader> UReplicatedTestObjectBridge::GetCreationHeader(FNetRefHandle Handle)
+{
 	const UObject* Object = GetReplicatedObject(Handle);
+
+	if (!ensure(Object))
+	{
+		return nullptr;
+	}
+
+	TUniquePtr<FReplicationTestObjectCreationHeader> Header(new FReplicationTestObjectCreationHeader);
+
+	Header->NumComponentsToSpawn = 0U;
+	Header->NumIrisComponentsToSpawn = 0U;
+	Header->NumDynamicComponentsToSpawn = 0U;
+	Header->NumConnectionFilteredComponentsToSpawn = 0U;
+	Header->NumObjectReferenceComponentsToSpawn = 0U;
+	Header->bForceFailCreateRemoteInstance = false;
+
 	if (const UReplicatedTestObject* ReplicatedTestObject = Cast<UReplicatedTestObject>(Object))
 	{
-		bForceFailToInstantiateOnRemote = ReplicatedTestObject->bForceFailToInstantiateOnRemote;
+		Header->bForceFailCreateRemoteInstance = ReplicatedTestObject->bForceFailToInstantiateOnRemote;
 	}
 	if (const UTestReplicatedIrisObject* TestReplicatedIrisObject = Cast<UTestReplicatedIrisObject>(Object))
 	{
-		NumComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->Components.Num());
-		NumIrisComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->IrisComponents.Num());
-		NumDynamicComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->DynamicStateComponents.Num());
-		NumConnectionFilteredComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ConnectionFilteredComponents.Num());
-		NumObjectReferenceComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ObjectReferenceComponents.Num());
+		Header->NumComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->Components.Num());
+		Header->NumIrisComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->IrisComponents.Num());
+		Header->NumDynamicComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->DynamicStateComponents.Num());
+		Header->NumConnectionFilteredComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ConnectionFilteredComponents.Num());
+		Header->NumObjectReferenceComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ObjectReferenceComponents.Num());
 	}
 
 	UObject* Archetype = Object->GetArchetype();
-	check(Archetype);
+	if (!Archetype)
+	{
+		check(Archetype);
+		return nullptr;
+	}
 
-	WriteString(&Writer, Archetype->GetPathName());
-	Writer.WriteBits(NumComponentsToSpawn, 16);
-	Writer.WriteBits(NumIrisComponentsToSpawn, 16);
-	Writer.WriteBits(NumDynamicComponentsToSpawn, 16);
-	Writer.WriteBits(NumConnectionFilteredComponentsToSpawn, 16);
-	Writer.WriteBits(NumObjectReferenceComponentsToSpawn, 16);
-	Writer.WriteBool(bForceFailToInstantiateOnRemote);
+	Header->ArchetypeName = Archetype->GetPathName();
+
+	return Header;
+}
+
+bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const UObjectReplicationBridge::FCreationHeader* InHeader)
+{
+	if (!InHeader)
+	{
+		return false;
+	}
+
+	const FReplicationTestObjectCreationHeader* Header = static_cast<const FReplicationTestObjectCreationHeader*>(InHeader);
+
+	UE::Net::FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
+
+	WriteString(&Writer, Header->ArchetypeName);
+	Writer.WriteBits(Header->NumComponentsToSpawn, 16);
+	Writer.WriteBits(Header->NumIrisComponentsToSpawn, 16);
+	Writer.WriteBits(Header->NumDynamicComponentsToSpawn, 16);
+	Writer.WriteBits(Header->NumConnectionFilteredComponentsToSpawn, 16);
+	Writer.WriteBits(Header->NumObjectReferenceComponentsToSpawn, 16);
+	Writer.WriteBool(Header->bForceFailCreateRemoteInstance);
 
 	return !Writer.IsOverflown();
 }
 
-UObjectReplicationBridge::FCreationHeader* UReplicatedTestObjectBridge::ReadCreationHeader(UE::Net::FNetSerializationContext& Context)
+TUniquePtr<UObjectReplicationBridge::FCreationHeader> UReplicatedTestObjectBridge::ReadCreationHeader(UE::Net::FNetSerializationContext& Context)
 {
 	UE::Net::FNetBitStreamReader& Reader = *Context.GetBitStreamReader();
 	TUniquePtr<FReplicationTestObjectCreationHeader> Header(new FReplicationTestObjectCreationHeader);
 
 	ReadString(&Reader, Header->ArchetypeName);
-
-	//FNetObjectReference ArcheTypeRef;
 
 	Header->NumComponentsToSpawn = Reader.ReadBits(16);
 	Header->NumIrisComponentsToSpawn = Reader.ReadBits(16);
@@ -160,7 +190,7 @@ UObjectReplicationBridge::FCreationHeader* UReplicatedTestObjectBridge::ReadCrea
 		return nullptr;
 	}
 
-	return Header.Release();
+	return Header;
 }
 
 FObjectReplicationBridgeInstantiateResult UReplicatedTestObjectBridge::BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader)

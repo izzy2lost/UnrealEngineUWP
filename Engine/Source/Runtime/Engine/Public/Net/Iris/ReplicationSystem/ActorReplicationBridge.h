@@ -97,7 +97,9 @@ protected:
 	virtual void Initialize(UReplicationSystem* ReplicationSystem) override;
 	virtual void Deinitialize() override;
 	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) override;
-	virtual FCreationHeader* ReadCreationHeader(UE::Net::FNetSerializationContext& Context) override;
+	virtual TUniquePtr<FCreationHeader> GetCreationHeader(FNetRefHandle Handle) override;
+	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* Header) override;
+	virtual TUniquePtr<FCreationHeader> ReadCreationHeader(UE::Net::FNetSerializationContext& Context) override;
 	virtual FObjectReplicationBridgeInstantiateResult BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader) override;
 	virtual bool OnInstantiatedFromRemote(UObject* Instance, const FCreationHeader* InHeader, uint32 ConnectionId) const override;
 	virtual void OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle) override;

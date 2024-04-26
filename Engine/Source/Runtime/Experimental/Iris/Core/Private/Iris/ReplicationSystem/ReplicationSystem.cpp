@@ -292,8 +292,8 @@ public:
 		// Store the scope list for the next SendUpdate.
 		ReplicationSystemInternal.GetNetRefHandleManager().OnPostSendUpdate();
 
-		// Update handles pending tear-off
-		ReplicationSystemInternal.GetReplicationBridge()->UpdateHandlesPendingTearOff();
+		// Update handles pending tear-off/end-replication
+		ReplicationSystemInternal.GetReplicationBridge()->UpdateHandlesPendingEndReplication();
 
 		// Reset baseline invalidation
 		ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker().PostSendUpdate();
@@ -1572,8 +1572,8 @@ void UReplicationSystem::SetIsNetTemporary(FNetRefHandle Handle)
 
 void UReplicationSystem::TearOffNextUpdate(FNetRefHandle Handle)
 {
-	constexpr EEndReplicationFlags DestroyFlags = EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-	Impl->ReplicationSystemInternal.GetReplicationBridge()->TearOff(Handle, DestroyFlags, false);
+	constexpr EEndReplicationFlags DestroyFlags = EEndReplicationFlags::TearOff | EEndReplicationFlags::ClearNetPushId;
+	Impl->ReplicationSystemInternal.GetReplicationBridge()->AddPendingEndReplication(Handle, DestroyFlags);
 }
 
 void UReplicationSystem::ForceNetUpdate(FNetRefHandle Handle)

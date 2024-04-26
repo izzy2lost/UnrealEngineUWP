@@ -547,8 +547,10 @@ protected:
 		bool bForceFailCreateRemoteInstance;
 	};
 
+	virtual TUniquePtr<FCreationHeader> GetCreationHeader(FNetRefHandle Handle) override;
 	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) override;
-	virtual FCreationHeader* ReadCreationHeader(UE::Net::FNetSerializationContext& Context) override;
+	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* Header) override;
+	virtual TUniquePtr<FCreationHeader> ReadCreationHeader(UE::Net::FNetSerializationContext& Context) override;
 
 	virtual FObjectReplicationBridgeInstantiateResult BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader) override;
 	virtual void EndInstantiateFromRemote(FNetRefHandle Handle) override;

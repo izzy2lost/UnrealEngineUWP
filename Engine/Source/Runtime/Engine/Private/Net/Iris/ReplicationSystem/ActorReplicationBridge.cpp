@@ -519,7 +519,80 @@ bool UActorReplicationBridge::WriteCreationHeader(UE::Net::FNetSerializationCont
 	return false;
 }
 
-UObjectReplicationBridge::FCreationHeader* UActorReplicationBridge::ReadCreationHeader(UE::Net::FNetSerializationContext& Context)
+TUniquePtr<UObjectReplicationBridge::FCreationHeader> UActorReplicationBridge::GetCreationHeader(FNetRefHandle Handle)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	if (!ensure(IsReplicatedHandle(Handle)))
+	{
+		return nullptr;
+	}
+
+	const UObject* Object = GetReplicatedObject(Handle);
+	if (const AActor* Actor = Cast<AActor>(Object))
+	{
+		// Get Header
+		TUniquePtr<FActorCreationHeader> Header(new FActorCreationHeader);
+		GetActorCreationHeader(Actor, *(Header.Get()));
+	
+		return Header;
+	}
+	else if (Object)
+	{
+		const UObject* RootObject = GetReplicatedObject(GetRootObjectOfSubObject(Handle));
+
+		// Get Header
+		TUniquePtr<FSubObjectCreationHeader> Header(new FSubObjectCreationHeader);
+		GetSubObjectCreationHeader(Object, RootObject, *(Header.Get()));
+
+		return Header;
+	}
+
+	ensureMsgf(false, TEXT("UActorReplicationBridge::GetCreationHeader Failed to get creationHeader for NetRefHandle (Id=%u) %s"), Handle.GetId(), ToCStr(GetReplicationSystem()->GetDebugName(Handle)));
+
+	return nullptr;
+}
+
+bool UActorReplicationBridge::WriteCreationHeader(UE::Net::FNetSerializationContext& Context, const FCreationHeader* InHeader)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
+
+	if (!InHeader)
+	{
+		return false;
+	}
+
+	const FActorReplicationBridgeCreationHeader* BridgeHeader = static_cast<const FActorReplicationBridgeCreationHeader*>(InHeader);
+
+	if (BridgeHeader->bIsActor)
+	{
+		const FActorCreationHeader* Header = static_cast<const FActorCreationHeader*>(BridgeHeader);
+
+		// Serialize the data
+		// Indicate that this is an actor
+		Writer->WriteBool(true);
+		WriteActorCreationHeader(Context, *Header, SpawnInfoFlags);
+
+		return !Writer->IsOverflown();
+	}
+	else
+	{
+		const FSubObjectCreationHeader* Header = static_cast<const FSubObjectCreationHeader*>(BridgeHeader);
+
+		// Serialize the data
+		// Indicate that this is a SubObject
+		Writer->WriteBool(false);
+		WriteSubObjectCreationHeader(Context, *Header);
+
+		return !Writer->IsOverflown();
+	}
+}
+
+TUniquePtr<UObjectReplicationBridge::FCreationHeader> UActorReplicationBridge::ReadCreationHeader(UE::Net::FNetSerializationContext& Context)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -533,7 +606,7 @@ UObjectReplicationBridge::FCreationHeader* UActorReplicationBridge::ReadCreation
 
 		if (!Reader->IsOverflown())
 		{
-			return Header.Release();
+			return Header;
 		}
 	}
 	else
@@ -543,7 +616,7 @@ UObjectReplicationBridge::FCreationHeader* UActorReplicationBridge::ReadCreation
 
 		if (!Reader->IsOverflown())
 		{
-			return Header.Release();
+			return Header;
 		}
 	}
 

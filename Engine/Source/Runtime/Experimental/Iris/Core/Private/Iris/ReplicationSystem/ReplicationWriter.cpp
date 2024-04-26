@@ -2115,7 +2115,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 					UE_NET_TRACE_SCOPE(CreationInfo, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 
 					// Warn if we cannot replicate this object
-					if (!ObjectData.InstanceProtocol)
+					if (!ObjectData.InstanceProtocol && !(ObjectData.bHasCachedCreationInfo == 1U))
 					{
 						UE_LOG_REPLICATIONWRITER_WARNING(TEXT("Failed to replicate ( InternalIndex: %u ) %s, ProtocolName: %s, Currently we do not support creating a remote instance when the instance has been detached."), InternalIndex, *NetRefHandle.ToString(), ToCStr(ObjectData.Protocol->DebugName));
 						return EWriteObjectStatus::NoInstanceProtocol;

@@ -104,6 +104,7 @@ public:
 				uint32 bNeedsFullCopyAndQuantize : 1U;
 				uint32 bWantsFullPoll : 1U;
 				uint32 bPendingEndReplication : 1U;
+				uint32 bHasCachedCreationInfo : 1U;
 			};
 		};
 	

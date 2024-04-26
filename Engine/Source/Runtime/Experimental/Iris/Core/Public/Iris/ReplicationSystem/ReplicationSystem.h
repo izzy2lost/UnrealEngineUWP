@@ -453,7 +453,10 @@ public:
 	/** Set status of GroupFilter for specific connection. */
 	IRISCORE_API void SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus);
 
-	/** Set status of GroupFilter for connection marked in the Connections BitArray. */
+	/**
+	 * Set status of GroupFilter for connection marked in the Connections BitArray to the passed ReplicationStatus,
+	 * Connections not marked in the BitArray will be set to the opposite status.
+	*/
 	IRISCORE_API void SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, const UE::Net::FNetBitArray& Connections, UE::Net::ENetFilterStatus ReplicationStatus);
 
 	/** Set status of GroupFilter for all connections. */
