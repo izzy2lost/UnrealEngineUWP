@@ -69,7 +69,7 @@ struct FEntityTemplate_Composition : FEntityTemplateBase
 		}
 		{
 			FSharedStruct SharedFragment = EntityManager->GetOrCreateSharedFragmentByHash<FTestSharedFragment_Float>(1);
-			TemplateData.AddConstSharedFragment(SharedFragment);
+			TemplateData.AddSharedFragment(SharedFragment);
 		}
 		TemplateData.Sort();
 

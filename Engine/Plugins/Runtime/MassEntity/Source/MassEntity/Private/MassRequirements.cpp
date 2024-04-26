@@ -32,6 +32,23 @@ namespace UE::Mass::Private
 			}
 		}
 	}
+
+	template<>
+	void ExportRequirements<FMassConstSharedFragmentBitSet>(TConstArrayView<FMassFragmentRequirementDescription> Requirements
+		, TMassExecutionAccess<FMassConstSharedFragmentBitSet>& Out)
+	{
+		for (const FMassFragmentRequirementDescription& Requirement : Requirements)
+		{
+			if (Requirement.Presence != EMassFragmentPresence::None)
+			{
+				check(Requirement.StructType);
+				if (ensureMsgf(Requirement.AccessMode == EMassFragmentAccess::ReadOnly, TEXT("ReadOnly is the only supported AccessMode for ConstSharedFragments")))
+				{
+					Out.Read.Add(*Requirement.StructType);
+				}
+			}
+		}
+	}
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -121,7 +138,9 @@ bool FMassFragmentRequirements::DoesArchetypeMatchRequirements(const FMassArchet
 		&& ArchetypeComposition.ChunkFragments.HasAll(RequiredAllChunkFragments)
 		&& ArchetypeComposition.ChunkFragments.HasNone(RequiredNoneChunkFragments)
 		&& ArchetypeComposition.SharedFragments.HasAll(RequiredAllSharedFragments)
-		&& ArchetypeComposition.SharedFragments.HasNone(RequiredNoneSharedFragments);
+		&& ArchetypeComposition.SharedFragments.HasNone(RequiredNoneSharedFragments)
+		&& ArchetypeComposition.ConstSharedFragments.HasAll(RequiredAllConstSharedFragments)
+		&& ArchetypeComposition.ConstSharedFragments.HasNone(RequiredNoneConstSharedFragments);
 }
 
 void FMassFragmentRequirements::ExportRequirements(FMassExecutionRequirements& OutRequirements) const
@@ -129,8 +148,8 @@ void FMassFragmentRequirements::ExportRequirements(FMassExecutionRequirements& O
 	using UE::Mass::Private::ExportRequirements;
 	ExportRequirements<FMassFragmentBitSet>(FragmentRequirements, OutRequirements.Fragments);
 	ExportRequirements<FMassChunkFragmentBitSet>(ChunkFragmentRequirements, OutRequirements.ChunkFragments);
-	ExportRequirements<FMassSharedFragmentBitSet>(ConstSharedFragmentRequirements, OutRequirements.SharedFragments);
 	ExportRequirements<FMassSharedFragmentBitSet>(SharedFragmentRequirements, OutRequirements.SharedFragments);
+	ExportRequirements<FMassConstSharedFragmentBitSet>(ConstSharedFragmentRequirements, OutRequirements.ConstSharedFragments);
 
 	OutRequirements.RequiredAllTags = RequiredAllTags;
 	OutRequirements.RequiredAnyTags = RequiredAnyTags;
@@ -156,6 +175,9 @@ void FMassFragmentRequirements::Reset()
 	RequiredAllSharedFragments.Reset();
 	RequiredOptionalSharedFragments.Reset();
 	RequiredNoneSharedFragments.Reset();
+	RequiredAllConstSharedFragments.Reset();
+	RequiredOptionalConstSharedFragments.Reset();
+	RequiredNoneConstSharedFragments.Reset();
 
 	IncrementalChangesCount = 0;
 }

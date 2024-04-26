@@ -58,6 +58,15 @@ struct FMassSharedFragment
 	FMassSharedFragment() {}
 };
 
+USTRUCT()
+struct FMassConstSharedFragment
+{
+	GENERATED_BODY()
+
+	FMassConstSharedFragment() {}
+};
+
+
 // A handle to a lightweight entity.  An entity is used in conjunction with the FMassEntityManager
 // for the current world and can contain lightweight fragments.
 USTRUCT()
@@ -135,6 +144,7 @@ DECLARE_STRUCTTYPEBITSET_EXPORTED(MASSENTITY_API, FMassFragmentBitSet, FMassFrag
 DECLARE_STRUCTTYPEBITSET_EXPORTED(MASSENTITY_API, FMassTagBitSet, FMassTag);
 DECLARE_STRUCTTYPEBITSET_EXPORTED(MASSENTITY_API, FMassChunkFragmentBitSet, FMassChunkFragment);
 DECLARE_STRUCTTYPEBITSET_EXPORTED(MASSENTITY_API, FMassSharedFragmentBitSet, FMassSharedFragment);
+DECLARE_STRUCTTYPEBITSET_EXPORTED(MASSENTITY_API, FMassConstSharedFragmentBitSet, FMassConstSharedFragment);
 DECLARE_CLASSTYPEBITSET_EXPORTED(MASSENTITY_API, FMassExternalSubsystemBitSet, USubsystem);
 
 /** The type summarily describing a composition of an entity or an archetype. It contains information on both the
@@ -142,26 +152,44 @@ DECLARE_CLASSTYPEBITSET_EXPORTED(MASSENTITY_API, FMassExternalSubsystemBitSet, U
 struct FMassArchetypeCompositionDescriptor
 {
 	FMassArchetypeCompositionDescriptor() = default;
-	FMassArchetypeCompositionDescriptor(const FMassFragmentBitSet& InFragments, const FMassTagBitSet& InTags, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragments)
+	FMassArchetypeCompositionDescriptor(const FMassFragmentBitSet& InFragments,
+		const FMassTagBitSet& InTags,
+		const FMassChunkFragmentBitSet& InChunkFragments,
+		const FMassSharedFragmentBitSet& InSharedFragments,
+		const FMassConstSharedFragmentBitSet& InConstSharedFragments)
 		: Fragments(InFragments)
 		, Tags(InTags)
 		, ChunkFragments(InChunkFragments)
 		, SharedFragments(InSharedFragments)
+		, ConstSharedFragments(InConstSharedFragments)
 	{}
 
-	FMassArchetypeCompositionDescriptor(TConstArrayView<const UScriptStruct*> InFragments, const FMassTagBitSet& InTags, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragments)
-		: FMassArchetypeCompositionDescriptor(FMassFragmentBitSet(InFragments), InTags, InChunkFragments, InSharedFragments)
+	FMassArchetypeCompositionDescriptor(TConstArrayView<const UScriptStruct*> InFragments,
+		const FMassTagBitSet& InTags,
+		const FMassChunkFragmentBitSet& InChunkFragments,
+		const FMassSharedFragmentBitSet& InSharedFragments,
+		const FMassConstSharedFragmentBitSet& InConstSharedFragments)
+		: FMassArchetypeCompositionDescriptor(FMassFragmentBitSet(InFragments), InTags, InChunkFragments, InSharedFragments, InConstSharedFragments)
 	{}
 
-	FMassArchetypeCompositionDescriptor(TConstArrayView<FInstancedStruct> InFragmentInstances, const FMassTagBitSet& InTags, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragments)
-		: FMassArchetypeCompositionDescriptor(FMassFragmentBitSet(InFragmentInstances), InTags, InChunkFragments, InSharedFragments)
+	FMassArchetypeCompositionDescriptor(TConstArrayView<FInstancedStruct> InFragmentInstances,
+		const FMassTagBitSet& InTags,
+		const FMassChunkFragmentBitSet& InChunkFragments,
+		const FMassSharedFragmentBitSet& InSharedFragments,
+		const FMassConstSharedFragmentBitSet& InConstSharedFragments)
+		: FMassArchetypeCompositionDescriptor(FMassFragmentBitSet(InFragmentInstances), InTags, InChunkFragments, InSharedFragments, InConstSharedFragments)
 	{}
 
-	FMassArchetypeCompositionDescriptor(FMassFragmentBitSet&& InFragments, FMassTagBitSet&& InTags, FMassChunkFragmentBitSet&& InChunkFragments, FMassSharedFragmentBitSet&& InSharedFragments)
+	FMassArchetypeCompositionDescriptor(FMassFragmentBitSet&& InFragments,
+		FMassTagBitSet&& InTags,
+		FMassChunkFragmentBitSet&& InChunkFragments,
+		FMassSharedFragmentBitSet&& InSharedFragments,
+		FMassConstSharedFragmentBitSet&& InConstSharedFragments)
 		: Fragments(MoveTemp(InFragments))
 		, Tags(MoveTemp(InTags))
 		, ChunkFragments(MoveTemp(InChunkFragments))
 		, SharedFragments(MoveTemp(InSharedFragments))
+		, ConstSharedFragments(MoveTemp(InConstSharedFragments))
 	{}
 
 	FMassArchetypeCompositionDescriptor(FMassFragmentBitSet&& InFragments)
@@ -178,6 +206,7 @@ struct FMassArchetypeCompositionDescriptor
 		Tags.Reset();
 		ChunkFragments.Reset();
 		SharedFragments.Reset();
+		ConstSharedFragments.Reset();
 	}
 
 	bool IsEquivalent(const FMassArchetypeCompositionDescriptor& OtherDescriptor) const
@@ -185,7 +214,8 @@ struct FMassArchetypeCompositionDescriptor
 		return Fragments.IsEquivalent(OtherDescriptor.Fragments) &&
 			Tags.IsEquivalent(OtherDescriptor.Tags) &&
 			ChunkFragments.IsEquivalent(OtherDescriptor.ChunkFragments) &&
-			SharedFragments.IsEquivalent(OtherDescriptor.SharedFragments);
+			SharedFragments.IsEquivalent(OtherDescriptor.SharedFragments) &&
+			ConstSharedFragments.IsEquivalent(OtherDescriptor.ConstSharedFragments);
 	}
 
 	bool IsEmpty() const 
@@ -193,7 +223,8 @@ struct FMassArchetypeCompositionDescriptor
 		return Fragments.IsEmpty() &&
 			Tags.IsEmpty() &&
 			ChunkFragments.IsEmpty() &&
-			SharedFragments.IsEmpty();
+			SharedFragments.IsEmpty() &&
+			ConstSharedFragments.IsEmpty();
 	}
 
 	bool HasAll(const FMassArchetypeCompositionDescriptor& OtherDescriptor) const
@@ -201,26 +232,34 @@ struct FMassArchetypeCompositionDescriptor
 		return Fragments.HasAll(OtherDescriptor.Fragments) &&
 			Tags.HasAll(OtherDescriptor.Tags) &&
 			ChunkFragments.HasAll(OtherDescriptor.ChunkFragments) &&
-			SharedFragments.HasAll(OtherDescriptor.SharedFragments);
+			SharedFragments.HasAll(OtherDescriptor.SharedFragments) &&
+			ConstSharedFragments.HasAll(OtherDescriptor.ConstSharedFragments);
 	}
 
-	static uint32 CalculateHash(const FMassFragmentBitSet& InFragments, const FMassTagBitSet& InTags, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragmentBitSet)
+	static uint32 CalculateHash(const FMassFragmentBitSet& InFragments, const FMassTagBitSet& InTags
+		, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragmentBitSet
+		, const FMassConstSharedFragmentBitSet& InConstSharedFragmentBitSet)
 	{
 		const uint32 FragmentsHash = GetTypeHash(InFragments);
 		const uint32 TagsHash = GetTypeHash(InTags);
 		const uint32 ChunkFragmentsHash = GetTypeHash(InChunkFragments);
 		const uint32 SharedFragmentsHash = GetTypeHash(InSharedFragmentBitSet);
-		return HashCombine(HashCombine(HashCombine(FragmentsHash, TagsHash), ChunkFragmentsHash), SharedFragmentsHash);
+		const uint32 ConstSharedFragmentsHash = GetTypeHash(InConstSharedFragmentBitSet);
+		return HashCombine(HashCombine(HashCombine(HashCombine(FragmentsHash, TagsHash), ChunkFragmentsHash), SharedFragmentsHash), ConstSharedFragmentsHash);
 	}	
 
 	uint32 CalculateHash() const 
 	{
-		return CalculateHash(Fragments, Tags, ChunkFragments, SharedFragments);
+		return CalculateHash(Fragments, Tags, ChunkFragments, SharedFragments, ConstSharedFragments);
 	}
 
 	int32 CountStoredTypes() const
 	{
-		return Fragments.CountStoredTypes() + Tags.CountStoredTypes() + ChunkFragments.CountStoredTypes() + SharedFragments.CountStoredTypes();
+		return Fragments.CountStoredTypes()
+			+ Tags.CountStoredTypes()
+			+ ChunkFragments.CountStoredTypes()
+			+ SharedFragments.CountStoredTypes()
+			+ ConstSharedFragments.CountStoredTypes();
 	}
 
 	void DebugOutputDescription(FOutputDevice& Ar) const
@@ -245,6 +284,28 @@ struct FMassArchetypeCompositionDescriptor
 	FMassTagBitSet Tags;
 	FMassChunkFragmentBitSet ChunkFragments;
 	FMassSharedFragmentBitSet SharedFragments;
+	FMassConstSharedFragmentBitSet ConstSharedFragments;
+
+	UE_DEPRECATED(5.5, "This FMassArchetypeCompositionDescriptor constructor is deprecated. Please explicitly provide FConstSharedFragmentBitSet.")
+	FMassArchetypeCompositionDescriptor(const FMassFragmentBitSet& InFragments, const FMassTagBitSet& InTags, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragments)
+		: FMassArchetypeCompositionDescriptor(InFragments, InTags, InChunkFragments, InSharedFragments, FMassConstSharedFragmentBitSet())
+	{}
+
+	UE_DEPRECATED(5.5, "This FMassArchetypeCompositionDescriptor constructor is deprecated. Please explicitly provide FConstSharedFragmentBitSet.")
+	FMassArchetypeCompositionDescriptor(TConstArrayView<const UScriptStruct*> InFragments, const FMassTagBitSet& InTags, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragments)
+		: FMassArchetypeCompositionDescriptor(FMassFragmentBitSet(InFragments), InTags, InChunkFragments, InSharedFragments, FMassConstSharedFragmentBitSet())
+	{}
+
+	UE_DEPRECATED(5.5, "This FMassArchetypeCompositionDescriptor constructor is deprecated. Please explicitly provide FConstSharedFragmentBitSet.")
+	FMassArchetypeCompositionDescriptor(TConstArrayView<FInstancedStruct> InFragmentInstances, const FMassTagBitSet& InTags, const FMassChunkFragmentBitSet& InChunkFragments, const FMassSharedFragmentBitSet& InSharedFragments)
+		: FMassArchetypeCompositionDescriptor(FMassFragmentBitSet(InFragmentInstances), InTags, InChunkFragments, InSharedFragments, FMassConstSharedFragmentBitSet())
+	{}
+
+	UE_DEPRECATED(5.5, "This FMassArchetypeCompositionDescriptor constructor is deprecated. Please explicitly provide FConstSharedFragmentBitSet.")
+	FMassArchetypeCompositionDescriptor(FMassFragmentBitSet&& InFragments, FMassTagBitSet&& InTags, FMassChunkFragmentBitSet&& InChunkFragments, FMassSharedFragmentBitSet&& InSharedFragments)
+	{
+		ensureMsgf(false, TEXT("This constructor is defunct. Please update your implementation based on deprecation warning."));
+	}
 };
 
 /** 
@@ -260,14 +321,30 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 	FMassArchetypeSharedFragmentValues& operator=(const FMassArchetypeSharedFragmentValues& OtherFragmentValues) = default;
 	FMassArchetypeSharedFragmentValues& operator=(FMassArchetypeSharedFragmentValues&& OtherFragmentValues) = default;
 
-	FORCEINLINE bool HasExactFragmentTypesMatch(const FMassSharedFragmentBitSet& InSharedFragmentBitSet) const
+	FORCEINLINE bool HasExactFragmentTypesMatch(const FMassSharedFragmentBitSet& InSharedFragmentBitSet, const FMassConstSharedFragmentBitSet& InConstSharedFragmentBitSet) const
+	{
+		return HasExactSharedFragmentTypesMatch(InSharedFragmentBitSet)
+			&& HasExactConstSharedFragmentTypesMatch(InConstSharedFragmentBitSet);
+	}
+
+	FORCEINLINE bool HasExactSharedFragmentTypesMatch(const FMassSharedFragmentBitSet& InSharedFragmentBitSet) const
 	{
 		return SharedFragmentBitSet == InSharedFragmentBitSet;
 	}
 
-	FORCEINLINE bool HasAllRequiredFragmentTypes(const FMassSharedFragmentBitSet& InSharedFragmentBitSet) const
+	FORCEINLINE bool HasAllRequiredSharedFragmentTypes(const FMassSharedFragmentBitSet& InSharedFragmentBitSet) const
 	{
 		return SharedFragmentBitSet.HasAll(InSharedFragmentBitSet);
+	}
+
+	FORCEINLINE bool HasExactConstSharedFragmentTypesMatch(const FMassConstSharedFragmentBitSet& InConstSharedFragmentBitSet) const
+	{
+		return ConstSharedFragmentBitSet == InConstSharedFragmentBitSet;
+	}
+
+	FORCEINLINE bool HasAllRequiredConstSharedFragmentTypes(const FMassConstSharedFragmentBitSet& InConstSharedFragmentBitSet) const
+	{
+		return ConstSharedFragmentBitSet.HasAll(InConstSharedFragmentBitSet);
 	}
 
 	FORCEINLINE bool IsEquivalent(const FMassArchetypeSharedFragmentValues& OtherSharedFragmentValues) const
@@ -285,13 +362,37 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 
 	FORCEINLINE bool ContainsType(const UScriptStruct* FragmentType) const
 	{
-		return FragmentType != nullptr && SharedFragmentBitSet.Contains(*FragmentType);
+		if (FragmentType)
+		{
+			if (FragmentType->IsChildOf(FMassSharedFragment::StaticStruct()))
+			{
+				return SharedFragmentBitSet.Contains(*FragmentType);
+			}
+
+			if (FragmentType->IsChildOf(FMassConstSharedFragment::StaticStruct()))
+			{
+				return ConstSharedFragmentBitSet.Contains(*FragmentType);
+			}
+		}
+
+		return false;
 	}
 
 	template<typename T>
 	FORCEINLINE bool ContainsType() const
 	{
-		return SharedFragmentBitSet.Contains(*T::StaticStruct());
+		if constexpr (TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived)
+		{
+			return ConstSharedFragmentBitSet.Contains(*T::StaticStruct());
+		}
+		else if constexpr (TIsDerivedFrom<T, FMassSharedFragment>::IsDerived)
+		{
+			return SharedFragmentBitSet.Contains(*T::StaticStruct());
+		}
+		else
+		{
+			return false;
+		}
 	}
 
 	/** 
@@ -321,6 +422,12 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 	 * @return number of fragments types removed
 	 */
 	int32 Remove(const FMassSharedFragmentBitSet& SharedFragmentToRemoveBitSet);
+
+	/** 
+	 * Note that the function removes the const shared fragments by type
+	 * @return number of fragments types removed
+	 */
+	int32 Remove(const FMassConstSharedFragmentBitSet& ConstSharedFragmentToRemoveBitSet);
 
 	FORCEINLINE const TArray<FConstSharedStruct>& GetConstSharedFragments() const
 	{
@@ -352,6 +459,11 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 	const FMassSharedFragmentBitSet& GetSharedFragmentBitSet() const
 	{
 		return SharedFragmentBitSet;
+	}
+
+	const FMassConstSharedFragmentBitSet& GetConstSharedFragmentBitSet() const
+	{
+		return ConstSharedFragmentBitSet;
 	}
 
 	FORCEINLINE void DirtyHashCache()
@@ -403,8 +515,19 @@ protected:
 	mutable bool bSorted = true; 
 	
 	FMassSharedFragmentBitSet SharedFragmentBitSet;
+	FMassConstSharedFragmentBitSet ConstSharedFragmentBitSet;
 	TArray<FConstSharedStruct> ConstSharedFragments;
 	TArray<FSharedStruct> SharedFragments;
+
+public:
+	//-----------------------------------------------------------------------------
+	// DEPRECATED
+	//-----------------------------------------------------------------------------
+	UE_DEPRECATED(5.5, "HasExactFragmentTypesMatch is deprecated. Use HasExactSharedFragmentTypesMatch or the two-parameter version of HasExactFragmentTypesMatch.")
+	FORCEINLINE bool HasExactFragmentTypesMatch(const FMassSharedFragmentBitSet& InSharedFragmentBitSet) const
+	{
+		return HasExactSharedFragmentTypesMatch(InSharedFragmentBitSet);
+	}
 };
 
 UENUM()

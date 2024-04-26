@@ -23,7 +23,7 @@ struct MASSAIBEHAVIOR_API FMassStateTreeInstanceFragment : public FMassFragment
 
 
 USTRUCT()
-struct MASSAIBEHAVIOR_API FMassStateTreeSharedFragment : public FMassSharedFragment
+struct MASSAIBEHAVIOR_API FMassStateTreeSharedFragment : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 

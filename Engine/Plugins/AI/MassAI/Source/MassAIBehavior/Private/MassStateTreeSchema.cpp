@@ -20,5 +20,6 @@ bool UMassStateTreeSchema::IsExternalItemAllowed(const UStruct& InStruct) const
 	// Allow only WorldSubsystems and fragments as external data.
 	return InStruct.IsChildOf(UWorldSubsystem::StaticClass())
 			|| InStruct.IsChildOf(FMassFragment::StaticStruct())
-			|| InStruct.IsChildOf(FMassSharedFragment::StaticStruct());
+			|| InStruct.IsChildOf(FMassSharedFragment::StaticStruct())
+			|| InStruct.IsChildOf(FMassConstSharedFragment::StaticStruct());
 }

@@ -85,6 +85,7 @@ void FMassArchetypeData::Initialize(const FMassArchetypeCompositionDescriptor& I
 
 	// Share fragments
 	CompositionDescriptor.SharedFragments = InCompositionDescriptor.SharedFragments;
+	CompositionDescriptor.ConstSharedFragments = InCompositionDescriptor.ConstSharedFragments;
 
 	EntityListOffsetWithinChunk = 0;
 }
@@ -987,8 +988,8 @@ void FMassArchetypeData::BatchAddEntities(TConstArrayView<FMassEntityHandle> Ent
 {
 	SCOPE_CYCLE_COUNTER(STAT_Mass_ArchetypeBatchAdd);
 
-	testableCheckfReturn(SharedFragmentValues.HasExactFragmentTypesMatch(GetCompositionDescriptor().SharedFragments)
-		, return, TEXT("%hs parameter SharedFragmentValues doesn't match archetype's composition"), __FUNCTION__);
+	testableCheckfReturn(SharedFragmentValues.HasExactSharedFragmentTypesMatch(GetCompositionDescriptor().SharedFragments), return, TEXT("%hs parameter SharedFragmentValues doesn't match archetype's composition"), __FUNCTION__);
+	testableCheckfReturn(SharedFragmentValues.HasExactConstSharedFragmentTypesMatch(GetCompositionDescriptor().ConstSharedFragments), return, TEXT("%hs parameter ConstSharedFragmentValues doesn't match archetype's composition"), __FUNCTION__);
 
 	FMassArchetypeEntityCollection::FArchetypeEntityRange ResultSubchunk;
 	ResultSubchunk.ChunkIndex = 0;
@@ -1014,25 +1015,31 @@ void FMassArchetypeData::BatchAddEntities(TConstArrayView<FMassEntityHandle> Ent
 void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetypeEntityCollection& EntityCollection
 	, FMassArchetypeData& NewArchetype, TArray<FMassEntityHandle>& OutEntitiesBeingMoved
 	, TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange>* OutNewRanges, const FMassArchetypeSharedFragmentValues* SharedFragmentValuesToAdd
-	, const FMassSharedFragmentBitSet* SharedFragmentToRemoveBitSet)
+	, const FMassSharedFragmentBitSet* SharedFragmentToRemoveBitSet, const FMassConstSharedFragmentBitSet* ConstSharedFragmentToRemoveBitSet)
 {
 	check(&NewArchetype != this);
 
-	if (SharedFragmentValuesToAdd || SharedFragmentToRemoveBitSet)
+	// verify the new archetype's shared fragment composition matches current archetype's composition modified as requested
+	if (SharedFragmentValuesToAdd)
 	{
-		// verify the new archetype's shared fragment composition matches current archetype's composition modified as requested
-		FMassSharedFragmentBitSet NewSharedFragmentsBitset = GetSharedFragmentBitSet();
+		bool bIsValidArchetype = true;
 		if (SharedFragmentToRemoveBitSet)
 		{
+			FMassSharedFragmentBitSet NewSharedFragmentsBitset = GetSharedFragmentBitSet();
 			NewSharedFragmentsBitset -= *SharedFragmentToRemoveBitSet;
-		}
-		if (SharedFragmentValuesToAdd)
-		{
 			NewSharedFragmentsBitset += SharedFragmentValuesToAdd->GetSharedFragmentBitSet();
+			bIsValidArchetype = NewArchetype.GetCompositionDescriptor().SharedFragments == NewSharedFragmentsBitset;
 		}
-		
-		testableCheckfReturn(NewArchetype.GetCompositionDescriptor().SharedFragments == NewSharedFragmentsBitset
-			, return, TEXT("%hs parameter SharedFragmentValues doesn't match archetype's composition"), __FUNCTION__);
+
+		if (bIsValidArchetype && ConstSharedFragmentToRemoveBitSet)
+		{
+			FMassConstSharedFragmentBitSet NewConstSharedFragmentsBitset = GetConstSharedFragmentBitSet();
+			NewConstSharedFragmentsBitset -= *ConstSharedFragmentToRemoveBitSet;
+			NewConstSharedFragmentsBitset += SharedFragmentValuesToAdd->GetConstSharedFragmentBitSet();
+			bIsValidArchetype = NewArchetype.GetCompositionDescriptor().ConstSharedFragments == NewConstSharedFragmentsBitset;
+		}
+
+		testableCheckfReturn(bIsValidArchetype, return, TEXT("%hs parameter SharedFragmentValues doesn't match archetype's composition"), __FUNCTION__);
 	}
 
 	TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange> Subchunks(EntityCollection.GetRanges());
@@ -1078,6 +1085,10 @@ void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetyp
 				if (SharedFragmentToRemoveBitSet)
 				{
 					NewSharedValues.Remove(*SharedFragmentToRemoveBitSet);
+				}
+				if (ConstSharedFragmentToRemoveBitSet)
+				{
+					NewSharedValues.Remove(*ConstSharedFragmentToRemoveBitSet);
 				}
 				if (SharedFragmentValuesToAdd)
 				{

@@ -100,6 +100,19 @@ struct FTestSharedFragment_Int : public FMassSharedFragment
 };
 
 USTRUCT()
+struct FTestConstSharedFragment_Int : public FMassConstSharedFragment
+{
+	using FValueType = int32;
+
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 Value = 0;
+
+	FTestConstSharedFragment_Int(const int32 InValue = 0) : Value(InValue) {}
+};
+
+USTRUCT()
 struct FTestSharedFragment_Float : public FMassSharedFragment
 {
 	using FValueType = float;
@@ -110,6 +123,19 @@ struct FTestSharedFragment_Float : public FMassSharedFragment
 	float Value = 0.f;
 
 	FTestSharedFragment_Float(const float InValue = 0) : Value(InValue) {}
+};
+
+USTRUCT()
+struct FTestConstSharedFragment_Float : public FMassConstSharedFragment
+{
+	using FValueType = float;
+
+	GENERATED_BODY()
+
+	UPROPERTY()
+	float Value = 0.f;
+
+	FTestConstSharedFragment_Float(const float InValue = 0) : Value(InValue) {}
 };
 
 /** @todo rename to FTestTag */

@@ -307,7 +307,7 @@ public:
 	template<typename T>
 	FMassFragmentRequirements& AddConstSharedRequirement(const EMassFragmentPresence Presence = EMassFragmentPresence::All)
 	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
 		checkf(ConstSharedFragmentRequirements.FindByPredicate([](const FMassFragmentRequirementDescription& Item) { return Item.StructType == T::StaticStruct(); }) == nullptr
 			, TEXT("Duplicated requirements are not supported. %s already present"), *T::StaticStruct()->GetName());
 		checkf(Presence != EMassFragmentPresence::Any, TEXT("\'Any\' is not a valid Presence value for AddConstSharedRequirement."));
@@ -315,15 +315,15 @@ public:
 		switch (Presence)
 		{
 		case EMassFragmentPresence::All:
-			RequiredAllSharedFragments.Add<T>();
+			RequiredAllConstSharedFragments.Add<T>();
 			ConstSharedFragmentRequirements.Emplace(T::StaticStruct(), EMassFragmentAccess::ReadOnly, Presence);
 			break;
 		case EMassFragmentPresence::Optional:
-			RequiredOptionalSharedFragments.Add<T>();
+			RequiredOptionalConstSharedFragments.Add<T>();
 			ConstSharedFragmentRequirements.Emplace(T::StaticStruct(), EMassFragmentAccess::ReadOnly, Presence);
 			break;
 		case EMassFragmentPresence::None:
-			RequiredNoneSharedFragments.Add<T>();
+			RequiredNoneConstSharedFragments.Add<T>();
 			break;
 		}
 		IncrementChangeCounter();
@@ -332,8 +332,8 @@ public:
 
 	FMassFragmentRequirements& AddConstSharedRequirement(const UScriptStruct* FragmentType, const EMassFragmentPresence Presence = EMassFragmentPresence::All)
 	{
-		if (!ensureMsgf(FragmentType->IsChildOf(FMassSharedFragment::StaticStruct())
-			, TEXT("Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.")))
+		if (!ensureMsgf(FragmentType->IsChildOf(FMassConstSharedFragment::StaticStruct())
+			, TEXT("Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.")))
 		{
 			return *this;
 		}
@@ -345,15 +345,15 @@ public:
 		switch (Presence)
 		{
 		case EMassFragmentPresence::All:
-			RequiredAllSharedFragments.Add(*FragmentType);
+			RequiredAllConstSharedFragments.Add(*FragmentType);
 			ConstSharedFragmentRequirements.Emplace(FragmentType, EMassFragmentAccess::ReadOnly, Presence);
 			break;
 		case EMassFragmentPresence::Optional:
-			RequiredOptionalSharedFragments.Add(*FragmentType);
+			RequiredOptionalConstSharedFragments.Add(*FragmentType);
 			ConstSharedFragmentRequirements.Emplace(FragmentType, EMassFragmentAccess::ReadOnly, Presence);
 			break;
 		case EMassFragmentPresence::None:
-			RequiredNoneSharedFragments.Add(*FragmentType);
+			RequiredNoneConstSharedFragments.Add(*FragmentType);
 			break;
 		}
 		IncrementChangeCounter();
@@ -421,6 +421,9 @@ public:
 	const FMassSharedFragmentBitSet& GetRequiredAllSharedFragments() const { return RequiredAllSharedFragments; }
 	const FMassSharedFragmentBitSet& GetRequiredOptionalSharedFragments() const { return RequiredOptionalSharedFragments; }
 	const FMassSharedFragmentBitSet& GetRequiredNoneSharedFragments() const { return RequiredNoneSharedFragments; }
+	const FMassConstSharedFragmentBitSet& GetRequiredAllConstSharedFragments() const { return RequiredAllConstSharedFragments; }
+	const FMassConstSharedFragmentBitSet& GetRequiredOptionalConstSharedFragments() const { return RequiredOptionalConstSharedFragments; }
+	const FMassConstSharedFragmentBitSet& GetRequiredNoneConstSharedFragments() const { return RequiredNoneConstSharedFragments; }
 
 	bool IsEmpty() const;
 
@@ -455,6 +458,9 @@ protected:
 	FMassSharedFragmentBitSet RequiredAllSharedFragments;
 	FMassSharedFragmentBitSet RequiredOptionalSharedFragments;
 	FMassSharedFragmentBitSet RequiredNoneSharedFragments;
+	FMassConstSharedFragmentBitSet RequiredAllConstSharedFragments;
+	FMassConstSharedFragmentBitSet RequiredOptionalConstSharedFragments;
+	FMassConstSharedFragmentBitSet RequiredNoneConstSharedFragments;
 
 private:
 	mutable uint16 bValidityIsCached : 1 = false;

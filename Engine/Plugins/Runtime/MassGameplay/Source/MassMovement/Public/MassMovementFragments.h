@@ -25,7 +25,7 @@ struct MASSMOVEMENT_API FMassForceFragment : public FMassFragment
 };
 
 USTRUCT()
-struct MASSMOVEMENT_API FMassMovementParameters : public FMassSharedFragment
+struct MASSMOVEMENT_API FMassMovementParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 

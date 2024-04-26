@@ -236,7 +236,7 @@ void FTypedElementDatabaseCommandBuffer::Execute_AddColumnsCommand(
 	FMassTagBitSet TagsToAdd)
 {
 	FMassArchetypeCompositionDescriptor AddComposition(
-		MoveTemp(FragmentsToAdd), MoveTemp(TagsToAdd), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet());
+		MoveTemp(FragmentsToAdd), MoveTemp(TagsToAdd), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet(), FMassConstSharedFragmentBitSet());
 	MassEntityManager.AddCompositionToEntity_GetDelta(FMassEntityHandle::FromNumber(Row), AddComposition);
 }
 
@@ -266,7 +266,7 @@ void FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnsCommand(
 	FMassTagBitSet TagsToRemove)
 {
 	FMassArchetypeCompositionDescriptor RemoveComposition(
-		MoveTemp(FragmentsToRemove), MoveTemp(TagsToRemove), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet());
+		MoveTemp(FragmentsToRemove), MoveTemp(TagsToRemove), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet(), FMassConstSharedFragmentBitSet());
 	MassEntityManager.RemoveCompositionFromEntity(FMassEntityHandle::FromNumber(Row), RemoveComposition);
 }
 

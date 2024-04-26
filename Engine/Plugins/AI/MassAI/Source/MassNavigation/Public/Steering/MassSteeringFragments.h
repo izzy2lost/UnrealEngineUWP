@@ -48,7 +48,7 @@ struct MASSNAVIGATION_API FMassStandingSteeringFragment : public FMassFragment
 
 /** Steering related movement parameters. */
 USTRUCT()
-struct MASSNAVIGATION_API FMassMovingSteeringParameters : public FMassSharedFragment
+struct MASSNAVIGATION_API FMassMovingSteeringParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 
@@ -62,7 +62,7 @@ struct MASSNAVIGATION_API FMassMovingSteeringParameters : public FMassSharedFrag
 };
 
 USTRUCT()
-struct FMassStandingSteeringParameters : public FMassSharedFragment
+struct FMassStandingSteeringParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 

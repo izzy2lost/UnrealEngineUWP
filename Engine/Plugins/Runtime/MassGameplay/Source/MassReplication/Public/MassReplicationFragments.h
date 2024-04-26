@@ -76,7 +76,7 @@ protected:
 };
 
 USTRUCT()
-struct FMassReplicationParameters : public FMassSharedFragment
+struct FMassReplicationParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 public:

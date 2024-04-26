@@ -40,6 +40,24 @@ struct TMassExecutionAccess
 	bool IsEmpty() const { return Read.IsEmpty() && Write.IsEmpty(); }
 };
 
+/** 
+ * TMassExecutionAccess specialization for FMassConstSharedFragmentBitSet to enforce lack of access (not needed) and
+ * no "Write" component (conceptually doesn't make sense).
+ */
+template<>
+struct TMassExecutionAccess<FMassConstSharedFragmentBitSet>
+{
+	FMassConstSharedFragmentBitSet Read;
+	TConstArrayView<FMassConstSharedFragmentBitSet> AsArrayView() const 
+	{ 
+		return MakeArrayView(&Read, 1); 
+	}
+	bool IsEmpty() const 
+	{ 
+		return Read.IsEmpty(); 
+	}
+};
+
 struct MASSENTITY_API FMassExecutionRequirements
 {
 	void Append(const FMassExecutionRequirements& Other);
@@ -51,6 +69,7 @@ struct MASSENTITY_API FMassExecutionRequirements
 	TMassExecutionAccess<FMassFragmentBitSet> Fragments;
 	TMassExecutionAccess<FMassChunkFragmentBitSet> ChunkFragments;
 	TMassExecutionAccess<FMassSharedFragmentBitSet> SharedFragments;
+	TMassExecutionAccess<FMassConstSharedFragmentBitSet> ConstSharedFragments;
 	TMassExecutionAccess<FMassExternalSubsystemBitSet> RequiredSubsystems;
 	FMassTagBitSet RequiredAllTags;
 	FMassTagBitSet RequiredAnyTags;

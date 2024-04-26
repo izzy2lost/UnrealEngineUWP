@@ -51,6 +51,8 @@ void FMassExecutionRequirements::Append(const FMassExecutionRequirements& Other)
 		SharedFragments[i] += Other.SharedFragments[i];
 		RequiredSubsystems[i] += Other.RequiredSubsystems[i];
 	}
+	ConstSharedFragments.Read += Other.ConstSharedFragments.Read;
+
 	RequiredAllTags += Other.RequiredAllTags;
 	RequiredAnyTags += Other.RequiredAnyTags;
 	RequiredNoneTags += Other.RequiredNoneTags;
@@ -61,7 +63,7 @@ void FMassExecutionRequirements::Append(const FMassExecutionRequirements& Other)
 
 void FMassExecutionRequirements::CountResourcesUsed()
 {
-	ResourcesUsedCount = 0;
+	ResourcesUsedCount = ConstSharedFragments.Read.CountStoredTypes();
 
 	for (int i = 0; i < EMassAccessOperation::MAX; ++i)
 	{
@@ -83,7 +85,7 @@ int32 FMassExecutionRequirements::GetTotalBitsUsedCount()
 bool FMassExecutionRequirements::IsEmpty() const
 {
 	return Fragments.IsEmpty() && ChunkFragments.IsEmpty() 
-		&& SharedFragments.IsEmpty() && RequiredSubsystems.IsEmpty()
+		&& SharedFragments.IsEmpty() && ConstSharedFragments.IsEmpty() && RequiredSubsystems.IsEmpty()
 		&& RequiredAllTags.IsEmpty() && RequiredAnyTags.IsEmpty() && RequiredNoneTags.IsEmpty();
 }
 
@@ -92,7 +94,8 @@ FMassArchetypeCompositionDescriptor FMassExecutionRequirements::AsCompositionDes
 	return FMassArchetypeCompositionDescriptor(Fragments.Read + Fragments.Write
 		, RequiredAllTags + RequiredAnyTags
 		, ChunkFragments.Read + ChunkFragments.Write
-		, SharedFragments.Read + SharedFragments.Write);
+		, SharedFragments.Read + SharedFragments.Write
+		, ConstSharedFragments.Read);
 }
 
 //----------------------------------------------------------------------//
@@ -229,6 +232,7 @@ bool FMassProcessorDependencySolver::FResourceUsage::HasArchetypeConflict(TMassE
 
 bool FMassProcessorDependencySolver::FResourceUsage::CanAccessRequirements(const FMassExecutionRequirements& TestedRequirements, const TArray<FMassArchetypeHandle>& InArchetypes) const
 {
+	// note that on purpose we're not checking ConstSharedFragments - those are always only read, no danger of conflicting access
 	bool bCanAccess = (CanAccess<FMassFragmentBitSet>(Requirements.Fragments, TestedRequirements.Fragments) || !HasArchetypeConflict(FragmentsAccess, InArchetypes))
 		&& (CanAccess<FMassChunkFragmentBitSet>(Requirements.ChunkFragments, TestedRequirements.ChunkFragments) || !HasArchetypeConflict(ChunkFragmentsAccess, InArchetypes))
 		&& (CanAccess<FMassSharedFragmentBitSet>(Requirements.SharedFragments, TestedRequirements.SharedFragments) || !HasArchetypeConflict(SharedFragmentsAccess, InArchetypes))
@@ -243,6 +247,8 @@ void FMassProcessorDependencySolver::FResourceUsage::SubmitNode(const int32 Node
 	HandleElementType<FMassChunkFragmentBitSet>(ChunkFragmentsAccess, InOutNode.Requirements.ChunkFragments, InOutNode, NodeIndex);
 	HandleElementType<FMassSharedFragmentBitSet>(SharedFragmentsAccess, InOutNode.Requirements.SharedFragments, InOutNode, NodeIndex);
 	HandleElementType<FMassExternalSubsystemBitSet>(RequiredSubsystemsAccess, InOutNode.Requirements.RequiredSubsystems, InOutNode, NodeIndex);
+	// note that on purpose we're not pushing ConstSharedFragments - those are always only read, no danger of conflicting access
+	// so there's no point in tracking them
 
 	Requirements.Append(InOutNode.Requirements);
 }

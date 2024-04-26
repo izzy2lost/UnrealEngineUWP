@@ -11,6 +11,7 @@ DEFINE_TYPEBITSET(FMassFragmentBitSet);
 DEFINE_TYPEBITSET(FMassTagBitSet);
 DEFINE_TYPEBITSET(FMassChunkFragmentBitSet);
 DEFINE_TYPEBITSET(FMassSharedFragmentBitSet);
+DEFINE_TYPEBITSET(FMassConstSharedFragmentBitSet);
 DEFINE_TYPEBITSET(FMassExternalSubsystemBitSet);
 
 //-----------------------------------------------------------------------------
@@ -28,7 +29,7 @@ FConstSharedStruct FMassArchetypeSharedFragmentValues::AddConstSharedFragment(co
 	}
 
 	check(StructType);
-	SharedFragmentBitSet.Add(*StructType);
+	ConstSharedFragmentBitSet.Add(*StructType);
 	FConstSharedStruct& StructInstance = ConstSharedFragments.Add_GetRef(Fragment);
 	DirtyHashCache();
 	return StructInstance;
@@ -133,7 +134,8 @@ namespace UE::Mass::Private
 
 bool FMassArchetypeSharedFragmentValues::HasSameValues(const FMassArchetypeSharedFragmentValues& Other) const
 {
-	if (SharedFragmentBitSet.IsEquivalent(Other.SharedFragmentBitSet) == false)
+	if (SharedFragmentBitSet.IsEquivalent(Other.SharedFragmentBitSet) == false
+		|| ConstSharedFragmentBitSet.IsEquivalent(Other.ConstSharedFragmentBitSet) == false)
 	{
 		return false;
 	}
@@ -171,7 +173,7 @@ int32 FMassArchetypeSharedFragmentValues::Append(const FMassArchetypeSharedFragm
 	{
 		const UScriptStruct* StructType = SharedStruct.GetScriptStruct();
 		check(StructType);
-		if (SharedFragmentBitSet.Contains(*StructType))
+		if (ConstSharedFragmentBitSet.Contains(*StructType))
 		{
 			const int32 FragmentIndex = ConstSharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
 			if (testableEnsureMsgf(FragmentIndex != INDEX_NONE, TEXT("%hs trying to switch non-const fragment to const, type %s")
@@ -187,8 +189,9 @@ int32 FMassArchetypeSharedFragmentValues::Append(const FMassArchetypeSharedFragm
 			++AddedOrModifiedCount;
 		}
 	}
-	
+
 	SharedFragmentBitSet += Other.SharedFragmentBitSet;
+	ConstSharedFragmentBitSet += Other.ConstSharedFragmentBitSet;
 	DirtyHashCache();
 
 	return AddedOrModifiedCount;
@@ -204,20 +207,11 @@ int32 FMassArchetypeSharedFragmentValues::Remove(const FMassSharedFragmentBitSet
 		const UScriptStruct* StructType = CommonFragments.GetTypeAtIndex(*It);
 		check(StructType);
 
-		const int32 RecularFragmentIndex = SharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
-		if (RecularFragmentIndex != INDEX_NONE)
+		const int32 RegularFragmentIndex = SharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+		if (RegularFragmentIndex != INDEX_NONE)
 		{
-			SharedFragments[RecularFragmentIndex].Reset();
+			SharedFragments[RegularFragmentIndex].Reset();
 			++RemovedCount;
-		}
-		else
-		{
-			const int32 ConstFragmentIndex = ConstSharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
-			if (ConstFragmentIndex != INDEX_NONE)
-			{
-				ConstSharedFragments[ConstFragmentIndex].Reset();
-				++RemovedCount;
-			}
 		}
 
 		++It;
@@ -226,6 +220,34 @@ int32 FMassArchetypeSharedFragmentValues::Remove(const FMassSharedFragmentBitSet
 	if (RemovedCount)
 	{
 		SharedFragmentBitSet -= CommonFragments;
+		DirtyHashCache();
+	}
+	return RemovedCount;
+}
+
+int32 FMassArchetypeSharedFragmentValues::Remove(const FMassConstSharedFragmentBitSet& ConstSharedFragmentToRemoveBitSet)
+{
+	int32 RemovedCount = 0;
+	FMassConstSharedFragmentBitSet CommonFragments = (ConstSharedFragmentBitSet & ConstSharedFragmentToRemoveBitSet);
+	FMassConstSharedFragmentBitSet::FIndexIterator It = CommonFragments.GetIndexIterator();
+	while(It)
+	{
+		const UScriptStruct* StructType = CommonFragments.GetTypeAtIndex(*It);
+		check(StructType);
+
+		const int32 RegularFragmentIndex = ConstSharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+		if (RegularFragmentIndex != INDEX_NONE)
+		{
+			ConstSharedFragments[RegularFragmentIndex].Reset();
+			++RemovedCount;
+		}
+
+		++It;
+	}
+
+	if (RemovedCount)
+	{
+		ConstSharedFragmentBitSet -= CommonFragments;
 		DirtyHashCache();
 	}
 	return RemovedCount;

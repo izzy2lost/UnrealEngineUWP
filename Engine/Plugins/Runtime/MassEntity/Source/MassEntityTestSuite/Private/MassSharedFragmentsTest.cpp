@@ -67,12 +67,12 @@ struct FSharedFragmentValues_CreateConst : FExecutionTestBase
 		FMassArchetypeSharedFragmentValues Values;
 
 		{
-			FConstSharedStruct SharedFragmentInstance = FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue);
+			FConstSharedStruct SharedFragmentInstance = FConstSharedStruct::Make<FTestConstSharedFragment_Int>(TestIntValue);
 			Values.AddConstSharedFragment(SharedFragmentInstance);
 		}
 
-		const FTestSharedFragment_Int* ConstInstance = GetConstSharedFragmentPtr<FTestSharedFragment_Int>(Values);
-		FTestSharedFragment_Int* NonConstInstance = GetMutableSharedFragmentPtr<FTestSharedFragment_Int>(Values);
+		const FTestConstSharedFragment_Int* ConstInstance = GetConstSharedFragmentPtr<FTestConstSharedFragment_Int>(Values);
+		FTestConstSharedFragment_Int* NonConstInstance = GetMutableSharedFragmentPtr<FTestConstSharedFragment_Int>(Values);
 
 		AITEST_NULL("Fetching fragment as a shared fragment should fail", NonConstInstance);
 		AITEST_NOT_NULL("Fetching fragment as a const shared fragment should not fail", ConstInstance);
@@ -97,8 +97,8 @@ struct FSharedFragmentValues_Contains : FExecutionTestBase
 			, Values.ContainsType<FTestSharedFragment_Int>());
 
 		{
-			FConstSharedStruct SharedFragmentInstance = FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue);
-			Values.AddConstSharedFragment(SharedFragmentInstance);
+			FSharedStruct SharedFragmentInstance = FSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue);
+			Values.AddSharedFragment(SharedFragmentInstance);
 		}
 
 		AITEST_TRUE("Empty FMassArchetypeSharedFragmentValues should fail ContainsType tests"
@@ -107,8 +107,8 @@ struct FSharedFragmentValues_Contains : FExecutionTestBase
 			, Values.ContainsType<FTestSharedFragment_Int>());
 
 		{
-			FConstSharedStruct SharedFragmentInstance = FConstSharedStruct::Make<FTestSharedFragment_Float>(TestFloatValue);
-			Values.AddConstSharedFragment(SharedFragmentInstance);
+			FSharedStruct SharedFragmentInstance = FSharedStruct::Make<FTestSharedFragment_Float>(TestFloatValue);
+			Values.AddSharedFragment(SharedFragmentInstance);
 		}
 		AITEST_TRUE("Empty FMassArchetypeSharedFragmentValues should fail ContainsType tests"
 			, Values.ContainsType(FTestSharedFragment_Float::StaticStruct()));
@@ -152,12 +152,12 @@ struct FSharedFragmentValues_Append : FExecutionTestBase
 		}
 
 		FMassArchetypeSharedFragmentValues ValuesConstInt;
-		ValuesConstInt.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue));
+		ValuesConstInt.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Int>(TestIntValue));
 		FMassArchetypeSharedFragmentValues ValuesConstFloat;
-		ValuesConstFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Float>(TestFloatValue));
+		ValuesConstFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Float>(TestFloatValue));
 		FMassArchetypeSharedFragmentValues ValuestConstIntFloat;
-		ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue));
-		ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Float>(TestFloatValue));
+		ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Int>(TestIntValue));
+		ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Float>(TestFloatValue));
 
 		{
 			FMassArchetypeSharedFragmentValues Values;
@@ -172,19 +172,6 @@ struct FSharedFragmentValues_Append : FExecutionTestBase
 			AITEST_TRUE("#7 Append results should match expectations", Values.HasSameValues(ValuesConstFloat));
 			Values.Append(ValuesConstInt);
 			AITEST_TRUE("#8 Append results should match expectations", Values.HasSameValues(ValuestConstIntFloat));
-		}
-
-		// test mismatching "mode" (const vs non-const) failure
-		AITEST_SCOPED_CHECK("trying to switch", 2);
-		{
-			FMassArchetypeSharedFragmentValues Values;
-			Values.Append(ValuesNonConstInt);
-			AITEST_EQUAL("#1 Adding mismatching mode should fail", Values.Append(ValuesConstInt), 0);
-		}
-		{
-			FMassArchetypeSharedFragmentValues Values;
-			Values.Append(ValuesConstInt);
-			AITEST_EQUAL("#2 Adding mismatching mode should fail", Values.Append(ValuesNonConstInt), 0);
 		}
 
 		return true;
@@ -225,25 +212,25 @@ struct FSharedFragmentValues_Remove : FExecutionTestBase
 		}
 		{
 			FMassArchetypeSharedFragmentValues ValuesConstInt;
-			ValuesConstInt.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue));
+			ValuesConstInt.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Int>(TestIntValue));
 			FMassArchetypeSharedFragmentValues ValuesConstFloat;
-			ValuesConstFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Float>(TestFloatValue));
+			ValuesConstFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Float>(TestFloatValue));
 			FMassArchetypeSharedFragmentValues ValuestConstIntFloat;
-			ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue));
-			ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestSharedFragment_Float>(TestFloatValue));
+			ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Int>(TestIntValue));
+			ValuestConstIntFloat.AddConstSharedFragment(FConstSharedStruct::Make<FTestConstSharedFragment_Float>(TestFloatValue));
 
 			{
 				FMassArchetypeSharedFragmentValues Values = ValuestConstIntFloat;
 				AITEST_TRUE("Assignment should result in same values", Values.HasSameValues(ValuestConstIntFloat));
 
 				// removing just the Int shared fragment
-				Values.Remove(ValuesConstInt.GetSharedFragmentBitSet());
+				Values.Remove(ValuesConstInt.GetConstSharedFragmentBitSet());
 				AITEST_TRUE("#3 Removal results should match expectations", Values.HasSameValues(ValuesConstFloat));
 			}
 			{
 				FMassArchetypeSharedFragmentValues Values = ValuestConstIntFloat;
 				// removing just the Float shared fragment
-				Values.Remove(ValuesConstFloat.GetSharedFragmentBitSet());
+				Values.Remove(ValuesConstFloat.GetConstSharedFragmentBitSet());
 				AITEST_TRUE("#4 Removal results should match expectations", Values.HasSameValues(ValuesConstInt));
 			}
 		}
@@ -336,7 +323,7 @@ struct FSharedFragmentBase : public FEntityTestBase
 	}
 };
 
-template<typename TSharedStruct>
+template<typename TSharedStruct, typename TSharedFragment>
 struct FSharedFragment_CreateEntitesWithSharedFragment : public FSharedFragmentBase
 {
 	virtual bool InstantTest() override
@@ -345,8 +332,8 @@ struct FSharedFragment_CreateEntitesWithSharedFragment : public FSharedFragmentB
 		constexpr int32 TestIntValueB = 63;
 		FMassEntityHandle EntityA, EntityB;
 
-		CreateEntity<TSharedStruct, FTestSharedFragment_Int>(EntityA, TestIntValueA);
-		CreateEntity<TSharedStruct, FTestSharedFragment_Int>(EntityB, TestIntValueB);
+		CreateEntity<TSharedStruct, TSharedFragment>(EntityA, TestIntValueA);
+		CreateEntity<TSharedStruct, TSharedFragment>(EntityB, TestIntValueB);
 
 		AITEST_EQUAL("Both entities should end up in the same archetype", EntityManager->GetArchetypeForEntityUnsafe(EntityA)
 			, EntityManager->GetArchetypeForEntityUnsafe(EntityB));
@@ -362,27 +349,27 @@ struct FSharedFragment_CreateEntitesWithSharedFragment : public FSharedFragmentB
 			SharedFragmentA = EntityManager->GetConstSharedFragmentDataStruct(EntityA, FTestSharedFragment_Int::StaticStruct());
 			SharedFragmentB = EntityManager->GetConstSharedFragmentDataStruct(EntityB, FTestSharedFragment_Int::StaticStruct());
 		}*/
-		FConstStructView SharedFragmentA = GetSharedFragmentView<TSharedStruct, FTestSharedFragment_Int>(EntityA);
-		FConstStructView SharedFragmentB = GetSharedFragmentView<TSharedStruct, FTestSharedFragment_Int>(EntityB);
+		FConstStructView SharedFragmentA = GetSharedFragmentView<TSharedStruct, TSharedFragment>(EntityA);
+		FConstStructView SharedFragmentB = GetSharedFragmentView<TSharedStruct, TSharedFragment>(EntityB);
 
 		AITEST_TRUE("SharedFragmentA should be valid", SharedFragmentA.IsValid());
 		AITEST_TRUE("SharedFragmentB should be valid", SharedFragmentB.IsValid());
-		AITEST_EQUAL("SharedFragmentA should be of expected type", SharedFragmentA.GetScriptStruct(), FTestSharedFragment_Int::StaticStruct());
-		AITEST_EQUAL("SharedFragmentB should be of expected type", SharedFragmentB.GetScriptStruct(), FTestSharedFragment_Int::StaticStruct());
+		AITEST_EQUAL("SharedFragmentA should be of expected type", SharedFragmentA.GetScriptStruct(), TSharedFragment::StaticStruct());
+		AITEST_EQUAL("SharedFragmentB should be of expected type", SharedFragmentB.GetScriptStruct(), TSharedFragment::StaticStruct());
 		AITEST_NOT_EQUAL("SharedFragmentA and SharedFragmentB should be different instanceS", SharedFragmentA, SharedFragmentB);
 		AITEST_NOT_EQUAL("SharedFragmentA and SharedFragmentB should be distinct", SharedFragmentA, SharedFragmentB);
-		AITEST_EQUAL("SharedFragmentA's value should match the expected value", SharedFragmentA.Get<const FTestSharedFragment_Int>().Value, TestIntValueA);
-		AITEST_EQUAL("SharedFragmentB's value should match the expected value", SharedFragmentB.Get<const FTestSharedFragment_Int>().Value, TestIntValueB);
+		AITEST_EQUAL("SharedFragmentA's value should match the expected value", SharedFragmentA.Get<const TSharedFragment>().Value, TestIntValueA);
+		AITEST_EQUAL("SharedFragmentB's value should match the expected value", SharedFragmentB.Get<const TSharedFragment>().Value, TestIntValueB);
 
 		return true;
 	}
 };
-using FSharedFragment_CreateEntitesWithNonConstSharedFragment = FSharedFragment_CreateEntitesWithSharedFragment<FSharedStruct>;
+using FSharedFragment_CreateEntitesWithNonConstSharedFragment = FSharedFragment_CreateEntitesWithSharedFragment<FSharedStruct, FTestSharedFragment_Int>;
 IMPLEMENT_AI_INSTANT_TEST(FSharedFragment_CreateEntitesWithNonConstSharedFragment, "System.Mass.SharedFragments.CreateEntities");
-using FSharedFragment_CreateEntitesWithConstSharedFragment = FSharedFragment_CreateEntitesWithSharedFragment<FConstSharedStruct>;
+using FSharedFragment_CreateEntitesWithConstSharedFragment = FSharedFragment_CreateEntitesWithSharedFragment<FConstSharedStruct, FTestConstSharedFragment_Int>;
 IMPLEMENT_AI_INSTANT_TEST(FSharedFragment_CreateEntitesWithConstSharedFragment, "System.Mass.SharedFragments.CreateEntitiesConst");
 
-template<typename TSharedStruct>
+template<typename TSharedStruct, typename TSharedFragment>
 struct FSharedFragment_BatchCreateEntitesWithSharedFragment : public FSharedFragmentBase
 {
 	virtual bool InstantTest() override
@@ -397,8 +384,8 @@ struct FSharedFragment_BatchCreateEntitesWithSharedFragment : public FSharedFrag
 		TArray<FMassEntityHandle> EntitiesA;
 		TArray<FMassEntityHandle> EntitiesB;
 
-		CreateEntities<TSharedStruct, FTestSharedFragment_Int>(EntitiesA, EntitiesToCreateNumA, TestIntValueA);
-		CreateEntities<TSharedStruct, FTestSharedFragment_Int>(EntitiesB, EntitiesToCreateNumB, TestIntValueB);
+		CreateEntities<TSharedStruct, TSharedFragment>(EntitiesA, EntitiesToCreateNumA, TestIntValueA);
+		CreateEntities<TSharedStruct, TSharedFragment>(EntitiesB, EntitiesToCreateNumB, TestIntValueB);
 
 		FMassArchetypeHandle CommonArchetype = EntityManager->GetArchetypeForEntityUnsafe(EntitiesA[0]);
 		AITEST_EQUAL("All the entities should end up in the same archetype"
@@ -408,23 +395,23 @@ struct FSharedFragment_BatchCreateEntitesWithSharedFragment : public FSharedFrag
 
 		for (FMassEntityHandle EntityHandle : EntitiesA)
 		{
-			FConstStructView SharedFragment = GetSharedFragmentView<TSharedStruct, FTestSharedFragment_Int>(EntityHandle);
+			FConstStructView SharedFragment = GetSharedFragmentView<TSharedStruct, TSharedFragment>(EntityHandle);
 			AITEST_TRUE("SharedFragment for entity type A should be valid", SharedFragment.IsValid());
-			AITEST_EQUAL("SharedFragment for entity type A  should be of expected type", SharedFragment.GetScriptStruct(), FTestSharedFragment_Int::StaticStruct());
-			AITEST_EQUAL("SharedFragment's value for entity type A should match the expected value", SharedFragment.Get<const FTestSharedFragment_Int>().Value, TestIntValueA);
+			AITEST_EQUAL("SharedFragment for entity type A  should be of expected type", SharedFragment.GetScriptStruct(), TSharedFragment::StaticStruct());
+			AITEST_EQUAL("SharedFragment's value for entity type A should match the expected value", SharedFragment.Get<const TSharedFragment>().Value, TestIntValueA);
 		}
 
-		FConstStructView SharedFragment = GetSharedFragmentView<TSharedStruct, FTestSharedFragment_Int>(EntitiesB[0]);
+		FConstStructView SharedFragment = GetSharedFragmentView<TSharedStruct, TSharedFragment>(EntitiesB[0]);
 		AITEST_TRUE("SharedFragment for entity type B should be valid", SharedFragment.IsValid());
-		AITEST_EQUAL("SharedFragment for entity type B  should be of expected type", SharedFragment.GetScriptStruct(), FTestSharedFragment_Int::StaticStruct());
-		AITEST_EQUAL("SharedFragment's value for entity type B should match the expected value", SharedFragment.Get<const FTestSharedFragment_Int>().Value, TestIntValueB);
+		AITEST_EQUAL("SharedFragment for entity type B  should be of expected type", SharedFragment.GetScriptStruct(), TSharedFragment::StaticStruct());
+		AITEST_EQUAL("SharedFragment's value for entity type B should match the expected value", SharedFragment.Get<const TSharedFragment>().Value, TestIntValueB);
 
 		return true;
 	}
 };
-using FSharedFragment_BatchCreateEntitesWithNonConstSharedFragment = FSharedFragment_BatchCreateEntitesWithSharedFragment<FSharedStruct>;
+using FSharedFragment_BatchCreateEntitesWithNonConstSharedFragment = FSharedFragment_BatchCreateEntitesWithSharedFragment<FSharedStruct, FTestSharedFragment_Int>;
 IMPLEMENT_AI_INSTANT_TEST(FSharedFragment_BatchCreateEntitesWithNonConstSharedFragment, "System.Mass.SharedFragments.BatchCreateEntities");
-using FSharedFragment_BatchCreateEntitesWithConstSharedFragment = FSharedFragment_BatchCreateEntitesWithSharedFragment<FConstSharedStruct>;
+using FSharedFragment_BatchCreateEntitesWithConstSharedFragment = FSharedFragment_BatchCreateEntitesWithSharedFragment<FConstSharedStruct, FTestConstSharedFragment_Int>;
 IMPLEMENT_AI_INSTANT_TEST(FSharedFragment_BatchCreateEntitesWithConstSharedFragment, "System.Mass.SharedFragments.BatchCreateEntitiesConst");
 
 
@@ -433,17 +420,17 @@ struct FSharedFragment_AddToEntity : FEntityTestBase
 	virtual bool InstantTest() override
 	{
 		constexpr int32 TestIntValue = 1023;
-		FTestSharedFragment_Int FragmentInstance(TestIntValue);
-		FSharedStruct SharedFragmentInstance = FSharedStruct::Make(FragmentInstance);
+		FTestConstSharedFragment_Int FragmentInstance(TestIntValue);
+		FConstSharedStruct SharedFragmentInstance = FSharedStruct::Make(FragmentInstance);
 
 		const FMassEntityHandle EntityHandle = EntityManager->CreateEntity(FloatsArchetype);
 
-		FTestSharedFragment_Int* EntitySharedFragment = EntityManager->GetSharedFragmentDataPtr<FTestSharedFragment_Int>(EntityHandle);
+		FTestConstSharedFragment_Int* EntitySharedFragment = EntityManager->GetConstSharedFragmentDataPtr<FTestConstSharedFragment_Int>(EntityHandle);
 		AITEST_NULL("Initially the entity is not expected to have the shared fragment", EntitySharedFragment);
 
 		EntityManager->AddConstSharedFragmentToEntity(EntityHandle, SharedFragmentInstance);
 
-		EntitySharedFragment = EntityManager->GetConstSharedFragmentDataPtr<FTestSharedFragment_Int>(EntityHandle);
+		EntitySharedFragment = EntityManager->GetConstSharedFragmentDataPtr<FTestConstSharedFragment_Int>(EntityHandle);
 		AITEST_NOT_NULL("The entity is expected to have the shared fragment after the operation", EntitySharedFragment);
 		AITEST_EQUAL("The the shared fragment is expected to store the configured value", EntitySharedFragment->Value, TestIntValue);
 
@@ -451,7 +438,7 @@ struct FSharedFragment_AddToEntity : FEntityTestBase
 		// now we're going to add it again and test the systems behavior, we'll be adding the same FMasSharedFragment type
 		// in both const and non-const way.
 		constexpr int32 DifferentTestIntValue = TestIntValue + 1;
-		FTestSharedFragment_Int DifferentFragmentInstance(DifferentTestIntValue);
+		FTestConstSharedFragment_Int DifferentFragmentInstance(DifferentTestIntValue);
 		FSharedStruct DifferentSharedFragmentInstance = FSharedStruct::Make(DifferentFragmentInstance);
 		FConstSharedStruct DifferentConstSharedFragmentInstance = FConstSharedStruct::Make(DifferentFragmentInstance);
 
@@ -488,7 +475,7 @@ struct FSharedFragment_BatchAddToEntity : FEntityTestBase
 		FMassArchetypeEntityCollection EntityCollection(InitialArchetype, EntitiesMoved, FMassArchetypeEntityCollection::EDuplicatesHandling::NoDuplicates);
 
 		FMassArchetypeSharedFragmentValues SharedValues;
-		FConstSharedStruct ConstSharedFragment = FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue);
+		FConstSharedStruct ConstSharedFragment = FConstSharedStruct::Make<FTestConstSharedFragment_Int>(TestIntValue);
 		SharedValues.AddConstSharedFragment(ConstSharedFragment);
 		EntityManager->BatchAddSharedFragmentsForEntities(MakeArrayView(&EntityCollection, 1), SharedValues);
 
@@ -497,7 +484,7 @@ struct FSharedFragment_BatchAddToEntity : FEntityTestBase
 		AITEST_EQUAL("Number of entities moves needs to match expectations", EntitiesMovedNum, EntitiesToMoveNum);
 		for (const FMassEntityHandle& EntityHandle : EntitiesMoved)
 		{
-			FTestSharedFragment_Int* SharedFragmentInstance = EntityManager->GetConstSharedFragmentDataPtr<FTestSharedFragment_Int>(EntityHandle);
+			FTestConstSharedFragment_Int* SharedFragmentInstance = EntityManager->GetConstSharedFragmentDataPtr<FTestConstSharedFragment_Int>(EntityHandle);
 			AITEST_NOT_NULL("Every entity moved needs to have a valid shared fragment", SharedFragmentInstance);
 			AITEST_EQUAL("The shared fragment's value needs to match expectations", SharedFragmentInstance->Value, TestIntValue);
 		}
@@ -520,7 +507,7 @@ struct FSharedFragment_BatchSetAttempt : FEntityTestBase
 
 		TArray<FMassEntityHandle> CreatedEntityHandles;
 		FMassArchetypeSharedFragmentValues SharedIntValues;
-		FConstSharedStruct ConstSharedFragment = FConstSharedStruct::Make<FTestSharedFragment_Int>(TestIntValue);
+		FConstSharedStruct ConstSharedFragment = FConstSharedStruct::Make<FTestConstSharedFragment_Int>(TestIntValue);
 		SharedIntValues.AddConstSharedFragment(ConstSharedFragment);
 
 		TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext = EntityManager->BatchCreateEntities(FloatsArchetype, SharedIntValues, EntitiesToCreateNum, CreatedEntityHandles);
@@ -536,7 +523,7 @@ struct FSharedFragment_BatchSetAttempt : FEntityTestBase
 		}
 		{
 			FMassArchetypeSharedFragmentValues DifferentSharedIntValues;
-			FConstSharedStruct OtherConstSharedFragment = FConstSharedStruct::Make<FTestSharedFragment_Int>(OtherTestIntValue);
+			FConstSharedStruct OtherConstSharedFragment = FConstSharedStruct::Make<FTestConstSharedFragment_Int>(OtherTestIntValue);
 			DifferentSharedIntValues.AddConstSharedFragment(OtherConstSharedFragment);
 
 			AITEST_SCOPED_CHECK("Setting shared fragment values without archetype change is not supported", 1);
@@ -556,8 +543,8 @@ struct FSharedFragment_BatchAddToEmpty : FEntityTestBase
 		constexpr int32 NumToReserve = 32;
 
 		FMassArchetypeSharedFragmentValues SharedIntValues;
-		FConstSharedStruct ConstSharedFragment = FConstSharedStruct::Make<FTestSharedFragment_Int>();
-		SharedIntValues.AddConstSharedFragment(ConstSharedFragment);
+		FSharedStruct SharedFragment = FSharedStruct::Make<FTestSharedFragment_Int>();
+		SharedIntValues.AddSharedFragment(SharedFragment);
 
 		TArray<FMassEntityHandle> ReservedEntityHandles;
 		EntityManager->BatchReserveEntities(NumToReserve, ReservedEntityHandles);

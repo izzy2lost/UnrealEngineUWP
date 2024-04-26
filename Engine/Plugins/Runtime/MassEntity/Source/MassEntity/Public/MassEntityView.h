@@ -78,8 +78,8 @@ struct MASSENTITY_API FMassEntityView
 	template<typename T>
 	const T* GetConstSharedFragmentDataPtr() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived,
-			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
 
 		return (const T*)GetConstSharedFragmentPtr(*T::StaticStruct());
 	}
@@ -88,36 +88,52 @@ struct MASSENTITY_API FMassEntityView
 	template<typename T>
 	const T& GetConstSharedFragmentData() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived,
-			"Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
 
 		return *((const T*)GetConstSharedFragmentPtrChecked(*T::StaticStruct()));
 	}
 
 	FConstStructView GetConstSharedFragmentDataStruct(const UScriptStruct* FragmentType) const
 	{
-		check(FragmentType);
+		check(FragmentType && FragmentType->IsChildOf(FMassConstSharedFragment::StaticStruct()));
 		return FConstStructView(FragmentType, static_cast<const uint8*>(GetConstSharedFragmentPtr(*FragmentType)));
 	}
 
 	/** will fail a check if the viewed entity doesn't have the given shared fragment */
-	template<typename T>
+	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassSharedFragment>::Value)>
 	T& GetSharedFragmentData() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived,
-			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
-
 		return *((T*)GetSharedFragmentPtrChecked(*T::StaticStruct()));
 	}
 
 	/** if the viewed entity doesn't have the given shared fragment the function will return null */
-	template<typename T>
+	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassSharedFragment>::Value)>
 	T* GetSharedFragmentDataPtr() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived,
-			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
-
 		return (T*)GetSharedFragmentPtr(*T::StaticStruct());
+	}
+
+	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassConstSharedFragment>::Value)>
+	UE_DEPRECATED(5.5, "Using GetSharedFragmentDataPtr with const shared fragments is deprecated. Use GetConstSharedFragmentDataPtr instead")
+	T* GetSharedFragmentDataPtr() const
+	{
+		return const_cast<T*>(GetConstSharedFragmentDataPtr<T>());
+	}
+
+	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassConstSharedFragment>::Value)>
+	UE_DEPRECATED(5.5, "Using GetSharedFragmentDataPtr with const shared fragments is deprecated. Use GetConstSharedFragmentData instead")
+	T& GetSharedFragmentData() const
+	{
+		/*static T DummyInstance;
+		return DummyInstance;*/
+		return const_cast<T&>(GetConstSharedFragmentData<T>());
+	}
+
+	FStructView GetSharedFragmentDataStruct(const UScriptStruct* FragmentType) const
+	{
+		check(FragmentType && FragmentType->IsChildOf(FMassSharedFragment::StaticStruct()));
+		return FStructView(FragmentType, static_cast<uint8*>(GetSharedFragmentPtr(*FragmentType)));
 	}
 
 	template<typename T>

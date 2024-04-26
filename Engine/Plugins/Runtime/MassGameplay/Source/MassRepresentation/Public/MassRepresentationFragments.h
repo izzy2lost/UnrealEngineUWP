@@ -96,7 +96,7 @@ struct TMassSharedFragmentTraits<FMassRepresentationSubsystemSharedFragment> fin
 
 
 USTRUCT()
-struct FMassRepresentationParameters : public FMassSharedFragment
+struct FMassRepresentationParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 
@@ -191,7 +191,7 @@ inline void FMassRepresentationParameters::ComputeCachedValues() const
 }
 
 USTRUCT()
-struct FMassVisualizationLODParameters : public FMassSharedFragment
+struct FMassVisualizationLODParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 
@@ -246,7 +246,7 @@ struct FMassVisualizationLODSharedFragment : public FMassSharedFragment
  *	* we do not care about Max Count
  */
 USTRUCT()
-struct FMassDistanceLODParameters : public FMassSharedFragment
+struct FMassDistanceLODParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 
