@@ -3,9 +3,8 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
-
-
 #include "Math/Box.h"
+
 #include "PCGBlueprintHelpers.generated.h"
 
 class UPCGComponent;
@@ -22,6 +21,8 @@ class PCG_API UPCGBlueprintHelpers : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
+	static void ThrowBlueprintException(const FText& ErrorMessage);
+
 	UFUNCTION(BlueprintCallable, Category = "PCG|Helpers")
 	static int ComputeSeedFromPosition(const FVector& InPosition);
 

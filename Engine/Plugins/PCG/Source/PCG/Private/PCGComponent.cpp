@@ -26,6 +26,7 @@
 #include "Graph/PCGStackContext.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
+#include "Helpers/PCGBlueprintHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "RuntimeGen/GenSources/PCGGenSourceBase.h"
 #include "RuntimeGen/SchedulingPolicies/PCGSchedulingPolicyBase.h"
@@ -164,6 +165,11 @@ void UPCGComponent::AddToManagedResources(UPCGManagedResource* InResource)
 
 	if (InResource)
 	{
+		if(!ensure(InResource->GetOuter() == this))
+		{
+			UPCGBlueprintHelpers::ThrowBlueprintException(LOCTEXT("ResourceNotOutered", "Managed resources need to be outered to their PCG component."));
+		}
+
 		FScopeLock ResourcesLock(&GeneratedResourcesLock);
 		check(!GeneratedResourcesInaccessible);
 		GeneratedResources.Add(InResource);

@@ -4,9 +4,9 @@
 
 #include "PCGModule.h"
 #include "PCGGraph.h"
+#include "Helpers/PCGBlueprintHelpers.h"
 
 #include "PropertyBag.h"
-#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Templates/ValueOrError.h"
 #include "UObject/Script.h"
 #include "UObject/Stack.h"
@@ -20,15 +20,7 @@ namespace PCGGraphParametersHelpersPrivate
 
 	void ThrowBlueprintException(const FText& ErrorMessage)
 	{
-		if (FFrame::GetThreadLocalTopStackFrame() && FFrame::GetThreadLocalTopStackFrame()->Object)
-		{
-			const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::FatalError, ErrorMessage);
-			FBlueprintCoreDelegates::ThrowScriptException(FFrame::GetThreadLocalTopStackFrame()->Object, *FFrame::GetThreadLocalTopStackFrame(), ExceptionInfo);
-		}
-		else
-		{
-			UE_LOG(LogPCG, Error, TEXT("%s"), *ErrorMessage.ToString());
-		}
+		UPCGBlueprintHelpers::ThrowBlueprintException(ErrorMessage);
 	}
 
 	void OnException(const EPropertyBagResult Result, const FName PropertyName)

@@ -11,11 +11,25 @@
 #include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Engine/World.h"
 #include "LandscapeProxy.h"
 #include "LandscapeInfo.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGBlueprintHelpers)
+
+void UPCGBlueprintHelpers::ThrowBlueprintException(const FText& ErrorMessage)
+{
+	if (FFrame::GetThreadLocalTopStackFrame() && FFrame::GetThreadLocalTopStackFrame()->Object)
+	{
+		const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::FatalError, ErrorMessage);
+		FBlueprintCoreDelegates::ThrowScriptException(FFrame::GetThreadLocalTopStackFrame()->Object, *FFrame::GetThreadLocalTopStackFrame(), ExceptionInfo);
+	}
+	else
+	{
+		UE_LOG(LogPCG, Error, TEXT("%s"), *ErrorMessage.ToString());
+	}
+}
 
 int UPCGBlueprintHelpers::ComputeSeedFromPosition(const FVector& InPosition)
 {
