@@ -38,13 +38,13 @@ namespace UE::AnimNext
 		// NewChildIndex can be larger than the current number of known children to support a dynamic number of children at runtime
 		// When this occurs, the number of children increments by one
 		// The number of children never shrinks
-		virtual void OnBlendTransition(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const;
+		virtual void OnBlendTransition(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const;
 
 		// Called when the blend for specified child is initiated
-		virtual void OnBlendInitiated(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
+		virtual void OnBlendInitiated(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
 
 		// Called when the blend for specified child terminates
-		virtual void OnBlendTerminated(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
+		virtual void OnBlendTerminated(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
 	};
 
 	/**
@@ -72,19 +72,19 @@ namespace UE::AnimNext
 		}
 
 		// @see IDiscreteBlend::OnBlendTransition
-		void OnBlendTransition(const FExecutionContext& Context, int32 OldChildIndex, int32 NewChildIndex) const
+		void OnBlendTransition(FExecutionContext& Context, int32 OldChildIndex, int32 NewChildIndex) const
 		{
 			GetInterface()->OnBlendTransition(Context, *this, OldChildIndex, NewChildIndex);
 		}
 
 		// @see IDiscreteBlend::OnBlendInitiated
-		void OnBlendInitiated(const FExecutionContext& Context, int32 ChildIndex) const
+		void OnBlendInitiated(FExecutionContext& Context, int32 ChildIndex) const
 		{
 			GetInterface()->OnBlendInitiated(Context, *this, ChildIndex);
 		}
 
 		// @see IDiscreteBlend::OnBlendTerminated
-		void OnBlendTerminated(const FExecutionContext& Context, int32 ChildIndex) const
+		void OnBlendTerminated(FExecutionContext& Context, int32 ChildIndex) const
 		{
 			GetInterface()->OnBlendTerminated(Context, *this, ChildIndex);
 		}

@@ -93,6 +93,7 @@ namespace UE::AnimNext
 		TArrayView<FQuat> Rotations;
 		TArrayView<FVector> Scales3D;
 
+		bool IsEmpty() const { return Rotations.IsEmpty(); }
 		int32 Num() const { return Rotations.Num(); }
 
 		inline FTransformSoAAdapter operator[](int32 Index)
@@ -119,6 +120,7 @@ namespace UE::AnimNext
 			, Scales3D(Other.Scales3D)
 		{}
 
+		bool IsEmpty() const { return Rotations.IsEmpty(); }
 		int32 Num() const { return Rotations.Num(); }
 
 		inline const FTransformSoAAdapterConst operator[](int32 Index) const

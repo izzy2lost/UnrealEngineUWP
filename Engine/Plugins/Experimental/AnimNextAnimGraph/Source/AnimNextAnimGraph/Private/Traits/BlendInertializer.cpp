@@ -4,6 +4,9 @@
 
 #include "TraitCore/ExecutionContext.h"
 
+#include "Traits/Inertialization.h"
+
+
 namespace UE::AnimNext
 {
 	AUTO_REGISTER_ANIM_TRAIT(FBlendInertializerTrait)
@@ -16,31 +19,17 @@ namespace UE::AnimNext
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FBlendInertializerTrait, TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_EVENT_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
 
-	void FBlendInertializerTrait::OnBlendTransition(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
+	void FBlendInertializerTrait::OnBlendTransition(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		// Trigger the new transition
 		IDiscreteBlend::OnBlendTransition(Context, Binding, OldChildIndex, NewChildIndex);
 
-		// TODO: Implement the inertialization request API
-#if 0
-		UE::Anim::IInertializationRequester* InertializationRequester = Context.GetMessage<UE::Anim::IInertializationRequester>();
-		if (InertializationRequester)
-		{
-			FInertializationRequest Request;
-			Request.Duration = CurrentBlendTimes[ChildIndex];		// TODO: Get from ISmoothBlend interface using super
-			Request.BlendProfile = CurrentBlendProfile;				// TODO: Get from shared data
-			Request.bUseBlendMode = true;
-			Request.BlendMode = GetBlendType();						// TODO: Add to ISmoothBlend interface
-			Request.CustomBlendCurve = GetCustomBlendCurve();		// TODO: Add to ISmoothBlend interface
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
-			InertializationRequester->RequestInertialization(Request);
-			bRequestedInertializationOnActiveChildIndexChange = true;
-		}
-		else
-		{
-			FAnimNode_Inertialization::LogRequestError(Context, BlendPose[ChildIndex]);
-		}
-#endif
+		// Make Request Event
+		TSharedPtr<FAnimNextInertializationRequestEvent> Event = MakeTraitEvent<FAnimNextInertializationRequestEvent>();
+		Event->Request.BlendTime = SharedData->BlendTime;
+		Context.RaiseOutputTraitEvent(Event);
 	}
 
 	float FBlendInertializerTrait::GetBlendTime(const FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const

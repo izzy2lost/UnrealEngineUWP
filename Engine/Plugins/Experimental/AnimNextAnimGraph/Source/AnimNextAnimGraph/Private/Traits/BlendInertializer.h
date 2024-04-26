@@ -17,10 +17,9 @@ struct FAnimNextBlendInertializerTraitSharedData : public FAnimNextTraitSharedDa
 {
 	GENERATED_BODY()
 
-	/** Blend profile that configures how fast to blend each bone. */
-	// TODO: Can't show list of blend profiles, we need to find a skeleton to perform the lookup with
-	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline, UseAsBlendProfile = true))
-	TObjectPtr<UBlendProfile> BlendProfile = nullptr;
+	// Inertialization Blend Time
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
+	float BlendTime = 0.2f;
 };
 
 namespace UE::AnimNext
@@ -38,7 +37,7 @@ namespace UE::AnimNext
 		using FInstanceData = FTrait::FInstanceData;
 
 		// IDiscreteBlend impl
-		virtual void OnBlendTransition(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const override;
+		virtual void OnBlendTransition(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const override;
 
 		// ISmoothBlend impl
 		virtual float GetBlendTime(const FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;

@@ -318,6 +318,17 @@ struct TTransformArraySoA
 		return *this;
 	}
 
+	inline bool IsEmpty() const
+	{
+		return Num() == 0;
+	}
+
+	inline void Empty(int32 Slack = 0)
+	{
+		AllocatedMemory.Empty(Slack);
+		UpdateViews(AllocatedMemory.GetData(), 0);
+	}
+
 	inline void Reset(int32 NumTransforms)
 	{
 		constexpr int32 TransformSize = sizeof(FVector) + sizeof(FQuat) + sizeof(FVector);
