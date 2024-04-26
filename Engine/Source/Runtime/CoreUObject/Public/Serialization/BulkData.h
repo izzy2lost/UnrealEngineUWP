@@ -1378,7 +1378,7 @@ public:
 	/** Returns whether the request has been completed. */
 	COREUOBJECT_API bool IsCompleted() const;
 
-	/** Cancel the pending request. */
+	/** Cancel the pending request. Cancelling an invalid request will immediately return. */
 	COREUOBJECT_API void Cancel();
 
 	/** Reset the request handle to an invalid state. Will cancel and wait if the request is not completed. */
@@ -1433,13 +1433,19 @@ private:
 public:	
 	using FBulkDataRequest::FBulkDataRequest;
 
-	/** Blocks the calling thread until the request is completed. */
+	/** Blocks the calling thread until the request is completed. Waiting on an invalid request will immediately return. */
 	COREUOBJECT_API void Wait();
 
-	/** Waits the specified amount of time in milliseconds for the request to be completed. */
+	/**
+	 * Waits the specified amount of time in milliseconds for the request to be completed.
+	 * @return True if the request was completed before the wait time elapsed, otherwise false. Waiting on an invalid request returns false.
+	 */
 	COREUOBJECT_API bool WaitFor(uint32 Milliseconds);
 
-	/** Waits the specified amount of time for the request to be completed. */
+	/**
+	 * Waits the specified amount of time for the request to be completed.
+	 * @return True if the request was completed before the wait time elapsed, otherwise false. Waiting on an invalid request returns false.
+	 */
 	COREUOBJECT_API bool WaitFor(const FTimespan& WaitTime);
 
 	/** Issue one or more I/O request in a single batch. */

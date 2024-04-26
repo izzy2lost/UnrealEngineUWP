@@ -936,7 +936,7 @@ FBulkDataRequest& FBulkDataRequest::operator=(FBulkDataRequest&& Other)
 
 FBulkDataRequest::EStatus FBulkDataRequest::GetStatus() const
 {
-	return Handle != nullptr ? Handle->GetStatus() : EStatus::None;
+	return Handle.IsValid() ? Handle->GetStatus() : EStatus::None;
 }
 
 bool FBulkDataRequest::IsNone() const
@@ -962,8 +962,10 @@ bool FBulkDataRequest::IsCompleted() const
 
 void FBulkDataRequest::Cancel()
 {
-	check(Handle);
-	Handle->Cancel();
+	if (Handle.IsValid())
+	{
+		Handle->Cancel();
+	}
 }
 
 void FBulkDataRequest::Reset()
@@ -985,14 +987,20 @@ int32 FBulkDataRequest::GetRefCount() const
 
 void FBulkDataBatchRequest::Wait()
 {
-	check(Handle);
-	Handle->Wait(MAX_uint32);
+	if (Handle.IsValid())
+	{
+		Handle->Wait(MAX_uint32);
+	}
 }
 
 bool FBulkDataBatchRequest::WaitFor(uint32 Milliseconds)
 {
-	check(Handle);
-	return Handle->Wait(Milliseconds);
+	if (Handle.IsValid())
+	{
+		return Handle->Wait(Milliseconds);
+	}
+
+	return false;
 }
 
 bool FBulkDataBatchRequest::WaitFor(const FTimespan& WaitTime)
