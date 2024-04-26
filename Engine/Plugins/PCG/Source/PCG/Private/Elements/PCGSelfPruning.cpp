@@ -163,7 +163,7 @@ namespace PCGSelfPruningElement
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSelfPruningElement::Execute::CollisionExclusion);
 
 		check(IterationState.InputPointData);
-		const UPCGPointData::PointOctree& Octree = IterationState.InputPointData->GetOctree();
+		const UPCGPointData::PointOctree& Octree = IterationState.bUseCollisionAccurateOctree ? IterationState.CollisionAccurateOctree : IterationState.InputPointData->GetOctree();
 
 		int32 CheckTimeSlicingCount = 0;
 
@@ -441,11 +441,17 @@ namespace PCGSelfPruningElement
 		//  then remove this point
 		if (!InState.bSortDone)
 		{
-			InState.SortedPoints.Empty();
-			InState.SortedPoints.Reserve(Points.Num());
-			for (const FPCGPoint& Point : Points)
+			// In the case of the collision-driven self-pruning, we have to populate the sorted points array earlier since we're playing with the bounds.
+			if (!InState.bSortedPointsArrayPopulateDone)
 			{
-				InState.SortedPoints.Add(FPCGPointRef(Point));
+				InState.SortedPoints.Empty();
+				InState.SortedPoints.Reserve(Points.Num());
+				for (const FPCGPoint& Point : Points)
+				{
+					InState.SortedPoints.Emplace(Point);
+				}
+
+				InState.bSortedPointsArrayPopulateDone = true;
 			}
 
 			FPCGAttributePropertySelector ComparisonSource = InParameters.ComparisonSource.CopyAndFixLast(InState.InputPointData);
@@ -695,7 +701,17 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 			TUniquePtr<const IPCGAttributeAccessor> InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutState.InputPointData, InputSelector);
 			TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(OutState.InputPointData, InputSelector);
 
-			OutState.CollisionWrapper.Initialize(InputAccessor.Get(), InputKeys.Get());
+			TArray<FSoftObjectPath> Meshes;
+			if (OutState.CollisionWrapper.Prepare(InputAccessor.Get(), InputKeys.Get(), Meshes))
+			{
+				OutState.CollisionWrapper.CreateBodyInstances(Meshes);
+
+				if (Settings->Parameters.bRecomputeOctreeAccordingToMeshes)
+				{
+					OutState.bUseCollisionAccurateOctree = OutState.CollisionWrapper.InitializeOctree(OutState.InputPointData, Meshes, OutState.CollisionAccurateOctree, &OutState.SortedPoints);
+					OutState.bSortedPointsArrayPopulateDone = OutState.bUseCollisionAccurateOctree;
+				}
+			}
 		}
 
 		return EPCGTimeSliceInitResult::Success;
@@ -740,6 +756,18 @@ bool FPCGSelfPruningElement::ExecuteInternal(FPCGContext* Context) const
 	});
 
 	return true;
+}
+
+bool FPCGSelfPruningElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const
+{
+	if (const UPCGSelfPruningSettings* Settings = (Context ? Context->GetInputSettings<UPCGSelfPruningSettings>() : nullptr))
+	{
+		return Settings->Parameters.bUseCollisionAttribute;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

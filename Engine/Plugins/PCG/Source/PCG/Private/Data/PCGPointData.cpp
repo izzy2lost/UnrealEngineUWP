@@ -241,6 +241,12 @@ FPCGPointRef::FPCGPointRef(const FPCGPoint& InPoint)
 	Bounds = InPoint.GetDensityBounds();
 }
 
+FPCGPointRef::FPCGPointRef(const FPCGPoint& InPoint, const FBox& InOverrideBounds)
+{
+	Point = &InPoint;
+	Bounds = FBoxSphereBounds(InOverrideBounds.TransformBy(InPoint.Transform));
+}
+
 void UPCGPointData::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 {
 	Super::GetResourceSizeEx(CumulativeResourceSize);
@@ -690,7 +696,7 @@ void UPCGPointData::RebuildOctree() const
 		NewOctree.AddElement(FPCGPointRef(Point));
 	}
 
-	Octree = NewOctree;
+	Octree = MoveTemp(NewOctree);
 	bOctreeIsDirty = false;
 }
 

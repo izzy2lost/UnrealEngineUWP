@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PCGSpatialData.h"
+#include "Data/PCGPointData.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
@@ -26,6 +27,7 @@ struct PCG_API FPCGCollisionWrapper
 	// Advanced API - allows to do async loading as we separate the mesh finding part from the body creation part
 	bool Prepare(const IPCGAttributeAccessor* Accessor, const IPCGAttributeAccessorKeys* Keys, TArray<FSoftObjectPath>& MeshPathsToLoad);
 	void CreateBodyInstances(const TArray<FSoftObjectPath>& MeshPaths);
+	bool InitializeOctree(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, UPCGPointData::PointOctree& OutOctree, TArray<FPCGPointRef>* OutOctreePointRefs = nullptr) const;
 	
 	// Retrieves the body instance associated to the entry given by its index
 	FBodyInstance* GetBodyInstance(int32 EntryIndex) const;
@@ -42,11 +44,11 @@ class UPCGCollisionWrapperData : public UPCGSpatialData
 
 public:
 	/** Inititializes the collision wrapper on a point data based on the provided attribute selector */
-	PCG_API bool Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision);
+	PCG_API bool Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision, bool bUseAccurateOctree);
 
 	/** Advanced API for async loading */
 	bool PreInitializeAndGatherMeshesEx(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision, TArray<FSoftObjectPath>& OutMeshesToLoad);
-	void FinalizeInitializationEx(const TArray<FSoftObjectPath>& InMeshPaths);
+	void FinalizeInitializationEx(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, bool bUseAccurateOctree);
 
 	// ~Begin UPCGData Interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Primitive; }
@@ -75,13 +77,19 @@ private:
 	UPROPERTY()
 	TObjectPtr<const UPCGPointData> PointData;
 
+	// Implementation note: in order to be able to duplicate this easily, we're keeping track of the arguments we used when calling Initialize (& derived functions)
 	UPROPERTY()
 	FPCGAttributePropertyInputSelector CollisionSelector;
+
+	/** Uses a new octree based on the mesh bounds, performance warning (does similar work to the BoundsFromMesh node, but will not change the point data). */
+	UPROPERTY()
+	bool bUseCollisionAccurateOctree = false;
 
 	UPROPERTY()
 	bool bUseComplexCollision = false;
 
 	FPCGCollisionWrapper CollisionWrapper;
+	UPCGPointData::PointOctree CollisionAccurateOctree;
 
 #if WITH_EDITOR
 	const UPCGPointData* RawPointData = nullptr;

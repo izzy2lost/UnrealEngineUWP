@@ -28,6 +28,7 @@ namespace PCGPointDataConstants
 struct PCG_API FPCGPointRef
 {
 	FPCGPointRef(const FPCGPoint& InPoint);
+	FPCGPointRef(const FPCGPoint& InPoint, const FBox& InBoundsOverride);
 
 	const FPCGPoint* Point;
 	FBoxSphereBounds Bounds;

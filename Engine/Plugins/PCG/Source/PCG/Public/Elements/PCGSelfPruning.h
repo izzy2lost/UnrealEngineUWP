@@ -49,6 +49,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_DiscardPropertySelection, PCG_DiscardExtraSelection, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
 	FPCGAttributePropertyInputSelector CollisionAttribute;
 
+	/** Uses a new octree based on the mesh bounds, performance warning (does similar work to the BoundsFromMesh node, but will not change the point data). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
+	bool bRecomputeOctreeAccordingToMeshes = false;
+
 	/** Queries against complex collision (vs. collection of convex elements in the collision) if enabled, performance warning */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
 	bool bUseComplexCollision = false;
@@ -77,10 +81,13 @@ namespace PCGSelfPruningElement
 		FPointBitSet ExclusionPoints;
 		int32 CurrentPointIndex = 0;
 		bool bSortDone = false;
+		bool bSortedPointsArrayPopulateDone = false;
+		bool bUseCollisionAccurateOctree = false;
 
 		// In the case of the self-pruning using the collision, we'll need instances of the unique bodies that are used in the point data.
 		// Additionally, in the cases where two points to compare use the same instance, we'll have to do a temporary copy.
 		FPCGCollisionWrapper CollisionWrapper;
+		UPCGPointData::PointOctree CollisionAccurateOctree;
 		TMap<FBodyInstance*, FBodyInstance*> TemporaryBodyInstances;
 	};
 
@@ -141,4 +148,5 @@ class FPCGSelfPruningElement : public TPCGTimeSlicedElementBase<PCGTimeSlice::FE
 protected:
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;
 };

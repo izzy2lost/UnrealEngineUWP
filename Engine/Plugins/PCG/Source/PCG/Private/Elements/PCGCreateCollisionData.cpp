@@ -125,7 +125,7 @@ bool FPCGCreateCollisionDataElement::ExecuteInternal(FPCGContext* InContext) con
 		if (FPCGCreateCollisionContext::InputMeshData* MatchingData = Context->PerInputData.FindByPredicate([InputIndex](const FPCGCreateCollisionContext::InputMeshData& Data) { return Data.InputIndex == InputIndex; }))
 		{
 			check(MatchingData->Data);
-			MatchingData->Data->FinalizeInitializationEx(MatchingData->MeshPaths);
+			MatchingData->Data->FinalizeInitializationEx(CastChecked<UPCGPointData>(Input.Data), MatchingData->MeshPaths, Settings->bRecomputeOctreeAccordingToMeshes);
 
 			// Unroot collision wrapper data object since it'll be tracked through the collection
 			MatchingData->Data->RemoveFromRoot();

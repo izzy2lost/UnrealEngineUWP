@@ -8,6 +8,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "PhysicsEngine/BodyInstance.h"
+#include "Serialization/ArchiveCrc32.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCollisionWrapperData)
 
@@ -100,7 +101,7 @@ void FPCGCollisionWrapper::CreateBodyInstances(const TArray<FSoftObjectPath>& Me
 		BodyInstances.Add(BodyInstance);
 	}
 
-	bInitialized = true;
+	bInitialized = !MeshPaths.IsEmpty();
 }
 
 bool FPCGCollisionWrapper::Initialize(const IPCGAttributeAccessor* Accessor, const IPCGAttributeAccessorKeys* Keys)
@@ -125,12 +126,76 @@ FBodyInstance* FPCGCollisionWrapper::GetBodyInstance(int32 EntryIndex) const
 	return ((bInitialized && IndexToBodyInstance[EntryIndex] != INDEX_NONE) ? BodyInstances[IndexToBodyInstance[EntryIndex]] : nullptr);
 }
 
-bool UPCGCollisionWrapperData::Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision)
+bool FPCGCollisionWrapper::InitializeOctree(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, UPCGPointData::PointOctree& OutOctree, TArray<FPCGPointRef>* OutOctreePointRefs) const
+{
+	TArray<FBox> MeshBoundsList;
+	MeshBoundsList.Reserve(InMeshPaths.Num());
+	bool bHasValidBounds = false;
+
+	for (int32 MeshIndex = 0; MeshIndex < InMeshPaths.Num(); ++MeshIndex)
+	{
+		TSoftObjectPtr<UStaticMesh> Mesh(InMeshPaths[MeshIndex]);
+		if (Mesh.Get()) // should already be loaded by now.
+		{
+			MeshBoundsList.Add(Mesh->GetBoundingBox());
+			bHasValidBounds = true;
+		}
+		else
+		{
+			MeshBoundsList.Emplace(EForceInit::ForceInit);
+		}
+	}
+
+	if (bHasValidBounds)
+	{
+		const TArray<FPCGPoint>& Points = InPointData->GetPoints();
+		TArray<FPCGPointRef> PointRefs;
+		PointRefs.Reserve(Points.Num());
+
+		for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+		{
+			const FPCGPoint& Point = Points[PointIndex];
+			const FBox& MeshBounds = MeshBoundsList[IndexToBodyInstance[PointIndex]];
+
+			if (MeshBounds.IsValid)
+			{
+				PointRefs.Emplace(Point, MeshBounds);
+			}
+			else
+			{
+				PointRefs.Emplace(Point);
+			}
+		}
+
+		FBox PointsBounds = InPointData->GetBounds();
+		TOctree2<FPCGPointRef, FPCGPointRefSemantics> NewOctree(PointsBounds.GetCenter(), PointsBounds.GetExtent().Length());
+
+		for (const FPCGPointRef& PointRef : PointRefs)
+		{
+			NewOctree.AddElement(PointRef);
+		}
+
+		OutOctree = MoveTemp(NewOctree);
+
+		if (OutOctreePointRefs)
+		{
+			*OutOctreePointRefs = MoveTemp(PointRefs);
+		}
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool UPCGCollisionWrapperData::Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision, bool bInUseAccurateOctree)
 {
 	TArray<FSoftObjectPath> MeshesToLoad;
 	if (PreInitializeAndGatherMeshesEx(InPointData, InCollisionSelector, bInUseComplexCollision, MeshesToLoad))
 	{
-		FinalizeInitializationEx(MeshesToLoad);
+		FinalizeInitializationEx(InPointData, MeshesToLoad, bInUseAccurateOctree);
 		return true;
 	}
 	else
@@ -168,15 +233,27 @@ bool UPCGCollisionWrapperData::PreInitializeAndGatherMeshesEx(const UPCGPointDat
 	return CollisionWrapper.Prepare(InputAccessor.Get(), InputKeys.Get(), OutMeshesToLoad);
 }
 
-void UPCGCollisionWrapperData::FinalizeInitializationEx(const TArray<FSoftObjectPath>& InMeshPaths)
+void UPCGCollisionWrapperData::FinalizeInitializationEx(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, bool bInUseAccurateOctree)
 {
 	CollisionWrapper.CreateBodyInstances(InMeshPaths);
+
+	if (InPointData && bInUseAccurateOctree)
+	{
+		bUseCollisionAccurateOctree = CollisionWrapper.InitializeOctree(InPointData, InMeshPaths, CollisionAccurateOctree);
+	}
 }
 
 void UPCGCollisionWrapperData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 	GetPointData()->AddToCrc(Ar, bFullDataCrc);
+
+	CollisionSelector.AddToCrc(Ar);
+	uint32 UseCollisionAccurateOctree = bUseCollisionAccurateOctree ? 1 : 0;
+	Ar << UseCollisionAccurateOctree;
+
+	uint32 UseComplexCollision = bUseComplexCollision ? 1 : 0;
+	Ar << UseComplexCollision;
 }
 
 void UPCGCollisionWrapperData::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
@@ -210,7 +287,7 @@ bool UPCGCollisionWrapperData::SamplePoint(const FTransform& InTransform, const 
 	// For all touching points, check against the actual physics shape we have for that point
 	// E.g. get the point collision attribute value, match to our internal list, get the shape (might require loading), then test against the matching shapes
 	// note that we need to place the stuff in the right referential too, since our shapes will all be at the origin
-	const UPCGPointData::PointOctree& Octree = GetPointData()->GetOctree();
+	const UPCGPointData::PointOctree& Octree = (bUseCollisionAccurateOctree ? CollisionAccurateOctree : GetPointData()->GetOctree());
 
 	float Density = 0;
 	FBox TransformedBounds = InBounds.TransformBy(InTransform);
@@ -263,7 +340,7 @@ bool UPCGCollisionWrapperData::SamplePoint(const FTransform& InTransform, const 
 UPCGSpatialData* UPCGCollisionWrapperData::CopyInternal() const
 {
 	UPCGCollisionWrapperData* NewCollisionWrapperData = NewObject<UPCGCollisionWrapperData>();
-	NewCollisionWrapperData->Initialize(PointData, CollisionSelector, bUseComplexCollision);
+	NewCollisionWrapperData->Initialize(PointData, CollisionSelector, bUseComplexCollision, bUseCollisionAccurateOctree);
 
 	return NewCollisionWrapperData;
 }

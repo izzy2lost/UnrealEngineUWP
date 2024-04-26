@@ -33,6 +33,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_DiscardPropertySelection, PCG_DiscardExtraSelection))
 	FPCGAttributePropertyInputSelector CollisionAttribute;
 
+	/** Uses a new octree based on the mesh bounds, performance warning (does similar work to the BoundsFromMesh node, but will not change the point data). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bRecomputeOctreeAccordingToMeshes = false;
+
 	/** Queries against complex collision if enabled, performance warning */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bUseComplexCollision = false;
