@@ -1,8 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UsdWrappers/UsdRelationship.h"
-#include "UsdWrappers/SdfPath.h"
 #include "USDMemory.h"
+#include "UsdWrappers/SdfPath.h"
+#include "UsdWrappers/VtValue.h"
 
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
@@ -29,7 +30,7 @@ namespace UE
 				: PxrUsdRelationship(MoveTemp(InUsdRelationship))
 			{
 			}
-			
+
 			TUsdStore<pxr::UsdRelationship> PxrUsdRelationship;
 #endif	  // #if USE_USD_SDK
 		};
@@ -147,27 +148,87 @@ namespace UE
 		return Impl->PxrUsdRelationship.Get();
 	}
 #endif
-	
-	bool FUsdRelationship::GetTargets(TArray<UE::FSdfPath>& TargetsPath) const
+
+	bool FUsdRelationship::GetMetadata(const TCHAR* Key, UE::FVtValue& Value) const
 	{
-		TargetsPath.Reset();
+#if USE_USD_SDK
+		return Impl->PxrUsdRelationship.Get().GetMetadata(pxr::TfToken{TCHAR_TO_ANSI(Key)}, &Value.GetUsdValue());
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
+	bool FUsdRelationship::HasMetadata(const TCHAR* Key) const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdRelationship.Get().HasMetadata(pxr::TfToken{TCHAR_TO_ANSI(Key)});
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
+	bool FUsdRelationship::SetMetadata(const TCHAR* Key, const UE::FVtValue& Value) const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdRelationship.Get().SetMetadata(pxr::TfToken{TCHAR_TO_ANSI(Key)}, Value.GetUsdValue());
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
+	bool FUsdRelationship::ClearMetadata(const TCHAR* Key) const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdRelationship.Get().ClearMetadata(pxr::TfToken{TCHAR_TO_ANSI(Key)});
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
+	bool FUsdRelationship::SetTargets(const TArray<UE::FSdfPath>& Targets) const
+	{
+#if USE_USD_SDK
+		std::vector<pxr::SdfPath> UsdTargets;
+		UsdTargets.reserve(Targets.Num());
+		for (const UE::FSdfPath& UETarget : Targets)
+		{
+			UsdTargets.push_back(pxr::SdfPath{UETarget});
+		}
+
+		return Impl->PxrUsdRelationship.Get().SetTargets(UsdTargets);
+#else
+		return false;
+#endif	  // USE_USD_SDK
+	}
+
+	bool FUsdRelationship::ClearTargets(bool bRemoveSpec) const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdRelationship.Get().ClearTargets(bRemoveSpec);
+#else
+		return false;
+#endif	  // USE_USD_SDK
+	}
+
+	bool FUsdRelationship::GetTargets(TArray<UE::FSdfPath>& Targets) const
+	{
+		Targets.Reset();
 #if USE_USD_SDK
 		FScopedUsdAllocs Allocs;
 
-		pxr::SdfPathVector Targets;
-		if(Impl->PxrUsdRelationship.Get().GetTargets(&Targets))
+		pxr::SdfPathVector UsdTargets;
+		if (Impl->PxrUsdRelationship.Get().GetTargets(&UsdTargets))
 		{
-			const uint32 NumTargets = Targets.size();
-			for(uint32 TargetIndex = 0; TargetIndex < NumTargets; ++TargetIndex)
+			const uint32 NumTargets = UsdTargets.size();
+			for (uint32 TargetIndex = 0; TargetIndex < NumTargets; ++TargetIndex)
 			{
-				TargetsPath.Add(UE::FSdfPath(Targets[TargetIndex]));
+				Targets.Add(UE::FSdfPath(UsdTargets[TargetIndex]));
 			}
 			return true;
 		}
-		
+
 #endif	  // USE_USD_SDK
 		return false;
 	}
-	
-	
+
 }	 // namespace UE

@@ -385,6 +385,20 @@ namespace UsdToUnreal
 			OutValue.SourceType = EUsdBasicDataTypes::Int4;
 			ConvertVecValue<int32, GfVec4i>(UsdValue, OutValue);
 		}
+		// This is the type used to store values for relationships. We'll basically treat it like a string array
+		else if (UnderlyingType.IsA<SdfListOp<SdfPath>>())
+		{
+			OutValue.SourceType = EUsdBasicDataTypes::String;
+			OutValue.bIsArrayValued = true;
+
+			const SdfListOp<SdfPath>& Val = UsdValue.UncheckedGet<SdfListOp<SdfPath>>();
+			const std::vector<SdfPath>& ItemVec = Val.GetExplicitItems();
+			OutValue.Entries.Reserve(ItemVec.size());
+			for (const pxr::SdfPath& Item : ItemVec)
+			{
+				OutValue.Entries.Add({UsdUtils::FConvertedVtValueComponent(TInPlaceType<FString>(), UsdToUnreal::ConvertPath(Item))});
+			}
+		}
 		// These types should only appear within metadata, and don't support arrays.
 		// There are more of them (e.g. pxr/usd/usd/crateDataTypes.h), but these are the most common.
 		// Also check pxr/usd/sdf/types.cpp for where these are defined. These are simple enums
@@ -2188,8 +2202,7 @@ namespace UE::USDValueConversion::Private
 				FlattenedValues[FlattenedIndex + 0],
 				FlattenedValues[FlattenedIndex + 1],
 				FlattenedValues[FlattenedIndex + 2],
-				FlattenedValues[FlattenedIndex + 3]
-			};
+				FlattenedValues[FlattenedIndex + 3]};
 		}
 
 		return true;

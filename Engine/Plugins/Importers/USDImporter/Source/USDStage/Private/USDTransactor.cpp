@@ -16,6 +16,7 @@
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdAttribute.h"
 #include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/UsdRelationship.h"
 #include "UsdWrappers/UsdStage.h"
 
 #if WITH_EDITOR
@@ -35,6 +36,7 @@ namespace UsdUtils
 	struct FTransactorAttributeChange
 	{
 		FString PropertyName;
+		bool bIsRelationship = false;
 		FString Field;
 		FString AttributeTypeName;	   // Full SdfValueTypeName of the attribute (e.g. normal3f, bool, texCoord3d, float2) so that we can undo/redo
 									   // attribute creation
@@ -80,6 +82,7 @@ FArchive& operator<<(FArchive& Ar, UsdUtils::FTransactorAttributeChange& Change)
 	Ar << Change.PropertyName;
 	Ar << Change.Field;
 	Ar << Change.AttributeTypeName;
+	Ar << Change.bIsRelationship;
 	Ar << Change.OldValue;
 	Ar << Change.NewValue;
 	Ar << Change.TimeSamples;
@@ -261,6 +264,10 @@ namespace UsdUtils
 								}
 							}
 						}
+						else if (UE::FUsdRelationship Relationship = Prim.GetRelationship(*ConvertedAttributeChange.PropertyName))
+						{
+							ConvertedAttributeChange.bIsRelationship = true;
+						}
 						else
 						{
 							UE_LOG(
@@ -430,6 +437,7 @@ namespace UsdUtils
 		const FString& PropertyName,
 		const FString& Field,
 		const FString& AttributeTypeName,
+		bool bIsRelationship,
 		bool bRemoveProperty,
 		const FConvertedVtValue& Value,
 		UE::FUsdPrim& Prim,
@@ -442,41 +450,75 @@ namespace UsdUtils
 		}
 
 		bool bCreated = false;
-
 		UE::FUsdAttribute Attribute;
+		UE::FUsdRelationship Relationship;
+
 		if (PropertyName != TEXT("kind"))	 // Kind is prim metadata, not an attribute
 		{
 			if (bRemoveProperty)
 			{
-				Attribute = Prim.GetAttribute(*PropertyName);
-				if (!Attribute)
+				if (bIsRelationship)
 				{
-					return true;
+					Relationship = Prim.GetRelationship(*PropertyName);
+					if (!Relationship)
+					{
+						return true;
+					}
+				}
+				else
+				{
+					Attribute = Prim.GetAttribute(*PropertyName);
+					if (!Attribute)
+					{
+						return true;
+					}
 				}
 			}
 			else
 			{
-				bool bHadAttr = Prim.HasAttribute(*PropertyName);
-				Attribute = Prim.CreateAttribute(*PropertyName, *AttributeTypeName);
-				if (!Attribute)
+				if (bIsRelationship)
 				{
-					// We expect to fail to create an attribute if we have no typename here (e.g. undo remove property)
-					if (AttributeTypeName.IsEmpty())
+					bool bHadRelationship = Prim.HasRelationship(*PropertyName);
+					Relationship = Prim.CreateRelationship(*PropertyName);
+					if (!Relationship)
 					{
 						UE_LOG(
 							LogUsd,
 							Warning,
-							TEXT("Failed to create attribute '%s' with typename '%s' for prim '%s'"),
+							TEXT("Failed to create relationship '%s' with for prim '%s'"),
 							*PropertyName,
-							*AttributeTypeName,
 							*Prim.GetPrimPath().GetString()
 						);
+
+						return false;
 					}
 
-					return false;
+					bCreated = !bHadRelationship;
 				}
+				else
+				{
+					bool bHadAttr = Prim.HasAttribute(*PropertyName);
+					Attribute = Prim.CreateAttribute(*PropertyName, *AttributeTypeName);
+					if (!Attribute)
+					{
+						// We expect to fail to create an attribute if we have no typename here (e.g. undo remove property)
+						if (AttributeTypeName.IsEmpty())
+						{
+							UE_LOG(
+								LogUsd,
+								Warning,
+								TEXT("Failed to create attribute '%s' with typename '%s' for prim '%s'"),
+								*PropertyName,
+								*AttributeTypeName,
+								*Prim.GetPrimPath().GetString()
+							);
+						}
 
-				bCreated = !bHadAttr;
+						return false;
+					}
+
+					bCreated = !bHadAttr;
+				}
 			}
 		}
 
@@ -486,7 +528,7 @@ namespace UsdUtils
 			UE_LOG(
 				LogUsd,
 				Warning,
-				TEXT("Failed to convert VtValue back to USD when applying it to attribute '%s' of prim '%s'"),
+				TEXT("Failed to convert VtValue back to USD when applying it to property '%s' of prim '%s'"),
 				*PropertyName,
 				*Prim.GetPrimPath().GetString()
 			);
@@ -538,29 +580,89 @@ namespace UsdUtils
 				{
 					Prim.RemoveProperty(*PropertyName);
 				}
-				if (Time.IsSet())
+				if (Time.IsSet() && Attribute)
 				{
 					Attribute.ClearAtTime(Time.GetValue());
 				}
-				else
+				else if (Attribute)
 				{
 					Attribute.Clear();
 				}
 			}
-			else
+			else if (Attribute)
 			{
 				Attribute.Set(WrapperValue, Time);
+			}
+		}
+		// This seems to be the field name for the actual value in pxr:UsdRelationship
+		else if (Field == TEXT("targetPaths"))
+		{
+			if (WrapperValue.IsEmpty())
+			{
+				if (bRemoveProperty)
+				{
+					Prim.RemoveProperty(*PropertyName);
+				}
+				else
+				{
+					if (Attribute)
+					{
+						Attribute.Clear();
+					}
+					else if (Relationship)
+					{
+						bool bRemoveSpec = false;
+						Relationship.ClearTargets(bRemoveSpec);
+					}
+				}
+			}
+			else
+			{
+				// We have to manually convert from the TArray<FString> that our ConvertedValue is holding,
+				// as unlike for UE::FUsdAttribute, we can't just feed a VtValue into the UE::FUsdRelationship
+				if (Value.SourceType == EUsdBasicDataTypes::String && Value.bIsArrayValued)
+				{
+					TArray<UE::FSdfPath> Targets;
+					for (const FConvertedVtValueEntry& Entry : Value.Entries)
+					{
+						// For the relationship values we always put a single component per entry
+						if (Entry.Num() == 1)
+						{
+							const FConvertedVtValueComponent& Component = Entry[0];
+							if (const FString* HeldString = Component.TryGet<FString>())
+							{
+								Targets.Add(UE::FSdfPath{**HeldString});
+							}
+						}
+					}
+
+					Relationship.SetTargets(Targets);
+				}
 			}
 		}
 		else	// variability, colorSpace, etc.
 		{
 			if (WrapperValue.IsEmpty())
 			{
-				Attribute.Clear();
+				if (Attribute)
+				{
+					Attribute.ClearMetadata(*Field);
+				}
+				else if (Relationship)
+				{
+					Relationship.ClearMetadata(*Field);
+				}
 			}
 			else
 			{
-				Attribute.SetMetadata(*Field, WrapperValue);
+				if (Attribute)
+				{
+					Attribute.SetMetadata(*Field, WrapperValue);
+				}
+				else if (Relationship)
+				{
+					Relationship.SetMetadata(*Field, WrapperValue);
+				}
 			}
 		}
 
@@ -722,6 +824,7 @@ namespace UsdUtils
 									AttributeChange.PropertyName,
 									AttributeChange.Field,
 									AttributeChange.AttributeTypeName,
+									AttributeChange.bIsRelationship,
 									bShouldRemove,
 									Direction == EApplicationDirection::Forward ? AttributeChange.NewValue : AttributeChange.OldValue,
 									Prim

@@ -29,7 +29,6 @@ namespace UE
 	class FUsdVariantSet;
 	class FUsdVariantSets;
 	class FUsdRelationship;
-	
 
 	namespace Internal
 	{
@@ -112,7 +111,6 @@ namespace UE
 
 		const FSdfPath GetPrimPath() const;
 		FUsdStage GetStage() const;
-		FUsdRelationship GetRelationship(const TCHAR* RelationshipName) const;
 
 		FName GetName() const;
 
@@ -147,6 +145,11 @@ namespace UE
 		TArray<FUsdAttribute> GetAttributes() const;
 		FUsdAttribute GetAttribute(const TCHAR* AttrName) const;
 		bool HasAttribute(const TCHAR* AttrName) const;
+
+		FUsdRelationship CreateRelationship(const TCHAR* RelName, bool bCustom = true) const;
+		TArray<FUsdRelationship> GetRelationships() const;
+		FUsdRelationship GetRelationship(const TCHAR* RelationshipName) const;
+		bool HasRelationship(const TCHAR* RelName) const;
 
 		bool IsInstanceable() const;
 		bool SetInstanceable(bool bInstanceable) const;

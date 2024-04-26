@@ -8,8 +8,8 @@
 #include "UsdWrappers/UsdAttribute.h"
 #include "UsdWrappers/UsdPayloads.h"
 #include "UsdWrappers/UsdReferences.h"
-#include "UsdWrappers/UsdStage.h"
 #include "UsdWrappers/UsdRelationship.h"
+#include "UsdWrappers/UsdStage.h"
 #include "UsdWrappers/UsdVariantSets.h"
 
 #if USE_USD_SDK
@@ -409,15 +409,6 @@ namespace UE
 #endif	  // #if USE_USD_SDK
 	}
 
-	FUsdRelationship FUsdPrim::GetRelationship(const TCHAR* RelationshipName) const
-	{
-#if USE_USD_SDK
-		return FUsdRelationship(Impl->PxrUsdPrim.Get().GetRelationship(pxr::TfToken(TCHAR_TO_ANSI(RelationshipName))));
-#else
-		return FUsdRelationship();
-#endif	  // #if USE_USD_SDK
-	}
-
 	FName FUsdPrim::GetName() const
 	{
 #if USE_USD_SDK
@@ -665,6 +656,51 @@ namespace UE
 		));
 #else
 		return FUsdAttribute{};
+#endif	  // #if USE_USD_SDK
+	}
+
+	FUsdRelationship FUsdPrim::CreateRelationship(const TCHAR* RelName, bool bCustom) const
+	{
+#if USE_USD_SDK
+		FScopedUsdAllocs UsdAllocs;
+
+		return FUsdRelationship(Impl->PxrUsdPrim.Get().CreateRelationship(pxr::TfToken(TCHAR_TO_ANSI(RelName)), bCustom));
+#else
+		return FUsdRelationship{};
+#endif	  // #if USE_USD_SDK
+	}
+
+	FUsdRelationship FUsdPrim::GetRelationship(const TCHAR* RelationshipName) const
+	{
+#if USE_USD_SDK
+		return FUsdRelationship(Impl->PxrUsdPrim.Get().GetRelationship(pxr::TfToken(TCHAR_TO_ANSI(RelationshipName))));
+#else
+		return FUsdRelationship();
+#endif	  // #if USE_USD_SDK
+	}
+
+	TArray<FUsdRelationship> FUsdPrim::GetRelationships() const
+	{
+		TArray<FUsdRelationship> Relationships;
+
+#if USE_USD_SDK
+		FScopedUsdAllocs UsdAllocs;
+
+		for (const pxr::UsdRelationship& Relationship : Impl->PxrUsdPrim.Get().GetRelationships())
+		{
+			Relationships.Emplace(UE::FUsdRelationship{Relationship});
+		}
+#endif	  // #if USE_USD_SDK
+
+		return Relationships;
+	}
+
+	bool FUsdPrim::HasRelationship(const TCHAR* RelName) const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdPrim.Get().HasRelationship(pxr::TfToken(TCHAR_TO_ANSI(RelName)));
+#else
+		return false;
 #endif	  // #if USE_USD_SDK
 	}
 

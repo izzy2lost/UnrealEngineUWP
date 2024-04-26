@@ -23,6 +23,7 @@ namespace UE
 		class FUsdRelationshipImpl;
 	}
 	class FSdfPath;
+	class FVtValue;
 
 	/**
 	 * Minimal pxr::UsdRelationship wrapper for Unreal that can be used from no-rtti modules.
@@ -61,11 +62,20 @@ namespace UE
 		operator pxr::UsdProperty&();
 		operator const pxr::UsdProperty&() const;
 #endif	  // #if USE_USD_SDK
-		
+
+		  // Wrapped pxr::UsdObject functions, refer to the USD SDK documentation
 	public:
-		/** Get the relationship targets (primitive path relative to the stage) */
-		bool GetTargets(TArray<UE::FSdfPath>& TargetsPath) const;
-		
+		bool GetMetadata(const TCHAR* Key, UE::FVtValue& Value) const;
+		bool HasMetadata(const TCHAR* Key) const;
+		bool SetMetadata(const TCHAR* Key, const UE::FVtValue& Value) const;
+		bool ClearMetadata(const TCHAR* Key) const;
+
+		// Wrapped pxr::UsdRelationship functions, refer to the USD SDK documentation
+	public:
+		bool SetTargets(const TArray<UE::FSdfPath>& Targets) const;
+		bool ClearTargets(bool bRemoveSpec) const;
+		bool GetTargets(TArray<UE::FSdfPath>& Targets) const;
+
 	private:
 		TUniquePtr<Internal::FUsdRelationshipImpl> Impl;
 	};
