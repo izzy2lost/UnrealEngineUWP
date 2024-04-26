@@ -48,9 +48,13 @@ public:
 
 	static TSharedRef< IDatasmithMeshActorElement > CreateMeshActor(const TCHAR* InName);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	static TSharedRef< IDatasmithClothElement > CreateCloth( const TCHAR* InName );
 
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	static TSharedRef< IDatasmithClothActorElement > CreateClothActor(const TCHAR* InName);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	static TSharedRef< IDatasmithHierarchicalInstancedStaticMeshActorElement > CreateHierarchicalInstanceStaticMeshActor( const TCHAR* InName );
 

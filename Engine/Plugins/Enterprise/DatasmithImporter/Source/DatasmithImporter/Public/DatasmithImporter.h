@@ -38,6 +38,7 @@ struct DATASMITHIMPORTER_API FDatasmithImporter
 	 */
 	static void ImportStaticMeshes( FDatasmithImportContext& ImportContext );
 
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	static void ImportClothes( FDatasmithImportContext& ImportContext );
 
 	/**
@@ -57,6 +58,8 @@ struct DATASMITHIMPORTER_API FDatasmithImporter
 	 * @return The resulting static mesh
 	 */
 	static UStaticMesh* FinalizeStaticMesh( UStaticMesh* SourceStaticMesh, const TCHAR* StaticMeshesFolderPath, UStaticMesh* ExistingStaticMesh, TMap< UObject*, UObject* >* ReferencesToRemap = nullptr, bool bBuild = true );
+
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	static UObject* FinalizeCloth( UObject* SourceCloth, const TCHAR* FolderPath, UObject* ExistingCloth, TMap<UObject*, UObject*>* ReferencesToRemap = nullptr);
 
 	/**

@@ -54,8 +54,8 @@ enum class EDatasmithElementType : uint64
 	MaterialExpression             = 1ull << 31,
 	MaterialExpressionInput        = 1ull << 32,
 	MaterialExpressionOutput       = 1ull << 33,
-	Cloth                          = 1ull << 34,
-	ClothActor                     = 1ull << 35,
+	Cloth      UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") = 1ull << 34,
+	ClothActor UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") = 1ull << 35,
 };
 
 ENUM_CLASS_FLAGS( EDatasmithElementType ); // Define bitwise operators for EDatasmithElementType
@@ -469,8 +469,8 @@ static const TCHAR* KeyValuePropertyTypeStrings[] = { TEXT("String"), TEXT("Colo
 
 #define DATASMITH_ACTORNAME						TEXT("Actor")
 
-#define DATASMITH_CLOTH							TEXT("Cloth")
-#define DATASMITH_CLOTHACTORNAME				TEXT("ClothActor")
+#define DATASMITH_CLOTH							TEXT("Cloth")  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
+#define DATASMITH_CLOTHACTORNAME				TEXT("ClothActor")  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 
 //ACTOR MESHES
 #define DATASMITH_ACTORMESHNAME					TEXT("ActorMesh")

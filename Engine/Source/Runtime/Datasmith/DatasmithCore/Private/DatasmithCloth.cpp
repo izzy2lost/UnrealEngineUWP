@@ -5,8 +5,7 @@
 #include "Serialization/CustomVersion.h"
 
 
-
-enum EDatasmithClothSerializationVersion
+enum UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") EDatasmithClothSerializationVersion
 {
     EDCSV_Base = 0,
     EDCSV_WithPatternParameters = 1,
@@ -17,7 +16,7 @@ enum EDatasmithClothSerializationVersion
     _EDCSV_Last = _EDCSV_Count - 1
 };
 
-struct FDatasmithClothSerializationVersion
+struct UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FDatasmithClothSerializationVersion
 {
     const static FGuid GUID;
 
@@ -27,11 +26,14 @@ private:
 
 const FGuid FDatasmithClothSerializationVersion::GUID(0x28B01036, 0x66B4498F, 0x99425ACA, 0xDB78A9B5);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 // Register the custom version with core
+UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 FCustomVersionRegistration GRegisterDatasmithClothCustomVersion(FDatasmithClothSerializationVersion::GUID, _EDCSV_Last, TEXT("DatasmithCloth"));
 
 
-FArchive& operator<<(FArchive& Ar, FParameterData& ParameterData)
+FArchive& operator<<(FArchive& Ar, FParameterData& ParameterData)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Ar.UsingCustomVersion(FDatasmithClothSerializationVersion::GUID);
 
@@ -46,7 +48,7 @@ FArchive& operator<<(FArchive& Ar, FParameterData& ParameterData)
 }
 
 
-FArchive& operator<<(FArchive& Ar, FDatasmithClothPattern& Pattern)
+FArchive& operator<<(FArchive& Ar, FDatasmithClothPattern& Pattern)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Ar.UsingCustomVersion(FDatasmithClothSerializationVersion::GUID);
 	const int32 ClothSerialVersion = Ar.CustomVer(FDatasmithClothSerializationVersion::GUID);
@@ -64,7 +66,7 @@ FArchive& operator<<(FArchive& Ar, FDatasmithClothPattern& Pattern)
 }
 
 
-FArchive& operator<<(FArchive& Ar, FDatasmithClothSewingInfo& Sewing)
+FArchive& operator<<(FArchive& Ar, FDatasmithClothSewingInfo& Sewing)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Ar.UsingCustomVersion(FDatasmithClothSerializationVersion::GUID);
 
@@ -77,7 +79,7 @@ FArchive& operator<<(FArchive& Ar, FDatasmithClothSewingInfo& Sewing)
 }
 
 
-FArchive& operator<<(FArchive& Ar, FDatasmithClothPresetProperty& Property)
+FArchive& operator<<(FArchive& Ar, FDatasmithClothPresetProperty& Property)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Ar.UsingCustomVersion(FDatasmithClothSerializationVersion::GUID);
 
@@ -88,7 +90,7 @@ FArchive& operator<<(FArchive& Ar, FDatasmithClothPresetProperty& Property)
 }
 
 
-FArchive& operator<<(FArchive& Ar, FDatasmithClothPresetPropertySet& PropertySet)
+FArchive& operator<<(FArchive& Ar, FDatasmithClothPresetPropertySet& PropertySet)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Ar.UsingCustomVersion(FDatasmithClothSerializationVersion::GUID);
 
@@ -99,7 +101,7 @@ FArchive& operator<<(FArchive& Ar, FDatasmithClothPresetPropertySet& PropertySet
 }
 
 
-FArchive& operator<<(FArchive& Ar, FDatasmithCloth& Cloth)
+FArchive& operator<<(FArchive& Ar, FDatasmithCloth& Cloth)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Ar.UsingCustomVersion(FDatasmithClothSerializationVersion::GUID);
 	const int32 ClothSerialVersion = Ar.CustomVer(FDatasmithClothSerializationVersion::GUID);
@@ -114,3 +116,4 @@ FArchive& operator<<(FArchive& Ar, FDatasmithCloth& Cloth)
 
 	return Ar;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

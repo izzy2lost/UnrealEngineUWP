@@ -29,6 +29,7 @@ UDatasmithScene::UDatasmithScene()
 #endif
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // For Clothes destruction: UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 UDatasmithScene::~UDatasmithScene()
 {
 #if WITH_EDITOR
@@ -38,6 +39,7 @@ UDatasmithScene::~UDatasmithScene()
 	}
 #endif
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void UDatasmithScene::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {

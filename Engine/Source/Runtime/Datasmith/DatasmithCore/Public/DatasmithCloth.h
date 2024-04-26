@@ -15,7 +15,7 @@ class FDatasmithMesh;
 class UActorComponent;
 
 
-struct FParameterData
+struct UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FParameterData
 {
 	FString Name;
 
@@ -29,14 +29,16 @@ public:
 };
 
 
-class DATASMITHCORE_API FDatasmithClothPattern
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") DATASMITHCORE_API FDatasmithClothPattern
 {
 public:
 	TArray<FVector2f> SimPosition;
 	TArray<FVector3f> SimRestPosition;
 	TArray<uint32> SimTriangleIndices;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<FParameterData> Parameters;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 public:
 	bool IsValid() const { return SimRestPosition.Num() == SimPosition.Num() && SimTriangleIndices.Num() % 3 == 0 && SimTriangleIndices.Num(); }
@@ -44,7 +46,7 @@ public:
 };
 
 
-struct FDatasmithClothSewingInfo
+struct UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FDatasmithClothSewingInfo
 {
 	uint32 Seam0PanelIndex = 0;
 	uint32 Seam1PanelIndex = 0;
@@ -55,7 +57,7 @@ struct FDatasmithClothSewingInfo
 };
 
 
-class FDatasmithClothPresetProperty
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FDatasmithClothPresetProperty
 {
 public:
 	FName Name;
@@ -66,23 +68,27 @@ public:
 };
 
 
-class DATASMITHCORE_API FDatasmithClothPresetPropertySet
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") DATASMITHCORE_API FDatasmithClothPresetPropertySet
 {
 public:
 	FString SetName;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<FDatasmithClothPresetProperty> Properties;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 public:
 	friend FArchive& operator<<(FArchive& Ar, FDatasmithClothPresetPropertySet& PropertySet);
 };
 
 
-class DATASMITHCORE_API FDatasmithCloth
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") DATASMITHCORE_API FDatasmithCloth
 {
 public:
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<FDatasmithClothPattern> Patterns;
 	TArray<FDatasmithClothSewingInfo> Sewing;
 	TArray<FDatasmithClothPresetPropertySet> PropertySets;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 public:
 	friend FArchive& operator<<(FArchive& Ar, FDatasmithCloth& Cloth);
@@ -96,17 +102,24 @@ class DATASMITHCORE_API UDatasmithClothAssetFactory : public UObject
 	GENERATED_BODY()
 
 public:
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	UDatasmithClothAssetFactory() = default;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual ~UDatasmithClothAssetFactory() = default;
 
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual UObject* CreateClothAsset(UObject* Outer, const FName& Name, EObjectFlags Flags) const
 	PURE_VIRTUAL(UDatasmithClothAssetFactory::CreateClothAsset, return nullptr;);
 
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual UObject* DuplicateClothAsset(UObject* ClothAsset, UObject* Outer, const FName& Name) const
 	PURE_VIRTUAL(UDatasmithClothAssetFactory::DuplicateClothAsset, return nullptr;);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void InitializeClothAsset(UObject* ClothAsset, const FDatasmithCloth& DatasmithCloth) const
 	PURE_VIRTUAL(UDatasmithClothAssetFactory::InitializeClothAsset, );
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 
@@ -117,19 +130,23 @@ class DATASMITHCORE_API UDatasmithClothComponentFactory : public UObject
 	GENERATED_BODY()
 
 public:
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	UDatasmithClothComponentFactory() = default;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual ~UDatasmithClothComponentFactory() = default;
 
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual USceneComponent* CreateClothComponent(UObject* Outer) const
 	PURE_VIRTUAL(UDatasmithClothComponentFactory::CreateClothComponent, return nullptr;);
 
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void InitializeClothComponent(USceneComponent* ClothComponent, UObject* ClothAsset, USceneComponent* RootComponent) const
 	PURE_VIRTUAL(UDatasmithClothComponentFactory::InitializeClothComponent, );
 };
 
 
 /** A modular interface to provide factory classes to initialize cloth assets and components. */
-class IDatasmithClothFactoryClassesProvider : public IModularFeature
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") IDatasmithClothFactoryClassesProvider : public IModularFeature
 {
 public:
 	inline static const FName FeatureName = TEXT("IDatasmithClothFactoryClassesProvider");

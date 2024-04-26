@@ -45,10 +45,12 @@ TSharedPtr< IDatasmithElement > FDatasmithSceneFactory::CreateElement( EDatasmit
 		}
 	case EDatasmithElementType::StaticMesh:
 		return CreateMesh( InName );
-	case EDatasmithElementType::Cloth:
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	case EDatasmithElementType::Cloth:  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 		return CreateCloth( InName );
-	case EDatasmithElementType::ClothActor:
+	case EDatasmithElementType::ClothActor:  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 		return CreateClothActor( InName );
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	case EDatasmithElementType::StaticMeshActor:
 		return CreateMeshActor( InName );
 	case EDatasmithElementType::PointLight:
@@ -204,15 +206,17 @@ TSharedRef< IDatasmithMeshActorElement > FDatasmithSceneFactory::CreateMeshActor
 	return MakeShared< FDatasmithMeshActorElementImpl<> >( InName );
 }
 
-TSharedRef< IDatasmithClothElement > FDatasmithSceneFactory::CreateCloth(const TCHAR* InName)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+TSharedRef< IDatasmithClothElement > FDatasmithSceneFactory::CreateCloth(const TCHAR* InName)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	return MakeShared< FDatasmithClothElementImpl >( InName );
 }
 
-TSharedRef< IDatasmithClothActorElement > FDatasmithSceneFactory::CreateClothActor( const TCHAR* InName )
+TSharedRef< IDatasmithClothActorElement > FDatasmithSceneFactory::CreateClothActor( const TCHAR* InName )  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	return MakeShared< FDatasmithClothActorElementImpl >( InName );
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 TSharedRef< IDatasmithHierarchicalInstancedStaticMeshActorElement > FDatasmithSceneFactory::CreateHierarchicalInstanceStaticMeshActor(const TCHAR* InName)
 {

@@ -3,7 +3,7 @@
 #include "DatasmithMeshExporter.h"
 
 #include "DatasmithCore.h"
-#include "DatasmithCloth.h"
+#include "DatasmithCloth.h"  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 #include "DatasmithExporterManager.h"
 #include "DatasmithMesh.h"
 #include "DatasmithMeshUObject.h"
@@ -173,7 +173,8 @@ bool FDatasmithMeshExporter::ExportToUObject(TSharedPtr<IDatasmithMeshElement>& 
 }
 
 
-bool FDatasmithMeshExporter::ExportCloth(FDatasmithCloth& Cloth, TSharedPtr<IDatasmithClothElement>& ClothElement, const TCHAR* FilePath, const TCHAR* AssetsOutputPath) const
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FDatasmithMeshExporter::ExportCloth(FDatasmithCloth& Cloth, TSharedPtr<IDatasmithClothElement>& ClothElement, const TCHAR* FilePath, const TCHAR* AssetsOutputPath) const  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	FString Path = FPaths::SetExtension(FilePath, TEXT(".udscloth"));
 	FPaths::NormalizeFilename(Path);
@@ -200,6 +201,7 @@ bool FDatasmithMeshExporter::ExportCloth(FDatasmithCloth& Cloth, TSharedPtr<IDat
 
 	return true;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FString FDatasmithMeshExporter::GetLastError() const
 {

@@ -263,14 +263,16 @@ namespace DatasmithImportFactoryImpl
 			return false;
 		}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// CLOTH
-		FDatasmithImporter::ImportClothes( InContext );
+		FDatasmithImporter::ImportClothes( InContext );  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 
 		if ( InContext.bUserCancelled )
 		{
 			bOutOperationCancelled = true;
 			return false;
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// ACTORS
 		if( InContext.ShouldImportActors() )

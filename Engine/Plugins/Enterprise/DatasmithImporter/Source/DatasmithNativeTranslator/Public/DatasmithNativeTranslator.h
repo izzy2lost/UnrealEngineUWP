@@ -19,7 +19,10 @@ public:
 
 	virtual bool LoadLevelSequence(const TSharedRef<IDatasmithLevelSequenceElement> LevelSequenceElement, FDatasmithLevelSequencePayload& OutLevelSequencePayload) override;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual bool LoadCloth(const TSharedRef<IDatasmithClothElement> ClothElement, FDatasmithClothElementPayload& OutClothPayload) override;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:
 	static FString ResolveFilePath(const FString& FilePath, const TArray<FString>& ResourcePaths);

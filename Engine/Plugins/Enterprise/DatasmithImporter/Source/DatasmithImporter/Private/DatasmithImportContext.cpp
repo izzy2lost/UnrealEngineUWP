@@ -555,10 +555,12 @@ void FDatasmithImportContext::FInternalReferenceCollector::AddReferencedObjects(
 		Collector.AddReferencedObject( It.Value );
 	}
 
-	for (auto& Pair : ImportContext->ImportedClothes)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for (auto& Pair : ImportContext->ImportedClothes)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		Collector.AddReferencedObject(Pair.Value);
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	Collector.AddReferencedObjects(ImportContext->ImportedMaterials);
 	Collector.AddReferencedObjects(ImportContext->ImportedParentMaterials);

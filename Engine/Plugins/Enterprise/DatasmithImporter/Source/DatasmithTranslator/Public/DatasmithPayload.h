@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "DatasmithCloth.h"
+#include "DatasmithCloth.h"  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 #include "MeshDescription.h"
 
 
@@ -23,9 +23,11 @@ struct FDatasmithMeshElementPayload : public FDatasmithPayload
 /**
  * Describes a Cloth element payload, which is the actual data to be imported.
  */
-struct FDatasmithClothElementPayload : public FDatasmithPayload
+struct UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FDatasmithClothElementPayload : public FDatasmithPayload
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FDatasmithCloth Cloth;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 

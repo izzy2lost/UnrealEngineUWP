@@ -22,7 +22,8 @@ FArchive& operator<<(FArchive& Ar, FDatasmithMeshModels& Models)
 }
 
 
-FArchive& operator<<(FArchive& Ar, FDatasmithClothInfo& Info)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FArchive& operator<<(FArchive& Ar, FDatasmithClothInfo& Info)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	uint8 Version = 0;
 	Ar << Version;
@@ -31,6 +32,7 @@ FArchive& operator<<(FArchive& Ar, FDatasmithClothInfo& Info)
 
 	return Ar;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 namespace DatasmithMeshSerializationImpl
@@ -367,8 +369,7 @@ FDatasmithPackedMeshes GetDatasmithMeshFromFile(const FString& MeshPath)
 	return Result;
 }
 
-
-FMD5Hash FDatasmithPackedCloths::Serialize(FArchive& Ar, bool bSaveCompressed)
+FMD5Hash FDatasmithPackedCloths::Serialize(FArchive& Ar, bool bSaveCompressed)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	using namespace DatasmithMeshSerializationImpl;
 	// structure          from
@@ -455,7 +456,8 @@ FMD5Hash FDatasmithPackedCloths::Serialize(FArchive& Ar, bool bSaveCompressed)
 }
 
 
-FDatasmithPackedCloths GetDatasmithClothFromFile(const FString& Path)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FDatasmithPackedCloths GetDatasmithClothFromFile(const FString& Path)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	TUniquePtr<FArchive> Archive(IFileManager::Get().CreateFileReader(*Path));
 	if ( !Archive.IsValid() )
@@ -475,4 +477,5 @@ FDatasmithPackedCloths GetDatasmithClothFromFile(const FString& Path)
 
 	return Result;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

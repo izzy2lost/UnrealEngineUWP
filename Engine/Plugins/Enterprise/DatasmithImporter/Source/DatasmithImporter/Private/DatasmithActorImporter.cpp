@@ -3,7 +3,7 @@
 #include "DatasmithActorImporter.h"
 
 #include "DatasmithCameraImporter.h"
-#include "DatasmithCloth.h"
+#include "DatasmithCloth.h"  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 #include "DatasmithImportContext.h"
 #include "DatasmithImporterModule.h"
 #include "DatasmithImportOptions.h"
@@ -337,7 +337,8 @@ UStaticMeshComponent* FDatasmithActorImporter::ImportStaticMeshComponent( FDatas
 	return StaticMeshComponent;
 }
 
-AActor* FDatasmithActorImporter::ImportClothActor(FDatasmithImportContext& ImportContext, const TSharedRef<IDatasmithClothActorElement>& ClothActorElement)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+AActor* FDatasmithActorImporter::ImportClothActor(FDatasmithImportContext& ImportContext, const TSharedRef<IDatasmithClothActorElement>& ClothActorElement)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	AActor* ImportedActor = ImportActor(AActor::StaticClass(), ClothActorElement, ImportContext, ImportContext.Options->StaticMeshActorImportPolicy);
 
@@ -394,6 +395,7 @@ AActor* FDatasmithActorImporter::ImportClothActor(FDatasmithImportContext& Impor
 	}
 	return ImportedActor;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDatasmithActorImporter::SetupStaticMeshComponent( FDatasmithImportContext& ImportContext, UStaticMeshComponent* StaticMeshComponent, const TSharedRef< IDatasmithMeshActorElement >& MeshActorElement )
 {

@@ -32,7 +32,10 @@ public:
 
 	static void WriteTexture(FArchive& Archive, int32 Indent, const TCHAR* Prefix, const TCHAR* Name, FDatasmithTextureSampler UV);
 	static void WriteMeshElement(const TSharedPtr< IDatasmithMeshElement >& MeshElement, FArchive& Archive, int32 Indent);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	static void WriteClothElement(const TSharedPtr< IDatasmithClothElement >& ClothElement, FArchive& Archive, int32 Indent);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	static void WriteLevelSequenceElement( const TSharedRef< IDatasmithLevelSequenceElement>& SequenceElement, FArchive& Archive, int32 Indent );
 
 	static void WriteLevelVariantSetsElement( const TSharedRef< IDatasmithLevelVariantSetsElement >& LevelVariantSetsElement, FArchive& Archive, int32 Indent );
@@ -47,7 +50,10 @@ public:
 	static void WriteActorTags(const TSharedPtr< IDatasmithActorElement >& ActorElement, FArchive& Archive, int32 Indent);
 	static void WriteActorChildren(const TSharedPtr< IDatasmithActorElement >& ActorElement, FArchive& Archive, int32 Indent);
 	static void WriteMeshActorElement(const TSharedPtr< IDatasmithMeshActorElement >& MeshActorElement, FArchive& Archive, int32 Indent);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	static void WriteClothActorElement(const TSharedPtr< IDatasmithClothActorElement >& ClothActorElement, FArchive& Archive, int32 Indent);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Write the start of the actor element (Open the xml element and add the essential child elements for the mesh actor)
 	static void WriteBeginOfMeshActorElement(const TSharedPtr<IDatasmithMeshActorElement>& MeshActorElement, const FString& ElementTypeString, FArchive& Archive, int32 Indent);
@@ -360,7 +366,8 @@ void FDatasmithSceneXmlWriterImpl::WriteMeshElement(const TSharedPtr< IDatasmith
 	SerializeToArchive(Archive, XmlString);
 }
 
-void FDatasmithSceneXmlWriterImpl::WriteClothElement(const TSharedPtr<IDatasmithClothElement>& Element, FArchive& Archive, int32 Indent)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FDatasmithSceneXmlWriterImpl::WriteClothElement(const TSharedPtr<IDatasmithClothElement>& Element, FArchive& Archive, int32 Indent)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	WriteIndent(Archive, Indent);
 	FString XmlString = TEXT("<") DATASMITH_CLOTH;
@@ -375,6 +382,7 @@ void FDatasmithSceneXmlWriterImpl::WriteClothElement(const TSharedPtr<IDatasmith
 	WriteIndent(Archive, Indent);
 	SerializeToArchive(Archive, TEXT("</") DATASMITH_CLOTH TEXT(">") LINE_TERMINATOR);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDatasmithSceneXmlWriterImpl::WriteLevelSequenceElement(const TSharedRef< IDatasmithLevelSequenceElement>& SequenceElement, FArchive& Archive, int32 Indent)
 {
@@ -570,10 +578,12 @@ void FDatasmithSceneXmlWriterImpl::WriteActorElement(const TSharedPtr< IDatasmit
 	{
 		WriteMeshActorElement(StaticCastSharedPtr< IDatasmithMeshActorElement >(ActorElement), Archive, Indent);
 	}
-	else if ( ActorElement->IsA( EDatasmithElementType::ClothActor ) )
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	else if ( ActorElement->IsA( EDatasmithElementType::ClothActor ) )  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		WriteClothActorElement(StaticCastSharedPtr< IDatasmithClothActorElement >(ActorElement), Archive, Indent);
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	else if ( ActorElement->IsA( EDatasmithElementType::Camera ) )
 	{
 		WriteCameraActorElement(StaticCastSharedPtr< IDatasmithCameraActorElement >(ActorElement), Archive, Indent);
@@ -681,7 +691,8 @@ void FDatasmithSceneXmlWriterImpl::WriteMeshActorElement(const TSharedPtr< IData
 	WriteEndOfMeshActorElement(ElementTypeString, Archive, Indent);
 }
 
-void FDatasmithSceneXmlWriterImpl::WriteClothActorElement(const TSharedPtr< IDatasmithClothActorElement >& Element, FArchive& Archive, int32 Indent)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FDatasmithSceneXmlWriterImpl::WriteClothActorElement(const TSharedPtr< IDatasmithClothActorElement >& Element, FArchive& Archive, int32 Indent)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	WriteIndent(Archive, Indent);
 	SerializeToArchive(Archive, FString(TEXT("<") DATASMITH_CLOTHACTORNAME TEXT(" name=\"")) + SanitizeXMLText(Element->GetName()) + TEXT("\""));
@@ -693,6 +704,7 @@ void FDatasmithSceneXmlWriterImpl::WriteClothActorElement(const TSharedPtr< IDat
 	WriteIndent(Archive, Indent);
 	SerializeToArchive(Archive, TEXT("</") DATASMITH_CLOTHACTORNAME TEXT(">") LINE_TERMINATOR);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDatasmithSceneXmlWriterImpl::WriteBeginOfMeshActorElement(const TSharedPtr<IDatasmithMeshActorElement>& MeshActorElement, const FString& ElementTypeString, FArchive& Archive, int32 Indent)
 {
@@ -1987,11 +1999,13 @@ void FDatasmithSceneXmlWriter::Serialize( TSharedRef< IDatasmithScene > Datasmit
 		FDatasmithSceneXmlWriterImpl::WriteMeshElement( Mesh, Archive, 1 );
 	}
 
-	for ( int32 Index = 0; Index < DatasmithScene->GetClothesCount(); ++Index )
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for ( int32 Index = 0; Index < DatasmithScene->GetClothesCount(); ++Index )  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		const TSharedPtr< IDatasmithClothElement >& Cloth = DatasmithScene->GetCloth( Index );
 		FDatasmithSceneXmlWriterImpl::WriteClothElement( Cloth, Archive, 1 );
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for ( int32 ActorIndex = 0; ActorIndex < DatasmithScene->GetActorsCount(); ++ActorIndex )
 	{
