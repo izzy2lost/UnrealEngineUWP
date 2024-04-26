@@ -5,6 +5,7 @@
 #include "Dataflow/DataflowNode.h"
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "Dataflow/DataflowCollectionAttributeKeyNodes.h"
 
 #include "DataflowCollectionAddScalarVertexPropertyNode.generated.h"
 
@@ -19,12 +20,15 @@ struct DATAFLOWNODES_API FDataflowCollectionAddScalarVertexPropertyNode : public
 
 public:
 
-	UPROPERTY(Meta = (Dataflowinput, DataflowOutput, DataflowPassthrough = "Collection"))
+	UPROPERTY(Meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection"))
 	FManagedArrayCollection Collection;
 
 	/** The name to be set as a weight map attribute. */
-	UPROPERTY(EditAnywhere, Category = "Vertex Attribute", Meta = (DataflowOutput))
+	UPROPERTY(EditAnywhere, Category = "Vertex Attribute")
 	FString Name;
+
+	UPROPERTY(meta = (DisplayName = "AttributeKey", DataflowOutput))
+	FCollectionAttributeKey AttributeKey;
 
 	UPROPERTY()
 	TArray<float> VertexWeights;

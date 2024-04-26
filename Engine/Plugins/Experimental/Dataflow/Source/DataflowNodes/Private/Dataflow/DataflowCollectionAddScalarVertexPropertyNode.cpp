@@ -14,7 +14,7 @@ FDataflowCollectionAddScalarVertexPropertyNode::FDataflowCollectionAddScalarVert
 {
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection, &Collection);
-	RegisterOutputConnection(&Name);
+	RegisterOutputConnection(&AttributeKey);
 }
 
 void FDataflowCollectionAddScalarVertexPropertyNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -49,9 +49,9 @@ void FDataflowCollectionAddScalarVertexPropertyNode::Evaluate(Dataflow::FContext
 
 		SetValue(Context, MoveTemp(InCollection), &Collection);
 	}
-	else if (Out->IsA<FString>(&Name))
+	else if (Out->IsA<FCollectionAttributeKey>(&AttributeKey))
 	{
-		SetValue(Context, Name, &Name);
+		SetValue(Context, FCollectionAttributeKey(Name,"Vertices"), &AttributeKey);
 	}
 }
 

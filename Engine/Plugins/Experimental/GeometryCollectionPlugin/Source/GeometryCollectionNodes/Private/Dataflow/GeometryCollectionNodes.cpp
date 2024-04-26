@@ -919,15 +919,15 @@ void FGetCollectionAttributeDataTypedDataflowNode::Evaluate(Dataflow::FContext& 
 		Out->IsA<TArray<FVector3d>>(&Vector3dAttributeData))
 	{
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-
-		FName GroupNameToUse;
+		
+		FName InputGroupName;
 		if (GroupName != EStandardGroupNameEnum::Dataflow_EStandardGroupNameEnum_Custom)
 		{
-			GroupNameToUse = GetGroupName(GroupName);
+			InputGroupName = GetGroupName(GroupName);
 		}
 		else
 		{
-			GroupNameToUse = FName(*CustomGroupName);
+			InputGroupName = FName(*CustomGroupName);
 		}
 
 		SetValue(Context, TArray<bool>(), &BoolAttributeData);
@@ -938,48 +938,53 @@ void FGetCollectionAttributeDataTypedDataflowNode::Evaluate(Dataflow::FContext& 
 		SetValue(Context, TArray<FVector3f>(), &Vector3fAttributeData);
 		SetValue(Context, TArray<FVector3d>(), &Vector3dAttributeData);
 
-		if (GroupNameToUse.GetStringLength() > 0 && AttrName.Len() > 0)
+		FCollectionAttributeKey DefaultAttributeKey(AttrName, InputGroupName.ToString());
+		FCollectionAttributeKey AttributeKeyVal = GetValue(Context, &AttributeKey, DefaultAttributeKey);
+		FName GroupNameVal = FName(AttributeKeyVal.Group);
+		FName AttributeNameVal = FName(AttributeKeyVal.Attribute);
+
+		if (GroupNameVal.GetStringLength() > 0 && AttributeNameVal.GetStringLength() > 0)
 		{
-			if (InCollection.HasGroup(GroupNameToUse))
+			if (InCollection.HasGroup(GroupNameVal))
 			{
-				if (InCollection.HasAttribute(FName(*AttrName), GroupNameToUse))
+				if (InCollection.HasAttribute(AttributeNameVal, GroupNameVal))
 				{
-					FString TypeStr = GetArrayTypeString(InCollection.GetAttributeType(FName(*AttrName), GroupNameToUse)).ToString();
+					FString TypeStr = GetArrayTypeString(InCollection.GetAttributeType(AttributeNameVal, GroupNameVal)).ToString();
 
 					if (TypeStr == FString("Bool"))
 					{
-						const TManagedArray<bool>& AttributeArr = InCollection.GetAttribute<bool>(FName(*AttrName), GroupNameToUse);
+						const TManagedArray<bool>& AttributeArr = InCollection.GetAttribute<bool>(AttributeNameVal, GroupNameVal);
 						TArray<bool> BoolArray = AttributeArr.GetAsBoolArray();
 						SetValue(Context, MoveTemp(BoolArray), &BoolAttributeData);
 					}
 					else if (TypeStr == FString("Float"))
 					{
-						const TManagedArray<float>& AttributeArr = InCollection.GetAttribute<float>(FName(*AttrName), GroupNameToUse);
+						const TManagedArray<float>& AttributeArr = InCollection.GetAttribute<float>(AttributeNameVal, GroupNameVal);
 						SetValue(Context, AttributeArr.GetConstArray(), &FloatAttributeData);
 					}
 					else if (TypeStr == FString("Double"))
 					{
-						const TManagedArray<double>& AttributeArr = InCollection.GetAttribute<double>(FName(*AttrName), GroupNameToUse);
+						const TManagedArray<double>& AttributeArr = InCollection.GetAttribute<double>(AttributeNameVal, GroupNameVal);
 						SetValue(Context, AttributeArr.GetConstArray(), &DoubleAttributeData);
 					}
 					else if (TypeStr == FString("Int32"))
 					{
-						const TManagedArray<int32>& AttributeArr = InCollection.GetAttribute<int32>(FName(*AttrName), GroupNameToUse);
+						const TManagedArray<int32>& AttributeArr = InCollection.GetAttribute<int32>(AttributeNameVal, GroupNameVal);
 						SetValue(Context, AttributeArr.GetConstArray(), &Int32AttributeData);
 					}
 					else if (TypeStr == FString("String"))
 					{
-						const TManagedArray<FString>& AttributeArr = InCollection.GetAttribute<FString>(FName(*AttrName), GroupNameToUse);
+						const TManagedArray<FString>& AttributeArr = InCollection.GetAttribute<FString>(AttributeNameVal, GroupNameVal);
 						SetValue(Context, AttributeArr.GetConstArray(), &StringAttributeData);
 					}
 					else if (TypeStr == FString("Vector"))
 					{
-						const TManagedArray<FVector3f>& AttributeArr = InCollection.GetAttribute<FVector3f>(FName(*AttrName), GroupNameToUse);
+						const TManagedArray<FVector3f>& AttributeArr = InCollection.GetAttribute<FVector3f>(AttributeNameVal, GroupNameVal);
 						SetValue(Context, AttributeArr.GetConstArray(), &Vector3fAttributeData);
 					}
 					else if (TypeStr == FString("Vector3d"))
 					{
-						const TManagedArray<FVector3d>& AttributeArr = InCollection.GetAttribute<FVector3d>(FName(*AttrName), GroupNameToUse);
+						const TManagedArray<FVector3d>& AttributeArr = InCollection.GetAttribute<FVector3d>(AttributeNameVal, GroupNameVal);
 						SetValue(Context, AttributeArr.GetConstArray(), &Vector3dAttributeData);
 					}
 				}

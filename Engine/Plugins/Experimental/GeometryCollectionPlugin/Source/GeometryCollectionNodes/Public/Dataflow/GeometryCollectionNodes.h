@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowEngine.h"
+#include "Dataflow/DataflowCollectionAttributeKeyNodes.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "UDynamicMesh.h"
@@ -1318,6 +1319,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
+	/** Input to drive the Attribute and Group name */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "AttributeKey"))
+	FCollectionAttributeKey AttributeKey;
+
 	/** Standard group names */
 	UPROPERTY(EditAnywhere, Category = "Attribute", meta = (DisplayName = "Group"))
 	EStandardGroupNameEnum GroupName = EStandardGroupNameEnum::Dataflow_EStandardGroupNameEnum_Transform;
@@ -1362,6 +1367,7 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&AttributeKey);
 		RegisterOutputConnection(&BoolAttributeData);
 		RegisterOutputConnection(&FloatAttributeData);
 		RegisterOutputConnection(&DoubleAttributeData);

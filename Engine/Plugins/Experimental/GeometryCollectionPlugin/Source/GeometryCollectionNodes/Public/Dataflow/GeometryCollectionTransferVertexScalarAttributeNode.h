@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
 #include "Dataflow/DataflowNode.h"
+#include "Dataflow/DataflowCollectionAttributeKeyNodes.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
 #include "GeometryCollectionTransferVertexScalarAttributeNode.generated.h"
@@ -54,8 +55,8 @@ public:
 	FManagedArrayCollection FromCollection;
 
 	/* The name of the vertex attribute to generate indices from. */
-	UPROPERTY(EditAnywhere, Category = "Dataflow", Meta = (DataflowInput, DataflowOutput, DisplayName = "Name", DataflowPassthrough = "Name"))
-	FString Name = FString("");
+	UPROPERTY(EditAnywhere, Category = "Dataflow", Meta = (DataflowInput, DataflowOutput, DisplayName = "AttributeKey", DataflowPassthrough = "AttributeKey"))
+	FCollectionAttributeKey AttributeKey;
 
 	/* Falloff of sample value based on distance from sample triangle[default: Squared] */
 	UPROPERTY(EditAnywhere, Category = "Thresholds")
@@ -75,10 +76,10 @@ public:
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&FromCollection);
-		RegisterInputConnection(&Name);
+		RegisterInputConnection(&AttributeKey);
 
 		RegisterOutputConnection(&Collection, &Collection);
-		RegisterOutputConnection(&Name, &Name);
+		RegisterOutputConnection(&AttributeKey, &AttributeKey);
 	}
 
 private:
@@ -90,8 +91,8 @@ private:
 	// private helpers
 	//
 	TArray<FIntVector2> FindSourceToTargetGeometryMap(const FManagedArrayCollection& SourceCollection, const FManagedArrayCollection& TargetCollection) const;
-	void PairedGeometryTransfer(FString AttributName, const TArray<FIntVector2>& PairedGeometry,const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, TManagedArray<float>* TargetFloatArray) const;
-	void NearestVertexTransfer(FString AttributName, const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, TManagedArray<float>* TargetFloatArray) const;
+	void PairedGeometryTransfer(FCollectionAttributeKey Key, const TArray<FIntVector2>& PairedGeometry,const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, TManagedArray<float>* TargetFloatArray) const;
+	void NearestVertexTransfer(FCollectionAttributeKey Key, const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, TManagedArray<float>* TargetFloatArray) const;
 	static float MaxEdgeLength(TArray<FVector>& Vert, const TManagedArray<FIntVector3>& Tri, int VertexOFfset, int TriStart, int TriCount);
 	static void BuildComponentSpaceVertices(const TManagedArray<FTransform3f>* LocalSpaceTransform, const TManagedArray<int32>* Parent, const TManagedArray<int32>* BoneMapArray, const TManagedArray<FVector3f>* VertexArray, int32 Start, int32 Count, TArray<FVector>& ComponentSpaceVertices);
 	static UE::Private::BVH* BuildParticleSphereBVH(const TArray<FVector>& Vertices, float Radius);

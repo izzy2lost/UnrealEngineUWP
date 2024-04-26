@@ -15,6 +15,7 @@ namespace UnrealBuildTool.Rules
 					"Chaos",
 					"DataflowCore",
 					"DataflowEngine",
+					"DataflowNodes",
 					"GeometryCollectionEngine",
 					"GeometryCore",
 					"Voronoi",

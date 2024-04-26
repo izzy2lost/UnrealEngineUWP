@@ -2,7 +2,9 @@
 
 #pragma once 
 
+#include "Dataflow/DataflowCollectionAttributeKeyNodes.h"
 #include "Dataflow/DataflowNode.h"
+#include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
 #include "GeometryCollectionVertexScalarToVertexIndicesNode.generated.h"
@@ -19,9 +21,9 @@ public:
 	UPROPERTY(Meta = (DataflowInput))
 	FManagedArrayCollection Collection;
 
-	/** The name of the vertex attribute to generate indices from. */
-	UPROPERTY(EditAnywhere, Category = "Selection Filter", Meta = (DataflowInput))
-	FString VertexAttributeName;
+	/** The name of the vertex attribute and group to generate indices from. */
+	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowInput, DisplayName = "AttributeKey"))
+	FCollectionAttributeKey AttributeKey = FCollectionAttributeKey("", "Vertices");
 
 	/** The value threshold for what is included in the vertex list. */
 	UPROPERTY(EditAnywhere, Category = "Selection Filter", Meta = (ClampMin = "0", ClampMax = "1"))

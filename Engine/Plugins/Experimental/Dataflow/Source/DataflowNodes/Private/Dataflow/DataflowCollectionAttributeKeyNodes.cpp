@@ -11,22 +11,22 @@ namespace Dataflow
 {
 	void DataflowCollectionAttributeKeyNodes()
 	{
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeCollectionKeyDataflowNode);
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FBreakCollectionKeyDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeAttributeKeyDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FBreakAttributeKeyDataflowNode);
 	}
 }
 
 
-void FMakeCollectionKeyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeAttributeKeyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	FString GroupName = GetValue<FString>(Context, &GroupIn);
 	FString AttributeName = GetValue<FString>(Context, &AttributeIn);
-	SetValue(Context, FCollectionKey(GroupName, AttributeName), &CollectionKeyOut);
+	FString GroupName = GetValue<FString>(Context, &GroupIn);
+	SetValue(Context, FCollectionAttributeKey(GroupName, AttributeName), &AttributeKeyOut);
 }
 
-void FBreakCollectionKeyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBreakAttributeKeyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	FCollectionKey CollectionKey = GetValue<FCollectionKey>(Context, &CollectionKeyIn);
-	SetValue(Context, CollectionKey.Group, &GroupOut);
+	FCollectionAttributeKey CollectionKey = GetValue<FCollectionAttributeKey>(Context, &AttributeKeyIn);
 	SetValue(Context, CollectionKey.Attribute, &AttributeOut);
+	SetValue(Context, CollectionKey.Group, &GroupOut);
 }

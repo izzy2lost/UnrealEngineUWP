@@ -11,7 +11,7 @@ FGeometryCollectionVertexScalarToVertexIndicesNode::FGeometryCollectionVertexSca
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
-	RegisterInputConnection(&VertexAttributeName);
+	RegisterInputConnection(&AttributeKey);
 	RegisterOutputConnection(&Indices);
 }
 
@@ -22,9 +22,9 @@ void FGeometryCollectionVertexScalarToVertexIndicesNode::Evaluate(Dataflow::FCon
 		TArray<int32> IndicesOut;
 
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		FString VertixAttributeNameVal = GetValue<FString>(Context, &VertexAttributeName, VertexAttributeName);
+		FCollectionAttributeKey Key = GetValue(Context, &AttributeKey);
 
-		if( const TManagedArray<float>* FloatArray = InCollection.FindAttribute<float>(FName(VertixAttributeNameVal), FName("Vertices") ) )
+		if( const TManagedArray<float>* FloatArray = InCollection.FindAttribute<float>(FName(Key.Attribute), FName(Key.Group) ) )
 		{
 			for (int i = 0; i < FloatArray->Num(); i++)
 			{

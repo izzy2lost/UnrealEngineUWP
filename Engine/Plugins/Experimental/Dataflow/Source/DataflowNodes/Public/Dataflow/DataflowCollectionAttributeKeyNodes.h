@@ -11,24 +11,29 @@ class USkeletalMesh;
 
 
 USTRUCT(BlueprintType)
-struct DATAFLOWNODES_API FCollectionKey
+struct DATAFLOWNODES_API FCollectionAttributeKey
 {
 	GENERATED_USTRUCT_BODY()
 public:
-	FCollectionKey() : Group(""), Attribute("") {}
-	FCollectionKey(FString InGroup, FString InAttribute)
-		:Group(InGroup), Attribute(InAttribute) {}
-	TPair<FName, FName> GetNamedKey() { return { FName(Group), FName(Attribute)}; }
-	FString Group;
+	FCollectionAttributeKey() : Attribute(""), Group("") {}
+	FCollectionAttributeKey(FString InAttribute, FString InGroup)
+		: Attribute(InAttribute), Group(InGroup) {}
+	TPair<FName, FName> GetNamedKey() { return { FName(Attribute), FName(Group)}; }
+
+	UPROPERTY(EditAnywhere, Category = "Collection Key")
 	FString Attribute;
+
+	UPROPERTY(EditAnywhere, Category = "Collection Key")
+	FString Group;
+
 };
 
 
 USTRUCT(meta = (Dataflow))
-struct FMakeCollectionKeyDataflowNode : public FDataflowNode
+struct FMakeAttributeKeyDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FMakeCollectionKeyDataflowNode, "MakeCollectionKey", "GeometryCollection", "")
+	DATAFLOW_NODE_DEFINE_INTERNAL(FMakeAttributeKeyDataflowNode, "MakeAttributeKey", "GeometryCollection", "")
 
 public:
 
@@ -38,44 +43,45 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Collection Key", meta = (DataflowInput, DisplayName = "Attribute"))
 	FString AttributeIn = "";
 
-	UPROPERTY(meta = (DataflowOutput, DisplayName = "CollectionKey"))
-	FCollectionKey CollectionKeyOut;
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "AttributeKey"))
+	FCollectionAttributeKey AttributeKeyOut;
 
-	FMakeCollectionKeyDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMakeAttributeKeyDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&GroupIn);
 		RegisterInputConnection(&AttributeIn);
-		RegisterOutputConnection(&CollectionKeyOut);
+		RegisterOutputConnection(&AttributeKeyOut);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 USTRUCT(meta = (DataflowGeometryCollection))
-struct FBreakCollectionKeyDataflowNode : public FDataflowNode
+struct FBreakAttributeKeyDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FBreakCollectionKeyDataflowNode, "BreakCollectionKey", "GeometryCollection", "")
+	DATAFLOW_NODE_DEFINE_INTERNAL(FBreakAttributeKeyDataflowNode, "BreakAttributeKey", "Dataflow", "")
 
 public:
 
-	UPROPERTY(meta = (DataflowInput, DisplayName = "CollectionKey"))
-	FCollectionKey CollectionKeyIn;
+	UPROPERTY(meta = (DataflowInput, DisplayName = "AttributeKey"))
+	FCollectionAttributeKey AttributeKeyIn;
 
-	UPROPERTY(EditAnywhere, Category = "Collection Key", meta = (DataflowOutput, DisplayName = "Group"))
-	FString GroupOut = "";
-
-	UPROPERTY(EditAnywhere, Category = "Collection Key", meta = (DataflowOutput, DisplayName = "Attribute"))
+	UPROPERTY(EditAnywhere, Category = "Attribute Key", meta = (DataflowOutput, DisplayName = "Attribute"))
 	FString AttributeOut = "";
 
+	UPROPERTY(EditAnywhere, Category = "Attribute Key", meta = (DataflowOutput, DisplayName = "Group"))
+	FString GroupOut = "";
 
-	FBreakCollectionKeyDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+
+
+	FBreakAttributeKeyDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
-		RegisterInputConnection(&CollectionKeyIn);
-		RegisterOutputConnection(&GroupOut);
+		RegisterInputConnection(&AttributeKeyIn);
 		RegisterOutputConnection(&AttributeOut);
+		RegisterOutputConnection(&GroupOut);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;

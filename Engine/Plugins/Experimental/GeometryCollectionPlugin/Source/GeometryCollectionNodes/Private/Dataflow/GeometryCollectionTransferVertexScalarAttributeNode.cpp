@@ -85,39 +85,40 @@ namespace UE::Private {
 
 void FGeometryCollectionTransferVertexScalarAttributeNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
+	typedef TPair<FName, FName> NamePair;
+	FCollectionAttributeKey Key = GetValue(Context, &AttributeKey, AttributeKey);
 
-	FString AttributeName = GetValue<FString>(Context, &Name, Name);
-	if (Out->IsA< FManagedArrayCollection >(&Collection))
+	if (Out->IsA(&Collection))
 	{
-		FManagedArrayCollection TargetCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		const FManagedArrayCollection& SampleCollection = GetValue<FManagedArrayCollection>(Context, &FromCollection);
+		FManagedArrayCollection TargetCollection = GetValue(Context, &Collection);
+		const FManagedArrayCollection& SampleCollection = GetValue(Context, &FromCollection);
 
 		UE::Private::FTransferFacade Target(TargetCollection);
 		const UE::Private::FTransferFacade Sample(SampleCollection);
 
 		if (Target.IsValid() && Sample.IsValid())
 		{
-			if (TManagedArray<float>* TargetFloatArray = Target.GetFloatArray(AttributeName, "Vertices"))
+			if (TManagedArray<float>* TargetFloatArray = Target.GetFloatArray(Key.Attribute, Key.Group))
 			{
 				TargetFloatArray->Fill(0.f);
 
 				TArray<FIntVector2> AlignedGeometry = FindSourceToTargetGeometryMap(SampleCollection, TargetCollection);
 				if (AlignedGeometry.Num() == TargetCollection.NumElements(FGeometryCollection::GeometryGroup))
 				{
-					PairedGeometryTransfer(AttributeName, AlignedGeometry, Sample, Target, TargetFloatArray);
+					PairedGeometryTransfer(Key, AlignedGeometry, Sample, Target, TargetFloatArray);
 				}
 				else
 				{
-					NearestVertexTransfer(AttributeName, Sample, Target, TargetFloatArray);
+					NearestVertexTransfer(Key, Sample, Target, TargetFloatArray);
 				}
 			}
 		}
 
-		SetValue<FManagedArrayCollection >(Context, MoveTemp(TargetCollection), &Collection);
+		SetValue(Context, MoveTemp(TargetCollection), &Collection);
 	}
-	else if (Out->IsA<FString>(&Name))
+	else if (Out->IsA(&AttributeKey))
 	{
-		SetValue< FString >(Context, MoveTemp(AttributeName), &Name);
+		SetValue(Context, MoveTemp(Key), &AttributeKey);
 	}
 }
 
@@ -148,10 +149,10 @@ TArray<FIntVector2> FGeometryCollectionTransferVertexScalarAttributeNode::FindSo
 	return Mapping;
 }
 
-void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfer(FString AttributeName, const TArray<FIntVector2>& PairedGeometry, 
+void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfer(FCollectionAttributeKey Key, const TArray<FIntVector2>& PairedGeometry,
 	const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade&  Target, TManagedArray<float>* TargetFloatArray) const
 {
-	if (const TManagedArray<float>* FloatArray = Sample.GetFloatArray(AttributeName, "Vertices"))
+	if (const TManagedArray<float>* FloatArray = Sample.GetFloatArray(Key.Attribute, Key.Group))
 	{
 		ParallelFor(PairedGeometry.Num(), [&](int32 Pdx)
 		{
@@ -226,9 +227,9 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfe
 	}
 }
 
-void FGeometryCollectionTransferVertexScalarAttributeNode::NearestVertexTransfer(FString AttributeName, const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, TManagedArray<float>* TargetFloatArray) const
+void FGeometryCollectionTransferVertexScalarAttributeNode::NearestVertexTransfer(FCollectionAttributeKey Key, const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, TManagedArray<float>* TargetFloatArray) const
 {
-	if (const TManagedArray<float>* FloatArray = Sample.GetFloatArray(AttributeName, "Vertices"))
+	if (const TManagedArray<float>* FloatArray = Sample.GetFloatArray(Key.Attribute, Key.Group))
 	{
 		// Build component space vertices for TargetCollection
 		TArray<FVector> ComponentSpaceTargetVertices;
