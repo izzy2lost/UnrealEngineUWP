@@ -117,8 +117,11 @@ private:
 
 	//Either a container, property or function
 	TWeakPtr<FContainer> Container;
-	const FProperty* Property = nullptr;
-	TWeakObjectPtr<const UFunction> Function;
+	TWeakObjectPtr<const UStruct> FieldOwner;
+	FName PropertyName;
+	FName FunctionName;
+	bool bIsStructProperty = false;
+	bool bIsObjectProperty = false;
 
 	TOptional<FText> OverrideDisplayName;
 
@@ -140,13 +143,10 @@ public:
 
 	bool IsField() const
 	{
-		return Property != nullptr  || Function.Get() != nullptr;
+		return !PropertyName.IsNone() || !FunctionName.IsNone();
 	}
 	
-	FFieldVariant GetField() const
-	{
-		return Property != nullptr ? FFieldVariant(Property) : Function.Get() ? FFieldVariant(Function.Get()) : FFieldVariant();
-	}
+	FFieldVariant GetField() const;
 
 	TSharedPtr<FTreeNode> GetParentNode() const
 	{
