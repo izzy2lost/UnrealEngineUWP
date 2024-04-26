@@ -1106,6 +1106,24 @@ static void TraceBookmark(const TArray<FString>& Args)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static void TraceRegionBegin(const TArray<FString>& Args)
+{
+	if (Args.Num() > 0)
+	{
+		TRACE_BEGIN_REGION(*FString::Join(Args, TEXT(" ")));
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static void TraceRegionEnd(const TArray<FString>& Args)
+{
+	if (Args.Num() > 0)
+	{
+		TRACE_END_REGION(*FString::Join(Args, TEXT(" ")));
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 static FAutoConsoleCommand TraceAuxiliarySendCmd(
 	TEXT("Trace.Send"),
 	TEXT("<Host> [ChannelSet] - Starts tracing to a trace store."
@@ -1203,6 +1221,22 @@ static FAutoConsoleCommand TraceBookmarkCmd(
 	TEXT("[Name] - Emits a TRACE_BOOKMARK() event with the given string name."
 	),
 	FConsoleCommandWithArgsDelegate::CreateStatic(TraceBookmark)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+static FAutoConsoleCommand TraceRegionBeginCmd(
+	TEXT("Trace.RegionBegin"),
+	TEXT("[Name] - Emits a TRACE_BEGIN_REGION() event with the given string name."
+	),
+	FConsoleCommandWithArgsDelegate::CreateStatic(TraceRegionBegin)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+static FAutoConsoleCommand TraceRegionEndCmd(
+	TEXT("Trace.RegionEnd"),
+	TEXT("[Name] - Emits a TRACE_END_REGION() event with the given string name."
+	),
+	FConsoleCommandWithArgsDelegate::CreateStatic(TraceRegionEnd)
 );
 
 #endif // UE_TRACE_ENABLED
