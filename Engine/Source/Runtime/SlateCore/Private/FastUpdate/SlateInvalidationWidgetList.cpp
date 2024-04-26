@@ -21,11 +21,6 @@
 DECLARE_CYCLE_STAT(TEXT("WidgetList ChildOrder Invalidation"), STAT_WidgetList_ProcessChildOrderInvalidation, STATGROUP_Slate);
 
 #define UE_SLATE_WITH_WIDGETLIST_UPDATEONLYWHATISNEEDED 0
-#define UE_SLATE_WITH_WIDGETLIST_ASSIGNINVALIDPROXYWHENREMOVED 0
-
-#if UE_SLATE_WITH_WIDGETLIST_ASSIGNINVALIDPROXYWHENREMOVED
-uint16 GSlateInvalidationWidgetIndex_RemovedIndex = 0xffee;
-#endif
 
 // See FSlateInvalidationWidgetSortOrder::FSlateInvalidationWidgetSortOrder
 int32 FSlateInvalidationWidgetList::FArguments::MaxPreferedElementsNum = (1 << 10) - 1;
@@ -1221,19 +1216,16 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 	// Destroy/Remove the data that is not needed anymore
 	{
 		FSlateInvalidationWidgetList* Self = this;
-		auto SetFakeInvalidatWidgetHandle = [Self](IndexType ArrayIndex, int32 StartIndex, int32 Num)
+		auto ResetInvalidationWidgetHandle = [Self](IndexType ArrayIndex, int32 StartIndex, int32 Num)
 		{
-#if UE_SLATE_WITH_WIDGETLIST_ASSIGNINVALIDPROXYWHENREMOVED
-			const FSlateInvalidationWidgetIndex SlateInvalidationWidgetIndexRemoved = { GSlateInvalidationWidgetIndex_RemovedIndex, GSlateInvalidationWidgetIndex_RemovedIndex };
 			for (int32 ElementIndex = StartIndex; ElementIndex < Num; ++ElementIndex)
 			{
 				InvalidationWidgetType& InvalidationWidget = Self->Data[ArrayIndex].ElementList[ElementIndex];
 				if (SWidget* Widget = InvalidationWidget.GetWidget())
 				{
-					Widget->SetFastPathProxyHandle(FWidgetProxyHandle{ Self->Owner, SlateInvalidationWidgetIndexRemoved, FSlateInvalidationWidgetSortOrder() });
+					Widget->SetFastPathProxyHandle(FWidgetProxyHandle());
 				}
 			}
-#endif //UE_SLATE_WITH_WIDGETLIST_ASSIGNINVALIDPROXYWHENREMOVED
 		};
 		auto ResetInvalidationWidget = [Self](IndexType ArrayIndex, IndexType StartIndex, int32 Num)
 		{
@@ -1243,7 +1235,12 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 				ElementListType& ResetElementList = ArrayNode.ElementList;
 				for (int32 ElementIndex = StartIndex; ElementIndex < Num; ++ElementIndex)
 				{
-					ResetElementList[ElementIndex].ResetWidget();
+					InvalidationWidgetType& InvalidationWidget = ResetElementList[ElementIndex];
+					if (SWidget* Widget = InvalidationWidget.GetWidget())
+					{
+						Widget->SetFastPathProxyHandle(FWidgetProxyHandle());
+					}
+					InvalidationWidget.ResetWidget();
 				}
 				ArrayNode.RemoveElementIndexBetweenOrEqualThan(StartIndex, (IndexType)(StartIndex + Num - 1));
 			}
@@ -1272,7 +1269,7 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 				IndexType CurrentArrayIndex = NextToRemove;
 				do
 				{
-					SetFakeInvalidatWidgetHandle(CurrentArrayIndex, Data[CurrentArrayIndex].StartIndex, Data[CurrentArrayIndex].ElementList.Num());
+					ResetInvalidationWidgetHandle(CurrentArrayIndex, Data[CurrentArrayIndex].StartIndex, Data[CurrentArrayIndex].ElementList.Num());
 					CurrentArrayIndex = NextToRemove;
 					NextToRemove = (IndexType)Data[CurrentArrayIndex].NextArrayIndex;
 					RemoveDataNode(CurrentArrayIndex);
@@ -1284,7 +1281,7 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 		if (bShouldCutArray && !bRangeIsInSameElementArray)
 		{
 			// The valid data in the array was moved (ie. ii)
-			SetFakeInvalidatWidgetHandle(Range.GetInclusiveMaxWidgetIndex().ArrayIndex, Data[Range.GetInclusiveMaxWidgetIndex().ArrayIndex].StartIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1);
+			ResetInvalidationWidgetHandle(Range.GetInclusiveMaxWidgetIndex().ArrayIndex, Data[Range.GetInclusiveMaxWidgetIndex().ArrayIndex].StartIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1);
 			RemoveDataNode(Range.GetInclusiveMaxWidgetIndex().ArrayIndex);
 		}
 		else if (!bRangeIsInSameElementArray)
@@ -1292,7 +1289,6 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 			// Set StartIndex (ie. i)
 			check(Range.GetInclusiveMinWidgetIndex().ArrayIndex != Range.GetInclusiveMaxWidgetIndex().ArrayIndex);
 
-			SetFakeInvalidatWidgetHandle(Range.GetInclusiveMaxWidgetIndex().ArrayIndex, Data[Range.GetInclusiveMaxWidgetIndex().ArrayIndex].StartIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1);
 			ResetInvalidationWidget(Range.GetInclusiveMaxWidgetIndex().ArrayIndex, Data[Range.GetInclusiveMaxWidgetIndex().ArrayIndex].StartIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1);
 			Data[Range.GetInclusiveMaxWidgetIndex().ArrayIndex].StartIndex = Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1;
 			RemoveDataNodeIfNeeded(Range.GetInclusiveMaxWidgetIndex().ArrayIndex);
@@ -1306,11 +1302,11 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 			ElementListType& RemoveElementList = ArrayNode.ElementList;
 			if (bRangeIsInSameElementArray)
 			{
-				SetFakeInvalidatWidgetHandle(Range.GetInclusiveMinWidgetIndex().ArrayIndex, Range.GetInclusiveMinWidgetIndex().ElementIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex);
+				ResetInvalidationWidgetHandle(Range.GetInclusiveMinWidgetIndex().ArrayIndex, Range.GetInclusiveMinWidgetIndex().ElementIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex);
 			}
 			else
 			{
-				SetFakeInvalidatWidgetHandle(Range.GetInclusiveMinWidgetIndex().ArrayIndex, Range.GetInclusiveMinWidgetIndex().ElementIndex, RemoveElementList.Num());
+				ResetInvalidationWidgetHandle(Range.GetInclusiveMinWidgetIndex().ArrayIndex, Range.GetInclusiveMinWidgetIndex().ElementIndex, RemoveElementList.Num());
 			}
 
 			const IndexType RemoveArrayAt = Range.GetInclusiveMinWidgetIndex().ElementIndex;
@@ -1326,7 +1322,6 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 			check(Range.GetInclusiveMinWidgetIndex().ArrayIndex == Range.GetInclusiveMaxWidgetIndex().ArrayIndex);
 			check(Range.GetInclusiveMinWidgetIndex().ElementIndex == Data[Range.GetInclusiveMinWidgetIndex().ArrayIndex].StartIndex);
 
-			SetFakeInvalidatWidgetHandle(Range.GetInclusiveMinWidgetIndex().ArrayIndex, Range.GetInclusiveMinWidgetIndex().ElementIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1);
 			ResetInvalidationWidget(Range.GetInclusiveMinWidgetIndex().ArrayIndex, Range.GetInclusiveMinWidgetIndex().ElementIndex, Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1);
 			Data[Range.GetInclusiveMinWidgetIndex().ArrayIndex].StartIndex = Range.GetInclusiveMaxWidgetIndex().ElementIndex + 1;
 			RemoveDataNodeIfNeeded(Range.GetInclusiveMinWidgetIndex().ArrayIndex);
@@ -1854,5 +1849,4 @@ bool FSlateInvalidationWidgetList::VerifyElementIndexList() const
 }
 #endif //UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 
-#undef UE_SLATE_WITH_WIDGETLIST_ASSIGNINVALIDPROXYWHENREMOVED
 #undef UE_SLATE_WITH_WIDGETLIST_UPDATEONLYWHATISNEEDED

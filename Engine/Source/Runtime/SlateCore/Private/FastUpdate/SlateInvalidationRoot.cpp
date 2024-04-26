@@ -141,6 +141,14 @@ static FAutoConsoleVariableRef CVarSlateInvalidationRootVerifyWidgetsAreUpdatedO
 	TEXT("Verify that the widgets are painted only once per tick.")
 );
 
+bool GSlateInvalidationRootVerifyCachedElementDataList = false;
+static FAutoConsoleVariableRef CVarSlateInvalidationRootVerifyCachedElementDataList(
+	TEXT("Slate.InvalidationRoot.VerifyCachedElementDataList"),
+	GSlateInvalidationRootVerifyCachedElementDataList,
+	TEXT("Verify that the widgets cached are valid.")
+);
+void VerifyCachedElementDataList(const FSlateInvalidationRoot* InvalidationRoot);
+
 #endif //UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 
 
@@ -415,6 +423,14 @@ FSlateInvalidationResult FSlateInvalidationRoot::PaintInvalidationRoot(const FSl
 		check(RootWidget == FastWidgetPathList->GetRoot().Pin());
 
 		Result.bRepaintedWidgets = PaintFastPath(Context);
+
+		// Once everything is painted and ticked, new widget (SListView, SRichBox, SScrollBox) might have created new widget.
+		//It might create a 1 frame hitch because the widget is in the cached and should not.
+		if (!bNeedsSlowPath && WidgetsNeedingPreUpdate->Num() > 0)
+		{
+			SCOPED_NAMED_EVENT(Slate_InvalidationProcessing_PreUpdate, FColor::Blue);
+			ProcessPreUpdate();
+		}
 	}
 
 	if (Context.bAllowFastPathUpdate)
@@ -425,6 +441,10 @@ FSlateInvalidationResult FSlateInvalidationRoot::PaintInvalidationRoot(const FSl
 	FinalUpdateList.Reset();
 
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
+	if (GSlateInvalidationRootVerifyCachedElementDataList && !bNeedsSlowPath)
+	{
+		VerifyCachedElementDataList(this);
+	}
 	if (GSlateInvalidationRootVerifyHittestGrid && Context.bAllowFastPathUpdate)
 	{
 		VerifyHittest(InvalidationRootWidget, GetFastPathWidgetList(), GetHittestGrid());
@@ -827,10 +847,6 @@ void FSlateInvalidationRoot::ProcessPreUpdate()
 	{
 		VerifyWidgetsUpdateList_BeforeProcessPreUpdate(GetRootWidget(), FastWidgetPathList.Get(), WidgetsNeedingPreUpdate.Get(), WidgetsNeedingPostUpdate.Get(), FinalUpdateList);
 	}
-	if (GSlateInvalidationRootVerifySlateAttribute)
-	{
-		VerifySlateAttribute_BeforeUpdate(*FastWidgetPathList);
-	}
 #endif
 
 	TGuardValue<bool> Tmp(bProcessingPreUpdate, true);
@@ -1041,6 +1057,12 @@ void FSlateInvalidationRoot::ProcessAttributeUpdate()
 {
 	TGuardValue<bool> Tmp(bProcessingAttributeUpdate, true);
 
+#if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
+	if (GSlateInvalidationRootVerifySlateAttribute)
+	{
+		VerifySlateAttribute_BeforeUpdate(*FastWidgetPathList);
+	}
+#endif
 
 	FSlateInvalidationWidgetList::FWidgetAttributeIterator AttributeItt = FastWidgetPathList->CreateWidgetAttributeIterator();
 	while (AttributeItt.IsValid())
@@ -1092,6 +1114,7 @@ void FSlateInvalidationRoot::ProcessAttributeUpdate()
 			AttributeItt.Advance();
 		}
 	}
+
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 	if (GSlateInvalidationRootVerifySlateAttribute)
 	{
@@ -1693,7 +1716,7 @@ void VerifyWidgetVisibility(FSlateInvalidationWidgetList& WidgetList)
 					{
 						UE_SLATE_LOG_ERROR_IF_FALSE(!Widget->GetPersistentState().CachedElementHandle.HasCachedElements()
 							, CVarSlateInvalidationRootVerifyWidgetVisibility
-							, TEXT("Widget '%s' has cached element and is not visibled.")
+							, TEXT("Widget '%s' has cached element and is not visible.")
 							, *FReflectionMetaData::GetWidgetDebugInfo(Widget));
 					}
 				}
@@ -1896,9 +1919,6 @@ void VerifyWidgetsUpdateList_AfterProcessPostUpdate(const TSharedRef<SWidget>& R
 		return;
 	}
 
-	UE_SLATE_LOG_ERROR_IF_FALSE(WidgetsNeedingPreUpdate->Num() == 0
-		, CVarSlateInvalidationRootVerifyWidgetsUpdateList
-		, TEXT("The list of Pre Update should already been processed."));
 	UE_SLATE_LOG_ERROR_IF_FALSE(WidgetsNeedingPostUpdate->Num() == 0
 		, CVarSlateInvalidationRootVerifyWidgetsUpdateList
 		, TEXT("The list of Post Update should already been processed."));
@@ -1938,6 +1958,33 @@ void VerifySlateAttribute_AfterUpdate(const FSlateInvalidationWidgetList& FastWi
 	UE_SLATE_LOG_ERROR_IF_FALSE(bElementIndexListValid
 		, CVarSlateInvalidationRootVerifySlateAttribute
 		, TEXT("The VerifySlateAttribute failed in post."));
+}
+
+void VerifyCachedElementDataList(const FSlateInvalidationRoot* InvalidationRoot)
+{
+	for (const TSharedPtr<FSlateCachedElementList>& CachedElementList : InvalidationRoot->GetCachedElements().GetCachedElementLists())
+	{
+		if (CachedElementList)
+		{
+			const SWidget* WidgetPtr = CachedElementList->OwningWidget;
+			UE_SLATE_LOG_ERROR_IF_FALSE(WidgetPtr
+				, CVarSlateInvalidationRootVerifyCachedElementDataList
+				, TEXT("A widget is invalid and should not be cached."));
+			if (WidgetPtr)
+			{
+				UE_SLATE_LOG_ERROR_IF_FALSE(WidgetPtr->GetProxyHandle().IsValid(WidgetPtr)
+					, CVarSlateInvalidationRootVerifyCachedElementDataList
+					, TEXT("The widget '%s' proxy is invalid and should not be cached.")
+					, *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
+				UE_SLATE_LOG_ERROR_IF_FALSE((WidgetPtr->GetProxyHandle().GetWidgetVisibility(WidgetPtr).IsVisible()
+					|| WidgetPtr->GetProxyHandle().HasAllInvalidationReason(WidgetPtr, EInvalidateWidgetReason::Visibility)
+					|| CachedElementList->IsEmpty())
+					, CVarSlateInvalidationRootVerifyCachedElementDataList
+					, TEXT("The widget '%s' proxy is not visible and should not be cached.")
+					, *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
+			}
+		}
+	}
 }
 
 #undef UE_SLATE_LOG_ERROR_IF_FALSE

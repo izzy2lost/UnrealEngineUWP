@@ -560,13 +560,6 @@ void FSlateCachedElementList::ClearCachedElements()
 	DestroyCachedData();
 
 	CachedRenderingData = new FSlateCachedFastPathRenderingData;
-
-#if 0 // enable this if you want to know why a widget is invalidated after it has been drawn but before it has been batched (probably a child or parent invalidating a relation)
-	if (ensure(!bNewData))
-	{
-		UE_LOG(LogSlate, Log, TEXT("Cleared out data in cached ElementList for Widget: %s before it was batched"), *Widget->GetTag().ToString());
-	}
-#endif
 }
 
 FSlateRenderBatch& FSlateCachedElementList::AddRenderBatch(int32 InLayer, const FShaderParams& InShaderParams, const FSlateShaderResource* InResource, ESlateDrawPrimitive InPrimitiveType, ESlateShader InShaderType, ESlateDrawEffect InDrawEffects, ESlateBatchDrawFlag InDrawFlags, int8 SceneIndex)
@@ -622,7 +615,7 @@ bool FSlateCachedElementList::IsEmpty()
 
 	VisitTupleElements(CheckElementsExist, DrawElements);
 
-	return bElementsFound;
+	return !bElementsFound;
 }
 
 int32 FSlateCachedElementList::NumElements()
