@@ -1627,6 +1627,10 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 		return;
 	}
 
+
+	// TODO: Should only do this if any instance uses static geometry
+	Context.AddReferencedGeometryGroup(RenderData->RayTracingGeometryGroupHandle);
+
 	const int32 MinAllowedLODIndex = FMath::Clamp<int32>(CVarRayTracingInstancedStaticMeshesMinLOD.GetValueOnRenderThread(), 0, RenderData->LODResources.Num() - 1);
 
 	int32 LODIndex = FMath::Max<int32>(MinAllowedLODIndex, GetCurrentFirstLODIdx_RenderThread());
@@ -1634,6 +1638,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 	FRayTracingGeometry* RayTracingGeometry = nullptr;
 
 	// Select first LOD with valid ray tracing geometry
+	// TODO: Should only do this if any instance uses static geometry
 	for (; LODIndex < RenderData->LODResources.Num(); ++LODIndex)
 	{
 		FStaticMeshLODResources& CurrentLODResources = RenderData->LODResources[LODIndex];
@@ -1651,6 +1656,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 
 	if (RayTracingGeometry == nullptr)
 	{
+		// TODO: Should only do this if any instance uses static geometry
 		return;
 	}
 

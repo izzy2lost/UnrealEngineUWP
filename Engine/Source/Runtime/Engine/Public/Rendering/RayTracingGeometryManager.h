@@ -27,15 +27,24 @@ public:
 	ENGINE_API virtual RayTracingGeometryHandle RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry) override;
 	ENGINE_API virtual void ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle Handle) override;
 
-	ENGINE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup() override;
+	ENGINE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup(uint32 NumLODs) override;
 	ENGINE_API virtual void ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle) override;
 
+	ENGINE_API virtual void PreRender() override;
 	ENGINE_API virtual void Tick(FRHICommandList& RHICmdList) override;
 
 	ENGINE_API void RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
 	ENGINE_API void UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
 
 	void RequestUpdateCachedRenderState(RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
+
+	ENGINE_API void AddReferencedGeometry(const FRayTracingGeometry* Geometry);
+	ENGINE_API void AddReferencedGeometryGroups(const TSet<RayTracing::GeometryGroupHandle>& GeometryGroups);
+
+#if DO_CHECK
+	ENGINE_API bool IsGeometryReferenced(const FRayTracingGeometry* Geometry) const;
+	ENGINE_API bool IsGeometryGroupReferenced(RayTracing::GeometryGroupHandle GeometryGroup) const;
+#endif
 
 private:
 
@@ -56,15 +65,14 @@ private:
 
 	TSparseArray<FBuildRequest> GeometryBuildRequests;
 
-	// Used for keeping track of geometries when ray tracing is dynamic
-	TSparseArray<FRayTracingGeometry*> RegisteredGeometries;
-
 	// Working array with all active build build params in the RHI
 	TArray<FBuildRequest> SortedRequests;
 	TArray<FRayTracingGeometryBuildParams> BuildParams;
 
 	struct FRayTracingGeometryGroup
 	{
+		TArray<FRayTracingGeometry*> Geometries;
+
 		TSet<FPrimitiveSceneProxy*> ProxiesWithCachedRayTracingState;
 
 		// flag used to indicate that ReleaseRayTracingGeometryHandle(...) has been called 
@@ -75,6 +83,14 @@ private:
 	};
 
 	TSparseArray<FRayTracingGeometryGroup> RegisteredGroups;
+
+	// Used for keeping track of geometries when ray tracing is dynamic
+	TSparseArray<FRayTracingGeometry*> RegisteredGeometries;
+
+	TSet<RayTracingGeometryHandle> ReferencedGeometryHandles;
+	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
+
+	bool bRenderedFrame = false;
 };
 
 #endif // RHI_RAYTRACING

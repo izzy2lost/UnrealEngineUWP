@@ -12,6 +12,15 @@
 #include "RayTracingGeometry.h"
 #include "RenderUtils.h"
 
+/*
+
+TODO:
+- Investigate whether it's necessary to lock RequestCS to access RegisteredGeometries, etc
+	- this lock should only be used by GeometryBuildRequests and related logic
+	- either we can avoid the lock or use a different one specific to that
+
+*/
+
 #if RHI_RAYTRACING
 
 static bool bHasRayTracingEnableChanged = false;
@@ -20,6 +29,23 @@ static TAutoConsoleVariable<int32> CVarRayTracingEnable(
 	1,
 	TEXT("Whether ray tracing is enabled at runtime.\n")
 	TEXT("If r.RayTracing.EnableOnDemand is enabled, ray tracing can be toggled on/off at runtime. Otherwise this is only checked during initialization."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+		{
+			FGlobalComponentRecreateRenderStateContext Context;
+			ENQUEUE_RENDER_COMMAND(RayTracingToggledCmd)(
+				[](FRHICommandListImmediate&)
+				{
+					bHasRayTracingEnableChanged = true;
+				}
+			);
+		}),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<bool> CVarRayTracingUseReferenceBasedResidency(
+	TEXT("r.RayTracing.UseReferenceBasedResidency"),
+	false,
+	TEXT("(EXPERIMENTAL) Whether raytracing geometries should be resident or evicted based on whether they're referenced in TLAS"),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 		{
 			FGlobalComponentRecreateRenderStateContext Context;
@@ -104,11 +130,14 @@ void FRayTracingGeometryManager::RemoveBuildRequest(BuildRequestIndex InRequestI
 	GeometryBuildRequests.RemoveAt(InRequestIndex);
 }
 
-RayTracing::GeometryGroupHandle FRayTracingGeometryManager::RegisterRayTracingGeometryGroup()
+RayTracing::GeometryGroupHandle FRayTracingGeometryManager::RegisterRayTracingGeometryGroup(uint32 NumLODs)
 {
 	checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
 
-	RayTracing::GeometryGroupHandle Handle = RegisteredGroups.Add({});
+	FRayTracingGeometryGroup Group;
+	Group.Geometries.AddDefaulted(NumLODs);
+
+	RayTracing::GeometryGroupHandle Handle = RegisteredGroups.Add(MoveTemp(Group));
 	return Handle;
 }
 
@@ -121,6 +150,7 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryGroup(RayTracing::Geom
 	if (RegisteredGroups[Handle].ProxiesWithCachedRayTracingState.IsEmpty())
 	{
 		RegisteredGroups.RemoveAt(Handle);
+		ReferencedGeometryGroups.Remove(Handle);
 	}
 	else
 	{
@@ -137,6 +167,19 @@ FRayTracingGeometryManager::RayTracingGeometryHandle FRayTracingGeometryManager:
 
 		FScopeLock ScopeLock(&RequestCS);
 		RayTracingGeometryHandle Handle = RegisteredGeometries.Add(InGeometry);
+
+		if (InGeometry->GroupHandle != INDEX_NONE)
+		{
+			checkf(RegisteredGroups.IsValidIndex(InGeometry->GroupHandle), TEXT("FRayTracingGeometry.GroupHandle must be valid"));
+
+			FRayTracingGeometryGroup& Group = RegisteredGroups[InGeometry->GroupHandle];
+
+			checkf(InGeometry->LODIndex >= 0 && InGeometry->LODIndex < Group.Geometries.Num(), TEXT("FRayTracingGeometry assigned to a group must have a valid LODIndex"));
+			checkf(Group.Geometries[InGeometry->LODIndex] == nullptr, TEXT("Each LOD inside a FRayTracingGeometryGroup can only be associated with a single FRayTracingGeometry"));
+
+			Group.Geometries[InGeometry->LODIndex] = InGeometry;
+		}
+
 		return Handle;
 	}
 	return INDEX_NONE;
@@ -149,7 +192,13 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryHandle(RayTracingGeome
 		check(Handle != INDEX_NONE);
 		FScopeLock ScopeLock(&RequestCS);
 		RegisteredGeometries.RemoveAt(Handle);
+		ReferencedGeometryHandles.Remove(Handle);
 	}	
+}
+
+void FRayTracingGeometryManager::PreRender()
+{
+	bRenderedFrame = true;
 }
 
 void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
@@ -162,35 +211,126 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingGeometryManager::Tick);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FRayTracingGeometryManager_Tick);
 
-	if (!bHasRayTracingEnableChanged)
-	{
-// If the code below triggers a check then dynamic ray tracing is not going to work as expected ie. not all memory will be released or we'll be missing geometry.
 #if DO_CHECK
-		if (IsRayTracingEnabled())
+	static uint64 PreviousFrameCounter = GFrameCounterRenderThread - 1;
+	checkf(GFrameCounterRenderThread != PreviousFrameCounter, TEXT("FRayTracingGeometryManager::Tick() should only be called once per frame"));
+	PreviousFrameCounter = GFrameCounterRenderThread;
+#endif
+
+	checkf(IsRayTracingUsingReferenceBasedResidency() || (ReferencedGeometryHandles.IsEmpty() && ReferencedGeometryGroups.IsEmpty()),
+		TEXT("ReferencedGeometryHandles and ReferencedGeometryGroups are expected to be empty when not using reference based residency"));
+
+	if (!IsRayTracingEnabled())
+	{
+		if (bHasRayTracingEnableChanged)
 		{
+			// evict all geometries
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				checkf(!Geometry->IsEvicted(), TEXT("Ray tracing geometry should not be evicted when ray tracing is enabled."));
+				if (Geometry->GetRHI() != nullptr)
+				{
+					Geometry->Evict();
+				}
 			}
 		}
 		else
 		{
+#if DO_CHECK
+			// otherwise just check that everything is evicted
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
 				checkf(Geometry->IsEvicted() || Geometry->GetRHI() == nullptr, TEXT("Ray tracing geometry should be evicted when ray tracing is disabled."));
 			}
-		}
 #endif
-		return;
+		}
 	}
-
-	bHasRayTracingEnableChanged = false;
-
-	if (IsRayTracingEnabled())
+	else if (IsRayTracingUsingReferenceBasedResidency())
 	{
+		check(IsRayTracingEnabled());
+
+		if (!bRenderedFrame)
 		{
+			ensureMsgf(ReferencedGeometryHandles.IsEmpty() && ReferencedGeometryGroups.IsEmpty(),
+				TEXT("Unexpected entries in ReferencedGeometryHandles/ReferencedGeometryGroups. ")
+				TEXT("Missing a call to PreRender() or didn't clear the arrays in the last frame?"));
+			return;
+		}
+
+		bRenderedFrame = false;
+
+		FScopeLock ScopeLock(&RequestCS);
+
+		TSet<FRayTracingGeometry*> NotReferencedResidentGeometries; // TODO: Keep track of this to avoid the following loop
+
+		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
+		{
+			NotReferencedResidentGeometries.Add(Geometry);
+		}
+
+		TSet<FRayTracingGeometry*> ReferencedGeometries;
+
+		// 1st step
+		// - map RayTracingGeometryHandle to FRayTracingGeometry
+		//		- we use handles to track referenced geometries because some of the higher level code uses const FRayTracingGeometry*
+		for (RayTracingGeometryHandle GeometryHandle : ReferencedGeometryHandles)
+		{
+			ReferencedGeometries.Add(RegisteredGeometries[GeometryHandle]);
+		}
+
+		// 2nd step
+		// - add all geometries in referenced groups to ReferencedGeometries
+		//		- need to make all geometries in group resident otherwise might not have valid geometry when reducing LOD
+		//		- TODO: Could track TargetLOD and only make [TargetLOD ... LastLOD] range resident
+		for (RayTracing::GeometryGroupHandle Group : ReferencedGeometryGroups)
+		{
+			checkf(RegisteredGroups.IsValidIndex(Group), TEXT("RayTracingGeometryGroupHandle must be valid"));
+
+			for (FRayTracingGeometry* Geometry : RegisteredGroups[Group].Geometries)
+			{
+				if (Geometry != nullptr) // some LODs might be stripped during cook
+				{
+					ReferencedGeometries.Add(Geometry);
+				}
+			}
+		}
+
+		// 3rd step
+		// - make referenced geometries resident
+		for (FRayTracingGeometry* Geometry : ReferencedGeometries)
+		{
+			if (Geometry->IsEvicted())
+			{
+				Geometry->MakeResident(RHICmdList);
+			}
+
+			NotReferencedResidentGeometries.Remove(Geometry);
+		}
+
+		// 4th step
+		// - evict geometries not referenced by TLAS
+		// - TODO: keep unreferenced geometries up to some pool size resident to prevent resident/evicted loops
+		for (FRayTracingGeometry* Geometry : NotReferencedResidentGeometries)
+		{
+			if (Geometry->GetRHI() != nullptr)
+			{
+				Geometry->Evict();
+
+				if (Geometry->GroupHandle != INDEX_NONE)
+				{
+					RequestUpdateCachedRenderState(Geometry->GroupHandle);
+				}
+			}
+		}
+	}
+	else
+	{
+		check(IsRayTracingEnabled());
+
+		if (bHasRayTracingEnableChanged)
+		{
+			// make all geometries resident
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
@@ -200,18 +340,23 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 				}
 			}
 		}
-	}
-	else
-	{
-		FScopeLock ScopeLock(&RequestCS);
-		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
+		else
 		{
-			if (Geometry->GetRHI() != nullptr)
+#if DO_CHECK
+			// otherwise just check that all geometries are resident
+			FScopeLock ScopeLock(&RequestCS);
+			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				Geometry->Evict();
+				checkf(!Geometry->IsEvicted(), TEXT("Ray tracing geometry should not be evicted when ray tracing is enabled."));
 			}
+#endif
 		}
 	}
+
+	ReferencedGeometryHandles.Reset();
+	ReferencedGeometryGroups.Reset();
+
+	bHasRayTracingEnableChanged = false;
 }
 
 void FRayTracingGeometryManager::BoostPriority(BuildRequestIndex InRequestIndex, float InBoostValue)
@@ -389,5 +534,44 @@ void FRayTracingGeometryManager::RequestUpdateCachedRenderState(RayTracing::Geom
 		Proxy->GetScene().UpdateCachedRayTracingState(Proxy);
 	}
 }
+
+void FRayTracingGeometryManager::AddReferencedGeometry(const FRayTracingGeometry* Geometry)
+{
+	check(IsInRenderingThread() || IsInParallelRenderingThread());
+
+	if (IsRayTracingUsingReferenceBasedResidency())
+	{
+		if (RegisteredGeometries.IsValidIndex(Geometry->RayTracingGeometryHandle))
+		{
+			ReferencedGeometryHandles.Add(Geometry->RayTracingGeometryHandle);
+		}
+	}
+}
+
+void FRayTracingGeometryManager::AddReferencedGeometryGroups(const TSet<RayTracing::GeometryGroupHandle>& GeometryGroups)
+{
+	check(IsInRenderingThread() || IsInParallelRenderingThread());
+
+	if (IsRayTracingUsingReferenceBasedResidency())
+	{
+		ReferencedGeometryGroups.Append(GeometryGroups);
+	}
+	else
+	{
+		ensureMsgf(GeometryGroups.IsEmpty(), TEXT("Should only track ReferencedGeometryGroups when using using reference based residency"));
+	}
+}
+
+#if DO_CHECK
+bool FRayTracingGeometryManager::IsGeometryReferenced(const FRayTracingGeometry* Geometry) const
+{
+	return ReferencedGeometryHandles.Contains(Geometry->RayTracingGeometryHandle);
+}
+
+bool FRayTracingGeometryManager::IsGeometryGroupReferenced(RayTracing::GeometryGroupHandle GeometryGroup) const
+{
+	return ReferencedGeometryGroups.Contains(GeometryGroup);
+}
+#endif
 
 #endif // RHI_RAYTRACING

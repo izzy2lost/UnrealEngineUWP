@@ -3090,7 +3090,7 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 
 			BatchElementParams.LandscapeVertexFactoryMVFUniformBuffer = SectionRayTracingState.UniformBuffer;
 
-			bool bNeedsRayTracingGeometryUpdate = false;
+			bool bNeedsRayTracingGeometryUpdate = SectionRayTracingState.Geometry.IsEvicted();
 
 			// Detect force update CVar
 			bNeedsRayTracingGeometryUpdate |= (CurrentLOD <= GLandscapeRayTracingGeometryLODsThatUpdateEveryFrame) ? true : false;
@@ -3139,6 +3139,8 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 					}
 				}
 			}
+
+			check(SectionRayTracingState.Geometry.IsValid() || bNeedsRayTracingGeometryUpdate);
 
 			FRayTracingInstance RayTracingInstance;
 			RayTracingInstance.Geometry = &SectionRayTracingState.Geometry;

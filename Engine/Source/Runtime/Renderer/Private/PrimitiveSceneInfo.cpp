@@ -317,6 +317,7 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAda
 	bCachedRayTracingInstanceAnySegmentsDecal(false),
 	bCachedRayTracingInstanceAllSegmentsDecal(false),
 	CoarseMeshStreamingHandle(InAdapter.SceneProxy->GetCoarseMeshStreamingHandle()),
+	RayTracingGeometryGroupHandle(INDEX_NONE),
 #endif
 	// We want the unsynchronized access here, as the responsibility passes to the primitive scene info.
 	InstanceSceneDataBuffersInternal(InAdapter.SceneProxy->GetInstanceSceneDataBuffers(FPrimitiveSceneProxy::EInstanceBufferAccessFlags::UnsynchronizedAndUnsafe)),
@@ -1084,6 +1085,8 @@ void CacheRayTracingPrimitive(
 		check(SceneInfo->CoarseMeshStreamingHandle == SceneInfo->Proxy->GetCoarseMeshStreamingHandle());
 	}
 #endif
+
+	SceneInfo->RayTracingGeometryGroupHandle = SceneInfo->Proxy->GetRayTracingGeometryGroupHandle();
 
 	// Write flags
 	OutFlags = SceneInfo->Proxy->GetCachedRayTracingInstance(OutCachedRayTracingInstance);

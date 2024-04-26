@@ -56,6 +56,11 @@ namespace Nanite
 	using CoarseMeshStreamingHandle = int16;
 }
 
+namespace RayTracing
+{
+	using GeometryGroupHandle = int32;
+}
+
 /** Data used to track a primitive's allocation in the volume texture atlas that stores indirect lighting. */
 class FIndirectLightingCacheAllocation
 {
@@ -693,6 +698,7 @@ public:
 	bool bCachedRayTracingInstanceAnySegmentsDecal : 1;
 	bool bCachedRayTracingInstanceAllSegmentsDecal : 1;
 	Nanite::CoarseMeshStreamingHandle CoarseMeshStreamingHandle;
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle;
 
 	TArray<TArray<int32, TInlineAllocator<2>>> CachedRayTracingMeshCommandIndicesPerLOD;
 

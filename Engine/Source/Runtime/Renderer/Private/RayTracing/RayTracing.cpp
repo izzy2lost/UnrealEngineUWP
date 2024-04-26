@@ -11,6 +11,7 @@
 #include "RayTracingScene.h"
 #include "Nanite/NaniteRayTracing.h"
 #include "Rendering/NaniteCoarseMeshStreamingManager.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "ScenePrivate.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
@@ -217,7 +218,7 @@ namespace RayTracing
 		TArray<FPrimitiveSceneInfo*> DirtyCachedRayTracingPrimitives; // TODO: remove this since it seems to be transient
 
 		// Used coarse mesh streaming handles during the last TLAS build
-		TArray<Nanite::CoarseMeshStreamingHandle> UsedCoarseMeshStreamingHandles;
+		TArray<Nanite::CoarseMeshStreamingHandle> UsedCoarseMeshStreamingHandles; // TODO: Should be a set
 
 		int32 NumCachedStaticSceneInstances = 0;
 		int32 NumCachedStaticVisibleMeshCommands = 0;
@@ -284,6 +285,7 @@ namespace RayTracing
 		TArray<int32> StaticPrimitives;
 
 		const bool bGameView = View.bIsGameView || View.Family->EngineShowFlags.Game;
+		const bool bUsingReferenceBasedResidency = IsRayTracingUsingReferenceBasedResidency();
 
 		bool bPerformRayTracing = View.State != nullptr && !View.bIsReflectionCapture && View.bAllowRayTracing;
 		if (bPerformRayTracing)
@@ -296,6 +298,8 @@ namespace RayTracing
 				TChunkedArray<int32> DynamicPrimitives;
 				TChunkedArray<Nanite::CoarseMeshStreamingHandle> UsedCoarseMeshStreamingHandles;
 				TChunkedArray<FPrimitiveSceneInfo*> DirtyCachedRayTracingPrimitives;
+
+				TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
 			};
 
 			TArray<FGatherRelevantPrimitivesContext> Contexts;
@@ -305,7 +309,7 @@ namespace RayTracing
 				Contexts,
 				Scene.PrimitiveSceneProxies.Num(),
 				MinBatchSize,
-				[&Scene, &View, bGameView](FGatherRelevantPrimitivesContext& Context, int32 PrimitiveIndex)
+				[&Scene, &View, bGameView, bUsingReferenceBasedResidency](FGatherRelevantPrimitivesContext& Context, int32 PrimitiveIndex)
 			{
 				// Get primitive visibility state from culling
 				if (!View.PrimitiveRayTracingVisibilityMap[PrimitiveIndex])
@@ -350,6 +354,11 @@ namespace RayTracing
 				{
 					check(SceneInfo->CoarseMeshStreamingHandle != INDEX_NONE);
 					Context.UsedCoarseMeshStreamingHandles.AddElement(SceneInfo->CoarseMeshStreamingHandle);
+				}
+
+				if (bUsingReferenceBasedResidency && SceneInfo->RayTracingGeometryGroupHandle != INDEX_NONE)
+				{
+					Context.ReferencedGeometryGroups.Add(SceneInfo->RayTracingGeometryGroupHandle);
 				}
 
 				// Is the cached data dirty?
@@ -407,6 +416,11 @@ namespace RayTracing
 					Context.DynamicPrimitives.CopyToLinearArray(Result.DynamicPrimitives);
 					Context.UsedCoarseMeshStreamingHandles.CopyToLinearArray(Result.UsedCoarseMeshStreamingHandles);
 					Context.DirtyCachedRayTracingPrimitives.CopyToLinearArray(Result.DirtyCachedRayTracingPrimitives);
+
+					if(bUsingReferenceBasedResidency)
+					{
+						((FRayTracingGeometryManager*)GRayTracingGeometryManager)->AddReferencedGeometryGroups(Context.ReferencedGeometryGroups);
+					}
 				}
 			}
 		}
@@ -419,7 +433,7 @@ namespace RayTracing
 		const int32 ForcedLODLevel = GetCVarForceLOD();
 
 		Result.StaticPrimitiveLODTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[&Result, &Scene, &View, LODScaleCVarValue, ForcedLODLevel, StaticPrimitiveIndices = MoveTemp(StaticPrimitives)]()
+			[&Result, &Scene, &View, LODScaleCVarValue, ForcedLODLevel, StaticPrimitiveIndices = MoveTemp(StaticPrimitives), bUsingReferenceBasedResidency]()
 			{
 				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
 
@@ -445,7 +459,7 @@ namespace RayTracing
 					Contexts,
 					StaticPrimitiveIndices.Num(),
 					[](int32 ContextIndex, int32 NumContexts) { return ContextIndex; },
-					[&Scene, &View, LODScaleCVarValue, ForcedLODLevel, &StaticPrimitiveIndices](FRelevantStaticPrimitivesContext& Context, int32 ItemIndex)
+					[&Scene, &View, LODScaleCVarValue, ForcedLODLevel, &StaticPrimitiveIndices, bUsingReferenceBasedResidency](FRelevantStaticPrimitivesContext& Context, int32 ItemIndex)
 					{
 						const int32 PrimitiveIndex = StaticPrimitiveIndices[ItemIndex];
 
@@ -541,8 +555,26 @@ namespace RayTracing
 							Context.NumCachedStaticSceneInstances += NumTLASInstances;
 							Context.NumCachedStaticVisibleMeshCommands += RelevantPrimitive->CachedRayTracingMeshCommandIndices.Num() * NumTLASInstances;
 						}
-						else
+						// - DirtyCachedRayTracingPrimitives are only processed after StaticPrimitiveIndices is filled
+						// so we can end up with primitives that should be skipped here
+						// - once we update flags of primitive with dirty raytracing state before `GatherRayTracingRelevantPrimitives_Parallel`
+						// we should replace this condition with an assert instead
+						else if(!EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::Skip))
 						{
+#if DO_CHECK
+							if(bUsingReferenceBasedResidency)
+							{
+								FRayTracingGeometry* TargetRayTracingGeometry = SceneInfo->GetStaticRayTracingGeometry(LODIndex);
+								if (!ensure(TargetRayTracingGeometry != nullptr))
+								{
+									return;
+								}
+
+								ensure(((FRayTracingGeometryManager*)GRayTracingGeometryManager)->IsGeometryGroupReferenced(TargetRayTracingGeometry->GroupHandle));
+
+							}
+#endif
+
 							FRayTracingGeometry* RayTracingGeometry = SceneInfo->GetValidStaticRayTracingGeometry(LODIndex);
 
 							if (RayTracingGeometry == nullptr)
@@ -701,6 +733,7 @@ namespace RayTracing
 			TRACE_CPUPROFILER_EVENT_SCOPE(GatherRayTracingWorldInstances_DynamicElements);
 
 			const bool bParallelMeshBatchSetup = GRayTracingParallelMeshBatchSetup && FApp::ShouldUseThreadingForPerformance();
+			const bool bUsingReferenceBasedResidency = IsRayTracingUsingReferenceBasedResidency();
 
 			const int64 SharedBufferGenerationID = Scene.GetRayTracingDynamicGeometryCollection()->BeginUpdate();
 
@@ -832,7 +865,13 @@ namespace RayTracing
 							PersistentPrimitiveIndex.Index
 						);
 					}
-					MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate.Reset();
+
+					if (bUsingReferenceBasedResidency)
+					{
+						((FRayTracingGeometryManager*)GRayTracingGeometryManager)->AddReferencedGeometryGroups(MaterialGatheringContext.GetReferencedGeometryGroups());
+					}
+
+					MaterialGatheringContext.Reset();
 
 					PrimitivesDynamicRayTracingInstances.Add(TRange<int32>(BaseRayTracingInstance, DynamicRayTracingInstances.Num()));
 				}
@@ -872,6 +911,8 @@ namespace RayTracing
 						{
 							continue;
 						}
+
+						((FRayTracingGeometryManager*)GRayTracingGeometryManager)->AddReferencedGeometry(Geometry);
 
 						if (Geometry->IsEvicted())
 						{

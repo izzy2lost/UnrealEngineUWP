@@ -76,6 +76,11 @@ class FViewport;
 class FLandscapeRayTracingStateList;
 struct FPrimitiveUniformShaderParametersBuilder;
 
+namespace RayTracing
+{
+	using GeometryGroupHandle = int32;
+}
+
 namespace UE { namespace Color { class FColorSpace; } }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogBufferVisualization, Log, All);
@@ -2177,6 +2182,17 @@ struct FRayTracingMaterialGatheringContext
 	ENGINE_API virtual ~FRayTracingMaterialGatheringContext();
 
 	ENGINE_API void SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy);
+
+	ENGINE_API void Reset();
+
+	ENGINE_API void AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup);
+
+	ENGINE_API const TSet<RayTracing::GeometryGroupHandle>& GetReferencedGeometryGroups() const;
+
+private:
+	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
+
+	const bool bUsingReferenceBasedResidency;
 };
 #endif
 

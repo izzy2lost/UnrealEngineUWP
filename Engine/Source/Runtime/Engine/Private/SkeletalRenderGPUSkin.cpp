@@ -860,6 +860,8 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 		}
 		bHiddenMaterialVisibilityDirtyForRayTracing = false;
 
+		bool bRequiresBuild = false;
+
 		if (bRequireRecreatingRayTracingGeometry)
 		{
 			uint32 MemoryEstimation = 0;
@@ -945,9 +947,19 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 
 			// Only create RHI object but enqueue actual BLAS creation so they can be accumulated
 			RayTracingGeometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
+
+			bRequiresBuild = true;
 		}
 		else if (!bAnySegmentUsesWorldPositionOffset)
 		{
+			if (RayTracingGeometry.IsEvicted())
+			{
+				// can't call MakeResident() because want to skip build
+				RayTracingGeometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
+
+				bRequiresBuild = true;
+			}
+
 			check(LODModel.RenderSections.Num() == RayTracingGeometry.Initializer.Segments.Num());
 
 			// Refit BLAS with new vertex buffer data
@@ -962,7 +974,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 		// If we are not using world position offset in material, handle BLAS build/refit here
 		if (!bAnySegmentUsesWorldPositionOffset)
 		{
-			check(bRequireRecreatingRayTracingGeometry == RayTracingGeometry.GetRequiresBuild());
+			check(bRequiresBuild == RayTracingGeometry.GetRequiresBuild());
 			RayTracingUpdateQueue->Add(&RayTracingGeometry, RayTracingGeometryStructureSize);
 		}
 		else

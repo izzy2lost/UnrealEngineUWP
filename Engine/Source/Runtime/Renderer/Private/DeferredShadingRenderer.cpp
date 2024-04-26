@@ -1376,6 +1376,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 #if RHI_RAYTRACING
 	if (RendererOutput != FSceneRenderer::ERendererOutput::DepthPrepassOnly)
 	{
+		GRayTracingGeometryManager->PreRender();
+
 		// TODO: should only process build requests once per frame
 		SCOPED_GPU_STAT(GraphBuilder.RHICmdList, RayTracingGeometry);
 		GRayTracingGeometryManager->ProcessBuildRequests(GraphBuilder.RHICmdList);

@@ -1540,7 +1540,6 @@ bool ShouldCompileRayTracingCallableShadersForProject(EShaderPlatform ShaderPlat
 	return RHISupportsRayTracingCallableShaders(ShaderPlatform) && ShouldCompileRayTracingShadersForProject(ShaderPlatform);
 }
 
-
 bool IsRayTracingEnabled()
 {
 	bool bRayTracingEnabled = true;
@@ -1580,6 +1579,13 @@ bool IsRayTracingEnabled(EShaderPlatform ShaderPlatform)
 ERayTracingMode GetRayTracingMode()
 {
 	return IsRayTracingAllowed() ? GRayTracingMode : ERayTracingMode::Disabled;
+}
+
+bool IsRayTracingUsingReferenceBasedResidency()
+{
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.RayTracing.UseReferenceBasedResidency"));
+
+	return GetRayTracingMode() == ERayTracingMode::Dynamic && IsRayTracingEnabled() && CVar && CVar->GetValueOnRenderThread();
 }
 
 bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)

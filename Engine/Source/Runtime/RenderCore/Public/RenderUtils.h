@@ -527,6 +527,10 @@ extern RENDERCORE_API bool IsRayTracingAllowed();
 // This function may only be called at runtime, never during cooking.
 extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 
+// Returns 'true' when using TLAS references to determine ray tracing geometry residency
+// In which case the runtime should track which ray tracing geometries are referenced in the TLAS
+RENDERCORE_API bool IsRayTracingUsingReferenceBasedResidency();
+
 // Returns 'true' when static lighting is enabled for the project
 inline bool IsStaticLightingAllowed()
 {

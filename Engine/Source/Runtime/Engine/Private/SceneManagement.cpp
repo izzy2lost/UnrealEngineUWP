@@ -359,6 +359,7 @@ FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	, DynamicVertexBuffer(GraphBuilder.RHICmdList)
 	, DynamicIndexBuffer(GraphBuilder.RHICmdList)
 	, DynamicReadBuffer(InDynamicReadBuffer)
+	, bUsingReferenceBasedResidency(IsRayTracingUsingReferenceBasedResidency())
 {
 	RayTracingMeshResourceCollector.Start(RHICmdList, DynamicVertexBuffer, DynamicIndexBuffer, DynamicReadBuffer);
 
@@ -382,6 +383,25 @@ FRayTracingMaterialGatheringContext::~FRayTracingMaterialGatheringContext()
 void FRayTracingMaterialGatheringContext::SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy)
 {
 	RayTracingMeshResourceCollector.SetPrimitive(InPrimitiveSceneProxy, FHitProxyId::InvisibleHitProxyId);
+}
+
+void FRayTracingMaterialGatheringContext::Reset()
+{
+	DynamicRayTracingGeometriesToUpdate.Reset();
+	ReferencedGeometryGroups.Reset();
+}
+
+void FRayTracingMaterialGatheringContext::AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup)
+{
+	if (bUsingReferenceBasedResidency)
+	{
+		ReferencedGeometryGroups.Add(GeometryGroup);
+	}
+}
+
+const TSet<RayTracing::GeometryGroupHandle>& FRayTracingMaterialGatheringContext::GetReferencedGeometryGroups() const
+{
+	return ReferencedGeometryGroups;
 }
 
 #endif

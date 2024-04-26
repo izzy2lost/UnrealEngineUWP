@@ -1880,7 +1880,7 @@ TArray<FRayTracingGeometry*> FStaticMeshSceneProxy::GetStaticRayTracingGeometrie
 
 RayTracing::GeometryGroupHandle FStaticMeshSceneProxy::GetRayTracingGeometryGroupHandle() const
 {
-	check(IsInRenderingThread());
+	check(IsInRenderingThread() || IsInParallelRenderingThread());
 	return RayTracingGeometryGroupHandle;
 }
 
@@ -1925,6 +1925,8 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 
 	if (!bEvaluateWPO)
 	{
+		Context.AddReferencedGeometryGroup(RenderData->RayTracingGeometryGroupHandle);
+
 		// Select first LOD with valid ray tracing geometry
 		for (; LODIndex < NumLODs; LODIndex++)
 		{

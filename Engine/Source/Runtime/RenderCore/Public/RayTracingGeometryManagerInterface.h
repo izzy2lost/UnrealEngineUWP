@@ -48,9 +48,10 @@ public:
 	* For example, the FRayTracingGeometry of all the LODs of UStaticMesh should use the same RayTracing::GeometryGroupHandle.
 	* This grouping is useful to keep track which proxies need to be invalidated when a FRayTracingGeometry is built or made resident.
 	*/
-	RENDERCORE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup() = 0;
+	RENDERCORE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup(uint32 NumLODs) = 0;
 	RENDERCORE_API virtual void ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle) = 0;
 
+	RENDERCORE_API virtual void PreRender() = 0;
 	RENDERCORE_API virtual void Tick(FRHICommandList& RHICmdList) = 0;
 };
 
