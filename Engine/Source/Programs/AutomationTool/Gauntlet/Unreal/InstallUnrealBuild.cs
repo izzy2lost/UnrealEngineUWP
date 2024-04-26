@@ -19,6 +19,7 @@ namespace Gauntlet
 	[ParamHelp("parallel=[1:4]", "Number of installs to run in parallel",
 		ParamType = typeof(string), Choices = new string[] { "1", "2", "3", "4" }, DefaultValue = "1")]
 	[ParamHelp("project=<project>", "Name of the project", Required = true)]
+	[ParamHelp("-sandbox=<sandbox>", "String to specficy the name of a staged install directory.")]
 
 	public class InstallUnrealBuild : BuildCommand
 	{
@@ -39,7 +40,8 @@ namespace Gauntlet
 			string DevicesArg = ParseParamValue("device", string.Empty);
 			DevicesArg = ParseParamValue("devices", DevicesArg);
 
-			int ParallelTasks = Convert.ToInt32(ParseParamValue("parallel", "1"));
+			//Set default to -1, to know that a value has not been passed in and can be overriden.
+			int ParallelTasks = Convert.ToInt32(ParseParamValue("parallel", "-1"));
 
 			bool Success = false;
 
