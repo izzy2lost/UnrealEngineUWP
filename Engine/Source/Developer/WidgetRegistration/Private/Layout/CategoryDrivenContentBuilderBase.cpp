@@ -27,6 +27,7 @@ FCategoryDrivenContentBuilderBase::FCategoryDrivenContentBuilderBase ( FName InB
 
 FCategoryDrivenContentBuilderBase::FCategoryDrivenContentBuilderBase( FCategoryDrivenContentBuilderArgs& Args ) :
 	FToolElementRegistrationArgs( Args.Key )
+	, GetDecoratedButtonDelegate( Args.GetDecoratedButtonDelegate )
 	, CategoryReclickBehavior( Args.CategoryReclickBehavior )
 	, BuilderName(Args.BuilderName)
 	, ActiveCategoryName( Args.ActiveCategoryName )

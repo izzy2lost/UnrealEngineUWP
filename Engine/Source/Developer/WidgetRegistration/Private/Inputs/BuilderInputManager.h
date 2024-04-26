@@ -4,7 +4,6 @@
 
 #include "Framework/Commands/UICommandInfo.h"
 
-// class FBuilderDragAndDropManager;
 class FBuilderCommandCreationManager;
 
 namespace UE::DisplayBuilders
@@ -38,9 +37,4 @@ public:
 	 * @return the Command manager for Builders
 	 */
 	const FBuilderCommandCreationManager& GetCommandManager();
-	
-	/**
-	 * @return the Drag and Drop manager for Builders
-	 */
-	// FBuilderDragAndDropManager& GetDragAndDropManager();
 };

@@ -34,8 +34,7 @@ namespace UE::DisplayBuilders
 			FName InUiStyle = NAME_None,
 			FName InBindingContext = NAME_None,
 			FName InBundle = NAME_None,
-			bool bInUseLongDisplayName = false
-			/*TSharedPtr<FDropZoneHandler> InDropZoneHandler = nullptr*/ );
+			bool bInUseLongDisplayName = false );
 
 		/**
 		 * The destructor, destroys any command related information
@@ -68,9 +67,6 @@ namespace UE::DisplayBuilders
 
 		/** True if should we use long names for when getting text for input chords */
 		bool bUseLongDisplayName;
-
-		/** A pointer to the handler for a dropzone on the input, if one exists */
-		// TSharedPtr<FDropZoneHandler> DropZoneHandler;
 
 		/** the index of the BuilderInput in whatever container it is in */
 		int32 Index;

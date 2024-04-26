@@ -18,12 +18,12 @@ FToolBarButtonBlock::FToolBarButtonBlock( FButtonArgs ButtonArgs )
 	, LabelOverride( ButtonArgs.LabelOverride )
 	, ToolTipOverride( ButtonArgs.ToolTipOverride )
 	, IconOverride( ButtonArgs.IconOverride )
-   // , BorderBrushName(ButtonArgs.BorderBrushName)
 	, LabelVisibility()
 	, UserInterfaceActionType(ButtonArgs.UserInterfaceActionType != EUserInterfaceActionType::None ?
 		ButtonArgs.UserInterfaceActionType : EUserInterfaceActionType::Button)
 	, bIsFocusable(false)
 	, bForceSmallIcons(false)
+	, GetDecoratedButtonDelegate( ButtonArgs.GetDecoratedButtonDelegate )
 {
 }
 
@@ -59,6 +59,11 @@ void FToolBarButtonBlock::SetCustomMenuDelegate(const FNewMenuDelegate& InCustom
 void FToolBarButtonBlock::SetOnGetMenuContent(const FOnGetContent& InOnGetMenuContent)
 {
 	OnGetMenuContent = InOnGetMenuContent;
+}
+
+void FToolBarButtonBlock::SetGetDecoratedButtonDelegate( const FGetDecoratedButtonDelegate& InGetDecoratedButtonDelegate )
+{
+	GetDecoratedButtonDelegate = InGetDecoratedButtonDelegate;
 }
 
 void FToolBarButtonBlock::CreateMenuEntry(FMenuBuilder& MenuBuilder) const
@@ -375,6 +380,11 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 				[
 					CheckBox.ToSharedRef()
 				];
+		}
+		
+		if ( ToolBarButtonBlock->GetDecoratedButtonDelegate.IsBound() )
+		{
+			CheckBoxWidget = ToolBarButtonBlock->GetDecoratedButtonDelegate.Execute( CheckBoxWidget );
 		}
 
 		ChildSlot

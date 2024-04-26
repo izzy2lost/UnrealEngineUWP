@@ -97,6 +97,8 @@ public:
 	 */
 	SLATE_API void PushCommandList( const TSharedRef< const FUICommandList > CommandList );
 
+	SLATE_API void SetLastSelectedCommandIndex( int32 InLastSelectedCommandIndex );
+
 
 	/**
 	 * Pops the current command list.

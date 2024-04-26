@@ -9,7 +9,6 @@
 
 class FColumnWrappingContainer;
 class FSimpleTitleContainer;
-// class FAcceptSingleItemDropZoneHandler;
 class FSlateBuilder;
 
 namespace UE::DisplayBuilders
@@ -93,7 +92,7 @@ public:
 	 * @param InBuilderInputArray the array of FBuilderInput instances that will initialize the Category buttons
 	 */
 	WIDGETREGISTRATION_API void InitializeCategoryButtons(TArray<UE::DisplayBuilders::FBuilderInput> InBuilderInputArray);
-
+	
 	/**
 	 * Converts the SWidget Widget to a FSlateBuilder and adds it to the main content for the currently selected category
 	 *
@@ -112,6 +111,12 @@ public:
 	 * Clears the content for the currently selected category
 	 */
 	WIDGETREGISTRATION_API void ClearCategoryContent();
+	
+	/**
+	 * Adds the favorites with the name InFavoriteCommandName to the favorites list. If InFavoriteCommandName is already in
+	 * the Favorites list, this is a no-op
+	 */
+	WIDGETREGISTRATION_API void AddFavorite( FName InFavoriteCommandName );
 	
 private:
 	/**
@@ -142,12 +147,6 @@ private:
 	 * Toggles the favorite with the name InFavoriteCommandName
 	 */
 	void ToggleFavorite( FName InFavoriteCommandName );
-	
-	/**
-	 * Adds the favorites with the name InFavoriteCommandName to the favorites list. If InFavoriteCommandName is already in
-	 * the Favorites list, this is a no-op
-	 */
-	void AddFavorite( FName InFavoriteCommandName );
 
 private:
 
@@ -169,7 +168,4 @@ private:
 
 	/** if true, we need to show no selection on the category picker and no category title, else we should show both  */
 	bool bShowNoCategorySelection;
-	
-	/** The dropzone handler for the favorites */
-	// TSharedPtr<FAcceptSingleItemDropZoneHandler> FavoritesDropZoneHandler;
 };

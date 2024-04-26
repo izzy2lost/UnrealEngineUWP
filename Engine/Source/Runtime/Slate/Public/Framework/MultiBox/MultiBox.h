@@ -333,6 +333,18 @@ public:
 	}
 
 	/**
+	 * returns the index of the item which was last selected in this box
+	 */
+	int32 GetLastSelectedCommandIndex() const;
+	
+	/**
+	 * sets the index of the item which was last selected in this box
+	 *
+	 * @param LastSelectedCommandIndex the index of the last command that was selected for this box
+	 */
+	void SetLastSelectedCommandIndex( int32 LastSelectedCommandIndex );
+
+	/**
 	 * Adds a MultiBlock to this MultiBox, to the end of the list
 	 */
 	SLATE_API void AddMultiBlock( TSharedRef< const FMultiBlock > InBlock );
@@ -480,6 +492,10 @@ private:
 
 	/** True if window that owns any widgets created from this multibox should be closed automatically after the user commits to a menu choice */
 	bool bShouldCloseWindowAfterMenuSelection;
+
+	/** the Last selected command index. If unset this has a value of INDEX_NONE */
+	int32 LastSelectedCommandIndex;
+
 };
 
 

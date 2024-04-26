@@ -31,6 +31,7 @@
 #include "Framework/Commands/UICommandDragDropOp.h"
 #include "Framework/MultiBox/SUniformToolbarPanel.h"
 #include "Styling/ToolBarStyle.h"
+#include "Misc/CoreMiscDefines.h"
 
 #define LOCTEXT_NAMESPACE "MultiBox"
 
@@ -252,6 +253,7 @@ FMultiBox::FMultiBox(const EMultiBoxType InType, FMultiBoxCustomization InCustom
 	, StyleName( "ToolBar" )
 	, Type( InType )
 	, bShouldCloseWindowAfterMenuSelection( bInShouldCloseWindowAfterMenuSelection )
+	, LastSelectedCommandIndex( INDEX_NONE )
 {
 
 	if ((InType == EMultiBoxType::SlimHorizontalToolBar ||  InType == EMultiBoxType::SlimHorizontalUniformToolBar) && FCoreStyle::IsStarshipStyle())
@@ -460,6 +462,16 @@ bool FMultiBox::IsCustomizable() const
 	}
 
 	return false;
+}
+
+int32 FMultiBox::GetLastSelectedCommandIndex() const
+{
+	return LastSelectedCommandIndex;
+}
+
+void FMultiBox::SetLastSelectedCommandIndex(const int32 InLastSelectedCommandIndex)
+{
+	LastSelectedCommandIndex = InLastSelectedCommandIndex;
 }
 
 FName FMultiBox::GetCustomizationName() const
@@ -1007,6 +1019,10 @@ void SMultiBoxWidget::BuildMultiBoxWidget()
 			MainWidget = VerticalBox = ClippedVerticalBox = SNew(SClippingVerticalBox)
 				.OnWrapButtonClicked(FOnGetContent::CreateSP(this, &SMultiBoxWidget::OnWrapButtonClicked))
 				.IsFocusable(MultiBox->bIsFocusable)
+				.SelectedIndex_Lambda( [this] ()
+				{
+					return MultiBox->GetLastSelectedCommandIndex();
+				})
 				.StyleSet(StyleSet)
 				.StyleName(StyleName);
 		}

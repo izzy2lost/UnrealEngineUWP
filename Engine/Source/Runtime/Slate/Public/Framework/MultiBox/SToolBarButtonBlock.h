@@ -18,6 +18,9 @@ class SBorder;
 /** Delegate used by multi-box to call a user function to populate a new menu.  Used for spawning sub-menus and pull-down menus. */
 DECLARE_DELEGATE_OneParam( FNewMenuDelegate, class FMenuBuilder& );
 
+/**  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget*/
+DECLARE_DELEGATE_RetVal_OneParam( TSharedRef<SWidget>, FGetDecoratedButtonDelegate, TSharedRef<SWidget> );
+
 struct FButtonArgs : public TSharedFromThis<FButtonArgs>
 {
 	TSharedPtr< const FUICommandInfo > Command;
@@ -33,6 +36,7 @@ struct FButtonArgs : public TSharedFromThis<FButtonArgs>
 	
 	FNewMenuDelegate CustomMenuDelegate;
 	FOnGetContent OnGetMenuContent;
+	FGetDecoratedButtonDelegate GetDecoratedButtonDelegate;
 
 	explicit FButtonArgs() {}
 };
@@ -91,6 +95,13 @@ public:
 
 	SLATE_API void SetOnGetMenuContent(const FOnGetContent& OnGetMenuContent);
 
+	/**
+	 *  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget
+	 *
+	 * @param InGetDecoratedButtonDelegate the delegate that handles decorating the button
+	 */
+	void SetGetDecoratedButtonDelegate( const FGetDecoratedButtonDelegate& InGetDecoratedButtonDelegate );
+
 protected:
 	
 	SLATE_API bool GetIsFocusable() const;
@@ -134,6 +145,9 @@ private:
 
 	/** Delegate to execute to get the menu content of this button */
 	FOnGetContent OnGetMenuContent;
+
+	/**  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget*/
+	FGetDecoratedButtonDelegate GetDecoratedButtonDelegate;
 };
 
 

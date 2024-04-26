@@ -38,8 +38,7 @@ UE::DisplayBuilders::FBuilderInput::FBuilderInput(
 	FName InUiStyle ,
 	FName InBindingContext  ,
 	FName InBundle  ,
-	bool bInUseLongDisplayName 
-	/*TSharedPtr<FDropZoneHandler> InDropZoneHandler*/   )  :
+	bool bInUseLongDisplayName )  :
 	FLabelAndIconArgs( InLabel.IsEmpty() ? FText::FromName( InName ) : InLabel, InIcon )
 	, Name( InName )
 	, UserInterfaceType( InUserInterfaceType )
@@ -50,7 +49,6 @@ UE::DisplayBuilders::FBuilderInput::FBuilderInput(
 	, BindingContext( InBindingContext )
 	, Bundle( InBundle )
 	, bUseLongDisplayName( bInUseLongDisplayName )
-	//, DropZoneHandler( InDropZoneHandler )
 	, Index( INDEX_NONE )
 	, Tooltip( InToolTip.IsEmpty() ? InLabel : InToolTip )
 {

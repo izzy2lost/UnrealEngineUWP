@@ -9,12 +9,12 @@
 #include "Widgets/Layout/SSplitter.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "BuilderKey.h"
+#include "Framework/MultiBox/SToolBarButtonBlock.h"
 
 class SWidget;
 class FToolElement;
 
 class FCategoryDrivenContentBuilderArgs;
-// class FAcceptSingleItemDropZoneHandler;
 
 /**
  * The FToolElementRegistrationArgs which is specified for Toolkits
@@ -83,9 +83,9 @@ public:
 	WIDGETREGISTRATION_API void SetCategoryButtonLabelVisibility(bool bIsCategoryButtonLabelVisible);
 
 	/**
-	 * refreshes the UI display of the category toolbar 
+	 * refreshes the UI display of the category toolbar
 	 */
-	WIDGETREGISTRATION_API void RefreshCategoryToolbarWidget();
+    	WIDGETREGISTRATION_API void RefreshCategoryToolbarWidget();
 
 	/** Implements the generation of the TSharedPtr<SWidget> */
 	WIDGETREGISTRATION_API virtual TSharedPtr<SWidget> GenerateWidget() override;
@@ -101,17 +101,20 @@ public:
 
 	/**   OnActivePaletteChanged is broadcast when the active palette changes to a different palette  */
 	FSimpleMulticastDelegate OnActivePaletteChanged;
+
+	/**  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget*/
+	FGetDecoratedButtonDelegate GetDecoratedButtonDelegate;
 	
 private:
 
 	/* The SWidget that is the whole Toolkit */
 	TSharedPtr<SWidget> ToolkitWidget;
 
-	/**
-	 * Creates the SWidget
-	 */
-	void CreateWidget();
-
+    	/**
+    	 * Creates the SWidget
+    	 */
+    	void CreateWidget();
+     
 	/** The SVerticalBox which contains the category toolbar */
 	TSharedPtr<SVerticalBox> CategoryToolbarVBox;
 
@@ -195,6 +198,6 @@ public:
 	/** The name of the initially selected category */
 	FName ActiveCategoryName;
 	
-	
-	// TSharedPtr<FAcceptSingleItemDropZoneHandler> FavoritesDropZoneHandler;
+	/**  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget */
+	FGetDecoratedButtonDelegate GetDecoratedButtonDelegate;
 };

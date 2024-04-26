@@ -10,7 +10,6 @@
 #include "Framework/MultiBox/SToolBarButtonBlock.h"
 #include "Inputs/BuilderInputManager.h"
 #include "Input/DragAndDrop.h"
-// #include "Inputs/DragAndDrop/AcceptSingleItemDropZoneHandler.h"
 #include "Layout/Containers/ColumnWrappingContainer.h"
 #include "Layout/Containers/SimpleTitleContainer.h"
 #include "Persistence/BuilderPersistenceManager.h"
@@ -50,7 +49,6 @@ FCategoryDrivenContentBuilder::FCategoryDrivenContentBuilder(FCategoryDrivenCont
 	, TitleContainer( nullptr )
 	, bIsFilledWithWidget( false )
 	, bShowNoCategorySelection( false )
-	/*, FavoritesDropZoneHandler( Args.FavoritesDropZoneHandler )*/
 {
 	Favorites = UBuilderPersistenceManager::Get()->GetPersistedFavoritesNamesArray( BuilderKey );
 	ActiveCategoryName = Args.ActiveCategoryName;
@@ -165,7 +163,7 @@ void FCategoryDrivenContentBuilder::UpdateWidget()
 		
 			if ( LoadPaletteToolBarBuilder && !bShowNoCategorySelection )
 			{
-				//	LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( (*Input).Index );
+				LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( (*Input).Index );
 			}
 		}
 
@@ -233,14 +231,14 @@ void FCategoryDrivenContentBuilder::SetShowNoCategorySelection(bool bInShowNoCat
 		bShowNoCategorySelection = bInShowNoCategorySelection;
 		const UE::DisplayBuilders::FBuilderInput* Input = CategoryNameToBuilderInputMap.Find( ActiveCategoryName );
 
-		/*if ( bShowNoCategorySelection )
+		if ( bShowNoCategorySelection )
 		{
 			LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( INDEX_NONE );
 		}
 		else if ( Input != nullptr)
 		{
 			LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( (*Input).Index );
-		}*/
+		}
 	}
 }
 
@@ -258,14 +256,9 @@ void FCategoryDrivenContentBuilder::InitializeCategoryButtons(TArray<UE::Display
 		UE::DisplayBuilders::FBuilderInput& BuilderInput = InBuilderInputArray[Index];
 		BuilderInput.Index = Index;
 		
-		if ( BuilderInput.Name == FavoritesCategoryName /*&& FavoritesDropZoneHandler.IsValid()*/ )
+		if ( BuilderInput.Name == FavoritesCategoryName && GetDecoratedButtonDelegate.IsBound() )
 		{
-			/*if ( FavoritesDropZoneHandler.IsValid() )
-			{
-				 FavoritesDropZoneHandler->OnAcceptDrop =
-					FAcceptSingleItemDropZoneHandler::FOnAcceptDrop::CreateSP( this, &FCategoryDrivenContentBuilder::AddFavorite );
-				 BuilderInput.ButtonArgs.DropZoneHandler = FavoritesDropZoneHandler; 
-			}*/
+			BuilderInput.ButtonArgs.GetDecoratedButtonDelegate = GetDecoratedButtonDelegate;
 			BuilderInput.ButtonArgs.IconOverride = FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Favorites.Small");
 		}
 		CategoryNameToBuilderInputMap.Add( BuilderInput.Name, BuilderInput );

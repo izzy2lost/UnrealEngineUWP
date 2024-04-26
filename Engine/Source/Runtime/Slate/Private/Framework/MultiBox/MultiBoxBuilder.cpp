@@ -53,6 +53,11 @@ void FMultiBoxBuilder::PushCommandList( const TSharedRef< const FUICommandList >
 	CommandListStack.Push( CommandList );
 }
 
+void FMultiBoxBuilder::SetLastSelectedCommandIndex(int32 InLastSelectedCommandIndex)
+{
+	MultiBox->SetLastSelectedCommandIndex( InLastSelectedCommandIndex );			
+}
+
 void FMultiBoxBuilder::PopCommandList()
 {
 	// Never allowed to pop the last command-list!  This command-list was set when the multibox was first created and is canonical.
@@ -205,6 +210,7 @@ TSharedRef< class SWidget > FMenuBuilder::MakeWidget( FMultiBox::FOnMakeMultiBox
 
 TSharedRef< class SWidget > FMenuBuilder::MakeWidget( FMultiBox::FOnMakeMultiBoxBuilderOverride* InMakeMultiBoxBuilderOverride, uint32 MaxHeight)
 {
+	// Make menu builders searchable (by default)
 	TAttribute<float> MaxHeightAttribute;
 	if (MaxHeight < INT_MAX)
 	{
@@ -492,6 +498,7 @@ void FToolBarBuilder::AddToolBarButton(const FButtonArgs& Args)
 	NewToolBarButtonBlock->SetStyleNameOverride(CurrentStyleOverride);
 	NewToolBarButtonBlock->SetCustomMenuDelegate(Args.CustomMenuDelegate);
 	NewToolBarButtonBlock->SetOnGetMenuContent(Args.OnGetMenuContent);
+	NewToolBarButtonBlock->SetGetDecoratedButtonDelegate( Args.GetDecoratedButtonDelegate );
 	
 	if (bHasUserInteractionType)
 	{

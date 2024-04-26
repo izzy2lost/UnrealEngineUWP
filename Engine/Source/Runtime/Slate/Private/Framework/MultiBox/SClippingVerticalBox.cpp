@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Framework/MultiBox/SClippingVerticalBox.h"
+
+#include "Brushes/SlateRoundedBoxBrush.h"
+#include "Styling/StyleColors.h"
 #include "Layout/ArrangedChildren.h"
 #include "Rendering/DrawElements.h"
 #include "Widgets/Images/SImage.h"
@@ -9,6 +12,9 @@
 #include "Framework/MultiBox/SToolBarButtonBlock.h"
 #include "Styling/ToolBarStyle.h"
 #include "Widgets/Images/SLayeredImage.h"
+#include "Widgets/Text/STextBlock.h"
+
+#define LOCTEXT_NAMESPACE "ClippingVerticalBox"
 
 void SClippingVerticalBox::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren ) const
 {
@@ -24,8 +30,9 @@ void SClippingVerticalBox::OnArrangeChildren( const FGeometry& AllottedGeometry,
 	// Remove children that are clipped by the allotted geometry
 	const int32 NumChildren = ArrangedChildren.Num();
 	const int32 OverflowButtonIndex = NumChildren - 1;
-	const int32 LastToolBarButtonIndex = OverflowButtonIndex - 1;
-	constexpr int32 OverflowButtonSize = 22;
+	LastToolBarButtonIndex = OverflowButtonIndex - 1;
+	
+	constexpr int32 OverflowButtonSize = 48;
 	
 	for (int32 ChildIdx = LastToolBarButtonIndex; ChildIdx >= 0; --ChildIdx)
 	{
@@ -80,11 +87,37 @@ void SClippingVerticalBox::Construct( const FArguments& InArgs )
 	StyleSet = InArgs._StyleSet;
 	StyleName = InArgs._StyleName;
 	bIsFocusable = InArgs._IsFocusable;
+	SelectedIndex = InArgs._SelectedIndex;
 
 	LastClippedIdx = ClippedIdx = INDEX_NONE;
 }
 
 void SClippingVerticalBox::AddWrapButton()
+{
+
+	InitializeWrapButton( WrapButton, false );
+	InitializeWrapButton( SelectedWrapButton, true );
+
+	AddSlot()
+	.Padding( 0.f )
+	[
+		SNew( SVerticalBox )
+		+ SVerticalBox::Slot()
+		.Padding(0.f)
+		[
+			WrapButton.ToSharedRef()
+		]
+		+ SVerticalBox::Slot()
+		.Padding(0.f)
+		[
+			SelectedWrapButton.ToSharedRef()
+		]
+
+	];
+ 
+}
+
+void SClippingVerticalBox::InitializeWrapButton( TSharedPtr<SComboButton>& Button, bool bCreateSelectedAppearance  )
 {
 	const FToolBarStyle& ToolBarStyle = StyleSet->GetWidgetStyle<FToolBarStyle>(StyleName);
 	const TSharedRef<SImage> IconWidget =
@@ -92,16 +125,39 @@ void SClippingVerticalBox::AddWrapButton()
 		.Visibility(EVisibility::HitTestInvisible)
 		.Image( &ToolBarStyle.ExpandBrush );
 
+
+	Style = ToolBarStyle.ButtonStyle;
+	Style.SetNormalPadding(0 );
+	Style.SetPressedPadding( 0 );
 	
-	// Construct the wrap button used in toolbars and menubars
+	SelectedStyle = ToolBarStyle.ButtonStyle;
+	SelectedStyle.SetNormalPadding(0 );
+	SelectedStyle.SetPressedPadding( 0 );
+	SelectedStyle.SetNormal( FSlateRoundedBoxBrush( FStyleColors::Primary, 4.f,
+		FLinearColor(0, 0, 0, .8), 0.5) );
+	
+	// Construct the wrap button used in toolbars and menu bars
 	// Always allow this to be focusable to prevent the menu from collapsing during interaction
-	WrapButton =
+	Button =
 		SNew( SComboButton )
 		.HasDownArrow( false )
-		.ButtonStyle(&ToolBarStyle.ButtonStyle)
-		.ContentPadding( FMargin(2.f, 4.f) )
+		.Visibility_Lambda( [this, bCreateSelectedAppearance] ()
+		{
+			bool bShowingSelected = SelectedIndex.Get() > LastClippedIdx - 1;
+			if ( bCreateSelectedAppearance )
+			{
+				return bShowingSelected ? EVisibility::Visible : EVisibility::Collapsed;				
+			}
+			return !bShowingSelected ? EVisibility::Visible : EVisibility::Collapsed;
+		})
+		.ButtonStyle( bCreateSelectedAppearance ? &SelectedStyle : &Style )
+		.ContentPadding( FMargin(2.f, 8.f) )	
 		.ToolTipText( NSLOCTEXT("Slate", "ExpandToolbar", "Click to expand toolbar") )
-		.OnGetMenuContent( OnWrapButtonClicked )
+		.OnGetMenuContent_Lambda( [ this ] ()
+		{
+			TSharedRef<SWidget> Widget = OnWrapButtonClicked.Execute();
+			return Widget;
+		})
 		.Cursor( EMouseCursor::Default )
 		.OnMenuOpenChanged(this, &SClippingVerticalBox::OnWrapButtonOpenChanged)
 		.IsFocusable(true)
@@ -109,19 +165,22 @@ void SClippingVerticalBox::AddWrapButton()
 		[
 		SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
+				.Padding(0)
 				.AutoHeight()
 				.HAlign(HAlign_Center)	// Center the icon horizontally, so that large labels don't stretch out the artwork
 				[
 					IconWidget
 				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text( LOCTEXT("ClippingVerticalBox.Icon.More", "More") )
+					.TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("SmallText"))
+				]
 			
 		];
-
-	AddSlot()
-	.Padding( 0.f )
-	[
-		WrapButton.ToSharedRef()
-	];
 }
 
 void SClippingVerticalBox::OnWrapButtonOpenChanged(bool bIsOpen)
@@ -149,3 +208,4 @@ EActiveTimerReturnType SClippingVerticalBox::UpdateWrapButtonStatus(double Curre
 	return EActiveTimerReturnType::Continue;
 }
 
+#undef LOCTEXT_NAMESPACE

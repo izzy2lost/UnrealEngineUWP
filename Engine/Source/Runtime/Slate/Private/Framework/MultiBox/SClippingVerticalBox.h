@@ -7,6 +7,7 @@
 #include "Styling/CoreStyle.h"
 #include "Framework/SlateDelegates.h"
 #include "Widgets/SBoxPanel.h"
+#include "Styling/SlateTypes.h"
 
 class FArrangedChildren;
 class FPaintArgs;
@@ -21,12 +22,14 @@ public:
 		: _StyleSet(&FCoreStyle::Get())
 		, _StyleName(NAME_None)
 		, _IsFocusable(true)
+		, _SelectedIndex(INDEX_NONE )
 		{ }
 
 		SLATE_ARGUMENT(FOnGetContent, OnWrapButtonClicked)
 		SLATE_ARGUMENT(const ISlateStyle*, StyleSet)
 		SLATE_ARGUMENT(FName, StyleName)
 		SLATE_ARGUMENT(bool, IsFocusable)
+		SLATE_ATTRIBUTE( int32, SelectedIndex )
 	SLATE_END_ARGS()
 
 	/** SWidget interface */
@@ -48,9 +51,21 @@ public:
 private:
 	void OnWrapButtonOpenChanged(bool bIsOpen);
 	EActiveTimerReturnType UpdateWrapButtonStatus(double CurrentTime, float DeltaTime);
+
+	/**
+	 * Initializes a wrap button that can handle clipped content
+	 * 
+	 * @param Button the SComboButton that will make up the clipped overflow button
+	 * @param bCreateSelectedAppearance if true, the button will have a "selected" appearance to denote that something within it is selected
+	 */
+	void InitializeWrapButton( TSharedPtr<SComboButton>& Button, bool bCreateSelectedAppearance );
+	
 private:
-	/** The button that is displayed when a toolbar or menubar is clipped */
+	/** The button that is displayed when a toolbar or menubar is clipped and something within it is not selected */
 	TSharedPtr<SComboButton> WrapButton;
+
+	/** The button that is displayed when a toolbar or menubar is clipped and something within the clipped content is selected */
+	TSharedPtr<SComboButton> SelectedWrapButton;
 
 	/** Callback for when the wrap button is clicked */
 	FOnGetContent OnWrapButtonClicked;
@@ -70,6 +85,18 @@ private:
 
 	/** The style to use */
 	const ISlateStyle* StyleSet;
+
+	/** the button style for the clipped content button when nothing within the clipped content is selected */
+	FButtonStyle Style;
+	
+	/** the button style for the clipped content button when something within the clipped content is selected */
+	FButtonStyle SelectedStyle;
+
+	/** the index in the toolbar that is currently selected */
+	TAttribute<int32> SelectedIndex = INDEX_NONE;
+
+	/** the last index in the toolbar which is not clipped by the clipped content button */
+	mutable int32 LastToolBarButtonIndex = INDEX_NONE;
 
 	FName StyleName;
 };
