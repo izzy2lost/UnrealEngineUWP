@@ -100,7 +100,6 @@ class FGameplayCameraComponentEvaluationContext : public FCameraEvaluationContex
 
 public:
 
-	void Initialize(UGameplayCameraComponent* Owner, APlayerController* InPlayerController);
 	void Update(UGameplayCameraComponent* Owner);
 };
 
