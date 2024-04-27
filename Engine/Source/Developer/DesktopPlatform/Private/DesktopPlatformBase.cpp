@@ -1027,7 +1027,17 @@ bool FDesktopPlatformBase::GetOidcAccessTokenInternal(const FString& RootDir, co
 		UE_LOG(LogDesktopPlatform, Warning, TEXT("Failed to run OidcToken ('%s%s'). ExitCode: %i"), *GetOidcTokenExecutableFilename(RootDir), *Arguments, ExitCode);
 		return false;
 	}
+
+	if (ExitCode == 11)
+	{
+		UE_LOG(LogDesktopPlatform, Display, TEXT("Auth is disabled for connection"));
+
+		OutToken = FString();
+		OutTokenExpiresAt = FDateTime::MaxValue();
 	
+		return true;
+	}
+
 	// Read the file to a string
 	FString TokenText;
 	if(FFileHelper::LoadFileToString(TokenText, *ResultFilePath))
