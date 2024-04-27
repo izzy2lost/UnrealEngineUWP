@@ -632,6 +632,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FMutableParamUIMetadata GetIntParameterOptionUIMetadata(const FString& ParamName, const FString& OptionName) const;
 	
+	/** Returns the group type of the given integer parameter */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	ECustomizableObjectGroupType GetIntParameterGroupType(const FString& ParamName) const;
+
 	/** Return the metadata associated to a state. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FMutableStateUIMetadata GetStateUIMetadata(const FString& StateName) const;

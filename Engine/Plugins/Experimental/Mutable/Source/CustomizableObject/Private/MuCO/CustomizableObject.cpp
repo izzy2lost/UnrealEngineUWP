@@ -1550,6 +1550,22 @@ FMutableParamUIMetadata UCustomizableObject::GetIntParameterOptionUIMetadata(con
 	return IntegerParameterUIData ? IntegerParameterUIData->ParamUIMetadata : FMutableParamUIMetadata();
 }
 
+ECustomizableObjectGroupType UCustomizableObject::GetIntParameterGroupType(const FString& ParamName) const
+{
+	const int32 ParameterIndex = FindParameter(ParamName);
+	if (ParameterIndex == INDEX_NONE)
+	{
+		return ECustomizableObjectGroupType::COGT_TOGGLE;
+	}		
+	
+	const FMutableParameterData* ParameterData = Private->GetModelResources().ParameterUIDataMap.Find(ParamName);
+	if (!ParameterData)
+	{
+		return ECustomizableObjectGroupType::COGT_TOGGLE;
+	}
+
+	return ParameterData->IntegerParameterGroupType;
+}
 
 FMutableStateUIMetadata UCustomizableObject::GetStateUIMetadata(const FString& StateName) const
 {
