@@ -28,6 +28,12 @@
 
 IMPLEMENT_APPLICATION(LiveCodingConsole, "LiveCodingConsole");
 
+#if IS_MONOLITHIC
+const TCHAR* GLiveCodingEngineDir = nullptr;
+const TCHAR* GLiveCodingProject = nullptr;
+#endif
+
+
 static void OnRequestExit()
 {
 	RequestEngineExit(TEXT("LiveCoding console closed"));
