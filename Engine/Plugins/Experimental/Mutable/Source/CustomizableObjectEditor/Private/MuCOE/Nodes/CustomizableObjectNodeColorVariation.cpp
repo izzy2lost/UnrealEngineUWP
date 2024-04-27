@@ -2,6 +2,7 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeColorVariation.h"
 
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditor_Deprecated.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 

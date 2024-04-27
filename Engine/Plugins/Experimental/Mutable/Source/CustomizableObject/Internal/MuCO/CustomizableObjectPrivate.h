@@ -556,6 +556,70 @@ struct FMorphTargetVertexData
 static_assert(sizeof(FMorphTargetVertexData) == sizeof(FVector3f)*2 + sizeof(uint32)); // Make sure no padding is present.
 template<> struct TCanBulkSerialize<FMorphTargetVertexData> { enum { Value = true }; };
 
+
+USTRUCT()
+struct FIntegerParameterUIData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FMutableParamUIMetadata ParamUIMetadata;
+
+	friend FArchive& operator<<(FArchive& Ar, FIntegerParameterUIData& Struct);
+};
+
+
+USTRUCT()
+struct FMutableParameterData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FMutableParamUIMetadata ParamUIMetadata;
+
+	/** Parameter type */
+	UPROPERTY()
+	EMutableParameterType Type = EMutableParameterType::None;
+
+	/** In the case of an integer parameter, store here all options */
+	UPROPERTY()
+	TMap<FString, FIntegerParameterUIData> ArrayIntegerParameterOption;
+
+	/** How are the different options selected (one, one or none, etc...) */
+	UPROPERTY()
+	ECustomizableObjectGroupType IntegerParameterGroupType = ECustomizableObjectGroupType::COGT_ONE_OR_NONE;
+	
+	friend FArchive& operator<<(FArchive& Ar, FMutableParameterData& Struct);
+};
+
+
+USTRUCT()
+struct FMutableStateData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FMutableStateUIMetadata StateUIMetadata;
+
+	/** In this mode instances and their temp data will be reused between updates. It will be much faster but spend as much as ten times the memory.
+	 * Useful for customization lockers with few characters that are going to have their parameters changed many times, not for in-game */
+	UPROPERTY()
+	bool bLiveUpdateMode = false;
+
+	/** If this is enabled, texture streaming won't be used for this state, and full images will be generated when an instance is first updated. */
+	UPROPERTY()
+	bool bDisableTextureStreaming = false;
+
+	UPROPERTY()
+	bool bReuseInstanceTextures = false;
+
+	UPROPERTY()
+	TMap<FString, FString> ForcedParameterValues;
+
+	friend FArchive& operator<<(FArchive& Ar, FMutableStateData& Struct);
+};
+
+
 // Referenced materials, skeletons, passthrough textures...
 USTRUCT()
 struct FModelResources
@@ -614,11 +678,11 @@ struct FModelResources
 
 	/** Parameter UI metadata information for all the dependencies of this Customizable Object. */
 	UPROPERTY()
-	TMap<FString, FParameterUIData> ParameterUIDataMap;
+	TMap<FString, FMutableParameterData> ParameterUIDataMap;
 
 	/** State UI metadata information for all the dependencies of this Customizable Object */
 	UPROPERTY()
-	TMap<FString, FParameterUIData> StateUIDataMap;
+	TMap<FString, FMutableStateData> StateUIDataMap;
 
 	UPROPERTY()
 	TMap<uint32, FRealTimeMorphStreamable> RealTimeMorphStreamables;
@@ -726,10 +790,6 @@ public:
 	EMutableParameterType GetParameterType(int32 ParamIndex) const;
 
 	int32 FindIntParameterValue(int32 ParamIndex, const FString& Value) const;
-
-	FParameterUIData GetStateUIMetadataFromIndex(int32 StateIndex) const;
-
-	FParameterUIData GetStateUIMetadata(const FString& StateName) const;
 
 	FString GetStateName(int32 StateIndex) const;
 
@@ -893,6 +953,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 448;
+	static constexpr int32 CurrentSupportedVersion = 449;
 };
 

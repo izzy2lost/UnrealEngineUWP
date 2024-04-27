@@ -3,6 +3,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMorphMaterial.h"
 
 #include "Engine/SkeletalMesh.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/ICustomizableObjectEditor.h"

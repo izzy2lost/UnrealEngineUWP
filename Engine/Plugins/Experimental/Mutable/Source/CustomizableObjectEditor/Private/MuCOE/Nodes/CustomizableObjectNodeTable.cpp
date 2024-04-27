@@ -24,6 +24,7 @@
 #include "Animation/AnimInstance.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 
 class ICustomizableObjectEditor;
 class UCustomizableObjectNodeRemapPins;
