@@ -50,6 +50,7 @@ namespace UE::DynamicMaterialEditor::Private
 					{
 						EditorWidget->RefreshSlotPickerList();
 						EditorWidget->RefreshSlotWidget();
+						EditorWidget->RefreshComponentEditWidget();
 					}
 				}
 			}
@@ -109,6 +110,7 @@ namespace UE::DynamicMaterialEditor::Private
 					{
 						EditorWidget->RefreshSlotPickerList();
 						EditorWidget->RefreshSlotWidget();
+						EditorWidget->RefreshComponentEditWidget();
 					}
 				}
 			}
@@ -184,6 +186,7 @@ namespace UE::DynamicMaterialEditor::Private
 					{
 						EditorWidget->RefreshSlotPickerList();
 						EditorWidget->RefreshSlotWidget();
+						EditorWidget->RefreshComponentEditWidget();
 					}
 				}
 			}
@@ -267,6 +270,8 @@ namespace UE::DynamicMaterialEditor::Private
 					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
+						EditorWidget->RefreshSlotWidget();
+						EditorWidget->RefreshComponentEditWidget();
 					}
 				}
 			}
@@ -320,6 +325,8 @@ namespace UE::DynamicMaterialEditor::Private
 					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
+						EditorWidget->RefreshSlotWidget();
+						EditorWidget->RefreshComponentEditWidget();
 					}					
 				}
 			}
@@ -368,6 +375,8 @@ namespace UE::DynamicMaterialEditor::Private
 					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
+						EditorWidget->RefreshSlotWidget();
+						EditorWidget->RefreshComponentEditWidget();
 					}					
 				}
 			}

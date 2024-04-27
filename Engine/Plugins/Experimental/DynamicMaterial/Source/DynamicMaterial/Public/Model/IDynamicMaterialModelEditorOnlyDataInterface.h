@@ -51,6 +51,7 @@ public:
 	virtual TSharedRef<IDMMaterialBuildStateInterface> CreateBuildStateInterface(UMaterial* InMaterialToBuild) const = 0;
 #endif
 
+	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath) const = 0;
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const = 0;
 
 protected:

@@ -69,6 +69,8 @@ public:
 	static const TArray<EMaterialDomain> SupportedDomains;
 	static const TArray<EBlendMode> SupportedBlendModes;
 
+	static const FName AlphaValueName;
+
 	static UDynamicMaterialModelEditorOnlyData* Get(UDynamicMaterialModel* InModel);
 	static UDynamicMaterialModelEditorOnlyData* Get(TWeakObjectPtr<UDynamicMaterialModel> InModelWeak);
 	static UDynamicMaterialModelEditorOnlyData* Get(const TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface>& InInterface);
@@ -206,6 +208,7 @@ public:
 	virtual void OnTextureUVUpdated(UDMTextureUV* InTextureUV) override;
 	virtual void LoadDeprecatedModelData(UDynamicMaterialModel* InMaterialModel) override;
 	virtual TSharedRef<IDMMaterialBuildStateInterface> CreateBuildStateInterface(UMaterial* InMaterialToBuild) const override;
+	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath) const override;
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
 	//~ End IDynamicMaterialModelEditorOnlyDataInterface
 
@@ -279,6 +282,8 @@ protected:
 	virtual void ReinitComponents() override;
 	virtual void ResetData() override;
 	//~ End IDynamicMaterialModelEditorOnlyDataInterface
+
+	void AssignPropertyAlphaValues();
 
 	void LoadDeprecatedModelData_Base(bool bInCreateMaterialPackage, EBlendMode InBlendMode, EDMMaterialShadingModel InShadingModel);
 	void LoadDeprecatedModelData_Expressions(TArray<TObjectPtr<UMaterialExpression>>& InExpressions);

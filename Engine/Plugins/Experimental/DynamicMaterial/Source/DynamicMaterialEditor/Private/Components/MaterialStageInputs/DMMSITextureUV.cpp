@@ -448,10 +448,22 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 	CreateParameterExpression(ParamID::Scale,    ParamID::ScaleX,   TEXT("ScaleX"),   InTextureUV->GetScale().X);
 	CreateParameterExpression(ParamID::Scale,    ParamID::ScaleY,   TEXT("ScaleY"),   InTextureUV->GetScale().Y);
 
-	if (UMaterialExpression* GlobalTiling = InBuildState->GetGlobalTilingExpression())
+	if (UMaterialExpression* GlobalOffset = InBuildState->GetGlobalExpression(UDynamicMaterialModel::GlobalOffsetValueName))
+	{
+		check(NameToInputIndex.Contains(UDynamicMaterialModel::GlobalOffsetParameterName));
+		GlobalOffset->ConnectExpression(TextureUVFunc->GetInput(NameToInputIndex[UDynamicMaterialModel::GlobalOffsetParameterName]), 0);
+	}
+
+	if (UMaterialExpression* GlobalTiling = InBuildState->GetGlobalExpression(UDynamicMaterialModel::GlobalTilingValueName))
 	{
 		check(NameToInputIndex.Contains(UDynamicMaterialModel::GlobalTilingParameterName));
 		GlobalTiling->ConnectExpression(TextureUVFunc->GetInput(NameToInputIndex[UDynamicMaterialModel::GlobalTilingParameterName]), 0);
+	}
+
+	if (UMaterialExpression* GlobalRotation = InBuildState->GetGlobalExpression(UDynamicMaterialModel::GlobalRotationValueName))
+	{
+		check(NameToInputIndex.Contains(UDynamicMaterialModel::GlobalRotationParameterName));
+		GlobalRotation->ConnectExpression(TextureUVFunc->GetInput(NameToInputIndex[UDynamicMaterialModel::GlobalRotationParameterName]), 0);
 	}
 
 	// Output

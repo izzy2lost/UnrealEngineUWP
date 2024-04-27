@@ -300,6 +300,7 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 	SplitterContainer.Reset();
 
 	Toolbar->SetMaterialModel(InMaterialModel);
+	SetEditedComponent(nullptr);
 
 	if (!InMaterialModel)
 	{

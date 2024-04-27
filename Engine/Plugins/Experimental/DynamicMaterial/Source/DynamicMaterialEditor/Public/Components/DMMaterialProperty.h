@@ -26,6 +26,15 @@ class DYNAMICMATERIALEDITOR_API UDMMaterialProperty : public UDMMaterialComponen
 	GENERATED_BODY()
 
 public:
+	static const FString ComponentsPathToken;
+
+	/**
+	 * Craetes a material property as a default subobject of the EditorOnlyData object.
+	 * @param InModelEditorOnlyData The parent EditorOnlyData object.
+	 * @param InMaterialProperty The property type of the material property.
+	 * @param InSubObjName The subobject name.
+	 * @return The newly created default subobject.
+	 */
 	static UDMMaterialProperty* CreateCustomMaterialPropertyDefaultSubobject(UDynamicMaterialModelEditorOnlyData* InModelEditorOnlyData, 
 		EDMMaterialPropertyType InMaterialProperty, const FName& InSubObjName);
 
@@ -35,33 +44,102 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	EDMMaterialPropertyType GetMaterialProperty() const { return MaterialProperty; }
 
+	/**
+	 * @return The description of this property based on the EDMMaterialPropertyType enum.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	FText GetDescription() const;
 
+	/**
+	 * @return The value type of this property. Will be either VT_Float1, VT_Float3_RGB or VT_Float3_XYZ.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	EDMValueType GetInputConnectorType() const { return InputConnectorType; }
 
+	/**
+	 * @return Get the expressions which connect to this property, mapped per channel.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const FDMMaterialStageConnection& GetInputConnectionMap() const { return InputConnectionMap; }
 
+	/**
+	 * @return Get the expressions which connect to this property, mapped per channel.
+	 */
 	FDMMaterialStageConnection& GetInputConnectionMap() { return InputConnectionMap; }
 
+	/**
+	 * The output process is an optional material function which is applied in between the property and its inputs.
+	 * @return The current output processor.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UMaterialFunctionInterface* GetOutputProcessor() const { return OutputProcessor; }
 
+	/**
+	 * The output process is an optional material function which is applied in between the property and its inputs.
+	 * @param InFunction The new output processor.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void SetOutputProcessor(UMaterialFunctionInterface* InFunction);
 
+	/**
+	 * Check whether the current model settings are valid for this property.
+	 * @param InMaterialModel The model with the settings.
+	 * @return True if it is valid.
+	 */
 	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InMaterialModel) const { return true; }
 
+	/**
+	 * Empty the connection map and recalculate the input types.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	virtual void ResetInputConnectionMap();
 
+	/**
+	 * Generates a default input node for this property if the layer stack is empty.
+	 * @param InBuildState The current build state.
+	 * @return The last in the chain of any expressions created (for direct connection to the property).
+	 */
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
 
+	/**
+	 * @return The texture sample type to use for any texture samplers connected to this property.
+	 */
 	virtual TEnumAsByte<EMaterialSamplerType> GetTextureSamplerType() const;
 
+	/**
+	 * Triggered when a slot is added to this property. Should create useful, default layer stack.
+	 * @param InSlot The slot that was created.
+	 */
 	virtual void OnSlotAdded(UDMMaterialSlot* InSlot);
+
+	/**
+	 * Adds a component to the component list. Sets component state to added.
+	 * @param InName The name of the component in the map.
+	 * @param InComponent The component to add.
+	 * @return The replaced component from the map.
+	 */
+	virtual UDMMaterialComponent* AddComponent(FName InName, UDMMaterialComponent* InComponent);
+
+	/**
+	 * Checks to see if a component with this name exists.
+	 * @param InName The name of the component.
+	 * @return True if it exists, even if it isn't valid.
+	 */
+	virtual bool HasComponent(FName InName) const;
+
+	/**
+	 * Fetches a component from the component list.
+	 * @param InName The name of the component.
+	 * @return The component in the map with that name.
+	 */
+	virtual UDMMaterialComponent* GetComponent(FName InName) const;
+
+	/**
+	 * Removes the component from the component list. Sets component state to removed.
+	 * @param InName The name of the component.
+	 * @return The removed component.
+	 */
+	virtual UDMMaterialComponent* RemoveComponent(FName InName);
 
 	//~ Begin UDMMaterialComponent
 	virtual void Update(EDMUpdateType InUpdateType) override;
@@ -80,23 +158,51 @@ protected:
 	static UMaterialExpression* CreateConstant(const TSharedRef<FDMMaterialBuildState>& InBuildState, const FVector3d& InDefaultValue);
 	static UMaterialExpression* CreateConstant(const TSharedRef<FDMMaterialBuildState>& InBuildState, const FVector4d& InDefaultValue);
 
+	/**
+	 * The property type of this property.
+	 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	EDMMaterialPropertyType MaterialProperty;
 
+	/**
+	 * The value type used to connect to this property. Will be either VT_Float1, VT_Float3_RGB or VT_Float3_XYZ.
+	 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	EDMValueType InputConnectorType;
 
+	/**
+	 * The map of expressions connected to this property's input node.
+	 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	FDMMaterialStageConnection InputConnectionMap;
 
+	/**
+	 * An optional material function which is applied in between the property and its inputs.
+	 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TObjectPtr<UMaterialFunctionInterface> OutputProcessor;
 
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	TObjectPtr<UMaterialFunctionInterface> OutputProcessor_PreUpdate;
 
+	/**
+	 * Components of this property. Not necessarily owned or controlled by this property.
+	 */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	TMap<FName, TObjectPtr<UDMMaterialComponent>> Components;
+
 	UDMMaterialProperty();
 	UDMMaterialProperty(EDMMaterialPropertyType InMaterialProperty, EDMValueType InInputConnectorType);
 
+	/**
+	 * Triggered when the output process is updated either through PostEditChangeProperty or via the setter.
+	 * Will potentially reset the value to null if it is invalid.
+	 */
 	void OnOutputProcessorUpdated();
+
+	//~ Begin UDMMaterialComponent
+	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	virtual void OnComponentAdded() override;
+	virtual void OnComponentRemoved() override;
+	//~ End UDMMaterialComponent
 };

@@ -28,7 +28,6 @@ FDMMaterialBuildState::FDMMaterialBuildState(UMaterial* InDynamicMaterial, UDyna
 	, bIgnoreUVs(false)
 	, bIsPreviewMaterial(false)
 	, Utils(MakeShared<FDMMaterialBuildUtils>(*this))
-	, GlobalTilingExpression(nullptr)
 {
 	check(InDynamicMaterial);
 	check(InMaterialModel);
@@ -525,4 +524,22 @@ void FDMMaterialBuildState::AddOtherExpressions(const TArray<UMaterialExpression
 const TSet<UMaterialExpression*>& FDMMaterialBuildState::GetOtherExpressions()
 {
 	return OtherExpressions;
+}
+
+///////////////////////////////////////
+/// Global expression
+
+UMaterialExpression* FDMMaterialBuildState::GetGlobalExpression(FName InName) const
+{
+	if (UMaterialExpression* const* GlobalExpressionPtr = GlobalExpressions.Find(InName))
+	{
+		return *GlobalExpressionPtr;
+	}
+
+	return nullptr;
+}
+
+void FDMMaterialBuildState::SetGlobalExpression(FName InName, UMaterialExpression* InExpression)
+{
+	GlobalExpressions.FindOrAdd(InName) = InExpression;
 }

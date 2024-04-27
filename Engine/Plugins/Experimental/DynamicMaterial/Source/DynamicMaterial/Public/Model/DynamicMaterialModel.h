@@ -43,10 +43,30 @@ class DYNAMICMATERIAL_API UDynamicMaterialModel : public UObject
 public:
 	static const FString ValuesPathToken;
 	static const FString ParametersPathToken;
-	static const FName GlobalOpacityPropertyName;
+	static const FName GlobalOpacityValueName;
 	static const FName GlobalOpacityParameterName;
-	static const FName GlobalTilingPropertyName;
+	static const FName GlobalMetallicValueName;
+	static const FName GlobalMetallicParameterName;
+	static const FName GlobalRoughnessValueName;
+	static const FName GlobalRoughnessParameterName;
+	static const FName GlobalSpecularValueName;
+	static const FName GlobalSpecularParameterName;
+	static const FName GlobalAnisotropyValueName;
+	static const FName GlobalAnisotropyParameterName;
+	static const FName GlobalWorldPositionOffsetValueName;
+	static const FName GlobalWorldPositionOffsetParameterName;
+	static const FName GlobalAmbientOcclusionValueName;
+	static const FName GlobalAmbientOcclusionParameterName;
+	static const FName GlobalRefractionValueName;
+	static const FName GlobalRefractionParameterName;
+	static const FName GlobalPixelDepthOffsetValueName;
+	static const FName GlobalPixelDepthOffsetParameterName;
+	static const FName GlobalOffsetValueName;
+	static const FName GlobalOffsetParameterName;
+	static const FName GlobalTilingValueName;
 	static const FName GlobalTilingParameterName;
+	static const FName GlobalRotationValueName;
+	static const FName GlobalRotationParameterName;
 
 	UDynamicMaterialModel();
 
@@ -58,11 +78,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UMaterial* GetGeneratedMaterial() const { return DynamicMaterial; }
 
+	UE_DEPRECATED(5.5, "Added to GlobalParameterValues map.")
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValueFloat1* GetGlobalOpacityValue() const { return GlobalOpacityValue; }
+	UDMMaterialValueFloat1* GetGlobalOpacityValue() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValueFloat2* GetGlobalTilingValue() const { return GlobalTilingValue; }
+	UDMMaterialValue* GetGlobalParameterValue(FName InName) const;
+
+	template<typename InValueClass>
+	InValueClass* GetTypedGlobalParameterValue(FName InName) const
+	{
+		return Cast<InValueClass>(GetGlobalParameterValue(InName));
+	}
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	UDMMaterialComponent* GetComponentByPath(const FString& InPath) const;
@@ -155,16 +182,7 @@ protected:
 	TSet<TObjectPtr<UDMMaterialComponent>> RuntimeComponents;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	TObjectPtr<UDMMaterialValueFloat1> GlobalOpacityValue;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	TObjectPtr<UDMMaterialParameter> GlobalOpacityParameter;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	TObjectPtr<UDMMaterialValueFloat2> GlobalTilingValue;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	TObjectPtr<UDMMaterialParameter> GlobalTilingParameter;
+	TMap<FName, TObjectPtr<UDMMaterialValue>> GlobalParameterValues;
 
 	UPROPERTY(VisibleInstanceOnly, DuplicateTransient, TextExportTransient, Category = "Material Designer")
 	TMap<FName, TWeakObjectPtr<UDMMaterialParameter>> ParameterMap;
@@ -221,5 +239,9 @@ protected:
 	UE_DEPRECATED(5.3, "Moved to editor-only subobject.")
 	UPROPERTY()
 	bool bCreateMaterialPackage;
+
+	UE_DEPRECATED(5.5, "Moved to GlobalParameterValues map.")
+	UPROPERTY()
+	TObjectPtr<UDMMaterialValueFloat1> GlobalOpacityValue;
 #endif
 };

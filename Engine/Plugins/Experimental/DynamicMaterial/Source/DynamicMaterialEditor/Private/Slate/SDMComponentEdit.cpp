@@ -783,35 +783,78 @@ void SDMComponentEdit::OnUndo()
 void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModel* InMaterialModel,
 	TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects)
 {
+	const FName UIMin = FName("UIMin");
+	const FName UIMax = FName("UIMax");
+	const FName ClampMin = FName("ClampMin");
+	const FName ClampMax = FName("ClampMax");
+
+	auto AddGlobalVar = [InEditorWidget, InMaterialModel, &InOutPropertyRows, &InOutProcessedObjects, &UIMin, &UIMax, &ClampMin, &ClampMax]
+		(UDMMaterialValue* InValue, const FText& InNameOverride)
+		{
+			if (IsValid(InValue))
+			{
+				if (!InOutProcessedObjects.Contains(InValue))
+				{
+					FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
+						InValue, UDMMaterialValue::ValueName));
+
+					ValueHandle.NameOverride = InNameOverride;
+
+					if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(InValue))
+					{
+						if (FloatValue->HasValueRange() && ValueHandle.PropertyHandle)
+						{
+							ValueHandle.PropertyHandle->SetInstanceMetaData(UIMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+							ValueHandle.PropertyHandle->SetInstanceMetaData(ClampMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+							ValueHandle.PropertyHandle->SetInstanceMetaData(UIMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+							ValueHandle.PropertyHandle->SetInstanceMetaData(ClampMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+						}
+					}
+
+					InOutProcessedObjects.Add(InValue);
+				}
+			}
+		};
+
+	AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName), LOCTEXT("GlobalOffset", "Global Offset"));
+	AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTilingValueName), LOCTEXT("GlobalTiling", "Global Tiling"));
+	AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRotationValueName), LOCTEXT("GlobalRotation", "Global Rotation"));
+
 	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
 	{
 		if (EditorOnlyData->GetBlendMode() != BLEND_Opaque)
 		{
-			if (UDMMaterialValueFloat1* GlobalOpacityValue = InMaterialModel->GetGlobalOpacityValue())
+			AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName), LOCTEXT("GlobalOpacity", "Global Opacity"));
+		}
+
+		const FText PropertyFormat = LOCTEXT("PropertyFormat", "Global {0}");
+		UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
+
+		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::OpacityMask) + 1;
+			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+			++PropertyIndex)
+		{
+			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+			if (!!EditorOnlyData->GetSlotForMaterialProperty(Property))
 			{
-				if (!InOutProcessedObjects.Contains(GlobalOpacityValue))
+				if (UDMMaterialProperty* MaterialProperty = EditorOnlyData->GetMaterialProperty(Property))
 				{
-					FDMPropertyHandle& GlobalOpacityHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
-						GlobalOpacityValue, UDMMaterialValue::ValueName));
-
-					GlobalOpacityHandle.NameOverride = LOCTEXT("GlobalOpacity", "Global Opacity");
-
-					InOutProcessedObjects.Add(GlobalOpacityValue);
+					if (MaterialProperty->IsValidForModel(*EditorOnlyData))
+					{
+						if (UDMMaterialValueFloat1* AlphaValue = Cast<UDMMaterialValueFloat1>(MaterialProperty->GetComponent(UDynamicMaterialModelEditorOnlyData::AlphaValueName)))
+						{
+							AddGlobalVar(
+								AlphaValue,
+								FText::Format(
+									PropertyFormat,
+									MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property))
+								)
+							);
+						}
+					}
 				}
 			}
-		}
-	}
-
-	if (UDMMaterialValueFloat2* GlobalTilingValue = InMaterialModel->GetGlobalTilingValue())
-	{
-		if (!InOutProcessedObjects.Contains(GlobalTilingValue))
-		{
-			FDMPropertyHandle& GlobalTilingHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget, 
-				GlobalTilingValue, UDMMaterialValue::ValueName));
-
-			GlobalTilingHandle.NameOverride = LOCTEXT("GlobalTiling", "Global Tiling");
-
-			InOutProcessedObjects.Add(GlobalTilingValue);
 		}
 	}
 }

@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialProperty.h"
+
+#include "DMComponentPath.h"
+#include "Components/DMMaterialComponent.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialSubStage.h"
@@ -27,8 +30,10 @@
 
 #define LOCTEXT_NAMESPACE "DMMaterialProperty"
 
+const FString UDMMaterialProperty::ComponentsPathToken = TEXT("Components");
+
 UDMMaterialProperty::UDMMaterialProperty()
-	: UDMMaterialProperty(EDMMaterialPropertyType(0), EDMValueType::VT_Float1)
+	: UDMMaterialProperty(EDMMaterialPropertyType::None, EDMValueType::VT_Float1)
 {
 }
 
@@ -43,7 +48,8 @@ FString UDMMaterialProperty::GetComponentPathComponent() const
 	return StaticEnum<EDMMaterialPropertyType>()->GetNameStringByValue(static_cast<int64>(MaterialProperty));
 }
 
-UDMMaterialProperty* UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(UDynamicMaterialModelEditorOnlyData* InModelEditorOnlyData, EDMMaterialPropertyType InMaterialProperty, const FName& InSubObjName)
+UDMMaterialProperty* UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(UDynamicMaterialModelEditorOnlyData* InModelEditorOnlyData, 
+	EDMMaterialPropertyType InMaterialProperty, const FName& InSubObjName)
 {
 	check(InModelEditorOnlyData);
 	check(UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(InMaterialProperty));
@@ -197,6 +203,59 @@ void UDMMaterialProperty::OnSlotAdded(UDMMaterialSlot* InSlot)
 	}
 }
 
+UDMMaterialComponent* UDMMaterialProperty::AddComponent(FName InName, UDMMaterialComponent* InComponent)
+{
+	const TObjectPtr<UDMMaterialComponent>* CurrentComponentPtr = Components.Find(InName);
+
+	if (CurrentComponentPtr && IsValid(*CurrentComponentPtr))
+	{
+		(*CurrentComponentPtr)->SetComponentState(EDMComponentLifetimeState::Removed);
+	}
+
+	if (InComponent)
+	{
+		Components.FindOrAdd(InName) = InComponent;
+		InComponent->SetComponentState(EDMComponentLifetimeState::Added);
+	}
+	else if (CurrentComponentPtr)
+	{
+		Components.Remove(InName);
+	}
+
+	if (CurrentComponentPtr)
+	{
+		return *CurrentComponentPtr;
+	}
+
+	return nullptr;
+}
+
+bool UDMMaterialProperty::HasComponent(FName InName) const
+{
+	return Components.Contains(InName);
+}
+
+UDMMaterialComponent* UDMMaterialProperty::GetComponent(FName InName) const
+{
+	if (const TObjectPtr<UDMMaterialComponent>* CurrentComponentPtr = Components.Find(InName))
+	{
+		return *CurrentComponentPtr;
+	}
+
+	return nullptr;
+}
+
+UDMMaterialComponent* UDMMaterialProperty::RemoveComponent(FName InName)
+{
+	if (const TObjectPtr<UDMMaterialComponent>* CurrentComponentPtr = Components.Find(InName))
+	{
+		Components.Remove(InName);
+		return *CurrentComponentPtr;
+	}
+
+	return nullptr;
+}
+
 void UDMMaterialProperty::Update(EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
@@ -326,6 +385,52 @@ void UDMMaterialProperty::OnOutputProcessorUpdated()
 	}
 
 	Update(EDMUpdateType::Structure);
+}
+
+UDMMaterialComponent* UDMMaterialProperty::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const
+{
+	if (InPathSegment.GetToken() == ComponentsPathToken)
+	{
+		FString ComponentString;
+
+		if (InPathSegment.GetParameter(ComponentString))
+		{
+			const FName ComponentName = *ComponentString;
+
+			if (const TObjectPtr<UDMMaterialComponent>* CurrentComponentPtr = Components.Find(ComponentName))
+			{
+				return *CurrentComponentPtr;
+			}
+		}
+	}
+
+	return Super::GetSubComponentByPath(InPath, InPathSegment);
+}
+
+void UDMMaterialProperty::OnComponentAdded()
+{
+	Super::OnComponentAdded();
+
+	for (const TPair<FName, TObjectPtr<UDMMaterialComponent>>& Pair : Components)
+	{
+		if (IsValid(Pair.Value))
+		{
+			Pair.Value->SetComponentState(EDMComponentLifetimeState::Added);
+		}
+	}
+}
+
+void UDMMaterialProperty::OnComponentRemoved()
+{
+	Super::OnComponentRemoved();
+
+	for (const TPair<FName, TObjectPtr<UDMMaterialComponent>>& Pair : Components)
+	{
+		if (IsValid(Pair.Value))
+		{
+			Pair.Value->SetComponentState(EDMComponentLifetimeState::Removed);
+		}
+	}
 }
 
 UMaterialExpression* UDMMaterialProperty::CreateConstant(const TSharedRef<FDMMaterialBuildState>& InBuildState,

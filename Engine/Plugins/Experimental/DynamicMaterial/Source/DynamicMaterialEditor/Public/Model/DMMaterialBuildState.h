@@ -54,10 +54,6 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialBuildState : public IDMMaterialBuild
 
 	bool IsPreviewMaterial() const { return bIsPreviewMaterial; }
 
-	UMaterialExpression* GetGlobalTilingExpression() const { return GlobalTilingExpression; }
-
-	void SetGlobalTilingExpression(UMaterialExpression* InExpression) { GlobalTilingExpression = InExpression; }
-
 	virtual IDMMaterialBuildUtilsInterface& GetBuildUtils() const override;
 
 	FExpressionInput* GetMaterialProperty(EDMMaterialPropertyType InProperty) const;
@@ -153,6 +149,11 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialBuildState : public IDMMaterialBuild
 
 	virtual const TSet<UMaterialExpression*>& GetOtherExpressions() override;
 
+	/** Global Expressions */
+	UMaterialExpression* GetGlobalExpression(FName InName) const;
+
+	void SetGlobalExpression(FName InName, UMaterialExpression* InExpression);
+
 private:
 	UMaterial* DynamicMaterial = nullptr;
 	UDynamicMaterialModel* MaterialModel = nullptr;
@@ -170,5 +171,5 @@ private:
 	TMap<const UDMMaterialStageSource*, TArray<UMaterialExpression*>> StageSources;
 	TMap<const UDMMaterialStageSource*, TArray<UDMMaterialStageSource*>> Callbacks;
 	TSet<UMaterialExpression*> OtherExpressions;
-	UMaterialExpression* GlobalTilingExpression;
+	TMap<FName, UMaterialExpression*> GlobalExpressions;
 };

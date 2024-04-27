@@ -52,25 +52,6 @@
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
 
-const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken               = FString(TEXT("Slots"));
-const FString UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken             = FString(TEXT("RGBSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken         = FString(TEXT("OpacitySlot"));
-const FString UDynamicMaterialModelEditorOnlyData::RoughnessPathToken           = FString(TEXT("RoughnessSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::SpecularPathToken            = FString(TEXT("SpecularSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::MetallicPathToken            = FString(TEXT("MetallicSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::NormalPathToken              = FString(TEXT("NormalSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken    = FString(TEXT("PixelDepthOffsetSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken = FString(TEXT("WorldPositionOffsetSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken    = FString(TEXT("AmbientOcclusionSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken          = FString(TEXT("AnisotropySlot"));
-const FString UDynamicMaterialModelEditorOnlyData::RefractionPathToken          = FString(TEXT("RefractionSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::TangentPathToken             = FString(TEXT("TangentSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom1PathToken             = FString(TEXT("Custom1Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom2PathToken             = FString(TEXT("Custom2Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom3PathToken             = FString(TEXT("Custom3Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom4PathToken             = FString(TEXT("Custom4Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken          = FString(TEXT("Properties"));
-
 namespace UE::DynamicMaterialEditor::Private
 {
 	const TMap<FString, EDMMaterialPropertyType> TokenToPropertyMap = {
@@ -92,6 +73,27 @@ namespace UE::DynamicMaterialEditor::Private
 		{UDynamicMaterialModelEditorOnlyData::Custom4PathToken,             EDMMaterialPropertyType::Custom4}
 	};
 }
+
+const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken               = FString(TEXT("Slots"));
+const FString UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken             = FString(TEXT("RGBSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken         = FString(TEXT("OpacitySlot"));
+const FString UDynamicMaterialModelEditorOnlyData::RoughnessPathToken           = FString(TEXT("RoughnessSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::SpecularPathToken            = FString(TEXT("SpecularSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::MetallicPathToken            = FString(TEXT("MetallicSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::NormalPathToken              = FString(TEXT("NormalSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken    = FString(TEXT("PixelDepthOffsetSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken = FString(TEXT("WorldPositionOffsetSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken    = FString(TEXT("AmbientOcclusionSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken          = FString(TEXT("AnisotropySlot"));
+const FString UDynamicMaterialModelEditorOnlyData::RefractionPathToken          = FString(TEXT("RefractionSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::TangentPathToken             = FString(TEXT("TangentSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom1PathToken             = FString(TEXT("Custom1Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom2PathToken             = FString(TEXT("Custom2Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom3PathToken             = FString(TEXT("Custom3Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom4PathToken             = FString(TEXT("Custom4Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken          = FString(TEXT("Properties"));
+
+const FName UDynamicMaterialModelEditorOnlyData::AlphaValueName = TEXT("AlphaValue");
 
 const TArray<EMaterialDomain> UDynamicMaterialModelEditorOnlyData::SupportedDomains =
 {
@@ -170,12 +172,28 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	}
 }
 
+void UDynamicMaterialModelEditorOnlyData::AssignPropertyAlphaValues()
+{
+	Properties[EDMMaterialPropertyType::Opacity            ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName));
+	Properties[EDMMaterialPropertyType::OpacityMask        ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName));
+	Properties[EDMMaterialPropertyType::Metallic           ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalMetallicValueName));
+	Properties[EDMMaterialPropertyType::Specular           ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalSpecularValueName));
+	Properties[EDMMaterialPropertyType::Roughness          ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRoughnessValueName));
+	Properties[EDMMaterialPropertyType::Anisotropy         ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalAnisotropyValueName));
+	Properties[EDMMaterialPropertyType::WorldPositionOffset]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalWorldPositionOffsetValueName));
+	Properties[EDMMaterialPropertyType::AmbientOcclusion   ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalAmbientOcclusionValueName));
+	Properties[EDMMaterialPropertyType::Refraction         ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRefractionValueName));
+	Properties[EDMMaterialPropertyType::PixelDepthOffset   ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalPixelDepthOffsetValueName));
+}
+
 void UDynamicMaterialModelEditorOnlyData::Initialize()
 {
 	if (!Slots.IsEmpty())
 	{
 		return;
 	}
+
+	AssignPropertyAlphaValues();
 
 	// Will choose appropriate type between BaseColor and EmissiveColor
 	AddSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
@@ -298,15 +316,6 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	const bool bIsPostProcessMaterial = Domain == EMaterialDomain::MD_PostProcess;
 
 	/**
-	 * Add global tiling parameter
-	 */
-	if (MaterialModel->GlobalTilingValue)
-	{
-		MaterialModel->GlobalTilingValue->GenerateExpression(BuildState);
-		BuildState->SetGlobalTilingExpression(BuildState->GetLastValueExpression(MaterialModel->GlobalTilingValue));
-	}
-
-	/**
 	 * Process slots to build base material inputs.
 	 */
 	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
@@ -366,6 +375,40 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		{
 			MaterialPropertyPtr->OutputIndex = 0;
 		}
+
+		// Global opacity is handled later
+		if (Pair.Key == EDMMaterialPropertyType::Opacity || Pair.Key == EDMMaterialPropertyType::OpacityMask)
+		{
+			continue;
+		}
+
+		UDMMaterialValueFloat1* AlphaValue = Cast<UDMMaterialValueFloat1>(Pair.Value->GetComponent(AlphaValueName));
+
+		if (!AlphaValue)
+		{
+			continue;
+		}
+
+		AlphaValue->GenerateExpression(BuildState);
+		UMaterialExpression* AlphaValueExpression = BuildState->GetLastValueExpression(AlphaValue);
+
+		if (MaterialPropertyPtr->Expression)
+		{
+			UMaterialExpressionMultiply* OpacityMultiply = BuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
+			OpacityMultiply->A.Expression = MaterialPropertyPtr->Expression;
+			OpacityMultiply->A.Mask = MaterialPropertyPtr->Mask;
+			OpacityMultiply->A.MaskR = MaterialPropertyPtr->MaskR;
+			OpacityMultiply->A.MaskG = MaterialPropertyPtr->MaskG;
+			OpacityMultiply->A.MaskB = MaterialPropertyPtr->MaskB;
+			OpacityMultiply->A.MaskA = MaterialPropertyPtr->MaskA;
+			OpacityMultiply->A.OutputIndex = MaterialPropertyPtr->OutputIndex;
+
+			OpacityMultiply->B.Expression = AlphaValueExpression;
+			OpacityMultiply->B.SetMask(1, 1, 0, 0, 0);
+			OpacityMultiply->B.OutputIndex = 0;
+
+			MaterialPropertyPtr->Expression = OpacityMultiply;
+		}
 	}
 
 	if (!bIsPostProcessMaterial)
@@ -375,18 +418,18 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		 */
 		EDMMaterialPropertyType GenerateOpacityInput = EDMMaterialPropertyType::None;
 
-		if (BlendMode == EBlendMode::BLEND_Translucent)
-		{
-			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity) == nullptr)
-			{
-				GenerateOpacityInput = EDMMaterialPropertyType::Opacity;
-			}
-		}
-		else if (BlendMode == EBlendMode::BLEND_Masked)
+		if (BlendMode == EBlendMode::BLEND_Masked)
 		{
 			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask) == nullptr)
 			{
 				GenerateOpacityInput = EDMMaterialPropertyType::OpacityMask;
+			}
+		}
+		else if (BlendMode != EBlendMode::BLEND_Opaque)
+		{
+			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity) == nullptr)
+			{
+				GenerateOpacityInput = EDMMaterialPropertyType::Opacity;
 			}
 		}
 
@@ -435,7 +478,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		}
 
 		/**
-		 * Apply global opacity slider
+		 * Apply global opacity slider after automatic opacity generation
 		 */
 		FExpressionInput* OpacityPropertyPtr = nullptr;
 
@@ -448,29 +491,31 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 			OpacityPropertyPtr = BuildState->GetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
 		}
 
-		if (OpacityPropertyPtr != nullptr && IsValid(MaterialModel) && IsValid(MaterialModel->GlobalOpacityValue))
+		if (OpacityPropertyPtr != nullptr)
 		{
-			MaterialModel->GlobalOpacityValue->GenerateExpression(BuildState);
-
-			UMaterialExpression* GlobalOpacityExpression = BuildState->GetLastValueExpression(MaterialModel->GlobalOpacityValue);
-
-			if (OpacityPropertyPtr->Expression)
+			if (UDMMaterialValueFloat1* GlobalOpacityValue = MaterialModel->GetTypedGlobalParameterValue<UDMMaterialValueFloat1>(UDynamicMaterialModel::GlobalOpacityValueName))
 			{
-				UMaterialExpressionMultiply* OpacityMultiply = BuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
-				OpacityMultiply->A.Expression = OpacityPropertyPtr->Expression;
-				OpacityMultiply->A.Mask = OpacityPropertyPtr->Mask;
-				OpacityMultiply->A.MaskR = OpacityPropertyPtr->MaskR;
-				OpacityMultiply->A.MaskG = OpacityPropertyPtr->MaskG;
-				OpacityMultiply->A.MaskB = OpacityPropertyPtr->MaskB;
-				OpacityMultiply->A.MaskA = OpacityPropertyPtr->MaskA;
-				OpacityMultiply->A.OutputIndex = OpacityPropertyPtr->OutputIndex;
+				GlobalOpacityValue->GenerateExpression(BuildState);
+				UMaterialExpression* GlobalOpacityExpression = BuildState->GetLastValueExpression(GlobalOpacityValue);
 
-				OpacityMultiply->B.Expression = GlobalOpacityExpression;
-				OpacityMultiply->B.SetMask(1, 1, 0, 0, 0);
-				OpacityMultiply->B.OutputIndex = 0;
+				if (GlobalOpacityExpression && OpacityPropertyPtr->Expression)
+				{
+					UMaterialExpressionMultiply* OpacityMultiply = BuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
+					OpacityMultiply->A.Expression = OpacityPropertyPtr->Expression;
+					OpacityMultiply->A.Mask = OpacityPropertyPtr->Mask;
+					OpacityMultiply->A.MaskR = OpacityPropertyPtr->MaskR;
+					OpacityMultiply->A.MaskG = OpacityPropertyPtr->MaskG;
+					OpacityMultiply->A.MaskB = OpacityPropertyPtr->MaskB;
+					OpacityMultiply->A.MaskA = OpacityPropertyPtr->MaskA;
+					OpacityMultiply->A.OutputIndex = OpacityPropertyPtr->OutputIndex;
 
-				OpacityPropertyPtr->Expression = OpacityMultiply;
-				OpacityPropertyPtr->SetMask(1, 1, 0, 0, 0);
+					OpacityMultiply->B.Expression = GlobalOpacityExpression;
+					OpacityMultiply->B.SetMask(1, 1, 0, 0, 0);
+					OpacityMultiply->B.OutputIndex = 0;
+
+					OpacityPropertyPtr->Expression = OpacityMultiply;
+					OpacityPropertyPtr->SetMask(1, 1, 0, 0, 0);
+				}
 			}
 		}
 	}
@@ -675,7 +720,30 @@ TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBui
 	check(MaterialModel);
 	check(InMaterialToBuild);
 
-	return MakeShared<FDMMaterialBuildState>(InMaterialToBuild, MaterialModel, bInDirtyAssets);
+	TSharedRef<FDMMaterialBuildState> BuildState = MakeShared<FDMMaterialBuildState>(InMaterialToBuild, MaterialModel, bInDirtyAssets);
+
+	/**
+	 * Add global UV parameters
+	 */
+	if (UDMMaterialValue* GlobalOffsetValue = MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName))
+	{
+		GlobalOffsetValue->GenerateExpression(BuildState);
+		BuildState->SetGlobalExpression(UDynamicMaterialModel::GlobalOffsetValueName, BuildState->GetLastValueExpression(GlobalOffsetValue));
+	}
+
+	if (UDMMaterialValue* GlobalTilingValue = MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTilingValueName))
+	{
+		GlobalTilingValue->GenerateExpression(BuildState);
+		BuildState->SetGlobalExpression(UDynamicMaterialModel::GlobalTilingValueName, BuildState->GetLastValueExpression(GlobalTilingValue));
+	}
+
+	if (UDMMaterialValue* GlobalRotationValue = MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRotationValueName))
+	{
+		GlobalRotationValue->GenerateExpression(BuildState);
+		BuildState->SetGlobalExpression(UDynamicMaterialModel::GlobalRotationValueName, BuildState->GetLastValueExpression(GlobalRotationValue));
+	}
+
+	return BuildState;
 }
 
 bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const
@@ -785,6 +853,25 @@ UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath
 TSharedRef<IDMMaterialBuildStateInterface> UDynamicMaterialModelEditorOnlyData::CreateBuildStateInterface(UMaterial* InMaterialToBuild) const
 {
 	return CreateBuildState(InMaterialToBuild);
+}
+
+UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath) const
+{
+	if (InPath.IsLeaf())
+	{
+		// This is not a component
+		return nullptr;
+	}
+
+	// Fetches the first component of the path and removes it from the path
+	const FDMComponentPathSegment FirstComponent = InPath.GetFirstSegment();
+
+	if (UDMMaterialComponent* SubComponent = GetSubComponentByPath(InPath, FirstComponent))
+	{
+		return SubComponent->GetComponentByPath(InPath);
+	}
+
+	return nullptr;
 }
 
 void UDynamicMaterialModelEditorOnlyData::DoBuild_Implementation(bool bInDirtyAssets)
@@ -1370,6 +1457,8 @@ void UDynamicMaterialModelEditorOnlyData::PostLoad()
 	}
 
 	SetFlags(RF_Transactional);
+
+	AssignPropertyAlphaValues();
 
 	ReinitComponents();
 }

@@ -63,7 +63,7 @@ void UAvaGlobalOpacityModifier::OnActorMaterialAdded(UMaterialInstanceDynamic* I
 	{
 		if (const UDynamicMaterialModel* Model = MDI->GetMaterialModel())
 		{
-			if (UDMMaterialValue* GlobalOpacityValue = Model->GetGlobalOpacityValue())
+			if (UDMMaterialValue* GlobalOpacityValue = Model->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName))
 			{
 				GlobalOpacityValue->GetOnUpdate().RemoveAll(this);
 				GlobalOpacityValue->GetOnUpdate().AddUObject(this, &UAvaGlobalOpacityModifier::OnDynamicMaterialValueChanged);
@@ -82,7 +82,7 @@ void UAvaGlobalOpacityModifier::OnActorMaterialRemoved(UMaterialInstanceDynamic*
 	{
 		if (const UDynamicMaterialModel* Model = MDI->GetMaterialModel())
 		{
-			if (UDMMaterialValue* GlobalOpacityValue = Model->GetGlobalOpacityValue())
+			if (UDMMaterialValue* GlobalOpacityValue = Model->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName))
 			{
 				GlobalOpacityValue->GetOnUpdate().RemoveAll(this);
 			}
