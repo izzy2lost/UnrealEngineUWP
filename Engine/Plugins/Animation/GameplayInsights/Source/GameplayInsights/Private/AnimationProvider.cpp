@@ -636,7 +636,7 @@ void FAnimationProvider::AppendTickRecord(uint64 InAnimInstanceId, double InProf
 	Session.UpdateDurationSeconds(InProfileTime);
 }
 
-void FAnimationProvider::AppendSkeletalMesh(uint64 InObjectId, const TArrayView<const int32>& InParentIndices)
+void FAnimationProvider::AppendSkeletalMesh(uint64 InObjectId, uint64 SkeletonId, const TArrayView<const int32>& InParentIndices)
 {
 	Session.WriteAccessCheck();
 
@@ -648,6 +648,7 @@ void FAnimationProvider::AppendSkeletalMesh(uint64 InObjectId, const TArrayView<
 		NewSkeletalMeshInfo.Id = InObjectId;
 		NewSkeletalMeshInfo.BoneCount = (uint32)InParentIndices.Num();
 		NewSkeletalMeshInfo.ParentIndicesStartIndex = SkeletalMeshParentIndices.Num();
+		NewSkeletalMeshInfo.SkeletonId = SkeletonId;
 
 		for(const int32& ParentIndex : InParentIndices)
 		{

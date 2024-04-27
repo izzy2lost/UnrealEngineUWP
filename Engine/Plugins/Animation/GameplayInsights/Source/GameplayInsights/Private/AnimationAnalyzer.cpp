@@ -22,6 +22,7 @@ void FAnimationAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 	Builder.RouteEvent(RouteId_TickRecord2, "Animation", "TickRecord2");
 	Builder.RouteEvent(RouteId_SkeletalMesh, "Animation", "SkeletalMesh");
 	Builder.RouteEvent(RouteId_SkeletalMesh2, "Animation", "SkeletalMesh2");
+	Builder.RouteEvent(RouteId_SkeletalMesh3, "Animation", "SkeletalMesh3");
 	Builder.RouteEvent(RouteId_SkeletalMeshComponent, "Animation", "SkeletalMeshComponent");
 	Builder.RouteEvent(RouteId_SkeletalMeshComponent2, "Animation", "SkeletalMeshComponent2");
 	Builder.RouteEvent(RouteId_SkeletalMeshComponent3, "Animation", "SkeletalMeshComponent3");
@@ -113,7 +114,8 @@ bool FAnimationAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventCon
 		uint64 Id = EventData.GetValue<uint64>("Id");
 		uint32 BoneCount = EventData.GetValue<uint32>("BoneCount");
 		TArrayView<const int32> ParentIndices(reinterpret_cast<const int32*>(EventData.GetAttachment()), BoneCount);
-		AnimationProvider.AppendSkeletalMesh(Id, ParentIndices);
+		uint64 SkeletonId = 0;
+		AnimationProvider.AppendSkeletalMesh(Id, SkeletonId, ParentIndices);
 		break;
 	}
 	case RouteId_SkeletalMesh2:
@@ -121,7 +123,17 @@ bool FAnimationAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventCon
 		uint64 Id = EventData.GetValue<uint64>("Id");
 		uint32 BoneCount = EventData.GetValue<uint32>("BoneCount");
 		TArrayView<const int32> ParentIndices = EventData.GetArrayView<int32>("ParentIndices");
-		AnimationProvider.AppendSkeletalMesh(Id, ParentIndices);
+		uint64 SkeletonId = 0;
+		AnimationProvider.AppendSkeletalMesh(Id, SkeletonId, ParentIndices);
+		break;
+	}
+	case RouteId_SkeletalMesh3:
+	{
+		uint64 Id = EventData.GetValue<uint64>("Id");
+		uint32 BoneCount = EventData.GetValue<uint32>("BoneCount");
+		TArrayView<const int32> ParentIndices = EventData.GetArrayView<int32>("ParentIndices");
+		uint64 SkeletonId = EventData.GetValue<uint64>("SkeletonId");
+		AnimationProvider.AppendSkeletalMesh(Id, SkeletonId, ParentIndices);
 		break;
 	}
 	case RouteId_SkeletalMeshComponent:

@@ -145,6 +145,21 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 				const FObjectInfo* SkeletalMeshObjectInfo = GameplayProvider->FindObjectInfo(PoseMessage->MeshId);
 				USkeletalMesh* SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(SkeletalMeshObjectInfo->PathName)).LoadSynchronous();
 										
+				if (SkeletalMesh == nullptr)
+				{
+					// if the skeletal mesh asset was not found, try the skeleton asset preview mesh as a fallback
+					if (SkeletalMeshInfo->SkeletonId != 0)
+					{
+						const FObjectInfo& SkeletonInfo = GameplayProvider->GetObjectInfo(SkeletalMeshInfo->SkeletonId);
+						
+						USkeleton* Skeleton = TSoftObjectPtr<USkeleton>(FSoftObjectPath(SkeletonInfo.PathName)).LoadSynchronous();
+						if (Skeleton)
+						{
+							SkeletalMesh = Skeleton->GetPreviewMesh(true);
+						}
+					}
+				}
+				
 				if(SkeletalMesh)
 				{
 					MeshComponent->SetSkeletalMesh(SkeletalMesh);
@@ -201,8 +216,7 @@ FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::S
 {
 	FSpawnedMeshComponentInfo* MeshComponentInfo = &SpawnedMeshComponents.Add(ObjectId);
 
-	UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
-	UWorld* World = EditorEngine->GetEditorWorldContext().World();
+	UWorld* World = IRewindDebugger::Instance()->GetWorldToVisualize();
 
 	FActorSpawnParameters ActorSpawnParameters;
 	ActorSpawnParameters.bHideFromSceneOutliner = true;

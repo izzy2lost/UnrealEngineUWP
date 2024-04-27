@@ -12,6 +12,7 @@ struct FSkeletalMeshInfo
 {
 	uint64 ParentIndicesStartIndex = 0;
 	uint64 Id = 0;
+	uint64 SkeletonId = 0;
 	uint32 BoneCount = 0;
 };
 
