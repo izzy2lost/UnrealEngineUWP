@@ -13,6 +13,7 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Common;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Sessions;
+using Horde.Server.Agents.Telemetry;
 using Horde.Server.Auditing;
 using Horde.Server.Server;
 using Horde.Server.Users;

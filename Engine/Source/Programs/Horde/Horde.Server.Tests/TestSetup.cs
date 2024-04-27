@@ -26,6 +26,7 @@ using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Agents.Sessions;
+using Horde.Server.Agents.Telemetry;
 using Horde.Server.Agents.Utilization;
 using Horde.Server.Artifacts;
 using Horde.Server.Auditing;
@@ -212,6 +213,7 @@ namespace Horde.Server.Tests
 
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
+			services.AddSingleton<IAgentTelemetryCollection, AgentTelemetryCollection>();
 			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
 			services.AddSingleton<IArtifactCollectionV1, ArtifactCollectionV1>();
 			services.AddSingleton<ICommitService, CommitService>();

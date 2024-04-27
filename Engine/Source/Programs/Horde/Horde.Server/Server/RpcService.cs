@@ -21,6 +21,7 @@ using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
+using Horde.Server.Agents.Telemetry;
 using Horde.Server.Jobs;
 using Horde.Server.Tasks;
 using Horde.Server.Telemetry;
