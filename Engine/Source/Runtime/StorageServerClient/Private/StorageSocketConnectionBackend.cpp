@@ -248,7 +248,7 @@ int32 FStorageSocketConnectionBackend::HandshakeRequest(TArrayView<const TShared
 			}
 			else
 			{
-				UE_LOG(LogStorageSocketBackend, Fatal, TEXT("Failed to handshake with Zen at %s. '%s'"), *ServerAddr->ToString(true), *Response.GetErrorMessage());
+				UE_LOG(LogStorageSocketBackend, Error, TEXT("Failed to handshake with Zen at %s. '%s'"), *ServerAddr->ToString(true), *Response.GetErrorMessage());
 			}
 		}
 		else
@@ -257,7 +257,7 @@ int32 FStorageSocketConnectionBackend::HandshakeRequest(TArrayView<const TShared
 		}
 	}
 
-	UE_LOG(LogStorageSocketBackend, Fatal, TEXT("Failed to handshake with Zen at any of host addresses."));
+	UE_LOG(LogStorageSocketBackend, Error, TEXT("Failed to handshake with Zen at any of host addresses."));
 
 	Hostname.Reset();
 	ServerAddr.Reset();
