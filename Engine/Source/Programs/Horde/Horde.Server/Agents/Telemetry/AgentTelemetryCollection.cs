@@ -68,7 +68,6 @@ namespace Horde.Server.Agents.Telemetry
 		public AgentTelemetryCollection(MongoService mongoService, IClock clock, ILogger<AgentTelemetryCollection> logger)
 		{
 			_clock = clock;
-			_collection = mongoService.GetCollection<AgentTelemetryDocument>("Telemetry.Agents", builder => builder.Descending(x => x.Id));
 
 			List<MongoIndex<AgentTelemetryDocument>> agentIndexes = new List<MongoIndex<AgentTelemetryDocument>>();
 			agentIndexes.Add(MongoIndex.Create<AgentTelemetryDocument>(x => x.Descending(x => x.TimeUtc)));
