@@ -70,14 +70,12 @@ float3 PayloadDecodeUnitVector(uint Encoded)
 
 uint PayloadEncodeHDRColor(float3 rgb)
 {
-	// clamp to the largest representable value
-	rgb = clamp(rgb, 0.0, Max111110BitsFloat3);
-	return PackR11G11B10F(rgb);
+	return PackRGB998E6(rgb);
 }
 
 float3 PayloadDecodeHDRColor(uint rgb)
 {
-	return UnpackR11G11B10F(rgb);
+	return UnpackRGB998E6(rgb);
 }
 
 uint PayloadEncodeLDRColor(float3 rgb)
@@ -236,23 +234,10 @@ struct FPackedPathTracingPayload : FMinimalPayload
 	float3 UnpackWorldGeoNormal() 	 { return PayloadDecodeUnitVector(PackedData[1]); }
 	float3 UnpackWorldSmoothNormal() { return PayloadDecodeUnitVector(PackedData[2]); }
 	float3 UnpackWorldNormal()       { return PayloadDecodeUnitVector(PackedData[3]); }
-	float3 UnpackRadiance()          { return (GetShadingModelID() == SHADINGMODELID_UNLIT) ? float3(asfloat(PackedData[4]), asfloat(PackedData[7]), asfloat(PackedData[8])) : PayloadDecodeHDRColor(PackedData[4]); }
+	float3 UnpackRadiance()          { return PayloadDecodeHDRColor(PackedData[4]); }
 
 	void PackWorldNormal(float3 N)   { PackedData[3] = PayloadEncodeUnitVector(N); }
-	void PackRadiance(float3 R)      {
-		if (GetShadingModelID() == SHADINGMODELID_UNLIT)
-		{
-			// encode with extra accuracy for UNLIT materials since these are also used for directly visible lights
-			PackedData[4] = asuint(R.x);
-			PackedData[7] = asuint(R.y);
-			PackedData[8] = asuint(R.z);
-		}
-		else
-		{
-			PackedData[4] = PayloadEncodeHDRColor(R);
-		}
-	}
-
+	void PackRadiance(float3 R)      { PackedData[4] = PayloadEncodeHDRColor(R); }
 	
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 
@@ -757,6 +742,7 @@ FPackedPathTracingPayload PackPathTracingPayload(FPathTracingPayload Input)
 	Output.PackedData[1] = PayloadEncodeUnitVector(Input.WorldGeoNormal);
 	Output.PackedData[2] = PayloadEncodeUnitVector(Input.WorldSmoothNormal);
 	Output.PackedData[3] = PayloadEncodeUnitVector(Input.WorldNormal);
+	Output.PackedData[4] = PayloadEncodeHDRColor(Input.Radiance);
 	// PackedData[4] is for Radiance (see PackRadiance call below)
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 	Output.PackedData[5] = PayloadEncodeLDRColor(Input.DiffuseColor);
@@ -791,7 +777,6 @@ FPackedPathTracingPayload PackPathTracingPayload(FPathTracingPayload Input)
 #else // PATHTRACING_SUBSTRATE_PAYLOAD
 
 
-
 	Output.PackedData[5] = PayloadEncodeLDRColor(Input.BaseColor);
 	Output.PackedData[6] = PayloadEncodeLDRColor(Input.TransparencyColor);
 
@@ -815,8 +800,7 @@ FPackedPathTracingPayload PackPathTracingPayload(FPathTracingPayload Input)
 	Output.PackedData[14] = f32tof16(Input.Ior);
 	// NOTE: 16 bits left in PackedData[14]
 #endif // PATHTRACING_SUBSTRATE_PAYLOAD
-	// handle this at the end since Radiance could be aliased with other fields
-	Output.PackRadiance(Input.Radiance);
+
 #endif // IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_GPULIGHTMASS)
 	return Output;
 }
