@@ -8,7 +8,7 @@
 /**
  * Interface for runtime remote control events.
  */
-UINTERFACE(MinimalAPI, Blueprintable)
+UINTERFACE(MinimalAPI, Blueprintable, meta=(DisplayName="Motion Design Remote Control Interface"))
 class UAvaRemoteControlInterface : public UInterface
 {
 	GENERATED_BODY()
