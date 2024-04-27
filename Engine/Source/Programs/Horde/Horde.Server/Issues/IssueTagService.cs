@@ -69,25 +69,27 @@ namespace Horde.Server.Issues
 			State initialState = await _state.GetAsync(cancellationSource.Token);
 
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
-
-			List<Task> tasks = new List<Task>();
-			try
+			if (globalConfig.Streams.Count > 0)
 			{
-				foreach (StreamConfig streamConfig in globalConfig.Streams)
-				{
-					tasks.Add(Task.Run(() => TickStreamGuardedAsync(streamConfig, initialState, cancellationSource.Token), cancellationSource.Token));
-				}
-				await Task.WhenAny(tasks);
-			}
-			finally
-			{
+				List<Task> tasks = new List<Task>();
 				try
 				{
-					await cancellationSource.CancelAsync();
-					await Task.WhenAll(tasks);
+					foreach (StreamConfig streamConfig in globalConfig.Streams)
+					{
+						tasks.Add(Task.Run(() => TickStreamGuardedAsync(streamConfig, initialState, cancellationSource.Token), cancellationSource.Token));
+					}
+					await Task.WhenAny(tasks);
 				}
-				catch
+				finally
 				{
+					try
+					{
+						await cancellationSource.CancelAsync();
+						await Task.WhenAll(tasks);
+					}
+					catch
+					{
+					}
 				}
 			}
 		}
