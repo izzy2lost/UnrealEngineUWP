@@ -1455,7 +1455,7 @@ void FIKRetargetEditorController::RenderSkeleton(FPrimitiveDrawInterface* PDI, E
 	TArray<FLinearColor> BoneColors;
 	{
 		// set default colors
-		if (MeshComponent->bShowBoneColors)
+		if (GetDefault<UPersonaOptions>()->bShowBoneColors)
 		{
 			SkeletalDebugRendering::FillWithMultiColors(BoneColors, RefSkeleton.GetNum());
 		}

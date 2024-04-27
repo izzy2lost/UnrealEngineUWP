@@ -24,6 +24,7 @@
 #include "ClothingSimulation.h"
 #include "Utils/ClothingMeshUtils.h"
 #include "DynamicMeshBuilder.h"
+#include "SkeletalDebugRendering.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Preferences/PersonaOptions.h"
 
@@ -76,16 +77,13 @@ FLinearColor UDebugSkelMeshComponent::GetBoneColor(int32 InBoneIndex) const
 	}
 
 	// using default color for all bones
-	if (!bShowBoneColors)
+	if (!GetDefault<UPersonaOptions>()->bShowBoneColors)
 	{
 		return GetDefault<UPersonaOptions>()->DefaultBoneColor;
 	}
 	
 	// uses deterministic, semi-random desaturated color unique to the bone index
-	constexpr float Saturation = 0.5f;
-	constexpr float Value = 1.0f;
-	constexpr float Rotation = 90.f;
-	return FLinearColor::IntToDistinctColor(InBoneIndex, Saturation, Value, Rotation);
+	return SkeletalDebugRendering::GetSemiRandomColorForBone(InBoneIndex);
 }
 
 void UDebugSkelMeshComponent::SetDebugForcedLOD(int32 InNewForcedLOD)

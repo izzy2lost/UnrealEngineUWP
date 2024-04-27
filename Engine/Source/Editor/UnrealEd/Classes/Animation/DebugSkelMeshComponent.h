@@ -352,10 +352,6 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Should the LOD of the debug mesh component track the LOD of the instance being debugged */
 	UPROPERTY(transient)
 	bool bTrackAttachedInstanceLOD;
-
-	/** If true then the bones are displayed with multiple semi-random colors */
-	UPROPERTY()
-	bool bShowBoneColors = true;
 	
 	/** Palettized semi randomized colors for multi-color bone display */
 	UNREALED_API FLinearColor GetBoneColor(int32 BoneIndex) const;

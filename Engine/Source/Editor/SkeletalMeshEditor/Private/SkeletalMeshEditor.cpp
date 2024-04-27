@@ -2,6 +2,7 @@
 
 #include "SkeletalMeshEditor.h"
 
+#include "AnimationEditorViewportClient.h"
 #include "SkeletalMeshEditorCommands.h"
 #include "SkeletalMeshEditorMode.h"
 
@@ -1263,9 +1264,32 @@ void FSkeletalMeshEditor::HandleMeshDetailsCreated(const TSharedRef<IDetailsView
 void FSkeletalMeshEditor::HandleViewportCreated(const TSharedRef<IPersonaViewport>& InViewport)
 {
 	Viewport = InViewport;
+	FEditorViewportClient& ViewportClient = InViewport->GetViewportClient();
+
+	// register callbacks to allow the asset to store the Bone Size viewport setting
+	if (FAnimationViewportClient* AnimViewportClient = static_cast<FAnimationViewportClient*>(&ViewportClient))
+	{
+		AnimViewportClient->OnSetBoneSize.BindLambda([InSkeletalMesh=SkeletalMesh](float InBoneSize)
+		{
+			if (InSkeletalMesh)
+			{
+				InSkeletalMesh->Modify();
+				InSkeletalMesh->BoneDrawSize = InBoneSize;
+			}
+		});
+		
+		AnimViewportClient->OnGetBoneSize.BindLambda([InSkeletalMesh=SkeletalMesh]() -> float
+		{
+			if (InSkeletalMesh)
+			{
+				return InSkeletalMesh->BoneDrawSize;
+			}
+
+			return 1.0f;
+		});
+	}
 	
 	// we need the viewport client to start out focused, or else it won't get ticked until we click inside it.
-	FEditorViewportClient& ViewportClient = InViewport->GetViewportClient(); 
 	ViewportClient.ReceivedFocus(ViewportClient.Viewport);
 }
 

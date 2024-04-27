@@ -190,7 +190,8 @@ void FIKRigEditMode::RenderBones(FPrimitiveDrawInterface* PDI)
 
 	// get bone colors
 	TArray<FLinearColor> BoneColors;
-	GetBoneColors(Controller.Get(), CurrentProcessor, RefSkeleton, MeshComponent->bShowBoneColors, BoneColors);
+	const bool bUseBoneColors = GetDefault<UPersonaOptions>()->bShowBoneColors;
+	GetBoneColors(Controller.Get(), CurrentProcessor, RefSkeleton, bUseBoneColors, BoneColors);
 
 	SkeletalDebugRendering::DrawBones(
 		PDI,

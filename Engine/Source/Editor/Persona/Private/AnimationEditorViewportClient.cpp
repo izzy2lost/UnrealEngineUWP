@@ -1573,7 +1573,7 @@ void FAnimationViewportClient::DrawBonesFromTransforms(
 
 	constexpr bool bForceDraw = false;
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
-	const bool bUseMuliColors = MeshComponent->bShowBoneColors;
+	const bool bUseMuliColors = GetDefault<UPersonaOptions>()->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1624,7 +1624,7 @@ void FAnimationViewportClient::DrawBonesFromCompactPose(
 
 	constexpr bool bForceDraw = true;
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
-	const bool bUseMultiColor = MeshComponent->bShowBoneColors;
+	const bool bUseMultiColor = GetDefault<UPersonaOptions>()->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1743,7 +1743,7 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(UDebugSkelMeshComponent * M
 
 	constexpr bool bForceDraw = false;
 	constexpr bool bAddHitProxy = true;
-	const bool bUseMultiColor = MeshComponent->bShowBoneColors;
+	const bool bUseMultiColor = GetDefault<UPersonaOptions>()->bShowBoneColors;
 	
 	DrawBones(
 		FVector::ZeroVector,
@@ -1796,7 +1796,7 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 	constexpr bool bForceDraw = false;
 	// don't allow selection if the skeleton draw mode is greyed out
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
-	const bool bUseMultiColors = MeshComponent->bShowBoneColors;
+	const bool bUseMultiColors = GetDefault<UPersonaOptions>()->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),

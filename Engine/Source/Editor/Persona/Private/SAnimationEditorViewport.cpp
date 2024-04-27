@@ -1310,7 +1310,8 @@ void SAnimationEditorViewportTabBody::OnShowBoneColors()
 {
 	ForEachDebugMesh([](UDebugSkelMeshComponent* InMesh)
 	{
-		InMesh->bShowBoneColors = !InMesh->bShowBoneColors;
+		UPersonaOptions* Settings = GetMutableDefault<UPersonaOptions>();
+		Settings->bShowBoneColors = !Settings->bShowBoneColors;
 		InMesh->MarkRenderStateDirty();
 	});
 	RefreshViewport();
@@ -1319,7 +1320,7 @@ void SAnimationEditorViewportTabBody::OnShowBoneColors()
 bool SAnimationEditorViewportTabBody::IsShowingBoneColors() const
 {
 	const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
-	return PreviewComponent && PreviewComponent->bShowBoneColors;
+	return PreviewComponent && GetDefault<UPersonaOptions>()->bShowBoneColors;
 }
 
 bool SAnimationEditorViewportTabBody::IsShowingRawAnimation() const

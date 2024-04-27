@@ -82,7 +82,7 @@ namespace UE::PoseSearch
 						DrawConfig.BoneDrawSize = 0.2f;
 						DrawConfig.bAddHitProxy = false;
 						DrawConfig.bForceDraw = false;
-						DrawConfig.bUseMultiColorAsDefaultColor = MeshComponent->bShowBoneColors;
+						DrawConfig.bUseMultiColorAsDefaultColor = GetDefault<UPersonaOptions>()->bShowBoneColors;
 						DrawConfig.DefaultBoneColor = PersonaOptions->DefaultBoneColor;
 						DrawConfig.AffectedBoneColor = PersonaOptions->AffectedBoneColor;
 						DrawConfig.SelectedBoneColor = PersonaOptions->SelectedBoneColor;

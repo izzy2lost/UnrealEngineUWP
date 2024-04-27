@@ -2122,6 +2122,10 @@ public:
 	/** Legacy clothing asset data, will be converted to new assets after loading */
 	UPROPERTY()
 	TArray<FClothingAssetData_Legacy>		ClothingAssets_DEPRECATED;
+
+	// The visual size of the bones in the viewport (saved between sessions). This is set from the viewport Character>Bones menu
+	UPROPERTY()
+	float BoneDrawSize = 1.0f;
 #endif
 
 	/** Animation Blueprint class to run as a post process for this mesh.

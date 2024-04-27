@@ -143,6 +143,10 @@ class UPersonaOptions : public UObject
 	UPROPERTY(EditAnywhere, config, Category = "Viewport")
 	uint32 DefaultBoneDrawSelection;
 
+	/** If true then the bones are displayed with multiple semi-random colors */
+	UPROPERTY(EditAnywhere, config, Category = "Viewport")
+	bool bShowBoneColors = false;
+
 	UPROPERTY(EditAnywhere, config, Category = "Viewport")
 	FLinearColor DefaultBoneColor;
 
