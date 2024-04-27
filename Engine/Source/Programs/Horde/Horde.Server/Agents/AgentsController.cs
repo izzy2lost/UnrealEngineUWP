@@ -33,6 +33,7 @@ namespace Horde.Server.Agents
 	public class AgentsController : HordeControllerBase
 	{
 		readonly AgentService _agentService;
+		readonly IAgentTelemetryCollection _agentTelemetryCollection;
 		readonly IUserCollection _userCollection;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly ILogger<AgentsController> _logger;
@@ -40,9 +41,10 @@ namespace Horde.Server.Agents
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentsController(AgentService agentService, IUserCollection userCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<AgentsController> logger)
+		public AgentsController(AgentService agentService, IAgentTelemetryCollection agentTelemetryCollection, IUserCollection userCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<AgentsController> logger)
 		{
 			_agentService = agentService;
+			_agentTelemetryCollection = agentTelemetryCollection;
 			_userCollection = userCollection;
 			_globalConfig = globalConfig;
 			_logger = logger;
@@ -359,6 +361,29 @@ namespace Horde.Server.Agents
 			}
 
 			return CreateGetAgentSessionResponse(session);
+		}
+
+		/// <summary>
+		/// Finds telemetry for an agent within a time range
+		/// </summary>
+		/// <param name="agentId">Agent identifier</param>
+		/// <param name="minTime">Minimum time to return</param>
+		/// <param name="maxTime">Maximum time to return</param>
+		[HttpGet]
+		[Route("/api/v1/agents/{agentId}/telemetry")]
+		public async Task<ActionResult<GetAgentTelemetryResponse>> FindTelemetryAsync(AgentId agentId, [FromQuery] DateTime minTime, [FromQuery] DateTime maxTime)
+		{
+			if (!_globalConfig.Value.Authorize(AgentAclAction.ViewAgent, User))
+			{
+				return Forbid(AgentAclAction.ViewAgent, agentId);
+			}
+
+			IReadOnlyList<IAgentTelemetry> telemetry = await _agentTelemetryCollection.FindAsync(agentId, minTime, maxTime, HttpContext.RequestAborted);
+
+			List<GetAgentTelemetrySampleResponse> samples = new List<GetAgentTelemetrySampleResponse>();
+			samples.AddRange(telemetry.Select(x => new GetAgentTelemetrySampleResponse(x.TimeUtc, x.UserCpu, x.IdleCpu, x.SystemCpu, x.FreeRam, x.UsedRam, x.TotalRam)));
+
+			return new GetAgentTelemetryResponse(samples);
 		}
 
 		/// <summary>

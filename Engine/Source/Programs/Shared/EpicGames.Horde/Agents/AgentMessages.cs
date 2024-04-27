@@ -128,4 +128,14 @@ namespace EpicGames.Horde.Agents
 	/// <param name="Workspaces">Current workspaces synced on the agent</param>
 	/// <param name="Comment"> Comment for this agent </param>
 	public record GetAgentResponse(AgentId Id, string Name, bool Enabled, AgentStatus Status, double? Rate, SessionId? SessionId, bool Ephemeral, bool Online, bool Deleted, bool PendingConform, bool PendingFullConform, bool PendingRestart, bool PendingShutdown, string LastShutdownReason, DateTime LastConformTime, int? ConformAttemptCount, DateTime? NextConformTime, string? Version, List<string> Properties, Dictionary<string, int> Resources, DateTime? UpdateTime, DateTime? LastStatusChange, List<string>? Pools, object? Capabilities, List<GetAgentLeaseResponse> Leases, List<GetAgentWorkspaceResponse> Workspaces, string? Comment);
+
+	/// <summary>
+	/// Telemetry data for an agent
+	/// </summary>
+	public record GetAgentTelemetryResponse(List<GetAgentTelemetrySampleResponse> Samples);
+
+	/// <summary>
+	/// Telemetry data sample
+	/// </summary>
+	public record GetAgentTelemetrySampleResponse(DateTime Time, float UserCpu, float IdleCpu, float SystemCpu, int FreeRam, int UsedRam, int TotalRam);
 }

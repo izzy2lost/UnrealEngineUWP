@@ -53,6 +53,7 @@ namespace Horde.Server.Server
 		readonly ConformTaskSource _conformTaskSource;
 		readonly JobRpcCommon _jobRpcCommon;
 		readonly IToolCollection _toolCollection;
+		readonly IAgentTelemetryCollection _agentTelemetryCollection;
 		readonly AclService _aclService;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
@@ -60,7 +61,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RpcService(AgentService agentService, PoolService poolService, LifetimeService lifetimeService, ITelemetrySink telemetrySink, ConformTaskSource conformTaskSource, JobRpcCommon jobRpcCommon, IToolCollection toolCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
+		public RpcService(AgentService agentService, PoolService poolService, LifetimeService lifetimeService, ITelemetrySink telemetrySink, ConformTaskSource conformTaskSource, JobRpcCommon jobRpcCommon, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
 		{
 			_agentService = agentService;
 			_poolService = poolService;
@@ -69,6 +70,7 @@ namespace Horde.Server.Server
 			_conformTaskSource = conformTaskSource;
 			_jobRpcCommon = jobRpcCommon;
 			_toolCollection = toolCollection;
+			_agentTelemetryCollection = agentTelemetryCollection;
 			_aclService = aclService;
 			_globalConfig = globalConfig;
 			_logger = logger;
@@ -516,6 +518,15 @@ namespace Horde.Server.Server
 				}
 				_logger.LogInformation("Agent software zip is {Size:n0} bytes", totalWritten);
 			}
+		}
+
+		/// <inheritdoc/>
+		public override Task<Empty> UploadTelemetry(RpcUploadTelemetryRequest request, ServerCallContext context)
+		{
+			NewAgentTelemetry telemetry = new NewAgentTelemetry(request.UserCpu, request.IdleCpu, request.SystemCpu, (int)request.FreeRam, (int)request.UsedRam, (int)request.TotalRam);
+			_agentTelemetryCollection.Add(new AgentId(request.AgentId), telemetry);
+
+			return Task.FromResult(new Empty());
 		}
 
 		/// <summary>

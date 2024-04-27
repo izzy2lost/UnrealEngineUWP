@@ -379,7 +379,7 @@ namespace Horde.Server.Jobs
 				return dependencies;
 			}
 
-			void MissingNodeRef(NodeRef nodeRef)
+			static void MissingNodeRef(NodeRef nodeRef)
 			{
 				_ = nodeRef;
 			}

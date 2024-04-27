@@ -494,40 +494,57 @@ class TelemetryService : BackgroundService
 		{
 			_logger.LogDebug("Sending telemetry events to server...");
 
-			RpcSendTelemetryEventsRequest request = new();
-			Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
-			RpcExecutionMetadata em = new()
-			{
-				LeaseId = _jobHandler.CurrentLeaseId.ToString(),
-				JobId = _jobHandler.CurrentJobId,
-				JobBatchId = _jobHandler.CurrentBatchId,
-			};
+			CpuMetrics cpuMetrics = _systemMetrics.GetCpu();
+			MemoryMetrics memMetrics = _systemMetrics.GetMemory();
 
+			// Mongo method
 			{
-				RpcAgentCpuMetricsEvent cpuMetricsEvent = _systemMetrics.GetCpu().ToEvent();
-				cpuMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
-				cpuMetricsEvent.Timestamp = utcNow;
-				cpuMetricsEvent.ExecutionMetadata = em;
-				request.Events.Add(new RpcWrappedTelemetryEvent { Cpu = cpuMetricsEvent });
+				RpcUploadTelemetryRequest request = new RpcUploadTelemetryRequest();
+				request.UserCpu = cpuMetrics.User;
+				request.SystemCpu = cpuMetrics.System;
+				request.IdleCpu = cpuMetrics.Idle;
+				request.TotalRam = memMetrics.Total / 1024;
+				request.FreeRam = memMetrics.Available / 1024;
+				request.UsedRam = memMetrics.Used / 1024;
 			}
 
+			// Clickhouse method
 			{
-				RpcAgentMemoryMetricsEvent memMetricsEvent = _systemMetrics.GetMemory().ToEvent();
-				memMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
-				memMetricsEvent.Timestamp = utcNow;
-				memMetricsEvent.ExecutionMetadata = em;
-				request.Events.Add(new RpcWrappedTelemetryEvent { Mem = memMetricsEvent });
-			}
+				RpcSendTelemetryEventsRequest request = new();
+				Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
+				RpcExecutionMetadata em = new()
+				{
+					LeaseId = _jobHandler.CurrentLeaseId.ToString(),
+					JobId = _jobHandler.CurrentJobId,
+					JobBatchId = _jobHandler.CurrentBatchId,
+				};
 
-			if (DateTime.UtcNow > _lastTimeAgentMetadataSent + _agentMetadataReportInterval)
-			{
-				// Report agent metadata every now and then as events are not guaranteed to be delivered.
-				// Re-sending ensures the metadata will eventually make it to the server.
-				request.Events.Add(new RpcWrappedTelemetryEvent { AgentMetadata = _agentMetadataEvent });
-				_lastTimeAgentMetadataSent = DateTime.UtcNow;
-			}
+				{
+					RpcAgentCpuMetricsEvent cpuMetricsEvent = cpuMetrics.ToEvent();
+					cpuMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
+					cpuMetricsEvent.Timestamp = utcNow;
+					cpuMetricsEvent.ExecutionMetadata = em;
+					request.Events.Add(new RpcWrappedTelemetryEvent { Cpu = cpuMetricsEvent });
+				}
 
-			await client.SendTelemetryEventsAsync(request, new CallOptions(cancellationToken: stoppingToken));
+				{
+					RpcAgentMemoryMetricsEvent memMetricsEvent = memMetrics.ToEvent();
+					memMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
+					memMetricsEvent.Timestamp = utcNow;
+					memMetricsEvent.ExecutionMetadata = em;
+					request.Events.Add(new RpcWrappedTelemetryEvent { Mem = memMetricsEvent });
+				}
+
+				if (DateTime.UtcNow > _lastTimeAgentMetadataSent + _agentMetadataReportInterval)
+				{
+					// Report agent metadata every now and then as events are not guaranteed to be delivered.
+					// Re-sending ensures the metadata will eventually make it to the server.
+					request.Events.Add(new RpcWrappedTelemetryEvent { AgentMetadata = _agentMetadataEvent });
+					_lastTimeAgentMetadataSent = DateTime.UtcNow;
+				}
+
+				await client.SendTelemetryEventsAsync(request, new CallOptions(cancellationToken: stoppingToken));
+			}
 			await Task.Delay(_reportInterval, stoppingToken);
 		}
 
