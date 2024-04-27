@@ -752,7 +752,7 @@ namespace Horde.Server.Server
 					await UpdateIndexesInternalAsync<T>(collectionName, collection, newIndexes, cancellationToken);
 					break;
 				}
-				catch (Exception ex)
+				catch (Exception ex) when (attemptIdx < 3)
 				{
 					_logger.LogError(ex, "Error updating indexes ({Message}) - retrying (attempt {Attempt})", ex.Message, attemptIdx);
 					attemptIdx++;
