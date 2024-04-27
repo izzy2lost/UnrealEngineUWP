@@ -147,7 +147,6 @@ void FRigVMBlueprintUtils::HandleAssetDeleted(const FAssetData& InAssetData)
 		if (FBlueprintActionDatabase* ActionDatabase = FBlueprintActionDatabase::TryGet())
 		{
 			ActionDatabase->ClearAssetActions(InAssetData.GetClass());
-			ActionDatabase->RefreshClassActions(InAssetData.GetClass());
 		}
 	}
 }

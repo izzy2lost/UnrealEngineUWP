@@ -923,9 +923,10 @@ void URigVMBlueprint::PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext)
 	Super::PostSaveRoot(ObjectSaveContext);
 
 	// Make sure all the tags are accounted for in the TypeActions after we save
-	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
-	ActionDatabase.ClearAssetActions(GetClass());
-	ActionDatabase.RefreshClassActions(GetClass());
+	if (FBlueprintActionDatabase* ActionDatabase = FBlueprintActionDatabase::TryGet())
+	{
+		ActionDatabase->RefreshClassActions(GetClass());
+	}
 }
 
 void URigVMBlueprint::PostLoad()
