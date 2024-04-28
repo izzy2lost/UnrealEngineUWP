@@ -4164,7 +4164,6 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 		}
 
 		const FName PackageName = *AssetFileData.LongPackageName;
-		const FName Extension = FName(*FPaths::GetExtension(AssetFileData.LocalAbsPath));
 
 		FDiskCachedAssetData** DiskCachedAssetDataPtr = DiskCachedAssetDataMap.Find(PackageName);
 		FDiskCachedAssetData* DiskCachedAssetData = DiskCachedAssetDataPtr ? *DiskCachedAssetDataPtr : nullptr;
@@ -4177,7 +4176,7 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 				DiskCachedAssetData = nullptr;
 			}
 			else if ((!DiskCachedAssetData->DependencyData.PackageName.IsEqual(PackageName, ENameCase::CaseSensitive) && DiskCachedAssetData->DependencyData.PackageName != NAME_None) ||
-				DiskCachedAssetData->Extension != Extension)
+				DiskCachedAssetData->Extension != FName(*FPaths::GetExtension(AssetFileData.LocalAbsPath)))
 			{
 				UE_LOG(LogAssetRegistry, Display, TEXT("Cached dependency data for package '%s' is invalid. Discarding cached data."), *PackageName.ToString());
 				DiskCachedAssetData = nullptr;
@@ -4229,7 +4228,7 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 		else
 		{
 			// Not found in cache (or stale) - schedule to be read from disk
-			ReadContexts.Emplace(PackageName, Extension, AssetFileData);
+			ReadContexts.Emplace(PackageName, FName(*FPaths::GetExtension(AssetFileData.LocalAbsPath)), AssetFileData);
 		}
 	}
 

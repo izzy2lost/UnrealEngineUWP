@@ -2992,7 +2992,14 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 
 		// globalconfig properties should always use the owning class's config file
 		// specifying a value for InFilename will override this behavior (as it does with normal properties)
-		const FString& PropFileName = (bGlobalConfig && InFilename == NULL) ? OwnerClass->GetConfigName() : Filename;
+		const FString* PropFileNamePtr = &Filename;
+		FString Temp;
+		if (bGlobalConfig && InFilename == NULL)
+		{
+			Temp = OwnerClass->GetConfigName();
+			PropFileNamePtr = &Temp;
+		}
+		const FString& PropFileName = *PropFileNamePtr;
 
 		FString Key = Property->GetName();
 		int32 PortFlags = 0;
