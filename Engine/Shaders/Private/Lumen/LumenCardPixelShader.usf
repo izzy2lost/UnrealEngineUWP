@@ -150,7 +150,7 @@ void Main(
 #endif // TEMPLATE_USES_SUBSTRATE
 
 	// Normals are stored in local card space
-	float3 CardSpaceNormal = float3(0, 0, 1);
+	float3 CardSpaceNormal = float3(0.0f, 0.0f, 1.0f);
 
 	if (all(IsFinite(WorldNormal)))
 	{

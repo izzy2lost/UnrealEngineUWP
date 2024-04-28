@@ -59,7 +59,8 @@ protected:
 
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		if (Parameters.VertexFactoryType->SupportsNaniteRendering())
+		// Everything supporting Nanite through the FLumenCardCS. Need to allow Landscape here, as Lumen doesn't support Nanite Landscape yet.
+		if (Parameters.VertexFactoryType->SupportsNaniteRendering() && !Parameters.VertexFactoryType->SupportsLandscape())
 		{
 			return false;
 		}
@@ -83,7 +84,8 @@ class FLumenCardPS : public FMeshMaterialShader
 public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		if (Parameters.VertexFactoryType->SupportsNaniteRendering())
+		// Everything supporting Nanite through the FLumenCardCS. Need to allow Landscape here, as Lumen doesn't support Nanite Landscape yet.
+		if (Parameters.VertexFactoryType->SupportsNaniteRendering() && !Parameters.VertexFactoryType->SupportsLandscape())
 		{
 			return false;
 		}

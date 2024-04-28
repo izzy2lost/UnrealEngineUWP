@@ -4116,8 +4116,7 @@ public:
 			// No Lumen on thumbnails
 			FName(TEXT("FLumenCardCS")),
 			FName(TEXT("FLumenCardVS")),
-			FName(TEXT("FLumenCardPS<true>")),
-			FName(TEXT("FLumenCardPS<false>")),
+			FName(TEXT("FLumenCardPS")),
 		};
 		return ExcludedShaderTypes;
 	}
@@ -4174,8 +4173,7 @@ public:
 		static const TArray<FName> ShaderTypes =
 		{
 			FName(TEXT("FLumenCardVS")),
-			// We only need bMultiViewCapture == false as landscape components are non-Nanite :
-			FName(TEXT("FLumenCardPS<false>")),
+			FName(TEXT("FLumenCardPS")),
 		};
 		return ShaderTypes;
 	}
