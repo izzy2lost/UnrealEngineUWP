@@ -169,10 +169,14 @@ void USequenceCameraShakePattern::UpdateCamera(FFrameTime NewPosition, const FMi
 		return;
 	}
 
+	if (!ensure(Player) || !Player->IsValid())
+	{
+		return;
+	}
+
 	using namespace UE::MovieScene;
 
 	check(CameraStandIn);
-	check(Player);
 
 	UMovieSceneEntitySystemLinker* Linker = Player->GetEvaluationTemplate().GetEntitySystemLinker();
 	CameraStandIn->Reset(InPOV, Linker);

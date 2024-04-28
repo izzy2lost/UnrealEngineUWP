@@ -319,6 +319,11 @@ void UCameraAnimationSequencePlayer::Initialize(UMovieSceneSequence* InSequence,
 	if (Sequence)
 	{
 		Stop();
+
+		if (UMovieSceneEntitySystemLinker* Linker = RootTemplateInstance.GetEntitySystemLinker())
+		{
+			Linker->Events.AbandonLinker.RemoveAll(this);
+		}
 	}
 
 	Sequence = InSequence;
@@ -382,6 +387,23 @@ void UCameraAnimationSequencePlayer::Initialize(UMovieSceneSequence* InSequence,
 	UCameraAnimationSequenceSubsystem* Subsystem = UCameraAnimationSequenceSubsystem::GetCameraAnimationSequenceSubsystem(GetWorld());
 	ensureMsgf(Subsystem, TEXT("Unable to locate a valid camera animation sub-system. Camera anim sequences will not play."));
 	RootTemplateInstance.Initialize(*Sequence, *this, nullptr);
+
+	if (UMovieSceneEntitySystemLinker* Linker = RootTemplateInstance.GetEntitySystemLinker())
+	{
+		Linker->Events.AbandonLinker.AddUObject(this, &UCameraAnimationSequencePlayer::OnAbandonLinker);
+	}
+}
+
+void UCameraAnimationSequencePlayer::OnAbandonLinker(UMovieSceneEntitySystemLinker* InLinker)
+{
+	// Camera animations and camera shakes playing camera animations can outlive the
+	// level in which the linker lives. In this case we just stop.
+	RootTemplateInstance.TearDown();
+}
+
+bool UCameraAnimationSequencePlayer::IsValid() const
+{
+	return RootTemplateInstance.IsValid();
 }
 
 void UCameraAnimationSequencePlayer::Play(bool bLoop, bool bRandomStartTime)
