@@ -524,6 +524,8 @@ namespace Horde.Server.Server
 		/// <inheritdoc/>
 		public override Task<Empty> UploadTelemetry(RpcUploadTelemetryRequest request, ServerCallContext context)
 		{
+			_logger.LogDebug("Posting telemetry data for {AgentId}", new AgentId(request.AgentId));
+
 			NewAgentTelemetry telemetry = new NewAgentTelemetry(request.UserCpu, request.IdleCpu, request.SystemCpu, (int)request.FreeRam, (int)request.UsedRam, (int)request.TotalRam);
 			_agentTelemetryCollection.Add(new AgentId(request.AgentId), telemetry);
 

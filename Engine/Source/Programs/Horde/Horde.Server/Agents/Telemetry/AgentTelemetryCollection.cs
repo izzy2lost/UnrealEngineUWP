@@ -117,6 +117,7 @@ namespace Horde.Server.Agents.Telemetry
 		{
 			AgentTelemetryDocument document = new AgentTelemetryDocument();
 			document.AgentId = agentId;
+			document.TimeUtc = _clock.UtcNow;
 			document.UserCpu = telemetry.UserCpuPct;
 			document.IdleCpu = telemetry.IdleCpuPct;
 			document.SystemCpu = telemetry.SystemCpuPct;

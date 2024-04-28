@@ -40,17 +40,24 @@ namespace Horde.Server.Utilities
 			_logger = logger;
 		}
 
+		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
 			await _backgroundTask.DisposeAsync();
 		}
 
+		/// <summary>
+		/// Start the background task to periodically flush data to the DB
+		/// </summary>
 		public ValueTask StartAsync()
 		{
 			_backgroundTask.Start();
 			return new ValueTask();
 		}
 
+		/// <summary>
+		/// Stops the background task
+		/// </summary>
 		public async ValueTask StopAsync(CancellationToken cancellationToken)
 		{
 			await _backgroundTask.StopAsync(cancellationToken);
@@ -64,13 +71,21 @@ namespace Horde.Server.Utilities
 
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				await newDataTask.WaitAsync(cancellationToken);
-				await Task.WhenAny(flushTask, Task.Delay(_flushTime, cancellationToken));
+				try
+				{
+					await newDataTask.WaitAsync(cancellationToken);
+					await Task.WhenAny(flushTask, Task.Delay(_flushTime, cancellationToken));
 
-				newDataTask = _newDataEvent.Task;
-				flushTask = _flushEvent.Task;
+					newDataTask = _newDataEvent.Task;
+					flushTask = _flushEvent.Task;
 
-				await FlushAsync(cancellationToken);
+					await FlushAsync(cancellationToken);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Exception in buffered writer: {Message}", ex.Message);
+					await Task.Delay(TimeSpan.FromSeconds(30.0), cancellationToken);
+				}
 			}
 		}
 
@@ -78,17 +93,17 @@ namespace Horde.Server.Utilities
 		public async ValueTask FlushAsync(CancellationToken cancellationToken)
 		{
 			// Copy all the event documents from the queue
-			List<TDocument> document = new List<TDocument>(_queue.Count);
-			while (_queue.TryDequeue(out TDocument? eventDocument))
+			List<TDocument> documents = new List<TDocument>(_queue.Count);
+			while (_queue.TryDequeue(out TDocument? document))
 			{
-				document.Add(eventDocument);
+				documents.Add(document);
 			}
 
 			// Insert them into the database
-			if (document.Count > 0)
+			if (documents.Count > 0)
 			{
-				_logger.LogInformation("Writing {NumEvents} new telemetry events to {CollectionName}.", document.Count, _collection.CollectionNamespace.CollectionName);
-				await _collection.InsertManyAsync(document, cancellationToken: cancellationToken);
+				_logger.LogInformation("Writing {NumEvents} new telemetry events to {CollectionName}.", documents.Count, _collection.CollectionNamespace.CollectionName);
+				await _collection.InsertManyAsync(documents, cancellationToken: cancellationToken);
 			}
 		}
 
