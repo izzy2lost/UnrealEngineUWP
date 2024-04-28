@@ -120,24 +120,26 @@ namespace Horde.Agent.Leases
 		readonly ISession _session;
 		readonly CapabilitiesService _capabilitiesService;
 		readonly StatusService _statusService;
+		readonly ISystemMetrics _systemMetrics;
 		readonly Dictionary<string, LeaseHandler> _typeUrlToLeaseHandler;
 		readonly LeaseLoggerFactory _leaseLoggerFactory;
 		readonly ILogger _logger;
 
 		RpcAgentCapabilities? _capabilities;
 
-		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, ILogger logger)
+		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, ISystemMetrics systemMetrics, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, ILogger logger)
 		{
 			_session = session;
 			_capabilitiesService = capabilitiesService;
 			_statusService = statusService;
+			_systemMetrics = systemMetrics;
 			_typeUrlToLeaseHandler = leaseHandlers.ToDictionary(x => x.LeaseType, x => x);
 			_leaseLoggerFactory = leaseLoggerFactory;
 			_logger = logger;
 		}
 
 		public LeaseManager(ISession session, IServiceProvider serviceProvider)
-			: this(session, serviceProvider.GetRequiredService<CapabilitiesService>(), serviceProvider.GetRequiredService<StatusService>(), serviceProvider.GetRequiredService<IEnumerable<LeaseHandler>>(), serviceProvider.GetRequiredService<LeaseLoggerFactory>(), serviceProvider.GetRequiredService<ILogger<LeaseManager>>())
+			: this(session, serviceProvider.GetRequiredService<CapabilitiesService>(), serviceProvider.GetRequiredService<StatusService>(), serviceProvider.GetRequiredService<ISystemMetrics>(), serviceProvider.GetRequiredService<IEnumerable<LeaseHandler>>(), serviceProvider.GetRequiredService<LeaseLoggerFactory>(), serviceProvider.GetRequiredService<ILogger<LeaseManager>>())
 		{
 		}
 
@@ -239,6 +241,9 @@ namespace Horde.Agent.Leases
 
 			// Run a background task to update the capabilities of this agent
 			await using BackgroundTask updateCapsTask = BackgroundTask.StartNew(ctx => UpdateCapabilitiesBackgroundAsync(_session.WorkingDir, ctx));
+
+			// Run another background task to send telemetry data
+			await using BackgroundTask telemetryTask = BackgroundTask.StartNew(ctx => SendTelemetryAsync(rpcClient, ctx));
 
 			// Loop until we're ready to exit
 			Stopwatch updateCapabilitiesTimer = Stopwatch.StartNew();
@@ -581,6 +586,49 @@ namespace Horde.Agent.Leases
 				{
 					_logger.LogWarning(ex, "Unable to query agent capabilities. Ignoring.");
 				}
+			}
+		}
+
+		/// <summary>
+		/// Periodically send agent telemetry to the server
+		/// </summary>
+		async Task SendTelemetryAsync(HordeRpc.HordeRpcClient rpcClient, CancellationToken cancellationToken)
+		{
+			while (!cancellationToken.IsCancellationRequested)
+			{
+				try
+				{
+					CpuMetrics? cpuMetrics = _systemMetrics.GetCpu();
+					MemoryMetrics? memMetrics = _systemMetrics.GetMemory();
+
+					if (cpuMetrics != null || memMetrics != null)
+					{
+						RpcUploadTelemetryRequest request = new RpcUploadTelemetryRequest();
+						if (cpuMetrics != null)
+						{
+							request.UserCpu = cpuMetrics.User;
+							request.SystemCpu = cpuMetrics.System;
+							request.IdleCpu = cpuMetrics.Idle;
+						}
+						if (memMetrics != null)
+						{
+							request.TotalRam = memMetrics.Total / 1024;
+							request.FreeRam = memMetrics.Available / 1024;
+							request.UsedRam = memMetrics.Used / 1024;
+						}
+						await rpcClient.UploadTelemetryAsync(request, new CallOptions(cancellationToken: cancellationToken));
+					}
+				}
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+				{
+					break;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Exception sending telemetry data: {Message}", ex.Message);
+				}
+
+				await Task.Delay(TimeSpan.FromSeconds(30.0), cancellationToken);
 			}
 		}
 	}

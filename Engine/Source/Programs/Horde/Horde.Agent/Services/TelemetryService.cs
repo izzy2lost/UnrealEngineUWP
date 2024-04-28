@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
@@ -98,28 +99,40 @@ public class MemoryMetrics
 /// <summary>
 /// OS agnostic interface for retrieving system metrics (CPU, memory etc)
 /// </summary>
-public interface ISystemMetrics : IDisposable
+public interface ISystemMetrics
 {
 	/// <summary>
 	/// Get CPU usage metrics
 	/// </summary>
 	/// <returns>An object with CPU usage metrics</returns>
-	CpuMetrics GetCpu();
+	CpuMetrics? GetCpu();
 
 	/// <summary>
 	/// Get memory usage metrics
 	/// </summary>
 	/// <returns>An object with memory usage metrics</returns>
-	MemoryMetrics GetMemory();
+	MemoryMetrics? GetMemory();
 }
 
-// Suppress call sites not available on all platforms
-#pragma warning disable CA1416
+/// <summary>
+/// Default implementation of <see cref="ISystemMetrics"/>
+/// </summary>
+public sealed class DefaultSystemMetrics : ISystemMetrics
+{
+	/// <inheritdoc/>
+	public CpuMetrics? GetCpu()
+		=> null;
+
+	/// <inheritdoc/>
+	public MemoryMetrics? GetMemory()
+		=> null;
+}
 
 /// <summary>
 /// Windows specific implementation for gathering system metrics
 /// </summary>
-public sealed class WindowsSystemMetrics : ISystemMetrics
+[SupportedOSPlatform("windows")]
+public sealed class WindowsSystemMetrics : ISystemMetrics, IDisposable
 {
 	private const string ProcessorInfo = "Processor Information"; // Prefer this over "Processor" as it's more modern
 	private const string Memory = "Memory";
@@ -224,7 +237,7 @@ class TelemetryService : BackgroundService
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	public TelemetryService(WorkerService workerService, JobHandler jobHandler, GrpcService grpcService, IOptions<AgentSettings> settings, ILogger<TelemetryService> logger)
+	public TelemetryService(WorkerService workerService, JobHandler jobHandler, GrpcService grpcService, ISystemMetrics systemMetrics, IOptions<AgentSettings> settings, ILogger<TelemetryService> logger)
 	{
 		_workerService = workerService;
 		_jobHandler = jobHandler;
@@ -232,6 +245,7 @@ class TelemetryService : BackgroundService
 		_agentSettings = settings.Value;
 		_logger = logger;
 		_reportInterval = TimeSpan.FromMilliseconds(_agentSettings.TelemetryReportInterval);
+		_systemMetrics = systemMetrics;
 
 		// Calculate this once at startup as it should not change during lifetime of process
 		_agentMetadataEvent = GetAgentMetadataEvent();
@@ -241,29 +255,12 @@ class TelemetryService : BackgroundService
 	public override void Dispose()
 	{
 		base.Dispose();
-		_systemMetrics?.Dispose();
 		_eventLoopHeartbeatCts?.Dispose();
 	}
 
 	/// <inheritdoc />
 	public override Task StartAsync(CancellationToken cancellationToken)
 	{
-		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-		{
-			try
-			{
-				_systemMetrics ??= new WindowsSystemMetrics();
-			}
-			catch (Exception e)
-			{
-				_logger.LogError(e, "Unable to initialize system metric collector for telemetry. Disabling. Reason: {Message}", e.Message);
-			}
-		}
-		else
-		{
-			_logger.LogInformation("System metric collection only implemented on Windows");
-		}
-
 		_eventLoopHeartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		_eventLoopTask = EventLoopHeartbeatAsync(_eventLoopHeartbeatCts.Token);
 
@@ -455,30 +452,14 @@ class TelemetryService : BackgroundService
 	}
 
 	/// <inheritdoc />
-	protected override Task ExecuteAsync(CancellationToken stoppingToken)
-	{
-		return Task.CompletedTask;
-	}
-
-	bool SendLegacyMetrics { get; set; } = false;
-
-	/// <summary>
-	/// Create a background task that sends telemetry for a session
-	/// </summary>
-	public BackgroundTask CreateBackgroundTask(AgentId agentId)
-	{
-		return BackgroundTask.StartNew(ctx => ExecuteBackgroundAsync(agentId, ctx));
-	}
-
-	/// <inheritdoc />
-	async Task ExecuteBackgroundAsync(AgentId agentId, CancellationToken stoppingToken)
+	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		_logger.LogDebug("Starting telemetry background task");
 		while (!stoppingToken.IsCancellationRequested)
 		{
 			try
 			{
-				if (!await ExecuteBackgroundInternalAsync(agentId, stoppingToken))
+				if (!await ExecuteBackgroundInternalAsync(stoppingToken))
 				{
 					break;
 				}
@@ -505,7 +486,7 @@ class TelemetryService : BackgroundService
 		_logger.LogDebug("Stopping telemetry background task");
 	}
 
-	private async Task<bool> ExecuteBackgroundInternalAsync(AgentId agentId, CancellationToken stoppingToken)
+	private async Task<bool> ExecuteBackgroundInternalAsync(CancellationToken stoppingToken)
 	{
 		if (_systemMetrics == null || !_agentSettings.EnableTelemetry)
 		{
@@ -520,59 +501,45 @@ class TelemetryService : BackgroundService
 		{
 			_logger.LogDebug("Sending telemetry events to server...");
 
-			CpuMetrics cpuMetrics = _systemMetrics.GetCpu();
-			MemoryMetrics memMetrics = _systemMetrics.GetMemory();
+			CpuMetrics? cpuMetrics = _systemMetrics.GetCpu();
+			MemoryMetrics? memMetrics = _systemMetrics.GetMemory();
 
-			// Mongo method
+			RpcSendTelemetryEventsRequest request = new();
+			Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
+			RpcExecutionMetadata em = new()
 			{
-				RpcUploadTelemetryRequest request = new RpcUploadTelemetryRequest();
-				request.UserCpu = cpuMetrics.User;
-				request.SystemCpu = cpuMetrics.System;
-				request.IdleCpu = cpuMetrics.Idle;
-				request.TotalRam = memMetrics.Total / 1024;
-				request.FreeRam = memMetrics.Available / 1024;
-				request.UsedRam = memMetrics.Used / 1024;
-				await client.UploadTelemetryAsync(request, new CallOptions(cancellationToken: stoppingToken));
+				LeaseId = _jobHandler.CurrentLeaseId.ToString(),
+				JobId = _jobHandler.CurrentJobId,
+				JobBatchId = _jobHandler.CurrentBatchId,
+			};
+
+			if (cpuMetrics != null)
+			{
+				RpcAgentCpuMetricsEvent cpuMetricsEvent = cpuMetrics.ToEvent();
+				cpuMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
+				cpuMetricsEvent.Timestamp = utcNow;
+				cpuMetricsEvent.ExecutionMetadata = em;
+				request.Events.Add(new RpcWrappedTelemetryEvent { Cpu = cpuMetricsEvent });
 			}
 
-			// Clickhouse method
-			if (SendLegacyMetrics)
+			if (memMetrics != null)
 			{
-				RpcSendTelemetryEventsRequest request = new();
-				Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
-				RpcExecutionMetadata em = new()
-				{
-					LeaseId = _jobHandler.CurrentLeaseId.ToString(),
-					JobId = _jobHandler.CurrentJobId,
-					JobBatchId = _jobHandler.CurrentBatchId,
-				};
-
-				{
-					RpcAgentCpuMetricsEvent cpuMetricsEvent = cpuMetrics.ToEvent();
-					cpuMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
-					cpuMetricsEvent.Timestamp = utcNow;
-					cpuMetricsEvent.ExecutionMetadata = em;
-					request.Events.Add(new RpcWrappedTelemetryEvent { Cpu = cpuMetricsEvent });
-				}
-
-				{
-					RpcAgentMemoryMetricsEvent memMetricsEvent = memMetrics.ToEvent();
-					memMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
-					memMetricsEvent.Timestamp = utcNow;
-					memMetricsEvent.ExecutionMetadata = em;
-					request.Events.Add(new RpcWrappedTelemetryEvent { Mem = memMetricsEvent });
-				}
-
-				if (DateTime.UtcNow > _lastTimeAgentMetadataSent + _agentMetadataReportInterval)
-				{
-					// Report agent metadata every now and then as events are not guaranteed to be delivered.
-					// Re-sending ensures the metadata will eventually make it to the server.
-					request.Events.Add(new RpcWrappedTelemetryEvent { AgentMetadata = _agentMetadataEvent });
-					_lastTimeAgentMetadataSent = DateTime.UtcNow;
-				}
-
-				await client.SendTelemetryEventsAsync(request, new CallOptions(cancellationToken: stoppingToken));
+				RpcAgentMemoryMetricsEvent memMetricsEvent = memMetrics.ToEvent();
+				memMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
+				memMetricsEvent.Timestamp = utcNow;
+				memMetricsEvent.ExecutionMetadata = em;
+				request.Events.Add(new RpcWrappedTelemetryEvent { Mem = memMetricsEvent });
 			}
+
+			if (DateTime.UtcNow > _lastTimeAgentMetadataSent + _agentMetadataReportInterval)
+			{
+				// Report agent metadata every now and then as events are not guaranteed to be delivered.
+				// Re-sending ensures the metadata will eventually make it to the server.
+				request.Events.Add(new RpcWrappedTelemetryEvent { AgentMetadata = _agentMetadataEvent });
+				_lastTimeAgentMetadataSent = DateTime.UtcNow;
+			}
+
+			await client.SendTelemetryEventsAsync(request, new CallOptions(cancellationToken: stoppingToken));
 
 			await Task.Delay(_reportInterval, stoppingToken);
 		}

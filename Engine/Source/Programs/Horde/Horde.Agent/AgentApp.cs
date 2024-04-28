@@ -247,12 +247,30 @@ namespace Horde.Agent
 
 			services.AddMemoryCache();
 
+			services.AddSingleton<ISystemMetrics>(sp => CreateSystemMetrics(sp.GetRequiredService<ILogger<ISystemMetrics>>()));
+
 			// Allow commands to augment the service collection for their own DI service providers
 			services.AddSingleton<DefaultServices>(x => new DefaultServices(configuration, services));
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 			return await CommandHost.RunAsync(arguments, serviceProvider, typeof(Commands.Service.RunCommand));
+		}
+
+		static ISystemMetrics CreateSystemMetrics(ILogger logger)
+		{
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				try
+				{
+					return new WindowsSystemMetrics();
+				}
+				catch (Exception e)
+				{
+					logger.LogError(e, "Unable to initialize system metric collector for telemetry. Disabling. Reason: {Message}", e.Message);
+				}
+			}
+			return new DefaultSystemMetrics();
 		}
 
 		static IConfiguration CreateConfig(bool readInstalledConfig, FileReference? agentConfigFile, Dictionary<string, string?> configOverrides)

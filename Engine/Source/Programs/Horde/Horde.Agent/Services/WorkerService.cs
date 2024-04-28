@@ -103,7 +103,7 @@ namespace Horde.Agent.Services
 
 						await using (ISession session = await _sessionFactory.CreateAsync(stoppingToken))
 						{
-							_currentLeaseManager = new LeaseManager(session, _capabilitiesService, _statusService, _leaseHandlers, _leaseLoggerFactory, _logger);
+							_currentLeaseManager = new LeaseManager(session, _serviceProvider);
 							result = await _currentLeaseManager.RunAsync(false, stoppingToken);
 						}
 
