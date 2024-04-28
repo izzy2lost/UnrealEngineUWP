@@ -57,7 +57,9 @@ namespace uba
 		UnorderedMap<const void*, int> m_memLookup;
 	};
 
-	void Rpc_CreateFileW(const tchar* fileName, const StringKey& fileNameKey, u8 access, tchar* outNewName, u64 newNameCapacity, u64& outSize, u32& outCloseId, bool lock);
+	enum : u8 { AccessFlag_Read = 1, AccessFlag_Write = 2 };
+
+	void Rpc_CreateFileW(const tchar* fileName, const StringKey& fileNameKey, u8 accessFlags, tchar* outNewName, u64 newNameCapacity, u64& outSize, u32& outCloseId, bool lock);
 	u32  Rpc_UpdateDirectory(const StringKey& dirKey, const tchar* dirName, u64 dirNameLen, bool lockDirTable = true);
 	void Rpc_UpdateCloseHandle(const tchar* handleName, u32 closeId, bool deleteOnClose, const tchar* newName, u64 mappingHandle, u64 mappingWritten, bool success);
 	void Rpc_UpdateTables();

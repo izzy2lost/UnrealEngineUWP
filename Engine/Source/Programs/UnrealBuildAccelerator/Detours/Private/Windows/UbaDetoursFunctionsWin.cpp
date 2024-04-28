@@ -364,7 +364,7 @@ const wchar_t* HandleToName(HANDLE handle)
 
 bool NeedsSharedMemory(const wchar_t* file) { return g_allowKeepFilesInMemory && g_rules->NeedsSharedMemory(file); }
 u64 FileTypeMaxSize(const StringBufferBase& file, bool isSystemOrTempFile) { return g_rules->FileTypeMaxSize(file, isSystemOrTempFile); }
-bool IsOutputFile(LPCWSTR fileName, u64 fileNameLen, DWORD desiredAccess, bool isDeleteOnClose = false) { return ((desiredAccess & GENERIC_WRITE) || isDeleteOnClose) && g_allowKeepFilesInMemory && g_rules->IsOutputFile(fileName, fileNameLen); }
+bool IsOutputFile(LPCWSTR fileName, u64 fileNameLen, bool isWrite, bool isDeleteOnClose = false) { return (isWrite || isDeleteOnClose) && g_allowKeepFilesInMemory && g_rules->IsOutputFile(fileName, fileNameLen); }
 
 
 bool EnsureMapped(DetouredHandle& handle, DWORD dwFileOffsetHigh = 0, DWORD dwFileOffsetLow = 0, SIZE_T numberOfBytesToMap = 0, void* baseAddress = nullptr)
@@ -406,17 +406,6 @@ bool EnsureMapped(DetouredHandle& handle, DWORD dwFileOffsetHigh = 0, DWORD dwFi
 
 	DEBUG_LOG_TRUE(L"INTERNAL MapViewOfFileEx", L"(%ls) (size: %llu) (%ls) -> 0x%llx", info.name, numberOfBytesToMap, info.originalName, uintptr_t(info.fileMapMem));
 	return true;
-}
-
-enum : u8 { AccessFlag_Read = 1, AccessFlag_Write = 2 };
-u8 GetFileAccessFlags(DWORD dwDesiredAccess)
-{
-	u8 access = 0;
-	if (dwDesiredAccess & GENERIC_READ)
-		access |= AccessFlag_Read;
-	if (dwDesiredAccess & GENERIC_WRITE)
-		access |= AccessFlag_Write;
-	return access;
 }
 
 ReaderWriterLock g_longPathNameCacheLock;

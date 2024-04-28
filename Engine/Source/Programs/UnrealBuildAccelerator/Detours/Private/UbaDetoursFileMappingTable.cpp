@@ -78,7 +78,7 @@ namespace uba
 		u32 mappedFileTableSize = reader.ReadU32();
 		u32 directoryTableSize = u32(reader.ReadU32());
 		pcs.Leave();
-		DEBUG_LOG_PIPE(L"CreateFile", L"%ls (%ls)", (access == 0 ? L"ATTRIB" : ((access & GENERIC_WRITE) ? L"WRITE" : L"READ")), fileName);
+		DEBUG_LOG_PIPE(L"CreateFile", L"%ls (%ls)", (access == 0 ? L"ATTRIB" : ((access & AccessFlag_Write) ? L"WRITE" : L"READ")), fileName);
 
 		if (lock)
 			g_mappedFileTable.Parse(mappedFileTableSize);

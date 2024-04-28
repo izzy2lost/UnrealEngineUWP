@@ -232,7 +232,6 @@ namespace uba
 		return strerror(error);
 	}
 
-	enum : u8 { AccessFlag_Read = 1, AccessFlag_Write = 2 };
 	u8 GetFileAccessFlags(int flags)
 	{
 		u8 access = 0;

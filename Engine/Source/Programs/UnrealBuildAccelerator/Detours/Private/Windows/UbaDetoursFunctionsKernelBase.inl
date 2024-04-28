@@ -1333,7 +1333,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		StringBuffer<> dest;
 		FixPath(dest, lpNewFileName);
 
-		if (IsOutputFile(dest.data, dest.count, GENERIC_WRITE))
+		if (IsOutputFile(dest.data, dest.count, true))
 		{
 			sourceInfo.deleted = true;
 			UBA_ASSERT(!sourceInfo.memoryFile->isLocalOnly);
