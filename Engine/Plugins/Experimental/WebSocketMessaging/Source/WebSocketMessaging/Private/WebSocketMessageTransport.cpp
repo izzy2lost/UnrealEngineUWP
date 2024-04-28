@@ -142,14 +142,15 @@ void FWebSocketMessageTransport::OnConnectionError(const FString& Message, FWebS
 
 void FWebSocketMessageTransport::OnJsonMessage(const FString& Message, FWebSocketMessageConnectionRef WebSocketMessageConnection)
 {
-	TSharedRef<FWebSocketDeserializedMessage> Context = MakeShared<FWebSocketDeserializedMessage>();
-	if (Context->ParseJson(Message))
+	FString ParseError;
+	const TSharedRef<FWebSocketDeserializedMessage> Context = MakeShared<FWebSocketDeserializedMessage>();
+	if (Context->ParseJson(Message, ParseError))
 	{
 		TransportHandler->ReceiveTransportMessage(Context, WebSocketMessageConnection->Guid);
 	}
 	else
 	{
-		UE_LOG(LogWebSocketMessaging, Verbose, TEXT("Invalid Json Message received on %s"), *WebSocketMessageConnection->Url);
+		UE_LOG(LogWebSocketMessaging, Log, TEXT("Invalid Json Message received on %s: %s"), *WebSocketMessageConnection->Url, *ParseError);
 	}
 }
 
