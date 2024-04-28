@@ -409,7 +409,6 @@ namespace uba
 
 		u64 fileSize = 0;
 		u64 actualSize = 0;
-		u64 sizeOnDisk = 0;
 
 		u8* readBuffer = nullptr;
 		u8* readPosition = nullptr;
@@ -457,7 +456,8 @@ namespace uba
 				actualSize = *(u64*)readBuffer;
 		}
 
-		sizeOnDisk = IsCompressed(casKey) ? fileSize : actualSize;
+		bytesReceived = fileSize;
+		sizeOnDisk = destinationIsCompressed ? fileSize : actualSize;
 
 		FileAccessor destinationFile(logger, destination);
 		if (!destinationMem)
@@ -630,14 +630,8 @@ namespace uba
 		}
 
 		if (!destinationMem)
-			if (!destinationFile.Close(&m_lastWritten))
+			if (!destinationFile.Close(&lastWritten))
 				return false;
-
-		m_size = actualSize;
-
-		//stats.recvCasBytesRaw += actualSize;
-		//stats.recvCasBytesComp += fileSize;
-		//out.size = actualSize;
 
 		return true;
 	}

@@ -98,6 +98,7 @@ namespace uba
 	// Implementations
 
 	#define UBA_ASSERT_WRITE(size) UBA_ASSERTF(m_pos + size <= m_end, TC("BinaryWriter overflow. Written: %llu, Capacity: %llu, Trying to write: %llu"), u64(m_pos - m_begin), u64(m_end - m_begin), u64(size))
+	#define UBA_ASSERT_READ(size) UBA_ASSERTF(m_pos + size <= m_end, TC("BinaryReader overflow. Read: %llu, Size: %llu, Trying to read: %llu"), u64(m_pos - m_begin), u64(m_end - m_begin), u64(size))
 
 	void BinaryWriter::WriteByte(u8 value)
 	{
@@ -286,6 +287,7 @@ namespace uba
 
 	void BinaryReader::ReadBytes(void* data, u64 size)
 	{
+		UBA_ASSERT_READ(size);
 		memcpy(data, m_pos, size);
 		m_pos += size;
 	}
@@ -293,11 +295,13 @@ namespace uba
 
 	u8 BinaryReader::ReadByte()
 	{
+		UBA_ASSERT_READ(sizeof(u8));
 		return *m_pos++;
 	}
 
 	u16 BinaryReader::ReadU16()
 	{
+		UBA_ASSERT_READ(sizeof(u16));
 		u16 value = *(u16*)m_pos;
 		m_pos += sizeof(u16);
 		return value;
@@ -305,6 +309,7 @@ namespace uba
 
 	u32 BinaryReader::ReadU32()
 	{
+		UBA_ASSERT_READ(sizeof(u32));
 		u32 value = *(u32*)m_pos;
 		m_pos += sizeof(u32);
 		return value;
@@ -312,6 +317,7 @@ namespace uba
 
 	u64 BinaryReader::ReadU64()
 	{
+		UBA_ASSERT_READ(sizeof(u64));
 		u64 value = *(u64*)m_pos;
 		m_pos += sizeof(u64);
 		return value;
@@ -331,18 +337,21 @@ namespace uba
 		u64 left = charLen;
 		while (left--)
 		{
+			UBA_ASSERT_READ(1);
 			u8 a = *m_pos++;
 			if (a <= 127)
 			{
 				*it++ = a;
 				continue;
 			}
+			UBA_ASSERT_READ(1);
 			u8 b = *m_pos++;
 			if (a >= 192 && a <= 223)
 			{
 				*it++ = (a-192)*64 + (b-128);
 				continue;
 			}
+			UBA_ASSERT_READ(1);
 			u8 c = *m_pos++;
 			if (a >= 224 && a <= 239)
 			{
@@ -389,6 +398,7 @@ namespace uba
 
 	Guid BinaryReader::ReadGuid()
 	{
+		UBA_ASSERT_READ(sizeof(Guid));
 		u64 g[2];
 		g[0] = *(u64*)m_pos;
 		g[1] = ((u64*)m_pos)[1];
@@ -398,6 +408,7 @@ namespace uba
 
 	StringKey BinaryReader::ReadStringKey()
 	{
+		UBA_ASSERT_READ(sizeof(StringKey));
 		StringKey k;
 		k.a = *(u64*)m_pos;
 		k.b = ((u64*)m_pos)[1];
@@ -407,6 +418,7 @@ namespace uba
 
 	CasKey BinaryReader::ReadCasKey()
 	{
+		UBA_ASSERT_READ(sizeof(CasKey));
 		CasKey k;
 		k.a = *(u64*)m_pos;
 		k.b = ((u64*)m_pos)[1];
@@ -422,6 +434,7 @@ namespace uba
 		bool hasMoreBytes;
 		do
 		{
+			UBA_ASSERT_READ(1);
 			u8 value = *m_pos++;
 			hasMoreBytes = value & 0x80;
 			result |= u64(value & 0x7f) << (byteIndex * 7);

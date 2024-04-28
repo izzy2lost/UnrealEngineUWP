@@ -11,7 +11,7 @@
 #include "UbaStorageUtils.h"
 
 #define UBA_LOG_WRITE_CACHE_INFO 0 // 0 = Disabled, 1 = Normal, 2 = Detailed
-#define UBA_LOG_FETCH_CACHE_INFO 0
+#define UBA_LOG_FETCH_CACHE_INFO 0 // 0 = Disabled, 1 = Misses, 2 = Both misses and hits
 
 namespace uba
 {
@@ -41,6 +41,8 @@ namespace uba
 
 		ReaderWriterLock casKeyTableNetworkLock;
 		u32 casKeyTableSizeSent = 0;
+
+		Atomic<u32> availableCasKeyTableSize;
 	};
 
 	CacheClient::CacheClient(const CacheClientCreateInfo& info)
@@ -50,6 +52,10 @@ namespace uba
 	,	m_session(info.session)
 	{
 		m_reportMissReason = info.reportMissReason;
+		#if UBA_LOG_FETCH_CACHE_INFO
+		m_reportMissReason = true;
+		#endif
+
 		m_client.RegisterOnConnected([this]()
 			{
 				StackBinaryWriter<1024> writer;
@@ -316,7 +322,11 @@ namespace uba
 		u32 entryCount = reader.ReadU16();
 
 		#if UBA_LOG_FETCH_CACHE_INFO
-		auto mg = MakeGuard([&]() { m_logger.Info(TC("FETCHCACHE %s: %s -> %u %s (%u)"), success ? TC("SUCC") : TC("FAIL"), info.description, bucketId, CasKeyString(cmdKey).str, entryCount); });
+		auto mg = MakeGuard([&]()
+			{
+				if (!success || UBA_LOG_FETCH_CACHE_INFO == 2)
+					m_logger.Info(TC("FETCHCACHE %s: %s -> %u %s (%u)"), success ? TC("SUCC") : TC("FAIL"), info.description, bucketId, CasKeyString(cmdKey).str, entryCount);
+			});
 		#endif
 
 		struct MissInfo { TString path; u32 entryIndex; CasKey cache; CasKey local; };
@@ -341,9 +351,8 @@ namespace uba
 					auto insres = offsetIsMatch.try_emplace(casKeyOffset);
 					if (insres.second)
 					{
-						if (casKeyOffset >= bucket.serverCasKeyTable.GetSize())
-							if (!FetchCasTable(bucket, cacheStats, casKeyOffset + sizeof(CasKey)))
-								return false;
+						if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
+							return false;
 
 						if (!GetLocalPathAndCasKey(bucket, rootPaths, path, cacheCasKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
 							return false;
@@ -394,9 +403,8 @@ namespace uba
 			while (reader.GetPositionData() != outputEnd)
 			{
 				u32 casKeyOffset = u32(reader.Read7BitEncoded());
-				if (casKeyOffset >= bucket.serverCasKeyTable.GetSize())
-					if (!FetchCasTable(bucket, cacheStats, casKeyOffset + sizeof(CasKey)))
-						return false;
+				if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
+					return false;
 
 				TimerScope ts(cacheStats.fetchOutput);
 
@@ -456,10 +464,10 @@ namespace uba
 						return false;
 					if (!destFile.Write(localBlock.memory, localBlock.writtenSize))
 						return false;
-					if (!destFile.Close(&fetcher.m_lastWritten))
+					if (!destFile.Close(&fetcher.lastWritten))
 						return false;
 
-					fetcher.m_size = fileSize;
+					fetcher.sizeOnDisk = fileSize;
 					casKey = CalculateCasKey(localBlock.memory, localBlock.writtenSize, false, nullptr);
 				}
 				else
@@ -468,7 +476,11 @@ namespace uba
 					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed))
 						return false;
 				}
-				if (!m_storage.FakeCopy(casKey, path.data, fetcher.m_size, fetcher.m_lastWritten, false))
+
+				cacheStats.fetchBytesRaw += fetcher.sizeOnDisk;
+				cacheStats.fetchBytesComp += fetcher.bytesReceived;
+
+				if (!m_storage.FakeCopy(casKey, path.data, fetcher.sizeOnDisk, fetcher.lastWritten, false))
 					return false;
 				if (!m_session.RegisterNewFile(path.data))
 					return false;
@@ -680,37 +692,54 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::FetchCasTable(Bucket& bucket, CacheStats& stats, u32 requiredCasTableSize)
+	bool CacheClient::FetchCasTable(Bucket& bucket, CacheStats& stats, u32 requiredCasTableOffset)
 	{
-		TimerScope ts2(stats.fetchCasTable);
+		auto hasEnoughData = [&bucket, requiredCasTableOffset](u32 tableSize)
+			{
+				u32 neededSize = requiredCasTableOffset + 4;
+				if (neededSize > tableSize)
+					return false;
+				BinaryReader r(bucket.serverCasKeyTable.GetMemory(), requiredCasTableOffset, tableSize);
+				u8 bytesNeeded = Get7BitEncodedCount(r.Read7BitEncoded());
+				neededSize = requiredCasTableOffset + bytesNeeded + sizeof(CasKey);
+				return neededSize <= tableSize;
+			};
 
-		SCOPED_WRITE_LOCK(bucket.casKeyTableNetworkLock, lock); // Use one lock over both queries
-
-		if (requiredCasTableSize <= bucket.serverCasKeyTable.GetSize())
+		if (hasEnoughData(bucket.availableCasKeyTableSize))
 			return true;
 
+		TimerScope ts2(stats.fetchCasTable);
+
 		StackBinaryReader<SendMaxSize> reader;
+
+		SCOPED_WRITE_LOCK(bucket.casKeyTableNetworkLock, lock); // Use one lock over both queries
 		{
-			u32 targetSize = requiredCasTableSize;
-			while (bucket.serverCasKeyTable.GetSize() < targetSize)
+			bool messageSent = false;
+			while (true)
 			{
+				u32 tableSize = bucket.serverCasKeyTable.GetSize();
+				if (hasEnoughData(tableSize))
+				{
+					if (!messageSent)
+						return true;
+					break;
+				}
+
 				StackBinaryWriter<16> writer;
 				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchCasTable, writer);
 				writer.Write7BitEncoded(MakeId(bucket.id));
-				writer.WriteU32(bucket.serverCasKeyTable.GetSize());
+				writer.WriteU32(tableSize);
 
 				reader.Reset();
 				if (!msg.Send(reader))
 					return false;
-				u32 size = reader.ReadU32();
-				if (targetSize == ~0u)
-					targetSize = size;
-
+				reader.ReadU32();
+				messageSent = true;
 				bucket.serverCasKeyTable.ReadMem(reader, false);
 			}
 		}
 		{
-			u32 targetSize = ~0u; // For now, read all because we don't know how much we need (it would require parsing all path offsets in caskey table
+			u32 targetSize = ~0u; // For now, read all because we don't know how much we need (it would require parsing all path offsets in caskey table)
 			while (bucket.serverPathTable.GetSize() < targetSize)
 			{
 				StackBinaryWriter<16> writer;
@@ -728,6 +757,8 @@ namespace uba
 				bucket.serverPathTable.ReadMem(reader, false);
 			}
 		}
+
+		bucket.availableCasKeyTableSize = bucket.serverCasKeyTable.GetSize();
 		return true;
 	}
 

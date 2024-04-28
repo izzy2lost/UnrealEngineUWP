@@ -123,6 +123,8 @@ namespace uba
 		UBA_CACHE_STAT(Timer, fetchCasTable, 0) \
 		UBA_CACHE_STAT(Timer, testEntries, 0) \
 		UBA_CACHE_STAT(Timer, fetchOutput, 0) \
+		UBA_CACHE_STAT(AtomicU64, fetchBytesRaw, 26) \
+		UBA_CACHE_STAT(AtomicU64, fetchBytesComp, 26) \
 
     struct CacheStats
 	{

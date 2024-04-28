@@ -42,7 +42,8 @@ namespace uba
 		ReaderWriterLock m_retrieveOneBatchAtTheTimeLock;
 		bool m_errorOnFail = true;
 
-		u64 m_lastWritten = 0;
-		u64 m_size = 0;
+		u64 lastWritten = 0;
+		u64 sizeOnDisk = 0;
+		u64 bytesReceived = 0;
 	};
 }
