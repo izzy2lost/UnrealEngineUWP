@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using EpicGames.Core;
+using EpicGames.Horde.Agents;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -454,13 +455,30 @@ class TelemetryService : BackgroundService
 	}
 
 	/// <inheritdoc />
-	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+	protected override Task ExecuteAsync(CancellationToken stoppingToken)
 	{
+		return Task.CompletedTask;
+	}
+
+	bool SendLegacyMetrics { get; set; } = false;
+
+	/// <summary>
+	/// Create a background task that sends telemetry for a session
+	/// </summary>
+	public BackgroundTask CreateBackgroundTask(AgentId agentId)
+	{
+		return BackgroundTask.StartNew(ctx => ExecuteBackgroundAsync(agentId, ctx));
+	}
+
+	/// <inheritdoc />
+	async Task ExecuteBackgroundAsync(AgentId agentId, CancellationToken stoppingToken)
+	{
+		_logger.LogDebug("Starting telemetry background task");
 		while (!stoppingToken.IsCancellationRequested)
 		{
 			try
 			{
-				if (!await ExecuteInternalAsync(stoppingToken))
+				if (!await ExecuteBackgroundInternalAsync(agentId, stoppingToken))
 				{
 					break;
 				}
@@ -475,11 +493,19 @@ class TelemetryService : BackgroundService
 			}
 
 			// Wait a moment before attempting to restart the background work
-			await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
+			try
+			{
+				await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
+			}
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			{
+				break;
+			}
 		}
+		_logger.LogDebug("Stopping telemetry background task");
 	}
 
-	private async Task<bool> ExecuteInternalAsync(CancellationToken stoppingToken)
+	private async Task<bool> ExecuteBackgroundInternalAsync(AgentId agentId, CancellationToken stoppingToken)
 	{
 		if (_systemMetrics == null || !_agentSettings.EnableTelemetry)
 		{
@@ -509,9 +535,8 @@ class TelemetryService : BackgroundService
 				await client.UploadTelemetryAsync(request, new CallOptions(cancellationToken: stoppingToken));
 			}
 
-			// Disabling ClickHouse telemetry for now, since we are storing in Mongo.
-/*
 			// Clickhouse method
+			if (SendLegacyMetrics)
 			{
 				RpcSendTelemetryEventsRequest request = new();
 				Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
@@ -548,7 +573,7 @@ class TelemetryService : BackgroundService
 
 				await client.SendTelemetryEventsAsync(request, new CallOptions(cancellationToken: stoppingToken));
 			}
-*/
+
 			await Task.Delay(_reportInterval, stoppingToken);
 		}
 

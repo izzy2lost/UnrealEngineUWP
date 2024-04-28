@@ -522,19 +522,12 @@ namespace Horde.Server.Server
 		}
 
 		/// <inheritdoc/>
-		public override async Task<Empty> UploadTelemetry(RpcUploadTelemetryRequest request, ServerCallContext context)
+		public override Task<Empty> UploadTelemetry(RpcUploadTelemetryRequest request, ServerCallContext context)
 		{
-			SessionId? sessionId = context.GetHttpContext().User.GetSessionClaim();
-			if (sessionId != null)
-			{
-				ISession? session = await _agentService.GetSessionAsync(sessionId.Value);
-				if (session != null)
-				{
-					NewAgentTelemetry telemetry = new NewAgentTelemetry(request.UserCpu, request.IdleCpu, request.SystemCpu, (int)request.FreeRam, (int)request.UsedRam, (int)request.TotalRam);
-					_agentTelemetryCollection.Add(session.AgentId, telemetry);
-				}
-			}
-			return new Empty();
+			NewAgentTelemetry telemetry = new NewAgentTelemetry(request.UserCpu, request.IdleCpu, request.SystemCpu, (int)request.FreeRam, (int)request.UsedRam, (int)request.TotalRam);
+			_agentTelemetryCollection.Add(new AgentId(request.AgentId), telemetry);
+
+			return Task.FromResult(new Empty());
 		}
 
 		/// <summary>

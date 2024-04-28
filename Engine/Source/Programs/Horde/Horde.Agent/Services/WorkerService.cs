@@ -18,6 +18,7 @@ namespace Horde.Agent.Services
 		readonly ISessionFactory _sessionFactory;
 		readonly CapabilitiesService _capabilitiesService;
 		readonly StatusService _statusService;
+		readonly TelemetryService _telemetryService;
 		readonly LeaseHandler[] _leaseHandlers;
 		readonly LeaseLoggerFactory _leaseLoggerFactory;
 		readonly IServiceProvider _serviceProvider;
@@ -36,11 +37,12 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Constructor. Registers with the server and starts accepting connections.
 		/// </summary>
-		public WorkerService(ISessionFactory sessionFactory, CapabilitiesService capabilitiesService, StatusService statusService, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, IServiceProvider serviceProvider, ILogger<WorkerService> logger)
+		public WorkerService(ISessionFactory sessionFactory, CapabilitiesService capabilitiesService, StatusService statusService, TelemetryService telemetryService, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, IServiceProvider serviceProvider, ILogger<WorkerService> logger)
 		{
 			_sessionFactory = sessionFactory;
 			_capabilitiesService = capabilitiesService;
 			_statusService = statusService;
+			_telemetryService = telemetryService;
 			_logger = logger;
 			_leaseHandlers = leaseHandlers.ToArray();
 			_leaseLoggerFactory = leaseLoggerFactory;
@@ -103,7 +105,7 @@ namespace Horde.Agent.Services
 
 						await using (ISession session = await _sessionFactory.CreateAsync(stoppingToken))
 						{
-							_currentLeaseManager = new LeaseManager(session, _capabilitiesService, _statusService, _leaseHandlers, _leaseLoggerFactory, _logger);
+							_currentLeaseManager = new LeaseManager(session, _capabilitiesService, _statusService, _telemetryService, _leaseHandlers, _leaseLoggerFactory, _logger);
 							result = await _currentLeaseManager.RunAsync(false, stoppingToken);
 						}
 
