@@ -604,6 +604,7 @@ namespace Horde.Agent.Leases
 					if (cpuMetrics != null || memMetrics != null)
 					{
 						RpcUploadTelemetryRequest request = new RpcUploadTelemetryRequest();
+						request.AgentId = _session.AgentId.ToString();
 						if (cpuMetrics != null)
 						{
 							request.UserCpu = cpuMetrics.User;
