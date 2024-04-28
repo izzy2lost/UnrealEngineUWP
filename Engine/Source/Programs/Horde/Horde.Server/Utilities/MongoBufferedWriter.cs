@@ -102,7 +102,7 @@ namespace Horde.Server.Utilities
 			// Insert them into the database
 			if (documents.Count > 0)
 			{
-				_logger.LogInformation("Writing {NumEvents} new telemetry events to {CollectionName}.", documents.Count, _collection.CollectionNamespace.CollectionName);
+				_logger.LogDebug("Writing {NumEvents} new telemetry events to {CollectionName}.", documents.Count, _collection.CollectionNamespace.CollectionName);
 				await _collection.InsertManyAsync(documents, cancellationToken: cancellationToken);
 			}
 		}
