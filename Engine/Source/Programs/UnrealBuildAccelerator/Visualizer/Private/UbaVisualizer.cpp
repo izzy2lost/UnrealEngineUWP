@@ -292,6 +292,22 @@ namespace uba
 		out.Append(L" - ");
 	}
 
+	bool Visualizer::Unselect()
+	{
+		if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected || m_fetchedFilesSelected != ~0u || m_workSelected)
+		{
+			m_processSelected = false;
+			m_sessionSelectedIndex = ~0u;
+			m_statsSelected = false;
+			m_buttonSelected = ~0u;
+			m_timelineSelected = 0;
+			m_fetchedFilesSelected = ~0u;
+			m_workSelected = false;
+			return true;
+		}
+		return false;
+	}
+
 	void Visualizer::Reset()
 	{
 		for (HBITMAP bm : m_textBitmaps)
@@ -312,6 +328,8 @@ namespace uba
 		//m_replay = 0;
 		m_startTime = GetTime();
 		m_pauseTime = 0;
+
+		Unselect();
 	}
 
 	void Visualizer::ThreadLoop()
@@ -2155,17 +2173,8 @@ namespace uba
 
 	void Visualizer::UnselectAndRedraw()
 	{
-		if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected || m_fetchedFilesSelected != ~0u || m_workSelected)
-		{
-			m_processSelected = false;
-			m_sessionSelectedIndex = ~0u;
-			m_statsSelected = false;
-			m_buttonSelected = ~0u;
-			m_timelineSelected = 0;
-			m_fetchedFilesSelected = ~0u;
-			m_workSelected = false;
+		if (Unselect())
 			RedrawWindow(m_hwnd, NULL, NULL, RDW_INVALIDATE);
-		}
 	}
 
 	bool Visualizer::UpdateAutoscroll()

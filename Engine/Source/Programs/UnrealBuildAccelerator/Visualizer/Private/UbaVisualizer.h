@@ -25,6 +25,7 @@ namespace uba
 		HWND GetHwnd();
 
 	private:
+		bool Unselect();
 		void Reset();
 		void PaintClient(const Function<void(HDC hdc, HDC memDC, RECT& clientRect)>& paintFunc);
 		void PaintAll(HDC hdc, const RECT& clientRect);
