@@ -22,7 +22,7 @@ protected:
 
 private:
 
-	FCameraParameterReader<FVector3d> OffsetReader;
+	TCameraParameterReader<FVector3d> OffsetReader;
 };
 
 UE_DEFINE_CAMERA_NODE_EVALUATOR(FOffsetCameraNodeEvaluator)
