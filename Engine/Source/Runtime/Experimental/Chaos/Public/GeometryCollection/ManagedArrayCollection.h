@@ -651,7 +651,10 @@ private:
 		bool bPersistent;
 		bool bExternalValue;	//External arrays have external memory management.
 
-		FManagedArrayBase* Value;
+		// TODO : save the thread on which the object has been created to call out when unsafe access is done ? 
+
+		TSharedPtr<FManagedArrayBase, ESPMode::NotThreadSafe> SharedManagedArray; // external arrays have this set this to null
+		FManagedArrayBase* ManagedArray = nullptr;;
 
 	private:
 		/**
@@ -664,9 +667,11 @@ private:
 			, GroupIndexDependency(InGroupIndexDependency)
 			, bPersistent(bInPersistent)
 			, bExternalValue(false)
-			, Value(ArrayPtr.Release())
+			, SharedManagedArray(ArrayPtr.Release())
+			, ManagedArray(SharedManagedArray.Get())
 		{
-			Value->Resize(InitialSize);
+			MakeUniqueForWrite();
+			ManagedArray->Resize(InitialSize);
 		};
 
 		/**
@@ -679,10 +684,13 @@ private:
 			, GroupIndexDependency(InGroupIndexDependency)
 			, bPersistent(bInPersistent)
 			, bExternalValue(true)
-			, Value(ExternalArrayPtr)
+			, SharedManagedArray(nullptr)
+			, ManagedArray(ExternalArrayPtr)
 		{
-			Value->Resize(InitialSize);
+			ManagedArray->Resize(InitialSize);
 		};
+
+		CHAOS_API void MakeUniqueForWrite();
 
 	public:
 		/**
@@ -711,7 +719,7 @@ private:
 		FName GetGroupIndexDependency() const { return GroupIndexDependency; };
 		bool IsPersistent() const { return bPersistent; }
 		bool IsExternal() const { return bExternalValue; }
-		bool IsDirty() const { return Value->IsDirty(); }
+		bool IsDirty() const { return ManagedArray->IsDirty(); }
 
 		void SetGroupIndexDependency(FName NewGroupDependency) { GroupIndexDependency = NewGroupDependency; }
 
@@ -723,7 +731,7 @@ private:
 		{ 
 			check(IsSameType<T>());
 			
-			const TManagedArray<T>* TypedManagedArray = static_cast<const TManagedArray<T>*>(Value);
+			const TManagedArray<T>* TypedManagedArray = static_cast<const TManagedArray<T>*>(ManagedArray);
 			check(TypedManagedArray != nullptr);
 			return TypedManagedArray;
 		}
@@ -734,15 +742,15 @@ private:
 			return *GetTypedPtr<T>();
 		}
 
-		const FManagedArrayBase& Get() const { return *Value; }
+		const FManagedArrayBase& Get() const { return *ManagedArray; }
 
 		template <typename T>
-		TManagedArray<T>* ModifyTypedPtr() const
+		TManagedArray<T>* ModifyTypedPtr()
 		{ 
 			check(IsSameType<T>());
-			// todo : copy on write ? 
+			MakeUniqueForWrite();
 
-			TManagedArray<T>* TypedManagedArray = static_cast<TManagedArray<T>*>(Value);
+			TManagedArray<T>* TypedManagedArray = static_cast<TManagedArray<T>*>(ManagedArray);
 			check(TypedManagedArray != nullptr);
 
 			TypedManagedArray->MarkDirty();
@@ -750,12 +758,12 @@ private:
 		}
 
 		template <typename T>
-		TManagedArray<T>& ModifyTyped() const
+		TManagedArray<T>& ModifyTyped()
 		{
 			return *ModifyTypedPtr<T>();
 		}
 
-		FManagedArrayBase& Modify() const;
+		FManagedArrayBase& Modify();
 
 		void Reserve(int32 ReservedSize);
 		void Resize(int32 NewSize);

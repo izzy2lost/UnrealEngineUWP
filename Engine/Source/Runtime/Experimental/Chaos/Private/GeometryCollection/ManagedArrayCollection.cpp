@@ -53,7 +53,7 @@ void FManagedArrayCollection::RemoveElements(const FName& Group, const TArray<in
 		GeometryCollectionAlgo::BuildIncrementMask(SortedDeletionList, GroupSize, Offsets);
 
 		TSet<int32> DeletionSet(SortedDeletionList);
-		for (const TTuple<FKeyType, FValueType>& Entry : Map)
+		for (TTuple<FKeyType, FValueType>& Entry : Map)
 		{
 			//
 			// Reindex attributes dependent on the group being resized
@@ -786,9 +786,15 @@ void FManagedArrayCollection::FValueType::Serialize(FArchive& Ar)
 		Ar << bPersistent;
 	}
 
-	if (Value == nullptr)
+	if (ManagedArray == nullptr)
 	{
-		Value = NewManagedTypedArray(ArrayType);
+		ensure(Ar.IsLoading());
+		ManagedArray = NewManagedTypedArray(ArrayType);
+		SharedManagedArray = TSharedPtr<FManagedArrayBase, ESPMode::NotThreadSafe>(ManagedArray);
+	}
+	else
+	{
+		ensure(Ar.IsSaving());
 	}
 	
 	// Note: We switched to always saving the value here, and use the Saved flag
@@ -796,7 +802,7 @@ void FManagedArrayCollection::FValueType::Serialize(FArchive& Ar)
 	bool bNewSavedBehavior = Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::ManagedArrayCollectionAlwaysSerializeValue;
 	if (bNewSavedBehavior || bPersistent)
 	{
-		Value->Serialize(static_cast<Chaos::FChaosArchive&>(Ar));
+		ManagedArray->Serialize(static_cast<Chaos::FChaosArchive&>(Ar));
 	}
 }
 
@@ -805,7 +811,8 @@ FManagedArrayCollection::FValueType::FValueType()
 	, GroupIndexDependency(NAME_None)
 	, bPersistent(true)
 	, bExternalValue(false)
-	, Value(nullptr) 
+	, SharedManagedArray(nullptr)
+	, ManagedArray(nullptr)
 {};
 
 FManagedArrayCollection::FValueType::FValueType(const FValueType& Other)
@@ -813,13 +820,24 @@ FManagedArrayCollection::FValueType::FValueType(const FValueType& Other)
 	, GroupIndexDependency(Other.GroupIndexDependency)
 	, bPersistent(Other.bPersistent)
 	, bExternalValue(false)
-	, Value(nullptr)
+	, SharedManagedArray(nullptr)
+	, ManagedArray(nullptr)
 {
-	if (Other.Value)
+	if (Other.ManagedArray)
 	{
-		this->Value = NewManagedTypedArray(this->ArrayType);
-		this->Value->Resize(Other.Value->Num());
-		this->Value->Init(*Other.Value);
+		if (Other.bExternalValue)
+		{
+			ManagedArray = NewManagedTypedArray(ArrayType);
+			ManagedArray->Resize(Other.ManagedArray->Num());
+			ManagedArray->Init(*Other.ManagedArray);
+		}
+		else
+		{
+			// we only copy the shared pointer as we don't want to pay for the full copy
+			// copy on write will make this unique if necessary
+			SharedManagedArray = Other.SharedManagedArray;
+			ManagedArray = SharedManagedArray.Get();
+		}
 	}
 };
 
@@ -828,79 +846,107 @@ FManagedArrayCollection::FValueType::FValueType(FValueType&& Other)
 	, GroupIndexDependency(Other.GroupIndexDependency)
 	, bPersistent(Other.bPersistent)
 	, bExternalValue(Other.bExternalValue)
-	, Value(Other.Value)
+	, SharedManagedArray(nullptr)
+	, ManagedArray(nullptr)
 {
 	if (&Other != this)
 	{
-		Other.Value = nullptr;
+		SharedManagedArray = MoveTemp(Other.SharedManagedArray);
+		ManagedArray = Other.ManagedArray;
+		Other.ManagedArray = nullptr;
+		Other.bExternalValue = false;
 	}
 }
 
 FManagedArrayCollection::FValueType::~FValueType()
 {
-	if (Value && !bExternalValue)
+	if (bExternalValue)
 	{
-		delete Value;
+		check(!SharedManagedArray.IsValid());
 	}
 }
 
-FManagedArrayBase& FManagedArrayCollection::FValueType::Modify() const
+void FManagedArrayCollection::FValueType::MakeUniqueForWrite()
 {
-	// todo : copy on write ?  ( use  NewManagedTypedArray )
-	Value->MarkDirty();
-	return *Value;
+	// IsUnique is performant in that case because we are using NonThreadSafe SharedPtr
+	// this is a requirement for CopyOnWrite as we forbid cross-thread CopyOnWrite
+	if (SharedManagedArray && !SharedManagedArray.IsUnique())
+	{
+		check(!IsExternal());
+
+		ManagedArray = NewManagedTypedArray(ArrayType);
+		ManagedArray->Resize(SharedManagedArray->Num());
+		ManagedArray->Init(*SharedManagedArray);
+
+		SharedManagedArray = TSharedPtr<FManagedArrayBase, ESPMode::NotThreadSafe>(ManagedArray);
+	}
+	check(ManagedArray);
+}
+
+FManagedArrayBase& FManagedArrayCollection::FValueType::Modify()
+{
+	MakeUniqueForWrite();
+
+	ManagedArray->MarkDirty();
+	return *ManagedArray;
 }
 
 void FManagedArrayCollection::FValueType::Reserve(int32 ReservedSize)
 {
-	// todo : copy on write ? 
-	Value->Reserve(ReservedSize);
+	if (ReservedSize > ManagedArray->Max())
+	{
+		MakeUniqueForWrite();
+		ManagedArray->Reserve(ReservedSize);
+	}
 }
 
 void FManagedArrayCollection::FValueType::Resize(int32 NewSize)
 {
-	// todo : copy on write ? 
-	Value->Resize(NewSize);
+	if (NewSize > ManagedArray->Num())
+	{
+		MakeUniqueForWrite();
+		ManagedArray->Resize(NewSize);
+	}
 }
 
 void FManagedArrayCollection::FValueType::InitFrom(const FManagedArrayCollection::FValueType& Other)
 {
-	// todo : copy on write ? 
+	MakeUniqueForWrite();
 	if (ArrayType == Other.GetArrayType())
 	{
-		Value->Init(Other.Get());
+		ManagedArray->Init(Other.Get());
 	}
 	else
 	{
-		Value->Convert(Other.Get());
+		ManagedArray->Convert(Other.Get());
 	}
 }
 
 void FManagedArrayCollection::FValueType::Exchange(FValueType& Other)
 {
-	// todo : copy on write ? 
+	MakeUniqueForWrite();
 	check(ArrayType == Other.ArrayType);
-	Value->ExchangeArrays(*Other.Value);
+	ManagedArray->ExchangeArrays(*Other.ManagedArray);
 }
 
 void FManagedArrayCollection::FValueType::Convert(FValueType& Other)
 {
-	// todo : copy on write ? 
+	MakeUniqueForWrite();
 	check(ArrayType != Other.ArrayType);
-	Value->Convert(*Other.Value);
+	ManagedArray->Convert(*Other.ManagedArray);
 }
 
 void FManagedArrayCollection::FValueType::CopyFrom(const FValueType& Other)
 {
-	// todo : copy on write ? 
-	check(Other.Value->Num() <= Value->Num());
-	Value->CopyRange(*Other.Value, 0, Other.Value->Num());
+	MakeUniqueForWrite();
+	check(Other.ManagedArray->Num() <= ManagedArray->Num());
+	ManagedArray->CopyRange(*Other.ManagedArray, 0, Other.ManagedArray->Num());
 }
 
 void FManagedArrayCollection::FValueType::Empty()
 {
-	// todo : copy on write ? 
-	Value->Empty();
+	MakeUniqueForWrite();
+	ManagedArray->Empty();
 }
 
 void FManagedArrayCollection::FValueType::RemoveGroupIndexDependency(FName Group)
