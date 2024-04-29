@@ -330,7 +330,7 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 		if (UAVDesc.Format == DXGI_FORMAT_UNKNOWN || (UAVDesc.Buffer.Flags & D3D12_BUFFER_UAV_FLAG_RAW) != 0)
 		{
 			// Structured buffer.
-			RHICmdList.RunOnContext([UnorderedAccessView, ClearValues, UAVDesc](auto& Context)
+			RHICmdList.RunOnContext([UnorderedAccessView, ClearValues, UAVDesc](FD3D12CommandContext& Context)
 			{
 				// Alias the structured buffer with an R32_UINT UAV to perform the clear.
 				// We construct a temporary UAV on the offline heap, copy it to the online heap, and then call ClearUnorderedAccessViewUint.
@@ -365,8 +365,9 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 				D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle{};
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-				if (UAV.GetBindlessHandle().IsValid())
+				if (Context.StateCache.GetDescriptorCache()->IsActiveViewHeapBindless())
 				{
+					check(UAV.GetBindlessHandle().IsValid());
 					Context.FlushPendingDescriptorUpdates();
 
 					FD3D12DescriptorHeap* BindlessHeap = Context.GetBindlessResourcesHeap();

@@ -297,6 +297,7 @@ void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSa
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
 
+	BindlessConfiguration = BindlessConfig;
 	bBindlessViews = BindlessManager.AreResourcesBindless(BindlessConfig);
 	bBindlessSamplers = BindlessManager.AreSamplersBindless(BindlessConfig);
 #else
@@ -313,45 +314,6 @@ void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSa
 	{
 		SamplerHeap.Init(NumSamplerDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 	}
-}
-
-void FD3D12ExplicitDescriptorCache::UpdateSyncPoint()
-{
-#if !PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	const bool bBindlessViews = false;
-	const bool bBindlessSamplers = false;
-#endif
-
-	if (!bBindlessViews)
-	{
-		ViewHeap.UpdateSyncPoint();
-	}
-
-	if (!bBindlessSamplers)
-	{
-		SamplerHeap.UpdateSyncPoint();
-	}
-}
-
-void FD3D12ExplicitDescriptorCache::SetDescriptorHeaps(FD3D12CommandContext& CommandContext)
-{
-	UpdateSyncPoint();
-
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	check(bBindlessViews || ViewHeap.GetParentDevice() == CommandContext.GetParentDevice());
-	check(bBindlessSamplers || SamplerHeap.GetParentDevice() == CommandContext.GetParentDevice());
-
-	ID3D12DescriptorHeap* ViewHeapToSet = bBindlessViews ? nullptr : ViewHeap.D3D12Heap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = bBindlessSamplers ? nullptr : SamplerHeap.D3D12Heap;
-#else
-	check(ViewHeap.GetParentDevice() == CommandContext.GetParentDevice());
-	check(SamplerHeap.GetParentDevice() == CommandContext.GetParentDevice());
-
-	ID3D12DescriptorHeap* ViewHeapToSet = ViewHeap.D3D12Heap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = SamplerHeap.D3D12Heap;
-#endif
-
-	CommandContext.StateCache.GetDescriptorCache()->OverrideLastSetHeaps(ViewHeapToSet, SamplerHeapToSet);
 }
 
 // Returns descriptor heap base index for this descriptor table allocation (checking for duplicates and reusing existing tables) or -1 if allocation failed.

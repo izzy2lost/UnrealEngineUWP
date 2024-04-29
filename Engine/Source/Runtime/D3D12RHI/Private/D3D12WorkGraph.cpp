@@ -603,7 +603,7 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	}
 
 	FD3D12ExplicitDescriptorCache TransientDescriptorCache(GetParentDevice(), MaxTasks /* Worker Count */);
-	TransientDescriptorCache.Init(NumViewDescriptors, NumSamplerDescriptors, ERHIBindlessConfiguration::Disabled);
+	TransientDescriptorCache.Init(NumViewDescriptors, NumSamplerDescriptors, ERHIBindlessConfiguration::AllShaders);
 
 	TArray<FShaderBundleBinderOps, TInlineAllocator<MaxWorkers>> BinderOps;
 	BinderOps.SetNum(MaxTasks);
@@ -700,7 +700,7 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	FlushResourceBarriers();
 
 	// Apply the transient descriptor heaps.
-	TransientDescriptorCache.SetDescriptorHeaps(*this);
+	SetExplicitDescriptorCache(TransientDescriptorCache);
 
 	// Gather root arguments for global work graph.
 	int32 DispatchSRVTable = INDEX_NONE;
@@ -742,7 +742,7 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	Pipeline->bInitialized = true;
 
 	// Restore old global descriptor heaps
-	StateCache.GetDescriptorCache()->RestoreAfterExternalHeapsSet();
+	UnsetExplicitDescriptorCache();
 
 	// We did not write through the state cache, so we need to invalidate it so subsequent workloads correctly re-bind state
 	StateCache.DirtyState();

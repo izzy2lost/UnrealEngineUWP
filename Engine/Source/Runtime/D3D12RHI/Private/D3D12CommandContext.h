@@ -39,6 +39,7 @@ class FD3D12Heap;
 struct FD3D12DescriptorHeap;
 class FD3D12ResourceLocation;
 class FD3D12RootSignature;
+class FD3D12ExplicitDescriptorCache;
 
 struct FD3D12DeferredDeleteObject
 {
@@ -784,6 +785,9 @@ public:
 	}
 
 	void FlushPendingDescriptorUpdates();
+
+	void SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache);
+	void UnsetExplicitDescriptorCache();
 
 	virtual void Finalize(TArray<FD3D12Payload*>& OutPayloads) override;
 

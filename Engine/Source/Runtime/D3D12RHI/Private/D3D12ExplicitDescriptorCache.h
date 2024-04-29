@@ -77,7 +77,6 @@ struct FD3D12ExplicitDescriptorHeap : public FD3D12DeviceChild
 	bool CompareDescriptors(int32 BaseIndex, const D3D12_CPU_DESCRIPTOR_HANDLE* InDescriptors, uint32 InNumDescriptors);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetDescriptorCPU(uint32 Index) const;
-
 	D3D12_GPU_DESCRIPTOR_HANDLE GetDescriptorGPU(uint32 Index) const;
 
 	void UpdateSyncPoint();
@@ -119,10 +118,6 @@ public:
 
 	void Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig);
 
-	void UpdateSyncPoint();
-
-	void SetDescriptorHeaps(FD3D12CommandContext& CommandContext);
-
 	// Returns descriptor heap base index for this descriptor table allocation or -1 if allocation failed.
 	int32 Allocate(const D3D12_CPU_DESCRIPTOR_HANDLE* Descriptors, uint32 NumDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 WorkerIndex);
 
@@ -133,6 +128,7 @@ public:
 	FD3D12ExplicitDescriptorHeap SamplerHeap;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	ERHIBindlessConfiguration BindlessConfiguration{};
 	bool bBindlessViews = false;
 	bool bBindlessSamplers = false;
 #endif

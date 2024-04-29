@@ -79,6 +79,16 @@ void FD3D12CommandContext::FlushPendingDescriptorUpdates()
 #endif
 }
 
+void FD3D12CommandContext::SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache)
+{
+	StateCache.GetDescriptorCache()->SetExplicitDescriptorCache(ExplicitDescriptorCache);
+}
+
+void FD3D12CommandContext::UnsetExplicitDescriptorCache()
+{
+	StateCache.GetDescriptorCache()->UnsetExplicitDescriptorCache();
+}
+
 // Vertex state.
 void FD3D12CommandContext::RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBufferRHI, uint32 Offset)
 {

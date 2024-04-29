@@ -48,12 +48,18 @@ FD3D12DescriptorHeap* UE::D3D12BindlessDescriptors::CreateGpuHeap(FD3D12Device* 
 	);
 }
 
+void UE::D3D12BindlessDescriptors::DeferredFreeHeap(FD3D12Device* InDevice, FD3D12DescriptorHeap* InHeap)
+{
+	FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap, FD3D12DeferredDeleteObject::EType::BindlessDescriptorHeap);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FD3D12BindlessSamplerManager
 
-FD3D12BindlessSamplerManager::FD3D12BindlessSamplerManager(FD3D12Device* InDevice, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats)
+FD3D12BindlessSamplerManager::FD3D12BindlessSamplerManager(FD3D12Device* InDevice, ERHIBindlessConfiguration InConfiguration, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats)
 	: FD3D12DeviceChild(InDevice)
 	, Allocator(ERHIDescriptorHeapType::Sampler, InNumDescriptors, InStats)
+	, Configuration(InConfiguration)
 {
 	GpuHeap = UE::D3D12BindlessDescriptors::CreateGpuHeap(InDevice, ERHIDescriptorHeapType::Sampler, InNumDescriptors);
 }
@@ -84,12 +90,23 @@ void FD3D12BindlessSamplerManager::Free(FRHIDescriptorHandle InHandle)
 
 void FD3D12BindlessSamplerManager::OpenCommandList(FD3D12CommandContext& Context)
 {
-	Context.StateCache.GetDescriptorCache()->SetBindlessSamplersHeapDirectly(GetHeap());
+	if (GetConfiguration() == ERHIBindlessConfiguration::AllShaders)
+	{
+		Context.StateCache.GetDescriptorCache()->SetBindlessSamplersHeapDirectly(GetHeap());
+	}
 }
 
 void FD3D12BindlessSamplerManager::CloseCommandList(FD3D12CommandContext& Context)
 {
-	Context.StateCache.GetDescriptorCache()->SetBindlessSamplersHeapDirectly(nullptr);
+	if (GetConfiguration() == ERHIBindlessConfiguration::AllShaders)
+	{
+		Context.StateCache.GetDescriptorCache()->SetBindlessSamplersHeapDirectly(nullptr);
+	}
+}
+
+FD3D12DescriptorHeap* FD3D12BindlessSamplerManager::GetHeapForContext(FD3D12CommandContext& Context) const
+{
+	return GetHeap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,10 +114,11 @@ void FD3D12BindlessSamplerManager::CloseCommandList(FD3D12CommandContext& Contex
 
 #if !D3D12RHI_CUSTOM_BINDLESS_RESOURCE_MANAGER
 
-FD3D12BindlessResourceManager::FD3D12BindlessResourceManager(FD3D12Device* InDevice, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats)
+FD3D12BindlessResourceManager::FD3D12BindlessResourceManager(FD3D12Device* InDevice, ERHIBindlessConfiguration InConfiguration, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats)
 	: FD3D12DeviceChild(InDevice)
+	, CpuHeap(UE::D3D12BindlessDescriptors::CreateCpuHeap(InDevice, ERHIDescriptorHeapType::Standard, InNumDescriptors))
 	, Allocator(ERHIDescriptorHeapType::Standard, InNumDescriptors, InStats)
-	, CpuHeap(UE::D3D12BindlessDescriptors::CreateCpuHeap(InDevice, ERHIDescriptorHeapType::Standard, InNumDescriptors))	
+	, Configuration(InConfiguration)
 {
 	// Create the first active GPU heap
 	FGpuHeapData& GpuHeapData = GpuHeaps.AddDefaulted_GetRef();
@@ -170,7 +188,7 @@ void FD3D12BindlessResourceManager::InitializeDescriptor(FRHIDescriptorHandle Ds
 		UE::D3D12Descriptors::CopyDescriptor(GetParentDevice(), GpuHeaps[ActiveGpuHeapIndex].GpuHeap, DstHandle, OfflineCpuHandle);
 		GpuHeaps[ActiveGpuHeapIndex].UpdatedHandles.Add(DstHandle);
 
-		INC_DWORD_STAT(STAT_D3D12BindlessResourceDescriptorsInitialized);		
+		INC_DWORD_STAT(STAT_D3D12BindlessResourceDescriptorsInitialized);
 	}
 }
 
@@ -218,7 +236,7 @@ void FD3D12BindlessResourceManager::FlushPendingDescriptorUpdates(FD3D12CommandC
 		// Then assign the current heap to the state
 		AssignHeapToState(State);
 
-		if (ensure(Context.IsOpen()))
+		if (GetConfiguration() == ERHIBindlessConfiguration::AllShaders && ensure(Context.IsOpen()))
 		{
 			// Finally tell the Context that we're using this heap,
 			// this call also makes sure the heap is set on the d3d command list.
@@ -234,8 +252,11 @@ void FD3D12BindlessResourceManager::OpenCommandList(FD3D12CommandContext& Contex
 	// Assign the current active Gpu heap to the context
 	AssignHeapToState(State);
 
-	// Assign the heap to the descriptor cache
-	Context.StateCache.GetDescriptorCache()->SetBindlessResourcesHeapDirectly(State.CurrentGpuHeap);
+	if (GetConfiguration() == ERHIBindlessConfiguration::AllShaders)
+	{
+		// Assign the heap to the descriptor cache
+		Context.StateCache.GetDescriptorCache()->SetBindlessResourcesHeapDirectly(State.CurrentGpuHeap);
+	}
 }
 
 void FD3D12BindlessResourceManager::CloseCommandList(FD3D12CommandContext& Context)
@@ -245,8 +266,11 @@ void FD3D12BindlessResourceManager::CloseCommandList(FD3D12CommandContext& Conte
 	// First finalize the current heap if any was set
 	FinalizeHeapOnState(State);
 
-	// Then clear the reference from the state cache
-	Context.StateCache.GetDescriptorCache()->SetBindlessResourcesHeapDirectly(nullptr);
+	if (GetConfiguration() == ERHIBindlessConfiguration::AllShaders)
+	{
+		// Then clear the reference from the state cache
+		Context.StateCache.GetDescriptorCache()->SetBindlessResourcesHeapDirectly(nullptr);
+	}
 }
 
 void FD3D12BindlessResourceManager::FinalizeContext(FD3D12CommandContext& Context)
@@ -269,13 +293,25 @@ void FD3D12BindlessResourceManager::FinalizeContext(FD3D12CommandContext& Contex
 			checkSlow(UsedHeap);
 
 			// Now queue it up for recycle when GPU is done
-			FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(UsedHeap, FD3D12DeferredDeleteObject::EType::BindlessDescriptorHeap);
+			UE::D3D12BindlessDescriptors::DeferredFreeHeap(GetParentDevice(), UsedHeap);
 		}
 
 		State.UsedHeaps.Empty();
 	}
 
 	check(!Context.GetBindlessState().HasAnyPending());
+}
+
+FD3D12DescriptorHeap* FD3D12BindlessResourceManager::GetHeap(ERHIPipeline Pipeline) const
+{
+	checkNoEntry();
+	return nullptr;
+}
+
+FD3D12DescriptorHeap* FD3D12BindlessResourceManager::GetHeapForContext(FD3D12CommandContext& Context) const
+{
+	FD3D12ContextBindlessState& State = Context.GetBindlessState();
+	return State.CurrentGpuHeap;
 }
 
 void FD3D12BindlessResourceManager::CopyCpuHeap(FD3D12DescriptorHeap* DestinationHeap)
@@ -304,7 +340,7 @@ void FD3D12BindlessResourceManager::AssignHeapToState(FD3D12ContextBindlessState
 
 void FD3D12BindlessResourceManager::FinalizeHeapOnState(FD3D12ContextBindlessState& State)
 {
-	if (State.bRequestNewGpuHeap)
+	if (State.bRequestNewGpuHeap && State.CurrentGpuHeap)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::FinalizeHeapOnState");
 
@@ -341,7 +377,7 @@ void FD3D12BindlessResourceManager::FinalizeHeapOnState(FD3D12ContextBindlessSta
 				NewActiveGpuHeapIndex = GpuHeapIndex;
 				break;
 			}
-		}		
+		}
 
 		// Found a pooled heap, then copy over the dirty descriptor handles
 		if (NewActiveGpuHeapIndex >= 0)
@@ -349,11 +385,11 @@ void FD3D12BindlessResourceManager::FinalizeHeapOnState(FD3D12ContextBindlessSta
 			// NOTE: copying over duplicate descriptor entries is faster then adding them to set for reduction
 			//		 CitySample there is about 2 to 4 times duplication but still faster to copy all then deduplication
 
-			FGpuHeapData& NewGpuHeapData = GpuHeaps[NewActiveGpuHeapIndex];
-			INC_DWORD_STAT_BY(STAT_D3D12BindlessResourceGPUDescriptorsCopied, NewGpuHeapData.UpdatedHandles.Num());
+			FGpuHeapData& GpuHeapData = GpuHeaps[NewActiveGpuHeapIndex];
+			INC_DWORD_STAT_BY(STAT_D3D12BindlessResourceGPUDescriptorsCopied, GpuHeapData.UpdatedHandles.Num());
 
-			UE::D3D12Descriptors::CopyDescriptors(GetParentDevice(), NewGpuHeapData.GpuHeap, CpuHeap, NewGpuHeapData.UpdatedHandles);
-			NewGpuHeapData.UpdatedHandles.Reset(NewGpuHeapData.UpdatedHandles.Max());
+			UE::D3D12Descriptors::CopyDescriptors(GetParentDevice(), GpuHeapData.GpuHeap, CpuHeap, GpuHeapData.UpdatedHandles);
+			GpuHeapData.UpdatedHandles.Reset();
 		}
 		else
 		{
@@ -409,7 +445,7 @@ void FD3D12BindlessDescriptorManager::Init()
 		NumResourceDescriptors += GBindlessOnlineDescriptorHeapBlockSize;
 #endif
 
-		ResourceManager = MakeUnique<FD3D12BindlessResourceManager>(GetParentDevice(), NumResourceDescriptors, Stats);
+		ResourceManager = MakeUnique<FD3D12BindlessResourceManager>(GetParentDevice(), ResourcesConfiguration, NumResourceDescriptors, Stats);
 	}
 
 	if (SamplersConfiguration != ERHIBindlessConfiguration::Disabled)
@@ -430,7 +466,7 @@ void FD3D12BindlessDescriptorManager::Init()
 			NumSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 		}
 
-		SamplerManager = MakeUnique<FD3D12BindlessSamplerManager>(GetParentDevice(), NumSamplerDescriptors, Stats);
+		SamplerManager = MakeUnique<FD3D12BindlessSamplerManager>(GetParentDevice(), SamplersConfiguration, NumSamplerDescriptors, Stats);
 	}
 }
 
@@ -567,6 +603,23 @@ void FD3D12BindlessDescriptorManager::FlushPendingDescriptorUpdates(FD3D12Comman
 	}
 }
 
+FD3D12DescriptorHeapPair FD3D12BindlessDescriptorManager::GetHeapsForContext(FD3D12CommandContext& Context, ERHIBindlessConfiguration InConfiguration) const
+{
+	FD3D12DescriptorHeapPair Result{};
+
+	if (AreResourcesBindless(InConfiguration) && ensure(ResourceManager))
+	{
+		Result.ResourceHeap = ResourceManager->GetHeapForContext(Context);
+	}
+
+	if (AreSamplersBindless(InConfiguration) && ensure(SamplerManager))
+	{
+		Result.SamplerHeap = SamplerManager->GetHeapForContext(Context);
+	}
+
+	return Result;
+}
+
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 TRHIPipelineArray<FD3D12DescriptorHeapPtr> FD3D12BindlessDescriptorManager::AllocateResourceHeapsForAllPipelines(int32 InSize)
 {
@@ -580,35 +633,5 @@ TRHIPipelineArray<FD3D12DescriptorHeapPtr> FD3D12BindlessDescriptorManager::Allo
 	return TRHIPipelineArray<FD3D12DescriptorHeapPtr>();
 }
 #endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-
-FD3D12DescriptorHeap* FD3D12BindlessDescriptorManager::GetResourceHeap(ERHIPipeline Pipeline)
-{
-	return ResourceManager->GetHeap(Pipeline);
-}
-
-FD3D12DescriptorHeap* FD3D12BindlessDescriptorManager::GetSamplerHeap()
-{
-	return SamplerManager->GetHeap();
-}
-
-FD3D12DescriptorHeap* FD3D12BindlessDescriptorManager::GetResourceHeap(ERHIPipeline Pipeline, ERHIBindlessConfiguration InConfiguration)
-{
-	if (AreResourcesBindless(InConfiguration))
-	{
-		return GetResourceHeap(Pipeline);
-	}
-
-	return nullptr;
-}
-
-FD3D12DescriptorHeap* FD3D12BindlessDescriptorManager::GetSamplerHeap(ERHIBindlessConfiguration InConfiguration)
-{
-	if (AreSamplersBindless(InConfiguration))
-	{
-		return GetSamplerHeap();
-	}
-
-	return nullptr;
-}
 
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING

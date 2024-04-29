@@ -4629,7 +4629,8 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 		UE::TScopeLock Lock(OptShaderTable->DispatchMutex);
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetRayTracingShaderResources);
 
-		DescriptorCache->SetDescriptorHeaps(CommandContext);
+		CommandContext.SetExplicitDescriptorCache(*DescriptorCache);
+
 		FD3D12RayTracingGlobalResourceBinder ResourceBinder(CommandContext, *DescriptorCache);
 		bResourcesBound = SetRayTracingShaderResources(RayGenShader, GlobalBindings, ResourceBinder);
 
@@ -4639,7 +4640,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	{
 		FD3D12ExplicitDescriptorCache TransientDescriptorCache(CommandContext.GetParentDevice(), FD3D12RayTracingScene::MaxBindingWorkers);
 		TransientDescriptorCache.Init(MAX_SRVS + MAX_UAVS, MAX_SAMPLERS, ERHIBindlessConfiguration::RayTracingShaders);
-		TransientDescriptorCache.SetDescriptorHeaps(CommandContext);
+		CommandContext.SetExplicitDescriptorCache(TransientDescriptorCache);
 		FD3D12RayTracingGlobalResourceBinder ResourceBinder(CommandContext, TransientDescriptorCache);
 		bResourcesBound = SetRayTracingShaderResources(RayGenShader, GlobalBindings, ResourceBinder);
 	}
@@ -4699,7 +4700,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	}
 
 	// Restore old global descriptor heaps
-	CommandContext.StateCache.GetDescriptorCache()->RestoreAfterExternalHeapsSet();
+	CommandContext.UnsetExplicitDescriptorCache();
 }
 
 void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRayTracingPipelineState, FRHIRayTracingShader* RayGenShaderRHI,

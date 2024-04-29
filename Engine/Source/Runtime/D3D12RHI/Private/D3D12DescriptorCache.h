@@ -12,6 +12,7 @@
 class FD3D12CommandContext;
 class FD3D12DynamicRHI;
 class FD3D12DepthStencilView;
+class FD3D12ExplicitDescriptorCache;
 class FD3D12RenderTargetView;
 class FD3D12ShaderResourceView;
 class FD3D12UnorderedAccessView;
@@ -359,8 +360,8 @@ public:
 	void SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap);
 #endif
 
-	void OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap, ID3D12DescriptorHeap* SamplerHeap);
-	void RestoreAfterExternalHeapsSet();
+	void SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache);
+	void UnsetExplicitDescriptorCache();
 
 	inline bool UsingGlobalSamplerHeap() const { return CurrentSamplerHeap != &LocalSamplerHeap; }
 	FD3D12SamplerSet& GetLocalSamplerSet() { return *LocalSamplerSet.Get(); }
@@ -389,6 +390,11 @@ public:
 	{
 		return BindlessSamplersHeap;
 	}
+
+	bool IsActiveViewHeapBindless() const
+	{
+		return (BindlessResourcesHeap != nullptr) || (bUsingExplicitCacheHeaps && bExplicitViewHeapIsBindless);
+	}
 #endif
 
 protected:
@@ -412,7 +418,8 @@ private:
 	TArray<FD3D12UniqueSamplerTable> UniqueTables;
 
 	TSharedPtr<FD3D12SamplerSet> LocalSamplerSet;
-	bool bHeapsOverridden = false;
+	bool bUsingExplicitCacheHeaps = false;
+	bool bExplicitViewHeapIsBindless = false;
 	bool bLocalSamplerHeapOpen = false;
 	bool bUsingViewHeap = true;
 

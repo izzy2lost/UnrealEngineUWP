@@ -4,6 +4,7 @@
 //	Include Files
 //-----------------------------------------------------------------------------
 #include "D3D12DescriptorCache.h"
+#include "D3D12ExplicitDescriptorCache.h"
 #include "D3D12RHIPrivate.h"
 
 bool FD3D12DescriptorCache::HeapRolledOver(ERHIDescriptorHeapType InHeapType)
@@ -83,7 +84,7 @@ bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
 
 	ID3D12DescriptorHeap* PendingViewHeap =
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		IsUsingBindlessResources() ? BindlessResourcesHeap->GetHeap() :
+		BindlessResourcesHeap ? BindlessResourcesHeap->GetHeap() :
 #endif
 		CurrentViewHeap->GetHeap();
 	if (LastSetViewHeap != PendingViewHeap)
@@ -91,7 +92,9 @@ bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
 		// The view heap changed, so dirty the descriptor tables.
 		bHeapChanged = true;
 
-		if (!IsUsingBindlessResources())
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		if (!BindlessResourcesHeap)
+#endif
 		{
 			Context.StateCache.DirtyViewDescriptorTables();
 		}
@@ -143,10 +146,8 @@ void FD3D12DescriptorCache::OpenCommandList()
 	LastSetSamplerHeap = nullptr;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (IsUsingBindlessSamplers() || IsUsingBindlessResources())
-	{
-		GetParentDevice()->GetBindlessDescriptorManager().OpenCommandList(Context);
-	}
+	// Always call the Bindless Manager OpenCommandList, it will determine when it needs to do anything.
+	GetParentDevice()->GetBindlessDescriptorManager().OpenCommandList(Context);
 
 	if (!IsUsingBindlessSamplers())
 #endif
@@ -179,10 +180,8 @@ void FD3D12DescriptorCache::CloseCommandList()
 	}
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (IsUsingBindlessSamplers() || IsUsingBindlessResources())
-	{
-		GetParentDevice()->GetBindlessDescriptorManager().CloseCommandList(Context);
-	}
+	// Always call the Bindless Manager CloseCommandList, it will determine when it needs to do anything.
+	GetParentDevice()->GetBindlessDescriptorManager().CloseCommandList(Context);
 
 	if (!IsUsingBindlessSamplers())
 #endif
@@ -765,10 +764,40 @@ void FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap
 }
 #endif
 
-void FD3D12DescriptorCache::OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap, ID3D12DescriptorHeap* SamplerHeap)
+void FD3D12DescriptorCache::SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache)
 {
-	ID3D12DescriptorHeap* ViewHeapToSet = ViewHeap ? ViewHeap : LastSetViewHeap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = SamplerHeap ? SamplerHeap : LastSetSamplerHeap;
+	ID3D12DescriptorHeap* ViewHeapToSet = nullptr;
+	ID3D12DescriptorHeap* SamplerHeapToSet = nullptr;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	// We have three scenarios:
+	//   Bindless on globally: BindlessHeaps and LastSetXXX will match
+	//   Bindless RT Only: BindlessHeaps will override LastSetXXX
+	//   No Bindless:  BindlessHeaps will be null, ExplicitDescriptorCache heaps will override LastSetXXX
+
+	const FD3D12DescriptorHeapPair BindlessHeaps = GetParentDevice()->GetBindlessDescriptorManager().GetHeapsForContext(Context, ExplicitDescriptorCache.BindlessConfiguration);
+
+	ViewHeapToSet = BindlessHeaps.ResourceHeap ? BindlessHeaps.ResourceHeap->GetHeap() : nullptr;
+	SamplerHeapToSet = BindlessHeaps.SamplerHeap ? BindlessHeaps.SamplerHeap->GetHeap() : nullptr;
+#endif
+
+	const bool bViewHeapIsBindless = (ViewHeapToSet != nullptr);
+
+	if (!ViewHeapToSet)
+	{
+		check(ExplicitDescriptorCache.ViewHeap.GetParentDevice() == GetParentDevice());
+
+		ExplicitDescriptorCache.ViewHeap.UpdateSyncPoint();
+		ViewHeapToSet = ExplicitDescriptorCache.ViewHeap.D3D12Heap;
+	}
+
+	if (!SamplerHeapToSet)
+	{
+		check(ExplicitDescriptorCache.SamplerHeap.GetParentDevice() == GetParentDevice());
+
+		ExplicitDescriptorCache.SamplerHeap.UpdateSyncPoint();
+		SamplerHeapToSet = ExplicitDescriptorCache.SamplerHeap.D3D12Heap;
+	}
 
 	if (ViewHeapToSet != LastSetViewHeap || SamplerHeapToSet != LastSetSamplerHeap)
 	{
@@ -778,16 +807,18 @@ void FD3D12DescriptorCache::OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap,
 		ID3D12DescriptorHeap* ppHeaps[] = { ViewHeapToSet, SamplerHeapToSet };
 		Context.GraphicsCommandList()->SetDescriptorHeaps(UE_ARRAY_COUNT(ppHeaps), ppHeaps);
 
-		bHeapsOverridden = true;
+		bUsingExplicitCacheHeaps = true;
+		bExplicitViewHeapIsBindless = bViewHeapIsBindless;
 	}
 }
 
-void FD3D12DescriptorCache::RestoreAfterExternalHeapsSet()
+void FD3D12DescriptorCache::UnsetExplicitDescriptorCache()
 {
-	if (bHeapsOverridden)
+	if (bUsingExplicitCacheHeaps)
 	{
 		SetDescriptorHeaps();
-		bHeapsOverridden = false;
+		bUsingExplicitCacheHeaps = false;
+		bExplicitViewHeapIsBindless = false;
 	}
 }
 

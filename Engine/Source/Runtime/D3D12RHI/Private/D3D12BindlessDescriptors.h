@@ -31,7 +31,7 @@ class FD3D12BindlessSamplerManager : public FD3D12DeviceChild
 {
 public:
 	FD3D12BindlessSamplerManager() = delete;
-	FD3D12BindlessSamplerManager(FD3D12Device* InDevice, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
+	FD3D12BindlessSamplerManager(FD3D12Device* InDevice, ERHIBindlessConfiguration InConfiguration, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
 
 	void CleanupResources();
 
@@ -41,56 +41,24 @@ public:
 	void OpenCommandList(FD3D12CommandContext& Context);
 	void CloseCommandList(FD3D12CommandContext& Context);
 
-	FD3D12DescriptorHeap* GetHeap() { return GpuHeap.GetReference(); }
+	FD3D12DescriptorHeap* GetHeapForContext(FD3D12CommandContext& Context) const;
+
+	FD3D12DescriptorHeap* GetHeap() const { return GpuHeap.GetReference(); }
+	ERHIBindlessConfiguration GetConfiguration() const { return Configuration; }
 
 private:
 	FD3D12DescriptorHeapPtr      GpuHeap;
 	FRHIHeapDescriptorAllocator  Allocator;
+	ERHIBindlessConfiguration    Configuration;
 };
 
 #if !D3D12RHI_CUSTOM_BINDLESS_RESOURCE_MANAGER
 
-struct FD3D12PendingDescriptorUpdates
-{
-	// List of handles that need updating
-	TArray<FRHIDescriptorHandle>    Handles;
-	// Copies of descriptors to update each handle with. These need to be freed in a specific way.
-	TArray<FD3D12OfflineDescriptor> OfflineDescriptors;
-
-	~FD3D12PendingDescriptorUpdates()
-	{
-		checkSlow(Handles.Num() == 0);
-	}
-
-	void Add(FD3D12Device* Device, FRHIDescriptorHandle DestinationHandle, const FD3D12OfflineDescriptor& OfflineDescriptor)
-	{
-		if (ensure(DestinationHandle.IsValid()))
-		{
-			Handles.Emplace(DestinationHandle);
-			OfflineDescriptors.Emplace(OfflineDescriptor);
-		}
-	}
-
-	void Empty(FD3D12Device* Device)
-	{
-		for (FD3D12OfflineDescriptor& OfflineDescriptor : OfflineDescriptors)
-		{
-			UE::D3D12Descriptors::FreeOfflineCopy(Device, OfflineDescriptor, ERHIDescriptorHeapType::Standard);
-		}
-
-		Handles.Empty();
-		OfflineDescriptors.Empty();
-	}
-
-	int32 Num()     const { return Handles.Num(); }
-	bool  IsEmpty() const { return Num() == 0; }
-};
-
 // Helper container for all context related bindless state.
 struct FD3D12ContextBindlessState
 {
-	FD3D12DescriptorHeapPtr          CurrentGpuHeap;
-	bool							 bRequestNewGpuHeap = false;
+	FD3D12DescriptorHeapPtr CurrentGpuHeap;
+	bool                    bRequestNewGpuHeap = false;
 
 	// All heaps used on the context. Used for lifetime management.
 	TArray<FD3D12DescriptorHeapPtr> UsedHeaps;
@@ -112,7 +80,7 @@ class FD3D12BindlessResourceManager : public FD3D12DeviceChild
 {
 public:
 	FD3D12BindlessResourceManager() = delete;
-	FD3D12BindlessResourceManager(FD3D12Device* InDevice, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
+	FD3D12BindlessResourceManager(FD3D12Device* InDevice, ERHIBindlessConfiguration InConfiguration, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
 
 	void CleanupResources();
 
@@ -130,34 +98,39 @@ public:
 	void CloseCommandList(FD3D12CommandContext& Context);
 	void FinalizeContext(FD3D12CommandContext& Context);
 
-	FD3D12DescriptorHeap* GetHeap(ERHIPipeline Pipeline)
-	{
-		checkNoEntry();
-		return nullptr;
-	}
+	FD3D12DescriptorHeap* GetHeap(ERHIPipeline Pipeline) const;
+	FD3D12DescriptorHeap* GetHeapForContext(FD3D12CommandContext& Context) const;
+
+	ERHIBindlessConfiguration GetConfiguration() const { return Configuration; }
 
 private:
 	void CopyCpuHeap(FD3D12DescriptorHeap* DestinationHeap);
 	void AssignHeapToState(FD3D12ContextBindlessState& State);
 	void FinalizeHeapOnState(FD3D12ContextBindlessState& State);
 
-	FRHIHeapDescriptorAllocator		Allocator;
-
-	FD3D12DescriptorHeapPtr			CpuHeap;	
+	FD3D12DescriptorHeapPtr         CpuHeap;
+	FRHIHeapDescriptorAllocator     Allocator;
+	const ERHIBindlessConfiguration Configuration;
 
 	struct FGpuHeapData
 	{
-		FD3D12DescriptorHeapPtr		GpuHeap;
+		FD3D12DescriptorHeapPtr      GpuHeap;
 		TArray<FRHIDescriptorHandle> UpdatedHandles;
-		bool						bInUse = true;
+		bool                         bInUse = true;
 	};
 
-	FCriticalSection				GpuHeapsCS;
-	int32							ActiveGpuHeapIndex;
-	TArray<FGpuHeapData>			GpuHeaps;
+	FCriticalSection     GpuHeapsCS;
+	int32                ActiveGpuHeapIndex;
+	TArray<FGpuHeapData> GpuHeaps;
 };
 
 #endif
+
+struct FD3D12DescriptorHeapPair
+{
+	FD3D12DescriptorHeap* SamplerHeap;
+	FD3D12DescriptorHeap* ResourceHeap;
+};
 
 /** Manager for descriptors used in bindless rendering. */
 class FD3D12BindlessDescriptorManager : public FD3D12DeviceChild
@@ -197,16 +170,13 @@ public:
 	void CloseCommandList(FD3D12CommandContext& Context);
 
 	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
+	void SetHeapsForRayTracing(FD3D12CommandContext& Context);
+
+	FD3D12DescriptorHeapPair GetHeapsForContext(FD3D12CommandContext& Context, ERHIBindlessConfiguration InConfiguration) const;
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	TRHIPipelineArray<FD3D12DescriptorHeapPtr> AllocateResourceHeapsForAllPipelines(int32 InSize);
 #endif
-
-	FD3D12DescriptorHeap* GetResourceHeap(ERHIPipeline Pipeline);
-	FD3D12DescriptorHeap* GetSamplerHeap();
-
-	FD3D12DescriptorHeap* GetResourceHeap(ERHIPipeline Pipeline, ERHIBindlessConfiguration InConfiguration);
-	FD3D12DescriptorHeap* GetSamplerHeap(ERHIBindlessConfiguration InConfiguration);
 
 private:
 	TUniquePtr<FD3D12BindlessResourceManager> ResourceManager;
