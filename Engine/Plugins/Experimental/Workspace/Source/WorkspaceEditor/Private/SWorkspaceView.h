@@ -6,43 +6,22 @@
 #include "Widgets/SCompoundWidget.h"
 
 class UWorkspace;
+class UWorkSpaceAssetUserData;
+class SSceneOutliner;
 
 namespace UE::Workspace
 {
+class IWorkspaceEditor;
 
 class SWorkspaceView : public SCompoundWidget
 {
-	using FOnAssetsOpened = TDelegate<void(TConstArrayView<FAssetData>)>; 
-
 	SLATE_BEGIN_ARGS(SWorkspaceView) {}
-
-	SLATE_EVENT(FOnAssetsOpened, OnAssetsOpened)
-
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, UWorkspace* InWorkspace);
-
+	void Construct(const FArguments& InArgs, UWorkspace* InWorkspace, TSharedRef<UE::Workspace::IWorkspaceEditor> InWorkspaceEditor);
 private:
-	// SWidget interface
-	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
-
-	void HandleDelete();
-
-	bool HasValidSelection() const;
-
-	void HandleWorkspaceModified(UWorkspace* InWorkspace);
-
-	FARFilter MakeARFilter();
-
 	UWorkspace* Workspace = nullptr;
-
-	FOnAssetsOpened OnAssetsOpened;
-
-	FRefreshAssetViewDelegate RefreshAssetViewDelegate;
-
-	FGetCurrentSelectionDelegate GetCurrentSelectionDelegate;
-
-	TSharedPtr<FUICommandList> UICommandList;
+	TSharedPtr<SSceneOutliner> SceneWorkspaceOutliner;
 };
 
 };

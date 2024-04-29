@@ -5,48 +5,32 @@
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "SAssetDropTarget.h"
+#include "SceneOutlinerPublicTypes.h"
 #include "ScopedTransaction.h"
+#include "SSceneOutliner.h"
 #include "WorkspaceSchema.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Outliner/WorkspaceOutlinerColumns.h"
+#include "Outliner/WorkspaceOutlinerMode.h"
 
 #define LOCTEXT_NAMESPACE "SWorkspaceView"
 
 namespace UE::Workspace
 {
 
-void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace)
+void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace, TSharedRef<UE::Workspace::IWorkspaceEditor> InWorkspaceEditor)
 {
 	Workspace = InWorkspace;
-	OnAssetsOpened = InArgs._OnAssetsOpened;
 
-	UICommandList = MakeShared<FUICommandList>();
-
-	UICommandList->MapAction(FGenericCommands::Get().Delete,
-		FExecuteAction::CreateSP(this, &SWorkspaceView::HandleDelete),
-		FCanExecuteAction::CreateSP(this, &SWorkspaceView::HasValidSelection));
-
-	Workspace->ModifiedDelegate.AddSP(this, &SWorkspaceView::HandleWorkspaceModified);
-
-	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
-
-	FAssetPickerConfig AssetPickerConfig;
-	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
-	AssetPickerConfig.OnAssetsActivated = FOnAssetsActivated::CreateLambda([this](const TArray<FAssetData>& InAssets, EAssetTypeActivationMethod::Type InActivationMethod)
+	FSceneOutlinerInitializationOptions InitOptions;
 	{
-		if( InActivationMethod == EAssetTypeActivationMethod::DoubleClicked ||
-			InActivationMethod == EAssetTypeActivationMethod::Opened)
-		{
-			OnAssetsOpened.ExecuteIfBound(InAssets);
-		}
-	});
-	AssetPickerConfig.RefreshAssetViewDelegates.Add(&RefreshAssetViewDelegate);
-	AssetPickerConfig.GetCurrentSelectionDelegates.Add(&GetCurrentSelectionDelegate);
-	AssetPickerConfig.Filter = MakeARFilter();
-	AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda([this](const FAssetData& InAsset)
-	{
-		return !Workspace->AssetEntries.ContainsByPredicate([InAsset](const UWorkspaceAssetEntry* Entry)-> bool { return Entry->Asset == TSoftObjectPtr<UObject>(InAsset.GetSoftObjectPath()); });
-	});
-	AssetPickerConfig.AssetShowWarningText = LOCTEXT("EmptyWorkspaceText", "Workspace is empty.\nDrag-drop to add assets to this workspace.");
+		InitOptions.OutlinerIdentifier = TEXT("WorkspaceEditorOutliner");
+		InitOptions.bShowHeaderRow = true;
+		InitOptions.ColumnMap.Add(FSceneOutlinerBuiltInColumnTypes::Label(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 0));
+		InitOptions.ColumnMap.Add(FWorkspaceOutlinerSourceControlColumn::GetID(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 100, FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner) { return MakeShareable(new FWorkspaceOutlinerSourceControlColumn(InSceneOutliner)); }), false));	
+		InitOptions.ModeFactory = FCreateSceneOutlinerMode::CreateLambda([this, WeakWorkspaceEditor=InWorkspaceEditor.ToWeakPtr()](SSceneOutliner* InOutliner) { return new UE::Workspace::FWorkspaceOutlinerMode(UE::Workspace::FWorkspaceOutlinerMode(InOutliner, Workspace, WeakWorkspaceEditor)); });
+	}
+	SceneWorkspaceOutliner = SNew(SSceneOutliner, InitOptions);
 
 	ChildSlot
 	[
@@ -73,59 +57,9 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace
 		})
 		.Content()
 		[
-			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
+			SceneWorkspaceOutliner.ToSharedRef()
 		]
 	];
-}
-
-FARFilter SWorkspaceView::MakeARFilter()
-{
-	FARFilter Filter;
-	Filter.ClassPaths = Workspace->GetSchema()->GetSupportedAssetClassPaths();
-	Filter.bRecursiveClasses = true;
-
-	return Filter;
-}
-
-FReply SWorkspaceView::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
-{
-	if (UICommandList.IsValid() && UICommandList->ProcessCommandBindings(InKeyEvent))
-	{
-		return FReply::Handled();
-	}
-	return FReply::Unhandled();
-}
-
-void SWorkspaceView::HandleDelete()
-{
-	if(GetCurrentSelectionDelegate.IsBound())
-	{
-		TArray<FAssetData> Selection = GetCurrentSelectionDelegate.Execute();
-
-		if(Selection.Num() > 0)
-		{
-			FScopedTransaction Transaction(LOCTEXT("RemoveAssets", "Remove assets from workspace"));
-
-			Workspace->RemoveAssets(Selection);
-		}
-	}
-}
-
-bool SWorkspaceView::HasValidSelection() const 
-{
-	if(GetCurrentSelectionDelegate.IsBound())
-	{
-		TArray<FAssetData> Selection = GetCurrentSelectionDelegate.Execute();
-		return Selection.Num() > 0;
-	}
-	return false;
-}
-
-void SWorkspaceView::HandleWorkspaceModified(UWorkspace* InWorkspace)
-{
-	check(InWorkspace == Workspace);
-
-	RefreshAssetViewDelegate.ExecuteIfBound(true);
 }
 
 }

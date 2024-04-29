@@ -1,16 +1,19 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "IWorkspaceEditorModule.h"
 #include "UObject/TopLevelAssetPath.h"
+#include "IWorkspaceOutlinerItemDetails.h"
 
 struct FWorkspaceAssetRegistryExports;
+class SWorkspaceTabWrapper;
 
 namespace UE::Workspace
 {
 	struct FAssetDocumentSummoner;
 	class FWorkspaceEditor;
+	class FWorkspaceOutlinerMode;
 }
 
 namespace UE::Workspace
@@ -23,8 +26,10 @@ private:
 	virtual void RegisterObjectDocumentType(const FTopLevelAssetPath& InClassPath, const FObjectDocumentArgs& InParams) override;
 	virtual void UnregisterObjectDocumentType(const FTopLevelAssetPath& InClassPath) override;
 	virtual FObjectDocumentArgs CreateGraphDocumentArgs(const FGraphDocumentWidgetArgs& InArgs) override;
-	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass) override;
+	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass) override;	
 	virtual FOnRegisterDetailCustomizations& OnRegisterWorkspaceDetailsCustomization() override;
+	virtual void RegisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails> InItemDetails) override;	
+	virtual void UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetails) override;
 
 	// Find an existing registered object document type
 	const FObjectDocumentArgs* FindObjectDocumentType(const FTopLevelAssetPath& InClassPath) const;
@@ -41,12 +46,20 @@ private:
 	TMap<FTopLevelAssetPath, FObjectDocumentArgs> ObjectDocumentArgs;
 
 	TMap<FName, TSet<FTopLevelAssetPath>> DocumentAreaMap;
+	
+	static TMap<FOutlinerItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails>> OutlinerItemDetails;
+	static TSharedPtr<IWorkspaceOutlinerItemDetails> GetOutlinerItemDetails(const FOutlinerItemDetailsId& DetailId);
 
 	/** Event called to allow external clients to register details customizations */
 	FOnRegisterDetailCustomizations OnRegisterDetailCustomizations;
 
 	friend struct FAssetDocumentSummoner;
+	friend struct FWorkspaceOutlinerTreeItem;
+	friend class SWorkspaceOutlinerTreelabel;
 	friend class FWorkspaceEditor;
+	friend class FWorkspaceOutlinerMode;
+	friend class FWorkspaceOutlinerSourceControlColumn;
+	friend SWorkspaceTabWrapper;
 };
 
 }

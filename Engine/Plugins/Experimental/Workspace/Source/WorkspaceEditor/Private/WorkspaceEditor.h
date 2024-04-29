@@ -15,6 +15,8 @@ class FDocumentTabFactory;
 class FTabInfo;
 class FTabManager;
 class IToolkitHost;
+class SWorkspaceTabWrapper;
+class IStructureDetailsView;
 
 namespace UE::Workspace
 {
@@ -44,11 +46,12 @@ public:
 
 private:
 	friend class FWorkspaceEditorMode;
-	friend struct FGraphDocumentSummoner;
+	friend class FWorkspaceEditorModule;
 	friend class SGraphDocument;
+	friend SWorkspaceTabWrapper;
+	friend struct FGraphDocumentSummoner;
 	friend struct FWorkspaceTabSummoner;
 	friend struct FAssetDocumentSummoner;
-	friend class FWorkspaceEditorModule;
 
 	// FBaseAssetToolkit interface
 	virtual void RegisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
@@ -103,6 +106,9 @@ private:
 	TSharedPtr<SDockTab> OpenDocument(const UObject* InForObject, FDocumentTracker::EOpenDocumentCause InCause);
 
 	void RecordDocumentState(const TInstancedStruct<FWorkspaceDocumentState>& InState) const;
+
+	void NavigateBack();
+	void NavigateForward();
 
 	/** The asset being edited */
 	TObjectPtr<UWorkspace> Workspace = nullptr;

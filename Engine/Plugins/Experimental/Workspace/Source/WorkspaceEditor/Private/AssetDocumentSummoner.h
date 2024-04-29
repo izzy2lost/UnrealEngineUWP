@@ -22,7 +22,7 @@ public:
 	// Delegate called to save the state of a document
 	DECLARE_DELEGATE_OneParam(FOnSaveDocumentState, UObject*);
 
-	FAssetDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp);
+	FAssetDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp, bool bInAllowUnsupportedClasses = false);
 
 	void SetAllowedClassPaths(TConstArrayView<FTopLevelAssetPath> InAllowedClassPaths);
 
@@ -48,6 +48,9 @@ private:
 
 	// Allowed object types
 	TArray<FTopLevelAssetPath> AllowedClassPaths;
+
+	// Whether or not to allow objects if AllowedClassPaths does not contain their class
+	bool bAllowUnsupportedClasses = false;
 };
 
 }

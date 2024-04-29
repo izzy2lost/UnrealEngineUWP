@@ -87,6 +87,8 @@ protected:
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	virtual bool IsEditorOnly() const override { return true; }
+	virtual bool Rename(const TCHAR* NewName = nullptr, UObject* NewOuter = nullptr, ERenameFlags Flags = REN_None) override;	
+	virtual void PreDuplicate(FObjectDuplicationParameters& DupParams) override;
 
 	void HandlePackageDone(const FEndLoadPackageContext& Context);
 	void HandlePackageDone();

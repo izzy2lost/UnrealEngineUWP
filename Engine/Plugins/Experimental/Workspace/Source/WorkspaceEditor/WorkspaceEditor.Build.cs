@@ -36,6 +36,9 @@ namespace UnrealBuildTool.Rules
 					"EditorWidgets",
 					"Json",
 					"JsonUtilities",
+					"AssetRegistry",
+					"ContentBrowser",
+					"SceneOutliner"
 				}
 			);
 		}

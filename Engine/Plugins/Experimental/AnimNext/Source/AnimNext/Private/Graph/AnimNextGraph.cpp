@@ -22,6 +22,11 @@
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectResource.h"
 
+#if WITH_EDITOR	
+#include "Engine/ExternalAssetDependencyGatherer.h"
+REGISTER_ASSETDEPENDENCY_GATHERER(FExternalAssetDependencyGatherer, UAnimNextGraph);
+#endif // WITH_EDITOR
+
 DEFINE_STAT(STAT_AnimNext_Graph_AllocateInstance);
 DEFINE_STAT(STAT_AnimNext_Graph_UpdateParamLayer);
 

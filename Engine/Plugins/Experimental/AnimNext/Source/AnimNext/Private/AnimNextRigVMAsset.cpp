@@ -51,4 +51,15 @@ void UAnimNextRigVMAsset::GetAssetRegistryTags(FAssetRegistryTagsContext Context
 		EditorData->GetAssetRegistryTags(Context);
 	}
 #endif
+
+#if WITH_EDITOR
+	// Allow asset user data to output tags
+	for(const UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
+	{
+		if (AssetUserDataItem)
+		{
+			AssetUserDataItem->GetAssetRegistryTags(Context);
+		}
+	}
+#endif // WITH_EDITOR
 }

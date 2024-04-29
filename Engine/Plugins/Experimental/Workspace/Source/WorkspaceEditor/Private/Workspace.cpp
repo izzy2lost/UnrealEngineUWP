@@ -9,6 +9,9 @@
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "Engine/ExternalAssetDependencyGatherer.h"
+
+REGISTER_ASSETDEPENDENCY_GATHERER(FExternalAssetDependencyGatherer, UWorkspace);
 
 const FName UWorkspace::ExportsAssetRegistryTag = TEXT("Exports");
 
@@ -246,6 +249,28 @@ void UWorkspace::BroadcastModified()
 	}
 }
 
+void UWorkspace::GetAssets(TArray<TObjectPtr<UObject>>& OutAssets) const
+{
+	for(const UWorkspaceAssetEntry* AssetEntry : AssetEntries)
+	{
+		if (AssetEntry)
+		{
+			if (UObject* Asset = AssetEntry->Asset.Get())
+			{
+				OutAssets.Add(Asset);
+			}
+		}	
+	}
+}
+
+void UWorkspace::GetAssetDataEntries(TArray<FAssetData>& OutAssetDataEntries) const
+{
+	FARFilter Filter;
+	Algo::Transform(AssetEntries, Filter.SoftObjectPaths, [](const UWorkspaceAssetEntry* AssetEntry) { return AssetEntry->Asset.ToSoftObjectPath(); });	
+	const IAssetRegistry& AssetRegistry = FAssetRegistryModule::GetRegistry();
+	AssetRegistry.GetAssets(Filter, OutAssetDataEntries);
+}
+
 void UWorkspace::ReportError(const TCHAR* InMessage) const
 {
 #if WITH_EDITOR
@@ -272,6 +297,25 @@ void UWorkspace::Serialize(FArchive& Ar)
 {
 	UObject::Serialize(Ar);
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
+	const bool bIsDuplicating = (Ar.GetPortFlags() & PPF_Duplicate) != 0;
+	if (bIsDuplicating)
+	{
+		Ar << AssetEntries;
+		Ar << State;
+	}
+}
+
+bool UWorkspace::Rename(const TCHAR* NewName, UObject* NewOuter, ERenameFlags Flags)
+{
+	FExternalPackageHelper::FRenameExternalObjectsHelperContext Context(this, Flags);
+	return Super::Rename(NewName, NewOuter, Flags);
+}
+
+void UWorkspace::PreDuplicate(FObjectDuplicationParameters& DupParams)
+{
+	UObject::PreDuplicate(DupParams);	
+	FExternalPackageHelper::DuplicateExternalPackages(this, DupParams);
 }
 
 void UWorkspace::PostLoad()

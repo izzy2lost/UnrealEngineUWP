@@ -49,6 +49,7 @@
 #include "Param/AnimNextParamInstanceIdentifier.h"
 #include "Param/IParameterSourceType.h"
 #include "Param/RigVMDispatch_GetScopedParameter.h"
+#include "AnimNextRigVMWorkspaceAssetUserData.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextUncookedOnlyUtils"
 
@@ -1596,6 +1597,49 @@ void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, TSet<FAnimNex
 					}
 				}
 			}
+		}
+	}
+}
+
+void FUtils::GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports)
+{
+	constexpr bool bExportParametersAsOutlinerItems = false;
+	if (bExportParametersAsOutlinerItems)
+	{
+		TSet<FName> ParameterNames;
+		
+		FAnimNextParameterProviderAssetRegistryExports GraphExports;
+		UE::AnimNext::UncookedOnly::FUtils::GetAssetParameters(EditorData, GraphExports);
+		for ( const FAnimNextParameterAssetRegistryExportEntry& Entry : GraphExports.Parameters)
+		{
+			if (!ParameterNames.Contains(Entry.Name))
+			{
+				FWorkspaceOutlinerItemExport& ParameterExport = OutExports.Exports.AddDefaulted_GetRef();	
+				ParameterExport.Identifier = Entry.Name;						
+				ParameterExport.ParentIdentifier = EditorData->GetOuter()->GetFName();
+				ParameterExport.AssetPath = EditorData->GetOuter();
+
+				ParameterExport.Data.InitializeAsScriptStruct(FAnimNextParameterOutlinerData::StaticStruct());
+				FAnimNextParameterOutlinerData& AssetData = ParameterExport.Data.GetMutable<FAnimNextParameterOutlinerData>();
+				AssetData.Type = Entry.Type;
+
+				ParameterNames.Add(Entry.Name);
+			}
+		}
+	}
+	
+	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
+	{
+		if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
+		{
+			FWorkspaceOutlinerItemExport& Export = OutExports.Exports.AddDefaulted_GetRef();
+			Export.Identifier = GraphInterface->GetEdGraph()->GetFName();
+			Export.ParentIdentifier = EditorData->GetOuter()->GetFName();					
+			Export.AssetPath = EditorData->GetOuter();
+
+			Export.Data.InitializeAsScriptStruct(FAnimNextGraphOutlinerData::StaticStruct());
+			FAnimNextGraphOutlinerData& GraphData = Export.Data.GetMutable<FAnimNextGraphOutlinerData>();
+			GraphData.GraphInterface = GraphInterface->_getUObject();
 		}
 	}
 }

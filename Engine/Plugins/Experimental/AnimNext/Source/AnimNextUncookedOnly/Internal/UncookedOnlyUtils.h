@@ -13,6 +13,8 @@
 
 struct FAnimNextEditorParam;
 struct FAnimNextParam;
+struct FEdGraphPinType;
+struct FWorkspaceOutlinerItemExports;
 class UAnimNextSchedule;
 class UAnimNextGraph;
 class UAnimNextGraph_EditorData;
@@ -20,7 +22,6 @@ class UAnimNextGraph_EdGraph;
 class URigVMController;
 class URigVMGraph;
 class UAnimNextGraph_EdGraph;
-struct FEdGraphPinType;
 class UAnimNextRigVMAsset;
 class UAnimNextRigVMAssetEditorData;
 class UAnimNextRigVMAssetEntry;
@@ -29,7 +30,7 @@ namespace UE
 {
 	namespace AnimNext
 	{
-		static const FName ExportsAnimNextAssetRegistryTag = TEXT("AnimNextExports");
+		static const FLazyName ExportsAnimNextAssetRegistryTag = TEXT("AnimNextExports");
 	}
 }
 
@@ -187,6 +188,9 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	// Gets the parameters that are exported to the asset registry by a blueprint
 	static void GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextParameterProviderAssetRegistryExports& OutExports);
 	static void GetBlueprintParameters(const UBlueprint* InBlueprint, TSet<FAnimNextParameterAssetRegistryExportEntry>& OutExports);
+
+	// Gets the asset-registry information needed for representing the contained data into the Workspace Outliner
+	static void GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports);
 
 	// Attempts to determine the type from a parameter name
 	// If the name cannot be found, the returned type will be invalid

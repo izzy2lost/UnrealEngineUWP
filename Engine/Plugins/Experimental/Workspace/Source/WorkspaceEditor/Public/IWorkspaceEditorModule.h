@@ -8,6 +8,7 @@
 #include "WorkspaceFactory.h"
 #include "Misc/Attribute.h"
 #include "Modules/ModuleInterface.h"
+#include "IWorkspaceOutlinerItemDetails.h"
 
 class SWidget;
 class UEdGraph;
@@ -47,6 +48,15 @@ struct FWorkspaceEditorContext
 	UObject* Object;
 };
 
+struct FWorkspaceBreadcrumb : TSharedFromThis<FWorkspaceBreadcrumb>
+{
+	using FOnGetBreadcrumbLabel = TDelegate<TAttribute<FText>()>;
+	using FOnBreadcrumbClicked = TDelegate<void()>;
+	
+	FOnGetBreadcrumbLabel OnGetLabel;
+	FOnBreadcrumbClicked OnClicked;
+};
+
 using FOnMakeDocumentWidget = TDelegate<TSharedRef<SWidget>(const FWorkspaceEditorContext&)>;
 
 using FOnGetTabIcon = TDelegate<const FSlateBrush*(const FWorkspaceEditorContext&)>;
@@ -56,6 +66,8 @@ using FOnGetTabName = TDelegate<TAttribute<FText>(const FWorkspaceEditorContext&
 using FOnGetDocumentState = TDelegate<TInstancedStruct<FWorkspaceDocumentState>(const FWorkspaceEditorContext&, TSharedRef<SWidget>)>;
 
 using FOnSetDocumentState = TDelegate<void(const FWorkspaceEditorContext&, TSharedRef<SWidget>, const TInstancedStruct<FWorkspaceDocumentState>&)>;
+
+using FOnGetDocumentBreadcrumbTrail = TDelegate<void(const FWorkspaceEditorContext&, TArray<TSharedPtr<FWorkspaceBreadcrumb>>&)>;
 
 // Arguments used to make document widgets for objects
 struct FObjectDocumentArgs
@@ -84,6 +96,9 @@ struct FObjectDocumentArgs
 
 	// Where to spawn the widget in the workspace layout - e.g. one of WorkspaceTabs
 	FName SpawnLocation = WorkspaceTabs::MiddleDocumentArea;
+
+	// Delegate called to get the bread crumb trail for this document tab
+	FOnGetDocumentBreadcrumbTrail OnGetDocumentBreadcrumbTrail;
 };
 
 
@@ -162,6 +177,9 @@ public:
 	// Event to allow registering details customizations
 	DECLARE_EVENT_OneParam(IWorkspaceEditorModule, FOnRegisterDetailCustomizations, TSharedPtr<IDetailsView>&);
 	virtual FOnRegisterDetailCustomizations& OnRegisterWorkspaceDetailsCustomization() = 0;
+
+	virtual void RegisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails> InDetails) = 0;
+	virtual void UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InDetailsId) = 0;
 };
 
 }

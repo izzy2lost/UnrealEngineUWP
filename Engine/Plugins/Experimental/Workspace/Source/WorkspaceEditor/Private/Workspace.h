@@ -20,6 +20,10 @@ namespace UE::Workspace
 	class FWorkspaceEditor;
 	class FWorkspaceEditorModule;
 	class SWorkspaceView;
+	class FWorkspaceOutlinerHierarchy;
+	class FWorkspaceOutlinerMode;
+
+	struct FWorkspaceOutliner;
 }
 
 namespace UE::Workspace
@@ -62,6 +66,10 @@ class UWorkspace : public UObject
 	friend class UE::Workspace::FWorkspaceEditor;
 	friend class UE::Workspace::FWorkspaceEditorModule;
 	friend class UE::Workspace::SWorkspaceView;
+	friend struct UE::Workspace::FWorkspaceOutliner;
+	friend class UE::Workspace::FWorkspaceOutlinerHierarchy;
+	friend class UE::Workspace::FWorkspaceOutlinerMode;
+	
 	friend class UWorkspaceFactory;
 	friend class UAssetDefinition_Workspace;
 	friend class UWorkspaceState;
@@ -104,6 +112,11 @@ class UWorkspace : public UObject
 
 	void BroadcastModified();
 
+	// Returns all contained Asset objects
+	void GetAssets(TArray<TObjectPtr<UObject>>& OutAssets) const;
+	// Returns all contained AssetData entries
+	void GetAssetDataEntries(TArray<FAssetData>& OutAssetDataEntries) const;
+
 	// UObject interface
 	virtual void PostLoad() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
@@ -111,6 +124,8 @@ class UWorkspace : public UObject
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 	virtual bool IsEditorOnly() const override { return true; }
 	virtual void Serialize(FArchive& Ar) override;
+	virtual bool Rename(const TCHAR* NewName = nullptr, UObject* NewOuter = nullptr, ERenameFlags Flags = REN_None) override;	
+	virtual void PreDuplicate(FObjectDuplicationParameters& DupParams) override;
 
 	void PostLoadExternalPackages();
 	

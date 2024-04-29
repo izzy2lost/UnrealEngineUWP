@@ -38,6 +38,8 @@
 #include "Param/ObjectFunctionLocatorEditor.h"
 #include "Param/ObjectPropertyLocatorEditor.h"
 #include "Param/SAddParametersDialog.h"
+#include "AnimNextRigVMWorkspaceAssetUserData.h"
+#include "Graph/AnimNextGraph_OutlinerItemDetails.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -182,6 +184,11 @@ class FModule : public IModule
 		UolEditorModule.RegisterLocatorEditor("AnimNextObjectCast", MakeShared<FObjectCastLocatorEditor>());
 
 		UolEditorModule.RegisterEditorContext("AnimNextContext", MakeShared<FAnimNextLocatorContext>());
+
+		Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+		const TSharedPtr<FAnimNextGraphItemDetails> GraphItemDetails = MakeShareable<FAnimNextGraphItemDetails>(new FAnimNextGraphItemDetails());
+		WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()), StaticCastSharedPtr<UE::Workspace::IWorkspaceOutlinerItemDetails>(GraphItemDetails));
+		FAnimNextGraphItemDetails::RegisterToolMenuExtensions();
 	}
 
 	virtual void ShutdownModule() override
@@ -216,6 +223,10 @@ class FModule : public IModule
 
 			UolEditorModule.UnregisterEditorContext("AnimNextContext");
 		}
+
+		Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+		WorkspaceModule.UnregisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()));
+		FAnimNextGraphItemDetails::UnregisterToolMenuExtensions();
 	}
 
 	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) override
@@ -227,23 +238,42 @@ class FModule : public IModule
 	void RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& WorkspaceEditorModule)
 	{
 		// --- AnimNextSchedule ---
-		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextSchedule")),
-			Workspace::FObjectDocumentArgs(
-				Workspace::FOnMakeDocumentWidget::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
-				{
-					UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
-					FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>( "PropertyEditor" );
-					FDetailsViewArgs DetailsViewArgs;
-					DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-					TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-					DetailsView->SetObject(Schedule);
-					return DetailsView;
-				}),
-				Workspace::WorkspaceTabs::MiddleDocumentArea));
+		Workspace::FObjectDocumentArgs ScheduleDocumentArgs(
+			Workspace::FOnMakeDocumentWidget::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+			{
+				UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
+				FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>( "PropertyEditor" );
+				FDetailsViewArgs DetailsViewArgs;
+				DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+				TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+				DetailsView->SetObject(Schedule);
+				return DetailsView;
+			}
+		), Workspace::WorkspaceTabs::MiddleDocumentArea);
+		ScheduleDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+		{
+			const UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
+			return FText::FromName(Schedule->GetFName());
+		});
+
+		ScheduleDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
+		{
+			if (const UAnimNextSchedule* Schedule = Cast<UAnimNextSchedule>(InContext.Object))
+			{
+				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([ScheduleName = Schedule->GetFName()]{ return FText::FromName(ScheduleName); });
+			}
+		});
+
+		ScheduleDocumentArgs.OnGetTabIcon = Workspace::FOnGetTabIcon::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+		{
+			return FAppStyle::GetBrush(TEXT("ClassIcon.Default"));
+		});
+
+		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextSchedule")), ScheduleDocumentArgs);
 
 		// --- AnimNextGraph ---
-		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextGraph")),
-			Workspace::FObjectDocumentArgs(
+		Workspace::FObjectDocumentArgs AnimNextGraphDocumentArgs(
 				Workspace::FOnMakeDocumentWidget::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
 				{
 					UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InContext.Object);
@@ -308,7 +338,28 @@ class FModule : public IModule
 							}
 						});
 				}),
-				Workspace::WorkspaceTabs::LeftDocumentArea));
+				Workspace::WorkspaceTabs::MiddleDocumentArea);
+		AnimNextGraphDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+		{
+			const UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InContext.Object);
+			return FText::FromName(Graph->GetFName());
+		});
+
+		AnimNextGraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
+		{
+			if (const UAnimNextGraph* Graph = Cast<UAnimNextGraph>(InContext.Object))
+			{
+				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = Graph->GetFName()]{ return FText::FromName(GraphName); });
+			}
+		});
+
+		AnimNextGraphDocumentArgs.OnGetTabIcon = Workspace::FOnGetTabIcon::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+		{
+			return FAppStyle::GetBrush(TEXT("ClassIcon.Default"));
+		});
+
+		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextGraph")), AnimNextGraphDocumentArgs);
 
 		// --- AnimNextGraph_EdGraph ---
 		Workspace::FGraphDocumentWidgetArgs GraphArgs;
@@ -618,7 +669,40 @@ class FModule : public IModule
 			InContext.WorkspaceEditor->SetDetailsObjects(NewSelection.Array());
 		});
 
-		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNextUncookedOnly.AnimNextGraph_EdGraph")), WorkspaceEditorModule.CreateGraphDocumentArgs(GraphArgs));
+		Workspace::FObjectDocumentArgs GraphDocumentArgs = WorkspaceEditorModule.CreateGraphDocumentArgs(GraphArgs);
+		GraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
+		{
+			if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object))
+			{
+				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = RigVMEdGraph->GetFName()]{ return FText::FromName(GraphName); });
+
+				if (const UAnimNextRigVMAssetEntry* OuterAssetEntry = CastChecked<UAnimNextRigVMAssetEntry>(RigVMEdGraph->GetOuter()))
+				{
+					if (UAnimNextGraph_EditorData* OuterEditorData = CastChecked<UAnimNextGraph_EditorData>(OuterAssetEntry->GetOuter()))
+					{
+						if(UAnimNextGraph* OuterGraph = UncookedOnly::FUtils::GetGraph(OuterEditorData))
+						{
+							const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& OuterGraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+							TWeakObjectPtr<UAnimNextGraph> WeakOuterGraph = OuterGraph;
+							TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
+							OuterGraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = OuterGraph->GetFName()]{ return FText::FromName(GraphName); });
+							OuterGraphCrumb->OnClicked = Workspace::FWorkspaceBreadcrumb::FOnBreadcrumbClicked::CreateLambda(
+								[WeakOuterGraph, WeakWorkspaceEditor]
+								{
+									if (const TSharedPtr<Workspace::IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
+									{
+										SharedWorkspaceEditor->OpenObjects({WeakOuterGraph.Get()});
+									}
+								}
+							);
+						}
+					}
+				}
+			}
+		});
+
+		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNextUncookedOnly.AnimNextGraph_EdGraph")), GraphDocumentArgs);
 	}
 
 	void UnregisterWorkspaceDocumentTypes()

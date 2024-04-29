@@ -10,6 +10,7 @@
 #include "Workspace.h"
 #include "WorkspaceAssetEditor.h"
 #include "WorkspaceEditor.h"
+#include "WorkspaceEditorCommands.h"
 #include "WorkspaceFactory.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "EdGraph/EdGraph.h"
@@ -21,6 +22,8 @@
 
 namespace UE::Workspace
 {
+
+TMap<FOutlinerItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails>> FWorkspaceEditorModule::OutlinerItemDetails;
 
 void FWorkspaceEditorModule::RegisterObjectDocumentType(const FTopLevelAssetPath& InClassPath, const FObjectDocumentArgs& InParams)
 {
@@ -64,7 +67,11 @@ FObjectDocumentArgs FWorkspaceEditorModule::CreateGraphDocumentArgs(const FGraph
 			.OnCanPasteNodes(InArgs.OnCanPasteNodes)
 			.OnPasteNodes(InArgs.OnPasteNodes)
 			.OnCanDuplicateSelectedNodes(InArgs.OnCanDuplicateSelectedNodes)
-			.OnDuplicateSelectedNodes(InArgs.OnDuplicateSelectedNodes);
+			.OnDuplicateSelectedNodes(InArgs.OnDuplicateSelectedNodes)
+			.OnNavigateHistoryForward_Lambda([WorkspaceEditor=StaticCastSharedRef<FWorkspaceEditor>(InContext.WorkspaceEditor)](){ WorkspaceEditor->NavigateForward(); })
+			.OnNavigateHistoryBack_Lambda([WorkspaceEditor=StaticCastSharedRef<FWorkspaceEditor>(InContext.WorkspaceEditor)](){ WorkspaceEditor->NavigateBack(); })
+		
+		;
 	});
 	Args.OnGetTabIcon = FOnGetTabIcon::CreateLambda([](const FWorkspaceEditorContext& InContext)
 	{
@@ -92,18 +99,24 @@ FObjectDocumentArgs FWorkspaceEditorModule::CreateGraphDocumentArgs(const FGraph
 	});
 	Args.OnGetDocumentState = FOnGetDocumentState::CreateLambda([](const FWorkspaceEditorContext& InContext, TSharedRef<SWidget> InWidget)
 	{
-		TSharedRef<SGraphDocument> GraphDocument = StaticCastSharedRef<SGraphDocument>(InWidget);
-		FVector2D ViewLocation;
-		float ZoomAmount;
-		GraphDocument->GraphEditor->GetViewLocation(ViewLocation, ZoomAmount);
+		FVector2D ViewLocation = FVector2d::ZeroVector;
+		float ZoomAmount = 0.f;
+		
+		if(const TSharedPtr<SGraphDocument> GraphDocument = StaticCastSharedRef<SGraphDocument>(InWidget))
+		{
+			GraphDocument->GraphEditor->GetViewLocation(ViewLocation, ZoomAmount);
+		}
+	
 		return TInstancedStruct<FGraphDocumentState>::Make(InContext.Object, ViewLocation, ZoomAmount);
 	});
 	Args.OnSetDocumentState = FOnSetDocumentState::CreateLambda([](const FWorkspaceEditorContext& InContext, TSharedRef<SWidget> InWidget, const TInstancedStruct<FWorkspaceDocumentState>& InDocumentState)
 	{
 		if(const FGraphDocumentState* GraphDocumentState = InDocumentState.GetPtr<FGraphDocumentState>())
 		{
-			TSharedRef<SGraphDocument> GraphDocument = StaticCastSharedRef<SGraphDocument>(InWidget);
-			GraphDocument->GraphEditor->SetViewLocation(GraphDocumentState->ViewLocation, GraphDocumentState->ZoomAmount);
+			if (const TSharedPtr<SGraphDocument> GraphDocument = StaticCastSharedRef<SGraphDocument>(InWidget))
+			{
+				GraphDocument->GraphEditor->SetViewLocation(GraphDocumentState->ViewLocation, GraphDocumentState->ZoomAmount);
+			}
 		}
 	});
 
@@ -149,7 +162,7 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 		}
 	}
 
-	UWorkspaceAssetEditor* WorkspaceEditor = nullptr;
+	IWorkspaceEditor* WorkspaceEditor = nullptr;
 
 	auto HandleNewWorkspace = [InObject, &WorkspaceEditor, WorkSpaceFactoryClass]()
 	{
@@ -166,8 +179,8 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 			UWorkspaceAssetEditor* AssetEditor = NewObject<UWorkspaceAssetEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
 			AssetEditor->SetObjectToEdit(NewWorkspace);
 			AssetEditor->Initialize();
-
-			WorkspaceEditor = AssetEditor;
+			
+			WorkspaceEditor = static_cast<IWorkspaceEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(NewWorkspace, true));
 		}
 	};
 
@@ -177,7 +190,7 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 		{
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ExistingWorkspace);
 
-			WorkspaceEditor = static_cast<UWorkspaceAssetEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(ExistingWorkspace, true));
+			WorkspaceEditor = static_cast<IWorkspaceEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(ExistingWorkspace, true));
 		}
 	};
 
@@ -200,6 +213,11 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 			.OnNewAsset_Lambda(HandleNewWorkspace);
 
 		WorkspacePicker->ShowModal();
+	}
+
+	if(WorkspaceEditor)
+	{
+		WorkspaceEditor->OpenAssets({InObject});
 	}
 }
 
@@ -226,6 +244,24 @@ void FWorkspaceEditorModule::ApplyWorkspaceDetailsCustomization(TSharedPtr<IDeta
 	}
 }
 
+void FWorkspaceEditorModule::RegisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails> InItemDetails)
+{
+	if (!OutlinerItemDetails.Contains(InItemDetailsId))
+	{
+		OutlinerItemDetails.Add(InItemDetailsId, InItemDetails);
+	}
+}
+
+void FWorkspaceEditorModule::UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetailsId)
+{
+	OutlinerItemDetails.Remove(InItemDetailsId);
+}
+
+TSharedPtr<IWorkspaceOutlinerItemDetails> FWorkspaceEditorModule::GetOutlinerItemDetails(const FOutlinerItemDetailsId& InItemDetailsId)
+{
+	TSharedPtr<IWorkspaceOutlinerItemDetails>* FoundDetails = OutlinerItemDetails.Find(InItemDetailsId);
+	return FoundDetails ? *FoundDetails : nullptr;
+}
 }
 
 IMPLEMENT_MODULE(UE::Workspace::FWorkspaceEditorModule, WorkspaceEditor);

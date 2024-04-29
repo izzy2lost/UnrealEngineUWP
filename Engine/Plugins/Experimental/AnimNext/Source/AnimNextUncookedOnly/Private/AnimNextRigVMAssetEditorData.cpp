@@ -5,6 +5,7 @@
 #include "AnimNextRigVMAsset.h"
 #include "AnimNextRigVMAssetEntry.h"
 #include "AnimNextRigVMAssetSchema.h"
+#include "AnimNextRigVMWorkspaceAssetUserData.h"
 #include "ControlRigDefines.h"
 #include "ExternalPackageHelper.h"
 #include "IAnimNextRigVMGraphInterface.h"
@@ -69,6 +70,12 @@ void UAnimNextRigVMAssetEditorData::Serialize(FArchive& Ar)
 	RigVMClient.SetDefaultSchemaClass(UAnimNextRigVMAssetSchema::StaticClass());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextRigVMAssetEditorData, RigVMClient));
 
+	const bool bIsDuplicating = (Ar.GetPortFlags() & PPF_Duplicate) != 0;
+	if (bIsDuplicating)
+	{
+		Ar << Entries;
+	}
+
 	Super::Serialize(Ar);
 }
 
@@ -123,6 +130,14 @@ void UAnimNextRigVMAssetEditorData::PostLoad()
 
 	// delay compilation until the package has been loaded
 	FCoreUObjectDelegates::OnEndLoadPackage.AddUObject(this, &UAnimNextRigVMAssetEditorData::HandlePackageDone);
+	
+	if (IInterface_AssetUserData* OuterUserData = Cast<IInterface_AssetUserData>(GetOuter()))
+	{
+		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass()))
+		{
+			OuterUserData->AddAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass());
+		}
+	}
 }
 
 void UAnimNextRigVMAssetEditorData::PostLoadExternalPackages()
@@ -164,6 +179,18 @@ void UAnimNextRigVMAssetEditorData::GetAssetRegistryTags(FAssetRegistryTagsConte
 	FString TagValue;
 	FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &CachedExports.GetValue(), nullptr, nullptr, PPF_None, nullptr);
 	Context.AddTag(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
+}
+
+bool UAnimNextRigVMAssetEditorData::Rename(const TCHAR* NewName, UObject* NewOuter, ERenameFlags Flags)
+{
+	FExternalPackageHelper::FRenameExternalObjectsHelperContext Context(this, Flags);
+	return Super::Rename(NewName, NewOuter, Flags);
+}
+
+void UAnimNextRigVMAssetEditorData::PreDuplicate(FObjectDuplicationParameters& DupParams)
+{
+	UObject::PreDuplicate(DupParams);
+	FExternalPackageHelper::DuplicateExternalPackages(this, DupParams);
 }
 
 void UAnimNextRigVMAssetEditorData::HandlePackageDone(const FEndLoadPackageContext& Context)

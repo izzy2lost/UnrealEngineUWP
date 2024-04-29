@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextUncookedOnlyModule.h"
+
+#include "AnimNextRigVMWorkspaceAssetUserData.h"
 #include "UncookedOnlyUtils.h"
 #include "Engine/Blueprint.h"
 #include "Modules/ModuleManager.h"
@@ -25,11 +27,30 @@ void FModule::StartupModule()
 	UAnimNextSchedule::GetAssetRegistryTagsFunction = [](const UAnimNextSchedule* InSchedule, FAssetRegistryTagsContext Context)
 	{
 		FAnimNextParameterProviderAssetRegistryExports Exports;
-		FUtils::GetScheduleParameters(InSchedule, Exports);
-		
-		FString TagValue;
-		FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &Exports, nullptr, nullptr, PPF_None, nullptr);
-		Context.AddTag(UObject::FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, UObject::FAssetRegistryTag::TT_Hidden));
+        {
+		    FUtils::GetScheduleParameters(InSchedule, Exports);
+		    
+		    FString TagValue;
+		    FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &Exports, nullptr, nullptr, PPF_None, nullptr);
+		    Context.AddTag(UObject::FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, UObject::FAssetRegistryTag::TT_Hidden));
+        }
+
+		FWorkspaceOutlinerItemExports OutlinerExports;
+		{
+			FWorkspaceOutlinerItemExport& RootAssetExport = OutlinerExports.Exports.AddDefaulted_GetRef();
+			RootAssetExport.Identifier = InSchedule->GetFName();
+			RootAssetExport.ParentIdentifier = NAME_None;
+			RootAssetExport.AssetPath = InSchedule;
+
+			RootAssetExport.Data.InitializeAsScriptStruct(FAnimNextSchedulerData::StaticStruct());
+			FAnimNextSchedulerData& AssetData = RootAssetExport.Data.GetMutable<FAnimNextSchedulerData>();
+
+			{
+				FString TagValue;
+				FWorkspaceOutlinerItemExports::StaticStruct()->ExportText(TagValue, &OutlinerExports, nullptr, nullptr, PPF_None, nullptr);
+				Context.AddTag(UObject::FAssetRegistryTag(UE::Workspace::ExportsWorkspaceItemsRegistryTag, TagValue, UObject::FAssetRegistryTag::TT_Hidden));
+			}
+		}
 	};
 	
 	// Ensure that any BP components that we care about contribute to the parameter pool

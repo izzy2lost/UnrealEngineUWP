@@ -10,15 +10,17 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "WorkspaceDocumentState.h"
+#include "SWorkspaceTabWrapper.h"
 
 #define LOCTEXT_NAMESPACE "AssetDocumentSummoner"
 
 namespace UE::Workspace
 {
 
-FAssetDocumentSummoner::FAssetDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp)
+FAssetDocumentSummoner::FAssetDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp, bool bInAllowUnsupportedClasses /*= false*/)
 	: FDocumentTabFactoryForObjects<UObject>(InIdentifier, InHostingApp)
 	, HostingAppPtr(InHostingApp)
+	, bAllowUnsupportedClasses(bInAllowUnsupportedClasses)
 {
 }
 
@@ -46,11 +48,12 @@ void FAssetDocumentSummoner::SaveState(TSharedPtr<SDockTab> Tab, TSharedPtr<FTab
 		UObject* Object = Payload->IsValid() ? FTabPayload_UObject::CastChecked<UObject>(Payload) : nullptr;
 		if(Object)
 		{
+			TSharedRef<SWorkspaceTabWrapper> TabWrapper = StaticCastSharedRef<SWorkspaceTabWrapper>(Tab->GetContent());			
 			FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
 			const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(Object->GetClass()->GetClassPathName());
 			if(DocumentArgs && DocumentArgs->OnGetDocumentState.IsBound())
 			{
-				WorkspaceEditor->RecordDocumentState(DocumentArgs->OnGetDocumentState.Execute(FWorkspaceEditorContext(WorkspaceEditor.ToSharedRef(), Object), Tab->GetContent()));
+				WorkspaceEditor->RecordDocumentState(DocumentArgs->OnGetDocumentState.Execute(FWorkspaceEditorContext(WorkspaceEditor.ToSharedRef(), Object), TabWrapper->GetContent()));
 			}
 			else
 			{
@@ -96,7 +99,7 @@ bool FAssetDocumentSummoner::IsPayloadSupported(TSharedRef<FTabPayload> Payload)
 		FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
 		if(const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(Object->GetClass()->GetClassPathName()))
 		{
-			return AllowedClassPaths.IsEmpty() || AllowedClassPaths.Contains(Object->GetClass()->GetClassPathName());
+			return AllowedClassPaths.Contains(Object->GetClass()->GetClassPathName()) || bAllowUnsupportedClasses;
 		}
 	}
 
@@ -127,19 +130,24 @@ TAttribute<FText> FAssetDocumentSummoner::ConstructTabLabelSuffix(const FWorkflo
 
 TSharedRef<SWidget> FAssetDocumentSummoner::CreateTabBodyForObject(const FWorkflowTabSpawnInfo& Info, UObject* DocumentID) const
 {
-	if(TSharedPtr<FWorkspaceEditor> WorkspaceEditor = HostingAppPtr.Pin())
+	TSharedPtr<SWidget> TabContent = SNullWidget::NullWidget;
+
+	const TSharedPtr<FWorkspaceEditor> WorkspaceEditor = HostingAppPtr.Pin();
+	check(WorkspaceEditor.IsValid());
+	
+	const FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
+	if(const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(DocumentID->GetClass()->GetClassPathName()))
 	{
-		FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
-		if(const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(DocumentID->GetClass()->GetClassPathName()))
+		if(DocumentArgs->OnMakeDocumentWidget.IsBound())
 		{
-			if(DocumentArgs->OnMakeDocumentWidget.IsBound())
-			{
-				return DocumentArgs->OnMakeDocumentWidget.Execute(FWorkspaceEditorContext(WorkspaceEditor.ToSharedRef(), DocumentID));
-			}
+			TabContent = DocumentArgs->OnMakeDocumentWidget.Execute(FWorkspaceEditorContext(WorkspaceEditor.ToSharedRef(), DocumentID));
 		}
 	}
 
-	return SNew(SSpacer);
+	return SNew(SWorkspaceTabWrapper, Info.TabInfo, WorkspaceEditor, DocumentID)
+	[
+		TabContent.ToSharedRef()
+	];
 }
 
 const FSlateBrush* FAssetDocumentSummoner::GetTabIconForObject(const FWorkflowTabSpawnInfo& Info, UObject* DocumentID) const
