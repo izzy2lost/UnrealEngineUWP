@@ -1775,7 +1775,6 @@ void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Inf
 	}
 }
 
-#if RHI_RAYTRACING
 void FRHIComputeCommandList::BuildAccelerationStructure(FRHIRayTracingGeometry* Geometry)
 {
 	FRayTracingGeometryBuildParams Params;
@@ -1805,7 +1804,6 @@ void FRHIComputeCommandList::BuildAccelerationStructures(const TArrayView<const 
 
 	BuildAccelerationStructures(Params, ScratchBufferRange);
 }
-#endif
 
 static FLockTracker GLockTracker;
 

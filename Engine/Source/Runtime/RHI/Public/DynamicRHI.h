@@ -941,8 +941,6 @@ public:
 
 	virtual uint16 RHIGetPlatformTextureMaxSampleCount() { return 8; };
 
-#if RHI_RAYTRACING
-
 	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
 	{
 		checkNoEntry();
@@ -978,7 +976,6 @@ public:
 		checkNoEntry();
 		return nullptr;
 	}
-#endif // RHI_RAYTRACING
 
 	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
 	{
@@ -1138,12 +1135,10 @@ FORCEINLINE FRenderQueryRHIRef RHICreateRenderQuery(ERenderQueryType QueryType)
 	return GDynamicRHI->RHICreateRenderQuery(QueryType);
 }
 
-#if RHI_RAYTRACING
 FORCEINLINE TRefCountPtr<FRHIRayTracingPipelineState> RHICreateRayTracingPipelineState(const FRayTracingPipelineStateInitializer& Initializer)
 {
 	return GDynamicRHI->RHICreateRayTracingPipelineState(Initializer);
 }
-#endif //RHI_RAYTRACING
 
 FORCEINLINE FUniformBufferLayoutRHIRef RHICreateUniformBufferLayout(const FRHIUniformBufferLayoutInitializer& Initializer)
 {
@@ -1449,8 +1444,6 @@ FORCEINLINE bool RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateIni
 	return GDynamicRHI->RHIMatchPrecachePSOInitializers(LHS, RHS);
 }
 
-#if RHI_RAYTRACING
-
 FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
 {
 	return GDynamicRHI->RHICalcRayTracingSceneSize(MaxInstances, Flags);
@@ -1472,8 +1465,6 @@ FORCEINLINE FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const u
 {
 	return GDynamicRHI->RHICreateRayTracingShader(Code, Hash, ShaderFrequency);
 }
-
-#endif // RHI_RAYTRACING
 
 FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
 {

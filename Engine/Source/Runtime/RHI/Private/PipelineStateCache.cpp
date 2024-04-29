@@ -777,7 +777,6 @@ FRHIWorkGraphPipelineState* GetRHIWorkGraphPipelineState(FWorkGraphPipelineState
 	return PipelineState->RHIPipeline;
 }
 
-#if RHI_RAYTRACING
 /* State for ray tracing */
 class FRayTracingPipelineState : public FPipelineState
 {
@@ -866,8 +865,6 @@ FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineSt
 	PipelineState->CompletionEvent = nullptr;
 	return PipelineState->RHIPipeline;
 }
-
-#endif // RHI_RAYTRACING
 
 int32 FindRayTracingHitGroupIndex(FRayTracingPipelineState* Pipeline, FRHIRayTracingShader* HitGroupShader, bool bRequired)
 {

@@ -475,8 +475,6 @@ void FRHICommandCopyBufferRegion::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(RHICopyBufferRegion)(DestBuffer, DstOffset, SourceBuffer, SrcOffset, NumBytes);
 }
 
-#if RHI_RAYTRACING
-
 void FRHICommandBindAccelerationStructureMemory::Execute(FRHICommandListBase& CmdList)
 {
 	INTERNAL_DECORATOR_COMPUTE(RHIBindAccelerationStructureMemory)(Scene, Buffer, BufferOffset);
@@ -525,8 +523,6 @@ void FRHICommandSetRayTracingBindings::Execute(FRHICommandListBase& CmdList)
 	RHISTAT(SetRayTracingHitGroup);
 	INTERNAL_DECORATOR(RHISetRayTracingBindings)(Scene, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
 }
-
-#endif // RHI_RAYTRACING
 
 void FRHICommandBeginScene::Execute(FRHICommandListBase& CmdList)
 {

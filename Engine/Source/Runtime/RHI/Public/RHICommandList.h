@@ -237,7 +237,6 @@ private:
 	FUpdateTexture3DData();
 };
 
-#if RHI_RAYTRACING
 struct FRayTracingShaderBindings
 {
 	FRHITexture* Textures[64] = {};
@@ -266,7 +265,6 @@ enum class ERayTracingBindingType : uint8
 	CallableShader,
 	MissShader,
 };
-#endif // RHI_RAYTRACING
 
 struct FLockTracker
 {
@@ -995,7 +993,6 @@ public:
 		return GDynamicRHI->RHICreateResourceCollection(*this, InMembers);
 	}
 
-#if RHI_RAYTRACING
 	FORCEINLINE FRayTracingGeometryRHIRef CreateRayTracingGeometry(const FRayTracingGeometryInitializer& Initializer)
 	{
 		return GDynamicRHI->RHICreateRayTracingGeometry(*this, Initializer);
@@ -1006,7 +1003,6 @@ public:
 	{
 		return GDynamicRHI->RHICalcRayTracingGeometrySize(Initializer);
 	}
-#endif
 
 	FORCEINLINE void ReplaceResources(TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
 	{
@@ -2271,8 +2267,6 @@ FRHICOMMAND_MACRO(FRHICommandCopyBufferRegion)
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
-#if RHI_RAYTRACING
-
 FRHICOMMAND_UNNAMED(FRHICommandBindAccelerationStructureMemory)
 {
 	FRHIRayTracingScene* Scene;
@@ -2393,7 +2387,6 @@ FRHICOMMAND_MACRO(FRHICommandSetRayTracingBindings)
 
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
-#endif // RHI_RAYTRACING
 
 template<> RHI_API void FRHICommandSetShaderParameters           <FRHIComputeShader>::Execute(FRHICommandListBase& CmdList);
 template<> RHI_API void FRHICommandSetShaderUnbinds              <FRHIComputeShader>::Execute(FRHICommandListBase& CmdList);
@@ -3088,7 +3081,6 @@ public:
 #endif // WITH_MGPU
 	}
 
-#if RHI_RAYTRACING
 	RHI_API void BuildAccelerationStructure(FRHIRayTracingGeometry* Geometry);
 	RHI_API void BuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params);
 
@@ -3143,7 +3135,6 @@ public:
 			RHIThreadFence(true);
 		}
 	}
-#endif
 
 	FORCEINLINE_DEBUGGABLE void PostExternalCommandsReset()
 	{
@@ -3703,7 +3694,6 @@ public:
 	UE_DEPRECATED(5.5, "GenerateMips on RHI command lists is deprecated and no longer functions. Use the FGenerateMips helper class from the RenderCore module to generate mips on textures.")
 	RHI_API void GenerateMips(FRHITexture*);
 
-#if RHI_RAYTRACING
 	// Ray tracing API
 	
 	FORCEINLINE_DEBUGGABLE void CommitRayTracingBindings(FRHIRayTracingScene* Scene)
@@ -3926,8 +3916,6 @@ public:
 
 		SetRayTracingBindings(Scene, Pipeline, 1, InlineBindings, ERayTracingBindingType::MissShader, /*bCopyDataToInlineStorage*/ false);
 	}
-
-#endif // RHI_RAYTRACING
 };
 
 namespace EImmediateFlushType
@@ -5030,7 +5018,6 @@ FORCEINLINE void RHIUnlockStagingBuffer(FRHIStagingBuffer* StagingBuffer)
 	 FRHICommandListExecutor::GetImmediateCommandList().UnlockStagingBuffer(StagingBuffer);
 }
 
-#if RHI_RAYTRACING
 FORCEINLINE FRayTracingGeometryRHIRef RHICreateRayTracingGeometry(const FRayTracingGeometryInitializer& Initializer)
 {
 	return FRHICommandListExecutor::GetImmediateCommandList().CreateRayTracingGeometry(Initializer);
@@ -5040,7 +5027,6 @@ FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(c
 {
 	return GDynamicRHI->RHICalcRayTracingGeometrySize(Initializer);
 }
-#endif
 
 FORCEINLINE void RHIBindDebugLabelName(FRHITexture* Texture, const TCHAR* Name)
 {
