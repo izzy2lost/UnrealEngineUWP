@@ -9,6 +9,7 @@
 class AActor;
 class IAdvancedRenamer;
 class IAdvancedRenamerProvider;
+class IAdvancedRenamerSection;
 class IToolkitHost;
 class SWidget;
 
@@ -42,6 +43,8 @@ public:
 	virtual void OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamer>& InRenamer, const TSharedPtr<IToolkitHost>& InToolkitHost) = 0;
 
 	virtual void OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamer>& InRenamer, const TSharedPtr<SWidget>& InParentWidget) = 0;
+
+	virtual TArray<TSharedPtr<IAdvancedRenamerSection>> GetRegisteredSections() const = 0;
 
 	virtual TArray<AActor*> GetActorsSharingClassesInWorld(const TArray<AActor*>& InActors) = 0;
 };

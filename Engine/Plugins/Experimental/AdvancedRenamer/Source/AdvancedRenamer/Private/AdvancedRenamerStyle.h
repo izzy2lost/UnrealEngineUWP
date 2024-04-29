@@ -22,7 +22,7 @@ public:
 
 private:
 
-	static TSharedRef<FSlateStyleSet> Create();
+	static void InitStyle();
 	static TSharedPtr<FSlateStyleSet> StyleInstance;
 
 };

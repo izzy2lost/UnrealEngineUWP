@@ -29,8 +29,8 @@ namespace UE::AdvancedRenamer::Private
 	void ExtendAssetMenu(FMenuBuilder& MenuBuilder, const TArray<FAssetData> AssetArray)
 	{
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("AdvancedRename", "Advanced Rename"),
-			LOCTEXT("AdvancedRenameTooltip", "Opens the Advanced Renamer Panel to rename all selected assets."),
+			LOCTEXT("AdvancedRename", "Batch Rename"),
+			LOCTEXT("AdvancedRenameTooltip", "Opens the Batch Renamer Panel to rename all selected assets."),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.AssetActions.Rename"),
 			FUIAction(FExecuteAction::CreateStatic(&OpenAdvancedRenamer, AssetArray))
 		);

@@ -2,8 +2,8 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "1.0",
-	"FriendlyName": "Advanced Renamer",
-	"Description": "Advanced Renaming tool for actors and assets",
+	"FriendlyName": "Batch Renamer",
+	"Description": "Batch Renaming tool for actors and assets",
 	"Category": "Experimental",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
@@ -13,6 +13,7 @@
 	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
+	"EnabledByDefault": true,
 	"Installed": false,
 	"Modules": [
 		{
