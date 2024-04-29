@@ -153,7 +153,7 @@ void AGeoReferencingSystem::Initialize()
 {
 	if (GetWorld() && GetWorld()->GetWorldSettings()->bEnableWorldBoundsChecks)
 	{
-		UE_LOG(LogGeoReferencing, Warning, TEXT("Enable World Bounds Checks is enabled in your World Settings. You might consider disabling it when working with large terrains, otherwise your pawns won't be able to go too far from the Origin"));
+		UE_LOG(LogGeoReferencing, Display, TEXT("Enable World Bounds Checks is enabled in your World Settings. You might consider disabling it when working with large terrains, otherwise your pawns won't be able to go too far from the Origin"));
 	}
 
 
