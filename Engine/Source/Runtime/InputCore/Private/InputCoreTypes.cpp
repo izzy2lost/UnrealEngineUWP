@@ -9,6 +9,9 @@
 
 DEFINE_LOG_CATEGORY(LogInput);
 
+LLM_DEFINE_TAG(InputCore_EKeys);
+LLM_DEFINE_TAG(InputCore_KeyManager);
+
 #define LOCTEXT_NAMESPACE "InputKeys"
 
 const TCHAR* FKey::SyntheticCharPrefix = TEXT("UnknownCharCode_");
@@ -529,6 +532,9 @@ UE_DISABLE_OPTIMIZATION_SHIP
 void EKeys::Initialize()
 {
 	if (bInitialized) return;
+
+	LLM_SCOPE_BYTAG(InputCore_EKeys);
+	
 	bInitialized = true;
 
 	AddMenuCategoryDisplayInfo(NAME_GamepadCategory, LOCTEXT("GamepadSubCategory", "Gamepad"), TEXT("GraphEditor.PadEvent_16x"));
@@ -992,6 +998,8 @@ UE_ENABLE_OPTIMIZATION_SHIP
 
 void EKeys::AddKey(const FKeyDetails& KeyDetails)
 {
+	LLM_SCOPE_BYTAG(InputCore_EKeys);
+	
 	const FKey& Key = KeyDetails.GetKey();
 	ensureMsgf(!InputKeys.Contains(Key), TEXT("Adding duplicate key '%s'"), *Key.ToString());
 	Key.KeyDetails = MakeShareable(new FKeyDetails(KeyDetails));
@@ -1054,6 +1062,8 @@ TSharedPtr<FKeyDetails> EKeys::GetKeyDetails(const FKey Key)
 
 void EKeys::AddMenuCategoryDisplayInfo(const FName CategoryName, const FText DisplayName, const FName PaletteIcon)
 {
+	LLM_SCOPE_BYTAG(InputCore_EKeys);
+	
 	if (MenuCategoryDisplayInfo.Contains(CategoryName))
 	{
 		UE_LOG(LogInput, Warning, TEXT("Category %s already has menu display info that is being replaced."), *CategoryName.ToString());
@@ -1507,6 +1517,8 @@ TSharedPtr<FInputKeyManager> FInputKeyManager::Instance;
  */
 FInputKeyManager& FInputKeyManager::Get()
 {
+	LLM_SCOPE_BYTAG(InputCore_KeyManager);
+	
 	if( !Instance.IsValid() )
 	{
 		Instance = MakeShareable( new FInputKeyManager() );
@@ -1516,6 +1528,8 @@ FInputKeyManager& FInputKeyManager::Get()
 
 void FInputKeyManager::InitKeyMappings()
 {
+	LLM_SCOPE_BYTAG(InputCore_KeyManager);
+	
 	static const uint32 MAX_KEY_MAPPINGS(256);
 	uint32 KeyCodes[MAX_KEY_MAPPINGS], CharCodes[MAX_KEY_MAPPINGS];
 	FString KeyNames[MAX_KEY_MAPPINGS], CharKeyNames[MAX_KEY_MAPPINGS];

@@ -59,12 +59,9 @@ class FEnhancedInputDeveloperSettingsCustomization : public IDetailCustomization
 {
 public:
 	//~ IDetailCustomization interface
-	static TSharedRef<IDetailCustomization> MakeInstance()
-	{
-		return MakeShareable(new FEnhancedInputDeveloperSettingsCustomization());
-	}
+	static TSharedRef<IDetailCustomization> MakeInstance();
 
-	virtual ~FEnhancedInputDeveloperSettingsCustomization();
+	virtual ~FEnhancedInputDeveloperSettingsCustomization() override;
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	virtual void CustomizeDetails(const TSharedPtr<IDetailLayoutBuilder>& DetailBuilder) override;
 	//~ End IDetailCustomization interface

@@ -255,6 +255,12 @@ bool FEnhancedActionMappingCustomization::DoesTriggerArrayContainCombo() const
 
 TSet<FName> FEnhancedInputDeveloperSettingsCustomization::ExcludedAssetNames;
 
+TSharedRef<IDetailCustomization> FEnhancedInputDeveloperSettingsCustomization::MakeInstance()
+{
+	LLM_SCOPE_BYNAME(TEXT("EnhancedInput/Editor"));
+	return MakeShareable(new FEnhancedInputDeveloperSettingsCustomization());
+}
+
 FEnhancedInputDeveloperSettingsCustomization::~FEnhancedInputDeveloperSettingsCustomization()
 {
 	// Unregister settings panel listeners
@@ -466,6 +472,8 @@ bool FEnhancedInputDeveloperSettingsCustomization::DoesClassHaveSubtypes(UClass*
 
 void FEnhancedInputDeveloperSettingsCustomization::RebuildDetailsViewForAsset(const FAssetData& AssetData, const bool bIsAssetBeingRemoved)
 {
+	LLM_SCOPE_BYNAME(TEXT("EnhancedInput/Editor"));
+	
 	// If the asset was a blueprint...
 	if (AssetData.AssetClassPath == UBlueprint::StaticClass()->GetClassPathName())
 	{

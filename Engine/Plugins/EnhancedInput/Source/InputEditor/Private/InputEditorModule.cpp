@@ -356,6 +356,8 @@ public:
 
 void FInputEditorModule::StartupModule()
 {
+	LLM_SCOPE_BYNAME(TEXT("EnhancedInput/Editor"));
+	
 	// Register customizations
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomClassLayout("InputMappingContext", FOnGetDetailCustomizationInstance::CreateStatic(&FInputContextDetails::MakeInstance));
