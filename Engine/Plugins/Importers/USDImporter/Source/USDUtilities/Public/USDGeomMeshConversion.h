@@ -434,7 +434,7 @@ namespace UsdUtils
 	USDUTILITIES_API bool IsAnimatedMesh(const pxr::UsdPrim& Prim);
 
 	/** Mesh topology variance as defined by Alembic's MeshTopologyVariance */
-	enum class USDUTILITIES_API EMeshTopologyVariance : uint8
+	enum class EMeshTopologyVariance : uint8
 	{
 		Constant,		// unchanging topology
 		Homogenous,		// connectivity is unchanging, but the positions may change

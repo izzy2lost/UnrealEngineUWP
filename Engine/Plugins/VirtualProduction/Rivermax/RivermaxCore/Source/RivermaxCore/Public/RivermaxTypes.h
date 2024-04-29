@@ -72,7 +72,7 @@ namespace UE::RivermaxCore
 		return TEXT("<Unknown EFrameLockingMode>");
 	}
 
-	struct RIVERMAXCORE_API FRivermaxInputStreamOptions
+	struct FRivermaxInputStreamOptions
 	{
 		/** Stream FrameRate */
 		FFrameRate FrameRate = { 24,1 };
@@ -102,7 +102,7 @@ namespace UE::RivermaxCore
 		bool bUseGPUDirect = true;
 	};
 
-	struct RIVERMAXCORE_API FRivermaxOutputStreamOptions
+	struct FRivermaxOutputStreamOptions
 	{
 		/** Desired stream resolution */
 		FIntPoint Resolution = { 1920, 1080 };
@@ -144,7 +144,7 @@ namespace UE::RivermaxCore
 		bool bDoFrameCounterTimestamping = true;
 	};
 
-	enum class RIVERMAXCORE_API ERivermaxStreamType : uint8
+	enum class ERivermaxStreamType : uint8
 	{
 		VIDEO_2110_20_STREAM,
 	};

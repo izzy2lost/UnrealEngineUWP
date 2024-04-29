@@ -331,7 +331,7 @@ namespace UnrealToUsd
 	// We use this enum to keep track of which type of baking was already being done for a component, so that if
 	// e.g. we have a track for camera aperture and another for camera focal length, we end up just baking that camera
 	// only once (as only once will be enough to handle all animated properties)
-	enum class USDUTILITIES_API EBakingType : uint8
+	enum class EBakingType : uint8
 	{
 		None = 0,
 		Transform = 1,

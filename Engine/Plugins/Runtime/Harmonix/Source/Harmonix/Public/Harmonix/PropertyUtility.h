@@ -13,14 +13,14 @@ DEFINE_LOG_CATEGORY_STATIC(LogPropertyUtility, Log, Log)
 namespace Harmonix
 {
 
-enum HARMONIX_API EPostEditAction : uint8
+enum EPostEditAction : uint8
 {
 	DoNothing,
 	UpdateTrivial,
 	UpdateNonTrivial
 };
 
-enum HARMONIX_API EPostEditType : uint8
+enum EPostEditType : uint8
 {
 	None,
 	Trivial,

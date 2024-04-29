@@ -36,7 +36,7 @@ namespace UE
 namespace UsdUtils
 {
 	/** Source: https://graphics.pixar.com/usd/docs/api/_usd__page__datatypes.html */
-	enum class USDUTILITIES_API EUsdBasicDataTypes
+	enum class EUsdBasicDataTypes
 	{
 		None,
 
@@ -90,7 +90,7 @@ namespace UsdUtils
 
 	/** Corresponds to a value held by a pxr::VtValue converted into UE types. Should handle anything a VtValue can hold, including arrays of values
 	 */
-	struct USDUTILITIES_API FConvertedVtValue
+	struct FConvertedVtValue
 	{
 		TArray<FConvertedVtValueEntry> Entries;
 

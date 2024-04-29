@@ -8,7 +8,7 @@ class FBaseTimingTrack;
 class FTimingEventsTrack;
 class ITimingEvent;
 class SWidget;
-enum class TRACEINSIGHTS_API ETimingTrackLocation : uint32; // Insights/ViewModels/BaseTimingTrack.h
+enum class ETimingTrackLocation : uint32; // Insights/ViewModels/BaseTimingTrack.h
 
 namespace Insights
 {
@@ -26,7 +26,7 @@ ENUM_CLASS_FLAGS(ETimeChangedFlags);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTS_API ITimeMarker
+class ITimeMarker
 {
 public:
 	virtual ~ITimeMarker() = default;
@@ -70,7 +70,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FTrackRemovedDelegate, const TSharedPtr<cons
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /** Hosts a number of timing view visualizers, represents a session of the timing view. */
-class TRACEINSIGHTS_API ITimingViewSession
+class ITimingViewSession
 {
 public:
 	virtual ~ITimingViewSession() = default;

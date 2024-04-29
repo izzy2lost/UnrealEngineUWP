@@ -22,7 +22,7 @@ class FMeshProjectionPassParameters;
 struct FEngineShowFlags;
 
 /** Indicates which kind of projection is used by the renderer */
-enum DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API EDisplayClusterMeshProjectionType
+enum EDisplayClusterMeshProjectionType
 {
 	/** Default linear projection */
 	Linear,
@@ -35,7 +35,7 @@ enum DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API EDisplayClusterMeshProjectionType
 };
 
 /** Indicates the quantity that is output to the canvas by the renderer */
-enum DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API EDisplayClusterMeshProjectionOutput
+enum EDisplayClusterMeshProjectionOutput
 {
 	/** Outputs the emissive color of the rendered primitives */
 	Color,
@@ -45,7 +45,7 @@ enum DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API EDisplayClusterMeshProjectionOutpu
 };
 
 /** A filter that allows specific primitive components to be filtered from a render pass */
-class DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FDisplayClusterMeshProjectionPrimitiveFilter
+class FDisplayClusterMeshProjectionPrimitiveFilter
 {
 public:
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FPrimitiveFilter, const UPrimitiveComponent*);
@@ -58,14 +58,14 @@ public:
 	FPrimitiveFilter ShouldApplyProjectionDelegate;
 
 	/** Gets whether a primitive component should be filtered out of the render pass or not */
-	bool ShouldRenderPrimitive(const UPrimitiveComponent* InPrimitiveComponent) const;
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API bool ShouldRenderPrimitive(const UPrimitiveComponent* InPrimitiveComponent) const;
 
 	/** Gets whether a primitive component should be rendered using the current projection type or not */
-	bool ShouldApplyProjection(const UPrimitiveComponent* InPrimitiveComponent) const;
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API bool ShouldApplyProjection(const UPrimitiveComponent* InPrimitiveComponent) const;
 };
 
 /** Settings for specific mesh projection types  */
-struct DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FDisplayClusterMeshProjectionTypeSettings
+struct FDisplayClusterMeshProjectionTypeSettings
 {
 	/** The index of the UV to use when performing a UV projection */
 	uint32 UVProjectionIndex = 0;
@@ -81,7 +81,7 @@ struct DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FDisplayClusterMeshProjectionTyp
 };
 
 /** Settings for producing a single render. */
-struct DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FDisplayClusterMeshProjectionRenderSettings
+struct FDisplayClusterMeshProjectionRenderSettings
 {
 	/** Camera setup options for the render. */
 	FSceneViewInitOptions ViewInitOptions;
@@ -112,7 +112,7 @@ struct DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FDisplayClusterMeshProjectionRen
 };
 
 /** A transform that can be passed around to project and unprojection positions for a specific projection type */
-class DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FDisplayClusterMeshProjectionTransform
+class FDisplayClusterMeshProjectionTransform
 {
 public:
 	FDisplayClusterMeshProjectionTransform()
@@ -125,8 +125,8 @@ public:
 		, InvViewMatrix(InViewMatrix.Inverse())
 	{ }
 
-	FVector ProjectPosition(const FVector& WorldPosition) const;
-	FVector UnprojectPosition(const FVector& ProjectedPosition) const;
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FVector ProjectPosition(const FVector& WorldPosition) const;
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FVector UnprojectPosition(const FVector& ProjectedPosition) const;
 
 private:
 	EDisplayClusterMeshProjectionType Projection;
@@ -135,32 +135,32 @@ private:
 };
 
 /** A renderer that projects meshes to screen space using non-linear projection methods */
-class DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API FDisplayClusterMeshProjectionRenderer
+class FDisplayClusterMeshProjectionRenderer
 {
 public:
 	/** Clean up any references to the renderer. */
-	~FDisplayClusterMeshProjectionRenderer();
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API ~FDisplayClusterMeshProjectionRenderer();
 
 	/** Projects a position in view coordinates into the projected view space of the specified projection type */
-	static FVector ProjectViewPosition(const FVector& ViewPosition, EDisplayClusterMeshProjectionType  ProjectionType);
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API static FVector ProjectViewPosition(const FVector& ViewPosition, EDisplayClusterMeshProjectionType  ProjectionType);
 
 	/** Projects a position in the projected view space of the specified projection type to ordinary view coordinates */
-	static FVector UnprojectViewPosition(const FVector& ProjectedViewPosition, EDisplayClusterMeshProjectionType  ProjectionType);
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API static FVector UnprojectViewPosition(const FVector& ProjectedViewPosition, EDisplayClusterMeshProjectionType  ProjectionType);
 
 	/** Adds an actor's primitive components to the list of primitives to render */
-	void AddActor(AActor* Actor);
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void AddActor(AActor* Actor);
 
 	/** Adds an actor's primitive components to the list of primitives to render, filtering which primitive components get rendered using the specified callback */
-	void AddActor(AActor* Actor, const TFunctionRef<bool(const UPrimitiveComponent*)>& PrimitiveFilter);
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void AddActor(AActor* Actor, const TFunctionRef<bool(const UPrimitiveComponent*)>& PrimitiveFilter);
 
 	/** Removes an actor's primitive components from the list of primitives to render */
-	void RemoveActor(AActor* Actor);
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void RemoveActor(AActor* Actor);
 
 	/** Clears the list of primitives to render */
-	void ClearScene();
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void ClearScene();
 
 	/** Renders its list of primitive components to the specified canvas using the desired projection type. Can be called from the game thread */
-	void Render(FCanvas* Canvas, FSceneInterface* Scene, const FDisplayClusterMeshProjectionRenderSettings& RenderSettings);
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void Render(FCanvas* Canvas, FSceneInterface* Scene, const FDisplayClusterMeshProjectionRenderSettings& RenderSettings);
 
 private:
 	/** Constructs the necessary render passes for the default output of the rendered primitives */

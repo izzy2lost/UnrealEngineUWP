@@ -10,7 +10,7 @@ class SWindow;
 
 namespace UE::EditorPixelStreaming
 {
-	enum class PIXELSTREAMINGEDITOR_API EStreamTypes : uint8
+	enum class EStreamTypes : uint8
 	{
 		LevelEditorViewport = 0,
 		Editor = 1

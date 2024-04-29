@@ -28,7 +28,7 @@ struct FGeometry;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTS_API ETimingTrackLocation : uint32
+enum class ETimingTrackLocation : uint32
 {
 	None         = 0,
 	Scrollable   = (1 << 0),
@@ -41,7 +41,7 @@ ENUM_CLASS_FLAGS(ETimingTrackLocation);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct TRACEINSIGHTS_API FTimingTrackOrder
+struct FTimingTrackOrder
 {
 	static constexpr int32 GroupRange = 100000;
 	static constexpr int32 TimeRuler  = -2 * GroupRange;
@@ -56,7 +56,7 @@ struct TRACEINSIGHTS_API FTimingTrackOrder
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTS_API ETimingTrackFlags : uint32
+enum class ETimingTrackFlags : uint32
 {
 	None            = 0,
 	IsVisible       = (1 << 0),
@@ -69,7 +69,7 @@ ENUM_CLASS_FLAGS(ETimingTrackFlags);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTS_API EDrawEventMode : uint32
+enum class EDrawEventMode : uint32
 {
 	None = 0,
 
@@ -89,7 +89,7 @@ ENUM_CLASS_FLAGS(EDrawEventMode);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTS_API ITimingTrackUpdateContext
+class ITimingTrackUpdateContext
 {
 public:
 	virtual const FGeometry& GetGeometry() const = 0;
@@ -105,7 +105,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTS_API ITimingTrackDrawContext
+class ITimingTrackDrawContext
 {
 public:
 	virtual const FTimingTrackViewport& GetViewport() const = 0;

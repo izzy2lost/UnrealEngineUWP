@@ -31,7 +31,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FWindowsApplication_OnWindowCreated, HWND);
 
 namespace ETaskbarProgressState
 {
-	enum APPLICATIONCORE_API Type
+	enum Type
 	{
 		//Stops displaying progress and returns the button to its normal state.
 		NoProgress = 0x0,

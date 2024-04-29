@@ -21,7 +21,7 @@ namespace UE::PixelStreamingServers
 	/**
 	 * Configuration to control behaviour when launching any of the Pixel Streaming servers.
 	 **/
-	struct PIXELSTREAMINGSERVERS_API FLaunchArgs
+	struct FLaunchArgs
 	{
 		// Arguments passed to the actual server when its process is started.
 		FString ProcessArgs = TEXT("");
@@ -42,7 +42,7 @@ namespace UE::PixelStreamingServers
 	/**
 	 * Endpoints for the various Pixel Streaming servers.
 	 **/
-	enum class PIXELSTREAMINGSERVERS_API EEndpoint
+	enum class EEndpoint
 	{
 		// The websocket signalling url between the server and the UE streamer - e.g. ws://localhost:8888
 		Signalling_Streamer,
@@ -68,7 +68,7 @@ namespace UE::PixelStreamingServers
 	/**
 	 * Interface for all Pixel Streaming servers.
 	 **/
-	class PIXELSTREAMINGSERVERS_API IServer
+	class IServer
 	{
 	public:
 		virtual ~IServer() = default;

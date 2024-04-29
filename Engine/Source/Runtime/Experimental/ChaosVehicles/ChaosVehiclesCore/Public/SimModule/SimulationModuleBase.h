@@ -123,13 +123,13 @@ namespace Chaos
 	};
 
 
-	enum CHAOSVEHICLESCORE_API eSimModuleState
+	enum eSimModuleState
 	{
 		Disabled,
 		Enabled
 	};
 
-	enum CHAOSVEHICLESCORE_API eSimModuleTypeFlags
+	enum eSimModuleTypeFlags
 	{
 		NonFunctional = (1 << 0),	// bitmask 1,2,4,8
 		Raycast = (1 << 1),	// requires raycast data
@@ -137,7 +137,7 @@ namespace Chaos
 		Velocity = (1 << 3),	// requires velocity data
 	};
 
-	enum CHAOSVEHICLESCORE_API eSimType
+	enum eSimType
 	{
 		Undefined = 0,
 		Chassis,		// linear/angular damping can be applied here
@@ -157,7 +157,7 @@ namespace Chaos
 		TorqueSim
 	};
 
-	enum CHAOSVEHICLESCORE_API EWheelAxis
+	enum EWheelAxis
 	{
 		X,	// X forward
 		Y	// Y forward

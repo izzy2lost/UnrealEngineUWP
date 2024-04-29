@@ -55,7 +55,7 @@ class UNiagaraUserParametersHierarchyViewModel;
 
 
 /** Defines different editing modes for this system view model. */
-enum class NIAGARAEDITOR_API ENiagaraSystemViewModelEditMode
+enum class ENiagaraSystemViewModelEditMode
 {
 	/** A system asset is being edited.  This assumes that emitters should be inheriting from a base version and that emitter editing will be restricted. */
 	SystemAsset,
