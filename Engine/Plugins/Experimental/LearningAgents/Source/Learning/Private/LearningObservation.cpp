@@ -899,7 +899,8 @@ namespace UE::Learning::Observation
 		NNE::RuntimeBasic::FModelBuilderElement& OutElement,
 		NNE::RuntimeBasic::FModelBuilder& Builder,
 		const FSchema& Schema,
-		const FSchemaElement SchemaElement)
+		const FSchemaElement SchemaElement,
+		const FNetworkSettings& NetworkSettings)
 	{
 		const EType SchemaElementType = Schema.GetType(SchemaElement);
 
@@ -931,7 +932,7 @@ namespace UE::Learning::Observation
 			for (const FSchemaElement SubElement : Parameters.Elements)
 			{
 				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
 				BuilderLayers.Emplace(BuilderSubElement);
 			}
 
@@ -951,9 +952,16 @@ namespace UE::Learning::Observation
 			{
 				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
 				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
 				BuilderSubLayers.Emplace(BuilderSubElement);
-				BuilderEncoders.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
+				if (NetworkSettings.bUseCompressedLinearLayers)
+				{
+					BuilderEncoders.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
+				}
+				else
+				{
+					BuilderEncoders.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
+				}
 			}
 
 			OutElement = Builder.MakeAggregateOrExclusive(Parameters.EncodingSize, BuilderSubLayers, BuilderEncoders);
@@ -975,11 +983,20 @@ namespace UE::Learning::Observation
 			{
 				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
 				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
 				BuilderSubLayers.Emplace(BuilderSubElement);
-				BuilderQueryLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
-				BuilderKeyLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
-				BuilderValueLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+				if (NetworkSettings.bUseCompressedLinearLayers)
+				{
+					BuilderQueryLayers.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderKeyLayers.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderValueLayers.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+				}
+				else
+				{
+					BuilderQueryLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderKeyLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderValueLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+				}
 			}
 
 			OutElement = Builder.MakeAggregateOrInclusive(
@@ -999,7 +1016,7 @@ namespace UE::Learning::Observation
 			const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
 
 			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
 			OutElement = Builder.MakeArray(Parameters.Num, BuilderSubElement);
 			break;
 		}
@@ -1011,17 +1028,33 @@ namespace UE::Learning::Observation
 			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
 
 			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
 
-			OutElement = Builder.MakeAggregateSet(
-				Parameters.MaxNum,
-				Parameters.ValueEncodingSize,
-				Parameters.AttentionEncodingSize,
-				Parameters.AttentionHeadNum,
-				BuilderSubElement,
-				Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
-				Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
-				Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+			if (NetworkSettings.bUseCompressedLinearLayers)
+			{
+				OutElement = Builder.MakeAggregateSet(
+					Parameters.MaxNum,
+					Parameters.ValueEncodingSize,
+					Parameters.AttentionEncodingSize,
+					Parameters.AttentionHeadNum,
+					BuilderSubElement,
+					Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+			}
+			else
+			{
+				OutElement = Builder.MakeAggregateSet(
+					Parameters.MaxNum,
+					Parameters.ValueEncodingSize,
+					Parameters.AttentionEncodingSize,
+					Parameters.AttentionHeadNum,
+					BuilderSubElement,
+					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+			}
+
 			break;
 		}
 
@@ -1032,18 +1065,35 @@ namespace UE::Learning::Observation
 			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
 
 			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
 
-			OutElement = Builder.MakeSequence({
-				BuilderSubElement,
-				Builder.MakeMLPWithRandomKaimingWeights(
-					SubElementEncodedSize,
-					Parameters.EncodingSize,
-					Parameters.EncodingSize,
-					Parameters.LayerNum + 1, // Add 1 to account for input layer
-					Private::GetNNEActivationFunction(Parameters.ActivationFunction),
-					true)
-				});
+			if (NetworkSettings.bUseCompressedLinearLayers)
+			{
+				OutElement = Builder.MakeSequence({
+					BuilderSubElement,
+					Builder.MakeCompressedMLPWithRandomKaimingWeights(
+						SubElementEncodedSize,
+						Parameters.EncodingSize,
+						Parameters.EncodingSize,
+						Parameters.LayerNum + 1, // Add 1 to account for input layer
+						Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+						true)
+					});
+			}
+			else
+			{
+				OutElement = Builder.MakeSequence({
+					BuilderSubElement,
+					Builder.MakeMLPWithRandomKaimingWeights(
+						SubElementEncodedSize,
+						Parameters.EncodingSize,
+						Parameters.EncodingSize,
+						Parameters.LayerNum + 1, // Add 1 to account for input layer
+						Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+						true)
+					});
+			}
+
 			break;
 		}
 
@@ -1068,13 +1118,14 @@ namespace UE::Learning::Observation
 		uint32& OutOutputSize,
 		const FSchema& Schema,
 		const FSchemaElement SchemaElement,
+		const FNetworkSettings& NetworkSettings,
 		const uint32 Seed)
 	{
 		UE_LEARNING_CHECK(Schema.IsValid(SchemaElement));
 
 		NNE::RuntimeBasic::FModelBuilder Builder(Seed);
 		NNE::RuntimeBasic::FModelBuilderElement Element;
-		MakeEncoderNetworkModelBuilderElementFromSchema(Element, Builder, Schema, SchemaElement);
+		MakeEncoderNetworkModelBuilderElementFromSchema(Element, Builder, Schema, SchemaElement, NetworkSettings);
 		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Element);
 	}
 

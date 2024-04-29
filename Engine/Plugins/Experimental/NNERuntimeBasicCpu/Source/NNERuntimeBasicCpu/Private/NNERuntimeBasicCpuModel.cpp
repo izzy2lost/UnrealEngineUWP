@@ -4045,9 +4045,30 @@ namespace UE::NNE::RuntimeBasic
 
 	namespace Private
 	{
-		static inline float UniformToGaussian(const float R1, const float R2)
+		static inline uint32 RngInt(const uint32 State)
 		{
-			return FMath::Sqrt(-2.0f * FMath::Loge(FMath::Max(R1, UE_SMALL_NUMBER))) * FMath::Cos(R2 * UE_TWO_PI);
+			uint32 X = State ^ 0xb74eaecf;
+			X = ((X >> 16) ^ X) * 0x45d9f3b;
+			X = ((X >> 16) ^ X) * 0x45d9f3b;
+			return (X >> 16) ^ X;
+		}
+
+		static inline float RngUniform(const uint32 State)
+		{
+			// Same approach as used in FRandomStream
+			float Output;
+			*((uint32*)(&Output)) = 0x3F800000U | (RngInt(State ^ 0x1c89a74a) >> 9);
+			return Output - 1.0f;
+		}
+
+		static inline float RngGaussian(const uint32 State)
+		{
+			return FMath::Sqrt(-2.0f * FMath::Loge(FMath::Max(RngUniform(State ^ 0xe427d90b), UE_SMALL_NUMBER))) * FMath::Cos(RngUniform(State ^ 0xd5444566) * UE_TWO_PI);
+		}
+
+		static inline void RngUpdate(uint32& State)
+		{
+			State = RngInt(State ^ 0x0c32dd74);
 		}
 	}
 
@@ -4393,6 +4414,23 @@ namespace UE::NNE::RuntimeBasic
 			MakeLinearWithRandomKaimingWeights(MemoryNum, OutputNum, WeightScale));
 	}
 
+	FModelBuilderElement FModelBuilder::MakeMemoryCellWithCompressedLinearRandomKaimingWeights(
+		const uint32 InputNum,
+		const uint32 OutputNum,
+		const uint32 MemoryNum,
+		const float WeightScale)
+	{
+		return MakeMemoryCell(
+			InputNum,
+			OutputNum,
+			MemoryNum,
+			MakeCompressedLinearWithRandomKaimingWeights(InputNum + MemoryNum, MemoryNum, WeightScale),
+			MakeCompressedLinearWithRandomKaimingWeights(InputNum + MemoryNum, OutputNum, WeightScale),
+			MakeCompressedLinearWithRandomKaimingWeights(InputNum + MemoryNum, MemoryNum, WeightScale),
+			MakeCompressedLinearWithRandomKaimingWeights(InputNum + MemoryNum, OutputNum, WeightScale),
+			MakeCompressedLinearWithRandomKaimingWeights(MemoryNum, OutputNum, WeightScale));
+	}
+
 	FModelBuilderElement FModelBuilder::MakeMemoryBackbone(
 		const uint32 MemoryNum,
 		const FModelBuilderElement& Prefix,
@@ -4589,7 +4627,7 @@ namespace UE::NNE::RuntimeBasic
 
 	void FModelBuilder::Reset()
 	{
-		Rng.Reset();
+		Rng = RngInitialState;
 		WeightsPool.Empty();
 		CompressedWeightsPool.Empty();
 		SizesPool.Empty();
@@ -4671,7 +4709,8 @@ namespace UE::NNE::RuntimeBasic
 
 		for (uint32 Idx = 0; Idx < InputSize * OutputSize; Idx++)
 		{
-			Values[Idx] = Std * Private::UniformToGaussian(Rng.FRand(), Rng.FRand());
+			Values[Idx] = Std * Private::RngGaussian(Rng);
+			Private::RngUpdate(Rng);
 		}
 		
 		return Values;
@@ -4694,7 +4733,8 @@ namespace UE::NNE::RuntimeBasic
 
 		for (uint32 Idx = 0; Idx < InputSize * OutputSize; Idx++)
 		{
-			Values[Idx] = Std * Private::UniformToGaussian(Rng.FRand(), Rng.FRand());
+			Values[Idx] = Std * Private::RngGaussian(Rng);
+			Private::RngUpdate(Rng);
 		}
 
 		// Find Min and Max

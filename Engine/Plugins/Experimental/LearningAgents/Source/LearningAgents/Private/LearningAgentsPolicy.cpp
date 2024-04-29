@@ -203,6 +203,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 			EncoderOutputSize,
 			Interactor->GetObservationSchema(),
 			Interactor->GetObservationSchemaElement(),
+			UE::Learning::Observation::FNetworkSettings(),
 			UE::Learning::Random::Int(Seed ^ 0x658868dd));
 
 		UE_LEARNING_CHECK(EncoderInputSize == ObservationVectorSize);
@@ -345,6 +346,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 			DecoderOutputSize,
 			Interactor->GetActionSchema(),
 			Interactor->GetActionSchemaElement(),
+			UE::Learning::Action::FNetworkSettings(),
 			UE::Learning::Random::Int(Seed ^ 0xfa88bb7f));
 
 		UE_LEARNING_CHECK(DecoderInputSize == ActionEncodedVectorSize);

@@ -258,6 +258,20 @@ namespace UE::NNE::RuntimeBasic
 			const float WeightScale = 1.0f);
 
 		/**
+		 * Make a new Memory Cell layer with compressed weights randomly initialized using the Kaiming method.
+		 *
+		 * @param InputNum			Number of normal inputs to the model
+		 * @param OutputNum			Number of normal outputs from the model
+		 * @param MemoryNum			The size of the memory vector used by the model
+		 * @param WeightScale		Scaling factor for the weight creation.
+		 */
+		FModelBuilderElement MakeMemoryCellWithCompressedLinearRandomKaimingWeights(
+			const uint32 InputNum,
+			const uint32 OutputNum,
+			const uint32 MemoryNum,
+			const float WeightScale = 1.0f);
+
+		/**
 		 * Make a new Memory Backbone layer.
 		 *
 		 * @param MemoryNum				The size of the memory vector used by the model
@@ -418,8 +432,10 @@ namespace UE::NNE::RuntimeBasic
 
 	private:
 
-		/** Random Number Stream for generating random weights */
-		FRandomStream Rng;
+		static constexpr uint32 RngInitialState = 0xafcc2b45;
+
+		/** Random Number State for generating random weights */
+		uint32 Rng = RngInitialState;
 
 		/** Pool of all weights data used by the `MakeWeights` functions. */
 		TArray<TArray<float>> WeightsPool;

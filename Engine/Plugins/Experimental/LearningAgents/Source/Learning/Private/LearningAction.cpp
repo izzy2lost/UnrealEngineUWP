@@ -1042,7 +1042,8 @@ namespace UE::Learning::Action
 		NNE::RuntimeBasic::FModelBuilderElement& OutElement,
 		NNE::RuntimeBasic::FModelBuilder& Builder,
 		const FSchema& Schema,
-		const FSchemaElement SchemaElement)
+		const FSchemaElement SchemaElement,
+		const FNetworkSettings& NetworkSettings)
 	{
 		const EType SchemaElementType = Schema.GetType(SchemaElement);
 
@@ -1112,7 +1113,7 @@ namespace UE::Learning::Action
 			for (const FSchemaElement SubElement : Parameters.Elements)
 			{
 				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
 				BuilderLayers.Emplace(BuilderSubElement);
 			}
 
@@ -1129,7 +1130,7 @@ namespace UE::Learning::Action
 			for (const FSchemaElement SubElement : Parameters.Elements)
 			{
 				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
 				BuilderLayers.Emplace(BuilderSubElement);
 			}
 
@@ -1159,7 +1160,7 @@ namespace UE::Learning::Action
 			for (const FSchemaElement SubElement : Parameters.Elements)
 			{
 				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
 				BuilderLayers.Emplace(BuilderSubElement);
 			}
 
@@ -1184,7 +1185,7 @@ namespace UE::Learning::Action
 			const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
 
 			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-			MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+			MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
 			OutElement = Builder.MakeArray(Parameters.Num, BuilderSubElement);
 			break;
 		}
@@ -1196,19 +1197,37 @@ namespace UE::Learning::Action
 			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
 
 			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
-			MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+			MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
 
-			OutElement = Builder.MakeSequence({
-				Builder.MakeActivation(Parameters.EncodingSize, Private::GetNNEActivationFunction(Parameters.ActivationFunction)),
-				Builder.MakeMLPWithRandomKaimingWeights(
-					Parameters.EncodingSize,
-					SubElementEncodedSize,
-					Parameters.EncodingSize,
-					Parameters.LayerNum + 1,  // Add 1 to account for input layer 
-					Private::GetNNEActivationFunction(Parameters.ActivationFunction),
-					false),
-				BuilderSubElement,
-				});
+			if (NetworkSettings.bUseCompressedLinearLayers)
+			{
+				OutElement = Builder.MakeSequence({
+					Builder.MakeActivation(Parameters.EncodingSize, Private::GetNNEActivationFunction(Parameters.ActivationFunction)),
+					Builder.MakeCompressedMLPWithRandomKaimingWeights(
+						Parameters.EncodingSize,
+						SubElementEncodedSize,
+						Parameters.EncodingSize,
+						Parameters.LayerNum + 1,  // Add 1 to account for input layer 
+						Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+						false),
+					BuilderSubElement,
+					});
+			}
+			else
+			{
+				OutElement = Builder.MakeSequence({
+					Builder.MakeActivation(Parameters.EncodingSize, Private::GetNNEActivationFunction(Parameters.ActivationFunction)),
+					Builder.MakeMLPWithRandomKaimingWeights(
+						Parameters.EncodingSize,
+						SubElementEncodedSize,
+						Parameters.EncodingSize,
+						Parameters.LayerNum + 1,  // Add 1 to account for input layer 
+						Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+						false),
+					BuilderSubElement,
+					});
+			}
+
 			break;
 		}
 
@@ -1233,13 +1252,14 @@ namespace UE::Learning::Action
 		uint32& OutOutputSize,
 		const FSchema& Schema,
 		const FSchemaElement SchemaElement,
+		const FNetworkSettings& NetworkSettings,
 		const uint32 Seed)
 	{
 		UE_LEARNING_CHECK(Schema.IsValid(SchemaElement));
 
 		NNE::RuntimeBasic::FModelBuilder Builder(Seed);
 		NNE::RuntimeBasic::FModelBuilderElement Element;
-		MakeDecoderNetworkModelBuilderElementFromSchema(Element, Builder, Schema, SchemaElement);
+		MakeDecoderNetworkModelBuilderElementFromSchema(Element, Builder, Schema, SchemaElement, NetworkSettings);
 		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Element);
 	}
 
