@@ -75,10 +75,16 @@ namespace AutomationUtils.Matchers
 						builder.Annotate(match.Groups["Line"], LogEventMarkup.LineNumber);
 						builder.Annotate(match.Groups["Column"], LogEventMarkup.ColumnNumber);
 						builder.AnnotateSymbol(match.Groups["Symbol"]);
+
+						builder.MoveNext();
+						return builder.ToMatch(LogEventPriority.Normal, LogLevel.Error, KnownLogEvents.Sanitizer_Thread);
 					}
-					builder.MoveNext();
+
+					if (builder.Current.CurrentLine != null)
+					{
+						builder.MoveNext();
+					}
 				}
-				return builder.ToMatch(LogEventPriority.Normal, LogLevel.Error, KnownLogEvents.Sanitizer_Thread);
 			}
 
 			return null;
