@@ -727,7 +727,7 @@ static TOptional<EWindowsRHI> ChooseForcedRHI(TOptional<ERHIFeatureLevel::Type> 
 	}
 
 #if WITH_EDITOR
-	if (!ForcedRHI && GIsEditor && FParse::Param(FCommandLine::Get(), TEXT("Bindless")))
+	if (!ForcedRHI && GIsEditor && (FParse::Param(FCommandLine::Get(), TEXT("Bindless")) || FParse::Param(FCommandLine::Get(), TEXT("BindlessRT"))))
 	{
 		ForcedRHI = EWindowsRHI::D3D12;
 	}
@@ -779,7 +779,7 @@ static TOptional<ERHIFeatureLevel::Type> GetForcedFeatureLevel()
 	}
 
 #if WITH_EDITOR
-	if (GIsEditor && FParse::Param(FCommandLine::Get(), TEXT("Bindless")))
+	if (GIsEditor && (FParse::Param(FCommandLine::Get(), TEXT("Bindless")) || FParse::Param(FCommandLine::Get(), TEXT("BindlessRT"))))
 	{
 		ForcedFeatureLevel = ERHIFeatureLevel::SM6;
 	}

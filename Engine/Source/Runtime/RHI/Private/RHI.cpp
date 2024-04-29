@@ -1210,11 +1210,17 @@ ERHIBindlessConfiguration RHIParseBindlessConfiguration(EShaderPlatform Platform
 
 #if WITH_EDITOR
 	// We have to check the -bindless command line option here to make sure the shaders are compiled with bindless enabled too.
-	static const bool bCommandLine = FParse::Param(FCommandLine::Get(), TEXT("Bindless"));
-	if (bCommandLine)
+	static const bool bRegularCommandLine = FParse::Param(FCommandLine::Get(), TEXT("Bindless"));
+	static const bool bRTOnlyCommandLine = FParse::Param(FCommandLine::Get(), TEXT("BindlessRT"));
+	if (bRegularCommandLine || bRTOnlyCommandLine)
 	{
 		// Only allow what the platform supports
-		return (BindlessSupport == ERHIBindlessSupport::RayTracingOnly) ? ERHIBindlessConfiguration::RayTracingShaders : ERHIBindlessConfiguration::AllShaders;
+		if (BindlessSupport == ERHIBindlessSupport::RayTracingOnly || bRTOnlyCommandLine)
+		{
+			return ERHIBindlessConfiguration::RayTracingShaders;
+		}
+
+		return ERHIBindlessConfiguration::AllShaders;
 	}
 #endif
 
