@@ -33,6 +33,7 @@ public class AutoRTFMTests : ModuleRules
 				"Runtime/Core/Private"
 			});
 
+		PCHUsage = PCHUsageMode.NoPCHs;
 		FPSemantics = FPSemanticsMode.Precise;
 	}
 }
