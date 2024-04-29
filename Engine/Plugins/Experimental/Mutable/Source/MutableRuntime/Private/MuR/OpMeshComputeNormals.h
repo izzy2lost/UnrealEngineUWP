@@ -8,6 +8,7 @@
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Containers/Map.h"
+#include "IndexTypes.h"
 
 #include "MuR/Mesh.h"
 #include "MuR/MeshPrivate.h"
