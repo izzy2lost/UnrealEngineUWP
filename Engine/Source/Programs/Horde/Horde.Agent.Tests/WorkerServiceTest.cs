@@ -42,7 +42,6 @@ namespace Horde.Agent.Tests
 	{
 		private readonly ServiceCollection _serviceCollection;
 
-		private readonly ILoggerFactory _loggerFactory;
 		private readonly JobId _jobId = JobId.Parse("65bd0655591b5d5d7d047b58");
 		private readonly JobStepBatchId _batchId = new JobStepBatchId(0x1234);
 		private readonly JobStepId _stepId1 = new JobStepId(1);
@@ -78,12 +77,6 @@ namespace Horde.Agent.Tests
 
 		public WorkerServiceTest()
 		{
-			_loggerFactory = LoggerFactory.Create(builder =>
-			{
-				builder.SetMinimumLevel(LogLevel.Debug);
-				builder.AddSimpleConsole(options => { options.SingleLine = true; });
-			});
-
 			_serviceCollection = new ServiceCollection();
 			_serviceCollection.AddLogging();
 			_serviceCollection.AddHordeHttpClient();

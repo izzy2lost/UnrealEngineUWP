@@ -211,10 +211,6 @@ namespace Horde.Agent.Execution
 				}
 			}
 
-			FileReference tempFileName = new(Path.GetTempFileName());
-			await File.WriteAllTextAsync(tempFileName.FullName, "Some example data", cancellationToken);
-			await ArtifactUploader.UploadAsync(RpcConnection, JobId, BatchId, step.StepId, tempFileName.GetFileName(), tempFileName, logger, cancellationToken);
-
 			logger.LogInformation("**** FINISH NODE {StepName} ****", step.Name);
 
 			return true;

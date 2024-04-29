@@ -10,15 +10,9 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Agents.Sessions;
-using Google.Protobuf;
 using Grpc.Core;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Jobs.Artifacts;
-using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon.Rpc;
@@ -28,7 +22,6 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using MongoDB.Bson;
 
 namespace Horde.Server.Tests.Server
 {
@@ -454,63 +447,6 @@ namespace Horde.Server.Tests.Server
 			Assert.IsTrue(re.Message.Contains("Invalid agent name", StringComparison.OrdinalIgnoreCase));
 		}
 
-		[TestMethod]
-		public async Task UploadArtifactTestAsync()
-		{
-			Fixture fixture = await CreateFixtureAsync();
-
-			SessionId sessionId = SessionIdUtils.GenerateNewId();
-			ServerCallContext context = new ServerCallContextStub(new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
-			{
-				HordeClaims.AdminClaim.ToClaim(),
-				new Claim(HordeClaimTypes.AgentSessionId, sessionId.ToString()),
-			}, "TestAuthType")));
-
-			string[] data = { "foo", "bar", "baz", "qux" };
-			string dataStr = String.Join("", data);
-
-			RpcUploadArtifactMetadata metadata = new RpcUploadArtifactMetadata
-			{
-				JobId = fixture.Job1.Id.ToString(),
-				BatchId = fixture.Job1.Batches[0].Id.ToString(),
-				StepId = fixture.Job1.Batches[0].Steps[0].Id.ToString(),
-				Name = "testfile.txt",
-				MimeType = "text/plain",
-				Length = dataStr.Length
-			};
-
-			// Set the session ID on the job batch to pass auth later
-			Deref(await fixture.Job1.TryAssignLeaseAsync(0, new PoolId("foo"),
-				new AgentId("test"), sessionId,
-				new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId()));
-			/*
-						TestAsyncStreamReader<UploadArtifactRequest> RequestStream = new TestAsyncStreamReader<UploadArtifactRequest>(Context);
-						Task<UploadArtifactResponse> Call = TestSetup.RpcService.UploadArtifact(RequestStream,  Context);
-						RequestStream.AddMessage(new UploadArtifactRequest { Metadata = Metadata });
-						RequestStream.AddMessage(new UploadArtifactRequest { Data = ByteString.CopyFromUtf8(Data[0]) });
-						RequestStream.AddMessage(new UploadArtifactRequest { Data = ByteString.CopyFromUtf8(Data[1]) });
-						RequestStream.AddMessage(new UploadArtifactRequest { Data = ByteString.CopyFromUtf8(Data[2]) });
-						// Only send three messages and not the last one.
-						// Aborting the upload here and retry in next code section below.
-						RequestStream.Complete();
-						await Task.Delay(500);
-			*/
-			TestAsyncStreamReader<RpcUploadArtifactRequest> requestStream = new TestAsyncStreamReader<RpcUploadArtifactRequest>(context);
-			Task<RpcUploadArtifactResponse> call = RpcService.UploadArtifact(requestStream, context);
-			requestStream.AddMessage(new RpcUploadArtifactRequest { Metadata = metadata });
-			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[0]) });
-			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[1]) });
-			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[2]) });
-			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[3]) });
-			RpcUploadArtifactResponse res = await call;
-
-			IArtifactV1? artifact = await ArtifactCollection.GetArtifactAsync(ObjectId.Parse(res.Id));
-			Assert.IsNotNull(artifact);
-			Stream stream = await ArtifactCollection.OpenArtifactReadStreamAsync(artifact!);
-			using StreamReader reader = new StreamReader(stream);
-			string text = await reader.ReadToEndAsync();
-			Assert.AreEqual(dataStr, text);
-		}
 		/*
 		[TestMethod]
 		public async Task UploadSoftwareAsync()

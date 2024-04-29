@@ -586,7 +586,7 @@ namespace Horde.Server.Jobs
 			response.Parameters = job.Parameters.ToDictionary();
 			response.Arguments = job.Arguments.ToList();
 			response.UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
-			response.UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? true;
+			response.UseArtifactsV2 = true;
 			response.UpdateIssues = job.UpdateIssues;
 			return response;
 		}

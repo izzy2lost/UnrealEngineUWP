@@ -45,14 +45,14 @@ namespace Horde.Agent.Execution
 
 		protected override Task<bool> SetupAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
-			return SetupAsync(step, _localWorkspaceDir, null, null, logger, cancellationToken);
+			return SetupAsync(step, _localWorkspaceDir, null, logger, cancellationToken);
 		}
 
 		protected override Task<bool> ExecuteAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
 			if (_settings.RunSteps)
 			{
-				return ExecuteAsync(step, _localWorkspaceDir, null, null, logger, cancellationToken);
+				return ExecuteAsync(step, _localWorkspaceDir, null, logger, cancellationToken);
 			}
 			else
 			{

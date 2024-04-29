@@ -945,7 +945,6 @@ namespace Horde.Server.Jobs
 		{
 			RpcJobOptions rpcOptions = new RpcJobOptions();
 			rpcOptions.Executor = options.Executor;
-			rpcOptions.UseNewTempStorage = options.UseNewTempStorage;
 			rpcOptions.UseWine = options.UseWine;
 			rpcOptions.RunInSeparateProcess = options.RunInSeparateProcess;
 			rpcOptions.WorkspaceMaterializer = options.WorkspaceMaterializer;

@@ -2,7 +2,6 @@
 
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
@@ -23,7 +22,6 @@ namespace Horde.Agent.Execution
 		protected RpcAgentWorkspace _workspaceInfo;
 		protected RpcAgentWorkspace? _autoSdkWorkspaceInfo;
 		protected DirectoryReference _rootDir;
-		protected DirectoryReference? _sharedStorageDir;
 
 		protected WorkspaceInfo? _autoSdkWorkspace;
 		protected WorkspaceInfo _workspace;
@@ -137,14 +135,6 @@ namespace Horde.Agent.Execution
 			// Remove all the local settings directories
 			DeleteEngineUserSettings(logger);
 
-			// Get the temp storage directory
-			if (!String.IsNullOrEmpty(Batch.TempStorageDir))
-			{
-				string escapedStreamName = Regex.Replace(Batch.StreamName, "[^a-zA-Z0-9_-]", "+");
-				_sharedStorageDir = DirectoryReference.Combine(new DirectoryReference(Batch.TempStorageDir), escapedStreamName, $"CL {Batch.Change} - Job {JobId}");
-				CopyAutomationTool(_sharedStorageDir, _workspace.WorkspaceDir, logger);
-			}
-
 			// Get all the environment variables for jobs
 			_envVars["IsBuildMachine"] = "1";
 			_envVars["uebp_LOCAL_ROOT"] = _workspace.WorkspaceDir.FullName;
@@ -222,14 +212,14 @@ namespace Horde.Agent.Execution
 		{
 			PerforceMetadataLogger perforceLogger = CreatePerforceLogger(logger, Batch.Change, _workspace, _autoSdkWorkspace);
 			bool useP4 = WorkspaceInfo.ShouldUseHaveTable(_workspaceInfo.Method);
-			return await SetupAsync(step, _workspace.WorkspaceDir, _sharedStorageDir, useP4, perforceLogger, cancellationToken);
+			return await SetupAsync(step, _workspace.WorkspaceDir, useP4, perforceLogger, cancellationToken);
 		}
 
 		protected override async Task<bool> ExecuteAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
 			PerforceMetadataLogger perforceLogger = CreatePerforceLogger(logger, Batch.Change, _workspace, _autoSdkWorkspace);
 			bool useP4 = WorkspaceInfo.ShouldUseHaveTable(_workspaceInfo.Method);
-			return await ExecuteAsync(step, _workspace.WorkspaceDir, _sharedStorageDir, useP4, perforceLogger, cancellationToken);
+			return await ExecuteAsync(step, _workspace.WorkspaceDir, useP4, perforceLogger, cancellationToken);
 		}
 
 		public override async Task FinalizeAsync(ILogger logger, CancellationToken cancellationToken)

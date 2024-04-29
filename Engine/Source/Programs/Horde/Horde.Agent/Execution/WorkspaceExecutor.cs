@@ -110,7 +110,7 @@ namespace Horde.Agent.Execution
 			// Loop back to JobExecutor's SetupAsync again, but with workspace and shared storage dir set
 			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
 			DirectoryReference workspaceDir = settings.DirectoryPath;
-			return await SetupAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
+			return await SetupAsync(step, workspaceDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -119,7 +119,7 @@ namespace Horde.Agent.Execution
 			// Loop back to JobExecutor's ExecuteAsync again, but with workspace and shared storage dir set
 			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
 			DirectoryReference workspaceDir = settings.DirectoryPath;
-			return await ExecuteAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
+			return await ExecuteAsync(step, workspaceDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
 		}
 
 		/// <inheritdoc/>

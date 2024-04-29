@@ -16,10 +16,7 @@ namespace Horde.Agent.Services
 	{
 		readonly ILogger _logger;
 		readonly ISessionFactory _sessionFactory;
-		readonly CapabilitiesService _capabilitiesService;
 		readonly StatusService _statusService;
-		readonly LeaseHandler[] _leaseHandlers;
-		readonly LeaseLoggerFactory _leaseLoggerFactory;
 		readonly IServiceProvider _serviceProvider;
 		LeaseManager? _currentLeaseManager;
 
@@ -36,14 +33,11 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Constructor. Registers with the server and starts accepting connections.
 		/// </summary>
-		public WorkerService(ISessionFactory sessionFactory, CapabilitiesService capabilitiesService, StatusService statusService, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, IServiceProvider serviceProvider, ILogger<WorkerService> logger)
+		public WorkerService(ISessionFactory sessionFactory, StatusService statusService, IServiceProvider serviceProvider, ILogger<WorkerService> logger)
 		{
 			_sessionFactory = sessionFactory;
-			_capabilitiesService = capabilitiesService;
 			_statusService = statusService;
 			_logger = logger;
-			_leaseHandlers = leaseHandlers.ToArray();
-			_leaseLoggerFactory = leaseLoggerFactory;
 			_serviceProvider = serviceProvider;
 		}
 

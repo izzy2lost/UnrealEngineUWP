@@ -49,11 +49,6 @@ namespace EpicGames.Horde.Jobs
 		public string? Executor { get; set; }
 
 		/// <summary>
-		/// Whether to use the new temp storage backend
-		/// </summary>
-		public bool? UseNewTempStorage { get; set; }
-
-		/// <summary>
 		/// Whether to execute using Wine emulation on Linux
 		/// </summary>
 		public bool? UseWine { get; set; }
@@ -84,7 +79,6 @@ namespace EpicGames.Horde.Jobs
 		public void MergeDefaults(JobOptions other)
 		{
 			Executor ??= other.Executor;
-			UseNewTempStorage ??= other.UseNewTempStorage;
 			UseWine ??= other.UseWine;
 			RunInSeparateProcess ??= other.RunInSeparateProcess;
 			WorkspaceMaterializer ??= other.WorkspaceMaterializer;

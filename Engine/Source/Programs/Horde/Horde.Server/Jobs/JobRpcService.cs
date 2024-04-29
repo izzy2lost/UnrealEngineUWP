@@ -231,9 +231,6 @@ namespace Horde.Server.Jobs
 		public override Task<Empty> CreateEvents(RpcCreateEventsRequest request, ServerCallContext context) => _jobRpcCommon.CreateEventsAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<RpcUploadArtifactResponse> UploadArtifact(IAsyncStreamReader<RpcUploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
-
-		/// <inheritdoc/>
 		public override Task<RpcUploadTestDataResponse> UploadTestData(IAsyncStreamReader<RpcUploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader, context);
 
 		/// <inheritdoc/>

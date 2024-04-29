@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using EpicGames.Core;
-using EpicGames.Horde.Agents;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -227,7 +226,7 @@ class TelemetryService : BackgroundService
 	private readonly TimeSpan _reportInterval;
 	private readonly RpcAgentMetadataEvent _agentMetadataEvent;
 	private readonly TimeSpan _agentMetadataReportInterval = TimeSpan.FromMinutes(2);
-	private ISystemMetrics? _systemMetrics;
+	private readonly ISystemMetrics? _systemMetrics;
 	private DateTime _lastTimeAgentMetadataSent = DateTime.UnixEpoch;
 
 	private CancellationTokenSource? _eventLoopHeartbeatCts;
