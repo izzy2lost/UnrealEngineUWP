@@ -165,7 +165,7 @@ void FPositionVertexBuffer::Serialize( FArchive& Ar, bool bInNeedsCPUAccess )
 
 	SerializeMetaData(Ar);
 
-	if(Ar.IsLoading() && NumVertices > 0)
+	if(Ar.IsLoading())
 	{
 		// Allocate the vertex data storage type.
 		AllocateData( bInNeedsCPUAccess );
