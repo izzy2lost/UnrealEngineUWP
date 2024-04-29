@@ -8,6 +8,7 @@
 
 #include "RenderGraphResources.h"
 #include "SceneTexturesConfig.h"
+#include "Math/LFSR.h"
 
 const static int32 NumLumenDiffuseIndirectTextures = 2;
 // Must match shader
@@ -344,9 +345,8 @@ public:
 	// View froxel probes
 	TRefCountPtr<IPooledRenderTarget> ViewFroxelProbesRadiance;
 	TRefCountPtr<IPooledRenderTarget> ViewFroxelProbesDistance;
-	const uint32 FroxelProbeLFSRStartState = 1;
-	uint32 FroxelProbeLFSRState = FroxelProbeLFSRStartState;
 	float ViewFroxelProbesHistoryPreExposure = 1.0f;
+	UE::Math::FLinearFeedbackShiftRegister FroxelProbesLFSR;
 
 	FRadianceCacheState RadianceCacheState;
 	FRadianceCacheState TranslucencyVolumeRadianceCacheState;

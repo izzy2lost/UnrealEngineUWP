@@ -31,7 +31,6 @@
  *  - Single ray tracing dispatch
  *     - Do not trace low res probe indirectly, instead add them to trace ray bucket and write all to the new volume texture
  *     - Rays are added to the bucket in batch by the indirect compute copying the data today.
- *  - separate LFSR code in tool class
  *  - Add back pre exposition of data
  */
 

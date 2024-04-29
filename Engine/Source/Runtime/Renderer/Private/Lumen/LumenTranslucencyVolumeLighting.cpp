@@ -1401,89 +1401,56 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						// Generate the samples we need this frame using LFSR to make sure we cover the full set of pixels in a minimum amount of frames (true for power of two)
 						if (View.ViewState)
 						{
-							const uint32 FroxelProbeLFSRStartState = View.ViewState->Lumen.FroxelProbeLFSRStartState;
-							uint32& FroxelProbeLFSRState = View.ViewState->Lumen.FroxelProbeLFSRState;
-
-							// TODO LFRS code could be put in its own h/cpp for encapsulation and reusability
-							auto CalcLFSRValue = [&](uint32 Taps0, uint32 Taps1, uint32 Taps2, uint32 Taps3, uint32 Mask)
-								{
-									// LFSR loops over 2^m-1 values excluding 0. So we need to generate the last 2^m value. 
-									// We use LFSRCache==0 to detect that and return the last mask value.
-									if (FroxelProbeLFSRState == 0)
-									{
-										FroxelProbeLFSRState = FroxelProbeLFSRStartState;
-										return Mask;
-									}
-
-									// Update the cach value.
-									uint32 Tap = ((Taps0 & FroxelProbeLFSRState) == 0 ? 0 : 1) ^ ((Taps1 & FroxelProbeLFSRState) == 0 ? 0 : 1);
-									if (Taps2 > 0)
-									{
-										Tap ^= ((Taps2 & FroxelProbeLFSRState) == 0 ? 0 : 1);
-									}
-									if (Taps3 > 0)
-									{
-										Tap ^= ((Taps3 & FroxelProbeLFSRState) == 0 ? 0 : 1);
-									}
-									FroxelProbeLFSRState = ((FroxelProbeLFSRState << 1) | Tap) & Mask;
-
-									uint32 ValueToReturn = FroxelProbeLFSRState - 1;
-									if (FroxelProbeLFSRState == FroxelProbeLFSRStartState)
-									{
-										FroxelProbeLFSRState = 0;
-									}
-
-									return ValueToReturn % Mask;
-								};
-
-							// LFSR works with power of two number of texel. This works well since we want to sample the probe 2D representation.
-							// https://en.wikipedia.org/wiki/Linear-feedback_shift_register
 							const uint32 PowerOfTwoProbeOctahedronRes = FMath::RoundUpToPowerOfTwo(VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution);
 							const uint32 LFSRTexelCount = PowerOfTwoProbeOctahedronRes * PowerOfTwoProbeOctahedronRes;
-							check(LFSRTexelCount <= 4096);	// Corresponds to the maximum resolution of 64x64
-
 							for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
 							{
-								uint32 NewValue = 0;
+							#if 1
+								uint32 Bitcount = 0;
 								uint32 SquareResolution = 0;
-
-								if (LFSRTexelCount == 4)			// 2 bits, 2x2 probe resolution
+								if (LFSRTexelCount == 4)
 								{
+									Bitcount = 2;
 									SquareResolution = 2;
-									NewValue = CalcLFSRValue(1 << 1, 1 << 0, 0, 0, 0x3);
 								}
 								else if (LFSRTexelCount == 16)
 								{
+									Bitcount = 4;
 									SquareResolution = 4;
-									NewValue = CalcLFSRValue(1 << 3, 1 << 2, 0, 0, 0xF);
 								}
 								else if (LFSRTexelCount == 64)
 								{
+									Bitcount = 6;
 									SquareResolution = 8;
-									NewValue = CalcLFSRValue(1 << 5, 1 << 4, 0, 0, 0x3F);
 								}
 								else if (LFSRTexelCount == 256)
 								{
+									Bitcount = 8;
 									SquareResolution = 16;
-									NewValue = CalcLFSRValue(1 << 7, 1 << 5, 1 << 4, 1 << 3, 0xFF);
 								}
 								else if (LFSRTexelCount == 1024)
 								{
+									Bitcount = 10;
 									SquareResolution = 32;
-									NewValue = CalcLFSRValue(1 << 9, 1 << 6, 0, 0, 0x3FF);
 								}
 								else if (LFSRTexelCount == 4096)
 								{
+									Bitcount = 12;
 									SquareResolution = 64;
-									NewValue = CalcLFSRValue(1 << 11, 1 << 10, 1 << 9, 1 << 3, 0xFFF);
 								}
 								else
 								{
 									check(false);	// this should not happen given a square with size of power of two.
 								}
+								uint32 NewValue = View.ViewState->Lumen.FroxelProbesLFSR.GetNextValueWithLast(Bitcount);
 
 								uint32 CoordX = NewValue / SquareResolution;
 								uint32 CoordY = NewValue - CoordX * SquareResolution;
+							#else
+								// Halton takes to more time to update all pixels of a 16x16 probe.
+								uint32 CoordX = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 2) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+								uint32 CoordY = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 3) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+							#endif
 
 								// Since the RoundUpToPowerOfTwo the probe resolution, the square of pixel we parse can be larger than the actual probe resolution, that is why we modulate by the ProbesOctahedronResolution.
 								// This means that some texel will update at a high rate for some probe resolution.
