@@ -1190,7 +1190,33 @@ class FWorldPartitionStreamingGenerator
 					return RefererActorDescView.GetRuntimeDataLayerInstanceNames().GetExternalDataLayer() == ReferenceActorDescView.GetRuntimeDataLayerInstanceNames().GetExternalDataLayer();
 				};
 
-				// Validate data layers
+				auto GetDataLayerLoadFilter = [](const UDataLayerInstance* DataLayerInstance)
+				{
+					EDataLayerLoadFilter LoadFilter = DataLayerInstance->IsClientOnly() ? EDataLayerLoadFilter::ClientOnly : DataLayerInstance->IsServerOnly() ? EDataLayerLoadFilter::ServerOnly : EDataLayerLoadFilter::None;
+					return LoadFilter;
+				};
+
+				// Validate that all runtime data layers have the same DataLayerLoadFilter
+				auto AreDataLayersLoadFilterValid = [this, GetDataLayerLoadFilter](const FStreamingGenerationActorDescView& ActorDescView)
+				{
+					TArrayView<const FName> DataLayers = ActorDescView.GetRuntimeDataLayerInstanceNames().GetNonExternalDataLayers();
+					if (DataLayers.Num() > 1)
+					{
+						TArray<const UDataLayerInstance*> RuntimeDataLayerInstances = GetRuntimeDataLayerInstances(TArray<FName>(DataLayers));
+						EDataLayerLoadFilter LoadFilter = GetDataLayerLoadFilter(RuntimeDataLayerInstances[0]);
+						for (int32 Index = 1; Index < RuntimeDataLayerInstances.Num(); ++Index)
+						{
+							EDataLayerLoadFilter Current = GetDataLayerLoadFilter(RuntimeDataLayerInstances[Index]);
+							if (LoadFilter != Current)
+							{
+								return false;
+							}
+						}
+					}
+					return true;
+				};
+
+				// Validate reference actor data layers
 				auto IsReferenceDataLayersValid = [](const FStreamingGenerationActorDescView& RefererActorDescView, const FStreamingGenerationActorDescView& ReferenceActorDescView)
 				{
 					if (RefererActorDescView.GetRuntimeDataLayerInstanceNames().GetNonExternalDataLayers().Num() == ReferenceActorDescView.GetRuntimeDataLayerInstanceNames().GetNonExternalDataLayers().Num())
@@ -1220,6 +1246,19 @@ class FWorldPartitionStreamingGenerator
 					FGuid ReferenceGuid;
 					FStreamingGenerationActorDescView* ReferenceActorDesc;
 				};
+
+				if (!AreDataLayersLoadFilterValid(ActorDescView))
+				{
+					if (PassType == EPassType::ErrorReporting)
+					{
+						ErrorHandler->OnDataLayersLoadFilterMismatch(ActorDescView);
+					}
+					else
+					{
+						ActorDescView.SetForcedNoDataLayers();
+					}
+					NbErrorsDetected++;
+				}
 
 				TArray<FActorReferenceInfo> References;
 

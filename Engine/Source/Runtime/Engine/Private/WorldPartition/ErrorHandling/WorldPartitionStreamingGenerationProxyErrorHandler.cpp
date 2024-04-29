@@ -28,6 +28,11 @@ void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceRuntimeGrid(const 
 	InnerErrorHandler->OnInvalidReferenceRuntimeGrid(ActorDescView, ReferenceActorDescView);
 }
 
+void FStreamingGenerationProxyErrorHandler::OnDataLayersLoadFilterMismatch(const IWorldPartitionActorDescInstanceView& ActorDescView)
+{
+	InnerErrorHandler->OnDataLayersLoadFilterMismatch(ActorDescView);
+}
+
 void FStreamingGenerationProxyErrorHandler::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
 	InnerErrorHandler->OnInvalidWorldReference(ActorDescView, Reason);
