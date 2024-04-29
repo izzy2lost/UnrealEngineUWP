@@ -38,6 +38,7 @@ URigVMEdGraphNode::URigVMEdGraphNode()
 : Dimensions(0.0f, 0.0f)
 , NodeTitle(FText::GetEmpty())
 , FullNodeTitle(FText::GetEmpty())
+, bSubTitleEnabled(true)
 , NodeTopologyVersion(INDEX_NONE)
 , CachedTitleColor(FLinearColor(0.f, 0.f, 0.f, 0.f))
 , CachedNodeColor(FLinearColor(0.f, 0.f, 0.f, 0.f))
@@ -183,7 +184,7 @@ FText URigVMEdGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 
 		FullNodeTitle = NodeTitle;
 
-		if(!SubTitle.IsEmpty())
+		if(!SubTitle.IsEmpty() && bSubTitleEnabled)
 		{
 			FullNodeTitle = FText::FromString(FString::Printf(TEXT("%s\n%s"), *NodeTitle.ToString(), *SubTitle));
 		}
@@ -1102,6 +1103,15 @@ bool URigVMEdGraphNode::DrawAsCompactNode() const
 		}
 	}
 	return DrawAsCompactNodeCache.GetValue();
+}
+
+void URigVMEdGraphNode::SetModelNode(URigVMNode* InModelNode)
+{
+	ModelNodePath = InModelNode->GetNodePath();
+	CachedModelNode = InModelNode;
+	SyncGraphNodeTitleWithModelNodeTitle();
+	AllocateDefaultPins();
+	PostReconstructNode();
 }
 
 bool URigVMEdGraphNode::ModelPinRemoved_Internal(const URigVMPin* InModelPin)

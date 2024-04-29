@@ -19,11 +19,14 @@ FName FRigVMEdGraphPanelNodeFactory::GetFactoryName() const
 TSharedPtr<SGraphNode> FRigVMEdGraphPanelNodeFactory::CreateNode(UEdGraphNode* Node) const
 {
 	// we need to check if this is the right factory for the implementation
-	if(const URigVMBlueprint* Blueprint = Node->GetTypedOuter<URigVMBlueprint>())
+	if(const URigVMEdGraph* EdGraph = Node->GetTypedOuter<URigVMEdGraph>())
 	{
-		if(Blueprint->GetPanelNodeFactoryName() != GetFactoryName())
+		if(const URigVMBlueprint* Blueprint = EdGraph->GetBlueprintDefaultObject())
 		{
-			return nullptr;
+			if(Blueprint->GetPanelNodeFactoryName() != GetFactoryName())
+			{
+				return nullptr;
+			}
 		}
 	}
 

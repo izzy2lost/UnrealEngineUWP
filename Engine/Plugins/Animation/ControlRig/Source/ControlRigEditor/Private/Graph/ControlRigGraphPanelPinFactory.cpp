@@ -40,9 +40,13 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin(UEdGraphPin* In
 	if (const UEdGraphNode* OwningNode = InPin->GetOwningNode())
 	{
 		// only create pins within control rig graphs
-		if (Cast<UControlRigGraph>(OwningNode->GetGraph()) == nullptr)
+		if(const URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(OwningNode->GetGraph()))
 		{
-			return nullptr;
+			if ((Cast<UControlRigGraph>(EdGraph) == nullptr) &&
+				!EdGraph->IsPreviewGraph())
+			{
+				return nullptr;
+			}
 		}
 	}
 	
@@ -141,9 +145,13 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 		if (const UEdGraphNode* OwningNode = InPin->GetOwningNode())
 		{
 			// only create pins within control rig graphs
-			if (Cast<UControlRigGraph>(OwningNode->GetGraph()) == nullptr)
+			if(const URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(OwningNode->GetGraph()))
 			{
-				return nullptr;
+				if ((Cast<UControlRigGraph>(EdGraph) == nullptr) &&
+					!EdGraph->IsPreviewGraph())
+				{
+					return nullptr;
+				}
 			}
 		}
 

@@ -71,7 +71,15 @@ private:
 	/** The cached fulol node title */
 	mutable FText FullNodeTitle;
 
+	/** Set this to true to enable the sub title */
+	bool bSubTitleEnabled;
+
 public:
+
+	void SetSubTitleEnabled(bool bEnabled = true)
+	{
+		bSubTitleEnabled = bEnabled;
+	}
 
 	DECLARE_MULTICAST_DELEGATE(FNodeTitleDirtied);
 	DECLARE_MULTICAST_DELEGATE(FNodePinsChanged);
@@ -210,6 +218,9 @@ public:
 
 	/** Returns true if this node is relying on the cast template */
 	bool DrawAsCompactNode() const;
+
+	/** Sets the node's content from an external client, used for preview nodes without a graph */
+	void SetModelNode(URigVMNode* InModelNode);
 
 protected:
 

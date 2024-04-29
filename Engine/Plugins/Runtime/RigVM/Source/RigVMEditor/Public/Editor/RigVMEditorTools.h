@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AssetRegistry/AssetData.h"
 
 class URigVMController;
 class URigVMGraph;
@@ -24,5 +25,7 @@ RIGVMEDITOR_API void OnRequestLocalizeFunctionDialog(FRigVMGraphFunctionIdentifi
 	, URigVMController* InTargetController
 	, IRigVMGraphFunctionHost* InTargetFunctionHost
 	, bool bForce);
+	
+RIGVMEDITOR_API FAssetData FindAssetFromAnyPath(const FString& InPartialOrFullPath, bool bConvertToRootPath);
 
 } // end namespace UE::RigVM::Editor::Tools

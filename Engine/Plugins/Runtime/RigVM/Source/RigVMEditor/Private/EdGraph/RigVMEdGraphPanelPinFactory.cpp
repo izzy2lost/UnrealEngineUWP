@@ -36,11 +36,14 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin(UEdGraphPin* InPin
 	// we need to check if this is the right factory for the implementation
 	if(const UEdGraphNode* EdGraphNode = InPin->GetOuter())
 	{
-		if(const URigVMBlueprint* Blueprint = EdGraphNode->GetTypedOuter<URigVMBlueprint>())
+		if(const URigVMEdGraph* EdGraph = EdGraphNode->GetTypedOuter<URigVMEdGraph>())
 		{
-			if(Blueprint->GetPanelPinFactoryName() != GetFactoryName())
+			if(const URigVMBlueprint* Blueprint = EdGraph->GetBlueprintDefaultObject())
 			{
-				return nullptr;
+				if(Blueprint->GetPanelPinFactoryName() != GetFactoryName())
+				{
+					return nullptr;
+				}
 			}
 		}
 	}

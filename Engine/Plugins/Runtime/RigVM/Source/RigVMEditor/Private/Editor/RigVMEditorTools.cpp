@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Editor/RigVMEditorTools.h"
-
+#include "Editor.h"
 #include "RigVMModel/RigVMController.h"
 #include "RigVMModel/RigVMGraph.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMCore/RigVMGraphFunctionHost.h"
 #include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "Widgets/SRigVMGraphFunctionLocalizationWidget.h"
+#include "Subsystems/EditorAssetSubsystem.h"
 
 namespace UE::RigVM::Editor::Tools
 {
@@ -107,5 +108,16 @@ RIGVMEDITOR_API void OnRequestLocalizeFunctionDialog(FRigVMGraphFunctionIdentifi
 		}
 	}
 }
+	
+RIGVMEDITOR_API FAssetData FindAssetFromAnyPath(const FString& InPartialOrFullPath, bool bConvertToRootPath)
+{
+	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
+	if(bConvertToRootPath)
+	{
+		return EditorAssetSubsystem->FindAssetData(FSoftObjectPath(InPartialOrFullPath).GetWithoutSubPath().ToString());
+	}
+	return EditorAssetSubsystem->FindAssetData(InPartialOrFullPath);
+}
+
 
 } // end namespace UE::RigVM::Editor::Tools

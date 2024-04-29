@@ -167,7 +167,7 @@ const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetElementNameL
 	
 	if(!ElementNameLists.Contains(InElementType))
 	{
-		const UControlRigBlueprint* Blueprint = CastChecked<UControlRigBlueprint>(GetBlueprint());
+		const UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetBlueprint());
 		if(Blueprint == nullptr)
 		{
 			return &EmptyElementNameList;

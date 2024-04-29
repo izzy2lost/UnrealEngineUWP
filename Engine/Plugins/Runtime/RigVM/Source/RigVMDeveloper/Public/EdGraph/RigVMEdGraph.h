@@ -141,7 +141,10 @@ public:
 	virtual void HandleRigVMGraphRenamed(const FString& InOldNodePath, const FString& InNewNodePath) override;
 
 	/** Set up this graph */
+	const URigVMBlueprint* GetBlueprintDefaultObject() const;
+	void SetBlueprintClass(const UClass* InClass);
 	virtual void InitializeFromBlueprint(URigVMBlueprint* InBlueprint);
+	bool IsPreviewGraph() const;
 
 	/** Get the ed graph schema */
 	const URigVMEdGraphSchema* GetRigVMEdGraphSchema();
@@ -200,6 +203,7 @@ private:
 	TMap<FName, UEdGraphNode*> ModelNodePathToEdNode;
 	mutable TWeakObjectPtr<URigVMGraph> CachedModelGraph;
 	TArray<TSharedPtr<FRigVMStringWithTag>> EntryNameList;
+	const UClass* RigVMBlueprintClass;
 
 #endif
 	friend class URigVMEdGraphNode;

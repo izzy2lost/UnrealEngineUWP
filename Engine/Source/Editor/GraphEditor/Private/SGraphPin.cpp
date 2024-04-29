@@ -113,6 +113,7 @@ SGraphPin::SGraphPin()
 	, bIsMovingLinks(false)
 	, bUsePinColorForText(false)
 	, bDragAndDropEnabled(true)
+	, bIsDiffHighlighted(false)
 	, bFadeConnections(false)
 {
 	IsEditable = true;

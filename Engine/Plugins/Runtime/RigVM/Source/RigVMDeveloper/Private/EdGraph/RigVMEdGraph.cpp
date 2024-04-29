@@ -103,14 +103,39 @@ void URigVMEdGraph::HandleRigVMGraphRenamed(const FString& InOldNodePath, const 
 	}
 }
 
+const URigVMBlueprint* URigVMEdGraph::GetBlueprintDefaultObject() const
+{
+	if(RigVMBlueprintClass)
+	{
+		return RigVMBlueprintClass->GetDefaultObject<URigVMBlueprint>();
+	}
+	return nullptr;
+}
+
+void URigVMEdGraph::SetBlueprintClass(const UClass* InClass)
+{
+	RigVMBlueprintClass = InClass;
+	if(const URigVMBlueprint* Blueprint = GetBlueprintDefaultObject())
+	{
+		Schema = Blueprint->GetRigVMEdGraphSchemaClass();
+	}
+}
+
 void URigVMEdGraph::InitializeFromBlueprint(URigVMBlueprint* InBlueprint)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
+	SetBlueprintClass(InBlueprint->GetClass());
 	InBlueprint->OnModified().RemoveAll(this);
 	InBlueprint->OnModified().AddUObject(this, &URigVMEdGraph::HandleModifiedEvent);
 	InBlueprint->OnVMCompiled().RemoveAll(this);
 	InBlueprint->OnVMCompiled().AddUObject(this, &URigVMEdGraph::HandleVMCompiledEvent);
+}
+
+bool URigVMEdGraph::IsPreviewGraph() const
+{
+	// if we are not below a client host we are preview
+	return GetImplementingOuter<IRigVMClientHost>() == nullptr;
 }
 
 const URigVMEdGraphSchema* URigVMEdGraph::GetRigVMEdGraphSchema()
@@ -917,6 +942,14 @@ URigVMGraph* URigVMEdGraph::GetModel() const
 		CachedModelGraph = Model;
 		return Model;
 	}
+
+	// for preview scenarios we'll nest the edgraph under the model graph
+	if(URigVMGraph* Model = GetTypedOuter<URigVMGraph>())
+	{
+		CachedModelGraph = Model;
+		return Model;
+	}
+	
 	return nullptr;
 }
 
@@ -926,6 +959,14 @@ URigVMController* URigVMEdGraph::GetController() const
 	{
 		return Client->GetOrCreateController(GetModel());
 	}
+	
+	// for preview scenarios we'll nest the edgraph under the model graph
+	// and the model graph under the controller
+	if(URigVMController* Controller = GetTypedOuter<URigVMController>())
+	{
+		return Controller;
+	}
+	
 	return nullptr;
 }
 
