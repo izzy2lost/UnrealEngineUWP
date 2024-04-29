@@ -11,6 +11,8 @@
 #include "Styling/SlateTypes.h"
 #include "Widgets/SCompoundWidget.h"
 
+DECLARE_DELEGATE_RetVal(int32, FNumConflicts);
+
 DECLARE_DELEGATE_RetVal(bool, FIsVisible);
 DECLARE_DELEGATE_RetVal(bool, FIsEnabled);
 
@@ -66,6 +68,9 @@ public:
 	static int32 GetNumConflictsUpcoming();
 
 public:
+	static void SetNumConflictsRemaining(const FNumConflicts& InNumConflictsRemaining) { NumConflictsRemaining = InNumConflictsRemaining; }
+	static void SetNumConflictsUpcoming(const FNumConflicts& InNumConflictsUpcoming) { NumConflictsUpcoming = InNumConflictsUpcoming; }
+
 	static void SetIsSyncLatestEnabled(const FIsEnabled& InSyncLatestEnabled) { IsSyncLatestEnabled = InSyncLatestEnabled; }
 	static void SetIsCheckInChangesEnabled(const FIsEnabled& InCheckInChangesEnabled) { IsCheckInChangesEnabled = InCheckInChangesEnabled; }
 	static void SetIsRestoreAsLatestEnabled(const FIsEnabled& InRestoreAsLatestEnabled) { IsRestoreAsLatestEnabled = InRestoreAsLatestEnabled; }
@@ -79,21 +84,12 @@ public:
 	static void SetOnRestoreAsLatestClicked(const FOnClicked& InRestoreAsLatestClicked) { OnRestoreAsLatestClicked = InRestoreAsLatestClicked; }
 
 private:
-	void OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
-	void OnSourceControlStateChanged();
-	
-	void CheckSourceControlStatus();
-
-private:
 	
 	TAttribute<bool> IsMiddleSeparatorEnabled;
 	TAttribute<bool> IsRightSeparatorEnabled;
 
-	FDelegateHandle SourceControlProviderChangedHandle;
-	FDelegateHandle SourceControlStateChangedHandle;
-
-	static int32 NumConflictsRemaining;
-	static int32 NumConflictsUpcoming;
+	static FNumConflicts NumConflictsRemaining;
+	static FNumConflicts NumConflictsUpcoming;
 
 	static FIsEnabled IsSyncLatestEnabled;
 	static FIsEnabled IsCheckInChangesEnabled;

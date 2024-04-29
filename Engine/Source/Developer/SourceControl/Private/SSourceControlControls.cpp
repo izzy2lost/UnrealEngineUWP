@@ -13,8 +13,8 @@
 
 #define LOCTEXT_NAMESPACE "SSkeinSourceControlWidgets"
 
-int32 SSourceControlControls::NumConflictsRemaining = 0;
-int32 SSourceControlControls::NumConflictsUpcoming = 0;
+FNumConflicts SSourceControlControls::NumConflictsRemaining;
+FNumConflicts SSourceControlControls::NumConflictsUpcoming;
 
 FIsEnabled SSourceControlControls::IsSyncLatestEnabled;
 FIsEnabled SSourceControlControls::IsCheckInChangesEnabled;
@@ -210,78 +210,16 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 			.Orientation(EOrientation::Orient_Vertical)
 		]
 	];
-
-	CheckSourceControlStatus();
-}
-
-void SSourceControlControls::CheckSourceControlStatus()
-{
-	ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-
-	if (!SourceControlProviderChangedHandle.IsValid())
-	{
-		SourceControlProviderChangedHandle = SourceControlModule.RegisterProviderChanged(
-			FSourceControlProviderChanged::FDelegate::CreateSP(this, &SSourceControlControls::OnSourceControlProviderChanged)
-		);
-		SourceControlStateChangedHandle = SourceControlModule.GetProvider().RegisterSourceControlStateChanged_Handle(
-			FSourceControlStateChanged::FDelegate::CreateSP(this, &SSourceControlControls::OnSourceControlStateChanged)
-		);
-	}
-}
-
-void SSourceControlControls::OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider)
-{
-	if (SourceControlStateChangedHandle.IsValid())
-	{
-		OldProvider.UnregisterSourceControlStateChanged_Handle(SourceControlStateChangedHandle);
-		SourceControlStateChangedHandle.Reset();
-	}
-
-	if (!IsEngineExitRequested())
-	{
-		SourceControlStateChangedHandle = NewProvider.RegisterSourceControlStateChanged_Handle(
-			FSourceControlStateChanged::FDelegate::CreateSP(this, &SSourceControlControls::OnSourceControlStateChanged)
-		);
-	}
-}
-
-void SSourceControlControls::OnSourceControlStateChanged()
-{
-	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
-
-	TArray<FSourceControlStateRef> ConflictsRemaining = SourceControlProvider.GetCachedStateByPredicate(
-		[](const FSourceControlStateRef& State)
-		{
-			return State->IsConflicted();
-		}
-	);
-
-	TArray<FSourceControlStateRef> ConflictsUpcoming = SourceControlProvider.GetCachedStateByPredicate(
-		[](const FSourceControlStateRef& State)
-		{
-			if (State->IsCurrent())
-			{
-				return false;
-			}
-			else
-			{
-				return State->IsModified() || State->IsDeleted() || State->IsAdded();
-			}
-		}
-	);
-
-	NumConflictsRemaining = ConflictsRemaining.Num(); // Atomic write.
-	NumConflictsUpcoming = ConflictsUpcoming.Num(); // Atomic write.
 }
 
 int32 SSourceControlControls::GetNumConflictsRemaining()
 {
-	return NumConflictsRemaining;
+	return NumConflictsRemaining.IsBound() ? NumConflictsRemaining.Execute() : 0;
 }
 
 int32 SSourceControlControls::GetNumConflictsUpcoming()
 {
-	return NumConflictsUpcoming;
+	return NumConflictsUpcoming.IsBound() ? NumConflictsUpcoming.Execute() : 0;
 }
 
 /** Sync Status */
