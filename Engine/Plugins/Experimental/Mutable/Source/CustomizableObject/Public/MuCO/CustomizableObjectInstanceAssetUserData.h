@@ -30,6 +30,20 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstanceUserData : public UAsset
 	GENERATED_BODY()
 
 public:
+	/** Return the list of tags for this instance. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	const FGameplayTagContainer& GetAnimationGameplayTags() const
+	{
+		return AnimationGameplayTag;
+	};
+
+	/** Sets the list of tags for this instance. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetAnimationGameplayTags(const FGameplayTagContainer& InstanceTags)
+	{
+		AnimationGameplayTag = InstanceTags;
+	};
+	
 	UPROPERTY(BlueprintReadWrite, Category = CustomizableObjectInstance)
 	FGameplayTagContainer AnimationGameplayTag;
 
