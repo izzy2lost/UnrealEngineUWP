@@ -139,9 +139,8 @@ void TextureGraphEngine::InitEngineInternal()
 	/// Init some of the stock textures that we keep
 	//TextureHelper::InitStockTextures();
 
-#if 0 // Disabling for the time being
+	// Allocate the render doc manager (wether or not render doc define is enabled)
 	RenderDocMgrObj = std::make_unique<TextureGraphEditor::RenderDocManager>();
-#endif 
 
 	MixMgrObj = std::make_unique<::MixManager>();
 
@@ -187,9 +186,8 @@ TextureGraphEngine::~TextureGraphEngine()
 	/// This is to control the order of destruction
 	TextureHelper::FreeStockTextures();
 
-#if 0 // Disabling for the time being
+	// No more render doc manager
 	RenderDocMgrObj = nullptr;
-#endif 
 
 	MaterialMgrObj = nullptr;
 	MixMgrObj = nullptr;

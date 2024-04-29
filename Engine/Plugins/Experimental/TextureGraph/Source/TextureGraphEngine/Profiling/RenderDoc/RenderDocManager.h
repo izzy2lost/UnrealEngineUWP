@@ -3,9 +3,6 @@
 
 #include "CoreMinimal.h"
 #include <memory>
-/**
- * 
- */
 
 DECLARE_LOG_CATEGORY_EXTERN(LogRenderDocTextureGraph, Log, All);
 
