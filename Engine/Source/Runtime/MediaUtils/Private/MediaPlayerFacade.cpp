@@ -123,7 +123,6 @@ FMediaPlayerFacade::FMediaPlayerFacade(TWeakObjectPtr<UMediaPlayer> InMediaPlaye
 	, bHaveActiveAudio(false)
 	, VideoSampleAvailability(-1)
 	, AudioSampleAvailability(-1)
-	, bIsSinkFlushPending(false)
 	, bAreEventsSafeForAnyThread(false)
 	, MediaPlayer(InMediaPlayer)
 {
@@ -286,20 +285,10 @@ void FMediaPlayerFacade::Close()
 		NotifyLifetimeManagerDelegate_PlayerClosed();
 	}
 
-	BlockOnRange.Reset();
-
-	Cache->Empty();
-	CurrentUrl.Empty();
-	LastRate = 0.0f;
-	CurrentRate = 0.0f;
-
-	bHaveActiveAudio = false;
-	VideoSampleAvailability = -1;
-	AudioSampleAvailability = -1;
-	bIsSinkFlushPending = false;
-	bDidRecentPlayerHaveError = false;
-
 	Flush();
+	ReInit();
+	BlockOnRange.Reset();
+	bDidRecentPlayerHaveError = false;
 }
 
 
@@ -1518,7 +1507,7 @@ bool FMediaPlayerFacade::SetRate(float Rate)
 		if (Rate == 0.0f)
 		{
 			// Invalidate audio time on entering pause mode...
-			if (TSharedPtr< FMediaAudioSampleSink, ESPMode::ThreadSafe> AudioSink = PrimaryAudioSink.Pin())
+			if (TSharedPtr<FMediaAudioSampleSink, ESPMode::ThreadSafe> AudioSink = PrimaryAudioSink.Pin())
 			{
 				AudioSink->InvalidateAudioTime();
 			}
@@ -2177,12 +2166,6 @@ void FMediaPlayerFacade::TickInput(FTimespan DeltaTime, FTimespan Timecode)
 			{
 				// If so: nothing more to do!
 				return;
-			}
-
-			if (bIsSinkFlushPending)
-			{
-				bIsSinkFlushPending = false;
-				Flush();
 			}
 
 			//
@@ -3524,11 +3507,6 @@ void FMediaPlayerFacade::ReceiveMediaEvent(EMediaEvent Event)
 
 		case	EMediaEvent::Internal_ResetForDiscontinuity:
 		{
-			// Disabled for now to prevent a flush on the next handling iteration that might discard the samples a blocking range is waiting for.
-			#if 0
-				UE_LOG(LogMediaUtils, VeryVerbose, TEXT("PlayerFacade %p: Reset for discontinuity"), this);
-				bIsSinkFlushPending = true;
-			#endif
 			break;
 		}
 		case	EMediaEvent::Internal_RenderClockStart:
@@ -3580,3 +3558,34 @@ void FMediaPlayerFacade::ReceiveMediaEvent(EMediaEvent Event)
 		QueuedEvents.Enqueue(Event);
 	}
 }
+
+void FMediaPlayerFacade::ReInit()
+{
+	// We leave the registered sinks and delegates alone
+	{
+		FScopeLock lock(&CriticalSection);
+		BlockOnRange.Reset();
+		BlockOnRangeDisabled = false;
+		CurrentUrl.Empty();
+		LastRate = 0.0f;
+		CurrentRate = 0.0f;
+		bHaveActiveAudio = false;
+		VideoSampleAvailability = -1;
+		AudioSampleAvailability = -1;
+		NextVideoSampleTime = FTimespan::Zero();
+	}
+
+	{
+		FScopeLock lock(&LastTimeValuesCS);
+		LastAudioRenderedSampleTime.Invalidate();
+		LastAudioSampleProcessedTime.Invalidate();
+		LastVideoSampleProcessedTimeRange = TRange<FMediaTimeStamp>::Empty();
+		CurrentFrameAudioTimeStamp.Invalidate();
+		CurrentFrameVideoTimeStamp.Invalidate();
+		CurrentFrameVideoDisplayTimeStamp.Invalidate();
+		NextEstVideoTimeAtFrameStart.Invalidate();
+		SeekTargetTime.Invalidate();
+		SeekIndex = 0;
+	}
+}
+

@@ -8,7 +8,7 @@
 
 #include "MediaAudioDecoderOutput.h"
 
- 
+
 // IMediaAudioSample impl
 // is used as audio decoder output
 // contains decoded audio samples ready for playback along with corresponding metadata
@@ -27,7 +27,7 @@ public:
 	{
 	}
 
-	void Initialize(const IAudioDecoderOutputPtr & InDecoderOutput)
+	void Initialize(const IAudioDecoderOutputPtr& InDecoderOutput)
 	{
 		DecoderOutput = InDecoderOutput;
 	}
@@ -42,7 +42,7 @@ public:
 	{ return DecoderOutput ? DecoderOutput->GetDuration() : FTimespan::Zero(); }
 
 	EMediaAudioSampleFormat GetFormat() const override
-	{ 
+	{
 		static_assert((int32)EMediaAudioSampleFormat::Undefined == (int32)IAudioDecoderOutput::ESampleFormat::Undefined, "check enums are identical");
 		static_assert((int32)EMediaAudioSampleFormat::Double == (int32)IAudioDecoderOutput::ESampleFormat::Double, "check enums are identical");
 		static_assert((int32)EMediaAudioSampleFormat::Float == (int32)IAudioDecoderOutput::ESampleFormat::Float, "check enums are identical");
@@ -71,7 +71,15 @@ public:
 
 	uint32 GetMaxBufferBytes() const
 	{ return DecoderOutput ? DecoderOutput->GetReservedBufferBytes() : 0; }
-	
+
+	virtual void SetTime(const FMediaTimeStamp& InTime)
+	{
+		if (DecoderOutput)
+		{
+			DecoderOutput->SetTime(FDecoderTimeStamp(InTime.Time, InTime.SequenceIndex));
+		}
+	}
+
 	virtual void InitializePoolable() override;
 	virtual void ShutdownPoolable() override;
 

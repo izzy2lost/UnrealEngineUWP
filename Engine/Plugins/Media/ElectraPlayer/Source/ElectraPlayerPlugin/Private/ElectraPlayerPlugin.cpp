@@ -86,8 +86,7 @@ bool FElectraPlayerPlugin::Initialize(IMediaEventSink& InEventSink,
 
 	PlayerResourceDelegate = MakeShareable(PlatformCreatePlayerResourceDelegate());
 
-	PlayerDelegate = MakeShareable(new FPlayerAdapterDelegate(AsShared()));
-	Player = MakeShareable(FElectraPlayerRuntimeFactory::CreatePlayer(PlayerDelegate, InSendAnalyticMetricsDelegate, InSendAnalyticMetricsPerMinuteDelegate, InReportVideoStreamingErrorDelegate, InReportSubtitlesFileMetricsDelegate));
+	Player = MakeShareable(FElectraPlayerRuntimeFactory::CreatePlayer(SharedThis(this), InSendAnalyticMetricsDelegate, InSendAnalyticMetricsPerMinuteDelegate, InReportVideoStreamingErrorDelegate, InReportSubtitlesFileMetricsDelegate));
 
 	bMetadataChanged = false;
 	CurrentMetadata.Reset();
@@ -105,7 +104,6 @@ FElectraPlayerPlugin::~FElectraPlayerPlugin()
 		Player->CloseInternal(true);
 		Player.Reset();
 	}
-	PlayerDelegate.Reset();
 	PlayerResourceDelegate.Reset();
 	MediaSamples.Reset();
 }
@@ -253,111 +251,107 @@ private:
 
 //-----------------------------------------------------------------------------
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::BlobReceived(const TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe>& InBlobData, IElectraPlayerAdapterDelegate::EBlobResultType InResultType, int32 InResultCode, const Electra::FParamDict* InExtraInfo)
+void FElectraPlayerPlugin::BlobReceived(const TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe>& InBlobData, IElectraPlayerAdapterDelegate::EBlobResultType InResultType, int32 InResultCode, const Electra::FParamDict* InExtraInfo)
 {
 }
 
-Electra::FVariantValue FElectraPlayerPlugin::FPlayerAdapterDelegate::QueryOptions(EOptionType Type, const Electra::FVariantValue& Param)
+Electra::FVariantValue FElectraPlayerPlugin::QueryOptions(EOptionType Type, const Electra::FVariantValue& Param)
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
+	CallbackPointerLock.Lock();
+	TSharedPtr<IElectraSafeMediaOptionInterface, ESPMode::ThreadSafe> SafeOptionInterface = OptionInterface.Pin();
+	CallbackPointerLock.Unlock();
+	if (SafeOptionInterface.IsValid())
 	{
-		PinnedHost->CallbackPointerLock.Lock();
-		TSharedPtr<IElectraSafeMediaOptionInterface, ESPMode::ThreadSafe> SafeOptionInterface = PinnedHost->OptionInterface.Pin();
-		PinnedHost->CallbackPointerLock.Unlock();
-		if (SafeOptionInterface.IsValid())
+		IElectraSafeMediaOptionInterface::FScopedLock SafeLock(SafeOptionInterface);
+		IMediaOptions *SafeOptions = SafeOptionInterface->GetMediaOptionInterface();
+		if (SafeOptions)
 		{
-			IElectraSafeMediaOptionInterface::FScopedLock SafeLock(SafeOptionInterface);
-			IMediaOptions *SafeOptions = SafeOptionInterface->GetMediaOptionInterface();
-			if (SafeOptions)
+			switch(Type)
 			{
-				switch(Type)
+				case EOptionType::MaxVerticalStreamResolution:
 				{
-					case EOptionType::MaxVerticalStreamResolution:
-					{
-						static const FName MaxResolutionOptionKey = TEXT("MaxResolutionForMediaStreaming");
-						return FVariantValue((int64)SafeOptions->GetMediaOption(MaxResolutionOptionKey, (int64)0));
-					}
+					static const FName MaxResolutionOptionKey = TEXT("MaxResolutionForMediaStreaming");
+					return FVariantValue((int64)SafeOptions->GetMediaOption(MaxResolutionOptionKey, (int64)0));
+				}
 
-					case EOptionType::MaxBandwidthForStreaming:
-					{
-						static const FName MaxBandwidthOptionKey = TEXT("ElectraMaxStreamingBandwidth");
-						return FVariantValue((int64)SafeOptions->GetMediaOption(MaxBandwidthOptionKey, (int64)0));
-					}
+				case EOptionType::MaxBandwidthForStreaming:
+				{
+					static const FName MaxBandwidthOptionKey = TEXT("ElectraMaxStreamingBandwidth");
+					return FVariantValue((int64)SafeOptions->GetMediaOption(MaxBandwidthOptionKey, (int64)0));
+				}
 
-					case EOptionType::PlayListData:
-					{
-						static const FName PlaylistOptionKey = TEXT("ElectraGetPlaylistData");
-						if (SafeOptions->HasMediaOption(PlaylistOptionKey))
-						{
-							check(Param.IsType(FVariantValue::EDataType::TypeFString));
-							return FVariantValue(SafeOptions->GetMediaOption(PlaylistOptionKey, Param.GetFString()));
-						}
-						break;
-					}
-
-					case EOptionType::LicenseKeyData:
-					{
-						static const FName LicenseKeyDataOptionKey = TEXT("ElectraGetLicenseKeyData");
-						if (SafeOptions->HasMediaOption(LicenseKeyDataOptionKey))
-						{
-							check(Param.IsType(FVariantValue::EDataType::TypeFString));
-							return FVariantValue(SafeOptions->GetMediaOption(LicenseKeyDataOptionKey, Param.GetFString()));
-						}
-						break;
-					}
-
-					case EOptionType::MediaMetadataUpdate:
-					{
-						static const FName MetadataUpdateOptionKey = TEXT("ElectraMetaDataUpdate");
-						if (SafeOptions->HasMediaOption(MetadataUpdateOptionKey))
-						{
-							check(Param.IsType(FVariantValue::EDataType::TypeFString));
-							// This only provides metadata, the return value of the Get is of no consequence.
-							SafeOptions->GetMediaOption(MetadataUpdateOptionKey, Param.GetFString());
-						}
-						break;
-					}
-
-					case EOptionType::CustomAnalyticsMetric:
+				case EOptionType::PlayListData:
+				{
+					static const FName PlaylistOptionKey = TEXT("ElectraGetPlaylistData");
+					if (SafeOptions->HasMediaOption(PlaylistOptionKey))
 					{
 						check(Param.IsType(FVariantValue::EDataType::TypeFString));
-						if (Param.IsType(FVariantValue::EDataType::TypeFString))
+						return FVariantValue(SafeOptions->GetMediaOption(PlaylistOptionKey, Param.GetFString()));
+					}
+					break;
+				}
+
+				case EOptionType::LicenseKeyData:
+				{
+					static const FName LicenseKeyDataOptionKey = TEXT("ElectraGetLicenseKeyData");
+					if (SafeOptions->HasMediaOption(LicenseKeyDataOptionKey))
+					{
+						check(Param.IsType(FVariantValue::EDataType::TypeFString));
+						return FVariantValue(SafeOptions->GetMediaOption(LicenseKeyDataOptionKey, Param.GetFString()));
+					}
+					break;
+				}
+
+				case EOptionType::MediaMetadataUpdate:
+				{
+					static const FName MetadataUpdateOptionKey = TEXT("ElectraMetaDataUpdate");
+					if (SafeOptions->HasMediaOption(MetadataUpdateOptionKey))
+					{
+						check(Param.IsType(FVariantValue::EDataType::TypeFString));
+						// This only provides metadata, the return value of the Get is of no consequence.
+						SafeOptions->GetMediaOption(MetadataUpdateOptionKey, Param.GetFString());
+					}
+					break;
+				}
+
+				case EOptionType::CustomAnalyticsMetric:
+				{
+					check(Param.IsType(FVariantValue::EDataType::TypeFString));
+					if (Param.IsType(FVariantValue::EDataType::TypeFString))
+					{
+						FName OptionKey(*Param.GetFString());
+						if (SafeOptions->HasMediaOption(OptionKey))
 						{
-							FName OptionKey(*Param.GetFString());
-							if (SafeOptions->HasMediaOption(OptionKey))
+							return FVariantValue(SafeOptions->GetMediaOption(OptionKey, FString()));
+						}
+					}
+					break;
+				}
+
+				case EOptionType::PlaystartPosFromSeekPositions:
+				{
+					static const FName PlaystartOptionKey = TEXT("ElectraGetPlaystartPosFromSeekPositions");
+					if (SafeOptions->HasMediaOption(PlaystartOptionKey))
+					{
+						check(Param.IsType(FVariantValue::EDataType::TypeSharedPointer));
+
+						TSharedPtr<TArray<FTimespan>, ESPMode::ThreadSafe> PosArray = Param.GetSharedPointer<TArray<FTimespan>>();
+						if (PosArray.IsValid())
+						{
+							TSharedPtr<FElectraSeekablePositions, ESPMode::ThreadSafe> Res = StaticCastSharedPtr<FElectraSeekablePositions, IMediaOptions::FDataContainer, ESPMode::ThreadSafe>(SafeOptions->GetMediaOption(PlaystartOptionKey, MakeShared<FElectraSeekablePositions, ESPMode::ThreadSafe>(*PosArray)));
+							if (Res.IsValid() && Res->Data.Num())
 							{
-								return FVariantValue(SafeOptions->GetMediaOption(OptionKey, FString()));
+								return FVariantValue(int64(Res->Data[0].GetTicks())); // return HNS
 							}
 						}
-						break;
+						return FVariantValue();
 					}
+					break;
+				}
 
-					case EOptionType::PlaystartPosFromSeekPositions:
-					{
-						static const FName PlaystartOptionKey = TEXT("ElectraGetPlaystartPosFromSeekPositions");
-						if (SafeOptions->HasMediaOption(PlaystartOptionKey))
-						{
-							check(Param.IsType(FVariantValue::EDataType::TypeSharedPointer));
-
-							TSharedPtr<TArray<FTimespan>, ESPMode::ThreadSafe> PosArray = Param.GetSharedPointer<TArray<FTimespan>>();
-							if (PosArray.IsValid())
-							{
-								TSharedPtr<FElectraSeekablePositions, ESPMode::ThreadSafe> Res = StaticCastSharedPtr<FElectraSeekablePositions, IMediaOptions::FDataContainer, ESPMode::ThreadSafe>(SafeOptions->GetMediaOption(PlaystartOptionKey, MakeShared<FElectraSeekablePositions, ESPMode::ThreadSafe>(*PosArray)));
-								if (Res.IsValid() && Res->Data.Num())
-								{
-									return FVariantValue(int64(Res->Data[0].GetTicks())); // return HNS
-								}
-							}
-							return FVariantValue();
-						}
-						break;
-					}
-
-					default:
-					{
-						break;
-					}
+				default:
+				{
+					break;
 				}
 			}
 		}
@@ -366,174 +360,138 @@ Electra::FVariantValue FElectraPlayerPlugin::FPlayerAdapterDelegate::QueryOption
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::SendMediaEvent(EPlayerEvent Event)
+void FElectraPlayerPlugin::SendMediaEvent(EPlayerEvent Event)
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
+	if (Event == EPlayerEvent::MetadataChanged)
 	{
-		if (Event == EPlayerEvent::MetadataChanged)
-		{
-			PinnedHost->SetMetadataChanged();
-		}
-		FScopeLock lock(&PinnedHost->CallbackPointerLock);
-		if (PinnedHost->EventSink)
-		{
-			PinnedHost->EventSink->ReceiveMediaEvent((EMediaEvent)Event);
-		}
+		SetMetadataChanged();
+	}
+	FScopeLock lock(&CallbackPointerLock);
+	if (EventSink)
+	{
+		EventSink->ReceiveMediaEvent((EMediaEvent)Event);
 	}
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::OnVideoFlush()
+void FElectraPlayerPlugin::OnVideoFlush()
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
+	TRange<FTimespan> AllTime(FTimespan::MinValue(), FTimespan::MaxValue());
+	TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> FlushSample;
+	while (GetSamples().FetchVideo(AllTime, FlushSample))
+	{ }
+}
+
+
+void FElectraPlayerPlugin::OnAudioFlush()
+{
+	TRange<FTimespan> AllTime(FTimespan::MinValue(), FTimespan::MaxValue());
+	TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe> FlushSample;
+	while (GetSamples().FetchAudio(AllTime, FlushSample))
+	{ }
+}
+
+
+void FElectraPlayerPlugin::OnSubtitleFlush()
+{
+	TRange<FTimespan> AllTime(FTimespan::MinValue(), FTimespan::MaxValue());
+	TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe> FlushSample;
+	while (GetSamples().FetchSubtitle(AllTime, FlushSample))
+	{ }
+}
+
+
+
+
+void FElectraPlayerPlugin::PresentVideoFrame(const FVideoDecoderOutputPtr& InVideoFrame)
+{
+	FScopeLock SampleLock(&MediaSamplesLock);
+
+	FVideoDecoderOutputPtr VideoFrame = InVideoFrame;
+	TSharedPtr<FElectraTextureSamplePool, ESPMode::ThreadSafe> TexturePool = OutputTexturePool;
+	if (VideoFrame.IsValid() && TexturePool.IsValid())
 	{
-		TRange<FTimespan> AllTime(FTimespan::MinValue(), FTimespan::MaxValue());
-		TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> FlushSample;
-		while (PinnedHost->GetSamples().FetchVideo(AllTime, FlushSample))
-		{ }
+		SequenceIndexMapperVideo.Remap(VideoFrame);
+		FElectraTextureSampleRef TextureSample = TexturePool->AcquireShared();
+		TextureSample->Initialize(VideoFrame.Get());
+		MediaSamples->AddVideo(TextureSample);
 	}
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::OnAudioFlush()
+void FElectraPlayerPlugin::PresentAudioFrame(const IAudioDecoderOutputPtr& InAudioFrame)
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
+	FScopeLock SampleLock(&MediaSamplesLock);
+
+	IAudioDecoderOutputPtr AudioFrame = InAudioFrame;
+	if (AudioFrame.IsValid())
 	{
-		TRange<FTimespan> AllTime(FTimespan::MinValue(), FTimespan::MaxValue());
-		TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe> FlushSample;
-		while (PinnedHost->GetSamples().FetchAudio(AllTime, FlushSample))
-		{ }
+		SequenceIndexMapperAudio.Remap(AudioFrame);
+		TSharedRef<FElectraPlayerAudioSample, ESPMode::ThreadSafe> AudioSample = OutputAudioPool.AcquireShared();
+		AudioSample->Initialize(InAudioFrame);
+		MediaSamples->AddAudio(AudioSample);
 	}
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::OnSubtitleFlush()
+void FElectraPlayerPlugin::PresentSubtitleSample(const ISubtitleDecoderOutputPtr& InSubtitleSample)
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
+	FScopeLock SampleLock(&MediaSamplesLock);
+
+	ISubtitleDecoderOutputPtr Subtitle = InSubtitleSample;
+	if (Subtitle.IsValid())
 	{
-		TRange<FTimespan> AllTime(FTimespan::MinValue(), FTimespan::MaxValue());
-		TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe> FlushSample;
-		while (PinnedHost->GetSamples().FetchSubtitle(AllTime, FlushSample))
-		{ }
+		SequenceIndexMapperSubtitle.Remap(Subtitle);
+		TSharedRef<FElectraSubtitleSample, ESPMode::ThreadSafe> SubtitleSample = MakeShared<FElectraSubtitleSample, ESPMode::ThreadSafe>();
+		SubtitleSample->Subtitle = InSubtitleSample;
+		MediaSamples->AddSubtitle(SubtitleSample);
 	}
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::PresentVideoFrame(const FVideoDecoderOutputPtr& InVideoFrame)
+void FElectraPlayerPlugin::PresentMetadataSample(const IMetaDataDecoderOutputPtr& InMetadataFrame)
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
+	FScopeLock SampleLock(&MediaSamplesLock);
+
+	IMetaDataDecoderOutputPtr MetadataFrame = InMetadataFrame;
+	if (MetadataFrame.IsValid())
 	{
-		FVideoDecoderOutputPtr VideoFrame = InVideoFrame;
-		TSharedPtr<FElectraTextureSamplePool, ESPMode::ThreadSafe> TexturePool = PinnedHost->OutputTexturePool;
-		if (VideoFrame.IsValid() && TexturePool.IsValid())
-		{
-			FElectraTextureSampleRef TextureSample = TexturePool->AcquireShared();
-			TextureSample->Initialize(VideoFrame.Get());
-			PinnedHost->MediaSamples->AddVideo(TextureSample);
-		}
+		SequenceIndexMapperMetadata.Remap(MetadataFrame);
+		TSharedRef<FElectraBinarySample, ESPMode::ThreadSafe> MetaDataSample = MakeShared<FElectraBinarySample, ESPMode::ThreadSafe>();
+		MetaDataSample->Metadata = InMetadataFrame;
+		MediaSamples->AddMetadata(MetaDataSample);
 	}
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::PresentAudioFrame(const IAudioDecoderOutputPtr& InAudioFrame)
+bool FElectraPlayerPlugin::CanReceiveVideoSamples(int32 NumFrames)
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
-	{
-		IAudioDecoderOutputPtr AudioFrame = InAudioFrame;
-		if (AudioFrame.IsValid())
-		{
-			TSharedRef<FElectraPlayerAudioSample, ESPMode::ThreadSafe> AudioSample = PinnedHost->OutputAudioPool.AcquireShared();
-			AudioSample->Initialize(InAudioFrame);
-			PinnedHost->MediaSamples->AddAudio(AudioSample);
-		}
-	}
+	FScopeLock SampleLock(&MediaSamplesLock);
+	return MediaSamples->CanReceiveVideoSamples(NumFrames);
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::PresentSubtitleSample(const ISubtitleDecoderOutputPtr& InSubtitleSample)
+bool FElectraPlayerPlugin::CanReceiveAudioSamples(int32 NumFrames)
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
-	{
-		ISubtitleDecoderOutputPtr Subtitle = InSubtitleSample;
-		if (Subtitle.IsValid())
-		{
-			TSharedRef<FElectraSubtitleSample, ESPMode::ThreadSafe> SubtitleSample = MakeShared<FElectraSubtitleSample, ESPMode::ThreadSafe>();
-			SubtitleSample->Subtitle = InSubtitleSample;
-			PinnedHost->MediaSamples->AddSubtitle(SubtitleSample);
-		}
-	}
+	FScopeLock SampleLock(&MediaSamplesLock);
+	return MediaSamples->CanReceiveAudioSamples(NumFrames);
+}
+
+void FElectraPlayerPlugin::PrepareForDecoderShutdown()
+{
+	OutputTexturePool->PrepareForDecoderShutdown();
 }
 
 
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::PresentMetadataSample(const IMetaDataDecoderOutputPtr& InMetadataFrame)
-{
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
-	{
-		IMetaDataDecoderOutputPtr MetadataFrame = InMetadataFrame;
-		if (MetadataFrame.IsValid())
-		{
-			// Create a binary media sample of our extended format and pass it up.
-			TSharedRef<FElectraBinarySample, ESPMode::ThreadSafe> MetaDataSample = MakeShared<FElectraBinarySample, ESPMode::ThreadSafe>();
-			MetaDataSample->Metadata = InMetadataFrame;
-			PinnedHost->MediaSamples->AddMetadata(MetaDataSample);
-		}
-	}
-}
-
-
-bool FElectraPlayerPlugin::FPlayerAdapterDelegate::CanReceiveVideoSamples(int32 NumFrames)
-{
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
-	{
-		return PinnedHost->MediaSamples->CanReceiveVideoSamples(NumFrames);
-	}
-	return false;
-}
-
-
-bool FElectraPlayerPlugin::FPlayerAdapterDelegate::CanReceiveAudioSamples(int32 NumFrames)
-{
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
-	{
-		return PinnedHost->MediaSamples->CanReceiveAudioSamples(NumFrames);
-	}
-	return false;
-}
-
-void FElectraPlayerPlugin::FPlayerAdapterDelegate::PrepareForDecoderShutdown()
-{
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
-	{
-		PinnedHost->OutputTexturePool->PrepareForDecoderShutdown();
-	}
-}
-
-
-FString FElectraPlayerPlugin::FPlayerAdapterDelegate::GetVideoAdapterName() const
+FString FElectraPlayerPlugin::GetVideoAdapterName() const
 {
 	return GRHIAdapterName;
 }
 
 
-TSharedPtr<IElectraPlayerResourceDelegate, ESPMode::ThreadSafe> FElectraPlayerPlugin::FPlayerAdapterDelegate::GetResourceDelegate() const
+TSharedPtr<IElectraPlayerResourceDelegate, ESPMode::ThreadSafe> FElectraPlayerPlugin::GetResourceDelegate() const
 {
-	TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> PinnedHost = Host.Pin();
-	if (PinnedHost.IsValid())
-	{
-		return PinnedHost->PlayerResourceDelegate;
-	}
-	return nullptr;
+	return PlayerResourceDelegate;
 }
 
 //-----------------------------------------------------------------------------
@@ -553,6 +511,7 @@ FString FElectraPlayerPlugin::GetInfo() const
 
 IMediaSamples& FElectraPlayerPlugin::GetSamples()
 {
+	FScopeLock SampleLock(&MediaSamplesLock);
 	return *MediaSamples;
 }
 
@@ -601,19 +560,19 @@ bool FElectraPlayerPlugin::Open(const FString& Url, const IMediaOptions* Options
 	if (InitialAudioLanguage.Len())
 	{
 		LocalPlaystartOptions.InitialAudioTrackAttributes.Language_ISO639 = InitialAudioLanguage;
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Asking for initial audio language \"%s\""), this, *InitialAudioLanguage);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Asking for initial audio language \"%s\""), this, *InitialAudioLanguage);
 	}
 	FString InitialSubtitleLanguage = Options->GetMediaOption(TEXT("InitialSubtitleLanguage"), FString());
 	if (InitialSubtitleLanguage.Len())
 	{
 		LocalPlaystartOptions.InitialSubtitleTrackAttributes.Language_ISO639 = InitialSubtitleLanguage;
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Asking for initial subtitle language \"%s\""), this, *InitialSubtitleLanguage);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Asking for initial subtitle language \"%s\""), this, *InitialSubtitleLanguage);
 	}
 	bool bNoPreloading = Options->GetMediaOption(TEXT("ElectraNoPreloading"), (bool)false);
 	if (bNoPreloading)
 	{
 		LocalPlaystartOptions.bDoNotPreload = true;
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: No preloading after opening media"), this);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: No preloading after opening media"), this);
 	}
 
 
@@ -634,49 +593,49 @@ bool FElectraPlayerPlugin::Open(const FString& Url, const IMediaOptions* Options
 	if (InitialStreamBitrate > 0)
 	{
 		PlayerOptions.Set(TEXT("initial_bitrate"), Electra::FVariantValue(InitialStreamBitrate));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Using initial bitrate of %d bits/second"), this, (int32)InitialStreamBitrate);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Using initial bitrate of %d bits/second"), this, (int32)InitialStreamBitrate);
 	}
 	FString MediaMimeType = Options->GetMediaOption(TEXT("mimetype"), FString());
 	if (MediaMimeType.Len())
 	{
 		PlayerOptions.Set(TEXT("mime_type"), Electra::FVariantValue(MediaMimeType));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Setting media mime type to \"%s\""), this, *MediaMimeType);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Setting media mime type to \"%s\""), this, *MediaMimeType);
 	}
 	int64 MaxVerticalHeight = Options->GetMediaOption(TEXT("MaxElectraVerticalResolution"), (int64)-1);
 	if (MaxVerticalHeight > 0)
 	{
 		PlayerOptions.Set(TEXT("max_resoY"), Electra::FVariantValue(MaxVerticalHeight));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Limiting vertical resolution to %d for all streams"), this, (int32)MaxVerticalHeight);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Limiting vertical resolution to %d for all streams"), this, (int32)MaxVerticalHeight);
 	}
 	int64 MaxVerticalHeightAt60 = Options->GetMediaOption(TEXT("MaxElectraVerticalResolutionOf60fpsVideos"), (int64)-1);
 	if (MaxVerticalHeightAt60 > 0)
 	{
 		PlayerOptions.Set(TEXT("max_resoY_above_30fps"), Electra::FVariantValue(MaxVerticalHeightAt60));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Limiting vertical resolution to %d for streams >30fps"), this, (int32)MaxVerticalHeightAt60);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Limiting vertical resolution to %d for streams >30fps"), this, (int32)MaxVerticalHeightAt60);
 	}
 	double LiveEdgeDistanceForNormalPresentation = Options->GetMediaOption(TEXT("ElectraLivePresentationOffset"), (double)-1.0);
 	if (LiveEdgeDistanceForNormalPresentation > 0.0)
 	{
 		PlayerOptions.Set(TEXT("seekable_range_live_end_offset"), Electra::FVariantValue(Electra::FTimeValue().SetFromSeconds(LiveEdgeDistanceForNormalPresentation)));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Setting distance to live edge for normal presentations to %.3f seconds"), this, LiveEdgeDistanceForNormalPresentation);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Setting distance to live edge for normal presentations to %.3f seconds"), this, LiveEdgeDistanceForNormalPresentation);
 	}
 	double LiveEdgeDistanceForAudioOnlyPresentation = Options->GetMediaOption(TEXT("ElectraLiveAudioPresentationOffset"), (double)-1.0);
 	if (LiveEdgeDistanceForAudioOnlyPresentation > 0.0)
 	{
 		PlayerOptions.Set(TEXT("seekable_range_live_end_offset_audioonly"), Electra::FVariantValue(Electra::FTimeValue().SetFromSeconds(LiveEdgeDistanceForAudioOnlyPresentation)));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Setting distance to live edge for audio-only presentation to %.3f seconds"), this, LiveEdgeDistanceForAudioOnlyPresentation);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Setting distance to live edge for audio-only presentation to %.3f seconds"), this, LiveEdgeDistanceForAudioOnlyPresentation);
 	}
 	bool bUseConservativeLiveEdgeDistance = Options->GetMediaOption(TEXT("ElectraLiveUseConservativePresentationOffset"), (bool)false);
 	if (bUseConservativeLiveEdgeDistance)
 	{
 		PlayerOptions.Set(TEXT("seekable_range_live_end_offset_conservative"), Electra::FVariantValue(bUseConservativeLiveEdgeDistance));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Using conservative live edge for distance calculation"), this);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Using conservative live edge for distance calculation"), this);
 	}
 	bool bThrowErrorWhenRebuffering = Options->GetMediaOption(TEXT("ElectraThrowErrorWhenRebuffering"), (bool)false);
 	if (bThrowErrorWhenRebuffering)
 	{
 		PlayerOptions.Set(TEXT("throw_error_when_rebuffering"), Electra::FVariantValue(bThrowErrorWhenRebuffering));
-		UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: Throw playback error when rebuffering"), this);
+		UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: Throw playback error when rebuffering"), this);
 	}
 	FString CDNHTTPStatusDenyStream = Options->GetMediaOption(TEXT("ElectraGetDenyStreamCode"), FString());
 	if (CDNHTTPStatusDenyStream.Len())
@@ -686,7 +645,7 @@ bool FElectraPlayerPlugin::Open(const FString& Url, const IMediaOptions* Options
 		if (HTTPStatus > 0 && HTTPStatus < 1000)
 		{
 			PlayerOptions.Set(TEXT("abr:cdn_deny_httpstatus"), Electra::FVariantValue((int64)HTTPStatus));
-			UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaPlayer::Open: CDN HTTP status %d will deny a stream permanently"), this, HTTPStatus);
+			UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("[%p] IMediaPlayer::Open: CDN HTTP status %d will deny a stream permanently"), this, HTTPStatus);
 		}
 	}
 
@@ -696,7 +655,8 @@ bool FElectraPlayerPlugin::Open(const FString& Url, const IMediaOptions* Options
 	{
 		PlayerOptions.Set(TEXT("optimize_seek_for_scrubbing"), Electra::FVariantValue(true));
 		PlayerOptions.Set(TEXT("new_scrubbing_seek_cancels_current"), Electra::FVariantValue(true));
-		PlayerOptions.Set(TEXT("do_not_hold_back_first_frame"), Electra::FVariantValue(true));
+		//PlayerOptions.Set(TEXT("do_not_hold_back_first_frame"), Electra::FVariantValue(true));
+		PlayerOptions.Set(TEXT("always_emit_samples_when_paused"), Electra::FVariantValue(true));
 		PlayerOptions.Set(TEXT("worker_threads"), Electra::FVariantValue(FString(TEXT("worker"))));
 	}
 	else
@@ -740,6 +700,11 @@ bool FElectraPlayerPlugin::Open(const FString& Url, const IMediaOptions* Options
 
 	bMetadataChanged = false;
 	CurrentMetadata.Reset();
+
+	SequenceIndexMapperVideo.Reset();
+	SequenceIndexMapperAudio.Reset();
+	SequenceIndexMapperSubtitle.Reset();
+	SequenceIndexMapperMetadata.Reset();
 
 	// Check if we can get a segment cache interface for this playback request...
 	TSharedPtr<FElectraPlayerDataCacheContainer, ESPMode::ThreadSafe> ElectraPlayerDataCacheContainer;
@@ -986,7 +951,109 @@ bool FElectraPlayerPlugin::Seek(const FTimespan& Time)
 	UE_LOG(LogElectraPlayerPlugin, Log, TEXT("[%p] IMediaControls::Seek() to %s"), this, *Time.ToString(TEXT("%h:%m:%s.%f")));
 	CSV_EVENT(ElectraPlayer, TEXT("Seeking"));
 
-	return Player->Seek(Time);
+	const int32 NextSequenceIndex = CurrentSequenceIndex + 1;
+
+	// Check if the target time is already available.
+	FScopeLock SampleLock(&MediaSamplesLock);
+	if (!MediaSamples.Get())
+	{
+		return false;
+	}
+	FMediaSamples& Samples = *MediaSamples;
+	const float Rate = Player->GetRate();
+	if (Rate >= 0.0f)
+	{
+		TArray<TRange<FMediaTimeStamp>> QueuedRange;
+		// Note: When a Seek() is performed, the loop counter contractually restarts at 0 !!
+		FMediaTimeStamp TargetTime = FMediaTimeStamp(Time, FMediaTimeStamp::MakeSequenceIndex(CurrentSequenceIndex, 0));
+		if (Samples.PeekVideoSampleTimeRanges(QueuedRange) && QueuedRange.Num())
+		{
+			FMediaTimeStamp MinTime(FTimespan::MinValue(), FMediaTimeStamp::MakeSequenceIndex(-1, 0));
+			FMediaTimeStamp DiscardTo = MinTime;
+			// Loop over all entries in case there are several candidates in a (more or less)
+			// degenerate case of a single looping frame.
+			for(int32 i=0; i<QueuedRange.Num(); ++i)
+			{
+				// For comparison reasons we need to assume the loop counter of the sample range we're looking at.
+				TargetTime.SetSecondaryIndex(QueuedRange[i].GetLowerBoundValue().GetSecondaryIndex());
+				if (QueuedRange[i].Contains(TargetTime))
+				{
+					DiscardTo = QueuedRange[i].GetLowerBoundValue() - FTimespan(1);
+				}
+			}
+			if (DiscardTo > MinTime)
+			{
+				UE_LOG(LogElectraPlayerPlugin, Verbose, TEXT("Seek time %lld (%d,%d) already available, rolling forward"), (long long int)TargetTime.Time.GetTicks(), TargetTime.GetPrimaryIndex(), TargetTime.GetSecondaryIndex());
+				TRange<FMediaTimeStamp> DiscardRange(MinTime, DiscardTo);
+
+				Samples.DiscardVideoSamples(DiscardRange, false);
+				Samples.DiscardAudioSamples(DiscardRange, false);
+				Samples.DiscardCaptionSamples(DiscardRange, false);
+				Samples.DiscardSubtitleSamples(DiscardRange, false);
+				Samples.DiscardMetadataSamples(DiscardRange, false);
+
+				TOptional<int32> LastVideoLoopIndex;
+				TOptional<int32> LastAudioLoopIndex;
+
+				// We now need to "renumber" the (primary) sequence index of what is left in the sample queues.
+				// The secondary index (the loop index) restarts at 0. See above.
+				FMediaSamples TempSamples;
+				TRange<FTimespan> AllTime(FTimespan::MinValue(), FTimespan::MaxValue());
+				// Video
+				{
+					TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> TempSample;
+					while(Samples.FetchVideo(AllTime, TempSample))
+					{
+						TSharedPtr<FElectraTextureSample, ESPMode::ThreadSafe> vs = StaticCastSharedPtr<FElectraTextureSample>(TempSample);
+						FMediaTimeStamp ts = vs->GetTime();
+						LastVideoLoopIndex = ts.GetSecondaryIndex();
+						vs->SetTime(ts.SetPrimaryIndex(NextSequenceIndex).SetSecondaryIndex(0));
+						TempSamples.AddVideo(TempSample.ToSharedRef());
+					}
+					while(TempSamples.FetchVideo(AllTime, TempSample))
+					{
+						Samples.AddVideo(TempSample.ToSharedRef());
+					}
+				}
+				// Audio
+				{
+					TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe> TempSample;
+					while(Samples.FetchAudio(AllTime, TempSample))
+					{
+						TSharedPtr<FElectraPlayerAudioSample, ESPMode::ThreadSafe> as = StaticCastSharedPtr<FElectraPlayerAudioSample>(TempSample);
+						FMediaTimeStamp ts = as->GetTime();
+						LastAudioLoopIndex = ts.GetSecondaryIndex();
+						as->SetTime(ts.SetPrimaryIndex(NextSequenceIndex).SetSecondaryIndex(0));
+						TempSamples.AddAudio(TempSample.ToSharedRef());
+					}
+					while(TempSamples.FetchAudio(AllTime, TempSample))
+					{
+						Samples.AddAudio(TempSample.ToSharedRef());
+					}
+				}
+				// Set the index remappers. The primary index changes only with a Seek() call, and since we are not
+				// actually seeking whatever the player still has available needs to be remapped to the new index
+				// the facade is expecting.
+				SequenceIndexMapperVideo.SetRemapPrimaryIndex(NextSequenceIndex, LastVideoLoopIndex);
+				SequenceIndexMapperAudio.SetRemapPrimaryIndex(NextSequenceIndex, LastAudioLoopIndex);
+				SequenceIndexMapperSubtitle.SetRemapPrimaryIndex(NextSequenceIndex, TOptional<int32>());
+				SequenceIndexMapperMetadata.SetRemapPrimaryIndex(NextSequenceIndex, TOptional<int32>());
+				CurrentSequenceIndex = NextSequenceIndex;
+				SendMediaEvent(EPlayerEvent::SeekCompleted);
+				return true;
+			}
+		}
+	}
+
+	SequenceIndexMapperVideo.SetExpectedPrimaryIndex(NextSequenceIndex);
+	SequenceIndexMapperAudio.SetExpectedPrimaryIndex(NextSequenceIndex);
+	SequenceIndexMapperSubtitle.SetExpectedPrimaryIndex(NextSequenceIndex);
+	SequenceIndexMapperMetadata.SetExpectedPrimaryIndex(NextSequenceIndex);
+	CurrentSequenceIndex = NextSequenceIndex;
+
+	IElectraPlayerInterface::FSeekParam sp;
+	sp.SequenceIndex = CurrentSequenceIndex;
+	return Player->Seek(Time, sp);
 }
 
 TRange<FTimespan> FElectraPlayerPlugin::GetPlaybackTimeRange(EMediaTimeRangeType InRangeToGet) const
@@ -1012,16 +1079,18 @@ bool FElectraPlayerPlugin::QueryCacheState(EMediaCacheState State, TRangeSet<FTi
 	{
 		case EMediaCacheState::Loaded:
 		case EMediaCacheState::Loading:
+		case EMediaCacheState::Pending:
 		{
 			// When asked to provide what's already loaded we look at what we have in the sample queue
 			// and add that to the result. These samples have already left the player but are ready
 			// for use.
 			if (State == EMediaCacheState::Loaded)
 			{
-				TRange<FMediaTimeStamp> QueuedRange;
-				if (MediaSamples.IsValid() && MediaSamples->PeekVideoSampleTimeRange(QueuedRange))
+				TArray<TRange<FMediaTimeStamp>> QueuedRange;
+				FScopeLock SampleLock(&MediaSamplesLock);
+				if (MediaSamples.IsValid() && MediaSamples->PeekVideoSampleTimeRanges(QueuedRange) && QueuedRange.Num())
 				{
-					OutTimeRanges.Add(TRange<FTimespan>(QueuedRange.GetLowerBoundValue().Time, QueuedRange.GetUpperBoundValue().Time));
+					OutTimeRanges.Add(TRange<FTimespan>(QueuedRange[0].GetLowerBoundValue().Time, QueuedRange.Last().GetUpperBoundValue().Time));
 				}
 			}
 
@@ -1031,7 +1100,22 @@ bool FElectraPlayerPlugin::QueryCacheState(EMediaCacheState State, TRangeSet<FTi
 			bool bHaveVid = Player->GetStreamBufferInformation(vidBuf, IElectraPlayerInterface::EPlayerTrackType::Video);
 			bool bHaveAud = !bHaveVid ? Player->GetStreamBufferInformation(audBuf, IElectraPlayerInterface::EPlayerTrackType::Audio) : false;
 			const IElectraPlayerInterface::FStreamBufferInfo* Buffer = bHaveVid ? &vidBuf : bHaveAud ? &audBuf : nullptr;
-			const TArray<IElectraPlayerInterface::FStreamBufferInfo::FTimeRange>* tr = Buffer ? (State == EMediaCacheState::Loaded ? &Buffer->TimeAvailable : &Buffer->TimeRequested) : nullptr;
+			const TArray<IElectraPlayerInterface::FStreamBufferInfo::FTimeRange>* tr = nullptr;
+			if (Buffer)
+			{
+				switch(State)
+				{
+					case EMediaCacheState::Loaded:
+						tr = &Buffer->TimeEnqueued;
+						break;
+					case EMediaCacheState::Loading:
+						tr = &Buffer->TimeAvailable;
+						break;
+					case EMediaCacheState::Pending:
+						tr = &Buffer->TimeRequested;
+						break;
+				}
+			}
 			for(int32 i=0,iMax=tr?tr->Num():0; i<iMax; ++i)
 			{
 				OutTimeRanges.Add(TRange<FTimespan>(tr->operator[](i).Start.Time, tr->operator[](i).End.Time));

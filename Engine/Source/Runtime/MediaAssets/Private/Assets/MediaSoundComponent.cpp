@@ -62,7 +62,7 @@ FMediaSoundGenerator::FMediaSoundGenerator(FSoundGeneratorParams& InParams)
 
 	Audio::FEnvelopeFollowerInitParams EnvelopeInitParams;
 	EnvelopeInitParams.SampleRate = (float)InParams.SampleRate;
-	EnvelopeInitParams.NumChannels = 1; //EnvelopeFollower uses mixed down mono buffer 
+	EnvelopeInitParams.NumChannels = 1; //EnvelopeFollower uses mixed down mono buffer
 	EnvelopeFollower.Init(EnvelopeInitParams);
 
 	CachedRate = Params.CachedRate;
@@ -127,6 +127,7 @@ void FMediaSoundGenerator::SetSampleQueue(TSharedPtr<FMediaAudioSampleQueue, ESP
 {
 	FScopeLock Lock(&SampleQueueCritSect);
 	Params.SampleQueue = InSampleQueue;
+	Params.PreviousSampleQueueFlushCount = Params.SampleQueue.IsValid() ? Params.SampleQueue->GetFlushCount() : 0;
 
 	UE_LOG(LogMediaAssets, Verbose, TEXT("MediaSoundComponent: SetSampleQueue called with new sample queue."));
 }
@@ -275,9 +276,9 @@ void UMediaSoundComponent::UpdatePlayer()
 	// create a new sample queue if the player changed
 	TSharedRef<FMediaPlayerFacade, ESPMode::ThreadSafe> PlayerFacade = CurrentPlayerPtr->GetPlayerFacade();
 
-	// We have some audio decoders which are running with a limited amount of pre-allocated audio sample packets. 
-	// When the audio packets are not consumed in the FMediaSoundGenerator::OnGenerateAudio method below, these packets are not 
-	// returned to the decoder which then cannot produce more audio samples. 
+	// We have some audio decoders which are running with a limited amount of pre-allocated audio sample packets.
+	// When the audio packets are not consumed in the FMediaSoundGenerator::OnGenerateAudio method below, these packets are not
+	// returned to the decoder which then cannot produce more audio samples.
 	//
 	// The FMediaSoundGenerator::OnGenerateAudio is only called when our parent USynthComponent it active and
 	// this is controlled by USynthComponent::Start() and USynthComponent::Stop(). We are tracking a state change here.
@@ -485,6 +486,7 @@ ISoundGeneratorPtr UMediaSoundComponent::CreateSoundGenerator(const FSoundGenera
 	Params.SampleRate = (int32)InParams.SampleRate;
 	Params.NumChannels = InParams.NumChannels;
 	Params.SampleQueue = SampleQueue;
+	Params.PreviousSampleQueueFlushCount = Params.SampleQueue.IsValid() ? Params.SampleQueue->GetFlushCount() : 0;
 
 	Params.bSpectralAnalysisEnabled = bSpectralAnalysisEnabled;
 	Params.bEnvelopeFollowingEnabled = bEnvelopeFollowingEnabled;
@@ -492,14 +494,14 @@ ISoundGeneratorPtr UMediaSoundComponent::CreateSoundGenerator(const FSoundGenera
 	Params.EnvelopeFollowerReleaseTime = EnvelopeFollowerReleaseTime;
 	Params.SpectrumAnalyzerSettings = SpectrumAnalyzerSettings;
 	Params.FrequenciesToAnalyze = FrequenciesToAnalyze;
-	
+
 	Params.CachedRate = CachedRate;
 	Params.CachedTime = CachedTime;
 	Params.LastPlaySampleTime = LastPlaySampleTime;
 
 	return MediaSoundGenerator = ISoundGeneratorPtr(new FMediaSoundGenerator(Params));
 }
- 
+
 int32 FMediaSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 {
 	CSV_SCOPED_TIMING_STAT(MediaStreaming, FMediaSoundGenerator_OnGenerateAudio);
@@ -515,8 +517,11 @@ int32 FMediaSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 
 	const float Rate = CachedRate.Load();
 
-	// 	// We have an input queue and are actively playing?
-	if (PinnedSampleQueue.IsValid() && (Rate != 0.0f))
+	// We have an input queue and are actively playing?
+	uint32 CurrentSampleQueueFlushCount = PinnedSampleQueue.IsValid() ? PinnedSampleQueue->GetFlushCount() : 0;
+	bool bStillGood = Rate != 0.0f && PinnedSampleQueue.IsValid() && CurrentSampleQueueFlushCount == Params.PreviousSampleQueueFlushCount;
+	Params.PreviousSampleQueueFlushCount = CurrentSampleQueueFlushCount;
+	if (bStillGood)
 	{
 		const FTimespan Time = CachedTime.Load();
 
@@ -539,7 +544,7 @@ int32 FMediaSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 
 			// Update audio time
 			LastPlaySampleTime = OutTime.Time;
-			PinnedSampleQueue->SetAudioTime(FMediaTimeStampSample(OutTime, FPlatformTime::Seconds()));
+			PinnedSampleQueue->SetAudioTimeIfEqualFlushCount(FMediaTimeStampSample(OutTime, FPlatformTime::Seconds()), CurrentSampleQueueFlushCount);
 
 			SET_FLOAT_STAT(STAT_MediaUtils_MediaSoundComponentSampleTime, OutTime.Time.GetTotalSeconds());
 			SET_DWORD_STAT(STAT_Media_SoundCompQueued, PinnedSampleQueue->Num());
@@ -551,7 +556,7 @@ int32 FMediaSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 		{
 			float* BufferToUseForAnalysis = nullptr;
 			int32 NumFrames = NumSamples;
-			
+
 			if (Params.NumChannels == 2)
 			{
 				NumFrames = NumSamples / 2;
@@ -631,20 +636,20 @@ void UMediaSoundComponent::SetSpectralAnalysisSettings(TArray<float> InFrequenci
 
 	switch (InFFTSize)
 	{
-		case EMediaSoundComponentFFTSize::Min_64: 
+		case EMediaSoundComponentFFTSize::Min_64:
 			SpectrumAnalyzerSize = Audio::FSpectrumAnalyzerSettings::EFFTSize::Min_64;
 			break;
-		
-		case EMediaSoundComponentFFTSize::Small_256: 
+
+		case EMediaSoundComponentFFTSize::Small_256:
 			SpectrumAnalyzerSize = Audio::FSpectrumAnalyzerSettings::EFFTSize::Small_256;
 			break;
-		
+
 		default:
 		case EMediaSoundComponentFFTSize::Medium_512:
 			SpectrumAnalyzerSize = Audio::FSpectrumAnalyzerSettings::EFFTSize::Medium_512;
 			break;
 
-		case EMediaSoundComponentFFTSize::Large_1024: 
+		case EMediaSoundComponentFFTSize::Large_1024:
 			SpectrumAnalyzerSize = Audio::FSpectrumAnalyzerSettings::EFFTSize::Large_1024;
 			break;
 	}
@@ -759,7 +764,7 @@ const FSoundAttenuationSettings* UMediaSoundComponent::GetSelectedAttenuationSet
 	{
 		return &AttenuationOverrides;
 	}
-	
+
 	if (AttenuationSettings != nullptr)
 	{
 		return &AttenuationSettings->Attenuation;

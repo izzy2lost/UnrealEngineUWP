@@ -18,6 +18,8 @@ public:
 
 	virtual const FString& GetFormat() const = 0;
 	virtual const FString& GetID() const = 0;
+
+	virtual void SetTime(FDecoderTimeStamp& InTime) = 0;
 };
 
 using ISubtitleDecoderOutputPtr = TSharedPtr<ISubtitleDecoderOutput, ESPMode::ThreadSafe>;

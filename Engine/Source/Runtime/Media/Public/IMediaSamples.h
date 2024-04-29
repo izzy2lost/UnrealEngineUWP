@@ -128,7 +128,9 @@ public:
 	}
 
 	virtual bool PeekVideoSampleTime(FMediaTimeStamp& TimeStamp) = 0;
-	virtual bool PeekVideoSampleTimeRange(TRange<FMediaTimeStamp>& TimeRange) { return false; }
+
+	virtual bool PeekVideoSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) { return false; }
+	virtual bool PeekAudioSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) { return false; }
 
 	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) { return false; }
 	virtual bool DiscardAudioSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) { return false; }

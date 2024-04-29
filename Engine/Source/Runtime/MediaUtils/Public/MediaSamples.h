@@ -180,15 +180,15 @@ public:
 		return true;
 	}
 
-	virtual bool PeekVideoSampleTimeRange(TRange<FMediaTimeStamp>& TimeRange) override
+	virtual bool PeekVideoSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) override
 	{
-		TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> First, Last;
-		if (!VideoSampleQueue.PeekFrontAndBack(First, Last))
-		{
-			return false;
-		}
-		TimeRange = TRange<FMediaTimeStamp>(First->GetTime(), Last->GetTime() + Last->GetDuration());
-		return true;
+		VideoSampleQueue.GetSampleTimes(TimeRange);
+		return TimeRange.Num() > 0;
+	}
+	virtual bool PeekAudioSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) override
+	{
+		AudioSampleQueue.GetSampleTimes(TimeRange);
+		return TimeRange.Num() > 0;
 	}
 
 	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override

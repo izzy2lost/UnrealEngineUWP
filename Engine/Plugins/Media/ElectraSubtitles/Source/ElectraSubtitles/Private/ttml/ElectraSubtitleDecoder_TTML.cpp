@@ -18,14 +18,14 @@ public:
 void FElectraSubtitleDecoderTTML::RegisterCodecs(IElectraSubtitleDecoderFactoryRegistry& InRegistry)
 {
 	static FElectraSubtitleDecoderFactoryTTML Factory;
-	TArray<IElectraSubtitleDecoderFactoryRegistry::FCodecInfo> CodecInfos 
-	{ 
-		{ FString(TEXT("stpp")), 0}, 
+	TArray<IElectraSubtitleDecoderFactoryRegistry::FCodecInfo> CodecInfos
+	{
+		{ FString(TEXT("stpp")), 0},
 		{ FString(TEXT("application/ttml+xml")), 0},
 	// See: https://www.w3.org/TR/ttml-profile-registry/#registry-profile-designator-specifications
-		{ FString(TEXT("stpp.ttml.im1t")), 0}, 
-		{ FString(TEXT("stpp.ttml.im2t")), 0}, 
-		{ FString(TEXT("stpp.ttml.im3t")), 0} 
+		{ FString(TEXT("stpp.ttml.im1t")), 0},
+		{ FString(TEXT("stpp.ttml.im2t")), 0},
+		{ FString(TEXT("stpp.ttml.im3t")), 0}
 	};
 	InRegistry.AddDecoderFactory(CodecInfos, &Factory);
 }
@@ -52,45 +52,50 @@ public:
 		TextAsArray.Empty();
 		TextAsArray.Append(reinterpret_cast<const uint8*>(Converted.Get()), Converted.Length());
 	}
-	
+
 	void SetDuration(const Electra::FTimeValue& InDuration)
 	{
 		Duration = InDuration.GetAsTimespan();
 	}
-	
+
 	void SetTimestamp(const Electra::FTimeValue& InTimestamp)
 	{
 		Timestamp.Time = InTimestamp.GetAsTimespan();
 		Timestamp.SequenceIndex = 0;
 	}
-	
+
 	void SetID(const FString& InID)
 	{
 		ID = InID;
 	}
 
 
-	virtual const TArray<uint8>& GetData() override
+	const TArray<uint8>& GetData() override
 	{
 		return TextAsArray;
 	}
-	
-	virtual FDecoderTimeStamp GetTime() const override
+
+	FDecoderTimeStamp GetTime() const override
 	{
 		return Timestamp;
 	}
 
-	virtual FTimespan GetDuration() const override
+	void SetTime(FDecoderTimeStamp& InTime) override
+	{
+		Timestamp = InTime;
+	}
+
+	FTimespan GetDuration() const override
 	{
 		return Duration;
 	}
 
-	virtual const FString& GetFormat() const override
+	const FString& GetFormat() const override
 	{
 		static FString Format(TEXT("stpp"));
 		return Format;
 	}
-	virtual const FString& GetID() const override
+	const FString& GetID() const override
 	{
 		return ID;
 	}
@@ -171,7 +176,7 @@ void FElectraSubtitleDecoderTTML::AddStreamedSubtitleData(const TArray<uint8>& I
 		AccessLock.Lock();
 		TimelineHandlers.Empty();
 		AccessLock.Unlock();
-		
+
 		// For sideloaded data we try to get a unique ID we can use to check if we are still operating on the
 		// same data. If we are we do not need to parse the entire document again.
 		SideloadedID = InAdditionalInfo.GetValue(ElectraSubtitleDecoderTTMLOptions::SideloadedID).SafeGetFString();

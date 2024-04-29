@@ -42,6 +42,9 @@ namespace Electra
 	//! (bool) true to emit the first decoded video frame while prerolling so it can be displayed while scrubbing.
 	const FName OptionKeyDoNotHoldBackFirstVideoFrame(TEXT("do_not_hold_back_first_frame"));
 
+	//! (bool) true to always emit decoded samples when the player is paused. Supersedes `OptionKeyDoNotHoldBackFirstVideoFrame`.
+	const FName OptionKeyAlwaysEmitSamplesWhenPaused(TEXT("always_emit_samples_when_paused"));
+
 	//! (bool) true to not truncate the media segment access units at the end of the presentation. Must only be used without a set playback range end!
 	const FName OptionKeyDoNotTruncateAtPresentationEnd(TEXT("do_not_truncate_at_presentation_end"));
 

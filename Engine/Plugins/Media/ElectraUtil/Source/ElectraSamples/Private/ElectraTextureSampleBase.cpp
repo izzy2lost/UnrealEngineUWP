@@ -142,7 +142,7 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 
 	// Compute scale to make correct towards the max value (P010 will max out at 0xffc0 not 0xffff - so if it is present we need to adjust the scale a bit)
 	float NormScale = (VideoDecoderOutput->GetFormat() == PF_P010) ? (65535.0f / 65472.0f) : 1.0f;
- 
+
 	// Matrix to transform sample data to standard YUV values
 	FMatrix PreMtx = FMatrix::Identity;
 	PreMtx.M[0][0] = DataScale * NormScale;
@@ -196,6 +196,14 @@ FMediaTimeStamp IElectraTextureSampleBase::GetTime() const
 		return FMediaTimeStamp(TimeStamp.Time, TimeStamp.SequenceIndex);
 	}
 	return FMediaTimeStamp();
+}
+
+void IElectraTextureSampleBase::SetTime(const FMediaTimeStamp& InTime)
+{
+	if (VideoDecoderOutput)
+	{
+		VideoDecoderOutput->SetTime(FDecoderTimeStamp(InTime.Time, InTime.SequenceIndex));
+	}
 }
 
 

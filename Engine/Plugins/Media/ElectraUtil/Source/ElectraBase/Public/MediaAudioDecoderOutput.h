@@ -34,6 +34,8 @@ public:
 	virtual FTimespan GetDuration() const = 0;
 
 	virtual uint32 GetSampleRate() const = 0;
+
+	virtual void SetTime(const FDecoderTimeStamp& InTime) = 0;
 };
 
 using IAudioDecoderOutputPtr = TSharedPtr<IAudioDecoderOutput, ESPMode::ThreadSafe>;

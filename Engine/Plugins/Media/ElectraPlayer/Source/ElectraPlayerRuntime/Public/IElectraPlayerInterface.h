@@ -30,7 +30,7 @@ DECLARE_MULTICAST_DELEGATE_FourParams(FElectraPlayerReportSubtitlesMetricsDelega
 
 // ---------------------------------------------------------------------------------------------
 
-class IElectraPlayerAdapterDelegate : public TSharedFromThis<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe>
+class IElectraPlayerAdapterDelegate
 {
 public:
 	virtual ~IElectraPlayerAdapterDelegate() {}
@@ -263,6 +263,7 @@ public:
 
 	struct FSeekParam
 	{
+		TOptional<int32> SequenceIndex;
 		TOptional<int32> StartingBitrate;
 		TOptional<bool> bOptimizeForScrubbing;
 		TOptional<double> DistanceThreshold;
@@ -336,6 +337,7 @@ public:
 			FTimeValue Start;
 			FTimeValue End;
 		};
+		TArray<FTimeRange> TimeEnqueued;
 		TArray<FTimeRange> TimeAvailable;
 		TArray<FTimeRange> TimeRequested;
 	};

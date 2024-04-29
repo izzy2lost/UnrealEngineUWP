@@ -615,10 +615,6 @@ void FAdaptiveStreamingPlayer::SeekTo(const FSeekParam& NewPosition)
 	FScopeLock lock(&SeekVars.Lock);
 	SeekVars.PendingRequest = NewPosition;
 	SeekVars.PlayrangeOnRequest = NewPlayRange;
-	if (!NewPosition.bIgnoreForSequenceIndex.Get(false))
-	{
-		++SeekVars.NumSeekToCallsSinceLastSeen;
-	}
 	WorkerThread.TriggerSharedWorkerThread();
 }
 
@@ -1103,20 +1099,29 @@ void FAdaptiveStreamingPlayer::StopRendering()
  */
 int32 FAdaptiveStreamingPlayer::CreateRenderers()
 {
+	bool bAlwaysEmitSamplesWhenPaused = PlayerOptions.GetValue(OptionKeyAlwaysEmitSamplesWhenPaused).SafeGetBool(false);
+	double CurrentRate = PlaybackState.GetCurrentPlayRate();
+	double IntendedRate = PlaybackState.GetDesiredPlayRate();
+	const bool bCurrentlyPaused = PlaybackState.GetIsPaused();
+
 	// Set the render clock with the renderes.
 	if (VideoRender.Renderer)
 	{
 		VideoRender.Renderer->SetRenderClock(RenderClock);
+		VideoRender.Renderer->SetPlaybackRate(CurrentRate, IntendedRate, bCurrentlyPaused);
+		VideoRender.Renderer->AlwaysEmitSamplesWhenPaused(bAlwaysEmitSamplesWhenPaused);
+		// Hold back all video frames during preroll or emit the first frame for scrubbing?
+		if (PlayerOptions.HaveKey(OptionKeyDoNotHoldBackFirstVideoFrame))
+		{
+			bool bDoNotHoldBackFirstVideoFrame = PlayerOptions.GetValue(OptionKeyDoNotHoldBackFirstVideoFrame).SafeGetBool(false);
+			VideoRender.Renderer->DisableHoldbackOfFirstRenderableVideoFrame(bDoNotHoldBackFirstVideoFrame);
+		}
 	}
 	if (AudioRender.Renderer)
 	{
 		AudioRender.Renderer->SetRenderClock(RenderClock);
-	}
-
-	// Hold back all frames during preroll or emit the first frame for scrubbing?
-	if (VideoRender.Renderer && PlayerOptions.HaveKey(OptionKeyDoNotHoldBackFirstVideoFrame))
-	{
-		VideoRender.Renderer->DisableHoldbackOfFirstRenderableVideoFrame(PlayerOptions.GetValue(OptionKeyDoNotHoldBackFirstVideoFrame).SafeGetBool(false));
+		AudioRender.Renderer->SetPlaybackRate(CurrentRate, IntendedRate, bCurrentlyPaused);
+		AudioRender.Renderer->AlwaysEmitSamplesWhenPaused(bAlwaysEmitSamplesWhenPaused);
 	}
 
 	return 0;
@@ -1787,6 +1792,19 @@ void FAdaptiveStreamingPlayer::HandlePlayStateChanges()
 
 	// Update the current live latency.
 	PlaybackState.SetCurrentLiveLatency(CalculateCurrentLiveLatency(false));
+
+	// Inform the renderers about the current playback rate.
+	const double CurrentRate = PlaybackState.GetCurrentPlayRate();
+	const double IntendedRate = PlaybackState.GetDesiredPlayRate();
+	const bool bCurrentlyPaused = PlaybackState.GetIsPaused();
+	if (VideoRender.Renderer)
+	{
+		VideoRender.Renderer->SetPlaybackRate(CurrentRate, IntendedRate, bCurrentlyPaused);
+	}
+	if (AudioRender.Renderer)
+	{
+		AudioRender.Renderer->SetPlaybackRate(CurrentRate, IntendedRate, bCurrentlyPaused);
+	}
 }
 
 
@@ -1825,9 +1843,11 @@ void FAdaptiveStreamingPlayer::HandleSeeking()
 
 		// Adjust seek index as indicated
 		// (we even do this for seeks marked as not affecting the seek index as we must still add any priovious accumulated calls that had not been flagged in such a way)
-		CurrentPlaybackSequenceState.PrimaryIndex += SeekVars.NumSeekToCallsSinceLastSeen;
+		if (SeekVars.PendingRequest.GetValue().NewSequenceIndex.IsSet())
+		{
+			CurrentPlaybackSequenceState.PrimaryIndex = SeekVars.PendingRequest.GetValue().NewSequenceIndex.GetValue();
+		}
 		CurrentPlaybackSequenceState.SecondaryIndex = 0;
-		SeekVars.NumSeekToCallsSinceLastSeen = 0;
 
 		// And since it is a seek on purpose the loop counter is reset as well.
 		FInternalLoopState LoopStateNow;
@@ -4107,31 +4127,38 @@ void FAdaptiveStreamingPlayer::UpdateStreamResolutionLimit()
  */
 void FAdaptiveStreamingPlayer::CheckForStreamEnd()
 {
-	if (CurrentState == EPlayerState::eState_Playing)
+	if (CurrentState == EPlayerState::eState_Playing || CurrentState == EPlayerState::eState_Paused)
 	{
 		if (StreamState == EStreamState::eStream_Running)
 		{
 			// First check if there is an end time set at which we need to stop.
-			FTimeValue EndAtTime = PlaybackState.GetPlaybackEndAtTime();
-			FTimeValue InitialEndTime = Manifest.IsValid() ? Manifest->GetDefaultEndTime() : FTimeValue();
-			if (EndAtTime.IsValid() && InitialEndTime.IsValid())
+			// Do this only when playing, not in paused state.
+			// We run through this code here when paused to ensure that if looping is
+			// enabled we switch over to the new buffer set to keep the decoders busy.
+			// This is intended for scrubbing across the loop point.
+			if (CurrentState == EPlayerState::eState_Playing)
 			{
-				EndAtTime = EndAtTime < InitialEndTime ? EndAtTime : InitialEndTime;
-			}
-			else if (InitialEndTime.IsValid())
-			{
-				EndAtTime = InitialEndTime;
-			}
-			if (EndAtTime.IsValid())
-			{
-				if (PlaybackState.GetPlayPosition() >= EndAtTime)
+				FTimeValue EndAtTime = PlaybackState.GetPlaybackEndAtTime();
+				FTimeValue InitialEndTime = Manifest.IsValid() ? Manifest->GetDefaultEndTime() : FTimeValue();
+				if (EndAtTime.IsValid() && InitialEndTime.IsValid())
 				{
-					// A forced end time is intended to stop playback. We do NOT look at the loop state here.
-					InternalSetPlaybackEnded();
-					DataBuffersCriticalSection.Lock();
-					NextDataBuffers.Empty();
-					DataBuffersCriticalSection.Unlock();
-					return;
+					EndAtTime = EndAtTime < InitialEndTime ? EndAtTime : InitialEndTime;
+				}
+				else if (InitialEndTime.IsValid())
+				{
+					EndAtTime = InitialEndTime;
+				}
+				if (EndAtTime.IsValid())
+				{
+					if (PlaybackState.GetPlayPosition() >= EndAtTime)
+					{
+						// A forced end time is intended to stop playback. We do NOT look at the loop state here.
+						InternalSetPlaybackEnded();
+						DataBuffersCriticalSection.Lock();
+						NextDataBuffers.Empty();
+						DataBuffersCriticalSection.Unlock();
+						return;
+					}
 				}
 			}
 

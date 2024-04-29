@@ -56,6 +56,7 @@ private:
 
 using FElectraTextureSamplePtr = TSharedPtr<FElectraTextureSampleLinux, ESPMode::ThreadSafe>;
 using FElectraTextureSampleRef = TSharedRef<FElectraTextureSampleLinux, ESPMode::ThreadSafe>;
+using FElectraTextureSample = FElectraTextureSampleLinux;
 
 class FElectraTextureSamplePool : public TMediaObjectPool<FElectraTextureSampleLinux>
 {

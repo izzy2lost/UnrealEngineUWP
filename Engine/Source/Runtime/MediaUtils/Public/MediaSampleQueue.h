@@ -126,6 +126,18 @@ public:
 		return true;
 	}
 
+	virtual void GetSampleTimes(TArray<TRange<FMediaTimeStamp>>& OutSampleTimeRanges) override
+	{
+		FScopeLock Lock(&CriticalSection);
+		for(int32 i=0,iMax=Samples.Num(); i<iMax; ++i)
+		{
+			if (Samples[i].IsValid())
+			{
+				OutSampleTimeRanges.Emplace(TRange<FMediaTimeStamp>(Samples[i]->GetTime(), Samples[i]->GetTime() + Samples[i]->GetDuration()));
+			}
+		}
+	}
+
 	virtual bool Pop() override
 	{
 		FScopeLock Lock(&CriticalSection);
@@ -343,6 +355,13 @@ public:
 	{
 		FScopeLock Lock(&CriticalSection);
 		Samples.Empty();
+		++FlushCount;
+	}
+
+	virtual uint32 GetFlushCount() const
+	{
+		FScopeLock Lock(&CriticalSection);
+		return FlushCount;
 	}
 
 	virtual bool CanAcceptSamples(int32 NumSamples) const override
@@ -405,6 +424,7 @@ protected:
 	mutable FCriticalSection CriticalSection;
 	TArray<TSharedPtr<SampleType, ESPMode::ThreadSafe>> Samples;
 	int32 MaxSamplesInQueue;
+	uint32 FlushCount = 0;
 };
 
 
@@ -416,10 +436,19 @@ public:
 		: TMediaSampleQueue<class IMediaAudioSample, class FMediaAudioSampleSink>(MaxSamplesInQueue)
 	{ }
 
-	void SetAudioTime(const FMediaTimeStampSample & InAudioTime)
+	void SetAudioTime(const FMediaTimeStampSample& InAudioTime)
 	{
 		FScopeLock Lock(&CriticalSection);
 		AudioTime = InAudioTime;
+	}
+
+	void SetAudioTimeIfEqualFlushCount(const FMediaTimeStampSample& InAudioTime, uint32 InFlushCount)
+	{
+		FScopeLock Lock(&CriticalSection);
+		if (InFlushCount == FlushCount)
+		{
+			AudioTime = InAudioTime;
+		}
 	}
 
 	FMediaTimeStampSample GetAudioTime() const override

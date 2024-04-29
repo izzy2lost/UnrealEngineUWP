@@ -938,6 +938,8 @@ private:
 private:
 	MEDIAUTILS_API TRange<FMediaTimeStamp> GetAdjustedBlockOnRange() const;
 
+	void ReInit();
+
 	class FBlockOnRange
 	{
 	public:
@@ -1065,9 +1067,6 @@ private:
 
 	/** Current seek index */
 	int32 SeekIndex;
-
-	/** Set if sinks are to be flushed at the request of the player. */
-	TAtomic<bool>	bIsSinkFlushPending;
 
 	/** Latch for error state of the most recently used player to be queried after it may have been closed. **/
 	bool bDidRecentPlayerHaveError;

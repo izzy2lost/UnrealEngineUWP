@@ -126,9 +126,9 @@ public:
 	virtual ~FVideoDecoderOutput() = default;
 
 	virtual const Electra::FParamDict& GetDict() const
-	{ 
+	{
 		check(ParamDict.IsValid());
-		return *ParamDict; 
+		return *ParamDict;
 	}
 
 	virtual FDecoderTimeStamp GetTime() const
@@ -137,8 +137,21 @@ public:
 		{
 			return FDecoderTimeStamp(FTimespan::Zero(), 0);
 		}
-		Electra::FTimeValue pts(ParamDict->GetValue(IDecoderOutputOptionNames::PTS).GetTimeValue());
-		return FDecoderTimeStamp(pts.GetAsTimespan(), pts.GetSequenceIndex());
+		if (!(Cached.Flags & FCached::Valid_PTS))
+		{
+			Electra::FTimeValue pts(ParamDict->GetValue(IDecoderOutputOptionNames::PTS).GetTimeValue());
+			Cached.PTS = FDecoderTimeStamp(pts.GetAsTimespan(), pts.GetSequenceIndex());
+			FPlatformMisc::MemoryBarrier();
+			Cached.Flags |= FCached::Valid_PTS;
+		}
+		return Cached.PTS;
+	}
+
+	virtual void SetTime(const FDecoderTimeStamp& InTime)
+	{
+		Cached.PTS = FDecoderTimeStamp(InTime);
+		FPlatformMisc::MemoryBarrier();
+		Cached.Flags |= FCached::Valid_PTS;
 	}
 
 	virtual FTimespan GetDuration() const
@@ -147,7 +160,13 @@ public:
 		{
 			return FTimespan(0);
 		}
-		return FTimespan(ParamDict->GetValue(IDecoderOutputOptionNames::Duration).GetTimeValue().GetAsHNS());
+		if (!(Cached.Flags & FCached::Valid_Duration))
+		{
+			Cached.Duration = ParamDict->GetValue(IDecoderOutputOptionNames::Duration).GetTimeValue().GetAsTimespan();
+			FPlatformMisc::MemoryBarrier();
+			Cached.Flags |= FCached::Valid_Duration;
+		}
+		return Cached.Duration;
 	}
 
 	virtual FIntPoint GetOutputDim() const
@@ -183,7 +202,7 @@ public:
 			return FVideoDecoderCropInfo();
 		}
 		if (!(Cached.Flags & FCached::Valid_CropInfo))
-		{ 
+		{
 			Cached.CropInfo.CropLeft = (int32)ParamDict->GetValue(IDecoderOutputOptionNames::CropLeft).SafeGetInt64(0);
 			Cached.CropInfo.CropTop = (int32)ParamDict->GetValue(IDecoderOutputOptionNames::CropTop).SafeGetInt64(0);
 			Cached.CropInfo.CropRight = (int32)ParamDict->GetValue(IDecoderOutputOptionNames::CropRight).SafeGetInt64(0);
@@ -277,6 +296,11 @@ protected:
 	{
 		Cached.Flags = 0;
 		ParamDict = MoveTemp(InParamDict);
+#if !UE_BUILD_SHIPPING
+		// For debugging purposes, get the PTS and duration so they're easily accessible.
+		(void)GetTime();
+		(void)GetDuration();
+#endif
 	}
 
 private:
@@ -291,9 +315,13 @@ private:
 			Valid_CropInfo = 1 << 0,
 			Valid_OutputDim = 1 << 1,
 			Valid_Orientation = 1 << 2,
+			Valid_PTS = 1 << 3,
+			Valid_Duration = 1 << 4
 		};
 
 		FVideoDecoderCropInfo CropInfo;
+		FDecoderTimeStamp PTS;
+		FTimespan Duration;
 		FIntPoint OutputDim;
 		EVideoOrientation Orientation = EVideoOrientation::Original;;
 		uint32 Flags = 0;

@@ -95,6 +95,8 @@ namespace Electra
 		FTimeValue GetEnqueuedSampleDuration() override;
 		int32 GetNumEnqueuedSamples(TArray<FEnqueuedSampleInfo>* OutOptionalSampleInfos) override;
 
+		void AlwaysEmitSamplesWhenPaused(bool bEmitAlways) override;
+		void SetPlaybackRate(double InCurrentPlaybackRate, double InIntendedPlaybackRate, bool bInCurrentlyPaused) override;
 		void DisableHoldbackOfFirstRenderableVideoFrame(bool bDisableHoldback) override;
 
 		FTimeRange GetSupportedRenderRateScale() override;
@@ -131,6 +133,9 @@ namespace Electra
 		int64 CurrentValidityValue = 0;
 		EStreamType Type = EStreamType::Unsupported;
 		bool bIsRunning = false;
+		double CurrentPlaybackRate = 0.0;
+		double IntendedPlaybackRate = 0.0;
+		bool bAlwaysEmitSamplesWhenPaused = false;
 		bool bDoNotHoldBackFirstVideoFrame = true;
 		uint32 NumBuffersNotHeldBack = 0;
 
@@ -455,9 +460,17 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnBufferCommon(IBuffer* Buff
 	if (!bIsUnusedReturnBuffer)
 	{
 		bool bHoldback = !bIsRunning;
+
+		// Never hold back when the player is paused?
+		// The main player state as set by the user through API calls, not the current actual rate which
+		// may be different during prerolling and buffering!
+		if (bAlwaysEmitSamplesWhenPaused && IntendedPlaybackRate == 0.0)
+		{
+			bHoldback = false;
+		}
 		// If the video renderer shall not hold back the first frame (used for scrubbing video)
 		// then we pass it out. The count is reset in Flush().
-		if (Type == EStreamType::Video && bDoNotHoldBackFirstVideoFrame)
+		else if (Type == EStreamType::Video && bDoNotHoldBackFirstVideoFrame)
 		{
 			if (NumBuffersNotHeldBack == 0)
 			{
@@ -613,6 +626,19 @@ int32 FAdaptiveStreamingWrappedRenderer::GetNumEnqueuedSamples(TArray<IAdaptiveS
 		}
 	}
 	return EnqueuedSamples.Num() + NumAvail;
+}
+
+void FAdaptiveStreamingWrappedRenderer::AlwaysEmitSamplesWhenPaused(bool bEmitAlways)
+{
+	FScopeLock lock(&Lock);
+	bAlwaysEmitSamplesWhenPaused = bEmitAlways;
+}
+
+void FAdaptiveStreamingWrappedRenderer::SetPlaybackRate(double InCurrentPlaybackRate, double InIntendedPlaybackRate, bool bInCurrentlyPaused)
+{
+	FScopeLock lock(&Lock);
+	CurrentPlaybackRate = bInCurrentlyPaused ? 0.0 : InCurrentPlaybackRate;
+	IntendedPlaybackRate = bInCurrentlyPaused ? 0.0 : InIntendedPlaybackRate;
 }
 
 void FAdaptiveStreamingWrappedRenderer::DisableHoldbackOfFirstRenderableVideoFrame(bool bInDisableHoldback)

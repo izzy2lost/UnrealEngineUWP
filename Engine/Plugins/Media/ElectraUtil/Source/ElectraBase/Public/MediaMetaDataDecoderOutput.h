@@ -48,6 +48,8 @@ public:
 	// Returns the base time (the "zero point") of the track, if available, to calculate the relative time
 	// of this metadata from GetTime() if this is based on some non-zero anchor.
 	virtual TOptional<FDecoderTimeStamp> GetTrackBaseTime() const = 0;
+
+	virtual void SetTime(FDecoderTimeStamp& InTime) = 0;
 };
 
 using IMetaDataDecoderOutputPtr = TSharedPtr<IMetaDataDecoderOutput, ESPMode::ThreadSafe>;

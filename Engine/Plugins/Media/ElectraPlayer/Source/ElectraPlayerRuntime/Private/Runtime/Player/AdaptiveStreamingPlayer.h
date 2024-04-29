@@ -135,14 +135,14 @@ public:
 		}
 		// Time to seek to.
 		FTimeValue	Time;
+		// New sequence index to associate with the newly decoded samples.
+		TOptional<int32> NewSequenceIndex;
 		// Maximum stream bitrate to use when seeking.
 		TOptional<int32> StartingBitrate;
 		// Optimize for frame scrubbing (faster display of frame at target time)?
 		TOptional<bool> bOptimizeForScrubbing;
 		// Allowed distance to last performed seek to save a redundant new seek.
 		TOptional<double> DistanceThreshold;
-		// Ignore the seek for sequence index updates
-		TOptional<bool> bIgnoreForSequenceIndex;
 	};
 
 	/**

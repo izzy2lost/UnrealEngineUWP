@@ -57,6 +57,8 @@ public:
 	virtual bool GetDisplayMasteringLuminance(float& OutMin, float& OutMax) const override;
 	virtual bool GetMaxLuminanceLevels(uint16& OutCLL, uint16& OutFALL) const override;
 
+	virtual void SetTime(const FMediaTimeStamp& InTime);
+
 protected:
 	virtual float GetSampleDataScale(bool b10Bit) const { return 1.0f; }
 

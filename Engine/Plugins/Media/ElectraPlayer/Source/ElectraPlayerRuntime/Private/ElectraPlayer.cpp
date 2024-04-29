@@ -90,16 +90,17 @@ class FMetaDataDecoderOutput : public IMetaDataDecoderOutput
 {
 public:
 	virtual ~FMetaDataDecoderOutput() = default;
-	virtual const void* GetData() override									{ return Data.GetData(); }
-	virtual FTimespan GetDuration() const override							{ return Duration; }
-	virtual uint32 GetSize() const override									{ return (uint32) Data.Num(); }
-	virtual FDecoderTimeStamp GetTime() const override						{ return PresentationTime; }
-	virtual EOrigin GetOrigin() const override								{ return Origin; }
-	virtual EDispatchedMode GetDispatchedMode() const override				{ return DispatchedMode; }
-	virtual const FString& GetSchemeIdUri() const override					{ return SchemeIdUri; }
-	virtual const FString& GetValue() const override						{ return Value; }
-	virtual const FString& GetID() const override							{ return ID; }
-	virtual TOptional<FDecoderTimeStamp> GetTrackBaseTime() const override	{ return TrackBaseTime; }
+	const void* GetData() override									{ return Data.GetData(); }
+	FTimespan GetDuration() const override							{ return Duration; }
+	uint32 GetSize() const override									{ return (uint32) Data.Num(); }
+	FDecoderTimeStamp GetTime() const override						{ return PresentationTime; }
+	EOrigin GetOrigin() const override								{ return Origin; }
+	EDispatchedMode GetDispatchedMode() const override				{ return DispatchedMode; }
+	const FString& GetSchemeIdUri() const override					{ return SchemeIdUri; }
+	const FString& GetValue() const override						{ return Value; }
+	const FString& GetID() const override							{ return ID; }
+	TOptional<FDecoderTimeStamp> GetTrackBaseTime() const override	{ return TrackBaseTime; }
+	void SetTime(FDecoderTimeStamp& InTime) override				{ PresentationTime = InTime; }
 
 	TArray<uint8> Data;
 	FDecoderTimeStamp PresentationTime;
@@ -164,7 +165,7 @@ FElectraPlayer::FElectraPlayer(const TSharedPtr<IElectraPlayerAdapterDelegate, E
 
 	ClearToDefaultState();
 
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p] FElectraPlayer() created."), this);
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p] FElectraPlayer() created."), this);
 }
 
 //-----------------------------------------------------------------------------
@@ -185,7 +186,7 @@ FElectraPlayer::~FElectraPlayer()
 	SendAnalyticMetricsPerMinuteDelegate.RemoveAll(this);
 	ReportVideoStreamingErrorDelegate.RemoveAll(this);
 	ReportSubtitlesMetricsDelegate.RemoveAll(this);
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p] ~FElectraPlayer() finished."), this);
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p] ~FElectraPlayer() finished."), this);
 
 	if (AsyncResourceReleaseNotification.IsValid())
 	{
@@ -373,7 +374,7 @@ bool FElectraPlayer::OpenInternal(const FString& Url, const FParamDict& InPlayer
 			return false;
 		}
 		CurrentPlayer = MoveTemp(NewPlayer);
-		UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] IMediaPlayer::OpenBlob(%s)"), this, CurrentPlayer.Get(), *SanitizeMessage(MediaUrl));
+		UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] IMediaPlayer::OpenBlob(%s)"), this, CurrentPlayer.Get(), *SanitizeMessage(MediaUrl));
 		PendingBlobRequest->Request->URL(MediaUrl).Callback().BindThreadSafeSP(PendingBlobRequest.ToSharedRef(), &FBlobRequest::OnBlobRequestComplete);
 		CurrentPlayer->AdaptivePlayer->LoadBlob(PendingBlobRequest->Request);
 	}
@@ -509,7 +510,7 @@ void FElectraPlayer::FInternalPlayerImpl::DoCloseAsync(TSharedPtr<FInternalPlaye
 		Player->RendererAudio.Reset();
 		*bClosedSig = true;
 		double TimeCloseEnded = FPlatformTime::Seconds();
-		UE_LOG(LogElectraPlayer, Log, TEXT("[%p] DoCloseAsync() finished after %.3f msec!"), Player.Get(), (TimeCloseEnded - TimeCloseBegan) * 1000.0);
+		UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p] DoCloseAsync() finished after %.3f msec!"), Player.Get(), (TimeCloseEnded - TimeCloseBegan) * 1000.0);
 
 		if (AsyncResourceReleaseNotification.IsValid())
 		{
@@ -615,7 +616,7 @@ bool FElectraPlayer::GetStreamBufferInformation(IElectraPlayerInterface::FStream
 					tv.End.SequenceIndex = InRanges[i].End.GetSequenceIndex();
 				}
 			};
-			AddRanges(OutBufferInformation.TimeAvailable, bi.TimeEnqueued);
+			AddRanges(OutBufferInformation.TimeEnqueued, bi.TimeEnqueued);
 			AddRanges(OutBufferInformation.TimeAvailable, bi.TimeAvailable);
 			AddRanges(OutBufferInformation.TimeRequested, bi.TimeRequested);
 			return true;
@@ -1120,9 +1121,9 @@ bool FElectraPlayer::SetRate(float Rate)
 				TriggerFirstSeekIfNecessary();
 				CurrentPlayer->AdaptivePlayer->Resume();
 			}
-			IAdaptiveStreamingPlayer::FTrickplayParams Params;
-			CurrentPlayer->AdaptivePlayer->SetPlayRate((double) Rate, Params);
 		}
+		IAdaptiveStreamingPlayer::FTrickplayParams Params;
+		CurrentPlayer->AdaptivePlayer->SetPlayRate((double) Rate, Params);
 		return true;
 	}
 	return false;
@@ -1152,9 +1153,6 @@ void FElectraPlayer::TriggerFirstSeekIfNecessary()
 
 		// Set up the initial playback position
 		IAdaptiveStreamingPlayer::FSeekParam playParam;
-
-		// Whatever the initial seek target: we will ignore it for sequence index updates
-		playParam.bIgnoreForSequenceIndex = true;
 
 		// First we look at any potential time offset specified in the playstart options.
 		if (PlaystartOptions.TimeOffset.IsSet())
@@ -1271,6 +1269,7 @@ bool FElectraPlayer::Seek(const FTimespan& Time, const FSeekParam& Param)
 		{
 			seek.Time.SetFromTimespan(Target);
 		}
+		seek.NewSequenceIndex = Param.SequenceIndex;
 		seek.StartingBitrate = Param.StartingBitrate;
 		seek.bOptimizeForScrubbing = Param.bOptimizeForScrubbing;
 		seek.DistanceThreshold = Param.DistanceThreshold;
@@ -2086,7 +2085,7 @@ void FElectraPlayer::HandlePlayerEventOpenSource(const FString& URL)
 	PlayerState.State = EPlayerState::Preparing;
 	DeferredEvents.Enqueue(IElectraPlayerAdapterDelegate::EPlayerEvent::MediaConnecting);
 
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Opening stream at \"%s\""), this, CurrentPlayer.Get(), *SanitizeMessage(URL));
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Opening stream at \"%s\""), this, CurrentPlayer.Get(), *SanitizeMessage(URL));
 
 	// Update statistics
 	FScopeLock Lock(&StatisticsLock);
@@ -2107,7 +2106,7 @@ void FElectraPlayer::HandlePlayerEventOpenSource(const FString& URL)
 
 void FElectraPlayer::HandlePlayerEventReceivedMasterPlaylist(const FString& EffectiveURL)
 {
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Received master playlist from \"%s\""), this, CurrentPlayer.Get(), *SanitizeMessage(EffectiveURL));
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Received master playlist from \"%s\""), this, CurrentPlayer.Get(), *SanitizeMessage(EffectiveURL));
 
 	// Update statistics
 	FScopeLock Lock(&StatisticsLock);
@@ -2138,7 +2137,7 @@ void FElectraPlayer::HandlePlayerEventReceivedPlaylists()
 
 	MediaStateOnPreparingFinished();
 
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Received initial stream playlists"), this, CurrentPlayer.Get());
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Received initial stream playlists"), this, CurrentPlayer.Get());
 
 	Electra::FTimeRange MediaTimeline;
 	Electra::FTimeValue MediaDuration;
@@ -2164,7 +2163,7 @@ void FElectraPlayer::HandlePlayerEventReceivedPlaylists()
 	{
 		for(int32 i=0; i<VideoStreamMetaData[0].StreamDetails.Num(); ++i)
 		{
-			UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Found %d * %d video stream at bitrate %d"), this, CurrentPlayer.Get(),
+			UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Found %d * %d video stream at bitrate %d"), this, CurrentPlayer.Get(),
 												VideoStreamMetaData[0].StreamDetails[i].CodecInformation.GetResolution().Width,
 												VideoStreamMetaData[0].StreamDetails[i].CodecInformation.GetResolution().Height,
 												VideoStreamMetaData[0].StreamDetails[i].Bandwidth);
@@ -2189,7 +2188,7 @@ void FElectraPlayer::HandlePlayerEventReceivedPlaylists()
 	{
 		for(int32 i=0; i<AudioStreamMetaData[0].StreamDetails.Num(); ++i)
 		{
-			UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Found audio stream at bitrate %d"), this, CurrentPlayer.Get(),
+			UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Found audio stream at bitrate %d"), this, CurrentPlayer.Get(),
 												AudioStreamMetaData[0].StreamDetails[i].Bandwidth);
 		}
 	}
@@ -2228,7 +2227,7 @@ void FElectraPlayer::HandlePlayerEventTracksChanged()
 	{
 		for(int32 i=0; i<VideoStreamMetaData[0].StreamDetails.Num(); ++i)
 		{
-			UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Found %d * %d video stream at bitrate %d"), this, CurrentPlayer.Get(),
+			UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Found %d * %d video stream at bitrate %d"), this, CurrentPlayer.Get(),
 												VideoStreamMetaData[0].StreamDetails[i].CodecInformation.GetResolution().Width,
 												VideoStreamMetaData[0].StreamDetails[i].CodecInformation.GetResolution().Height,
 												VideoStreamMetaData[0].StreamDetails[i].Bandwidth);
@@ -2242,7 +2241,7 @@ void FElectraPlayer::HandlePlayerEventTracksChanged()
 	{
 		for(int32 i=0; i<AudioStreamMetaData[0].StreamDetails.Num(); ++i)
 		{
-			UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Found audio stream at bitrate %d"), this, CurrentPlayer.Get(),
+			UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Found audio stream at bitrate %d"), this, CurrentPlayer.Get(),
 												AudioStreamMetaData[0].StreamDetails[i].Bandwidth);
 		}
 	}
@@ -2291,7 +2290,7 @@ void FElectraPlayer::HandlePlayerEventLicenseKey(const Electra::Metrics::FLicens
 	// TBD
 	if (LicenseKeyStats.bWasSuccessful)
 	{
-		UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] License key obtained"), this, CurrentPlayer.Get());
+		UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] License key obtained"), this, CurrentPlayer.Get());
 		FScopeLock Lock(&StatisticsLock);
 		Statistics.AddMessageToHistory(TEXT("Obtained license key"));
 	}
@@ -2381,7 +2380,7 @@ void FElectraPlayer::HandlePlayerEventBufferingStart(Electra::Metrics::EBufferin
 	FString Msg = FString::Printf(TEXT("%s buffering starts"), Electra::Metrics::GetBufferingReasonString(BufferingReason));
 	Statistics.AddMessageToHistory(Msg);
 
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] %s"), this, CurrentPlayer.Get(), *Msg);
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] %s"), this, CurrentPlayer.Get(), *Msg);
 	CSV_EVENT(ElectraPlayer, TEXT("Buffering starts"));
 }
 
@@ -2427,7 +2426,7 @@ void FElectraPlayer::HandlePlayerEventBufferingEnd(Electra::Metrics::EBufferingR
 		AnalyticEvent->ParamArray.Add(FAnalyticsEventAttribute(TEXT("Type"), Electra::Metrics::GetBufferingReasonString(BufferingReason)));
 		EnqueueAnalyticsEvent(AnalyticEvent);
 	}
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] %s buffering ended after %.3fs"), this, CurrentPlayer.Get(), Electra::Metrics::GetBufferingReasonString(BufferingReason), BufferingDuration);
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] %s buffering ended after %.3fs"), this, CurrentPlayer.Get(), Electra::Metrics::GetBufferingReasonString(BufferingReason), BufferingDuration);
 	Statistics.AddMessageToHistory(TEXT("Buffering ended"));
 // Should we set the state (back?) to something or wait for the following play/pause event to set a new one?
 	Statistics.LastState = "Ready";
@@ -2487,7 +2486,7 @@ void FElectraPlayer::HandlePlayerEventSegmentDownload(const Electra::Metrics::FS
 	}
 	if (!SegmentDownloadStats.bWasSuccessful || SegmentDownloadStats.RetryNumber)
 	{
-		UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] %s segment download issue (%s): retry:%d, success:%d, aborted:%d, filler:%d"), this, CurrentPlayer.Get(), Electra::Metrics::GetSegmentTypeString(SegmentDownloadStats.SegmentType), *SegmentDownloadStats.FailureReason, SegmentDownloadStats.RetryNumber, SegmentDownloadStats.bWasSuccessful, SegmentDownloadStats.bWasAborted, SegmentDownloadStats.bInsertedFillerData);
+		UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] %s segment download issue (%s): retry:%d, success:%d, aborted:%d, filler:%d"), this, CurrentPlayer.Get(), Electra::Metrics::GetSegmentTypeString(SegmentDownloadStats.SegmentType), *SegmentDownloadStats.FailureReason, SegmentDownloadStats.RetryNumber, SegmentDownloadStats.bWasSuccessful, SegmentDownloadStats.bWasAborted, SegmentDownloadStats.bInsertedFillerData);
 
 		if (SegmentDownloadStats.FailureReason.Len())
 		{
@@ -2669,7 +2668,7 @@ void FElectraPlayer::HandlePlayerEventPrerollStart()
 	// Update statistics
 	FScopeLock Lock(&StatisticsLock);
 	Statistics.TimeAtPrerollBegin = FPlatformTime::Seconds();
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Player starts prerolling to warm decoders and renderers"), this, CurrentPlayer.Get());
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Player starts prerolling to warm decoders and renderers"), this, CurrentPlayer.Get());
 //	Statistics.LastState = "Ready";
 //	FString					CurrentState;	// "Empty", "Opening", "Preparing", "Buffering", "Idle", "Ready", "Playing", "Paused", "Seeking", "Rebuffering", "Ended", "Closed"
 
@@ -2694,7 +2693,7 @@ void FElectraPlayer::HandlePlayerEventPrerollEnd()
 	{
 		Statistics.TimeForInitialPreroll = FPlatformTime::Seconds() - Statistics.TimeAtPrerollBegin;
 	}
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Player prerolling complete"), this, CurrentPlayer.Get());
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Player prerolling complete"), this, CurrentPlayer.Get());
 	Statistics.LastState = "Ready";
 
 	// Enqueue a "PrerollEnd" event.
@@ -2862,7 +2861,7 @@ void FElectraPlayer::HandlePlayerEventPlaybackStopped()
 
 void FElectraPlayer::HandlePlayerEventSeekCompleted()
 {
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Seek completed"), this, CurrentPlayer.Get());
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Seek completed"), this, CurrentPlayer.Get());
 	bDiscardOutputUntilCleanStart = false;
 	MediaStateOnSeekFinished();
 }
@@ -3037,7 +3036,7 @@ void FElectraPlayer::LogStatistics()
 	TSharedPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe> PinnedAdapterDelegate = AdapterDelegate.Pin();
 	if (PinnedAdapterDelegate.IsValid())
 	{
-		UE_LOG(LogElectraPlayer, Log, TEXT(
+		UE_LOG(LogElectraPlayer, Verbose, TEXT(
 			"[%p][%p] Electra player statistics:\n"\
 			"OS: %s\n"\
 			"GPU Adapter: %s\n"
@@ -3126,7 +3125,7 @@ void FElectraPlayer::LogStatistics()
 				MessageHistory.Append(FString::Printf(TEXT("%8.3f: %s"), msg.TimeSinceStart, *msg.Message));
 				MessageHistory.Append(TEXT("\n"));
 			}
-			UE_LOG(LogElectraPlayer, Log, TEXT("Most recent log messages:\n%s"), *MessageHistory);
+			UE_LOG(LogElectraPlayer, Verbose, TEXT("Most recent log messages:\n%s"), *MessageHistory);
 		}
 	}
 }
@@ -3145,12 +3144,12 @@ void FElectraPlayer::SendAnalyticMetrics(const TSharedPtr<IAnalyticsProviderET>&
 
 	if (!Statistics.bDidPlaybackEnd)
 	{
-		UE_LOG(LogElectraPlayer, Warning, TEXT("[%p][%p] Submitting analytics during playback, some data may be incomplete"), this, CurrentPlayer.Get());
+		UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Submitting analytics during playback, some data may be incomplete"), this, CurrentPlayer.Get());
 		// Try to fill in some of the blanks.
 		UpdatePlayEndStatistics();
 	}
 
-	UE_LOG(LogElectraPlayer, Log, TEXT("[%p][%p] Submitting analytics"), this, CurrentPlayer.Get());
+	UE_LOG(LogElectraPlayer, Verbose, TEXT("[%p][%p] Submitting analytics"), this, CurrentPlayer.Get());
 
 
 	// First emit all enqueued events before sending the final one.

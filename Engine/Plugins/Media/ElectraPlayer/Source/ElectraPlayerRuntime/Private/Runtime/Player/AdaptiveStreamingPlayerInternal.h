@@ -85,6 +85,8 @@ public:
 	virtual FTimeValue GetEnqueuedSampleDuration() = 0;
 	virtual int32 GetNumEnqueuedSamples(TArray<FEnqueuedSampleInfo>* OutOptionalSampleInfos) = 0;
 
+	virtual void AlwaysEmitSamplesWhenPaused(bool bEmitAlways) = 0;
+	virtual void SetPlaybackRate(double InCurrentPlaybackRate, double InIntendedPlaybackRate, bool bInCurrentlyPaused) = 0;
 	virtual void DisableHoldbackOfFirstRenderableVideoFrame(bool bDisableHoldback) = 0;
 
 	virtual FTimeRange GetSupportedRenderRateScale() = 0;
@@ -1926,7 +1928,6 @@ private:
 		bool	bForScrubbing = false;
 		bool	bScrubPrerollDone = false;
 		bool	bIsPlayStart = true;
-		int32	NumSeekToCallsSinceLastSeen = 0;
 
 		TOptional<FSeekParam> ActiveRequest;
 		TOptional<FSeekParam> LastFinishedRequest;
