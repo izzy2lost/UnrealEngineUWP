@@ -313,7 +313,7 @@ UMaterialInstanceDynamic* UBorder::GetDynamicMaterial()
 	{
 		UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material);
 
-		if ( !DynamicMaterial || DynamicMaterial->GetOuter() != this)
+		if ( !DynamicMaterial )
 		{
 			DynamicMaterial = UMaterialInstanceDynamic::Create(Material, this);
 			Background.SetResourceObject(DynamicMaterial);
@@ -427,3 +427,4 @@ const FText UBorder::GetPaletteCategory()
 /////////////////////////////////////////////////////
 
 #undef LOCTEXT_NAMESPACE
+

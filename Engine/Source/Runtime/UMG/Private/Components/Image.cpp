@@ -391,7 +391,7 @@ void UImage::SetBrushFromSoftMaterial(TSoftObjectPtr<UMaterialInterface> SoftMat
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UMaterialInstanceDynamic* UImage::GetDynamicMaterial()
 {
-	UMaterialInterface* Material = nullptr;
+	UMaterialInterface* Material = NULL;
 
 	UObject* Resource = Brush.GetResourceObject();
 	Material = Cast<UMaterialInterface>(Resource);
@@ -400,7 +400,7 @@ UMaterialInstanceDynamic* UImage::GetDynamicMaterial()
 	{
 		UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material);
 
-		if ( !DynamicMaterial || DynamicMaterial->GetOuter() != this )
+		if ( !DynamicMaterial )
 		{
 			DynamicMaterial = UMaterialInstanceDynamic::Create(Material, this);
 			SetBrushResourceObject(DynamicMaterial);
@@ -415,7 +415,7 @@ UMaterialInstanceDynamic* UImage::GetDynamicMaterial()
 
 	//TODO UMG can we do something for textures?  General purpose dynamic material for them?
 
-	return nullptr;
+	return NULL;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -449,3 +449,4 @@ const FText UImage::GetPaletteCategory()
 /////////////////////////////////////////////////////
 
 #undef LOCTEXT_NAMESPACE
+
