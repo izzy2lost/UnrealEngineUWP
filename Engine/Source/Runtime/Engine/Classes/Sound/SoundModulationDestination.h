@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Audio.h"
-#endif
 #include "Containers/ArrayView.h"
 #include "Containers/Set.h"
 #include "DSP/BufferVectorOperations.h"

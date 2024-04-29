@@ -17,9 +17,6 @@
 #include "UObject/UObjectHash.h"
 #include "ProfilingDebugging/ProfilingHelpers.h"
 #include "GameFramework/WorldSettings.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RendererInterface.h"
-#endif
 
 #if WITH_EDITOR
 #include "Algo/Accumulate.h"

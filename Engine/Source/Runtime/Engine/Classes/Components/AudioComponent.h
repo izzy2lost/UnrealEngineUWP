@@ -15,10 +15,6 @@
 #include "Sound/SoundModulationDestination.h"
 #include "Sound/SoundSubmixSend.h"
 #include "Sound/SoundSourceBusSend.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Sound/SoundWave.h"
-#include "Quartz/AudioMixerClockHandle.h"
-#endif
 #include "UObject/ObjectMacros.h"
 
 #include "AudioComponent.generated.h"

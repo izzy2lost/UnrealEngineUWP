@@ -14,11 +14,6 @@
 #include "Serialization/EditorBulkData.h"
 #include "Engine/TextureDefines.h"
 #include "MaterialValueType.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "MaterialShared.h"
-#include "TextureResource.h"
-#include "RenderResource.h"
-#endif
 #include "Engine/StreamableRenderAsset.h"
 #include "PerPlatformProperties.h"
 #include "ImageCore.h"

@@ -10,15 +10,6 @@
 #include "Engine/EngineTypes.h"
 #include "PrimitiveComponentId.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "RHI.h"
-#include "SceneTypes.h"
-#include "SceneUtils.h"
-#include "Math/SHMath.h"
-#include "RenderGraphDefinitions.h"
-#endif
-
 class AWorldSettings;
 class FArchive;
 class FFloat16Color;

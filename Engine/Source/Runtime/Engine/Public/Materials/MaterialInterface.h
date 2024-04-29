@@ -18,9 +18,6 @@
 #include "UObject/ScriptMacros.h"
 #include "RenderCommandFence.h"
 #include "SceneTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
 #include "Engine/BlendableInterface.h"
 #include "Materials/MaterialLayersFunctions.h"
 #include "Interfaces/Interface_AssetUserData.h"
@@ -32,12 +29,6 @@
 #include "PSOPrecache.h"
 #include "StaticParameterSet.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHI.h"
-#include "Physics/PhysicsInterfaceCore.h"
-#include "MaterialShared.h"
-#endif
 
 #include "MaterialInterface.generated.h"
 

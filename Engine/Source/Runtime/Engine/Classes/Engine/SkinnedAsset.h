@@ -13,11 +13,6 @@
 #include "ReferenceSkeleton.h"
 #include "PerPlatformProperties.h"
 #include "PSOPrecache.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "SkeletalMeshTypes.h"
-#include "SkinnedAssetAsyncCompileUtils.h"
-#include "SkinnedAssetCommon.h"
-#endif
 #include "SkinnedAsset.generated.h"
 
 struct FSkeletalMaterial;

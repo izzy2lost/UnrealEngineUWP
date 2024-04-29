@@ -14,9 +14,6 @@
 #include "LightmapUniformShaderParameters.h"
 #include "UnifiedBuffer.h"
 #endif
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "UnrealEngine.h"
-#endif
 
 /** 
  * The uniform shader parameters associated with a primitive. 

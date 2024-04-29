@@ -17,19 +17,6 @@
 #include "ShowFlags.h"
 #include "StereoRendering.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Engine/EngineBaseTypes.h"
-#include "Engine/EngineTypes.h"
-#include "Engine/GameViewportClient.h"
-#include "Engine/World.h"
-#include "GlobalDistanceFieldParameters.h"
-#include "PhysicsInterfaceDeclaresCore.h"
-#include "SceneInterface.h"
-#include "SceneTypes.h"
-#include "UniformBuffer.h"
-#endif
-
 #define MAX_PHYSICS_FIELD_TARGETS 32
 
 class FSceneView;

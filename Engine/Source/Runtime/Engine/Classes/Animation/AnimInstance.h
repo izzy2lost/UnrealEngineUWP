@@ -7,14 +7,6 @@
 #include "UObject/Object.h"
 #include "Animation/AnimTypes.h"
 #include "Animation/AnimationAsset.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Animation/AnimCurveTypes.h"
-#include "Animation/AnimMontage.h"
-#include "Animation/AttributesRuntime.h"
-#include "Animation/Skeleton.h"
-#include "BonePose.h"
-#include "Components/SkeletalMeshComponent.h"
-#endif
 #include "Animation/AnimNotifyQueue.h"
 #include "Animation/AnimSubsystemInstance.h"
 #include "Animation/AnimSync.h"

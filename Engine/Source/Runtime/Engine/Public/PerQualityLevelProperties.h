@@ -12,10 +12,6 @@ FPerQualityLevelProperties.h: Property types that can be overridden on a quality
 #include "Serialization/MemoryLayout.h"
 #include "Scalability.h"
 #include "CoreMinimal.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/Engine.h"
-#include "HAL/ConsoleManager.h"
-#endif
 
 #include "PerQualityLevelProperties.generated.h"
 

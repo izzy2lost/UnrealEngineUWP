@@ -9,9 +9,6 @@
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
 #include "UObject/Object.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/EngineTypes.h"
-#endif
 #include "Engine/TimerHandle.h"
 #include "Templates/Function.h"
 

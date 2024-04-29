@@ -5,14 +5,9 @@
 #include "UObject/ObjectMacros.h"
 #include "Math/BoxSphereBounds.h"
 #include "UObject/UObjectGlobals.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/HitResult.h"
-#endif
 #include "ComponentInstanceDataCache.h"
 #include "Components/ActorComponent.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
+
 #include "SceneComponent.generated.h"
 
 class AActor;
@@ -1753,7 +1748,3 @@ FORCEINLINE_DEBUGGABLE bool USceneComponent::GetShouldUpdatePhysicsVolume() cons
 {
 	return bShouldUpdatePhysicsVolume;
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

@@ -8,9 +8,6 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ScriptMacros.h"
 #include "Engine/Texture.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "TextureResource.h"
-#endif
 #include "Engine/TextureAllMipDataProviderFactory.h"
 #include "Serialization/BulkData.h"
 #include "Texture2D.generated.h"

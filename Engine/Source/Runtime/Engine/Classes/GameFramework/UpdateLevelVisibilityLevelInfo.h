@@ -125,7 +125,3 @@ inline uint32 FNetLevelVisibilityTransactionId::IncrementTransactionIndex()
 	SetTransactionIndex(NewIndex);
 	return NewIndex;
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

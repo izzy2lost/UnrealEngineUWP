@@ -9,12 +9,6 @@
 #include "Misc/Guid.h"
 #include "Templates/Casts.h"
 #include "MaterialRecursionGuard.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Materials/MaterialExpressionMaterialFunctionCall.h"
-#include "Materials/MaterialExpressionFontSampleParameter.h"
-#include "Materials/MaterialExpressionParameter.h"
-#include "Materials/MaterialExpressionTextureSampleParameter.h"
-#endif
 #include "StaticParameterSet.h"
 
 #if WITH_EDITOR

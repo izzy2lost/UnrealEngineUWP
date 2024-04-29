@@ -10,10 +10,6 @@
 #include "GenericPlatform/GenericPlatformChunkInstall.h"
 #include "ContentEncryptionConfig.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AssetRegistry/AssetData.h"
-#endif
-
 #include "AssetManager.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAssetManager, Log, All);

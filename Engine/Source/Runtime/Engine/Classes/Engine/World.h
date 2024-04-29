@@ -6,9 +6,6 @@
 #include "GameFramework/Actor.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Online/CoreOnlineFwd.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
@@ -28,12 +25,6 @@
 #include "Particles/WorldPSCPool.h"
 #include "Containers/SortedMap.h"
 #include "AudioDeviceHandle.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AudioDeviceManager.h"
-#include "Engine/Blueprint.h"
-#include "Engine/GameInstance.h"
-#include "GameFramework/Pawn.h"
-#endif
 #include "Subsystems/WorldSubsystem.h"
 #include "Subsystems/SubsystemCollection.h"
 #include "CollisionProfile.h"

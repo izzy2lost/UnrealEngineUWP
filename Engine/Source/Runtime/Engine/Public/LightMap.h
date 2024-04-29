@@ -10,9 +10,6 @@
 #include "Containers/ChunkedArray.h"
 #include "Misc/Guid.h"
 #include "Engine/EngineTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 #include "RenderDeferredCleanup.h"
 #include "Serialization/BulkData.h"
 #include "SceneManagement.h"

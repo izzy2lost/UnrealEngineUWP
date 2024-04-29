@@ -10,18 +10,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Interfaces/Interface_AssetUserData.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Audio.h"
-#include "IAudioExtensionPlugin.h"
-#include "Sound/AudioSettings.h"
-#include "Sound/SoundClass.h"
-#include "SoundModulationDestination.h"
-#include "SoundSourceBusSend.h"
-#include "SoundSubmixSend.h"
-#include "SoundGenerator.h"
-#include "AudioDeviceManager.h"
-#endif
-
 #include "SoundBase.generated.h"
 
 

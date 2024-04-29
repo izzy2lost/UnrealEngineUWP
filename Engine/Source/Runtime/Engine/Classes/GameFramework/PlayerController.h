@@ -26,14 +26,6 @@
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "EngineDefines.h"		// For UE_ENABLE_DEBUG_DRAWING
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Widgets/SWidget.h"
-#include "Components/InputComponent.h"
-#include "GameFramework/ForceFeedbackParameters.h"
-#include "GameFramework/OnlineReplStructs.h"
-#include "GameFramework/PlayerInput.h"
-#endif
-
 #include "PlayerController.generated.h"
 
 class ACameraActor;
@@ -2491,7 +2483,3 @@ public:
 	bool GetNetworkPhysicsTickOffsetAssigned() const { return bNetworkPhysicsTickOffsetAssigned; }
 
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

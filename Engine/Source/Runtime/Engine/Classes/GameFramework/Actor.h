@@ -13,14 +13,6 @@
 #include "PropertyPairsMap.h"
 #include "Components/ChildActorComponent.h"
 #include "RenderCommandFence.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/Level.h"
-#include "Engine/HitResult.h"
-#include "UObject/CoreNet.h"
-#if WITH_EDITOR
-#include "WorldPartition/DataLayer/ActorDataLayer.h"
-#endif
-#endif
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
 #include "Engine/ReplicatedState.h"
 
@@ -4859,7 +4851,3 @@ DEFINE_ACTORDESC_TYPE(AActor, FWorldPartitionActorDesc);
 	void SetActorRelativeRotation(FRotator NewRelativeRotation, bool bSweep=false, FHitResult* OutSweepHitResult=nullptr, ETeleportType Teleport = ETeleportType::None) { Super::SetActorRelativeRotation(NewRelativeRotation, bSweep, OutSweepHitResult, Teleport); } \
 	void SetActorRelativeRotation(const FQuat& NewRelativeRotation, bool bSweep=false, FHitResult* OutSweepHitResult=nullptr, ETeleportType Teleport = ETeleportType::None) { Super::SetActorRelativeRotation(NewRelativeRotation, bSweep, OutSweepHitResult, Teleport); } \
 	void SetActorRelativeTransform(const FTransform& NewRelativeTransform, bool bSweep=false, FHitResult* OutSweepHitResult=nullptr, ETeleportType Teleport = ETeleportType::None) { Super::SetActorRelativeTransform(NewRelativeTransform, bSweep, OutSweepHitResult, Teleport); }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

@@ -1004,8 +1004,3 @@ class UEngineBaseTypes : public UObject
 	GENERATED_UCLASS_BODY()
 
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Async/TaskGraphInterfaces.h"
-#include "CoreMinimal.h"
-#endif

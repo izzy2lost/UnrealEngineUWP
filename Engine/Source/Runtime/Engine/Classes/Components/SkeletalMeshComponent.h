@@ -10,12 +10,6 @@
 #include "EngineDefines.h"
 #include "CollisionQueryParams.h"
 #include "Interfaces/Interface_CollisionDataProvider.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "SkeletalMeshTypes.h"
-#include "Engine/SkeletalMesh.h"
-#include "ClothCollisionPrim.h"
-#include "PhysicsEngine/PhysicsAsset.h"
-#endif
 #include "Animation/AnimationAsset.h"
 #include "Animation/AnimCurveTypes.h"
 #include "Components/SkinnedMeshComponent.h"

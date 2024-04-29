@@ -13,9 +13,6 @@
 #include "Components/MeshComponent.h"
 #include "Components/ActorStaticMeshComponentInterface.h"
 #include "PackedNormal.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RawIndexBuffer.h"
-#endif
 #include "Templates/UniquePtr.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "UObject/RenderingObjectVersion.h"

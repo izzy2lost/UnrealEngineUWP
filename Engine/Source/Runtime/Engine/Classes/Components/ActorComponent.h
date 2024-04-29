@@ -10,11 +10,6 @@
 #include "Engine/EngineBaseTypes.h"
 #include "UObject/CoreNetTypes.h"
 #include "UObject/ScriptMacros.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "EdGraph/EdGraphPin.h"
-#include "UObject/CoreNet.h"
-#endif
 #include "Interfaces/Interface_AssetUserData.h"
 #include "UObject/StructOnScope.h"
 #include "PropertyPairsMap.h"

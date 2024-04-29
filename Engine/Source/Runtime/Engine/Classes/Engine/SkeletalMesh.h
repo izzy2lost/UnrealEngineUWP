@@ -26,14 +26,6 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Animation/SkinWeightProfile.h"
-#include "BoneContainer.h"
-#include "Components.h"
-#include "Rendering/SkeletalMeshRenderData.h"
-#include "SkeletalMeshLODSettings.h"
-#endif
-
 #include "SkeletalMesh.generated.h"
 
 class UAnimInstance;

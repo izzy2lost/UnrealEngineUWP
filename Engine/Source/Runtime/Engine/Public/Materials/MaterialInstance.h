@@ -9,14 +9,6 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceBasePropertyOverrides.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderCommandFence.h"
-#include "HAL/ThreadSafeBool.h"
-#include "Materials/MaterialExpressionMaterialFunctionCall.h"
-#include "Misc/App.h"
-#include "Physics/PhysicsInterfaceCore.h"
-#endif
-
 #include "MaterialInstance.generated.h"
 
 class ITargetPlatform;
@@ -1131,7 +1123,3 @@ protected:
 	friend class FMaterialUpdateContext;
 	friend class FMaterialInstanceParameterUpdateContext;
 };
-
-//#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-//#include "MaterialInstanceUpdateParameterSet.h"
-//#endif

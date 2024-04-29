@@ -62,7 +62,3 @@
 
 /** bits needed to store DPG value */
 #define SDPG_NumBits 3
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

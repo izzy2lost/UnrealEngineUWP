@@ -9,12 +9,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Templates/RefCounting.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "GenericPlatform/ICursor.h"
-#include "Elements/Framework/TypedElementHandle.h"
-#endif
-
 #include "HitProxies.generated.h"
 
 class FReferenceCollector;

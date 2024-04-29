@@ -12,9 +12,6 @@
 #include "EdGraph/EdGraphPin.h"
 #include "Engine/BlueprintCore.h"
 #include "Blueprint/BlueprintPropertyGuidProvider.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/BlueprintGeneratedClass.h"
-#endif
 #include "UObject/SoftObjectPath.h"
 #include "Blueprint/BlueprintSupport.h"
 

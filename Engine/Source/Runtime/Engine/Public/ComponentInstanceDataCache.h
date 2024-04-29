@@ -257,7 +257,3 @@ private:
 	/** Map of the actor instanced scene component to their transform relative to the root. */
 	TMap< TObjectPtr<USceneComponent>, FTransform > InstanceComponentTransformToRootMap;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

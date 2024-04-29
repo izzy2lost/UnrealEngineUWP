@@ -5,9 +5,6 @@
 
 #include "HLSLTree/HLSLTree.h"
 #include "SceneTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
 
 namespace UE::HLSLTree
 {

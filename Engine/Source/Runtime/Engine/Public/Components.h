@@ -10,10 +10,6 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NaniteDefinitions.h"
 #endif
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderResource.h"
-#include "VertexFactory.h"
-#endif
 
 /*=============================================================================
 	Components.h: Forward declarations of object components of actors

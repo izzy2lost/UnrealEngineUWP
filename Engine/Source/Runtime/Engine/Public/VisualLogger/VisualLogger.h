@@ -7,9 +7,6 @@
 #include "Engine/EngineTypes.h"
 #include "EngineDefines.h"
 #include "VisualLogger/VisualLoggerTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "EngineStats.h"
-#endif
 #include "Templates/IsValidVariadicFunctionArg.h"
 #include "Templates/IsArrayOrRefOfTypeByPredicate.h"
 #include "Traits/IsCharEncodingCompatibleWith.h"

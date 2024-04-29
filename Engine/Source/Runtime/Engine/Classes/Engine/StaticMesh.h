@@ -25,12 +25,6 @@
 #include "MeshTypes.h"
 #include "PerQualityLevelProperties.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Components.h"
-#include "StaticMeshResources.h"
-#include "RenderAssetUpdate.h"
-#endif
-
 #include "StaticMesh.generated.h"
 
 class FSpeedTreeWind;

@@ -1,10 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#pragma once
-#include "AudioCompressionSettings.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AudioStreamingCache.h"
-#endif
+#pragma once
+
+#include "AudioCompressionSettings.h"
 
 struct FCachedAudioStreamingManagerParams;
 

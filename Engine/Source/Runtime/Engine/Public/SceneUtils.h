@@ -11,10 +11,6 @@
 #pragma once
 
 #include "UObject/ObjectMacros.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "ProfilingDebugging/RealtimeGPUProfiler.h"
-#include "RHIDefinitions.h"
-#endif
 #include "RHIFeatureLevel.h"
 
 #include "SceneUtils.generated.h"

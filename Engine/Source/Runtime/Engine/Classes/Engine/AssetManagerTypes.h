@@ -19,13 +19,6 @@
 #include "UObject/PrimaryAssetId.h"
 #include "UObject/SoftObjectPtr.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AssetRegistry/AssetData.h"
-#include "AssetRegistry/AssetBundleData.h"
-#include "CoreMinimal.h"
-#include "EngineTypes.h"
-#endif
-
 #include "AssetManagerTypes.generated.h"
 
 /** Rule about when to cook/ship a primary asset */

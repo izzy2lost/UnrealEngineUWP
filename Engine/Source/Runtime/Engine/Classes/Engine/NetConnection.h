@@ -6,11 +6,6 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Net/RPCDoSDetection.h"
-#include "Net/NetConnectionFaultRecovery.h"
-#endif
 #include "UObject/ObjectKey.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"

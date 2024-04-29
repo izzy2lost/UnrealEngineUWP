@@ -6,9 +6,6 @@ PerPlatformProperties.h: Property types that can be overridden on a per-platform
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/Engine.h"
-#endif
 #include "Serialization/Archive.h"
 #include "RHIDefinitions.h"
 #include "Containers/Map.h"

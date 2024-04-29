@@ -15,13 +15,6 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "InstanceUniformShaderParameters.h"
 #endif
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "UniformBuffer.h"
-#include "MaterialShared.h"
-#include "Engine/Scene.h"
-#include "PrimitiveUniformShaderParameters.h"
-#endif
 
 #define USE_MESH_BATCH_VALIDATION !UE_BUILD_SHIPPING
 

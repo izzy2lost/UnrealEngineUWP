@@ -10,9 +10,6 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "UnrealClient.h"
-#endif
 #include "ViewportClient.h"
 #include "ScriptViewportClient.generated.h"
 

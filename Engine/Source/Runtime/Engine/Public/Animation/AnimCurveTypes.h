@@ -11,10 +11,6 @@
 #include "AnimCurveElementFlags.h"
 #include "Animation/NamedValueArray.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Animation/Skeleton.h"
-#endif
-
 #include "AnimCurveTypes.generated.h"
 
 typedef SmartName::UID_Type SkeletonAnimCurveUID;

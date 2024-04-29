@@ -9,10 +9,6 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "RenderedTextureStats.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CanvasTypes.h"
-#include "UnrealClient.h"
-#endif
 #include "Serialization/BulkData.h"
 #include "UObject/ObjectKey.h"
 #include "UObject/WeakObjectPtr.h"

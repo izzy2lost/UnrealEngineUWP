@@ -15,10 +15,6 @@
 #include "UObject/Object.h"
 #include "Misc/NetworkGuid.h"
 #include "UObject/CoreNet.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "GameFramework/WorldSettings.h"
-#include "PacketHandler.h"
-#endif
 #include "Channel.h"
 #include "Net/Core/Misc/DDoSDetection.h"
 #include "IPAddress.h"

@@ -31,12 +31,6 @@
 #include "Math/SHMath.h"
 #include "GlobalRenderResources.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/TextureLightProfile.h"
-#include "GameFramework/Actor.h"
-#include "LightSceneProxy.h"
-#endif
-
 class FCanvas;
 class FGlobalDynamicIndexBuffer;
 class FGlobalDynamicReadBuffer;

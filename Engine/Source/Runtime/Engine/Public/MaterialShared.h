@@ -17,9 +17,6 @@
 #include "RHIDefinitions.h"
 #include "RHIUniformBufferLayoutInitializer.h"
 #include "RenderResource.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 #include "RenderDeferredCleanup.h"
 #include "UniformBuffer.h"
 #include "Shader.h"
@@ -39,14 +36,6 @@
 #include "PSOPrecache.h"
 #include "UObject/ObjectMacros.h"
 #include "Rendering/SubstrateMaterialShared.h"
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHI.h"
-#include "MaterialDomain.h"
-#include "Materials/MaterialAttributeDefinitionMap.h"
-#include "Materials/MaterialRenderProxy.h"
-#endif
-
 #include "Shader/Preshader.h"
 
 #include <atomic>

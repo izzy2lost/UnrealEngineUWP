@@ -5,10 +5,6 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "AlphaBlend.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Animation/AnimNodeBase.h"
-#include "Animation/AnimInstanceProxy.h"
-#endif
 #include "InputScaleBias.generated.h"
 
 struct FAnimationUpdateContext;

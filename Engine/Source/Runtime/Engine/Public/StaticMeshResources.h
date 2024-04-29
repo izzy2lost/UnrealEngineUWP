@@ -1581,9 +1581,6 @@ ENGINE_API void RemapPaintedVertexColors(
 #endif // #if WITH_EDITOR
 
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PrimitiveSceneProxy.h"
-#endif
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/MeshMerging.h"
 #endif

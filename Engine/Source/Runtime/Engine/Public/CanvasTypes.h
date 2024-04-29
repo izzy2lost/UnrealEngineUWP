@@ -12,12 +12,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/EngineTypes.h"
 #include "HitProxies.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "BatchedElements.h"
-#include "RendererInterface.h"
-#include "StaticMeshResources.h"
-#include "UnrealEngine.h"
-#endif
 #include "CanvasTypes.generated.h"
 
 class FBatchedElementParameters;

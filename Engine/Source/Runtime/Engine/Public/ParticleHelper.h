@@ -17,9 +17,6 @@
 #include "PrimitiveViewRelevance.h"
 #include "PrimitiveSceneProxy.h"
 #include "Materials/MaterialInterface.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "MaterialShared.h"
-#endif
 #include "MeshBatch.h"
 #include "MeshParticleVertexFactory.h"
 #include "PrimitiveSceneProxy.h"

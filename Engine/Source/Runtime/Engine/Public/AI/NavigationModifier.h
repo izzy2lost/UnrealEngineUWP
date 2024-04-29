@@ -392,7 +392,3 @@ private:
 	uint32 bMaskFillCollisionUnderneathForNavmesh : 1;
 	ENavigationDataResolution NavMeshResolution;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

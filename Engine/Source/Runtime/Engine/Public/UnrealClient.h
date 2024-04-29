@@ -16,14 +16,6 @@
 #include "Elements/Framework/TypedElementListFwd.h"
 #include "DynamicRenderScaling.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "InputCoreTypes.h"
-#include "Input/PopupMethodReply.h"
-#include "Widgets/SWidget.h"
-#include "RHI.h"
-#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
-#endif
-
 class FCanvas;
 class FRDGBuilder;
 class FViewport;

@@ -16,10 +16,6 @@
 #include "Engine/HitResult.h"
 #endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Async/TaskGraphInterfaces.h"
-#endif
-
 struct FOverlapDatum;
 struct FTraceDatum;
 struct FHitResult;

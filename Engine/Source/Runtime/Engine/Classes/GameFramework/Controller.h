@@ -416,7 +416,3 @@ FORCEINLINE_DEBUGGABLE bool AController::IsLocalPlayerController() const
 {
 	return IsPlayerController() && IsLocalController();
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

@@ -12,10 +12,6 @@
 #include "GameFramework/Actor.h"
 #include "AI/Navigation/NavDataGatheringMode.h"
 #endif
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AI/Navigation/NavAgentSelector.h"
-#include "AI/Navigation/NavigationBounds.h"
-#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "NavigationTypes.generated.h"
 
 #define INVALID_NAVNODEREF (0)

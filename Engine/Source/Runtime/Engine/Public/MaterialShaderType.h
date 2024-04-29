@@ -9,11 +9,6 @@
 #include "Shader.h"
 #include "GlobalShader.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Engine/EngineTypes.h"
-#endif
-
 /** A macro to implement material shaders. */
 #define IMPLEMENT_MATERIAL_SHADER_TYPE(TemplatePrefix,ShaderClass,SourceFilename,FunctionName,Frequency) \
 	IMPLEMENT_SHADER_TYPE( \

@@ -14,15 +14,7 @@
 #include "RHIDefinitions.h"
 #endif
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "MaterialShared.h"
-#endif
 #include "MaterialExpressionIO.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Materials/MaterialExpressionMaterialFunctionCall.h"
-#include "Materials/MaterialExpressionMaterialAttributeLayers.h"
-#include "Materials/MaterialFunction.h"
-#endif
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/MaterialLayersFunctions.h"
