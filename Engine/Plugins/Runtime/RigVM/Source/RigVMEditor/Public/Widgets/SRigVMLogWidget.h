@@ -35,7 +35,7 @@ public:
 	void BindLog(const URigVMBlueprint* InRigVMBlueprint);
 	void UnbindLog(const URigVMBlueprint* InRigVMBlueprint);
 
-	const TSharedRef<FMessageLogListingModel>& GetListing() const
+	TSharedRef<FMessageLogListingModel> GetListing() const
 	{
 		return ListingModel.ToSharedRef();
 	}
