@@ -15,6 +15,7 @@
 #include "EngineAnalytics.h"
 #include "SAvaEaseCurveTangents.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Math/UnrealMathUtility.h"
@@ -97,6 +98,12 @@ void SAvaEaseCurveTool::Construct(const FArguments& InArgs, const TSharedRef<FAv
 TSharedRef<SWidget> SAvaEaseCurveTool::ConstructCurveEditorPanel()
 {
 	CurrentGraphSize = GetDefault<UAvaEaseCurveToolSettings>()->GetGraphSize();
+	
+	ContextMenu = MakeShared<FAvaEaseCurveToolContextMenu>(CommandList
+		, FAvaEaseCurveToolOnGraphSizeChanged::CreateLambda([this](const int32 InNewSize)
+			{
+				CurrentGraphSize = InNewSize;
+			}));
 
 	const TSharedRef<FAvaEaseCurveTool> EaseCurveToolRef = EaseCurveTool.ToSharedRef();
 	
@@ -119,15 +126,7 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructCurveEditorPanel()
 				.OnTangentsChanged(this, &SAvaEaseCurveTool::HandleEditorTangentsChanged)
 				.GridSnap_UObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGridSnap)
 				.GridSize_UObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGridSize)
-				.GetContextMenuContent_Lambda([this]()
-					{
-						TSharedPtr<FAvaEaseCurveToolContextMenu> ContextMenu = MakeShared<FAvaEaseCurveToolContextMenu>(CommandList
-							, FAvaEaseCurveToolOnGraphSizeChanged::CreateLambda([this](const int32 InNewSize)
-								{
-									CurrentGraphSize = InNewSize;
-								}));
-						return ContextMenu->GenerateWidget();
-					})
+				.GetContextMenuContent(ContextMenu.ToSharedRef(), &FAvaEaseCurveToolContextMenu::GenerateWidget)
 				.StartText(this, &SAvaEaseCurveTool::GetStartText)
 				.StartTooltipText(this, &SAvaEaseCurveTool::GetStartTooltipText)
 				.EndText(this, &SAvaEaseCurveTool::GetEndText)

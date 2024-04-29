@@ -15,7 +15,6 @@
 #include "ISequencer.h"
 #include "ISettingsModule.h"
 #include "Math/UnrealMathUtility.h"
-#include "MVVM/Selection/Selection.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Settings/AvaSequencerSettings.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -123,7 +122,12 @@ void FAvaEaseCurveTool::SetEaseCurveTangents_Internal(const FAvaEaseCurveTangent
 void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation
 	, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents)
 {
-	const FScopedTransaction Transaction(LOCTEXT("SetEaseCurveTangents", "Set Ease Curve Tangents"));
+	if (InTangents == GetEaseCurveTangents())
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("SetEaseCurveTangents", "Set Ease Curve Tangents"), !GIsTransacting);
 	EaseCurve->Modify();
 
 	SetEaseCurveTangents_Internal(InTangents, InOperation, bInBroadcastUpdate);

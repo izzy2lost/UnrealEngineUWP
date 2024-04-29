@@ -36,6 +36,11 @@ struct FAvaEaseCurveKeySelection
 	bool CheckMatchingValues(const bool bInIncludeEqualValueKeys, const FChannelData& InChannelData
 		, const TFunctionRef<bool(const FKeyHandle& /*InKeyHandle*/, const FKeyHandle& /*InNextKeyHandle*/, const FChannelData&)>& InCallable)
 	{
+		if (!InChannelData.Channel.Get())
+		{
+			return false;
+		}
+		
 		TMovieSceneChannelHandle<ChannelHandle> Channel = InChannelData.Channel.Cast<ChannelHandle>();
 		TMovieSceneChannelData<ChannelValue> ChannelData = Channel.Get()->GetData();
 

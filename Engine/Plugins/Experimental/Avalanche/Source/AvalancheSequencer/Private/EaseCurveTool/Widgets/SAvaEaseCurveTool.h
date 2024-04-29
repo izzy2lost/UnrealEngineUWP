@@ -93,4 +93,6 @@ protected:
 	TSharedPtr<SAvaEaseCurvePreset> CurvePresetWidget;
 
 	int32 CurrentGraphSize = DefaultGraphSize;
+
+	TSharedPtr<FAvaEaseCurveToolContextMenu> ContextMenu;
 };
