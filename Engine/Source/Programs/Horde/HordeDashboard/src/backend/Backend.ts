@@ -1,10 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import templateCache from '../backend/TemplateCache';
-import { AccountClaimMessage, AgentData, AgentQuery, ApproveAgentsRequest, ArtifactData, AuditLogEntry, AuditLogQuery, BatchUpdatePoolRequest, ChangeSummaryData, CreateAccountRequest, CreateBisectTaskRequest, CreateBisectTaskResponse, CreateDeviceRequest, CreateDeviceResponse, CreateExternalIssueRequest, CreateExternalIssueResponse, CreateJobRequest, CreateJobResponse, CreateNoticeRequest, CreatePoolRequest, CreateServiceAccountRequest, CreateServiceAccountResponse, CreateSoftwareResponse, CreateSubscriptionRequest, CreateSubscriptionResponse, CreateZipRequest, DashboardPreference, DevicePoolTelemetryQuery, DeviceTelemetryQuery, EventData, FindArtifactsResponse, FindIssueResponse, FindJobTimingsResponse, GetAccountResponse, GetArtifactDirectoryResponse, GetArtifactZipRequest, GetBisectTaskResponse, GetDashboardConfigResponse, GetDevicePlatformResponse, GetDevicePoolResponse, GetDevicePoolTelemetryResponse, GetDeviceReservationResponse, GetDeviceResponse, GetDeviceTelemetryResponse, GetExternalIssueProjectResponse, GetExternalIssueResponse, GetGraphResponse, GetIssueStreamResponse, GetJobsTabResponse, GetJobStepRefResponse, GetJobStepTraceResponse, GetJobTimingResponse, GetLogEventResponse, GetLogFileResponse, GetNoticeResponse, GetNotificationResponse, GetPendingAgentsResponse, GetPerforceServerStatusResponse, GetPoolResponse, GetPoolSummaryResponse, GetServerInfoResponse, GetServerSettingsResponse, GetServiceAccountResponse, GetSoftwareResponse, GetSubscriptionResponse, GetTelemetryMetricsResponse, GetTestDataDetailsResponse, GetTestDataRefResponse, GetTestMetaResponse, GetTestResponse, GetTestsRequest, GetTestStreamResponse, GetToolSummaryResponse, GetUserResponse, GetUtilizationTelemetryResponse, GlobalConfig, IssueData, IssueQuery, IssueQueryV2, JobData, JobQuery, JobsTabColumnType, JobStepOutcome, JobStreamQuery, JobTimingsQuery, LeaseData, LogData, LogEventQuery, LogLineData, MetricsQuery, PoolData, PoolQuery, PreflightConfigResponse, ProjectData, ScheduleData, ScheduleQuery, SearchLogFileResponse, ServerStatusResponse, ServerUpdateResponse, SessionData, StreamData, TabType, TestData, UpdateAccountRequest, UpdateAgentRequest, UpdateBisectTaskRequest, UpdateCurrentAccountRequest, UpdateDeviceRequest, UpdateGlobalConfigRequest, UpdateIssueRequest, UpdateJobRequest, UpdateLeaseRequest, UpdateNoticeRequest, UpdateNotificationsRequest, UpdatePoolRequest, UpdateServerSettingsRequest, UpdateServiceAccountRequest, UpdateServiceAccountResponse, UpdateStepRequest, UpdateStepResponse, UpdateTemplateRefRequest, UpdateUserRequest, UsersQuery } from './Api';
+import { AccountClaimMessage, AgentData, AgentQuery, ApproveAgentsRequest, ArtifactData, AuditLogEntry, AuditLogQuery, BatchUpdatePoolRequest, ChangeSummaryData, CreateAccountRequest, CreateBisectTaskRequest, CreateBisectTaskResponse, CreateDeviceRequest, CreateDeviceResponse, CreateExternalIssueRequest, CreateExternalIssueResponse, CreateJobRequest, CreateJobResponse, CreateNoticeRequest, CreatePoolRequest, CreateServiceAccountRequest, CreateServiceAccountResponse, CreateSoftwareResponse, CreateSubscriptionRequest, CreateSubscriptionResponse, CreateZipRequest, DashboardPreference, DevicePoolTelemetryQuery, DeviceTelemetryQuery, EventData, FindArtifactsResponse, FindIssueResponse, FindJobTimingsResponse, GetAccountResponse, GetArtifactDirectoryResponse, GetArtifactZipRequest, GetBisectTaskResponse, GetDashboardConfigResponse, GetDevicePlatformResponse, GetDevicePoolResponse, GetDevicePoolTelemetryResponse, GetDeviceReservationResponse, GetDeviceResponse, GetDeviceTelemetryResponse, GetExternalIssueProjectResponse, GetExternalIssueResponse, GetIssueStreamResponse, GetJobsTabResponse, GetJobStepRefResponse, GetJobStepTraceResponse, GetJobTimingResponse, GetLogEventResponse, GetLogFileResponse, GetNoticeResponse, GetNotificationResponse, GetPendingAgentsResponse, GetPerforceServerStatusResponse, GetPoolResponse, GetPoolSummaryResponse, GetServerInfoResponse, GetServerSettingsResponse, GetServiceAccountResponse, GetSoftwareResponse, GetSubscriptionResponse, GetTelemetryMetricsResponse, GetTestDataDetailsResponse, GetTestDataRefResponse, GetTestMetaResponse, GetTestResponse, GetTestsRequest, GetTestStreamResponse, GetToolSummaryResponse, GetUserResponse, GetUtilizationTelemetryResponse, GlobalConfig, IssueData, IssueQuery, IssueQueryV2, JobData, JobQuery, JobsTabColumnType, JobStepOutcome, JobStreamQuery, JobTimingsQuery, LeaseData, LogData, LogEventQuery, LogLineData, MetricsQuery, PoolData, PoolQuery, PreflightConfigResponse, ProjectData, ScheduleData, ScheduleQuery, SearchLogFileResponse, ServerStatusResponse, ServerUpdateResponse, SessionData, StreamData, TabType, TestData, UpdateAccountRequest, UpdateAgentRequest, UpdateBisectTaskRequest, UpdateCurrentAccountRequest, UpdateDeviceRequest, UpdateGlobalConfigRequest, UpdateIssueRequest, UpdateJobRequest, UpdateLeaseRequest, UpdateNoticeRequest, UpdateNotificationsRequest, UpdatePoolRequest, UpdateServerSettingsRequest, UpdateServiceAccountRequest, UpdateServiceAccountResponse, UpdateStepRequest, UpdateStepResponse, UpdateTemplateRefRequest, UpdateUserRequest, UsersQuery } from './Api';
 import dashboard, { Dashboard } from './Dashboard';
 import { ChallengeStatus, Fetch } from './Fetch';
-import graphCache, { GraphQuery } from './GraphCache';
 import { projectStore } from './ProjectStore';
 
 
@@ -146,7 +145,7 @@ export class Backend {
             });
         });
     }
-    
+
 
     getAgent(id: string): Promise<AgentData> {
         return new Promise<AgentData>((resolve, reject) => {
@@ -278,24 +277,7 @@ export class Backend {
 
     }
 
-    /** Get's a job's graph data, used by caching and shouldn't need to call directly */
-    getGraph(jobId: string): Promise<GetGraphResponse> {
-
-        return new Promise<GetGraphResponse>((resolve, reject) => {
-
-            this.backend.get(`/api/v1/jobs/${jobId}/graph`).then((value) => {
-                const response = value.data as GetGraphResponse;
-                // filter out ugs labels
-                response.labels = response.labels?.filter(label => !!label.dashboardName);
-                resolve(response);
-            }).catch(reason => {
-                reject(reason);
-            });
-        });
-
-    }
-
-    getJob(id: string, query?: JobQuery, includeGraph = true, show404Error = false): Promise<JobData> {
+    getJob(id: string, query?: JobQuery, show404Error = false): Promise<JobData> {
 
         return new Promise<JobData>((resolve, reject) => {
 
@@ -305,22 +287,7 @@ export class Backend {
             }).then((value) => {
 
                 const response = value.data as JobData;
-                if (includeGraph && !response.graphHash) {
-                    return reject(`Job ${id} has undefined graph hash`);
-                }
-
-                if (!includeGraph) {
-                    resolve(response);
-                    return;
-                }
-
-                graphCache.get({ graphHash: response.graphHash!, jobId: id }).then(graph => {
-                    response.graphRef = graph;
-                    resolve(response);
-                }).catch(reason => {
-                    reject(reason);
-                });
-
+                resolve(response);
 
             }).catch(reason => {
                 reject(reason);
@@ -329,7 +296,7 @@ export class Backend {
 
     }
 
-    getJobsByIds(id: string[], query?: JobQuery, includeGraphs?: boolean): Promise<JobData[]> {
+    getJobsByIds(id: string[], query?: JobQuery): Promise<JobData[]> {
 
         if (!query) {
             (query as any) = {
@@ -347,24 +314,7 @@ export class Backend {
 
                 const response = value.data as JobData[];
 
-                if (includeGraphs === false || includeGraphs === undefined) {
-                    resolve(response);
-                    return;
-                }
-
-                graphCache.getGraphs(response.map(j => {
-                    return {
-                        jobId: j.id!,
-                        graphHash: j.graphHash!
-                    };
-                })).then((graphs => {
-                    response.forEach(j => {
-                        j.graphRef = graphs.find(g => g.hash === j.graphHash)
-                    })
-                    resolve(response)
-                })).catch(reason => {
-                    reject(reason);
-                });
+                resolve(response);
 
             }).catch(reason => {
                 reject(reason);
@@ -373,7 +323,7 @@ export class Backend {
 
     }
 
-    getStreamJobs(streamId: string, query: JobStreamQuery, queryGraph: boolean = false): Promise<JobData[]> {
+    getStreamJobs(streamId: string, query: JobStreamQuery): Promise<JobData[]> {
 
         if (typeof query.index === 'number') {
             query.index = 0;
@@ -389,31 +339,8 @@ export class Backend {
                 params: query
             }).then((value) => {
                 const jobs = value.data as JobData[];
-
-                if (!queryGraph) {
-                    resolve(jobs);
-                    return;
-                }
-
-                const query: GraphQuery[] = [];
-                jobs.forEach(j => {
-                    if (!j.graphHash) {
-                        console.error(`Job ${j.id} has no graph hash`);
-                        return;
-                    }
-
-                    if (!query.find(q => q.graphHash === j.graphHash)) {
-                        query.push({ graphHash: j.graphHash!, jobId: j.id });
-                    }
-                });
-
-                graphCache.getGraphs(query).then(graphs => {
-                    jobs.forEach(j => {
-                        j.graphRef = graphs.find(g => g.hash === j.graphHash);
-                    });
-                    resolve(jobs);
-                }).catch(reason => reject(reason));
-
+                resolve(jobs);
+                return;
             }).catch((reason) => {
                 reject(reason);
             });
@@ -422,7 +349,7 @@ export class Backend {
     }
 
 
-    getJobs(query: JobQuery, queryGraph: boolean = false): Promise<JobData[]> {
+    getJobs(query: JobQuery): Promise<JobData[]> {
 
         if (typeof query.index === 'number') {
             query.index = 0;
@@ -439,29 +366,8 @@ export class Backend {
             }).then((value) => {
                 const jobs = value.data as JobData[];
 
-                if (!queryGraph) {
-                    resolve(jobs);
-                    return;
-                }
-
-                const query: GraphQuery[] = [];
-                jobs.forEach(j => {
-                    if (!j.graphHash) {
-                        console.error(`Job ${j.id} has no graph hash`);
-                        return;
-                    }
-
-                    if (!query.find(q => q.graphHash === j.graphHash)) {
-                        query.push({ graphHash: j.graphHash!, jobId: j.id });
-                    }
-                });
-
-                graphCache.getGraphs(query).then(graphs => {
-                    jobs.forEach(j => {
-                        j.graphRef = graphs.find(g => g.hash === j.graphHash);
-                    });
-                    resolve(jobs);
-                }).catch(reason => reject(reason));
+                resolve(jobs);
+                return;
 
             }).catch((reason) => {
                 reject(reason);
@@ -489,20 +395,7 @@ export class Backend {
                 params: query
             }).then((response) => {
                 let timingsWrapper = response.data as FindJobTimingsResponse;
-                let graphCalls: { jobResponse: JobData, call: any }[] = [];
-                Object.values(timingsWrapper.timings).forEach(timing => {
-                    if (!timing.jobResponse.graphHash) {
-                        return reject(`Job ${timing.jobResponse.id} has undefined graph hash`);
-                    }
-                    graphCalls.push({ jobResponse: timing.jobResponse, call: graphCache.get({ graphHash: timing.jobResponse.graphHash, jobId: timing.jobResponse.id }) });
-                });
-                let allPromises = graphCalls.map(item => item.call);
-                Promise.all(allPromises).then(responses => {
-                    for (let idx = 0; idx < responses.length; idx++) {
-                        graphCalls[idx].jobResponse.graphRef = responses[idx] as GetGraphResponse;
-                    }
-                    resolve(timingsWrapper);
-                });
+                resolve(timingsWrapper);
             }).catch(reason => {
                 reject(reason);
             });
@@ -1336,7 +1229,7 @@ export class Backend {
         }
 
     }
-    
+
     updateJobStep(jobId: string, batchId: string, stepId: string, request: UpdateStepRequest): Promise<UpdateStepResponse> {
         return new Promise<UpdateStepResponse>((resolve, reject) => {
             this.backend.put(`api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}`, request).then((value) => {
@@ -1786,7 +1679,7 @@ export class Backend {
             });
         });
     }
-    
+
     // update current account 
     updateCurrentAccount(request: UpdateCurrentAccountRequest): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
@@ -1968,7 +1861,6 @@ export class Backend {
             await dashboard.update();
 
             if (dashboard.localCache) {
-                graphCache.initialize();
                 templateCache.initialize();
             }
 

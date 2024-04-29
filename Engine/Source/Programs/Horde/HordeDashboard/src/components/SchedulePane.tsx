@@ -54,7 +54,7 @@ export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = (
    })
 
    if (ids.size) {
-      backend.getJobsByIds(Array.from(ids.values()), { filter: "id,createTime,state" }, false).then(response => {
+      backend.getJobsByIds(Array.from(ids.values()), { filter: "id,createTime,state" }).then(response => {
          response.forEach(j => {
             scheduledJobs.set(j.id, j);
          });

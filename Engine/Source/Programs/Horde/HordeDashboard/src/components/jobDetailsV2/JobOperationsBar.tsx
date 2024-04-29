@@ -360,9 +360,8 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
       return null;
    }
 
-   const node = jobDetails.nodeByStepId(stepId);
 
-   const canRunDisabled = !node?.allowRetry || !!step.retriedByUserInfo || !!jobData.abortedByUserInfo;
+   const canRunDisabled = !step?.allowRetry || !!step.retriedByUserInfo || !!jobData.abortedByUserInfo;
    const canTryFix = jobDetails.template?.allowPreflights;
    let canBisect = (step.outcome === JobStepOutcome.Failure || step.outcome === JobStepOutcome.Warnings) && !!jobDetails.template?.allowPreflights;
 
@@ -447,7 +446,7 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
 
       let args = "RunUAT.bat BuildGraph ";
 
-      args += `-Target="${node!.name}" `;
+      args += `-Target="${step!.name}" `;
 
       args += jobData!.arguments!.map(a => {
 
@@ -467,10 +466,10 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
    }
 
    return <Stack>
-      {!!shown.pauseShown && <PauseStepModal streamId={jobDetails.stream!.id} stepName={node!.name} templateName={jobDetails.template!.name} onClose={() => setShown({ pauseShown: false })} />}
+      {!!shown.pauseShown && <PauseStepModal streamId={jobDetails.stream!.id} stepName={step!.name} templateName={jobDetails.template!.name} onClose={() => setShown({ pauseShown: false })} />}
       {!!shown.retryShown && <StepRetryModal stepId={stepId} jobDetails={jobDetails} type={runType} show={true} onClose={() => { setShown({}); }} />}
       {!!shown.abortShown && <AbortJobModal stepId={stepId} jobDetails={jobDetails} show={true} onClose={() => { setShown({}); }} />}
-      {!!shown.bisectShown && <BisectionCreateModal jobId={jobId} nodeName={node?.name ?? "Unknown Node"} onClose={(response) => {
+      {!!shown.bisectShown && <BisectionCreateModal jobId={jobId} nodeName={step?.name ?? "Unknown Node"} onClose={(response) => {
          if (response) {
             jobDetails.bisectionUpdated();
          }

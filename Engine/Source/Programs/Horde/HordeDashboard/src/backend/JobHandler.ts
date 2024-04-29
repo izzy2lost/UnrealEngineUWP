@@ -4,8 +4,6 @@ import { action, makeObservable, observable } from 'mobx';
 import moment from 'moment';
 import backend from '../backend';
 import { JobData, JobState, JobStepOutcome, JobStreamQuery, StreamData } from '../backend/Api';
-import graphCache, { GraphQuery } from '../backend/GraphCache';
-
 
 export type FilterStatus = "Running" | "Complete" | "Succeeded" | "Failed" | "Waiting";
 
@@ -125,7 +123,7 @@ export class JobHandler {
 
             const cancelId = this.cancelId++;
 
-            const mjobs = await backend.getStreamJobs(this.stream!.id, query, false);
+            const mjobs = await backend.getStreamJobs(this.stream!.id, query);
 
             // check for canceled after modified test
             if (this.canceled.has(cancelId)) {
@@ -151,10 +149,6 @@ export class JobHandler {
             const jobs: JobData[] = [];
 
             mjobs.forEach(j1 => {
-                const existing = this.jobs.find(j2 => j1.id === j2.id);
-                if (existing) {
-                    j1.graphRef = existing.graphRef;
-                }
                 jobs.push(j1);
             })
 
@@ -167,56 +161,13 @@ export class JobHandler {
                 return timeA < timeB ? 1 : -1;
             });
 
-            const graphHashes = new Set<string>();
-
-            this.jobs.forEach(j => {
-
-                if (j.graphRef?.hash !== j.graphHash) {
-                    j.graphRef = undefined;
-                }
-
-                if (graphHashes.size > 5) {
-                    return;
-                }
-
-                if (j.graphHash && !j.graphRef) {
-                    j.graphRef = graphCache.cache.get(j.graphHash);
-                    if (!j.graphRef) {
-                        graphHashes.add(j.graphHash);
-                    }
-                }
-            })
-
-            if (graphHashes.size) {
-
-                const graphQuery: GraphQuery[] = [];
-                Array.from(graphHashes.values()).forEach(h => {
-                    const jobId = this.jobs.find(j => j.graphHash === h)!.id;
-                    graphQuery.push({
-                        jobId: jobId,
-                        graphHash: h
-                    })
-                })
-
-                const graphs = await graphCache.getGraphs(graphQuery);
-
-                graphs.forEach(graph => {
-
-                    this.jobs.forEach(j => {
-                        if (graph.hash === j.graphHash) {
-                            j.graphRef = graph;
-                        }
-                    })
-                })
-
-            }
 
             // check for canceled during graph request
             if (this.canceled.has(cancelId)) {
                 return;
             }
 
-            if (graphHashes.size || mjobs.length || this.initial) {
+            if (mjobs.length || this.initial) {
                 this.initial = false;
                 wasUpdated = true;
             }

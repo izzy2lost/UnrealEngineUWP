@@ -196,11 +196,7 @@ export class TestDataWrapper implements TestData {
         let stepName = "";
         const batch = this.jobdata.batches?.find(b => b.steps.find(s => s.id === this.stepId));
         const stepNode = batch?.steps.find(s => s.id === this.stepId);
-        const groups = this.jobdata?.graphRef?.groups;
-        if (groups && stepNode && batch) {
-            stepName = groups[batch.groupIdx]?.nodes[stepNode.nodeIdx]?.name;
-        }
-        this.stepName = stepName;
+        stepName = stepNode.name;
 
         return this.stepName;
     }

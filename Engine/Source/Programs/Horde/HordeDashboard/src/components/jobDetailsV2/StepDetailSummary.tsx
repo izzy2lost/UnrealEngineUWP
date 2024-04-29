@@ -72,8 +72,7 @@ const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string): strin
 
       batchIncluded = true;
 
-      const group = jobDetails.groups[batch!.groupIdx];
-      const agentType = group?.agentType;
+      const agentType = batch?.agentType;
       const agentPool = jobDetails.stream?.agentTypes[agentType!]?.pool;
       return getBatchText({ batch: batch, agentType: agentType, agentPool: agentPool });
 

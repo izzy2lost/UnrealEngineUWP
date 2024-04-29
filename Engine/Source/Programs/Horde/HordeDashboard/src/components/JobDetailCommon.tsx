@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { useLocation } from 'react-router-dom';
-import { BatchData, GetJobStepRefResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, NodeData, StepData } from '../backend/Api';
+import { BatchData, GetJobStepRefResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, StepData } from '../backend/Api';
 
 type StepItem = {
    step?: StepData;
    batch?: BatchData;
-   node?: NodeData;
    agentId?: string;
    agentRow?: boolean;
    agentType?: string;

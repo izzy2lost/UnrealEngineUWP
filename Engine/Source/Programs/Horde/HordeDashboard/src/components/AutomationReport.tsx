@@ -223,7 +223,7 @@ class TestReportGenerator {
       });
 
       if (jobIds.size) {
-         const jobs = await backend.getJobsByIds(Array.from(jobIds), { filter: "id,batches" }, false);
+         const jobs = await backend.getJobsByIds(Array.from(jobIds), { filter: "id,batches" });
          jobs.forEach(j => {
             const metas = allMetaEvents.filter(m => m.jobId === j.id);
             metas.forEach(m => {

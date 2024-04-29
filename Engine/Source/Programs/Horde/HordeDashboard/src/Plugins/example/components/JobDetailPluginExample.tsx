@@ -2,16 +2,16 @@
 
 import { Stack, Text } from '@fluentui/react';
 import React from 'react';
-import { GetBatchResponse, GetLabelResponse, GetStepResponse } from '../../../backend/Api';
+import { GetBatchResponse,  GetStepResponse } from '../../../backend/Api';
 import { JobDetails } from '../../../backend/JobDetails';
 import { getHordeStyling } from '../../../styles/Styles';
 
-export const JobDetailPluginExample: React.FC<{ jobDetails: JobDetails; step?: GetStepResponse; batch?: GetBatchResponse, label?: GetLabelResponse}> = ({ jobDetails, step, batch, label }) => {
+export const JobDetailPluginExample: React.FC<{ jobDetails: JobDetails; step?: GetStepResponse; batch?: GetBatchResponse}> = ({ jobDetails, step, batch }) => {
 
    const { hordeClasses } = getHordeStyling();
 
-    // do not render on batch or label views
-    if (batch || label || !step) {
+    // do not render on batch
+    if (batch || !step) {
         return null;
     }
 

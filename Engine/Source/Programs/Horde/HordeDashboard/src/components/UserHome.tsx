@@ -7,9 +7,8 @@ import moment from "moment-timezone";
 import { default as React, useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import backend, { useBackend } from "../backend";
-import { GetBisectTaskResponse, GetIssueResponse, GetStepResponse, JobData, JobQuery, JobState, JobStepOutcome, LabelData, LabelOutcome, LabelState, ProjectData, StepData, StreamData } from "../backend/Api";
+import { GetBisectTaskResponse, GetIssueResponse, GetLabelStateResponse, GetStepResponse, JobData, JobQuery, JobState, JobStepOutcome, LabelOutcome, LabelState, ProjectData, StepData, StreamData } from "../backend/Api";
 import dashboard, { StatusColor } from "../backend/Dashboard";
-import graphCache, { GraphQuery } from '../backend/GraphCache';
 import { PollBase } from '../backend/PollBase';
 import { useWindowSize } from '../base/utilities/hooks';
 import { displayTimeZone, getElapsedString, getShortNiceTime } from '../base/utilities/timeUtils';
@@ -37,7 +36,7 @@ const customStyles = mergeStyleSets({
    detailsRow: {
       selectors: {
          '.ms-DetailsRow': {
-            borderBottom: '0px',          
+            borderBottom: '0px',
             width: "100%"
          },
          '.ms-DetailsRow-cell': {
@@ -425,7 +424,7 @@ class UserJobsHandler {
 
          const jobIds = this.jobIds.slice(-maxJobs);
 
-         const mjobs = await backend.getJobsByIds(jobIds, query, false);
+         const mjobs = await backend.getJobsByIds(jobIds, query);
 
          // check for canceled after modified test
          if (this.canceled.has(cancelId)) {
@@ -435,10 +434,6 @@ class UserJobsHandler {
          const jobs: JobData[] = [];
 
          mjobs.forEach(j1 => {
-            const existing = this.jobs.find(j2 => j1.id === j2.id);
-            if (existing) {
-               j1.graphRef = existing.graphRef;
-            }
             jobs.push(j1);
          })
 
@@ -451,56 +446,13 @@ class UserJobsHandler {
             return timeA < timeB ? 1 : -1;
          });
 
-         const graphHashes = new Set<string>();
-
-         this.jobs.forEach(j => {
-
-            if (j.graphRef?.hash !== j.graphHash) {
-               j.graphRef = undefined;
-            }
-
-            if (graphHashes.size > 5) {
-               return;
-            }
-
-            if (j.graphHash && !j.graphRef) {
-               j.graphRef = graphCache.cache.get(j.graphHash);
-               if (!j.graphRef) {
-                  graphHashes.add(j.graphHash);
-               }
-            }
-         })
-
-         if (graphHashes.size) {
-
-            const graphQuery: GraphQuery[] = [];
-            Array.from(graphHashes.values()).forEach(h => {
-               const jobId = this.jobs.find(j => j.graphHash === h)!.id;
-               graphQuery.push({
-                  jobId: jobId,
-                  graphHash: h
-               })
-            })
-
-            const graphs = await graphCache.getGraphs(graphQuery);
-
-            graphs.forEach(graph => {
-
-               this.jobs.forEach(j => {
-                  if (graph.hash === j.graphHash) {
-                     j.graphRef = graph;
-                  }
-               })
-            })
-
-         }
 
          // check for canceled during graph request
          if (this.canceled.has(cancelId)) {
             return;
          }
 
-         if (graphHashes.size || mjobs.length || this.initial) {
+         if (mjobs.length || this.initial) {
             this.initial = false;
             this.setUpdated();
          }
@@ -664,25 +616,11 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
          </Stack>;
       };
 
-
       let items = steps.map(step => {
-
-         const batch = job.batches!.find(b => !!b.steps.find(s => s.id === step.id))!;
-         const groups = job?.graphRef?.groups;
-         if (!groups) {
-            return undefined;
-         }
-         const node = groups[batch.groupIdx].nodes[step.nodeIdx];
-
-         if (!node) {
-            return undefined;
-         }
-
          return {
             step: step,
-            name: node.name
+            name: step.name
          }
-
       })
 
       items = items.filter(item => !!item);
@@ -874,15 +812,15 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
       if (props) {
 
-         const item = jobItems[props.itemIndex];         
-         
+         const item = jobItems[props.itemIndex];
+
          let background: string | undefined;
          if (props.itemIndex % 2 === 0) {
-            background  =  dashboard.darktheme ? "#1D2021" : "#FAF9F9";
+            background = dashboard.darktheme ? "#1D2021" : "#FAF9F9";
          }
 
          return <JobOperationsContextMenu job={item.job}>
-            <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8, backgroundColor: background}, cell: { selectors: { "a, a:visited, a:activem, a:hover": { color: modeColors.text} } } }} {...props} />
+            <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8, backgroundColor: background }, cell: { selectors: { "a, a:visited, a:activem, a:hover": { color: modeColors.text } } } }} {...props} />
          </JobOperationsContextMenu>
       }
       return null;
@@ -899,12 +837,14 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
       return null;
    };
 
-   const JobLabel: React.FC<{ item: JobItem; label: LabelData }> = ({ item, label }) => {
 
-      const aggregates = item.job.graphRef?.labels;
+   const JobLabel: React.FC<{ item: JobItem; label: GetLabelStateResponse }> = ({ item, label }) => {
+
+      const defaultLabel = item.job.defaultLabel;
+      const aggregates = item.job.labels;
 
       // note details may not be loaded here, as only initialized on callout for optimization (details.getLabelIndex(label.Name, label.Category);)
-      const jlabel = aggregates?.find((l, idx) => l.category === label.category && l.name === label.name && item.job.labels![idx]?.state !== LabelState.Unspecified);
+      const jlabel = aggregates?.find((l, idx) => l.dashboardCategory === label.dashboardCategory && l.dashboardName === label.dashboardName && item.job.labels![idx]?.state !== LabelState.Unspecified);
       let labelIdx = -1;
       if (jlabel) {
          labelIdx = aggregates?.indexOf(jlabel)!;
@@ -912,9 +852,9 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
       let state: LabelState | undefined;
       let outcome: LabelOutcome | undefined;
-      if (label.defaultLabel) {
-         state = label.defaultLabel.state;
-         outcome = label.defaultLabel.outcome;
+      if (label === defaultLabel) {
+         state = defaultLabel.state;
+         outcome = defaultLabel.outcome;
       } else {
          state = item.job.labels![labelIdx]?.state;
          outcome = item.job.labels![labelIdx]?.outcome;
@@ -928,11 +868,11 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
          url = `/job/${item.job.id}?label=${labelIdx}`;
       }
 
-      const target = `label_${item.job.id}_${label.name}_${label.category}`.replace(/ /g, "");
+      const target = `label_${item.job.id}_${label.dashboardName}_${label.dashboardCategory}`.replace(/ /g, "");
 
       return <Stack>
          <div id={target} className="horde-no-darktheme">
-            <Link to={url}><Stack className={hordeClasses.badgeNoIcon}><DefaultButton key={label.name} style={{ backgroundColor: color.primaryColor, fontSize: 9 }} text={label.name}>
+            <Link to={url}><Stack className={hordeClasses.badgeNoIcon}><DefaultButton key={label.dashboardName} style={{ backgroundColor: color.primaryColor, fontSize: 9 }} text={label.dashboardName}>
                {!!color.secondaryColor && <div style={{
                   borderLeft: "10px solid transparent",
                   borderRight: `10px solid ${color.secondaryColor}`,
@@ -955,7 +895,8 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
       const job = item.job!;
       const defaultLabel = job.defaultLabel;
-      const labels = job.graphRef?.labels ?? [];
+
+      const labels = job.labels ?? [];
 
       if (!labels.length && !defaultLabel) {
          return <div />;
@@ -970,21 +911,14 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
       });
 
       const catergories = new Set<string>();
-      view.forEach(label => catergories.add(label.category));
+      view.forEach(label => catergories.add(label.dashboardCategory));
 
       const sorted = Array.from(catergories).sort((a, b) => { return a < b ? -1 : 1 });
 
-      if (!catergories.has("Other") && defaultLabel?.nodes?.length) {
+      if (!catergories.has("Other") && defaultLabel) {
 
-         const otherLabel = {
-            category: "Other",
-            name: "Other",
-            requiredNodes: [],
-            includedNodes: defaultLabel!.nodes,
-            defaultLabel: item.job.defaultLabel
-         };
-
-         view.push(otherLabel);
+         defaultLabel.dashboardCategory = defaultLabel.dashboardName = "Other";
+         view.push(defaultLabel);
          sorted.push("Other");
       }
 
@@ -992,8 +926,8 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
       const labelStacks = sorted.map(cat => {
 
-         const buttons = view.filter(label => label.category === cat).map(label => {
-            return <JobLabel key={`label_${item.job.id}_${label.name}_${key++}`} item={item} label={label} />;
+         const buttons = view.filter(label => label.dashboardCategory === cat).map(label => {
+            return <JobLabel key={`label_${item.job.id}_${label.dashboardName}_${key++}`} item={item} label={label} />;
          });
 
          if (!buttons.length) {
@@ -1115,7 +1049,7 @@ const BisectionPanel: React.FC = observer(() => {
    }, []);
 
    // subscribe
-   dashboard.subscribe();   
+   dashboard.subscribe();
 
    if (bisectionHandler.updated) { };
 
@@ -1173,7 +1107,7 @@ const UserHomeViewInner: React.FC = () => {
                </ScrollablePane>
             </div>
          </FocusZone>
-      </Stack> 
+      </Stack>
    </Stack>
 };
 
@@ -1184,7 +1118,7 @@ export const UserHomeView: React.FC = () => {
    if (dashboard.user?.dashboardFeatures?.showLandingPage) {
       return <Navigate to="/docs/Landing.md" replace={true} />
    }
-   
+
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
    const { hordeClasses, modeColors } = getHordeStyling();

@@ -64,14 +64,6 @@ class ToolHandler {
          return;
       }
       
-
-      if (!job.graphRef?.groups) {
-         console.error("Job has no groups");
-         this.loading = false;
-         this.setUpdated();
-         return;
-      }
-
       const batch = job.batches?.find(b => b.steps.find(s => s.id === stepId));
       if (!batch) {
          console.error("Batch not found for step id");
@@ -81,22 +73,7 @@ class ToolHandler {
       }
 
 
-      const group = job.graphRef?.groups[batch.groupIdx];
-      let stepIndex = -1;
-      batch.steps.forEach((s, index) => {
-         if (s.id === stepId) {
-            stepIndex = index;
-         }
-      })
-
-      if (stepIndex < 0) {
-         console.error("Bad step index");
-         this.loading = false;
-         this.setUpdated();
-         return;
-      }
-
-      const stepName = this.stepName = group.nodes[stepIndex].name;
+      const stepName = this.stepName = batch.steps.find(s => s.id === stepId)?.name;
 
       if (!stepName) {
          console.error("Bad step name");

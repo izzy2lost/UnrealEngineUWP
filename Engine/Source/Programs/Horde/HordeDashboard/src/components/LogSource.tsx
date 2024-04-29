@@ -3,7 +3,7 @@
 import { action, makeObservable, observable } from "mobx";
 import moment, { Moment } from 'moment-timezone';
 import backend from '../backend';
-import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, NodeData, StepData, StreamData } from "../backend/Api";
+import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, StepData, StreamData } from "../backend/Api";
 import { getBatchSummaryMarkdown, getStepSummaryMarkdown, JobDetails } from "../backend/JobDetails";
 import { getLeaseElapsed, getStepPercent } from '../base/utilities/timeUtils';
 import { BreadcrumbItem } from './Breadcrumbs';
@@ -411,7 +411,7 @@ export class JobLogSource extends LogSource {
 
    get percentComplete(): number | undefined {
 
-      if (this.step && this.node) {
+      if (this.step) {
          return getStepPercent(this.step);
       }
 
@@ -498,10 +498,7 @@ export class JobLogSource extends LogSource {
 
       this.agentId = this.batch?.agentId ?? details.batchByStepId(this.step?.id!)?.agentId;
 
-      this.node = undefined;
-
       if (this.step) {
-         this.node = details.nodeByStepId(this.step.id);
          this.jobName = details.getStepName(this.step.id) ?? "Unknown Step Node";
       }
 
@@ -588,8 +585,7 @@ export class JobLogSource extends LogSource {
    agentId?: string;
    batch?: BatchData;
    step?: StepData;
-   node?: NodeData;
-
+   
    artifactsV2?: GetArtifactResponseV2[];
 
    jobDetails: JobDetails = new JobDetails(undefined, undefined, undefined, true);

@@ -634,6 +634,8 @@ const GraphTooltip: React.FC<{ dataView: StepTrendsDataView }> = observer(({ dat
    const format = dashboard.display24HourClock ? "HH:mm:ss z" : "LT z";
    let displayTimeStr = displayTime.format('MMM Do') + ` at ${displayTime.format(format)}`;
 
+   const step = dataView.details?.stepById(dataView.stepId);
+
    return <div style={{
       position: "absolute",
       display: "block",
@@ -653,7 +655,7 @@ const GraphTooltip: React.FC<{ dataView: StepTrendsDataView }> = observer(({ dat
       <Stack>
          <Link to={`/job/${ref.jobId}?step=${ref.stepId}`}><Stack horizontal>
             <StepRefStatusIcon stepRef={ref} />
-            <Text variant={textSize}>{dataView.details?.nodeByStepId(dataView.stepId)?.name}</Text>
+            <Text variant={textSize}>{step?.name}</Text>
          </Stack>
          </Link>
          <Stack style={{ paddingLeft: 2, paddingTop: 8 }} tokens={{ childrenGap: 8 }}>

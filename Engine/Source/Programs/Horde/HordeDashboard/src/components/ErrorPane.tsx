@@ -5,7 +5,7 @@ import { IColumn, List, Stack, Text } from '@fluentui/react';
 import { getFocusStyle, mergeStyleSets } from '@fluentui/react/lib/Styling';
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { EventData, EventSeverity, GetLabelResponse } from '../backend/Api';
+import { EventData, EventSeverity, GetLabelStateResponse } from '../backend/Api';
 import { JobDetails } from '../backend/JobDetails';
 import { JobEventHandler } from '../backend/JobEventHandler';
 import { renderLine } from './LogRender';
@@ -237,7 +237,7 @@ export const JobEventListPanel: React.FC<{ jobDetails: JobDetails, stepIds: stri
       const step = jobDetails.stepById(stepId)!;
 
       return <Stack styles={{ root: { background: 'rgb(233, 232, 231)', marginRight: 8, height: 42, fontSize: 12, selectors: { "a, a:hover, a:visited": { color: "#FFFFFF" }, ":hover": { background: 'rgb(223, 222, 221)' } } } }} verticalFill={true} verticalAlign="center" >
-         <Link to={url}><Stack style={{ paddingLeft: 12 }} horizontal><StepStatusIcon step={step} /><Text>{jobDetails.nodeByStepId(stepId)?.name}</Text>
+         <Link to={url}><Stack style={{ paddingLeft: 12 }} horizontal><StepStatusIcon step={step} /><Text>{step?.name}</Text>
          </Stack>
          </Link>
       </Stack>
@@ -254,7 +254,7 @@ export const JobEventListPanel: React.FC<{ jobDetails: JobDetails, stepIds: stri
 };
 
 
-export const JobEventPanel: React.FC<{ jobDetails: JobDetails, label?: GetLabelResponse, eventHandler: JobEventHandler }> = observer(({ jobDetails, label, eventHandler }) => {
+export const JobEventPanel: React.FC<{ jobDetails: JobDetails, label?: GetLabelStateResponse, eventHandler: JobEventHandler }> = observer(({ jobDetails, label, eventHandler }) => {
 
    const { hordeClasses } = getHordeStyling();
 
@@ -269,8 +269,7 @@ export const JobEventPanel: React.FC<{ jobDetails: JobDetails, label?: GetLabelR
    let stepIds = jobDetails.getSteps().map(s => s.id);
 
    if (label) {
-      const nodes = jobDetails.nodes?.filter(n => label.includedNodes?.find(on => on === n.name));
-      stepIds = stepIds.filter(stepId => nodes.indexOf(jobDetails.nodeByStepId(stepId)!) !== -1);
+      stepIds = stepIds.filter(stepId => label.steps.indexOf(stepId) !== -1);
    }
 
    stepIds = stepIds.filter(s => {

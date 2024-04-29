@@ -2,7 +2,7 @@ import { CollapseAllVisibility, ConstrainMode, DetailsHeader, DetailsList, Detai
 import { observer } from "mobx-react-lite";
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { BatchData, GetBatchResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, NodeData, StepData } from "../../backend/Api";
+import { BatchData, GetBatchResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, StepData } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { ISideRailLink } from "../../base/components/SideRail";
 import { getBatchInitElapsed, getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepPercent, getStepStartTime, getStepTimingDelta } from "../../base/utilities/timeUtils";
@@ -20,7 +20,6 @@ const depSideRail: ISideRailLink = { text: "Dependencies", url: "rail_dependenci
 type StepItem = {
    step?: StepData;
    batch?: BatchData;
-   node?: NodeData;
    agentId?: string;
    agentRow?: boolean;
    agentType?: string;
@@ -316,7 +315,6 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          }
       };
 
-
       const stepName = jobDetails.getStepName(step.id) ?? "Unnown Step Name";
       const stepUrl = `/job/${jobId}?step=${step.id}`;
 
@@ -395,21 +393,11 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 
    if (stepId) {
 
-      const nodes: NodeData[] = [];
-
       const getStepsRecursive = (stepId: string) => {
-
-         const stepNode = jobDetails.nodeByStepId(stepId);
-
-         if (!stepNode || nodes.find(n => stepNode === n)) {
-            return;
-         }
-
-         nodes.push(stepNode);
-
-         [stepNode.inputDependencies, stepNode.orderDependencies].flat().forEach(name => {
-            const s = jobDetails.stepByName(name);
-            if (s) {
+         const rstep = jobDetails.stepById(stepId);
+         [rstep.inputDependencies, rstep.orderDependencies].flat().forEach(id => {
+            const s = jobDetails.stepById(id);
+            if (s && !stepFilter.find(s => s.id === id)) {
                stepFilter.push(s);
                getStepsRecursive(s.id);
             }
@@ -422,14 +410,6 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
       if (step) {
          stepFilter.push(step);
       }
-
-      /*
-      if (singleStep) {
-         const step = jobDetails.stepById(stepId);
-         if (step) {
-            stepFilter.push(step);
-         }
-      }*/
 
       if (!stepFilter.length) {
          return null;
@@ -455,10 +435,9 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
             return;
          }
 
-         const g = jobDetails.groups[b.groupIdx];
-         const p = jobDetails.stream!.agentTypes[g.agentType];
+         const p = jobDetails.stream!.agentTypes[b.agentType];
 
-         if (!p || g.agentType !== agentType || p.pool !== agentPool) {
+         if (!p || b.agentType !== agentType || p.pool !== agentPool) {
             return;
          }
       }
@@ -491,9 +470,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 
             filter = false;
 
-            const node = jobDetails.nodeByStepId(step.id);
-
-            if (label.includedNodes.indexOf(node?.name ?? "") !== -1) {
+            if (label.steps.indexOf(step?.id ?? "") !== -1) {
                filter = true;
             }
 
@@ -508,22 +485,20 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          return;
       }
 
-      const group = jobDetails.groups[b.groupIdx];
-      const pool = jobDetails.stream?.agentTypes[group?.agentType!];
+      const pool = jobDetails.stream?.agentTypes[b?.agentType!];
 
       items.push({
          agentId: b.agentId,
          batch: b,
          agentRow: true,
-         agentType: group?.agentType.toUpperCase(),
+         agentType: b.agentType.toUpperCase(),
          agentPool: pool?.pool?.toUpperCase(),
       });
 
       steps.forEach(stepData => {
          const id = stepData.id;
          items.push({
-            step: jobDetails.stepById(id),
-            node: jobDetails.nodeByStepId(id),
+            step: jobDetails.stepById(id)
          });
       });
    });
@@ -533,17 +508,20 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
    }
 
    // get the current groups based on filtering
-   const groups: Set<number> = new Set();
+   const stepBatches: Set<string> = new Set();
    items.forEach(item => {
       const step = item.step;
       if (!step) {
          return;
       }
-      groups.add(jobDetails.getStepGroupIndex(step.id));
+
+      const b = jobDetails.jobData.batches.find(b => b.steps.findIndex(s => s.id === step.id) !== -1);
+      if (b)
+         stepBatches.add(b.id);
    });
 
    let batches = jobBatches.filter(b => {
-      if ((groups.size && !groups.has(b.groupIdx)) || b.steps.length || b.error === JobStepBatchError.None) {
+      if ((stepBatches.size && !stepBatches.has(b.id)) || b.steps.length || b.error === JobStepBatchError.None) {
          return false;
       }
       return true;
@@ -555,14 +533,13 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          return;
       }
 
-      const group = jobDetails.groups[b.groupIdx];
-      const pool = jobDetails.stream?.agentTypes[group?.agentType!];
+      const pool = jobDetails.stream?.agentTypes[b?.agentType!];
 
       const nitem = {
          agentId: b.agentId,
          batch: b,
          agentRow: true,
-         agentType: group?.agentType.toUpperCase(),
+         agentType: b?.agentType.toUpperCase(),
          agentPool: pool?.pool?.toUpperCase(),
       };
 
@@ -692,8 +669,7 @@ export const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string)
          return undefined;
       }
 
-      const group = jobDetails.groups[batch!.groupIdx];
-      const agentType = group?.agentType;
+      const agentType = batch.agentType;
       const agentPool = jobDetails.stream?.agentTypes[agentType!]?.pool;
       return getBatchText({ batch: batch, agentType: agentType, agentPool: agentPool });
 

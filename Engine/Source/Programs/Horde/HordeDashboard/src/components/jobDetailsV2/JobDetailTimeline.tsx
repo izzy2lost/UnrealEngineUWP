@@ -177,9 +177,8 @@ class TimelineDataView extends JobDataView {
                b.steps = b.steps?.filter(s => {
                   if (!s.startTime || !s.finishTime) {
                      return false;
-                  }
-                  const node = jobDetails.nodeByStepId(s.id);
-                  return label.includedNodes.indexOf(node?.name ?? "") !== -1 || label.requiredNodes.indexOf(node?.name ?? "") !== -1;
+                  }                  
+                  return label.steps.indexOf(s?.id ?? "") !== -1;
                });
             });
 
@@ -760,8 +759,7 @@ const GraphTooltip: React.FC<{ dataView: TimelineDataView }> = observer(({ dataV
 
    const details = dataView.details!;
 
-   const group = details.groups[span.batch.groupIdx];
-   const pool = details.stream?.agentTypes[group?.agentType!];
+   const pool = details.stream?.agentTypes[span.batch?.agentType!];
 
    const agentPool = pool?.pool?.toUpperCase() ? pool.pool.toUpperCase() : "Unknown Pool";
    const agent = span.batch.agentId ? span.batch.agentId : "Unknown Agent";

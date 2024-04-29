@@ -115,7 +115,7 @@ const JobBreadCrumbs: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDe
    const label = jobDetails.labelByIndex(query.get("label") ?? undefined);
    if (label) {
       crumbItems.push({
-         text: label.category ? `${label.category}: ${label.name!}` : label.name!
+         text: label.stateResponse.dashboardCategory ? `${label.stateResponse.dashboardCategory}: ${label.stateResponse.dashboardName!}` : label.stateResponse.dashboardName!
       });
    }
 

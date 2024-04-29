@@ -146,9 +146,10 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
 
       const ref = item.ref;
 
+      const step = jobDetails.stepById(stepId);
 
       if (column.name === "Name") {
-         return <Stack horizontal>{<StepRefStatusIcon stepRef={ref} />}<Text>{jobDetails.nodeByStepId(stepId)?.name}</Text></Stack>;
+         return <Stack horizontal>{<StepRefStatusIcon stepRef={ref} />}<Text>{step?.name}</Text></Stack>;
       }
 
       if (column.name === "Change") {

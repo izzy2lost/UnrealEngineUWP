@@ -210,8 +210,6 @@ export type AgentData = GetAgentResponse
 export type LeaseData = GetAgentLeaseResponse
 export type SessionData = GetAgentSessionResponse
 export type PoolData = GetPoolResponse
-export type GroupData = GetGroupResponse
-export type NodeData = GetNodeResponse
 export type BatchData = GetBatchResponse
 export type EventData = GetLogEventResponse
 export type LogData = GetLogFileResponse
@@ -231,10 +229,6 @@ export type IssueData = GetIssueResponse & {
 	events?: GetLogEventResponse[];
 }
 
-export type LabelData = GetLabelResponse & {
-	defaultLabel?: GetDefaultLabelStateResponse;
-}
-
 export type ProjectData = GetProjectResponse & {
 	streams?: StreamData[];
 }
@@ -246,9 +240,7 @@ export type StreamData = GetStreamResponse & {
 
 }
 
-export type JobData = GetJobResponse & {
-	graphRef?: GetGraphResponse;
-}
+export type JobData = GetJobResponse;
 
 export type StepData = GetStepResponse & {
 
@@ -1243,7 +1235,7 @@ export type GetJobResponse = {
 	templateHash?: string;
 
 	/** Hash of the graph for this job */
-	graphHash?: string;
+	// graphHash?: string;
 
 	/** The user that started this job */
 	startedByUserInfo?: GetThinUserInfoResponse;
@@ -1282,7 +1274,7 @@ export type GetJobResponse = {
 	labels?: GetLabelStateResponse[];
 
 	/** The default label, containing the state of all steps that are otherwise not matched. */
-	defaultLabel?: GetDefaultLabelStateResponse;
+	defaultLabel?: GetLabelStateResponse;
 
 	/** List of reports */
 	reports?: GetReportResponse[];
@@ -1334,6 +1326,17 @@ export type UpdateStepRequest = {
 	properties?: { [key: string]: string | null };
 }
 
+
+/** Reference to the output of a step within the job */
+export type JobStepOutputRef = {
+	// Step producing the output
+	stepId: string;
+	// <param name="OutputIdx">Index of the output from this step</param>
+	outputIdx: number;
+}
+
+export type JobStepId = string;
+
 /**Returns information about a jobstep */
 export type GetStepResponse = {
 
@@ -1379,6 +1382,35 @@ export type GetStepResponse = {
 	/**User-defined properties for this jobstep. */
 	properties: { [key: string]: string };
 
+	/// The name of this node 
+	name: string;
+
+	/// References to inputs for this node
+	inputs?: JobStepOutputRef[];
+
+	/// List of output names
+	outputNames?: string[];
+
+	/// Indices of nodes which must have succeeded for this node to run
+	inputDependencies?: JobStepId[];
+
+	/// Indices of nodes which must have completed for this node to run
+	orderDependencies?: JobStepId[];
+
+	/// Whether this node can be run multiple times
+	allowRetry: boolean;
+
+	/// This node can start running early, before dependencies of other nodes in the same group are complete
+	runEarly: boolean;
+
+	/// Whether to include warnings in the output (defaults to true)
+	warnings: boolean;
+
+	/// List of credentials required for this node. Each entry maps an environment variable name to a credential in the form "CredentialName.PropertyName".
+	credentials?: Record<string, string>;
+
+	/// Annotations for this node
+	annotations?: Record<string, string>;
 }
 
 //**Returns information about test data */
@@ -1448,6 +1480,9 @@ export type GetBatchResponse = {
 	/**The agent assigned to execute this group */
 	agentId?: string;
 
+	/// The agent type
+	agentType: string;
+
 	/** The USD rate of an agent hour */
 	agentRate?: number;
 
@@ -1468,7 +1503,6 @@ export type GetBatchResponse = {
 
 	/**Time at which the group finished (UTC) */
 	finishTime?: Date | string;
-
 }
 
 /**Describes the history of a step */
@@ -1718,54 +1752,6 @@ export type CreateGroupRequest = {
 	/**Nodes in the group */
 	nodes: CreateNodeRequest[];
 
-}
-
-/**Information required to create a node */
-export type GetNodeResponse = {
-
-	/**The name of this node  */
-	name: string;
-
-	/**Indices of nodes which must have succeeded for this node to run */
-	inputDependencies: string[];
-
-	/**Indices of nodes which must have completed for this node to run */
-	orderDependencies: string[];
-
-	/**The priority of this node */
-	priority: Priority;
-
-	/**Whether this node can be retried */
-	allowRetry: boolean;
-
-	/**This node can start running early, before dependencies of other nodes in the same group are complete */
-	runEarly: boolean;
-
-	/**Sets this node as a target to be built */
-	target: boolean;
-
-	/**Expected time to execute this node based on historical trends */
-	averageDuration: number;
-
-	/**Aggregates that this node belongs do */
-	aggregates?: string[];
-
-	/**Properties for this node */
-	properties: { [key: string]: string };
-
-}
-
-/**Information about a group of nodes */
-export type GetGroupResponse = {
-
-	/**The executor to use for this group */
-	executor: string;
-
-	/**The type of agent to execute this group */
-	agentType: string;
-
-	/**Nodes in the group */
-	nodes: GetNodeResponse[];
 }
 
 /**Request to update a node */
@@ -2770,60 +2756,6 @@ export enum JobState {
 }
 
 
-/**Information about a label */
-export type GetLabelResponse = {
-
-	/**Category of the aggregate */
-	category: string;
-
-	/**Label for this aggregate */
-	name: string;
-
-	/**Label for this aggregate, currently mapped to name property on server */
-	dashboardName?: string;
-
-	/**Name to show for this label in UGS */
-	ugsName?: string;
-
-	/** Project to display this label for in UGS */
-	ugsProject?: string;
-
-	/**Nodes which must be part of the job for the aggregate to be shown */
-	requiredNodes: string[];
-
-	/**Nodes to include in the status of this aggregate, if present in the job */
-	includedNodes: string[];
-}
-
-
-/**Information about an aggregate */
-export type GetAggregateResponse = {
-
-	/**Name of the aggregate */
-	name: string;
-
-	/**Nodes which must be part of the job for the aggregate to be shown */
-	nodes: string[];
-
-}
-
-/**Information about a graph */
-export type GetGraphResponse = {
-
-	/**The hash of the graph */
-	hash: string;
-
-	/**Array of nodes for this job */
-	groups?: GetGroupResponse[];
-
-	/**List of aggregates */
-	namedAggregates?: GetAggregateResponse[];
-
-	/**List of labels for the graph */
-	labels?: GetLabelResponse[];
-
-}
-
 /**The timing info for a job*/
 export type GetJobTimingResponse = {
 
@@ -2853,20 +2785,28 @@ export type GetLabelTimingInfoResponse = GetTimingInfoResponse &
 
 /**State of an label within a job */
 export type GetLabelStateResponse = {
+
+	// Name to show for this label on the dashboard
+	dashboardName?: string;
+
+	// Category to show this label in on the dashboard
+	dashboardCategory?: string;
+
+	// Name to show for this label in UGS
+	ugsName?: string;
+
+	// Project to display this label for in UGS
+	ugsProject?: string;
+
+	// Steps to include in the status of this label
+	steps: JobStepId[];
+
 	/**State of the label */
 	state?: LabelState;
 
 	/**Outcome of the label */
 	outcome?: LabelOutcome;
 }
-
-/**Information about the default label (ie. with inlined list of nodes) */
-export type GetDefaultLabelStateResponse = GetLabelStateResponse &
-{
-	/**List of nodes covered by default label */
-	nodes: string[];
-}
-
 
 /**Information about the timing info for a particular target */
 export type GetTimingInfoResponse = {

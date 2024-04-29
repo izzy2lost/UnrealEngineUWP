@@ -6,11 +6,11 @@ import moment from 'moment';
 import backend from '.';
 import { getBatchInitElapsed, getNiceTime, getStepETA, getStepElapsed, getStepFinishTime, getStepTimingDelta } from '../base/utilities/timeUtils';
 import { getBatchText } from '../components/JobDetailCommon';
-import { AgentData, ArtifactData, BatchData, EventData, GetGroupResponse, GetJobTimingResponse, GetLabelResponse, GetLabelStateResponse, GetLabelTimingInfoResponse, GroupData, IssueData, JobData, JobState, JobStepBatchState, JobStepError, JobStepOutcome, JobStepState, LabelState, NodeData, ReportPlacement, StepData, StreamData, TestData } from './Api';
+import { AgentData, ArtifactData, BatchData, EventData, GetJobTimingResponse, GetLabelStateResponse, GetLabelTimingInfoResponse, IssueData, JobData, JobState, JobStepBatchState, JobStepError, JobStepOutcome, JobStepState, LabelState, ReportPlacement, StepData, StreamData, TestData } from './Api';
 import { projectStore } from './ProjectStore';
 
 
-export type JobLabel = GetLabelResponse & {
+export type JobLabel = {
     stateResponse: GetLabelStateResponse;
     timing?: GetLabelTimingInfoResponse;
     default: boolean;
@@ -146,25 +146,11 @@ export class JobDetails {
         this.process();
     }
 
-    stepsByLabel(label: GetLabelResponse): StepData[] {
+    stepsByLabel(label: GetLabelStateResponse): StepData[] {
 
-        const steps: StepData[] = [];
+        const stepIds = new Set(label.steps);
 
-        this.getSteps().forEach(step => {
-
-            const node = this.nodeByStepId(step.id);
-
-            if (!node) {
-                return;
-            }
-
-            if (label.includedNodes.indexOf(node.name) !== -1 && !steps.find(s => s.id === step.id)) {
-                steps.push(step);
-            }
-
-        })
-
-        return steps;
+        return this.getSteps().filter(s => stepIds.has(s.id));
     }
 
     stepById(id?: string): StepData | undefined {
@@ -229,7 +215,7 @@ export class JobDetails {
                 return;
             }
 
-            step = b.steps.find(s => this.nodeByStepId(s.id)?.name === name);
+            step = b.steps.find(s => s.name === name);
 
         });
 
@@ -262,16 +248,15 @@ export class JobDetails {
 
     getStepRetries(stepId: string): StepData[] {
 
-        const node = this.nodeByStepId(stepId);
-
-        if (!node) {
+        const step = this.stepById(stepId);
+        if (!step) {
             return [];
         }
 
         let steps: StepData[] = [];
 
         this.batches.forEach(b => {
-            b.steps.filter(s => this.nodeByStepId(s.id) === node).forEach(s => {
+            b.steps.filter(s => s.name === step.name).forEach(s => {
                 steps.push(s);
             });
         })
@@ -301,21 +286,6 @@ export class JobDetails {
     }
 
 
-    getNodeGroupIdx(node: NodeData): number {
-        const group = this.groups.find(g => g.nodes.indexOf(node) !== -1);
-        if (!group) {
-            return -1;
-        }
-        return this.groups.indexOf(group);
-    }
-
-
-    getTargets(): NodeData[] {
-
-        return this.nodes.filter(n => n.target);
-
-    }
-
     batchByStepId(stepId: string | undefined): BatchData | undefined {
         if (!stepId) {
             return undefined;
@@ -338,38 +308,20 @@ export class JobDetails {
     }
 
 
-    nodeByStepId(stepId: string | undefined): NodeData | undefined {
-
-        if (!stepId) {
-            return undefined;
-        }
-
-        const batch = this.batchByStepId(stepId);
-        const step = this.stepById(stepId);
-
-        if (!batch || !step) return undefined;
-
-        return this.groups[batch.groupIdx].nodes[step.nodeIdx];
-
-    }
-
     getStepName(stepId: string | undefined, includeRetry: boolean = true): string {
 
-        if (!stepId) {
-            return "";
-        }
+        const step = this.stepById(stepId);
 
-        const node = this.nodeByStepId(stepId);
-        if (!node) {
+        if (!step?.name) {
             return "";
         }
 
         const idx = this.getStepRetryNumber(stepId);
         if (!idx || !includeRetry) {
-            return node.name;
+            return step.name;
         }
 
-        return `${node.name} (${idx + 1})`;
+        return `${step.name} (${idx + 1})`;
 
     }
 
@@ -379,14 +331,6 @@ export class JobDetails {
         }
 
         return this.testdata.filter(t => t.stepId === stepId);
-    }
-
-    getLabelIndex(labelIn: JobLabel): number {
-        const label = this.findLabel(labelIn.name, labelIn.category);
-        if (!label) {
-            return -1;
-        }
-        return this.labels.indexOf(label);
     }
 
     stepPrice(stepId: string): number | undefined {
@@ -460,9 +404,9 @@ export class JobDetails {
 
         const label = labels.find(label => {
             if (category) {
-                return category === label.category && name === label.name;
+                return category === label.stateResponse.dashboardCategory && name === label.stateResponse.dashboardName;
             }
-            return name === label.name;
+            return name === label.stateResponse.dashboardName;
         });
 
         return label;
@@ -485,21 +429,6 @@ export class JobDetails {
         }
 
         return this.events.filter(e => e.logId === step.logId!);
-
-    }
-
-
-    groupByNodeName(name: string | undefined): GetGroupResponse | undefined {
-
-        if (!name) {
-            return undefined;
-        }
-
-        const groups = this.jobdata?.graphRef?.groups;
-
-        return groups?.find(g => {
-            return g?.nodes.find(n => n.name.toLowerCase() === name.toLowerCase());
-        });
 
     }
 
@@ -540,7 +469,6 @@ export class JobDetails {
         this.logId = undefined;
         this.stepId = undefined;
         this.labelIdx = undefined;
-        this.groups = [];
         this.batches = [];
         this.events = [];
         this.issues = [];
@@ -578,24 +506,10 @@ export class JobDetails {
         this.id = jobdata.id;
         this.stream = projectStore.streamById(jobdata.streamId);
         this.batches = jobdata.batches ?? [];
-        this.groups = jobdata.graphRef?.groups ?? [];
-        this.nodes = [];
-        if (this.groups) {
-            this.nodes = this.groups.map(g => g.nodes).flat();
-        }
 
-        let labels: GetLabelResponse[] = [];
-        if (jobdata.graphRef?.labels && jobdata.labels) {
-            labels = jobdata.graphRef.labels;
-        }
-
-        this.labels = labels.map((label, index) => {
+        this.labels = jobdata.labels.map((label, index) => {
 
             return {
-                category: label.category,
-                name: label.name,
-                includedNodes: label.includedNodes,
-                requiredNodes: label.requiredNodes,
                 default: false,
                 stateResponse: jobdata.labels![index],
                 internal: label,
@@ -606,10 +520,6 @@ export class JobDetails {
         const defaultLabel = jobdata.defaultLabel;
         if (defaultLabel) {
             this.labels.push({
-                category: "Other",
-                name: "Other",
-                includedNodes: defaultLabel.nodes,
-                requiredNodes: [],
                 stateResponse: defaultLabel,
                 default: true
             })
@@ -935,8 +845,6 @@ export class JobDetails {
     jobdata?: JobData
     stream?: StreamData
     labels: JobLabel[] = []
-    groups: GroupData[] = []
-    nodes: NodeData[] = []
     batches: BatchData[] = []
     events: EventData[] = []
     artifacts: ArtifactData[] = []
@@ -1049,8 +957,7 @@ export const getBatchSummaryMarkdown = (jobDetails: JobDetails, batchId: string)
     }
 
 
-    const group = jobDetails.groups[batch.groupIdx];
-    const agentType = group?.agentType ?? "";
+    const agentType = batch?.agentType ?? "";
     const agentPool = jobDetails.stream?.agentTypes[agentType!]?.pool ?? "";
 
     let summaryText = "";
@@ -1109,8 +1016,7 @@ export const getStepSummaryMarkdown = (jobDetails: JobDetails, stepId: string): 
             return undefined;
         }
 
-        const group = jobDetails.groups[batch!.groupIdx];
-        const agentType = group?.agentType;
+        const agentType = batch?.agentType;
         const agentPool = jobDetails.stream?.agentTypes[agentType!]?.pool;
         return getBatchText({ batch: batch, agentType: agentType, agentPool: agentPool });
 

@@ -192,9 +192,9 @@ export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2
       return null;
    }
 
-   const node = jobDetails.nodeByStepId(stepId);
+   const step = jobDetails.stepById(stepId);
 
-   const headerText = type === StepRetryType.RunAgain ? `Run "${node?.name}" Again?` : "Preflight Step";
+   const headerText = type === StepRetryType.RunAgain ? `Run "${step?.name}" Again?` : "Preflight Step";
 
    let fixCL = 0;
 
@@ -235,11 +235,10 @@ export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2
       }
 
       const job = jobData;
-      const node = jobDetails.nodeByStepId(stepId);
 
       const args = [];
       args.push(`-Target=Setup Build`);
-      args.push(`-Target=${node!.name}`);
+      args.push(`-Target=${step!.name}`);
 
       job.arguments?.forEach(arg => {
 

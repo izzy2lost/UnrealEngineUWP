@@ -6,7 +6,7 @@ import moment from 'moment-timezone';
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useBackend } from '../backend';
-import { GetChangeSummaryResponse, GetJobsTabLabelColumnResponse, GetJobsTabParameterColumnResponse, JobData, JobsTabColumnType, JobsTabData, JobState, LabelData, LabelOutcome, LabelState, StreamData } from '../backend/Api';
+import { GetChangeSummaryResponse, GetJobsTabLabelColumnResponse, GetJobsTabParameterColumnResponse, GetLabelStateResponse, JobData, JobsTabColumnType, JobsTabData, JobState, LabelOutcome, LabelState, StreamData } from '../backend/Api';
 import { CommitCache } from '../backend/CommitCache';
 import dashboard from '../backend/Dashboard';
 import { JobHandler } from '../backend/JobHandler';
@@ -340,7 +340,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
    const filterLabels = (job: JobData, category: string | undefined) => {
 
-      const labels = job.graphRef?.labels;
+      const labels = job.labels;
 
       if (!labels || !labels.length) {
          return [];
@@ -354,31 +354,30 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          return job.labels[idx].state !== LabelState.Unspecified;
       });
 
-      const unassigned: LabelData[] = [];
+      const unassigned: GetLabelStateResponse[] = [];
 
       view.forEach(label => {
-         if (!label.category || !jobTab?.columns?.find(c => { return ((c as GetJobsTabLabelColumnResponse).category === label.category) })) {
+         if (!label.dashboardCategory || !jobTab?.columns?.find(c => { return ((c as GetJobsTabLabelColumnResponse).category === label.dashboardCategory) })) {
             unassigned.push(label);
          }
       });
 
-      return view.filter(label => (label.name && ((label.category === category) || ((category === "Other" || !category) && unassigned.indexOf(label) !== -1)))).sort((a, b) => a.name! < b.name! ? -1 : 1);
-
+      return view.filter(label => (label.dashboardName && ((label.dashboardCategory === category) || ((category === "Other" || !category) && unassigned.indexOf(label) !== -1)))).sort((a, b) => a.dashboardName! < b.dashboardName! ? -1 : 1);
    };
 
 
-   const JobLabel: React.FC<{ item: JobItem; column: GetJobsTabLabelColumnResponse; label: LabelData }> = ({ item, column, label }) => {
+   const JobLabel: React.FC<{ item: JobItem; column: GetJobsTabLabelColumnResponse; label: GetLabelStateResponse }> = ({ item, column, label }) => {
 
-      if (label.defaultLabel && column.category !== "Other" && column.heading !== "Other") {
+      const defaultLabel = item.job.defaultLabel;
+
+      if (label === defaultLabel && column.category !== "Other" && column.heading !== "Other") {
          return <div />;
       }
 
-
-
-      const aggregates = item.job.graphRef?.labels;
+      const aggregates = item.job.labels;
 
       // note details may not be loaded here, as only initialized on callout for optimization (details.getLabelIndex(label.Name, label.Category);)
-      const jlabel = aggregates?.find((l, idx) => l.category === label.category && l.name === label.name && item.job.labels![idx]?.state !== LabelState.Unspecified);
+      const jlabel = aggregates?.find((l, idx) => l.dashboardCategory === label.dashboardCategory && l.dashboardName === label.dashboardName && item.job.labels![idx]?.state !== LabelState.Unspecified);
       let labelIdx = -1;
       if (jlabel) {
          labelIdx = aggregates?.indexOf(jlabel)!;
@@ -386,9 +385,9 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
       let state: LabelState | undefined;
       let outcome: LabelOutcome | undefined;
-      if (label.defaultLabel) {
-         state = label.defaultLabel.state;
-         outcome = label.defaultLabel.outcome;
+      if (label === defaultLabel) {
+         state = defaultLabel.state;
+         outcome = defaultLabel.outcome;
       } else {
          state = item.job.labels![labelIdx]?.state;
          outcome = item.job.labels![labelIdx]?.outcome;
@@ -402,11 +401,11 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          url = `/job/${item.job.id}?label=${labelIdx}`;
       }
 
-      const target = `label_${item.job.id}_${label.name}_${label.category}`.replace(/[^A-Za-z0-9]/g, "");
+      const target = `label_${item.job.id}_${label.dashboardName}_${label.dashboardCategory}`.replace(/[^A-Za-z0-9]/g, "");
 
       return <Stack>
          <div id={target} className="horde-no-darktheme">
-            <Link to={url}><Stack className={hordeClasses.badgeNoIcon}><DefaultButton key={label.name} style={{ backgroundColor: color.primaryColor }} text={label.name}
+            <Link to={url}><Stack className={hordeClasses.badgeNoIcon}><DefaultButton key={label.dashboardName} style={{ backgroundColor: color.primaryColor }} text={label.dashboardName}
                onMouseOver={(ev) => {
                   ev.stopPropagation();
                   controller.setState({ target: `#${target}`, label: label, jobId: item.job.id })
@@ -432,7 +431,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
    };
 
-   const renderLabels = (item: JobItem, labels: LabelData[], jobColumn: GetJobsTabLabelColumnResponse, column?: IColumn): JSX.Element => {
+   const renderLabels = (item: JobItem, labels: GetLabelStateResponse[], jobColumn: GetJobsTabLabelColumnResponse, column?: IColumn): JSX.Element => {
 
       const defaultLabel = item.job.defaultLabel;
 
@@ -440,23 +439,16 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          return <div />;
       }
 
-      if (defaultLabel?.nodes?.length && (!jobColumn.category || jobColumn.category === "Other")) {
-
-         const otherLabel = {
-            category: "",
-            name: "Other",
-            requiredNodes: [],
-            includedNodes: defaultLabel!.nodes,
-            defaultLabel: item.job.defaultLabel
-         };
-
-         labels.push(otherLabel);
+      if (defaultLabel && (!jobColumn.category || jobColumn.category === "Other")) {
+         defaultLabel.dashboardCategory = "";
+         defaultLabel.dashboardName = "Other";
+         labels.push(defaultLabel);
       }
 
       let key = 0;
 
       const buttons = labels.map(label => {
-         return <JobLabel key={`label_${item.job.id}_${jobColumn.category}_${label.name}_${key++}`} item={item} column={jobColumn} label={label} />;
+         return <JobLabel key={`label_${item.job.id}_${jobColumn.category}_${label.dashboardName}_${key++}`} item={item} column={jobColumn} label={label} />;
       });
 
       return (
