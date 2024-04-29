@@ -164,5 +164,11 @@ FString UKismetInternationalizationLibrary::GetCultureDisplayName(const FString&
 	return Culture;
 }
 
+bool UKismetInternationalizationLibrary::IsCultureRightToLeft(const FString& Culture)
+{
+	const FCulturePtr CulturePtr = FInternationalization::Get().GetCulture(Culture);
+	return CulturePtr && CulturePtr->IsRightToLeft();
+}
+
 #undef LOCTEXT_NAMESPACE
 

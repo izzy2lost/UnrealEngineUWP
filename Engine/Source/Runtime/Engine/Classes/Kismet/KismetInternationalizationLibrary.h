@@ -160,4 +160,12 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category="Utilities|Internationalization", meta=(AdvancedDisplay="1"))
 	static ENGINE_API FString GetCultureDisplayName(const FString& Culture, const bool Localized = true);
+
+	/**
+	 * Returns if the given culture reads left to right
+	 * @param Culture The culture to get the display name of, as an IETF language tag (eg, "zh-Hans-CN")
+	 * @return True if the given culture reads left to right.
+	 */
+	UFUNCTION(BlueprintPure, Category="Utilities|Internationalization")
+	static ENGINE_API bool IsCultureRightToLeft(const FString& Culture);
 };
