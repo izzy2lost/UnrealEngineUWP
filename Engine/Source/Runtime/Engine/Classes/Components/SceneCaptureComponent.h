@@ -26,6 +26,7 @@ struct FSceneCaptureViewInfo : public FSceneViewProjectionData
 	FRotator ViewRotation;
 	EStereoscopicPass StereoPass;
 	int32 StereoViewIndex;
+	float FOV;
 };
 
 #if WITH_EDITORONLY_DATA
