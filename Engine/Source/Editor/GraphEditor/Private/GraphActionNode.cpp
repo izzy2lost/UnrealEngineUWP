@@ -367,7 +367,7 @@ void FGraphActionNode::GetLeafNodes(TArray< TSharedPtr<FGraphActionNode> >& OutL
 		{
 			ChildNode->GetLeafNodes(OutLeafArray);
 		}
-		else
+		else if (!ChildNode->IsGroupDividerNode())
 		{
 			// @TODO: sometimes, certain action nodes can have children as well
 			//        (for sub-graphs in the "MyBlueprint" tab)
