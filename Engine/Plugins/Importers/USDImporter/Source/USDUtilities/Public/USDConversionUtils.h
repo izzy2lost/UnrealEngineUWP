@@ -331,40 +331,31 @@ namespace UsdUtils
 	/** Returns the earliest possible timecode. Use it to always fetch the first frame of an animated attribute */
 	USDUTILITIES_API double GetEarliestTimeCode();
 
-	/**
-	 * Utilities to allow getting and setting our AssetImportData to an asset from a base UObject*.
-	 * Note that not all asset types support AssetImportData, and in some cases when retrieving it for e.g. a Skeleton,
-	 * we'll actually check it's preview mesh instead (since Skeletons don't have AssetImportData). The setter won't do
-	 * anything if you try setting asset import data on e.g. a Skeleton, on the other hand.
-	 */
+	UE_DEPRECATED(5.5, "This function has been moved to the UsdUnreal::ObjectUtils namespace, from USDObjectUtils.h")
 	USDUTILITIES_API UUsdAssetImportData* GetAssetImportData(UObject* Asset);
+	UE_DEPRECATED(5.5, "This function has been moved to the UsdUnreal::ObjectUtils namespace, from USDObjectUtils.h")
 	USDUTILITIES_API void SetAssetImportData(UObject* Asset, UAssetImportData* ImportData);
-
-	/**
-	 * Returns the object's UsdAssetUserData of a particular subclass if it has one
-	 */
+	UE_DEPRECATED(5.5, "This function has been moved to the UsdUnreal::ObjectUtils namespace, from USDObjectUtils.h")
 	USDUTILITIES_API UUsdAssetUserData* GetAssetUserData(const UObject* Object, TSubclassOf<UUsdAssetUserData> Class = {});
-
 	template<typename T>
+	UE_DEPRECATED(5.5, "This function has been moved to the UsdUnreal::ObjectUtils namespace, from USDObjectUtils.h")
 	inline T* GetAssetUserData(UObject* Object)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return Cast<T>(GetAssetUserData(Object, T::StaticClass()));
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-
-	/**
-	 * Makes sure Object has an instance of UUsdAssetUserData of the provided subclass (defaulting to just UUsdAssetUserData itself) and returns it
-	 */
+	UE_DEPRECATED(5.5, "This function has been moved to the UsdUnreal::ObjectUtils namespace, from USDObjectUtils.h")
 	USDUTILITIES_API UUsdAssetUserData* GetOrCreateAssetUserData(UObject* Object, TSubclassOf<UUsdAssetUserData> Class = {});
-
 	template<typename T>
+	UE_DEPRECATED(5.5, "This function has been moved to the UsdUnreal::ObjectUtils namespace, from USDObjectUtils.h")
 	inline T* GetOrCreateAssetUserData(UObject* Object)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return Cast<T>(GetOrCreateAssetUserData(Object, T::StaticClass()));
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-
-	/**
-	 * Removes all other UUsdAssetUserData instances from Object if they exist, then sets AssetUserData as Object's single UUsdAssetUserData
-	 */
+	UE_DEPRECATED(5.5, "This function has been moved to the UsdUnreal::ObjectUtils namespace, from USDObjectUtils.h")
 	USDUTILITIES_API bool SetAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserData);
 
 #if USE_USD_SDK
@@ -414,6 +405,7 @@ namespace UsdUtils
 	 * Removes any numbered suffix, followed by any number of underscores (e.g. Asset_2, Asset__232_31 or Asset94 all become 'Asset'), making
 	 * sure the string is kept at least one character long. Returns true if it removed anything.
 	 */
+	 UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h, within the USDClasses module")
 	USDUTILITIES_API bool RemoveNumberedSuffix(FString& Prefix);
 
 	/**
@@ -423,6 +415,7 @@ namespace UsdUtils
 	 * @param UsedNames - Strings that cannot be used for the result
 	 * @return Modified Name so that it doesn't match anything in UsedNames (e.g. "MyName" again, or "MyName_0" or "MyName_423")
 	 */
+	 UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h, within the USDClasses module")
 	USDUTILITIES_API FString GetUniqueName(FString Name, const TSet<FString>& UsedNames);
 
 #if USE_USD_SDK

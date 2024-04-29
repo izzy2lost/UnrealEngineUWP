@@ -2,7 +2,7 @@
 
 #include "USDAssetCacheAssetActions.h"
 
-#include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 #include "USDAssetCacheAssetEditorToolkit.h"
 
 #define LOCTEXT_NAMESPACE "AssetCacheAssetActions"
@@ -19,7 +19,7 @@ FText FUsdAssetCacheAssetActions::GetName() const
 
 UClass* FUsdAssetCacheAssetActions::GetSupportedClass() const
 {
-	return UUsdAssetCache2::StaticClass();
+	return UUsdAssetCache3::StaticClass();
 }
 
 FColor FUsdAssetCacheAssetActions::GetTypeColor() const
@@ -33,7 +33,7 @@ void FUsdAssetCacheAssetActions::OpenAssetEditor(const TArray<UObject*>& InObjec
 
 	for (auto ObjIt = InObjects.CreateConstIterator(); ObjIt; ++ObjIt)
 	{
-		if (UUsdAssetCache2* Asset = Cast<UUsdAssetCache2>(*ObjIt))
+		if (UUsdAssetCache3* Asset = Cast<UUsdAssetCache3>(*ObjIt))
 		{
 			TSharedRef<FUsdAssetCacheAssetEditorToolkit> NewCustomAssetEditor = MakeShared<FUsdAssetCacheAssetEditorToolkit>();
 			NewCustomAssetEditor->Initialize(Mode, EditWithinLevelEditor, Asset);

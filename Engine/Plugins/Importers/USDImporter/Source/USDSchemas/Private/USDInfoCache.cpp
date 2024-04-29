@@ -1264,8 +1264,11 @@ namespace UE::USDInfoCacheImpl::Private
 			}
 		);
 
+		static IConsoleVariable* ForceImportCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.GeometryCache.ForceImport"));
+		const bool bIsImporting = Context.bIsImporting || (ForceImportCvar && ForceImportCvar->GetBool());
+
 		bool bIsAnimatedMesh = UsdUtils::IsAnimatedMesh(UsdPrim);
-		if (!Context.bIsImporting)
+		if (!bIsImporting)
 		{
 			FWriteScopeLock ScopeLock(Impl.InfoMapLock);
 
@@ -1590,10 +1593,7 @@ void FUsdInfoCache::UnlinkAssetFromPrim(const UE::FSdfPath& Path, UObject* Asset
 	}
 	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
 
-	UE_LOG(LogUsd, Verbose, TEXT("Unlinking asset '%s' to prim '%s'"),
-		*Asset->GetPathName(),
-		*Path.GetString()
-	);
+	UE_LOG(LogUsd, Verbose, TEXT("Unlinking asset '%s' to prim '%s'"), *Asset->GetPathName(), *Path.GetString());
 
 	if (TArray<TWeakObjectPtr<UObject>>* FoundAssetsForPrim = ImplPtr->PrimPathToAssets.Find(Path))
 	{

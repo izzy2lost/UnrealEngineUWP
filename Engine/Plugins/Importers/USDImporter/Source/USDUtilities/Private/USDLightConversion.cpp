@@ -2,11 +2,14 @@
 
 #include "USDLightConversion.h"
 
-#include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
+#include "USDAssetUserData.h"
 #include "USDAttributeUtils.h"
+#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
 
@@ -281,23 +284,22 @@ bool UsdToUnreal::ConvertDomeLight(
 		return true;
 	}
 
-	const FString PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(Prim, bReuseIdenticalAssets)
-										+ LexToString(FMD5Hash::HashFile(*ResolvedDomeTexturePath));
-	UTextureCube* Cubemap = Cast<UTextureCube>(TexturesCache ? TexturesCache->GetCachedAsset(PrefixedTextureHash) : nullptr);
+	const FString& DesiredTextureName = FPaths::GetBaseFilename(ResolvedDomeTexturePath);
 
-	if (!Cubemap)
+	// TODO: Ideally we'd expose this
+	const EObjectFlags DesiredFlags = RF_Public | RF_Standalone | RF_Transactional;
+
+	TextureGroup Group = TextureGroup::TEXTUREGROUP_Skybox;
+
+	UTextureCube* Cubemap = nullptr;
+
+	UObject* Outer = GetTransientPackage();
+	FName TextureName = MakeUniqueObjectName(Outer, UTextureCube::StaticClass(), *UsdUnreal::ObjectUtils::SanitizeObjectName(DesiredTextureName));
+	Cubemap = Cast<UTextureCube>(UsdUtils::CreateTexture(ResolvedDomeTexturePath, TextureName, Group, DesiredFlags));
+
+	if (UUsdAssetUserData* TextureUserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(Cubemap))
 	{
-		Cubemap = Cast<UTextureCube>(UsdUtils::CreateTexture(
-			DomeLight.GetTextureFileAttr(),
-			UsdToUnreal::ConvertPath(DomeLight.GetPrim().GetPath()),
-			TEXTUREGROUP_Skybox,
-			TexturesCache
-		));
-
-		if (TexturesCache)
-		{
-			TexturesCache->CacheAsset(PrefixedTextureHash, Cubemap);
-		}
+		TextureUserData->PrimPaths.AddUnique(UsdToUnreal::ConvertPath(DomeLight.GetPrim().GetPath()));
 	}
 
 	if (Cubemap)
@@ -334,12 +336,6 @@ bool UsdToUnreal::ConvertLuxShapingAPI(const pxr::UsdPrim& Prim, USpotLightCompo
 	LightComponent.SetOuterConeAngle(OuterConeAngle);
 
 	return true;
-}
-
-bool UsdToUnreal::ConvertDomeLight(const pxr::UsdPrim& Prim, USkyLightComponent& LightComponent, UUsdAssetCache* TexturesCache)
-{
-	UUsdAssetCache2* NewCache = nullptr;
-	return UsdToUnreal::ConvertDomeLight(Prim, LightComponent, NewCache);
 }
 
 float UsdToUnreal::ConvertLightIntensityAttr(float UsdIntensity, float UsdExposure)

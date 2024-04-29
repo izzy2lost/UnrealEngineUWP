@@ -10,6 +10,7 @@
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDValueConversion.h"
 
 #include "UsdWrappers/SdfLayer.h"
@@ -767,12 +768,12 @@ TArray<FString> UUsdConversionBlueprintLibrary::DuplicatePrims(
 
 UUsdAssetUserData* UUsdConversionBlueprintLibrary::GetUsdAssetUserData(UObject* Object)
 {
-	return UsdUtils::GetAssetUserData(Object);
+	return UsdUnreal::ObjectUtils::GetAssetUserData(Object);
 }
 
 bool UUsdConversionBlueprintLibrary::SetUsdAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserData)
 {
-	return UsdUtils::SetAssetUserData(Object, AssetUserData);
+	return UsdUnreal::ObjectUtils::SetAssetUserData(Object, AssetUserData);
 }
 
 namespace UE::UsdConversionBlueprintLibrary::Private

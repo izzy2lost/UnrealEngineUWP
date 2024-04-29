@@ -5,17 +5,17 @@
 #if USE_USD_SDK
 
 #include "UnrealUSDWrapper.h"
-#include "USDAssetCache.h"
 #include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 #include "USDAssetImportData.h"
 #include "USDAssetUserData.h"
 #include "USDAttributeUtils.h"
-#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDMemory.h"
+#include "USDObjectUtils.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/UsdAttribute.h"
@@ -264,19 +264,21 @@ namespace UE
 				FName TextureName = MakeUniqueObjectName(
 					Outer,
 					UTexture::StaticClass(),
-					*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(ResolvedTexturePath))
+					*UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetBaseFilename(ResolvedTexturePath))
 				);
 
+				UObject* Context = nullptr;
+				FFeedbackContext* FeedbackContext = GWarn;
 				return Cast<UTexture>(TextureFactory->FactoryCreateBinary(
 					UTexture::StaticClass(),
 					Outer,
 					TextureName,
 					ObjectFlags,
-					nullptr,
+					Context,
 					*TextureExtension,
 					BufferStart,
 					BufferStart + BufferSize,
-					nullptr
+					FeedbackContext
 				));
 #endif	  // WITH_EDITOR
 				return nullptr;
@@ -553,10 +555,10 @@ namespace UE
 
 			bool GetTextureParameterValue(
 				pxr::UsdShadeInput& ShadeInput,
-				TextureGroup LODGroup,
+				TextureGroup Group,
 				FParameterValue& OutValue,
 				const UMaterialInterface* Material,
-				UUsdAssetCache2* TexturesCache,
+				UUsdAssetCache3* TexturesCache,
 				bool bReuseIdenticalAssets
 			)
 			{
@@ -666,64 +668,67 @@ namespace UE
 							return false;
 						}
 
-						// We'll add these to the hash because the materials are built to try and reuse the same textures for multiple channels,
-						// and those may expect linear or sRGB values. Without this we may parse a texture as linear because we hit the opacity
-						// channel first, and then reuse it as linear for the base color channel even though it should have been sRGB. Plus we may
-						// have something weird like a normal map being plugged into the base color and the normal channel.
-						bool bSRGB = true;
-						TextureCompressionSettings CompressionSettings = TextureCompressionSettings::TC_Default;
-						if (bIsNormalInput)
-						{
-							// Disable SRGB when parsing float textures, as they're likely specular/roughness maps
-							bSRGB = false;
-							CompressionSettings = TextureCompressionSettings::TC_Normalmap;
-						}
-						else
-						{
-							if (LODGroup == TEXTUREGROUP_WorldSpecular)
-							{
-								bSRGB = false;
-							}
-
-							// Override the sRGB flag with whatever is specified on the texture shader, if it has anything specific.
-							if (pxr::UsdAttribute SourceColorSpaceAttr = UsdUVTextureSource.GetInput(UnrealIdentifiers::SourceColorSpaceToken))
-							{
-								pxr::TfToken SourceColorSpaceValue;
-								if (SourceColorSpaceAttr.HasAuthoredValue() && SourceColorSpaceAttr.Get(&SourceColorSpaceValue))
-								{
-									bSRGB = SourceColorSpaceValue == UnrealIdentifiers::RawColorSpaceToken	  ? false
-											: SourceColorSpaceValue == UnrealIdentifiers::SRGBColorSpaceToken ? true
-																											  : bSRGB;
-								}
-							}
-						}
-
-						const FString PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(ShadeInput.GetPrim(), bReuseIdenticalAssets)
-															+ UsdUtils::GetTextureHash(TexturePath, bSRGB, CompressionSettings, AddressX, AddressY);
-
 						// We only actually want to retrieve the textures if we have a cache to put them in
 						if (TexturesCache)
 						{
-							UTexture* Texture = Cast<UTexture>(TexturesCache->GetCachedAsset(PrefixedTextureHash));
-							if (!Texture)
+							// We'll add these to the hash because the materials are built to try and reuse the same textures for multiple channels,
+							// and those may expect linear or sRGB values. Without this we may parse a texture as linear because we hit the opacity
+							// channel first, and then reuse it as linear for the base color channel even though it should have been sRGB. Plus we may
+							// have something weird like a normal map being plugged into the base color and the normal channel.
+							bool bSRGB = true;
+							TextureCompressionSettings CompressionSettings = TextureCompressionSettings::TC_Default;
+							if (bIsNormalInput)
 							{
-								// Give the same prim path to the texture, so that it ends up imported right next to the material
-								FString MaterialPrimPath;
-								if (Material)
+								// Disable SRGB when parsing float textures, as they're likely specular/roughness maps
+								bSRGB = false;
+								CompressionSettings = TextureCompressionSettings::TC_Normalmap;
+							}
+							else
+							{
+								if (Group == TEXTUREGROUP_WorldSpecular)
 								{
-									if (UUsdAssetUserData* UserData = const_cast<UMaterialInterface*>(Material)->GetAssetUserData<UUsdAssetUserData>(
-										))
-									{
-										if (!UserData->PrimPaths.IsEmpty())
-										{
-											MaterialPrimPath = UserData->PrimPaths[0];
-										}
-									}
+									bSRGB = false;
 								}
 
-								Texture = UsdUtils::CreateTexture(FileInput.GetAttr(), MaterialPrimPath, LODGroup, TexturesCache);
+								// Override the sRGB flag with whatever is specified on the texture shader, if it has anything specific.
+								if (pxr::UsdAttribute SourceColorSpaceAttr = UsdUVTextureSource.GetInput(UnrealIdentifiers::SourceColorSpaceToken))
+								{
+									pxr::TfToken SourceColorSpaceValue;
+									if (SourceColorSpaceAttr.HasAuthoredValue() && SourceColorSpaceAttr.Get(&SourceColorSpaceValue))
+									{
+										bSRGB = SourceColorSpaceValue == UnrealIdentifiers::RawColorSpaceToken	  ? false
+												: SourceColorSpaceValue == UnrealIdentifiers::SRGBColorSpaceToken ? true
+																												  : bSRGB;
+									}
+								}
+							}
 
-								if (Texture)
+							const FString
+								PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(ShadeInput.GetPrim(), bReuseIdenticalAssets)
+													  + UsdUtils::GetTextureHash(TexturePath, bSRGB, CompressionSettings, AddressX, AddressY);
+
+							pxr::UsdAttribute FileInputAttr = FileInput.GetAttr();
+							const FString ResolvedTexturePath = UsdUtils::GetResolvedAssetPath(FileInputAttr);
+
+							const FString& DesiredTextureName = FPaths::GetBaseFilename(ResolvedTexturePath);
+
+							const EObjectFlags DesiredFlags = RF_Public | RF_Standalone | RF_Transactional;
+
+							bool bCreatedTexture = false;
+							UTexture* Texture = TexturesCache->GetOrCreateCustomCachedAsset<UTexture2D>(
+								PrefixedTextureHash,
+								DesiredTextureName,
+								DesiredFlags,
+								[&ResolvedTexturePath, Group, TexturesCache](UPackage* Outer, FName SanitizedName, EObjectFlags DesiredFlags)
+								{
+									return UsdUtils::CreateTexture(ResolvedTexturePath, SanitizedName, Group, DesiredFlags, Outer);
+								},
+								&bCreatedTexture
+							);
+
+							if (Texture)
+							{
+								if (bCreatedTexture)
 								{
 									Texture->SRGB = bSRGB;
 									Texture->CompressionSettings = CompressionSettings;
@@ -733,13 +738,23 @@ namespace UE
 										Texture2D->AddressY = AddressY;
 									}
 									Texture->UpdateResource();
-
-									TexturesCache->CacheAsset(PrefixedTextureHash, Texture);
+#if WITH_EDITOR
+									Texture->PostEditChange();
+#endif	  // WITH_EDITOR
 								}
-							}
 
-							if (Texture)
-							{
+								if (UUsdAssetUserData* AssetUserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(Texture))
+								{
+									// Give the same prim path to the texture, so that it ends up imported right next to the material
+									if (UUsdAssetUserData* MaterialAssetUserData = UsdUnreal::ObjectUtils::GetAssetUserData(Material))
+									{
+										for (const FString& MaterialPrimPath : MaterialAssetUserData->PrimPaths)
+										{
+											AssetUserData->PrimPaths.AddUnique(MaterialPrimPath);
+										}
+									}
+								}
+
 								FTextureParameterValue OutTextureValue;
 								OutTextureValue.Texture = Texture;
 								GetSTPrimvarAndTransform(UsdUVTextureSource, OutTextureValue);
@@ -801,7 +816,7 @@ namespace UE
 				float DefaultValue,
 				FParameterValue& OutValue,
 				const UMaterialInterface* Material,
-				UUsdAssetCache2* TexturesCache,
+				UUsdAssetCache3* TexturesCache,
 				bool bReuseIdenticalAssets
 			)
 			{
@@ -933,7 +948,7 @@ namespace UE
 				FParameterValue& OutValue,
 				bool bIsNormalMap,
 				const UMaterialInterface* Material,
-				UUsdAssetCache2* TexturesCache,
+				UUsdAssetCache3* TexturesCache,
 				bool bReuseIdenticalAssets
 			)
 			{
@@ -1034,7 +1049,7 @@ namespace UE
 				bool DefaultValue,
 				FParameterValue& OutValue,
 				UMaterialInterface* Material = nullptr,
-				UUsdAssetCache2* TexturesCache = nullptr
+				UUsdAssetCache3* TexturesCache = nullptr
 			)
 			{
 				FScopedUsdAllocs Allocs;
@@ -1312,129 +1327,97 @@ namespace UE
 			}
 
 			UTexture* CreateTextureWithEditor(
-				const pxr::UsdAttribute& TextureAssetPathAttr,
-				const FString& PrimPath,
-				TextureGroup LODGroup,
+				const FString& ResolvedTexturePath,
+				FName SanitizedName,
+				TextureGroup Group,
+				EObjectFlags ObjectFlags,
 				UObject* Outer
 			)
 			{
 				UTexture* Texture = nullptr;
 #if WITH_EDITOR
-				FScopedUsdAllocs UsdAllocs;
-
-				pxr::SdfAssetPath TextureAssetPath;
-				TextureAssetPathAttr.Get<pxr::SdfAssetPath>(&TextureAssetPath);
-
-				FString TexturePath = UsdToUnreal::ConvertString(TextureAssetPath.GetAssetPath());
-				const bool bIsSupportedUdimTexture = TexturePath.Contains(TEXT("<UDIM>"));
-				FPaths::NormalizeFilename(TexturePath);
+				if (ResolvedTexturePath.IsEmpty() || !Outer)
+				{
+					return nullptr;
+				}
 
 				FScopedUnrealAllocs UnrealAllocs;
 
-				if (!TexturePath.IsEmpty())
+				UTextureFactory* TextureFactory = NewObject<UTextureFactory>();
+				TextureFactory->SuppressImportOverwriteDialog();
+				TextureFactory->bUseHashAsGuid = true;
+				TextureFactory->LODGroup = Group;
+				TextureFactory->HDRImportShouldBeLongLatCubeMap = EAppReturnType::YesAll;
+
+				const bool bIsSupportedUdimTexture = ResolvedTexturePath.Contains(TEXT("<UDIM>"));
+				if (bIsSupportedUdimTexture)
 				{
-					bool bOutCancelled = false;
-					UTextureFactory* TextureFactory = NewObject<UTextureFactory>();
-					TextureFactory->SuppressImportOverwriteDialog();
-					TextureFactory->bUseHashAsGuid = true;
-					TextureFactory->LODGroup = LODGroup;
-					TextureFactory->HDRImportShouldBeLongLatCubeMap = EAppReturnType::YesAll;
+					FString BaseFileName = FPaths::GetBaseFilename(ResolvedTexturePath);
 
-					if (bIsSupportedUdimTexture)
+					FString BaseFileNameBeforeUdim;
+					FString BaseFileNameAfterUdim;
+					BaseFileName.Split(TEXT("<UDIM>"), &BaseFileNameBeforeUdim, &BaseFileNameAfterUdim);
+
+					FString UdimRegexPattern = FString::Printf(TEXT(R"((%s)(\d{4})(%s))"), *BaseFileNameBeforeUdim, *BaseFileNameAfterUdim);
+					TextureFactory->UdimRegexPattern = MoveTemp(UdimRegexPattern);
+				}
+
+				if (!ResolvedTexturePath.IsEmpty())
+				{
+					FString TextureExtension;
+					if (IsInsideUsdzArchive(ResolvedTexturePath, TextureExtension))
 					{
-						FString BaseFileName = FPaths::GetBaseFilename(TexturePath);
-
-						FString BaseFileNameBeforeUdim;
-						FString BaseFileNameAfterUdim;
-						BaseFileName.Split(TEXT("<UDIM>"), &BaseFileNameBeforeUdim, &BaseFileNameAfterUdim);
-
-						FString UdimRegexPattern = FString::Printf(TEXT(R"((%s)(\d{4})(%s))"), *BaseFileNameBeforeUdim, *BaseFileNameAfterUdim);
-						TextureFactory->UdimRegexPattern = MoveTemp(UdimRegexPattern);
+						// Always prefer using the TextureFactory if we can, as it may provide compression, which the runtime version never will
+						Texture = ReadTextureFromUsdzArchiveEditor(ResolvedTexturePath, TextureExtension, TextureFactory, Outer, ObjectFlags);
+					}
+					// Not inside an USDZ archive, just a regular texture
+					else
+					{
+						bool bOutCancelled = false;
+						const TCHAR* Params = TEXT("");
+						Texture = Cast<UTexture>(TextureFactory->ImportObject(	  //
+							UTexture::StaticClass(),
+							Outer,
+							SanitizedName,
+							ObjectFlags,
+							ResolvedTexturePath,
+							Params,
+							bOutCancelled
+						));
 					}
 
-					const FString ResolvedTexturePath = UsdUtils::GetResolvedAssetPath(TextureAssetPathAttr);
-					if (!ResolvedTexturePath.IsEmpty())
+					if (Texture)
 					{
-						EObjectFlags ObjectFlags = RF_Transactional | RF_Transient;
-						if (!Outer)
-						{
-							Outer = GetTransientPackage();
-						}
-
-						FString TextureExtension;
-						if (IsInsideUsdzArchive(ResolvedTexturePath, TextureExtension))
-						{
-							// Always prefer using the TextureFactory if we can, as it may provide compression, which the runtime version never will
-							Texture = ReadTextureFromUsdzArchiveEditor(ResolvedTexturePath, TextureExtension, TextureFactory, Outer, ObjectFlags);
-						}
-						// Not inside an USDZ archive, just a regular texture
-						else
-						{
-							FName TextureName = MakeUniqueObjectName(
-								Outer,
-								UTexture::StaticClass(),
-								*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(ResolvedTexturePath))
-							);
-							Texture = Cast<UTexture>(TextureFactory->ImportObject(
-								UTexture::StaticClass(),
-								Outer,
-								TextureName,
-								ObjectFlags,
-								ResolvedTexturePath,
-								TEXT(""),
-								bOutCancelled
-							));
-						}
-
-						if (Texture)
-						{
-							UUsdAssetUserData* UserData = NewObject<UUsdAssetUserData>(Texture, TEXT("USDAssetUserData"));
-							UserData->PrimPaths = {PrimPath};
-							Texture->AddAssetUserData(UserData);
-
-							// We set this even if we're not going to import so that we can track our original texture filepath
-							// in case we later do an Actions->Import
-							UUsdAssetImportData* ImportData = NewObject<UUsdAssetImportData>(Texture);
-							ImportData->UpdateFilenameOnly(ResolvedTexturePath);
-							Texture->AssetImportData = ImportData;
-						}
+						// We set this even if we're not going to import so that we can track our original texture filepath
+						// in case we later do an Actions->Import
+						UUsdAssetImportData* ImportData = NewObject<UUsdAssetImportData>(Texture);
+						ImportData->UpdateFilenameOnly(ResolvedTexturePath);
+						Texture->AssetImportData = ImportData;
 					}
 				}
 #endif	  // WITH_EDITOR
 				return Texture;
 			}
 
-			UTexture* CreateTextureAtRuntime(const pxr::UsdAttribute& TextureAssetPathAttr, const FString& PrimPath, TextureGroup LODGroup)
+			UTexture* CreateTextureAtRuntime(const FString& ResolvedTexturePath)
 			{
-				FScopedUsdAllocs UsdAllocs;
-
-				pxr::SdfAssetPath TextureAssetPath;
-				TextureAssetPathAttr.Get<pxr::SdfAssetPath>(&TextureAssetPath);
-
-				FString TexturePath = UsdToUnreal::ConvertString(TextureAssetPath.GetAssetPath());
-				FPaths::NormalizeFilename(TexturePath);
-
 				FScopedUnrealAllocs UnrealAllocs;
 
 				UTexture* Texture = nullptr;
 
-				if (!TexturePath.IsEmpty())
+				if (!ResolvedTexturePath.IsEmpty())
 				{
-					const FString ResolvedTexturePath = UsdUtils::GetResolvedAssetPath(TextureAssetPathAttr);
-					if (!ResolvedTexturePath.IsEmpty())
+					// Try checking if the texture is inside an USDZ archive first, or else TextureFactory throws an error
+					FString TextureExtension;
+					if (IsInsideUsdzArchive(ResolvedTexturePath, TextureExtension))
 					{
-						// Try checking if the texture is inside an USDZ archive first, or else TextureFactory throws an error
-						FString TextureExtension;
-						if (IsInsideUsdzArchive(ResolvedTexturePath, TextureExtension))
-						{
-							Texture = ReadTextureFromUsdzArchiveRuntime(ResolvedTexturePath);
-						}
+						Texture = ReadTextureFromUsdzArchiveRuntime(ResolvedTexturePath);
+					}
 
-						// Not inside an USDZ archive, just a regular texture
-						if (!Texture)
-						{
-							Texture = FImageUtils::ImportFileAsTexture2D(ResolvedTexturePath);
-						}
+					// Not inside an USDZ archive, just a regular texture
+					if (!Texture)
+					{
+						Texture = FImageUtils::ImportFileAsTexture2D(ResolvedTexturePath);
 					}
 				}
 
@@ -1588,11 +1571,11 @@ namespace UE
 
 					// Final FilePath will be something like "C:/TexturesFolder/Game_ContentFolder_Materials_Red_BaseColor.png", which automatically
 					// guarantees it won't overwrite another texture from the same export, but will overwrite old textures from previous exports
-					FString TextureFileName = IUsdClassesModule::SanitizeObjectName(FPaths::ChangeExtension(TextureNamePrefix, TEXT("")));
+					FString TextureFileName = UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::ChangeExtension(TextureNamePrefix, TEXT("")));
 					TextureFileName.RemoveFromStart(TEXT("_"));
 					FString TextureFilePath = FPaths::Combine(
 						TexturesFolder.Path,
-						FString::Printf(TEXT("%s_%s.exr"), *IUsdClassesModule::SanitizeObjectName(TextureFileName), *TrimmedPropertyName)
+						FString::Printf(TEXT("%s_%s.exr"), *UsdUnreal::ObjectUtils::SanitizeObjectName(TextureFileName), *TrimmedPropertyName)
 					);
 
 					// For some reason the baked samples always have zero alpha and there is nothing we can do about it... It seems like the material
@@ -1650,11 +1633,11 @@ namespace UE
 
 					// Final FilePath will be something like "C:/TexturesFolder/Game_ContentFolder_Materials_Red_BaseColor.png", which automatically
 					// guarantees it won't overwrite another texture from the same export, but will overwrite old textures from previous exports
-					FString TextureFileName = IUsdClassesModule::SanitizeObjectName(FPaths::ChangeExtension(TextureNamePrefix, TEXT("")));
+					FString TextureFileName = UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::ChangeExtension(TextureNamePrefix, TEXT("")));
 					TextureFileName.RemoveFromStart(TEXT("_"));
 					FString TextureFilePath = FPaths::Combine(
 						TexturesFolder.Path,
-						FString::Printf(TEXT("%s_%s.png"), *IUsdClassesModule::SanitizeObjectName(TextureFileName), *TrimmedPropertyName)
+						FString::Printf(TEXT("%s_%s.png"), *UsdUnreal::ObjectUtils::SanitizeObjectName(TextureFileName), *TrimmedPropertyName)
 					);
 
 					// For some reason the baked samples always have zero alpha and there is nothing we can do about it... It seems like the material
@@ -2154,7 +2137,7 @@ namespace UsdShadeConversionImpl = UE::UsdShadeConversion::Private;
 bool UsdToUnreal::ConvertMaterial(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterialInstance& Material,
-	UUsdAssetCache2* TexturesCache,
+	UUsdAssetCache3* TexturesCache,
 	const TCHAR* RenderContext,
 	bool bReuseIdenticalAssets
 )
@@ -2357,7 +2340,7 @@ bool UsdToUnreal::ConvertMaterial(
 bool UsdToUnreal::ConvertMaterial(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterial& Material,
-	UUsdAssetCache2* TexturesCache,
+	UUsdAssetCache3* TexturesCache,
 	const TCHAR* RenderContext,
 	bool bReuseIdenticalAssets
 )
@@ -2576,7 +2559,7 @@ bool UsdToUnreal::ConvertMaterial(
 				else
 				{
 					UE_LOG(
-						LogTemp,
+						LogUsd,
 						Warning,
 						TEXT("Failed to find primvar '%s' when setting material parameter. Available primvars and UV indices: %s.%s"),
 						*TextureParameterValue->Primvar,
@@ -2673,34 +2656,10 @@ bool UsdToUnreal::ConvertMaterial(
 #endif	  // WITH_EDITOR
 }
 
-// Deprecated
-bool UsdToUnreal::ConvertMaterial(
-	const pxr::UsdShadeMaterial& UsdShadeMaterial,
-	UMaterialInstance& Material,
-	UUsdAssetCache2* TexturesCache,
-	TMap<FString, int32>& InPrimvarToUVIndex,
-	const TCHAR* RenderContext
-)
-{
-	return ConvertMaterial(UsdShadeMaterial, Material, TexturesCache, RenderContext);
-}
-
-// Deprecated
-bool UsdToUnreal::ConvertMaterial(
-	const pxr::UsdShadeMaterial& UsdShadeMaterial,
-	UMaterial& Material,
-	UUsdAssetCache2* TexturesCache,
-	TMap<FString, int32>& PrimvarToUVIndex,
-	const TCHAR* RenderContext
-)
-{
-	return ConvertMaterial(UsdShadeMaterial, Material, TexturesCache, RenderContext);
-}
-
 bool UsdToUnreal::ConvertShadeInputsToParameters(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterialInstance& MaterialInstance,
-	UUsdAssetCache2* TexturesCache,
+	UUsdAssetCache3* TexturesCache,
 	const TCHAR* RenderContext,
 	bool bReuseIdenticalAssets
 )
@@ -2736,6 +2695,11 @@ bool UsdToUnreal::ConvertShadeInputsToParameters(
 			pxr::UsdShadeConnectableAPI::GetConnectedSource(ShadeInput.GetAttr(), &Source, &SourceName, &SourceType);
 
 			ConnectInput = Source.GetInput(SourceName);
+		}
+
+		if (!ConnectInput)
+		{
+			continue;
 		}
 
 		FString DisplayName = UsdToUnreal::ConvertString(ConnectInput.GetAttr().GetDisplayName());
@@ -2809,37 +2773,38 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool UsdToUnreal::ConvertMaterial(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterialInstance& Material,
-	UUsdAssetCache* TexturesCache,
-	TMap<FString, int32>& PrimvarToUVIndex,
-	const TCHAR* RenderContext
+	UUsdAssetCache2* TexturesCache,
+	const TCHAR* RenderContext,
+	bool bReuseIdenticalAssets
 )
 {
-	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material);
+	UUsdAssetCache3* NewCache = nullptr;
+	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material, NewCache, RenderContext, bReuseIdenticalAssets);
 }
 
 bool UsdToUnreal::ConvertMaterial(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterial& Material,
-	UUsdAssetCache* TexturesCache,
-	TMap<FString, int32>& PrimvarToUVIndex,
-	const TCHAR* RenderContext
+	UUsdAssetCache2* TexturesCache,
+	const TCHAR* RenderContext,
+	bool bReuseIdenticalAssets
 )
 {
-	UUsdAssetCache2* NewCache = nullptr;
-	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material, NewCache, RenderContext);
+	UUsdAssetCache3* NewCache = nullptr;
+	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material, NewCache, RenderContext, bReuseIdenticalAssets);
 }
 
 bool UsdToUnreal::ConvertShadeInputsToParameters(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterialInstance& MaterialInstance,
-	UUsdAssetCache* TexturesCache,
-	const TCHAR* RenderContext
+	UUsdAssetCache2* TexturesCache,
+	const TCHAR* RenderContext,
+	bool bReuseIdenticalAssets
 )
 {
-	UUsdAssetCache2* NewCache = nullptr;
-	return UsdToUnreal::ConvertShadeInputsToParameters(UsdShadeMaterial, MaterialInstance, NewCache, RenderContext);
+	UUsdAssetCache3* NewCache = nullptr;
+	return UsdToUnreal::ConvertShadeInputsToParameters(UsdShadeMaterial, MaterialInstance, NewCache, RenderContext, bReuseIdenticalAssets);
 }
-
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if WITH_EDITOR
@@ -2932,10 +2897,9 @@ FString UsdUtils::GetResolvedAssetPath(const pxr::UsdAttribute& AssetPathAttr, p
 		AssetIdentifier = Resolver.CreateIdentifier(AssetIdentifier);
 	}
 
-	FString ResolvedTexturePath = UsdToUnreal::ConvertString(AssetIdentifier);
-	FPaths::NormalizeFilename(ResolvedTexturePath);
+	FString ResolvedPath = UsdToUnreal::ConvertString(AssetIdentifier);
 
-	if (ResolvedTexturePath.IsEmpty())
+	if (ResolvedPath.IsEmpty())
 	{
 		FString TexturePath = UsdToUnreal::ConvertString(AssetPath.GetAssetPath());
 		FPaths::NormalizeFilename(TexturePath);
@@ -2943,11 +2907,12 @@ FString UsdUtils::GetResolvedAssetPath(const pxr::UsdAttribute& AssetPathAttr, p
 		if (!TexturePath.IsEmpty())
 		{
 			pxr::SdfLayerRefPtr TextureLayer = UsdUtils::FindLayerForAttribute(AssetPathAttr, TimeCode.GetValue());
-			ResolvedTexturePath = UsdShadeConversionImpl::ResolveAssetPath(TextureLayer, TexturePath);
+			ResolvedPath = UsdShadeConversionImpl::ResolveAssetPath(TextureLayer, TexturePath);
 		}
 	}
 
-	return ResolvedTexturePath;
+	FPaths::NormalizeFilename(ResolvedPath);
+	return ResolvedPath;
 }
 
 // Deprecated
@@ -3016,18 +2981,33 @@ FString UsdUtils::GetTextureHash(
 	return LexToString(Hash);
 }
 
-UTexture* UsdUtils::CreateTexture(const pxr::UsdAttribute& TextureAssetPathAttr, const FString& PrimPath, TextureGroup LODGroup, UObject* Outer)
+UTexture* UsdUtils::CreateTexture(const pxr::UsdAttribute& TextureAssetPathAttr, const FString& PrimPath, TextureGroup Group, UObject* Outer)
+{
+	const FString ResolvedTexturePath = UsdUtils::GetResolvedAssetPath(TextureAssetPathAttr);
+
+	FName TextureName = MakeUniqueObjectName(
+		Outer,
+		UTexture::StaticClass(),
+		*UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetBaseFilename(ResolvedTexturePath))
+	);
+
+	EObjectFlags Flags = RF_Public | RF_Standalone;
+
+	return UsdUtils::CreateTexture(ResolvedTexturePath, TextureName, Group, Flags, Outer);
+}
+
+UTexture* UsdUtils::CreateTexture(const FString& ResolvedTexturePath, FName SanitizedName, TextureGroup Group, EObjectFlags Flags, UObject* Outer)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::CreateTexture);
 
 	// Standalone game does have WITH_EDITOR defined, but it can't use the texture factories, so we need to check this instead
 	if (GIsEditor)
 	{
-		return UsdShadeConversionImpl::CreateTextureWithEditor(TextureAssetPathAttr, PrimPath, LODGroup, Outer);
+		return UsdShadeConversionImpl::CreateTextureWithEditor(ResolvedTexturePath, SanitizedName, Group, Flags, Outer);
 	}
 	else
 	{
-		return UsdShadeConversionImpl::CreateTextureAtRuntime(TextureAssetPathAttr, PrimPath, LODGroup);
+		return UsdShadeConversionImpl::CreateTextureAtRuntime(ResolvedTexturePath);
 	}
 }
 
@@ -3342,7 +3322,7 @@ void UsdUtils::AuthorUnrealMaterialBinding(pxr::UsdPrim& MeshOrGeomSubsetPrim, c
 			UsedNames.Add(UsdToUnreal::ConvertToken(Child.GetName()));
 		}
 
-		ChildMaterialName = UsdUtils::GetUniqueName(ChildMaterialName, UsedNames);
+		ChildMaterialName = UsdUnreal::ObjectUtils::GetUniqueName(ChildMaterialName, UsedNames);
 	}
 
 	pxr::UsdStageRefPtr Stage = MeshOrGeomSubsetPrim.GetStage();
@@ -3480,7 +3460,7 @@ bool UsdUtils::IsMaterialTranslucent(const pxr::UsdShadeMaterial& UsdShadeMateri
 	pxr::UsdShadeConnectableAPI Connectable{SurfaceShader};
 
 	const UMaterialInterface* Material = nullptr;
-	UUsdAssetCache2* TexturesCache = nullptr;
+	UUsdAssetCache3* TexturesCache = nullptr;
 	const bool bReuseIdenticalAssets = true;
 	UsdShadeConversionImpl::FParameterValue ParameterValue;
 	bool bHasOpacityConnection = UsdShadeConversionImpl::GetFloatParameterValue(

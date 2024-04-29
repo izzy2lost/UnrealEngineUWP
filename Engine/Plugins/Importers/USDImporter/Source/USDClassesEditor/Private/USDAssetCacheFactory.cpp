@@ -2,14 +2,14 @@
 
 #include "USDAssetCacheFactory.h"
 
-#include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 
 UUsdAssetCacheFactory::UUsdAssetCacheFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	bCreateNew = true;
 	bEditAfterNew = true;
-	SupportedClass = UUsdAssetCache2::StaticClass();
+	SupportedClass = UUsdAssetCache3::StaticClass();
 }
 
 UObject* UUsdAssetCacheFactory::FactoryCreateNew(
@@ -21,7 +21,7 @@ UObject* UUsdAssetCacheFactory::FactoryCreateNew(
 	FFeedbackContext* Warn
 )
 {
-	return NewObject<UUsdAssetCache2>(InParent, Name, Flags | RF_Transactional | RF_Public | RF_Standalone);
+	return NewObject<UUsdAssetCache3>(InParent, Name, Flags | RF_Transactional | RF_Public | RF_Standalone);
 }
 
 bool UUsdAssetCacheFactory::ShouldShowInNewMenu() const

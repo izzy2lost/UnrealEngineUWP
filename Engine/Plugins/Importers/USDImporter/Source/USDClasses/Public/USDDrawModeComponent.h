@@ -7,7 +7,6 @@
 #include "USDDrawModeComponent.generated.h"
 
 class UMaterialInstance;
-class UUsdAssetCache2;
 enum class EUsdUpAxis : uint8;
 
 UENUM()

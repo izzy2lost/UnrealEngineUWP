@@ -3,7 +3,6 @@
 #include "USDPrimConversion.h"
 
 #include "UnrealUSDWrapper.h"
-#include "USDAssetCache2.h"
 #include "USDAssetUserData.h"
 #include "USDAttributeUtils.h"
 #include "USDConversionUtils.h"
@@ -11,6 +10,7 @@
 #include "USDLayerUtils.h"
 #include "USDLightConversion.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDShadeConversion.h"
 #include "USDSkeletalDataConversion.h"
 #include "USDTypesConversion.h"
@@ -4570,7 +4570,7 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 							if (SparseVolumeTexture->GetNumFrames() > 1)
 							{
 								if (UUsdSparseVolumeTextureAssetUserData* UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(
-										UsdUtils::GetAssetUserData(SparseVolumeTexture)
+										UsdUnreal::ObjectUtils::GetAssetUserData(SparseVolumeTexture)
 									))
 								{
 									SourceOpenVDBAssetPrimPaths = &UserData->SourceOpenVDBAssetPrimPaths;

@@ -6,6 +6,7 @@
 #include "USDAssetUserData.h"
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
+#include "USDObjectUtils.h"
 #include "USDStageImporter.h"
 #include "USDStageImporterModule.h"
 #include "USDStageImportOptions.h"
@@ -115,7 +116,7 @@ void UUsdStageAssetImportFactory::CleanUp()
 
 bool UUsdStageAssetImportFactory::CanReimport(UObject* Obj, TArray<FString>& OutFilenames)
 {
-	if (UAssetImportData* ImportData = UsdUtils::GetAssetImportData(Obj))
+	if (UAssetImportData* ImportData = UsdUnreal::ObjectUtils::GetAssetImportData(Obj))
 	{
 		const FString FileName = ImportData->GetFirstFilename();
 		const FString FileExtension = FPaths::GetExtension(FileName);
@@ -143,7 +144,7 @@ void UUsdStageAssetImportFactory::SetReimportPaths(UObject* Obj, const TArray<FS
 		return;
 	}
 
-	if (UUsdAssetImportData* ImportData = UsdUtils::GetAssetImportData(Obj))
+	if (UUsdAssetImportData* ImportData = UsdUnreal::ObjectUtils::GetAssetImportData(Obj))
 	{
 		ImportData->UpdateFilenameOnly(NewReimportPaths[0]);
 	}
@@ -172,7 +173,7 @@ EReimportResult::Type UUsdStageAssetImportFactory::Reimport(UObject* Obj)
 		}
 	}
 
-	if (UUsdAssetImportData* ImportData = UsdUtils::GetAssetImportData(Obj))
+	if (UUsdAssetImportData* ImportData = UsdUnreal::ObjectUtils::GetAssetImportData(Obj))
 	{
 		ReimportFilePath = ImportData->GetFirstFilename();
 		ReimportOptions = ImportData->ImportOptions;

@@ -6,6 +6,7 @@
 
 #include "MeshTranslationImpl.h"
 #include "UnrealUSDWrapper.h"
+#include "USDAssetCache3.h"
 #include "USDAssetUserData.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
@@ -13,7 +14,9 @@
 #include "USDGeomMeshConversion.h"
 #include "USDInfoCache.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
+#include "USDTranslatorUtils.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
@@ -251,7 +254,7 @@ namespace UsdGeomMeshTranslatorImpl
 		const pxr::UsdPrim& UsdPrim,
 		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
 		UStaticMesh& StaticMesh,
-		UUsdAssetCache2& AssetCache,
+		UUsdAssetCache3& AssetCache,
 		FUsdInfoCache* InfoCache,
 		float Time,
 		EObjectFlags Flags,
@@ -708,26 +711,23 @@ namespace UsdGeomMeshTranslatorImpl
 
 		FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bReuseIdenticalAssets) + AllLODHash.ToString();
 
-		if (Context.AssetCache)
+		FString DesiredName = FPaths::GetBaseFilename(MeshName);
+
+		// If we're just opening the stage we'll ignore the LOD variant sets and just parse the first LOD mesh as a regular Mesh prim,
+		// which would have produced a static mesh just named something like "LOD0" or "LOD1". This should provide a more descriptive name,
+		// like "Cube_LOD0" instead
+		if (!Context.bAllowInterpretingLODs && UsdUtils::IsGeomMeshALOD(Prim))
 		{
-			StaticMesh = Cast<UStaticMesh>(Context.AssetCache->GetCachedAsset(PrefixedAssetHash));
+			DesiredName = FPaths::GetBaseFilename(FPaths::GetPath(MeshName)) + TEXT("_") + DesiredName;
 		}
 
-		if (!StaticMesh && bHasValidMeshDescription)
+		if (Context.UsdAssetCache)
 		{
-			bOutIsNew = true;
+			StaticMesh = Context.UsdAssetCache->GetOrCreateCachedAsset<UStaticMesh>(PrefixedAssetHash, DesiredName, Context.ObjectFlags, &bOutIsNew);
+		}
 
-			FName AssetName = MakeUniqueObjectName(
-				GetTransientPackage(),
-				UStaticMesh::StaticClass(),
-				*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(MeshName))
-			);
-			StaticMesh = NewObject<UStaticMesh>(
-				GetTransientPackage(),
-				AssetName,
-				Context.ObjectFlags | EObjectFlags::RF_Public | EObjectFlags::RF_Transient
-			);
-
+		if (StaticMesh && bHasValidMeshDescription && bOutIsNew)
+		{
 #if WITH_EDITOR
 			for (int32 LODIndex = 0; LODIndex < LODIndexToMeshDescription.Num(); ++LODIndex)
 			{
@@ -754,16 +754,6 @@ namespace UsdGeomMeshTranslatorImpl
 #endif	  // WITH_EDITOR
 
 			StaticMesh->SetLightingGuid();
-
-			if (Context.AssetCache)
-			{
-				Context.AssetCache->CacheAsset(PrefixedAssetHash, StaticMesh);
-			}
-		}
-		else
-		{
-			// FPlatformMisc::LowLevelOutputDebugStringf( TEXT("Mesh found in cache %s\n"), *StaticMesh->GetName() );
-			bOutIsNew = false;
 		}
 
 		return StaticMesh;
@@ -851,7 +841,8 @@ namespace UsdGeomMeshTranslatorImpl
 			// Fetch the MeshDescription from the imported LODIndexToMeshDescription as StaticMesh.GetMeshDescription is editor-only
 			StaticMesh.GetRenderData()->Bounds = LODIndexToMeshDescription[0].GetBounds();
 			StaticMesh.CalculateExtendedBounds();
-#endif											   // WITH_EDITOR
+
+#endif	  // WITH_EDITOR
 		}
 	}
 }	 // namespace UsdGeomMeshTranslatorImpl
@@ -1711,13 +1702,7 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 				   Context->InfoCache->LinkAssetToPrim(TargetPath, StaticMesh);
 			   }
 
-#if WITH_EDITOR
-			   StaticMesh->NaniteSettings.bEnabled = bShouldEnableNanite;
-			   StaticMesh->NaniteSettings.NormalPrecision = GNaniteSettingsNormalPrecision;
-			   StaticMesh->NaniteSettings.TangentPrecision = GNaniteSettingsTangentPrecision;
-#endif	  // WITH_EDITOR
-
-			   if (UUsdMeshAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(StaticMesh))
+			   if (UUsdMeshAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(StaticMesh))
 			   {
 				   UserData->PrimvarToUVIndex = LODIndexToMaterialInfo[0].PrimvarToUVIndex;	   // We use the same primvar mapping for all LODs
 				   UserData->PrimPaths.AddUnique(PrimPathString);
@@ -1756,11 +1741,17 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 			   // components
 			   if (bIsNew)
 			   {
+#if WITH_EDITOR
+				   StaticMesh->NaniteSettings.bEnabled = bShouldEnableNanite;
+				   StaticMesh->NaniteSettings.NormalPrecision = GNaniteSettingsNormalPrecision;
+				   StaticMesh->NaniteSettings.TangentPrecision = GNaniteSettingsTangentPrecision;
+#endif	  // WITH_EDITOR
+
 				   UsdGeomMeshTranslatorImpl::ProcessStaticMeshMaterials(
 					   GetPrim(),
 					   LODIndexToMaterialInfo,
 					   *StaticMesh,
-					   *Context->AssetCache.Get(),
+					   *Context->UsdAssetCache.Get(),
 					   Context->InfoCache.Get(),
 					   Context->Time,
 					   Context->ObjectFlags,
@@ -1781,6 +1772,8 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 			   else
 			   {
 				   // Setup collision on existing mesh in case the collision settings have changed
+				   // TODO: This is recomputing collision and dirtying the StaticMesh every time, even if the mesh
+				   // is reused from the AssetCache. Maybe we can do that only when collision settings actually change?
 				   UE::UsdCollision::Private::SetupSimpleCollision(GetPrim(), *StaticMesh);
 			   }
 		   }
@@ -1854,31 +1847,14 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 			// Build failed, abandon mesh
 			if (!bSuccess)
 			{
-				Context->InfoCache->RemoveAllAssetPrimLinks(StaticMesh);
-
-				FString Hash = Context->AssetCache->GetHashForAsset(StaticMesh);
-				if (!Hash.IsEmpty())
-				{
-					Context->AssetCache->RemoveAssetReference(StaticMesh);
-					UObject* RemovedAsset = Context->AssetCache->RemoveAsset(Hash);
-					if (ensure(RemovedAsset))
-					{
-						const TCHAR* NewName = nullptr;
-						UObject* NewOuter = GetTransientPackage();
-						RemovedAsset->Rename(NewName, NewOuter);
-
-						StaticMesh = nullptr;
-
-						UE_LOG(
-							LogUsd,
-							Warning,
-							TEXT("Discarding StaticMesh generated for prim '%s' as it didn't produce any valid RenderData (likely all triangles "
-								 "were degenerate)"),
-							*PrimPath.GetString()
-						);
-					}
-				}
-
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Discarding StaticMesh generated for prim '%s' as it didn't produce any valid RenderData (likely all triangles "
+						 "were degenerate)"),
+					*PrimPath.GetString()
+				);
+				UsdUnreal::TranslatorUtils::AbandonFailedAsset(StaticMesh, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
 				return false;
 			}
 

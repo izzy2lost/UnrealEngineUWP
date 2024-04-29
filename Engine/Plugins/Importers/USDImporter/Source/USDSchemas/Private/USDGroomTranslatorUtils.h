@@ -17,7 +17,7 @@ PXR_NAMESPACE_CLOSE_SCOPE
 
 class FUsdInfoCache;
 class USceneComponent;
-class UUsdAssetCache2;
+class UUsdAssetCache3;
 
 namespace UE
 {
@@ -29,7 +29,7 @@ namespace UsdGroomTranslatorUtils
 	// Create the groom binding asset for the given Prim with GroomBindingAPI and cache it in the AssetCache
 	void CreateGroomBindingAsset(
 		const pxr::UsdPrim& Prim,
-		UUsdAssetCache2& AssetCache,
+		UUsdAssetCache3& AssetCache,
 		FUsdInfoCache& InfoCache,
 		EObjectFlags ObjectFlags,
 		bool bReuseIdenticalAssets

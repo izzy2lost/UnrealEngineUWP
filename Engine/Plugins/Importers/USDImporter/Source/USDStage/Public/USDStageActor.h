@@ -17,8 +17,8 @@
 class FUsdInfoCache;
 class ISequencer;
 class ULevelSequence;
-class UUsdAssetCache;
 class UUsdAssetCache2;
+class UUsdAssetCache3;
 class UUsdPrimTwin;
 class UUsdTransactor;
 enum class EMovieSceneDataChangeType;
@@ -53,6 +53,9 @@ public:
 	EUsdStageState StageState;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD")
+	TObjectPtr<UUsdAssetCache3> AssetCache;
+
+	UPROPERTY()
 	TObjectPtr<UUsdAssetCache2> UsdAssetCache;
 
 	// These properties are configs so that spawned actors read them from the CDO when spawned.
@@ -154,8 +157,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetStageState(EUsdStageState NewStageState);
 
+	UE_DEPRECATED(5.5, "The UUsdAssetCache2 class has been deprecated. Use UUsdAssetCache3 and call SetUsdAssetCache instead")
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetAssetCache(UUsdAssetCache2* NewCache);
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetUsdAssetCache(UUsdAssetCache3* NewCache);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetInitialLoadSet(EUsdInitialLoadSet NewLoadSet);
@@ -410,13 +417,6 @@ protected:
 
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<UObject>, FString> ObjectsToWatch;
-
-	UE_DEPRECATED(5.2, "Use the new AssetCache property instead, that uses UUsdAssetCache2 objects")
-	UPROPERTY(
-		AdvancedDisplay,
-		meta = (DeprecatedProperty, DeprecationMessage = "Use the new AssetCache property instead, that uses UUsdAssetCache2 objects")
-	)
-	TObjectPtr<UUsdAssetCache> AssetCache;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUsdTransactor> Transactor;

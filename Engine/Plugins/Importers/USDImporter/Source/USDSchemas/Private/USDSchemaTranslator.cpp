@@ -141,7 +141,15 @@ int32 FUsdSchemaTranslatorRegistry::GetExternalSchemaTranslatorCount()
 
 FUsdSchemaTranslationContext::FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache2& InAssetCache)
 	: Stage(InStage)
-	, AssetCache(&InAssetCache)
+	, UsdAssetCache(NewObject<UUsdAssetCache3>())
+{
+	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
+	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUniversalRenderContext();
+}
+
+FUsdSchemaTranslationContext::FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache3& InAssetCache)
+	: Stage(InStage)
+	, UsdAssetCache(&InAssetCache)
 {
 	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUniversalRenderContext();

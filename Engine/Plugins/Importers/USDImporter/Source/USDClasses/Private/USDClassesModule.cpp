@@ -2,13 +2,17 @@
 
 #include "USDClassesModule.h"
 
+#include "USDAssetCache3.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDProjectSettings.h"
 
 #include "AnalyticsEventAttribute.h"
 #include "Animation/AnimBlueprint.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/Skeleton.h"
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
@@ -16,6 +20,7 @@
 #include "Engine/Texture.h"
 #include "Engine/Texture2D.h"
 #include "EngineAnalytics.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "GeometryCache.h"
 #include "GroomAsset.h"
 #include "GroomBindingAsset.h"
@@ -25,11 +30,13 @@
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
+#include "Modules/ModuleManager.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/JsonSerializer.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
@@ -37,12 +44,16 @@
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #if WITH_EDITOR
-#include "Editor/MaterialEditor/Public/MaterialEditingLibrary.h"
+#include "AssetToolsModule.h"
+#include "MaterialEditingLibrary.h"
 #endif	  // WITH_EDITOR
 
 DEFINE_LOG_CATEGORY(LogUsd);
+
+#define LOCTEXT_NAMESPACE "USDClassesModule"
 
 namespace UE::USDClasses::Private
 {
@@ -440,17 +451,140 @@ TSet<UObject*> IUsdClassesModule::GetAssetDependencies(UObject* Asset)
 	return Result;
 }
 
-FString IUsdClassesModule::SanitizeObjectName(const FString& InObjectName)
+UUsdAssetCache3* IUsdClassesModule::GetAssetCacheForProject()
 {
-	FString SanitizedText = InObjectName;
-	const TCHAR* InvalidChar = INVALID_OBJECTNAME_CHARACTERS;
-	while (*InvalidChar)
+	// First check if we have any valid AssetCache on the project settings
+	UUsdProjectSettings* ProjectSettings = GetMutableDefault<UUsdProjectSettings>();
+	if (ProjectSettings)
 	{
-		SanitizedText.ReplaceCharInline(*InvalidChar, TCHAR('_'), ESearchCase::CaseSensitive);
-		++InvalidChar;
+		// Check if the package exists on disk first to try and avoid some ugly warnings if we try calling TryLoad with a broken path
+		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+		FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(ProjectSettings->DefaultAssetCache);
+		if (AssetData.IsValid())
+		{
+			if (UUsdAssetCache3* DefaultCache = Cast<UUsdAssetCache3>(ProjectSettings->DefaultAssetCache.TryLoad()))
+			{
+				return DefaultCache;
+			}
+		}
 	}
 
-	return SanitizedText;
+	// Don't record the creation of the asset cache itself into the transaction buffer (and the setting of it on the project settings)
+	// so that it remains if we undo. In general I don't think we ever want to "undo the creation of assets" anyway, but here
+	// it also helps prevent this issue: Get stage actor without asset cache -> Open stage (and get a new
+	// asset cache that we create right here) -> Undo -> Open stage again.
+	// That would give the stage actor a brand new asset cache without the property values (including the tracked assets)
+	// the previous one had, which could lead us to create duplicates of every asset...
+	TGuardValue<ITransaction*> SuppressTransaction{GUndo, nullptr};
+
+	UUsdAssetCache3* DefaultCache = nullptr;
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		// Nothing is set on the project settings yet, so let's create a brand new asset cache.
+		// First let's find a unique package name
+		FString DesiredPath = TEXT("/Game/UsdAssetCache");
+		FString Suffix = TEXT("");
+		FString UniquePackageName;
+		FString UniqueAssetName;
+		const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+		AssetToolsModule.Get().CreateUniqueAssetName(DesiredPath, Suffix, UniquePackageName, UniqueAssetName);
+		if (UniquePackageName.EndsWith(UniqueAssetName))
+		{
+			UniquePackageName = UniquePackageName.LeftChop(UniqueAssetName.Len() + 1);
+		}
+
+		// Create the new asset cache
+		UFactory* Factory = nullptr;
+		DefaultCache = Cast<UUsdAssetCache3>(
+			AssetToolsModule.Get().CreateAsset(*UniqueAssetName, *UniquePackageName, UUsdAssetCache3::StaticClass(), Factory)
+		);
+	}
+	else
+#endif	  // WITH_EDITOR
+	{
+		DefaultCache = NewObject<UUsdAssetCache3>();
+	}
+
+	if (DefaultCache && ProjectSettings && GIsEditor)
+	{
+		const FText Text = LOCTEXT("NewAssetCacheToastText", "USD Asset Cache");
+
+		const FText SubText = FText::Format(
+			LOCTEXT(
+				"NewAssetCacheToastSubText",
+				"A new default UsdAssetCache asset was created for the project at path '{0}', but it can be changed in the project settings.\n\nThe UsdAssetCache is used by UsdStageActors in order to share and reuse assets generated from USD."
+			),
+			FText::FromString(DefaultCache->GetPathName())
+		);
+
+		UE_LOG(LogUsd, Log, TEXT("%s"), *SubText.ToString().Replace(TEXT("\n\n"), TEXT(" ")));
+
+		const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
+		if (Settings && Settings->bShowCreateDefaultAssetCacheDialog)
+		{
+			static TWeakPtr<SNotificationItem> Notification;
+
+			FNotificationInfo Toast(Text);
+			Toast.SubText = SubText;
+			Toast.Image = FCoreStyle::Get().GetBrush(TEXT("MessageLog.Warning"));
+			Toast.CheckBoxText = LOCTEXT("DontAskAgain", "Don't prompt again");
+			Toast.bUseLargeFont = false;
+			Toast.bFireAndForget = false;
+			Toast.FadeOutDuration = 0.0f;
+			Toast.ExpireDuration = 0.0f;
+			Toast.bUseThrobber = false;
+			Toast.bUseSuccessFailIcons = false;
+			Toast.ButtonDetails.Emplace(
+				LOCTEXT("OverridenOpinionMessageOk", "Ok"),
+				FText::GetEmpty(),
+				FSimpleDelegate::CreateLambda(
+					[]()
+					{
+						if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+						{
+							PinnedNotification->SetCompletionState(SNotificationItem::CS_Success);
+							PinnedNotification->ExpireAndFadeout();
+						}
+					}
+				)
+			);
+			// This is flipped because the default checkbox message is "Don't prompt again"
+			Toast.CheckBoxState = Settings->bShowCreateDefaultAssetCacheDialog ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+			Toast.CheckBoxStateChanged = FOnCheckStateChanged::CreateStatic(
+				[](ECheckBoxState NewState)
+				{
+					if (UUsdProjectSettings* Settings = GetMutableDefault<UUsdProjectSettings>())
+					{
+						// This is flipped because the default checkbox message is "Don't prompt again"
+						Settings->bShowCreateDefaultAssetCacheDialog = NewState == ECheckBoxState::Unchecked;
+						Settings->SaveConfig();
+					}
+				}
+			);
+
+			// Only show one at a time
+			if (!Notification.IsValid())
+			{
+				Notification = FSlateNotificationManager::Get().AddNotification(Toast);
+			}
+
+			if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+			{
+				PinnedNotification->SetCompletionState(SNotificationItem::CS_Pending);
+			}
+		}
+
+		ProjectSettings->DefaultAssetCache = DefaultCache;
+		ProjectSettings->SaveConfig();
+	}
+
+	return DefaultCache;
+}
+
+FString IUsdClassesModule::SanitizeObjectName(const FString& InObjectName)
+{
+	return UsdUnreal::ObjectUtils::SanitizeObjectName(InObjectName);
 }
 
 FString IUsdClassesModule::FDisplayColorMaterial::ToString()
@@ -520,9 +654,9 @@ UMaterialInstanceDynamic* IUsdClassesModule::CreateDisplayColorMaterialInstanceD
 			GetTransientPackage(),
 			UMaterialInstanceConstant::StaticClass(),
 			*FString::Printf(
-				TEXT("DisplayColor_%s_%s"),
-				DisplayColorDescription.bHasOpacity ? TEXT("Opacity") : TEXT("NoOpacity"),
-				DisplayColorDescription.bIsDoubleSided ? TEXT("DoubleSided") : TEXT("SingleSided")
+				TEXT("DisplayColor%s%s"),
+				DisplayColorDescription.bHasOpacity ? TEXT("_Translucent") : TEXT(""),
+				DisplayColorDescription.bIsDoubleSided ? TEXT("_TwoSided") : TEXT("")
 			)
 		);
 
@@ -550,9 +684,9 @@ UMaterialInstanceConstant* IUsdClassesModule::CreateDisplayColorMaterialInstance
 			GetTransientPackage(),
 			UMaterialInstanceConstant::StaticClass(),
 			*FString::Printf(
-				TEXT("DisplayColor_%s_%s"),
-				DisplayColorDescription.bHasOpacity ? TEXT("Opacity") : TEXT("NoOpacity"),
-				DisplayColorDescription.bIsDoubleSided ? TEXT("DoubleSided") : TEXT("SingleSided")
+				TEXT("DisplayColor%s%s"),
+				DisplayColorDescription.bHasOpacity ? TEXT("_Translucent") : TEXT(""),
+				DisplayColorDescription.bIsDoubleSided ? TEXT("_TwoSided") : TEXT("")
 			)
 		);
 
@@ -602,5 +736,7 @@ private:
 	FDelegateHandle PackageMarkedDirtyEventHandle;
 	FDelegateHandle PackageSavedWithContextEventHandle;
 };
+
+#undef LOCTEXT_NAMESPACE
 
 IMPLEMENT_MODULE(FUsdClassesModule, USDClasses);

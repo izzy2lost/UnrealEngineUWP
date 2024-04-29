@@ -3,7 +3,7 @@
 #include "USDStageViewModel.h"
 
 #include "UnrealUSDWrapper.h"
-#include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
@@ -314,6 +314,8 @@ void FUsdStageViewModel::ImportStage(const TCHAR* TargetContentFolder, UUsdStage
 		FUsdStageImportContext ImportContext;
 
 		// Preload some settings according to USDStage options. These will overwrite whatever is loaded from config
+		ImportContext.ImportOptions->ExistingAssetCache = StageActor->AssetCache;
+		ImportContext.ImportOptions->bUseExistingAssetCache = true;
 		ImportContext.ImportOptions->PurposesToImport = StageActor->PurposesToLoad;
 		ImportContext.ImportOptions->RenderContextToImport = StageActor->RenderContext;
 		ImportContext.ImportOptions->MaterialPurpose = StageActor->MaterialPurpose;
@@ -355,20 +357,15 @@ void FUsdStageViewModel::ImportStage(const TCHAR* TargetContentFolder, UUsdStage
 				ImportContext.ImportOptions = Options;
 			}
 
-			// Let the importer reuse our assets, but force it to spawn new actors and components always
-			// This allows a different setting for asset/component collapsing, and doesn't require modifying the PrimTwins
-			ImportContext.AssetCache = StageActor->UsdAssetCache;
+			// Pick the asset cache that the user potentially changed on the import options dialog. The USDStageImporter will sort itself out
+			// if that happens to be nullptr/invalid
+			ImportContext.UsdAssetCache = ImportContext.ImportOptions->bUseExistingAssetCache
+											  ? Cast<UUsdAssetCache3>(ImportContext.ImportOptions->ExistingAssetCache.TryLoad())
+											  : nullptr;
 			ImportContext.BBoxCache = StageActor->GetBBoxCache();
 
 			ImportContext.TargetSceneActorAttachParent = StageActor->GetRootComponent()->GetAttachParent();
 			ImportContext.TargetSceneActorTargetTransform = StageActor->GetActorTransform();
-
-			// Preemptively remove the stage actor as a user of the assets on the cache so that the stage importer
-			// can just take the assets from the cache directly. Otherwise it will be forced to duplicate them
-			if (ImportContext.AssetCache)
-			{
-				ImportContext.AssetCache->RemoveAllAssetReferences(StageActor);
-			}
 
 			UUsdStageImporter* USDImporter = IUsdStageImporterModule::Get().GetImporter();
 			USDImporter->ImportFromFile(ImportContext);

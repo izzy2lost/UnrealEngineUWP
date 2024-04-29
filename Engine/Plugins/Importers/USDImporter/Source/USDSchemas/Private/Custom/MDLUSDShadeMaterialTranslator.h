@@ -9,7 +9,7 @@
 #if USE_USD_SDK && WITH_EDITOR
 
 #include "USDIncludesStart.h"
-	#include "pxr/pxr.h"
+#include "pxr/pxr.h"
 #include "USDIncludesEnd.h"
 
 class FMdlUsdShadeMaterialTranslator : public FMaterialXUsdShadeMaterialTranslator
@@ -23,7 +23,6 @@ public:
 	using FMaterialXUsdShadeMaterialTranslator::FMaterialXUsdShadeMaterialTranslator;
 
 	virtual void CreateAssets() override;
-
 };
 
-#endif // #if USE_USD_SDK && WITH_EDITOR
+#endif	  // #if USE_USD_SDK && WITH_EDITOR

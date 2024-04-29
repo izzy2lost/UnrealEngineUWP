@@ -11,6 +11,7 @@
 #include "USDGeomMeshConversion.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDProjectSettings.h"
 #include "USDSkeletalDataConversion.h"
 #include "USDTypesConversion.h"
@@ -1536,7 +1537,7 @@ FString UsdUtils::GetAssetPathFromPrimPath(const FString& RootContentPath, const
 	ModelApi.GetAssetName(&RawAssetName);
 
 	FString AssetName = UsdToUnreal::ConvertString(RawAssetName);
-	FString MeshName = IUsdClassesModule::SanitizeObjectName(RawPrimName);
+	FString MeshName = UsdUnreal::ObjectUtils::SanitizeObjectName(RawPrimName);
 
 	FString USDPath = UsdToUnreal::ConvertString(Prim.GetPrimPath().GetString().c_str());
 
@@ -1646,6 +1647,8 @@ double UsdUtils::GetEarliestTimeCode()
 #endif
 }
 
+// We can't just redirect the functions to USDObjectUtils.h because of the module dependencies
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UUsdAssetImportData* UsdUtils::GetAssetImportData(UObject* Asset)
 {
 	UUsdAssetImportData* ImportData = nullptr;
@@ -1858,6 +1861,7 @@ bool UsdUtils::SetAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserDat
 	AssetUserDataInterface->AddAssetUserData(AssetUserData);
 	return true;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if USE_USD_SDK
 FString UsdUtils::GetAssetHashPrefix(const pxr::UsdPrim& PrimForAsset, bool bReuseIdenticalAssets)
@@ -2254,49 +2258,12 @@ bool UsdUtils::RenamePrim(UE::FUsdPrim& Prim, const TCHAR* NewPrimName)
 
 bool UsdUtils::RemoveNumberedSuffix(FString& Prefix)
 {
-	if (Prefix.IsNumeric())
-	{
-		return false;
-	}
-
-	bool bRemoved = false;
-
-	FString LastChar = Prefix.Right(1);
-	while ((LastChar.IsNumeric() || LastChar == TEXT("_")) && Prefix.Len() > 1)
-	{
-		Prefix.LeftChopInline(1, EAllowShrinking::No);
-		LastChar = Prefix.Right(1);
-
-		bRemoved = true;
-	}
-	Prefix.Shrink();
-
-	return bRemoved;
+	return UsdUnreal::ObjectUtils::RemoveNumberedSuffix(Prefix);
 }
 
 FString UsdUtils::GetUniqueName(FString Name, const TSet<FString>& UsedNames)
 {
-	if (!UsedNames.Contains(Name))
-	{
-		return Name;
-	}
-
-	const bool bRemoved = RemoveNumberedSuffix(Name);
-
-	// Its possible that removing the suffix made it into a unique name already
-	if (bRemoved && !UsedNames.Contains(Name))
-	{
-		return Name;
-	}
-
-	int32 Suffix = 0;
-	FString Result;
-	do
-	{
-		Result = FString::Printf(TEXT("%s_%d"), *Name, Suffix++);
-	} while (UsedNames.Contains(Result));
-
-	return Result;
+	return UsdUnreal::ObjectUtils::GetUniqueName(Name, UsedNames);
 }
 
 #if USE_USD_SDK
@@ -2315,7 +2282,7 @@ FString UsdUtils::GetValidChildName(FString InName, const pxr::UsdPrim& ParentPr
 		UsedNames.Add(UsdToUnreal::ConvertToken(Child.GetName()));
 	}
 
-	return GetUniqueName(SanitizeUsdIdentifier(*InName), UsedNames);
+	return UsdUnreal::ObjectUtils::GetUniqueName(SanitizeUsdIdentifier(*InName), UsedNames);
 }
 #endif	  // USE_USD_SDK
 
@@ -2728,7 +2695,7 @@ bool UsdUtils::CopyPrims(const TArray<UE::FUsdPrim>& Prims)
 		// which could potentially yield stale results until USD actually emits the notices about these prims being
 		// added.
 		FString PrimName = Prim.GetName().ToString();
-		FString UniqueName = GetUniqueName(SanitizeUsdIdentifier(*PrimName), UsedNames);
+		FString UniqueName = UsdUnreal::ObjectUtils::GetUniqueName(SanitizeUsdIdentifier(*PrimName), UsedNames);
 		UsedNames.Add(UniqueName);
 
 		const bool bSuccess = pxr::SdfCopySpec(
@@ -2813,7 +2780,7 @@ TArray<UE::FSdfPath> UsdUtils::PastePrims(const UE::FUsdPrim& ParentPrim)
 		}
 
 		const FString OriginalName = UsdToUnreal::ConvertToken(ClipboardPrim.GetName());
-		FString ValidName = GetUniqueName(SanitizeUsdIdentifier(*OriginalName), UsedNames);
+		FString ValidName = UsdUnreal::ObjectUtils::GetUniqueName(SanitizeUsdIdentifier(*OriginalName), UsedNames);
 		UsedNames.Add(ValidName);
 
 		pxr::SdfPath TargetSpecPath = UsdParentPrim.GetPath().AppendChild(UnrealToUsd::ConvertToken(*ValidName).Get());

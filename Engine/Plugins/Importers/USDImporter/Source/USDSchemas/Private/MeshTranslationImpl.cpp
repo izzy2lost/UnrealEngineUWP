@@ -2,7 +2,7 @@
 
 #include "MeshTranslationImpl.h"
 
-#include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 #include "USDAssetUserData.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
@@ -10,6 +10,7 @@
 #include "USDInfoCache.h"
 #include "USDLog.h"
 #include "USDMemory.h"
+#include "USDObjectUtils.h"
 #include "USDProjectSettings.h"
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
@@ -45,7 +46,11 @@ static_assert(
 
 namespace UE::MeshTranslationImplInternal::Private
 {
-	UMaterialInterface* CreateTwoSidedVersionOfMaterial(UMaterialInterface* OneSidedMat)
+	UMaterialInterface* GetOrCreateTwoSidedVersionOfMaterial(
+		UMaterialInterface* OneSidedMat,
+		const FString& PrefixedTwoSidedHash,
+		UUsdAssetCache3& AssetCache
+	)
 	{
 		if (!OneSidedMat)
 		{
@@ -65,13 +70,10 @@ namespace UE::MeshTranslationImplInternal::Private
 			ReferenceMaterialTwoSided = MeshTranslationImpl::GetTwoSidedVersionOfReferencePreviewSurfaceMaterial(ReferenceMaterial);
 		}
 
-		const FName NewInstanceName = MakeUniqueObjectName(
-			GetTransientPackage(),
-			UMaterialInstance::StaticClass(),
-			*(OneSidedMat->GetName() + UnrealIdentifiers::TwoSidedMaterialSuffix)
-		);
+		const FString& DesiredMaterialName = OneSidedMat->GetName() + UnrealIdentifiers::TwoSidedMaterialSuffix;
+		const EObjectFlags DesiredFlags = OneSidedMat->GetFlags();
 
-		UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(OneSidedMat);
+		UMaterialInstance* MI = Cast<UMaterialInstance>(OneSidedMat);
 #if WITH_EDITOR
 		UMaterialInstanceConstant* MIC = Cast<UMaterialInstanceConstant>(OneSidedMat);
 
@@ -79,14 +81,19 @@ namespace UE::MeshTranslationImplInternal::Private
 		// Just create an instance of the TwoSided version of the same reference material and copy parameter values.
 		if (GIsEditor && MIC && ReferenceMaterialTwoSided)
 		{
-			UMaterialInstanceConstant* TwoSidedMIC = NewObject<UMaterialInstanceConstant>(
-				GetTransientPackage(),
-				NewInstanceName,
-				OneSidedMat->GetFlags()
+			bool bCreatedAsset = false;
+			UMaterialInstanceConstant* TwoSidedMIC = AssetCache.GetOrCreateCachedAsset<UMaterialInstanceConstant>(
+				PrefixedTwoSidedHash,
+				DesiredMaterialName,
+				DesiredFlags,
+				&bCreatedAsset
 			);
 
-			TwoSidedMIC->SetParentEditorOnly(ReferenceMaterialTwoSided);
-			TwoSidedMIC->CopyMaterialUniformParametersEditorOnly(OneSidedMat);
+			if (bCreatedAsset && TwoSidedMIC)
+			{
+				TwoSidedMIC->SetParentEditorOnly(ReferenceMaterialTwoSided);
+				TwoSidedMIC->CopyMaterialUniformParametersEditorOnly(OneSidedMat);
+			}
 
 			TwoSidedMat = TwoSidedMIC;
 		}
@@ -95,18 +102,23 @@ namespace UE::MeshTranslationImplInternal::Private
 		// Create a new material instance of it and set the override to two-sided.
 		else if (GIsEditor)
 		{
-			UMaterialInstanceConstant* TwoSidedMIC = NewObject<UMaterialInstanceConstant>(
-				GetTransientPackage(),
-				NewInstanceName,
-				OneSidedMat->GetFlags()
+			bool bCreatedAsset = false;
+			UMaterialInstanceConstant* TwoSidedMIC = AssetCache.GetOrCreateCachedAsset<UMaterialInstanceConstant>(
+				PrefixedTwoSidedHash,
+				DesiredMaterialName,
+				DesiredFlags,
+				&bCreatedAsset
 			);
 
-			TwoSidedMIC->SetParentEditorOnly(OneSidedMat);
-			TwoSidedMIC->BasePropertyOverrides.bOverride_TwoSided = true;
-			TwoSidedMIC->BasePropertyOverrides.TwoSided = true;
+			if (bCreatedAsset && TwoSidedMIC)
+			{
+				TwoSidedMIC->SetParentEditorOnly(OneSidedMat);
+				TwoSidedMIC->BasePropertyOverrides.bOverride_TwoSided = true;
+				TwoSidedMIC->BasePropertyOverrides.TwoSided = true;
 
-			FMaterialUpdateContext UpdateContext(FMaterialUpdateContext::EOptions::Default, GMaxRHIShaderPlatform);
-			UpdateContext.AddMaterialInstance(TwoSidedMIC);
+				FMaterialUpdateContext UpdateContext(FMaterialUpdateContext::EOptions::Default, GMaxRHIShaderPlatform);
+				UpdateContext.AddMaterialInstance(TwoSidedMIC);
+			}
 
 			TwoSidedMat = TwoSidedMIC;
 		}
@@ -116,21 +128,32 @@ namespace UE::MeshTranslationImplInternal::Private
 
 			// At runtime all we can do is create another instance of our two-sided reference materials, we cannot set
 			// another override
-			if (MID && ReferenceMaterialTwoSided)
+			if (MI && ReferenceMaterialTwoSided)
 			{
-				UMaterialInstanceDynamic* TwoSidedMID = UMaterialInstanceDynamic::Create(
-					ReferenceMaterialTwoSided,
-					GetTransientPackage(),
-					NewInstanceName
+				// Note how we're requesting just a UMaterialInstance here, instead of spelling out the MID. This because
+				// if we're a runtime we may have a cooked MIC assigned to this hash, and in that case we want to use it
+				// instead of overwriting it with a MID. Our creation func will ensure we create a MID as a fallback anyway
+				bool bCreatedAsset = false;
+				UMaterialInstance* TwoSidedMI = AssetCache.GetOrCreateCustomCachedAsset<UMaterialInstance>(
+					PrefixedTwoSidedHash,
+					DesiredMaterialName,
+					DesiredFlags | RF_Transient,	// We never want MIDs to become assets in the content browser
+					[ReferenceMaterialTwoSided](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
+					{
+						UMaterialInstanceDynamic* NewMID = UMaterialInstanceDynamic::Create(ReferenceMaterialTwoSided, Outer, SanitizedName);
+						NewMID->ClearFlags(NewMID->GetFlags());
+						NewMID->SetFlags(FlagsToUse);
+						return NewMID;
+					},
+					&bCreatedAsset
 				);
-				if (!ensure(TwoSidedMID))
+
+				if (UMaterialInstanceDynamic* TwoSidedMID = Cast<UMaterialInstanceDynamic>(TwoSidedMI))
 				{
-					return nullptr;
+					TwoSidedMID->CopyParameterOverrides(MI);
 				}
 
-				TwoSidedMID->CopyParameterOverrides(MID);
-
-				TwoSidedMat = TwoSidedMID;
+				TwoSidedMat = TwoSidedMI;
 			}
 
 		return TwoSidedMat;
@@ -145,7 +168,7 @@ namespace UE::MeshTranslationImplInternal::Private
 	UMaterialInterface* CreatePrimvarCompatibleVersionOfMaterial(
 		UMaterialInterface& Material,
 		const TMap<FString, int32>& MeshPrimvarToUVIndex,
-		UUsdAssetCache2* AssetCache,
+		UUsdAssetCache3* AssetCache,
 		FUsdInfoCache* InfoCache,
 		const FString& MaterialHashPrefix,
 		bool bReuseIdenticalAssets
@@ -262,8 +285,8 @@ namespace UE::MeshTranslationImplInternal::Private
 		}
 
 		FString ExistingHash = AssetCache->GetHashForAsset(&Material);
-		const bool bMaterialBelongsToAssetCache = !ExistingHash.IsEmpty();
-		if (!bMaterialBelongsToAssetCache)
+		const bool bMaterialTrackedByAssetCache = !ExistingHash.IsEmpty();
+		if (!bMaterialTrackedByAssetCache)
 		{
 			return nullptr;
 		}
@@ -296,18 +319,47 @@ namespace UE::MeshTranslationImplInternal::Private
 		// In theory we don't even need to add the prefix here because our ExistingHash will already have the same prefix...
 		// However for consistency it's probably for the best to have both assets have the same prefix, so you can tell
 		// from the hash that they originated from the same prim
-		FString PrefixedMaterialHash = MaterialHashPrefix + Hash.ToString();
+		const FString PrefixedCompatibleHash = MaterialHashPrefix + Hash.ToString();
 
-		if (UMaterialInterface* ExistingCompatibleMaterial = Cast<UMaterialInterface>(AssetCache->GetCachedAsset(PrefixedMaterialHash)))
+		bool bCreatedNew = false;
+#if WITH_EDITOR
+		if (GIsEditor)
 		{
-			UE_LOG(
-				LogUsd,
-				Verbose,
-				TEXT("Found existing compatible Material '%s' on the asset cache with hash '%s'"),
-				*ExistingCompatibleMaterial->GetPathName(),
-				*PrefixedMaterialHash
+			UMaterialInstanceConstant* CompatibleMIC = AssetCache->GetOrCreateCachedAsset<UMaterialInstanceConstant>(
+				PrefixedCompatibleHash,
+				Material.GetName(),
+				Material.GetFlags(),
+				&bCreatedNew
 			);
-			CompatibleMaterial = ExistingCompatibleMaterial;
+
+			if (bCreatedNew)
+			{
+				CompatibleMIC->SetParentEditorOnly(&Material);
+			}
+
+			CompatibleMaterial = CompatibleMIC;
+		}
+		else
+#endif	  // WITH_EDITOR
+		{
+			// Note how we're requesting just a UMaterialInstance here, instead of spelling out the MID. This because
+			// if we're a runtime we may have a cooked MIC assigned to this hash, and in that case we want to use it
+			// instead of overwriting it with a MID. Our creation func will ensure we create a MID as a fallback anyway
+			UMaterialInstance* CompatibleMI = AssetCache->GetOrCreateCustomCachedAsset<UMaterialInstance>(
+				PrefixedCompatibleHash,
+				Material.GetName(),
+				Material.GetFlags() | RF_Transient,	   // We never want MIDs to become assets in the content browser
+				[&Material](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
+				{
+					UMaterialInstanceDynamic* NewMID = UMaterialInstanceDynamic::Create(&Material, Outer, SanitizedName);
+					NewMID->ClearFlags(NewMID->GetFlags());
+					NewMID->SetFlags(FlagsToUse);
+					return NewMID;
+				},
+				&bCreatedNew
+			);
+
+			CompatibleMaterial = CompatibleMI;
 		}
 
 		TMap<FString, int32> CompatiblePrimvarToUVIndex;
@@ -317,61 +369,31 @@ namespace UE::MeshTranslationImplInternal::Private
 			CompatiblePrimvarToUVIndex.Add(Pair);
 		}
 
-		// We have to create a brand new compatible material instance
-		bool bCreatedNew = false;
-		if (!CompatibleMaterial)
-		{
-			const FName NewInstanceName = MakeUniqueObjectName(GetTransientPackage(), UMaterialInstance::StaticClass(), Material.GetFName());
-
-			UE_LOG(
-				LogUsd,
-				Verbose,
-				TEXT("Generating compatible version of Material '%s' (Parameter to primvar: %s, primvar to UV index: %s) with hash '%s'"),
-				*Material.GetPathName(),
-				*UsdUtils::StringifyMap(MaterialAssetUserData->ParameterToPrimvar),
-				*UsdUtils::StringifyMap(CompatiblePrimvarToUVIndex),
-				*PrefixedMaterialHash
-			);
-
-#if WITH_EDITOR
-			if (GIsEditor)
-			{
-				UMaterialInstanceConstant* CompatibleMIC = NewObject<UMaterialInstanceConstant>(
-					GetTransientPackage(),
-					NewInstanceName,
-					Material.GetFlags()
-				);
-
-				CompatibleMIC->SetParentEditorOnly(&Material);
-
-				CompatibleMaterial = CompatibleMIC;
-			}
-			else
-#endif	  // WITH_EDITOR
-			{
-				UMaterialInstanceDynamic* CompatibleMID = UMaterialInstanceDynamic::Create(&Material, GetTransientPackage(), NewInstanceName);
-
-				CompatibleMaterial = CompatibleMID;
-			}
-
-			bCreatedNew = true;
-		}
-
 		// Update the AssetUserData whether we created a new material instance or reused one from the asset cache.
 		// The compatible AssetUserData should always match the original except for the different PrimvarToUVIndex
 		UUsdMaterialAssetUserData* CompatibleUserData = nullptr;
 		if (CompatibleMaterial)
 		{
-			CompatibleUserData = DuplicateObject(MaterialAssetUserData, CompatibleMaterial, TEXT("USDAssetUserData"));
+			CompatibleUserData = DuplicateObject(MaterialAssetUserData, CompatibleMaterial);
 			CompatibleUserData->PrimvarToUVIndex = CompatiblePrimvarToUVIndex;
 
-			UsdUtils::SetAssetUserData(CompatibleMaterial, CompatibleUserData);
+			UsdUnreal::ObjectUtils::SetAssetUserData(CompatibleMaterial, CompatibleUserData);
 		}
 
 		// Now that the AssetUserData is done, actually set the UV index material parameters with the target indices
 		UMaterialInstance* CompatibleInstance = Cast<UMaterialInstance>(CompatibleMaterial);
 		if (bCreatedNew && CompatibleInstance && CompatibleUserData)
 		{
+			UE_LOG(
+				LogUsd,
+				Verbose,
+				TEXT("Generated compatible version of Material '%s' (Parameter to primvar: %s, primvar to UV index: %s) with hash '%s'"),
+				*Material.GetPathName(),
+				*UsdUtils::StringifyMap(MaterialAssetUserData->ParameterToPrimvar),
+				*UsdUtils::StringifyMap(CompatiblePrimvarToUVIndex),
+				*PrefixedCompatibleHash
+			);
+
 			for (const TPair<FString, FString>& ParameterPair : CompatibleUserData->ParameterToPrimvar)
 			{
 				const FString& Parameter = ParameterPair.Key;
@@ -401,19 +423,11 @@ namespace UE::MeshTranslationImplInternal::Private
 #endif	  // WITH_EDITOR
 		}
 
-		if (CompatibleMaterial && CompatibleMaterial != &Material)
+		if (CompatibleMaterial && CompatibleMaterial != &Material && InfoCache)
 		{
-			if (bMaterialBelongsToAssetCache)
+			for (const UE::FSdfPath& Prim : InfoCache->GetPrimsForAsset(&Material))
 			{
-				AssetCache->CacheAsset(PrefixedMaterialHash, CompatibleMaterial);
-			}
-
-			if (InfoCache)
-			{
-				for (const UE::FSdfPath& Prim : InfoCache->GetPrimsForAsset(&Material))
-				{
-					InfoCache->LinkAssetToPrim(Prim, CompatibleMaterial);
-				}
+				InfoCache->LinkAssetToPrim(Prim, CompatibleMaterial);
 			}
 		}
 
@@ -424,7 +438,7 @@ namespace UE::MeshTranslationImplInternal::Private
 TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslationImpl::ResolveMaterialAssignmentInfo(
 	const pxr::UsdPrim& UsdPrim,
 	const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& AssignmentInfo,
-	UUsdAssetCache2& AssetCache,
+	UUsdAssetCache3& AssetCache,
 	FUsdInfoCache& InfoCache,
 	EObjectFlags Flags,
 	bool bReuseIdenticalAssets
@@ -462,62 +476,86 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 						Slot.MaterialSource
 					);
 
-					if (DisplayColorDesc.IsSet())
+					if (!DisplayColorDesc.IsSet())
 					{
-						FString DisplayColorHash;
-						{
-							FSHAHash Hash;
-							FSHA1 SHA1;
-							SHA1.UpdateWithString(*Slot.MaterialSource, Slot.MaterialSource.Len());
-
-							const FSoftObjectPath* ReferencePath = IUsdClassesModule::GetReferenceMaterialPath(DisplayColorDesc.GetValue());
-							if (ReferencePath)
-							{
-								FString ReferencePathString = ReferencePath->ToString();
-								SHA1.UpdateWithString(*ReferencePathString, ReferencePathString.Len());
-							}
-
-							SHA1.Final();
-							SHA1.GetHash(&Hash.Hash[0]);
-							DisplayColorHash = Hash.ToString();
-						}
-						const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + DisplayColorHash;
-
-						// Try reusing an already created DisplayColor material
-						if (UMaterialInterface* ExistingMaterial = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedHash)))
-						{
-							Material = ExistingMaterial;
-						}
-
-						// Need to create a new DisplayColor material
-						if (Material == nullptr)
-						{
-							UMaterialInstance* MaterialInstance = nullptr;
-
-							if (GIsEditor)	  // Editor, PIE => true; Standlone, packaged => false
-							{
-								MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceConstant(DisplayColorDesc.GetValue());
-							}
-							else
-							{
-								MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(DisplayColorDesc.GetValue());
-							}
-
-							if (MaterialInstance)
-							{
-								// Leave PrimPath as empty as it likely will be reused by many prims
-								UUsdAssetUserData* UserData = NewObject<UUsdAssetUserData>(MaterialInstance, TEXT("USDAssetUserData"));
-								MaterialInstance->AddAssetUserData(UserData);
-							}
-
-							// We can only cache transient assets
-							MaterialInstance->SetFlags(RF_Transient);
-
-							AssetCache.CacheAsset(PrefixedHash, MaterialInstance);
-							Material = MaterialInstance;
-						}
+						continue;
 					}
 
+					const FSoftObjectPath* ReferencePath = IUsdClassesModule::GetReferenceMaterialPath(DisplayColorDesc.GetValue());
+					if (!ReferencePath)
+					{
+						continue;
+					}
+
+					UMaterialInterface* ParentMaterial = Cast<UMaterialInterface>(ReferencePath->TryLoad());
+					if (!ParentMaterial)
+					{
+						continue;
+					}
+
+					FString DisplayColorHash;
+					{
+						FSHAHash Hash;
+						FSHA1 SHA1;
+						SHA1.UpdateWithString(*Slot.MaterialSource, Slot.MaterialSource.Len());
+
+						FString ReferencePathString = ReferencePath->ToString();
+						SHA1.UpdateWithString(*ReferencePathString, ReferencePathString.Len());
+
+						SHA1.Final();
+						SHA1.GetHash(&Hash.Hash[0]);
+						DisplayColorHash = Hash.ToString();
+					}
+					const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + DisplayColorHash;
+
+					FString DisplayColorName = FString::Printf(
+						TEXT("DisplayColor%s%s"),
+						DisplayColorDesc->bHasOpacity ? TEXT("_Translucent") : TEXT(""),
+						DisplayColorDesc->bIsDoubleSided ? TEXT("_TwoSided") : TEXT("")
+					);
+
+					bool bCreatedNew = false;
+#if WITH_EDITOR
+					if (GIsEditor)
+					{
+						UMaterialInstanceConstant* MaterialInstance = AssetCache.GetOrCreateCachedAsset<UMaterialInstanceConstant>(
+							PrefixedHash,
+							DisplayColorName,
+							Flags,
+							&bCreatedNew
+						);
+
+						if (bCreatedNew)
+						{
+							MaterialInstance->SetParentEditorOnly(ParentMaterial);
+						}
+
+						Material = MaterialInstance;
+					}
+					else
+#endif	  // WITH_EDITOR
+					{
+						// Note how we're requesting just a UMaterialInstance here, instead of spelling out the MID. This because
+						// if we're a runtime we may have a cooked MIC assigned to this hash, and in that case we want to use it
+						// instead of overwriting it with a MID. Our creation func will ensure we create a MID as a fallback anyway
+						UMaterialInstance* MaterialInstance = AssetCache.GetOrCreateCustomCachedAsset<UMaterialInstance>(
+							PrefixedHash,
+							DisplayColorName,
+							Flags | RF_Transient,	 // We never want MIDs to become assets in the content browser
+							[Material](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
+							{
+								UMaterialInstanceDynamic* NewMID = UMaterialInstanceDynamic::Create(Material, Outer, SanitizedName);
+								NewMID->ClearFlags(NewMID->GetFlags());
+								NewMID->SetFlags(FlagsToUse);
+								return NewMID;
+							},
+							&bCreatedNew
+						);
+
+						Material = MaterialInstance;
+					}
+
+					UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(Material);
 					break;
 				}
 				case UsdUtils::EPrimAssignmentType::MaterialPrim:
@@ -574,8 +612,9 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 							UE_LOG(
 								LogUsd,
 								Warning,
-								TEXT("Failed to generate a two-sided material from the material prim at path '%s' as no "
-									 "single-sided material was generated for it."),
+								TEXT(
+									"Failed to generate a two-sided material from the material prim at path '%s' as no single-sided material was generated for it."
+								),
 								*Slot.MaterialSource
 							);
 							continue;
@@ -584,26 +623,34 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 						const FString PrefixedOneSidedHash = AssetCache.GetHashForAsset(OneSidedMat);
 						const FString PrefixedTwoSidedHash = PrefixedOneSidedHash + UnrealIdentifiers::TwoSidedMaterialSuffix;
 
-						// Check if for some reason we already have a two-sided material ready due to a complex scenario
-						// related to the global cache
-						UMaterialInterface* TwoSidedMat = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedTwoSidedHash));
-						if (!TwoSidedMat)
-						{
-							TwoSidedMat = UE::MeshTranslationImplInternal::Private::CreateTwoSidedVersionOfMaterial(OneSidedMat);
-						}
+						UMaterialInterface* TwoSidedMat = UE::MeshTranslationImplInternal::Private::GetOrCreateTwoSidedVersionOfMaterial(
+							OneSidedMat,
+							PrefixedTwoSidedHash,
+							AssetCache
+						);
 
 						if (TwoSidedMat)
 						{
 							// Update AssetUserData whether we generated a new material or reused one from the asset cache
 							{
-								UUsdMaterialAssetUserData* OneSidedUserData = OneSidedMat->GetAssetUserData<UUsdMaterialAssetUserData>();
+								UUsdMaterialAssetUserData* OneSidedUserData = UsdUnreal::ObjectUtils::GetAssetUserData<UUsdMaterialAssetUserData>(
+									OneSidedMat
+								);
 								ensure(OneSidedUserData);
 
-								UUsdMaterialAssetUserData* UserData = DuplicateObject(OneSidedUserData, TwoSidedMat, TEXT("USDAssetUserData"));
-								UsdUtils::SetAssetUserData(TwoSidedMat, UserData);
+								UUsdMaterialAssetUserData*
+									TwoSidedUserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdMaterialAssetUserData>(TwoSidedMat);
+
+								// Copy stuff from OneSidedMat when it makes sense, as it may have been regenerated
+								if (OneSidedUserData && TwoSidedUserData)
+								{
+									TwoSidedUserData->ParameterToPrimvar = OneSidedUserData->ParameterToPrimvar;
+									TwoSidedUserData->PrimvarToUVIndex = OneSidedUserData->PrimvarToUVIndex;
+									TwoSidedUserData->StageIdentifierToMetadata = OneSidedUserData->StageIdentifierToMetadata;
+									TwoSidedUserData->PrimPaths = OneSidedUserData->PrimPaths;
+								}
 							}
 
-							TwoSidedMat->SetFlags(RF_Transient);
 							Material = TwoSidedMat;
 							PrefixedMaterialHash = PrefixedTwoSidedHash;
 						}
@@ -612,8 +659,9 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 							UE_LOG(
 								LogUsd,
 								Warning,
-								TEXT("Failed to generate a two-sided material from the material prim at path '%s'. Falling "
-									 "back to using the single-sided material '%s' instead."),
+								TEXT(
+									"Failed to generate a two-sided material from the material prim at path '%s'. Falling back to using the single-sided material '%s' instead."
+								),
 								*Slot.MaterialSource,
 								*OneSidedMat->GetPathName()
 							);
@@ -624,9 +672,9 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 
 					if (Material)
 					{
-						// Cache the material to "ping it" as active, but also register two sided materials for the
-						// first time
-						AssetCache.CacheAsset(PrefixedMaterialHash, Material);
+						// Ping one-sided material as active
+						AssetCache.TouchAssetPath(Material);
+
 						InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
 
 						// Finally, try to make our generated material primvar-compatible. We do this last because this will
@@ -637,7 +685,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 						{
 							Material = AlreadyHandledMaterial;
 
-							AssetCache.TouchAsset(Material);
+							AssetCache.TouchAssetPath(Material);
 							InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
 						}
 						else
@@ -720,7 +768,7 @@ void MeshTranslationImpl::SetMaterialOverrides(
 	const pxr::UsdPrim& Prim,
 	const TArray<UMaterialInterface*>& ExistingAssignments,
 	UMeshComponent& MeshComponent,
-	UUsdAssetCache2& AssetCache,
+	UUsdAssetCache3& AssetCache,
 	FUsdInfoCache& InfoCache,
 	float Time,
 	EObjectFlags Flags,

@@ -29,6 +29,7 @@ namespace UnrealBuildTool.Rules
 					"GeometryFramework", // For BaseDynamicMeshSceneProxy.h
 					"HairStrandsCore",
 					"Json", // To read/write plugInfo.json files from UnrealUSDWrapper.cpp
+					"LevelSequence",
 					"MeshDescription",
 					"RenderCore", // For UUsdDrawModeComponent implementation
 					"RHI",
@@ -40,6 +41,7 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.AddRange(
 					new string[]
 					{
+						"UnrealEd", // For ResetTransaction within UE::USDAssetCache3::Private::SafeDeleteObjects
 						"MaterialEditor", // For SetMaterialInstanceParent, when managing the DisplayColor materials
 					}
 				);

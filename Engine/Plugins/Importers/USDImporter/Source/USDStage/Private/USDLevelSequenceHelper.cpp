@@ -4,7 +4,6 @@
 
 #include "USDAssetUserData.h"
 #include "USDAttributeUtils.h"
-#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDInfoCache.h"
@@ -12,6 +11,7 @@
 #include "USDLayerUtils.h"
 #include "USDListener.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDPrimTwin.h"
 #include "USDProjectSettings.h"
@@ -335,12 +335,7 @@ namespace UsdLevelSequenceHelperImpl
 			AESP.RootToLocalTransform = RootToLocalTransform;
 			AESP.MovieSceneSequence = LevelSequence;
 			AESP.RootMovieSceneSequence = LevelSequence;
-			bResult = MovieSceneToolHelpers::ExportToAnimSequence(
-				AnimSequence,
-				ExportOptions,
-				AESP,
-				SkeletalMeshComp
-			);
+			bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, ExportOptions, AESP, SkeletalMeshComp);
 			if (!bResult)
 			{
 				goto cleanup;
@@ -956,6 +951,22 @@ bool FUsdLevelSequenceHelperImpl::HasData() const
 
 void FUsdLevelSequenceHelperImpl::Clear()
 {
+	// Mark old sequences as garbage so that the track references' to the assets can be immediately ignored
+	for (const TPair<FString, TObjectPtr<ULevelSequence>>& IdentifierAndSeq : LevelSequencesByIdentifier)
+	{
+		if (ULevelSequence* Seq = IdentifierAndSeq.Value.Get())
+		{
+#if WITH_EDITOR
+			if (!IsEngineExitRequested())
+			{
+				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(Seq);
+			}
+#endif	  // WITH_EDITOR
+
+			Seq->MarkAsGarbage();
+		}
+	}
+
 	MainLevelSequence = nullptr;
 	LevelSequencesByIdentifier.Empty();
 	IdentifierByLevelSequence.Empty();
@@ -1244,11 +1255,11 @@ ULevelSequence* FUsdLevelSequenceHelperImpl::FindOrAddSequenceForLayer(
 		// only get an InfoCache when importing (from UUsdStageImporter::ImportFromFile) or when BindToUsdStageActor is called, which also gives us a
 		// stage actor. So if we don't have an actor but have a cache, we're importing
 		const bool bIsImporting = StageActor.IsExplicitlyNull() && InfoCache;
-		FName UniqueSequenceName = bIsImporting ? *IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
+		FName UniqueSequenceName = bIsImporting ? *UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
 												: MakeUniqueObjectName(
 													GetTransientPackage(),
 													ULevelSequence::StaticClass(),
-													*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
+													*UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
 												);
 
 		Sequence = NewObject<ULevelSequence>(GetTransientPackage(), UniqueSequenceName, FUsdLevelSequenceHelperImpl::DefaultObjFlags);
@@ -2534,7 +2545,7 @@ void FUsdLevelSequenceHelperImpl::AddVolumeTracks(const UUsdPrimTwin& PrimTwin, 
 			{
 				if (SparseVolumeTexture->GetNumFrames() > 1)
 				{
-					UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(UsdUtils::GetAssetUserData(SparseVolumeTexture));
+					UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(UsdUnreal::ObjectUtils::GetAssetUserData(SparseVolumeTexture));
 				}
 			}
 

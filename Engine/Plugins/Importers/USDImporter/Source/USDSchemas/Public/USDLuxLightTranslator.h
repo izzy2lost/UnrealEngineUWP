@@ -16,6 +16,7 @@ public:
 
 	using FUsdGeomXformableTranslator::FUsdGeomXformableTranslator;
 
+	virtual void CreateAssets() override;
 	virtual USceneComponent* CreateComponents() override;
 	virtual void UpdateComponents(USceneComponent* SceneComponent);
 

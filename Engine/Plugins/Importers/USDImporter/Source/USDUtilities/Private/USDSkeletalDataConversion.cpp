@@ -13,6 +13,7 @@
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDMemory.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
@@ -1191,13 +1192,13 @@ namespace UnrealToUsdImpl
 
 		// The first bone is the root, and has ParentIndex == -1, so do it separately here to void checking the indices for all bones
 		// Sanitize because ExportName can have spaces, which USD doesn't like
-		OutFullPaths[0] = IUsdClassesModule::SanitizeObjectName(BoneNamesInOrder[0].ExportName);
+		OutFullPaths[0] = UsdUnreal::ObjectUtils::SanitizeObjectName(BoneNamesInOrder[0].ExportName);
 
 		// Bones are always stored in an increasing order, so we can do all paths in a single pass
 		for (int32 BoneIndex = 1; BoneIndex < NumBones; ++BoneIndex)
 		{
 			const FMeshBoneInfo& BoneInfo = BoneNamesInOrder[BoneIndex];
-			FString SanitizedBoneName = IUsdClassesModule::SanitizeObjectName(BoneInfo.ExportName);
+			FString SanitizedBoneName = UsdUnreal::ObjectUtils::SanitizeObjectName(BoneInfo.ExportName);
 
 			OutFullPaths[BoneIndex] = FString::Printf(TEXT("%s/%s"), *OutFullPaths[BoneInfo.ParentIndex], *SanitizedBoneName);
 		}
@@ -1338,7 +1339,7 @@ bool UsdToUnreal::ConvertSkeleton(const pxr::UsdSkelSkeletonQuery& SkeletonQuery
 		const uint64 FirstIndex = 0;
 		const int32 RootParentIndex = INDEX_NONE;
 
-		FString UniqueNewRootName = UsdUtils::GetUniqueName(TEXT("Root"), TSet<FString>{JointNames});
+		FString UniqueNewRootName = UsdUnreal::ObjectUtils::GetUniqueName(TEXT("Root"), TSet<FString>{JointNames});
 
 		JointNames.Insert(UniqueNewRootName, FirstIndex);
 		BoneTransforms.Insert(FTransform::Identity, FirstIndex);
@@ -2642,8 +2643,8 @@ bool UsdToUnreal::ConvertBlendShape(
 	// Note that we can't just use the prim path here and need an index to guarantee uniqueness,
 	// because although the path is usually unique, USD has case sensitive paths and the FNames of the
 	// UMorphTargets are case insensitive
-	FString PrimaryName = UsdUtils::GetUniqueName(
-		IUsdClassesModule::SanitizeObjectName(UsdToUnreal::ConvertString(UsdBlendShape.GetPrim().GetName())),
+	FString PrimaryName = UsdUnreal::ObjectUtils::GetUniqueName(
+		UsdUnreal::ObjectUtils::SanitizeObjectName(UsdToUnreal::ConvertString(UsdBlendShape.GetPrim().GetName())),
 		UsedMorphTargetNames
 	);
 	FString PrimaryPath = UsdToUnreal::ConvertPath(UsdBlendShape.GetPrim().GetPath());
@@ -2677,8 +2678,8 @@ bool UsdToUnreal::ConvertBlendShape(
 
 		FString OrigInbetweenName = UsdToUnreal::ConvertString(Inbetween.GetAttr().GetName());
 		FString InbetweenPath = FString::Printf(TEXT("%s_%s"), *PrimaryPath, *OrigInbetweenName);
-		FString InbetweenName = UsdUtils::GetUniqueName(
-			IUsdClassesModule::SanitizeObjectName(FPaths::GetCleanFilename(InbetweenPath)),
+		FString InbetweenName = UsdUnreal::ObjectUtils::GetUniqueName(
+			UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetCleanFilename(InbetweenPath)),
 			UsedMorphTargetNames
 		);
 
@@ -2745,47 +2746,79 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::GetSkeletalMeshFromImportData);
 
-	if (LODIndexToSkeletalMeshImportData.Num() == 0 || InSkeletonBones.Num() == 0)
-	{
-		return nullptr;
-	}
-
-	// A SkeletalMesh could be retrieved for re-use and updated for animations
-	// For now, create a new USkeletalMesh
-	// Note: Remember to initialize UsedMorphTargetNames with existing morph targets, whenever the SkeletalMesh is reused
 	FName UniqueMeshName = MakeUniqueObjectName(
 		GetTransientPackage(),
 		USkeletalMesh::StaticClass(),
-		*IUsdClassesModule::SanitizeObjectName(MeshName.ToString())
+		*UsdUnreal::ObjectUtils::SanitizeObjectName(MeshName.ToString())
 	);
-	USkeletalMesh* SkeletalMesh = NewObject<USkeletalMesh>(
+	USkeletalMesh* SkeletalMesh = NewObject<USkeletalMesh>(GetTransientPackage(), UniqueMeshName, ObjectFlags);
+
+	// Generate a Skeleton and associate it to the SkeletalMesh
+	FName UniqueSkeletonName = MakeUniqueObjectName(
 		GetTransientPackage(),
-		UniqueMeshName,
-		ObjectFlags | EObjectFlags::RF_Public | EObjectFlags::RF_Transient
+		USkeleton::StaticClass(),
+		*UsdUnreal::ObjectUtils::SanitizeObjectName(SkeletonName.ToString())
 	);
+	USkeleton* Skeleton = NewObject<USkeleton>(GetTransientPackage(), UniqueSkeletonName, ObjectFlags);
+
+	Skeleton->SetPreviewMesh(SkeletalMesh);
+	SkeletalMesh->SetSkeleton(Skeleton);
+
+	bool bSuccess = ConvertSkeletalImportData(LODIndexToSkeletalMeshImportData, InSkeletonBones, InBlendShapesByPath, SkeletalMesh);
+	if (!bSuccess)
+	{
+		SkeletalMesh->MarkAsGarbage();
+		SkeletalMesh = nullptr;
+
+		Skeleton->MarkAsGarbage();
+		Skeleton = nullptr;
+	}
+
+	return SkeletalMesh;
+}
+
+bool UsdToUnreal::ConvertSkeletalImportData(
+	TArray<FSkeletalMeshImportData>& InLODIndexToSkeletalMeshImportData,
+	const TArray<SkeletalMeshImportData::FBone>& InSkeletonBones,
+	UsdUtils::FBlendShapeMap& InBlendShapesByPath,
+	USkeletalMesh* InOutSkeletalMesh
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertSkeletalImportData);
+
+	if (!InOutSkeletalMesh || InLODIndexToSkeletalMeshImportData.Num() == 0)
+	{
+		return false;
+	}
+
+	USkeleton* Skeleton = InOutSkeletalMesh->GetSkeleton();
+	if (!Skeleton)
+	{
+		return false;
+	}
 
 	// Process reference skeleton from import data
 	int32 SkeletalDepth = 0;
 	FSkeletalMeshImportData DummyData;
 	DummyData.RefBonesBinary = InSkeletonBones;
-	if (!SkeletalMeshImportUtils::ProcessImportMeshSkeleton(SkeletalMesh->GetSkeleton(), SkeletalMesh->GetRefSkeleton(), SkeletalDepth, DummyData))
+	if (!SkeletalMeshImportUtils::ProcessImportMeshSkeleton(
+			InOutSkeletalMesh->GetSkeleton(),
+			InOutSkeletalMesh->GetRefSkeleton(),
+			SkeletalDepth,
+			DummyData
+		))
 	{
-		return nullptr;
-	}
-	if (SkeletalMesh->GetRefSkeleton().GetRawBoneNum() == 0)
-	{
-		SkeletalMesh->MarkAsGarbage();
-		return nullptr;
+		return false;
 	}
 
 	// This prevents PostEditChange calls when it is alive, also ensuring it is called once when we return from this function.
 	// This is required because we must ensure the morphtargets are in the SkeletalMesh before the first call to PostEditChange(),
 	// or else they will be effectively discarded
-	FScopedSkeletalMeshPostEditChange ScopedPostEditChange(SkeletalMesh);
-	SkeletalMesh->PreEditChange(nullptr);
+	FScopedSkeletalMeshPostEditChange ScopedPostEditChange(InOutSkeletalMesh);
+	InOutSkeletalMesh->PreEditChange(nullptr);
 
 	// Create initial bounding box based on expanded version of reference pose for meshes without physics assets
-	const FSkeletalMeshImportData& LowestLOD = LODIndexToSkeletalMeshImportData[0];
+	const FSkeletalMeshImportData& LowestLOD = InLODIndexToSkeletalMeshImportData[0];
 	FBox3f BoundingBox(LowestLOD.Points.GetData(), LowestLOD.Points.Num());
 	FBox3f Temp = BoundingBox;
 	FVector3f MidMesh = 0.5f * (Temp.Min + Temp.Max);
@@ -2796,20 +2829,20 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 	if (LowestLOD.Points.Num() > 2 && BoundingBoxSize.X < THRESH_POINTS_ARE_SAME && BoundingBoxSize.Y < THRESH_POINTS_ARE_SAME
 		&& BoundingBoxSize.Z < THRESH_POINTS_ARE_SAME)
 	{
-		return nullptr;
+		return false;
 	}
 
 #if WITH_EDITOR
 	IMeshUtilities& MeshUtilities = FModuleManager::Get().LoadModuleChecked<IMeshUtilities>("MeshUtilities");
 #endif	  // WITH_EDITOR
 
-	FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
+	FSkeletalMeshModel* ImportedResource = InOutSkeletalMesh->GetImportedModel();
 	ImportedResource->LODModels.Empty();
-	SkeletalMesh->ResetLODInfo();
+	InOutSkeletalMesh->ResetLODInfo();
 	bool bHasVertexColors = false;
-	for (int32 LODIndex = 0; LODIndex < LODIndexToSkeletalMeshImportData.Num(); ++LODIndex)
+	for (int32 LODIndex = 0; LODIndex < InLODIndexToSkeletalMeshImportData.Num(); ++LODIndex)
 	{
-		FSkeletalMeshImportData& LODImportData = LODIndexToSkeletalMeshImportData[LODIndex];
+		FSkeletalMeshImportData& LODImportData = InLODIndexToSkeletalMeshImportData[LODIndex];
 
 		// In the future it will be expected for bone data to be inside FSkeletalMeshImportData as well so we should
 		// probably do this
@@ -2819,9 +2852,9 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 		FSkeletalMeshLODModel& LODModel = ImportedResource->LODModels.Last();
 
 		// Process bones influence (normalization and optimization) (optional)
-		SkeletalMeshImportUtils::ProcessImportMeshInfluences(LODImportData, SkeletalMesh->GetPathName());
+		SkeletalMeshImportUtils::ProcessImportMeshInfluences(LODImportData, InOutSkeletalMesh->GetPathName());
 
-		FSkeletalMeshLODInfo& NewLODInfo = SkeletalMesh->AddLODInfo();
+		FSkeletalMeshLODInfo& NewLODInfo = InOutSkeletalMesh->AddLODInfo();
 		NewLODInfo.ReductionSettings.NumOfTrianglesPercentage = 1.0f;
 		NewLODInfo.ReductionSettings.NumOfVertPercentage = 1.0f;
 		NewLODInfo.ReductionSettings.MaxDeviationPercentage = 0.0f;
@@ -2858,8 +2891,8 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 
 		bool bBuildSuccess = MeshUtilities.BuildSkeletalMesh(
 			LODModel,
-			SkeletalMesh->GetPathName(),
-			SkeletalMesh->GetRefSkeleton(),
+			InOutSkeletalMesh->GetPathName(),
+			InOutSkeletalMesh->GetRefSkeleton(),
 			LODInfluences,
 			LODWedges,
 			LODFaces,
@@ -2887,8 +2920,7 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 
 		if (!bBuildSuccess)
 		{
-			SkeletalMesh->MarkAsGarbage();
-			return nullptr;
+			return false;
 		}
 
 		// We must also provide the ImportData with morph target information now.
@@ -2925,32 +2957,23 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 		// This is important because it will fill in the LODModel's RawSkeletalMeshBulkDataID,
 		// which is the part of the skeletal mesh's DDC key that is affected by the actual mesh data
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SkeletalMesh->SaveLODImportedData(LODIndex, LODImportData);
+		InOutSkeletalMesh->SaveLODImportedData(LODIndex, LODImportData);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif	  // WITH_EDITOR
 	}
 
-	SkeletalMesh->SetImportedBounds(FBoxSphereBounds((FBox)BoundingBox));
-	SkeletalMesh->SetHasVertexColors(bHasVertexColors);
-	SkeletalMesh->SetVertexColorGuid(SkeletalMesh->GetHasVertexColors() ? FGuid::NewGuid() : FGuid());
-	SkeletalMesh->CalculateInvRefMatrices();
+	InOutSkeletalMesh->SetImportedBounds(FBoxSphereBounds((FBox)BoundingBox));
+	InOutSkeletalMesh->SetHasVertexColors(bHasVertexColors);
+	InOutSkeletalMesh->SetVertexColorGuid(InOutSkeletalMesh->GetHasVertexColors() ? FGuid::NewGuid() : FGuid());
+	InOutSkeletalMesh->CalculateInvRefMatrices();
 
-	// Generate a Skeleton and associate it to the SkeletalMesh
-	FName UniqueSkeletonName = MakeUniqueObjectName(
-		GetTransientPackage(),
-		USkeleton::StaticClass(),
-		*IUsdClassesModule::SanitizeObjectName(SkeletonName.ToString())
-	);
-	USkeleton* Skeleton = NewObject<USkeleton>(
-		GetTransientPackage(),
-		UniqueSkeletonName,
-		ObjectFlags | EObjectFlags::RF_Public | EObjectFlags::RF_Transient
-	);
-	Skeleton->MergeAllBonesToBoneTree(SkeletalMesh);
-	Skeleton->SetPreviewMesh(SkeletalMesh);
-	SkeletalMesh->SetSkeleton(Skeleton);
+	Skeleton->MergeAllBonesToBoneTree(InOutSkeletalMesh);
+	if (InOutSkeletalMesh->GetRefSkeleton().GetRawBoneNum() == 0)
+	{
+		return false;
+	}
 
-	UsdToUnrealImpl::CreateMorphTargets(InBlendShapesByPath, LODIndexToSkeletalMeshImportData, SkeletalMesh);
+	UsdToUnrealImpl::CreateMorphTargets(InBlendShapesByPath, InLODIndexToSkeletalMeshImportData, InOutSkeletalMesh);
 
 	// "Declare" the morph target curves on the skeleton or skeletal mesh according to bAddCurveMetadataToSkeleton.
 	// This is important otherwise the ControlRig will not hoist these curves as controls when using e.g. FKControlRig.
@@ -2967,11 +2990,11 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 		}
 		else
 		{
-			UAnimCurveMetaData* AnimCurveMetaData = SkeletalMesh->GetAssetUserData<UAnimCurveMetaData>();
+			UAnimCurveMetaData* AnimCurveMetaData = InOutSkeletalMesh->GetAssetUserData<UAnimCurveMetaData>();
 			if (AnimCurveMetaData == nullptr)
 			{
-				AnimCurveMetaData = NewObject<UAnimCurveMetaData>(SkeletalMesh, NAME_None, RF_Transactional);
-				SkeletalMesh->AddAssetUserData(AnimCurveMetaData);
+				AnimCurveMetaData = NewObject<UAnimCurveMetaData>(InOutSkeletalMesh, NAME_None, RF_Transactional);
+				InOutSkeletalMesh->AddAssetUserData(AnimCurveMetaData);
 			}
 
 			AnimCurveMetaData->AddCurveMetaData(CurveName);
@@ -2984,7 +3007,7 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 		}
 	}
 
-	return SkeletalMesh;
+	return true;
 }
 
 #endif	  // #if USE_USD_SDK && WITH_EDITOR

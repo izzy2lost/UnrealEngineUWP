@@ -31,6 +31,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 PXR_NAMESPACE_CLOSE_SCOPE
 
 class UUsdAssetCache2;
+class UUsdAssetCache3;
 class UDirectionalLightComponent;
 class ULightComponentBase;
 class UPointLightComponent;
@@ -81,12 +82,6 @@ namespace UsdToUnreal
 		UPointLightComponent& LightComponent,
 		double UsdTimeCode = UsdUtils::GetDefaultTimeCode()
 	);
-	USDUTILITIES_API bool ConvertDomeLight(
-		const pxr::UsdPrim& Prim,
-		USkyLightComponent& LightComponent,
-		UUsdAssetCache2* TexturesCache,
-		bool bReuseIdenticalAssets = true
-	);
 	USDUTILITIES_API bool ConvertLuxShapingAPI(
 		const pxr::UsdPrim& Prim,
 		USpotLightComponent& LightComponent,
@@ -94,8 +89,13 @@ namespace UsdToUnreal
 	);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.2, "Use the other overload that receives an UUsdAssetCache2 object instead")
-	USDUTILITIES_API bool ConvertDomeLight(const pxr::UsdPrim& Prim, USkyLightComponent& LightComponent, UUsdAssetCache* TexturesCache);
+	UE_DEPRECATED(5.5, "No longer used: The assets are created and assigned by the FUsdLuxLightTranslator directly")
+	USDUTILITIES_API bool ConvertDomeLight(
+		const pxr::UsdPrim& Prim,
+		USkyLightComponent& LightComponent,
+		UUsdAssetCache2* TexturesCache,
+		bool bReuseIdenticalAssets = true
+	);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// These are separately exposed so that they can be reused when reading data into MovieScene tracks.

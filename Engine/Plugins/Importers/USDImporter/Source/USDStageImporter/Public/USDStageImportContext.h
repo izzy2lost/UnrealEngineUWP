@@ -13,6 +13,7 @@
 #include "USDStageImportContext.generated.h"
 
 class UUsdAssetCache2;
+class UUsdAssetCache3;
 class UUsdStageImportOptions;
 class FTokenizedMessage;
 
@@ -55,6 +56,10 @@ struct USDSTAGEIMPORTER_API FUsdStageImportContext
 	/** Level sequence that will contain the animation data during the import process */
 	FUsdLevelSequenceHelper LevelSequenceHelper;
 
+	UPROPERTY()
+	TObjectPtr<UUsdAssetCache3> UsdAssetCache;
+
+	UE_DEPRECATED(5.5, "Use the 'UsdAssetCache' member instead, which is of the new UUsdAssetCache3 type")
 	UPROPERTY()
 	TObjectPtr<UUsdAssetCache2> AssetCache;
 

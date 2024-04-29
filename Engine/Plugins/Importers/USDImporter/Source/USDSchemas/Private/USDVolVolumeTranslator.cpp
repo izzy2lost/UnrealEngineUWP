@@ -9,6 +9,7 @@
 #include "USDIntegrationUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDProjectSettings.h"
 #include "USDShadeConversion.h"
@@ -905,71 +906,6 @@ namespace UE::UsdVolVolumeTranslator::Private
 		return ResultParameterToInfo;
 	}
 
-	UMaterialInstance* InstantiateMaterial(
-		FName InstanceName,
-		UMaterialInterface* ReferenceMaterial,
-		const FUsdSchemaTranslationContext& TranslationContext
-	)
-	{
-		if (!ReferenceMaterial)
-		{
-			return nullptr;
-		}
-
-		// Create an UMaterialInstanceConstant
-		if (GIsEditor)	  // Also have to prevent Standalone game from going with MaterialInstanceConstants
-		{
-			UMaterialInstanceConstant* NewMaterial = NewObject<UMaterialInstanceConstant>(
-				GetTransientPackage(),
-				InstanceName,
-				TranslationContext.ObjectFlags | EObjectFlags::RF_Transient
-			);
-
-			if (NewMaterial)
-			{
-				if (ensure(ReferenceMaterial))
-				{
-					// We can't blindly recreate all component render states when a level is being added, because we may end up first creating
-					// render states for some components, and UWorld::AddToWorld calls FScene::AddPrimitive which expects the component to not
-					// have primitives yet
-					FMaterialUpdateContext::EOptions::Type Options = FMaterialUpdateContext::EOptions::Default;
-					if (TranslationContext.Level && TranslationContext.Level->bIsAssociatingLevel)
-					{
-						Options = (FMaterialUpdateContext::EOptions::Type)(Options & ~FMaterialUpdateContext::EOptions::RecreateRenderStates);
-					}
-					FMaterialUpdateContext UpdateContext(Options, GMaxRHIShaderPlatform);
-					UpdateContext.AddMaterialInstance(NewMaterial);
-
-					NewMaterial->SetParentEditorOnly(ReferenceMaterial);
-
-					NewMaterial->PreEditChange(nullptr);
-					NewMaterial->PostEditChange();
-
-					return NewMaterial;
-				}
-			}
-		}
-		else
-		// Create an UMaterialInstanceDynamic
-		{
-			// SparseVolumeTextures can't be created at runtime so this branch should never really be taken for now, but anyway...
-			// Note: Some code in FNiagaraBakerRenderer::RenderSparseVolumeTexture suggests that this workflow wouldn't really work
-			// because the HeterogeneousVolumeComponent always creates its own MID from the material we give it, and creating a MID
-			// from another MID doesn't really work
-			if (ensure(ReferenceMaterial))
-			{
-				UMaterialInstanceDynamic* NewMaterial = UMaterialInstanceDynamic::Create(ReferenceMaterial, GetTransientPackage(), InstanceName);
-				if (NewMaterial)
-				{
-					NewMaterial->SetFlags(RF_Transient);
-				}
-				return NewMaterial;
-			}
-		}
-
-		return nullptr;
-	}
-
 	void AssignMaterialParameters(UMaterialInstance* MaterialInstance, const TMap<FString, FSparseVolumeTextureInfo*>& ParameterToTexture)
 	{
 		// Now that we finally have the parameter assignment for each SVT, assign them to the materials
@@ -997,7 +933,7 @@ void FUsdVolVolumeTranslator::CreateAssets()
 
 	using namespace UE::UsdVolVolumeTranslator::Private;
 
-	if (!Context->AssetCache || !Context->InfoCache)
+	if (!Context->UsdAssetCache || !Context->InfoCache)
 	{
 		return;
 	}
@@ -1072,50 +1008,53 @@ void FUsdVolVolumeTranslator::CreateAssets()
 		}
 		ParsedTexture.PrefixedAssetHash = VolumePrimHashPrefix + VDBAndAssignmentHash.ToString();
 
-		USparseVolumeTexture* SparseVolumeTexture = Cast<USparseVolumeTexture>(Context->AssetCache->GetCachedAsset(ParsedTexture.PrefixedAssetHash));
+		// File path instead of prim path in case we have  multiple .vdb files in the same Volume prim
+		const FString& DesiredName = FPaths::GetBaseFilename(VDBFilePath);
 
-		// Need to create a brand new asset
+		bool bCreatedNew = false;
+		USparseVolumeTexture* SparseVolumeTexture = Context->UsdAssetCache->GetOrCreateCustomCachedAsset<USparseVolumeTexture>(
+			ParsedTexture.PrefixedAssetHash,
+			DesiredName,
+			Context->ObjectFlags,
+			[&VDBFilePath, &ImportOptions](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
+			{
+				TStrongObjectPtr<USparseVolumeTextureFactory> SparseVolumeTextureFactory{NewObject<USparseVolumeTextureFactory>()};
+
+				// We use the asset import task to indicate it's an automated import, and also to transmit our import options
+				TStrongObjectPtr<UAssetImportTask> AssetImportTask{NewObject<UAssetImportTask>()};
+				AssetImportTask->Filename = VDBFilePath;
+				AssetImportTask->bAutomated = true;
+				AssetImportTask->bSave = false;
+				AssetImportTask->Options = ImportOptions.Get();
+				AssetImportTask->Factory = SparseVolumeTextureFactory.Get();
+				SparseVolumeTextureFactory->SetAssetImportTask(AssetImportTask.Get());
+
+				// Call FactoryCreateFile directly here or else the usual AssetToolsModule.Get().ImportAssetTasks()
+				// workflow would end up creating a package for every asset, which we don't care about since
+				// the asset cache will do that anyway
+				const TCHAR* Parms = nullptr;
+				bool bOperationCanceled = false;
+				return Cast<USparseVolumeTexture>(SparseVolumeTextureFactory->FactoryCreateFile(
+					USparseVolumeTexture::StaticClass(),
+					Outer,
+					SanitizedName,
+					FlagsToUse,
+					VDBFilePath,
+					Parms,
+					GWarn,
+					bOperationCanceled
+				));
+			},
+			&bCreatedNew
+		);
 		if (!SparseVolumeTexture)
 		{
-			TStrongObjectPtr<USparseVolumeTextureFactory> SparseVolumeTextureFactory{NewObject<USparseVolumeTextureFactory>()};
+			UE_LOG(LogUsd, Error, TEXT("Failed to generate Sparse Volume Texture from OpenVDB file '%s'"), *VDBFilePath);
+			return;
+		}
 
-			// We use the asset import task to indicate it's an automated import, and also to transmit our import options
-			TStrongObjectPtr<UAssetImportTask> AssetImportTask{NewObject<UAssetImportTask>()};
-			AssetImportTask->Filename = VDBFilePath;
-			AssetImportTask->bAutomated = true;
-			AssetImportTask->bSave = false;
-			AssetImportTask->Options = ImportOptions.Get();
-			AssetImportTask->Factory = SparseVolumeTextureFactory.Get();
-
-			bool bOperationCanceled = false;
-			const TCHAR* Parms = nullptr;
-			const FName AssetName = MakeUniqueObjectName(
-				GetTransientPackage(),
-				USparseVolumeTexture::StaticClass(),
-				*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(VDBFilePath))	// File path instead of prim path in case we have
-																								// multiple .vdb files in the same Volume prim
-			);
-
-			// Call FactoryCreateFile directly here or else the usual AssetToolsModule.Get().ImportAssetTasks()
-			// workflow would end up creating a package for every asset, which we don't care about since
-			// we'll rename them into the asset cache anyway
-			SparseVolumeTextureFactory->SetAssetImportTask(AssetImportTask.Get());
-			SparseVolumeTexture = Cast<USparseVolumeTexture>(SparseVolumeTextureFactory->FactoryCreateFile(
-				USparseVolumeTexture::StaticClass(),
-				GetTransientPackage(),
-				AssetName,
-				Context->ObjectFlags | EObjectFlags::RF_Public | EObjectFlags::RF_Transient,
-				VDBFilePath,
-				Parms,
-				GWarn,
-				bOperationCanceled
-			));
-			if (!SparseVolumeTexture)
-			{
-				UE_LOG(LogUsd, Error, TEXT("Failed to generate Sparse Volume Texture from OpenVDB file '%s'"), *VDBFilePath);
-				return;
-			}
-
+		if (bCreatedNew && SparseVolumeTexture)
+		{
 			SparseVolumeTexture->PostEditChange();
 
 			if (UStreamableSparseVolumeTexture* StreamableTexture = Cast<UStreamableSparseVolumeTexture>(SparseVolumeTexture))
@@ -1127,17 +1066,14 @@ void FUsdVolVolumeTranslator::CreateAssets()
 
 				StreamableTexture->AssetImportData = ImportData;
 			}
-
-			Context->AssetCache->CacheAsset(ParsedTexture.PrefixedAssetHash, SparseVolumeTexture);
 		}
 
 		if (SparseVolumeTexture)
 		{
 			Context->InfoCache->LinkAssetToPrim(PrimPath, SparseVolumeTexture);
 
-			if (UUsdSparseVolumeTextureAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdSparseVolumeTextureAssetUserData>(
-					SparseVolumeTexture
-				))
+			if (UUsdSparseVolumeTextureAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<
+					UUsdSparseVolumeTextureAssetUserData>(SparseVolumeTexture))
 			{
 				UserData->PrimPaths.AddUnique(VolumePrimPathString);
 				UserData->SourceOpenVDBAssetPrimPaths = ParsedTexture.SourceOpenVDBAssetPrimPaths;
@@ -1260,41 +1196,72 @@ void FUsdVolVolumeTranslator::CreateAssets()
 	}
 	const FString PrefixedMaterialHash = VolumePrimHashPrefix + MaterialHash.ToString();
 
-	UMaterialInstance* MaterialInstance = nullptr;
+	const FString DesiredName = FPaths::GetBaseFilename(VolumePrimPathString);
 
-	if (Context->AssetCache)
+	bool bIsNew = false;
+	UMaterialInstance* MaterialInstance = nullptr;
+	if (GIsEditor)
 	{
-		MaterialInstance = Cast<UMaterialInstance>(Context->AssetCache->GetCachedAsset(PrefixedMaterialHash));
+		// Create an UMaterialInstanceConstant
+
+		UMaterialInstanceConstant* MIC = Context->UsdAssetCache->GetOrCreateCachedAsset<UMaterialInstanceConstant>(
+			PrefixedMaterialHash,
+			DesiredName,
+			Context->ObjectFlags,
+			&bIsNew
+		);
+
+		FMaterialUpdateContext::EOptions::Type Options = FMaterialUpdateContext::EOptions::Default;
+		if (Context->Level && Context->Level->bIsAssociatingLevel)
+		{
+			Options = (FMaterialUpdateContext::EOptions::Type)(Options & ~FMaterialUpdateContext::EOptions::RecreateRenderStates);
+		}
+		FMaterialUpdateContext UpdateContext(Options, GMaxRHIShaderPlatform);
+		UpdateContext.AddMaterialInstance(MIC);
+		MIC->SetParentEditorOnly(ReferenceMaterial);
+		MIC->PreEditChange(nullptr);
+		MIC->PostEditChange();
+
+		MaterialInstance = MIC;
+	}
+	else
+	{
+		// Create a material instance for the volume component.
+		// SparseVolumeTextures can't be created at runtime so this branch should never really be taken for now, but anyway...
+		// Note: Some code in FNiagaraBakerRenderer::RenderSparseVolumeTexture suggests that this workflow wouldn't really work
+		// because the HeterogeneousVolumeComponent always creates its own MID from the material we give it, and creating a MID
+		// from another MID doesn't really work
+
+		bool bCreatedAsset = false;
+		UMaterialInstance* MI = Context->UsdAssetCache->GetOrCreateCustomCachedAsset<UMaterialInstance>(
+			PrefixedMaterialHash,
+			DesiredName,
+			Context->ObjectFlags | RF_Transient,	// We never want MIDs to become assets in the content browser
+			[ReferenceMaterial](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
+			{
+				UMaterialInstanceDynamic* NewMID = UMaterialInstanceDynamic::Create(ReferenceMaterial, Outer, SanitizedName);
+				NewMID->ClearFlags(NewMID->GetFlags());
+				NewMID->SetFlags(FlagsToUse);
+				return NewMID;
+			},
+			&bCreatedAsset
+		);
+
+		MI->PreEditChange(nullptr);
+		MI->PostEditChange();
 	}
 
 	// Create new material instance
-	if (!MaterialInstance)
+	if (bIsNew && MaterialInstance)
 	{
-		const FName InstanceName = MakeUniqueObjectName(
-			GetTransientPackage(),
-			UMaterialInstance::StaticClass(),
-			*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(VolumePrimPathString))
-		);
-
-		MaterialInstance = InstantiateMaterial(InstanceName, ReferenceMaterial, Context.Get());
-
-		if (MaterialInstance)
-		{
-			UUsdAssetUserData* UserData = NewObject<UUsdAssetUserData>(MaterialInstance, TEXT("USDAssetUserData"));
-			UserData->PrimPaths = {PrimPath.GetString()};
-			MaterialInstance->AddAssetUserData(UserData);
-
-			AssignMaterialParameters(MaterialInstance, MaterialParameterToTexture);
-
-			Context->AssetCache->CacheAsset(PrefixedMaterialHash, MaterialInstance);
-		}
+		AssignMaterialParameters(MaterialInstance, MaterialParameterToTexture);
 	}
 
 	if (MaterialInstance)
 	{
 		Context->InfoCache->LinkAssetToPrim(PrimPath, MaterialInstance);
 
-		if (UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdAssetUserData>(MaterialInstance))
+		if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdAssetUserData>(MaterialInstance))
 		{
 			UserData->PrimPaths.AddUnique(VolumePrimPathString);
 
@@ -1381,7 +1348,7 @@ void FUsdVolVolumeTranslator::UpdateComponents(USceneComponent* SceneComponent)
 					if (SparseVolumeTexture->GetNumFrames() > 1)
 					{
 						if (UUsdSparseVolumeTextureAssetUserData* UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(
-								UsdUtils::GetAssetUserData(SparseVolumeTexture)
+								UsdUnreal::ObjectUtils::GetAssetUserData(SparseVolumeTexture)
 							))
 						{
 							UE::FUsdPrim VolumePrim = GetPrim();

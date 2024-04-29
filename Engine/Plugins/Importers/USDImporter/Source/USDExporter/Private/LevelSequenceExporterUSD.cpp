@@ -11,6 +11,7 @@
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDStageActor.h"
@@ -102,7 +103,6 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 #if USE_USD_SDK
 
-
 	using FSpawnedInstanceKey = TPair<FGuid, int32>;
 
 	// Custom spawn register so that when DestroySpawnedObject is called while bDestroyingJustHides is true we
@@ -115,21 +115,23 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 		bool bDestroyingJustHides = true;
 
-		virtual UObject* SpawnObject(const FGuid& Guid,
+		virtual UObject* SpawnObject(
+			const FGuid& Guid,
 			UMovieScene& MovieScene,
 			FMovieSceneSequenceIDRef TemplateID,
 			TSharedRef<const FSharedPlaybackState> SharedPlaybackState,
 			int32 BindingIndex
 		) override
 		{
-
 			FSpawnedInstanceKey InstanceKey(Guid, BindingIndex);
 
 			// Never spawn ASphereReflectionCapture actors. These are useless in USD anyway, and we run into
 			// trouble after we're done exporting them because on the tick where they're destroyed the editor
 			// will still attempt to update their captures and some downstream code doesn't like that their
 			// components are pending kill (check UE-167593 for more info)
-			if (Cast<ASphereReflectionCapture>(MovieSceneHelpers::GetObjectTemplate(MovieScene.GetTypedOuter<UMovieSceneSequence>(), Guid, SharedPlaybackState)))
+			if (Cast<ASphereReflectionCapture>(
+					MovieSceneHelpers::GetObjectTemplate(MovieScene.GetTypedOuter<UMovieSceneSequence>(), Guid, SharedPlaybackState)
+				))
 			{
 				return nullptr;
 			}
@@ -144,9 +146,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			TArray<UObject*>& ExistingInstancesForGuid = SpawnableInstances.FindOrAdd(InstanceKey);
 
-			TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& SequenceInstanceToSpawnableIndices = RootSequenceToSpawnableInstanceIndices.FindOrAdd(
-				RootSequence
-			);
+			TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& SequenceInstanceToSpawnableIndices = RootSequenceToSpawnableInstanceIndices
+																													.FindOrAdd(RootSequence);
 			TMap<FSpawnedInstanceKey, int32>& SpawnableIndices = SequenceInstanceToSpawnableIndices.FindOrAdd(TemplateID);
 
 			// Already have an instance of this spawnable for this movie scene sequence instance
@@ -234,7 +235,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 				{
 					// Rename the spawn to a unique name or else in case of name collisions they will overwrite each other when writing
 					// animation data. The level exporter will rename actors to unique prims by itself though.
-					FString NewLabel = UsdUtils::GetUniqueName(SpawnedActor->GetActorLabel(), UsedActorLabels);
+					FString NewLabel = UsdUnreal::ObjectUtils::GetUniqueName(SpawnedActor->GetActorLabel(), UsedActorLabels);
 					if (NewLabel != SpawnedActor->GetActorLabel())
 					{
 						const bool bMarkDirty = false;
@@ -384,8 +385,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 				if (Object)
 				{
 					// TODO: I think this will likely be fine for most cases, but I could see it potentially being problematic in all cases to destroy
-					// an object in the default way this way. However, to do this 'correctly' would also involve storing the UCustomBinding object in this process,
-					// which I'm skipping for now.
+					// an object in the default way this way. However, to do this 'correctly' would also involve storing the UCustomBinding object in
+					// this process, which I'm skipping for now.
 					DestroySpawnedObject(*Object, nullptr);
 				}
 			}
@@ -399,7 +400,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 		UObject* GetExistingSpawn(const UMovieSceneSequence& RootSequence, FMovieSceneSequenceID SequenceID, const FSpawnedInstanceKey& InstanceKey)
 		{
 			int32 SpawnableIndex = INDEX_NONE;
-			if (TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>* SequenceIDsToSpawns = RootSequenceToSpawnableInstanceIndices.Find(&RootSequence))
+			if (TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>* SequenceIDsToSpawns = RootSequenceToSpawnableInstanceIndices.Find(
+					&RootSequence
+				))
 			{
 				if (TMap<FSpawnedInstanceKey, int32>* Spawns = SequenceIDsToSpawns->Find(SequenceID))
 				{
@@ -591,10 +594,17 @@ namespace UE::LevelSequenceExporterUSD::Private
 							LastGuid = BindingReference.ID;
 							BindingIndex = 0;
 						}
-						if (BindingReference.CustomBinding && BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
+						if (BindingReference.CustomBinding
+							&& BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
 						{
 							StaticCastSharedRef<FMovieSceneSpawnRegister>(Context.SpawnRegister)
-								->SpawnObject(BindingReference.ID, *MovieScene, SequenceInstance, Context.Sequencer->GetSharedPlaybackState(), BindingIndex++);
+								->SpawnObject(
+									BindingReference.ID,
+									*MovieScene,
+									SequenceInstance,
+									Context.Sequencer->GetSharedPlaybackState(),
+									BindingIndex++
+								);
 						}
 					}
 				}
@@ -847,9 +857,11 @@ namespace UE::LevelSequenceExporterUSD::Private
 							LastGuid = BindingReference.ID;
 							BindingIndex = 0;
 						}
-						if (BindingReference.CustomBinding && BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
+						if (BindingReference.CustomBinding
+							&& BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
 						{
-							BoundObject = Context.SpawnRegister->GetExistingSpawn(*RootSequence, SequenceInstance, FSpawnedInstanceKey(Guid, BindingIndex++));
+							BoundObject = Context.SpawnRegister
+											  ->GetExistingSpawn(*RootSequence, SequenceInstance, FSpawnedInstanceKey(Guid, BindingIndex++));
 							if (!BoundObject)
 							{
 								// This should never happen as we preemptively spawn everything:
@@ -1417,7 +1429,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 		// Make sure we don't overwrite a file we just wrote *during this export*.
 		// Overwriting other files is OK, as we want to allow a "repeatedly export over the same files" workflow
-		FString UniqueFilePath = UsdUtils::GetUniqueName(FilePath, Context.UsedFilePaths);
+		FString UniqueFilePath = UsdUnreal::ObjectUtils::GetUniqueName(FilePath, Context.UsedFilePaths);
 
 		// Try exporting subsequences if needed
 		if (Context.ExportOptions)
@@ -1616,7 +1628,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			if (Context.ExportOptions->LevelExportOptions.MetadataOptions.bExportAssetMetadata)
 			{
-				if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(Cast<ULevelSequence>(&MovieSceneSequence)))
+				if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(Cast<ULevelSequence>(&MovieSceneSequence)))
 				{
 					UnrealToUsd::ConvertMetadata(
 						UserData,
@@ -1800,7 +1812,7 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	UAssetEditorSubsystem* AssetEditorSubsystem = nullptr;
 	{
 		AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-		if (AssetEditorSubsystem)
+		if (AssetEditorSubsystem && !IsEngineExitRequested())
 		{
 			for (const TWeakPtr<ISequencer>& Sequencer : FLevelEditorSequencerIntegration::Get().GetSequencers())
 			{

@@ -6,12 +6,12 @@
 
 #include "UnrealUSDWrapper.h"
 #include "USDAttributeUtils.h"
-#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDMemory.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDProjectSettings.h"
 #include "USDShadeConversion.h"
@@ -3107,9 +3107,9 @@ UMaterialInstanceDynamic* UsdUtils::CreateDisplayColorMaterialInstanceDynamic(co
 			GetTransientPackage(),
 			UMaterialInstanceConstant::StaticClass(),
 			*FString::Printf(
-				TEXT("DisplayColor_%s_%s"),
-				DisplayColorDescription.bHasOpacity ? TEXT("Opacity") : TEXT("NoOpacity"),
-				DisplayColorDescription.bIsDoubleSided ? TEXT("DoubleSided") : TEXT("SingleSided")
+				TEXT("DisplayColor%s%s"),
+				DisplayColorDescription.bHasOpacity ? TEXT("_Translucent") : TEXT(""),
+				DisplayColorDescription.bIsDoubleSided ? TEXT("_TwoSided") : TEXT("")
 			)
 		);
 
@@ -3161,9 +3161,9 @@ UMaterialInstanceConstant* UsdUtils::CreateDisplayColorMaterialInstanceConstant(
 			GetTransientPackage(),
 			UMaterialInstanceConstant::StaticClass(),
 			*FString::Printf(
-				TEXT("DisplayColor_%s_%s"),
-				DisplayColorDescription.bHasOpacity ? TEXT("Opacity") : TEXT("NoOpacity"),
-				DisplayColorDescription.bIsDoubleSided ? TEXT("DoubleSided") : TEXT("SingleSided")
+				TEXT("DisplayColor%s%s"),
+				DisplayColorDescription.bHasOpacity ? TEXT("_Translucent") : TEXT(""),
+				DisplayColorDescription.bIsDoubleSided ? TEXT("_TwoSided") : TEXT("")
 			)
 		);
 
@@ -4175,7 +4175,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 					if (ExportContext.SlotNames.IsValidIndex(SectionIndex))
 					{
 						SectionName = ExportContext.SlotNames[SectionIndex].ToString();
-						SectionName = UsdUtils::GetUniqueName(SectionName, UsedSectionNames);
+						SectionName = UsdUnreal::ObjectUtils::GetUniqueName(SectionName, UsedSectionNames);
 						UsedSectionNames.Add(SectionName);
 					}
 					else
@@ -4903,7 +4903,7 @@ void UsdUtils::ReplaceUnrealMaterialsWithBaked(
 					{
 						FString MatName = FPaths::GetBaseFilename(UnrealMaterialAssetPath);
 						MatName = UsdToUnreal::ConvertString(pxr::TfMakeValidIdentifier(UnrealToUsd::ConvertString(*MatName).Get()));
-						FString MatPrimName = UsdUtils::GetUniqueName(MatName, MatPrimScopePtr->UsedPrimNames);
+						FString MatPrimName = UsdUnreal::ObjectUtils::GetUniqueName(MatName, MatPrimScopePtr->UsedPrimNames);
 						MatPrimScopePtr->UsedPrimNames.Add(MatPrimName);
 
 						MatPrim = StageToTraverse->DefinePrim(

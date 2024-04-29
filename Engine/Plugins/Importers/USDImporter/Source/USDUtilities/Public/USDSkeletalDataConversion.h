@@ -281,6 +281,7 @@ namespace UsdToUnreal
 	 * @param SkeletonName - Name to use for the new USkeleton asset
 	 * @return Newly created USkeletalMesh, or nullptr in case of failure
 	 */
+	UE_DEPRECATED(5.5, "Prefer manually creating/reusing the SkeletalMesh and Skeleton beforehand and then calling ConvertSkeletalImportData.")
 	USDUTILITIES_API USkeletalMesh* GetSkeletalMeshFromImportData(
 		TArray<FSkeletalMeshImportData>& LODIndexToSkeletalMeshImportData,
 		const TArray<SkeletalMeshImportData::FBone>& InSkeletonBones,
@@ -288,6 +289,21 @@ namespace UsdToUnreal
 		EObjectFlags ObjectFlags,
 		const FName& MeshName = NAME_None,
 		const FName& SkeletonName = NAME_None
+	);
+
+	/**
+	 * Fills in InOutSkeletalMesh (and its Skeleton) with all the provided data converted from USD.
+	 * @param InLODIndexToSkeletalMeshImportData - Container with the imported skeletal mesh data per LOD level
+	 * @param InSkeletonBones - Bones to use for the reference skeleton (skeleton data on each LODIndexToSkeletalMeshImportData will be ignored).
+	 * @param InBlendShapesByPath - Blend shapes to convert to morph targets
+	 * @param InOutSkeletalMesh - SkeletalMesh to receive the converted data. It should have a valid USkeleton set.
+	 * @return Whether the conversion was successful or not.
+	 */
+	USDUTILITIES_API bool ConvertSkeletalImportData(
+		TArray<FSkeletalMeshImportData>& InLODIndexToSkeletalMeshImportData,
+		const TArray<SkeletalMeshImportData::FBone>& InSkeletonBones,
+		UsdUtils::FBlendShapeMap& InBlendShapesByPath,
+		USkeletalMesh* InOutSkeletalMesh
 	);
 }
 

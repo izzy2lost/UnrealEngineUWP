@@ -2,7 +2,7 @@
 
 #include "USDAssetCacheAssetEditorToolkit.h"
 
-#include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -15,7 +15,7 @@ const FName FUsdAssetCacheAssetEditorToolkit::TabId("AssetCacheEditor");
 void FUsdAssetCacheAssetEditorToolkit::Initialize(
 	const EToolkitMode::Type Mode,
 	const TSharedPtr<IToolkitHost>& InitToolkitHost,
-	UUsdAssetCache2* InAssetCache
+	UUsdAssetCache3* InAssetCache
 )
 {
 	const TSharedRef<FTabManager::FLayout>

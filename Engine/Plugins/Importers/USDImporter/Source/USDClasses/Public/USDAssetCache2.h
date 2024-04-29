@@ -12,7 +12,7 @@
 /**
  * Owns the assets generated and reused by USD Stages, allowing thread-safe retrieval/storage.
  */
-UCLASS(BlueprintType, Blueprintable, meta = (DisplayName = "USD Asset Cache", ScriptName = "UsdAssetCache"))
+UCLASS(BlueprintType, Blueprintable)
 class USDCLASSES_API UUsdAssetCache2 : public UObject
 {
 	GENERATED_BODY()

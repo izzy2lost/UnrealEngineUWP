@@ -6,14 +6,15 @@
 // The GeometryCacheStreamer module is editor-only, so is the translator
 
 #include "MeshTranslationImpl.h"
+#include "USDAssetCache3.h"
 #include "USDAssetUserData.h"
-#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDGroomTranslatorUtils.h"
 #include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
 
@@ -66,13 +67,22 @@ static FAutoConsoleVariableRef CVarEnableSubdiv(
 		 "StaticMeshes")
 );
 
+static bool GForceImport = true;
+static FAutoConsoleVariableRef CVarForceImport(
+	TEXT("USD.GeometryCache.ForceImport"),
+	GEnableSubdiv,
+	TEXT(
+		"Whether to immediately cache all geometry cache frames into the asset when the stage opens, acting like a fully imported Geometry Cache asset"
+	)
+);
+
 namespace UsdGeometryCacheTranslatorImpl
 {
 	bool ProcessGeometryCacheMaterials(
 		const pxr::UsdPrim& UsdPrim,
 		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
 		UGeometryCache& GeometryCache,
-		UUsdAssetCache2& AssetCache,
+		UUsdAssetCache3& AssetCache,
 		FUsdInfoCache* InfoCache,
 		float Time,
 		EObjectFlags Flags,
@@ -373,7 +383,7 @@ namespace UsdGeometryCacheTranslatorImpl
 	UGeometryCacheTrackStreamable* CreateStreamableTrack(UGeometryCache* GeometryCache, const FString& PrimPath)
 	{
 		// Create and configure a new StreamableTrack to be added to the GeometryCache
-		FString ObjectName = IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(PrimPath));
+		FString ObjectName = UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetBaseFilename(PrimPath));
 
 		FName CodecName = MakeUniqueObjectName(GeometryCache, UGeometryCacheCodecV1::StaticClass(), FName(ObjectName + FString(TEXT("_Codec"))));
 		UGeometryCacheCodecV1* Codec = NewObject<UGeometryCacheCodecV1>(GeometryCache, CodecName, RF_Public);
@@ -420,36 +430,32 @@ namespace UsdGeometryCacheTranslatorImpl
 			FramesPerSecond = 1;
 		}
 
+		const bool bIsImporting = GForceImport || Context->bIsImporting;
+
 		// Frame rate must be taken into account as well since different frame rates must produce different sampling in the tracks
 		SHA1.Update(reinterpret_cast<uint8*>(&FramesPerSecond), sizeof(FramesPerSecond));
 
 		// Track type depends on if it's importing or not. Import needs to generate a persistent asset with all the frames already sampled
-		SHA1.Update(reinterpret_cast<uint8*>(&Context->bIsImporting), sizeof(Context->bIsImporting));
+		SHA1.Update(reinterpret_cast<const uint8*>(&bIsImporting), sizeof(bIsImporting));
 		SHA1.Final();
 
 		FSHAHash GeoCacheHash;
 		SHA1.GetHash(&GeoCacheHash.Hash[0]);
 		const FString PrefixedGeoCacheHash = UsdUtils::GetAssetHashPrefix(RootPrim, Context->bReuseIdenticalAssets) + GeoCacheHash.ToString();
 
-		UGeometryCache* GeometryCache = Cast<UGeometryCache>(Context->AssetCache->GetCachedAsset(PrefixedGeoCacheHash));
+		const FString DesiredName = FPaths::GetBaseFilename(RootPrimPath);
 
-		if (!GeometryCache)
+		UGeometryCache* GeometryCache = Context->UsdAssetCache->GetOrCreateCachedAsset<UGeometryCache>(
+			PrefixedGeoCacheHash,
+			DesiredName,
+			Context->ObjectFlags,
+			&bOutIsNew
+		);
+
+		if (GeometryCache && bOutIsNew)
 		{
-			bOutIsNew = true;
-
-			const FName AssetName = MakeUniqueObjectName(
-				GetTransientPackage(),
-				UGeometryCache::StaticClass(),
-				*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(RootPrimPath))
-			);
-			GeometryCache = NewObject<UGeometryCache>(
-				GetTransientPackage(),
-				AssetName,
-				Context->ObjectFlags | EObjectFlags::RF_Public | RF_Transient
-			);
-
 			FReadMeshDataArgs Args(GetReadMeshDataArgs(Context, RootPrimPath));
-			if (!Context->bIsImporting)
+			if (!bIsImporting)
 			{
 				// StartOffsetTime is the offset applied to the GeometryCache section on the sequencer track, so not relevant when importing
 				StartOffsetTime = static_cast<float>(Args.StartFrame) / Args.FramesPerSecond;
@@ -461,7 +467,7 @@ namespace UsdGeometryCacheTranslatorImpl
 			{
 				const FString& PrimPath = MeshPaths[Index].GetString();
 				UGeometryCacheTrack* Track = nullptr;
-				if (!Context->bIsImporting)
+				if (!bIsImporting)
 				{
 					Track = CreateUsdStreamTrack(GeometryCache, Args, PrimPath, MaterialOffsets[Index]);
 				}
@@ -480,12 +486,6 @@ namespace UsdGeometryCacheTranslatorImpl
 				MatTimes.Add(0.0f);
 				Track->SetMatrixSamples(Mats, MatTimes);
 			}
-
-			Context->AssetCache->CacheAsset(PrefixedGeoCacheHash, GeometryCache);
-		}
-		else
-		{
-			bOutIsNew = false;
 		}
 
 		return GeometryCache;
@@ -885,8 +885,10 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 
 			if (GeometryCache)
 			{
-				if (UUsdGeometryCacheAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdGeometryCacheAssetUserData>(GeometryCache.Get()
-					))
+				UUsdGeometryCacheAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdGeometryCacheAssetUserData>(
+					GeometryCache.Get()
+				);
+				if (UserData)
 				{
 					UserData->PrimvarToUVIndex = LODIndexToMaterialInfo[0].PrimvarToUVIndex;	// We use the same primvar mapping for all LODs
 					UserData->LayerStartOffsetSeconds = StartTimeOffset;
@@ -920,7 +922,7 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 						GetPrim(),
 						LODIndexToMaterialInfo,
 						*GeometryCache,
-						*Context->AssetCache.Get(),
+						*Context->UsdAssetCache.Get(),
 						Context->InfoCache.Get(),
 						Context->Time,
 						Context->ObjectFlags,
@@ -935,8 +937,10 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 				}
 			}
 
+			const bool bIsImporting = GForceImport || Context->bIsImporting;
+
 			// Continue with the import steps
-			return Context->bIsImporting && GeometryCache && bIsNew;
+			return bIsImporting && GeometryCache && bIsNew;
 		}
 	);
 
@@ -1016,10 +1020,8 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 			return nullptr;
 		}
 
-		SceneComponent = CreateComponentsEx(
-			{Context->bIsImporting ? UGeometryCacheComponent::StaticClass() : UGeometryCacheUsdComponent::StaticClass()},
-			{}
-		);
+		const bool bIsImporting = GForceImport || Context->bIsImporting;
+		SceneComponent = CreateComponentsEx({bIsImporting ? UGeometryCacheComponent::StaticClass() : UGeometryCacheUsdComponent::StaticClass()}, {});
 	}
 	else
 	{
@@ -1030,7 +1032,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 
 	if (UGeometryCacheComponent* Component = Cast<UGeometryCacheComponent>(SceneComponent))
 	{
-		if (Context->InfoCache && Context->AssetCache)
+		if (Context->InfoCache && Context->UsdAssetCache)
 		{
 			if (UGeometryCache* GeometryCache = Context->InfoCache->GetSingleAssetForPrim<UGeometryCache>(PrimPath))
 			{
@@ -1041,7 +1043,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 					GetPrim(),
 					GeometryCache->Materials,
 					*Component,
-					*Context->AssetCache,
+					*Context->UsdAssetCache,
 					*Context->InfoCache,
 					Context->Time,
 					Context->ObjectFlags,
@@ -1056,7 +1058,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 				{
 					UsdGroomTranslatorUtils::CreateGroomBindingAsset(
 						GetPrim(),
-						*Context->AssetCache,
+						*Context->UsdAssetCache,
 						*Context->InfoCache,
 						Context->ObjectFlags,
 						Context->bReuseIdenticalAssets
@@ -1181,10 +1183,12 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 			UsdGroomTranslatorUtils::SetGroomFromPrim(GetPrim(), *Context->InfoCache, SceneComponent);
 		}
 
+		const bool bIsImporting = GForceImport || Context->bIsImporting;
+
 		// Defer to xformable translator to set our transforms, visibility, etc. but only when opening the stage: This will be baked in for import.
 		// Don't go through FUsdGeomMeshTranslator::UpdateComponents as it will want to create a static mesh if PrimPath is an animated mesh prim
 		// (which is likely, given that we're running this FUsdGeometryCacheTranslator for it)
-		if (!Context->bIsImporting)
+		if (!bIsImporting)
 		{
 			FUsdGeomXformableTranslator::UpdateComponents(GeometryCacheComponent);
 		}

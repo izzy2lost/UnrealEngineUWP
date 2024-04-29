@@ -8,6 +8,7 @@
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDSkeletalDataConversion.h"
@@ -357,7 +358,7 @@ bool UAnimSequenceExporterUSD::ExportBinary(
 
 	if (Options->MetadataOptions.bExportAssetMetadata)
 	{
-		if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(AnimSequence))
+		if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(AnimSequence))
 		{
 			UnrealToUsd::ConvertMetadata(
 				UserData,

@@ -93,6 +93,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Prims to Import")
 	TArray<FString> PrimsToImport = TArray<FString>{TEXT("/")};
 
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options", meta = (InlineEditConditionToggle))
+	bool bUseExistingAssetCache;
+
+	/** Copy assets from an existing UsdAsset cache instead of generating them from scratch, if possible */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options", meta = (AllowedClasses = "/Script/USDClasses.UsdAssetCache3", EditCondition = "bUseExistingAssetCache"))
+	FSoftObjectPath ExistingAssetCache = nullptr;
+
 	/** Only import prims with these specific purposes from the USD file */
 	UPROPERTY(
 		BlueprintReadWrite,

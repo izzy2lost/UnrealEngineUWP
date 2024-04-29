@@ -2,10 +2,14 @@
 
 #include "USDLuxLightTranslator.h"
 
+#include "USDAssetUserData.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDLightConversion.h"
-
+#include "USDLog.h"
+#include "USDObjectUtils.h"
+#include "USDShadeConversion.h"
+#include "USDTypesConversion.h"
 #include "UsdWrappers/UsdPrim.h"
 
 #include "Components/DirectionalLightComponent.h"
@@ -13,14 +17,94 @@
 #include "Components/RectLightComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "Engine/TextureCube.h"
 
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
 #include "pxr/usd/usdLux/diskLight.h"
+#include "pxr/usd/usdLux/domeLight.h"
 #include "pxr/usd/usdLux/lightAPI.h"
 #include "pxr/usd/usdLux/rectLight.h"
 #include "USDIncludesEnd.h"
+
+void FUsdLuxLightTranslator::CreateAssets()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdLuxLightTranslator::CreateAssets);
+
+	if (!Context->UsdAssetCache || !Context->InfoCache)
+	{
+		return;
+	}
+
+	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		CreateAlternativeDrawModeAssets(DrawMode);
+		return;
+	}
+
+	const FString VolumePrimPathString = PrimPath.GetString();
+	pxr::UsdPrim Prim = GetPrim();
+	pxr::UsdLuxDomeLight DomeLight{Prim};
+	if (!DomeLight)
+	{
+		// Only dome lights make assets for now
+		return;
+	}
+
+	const FString ResolvedDomeTexturePath = UsdUtils::GetResolvedAssetPath(DomeLight.GetTextureFileAttr());
+	if (ResolvedDomeTexturePath.IsEmpty())
+	{
+		FScopedUsdAllocs Allocs;
+
+		pxr::SdfAssetPath TextureAssetPath;
+		DomeLight.GetTextureFileAttr().Get<pxr::SdfAssetPath>(&TextureAssetPath);
+
+		// Show a good warning for this because it's easy to pick some cubemap asset from the engine (that usually don't come with the
+		// source texture) and have the dome light silently not work again
+		FString TargetAssetPath = UsdToUnreal::ConvertString(TextureAssetPath.GetAssetPath());
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to find texture '%s' used for UsdLuxDomeLight '%s'!"),
+			*TargetAssetPath,
+			*UsdToUnreal::ConvertPath(DomeLight.GetPrim().GetPath())
+		);
+
+		return;
+	}
+
+	const FString PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(Prim, Context->bReuseIdenticalAssets)
+										+ LexToString(FMD5Hash::HashFile(*ResolvedDomeTexturePath));
+
+	const FString& DesiredTextureName = FPaths::GetBaseFilename(ResolvedDomeTexturePath);
+
+	TextureGroup Group = TextureGroup::TEXTUREGROUP_Skybox;
+
+	bool bCreatedTexture = false;
+	UTextureCube* Texture = Context->UsdAssetCache->GetOrCreateCustomCachedAsset<UTextureCube>(
+		PrefixedTextureHash,
+		DesiredTextureName,
+		Context->ObjectFlags,
+		[&ResolvedDomeTexturePath, Group](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
+		{
+			return UsdUtils::CreateTexture(ResolvedDomeTexturePath, SanitizedName, Group, FlagsToUse, Outer);
+		},
+		&bCreatedTexture
+	);
+
+	if (UUsdAssetUserData* TextureUserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(Texture))
+	{
+		TextureUserData->PrimPaths.AddUnique(UsdToUnreal::ConvertPath(DomeLight.GetPrim().GetPath()));
+	}
+
+	if (Texture)
+	{
+		Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
+	}
+}
 
 USceneComponent* FUsdLuxLightTranslator::CreateComponents()
 {
@@ -93,7 +177,14 @@ void FUsdLuxLightTranslator::UpdateComponents(USceneComponent* SceneComponent)
 	}
 	else if (USkyLightComponent* SkyLightComponent = Cast<USkyLightComponent>(SceneComponent))
 	{
-		UsdToUnreal::ConvertDomeLight(Prim, *SkyLightComponent, Context->AssetCache.Get(), Context->bReuseIdenticalAssets);
+		SkyLightComponent->Modify();
+
+		if (UTextureCube* TextuxeCube = Context->InfoCache->GetSingleAssetForPrim<UTextureCube>(PrimPath))
+		{
+			SkyLightComponent->Cubemap = TextuxeCube;
+			SkyLightComponent->SourceType = ESkyLightSourceType::SLS_SpecifiedCubemap;
+		}
+
 		SkyLightComponent->Mobility = EComponentMobility::Movable;	  // We won't bake geometry in the sky light so it needs to be movable
 	}
 

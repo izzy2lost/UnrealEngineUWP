@@ -350,9 +350,11 @@ public:
 					}
 				}
 
+				TWeakObjectPtr<AUsdStageActor> WeakActor = StageActor;
 				StageActor->OnPreStageChanged.AddLambda(
-					[this, StageActor]()
+					[this, WeakActor]()
 					{
+						AUsdStageActor* StageActor = WeakActor.Get();
 						if (!bUndoRedoing && StageActor && static_cast<const AUsdStageActor*>(StageActor)->GetUsdStage())
 						{
 							const bool bForClosing = true;

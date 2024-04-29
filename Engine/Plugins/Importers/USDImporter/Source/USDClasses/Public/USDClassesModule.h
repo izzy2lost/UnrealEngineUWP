@@ -8,6 +8,7 @@
 
 class UMaterialInstanceConstant;
 class UMaterialInstanceDynamic;
+class UUsdAssetCache3;
 struct FAnalyticsEventAttribute;
 
 enum class EUsdReferenceMaterialProperties : uint8
@@ -60,7 +61,11 @@ public:
 	 */
 	USDCLASSES_API static TSet<UObject*> GetAssetDependencies(UObject* Asset);
 
+	// Returns the default asset cache for the project or create a new one at the project root
+	USDCLASSES_API static UUsdAssetCache3* GetAssetCacheForProject();
+
 	// Adapted from ObjectTools as it is within an Editor-only module
+	UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h")
 	USDCLASSES_API static FString SanitizeObjectName(const FString& InObjectName);
 
 	/** Describes the type of vertex color/DisplayColor material that we would need in order to render a prim's displayColor data as intended */

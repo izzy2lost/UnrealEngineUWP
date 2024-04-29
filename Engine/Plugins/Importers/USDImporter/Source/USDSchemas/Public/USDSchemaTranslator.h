@@ -6,6 +6,7 @@
 
 #include "UnrealUSDWrapper.h"
 #include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 #include "USDInfoCache.h"
 #include "USDMemory.h"
 #include "USDMetadataImportOptions.h"
@@ -178,7 +179,10 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	FUsdSchemaTranslationContext& operator=(const FUsdSchemaTranslationContext& Other) = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	UE_DEPRECATED(5.5, "Use the constructor that receives an UUsdAssetCache3 instead")
 	explicit FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache2& InAssetCache);
+
+	explicit FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache3& InAssetCache);
 
 	/** True if we're a context created by the USDStageImporter to fully import to persistent assets and actors */
 	bool bIsImporting = false;
@@ -225,6 +229,10 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	int32 NaniteTriangleThreshold;
 
 	/** Where the translated assets will be stored */
+	TStrongObjectPtr<UUsdAssetCache3> UsdAssetCache;
+
+	/** Where the translated assets will be stored */
+	UE_DEPRECATED(5.5, "Use the 'UsdAssetCache' member instead, which is of the new UUsdAssetCache3 type")
 	TStrongObjectPtr<UUsdAssetCache2> AssetCache;
 
 	/** Caches various information about prims that are expensive to query */

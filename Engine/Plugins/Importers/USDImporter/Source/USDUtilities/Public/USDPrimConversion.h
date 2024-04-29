@@ -45,7 +45,6 @@ class UMovieSceneTrack;
 class UMovieSceneVisibilityTrack;
 class USceneComponent;
 class USkeletalMeshComponent;
-class UUsdAssetCache2;
 class UUsdDrawModeComponent;
 enum ERichCurveInterpMode : int;
 struct FFrameRate;

@@ -29,8 +29,8 @@ class FSHAHash;
 class UMaterial;
 class UMaterialOptions;
 class UTexture;
-class UUsdAssetCache;
 class UUsdAssetCache2;
+class UUsdAssetCache3;
 enum class EFlattenMaterialProperties : uint8;
 enum EMaterialProperty : int;
 enum TextureAddress : int;
@@ -61,14 +61,14 @@ namespace UsdToUnreal
 	USDUTILITIES_API bool ConvertMaterial(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
 		UMaterialInstance& Material,
-		UUsdAssetCache2* TexturesCache = nullptr,
+		UUsdAssetCache3* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
 		bool bReuseIdenticalAssets = true
 	);
 	USDUTILITIES_API bool ConvertMaterial(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
 		UMaterial& Material,
-		UUsdAssetCache2* TexturesCache = nullptr,
+		UUsdAssetCache3* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
 		bool bReuseIdenticalAssets = true
 	);
@@ -87,50 +87,35 @@ namespace UsdToUnreal
 	USDUTILITIES_API bool ConvertShadeInputsToParameters(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
 		UMaterialInstance& MaterialInstance,
-		UUsdAssetCache2* TexturesCache,
+		UUsdAssetCache3* TexturesCache,
 		const TCHAR* RenderContext = nullptr,
 		bool bReuseIdenticalAssets = true
 	);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.3, "Please use the overload that doesn't use PrimvarToUVIndex anymore")
-	USDUTILITIES_API bool ConvertMaterial(
-		const pxr::UsdShadeMaterial& UsdShadeMaterial,
-		UMaterial& Material,
-		UUsdAssetCache2* TexturesCache,
-		TMap<FString, int32>& PrimvarToUVIndex,
-		const TCHAR* RenderContext = nullptr
-	);
-	UE_DEPRECATED(5.3, "Use the other overload that receives an UUsdAssetCache2 object instead")
+	UE_DEPRECATED(5.5, "Use the other overload that receives an UUsdAssetCache3 object instead")
 	USDUTILITIES_API bool ConvertMaterial(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
 		UMaterialInstance& Material,
-		UUsdAssetCache2* TexturesCache,
-		TMap<FString, int32>& PrimvarToUVIndex,
-		const TCHAR* RenderContext = nullptr
+		UUsdAssetCache2* TexturesCache = nullptr,
+		const TCHAR* RenderContext = nullptr,
+		bool bReuseIdenticalAssets = true
 	);
-	UE_DEPRECATED(5.2, "Use the other overload that receives an UUsdAssetCache2 object instead")
-	USDUTILITIES_API bool ConvertMaterial(
-		const pxr::UsdShadeMaterial& UsdShadeMaterial,
-		UMaterialInstance& Material,
-		UUsdAssetCache* TexturesCache,
-		TMap<FString, int32>& PrimvarToUVIndex,
-		const TCHAR* RenderContext = nullptr
-	);
-	UE_DEPRECATED(5.2, "Use the other overload that receives an UUsdAssetCache2 object instead")
+	UE_DEPRECATED(5.5, "Use the other overload that receives an UUsdAssetCache3 object instead")
 	USDUTILITIES_API bool ConvertMaterial(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
 		UMaterial& Material,
-		UUsdAssetCache* TexturesCache,
-		TMap<FString, int32>& PrimvarToUVIndex,
-		const TCHAR* RenderContext = nullptr
+		UUsdAssetCache2* TexturesCache = nullptr,
+		const TCHAR* RenderContext = nullptr,
+		bool bReuseIdenticalAssets = true
 	);
-	UE_DEPRECATED(5.2, "Use the other overload that receives an UUsdAssetCache2 object instead")
+	UE_DEPRECATED(5.5, "Use the other overload that receives an UUsdAssetCache3 object instead")
 	USDUTILITIES_API bool ConvertShadeInputsToParameters(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
 		UMaterialInstance& MaterialInstance,
-		UUsdAssetCache* TexturesCache,
-		const TCHAR* RenderContext = nullptr
+		UUsdAssetCache2* TexturesCache,
+		const TCHAR* RenderContext = nullptr,
+		bool bReuseIdenticalAssets = true
 	);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
@@ -248,12 +233,19 @@ namespace UsdUtils
 		TextureAddress AddressY
 	);
 
-	/** Creates a texture from a pxr::SdfAssetPath attribute. PrimPath is optional, and should point to the source shadematerial prim path. It will be
-	 * placed in its UUsdAssetUserData */
+	UE_DEPRECATED(5.5, "Use the overload that receives the resolved texture path directly.")
 	USDUTILITIES_API UTexture* CreateTexture(
 		const pxr::UsdAttribute& TextureAssetPathAttr,
 		const FString& PrimPath = FString(),
-		TextureGroup LODGroup = TEXTUREGROUP_World,
+		TextureGroup Group = TEXTUREGROUP_World,
+		UObject* Outer = GetTransientPackage()
+	);
+
+	USDUTILITIES_API UTexture* CreateTexture(
+		const FString& ResolvedTexturePath,
+		FName SanitizedName,
+		TextureGroup Group = TEXTUREGROUP_World,
+		EObjectFlags Flags = RF_Public | RF_Standalone | RF_Transactional,
 		UObject* Outer = GetTransientPackage()
 	);
 

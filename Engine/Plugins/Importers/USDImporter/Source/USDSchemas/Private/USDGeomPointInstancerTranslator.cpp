@@ -3,7 +3,7 @@
 #include "USDGeomPointInstancerTranslator.h"
 
 #include "MeshTranslationImpl.h"
-#include "USDAssetCache.h"
+#include "USDAssetCache3.h"
 #include "USDAssetUserData.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
@@ -301,11 +301,10 @@ USceneComponent* FUsdGeomPointInstancerTranslator::CreateComponents()
 			return MainSceneComponent;
 		}
 
-		if (!Context->AssetCache.IsValid() || !Context->InfoCache.IsValid())
+		if (!Context->InfoCache.IsValid())
 		{
 			return MainSceneComponent;
 		}
-		UUsdAssetCache2& AssetCache = *Context->AssetCache.Get();
 		FUsdInfoCache& InfoCache = *Context->InfoCache.Get();
 
 		// Lets pretend ParentComponent is pointing to the parent USceneComponent while we create the child HISMs, so they get
@@ -405,11 +404,11 @@ void FUsdGeomPointInstancerTranslator::UpdateComponents(USceneComponent* PointIn
 			return;
 		}
 
-		if (!Context->AssetCache.IsValid() || !Context->InfoCache.IsValid())
+		if (!Context->UsdAssetCache.IsValid() || !Context->InfoCache.IsValid())
 		{
 			return;
 		}
-		UUsdAssetCache2& AssetCache = *Context->AssetCache.Get();
+		UUsdAssetCache3& AssetCache = *Context->UsdAssetCache.Get();
 		FUsdInfoCache& InfoCache = *Context->InfoCache.Get();
 
 		// Lets pretend ParentComponent is pointing to the parent USceneComponent while we create the child HISMs, so they get

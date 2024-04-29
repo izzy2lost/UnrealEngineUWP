@@ -4,50 +4,24 @@
 
 #include "USDAssetCache2.h"
 #include "USDAssetCacheAssetActions.h"
-#include "USDDefaultAssetCacheDialog.h"
 
 #include "AssetToolsModule.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Interfaces/IMainFrameModule.h"
 #include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "USDClassesEditorModule"
 
 UUsdAssetCache2* IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog()
 {
-	UUsdAssetCache2* Result = nullptr;
-	EDefaultAssetCacheDialogOption Unused = ShowMissingDefaultAssetCacheDialog(Result);
-	return Result;
+	return nullptr;
 }
 
 void IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog(UUsdAssetCache2*& OutCreatedCache, bool& bOutUserAccepted)
 {
-	EDefaultAssetCacheDialogOption Result = ShowMissingDefaultAssetCacheDialog(OutCreatedCache);
-	bOutUserAccepted = Result != EDefaultAssetCacheDialogOption::Cancel;
 }
 
 EDefaultAssetCacheDialogOption IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog(UUsdAssetCache2*& OutCreatedCache)
 {
-	TSharedPtr<SWindow> ParentWindow;
-
-	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
-	{
-		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
-		ParentWindow = MainFrame.GetParentWindow();
-	}
-
-	FText WindowTitle = LOCTEXT("WindowTitle", "Set the default USD Asset Cache");
-
-	TSharedRef<SWindow> Window = SNew(SWindow).Title(WindowTitle).SizingRule(ESizingRule::Autosized).AdjustInitialSizeAndPositionForDPIScale(false);
-
-	TSharedPtr<SUsdDefaultAssetCacheDialog> OptionsWindow;
-	Window->SetContent(SAssignNew(OptionsWindow, SUsdDefaultAssetCacheDialog).WidgetWindow(Window));
-
-	const bool bSlowTaskWindow = false;
-	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, bSlowTaskWindow);
-
-	OutCreatedCache = OptionsWindow->GetCreatedCache();
-	return OptionsWindow->GetDialogOutcome();
+	return EDefaultAssetCacheDialogOption::Cancel;
 }
 
 class FUsdClassesEditorModule : public IUsdClassesEditorModule

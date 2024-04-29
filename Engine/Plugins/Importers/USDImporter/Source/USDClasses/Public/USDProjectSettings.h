@@ -67,7 +67,7 @@ public:
 	 * USD Asset Cache to use for USD Stage Actors that don't have any asset cache specified.
 	 * Leave this empty to have each stage actor generate it's on transient cache instead.
 	 */
-	UPROPERTY(config, EditAnywhere, Category = USD, meta = (AllowedClasses = "/Script/USDClasses.UsdAssetCache2"))
+	UPROPERTY(config, EditAnywhere, Category = USD, meta = (AllowedClasses = "/Script/USDClasses.UsdAssetCache3"))
 	FSoftObjectPath DefaultAssetCache;
 
 	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")

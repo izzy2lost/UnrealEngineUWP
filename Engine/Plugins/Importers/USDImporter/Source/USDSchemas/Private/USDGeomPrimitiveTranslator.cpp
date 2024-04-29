@@ -164,7 +164,7 @@ USceneComponent* FUsdGeomPrimitiveTranslator::CreateComponents()
 					GetPrim(),
 					ExistingAssignments,
 					*StaticMeshComponent,
-					*Context->AssetCache.Get(),
+					*Context->UsdAssetCache.Get(),
 					*Context->InfoCache.Get(),
 					Context->Time,
 					Context->ObjectFlags,

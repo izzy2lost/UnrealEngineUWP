@@ -9,6 +9,7 @@
 #include "USDExporterModule.h"
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDUnrealAssetInfo.h"
@@ -306,7 +307,7 @@ bool UGeometryCacheExporterUSD::ExportBinary(
 
 		if (Options->MetadataOptions.bExportAssetMetadata)
 		{
-			if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(GeometryCache))
+			if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(GeometryCache))
 			{
 				UnrealToUsd::ConvertMetadata(
 					UserData,

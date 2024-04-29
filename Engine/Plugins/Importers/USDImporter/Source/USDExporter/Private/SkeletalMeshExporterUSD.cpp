@@ -8,6 +8,7 @@
 #include "USDConversionUtils.h"
 #include "USDExporterModule.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDSkeletalDataConversion.h"
@@ -84,7 +85,7 @@ namespace UE::SkeletalMeshExporterUSD::Private
 			// just write out the slots with UsdGeomSubsets named "Section0", "Section1", ..., "SectionN" anyway
 		}
 	}
-}
+}	 // namespace UE::SkeletalMeshExporterUSD::Private
 
 USkeletalMeshExporterUsd::USkeletalMeshExporterUsd()
 {
@@ -333,7 +334,7 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 
 		if (Options->MetadataOptions.bExportAssetMetadata)
 		{
-			if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(SkeletalMesh))
+			if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(SkeletalMesh))
 			{
 				UnrealToUsd::ConvertMetadata(
 					UserData,
@@ -345,7 +346,7 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 
 			if (USkeleton* Skeleton = SkeletalMesh->GetSkeleton())
 			{
-				if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(Skeleton))
+				if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(Skeleton))
 				{
 					if (UserData->StageIdentifierToMetadata.Num() > 0)
 					{

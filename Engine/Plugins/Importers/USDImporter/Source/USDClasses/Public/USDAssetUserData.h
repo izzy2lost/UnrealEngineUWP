@@ -24,6 +24,10 @@ public:
 	// bits of metadata
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
 	TMap<FString, FUsdCombinedPrimMetadata> StageIdentifierToMetadata;
+
+	// Hash of the prim data that was used to generate this asset
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "USD")
+	FString OriginalHash;
 };
 
 UCLASS(BlueprintType)

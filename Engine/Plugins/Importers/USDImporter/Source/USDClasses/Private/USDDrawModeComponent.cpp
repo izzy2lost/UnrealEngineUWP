@@ -83,8 +83,11 @@ namespace UE::UsdDrawModeComponentImpl::Private
 				// Reference: PrimitiveDrawingUtils.cpp, DrawBox function
 
 				// Calculate verts for a face pointing down Z
-				FVector3f Positions[4] =
-					{FVector3f(-0.5, -0.5, +0.5), FVector3f(-0.5, +0.5, +0.5), FVector3f(+0.5, +0.5, +0.5), FVector3f(+0.5, -0.5, +0.5)};
+				FVector3f Positions[4] = {
+					FVector3f(-0.5, -0.5, +0.5),
+					FVector3f(-0.5, +0.5, +0.5),
+					FVector3f(+0.5, +0.5, +0.5),
+					FVector3f(+0.5, -0.5, +0.5)};
 
 				FVector2f UVs[4] = {
 					FVector2f(0, 0),
@@ -662,21 +665,14 @@ namespace UE::UsdDrawModeComponentImpl::Private
 		FMaterialParameterInfo Info;
 		Info.Name = TEXT("Texture");
 
-#if WITH_EDITOR
-		if (GIsEditor)
+		if (UMaterialInstanceDynamic* Dynamic = Cast<UMaterialInstanceDynamic>(Instance))
 		{
-			if (UMaterialInstanceConstant* Constant = Cast<UMaterialInstanceConstant>(Instance))
-			{
-				Constant->SetTextureParameterValueEditorOnly(Info, Texture);
-			}
+			Dynamic->SetTextureParameterValueByInfo(Info, Texture);
 		}
 		else
-#endif	  // WITH_EDITOR
 		{
-			if (UMaterialInstanceDynamic* Dynamic = Cast<UMaterialInstanceDynamic>(Instance))
-			{
-				Dynamic->SetTextureParameterValueByInfo(Info, Texture);
-			}
+			// We should always create MIDs on-demand now, and never a MIC
+			ensure(false);
 		}
 	}
 };	  // namespace UE::UsdDrawModeComponentImpl::Private
@@ -1130,22 +1126,10 @@ UMaterialInstance* UUsdDrawModeComponent::GetOrCreateTextureMaterial(EUsdModelCa
 	{
 		if (UMaterialInterface* ParentMaterial = Cast<UMaterialInterface>(ProjectSettings->ReferenceModelCardTextureMaterial.TryLoad()))
 		{
-#if WITH_EDITOR
-			if (GIsEditor)
+			UObject* Outer = this;
+			if (UMaterialInstanceDynamic* NewMID = UMaterialInstanceDynamic::Create(ParentMaterial, Outer, NAME_None))
 			{
-				if (UMaterialInstanceConstant* NewMIC = NewObject<UMaterialInstanceConstant>(GetTransientPackage(), NAME_None, RF_Transient))
-				{
-					UMaterialEditingLibrary::SetMaterialInstanceParent(NewMIC, ParentMaterial);
-					Instance = NewMIC;
-				}
-			}
-			else
-#endif
-			{
-				if (UMaterialInstanceDynamic* NewMID = UMaterialInstanceDynamic::Create(ParentMaterial, GetTransientPackage(), NAME_None))
-				{
-					Instance = NewMID;
-				}
+				Instance = NewMID;
 			}
 		}
 	}
@@ -1199,7 +1183,7 @@ void UUsdDrawModeComponent::RefreshMaterialInstances()
 		{
 			SetTextureParameter(GetOrCreateTextureMaterial(Face), OppositeTexture);
 		}
-		// Face is not authored, but the opposite face is. It doesn't have a texture though. (+ other cases) --> Draw DisplyColor
+		// Face is not authored, but the opposite face is. It doesn't have a texture though. (+ other cases) --> Draw DisplayColor
 		else
 		{
 			IndicesToSetDrawModeColor.Add(FaceIndex);
@@ -1238,16 +1222,7 @@ void UUsdDrawModeComponent::RefreshMaterialInstances()
 			Desc.bHasOpacity = false;
 			Desc.bIsDoubleSided = false;
 
-#if WITH_EDITOR
-			if (GIsEditor)
-			{
-				DisplayColorInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceConstant(Desc);
-			}
-			else
-#endif	  // WITH_EDITOR
-			{
-				DisplayColorInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(Desc);
-			}
+			DisplayColorInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(Desc);
 
 			if (DisplayColorInstance)
 			{

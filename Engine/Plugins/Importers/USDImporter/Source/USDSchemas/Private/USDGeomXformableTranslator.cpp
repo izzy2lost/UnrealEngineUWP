@@ -4,8 +4,8 @@
 
 #include "MeshTranslationImpl.h"
 #include "UnrealUSDWrapper.h"
+#include "USDAssetCache3.h"
 #include "USDAssetUserData.h"
-#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDGeomMeshConversion.h"
@@ -13,6 +13,7 @@
 #include "USDIntegrationUtils.h"
 #include "USDLog.h"
 #include "USDMemory.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDSchemasModule.h"
 #include "USDShadeConversion.h"
@@ -30,6 +31,7 @@
 #include "LiveLinkComponentController.h"
 #include "LiveLinkRole.h"
 #include "Misc/App.h"
+#include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Roles/LiveLinkTransformRole.h"
@@ -332,7 +334,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 					GetPrim(),
 					ExistingAssignments,
 					*StaticMeshComponent,
-					*Context->AssetCache.Get(),
+					*Context->UsdAssetCache.Get(),
 					*Context->InfoCache.Get(),
 					Context->Time,
 					Context->ObjectFlags,
@@ -445,7 +447,11 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx(TOptional<TSubc
 	// the transient flag after spawn to make sure the spawned actor get an external
 	// package if needed.
 	const EObjectFlags PreComponentFlags = Context->ObjectFlags & ~(RF_Standalone | RF_Public | RF_Transient);
-	const EObjectFlags PostComponentFlags = Context->ObjectFlags & RF_Transient;
+	EObjectFlags PostComponentFlags = Context->ObjectFlags & ~(RF_Standalone | RF_Public);
+	if (!Context->bIsImporting)
+	{
+		PostComponentFlags |= RF_Transient;
+	}
 
 	if (bNeedsActor.GetValue())
 	{
@@ -549,7 +555,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx(TOptional<TSubc
 			const FName ComponentName = MakeUniqueObjectName(
 				ComponentOuter,
 				ComponentType.GetValue(),
-				*IUsdClassesModule::SanitizeObjectName(Prim.GetName().ToString())
+				*UsdUnreal::ObjectUtils::SanitizeObjectName(Prim.GetName().ToString())
 			);
 			SceneComponent = NewObject<USceneComponent>(ComponentOuter, ComponentType.GetValue(), ComponentName, PreComponentFlags);
 			SceneComponent->SetFlags(PostComponentFlags);
@@ -563,7 +569,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx(TOptional<TSubc
 
 	if (Context->MetadataOptions.bCollectMetadata && Context->MetadataOptions.bCollectOnComponents)
 	{
-		UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData(SceneComponent);
+		UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(SceneComponent);
 
 		// It makes sense for asset metadata to "include all prims in the subtree", as when we generate an
 		// asset we don't generate additional separate assets for child prims. This is not the same behavior
@@ -579,7 +585,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx(TOptional<TSubc
 			bCollectMetadataFromSubtree
 		);
 	}
-	else if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(SceneComponent))
+	else if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(SceneComponent))
 	{
 		// Strip the metadata from this prim, so that if we uncheck "Collect Metadata" it actually disappears on the AssetUserData
 		UserData->StageIdentifierToMetadata.Remove(Prim.GetStage().GetRootLayer().GetIdentifier());
@@ -773,7 +779,7 @@ namespace UE::UsdXformableTranslatorImpl::Private
 	void AssignDrawModeComponentTextures(
 		UE::FUsdPrim Prim,
 		UUsdDrawModeComponent* DrawModeComponent,
-		UUsdAssetCache2& AssetCache,
+		UUsdAssetCache3& AssetCache,
 		FUsdInfoCache& InfoCache
 	)
 	{
@@ -855,7 +861,8 @@ namespace UE::UsdXformableTranslatorImpl::Private
 
 				if (TextureSetter)
 				{
-					std::unordered_map<pxr::SdfPath, TArray<UTexture2D*>, pxr::SdfPath::Hash>::iterator iter = AttrPathToTextures.find(Attr.GetPath());
+					std::unordered_map<pxr::SdfPath, TArray<UTexture2D*>, pxr::SdfPath::Hash>::iterator iter = AttrPathToTextures.find(Attr.GetPath()
+					);
 					if (iter != AttrPathToTextures.end())
 					{
 						const FString TexturePath = UsdUtils::GetResolvedAssetPath(Attr);
@@ -918,14 +925,14 @@ USceneComponent* FUsdGeomXformableTranslator::CreateAlternativeDrawModeComponent
 		case EUsdDrawMode::Cards:
 		{
 			UUsdDrawModeComponent* Component = Cast<UUsdDrawModeComponent>(CreateComponentsEx({UUsdDrawModeComponent::StaticClass()}, bNeedsActor));
-			if (ensure(Component) && Context->AssetCache && Context->InfoCache)
+			if (ensure(Component) && Context->UsdAssetCache && Context->InfoCache)
 			{
 				// For now we only assign textures when creating components, not when updating. Maybe in the future we can
 				// add support for "texture animations"
 				UE::UsdXformableTranslatorImpl::Private::AssignDrawModeComponentTextures(
 					GetPrim(),
 					Component,
-					*Context->AssetCache,
+					*Context->UsdAssetCache,
 					*Context->InfoCache
 				);
 			}
@@ -947,7 +954,7 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 {
 	// Currently we just use this function to create the textures that we're going to use on the bounds components,
 	// if applicable
-	if (DrawMode != EUsdDrawMode::Cards || !Context->AssetCache || !Context->InfoCache)
+	if (DrawMode != EUsdDrawMode::Cards || !Context->UsdAssetCache || !Context->InfoCache)
 	{
 		return;
 	}
@@ -985,38 +992,31 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 			{
 				const FString HashPrefix = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets);
 				const FString PrefixedTextureHash = HashPrefix + LexToString(FMD5Hash::HashFile(*ResolvedPath));
-				UTexture2D* Texture = Cast<UTexture2D>(Context->AssetCache->GetCachedAsset(PrefixedTextureHash));
 
-				if (!Texture)
-				{
-					Texture = Cast<UTexture2D>(UsdUtils::CreateTexture(
-						Attr,
-						UsdToUnreal::ConvertPath(Attr.GetPrim().GetPath()),
-						TEXTUREGROUP_World,
-						Context->AssetCache.Get()
-					));
+				const FString& DesiredTextureName = FPaths::GetBaseFilename(ResolvedPath);
 
-					if (Texture)
+				const EObjectFlags DesiredFlags = Context->ObjectFlags;
+
+				bool bCreatedTexture = false;
+				UTexture2D* Texture = Context->UsdAssetCache.Get()->GetOrCreateCustomCachedAsset<UTexture2D>(
+					PrefixedTextureHash,
+					DesiredTextureName,
+					DesiredFlags,
+					[&ResolvedPath](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
 					{
-						Context->AssetCache->CacheAsset(PrefixedTextureHash, Texture);
-					}
-				}
+						const TextureGroup Group = TextureGroup::TEXTUREGROUP_World;
+						return UsdUtils::CreateTexture(ResolvedPath, SanitizedName, Group, FlagsToUse, Outer);
+					},
+					&bCreatedTexture
+				);
 
-				if (Texture)
+				// We link the textures to the prim, so that if the prim is reloaded the AUsdStageActor knows to potentially
+				// drop the textures. However we put the full attribute path on AssetUserData, so that when we're filling in
+				// our UUsdDrawModeComponent later, we know which texture came from which attribute
+				Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
+				if (UUsdAssetUserData* TextureUserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(Texture))
 				{
-					// We link the textures to the prim, so that if the prim is reloaded the AUsdStageActor knows to potentially
-					// drop the textures. However we put the full attribute path on AssetUserData, so that when we're filling in
-					// our UUsdDrawModeComponent later, we know which texture came from which attribute
-
-					UUsdAssetUserData* TextureUserData = Texture->GetAssetUserData<UUsdAssetUserData>();
-					if (!TextureUserData)
-					{
-						TextureUserData = NewObject<UUsdAssetUserData>(Texture, TEXT("USDAssetUserData"));
-						Texture->AddAssetUserData(TextureUserData);
-					}
 					TextureUserData->PrimPaths.AddUnique(UsdToUnreal::ConvertPath(Attr.GetPath()));
-
-					Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
 				}
 			}
 		}
