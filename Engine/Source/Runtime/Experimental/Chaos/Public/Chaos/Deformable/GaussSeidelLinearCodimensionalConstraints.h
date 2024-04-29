@@ -17,15 +17,13 @@ namespace Chaos::Softs
 	{
 
 	public:
-		//this one only accepts tetmesh input and mesh
 		FGaussSeidelLinearCodimensionalConstraints(
 			const ParticleType& InParticles,
 			const TArray<TVector<int32, 3>>& InMesh,
-			const bool bRecordMetricIn = true,
 			const T& EMesh = (T)10.0,
 			const T& NuMesh = (T).3
 		)
-			: bRecordMetric(bRecordMetricIn), MeshConstraints(InMesh)
+			: MeshConstraints(InMesh)
 		{
 			Measure.Init((T)0., MeshConstraints.Num());
 			Lambda = EMesh * NuMesh / (((T)1. + NuMesh) * ((T)1. - (T)2. * NuMesh));
@@ -35,6 +33,27 @@ namespace Chaos::Softs
 			LambdaElementArray.Init(Lambda, MeshConstraints.Num());
 
 			InitializeCodimensionData(InParticles);
+		}
+
+		FGaussSeidelLinearCodimensionalConstraints(
+			const ParticleType& InParticles,
+			const TArray<TVector<int32, 3>>& InMesh,
+			const TArray<T>& EMeshArray,
+			const T& NuMesh = (T).3
+		)
+			: MeshConstraints(InMesh)
+		{
+			Measure.Init((T)0., MeshConstraints.Num());
+
+			InitializeCodimensionData(InParticles);
+			LambdaElementArray.Init((T)0., MeshConstraints.Num());
+			MuElementArray.Init((T)0., MeshConstraints.Num());
+			
+			for (int32 e = 0; e < InMesh.Num(); e++)
+			{
+				LambdaElementArray[e] = EMeshArray[e] * NuMesh / (((T)1. + NuMesh) * ((T)1. - (T)2. * NuMesh));
+				MuElementArray[e] = EMeshArray[e] / ((T)2. * ((T)1. + NuMesh));
+			}
 		}
 
 		virtual ~FGaussSeidelLinearCodimensionalConstraints() {}
@@ -230,7 +249,6 @@ namespace Chaos::Softs
 		TArray<T> MuElementArray;
 		TArray<T> LambdaElementArray;
 		TArray<T> AlphaJArray;
-		bool bRecordMetric;
 
 		TArray<TVector<int32, 3>> MeshConstraints;
 		mutable TArray<T> Measure;

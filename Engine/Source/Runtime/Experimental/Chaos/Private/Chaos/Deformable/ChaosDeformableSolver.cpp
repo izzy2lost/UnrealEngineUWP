@@ -98,6 +98,9 @@ namespace Chaos::Softs
 	int32 GSParallelMax = 100;
 	FAutoConsoleVariableRef CVarDeformableGSParrelMax(TEXT("p.Chaos.Deformable.GSParallelMax"), GSParallelMax, TEXT("Minimal number of particles to process in parallel for Gauss Seidel constraints. [def: 100]"));
 
+	float MaxDxRatio = .01f;
+	FAutoConsoleVariableRef CVarDeformableGSMaxDxRatio(TEXT("p.Chaos.Deformable.GSMaxDxRatio"), MaxDxRatio, TEXT("Max size for dx in each iteration for Gauss Seidel constraints. [def: .01]"));
+
 	FDeformableSolver::FDeformableSolver(FDeformableSolverProperties InProp)
 		: CurrentInputPackage(TUniquePtr < FDeformablePackage >(nullptr))
 		, PreviousInputPackage(TUniquePtr < FDeformablePackage >(nullptr))
@@ -161,6 +164,8 @@ namespace Chaos::Softs
 			AllTetEMeshArray.Reset(new TArray<FSolverReal>());
 			AllTetNuMeshArray.Reset(new TArray<FSolverReal>());
 			AllTetAlphaJArray.Reset(new TArray<FSolverReal>());
+			AllCorotatedCodEMeshArray.Reset(new TArray<FSolverReal>());
+			AllSkinEMeshArray.Reset(new TArray<FSolverReal>());
 			GSWeakConstraints.Reset(new FGaussSeidelWeakConstraints<FSolverReal, FSolverParticles>({}, {}, {}, {}, {}, GDeformableXPBDWeakConstraintParams));
 			MuscleActivationConstraints.Reset(new FMuscleActivationConstraints<FSolverReal, FSolverParticles>());
 		}
@@ -762,6 +767,8 @@ namespace Chaos::Softs
 
 		auto ChaosTet = [](FIntVector4 V, int32 dp) { return Chaos::TVec4<int32>(dp + V.X, dp + V.Y, dp + V.Z, dp + V.W); };
 
+		TArray<FSolverReal> StiffnessWithMultiplier;
+
 		const TManagedArray<FIntVector4>& Tetrahedron = Rest.GetAttribute<FIntVector4>("Tetrahedron", "Tetrahedral");
 		if (uint32 NumElements = Tetrahedron.Num())
 		{
@@ -789,7 +796,7 @@ namespace Chaos::Softs
 			if (Rest.HasAttributes({ FManagedArrayCollection::TManagedType<FSolverReal>("Stiffness", FGeometryCollection::VerticesGroup) }))
 			{
 				uint32 NumParticles = Rest.NumElements(FGeometryCollection::VerticesGroup);
-				TArray<FSolverReal> StiffnessWithMultiplier;
+
 				StiffnessWithMultiplier.Init(0.f, NumParticles);
 				FSolverReal StiffnessMultiplier = 1.f;
 				FSolverReal IncompressibilityMultiplier = 1.f;
@@ -1000,6 +1007,22 @@ namespace Chaos::Softs
 				}
 			}
 		
+		}
+
+		AllCorotatedCodEMeshArray->Init(Property.EMesh, AllUnconstrainedSurfaceElementsCorotatedCod->Num());
+		AllSkinEMeshArray->Init(Property.EMesh, AllUnconstrainedSurfaceElementsSkin->Num());
+		if (StiffnessWithMultiplier.Num() > 0)
+		{
+			for (int32 i = 0; i < AllUnconstrainedSurfaceElementsCorotatedCod->Num(); i++)
+			{
+				(*AllCorotatedCodEMeshArray)[i] = (StiffnessWithMultiplier[(*AllUnconstrainedSurfaceElementsCorotatedCod)[i][0]] + StiffnessWithMultiplier[(*AllUnconstrainedSurfaceElementsCorotatedCod)[i][1]]
+								+ StiffnessWithMultiplier[(*AllUnconstrainedSurfaceElementsCorotatedCod)[i][2]]) / 3.f;
+			}
+			for (int32 i = 0; i < AllSkinEMeshArray->Num(); i++)
+			{
+				(*AllSkinEMeshArray)[i] = (StiffnessWithMultiplier[(*AllUnconstrainedSurfaceElementsSkin)[i][0]] + StiffnessWithMultiplier[(*AllUnconstrainedSurfaceElementsSkin)[i][1]]
+								+ StiffnessWithMultiplier[(*AllUnconstrainedSurfaceElementsSkin)[i][2]]) / 3.f;
+			}
 		}
 	}
 
@@ -1393,12 +1416,12 @@ namespace Chaos::Softs
 	{
 		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeGaussSeidelConstraintVariables);
 
-		GSMainConstraint.Reset(new Chaos::Softs::FGaussSeidelMainConstraint<FSolverReal, FSolverParticles>(Evolution->Particles(), Property.bDoQuasistatics, Property.bUseSOR, Property.OmegaSOR, GSParallelMax));
+		GSMainConstraint.Reset(new Chaos::Softs::FGaussSeidelMainConstraint<FSolverReal, FSolverParticles>(Evolution->Particles(), Property.bDoQuasistatics, Property.bUseSOR, Property.OmegaSOR, GSParallelMax, MaxDxRatio));
 
 		if (AllUnconstrainedSurfaceElementsCorotatedCod->Num() > 0) 
 		{
 			GSCorotatedCodConstraints.Reset(new Chaos::Softs::FGaussSeidelCorotatedCodimensionalConstraints<FSolverReal, FSolverParticles>(
-				Evolution->Particles(), *AllUnconstrainedSurfaceElementsCorotatedCod, false, Property.EMesh));
+				Evolution->Particles(), *AllUnconstrainedSurfaceElementsCorotatedCod, *AllCorotatedCodEMeshArray));
 			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
 			GSMainConstraint->AddStaticConstraints(GSCorotatedCodConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
 
@@ -1413,7 +1436,7 @@ namespace Chaos::Softs
 		if (AllUnconstrainedSurfaceElementsSkin->Num() > 0)
 		{
 			GSLinearCodConstraints.Reset(new Chaos::Softs::FGaussSeidelLinearCodimensionalConstraints<FSolverReal, FSolverParticles>(
-				Evolution->Particles(), *AllUnconstrainedSurfaceElementsSkin, false, Property.EMesh));
+				Evolution->Particles(), *AllUnconstrainedSurfaceElementsSkin, *AllSkinEMeshArray));
 			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
 			GSMainConstraint->AddStaticConstraints(GSLinearCodConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
 

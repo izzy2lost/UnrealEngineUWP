@@ -18,6 +18,8 @@ DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMainConstraint.Acceleration"), STAT_
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMainConstraint.Init"), STAT_ChaosGSMainConstraint_Init, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMainConstraint.InitDynamicColor"), STAT_ChaosGSMainConstraint_InitDynamicColor, STATGROUP_Chaos);
 
+DEFINE_LOG_CATEGORY_STATIC(LogDeformableGaussSeidelMainConstraint, Log, All);
+
 namespace Chaos::Softs
 {
 	template <typename T, typename ParticleType>
@@ -31,6 +33,7 @@ namespace Chaos::Softs
 			const bool bDoSORIn = true,
 			const T InOmegaSOR = (T)1.6,
 			const int32 ParallelMaxIn = 1000, 
+			const T MaxDxRatioIn = T(1),
 			const FDeformableXPBDCorotatedParams& InParams = FDeformableXPBDCorotatedParams())
 			: bDoQuasistatics(bDoQuasistaticsIn)
 			, bDoAcceleration(bDoSORIn)
@@ -41,6 +44,23 @@ namespace Chaos::Softs
 			Resize((int32)InParticles.Size());
 
 			InitializeLambdas();
+			
+			TVec3<T> MaxCoord((T)100.), MinCoord((T)-100.);
+			for (int32 i = 0; i < (int32)InParticles.Size(); i++)
+			{
+				for (int32 j = 0; j < 3; j++) 
+				{
+					if (InParticles.X(i)[j] < MinCoord[j])
+					{
+						MinCoord[j] = InParticles.X(i)[j];
+					}
+					if (InParticles.X(i)[j] > MaxCoord[j])
+					{
+						MaxCoord[j] = InParticles.X(i)[j];
+					}
+				}
+			}
+			MaxDxSize = (MaxCoord - MinCoord).Size() * MaxDxRatioIn;
 		}
 
 		virtual ~FGaussSeidelMainConstraint() {}
@@ -253,7 +273,14 @@ namespace Chaos::Softs
 				HessianInv *= T(1) / HessianDet;
 				Chaos::TVector<T, 3> Dx = HessianInv.GetTransposed() * (-ParticleResidual);
 
-				Particles.P(p) += Dx;
+				if (Dx.Size() < MaxDxSize)
+				{
+					Particles.P(p) += Dx;
+				}
+				else
+				{
+					UE_LOG(LogDeformableGaussSeidelMainConstraint, Warning, TEXT("Following Particle is skipped because of too large dx size: %d"), p);
+				}
 			}
 		}
 		
@@ -339,6 +366,8 @@ namespace Chaos::Softs
 
 		int32 NumTotalParticles;
 		TArray<TVec3<T>> ReorderedPs;
+
+		T MaxDxSize = T(0);
 
 		public:
 		bool DebugResidual = false;

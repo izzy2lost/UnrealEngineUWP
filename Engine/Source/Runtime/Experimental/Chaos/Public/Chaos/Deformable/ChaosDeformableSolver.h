@@ -211,6 +211,8 @@ namespace Chaos::Softs
 		TUniquePtr <TArray<FSolverReal>> AllSecondWeights;
 		TUniquePtr <TArray<TVec3<int32>>> AllUnconstrainedSurfaceElementsCorotatedCod;  //correspond to the triangle mesh elements that are simulated using corotated cod
 		TUniquePtr <TArray<TVec3<int32>>> AllUnconstrainedSurfaceElementsSkin;          //correspond to the triangle mesh elements that are simulated using linear cod constraints
+		TUniquePtr <TArray<FSolverReal>> AllCorotatedCodEMeshArray;
+		TUniquePtr <TArray<FSolverReal>> AllSkinEMeshArray;
 		TArray<int32> ParticleComponentIndex;
 		TMap<int32, TSet<int32>> ParticleTriangleExclusionMap;
 		//Muscle Activation Variables
