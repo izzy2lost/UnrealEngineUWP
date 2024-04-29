@@ -121,16 +121,46 @@ namespace UE
 	}
 
 	template<typename PtrType>
-	bool FUsdStageBase<PtrType>::operator==(const FUsdStageBase<PtrType>& Other) const
+	template<typename OtherPtrType>
+	bool FUsdStageBase<PtrType>::operator==(const FUsdStageBase<OtherPtrType>& Other) const
 	{
-		return Impl->GetInner() == Other.Impl->GetInner();
+#if USE_USD_SDK
+		return pxr::UsdStageWeakPtr{Impl->GetInner()} == pxr::UsdStageWeakPtr{Other.Impl->GetInner()};
+#else
+		return false;
+#endif	  // USE_USD_SDK
 	}
 
+	template bool UNREALUSDWRAPPER_API FUsdStage::operator==(const FUsdStage& Other) const;
+	template bool UNREALUSDWRAPPER_API FUsdStage::operator==(const FUsdStageWeak& Other) const;
+	template bool UNREALUSDWRAPPER_API FUsdStageWeak::operator==(const FUsdStage& Other) const;
+	template bool UNREALUSDWRAPPER_API FUsdStageWeak::operator==(const FUsdStageWeak& Other) const;
+
 	template<typename PtrType>
-	bool FUsdStageBase<PtrType>::operator!=(const FUsdStageBase<PtrType>& Other) const
+	template<typename OtherPtrType>
+	bool FUsdStageBase<PtrType>::operator!=(const FUsdStageBase<OtherPtrType>& Other) const
 	{
 		return !(*this == Other);
 	}
+
+	template bool UNREALUSDWRAPPER_API FUsdStage::operator!=(const FUsdStage& Other) const;
+	template bool UNREALUSDWRAPPER_API FUsdStage::operator!=(const FUsdStageWeak& Other) const;
+	template bool UNREALUSDWRAPPER_API FUsdStageWeak::operator!=(const FUsdStage& Other) const;
+	template bool UNREALUSDWRAPPER_API FUsdStageWeak::operator!=(const FUsdStageWeak& Other) const;
+
+#if USE_USD_SDK
+	template<typename PtrType>
+	bool FUsdStageBase<PtrType>::operator==(const pxr::UsdStageWeakPtr& Other) const
+	{
+		return pxr::UsdStageWeakPtr{*this} == Other;
+	}
+
+	template<typename PtrType>
+	bool FUsdStageBase<PtrType>::operator!=(const pxr::UsdStageWeakPtr& Other) const
+	{
+		return !(*this == Other);
+	}
+#endif	  // USE_USD_SDK
 
 	template<typename PtrType>
 	FUsdStageBase<PtrType>::~FUsdStageBase()
