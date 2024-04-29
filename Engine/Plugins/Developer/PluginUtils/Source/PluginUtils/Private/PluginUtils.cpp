@@ -1169,16 +1169,6 @@ bool FPluginUtils::IsValidPluginName(const FString& PluginName, FText* FailReaso
 		return false;
 	}
 
-	// Must begin with an alphabetic character
-	if (!FChar::IsAlpha(PluginName[0]))
-	{
-		if (FailReason)
-		{
-			*FailReason = FText::Format(LOCTEXT("PluginNameMustBeginWithAlphabetic", "{0} name must begin with an alphabetic character"), PluginTermToUse);
-		}
-		return false;
-	}
-
 	// Only allow alphanumeric characters and underscore in the name
 	FString IllegalCharacters;
 	for (int32 CharIdx = 0; CharIdx < PluginName.Len(); ++CharIdx)
@@ -1199,12 +1189,6 @@ bool FPluginUtils::IsValidPluginName(const FString& PluginName, FText* FailReaso
 		{
 			*FailReason = FText::Format(LOCTEXT("PluginNameContainsIllegalCharacters", "{0} name cannot contain characters such as \"{1}\""), PluginTermToUse, FText::FromString(IllegalCharacters));
 		}
-		return false;
-	}
-
-	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-	if (!AssetToolsModule.Get().IsNameAllowed(PluginName, FailReason))
-	{
 		return false;
 	}
 

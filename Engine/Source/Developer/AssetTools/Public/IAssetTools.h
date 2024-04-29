@@ -622,9 +622,9 @@ public:
 	/** Returns true if all in list pass writable folder filter */
 	virtual bool AllPassWritableFolderFilter(const TArray<FString>& InPaths) const = 0;
 
-	/** Returns true if IsNameAllowedDelegate is not set, or if the name passes the filter function*/
+	/** Returns true if IsNameAllowedDelegate is not set, or if the name passes the filter function */
 	virtual bool IsNameAllowed(const FString& Name, FText* OutErrorMessage = nullptr) const = 0;
-	/** Allows setting of a global name filter that is applied to folders, assets, plugins, etc. */
+	/** Allows setting of a global name filter that is applied to assets and folders */
 	virtual void RegisterIsNameAllowedDelegate(const FName OwnerName, FIsNameAllowed Delegate) = 0;
 	/** Remove a previously-set global name filter */
 	virtual void UnregisterIsNameAllowedDelegate(const FName OwnerName) = 0;
