@@ -1025,6 +1025,11 @@ void FGenericCrashContext::SetDeploymentName(const FString& EpicApp)
 	NCached::Set(NCached::Session.DeploymentName, *EpicApp);
 }
 
+const TCHAR* FGenericCrashContext::GetDeploymentName()
+{
+	return NCached::Session.DeploymentName;
+}
+
 void FGenericCrashContext::SetCrashTrigger(ECrashTrigger Type)
 {
 	NCached::Session.CrashTrigger = (int32)Type;

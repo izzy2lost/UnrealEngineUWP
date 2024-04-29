@@ -729,6 +729,11 @@ public:
 	CORE_API static void SetDeploymentName(const FString& EpicApp);
 
 	/**
+	 * Get the current deployment name (ie. EpicApp)
+	 */
+	CORE_API static const TCHAR* GetDeploymentName();
+
+	/**
 	 * Sets the type of crash triggered. Used to distinguish crashes caused for debugging purposes.
 	 */
 	CORE_API static void SetCrashTrigger(ECrashTrigger Type);
