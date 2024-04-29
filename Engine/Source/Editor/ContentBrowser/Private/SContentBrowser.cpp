@@ -2228,6 +2228,8 @@ void SContentBrowser::PathSelected(const FString& FolderPath)
 	TArray<FCollectionNameType> SelectedCollections;
 	SourcesChanged(SelectedPaths, SelectedCollections);
 
+	PathViewPtr->SaveSettings(GEditorPerProjectIni, SettingsIniSection, InstanceName.ToString());
+
 	// Notify 'asset path changed' delegate
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>( TEXT("ContentBrowser") );
 	FContentBrowserModule::FOnAssetPathChanged& PathChangedDelegate = ContentBrowserModule.GetOnAssetPathChanged();
@@ -2252,6 +2254,8 @@ void SContentBrowser::FavoritePathSelected(const FString& FolderPath)
 	PathViewPtr->SetSelectedPaths(SelectedPaths);
 	TArray<FCollectionNameType> SelectedCollections;
 	SourcesChanged(SelectedPaths, SelectedCollections);
+
+	PathViewPtr->SaveSettings(GEditorPerProjectIni, SettingsIniSection, InstanceName.ToString());
 
 	// Notify 'asset path changed' delegate
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));

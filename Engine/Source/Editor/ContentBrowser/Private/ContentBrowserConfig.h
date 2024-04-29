@@ -36,9 +36,6 @@ struct FPathViewConfig
 	bool bExpanded = false;
 
 	UPROPERTY()
-	TArray<FName> SelectedPaths;
-
-	UPROPERTY()
 	TArray<FString> PluginFilters;
 };
 

@@ -1290,13 +1290,6 @@ void SPathView::SetSelectedPaths(const TArray<FString>& Paths)
 			TreeViewPtr->RequestScrollIntoView(BestItem);
 		}
 	}
-
-	if (FPathViewConfig* PathViewConfig = GetPathViewConfig())
-	{
-		PathViewConfig->SelectedPaths = LastSelectedPaths.Array();
-
-		UContentBrowserConfig::Get()->SaveEditorConfig();
-	}
 }
 
 void SPathView::ClearSelection()
@@ -1703,11 +1696,6 @@ void SPathView::LoadSettings(const FString& IniFilename, const FString& IniSecti
 {
 	// Selected Paths
 	TArray<FName> NewSelectedPaths;
-	if (FPathViewConfig* PathViewConfig = GetPathViewConfig())
-	{
-		NewSelectedPaths = PathViewConfig->SelectedPaths;
-	}
-	else 
 	{
 		FString SelectedPathsString;
 		if (GConfig->GetString(*IniSection, *(SettingsString + TEXT(".SelectedPaths")), SelectedPathsString, IniFilename))
@@ -1957,13 +1945,6 @@ void SPathView::TreeSelectionChanged( TSharedPtr< FTreeItem > TreeItem, ESelectI
 			{
 				OnItemSelectionChanged.Execute(FContentBrowserItem(), SelectInfo);
 			}
-		}
-
-		if (FPathViewConfig* PathViewConfig = GetPathViewConfig())
-		{
-			PathViewConfig->SelectedPaths = LastSelectedPaths.Array();
-
-			UContentBrowserConfig::Get()->SaveEditorConfig();
 		}
 	}
 
