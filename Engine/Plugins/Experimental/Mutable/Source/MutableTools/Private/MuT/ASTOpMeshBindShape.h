@@ -29,6 +29,7 @@ namespace mu
 
 		uint32 BindingMethod = 0;
 		
+		uint32 bRecomputeNormals	  : 1;
 		uint32 bReshapeSkeleton	      : 1;
 		uint32 bReshapePhysicsVolumes : 1;
 		uint32 bReshapeVertices       : 1;

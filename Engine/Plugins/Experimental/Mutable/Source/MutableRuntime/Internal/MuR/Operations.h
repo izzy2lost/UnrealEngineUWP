@@ -357,6 +357,7 @@ namespace mu
 		ReshapePhysicsVolumes  = 1 << 4,
 		ReshapeVertices		   = 1 << 5,
 		ApplyLaplacian		   = 1 << 6,
+		RecomputeNormals	   = 1 << 7,
 	};
 	ENUM_CLASS_FLAGS(EMeshBindShapeFlags);
 

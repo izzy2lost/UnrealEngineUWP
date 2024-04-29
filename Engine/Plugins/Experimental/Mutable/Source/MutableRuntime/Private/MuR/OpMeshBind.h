@@ -16,7 +16,6 @@
 
 #include "MuR/OpMeshSmoothing.h"
 
-
 // TODO: Make the handling of rotations an option. It is more expensive on CPU and memory, and for some
 // cases it is not required at all.
 
@@ -113,15 +112,15 @@ namespace mu
 		// Barycentric coordinates on the shape triangle
 		float S, T;
 
-		// Distance along the interpolated normal of the shape triangle.
-		float D;
+		// Distance along the normals of the shape triangle.
+		FVector3f D;
 
 		// Index of the shape triangle.
 		int32 Triangle;
 
-
 		// Used to calculate the rotation to apply to the reshaped vertex tangent space.
-		FVector3f ShapeNormal;
+		float NS, NT;
+		FVector3f NormalD;
 		
 		// Bind point, if the point belongs to a rigid cluster, the attachment point, otherwise
 		// the original point.
@@ -131,18 +130,18 @@ namespace mu
 		// full effect. This weight should be proportional to the confidence we have that the binding data is valid. 
 		float Weight;
 	};
-	static_assert(sizeof(FReshapeVertexBindingData) == 44);
+	static_assert(sizeof(FReshapeVertexBindingData) == 4*15);
 
 	struct FReshapeVertexBindingDataBufferDescriptor
 	{
-		constexpr static int ElementSize = sizeof(FReshapeVertexBindingData);
-		constexpr static int Channels = 4;
+		constexpr static int32 ElementSize = sizeof(FReshapeVertexBindingData);
+		constexpr static int32 Channels = 4;
 		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_DISTANCE, MBS_TRIANGLEINDEX, MBS_OTHER };
 		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_FLOAT32, MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
-		constexpr static int Components[Channels] = { 2, 1, 1, 3+3+1 };
-		constexpr static int Offsets[Channels] = { 0, 8, 12, 16 };
+		constexpr static int32 Components[Channels] = { 2, 3, 1, 2+3+3+1 };
+		constexpr static int32 Offsets[Channels] = { 0, 4*2, (2+3)*4, (2+3+1)*4};
 
-		const int SemanticIndices[Channels] = { 0, 0, 0, 0 };
+		const int32 SemanticIndices[Channels] = { 0, 0, 0, 0 };
 
 		FReshapeVertexBindingDataBufferDescriptor(int32 DataSetIndex)
 			: SemanticIndices{ DataSetIndex, DataSetIndex, DataSetIndex, DataSetIndex }
@@ -153,23 +152,23 @@ namespace mu
 	struct FReshapePointBindingData
 	{
 		float S, T;
-		float D;
+		FVector3f D;
 		int32 Triangle;
 		float Weight;
 	};
 
-	static_assert(sizeof(FReshapePointBindingData) == 4*5);
+	static_assert(sizeof(FReshapePointBindingData) == 24+4);
 
 	struct FReshapePointBindingDataBufferDescriptor
 	{
-		constexpr static int ElementSize = sizeof(FReshapeVertexBindingData);
-		constexpr static int Channels = 4;
+		constexpr static int32 ElementSize = sizeof(FReshapeVertexBindingData);
+		constexpr static int32 Channels = 4;
 		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_DISTANCE, MBS_TRIANGLEINDEX, MBS_OTHER };
 		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_FLOAT32, MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
-		constexpr static int Components[Channels] = { 2, 1, 1, 1 };
-		constexpr static int Offsets[Channels] = { 0, 8, 12, 16 };
+		constexpr static int32 Components[Channels] = { 2, 3, 1, 1 };
+		constexpr static int32 Offsets[Channels] = { 0, 8, 20, 24 };
 
-		const int SemanticIndices[Channels] = { 0, 0, 0, 0 };
+		const int32 SemanticIndices[Channels] = { 0, 0, 0, 0 };
 
 		FReshapePointBindingDataBufferDescriptor(int32 DataSetIndex)
 			: SemanticIndices{ DataSetIndex, DataSetIndex, DataSetIndex, DataSetIndex }
@@ -179,13 +178,13 @@ namespace mu
 	
 	struct FIntBufferDescriptor
 	{
-		constexpr static int ElementSize = sizeof(int32);
-		constexpr static int Channels = 1;
+		constexpr static int32 ElementSize = sizeof(int32);
+		constexpr static int32 Channels = 1;
 		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_OTHER };
 		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_INT32 };
-		constexpr static int Components[Channels] = { 1 };
-		constexpr static int Offsets[Channels] = { 0 };
-		constexpr static int SemanticIndices[Channels] = { 0 };
+		constexpr static int32 Components[Channels] = { 1 };
+		constexpr static int32 Offsets[Channels] = { 0 };
+		constexpr static int32 SemanticIndices[Channels] = { 0 };
 
 		FIntBufferDescriptor()
 		{
@@ -210,13 +209,13 @@ namespace mu
 
 	struct FClipDeformVertexBindingDataBufferDescriptor
 	{
-		constexpr static int Channels = 3;
+		constexpr static int32 Channels = 3;
 		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_TRIANGLEINDEX, MBS_OTHER };
 		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
-		constexpr static int Components[Channels] = { 2, 1, 1 };
-		constexpr static int Offsets[Channels] = { 0, 8, 12 };
+		constexpr static int32 Components[Channels] = { 2, 1, 1 };
+		constexpr static int32 Offsets[Channels] = { 0, 8, 12 };
 
-		const int SemanticIndices[Channels] = { 0, 0, 0 };
+		const int32 SemanticIndices[Channels] = { 0, 0, 0 };
 
 		FClipDeformVertexBindingDataBufferDescriptor(int32 DataSetIndex)
 			: SemanticIndices{ DataSetIndex, DataSetIndex, DataSetIndex }
@@ -255,9 +254,31 @@ namespace mu
 		return MaskedValue | ~ChannelUsages.ClusterId;
 	}
 
+
+	FORCEINLINE FVector2f ComputeBarycentric(const FVector3f& Point, const FVector3f& A, const FVector3f& B, const FVector3f& C)
+	{
+		const FVector3f TriNorm = FVector3f::CrossProduct(B - A, C - A);
+
+		const float TriNormSizeSquared = TriNorm.SizeSquared();
+		// Return the center of the triangle if the area is very small.
+		if (TriNormSizeSquared <= UE_SMALL_NUMBER)
+		{
+			return FVector2f(1.0f/3.0f);
+		}
+
+		const float AreaABCInv = FMath::InvSqrt(TriNormSizeSquared);
+
+		const FVector3f N = TriNorm * AreaABCInv;
+
+		const float AreaPBC = FVector3f::DotProduct(N, FVector3f::CrossProduct(B - Point, C - Point));
+		const float AreaPCA = FVector3f::DotProduct(N, FVector3f::CrossProduct(C - Point, A - Point));
+		
+		return FVector2f(AreaPBC, AreaPCA) * AreaABCInv;
+	}
+
 	inline void BindReshapePoint(
 			FShapeMeshTree& ShapeMeshTree,
-			const FVector3f& Point, float MaskWeight, FReshapeVertexBindingData& OutBindData, 
+			const FVector3f& Point, const FVector3f& Normal, float MaskWeight, FReshapeVertexBindingData& OutBindData, 
 			const float ValidityTolerance = UE_KINDA_SMALL_NUMBER)
 	{
 
@@ -265,9 +286,7 @@ namespace mu
 		
 		OutBindData.S = 0.0f;
 		OutBindData.T = 0.0f;
-		OutBindData.D = 0.0f;
 		OutBindData.Triangle = -1;
-		OutBindData.ShapeNormal = FVector3f::Zero();
 		OutBindData.AttachmentPoint = Point;
 		float Weight = MaskWeight;
 
@@ -295,52 +314,47 @@ namespace mu
 		FVector3f TriangleC = (FVector3f)ShapeMesh.Positions[Triangle.C];
 
 		FPlane4f TrianglePlane(TriangleA, TriangleB, TriangleC);
-		FPlane4f VertexPlane(Point, TrianglePlane.GetNormal());
+		FVector3f PlaneNormal = TrianglePlane.GetNormal();
+		FPlane4f VertexPlane(Point, PlaneNormal);
+		FPlane4f NormalPlane(Point + Normal, PlaneNormal);
 	
 		// T1 = Triangle projected on the vertex plane along the triangle vertex normals
-		FVector3f TriangleA_VertexPlane = FMath::RayPlaneIntersection(TriangleA, ShapeMesh.Normals[Triangle.A], VertexPlane);
-		FVector3f TriangleB_VertexPlane = FMath::RayPlaneIntersection(TriangleB, ShapeMesh.Normals[Triangle.B], VertexPlane);
-		FVector3f TriangleC_VertexPlane = FMath::RayPlaneIntersection(TriangleC, ShapeMesh.Normals[Triangle.C], VertexPlane);
+		OutBindData.D = 
+			FVector3f 
+			{
+				FMath::RayPlaneIntersectionParam(TriangleA, ShapeMesh.Normals[Triangle.A], VertexPlane),
+				FMath::RayPlaneIntersectionParam(TriangleB, ShapeMesh.Normals[Triangle.B], VertexPlane),
+				FMath::RayPlaneIntersectionParam(TriangleC, ShapeMesh.Normals[Triangle.C], VertexPlane)
+			};
+
+		OutBindData.NormalD = 
+			FVector3f
+			{
+				FMath::RayPlaneIntersectionParam(TriangleA, ShapeMesh.Normals[Triangle.A], NormalPlane),
+				FMath::RayPlaneIntersectionParam(TriangleB, ShapeMesh.Normals[Triangle.B], NormalPlane),
+				FMath::RayPlaneIntersectionParam(TriangleC, ShapeMesh.Normals[Triangle.C], NormalPlane)
+			};
+
+
+		FVector2f PositionBarycentric = ComputeBarycentric(Point, 
+					TriangleA + ShapeMesh.Normals[Triangle.A] * OutBindData.D.X, 
+					TriangleB + ShapeMesh.Normals[Triangle.B] * OutBindData.D.Y, 
+					TriangleC + ShapeMesh.Normals[Triangle.C] * OutBindData.D.Z); 
+
+		OutBindData.S = PositionBarycentric.X;
+		OutBindData.T = PositionBarycentric.Y;
 	
-		// Barycentric coordinates of the vertex on in T1
-		FVector3f Barycentric = (FVector3f)FMath::ComputeBaryCentric2D((FVector)Point, (FVector)TriangleA_VertexPlane, (FVector)TriangleB_VertexPlane, (FVector)TriangleC_VertexPlane);
+		FVector2f NormalBarycentric = ComputeBarycentric((Point + Normal), 
+				TriangleA + ShapeMesh.Normals[Triangle.A] * OutBindData.NormalD.X, 
+				TriangleB + ShapeMesh.Normals[Triangle.B] * OutBindData.NormalD.Y, 
+				TriangleC + ShapeMesh.Normals[Triangle.C] * OutBindData.NormalD.Z); 
 
-		FVector3f ProjectedPoint = TriangleA * Barycentric.X + TriangleB * Barycentric.Y + TriangleC * Barycentric.Z;
+		OutBindData.NS = NormalBarycentric.X;
+		OutBindData.NT = NormalBarycentric.Y;
 
-		FVector3f InterpolatedVertexNormal = ShapeMesh.Normals[Triangle.A] * Barycentric.X + ShapeMesh.Normals[Triangle.B] * Barycentric.Y + ShapeMesh.Normals[Triangle.C] * Barycentric.Z;
-		FVector3f ProjectedToVertex = (Point - ProjectedPoint);
-
-		// If the interpolated normal is not normalized the dot product gives the distance to the point times the length of the normal.
-		// We don't want that since when deforming a point, using the interpolated normal, we'd multiply by the length twice. See GetDeform().
-		// One option would be to normalize here (computing the distance) and when deforming the mesh.
-		// We can also compensate the signed distance so that the same interpolated normal (not normalized) gives us the correct point
-		// ( InterpolatedVertexNormal * d = ProjectedToVertex). That way modifications in the interpolated bound normal will affect the
-		// resulting point. We are doing the later.
-		const float InterpolatedNormalSizeSquared = InterpolatedVertexNormal.SizeSquared();
-		const float InvInterpolatedNormalSizeSquared = InterpolatedNormalSizeSquared > UE_SMALL_NUMBER ? 1.0f / InterpolatedNormalSizeSquared : 0.0f;	
-		float d = FVector3f::DotProduct(ProjectedToVertex, InterpolatedVertexNormal) * InvInterpolatedNormalSizeSquared;
-	
-		OutBindData.S = Barycentric.Y;
-		OutBindData.T = Barycentric.Z;
-		OutBindData.D = d;
-		
 		OutBindData.Triangle = FoundIndex;
-		
-		OutBindData.ShapeNormal = ((TriangleB - TriangleA) ^ (TriangleC - TriangleA)).GetSafeNormal();
-		
-		const FVector3f ReprojectedPoint = ProjectedPoint + InterpolatedVertexNormal * d;
-		
-		const FVector3f ReprojectedVector = ReprojectedPoint - Point;
-		const float ErrorEstimate = (ReprojectedPoint - Point).GetAbsMax();
-		
-		// If within the tolerance, 1.0, otherwise linear falloff based on the tolerance
 
-		// Arbitrary factor, a binding will be considered valid (with its corresponding weight) to ErrorFalloffFactor times the validity tolerance.
-		constexpr float ErrorFalloffFactor = 4.0f;
-		OutBindData.Weight = FMath::Min(
-			MaskWeight, 
-			1.0f - FMath::Clamp( (ErrorEstimate - ValidityTolerance) / (ValidityTolerance * ErrorFalloffFactor), 0.0f, 1.0f));
-		
+		OutBindData.Weight = FMath::Clamp(MaskWeight, 0.0f, 1.0f);
 		OutBindData.Triangle = FMath::IsNearlyZero(OutBindData.Weight) ? -1 : OutBindData.Triangle;
 	}
 	
@@ -423,7 +437,7 @@ namespace mu
 		// Mask weight is set on a vertex by vertex basis, ignore weight for the shared data.
 		// This will be filled in afterwards.
 		constexpr float MaskWeight = 1.0f;
-		BindReshapePoint(ShapeMeshTree, BoundPoint, MaskWeight, OutBindingData, BindTolerance);
+		BindReshapePoint(ShapeMeshTree, BoundPoint, FVector3f::ZAxisVector, MaskWeight, OutBindingData, BindTolerance);
 	}
 
 	inline TTuple<TArray<FReshapePointBindingData>, TArray<int32>, TArray<int32>> BindPhysicsBodies( 
@@ -680,7 +694,7 @@ namespace mu
 		for (int32 PointIndex = 0; PointIndex < TotalNumPoints; ++PointIndex)
 		{
 			constexpr float MaskWeight = 1.0f;
-			BindReshapePoint(ShapeMeshTree, Points[PointIndex], MaskWeight, VertexBindData, 0.1f);
+			BindReshapePoint(ShapeMeshTree, Points[PointIndex], FVector3f::ZAxisVector, MaskWeight, VertexBindData, 0.1f);
 			PhysicsBodyBindData[PointIndex] = FReshapePointBindingData
 				{ VertexBindData.S, VertexBindData.T, VertexBindData.D, VertexBindData.Triangle, VertexBindData.Weight };
 		}
@@ -715,6 +729,7 @@ namespace mu
 			BindData.SetNum(MeshVertexCount);
 
 			const UntypedMeshBufferIteratorConst ItPositionBase(BaseMesh->GetVertexBuffers(), MBS_POSITION);
+			const UntypedMeshBufferIteratorConst ItNormalBase(BaseMesh->GetVertexBuffers(), MBS_NORMAL);
 
 			// Disable vertex color reads if the color is not used for mask weights.
 			const UntypedMeshBufferIteratorConst ItColorBase = ColorUsageMasks.MaskWeight == 0 
@@ -731,9 +746,10 @@ namespace mu
 				for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 				{
 					const FVector3f VertexPosition = (ItPositionBase + VertexIndex).GetAsVec3f();
+					const FVector3f VertexNormal = ItNormalBase.ptr() ? (ItNormalBase + VertexIndex).GetAsVec3f() : FVector3f::ZAxisVector;
 					const float MaskWeight = ItColorBase.ptr() ? GetVertexMaskWeight(ItColorBase + VertexIndex, ColorUsageMasks) : 1.0f;
 
-					BindReshapePoint(ShapeMeshTree, VertexPosition, MaskWeight, BindData[VertexIndex], BindValidityTolerance);
+					BindReshapePoint(ShapeMeshTree, VertexPosition, VertexNormal, MaskWeight, BindData[VertexIndex], BindValidityTolerance);
 				}
 			}
 			else
@@ -745,9 +761,10 @@ namespace mu
 				{
 					const int32 VertexIndex = NonRigidCluster[I];
 					const FVector3f VertexPosition = (ItPositionBase + VertexIndex).GetAsVec3f();
+					const FVector3f VertexNormal = ItNormalBase.ptr() ? (ItNormalBase + VertexIndex).GetAsVec3f() : FVector3f::ZAxisVector;
 					const float MaskWeight = ItColorBase.ptr() ? GetVertexMaskWeight(ItColorBase + VertexIndex, ColorUsageMasks) : 1.0f;
 					
-					BindReshapePoint(ShapeMeshTree, VertexPosition, MaskWeight, BindData[VertexIndex], BindValidityTolerance);
+					BindReshapePoint(ShapeMeshTree, VertexPosition, VertexNormal, MaskWeight, BindData[VertexIndex], BindValidityTolerance);
 				}
 
 				// Remove data form the non rigid cluster so it ios not processed in the rigid parts binding step.
@@ -933,7 +950,7 @@ namespace mu
 
 			FReshapeVertexBindingData BindData;
 			constexpr float MaskWeight = 1.0f;
-			BindReshapePoint(ShapeMeshTree, Mesh->BonePoses[BoneIndex].BoneTransform.GetLocation(), MaskWeight, BindData, BindValidityTolerance);
+			BindReshapePoint(ShapeMeshTree, Mesh->BonePoses[BoneIndex].BoneTransform.GetLocation(), FVector3f::ZAxisVector, MaskWeight, BindData, BindValidityTolerance);
 
 			// Only add binding  if there is a chance of the bone moving.
 			if (BindData.Weight > UE_SMALL_NUMBER && BindData.Triangle >= 0)
@@ -994,10 +1011,12 @@ namespace mu
 			return;
 		}
 
-		const bool bReshapeVertices = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeVertices);
-		const bool bApplyLaplacian  = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ApplyLaplacian);
-		const bool bReshapeSkeleton = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeSkeleton);
-		const bool bReshapePhysics  = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapePhysicsVolumes);
+		const bool bReshapeVertices   = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeVertices);
+		// TODO: For now bRecomputeNormals is not used when binding, we could skip normal morph data generation. 
+		const bool bRecomputeNormals  = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::RecomputeNormals);
+		const bool bApplyLaplacian    = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ApplyLaplacian);
+		const bool bReshapeSkeleton   = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeSkeleton);
+		const bool bReshapePhysics    = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapePhysicsVolumes);
 
 		const FMeshBindColorChannelUsageMasks ColorUsagesMasks = MakeColorChannelUsageMasks(ColorChannelUsages);
 
@@ -1019,7 +1038,7 @@ namespace mu
 		}
 	
 		int32 ShapeVertexCount = ShapeMesh->GetVertexCount();
-		int ShapeTriangleCount = ShapeMesh->GetFaceCount();
+		int32 ShapeTriangleCount = ShapeMesh->GetFaceCount();
 		if (!ShapeVertexCount || !ShapeTriangleCount)
 		{
 			bOutSuccess = false;
@@ -1034,17 +1053,15 @@ namespace mu
 			ShapeMeshDescriptor.Normals.SetNum(ShapeVertexCount);
 
 			// \TODO: Simple but inefficient
-			UntypedMeshBufferIteratorConst ItPosition(ShapeMesh->GetVertexBuffers(), MBS_POSITION);
-			UntypedMeshBufferIteratorConst ItNormal(ShapeMesh->GetVertexBuffers(), MBS_NORMAL);
+			const UntypedMeshBufferIteratorConst ItPosition(ShapeMesh->GetVertexBuffers(), MBS_POSITION);
+			const UntypedMeshBufferIteratorConst ItNormal(ShapeMesh->GetVertexBuffers(), MBS_NORMAL);
 			for (int32 ShapeVertexIndex = 0; ShapeVertexIndex < ShapeVertexCount; ++ShapeVertexIndex)
 			{
-				FVector3f Position = ItPosition.GetAsVec3f();
+				FVector3f Position = (ItPosition + ShapeVertexIndex).GetAsVec3f();
 				ShapeMeshDescriptor.Positions[ShapeVertexIndex] = static_cast<FVector3d>(Position);
-				++ItPosition;
 				
-				FVector3f Normal = ItNormal.GetAsVec3f();
+				FVector3f Normal = (ItNormal + ShapeVertexIndex).GetAsVec3f();
 				ShapeMeshDescriptor.Normals[ShapeVertexIndex] = Normal;
-				++ItNormal;
 			}
 		}
 		// Generate the temp face query data for the shape
@@ -1053,16 +1070,13 @@ namespace mu
 			MUTABLE_CPUPROFILER_SCOPE(GenerateTrianglesQueryData);	
 			ShapeMeshDescriptor.Triangles.SetNum(ShapeTriangleCount);
 			// \TODO: Simple but inefficient
-			UntypedMeshBufferIteratorConst ItIndices(ShapeMesh->GetIndexBuffers(), MBS_VERTEXINDEX);
+			const UntypedMeshBufferIteratorConst ItIndices(ShapeMesh->GetIndexBuffers(), MBS_VERTEXINDEX);
 			for (int32 TriangleIndex = 0; TriangleIndex < ShapeTriangleCount; ++TriangleIndex)
 			{
 				UE::Geometry::FIndex3i Triangle;
-				Triangle.A = int(ItIndices.GetAsUINT32());
-				++ItIndices;
-				Triangle.B = int(ItIndices.GetAsUINT32());
-				++ItIndices;
-				Triangle.C = int(ItIndices.GetAsUINT32());
-				++ItIndices;
+				Triangle.A = int32((ItIndices + TriangleIndex*3 + 0).GetAsUINT32());
+				Triangle.B = int32((ItIndices + TriangleIndex*3 + 1).GetAsUINT32());
+				Triangle.C = int32((ItIndices + TriangleIndex*3 + 2).GetAsUINT32());
 
 				ShapeMeshDescriptor.Triangles[TriangleIndex] = Triangle;
 			}	
@@ -1142,9 +1156,9 @@ namespace mu
 			// Bone indices buffer
 			EMeshBufferSemantic BoneSemantics[1] = { MBS_OTHER };
 			EMeshBufferFormat BoneFormats[1] = { MBF_INT32 };
-			int BoneSemanticIndices[1] = { 0 };
-			int BoneComponents[1] = { 1 };
-			int BoneOffsets[1] = { 0 };
+			int32 BoneSemanticIndices[1] = { 0 };
+			int32 BoneComponents[1] = { 1 };
+			int32 BoneOffsets[1] = { 0 };
 
 			SkeletonBuffer.SetBuffer(1, sizeof(int32), 1, BoneSemantics, BoneSemanticIndices, BoneFormats, BoneComponents, BoneOffsets);
 
@@ -1467,13 +1481,11 @@ namespace mu
 			UntypedMeshBufferIteratorConst ItNormal(ShapeMesh->GetVertexBuffers(), MBS_NORMAL);
 			for (int32 ShapeVertexIndex = 0; ShapeVertexIndex < ShapeVertexCount; ++ShapeVertexIndex)
 			{
-				FVector3f Position = ItPosition.GetAsVec3f();
+				FVector3f Position = (ItPosition + ShapeVertexIndex).GetAsVec3f();
 				ShapeMeshDescriptor.Positions[ShapeVertexIndex] = static_cast<FVector3d>(Position);
-				++ItPosition;
 				
-				FVector3f Normal = ItNormal.GetAsVec3f();
+				FVector3f Normal = (ItNormal + ShapeVertexIndex).GetAsVec3f();
 				ShapeMeshDescriptor.Normals[ShapeVertexIndex] = Normal;
-				++ItNormal;
 			}
 		}
 		// Generate the temp face query data for the shape
@@ -1482,16 +1494,13 @@ namespace mu
 			MUTABLE_CPUPROFILER_SCOPE(GenerateTrianglesQueryData);	
 			ShapeMeshDescriptor.Triangles.SetNum(ShapeTriangleCount);
 			// \TODO: Simple but inefficient
-			UntypedMeshBufferIteratorConst ItIndices(ShapeMesh->GetIndexBuffers(), MBS_VERTEXINDEX);
+			const UntypedMeshBufferIteratorConst ItIndices(ShapeMesh->GetIndexBuffers(), MBS_VERTEXINDEX);
 			for (int32 TriangleIndex = 0; TriangleIndex < ShapeTriangleCount; ++TriangleIndex)
 			{
 				UE::Geometry::FIndex3i Triangle;
-				Triangle.A = int(ItIndices.GetAsUINT32());
-				++ItIndices;
-				Triangle.B = int(ItIndices.GetAsUINT32());
-				++ItIndices;
-				Triangle.C = int(ItIndices.GetAsUINT32());
-				++ItIndices;
+				Triangle.A = int32((ItIndices + TriangleIndex*3 + 0).GetAsUINT32());
+				Triangle.B = int32((ItIndices + TriangleIndex*3 + 1).GetAsUINT32());
+				Triangle.C = int32((ItIndices + TriangleIndex*3 + 2).GetAsUINT32());
 
 				ShapeMeshDescriptor.Triangles[TriangleIndex] = Triangle;
 			}	

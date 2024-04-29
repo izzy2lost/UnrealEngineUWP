@@ -41,6 +41,10 @@ namespace mu
 
 		void SetReshapeVertices(bool);
 
+		/** Recompute normals after reshaping. This will ignore the reshaped normals. Disabled by default. */
+		void SetRecomputeNormals(bool);
+
+
 		/** Also deform the mesh skeleton. Disabled by default. */
 		void SetReshapeSkeleton(bool);
 	

@@ -800,6 +800,7 @@ namespace mu
 			// PhysicsBodies and the Skeleton.
             OpBind->bReshapeVertices = false;
             OpBind->bApplyLaplacian = false;
+            OpBind->bRecomputeNormals = false;
 		    OpBind->bReshapeSkeleton = node.bReshapeSkeleton;
 		    OpBind->BonesToDeform = node.BonesToDeform;
     	    OpBind->bReshapePhysicsVolumes = node.bReshapePhysicsVolumes; 
@@ -810,6 +811,7 @@ namespace mu
             OpBind->Shape = BaseResult.meshOp;
            
 			OpApply->bReshapeVertices = OpBind->bReshapeVertices;
+			OpApply->bRecomputeNormals = OpBind->bRecomputeNormals;
 		    OpApply->bReshapeSkeleton = OpBind->bReshapeSkeleton;
 		    OpApply->bReshapePhysicsVolumes = OpBind->bReshapePhysicsVolumes;
 
@@ -1775,6 +1777,7 @@ namespace mu
     	OpBind->bReshapePhysicsVolumes = Node.bReshapePhysicsVolumes;
 		OpBind->PhysicsToDeform = Node.PhysicsToDeform;
 		OpBind->bReshapeVertices = Node.bReshapeVertices;
+		OpBind->bRecomputeNormals = Node.bRecomputeNormals;	
 		OpBind->bApplyLaplacian = Node.bApplyLaplacian;
 		OpBind->BindingMethod = static_cast<uint32>(EShapeBindingMethod::ReshapeClosestProject);
 
@@ -1784,6 +1787,7 @@ namespace mu
 		OpBind->AChannelUsage = Node.ColorAChannelUsage;
 
 		OpApply->bReshapeVertices = OpBind->bReshapeVertices;
+		OpApply->bRecomputeNormals = OpBind->bRecomputeNormals;
 		OpApply->bReshapeSkeleton = OpBind->bReshapeSkeleton;
 		OpApply->bApplyLaplacian = OpBind->bApplyLaplacian;
 		OpApply->bReshapePhysicsVolumes = OpBind->bReshapePhysicsVolumes;

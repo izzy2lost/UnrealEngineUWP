@@ -3682,6 +3682,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 		{
 
 			MeshNode->SetReshapeVertices(TypedNodeReshape->bReshapeVertices);
+			MeshNode->SetRecomputeNormals(TypedNodeReshape->bRecomputeNormals);
 			MeshNode->SetApplyLaplacian(TypedNodeReshape->bApplyLaplacianSmoothing);
 			MeshNode->SetReshapeSkeleton(TypedNodeReshape->bReshapeSkeleton);
 			MeshNode->SetReshapePhysicsVolumes(TypedNodeReshape->bReshapePhysicsVolumes);

@@ -78,6 +78,13 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
+	void NodeMeshReshape::SetRecomputeNormals(bool bEnable)
+	{
+		m_pD->bRecomputeNormals = bEnable;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
 	void NodeMeshReshape::SetApplyLaplacian(bool bEnable)
 	{
 		m_pD->bApplyLaplacian = bEnable;

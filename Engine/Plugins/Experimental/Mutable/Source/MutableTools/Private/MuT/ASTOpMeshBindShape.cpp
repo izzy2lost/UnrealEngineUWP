@@ -20,6 +20,7 @@ namespace mu
 	ASTOpMeshBindShape::ASTOpMeshBindShape()
 		: Mesh(this)
 		, Shape(this)
+		, bRecomputeNormals(false)
 		, bReshapeSkeleton(false)
 		, bReshapePhysicsVolumes(false)
 		, bReshapeVertices(false)
@@ -42,6 +43,7 @@ namespace mu
 			const ASTOpMeshBindShape* Other = static_cast<const ASTOpMeshBindShape*>(&OtherUntyped);
 
 			const bool bSameFlags =
+				bRecomputeNormals == Other->bRecomputeNormals &&
 				bReshapeSkeleton == Other->bReshapeSkeleton	&&
 				bReshapePhysicsVolumes == Other->bReshapePhysicsVolumes &&
 				bReshapeVertices == Other->bReshapeVertices &&
@@ -67,6 +69,7 @@ namespace mu
 	{
 		uint64 Result = std::hash<void*>()(Mesh.child().get());
 		hash_combine(Result, Shape.child().get());
+		hash_combine(Result, bool(bRecomputeNormals));
 		hash_combine(Result, bool(bReshapeSkeleton));
 		hash_combine(Result, bool(bReshapePhysicsVolumes));
 		hash_combine(Result, bool(bReshapeVertices));
@@ -97,6 +100,7 @@ namespace mu
 		Ptr<ASTOpMeshBindShape> NewOp = new ASTOpMeshBindShape();
 		NewOp->Mesh = mapChild(Mesh.child());
 		NewOp->Shape = mapChild(Shape.child());
+		NewOp->bRecomputeNormals = bRecomputeNormals;
 		NewOp->bReshapeSkeleton	= bReshapeSkeleton;
 		NewOp->bReshapePhysicsVolumes = bReshapePhysicsVolumes;
 		NewOp->bReshapeVertices = bReshapeVertices;
@@ -131,6 +135,7 @@ namespace mu
 
 			constexpr EMeshBindShapeFlags NoFlags = EMeshBindShapeFlags::None;
 			EMeshBindShapeFlags BindFlags = NoFlags;
+			EnumAddFlags(BindFlags, bRecomputeNormals ? EMeshBindShapeFlags::RecomputeNormals : NoFlags);
 			EnumAddFlags(BindFlags, bReshapeSkeleton ? EMeshBindShapeFlags::ReshapeSkeleton : NoFlags);
 			EnumAddFlags(BindFlags, bReshapePhysicsVolumes ? EMeshBindShapeFlags::ReshapePhysicsVolumes : NoFlags);
 			EnumAddFlags(BindFlags, bReshapeVertices ? EMeshBindShapeFlags::ReshapeVertices : NoFlags);

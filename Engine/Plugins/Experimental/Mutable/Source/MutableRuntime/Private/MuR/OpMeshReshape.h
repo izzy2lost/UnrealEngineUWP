@@ -15,7 +15,8 @@
 #include "Spatial/MeshAABBTree3.h"
 #include "Distance/DistPoint3Triangle3.h"
 #include "LineTypes.h"
-#include "OpMeshSmoothing.h"
+#include "MuR/OpMeshSmoothing.h"
+#include "MuR/OpMeshComputeNormals.h"
 
 #include "Algo/AnyOf.h" 
 
@@ -44,45 +45,32 @@ namespace mu
 	};
 
 	// Methods to actually deform a point
-	inline void GetDeform( const FShapeMeshDescriptorApply& Shape, const FReshapeVertexBindingData& Binding, FVector3f& NewPosition, FQuat4f& Rotation)
+	inline void GetDeform( const FShapeMeshDescriptorApply& Shape, const FReshapeVertexBindingData& Binding, FVector3f& NewPosition, FVector3f& NewNormalPosition)
 	{
 		const UE::Geometry::FIndex3i& Triangle = Shape.Triangles[Binding.Triangle];
+	
+		FVector3f VA = Shape.Positions[Triangle.A] + Shape.Normals[Triangle.A]*Binding.D.X;
+		FVector3f VB = Shape.Positions[Triangle.B] + Shape.Normals[Triangle.B]*Binding.D.Y;
+		FVector3f VC = Shape.Positions[Triangle.C] + Shape.Normals[Triangle.C]*Binding.D.Z;
 
-		FVector3f ProjectedVertexPosition = 
-			Shape.Positions[Triangle.A] * (1.0f - Binding.S - Binding.T)
-			+ Shape.Positions[Triangle.B] * Binding.S
-			+ Shape.Positions[Triangle.C] * Binding.T;
+		NewPosition = VA*Binding.S + VB*Binding.T + VC*(1.0f - Binding.S - Binding.T);
+	
+		FVector3f NVA = Shape.Positions[Triangle.A] + Shape.Normals[Triangle.A]*Binding.NormalD.X;
+		FVector3f NVB = Shape.Positions[Triangle.B] + Shape.Normals[Triangle.B]*Binding.NormalD.Y;
+		FVector3f NVC = Shape.Positions[Triangle.C] + Shape.Normals[Triangle.C]*Binding.NormalD.Z;
 
-		// This method approximates the shape face rotation
-		FVector3f InterpolatedNormal = 
-			Shape.Normals[Triangle.A] * (1.0f - Binding.S - Binding.T)
-			+ Shape.Normals[Triangle.B] * Binding.S
-			+ Shape.Normals[Triangle.C] * Binding.T;
-		
-		NewPosition = ProjectedVertexPosition + InterpolatedNormal*Binding.D;
-
-		FVector3f CurrentShapeNormal = ((Shape.Positions[Triangle.B] - Shape.Positions[Triangle.A]) ^ 
-										(Shape.Positions[Triangle.C] - Shape.Positions[Triangle.A])).GetSafeNormal();
-
-		Rotation = FQuat4f::FindBetween(Binding.ShapeNormal.GetSafeNormal(), CurrentShapeNormal);
+		NewNormalPosition = (NVA*Binding.NS + NVB*Binding.NT + NVC*(1.0f - Binding.NS - Binding.NT));
 	}
 
 	inline void GetDeform( const FShapeMeshDescriptorApply& Shape, const FReshapePointBindingData& Binding, FVector3f& NewPosition)
 	{
 		const UE::Geometry::FIndex3i& Triangle = Shape.Triangles[Binding.Triangle];
+	
+		FVector3f VA = Shape.Positions[Triangle.A] + Shape.Normals[Triangle.A]*Binding.D.X;
+		FVector3f VB = Shape.Positions[Triangle.B] + Shape.Normals[Triangle.B]*Binding.D.Y;
+		FVector3f VC = Shape.Positions[Triangle.C] + Shape.Normals[Triangle.C]*Binding.D.Z;
 
-		FVector3f ProjectedVertexPosition = 
-			Shape.Positions[Triangle.A] * (1.0f - Binding.S - Binding.T)
-			+ Shape.Positions[Triangle.B] * Binding.S
-			+ Shape.Positions[Triangle.C] * Binding.T;
-
-		// This method approximates the shape face rotation
-		FVector3f InterpolatedNormal = 
-			Shape.Normals[Triangle.A] * (1.0f - Binding.S - Binding.T)
-			+ Shape.Normals[Triangle.B] * Binding.S
-			+ Shape.Normals[Triangle.C] * Binding.T;
-		
-		NewPosition = ProjectedVertexPosition + InterpolatedNormal*Binding.D;
+		NewPosition = VA*Binding.S + VB*Binding.T + VC*(1.0f - Binding.S - Binding.T);
 	}
 
 
@@ -381,15 +369,23 @@ namespace mu
 		OutL = FMath::Max(0.0f, (Centroids[0] - Centroids[1]).Length() - (OutR0 + OutR1));
 	}
 
-	inline void ApplyToVertices(Mesh* Mesh, TArrayView<const FReshapeVertexBindingData> BindingData, const FShapeMeshDescriptorApply& Shape)
+	inline void ApplyToVertices(Mesh* Mesh, TArrayView<const FReshapeVertexBindingData> BindingData, const FShapeMeshDescriptorApply& Shape, bool bSkipNormalReshape)
 	{
 		check(Mesh);
 		check(Mesh->GetVertexCount() == BindingData.Num());
 		
-		UntypedMeshBufferIterator ItPosition(Mesh->GetVertexBuffers(), MBS_POSITION);
-		UntypedMeshBufferIterator ItNormal(Mesh->GetVertexBuffers(), MBS_NORMAL);
-		UntypedMeshBufferIterator ItTangent(Mesh->GetVertexBuffers(), MBS_TANGENT);
-		UntypedMeshBufferIterator ItBinormal(Mesh->GetVertexBuffers(), MBS_BINORMAL);
+		const UntypedMeshBufferIterator PositionIter(Mesh->GetVertexBuffers(), MBS_POSITION);
+		const UntypedMeshBufferIterator NormalIter(Mesh->GetVertexBuffers(), MBS_NORMAL);
+		const UntypedMeshBufferIterator TangentIter(Mesh->GetVertexBuffers(), MBS_TANGENT);
+		const UntypedMeshBufferIterator BiNormalIter(Mesh->GetVertexBuffers(), MBS_BINORMAL);
+
+        const EMeshBufferFormat NormalFormat   = NormalIter.GetFormat();
+        const EMeshBufferFormat TangentFormat  = TangentIter.GetFormat();
+        const EMeshBufferFormat BiNormalFormat = BiNormalIter.GetFormat();
+	
+        const int32 NormalComps   = NormalIter.GetComponents();
+        const int32 TangentComps  = TangentIter.GetComponents();
+        const int32 BiNormalComps = BiNormalIter.GetComponents();
 
 #if DO_CHECK
 		// checking if the Base shape has more triangles than the target shape
@@ -407,69 +403,68 @@ namespace mu
 
 		const int32 MeshVertexCount = BindingData.Num();
 
-		for (int32 MeshVertexIndex = 0; MeshVertexIndex < MeshVertexCount; ++MeshVertexIndex)
+		const bool bComputeNormal = bSkipNormalReshape && NormalIter.ptr();
+		for (int32 VertexIndex = 0; VertexIndex < MeshVertexCount; ++VertexIndex)
 		{
-			const FReshapeVertexBindingData& Binding = BindingData[MeshVertexIndex];
-
-			FVector3f NewPosition;
-			FQuat4f TangentSpaceCorrection;
+			const FReshapeVertexBindingData& Binding = BindingData[VertexIndex];
 
 			const bool bModified = (Binding.Triangle >= 0) & (Binding.Triangle < ShapeTriangleCount);
 			if (bModified)
 			{
-				GetDeform(Shape, Binding, NewPosition, TangentSpaceCorrection);
+				FVector3f NewPosition;
+				FVector3f NewNormalPosition;
+				
+				GetDeform(Shape, Binding, NewPosition, NewNormalPosition);
 
-				const FVector3f OldPosition = ItPosition.GetAsVec3f();
-				FVector3f Displacement = NewPosition - OldPosition;
+				const FVector3f OldPosition = (PositionIter + VertexIndex).GetAsVec3f();
 
-				if (!FMath::IsNearlyEqual(Binding.Weight, 1.0f))
+				FVector3f PositionDisplacement = (NewPosition - OldPosition) * Binding.Weight;
+				
+				// TODO: Separeat rigid from not rigid processing.
+				(PositionIter + VertexIndex).SetFromVec3f(OldPosition + PositionDisplacement);
+				
+				if (bComputeNormal)
 				{
-					Displacement *= Binding.Weight;
-					TangentSpaceCorrection = FQuat4f::Slerp(FQuat4f::Identity, TangentSpaceCorrection, Binding.Weight);
-				}
-				
-				// Non rigid vertices will not rotate since are attached to themselves 
-				NewPosition = TangentSpaceCorrection.RotateVector(OldPosition - Binding.AttachmentPoint) + (OldPosition + Displacement);
-				
-				ItPosition.SetFromVec3f(NewPosition);
+					const FVector3f OldNormal = (NormalIter + VertexIndex).GetAsVec3f();
+					const FVector3f OldNormalPosition = OldPosition + OldNormal;
 					
-				if (ItNormal.ptr())
-				{
-					FVector3f OldNormal = ItNormal.GetAsVec3f();
-					FVector3f NewNormal = TangentSpaceCorrection.RotateVector(OldNormal);
-					ItNormal.SetFromVec3f(NewNormal);
+					FVector3f NormalDisplacement = (NewNormalPosition - OldNormalPosition) * Binding.Weight;
+
+					FVector3f Normal = ((OldNormalPosition + NormalDisplacement) - NewPosition).GetSafeNormal();
+					FVector3f Tangent = TangentIter.ptr() ? (TangentIter + VertexIndex).GetAsVec3f() : FVector3f::XAxisVector;
+					FVector3f BiNormal = BiNormalIter.ptr() ? (BiNormalIter + VertexIndex).GetAsVec3f() : FVector3f::YAxisVector;
+				
+					OrthogonalizeTangentSpace(
+							&Normal, 
+							TangentIter.ptr() ? &Tangent : nullptr, 
+							BiNormalIter.ptr() ? &BiNormal : nullptr,
+							BiNormalIter.ptr() ? ComputeTangentBasisDeterminantSign(OldNormal, Tangent, BiNormal) : 0.0f);
+					
+					// Leave the tangent basis sign untouched for packed normals formats.
+					uint8 * const NormalElemPtr = (NormalIter + VertexIndex).ptr();
+					for (int32 C = 0; C < NormalComps && C < 3; ++C)
+					{
+						ConvertData(C, NormalElemPtr, NormalFormat, &Normal, MBF_FLOAT32);
+					}
+
+					if (TangentIter.ptr())
+					{
+						uint8 * const TangentElemPtr = (TangentIter + VertexIndex).ptr();
+						for (int32 C = 0; C < TangentComps && C < 3; ++C)
+						{
+							ConvertData(C, TangentElemPtr, TangentFormat, &Tangent, MBF_FLOAT32);
+						}
+					}
+					
+					if (BiNormalIter.ptr())
+					{
+						uint8 * const BiNormalElemPtr = (BiNormalIter + VertexIndex).ptr();
+						for (int32 C = 0; C < BiNormalComps && C < 3; ++C)
+						{
+							ConvertData(C, BiNormalElemPtr, BiNormalFormat, &BiNormal, MBF_FLOAT32);
+						}
+					}
 				}
-
-				if (ItTangent.ptr())
-				{
-					FVector3f OldTangent = ItTangent.GetAsVec3f();
-					FVector3f NewTangent = TangentSpaceCorrection.RotateVector(OldTangent);
-					ItTangent.SetFromVec3f(NewTangent);
-				}
-
-				if (ItBinormal.ptr())
-				{
-					FVector3f OldBinormal = ItBinormal.GetAsVec3f();
-					FVector3f NewBinormal = TangentSpaceCorrection.RotateVector(OldBinormal);
-					ItBinormal.SetFromVec3f(NewBinormal);
-				}
-			}
-			
-			++ItPosition;
-
-			if (ItNormal.ptr())
-			{
-				++ItNormal;
-			}
-
-			if (ItTangent.ptr())
-			{
-				++ItTangent;
-			}
-
-			if (ItBinormal.ptr())
-			{
-				++ItBinormal;
 			}
 		}
 	}
@@ -729,6 +724,7 @@ namespace mu
 		}
 		
 		const bool bReshapeVertices = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeVertices);
+		const bool bRecomputeNormals = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::RecomputeNormals);
 		const bool bReshapeSkeleton = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeSkeleton);
 		const bool bReshapePhysicsVolumes = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapePhysicsVolumes);
 		const bool bApplyLaplacian = EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ApplyLaplacian);
@@ -820,17 +816,15 @@ namespace mu
 			ShapeDescriptor.Normals.SetNum(ShapeVertexCount);
 
 			// \TODO: Simple but inefficient
-			UntypedMeshBufferIteratorConst ItPosition(ShapeMesh->GetVertexBuffers(), MBS_POSITION);
-			UntypedMeshBufferIteratorConst ItNormal(ShapeMesh->GetVertexBuffers(), MBS_NORMAL);
+			const UntypedMeshBufferIteratorConst ItPosition(ShapeMesh->GetVertexBuffers(), MBS_POSITION);
+			const UntypedMeshBufferIteratorConst ItNormal(ShapeMesh->GetVertexBuffers(), MBS_NORMAL);
 			for (int32 ShapeVertexIndex = 0; ShapeVertexIndex < ShapeVertexCount; ++ShapeVertexIndex)
 			{
-				FVector3f Position = ItPosition.GetAsVec3f();
+				FVector3f Position = (ItPosition + ShapeVertexIndex).GetAsVec3f();
 				ShapeDescriptor.Positions[ShapeVertexIndex] = Position;
-				++ItPosition;
 
-				FVector3f Normal = ItNormal.GetAsVec3f();
+				FVector3f Normal = (ItNormal + ShapeVertexIndex).GetAsVec3f();
 				ShapeDescriptor.Normals[ShapeVertexIndex] = Normal;
-				++ItNormal;
 			}
 		}
 
@@ -842,16 +836,13 @@ namespace mu
 			ShapeDescriptor.Triangles.SetNum(ShapeTriangleCount);
 
 			// \TODO: Simple but inefficient
-			UntypedMeshBufferIteratorConst ItIndices(ShapeMesh->GetIndexBuffers(), MBS_VERTEXINDEX);
+			const UntypedMeshBufferIteratorConst ItIndices(ShapeMesh->GetIndexBuffers(), MBS_VERTEXINDEX);
 			for (int32 TriangleIndex = 0; TriangleIndex < ShapeTriangleCount; ++TriangleIndex)
 			{
 				UE::Geometry::FIndex3i Triangle;
-				Triangle.A = int(ItIndices.GetAsUINT32());
-				++ItIndices;
-				Triangle.B = int(ItIndices.GetAsUINT32());
-				++ItIndices;
-				Triangle.C = int(ItIndices.GetAsUINT32());
-				++ItIndices;
+				Triangle.A = int32((ItIndices + TriangleIndex*3 + 0).GetAsUINT32());
+				Triangle.B = int32((ItIndices + TriangleIndex*3 + 1).GetAsUINT32());
+				Triangle.C = int32((ItIndices + TriangleIndex*3 + 2).GetAsUINT32());
 
 				ShapeDescriptor.Triangles[TriangleIndex] = Triangle;
 			}
@@ -869,7 +860,7 @@ namespace mu
 						(const FReshapeVertexBindingData*)VB.GetBufferData(BarycentricDataBuffer),
 						VB.GetElementCount());
 
-				ApplyToVertices(VerticesReshapeMesh, VerticesBindingData, ShapeDescriptor);
+				ApplyToVertices(VerticesReshapeMesh, VerticesBindingData, ShapeDescriptor, bRecomputeNormals);
 			}
 
 			if (bApplyLaplacian)
@@ -878,6 +869,11 @@ namespace mu
 				// check result is empty at this point.
 				check(Result->GetVertexCount() == 0 && Result->GetIndexCount() == 0); 
 				SmoothMeshLaplacian(*Result, *VerticesReshapeMesh);
+			}
+
+			if (bRecomputeNormals)
+			{
+				ComputeMeshNormals(*Result);
 			}
 		}
 	

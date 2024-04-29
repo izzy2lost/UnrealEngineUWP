@@ -22,6 +22,7 @@ struct FProgram;
 		ASTChild Mesh;
 		ASTChild Shape;
 
+		uint32 bRecomputeNormals	  : 1;
 		uint32 bReshapeSkeleton       : 1;
 		uint32 bReshapePhysicsVolumes : 1;
 		uint32 bReshapeVertices       : 1;

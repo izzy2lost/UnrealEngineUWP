@@ -75,7 +75,10 @@ public:
 
 	/** Enable the deformation of the vertices of the base mesh. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	bool bReshapeVertices = true;	
+	bool bReshapeVertices = true;
+
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	bool bRecomputeNormals = false;
 
 	/** Enable laplacian smoothing to the result of the base mesh reshape. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (EditCondition = "bReshapeVertices"))
@@ -83,7 +86,7 @@ public:
 
 	/** Enable the deformation of the skeleton of the base mesh. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	bool bReshapeSkeleton = false;	
+	bool bReshapeSkeleton = false;
 
 	/** Enable the deformation of physics volumes of the base mesh */
     UPROPERTY(EditAnywhere, Category = CustomizableObject)

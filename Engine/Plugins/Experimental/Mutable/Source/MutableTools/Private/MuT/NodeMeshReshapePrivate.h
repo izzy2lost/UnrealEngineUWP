@@ -21,6 +21,7 @@ namespace mu
 		Ptr<NodeMesh> BaseShape;
 		Ptr<NodeMesh> TargetShape;
 		bool bReshapeVertices = true;
+		bool bRecomputeNormals = false;
 		bool bApplyLaplacian = false;
 		bool bReshapeSkeleton = false;
 		bool bReshapePhysicsVolumes = false;
