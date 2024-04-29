@@ -42,12 +42,6 @@ namespace UnrealBuildTool.Rules
 			{
 				PrivateDependencyModuleNames.Add("CoreUObject");
 			}
-
-			if (Target.Platform == UnrealTargetPlatform.Android)
-			{
-				string ModulePath = Utils.MakePathRelativeTo(ModuleDirectory, Target.RelativeEnginePath);
-				AdditionalPropertiesForReceipt.Add("AndroidPlugin", Path.Combine(ModulePath, "LowLevelTestsAndroid_UPL.xml"));
-			}
 		}
 	}
 }
