@@ -13,9 +13,9 @@ namespace mu
 	//! If the channel list is empty all the channels will be compared.
 	//---------------------------------------------------------------------------------------------
     inline void MeshDifference( Mesh* Result, const Mesh* pBase, const Mesh* pTarget,
-                                   int numChannels,
+                                   int32 numChannels,
                                    const EMeshBufferSemantic* semantics,
-                                   const int* semanticIndices,
+                                   const int32* semanticIndices,
                                    bool ignoreTexCoords, bool& bOutSuccess)
 
 	{
@@ -30,8 +30,7 @@ namespace mu
 		bool bIsCorrect =
                 pBase
                 &&
-				( pBase->GetVertexBuffers().GetElementCount()
-						== pTarget->GetVertexBuffers().GetElementCount() )
+				( pBase->GetVertexBuffers().GetElementCount() == pTarget->GetVertexBuffers().GetElementCount() )
 				&&
                 ( pBase->GetIndexCount() == pTarget->GetIndexCount() )
                 &&
@@ -44,22 +43,20 @@ namespace mu
 			return ;
 		}
 
-		uint32 vcount = pBase->GetVertexBuffers().GetElementCount();		
+		int32 VertexCount = pBase->GetVertexBuffers().GetElementCount();		
 
 		// If no channels were specified, get them all
 		TArray<EMeshBufferSemantic> allSemantics;		
-		TArray<int> allSemanticIndices;
+		TArray<int32> allSemanticIndices;
 		if ( !numChannels )
 		{
-			for ( int vb=0; vb<pBase->GetVertexBuffers().GetBufferCount(); ++vb )
+			for ( int32 vb=0; vb<pBase->GetVertexBuffers().GetBufferCount(); ++vb )
 			{
-				for ( int c=0; c<pBase->GetVertexBuffers().GetBufferChannelCount(vb); ++c )
+				for ( int32 c=0; c<pBase->GetVertexBuffers().GetBufferChannelCount(vb); ++c )
 				{
 					EMeshBufferSemantic sem = MBS_NONE;
-					int semIndex = 0;
-					pBase->GetVertexBuffers().GetChannel( vb, c,
-															&sem, &semIndex,
-															nullptr, nullptr, nullptr );			
+					int32 semIndex = 0;
+					pBase->GetVertexBuffers().GetChannel( vb, c, &sem, &semIndex, nullptr, nullptr, nullptr );			
 					if ( sem != MBS_VERTEXINDEX &&
 					     sem != MBS_BONEINDICES &&
 					     sem != MBS_BONEWEIGHTS &&
@@ -82,13 +79,13 @@ namespace mu
 		// Make a delta of every vertex
 		// TODO: Not always 4 components
 		// TODO: Not always floats
-		int differentVertexCount = 0;
+		int32 differentVertexCount = 0;
 		TArray<bool> isVertexDifferent;
-		isVertexDifferent.SetNumZeroed(vcount);
+		isVertexDifferent.SetNumZeroed(VertexCount);
 		TArray< FVector4f > deltas;
-		deltas.SetNum(vcount * numChannels);
+		deltas.SetNum(VertexCount * numChannels);
 
-		for ( int c=0; c<numChannels; ++c )
+		for ( int32 c=0; c<numChannels; ++c )
 		{
 			UntypedMeshBufferIteratorConst baseIt		
 					( pBase->GetVertexBuffers(), semantics[c], semanticIndices[c] );
@@ -96,7 +93,7 @@ namespace mu
 			UntypedMeshBufferIteratorConst targetIt		
 					( pTarget->GetVertexBuffers(), semantics[c], semanticIndices[c] );
 
-			for ( size_t v=0; v<vcount; ++v )
+			for ( int32 v=0; v<VertexCount; ++v )
 			{
 				FVector4f base = baseIt.GetAsVec4f();
 				FVector4f target = targetIt.GetAsVec4f();
@@ -122,77 +119,101 @@ namespace mu
 		// Create the morph mesh
 		{
 			Result->GetVertexBuffers().SetElementCount( differentVertexCount );			
-			Result->GetVertexBuffers().SetBufferCount( 1 );								
+			Result->GetVertexBuffers().SetBufferCount( 2 );								
 
 			TArray<EMeshBufferSemantic> semantic;
-			TArray<int> semanticIndex;
+			TArray<int32> semanticIndex;
 			TArray<EMeshBufferFormat> format;
-			TArray<int> components;
-			TArray<int> offsets;
-			int offset = 0;										
+			TArray<int32> components;
+			TArray<int32> offsets;
+			int32 ElementSize = 0;
 
-			// Vertex index channel
-			semantic.Add( MBS_VERTEXINDEX );					
-			semanticIndex.Add( 0 );
-			format.Add( MBF_UINT32 );
-			components.Add( 1 );
-			offsets.Add( offset );
-			offset += 4;						
-
-			for ( int c=0; c<numChannels; ++c )
+			// The first buffer will contain the actual morph data.
+			for (int32 c = 0; c < numChannels; ++c)
 			{
-				semantic.Add( semantics[c] );
-				semanticIndex.Add( semanticIndices[c] );
-				format.Add( MBF_FLOAT32 );
-				components.Add( 4 );
-				offsets.Add( offset );
-				offset += 16;				
+				semantic.Add(semantics[c]);
+				semanticIndex.Add(semanticIndices[c]);
+				format.Add(MBF_FLOAT32);
+				components.Add(4);
+				offsets.Add(ElementSize);
+				ElementSize += 4 * sizeof(float);
 			}
 
-			Result->GetVertexBuffers().SetBuffer
-				(
-					0,
-					offset,
-					numChannels+1,
-					&semantic[0],
-					&semanticIndex[0],
-					&format[0],
-					&components[0],
-					&offsets[0]
-				);
+			int32 BufferIndex = 0;
+			Result->GetVertexBuffers().SetBuffer(BufferIndex, ElementSize, semantic.Num(), semantic.GetData(), semanticIndex.GetData(), format.GetData(), components.GetData(), offsets.GetData());
+
+			// The second buffer will contain the ids of the vertices to morph.
+			semantic = { MBS_VERTEXINDEX };
+			semanticIndex = { 0 };
+			components = { 1 };
+			offsets = { 0 };
+			bool bGenerateRelativeIds = !pBase->AreVertexIdsExplicit();
+			if (bGenerateRelativeIds)
+			{
+				format = { MBF_UINT32 };
+				ElementSize = sizeof(uint32);
+			}
+			else
+			{
+				format = { MBF_UINT64 };
+				ElementSize = sizeof(uint64);
+			}
+
+			BufferIndex = 1;
+			Result->GetVertexBuffers().SetBuffer(BufferIndex, ElementSize, semantic.Num(), semantic.GetData(), semanticIndex.GetData(), format.GetData(), components.GetData(), offsets.GetData());
+
+
+			if (bGenerateRelativeIds)
+			{
+				Result->VertexIDPrefix = pBase->VertexIDPrefix;
+			}
+			else
+			{
+				Result->VertexIDPrefix = 0;
+			}
 
 			// Source vertex index channel
-			UntypedMeshBufferIteratorConst itBaseId( pBase->GetVertexBuffers(), MBS_VERTEXINDEX, 0 );
-			check(itBaseId.GetElementSize());
+			MeshVertexIdIteratorConst IdIterator( pBase );
+			check(IdIterator.IsValid());
 
 			// Set the data
-			uint8_t* ResultData = Result->GetVertexBuffers().GetBufferData( 0 );
-			for (size_t v=0; v<vcount; ++v)
+			uint8* ResultData = Result->GetVertexBuffers().GetBufferData(0);
+			uint8* ResultIds = Result->GetVertexBuffers().GetBufferData(1);
+			for (int32 v=0; v<VertexCount; ++v)
 			{
 				if ( isVertexDifferent[v] )
 				{
-					// index
-					*((uint32*)ResultData) = itBaseId.GetAsUINT32();			
-					ResultData += 4;
+					// Vertex Id
+					uint64 FullId = IdIterator.Get();
+					if (bGenerateRelativeIds)
+					{
+						uint32 RelativeId = uint32_t(FullId & 0xffffffff);
+						*((uint32*)ResultIds) = RelativeId;
+						ResultIds += sizeof(uint32);
+					}
+					else
+					{
+						*((uint64*)ResultIds) = FullId;
+						ResultIds += sizeof(uint64);
+					}
 
 					// all channels
-					for ( int c=0; c<numChannels; ++c )
+					for ( int32 c=0; c<numChannels; ++c )
 					{
-						FMemory::Memcpy(ResultData, &deltas[v * numChannels + c], 16);
-						ResultData += 4*4;											
+						constexpr int32 ChannelSizeBytes = 16;
+						FMemory::Memcpy(ResultData, &deltas[v * numChannels + c], ChannelSizeBytes);
+						ResultData += ChannelSizeBytes;
 					}
 				}
 
-				++itBaseId;
+				++IdIterator;
 			}
 		}
 
 
-        // Rebuild surface data.
-        // \todo: For now make single surfaced
-        Result->m_surfaces.SetNum(0);
+        // Morphs are always single surfaced
+        Result->Surfaces.SetNum(0);
         Result->EnsureSurfaceData();
 	}
-
 
 }

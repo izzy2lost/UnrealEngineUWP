@@ -709,6 +709,47 @@ namespace mu
 			break;
 		}
 
+		case MBF_UINT64:
+		{
+			uint64* pTypedResult = reinterpret_cast<uint64*>(pResult);
+
+			switch (sourceFormat)
+			{
+			case MBF_UINT8:
+			{
+				const uint8* pTypedSource = reinterpret_cast<const uint8*>(pSource);
+				pTypedResult[channel] = pTypedSource[channel];
+				break;
+			}
+
+			case MBF_UINT16:
+			{
+				const uint16* pTypedSource = reinterpret_cast<const uint16*>(pSource);
+				pTypedResult[channel] = pTypedSource[channel];
+				break;
+			}
+
+			case MBF_UINT32:
+			{
+				const uint32* pTypedSource = reinterpret_cast<const uint32*>(pSource);
+				pTypedResult[channel] = pTypedSource[channel];
+				break;
+			}
+
+			case MBF_UINT64:
+			{
+				const uint64* pTypedSource = reinterpret_cast<const uint64*>(pSource);
+				pTypedResult[channel] = pTypedSource[channel];
+				break;
+			}
+
+			default:
+				checkf(false, TEXT("Conversion not implemented."));
+				break;
+			}
+			break;
+		}
+
 		case MBF_INT8:
 		{
             int8* pTypedResult = reinterpret_cast<int8*>( pResult );

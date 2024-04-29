@@ -55,11 +55,6 @@ class FMeshBufferSet;
 	}
 
 
-	FMeshBufferSet& NodeMeshFormat::GetFaceBuffers()
-	{
-		return m_pD->FaceBuffers;
-	}
-
 	void NodeMeshFormat::SetOptimizeBuffers(bool bEnable)
 	{
 		m_pD->bOptimizeBuffers = bEnable;

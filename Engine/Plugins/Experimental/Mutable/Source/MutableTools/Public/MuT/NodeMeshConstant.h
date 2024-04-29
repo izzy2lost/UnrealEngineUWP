@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "MuR/Mesh.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
@@ -17,10 +16,8 @@ namespace mu
 	typedef Ptr<NodeMeshConstant> NodeMeshConstantPtr;
 	typedef Ptr<const NodeMeshConstant> NodeMeshConstantPtrConst;
 
+	class Mesh;
 	class NodeLayout;
-	typedef Ptr<NodeLayout> NodeLayoutPtr;
-	typedef Ptr<const NodeLayout> NodeLayoutPtrConst;
-
 
 	//! Node that outputs a constant mesh.
 	//! It allows to define the layouts for the texture channels of the constant mesh
@@ -42,18 +39,18 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Get the constant mesh that will be returned.
-		MeshPtr GetValue() const;
+		Ptr<Mesh> GetValue() const;
 
 		//! Set the constant mesh that will be returned.
-		void SetValue( MeshPtr );
+		void SetValue( Ptr<Mesh> );
 
 		//! Get the number of layouts defined in this mesh.
-		int GetLayoutCount() const;
-		void SetLayoutCount( int );
+		int32 GetLayoutCount() const;
+		void SetLayoutCount( int32 );
 
 		//! Get the node defining a layout of the returned mesh.
-		NodeLayoutPtr GetLayout( int index ) const;
-		void SetLayout( int index, NodeLayoutPtr );
+		Ptr<NodeLayout> GetLayout( int32 index ) const;
+		void SetLayout( int32 index, Ptr<NodeLayout>);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

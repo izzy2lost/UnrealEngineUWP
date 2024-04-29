@@ -177,7 +177,7 @@ namespace MutableMeshPreviewUtils
 
 			bool bOutSuccess = false;
 			mu::MeshFormat(FormatResult.get(), InMutableMesh.get(), FormattedMutableMesh.get(),
-				false, true, true, false, false,
+				false, true, true, false,
 				bOutSuccess);
 		
 			return FormatResult;

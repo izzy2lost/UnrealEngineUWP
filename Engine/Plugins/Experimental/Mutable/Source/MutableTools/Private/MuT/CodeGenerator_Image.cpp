@@ -1403,10 +1403,6 @@ namespace mu
 			MeshOptions.ActiveTags = Options.ActiveTags;
 			MeshOptions.bLayouts = true;			// We need the layout that we will use to render
 			MeshOptions.bNormalizeUVs = true;		// We need normalized UVs for the projection
-
-			// We may need IDs at this point if there are modifiers for the mesh.
-			// \TODO: Detect this at mesh constant generation and enable there instead of here?
-			MeshOptions.bUniqueVertexIDs = true;
 			
 			FMeshGenerationResult MeshResult;
 			GenerateMesh( MeshOptions, MeshResult, node.m_pMesh );
@@ -1446,7 +1442,6 @@ namespace mu
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
 				FormatOp->Flags = OP::MeshFormatArgs::Vertex
                         | OP::MeshFormatArgs::Index
-                        | OP::MeshFormatArgs::Face
                         | OP::MeshFormatArgs::ResetBufferIndices;
 				FormatOp->Format = cop;
 				FormatOp->Source = CurrentMeshToProjectOp;
@@ -1478,7 +1473,6 @@ namespace mu
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
 				FormatOp->Flags = OP::MeshFormatArgs::Vertex
 					| OP::MeshFormatArgs::Index
-					| OP::MeshFormatArgs::Face
 					| OP::MeshFormatArgs::ResetBufferIndices;
 				FormatOp->Format = cop;
 				FormatOp->Source = CurrentMeshToProjectOp;

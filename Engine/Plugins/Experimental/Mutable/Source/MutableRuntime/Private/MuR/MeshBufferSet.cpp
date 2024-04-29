@@ -20,7 +20,7 @@ namespace mu
 
 	
 	//---------------------------------------------------------------------------------------------
-	static FMeshBufferFormatData s_meshBufferFormatData[MBF_COUNT] =
+	static FMeshBufferFormatData s_meshBufferFormatData[] = // MBF_COUNT entries
 	{
 		{ 0, 0 },
 		{ 2, 0 },
@@ -45,9 +45,15 @@ namespace mu
 		{ 1, 0 },
 		{ 1, 0 },
 
+		{ 8, 0 },
+
+		{ 8, 64 },
+		{ 8, 63 },
+		{ 8, 0 },
 		{ 8, 0 }
 	};
 
+	static_assert(sizeof(s_meshBufferFormatData) / sizeof(FMeshBufferFormatData) == int32(MBF_COUNT));
 
 	//---------------------------------------------------------------------------------------------
 	const FMeshBufferFormatData& GetMeshFormatData(EMeshBufferFormat format)

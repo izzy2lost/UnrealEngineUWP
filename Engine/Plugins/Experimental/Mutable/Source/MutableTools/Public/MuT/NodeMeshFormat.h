@@ -47,12 +47,6 @@ namespace mu
 		*/
 		FMeshBufferSet& GetIndexBuffers();
 
-		/** Access the MeshBufferSet that defines the new format for the mesh faces. These
-		* buffers don't really contain any data (they have 0 elements) but they define the
-		* structure. If this is null, the vertex buffers will not be changed.
-		*/
-		FMeshBufferSet& GetFaceBuffers();
-
 		/** Optimize the buffers is possible. This may change the target format to reduce the number
 		* of channels or even the type if possible to minimize size.
 		* By default it is disabled.

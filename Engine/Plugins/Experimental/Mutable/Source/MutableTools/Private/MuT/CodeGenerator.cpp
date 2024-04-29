@@ -719,7 +719,6 @@ namespace mu
 
             // Generate the mesh
 			FMeshGenerationOptions MeshOptions;
-			MeshOptions.bUniqueVertexIDs = true;
 			MeshOptions.bLayouts = true;
 			MeshOptions.State = Options.State;
 			MeshOptions.ActiveTags = node.m_tags;
@@ -768,7 +767,6 @@ namespace mu
 						m_activeTags.Add(e.node->m_tags);
 						
 						FMeshGenerationOptions MergedMeshOptions;
-						MergedMeshOptions.bUniqueVertexIDs = true;
 						MergedMeshOptions.bLayouts = true;
 						MergedMeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
 						MergedMeshOptions.bNormalizeUVs = bNormalizeUVs;
@@ -839,7 +837,6 @@ namespace mu
                     {
                         FMeshGenerationResult removeResults;
 						FMeshGenerationOptions RemoveMeshOptions;
-						RemoveMeshOptions.bUniqueVertexIDs = false;
 						RemoveMeshOptions.bLayouts = false;
 						RemoveMeshOptions.State = Options.State;
 						RemoveMeshOptions.ActiveTags = e.node->m_tags;
@@ -892,7 +889,6 @@ namespace mu
 
                     // Target mesh
 					FMeshGenerationOptions MorphTargetMeshOptions;
-					MorphTargetMeshOptions.bUniqueVertexIDs = false;
 					MorphTargetMeshOptions.bLayouts = false;
 					MorphTargetMeshOptions.State = Options.State;
 
@@ -2136,7 +2132,6 @@ namespace mu
 
 				// Parameters
 				FMeshGenerationOptions ClipOptions;
-				ClipOptions.bUniqueVertexIDs = false;
 				ClipOptions.bLayouts = false;
 				ClipOptions.State = Options.State;
 
@@ -2309,7 +2304,6 @@ namespace mu
 				Ptr<ASTOpMeshClipDeform> ClipOp = new ASTOpMeshClipDeform();
 
 				FMeshGenerationOptions ClipOptions;
-				ClipOptions.bUniqueVertexIDs = false;
 				ClipOptions.bLayouts = false;
 				ClipOptions.State = Options.State;
 

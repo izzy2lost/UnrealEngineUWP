@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuR/OpMeshFormat.h"
 
 #include "Containers/Array.h"
@@ -25,12 +24,7 @@ namespace mu
 {
 
 	//-------------------------------------------------------------------------------------------------
-	void MeshFormatBuffer
-	(
-		const FMeshBufferSet& Source,
-		FMeshBufferSet& Result,
-		int bufferIndex
-	)
+	void MeshFormatBuffer( const FMeshBufferSet& Source, FMeshBufferSet& Result, int32 bufferIndex )
 	{
 		int vCount = Source.GetElementCount();
 
@@ -368,7 +362,7 @@ namespace mu
 		// For every vertex buffer in result
 		int32 vCount = Source.GetElementCount();
 		Result.SetElementCount(vCount);
-		for (int b = 0; b < Result.GetBufferCount(); ++b)
+		for (int32 b = 0; b < Result.GetBufferCount(); ++b)
 		{
 			MeshFormatBuffer(Source, Result, b);
 		}
@@ -377,7 +371,7 @@ namespace mu
 		// Detect internal system buffers and clone them unmodified.
 		if (bKeepSystemBuffers)
 		{
-			for (int b = 0; b < Source.GetBufferCount(); ++b)
+			for (int32 b = 0; b < Source.GetBufferCount(); ++b)
 			{
 				bool bIsSystemBuffer = false;
 
@@ -385,10 +379,10 @@ namespace mu
 				if (Source.GetBufferChannelCount(b) == 1)
 				{
 					EMeshBufferSemantic sourceSemantic;
-					int sourceSemanticIndex;
+					int32 sourceSemanticIndex;
 					EMeshBufferFormat sourceFormat;
-					int sourceComponents;
-					int sourceOffset;
+					int32 sourceComponents;
+					int32 sourceOffset;
 					Source.GetChannel
 					(
 						b, 0,
@@ -420,12 +414,11 @@ namespace mu
 	void MeshFormat
 	(
 		Mesh* Result, 
-		const Mesh* pPureSource,
-		const Mesh* pFormat,
+		const Mesh* PureSource,
+		const Mesh* Format,
 		bool keepSystemBuffers,
 		bool formatVertices,
 		bool formatIndices,
-		bool formatFaces,
 		bool ignoreMissingChannels,
 		bool& bOutSuccess
 	)
@@ -433,28 +426,29 @@ namespace mu
 		MUTABLE_CPUPROFILER_SCOPE(MeshFormat);
 		bOutSuccess = true;
 
-		if (!pPureSource) 
+		if (!PureSource) 
 		{
 			check(false);
 			bOutSuccess = false;	
 			return;
 		}
 
-		if (!pFormat)
+		if (!Format)
 		{
 			check(false);
 			bOutSuccess = false;
 			return;
 		}
 
-		Ptr<const Mesh> pSource = pPureSource;
+		Ptr<const Mesh> Source = PureSource;
 
-		Result->CopyFrom(*pFormat);
+		Result->CopyFrom(*Format);
+		Result->VertexIDPrefix = Source->VertexIDPrefix;
 
 		// Make sure that the bone indices will fit in this format, or extend it.
 		if (formatVertices)
 		{
-			const FMeshBufferSet& VertexBuffers = pSource->GetVertexBuffers();
+			const FMeshBufferSet& VertexBuffers = Source->GetVertexBuffers();
 
 			const int32 BufferCount = VertexBuffers.GetBufferCount();
 			for (int32 BufferIndex = 0; BufferIndex < BufferCount; ++BufferIndex)
@@ -466,8 +460,8 @@ namespace mu
 
 					if (Channel.m_semantic == MBS_BONEINDICES)
 					{
-						int resultBuf = 0;
-						int resultChan = 0;
+						int32 resultBuf = 0;
+						int32 resultChan = 0;
 						FMeshBufferSet& formBuffs = Result->GetVertexBuffers();
 						formBuffs.FindChannel(MBS_BONEINDICES, Channel.m_semanticIndex, &resultBuf, &resultChan);
 						if (resultBuf >= 0)
@@ -514,65 +508,51 @@ namespace mu
 			}
 		}
 
-		// \todo Make sure that the vertex indices will fit in this format, or extend it.
-
 		if (formatVertices)
 		{
-			FormatBufferSet(pSource->GetVertexBuffers(), Result->GetVertexBuffers(),
+			FormatBufferSet(Source->GetVertexBuffers(), Result->GetVertexBuffers(),
 				keepSystemBuffers, ignoreMissingChannels, true);
 		}
 		else
 		{
-			Result->m_VertexBuffers = pSource->GetVertexBuffers();
+			Result->VertexBuffers = Source->GetVertexBuffers();
 		}
 
 		if (formatIndices)
 		{
-			FormatBufferSet(pSource->GetIndexBuffers(), Result->GetIndexBuffers(), keepSystemBuffers,
+			// \todo Make sure that the vertex indices will fit in this format, or extend it.
+			FormatBufferSet(Source->GetIndexBuffers(), Result->GetIndexBuffers(), keepSystemBuffers,
 				ignoreMissingChannels, false);
 		}
 		else
 		{
-			Result->m_IndexBuffers = pSource->GetIndexBuffers();
-		}
-
-		if (formatFaces)
-		{
-			FormatBufferSet(pSource->GetFaceBuffers(),
-				Result->GetFaceBuffers(),
-				keepSystemBuffers,
-				ignoreMissingChannels,
-				false);
-		}
-		else
-		{
-			Result->m_FaceBuffers = pSource->GetFaceBuffers();
+			Result->IndexBuffers = Source->GetIndexBuffers();
 		}
 
 		// Copy the rest of the data
-		Result->SetSkeleton(pSource->GetSkeleton());
-		Result->SetPhysicsBody(pSource->GetPhysicsBody());
+		Result->SetSkeleton(Source->GetSkeleton());
+		Result->SetPhysicsBody(Source->GetPhysicsBody());
 
-		Result->m_layouts.Empty();
-		for (const Ptr<const Layout>& Layout : pSource->m_layouts)
+		Result->Layouts.Empty();
+		for (const Ptr<const Layout>& Layout : Source->Layouts)
 		{
-			Result->m_layouts.Add(Layout->Clone());
+			Result->Layouts.Add(Layout->Clone());
 		}
 
-		Result->m_tags = pSource->m_tags;
-		Result->StreamedResources = pSource->StreamedResources;
+		Result->Tags = Source->Tags;
+		Result->StreamedResources = Source->StreamedResources;
 
-		Result->AdditionalBuffers = pSource->AdditionalBuffers;
+		Result->AdditionalBuffers = Source->AdditionalBuffers;
 
-		Result->BonePoses = pSource->BonePoses;
-		Result->BoneMap = pSource->BoneMap;
+		Result->BonePoses = Source->BonePoses;
+		Result->BoneMap = Source->BoneMap;
 
-		Result->SkeletonIDs = pSource->SkeletonIDs;
+		Result->SkeletonIDs = Source->SkeletonIDs;
 
 		// A shallow copy is done here, it should not be a problem.
-		Result->AdditionalPhysicsBodies = pSource->AdditionalPhysicsBodies;
+		Result->AdditionalPhysicsBodies = Source->AdditionalPhysicsBodies;
 
-		Result->m_surfaces = pSource->m_surfaces;
+		Result->Surfaces = Source->Surfaces;
 
 		Result->ResetStaticFormatFlags();
 		Result->EnsureSurfaceData();
@@ -586,7 +566,7 @@ namespace mu
 			return;
 		}
 
-		FMeshBufferSet& VertexBuffers = InMesh->m_VertexBuffers;
+		FMeshBufferSet& VertexBuffers = InMesh->VertexBuffers;
 
 		// Reduce the number of influences if possible
 		constexpr int32 SemanticIndex = 0;
@@ -658,7 +638,7 @@ namespace mu
 
 				FormatBufferSet( VertexBuffers, NewVertexBuffers, true, false, true);
 
-				InMesh->m_VertexBuffers = NewVertexBuffers;
+				InMesh->VertexBuffers = NewVertexBuffers;
 			}
 		}
 

@@ -68,7 +68,7 @@ namespace mu
             if ( !BlockPtr )
             {
                 BlockPtr = MakeUnique<BlockType>(  
-                            MakeUniformStaticArray<uint32_t, 1 << Log2BlockElems>( NotFoundValue ) );
+                            MakeUniformStaticArray<uint32, 1 << Log2BlockElems>( NotFoundValue ) );
             }
 
             (*BlockPtr)[ MappedIndex & ( ( 1 << Log2BlockElems ) - 1 ) ] = ValueIndex;
@@ -101,4 +101,67 @@ namespace mu
     };
 
 
+	class SparseIndexMapSet
+	{
+	private:
+
+		struct FRange
+		{
+			uint32 Prefix;
+			SparseIndexMap Map;
+		};
+
+		TArray<FRange> Ranges;
+
+	public:
+
+		struct FRangeDesc
+		{
+			uint32 Prefix;
+			uint32 MinIndex;
+			uint32 MaxIndex;
+		};
+
+		SparseIndexMapSet(const TArray<FRangeDesc>& InRanges)
+		{
+			Ranges.Reserve(InRanges.Num());
+			for ( const FRangeDesc& Desc: InRanges )
+			{
+				Ranges.Add({ Desc.Prefix, SparseIndexMap(Desc.MinIndex,Desc.MaxIndex)});
+			}
+		}
+
+		bool Insert(const uint64 KeyIndex, const uint32 ValueIndex)
+		{
+			uint32 Prefix = KeyIndex >> 32;
+			uint32 KeyValue = KeyIndex & 0xffffffff;
+			for (FRange& Range : Ranges)
+			{
+				if (Range.Prefix == Prefix)
+				{
+					return Range.Map.Insert(KeyValue, ValueIndex);
+				}
+			}
+
+			check(false);
+			return false;
+		}
+
+		uint32 Find(const uint64 KeyIndex) const
+		{
+			uint32 Prefix = KeyIndex >> 32;
+			uint32 KeyValue = KeyIndex & 0xffffffff;
+			for (const FRange& Range : Ranges)
+			{
+				if (Range.Prefix == Prefix)
+				{
+					return Range.Map.Find(KeyValue);
+				}
+			}
+
+			check(false);
+			return SparseIndexMap::NotFoundValue;
+		}
+
+	};
 }

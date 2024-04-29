@@ -253,8 +253,8 @@ namespace mu
 			{
 				const mu::Mesh* Data = Key.get();
 				return HashCombineFast(
-					::GetTypeHash(Data->m_VertexBuffers.GetElementCount()),
-					::GetTypeHash(Data->m_IndexBuffers.GetElementCount())
+					::GetTypeHash(Data->VertexBuffers.GetElementCount()),
+					::GetTypeHash(Data->IndexBuffers.GetElementCount())
 				);
 			}
 		};

@@ -194,42 +194,35 @@ namespace mu
 
     private:
 
-        //! List of meshes generated to be able to reuse them
-		TArray<Ptr<Mesh>> m_constantMeshes;
+        /** List of meshes generated to be able to reuse them. */
+		struct FGeneratedConstantMesh
+		{
+			Ptr<Mesh> Mesh;
+			Ptr<ASTOp> LastMeshOp;
+		};
+		TArray<FGeneratedConstantMesh> GeneratedConstantMeshes;
 
-        //! List of image resources for every image formata that have been generated so far as
-        //! palceholders for missing images.
+        /** List of image resources for every image formats that have been generated so far as palceholders for missing images. */
         Ptr<Image> m_missingImage[size_t(EImageFormat::IF_COUNT)];
 
         //! First free index for a layout block
         int32 m_absoluteLayoutIndex = 0;
 
-        //! First free index to be used to identify mesh vertices.
-        uint32 m_freeVertexIndex = 0;
+        //! List of already used vertex ID groups that must be unique.
+        TSet<uint32> UniqueVertexIDGroups;
 
 		// (top-down) Tags that are active when generating nodes.
 		TArray< TArray<FString> > m_activeTags;
 
         struct FParentKey
         {
-            FParentKey()
-            {
-                m_pObject = nullptr;
-                m_state = -1;
-                m_lod = -1;
-                m_component = -1;
-                m_surface = -1;
-                m_texture = -1;
-                m_block = -1;
-            }
-
-            const NodeObjectNew::Private* m_pObject;
-            int m_state;
-            int m_lod;
-            int m_component;
-            int m_surface;
-            int m_texture;
-            int m_block;
+            const NodeObjectNew::Private* m_pObject = nullptr;
+            int32 m_state = -1;
+            int32 m_lod = -1;
+            int32 m_component = -1;
+            int32 m_surface = -1;
+            int32 m_texture = -1;
+            int32 m_block = -1;
         };
 
 		TArray< FParentKey > m_currentParents;
@@ -456,11 +449,6 @@ namespace mu
 		*/
 		struct FMeshGenerationOptions : public FGenericGenerationOptions
 		{
-			/** Whatever mesh we reach at the leaves of the graph will need to have unique ids for its vertices.
-			* This is used to track mesh removal indices, morph data in other nodes, clothing data, etc.
-			*/
-			bool bUniqueVertexIDs = false;
-
 			/** The meshes at the leaves will need their own layout block data. */
 			bool bLayouts = false;
 
@@ -485,7 +473,6 @@ namespace mu
 			friend FORCEINLINE uint32 GetTypeHash(const FMeshGenerationOptions& InKey)
 			{
 				uint32 KeyHash = 0;
-				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.bUniqueVertexIDs));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.bLayouts));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.OverrideLayouts.Num()));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.State));
@@ -496,7 +483,7 @@ namespace mu
 			FORCEINLINE bool operator==(const FMeshGenerationOptions& Other) const
 			{
 				return State==Other.State 
-					&& bUniqueVertexIDs==Other.bUniqueVertexIDs && bLayouts==Other.bLayouts 
+					&& bLayouts==Other.bLayouts 
 					&& bClampUVIslands == Other.bClampUVIslands && bNormalizeUVs == Other.bNormalizeUVs
 					&& ActiveTags==Other.ActiveTags
 					&& OverrideLayouts ==Other.OverrideLayouts;

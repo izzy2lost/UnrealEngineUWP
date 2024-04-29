@@ -478,9 +478,9 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	{
 		mu::NodeMeshConstant* MeshConstantVar = StaticCast<mu::NodeMeshConstant*>(ParentNode);
 		mu::NodeMeshConstant::Private* Private = MeshConstantVar->GetPrivate();
-		for (int32 LayoutIndex = 0; LayoutIndex < Private->m_layouts.Num(); LayoutIndex++)
+		for (int32 LayoutIndex = 0; LayoutIndex < Private->Layouts.Num(); LayoutIndex++)
 		{
-			AddChildFunc(Private->m_layouts[LayoutIndex].get(), FString::Printf(TEXT("LAYOUT [%d]"), LayoutIndex));
+			AddChildFunc(Private->Layouts[LayoutIndex].get(), FString::Printf(TEXT("LAYOUT [%d]"), LayoutIndex));
 		}
 	}
 

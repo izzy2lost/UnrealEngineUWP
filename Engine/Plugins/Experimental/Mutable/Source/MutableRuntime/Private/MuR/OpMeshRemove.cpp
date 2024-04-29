@@ -11,27 +11,27 @@ namespace mu
 {
 
     //---------------------------------------------------------------------------------------------
-    struct ID_INTERVAL
+    struct FIdInterval
     {
-        int32 idStart;
+        uint64 idStart;
         int32 idPosition;
         int32 size;
     };
 
 
-    void ExtractVertexIndexIntervals( TArray<ID_INTERVAL>& intervals, const Mesh* pSource )
+    void ExtractVertexIndexIntervals( TArray<FIdInterval>& intervals, const Mesh* pSource )
     {
-        MeshBufferIteratorConst<MBF_UINT32,uint32,1> itVI( pSource->GetVertexBuffers(), MBS_VERTEXINDEX );
-        ID_INTERVAL current;
-		current.idStart = -1;
+		MeshVertexIdIteratorConst itVI( pSource );
+		FIdInterval current;
+		current.idStart = TNumericLimits<uint64>::Max();
 		current.idPosition = 0;
 		current.size = 0;
-		for ( int sv=0; sv<pSource->GetVertexBuffers().GetElementCount(); ++sv )
+		for ( int32 sv=0; sv<pSource->GetVertexBuffers().GetElementCount(); ++sv )
         {
-            int32 id = (*itVI)[0];
+            uint64 id = itVI.Get();
             ++itVI;
 
-            if (current.idStart<0)
+            if (current.idStart==TNumericLimits<uint64>::Max())
             {
                 current.idStart = id;
                 current.idPosition = sv;
@@ -60,11 +60,11 @@ namespace mu
     }
 
 
-    int FindPositionInIntervals( const TArray<ID_INTERVAL>& intervals, int32 id )
+    int64 FindPositionInIntervals( const TArray<FIdInterval>& intervals, int64 id )
     {
-        for( const ID_INTERVAL& interval: intervals )
+        for( const FIdInterval& interval: intervals )
         {
-            int32 deltaId = id - interval.idStart;
+            int64 deltaId = id - interval.idStart;
             if (deltaId>=0 && deltaId<interval.size)
             {
                 return interval.idPosition+deltaId;
@@ -76,7 +76,8 @@ namespace mu
 
 	void MeshRemoveVerticesWithMap( Mesh* Result, const uint8* RemovedVertices, uint32 RemovedVertexCount)
 	{
-		int32 firstFreeVertex = 0;
+		int32 FirstFreeVertex = 0;
+		int32 RemovedIndices = 0;
 
         // Rebuild index buffers
 
@@ -86,8 +87,6 @@ namespace mu
 		TArray<int32> UsedVertexMap;
 		UsedVertexMap.Init( -1, Result->GetVertexCount() );
         {
-            int32 removedIndices = 0;
-
             if ( Result->GetIndexBuffers().GetElementSize(0)==4 )
             {
                 MeshBufferIteratorConst<MBF_UINT32,uint32,1> itSource( Result->GetIndexBuffers(), MBS_VERTEXINDEX );
@@ -120,8 +119,8 @@ namespace mu
 
                             if (UsedVertexMap[ sourceIndex ] < 0 )
                             {
-								UsedVertexMap[ sourceIndex ] = firstFreeVertex;
-                                firstFreeVertex++;
+								UsedVertexMap[ sourceIndex ] = FirstFreeVertex;
+                                FirstFreeVertex++;
                             }
 
                             uint32 destIndex = UsedVertexMap[ sourceIndex ];
@@ -134,7 +133,7 @@ namespace mu
                     itSource+=3;
                 }
 
-                removedIndices = itSource - itDest;
+                RemovedIndices = itSource - itDest;
             }
 
             else if ( Result->GetIndexBuffers().GetElementSize(0)==2 )
@@ -168,8 +167,8 @@ namespace mu
 
                             if (UsedVertexMap[ sourceIndex ] < 0 )
                             {
-								UsedVertexMap[ sourceIndex ] = firstFreeVertex;
-                                firstFreeVertex++;
+								UsedVertexMap[ sourceIndex ] = FirstFreeVertex;
+                                FirstFreeVertex++;
                             }
 
                             uint16 destIndex = (uint16)UsedVertexMap[ sourceIndex ];
@@ -182,7 +181,7 @@ namespace mu
                     itSource+=3;
                 }
 
-                removedIndices = itSource - itDest;
+                RemovedIndices = itSource - itDest;
             }
 
             else
@@ -191,15 +190,20 @@ namespace mu
                 check( false );
             }
 
-            check( removedIndices%3==0 );
+            check( RemovedIndices%3==0 );
 
-            int32 faceCount = Result->GetFaceCount();
-            Result->GetFaceBuffers().SetElementCount( faceCount-(int)removedIndices/3 );
-            Result->GetIndexBuffers().SetElementCount( faceCount*3-(int)removedIndices );
+            int32 FaceCount = Result->GetFaceCount();
+            Result->GetIndexBuffers().SetElementCount( FaceCount*3-RemovedIndices );
         }
 
 
         // Rebuild the vertex buffers
+
+		// If we had implicit indices, make them explicit or relative to keep them valid
+		if (RemovedIndices && Result->AreVertexIdsImplicit())
+		{
+			Result->MakeVertexIndicesRelative();
+		}
 
 		// The temp array is necessary because if the vertex buffer is not sorted according to the index buffer we cannot do it in-place
 		// This happens with some mesh import options.
@@ -209,7 +213,7 @@ namespace mu
             int32 elemSize = Result->GetVertexBuffers().GetElementSize( b );
             const uint8* SourceData = Result->GetVertexBuffers().GetBufferData( b );
 
-			Temp.SetNumUninitialized(firstFreeVertex*elemSize,EAllowShrinking::No);
+			Temp.SetNumUninitialized(FirstFreeVertex*elemSize,EAllowShrinking::No);
             uint8* DestData = Temp.GetData();
 
             for ( int32 v=0; v<Result->GetVertexCount(); ++v )
@@ -251,13 +255,13 @@ namespace mu
             }
 
 			// Copy from temp buffer to final vertex buffer
-			FMemory::Memcpy( Result->GetVertexBuffers().GetBufferData(b), DestData, firstFreeVertex*elemSize);
+			FMemory::Memcpy( Result->GetVertexBuffers().GetBufferData(b), DestData, FirstFreeVertex*elemSize);
         }
-        Result->GetVertexBuffers().SetElementCount( firstFreeVertex );
+        Result->GetVertexBuffers().SetElementCount( FirstFreeVertex );
 
         // Rebuild surface data.
         // \todo: For now make single surfaced
-        Result->m_surfaces.Empty();
+        Result->Surfaces.Empty();
         Result->EnsureSurfaceData();
     }
 
@@ -282,13 +286,13 @@ namespace mu
 		TArray<uint8> RemovedVertices;
 		RemovedVertices.SetNumZeroed(ResultVertexCount);
         {
-			TArray<ID_INTERVAL> Intervals;
+			TArray<FIdInterval> Intervals;
             ExtractVertexIndexIntervals(Intervals, Result);
 
-			MeshBufferIteratorConst<MBF_UINT32, uint32, 1> itMaskVI(Mask->GetVertexBuffers(), MBS_VERTEXINDEX);
+			MeshVertexIdIteratorConst itMaskVI(Mask);
 			for ( int32 mv=0; mv<MaskElementCount; ++mv )
             {
-                uint32 MaskVertexId = (*itMaskVI)[0];
+                uint64 MaskVertexId = itMaskVI.Get();
                 ++itMaskVI;
 
                 int32 IndexInSource = FindPositionInIntervals(Intervals, MaskVertexId);

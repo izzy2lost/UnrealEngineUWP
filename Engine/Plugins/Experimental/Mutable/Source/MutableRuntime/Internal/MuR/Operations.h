@@ -881,7 +881,7 @@ namespace mu
             {
                 Vertex				= 1 << 0,
                 Index				= 1 << 1,
-                Face				= 1 << 2,
+                // deprecated Face  = 1 << 2,
 
                 /** This flag will not add blank channels for the channels in the format mesh but not in the source mesh. */
 				IgnoreMissing		= 1 << 4,

@@ -701,7 +701,7 @@ namespace mu
 
             if ( (usedSemantics&layoutSemantics) == 0)
             {
-                pMesh->m_layouts.Empty();
+                pMesh->Layouts.Empty();
             }
         }
     }

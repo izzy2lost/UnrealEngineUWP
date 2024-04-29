@@ -26,26 +26,44 @@ namespace mu
 		}
 
 		const auto MakeIndexMap = [](
-				UntypedMeshBufferIteratorConst BaseIdIter, int32 BaseNum,
-				MeshBufferIteratorConst<MBF_UINT32, uint32, 1> MorphIdIter, int32 MorphNum) 
-		-> SparseIndexMap
+			MeshVertexIdIteratorConst BaseIdIter, int32 BaseNum,
+			MeshVertexIdIteratorConst MorphIdIter, int32 MorphNum)
+		-> SparseIndexMapSet
 		{	
-            uint32 MinBaseId = TNumericLimits<uint32>::Max();
-            uint32 MaxBaseId = 0;
+			TArray<SparseIndexMapSet::FRangeDesc> RangeDescs;
+
+			// Detect all ranges and their limits
 			{
 				for (int32 Index = 0; Index < BaseNum; ++Index, ++BaseIdIter)
 				{
-					const uint32 BaseId = BaseIdIter.GetAsUINT32();
-					MinBaseId = FMath::Min(BaseId, MinBaseId);
-					MaxBaseId = FMath::Max(BaseId, MaxBaseId);
+					const uint64 BaseId = BaseIdIter.Get();
+
+					uint32 Prefix = BaseId >> 32;
+					uint32 Id = BaseId & 0xffffffff;
+					bool bFound = false;
+					for (SparseIndexMapSet::FRangeDesc& Range : RangeDescs)
+					{
+						if (Range.Prefix == Prefix)
+						{
+							Range.MinIndex = FMath::Min(Id, Range.MinIndex);
+							Range.MaxIndex = FMath::Max(Id, Range.MaxIndex);
+							bFound = true;
+							break;
+						}
+					}
+
+					if (!bFound)
+					{
+						RangeDescs.Add({Prefix, Id, Id});
+					}
 				}
 			}
 
-            SparseIndexMap IndexMap(MinBaseId, MaxBaseId);
+			SparseIndexMapSet IndexMap(RangeDescs);
            
             for (int32 Index = 0; Index < MorphNum; ++Index, ++MorphIdIter)
             {
-                const uint32 MorphId = (*MorphIdIter)[0];
+                const uint64 MorphId = MorphIdIter.Get();
                 
                 IndexMap.Insert(MorphId, Index);
             }
@@ -54,9 +72,9 @@ namespace mu
 		};
 
         const auto ApplyNormalMorph = [](
-				UntypedMeshBufferIteratorConst BaseIdIter, const TStaticArray<UntypedMeshBufferIterator, 3>& BaseTangentFrameIters, const int32 BaseNum,
-				MeshBufferIteratorConst<MBF_UINT32, uint32, 1> MorphIdIter, UntypedMeshBufferIteratorConst& MorphNormalIter, const int32 MorphNum,
-				const SparseIndexMap& IndexMap, const float Factor)
+			MeshVertexIdIteratorConst BaseIdIter, const TStaticArray<UntypedMeshBufferIterator, 3>& BaseTangentFrameIters, const int32 BaseNum,
+			MeshVertexIdIteratorConst MorphIdIter, UntypedMeshBufferIteratorConst& MorphNormalIter, const int32 MorphNum,
+				const SparseIndexMapSet& IndexMap, const float Factor)
         -> void
         {
 			const UntypedMeshBufferIterator& BaseNormalIter = BaseTangentFrameIters[2];
@@ -77,7 +95,7 @@ namespace mu
 
             for (int32 VertexIndex = 0; VertexIndex < BaseNum; ++VertexIndex)
             {
-                const uint32 BaseId = (BaseIdIter + VertexIndex).GetAsUINT32();
+                const uint64 BaseId = (BaseIdIter + VertexIndex).Get();
                 const int32 MorphIndex = static_cast<int32>(IndexMap.Find(BaseId));
 
                 if (MorphIndex == SparseIndexMap::NotFoundValue)
@@ -86,11 +104,11 @@ namespace mu
                 }
 
                 // Find consecutive run.
-                UntypedMeshBufferIteratorConst RunBaseIter = BaseIdIter + VertexIndex;
-                MeshBufferIteratorConst<MBF_UINT32, uint32, 1> RunMorphIter = MorphIdIter + MorphIndex;
+				MeshVertexIdIteratorConst RunBaseIter = BaseIdIter + VertexIndex;
+				MeshVertexIdIteratorConst RunMorphIter = MorphIdIter + MorphIndex;
 
                 int32 RunSize = 0;
-                for ( ; VertexIndex + RunSize < BaseNum && MorphIndex + RunSize < MorphNum && RunBaseIter.GetAsUINT32() == (*RunMorphIter)[0];
+                for ( ; VertexIndex + RunSize < BaseNum && MorphIndex + RunSize < MorphNum && RunBaseIter.Get() == RunMorphIter.Get();
                         ++RunSize, ++RunBaseIter, ++RunMorphIter);
 
 				for (int32 RunIndex = 0; RunIndex < RunSize; ++RunIndex)
@@ -153,33 +171,31 @@ namespace mu
         };
 
         const auto ApplyGenericMorph = []( 
-				UntypedMeshBufferIteratorConst BaseIdIter, const TArray<UntypedMeshBufferIterator>& BaseChannelsIters, const int32 BaseNum,
-				MeshBufferIteratorConst<MBF_UINT32, uint32, 1> MorphIdIter, const TArray<UntypedMeshBufferIteratorConst>& MorphChannelsIters, const int32 MorphNum,
-				const SparseIndexMap& IndexMap, const float Factor)
+			MeshVertexIdIteratorConst BaseIdIter, const TArray<UntypedMeshBufferIterator>& BaseChannelsIters, const int32 BaseNum,
+			MeshVertexIdIteratorConst MorphIdIter, const TArray<UntypedMeshBufferIteratorConst>& MorphChannelsIters, const int32 MorphNum,
+				const SparseIndexMapSet& IndexMap, const float Factor)
         -> void
         {
             for (int32 VertexIndex = 0; VertexIndex < BaseNum; ++VertexIndex)
             {
-                const uint32 BaseId = (BaseIdIter + VertexIndex).GetAsUINT32();
-                const uint32 MorphIdx = IndexMap.Find(BaseId);
+                const uint64 BaseId = (BaseIdIter + VertexIndex).Get();
+                const uint32 MorphIndex = IndexMap.Find(BaseId);
 
-                if (MorphIdx == SparseIndexMap::NotFoundValue)
+                if (MorphIndex == SparseIndexMap::NotFoundValue)
                 {
                     continue;
                 }
 
-                const int32 MorphIndex = static_cast<int32>(MorphIdx);
-
                 // Find consecutive run.
-                UntypedMeshBufferIteratorConst RunBaseIter = BaseIdIter + VertexIndex;
-                MeshBufferIteratorConst<MBF_UINT32, uint32, 1> RunMorphIter = MorphIdIter + MorphIndex;
+				MeshVertexIdIteratorConst RunBaseIter = BaseIdIter + VertexIndex;
+				MeshVertexIdIteratorConst RunMorphIter = MorphIdIter + MorphIndex;
 
                 int32 RunSize = 0;
-                for ( ; VertexIndex + RunSize < BaseNum && MorphIndex + RunSize < MorphNum && RunBaseIter.GetAsUINT32() == (*RunMorphIter)[0];
+                for ( ; VertexIndex + RunSize < BaseNum && int32(MorphIndex) + RunSize < MorphNum && RunBaseIter.Get() == RunMorphIter.Get();
                         ++RunSize, ++RunBaseIter, ++RunMorphIter);
 
                 const int32 ChannelNum = MorphChannelsIters.Num();
-                for (int32 ChannelIndex = 1; ChannelIndex < ChannelNum; ++ChannelIndex)
+                for (int32 ChannelIndex = 0; ChannelIndex < ChannelNum; ++ChannelIndex)
                 {
                 	if (!(BaseChannelsIters[ChannelIndex].ptr() && MorphChannelsIters[ChannelIndex].ptr()))
                 	{
@@ -227,7 +243,8 @@ namespace mu
 
 		if (RefTarget)
 		{
-			const int32 ChannelsNum = RefTarget->GetVertexBuffers().GetBufferChannelCount(0);
+			constexpr int32 MorphBufferDataChannel = 0;
+			const int32 ChannelsNum = RefTarget->GetVertexBuffers().GetBufferChannelCount(MorphBufferDataChannel);
 
 			TArray<UntypedMeshBufferIterator> BaseChannelsIters;
 			BaseChannelsIters.SetNum(ChannelsNum);
@@ -242,11 +259,12 @@ namespace mu
 			UntypedMeshBufferIteratorConst MaxNormalChannelIter;
 
 			const bool bBaseHasNormals = UntypedMeshBufferIteratorConst(pBase->GetVertexBuffers(), MBS_NORMAL, 0).ptr() != nullptr;
-			for (int32 ChannelIndex = 1; ChannelIndex < ChannelsNum; ++ChannelIndex)
+			for (int32 ChannelIndex = 0; ChannelIndex < ChannelsNum; ++ChannelIndex)
 			{
 				const FMeshBufferSet& MBSPriv = RefTarget->GetVertexBuffers();
-				EMeshBufferSemantic Sem = MBSPriv.m_buffers[0].m_channels[ChannelIndex].m_semantic;
-				int32 SemIndex = MBSPriv.m_buffers[0].m_channels[ChannelIndex].m_semanticIndex;
+				const FMeshBufferChannel& Channel = MBSPriv.m_buffers[MorphBufferDataChannel].m_channels[ChannelIndex];
+				EMeshBufferSemantic Sem = Channel.m_semantic;
+				int32 SemIndex = Channel.m_semanticIndex;
 			
 				if (Sem == MBS_NORMAL && bBaseHasNormals)
 				{
@@ -284,12 +302,12 @@ namespace mu
 				}
 			}
 			
-			UntypedMeshBufferIteratorConst BaseIdIter(pBase->GetVertexBuffers(), MBS_VERTEXINDEX);
+			MeshVertexIdIteratorConst BaseIdIter(pBase);
 
 			if (MinNum > 0)
 			{
-				MeshBufferIteratorConst<MBF_UINT32, uint32, 1> MinIdIter(pMin->GetVertexBuffers(), MBS_VERTEXINDEX);
-				SparseIndexMap IndexMap = MakeIndexMap(BaseIdIter, BaseNum, MinIdIter, MinNum);
+				MeshVertexIdIteratorConst MinIdIter(pMin);
+				SparseIndexMapSet IndexMap = MakeIndexMap(BaseIdIter, BaseNum, MinIdIter, MinNum);
 
 				ApplyGenericMorph(BaseIdIter, BaseChannelsIters, BaseNum, MinIdIter, MinChannelsIters, MinNum, IndexMap, 1.0f - Factor);
 				if (MinNormalChannelIter.ptr())
@@ -300,8 +318,8 @@ namespace mu
 
 			if (MaxNum > 0)
 			{
-				MeshBufferIteratorConst<MBF_UINT32, uint32, 1> MaxIdIter(pMax->GetVertexBuffers(), MBS_VERTEXINDEX);
-				SparseIndexMap IndexMap = MakeIndexMap(BaseIdIter, BaseNum, MaxIdIter, MaxNum);
+				MeshVertexIdIteratorConst MaxIdIter(pMax);
+				SparseIndexMapSet IndexMap = MakeIndexMap(BaseIdIter, BaseNum, MaxIdIter, MaxNum);
 
 				ApplyGenericMorph(BaseIdIter, BaseChannelsIters, BaseNum, MaxIdIter, MaxChannelsIters, MaxNum, IndexMap, Factor);
 				

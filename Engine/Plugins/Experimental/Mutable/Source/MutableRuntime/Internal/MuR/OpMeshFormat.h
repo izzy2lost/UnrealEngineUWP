@@ -22,7 +22,6 @@ namespace mu
 			bool bKeepSystemBuffers,
 			bool bFormatVertices,
 			bool bFormatIndices,
-			bool bFormatFaces,
 			bool bIgnoreMissingChannels,
 			bool& bOutSuccess
 		);

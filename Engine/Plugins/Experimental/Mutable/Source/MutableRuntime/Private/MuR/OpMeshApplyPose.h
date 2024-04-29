@@ -86,7 +86,7 @@ namespace mu
 		}
 
         // Get pointers to vertex position data
-		MeshBufferIteratorConst<MBF_FLOAT32, float, 3> itSource(pBase->m_VertexBuffers, MBS_POSITION, 0);
+		MeshBufferIteratorConst<MBF_FLOAT32, float, 3> itSource(pBase->VertexBuffers, MBS_POSITION, 0);
         if (!itSource.ptr())
         {
             // Formats not implemented
@@ -96,8 +96,8 @@ namespace mu
         }
 
         // Get pointers to skinning data
-		UntypedMeshBufferIteratorConst itBoneIndices(pBase->m_VertexBuffers, MBS_BONEINDICES, 0);
-		UntypedMeshBufferIteratorConst itBoneWeights(pBase->m_VertexBuffers, MBS_BONEWEIGHTS, 0);
+		UntypedMeshBufferIteratorConst itBoneIndices(pBase->VertexBuffers, MBS_BONEINDICES, 0);
+		UntypedMeshBufferIteratorConst itBoneWeights(pBase->VertexBuffers, MBS_BONEWEIGHTS, 0);
         if (!itBoneIndices.ptr() || !itBoneWeights.ptr())
         {
             // No skinning data
@@ -108,7 +108,7 @@ namespace mu
 
 		Result->CopyFrom(*pBase);
 
-		MeshBufferIterator<MBF_FLOAT32, float, 3> itTarget(Result->m_VertexBuffers, MBS_POSITION, 0);
+		MeshBufferIterator<MBF_FLOAT32, float, 3> itTarget(Result->VertexBuffers, MBS_POSITION, 0);
 		check(itTarget.ptr());
 
         // Proceed

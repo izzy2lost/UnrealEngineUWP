@@ -1516,6 +1516,8 @@ namespace mu
 		{
 			if (Resource)
 			{
+				//Resource->CheckIntegrity();
+
 				TempMeshes.RemoveSingle(Resource);
 
 				int32& Count = CacheResources.FindOrAdd(Resource, 0);

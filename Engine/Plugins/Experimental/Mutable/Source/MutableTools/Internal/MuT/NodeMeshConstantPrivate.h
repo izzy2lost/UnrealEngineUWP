@@ -5,11 +5,11 @@
 #include "MuT/NodeMeshPrivate.h"
 
 #include "MuT/NodeMeshConstant.h"
-#include "MuT/NodeLayout.h"
 
 
 namespace mu
 {
+	class NodeLayout;
 
 	class NodeMeshConstant::Private : public NodeMesh::Private
 	{
@@ -17,12 +17,12 @@ namespace mu
 
 		static FNodeType s_type;
 
-		MeshPtr m_pValue;
+		Ptr<Mesh> Value;
 
-		TArray<NodeLayoutPtr> m_layouts;
+		TArray<Ptr<NodeLayout>> Layouts;
 
 		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
+		Ptr<NodeLayout> GetLayout(int32 index) const override;
 
 	};
 

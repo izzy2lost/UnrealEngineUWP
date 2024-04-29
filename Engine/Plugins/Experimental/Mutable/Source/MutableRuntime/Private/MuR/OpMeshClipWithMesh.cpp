@@ -558,72 +558,6 @@ namespace mu { namespace
 	}
 
 
-
-    //---------------------------------------------------------------------------------------------
-    //! Reference version
-    //---------------------------------------------------------------------------------------------
-  //  inline void MeshClipWithMesh_Reference(Mesh* Result, const Mesh* pBase, const Mesh* pClipMesh, bool& bOutSuccess)
-  //  {
-  //      MUTABLE_CPUPROFILER_SCOPE(MeshClipWithMesh_Reference);
-  //      
-		//bOutSuccess = true;
-
-  //      uint32 vcount = pClipMesh->GetVertexBuffers().GetElementCount();
-  //      if (!vcount)
-  //      {
-		//	bOutSuccess = false;
-		//	return; // Since there's nothing to clip against return a copy of the original base mesh
-  //      }
-
-  //      TArray<uint8> vertex_in_clip_mesh;  // Stores whether each vertex in the original mesh in in the clip mesh volume
-  //      MeshClipMeshClassifyVertices(vertex_in_clip_mesh, pBase, pClipMesh);
-
-		//Result->CopyFrom(*pBase);
-  //      // Now remove all the faces from the result mesh that have all the vertices outside the clip volume
-  //      UntypedMeshBufferIteratorConst itBase(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-  //      UntypedMeshBufferIterator itDest(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-  //      int aFaceCount = Result->GetFaceCount();
-
-  //      UntypedMeshBufferIteratorConst ito(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-  //      for (int f = 0; f < aFaceCount; ++f)
-  //      {
-  //          vec3<uint32> ov;
-  //          ov[0] = ito.GetAsUINT32(); ++ito;
-  //          ov[1] = ito.GetAsUINT32(); ++ito;
-  //          ov[2] = ito.GetAsUINT32(); ++ito;
-
-  //          bool all_verts_in = vertex_in_clip_mesh[ov[0]] && vertex_in_clip_mesh[ov[1]] && vertex_in_clip_mesh[ov[2]];
-
-  //          if (!all_verts_in)
-  //          {
-  //              if (itDest.ptr() != itBase.ptr())
-  //              {
-		//			FMemory::Memcpy(itDest.ptr(), itBase.ptr(), itBase.GetElementSize() * 3);
-  //              }
-
-  //              itDest += 3;
-  //          }
-
-  //          itBase += 3;
-  //      }
-
-  //      SIZE_T removedIndices = itBase - itDest;
-  //      check(removedIndices % 3 == 0);
-
-  //      Result->GetFaceBuffers().SetElementCount(aFaceCount - (int)removedIndices / 3);
-  //      Result->GetIndexBuffers().SetElementCount(aFaceCount * 3 - (int)removedIndices);
-
-  //      // TODO: Should redo/reorder the face buffer before SetElementCount since some deleted faces could be left and some remaining faces deleted.
-
-  //      //if (Result->GetFaceBuffers().GetElementCount() == 0)
-  //      //{
-  //      //	Result->CopyFrom(pBase); // If all faces have been discarded, return a copy of the unmodified mesh because unreal doesn't like empty meshes
-  //      //}
-
-    //      MeshRemoveUnusedVertices(Result);
-  //  }
-
-
 	/** Make a mask with the indices of the vertices with 0 in the IncludedVertices array. */
 	void CreateMask(Mesh* Result, const Mesh* Base, const TArray<uint8>& IncludedVertices)
 	{
@@ -636,43 +570,52 @@ namespace mu { namespace
 			}
 		}
 
-		// Create the vertex buffer
-		{
-			Result->GetVertexBuffers().SetElementCount(MaskVertexCount);
-			Result->GetVertexBuffers().SetBufferCount(1);
+		Result->GetVertexBuffers().SetElementCount(MaskVertexCount);
+		Result->GetVertexBuffers().SetBufferCount(1);
+		Result->VertexIDPrefix = Base->VertexIDPrefix;
 
-			// Vertex index channel
-			EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
-			int32 SemanticIndex = 0;
+		EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
+		int32 SemanticIndex = 0;
+		int32 Components = 1;
+		int32 Offsets = 0;
+
+		bool bMakeRelativeIds = !Base->AreVertexIdsExplicit();
+		if (bMakeRelativeIds)
+		{
 			EMeshBufferFormat Format = MBF_UINT32;
-			int32 Components = 1;
-			int32 Offsets = 0;
+			Result->GetVertexBuffers().SetBuffer( 0, sizeof(uint32), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offsets );
 
-			Result->GetVertexBuffers().SetBuffer
-			(
-				0,
-				sizeof(uint32),
-				1,
-				&Semantic,
-				&SemanticIndex,
-				&Format,
-				&Components,
-				&Offsets
-			);
-		}
-
-		// Fill the buffer
-		MeshBufferIterator<MBF_UINT32, uint32, 1> itMask(Result->GetVertexBuffers(), MBS_VERTEXINDEX, 0);
-		UntypedMeshBufferIteratorConst itBase(Base->GetVertexBuffers(), MBS_VERTEXINDEX, 0);
-		for (int32 v = 0; v<IncludedVertices.Num(); ++v)
-		{
-			if (!IncludedVertices[v])
+			// Fill the buffer
+			uint32* Data = reinterpret_cast<uint32*>(Result->GetVertexBuffers().GetBufferData(0));
+			MeshVertexIdIteratorConst ItBase(Base);
+			for (int32 v = 0; v < IncludedVertices.Num(); ++v)
 			{
-				(*itMask)[0] = itBase.GetAsUINT32();
-				++itMask;
+				if (!IncludedVertices[v])
+				{
+					uint64 ID = ItBase.Get();
+					*Data = uint32(ID & 0xffffffff);
+					++Data;
+				}
+				++ItBase;
 			}
+		}
+		else
+		{
+			EMeshBufferFormat Format = MBF_UINT64;
+			Result->GetVertexBuffers().SetBuffer( 0, sizeof(uint64), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offsets );
 
-			++itBase;
+			// Fill the buffer
+			uint64* Data = reinterpret_cast<uint64*>( Result->GetVertexBuffers().GetBufferData(0) );
+			MeshVertexIdIteratorConst ItBase(Base);
+			for (int32 v = 0; v < IncludedVertices.Num(); ++v)
+			{
+				if (!IncludedVertices[v])
+				{
+					*Data = ItBase.Get();
+					++Data;
+				}
+				++ItBase;
+			}
 		}
 	}
 
@@ -731,16 +674,7 @@ namespace mu
         SIZE_T RemovedIndices = ItBase - ItDest;
         check(RemovedIndices % 3 == 0);
 
-        Result->GetFaceBuffers().SetElementCount(AFaceCount - (int32)RemovedIndices / 3);
         Result->GetIndexBuffers().SetElementCount(AFaceCount * 3 - (int32)RemovedIndices);
-
-        // TODO: Should redo/reorder the face buffer before SetElementCount since some deleted faces could be left and some remaining faces deleted.
-
-        //if (Result->GetFaceBuffers().GetElementCount() == 0)
-        //{
-        //	Result->CopyFrom(pBase); // If all faces have been discarded, return a copy of the unmodified mesh because unreal doesn't like empty meshes
-        //}
-
 
         MeshRemoveUnusedVertices(Result);
     }
@@ -837,49 +771,6 @@ namespace mu
 	}
 
 
-  //  void MeshMaskClipMesh_Reference(Mesh* Result, const Mesh* pBase, const Mesh* pClipMesh )
-  //  {
-  //      MUTABLE_CPUPROFILER_SCOPE(MeshMaskClipMesh_Reference);
-
-  //      uint32 vcount = pClipMesh->GetVertexBuffers().GetElementCount();
-  //      if (!vcount)
-  //      {
-  //          return; // Since there's nothing to clip against return a copy of the original base mesh
-  //      }
-
-  //      TArray<uint8> vertex_in_clip_mesh;  // Stores whether each vertex in the original mesh in in the clip mesh volume
-  //      MeshClipMeshClassifyVertices( vertex_in_clip_mesh, pBase, pClipMesh );
-
-  //      // We only remove vertices if all their faces are clipped
-		//TArray<uint8> vertex_with_face_not_clipped;
-		//vertex_with_face_not_clipped.SetNumZeroed(vertex_in_clip_mesh.Num());
-
-  //      UntypedMeshBufferIteratorConst ito(pBase->GetIndexBuffers(), MBS_VERTEXINDEX);
-  //      int aFaceCount = pBase->GetFaceCount();
-  //      for (int f = 0; f < aFaceCount; ++f)
-  //      {
-  //          vec3<uint32> ov;
-  //          ov[0] = ito.GetAsUINT32(); ++ito;
-  //          ov[1] = ito.GetAsUINT32(); ++ito;
-  //          ov[2] = ito.GetAsUINT32(); ++ito;
-
-  //          bool faceClipped =
-  //                  vertex_in_clip_mesh[ov[0]] &&
-  //                  vertex_in_clip_mesh[ov[1]] &&
-  //                  vertex_in_clip_mesh[ov[2]];
-
-  //          if (!faceClipped)
-  //          {
-  //              vertex_with_face_not_clipped[ov[0]] = true;
-  //              vertex_with_face_not_clipped[ov[1]] = true;
-  //              vertex_with_face_not_clipped[ov[2]] = true;
-  //          }
-  //      }
-
-		//CreateMask(Result, pBase, vertex_with_face_not_clipped );
-  //  }
-
-
 	void MeshMaskDiff(Mesh* Result, const Mesh* pBase, const Mesh* pFragment, bool& bOutSuccess)
     {
         MUTABLE_CPUPROFILER_SCOPE(MeshMaskDiff);
@@ -914,7 +805,7 @@ namespace mu
             }
         }
         float tolerance = 1e-5f * aabbox.size.Length();
-        Mesh::VERTEX_MATCH_MAP vertexMap;
+        Mesh::FVertexMatchMap vertexMap;
         pFragment->GetVertexMap( *pBase, vertexMap, tolerance );
 
 
@@ -988,9 +879,9 @@ namespace mu
                 hasFace = true;
                 for ( int vi=0; hasFace && vi<3; ++vi )
                 {
-                    hasFace = vertexMap.Matches(v[vi],ov[0])
-                         || vertexMap.Matches(v[vi],ov[1])
-                         || vertexMap.Matches(v[vi],ov[2]);
+                    hasFace = vertexMap.DoMatch(v[vi],ov[0])
+                         || vertexMap.DoMatch(v[vi],ov[1])
+                         || vertexMap.DoMatch(v[vi],ov[2]);
                 }
             }
 

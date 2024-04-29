@@ -960,7 +960,14 @@ public:
 
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
-	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 449;
+	enum ECustomizableObjectVersions
+	{
+		FirstEnumeratedVersion = 450,
+
+		DeterminisiticMeshVertexIds,
+
+		LastCustomizableObjectVersion
+	};
+	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;
 };
 

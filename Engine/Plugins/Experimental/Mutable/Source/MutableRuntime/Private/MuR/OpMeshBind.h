@@ -1154,7 +1154,7 @@ namespace mu
 			Result->AdditionalBuffers.Emplace(EMeshBufferType::SkeletonDeformBinding, MoveTemp(SkeletonBuffer));
 		}
 
-		const PhysicsBody* ResultPhysicsBody = Result->m_pPhysicsBody.get();
+		const PhysicsBody* ResultPhysicsBody = Result->PhysicsBody.get();
 		if (bReshapePhysics && (ResultPhysicsBody || Result->AdditionalPhysicsBodies.Num()) && PhysicsToDeform.Num())
 		{
 			MUTABLE_CPUPROFILER_SCOPE(BindPhysicsBody);

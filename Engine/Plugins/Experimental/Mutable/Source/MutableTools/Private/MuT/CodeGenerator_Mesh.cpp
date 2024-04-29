@@ -761,9 +761,7 @@ namespace mu
         FMeshGenerationResult BaseResult;
         if ( node.Base )
         {
-			FMeshGenerationOptions BaseOptions = InOptions;
-			BaseOptions.bUniqueVertexIDs = true;
-            GenerateMesh(BaseOptions,BaseResult, node.Base );
+            GenerateMesh(InOptions,BaseResult, node.Base );
             OpMorph->Base = BaseResult.meshOp;
         }
         else
@@ -777,7 +775,6 @@ namespace mu
         {
             FMeshGenerationResult TargetResult;
 			FMeshGenerationOptions TargetOptions = InOptions;
-			TargetOptions.bUniqueVertexIDs = false;
 			TargetOptions.bLayouts = false;
 			// We need to override the layouts with the layouts that were generated for the base to make
 			// sure that we get the correct mesh when generating the target
@@ -859,7 +856,6 @@ namespace mu
         if ( node.m_pBase )
         {
 			FMeshGenerationOptions BaseOptions = InOptions;
-			BaseOptions.bUniqueVertexIDs = true;
 			BaseOptions.bLayouts = false;
 			GenerateMesh(BaseOptions, BaseResult, node.m_pBase );
 
@@ -876,7 +872,6 @@ namespace mu
 		if ( node.m_pTarget )
         {
 			FMeshGenerationOptions TargetOptions = InOptions;
-			TargetOptions.bUniqueVertexIDs = false;
 			TargetOptions.bLayouts = false;
 			TargetOptions.OverrideLayouts.Empty();
 			TargetOptions.ActiveTags.Empty();
@@ -998,7 +993,6 @@ namespace mu
             if ( NodeMesh* pA = node.m_targets[t].get() )
             {
 				FMeshGenerationOptions TargetOptions = InOptions;
-				TargetOptions.bUniqueVertexIDs = true;
 				TargetOptions.OverrideLayouts.Empty();
 
                 FMeshGenerationResult TargetResult;
@@ -1250,77 +1244,69 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void CodeGenerator::GenerateMesh_Constant(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshConstant* constant )
+    void CodeGenerator::GenerateMesh_Constant(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshConstant* InNode )
     {
-        NodeMeshConstant::Private& node = *constant->GetPrivate();
+        NodeMeshConstant::Private& Node = *InNode->GetPrivate();
 
-        Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-        op->Type = OP_TYPE::ME_CONSTANT;
-		OutResult.baseMeshOp = op;
-		OutResult.meshOp = op;
+        Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource();
+		ConstantOp->Type = OP_TYPE::ME_CONSTANT;
+		OutResult.baseMeshOp = ConstantOp;
+		OutResult.meshOp = ConstantOp;
 		OutResult.GeneratedLayouts.Empty();
 
 		bool bIsOverridingLayouts = !InOptions.OverrideLayouts.IsEmpty();
 
-        MeshPtr pMesh = node.m_pValue.get();
+        Ptr<Mesh> pMesh = Node.Value.get();
 		if (!pMesh)
 		{
 			// This data is required
-			MeshPtr pTempMesh = new Mesh();
-			op->SetValue(pTempMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
-			m_constantMeshes.Add(pTempMesh);
+			MeshPtr EmptyMesh = new Mesh();
+			ConstantOp->SetValue(EmptyMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+			EmptyMesh->VertexIDPrefix = ConstantOp->GetValueHash();
+
+			FGeneratedConstantMesh MeshEntry;
+			MeshEntry.Mesh = EmptyMesh;
+			MeshEntry.LastMeshOp = ConstantOp;
+			GeneratedConstantMeshes.Add(MeshEntry);
 
 			// Log an error message
-			m_pErrorLog->GetPrivate()->Add("Constant mesh not set.", ELMT_WARNING, node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Constant mesh not set.", ELMT_WARNING, Node.m_errorContext);
 
 			return;
 		}
 
 		// Separate the tags from the mesh
-		TArray<FString> Tags = pMesh->m_tags;
+		TArray<FString> Tags = pMesh->Tags;
 		if (Tags.Num())
 		{
 			Ptr<Mesh> TaglessMesh = CloneOrTakeOver(pMesh.get());
-			TaglessMesh->m_tags.SetNum(0, EAllowShrinking::No);
+			TaglessMesh->Tags.SetNum(0, EAllowShrinking::No);
 			pMesh = TaglessMesh;
 		}
 
 		// Find out if we can (or have to) reuse a mesh that we have already generated.
-		MeshPtrConst DuplicateOf;
-		for (int32 i = 0; i < m_constantMeshes.Num(); ++i)
+		FGeneratedConstantMesh DuplicateOf;
+		for (int32 i = 0; i < GeneratedConstantMeshes.Num(); ++i)
 		{
-			MeshPtrConst Candidate = m_constantMeshes[i];
+			FGeneratedConstantMesh Candidate = GeneratedConstantMeshes[i];
 			
 			bool bCompareLayouts = InOptions.bLayouts && !bIsOverridingLayouts;
 
-			if (Candidate->IsSimilar(*pMesh, bCompareLayouts))
+			if (Candidate.Mesh->IsSimilar(*pMesh, bCompareLayouts))
 			{
-				// If it is similar, and we need unique vertex IDs, check that it also has them. This was skipped in the IsSimilar.
-				if (InOptions.bUniqueVertexIDs)
-				{
-					int32 FoundBuffer = -1;
-					int32 FoundChannel = -1;
-					Candidate->GetVertexBuffers().FindChannel(MBS_VERTEXINDEX, 0, &FoundBuffer, &FoundChannel);
-					bool bHasUniqueVertexIDs = FoundBuffer >= 0 && FoundChannel >= 0;
-					if (!bHasUniqueVertexIDs)
-					{
-						continue;
-					}
-				}
-
 				// If it is similar and we are overriding the layouts, we must compare the layouts of the candidate with the ones
 				// we are using to override.
 				if (bIsOverridingLayouts)
 				{
-					if (Candidate->GetLayoutCount() != InOptions.OverrideLayouts.Num())
+					if (Candidate.Mesh->GetLayoutCount() != InOptions.OverrideLayouts.Num())
 					{
 						continue;
 					}
 
 					bool bLayoutsAreEqual = true;
-					for (int32 l = 0; l < Candidate->GetLayoutCount(); ++l)
+					for (int32 l = 0; l < Candidate.Mesh->GetLayoutCount(); ++l)
 					{
-						bLayoutsAreEqual = (*Candidate->GetLayout(l) == *InOptions.OverrideLayouts[l]);
+						bLayoutsAreEqual = (*Candidate.Mesh->GetLayout(l) == *InOptions.OverrideLayouts[l]);
 						if ( !bLayoutsAreEqual )
 						{
 							break;
@@ -1338,15 +1324,16 @@ namespace mu
 			}
 		}
 
-		Ptr<const Mesh> FinalMesh;
-		if (DuplicateOf)
+		Ptr<ASTOp> LastMeshOp = ConstantOp;
+
+		if (DuplicateOf.Mesh)
 		{
 			// Make sure the source layouts of the mesh are mapped to the layouts of the duplicated mesh.
 			if (InOptions.bLayouts)
 			{
 				if (bIsOverridingLayouts)
 				{
-					for (int32 l = 0; l < DuplicateOf->GetLayoutCount(); ++l)
+					for (int32 l = 0; l < DuplicateOf.Mesh->GetLayoutCount(); ++l)
 					{
 						const Layout* OverridingLayout = InOptions.OverrideLayouts[l].get();
 						OutResult.GeneratedLayouts.Add(OverridingLayout);
@@ -1354,30 +1341,58 @@ namespace mu
 				}
 				else
 				{
-					for (int32 l = 0; l < DuplicateOf->GetLayoutCount(); ++l)
+					for (int32 l = 0; l < DuplicateOf.Mesh->GetLayoutCount(); ++l)
 					{
-						const Layout* DuplicatedLayout = DuplicateOf->GetLayout(l);
+						const Layout* DuplicatedLayout = DuplicateOf.Mesh->GetLayout(l);
 						OutResult.GeneratedLayouts.Add(DuplicatedLayout);
 					}
 				}
 			}
 
-			FinalMesh = DuplicateOf;
+			LastMeshOp = DuplicateOf.LastMeshOp;
+			ConstantOp = nullptr;
 		}
 		else
 		{
 			// We need to clone the mesh in the node because we will modify it.
-			Ptr<Mesh> pCloned = pMesh->Clone();
-			pCloned->EnsureSurfaceData();
+			Ptr<Mesh> Cloned = pMesh->Clone();
+			Cloned->EnsureSurfaceData();
+
+			ConstantOp->SetValue(Cloned, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+
+			// Add the unique vertex ID prefix in all cases, since it is free memory-wise
+			uint32 VertexIDPrefix = uint32(ConstantOp->GetValueHash());
+			{
+				// Ensure the ID group is unique
+				bool bValid = false;
+				do
+				{
+					bool bAlreadyPresent = false;
+					UniqueVertexIDGroups.FindOrAdd(VertexIDPrefix, &bAlreadyPresent);
+					bValid = !bAlreadyPresent && VertexIDPrefix != 0;
+					if (!bValid)
+					{
+						++VertexIDPrefix;
+					}
+				} while (bValid);
+
+				Cloned->VertexIDPrefix = VertexIDPrefix;
+			}
+
+			// Add the constant data
+			FGeneratedConstantMesh MeshEntry;
+			MeshEntry.Mesh = Cloned;
+			MeshEntry.LastMeshOp = LastMeshOp;
+			GeneratedConstantMeshes.Add(MeshEntry);
 
 			if (InOptions.bLayouts)
 			{
 				if (!bIsOverridingLayouts)
 				{
 					// Apply whatever transform is necessary for every layout
-					for (int32 LayoutIndex = 0; LayoutIndex < node.m_layouts.Num(); ++LayoutIndex)
+					for (int32 LayoutIndex = 0; LayoutIndex < Node.Layouts.Num(); ++LayoutIndex)
 					{
-						Ptr<NodeLayout> pLayoutNode = node.m_layouts[LayoutIndex];
+						Ptr<NodeLayout> pLayoutNode = Node.Layouts[LayoutIndex];
 						if (!pLayoutNode)
 						{
 							continue;
@@ -1389,8 +1404,8 @@ namespace mu
 
 						Ptr<const Layout> SourceLayout = TypedNode->GetPrivate()->m_pLayout;
 						Ptr<const Layout> GeneratedLayout = AddLayout( SourceLayout );
-						const void* Context = InOptions.OverrideContext.Get(node.m_errorContext);
-						PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, Context, InOptions);
+						const void* Context = InOptions.OverrideContext.Get(Node.m_errorContext);
+						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions);
 
 						OutResult.GeneratedLayouts.Add(GeneratedLayout);
 					}
@@ -1401,58 +1416,17 @@ namespace mu
 					for (int32 LayoutIndex = 0; LayoutIndex < InOptions.OverrideLayouts.Num(); ++LayoutIndex)
 					{
 						Ptr<const Layout> GeneratedLayout = InOptions.OverrideLayouts[LayoutIndex];
-						const void* Context = InOptions.OverrideContext.Get(node.m_errorContext);
-						PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, Context, InOptions);
+						const void* Context = InOptions.OverrideContext.Get(Node.m_errorContext);
+						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions);
 
 						OutResult.GeneratedLayouts.Add(GeneratedLayout);
 					}
 				}
 			}
-
-			if (InOptions.bUniqueVertexIDs)
-			{
-				// Enumerate the vertices uniquely unless they already have indices
-				int buf = -1;
-				int chan = -1;
-				pCloned->GetVertexBuffers().FindChannel(MBS_VERTEXINDEX, 0, &buf, &chan);
-				bool hasVertexIndices = (buf >= 0 && chan >= 0);
-				if (!hasVertexIndices)
-				{
-					int newBuffer = pCloned->GetVertexBuffers().GetBufferCount();
-					pCloned->GetVertexBuffers().SetBufferCount(newBuffer + 1);
-					EMeshBufferSemantic semantic = MBS_VERTEXINDEX;
-					int semanticIndex = 0;
-					EMeshBufferFormat format = MBF_UINT32;
-					int components = 1;
-					int offset = 0;
-					pCloned->GetVertexBuffers().SetBuffer
-					(
-						newBuffer,
-						sizeof(uint32),
-						1,
-						&semantic, &semanticIndex,
-						&format, &components,
-						&offset
-					);
-					uint32* pIdData = (uint32*)pCloned->GetVertexBuffers().GetBufferData(newBuffer);
-					for (int i = 0; i < pMesh->GetVertexCount(); ++i)
-					{
-						check(m_freeVertexIndex < TNumericLimits<uint32>::Max());
-
-						(*pIdData++) = m_freeVertexIndex++;
-						check(m_freeVertexIndex < TNumericLimits<uint32>::Max());
-					}
-				}
-			}
-
-			// Add the constant data
-			m_constantMeshes.Add(pCloned);
-			FinalMesh = pCloned;
 		}
 
-		op->SetValue(FinalMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
-
-		Ptr<ASTOp> LastMeshOp = op;
+		OutResult.baseMeshOp = LastMeshOp;
+		OutResult.meshOp = LastMeshOp;
 
 		// Add the tags operation
 		if (Tags.Num())
@@ -1465,7 +1439,7 @@ namespace mu
 
 		// Apply the modifier for the pre-normal operations stage.
 		bool bModifiersForBeforeOperations = true;
-		OutResult.meshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, node.m_errorContext);
+		OutResult.meshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, Node.m_errorContext);
     }
 
 
@@ -1490,19 +1464,13 @@ namespace mu
             if (node.VertexBuffers.GetBufferCount())
             {
                 op->Flags |= OP::MeshFormatArgs::Vertex;
-                FormatMesh->m_VertexBuffers = node.VertexBuffers;
+                FormatMesh->VertexBuffers = node.VertexBuffers;
             }
 
             if (node.IndexBuffers.GetBufferCount())
             {
 				op->Flags |= OP::MeshFormatArgs::Index;
-                FormatMesh->m_IndexBuffers = node.IndexBuffers;
-            }
-
-            if (node.FaceBuffers.GetBufferCount())
-            {
-                op->Flags |= OP::MeshFormatArgs::Face;
-                FormatMesh->m_FaceBuffers = node.FaceBuffers;
+                FormatMesh->IndexBuffers = node.IndexBuffers;
             }
 
 			if (node.bOptimizeBuffers)
@@ -1514,8 +1482,6 @@ namespace mu
             cop->Type = OP_TYPE::ME_CONSTANT;
             cop->SetValue( FormatMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext );
             op->Format = cop;
-
-            m_constantMeshes.Add(FormatMesh);
 
             OutResult.meshOp = op;
             OutResult.baseMeshOp = baseResult.baseMeshOp;
@@ -1568,7 +1534,6 @@ namespace mu
         if (node.m_pSource)
         {
 			FMeshGenerationOptions BaseOptions = InOptions;
-			BaseOptions.bUniqueVertexIDs = true;
             GenerateMesh(BaseOptions, OutResult, node.m_pSource);
             op->source = OutResult.meshOp;
         }
@@ -1641,10 +1606,7 @@ namespace mu
         // Base
         if (node.m_pSource)
         {
-			FMeshGenerationOptions BaseOptions = InOptions;
-			BaseOptions.bUniqueVertexIDs = true;
-
-            GenerateMesh(BaseOptions, OutResult, node.m_pSource );
+            GenerateMesh(InOptions, OutResult, node.m_pSource );
             op->SetChild( op->op.args.MeshClipWithMesh.source, OutResult.meshOp );
         }
         else
@@ -1658,7 +1620,6 @@ namespace mu
         if (node.m_pClipMesh)
         {
 			FMeshGenerationOptions ClipOptions = InOptions;
-			ClipOptions.bUniqueVertexIDs = false;
 			ClipOptions.bLayouts = false;
 			ClipOptions.OverrideLayouts.Empty();
 			ClipOptions.ActiveTags.Empty();
@@ -1688,10 +1649,7 @@ namespace mu
 		// Base Mesh
 		if (Node.m_pBaseMesh)
 		{
-			FMeshGenerationOptions BaseOptions = InOptions;
-			BaseOptions.bUniqueVertexIDs = true;
-
-			GenerateMesh(BaseOptions, Result, Node.m_pBaseMesh);
+			GenerateMesh(InOptions, Result, Node.m_pBaseMesh);
 			OpBind->Mesh = Result.meshOp;
 		}
 		else
@@ -1705,7 +1663,6 @@ namespace mu
 		if (Node.m_pClipShape)
 		{
 			FMeshGenerationOptions ClipOptions = InOptions;
-			ClipOptions.bUniqueVertexIDs = false;
 			ClipOptions.bLayouts = false;
 			ClipOptions.OverrideLayouts.Empty();
 			ClipOptions.ActiveTags.Empty();
@@ -1746,7 +1703,6 @@ namespace mu
         if (node.m_pPose)
         {
 			FMeshGenerationOptions PoseOptions = InOptions;
-			PoseOptions.bUniqueVertexIDs = false;
 			PoseOptions.bLayouts = false;
 			PoseOptions.OverrideLayouts.Empty();
 			PoseOptions.ActiveTags.Empty();
@@ -1790,7 +1746,6 @@ namespace mu
 		if (node.m_pMeshB)
 		{
 			FMeshGenerationOptions OtherOptions = InOptions;
-			OtherOptions.bUniqueVertexIDs = false;
 			OtherOptions.bLayouts = false;
 			OtherOptions.OverrideLayouts.Empty();
 			OtherOptions.ActiveTags.Empty();
@@ -1836,10 +1791,7 @@ namespace mu
 		// Base Mesh
 		if (Node.BaseMesh)
 		{
-			FMeshGenerationOptions BaseOptions = InOptions;
-			BaseOptions.bUniqueVertexIDs = true;
-
-			GenerateMesh(BaseOptions, OutResult, Node.BaseMesh);
+			GenerateMesh(InOptions, OutResult, Node.BaseMesh);
 			OpBind->Mesh = OutResult.meshOp;
 		}
 		else
@@ -1850,7 +1802,6 @@ namespace mu
 
 		// Base and target shapes shouldn't have layouts or modifiers.
 		FMeshGenerationOptions ShapeOptions = InOptions;
-		ShapeOptions.bUniqueVertexIDs = false;
 		ShapeOptions.bLayouts = false;
 		ShapeOptions.OverrideLayouts.Empty();
 		ShapeOptions.ActiveTags.Empty();

@@ -98,7 +98,6 @@ private:
 	
 	TSharedPtr<SListView<TSharedPtr<FBufferElement>>> VertexBuffersSlateView;
 	TSharedPtr<SListView<TSharedPtr<FBufferElement>>> IndexBuffersSlateView;
-	TSharedPtr<SListView<TSharedPtr<FBufferElement>>> FaceBuffersSlateView;
 
 private:
 
@@ -124,6 +123,7 @@ private:
 	FText GetVertexCount() const;
 	FText GetFaceCount() const;
 	FText GetBoneCount() const;
+	FText GetVertexIdPrefix() const;
 
 	/*
 	 * Elements used to feed the buffers list (index and buffer channels as an internal list)
@@ -131,7 +131,6 @@ private:
 	
 	TArray<TSharedPtr<FBufferElement>> VertexBuffers;
 	TArray<TSharedPtr<FBufferElement>> IndexBuffers;
-	TArray<TSharedPtr<FBufferElement>> FaceBuffers;
 	
 	/** 
 	* Fills the provided TArray with the buffer definitions generated from the mutable buffers found on the provided mutable buffer set

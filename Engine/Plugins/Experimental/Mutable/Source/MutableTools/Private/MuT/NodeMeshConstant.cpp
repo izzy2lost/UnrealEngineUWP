@@ -11,87 +11,69 @@
 
 namespace mu
 {
+	FNodeType NodeMeshConstant::Private::s_type = FNodeType( "MeshConstant", NodeMesh::GetStaticType() );
 
-	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshConstant::Private::s_type =
-			FNodeType( "MeshConstant", NodeMesh::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
 
 	MUTABLE_IMPLEMENT_NODE( NodeMeshConstant, EType::Constant, Node, Node::EType::Mesh);
 
 
-	//---------------------------------------------------------------------------------------------
-	// Own Interface
-	//---------------------------------------------------------------------------------------------
-	MeshPtr NodeMeshConstant::GetValue() const
+	Ptr<Mesh> NodeMeshConstant::GetValue() const
 	{
-		return m_pD->m_pValue;
+		return m_pD->Value;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshConstant::SetValue( MeshPtr pValue )
+	void NodeMeshConstant::SetValue( Ptr<Mesh> pValue )
 	{
-		m_pD->m_pValue = pValue;
+		m_pD->Value = pValue;
 
-        if (m_pD->m_pValue)
+        if (m_pD->Value)
         {
             // Ensure mesh is well formed
-            m_pD->m_pValue->EnsureSurfaceData();
+            m_pD->Value->EnsureSurfaceData();
         }
     }
 
 
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshConstant::GetLayoutCount() const
+	int32 NodeMeshConstant::GetLayoutCount() const
 	{
-		return m_pD->m_layouts.Num();
+		return m_pD->Layouts.Num();
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshConstant::SetLayoutCount( int num )
+	void NodeMeshConstant::SetLayoutCount( int32 num )
 	{
 		check( num >=0 );
-		m_pD->m_layouts.SetNum( num );
+		m_pD->Layouts.SetNum( num );
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshConstant::GetLayout( int index ) const
+	Ptr<NodeLayout> NodeMeshConstant::GetLayout( int32 index ) const
 	{
-		check( index >=0 && index < m_pD->m_layouts.Num() );
+		check( index >=0 && index < m_pD->Layouts.Num() );
 
 		return m_pD->GetLayout( index );
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshConstant::Private::GetLayout( int index ) const
+	Ptr<NodeLayout> NodeMeshConstant::Private::GetLayout( int32 index ) const
 	{
 		NodeLayoutPtr pResult;
 
-		if ( index >=0 && index < m_layouts.Num() )
+		if ( index >=0 && index < Layouts.Num() )
 		{
-			pResult = m_layouts[ index ].get();
+			pResult = Layouts[ index ];
 		}
 
 		return pResult;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshConstant::SetLayout( int index, NodeLayoutPtr pLayout )
+	void NodeMeshConstant::SetLayout( int32 index, Ptr<NodeLayout> pLayout )
 	{
-		check( index >=0 && index < m_pD->m_layouts.Num() );
+		check( index >=0 && index < m_pD->Layouts.Num() );
 
-		m_pD->m_layouts[ index ] = pLayout;
+		m_pD->Layouts[ index ] = pLayout;
 	}
 
 

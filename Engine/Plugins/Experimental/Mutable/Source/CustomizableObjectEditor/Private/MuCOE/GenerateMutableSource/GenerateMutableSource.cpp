@@ -49,6 +49,7 @@
 #include "MuT/NodeObjectGroup.h"
 #include "MuT/NodeObjectNew.h"
 #include "MuT/NodeSurfaceEdit.h"
+#include "MuR/Mesh.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PlatformInfo.h"
 #include "Math/NumericLimits.h"
@@ -144,7 +145,7 @@ void FMutableGraphGenerationContext::AddParticipatingObject(const UObject& InObj
 }
 
 
-mu::MeshPtr FMutableGraphGenerationContext::FindGeneratedMesh( const FGeneratedMeshData::FKey& Key )
+mu::Ptr<mu::Mesh> FMutableGraphGenerationContext::FindGeneratedMesh( const FGeneratedMeshData::FKey& Key )
 {
 	for (const FGeneratedMeshData& d : GeneratedMeshes)
 	{
@@ -780,11 +781,11 @@ mu::NodeMeshApplyPosePtr CreateNodeMeshApplyPose(FMutableGraphGenerationContext&
 {
 	check(ArrayBoneName.Num() == ArrayTransform.Num());
 
-	mu::MeshPtr MutableMesh = new mu::Mesh();
+	mu::Ptr<mu::Mesh> MutableMesh = new mu::Mesh();
 	mu::NodeMeshConstantPtr PoseNodeMesh = new mu::NodeMeshConstant;
 	PoseNodeMesh->SetValue(MutableMesh);
 
-	mu::SkeletonPtr MutableSkeleton = new mu::Skeleton;
+	mu::Ptr<mu::Skeleton> MutableSkeleton = new mu::Skeleton;
 	MutableMesh->SetSkeleton(MutableSkeleton);
 	MutableMesh->SetBonePoseCount(ArrayBoneName.Num());
 	MutableSkeleton->SetBoneCount(ArrayBoneName.Num());
@@ -1939,7 +1940,7 @@ mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerat
 }
 
 
-void AddSocketTagsToMesh(const USkeletalMesh* SourceMesh, mu::MeshPtr MutableMesh, FMutableGraphGenerationContext& GenerationContext)
+void AddSocketTagsToMesh(const USkeletalMesh* SourceMesh, mu::Ptr<mu::Mesh> MutableMesh, FMutableGraphGenerationContext& GenerationContext)
 {
 	for (int32 SocketIndex = 0; SocketIndex < SourceMesh->NumSockets(); ++SocketIndex)
 	{

@@ -242,13 +242,20 @@ namespace mu
 
 			return res;
 		}
-		
-        uint32_t GetAsUINT32() const
-        {
-            uint32_t res;
-            ConvertData( 0, &res, MBF_UINT32, ptr(), m_format );
-            return res;
-        }
+
+		uint32 GetAsUINT32() const
+		{
+			uint32 res;
+			ConvertData(0, &res, MBF_UINT32, ptr(), m_format);
+			return res;
+		}
+
+		uint64 GetAsUINT64() const
+		{
+			uint64 res;
+			ConvertData(0, &res, MBF_UINT64, ptr(), m_format);
+			return res;
+		}
 
 		void SetFromUINT32(uint32_t v)
 		{
@@ -510,14 +517,21 @@ namespace mu
 
 			return res;
 		}
-		
-        uint32_t GetAsUINT32() const
-        {
-            uint32_t res = 0;
-            ConvertData( 0, &res, MBF_UINT32, ptr(), m_format );
-            return res;
-        }
- 
+
+		uint32 GetAsUINT32() const
+		{
+			uint32 res = 0;
+			ConvertData(0, &res, MBF_UINT32, ptr(), m_format);
+			return res;
+		}
+
+		uint64 GetAsUINT64() const
+		{
+			uint64 res;
+			ConvertData(0, &res, MBF_UINT64, ptr(), m_format);
+			return res;
+		}
+
 		void GetAsInt32Vec(int32* Data, int32 Count) const
 		{
 			for (int32 c = 0; c < FMath::Min(m_components, Count); ++c)
@@ -622,9 +636,129 @@ namespace mu
 	};
 
 
-	//---------------------------------------------------------------------------------------------
-	// Optimised mesh formats that are identified in some operations to chose a faster version
-	//---------------------------------------------------------------------------------------------
+	/** */
+	class MUTABLERUNTIME_API MeshVertexIdIteratorConst
+	{
+	private:
+
+		/** Current Id that the iterator is pointing at. */
+		int32 CurrentIdIndex=0;
+
+		/** */
+		Ptr<const Mesh> Mesh;
+
+		/** Buffer iterator in case there is an actual Id buffer. */
+		UntypedMeshBufferIteratorConst BufferIterator;
+
+	public:
+
+		inline MeshVertexIdIteratorConst()
+		{
+		}
+
+		inline MeshVertexIdIteratorConst( const mu::Mesh* InMesh )
+		{
+			if (!InMesh)
+			{
+				return;
+			}
+
+			Mesh = InMesh;
+			if (Mesh)
+			{
+				BufferIterator = UntypedMeshBufferIteratorConst(Mesh->VertexBuffers, MBS_VERTEXINDEX, 0 );
+			}
+		}		
+
+		inline void operator++()
+		{
+			if (!Mesh)
+			{
+				return;
+			}
+
+			CurrentIdIndex++;			
+
+			if (BufferIterator.ptr())
+			{
+				BufferIterator++;
+			}
+		}
+
+		inline void operator++(int32)
+		{
+			CurrentIdIndex++;
+
+			if (BufferIterator.ptr())
+			{
+				BufferIterator++;
+			}
+		}
+
+		inline void operator+=(int32 c)
+		{
+			CurrentIdIndex+=c;
+
+			if (BufferIterator.ptr())
+			{
+				BufferIterator+=c;
+			}
+		}
+
+		inline MeshVertexIdIteratorConst operator+(int c) const
+		{
+			MeshVertexIdIteratorConst res = *this;
+			res += c;
+			return res;
+		}
+
+		bool IsValid() const
+		{
+			return 
+				Mesh 
+				&&
+				Mesh->HasVertexIds()
+				&&
+				(CurrentIdIndex < Mesh->GetVertexCount())
+				;
+		}
+
+		uint64 Get() const
+		{
+			check(Mesh);
+			check(CurrentIdIndex < Mesh->GetVertexCount());
+
+			// Is it implicit?
+			if (Mesh->VertexIDPrefix && !BufferIterator.ptr())
+			{
+				// The id is just prefix and index
+				return (uint64(Mesh->VertexIDPrefix) << 32) | uint64(CurrentIdIndex);
+			}
+
+			// Is it relative?
+			else if (BufferIterator.GetFormat() == MBF_UINT32)
+			{
+				// There is a buffer storing IDs without prefix because it is the same for all vertices.
+				uint32 RelativeId = BufferIterator.GetAsUINT32();
+				return (uint64(Mesh->VertexIDPrefix) << 32) | uint64(RelativeId);
+			}
+
+			// Is it explicit?
+			else if (BufferIterator.GetFormat() == MBF_UINT64)
+			{
+				check( Mesh->VertexIDPrefix==0 );
+				uint64 Id = BufferIterator.GetAsUINT64();
+				return Id;
+			}
+
+			check(false);
+			return 0;
+		}
+
+	};
+
+
+	/** Optimised mesh formats that are identified in some operations to chose a faster version. */
 	typedef enum
 	{
 		SMF_NONE,

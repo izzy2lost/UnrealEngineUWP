@@ -273,6 +273,7 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 	const FText VerticesCountTitle = LOCTEXT("VerticesCountTitle", "Vertex count : ");
 	const FText FacesCountTitle = LOCTEXT("FacesCountTitle", "Face count : ");
 	const FText BonesCountTitle = LOCTEXT("BonesCountTitle", "Bone count : ");
+	const FText VertexIdPrefixTitle = LOCTEXT("VertexIdPrefixTitle", "Vertex ID prefix : ");
 	const FText BuffersTitle = LOCTEXT("BuffersTitle", "Buffers");
 	
 	return SNew(SScrollBox)
@@ -350,7 +351,6 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 				[
 					SNew(SHorizontalBox)
 
-					// Faces title
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
 					[
@@ -358,13 +358,34 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 						Text(BonesCountTitle)
 					]
 
-					// Faces Value
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
 					[
 						SNew(STextBlock).
 						Text(this, &SMutableMeshViewer::GetBoneCount)
 					]
+				]
+
+				// Vertex ID
+				+ SVerticalBox::Slot().
+				Padding(0, SimpleSpacing).
+				AutoHeight()
+				[
+					SNew(SHorizontalBox)
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							SNew(STextBlock).
+								Text(VertexIdPrefixTitle)
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							SNew(STextBlock).
+								Text(this, &SMutableMeshViewer::GetVertexIdPrefix)
+						]
 				]
 			]
 
@@ -420,23 +441,6 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 					// ---------------------------------
 				]
 				
-				+ SVerticalBox::Slot()
-				  .Padding(IndentationSpace, 6)
-				  .AutoHeight()
-				[
-					SNew(SVerticalBox)
-				
-					// List of Face buffers ----------
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					[
-						GenerateBuffersListView(
-							FaceBuffersSlateView,
-							FaceBuffers,
-							FText(LOCTEXT("FaceBufferType", "Face")))
-					]
-					// ---------------------------------
-				]
 			]
 
 			// Bones data ----------------------------------------------------------------
@@ -567,12 +571,10 @@ void SMutableMeshViewer::OnMeshChanged()
 	// Cache the data accessible from the mu::Mesh to be later used by the UI
 	FillTargetBufferSetDataArray(MutableMesh->GetVertexBuffers(), VertexBuffers, VertexBuffersSlateView);
 	FillTargetBufferSetDataArray(MutableMesh->GetIndexBuffers(), IndexBuffers, IndexBuffersSlateView);
-	FillTargetBufferSetDataArray(MutableMesh->GetFaceBuffers(), FaceBuffers, FaceBuffersSlateView);
 
 	// Restore the widths of the columns each time the mesh gets changed.
 	VertexBuffersSlateView->GetHeaderRow()->ResetColumnWidths();
 	IndexBuffersSlateView->GetHeaderRow()->ResetColumnWidths();
-	FaceBuffersSlateView->GetHeaderRow()->ResetColumnWidths();
 }
 
 
@@ -688,6 +690,10 @@ FText SMutableMeshViewer::GetBoneCount() const
 	return FText::AsNumber(MutableMesh && MutableMesh->GetSkeleton() ? MutableMesh->GetSkeleton()->GetBoneCount() : 0);
 }
 
+FText SMutableMeshViewer::GetVertexIdPrefix() const
+{
+	return FText::AsNumber(MutableMesh ? MutableMesh->VertexIDPrefix : 0);
+}
 
 
 TSharedRef<ITableRow> SMutableMeshViewer::OnGenerateBufferRow(TSharedPtr<FBufferElement, ESPMode::ThreadSafe> InBuffer,

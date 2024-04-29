@@ -1298,7 +1298,7 @@ namespace mu
                     if (args.newSurfaceID)
                     {
 						check(pB->GetSurfaceCount() == 1);
-						Result->m_surfaces.Last().m_id = args.newSurfaceID;
+						Result->Surfaces.Last().Id = args.newSurfaceID;
                     }
 
 					Release(pA);
@@ -1318,7 +1318,7 @@ namespace mu
 
                     if (Result->GetSurfaceCount() > 0 && args.newSurfaceID)
                     {
-                        Result->m_surfaces.Last().m_id = args.newSurfaceID;
+                        Result->Surfaces.Last().Id = args.newSurfaceID;
                     }
 
 					Release(pA);
@@ -1820,7 +1820,6 @@ namespace mu
 							true,
 							(Flags & OP::MeshFormatArgs::Vertex) != 0,
 							(Flags & OP::MeshFormatArgs::Index) != 0,
-							(Flags & OP::MeshFormatArgs::Face) != 0,
 							(Flags & OP::MeshFormatArgs::IgnoreMissing) != 0,
 							bOutSuccess);
 
@@ -1896,7 +1895,8 @@ namespace mu
 
                 // Access with memcpy necessary for unaligned arm issues.
                 uint32 blocks[1024];
-				FMemory::Memcpy(blocks, data, sizeof(uint32)*FMath::Min(1024,int(blockCount)));
+				check(blockCount<1024);
+				FMemory::Memcpy(blocks, data, sizeof(uint32)*FMath::Min(1024,int32(blockCount)));
 
 				if (Source)
 				{
@@ -2879,8 +2879,8 @@ namespace mu
 					FMemory::Memcpy(&TagCount, Data, sizeof(uint16));
 					Data += sizeof(uint16);
 
-					int32 FirstMeshTagIndex = Result->m_tags.Num();
-					Result->m_tags.SetNum(FirstMeshTagIndex+TagCount);
+					int32 FirstMeshTagIndex = Result->Tags.Num();
+					Result->Tags.SetNum(FirstMeshTagIndex+TagCount);
 					for (uint16 TagIndex = 0; TagIndex < TagCount; ++TagIndex)
 					{
 						OP::ADDRESS TagConstant;
@@ -2889,7 +2889,7 @@ namespace mu
 
 						check(TagConstant < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num());
 						const FString& Name = Program.m_constantStrings[TagConstant];
-						Result->m_tags[FirstMeshTagIndex+TagIndex] = Name;
+						Result->Tags[FirstMeshTagIndex+TagIndex] = Name;
 					}
 
 					StoreMesh(item, Result);

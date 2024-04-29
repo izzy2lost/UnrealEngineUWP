@@ -157,12 +157,12 @@ namespace
 
 
 	// Make a mesh format suitable to morph a particular other format.
-	MeshPtr MakeMorphTargetFormat(MeshPtrConst pTargetFormat)
+	Ptr<Mesh> MakeMorphTargetFormat(Ptr<const Mesh> pTargetFormat)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(MakeMorphTargetFormat);
 
 		// Make a morph format by adding all the vertex channels from the base into a single
-		// vertex buffer, adding the vertex index channel
+		// vertex buffer
 
 		int32 offset = 0;
 		int32 numChannels = 0;
@@ -171,15 +171,6 @@ namespace
 		TArray<EMeshBufferFormat> formats;
 		TArray<int32> components;
 		TArray<int32> offsets;
-
-		// Add the vertex index channel
-		semantics.Add(MBS_VERTEXINDEX);
-		semanticIndices.Add(0);
-		formats.Add(MBF_UINT32);
-		components.Add(1);
-		offsets.Add(offset);
-		offset += components[numChannels] * GetMeshFormatData(formats[numChannels]).SizeInBytes;
-		numChannels++;
 
 		// Add the vertex channels from the new format
 		for (int32 vb = 0; vb < pTargetFormat->GetVertexBuffers().GetBufferCount(); ++vb)
@@ -208,16 +199,14 @@ namespace
 
 		MeshPtr pTargetMorphFormat = new Mesh;
 		pTargetMorphFormat->GetVertexBuffers().SetBufferCount(1);
-		if (numChannels > 0)
-		{
-			pTargetMorphFormat->GetVertexBuffers().SetBuffer(0, offset,
-				numChannels,
-				&semantics[0],
-				&semanticIndices[0],
-				&formats[0],
-				&components[0],
-				&offsets[0]);
-		}
+
+		pTargetMorphFormat->GetVertexBuffers().SetBuffer(0, offset,
+			numChannels,
+			semantics.GetData(),
+			semanticIndices.GetData(),
+			formats.GetData(),
+			components.GetData(),
+			offsets.GetData());
 
 		return pTargetMorphFormat;
 	}
@@ -279,8 +268,8 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		NewOp->Base = Visit(NewOp->Base.child(), currentFormatOp);
 
 		// Reformat the morph targets to match the new format.
-		MeshPtrConst pTargetFormat = FindBaseMeshConstant(currentFormatOp->Format.child());
-		MeshPtrConst pTargetMorphFormat = MakeMorphTargetFormat(pTargetFormat);
+		Ptr<const Mesh> pTargetFormat = FindBaseMeshConstant(currentFormatOp->Format.child());
+		Ptr<const Mesh> pTargetMorphFormat = MakeMorphTargetFormat(pTargetFormat);
 
 		mu::Ptr<ASTOpConstantResource> NewFormatConstant = new ASTOpConstantResource();
 		NewFormatConstant->Type = OP_TYPE::ME_CONSTANT;
@@ -301,7 +290,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 
 	case OP_TYPE::ME_MERGE:
 	{
-		auto newOp = mu::Clone<ASTOpFixed>(at);
+		Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(at);
 		newOp->SetChild(newOp->op.args.MeshMerge.base, Visit(newOp->children[newOp->op.args.MeshMerge.base].child(), currentFormatOp));
 		newOp->SetChild(newOp->op.args.MeshMerge.added, Visit(newOp->children[newOp->op.args.MeshMerge.added].child(), currentFormatOp));
 		newAt = newOp;
@@ -311,26 +300,24 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 	case OP_TYPE::ME_INTERPOLATE:
 	{
 		// Move the format down the base of the morph
-		auto newOp = mu::Clone<ASTOpFixed>(at);
+		Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(at);
 		newOp->SetChild(newOp->op.args.MeshInterpolate.base, Visit(newOp->children[newOp->op.args.MeshInterpolate.base].child(), currentFormatOp));
 
 		// Reformat the morph targets to match the new format.
-		// \TODO: Cache pTargetMorphFormat? motaop?
-		MeshPtrConst pTargetFormat = FindBaseMeshConstant(currentFormatOp->Format.child());
-		MeshPtrConst pTargetMorphFormat = MakeMorphTargetFormat(pTargetFormat);
+		Ptr<const Mesh> pTargetFormat = FindBaseMeshConstant(currentFormatOp->Format.child());
+		Ptr<const Mesh> pTargetMorphFormat = MakeMorphTargetFormat(pTargetFormat);
 
-		mu::Ptr<ASTOpConstantResource> motaop = new ASTOpConstantResource();
-		motaop->Type = OP_TYPE::ME_CONSTANT;
-		motaop->SetValue(pTargetMorphFormat, nullptr );
-		auto targetMorphFormatAt = motaop;
+		mu::Ptr<ASTOpConstantResource> TargetMorphFormatOp = new ASTOpConstantResource();
+		TargetMorphFormatOp->Type = OP_TYPE::ME_CONSTANT;
+		TargetMorphFormatOp->SetValue(pTargetMorphFormat, nullptr );
 
-		for (int t = 0; t < MUTABLE_OP_MAX_INTERPOLATE_COUNT - 1; ++t)
+		for (int32 t = 0; t < MUTABLE_OP_MAX_INTERPOLATE_COUNT - 1; ++t)
 		{
 			if (newOp->children[newOp->op.args.MeshInterpolate.targets[t]])
 			{
 				mu::Ptr<ASTOpMeshFormat> newFormat = mu::Clone<ASTOpMeshFormat>(currentFormatOp);
 				newFormat->Flags = OP::MeshFormatArgs::Vertex | OP::MeshFormatArgs::IgnoreMissing;
-				newFormat->Format = targetMorphFormatAt;
+				newFormat->Format = TargetMorphFormatOp;
 
 				newOp->SetChild(newOp->op.args.MeshInterpolate.targets[t], Visit(newOp->children[newOp->op.args.MeshInterpolate.targets[t]].child(), newFormat.get()));
 			}

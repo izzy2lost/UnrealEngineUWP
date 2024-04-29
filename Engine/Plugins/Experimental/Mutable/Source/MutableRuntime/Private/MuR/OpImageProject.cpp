@@ -949,7 +949,7 @@ void ImageRasterProjectedPlanar(const Mesh* pMesh, Image* pImage,
 		ProcessorFeatures |= EPixelProcessorFeatures::WithMask;
 	}
 
-	if (pMesh->m_staticFormatFlags & (1 << SMF_PROJECT))
+	if (pMesh->StaticFormatFlags & (1 << SMF_PROJECT))
 	{
 		float UnusedProjectionAngle = 0;
 		FImageRasterInvokeArgs RasterArgs = 
@@ -1163,7 +1163,7 @@ void ImageRasterProjectedWrapping( const Mesh* pMesh, Image* pImage,
 		ProcessorFeatures |= EPixelProcessorFeatures::WithMask;
 	}
 
-    if ( ( pMesh->m_staticFormatFlags & (1<<SMF_PROJECTWRAPPING) ) )
+    if ( ( pMesh->StaticFormatFlags & (1<<SMF_PROJECTWRAPPING) ) )
     {
 		float UnusedProjectionAngle = 0;
 
@@ -1377,7 +1377,7 @@ void ImageRasterProjectedCylindrical( const Mesh* pMesh, Image* pImage,
 		ProcessorFeatures |= EPixelProcessorFeatures::WithMask;
 	}
 
-    if ((pMesh->m_staticFormatFlags & (1 << SMF_PROJECT)))
+    if ((pMesh->StaticFormatFlags & (1 << SMF_PROJECT)))
     {
 		int32 UnusedLayout = 0;
 		int32 UnusedBlock = 0;
@@ -3010,7 +3010,6 @@ void MeshProject_Optimised(Mesh* Result, const Mesh* pMesh, const FProjector& pr
     // Shrink result mesh
     Result->GetVertexBuffers().SetElementCount(currentVertex);
     Result->GetIndexBuffers().SetElementCount(currentIndex);
-    Result->GetFaceBuffers().SetElementCount(currentIndex/3);
 }
 #ifdef DEBUG_PROJECTION
 UE_ENABLE_OPTIMIZATION
@@ -3023,12 +3022,12 @@ void MeshProject(Mesh* Result, const Mesh* pMesh, const FProjector& projector, b
 {
 	MUTABLE_CPUPROFILER_SCOPE(MeshProject);
 
-    if (pMesh->m_staticFormatFlags & (1<<SMF_PROJECT))
+    if (pMesh->StaticFormatFlags & (1<<SMF_PROJECT))
     {
         // Mesh-optimised version
         MeshProject_Optimised(Result, pMesh, projector, bOutSuccess);
     }
-    else if (pMesh->m_staticFormatFlags & (1<<SMF_PROJECTWRAPPING))
+    else if (pMesh->StaticFormatFlags & (1<<SMF_PROJECTWRAPPING))
     {
         // Mesh-optimised version for wrapping projectors
         // \todo: make sure the projector is a wrapping projector
@@ -3041,7 +3040,7 @@ void MeshProject(Mesh* Result, const Mesh* pMesh, const FProjector& projector, b
 
 	if (bOutSuccess)
 	{
-		Result->m_surfaces.SetNum(0);
+		Result->Surfaces.SetNum(0);
 		Result->EnsureSurfaceData();
 		Result->ResetStaticFormatFlags();
 	}

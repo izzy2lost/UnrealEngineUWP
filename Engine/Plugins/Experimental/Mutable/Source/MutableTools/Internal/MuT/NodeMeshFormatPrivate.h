@@ -21,7 +21,6 @@ namespace mu
 		/** New mesh format.The buffers in the sets have no elements, but they define the formats. */
 		FMeshBufferSet VertexBuffers;
 		FMeshBufferSet IndexBuffers;
-		FMeshBufferSet FaceBuffers;
 		
 		/** */
 		bool bOptimizeBuffers = false;

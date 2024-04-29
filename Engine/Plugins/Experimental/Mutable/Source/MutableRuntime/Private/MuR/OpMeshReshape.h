@@ -693,11 +693,11 @@ namespace mu
 		const int32 PhysicsBodiesNum = BodyOffsets.Num() - 1;
 		
 		// Apply main physics body
-		if (BaseMesh.m_pPhysicsBody)
+		if (BaseMesh.PhysicsBody)
 		{
-			Ptr<PhysicsBody> NewBody = BaseMesh.m_pPhysicsBody->Clone();
+			Ptr<PhysicsBody> NewBody = BaseMesh.PhysicsBody->Clone();
 			ApplyPhysicsBody(*NewBody, 0, BodyOffsets[1]);
-			OutNewMesh.m_pPhysicsBody = NewBody;
+			OutNewMesh.PhysicsBody = NewBody;
 		}
 
 
@@ -924,7 +924,7 @@ namespace mu
 		// order of operation is important.
 
 		// Transform physics volumes based on the deformed sampling points.
-		const PhysicsBody* OldPhysicsBody = Result->m_pPhysicsBody.get();
+		const PhysicsBody* OldPhysicsBody = Result->PhysicsBody.get();
 		const int32 AdditionalPhysicsBodiesNum = Result->AdditionalPhysicsBodies.Num();
 
 		if (bReshapePhysicsVolumes && (OldPhysicsBody || AdditionalPhysicsBodiesNum))

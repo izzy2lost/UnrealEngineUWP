@@ -417,18 +417,17 @@ namespace mu
 		SIZE_T removedIndices = itBase - itDest;
 		check(removedIndices % 3 == 0);
 
-		Result->GetFaceBuffers().SetElementCount(aFaceCount - (int32)removedIndices / 3);
 		Result->GetIndexBuffers().SetElementCount(aFaceCount * 3 - (int32)removedIndices);
 
 		// TODO: Should redo/reorder the face buffer before SetElementCount since some deleted faces could be left and some remaining faces deleted.
 
         // Fix the surface data if present.
-        if (Result->m_surfaces.Num())
+        if (Result->Surfaces.Num())
         {
             // We assume there will be only one.
-            check(Result->m_surfaces.Num()==1);
+            check(Result->Surfaces.Num()==1);
 
-            Result->m_surfaces[0].m_indexCount -= (int32)removedIndices;
+            Result->Surfaces[0].IndexCount -= (int32)removedIndices;
         }
 	}
 }

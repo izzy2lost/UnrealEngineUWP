@@ -1742,7 +1742,6 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		const uint32 IndexCount = MeshSection.NumTriangles * 3;
 		MutableMesh->GetIndexBuffers().SetBufferCount(1);
 		MutableMesh->GetIndexBuffers().SetElementCount(IndexCount);
-		MutableMesh->GetFaceBuffers().SetElementCount(MeshSection.NumTriangles);
 
 		using namespace mu;
 
@@ -1785,12 +1784,12 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	}
 
 	// Ensure Surface Data
-	mu::MESH_SURFACE MeshSurface;
-	MeshSurface.m_vertexCount = MutableMesh->m_VertexBuffers.GetElementCount();
-	MeshSurface.m_indexCount = MutableMesh->m_IndexBuffers.GetElementCount();
+	mu::FMeshSurface MeshSurface;
+	MeshSurface.VertexCount = MutableMesh->VertexBuffers.GetElementCount();
+	MeshSurface.IndexCount = MutableMesh->IndexBuffers.GetElementCount();
 	MeshSurface.BoneMapCount = MutableMesh->BoneMap.Num();
 	MeshSurface.bCastShadow = MeshSection.bCastShadow;
-	MutableMesh->m_surfaces.Add(MeshSurface);
+	MutableMesh->Surfaces.Add(MeshSurface);
 
 	if (!bIgnorePhysics && InSkeletalMesh->GetPhysicsAsset() && MutableMesh->GetSkeleton() && GenerationContext.Options.bPhysicsAssetMergeEnabled)
 	{
@@ -2181,7 +2180,6 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 		int IndexCount = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex].NumTriangles * 3;
 		MutableMesh->GetIndexBuffers().SetBufferCount(1);
 		MutableMesh->GetIndexBuffers().SetElementCount(IndexCount);
-		MutableMesh->GetFaceBuffers().SetElementCount(IndexCount / 3);
 
 		using namespace mu;
 		const int ElementSize = 2;

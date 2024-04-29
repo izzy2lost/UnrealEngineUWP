@@ -27,7 +27,7 @@ namespace mu
 		}
 
 		uint32 MaxBoneMapIndex = 0;
-		for (const MESH_SURFACE& Surface : InMesh->m_surfaces)
+		for (const FMeshSurface& Surface : InMesh->Surfaces)
 		{
 			MaxBoneMapIndex = FMath::Max(MaxBoneMapIndex, Surface.BoneMapCount);
 		}
@@ -147,11 +147,11 @@ namespace mu
 				const int32 TailSize = AuxOffset - (BoneIndexChannelOffset + BoneIndexComponentCount * BoneIndexSize);
 
 
-				for (const MESH_SURFACE& Surface : InMesh->m_surfaces)
+				for (const FMeshSurface& Surface : InMesh->Surfaces)
 				{
 					const uint32 NumBonesInBoneMap = Surface.BoneMapCount;
 
-					for (int32 VertexIndex = 0; VertexIndex < Surface.m_vertexCount; ++VertexIndex)
+					for (int32 VertexIndex = 0; VertexIndex < Surface.VertexCount; ++VertexIndex)
 					{
 						FMemory::Memcpy(Data, SourceData, BoneIndexChannelOffset);
 						Data += BoneIndexChannelOffset;

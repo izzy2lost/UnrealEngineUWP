@@ -116,6 +116,11 @@ namespace mu
 		"PackedDirS8_WTangentSign",
 
 		"Float64",
+
+		"UInt64",
+		"Int64",
+		"NUint64",
+		"NInt64",
 	};
 
 	static_assert(sizeof(TypeInfo::s_meshBufferFormatName) / sizeof(void*) == int32(MBF_COUNT));

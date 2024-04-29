@@ -21,8 +21,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//! Merge two meshes into one new mesh
 	//---------------------------------------------------------------------------------------------
-	inline void MeshMerge(Mesh* Result, const Mesh* pFirst, const Mesh* pSecond, bool bMergeSurfaces, 
-		FMeshMergeScratchMeshes& ScratchMeshes)
+	inline void MeshMerge(Mesh* Result, const Mesh* pFirst, const Mesh* pSecond, bool bMergeSurfaces, FMeshMergeScratchMeshes& ScratchMeshes)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(MeshMerge);
 
@@ -327,91 +326,26 @@ namespace mu
 			}
 		}
 
-		// Faces
-		//-----------------
-		{
-			MUTABLE_CPUPROFILER_SCOPE(Faces);
-
-			const int32 FirstCount = pFirst->GetFaceBuffers().GetElementCount();
-			const int32 SecondCount = pSecond->GetFaceBuffers().GetElementCount();
-			Result->GetFaceBuffers().SetElementCount(FirstCount + SecondCount);
-			Result->GetFaceBuffers().SetBufferCount(pFirst->GetFaceBuffers().GetBufferCount());
-
-			// Merge only the buffers present in the first mesh
-			for (int32 b = 0; b < Result->GetFaceBuffers().GetBufferCount(); ++b)
-			{
-				const FMeshBuffer& first = pFirst->GetFaceBuffers().m_buffers[b];
-
-				FMeshBuffer& result = Result->GetFaceBuffers().m_buffers[b];
-				result.m_channels = first.m_channels;
-				result.m_elementSize = first.m_elementSize;
-				result.m_data.SetNum(result.m_elementSize * (FirstCount + SecondCount));
-
-				EMeshBufferSemantic semantic = MBS_NONE;
-				int semanticIndex = 0;
-				EMeshBufferFormat type = MBF_NONE;
-				int components = 0;
-				int offset = 0;
-				pFirst->GetFaceBuffers().GetChannel
-				(b, 0, &semantic, &semanticIndex, &type, &components, &offset);
-
-				if (FirstCount)
-				{
-					FMemory::Memcpy(&result.m_data[0],
-						&first.m_data[0],
-						result.m_elementSize * FirstCount
-					);
-				}
-
-				if (SecondCount)
-				{
-					// Find in the second mesh
-					int otherBuffer = -1;
-					int otherChannel = -1;
-					pSecond->GetFaceBuffers().FindChannel
-					(semantic, 0, &otherBuffer, &otherChannel);
-
-					if (otherBuffer >= 0)
-					{
-						const FMeshBuffer& second =
-							pSecond->GetFaceBuffers().m_buffers[otherBuffer];
-						check(first.m_channels == second.m_channels);
-
-						// Raw copy
-						FMemory::Memcpy(&result.m_data[result.m_elementSize * FirstCount],
-							&second.m_data[0],
-							result.m_elementSize * SecondCount);
-					}
-					else
-					{
-						// Fill with zeroes
-						FMemory::Memzero(&result.m_data[result.m_elementSize * FirstCount],
-							result.m_elementSize * SecondCount);
-					}
-				}
-			}
-		}
-
 
 		// Layouts
 		//-----------------
 		{
 			MUTABLE_CPUPROFILER_SCOPE(Layouts);
 
-			Result->m_layouts.SetNum(pFirst->m_layouts.Num());
-			for (int i = 0; i < pFirst->m_layouts.Num(); ++i)
+			Result->Layouts.SetNum(pFirst->Layouts.Num());
+			for (int i = 0; i < pFirst->Layouts.Num(); ++i)
 			{
-				const Layout* pF = pFirst->m_layouts[i].get();
+				const Layout* pF = pFirst->Layouts[i].get();
 				LayoutPtr pR = pF->Clone();
 
-				if (i < pSecond->m_layouts.Num())
+				if (i < pSecond->Layouts.Num())
 				{
-					const Layout* pS = pSecond->m_layouts[i].get();
+					const Layout* pS = pSecond->Layouts[i].get();
 
 					pR->m_blocks.Append(pS->m_blocks);
 				}
 
-				Result->m_layouts[i] = pR;
+				Result->Layouts[i] = pR;
 			}
 		}
 
@@ -524,13 +458,13 @@ namespace mu
 					bRemapBoneIndices = bRemapBoneIndices || BoneMapIndex != SecondBoneMapIndex;
 				}
 
-				MESH_SURFACE& NewSurface = Result->m_surfaces.AddDefaulted_GetRef();
-				NewSurface.m_vertexCount = pFirst->GetVertexCount() + pSecond->GetVertexCount();
-				NewSurface.m_indexCount = pFirst->GetIndexCount() + pSecond->GetIndexCount();
+				FMeshSurface& NewSurface = Result->Surfaces.AddDefaulted_GetRef();
+				NewSurface.VertexCount = pFirst->GetVertexCount() + pSecond->GetVertexCount();
+				NewSurface.IndexCount = pFirst->GetIndexCount() + pSecond->GetIndexCount();
 				NewSurface.BoneMapCount = Result->BoneMap.Num();
 				
 				//All merged surfaces will have the same bCastShadow value. Decided by the first merged mesh
-				NewSurface.bCastShadow = pFirst->m_surfaces.Last().bCastShadow;
+				NewSurface.bCastShadow = pFirst->Surfaces.Last().bCastShadow;
 			}
 			else
 			{
@@ -538,19 +472,19 @@ namespace mu
 				Result->BoneMap.Append(pSecond->BoneMap);
 
 				// Add pFirst surfaces
-				Result->m_surfaces = pFirst->m_surfaces;
+				Result->Surfaces = pFirst->Surfaces;
 
 				const int32 FirstVertexIndex = pFirst->GetVertexCount();
 				const int32 FirstIndexIndex = pFirst->GetIndexCount();
 
-				check(pSecond->m_surfaces.Num() == 1);
-				MESH_SURFACE& NewSurface = Result->m_surfaces.Add_GetRef(pSecond->m_surfaces[0]);
-				NewSurface.m_firstVertex += FirstVertexIndex;
-				NewSurface.m_firstIndex += FirstIndexIndex;
+				check(pSecond->Surfaces.Num() == 1);
+				FMeshSurface& NewSurface = Result->Surfaces.Add_GetRef(pSecond->Surfaces[0]);
+				NewSurface.FirstVertex += FirstVertexIndex;
+				NewSurface.FirstIndex += FirstIndexIndex;
 				NewSurface.BoneMapIndex += NumFirstBonesInBoneMap;
 			}
 
-			for (const MESH_SURFACE& Surface : Result->m_surfaces)
+			for (const FMeshSurface& Surface : Result->Surfaces)
 			{
 				MaxNumBonesInBoneMaps = FMath::Max(MaxNumBonesInBoneMaps, Surface.BoneMapCount);
 			}
@@ -753,8 +687,12 @@ namespace mu
             const int32 FirstCount = pFirst->GetVertexBuffers().GetElementCount();
 			const int32 SecondCount = pSecond->GetVertexBuffers().GetElementCount();
 
+			// TODO: fast path should be per-buffer
 			// TODO: when formats match, which at runtime should be always.
 			bool bFastPath = pFirst->GetVertexBuffers().HasSameFormat( pSecond->GetVertexBuffers() );
+
+			bool bNeedsExplicitVertexIds = pFirst->VertexIDPrefix != pSecond->VertexIDPrefix;
+			bFastPath = bFastPath && !bNeedsExplicitVertexIds;
 
 			// Check if the format of the BoneIndex buffer has to change
 			bool bChangeBoneIndicesFormat = false;
@@ -762,6 +700,7 @@ namespace mu
 
 			// Iterate all vertex buffers to check if we need to format bone indices
 			{
+				// TODO: deduplicate code. move all to cpp.
 				{
 					// Check if pFirst requires a reformat of the bone index buffers
 					const FMeshBufferSet& VertexBuffers = pFirst->GetVertexBuffers();
@@ -820,7 +759,7 @@ namespace mu
 
 				// Expand component counts in vertex channels of the format mesh
 				int32 vbcount = pFirst->GetVertexBuffers().m_buffers.Num();
-				Result->GetVertexBuffers().SetBufferCount( (int)vbcount );
+				Result->GetVertexBuffers().SetBufferCount( vbcount );
 
 				for ( int32 vb = 0; vb<vbcount; ++vb )
 				{
@@ -834,8 +773,8 @@ namespace mu
 					bool resetOffsets = false;
 					for ( int32 c=0; c<result.m_channels.Num(); ++c )
 					{
-						int sb = -1;
-						int sc = -1;
+						int32 sb = -1;
+						int32 sc = -1;
 						pSecond->GetVertexBuffers().FindChannel
 								(
 									result.m_channels[c].m_semantic,
@@ -860,7 +799,7 @@ namespace mu
 					// Reset the channel offsets if necessary
 					if (resetOffsets)
 					{
-						int offset = 0;
+						int32 offset = 0;
 						for ( int32 c=0; c<result.m_channels.Num(); ++c )
 						{
                             result.m_channels[c].m_offset = (uint8_t)offset;
@@ -890,8 +829,8 @@ namespace mu
 
 						someChannel = true;
 
-						int foundBuffer = -1;
-						int foundChannel = -1;
+						int32 foundBuffer = -1;
+						int32 foundChannel = -1;
 						pFirst->GetVertexBuffers().FindChannel(chan.m_semantic, chan.m_semanticIndex, &foundBuffer, &foundChannel);
 						if (foundBuffer >= 0)
 						{
@@ -964,12 +903,9 @@ namespace mu
 						}
 					}
 				}
-
-                // Allocate vertices
-                Result->GetVertexBuffers().SetElementCount( FirstCount + SecondCount );
 				
 				// Convert the source meshes to the new format
-                if (pFirst->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
+                if (!bNeedsExplicitVertexIds && pFirst->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
                 {
                     pVFirst = pFirst;
                 }
@@ -978,16 +914,26 @@ namespace mu
 					check(ScratchMeshes.FirstReformat);
 
 					bool bOutSuccess = false;
-					MeshFormat(ScratchMeshes.FirstReformat.get(), pFirst, Result, false, true, false, false, false, bOutSuccess);
-					
+					MeshFormat(ScratchMeshes.FirstReformat.get(), pFirst, Result, false, true, false, false, bOutSuccess);
+
+					if (bNeedsExplicitVertexIds)
+					{
+						ScratchMeshes.FirstReformat->MakeVertexIndicesExplicit();
+					}
+
 					if (bOutSuccess)
 					{
 						pVFirst = ScratchMeshes.FirstReformat;
 					}
+					else
+					{
+						check(false);
+					}
+
                 }
 
 
-                if (pSecond->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
+                if (!bNeedsExplicitVertexIds && pSecond->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
                 {
                     pVSecond = pSecond;
                 }
@@ -996,13 +942,22 @@ namespace mu
 					check(ScratchMeshes.SecondReformat);
 
 					bool bOutSuccess = false;
-                    MeshFormat(ScratchMeshes.SecondReformat.get(), pSecond, Result, false, true, false, false, false, bOutSuccess);
+                    MeshFormat(ScratchMeshes.SecondReformat.get(), pSecond, Result, false, true, false, false, bOutSuccess);
+
+					if (bNeedsExplicitVertexIds)
+					{
+						ScratchMeshes.SecondReformat->MakeVertexIndicesExplicit();
+					}
 
 					if (bOutSuccess)
 					{
 						pVSecond = ScratchMeshes.SecondReformat;
 					}
-                }
+					else
+					{
+						check(false);
+					}
+				}
 
 				check(pVFirst->GetVertexBuffers().HasSameFormat(pVSecond->GetVertexBuffers()));
 			}
@@ -1014,10 +969,12 @@ namespace mu
 				pVSecond = pSecond;
 			}
 
-			Result->m_VertexBuffers = pVFirst->m_VertexBuffers;
-			Result->GetVertexBuffers().SetElementCount( FirstCount + SecondCount );
+			Result->VertexBuffers = pVFirst->VertexBuffers;
 
-            // first copy all the vertex data
+			// Allocate additional vertices
+			Result->VertexBuffers.SetElementCount( FirstCount + SecondCount );
+
+            // Copy the second mesh vertex data
 			{
 				MUTABLE_CPUPROFILER_SCOPE(CopyVertexData);
 				for (int32 vb = 0; vb < Result->GetVertexBuffers().m_buffers.Num(); ++vb)
@@ -1027,11 +984,11 @@ namespace mu
 
 					if (SecondCount)
 					{
-						int elemSize = Result->GetVertexBuffers().GetElementSize((int)vb);
-						int firstSize = FirstCount * elemSize;
-						int secondSize = SecondCount * elemSize;
+						int32 elemSize = Result->GetVertexBuffers().GetElementSize(vb);
+						int32 firstSize = FirstCount * elemSize;
+						int32 secondSize = SecondCount * elemSize;
 
-						FMemory::Memcpy( &result.m_data[firstSize], &second.m_data[0], secondSize );
+						FMemory::Memcpy( &result.m_data[firstSize], second.m_data.GetData(), secondSize);
 					}
 				}
 			}
@@ -1139,11 +1096,11 @@ namespace mu
 		}
 
 		// Tags
-		Result->m_tags = pFirst->m_tags;
+		Result->Tags = pFirst->Tags;
 
-		for (const FString& SecondTag : pSecond->m_tags)
+		for (const FString& SecondTag : pSecond->Tags)
 		{
-			Result->m_tags.AddUnique(SecondTag);
+			Result->Tags.AddUnique(SecondTag);
 		}
 
 
