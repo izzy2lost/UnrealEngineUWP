@@ -419,6 +419,8 @@ FSceneViewState::FSceneViewState(ERHIFeatureLevel::Type FeatureLevel, FSceneView
 			BeginInitResource(&OcclusionFeedback);
 		}
 	}
+
+	Occlusion.LastOcclusionQueryArray.SetNumZeroed(FOcclusionQueryHelpers::MaxBufferedOcclusionFrames);
 }
 
 FSceneViewState::~FSceneViewState()

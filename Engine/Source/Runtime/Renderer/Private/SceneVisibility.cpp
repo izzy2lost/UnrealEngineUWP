@@ -2841,7 +2841,8 @@ void FGPUOcclusionPacket::FProcessVisitor::AddOcclusionQuery(const FOcclusionQue
 		RenderQuery = Packet.View.IndividualOcclusionQueries.BatchPrimitive(Query.Bounds.Origin, Query.Bounds.Extent, DynamicVertexBuffer);
 	}
 
-	Packet.ViewState.Occlusion.LastOcclusionQuery = RenderQuery;
+	const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryIssueIndex(Packet.ViewState.OcclusionFrameCounter, Packet.OcclusionState.NumBufferedFrames);
+	Packet.ViewState.Occlusion.LastOcclusionQueryArray[QueryIndex] = RenderQuery;
 	Packet.ViewState.Occlusion.NumRequestedQueries++;
 
 	Query.PrimitiveOcclusionHistory->SetCurrentQuery(
@@ -2901,7 +2902,8 @@ void FGPUOcclusionPacket::FProcessVisitor::SubmitThrottledOcclusionQueries()
 
 		FRHIRenderQuery* RenderQuery = Packet.View.IndividualOcclusionQueries.BatchPrimitive(Query->Bounds.Origin, Query->Bounds.Extent, DynamicVertexBuffer);
 
-		Packet.ViewState.Occlusion.LastOcclusionQuery = RenderQuery;
+		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryIssueIndex(Packet.ViewState.OcclusionFrameCounter, Packet.OcclusionState.NumBufferedFrames);
+		Packet.ViewState.Occlusion.LastOcclusionQueryArray[QueryIndex] = RenderQuery;
 		Packet.ViewState.Occlusion.NumRequestedQueries++;
 
 		PrimitiveOcclusionHistory->SetCurrentQuery(
@@ -3014,12 +3016,13 @@ void FGPUOcclusion::Unmap(FRHICommandListImmediate& RHICmdListImmediate)
 
 void FGPUOcclusion::WaitForLastOcclusionQuery()
 {
-	if (ViewState.Occlusion.LastOcclusionQuery)
+	const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(ViewState.OcclusionFrameCounter, State.NumBufferedFrames);
+	if (ViewState.Occlusion.LastOcclusionQueryArray[QueryIndex])
 	{
 		uint64 Result;
 		const bool bWait = true;
-		RHIGetRenderQueryResult(ViewState.Occlusion.LastOcclusionQuery, Result, bWait);
-		ViewState.Occlusion.LastOcclusionQuery = nullptr;
+		RHIGetRenderQueryResult(ViewState.Occlusion.LastOcclusionQueryArray[QueryIndex], Result, bWait);
+		ViewState.Occlusion.LastOcclusionQueryArray[QueryIndex] = nullptr;
 	}
 }
 

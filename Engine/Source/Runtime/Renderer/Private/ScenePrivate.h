@@ -1646,7 +1646,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TSet<FPrimitiveOcclusionHistory, FPrimitiveOcclusionHistoryKeyFuncs> PrimitiveOcclusionHistorySet;
 
 		/** The last occlusion query of last frame to test in the following frame to block the GPU. */
-		FRHIRenderQuery* LastOcclusionQuery = nullptr;
+		TArray<FRHIRenderQuery*, TInlineAllocator<FOcclusionQueryHelpers::MaxBufferedOcclusionFrames> > LastOcclusionQueryArray;
 
 		/** The number of queries requested last frame. */
 		uint32 NumRequestedQueries = 0;
