@@ -803,6 +803,13 @@ void FVirtualTextureSystem::ReleaseProducer(const FVirtualTextureProducerHandle&
 	Producers.ReleaseProducer(this, Handle);
 }
 
+bool FVirtualTextureSystem::TryReleaseProducer(const FVirtualTextureProducerHandle& Handle)
+{
+	check(!bUpdating);
+	UE::TScopeLock Lock(Mutex);
+	return Producers.TryReleaseProducer(this, Handle);
+}
+
 void FVirtualTextureSystem::AddProducerDestroyedCallback(const FVirtualTextureProducerHandle& Handle, FVTProducerDestroyedFunction* Function, void* Baton)
 {
 	check(!bUpdating);

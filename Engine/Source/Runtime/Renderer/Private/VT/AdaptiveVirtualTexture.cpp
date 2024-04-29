@@ -199,19 +199,14 @@ IAllocatedVirtualTexture* FAdaptiveVirtualTexture::AllocateVirtualTexture(
 }
 
 /** Destroy an allocated virtual texture and release its producers. */
-void FAdaptiveVirtualTexture::DestroyVirtualTexture(FVirtualTextureSystem* InSystem, IAllocatedVirtualTexture* InAllocatedVT)
+void FAdaptiveVirtualTexture::DestroyVirtualTexture(FVirtualTextureSystem* InSystem, IAllocatedVirtualTexture* InAllocatedVT, TArray<FVirtualTextureProducerHandle>& OutProducersToRelease)
 {
 	FAllocatedVTDescription const& Desc = InAllocatedVT->GetDescription();
-	TArray<FVirtualTextureProducerHandle, TInlineAllocator<8>> ProducersToRelease;
 	for (int32 LayerIndex = 0; LayerIndex < Desc.NumTextureLayers; ++LayerIndex)
 	{
-		ProducersToRelease.AddUnique(Desc.ProducerHandle[LayerIndex]);
+		OutProducersToRelease.AddUnique(Desc.ProducerHandle[LayerIndex]);
 	}
 	InSystem->DestroyVirtualTexture(InAllocatedVT);
-	for (int32 ProducerIndex = 0; ProducerIndex < ProducersToRelease.Num(); ++ProducerIndex)
-	{
-		InSystem->ReleaseProducer(ProducersToRelease[ProducerIndex]);
-	}
 }
 
 /** Remaps the page mappings from one allocated virtual texture to another. */
@@ -275,14 +270,19 @@ void FAdaptiveVirtualTexture::Init(FRHICommandListBase& RHICmdList, FVirtualText
 
 void FAdaptiveVirtualTexture::Destroy(FVirtualTextureSystem* InSystem)
 {
-	DestroyVirtualTexture(InSystem, AllocatedVirtualTextureLowMips);
+	DestroyVirtualTexture(InSystem, AllocatedVirtualTextureLowMips, ProducersToRelease);
 
 	for (FAllocation& Allocation : AllocationSlots)
 	{
 		if (Allocation.AllocatedVT != nullptr)
 		{
-			DestroyVirtualTexture(InSystem, Allocation.AllocatedVT);
+			DestroyVirtualTexture(InSystem, Allocation.AllocatedVT, ProducersToRelease);
 		}
+	}
+
+	for (FVirtualTextureProducerHandle Handle : ProducersToRelease)
+	{
+		InSystem->ReleaseProducer(Handle);
 	}
 
 	delete this;
@@ -557,7 +557,7 @@ void FAdaptiveVirtualTexture::Allocate(FRHICommandListBase& RHICmdList, FVirtual
 	{
 		// Remap the old allocated virtual texture before destroying it.
 		RemapVirtualTexturePages(InSystem, OldAllocatedVT, NewAllocatedVT, InFrame);
-		DestroyVirtualTexture(InSystem, OldAllocatedVT);
+		DestroyVirtualTexture(InSystem, OldAllocatedVT, ProducersToRelease);
 
 		// Adjust allocation structures.
 		AllocatedVTMap.Remove(GetAllocatedVTHash(OldAllocatedVT), InAllocationIndex);
@@ -612,7 +612,7 @@ void FAdaptiveVirtualTexture::Free(FVirtualTextureSystem* InSystem, uint32 InAll
 	// Destroy allocated virtual texture.
 	const uint32 GridIndex = AllocationSlots[InAllocationIndex].GridIndex;
 	FAllocatedVirtualTexture* OldAllocatedVT = AllocationSlots[InAllocationIndex].AllocatedVT;
-	DestroyVirtualTexture(InSystem, OldAllocatedVT);
+	DestroyVirtualTexture(InSystem, OldAllocatedVT, ProducersToRelease);
 
 	// Remove from all allocation structures.
 	GridIndexMap.Remove(GetGridIndexHash(GridIndex), InAllocationIndex);
@@ -760,4 +760,13 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 	// Clear requests
 	RequestsToMap.Reset();
 	TextureUpdates.Reset();
+
+	// Release any producers
+	for (int32 ProducerIndex = ProducersToRelease.Num() - 1; ProducerIndex >= 0; ProducerIndex--)
+	{
+		if (InSystem->TryReleaseProducer(ProducersToRelease[ProducerIndex]))
+		{
+			ProducersToRelease.RemoveAt(ProducerIndex, 1, EAllowShrinking::No);
+		}
+	}
 }

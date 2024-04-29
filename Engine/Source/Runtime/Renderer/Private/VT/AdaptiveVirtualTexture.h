@@ -82,7 +82,7 @@ private:
 		FIntPoint InAddressOffset,
 		int32 InLevelOffset);
 
-	static void DestroyVirtualTexture(FVirtualTextureSystem* InSystem, IAllocatedVirtualTexture* InAllocatedVT);
+	static void DestroyVirtualTexture(FVirtualTextureSystem* InSystem, IAllocatedVirtualTexture* InAllocatedVT, TArray<FVirtualTextureProducerHandle>& OutProducersToRelease);
 	static void RemapVirtualTexturePages(FVirtualTextureSystem* InSystem, FAllocatedVirtualTexture* OldAllocatedVT, FAllocatedVirtualTexture* NewAllocatedVT, uint32 InFrame);
 
 private:
@@ -140,4 +140,7 @@ private:
 
 	/** Array of indirection texture updates to process. */
 	TArray<FIndirectionTextureUpdate> TextureUpdates;
+
+	/** */
+	TArray<FVirtualTextureProducerHandle> ProducersToRelease;
 };
