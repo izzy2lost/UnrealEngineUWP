@@ -700,7 +700,7 @@ void FUnrealMutableImageProvider::CacheRuntimeReferencedImages(const TSharedRef<
 		UTexture2D* Texture = RuntimeReferencedTexture.LoadSynchronous();
 		if (!Texture)
 		{
-			UE_LOG(LogMutable, Warning, TEXT("Failed to load texture [%s]."), *Texture->GetName());
+			UE_LOG(LogMutable, Warning, TEXT("Failed to load texture [%s]."), *RuntimeReferencedTexture->GetPathName());
 			continue;
 		}
 
