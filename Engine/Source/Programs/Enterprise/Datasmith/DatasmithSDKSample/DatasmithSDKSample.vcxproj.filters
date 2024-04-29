@@ -4,9 +4,6 @@
     <ClCompile Include="DatasmithSDKSample.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="ScenesManager.cpp" />
-    <ClCompile Include="Scenes\Cloth.cpp">
-      <Filter>Scenes</Filter>
-    </ClCompile>
     <ClCompile Include="Scenes\DefaultScene.cpp">
       <Filter>Scenes</Filter>
     </ClCompile>
@@ -38,5 +35,8 @@
     <Filter Include="Scenes">
       <UniqueIdentifier>{e14b842e-81eb-4dc4-be76-6e4f07e70ef5}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="$(DatasmithSDKPath)Unreal.natvis" />
   </ItemGroup>
 </Project>
