@@ -6328,6 +6328,7 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 	}
 
 	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer = true;
+	bOpaqueOrMasked = MaterialRelevance.bOpaque || MaterialRelevance.bMasked;
 }
 
 

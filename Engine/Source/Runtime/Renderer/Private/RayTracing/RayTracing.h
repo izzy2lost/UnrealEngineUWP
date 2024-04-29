@@ -3,16 +3,33 @@
 #pragma once
 
 #include "RHIDefinitions.h"
-
-#if RHI_RAYTRACING
-
 #include "RayTracingInstance.h"
 #include "MeshPassProcessor.h"
 #include "RenderGraphDefinitions.h"
 
+enum class EDiffuseIndirectMethod;
+enum class EReflectionsMethod;
 class FRayTracingScene;
 class FViewFamilyInfo;
 class FGlobalDynamicReadBuffer;
+
+// Settings controlling ray tracing instance caching
+namespace RayTracing
+{
+	struct FSceneOptions
+	{
+		bool bTranslucentGeometry = true;
+
+		FSceneOptions(FScene& Scene,
+			const FViewFamilyInfo& ViewFamily,
+			FViewInfo& View,
+			EDiffuseIndirectMethod DiffuseIndirectMethod,
+			EReflectionsMethod ReflectionsMethod,
+			RayTracing::FSceneOptions& SceneOptions);
+	};
+};
+
+#if RHI_RAYTRACING
 
 namespace RayTracing
 {
@@ -31,7 +48,10 @@ namespace RayTracing
 	bool GatherWorldInstancesForView(
 		FRDGBuilder& GraphBuilder,
 		FScene& Scene,
+		const FViewFamilyInfo& ViewFamily,
 		FViewInfo& View,
+		EDiffuseIndirectMethod DiffuseIndirectMethod,
+		EReflectionsMethod ReflectionsMethod,
 		FRayTracingScene& RayTracingScene,
 		FGlobalDynamicReadBuffer& InDynamicReadBuffer,
 		FSceneRenderingBulkObjectAllocator& InBulkAllocator,

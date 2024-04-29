@@ -14,6 +14,8 @@
 #include "Rendering/RayTracingGeometryManager.h"
 #include "ScenePrivate.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "Lumen/LumenHardwareRayTracingCommon.h"
+#include "RayTracingShadows.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
 #include "Async/ParallelFor.h"
 #include <type_traits>
@@ -685,10 +687,43 @@ namespace RayTracing
 		}
 	}
 
+	// Configure ray tracing scene options based on currently enabled features and their needs
+	FSceneOptions::FSceneOptions(
+		FScene& Scene,
+		const FViewFamilyInfo& ViewFamily,
+		FViewInfo& View,
+		EDiffuseIndirectMethod DiffuseIndirectMethod,
+		EReflectionsMethod ReflectionsMethod,
+		RayTracing::FSceneOptions& SceneOptions)
+	{
+		SceneOptions.bTranslucentGeometry = false;
+		LumenHardwareRayTracing::SetRayTracingSceneOptions(View, DiffuseIndirectMethod, ReflectionsMethod, SceneOptions);
+		RayTracingShadows::SetRayTracingSceneOptions(Scene.bHasLightsWithRayTracedShadows, SceneOptions);
+
+		if (ShouldRenderRayTracingTranslucency(View))
+		{
+			SceneOptions.bTranslucentGeometry = true;
+		}
+
+		if (ViewFamily.EngineShowFlags.PathTracing
+			&& FDataDrivenShaderPlatformInfo::GetSupportsPathTracing(Scene.GetShaderPlatform()))
+		{
+			SceneOptions.bTranslucentGeometry = true;
+		}
+
+		if (GRayTracingExcludeTranslucent != 0)
+		{
+			SceneOptions.bTranslucentGeometry = false;
+		}
+	}
+
 	bool GatherWorldInstancesForView(
 		FRDGBuilder& GraphBuilder,
 		FScene& Scene,
+		const FViewFamilyInfo& ViewFamily,
 		FViewInfo& View,
+		EDiffuseIndirectMethod DiffuseIndirectMethod,
+		EReflectionsMethod ReflectionsMethod,
 		FRayTracingScene& RayTracingScene,
 		FGlobalDynamicReadBuffer& InDynamicReadBuffer,
 		FSceneRenderingBulkObjectAllocator& InBulkAllocator,
@@ -714,6 +749,8 @@ namespace RayTracing
 		View.RayTracingMeshResourceCollector = MakeUnique<FRayTracingMeshResourceCollector>(Scene.GetFeatureLevel(), InBulkAllocator);
 
 		View.RayTracingCullingParameters.Init(View);
+
+		RayTracing::FSceneOptions SceneOptions(Scene, ViewFamily, View, DiffuseIndirectMethod, ReflectionsMethod, SceneOptions);
 
 		const float CurrentWorldTime = View.Family->Time.GetWorldTimeSeconds();
 
@@ -852,7 +889,10 @@ namespace RayTracing
 
 					int32 BaseRayTracingInstance = DynamicRayTracingInstances.Num();
 
-					SceneProxy->GetDynamicRayTracingInstances(MaterialGatheringContext, DynamicRayTracingInstances);
+					if (SceneOptions.bTranslucentGeometry || SceneProxy->IsOpaqueOrMasked())
+					{
+						SceneProxy->GetDynamicRayTracingInstances(MaterialGatheringContext, DynamicRayTracingInstances);
+					}
 
 					for (const FRayTracingDynamicGeometryUpdateParams& DynamicRayTracingGeometryUpdate : MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate)
 					{
@@ -1148,6 +1188,7 @@ namespace RayTracing
 			// Inputs
 
 			const FScene& Scene;
+			const RayTracing::FSceneOptions SceneOptions;
 			TArray<FRelevantPrimitive>& RelevantStaticPrimitives;
 			TArray<FRelevantPrimitive>& RelevantCachedStaticPrimitives;
 			TArray<FRelevantPrimitiveGatherContext>& GatherContexts;
@@ -1163,6 +1204,7 @@ namespace RayTracing
 			TArray<FVisibleRayTracingMeshCommand>& VisibleRayTracingMeshCommands; // New elements are added here by this task
 
 			FRayTracingSceneAddInstancesTask(const FScene& InScene,
+				const RayTracing::FSceneOptions& InSceneOptions,
 				TArray<FRelevantPrimitive>& InRelevantStaticPrimitives,
 				TArray<FRelevantPrimitive>& InRelevantCachedStaticPrimitives,
 				TArray<FRelevantPrimitiveGatherContext>& InGatherContexts,
@@ -1172,6 +1214,7 @@ namespace RayTracing
 				const int32& InNumCachedStaticVisibleMeshCommands,
 				FRayTracingScene& InRayTracingScene, TArray<FVisibleRayTracingMeshCommand>& InVisibleRayTracingMeshCommands)
 				: Scene(InScene)
+				, SceneOptions(InSceneOptions)
 				, RelevantStaticPrimitives(InRelevantStaticPrimitives)
 				, RelevantCachedStaticPrimitives(InRelevantCachedStaticPrimitives)
 				, GatherContexts(InGatherContexts)
@@ -1273,8 +1316,12 @@ namespace RayTracing
 							continue;
 						}
 
-						if ((GRayTracingExcludeTranslucent && RelevantPrimitive.bAllSegmentsTranslucent)
-							|| (GRayTracingExcludeSky && RelevantPrimitive.bIsSky))
+						if (!SceneOptions.bTranslucentGeometry && RelevantPrimitive.bAllSegmentsTranslucent)
+						{
+							continue;
+						}
+
+						if (GRayTracingExcludeSky && RelevantPrimitive.bIsSky)
 						{
 							continue;
 						}
@@ -1491,6 +1538,7 @@ namespace RayTracing
 		FGraphEventRef AddInstancesTask = TGraphTask<FRayTracingSceneAddInstancesTask>::CreateTask(&AddInstancesTaskPrerequisites).ConstructAndDispatchWhenReady(
 			// inputs
 			Scene,
+			SceneOptions,
 			RelevantPrimitiveList.StaticPrimitives,
 			RelevantPrimitiveList.CachedStaticPrimitives,
 			RelevantPrimitiveList.GatherContexts,

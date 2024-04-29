@@ -1804,7 +1804,17 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			checkf(InitViewTaskDatas.RayTracingRelevantPrimitives->List, TEXT("Should have a valid FRelevantPrimitiveList containing the result of RayTracing::GatherRelevantPrimitives here."));
 
-			RayTracing::GatherWorldInstancesForView(GraphBuilder, *Scene, ReferenceView, RayTracingScene, DynamicReadBufferForRayTracing, Allocator, *InitViewTaskDatas.RayTracingRelevantPrimitives->List);
+			RayTracing::GatherWorldInstancesForView(
+				GraphBuilder,
+				*Scene,
+				ViewFamily,
+				ReferenceView,
+				GetViewPipelineState(ReferenceView).DiffuseIndirectMethod,
+				GetViewPipelineState(ReferenceView).ReflectionsMethod,
+				RayTracingScene,
+				DynamicReadBufferForRayTracing,
+				Allocator, 
+				*InitViewTaskDatas.RayTracingRelevantPrimitives->List);
 		}
 #endif // RHI_RAYTRACING
 

@@ -10,6 +10,13 @@
 #include "SceneTextureParameters.h"
 #include "Substrate/Substrate.h" 
 
+enum class EReflectionsMethod;
+
+namespace RayTracing
+{
+	struct FSceneOptions;
+};
+
 namespace LumenHardwareRayTracing
 {
 	enum class EAvoidSelfIntersectionsMode : uint8
@@ -42,6 +49,8 @@ namespace LumenHardwareRayTracing
 	bool UseHitLightingDirectLighting();
 	bool UseHitLightingSkylight(EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseReflectionCapturesForHitLighting();
+
+	void SetRayTracingSceneOptions(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod, EReflectionsMethod ReflectionsMethod, RayTracing::FSceneOptions& SceneOptions);
 }
 
 #if RHI_RAYTRACING

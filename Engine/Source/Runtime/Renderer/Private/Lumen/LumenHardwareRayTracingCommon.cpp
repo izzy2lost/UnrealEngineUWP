@@ -11,6 +11,7 @@
 #include "LumenScreenProbeGather.h"
 #include "LumenRadianceCache.h"
 #include "LumenVisualize.h"
+#include "RayTracing/RayTracing.h"
 
 static TAutoConsoleVariable<int32> CVarLumenUseHardwareRayTracing(
 	TEXT("r.Lumen.HardwareRayTracing"),
@@ -189,6 +190,16 @@ bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, co
 	}
 
 	return false;
+}
+
+void LumenHardwareRayTracing::SetRayTracingSceneOptions(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod, EReflectionsMethod ReflectionsMethod, RayTracing::FSceneOptions& SceneOptions)
+{
+	if (ReflectionsMethod == EReflectionsMethod::Lumen
+		&& LumenReflections::UseHitLighting(View, DiffuseIndirectMethod) 
+		&& LumenReflections::UseTranslucentRayTracing(View))
+	{
+		SceneOptions.bTranslucentGeometry = true;
+	}
 }
 
 LumenHardwareRayTracing::EHitLightingMode LumenHardwareRayTracing::GetHitLightingMode(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)

@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "RayTracingShadows.h"
 #include "DeferredShadingRenderer.h"
 #include "PostProcess/SceneRenderTargets.h"
 #include "ScenePrivate.h"
+#include "RayTracing.h"
 
 #if RHI_RAYTRACING
 
@@ -116,6 +118,7 @@ static TAutoConsoleVariable<int32> CVarRayTracingShadowsTranslucency(
 	TEXT("1: Translucent material cast approximate translucent shadows based on opacity (Very expensive)."),
 	ECVF_RenderThreadSafe
 );
+
 static TAutoConsoleVariable<int32> CVarRayTracingShadowsMaxTranslucencyHitCount(
 	TEXT("r.RayTracing.Shadows.MaxTranslucencyHitCount"),
 	-1,
@@ -124,6 +127,14 @@ static TAutoConsoleVariable<int32> CVarRayTracingShadowsMaxTranslucencyHitCount(
 	TEXT(">0: Limit the number of intersections."),
 	ECVF_RenderThreadSafe
 );
+
+void RayTracingShadows::SetRayTracingSceneOptions(bool bSceneHasLightsWithRayTracedShadows, RayTracing::FSceneOptions& SceneOptions)
+{
+	if (bSceneHasLightsWithRayTracedShadows && CVarRayTracingShadowsTranslucency.GetValueOnRenderThread() != 0)
+	{
+		SceneOptions.bTranslucentGeometry = true;
+	}
+};
 
 int32 GetRayTracingShadowsMaxTranslucencyHitCount()
 {
@@ -417,7 +428,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 		CommonPassParameters->AvoidSelfIntersectionTraceDistance = GRayTracingShadowsAvoidSelfIntersectionTraceDistance;
 		CommonPassParameters->bAcceptFirstHit = CVarRayTracingShadowsAcceptFirstHit.GetValueOnRenderThread();
 		CommonPassParameters->bTwoSidedGeometry = EnableRayTracingShadowTwoSidedGeometry() ? 1 : 0;
-		CommonPassParameters->TranslucentShadow = CVarRayTracingShadowsTranslucency.GetValueOnRenderThread();
+		CommonPassParameters->TranslucentShadow = CVarRayTracingShadowsTranslucency.GetValueOnRenderThread() != 0;
 		CommonPassParameters->MaxTranslucencyHitCount = GetRayTracingShadowsMaxTranslucencyHitCount();
 		CommonPassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
 		CommonPassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
