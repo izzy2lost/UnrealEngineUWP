@@ -1021,5 +1021,8 @@ void RenderWaterInfoTexture(
 				PassParameters,
 				Viewport);
 		}
+
+		// Make sure the texture is in the SRV state by the time it is used in water draws (referenced outside of RDG).
+		GraphBuilder.UseExternalAccessMode(OutputTexture, ERHIAccess::SRVMask);
 	}
 }
