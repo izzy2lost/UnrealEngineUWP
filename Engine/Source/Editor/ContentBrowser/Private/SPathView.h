@@ -240,6 +240,12 @@ public:
 	*/
 	bool InternalPathPassesBlockLists(const FStringView InInternalPath, const int32 InAlreadyCheckedDepth = 0) const;
 
+	/** 
+	 * Disable any filters which would prevent us from syncing to the given items in the content browser.
+	 * Returns true if any filtering changed. 
+	 */
+	bool DisablePluginPathFiltersThatHideItems(TConstArrayView<FContentBrowserItem> Items);
+
 	/** Populates the tree with all folders that are not filtered out */
 	virtual void Populate(const bool bIsRefreshingFilter = false);
 

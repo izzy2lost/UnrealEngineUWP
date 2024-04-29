@@ -1631,6 +1631,14 @@ void SContentBrowser::PrepareToSyncItems(TArrayView<const FContentBrowserItem> I
 		}
 	}
 
+	// Disable any plugin filters which hide the path we're navigating too in the path tree
+	bool bSomePluginPathFiltersChanged = false;
+	if (PathViewPtr->DisablePluginPathFiltersThatHideItems(ItemsToSync))
+	{
+		bSomePluginPathFiltersChanged = true;
+		bRepopulate = true;
+	}
+
 	// Check to see if any item paths don't exist (this can happen if we haven't ticked since the path was created)
 	if (!bRepopulate)
 	{
@@ -1650,7 +1658,7 @@ void SContentBrowser::PrepareToSyncItems(TArrayView<const FContentBrowserItem> I
 	if (bRepopulate)
 	{
 		// let the user know if one of their settings is being changed to be able to show the sync targets
-		if (bDisplayDevChanged || bDisplayEngineChanged || bDisplayPluginsChanged || bDisplayLocalizedChanged)
+		if (bDisplayDevChanged || bDisplayEngineChanged || bDisplayPluginsChanged || bDisplayLocalizedChanged || bSomePluginPathFiltersChanged)
 		{
 			TArray<FText> SettingsText;
 			if (bDisplayDevChanged)
@@ -1669,9 +1677,13 @@ void SContentBrowser::PrepareToSyncItems(TArrayView<const FContentBrowserItem> I
 			{
 				SettingsText.Add(LOCTEXT("ShowLocalizedContent", "Show Localized Content"));
 			}
+			if (bSomePluginPathFiltersChanged)
+			{
+				SettingsText.Add(LOCTEXT("SomePluginPathFilters", "Some Plugin Filters"));
+			}
 			FTextBuilder NotificationBuilder;
 			const FText NotificationPrefix = FText::Format(
-				LOCTEXT("AssetRequiresFilterChanges", "To show {0}|plural(one=this asset,other=these assets), the following {1}|plural(one=setting has,other=settings have) been enabled for the active Content Browser:\n"),
+				LOCTEXT("AssetRequiresFilterChanges", "To show {0}|plural(one=this asset,other=these assets), the following {1}|plural(one=setting has,other=settings have) been changed for the active Content Browser:\n"),
 				ItemsToSync.Num(),
 				SettingsText.Num());
 			NotificationBuilder.AppendLine(NotificationPrefix);

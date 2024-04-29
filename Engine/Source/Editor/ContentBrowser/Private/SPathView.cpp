@@ -1179,11 +1179,14 @@ void SPathView::PluginPathFilterClicked(TSharedRef<FContentBrowserPluginFilter> 
 
 bool SPathView::IsPluginPathFilterInUse(TSharedRef<FContentBrowserPluginFilter> Filter) const
 {
-	for (int32 i=0; i < PluginPathFilters->Num(); ++i)
+	if (PluginPathFilters.IsValid())
 	{
-		if (PluginPathFilters->GetFilterAtIndex(i) == Filter)
+		for (int32 i=0; i < PluginPathFilters->Num(); ++i)
 		{
-			return true;
+			if (PluginPathFilters->GetFilterAtIndex(i) == Filter)
+			{
+				return true;
+			}
 		}
 	}
 
@@ -1198,6 +1201,46 @@ void SPathView::ResetPluginPathFilters()
 	}
 
 	Populate();
+}
+
+bool SPathView::DisablePluginPathFiltersThatHideItems(TConstArrayView<FContentBrowserItem> Items)
+{
+	if (!PluginPathFilters.IsValid())
+	{
+		return false;
+	}
+
+	TSet<TSharedRef<IPlugin>> RelevantPlugins;
+
+	for (const FContentBrowserItem& Item : Items)
+	{
+		FName InternalPath = Item.GetInternalPath();
+		if (InternalPath.IsNone())
+		{
+			continue;
+		}
+		TStringBuilder<256> PathBuffer(InPlace, InternalPath);
+		const FStringView MountPoint = FPathViews::GetMountPointNameFromPath(PathBuffer);
+		if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(MountPoint))
+		{
+			RelevantPlugins.Add(Plugin.ToSharedRef());
+		}
+	}
+
+	bool bAnyChanges = false;
+	for (const TSharedRef<FContentBrowserPluginFilter>& Filter : AllPluginPathFilters)
+	{
+		if (Algo::AnyOf(RelevantPlugins, [&Filter](const TSharedRef<IPlugin>& Plugin) { return !Filter->PassesFilter(Plugin); }))
+		{
+			// Whether the filter is inverse or not, we don't want it in the list
+			if (IsPluginPathFilterInUse(Filter))
+			{
+				SetPluginPathFilterActive(Filter, Filter->IsInverseFilter());
+				bAnyChanges = true;
+			}
+		}
+	}
+	return bAnyChanges;
 }
 
 void SPathView::SetPluginPathFilterActive(const TSharedRef<FContentBrowserPluginFilter>& Filter, bool bActive)
