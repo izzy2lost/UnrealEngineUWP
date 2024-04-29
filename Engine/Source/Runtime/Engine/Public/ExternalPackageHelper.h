@@ -18,11 +18,24 @@
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
+#include "Engine/Level.h"
 
 class FExternalPackageHelper
 {
 public:
-
+	class ENGINE_API FRenameExternalObjectsHelperContext
+	{
+	public:
+		FRenameExternalObjectsHelperContext() = delete;
+		FRenameExternalObjectsHelperContext(FRenameExternalObjectsHelperContext&) = delete;
+		FRenameExternalObjectsHelperContext& operator=(FRenameExternalObjectsHelperContext&) = delete;
+		
+		explicit FRenameExternalObjectsHelperContext(const UObject* SourceObject, ERenameFlags Flags);
+		~FRenameExternalObjectsHelperContext();
+	private:		
+		const UObject* OldObject = nullptr;
+		const UPackage* SourcePackage = nullptr;
+	};
 	DECLARE_EVENT_TwoParams(FExternalPackageHelper, FOnObjectPackagingModeChanged, UObject*, bool /* bExternal */);
 	static ENGINE_API FOnObjectPackagingModeChanged OnObjectPackagingModeChanged;
 
@@ -33,7 +46,7 @@ public:
 	 * @param InFlags the package flags to apply
 	 * @return the created package
 	 */
-	static ENGINE_API UPackage* CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags(), const UExternalDataLayerAsset* InExternalDataLayerAsset = nullptr);
+	static ENGINE_API UPackage* CreateExternalPackage(const UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags(), const UExternalDataLayerAsset* InExternalDataLayerAsset = nullptr);
 
 	/** Returns default external package flags used to create external packages. */
 	static ENGINE_API EPackageFlags GetDefaultExternalPackageFlags();
@@ -46,7 +59,7 @@ public:
 	 * @param bInShouldDirty should dirty or not the object's outer package
 	 * @param InExternalPackageFlags the flags to apply to the external package if bInIsPackageExternal is true
 	 */
-	static ENGINE_API void SetPackagingMode(UObject* InObject, UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty = true, EPackageFlags InExternalPackageFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags());
+	static ENGINE_API void SetPackagingMode(UObject* InObject, const UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty = true, EPackageFlags InExternalPackageFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags());
 
 	/**
 	 * Get the path containing the external objects for this path
@@ -113,6 +126,11 @@ public:
 	 * Call AssetRegistry.GetAssets and sort the results for deterministic use in cooked data.
 	 */
 	static ENGINE_API void GetSortedAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssets);
+
+    /**
+    * Duplicates all ExternalPackage for any UObject outered to InObject (UObject themselves are handled by regular DuplicateObject behavior)
+    */
+	static ENGINE_API void DuplicateExternalPackages(const UObject* InObject, FObjectDuplicationParameters& InDuplicationParameters, EActorPackagingScheme ActorPackagingScheme = EActorPackagingScheme::Reduced);
 private:
 	/** Get the external object package instance name. */
 	static ENGINE_API FString GetExternalObjectPackageInstanceName(const FString& OuterPackageName, const FString& ObjectPackageName);

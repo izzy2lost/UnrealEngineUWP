@@ -978,13 +978,15 @@ bool USourceControlHelpers::ApplyOperationAndReloadPackages(const TArray<FString
 			{
 				if (Asset->IsPackageExternal())
 				{
-					if (bReloadWorld)
+					const bool bIsAssetPartOfWorld = Asset->GetWorld() && Asset->GetWorld()->GetPackage();
+					// In case this is an explicit world object/actor reload or just an external object unload/detach it 
+					if (bReloadWorld || !bIsAssetPartOfWorld)
 					{
 						// detach linker on the object
 						DetachLinker(Package);
 
-						// but track its world for reloading - not the object package itself
-						if (Asset->GetWorld() && Asset->GetWorld()->GetPackage())
+						// track its world for reloading - not the object package itself
+						if (bIsAssetPartOfWorld)
 						{
 							UniqueLoadedPackages.Add(Asset->GetWorld()->GetPackage());
 						}

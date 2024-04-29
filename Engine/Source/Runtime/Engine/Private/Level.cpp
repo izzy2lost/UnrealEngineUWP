@@ -1385,33 +1385,7 @@ void ULevel::PreDuplicate(FObjectDuplicationParameters& DupParams)
 		}
 	}
 
-	if (DupParams.DuplicateMode != EDuplicateMode::PIE && DupParams.bAssignExternalPackages)
-	{
-		UPackage* SrcPackage = GetPackage();
-		UPackage* DstPackage = DupParams.DestOuter->GetPackage();
-
-		FString ReplaceFrom = FPaths::GetBaseFilename(*SrcPackage->GetName());
-		ReplaceFrom = FString::Printf(TEXT("%s.%s:"), *ReplaceFrom, *ReplaceFrom);
-
-		FString ReplaceTo = FPaths::GetBaseFilename(*DstPackage->GetName());
-		ReplaceTo = FString::Printf(TEXT("%s.%s:"), *ReplaceTo, *ReplaceTo);
-
-		ForEachObjectWithOuter(this, [this, &SrcPackage, &DstPackage, &ReplaceFrom, &ReplaceTo, &DupParams](UObject* Object)
-		{
-			if (UPackage* Package = Object ? Object->GetExternalPackage() : nullptr)
-			{
-				FString Path = Object->GetPathName();
-				if (DstPackage != SrcPackage)
-				{
-					Path = Path.Replace(*ReplaceFrom, *ReplaceTo);
-				}
-				UPackage* DupPackage = Object->IsA<AActor>() ? ULevel::CreateActorPackage(DstPackage, GetActorPackagingScheme(), Path, Object) : FExternalPackageHelper::CreateExternalPackage(DstPackage, Path);
-				DupPackage->MarkAsFullyLoaded();
-				DupPackage->MarkPackageDirty();
-				DupParams.DuplicationSeed.Add(Package, DupPackage);
-			}
-		}, /*bIncludeNestedObjects*/ true);
-	}
+	FExternalPackageHelper::DuplicateExternalPackages(this, DupParams, GetActorPackagingScheme());
 #endif
 }
 
