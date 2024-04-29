@@ -79,10 +79,11 @@ private:
 	TOptional<int> GetSelectedLODValue() const;
 	TOptional<int> GetSelectedForcedLODValue() const;
 	TOptional<int> GetSelectedNumLODsValue() const;
+	TOptional<int> GetSelectedForcedLODSliderMaxValue() const;
 	FText GetSelectedTriangleCount() const;
 	FText GetSelectedBoneCount() const;
 
-	void GenerateDetailPanelEntry(const FString& Label,
+	void GenerateDetailPanelEntry(const FText& Label,
 		FText (SPrimitiveDebuggerDetailView::* ValueGetter)() const,
 		EVisibility (SPrimitiveDebuggerDetailView::* VisibilityGetter)() const = nullptr,
 		FText (SPrimitiveDebuggerDetailView::* TooltipGetter)() const = nullptr,
@@ -94,6 +95,9 @@ private:
 	EVisibility OptionVisibilityForceLOD() const;
 	EVisibility OptionVisibilityForceDisableNanite() const;
 
+	ECheckBoxState ForceLODState() const;
+	bool IsForceLODIndexSliderEnabled() const;
+	void OnToggleForceLOD(ECheckBoxState state);
 	void HandleForceLOD(int ForcedLOD);
 	
 	ECheckBoxState ShowDebugBoundsState() const;
@@ -151,6 +155,8 @@ public:
 	bool IsEntryPinned(FPrimitiveRowDataPtr Data) const;
 
 	void SetForcedLODForEntry(FPrimitiveComponentId EntryId, int32 NewForcedLOD);
+	void ResetForcedLODForEntry(FPrimitiveComponentId EntryId);
+	bool DoesEntryHaveForcedLOD(FPrimitiveComponentId EntryId) const;
 	void SetForceDisabledNaniteForEntry(FPrimitiveComponentId EntryId, bool bForceDisableNanite);
 	
 	void SetShowDebugBoundsForEntry(FPrimitiveComponentId EntryId, bool bShowDebugBounds);
