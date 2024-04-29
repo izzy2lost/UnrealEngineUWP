@@ -13,6 +13,7 @@
 #include "ChaosCloth/ChaosClothingSimulationSolver.h"
 #include "ChaosCloth/ChaosClothVisualization.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "PhysicsField/PhysicsFieldComponent.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "ClothingSimulation.h"
 
@@ -194,7 +195,26 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return false; // Not Simulating
 		}
 
-		Solver->SetEnableSolver(ShouldEnableSolver(Solver->GetEnableSolver()));
+		// Check whether the solver should be enabled for caching purpose
+		const bool bShouldEnableSolver = ShouldEnableSolver(Solver->GetEnableSolver());
+
+		// UpdateWorldForces
+		if (bShouldEnableSolver)
+		{
+			if (UWorld* const World = ClothComponent.GetWorld())
+			{
+				if (UPhysicsFieldComponent* const PhysicsField = World->PhysicsField)
+				{
+					const FBox BoundingBox = CalculateBounds_AnyThread().GetBox().TransformBy(ClothComponent.GetComponentTransform());
+
+					PhysicsField->FillTransientCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetTransientCommands());
+					PhysicsField->FillPersistentCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetPersistentCommands());
+				}
+			}
+		}
+
+		// Prepare the solver task
+		Solver->SetEnableSolver(bShouldEnableSolver);
 
 		const bool bUseCache = ClothSimulationContext->CacheData.HasData();
 		const bool bCreateParallelTask = (DeltaTime > 0.f && !ClothComponent.IsSimulationSuspended()) || bUseCache;

@@ -233,12 +233,6 @@ void UChaosClothComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 	// Tick USkinnedMeshComponent first so it will update the predicted lod
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// TODO: Fields
-	//if (ClothingSimulation)
-	//{
-	//	ClothingSimulation->UpdateWorldForces(this);
-	//}
-
 	// Make sure that the previous frame simulation has completed
 	HandleExistingParallelSimulation();
 
