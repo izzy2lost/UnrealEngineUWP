@@ -920,8 +920,57 @@ namespace GpuProfilerTrace
 }
 #endif
 
+static std::atomic<bool> GAreGPUStatsEnabled{ false };
+
+bool AreGPUStatsEnabled()
+{
+	return GAreGPUStatsEnabled;
+}
+
+void LatchAreGPUStatsEnabled()
+{
+	auto GetValue = []()
+	{
+		if (GSupportsTimestampRenderQueries == false || !CVarGPUStatsEnabled.GetValueOnRenderThread())
+		{
+			return false;
+		}
+
+#if GPUPROFILERTRACE_ENABLED
+		// Force GPU profiler on if Unreal Insights is running
+		if (UE_TRACE_CHANNELEXPR_IS_ENABLED(GpuProfilerTrace::GpuChannel))
+		{
+			return true;
+		}
+#endif
+
+#if STATS 
+		return true;
+#elif !CSV_PROFILER
+		return false;
+#else
+
+		// If we only have CSV stats, only capture if CSV GPU stats are enabled, and we're capturing
+		if (!CVarGPUCsvStatsEnabled.GetValueOnRenderThread())
+		{
+			return false;
+		}
+		if (!FCsvProfiler::Get()->IsCapturing_Renderthread())
+		{
+			return false;
+		}
+
+		return true;
+#endif
+	};
+
+	GAreGPUStatsEnabled = GetValue();
+}
+
 void FRealtimeGPUProfiler::BeginFrame(FRHICommandListImmediate& RHICmdList)
 {
+	LatchAreGPUStatsEnabled();
+
 	if (!AreGPUStatsEnabled())
 	{
 		return;
@@ -932,41 +981,6 @@ void FRealtimeGPUProfiler::BeginFrame(FRHICommandListImmediate& RHICmdList)
 
 	Frames[WriteBufferIndex]->TimestampCalibrationQuery = new FRHITimestampCalibrationQuery();
 	RHICmdList.CalibrateTimers(Frames[WriteBufferIndex]->TimestampCalibrationQuery);
-}
-
-bool AreGPUStatsEnabled()
-{
-	if (GSupportsTimestampRenderQueries == false || !CVarGPUStatsEnabled.GetValueOnRenderThread())
-	{
-		return false;
-	}
-
-#if GPUPROFILERTRACE_ENABLED
-	// Force GPU profiler on if Unreal Insights is running
-	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(GpuProfilerTrace::GpuChannel))
-	{
-		return true;
-	}
-#endif
-
-#if STATS 
-	return true;
-#elif !CSV_PROFILER
-	return false;
-#else
-
-	// If we only have CSV stats, only capture if CSV GPU stats are enabled, and we're capturing
-	if (!CVarGPUCsvStatsEnabled.GetValueOnRenderThread())
-	{
-		return false;
-	}
-	if (!FCsvProfiler::Get()->IsCapturing_Renderthread())
-	{
-		return false;
-	}
-
-	return true;
-#endif
 }
 
 void FRealtimeGPUProfiler::EndFrame(FRHICommandListImmediate& RHICmdList)
