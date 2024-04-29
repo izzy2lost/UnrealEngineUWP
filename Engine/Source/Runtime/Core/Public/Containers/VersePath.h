@@ -54,17 +54,17 @@ public:
 		return PathString;
 	}
 
-	CORE_API static bool TryMake(FVersePath& OutPath, const FString& Path);
-	CORE_API static bool TryMake(FVersePath& OutPath, FString&& Path);
+	CORE_API static bool TryMake(FVersePath& OutPath, const FString& Path, FText* OutErrorMessage = nullptr);
+	CORE_API static bool TryMake(FVersePath& OutPath, FString&& Path, FText* OutErrorMessage = nullptr);
 
-	CORE_API static bool IsValidFullPath(const TCHAR* String);
-	CORE_API static bool IsValidFullPath(const TCHAR* String, int32 Len);
-	CORE_API static bool IsValidDomain(const TCHAR* String);
-	CORE_API static bool IsValidDomain(const TCHAR* String, int32 Len);
-	CORE_API static bool IsValidSubpath(const TCHAR* String);
-	CORE_API static bool IsValidSubpath(const TCHAR* String, int32 Len);
-	CORE_API static bool IsValidIdent(const TCHAR* String);
-	CORE_API static bool IsValidIdent(const TCHAR* String, int32 Len);
+	CORE_API static bool IsValidFullPath(const TCHAR* String, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidFullPath(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidDomain(const TCHAR* String, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidDomain(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidSubpath(const TCHAR* String, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidSubpath(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidIdent(const TCHAR* String, FText* OutErrorMessage = nullptr, const FText* IdentTermReplacement = nullptr);
+	CORE_API static bool IsValidIdent(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr, const FText* IdentTermReplacement = nullptr);
 
 private:
 	FString PathString;
