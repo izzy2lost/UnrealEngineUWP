@@ -3242,15 +3242,20 @@ bool UEditorEngine::CanCopySelectedActorsToClipboard( UWorld* InWorld, FCopySele
 				CopySelected.LevelAllActorsAreIn = Actor->GetLevel();
 			}
 
-			if (Actor->GetLevel())
+			IConsoleVariable* TemporaryActorCopyCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("TypedElements.EnableTemporaryActorCopy"));
+
+			if (TemporaryActorCopyCvar && !TemporaryActorCopyCvar->GetBool())
 			{
-				if (UWorld* ActorWorld = Actor->GetLevel()->GetWorld())
+				if (Actor->GetLevel())
 				{
-					// If the actor is in a PIE world but doesn't have an editor counterpart it means it's a temporary
-					// actor spawned to the world. These actors can cause issues when copied so have been disabled.
-					if (ActorWorld->WorldType == EWorldType::PIE && !GEditor->ObjectsThatExistInEditorWorld.Get(Actor))
+					if (UWorld* ActorWorld = Actor->GetLevel()->GetWorld())
 					{
-						return false;
+						// If the actor is in a PIE world but doesn't have an editor counterpart it means it's a temporary
+						// actor spawned to the world. These actors can cause issues when copied so have been disabled.
+						if (ActorWorld->WorldType == EWorldType::PIE && !GEditor->ObjectsThatExistInEditorWorld.Get(Actor))
+						{
+							return false;
+						}
 					}
 				}
 			}
