@@ -608,6 +608,9 @@ public:
 	/** Pastes a new local variable to the focused function graph */
 	virtual void OnPasteNewLocalVariable(const FBPVariableDescription& VariableDescription);
 
+	/** Create a variant for a function */
+	virtual void AddNewFunctionVariant(const UEdGraph* InOriginalFunction) {}
+
 	// Type of new document/graph being created by a menu item
 	enum ECreatedDocumentType
 	{

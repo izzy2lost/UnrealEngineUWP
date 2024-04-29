@@ -728,6 +728,35 @@ void FRigVMEditor::JumpToHyperlink(const UObject* ObjectReference, bool bRequest
 	FBlueprintEditor::JumpToHyperlink(ObjectReference, bRequestRename);
 }
 
+void FRigVMEditor::AddNewFunctionVariant(const UEdGraph* InOriginalFunction)
+{
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		GEditor->CancelTransaction(0);
+	}
+#endif
+	
+	if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InOriginalFunction))
+	{
+		if (URigVMGraph* RigVMGraph = RigVMEdGraph->GetModel())
+		{
+			if (URigVMFunctionLibrary* FunctionLibrary = Cast<URigVMFunctionLibrary>(RigVMGraph->GetParentGraph()))
+			{
+				URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint();
+				URigVMController* Controller = RigVMBlueprint->GetController(FunctionLibrary);
+				if (const URigVMLibraryNode* VariantNode = Controller->CreateFunctionVariant(RigVMGraph->GetOuter()->GetFName(), NAME_None, true, true))
+				{
+					if (const UEdGraph* NewGraph = RigVMBlueprint->GetEdGraph(VariantNode->GetContainedGraph()))
+					{
+						OpenDocument(NewGraph, FDocumentTracker::OpenNewDocument);
+					}
+				}
+			}
+		}
+	}
+}
+
 void FRigVMEditor::PostUndo(bool bSuccess)
 {
 	const FTransaction* Transaction = GEditor->Trans->GetTransaction(GEditor->Trans->GetQueueLength() - GEditor->Trans->GetUndoCount());

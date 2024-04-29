@@ -2540,6 +2540,20 @@ TSharedPtr<SWidget> SMyBlueprint::OnContextMenuOpening()
 					})
 				);
 			}
+
+			if (const UEdGraphSchema* Schema = Graph->EdGraph->GetSchema())
+			{
+				if (Schema->AllowsFunctionVariants())
+				{
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("MyBlueprint_Add_Func_Variant", "Add Variant"), FText(), FSlateIcon(),
+						FExecuteAction::CreateLambda([BlueprintEditor, Graph]()
+						{
+							BlueprintEditor->AddNewFunctionVariant(Graph->EdGraph);
+						})
+					);
+				}
+			}
 		}
 		// If this is an event, allow us to convert it to a function graph if possible
 		else if( Event )

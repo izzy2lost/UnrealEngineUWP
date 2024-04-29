@@ -1186,6 +1186,9 @@ class UEdGraphSchema : public UObject
 	/* Duplicate a given graph return the duplicate graph */
 	virtual UEdGraph* DuplicateGraph(UEdGraph* GraphToDuplicate) const { return nullptr;}
 
+	/* Indicates whether variants of functions are allowed */
+	virtual bool AllowsFunctionVariants() const { return false; }
+
 	/* returns new FConnectionDrawingPolicy from this schema */
 	virtual class FConnectionDrawingPolicy* CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, class UEdGraph* InGraphObj) const { return nullptr; }
 

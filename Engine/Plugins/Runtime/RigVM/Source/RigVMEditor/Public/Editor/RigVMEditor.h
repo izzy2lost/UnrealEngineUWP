@@ -93,6 +93,7 @@ public:
 	virtual bool ShouldLoadBPLibrariesFromAssetRegistry() override { return false; }
 	virtual void JumpToHyperlink(const UObject* ObjectReference, bool bRequestRename = false) override;
 	virtual bool ShouldOpenGraphByDefault() const { return true; }
+	virtual void AddNewFunctionVariant(const UEdGraph* InOriginalFunction) override;
 
 	// FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
