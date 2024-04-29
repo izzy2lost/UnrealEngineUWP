@@ -52,7 +52,7 @@ namespace uba
 		{
 			auto absPathChars = searchPos;
 			CharType lastChar = 0;
-			while (absPathChars < strEnd && !(lastChar == ':' && *absPathChars == '\\'))
+			while (absPathChars < strEnd && !(lastChar == ':' && *absPathChars == PathSeparator))
 			{
 				lastChar = *absPathChars;
 				++absPathChars;

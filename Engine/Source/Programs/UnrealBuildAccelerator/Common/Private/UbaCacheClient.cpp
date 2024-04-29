@@ -659,7 +659,7 @@ namespace uba
 					if (!rootPaths.NormalizeString<char>(m_logger, (const char*)file.GetData(), file.GetSize(), handleString, path.data))
 						return false;
 
-					if (!rootOffsets.empty())
+					if (rootOffsetsSize)
 					{
 						u8* mem = (u8*)block.Allocate(rootOffsetsSize, 1, TC(""));
 						rootOffsetsStart = u32(mem - block.memory);
@@ -667,6 +667,9 @@ namespace uba
 						for (u32 rootOffset : rootOffsets)
 							writer.Write7BitEncoded(rootOffset);
 					}
+					else
+						rootOffsetsStart = u32(block.writtenSize);
+
 
 					auto& s = m_storage;
 					FileSender sender { m_logger, m_client, s.m_bufferSlots, s.Stats(), m_sendOneAtTheTimeLock, s.m_casCompressor, s.m_casCompressionLevel };
