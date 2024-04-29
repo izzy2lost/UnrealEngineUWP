@@ -337,6 +337,9 @@ void UAvaBroadcast::LoadBroadcast()
 		UE::AvaMediaSerializationUtils::SerializeObject(InputFormatter, this);
 		FileReader->Close();
 	}
+
+	// Set the profile names early because it is needed to resolve the pinned channels below.
+	UpdateProfileNames();
 	
 	if (Profiles.Num() > 0)
 	{
@@ -353,7 +356,6 @@ void UAvaBroadcast::LoadBroadcast()
 	}
 	
 	EnsureValidCurrentProfile();
-	UpdateProfileNames();
 }
 
 void UAvaBroadcast::SaveBroadcast()
