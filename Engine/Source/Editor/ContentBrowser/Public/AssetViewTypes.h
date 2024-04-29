@@ -36,6 +36,8 @@ public:
 
 	void RemoveItemData(const FContentBrowserItemData& InItemData);
 
+	void RemoveItemData(const FContentBrowserMinimalItemData& InItemKey);
+
 	/** Clear cached custom column data */
 	void ClearCachedCustomColumns();
 

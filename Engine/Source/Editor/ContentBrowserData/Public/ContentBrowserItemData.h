@@ -19,6 +19,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+class FContentBrowserMinimalItemData;
 class IContentBrowserItemDataSink;
 class UContentBrowserDataSource;
 
@@ -134,7 +135,7 @@ public:
 	 * @param InDisplayNameOverride The user-facing name of this item (eg, "MyFile"). This will be lazily set to
 	 * InItemName if no override is provided.
 	 * @param InPayload Any data source defined payload data for this item.
-	 * @param InInternalPath Precalculated internal path if available
+	 * @param InInternalPath Internal path if any (some items such as "virtual folders" may not have an internal path)
 	 */
 	FContentBrowserItemData(
 		UContentBrowserDataSource* InOwnerDataSource,
@@ -143,7 +144,7 @@ public:
 		FName InItemName,
 		FText InDisplayNameOverride,
 		TSharedPtr<const IContentBrowserItemDataPayload> InPayload,
-		TOptional<FName> InInternalPath = {});
+		FName InInternalPath);
 
 	/**
 	 * Copy support.
@@ -278,11 +279,11 @@ private:
 	/** The leaf-name of this item (eg, "MyFile") */
 	FName ItemName;
 
-	/** Cached/pre-computed value for GetInternalPath */
-	mutable TOptional<FName> InternalPath;
+	/** Internal path used to identify item within the owner data source */
+	FName InternalPath;
 
 	/** The user-facing name of this item (eg, "MyFile") */
-	mutable FText CachedDisplayName;
+	FText CachedDisplayName;
 
 	/** Any data source defined payload data for this item */
 	TSharedPtr<const IContentBrowserItemDataPayload> Payload;
@@ -622,6 +623,60 @@ private:
 
 	/** Delegate used to finalize the creation of the temporary item, and return the real item */
 	FOnFinalizeItem OnFinalizeItem;
+};
+
+/**
+ * Minimal representation of a FContentBrowserItemData instance for comparison purposes.
+ * @note Unlike FContentBrowserItemDataKey this does consider the data source, and unlike FContentBrowserItemKey it considers the data source for folder items.
+ *  It can be used to identify a FContentBrowserItemData for removal from an FContentBrowserItem
+ */
+class CONTENTBROWSERDATA_API FContentBrowserMinimalItemData
+{
+public:
+	explicit FContentBrowserMinimalItemData(const FContentBrowserItemData& InItemData);
+	FContentBrowserMinimalItemData(EContentBrowserItemFlags InItemType, FName InVirtualPath, const UContentBrowserDataSource* InSource);
+
+	bool operator==(const FContentBrowserMinimalItemData& Other) const
+	{
+		return !(*this != Other);
+	}
+	bool operator!=(const FContentBrowserMinimalItemData& Other) const
+	{
+		return ItemType == Other.ItemType && VirtualPath == Other.VirtualPath && DataSource == Other.DataSource;
+	}
+
+	/** Return a string representation for debugging. */
+	FString ToString() const;
+	
+	EContentBrowserItemFlags GetItemType() const
+	{
+		return ItemType;
+	} 
+
+	FName GetVirtualPath() const
+	{
+		return VirtualPath;
+	}
+
+	const UContentBrowserDataSource* GetDataSource() const 
+	{
+		return DataSource;
+	}
+
+private:
+	/**
+	 * Flags denoting the item type information for an item instance.
+	 * @note This is always masked against EContentBrowserItemFlags::Type_MASK to remove any non-type information.
+	 */
+	EContentBrowserItemFlags ItemType = EContentBrowserItemFlags::None;
+
+	/**
+	 * The complete virtual path that uniquely identifies an item within its owner data source.
+	 */
+	FName VirtualPath;
+
+	/** A pointer to the data source that manages the thing represented by this key */
+	const UContentBrowserDataSource* DataSource = nullptr;
 };
 
 /**

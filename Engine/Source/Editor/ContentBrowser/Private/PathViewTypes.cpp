@@ -58,6 +58,11 @@ void FTreeItem::RemoveItemData(const FContentBrowserItemData& InItemData)
 	Item.Remove(InItemData);
 }
 
+FContentBrowserItemData FTreeItem::RemoveItemData(const FContentBrowserMinimalItemData& InItemKey)
+{
+	return Item.TryRemove(InItemKey);
+}
+
 void FTreeItem::SetItemData(FContentBrowserItem InItem)
 {
 	Item = MoveTemp(InItem);
