@@ -9,23 +9,23 @@ void UChaosVDSettingsObjectBase::PostEditChangeProperty(FPropertyChangedEvent& P
 {
 	UObject::PostEditChangeProperty(PropertyChangedEvent);
 
-	BroadcastSettingsChanged(this);
+	BroadcastSettingsChanged();
 }
 
 void UChaosVDSettingsObjectBase::PostEditUndo()
 {
 	UObject::PostEditUndo();
-	BroadcastSettingsChanged(this);
+	BroadcastSettingsChanged();
 }
 
-void UChaosVDSettingsObjectBase::BroadcastSettingsChanged(UObject* SettingsObject)
+void UChaosVDSettingsObjectBase::BroadcastSettingsChanged()
 {
 	SettingsChangedDelegate.Broadcast(this);
 }
 
-void UChaosVDVisualizationSettingsObjectBase::BroadcastSettingsChanged(UObject* SettingsObject)
+void UChaosVDVisualizationSettingsObjectBase::BroadcastSettingsChanged()
 {
-	Super::BroadcastSettingsChanged(SettingsObject);
+	Super::BroadcastSettingsChanged();
 	SChaosVDPlaybackViewport::ExecuteExternalViewportInvalidateRequest();
 }
 

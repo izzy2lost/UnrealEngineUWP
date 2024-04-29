@@ -27,7 +27,7 @@ public:
 	virtual void PostEditUndo() override;
 
 protected:
-	virtual void BroadcastSettingsChanged(UObject* SettingsObject);
+	virtual void BroadcastSettingsChanged();
 	
 private:
 	FChaosVDSettingChanged SettingsChangedDelegate;
@@ -38,7 +38,7 @@ class UChaosVDVisualizationSettingsObjectBase : public UChaosVDSettingsObjectBas
 {
 	GENERATED_BODY()
 protected:
-	virtual void BroadcastSettingsChanged(UObject* SettingsObject) override;
+	virtual void BroadcastSettingsChanged() override;
 };
 
 UCLASS(config = Engine)

@@ -7,7 +7,7 @@ void UChaosVDCollisionDataVisualizationSettings::SetCollisionDataVisualizationFl
 	if (UChaosVDCollisionDataVisualizationSettings* Settings = GetMutableDefault<UChaosVDCollisionDataVisualizationSettings>())
 	{
 		Settings->CollisionDataVisualizationFlags = NewFlags;
-		Settings->BroadcastSettingsChanged(Settings);
+		Settings->BroadcastSettingsChanged();
 	}
 }
 

@@ -7,7 +7,7 @@ void UChaosVDCharacterConstraintsVisualizationSettings::SetCharacterGroundConstr
 	if (UChaosVDCharacterConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDCharacterConstraintsVisualizationSettings>())
 	{
 		Settings->GlobalCharacterGroundConstraintDataVisualizationFlags = NewFlags;
-		Settings->BroadcastSettingsChanged(Settings);
+		Settings->BroadcastSettingsChanged();
 	}
 }
 

@@ -89,7 +89,7 @@ void UChaosVDParticleVisualizationDebugDrawSettings::SetDataDebugDrawVisualizati
 	if (UChaosVDParticleVisualizationDebugDrawSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationDebugDrawSettings>())
 	{
 		Settings->ParticleDataVisualizationFlags = Flags;
-		Settings->BroadcastSettingsChanged(Settings);
+		Settings->BroadcastSettingsChanged();
 	}
 }
 
@@ -108,7 +108,7 @@ void UChaosVDParticleVisualizationSettings::SetGeometryVisualizationFlags(EChaos
 	if (UChaosVDParticleVisualizationSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
 	{
 		Settings->GeometryVisibilityFlags = Flags;
-		Settings->BroadcastSettingsChanged(Settings);
+		Settings->BroadcastSettingsChanged();
 	}
 }
 

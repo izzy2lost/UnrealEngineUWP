@@ -730,19 +730,19 @@ bool FChaosVDPlaybackController::ReleaseExclusivePlaybackControls(const IChaosVD
 float FChaosVDPlaybackController::GetFrameTimeOverride() const
 {
 	constexpr int32 MinimumFrameRateOverride = 1;
-	return CurrentFrameRateOverride >= MinimumFrameRateOverride ? 1.0f / static_cast<float>(CurrentFrameRateOverride) : InvalidFrameRateOverride;
+	return (CurrentFrameRateOverride >= MinimumFrameRateOverride) ? 1.0f / static_cast<float>(CurrentFrameRateOverride) : InvalidFrameRateOverride;
 }
 
 int32 FChaosVDPlaybackController::GetFrameRateOverride() const
 {
 	constexpr int32 MinimumFrameRateOverride = 1;
-	return CurrentFrameRateOverride >= MinimumFrameRateOverride ? CurrentFrameRateOverride : InvalidFrameRateOverride;
+	return (CurrentFrameRateOverride >= MinimumFrameRateOverride) ? CurrentFrameRateOverride : InvalidFrameRateOverride;
 }
 
 void FChaosVDPlaybackController::SetFrameRateOverride(float NewFrameRateOverride)
 {
 	constexpr int32 MinimumFrameRateOverride = 1;
-	CurrentFrameRateOverride = NewFrameRateOverride >= MinimumFrameRateOverride ? NewFrameRateOverride : InvalidFrameRateOverride;
+	CurrentFrameRateOverride = (NewFrameRateOverride >= MinimumFrameRateOverride) ? NewFrameRateOverride : InvalidFrameRateOverride;
 }
 
 float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const

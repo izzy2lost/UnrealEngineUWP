@@ -57,7 +57,7 @@ void Chaos::VisualDebugger::Utils::CreateMenuEntryForObject(UToolMenu* Menu, UOb
 			.Text(NSLOCTEXT("ChaosVisualDebugger", "CreateMenuEntryForObjectErrorMessage", "Failed to create menu for object. The provied object is null"))
 		];
 		
-		FToolMenuEntry ErrorMenuEntry = FToolMenuEntry::InitWidget(Object->GetFName(), ErrorMessageWidget, FText::GetEmpty());
+		FToolMenuEntry ErrorMenuEntry = FToolMenuEntry::InitWidget(TEXT("InvalidObject"), ErrorMessageWidget, FText::GetEmpty());
 		Menu->AddMenuEntry(NAME_None, ErrorMenuEntry);
 		return;
 	}

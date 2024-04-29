@@ -7,7 +7,7 @@ void UChaosVDJointConstraintsVisualizationSettings::SetJointsDataVisualizationFl
 	if (UChaosVDJointConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDJointConstraintsVisualizationSettings>())
 	{
 		Settings->GlobalJointsDataVisualizationFlags = NewFlags;
-		Settings->BroadcastSettingsChanged(Settings);
+		Settings->BroadcastSettingsChanged();
 	}
 }
 

@@ -7,7 +7,7 @@ void UChaosVDSceneQueriesVisualizationSettings::SetSceneQueryDataVisualizationFl
 	if (UChaosVDSceneQueriesVisualizationSettings* Settings = GetMutableDefault<UChaosVDSceneQueriesVisualizationSettings>())
 	{
 		Settings->GlobalSceneQueriesVisualizationFlags = NewFlags;
-		Settings->BroadcastSettingsChanged(Settings);
+		Settings->BroadcastSettingsChanged();
 	}
 }
 
