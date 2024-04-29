@@ -25,6 +25,15 @@
 
 #define LOCTEXT_NAMESPACE "URuntimeVirtualTextureComponent"
 
+static TAutoConsoleVariable<bool> CVarVTStreamingMips(
+	TEXT("r.VT.RVT.StreamingMips"),
+	true,
+	TEXT("Enable streaming mips for RVT"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)	{ FGlobalComponentRecreateRenderStateContext Context; }),
+	ECVF_Default);
+
+#if WITH_EDITOR
+
 static TAutoConsoleVariable<int32> CVarVTStreamingMipsShowInEditor(
 	TEXT("r.VT.RVT.StreamingMips.UseInEditor"),
 	1,
@@ -32,10 +41,16 @@ static TAutoConsoleVariable<int32> CVarVTStreamingMipsShowInEditor(
 	TEXT("  0: Never use.\n")
 	TEXT("  1: Use the setting from RVT component (default).\n")
 	TEXT("  2: Always use when available.\n"),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
-		{
-			FGlobalComponentRecreateRenderStateContext Context;
-		}),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable) { FGlobalComponentRecreateRenderStateContext Context; }),
+	ECVF_Default);
+
+#endif
+
+static TAutoConsoleVariable<bool> CVarVTStreamingMipsUseAlways(
+	TEXT("r.VT.RVT.StreamingMips.UseAlways"),
+	false,
+	TEXT("Whenever streaming low mips are in use, only show the streaming mips and never show runtime generated pages.\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable) { FGlobalComponentRecreateRenderStateContext Context; }),
 	ECVF_Default);
 
 
@@ -258,7 +273,12 @@ bool URuntimeVirtualTextureComponent::IsStreamingLowMips(EShadingPath ShadingPat
 		}
 	}
 #endif
-	return VirtualTexture != nullptr && StreamingTexture != nullptr && StreamingTexture->GetVirtualTexture(ShadingPath) != nullptr;
+	return VirtualTexture != nullptr && StreamingTexture != nullptr && StreamingTexture->GetVirtualTexture(ShadingPath) != nullptr && CVarVTStreamingMips.GetValueOnAnyThread();
+}
+
+bool URuntimeVirtualTextureComponent::IsStreamingLowMipsOnly()
+{
+	return bUseStreamingMipsOnly || CVarVTStreamingMipsUseAlways.GetValueOnAnyThread();
 }
 
 bool IsCompatibleFormat(URuntimeVirtualTexture const& RuntimeVirtualTexture, UVirtualTexture2D const& StreamingVirtualTexture)

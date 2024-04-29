@@ -71,6 +71,12 @@ namespace VirtualTextureScalability
 		TEXT("Increasing this threshold reduces the chances that an in-use frame is considered free."),
 		ECVF_RenderThreadSafe);
 
+	static TAutoConsoleVariable<int32> CVarVTKeepDirtyPageMappedFrameThreshold(
+		TEXT("r.VT.RVT.DirtyPagesKeptMappedFrames"), 
+		8,
+		TEXT("Number of frames since the last time a VT page was used, before it will be unmapped instead of simply updated during RVT page invalidation."),
+		ECVF_RenderThreadSafe);
+
 	static const int NumScalabilityGroups = 3;
 
 	static float GTileCountBiases[NumScalabilityGroups] = { 0 };
@@ -208,6 +214,11 @@ namespace VirtualTextureScalability
 	uint32 GetPageFreeThreshold()
 	{
 		return FMath::Max(CVarVTPageFreeThreshold.GetValueOnRenderThread(), 0);
+	}
+
+	uint32 GetKeepDirtyPageMappedFrameThreshold()
+	{
+		return FMath::Max(CVarVTKeepDirtyPageMappedFrameThreshold.GetValueOnRenderThread(), 0);
 	}
 
 	int32 GetRuntimeVirtualTextureSizeBias(uint32 GroupIndex)

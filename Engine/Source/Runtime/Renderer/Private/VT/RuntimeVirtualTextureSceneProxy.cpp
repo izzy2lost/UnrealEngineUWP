@@ -15,22 +15,6 @@
 
 #define LOCTEXT_NAMESPACE "VirtualTexture"
 
-static TAutoConsoleVariable<int32> CVarVTStreamingMips(
-	TEXT("r.VT.RVT.StreamingMips"),
-	1,
-	TEXT("Enable streaming mips for RVT"),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
-	{
-		FGlobalComponentRecreateRenderStateContext Context;
-	}),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarDirtyPagesKeptMappedFrames(
-	TEXT("r.VT.RVT.DirtyPagesKeptMappedFrames"),
-	8,
-	TEXT("When invalidating RVT pages, we keep them mapped if they gave feedback in the last N frames."),
-	ECVF_RenderThreadSafe);
-
 int32 FRuntimeVirtualTextureSceneProxy::ProducerIdGenerator = 1;
 
 FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtualTextureComponent* InComponent)
@@ -73,19 +57,7 @@ FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtu
 			const EShadingPath ShadingPath = SceneInterface ? SceneInterface->GetShadingPath() : EShadingPath::Deferred;
 			if (InComponent->IsStreamingLowMips(ShadingPath))
 			{
-				if (CVarVTStreamingMips.GetValueOnAnyThread() == 0)
-				{
-#if !UE_BUILD_SHIPPING
-					// Notify that streaming texture is turned off.
-					OnScreenWarningDelegateHandle = FRendererOnScreenNotification::Get().AddLambda([](FCoreDelegates::FSeverityMessageMap& OutMessages)
-					{
-						OutMessages.Add(
-							FCoreDelegates::EOnScreenMessageSeverity::Warning,
-							LOCTEXT("SVTDisabled", "Runtime Virtual Texture streaming mips disabled."));
-					});
-#endif
-				}
-				else if (InComponent->IsStreamingTextureInvalid(ShadingPath))
+				if (InComponent->IsStreamingTextureInvalid(ShadingPath))
 				{
 #if !UE_BUILD_SHIPPING
 					// Notify that streaming texture is invalid since this can cause performance regression.
@@ -233,7 +205,7 @@ void FRuntimeVirtualTextureSceneProxy::FlushDirtyPages()
 		{
 			// Keeping visible pages mapped reduces update flicker due to the latency in the unmap/feedback/map sequence.
 			// But it potentially creates more page update work since more pages may get updated.
-			const uint32 MaxAgeToKeepMapped = CVarDirtyPagesKeptMappedFrames.GetValueOnRenderThread();
+			const uint32 MaxAgeToKeepMapped = VirtualTextureScalability::GetKeepDirtyPageMappedFrameThreshold();
 
 			//todo[vt]: 
 			// Profile to work out best heuristic for when we should use the CombinedDirtyRect

@@ -147,11 +147,11 @@ public:
 	/** Get if we want to use any streaming low mips on this component. */
 	ENGINE_API bool IsStreamingLowMips(EShadingPath ShadingPath) const;
 
+	/** Public getter for using streaming low mips only. */
+	ENGINE_API bool IsStreamingLowMipsOnly();
+
 	/** Public getter for streaming mips fixed color. */
 	ENGINE_API FLinearColor GetStreamingMipsFixedColor() const;
-
-	/** Public getter for using streaming low mips only. */
-	ENGINE_API bool IsStreamingLowMipsOnly() { return bUseStreamingMipsOnly; }
 
 	/** Public getter for lossy compression setting. */
 	TEnumAsByte<ETextureLossyCompressionAmount> GetLossyCompressionAmount() const { return LossyCompressionAmount; }
