@@ -283,8 +283,6 @@ namespace Horde.Server.Tests
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
 			services.AddSingleton<ServerStatusService>();
 
-			services.AddScoped<JobRpcCommon>();
-
 			services.AddSingleton<ConformTaskSource>();
 			services.AddSingleton<ICommitService, CommitService>();
 

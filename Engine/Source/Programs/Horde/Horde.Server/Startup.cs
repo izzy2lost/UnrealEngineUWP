@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Net.Mime;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -121,8 +120,6 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
 using MongoDB.Bson.Serialization.Serializers;
-using Polly;
-using Polly.Extensions.Http;
 using Serilog;
 using Serilog.Events;
 using StackExchange.Redis;
@@ -486,9 +483,6 @@ namespace Horde.Server
 				options.Interceptors.Add(typeof(GrpcExceptionInterceptor));
 			});
 			services.AddGrpcReflection();
-
-			services.AddHttpClient<JobRpcCommon>().AddPolicyHandler(GetDefaultHttpRetryPolicy());
-			services.AddScoped<JobRpcCommon>();
 
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
@@ -1047,13 +1041,6 @@ namespace Horde.Server
 			});
 		}
 
-		private static IAsyncPolicy<HttpResponseMessage> GetDefaultHttpRetryPolicy()
-		{
-			return HttpPolicyExtensions
-				.HandleTransientHttpError()
-				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10) });
-		}
-
 		public sealed class BlobLocatorBsonSerializer : SerializerBase<BlobLocator>
 		{
 			/// <inheritdoc/>
@@ -1296,7 +1283,7 @@ namespace Horde.Server
 				options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
 				{
 					diagnosticContext.Set("RemoteIP", httpContext?.Connection?.RemoteIpAddress);
-					
+
 					// Header sent by the dashboard to indicate how long a user has been inactive for a particular browser page (in seconds)
 					if (httpContext?.Request.Headers.TryGetValue("X-Horde-LastUserActivity", out StringValues values) is true)
 					{
