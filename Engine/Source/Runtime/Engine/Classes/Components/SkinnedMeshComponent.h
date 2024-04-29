@@ -168,16 +168,34 @@ struct FSkelMeshComponentLODInfo
 	ENGINE_API FSkelMeshComponentLODInfo();
 	ENGINE_API ~FSkelMeshComponentLODInfo();
 
+	UE_DEPRECATED(5.5, "Use ReleaseOverrideVertexColors which does not require a flush before proceeding.")
 	ENGINE_API void ReleaseOverrideVertexColorsAndBlock();
+
+	UE_DEPRECATED(5.5, "Use ReleaseOverrideVertexColors which does not require a flush before proceeding.")
 	ENGINE_API bool BeginReleaseOverrideVertexColors();
+
+	UE_DEPRECATED(5.5, "Use ReleaseOverrideVertexColors which does not require a flush before proceeding.")
 	ENGINE_API void EndReleaseOverrideVertexColors();
+
+	/** Releases the vertex color override buffers without requiring a flush of the render thread */
+	ENGINE_API void ReleaseOverrideVertexColors();
+
 private:
 	void CleanUpOverrideVertexColors();
 
 public:
+	UE_DEPRECATED(5.5, "Use ReleaseOverrideSkinWeights which does not require a flush before proceeding.")
 	ENGINE_API void ReleaseOverrideSkinWeightsAndBlock();
+
+	UE_DEPRECATED(5.5, "Use ReleaseOverrideSkinWeights which does not require a flush before proceeding.")
 	ENGINE_API bool BeginReleaseOverrideSkinWeights();
+
+	UE_DEPRECATED(5.5, "Use ReleaseOverrideSkinWeights which does not require a flush before proceeding.")
 	ENGINE_API void EndReleaseOverrideSkinWeights();
+
+	/** Releases the skin weight override buffers without requiring a flush of the render thread */
+	ENGINE_API void ReleaseOverrideSkinWeights();
+
 private:
 	void CleanUpOverrideSkinWeights();
 };
@@ -1492,7 +1510,7 @@ public:
 	 */
 	ENGINE_API virtual void FinalizeBoneTransform();
 
-	/** Initialize the LOD entries for the component */
+	/** Initialize the LOD entries for the component, freeing the previous ones. */
 	ENGINE_API void InitLODInfos();
 
 	/**
@@ -1980,7 +1998,7 @@ public:
 
 	ENGINE_API bool ShouldUseUpdateRateOptimizations() const;
 
-	/** Release any rendering resources owned by this component */
+	/** Release rendering resources without requiring a block. */
 	ENGINE_API void ReleaseResources();
 
 #if WITH_EDITOR
