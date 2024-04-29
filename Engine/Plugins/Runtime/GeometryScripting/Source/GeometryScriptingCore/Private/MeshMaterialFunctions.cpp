@@ -204,6 +204,11 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapToNewMaterialID
 		for (int32 TriangleID : Mesh.TriangleIndicesItr())
 		{
 			int32 CurID = MaterialIDs.GetValue(TriangleID);
+			if (!ToMaterialID.IsValidIndex(CurID))
+			{
+				UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapToNewMaterialIDsByMaterial_InvalidMaterial", "RemapToNewMaterialIDsByMaterial: Invalid material ID in mesh was not a valid index into FromMaterialList, skipping"));
+				continue;
+			}
 			int32 NewID = ToMaterialID[CurID];
 			MaterialIDs.SetValue(TriangleID, NewID);
 		}
@@ -212,6 +217,76 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapToNewMaterialID
 	return TargetMesh;
 }
 
+
+UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapAndCombineMaterials(
+	UDynamicMesh* TargetMesh,
+	const TArray<UMaterialInterface*>& TargetMeshMaterials,
+	const TArray<UMaterialInterface*>& RequiredMaterials,
+	TArray<UMaterialInterface*>& CombinedMaterials,
+	int RemapInvalidMaterialID,
+	bool bCompactDuplicateMaterials,
+	UGeometryScriptDebug* Debug
+)
+{
+	CombinedMaterials = RequiredMaterials;
+
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapAndCombineMaterials_InvalidInput", "RemapAndCombineMaterials: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TArray<int32> ToMaterialID;
+	if (bCompactDuplicateMaterials)
+	{
+		ToMaterialID.Init(-1, TargetMeshMaterials.Num());
+		for (int32 ToMaterialIdx = 0; ToMaterialIdx < TargetMeshMaterials.Num(); ++ToMaterialIdx)
+		{
+			int32 IdxInCombined = -1;
+			if (!CombinedMaterials.Find(TargetMeshMaterials[ToMaterialIdx], IdxInCombined))
+			{
+				IdxInCombined = CombinedMaterials.Add(TargetMeshMaterials[ToMaterialIdx]);
+			}
+			ToMaterialID[ToMaterialIdx] = IdxInCombined;
+		}
+	}
+	else
+	{
+		CombinedMaterials.Append(TargetMeshMaterials);
+	}
+
+	bool bHasMaterialIDs;
+	SimpleMeshMaterialEdit(TargetMesh, true, bHasMaterialIDs,
+		[&](FDynamicMesh3& Mesh, FDynamicMeshMaterialAttribute& MaterialIDs)
+		{
+			for (int32 TriangleID : Mesh.TriangleIndicesItr())
+			{
+				int32 CurID = MaterialIDs.GetValue(TriangleID);
+				int32 NewID = RemapInvalidMaterialID;
+				if (TargetMeshMaterials.IsValidIndex(CurID))
+				{
+					if (!bCompactDuplicateMaterials)
+					{
+						NewID = CurID + RequiredMaterials.Num();
+					}
+					else
+					{
+						NewID = ToMaterialID[CurID];
+					}
+				}
+				if (NewID < 0)
+				{
+					UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapAndCombineMaterials_InvalidMaterial", "RemapAndCombineMaterials: Invalid material ID in mesh was not a valid index into TargetMeshMaterials, skipping"));
+				}
+				else
+				{
+					MaterialIDs.SetValue(TriangleID, NewID);
+				}
+			}
+		});
+
+	return TargetMesh;
+}
 
 
 

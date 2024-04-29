@@ -65,6 +65,32 @@ public:
 		int MissingMaterialID = -1,
 		UGeometryScriptDebug* Debug = nullptr );
 
+	/**
+	 * Remap material IDs to be consistent with a Required Materials list.
+	 * The Target Mesh material IDs will be remapped to reference the Combined Materials list, 
+	 * which will always start with the Required Materials.
+	 *
+	 * If a Material cannot be found in CurrentMeshMaterials, a warning will be printed and the MaterialID left unmodified, 
+	 * unless RemapInvalidMaterialID is set to a value >= 0, in which case RemapInvalidMaterialID will be assigned
+	 *
+	 * @param TargetMesh Mesh to update
+	 * @param TargetMeshMaterials Initial materials used by the TargetMesh
+	 * @param RequiredMaterials Materials that must be used, unchanged, in the output
+	 * @param CombinedMaterials Final materials used by the TargetMesh after remapping. Always starts with the RequiredMaterials.
+	 * @param RemapInvalidMaterialID If >= 0, automatically remap invalid input material IDs to this value
+	 * @param bCompactDuplicateMaterials If true, materials from TargetMeshMaterials will only be added if they are not already in RequiredMaterials. If false, all TargetMeshMaterials are appended.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	RemapAndCombineMaterials(
+		UDynamicMesh* TargetMesh,
+		const TArray<UMaterialInterface*>& TargetMeshMaterials,
+		const TArray<UMaterialInterface*>& RequiredMaterials,
+		TArray<UMaterialInterface*>& CombinedMaterials,
+		int RemapInvalidMaterialID = -1,
+		bool bCompactDuplicateMaterials = true,
+		UGeometryScriptDebug* Debug = nullptr
+	);
 
 	/**
 	 * Returns the current Material ID for a Triangle.  
