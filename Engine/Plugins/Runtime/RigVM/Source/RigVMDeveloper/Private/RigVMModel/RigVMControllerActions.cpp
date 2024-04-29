@@ -224,7 +224,7 @@ void URigVMActionStack::PostTransacted(const FTransactionObjectEvent& Transactio
 
 bool URigVMActionStack::IsDisabled() const
 {
-	return !HasAnyFlags(RF_ClassDefaultObject);
+	return HasAnyFlags(RF_ClassDefaultObject);
 }
 
 #if RIGVM_ACTIONSTACK_VERBOSE_LOG		
