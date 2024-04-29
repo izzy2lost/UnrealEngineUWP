@@ -208,27 +208,24 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 				NumUnnamedArgsStored = NumUnnamedArgs;
 			}
 		}
-		if (ArgNames)
+		for (uint32 NamedParamIdx = 0; NamedParamIdx < NumNamedParams; ++NamedParamIdx)
 		{
-			for (uint32 NamedParamIdx = 0; NamedParamIdx < NumNamedParams; ++NamedParamIdx)
+			// If the procedure's named parameter does not have a matching argument we use the default
+			// VValue which is VValue::UninitializedValue, aka 0.  The bytecode contains a JumpIfInitialized
+			// instruction at the start of the function.  The uninitialized value indicates to the
+			// JumpIfInitialized instruction that we cannot jump past the default initilization of the variable.
+			// Any other value causes the JumpIfInitialized instruction to jump past the default initialization
+			// code, as a value was provided here.
+			VValue ValueToStore;
+			for (uint32 ArgIdx = 0; ArgIdx < NumNamedArgs; ++ArgIdx)
 			{
-				// If the procedure's named parameter does not have a matching argument we use the default
-				// VValue which is VValue::UninitializedValue, aka 0.  The bytecode contains a JumpIfInitialized
-				// instruction at the start of the function.  The uninitialized value indicates to the
-				// JumpIfInitialized instruction that we cannot jump past the default initilization of the variable.
-				// Any other value causes the JumpIfInitialized instruction to jump past the default initialization
-				// code, as a value was provided here.
-				VValue ValueToStore;
-				for (uint32 ArgIdx = 0; ArgIdx < ArgNames->Num(); ++ArgIdx)
+				if (NamedParams[NamedParamIdx].Get() == (*ArgNames)[ArgIdx].Get())
 				{
-					if (NamedParams[NamedParamIdx].Get() == (*ArgNames)[ArgIdx].Get())
-					{
-						ValueToStore = GetArg(NumUnnamedArgs + ArgIdx);
-						break;
-					}
+					ValueToStore = GetArg(NumUnnamedArgs + ArgIdx);
+					break;
 				}
-				StoreArg(NumUnnamedArgsStored + NamedParamIdx, ValueToStore);
 			}
+			StoreArg(NumUnnamedArgsStored + NamedParamIdx, ValueToStore);
 		}
 	}
 }
@@ -239,11 +236,11 @@ static VFrame& MakeFrameForCallee(FRunningContext Context, FOp* CallerPC, VFrame
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, CallerPC, CallerFrame, ReturnSlot, Procedure);
 
-	check(1 + Procedure.NumParameters <= Procedure.NumRegisters);
+	check(1 + Procedure.NumPositionalParameters + Procedure.NumNamedParameters <= Procedure.NumRegisters);
 
 	Frame.Registers[0].Set(Context, Function.ParentScope.Get());
 
-	UnboxArguments(Context, Procedure.NumParameters, Procedure.NumNamedParameters, NumArgs, Procedure.GetNamedParamsBegin(), ArgNames, GetArg,
+	UnboxArguments(Context, Procedure.NumPositionalParameters, Procedure.NumNamedParameters, NumArgs, Procedure.GetNamedParamsBegin(), ArgNames, GetArg,
 		[&](uint32 Param, VValue Value) {
 			Frame.Registers[1 + Param].Set(Context, Value);
 		});
@@ -803,10 +800,9 @@ class FInterpreter
 	}
 
 	template <typename ReturnSlotType>
-	void Suspend(VTask& SuspendingTask, ReturnSlotType ResumeSlot)
+	void Suspend(VFailureContext& FailureContext, VTask& SuspendingTask, ReturnSlotType ResumeSlot)
 	{
-		V_DIE_IF(SuspendingTask.bSuspended);
-		V_DIE_UNLESS(Failure == SuspendingTask.FailureContext.Get());
+		V_DIE_UNLESS(&FailureContext == OutermostFailureContext);
 
 		SuspendingTask.Suspend(Context);
 		SuspendingTask.ResumeSlot.Set(Context, ResumeSlot);
@@ -816,8 +812,40 @@ class FInterpreter
 	// the outermost frame of this Interpreter instance.
 	bool YieldIfNeeded(FOp* NextPC)
 	{
-		while (Task->bSuspended)
+		V_DIE_UNLESS(Failure == OutermostFailureContext);
+
+		while (true)
 		{
+			if (Task->bRunning)
+			{
+				// The task is still active or already unwinding.
+				if (Task->Phase != VTask::EPhase::CancelStarted)
+				{
+					return true;
+				}
+
+				if (Task->CancelChildren(Context))
+				{
+					BeginUnwind(NextPC);
+					return true;
+				}
+
+				Task->Suspend(Context);
+			}
+			else
+			{
+				if (Task->Phase == VTask::EPhase::CancelRequested)
+				{
+					Task->Phase = VTask::EPhase::CancelStarted;
+					if (Task->CancelChildren(Context))
+					{
+						Task->Resume(Context);
+						BeginUnwind(NextPC);
+						return true;
+					}
+				}
+			}
+
 			VTask* SuspendedTask = Task;
 
 			// Save the current state for when the task is resumed.
@@ -839,8 +867,41 @@ class FInterpreter
 
 			NextPC = State.PC;
 		}
+	}
 
-		return true;
+	// Jump from PC to its associated unwind label, in the current function or some transitive caller.
+	// There must always be some unwind label, because unwinding always terminates at EndTask.
+	void BeginUnwind(FOp* PC)
+	{
+		V_DIE_UNLESS(Task->bRunning);
+
+		Task->Phase = VTask::EPhase::CancelUnwind;
+
+		if (Task->NativeDefer)
+		{
+			AutoRTFM::Close([&] { Task->NativeDefer(Context, Task); });
+			Task->NativeDefer.Reset();
+		}
+
+		for (VFrame* Frame = State.Frame; Frame != nullptr; PC = Frame->CallerPC, Frame = Frame->CallerFrame.Get())
+		{
+			VProcedure* Procedure = Frame->Procedure.Get();
+			int32 Offset = Procedure->BytecodeOffset(PC);
+
+			for (
+				FUnwindEdge* UnwindEdge = Procedure->GetUnwindEdgesBegin();
+				UnwindEdge != Procedure->GetUnwindEdgesEnd() && UnwindEdge->Begin < Offset;
+				UnwindEdge++)
+			{
+				if (Offset <= UnwindEdge->End)
+				{
+					State = FExecutionState(UnwindEdge->OnUnwind.GetLabeledPC(), Frame);
+					return;
+				}
+			}
+		}
+
+		VERSE_UNREACHABLE();
 	}
 
 	enum class TransactAction
@@ -1974,13 +2035,13 @@ class FInterpreter
 	NextPC = State.PC;     \
 	NEXT_OP(false, true)
 
-#define YIELD()                         \
-	Suspend(*Task, MakeReturnSlot(Op)); \
-	if (!YieldIfNeeded(NextPC))         \
-	{                                   \
-		return;                         \
-	}                                   \
-	NextPC = State.PC;                  \
+#define YIELD()                                   \
+	Suspend(*Failure, *Task, MakeReturnSlot(Op)); \
+	if (!YieldIfNeeded(NextPC))                   \
+	{                                             \
+		return;                                   \
+	}                                             \
+	NextPC = State.PC;                            \
 	NEXT_OP(false, false)
 
 		if (CurrentSuspension)
@@ -2093,6 +2154,16 @@ class FInterpreter
 				}
 				END_OP_CASE()
 
+				BEGIN_OP_CASE(JumpIfInitialized)
+				{
+					VValue Val = GetOperand(Op.Source);
+					if (!Val.IsUninitialized())
+					{
+						NextPC = Op.JumpOffset.GetLabeledPC();
+					}
+				}
+				END_OP_CASE();
+
 				BEGIN_OP_CASE(Switch)
 				{
 					VValue Which = GetOperand(Op.Which);
@@ -2100,17 +2171,6 @@ class FInterpreter
 					NextPC = Offsets[Which.AsInt32()].GetLabeledPC();
 				}
 				END_OP_CASE()
-
-				BEGIN_OP_CASE(JumpIfInitialized)
-				{
-					VValue Val = GetOperand(Op.RegIdx);
-					REQUIRE_CONCRETE(Val);
-					if (!Val.IsUninitialized())
-					{
-						NextPC = Op.JumpOffset.GetLabeledPC();
-					}
-				}
-				END_OP_CASE();
 
 				BEGIN_OP_CASE(BeginFailureContext)
 				{
@@ -2170,7 +2230,10 @@ class FInterpreter
 
 				BEGIN_OP_CASE(BeginTask)
 				{
-					Task = &VTask::New(Context, Op.OnYield.GetLabeledPC(), State.Frame, Task, Failure);
+					V_DIE_UNLESS(Failure == OutermostFailureContext);
+
+					VTask* Parent = Op.bAttached ? Task : nullptr;
+					Task = &VTask::New(Context, Op.OnYield.GetLabeledPC(), State.Frame, Task, Parent);
 
 					DEF(Op.Dest, *Task);
 				}
@@ -2178,13 +2241,68 @@ class FInterpreter
 
 				BEGIN_OP_CASE(EndTask)
 				{
-					V_DIE_IF(Task->bSuspended);
-					V_DIE_UNLESS(Failure == Task->FailureContext.Get());
+					V_DIE_UNLESS(Task->bRunning);
+					V_DIE_UNLESS(Failure == OutermostFailureContext);
 
-					VTask* Awaiter = Task->FinishedExecuting(Context);
+					if (Task->Phase == VTask::EPhase::CancelRequested)
+					{
+						Task->Phase = VTask::EPhase::CancelStarted;
+					}
 
-					VValue Result = GetOperand(Op.Value);
-					Task->Result.Set(Context, Result);
+					VValue Result;
+					VTask* Awaiter;
+					VTask* CancelingParent = nullptr;
+					if (Task->Phase == VTask::EPhase::Active)
+					{
+						if (!Task->CancelChildren(Context))
+						{
+							VTask* Child = Task->LastChild.Get();
+							Task->Park(Context, Child->LastCancel);
+
+							V_DIE_IF(Task->NativeDefer);
+							Task->NativeDefer = [Child](FAccessContext InContext, VTask* InTask) {
+								AutoRTFM::Open([&] { InTask->Unpark(InContext, Child->LastCancel); });
+							};
+
+							NextPC = &Op;
+							YIELD();
+						}
+
+						Task->Result.Set(Context, GetOperand(Op.Value));
+						Result = Task->Result.Get();
+
+						Awaiter = Task->LastAwait.Get();
+						Task->LastAwait.Reset();
+					}
+					else
+					{
+						V_DIE_UNLESS(VTask::EPhase::CancelStarted <= Task->Phase && Task->Phase < VTask::EPhase::Canceled);
+
+						if (!Task->CancelChildren(Context))
+						{
+							V_DIE_UNLESS(Task->Phase == VTask::EPhase::CancelStarted);
+
+							NextPC = &Op;
+							YIELD();
+						}
+
+						Task->Phase = VTask::EPhase::Canceled;
+						Result = GlobalFalse();
+
+						Awaiter = Task->LastCancel.Get();
+						Task->LastCancel.Reset();
+
+						if (VTask* Parent = Task->Parent.Get())
+						{
+							if (Parent->Phase == VTask::EPhase::CancelStarted && Parent->LastChild.Get() == Task)
+							{
+								CancelingParent = Parent;
+							}
+						}
+					}
+
+					Task->Suspend(Context);
+					Task->Detach(Context);
 
 					// This task may be resumed to run unblocked suspensions, but nothing remains to run after them.
 					Task->ResumePC = &StopInterpreterSentry;
@@ -2193,33 +2311,49 @@ class FInterpreter
 					UpdateExecutionState(Task->YieldPC, Task->YieldFrame.Get());
 					Task = Task->YieldTask.Get();
 
-					// Resume any awaiting tasks in the order they arrived.
-					// The front of the Awaiters list is the most recent awaiting task, which should run last.
-					if (Task == nullptr)
-					{
-						OutermostTask = Awaiter;
-					}
-					while (Awaiter != nullptr)
-					{
-						V_DIE_UNLESS(Awaiter->bSuspended);
-
+					auto ResumeAwaiter = [&](VTask* Awaiter) {
 						Awaiter->YieldPC = NextPC;
 						Awaiter->YieldFrame.Set(Context, State.Frame);
 						Awaiter->YieldTask.Set(Context, Task);
-						Awaiter->Resume(Context, *Failure);
+						Awaiter->Resume(Context);
 
 						UpdateExecutionState(Awaiter->ResumePC, Awaiter->ResumeFrame.Get());
+						if (Task == nullptr)
+						{
+							OutermostTask = Awaiter;
+						}
 						Task = Awaiter;
+					};
 
-						// NOTE: This should not fail, but if it did its effect on control would be strange.
-						DEF(Task->ResumeSlot, Result);
+					// Resume any awaiting (or cancelling) tasks in the order they arrived.
+					// The front of the list is the most recently-awaiting task, which should run last.
+					if (CancelingParent && !CancelingParent->bRunning)
+					{
+						ResumeAwaiter(CancelingParent);
+					}
+					for (VTask* PrevTask; Awaiter != nullptr; Awaiter = PrevTask)
+					{
+						PrevTask = Awaiter->PrevTask.Get();
 
-						VTask* PrevAwait = Awaiter->PrevAwait.Get();
-						Awaiter->PrevAwait.Reset();
-						Awaiter = PrevAwait;
+						// Normal resumption of a canceling task is a no-op.
+						if (Awaiter->Phase != VTask::EPhase::Active)
+						{
+							continue;
+						}
+
+						ResumeAwaiter(Awaiter);
+						if (Task->NativeDefer)
+						{
+							AutoRTFM::Close([&] { Task->NativeDefer(Context, Task); });
+							Task->NativeDefer.Reset();
+						}
+						if (!Def(Task->ResumeSlot, Result))
+						{
+							V_DIE("Failed unifying the result of `Await` or `Cancel`");
+						}
 					}
 
-					// YieldTask may have already been suspended leniently.
+					// A resumed task may already have been re-suspended or canceled.
 					if (Task == nullptr || !YieldIfNeeded(NextPC))
 					{
 						return;
@@ -2295,6 +2429,13 @@ class FInterpreter
 
 					// TODO: Add a test where this unification fails at the top level with no return continuation.
 					DEF(Frame.ReturnSlot, Value);
+				}
+				END_OP_CASE()
+
+				BEGIN_OP_CASE(ResumeUnwind)
+				{
+					BeginUnwind(NextPC);
+					NextPC = State.PC;
 				}
 				END_OP_CASE()
 
@@ -2394,13 +2535,13 @@ class FInterpreter
 	Fail(*BytecodeSuspension.FailureContext);  \
 	break
 
-#define YIELD()                                                        \
-	FinishedExecutingSuspensionIn(*BytecodeSuspension.FailureContext); \
-	if constexpr (bPrintTrace)                                         \
-	{                                                                  \
-		EndTraceWithCaptures(Op, false, false);                        \
-	}                                                                  \
-	Suspend(*BytecodeSuspension.Task, MakeReturnSlot(Op));             \
+#define YIELD()                                                                                \
+	FinishedExecutingSuspensionIn(*BytecodeSuspension.FailureContext);                         \
+	if constexpr (bPrintTrace)                                                                 \
+	{                                                                                          \
+		EndTraceWithCaptures(Op, false, false);                                                \
+	}                                                                                          \
+	Suspend(*BytecodeSuspension.FailureContext, *BytecodeSuspension.Task, MakeReturnSlot(Op)); \
 	break
 
 	SuspensionInterpreterLoop:
@@ -2589,7 +2730,7 @@ public:
 			[&](uint32 Arg) {
 				return Arguments[Arg];
 			});
-		VTask& Task = VTask::New(Context, CallerPC, &Frame, /*YieldTask*/ nullptr, /*FailureContext*/ nullptr);
+		VTask& Task = VTask::New(Context, CallerPC, &Frame, /*YieldTask*/ nullptr, /*Parent*/ nullptr);
 		VFailureContext& FailureContext = VFailureContext::New(
 			Context,
 			&Task,
@@ -2625,22 +2766,26 @@ public:
 
 	static void ResumeInTransaction(FRunningContext Context, VValue ResumeArgument, VTask& Task)
 	{
-		V_DIE_UNLESS(Task.bSuspended);
-
-		VFailureContext& FailureContext = VFailureContext::New(
-			Context,
-			/*Task*/ nullptr,
-			/*Parent*/ nullptr,
-			*Task.YieldFrame,
-			VValue(), // IncomingEffectToken doesn't matter here, since we bail out if we fail at the top level.
-			&StopInterpreterSentry);
-		Task.Resume(Context, FailureContext);
+		// Normal resumption of a canceled task is a no-op.
+		if (Task.Phase != VTask::EPhase::Active)
+		{
+			return;
+		}
 
 		if (CVarTraceExecution.GetValueOnAnyThread())
 		{
 			UE_LOG(LogVerseVM, Display, TEXT(""));
 			UE_LOG(LogVerseVM, Display, TEXT("Resuming:"));
 		}
+
+		VFailureContext& FailureContext = VFailureContext::New(
+			Context,
+			/*Task*/ nullptr,
+			/*Parent*/ nullptr,
+			*Task.YieldFrame,
+			VValue(),
+			&StopInterpreterSentry);
+		Task.Resume(Context);
 
 		FInterpreter Interpreter(
 			Context,
@@ -2650,6 +2795,12 @@ public:
 			VValue::EffectDoneMarker());
 		AutoRTFM::TransactThenOpen([&] {
 			FailureContext.Transaction.Start(Context);
+
+			if (Task.NativeDefer)
+			{
+				AutoRTFM::Close([&] { Task.NativeDefer(Context, &Task); });
+				Task.NativeDefer.Reset();
+			}
 
 			bool bExecute = true;
 			if (!FInterpreter::Def(Context, Task.ResumeSlot, ResumeArgument, Interpreter.CurrentSuspension))
@@ -2663,13 +2814,45 @@ public:
 				Interpreter.Execute();
 			}
 
-			if (!FailureContext.Transaction.bHasAborted)
-			{
-				FailureContext.Transaction.Commit(Context);
-			}
+			V_DIE_IF(FailureContext.bFailed || FailureContext.Transaction.bHasAborted);
+			FailureContext.Transaction.Commit(Context);
 		});
+	}
 
-		V_DIE_IF(FailureContext.bFailed);
+	static void UnwindInTransaction(FRunningContext Context, VTask& Task)
+	{
+		V_DIE_UNLESS(Task.Phase == VTask::EPhase::CancelStarted && !Task.LastChild);
+
+		if (CVarTraceExecution.GetValueOnAnyThread())
+		{
+			UE_LOG(LogVerseVM, Display, TEXT(""));
+			UE_LOG(LogVerseVM, Display, TEXT("Unwinding:"));
+		}
+
+		VFailureContext& FailureContext = VFailureContext::New(
+			Context,
+			/*Task*/ nullptr,
+			/*Parent*/ nullptr,
+			*Task.YieldFrame,
+			VValue(), // IncomingEffectToken doesn't matter here, since we bail out if we fail at the top level.
+			&StopInterpreterSentry);
+		Task.Resume(Context);
+
+		FInterpreter Interpreter(
+			Context,
+			FExecutionState(Task.ResumePC, Task.ResumeFrame.Get()),
+			&FailureContext,
+			&Task,
+			VValue::EffectDoneMarker());
+		AutoRTFM::TransactThenOpen([&] {
+			FailureContext.Transaction.Start(Context);
+
+			Interpreter.BeginUnwind(Interpreter.State.PC);
+			Interpreter.Execute();
+
+			V_DIE_IF(FailureContext.bFailed || FailureContext.Transaction.bHasAborted);
+			FailureContext.Transaction.Commit(Context);
+		});
 	}
 };
 
@@ -2695,6 +2878,11 @@ VValue VFunction::InvokeInTransaction(FRunningContext Context, VValue Argument, 
 void VTask::ResumeInTransaction(FRunningContext Context, VValue ResumeArgument)
 {
 	FInterpreter::ResumeInTransaction(Context, ResumeArgument, *this);
+}
+
+void VTask::UnwindInTransaction(FRunningContext Context)
+{
+	FInterpreter::UnwindInTransaction(Context, *this);
 }
 
 } // namespace Verse

@@ -104,5 +104,14 @@ struct TOperandRange
 	int32 Index;
 	int32 Num;
 };
+
+// A range of opcode bytes, with a target label for unwinding from calls within that range.
+// VProcedure holds a sorted array of non-overlapping unwind edges.
+struct FUnwindEdge
+{
+	int32 Begin;
+	int32 End;
+	FLabelOffset OnUnwind;
+};
 } // namespace Verse
 #endif // WITH_VERSE_VM

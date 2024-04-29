@@ -61,6 +61,19 @@ void Visit(FMarkStackVisitor& Visitor, const TOperandRange<T>& Value, FMarkStack
 {
 }
 
+template <>
+void Visit(FAbstractVisitor& Visitor, FUnwindEdge& Value, const TCHAR* ElementName)
+{
+	Visitor.Visit(Value.Begin, ElementName);
+	Visitor.Visit(Value.End, ElementName);
+	Visit(Visitor, Value.OnUnwind, ElementName);
+}
+
+template <>
+void Visit(FMarkStackVisitor& Visitor, const FUnwindEdge& Value, FMarkStackVisitor::ConsumeElementName ElementName)
+{
+}
+
 namespace Private
 {
 
@@ -225,6 +238,11 @@ void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.BeginArray(TEXT("Labels"), ScratchNumLabels);
 		Visitor.Visit(GetLabelsBegin(), GetLabelsEnd());
 		Visitor.EndArray();
+
+		uint64 ScratchNumUnwindEdges = NumUnwindEdges;
+		Visitor.BeginArray(TEXT("UnwindEdges"), ScratchNumUnwindEdges);
+		Visitor.Visit(GetUnwindEdgesBegin(), GetUnwindEdgesEnd());
+		Visitor.EndArray();
 	}
 	else
 	{
@@ -244,21 +262,31 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 	if (Visitor.IsLoading())
 	{
 		uint32 ScratchNumRegisters = 0;
-		uint32 ScratchNumParameters = 0;
+		uint32 ScratchNumPositionalParameters = 0;
 		uint32 ScratchNumNamedParameters = 0;
 		uint32 ScratchNumConstants = 0;
 		uint64 ScratchNumOpBytes = 0;
 		uint32 ScratchNumOperands = 0;
 		uint32 ScratchNumLabels = 0;
+		uint32 ScratchNumUnwindEdges = 0;
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
-		Visitor.Visit(ScratchNumParameters, TEXT("NumParameters"));
+		Visitor.Visit(ScratchNumPositionalParameters, TEXT("NumPositionalParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
 		Visitor.Visit(ScratchNumConstants, TEXT("NumConstants"));
 		Visitor.Visit(ScratchNumOpBytes, TEXT("NumOpBytes"));
 		Visitor.Visit(ScratchNumOperands, TEXT("NumOperands"));
 		Visitor.Visit(ScratchNumLabels, TEXT("NumLabels"));
+		Visitor.Visit(ScratchNumUnwindEdges, TEXT("NumUnwindEdges"));
 
-		This = &VProcedure::NewUninitialized(Context, (uint32)ScratchNumParameters, (uint32)ScratchNumNamedParameters, (uint32)ScratchNumRegisters, (uint32)ScratchNumConstants, (uint32)ScratchNumOpBytes, (uint32)ScratchNumOperands, (uint32)ScratchNumLabels);
+		This = &VProcedure::NewUninitialized(Context,
+			(uint32)ScratchNumRegisters,
+			(uint32)ScratchNumPositionalParameters,
+			(uint32)ScratchNumNamedParameters,
+			(uint32)ScratchNumConstants,
+			(uint32)ScratchNumOpBytes,
+			(uint32)ScratchNumOperands,
+			(uint32)ScratchNumLabels,
+			(uint32)ScratchNumUnwindEdges);
 
 		uint64 ScratchNumNamedParams64 = 0;
 		Visitor.BeginArray(TEXT("NamedParameters"), ScratchNumNamedParams64);
@@ -281,23 +309,30 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 		Visitor.BeginArray(TEXT("Labels"), ScratchNumLabels64);
 		Visitor.Visit(This->GetLabelsBegin(), This->GetLabelsEnd());
 		Visitor.EndArray();
+
+		uint64 ScratchNumUnwindEdges64 = 0;
+		Visitor.BeginArray(TEXT("UnwindEdges"), ScratchNumUnwindEdges64);
+		Visitor.Visit(This->GetUnwindEdgesBegin(), This->GetUnwindEdgesEnd());
+		Visitor.EndArray();
 	}
 	else
 	{
 		uint32 ScratchNumRegisters = This->NumRegisters;
-		uint32 ScratchNumParameters = This->NumParameters;
+		uint32 ScratchNumPositionalParameters = This->NumPositionalParameters;
 		uint32 ScratchNumNamedParameters = This->NumNamedParameters;
 		uint32 ScratchNumConstants = This->NumConstants;
 		uint64 ScratchNumOpBytes = (uint64)This->NumOpBytes;
 		uint32 ScratchNumOperands = This->NumOperands;
 		uint32 ScratchNumLabels = This->NumLabels;
+		uint32 ScratchNumUnwindEdges = This->NumUnwindEdges;
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
-		Visitor.Visit(ScratchNumParameters, TEXT("NumParameters"));
+		Visitor.Visit(ScratchNumPositionalParameters, TEXT("NumPositionalParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
 		Visitor.Visit(ScratchNumConstants, TEXT("NumConstants"));
 		Visitor.Visit(ScratchNumOpBytes, TEXT("NumOpBytes"));
 		Visitor.Visit(ScratchNumOperands, TEXT("NumOperands"));
 		Visitor.Visit(ScratchNumLabels, TEXT("NumLabels"));
+		Visitor.Visit(ScratchNumUnwindEdges, TEXT("NumUnwindEdges"));
 
 		uint64 ScratchNumNamedParams64 = This->NumNamedParameters;
 		Visitor.BeginArray(TEXT("NamedParameters"), ScratchNumNamedParams64);
@@ -319,6 +354,11 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 		uint64 ScratchNumLabels64 = This->NumLabels;
 		Visitor.BeginArray(TEXT("Labels"), ScratchNumLabels64);
 		Visitor.Visit(This->GetLabelsBegin(), This->GetLabelsEnd());
+		Visitor.EndArray();
+
+		uint64 ScratchNumUnwindEdges64 = This->NumUnwindEdges;
+		Visitor.BeginArray(TEXT("UnwindEdges"), ScratchNumUnwindEdges64);
+		Visitor.Visit(This->GetUnwindEdgesBegin(), This->GetUnwindEdgesEnd());
 		Visitor.EndArray();
 	}
 }

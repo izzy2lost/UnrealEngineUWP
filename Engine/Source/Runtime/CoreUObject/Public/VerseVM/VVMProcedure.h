@@ -34,6 +34,10 @@ FLabelOffset                   Label     [0]
 FLabelOffset                   Label     [1]
 ...
 FLabelOffset                   Label     [NumLabels - 1]
+FUnwindEdge                    UnwindEdge[0]
+FUnwindEdge                    UnwindEdge[1]
+...
+FUnwindEdge                    UnwindEdge[NumUnwindEdges - 1]
 */
 struct VProcedure : VCell
 {
@@ -41,7 +45,7 @@ struct VProcedure : VCell
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	uint32 NumRegisters;
-	uint32 NumParameters;
+	uint32 NumPositionalParameters;
 
 	// Sizes of trailing arrays
 	uint32 NumNamedParameters;
@@ -49,6 +53,7 @@ struct VProcedure : VCell
 	uint32 NumOpBytes;
 	uint32 NumOperands;
 	uint32 NumLabels;
+	uint32 NumUnwindEdges;
 
 	TWriteBarrier<VCell> Trailing[];
 
@@ -68,6 +73,9 @@ struct VProcedure : VCell
 
 	FLabelOffset* GetLabelsBegin() { return BitCast<FLabelOffset*>(GetOperandsEnd()); }
 	FLabelOffset* GetLabelsEnd() { return GetLabelsBegin() + NumLabels; }
+
+	FUnwindEdge* GetUnwindEdgesBegin() { return BitCast<FUnwindEdge*>(GetLabelsEnd()); }
+	FUnwindEdge* GetUnwindEdgesEnd() { return GetUnwindEdgesBegin() + NumUnwindEdges; }
 
 	// In bytes.
 	uint32 BytecodeOffset(const FOp& Bytecode)
@@ -93,29 +101,31 @@ struct VProcedure : VCell
 		return GetConstantsBegin()[ConstantIndex.Index].Get();
 	}
 
-	static VProcedure& NewUninitialized(FAllocationContext Context, uint32 NumParameters, uint32 NumNamedParameters, uint32 NumRegisters, uint32 NumConstants, uint32 NumOpBytes, uint32 NumOperands, uint32 NumLabels)
+	static VProcedure& NewUninitialized(FAllocationContext Context, uint32 NumRegisters, uint32 NumPositionalParameters, uint32 NumNamedParameters, uint32 NumConstants, uint32 NumOpBytes, uint32 NumOperands, uint32 NumLabels, uint32 NumUnwindEdges)
 	{
 		const size_t NumBytes = offsetof(VProcedure, Trailing)
 							  + sizeof(TWriteBarrier<VUniqueString>) * NumNamedParameters
 							  + sizeof(TWriteBarrier<VValue>) * NumConstants
 							  + NumOpBytes
 							  + sizeof(FValueOperand) * NumOperands
-							  + sizeof(FLabelOffset) * NumLabels;
-		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(Context, NumParameters, NumNamedParameters, NumRegisters, NumConstants, NumOpBytes, NumOperands, NumLabels);
+							  + sizeof(FLabelOffset) * NumLabels
+							  + sizeof(FUnwindEdge) * NumUnwindEdges;
+		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(Context, NumRegisters, NumPositionalParameters, NumNamedParameters, NumConstants, NumOpBytes, NumOperands, NumLabels, NumUnwindEdges);
 	}
 
 	static void SerializeImpl(VProcedure*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
-	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumNamedParameters, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes, uint32 InNumOperands, uint32 InNumLabels)
+	VProcedure(FAllocationContext Context, uint32 InNumRegisters, uint32 InNumPositionalParameters, uint32 InNumNamedParameters, uint32 InNumConstants, uint32 InNumOpBytes, uint32 InNumOperands, uint32 InNumLabels, uint32 InNumUnwindEdges)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, NumRegisters(InNumRegisters)
-		, NumParameters(InNumArguments)
+		, NumPositionalParameters(InNumPositionalParameters)
 		, NumNamedParameters(InNumNamedParameters)
 		, NumConstants(InNumConstants)
 		, NumOpBytes(InNumOpBytes)
 		, NumOperands(InNumOperands)
 		, NumLabels(InNumLabels)
+		, NumUnwindEdges(InNumUnwindEdges)
 	{
 		for (TWriteBarrier<VUniqueString>* NamedParam = GetNamedParamsBegin(); NamedParam != GetNamedParamsEnd(); ++NamedParam)
 		{
@@ -132,6 +142,10 @@ private:
 		for (FLabelOffset* Label = GetLabelsBegin(); Label != GetLabelsEnd(); ++Label)
 		{
 			new (Label) FLabelOffset{};
+		}
+		for (FUnwindEdge* UnwindEdge = GetUnwindEdgesBegin(); UnwindEdge != GetUnwindEdgesEnd(); ++UnwindEdge)
+		{
+			new (UnwindEdge) FUnwindEdge{};
 		}
 	}
 

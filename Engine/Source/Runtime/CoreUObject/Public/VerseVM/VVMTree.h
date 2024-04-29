@@ -12,9 +12,9 @@ template <typename DerivedType>
 struct TIntrusiveTree
 {
 	TWriteBarrier<DerivedType> Parent;
-	TWriteBarrier<DerivedType> FirstChild;
-	TWriteBarrier<DerivedType> Next;
+	TWriteBarrier<DerivedType> LastChild;
 	TWriteBarrier<DerivedType> Prev;
+	TWriteBarrier<DerivedType> Next;
 
 	TIntrusiveTree(FAccessContext Context, DerivedType* Parent)
 		: Parent(Context, Parent)
@@ -23,12 +23,12 @@ struct TIntrusiveTree
 
 		if (Parent)
 		{
-			if (Parent->FirstChild)
+			if (Parent->LastChild)
 			{
-				Parent->FirstChild->Prev.Set(Context, This);
-				Next.Set(Context, Parent->FirstChild.Get());
+				Prev.Set(Context, Parent->LastChild.Get());
+				Parent->LastChild->Next.Set(Context, This);
 			}
-			Parent->FirstChild.Set(Context, This);
+			Parent->LastChild.Set(Context, This);
 		}
 	}
 
@@ -36,32 +36,32 @@ struct TIntrusiveTree
 	{
 		DerivedType* This = static_cast<DerivedType*>(this);
 
-		if (Parent && Parent->FirstChild.Get() == This)
+		if (Parent && Parent->LastChild.Get() == This)
 		{
-			V_DIE_IF(Prev);
-			Parent->FirstChild.Set(Context, Next.Get());
+			V_DIE_IF(Next);
+			Parent->LastChild.Set(Context, Prev.Get());
 		}
 
-		if (Next)
-		{
-			V_DIE_UNLESS(Next->Prev.Get() == This);
-			Next->Prev.Set(Context, Prev.Get());
-		}
 		if (Prev)
 		{
 			V_DIE_UNLESS(Prev->Next.Get() == This);
 			Prev->Next.Set(Context, Next.Get());
 		}
+		if (Next)
+		{
+			V_DIE_UNLESS(Next->Prev.Get() == This);
+			Next->Prev.Set(Context, Prev.Get());
+		}
 
-		Next.Set(Context, nullptr);
-		Prev.Set(Context, nullptr);
+		Prev.Reset();
+		Next.Reset();
 	}
 
 	// Visit each element of the subtree rooted at `this`.
 	template <typename FunctionType>
 	void ForEach(FunctionType&& Function)
 	{
-		if (LIKELY(!FirstChild.Get()))
+		if (LIKELY(!LastChild.Get()))
 		{
 			Function(static_cast<DerivedType&>(*this));
 			return;
@@ -73,7 +73,7 @@ struct TIntrusiveTree
 		{
 			TIntrusiveTree* Task = ToVisit.Pop();
 			Function(static_cast<DerivedType&>(*Task));
-			for (TIntrusiveTree* Child = Task->FirstChild.Get(); Child; Child = Child->Next.Get())
+			for (TIntrusiveTree* Child = Task->LastChild.Get(); Child; Child = Child->Prev.Get())
 			{
 				ToVisit.Push(Child);
 			}
@@ -84,9 +84,9 @@ struct TIntrusiveTree
 	void VisitReferencesImpl(TVisitor& Visitor)
 	{
 		Visitor.Visit(Parent, TEXT("Parent"));
-		Visitor.Visit(FirstChild, TEXT("FirstChild"));
-		Visitor.Visit(Next, TEXT("Next"));
+		Visitor.Visit(LastChild, TEXT("LastChild"));
 		Visitor.Visit(Prev, TEXT("Prev"));
+		Visitor.Visit(Next, TEXT("Next"));
 	}
 };
 } // namespace Verse

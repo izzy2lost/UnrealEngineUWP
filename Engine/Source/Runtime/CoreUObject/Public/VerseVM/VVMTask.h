@@ -20,84 +20,124 @@ struct FOp;
 struct VFailureContext;
 
 struct VTask : VObject
+	, TIntrusiveTree<VTask>
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VObject);
 	COREUOBJECT_API static TGlobalHeapPtr<VEmergentType> EmergentType;
 
-	// Tasks to resume on completion.
-	TWriteBarrier<VValue> Result;
-	TWriteBarrier<VTask> Awaiters;  // Head of a linked list of tasks that have called Await, most recent first.
-	TWriteBarrier<VTask> PrevAwait; // Link for when this task is on some other task's Awaiters list.
+	// A task is "running" when it is associated with a frame on the native stack.
+	// This includes a running interpreter (even if it is just on the `YieldTask` chain), and native
+	// functions like `CancelChildren`.
+	// Running tasks can only be resumed by falling through a sequence of yields and native returns.
+	// This is independent of `Phase`, as both active and cancelling tasks may suspend.
+	bool bRunning{true};
+
+	// See the note on CancelImpl.
+	enum class EPhase : int8
+	{
+		Active,
+		CancelRequested,
+		CancelStarted,
+		CancelUnwind,
+		Canceled,
+	};
+	EPhase Phase{EPhase::Active};
+
+	// To be run on resume or unwind. May point back to the resumer.
+	TFunction<void(FAccessContext, VTask*)> NativeDefer;
+
+	// Where execution should continue when resuming.
+	FOp* ResumePC{nullptr};
+	TWriteBarrier<VFrame> ResumeFrame;
+	VReturnSlot ResumeSlot; // May point into ResumeFrame or one of its ancestors.
 
 	// Where execution should continue when suspending.
 	FOp* YieldPC;
 	TWriteBarrier<VFrame> YieldFrame;
 	TWriteBarrier<VTask> YieldTask;
-	TWriteBarrier<VFailureContext> FailureContext; // Should not change on suspend - stored only for assertions.
 
-	// Where the task should resume after suspending.
-	FOp* ResumePC{nullptr};
-	TWriteBarrier<VFrame> ResumeFrame;
-	VReturnSlot ResumeSlot; // May point into ResumeFrame or one of its ancestors.
+	// Where execution should continue when complete.
+	TWriteBarrier<VValue> Result;
+	TWriteBarrier<VTask> LastAwait;
+	TWriteBarrier<VTask> LastCancel;
 
-	bool bSuspended{false};
-	void* NativeResumeSlot{nullptr};
-	TFunction<void()> NativeDefer;
+	// Links for the containing LastCancel or LastAwait list.
+	TWriteBarrier<VTask> PrevTask;
+	TWriteBarrier<VTask> NextTask;
+
+	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
+	{
+		return *new (AllocateFastCell(Context, *EmergentType)) VTask(Context, YieldPC, YieldFrame, YieldTask, Parent);
+	}
 
 	COREUOBJECT_API void ResumeInTransaction(FRunningContext Context, VValue ResumeArgument);
+	COREUOBJECT_API void UnwindInTransaction(FRunningContext Context);
 
-	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VFailureContext* FailureContext)
-	{
-		return *new (AllocateFastCell(Context, *EmergentType)) VTask(Context, YieldPC, YieldFrame, YieldTask, FailureContext);
-	}
+	COREUOBJECT_API static FOpResult ActiveImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CompletedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CancelingImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CanceledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult UnsettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult SettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult UninterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult InterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
 
-	static FOpResult AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
-	{
-		if (!Scope.IsCellOfType<VTask>())
-		{
-			V_DIE("Tried to await non-VTask");
-		}
-		VTask& This = Scope.StaticCast<VTask>();
+	COREUOBJECT_API static FOpResult AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CancelImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
 
-		if (This.Result.Get().IsUninitialized())
-		{
-			Task->PrevAwait.Set(Context, This.Awaiters.Get());
-			This.Awaiters.Set(Context, Task);
-			V_YIELD();
-		}
-		else
-		{
-			V_RETURN(This.Result.Get());
-		}
-	}
+	bool RequestCancel(FRunningContext Context);
+	bool CancelChildren(FRunningContext Context);
 
 	void Suspend(FAccessContext Context)
 	{
-		FailureContext.Reset();
-		bSuspended = true;
+		bRunning = false;
 	}
 
-	void Resume(FAccessContext Context, VFailureContext& InheritedFailureContext)
+	void Resume(FAccessContext Context)
 	{
-		FailureContext.Set(Context, InheritedFailureContext);
-		bSuspended = false;
+		bRunning = true;
 	}
 
-	VTask* FinishedExecuting(FAccessContext Context)
+	void Park(FAccessContext Context, TWriteBarrier<VTask>& LastTask)
 	{
-		VTask* ToResume = Awaiters.Get();
-		Awaiters.Reset();
-		return ToResume;
+		V_DIE_IF(PrevTask || NextTask);
+		if (LastTask)
+		{
+			PrevTask.Set(Context, LastTask.Get());
+			LastTask->NextTask.Set(Context, this);
+		}
+		LastTask.Set(Context, this);
+	}
+
+	void Unpark(FAccessContext Context, TWriteBarrier<VTask>& LastTask)
+	{
+		if (LastTask.Get() == this)
+		{
+			V_DIE_IF(NextTask);
+			LastTask.Set(Context, PrevTask.Get());
+		}
+		if (PrevTask)
+		{
+			V_DIE_UNLESS(PrevTask->NextTask.Get() == this);
+			PrevTask->NextTask.Set(Context, NextTask.Get());
+		}
+		if (NextTask)
+		{
+			V_DIE_UNLESS(NextTask->PrevTask.Get() == this);
+			NextTask->PrevTask.Set(Context, PrevTask.Get());
+		}
+		PrevTask.Reset();
+		NextTask.Reset();
 	}
 
 private:
-	VTask(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VFailureContext* FailureContext)
+	VTask(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
 		: VObject(Context, *EmergentType)
+		, TIntrusiveTree(Context, Parent)
+		, ResumeSlot(Context, nullptr)
 		, YieldPC(YieldPC)
 		, YieldFrame(Context, YieldFrame)
 		, YieldTask(Context, YieldTask)
-		, FailureContext(Context, FailureContext)
-		, ResumeSlot(Context, nullptr)
 	{
 	}
 };

@@ -15,19 +15,204 @@ namespace Verse
 DEFINE_DERIVED_VCPPCLASSINFO(VTask);
 TGlobalHeapPtr<VEmergentType> VTask::EmergentType;
 
+FOpResult VTask::ActiveImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(Self->Phase < EPhase::CancelStarted && !Self->Result);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::CompletedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(Self->Result);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::CancelingImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(EPhase::CancelStarted <= Self->Phase && Self->Phase < EPhase::Canceled);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::CanceledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(Self->Phase == EPhase::Canceled);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::UnsettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(Self->Phase < EPhase::Canceled && !Self->Result);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::SettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(Self->Phase == EPhase::Canceled || Self->Result);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::UninterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(Self->Phase == EPhase::Active);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::InterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	V_FAIL_UNLESS(Self->Phase != EPhase::Active);
+	V_RETURN(GlobalFalse());
+}
+
+FOpResult VTask::AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	if (!Self->Result)
+	{
+		Task->Park(Context, Self->LastAwait);
+
+		V_DIE_IF(Task->NativeDefer);
+		Task->NativeDefer = [Self](FAccessContext Context, VTask* Task) {
+			AutoRTFM::Open([&] { Task->Unpark(Context, Self->LastAwait); });
+		};
+
+		V_YIELD();
+	}
+
+	V_RETURN(Self->Result.Get());
+}
+
+// When a task is canceled, it follows these phases, completing each one before starting the next.
+// The implementation upholds and relies on these invariants throughout.
+//
+// 1) Reach a suspension point. The task is running during this phase. A call to a <suspends>
+//    function is insufficient on its own, because cancellation cannot proceed until the task
+//    actually suspends. (`EndTask` also functions as a last-chance suspension point.)
+// 2) Cancel children in LIFO order. If a descendant is still running, the task must yield. At the
+//    same time, it may still be registered for normal resumption, because de-registration happens
+//    in a (native) defer block as part of unwinding. This has two consequences:
+//    * If the task suspended in `Await` or `Cancel`, its `PrevTask`/`NextTask` links will still be
+//      in use, so cancellation must resume via the child's `Parent` link instead.
+//    * Something may try to resume the task. The task must not leave its suspension point, and it
+//      may already be running (see `bRunning`), so normal resumption must become a no-op.
+// 3) Unwind the stack and run `defer` blocks. After the previous phase, the task will no longer
+//    yield for any reason, because any new children created during unwinding can always be
+//    cancelled synchronously by the `EndTask` instruction at the end of unwinding.
+// 4) Resume any cancelers, followed by the parent if it is in phase 2 and this is its last child.
+//    The parent task's phase 2 guarantees that its last child does not change while it is waiting.
+FOpResult VTask::CancelImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+{
+	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
+	VTask* Self = &Scope.StaticCast<VTask>();
+
+	if (Self->Phase < EPhase::Canceled && !Self->Result)
+	{
+		if (!Self->RequestCancel(Context))
+		{
+			Task->Park(Context, Self->LastCancel);
+
+			V_DIE_IF(Task->NativeDefer);
+			Task->NativeDefer = [Self](FAccessContext Context, VTask* Task) {
+				AutoRTFM::Open([&] { Task->Unpark(Context, Self->LastCancel); });
+			};
+
+			V_YIELD();
+		}
+
+		Self->UnwindInTransaction(Context);
+	}
+
+	V_RETURN(GlobalFalse());
+}
+
+// Call when initiating task cancellation. Returns true if the task is ready to unwind.
+bool VTask::RequestCancel(FRunningContext Context)
+{
+	V_DIE_UNLESS(Phase < EPhase::Canceled && !Result);
+
+	if (Phase < EPhase::CancelRequested)
+	{
+		Phase = EPhase::CancelRequested;
+	}
+
+	// The task is not yet at a suspension point, or is already unwinding.
+	if (bRunning)
+	{
+		return false;
+	}
+
+	// The task is already waiting on a child's cancellation.
+	if (Phase == EPhase::CancelStarted)
+	{
+		return false;
+	}
+
+	Phase = EPhase::CancelStarted;
+	return CancelChildren(Context);
+}
+
+// Returns true if all children were canceled.
+bool VTask::CancelChildren(FRunningContext Context)
+{
+	// Let unwinding children know not to resume this task.
+	TGuardValue<bool> GuardRunning(bRunning, true);
+
+	while (VTask* Child = LastChild.Get())
+	{
+		if (!Child->RequestCancel(Context))
+		{
+			return false;
+		}
+
+		V_DIE_UNLESS(Child == LastChild.Get());
+		Child->UnwindInTransaction(Context);
+	}
+
+	return true;
+}
+
 template <typename TVisitor>
 void VTask::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Result, TEXT("Result"));
-	Visitor.Visit(Awaiters, TEXT("Awaiters"));
-	Visitor.Visit(PrevAwait, TEXT("PrevAwait"));
-
-	Visitor.Visit(YieldFrame, TEXT("YieldFrame"));
-	Visitor.Visit(YieldTask, TEXT("YieldTask"));
-	Visitor.Visit(FailureContext, TEXT("FailureContext"));
+	TIntrusiveTree<VTask>::VisitReferencesImpl(Visitor);
 
 	Visitor.Visit(ResumeFrame, TEXT("ResumeFrame"));
 	ResumeSlot.Visit(Visitor);
+
+	Visitor.Visit(YieldFrame, TEXT("YieldFrame"));
+	Visitor.Visit(YieldTask, TEXT("YieldTask"));
+
+	Visitor.Visit(Result, TEXT("Result"));
+	Visitor.Visit(LastAwait, TEXT("LastAwait"));
+	Visitor.Visit(LastCancel, TEXT("LastCancel"));
+
+	Visitor.Visit(PrevTask, TEXT("PrevTask"));
+	Visitor.Visit(NextTask, TEXT("NextTask"));
 }
 
 } // namespace Verse

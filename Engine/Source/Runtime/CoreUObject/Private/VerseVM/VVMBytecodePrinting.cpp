@@ -102,11 +102,12 @@ struct FBytecodePrinter
 				Procedure.NumRegisters,
 				Procedure.NumRegisters - 1);
 		}
-		if (Procedure.NumParameters)
+		int32 NumParameters = Procedure.NumPositionalParameters + Procedure.NumNamedParameters;
+		if (NumParameters)
 		{
-			String += FString::Printf(TEXT("    # Frame contains %u parameters: r0..r%u\n"),
-				Procedure.NumParameters,
-				Procedure.NumParameters - 1);
+			String += FString::Printf(TEXT("    # Frame contains %u parameters: r1..r%u\n"),
+				NumParameters,
+				NumParameters);
 		}
 		else
 		{

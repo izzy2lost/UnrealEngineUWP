@@ -787,6 +787,9 @@ namespace UnrealBuildTool
 
 			Inst("Jump")
 				.Jump("JumpOffset");
+			Inst("JumpIfInitialized")
+				.Arg("Source", Role.Use)
+				.Jump("JumpOffset");
 			Inst("Switch")
 				.Arg("Which", Role.Use)
 				.Jump("JumpOffsets", Arity.Variadic);
@@ -803,6 +806,7 @@ namespace UnrealBuildTool
 
 			Inst("BeginTask")
 				.Arg("Dest", Role.UnifyDef)
+				.Const("bAttached", CppType.Bool)
 				.Jump("OnYield");
 			Inst("EndTask")
 				.Arg("Value", Role.Use);
@@ -824,13 +828,9 @@ namespace UnrealBuildTool
 				.CreatesNewReturnEffectToken()
 				.Suspends();
 
-			Inst("JumpIfInitialized")
-				.Arg("RegIdx", Role.Use)
-				.Jump("JumpOffset")
-				.Suspends();
-
 			Inst("Return")
 				.Arg("Value", Role.Use);
+			Inst("ResumeUnwind");
 
 			Inst("NewVar")
 				.Arg("Dest", Role.UnifyDef);

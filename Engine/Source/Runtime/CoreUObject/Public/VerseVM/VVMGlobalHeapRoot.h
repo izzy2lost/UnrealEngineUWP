@@ -19,6 +19,9 @@ struct FGlobalHeapRoot
 {
 	COREUOBJECT_API FGlobalHeapRoot();
 
+	// Not used; silences warnings.
+	virtual ~FGlobalHeapRoot() {}
+
 	// Implement these visit any strong references in the root
 	virtual void Visit(FMarkStackVisitor& Visitor) = 0;
 	virtual void Visit(FAbstractVisitor& Visitor) = 0;

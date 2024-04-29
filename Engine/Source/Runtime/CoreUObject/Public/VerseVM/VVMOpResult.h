@@ -22,6 +22,11 @@
 	{                                      \
 		return {::Verse::FOpResult::Fail}; \
 	}
+#define V_FAIL_UNLESS(Condition)           \
+	if (!(Condition))                      \
+	{                                      \
+		return {::Verse::FOpResult::Fail}; \
+	}
 #define V_YIELD()                 \
 	return                        \
 	{                             \
