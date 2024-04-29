@@ -563,13 +563,13 @@ namespace UnrealBuildTool
 			IRootPaths rootPaths = IRootPaths.Create(_ubaLogger!);
 			foreach (DirectoryItem root in action.RootPaths)
 			{
-				rootPaths.RegisterRoot(root.FullName + Path.DirectorySeparatorChar, true);
+				rootPaths.RegisterRoot(root.FullName, true);
 			}
 
 			DirectoryReference? autoSdkDir;
 			if (UEBuildPlatformSDK.TryGetHostPlatformAutoSDKDir(out autoSdkDir))
 			{
-				rootPaths.RegisterRoot(autoSdkDir.FullName + Path.DirectorySeparatorChar, true);
+				rootPaths.RegisterRoot(autoSdkDir.FullName, true);
 			}
 
 			rootPaths.RegisterSystemRoots();

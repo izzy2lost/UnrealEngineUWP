@@ -274,7 +274,7 @@ namespace uba
 		}
 		else if (outRequiredCasTableSize)
 		{
-			BinaryReader reader(m_mem.memory, insres.first->second, 1000);
+			BinaryReader reader(m_mem.memory, insres.first->second, ~0u);
 			reader.Read7BitEncoded();
 			*outRequiredCasTableSize = Max(*outRequiredCasTableSize, u32(reader.GetPosition() + sizeof(CasKey)));
 		}
@@ -283,7 +283,7 @@ namespace uba
 
 	void CompactCasKeyTable::GetKey(CasKey& outKey, u64 offset) const
 	{
-		BinaryReader reader(m_mem.memory, offset, 1000);
+		BinaryReader reader(m_mem.memory, offset, ~0u);
 		reader.Read7BitEncoded();
 		outKey = reader.ReadCasKey();
 	}
@@ -297,7 +297,7 @@ namespace uba
 		}
 		#endif
 
-		BinaryReader reader(m_mem.memory, offset, 1000);
+		BinaryReader reader(m_mem.memory, offset, ~0u);
 		u32 stringOffset = (u32)reader.Read7BitEncoded();
 		outKey = reader.ReadCasKey();
 		pathTable.GetString(outPath, stringOffset);

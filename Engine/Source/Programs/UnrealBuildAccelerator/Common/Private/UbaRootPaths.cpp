@@ -39,9 +39,6 @@ namespace uba
 			if (CaseInsensitiveFs)
 				ToLower(root.path.data());
 
-			if (root.path[root.path.size()-1] != PathSeparator)
-				return logger.Error(TC("Root path '%s' must end with separator"), rp);
-
 			root.includeInKey = includeInKey;
 
 			m_longestRoot = Max(u32(root.path.size()), m_longestRoot);
