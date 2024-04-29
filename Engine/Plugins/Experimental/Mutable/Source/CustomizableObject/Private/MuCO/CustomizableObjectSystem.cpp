@@ -1400,17 +1400,7 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 				});
 
 			
-			if (GetMutableDefault<UCustomizableObjectSettings>()->bEnableStreamingManager)
-			{
-				while (!Task.IsCompleted())				
-				{
-					GetPrivate()->TickMutableThreadDependencies();
-				}
-			}
-			else
-			{
-				Task.Wait();
-			}
+			Task.Wait();
 		}
 
 		Private->MutablePendingInstanceWork.RemoveUpdatesForObject(InObject);
@@ -1648,15 +1638,13 @@ namespace impl
 		SystemPrivate->Streamer->PrepareStreamingForObject(Operation->Instance->GetCustomizableObject());			
 
 		const mu::Ptr<mu::System> MutableSystem = SystemPrivate->MutableSystem;
-
-		const TSharedPtr<mu::Model> Model = Operation->Instance->GetCustomizableObject()->GetPrivate()->GetModel();
-
+		
 		if (Operation->bLiveUpdateMode)
 		{
 			if (Operation->InstanceID == 0)
 			{
 				// It's the first update since the instance was put in LiveUpdate Mode, this ID will be reused from now on
-				Operation->InstanceID = MutableSystem->NewInstance(Model);
+				Operation->InstanceID = MutableSystem->NewInstance(Operation->Model);
 				UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for reuse "), Operation->InstanceID);
 			}
 			else
@@ -1670,7 +1658,7 @@ namespace impl
 		{
 			// In non-LiveUpdate mode, we are forcing the recreation of mutable-side instances with every update.
 			check(Operation->InstanceID == 0);
-			Operation->InstanceID = MutableSystem->NewInstance(Model);
+			Operation->InstanceID = MutableSystem->NewInstance(Operation->Model);
 			UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] "), Operation->InstanceID);
 		}
 
@@ -3296,6 +3284,11 @@ namespace impl
 			CandidateInstancePrivateData->LiveUpdateModeInstanceID = 0;
 		}
 
+		Operation->Model = CustomizableObject->GetPrivate()->GetModel().ToSharedRef();
+
+#if WITH_EDITOR
+		SystemPrivateData->GetImageProviderChecked()->CacheRuntimeReferencedImages(Operation->Model.ToSharedRef(), CustomizableObject->GetPrivate()->GetModelResources().RuntimeReferencedTextures);
+#endif
 		
 		// Task: Mutable Update and GetMesh
 		//-------------------------------------------------------------
@@ -3681,7 +3674,6 @@ int32 UCustomizableObjectSystem::TickInternal()
 	}
 
 #if WITH_EDITOR
-	GetPrivate()->TickMutableThreadDependencies();
 #endif
 	
 	const int32 RemainingTasks = Private->MutableTaskGraph.Tick();
@@ -4022,13 +4014,6 @@ void UCustomizableObjectSystem::SetWorkingMemory(int32 Bytes)
 int32 UCustomizableObjectSystem::GetWorkingMemory() const
 {
 	return WorkingMemory;
-}
-
-
-void UCustomizableObjectSystemPrivate::TickMutableThreadDependencies()
-{
-	check(IsInGameThread());
-	ImageProvider->Tick();
 }
 
 

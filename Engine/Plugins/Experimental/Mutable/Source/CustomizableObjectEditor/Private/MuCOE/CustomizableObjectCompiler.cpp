@@ -923,12 +923,18 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			ModelResources.Materials.Emplace(Material);
 		}
 
-		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
+		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.PassthroughTextureMap)
 		{
 			check(Pair.Value.ID == ModelResources.PassThroughTextures.Num());
 			ModelResources.PassThroughTextures.Add(Pair.Key);
 		}
 
+		for (const TPair<TSoftObjectPtr<UTexture2D>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
+		{
+			check(Pair.Value.ID == ModelResources.RuntimeReferencedTextures.Num());
+			ModelResources.RuntimeReferencedTextures.Add(Pair.Key);
+		}
+		
 		ModelResources.PhysicsAssets = MoveTemp(GenerationContext.PhysicsAssets);
 
 		ModelResources.AnimBPs = MoveTemp(GenerationContext.AnimBPAssets);
@@ -1112,17 +1118,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		{
 			check(Pair.Value.ID == NewCompileTimeReferencedTextures.Num());
 
-			UTexture* Texture = Pair.Key.LoadSynchronous();
-			FMutableSourceTextureData Tex;
-			Tex.Source = Texture->Source.CopyTornOff();
-			Tex.bFlipGreenChannel = Texture->bFlipGreenChannel;
-			Tex.bHasAlphaChannel =
-				Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
-				&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-				&& !Texture->CompressionNoAlpha;
-			Tex.bCompressionForceAlpha = Texture->CompressionForceAlpha;
-			Tex.bIsNormalComposite = false; // TODO?
-
+			FMutableSourceTextureData Tex(*Pair.Key.LoadSynchronous());
 			NewCompileTimeReferencedTextures.Add(Tex);
 		}
 
@@ -1326,7 +1322,7 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 
 	// Pass out the references textures
 	OutRuntimeReferencedTextures.Empty();
-	for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
+	for (const TPair<TSoftObjectPtr<UTexture2D>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
 	{
 		check(Pair.Value.ID == OutRuntimeReferencedTextures.Num());
 		OutRuntimeReferencedTextures.Add(Pair.Key);
@@ -1337,17 +1333,7 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 	{
 		check(Pair.Value.ID == OutCompilerReferencedTextures.Num());
 
-		UTexture* Texture = Pair.Key.LoadSynchronous();
-		FMutableSourceTextureData Tex;
-		Tex.Source = Texture->Source.CopyTornOff();
-		Tex.bFlipGreenChannel = Texture->bFlipGreenChannel;
-		Tex.bHasAlphaChannel =
-			Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
-			&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-			&& !Texture->CompressionNoAlpha;
-		Tex.bCompressionForceAlpha = Texture->CompressionForceAlpha;
-		Tex.bIsNormalComposite = false; // TODO?
-
+		FMutableSourceTextureData Tex(*Pair.Key.LoadSynchronous());
 		OutCompilerReferencedTextures.Add(Tex);
 	}
 

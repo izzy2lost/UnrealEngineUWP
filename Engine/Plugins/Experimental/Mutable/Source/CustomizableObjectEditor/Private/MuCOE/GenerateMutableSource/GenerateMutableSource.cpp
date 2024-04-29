@@ -1916,26 +1916,40 @@ mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerat
 		}
 	}
 
-	TMap<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& TextureMap = bIsCompileTime
-		? GenerationContext.CompileTimeTextureMap
-		: GenerationContext.RuntimeReferencedTextureMap;
-
-	FMutableGraphGenerationContext::FGeneratedReferencedTexture InvalidEntry;
-	InvalidEntry.ID = TNumericLimits<uint32>::Max();
-	FMutableGraphGenerationContext::FGeneratedReferencedTexture& Entry = TextureMap.FindOrAdd(Texture,InvalidEntry);
-
-	if (Entry.ID == TNumericLimits<uint32>::Max())
-	{
-		Entry.ID = TextureMap.Num()-1;
-	}
-
 	// Create a descriptor for the image.
 	// \TODO: If passthrough (bIsReference) we should apply lod bias, and max texture size to this desc.
 	// For now it is not a problem because passthrough textures shouldn't mix with any other operations.
 	mu::FImageDesc ImageDesc = GenerateImageDescriptor(Texture);
 
+	FMutableGraphGenerationContext::FGeneratedReferencedTexture InvalidEntry;
+	InvalidEntry.ID = TNumericLimits<uint32>::Max();
+
+	FMutableGraphGenerationContext::FGeneratedReferencedTexture* Entry;
+	int32 Num = 0;
+	
+	if (bIsReference)
+	{
+		Entry = &GenerationContext.PassthroughTextureMap.FindOrAdd(Texture, InvalidEntry);
+		Num = GenerationContext.PassthroughTextureMap.Num();
+	}
+	else if (bIsCompileTime)
+	{
+        Entry = &GenerationContext.CompileTimeTextureMap.FindOrAdd(Texture, InvalidEntry);
+		Num = GenerationContext.CompileTimeTextureMap.Num();
+	}
+	else
+	{
+		Entry = &GenerationContext.RuntimeReferencedTextureMap.FindOrAdd(Texture, InvalidEntry);
+		Num = GenerationContext.RuntimeReferencedTextureMap.Num();
+	}
+
+	if (Entry->ID == TNumericLimits<uint32>::Max())
+	{
+		Entry->ID = Num - 1;
+	}
+	
 	// Compile-time references that are left should be resolved immediately (should only happen in editor).
-	mu::Ptr<mu::Image> Result = mu::Image::CreateAsReference(Entry.ID, ImageDesc, bForceLoad);
+	mu::Ptr<mu::Image> Result = mu::Image::CreateAsReference(Entry->ID, ImageDesc, bForceLoad);
 	return Result;
 }
 

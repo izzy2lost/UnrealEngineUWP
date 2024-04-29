@@ -584,8 +584,12 @@ struct FMutableGraphGenerationContext
 
 	// Cache of runtime pass-through images and their IDs used in the core to indentify them.
 	// These textures will remain as external references even in optimized models.
-	TMap<TSoftObjectPtr<UTexture>, FGeneratedReferencedTexture> RuntimeReferencedTextureMap;
-
+	TMap<TSoftObjectPtr<UTexture>, FGeneratedReferencedTexture> PassthroughTextureMap;
+	
+	// Cache of runtime images and their IDs used in the core to indentify them.
+	// These textures will remain as external references even in optimized models.
+	TMap<TSoftObjectPtr<UTexture2D>, FGeneratedReferencedTexture> RuntimeReferencedTextureMap;
+	
 	// Cache of runtime pass-through images and their IDs used in the core to indentify them
 	// These textures will become mutable images in the compiled model.
 	TMap<TSoftObjectPtr<UTexture>, FGeneratedReferencedTexture> CompileTimeTextureMap;

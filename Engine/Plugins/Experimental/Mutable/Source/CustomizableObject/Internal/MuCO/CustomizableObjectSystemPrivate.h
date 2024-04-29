@@ -545,6 +545,8 @@ public:
 	mu::Instance::ID InstanceID = 0; // Redundant
 	const mu::Instance* MutableInstance = nullptr;
 
+	TSharedPtr<mu::Model> Model;
+
 	uint8 NumComponents = 0;
 	uint8 NumLODsAvailable = 0;
 	uint8 FirstLODAvailable = 0;
@@ -755,10 +757,7 @@ public:
 	void CacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const;
 
 	void UnCacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const;
-
-	/** Tick, in the Game Thread, anything that could potentially block the Mutable Thread. */
-	void TickMutableThreadDependencies();
-
+	
 	/** Mutable TaskGraph system (Mutable Thread). */
 	FMutableTaskGraph MutableTaskGraph;
 	

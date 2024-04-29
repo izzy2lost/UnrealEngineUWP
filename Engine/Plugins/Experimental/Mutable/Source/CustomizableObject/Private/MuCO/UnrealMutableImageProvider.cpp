@@ -2,6 +2,7 @@
 
 #include "MuCO/UnrealMutableImageProvider.h"
 
+#include "ImageCoreUtils.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
@@ -9,6 +10,7 @@
 #include "TextureResource.h"
 #include "MuR/Parameters.h"
 #include "MuR/ImageTypes.h"
+#include "MuR/Model.h"
 
 
 //-------------------------------------------------------------------------------------------------
@@ -77,92 +79,11 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 }
 
 
-#if WITH_EDITOR
-
-bool FUnrealMutableImageProvider::Tick()
-{
-	FReferencedImageRequest* Request=nullptr;
-
-	// Process only one request per tick, or zero.
-	if (!QueuedReferencedImageRequests.Dequeue(Request))
-	{
-		return true;
-	}
-
-	// Find the CO for this model.
-	UCustomizableObject* CO = nullptr;
-	for (TObjectIterator<UCustomizableObject> It; It; ++It)
-	{
-		if (IsValid(*It) && It->GetPrivate()->GetModel().Get() == Request->ModelPtr)
-		{
-			CO = *It;
-			break;
-		}
-	}
-
-	if (!CO)
-	{
-		// The CO for this request has been unloaded!
-		check(false);
-		return true;
-	}
-
-	const FModelResources& ModelResources = CO->GetPrivate()->GetModelResources();
-	if (!ModelResources.PassThroughTextures.IsValidIndex(Request->Id))
-	{
-		// The id is not valid for this CO
-		check(false);
-		return true;
-	}
-
-	// Find the texture id
-	TSoftObjectPtr<UTexture> TexturePtr = ModelResources.PassThroughTextures[Request->Id];
-
-	// This can cause a stall because of loading the asset.
-	UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.LoadSynchronous() );
-	if (!Texture)
-	{
-		// Failed to load the texture
-		check(false);
-		return true;
-	}
-
-	// In the editor the src data can be directly accessed
-	int32 MipIndex = (Request->MipmapsToSkip < Texture->GetPlatformData()->Mips.Num()) ? Request->MipmapsToSkip : Texture->GetPlatformData()->Mips.Num() - 1;
-	check(MipIndex >= 0);
-
-	FMutableSourceTextureData Tex;
-	Tex.Source = Texture->Source.CopyTornOff();
-	Tex.bFlipGreenChannel = Texture->bFlipGreenChannel;
-	Tex.bHasAlphaChannel = 
-		Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
-		&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-		&& !Texture->CompressionNoAlpha;
-	Tex.bCompressionForceAlpha = Texture->CompressionForceAlpha;
-	Tex.bIsNormalComposite = false; // TODO?
-
-	EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Request->ResultImage.get(), Tex, MipIndex);
-	
-	if (Error != EUnrealToMutableConversionError::Success)
-	{
-		// This could happen in the editor, because some source textures may have changed while there was a background compilation.
-		// We just show a warning and move on. This cannot happen during cooks, so it is fine.
-		UE_LOG(LogMutable, Warning, TEXT("Failed to load some source texture data for [%s]. Some materials may look corrupted."), *Texture->GetName());
-	}
-
-	Request->CompletionEvent.Trigger();
-
-	return true;
-}
-
-#endif
-
-
 //-------------------------------------------------------------------------------------------------
 TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
 {
 	// Thread: worker
-	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::GetImage);
+	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::GetImageAsync);
 
 	// Some data that may have to be copied from the GlobalExternalImages while it's locked
 	IBulkDataIORequest* IORequest = nullptr;
@@ -201,23 +122,33 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 			ResultCallback(ImageInfo.Image);
 			return Invoke(TrivialReturn);
 		}
-		else if (UTexture2D* TextureToLoad = ImageInfo.TextureToLoad)
+
+#if WITH_EDITOR
+		if (const TSharedPtr<FMutableSourceTextureData>& SourceTextureData = ImageInfo.SourceTextureData)
+		{
+			const int32 MipIndex = FMath::Min(static_cast<int32>(MipmapsToSkip), SourceTextureData->GetSource().GetNumMips() - 1);
+			check(MipIndex >= 0);
+			
+			// In the editor the src data can be directly accessed
+			mu::Ptr<mu::Image> Image = new mu::Image();
+
+			EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), *SourceTextureData, MipIndex);
+			if (Error != EUnrealToMutableConversionError::Success)
+			{
+				// This could happen in the editor, because some source textures may have changed while there was a background compilation.
+				// We just show a warning and move on. This cannot happen during cooks, so it is fine.
+				UE_LOG(LogMutable, Warning, TEXT("Failed to load some source texture data for image [%s]. Some materials may look corrupted."), *Id.ToString());
+			}
+
+			ResultCallback(Image);
+			return Invoke(TrivialReturn);
+		}
+#else
+		if (UTexture2D* TextureToLoad = ImageInfo.TextureToLoad)
 		{
 			// It's safe to access TextureToLoad because ExternalImagesLock guarantees that the data in GlobalExternalImages is valid,
 			// not being modified by the game thread at the moment and the texture cannot be GCed because of the AddReferencedObjects
 			// in the FUnrealMutableImageProvider
-
-#if WITH_EDITOR
-			if (!TextureToLoad->IsAsyncCacheComplete())
-			{
-				// If the UE texture is being compiled/processed in a background process, it's not safe to access
-				FString TextureName;
-				TextureToLoad->GetName(TextureName);
-				UE_LOG(LogMutable, Warning, TEXT("Failed to get the external texture [%s] because it's still being async cached. Wait until all background processed finish and retry again."), *TextureName);
-				ResultCallback(CreateDummy());
-				return Invoke(TrivialReturn);
-			}
-#endif
 
 			int32 MipIndex = MipmapsToSkip < TextureToLoad->GetPlatformData()->Mips.Num() ? MipmapsToSkip : TextureToLoad->GetPlatformData()->Mips.Num() - 1;
 			check (MipIndex >= 0);
@@ -230,33 +161,7 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 					break;
 				}
 			}
-
-#if WITH_EDITOR
-			// In the editor the src data can be directly accessed
-			mu::Ptr<mu::Image> Image = new mu::Image();
-
-			FMutableSourceTextureData Tex;
-			Tex.Source = TextureToLoad->Source.CopyTornOff();
-			Tex.bFlipGreenChannel = TextureToLoad->bFlipGreenChannel;
-			Tex.bHasAlphaChannel =
-				TextureToLoad->AdjustMinAlpha != TextureToLoad->AdjustMaxAlpha
-				&& TextureToLoad->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-				&& !TextureToLoad->CompressionNoAlpha;
-			Tex.bCompressionForceAlpha = TextureToLoad->CompressionForceAlpha;
-			Tex.bIsNormalComposite = false; // TODO?
-
-			EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), Tex, MipIndex);
-
-			if (Error != EUnrealToMutableConversionError::Success)
-			{
-				// This could happen in the editor, because some source textures may have changed while there was a background compilation.
-				// We just show a warning and move on. This cannot happen during cooks, so it is fine.
-				UE_LOG(LogMutable, Warning, TEXT("Failed to load some source texture data for [%s]. Some materials may look corrupted."), *TextureToLoad->GetName());
-			}
-
-			ResultCallback(Image);
-			return Invoke(TrivialReturn);
-#else
+			
 			// Texture format and the equivalent mutable format
 			Format = TextureToLoad->GetPlatformData()->PixelFormat;
 			MutImageFormat = GetMutablePixelFormat(Format);
@@ -410,15 +315,13 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 					return Invoke(TrivialReturn);
 				}
 			}
+		}
 #endif
-		}
-		else
-		{
-			// No UTexture2D was provided, cannot do anything, just provide a dummy texture
-			UE_LOG(LogMutable, Warning, TEXT("No UTexture2D was provided for an application-specific image parameter."));
-			ResultCallback(CreateDummy());
-			return Invoke(TrivialReturn);
-		}
+		
+		// No UTexture2D was provided, cannot do anything, just provide a dummy texture
+		UE_LOG(LogMutable, Warning, TEXT("No UTexture2D was provided for an application-specific image parameter."));
+		ResultCallback(CreateDummy());
+		return Invoke(TrivialReturn);
 	}
 
 	// Make sure the returned event is dispatched at some point for all code paths, 
@@ -437,33 +340,39 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetRefe
 		return MakeTuple(UE::Tasks::MakeCompletedTask<void>(), []() -> void {});
 	};
 
-
 #if WITH_EDITOR
 
-	TUniquePtr<FReferencedImageRequest> Request( new FReferencedImageRequest(UE::Tasks::FTaskEvent(TEXT("GetReferencedImageCompletion"))) );
-	Request->ModelPtr = ModelPtr;
-	Request->Id = Id;
-	Request->MipmapsToSkip = MipmapsToSkip;
-	Request->ResultImage = new mu::Image();
+	mu::Ptr<mu::Image> Image = new mu::Image();
 
-	QueuedReferencedImageRequests.Enqueue(Request.Get());
+	FScopeLock Lock(&RuntimeReferencedLock);
+	
+	TArray<FMutableSourceTextureData>& SourceTextures = RuntimeReferencedImages[ModelPtr].SourceTextures;
+	if (!SourceTextures.IsValidIndex(Id))
+	{
+		// This could happen in the editor, because some source textures may have changed while there was a background compilation.
+		// We just show a warning and move on. This cannot happen during cooks, so it is fine.
+		UE_LOG(LogMutable, Warning, TEXT("Failed to load image [%i]."), Id);
 
-	if (IsInGameThread())
-	{
-		// This may happen in the mutable debugger.
-		while (!Request->CompletionEvent.IsCompleted())
-		{
-			Tick();
-		}
-	}
-	else
-	{
-		Request->CompletionEvent.BusyWait();
+		ResultCallback(Image);
+		return Invoke(TrivialReturn);
 	}
 
-	ResultCallback(Request->ResultImage);
+	FMutableSourceTextureData& SourceTextureData = SourceTextures[Id];
+	
+	const int32 MipIndex = FMath::Min(static_cast<int32>(MipmapsToSkip), SourceTextureData.GetSource().GetNumMips() - 1);
+	check(MipIndex >= 0);
+	
+	EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), SourceTextureData, MipIndex);
+	if (Error != EUnrealToMutableConversionError::Success)
+	{
+		// This could happen in the editor, because some source textures may have changed while updating.
+		// We just show a warning and move on. This cannot happen during cooks, so it is fine.
+		UE_LOG(LogMutable, Warning, TEXT("Failed to load some source texture data for image [%i]. Some textures may be corrupted."), Id);
+	}
+
+	ResultCallback(Image);
 	return Invoke(TrivialReturn);
-
+	
 #else // WITH_EDITOR
 
 	// Not supported outside editor yet.
@@ -481,56 +390,82 @@ mu::FImageDesc FUnrealMutableImageProvider::GetImageDesc(FName Id, uint8 Mipmaps
 {
 	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::GetImageDesc);
 
-	mu::FImageDesc Result;	
+	FScopeLock Lock(&ExternalImagesLock);
+	// Inside this scope it's safe to access GlobalExternalImages
+
+	if (!GlobalExternalImages.Contains(Id))
 	{
-		FScopeLock Lock(&ExternalImagesLock);
-		// Inside this scope it's safe to access GlobalExternalImages
-
-		if (!GlobalExternalImages.Contains(Id))
-		{
-			// Null case, no image was provided
-			return CreateDummyDesc();
-		}
-
-		const FUnrealMutableImageInfo& ImageInfo = GlobalExternalImages[Id];
-
-		if (ImageInfo.Image)
-		{
-			// Easy case where the image was directly provided
-			Result = mu::FImageDesc(ImageInfo.Image->GetSize(), ImageInfo.Image->GetFormat(), ImageInfo.Image->GetLODCount());
-		}
-		else if (ImageInfo.TextureToLoad)
-		{
-			// It's safe to access TextureToLoad because ExternalImagesLock guarantees that the data in GlobalExternalImages is valid,
-			// not being modified by the game thread at the moment and the texture cannot be GCed because of the AddReferencedObjects
-			// in the FUnrealMutableImageProvider
-			
-			// Check if it's a format we support
-			if (ImageInfo.MutableFormat == mu::EImageFormat::IF_NONE)
-			{
-				UE_LOG(LogMutable, Warning, TEXT("Failed to get external image descriptor. Unexpected image format. EPixelFormat [%s]."), GetPixelFormatString(ImageInfo.Format));
-				return CreateDummyDesc();
-			}
-
-			const int32 MipIndex = FMath::Min3(static_cast<int32>(MipmapsToSkip), ImageInfo.FirstAvailableMip, ImageInfo.NumMips - 1);
-
-			const mu::FImageSize ImageSize = mu::FImageSize(
-					ImageInfo.SizeX >> MipIndex,
-					ImageInfo.SizeY >> MipIndex);
-
-			const int32 Lods = 1;
-
-			Result = mu::FImageDesc(ImageSize, ImageInfo.MutableFormat, Lods);
-		}
-		else
-		{
-			// No UTexture2D was provided, cannot do anything, just provide a dummy texture
-			UE_LOG(LogMutable, Warning, TEXT("No UTexture2D was provided for an application-specific image parameter descriptor."));
-			return CreateDummyDesc();
-		}
-
-		return Result;
+		// Null case, no image was provided
+		return CreateDummyDesc();
 	}
+
+	const FUnrealMutableImageInfo& ImageInfo = GlobalExternalImages[Id];
+
+	if (ImageInfo.Image)
+	{
+		// Easy case where the image was directly provided
+		return mu::FImageDesc(ImageInfo.Image->GetSize(), ImageInfo.Image->GetFormat(), ImageInfo.Image->GetLODCount());
+	}
+
+#if WITH_EDITOR
+	if (const TSharedPtr<FMutableSourceTextureData>& SourceTextureData = ImageInfo.SourceTextureData)
+	{
+		const FTextureSource& Source = SourceTextureData->GetSource();
+
+		const int32 MipIndex = FMath::Min(static_cast<int32>(MipmapsToSkip),  Source.GetNumMips() - 1);
+
+		const mu::FImageSize ImageSize = mu::FImageSize(
+				Source.GetSizeX() >> MipIndex,
+				Source.GetSizeY() >> MipIndex);
+
+		const int32 Lods = 1;
+		
+		return mu::FImageDesc(ImageSize, mu::EImageFormat::IF_NONE, Lods);
+	}
+#else
+	if (UTexture2D* TextureToLoad = ImageInfo.TextureToLoad)
+	{
+		mu::FImageDesc Result;	
+
+		// It's safe to access TextureToLoad because ExternalImagesLock guarantees that the data in GlobalExternalImages is valid,
+		// not being modified by the game thread at the moment and the texture cannot be GCed because of the AddReferencedObjects
+		// in the FUnrealMutableImageProvider
+
+		int32 MipIndex = MipmapsToSkip < TextureToLoad->GetPlatformData()->Mips.Num() ? MipmapsToSkip : TextureToLoad->GetPlatformData()->Mips.Num() - 1;
+
+		// Mips in the mip tail are inlined and can't be streamed, find the smallest mip available.
+		for (; MipIndex > 0; --MipIndex)
+		{
+			if (TextureToLoad->GetPlatformData()->Mips[MipIndex].BulkData.CanLoadFromDisk())
+			{
+				break;
+			}
+		}
+
+		// Texture format and the equivalent mutable format
+		const EPixelFormat Format = TextureToLoad->GetPlatformData()->PixelFormat;
+		const mu::EImageFormat MutableFormat = GetMutablePixelFormat(Format);
+
+		// Check if it's a format we support
+		if (MutableFormat == mu::EImageFormat::IF_NONE)
+		{
+			UE_LOG(LogMutable, Warning, TEXT("Failed to get external image descriptor. Unexpected image format. EImageFormat [%s]."), GetPixelFormatString(Format));
+			return CreateDummyDesc();
+		}
+
+		const mu::FImageSize ImageSize = mu::FImageSize(
+				TextureToLoad->GetSizeX() >> MipIndex,
+				TextureToLoad->GetSizeY() >> MipIndex);
+
+		const int32 Lods = 1;
+
+		return mu::FImageDesc(ImageSize, MutableFormat, Lods);
+	}
+#endif
+	
+	// No UTexture2D was provided, cannot do anything, just provide a dummy texture
+	UE_LOG(LogMutable, Warning, TEXT("No UTexture2D was provided for an application-specific image parameter descriptor."));
+	return CreateDummyDesc();
 }
 
 
@@ -557,44 +492,45 @@ void FUnrealMutableImageProvider::CacheImage(FName Id, bool bUser)
 		}
 		else
 		{
-			mu::ImagePtr pResult;
-			UTexture2D* UnrealDeferredTexture = nullptr;
+			bool bFound = false;
+
+			FUnrealMutableImageInfo ImageInfo;
 
 			// See if any provider provides this id.
-			for (int32 p = 0; !pResult && p < ImageProviders.Num(); ++p)
+			for (const TWeakObjectPtr<UCustomizableSystemImageProvider>& Provider : ImageProviders)
 			{
-				TWeakObjectPtr<UCustomizableSystemImageProvider> Provider = ImageProviders[p];
-
-				if (Provider.IsValid())
+				if (bFound)
 				{
-					// \TODO: all these queries could probably be optimized into a single call.
-					switch (Provider->HasTextureParameterValue(Id))
-					{
+					break;
+				}
+				
+				if (!Provider.IsValid())
+				{
+					continue;
+				}
 
-					case UCustomizableSystemImageProvider::ValueType::Raw:
+				// \TODO: all these queries could probably be optimized into a single call.
+				switch (Provider->HasTextureParameterValue(Id))
+				{
+				case UCustomizableSystemImageProvider::ValueType::Raw:
 					{
 						FIntVector desc = Provider->GetTextureParameterValueSize(Id);
-						pResult = new mu::Image(desc[0], desc[1], 1, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::Black);
+						mu::Ptr<mu::Image> pResult = new mu::Image(desc[0], desc[1], 1, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::Black);
 						Provider->GetTextureParameterValueData(Id, pResult->GetLODData(0));
+
+						ImageInfo = FUnrealMutableImageInfo(pResult);
+						
+						bFound = true;
 						break;
 					}
 
-					case UCustomizableSystemImageProvider::ValueType::Unreal:
+				case UCustomizableSystemImageProvider::ValueType::Unreal:
 					{
 						UTexture2D* UnrealTexture = Provider->GetTextureParameterValue(Id);
-						pResult = new mu::Image();
+						mu::Ptr<mu::Image> pResult = new mu::Image();
 
 #if WITH_EDITOR
-						FMutableSourceTextureData Tex;
-						Tex.Source = UnrealTexture->Source.CopyTornOff();
-						Tex.bFlipGreenChannel = UnrealTexture->bFlipGreenChannel;
-						Tex.bHasAlphaChannel =
-							UnrealTexture->AdjustMinAlpha != UnrealTexture->AdjustMaxAlpha
-							&& UnrealTexture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-							&& !UnrealTexture->CompressionNoAlpha;
-						Tex.bCompressionForceAlpha = UnrealTexture->CompressionForceAlpha;
-						Tex.bIsNormalComposite = false; // TODO?
-
+						FMutableSourceTextureData Tex(*UnrealTexture);
 						EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(pResult.get(), Tex, 0);
 						if (Error != EUnrealToMutableConversionError::Success)
 						{
@@ -606,39 +542,40 @@ void FUnrealMutableImageProvider::CacheImage(FName Id, bool bUser)
 						ConvertTextureUnrealPlatformToMutable(pResult.get(), UnrealTexture, 0);
 #endif
 
+						ImageInfo = FUnrealMutableImageInfo(pResult);
+
+						bFound = true;
 						break;
 					}
 
-					case UCustomizableSystemImageProvider::ValueType::Unreal_Deferred:
+				case UCustomizableSystemImageProvider::ValueType::Unreal_Deferred:
 					{
-						UnrealDeferredTexture = Provider->GetTextureParameterValue(Id);
+						if (UTexture2D* UnrealDeferredTexture = Provider->GetTextureParameterValue(Id))
+						{
+							ImageInfo = FUnrealMutableImageInfo(*UnrealDeferredTexture);
+
+							bFound = true;
+						}
+
 						break;
 					}
 
-					default:
-						break;
-					}
+				default:
+					break;
 				}
 			}
 
-			if (!pResult && !UnrealDeferredTexture)
+			if (!bFound)
 			{
-				UE_LOG(LogMutable, Warning, TEXT("Failed to cache external image %s. Missing result or source texture. Result [%d]. Unreal texture [%d]. Num providers [%d]"),
-					*Id.ToString(),
-					pResult ? 1 : 0,
-					UnrealDeferredTexture ? 1 : 0,
-					ImageProviders.Num());
-
+				UE_LOG(LogMutable, Warning, TEXT("Failed to cache external image %s. Missing result and source texture."), *Id.ToString());
 				return;
 			}
 			
-			FUnrealMutableImageInfo ImageInfo(pResult, UnrealDeferredTexture);
-
 			if (bUser)
 			{
 				ImageInfo.ReferencesUser = true;			
 			}
-			else
+				else
 			{
 				ImageInfo.ReferencesSystem++;							
 			}
@@ -745,6 +682,34 @@ void FUnrealMutableImageProvider::UnCacheImages(const mu::Parameters& Parameters
 }
 
 
+#if WITH_EDITOR
+void FUnrealMutableImageProvider::CacheRuntimeReferencedImages(const TSharedRef<const mu::Model>& Model, const TArray<TSoftObjectPtr<UTexture2D>>& RuntimeReferencedTextures)
+{
+	check(IsInGameThread());
+	
+	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::CacheRuntimeReferencedImages);
+	
+	FScopeLock Lock(&RuntimeReferencedLock);
+
+	FRuntimeReferencedImages& ModelImages = RuntimeReferencedImages.Add(&Model.Get());
+	ModelImages.Model = Model.ToWeakPtr();
+
+	ModelImages.SourceTextures.Reset();
+	for (const TSoftObjectPtr<UTexture2D>& RuntimeReferencedTexture : RuntimeReferencedTextures)
+	{
+		UTexture2D* Texture = RuntimeReferencedTexture.LoadSynchronous();
+		if (!Texture)
+		{
+			UE_LOG(LogMutable, Warning, TEXT("Failed to load texture [%s]."), *Texture->GetName());
+			continue;
+		}
+
+		ModelImages.SourceTextures.Emplace(*Texture);
+	}
+}
+#endif
+
+
 mu::ImagePtr FUnrealMutableImageProvider::CreateDummy()
 {
 	// Create a dummy image
@@ -795,6 +760,19 @@ TAutoConsoleVariable<bool> CVarMutableLockExternalImagesDuringGC(
 
 void FUnrealMutableImageProvider::AddReferencedObjects(FReferenceCollector& Collector)
 {
+#if WITH_EDITOR
+	{
+		FScopeLock Lock(&RuntimeReferencedLock);
+
+		for (TMap<const void*, FRuntimeReferencedImages>::TIterator It = RuntimeReferencedImages.CreateIterator(); It; ++It)
+		{
+			if (!It.Value().Model.IsValid())
+			{
+				It.RemoveCurrent();
+			}
+		}
+	}
+#else
 	bool bDoLock = CVarMutableLockExternalImagesDuringGC.GetValueOnAnyThread();
 
 	if (bDoLock)
@@ -814,31 +792,25 @@ void FUnrealMutableImageProvider::AddReferencedObjects(FReferenceCollector& Coll
 	{
 		ExternalImagesLock.Unlock();
 	}
+#endif
 }
 
 
-FUnrealMutableImageProvider::FUnrealMutableImageInfo::FUnrealMutableImageInfo(const mu::ImagePtr& InImage, UTexture2D* InTextureToLoad) :
-	Image(InImage),
-	TextureToLoad(InTextureToLoad)
+FUnrealMutableImageProvider::FUnrealMutableImageInfo::FUnrealMutableImageInfo(const mu::ImagePtr& InImage)
 {
 	check(IsInGameThread())
 	
-	FTexturePlatformData* PlatformData = TextureToLoad->GetPlatformData();
-	
-	Format = PlatformData->PixelFormat;
-	MutableFormat = GetMutablePixelFormat(Format);
+	Image = InImage;
+}
 
-	NumMips = PlatformData->Mips.Num();
-	
-	// Mips in the mip tail are inlined and can't be streamed, find the smallest mip available.
-	for (FirstAvailableMip = NumMips - 1; FirstAvailableMip > 0; --FirstAvailableMip)
-	{
-		if (PlatformData->Mips[FirstAvailableMip].BulkData.CanLoadFromDisk())
-		{
-			break;
-		}
-	}
 
-	SizeX = TextureToLoad->GetSizeX();
-	SizeY = TextureToLoad->GetSizeY();
+FUnrealMutableImageProvider::FUnrealMutableImageInfo::FUnrealMutableImageInfo(UTexture2D& Texture)
+{
+	check(IsInGameThread())
+
+#if WITH_EDITOR
+	SourceTextureData = MakeShared<FMutableSourceTextureData>(Texture);
+#else
+	TextureToLoad = &Texture;
+#endif
 }

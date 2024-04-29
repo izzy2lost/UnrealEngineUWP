@@ -2506,16 +2506,7 @@ namespace
 
 			mu::Ptr<mu::Image> ResultImage = new mu::Image();
 
-			FMutableSourceTextureData Tex;
-			Tex.Source = Texture->Source.CopyTornOff();
-			Tex.bFlipGreenChannel = Texture->bFlipGreenChannel;
-			Tex.bHasAlphaChannel =
-				Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
-				&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-				&& !Texture->CompressionNoAlpha;
-			Tex.bCompressionForceAlpha = Texture->CompressionForceAlpha;
-			Tex.bIsNormalComposite = false; // TODO?
-
+			FMutableSourceTextureData Tex(*Texture);
 			EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(ResultImage.get(), Tex, MipmapsToSkip);
 
 			if (Error != EUnrealToMutableConversionError::Success)

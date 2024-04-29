@@ -5,8 +5,24 @@
 #include "HAL/Platform.h"
 #include "Engine/Texture.h"
 
+#if WITH_EDITOR
 struct CUSTOMIZABLEOBJECT_API FMutableSourceTextureData
 {
+	FMutableSourceTextureData() = default;
+	
+	FMutableSourceTextureData(const UTexture& Texture);
+	
+	FTextureSource& GetSource();
+	
+	bool GetFlipGreenChannel() const;
+	
+	bool HasAlphaChannel() const;
+
+	bool GetCompressionForceAlpha() const;
+
+	bool IsNormalComposite() const;
+
+private:
 	FTextureSource Source;
 	bool bFlipGreenChannel = false;
 	bool bHasAlphaChannel = false;
@@ -14,8 +30,6 @@ struct CUSTOMIZABLEOBJECT_API FMutableSourceTextureData
 	bool bIsNormalComposite = false;
 };
 
-
-#if WITH_EDITOR
 
 namespace mu
 {

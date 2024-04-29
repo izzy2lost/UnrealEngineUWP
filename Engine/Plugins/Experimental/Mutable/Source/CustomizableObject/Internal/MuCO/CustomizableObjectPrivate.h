@@ -651,10 +651,16 @@ struct FModelResources
 	UPROPERTY()
 	TArray<TSoftObjectPtr<UMaterialInterface>> Materials;
 
-	/** PassThrough Textures used by the mu::Model. */
+	/** PassThrough textures used by the mu::Model. */
 	UPROPERTY()
 	TArray<TSoftObjectPtr<UTexture>> PassThroughTextures;
 
+#if WITH_EDITORONLY_DATA
+	/** Runtime referenced textures used by the mu::Model. */
+	UPROPERTY()
+	TArray<TSoftObjectPtr<UTexture2D>> RuntimeReferencedTextures;
+#endif
+	
 	/** Physics assets gathered from the SkeletalMeshes, to be used in mesh generation in-game */
 	UPROPERTY()
 	TArray<TSoftObjectPtr<UPhysicsAsset>> PhysicsAssets;

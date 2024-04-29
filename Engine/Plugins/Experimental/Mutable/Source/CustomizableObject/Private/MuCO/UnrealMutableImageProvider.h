@@ -9,9 +9,11 @@
 #include "Containers/Map.h"
 #include "Containers/Queue.h"
 #include "PixelFormat.h"
+#include "MuCO/UnrealToMutableTextureConversionUtils.h"
 
 #include "Tasks/Task.h"
 
+class UCustomizableObject;
 class UTexture2D;
 
 
@@ -44,6 +46,10 @@ public:
 
 	void CacheImages(const mu::Parameters& Parameters);
 	void UnCacheImages(const mu::Parameters& Parameters);
+
+#if WITH_EDITOR
+	void CacheRuntimeReferencedImages(const TSharedRef<const mu::Model>& Model, const TArray<TSoftObjectPtr<UTexture2D>>& RuntimeReferencedTextures);
+#endif
 	
 	/** List of actual image providers that have been registered to the CustomizableObjectSystem. */
 	TArray< TWeakObjectPtr<class UCustomizableSystemImageProvider> > ImageProviders;
@@ -55,23 +61,23 @@ public:
 	}
 
 private:
-
 	struct FUnrealMutableImageInfo
 	{
-		FUnrealMutableImageInfo() {}
-		FUnrealMutableImageInfo(const mu::ImagePtr& InImage, UTexture2D* InTextureToLoad);
+		FUnrealMutableImageInfo() = default;
+
+		FUnrealMutableImageInfo(const mu::ImagePtr& InImage);
+
+		FUnrealMutableImageInfo(UTexture2D& Texture);
 
 		mu::ImagePtr Image;
 
+#if WITH_EDITOR
+		TSharedPtr<FMutableSourceTextureData> SourceTextureData;
+#else
 		/** If the above Image has not been loaded in the game thread, the TextureToLoad bulk data will be loaded
 		* from the Mutable thread when it's needed */
 		TObjectPtr<UTexture2D> TextureToLoad = nullptr;
-		EPixelFormat Format = PF_Unknown;
-		mu::EImageFormat MutableFormat = mu::EImageFormat::IF_NONE;
-		int32 NumMips = 0;
-		int32 FirstAvailableMip = -1;
-		int32 SizeX = 0;
-		int32 SizeY = 0;
+#endif
 		
 		/** true of the reference maintained by the user. */
 		bool ReferencesUser = false;
@@ -89,36 +95,24 @@ private:
 
 	/** Map of Ids to external textures that may be required for any instance or Mutable texture mip under construction.
 	* This is only safely written from the game thread protected by the following critical section, and it
-	* is safely read from the mutable thread during the update of the instance or texture mips
-	*/
+	* is safely read from the mutable thread during the update of the instance or texture mips. */
 	TMap<FName, FUnrealMutableImageInfo> GlobalExternalImages;
+
+#if WITH_EDITOR
+	struct FRuntimeReferencedImages
+	{
+		TArray<FMutableSourceTextureData> SourceTextures;
+		TWeakPtr<const mu::Model> Model;
+	};
+	
+	TMap<const void*, FRuntimeReferencedImages> RuntimeReferencedImages;
+#endif
 	
 	/** Access to GlobalExternalImages must be protected with this because it may be accessed concurrently from the 
 	Game thread to modify it and from the Mutable thread to read it. */
 	FCriticalSection ExternalImagesLock;
 
 #if WITH_EDITOR
-public:
-	/** The provider may tick to support referenced images. */
-	bool Tick();
-
-private:
-	struct FReferencedImageRequest
-	{
-		FReferencedImageRequest(const UE::Tasks::FTaskEvent&& Event) : CompletionEvent(Event) {}
-
-		// Sync
-		UE::Tasks::FTaskEvent CompletionEvent;
-
-		// Input
-		int32 Id = 0;
-		uint8 MipmapsToSkip = 0;
-		const void* ModelPtr = nullptr;
-
-		// Result
-		mu::Ptr<mu::Image> ResultImage;
-	};
-	TQueue<FReferencedImageRequest*, EQueueMode::Spsc> QueuedReferencedImageRequests;
+	FCriticalSection RuntimeReferencedLock;
 #endif
-
 };

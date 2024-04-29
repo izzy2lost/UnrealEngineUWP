@@ -5840,7 +5840,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		CustomizableObject->GetPathName(),
 		Public->GetPathName(),
 		UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableSystem,
-		CustomizableObject->GetPrivate()->GetModel(),
+		OperationData->Model,
 		OperationData->Parameters,
 	    OperationData->GetCapturedDescriptor().GetState());
 

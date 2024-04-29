@@ -541,6 +541,17 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 		MemoryWriter << StringRef;
 	}
 
+#if WITH_EDITORONLY_DATA
+	int32 NumRuntimeReferencedTextures = LocalModelResources.RuntimeReferencedTextures.Num();
+	MemoryWriter << NumRuntimeReferencedTextures;
+	
+	for (const TSoftObjectPtr<UTexture2D>& RuntimeReferencedTexture : LocalModelResources.RuntimeReferencedTextures)
+	{
+		FString StringRef = RuntimeReferencedTexture.ToString();
+		MemoryWriter << StringRef;
+	}
+#endif
+
 	int32 NumPhysicsAssets = LocalModelResources.PhysicsAssets.Num();
 	MemoryWriter << NumPhysicsAssets;
 
@@ -658,6 +669,19 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 			LocalModelResource.PassThroughTextures.Add(TSoftObjectPtr<UTexture>(FSoftObjectPath(StringRef)));
 		}
 
+#if WITH_EDITORONLY_DATA
+		int32 NumRuntimeReferencedTextures = 0;
+		MemoryReader << NumRuntimeReferencedTextures;
+
+		for (int32 Index = 0; Index < NumRuntimeReferencedTextures; ++Index)
+		{
+			FString StringRef;
+			MemoryReader << StringRef;
+
+			LocalModelResource.RuntimeReferencedTextures.Add(TSoftObjectPtr<UTexture2D>(FSoftObjectPath(StringRef)));
+		}
+#endif
+		
 		int32 NumPhysicsAssets = 0;
 		MemoryReader << NumPhysicsAssets;
 
