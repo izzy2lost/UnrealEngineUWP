@@ -284,8 +284,6 @@ static TAutoConsoleVariable<float> CVarTranslucencyVolumeOffsetThresholdToAccept
 	ECVF_RenderThreadSafe
 );
 
-DECLARE_GPU_STAT(LumenTranslucencyVolumeLighting);
-
 namespace LumenTranslucencyVolume
 {
 	float GetEndDistanceFromCamera(const FViewInfo& View)
@@ -1197,7 +1195,6 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 	LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	ERDGPassFlags ComputePassFlags)
 {
-	RDG_GPU_STAT_SCOPE(GraphBuilder, LumenTranslucencyVolumeLighting);
 	if (CVarLumenTranslucencyVolume.GetValueOnRenderThread())
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "TranslucencyVolumeLighting");
