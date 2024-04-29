@@ -210,7 +210,7 @@ void FStaticMeshVertexBuffer::Serialize(FArchive& Ar, bool bNeedsCPUAccess)
 
 	SerializeMetaData(Ar);
 
-	if (Ar.IsLoading())
+	if (Ar.IsLoading() && NumVertices > 0)
 	{
 		// Allocate the vertex data storage type.
 		AllocateData(bNeedsCPUAccess);
