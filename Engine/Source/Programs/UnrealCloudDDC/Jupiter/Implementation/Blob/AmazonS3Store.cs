@@ -201,7 +201,7 @@ namespace Jupiter.Implementation
 		public async Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
 		{
 			List<NamespaceId> namespaceIds = namespaces.ToList();
-			IEnumerable<string> storagePools = namespaceIds.Select(ns => _namespacePolicyResolver.GetPoliciesForNs(ns).StoragePool);
+			List<string> storagePools = namespaceIds.Select(ns => _namespacePolicyResolver.GetPoliciesForNs(ns).StoragePool).Distinct().ToList();
 
 			Dictionary<string, NamespaceId> storagePoolsToClean = storagePools.ToDictionary(storagePool => storagePool, storagePool => namespaceIds.FirstOrDefault(id => _namespacePolicyResolver.GetPoliciesForNs(id).StoragePool == storagePool));
 
