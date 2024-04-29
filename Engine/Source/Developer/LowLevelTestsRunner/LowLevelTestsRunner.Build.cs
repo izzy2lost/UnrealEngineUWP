@@ -16,7 +16,7 @@ namespace UnrealBuildTool.Rules
 			PublicIncludePaths.AddRange(
 				new string[]
 				{
-					Path.Combine(Target.UEThirdPartySourceDirectory, "Catch2", Catch2.Version, "src")
+					Path.Combine(Target.UEThirdPartySourceDirectory, "Catch2", "v3.4.0", "src")
 				}
 			);
 

@@ -327,6 +327,13 @@
 
 		<!-- nanosvg -->
 		Engine/Source/ThirdParty/nanosvg/...
+		
+		<!-- Catch2 -->
+		Engine/Source/ThirdParty/Catch2/v3.4.0/...
+		Engine/Source/ThirdParty/Catch2/Catch2_v3.4.0.tps
+		Engine/Source/ThirdParty/Catch2/Catch2.build.cs
+		Engine/Source/ThirdParty/Catch2/Catch2.tps
+		Engine/Source/ThirdParty/Catch2/Catch2Extras.Build.cs
 	</Property>
 
 	<Property Name="CopyEditorExceptionsWin64" Value="$(CopyEditorExceptions)">
@@ -381,6 +388,13 @@
 		Engine/Binaries/Mac/zenserver
 		Engine/Binaries/Mac/zen
 		Engine/Binaries/Mac/crashpad_handler
+			
+		<!-- Catch2 -->
+		Engine/Source/ThirdParty/Catch2/v3.4.0/...
+		Engine/Source/ThirdParty/Catch2/Catch2_v3.4.0.tps
+		Engine/Source/ThirdParty/Catch2/Catch2.build.cs
+		Engine/Source/ThirdParty/Catch2/Catch2.tps
+		Engine/Source/ThirdParty/Catch2/Catch2Extras.Build.cs
 	</Property>
 
 	<Property Name="CopyEditorExceptionsMac" Value="$(CopyEditorExceptions)">
@@ -437,6 +451,13 @@
 		<!-- zenserver is the tool for Unreal Zen Storage services like Local DDC and optionally cooked output storage -->
 		Engine/Binaries/Linux/zenserver
 		Engine/Binaries/Linux/zen
+			
+		<!-- Catch2 -->
+		Engine/Source/ThirdParty/Catch2/v3.4.0/...
+		Engine/Source/ThirdParty/Catch2/Catch2_v3.4.0.tps
+		Engine/Source/ThirdParty/Catch2/Catch2.build.cs
+		Engine/Source/ThirdParty/Catch2/Catch2.tps
+		Engine/Source/ThirdParty/Catch2/Catch2Extras.Build.cs
 	</Property>
 	<Property Name="CopyEditorExceptionsLinux" Value="$(CopyEditorExceptions)">
 		<!-- Exclude Windows/Mac binaries on Linux here -->
