@@ -22,7 +22,9 @@ public:
 private:
 	void RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage) const;
 	void RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage) const;
 	mutable TypedElementDataStorage::QueryHandle FetchUpdates = TypedElementDataStorage::InvalidQueryHandle;
 	mutable TypedElementDataStorage::QueryHandle ApplyOverlays = TypedElementDataStorage::InvalidQueryHandle;
 	mutable TypedElementDataStorage::QueryHandle ApplyOverlaysObjectToSCC = TypedElementDataStorage::InvalidQueryHandle;
+	mutable TypedElementDataStorage::QueryHandle RemoveOverlays = TypedElementDataStorage::InvalidQueryHandle;
 };
