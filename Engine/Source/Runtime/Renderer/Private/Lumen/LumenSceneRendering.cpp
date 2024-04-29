@@ -26,6 +26,7 @@
 #include "StaticMeshBatch.h"
 #include "LumenReflections.h"
 #include "LumenRadiosity.h"
+#include "StereoRendering.h"
 
 int32 GLumenFastCameraMode = 0;
 FAutoConsoleVariableRef CVarLumenFastCameraMode(
@@ -2479,6 +2480,12 @@ FLumenSceneFrameTemporaries::FLumenSceneFrameTemporaries(const TArray<FViewInfo>
 		// will produce a clip position of [0,0,0,1] for any input vector, accomplishing that goal.
 		FVector3f ZeroVector(ForceInitToZero);
 		ViewOrigins[0].FrustumWorldToClip = FMatrix44f(ZeroVector, ZeroVector, ZeroVector, ZeroVector);
+	}
+	else if (IStereoRendering::IsStereoEyeView(Views[0]))
+	{
+		// Stereo views can share the same origin with Primary one due to their closeness
+		ViewOrigins.SetNum(1);
+		ViewOrigins[0].Init(*Views[0].GetPrimaryView());
 	}
 	else
 	{
