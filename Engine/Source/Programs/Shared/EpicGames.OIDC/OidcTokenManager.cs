@@ -471,7 +471,7 @@ namespace EpicGames.OIDC
 			byte[] buffer = Encoding.UTF8.GetBytes(httpPage);
 			response.ContentLength64 = buffer.Length;
 			Stream responseOutput = response.OutputStream;
-			await responseOutput.WriteAsync(buffer, 0, buffer.Length);
+			await responseOutput.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
 			responseOutput.Close();
 
 			return loginResult;
