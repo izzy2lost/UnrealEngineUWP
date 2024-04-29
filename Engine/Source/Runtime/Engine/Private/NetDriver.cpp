@@ -3933,8 +3933,6 @@ void UNetDriver::RemoveNetworkActor(AActor* Actor)
 		}
 	}
 
-	GetNetworkObjectList().Remove(Actor);
-
 	// Remove from renamed list if destroyed
 	RenamedStartupActors.Remove(Actor->GetFName());
 
@@ -3942,6 +3940,8 @@ void UNetDriver::RemoveNetworkActor(AActor* Actor)
 	{
 		ReplicationDriver->RemoveNetworkActor(Actor);
 	}
+
+	GetNetworkObjectList().Remove(Actor);
 }
 
 void UNetDriver::DeleteSubObjectOnClients(AActor* Actor, UObject* SubObject)

@@ -277,7 +277,7 @@ void LogMoreInfoOnIsActorValidFailure(const FActorRepListType& In)
 		{
 #if UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
 			UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor pointer detected during replication: Ptr = %p, Name='%s', Owner='%s', OuterPackage='%s'"),
-				In.ActorRaw, *In.ActorName.ToString(), *In.OwnerName.ToString(), *In.OuterPackageName.ToString()
+				In.GetActor(), *In.ActorName.ToString(), *In.OwnerName.ToString(), *In.OuterPackageName.ToString()
 				);
 #else
 			UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor pointer detected during replication: Ptr = %p"), static_cast<AActor*>(In));
@@ -772,6 +772,15 @@ void UReplicationGraph::RouteAddNetworkActorToNodes(const FNewReplicatedActorInf
 void UReplicationGraph::RemoveNetworkActor(AActor* Actor)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(UReplicationGraph_RemoveNetworkActor);
+
+#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
+	UE_CLOG(
+		Actor->IsPendingKillPending(),
+		LogReplicationGraph,
+		Verbose,
+		TEXT("Removing Actor that is already pending kill or invalid, please remove it before destroying it. Actor=%s"),
+		*Actor->GetActorNameOrLabel());
+#endif
 
 	if (ActiveNetworkActors.Remove(Actor) == 0)
 	{
@@ -5276,8 +5285,13 @@ void UReplicationGraphNode_GridSpatialization2D::RemoveActor_Static(const FNewRe
 
 	if (GraphGlobals.IsValid())
 	{
-		FGlobalActorReplicationInfo& GlobalInfo = GraphGlobals->GlobalActorReplicationInfoMap->Get(ActorInfo.Actor);
-		RemoveActorInternal_Static(ActorInfo, GlobalInfo, GlobalInfo.bWantsToBeDormant); 
+		FGlobalActorReplicationInfo* GlobalInfo = GraphGlobals->GlobalActorReplicationInfoMap->Find(ActorInfo.Actor);
+		if (!GlobalInfo)
+		{
+			return;
+		}
+
+		RemoveActorInternal_Static(ActorInfo, *GlobalInfo, GlobalInfo->bWantsToBeDormant); 
 	}
 }
 
@@ -5287,10 +5301,15 @@ void UReplicationGraphNode_GridSpatialization2D::RemoveActor_Dormancy(const FNew
 
 	if (GraphGlobals.IsValid())
 	{
-		FGlobalActorReplicationInfo& ActorRepInfo = GraphGlobals->GlobalActorReplicationInfoMap->Get(ActorInfo.Actor);
-		if (ActorRepInfo.bWantsToBeDormant)
+		FGlobalActorReplicationInfo* ActorRepInfo = GraphGlobals->GlobalActorReplicationInfoMap->Find(ActorInfo.Actor);
+		if (!ActorRepInfo)
 		{
-			RemoveActorInternal_Static(ActorInfo, ActorRepInfo, true);
+			return;
+		}
+
+		if (ActorRepInfo->bWantsToBeDormant)
+		{
+			RemoveActorInternal_Static(ActorInfo, *ActorRepInfo, true);
 		}
 		else
 		{
@@ -5301,7 +5320,7 @@ void UReplicationGraphNode_GridSpatialization2D::RemoveActor_Dormancy(const FNew
 		// This means that even if AddActor_Dormancy is called multiple times with the same Actor, a single call to RemoveActor_Dormancy
 		// will completely remove the Actor from either the Static or Dynamic list appropriately.
 		// Therefore, it should be safe to call RemoveAll and not worry about trying to track individual delegate handles.
-		ActorRepInfo.Events.DormancyChange.RemoveAll(this);
+		ActorRepInfo->Events.DormancyChange.RemoveAll(this);
 	}
 }
 

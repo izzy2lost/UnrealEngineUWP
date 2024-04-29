@@ -17,6 +17,15 @@ DEFINE_LOG_CATEGORY( LogReplicationGraph );
 DECLARE_LLM_MEMORY_STAT(TEXT("NetRepGraph"), STAT_NetRepGraphLLM, STATGROUP_LLMFULL);
 LLM_DEFINE_TAG(NetRepGraph, NAME_None, TEXT("Networking"), GET_STATFNAME(STAT_NetRepGraphLLM), GET_STATFNAME(STAT_NetworkingSummaryLLM));
 
+#if WITH_SERVER_CODE && UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
+
+static FAutoConsoleVariableRef CVar_NetRepGraphUseWeakPointers(
+	TEXT("Net.RepGraph.UseWeakPointers"),
+	UE::Net::RepGraph::bUseWeakPointers,
+	TEXT("Uses weak pointers in RepGraph, validating them on access to detect dangling pointers without crashing."));
+
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------------
 // Actor List Allocator
