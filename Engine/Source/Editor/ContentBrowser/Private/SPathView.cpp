@@ -1251,6 +1251,11 @@ void SPathView::SetPluginPathFilterActive(const TSharedRef<FContentBrowserPlugin
 		bActive = !bActive;
 	}
 
+	UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] Setting%s plugin filter %s to %s"), 
+		*WriteToString<64>(OwningContentBrowserName), 
+		Filter->IsInverseFilter() ? TEXT(" inverse") : TEXT(""),
+		*Filter->GetName(), bActive ? TEXT("Active") : TEXT("Inactive"));
+
 	Filter->ActiveStateChanged(bActive);
 
 	if (bActive)
