@@ -81,6 +81,11 @@ void UCommonActivatableWidgetContainerBase::RemoveWidget(UCommonActivatableWidge
 		{
 			ReleaseWidget(CachedWidget.ToSharedRef());
 		}
+		else
+		{
+			GeneratedWidgetsPool.Release(&WidgetToRemove, true);
+			WidgetList.Remove(&WidgetToRemove);
+		}
 	}
 }
 
