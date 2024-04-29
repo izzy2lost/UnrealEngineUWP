@@ -914,6 +914,11 @@ bool FGameInputControllerDeviceProcessor::ProcessControllerAxisState(const FGame
 					UE_LOG(LogGameInput, VeryVerbose, TEXT("[ProcessControllerAxisState] (Device %s) Invalid key name configured for controller axis '%d': %.3f"), *UE::GameInput::LexToString(Params.Device), i, CurrentValue);
 				}
 			}
+			else
+			{
+				// TODO: Here is where could send a "Generic USB Axis X" key here which could allow for us to support many more devices via a key rebind screen
+				UE_LOG(LogGameInput, VeryVerbose, TEXT("[ProcessControllerAxisState] (Device %s) Controller axis '%d' has value: %.3f"), *UE::GameInput::LexToString(Params.Device), i, CurrentValue);
+			}
 		}		
 		// You are receiving analog values from an axis that you might not know about, log it here
 		// in case you are trying to set something up
