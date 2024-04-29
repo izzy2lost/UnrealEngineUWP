@@ -6927,15 +6927,17 @@ void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, 
 	}
 
 	// Kick workers
+	TArray<Tasks::TTask<void>> AllWorkerTasks;
+	AllWorkerTasks.Reserve(GReachabilityState.GetNumWorkers() - 1);
 	for (int32 Idx = 1; Idx < GReachabilityState.GetNumWorkers(); ++Idx)
 	{
-		Tasks::Launch(TEXT("CollectReferences"), [=]() 
+		AllWorkerTasks.Add(Tasks::Launch(TEXT("CollectReferences"), [=]() 
 			{
 				if (FWorkerContext* Context = WorkCoordinator->TryStartWorking(Idx))
 				{
 					ProcessSync(Processor, *Context);
 				}
-			});
+			}));
 	}
 
 	// Start working ourselves
@@ -6984,6 +6986,10 @@ void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, 
 	{
 		ReleaseAsyncProcessingContexts(InContext, Contexts);		
 	}
+
+	// Wait for the tasks we launched so that they cannot survive until the next call to ProcessAsync without being started and race
+	// with work such as InitializeAsyncProcessingContexts.
+	Tasks::Wait(AllWorkerTasks);
 }
 
 //////////////////////////////////////////////////////////////////////////
