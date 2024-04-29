@@ -3468,10 +3468,21 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 		}
 
 		//Custom Asset User Data
-		if (OperationData->Instance->GetAnimationGameplayTags().Num())
+		if (OperationData->Instance->GetAnimationGameplayTags().Num() ||
+			ComponentData.AnimSlotToBP.Num())
 		{
 			UCustomizableObjectInstanceUserData* InstanceData = NewObject<UCustomizableObjectInstanceUserData>(SkeletalMesh, NAME_None, RF_Public | RF_Transactional);
-			InstanceData->SetAnimationGameplayTags(OperationData->Instance->GetAnimationGameplayTags());
+			InstanceData->AnimationGameplayTag = OperationData->Instance->GetAnimationGameplayTags();
+			
+			for (const TTuple<FName, TSoftClassPtr<UAnimInstance>>& AnimSlot : ComponentData.AnimSlotToBP)
+			{
+				FCustomizableObjectAnimationSlot AnimationSlot;
+				AnimationSlot.Name = AnimSlot.Key;
+				AnimationSlot.AnimInstance = AnimSlot.Value;
+				
+				InstanceData->AnimationSlots.Add(AnimationSlot);
+			}
+			
 			SkeletalMesh->AddAssetUserData(InstanceData);
 		}
 	}

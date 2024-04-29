@@ -18,6 +18,7 @@
 
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstanceAssetUserData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectMipDataProvider.h"
 #include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuT/UnrealPixelFormatOverride.h"
@@ -842,10 +843,24 @@ bool BakeCustomizableObjectInstance(
 
 			// Add Instance Info in a custom AssetUserData
 			{
-				if (InInstance.GetAnimationGameplayTags().Num())
+				const FCustomizableInstanceComponentData* ComponentData = InInstance.GetPrivate()->GetComponentData(ComponentIndex);
+				check(ComponentData);
+				
+				if (InInstance.GetAnimationGameplayTags().Num() ||
+					ComponentData->AnimSlotToBP.Num())
 				{
 					UCustomizableObjectInstanceUserData* InstanceData = NewObject<UCustomizableObjectInstanceUserData>(SkeletalMesh, NAME_None, RF_Public | RF_Transactional);
-					InstanceData->SetAnimationGameplayTags(InInstance.GetAnimationGameplayTags());
+					InstanceData->AnimationGameplayTag = InInstance.GetAnimationGameplayTags();
+
+					for (const TTuple<FName, TSoftClassPtr<UAnimInstance>>& AnimSlot : ComponentData->AnimSlotToBP)
+					{
+						FCustomizableObjectAnimationSlot AnimationSlot;
+						AnimationSlot.Name = AnimSlot.Key;
+						AnimationSlot.AnimInstance = AnimSlot.Value;
+				
+						InstanceData->AnimationSlots.Add(AnimationSlot);
+					}
+
 					SkeletalMesh->AddAssetUserData(InstanceData);
 				}
 			}
