@@ -19,6 +19,10 @@
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeSourceNode.h"
 #include "Misc/SecureHash.h"
+#include "InterchangeCommonAnimationPayload.h"
+#include "Serialization/LargeMemoryWriter.h"
+
+#include "FbxAnimation.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxParser"
 
@@ -244,21 +248,31 @@ namespace UE
 			}
 #endif
 
-			bool FFbxParser::FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath)
+			bool FFbxParser::FetchAnimationBakeTransformPayload(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries, const FString& ResultFolder, FCriticalSection* ResultPayloadsCriticalSection, TAtomic<int64>& UniqueIdCounter, TMap<FString, FString>& ResultPayloads/*PayloadUniqueID to FilePath*/)
 			{
-				if (!PayloadContexts.Contains(PayloadKey))
+				TMap<uint32, TArray<const UE::Interchange::FAnimationPayloadQuery*>> PayloadQueriesGrouped;
+
+				for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
 				{
-					UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
-					Message->Text = LOCTEXT("CannotRetrievePayload", "Cannot retrieve payload; payload key doesn't have any context.");
-					return false;
+					TArray<const UE::Interchange::FAnimationPayloadQuery*>& PayloadQueriesForHash = PayloadQueriesGrouped.FindOrAdd(PayloadQuery.TimeDescription.GetHash());
+					PayloadQueriesForHash.Add(&PayloadQuery);
 				}
 
+				TArray<FText> OutErrorMessages;
+
+				bool bResult = true;
+				for (const TPair<uint32, TArray<const UE::Interchange::FAnimationPayloadQuery*>>& Group : PayloadQueriesGrouped)
 				{
-					//Critical section to force payload to be fetch one by one with no concurrency.
-					FScopeLock Lock(&PayloadCriticalSection);
-					TSharedPtr<FPayloadContextBase>& PayloadContext = PayloadContexts.FindChecked(PayloadKey);
-					return PayloadContext->FetchAnimationBakeTransformPayloadToFile(*this, BakeFrequency, RangeStartTime, RangeEndTime, PayloadFilepath);
+					bResult = FFbxAnimation::FetchAnimationBakeTransformPayload(*this, GetSDKScene(), PayloadContexts, Group.Value, ResultFolder, ResultPayloadsCriticalSection, UniqueIdCounter, ResultPayloads, OutErrorMessages) && bResult;
 				}
+
+				for (const FText& ErrorMessage : OutErrorMessages)
+				{
+					UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
+					Message->Text = ErrorMessage;
+				}
+
+				return bResult;
 			}
 
 			void ManageNamespace(const bool bKeepFbxNamespace, FString& ObjectName, FbxObject* Object)

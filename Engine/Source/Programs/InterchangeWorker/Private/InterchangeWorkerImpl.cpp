@@ -222,7 +222,7 @@ void FInterchangeWorkerImpl::ProcessCommand(const TSharedPtr<UE::Interchange::IC
 	FString JSonResult;
 	TArray<FString> JSonMessages;
 	FJsonLoadSourceCmd LoadSourceCommand;
-	FJsonFetchAnimationBakeTransformPayloadCmd FetchAnimationBakeTransform;
+	FJsonFetchAnimationQueriesCmd FetchAnimationQueries;
 	FJsonFetchMeshPayloadCmd FetchMeshPayloadCommand;
 	FJsonFetchPayloadCmd FetchPayloadCommand;
 	//Any command FromJson function return true if the Json descibe the command
@@ -235,13 +235,13 @@ void FInterchangeWorkerImpl::ProcessCommand(const TSharedPtr<UE::Interchange::IC
 			ProcessResult = LoadFbxFile(LoadSourceCommand, JSonResult, JSonMessages);
 		}
 	}
-	else if (FetchAnimationBakeTransform.FromJson(JsonToProcess))
+	else if (FetchAnimationQueries.FromJson(JsonToProcess))
 	{
 		//Load file command
-		if (FetchAnimationBakeTransform.GetTranslatorID().Equals(TEXT("FBX"), ESearchCase::IgnoreCase))
+		if (FetchAnimationQueries.GetTranslatorID().Equals(TEXT("FBX"), ESearchCase::IgnoreCase))
 		{
 			//We want to load an FBX file
-			ProcessResult = FetchFbxPayload(FetchAnimationBakeTransform, JSonResult, JSonMessages);
+			ProcessResult = FetchFbxPayload(FetchAnimationQueries, JSonResult, JSonMessages);
 		}
 	}
 	else if (FetchMeshPayloadCommand.FromJson(JsonToProcess))
@@ -328,20 +328,17 @@ ETaskState FInterchangeWorkerImpl::FetchFbxPayload(const FJsonFetchMeshPayloadCm
 	return ResultState;
 }
 
-ETaskState FInterchangeWorkerImpl::FetchFbxPayload(const FJsonFetchAnimationBakeTransformPayloadCmd& FetchAnimationBakeTransformPayloadCommand, FString& OutJSonResult, TArray<FString>& OutJSonMessages)
+ETaskState FInterchangeWorkerImpl::FetchFbxPayload(const FJsonFetchAnimationQueriesCmd& FetchAnimationBakeTransformPayloadCommand, FString& OutJSonResult, TArray<FString>& OutJSonMessages)
 {
 	ETaskState ResultState = ETaskState::Unknown;
-	FString PayloadKey = FetchAnimationBakeTransformPayloadCommand.GetPayloadKey();
 
-	FString ResultPayloadsUniqueId = FbxParser.FetchAnimationBakeTransformPayload(PayloadKey
-		, FetchAnimationBakeTransformPayloadCommand.GetBakeFrequency()
-		, FetchAnimationBakeTransformPayloadCommand.GetRangeStartTime()
-		, FetchAnimationBakeTransformPayloadCommand.GetRangeEndTime()
-		, ResultFolder);
-	FJsonLoadSourceCmd::JsonResultParser ResultParser;
-	ResultParser.SetResultFilename(FbxParser.GetResultPayloadFilepath(ResultPayloadsUniqueId));
+	TMap<FString, FString> ResultPayloadFilePaths = FbxParser.FetchAnimationBakeTransformPayloads(FetchAnimationBakeTransformPayloadCommand.GetQueriesJsonString(), ResultFolder);
+	
+	FJsonFetchAnimationQueriesCmd::JsonAnimationQueriesResultParser ResultParser;
+	ResultParser.SetHashToFilenames(ResultPayloadFilePaths);
 	OutJSonMessages = FbxParser.GetJsonLoadMessages();
 	OutJSonResult = ResultParser.ToJson();
 	ResultState = ETaskState::ProcessOk;
+
 	return ResultState;
 }

@@ -815,7 +815,7 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTrans
 	);
 }
 
-TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency, const double RangeStartSecond, const double RangeStopSecond) const
+TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
 {
 	TPromise<TOptional<UE::Interchange::FAnimationPayloadData>> EmptyPromise;
 	EmptyPromise.SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
@@ -828,7 +828,7 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmith
 
 	TSharedPtr<IDatasmithBaseAnimationElement> AnimationElement;
 	float FrameRate = 0.f;
-	if (UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc* PayloadDescPtr = AnimationPayLoadMapping.Find(PayLoadKey.UniqueId))
+	if (UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc* PayloadDescPtr = AnimationPayLoadMapping.Find(PayloadQuery.PayloadKey.UniqueId))
 	{
 		AnimationElement = PayloadDescPtr->Value;
 		if (!ensure(AnimationElement))
@@ -840,15 +840,15 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmith
 		FrameRate = PayloadDescPtr->Key;
 	}
 
-	if (PayLoadKey.Type != EInterchangeAnimationPayLoadType::NONE)
+	if (PayloadQuery.PayloadKey.Type != EInterchangeAnimationPayLoadType::NONE)
 	{
-		return Async(EAsyncExecution::TaskGraph, [this, AnimationElement = MoveTemp(AnimationElement), FrameRate, PayLoadType = PayLoadKey.Type]
+		return Async(EAsyncExecution::TaskGraph, [this, AnimationElement = MoveTemp(AnimationElement), FrameRate, PayloadQuery]
 			{
 
-				UE::Interchange::FAnimationPayloadData TransformPayloadData(PayLoadType);
+				UE::Interchange::FAnimationPayloadData TransformPayloadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
 				TOptional<UE::Interchange::FAnimationPayloadData> Result;
 
-				if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, PayLoadType, TransformPayloadData))
+				if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, PayloadQuery.PayloadKey.Type, TransformPayloadData))
 				{
 					Result.Emplace(MoveTemp(TransformPayloadData));
 				}
@@ -859,6 +859,28 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmith
 	}
 
 	return EmptyPromise.GetFuture();
+}
+
+TArray<UE::Interchange::FAnimationPayloadData> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
+{
+	TArray<TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>> AnimationPayloadFutures;
+	for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
+	{
+		AnimationPayloadFutures.Add(GetAnimationPayloadData(PayloadQuery));
+	}
+
+	TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads;
+	for (TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>& AnimationPayloadFuture : AnimationPayloadFutures)
+	{
+		TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = AnimationPayloadFuture.Get();
+		if (!OptionalPayloadData.IsSet())
+		{
+			continue;
+		}
+		AnimationPayloads.Add(OptionalPayloadData.GetValue());
+	}
+
+	return AnimationPayloads;
 }
 
 TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeDatasmithTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const

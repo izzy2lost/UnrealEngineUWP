@@ -21,6 +21,7 @@
 #include "StaticMeshAttributes.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
+#include "Async/ParallelFor.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxMesh"
 
@@ -355,98 +356,6 @@ namespace UE::Interchange::Private
 		DestinationCurve.StringKeyValues = StepCurveValues;
 	}
 
-	bool ImportBakeTransforms(FNodeTransformFetchPayloadData& FetchPayloadData, FAnimationPayloadData& AnimationBakeTransformPayloadData, FFbxParser& Parser)
-	{
-		if (!ensure(!FMath::IsNearlyZero(AnimationBakeTransformPayloadData.BakeFrequency)))
-		{
-			UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
-			Message->InterchangeKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(FetchPayloadData.Node);
-			Message->Text = LOCTEXT("BakeFrequencyZero", "Cannot fetch FBX animation bake transforms payload because the bake frequency is zero.");
-			return false;
-		}
-		
-		FbxTime StartTime;
-		StartTime.SetSecondDouble(AnimationBakeTransformPayloadData.RangeStartTime);
-		FbxTime EndTime;
-		EndTime.SetSecondDouble(AnimationBakeTransformPayloadData.RangeEndTime);
-		if (!ensure(AnimationBakeTransformPayloadData.RangeEndTime > AnimationBakeTransformPayloadData.RangeStartTime))
-		{
-			UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
-			Message->InterchangeKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(FetchPayloadData.Node);
-			Message->Text = LOCTEXT("InvalidRange", "Cannot fetch FBX animation bake transforms payload because the bake range is invalid.");
-			return false;
-		}
-
-		const double TimeStepSecond = 1.0 / AnimationBakeTransformPayloadData.BakeFrequency;
-		FbxTime TimeStep = 0;
-		TimeStep.SetSecondDouble(TimeStepSecond);
-
-		const double SequenceLength = FMath::Max<double>(AnimationBakeTransformPayloadData.RangeEndTime - AnimationBakeTransformPayloadData.RangeStartTime, TimeStepSecond);
-		const int32 NumFrame = FMath::RoundToInt32(SequenceLength * AnimationBakeTransformPayloadData.BakeFrequency);
-		int32 BakeKeyCount = NumFrame + 1;
-
-		ensure(NumFrame >= 0);
-
-		//Add a threshold when we compare if we have reach the end of the animation
-		const FbxTime TimeComparisonThreshold = (UE_DOUBLE_KINDA_SMALL_NUMBER * static_cast<double>(FBXSDK_TC_SECOND));
-		AnimationBakeTransformPayloadData.Transforms.Empty(NumFrame);
-
-		Parser.GetSDKScene()->SetCurrentAnimationStack(FetchPayloadData.CurrentAnimStack);
-
-		bool bNanErrorLogged = false;
-		auto LogNanError = [&bNanErrorLogged, &FetchPayloadData, &Parser]()
-			{
-				if (bNanErrorLogged)
-				{
-					return;
-				}
-				UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
-				Message->InterchangeKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(FetchPayloadData.Node);
-				Message->Text = LOCTEXT("BoneTransformNan", "Error when fetching FBX animation bake transforms payload, some transform contain NAN.");
-				bNanErrorLogged = true;
-			};
-
-		FbxTime CurrentTime = StartTime;
-		for (size_t FrameIndex = 0; FrameIndex < BakeKeyCount; FrameIndex++, CurrentTime+=TimeStep)
-		{
-			FTransform LocalTransform;
-			FbxNode* ParentNode = FetchPayloadData.Node->GetParent();
-			if (ParentNode)
-			{
-				FbxAMatrix NodeTransform = FetchPayloadData.Node->EvaluateGlobalTransform(CurrentTime);
-				FTransform GlobalTransform = UE::Interchange::Private::FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(NodeTransform);
-				if (GlobalTransform.ContainsNaN())
-				{
-					LogNanError();
-					GlobalTransform.SetIdentity();
-				}
-
-				FbxAMatrix ParentTransform = ParentNode->EvaluateGlobalTransform(CurrentTime);
-				FTransform ParentGlobalTransform = UE::Interchange::Private::FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(ParentTransform);
-				if (ParentGlobalTransform.ContainsNaN())
-				{
-					LogNanError();
-					ParentGlobalTransform.SetIdentity();
-				}
-				LocalTransform = GlobalTransform.GetRelativeTransform(ParentGlobalTransform);
-			}
-			else
-			{
-				FbxAMatrix& LocalMatrix = FetchPayloadData.Node->EvaluateLocalTransform(CurrentTime);
-				FbxVector4 NewLocalT = LocalMatrix.GetT();
-				FbxVector4 NewLocalS = LocalMatrix.GetS();
-				FbxQuaternion NewLocalQ = LocalMatrix.GetQ();
-
-				LocalTransform.SetTranslation(UE::Interchange::Private::FFbxConvert::ConvertPos<FVector>(NewLocalT));
-				LocalTransform.SetScale3D(UE::Interchange::Private::FFbxConvert::ConvertScale<FVector>(NewLocalS));
-				LocalTransform.SetRotation(UE::Interchange::Private::FFbxConvert::ConvertRotToQuat<FQuat>(NewLocalQ));
-			}
-			AnimationBakeTransformPayloadData.Transforms.Add(LocalTransform);
-		}
-
-		return true;
-	}
-
 	struct FGetFbxTransformCurvesParameters
 	{
 		FGetFbxTransformCurvesParameters(FbxScene* InSDKScene, FbxNode* InNode)
@@ -539,7 +448,7 @@ namespace UE::Interchange::Private
 		return false;
 	}
 
-	bool FAnimationPayloadContext::FetchAnimationBakeTransformPayloadToFile(FFbxParser& Parser, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath)
+	bool FAnimationPayloadContext::FetchAnimationBakeTransformPayloadForTime(FFbxParser& Parser, const FbxTime Currenttime, FTransform& OutLocalTransform)
 	{
 		if (!ensure(NodeTransformFetchPayloadData.IsSet()))
 		{
@@ -557,28 +466,63 @@ namespace UE::Interchange::Private
 			return false;
 		}
 
-		bool bBakeTransform = false;
+		bool bNanErrorLogged = false;
+		auto LogNanError = [&bNanErrorLogged, &FetchPayloadData, &Parser]()
+			{
+				if (bNanErrorLogged)
+				{
+					return;
+				}
+				UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
+				Message->InterchangeKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(FetchPayloadData.Node);
+				Message->Text = LOCTEXT("BoneTransformNan", "Error when fetching FBX animation bake transforms payload, some transform contain NAN.");
+				bNanErrorLogged = true;
+			};
 
-		//At the Moment the Interchange Worker does not transfer the PayLoadType
-		//FBX parser does not need it however because the existing systems identify the appropriate fetch mechanism required in a different manner
-		//For that reason we pass PayLoadType here instead of receiving it and passing it through.
-		//FAnimationPayloadData is used here only for the Baked properties which then gets Serialized via SerializeBaked() function
-		//Resulting in the FAnimatinoPayloadData.Type to be inconsequential here.
-		FAnimationPayloadData AnimationBakeTransformPayloadData(EInterchangeAnimationPayLoadType::BAKED);
-		AnimationBakeTransformPayloadData.BakeFrequency = BakeFrequency;
-		AnimationBakeTransformPayloadData.RangeStartTime = RangeStartTime;
-		AnimationBakeTransformPayloadData.RangeEndTime = RangeEndTime;
-
-		ImportBakeTransforms(FetchPayloadData, AnimationBakeTransformPayloadData, Parser);
+		FbxNode* ParentNode = FetchPayloadData.Node->GetParent();
+		if (ParentNode)
 		{
-			FLargeMemoryWriter Ar;
-			AnimationBakeTransformPayloadData.SerializeBaked(Ar);
-			uint8* ArchiveData = Ar.GetData();
-			int64 ArchiveSize = Ar.TotalSize();
-			TArray64<uint8> Buffer(ArchiveData, ArchiveSize);
-			FFileHelper::SaveArrayToFile(Buffer, *PayloadFilepath);
+			FbxAMatrix NodeTransform = FetchPayloadData.Node->EvaluateGlobalTransform(Currenttime);
+			FTransform GlobalTransform = UE::Interchange::Private::FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(NodeTransform);
+			if (GlobalTransform.ContainsNaN())
+			{
+				LogNanError();
+				GlobalTransform.SetIdentity();
+			}
+
+			FbxAMatrix ParentTransform = ParentNode->EvaluateGlobalTransform(Currenttime);
+			FTransform ParentGlobalTransform = UE::Interchange::Private::FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(ParentTransform);
+			if (ParentGlobalTransform.ContainsNaN())
+			{
+				LogNanError();
+				ParentGlobalTransform.SetIdentity();
+			}
+
+			OutLocalTransform = GlobalTransform.GetRelativeTransform(ParentGlobalTransform);
 		}
+		else
+		{
+			FbxAMatrix& LocalMatrix = FetchPayloadData.Node->EvaluateLocalTransform(Currenttime);
+			FbxVector4 NewLocalT = LocalMatrix.GetT();
+			FbxVector4 NewLocalS = LocalMatrix.GetS();
+			FbxQuaternion NewLocalQ = LocalMatrix.GetQ();
+
+			OutLocalTransform.SetTranslation(UE::Interchange::Private::FFbxConvert::ConvertPos<FVector>(NewLocalT));
+			OutLocalTransform.SetScale3D(UE::Interchange::Private::FFbxConvert::ConvertScale<FVector>(NewLocalS));
+			OutLocalTransform.SetRotation(UE::Interchange::Private::FFbxConvert::ConvertRotToQuat<FQuat>(NewLocalQ));
+		}
+
 		return true;
+	}
+
+	FbxAnimStack* FAnimationPayloadContext::GetAnimStack()
+	{
+		if (NodeTransformFetchPayloadData.IsSet())
+		{
+			return NodeTransformFetchPayloadData->CurrentAnimStack;
+		}
+
+		return nullptr;
 	}
 
 	bool FAnimationPayloadContext::InternalFetchCurveNodePayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath)
@@ -976,6 +920,194 @@ namespace UE::Interchange::Private
 		}
 
 		return false;
+	}
+
+	//PayloadQueries arriving here should be of the same start/stop and frequency:
+	bool FFbxAnimation::FetchAnimationBakeTransformPayload(FFbxParser& Parser, FbxScene* SDKScene,
+		TMap<FString, TSharedPtr<FPayloadContextBase>>& PayloadContexts,
+		const TArray<const UE::Interchange::FAnimationPayloadQuery*>& PayloadQueries,
+		const FString& ResultFolder, FCriticalSection* ResultPayloadsCriticalSection,
+		TAtomic<int64>& UniqueIdCounter, TMap<FString, FString>& ResultPayloads,
+		TArray<FText>& OutErrorMessages)
+	{
+		//Helper Structs:
+		struct FPayloadQueryHelper
+		{
+			const UE::Interchange::FAnimationPayloadQuery* PayloadQuery;
+			TSharedPtr<FPayloadContextBase> PayloadContext;
+			FPayloadQueryHelper(const UE::Interchange::FAnimationPayloadQuery* InPayloadQuery, TSharedPtr<FPayloadContextBase> InPayloadContext)
+				: PayloadQuery(InPayloadQuery)
+				, PayloadContext(InPayloadContext)
+			{
+			}
+		};
+		struct FPayloadDataHelper
+		{
+			FString QueryHashString; //Used for payload file name
+			FAnimationPayloadData PayloadData;
+			FPayloadDataHelper(const FString& InHashString, const FString& InSceneNodeUID, const FInterchangeAnimationPayLoadKey& InPayloadKey)
+				: QueryHashString(InHashString)
+				, PayloadData(InSceneNodeUID, InPayloadKey)
+			{
+			}
+		};
+
+		//If no PayloadQueries then return
+		if (PayloadQueries.Num() == 0)
+		{
+			return true;
+		}
+
+		//Get Timings and Number of Frames for the current PayloadQueries
+		//		Note: PayloadQueries arriving here(FetchAnimationBakeTransformPayloadInternal) should be of the same start/stop and frequency, so we can grab the first one's:
+		FAnimationTimeDescription TimeDescription = PayloadQueries[0]->TimeDescription;
+		if (!ensure(!FMath::IsNearlyZero(TimeDescription.BakeFrequency)))
+		{
+			OutErrorMessages.Add(LOCTEXT("BakeFrequencyZero", "Cannot fetch FBX animation bake transforms payload because the bake frequency is zero."));
+			return false;
+		}
+		FbxTime StartTime;
+		StartTime.SetSecondDouble(TimeDescription.RangeStartSecond);
+		FbxTime EndTime;
+		EndTime.SetSecondDouble(TimeDescription.RangeStopSecond);
+		if (!ensure(TimeDescription.RangeStopSecond > TimeDescription.RangeStartSecond))
+		{
+			OutErrorMessages.Add(LOCTEXT("InvalidRange", "Cannot fetch FBX animation bake transforms payload because the bake range is invalid."));
+			return false;
+		}
+		const double TimeStepSecond = 1.0 / TimeDescription.BakeFrequency;
+		FbxTime TimeStep = 0;
+		TimeStep.SetSecondDouble(TimeStepSecond);
+
+		const double SequenceLength = FMath::Max<double>(TimeDescription.RangeStopSecond - TimeDescription.RangeStartSecond, TimeStepSecond);
+		const int32 NumFrame = FMath::RoundToInt32(SequenceLength * TimeDescription.BakeFrequency);
+		int32 BakeKeyCount = NumFrame + 1;
+
+		ensure(NumFrame >= 0);
+
+		//Acquire PayloadContexts and AnimationStacks for the PayloadQueries (also group the FPayloadQueryHelper per AnimationStacks):
+		//		PayloadQueryHelpers maps AnimStacks to FPaloayQueryHelper (which contains a PayloadQuery and the PayloadContext that belongs to it)
+		TMap<FbxAnimStack*, TArray<FPayloadQueryHelper>> PayloadQueryHelpers;
+		{
+			for (const UE::Interchange::FAnimationPayloadQuery* PayloadQuery : PayloadQueries)
+			{
+				if (!PayloadContexts.Contains(PayloadQuery->PayloadKey.UniqueId))
+				{
+					OutErrorMessages.Add(FText::Format(LOCTEXT("CannotRetrievePayload", "Cannot retrieve payload; payload key['{0}'] doesn't have any context."), FText::FromString(PayloadQuery->PayloadKey.UniqueId)));
+					continue;
+				}
+
+				TSharedPtr<FPayloadContextBase> PayloadContext = PayloadContexts.FindChecked(PayloadQuery->PayloadKey.UniqueId);
+
+				FbxAnimStack* AnimStack = PayloadContext->GetAnimStack();
+				if (!AnimStack)
+				{
+					continue;
+				}
+
+				FString ResultPayloadUniqueId = PayloadQuery->GetHashString();
+
+				//If we already have extract this mesh, no need to extract again
+				if (ResultPayloads.Contains(ResultPayloadUniqueId))
+				{
+					continue;
+				}
+
+				TArray<FPayloadQueryHelper>& PayloadHelpersPerAnimStack = PayloadQueryHelpers.FindOrAdd(AnimStack);
+				PayloadHelpersPerAnimStack.Add(FPayloadQueryHelper(PayloadQuery, PayloadContexts.FindChecked(PayloadQuery->PayloadKey.UniqueId)));
+			}
+		}
+
+		//Iterate on the AnimStacked groups:
+		for (TPair<FbxAnimStack*, TArray<FPayloadQueryHelper>>& AnimStackPayloadQueryHelpersPair : PayloadQueryHelpers)
+		{
+			SDKScene->SetCurrentAnimationStack(AnimStackPayloadQueryHelpersPair.Key);
+
+			TArray<FPayloadQueryHelper>& PayloadQueryHelpersForAnimStack = AnimStackPayloadQueryHelpersPair.Value;
+
+			//Initialize PayloadDataHelpers (contains the HashString for the Query and the FAnimationPayloadData
+			TArray<FPayloadDataHelper> PayloadDataHelpersForAnimStack;
+			PayloadDataHelpersForAnimStack.Empty(PayloadQueryHelpersForAnimStack.Num());
+			for (FPayloadQueryHelper& PayloadQueryHelper : PayloadQueryHelpersForAnimStack)
+			{
+				FPayloadDataHelper PayloadDataHelper(PayloadQueryHelper.PayloadQuery->GetHashString(), PayloadQueryHelper.PayloadQuery->SceneNodeUniqueID, PayloadQueryHelper.PayloadQuery->PayloadKey);
+
+				PayloadDataHelper.PayloadData.BakeFrequency = PayloadQueryHelper.PayloadQuery->TimeDescription.BakeFrequency;
+				PayloadDataHelper.PayloadData.RangeStartTime = PayloadQueryHelper.PayloadQuery->TimeDescription.RangeStartSecond;
+				PayloadDataHelper.PayloadData.RangeEndTime = PayloadQueryHelper.PayloadQuery->TimeDescription.RangeStopSecond;
+
+				PayloadDataHelper.PayloadData.Transforms.SetNum(BakeKeyCount);
+
+				PayloadDataHelpersForAnimStack.Add(PayloadDataHelper);
+			}
+
+			//Acquire Bone Transforms:
+			//Time iteration
+			FbxTime CurrentTime = StartTime;
+			for (size_t FrameIndex = 0; FrameIndex < BakeKeyCount; FrameIndex++, CurrentTime+=TimeStep)
+			{
+
+				//Bone iteration:
+				for (size_t PayloadDataIndex = 0; PayloadDataIndex < PayloadDataHelpersForAnimStack.Num(); PayloadDataIndex++)
+				{
+					FPayloadQueryHelper& PayloadQueryHelper = PayloadQueryHelpersForAnimStack[PayloadDataIndex];
+					FPayloadDataHelper& PayloadDataHelper = PayloadDataHelpersForAnimStack[PayloadDataIndex];
+
+					FTransform Transform;
+					if (PayloadQueryHelper.PayloadContext->FetchAnimationBakeTransformPayloadForTime(Parser, CurrentTime, Transform))
+					{
+						PayloadDataHelper.PayloadData.Transforms[FrameIndex] = Transform;
+					}
+					else
+					{
+						if (FrameIndex == 0)
+						{
+							PayloadDataHelper.PayloadData.Transforms[FrameIndex] = FTransform::Identity;
+						}
+						else
+						{
+							PayloadDataHelper.PayloadData.Transforms[FrameIndex] = PayloadDataHelper.PayloadData.Transforms[FrameIndex - 1];
+						}
+					}
+				}
+			}
+
+			//Write out results:
+			ParallelFor(PayloadDataHelpersForAnimStack.Num(), [&PayloadDataHelpersForAnimStack, &ResultPayloads, &ResultPayloadsCriticalSection, &ResultFolder, &UniqueIdCounter](int32 PayloadDataHelperIndex)
+				{
+					FPayloadDataHelper& PayloadDataHelper = PayloadDataHelpersForAnimStack[PayloadDataHelperIndex];
+					FString QueryHashString = PayloadDataHelper.QueryHashString; //PayloadQuery's GetHashString()
+
+					//If we already have extract this mesh, no need to extract again
+					if (ResultPayloads.Contains(QueryHashString))
+					{
+						return;
+					}
+
+					FString PayloadFilepathCopy;
+
+					{
+						FScopeLock Lock(ResultPayloadsCriticalSection);
+						FString& PayloadFilepath = ResultPayloads.FindOrAdd(QueryHashString);
+						//To avoid file path with too many character, we hash the payloadKey so we have a deterministic length for the file path.
+						PayloadFilepath = ResultFolder + TEXT("/") + QueryHashString + FString::FromInt(UniqueIdCounter.IncrementExchange()) + TEXT(".payload");
+
+						//Copy the map filename key because we are multithreaded and the TMap can be reallocated
+						PayloadFilepathCopy = PayloadFilepath;
+					}
+
+					FString PayloadFilepath = PayloadFilepathCopy;
+
+					FLargeMemoryWriter Ar;
+					PayloadDataHelper.PayloadData.SerializeBaked(Ar);
+					uint8* ArchiveData = Ar.GetData();
+					int64 ArchiveSize = Ar.TotalSize();
+					TArray64<uint8> Buffer(ArchiveData, ArchiveSize);
+					FFileHelper::SaveArrayToFile(Buffer, *PayloadFilepath);
+				});
+		}
+
+		return true;
 	}
 }//ns UE::Interchange::Private
 

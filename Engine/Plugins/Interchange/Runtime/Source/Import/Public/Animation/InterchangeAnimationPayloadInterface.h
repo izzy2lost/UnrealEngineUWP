@@ -30,12 +30,11 @@ public:
 	 * Get animation payload data for the specified payload key.
 	 * It return an array of FRichCurve (Rich curve are float curve we can interpolate) or array of "Step" curve or an array of Baked Transformations, depending on Type
 	 *
-	 * @param PayLoadKey.UniqueId - The key to retrieve the a particular payload contain into the specified source data.
-	 * @param PayLoadKey.Type - The type of animation data to be retrieved (Type is provided by the Translator upon initialization of PayLoadKeys)
-	 * @return - The resulting PayloadData as a TFuture point by the PayloadKey. The TOptional will not be set if there is an error retrieving the payload.
+	 * @param PayloadQueries - A PayloadQuery contains all the necessary data for a Query to be processed (Including SceneNodeUID, PayloadKey, TimeDescription).
+	 * @return - The resulting PayloadData.
 	 * 
 	 */
-	virtual TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency = 0, const double RangeStartSecond = 0, const double RangeStopSecond = 0) const = 0;
+	virtual TArray<UE::Interchange::FAnimationPayloadData> GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQuery) const = 0;
 };
 
 

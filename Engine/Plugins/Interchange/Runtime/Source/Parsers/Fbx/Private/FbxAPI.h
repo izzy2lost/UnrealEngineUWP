@@ -15,6 +15,8 @@ namespace UE
 {
 	namespace Interchange
 	{
+		struct FAnimationPayloadQuery;
+		struct FAnimationPayloadData;
 		namespace Private
 		{
 			class FPayloadContextBase;
@@ -75,8 +77,11 @@ namespace UE
 				bool FetchMeshPayloadData(const FString& PayloadKey, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData);
 #endif
 
-				/* Extract the fbx data from the sdk into our node container */
-				bool FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath);
+				/* Extract the fbx data from the sdk into our node container
+				* @Param PayloadQueries - Will be grouped based on their TimeDescription Hashes (so that we acquire the same timings in one iteration, avoiding cache rebuilds)
+				*/
+				bool FetchAnimationBakeTransformPayload(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries, const FString& ResultFolder, FCriticalSection* ResultPayloadsCriticalSection, TAtomic<int64>& UniqueIdCounter, TMap<FString, FString>& ResultPayloads/*PayloadUniqueID to FilePath*/);
+				
 				/**
 				 * This function is used to add the given message object directly into the results for this operation.
 				 */

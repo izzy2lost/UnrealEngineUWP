@@ -903,33 +903,33 @@ TOptional< UE::Interchange::FImportImage > UInterchangeGLTFTranslator::GetTextur
 	return TexturePayloadData;
 }
 
-TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeGLTFTranslator::GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency, const double RangeStartSecond, const double RangeStopSecond) const
+TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeGLTFTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
 {
-	return Async(EAsyncExecution::TaskGraph, [this, PayLoadKey, BakeFrequency, RangeStartSecond, RangeStopSecond]
+	return Async(EAsyncExecution::TaskGraph, [this, PayloadQuery]
 		{
 
 			TOptional<UE::Interchange::FAnimationPayloadData> Result;
-			UE::Interchange::FAnimationPayloadData AnimationPayLoadData(PayLoadKey.Type);
+			UE::Interchange::FAnimationPayloadData AnimationPayLoadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
 
-			switch (PayLoadKey.Type)
+			switch (PayloadQuery.PayloadKey.Type)
 			{
 			case EInterchangeAnimationPayLoadType::CURVE:
-				if (UE::Interchange::Gltf::Private::GetTransformAnimationPayloadData(PayLoadKey.UniqueId, GltfAsset, AnimationPayLoadData))
+				if (UE::Interchange::Gltf::Private::GetTransformAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
 				{
 					Result.Emplace(AnimationPayLoadData);
 				}
 				break;
 			case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
-				if (UE::Interchange::Gltf::Private::GetMorphTargetAnimationPayloadData(PayLoadKey.UniqueId, GltfAsset, AnimationPayLoadData))
+				if (UE::Interchange::Gltf::Private::GetMorphTargetAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
 				{
 					Result.Emplace(AnimationPayLoadData);
 				}
 				break;
 			case EInterchangeAnimationPayLoadType::BAKED:
-				AnimationPayLoadData.BakeFrequency = BakeFrequency;
-				AnimationPayLoadData.RangeStartTime = RangeStartSecond;
-				AnimationPayLoadData.RangeEndTime = RangeStopSecond;
-				if (UE::Interchange::Gltf::Private::GetBakedAnimationTransformPayloadData(PayLoadKey.UniqueId, GltfAsset, AnimationPayLoadData))
+				AnimationPayLoadData.BakeFrequency = PayloadQuery.TimeDescription.BakeFrequency;
+				AnimationPayLoadData.RangeStartTime = PayloadQuery.TimeDescription.RangeStartSecond;
+				AnimationPayLoadData.RangeEndTime = PayloadQuery.TimeDescription.RangeStopSecond;
+				if (UE::Interchange::Gltf::Private::GetBakedAnimationTransformPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
 				{
 					Result.Emplace(AnimationPayLoadData);
 				}
@@ -943,6 +943,28 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeGLTFTrans
 			return Result;
 		}
 	);
+}
+
+TArray<UE::Interchange::FAnimationPayloadData> UInterchangeGLTFTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
+{
+	TArray<TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>> AnimationPayloadFutures;
+	for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery: PayloadQueries)
+	{
+		AnimationPayloadFutures.Add(GetAnimationPayloadData(PayloadQuery));
+	}
+
+	TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads;
+	for (TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>& AnimationPayloadFuture : AnimationPayloadFutures)
+	{
+		TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = AnimationPayloadFuture.Get();
+		if (!OptionalPayloadData.IsSet())
+		{
+			continue;
+		}
+		AnimationPayloads.Add(OptionalPayloadData.GetValue());
+	}
+
+	return AnimationPayloads;
 }
 
 void UInterchangeGLTFTranslator::SetTextureSRGB(UInterchangeBaseNodeContainer& NodeContainer, const GLTF::FTextureMap& TextureMap, bool bSRGB) const

@@ -243,7 +243,9 @@ namespace UE::Interchange::Private
 	{
 		// Get targeted actor exists
 		AActor* Actor = GetActor(TransformTrackNode);
-		if (!Actor)
+		FString SceneNodeUid;
+
+		if (!Actor || !TransformTrackNode.GetCustomActorDependencyUid(SceneNodeUid))
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("Cannot find actor for animation track %s"), *TransformTrackNode.GetDisplayLabel());
 			return;
@@ -257,13 +259,15 @@ namespace UE::Interchange::Private
 			return;
 		}
 
-		TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> Result = PayloadInterface.GetAnimationPayloadData(PayloadKey);
-		const TOptional<UE::Interchange::FAnimationPayloadData>& PayloadData = Result.Get();
-		if (!PayloadData.IsSet() || PayloadData->Curves.Num() != 9)
+		TArray<UE::Interchange::FAnimationPayloadData> PayloadDataArray = PayloadInterface.GetAnimationPayloadData({ FAnimationPayloadQuery(SceneNodeUid, PayloadKey) });
+		
+		if (PayloadDataArray.Num() != 1 || PayloadDataArray[0].Curves.Num() != 9)
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("No payload for animation track %s on actor %s"), *TransformTrackNode.GetDisplayLabel(), *Actor->GetActorLabel());
 			return;
 		}
+
+		UE::Interchange::FAnimationPayloadData* PayloadData = &PayloadDataArray[0];
 
 		FGuid ObjectBinding = BindActorToLevelSequence(Actor);
 
@@ -446,7 +450,9 @@ namespace UE::Interchange::Private
 
 		// Get targeted actor exists
 		AActor* Actor = GetActor(AnimationTrackNode);
-		if (!Actor)
+		FString SceneNodeUid;
+
+		if (!Actor || !AnimationTrackNode.GetCustomActorDependencyUid(SceneNodeUid))
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("Cannot find actor for animation track %s"), *AnimationTrackNode.GetDisplayLabel());
 			return;
@@ -460,13 +466,15 @@ namespace UE::Interchange::Private
 			return;
 		}
 
-		TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> Result = PayloadInterface.GetAnimationPayloadData(PayloadKey);
-		const TOptional<UE::Interchange::FAnimationPayloadData>& PayloadData = Result.Get();
-		if (!PayloadData.IsSet() || (PayloadData->StepCurves.IsEmpty() && PayloadData->Curves.IsEmpty()))
+		TArray<UE::Interchange::FAnimationPayloadData> PayloadDataArray = PayloadInterface.GetAnimationPayloadData({ FAnimationPayloadQuery(SceneNodeUid, PayloadKey) });
+		
+		if (PayloadDataArray.Num() != 1 || (PayloadDataArray[0].StepCurves.IsEmpty() && PayloadDataArray[0].Curves.IsEmpty()))
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("No payload for animation track %s on actor %s"), *AnimationTrackNode.GetDisplayLabel(), *Actor->GetActorLabel());
 			return;
 		}
+
+		UE::Interchange::FAnimationPayloadData* PayloadData = &PayloadDataArray[0];
 
 		FGuid ObjectBinding;
 		if(PropertyTrack == EInterchangePropertyTracks::Visibility)

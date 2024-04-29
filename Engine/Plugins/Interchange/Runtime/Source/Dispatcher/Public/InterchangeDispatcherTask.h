@@ -9,6 +9,7 @@ namespace UE
 	namespace Interchange
 	{
 		struct FTask;
+		struct FAnimationPayloadQuery;
 	}
 }
 DECLARE_DELEGATE_OneParam(FInterchangeDispatcherTaskCompleted, int32 TaskIndex);
@@ -333,69 +334,68 @@ namespace UE
 			FTransform MeshGlobalTransform = FTransform::Identity;
 		};
 
-		//Animation transform payload require transform to be bake by the translator
-		//The anim sequence API is not yet using curve to describe bone track animation
-		class INTERCHANGEDISPATCHER_API FJsonFetchAnimationBakeTransformPayloadCmd : public FJsonFetchPayloadCmd
+		class INTERCHANGEDISPATCHER_API FJsonFetchAnimationQueriesCmd : public FJsonFetchPayloadCmd
 		{
 		public:
-			FJsonFetchAnimationBakeTransformPayloadCmd()
+			FJsonFetchAnimationQueriesCmd()
 			{
 				check(!bIsDataInitialize);
 			}
 
-			FJsonFetchAnimationBakeTransformPayloadCmd(const FString& InTranslatorID
-				, const FString& InPayloadKey
-				, double InBakeFrequency
-				, double InRangeStartTime
-				, double InRangeEndTime)
-				: FJsonFetchPayloadCmd(InTranslatorID, InPayloadKey)
-				, BakeFrequency(InBakeFrequency)
-				, RangeStartTime(InRangeStartTime)
-				, RangeEndTime(InRangeEndTime)
-			{}
+			FJsonFetchAnimationQueriesCmd(const FString& InTranslatorID, const FString& InQueriesJsonString) 
+				: FJsonFetchPayloadCmd(InTranslatorID, TEXT("AnimationQueries"))
+				, QueriesJsonString(InQueriesJsonString)
+			{
+			}
 
 			virtual FString ToJson() const override;
 			virtual bool FromJson(const FString& JsonString) override;
 
-			double GetBakeFrequency() const
+			static FString GetQueriesJsonStringKey()
 			{
-				ensure(bIsDataInitialize);
-				return BakeFrequency;
-			}
-
-			static FString GetBakeFrequencyJsonKey()
-			{
-				static const FString Key = TEXT("BakeFrequency");
+				static const FString Key = TEXT("QueriesJsonString");
 				return Key;
 			}
 
-			double GetRangeStartTime() const
+			FString GetQueriesJsonString() const
 			{
-				ensure(bIsDataInitialize);
-				return RangeStartTime;
+				return QueriesJsonString;
 			}
 
-			static FString GetRangeStartTimeJsonKey()
+			/**
+			 * Use this class helper to create the cmd result json string and to read it
+			 */
+			class INTERCHANGEDISPATCHER_API JsonAnimationQueriesResultParser
 			{
-				static const FString Key = TEXT("RangeStartTime");
-				return Key;
-			}
+			public:
+				TMap<FString, FString> GetResultFilename() const
+				{
+					return HashToFilenames;
+				}
+				void SetHashToFilenames(const TMap<FString, FString>& InHashToFilenames)
+				{
+					HashToFilenames = InHashToFilenames;
+				}
 
-			double GetRangeEndTime() const
-			{
-				ensure(bIsDataInitialize);
-				return RangeEndTime;
-			}
+				FString ToJson() const;
+				bool FromJson(const FString& JsonString);
 
-			static FString GetRangeEndTimeJsonKey()
-			{
-				static const FString Key = TEXT("RangeEndTime");
-				return Key;
-			}
+				static FString GetHashToFilenamesKey()
+				{
+					const FString Key = TEXT("HashToFilenames");
+					return Key;
+				}
+
+				const TMap<FString, FString>& GetHashToFilenames() const
+				{
+					return HashToFilenames;
+				}
+			private:
+				TMap<FString, FString> HashToFilenames;
+			};
+
 		protected:
-			double BakeFrequency = 30.0;
-			double RangeStartTime = 0.0;
-			double RangeEndTime = 1.0/BakeFrequency;
+			FString QueriesJsonString;
 		};
 	} //ns Interchange
 }//ns UE

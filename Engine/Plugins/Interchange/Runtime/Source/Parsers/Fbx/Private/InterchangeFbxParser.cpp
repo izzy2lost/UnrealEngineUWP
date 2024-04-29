@@ -12,32 +12,13 @@
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
+#include "InterchangeHelper.h"
+#include "InterchangeCommonAnimationPayload.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxParser"
 
 namespace UE::Interchange
 {
-	namespace Private
-	{
-		FString HashString(const FString& String)
-		{
-			TArray<uint8> TempBytes;
-			TempBytes.Reserve(64);
-			//The archive is flagged as persistent so that machines of different endianness produce identical binary results.
-			FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);
-			//Hack because serialization do not support const
-			FString& NonConst = *const_cast<FString*>(&String);
-			Ar << NonConst;
-			FSHA1 Sha;
-			Sha.Update(TempBytes.GetData(), TempBytes.Num() * TempBytes.GetTypeSize());
-			Sha.Final();
-			// Retrieve the hash and use it to construct a pseudo-GUID.
-			uint32 Hash[5];
-			Sha.GetHash((uint8*)Hash);
-			FGuid Guid = FGuid(Hash[0] ^ Hash[4], Hash[1], Hash[2], Hash[3]);
-			return Guid.ToString(EGuidFormats::Base36Encoded);
-		}
-	}
 
 	FInterchangeFbxParser::FInterchangeFbxParser()
 	{
@@ -223,49 +204,6 @@ namespace UE::Interchange
 	}
 #endif
 
-	FString FInterchangeFbxParser::FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& ResultFolder)
-	{
-		ResultsContainer->Empty();
-		FString PayloadFilepathCopy;
-		FString ResultPayloadUniqueId = PayloadKey + FString::FromInt(static_cast<int32>(BakeFrequency * 1000.0)) + FString::FromInt(static_cast<int32>(RangeStartTime * 1000.0)) + FString::FromInt(static_cast<int32>(RangeEndTime * 1000.0));
-
-		if (!ensure(FbxParserPrivate.IsValid()))
-		{
-			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
-			{
-				Error->SourceAssetName = PayloadKey;
-				Error->Text = LOCTEXT("CantFetchAnimationBakeTransformPayload_ParserInvalid", "FInterchangeFbxParser::FetchAnimationBakeTransformPayload: Cannot fetch the animation bake transform payload. The internal fbx parser is invalid.");
-			}
-			return ResultPayloadUniqueId;
-		}
-		
-		//If we already have extract this mesh, no need to extract again
-		if (ResultPayloads.Contains(ResultPayloadUniqueId))
-		{
-			return ResultPayloadUniqueId;
-		}
-
-		{
-			FScopeLock Lock(&ResultPayloadsCriticalSection);
-			FString& PayloadFilepath = ResultPayloads.FindOrAdd(ResultPayloadUniqueId);
-			//To avoid file path with too many character, we hash the payloadKey so we have a deterministic length for the file path.
-			FString PayloadKeyHash = Private::HashString(PayloadKey);
-			PayloadFilepath = ResultFolder + TEXT("/") + PayloadKeyHash + FString::FromInt(UniqueIdCounter.IncrementExchange()) + TEXT(".payload");
-
-			//Copy the map filename key because we are multithreaded and the TMap can be reallocated
-			PayloadFilepathCopy = PayloadFilepath;
-		}
-		if (!FbxParserPrivate->FetchAnimationBakeTransformPayload(PayloadKey, BakeFrequency, RangeStartTime, RangeEndTime, PayloadFilepathCopy))
-		{
-			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
-			{
-				Error->SourceAssetName = SourceFilename;
-				Error->Text = LOCTEXT("CantFetchPayload", "Cannot fetch FBX payload data.");
-			}
-		}
-		return ResultPayloadUniqueId;
-	}
-
 	TArray<FString> FInterchangeFbxParser::GetJsonLoadMessages() const
 	{
 		TArray<FString> JsonResults;
@@ -287,6 +225,29 @@ namespace UE::Interchange
 		return ResultsContainer.Get();
 	}
 
+	void FInterchangeFbxParser::FetchAnimationBakeTransformPayloads(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries, const FString& ResultFolder)
+	{
+		FbxParserPrivate->FetchAnimationBakeTransformPayload(PayloadQueries, ResultFolder, &ResultPayloadsCriticalSection, UniqueIdCounter, ResultPayloads);
+	}
+
+	//Used by DispatchWorker
+	TMap<FString, FString> FInterchangeFbxParser::FetchAnimationBakeTransformPayloads(const FString& PayloadQueriesJsonString, const FString& ResultFolder)
+	{
+		TMap<FString, FString> HashToFilePaths;
+
+		TArray<UE::Interchange::FAnimationPayloadQuery> PayloadQueries;
+		UE::Interchange::FAnimationPayloadQuery::FromJson(PayloadQueriesJsonString, PayloadQueries);
+
+		FbxParserPrivate->FetchAnimationBakeTransformPayload(PayloadQueries, ResultFolder, &ResultPayloadsCriticalSection, UniqueIdCounter, ResultPayloads);
+
+		//Acquire FilePaths:
+		for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
+		{
+			HashToFilePaths.Add(PayloadQuery.GetHashString(), GetResultPayloadFilepath(PayloadQuery.GetHashString()));
+		}
+
+		return HashToFilePaths;
+	}
 }//ns UE::Interchange
 
 #undef LOCTEXT_NAMESPACE
