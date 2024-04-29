@@ -3,6 +3,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -463,9 +464,9 @@ namespace Jupiter.FunctionalTests.Storage
 
 			FileInfo[] results = fsStore.GetObjectsOlderThen(DateTime.Now.AddDays(-7), _fooNamespace).ToArray();
 			Assert.AreEqual(3, results.Length);
-			Assert.AreEqual(fooFiles[8].LastAccessTime, results[0].LastAccessTime);
-			Assert.AreEqual(fooFiles[9].LastAccessTime, results[1].LastAccessTime);
-			Assert.AreEqual(fooFiles[7].LastAccessTime, results[2].LastAccessTime);
+			Assert.AreEqual(fooFiles[8].LastAccessTime.ToString(CultureInfo.InvariantCulture), results[0].LastAccessTime.ToString(CultureInfo.InvariantCulture));
+			Assert.AreEqual(fooFiles[9].LastAccessTime.ToString(CultureInfo.InvariantCulture), results[1].LastAccessTime.ToString(CultureInfo.InvariantCulture));
+			Assert.AreEqual(fooFiles[7].LastAccessTime.ToString(CultureInfo.InvariantCulture), results[2].LastAccessTime.ToString(CultureInfo.InvariantCulture));
 		}
 		[TestMethod]
 		public async Task CalculateUsedDiskSpaceAsync()
