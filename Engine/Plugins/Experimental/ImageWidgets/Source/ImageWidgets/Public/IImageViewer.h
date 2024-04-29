@@ -73,7 +73,7 @@ namespace UE::ImageWidgets
 		};
 
 		/**
-		 * Provide any necessary metadata for the image widgets about the image that is currently supposed to be displayed. This data is generic in the sense
+		 * Provides any necessary metadata for the image widgets about the image that is currently supposed to be displayed. This data is generic in the sense
 		 * that the image widgets don't need to know any of the image structure, its content or how to draw it. Instead, the image drawing is done directly
 		 * via @ref DrawCurrentImage.
 		 * @return information about the image to be displayed
@@ -89,12 +89,21 @@ namespace UE::ImageWidgets
 		virtual void DrawCurrentImage(FViewport* Viewport, FCanvas* Canvas, const FDrawProperties& Properties) = 0;
 		
 		/**
-		 * Provide information about a given pixel.
+		 * Provides information about a given pixel.
 		 * @param PixelCoords XY coordinates for the pixel
 		 * @param MipLevel MIP level that is currently displayed; this can be ignored for images not supporting MIPs 
 		 * @return Either a color value in byte or float format, i.e. FColor or FLinearColor, or no value if there is no valid pixel at the provided coordinates 
 		 */
 		virtual TOptional<TVariant<FColor, FLinearColor>> GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipLevel) const = 0;
+
+#if IMAGE_WIDGETS_WITH_CATALOG
+		/**
+		 * Notifies about the image with the given GUID being selected.
+		 * This can be implemented as an empty function if the image viewer implementation does not support switching between different images.
+		 * @param Guid Unique identifier of the selected image
+		 */
+		virtual void OnImageSelected(const FGuid& Guid) = 0;
+#endif
 
 	protected:
 		~IImageViewer() = default;

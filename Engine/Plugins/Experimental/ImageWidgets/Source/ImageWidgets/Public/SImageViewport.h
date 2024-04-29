@@ -14,7 +14,7 @@ namespace UE::ImageWidgets
 	class FStatusBarExtension;
 	class IImageViewer;
 	class SImageViewportToolbar;
-	
+
 	/**
 	 * Generic viewport for displaying and interacting with 2D image-like content.
 	 * The drawing of the images is deferred to an @ref IImageViewer implementation that needs to be provided upon construction. This viewport only uses the 
@@ -101,34 +101,41 @@ namespace UE::ImageWidgets
 		 */
 		struct FControllerSettings
 		{
-			enum class EDefaultZoomMode { Fit, Fill };
+			enum class EDefaultZoomMode
+			{
+				Fit, // Make the image fit within the viewport, but do not make it larger than the original size.
+				Fill // Make the image fit within the viewport, and if it is smaller than the viewport, zoom in to fill the viewport.
+			};
 
+			/** Zoom mode that gets set on viewport construction and whenever the viewport controller is reset via @ref ResetController(). */
 			EDefaultZoomMode DefaultZoomMode = EDefaultZoomMode::Fit;
 		};
 
 		DECLARE_DELEGATE(FOnLeftMouseButtonPressed);
 		DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
 
-		SLATE_BEGIN_ARGS(SImageViewport){}
+		SLATE_BEGIN_ARGS(SImageViewport)
+			{
+			}
 
-		/** Extensions for the viewport toolbar; valid hooks are "ToolbarLeft", "ToolbarCenter", "ToolbarRight" */
-		SLATE_ARGUMENT(TSharedPtr<FExtender>, ToolbarExtender)
+			/** Extensions for the viewport toolbar; valid hooks are "ToolbarLeft", "ToolbarCenter", "ToolbarRight" */
+			SLATE_ARGUMENT(TSharedPtr<FExtender>, ToolbarExtender)
 
-		/** Extensions for the viewport status bar; valid hooks are "StatusBarLeft", "StatusBarCenter", "StatusBarRight" */
-		SLATE_ARGUMENT(TSharedPtr<FStatusBarExtender>, StatusBarExtender)
+			/** Extensions for the viewport status bar; valid hooks are "StatusBarLeft", "StatusBarCenter", "StatusBarRight" */
+			SLATE_ARGUMENT(TSharedPtr<FStatusBarExtender>, StatusBarExtender)
 
-		/** Settings for drawing viewport contents other than the actual image */
-		SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
+			/** Settings for drawing viewport contents other than the actual image */
+			SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
 
-		/** Settings for controlling the viewport */
-		SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
+			/** Settings for controlling the viewport */
+			SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
 
-		/** Left mouse button pressed event bubbled up from the viewport */
-		SLATE_EVENT(FOnLeftMouseButtonPressed, OnLeftMouseButtonPressed)
+			/** Left mouse button pressed event bubbled up from the viewport */
+			SLATE_EVENT(FOnLeftMouseButtonPressed, OnLeftMouseButtonPressed)
 
-		/** Left mouse button released event bubbled up from the viewport */
-		SLATE_EVENT(FOnLeftMouseButtonReleased, OnLeftMouseButtonReleased)
-		
+			/** Left mouse button released event bubbled up from the viewport */
+			SLATE_EVENT(FOnLeftMouseButtonReleased, OnLeftMouseButtonReleased)
+
 		SLATE_END_ARGS()
 
 		IMAGEWIDGETS_API SImageViewport();

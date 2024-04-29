@@ -21,7 +21,7 @@ namespace UE::ImageWidgets::Sample
 		// Create toolbar extensions for a button to randomize the displayed color as well as the tone mapping controls.
 		const TSharedPtr<FExtender> ToolbarExtender = MakeShared<FExtender>();
 		ToolbarExtender->AddToolBarExtension("ToolbarCenter", EExtensionHook::Before, CommandList,
-		                                     FToolBarExtensionDelegate::CreateSP(this, &SColorViewerWidget::AddRandomColorButton));
+		                                     FToolBarExtensionDelegate::CreateSP(this, &SColorViewerWidget::AddColorButtons));
 		ToolbarExtender->AddToolBarExtension("ToolbarRight", EExtensionHook::After, CommandList,
 		                                     FToolBarExtensionDelegate::CreateSP(this, &SColorViewerWidget::AddToneMappingButtons));
 
@@ -30,16 +30,28 @@ namespace UE::ImageWidgets::Sample
 			.VAlign(VAlign_Fill)
 			.HAlign(HAlign_Fill)
 			[
-				SAssignNew(Viewport, ImageWidgets::SImageViewport, ColorViewer.ToSharedRef())
-					.ToolbarExtender(ToolbarExtender)
-					.DrawSettings(SImageViewport::FDrawSettings{
-							.ClearColor = FLinearColor::Black,
-							.bBorderEnabled = true,
-							.BorderThickness = 1.0,
-							.BorderColor = FVector3f(0.2f),
-							.bBackgroundColorEnabled = false,
-							.bBackgroundCheckerEnabled = false
-						})
+				SAssignNew(Splitter, SSplitter)
+					.PhysicalSplitterHandleSize(2.0f)
+					+ SSplitter::Slot()
+						.Value(0.0f)
+						[
+							SAssignNew(Catalog, ImageWidgets::SImageCatalog)
+								.OnItemSelected_Lambda([this](const FGuid& ImageGuid) { ColorViewer->OnImageSelected(ImageGuid); })
+						]
+					+ SSplitter::Slot()
+						.Value(1.0f)
+						[
+							SAssignNew(Viewport, ImageWidgets::SImageViewport, ColorViewer.ToSharedRef())
+								.ToolbarExtender(ToolbarExtender)
+								.DrawSettings(SImageViewport::FDrawSettings{
+									.ClearColor = FLinearColor::Black,
+									.bBorderEnabled = true,
+									.BorderThickness = 1.0,
+									.BorderColor = FVector3f(0.2f),
+									.bBackgroundColorEnabled = false,
+									.bBackgroundCheckerEnabled = false
+								})
+						]
 			];
 	}
 
@@ -54,10 +66,13 @@ namespace UE::ImageWidgets::Sample
 		return FReply::Unhandled();
 	}
 
-	void SColorViewerWidget::AddRandomColorButton(FToolBarBuilder& ToolbarBuilder) const
+	void SColorViewerWidget::AddColorButtons(FToolBarBuilder& ToolbarBuilder) const
 	{
-		const FSlateIcon RandomizeColorIcon(FAppStyle::GetAppStyleSetName(), "FontEditor.Update");
+		const FSlateIcon AddColorIcon(FAppStyle::GetAppStyleSetName(), "FontEditor.Button_Add");
+		ToolbarBuilder.AddToolBarButton(FColorViewerCommands::Get().AddColor, NAME_None, TAttribute<FText>(), TAttribute<FText>(),
+										TAttribute<FSlateIcon>(AddColorIcon));
 
+		const FSlateIcon RandomizeColorIcon(FAppStyle::GetAppStyleSetName(), "FontEditor.Update");
 		ToolbarBuilder.AddToolBarButton(FColorViewerCommands::Get().RandomizeColor, NAME_None, TAttribute<FText>(), TAttribute<FText>(),
 		                                TAttribute<FSlateIcon>(RandomizeColorIcon));
 	}
@@ -80,6 +95,47 @@ namespace UE::ImageWidgets::Sample
 		ToolbarBuilder.EndBlockGroup();
 	}
 
+	TTuple<FText, FText, FText> GetColorItemMetaData(const FColor Color, FDateTime DateTime)
+	{
+		const FString HexColor = FString::Printf(TEXT("#%02X%02X%02X"), Color.R, Color.G, Color.B);
+		const FText Name = FText::Format(LOCTEXT("ColorEntryLabel", "{0}"), FText::FromString(HexColor));
+
+		const FText Info = FText::Format(
+			LOCTEXT("ColorEntryInfoLabel", "{0}"), FText::AsTime(DateTime, EDateTimeStyle::Short, FText::GetInvariantTimeZone()));
+
+		const FText ToolTip = FText::Format(
+			LOCTEXT("ColorEntryToolTip", "R {0}, G {1}, B {2}"), {Color.R, Color.G, Color.B});
+
+		return {Name, Info, ToolTip};
+	}
+
+	void SColorViewerWidget::AddColor()
+	{
+		if (const FColorViewer::FColorItem* ColorItem = ColorViewer->AddColor())
+		{
+			auto [Name, Info, ToolTip] = GetColorItemMetaData(ColorItem->Color, ColorItem->DateTime);
+
+			Catalog->AddItem(MakeShared<FImageCatalogItemData>(ColorItem->Guid, FSlateColorBrush(ColorItem->Color), Name, Info, ToolTip));
+			Catalog->SelectItem(ColorItem->Guid);
+
+			if (bCatalogCollapsedOnInit && Catalog->NumTotalItems() > 1 && Splitter->SlotAt(0).GetSizeValue() <= 0.0f)
+			{
+				Splitter->SlotAt(0).SetSizeValue(0.2f);
+				bCatalogCollapsedOnInit = false;
+			}
+		}
+	}
+
+	void SColorViewerWidget::RandomizeColor()
+	{
+		if (const FColorViewer::FColorItem* ColorItem = ColorViewer->RandomizeColor())
+		{
+			const auto [Name, Info, ToolTip] = GetColorItemMetaData(ColorItem->Color, ColorItem->DateTime);
+
+			Catalog->UpdateItem({ColorItem->Guid, FSlateColorBrush(ColorItem->Color), Name, Info, ToolTip});
+		}
+	}
+
 	void SColorViewerWidget::BindCommands()
 	{
 		const FColorViewerCommands& Commands = FColorViewerCommands::Get();
@@ -87,8 +143,13 @@ namespace UE::ImageWidgets::Sample
 		CommandList = MakeShared<FUICommandList>();
 
 		CommandList->MapAction(
+			Commands.AddColor,
+			FExecuteAction::CreateSP(this, &SColorViewerWidget::AddColor)
+		);
+
+		CommandList->MapAction(
 			Commands.RandomizeColor,
-			FExecuteAction::CreateSP(ColorViewer.ToSharedRef(), &FColorViewer::RandomizeColor)
+			FExecuteAction::CreateSP(this, &SColorViewerWidget::RandomizeColor)
 		);
 
 		CommandList->MapAction(

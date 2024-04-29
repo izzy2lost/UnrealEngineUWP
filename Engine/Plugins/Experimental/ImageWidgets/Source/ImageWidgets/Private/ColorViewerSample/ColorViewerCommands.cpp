@@ -3,8 +3,8 @@
 #if IMAGE_WIDGETS_BUILD_COLOR_VIEWER_SAMPLE
 
 #include "ColorViewerCommands.h"
-
 #include "ColorViewerStyle.h"
+
 #include "Framework/Commands/InputChord.h"
 
 #define LOCTEXT_NAMESPACE "ColorViewerCommands"
@@ -18,6 +18,7 @@ namespace UE::ImageWidgets::Sample
 
 	void FColorViewerCommands::RegisterCommands()
 	{
+		UI_COMMAND(AddColor, "Add", "Add color to catalog", EUserInterfaceActionType::Button, FInputChord(EKeys::A));
 		UI_COMMAND(RandomizeColor, "Randomize", "Set random color", EUserInterfaceActionType::Button, FInputChord(EKeys::R));
 
 		UI_COMMAND(ToneMappingRGB, "RGB", "Show full color", EUserInterfaceActionType::ToggleButton, FInputChord());

@@ -41,33 +41,54 @@ namespace UE::ImageWidgets::Sample
 	class FColorViewer final : public IImageViewer
 	{
 	public:
+		/**
+		 * Necessary data for a color item.
+		 */
+		struct FColorItem
+		{
+			/** Unique identifier for each item */
+			FGuid Guid;
+
+			/** the actual color value */
+			FColor Color;
+
+			/** Timestamp for when the item was created */
+			FDateTime DateTime;
+		};
+
 		// IImageViewer overrides - begin
 		virtual FImageInfo GetCurrentImageInfo() const override;
 		virtual void DrawCurrentImage(FViewport* Viewport, FCanvas* Canvas, const FDrawProperties& Properties) override;
 		virtual TOptional<TVariant<FColor, FLinearColor>> GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipLevel) const override;
+		virtual void OnImageSelected(const FGuid& Guid) override;
 		// IImageViewer overrides - end
 
-		/** Sets a random color as the "image". This is a simple proxy for the image content changing and/or users choosing different images to display. */
-		void RandomizeColor();
+		/** Adds a color item. */
+		const FColorItem* AddColor();
+		
+		/** Sets a random color as the current "image" as a simple proxy for the image content changing and/or users choosing different images to display. */
+		const FColorItem* RandomizeColor();
 
 		/** Access to tone mapping data. This is effectively used by the viewport toolbar extensions as well as when drawing the image. */
 		FToneMapping::EMode GetToneMapping() const;
 		void SetToneMapping(FToneMapping::EMode Mode);
 
+		/** Hardcoded values for the image size for all color.
+		 *  In a more realistic application, this value would depend on the actual current image. */
+		inline static const FIntPoint ImageSize = 512;
+
 	private:
+		/** Checks if a given index is a valid image. */
+		bool ColorIsValid(int32 Index) const;
+
 		/** The tone mapping data. */
 		FToneMapping ToneMapping = FToneMapping::EMode::RGB;
 
 		/** The color for the currently displayed image. */
-		FLinearColor Color;
+		TArray<FColorItem> Colors;
 
-		/** This is set to true once the color is initialized by the user, and evaluated to tell the viewport if the image is valid. */
-		bool bColorIsValid = false;
-
-		/** Hardcoded values for the image size and the GUID of the single image this is currently able to display.
-		 *  In a more realistic application, these value would depend on the actual images that are available. */
-		inline static constexpr FGuid ImageGuid = FGuid(1, 0, 0, 0);
-		inline static const FIntPoint ImageSize = 512;
+		/** Index of the currently selected image. */
+		int32 SelectedColorIndex = INDEX_NONE;
 	};
 }
 

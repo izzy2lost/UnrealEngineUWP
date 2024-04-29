@@ -19,9 +19,10 @@ namespace UE::ImageWidgets::Sample
 
 		virtual void RegisterCommands() override;
 
-		TSharedPtr<FUICommandInfo> RandomizeColor; // Button and hotkey for setting a random color
-		TSharedPtr<FUICommandInfo> ToneMappingRGB; // Toggle button for switching to RGB (no tone mapping)
-		TSharedPtr<FUICommandInfo> ToneMappingLum; // Toggle button for switching to luminance (grayscale tone mapping)
+		TSharedPtr<FUICommandInfo> AddColor; // Adding a new color entry
+		TSharedPtr<FUICommandInfo> RandomizeColor; // Setting current entry to a random color
+		TSharedPtr<FUICommandInfo> ToneMappingRGB; // Switching to RGB (no tone mapping)
+		TSharedPtr<FUICommandInfo> ToneMappingLum; // Switching to luminance (grayscale tone mapping)
 	};
 }
 
