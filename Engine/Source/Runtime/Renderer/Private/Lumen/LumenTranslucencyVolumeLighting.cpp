@@ -497,7 +497,7 @@ class FTranslucencyVolumeTraceVoxelsCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeTraceRadiance)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWVolumeTraceHitDistance)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float3>, VolumeFroxelProbeRadiance)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float3>, VolumeFroxelProbeRadianceHitDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
@@ -643,12 +643,10 @@ class FUpdateFroxelProbesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float3>, VolumeFroxelProbeRadianceHistory)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float>,  VolumeFroxelProbeHitDistanceHistory)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float4>, VolumeFroxelProbeRadianceHitDistanceHistory)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float3>, VolumeFroxelLowResProbeRadiance)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float>,  VolumeFroxelLowResProbeHitDistance)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeFroxelProbeRadiance)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWVolumeFroxelProbeHitDistance)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVolumeFroxelProbeRadianceHitDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelUpdateCountBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelUpdateListBuffer)
@@ -687,8 +685,7 @@ class FFroxelProbesRefineTraceRayCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FFroxelProbesRefineTraceRayCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeFroxelProbeRadiance)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWVolumeFroxelProbeHitDistance)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVolumeFroxelProbeRadianceHitDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
@@ -734,8 +731,7 @@ class FFroxelProbesRefineHWRayTracing : public FLumenHardwareRayTracingShaderBas
 
 	// Parameters, note: we cannot use FTranslucencyVolumeTraceFroxelProbesCS::FParameters because SharedParameters already includes lots of data itself in different form.
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeFroxelProbeRadiance)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWVolumeFroxelProbeHitDistance)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVolumeFroxelProbeRadianceHitDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
@@ -1019,7 +1015,7 @@ void TraceVoxelsTranslucencyVolume(
 	FLumenTranslucencyLightingVolumeTraceSetupParameters TraceSetupParameters,
 	FRDGTextureRef VolumeTraceRadiance,
 	FRDGTextureRef VolumeTraceHitDistance,
-	FRDGTextureRef VolumeFroxelProbeRadiance,
+	FRDGTextureRef VolumeFroxelProbeRadianceHitDistance,
 	ERDGPassFlags ComputePassFlags)
 {
 	FTranslucencyVolumeTraceVoxelsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeTraceVoxelsCS::FParameters>();
@@ -1030,7 +1026,7 @@ void TraceVoxelsTranslucencyVolume(
 	PassParameters->RadianceCacheParameters = RadianceCacheParameters;
 	PassParameters->VolumeParameters = VolumeParameters;
 	PassParameters->TraceSetupParameters = TraceSetupParameters;
-	PassParameters->VolumeFroxelProbeRadiance = VolumeFroxelProbeRadiance;
+	PassParameters->VolumeFroxelProbeRadianceHitDistance = VolumeFroxelProbeRadianceHitDistance;
 
 	PassParameters->SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;
 
@@ -1038,7 +1034,7 @@ void TraceVoxelsTranslucencyVolume(
 
 	FTranslucencyVolumeTraceVoxelsCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FDynamicSkyLight>(bDynamicSkyLight);
-	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FProbeSourceMode>(VolumeFroxelProbeRadiance != nullptr ? 2 : (RadianceCacheParameters.RadianceProbeIndirectionTexture != nullptr ? 1 : 0));
+	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FProbeSourceMode>(VolumeFroxelProbeRadianceHitDistance != nullptr ? 2 : (RadianceCacheParameters.RadianceProbeIndirectionTexture != nullptr ? 1 : 0));
 	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FTraceFromVolume>(bTraceFromVolume);
 	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FSimpleCoverageBasedExpand>(bTraceFromVolume && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 	auto ComputeShader = View.ShaderMap->GetShader<FTranslucencyVolumeTraceVoxelsCS>(PermutationVector);
@@ -1257,29 +1253,29 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 			FRDGTextureRef VolumeTraceRadiance = GraphBuilder.CreateTexture(VolumeTraceRadianceDesc, TEXT("Lumen.TranslucencyVolume.VolumeTraceRadiance"));
 			FRDGTextureRef VolumeTraceHitDistance = GraphBuilder.CreateTexture(VolumeTraceHitDistanceDesc, TEXT("Lumen.TranslucencyVolume.VolumeTraceHitDistance"));
 
-			FRDGTextureRef VolumeFroxelProbeRadiance = nullptr;
-			FRDGTextureRef VolumeFroxelProbeHitDistance = nullptr;
+			FRDGTextureRef VolumeFroxelProbeRadianceHitDistance = nullptr;
 			FRDGTextureRef VolumeFroxelLowResProbeRadiance = nullptr;
 			FRDGTextureRef VolumeFroxelLowResProbeHitDistance = nullptr;
 			if (GetVolumeRadianceCacheFrustumProbes())
 			{
 				// Cannot use PF_FloatRGB otherwise that can lead to temporal loss of energy as well as hue shift after reprojection.
+				// Do reduce texture fetch we thus put the HitDistance in the alpha channel.
 				EPixelFormat RadiancePixelFormat = PF_FloatRGBA;
+				// Low resolution probes are not reprojected so they can use the potentially 111110 float format.
+				EPixelFormat LowResRadiancePixelFormat = PF_FloatRGB;
 
 				const FIntVector FroxelProbeAtlasSize(
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.X * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution,
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Y * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution,
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Z);
-				FRDGTextureDesc VolumeFroxelProbeRadianceDesc(FRDGTextureDesc::Create3D(FroxelProbeAtlasSize, RadiancePixelFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-				FRDGTextureDesc VolumeFroxelProbeHitDistanceDesc(FRDGTextureDesc::Create3D(FroxelProbeAtlasSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-				VolumeFroxelProbeRadiance    = GraphBuilder.CreateTexture(VolumeFroxelProbeRadianceDesc, TEXT("Lumen.TranslucencyVolume.FroxelProbeRadiance"));
-				VolumeFroxelProbeHitDistance = GraphBuilder.CreateTexture(VolumeFroxelProbeHitDistanceDesc, TEXT("Lumen.TranslucencyVolume.FroxelProbeHitDistance"));
+				FRDGTextureDesc VolumeFroxelProbeRadianceHitDistanceDesc(FRDGTextureDesc::Create3D(FroxelProbeAtlasSize, RadiancePixelFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+				VolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateTexture(VolumeFroxelProbeRadianceHitDistanceDesc, TEXT("Lumen.TranslucencyVolume.FroxelProbeRadianceHitDistance"));
 
 				const FIntVector FroxelProbeLowResAtlasSize(
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.X * VolumeParameters.TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution,
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Y * VolumeParameters.TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution,
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Z);
-				FRDGTextureDesc VolumeFroxelLowResProbeRadianceDesc(FRDGTextureDesc::Create3D(FroxelProbeLowResAtlasSize, RadiancePixelFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+				FRDGTextureDesc VolumeFroxelLowResProbeRadianceDesc(FRDGTextureDesc::Create3D(FroxelProbeLowResAtlasSize, LowResRadiancePixelFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 				FRDGTextureDesc VolumeFroxelLowResProbeHitDistanceDesc(FRDGTextureDesc::Create3D(FroxelProbeLowResAtlasSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 				VolumeFroxelLowResProbeRadiance = GraphBuilder.CreateTexture(VolumeFroxelLowResProbeRadianceDesc, TEXT("Lumen.TranslucencyVolume.LowResFroxelProbeRadiance"));
 				VolumeFroxelLowResProbeHitDistance = GraphBuilder.CreateTexture(VolumeFroxelLowResProbeHitDistanceDesc, TEXT("Lumen.TranslucencyVolume.LowResFroxelProbeHitDistance"));
@@ -1364,12 +1360,11 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 
 
 					float ViewFroxelProbesHistoryPreExposure = 1.0f;
-					FRDGTextureRef ViewFroxelProbesRadianceHistory = GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
+					FRDGTextureRef ViewVolumeFroxelProbeRadianceHitDistance = GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
 					FRDGTextureRef ViewFroxelProbesDistanceHistory = GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
-					if (View.ViewState && View.ViewState->Lumen.ViewFroxelProbesRadiance.IsValid())
+					if (View.ViewState && View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance.IsValid())
 					{
-						ViewFroxelProbesRadianceHistory = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.ViewFroxelProbesRadiance);
-						ViewFroxelProbesDistanceHistory = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.ViewFroxelProbesDistance);
+						ViewVolumeFroxelProbeRadianceHitDistance = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance);
 						ViewFroxelProbesHistoryPreExposure = View.ViewState->Lumen.ViewFroxelProbesHistoryPreExposure;
 					}
 					const FVector2f ViewFroxelProbesHistoryPreExposureAndInv = FVector2f(ViewFroxelProbesHistoryPreExposure, ViewFroxelProbesHistoryPreExposure > 0.0f ? 1.0f / ViewFroxelProbesHistoryPreExposure : 1.0f);
@@ -1379,8 +1374,8 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						&& !View.bCameraCut
 						&& !View.bPrevTransformsReset
 						&& ViewFamily.bRealtimeUpdate
-						&& ViewFroxelProbesRadianceHistory
-						&& ViewFroxelProbesRadianceHistory->Desc == VolumeFroxelProbeRadianceDesc);
+						&& ViewVolumeFroxelProbeRadianceHitDistance
+						&& ViewVolumeFroxelProbeRadianceHitDistance->Desc == VolumeFroxelProbeRadianceHitDistanceDesc);
 
 					// Schedule froxel update
 					{
@@ -1608,12 +1603,10 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					{
 						FUpdateFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateFroxelProbesCS::FParameters>();
 						PassParameters->View = View.ViewUniformBuffer;
-						PassParameters->VolumeFroxelProbeRadianceHistory = nullptr;
-						PassParameters->VolumeFroxelProbeHitDistanceHistory = nullptr;
+						PassParameters->VolumeFroxelProbeRadianceHitDistanceHistory = nullptr;
 						PassParameters->VolumeFroxelLowResProbeRadiance = nullptr;
 						PassParameters->VolumeFroxelLowResProbeHitDistance = nullptr;
-						PassParameters->RWVolumeFroxelProbeRadiance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadiance);
-						PassParameters->RWVolumeFroxelProbeHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeHitDistance);
+						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
 					
 						PassParameters->VolumeParameters = VolumeParameters;
 						PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
@@ -1644,12 +1637,10 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					{
 						FUpdateFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateFroxelProbesCS::FParameters>();
 						PassParameters->View = View.ViewUniformBuffer;
-						PassParameters->VolumeFroxelProbeRadianceHistory = ViewFroxelProbesRadianceHistory;
-						PassParameters->VolumeFroxelProbeHitDistanceHistory = ViewFroxelProbesDistanceHistory;
+						PassParameters->VolumeFroxelProbeRadianceHitDistanceHistory = ViewVolumeFroxelProbeRadianceHitDistance;
 						PassParameters->VolumeFroxelLowResProbeRadiance = nullptr;
 						PassParameters->VolumeFroxelLowResProbeHitDistance = nullptr;
-						PassParameters->RWVolumeFroxelProbeRadiance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadiance);
-						PassParameters->RWVolumeFroxelProbeHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeHitDistance);
+						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
 
 						PassParameters->VolumeParameters = VolumeParameters;
 						PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
@@ -1680,12 +1671,10 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					{
 						FUpdateFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateFroxelProbesCS::FParameters>();
 						PassParameters->View = View.ViewUniformBuffer;
-						PassParameters->VolumeFroxelProbeRadianceHistory = nullptr;
-						PassParameters->VolumeFroxelProbeHitDistanceHistory = nullptr;
+						PassParameters->VolumeFroxelProbeRadianceHitDistanceHistory = nullptr;
 						PassParameters->VolumeFroxelLowResProbeRadiance = VolumeFroxelLowResProbeRadiance;
 						PassParameters->VolumeFroxelLowResProbeHitDistance = VolumeFroxelLowResProbeHitDistance;
-						PassParameters->RWVolumeFroxelProbeRadiance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadiance);
-						PassParameters->RWVolumeFroxelProbeHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeHitDistance);
+						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
 
 						PassParameters->VolumeParameters = VolumeParameters;
 						PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
@@ -1718,8 +1707,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					{
 						FFroxelProbesRefineHWRayTracingRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FFroxelProbesRefineHWRayTracingRGS::FParameters>();
 
-						PassParameters->RWVolumeFroxelProbeRadiance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadiance);
-						PassParameters->RWVolumeFroxelProbeHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeHitDistance);
+						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
 
 						SetLumenHardwareRayTracingSharedParameters(
 							GraphBuilder,
@@ -1770,8 +1758,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 				#endif // RHI_RAYTRACING
 					{
 						FFroxelProbesRefineTraceRayCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FFroxelProbesRefineTraceRayCS::FParameters>();
-						PassParameters->RWVolumeFroxelProbeRadiance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadiance);
-						PassParameters->RWVolumeFroxelProbeHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeHitDistance);
+						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
 
 						PassParameters->VolumeParameters = VolumeParameters;
 						PassParameters->TraceSetupParameters = TraceSetupParameters;
@@ -1802,8 +1789,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 
 					if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
 					{
-						View.ViewState->Lumen.ViewFroxelProbesRadiance = GraphBuilder.ConvertToExternalTexture(VolumeFroxelProbeRadiance);
-						View.ViewState->Lumen.ViewFroxelProbesDistance = GraphBuilder.ConvertToExternalTexture(VolumeFroxelProbeHitDistance);
+						View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance = GraphBuilder.ConvertToExternalTexture(VolumeFroxelProbeRadianceHitDistance);
 
 						View.ViewState->Lumen.ViewFroxelProbesHistoryPreExposure = ViewFroxelProbesHistoryPreExposure;
 					}
@@ -1821,7 +1807,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					TraceSetupParameters, 
 					VolumeTraceRadiance, 
 					VolumeTraceHitDistance,
-					VolumeFroxelProbeRadiance,
+					VolumeFroxelProbeRadianceHitDistance,
 					ComputePassFlags);
 			}
 			else
@@ -1837,7 +1823,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					TraceSetupParameters,
 					VolumeTraceRadiance,
 					VolumeTraceHitDistance,
-					VolumeFroxelProbeRadiance,
+					VolumeFroxelProbeRadianceHitDistance,
 					ComputePassFlags);
 			}
 

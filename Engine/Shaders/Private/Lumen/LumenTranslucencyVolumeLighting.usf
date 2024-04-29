@@ -69,7 +69,7 @@ void MarkRadianceProbesUsedByTranslucencyVolumeCS(
 
 RWTexture3D<float3> RWVolumeTraceRadiance;
 RWTexture3D<float> RWVolumeTraceHitDistance;
-Texture3D<float3> VolumeFroxelProbeRadiance;
+Texture3D<float3> VolumeFroxelProbeRadianceHitDistance;	// Only float3, filtering out the unused distance for now.
 
 // Applying an offset from the depth buffer helps with reducing self intersection with global distance field tracing.
 void ApplyDepthconstraintsToOffset(float3 GridCoordinate, inout float3 LocalFrameJitterOffset)
@@ -165,7 +165,7 @@ void TranslucencyVolumeTraceVoxelsCS(
 #if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_FROXEL
 			if (true) // Froxel probes are always valid for the translucency volume froxels.
 			{
-				const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadiance, GridCoordinate, ProbeUV);// *View.OneOverPreExposure;
+				const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadianceHitDistance, GridCoordinate, ProbeUV).rgb;// *View.OneOverPreExposure;
 			
 				// Lerp according to tracing coverage=1-transparency
 				TraceResult.Lighting += FroxelProbeRadiance * TraceResult.Transparency;
@@ -637,16 +637,14 @@ void FroxelProbesUpdateIndirectArgsSetupMainCS(uint3 DispatchThreadId : SV_Dispa
 #if defined(UpdateFroxelProbesMainCS)
 
 #if PERMUTATION_PROBE_FILL_MODE == 0	// Reproject last frame
-Texture3D<float3>   VolumeFroxelProbeRadianceHistory;
-Texture3D<float>    VolumeFroxelProbeHitDistanceHistory;
+Texture3D<float4>   VolumeFroxelProbeRadianceHitDistanceHistory;
 #elif PERMUTATION_PROBE_FILL_MODE == 1	// Copy low res probe data
 Texture3D<float3>   VolumeFroxelLowResProbeRadiance;
 Texture3D<float>    VolumeFroxelLowResProbeHitDistance;
 #elif PERMUTATION_PROBE_FILL_MODE == 2	// Fill to black
 #endif
 
-RWTexture3D<float3> RWVolumeFroxelProbeRadiance;
-RWTexture3D<float>  RWVolumeFroxelProbeHitDistance;
+RWTexture3D<float4> RWVolumeFroxelProbeRadianceHitDistance;
 
 Buffer<uint>  FroxelUpdateCountBuffer;
 Buffer<uint4> FroxelUpdateListBuffer;
@@ -697,39 +695,30 @@ void UpdateFroxelProbesMainCS(
 		uint3 FroxelProbeGridTexelCoord = FroxelProbeGridTexelCoordFloat;
 
 	#if 0
-		TraceRadiance = VolumeFroxelProbeRadianceHistory[uint3(FroxelProbeGridTexelCoord.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord.z)];
-		TraceHitDistance = RWVolumeFroxelProbeHitDistance[uint3(FroxelProbeGridTexelCoord.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord.z)];
+		float4 ProbeRadianceHitDistance = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(FroxelProbeGridTexelCoord.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord.z)];
+		TraceRadiance = ProbeRadianceHitDistance.rgb;
+		TraceHitDistance = ProbeRadianceHitDistance.a;
 	#else
 		float3 LerpUVs = saturate(FroxelProbeGridTexelCoordFloat - float3(FroxelProbeGridTexelCoord));
 
 		uint3 FroxelProbeGridTexelCoord0 = FroxelProbeGridTexelCoord;
 		uint3 FroxelProbeGridTexelCoord1 = min(FroxelProbeGridTexelCoord0 + 1, TranslucencyVolumeTracingFroxelProbesGridSize - 1);
 
-		float3 Lighting000 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float3 Lighting001 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
-		float3 Lighting010 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float3 Lighting011 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
-		float3 Lighting100 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float3 Lighting101 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
-		float3 Lighting110 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float3 Lighting111 = VolumeFroxelProbeRadianceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
+		float4 LightHitDist000 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
+		float4 LightHitDist001 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
+		float4 LightHitDist010 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
+		float4 LightHitDist011 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
+		float4 LightHitDist100 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
+		float4 LightHitDist101 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
+		float4 LightHitDist110 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
+		float4 LightHitDist111 = VolumeFroxelProbeRadianceHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
 
-		float3 LightingX0 = lerp(lerp(Lighting000, Lighting001, LerpUVs.zzz), lerp(Lighting010, Lighting011, LerpUVs.zzz), LerpUVs.yyy);
-		float3 LightingX1 = lerp(lerp(Lighting100, Lighting101, LerpUVs.zzz), lerp(Lighting110, Lighting111, LerpUVs.zzz), LerpUVs.yyy);
-		TraceRadiance = lerp(LightingX0, LightingX1, LerpUVs.xxx);
+		float4 LightHitDistX0 = lerp(lerp(LightHitDist000, LightHitDist001, LerpUVs.zzzz), lerp(LightHitDist010, LightHitDist011, LerpUVs.zzzz), LerpUVs.yyyy);
+		float4 LightHitDistX1 = lerp(lerp(LightHitDist100, LightHitDist101, LerpUVs.zzzz), lerp(LightHitDist110, LightHitDist111, LerpUVs.zzzz), LerpUVs.yyyy);
+		float4 ProbeRadianceHitDistance = lerp(LightHitDistX0, LightHitDistX1, LerpUVs.xxxx);
 
-		float HitDist000 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float HitDist001 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
-		float HitDist010 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float HitDist011 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord0.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
-		float HitDist100 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float HitDist101 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord0.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
-		float HitDist110 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord0.z)];
-		float HitDist111 = VolumeFroxelProbeHitDistanceHistory[uint3(uint2(FroxelProbeGridTexelCoord1.x, FroxelProbeGridTexelCoord1.y) * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridTexelCoord1.z)];
-
-		float HitDistX0 = lerp(lerp(HitDist000, HitDist001, LerpUVs.z), lerp(HitDist010, HitDist011, LerpUVs.z), LerpUVs.y);
-		float HitDistX1 = lerp(lerp(HitDist100, HitDist101, LerpUVs.z), lerp(HitDist110, HitDist111, LerpUVs.z), LerpUVs.y);
-		TraceHitDistance = lerp(HitDistX0, HitDistX1, LerpUVs.x);
+		TraceRadiance = ProbeRadianceHitDistance.rgb;
+		TraceHitDistance = ProbeRadianceHitDistance.a;
 	#endif
 
 		// Adapt to current exposure
@@ -740,8 +729,7 @@ void UpdateFroxelProbesMainCS(
 	#endif
 
 		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
-		RWVolumeFroxelProbeRadiance[WriteCoord] = TraceRadiance;
-		RWVolumeFroxelProbeHitDistance[WriteCoord] = min(TraceHitDistance, MaxHalfFloat);
+		RWVolumeFroxelProbeRadianceHitDistance[WriteCoord] = float4(TraceRadiance, min(TraceHitDistance, MaxHalfFloat));
 
 #elif PERMUTATION_PROBE_FILL_MODE == 1	// Copy low res probe data
 
@@ -756,8 +744,7 @@ void UpdateFroxelProbesMainCS(
 	#endif
 
 		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
-		RWVolumeFroxelProbeRadiance[WriteCoord] = TraceRadiance;
-		RWVolumeFroxelProbeHitDistance[WriteCoord] = TraceHitDistance;
+		RWVolumeFroxelProbeRadianceHitDistance[WriteCoord] = float4(TraceRadiance, TraceHitDistance);
 		
 #elif PERMUTATION_PROBE_FILL_MODE == 2	// Clear froxel probe
 
@@ -769,8 +756,7 @@ void UpdateFroxelProbesMainCS(
 	#endif
 
 		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
-		RWVolumeFroxelProbeRadiance[WriteCoord] = TraceRadiance;
-		RWVolumeFroxelProbeHitDistance[WriteCoord] = TraceHitDistance;
+		RWVolumeFroxelProbeRadianceHitDistance[WriteCoord] = float4(TraceRadiance, TraceHitDistance);
 
 #endif
 	}
@@ -1048,8 +1034,7 @@ RAY_TRACING_ENTRY_RAYGEN(TranslucencyVolumeFroxelLowResProbesRayTracingRGS)
 Buffer<uint>	FroxelRefineTraceRayCountBuffer;
 Buffer<uint4>	FroxelRefineTraceRayListBuffer;
 
-RWTexture3D<float3> RWVolumeFroxelProbeRadiance;
-RWTexture3D<float>  RWVolumeFroxelProbeHitDistance;
+RWTexture3D<float4> RWVolumeFroxelProbeRadianceHitDistance;
 
 void TranslucencyVolumeFroxelProbesRefineTraceRay(uint RayTraceLinearIndex)
 {
@@ -1097,9 +1082,7 @@ void TranslucencyVolumeFroxelProbesRefineTraceRay(uint RayTraceLinearIndex)
 #endif
 
 	uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
-	RWVolumeFroxelProbeRadiance[WriteCoord] = TraceResult.Radiance;
-	//	RWVolumeFroxelProbeRadiance[WriteCoord] = FroxelGridCoord / 25.0;
-	RWVolumeFroxelProbeHitDistance[WriteCoord] = min(TraceResult.HitDistance, MaxHalfFloat);
+	RWVolumeFroxelProbeRadianceHitDistance[WriteCoord] = float4(TraceResult.Radiance, min(TraceResult.HitDistance, MaxHalfFloat));
 }
 
 #endif // defined(FroxelProbesRefineTraceRayCS) || defined(FroxelProbesRefineHWRayTracingRGS) || defined(FroxelProbesRefineHWRayTracingCS)
