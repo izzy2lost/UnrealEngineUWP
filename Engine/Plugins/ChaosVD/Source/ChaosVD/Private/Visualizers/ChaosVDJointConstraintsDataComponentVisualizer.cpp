@@ -3,6 +3,7 @@
 #include "Visualizers/ChaosVDJointConstraintsDataComponentVisualizer.h"
 
 #include "ChaosVDScene.h"
+#include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
 #include "EditorModeManager.h"
 #include "EditorViewportClient.h"
@@ -10,10 +11,20 @@
 #include "SceneView.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
+#include "Settings/ChaosVDJointConstraintVisualizationSettings.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "ToolMenuEntry.h"
+#include "ToolMenuSection.h"
+#include "Utils/ChaosVDUserInterfaceUtils.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Widgets/SChaosVDMainTab.h"
+#include "Widgets/SChaosVDViewportToolbar.h"
+#include "Widgets/SChaosVDEnumFlagsMenu.h"
 
 IMPLEMENT_HIT_PROXY(HChaosVDJointConstraintProxy, HComponentVisProxy)
+
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
 namespace Chaos::VisualDebugger::Utils
 {
@@ -97,6 +108,42 @@ namespace Chaos::VisualDebugger::Utils
 	}
 }
 
+FChaosVDJointConstraintsDataComponentVisualizer::FChaosVDJointConstraintsDataComponentVisualizer()
+{
+	RegisterVisualizerMenus();
+}
+
+void FChaosVDJointConstraintsDataComponentVisualizer::RegisterVisualizerMenus()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	
+	if (!ensure(ToolMenus))
+	{
+		return;
+	}
+
+	if (UToolMenu* Menu = ToolMenus->ExtendMenu(SChaosVDViewportToolbar::ShowMenuName))
+	{
+		FToolMenuSection& Section = Menu->AddSection("JointConstraintDataVisualization.Show", LOCTEXT("JointConstraintDataVisualizationShowMenuLabel", "Joint Constraint Data Visualization"));
+		
+		Section.AddSubMenu(TEXT("JointConstraintDataVisualizationFlags"), LOCTEXT("JointConstraintDataVisualizationFlagsMenuLabel", "Joint Constraints Data Flags"), LOCTEXT("JointConstraintDataVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of joint constraint data"), FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+		                   {
+			                   TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<EChaosVDJointsDataVisualizationFlags>)
+				                   .CurrentValue_Static(&UChaosVDJointConstraintsVisualizationSettings::GetJointsDataVisualizationFlags)
+				                   .OnEnumSelectionChanged_Static(&UChaosVDJointConstraintsVisualizationSettings::SetJointsDataVisualizationFlags);
+			
+			                   FToolMenuEntry FlagsMenuEntry = FToolMenuEntry::InitWidget("JointConstraintDataVisualizationFlags", VisualizationFlagsWidget,FText::GetEmpty());
+			                   Menu->AddMenuEntry(NAME_None, FlagsMenuEntry);
+		                   }),
+		                   false, FSlateIcon(FChaosVDStyle::Get().GetStyleSetName(), TEXT("ConnectionIcon")));
+
+		using namespace Chaos::VisualDebugger::Utils;
+		Section.AddSubMenu(TEXT("JointConstraintDataVisualizationSettings"), LOCTEXT("JointConstraintDataVisualizationMenuLabel", "Joint Constraint Visualization Settings"), LOCTEXT("JointConstraintDataVisualizationMenuToolTip", "Options to change how the recorded joint constraint data is debug drawn"), FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForDefaultObject<UChaosVDJointConstraintsVisualizationSettings>, EChaosVDSaveSettingsOptions::ShowSaveButton),
+		                   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
+	}
+}
+
+
 void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
 	const UChaosVDSolverJointConstraintDataComponent* JointConstraintDataComponent = Cast<UChaosVDSolverJointConstraintDataComponent>(Component);
@@ -133,11 +180,11 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UA
 	VisualizationContext.SpaceTransform = SolverInfoActor->GetSimulationTransform();
 	VisualizationContext.SolverInfoActor = SolverInfoActor;
 
-	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
+	if (const UChaosVDJointConstraintsVisualizationSettings* EditorSettings = GetDefault<UChaosVDJointConstraintsVisualizationSettings>())
 	{
-		VisualizationContext.VisualizationFlags = EditorSettings->GlobalJointsDataVisualizationFlags;
+		VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDJointConstraintsVisualizationSettings::GetJointsDataVisualizationFlags());
 		VisualizationContext.bShowDebugText = EditorSettings->bShowDebugText;
-		VisualizationContext.DebugDrawSettings = &EditorSettings->JointsDataDebugDrawSettings;
+		VisualizationContext.DebugDrawSettings = EditorSettings;
 	}
 
 	if (!VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::EnableDraw))
@@ -197,7 +244,7 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DebugDrawAllAxis(const FCh
 {
 	for(int32 AxisIndex = 0; AxisIndex < 3 ; AxisIndex++)
 	{
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, InPosition, InPosition + VisualizationContext.DebugDrawSettings->GeneralScale * VisualizationContext.DebugDrawSettings->ConstraintAxisLength * VisualizationContext.SpaceTransform.TransformVector(InRotationMatrix.GetAxis(AxisIndex)),FText::GetEmpty(), Chaos::VisualDebugger::Utils::GenerateSelectionAwareDebugColor(AxisColors[AxisIndex], InJointConstraintData.bIsSelectedInEditor), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness * 0.2f);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, InPosition, InPosition + VisualizationContext.DebugDrawSettings->GeneralScale * VisualizationContext.DebugDrawSettings->ConstraintAxisLength * VisualizationContext.SpaceTransform.TransformVector(InRotationMatrix.GetAxis(AxisIndex)), FText::GetEmpty(), Chaos::VisualDebugger::Utils::GenerateSelectionAwareDebugColor(AxisColors[AxisIndex], InJointConstraintData.bIsSelectedInEditor), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness * 0.2f);
 	}
 }
 
@@ -378,3 +425,5 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 	
 	PDI->SetHitProxy(nullptr);
 }
+
+#undef LOCTEXT_NAMESPACE

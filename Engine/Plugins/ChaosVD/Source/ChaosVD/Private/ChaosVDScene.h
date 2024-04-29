@@ -17,7 +17,7 @@ struct FTypedElementSelectionOptions;
 class AChaosVDSceneQueryDataContainer;
 class AChaosVDSolverInfoActor;
 class AChaosVDSceneCollisionContainer;
-class UChaosVDEditorSettings;
+class UChaosVDCoreSettings;
 class FChaosVDGeometryBuilder;
 class AChaosVDParticleActor;
 class FReferenceCollector;
@@ -159,9 +159,6 @@ private:
 	void HandleSelectElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListRef InSelectionSet, const FTypedElementSelectionOptions& InSelectionOptions);
 
 	void ClearSelectionAndNotify();
-
-	void HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject);
-	void HandleColorSettingsChanged(UChaosVDEditorSettings* SettingsObject);
 
 	void InitializeSelectionSets();
 	void DeInitializeSelectionSets();

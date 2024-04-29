@@ -1,9 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "LevelEditorViewport.h"
+#include "EditorViewportClient.h"
 
-class UChaosVDEditorSettings;
+class UChaosVDCoreSettings;
 struct FChaosVDGameFrameData;
 class FChaosVDScene;
 enum class EChaosVDActorTrackingMode;
@@ -30,6 +30,9 @@ public:
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 
 	void ToggleObjectTrackingIfSelected();
+	bool IsAutoTrackingSelectedObject() const { return bAutoTrackSelectedObject; };
+	void SetAutoTrackingViewDistance(float NewDistance);
+	float GetAutoTrackingViewDistance() const { return TrackingViewDistance; }
 
 	void GoToLocation(const FVector& InLocation);
 
@@ -39,9 +42,12 @@ private:
 
 	void HandleObjectFocused(UObject* FocusedObject);
 	void HandleActorMoving(AActor* MovedActor) const;
-	void HandleViewportSettingsChanged(UChaosVDEditorSettings* SettingsObject);
 
 	FDelegateHandle ObjectFocusedDelegateHandle;
 	UWorld* CVDWorld;
 	TWeakPtr<FChaosVDScene> CVDScene;
+
+	bool bAutoTrackSelectedObject = false;
+	float TrackingViewDistance = 120.0f;
+
 };

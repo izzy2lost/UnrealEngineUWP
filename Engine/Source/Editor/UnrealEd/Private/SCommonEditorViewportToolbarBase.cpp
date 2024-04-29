@@ -752,7 +752,9 @@ float SCommonEditorViewportToolbarBase::OnGetFarViewPlaneValue() const
 
 void SCommonEditorViewportToolbarBase::OnFarViewPlaneValueChanged(float NewValue)
 {
-	GetViewportClient().OverrideFarClipPlane(NewValue);
+	FEditorViewportClient& ViewportClient = GetViewportClient();
+	ViewportClient.OverrideFarClipPlane(NewValue);
+	ViewportClient.Invalidate();
 }
 
 FReply SCommonEditorViewportToolbarBase::OnRealtimeWarningClicked()

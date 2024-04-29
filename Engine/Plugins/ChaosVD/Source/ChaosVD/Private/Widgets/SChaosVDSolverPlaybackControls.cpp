@@ -2,8 +2,6 @@
 
 #include "Widgets/SChaosVDSolverPlaybackControls.h"
 
-#include "ChaosVDEditorSettings.h"
-#include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "Widgets/ChaosVDPlaybackControlsHelper.h"

@@ -2,36 +2,15 @@
 
 #pragma once
 #include "ComponentVisualizer.h"
-#include "IChaosVDParticleVisualizationDataProvider.h"
 #include "Chaos/Core.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
+#include "IChaosVDParticleVisualizationDataProvider.h"
+#include "Settings/ChaosVDJointConstraintVisualizationSettings.h"
 
-struct FChaosVDJointsDebugDrawSettings;
-class AChaosVDSolverInfoActor;
 struct FChaosVDJointConstraint;
 
-UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
-enum class EChaosVDJointsDataVisualizationFlags : uint32
-{
-	None					= 0 UMETA(Hidden),
-	/** Draw the PushOut vector based on the constraint's data */
-	PushOut					= 1 << 0,
-	/** Draw the Angular Impulse vector based on the constraint's data */
-	AngularImpulse			= 1 << 1 UMETA(Hidden),
-	ActorConnector			= 1 << 2,
-	CenterOfMassConnector	= 1 << 3,
-	Stretch					= 1 << 4,
-	Axes					= 1 << 5,
-	/** Draw the joint even if one of the particles or both are kinematic */
-	DrawKinematic			= 1 << 6,
-	/** Draw the joint even if it is disabled */
-	DrawDisabled			= 1 << 7,
-	/** Only debugs draw data for a selected joint constraint */
-	OnlyDrawSelected		= 1 << 8,
-	/** Enables Debug draw for Joint Constraint data from any solver that is visible */
-	EnableDraw				= 1 << 9,
-};
-ENUM_CLASS_FLAGS(EChaosVDJointsDataVisualizationFlags);
+class AChaosVDSolverInfoActor;
+class UChaosVDJointConstraintsVisualizationSettings;
 
 /** Visualization context structure specific for Joints visualizations */
 struct FChaosVDJointVisualizationDataContext : public FChaosVDVisualizationContext
@@ -41,7 +20,7 @@ struct FChaosVDJointVisualizationDataContext : public FChaosVDVisualizationConte
 	
 	AChaosVDSolverInfoActor* SolverInfoActor = nullptr;
 
-	const FChaosVDJointsDebugDrawSettings* DebugDrawSettings = nullptr;
+	const UChaosVDJointConstraintsVisualizationSettings* DebugDrawSettings = nullptr;
 
 	bool bShowDebugText = false;
 
@@ -75,9 +54,9 @@ struct HChaosVDJointConstraintProxy : public HComponentVisProxy
 class FChaosVDJointConstraintsDataComponentVisualizer final : public FComponentVisualizer
 {
 public:
-	FChaosVDJointConstraintsDataComponentVisualizer()
-	{
-	}
+	FChaosVDJointConstraintsDataComponentVisualizer();
+	
+	void RegisterVisualizerMenus();
 
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;

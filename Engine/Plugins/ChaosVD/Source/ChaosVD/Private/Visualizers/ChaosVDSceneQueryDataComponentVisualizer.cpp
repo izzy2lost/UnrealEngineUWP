@@ -5,24 +5,67 @@
 #include "Actors/ChaosVDSceneQueryDataContainer.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDScene.h"
-#include "ChaosVDSceneQueryDataInspectorTab.h"
+#include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
 #include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "SceneView.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
+#include "Settings/ChaosVDSceneQueryVisualizationSettings.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "ToolMenuEntry.h"
+#include "ToolMenuSection.h"
+#include "Utils/ChaosVDUserInterfaceUtils.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Visualizers/IChaosVDParticleVisualizationDataProvider.h"
 #include "Widgets/SChaosVDMainTab.h"
+#include "Widgets/SChaosVDViewportToolbar.h"
+#include "Widgets/SChaosVDEnumFlagsMenu.h"
 
-class UChaosVDEditorSettings;
+class UChaosVDCoreSettings;
 
 IMPLEMENT_HIT_PROXY(HChaosVDSceneQueryProxy, HComponentVisProxy)
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
+FChaosVDSceneQueryDataComponentVisualizer::FChaosVDSceneQueryDataComponentVisualizer()
+{
+	RegisterVisualizerMenus();
+}
+
+void FChaosVDSceneQueryDataComponentVisualizer::RegisterVisualizerMenus()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	
+	if (!ensure(ToolMenus))
+	{
+		return;
+	}
+
+	if (UToolMenu* Menu = ToolMenus->ExtendMenu(SChaosVDViewportToolbar::ShowMenuName))
+	{
+		FToolMenuSection& Section = Menu->AddSection("SceneQueryDataVisualization.Show", LOCTEXT("SceneQueryDataShowMenuLabel", "Scene Query Data Visualization"));
+		
+		Section.AddSubMenu(TEXT("SceneQueryDataFlags"), LOCTEXT("SceneQueryDataFlagsMenuLabel", "Scene Query Data Flags"), LOCTEXT("SceneQueryDataFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of scene query data"), FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+						   {
+							   TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<EChaosVDSceneQueryVisualizationFlags>)
+								   .CurrentValue_Static(&UChaosVDSceneQueriesVisualizationSettings::GetSceneQueryDataVisualizationFlags)
+								   .OnEnumSelectionChanged_Static(&UChaosVDSceneQueriesVisualizationSettings::SetSceneQueryDataVisualizationFlags);
+			
+
+							   FToolMenuEntry FlagsMenuEntry = FToolMenuEntry::InitWidget("CollisionVisualizationFlagsFlags", VisualizationFlagsWidget,FText::GetEmpty());
+							   Menu->AddMenuEntry(NAME_None, FlagsMenuEntry);
+						   }),
+						   false, FSlateIcon(FChaosVDStyle::Get().GetStyleSetName(), TEXT("SceneQueriesInspectorIcon")));
+		
+		using namespace Chaos::VisualDebugger::Utils;
+        Section.AddSubMenu(TEXT("SceneQueryDataSettings"), LOCTEXT("SceneQuerySettingsMenuLabel", "Scene Query Visualization Settings"), LOCTEXT("SceneQuerySettingsMenuToolTip", "Options to change how the recorded scene query data is debug drawn"), FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForDefaultObject<UChaosVDSceneQueriesVisualizationSettings>, EChaosVDSaveSettingsOptions::ShowSaveButton),
+                           false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
+	}
+}
 
 void FChaosVDSceneQueryDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
@@ -61,10 +104,8 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawVisualization(const UActorCo
 	VisualizationContext.SpaceTransform = FTransform::Identity;
 	VisualizationContext.GeometryGenerator = GeometryGenerator;
 
-	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
-	{
-		VisualizationContext.VisualizationFlags = EditorSettings->GlobalSceneQueriesVisualizationFlags;
-	}
+	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDSceneQueriesVisualizationSettings::GetSceneQueryDataVisualizationFlags());
+	VisualizationContext.DebugDrawSettings = GetDefault<UChaosVDSceneQueriesVisualizationSettings>();
 
 	if (EnumHasAnyFlags(EChaosVDSceneQueryVisualizationFlags::EnableDraw, static_cast<EChaosVDSceneQueryVisualizationFlags>(VisualizationContext.VisualizationFlags)))
 	{
@@ -113,9 +154,16 @@ bool FChaosVDSceneQueryDataComponentVisualizer::VisProxyHandleClick(FEditorViewp
 
 void FChaosVDSceneQueryDataComponentVisualizer::DrawLineTraceQuery(const UActorComponent* Component, const FChaosVDQueryDataWrapper& SceneQueryData, FChaosVDSceneQueryVisualizationDataContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
+	const UChaosVDSceneQueriesVisualizationSettings* DebugDrawSettings = Cast<UChaosVDSceneQueriesVisualizationSettings>(VisualizationContext.DebugDrawSettings);
+	if (!DebugDrawSettings)
+	{
+		return;
+	}
+
 	PDI->SetHitProxy(new HChaosVDSceneQueryProxy(Component, VisualizationContext.DataSelectionHandle));
 
-	const FText DebugText = FText::FormatOrdered(LOCTEXT("LineTraceDebugDrawText", "Type: Line Trace \n Tag {1} \n Owner Tag {2}"), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.TraceTag.ToString()), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.OwnerTag.ToString()));
+	const FText DebugText = DebugDrawSettings->bShowText ? FText::FormatOrdered(LOCTEXT("LineTraceDebugDrawText", "Type: Line Trace \n Tag {1} \n Owner Tag {2}"), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.TraceTag.ToString()), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.OwnerTag.ToString()))
+							: FText::GetEmpty();
 
 	FVector EndLocationToDraw;
 	if (SceneQueryData.SQVisitData.IsValidIndex(SceneQueryData.CurrentVisitIndex))
@@ -141,12 +189,19 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawLineTraceQuery(const UActorC
 
 void FChaosVDSceneQueryDataComponentVisualizer::DrawOverlapQuery(const UActorComponent* Component, const FChaosVDQueryDataWrapper& SceneQueryData, FChaosVDSceneQueryVisualizationDataContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
+	const UChaosVDSceneQueriesVisualizationSettings* DebugDrawSettings = Cast<UChaosVDSceneQueriesVisualizationSettings>(VisualizationContext.DebugDrawSettings);
+	if (!DebugDrawSettings)
+	{
+		return;
+	}
+	
 	PDI->SetHitProxy(new HChaosVDSceneQueryProxy(Component, VisualizationContext.DataSelectionHandle));
 
 	const Chaos::FConstImplicitObjectPtr InputShapePtr = VisualizationContext.InputGeometry;
 	if (ensure(InputShapePtr))
 	{
-		const FText DebugText = FText::FormatOrdered(LOCTEXT("OverlapDebugDrawText", "Type: Overlap \n Tag {1} \n Owner Tag {2}"), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.TraceTag.ToString()), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.OwnerTag.ToString()));
+		const FText DebugText = DebugDrawSettings->bShowText ? FText::FormatOrdered(LOCTEXT("OverlapDebugDrawText", "Type: Overlap \n Tag {1} \n Owner Tag {2}"), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.TraceTag.ToString()), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.OwnerTag.ToString()))
+								: FText::GetEmpty();
 		FChaosVDDebugDrawUtils::DrawImplicitObject(PDI, VisualizationContext.GeometryGenerator.Pin(), InputShapePtr, FTransform(SceneQueryData.GeometryOrientation, SceneQueryData.StartLocation), VisualizationContext.DebugDrawColor, DebugText, ESceneDepthPriorityGroup::SDPG_Foreground);
 	}
 
@@ -160,6 +215,12 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawOverlapQuery(const UActorCom
 
 void FChaosVDSceneQueryDataComponentVisualizer::DrawSweepQuery(const UActorComponent* Component, const FChaosVDQueryDataWrapper& SceneQueryData, FChaosVDSceneQueryVisualizationDataContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
+	const UChaosVDSceneQueriesVisualizationSettings* DebugDrawSettings = Cast<UChaosVDSceneQueriesVisualizationSettings>(VisualizationContext.DebugDrawSettings);
+	if (!DebugDrawSettings)
+	{
+		return;
+	}
+
 	PDI->SetHitProxy(new HChaosVDSceneQueryProxy(Component, VisualizationContext.DataSelectionHandle));
 
 	const Chaos::FConstImplicitObjectPtr InputShapePtr = VisualizationContext.InputGeometry;
@@ -184,7 +245,8 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawSweepQuery(const UActorCompo
 
 	PDI->SetHitProxy(nullptr);
 
-	const FText DebugText = FText::FormatOrdered(LOCTEXT("SweepDebugDrawText", "Type: Sweep \n Tag {1} \n Owner Tag {2}"), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.TraceTag.ToString()), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.OwnerTag.ToString()));
+	const FText DebugText = DebugDrawSettings->bShowText ? FText::FormatOrdered(LOCTEXT("SweepDebugDrawText", "Type: Sweep \n Tag {1} \n Owner Tag {2}"), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.TraceTag.ToString()), FText::AsCultureInvariant(SceneQueryData.CollisionQueryParams.OwnerTag.ToString()))
+							: FText::GetEmpty();
 
 	FChaosVDDebugDrawUtils::DrawArrowVector(PDI, SceneQueryData.StartLocation, SceneQueryData.EndLocation, DebugText, VisualizationContext.DebugDrawColor, SDPG_Foreground);
 
@@ -196,6 +258,12 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawSweepQuery(const UActorCompo
 
 void FChaosVDSceneQueryDataComponentVisualizer::DrawHits(const UActorComponent* Component, const FChaosVDQueryDataWrapper& SceneQueryData, FPrimitiveDrawInterface* PDI, const FColor& InColor, FChaosVDSceneQueryVisualizationDataContext& VisualizationContext)
 {
+	const UChaosVDSceneQueriesVisualizationSettings* DebugDrawSettings = Cast<UChaosVDSceneQueriesVisualizationSettings>(VisualizationContext.DebugDrawSettings);
+	if (!DebugDrawSettings)
+	{
+		return;
+	}
+
 	for (int32 SQVisitIndex = 0; SQVisitIndex < SceneQueryData.SQVisitData.Num(); ++SQVisitIndex)
 	{
 		const FChaosVDQueryVisitStep& SQVisitData = SceneQueryData.SQVisitData[SQVisitIndex];
@@ -208,7 +276,7 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawHits(const UActorComponent* 
 
 		PDI->SetHitProxy(new HChaosVDSceneQueryProxy(Component, VisualizationContext.DataSelectionHandle));
 
-		const FText HitPointDebugText = FText::FormatOrdered(LOCTEXT("SceneQueryHitDebugText", "Distance {0} \n Face Index {1} \n "), SQVisitData.HitData.Distance, SQVisitData.HitData.FaceIdx);
+		const FText HitPointDebugText = DebugDrawSettings->bShowText ? FText::FormatOrdered(LOCTEXT("SceneQueryHitDebugText", "Distance {0} \n Face Index {1} \n "), SQVisitData.HitData.Distance, SQVisitData.HitData.FaceIdx) : FText::GetEmpty();
 		static FText HitFaceNormalDebugText = FText::AsCultureInvariant(TEXT("Hit Face Normal"));
 		static FText HitWorldNormalDebugText = FText::AsCultureInvariant(TEXT("Hit World Normal"));
 
@@ -218,12 +286,12 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawHits(const UActorComponent* 
 		constexpr int32 CircleSegments = 12;
 		constexpr float NormalScale = 10.5f;
 		FChaosVDDebugDrawUtils::DrawCircle(PDI, SQVisitData.HitData.WorldPosition, CircleRadius, CircleSegments, InColor, Thickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), HitPointDebugText,  ESceneDepthPriorityGroup::SDPG_Foreground);
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, SQVisitData.HitData.WorldPosition, SQVisitData.HitData.WorldPosition + SQVisitData.HitData.FaceNormal * NormalScale, HitFaceNormalDebugText, (FLinearColor(InColor) * 0.65f).ToFColorSRGB(), ESceneDepthPriorityGroup::SDPG_Foreground);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, SQVisitData.HitData.WorldPosition, SQVisitData.HitData.WorldPosition + SQVisitData.HitData.FaceNormal * NormalScale, DebugDrawSettings->bShowText ? HitFaceNormalDebugText : FText::GetEmpty(), (FLinearColor(InColor) * 0.65f).ToFColorSRGB(), ESceneDepthPriorityGroup::SDPG_Foreground);
 
 		// Hit Face Normal is not used in line traces
 		if (SceneQueryData.Type != EChaosVDSceneQueryType::RayCast)
 		{
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, SQVisitData.HitData.WorldPosition, SQVisitData.HitData.WorldPosition + SQVisitData.HitData.WorldNormal * NormalScale, HitWorldNormalDebugText, InColor, ESceneDepthPriorityGroup::SDPG_Foreground);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, SQVisitData.HitData.WorldPosition, SQVisitData.HitData.WorldPosition + SQVisitData.HitData.WorldNormal * NormalScale, DebugDrawSettings->bShowText ? HitWorldNormalDebugText : FText::GetEmpty(), InColor, ESceneDepthPriorityGroup::SDPG_Foreground);
 		}
 
 		if (SQVisitData.bIsSelectedInEditor)

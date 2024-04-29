@@ -3,7 +3,6 @@
 #include "Widgets/SChaosVDMainTab.h"
 
 #include "ChaosVDEditorModeTools.h"
-#include "ChaosVDEditorVisualizationSettingsTab.h"
 #include "ChaosVDEngine.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDObjectDetailsTab.h"
@@ -74,7 +73,6 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	RegisterTabSpawner<FChaosVDOutputLogTab>(FChaosVDTabID::OutputLog);
 	RegisterTabSpawner<FChaosVDPlaybackViewportTab>(FChaosVDTabID::PlaybackViewport);
 	RegisterTabSpawner<FChaosVDSolversTracksTab>(FChaosVDTabID::SolversTrack);
-	RegisterTabSpawner<FChaosVDEditorVisualizationSettingsTab>(FChaosVDTabID::CVDEditorSettings);
 	RegisterTabSpawner<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails);
 	RegisterTabSpawner<FChaosVDSceneQueryDataInspectorTab>(FChaosVDTabID::SceneQueryDataDetails);
 	RegisterTabSpawner<FChaosVDConstraintDataInspectorTab>(FChaosVDTabID::JointsDataDetails);
@@ -288,7 +286,6 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					->AddTab(FChaosVDTabID::SceneQueryDataDetails, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::JointsDataDetails, ETabState::ClosedTab)
 					->AddTab(FChaosVDTabID::CharacterGroundConstraintDataDetails, ETabState::ClosedTab)
-					->AddTab(FChaosVDTabID::CVDEditorSettings, ETabState::ClosedTab)
 				)
 			)
 		);

@@ -2,7 +2,7 @@
 
 #include "ChaosVDGeometryDataComponent.h"
 
-#include "ChaosVDEditorSettings.h"
+#include "Settings/ChaosVDCoreSettings.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
@@ -10,6 +10,8 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
+
 
 FChaosVDMeshDataInstanceHandle::FChaosVDMeshDataInstanceHandle(int32 InInstanceIndex, UMeshComponent* InMeshComponent, int32 InParticleID, int32 InSolverID)
 {
@@ -269,9 +271,9 @@ void FChaosVDGeometryComponentUtils::UpdateMeshVisibility(const TSharedPtr<FChao
 		return;
 	}
 
-	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
+	if (const UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = GetDefault<UChaosVDParticleVisualizationSettings>())
 	{
-		const EChaosVDGeometryVisibilityFlags CurrentVisibilityFlags = static_cast<EChaosVDGeometryVisibilityFlags>(EditorSettings->GeometryVisibilityFlags);
+		const EChaosVDGeometryVisibilityFlags CurrentVisibilityFlags = ParticleVisualizationSettings->GetGeometryVisualizationFlags();
 		
 		bool bShouldGeometryBeVisible = false;
 
@@ -325,28 +327,28 @@ FLinearColor FChaosVDGeometryComponentUtils::GetGeometryParticleColor(const TSha
 		return ColorToApply;
 	}
 
-	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
-	if (!EditorSettings)
+	const UChaosVDParticleVisualizationColorSettings* VisualizationSettings = GetDefault<UChaosVDParticleVisualizationColorSettings>();
+	if (!VisualizationSettings)
 	{
 		return ColorToApply;
 	}
 
-	switch (EditorSettings->ParticleColorMode)
+	switch (VisualizationSettings->ParticleColorMode)
 	{
 	case EChaosVDParticleDebugColorMode::ShapeType:
 		{
-			ColorToApply = InGeometryHandle->GetImplicitObject() ? EditorSettings->ColorsByShapeType.GetColorFromShapeType(Chaos::GetInnerType(InGeometryHandle->GetImplicitObject()->GetType())) : DefaultColor;
+			ColorToApply = InGeometryHandle->GetImplicitObject() ? VisualizationSettings->ColorsByShapeType.GetColorFromShapeType(Chaos::GetInnerType(InGeometryHandle->GetImplicitObject()->GetType())) : DefaultColor;
 			break;
 		}
 	case EChaosVDParticleDebugColorMode::State:
 		{
 			if (InParticleData.Type == EChaosVDParticleType::Static)
 			{
-				ColorToApply = EditorSettings->ColorsByParticleState.GetColorFromState(EChaosVDObjectStateType::Static);
+				ColorToApply = VisualizationSettings->ColorsByParticleState.GetColorFromState(EChaosVDObjectStateType::Static);
 			}
 			else
 			{
-				ColorToApply = EditorSettings->ColorsByParticleState.GetColorFromState(InParticleData.ParticleDynamicsMisc.MObjectState);
+				ColorToApply = VisualizationSettings->ColorsByParticleState.GetColorFromState(InParticleData.ParticleDynamicsMisc.MObjectState);
 			}
 			break;
 		}
@@ -354,11 +356,11 @@ FLinearColor FChaosVDGeometryComponentUtils::GetGeometryParticleColor(const TSha
 		{
 			if (InParticleData.Type == EChaosVDParticleType::Static)
 			{
-				ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, EChaosVDObjectStateType::Static);
+				ColorToApply = VisualizationSettings->ColorsByClientServer.GetColorFromState(bIsServer, EChaosVDObjectStateType::Static);
 			}
 			else
 			{
-				ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, InParticleData.ParticleDynamicsMisc.MObjectState);
+				ColorToApply = VisualizationSettings->ColorsByClientServer.GetColorFromState(bIsServer, InParticleData.ParticleDynamicsMisc.MObjectState);
 			}
 			break;
 		}
@@ -374,7 +376,7 @@ FLinearColor FChaosVDGeometryComponentUtils::GetGeometryParticleColor(const TSha
 
 UMaterialInterface* FChaosVDGeometryComponentUtils::GetBaseMaterialForType(EChaosVDMaterialType Type)
 {
-	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
+	const UChaosVDCoreSettings* EditorSettings = GetDefault<UChaosVDCoreSettings>();
 	if (!EditorSettings)
 	{
 		return nullptr;

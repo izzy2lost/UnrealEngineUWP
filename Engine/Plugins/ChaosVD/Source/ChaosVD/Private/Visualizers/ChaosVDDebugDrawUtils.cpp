@@ -3,7 +3,6 @@
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 
 #include "CanvasItem.h"
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "Generators/MeshShapeGenerator.h"
 #include "Engine/Engine.h"
@@ -93,23 +92,17 @@ void FChaosVDDebugDrawUtils::DrawPoint(FPrimitiveDrawInterface* PDI, const FVect
 
 void FChaosVDDebugDrawUtils::DrawString(FStringView StringToDraw, const FVector& Location, const FColor& Color, EChaosVDDebugDrawTextLocationMode LocationMode)
 {
-	if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
+	if (!StringToDraw.IsEmpty())
 	{
-		if (CVDEditorSettings->bShowDebugText)
-		{
-			TextToDrawQueue.Enqueue({ FText::AsCultureInvariant(StringToDraw.GetData()), LocationMode, Location, Color });
-		}
+		TextToDrawQueue.Enqueue({ FText::AsCultureInvariant(StringToDraw.GetData()), LocationMode, Location, Color });
 	}
 }
 
 void FChaosVDDebugDrawUtils::DrawText(const FText& InText, const FVector& Location, const FColor& Color, EChaosVDDebugDrawTextLocationMode LocationMode)
 {
-	if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
+	if (!InText.IsEmptyOrWhitespace())
 	{
-		if (CVDEditorSettings->bShowDebugText)
-		{
-			TextToDrawQueue.Enqueue({ InText, LocationMode, Location, Color });
-		}
+		TextToDrawQueue.Enqueue({ InText, LocationMode, Location, Color });
 	}
 }
 

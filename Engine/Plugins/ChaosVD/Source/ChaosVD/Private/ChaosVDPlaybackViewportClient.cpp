@@ -2,19 +2,12 @@
 
 #include "ChaosVDPlaybackViewportClient.h"
 
-#include "ChaosVDEditorSettings.h"
-#include "ChaosVDEngine.h"
-#include "ChaosVDModule.h"
-#include "ChaosVDObjectDetailsTab.h"
 #include "ChaosVDParticleActor.h"
-#include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDSkySphereInterface.h"
-#include "ChaosVDTabsIDs.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "ComponentVisualizer.h"
 #include "EditorModeManager.h"
-#include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/DirectionalLight.h"
 #include "EngineUtils.h"
 #include "SceneView.h"
@@ -22,12 +15,8 @@
 #include "Selection.h"
 #include "UnrealWidget.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
-#include "Components/ChaosVDParticleDataComponent.h"
-#include "Components/ChaosVDSolverCollisionDataComponent.h"
-#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
-#include "Widgets/SChaosVDDetailsView.h"
 #include "Widgets/SChaosVDMainTab.h"
 
 FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<FEditorModeTools>& InModeTools, const TSharedPtr<SEditorViewport>& InEditorViewportWidget) : FEditorViewportClient(InModeTools.Get(), nullptr, InEditorViewportWidget), CVDWorld(nullptr)
@@ -39,14 +28,8 @@ FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<
 		GEngine->OnActorMoving().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleActorMoving);
 	}
 
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnFarClippingOverrideChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
-		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
-		Settings->OnColorSettingsChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
-
-		HandleViewportSettingsChanged(Settings);
-	}
+	constexpr float DefaultFarClipPlaneOverride = 20000.0f;
+	OverrideFarClipPlane(DefaultFarClipPlaneOverride);
 }
 
 FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
@@ -62,13 +45,6 @@ FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
 	if (GEngine)
 	{
 		GEngine->OnActorMoving().RemoveAll(this);
-	}
-	
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnFarClippingOverrideChanged().RemoveAll(this);
-		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
-		Settings->OnColorSettingsChanged().RemoveAll(this);
 	}
 }
 
@@ -190,33 +166,22 @@ void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const
 	}
 }
 
-void FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged(UChaosVDEditorSettings* SettingsObject)
-{
-	if (SettingsObject)
-	{
-		OverrideFarClipPlane(SettingsObject->FarClippingOverride);
-		EngineShowFlags.SetMeshEdges(EnumHasAnyFlags(static_cast<EChaosVDGeometryVisibilityFlags>(SettingsObject->GeometryVisibilityFlags), EChaosVDGeometryVisibilityFlags::ShowTriangleEdges));
-		Invalidate();
-	}
-}
-
 void FChaosVDPlaybackViewportClient::TrackSelectedObject()
 {
+	if (!bAutoTrackSelectedObject || !ModeTools.IsValid())
+	{
+		return;
+	}
+
 	if (const TSharedPtr<FChaosVDScene> CVDSceneSharedPtr = CVDScene.Pin())
 	{
-		if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
-		{
-			if (ModeTools.IsValid() && CVDEditorSettings->TrackingTarget == EChaosVDActorTrackingTarget::SelectedObject)
-			{
-				USelection* CurrentSelection = ModeTools->GetSelectedActors();
+		USelection* CurrentSelection = ModeTools->GetSelectedActors();
 
-				//TODO: Update this if we add multi selection support
-				if (const AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
-				{
-					const FBox ActorBounds = SelectedActor->GetComponentsBoundingBox(false);
-					FocusViewportOnBox(ActorBounds.ExpandBy(CVDEditorSettings->ExpandViewTrackingBy), true);		
-				}
-			}
+		//TODO: Update this if we add multi selection support
+		if (const AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
+		{
+			const FBox ActorBounds = SelectedActor->GetComponentsBoundingBox(false);
+			FocusViewportOnBox(ActorBounds.ExpandBy(TrackingViewDistance), true);		
 		}
 	}
 }
@@ -234,11 +199,12 @@ bool FChaosVDPlaybackViewportClient::InputKey(const FInputKeyEventArgs& EventArg
 
 void FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected()
 {
-	// Currently we only have two options, so toggle between them
-	if (UChaosVDEditorSettings* CVDEditorSettings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		CVDEditorSettings->TrackingTarget = CVDEditorSettings->TrackingTarget == EChaosVDActorTrackingTarget::Disabled ? EChaosVDActorTrackingTarget::SelectedObject : EChaosVDActorTrackingTarget::Disabled;
-	}
+	bAutoTrackSelectedObject = !bAutoTrackSelectedObject;
+}
+
+void FChaosVDPlaybackViewportClient::SetAutoTrackingViewDistance(float NewDistance)
+{
+	TrackingViewDistance = NewDistance;
 }
 
 void FChaosVDPlaybackViewportClient::GoToLocation(const FVector& InLocation)

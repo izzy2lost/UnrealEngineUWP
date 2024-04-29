@@ -53,22 +53,6 @@ struct HChaosVDSceneQueryProxy : public HComponentVisProxy
 	FChaosVDSceneQuerySelectionHandle DataSelectionHandle;
 };
 
-/** Set of visualization flags options for Scene Queries */
-UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
-enum class EChaosVDSceneQueryVisualizationFlags: uint32
-{
-	None					= 0 UMETA(Hidden),
-	EnableDraw				= 1 << 0,
-	DrawLineTraceQueries	= 1 << 1,
-	DrawSweepQueries		= 1 << 2,
-	DrawOverlapQueries		= 1 << 3,
-	DrawHits				= 1 << 4,
-	OnlyDrawSelectedQuery	= 1 << 5,
-	HideEmptyQueries		= 1 << 6,
-	HideSubQueries			= 1 << 7,
-};
-ENUM_CLASS_FLAGS(EChaosVDSceneQueryVisualizationFlags);
-
 /**
  * Component visualizer in charge of generating debug draw visualizations for scene queries in a ChaosVDSceneQueryDataComponent
  */
@@ -76,9 +60,9 @@ class FChaosVDSceneQueryDataComponentVisualizer final : public FComponentVisuali
 {
 
 public:
-	FChaosVDSceneQueryDataComponentVisualizer()
-	{
-	}
+	FChaosVDSceneQueryDataComponentVisualizer();
+	
+	void RegisterVisualizerMenus();
 
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;

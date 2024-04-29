@@ -11,7 +11,7 @@
 #include "HAL/ThreadSafeBool.h"
 
 class IChaosVDPlaybackControllerInstigator;
-class UChaosVDEditorSettings;
+class UChaosVDCoreSettings;
 struct FChaosVDTraceSessionDescriptor;
 struct FChaosVDTrackInfo;
 class FChaosVDScene;
@@ -235,7 +235,14 @@ public:
 	bool AcquireExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator);
 	bool ReleaseExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator);
 
+	bool IsUsingFrameRateOverride() const { return bUseFrameRateOverride; }
+
+	bool ToggleUseFrameRateOverride() { return bUseFrameRateOverride =  !bUseFrameRateOverride; }
+
 	float GetFrameTimeOverride() const;
+	int32 GetFrameRateOverride() const;
+	void SetFrameRateOverride(float NewFrameRateOverride);
+
 	float GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const;
 
 	void UpdateTrackVisibility(EChaosVDTrackType Type, int32 TrackID, bool bNewVisibility);
@@ -262,8 +269,6 @@ protected:
 
 	/** Add the provided Geometry info data to the queue. The update will be broadcast in the game thread */
 	void EnqueueGeometryDataUpdate(const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID);
-
-	void HandleFrameRateOverrideSettingsChanged(UChaosVDEditorSettings* CVDSettings);
 
 	void PlaySolverStepData(int32 TrackID, const TSharedRef<FChaosVDScene>& InSceneToControlSharedPtr, const FChaosVDSolverFrameData& InSolverFrameData, int32 StepIndex);
 
@@ -299,7 +304,9 @@ protected:
 	int32 MaxFramesLaggingBehindDuringLiveSession = 50;
 	int32 MinFramesLaggingBehindDuringLiveSession = 5;
 
-	int32 CurrentFrameRateOverride = InvalidFrameRateOverride;
+	int32 CurrentFrameRateOverride = 60;
+
+	bool bUseFrameRateOverride = false;
 
 	bool bPauseRequested = false;
 

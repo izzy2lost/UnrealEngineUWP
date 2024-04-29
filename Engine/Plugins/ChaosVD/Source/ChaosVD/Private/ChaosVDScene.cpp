@@ -4,7 +4,6 @@
 
 #include "Actors/ChaosVDSceneQueryDataContainer.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
@@ -13,27 +12,27 @@
 #include "ChaosVDSelectionCustomization.h"
 #include "ChaosVDSkySphereInterface.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
+#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
+#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
-#include "EditorActorFolders.h"
-#include "EditorLevelUtils.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "Engine/StreamableManager.h"
 #include "Engine/World.h"
-#include "Elements/Framework/EngineElementsLibrary.h"
-#include "Elements/Framework/TypedElementSelectionSet.h"
-#include "Misc/ScopedSlowTask.h"
-#include "Materials/Material.h"
-#include "Selection.h"
-#include "UObject/Package.h"
-#include "WorldPersistentFolders.h"
-#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
-#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Elements/Actor/ActorElementData.h"
 #include "Elements/Component/ComponentElementData.h"
+#include "Elements/Framework/EngineElementsLibrary.h"
+#include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Elements/Object/ObjectElementData.h"
-#include "Engine/Level.h"
+#include "Materials/Material.h"
+#include "Misc/ScopedSlowTask.h"
+#include "Selection.h"
+#include "Settings/ChaosVDParticleVisualizationSettings.h"
+#include "Settings/ChaosVDCoreSettings.h"
+#include "UObject/Package.h"
+#include "WorldPersistentFolders.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -65,7 +64,7 @@ void FChaosVDScene::Initialize()
 	
 	StreamableManager = MakeShared<FStreamableManager>();
 
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	if (UChaosVDCoreSettings* Settings = GetMutableDefault<UChaosVDCoreSettings>())
 	{
 		// TODO: Do an async load instead, and prepare a loading screen or notification popup
 		// Jira for tracking UE-191639
@@ -73,9 +72,6 @@ void FChaosVDScene::Initialize()
 		StreamableManager->RequestSyncLoad(Settings->SimOnlyMeshesMaterial.ToSoftObjectPath());
 		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesMaterial.ToSoftObjectPath());
 		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesQueryOnlyMaterial.ToSoftObjectPath());
-		
-		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDScene::HandleVisibilitySettingsChanged);
-		Settings->OnColorSettingsChanged().AddRaw(this, &FChaosVDScene::HandleColorSettingsChanged);
 	}
 
 	bIsInitialized = true;
@@ -90,12 +86,6 @@ void FChaosVDScene::DeInitialize()
 	if (!ensure(bIsInitialized))
 	{
 		return;
-	}
-
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
-		Settings->OnColorSettingsChanged().RemoveAll(this);
 	}
 
 	CleanUpScene();
@@ -470,7 +460,7 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 
 	const FVector SpawnPosition(0.0, 0.0, 2000.0);
 	
-	if (const UChaosVDEditorSettings* Settings = GetDefault<UChaosVDEditorSettings>())
+	if (const UChaosVDCoreSettings* Settings = GetDefault<UChaosVDCoreSettings>())
 	{
 		if (ADirectionalLight* DirectionalLightActor = TargetWorld->SpawnActor<ADirectionalLight>())
 		{
@@ -614,28 +604,6 @@ void FChaosVDScene::ClearSelectionAndNotify()
 
 	SelectionSet->ClearSelection(FTypedElementSelectionOptions());
 	SelectionSet->NotifyPendingChanges();
-}
-
-void FChaosVDScene::HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject)
-{
-	for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
-	{
-		if (AChaosVDSolverInfoActor* SolverDataInfo = SolverDataInfoWithID.Value)
-		{
-			SolverDataInfo->HandleVisibilitySettingsUpdated();
-		}
-	}
-}
-
-void FChaosVDScene::HandleColorSettingsChanged(UChaosVDEditorSettings* SettingsObject)
-{
-	for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
-	{
-		if (AChaosVDSolverInfoActor* SolverDataInfo = SolverDataInfoWithID.Value)
-		{
-			SolverDataInfo->HandleColorsSettingsUpdated();
-		}
-	}
 }
 
 void FChaosVDScene::InitializeSelectionSets()

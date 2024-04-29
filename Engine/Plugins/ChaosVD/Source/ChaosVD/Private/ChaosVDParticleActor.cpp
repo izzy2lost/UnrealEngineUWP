@@ -7,6 +7,7 @@
 #include "ChaosVDScene.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDInstancedStaticMeshComponent.h"
+#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
@@ -14,6 +15,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Engine/StaticMesh.h"
+#include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 
 namespace Chaos::VisualDebugger::Cvars
 {

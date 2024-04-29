@@ -34,27 +34,14 @@ struct HChaosVDContactPointProxy : public HComponentVisProxy
 	FChaosVDCollisionDataFinder ContactFinder;
 };
 
-UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
-enum class EChaosVDCollisionVisualizationFlags: uint32
-{
-	None							= 0 UMETA(Hidden),
-	ContactPoints					= 1 << 0,
-	ContactInfo						= 1 << 1,
-	NetPushOut						= 1 << 2,
-	NetImpulse						= 1 << 3,
-	ContactNormal					= 1 << 4,
-	AccumulatedImpulse				= 1 << 5,
-	DrawInactiveContacts			= 1 << 6,
-	DrawDataOnlyForSelectedParticle	= 1 << 7,
-	EnableDraw						= 1 << 8,
-};
-ENUM_CLASS_FLAGS(EChaosVDCollisionVisualizationFlags);
-
 class FChaosVDSolverCollisionDataComponentVisualizer : public FComponentVisualizer
 {
 public:
+	
 	FChaosVDSolverCollisionDataComponentVisualizer();
-	~FChaosVDSolverCollisionDataComponentVisualizer();
+	virtual ~FChaosVDSolverCollisionDataComponentVisualizer() override;
+	
+	void RegisterVisualizerMenus();
 
 	virtual bool ShowWhenSelected() override;
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;

@@ -3,13 +3,20 @@
 #include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
 
 #include "Actors/ChaosVDSolverInfoActor.h"
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
-#include "SceneView.h"
 #include "Components/ChaosVDParticleDataComponent.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
+#include "SceneView.h"
+#include "Settings/ChaosVDParticleVisualizationSettings.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "ToolMenuEntry.h"
+#include "ToolMenuSection.h"
+#include "Utils/ChaosVDUserInterfaceUtils.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
+#include "Widgets/SChaosVDEnumFlagsMenu.h"
+#include "Widgets/SChaosVDViewportToolbar.h"
 
 IMPLEMENT_HIT_PROXY(HChaosVDParticleDataProxy, HComponentVisProxy)
 
@@ -38,15 +45,78 @@ struct FChaosVDScopedParticleHitProxy
 	FPrimitiveDrawInterface* PDIPtr = nullptr;
 };
 
-void FChaosVDParticleDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
+FChaosVDParticleDataComponentVisualizer::FChaosVDParticleDataComponentVisualizer()
 {
-	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
-	if (!EditorSettings)
+	RegisterVisualizerMenus();
+}
+
+void FChaosVDParticleDataComponentVisualizer::RegisterVisualizerMenus()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	
+	if (!ensure(ToolMenus))
 	{
 		return;
 	}
 
-	if (EditorSettings->GlobalParticleDataVisualizationFlags == 0)
+	if (UToolMenu* Menu = ToolMenus->ExtendMenu(SChaosVDViewportToolbar::ShowMenuName))
+	{
+		FToolMenuSection& Section = Menu->AddSection("ParticleVisualization.Show", LOCTEXT("ParticleVisualizationShowMenuLabel", "Particle Visualization"));
+
+		FNewToolMenuDelegate GeometryVisualizationFlagsMenuBuilder = FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+		{
+			if (Menu)
+			{
+				TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<EChaosVDGeometryVisibilityFlags>)
+					.CurrentValue_Static(&UChaosVDParticleVisualizationSettings::GetGeometryVisualizationFlags)
+					.OnEnumSelectionChanged_Lambda(&UChaosVDParticleVisualizationSettings::SetGeometryVisualizationFlags);
+
+				Menu->AddMenuEntry(NAME_None, FToolMenuEntry::InitWidget("GeometryVisualizationFlags",VisualizationFlagsWidget,FText::GetEmpty()));
+			}
+		});
+
+		FNewToolMenuDelegate ParticleDataVisualizationFlagsMenuBuilder = FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+		{
+			if (Menu)
+			{
+				TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<EChaosVDParticleDataVisualizationFlags>)
+					.CurrentValue_Static(&UChaosVDParticleVisualizationDebugDrawSettings::GetDataDebugDrawVisualizationFlags)
+					.OnEnumSelectionChanged_Static(&UChaosVDParticleVisualizationDebugDrawSettings::SetDataDebugDrawVisualizationFlags);
+
+				Menu->AddMenuEntry(NAME_None, FToolMenuEntry::InitWidget("ParticleDebugDrawDataVisualizationFlags", VisualizationFlagsWidget,FText::GetEmpty()));
+			}
+		});
+		
+		FNewToolMenuDelegate ParticleDataVisualizationSettingsMenuBuilder = FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+		{
+			using namespace Chaos::VisualDebugger::Utils;
+			CreateMenuEntryForDefaultObject<UChaosVDParticleVisualizationDebugDrawSettings>(Menu, EChaosVDSaveSettingsOptions::ShowSaveButton);
+		});
+
+		FNewToolMenuDelegate ParticleColorizationMenuBuilder = FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+		{
+			using namespace Chaos::VisualDebugger::Utils;
+			CreateMenuEntryForDefaultObject<UChaosVDParticleVisualizationColorSettings>(Menu, EChaosVDSaveSettingsOptions::ShowSaveButton);
+		});
+
+		constexpr bool bOpenSubMenuOnClick = false;
+		
+		Section.AddSubMenu(TEXT("GeometryVisualizationFlags"), LOCTEXT("GeometryVisualizationFlagsMenuLabel", "Geometry Flags"), LOCTEXT("GeometryVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of geometry/particles"), GeometryVisualizationFlagsMenuBuilder, bOpenSubMenuOnClick, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("ShowFlagsMenu.StaticMeshes")));
+		Section.AddSubMenu(TEXT("ParticleDataVisualizationFlags"), LOCTEXT("ParticleDataVisualizationFlagsMenuLabel", "Particle Data Flags"), LOCTEXT("ParticleDataVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visualization of specific particle data as debug draw"), ParticleDataVisualizationFlagsMenuBuilder, bOpenSubMenuOnClick, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("StaticMeshEditor.SetDrawAdditionalData")));
+		Section.AddSubMenu(TEXT("ParticleDataVisualizationSettings"), LOCTEXT("ParticleDataVisualizationSettingsMenuLabel", "Particle Data Visualization Settings"), LOCTEXT("ParticleDataVisualizationSettingsMenuToolTip", "Options to control how particle data is debug drawn"), ParticleDataVisualizationSettingsMenuBuilder, bOpenSubMenuOnClick, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
+		Section.AddSubMenu(TEXT("ParticleColorizationFlags"), LOCTEXT("ParticleColorizationOptionsMenuLabel", "Particle Colorization"), LOCTEXT("Particle ColorizationMenuToolTip", "Changes what colors are used to draw the particles and its data"), ParticleColorizationMenuBuilder, bOpenSubMenuOnClick, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("ColorPicker.ColorThemes")));
+	}
+}
+
+void FChaosVDParticleDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
+	const UChaosVDParticleVisualizationDebugDrawSettings* VisualizationSettings = GetDefault<UChaosVDParticleVisualizationDebugDrawSettings>();
+	if (!VisualizationSettings)
+	{
+		return;
+	}
+
+	if (VisualizationSettings->GetDataDebugDrawVisualizationFlags() == EChaosVDParticleDataVisualizationFlags::None)
 	{
 		// Nothing to visualize
 		return;
@@ -76,12 +146,12 @@ void FChaosVDParticleDataComponentVisualizer::DrawVisualization(const UActorComp
 	}
 
 	FChaosVDParticleDataVisualizationContext VisualizationContext;
-	VisualizationContext.VisualizationFlags = EditorSettings->GlobalParticleDataVisualizationFlags;
+	VisualizationContext.VisualizationFlags = static_cast<uint32>(VisualizationSettings->GetDataDebugDrawVisualizationFlags());
 	VisualizationContext.SpaceTransform = SolverDataActor->GetSimulationTransform();
 	VisualizationContext.CVDScene = CVDScene;
 	VisualizationContext.GeometryGenerator = CVDScene->GetGeometryGenerator();
-	VisualizationContext.bShowDebugText = EditorSettings->bShowDebugText;
-	VisualizationContext.DebugDrawSettings = &EditorSettings->ParticleDataDebugDrawSettings;
+	VisualizationContext.bShowDebugText = VisualizationSettings->bShowDebugText;
+	VisualizationContext.DebugDrawSettings = VisualizationSettings;
 
 	if (!VisualizationContext.IsVisualizationFlagEnabled(EChaosVDParticleDataVisualizationFlags::EnableDraw))
 	{

@@ -13,6 +13,7 @@
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/World.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Settings/ChaosVDParticleVisualizationSettings.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -23,6 +24,17 @@ AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& Objec
 	JointsDataComponent = CreateDefaultSubobject<UChaosVDSolverJointConstraintDataComponent>(TEXT("JointDataComponent"));
 	CharacterGroundConstraintDataComponent = CreateDefaultSubobject<UChaosVDSolverCharacterGroundConstraintDataComponent>(TEXT("CharacterGroundConstraintDataComponent"));
 	bIsServer = false;
+
+	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	{
+		ParticleVisualizationSettings->OnSettingsChanged().AddUObject(this, &AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated);
+	}
+	
+	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationColorSettings>())
+	{
+		ColorVisualizationSettings->OnSettingsChanged().AddUObject(this, &AChaosVDSolverInfoActor::HandleColorsSettingsUpdated);
+	}
+
 }
 
 void AChaosVDSolverInfoActor::SetSolverName(const FString& InSolverName)
@@ -97,7 +109,7 @@ bool AChaosVDSolverInfoActor::SelectParticleByID(int32 ParticleIDToSelect)
 	return true;
 }
 
-void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated()
+void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated(UObject* SettingsObject)
 {
 	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
 	{
@@ -108,7 +120,7 @@ void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated()
 	}
 }
 
-void AChaosVDSolverInfoActor::HandleColorsSettingsUpdated()
+void AChaosVDSolverInfoActor::HandleColorsSettingsUpdated(UObject* SettingsObject)
 {
 	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
 	{
@@ -204,6 +216,16 @@ void AChaosVDSolverInfoActor::Destroyed()
 	if (!World)
 	{
 		return;
+	}
+
+	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	{
+		ParticleVisualizationSettings->OnSettingsChanged().RemoveAll(this);
+	}
+	
+	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationColorSettings>())
+	{
+		ColorVisualizationSettings->OnSettingsChanged().RemoveAll(this);
 	}
 
 	constexpr float AmountOfWork = 1.0f;

@@ -5,6 +5,8 @@
 #include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
 
+class UChaosVDSettingsObjectBase;
+class UChaosVDCollisionDataVisualizationSettings;
 struct FChaosVDParticleDataWrapper;
 class FChaosVDScene;
 
@@ -15,6 +17,7 @@ struct FChaosVDVisualizationContext
 	TWeakPtr<FChaosVDScene> CVDScene;
 	int32 SolverID = INDEX_NONE;
 	uint32 VisualizationFlags = 0;
+	const UChaosVDSettingsObjectBase* DebugDrawSettings = nullptr;
 };
 
 /** Interface to be used by any object that contains Particle Data that needs to be visualized.

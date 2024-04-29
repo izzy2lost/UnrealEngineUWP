@@ -192,18 +192,8 @@ private:
 	 */
 	UNREALED_API TSharedRef<SWidget> GenerateViewModeOptionsMenu() const;
 
-	/**
-	 * @return The widget containing the perspective only FOV window.
-	 */
-	UNREALED_API TSharedRef<SWidget> GenerateFOVMenu() const;
-
 	/** Called by the FOV slider in the perspective viewport to get the FOV value */
 	UNREALED_API float OnGetFOVValue() const;
-
-	/**
-	 * @return The widget containing the far view plane slider.
-	 */
-	UNREALED_API TSharedRef<SWidget> GenerateFarViewPlaneMenu() const;
 
 	/** Called by the far view plane slider in the perspective viewport to get the far view plane value */
 	UNREALED_API float OnGetFarViewPlaneValue() const;
@@ -217,6 +207,15 @@ private:
 	UNREALED_API EVisibility GetRealtimeWarningVisibility() const;
 
 protected:
+	/**
+	 * @return The widget containing the perspective only FOV window.
+	 */
+	UNREALED_API TSharedRef<SWidget> GenerateFOVMenu() const;
+	/**
+	 * @return The widget containing the far view plane slider.
+	 */
+	UNREALED_API TSharedRef<SWidget> GenerateFarViewPlaneMenu() const;
+
 	// Merges the extender list from the host with the specified extender and returns the results
 	UNREALED_API TSharedPtr<FExtender> GetCombinedExtenderList(TSharedRef<FExtender> MenuExtender) const;
 

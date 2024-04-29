@@ -46,6 +46,17 @@ public:
 
 	void GoToLocation(const FVector& InLocation) const;
 
+	void ToggleUseFrameRateOverride();
+	bool IsUsingFrameRateOverride() const;
+
+	int32 GetCurrentTargetFrameRateOverride() const;
+
+	void SetCurrentTargetFrameRateOverride(int32 NewTarget);
+
+	TWeakPtr<FChaosVDScene> GetCVDScene() { return CVDSceneWeakPtr; }
+	
+	static void ExecuteExternalViewportInvalidateRequest();
+
 protected:
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
@@ -66,6 +77,8 @@ protected:
 
 	bool CanPlayback() const;
 
+	void HanldeExternalViewportInvalidateRequest();
+
 	TSharedPtr<SChaosVDTimelineWidget> GameFramesTimelineWidget;
 
 	TSharedPtr<FChaosVDPlaybackViewportClient> PlaybackViewportClient;
@@ -75,4 +88,9 @@ protected:
 	TSharedPtr<FExtender> Extender;
 
 	TSharedPtr<FEditorModeTools> EditorModeTools;
+	
+	DECLARE_MULTICAST_DELEGATE(FChaosVDViewportInvalidationRequestHandler)
+	static inline FChaosVDViewportInvalidationRequestHandler ExternalViewportInvalidationRequestHandler = FChaosVDViewportInvalidationRequestHandler();
+	
+	FDelegateHandle ExternalInvalidateHandlerHandle;
 };

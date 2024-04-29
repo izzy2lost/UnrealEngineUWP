@@ -45,37 +45,6 @@ TSharedRef<SWidget> SChaosClothAssetEditorViewportToolBarBase::GenerateClothView
 	return OptionsMenuBuilder.MakeWidget();
 }
 
-TSharedRef<SWidget> SChaosClothAssetEditorViewportToolBarBase::GenerateFOVMenu() const
-{
-	// Re-implementation of inaccessible SCommonEditorViewportToolbarBase::GenerateFOVMenu()
-
-	const float FOVMin = 5.f;
-	const float FOVMax = 170.f;
-
-	return 
-		SNew(SBox)
-		.HAlign(HAlign_Right)
-		[
-			SNew(SBox)
-			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-			.WidthOverride(100.0f)
-			[
-				SNew(SBorder)
-				.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
-				.Padding(FMargin(1.0f))
-				[
-					SNew(SSpinBox<float>)
-					.Style(&FAppStyle::Get(), "Menu.SpinBox")
-					.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
-					.MinValue(FOVMin)
-					.MaxValue(FOVMax)
-					.Value(this, &SChaosClothAssetEditorViewportToolBarBase::OnGetFOVValue)
-					.OnValueChanged(this, &SChaosClothAssetEditorViewportToolBarBase::OnFOVValueChanged)
-				]
-			]
-		];
-}
-
 TSharedRef<SWidget> SChaosClothAssetEditorViewportToolBarBase::GenerateCameraSpeedSettingsMenu() const
 {
 	// This comes from STransformViewportToolBar::FillCameraSpeedMenu

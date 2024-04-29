@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDExtractedGeometryDataHandle.h"
 #include "InstancedStaticMeshDelegates.h"
 #include "Chaos/ImplicitFwd.h"
@@ -16,16 +14,17 @@
 #include "Templates/SharedPointer.h"
 #include "Components/MeshComponent.h"
 
-class FChaosVDScene;
-
 #include "ChaosVDGeometryDataComponent.generated.h"
 
-class UChaosVDStaticMeshComponent;
 class FChaosVDGeometryBuilder;
-class UChaosVDInstancedStaticMeshComponent;
-struct FChaosVDExtractedGeometryDataHandle;
+class FChaosVDScene;
 class IChaosVDGeometryComponent;
+class UChaosVDInstancedStaticMeshComponent;
+class UChaosVDStaticMeshComponent;
 class UMaterialInstanceDynamic;
+
+struct FChaosVDExtractedGeometryDataHandle;
+struct FChaosVDParticleDataWrapper;
 
 namespace Chaos
 {

@@ -62,8 +62,6 @@ public:
 	template <typename TCallback>
 	void VisitAllParticleData(TCallback VisitCallback);
 
-	void HandleVisibilitySettingsUpdated();
-	void HandleColorsSettingsUpdated();
 	void RemoveSolverFolders(UWorld* World);
 
 	bool IsVisible() const;
@@ -74,6 +72,9 @@ public:
 	virtual void Destroyed() override;
 
 protected:
+
+	void HandleVisibilitySettingsUpdated(UObject* SettingsObject);
+	void HandleColorsSettingsUpdated(UObject* SettingsObject);
 
 	void ApplySolverVisibilityToParticle(AChaosVDParticleActor* ParticleActor, bool bIsHidden);
 

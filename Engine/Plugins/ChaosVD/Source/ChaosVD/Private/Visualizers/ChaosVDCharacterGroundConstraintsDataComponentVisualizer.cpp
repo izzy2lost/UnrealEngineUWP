@@ -10,11 +10,62 @@
 #include "SceneView.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
+#include "Settings/ChaosVDCharacterConstraintsVisualizationSettings.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "ToolMenuEntry.h"
+#include "ToolMenuSection.h"
+#include "Utils/ChaosVDUserInterfaceUtils.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
+#include "Widgets/SChaosVDEnumFlagsMenu.h"
 #include "Widgets/SChaosVDMainTab.h"
+#include "Widgets/SChaosVDViewportToolbar.h"
+
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
+bool FChaosVDCharacterGroundConstraintVisualizationDataContext::IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags Flag) const
+{
+	const EChaosVDCharacterGroundConstraintDataVisualizationFlags FlagsAsParticleFlags = static_cast<EChaosVDCharacterGroundConstraintDataVisualizationFlags>(VisualizationFlags);
+	return EnumHasAnyFlags(FlagsAsParticleFlags, Flag);
+}
 
 IMPLEMENT_HIT_PROXY(HChaosVDCharacterGroundConstraintProxy, HComponentVisProxy)
 
+
+FChaosVDCharacterGroundConstraintDataComponentVisualizer::FChaosVDCharacterGroundConstraintDataComponentVisualizer()
+{
+	RegisterVisualizerMenus();
+}
+
+void FChaosVDCharacterGroundConstraintDataComponentVisualizer::RegisterVisualizerMenus()
+{
+		UToolMenus* ToolMenus = UToolMenus::Get();
+	
+	if (!ensure(ToolMenus))
+	{
+		return;
+	}
+
+	if (UToolMenu* Menu = ToolMenus->ExtendMenu(SChaosVDViewportToolbar::ShowMenuName))
+	{
+		FToolMenuSection& Section = Menu->AddSection("CharacterConstraintDataVisualization.Show", LOCTEXT("CharacterConstraintDataVisualizationShowMenuLabel", "Character Constraints Data Visualization"));
+		
+		Section.AddSubMenu(TEXT("CharacterConstraintDataVisualizationFlags"), LOCTEXT("CharacterConstraintDataVisualizationFlagsMenuLabel", "Character Constraints Data Flags"), LOCTEXT("CharacterConstraintDataVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of Character Constraints data"), FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+		                   {
+			                   TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<EChaosVDCharacterGroundConstraintDataVisualizationFlags>)
+				                   .CurrentValue_Static(&UChaosVDCharacterConstraintsVisualizationSettings::GetCharacterGroundConstraintDataVisualizationFlags)
+				                   .OnEnumSelectionChanged_Static(&UChaosVDCharacterConstraintsVisualizationSettings::SetCharacterGroundConstraintDataVisualizationFlags);
+			
+			                   FToolMenuEntry FlagsMenuEntry = FToolMenuEntry::InitWidget("CharacterConstraintDataVisualizationFlags", VisualizationFlagsWidget,FText::GetEmpty());
+			                   Menu->AddMenuEntry(NAME_None, FlagsMenuEntry);
+		                   }),
+		                   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("ClassIcon.Character")));
+
+		using namespace Chaos::VisualDebugger::Utils;
+		Section.AddSubMenu(TEXT("CharacterConstraintDataVisualizationSettings"), LOCTEXT("CharacterConstraintDataVisualizationMenuLabel", "Character Constraints Visualization Settings"), LOCTEXT("CharacterConstraintDataVisualizationMenuToolTip", "Options to change how the recorded Character Constraints data is debug drawn"), FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForDefaultObject<UChaosVDCharacterConstraintsVisualizationSettings>, EChaosVDSaveSettingsOptions::ShowSaveButton),
+		                   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
+	}
+}
 
 void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
@@ -52,12 +103,8 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawVisualization
 	VisualizationContext.SpaceTransform = SolverInfoActor->GetSimulationTransform();
 	VisualizationContext.SolverInfoActor = SolverInfoActor;
 
-	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
-	{
-		VisualizationContext.VisualizationFlags = EditorSettings->GlobalCharacterGroundConstraintDataVisualizationFlags;
-		VisualizationContext.bShowDebugText = EditorSettings->bShowDebugText;
-		VisualizationContext.DebugDrawSettings = &EditorSettings->CharacterGroundConstraintDataDebugDrawSettings;
-	}
+	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDCharacterConstraintsVisualizationSettings::GetCharacterGroundConstraintDataVisualizationFlags());
+	VisualizationContext.DebugDrawSettings = GetDefault<UChaosVDCharacterConstraintsVisualizationSettings>();
 
 	if (!VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::EnableDraw))
 	{
@@ -128,8 +175,9 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 	{
 		return;
 	}
-	
-	if (!VisualizationContext.DebugDrawSettings)
+
+	const UChaosVDCharacterConstraintsVisualizationSettings* DebugDrawSettings =  Cast<UChaosVDCharacterConstraintsVisualizationSettings>(VisualizationContext.DebugDrawSettings);
+	if (!DebugDrawSettings)
 	{
 		return;
 	}
@@ -145,23 +193,16 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 	}
 
 	const FChaosVDParticleDataWrapper* CharacterParticleData = nullptr;
-	const FChaosVDParticleDataWrapper* GroundParticleData = nullptr;
 
 	if (AChaosVDParticleActor* CharacterParticle = VisualizationContext.SolverInfoActor->GetParticleActor(InConstraintData.CharacterParticleIndex))
 	{
 		CharacterParticleData = CharacterParticle->GetParticleData();
 	}
 
-	if (AChaosVDParticleActor* GroundParticle = VisualizationContext.SolverInfoActor->GetParticleActor(InConstraintData.GroundParticleIndex))
-	{
-		GroundParticleData = GroundParticle->GetParticleData();
-	}
-
 	if (!CharacterParticleData)
 	{
 		return;
 	}
-
 
 	if (!CharacterParticleData->ParticleMassProps.HasValidData())
 	{
@@ -172,7 +213,7 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 
 	PDI->SetHitProxy(new HChaosVDCharacterGroundConstraintProxy(Component, VisualizationContext.DataSelectionHandle));
 
-	const float LineThickness = InConstraintData.bIsSelectedInEditor ?  VisualizationContext.DebugDrawSettings->BaseLineThickness * 1.5f :  VisualizationContext.DebugDrawSettings->BaseLineThickness;
+	const float LineThickness = InConstraintData.bIsSelectedInEditor ?  DebugDrawSettings->BaseLineThickness * 1.5f :  DebugDrawSettings->BaseLineThickness;
 
 	const FVector CharacterPos = CharacterParticleData->ParticlePositionRotation.MX;
 	const FVector UpDir = InConstraintData.Settings.VerticalAxis;
@@ -186,15 +227,15 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::TargetDeltaPosition))
 	{
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + InConstraintData.Data.TargetDeltaPosition, FText::GetEmpty(), FColor::Blue, VisualizationContext.DebugDrawSettings->DepthPriority, 0.5f * LineThickness);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + InConstraintData.Data.TargetDeltaPosition, FText::GetEmpty(), FColor::Blue, DebugDrawSettings->DepthPriority, 0.5f * LineThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::TargetDeltaFacing))
 	{
-		const FVector Forward = CharacterParticleData->ParticlePositionRotation.MR * FVector::XAxisVector * VisualizationContext.DebugDrawSettings->GeneralScale * 10.0f;
+		const FVector Forward = CharacterParticleData->ParticlePositionRotation.MR * FVector::XAxisVector * DebugDrawSettings->GeneralScale * 10.0f;
 		const FVector TargetForward = FQuat(UpDir, InConstraintData.Data.TargetDeltaFacing) * Forward;
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + Forward, FText::GetEmpty(), FColor::Silver, VisualizationContext.DebugDrawSettings->DepthPriority, 0.25f * LineThickness);
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + TargetForward, FText::GetEmpty(), FColor::White, VisualizationContext.DebugDrawSettings->DepthPriority, 0.25f * LineThickness);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + Forward, FText::GetEmpty(), FColor::Silver, DebugDrawSettings->DepthPriority, 0.25f * LineThickness);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + TargetForward, FText::GetEmpty(), FColor::White, DebugDrawSettings->DepthPriority, 0.25f * LineThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::GroundQueryDistance))
@@ -203,14 +244,14 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 		{
 			if (GroundDistance <= 4.0f * TargetHeight)
 			{
-				FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos, CharacterPos - UpDir * TargetHeight, FColor::Green, FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
-				FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos - UpDir * TargetHeight, CharacterPos - UpDir * GroundDistance, FColor::Silver, FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+				FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos, CharacterPos - UpDir * TargetHeight, FColor::Green, FText::GetEmpty(), DebugDrawSettings->DepthPriority, LineThickness);
+				FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos - UpDir * TargetHeight, CharacterPos - UpDir * GroundDistance, FColor::Silver, FText::GetEmpty(), DebugDrawSettings->DepthPriority, LineThickness);
 			}
 		}
 		else
 		{
-			FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos, CharacterPos - UpDir * GroundDistance, FColor::Green, FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
-			FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos - UpDir * GroundDistance, CharacterPos - UpDir * TargetHeight, FColor::Red, FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+			FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos, CharacterPos - UpDir * GroundDistance, FColor::Green, FText::GetEmpty(), DebugDrawSettings->DepthPriority, LineThickness);
+			FChaosVDDebugDrawUtils::DrawLine(PDI, CharacterPos - UpDir * GroundDistance, CharacterPos - UpDir * TargetHeight, FColor::Red, FText::GetEmpty(), DebugDrawSettings->DepthPriority, LineThickness);
 		}
 	}
 
@@ -218,29 +259,31 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 	{
 		if (GroundDistance < 4.0f * TargetHeight)
 		{
-			const FVector ScaledGroundNormal = 10.0f * InConstraintData.Data.GroundNormal * VisualizationContext.DebugDrawSettings->GeneralScale;
+			const FVector ScaledGroundNormal = 10.0f * InConstraintData.Data.GroundNormal * DebugDrawSettings->GeneralScale;
 			const FVector GroundPos = CharacterPos - UpDir * GroundDistance;
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, GroundPos, GroundPos + ScaledGroundNormal, FText::GetEmpty(), FColor::Cyan, VisualizationContext.DebugDrawSettings->DepthPriority, 0.25f * LineThickness);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, GroundPos, GroundPos + ScaledGroundNormal, FText::GetEmpty(), FColor::Cyan, DebugDrawSettings->DepthPriority, 0.25f * LineThickness);
 		}
 	}
 	
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::AppliedNormalForce))
 	{
-		const FVector NormalForce = VisualizationContext.DebugDrawSettings->ForceScale * InConstraintData.Data.GroundNormal.Dot(InConstraintData.State.SolverAppliedForce) * InConstraintData.Data.GroundNormal;
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + NormalForce, FText::GetEmpty(), VisualizationContext.DebugDrawSettings->NormalForceColor, VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+		const FVector NormalForce = DebugDrawSettings->ForceScale * InConstraintData.Data.GroundNormal.Dot(InConstraintData.State.SolverAppliedForce) * InConstraintData.Data.GroundNormal;
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + NormalForce, FText::GetEmpty(), DebugDrawSettings->NormalForceColor, DebugDrawSettings->DepthPriority, LineThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::AppliedRadialForce))
 	{
-		const FVector RadialForce = VisualizationContext.DebugDrawSettings->ForceScale * (InConstraintData.State.SolverAppliedForce - InConstraintData.Data.GroundNormal.Dot(InConstraintData.State.SolverAppliedForce) * InConstraintData.Data.GroundNormal);
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + RadialForce, FText::GetEmpty(), VisualizationContext.DebugDrawSettings->NormalForceColor, VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+		const FVector RadialForce = DebugDrawSettings->ForceScale * (InConstraintData.State.SolverAppliedForce - InConstraintData.Data.GroundNormal.Dot(InConstraintData.State.SolverAppliedForce) * InConstraintData.Data.GroundNormal);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + RadialForce, FText::GetEmpty(), DebugDrawSettings->NormalForceColor, DebugDrawSettings->DepthPriority, LineThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::AppliedTorque))
 	{
-		const FVector Torque = VisualizationContext.DebugDrawSettings->TorqueScale * InConstraintData.State.SolverAppliedTorque;
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + Torque, FText::GetEmpty(), VisualizationContext.DebugDrawSettings->TorqueColor, VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+		const FVector Torque = DebugDrawSettings->TorqueScale * InConstraintData.State.SolverAppliedTorque;
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, CharacterPos, CharacterPos + Torque, FText::GetEmpty(), DebugDrawSettings->TorqueColor, DebugDrawSettings->DepthPriority, LineThickness);
 	}
 
 	PDI->SetHitProxy(nullptr);
 }
+
+#undef LOCTEXT_NAMESPACE

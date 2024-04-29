@@ -2,7 +2,6 @@
 
 #include "ChaosVDPlaybackController.h"
 
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDPlaybackControllerInstigator.h"
 #include "ChaosVDRecording.h"
@@ -31,12 +30,6 @@ FChaosVDPlaybackController::FChaosVDPlaybackController(const TWeakPtr<FChaosVDSc
 
 	RecordingStoppedHandle = FChaosVDRuntimeModule::Get().RegisterRecordingStopCallback(FChaosVDRecordingStateChangedDelegate::FDelegate::CreateRaw(this, &FChaosVDPlaybackController::HandleDisconnectedFromSession));
 
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnPlaybackSettingsChanged().AddRaw(this, &FChaosVDPlaybackController::HandleFrameRateOverrideSettingsChanged);
-		HandleFrameRateOverrideSettingsChanged(Settings);
-	}
-
 	CurrentPlaybackInstigator = IChaosVDPlaybackControllerInstigator::InvalidGuid;
 }
 
@@ -46,11 +39,6 @@ FChaosVDPlaybackController::~FChaosVDPlaybackController()
 	if (FChaosVDRuntimeModule::IsLoaded())
 	{
 		FChaosVDRuntimeModule::Get().RemoveRecordingStopCallback(RecordingStoppedHandle);
-	}
-	
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnPlaybackSettingsChanged().RemoveAll(this);
 	}
 
 	UnloadCurrentRecording(EChaosVDUnloadRecordingFlags::Silent);
@@ -176,16 +164,6 @@ void FChaosVDPlaybackController::EnqueueTrackInfoUpdate(const FChaosVDTrackInfo&
 void FChaosVDPlaybackController::EnqueueGeometryDataUpdate(const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID)
 {	
 	GeometryDataUpdateGTQueue.Enqueue({NewGeometry, GeometryID });
-}
-
-void FChaosVDPlaybackController::HandleFrameRateOverrideSettingsChanged(UChaosVDEditorSettings* CVDSettings)
-{
-	if (!CVDSettings)
-	{
-		return;
-	}
-
-	CurrentFrameRateOverride = CVDSettings->bPlaybackAtRecordedFrameRate ? InvalidFrameRateOverride : CVDSettings->TargetFrameRateOverride;
 }
 
 void FChaosVDPlaybackController::PlaySolverStepData(int32 TrackID, const TSharedRef<FChaosVDScene>& InSceneToControlSharedPtr, const FChaosVDSolverFrameData& InSolverFrameData, int32 StepIndex)
@@ -755,11 +733,23 @@ float FChaosVDPlaybackController::GetFrameTimeOverride() const
 	return CurrentFrameRateOverride >= MinimumFrameRateOverride ? 1.0f / static_cast<float>(CurrentFrameRateOverride) : InvalidFrameRateOverride;
 }
 
+int32 FChaosVDPlaybackController::GetFrameRateOverride() const
+{
+	constexpr int32 MinimumFrameRateOverride = 1;
+	return CurrentFrameRateOverride >= MinimumFrameRateOverride ? CurrentFrameRateOverride : InvalidFrameRateOverride;
+}
+
+void FChaosVDPlaybackController::SetFrameRateOverride(float NewFrameRateOverride)
+{
+	constexpr int32 MinimumFrameRateOverride = 1;
+	CurrentFrameRateOverride = NewFrameRateOverride >= MinimumFrameRateOverride ? NewFrameRateOverride : InvalidFrameRateOverride;
+}
+
 float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const
 {
 	const float TargetFrameTimeOverride = GetFrameTimeOverride();
-	const bool bHastFrameRateOverride = !FMath::IsNearlyEqual(TargetFrameTimeOverride, FChaosVDPlaybackController::InvalidFrameRateOverride);
-	if (bHastFrameRateOverride)
+	const bool bHasValidFrameRateOverride = bUseFrameRateOverride && !FMath::IsNearlyEqual(TargetFrameTimeOverride, FChaosVDPlaybackController::InvalidFrameRateOverride);
+	if (bHasValidFrameRateOverride)
 	{
 		return TargetFrameTimeOverride;
 	}

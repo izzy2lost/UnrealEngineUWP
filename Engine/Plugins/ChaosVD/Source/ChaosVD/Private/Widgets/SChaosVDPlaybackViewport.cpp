@@ -4,15 +4,11 @@
 
 #include "ChaosVDCommands.h"
 #include "ChaosVDEditorMode.h"
-#include "ChaosVDEditorModeTools.h"
-#include "ChaosVDEditorSettings.h"
-#include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDPlaybackViewportClient.h"
 #include "ChaosVDScene.h"
 #include "EditorModeManager.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Widgets/ChaosVDPlaybackControlsHelper.h"
 #include "Widgets/SChaosVDTimelineWidget.h"
 #include "Widgets/SChaosVDViewportToolbar.h"
@@ -31,6 +27,12 @@ namespace Chaos::VisualDebugger::Cvars
 
 SChaosVDPlaybackViewport::~SChaosVDPlaybackViewport()
 {
+	if (ExternalInvalidateHandlerHandle.IsValid())
+	{
+		ExternalViewportInvalidationRequestHandler.Remove(ExternalInvalidateHandlerHandle);
+		ExternalInvalidateHandlerHandle.Reset();
+	}
+
 	PlaybackViewportClient->Viewport = nullptr;
 	PlaybackViewportClient.Reset();
 }
@@ -55,7 +57,7 @@ void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FCha
 
 	// TODO: Add a way to gracefully shutdown (close) the tool when a no recoverable situation like this happens (UE-191876)
 	check(PlaybackViewportClient.IsValid());
-	
+
 	PlaybackViewportClient->SetScene(InScene);
 	
 	if (UChaosVDEditorMode* CVDEdMode = Cast<UChaosVDEditorMode>(EditorModeTools->GetActiveScriptableMode(UChaosVDEditorMode::EM_ChaosVisualDebugger)))
@@ -103,6 +105,8 @@ void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FCha
 		]	
 	];
 
+	ExternalInvalidateHandlerHandle = ExternalViewportInvalidationRequestHandler.AddSP(this, &SChaosVDPlaybackViewport::HanldeExternalViewportInvalidateRequest);
+
 	RegisterNewController(InPlaybackController);
 }
 
@@ -125,9 +129,29 @@ void SChaosVDPlaybackViewport::BindCommands()
 	if (ensure(Client))
 	{
 		const TSharedRef<FChaosVDPlaybackViewportClient> ViewportClientRef = StaticCastSharedRef<FChaosVDPlaybackViewportClient>(Client.ToSharedRef());
+		FUIAction ToggleObjectTrackingAction;
+		ToggleObjectTrackingAction.ExecuteAction.BindSP(ViewportClientRef, &FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected);
+		ToggleObjectTrackingAction.GetActionCheckState.BindLambda([WeakThis = ViewportClientRef.ToWeakPtr()]()
+		{
+			TSharedPtr<const FChaosVDPlaybackViewportClient> ViewportPtr = StaticCastSharedPtr<const FChaosVDPlaybackViewportClient>(WeakThis.Pin());
+			return ViewportPtr.IsValid() && ViewportPtr->IsAutoTrackingSelectedObject() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		});
+	
 		CommandList->MapAction(
-			Commands.TrackUntrackSelectedObject,
-			FExecuteAction::CreateSP(ViewportClientRef, &FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected));
+			Commands.ToggleFollowSelectedObject,
+			ToggleObjectTrackingAction);
+
+		FUIAction ToggleOverrideFrameRateAction;
+		ToggleOverrideFrameRateAction.ExecuteAction.BindSP(SharedThis(this), &SChaosVDPlaybackViewport::ToggleUseFrameRateOverride);
+		ToggleOverrideFrameRateAction.GetActionCheckState.BindLambda([WeakThis = AsWeak()]()
+		{
+			TSharedPtr<const SChaosVDPlaybackViewport> ViewportPtr = StaticCastSharedPtr<const SChaosVDPlaybackViewport>(WeakThis.Pin());
+			return ViewportPtr.IsValid() && ViewportPtr->IsUsingFrameRateOverride() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		});
+
+		CommandList->MapAction(
+			Commands.OverridePlaybackFrameRate,
+			ToggleOverrideFrameRateAction);
 	}
 }
 
@@ -144,6 +168,43 @@ void SChaosVDPlaybackViewport::GoToLocation(const FVector& InLocation) const
 	{
 		PlaybackViewportClient->GoToLocation(InLocation);
 	}
+}
+
+void SChaosVDPlaybackViewport::ToggleUseFrameRateOverride()
+{
+	if (TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
+	{
+		PlaybackControllerPtr->ToggleUseFrameRateOverride();
+	}
+}
+
+bool SChaosVDPlaybackViewport::IsUsingFrameRateOverride() const
+{
+	if (TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
+	{
+		return PlaybackControllerPtr->IsUsingFrameRateOverride();
+	}
+
+	return false;
+}
+
+int32 SChaosVDPlaybackViewport::GetCurrentTargetFrameRateOverride() const
+{
+	TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin();
+	return PlaybackControllerPtr ? PlaybackControllerPtr->GetFrameRateOverride() : FChaosVDPlaybackController::InvalidFrameRateOverride;
+}
+
+void SChaosVDPlaybackViewport::SetCurrentTargetFrameRateOverride(int32 NewTarget)
+{
+	if (TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
+	{
+		PlaybackControllerPtr->SetFrameRateOverride(NewTarget);
+	}
+}
+
+void SChaosVDPlaybackViewport::ExecuteExternalViewportInvalidateRequest()
+{
+	ExternalViewportInvalidationRequestHandler.Broadcast();
 }
 
 TSharedRef<FEditorViewportClient> SChaosVDPlaybackViewport::MakeEditorViewportClient()
@@ -319,6 +380,15 @@ bool SChaosVDPlaybackViewport::CanPlayback() const
 	const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin();
 
 	return PlaybackControllerPtr && PlaybackControllerPtr->IsRecordingLoaded();
+}
+
+
+void SChaosVDPlaybackViewport::HanldeExternalViewportInvalidateRequest()
+{
+	if (PlaybackViewportClient)
+	{
+		PlaybackViewportClient->Invalidate();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

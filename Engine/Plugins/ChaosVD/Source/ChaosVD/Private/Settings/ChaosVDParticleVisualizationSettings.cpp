@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ChaosVDEditorSettings.h"
+#include "ChaosVDParticleVisualizationSettings.h"
+
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
-#include "Chaos/ImplicitObjectType.h"
-#include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
+
 
 FColor FChaosDebugDrawColorsByState::GetColorFromState(EChaosVDObjectStateType State) const
 {
@@ -59,8 +59,7 @@ const FLinearColor& FChaosParticleDataDebugDrawColors::GetLinearColorForDataID(E
 	}
 }
 
-
-float FChaosParticleDataDebugDrawSettings::GetScaleFortDataID(EChaosVDParticleDataVisualizationFlags DataID) const
+float UChaosVDParticleVisualizationDebugDrawSettings::GetScaleFortDataID(EChaosVDParticleDataVisualizationFlags DataID) const
 {
 	switch (DataID)
     {
@@ -83,6 +82,44 @@ float FChaosParticleDataDebugDrawSettings::GetScaleFortDataID(EChaosVDParticleDa
     	default:
     		return 1.0f;
     }
+}
+
+void UChaosVDParticleVisualizationDebugDrawSettings::SetDataDebugDrawVisualizationFlags(EChaosVDParticleDataVisualizationFlags Flags)
+{
+	if (UChaosVDParticleVisualizationDebugDrawSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationDebugDrawSettings>())
+	{
+		Settings->ParticleDataVisualizationFlags = Flags;
+		Settings->BroadcastSettingsChanged(Settings);
+	}
+}
+
+EChaosVDParticleDataVisualizationFlags UChaosVDParticleVisualizationDebugDrawSettings::GetDataDebugDrawVisualizationFlags()
+{
+	if (UChaosVDParticleVisualizationDebugDrawSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationDebugDrawSettings>())
+	{
+		return Settings->ParticleDataVisualizationFlags;
+	}
+
+	return EChaosVDParticleDataVisualizationFlags::None;
+}
+
+void UChaosVDParticleVisualizationSettings::SetGeometryVisualizationFlags(EChaosVDGeometryVisibilityFlags Flags)
+{
+	if (UChaosVDParticleVisualizationSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	{
+		Settings->GeometryVisibilityFlags = Flags;
+		Settings->BroadcastSettingsChanged(Settings);
+	}
+}
+
+EChaosVDGeometryVisibilityFlags UChaosVDParticleVisualizationSettings::GetGeometryVisualizationFlags()
+{
+	if (UChaosVDParticleVisualizationSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	{
+		return Settings->GeometryVisibilityFlags;
+	}
+
+	return EChaosVDGeometryVisibilityFlags::None;
 }
 
 FColor FChaosDebugDrawColorsByShapeType::GetColorFromShapeType(Chaos::EImplicitObjectType ShapeType) const
@@ -129,46 +166,4 @@ FColor FChaosDebugDrawColorsByClientServer::GetColorFromState(bool bIsServer, EC
 	default:
 		return FColor::Purple;
 	}
-}
-
-void UChaosVDEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
-	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, GeometryVisibilityFlags))
-	{
-		VisibilitySettingsChangedDelegate.Broadcast(this);
-	}
-	else if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, ParticleColorMode)
-			|| MemberPropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, ColorsByParticleState)
-			|| MemberPropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, ColorsByShapeType))
-	{
-		ColorsSettingsChangedDelegate.Broadcast(this);
-	}
-	else if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, FarClippingOverride))
-	{
-		FarClippingOverrideChangedDelegate.Broadcast(this);
-	}
-	else if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, bPlaybackAtRecordedFrameRate) ||
-			 MemberPropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, TargetFrameRateOverride))
-	{
-		PlaybackSettingsChangedDelegate.Broadcast(this);
-	}
-
-	// TODO: If we keep this object as the main setting object,
-	// we should have a single event for what changed and an enum flags that the listener could use to decide if cares about the change
-}
-
-void UChaosVDEditorSettings::PostEditUndo()
-{
-	UObject::PostEditUndo();
-
-	// This is not ideal, but we don't get what property was changed in the post edit undo callback.
-	// A proper fix to avoid calling all the settings change delegates will be done when we split this settings object into several objects
-	// and expose the options as proper UE menus instead of a details panel. Jira for tracking UE-206957 
-	VisibilitySettingsChangedDelegate.Broadcast(this);
-	ColorsSettingsChangedDelegate.Broadcast(this);
-	PlaybackSettingsChangedDelegate.Broadcast(this);
-	FarClippingOverrideChangedDelegate.Broadcast(this);
 }

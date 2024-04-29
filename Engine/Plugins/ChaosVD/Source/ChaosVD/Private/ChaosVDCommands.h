@@ -15,5 +15,6 @@ public:
 	virtual void RegisterCommands() override;
 
 public:
-	TSharedPtr<FUICommandInfo> TrackUntrackSelectedObject;
+	TSharedPtr<FUICommandInfo> ToggleFollowSelectedObject;
+	TSharedPtr<FUICommandInfo> OverridePlaybackFrameRate;
 };
