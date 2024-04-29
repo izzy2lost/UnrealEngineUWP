@@ -38,6 +38,9 @@ namespace OidcToken
 
 				return 0;
 			}
+			
+			// disable reloadConfigOnChange in this process, as this can cause issues under wsl and we disable this for all configuration we actually load anyway
+			Environment.SetEnvironmentVariable("DOTNET_hostBuilder:reloadConfigOnChange", "false");
 
 			ConfigurationBuilder configBuilder = new();
 			configBuilder.SetBasePath(AppContext.BaseDirectory)
