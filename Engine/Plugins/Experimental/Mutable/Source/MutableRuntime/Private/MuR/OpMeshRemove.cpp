@@ -53,7 +53,7 @@ namespace mu
             }
         }
 
-        if (current.idStart>=0)
+        if (current.idStart!=TNumericLimits<uint64>::Max())
         {
             intervals.Add(current);
         }
