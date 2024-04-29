@@ -100,6 +100,9 @@ namespace Conversion {
 
 		// Whether to scale the copied mesh by the Build Setting's 'Build Scale'. Note: This is considered separately from the 'Apply Build Settings' option.
 		bool bUseBuildScale = true;
+
+		// Whether to directly use the section material indices as output material IDs. Otherwise, material IDs will be indices in to the materials array.
+		bool bUseSectionMaterialIndices = false;
 	};
 
 	/**

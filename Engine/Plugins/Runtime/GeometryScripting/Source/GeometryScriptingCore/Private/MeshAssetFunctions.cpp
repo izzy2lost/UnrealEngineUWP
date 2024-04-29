@@ -68,12 +68,13 @@ static void ConvertGeometryScriptWriteLOD(const FGeometryScriptMeshWriteLOD& Wri
 }
 
 
-UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMesh(
+UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMeshV2(
 	UStaticMesh* FromStaticMeshAsset, 
 	UDynamicMesh* ToDynamicMesh, 
 	FGeometryScriptCopyMeshFromAssetOptions AssetOptions,
 	FGeometryScriptMeshReadLOD RequestedLOD,
 	EGeometryScriptOutcomePins& Outcome,
+	bool bUseSectionMaterials,
 	UGeometryScriptDebug* Debug)
 {
 	Outcome = EGeometryScriptOutcomePins::Failure;
@@ -98,6 +99,7 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMes
 	ConversionOptions.bRequestTangents = AssetOptions.bRequestTangents;
 	ConversionOptions.bIgnoreRemoveDegenerates = AssetOptions.bIgnoreRemoveDegenerates;
 	ConversionOptions.bUseBuildScale = AssetOptions.bUseBuildScale;
+	ConversionOptions.bUseSectionMaterialIndices = bUseSectionMaterials;
 
 	FText ErrorMessage;
 
@@ -453,6 +455,24 @@ int UGeometryScriptLibrary_StaticMeshFunctions::GetNumStaticMeshLODsOfType(
 }
 
 
+
+void UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(
+	UStaticMesh* FromStaticMeshAsset,
+	TArray<UMaterialInterface*>& MaterialList,
+	UGeometryScriptDebug* Debug)
+{
+	if (FromStaticMeshAsset == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetMaterialListFromStaticMesh_InvalidInput1", "GetMaterialListFromStaticMesh: FromStaticMeshAsset is Null"));
+		return;
+	}
+
+	const TArray<FStaticMaterial>& AssetMaterials = FromStaticMeshAsset->GetStaticMaterials();
+	for (int32 k = 0; k < AssetMaterials.Num(); ++k)
+	{
+		MaterialList.Add(AssetMaterials[k].MaterialInterface);
+	}
+}
 
 void UGeometryScriptLibrary_StaticMeshFunctions::GetSectionMaterialListFromStaticMesh(
 	UStaticMesh* FromStaticMeshAsset, 

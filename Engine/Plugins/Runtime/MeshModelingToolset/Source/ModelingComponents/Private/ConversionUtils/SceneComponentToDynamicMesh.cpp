@@ -271,7 +271,10 @@ namespace Private::ConversionHelper
 		}
 
 		FMeshDescriptionToDynamicMesh Converter;
-		Converter.SetPolygonGroupToMaterialIndexMap(PolygonGroupToMaterialMap);
+		if (!AssetOptions.bUseSectionMaterialIndices)
+		{
+			Converter.SetPolygonGroupToMaterialIndexMap(PolygonGroupToMaterialMap);
+		}
 		Converter.Convert(SourceMesh, OutMesh, AssetOptions.bRequestTangents);
 
 		bSuccess = true;
