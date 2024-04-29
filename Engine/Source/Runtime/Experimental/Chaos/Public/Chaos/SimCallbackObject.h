@@ -31,6 +31,7 @@ namespace Utilities
 
 enum class ESimCallbackOptions : uint16
 {
+	None					= 0,
 	Presimulate				= 1 << 0,
 	MidPhaseModification	= 1 << 1,
 	CCDModification			= 1 << 2,
@@ -260,7 +261,10 @@ private:
 	/**
 	* Called before simulation step (NOTE: not once per sub-step when sub-stepping is enabled)
 	*/
-	virtual void OnPreSimulate_Internal() = 0;
+	virtual void OnPreSimulate_Internal()
+	{
+		check(false);
+	}
 
 	/**
 	* Called once per simulation sub-step, before Integrate. Can be used to modify particle positions, velocities etc.
