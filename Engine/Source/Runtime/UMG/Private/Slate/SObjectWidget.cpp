@@ -514,6 +514,11 @@ FReply SObjectWidget::OnTouchForceChanged(const FGeometry& MyGeometry, const FPo
 	return FReply::Unhandled();
 }
 
+void SObjectWidget::OnFinishedPointerInput()
+{
+	WidgetObject->NativeOnFinishedPointerInput();
+}
+
 FNavigationReply SObjectWidget::OnNavigation(const FGeometry& MyGeometry, const FNavigationEvent& InNavigationEvent)
 {
 	if (WidgetObject && WidgetObject->NativeSupportsCustomNavigation())
