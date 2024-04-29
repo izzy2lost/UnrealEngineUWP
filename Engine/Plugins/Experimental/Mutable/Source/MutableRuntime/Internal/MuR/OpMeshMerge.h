@@ -692,6 +692,11 @@ namespace mu
 			bool bFastPath = pFirst->GetVertexBuffers().HasSameFormat( pSecond->GetVertexBuffers() );
 
 			bool bNeedsExplicitVertexIds = pFirst->VertexIDPrefix != pSecond->VertexIDPrefix;
+			if (!bNeedsExplicitVertexIds)
+			{
+				Result->VertexIDPrefix = pFirst->VertexIDPrefix;
+			}
+
 			bFastPath = bFastPath && !bNeedsExplicitVertexIds;
 
 			// Check if the format of the BoneIndex buffer has to change
