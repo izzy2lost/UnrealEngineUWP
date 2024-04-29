@@ -1,6 +1,6 @@
-[Horde](../../README.md) > [Deployment](../Deployment.md) > [Agent](Agent.md) > appsettings.json (Agent)
+[Horde](../../README.md) > [Deployment](../Deployment.md) > [Agent](Agent.md) > Agent.json (Agent)
 
-# appsettings.json (Agent)
+# Agent.json (Agent)
 
 All Horde-specific settings are stored in a root object called `Horde`. Other .NET functionality may be configured using properties in the root of this file.
 
