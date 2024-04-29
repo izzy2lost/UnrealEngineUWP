@@ -116,6 +116,34 @@ void MainVS(
 #endif // VERTEXSHADER
 
 #if SHADER_PIXEL
+void MainPS(
+	in float4  SvPosition	: SV_Position,
+	in float2  InUV			: MESH_UV,
+	in float3  InPosition	: MESH_POSITION,
+	in float3  InTangent	: MESH_TANGENT,
+	in float3  InBitangent	: MESH_BITANGENT,
+	in float3  InNormal		: MESH_NORMAL,
+	out float4 OutPosition  : SV_Target0,
+	out float4 OutTangent   : SV_Target1,
+	out float4 OutBitangent : SV_Target2,
+	out float4 OutNormal    : SV_Target3,
+	out float2 OutUV        : SV_Target4,
+	out uint   OutTriangleMask : SV_Target5)
+{
+	const float3 T = normalize(InTangent);
+	const float3 B = normalize(InBitangent);
+	const float3 N = normalize(InNormal);
+
+	OutPosition     = float4(InPosition,1);
+	OutTangent      = float4(InTangent,1);
+	OutBitangent    = float4(InBitangent,1);
+	OutNormal       = float4(InNormal,1);
+	OutUV           = InUV;
+	OutTriangleMask = 1;
+}
+#endif //SHADER_PIXEL
+
+#if SHADER_COMPUTE 
 
 #include "HairStrandsVertexFactoryCommon.ush"
 #include "HairStrandsAttributeCommon.ush"
@@ -144,6 +172,8 @@ float3 ComputeTangent(
 	return normalize(CP1.Position - CP0.Position);
 }
 
+int2 TileSize;
+int2 TileOffsetInPixels;
 uint LayoutIndex;
 int2 OutputResolution;
 uint VertexCount;
@@ -162,13 +192,18 @@ float3 Voxel_MaxBound;
 int3 Voxel_Resolution;
 float Voxel_Size;
 uint Voxel_MaxSegmentPerVoxel;
-
 uint Voxel_OffsetAndCount_MaxCount;
 uint Voxel_Data_MaxCount;
 
 StructuredBuffer<uint2> Voxel_OffsetAndCount;
 StructuredBuffer<uint2> Voxel_Data;
 RWTexture2DArray<float4> OutTexture;
+
+Texture2D<float4> PositionTexture;
+Texture2D<float4> TangentTexture;
+Texture2D<float4> BitangentTexture;
+Texture2D<float4> NormalTexture;
+Texture2D<float2> UVTexture;
 
 uint3 PositionToCoord(float3 P, float3 InMinAABB, float3 InMaxAABB, uint3 InResolution)
 {
@@ -393,22 +428,38 @@ bool Trace(
 	return bIsValid;
 }
 
-void MainPS(
-	in float4  SvPosition	: SV_Position,
-	in float2  InUV			: MESH_UV,
-	in float3  InPosition	: MESH_POSITION,
-	in float3  InTangent	: MESH_TANGENT,
-	in float3  InBitangent	: MESH_BITANGENT,
-	in float3  InNormal		: MESH_NORMAL,
-	out uint   OutTriangleMask : SV_Target0,
-	out float  OutDepthTest	: SV_Depth)
+[numthreads(8, 8, 1)]
+void MainCS(
+	uint GroupIndex : SV_GroupIndex, 
+	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
+	const int2 PixelCoord = DispatchThreadId.xy + TileOffsetInPixels;
+	if (any(PixelCoord > OutputResolution))
+	{
+		return;
+	}
+
+	const float2 InUV		= UVTexture[PixelCoord];
+	const float3 InPosition = PositionTexture[PixelCoord].xyz;
+	const float3 InTangent	= TangentTexture[PixelCoord].xyz;
+	const float3 InBitangent= BitangentTexture[PixelCoord].xyz;
+	const float3 InNormal	= NormalTexture[PixelCoord].xyz;
+
 	const float3 T = normalize(InTangent);
 	const float3 B = normalize(InBitangent);
 	const float3 N = normalize(InNormal);
 
-	const float3 PixelAxisX = ddx_fine(InPosition);
-	const float3 PixelAxisY = ddy_fine(InPosition);
+	// Manual ddx/ddy
+	float3 PixelAxisX = 0;
+	float3 PixelAxisY = 0; 
+	if (PixelCoord.x + 1 < TileOffsetInPixels.x)
+	{
+		PixelAxisX = PositionTexture[float2(PixelCoord.x+1, PixelCoord.y)].xyz - InPosition;
+	}
+	if (PixelCoord.y + 1 < TileOffsetInPixels.y)
+	{
+		PixelAxisY = PositionTexture[float2(PixelCoord.x, PixelCoord.y+1)].xyz - InPosition;
+	}
 
 	float4 OutTexture0 = 0;
 	float4 OutTexture1	= 0;
@@ -428,8 +479,6 @@ void MainPS(
 	float  OutCoverage = 0;
 
 	float3 Tangent_ObjectSpace = 0;
-	const int2 PixelCoord = int2(SvPosition.xy);
-
 	const bool bDebugEnable =
 	#if DEBUG_ENABLE
 		all(PixelCoord == GetCursorPos());
@@ -517,8 +566,6 @@ void MainPS(
 	}
 
 	OutDepth = saturate(OutDepth / MaxDistance);
-	OutDepthTest = OutDepth;
-	OutTriangleMask = 1;
 
 	if (bValidCount > 0)
 	{
@@ -540,8 +587,7 @@ void MainPS(
 		OutTexture[uint3(PixelCoord, 5)] = OutTexture5;
 	}
 }
-
-#endif // SHADER_PIXEL
+#endif // SHADER_COMPUTE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
