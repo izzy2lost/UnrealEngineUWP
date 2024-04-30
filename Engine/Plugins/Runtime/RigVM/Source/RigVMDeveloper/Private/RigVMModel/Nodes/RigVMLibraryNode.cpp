@@ -243,6 +243,7 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 		if (FRigVMGraphFunctionData* Data = Host->GetRigVMGraphFunctionStore()->FindFunction(Header.LibraryPointer))
 		{
 			Header.Variant = Data->Header.Variant;
+			Header.NodeTitle = Data->Header.NodeTitle;
 		}
 	}
 	if (!Header.Variant.Guid.IsValid())
@@ -259,7 +260,10 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	//Header.Tooltip = GetToolTipText();
 	
     Header.NodeColor = GetNodeColor();
-    Header.NodeTitle = GetNodeTitle();
+	if (Header.NodeTitle.IsEmpty())
+	{
+		Header.NodeTitle = GetNodeTitle();
+	}
     for(URigVMPin* Pin : GetPins())
     {
     	FRigVMGraphFunctionArgument Arg;

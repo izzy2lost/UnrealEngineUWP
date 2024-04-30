@@ -1432,7 +1432,7 @@ public:
 };
 
 /**
- * An action marking a function as public/private.
+ * An action creating a function variant
  */
 USTRUCT()
 struct FRigVMCreateFunctionVariantAction : public FRigVMBaseAction

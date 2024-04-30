@@ -325,6 +325,9 @@ public:
 	TArray<FString> GetAddNodePythonCommands(URigVMNode* Node) const;
 	TArray<FString> GetAddDecoratorPythonCommands(URigVMNode* Node, const FName& DecoratorName) const;
 
+	FRigVMGraphFunctionStore* GetGraphFunctionStore() const;
+	FRigVMGraphFunctionData* FindFunctionData(const FName& InFunctionName) const;
+
 #if WITH_EDITOR
 	// Note: The functions below are scoped with WITH_EDITOR since we are considering
 	// to move this code into the runtime in the future. Right now there's a dependency
