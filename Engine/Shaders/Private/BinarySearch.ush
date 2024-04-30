@@ -20,7 +20,7 @@ T LowerBound(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T Key)
 	
 	while (Width > 0)
 	{
-		Index += Comp.Compare(Key, SearchBuffer[Index + Width]) > 0 ? 0 : Width;
+		Index += Comp.Compare(Key, SearchBuffer[Index + Width]) < 0 ? 0 : Width;
 		Width = Width >> 1;
 	}
 	
