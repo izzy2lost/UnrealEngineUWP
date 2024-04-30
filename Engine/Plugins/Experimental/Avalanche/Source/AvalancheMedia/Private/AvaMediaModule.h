@@ -14,6 +14,7 @@
 #include "Playback/AvaPlaybackServerProcess.h"
 #include "Playback/Http/AvaPlaybackHttpServer.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
+#include "Rundown/AvaRundownServer.h"
 
 class FAvaMediaModule : public IAvaMediaModule
 {
@@ -55,6 +56,13 @@ public:
 	virtual FOnAvaPlaybackServerStarted& GetOnAvaPlaybackServerStarted() override { return OnAvaPlaybackServerStarted; }
 	virtual FOnAvaPlaybackServerStopped& GetAvaPlaybackServerStopped() override { return OnAvaPlaybackServerStopped; }
 	virtual FGetEditorViewportClient& GetEditorViewportClientDelegate() override { return GetEditorViewportClient; }
+	virtual FOnRundownServerEvent& GetOnRundownServerStarted() override { return OnRundownServerStarted; }
+	virtual FOnRundownServerEvent& GetOnRundownServerStopping() override { return OnRundownServerStopping; }
+	virtual bool IsRundownServerStarted() const override { return RundownServer.IsValid();}
+	virtual void StartRundownServer(const FString& InRundownServerName) override;
+	virtual void StopRundownServer() override;
+	virtual TSharedPtr<IAvaRundownServer> GetRundownServer() const override { return RundownServer; }
+	virtual TSharedPtr<IAvaRundownServer> MakeDetachedRundownServer(const FString& InServerName) override;
 	virtual IAvaBroadcastDeviceProviderProxyManager& GetDeviceProviderProxyManager() override;
 	//~ End IAvaMediaModule
 	
@@ -64,6 +72,8 @@ private:
 	void StopAllServices();
 	
 	// Command handlers
+	void StartRundownServerCommand(const TArray<FString>& Args);
+	void StopRundownServerCommand(const TArray<FString>& Args);
 	void StartPlaybackServerCommand(const TArray<FString>& InArgs);
 	void StopPlaybackServerCommand(const TArray<FString>& InArgs);
 	void StartPlaybackClientCommand(const TArray<FString>& InArgs);
@@ -134,7 +144,8 @@ private:
 		FAvaMediaModule* ParentModule = nullptr;
 	};
 	FBroadcastSettingsBridge BroadcastSettingsBridge;
-	
+
+	TSharedPtr<FAvaRundownServer> RundownServer;
 	TSharedPtr<FAvaPlaybackServer> AvaPlaybackServer;	
 	TSharedPtr<FAvaPlaybackClient> AvaPlaybackClient;
 	TSharedPtr<FAvaPlaybackServerProcess> LocalPlaybackServerProcess;
@@ -150,5 +161,7 @@ private:
 	FOnAvaPlaybackClientStopped OnAvaPlaybackClientStopped;
 	FOnAvaPlaybackServerStarted OnAvaPlaybackServerStarted;
 	FOnAvaPlaybackServerStopped OnAvaPlaybackServerStopped;
+	FOnRundownServerEvent OnRundownServerStarted;
+	FOnRundownServerEvent OnRundownServerStopping;
 	FGetEditorViewportClient GetEditorViewportClient;
 };

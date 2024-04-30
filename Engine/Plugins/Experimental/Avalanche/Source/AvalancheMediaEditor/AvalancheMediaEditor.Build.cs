@@ -34,7 +34,6 @@ public class AvalancheMediaEditor : ModuleRules
 				"ContentBrowser",
 				"EditorWidgets",
 				"GraphEditor",
-				"ImageCore",
 				"InputCore",
 				"Json",
 				"JsonSerialization",

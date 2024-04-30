@@ -4,7 +4,7 @@
 
 #include "AvaBroadcastOutputTreeItem.h"
 
-class FAvaBroadcastOutputRootItem : public FAvaBroadcastOutputTreeItem
+class AVALANCHEMEDIA_API FAvaBroadcastOutputRootItem : public FAvaBroadcastOutputTreeItem
 {
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaBroadcastOutputRootItem, FAvaBroadcastOutputTreeItem);
@@ -14,7 +14,7 @@ public:
 	{}
 
 	//~ Begin IAvaBroadcastOutputTreeItem
-	virtual void RefreshChildren() override;
+	virtual void RefreshChildren(const FRefreshChildrenParams& InParams) override;
 private:
 	virtual FText GetDisplayName() const override;
 	virtual const FSlateBrush* GetIconBrush() const override;

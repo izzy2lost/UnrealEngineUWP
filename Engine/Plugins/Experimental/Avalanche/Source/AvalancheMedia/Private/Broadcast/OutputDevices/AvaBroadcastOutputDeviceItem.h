@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaBroadcastOutputTreeItem.h"
+#include "Broadcast/OutputDevices/AvaBroadcastOutputTreeItem.h"
 #include "Broadcast/AvaBroadcastDevice.h"
 
 class FAvaBroadcastOutputClassItem;
@@ -26,7 +26,7 @@ public:
 	//~ Begin IAvaBroadcastOutputTreeItem
 	virtual FText GetDisplayName() const override;
 	virtual const FSlateBrush* GetIconBrush() const override;
-	virtual void RefreshChildren() override;
+	virtual void RefreshChildren(const FRefreshChildrenParams& InParams) override;
 	virtual TSharedPtr<SWidget> GenerateRowWidget() override;
 	virtual bool IsValidToDropInChannel(FName InTargetChannelName) override;
 	virtual UMediaOutput* AddMediaOutputToChannel(FName InTargetChannel, const FAvaBroadcastMediaOutputInfo& InOutputInfo) override;

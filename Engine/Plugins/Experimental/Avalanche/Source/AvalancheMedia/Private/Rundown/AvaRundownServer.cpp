@@ -15,12 +15,10 @@
 #include "Broadcast/OutputDevices/AvaBroadcastOutputRootItem.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputTreeItem.h"
 #include "Broadcast/OutputDevices/AvaBroadcastRenderTargetMediaUtils.h"
-#include "Editor.h"
 #include "IAvaMediaModule.h"
 #include "IRemoteControlModule.h"
 #include "ImageUtils.h"
 #include "MediaOutput.h"
-#include "MediaOutputEditorUtils/AvaRundownOutputEditorUtils.h"
 #include "MessageEndpointBuilder.h"
 #include "Misc/FileHelper.h"
 #include "Playback/AvaPlaybackManager.h"
@@ -30,9 +28,14 @@
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
+#include "Rundown/AvaRundownServerMediaOutputUtils.h"
+#include "TextureResource.h"
+
+#if WITH_EDITOR
+#include "Editor.h"
 #include "ScopedTransaction.h"
 #include "Subsystems/EditorAssetSubsystem.h"
-#include "TextureResource.h"
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaRundownServer, Log, All);
 
@@ -87,7 +90,7 @@ namespace UE::AvaRundownServer::Private
 			DeviceItem.OutputState = InChannel.GetMediaOutputState(MediaOutput);
 			DeviceItem.IssueSeverity = InChannel.GetMediaOutputIssueSeverity(DeviceItem.OutputState, MediaOutput);
 			DeviceItem.IssueMessages = InChannel.GetMediaOutputIssueMessages(MediaOutput);
-			DeviceItem.Data = FAvaRundownOutputEditorUtils::SerializeMediaOutput(MediaOutput);
+			DeviceItem.Data = FAvaRundownServerMediaOutputUtils::SerializeMediaOutput(MediaOutput);
 			Channel.Devices.Push(MoveTemp(DeviceItem));
 		}
 
@@ -529,6 +532,7 @@ void FAvaRundownServer::HandleLoadRundown(const FAvaRundownLoadRundown& InMessag
 
 void FAvaRundownServer::HandleSaveRundown(const FAvaRundownSaveRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
+#if WITH_EDITOR
 	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UEditorAssetSubsystem>() : nullptr;
 	
 	if (!EditorAssetSubsystem)
@@ -581,6 +585,9 @@ void FAvaRundownServer::HandleSaveRundown(const FAvaRundownSaveRundown& InMessag
 
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
 		TEXT("Asset \"%s\" save to location \"%s\"."), *FoundRundown->GetName(), *RundownAssetPath.ToString());
+#else
+	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("Save rundown is not available in game build."));
+#endif
 }
 
 void FAvaRundownServer::HandleGetPages(const FAvaRundownGetPages& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
@@ -1061,9 +1068,10 @@ void FAvaRundownServer::HandleAddChannelDevice(const FAvaRundownAddChannelDevice
 		This won't be called frequently, so it's equivalent to an end-user opening up and adding a device to a channel via
 		the broadcast window (tree rebuild -> drag and drop item)
 	*/
-
 	const FAvaOutputTreeItemPtr OutputDevices = MakeShared<FAvaBroadcastOutputRootItem>();
-	FAvaBroadcastOutputTreeItem::RefreshTree(OutputDevices);
+	IAvaBroadcastOutputTreeItem::FRefreshChildrenParams RefreshDevicesParams;
+	RefreshDevicesParams.bShowAllMediaOutputClasses = true; // Listing all classes so the specified device is present.
+	FAvaBroadcastOutputTreeItem::RefreshTree(OutputDevices, RefreshDevicesParams);
 	FAvaOutputTreeItemPtr TreeItem = UE::AvaRundownServer::Private::RecursiveFindOutputTreeItem(OutputDevices, InMessage.MediaOutputName);
 	
 	if (!TreeItem.IsValid())
@@ -1074,8 +1082,9 @@ void FAvaRundownServer::HandleAddChannelDevice(const FAvaRundownAddChannelDevice
 
 	const FAvaBroadcastMediaOutputInfo OutputInfo;
 	const UMediaOutput* OutputDevice = TreeItem->AddMediaOutputToChannel(OutputChannel.GetChannelName(), OutputInfo);
+#if WITH_EDITOR
 	Broadcast.SaveBroadcast();
-
+#endif
 	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"AddChannelDevice\" successfully added device \"%s\""), *OutputDevice->GetFName().ToString());
 }
 
@@ -1105,9 +1114,11 @@ void FAvaRundownServer::HandleEditChannelDevice(const FAvaRundownEditChannelDevi
 		return;
 	}
 
-	FAvaRundownOutputEditorUtils::EditMediaOutput(MediaOutput, InMessage.Data);
-
+	FAvaRundownServerMediaOutputUtils::EditMediaOutput(MediaOutput, InMessage.Data);
+	
+#if WITH_EDITOR
 	Broadcast.SaveBroadcast();
+#endif
 	
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"EditChannelDevice\". Successfully edited device \"%s\" on \"%s\""), *InMessage.MediaOutputName, *InMessage.ChannelName); 
 }
@@ -1136,21 +1147,27 @@ void FAvaRundownServer::HandleRemoveChannelDevice(const FAvaRundownRemoveChannel
 		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("\"RemoveChannelDevice\" Failed. Reason: Invalid Device \"%s\"."), *InMessage.MediaOutputName);
 		return;
 	}
-
-	FScopedTransaction Transaction(LOCTEXT("RemoveMediaOutput", "Remove Media Output"));
 	
+#if WITH_EDITOR
+	FScopedTransaction Transaction(LOCTEXT("RemoveMediaOutput", "Remove Media Output"));
 	Broadcast.Modify();
+#endif
 
 	const int32 RemovedCount = Broadcast.GetCurrentProfile().RemoveChannelMediaOutputs(ChannelName, TArray{MediaOutput});
 
 	if (RemovedCount == 0)
 	{
+#if WITH_EDITOR
 		Transaction.Cancel();
+#endif
 		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("\"RemoveChannelDevice\" Didn't remove device."));
 		return;
 	}
 
+#if WITH_EDITOR
 	Broadcast.SaveBroadcast();
+#endif
+	
 	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"RemoveChannelDevice\" Removed Device \"%s\""), *InMessage.MediaOutputName);
 }
 
@@ -1159,9 +1176,10 @@ void FAvaRundownServer::HandleGetDevices(const FAvaRundownGetDevices& InMessage,
 {
 	FAvaRundownDevicesList* ReplyMessage = FMessageEndpoint::MakeMessage<FAvaRundownDevicesList>();
 	ReplyMessage->RequestId = InMessage.RequestId;
-	
 	const FAvaOutputTreeItemPtr OutputDevices = MakeShared<FAvaBroadcastOutputRootItem>();
-	FAvaBroadcastOutputTreeItem::RefreshTree(OutputDevices);
+	IAvaBroadcastOutputTreeItem::FRefreshChildrenParams RefreshDevicesParams;
+	RefreshDevicesParams.bShowAllMediaOutputClasses = InMessage.bShowAllMediaOutputClasses;
+	FAvaBroadcastOutputTreeItem::RefreshTree(OutputDevices, RefreshDevicesParams);
 	// OutputDevices here aren't literally a physical device, just a construct representing
 	// output. This convention was pulled from the SAvaBroadcastOutputDevices->RefreshDevices() call
 	for (const TSharedPtr<IAvaBroadcastOutputTreeItem>& ClassItem : OutputDevices->GetChildren())
@@ -1197,7 +1215,6 @@ void FAvaRundownServer::HandleGetDevices(const FAvaRundownGetDevices& InMessage,
 			ReplyMessage->DeviceClasses.Push(OutputClassItem);
 		}
 	}
-
 	SendResponse(ReplyMessage, InContext->GetSender());
 }
 
@@ -1576,9 +1593,12 @@ void FAvaRundownServer::OnMessageBusNotification(const FMessageBusNotification& 
 		{
 			if (const TSharedPtr<FAvaRundownServer> Server = ServerWeak.Pin())
 			{
-				UE_LOG(LogAvaRundownServer, Log, TEXT("Client \"%s\" disconnected."), *RegistrationAddress.ToString());
-				Server->Clients.Remove(RegistrationAddress);
-				Server->RefreshClientAddresses();
+				if (Server->Clients.Contains(RegistrationAddress))
+				{
+					UE_LOG(LogAvaRundownServer, Log, TEXT("Client \"%s\" disconnected."), *RegistrationAddress.ToString());
+					Server->Clients.Remove(RegistrationAddress);
+					Server->RefreshClientAddresses();
+				}
 			}
 		};
 

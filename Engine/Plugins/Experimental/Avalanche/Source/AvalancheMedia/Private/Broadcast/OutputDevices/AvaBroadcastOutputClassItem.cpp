@@ -13,9 +13,12 @@
 #include "IMediaIOCoreModule.h"
 #include "MediaIOCoreDefinitions.h"
 #include "MediaOutput.h"
-#include "ScopedTransaction.h"
 #include "Slate/SAvaBroadcastOutputTreeItem.h"
 #include "Styling/SlateIconFinder.h"
+
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastOutputClassItem"
 
@@ -49,8 +52,12 @@ namespace UE::AvaOutputClassItem::Private
 
 FText FAvaBroadcastOutputClassItem::GetDisplayName() const
 {
+#if WITH_EDITOR
 	check(OutputClass.IsValid());
 	return OutputClass->GetDisplayNameText();
+#else
+	return LOCTEXT("DisplayName_NotAvailable", "NotAvailable");	// Not available in game build.
+#endif
 }
 
 const FSlateBrush* FAvaBroadcastOutputClassItem::GetIconBrush() const
@@ -59,7 +66,7 @@ const FSlateBrush* FAvaBroadcastOutputClassItem::GetIconBrush() const
 	return FSlateIconFinder::FindIconBrushForClass(OutputClass.Get());
 }
 
-void FAvaBroadcastOutputClassItem::RefreshChildren()
+void FAvaBroadcastOutputClassItem::RefreshChildren(const FRefreshChildrenParams& InParams)
 {
 	IMediaIOCoreDeviceProvider* DeviceProvider = UE::AvaOutputClassItem::Private::GetDeviceProvider(OutputClass.Get());
 
@@ -154,8 +161,10 @@ UMediaOutput* FAvaBroadcastOutputClassItem::AddMediaOutputToChannel(FName InTarg
 	check(OutputClass.IsValid());
 
 	UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
-	
+
+#if WITH_EDITOR
 	FScopedTransaction Transaction(LOCTEXT("AddMediaOutput", "Add Media Output"));
+#endif
 	Broadcast.Modify();
 
 	FAvaBroadcastMediaOutputInfo OutputInfo = InOutputInfo;
@@ -192,10 +201,12 @@ UMediaOutput* FAvaBroadcastOutputClassItem::AddMediaOutputToChannel(FName InTarg
 		}
 	}
 
+#if WITH_EDITOR
 	if (!MediaOutput)
 	{
 		Transaction.Cancel();
 	}
+#endif
 	
 	return MediaOutput;
 }

@@ -52,7 +52,11 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Page Actions")
 	EAvaRundownPageSet UpdateValuesActionPageSet = EAvaRundownPageSet::SelectedOrPlaying;
 
-	/** Whether rundown server is started automatically. */
+	/**
+	 * Whether rundown server is started automatically when the editor is launched.
+	 * For game mode or packaged games, the rundown server can be launched with
+	 * the command line -MotionDesignRundownServerStart[=ServerName].
+	 */
 	UPROPERTY(Config, EditAnywhere, Category="Server")
 	bool bAutoStartRundownServer = false;
 

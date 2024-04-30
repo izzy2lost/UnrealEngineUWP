@@ -18,6 +18,7 @@ class IAvaBroadcastSettings;
 class IAvaMediaSyncProvider;
 class IAvaPlaybackClient;
 class IAvaPlaybackServer;
+class IAvaRundownServer;
 class IMediaIOCoreDeviceProvider;
 class UWorld;
 struct FAvaInstanceSettings;
@@ -173,6 +174,39 @@ public:
 	DECLARE_DELEGATE_OneParam(FGetEditorViewportClient, FCommonViewportClient** );
 	virtual FGetEditorViewportClient& GetEditorViewportClientDelegate() = 0;
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnRundownServerEvent, TSharedPtr<IAvaRundownServer>);
+	virtual FOnRundownServerEvent& GetOnRundownServerStarted() = 0;
+	virtual FOnRundownServerEvent& GetOnRundownServerStopping() = 0;
+
+	/**
+	 * @brief Returns true if the rundown server is started.
+	 */
+	virtual bool IsRundownServerStarted() const = 0;
+
+	/**
+	 * @brief Starts the rundown server (if not already started).
+	 * @param InServerName Optional server name. If empty, the host (computer) name will be used.
+	 */
+	virtual void StartRundownServer(const FString& InServerName) = 0;
+
+	/**
+	 * @brief Stops the rundown server.
+	 */
+	virtual void StopRundownServer() = 0;
+	
+	/**
+	 * @brief Returns currently running rundown server. 
+	 */
+	virtual TSharedPtr<IAvaRundownServer> GetRundownServer() const = 0;
+
+	/**
+	 * Creates a rundown server that is not managed by the module.
+	 * @param InServerName Optional server name. if empty, the host name will be used.d
+	 * @return Created server.
+	 * @remark For internal use only (testing). Detached servers will interfere with the managed one. 
+	 */
+	virtual TSharedPtr<IAvaRundownServer> MakeDetachedRundownServer(const FString& InServerName) = 0;
+	
 	/**
 	 * Access the device provider proxy manager.
 	 */

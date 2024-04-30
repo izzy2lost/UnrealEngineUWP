@@ -5,6 +5,7 @@
 #include "AvaMediaEditorSettings.h"
 #include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputRootItem.h"
+#include "Broadcast/OutputDevices/DragDropOps/AvaBroadcastOutputTreeItemDragDropOp.h"
 #include "Widgets/Views/STreeView.h"
 
 TMap<uint32, bool> SAvaBroadcastOutputDevices::ItemExpansionStates = {};
@@ -45,6 +46,12 @@ TSharedRef<ITableRow> SAvaBroadcastOutputDevices::OnGenerateItemRow(FAvaOutputTr
 	, const TSharedRef<STableViewBase>& InOwnerTable)
 {
 	check(InItem.IsValid());
+
+	InItem->OnCreateDragDropOperation().BindLambda([](const FAvaOutputTreeItemPtr& InItem)
+	{
+		return FAvaBroadcastOutputTreeItemDragDropOp::New(InItem);
+	});
+
 	return SNew(STableRow<FAvaOutputTreeItemPtr>, InOwnerTable)
 		.ShowWires(false)
 		.Padding(FMargin(5.f, 5.f))
@@ -103,7 +110,9 @@ void SAvaBroadcastOutputDevices::RefreshOutputDevices()
 	check(RootItem.IsValid());
 	
 	//Refresh Items
-	FAvaBroadcastOutputTreeItem::RefreshTree(RootItem);
+	IAvaBroadcastOutputTreeItem::FRefreshChildrenParams RefreshDevicesParams;
+	RefreshDevicesParams.bShowAllMediaOutputClasses = UAvaMediaEditorSettings::Get().bBroadcastShowAllMediaOutputClasses;
+	FAvaBroadcastOutputTreeItem::RefreshTree(RootItem, RefreshDevicesParams);
 	TopLevelItems = RootItem->GetChildren();
 	OutputTree->RequestTreeRefresh();
 

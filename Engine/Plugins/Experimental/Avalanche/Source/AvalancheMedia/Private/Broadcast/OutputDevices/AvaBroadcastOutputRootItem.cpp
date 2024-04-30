@@ -1,15 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AvaBroadcastOutputRootItem.h"
+#include "Broadcast/OutputDevices/AvaBroadcastOutputRootItem.h"
 
-#include "AvaBroadcastOutputServerItem.h"
+#include "Broadcast/OutputDevices/AvaBroadcastOutputServerItem.h"
 #include "Broadcast/OutputDevices/IAvaBroadcastDeviceProviderProxyManager.h"
 #include "IAvaMediaModule.h"
 #include "Input/Reply.h"
 #include "MediaOutput.h"
 #include "UObject/UObjectIterator.h"
 
-void FAvaBroadcastOutputRootItem::RefreshChildren()
+void FAvaBroadcastOutputRootItem::RefreshChildren(const FRefreshChildrenParams& InParams)
 {
 	const IAvaBroadcastDeviceProviderProxyManager& DeviceProviderProxyManager = IAvaMediaModule::Get().GetDeviceProviderProxyManager();
 

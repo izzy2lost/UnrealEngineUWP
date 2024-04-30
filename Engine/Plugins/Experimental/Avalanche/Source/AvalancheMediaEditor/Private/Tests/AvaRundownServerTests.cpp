@@ -3,13 +3,15 @@
 #include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputRootItem.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputTreeItem.h"
-#include "IAvaMediaEditorModule.h"
+#include "IAvaMediaModule.h"
 #include "MediaOutput.h"
 #include "MessageEndpointBuilder.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
-#include "Rundown/AvaRundownServer.h"
-#include "Rundown/MediaOutputEditorUtils/AvaRundownOutputEditorUtils.h"
+#include "Rundown/AvaRundownMessages.h"
+#include "Rundown/AvaRundownServerMediaOutputUtils.h"
+#include "Rundown/IAvaRundownServer.h"
+#include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaRundownServerTests, Log, All);
@@ -87,16 +89,15 @@ namespace UE::AvaRundownServerTests
 		}
 	};
 
-	TSharedPtr<FAvaRundownServer> GetOrCreateRundownServer()
+	TSharedPtr<IAvaRundownServer> GetOrCreateRundownServer()
 	{
-		TSharedPtr<FAvaRundownServer> RundownServer = IAvaMediaEditorModule::Get().GetRundownServer();
+		TSharedPtr<IAvaRundownServer> RundownServer = IAvaMediaModule::Get().GetRundownServer();
 		if (!RundownServer)
 		{
 			UE_LOG(LogAvaRundownServerTests, Log, TEXT("Rundown Server not started. Starting one temporarily for the test."));
 
 			// Start a temporary server. It will be deleted when the last latent command is finished.
-			RundownServer = MakeShared<FAvaRundownServer>();
-			RundownServer->Init(TEXT(""));
+			RundownServer = IAvaMediaModule::Get().MakeDetachedRundownServer(TEXT(""));
 		}
 		return RundownServer;
 	}
@@ -132,7 +133,7 @@ namespace UE::AvaRundownServerTests
 	}
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FRundownServerWaitForResponse, int32, RequestId, TSharedPtr<UE::AvaRundownServerTests::FTestClient>, TestClient, TSharedPtr<FAvaRundownServer>, RundownServer);
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FRundownServerWaitForResponse, int32, RequestId, TSharedPtr<UE::AvaRundownServerTests::FTestClient>, TestClient, TSharedPtr<IAvaRundownServer>, RundownServer);
 bool FRundownServerWaitForResponse::Update()
 {
 	if (!TestClient.IsValid())
@@ -157,7 +158,7 @@ bool FRundownServerGetChannelImage::RunTest(const FString& Parameters)
 {
 	using namespace UE::AvaRundownServerTests;
 	
-	const TSharedPtr<FAvaRundownServer> RundownServer = GetOrCreateRundownServer();
+	const TSharedPtr<IAvaRundownServer> RundownServer = GetOrCreateRundownServer();
 	
 	// Build a test client for this request.
 	const TSharedPtr<FTestClient> TestClient = MakeShared<FTestClient>();
@@ -183,7 +184,7 @@ bool FRundownServerAddChannelDevice::RunTest(const FString& Parameters)
 	// Need to backup the broadcast config because we are about to make changes.
 	BackupBroadcastConfig();
 	
-	const TSharedPtr<FAvaRundownServer> RundownServer = GetOrCreateRundownServer();
+	const TSharedPtr<IAvaRundownServer> RundownServer = GetOrCreateRundownServer();
 
 	// Build a test client for this request.
 	const TSharedPtr<FTestClient> TestClient = MakeShared<FTestClient>();
@@ -198,7 +199,7 @@ bool FRundownServerAddChannelDevice::RunTest(const FString& Parameters)
 
 	// Find an existing output so the request succeeds.
 	const FAvaOutputTreeItemPtr OutputDevices = MakeShared<FAvaBroadcastOutputRootItem>();
-	FAvaBroadcastOutputTreeItem::RefreshTree(OutputDevices);
+	FAvaBroadcastOutputTreeItem::RefreshTree(OutputDevices, IAvaBroadcastOutputTreeItem::FRefreshChildrenParams());
 	
 	if (OutputDevices->GetChildren().Num() > 0)
 	{
@@ -225,17 +226,16 @@ bool FRundownServerAddChannelDevice::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRundownServerMediaOutputSerialization, "MotionDesign.RundownServer.MediaOutputSerialization", (EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter));
 bool FRundownServerMediaOutputSerialization::RunTest(const FString& Parameters)
 {
-
-	for (UClass* const Class : TObjectRange<UClass>())
+	for (const UClass* const Class : TObjectRange<UClass>())
 	{
 		// For now, we test all the media output classes, technically, this should work with all of them.
 		// The result of this test depend on the plugins that are enabled. 
-		// The blackmagic plugin should be enabled at least.
+		// The Blackmagic plugin should be enabled at least.
 		const bool bIsMediaOutputClass = Class->IsChildOf(UMediaOutput::StaticClass()) && Class != UMediaOutput::StaticClass();
 		if (bIsMediaOutputClass)
 		{
-			UMediaOutput* const MediaOutput = NewObject<UMediaOutput>(GetTransientPackage(), Class, NAME_None, RF_Transactional);
-			FString MediaOutputJson = FAvaRundownOutputEditorUtils::SerializeMediaOutput(MediaOutput);
+			const UMediaOutput* const MediaOutput = NewObject<UMediaOutput>(GetTransientPackage(), Class, NAME_None, RF_Transactional);
+			FString MediaOutputJson = FAvaRundownServerMediaOutputUtils::SerializeMediaOutput(MediaOutput);
 
 			const FString SaveName = FString::Printf(TEXT("%sSerializationTest_%s.json"), *FPaths::ProjectSavedDir(), *Class->GetName());
 			UE_LOG(LogAvaRundownServerTests, Display, TEXT("Serializing Media Output \"%s\" to \"%s\""), *Class->GetName(), *SaveName);

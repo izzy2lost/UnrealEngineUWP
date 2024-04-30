@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "AvaRundownMessages.h"
 #include "Broadcast/AvaBroadcastProfile.h"
 #include "MessageEndpoint.h"
 #include "Rundown/AvaRundown.h"
+#include "Rundown/AvaRundownMessages.h"
+#include "Rundown/IAvaRundownServer.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -13,15 +14,21 @@ class FAvaRundownManagedInstance;
 class UMediaOutput;
 
 /**
- * Implements a play list server that listens to commands on message bus.
+ * Implements a rundown server that listens to commands on message bus.
  * The intention is to run a web socket transport bridge so the messages can
  * come from external applications.
  */
-class FAvaRundownServer : public TSharedFromThis<FAvaRundownServer>
+class FAvaRundownServer : public TSharedFromThis<FAvaRundownServer>, public IAvaRundownServer
 {
 public:
 	FAvaRundownServer();
 	virtual ~FAvaRundownServer();
+
+	//~ Begin IAvaRundownServer
+	virtual const FString& GetName() const override { return HostName; }
+	virtual const FMessageAddress& GetMessageAddress() const override;
+	virtual TArray<FMessageAddress> GetClientAddresses() const override { return ClientAddresses; }
+	//~ End IAvaRundownServer
 
 	void Init(const FString& InAssignedHostName);
 
@@ -39,9 +46,6 @@ public:
 	void OnBroadcastChannelListChanged(const FAvaBroadcastProfile& InProfile) const;
 	void OnBroadcastChannelChanged(const FAvaBroadcastOutputChannel& InChannel, EAvaBroadcastChannelChange InChange) const;
 	void OnAssetAddedOrRemoved(const FAssetData& InAssetData) const;
-
-	/** Returns the endpoint's message address. */
-	const FMessageAddress& GetMessageAddress() const;
 	
 	// Message handlers
 	void HandleRundownPing(const FAvaRundownPing& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);

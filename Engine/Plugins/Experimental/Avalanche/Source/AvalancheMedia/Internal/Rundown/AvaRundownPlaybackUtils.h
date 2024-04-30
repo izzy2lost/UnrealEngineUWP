@@ -6,7 +6,7 @@
 
 class UAvaRundown;
 
-struct FAvaRundownPlaybackUtils
+struct AVALANCHEMEDIA_API FAvaRundownPlaybackUtils
 {
 	static bool IsPageIdValid(int32 InPageId)
 	{

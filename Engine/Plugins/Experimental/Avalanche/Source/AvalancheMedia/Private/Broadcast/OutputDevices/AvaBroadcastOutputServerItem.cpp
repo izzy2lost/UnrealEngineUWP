@@ -3,15 +3,17 @@
 #include "AvaBroadcastOutputServerItem.h"
 
 #include "AvaBroadcastOutputClassItem.h"
-#include "AvaMediaEditorSettings.h"
 #include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputUtils.h"
 #include "IMediaIOCoreModule.h"
 #include "MediaOutput.h"
-#include "ScopedTransaction.h"
 #include "Slate/SAvaBroadcastOutputTreeItem.h"
 #include "Styling/AppStyle.h"
 #include "UObject/UObjectIterator.h"
+
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastOutputServerItem"
 
@@ -48,7 +50,7 @@ const FSlateBrush* FAvaBroadcastOutputServerItem::GetIconBrush() const
 	return FAppStyle::Get().GetBrush(TEXT("Icons.Server"));
 }
 
-void FAvaBroadcastOutputServerItem::RefreshChildren()
+void FAvaBroadcastOutputServerItem::RefreshChildren(const FRefreshChildrenParams& InParams)
 {
 	if (!IMediaIOCoreModule::IsAvailable())
 	{
@@ -64,7 +66,7 @@ void FAvaBroadcastOutputServerItem::RefreshChildren()
 		const bool bIsMediaOutputClass = Class->IsChildOf(UMediaOutput::StaticClass()) && Class != UMediaOutput::StaticClass();
 		const bool bHasDeviceProvider = UE::AvaBroadcastOutputUtils::HasDeviceProviderName(Class);
 
-		if (bIsMediaOutputClass && (UAvaMediaEditorSettings::Get().bBroadcastShowAllMediaOutputClasses || bHasDeviceProvider))
+		if (bIsMediaOutputClass && (InParams.bShowAllMediaOutputClasses || bHasDeviceProvider))
 		{
 			CurrentOutputClasses.Add(Class);
 		}

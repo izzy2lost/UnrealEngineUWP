@@ -1,24 +1,43 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AvaRundownOutputEditorUtils.h"
+#include "Rundown/AvaRundownServerMediaOutputUtils.h"
 
 #include "Dom/JsonObject.h"
+#include "MediaOutput.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
-DEFINE_LOG_CATEGORY(LogAvaRundownEditorOutputUtils);
+DEFINE_LOG_CATEGORY_STATIC(LogAvaRundownServerMediaOutputUtils, Warning, All);
 
-FAvaRundownOutputEditorUtils::FAvaRundownOutputEditorUtils()
+namespace UE::AvaMedia::RundownServerMediaOutputUtils::Private
 {
+	// Serialization helper functions
+	static TSharedPtr<FJsonObject> ParsePropertyInfo(TFieldIterator<FProperty> InProperty, const void* InOwnerObject);
+	static TSharedPtr<FJsonObject> ParseElementaryPropertyInfo(TFieldIterator<FProperty> InProperty, const void* InOwnerObject);
+	static TSharedPtr<FJsonObject> ParseEnumPropertyInfo(TFieldIterator<FProperty> InProperty, const void* InOwnerObject);
+	static TSharedPtr<FJsonObject> ParseStructPropertyInfo(TFieldIterator<FProperty> InProperty, const void* InOwnerObject);
+
+	// Helper functions for editing Media Output Devices
+	static void SetProperty(void* InOwnerObject, const TSharedPtr<FJsonObject>& InPropertyObject, const TFieldIterator<FProperty>& InProperty);
+	static void SetElementaryProperty(void* InOwnerObject, const TSharedPtr<FJsonObject>& InPropertyObject, TFieldIterator<FProperty> InProperty);
+	static void SetEnumProperty(void* InOwnerObject, const TSharedPtr<FJsonObject>& InPropertyObject, TFieldIterator<FProperty> InProperty);
+	static void SetStructProperties(void* InOwnerObject, const TSharedPtr<FJsonObject>& InPropertyObject, TFieldIterator<FProperty> InProperty);
+
+	FString GetPropertyDisplayNameString(TFieldIterator<FProperty> InProperty)
+	{
+#if WITH_EDITORONLY_DATA
+		return InProperty->GetDisplayNameText().ToString();
+#else
+		return TEXT("NotAvailable"); // Not available in game build.
+	#endif
+	}
 }
 
-FAvaRundownOutputEditorUtils::~FAvaRundownOutputEditorUtils()
+FString FAvaRundownServerMediaOutputUtils::SerializeMediaOutput(const UMediaOutput* InMediaOutput)
 {
-}
-
-FString FAvaRundownOutputEditorUtils::SerializeMediaOutput(const UMediaOutput* InMediaOutput)
-{
+	using namespace UE::AvaMedia::RundownServerMediaOutputUtils::Private;
+	
 	const TSharedPtr<FJsonObject> OutputObject = MakeShareable(new FJsonObject);
 
 	OutputObject->SetStringField("Class", InMediaOutput->GetClass()->GetPathName());
@@ -40,8 +59,10 @@ FString FAvaRundownOutputEditorUtils::SerializeMediaOutput(const UMediaOutput* I
 	return OutputString;
 }
 
-void FAvaRundownOutputEditorUtils::EditMediaOutput(UMediaOutput* InMediaOutput, const FString& InDeviceData)
+void FAvaRundownServerMediaOutputUtils::EditMediaOutput(UMediaOutput* InMediaOutput, const FString& InDeviceData)
 {
+	using namespace UE::AvaMedia::RundownServerMediaOutputUtils::Private;
+	
 	const TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(InDeviceData);
 	if (TSharedPtr<FJsonObject> NewDeviceData; FJsonSerializer::Deserialize(JsonReader, NewDeviceData))
 	{
@@ -62,7 +83,7 @@ void FAvaRundownOutputEditorUtils::EditMediaOutput(UMediaOutput* InMediaOutput, 
 	}
 }
 
-TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParsePropertyInfo(TFieldIterator<FProperty> InProperty,
+TSharedPtr<FJsonObject> UE::AvaMedia::RundownServerMediaOutputUtils::Private::ParsePropertyInfo(TFieldIterator<FProperty> InProperty,
                                                                        const void* InOwnerObject)
 {
 	const FFieldClass* FieldClass = InProperty->GetClass();
@@ -82,7 +103,7 @@ TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParsePropertyInfo(TFieldIt
 	return MakeShareable(new FJsonObject);
 }
 
-TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseElementaryPropertyInfo(
+TSharedPtr<FJsonObject> UE::AvaMedia::RundownServerMediaOutputUtils::Private::ParseElementaryPropertyInfo(
 	TFieldIterator<FProperty> InProperty, const void* InOwnerObject)
 {
 	const TSharedPtr<FJsonObject> PropertyObject = MakeShareable(new FJsonObject);
@@ -91,7 +112,7 @@ TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseElementaryPropertyInf
 		const FIntProperty* IntProperty = CastField<FIntProperty>(InProperty->GetOwnerProperty());
 		const int32 Value = IntProperty->GetPropertyValue_InContainer(InOwnerObject);
 		PropertyObject->SetStringField("Name", InProperty->GetName());
-		PropertyObject->SetStringField("DisplayName", InProperty->GetDisplayNameText().ToString());
+		PropertyObject->SetStringField("DisplayName", GetPropertyDisplayNameString(InProperty));
 		PropertyObject->SetStringField("Type", "number");
 		PropertyObject->SetNumberField("Value", Value);
 	}
@@ -100,7 +121,7 @@ TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseElementaryPropertyInf
 		const FBoolProperty* BoolProperty = CastField<FBoolProperty>(InProperty->GetOwnerProperty());
 		const bool Value = BoolProperty->GetPropertyValue_InContainer(InOwnerObject);
 		PropertyObject->SetStringField("Name", InProperty->GetName());
-		PropertyObject->SetStringField("DisplayName", InProperty->GetDisplayNameText().ToString());
+		PropertyObject->SetStringField("DisplayName", GetPropertyDisplayNameString(InProperty));
 		PropertyObject->SetStringField("Type", "boolean");
 		PropertyObject->SetBoolField("Value", Value);
 	}
@@ -109,7 +130,7 @@ TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseElementaryPropertyInf
 		const FStrProperty* TextProperty = CastField<FStrProperty>(InProperty->GetOwnerProperty());
 		const FString Value = TextProperty->GetPropertyValue_InContainer(InOwnerObject);
 		PropertyObject->SetStringField("Name", InProperty->GetName());
-		PropertyObject->SetStringField("DisplayName", InProperty->GetDisplayNameText().ToString());
+		PropertyObject->SetStringField("DisplayName", GetPropertyDisplayNameString(InProperty));
 		PropertyObject->SetStringField("Type", "string");
 		PropertyObject->SetStringField("Value", Value);
 	}
@@ -118,26 +139,28 @@ TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseElementaryPropertyInf
 		const FNameProperty* NameProperty = CastField<FNameProperty>(InProperty->GetOwnerProperty());
 		const FName Value = NameProperty->GetPropertyValue_InContainer(InOwnerObject);
 		PropertyObject->SetStringField("Name", InProperty->GetName());
-		PropertyObject->SetStringField("DisplayName", InProperty->GetDisplayNameText().ToString());
+		PropertyObject->SetStringField("DisplayName", GetPropertyDisplayNameString(InProperty));
 		PropertyObject->SetStringField("Type", "name");
 		PropertyObject->SetStringField("Value", Value.ToString());
 	}
 	else
 	{
-		UE_LOG(LogAvaRundownEditorOutputUtils, Warning, TEXT("Property type: %s is not supported"), *InProperty->GetClass()->GetName());
+		UE_LOG(LogAvaRundownServerMediaOutputUtils, Warning, TEXT("Property type: %s is not supported"), *InProperty->GetClass()->GetName());
 	}
 
 	return PropertyObject;
 }
 
-TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseEnumPropertyInfo(
+TSharedPtr<FJsonObject> UE::AvaMedia::RundownServerMediaOutputUtils::Private::ParseEnumPropertyInfo(
 	TFieldIterator<FProperty> InProperty, const void* InOwnerObject)
 {
+	using namespace UE::AvaMedia::RundownServerMediaOutputUtils::Private;
+	
 	const TSharedPtr<FJsonObject> PropertyObject = MakeShareable(new FJsonObject);
 	const FEnumProperty* EnumProperty = CastField<FEnumProperty>(InProperty->GetOwnerProperty());
 
 	PropertyObject->SetStringField("Name", InProperty->GetName());
-	PropertyObject->SetStringField("DisplayName", InProperty->GetDisplayNameText().ToString());
+	PropertyObject->SetStringField("DisplayName", GetPropertyDisplayNameString(InProperty));
 	PropertyObject->SetStringField("Type", "enum");
 	PropertyObject->SetStringField("Class", EnumProperty->GetEnum()->GetName());
 
@@ -157,14 +180,16 @@ TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseEnumPropertyInfo(
 	return PropertyObject;
 }
 
-TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseStructPropertyInfo(
+TSharedPtr<FJsonObject> UE::AvaMedia::RundownServerMediaOutputUtils::Private::ParseStructPropertyInfo(
 	TFieldIterator<FProperty> InProperty, const void* InOwnerObject)
 {
+	using namespace UE::AvaMedia::RundownServerMediaOutputUtils::Private;
+	
 	const TSharedPtr<FJsonObject> PropertyObject = MakeShareable(new FJsonObject);
 	const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty->GetOwnerProperty());
 
 	PropertyObject->SetStringField("Name", InProperty->GetName());
-	PropertyObject->SetStringField("DisplayName", InProperty->GetDisplayNameText().ToString());
+	PropertyObject->SetStringField("DisplayName", GetPropertyDisplayNameString(InProperty));
 	PropertyObject->SetStringField("Type", "struct");
 
 	const UScriptStruct* Struct = StructProperty->Struct;
@@ -182,7 +207,7 @@ TSharedPtr<FJsonObject> FAvaRundownOutputEditorUtils::ParseStructPropertyInfo(
 	return PropertyObject;
 }
 
-void FAvaRundownOutputEditorUtils::SetProperty(void* InOwnerObject, const TSharedPtr<FJsonObject>& InPropertyObject,
+void UE::AvaMedia::RundownServerMediaOutputUtils::Private::SetProperty(void* InOwnerObject, const TSharedPtr<FJsonObject>& InPropertyObject,
                                               const TFieldIterator<FProperty>& InProperty)
 {
 	if (InPropertyObject->GetStringField(TEXT("Type")) == "number" || InPropertyObject->GetStringField(TEXT("Type")) == "string"
@@ -200,7 +225,7 @@ void FAvaRundownOutputEditorUtils::SetProperty(void* InOwnerObject, const TShare
 	}
 }
 
-void FAvaRundownOutputEditorUtils::SetElementaryProperty(void* InOwnerObject,
+void UE::AvaMedia::RundownServerMediaOutputUtils::Private::SetElementaryProperty(void* InOwnerObject,
 	const TSharedPtr<FJsonObject>& InPropertyObject, TFieldIterator<FProperty> InProperty)
 {
 	if (InPropertyObject->GetStringField(TEXT("Type")) == "number")
@@ -225,7 +250,7 @@ void FAvaRundownOutputEditorUtils::SetElementaryProperty(void* InOwnerObject,
 	}
 }
 
-void FAvaRundownOutputEditorUtils::SetEnumProperty(void* InOwnerObject,
+void UE::AvaMedia::RundownServerMediaOutputUtils::Private::SetEnumProperty(void* InOwnerObject,
 	const TSharedPtr<FJsonObject>& InPropertyObject, TFieldIterator<FProperty> InProperty)
 {
 	const FString ValueName = InPropertyObject->GetStringField(TEXT("Value"));
@@ -236,7 +261,7 @@ void FAvaRundownOutputEditorUtils::SetEnumProperty(void* InOwnerObject,
 	EnumProperty->GetOwnerProperty()->SetValue_InContainer(InOwnerObject, &EnumValue);
 }
 
-void FAvaRundownOutputEditorUtils::SetStructProperties(void* InOwnerObject,
+void UE::AvaMedia::RundownServerMediaOutputUtils::Private::SetStructProperties(void* InOwnerObject,
 	const TSharedPtr<FJsonObject>& InPropertyObject, TFieldIterator<FProperty> InProperty)
 {
 	const FStructProperty* StructProperty = CastField<FStructProperty>(

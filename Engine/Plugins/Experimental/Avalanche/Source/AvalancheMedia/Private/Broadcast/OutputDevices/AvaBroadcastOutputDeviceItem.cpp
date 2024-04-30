@@ -22,7 +22,7 @@ const FSlateBrush* FAvaBroadcastOutputDeviceItem::GetIconBrush() const
 	return nullptr;
 }
 
-void FAvaBroadcastOutputDeviceItem::RefreshChildren()
+void FAvaBroadcastOutputDeviceItem::RefreshChildren(const FRefreshChildrenParams& InParams)
 {
 	//There shouldn't be any Childrens here
 	Children.Reset();
@@ -90,9 +90,10 @@ UMediaOutput* FAvaBroadcastOutputDeviceItem::AddMediaOutputToChannel(FName InTar
 								break; // get the first one.
 							}
 						}
-
+#if WITH_EDITOR
 						FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet);
 						MediaOutput->PostEditChangeProperty(PropertyChangedEvent);
+#endif
 					}
 				}
 			}

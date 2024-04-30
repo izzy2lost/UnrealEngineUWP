@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AvaBroadcastOutputTreeItem.h"
+#include "Broadcast/OutputDevices/AvaBroadcastOutputTreeItem.h"
 
-#include "DragDropOps/AvaBroadcastOutputTreeItemDragDropOp.h"
+#include "Input/Reply.h"
 
 const TWeakPtr<FAvaBroadcastOutputTreeItem>& FAvaBroadcastOutputTreeItem::GetParent() const
 {
@@ -18,12 +18,15 @@ FReply FAvaBroadcastOutputTreeItem::OnDragDetected(const FGeometry& MyGeometry, 
 {
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
 	{
-		return FReply::Handled().BeginDragDrop(FAvaBroadcastOutputTreeItemDragDropOp::New(SharedThis(this)));
+		if (OnCreateDragDropOperationDelegate.IsBound())
+		{
+			return FReply::Handled().BeginDragDrop(OnCreateDragDropOperationDelegate.Execute(SharedThis(this)));
+		}
 	}
 	return FReply::Unhandled();
 }
 
-void FAvaBroadcastOutputTreeItem::RefreshTree(const FAvaOutputTreeItemPtr& InItem)
+void FAvaBroadcastOutputTreeItem::RefreshTree(const FAvaOutputTreeItemPtr& InItem, const FRefreshChildrenParams& InParams)
 {
 	TArray<FAvaOutputTreeItemPtr> ItemsRemainingToRefresh;
 	ItemsRemainingToRefresh.Add(InItem);
@@ -33,7 +36,7 @@ void FAvaBroadcastOutputTreeItem::RefreshTree(const FAvaOutputTreeItemPtr& InIte
 		FAvaOutputTreeItemPtr Item = ItemsRemainingToRefresh.Pop();
 		if (Item.IsValid())
 		{
-			Item->RefreshChildren();
+			Item->RefreshChildren(InParams);
 			ItemsRemainingToRefresh.Append(Item->GetChildren());
 		}
 	}

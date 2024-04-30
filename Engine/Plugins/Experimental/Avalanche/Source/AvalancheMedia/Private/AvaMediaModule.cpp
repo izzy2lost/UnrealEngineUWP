@@ -32,6 +32,13 @@ namespace UE::AvaMediaModule::Private
 	{
 		return FParse::Value(FCommandLine::Get(),TEXT("dc_node="), OutDisplayClusterNodeName);
 	}
+
+	// Command line parsing helper.
+	bool IsRundownServerManuallyStarted(FString& OutRundownServerName)
+	{
+		return FParse::Value(FCommandLine::Get(), TEXT("MotionDesignRundownServerStart="), OutRundownServerName) ||
+			FParse::Param(FCommandLine::Get(), TEXT("MotionDesignRundownServerStart"));
+	}
 }
 
 FAvaMediaModule::FAvaMediaModule()
@@ -99,6 +106,18 @@ void FAvaMediaModule::StartupModule()
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
+				TEXT("MotionDesignRundownServer.Start"),
+				TEXT("Starts the rundown server."),
+				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StartRundownServerCommand),
+				ECVF_Default
+				));
+	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
+				TEXT("MotionDesignRundownServer.Stop"),
+				TEXT("Stops the rundown server."),
+				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StopRundownServerCommand),
+				ECVF_Default
+				));
+	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 				TEXT("MotionDesignPlaybackDevices.Save"),
 				TEXT("Save Device Providers data."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::SaveDeviceProvidersCommand),
@@ -133,7 +152,7 @@ void FAvaMediaModule::StartupModule()
 	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FAvaMediaModule::EnginePreExit);
 	
 	FString DummyServerName;
-	if (!AvaPlaybackServer.IsValid() && IsPlaybackServerManuallyStarted(DummyServerName))
+	if (IsPlaybackServerManuallyStarted(DummyServerName) || IsRundownServerManuallyStarted(DummyServerName))
 	{
 		// Prevent throttling when server is started.
 		// This has to be done before any SLevelViewport are ticked since the cvar value is cached on first tick.
@@ -194,6 +213,24 @@ void FAvaMediaModule::StartPlaybackServer(const FString& InPlaybackServerName)
 void FAvaMediaModule::StopPlaybackServer()
 {
 	StopPlaybackServerCommand({});
+}
+
+void FAvaMediaModule::StartRundownServer(const FString& InRundownServerName)
+{
+	StartRundownServerCommand({InRundownServerName});
+}
+
+void FAvaMediaModule::StopRundownServer()
+{
+	StopRundownServerCommand({});
+}
+
+TSharedPtr<IAvaRundownServer> FAvaMediaModule::MakeDetachedRundownServer(const FString& InServerName)
+{
+	const TSharedRef<FAvaRundownServer, ESPMode::ThreadSafe> DetachedRundownServer = MakeShared<FAvaRundownServer>();
+	DetachedRundownServer->Init(InServerName);
+	OnRundownServerStarted.Broadcast(DetachedRundownServer);
+	return DetachedRundownServer;
 }
 
 IAvaPlaybackClient& FAvaMediaModule::GetPlaybackClient()
@@ -447,6 +484,14 @@ void FAvaMediaModule::PostEngineInit()
 	{
 		StartHttpPlaybackServerCommand({});
 	}
+
+	// Allow for specification of the rundown server name in the command line.
+	// Note: auto start of rundown server is only done in the editor module.
+	FString RundownServerName;
+	if (IsRundownServerManuallyStarted(RundownServerName))
+	{
+		StartRundownServerCommand({RundownServerName});
+	}
 }
 
 void FAvaMediaModule::EnginePreExit()
@@ -456,6 +501,7 @@ void FAvaMediaModule::EnginePreExit()
 
 void FAvaMediaModule::StopAllServices()
 {
+	StopRundownServerCommand({});
 	StopPlaybackServerCommand({});
 	StopPlaybackClientCommand({});
 	
@@ -466,6 +512,36 @@ void FAvaMediaModule::StopAllServices()
 	}
 	LocalPlaybackManager.Reset();
 	ManagedInstanceCache.Reset();
+}
+
+void FAvaMediaModule::StartRundownServerCommand(const TArray<FString>& Args)
+{
+	if (RundownServer)
+	{
+		UE_LOG(LogAvaMedia, Log, TEXT("Rundown Server is already started."));
+		return;
+	}
+	
+	RundownServer = MakeShared<FAvaRundownServer>();
+	
+	// Remark: Only the module's rundown server register console commands to avoid
+	// conflicts with temporary servers (for testing).
+	RundownServer->RegisterConsoleCommands();
+
+	RundownServer->Init(Args.Num() > 0 ? Args[0] : TEXT(""));
+	OnRundownServerStarted.Broadcast(RundownServer);
+
+	UE_LOG(LogAvaMedia, Log, TEXT("Rundown Server Started."));
+}
+
+void FAvaMediaModule::StopRundownServerCommand(const TArray<FString>& Args)
+{
+	if (RundownServer)
+	{
+		UE_LOG(LogAvaMedia, Log, TEXT("Stopping Rundown Server..."));
+		OnRundownServerStopping.Broadcast(RundownServer);
+	}
+	RundownServer.Reset();
 }
 
 void FAvaMediaModule::StartPlaybackServerCommand(const TArray<FString>& InArgs)

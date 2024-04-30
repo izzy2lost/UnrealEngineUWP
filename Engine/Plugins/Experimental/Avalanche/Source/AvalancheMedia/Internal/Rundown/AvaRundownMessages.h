@@ -19,6 +19,14 @@ namespace EAvaRundownApiVersion
 	enum Type
 	{
 		Initial = 1,
+		/**
+		 * The rundown server has been moved to the runtime module.
+		 * All message scripts paths moved from AvalancheMediaEditor to AvalancheMedia.
+		 * However, all server requests messages have been added to core redirect, so
+		 * previous path will still get through, but all response messages will be the new path.
+		 * Clients can still issue a ping with the old path and will get a response.
+		 */ 
+		MoveToRuntime = 2,
 
 		// -----<new versions can be added before this line>-------------------------------------------------
 		// - this needs to be the last line (see note below)
@@ -661,6 +669,9 @@ USTRUCT()
 struct FAvaRundownGetDevices : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bShowAllMediaOutputClasses = false;
 };
 
 USTRUCT()
