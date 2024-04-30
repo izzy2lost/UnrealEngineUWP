@@ -20,11 +20,23 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBox.h"
 
+// Base class for breadcrumb trail holding methods which are not dependent on the crumb data type.
+class SBreadcrumbTrailBase : public SCompoundWidget
+{
+public:
+	SLATE_API void ScrollToStart();
+	SLATE_API void ScrollToEnd();
+
+protected:
+	/** The horizontal box which contains all the breadcrumbs */
+	TSharedPtr<SScrollBox> CrumbBox;
+};
+
 /**
  * A breadcrumb trail. Allows the user to see their currently selected path and navigate upwards.
  */
 template <typename ItemType>
-class SBreadcrumbTrail : public SCompoundWidget
+class SBreadcrumbTrail : public SBreadcrumbTrailBase
 {
 private:
 	/** A container for data associated with a single crumb in the trail. */
@@ -419,9 +431,6 @@ private:
 	}
 
 private:
-
-	/** The horizontal box which contains all the breadcrumbs */
-	TSharedPtr<SScrollBox> CrumbBox;
 
 	/** The list of crumbs and their data */
 	TArray<FCrumbItem> CrumbList;
