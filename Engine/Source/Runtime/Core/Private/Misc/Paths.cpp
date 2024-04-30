@@ -170,6 +170,7 @@ bool FPaths::IsStaged()
 			FileExists(Combine(EngineConfigDir(), FString::Printf(TEXT("StagedBuild_%s.ini"), FApp::GetProjectName())));
 
 		UE::Paths::bIsComputingStaged = false;
+		bHasInitialized = true;
 	}
 
 	return bIsStaged;
