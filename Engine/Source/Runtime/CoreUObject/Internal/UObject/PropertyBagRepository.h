@@ -12,7 +12,6 @@ class UObject;
 namespace UE
 {
 
-class FPropertyPathName;
 class FPropertyPathNameTree;
 
 // Singleton class tracking property bag association with objects
@@ -107,8 +106,6 @@ public:
 
 	COREUOBJECT_API const UObject* FindInstanceForDataObject(const UObject* InstanceDataObject) const;
 
-	// query whether a property in an object was set when the object was deserialized
-	COREUOBJECT_API static bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);
 	// query whether a property in Struct was set when the struct was deserialized
 	COREUOBJECT_API static bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
 

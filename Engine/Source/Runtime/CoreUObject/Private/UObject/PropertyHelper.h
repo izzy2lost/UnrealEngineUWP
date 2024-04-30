@@ -117,7 +117,6 @@ public:
 		{
 			Context = InContext;
 			Context->SerializedPropertyPath.Push(InSegment);
-			Notify = InNotify;
 		}
 	}
 
@@ -125,10 +124,6 @@ public:
 	{
 		if (Context)
 		{
-			if (Notify == ESerializedPropertyPathNotify::Yes)
-			{
-				Context->OnTaggedPropertySerialize.Broadcast(*Context);
-			}
 			Context->SerializedPropertyPath.Pop();
 		}
 	}
@@ -138,7 +133,6 @@ public:
 
 private:
 	FUObjectSerializeContext* Context = nullptr;
-	ESerializedPropertyPathNotify Notify = ESerializedPropertyPathNotify::No;
 };
 
 /**
@@ -155,7 +149,6 @@ public:
 		{
 			Context = InContext;
 			Context->SerializedPropertyPath.SetIndex(InIndex);
-			Notify = InNotify;
 		}
 	}
 
@@ -163,10 +156,6 @@ public:
 	{
 		if (Context)
 		{
-			if (Notify == ESerializedPropertyPathNotify::Yes)
-			{
-				Context->OnTaggedPropertySerialize.Broadcast(*Context);
-			}
 			Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
 		}
 	}
@@ -176,7 +165,6 @@ public:
 
 private:
 	FUObjectSerializeContext* Context = nullptr;
-	ESerializedPropertyPathNotify Notify = ESerializedPropertyPathNotify::No;
 };
 
 } // UE

@@ -33,6 +33,7 @@
 #include "Misc/PackageName.h"
 #include "UObject/ObjectResource.h"
 #include "UObject/LinkerSave.h"
+#include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/Interface.h"
 #include "UObject/LinkerPlaceholderClass.h"
 #include "UObject/LinkerPlaceholderFunction.h"
@@ -1625,7 +1626,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				}
 
 				TOptional<UE::FSerializedPropertyPathScope> SerializedPropertyPath;
-				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
+				if (SerializeContext->bTrackSerializedPropertyPath)
 				{
 					const FName Name = Property ? Property->GetFName() : Tag.Name;
 					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
@@ -1715,6 +1716,11 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								checkNoEntry();
 								break;
 						}
+
+						if (bAdvanceProperty && SerializeContext->bImpersonateProperties)
+						{
+							UE::MarkPropertySetBySerialization(this, Data, Property, Tag.ArrayIndex);
+						}
 					}
 				}
 				else
@@ -1728,7 +1734,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					if (!bSearchedForUnknownPropertyTree)
 					{
 						bSearchedForUnknownPropertyTree = true;
-						if (SerializeContext && SerializeContext->bSerializeUnknownProperty)
+						if (SerializeContext->bSerializeUnknownProperty)
 						{
 							if (UObject* Object = SerializeContext->SerializedObject)
 							{

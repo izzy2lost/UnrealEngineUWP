@@ -177,10 +177,6 @@ public:
 	/** True when the SerializedObject properties are being impersonated. */
 	UE_INTERNAL bool bImpersonateProperties;
 
-	/** event called after each tagged property is deserialized */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTaggedPropertySerialized, const FUObjectSerializeContext&)
-	UE_INTERNAL FOnTaggedPropertySerialized OnTaggedPropertySerialize;
-
 	/** Adds a new loaded object */
 	COREUOBJECT_API void AddLoadedObject(UObject* InObject);
 	COREUOBJECT_API void AddUniqueLoadedObjects(const TArray<UObject*>& InObjects);

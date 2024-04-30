@@ -557,11 +557,6 @@ const UObject* FPropertyBagRepository::FindInstanceForDataObject(const UObject* 
 	return Owner ? *Owner : nullptr;
 }
 
-bool FPropertyBagRepository::WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
-{
-	return UE::WasPropertySetBySerialization(Object, Path);
-}
-
 bool FPropertyBagRepository::WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
 {
 	return UE::WasPropertySetBySerialization(Struct, StructData, Property, ArrayIndex);
@@ -646,26 +641,15 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	}
 	else if (FLinkerLoad* Linker = Owner->GetLinker())
 	{
-		const FDelegateHandle OnTaggedPropertySerializeHandle = LoadContext->OnTaggedPropertySerialize.AddLambda(
-			[&BagData](const FUObjectSerializeContext& Context)
-			{
-				if (!Context.SerializedPropertyPath.IsEmpty())
-				{
-					MarkPropertySetBySerialization(BagData.InstanceDataObject, Context.SerializedPropertyPath);
-				}
-			}
-		);
-
 		// TODO: @jordan.hoffmann - this is very inefficient! We should remove this call to Preload. To do so, we'd need to change MarkPropertySetBySerialization
 		// to cache the serialized property list in the property bag instead of the structs. We'd also need to copy the property bag values to the IDO
 		Owner->SetFlags(RF_NeedLoad);
 		{
 			TGuardValue<bool> ScopedSkipKnownProperties(Linker->bSkipKnownProperties, true);
 			FGuardValue_Bitfield(Linker->ArMergeOverrides, true);
-            Linker->Preload(Owner);
+			Linker->Preload(Owner);
 		}
-		LoadContext->OnTaggedPropertySerialize.Remove(OnTaggedPropertySerializeHandle);
-		
+
 		// copy data from owner to IDO
 		CopyTaggedProperties(Owner, BagData.InstanceDataObject);
 	}
