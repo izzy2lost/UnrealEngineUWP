@@ -1626,6 +1626,8 @@ void UReplicationSystem::SetCullDistanceSqrOverride(FNetRefHandle Handle, float 
 		return;
 	}
 
+	UE_LOG(LogIris, Verbose, TEXT("UReplicationSystem::SetCullDistanceSqrOverride: %s is now overridden to %f"), *Impl->ReplicationSystemInternal.GetNetRefHandleManager().PrintObjectFromNetRefHandle(Handle), FMath::Sqrt(DistSqr));
+	
 	return Impl->ReplicationSystemInternal.GetNetCullDistanceOverrides().SetCullDistanceSqr(ObjectInternalIndex, DistSqr);
 }
 
@@ -1637,7 +1639,8 @@ void UReplicationSystem::ClearCullDistanceSqrOverride(FNetRefHandle Handle)
 		return;
 	}
 
-	Impl->ReplicationSystemInternal.GetNetCullDistanceOverrides().ClearCullDistanceSqr(ObjectInternalIndex);
+	const bool bWasCullDistanceOverriden = Impl->ReplicationSystemInternal.GetNetCullDistanceOverrides().ClearCullDistanceSqr(ObjectInternalIndex);
+	UE_CLOG(bWasCullDistanceOverriden, LogIris, Verbose, TEXT("UReplicationSystem::ClearCullDistanceSqrOverride: %s is no longer overridden."), *Impl->ReplicationSystemInternal.GetNetRefHandleManager().PrintObjectFromNetRefHandle(Handle));
 }
 
 float UReplicationSystem::GetCullDistanceSqrOverride(FNetRefHandle Handle, float DefaultValue) const

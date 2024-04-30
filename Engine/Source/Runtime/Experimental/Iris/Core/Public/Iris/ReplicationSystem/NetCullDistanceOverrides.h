@@ -30,7 +30,7 @@ public:
 
 public:
 	/** Remove cull distance override for object. */
-	void ClearCullDistanceSqr(uint32 ObjectIndex);
+	bool ClearCullDistanceSqr(uint32 ObjectIndex);
 
 	/** Set cull distance override for object. */
 	void SetCullDistanceSqr(uint32 ObjectIndex, float CullDistSqr);
