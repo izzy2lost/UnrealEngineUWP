@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AdvancedRenamerStyle.h"
+#include "Brushes/SlateImageBrush.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/Paths.h"
 #include "Styling/AppStyle.h"
+#include "Styling/ISlateStyle.h"
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateTypes.h"
@@ -14,7 +17,7 @@ void FAdvancedRenamerStyle::Initialize()
 {
 	if (!StyleInstance.IsValid())
 	{
-		InitStyle();
+		StyleInstance = Create();
 		FSlateStyleRegistry::RegisterSlateStyle(*StyleInstance);
 	}
 }
@@ -35,44 +38,37 @@ FName FAdvancedRenamerStyle::GetStyleSetName()
 	return StyleSetName;
 }
 
-void FAdvancedRenamerStyle::InitStyle()
+TSharedRef<FSlateStyleSet> FAdvancedRenamerStyle::Create()
 {
-	if (StyleInstance.IsValid())
-	{
-		return;
-	}
-
-	StyleInstance = MakeShared<FSlateStyleSet>("AdvancedRenamer");
+	TSharedRef<FSlateStyleSet> Style = MakeShared<FSlateStyleSet>("AdvancedRenamer");
 
 	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("AdvancedRenamer"));
 	check(Plugin.IsValid());
 
 	if (Plugin.IsValid())
 	{
-		StyleInstance->SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
+		Style->SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
 	}
 
-	const FSplitterStyle SplitterStyle = FSplitterStyle()
-		.SetHandleNormalBrush(FSlateNoResource())
-		.SetHandleHighlightBrush(FSlateNoResource());
-	
-	StyleInstance->Set("AdvancedRenamer.Style.Splitter", SplitterStyle);
+	Style->Set("AdvancedRenamer.Image.Radio.BlackBackground", new FSlateVectorImageBrush(
+		FPaths::Combine(Style->GetContentRootDir(), "/Icons/radio-background.svg"), 
+		FVector2D(16.f, 16.f), FStyleColors::Foldout.GetSpecifiedColor()
+	));
 
-	FSlateBrush* BackgroundBorderBrush = new FSlateColorBrush(FLinearColor::FromSRGBColor(FColor(36, 36, 36)));
+	FCheckBoxStyle BlackRadioButton = FAppStyle::GetWidgetStyle<FCheckBoxStyle>("RadioButton");
+	BlackRadioButton.SetBackgroundImage(*Style->GetBrush("AdvancedRenamer.Image.Radio.BlackBackground"));
 
-	StyleInstance->Set("AdvancedRenamer.Style.BackgroundBorder", BackgroundBorderBrush);
+	Style->Set("AdvancedRenamer.Style.BlackRadioButton", BlackRadioButton);
 
-	const FTableViewStyle ListViewStyle = FTableViewStyle()
-		.SetBackgroundBrush(*FAdvancedRenamerStyle::Get().GetBrush("AdvancedRenamer.Style.BackgroundBorder"));
+	const FButtonStyle DarkButton = FButtonStyle(FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
+		.SetNormal(FSlateColorBrush(FStyleColors::Recessed))
+		.SetHovered(FSlateColorBrush(FStyleColors::Hover))
+		.SetPressed(FSlateColorBrush(FStyleColors::Header))
+		.SetDisabled(FSlateColorBrush(FStyleColors::Dropdown));
 
-	StyleInstance->Set("AdvancedRenamer.Style.ListView", ListViewStyle);
+	Style->Set("AdvancedRenamer.Style.DarkButton", DarkButton);
 
-	FHeaderRowStyle HeaderRowStyle = FAppStyle::Get().GetWidgetStyle<FHeaderRowStyle>("TableView.Header");
-	HeaderRowStyle.SetHorizontalSeparatorThickness(0);
-	HeaderRowStyle.SetHorizontalSeparatorBrush(FSlateNoResource());
-	HeaderRowStyle.SetBackgroundBrush(FSlateColorBrush(FLinearColor::FromSRGBColor(FColor(47, 47, 47))));
-
-	StyleInstance->Set("AdvancedRenamer.Style.HeaderRow", HeaderRowStyle);
+	return Style;
 }
 
 const ISlateStyle& FAdvancedRenamerStyle::Get()

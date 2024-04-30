@@ -102,22 +102,19 @@ namespace UE::AdvancedRenamer::Private
 	}
 }
 
-static const TArray<FName, TInlineAllocator<2>> Menus = {
-	"LevelEditor.ActorContextMenu.EditSubMenu",
-	"LevelEditor.LevelEditorSceneOutliner.ContextMenu.EditSubMenu"
-};
-
 void FAdvancedRenamerLevelEditorIntegration::Initialize()
 {
 	using namespace UE::AdvancedRenamer::Private;
 
 	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	LevelEditorCreatedDelegateHandle = LevelEditorModule.OnLevelEditorCreated().AddStatic(&OnLevelEditorCreated);
-}
 
-void FAdvancedRenamerLevelEditorIntegration::InitializeMenu()
-{
 	const FAdvancedRenamerCommands& AdvRenCommands = FAdvancedRenamerCommands::Get();
+
+	static const TArray<FName, TInlineAllocator<2>> Menus = {
+		"LevelEditor.ActorContextMenu.EditSubMenu",
+		"LevelEditor.LevelEditorSceneOutliner.ContextMenu.EditSubMenu"
+	};
 
 	const TAttribute<FText> TextAttribute;
 	const FSlateIcon RenameIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Rename");
@@ -150,18 +147,5 @@ void FAdvancedRenamerLevelEditorIntegration::Shutdown()
 	if (FLevelEditorModule* LevelEditorModule = FModuleManager::LoadModulePtr<FLevelEditorModule>("LevelEditor"))
 	{
 		LevelEditorModule->OnLevelEditorCreated().Remove(LevelEditorCreatedDelegateHandle);
-		LevelEditorCreatedDelegateHandle.Reset();
-	}
-}
-
-void FAdvancedRenamerLevelEditorIntegration::ShutdownMenu()
-{
-	if (UToolMenus* ToolMenus = UToolMenus::Get())
-	{
-		for (const FName& Menu : Menus)
-		{
-			ToolMenus->RemoveEntry(Menu, NAME_None, TEXT("RenameSelectedActors"));
-			ToolMenus->RemoveEntry(Menu, NAME_None, TEXT("RenameSharedClassActors"));
-		}
 	}
 }

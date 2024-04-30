@@ -22,13 +22,13 @@ void FAdvancedRenamerCommands::RegisterCommands()
 {
 	UI_COMMAND(RenameSelectedActors
 		, "Rename Selected Actors"
-		, "Opens the Batch Renamer Panel to rename all selected actors."
+		, "Opens the Advanced Renamer Panel to rename all selected actors."
 		, EUserInterfaceActionType::Button
 		, FInputChord())
 
 	UI_COMMAND(RenameSharedClassActors
 		, "Rename Actors of Selected Actor Classes"
-		, "Opens the Batch Renamer Panel to rename all actors sharing a class with any selected actor."
+		, "Opens the Advanced Renamer Panel to rename all actors sharing a class with any selected actor."
 		, EUserInterfaceActionType::Button
 		, FInputChord())
 }
