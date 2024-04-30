@@ -25,7 +25,9 @@ class FDataflowConstructionScene;
 class FDataflowSimulationViewportClient;
 class UDataflowBaseContent;
 class FDataflowSimulationScene;
+class FDataflowSkeletonView;
 class UDataflowEditor;
+
 
 namespace Dataflow
 {
@@ -93,7 +95,7 @@ private:
 	// Spawning of all the additional tabs (viewport,details ones are coming from the base asset toolkit)
 	TSharedRef<SDockTab> SpawnTab_GraphCanvas(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_NodeDetails(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_Skeletal(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_SkeletonView(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SelectionView(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_CollectionSpreadSheet(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
@@ -123,7 +125,7 @@ private:
 	// List of all the tab names ids that will be used to identify the editor widgets
 	static const FName GraphCanvasTabId;
 	static const FName NodeDetailsTabId;
-	static const FName SkeletalTabId;
+	static const FName SkeletonViewTabId;
 	static const FName SelectionViewTabId_1;
 	static const FName SelectionViewTabId_2;
 	static const FName SelectionViewTabId_3;
@@ -139,7 +141,7 @@ private:
 	TSharedPtr<SDataflowSimulationViewport> DataflowSimulationViewport;
 	TSharedPtr<SDataflowGraphEditor> GraphEditor;
 	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
-	TSharedPtr<class ISkeletonTree> SkeletalEditor;
+	TSharedPtr<FDataflowSkeletonView> SkeletonEditorView;
 	TSharedPtr<IDetailsView> AssetDetailsEditor;
 	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_1;
 	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_2;
@@ -154,7 +156,6 @@ private:
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);
     TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(UObject* ObjectToEdit);
     TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
-	TSharedPtr<ISkeletonTree> CreateSkeletalEditorWidget();
 
 	/** Create the simulation viewport client */
 	void CreateSimulationViewportClient();

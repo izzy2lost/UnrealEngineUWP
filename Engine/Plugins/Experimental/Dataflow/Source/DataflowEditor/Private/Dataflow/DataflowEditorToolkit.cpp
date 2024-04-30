@@ -8,6 +8,7 @@
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowConstructionScene.h"
 #include "Dataflow/DataflowConstructionViewportClient.h"
 #include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowEditorCommands.h"
@@ -25,6 +26,7 @@
 #include "Dataflow/DataflowConstructionScene.h"
 #include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSchema.h"
+#include "Dataflow/DataflowSkeletonView.h"
 #include "Dataflow/DataflowSimulationViewportClient.h"
 #include "DynamicMeshBuilder.h"
 #include "EditorModeManager.h"
@@ -48,14 +50,13 @@
 #include "Styling/SlateStyleRegistry.h"
 #include "Widgets/Docking/SDockTab.h"
 
-
 #define LOCTEXT_NAMESPACE "DataflowEditorToolkit"
 
 //DEFINE_LOG_CATEGORY_STATIC(EditorToolkitLog, Log, All);
 
 const FName FDataflowEditorToolkit::GraphCanvasTabId(TEXT("DataflowEditor_GraphCanvas"));
 const FName FDataflowEditorToolkit::NodeDetailsTabId(TEXT("DataflowEditor_NodeDetails"));
-const FName FDataflowEditorToolkit::SkeletalTabId(TEXT("DataflowEditor_Skeletal"));
+const FName FDataflowEditorToolkit::SkeletonViewTabId(TEXT("DataflowEditor_SkeletonView"));
 const FName FDataflowEditorToolkit::SelectionViewTabId_1(TEXT("DataflowEditor_SelectionView_1"));
 const FName FDataflowEditorToolkit::SelectionViewTabId_2(TEXT("DataflowEditor_SelectionView_2"));
 const FName FDataflowEditorToolkit::SelectionViewTabId_3(TEXT("DataflowEditor_SelectionView_3"));
@@ -418,8 +419,6 @@ void FDataflowEditorToolkit::CreateWidgets()
 			NodeDetailsEditor = CreateNodeDetailsEditorWidget(DataflowContent->GetDataflowOwner());
 			AssetDetailsEditor = CreateAssetDetailsEditorWidget(DataflowContent->GetDataflowOwner());
 			GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
-			SkeletalEditor = CreateSkeletalEditorWidget();
-
 			CreateSimulationViewportClient();
 		}
 	}
@@ -532,6 +531,8 @@ void FDataflowEditorToolkit::OnNodeTitleCommitted(const FText& InNewText, ETextC
 	FDataflowEditorCommands::OnNodeTitleCommitted(InNewText, InCommitType, GraphNode);
 }
 
+
+
 void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewSelection)
 {
 	auto FindDataflowNodesInSet = [](const TSet<UObject*>& InSet) {
@@ -610,6 +611,8 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 			SelectedComponents->EndBatchSelectOperation();
 		}
 	};
+
+
 
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
@@ -839,21 +842,6 @@ TSharedPtr<IDetailsView> FDataflowEditorToolkit::CreateAssetDetailsEditorWidget(
 
 }
 
-TSharedPtr<ISkeletonTree> FDataflowEditorToolkit::CreateSkeletalEditorWidget()
-{
-	if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(GetDataflowContent()))
-	{
-		if (SkeletalContent->GetDataflowAsset())
-		{
-			const FSkeletonTreeArgs SkeletonTreeArgs;
-			ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
-			TSharedPtr<ISkeletonTree> SkeletonTree = SkeletonEditorModule.CreateSkeletonTree(SkeletalContent->GetSkeleton(), SkeletonTreeArgs);
-			return SkeletonTree;
-		}
-	}
-	return TSharedPtr<ISkeletonTree>(nullptr);
-}
-
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_AssetDetails(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == DetailsTabID);
@@ -899,24 +887,36 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_NodeDetails(const FSpawnTa
 		];
 }
 
-TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_Skeletal(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SkeletonView(const FSpawnTabArgs& Args)
 {
-	check(Args.GetTabId() == SkeletalTabId);
-	if(SkeletalEditor)
+	check(Args.GetTabId() == SkeletonViewTabId);
+
+
+	SkeletonEditorView = MakeShared<FDataflowSkeletonView>(DataflowEditor);
+
+	if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(GetDataflowContent()))
 	{
-		if (const TObjectPtr<UDataflowSkeletalContent> EditorContent = Cast<UDataflowSkeletalContent>(GetDataflowContent()))
+		if (SkeletalContent->GetDataflowAsset())
 		{
-			SkeletalEditor->SetSkeletalMesh(EditorContent->GetSkeletalMesh());
+			SkeletonEditorView->SetSkeleton(SkeletalContent->GetSkeleton());
 		}
-		return SNew(SDockTab)
-			.Label(LOCTEXT("DataflowEditor_Skeletal_TabTitle", "Skeletal Hierarchy"))
-			[
-				SkeletalEditor.ToSharedRef()
-			];
 	}
+	ViewListeners.Add(SkeletonEditorView.Get());
+
+	FSkeletonTreeArgs SkeletonTreeArgs;
+	//TSharedRef<FDataflowSkeletonView> DataflowSkeletonViewRef = SkeletonEditorView.ToSharedRef();
+	SkeletonTreeArgs.OnSelectionChanged = FOnSkeletonTreeSelectionChanged::CreateSP(SkeletonEditorView.ToSharedRef(), &FDataflowSkeletonView::SkeletonViewSelectionChanged);
+	SkeletonTreeArgs.ContextName = GetToolkitFName();
+
+	ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
+	TSharedPtr<ISkeletonTree> SkeletonEditor = SkeletonEditorModule.CreateSkeletonTree(SkeletonEditorView->GetSkeleton(), SkeletonTreeArgs);
+	SkeletonEditorView->SetSkeletonEditor(SkeletonEditor);
 
 	return SNew(SDockTab)
-		.Label(LOCTEXT("DataflowEditor_Skeletal_TabTitle", "Skeletal Hierarchy"));
+		.Label(LOCTEXT("DataflowEditor_Skeleton_TabTitle", "Skeleton View"))
+		[
+			SkeletonEditor.ToSharedRef()
+		];
 }
 
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawnTabArgs& Args)
@@ -1142,10 +1142,10 @@ void FDataflowEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& 
 		.SetGroup(EditorMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
-	InTabManager->RegisterTabSpawner(SkeletalTabId, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_Skeletal))
-		.SetDisplayName(LOCTEXT("DataflowSkeletalTab", "Skeletal Hierarchy"))
+	InTabManager->RegisterTabSpawner(SkeletonViewTabId, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_SkeletonView))
+		.SetDisplayName(LOCTEXT("DataflowSkeletonTab", "Skeleton View"))
 		.SetGroup(EditorMenuCategory.ToSharedRef())
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.SkeletalHierarchy"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.SkeletonHierarchy"));
 
 	InTabManager->RegisterTabSpawner(SelectionViewTabId_1, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_SelectionView))
 		.SetDisplayName(LOCTEXT("DataflowSelectionViewTab1", "Selection View 1"))
@@ -1194,7 +1194,7 @@ void FDataflowEditorToolkit::UnregisterTabSpawners(const TSharedRef<class FTabMa
 
 	InTabManager->UnregisterTabSpawner(GraphCanvasTabId);
 	InTabManager->UnregisterTabSpawner(NodeDetailsTabId);
-	InTabManager->UnregisterTabSpawner(SkeletalTabId);
+	InTabManager->UnregisterTabSpawner(SkeletonViewTabId);
 	InTabManager->UnregisterTabSpawner(SelectionViewTabId_1);
 	InTabManager->UnregisterTabSpawner(SelectionViewTabId_2);
 	InTabManager->UnregisterTabSpawner(SelectionViewTabId_3);
@@ -1239,6 +1239,10 @@ void FDataflowEditorToolkit::OnTabClosed(TSharedRef<SDockTab> Tab)
 	else if (Tab->GetTabLabel().EqualTo(FText::FromString("Collection SpreadSheet 4")))
 	{
 		ViewListeners.Remove(DataflowCollectionSpreadSheet_4.Get());
+	}
+	else if (Tab->GetTabLabel().EqualTo(FText::FromString("Skeleton View")))
+	{
+		ViewListeners.Remove(SkeletonEditorView.Get());
 	}
 }
 

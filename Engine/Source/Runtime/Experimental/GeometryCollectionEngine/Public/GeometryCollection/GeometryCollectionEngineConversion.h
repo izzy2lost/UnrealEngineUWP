@@ -210,4 +210,13 @@ public:
 	*/
 	static GEOMETRYCOLLECTIONENGINE_API void ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents = false);
 
+	/**
+	*  Converts an FManagedArrayCollection to a USkeleton
+	*  @param InManagedArrayCollection : Collection that supports transform hierarchy
+	*  @param OutSkeleton : USkeleton to populate
+	*  @param OutIndexRemap : Remapping from Collection transforms to skeletal transforms.
+	*/
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertCollectionToSkeleton(const FManagedArrayCollection& InCollection, USkeleton* OutSkeleton, TArray<int32>& OutIndexRemap);
+
+
 };

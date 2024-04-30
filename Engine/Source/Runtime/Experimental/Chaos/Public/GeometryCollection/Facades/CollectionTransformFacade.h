@@ -26,6 +26,10 @@ namespace GeometryCollection::Facades
 		/** Is the facade defined constant. */
 		bool IsConst() const { return ParentAttribute.IsConst(); }
 
+		/** Get the number of transforms */
+		CHAOS_API int32 Num() const;
+
+
 		/** Gets the root index */
 		CHAOS_API TArray<int32> GetRootIndices() const;
 
@@ -43,6 +47,11 @@ namespace GeometryCollection::Facades
 		* Returns the child indicesfrom the collection. Null if not initialized.
 		*/
 		const TManagedArray<FTransform3f>* FindTransforms() const { return TransformAttribute.Find(); }
+
+		/**
+		* Returns the bone names from the collection. Null if not initialized.
+		*/
+		const TManagedArray<FString>* FindBoneNames() const { return BoneNameAttribute.Find(); }
 
 		/**
 		* Returns array of transforms for transforming from bone space to collection space
@@ -64,6 +73,13 @@ namespace GeometryCollection::Facades
 
 		/** Transforms selected bones in the collection */
 		CHAOS_API void Transform(const FTransform& InTransform, const TArray<int32>& InSelection);
+
+		/** Check if the facade has the bone name attribute. */
+		CHAOS_API bool HasBoneNameAttribute() const;
+
+		/** Get a bone name from the index if the facade has the attribute defined. */
+		CHAOS_API FString BoneName(int32 Index) const;
+
 
 		/** Builds a FMatrix from all the components */
 		static CHAOS_API FMatrix BuildMatrix(const FVector& Translate,
@@ -93,5 +109,6 @@ namespace GeometryCollection::Facades
 		TManagedArrayAccessor<int32>		ParentAttribute;
 		TManagedArrayAccessor<TSet<int32>>	ChildrenAttribute;
 		TManagedArrayAccessor<FTransform3f>	TransformAttribute;
+		TManagedArrayAccessor<FString>	    BoneNameAttribute;
 	};
 }

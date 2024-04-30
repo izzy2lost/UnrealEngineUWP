@@ -33,6 +33,7 @@
 #include "Physics/Experimental/ChaosInterfaceUtils.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Rendering/SkeletalMeshRenderData.h"
+#include "ReferenceSkeleton.h"
 #include "SkeletalMeshAttributes.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
@@ -1665,5 +1666,71 @@ void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const
 	}
 #endif //WITH_EDITORONLY_DATA
 }
+
+
+void FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(const FManagedArrayCollection& InCollection, USkeleton* OutSkeleton, TArray<int32>& OutIndexRemap)
+{
+	GeometryCollection::Facades::FCollectionTransformFacade Transforms(InCollection);
+	if (Transforms.IsValid() && Transforms.HasBoneNameAttribute() && OutSkeleton)
+	{
+		OutIndexRemap.Init(INDEX_NONE, Transforms.Num());
+		auto AddMapping = [&OutIndexRemap](int32 A, int32 B)
+		{
+			OutIndexRemap[A] = B;
+		};
+
+		FReferenceSkeletonModifier Edit(OutSkeleton);
+		auto AddChildren = [&Transforms, &Edit, &AddMapping](const TArray<int32>& CollectionChildren)
+		{
+			TQueue<int32> Children;
+			auto Enqueue = [&Children](const TArray<int32>& List)
+			{
+				for (int32 Elem : List)
+					Children.Enqueue(Elem);
+			};
+
+			int CurrentIndex = INDEX_NONE;
+			Enqueue(CollectionChildren);
+			while (!Children.IsEmpty())
+			{
+				Children.Dequeue(CurrentIndex);
+
+				int32 CollectionParentIndex = (*Transforms.GetParents())[CurrentIndex];
+				int32 SkeletionParentIndex = Edit.FindBoneIndex(FName((*Transforms.FindBoneNames())[CollectionParentIndex]));
+
+				FName BoneName = FName((*Transforms.FindBoneNames())[CurrentIndex]);
+				FTransform Transform = FTransform((*Transforms.FindTransforms())[CurrentIndex]);
+				FMeshBoneInfo Info(BoneName, BoneName.ToString(), SkeletionParentIndex);
+				Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
+				AddMapping(CurrentIndex, Edit.GetReferenceSkeleton().GetRawBoneNum());
+
+				Enqueue((*Transforms.FindChildren())[CurrentIndex].Array());
+			}
+		};
+
+
+		// must insert in decending order from parent to child. 
+		TArray<FString> BoneNameStrings = Transforms.FindBoneNames()->GetConstArray();
+		for (int i = 0; i < Transforms.GetParents()->Num(); i++)
+		{
+			if ((*Transforms.GetParents())[i] == INDEX_NONE) // No parent
+			{
+				FName BoneName = FName((*Transforms.FindBoneNames())[i]);
+				FTransform Transform = FTransform((*Transforms.FindTransforms())[i]);
+				FMeshBoneInfo Info(BoneName, BoneName.ToString(), INDEX_NONE);
+				Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
+				AddMapping(i,Edit.GetReferenceSkeleton().GetNum());
+
+				if ((*Transforms.FindChildren())[i].Num())
+				{
+					AddChildren((*Transforms.FindChildren())[i].Array());
+				}
+			}
+		}
+
+		UE_LOG(UGeometryCollectionConversionLogging, Log, TEXT("FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(NumTransforms:%d)"), OutSkeleton->GetReferenceSkeleton().GetRawBoneNum());
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE 

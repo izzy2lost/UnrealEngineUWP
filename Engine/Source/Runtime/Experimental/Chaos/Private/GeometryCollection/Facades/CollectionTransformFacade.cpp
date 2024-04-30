@@ -11,18 +11,40 @@ namespace GeometryCollection::Facades
 		: ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, ChildrenAttribute(InCollection, FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup)
 		, TransformAttribute(InCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup)
+		, BoneNameAttribute(InCollection, "BoneName", FTransformCollection::TransformGroup)
 	{}
 
 	FCollectionTransformFacade::FCollectionTransformFacade(const FManagedArrayCollection& InCollection)
 		: ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, ChildrenAttribute(InCollection, FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup)
 		, TransformAttribute(InCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup)
+		, BoneNameAttribute(InCollection, "BoneName", FTransformCollection::TransformGroup)
 	{}
 
 	bool FCollectionTransformFacade::IsValid() const
 	{
 		return ParentAttribute.IsValid() && ChildrenAttribute.IsValid() && TransformAttribute.IsValid();
 	}
+
+	int32 FCollectionTransformFacade::Num() const
+	{
+		return ParentAttribute.Num();
+	}
+
+	bool FCollectionTransformFacade::HasBoneNameAttribute() const
+	{
+		return BoneNameAttribute.IsValid();
+	}
+
+	FString FCollectionTransformFacade::BoneName(int32 Index) const
+	{
+		if(BoneNameAttribute.IsValid() && BoneNameAttribute.IsValidIndex(Index))
+		{
+			return BoneNameAttribute[Index];
+		}
+		return FString();
+	}
+
 
 	TArray<int32> FCollectionTransformFacade::GetRootIndices() const
 	{
