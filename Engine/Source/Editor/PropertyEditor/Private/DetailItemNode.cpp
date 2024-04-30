@@ -22,6 +22,7 @@ FDetailItemNode::FDetailItemNode(const FDetailLayoutCustomization& InCustomizati
 	, ParentGroup(InParentGroup)
 	, IsParentEnabled( InIsParentEnabled )
 	, CachedItemVisibility( EVisibility::Visible )
+	, bForceHidden( false )
 	, bShouldBeVisibleDueToFiltering( false )
 	, bShouldBeVisibleDueToChildFiltering( false )
 	, bTickable( false )
@@ -525,7 +526,7 @@ bool FDetailItemNode::ShouldBeExpanded() const
 ENodeVisibility FDetailItemNode::GetVisibility() const
 {
 	ENodeVisibility Visibility = CachedItemVisibility == EVisibility::Collapsed ? ENodeVisibility::ForcedHidden : ENodeVisibility::Visible;
-	if(Customization.IsHidden())
+	if(Customization.IsHidden() || bForceHidden)
 	{
 		Visibility = ENodeVisibility::ForcedHidden;
 	}
@@ -665,20 +666,6 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 	bool bPassesAllFilters = true;
 	
 	TSharedPtr<FPropertyNode> PropertyNodePin = InCustomization.GetPropertyNode();
-	
-	if( PropertyNodePin.IsValid())
-	{
-		if (!InFilter.bShowLooseProperties)
-		{
-			if (FProperty* Property = PropertyNodePin->GetProperty())
-			{
-				if (Property->GetBoolMetaData(NAME_IsLooseMetadata))
-				{
-					return false;
-				}
-			}
-		}
-	}
 
 	if( InFilter.FilterStrings.Num() > 0 || 
 		InFilter.bShowOnlyModified == true || 
@@ -975,6 +962,29 @@ void FDetailItemNode::FilterNode(const FDetailFilter& InFilter)
 		bShouldBeVisibleDueToFiltering = PassesAllFilters(this, Customization, InFilter, ParentGroup.Pin()->GetGroupName().ToString());
 	}
 
+	// set bForceHidden if this node is loose and loose properties are hidden
+	if( TSharedPtr<FPropertyNode> PropertyNodePin = Customization.GetPropertyNode())
+	{
+		if (LIKELY(!InFilter.bShowLooseProperties))
+		{
+			if (FProperty* Property = PropertyNodePin->GetProperty())
+			{
+				if (Property->GetBoolMetaData(NAME_IsLooseMetadata))
+				{
+					bForceHidden = true;
+				}
+			}
+		}
+		if (!bForceHidden && InFilter.ShouldForceHideProperty.IsBound())
+		{
+			if (InFilter.ShouldForceHideProperty.Execute(PropertyNodePin.ToSharedRef()))
+			{
+				bForceHidden = true;
+			}
+		}
+	}
+
+
 	bShouldBeVisibleDueToChildFiltering = false;
 
 	// Filter each child
@@ -987,7 +997,10 @@ void FDetailItemNode::FilterNode(const FDetailFilter& InFilter)
 		// filtered incorrectly because they have no means of discovering if their parents were filtered.
 		if ( bShouldBeVisibleDueToFiltering )
 		{
-			Child->FilterNode(FDetailFilter());
+			FDetailFilter ChildFilter;
+			ChildFilter.bShowLooseProperties = InFilter.bShowLooseProperties; // bShowLooseProperties is inherited from parent regardless
+			ChildFilter.ShouldForceHideProperty = InFilter.ShouldForceHideProperty; // ShouldForceHideProperty is inherited from parent regardless
+			Child->FilterNode(ChildFilter);
 
 			// The child should be visible, but maybe something else has it hidden, check if it's
 			// visible just for safety reasons.

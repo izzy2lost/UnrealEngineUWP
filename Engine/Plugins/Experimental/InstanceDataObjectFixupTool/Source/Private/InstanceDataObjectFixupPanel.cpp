@@ -9,6 +9,7 @@
 #include "InstanceDataObjectFixupDetailCustomization.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
+#include "Editor/PropertyEditor/Private/PropertyNode.h"
 #include "UObject/PropertyBagRepository.h"
 
 #include "UObject/OverriddenPropertySet.h"
@@ -299,6 +300,14 @@ TSharedPtr<IDetailsView>& FInstanceDataObjectFixupPanel::GenerateDetailsView(boo
 	DetailsViewArgs.ScrollbarAlignment = bScrollbarOnLeft ? HAlign_Left : HAlign_Right;
 	DetailsViewArgs.DetailsNameWidgetOverrideCustomization = MakeShared<FInstanceDataObjectNameWidgetOverride>(SharedThis(this));
 	DetailsViewArgs.bShowLooseProperties = !HasViewFlag(EViewFlags::HideLooseProperties);
+
+	if (HasViewFlag(EViewFlags::IncludeOnlySetBySerialization))
+	{
+		DetailsViewArgs.ShouldForceHideProperty.BindLambda([this](const TSharedRef<FPropertyNode>& PropertyNode)->bool
+		{
+			return !IsInRedirectedPropertyTree(*FPropertyNode::CreatePropertyPath(PropertyNode));
+		});
+	}
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);

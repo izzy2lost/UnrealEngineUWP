@@ -54,4 +54,8 @@ struct FDetailFilter
 	TSet<FPropertyPath> PropertyAllowList;
 	/** The set of selected sections to show. If empty, all sections are shown.*/
 	TSet<FName> VisibleSections;
+
+	/** Delegate that determines whether a property should be forced hidden - evaluated on panel refresh */
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldForceHideProperty, const TSharedRef<class FPropertyNode>&);
+	FShouldForceHideProperty ShouldForceHideProperty;
 };

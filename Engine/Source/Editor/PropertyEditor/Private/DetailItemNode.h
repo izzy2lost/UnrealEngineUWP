@@ -123,6 +123,8 @@ private:
 	TAttribute<bool> IsParentEnabled;
 	/** Cached visibility of this node */
 	EVisibility CachedItemVisibility;
+	/** If true, this node will be hidden regardless of if it's parent or children would've otherwise overridden the filter result */
+	bool bForceHidden;
 	/** True if this node passes filtering */
 	bool bShouldBeVisibleDueToFiltering;
 	/** True if this node is visible because its children are filtered successfully */

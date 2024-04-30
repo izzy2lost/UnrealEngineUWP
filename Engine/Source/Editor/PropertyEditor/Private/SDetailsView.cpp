@@ -76,6 +76,7 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 	}
 
 	CurrentFilter.bShowLooseProperties = InDetailsViewArgs.bShowLooseProperties;
+	CurrentFilter.ShouldForceHideProperty = InDetailsViewArgs.ShouldForceHideProperty;
 
 	ColumnSizeData.SetValueColumnWidth(DetailsViewArgs.ColumnWidth);
 	ColumnSizeData.SetRightColumnMinWidth(DetailsViewArgs.RightColumnMinWidth);

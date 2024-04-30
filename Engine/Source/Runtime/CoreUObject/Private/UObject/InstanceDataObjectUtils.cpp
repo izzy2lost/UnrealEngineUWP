@@ -677,8 +677,11 @@ namespace UE
 		if (ensureMsgf(ResolvePropertyPathName(Object, Path, ResolvedData, ResolvedProperty, ResolvedOwnerData, ResolvedOwnerProperty),
 			TEXT("Failed to resolve property path name %s"), *WriteToString<256>(Path)))
 		{
-			// only mark properties set if they're in structs/classes
-			if (ResolvedOwnerProperty)
+			if (Path.GetSegmentCount() == 1) // for paths of length == 1, the owner is the Object
+			{
+				MarkPropertySetBySerialization(Object->GetClass(), Object, ResolvedData);
+			}
+			else if (ResolvedOwnerProperty) // only mark properties set if they're in structs/classes
 			{
 				MarkPropertySetBySerialization(ResolvedOwnerProperty->Struct, ResolvedOwnerData, ResolvedData);
 			}
