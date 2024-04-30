@@ -268,7 +268,7 @@ private:
 
 	bool InitConstraints();
 
-	void UpdateEffectorDepths();
+	void UpdateEffectorDepths(bool bForceUpdate);
 
 	void AddBodyForBone(PBIK::FBone* Bone);
 
