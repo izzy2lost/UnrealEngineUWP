@@ -73,6 +73,19 @@ namespace BuildSettings
 	{
 		return TEXT(BUILD_SOURCE_URL);
 	}
+
+	const TCHAR* GetBuildUser()
+	{
+		return TEXT(BUILD_USER);
+	}
+
+	const TCHAR* GetBuildUserDomain()
+	{
+		return TEXT(BUILD_USERDOMAINNAME);
+	}
+
+	const TCHAR* GetBuildMachine()
+	{
+		return TEXT(BUILD_MACHINENAME);
+	}
 }
-
-

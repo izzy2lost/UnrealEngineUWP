@@ -1250,6 +1250,12 @@ namespace UnrealBuildTool
 		public bool bForceEnableRTTI { get; set; }
 
 		/// <summary>
+		/// Enable BuildSettings to contain private information about build. Such as machine name, user name and user domain name (exposed in BuildSettings.h)
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bEnablePrivateBuildInformation { get; set; }
+
+		/// <summary>
 		/// Enable Position Independent Executable (PIE). Has an overhead cost
 		/// </summary>
 		[CommandLine("-pie")]

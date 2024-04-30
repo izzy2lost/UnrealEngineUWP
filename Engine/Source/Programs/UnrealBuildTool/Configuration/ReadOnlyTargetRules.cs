@@ -219,6 +219,8 @@ namespace UnrealBuildTool
 
 		public bool bForceEnableRTTI => Inner.bForceEnableRTTI;
 
+		public bool bEnablePrivateBuildInformation => Inner.bEnablePrivateBuildInformation;
+
 		public bool bEnablePIE => Inner.bEnablePIE;
 
 		public bool bEnableStackProtection => Inner.bEnableStackProtection;

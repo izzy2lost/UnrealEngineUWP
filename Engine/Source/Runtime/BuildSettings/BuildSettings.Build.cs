@@ -31,5 +31,18 @@ public class BuildSettings : ModuleRules
 		PrivateDefinitions.Add($"BRANCH_NAME=\"{Target.Version.BranchName}\"");
 		PrivateDefinitions.Add($"BUILD_VERSION=\"{Target.BuildVersion}\"");
 		PrivateDefinitions.Add($"BUILD_SOURCE_URL=\"{Target.Version.BuildURL}\"");
+
+		string userName = string.Empty;
+		string userDomainName = string.Empty;
+		string machineName = string.Empty;
+		if (Target.bEnablePrivateBuildInformation)
+		{
+			userName = Environment.UserName;
+			userDomainName = Environment.UserDomainName;
+			machineName = UnrealBuildBase.Unreal.MachineName;
+		}
+		PrivateDefinitions.Add($"BUILD_USER=\"{userName}\"");
+		PrivateDefinitions.Add($"BUILD_USERDOMAINNAME=\"{userDomainName}\"");
+		PrivateDefinitions.Add($"BUILD_MACHINENAME=\"{machineName}\"");
 	}
 }
