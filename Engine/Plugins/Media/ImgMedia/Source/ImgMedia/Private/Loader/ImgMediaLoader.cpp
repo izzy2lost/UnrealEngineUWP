@@ -71,7 +71,7 @@ namespace ImgMediaLoader
 		// We start one frame away, since it's generally to late to enqueue additional update work for the current cached frame.
 		for (int32 Offset = 1; Offset <= OffsetCount; ++Offset)
 		{
-			int32 OffsetFrame = FMath::Wrap(OriginFrame + PlayRateSign * Offset, 0, TotalNumFrames - 1);
+			int32 OffsetFrame = FMath::WrapExclusive(OriginFrame + PlayRateSign * Offset, 0, TotalNumFrames);
 			if (OffsetFrame == CurrentFrame)
 			{
 				return true;

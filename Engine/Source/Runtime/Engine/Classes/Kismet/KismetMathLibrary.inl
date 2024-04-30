@@ -273,7 +273,9 @@ int32 UKismetMathLibrary::Clamp(int32 V, int32 A, int32 B)
 KISMET_MATH_FORCEINLINE
 int32 UKismetMathLibrary::Wrap(int32 Value, int32 Min, int32 Max)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return FMath::Wrap(Value, Min, Max);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 KISMET_MATH_FORCEINLINE

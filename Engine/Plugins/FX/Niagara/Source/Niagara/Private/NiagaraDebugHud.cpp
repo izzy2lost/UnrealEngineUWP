@@ -3294,7 +3294,7 @@ void FNiagaraDebugHud::DrawMessages(class FNiagaraWorldManager* WorldManager, cl
 void FNiagaraDebugHudStatHistory::AddFrame_GT(double Time)
 {
 	GTFrames.SetNumZeroed(NiagaraDebugLocal::Settings.PerfHistoryFrames);
-	CurrFrame = FMath::Wrap(CurrFrame + 1, 0, GTFrames.Num() - 1);
+	CurrFrame = FMath::WrapExclusive(CurrFrame + 1, 0, GTFrames.Num());
 	GTFrames[CurrFrame] = Time;
 }
 
@@ -3302,7 +3302,7 @@ void FNiagaraDebugHudStatHistory::AddFrame_RT(double Time)
 {
 	FScopeLock Lock(&NiagaraDebugLocal::RTFramesGuard);
 	RTFrames.SetNumZeroed(NiagaraDebugLocal::Settings.PerfHistoryFrames);
-	CurrFrameRT = FMath::Wrap(CurrFrameRT + 1, 0, RTFrames.Num() - 1);
+	CurrFrameRT = FMath::WrapExclusive(CurrFrameRT + 1, 0, RTFrames.Num());
 	RTFrames[CurrFrameRT] = Time;
 }
 
@@ -3310,7 +3310,7 @@ void FNiagaraDebugHudStatHistory::AddFrame_GPU(double Time)
 {
 	FScopeLock Lock(&NiagaraDebugLocal::RTFramesGuard);
 	GPUFrames.SetNumZeroed(NiagaraDebugLocal::Settings.PerfHistoryFrames);
-	CurrFrameGPU = FMath::Wrap(CurrFrameGPU + 1, 0, GPUFrames.Num() - 1);
+	CurrFrameGPU = FMath::WrapExclusive(CurrFrameGPU + 1, 0, GPUFrames.Num());
 	GPUFrames[CurrFrameGPU] = Time;
 }
 
@@ -3325,7 +3325,7 @@ void FNiagaraDebugHudStatHistory::GetHistoryFrames_GT(TArray<double>& OutHistory
 	do
 	{
 		OutHistoryGT.Add(GTFrames[WriteFrame]);
-		WriteFrame = FMath::Wrap(WriteFrame + 1, 0, GTFrames.Num() - 1);
+		WriteFrame = FMath::WrapExclusive(WriteFrame + 1, 0, GTFrames.Num());
 	} while (WriteFrame != CurrFrame);
 }
 
@@ -3343,7 +3343,7 @@ void FNiagaraDebugHudStatHistory::GetHistoryFrames_RT(TArray<double>& OutHistory
 	do 
 	{
 		OutHistoryRT.Add(RTFrames[WriteFrame]);
-		WriteFrame = FMath::Wrap(WriteFrame + 1, 0, RTFrames.Num() - 1);
+		WriteFrame = FMath::WrapExclusive(WriteFrame + 1, 0, RTFrames.Num());
 	} while (WriteFrame != CurrFrameRT);
 }
 
@@ -3361,7 +3361,7 @@ void FNiagaraDebugHudStatHistory::GetHistoryFrames_GPU(TArray<double>& OutHistor
 	do
 	{
 		OutHistoryGPU.Add(GPUFrames[WriteFrame]);
-		WriteFrame = FMath::Wrap(WriteFrame + 1, 0, GPUFrames.Num() - 1);
+		WriteFrame = FMath::WrapExclusive(WriteFrame + 1, 0, GPUFrames.Num());
 	} while (WriteFrame != CurrFrameGPU);
 }
 

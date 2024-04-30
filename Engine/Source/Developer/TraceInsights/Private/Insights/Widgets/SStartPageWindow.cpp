@@ -2588,7 +2588,7 @@ void STraceStoreWindow::RefreshTraceList()
 					DirColor[ColorIdx],
 					ETraceDirOperations::Delete|ETraceDirOperations::Explore
 				));
-				ColorIdx = FMath::Wrap(++ColorIdx, int32(-1), int32(UE_ARRAY_COUNT(DirColor))-1);
+				ColorIdx = FMath::WrapExclusive(++ColorIdx, (int32)0, int32(UE_ARRAY_COUNT(DirColor)));
 			}
 			if (WatchDirsListView)
 			{
