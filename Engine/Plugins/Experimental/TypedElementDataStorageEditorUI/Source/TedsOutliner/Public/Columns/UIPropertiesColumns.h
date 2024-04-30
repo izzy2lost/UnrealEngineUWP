@@ -21,5 +21,5 @@ struct FUIHeaderPropertiesColumn final : public FTypedElementDataStorageColumn
 	 * FillSized: Column stretches as Fill but is initialized with this width in slate units
 	 */
 	UPROPERTY()
-	float Width;
+	float Width = 0.0f;
 };
