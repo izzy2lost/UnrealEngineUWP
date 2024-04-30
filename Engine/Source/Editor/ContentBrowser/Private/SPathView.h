@@ -373,7 +373,13 @@ private:
 	/** Toggle plugin filter. */
 	void PluginPathFilterClicked(TSharedRef<FContentBrowserPluginFilter> Filter);
 
-	/** Returns true if filter is being used. */
+	/** Return whether the given filter should be shown enabled in the UI. */
+	bool IsPluginPathFilterChecked(TSharedRef<FContentBrowserPluginFilter> Filter) const;
+
+	/** 
+	 * Returns true if filter is being used. Note that because some filters are 'inverse' this is not the same as whether
+	 * the filter should be visibly checked in the UI to be shown as 'enabled' to the user. 
+	 */
 	bool IsPluginPathFilterInUse(TSharedRef<FContentBrowserPluginFilter> Filter) const;
 
 	TArray<FName> GetDefaultPathsToExpand() const;
