@@ -43,6 +43,7 @@ DETOURED_FUNCTIONS_MEMORY
 #include "UbaApplicationRules.h"
 #include "UbaDetoursShared.h"
 #include "UbaDetoursObjFilesPreloader.h"
+#include "UbaDetoursPrepopulatePchFiles.h"
 
 #include "Shlwapi.h"
 #include <detours/detours.h>
@@ -267,7 +268,8 @@ void MemoryFile::EnsureCommited(DetouredHandle& handle, u64 size)
 			if (writtenSize == 0 && !isReported)
 			{
 				u64 newReserve = AlignUp(size, g_pageSize);
-				Rpc_WriteLogf(L"TODO: RE-RESERVING MemoryFile. Initial reserve: %llu, New reserve: %llu. Please fix application rules", reserveSize, newReserve);
+				if (reserveSize)
+					Rpc_WriteLogf(L"TODO: RE-RESERVING MemoryFile. Initial reserve: %llu, New reserve: %llu. Please fix application rules", reserveSize, newReserve);
 				Unreserve();
 				Reserve(newReserve);
 				shouldRemap = false;
@@ -870,6 +872,8 @@ void Init(const DetoursPayload& payload, u64 startTime)
 
 	if (payload.storeObjFilesCompressed && g_rulesIndex == 2) 	// Rules index 2 is link.exe.. compressed obj files is experimental so solution is a bit hacky
 		g_objFilesPreloader.Start(cmdLine);
+	else if (g_rulesIndex == 1 || g_rulesIndex == 7 || g_rulesIndex == 11 || g_rulesIndex == 14)
+		PrepopulatePchIncludedFiles(cmdLine, g_rulesIndex);
 
 	g_stats.attach.time += GetTime() - startTime;
 	g_stats.attach.count = 1;
