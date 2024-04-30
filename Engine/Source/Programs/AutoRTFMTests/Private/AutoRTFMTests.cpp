@@ -22,11 +22,11 @@ public:
 
 	void testRunEnded(const Catch::TestRunStats&) override
 	{
+		FPlatformMisc::RequestExit(false);
+
 		FEngineLoop::AppPreExit();
 		FModuleManager::Get().UnloadModulesAtShutdown();
 		FEngineLoop::AppExit();
-
-		FPlatformMisc::RequestExit(false);
 	}
 };
 
