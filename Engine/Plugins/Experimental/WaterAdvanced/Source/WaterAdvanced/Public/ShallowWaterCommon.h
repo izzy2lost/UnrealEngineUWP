@@ -17,9 +17,7 @@ struct WATERADVANCED_API FShallowWaterSimParameters
 	UPROPERTY(EditAnywhere, Category = "Shallow Water")
 	float WorldGridSize = 2000.f;
 	UPROPERTY(EditAnywhere, Category = "Shallow Water")
-	int32 ResolutionMaxAxis = 512;
-	UPROPERTY(EditAnywhere, Category = "Shallow Water")
-	int32 MaxImpactsPerFrame = 50;
+	int32 ResolutionMaxAxis = 512;	
 };
 
 USTRUCT(BlueprintType)

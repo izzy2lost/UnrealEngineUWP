@@ -155,14 +155,11 @@ public:
 	 */
 	void UpdateGridMovement();
 
-	// #note - these are nonblocking for now
-	UFUNCTION(BlueprintCallable, Category = "Shallow Water")
-	void ResetImpacts();
 	UFUNCTION(BlueprintCallable, Category = "Shallow Water")
 	void RegisterImpact(FVector ImpactPosition, FVector ImpactVelocity, float ImpactRadius);
 	
 	void FlushPendingImpacts();
-	void SetNiagaraImpactVariables(FVector ImpactPosition, FVector ImpactVelocity, float ImpactRadius);
+	void WriteImpactToNDC(FVector ImpactPosition, FVector ImpactVelocity, float ImpactRadius);
 	// Override to return the ECC channel of bullets
 	virtual ECollisionChannel GetImpactCollisionChannel() PURE_VIRTUAL(UShallowWaterSubsystem::GetImpactCollisionChannel, return ECC_WorldDynamic;)
 	
@@ -173,8 +170,7 @@ public:
 
 	void TryUpdateWaterBodyMIDParameters(UWaterBodyComponent* WaterBodyComponent);
 	float GetGridSize() const { return Settings->ShallowWaterSimParameters.WorldGridSize; }
-	int32 GetGridResolution() const { return Settings->ShallowWaterSimParameters.ResolutionMaxAxis; }
-	int32 GetMaxImpactsPerFrame() const { return Settings->ShallowWaterSimParameters.MaxImpactsPerFrame; }
+	int32 GetGridResolution() const { return Settings->ShallowWaterSimParameters.ResolutionMaxAxis; }	
 
 	/*
 	 * Add PA overrides. Designed to be called by Game Feature Plugins. 
@@ -309,9 +305,4 @@ private:
 
 	// Overrides collected from RegisterPhysicsAssetOverridesDataAsset
 	TMap<FGameplayTag, FShallowWaterPhysicsAssetOverride> RegisteredPhysicsAssetProxies;
-	
-	/*
-	 * Impacts
-	 */
-	int CurrentNumImpacts = 0;
 };

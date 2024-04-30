@@ -4,6 +4,8 @@
 
 #include "ShallowWaterSettings.h"
 #include "NiagaraComponent.h"
+#include "NiagaraDataChannel.h"
+#include "NiagaraDataChannelAccessor.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraFunctionLibrary.h"
 #include "WaterBodyActor.h"
@@ -146,10 +148,7 @@ bool UShallowWaterSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 void UShallowWaterSubsystem::Tick(float DeltaTime)
 {	
 	Super::Tick(DeltaTime);
-
-	// #todo bullet impacts should be pretty late in tick order but this can be risky
-	ResetImpacts();
-
+	
 	if (!IsShallowWaterInitialized())
 	{
 		return;
@@ -247,6 +246,7 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 		TArray< FSoftObjectPath> ObjectsToLoad;
 		ObjectsToLoad.Add(Settings->WaterMPC.ToSoftObjectPath());
 		ObjectsToLoad.Add(Settings->DefaultShallowWaterNiagaraSimulation.ToSoftObjectPath());
+		ObjectsToLoad.Add(Settings->DefaultShallowWaterCollisionNDC.ToSoftObjectPath());
 
 		UAssetManager::GetStreamableManager().RequestAsyncLoad(ObjectsToLoad,
 			FStreamableDelegate::CreateWeakLambda(this, [this]()
@@ -282,6 +282,14 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 	if (ShallowWaterTemplate == nullptr)
 	{		
 		UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterSubsystem::InitializeShallowWater() - Couldn't find ShallowWater template in settings"));
+		return;
+	}
+
+	// async load the NS, then create the actor
+	UNiagaraDataChannelAsset* ShallowWaterCollisionNDC = Settings->DefaultShallowWaterCollisionNDC.Get();
+	if (ShallowWaterCollisionNDC == nullptr)
+	{
+		UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterSubsystem::InitializeShallowWater() - Couldn't find ShallowWater collision NDC in settings"));
 		return;
 	}
 
@@ -418,12 +426,7 @@ void UShallowWaterSubsystem::InitializeParameters()
 	{
 		ShallowWaterNiagaraSimulation->SetVariableVec2(FName("WorldGridSize"), FVector2D(GetGridSize()));
 		ShallowWaterNiagaraSimulation->SetVariableInt(FName("ResolutionMaxAxis"), GetGridResolution());
-		ShallowWaterNiagaraSimulation->SetVariableTextureRenderTarget(FName("NormalRT"), NormalRT);
-
-		// set variables for impacts
-		ShallowWaterNiagaraSimulation->SetVariableInt(FName("MaxImpacts"), GetMaxImpactsPerFrame());
-		ShallowWaterNiagaraSimulation->SetVariableInt(FName("NumImpacts"), 0);
-		CurrentNumImpacts = 0;
+		ShallowWaterNiagaraSimulation->SetVariableTextureRenderTarget(FName("NormalRT"), NormalRT);		
 	}
 	else
 	{
@@ -516,15 +519,6 @@ void UShallowWaterSubsystem::UpdateGridMovement()
 	PreviousProjectedLocation = ProjectedLocation;
 }
 
-void UShallowWaterSubsystem::ResetImpacts()
-{
-	if (ShallowWaterNiagaraSimulation)
-	{
-		ShallowWaterNiagaraSimulation->SetVariableInt(FName("NumImpacts"), 0);
-		CurrentNumImpacts = 0;
-	}
-}
-
 void UShallowWaterSubsystem::RegisterImpact(FVector ImpactPosition, FVector ImpactVelocity, float ImpactRadius)
 {
 	if (ShallowWaterNiagaraSimulation == nullptr)
@@ -554,7 +548,7 @@ void UShallowWaterSubsystem::RegisterImpact(FVector ImpactPosition, FVector Impa
 		return;
 	}
 
-	SetNiagaraImpactVariables(ImpactPosition, ImpactVelocity, ImpactRadius);
+	WriteImpactToNDC(ImpactPosition, ImpactVelocity, ImpactRadius);
 }
 
 // these impacts are a frame or two late, and we only want to update the Niagara system and not 
@@ -563,19 +557,22 @@ void UShallowWaterSubsystem::FlushPendingImpacts()
 {
 	for (PendingImpact CurrPendingImpact : PendingImpacts)
 	{
-		SetNiagaraImpactVariables(CurrPendingImpact.ImpactPosition, CurrPendingImpact.ImpactVelocity, CurrPendingImpact.ImpactRadius);
+		WriteImpactToNDC(CurrPendingImpact.ImpactPosition, CurrPendingImpact.ImpactVelocity, CurrPendingImpact.ImpactRadius);
 	}
 	PendingImpacts.Reset();
 }
 
-void UShallowWaterSubsystem::SetNiagaraImpactVariables(FVector ImpactPosition, FVector ImpactVelocity, float ImpactRadius)
+void UShallowWaterSubsystem::WriteImpactToNDC(FVector ImpactPosition, FVector ImpactVelocity, float ImpactRadius)
 {
-	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayPositionValue(ShallowWaterNiagaraSimulation, "User.ImpactPositionArray", CurrentNumImpacts, ImpactPosition, false);
-	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVectorValue(ShallowWaterNiagaraSimulation, "User.ImpactVelocityArray", CurrentNumImpacts, ImpactVelocity, false);
-	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloatValue(ShallowWaterNiagaraSimulation, "User.ImpactRadiusArray", CurrentNumImpacts, ImpactRadius, false);
-
-	++CurrentNumImpacts;
-	ShallowWaterNiagaraSimulation->SetVariableInt(FName("NumImpacts"), CurrentNumImpacts);
+	FNiagaraDataChannelSearchParameters SearchParams(ImpactPosition);
+	const UNiagaraDataChannelAsset* NDC = Settings->DefaultShallowWaterCollisionNDC.Get();
+	if (UNiagaraDataChannelWriter* DCWriter = UNiagaraDataChannelLibrary::WriteToNiagaraDataChannel(ShallowWaterNiagaraSimulation, NDC, SearchParams, 1, false, true, true, TEXT("ShallowWaterWriteImpact")))
+	{
+		int32 Index = 0;
+		DCWriter->WritePosition(TEXT("Position"), Index, ImpactPosition);
+		DCWriter->WriteVector(TEXT("Velocity"), Index, ImpactVelocity);
+		DCWriter->WriteFloat(TEXT("Radius"), Index, ImpactRadius);
+	}
 }
 
 void UShallowWaterSubsystem::SetWaterBodyMIDParameters(AWaterBody* WaterBody)

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "NiagaraSystem.h"
+#include "NiagaraDataChannelPublic.h"
 #include "ShallowWaterCommon.h"
 #include "ShallowWaterPhysicsAssetOverridesDataAsset.h"
 #include "Materials/MaterialParameterCollection.h"
@@ -21,6 +22,8 @@ public:
 	
 	UPROPERTY(Config, BlueprintReadOnly, EditAnywhere, Category="Shallow Water Simulation")
 	TSoftObjectPtr<UNiagaraSystem> DefaultShallowWaterNiagaraSimulation;
+	UPROPERTY(Config, BlueprintReadOnly, EditAnywhere, Category = "Shallow Water Simulation")
+	TSoftObjectPtr<UNiagaraDataChannelAsset> DefaultShallowWaterCollisionNDC;
 	UPROPERTY(Config, BlueprintReadOnly, EditAnywhere, Category="Shallow Water Simulation")
 	FShallowWaterSimParameters ShallowWaterSimParameters;
 	UPROPERTY(Config, BlueprintReadOnly, EditAnywhere, Category="Shallow Water Simulation")
