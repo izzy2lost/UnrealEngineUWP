@@ -50,6 +50,7 @@ private:
 	{
 		TWeakObjectPtr<USkeletalMeshComponent> Component;
 		FTransform RelativeTransform;
+		int ForcedLod = -1;
 	};
 
 	struct FSpawnedMeshComponentInfo
