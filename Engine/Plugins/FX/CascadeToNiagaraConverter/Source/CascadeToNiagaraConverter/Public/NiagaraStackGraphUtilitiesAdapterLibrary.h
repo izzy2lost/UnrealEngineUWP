@@ -779,6 +779,9 @@ public:
 	bool GetEnabled() const {return bEnabled;};
 
 	UFUNCTION(BlueprintCallable, Category = "FXConverterUtilities")
+	void SetDetailBitMask(int32 BitMask);
+
+	UFUNCTION(BlueprintCallable, Category = "FXConverterUtilities")
 	void AddEventHandler(FNiagaraEventHandlerAddAction EventScriptPropertiesBP);
 
 	UFUNCTION(BlueprintCallable, Category = "FXConverterUtilities")
