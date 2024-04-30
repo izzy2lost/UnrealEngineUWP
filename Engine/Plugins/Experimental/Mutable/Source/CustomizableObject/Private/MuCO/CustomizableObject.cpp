@@ -1768,8 +1768,8 @@ bool UCustomizableObject::IsParameterMultidimensional(const int32& InParamIndex)
 
 void UCustomizableObjectPrivate::ApplyStateForcedValuesToParameters(int32 State, mu::Parameters* Parameters)
 {
-	const FString& ParameterName = GetPublic()->GetParameterName(State);
-	const FMutableStateData* StateData = GetModelResources().StateUIDataMap.Find(ParameterName);
+	const FString& StateName = GetPublic()->GetStateName(State);
+	const FMutableStateData* StateData = GetModelResources().StateUIDataMap.Find(StateName);
 	if (!StateData)
 	{
 		return;
