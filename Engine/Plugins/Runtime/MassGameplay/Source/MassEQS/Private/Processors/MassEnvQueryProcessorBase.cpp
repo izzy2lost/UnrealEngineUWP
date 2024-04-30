@@ -7,11 +7,14 @@
 void UMassEnvQueryProcessorBase::Initialize(UObject& Owner)
 {
 	Super::Initialize(Owner);
-	UMassEQSSubsystem* MassEQSSubsystem = Owner.GetWorld()->GetSubsystem<UMassEQSSubsystem>();
-	check(MassEQSSubsystem)
 
 	if (CorrespondingRequestClass)
 	{
+		UWorld* World = Owner.GetWorld();
+		check(World);
+		UMassEQSSubsystem* MassEQSSubsystem = World->GetSubsystem<UMassEQSSubsystem>();
+		check(MassEQSSubsystem)
+	
 		CachedRequestQueryIndex = MassEQSSubsystem->GetRequestQueueIndex(CorrespondingRequestClass);
 	}
 }

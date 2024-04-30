@@ -1,26 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MassEQSTypes.h"
-
 #include "EnvironmentQuery/EnvQueryTypes.h"
 #include "MassEQSSubsystem.h"
 #include "MassEQS.h"
 
 
-// Creating a static representation for invalid handles
-FMassEQSRequestHandle FMassEQSRequestHandle::Invalid = FMassEQSRequestHandle(INDEX_NONE, 0);
-
+//-----------------------------------------------------------------------------
+// FMassEnvQueryEntityInfo
+//-----------------------------------------------------------------------------
 FMassEnvQueryEntityInfo::FMassEnvQueryEntityInfo(int32 Index, int32 SerialNumber, const FTransform& Transform)
 	: EntityHandle(Index, SerialNumber)
 	, CachedTransform(Transform)
 {
 }
 
+//-----------------------------------------------------------------------------
+// FMassEQSRequestHandle
+//-----------------------------------------------------------------------------
+FMassEQSRequestHandle FMassEQSRequestHandle::Invalid = FMassEQSRequestHandle(INDEX_NONE, 0);
+
 FString FMassEQSRequestHandle::ToString() const
 {
 	return FString::Printf(TEXT("[%d,%u]"), Index, SerialNumber);
 }
 
+//-----------------------------------------------------------------------------
+// IMassEQSRequestInterface::FMassEQSRequestHandler
+//-----------------------------------------------------------------------------
 void IMassEQSRequestInterface::FMassEQSRequestHandler::SendOrRecieveRequest(FEnvQueryInstance& QueryInstance, const IMassEQSRequestInterface& MassEQSRequestInterface)
 {
 #if WITH_EDITOR

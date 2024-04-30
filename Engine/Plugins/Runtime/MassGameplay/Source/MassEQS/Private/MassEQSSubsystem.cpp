@@ -15,10 +15,10 @@
 // RequestQueue
 //----------------------------------------------------------------------//
 
-FMassEQSRequestHandle UMassEQSSubsystem::PushRequest(const FEnvQueryInstance& QueryInstance, int32 RequestQueueIndex, TUniquePtr<FMassEQSRequestData>&& Request)
+FMassEQSRequestHandle UMassEQSSubsystem::PushRequest(const FEnvQueryInstance& QueryInstance, const int32 RequestQueueIndex, TUniquePtr<FMassEQSRequestData>&& Request)
 {
-	UE_MT_SCOPED_WRITE_ACCESS(RequestAccessDetector);
-
+	// It's a "read" since the detector only cares about the RequestQueues array, not its elements
+	UE_MT_SCOPED_READ_ACCESS(RequestAccessDetector);
 	check(RequestQueueIndex >= 0);
 
 	FMassEQSRequestHandle RequestHandle = HandleManager.GetNextHandle();
@@ -34,10 +34,10 @@ FMassEQSRequestHandle UMassEQSSubsystem::PushRequest(const FEnvQueryInstance& Qu
 }
 
 
-TUniquePtr<FMassEQSRequestData> UMassEQSSubsystem::PopRequest(int32 RequestQueueIndex)
+TUniquePtr<FMassEQSRequestData> UMassEQSSubsystem::PopRequest(const int32 RequestQueueIndex)
 {
-	UE_MT_SCOPED_WRITE_ACCESS(RequestAccessDetector);
-
+	// It's a "read" since the detector only cares about the RequestQueues array, not its elements
+	UE_MT_SCOPED_READ_ACCESS(RequestAccessDetector);
 	check(RequestQueueIndex >= 0);
 
 	TUniquePtr<FMassEQSRequestData> OutRequest = nullptr;
@@ -120,6 +120,7 @@ int32 UMassEQSSubsystem::GetRequestQueueIndex(TSubclassOf<UEnvQueryNode> Request
 		return *IndexPtr;
 	}
 
+	UE_MT_SCOPED_WRITE_ACCESS(RequestAccessDetector);
 	RequestQueues.Emplace();
 	int32 NewIndex = RequestQueues.Num() - 1;
 	

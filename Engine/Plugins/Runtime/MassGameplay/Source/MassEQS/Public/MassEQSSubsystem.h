@@ -24,10 +24,10 @@ class UMassEQSSubsystem : public UMassSubsystemBase
 
 public:
 	/** Push new Request into RequestQueue */
-	FMassEQSRequestHandle PushRequest(const FEnvQueryInstance& QueryInstance, int32 RequestQueueIndex, TUniquePtr<FMassEQSRequestData>&& Request);
+	FMassEQSRequestHandle PushRequest(const FEnvQueryInstance& QueryInstance, const int32 RequestQueueIndex, TUniquePtr<FMassEQSRequestData>&& Request);
 
 	/** Dequeue next Request off the RequestQueue, removing it from the queue, and transferring ownership of UniquePtr */
-	TUniquePtr<FMassEQSRequestData> PopRequest(int32 RequestQueueIndex);
+	TUniquePtr<FMassEQSRequestData> PopRequest(const int32 RequestQueueIndex);
 
 	/** Send results from a finished/processed request to be stored in this subsystem */
 	void SubmitResults(FMassEQSRequestHandle RequestHandle, TUniquePtr<FMassEQSRequestData>&& Result);
@@ -49,21 +49,25 @@ public:
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
-protected:
 
+protected:
 	/**
 	 * Mapping from Class of requester, to index into RequestQueues.
 	 * Each Class that extends UMassEQSGenerator or UMassEQSTest 
 	 * can be a requester, this will store a Queue for each of these types.
 	 * @see PostInitialize()
 	 */
-	TMap<UClass*, int32> RequestQueueLookup = {};
+	TMap<TSubclassOf<UEnvQueryNode>, int32> RequestQueueLookup = {};
 	/**
 	 * Array of Queues holding each Request. 
 	 * TQueue does not support copy/assignment, which TMap requires.
 	 * This is the reason the TQueues are stored in a separate Array.
 	 */
 	TArray<FRequestQueue> RequestQueues = {};
+	/** 
+	 * The detector only guards the extension of RequestQueues array. Modifying specific elements is not guarded since 
+	 * those are a thread safe queues.
+	 */
 	UE_MT_DECLARE_RW_ACCESS_DETECTOR(RequestAccessDetector);
 
 	/** Holds results for finished Query */
