@@ -1157,6 +1157,9 @@ uint32 GGameThreadTime = 0;
 /** How much idle time on the game thread. It's set once per frame in FViewport::Draw. */
 uint32 GGameThreadWaitTime = 0;
 
+/** How many cycles the gamethread used, including dependent wait time. */
+uint32 GGameThreadTimeCriticalPath = 0;
+
 /** How many cycles it took to swap buffers to present the frame. */
 uint32 GSwapBufferTime = 0;
 

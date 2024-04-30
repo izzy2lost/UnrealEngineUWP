@@ -360,9 +360,15 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 	RawGameThreadTime = FPlatformTime::ToMilliseconds(GGameThreadTime);
 	GameThreadTime = 0.9 * GameThreadTime + 0.1 * RawGameThreadTime;
 
+	RawGameThreadTimeCriticalPath = FPlatformTime::ToMilliseconds(GGameThreadTimeCriticalPath);
+	GameThreadTimeCriticalPath = 0.9 * GameThreadTimeCriticalPath + 0.1 * RawGameThreadTimeCriticalPath;
+
 	/** Number of milliseconds the renderthread was used last frame. */
 	RawRenderThreadTime = FPlatformTime::ToMilliseconds(GRenderThreadTime);
 	RenderThreadTime = 0.9 * RenderThreadTime + 0.1 * RawRenderThreadTime;
+
+	RawRenderThreadTimeCriticalPath = FPlatformTime::ToMilliseconds(GRenderThreadTimeCriticalPath);
+	RenderThreadTimeCriticalPath = 0.9 * RenderThreadTimeCriticalPath + 0.1 * RawRenderThreadTimeCriticalPath;
 
 	RawRHITTime = FPlatformTime::ToMilliseconds(GRHIThreadTime);
 	RHITTime = 0.9 * RHITTime + 0.1 * RawRHITTime;
@@ -411,6 +417,7 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 	float Max_RHITTime = 0.0f;
 	float Max_InputLatencyTime = 0.0f;
 
+	const bool bShowUnitCriticalPathTimes = InViewport->GetClient() ? InViewport->GetClient()->IsStatEnabled(TEXT("UnitCriticalPath")) : false;
 	const bool bShowUnitMaxTimes = InViewport->GetClient() ? InViewport->GetClient()->IsStatEnabled(TEXT("UnitMax")) : false;
 	const bool bShowTSRStatistics = InViewport->GetClient() ? InViewport->GetClient()->IsStatEnabled(TEXT("TSR")) : false;
 #if !UE_BUILD_SHIPPING
@@ -496,14 +503,24 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 		const FColor NoUnitGraphColor(220, 220, 220);
 
 		#define STATUNIT_FORMAT_AVGTIME TEXT("%3.2f ms")
+		#define STATUNIT_FORMAT_CRITICALPATHTIME TEXT("%3.2f ms")
 		#define STATUNIT_FORMAT_MAXTIME TEXT("%4.2f ms")
 		#define STATUNIT_FORMAT_PERCEMT TEXT("%3.2f %%")
 
 		const int32 AvgUnitColumnId = 0;
-		const int32 MaxUnitColumnId = 1;
+		const int32 CriticalPathUnitColumnId = 1;
+		const int32 MaxUnitColumnId = bShowUnitCriticalPathTimes ? 2 : 1;
 
 		const int32 ColumnWidth = Font->GetStringSize(TEXT(" 0000.00 ms "));
-		const int32 ColumnCount = bShowUnitMaxTimes ? 2 : 1;
+		int32 ColumnCount = 1;
+		if (bShowUnitCriticalPathTimes)
+		{
+			++ColumnCount;
+		}
+		if (bShowUnitMaxTimes)
+		{
+			++ColumnCount;
+		}
 
 		int32 X3 = InX * (bStereoRendering ? 0.5f : 1.0f);
 		int32 X2 = X3 - ColumnWidth * (ColumnCount - 1);
@@ -547,11 +564,32 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 		{
 			DrawCell(/* RowId = */ 0, AvgUnitColumnId, ColumnCount, CellText, UnitGraphColor);
 		};
+		auto DrawDefaultCriticalPathCell = [&](const FString& CellText, const FColor& UnitGraphColor)
+		{
+			check(bShowUnitCriticalPathTimes);
+			DrawCell(/* RowId = */ 0, CriticalPathUnitColumnId, ColumnCount, CellText, UnitGraphColor);
+		};
 		auto DrawDefaultMaxCell = [&](const FString& CellText, const FColor& UnitGraphColor)
 		{
 			check(bShowUnitMaxTimes);
 			DrawCell(/* RowId = */ 0, MaxUnitColumnId, ColumnCount, CellText, UnitGraphColor);
 		};
+
+		if (bShowUnitCriticalPathTimes || bShowUnitMaxTimes)
+		{
+			// if there are multiple columns, draw the name of each column
+
+			DrawDefaultAvgCell(TEXT("Avg"), FColor::White);
+			if (bShowUnitCriticalPathTimes)
+			{
+				DrawDefaultCriticalPathCell(TEXT("Critical"), FColor::White);
+			}
+			if (bShowUnitMaxTimes)
+			{
+				DrawDefaultMaxCell(TEXT("Max"), FColor::White);
+			}
+			PushRows(/* RowsCount = */ 1);
+		}
 
 		{
 			DrawTitleString(TEXT("Frame"), /* UnitGraphColor = */ FColor(100, 255, 100));
@@ -573,6 +611,11 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 				const FColor GameThreadAverageColor = GEngine->GetFrameTimeDisplayColor(GameThreadTime);
 				DrawDefaultAvgCell(FString::Printf(STATUNIT_FORMAT_AVGTIME, GameThreadTime), GameThreadAverageColor);
 			}
+			if (bShowUnitCriticalPathTimes)
+			{
+				const FColor CriticalPathFrameTimeColor = GEngine->GetFrameTimeDisplayColor(GameThreadTimeCriticalPath);
+				DrawDefaultCriticalPathCell(FString::Printf(STATUNIT_FORMAT_CRITICALPATHTIME, GameThreadTimeCriticalPath), CriticalPathFrameTimeColor);
+			}
 			if (bShowUnitMaxTimes)
 			{
 				const FColor GameThreadMaxColor = GEngine->GetFrameTimeDisplayColor(Max_GameThreadTime);
@@ -586,6 +629,11 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 			{
 				const FColor RenderThreadAverageColor = GEngine->GetFrameTimeDisplayColor(RenderThreadTime);
 				DrawDefaultAvgCell(FString::Printf(STATUNIT_FORMAT_AVGTIME, RenderThreadTime), RenderThreadAverageColor);
+			}
+			if (bShowUnitCriticalPathTimes)
+			{
+				const FColor CriticalPathFrameTimeColor = GEngine->GetFrameTimeDisplayColor(RenderThreadTimeCriticalPath);
+				DrawDefaultCriticalPathCell(FString::Printf(STATUNIT_FORMAT_CRITICALPATHTIME, RenderThreadTimeCriticalPath), CriticalPathFrameTimeColor);
 			}
 			if (bShowUnitMaxTimes)
 			{
@@ -1730,6 +1778,10 @@ void FViewport::Draw( bool bShouldPresent /*= true */)
 							// add any stalls via sleep or fevent
 							GGameThreadTime		= (ThreadTime > GameThread.Waits) ? (ThreadTime - GameThread.Waits) : ThreadTime;
 							GGameThreadWaitTime = GameThread.Waits;
+
+							// Compute GGameThreadTimeCriticalPath
+							uint32 GameThreadNonCriticalPathIdle = GameThread.Waits - GameThread.WaitsCriticalPath;
+							GGameThreadTimeCriticalPath = (ThreadTime > GameThreadNonCriticalPathIdle) ? (ThreadTime - GameThreadNonCriticalPathIdle) : ThreadTime;
 						}
 						else
 						{
@@ -1739,6 +1791,7 @@ void FViewport::Draw( bool bShouldPresent /*= true */)
 						LastFrameUpdated = GFrameCounter;
 						Lastimestamp		= CurrentTime;
 						GameThread.Reset();
+						GameThread.IsCriticalPathCounter = 0;
 					}
 				}
 

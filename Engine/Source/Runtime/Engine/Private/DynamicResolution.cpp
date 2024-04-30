@@ -44,6 +44,11 @@ static TAutoConsoleVariable<float> CVarFrameTimeBudget(
 	TEXT("Frame's time budget in milliseconds."),
 	ECVF_RenderThreadSafe | ECVF_Default);
 
+static TAutoConsoleVariable<int32> CVarUseGameThreadCriticalPath(
+	TEXT("r.DynamicRes.UseGameThreadCriticalPath"), 0,
+	TEXT("Whether to use game thread critical path time when determining whether game is CPU bound."),
+	ECVF_RenderThreadSafe | ECVF_Default);
+
 #if COMPILE_DYNAMIC_FRAME_TIME
 
 static TAutoConsoleVariable<int32> CVarDynamicFrameTimeEnable(
@@ -1183,6 +1188,11 @@ public:
 			// Query game thread time in milliseconds.
 			float PrevFrameTimeMs = (FApp::GetCurrentTime() - FApp::GetLastTime()) * 1000.0f;
 			float PrevGameThreadTimeMs = FPlatformTime::ToMilliseconds(GGameThreadTime);
+
+			if (CVarUseGameThreadCriticalPath.GetValueOnAnyThread())
+			{
+				PrevGameThreadTimeMs = FPlatformTime::ToMilliseconds(GGameThreadTimeCriticalPath);
+			}
 
 			FDefaultDynamicResolutionStateProxy* P = Proxy;
 			ENQUEUE_RENDER_COMMAND(DynamicResolutionBeginFrame)(

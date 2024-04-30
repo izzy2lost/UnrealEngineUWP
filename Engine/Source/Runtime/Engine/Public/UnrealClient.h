@@ -275,7 +275,9 @@ struct FStatUnitData
 {
 	/** Unit frame times filtered with a simple running average */
 	float RenderThreadTime;
+	float RenderThreadTimeCriticalPath;
 	float GameThreadTime;
+	float GameThreadTimeCriticalPath;
 	float GPUFrameTime[MAX_NUM_GPUS];
 	float GPUClockFraction[MAX_NUM_GPUS];
 	float GPUUsageFraction[MAX_NUM_GPUS];
@@ -286,7 +288,9 @@ struct FStatUnitData
 
 	/** Raw equivalents of the above variables */
 	float RawRenderThreadTime;
+	float RawRenderThreadTimeCriticalPath;
 	float RawGameThreadTime;
+	float RawGameThreadTimeCriticalPath;
 	float RawGPUFrameTime[MAX_NUM_GPUS];
 	float RawGPUClockFraction[MAX_NUM_GPUS];
 	float RawGPUUsageFraction[MAX_NUM_GPUS];
@@ -313,7 +317,9 @@ struct FStatUnitData
 
 	FStatUnitData()
 		: RenderThreadTime(0.0f)
+		, RenderThreadTimeCriticalPath(0.0f)
 		, GameThreadTime(0.0f)
+		, GameThreadTimeCriticalPath(0.0f)
 		, GPUFrameTime{ 0.0f }
 		, GPUClockFraction{ 0.0f }
 		, GPUUsageFraction{ 0.0f }
@@ -322,7 +328,9 @@ struct FStatUnitData
 		, RHITTime(0.0f)
 		, InputLatencyTime(0.0f)
 		, RawRenderThreadTime(0.0f)
+		, RawRenderThreadTimeCriticalPath(0.0f)
 		, RawGameThreadTime(0.0f)
+		, RawGameThreadTimeCriticalPath(0.0f)
 		, RawGPUFrameTime{ 0.0f }
 		, RawGPUClockFraction{ 0.0f }
 		, RawGPUUsageFraction{ 0.0f }

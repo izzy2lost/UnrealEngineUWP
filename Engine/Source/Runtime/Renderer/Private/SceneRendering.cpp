@@ -5226,8 +5226,12 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 		World = Scene->GetWorld();
 		if (World)
 		{
-			// Guarantee that all render proxies are up to date before kicking off a BeginRenderViewFamily.
-			World->SendAllEndOfFrameUpdates();
+			FThreadIdleStats::BeginCriticalPath();
+			{
+				// Guarantee that all render proxies are up to date before kicking off a BeginRenderViewFamily.
+				World->SendAllEndOfFrameUpdates();
+			}
+			FThreadIdleStats::EndCriticalPath();
 
 			GetNaniteVisualizationData().Pick(World);
 		}

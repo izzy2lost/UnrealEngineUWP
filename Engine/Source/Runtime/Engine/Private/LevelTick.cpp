@@ -1286,6 +1286,8 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 		return;
 	}
 
+	FThreadIdleStats::BeginCriticalPath();
+
 	SCOPED_DRAW_EVENT_GAMETHREAD(WorldTick);
 
 	FWorldDelegates::OnWorldTickStart.Broadcast(this, TickType, DeltaSeconds);
@@ -1785,6 +1787,8 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 		});
 
 	FWorldDelegates::OnWorldTickEnd.Broadcast(this, TickType, DeltaSeconds);
+
+	FThreadIdleStats::EndCriticalPath();
 }
 
 void UWorld::CleanupActors()
