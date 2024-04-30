@@ -24,7 +24,6 @@ using Horde.Server.Auditing;
 using Horde.Server.Server;
 using Horde.Server.Tasks;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Hosting;

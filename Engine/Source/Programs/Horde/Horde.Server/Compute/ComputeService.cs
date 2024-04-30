@@ -27,7 +27,6 @@ using Horde.Server.Agents.Relay;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

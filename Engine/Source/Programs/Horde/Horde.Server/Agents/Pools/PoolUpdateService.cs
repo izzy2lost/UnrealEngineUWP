@@ -10,7 +10,6 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Server;
 using Horde.Server.Streams;
-using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -124,7 +123,7 @@ namespace Horde.Server.Agents.Pools
 			IEnumerable<PoolId> poolIds = agent.ExplicitPools.Concat(agent.DynamicPools);
 			return pools.Any(x => poolIds.Contains(x.Id) && x.EnableAutoscaling);
 		}
-		
+
 		/// <summary>
 		/// Find and conform any agents below the disk free conform threshold for a workspace
 		/// </summary>
@@ -135,7 +134,7 @@ namespace Horde.Server.Agents.Pools
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(AutoConformAgentsAsync)}");
 			List<IAgent> agents = (await _agents.FindAsync(status: AgentStatus.Ok, enabled: true, cancellationToken: cancellationToken)).Where(x => !x.RequestShutdown).ToList();
 
-			long MegabytesToBytes (long v) => v * 1024 * 1024;
+			long MegabytesToBytes(long v) => v * 1024 * 1024;
 			foreach (IAgent agent in agents)
 			{
 				long? freeDiskSpace = agent.GetDiskFreeSpace();

@@ -12,7 +12,6 @@ using EpicGames.Horde.Agents.Sessions;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Sessions;
-using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -177,7 +176,7 @@ namespace HordeCommon
 		public ITicker AddSharedTicker(string name, TimeSpan delay, Func<CancellationToken, ValueTask> tickAsync, ILogger logger)
 		{
 			RedisKey key = new RedisKey($"tick/{name}");
-			return ClockExtensions.AddTicker(this, name, delay / 4, token => TriggerSharedAsync(name, key, delay, tickAsync, token), logger);
+			return this.AddTicker(name, delay / 4, token => TriggerSharedAsync(name, key, delay, tickAsync, token), logger);
 		}
 
 		async ValueTask TriggerSharedAsync(string name, RedisKey key, TimeSpan interval, Func<CancellationToken, ValueTask> tickAsync, CancellationToken cancellationToken)

@@ -7,7 +7,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using HordeCommon;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -187,7 +186,7 @@ public class ServerStatusService : IHostedService
 		}
 
 		string data = JsonSerializer.Serialize(status);
-		if(!_redis.ReadOnlyMode)
+		if (!_redis.ReadOnlyMode)
 		{
 			await redis.HashSetAsync(RedisHashKey(), id, data);
 		}

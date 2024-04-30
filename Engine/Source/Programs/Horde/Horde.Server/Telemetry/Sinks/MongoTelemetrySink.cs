@@ -9,7 +9,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Telemetry;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
