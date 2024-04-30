@@ -660,11 +660,11 @@ void FOnDemandIoStore::CreateContainersFromToc(
 		ChunksDirectory = Sb;
 		if (ChunksDirectory.StartsWith('/'))
 		{
-			TocPath.RemovePrefix(1);
+			ChunksDirectory.RemovePrefix(1);
 		}
 		if (ChunksDirectory.EndsWith('/'))
 		{
-			TocPath.RemoveSuffix(1);
+			ChunksDirectory.RemoveSuffix(1);
 		}
 	}
 
