@@ -337,7 +337,7 @@ private:
 
 	/** Handlers for the disable post process flag */
 	void OnToggleDisablePostProcess();
-	bool CanDisablePostProcess();
+	bool CanDisablePostProcess() const;
 	bool IsDisablePostProcessChecked();
 
 	/** Show non retargeted animation. */

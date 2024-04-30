@@ -1339,12 +1339,12 @@ void SAnimationEditorViewportTabBody::OnToggleDisablePostProcess()
 	AddPostProcessNotification();
 }
 
-bool SAnimationEditorViewportTabBody::CanDisablePostProcess()
+bool SAnimationEditorViewportTabBody::CanDisablePostProcess() const
 {
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
-	for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
+	const TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
+	for (const UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
 	{
-		if (PreviewMeshComponent->PostProcessAnimInstance)
+		if (PreviewMeshComponent->PostProcessAnimInstance && PreviewMeshComponent->IsVisible())
 		{
 			return true;
 		}
