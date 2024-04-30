@@ -606,8 +606,11 @@ public:
 
 	struct FCookOnTheFlyStartupOptions
 	{
-		/** Wether the network file server or the I/O store connection server should bind to any port */
-		bool bBindAnyPort = false;
+		static constexpr int32 AnyPort = 0;
+		static constexpr int32 DefaultPort = -1;
+
+		/** What port the network file server or the I/O store connection server should bind to */
+		int32 Port = DefaultPort;
 		/** Whether to save the cooked output to the Zen storage server. */
 		bool bZenStore = false;
 		/**
@@ -653,7 +656,7 @@ public:
 	 *
 	 * @return true on success, false otherwise.
 	 */
-	UNREALED_API bool StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOnTheFlyOptions); 
+	UNREALED_API bool StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOnTheFlyOptions);
 
 	/** Broadcast the fileserver's presence on the network */
 	UNREALED_API bool BroadcastFileserverPresence( const FGuid &InstanceId );

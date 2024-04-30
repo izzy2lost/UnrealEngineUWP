@@ -266,7 +266,7 @@ void UUnrealEdEngine::Init(IEngineLoop* InEngineLoop)
 			CookServer->Initialize(ECookMode::CookOnTheFlyFromTheEditor, BaseCookingFlags);
 
 			UCookOnTheFlyServer::FCookOnTheFlyStartupOptions CookOnTheFlyStartupOptions;
-			CookOnTheFlyStartupOptions.bBindAnyPort = false;
+			CookOnTheFlyStartupOptions.Port = UCookOnTheFlyServer::FCookOnTheFlyStartupOptions::DefaultPort;
 			CookOnTheFlyStartupOptions.bZenStore = GetDefault<UProjectPackagingSettings>()->bUseZenStore;
 			CookServer->StartCookOnTheFly(CookOnTheFlyStartupOptions);
 		}

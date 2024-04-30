@@ -81,7 +81,7 @@ UCookCommandlet::UCookCommandlet( const FObjectInitializer& ObjectInitializer )
 	LogToConsole = false;
 }
 
-bool UCookCommandlet::CookOnTheFly( FGuid InstanceId, int32 Timeout, bool bForceClose, const TArray<ITargetPlatform*>& TargetPlatforms)
+bool UCookCommandlet::CookOnTheFly( FGuid InstanceId, int32 Port, int32 Timeout, bool bForceClose, const TArray<ITargetPlatform*>& TargetPlatforms)
 {
 	UCookOnTheFlyServer *CookOnTheFlyServer = NewObject<UCookOnTheFlyServer>();
 
@@ -100,7 +100,7 @@ bool UCookCommandlet::CookOnTheFly( FGuid InstanceId, int32 Timeout, bool bForce
 	CookOnTheFlyServer->Initialize( ECookMode::CookOnTheFly, CookFlags );
 
 	UCookOnTheFlyServer::FCookOnTheFlyStartupOptions CookOnTheFlyStartupOptions;
-	CookOnTheFlyStartupOptions.bBindAnyPort = InstanceId.IsValid();
+	CookOnTheFlyStartupOptions.Port = Port;
 	CookOnTheFlyStartupOptions.bZenStore = Switches.Contains(TEXT("ZenStore"));
 	CookOnTheFlyStartupOptions.bPlatformProtocol = Switches.Contains(TEXT("PlatformProtocol"));
 	CookOnTheFlyStartupOptions.TargetPlatforms = TargetPlatforms;
@@ -220,10 +220,20 @@ int32 UCookCommandlet::Main(const FString& CmdLineParams)
 		FString InstanceIdString;
 		bool bForceClose = Switches.Contains(TEXT("FORCECLOSE"));
 
+		int32 Port = UCookOnTheFlyServer::FCookOnTheFlyStartupOptions::DefaultPort;
+		if (!FParse::Value(*Params, TEXT("port="), Port))
+		{
+			Port = UCookOnTheFlyServer::FCookOnTheFlyStartupOptions::DefaultPort;
+		}
+
 		FGuid InstanceId;
 		if (FParse::Value(*Params, TEXT("InstanceId="), InstanceIdString))
 		{
-			if (!FGuid::Parse(InstanceIdString, InstanceId))
+			if (FGuid::Parse(InstanceIdString, InstanceId) && InstanceId.IsValid())
+			{
+				Port = UCookOnTheFlyServer::FCookOnTheFlyStartupOptions::AnyPort;
+			}
+			else
 			{
 				UE_LOG(LogCookCommandlet, Warning, TEXT("Invalid InstanceId on command line: %s"), *InstanceIdString);
 			}
@@ -235,7 +245,7 @@ int32 UCookCommandlet::Main(const FString& CmdLineParams)
 			Timeout = 180;
 		}
 
-		CookOnTheFly( InstanceId, Timeout, bForceClose, TargetPlatforms);
+		CookOnTheFly( InstanceId, Port, Timeout, bForceClose, TargetPlatforms);
 	}
 	else if (Switches.Contains(TEXT("COOKWORKER")))
 	{

@@ -619,7 +619,7 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 
 	FCookOnTheFlyNetworkServerOptions NetworkServerOptions;
 	NetworkServerOptions.Protocol = CookOnTheFlyOptions->bPlatformProtocol ? ECookOnTheFlyNetworkServerProtocol::Platform : ECookOnTheFlyNetworkServerProtocol::Tcp;
-	NetworkServerOptions.Port = CookOnTheFlyOptions->bBindAnyPort ? 0 : -1;
+	NetworkServerOptions.Port = CookOnTheFlyOptions->Port;
 	if (!InCookOnTheFlyOptions.TargetPlatforms.IsEmpty())
 	{
 		NetworkServerOptions.TargetPlatforms = InCookOnTheFlyOptions.TargetPlatforms;
@@ -11508,7 +11508,7 @@ FBeginCookContext UCookOnTheFlyServer::CreateBeginCookByTheBookContext(const FCo
 FBeginCookContext UCookOnTheFlyServer::CreateBeginCookOnTheFlyContext(const FCookOnTheFlyStartupOptions& Options)
 {
 	bZenStore = Options.bZenStore;
-	CookOnTheFlyOptions->bBindAnyPort = Options.bBindAnyPort;
+	CookOnTheFlyOptions->Port = Options.Port;
 	CookOnTheFlyOptions->bPlatformProtocol = Options.bPlatformProtocol;
 	return FBeginCookContext(*this);
 }

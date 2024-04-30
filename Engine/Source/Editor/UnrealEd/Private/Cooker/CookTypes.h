@@ -468,8 +468,8 @@ public:
 // Cook on the fly startup options
 struct FCookOnTheFlyOptions
 {
-	/** Wether the network file server or the I/O store connection server should bind to any port */
-	bool bBindAnyPort = false;
+	/** What port the network file server or the I/O store connection server should bind to */
+	int32 Port = -1;
 	/**
 	 * Whether the network file server should use a platform-specific communication protocol instead of TCP (used when
 	 * bZenStore == false)

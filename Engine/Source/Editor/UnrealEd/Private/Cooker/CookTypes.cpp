@@ -881,7 +881,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FCookByTheBookOptions& 
 FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FCookOnTheFlyOptions& Value)
 {
 	Writer.BeginObject();
-	Writer << "BindAnyPort" << Value.bBindAnyPort;
+	Writer << "Port" << Value.Port;
 	Writer << "PlatformProtocol" << Value.bPlatformProtocol;
 	Writer.EndObject();
 	return Writer;
@@ -890,7 +890,7 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FCookOnTheFlyOptions& V
 bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FCookOnTheFlyOptions& OutValue)
 {
 	bool bOk = Field.IsObject();
-	bOk = LoadFromCompactBinary(Field["BindAnyPort"], OutValue.bBindAnyPort) & bOk;
+	bOk = LoadFromCompactBinary(Field["Port"], OutValue.Port) & bOk;
 	bOk = LoadFromCompactBinary(Field["PlatformProtocol"], OutValue.bPlatformProtocol) & bOk;
 	return bOk;
 }
