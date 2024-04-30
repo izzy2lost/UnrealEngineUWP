@@ -50,6 +50,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using StackExchange.Redis;
 
 namespace Horde.Server.Notifications.Sinks
 {
@@ -1212,7 +1213,7 @@ namespace Horde.Server.Notifications.Sinks
 				if (workflow.EscalateAlias != null && workflow.EscalateTimes.Count > 0)
 				{
 					DateTime escalateTime = issue.CreatedAt.AddMinutes(workflow.EscalateTimes[0]);
-					if (await _redisService.GetDatabase().SortedSetAddAsync(s_escalateIssues, issue.Id, (escalateTime - DateTime.UnixEpoch).TotalSeconds, StackExchange.Redis.When.NotExists))
+					if (await _redisService.GetDatabase().SortedSetAddAsync(s_escalateIssues, issue.Id, (escalateTime - DateTime.UnixEpoch).TotalSeconds, SortedSetWhen.NotExists))
 					{
 						_logger.LogInformation("First escalation time for issue {IssueId} is {Time}", issue.Id, escalateTime);
 					}
