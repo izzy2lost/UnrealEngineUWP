@@ -118,7 +118,10 @@ void FAnimNextGraphItemDetails::RegisterToolMenuExtensions()
 
 void FAnimNextGraphItemDetails::UnregisterToolMenuExtensions()
 {
-	UToolMenus::Get()->UnregisterOwnerByName("FAnimNextGraphItemDetails");
+	if(UToolMenus* ToolMenus = UToolMenus::Get())
+	{
+		ToolMenus->UnregisterOwnerByName("FAnimNextGraphItemDetails");
+	}
 }
 }
 
