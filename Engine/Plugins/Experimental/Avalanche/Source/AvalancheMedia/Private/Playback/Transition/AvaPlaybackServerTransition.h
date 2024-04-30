@@ -26,6 +26,8 @@ class UAvaPlaybackServerTransition : public UAvaPlaybackTransition
 	GENERATED_BODY()
 	
 public:
+	static UAvaPlaybackServerTransition* MakeNew(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer);
+	
 	void SetChannelName(const FName& InChannelName) { ChannelName = InChannelName; }
 	void SetTransitionId(const FGuid& InTransitionId) { TransitionId = InTransitionId; }
 	void SetClientName(const FString& InClientName) { ClientName = InClientName; }
@@ -73,6 +75,8 @@ protected:
 	void UpdateChannelName(const FAvaPlaybackInstance* InPlaybackInstance);
 
 protected:
+	TWeakPtr<FAvaPlaybackServer> PlaybackServerWeak;
+	
 	FString ClientName;
 	FName ChannelName;
 	FGuid TransitionId;

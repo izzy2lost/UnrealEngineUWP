@@ -135,9 +135,9 @@ public:
 	FAvaPlaybackHttpServer() = default;
 	virtual ~FAvaPlaybackHttpServer() = default;
 
-	void Start(int32 InPortToUse = 10123);
+	void Start(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer, int32 InPortToUse = 10123);
 
-	void RegisterRoutes();
+	void RegisterRoutes(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer);
 
 	/**
 	 * Try to get a route registered under given friendly name. Returns false if could not be found.

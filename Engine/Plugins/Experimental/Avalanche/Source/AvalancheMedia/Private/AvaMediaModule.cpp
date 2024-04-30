@@ -610,6 +610,12 @@ void FAvaMediaModule::StopPlaybackClientCommand(const TArray<FString>& InArgs)
 
 void FAvaMediaModule::StartHttpPlaybackServerCommand(const TArray<FString>& InArgs)
 {
+	if (!AvaPlaybackServer.IsValid())
+	{
+		UE_LOG(LogAvaMedia, Error, TEXT("Playback Server must be started in order to start Http Playback Server."));
+		return;
+	}
+	
 	if (!AvaPlaybackHttpPlaybackServer)
 	{
 		AvaPlaybackHttpPlaybackServer = MakeShared<FAvaPlaybackHttpServer>();
@@ -623,7 +629,7 @@ void FAvaMediaModule::StartHttpPlaybackServerCommand(const TArray<FString>& InAr
 	if (!AvaPlaybackHttpPlaybackServer->IsRunning())
 	{
 		const int32 Port = GetDefault<UAvaMediaSettings>()->HttpServerPort;
-		AvaPlaybackHttpPlaybackServer->Start(Port);
+		AvaPlaybackHttpPlaybackServer->Start(AvaPlaybackServer, Port);
 		UE_LOG(LogAvaMedia, Log, TEXT("Http Playback Server Started"));
 	}
 }

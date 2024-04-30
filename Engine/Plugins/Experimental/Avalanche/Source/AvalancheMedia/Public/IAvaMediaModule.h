@@ -9,7 +9,6 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaMedia, Log, All);
 
 class FAvaPlaybackManager;
-class FAvaPlaybackServer;
 class FAvaRundownManagedInstanceCache;
 class FCommonViewportClient;
 class FName;
@@ -81,7 +80,6 @@ public:
 	virtual void StopPlaybackServer() = 0;
 
 	virtual IAvaPlaybackClient& GetPlaybackClient() = 0;
-	virtual TSharedPtr<FAvaPlaybackServer> GetPlaybackServerInternal() const = 0;
 	virtual IAvaPlaybackServer* GetPlaybackServer() const = 0;
 	virtual const IMediaIOCoreDeviceProvider* GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const = 0;
 	virtual TArray<const IMediaIOCoreDeviceProvider*> GetDeviceProvidersForServer(const FString& InServerName) const = 0;

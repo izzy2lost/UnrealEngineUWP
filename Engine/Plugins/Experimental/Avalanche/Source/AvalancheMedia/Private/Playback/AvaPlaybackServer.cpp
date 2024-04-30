@@ -596,7 +596,7 @@ void FAvaPlaybackServer::HandlePlayableTransitionStartRequest(const FAvaPlayback
 {
 	check(PlaybackInstanceTransitions);
 	
-	UAvaPlaybackServerTransition* Transition = NewObject<UAvaPlaybackServerTransition>();
+	UAvaPlaybackServerTransition* Transition = UAvaPlaybackServerTransition::MakeNew(AsShared());
 	Transition->SetTransitionId(InMessage.TransitionId);
 	Transition->SetChannelName(FName(InMessage.ChannelName));
 	Transition->SetClientName(GetClientNameSafe(InContext->GetSender()));

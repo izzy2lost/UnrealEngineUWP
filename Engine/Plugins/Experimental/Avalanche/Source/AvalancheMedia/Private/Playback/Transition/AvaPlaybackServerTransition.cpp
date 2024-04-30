@@ -2,7 +2,6 @@
 
 #include "Playback/Transition/AvaPlaybackServerTransition.h"
 
-#include "IAvaMediaModule.h"
 #include "Playable/Transition/AvaPlayableTransition.h"
 #include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackServer.h"
@@ -43,6 +42,13 @@ namespace UE::AvaPlaybackServerTransition::Private
 		}
 		return nullptr;
 	}
+}
+
+UAvaPlaybackServerTransition* UAvaPlaybackServerTransition::MakeNew(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer)
+{
+	UAvaPlaybackServerTransition* NewTransition = NewObject<UAvaPlaybackServerTransition>();
+	NewTransition->PlaybackServerWeak = InPlaybackServer.ToWeakPtr();
+	return NewTransition;
 }
 
 void UAvaPlaybackServerTransition::SetEnterValues(const TArray<FAvaPlayableRemoteControlValues>& InEnterValues)
@@ -234,7 +240,7 @@ void UAvaPlaybackServerTransition::Stop()
 	UnregisterFromPlayableTransitionEvent();
 	
 	// Remove transition from server.
-	if (const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetPlaybackServerInternal())
+	if (const TSharedPtr<FAvaPlaybackServer> PlaybackServer = PlaybackServerWeak.Pin())
 	{
 		if (!PlaybackServer->RemovePlaybackInstanceTransition(TransitionId))
 		{
@@ -315,7 +321,7 @@ void UAvaPlaybackServerTransition::OnTransitionEvent(UAvaPlayable* InPlayable, U
 		return;
 	}
 
-	const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetPlaybackServerInternal();
+	const TSharedPtr<FAvaPlaybackServer> PlaybackServer = PlaybackServerWeak.Pin();
 
 	// Find the page player for this playable
 	if (const TSharedPtr<FAvaPlaybackInstance> Instance = FindInstanceForPlayable(InPlayable))

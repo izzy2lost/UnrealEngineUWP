@@ -32,7 +32,6 @@ public:
 	virtual void StopPlaybackServer() override;
 	
 	virtual IAvaPlaybackClient& GetPlaybackClient() override;
-	virtual TSharedPtr<FAvaPlaybackServer> GetPlaybackServerInternal() const override { return AvaPlaybackServer; }
 	virtual IAvaPlaybackServer* GetPlaybackServer() const override { return AvaPlaybackServer.Get(); }
 	virtual const IMediaIOCoreDeviceProvider* GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const override;
 	virtual TArray<const IMediaIOCoreDeviceProvider*> GetDeviceProvidersForServer(const FString& InServerName) const override;
