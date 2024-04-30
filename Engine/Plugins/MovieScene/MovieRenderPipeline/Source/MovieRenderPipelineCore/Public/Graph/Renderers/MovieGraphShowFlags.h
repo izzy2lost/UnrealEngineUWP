@@ -40,6 +40,12 @@ public:
 	/** Gets the indices of all show flags that have been overridden. */
 	const TSet<uint32>& GetOverriddenShowFlags() const;
 
+	/** Determines if the provided show flag is set to a non-default value. The override state does not impact the value returned. */
+	bool IsShowFlagSetToDefaultValue(const uint32 ShowFlagIndex) const;
+
+	/** Reverts the provided show flag to its default value. Does not impact the override state for the flag. */
+	void RevertShowFlagToDefaultValue(const uint32 ShowFlagIndex);
+
 	/**
 	 * Applies a default value to the show flags. However, the default will not be applied if a user has already
 	 * specified an override for the flag. This should generally only be called from renderers in order for them to

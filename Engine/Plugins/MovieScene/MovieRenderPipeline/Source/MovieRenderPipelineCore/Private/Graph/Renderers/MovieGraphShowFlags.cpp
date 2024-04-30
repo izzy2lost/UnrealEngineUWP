@@ -43,6 +43,10 @@ void UMovieGraphShowFlags::SetShowFlagEnabled(const uint32 ShowFlagIndex, const 
 		return;
 	}
 
+#if WITH_EDITOR
+	Modify();
+#endif
+
 	bool& EnableState = ShowFlagEnableState.FindOrAdd(ShowFlagIndex);
 	EnableState = bIsShowFlagEnabled;
 }
@@ -54,6 +58,10 @@ bool UMovieGraphShowFlags::IsShowFlagOverridden(const uint32 ShowFlagIndex) cons
 
 void UMovieGraphShowFlags::SetShowFlagOverridden(const uint32 ShowFlagIndex, const bool bIsOverridden)
 {
+#if WITH_EDITOR
+	Modify();
+#endif
+	
 	if (bIsOverridden)
 	{
 		OverriddenShowFlags.Add(ShowFlagIndex);
@@ -77,6 +85,23 @@ void UMovieGraphShowFlags::SetShowFlagOverridden(const uint32 ShowFlagIndex, con
 const TSet<uint32>& UMovieGraphShowFlags::GetOverriddenShowFlags() const
 {
 	return OverriddenShowFlags;
+}
+
+bool UMovieGraphShowFlags::IsShowFlagSetToDefaultValue(const uint32 ShowFlagIndex) const
+{
+	const bool* ShowFlagEnableValue = ShowFlagEnableState.Find(ShowFlagIndex);
+	
+	return !ShowFlagEnableValue ||
+		(ShowFlagEnableValue && (ShowFlags.GetSingleFlag(ShowFlagIndex) == *ShowFlagEnableValue)); 
+}
+
+void UMovieGraphShowFlags::RevertShowFlagToDefaultValue(const uint32 ShowFlagIndex)
+{
+#if WITH_EDITOR
+	Modify();
+#endif
+	
+	ShowFlagEnableState.Remove(ShowFlagIndex);
 }
 
 void UMovieGraphShowFlags::ApplyDefaultShowFlagValue(const uint32 ShowFlagIndex, const bool bShowFlagState)
