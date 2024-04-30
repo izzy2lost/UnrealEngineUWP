@@ -879,8 +879,9 @@ class FInterpreter
 
 		if (Task->NativeDefer)
 		{
-			AutoRTFM::Close([&] { Task->NativeDefer(Context, Task); });
+			AutoRTFM::EContextStatus Status = AutoRTFM::Close([&] { Task->NativeDefer(Context, Task); });
 			Task->NativeDefer.Reset();
+			V_DIE_UNLESS(Status == AutoRTFM::EContextStatus::OnTrack);
 		}
 
 		for (VFrame* Frame = State.Frame; Frame != nullptr; PC = Frame->CallerPC, Frame = Frame->CallerFrame.Get())
@@ -2344,8 +2345,9 @@ class FInterpreter
 						ResumeAwaiter(Awaiter);
 						if (Task->NativeDefer)
 						{
-							AutoRTFM::Close([&] { Task->NativeDefer(Context, Task); });
+							AutoRTFM::EContextStatus Status = AutoRTFM::Close([&] { Task->NativeDefer(Context, Task); });
 							Task->NativeDefer.Reset();
+							V_DIE_UNLESS(Status == AutoRTFM::EContextStatus::OnTrack);
 						}
 						if (!Def(Task->ResumeSlot, Result))
 						{
@@ -2798,8 +2800,9 @@ public:
 
 			if (Task.NativeDefer)
 			{
-				AutoRTFM::Close([&] { Task.NativeDefer(Context, &Task); });
+				AutoRTFM::EContextStatus Status = AutoRTFM::Close([&] { Task.NativeDefer(Context, &Task); });
 				Task.NativeDefer.Reset();
+				V_DIE_UNLESS(Status == AutoRTFM::EContextStatus::OnTrack);
 			}
 
 			bool bExecute = true;
