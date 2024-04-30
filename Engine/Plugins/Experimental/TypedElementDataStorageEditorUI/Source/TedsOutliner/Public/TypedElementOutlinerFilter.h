@@ -13,7 +13,7 @@ class FTypedElementOutlinerMode;
 class FTEDSOutlinerFilter : public FFilterBase<SceneOutliner::FilterBarType>
 {
 public:
-	FTEDSOutlinerFilter(const FName& InFilterName, TSharedPtr<FFilterCategory> InCategory, FTypedElementOutlinerMode* InTEDSOutlinerMode, const TypedElementDataStorage::FQueryDescription& InFilterQuery);
+	FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory, FTypedElementOutlinerMode* InTEDSOutlinerMode, const TypedElementDataStorage::FQueryDescription& InFilterQuery);
 
 	/** Returns the system name for this filter */
 	virtual FString GetName() const override;
@@ -53,6 +53,8 @@ public:
 protected:
 
 	FName FilterName;
+	FText FilterDisplayName;
+
 	FTypedElementOutlinerMode* TEDSOutlinerMode;
 	const TypedElementDataStorage::FQueryDescription FilterQuery;
 };

@@ -15,7 +15,9 @@
 class FTypedElementOutlinerHierarchy : public ISceneOutlinerHierarchy
 {
 public:
-	FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, TypedElementDataStorage::FQueryDescription InInitialQueryDescription);
+	FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, TypedElementDataStorage::FQueryDescription InInitialQueryDescription,
+		TOptional<FTypedElementOutlinerHierarchyData> InHierarchyData);
+	
 	virtual ~FTypedElementOutlinerHierarchy() override;
 			
 	/** Create a linearization of all applicable items in the hierarchy */
@@ -51,10 +53,9 @@ protected:
 	// Query to get all child rows
 	TypedElementDataStorage::QueryHandle ChildRowHandleQuery;
 
-	// Query to track when a row gets added the parent column
-	TypedElementDataStorage::QueryHandle ParentAddedQuery;
+	// Query to track when a row's parent gets changed
+	TypedElementDataStorage::QueryHandle UpdateParentQuery;
 
-	// Query to track when a row gets removed the parent column
-	TypedElementDataStorage::QueryHandle ParentRemovedQuery;
-
+	// Optional Hierarchy Data
+	TOptional<FTypedElementOutlinerHierarchyData> HierarchyData;
 };

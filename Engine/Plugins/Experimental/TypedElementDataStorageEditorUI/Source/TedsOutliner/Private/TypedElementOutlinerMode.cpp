@@ -29,27 +29,23 @@ namespace UE::TEDSOutliner::Local
 FTypedElementOutlinerMode::FTypedElementOutlinerMode(const FTypedElementOutlinerModeParams& InParams)
 	: ISceneOutlinerMode(InParams.SceneOutliner)
 	, InitialQueryDescription(InParams.QueryDescription)
-	, bSelectionDirty(true)
+	, SelectionSetName(InParams.SelectionSetOverride)
+	, bSelectionDirty(SelectionSetName.IsSet() ? true : false)
+	, HierarchyData(InParams.HierarchyData)
 {
 	using namespace TypedElementQueryBuilder;
 
-	// If we don't have a selection set override, create a new unique selection set
-	if(!InParams.SelectionSetOverride.IsSet())
+	if(SelectionSetName.IsSet())
 	{
-		SelectionSetName = FName(FString::Printf(TEXT("TEDSOutliner%p"), this));
+		// We currently need a ticker to update selection because TEDS Observers can be fired before the data in columns is init
+		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
+				[this](float DeltaTimeInSeconds)
+				{
+					Tick();
+					return true;
+				}));
 	}
-	else
-	{
-		SelectionSetName = InParams.SelectionSetOverride.GetValue();
-	}
-
-	// We currently need a ticker to update selection because TEDS Observers can be fired before the data in columns is init
-	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
-			[this](float DeltaTimeInSeconds)
-			{
-				Tick();
-				return true;
-			}));
+	
 	
 	if(InParams.bUseDefaultTEDSFilters)
 	{
@@ -75,7 +71,8 @@ FTypedElementOutlinerMode::FTypedElementOutlinerMode(const FTypedElementOutliner
 					.Compile();
 
 					// Create the filter
-					TSharedRef<FTEDSOutlinerFilter> TEDSFilter = MakeShared<FTEDSOutlinerFilter>(Struct->GetFName(), Struct->IsChildOf(TEDSColumn) ? TEDSColumnFilterCategory : TEDSTagFilterCategory, this, FilterQueryDesc);
+					TSharedRef<FTEDSOutlinerFilter> TEDSFilter = MakeShared<FTEDSOutlinerFilter>(Struct->GetFName(), Struct->GetDisplayNameText(),
+						Struct->IsChildOf(TEDSColumn) ? TEDSColumnFilterCategory : TEDSTagFilterCategory, this, FilterQueryDesc);
 					SceneOutliner->AddFilterToFilterBar(TEDSFilter);
 				}
 			}
@@ -87,7 +84,9 @@ FTypedElementOutlinerMode::FTypedElementOutlinerMode(const FTypedElementOutliner
 
 	for(const TPair<FName, const TypedElementDataStorage::FQueryDescription>& FilterQuery : InParams.FilterQueries)
 	{
-		TSharedRef<FTEDSOutlinerFilter> TEDSFilter = MakeShared<FTEDSOutlinerFilter>(FilterQuery.Key, CustomFiltersCategory, this, FilterQuery.Value);
+		// TEDS-Outliner TODO: Custom filters need a localizable display name instead of using the FName, but we need to change how they are added first
+		// to see if it can be consolidated with the SFilterBar API
+		TSharedRef<FTEDSOutlinerFilter> TEDSFilter = MakeShared<FTEDSOutlinerFilter>(FilterQuery.Key, FText::FromName(FilterQuery.Key), CustomFiltersCategory, this, FilterQuery.Value);
 		SceneOutliner->AddFilterToFilterBar(TEDSFilter);
 	
 	}
@@ -107,7 +106,7 @@ void FTypedElementOutlinerMode::Rebuild()
 
 void FTypedElementOutlinerMode::Tick()
 {
-	if(bSelectionDirty)
+	if(bSelectionDirty && SelectionSetName.IsSet())
 	{
 		bSelectionDirty = false;
 
@@ -130,6 +129,11 @@ void FTypedElementOutlinerMode::Tick()
 
 void FTypedElementOutlinerMode::ClearSelection()
 {
+	if(!SelectionSetName.IsSet())
+	{
+		return;
+	}
+	
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
 
@@ -164,11 +168,20 @@ void FTypedElementOutlinerMode::ClearSelection()
 
 void FTypedElementOutlinerMode::SynchronizeSelection()
 {
-	bSelectionDirty = true;
+	if(SelectionSetName.IsSet())
+	{
+		bSelectionDirty = true;
+	}
+	
 }
 
 void FTypedElementOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
+	if(!SelectionSetName.IsSet())
+	{
+		return;
+	}
+	
 	if(SelectionType == ESelectInfo::Direct)
 	{
 		return; // Direct selection means we selected from outside the Outliner i.e through TEDS, so we don't need to redo the column addition
@@ -183,13 +196,19 @@ void FTypedElementOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr
 		{
 			TypedElementDataStorage::RowHandle RowHandle = TEDSItem->GetRowHandle();
 
-			Storage->AddColumn(RowHandle, FTypedElementSelectionColumn{ .SelectionSet = SelectionSetName });
+			Storage->AddColumn(RowHandle, FTypedElementSelectionColumn{ .SelectionSet = SelectionSetName.GetValue() });
 		}
 	});
 }
 
 TSharedPtr<FDragDropOperation> FTypedElementOutlinerMode::CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const
 {
+	// We don't want drag/drop if this TEDS Outliner isn't showing any hierarchy data
+	if(!HierarchyData.IsSet())
+	{
+		return nullptr;
+	}
+	
 	TArray<TypedElementDataStorage::RowHandle> DraggedRowHandles;
 
 	for(const FSceneOutlinerTreeItemPtr& Item :InTreeItems)
@@ -221,6 +240,13 @@ bool FTypedElementOutlinerMode::ParseDragDrop(FSceneOutlinerDragDropPayload& Out
 
 FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const
 {
+	// We don't want drag/drop if this TEDS Outliner isn't showing any hierarchy data
+	if(!HierarchyData.IsSet())
+	{
+		return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric,
+			LOCTEXT("DropDisabled", "Drag/Drop is disabled due to missing hierarchy data!"));
+	}
+	
 	TArray<TypedElementDataStorage::RowHandle> DraggedRowHandles;
 
 	Payload.ForEachItem<FTypedElementOutlinerTreeItem>([&DraggedRowHandles](FTypedElementOutlinerTreeItem& TEDSItem)
@@ -273,7 +299,7 @@ FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const I
 			
 			for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
 			{
-				if(Storage->HasColumns<FTypedElementParentColumn>(RowHandle))
+				if(Storage->HasColumns(RowHandle, MakeArrayView({HierarchyData.GetValue().HierarchyColumn})))
 				{
 					bValidDetach = true;
 					break;
@@ -292,7 +318,7 @@ FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const I
 
 void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const
 {
-	if(!UE::TEDSOutliner::Local::TEDSOutlinerDragDropEnabledCvar->GetBool())
+	if(!UE::TEDSOutliner::Local::TEDSOutlinerDragDropEnabledCvar->GetBool() || !HierarchyData.IsSet())
 	{
 		return;
 	}
@@ -308,7 +334,7 @@ void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const
 	{
 		for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
 		{
-			Storage->RemoveColumn<FTypedElementParentColumn>(RowHandle);
+			Storage->RemoveColumn(RowHandle, HierarchyData.GetValue().HierarchyColumn);
 			Storage->AddColumn<FTypedElementSyncBackToWorldTag>(RowHandle);
 		}
 	}
@@ -319,7 +345,12 @@ void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const
 		
 		for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
 		{
-			Storage->AddColumn(RowHandle, FTypedElementParentColumn{ .Parent = DropTargetRowHandle });
+			// Add the column
+			Storage->AddColumn(RowHandle, HierarchyData.GetValue().HierarchyColumn);
+
+			// Let the hierarchy data fill in the parent row into the column
+			HierarchyData.GetValue().SetParent.Execute(Storage->GetColumnData(RowHandle, HierarchyData.GetValue().HierarchyColumn), DropTargetRowHandle);
+			
 			Storage->AddColumn<FTypedElementSyncBackToWorldTag>(RowHandle);
 		}
 	}
@@ -327,7 +358,7 @@ void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const
 
 TUniquePtr<ISceneOutlinerHierarchy> FTypedElementOutlinerMode::CreateHierarchy()
 {
-	return MakeUnique<FTypedElementOutlinerHierarchy>(this, InitialQueryDescription);
+	return MakeUnique<FTypedElementOutlinerHierarchy>(this, InitialQueryDescription, HierarchyData);
 }
 
 void FTypedElementOutlinerMode::AppendQuery(TypedElementDataStorage::FQueryDescription& Query1, const TypedElementDataStorage::FQueryDescription& Query2)
@@ -347,6 +378,35 @@ void FTypedElementOutlinerMode::AppendQuery(TypedElementDataStorage::FQueryDescr
 			Query1.ConditionTypes.Add(Query2.ConditionTypes[i]);
 		}
 	}
+}
+
+bool FTypedElementOutlinerMode::HasItemParentChanged(TypedElementDataStorage::RowHandle InRowHandle, TypedElementDataStorage::RowHandle ParentRowHandle)
+{
+	const FSceneOutlinerTreeItemPtr Item = SceneOutliner->GetTreeItem(InRowHandle, true);
+
+	// If the item doesn't exist, it doesn't make sense to say its parent changed
+	if(!Item)
+	{
+		return false;
+	}
+	
+	const FSceneOutlinerTreeItemPtr ParentItem = Item->GetParent();
+
+	// If the item doesn't have a parent, but ParentRowHandle is valid: The item just got added a parent so we want to dirty it
+	if(!ParentItem)
+	{
+		return ParentRowHandle != TypedElementDataStorage::InvalidRowHandle;
+	}
+	
+	const FTypedElementOutlinerTreeItem* TEDSParentItem = ParentItem->CastTo<FTypedElementOutlinerTreeItem>();
+
+	if(ensureMsgf(TEDSParentItem, TEXT("The TEDS Outliner should only have FTypedElementOutlinerTreeItems!")))
+	{
+		// return true if the row handle of the parent item doesn't match what we are given, i.e the parent has changed
+		return TEDSParentItem->GetRowHandle() != ParentRowHandle;
+	}
+
+	return false;
 }
 
 void FTypedElementOutlinerMode::SetRowHandleQuery(TypedElementDataStorage::QueryHandle InRowHandleQuery)
@@ -377,6 +437,12 @@ void FTypedElementOutlinerMode::RecompileQueries()
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+
+	// We don't need to register queries to sync selection if there's no selection set attached
+	if(!SelectionSetName.IsSet())
+	{
+		return;					
+	}
 
 	UnregisterQueries();
 	

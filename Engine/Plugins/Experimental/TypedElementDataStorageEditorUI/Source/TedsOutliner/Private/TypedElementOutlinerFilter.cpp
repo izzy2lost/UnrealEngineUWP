@@ -4,9 +4,10 @@
 
 #include "TypedElementOutlinerMode.h"
 
-FTEDSOutlinerFilter::FTEDSOutlinerFilter(const FName& InFilterName, TSharedPtr<FFilterCategory> InCategory, FTypedElementOutlinerMode* InTEDSOutlinerMode, const TypedElementDataStorage::FQueryDescription& InFilterQuery)
+FTEDSOutlinerFilter::FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory, FTypedElementOutlinerMode* InTEDSOutlinerMode, const TypedElementDataStorage::FQueryDescription& InFilterQuery)
 	: FFilterBase(InCategory)
 	, FilterName(InFilterName)
+	, FilterDisplayName(InFilterDisplayName)
 	, TEDSOutlinerMode(InTEDSOutlinerMode)
 	, FilterQuery(InFilterQuery)
 {
@@ -20,7 +21,7 @@ FString FTEDSOutlinerFilter::GetName() const
 
 FText FTEDSOutlinerFilter::GetDisplayName() const
 {
-	return FText::FromName(FilterName);
+	return FilterDisplayName;
 }
 
 FText FTEDSOutlinerFilter::GetToolTipText() const

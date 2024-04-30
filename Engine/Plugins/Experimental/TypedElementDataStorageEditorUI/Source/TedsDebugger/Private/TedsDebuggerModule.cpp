@@ -10,6 +10,8 @@
 #include "WorkspaceMenuStructure.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementPackageColumns.h"
+#include "Elements/Columns/TypedElementRevisionControlColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
@@ -102,7 +104,7 @@ TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 	// TEDS-Debugger TODO: Currently uses a pre-determined initial set of columns, how can we drive this by the rows shown or let the user pick?
 	TypedElementDataStorage::FQueryDescription ColumnQueryDescription =
 						Select()
-							.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementSlateWidgetReferenceColumn, FTypedElementRowReferenceColumn, FTypedElementSelectionColumn>()
+							.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementSelectionColumn, FTypedElementRowReferenceColumn>()
 						.Compile();
 
 	InitialColumnQuery = Registry->GetMutableDataStorage()->RegisterQuery(MoveTemp(ColumnQueryDescription));
@@ -116,11 +118,8 @@ TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 	FTypedElementOutlinerModeParams Params(nullptr);
 	Params.QueryDescription = RowQueryDescription;
 	Params.bUseDefaultTEDSFilters = true;
+	Params.HierarchyData = TOptional<FTypedElementOutlinerHierarchyData>(); // We don't want to show hierarchies in the debugger
 
-	// TEDS-Debugger TODO: We'll keep this synced with the level editor for now, because TEDS currently only supports one selection set per row
-	// and if we used a unique one it would deselect it from the level editor's set in TEDS only causing it to go out of sync with the TEv1 selection
-	Params.SelectionSetOverride = FName();
-	
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
 	
 	return TedsOutlinerModule.CreateTedsOutliner(InitOptions, Params, InitialColumnQuery);

@@ -9,12 +9,15 @@
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 
-FTypedElementOutlinerHierarchy::FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, TypedElementDataStorage::FQueryDescription InInitialQueryDescription)
-: ISceneOutlinerHierarchy(InMode)
-, TEDSOutlinerMode(InMode)
-, InitialQueryDescription(MoveTemp(InInitialQueryDescription))
+FTypedElementOutlinerHierarchy::FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode
+	,TypedElementDataStorage::FQueryDescription InInitialQueryDescription, TOptional<FTypedElementOutlinerHierarchyData> InHierarchyData)
+	: ISceneOutlinerHierarchy(InMode)
+	, TEDSOutlinerMode(InMode)
+	, InitialQueryDescription(MoveTemp(InInitialQueryDescription))
+	, HierarchyData(InHierarchyData)
 {
 	RecompileQueries();
 }
@@ -57,11 +60,17 @@ void FTypedElementOutlinerHierarchy::CreateChildren(const FSceneOutlinerTreeItem
 {
 	/* TEDS-Outliner TODO: This can probably be improved or optimized in the future
 	 * 
-	 * TEDS currently only supports lookup for parents using the FTypedElementParentColumn, so to get the children
+	 * TEDS currently only supports one way lookup for parents, so to get the children
 	 * for a given row we currently have to go through every row (that matches our populate query) with a parent column to check if the parent
 	 * is our row.
 	 * This has to be done recursively to grab our children, grandchildren and so on...
 	 */
+
+	// If there's no hierarchy data, there is no need to create children
+	if(!HierarchyData.IsSet())
+	{
+		return;
+	}
 
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -97,21 +106,29 @@ void FTypedElementOutlinerHierarchy::CreateChildren(const FSceneOutlinerTreeItem
 	TArray<TypedElementDataStorage::RowHandle> ChildItems;
 
 	// Recursively get the children for each entity
-	TFunction<void(TypedElementRowHandle)> GetChildrenRecursive = [&ChildItems, &MatchedRowsWithParentColumn, DataStorage, &GetChildrenRecursive](TypedElementRowHandle EntityRowHandle) -> void
+	TFunction<void(TypedElementRowHandle)> GetChildrenRecursive = [&ChildItems, &MatchedRowsWithParentColumn, DataStorage, &GetChildrenRecursive, InHierarchyData = HierarchyData]
+	(TypedElementRowHandle EntityRowHandle) -> void
 	{
 		for(TypedElementRowHandle ChildEntityRowHandle : MatchedRowsWithParentColumn)
 		{
-			// We should always have a parent column since we only grabbed rows with those
-			const FTypedElementParentColumn* ParentColumn = DataStorage->GetColumn<FTypedElementParentColumn>(ChildEntityRowHandle);
-				
-			// Check if this entity is owned by the entity we are looking children for
-			if(ParentColumn->Parent == EntityRowHandle)
-			{
-				ChildItems.Add(ChildEntityRowHandle);
+			void* ParentColumnData = DataStorage->GetColumnData(ChildEntityRowHandle, InHierarchyData.GetValue().HierarchyColumn);
 
-				// Recursively look for children of this item
-				GetChildrenRecursive(ChildEntityRowHandle);
+			if(ensureMsgf(ParentColumnData, TEXT("We should always the a parent column since we only grabbed rows with those ")))
+			{
+				// Get the parent row handle
+				const TypedElementDataStorage::RowHandle ParentRowHandle = InHierarchyData.GetValue().GetParent.Execute(ParentColumnData);
+				
+				// Check if this entity is owned by the entity we are looking children for
+				if(ParentRowHandle == EntityRowHandle)
+				{
+					ChildItems.Add(ChildEntityRowHandle);
+
+					// Recursively look for children of this item
+					GetChildrenRecursive(ChildEntityRowHandle);
+				}
+
 			}
+			
 		}
 	};
 		
@@ -131,6 +148,12 @@ void FTypedElementOutlinerHierarchy::CreateChildren(const FSceneOutlinerTreeItem
 FSceneOutlinerTreeItemPtr FTypedElementOutlinerHierarchy::FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item,
 	const TMap<FSceneOutlinerTreeItemID, FSceneOutlinerTreeItemPtr>& Items, bool bCreate)
 {
+	// No parent if there is no hierarchy data specified
+	if(!HierarchyData.IsSet())
+	{
+		return nullptr;
+	}
+	
 	using namespace TypedElementDataStorage;
 
 	const FTypedElementOutlinerTreeItem* TEDSTreeItem = Item.CastTo<FTypedElementOutlinerTreeItem>();
@@ -145,14 +168,15 @@ FSceneOutlinerTreeItemPtr FTypedElementOutlinerHierarchy::FindOrCreateParentItem
 	ITypedElementDataStorageInterface* DataStorage = TEDSOutlinerMode->GetStorage();
 
 	// If this entity does not have a parent entity, return nullptr
-	FTypedElementParentColumn* ParentColumn = DataStorage->GetColumn<FTypedElementParentColumn>(ItemRowHandle);
-	if(!ParentColumn)
+	void* ParentColumnData = DataStorage->GetColumnData(ItemRowHandle, HierarchyData.GetValue().HierarchyColumn);
+	if(!ParentColumnData)
 	{
 		return nullptr;
 	}
 
 	// If the parent is invalid for some reason, return nullptr
-	TypedElementRowHandle ParentRowHandle = ParentColumn->Parent;
+	const TypedElementRowHandle ParentRowHandle = HierarchyData.GetValue().GetParent.Execute(ParentColumnData);
+	
 	if(ParentRowHandle == InvalidRowHandle)
 	{
 		return nullptr;
@@ -199,6 +223,7 @@ void FTypedElementOutlinerHierarchy::RecompileQueries()
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+	ITypedElementDataStorageInterface* DataStorage = TEDSOutlinerMode->GetStorage();
 
 	UnregisterQueries();
 
@@ -236,52 +261,47 @@ void FTypedElementOutlinerHierarchy::RecompileQueries()
 	// Add the conditions from FinalQueryDescription to ensure we are tracking removal of the rows the user requested
 	TEDSOutlinerMode->AppendQuery(RowRemovalQueryDescription, FinalQueryDescription);
 
-	// Query to get all rows that match our conditions with a parent column (i.e all child rows)
-	FQueryDescription ChildHandleQueryDescription =
-						Select()
-						.Where()
-							.All<FTypedElementParentColumn>()
-						.Compile();
+	// Queries to track parent info, only required if we have hierarchy data
+	if(HierarchyData.IsSet())
+	{
+		const UScriptStruct* ParentColumnType = HierarchyData.GetValue().HierarchyColumn;
+		
+		// Query to get all rows that match our conditions with a parent column (i.e all child rows)
+		FQueryDescription ChildHandleQueryDescription =
+							Select()
+							.Where()
+								.All(ParentColumnType)
+							.Compile();
 
-	// Add the conditions from FinalQueryDescription to ensure we are tracking removal of the rows the user requested
-	TEDSOutlinerMode->AppendQuery(ChildHandleQueryDescription, FinalQueryDescription);
+		// Add the conditions from FinalQueryDescription to ensure we are tracking removal of the rows the user requested
+		TEDSOutlinerMode->AppendQuery(ChildHandleQueryDescription, FinalQueryDescription);
 
-	// Query to track when a row gets added a parent column
-	FQueryDescription ParentAddedQueryDescription =
-						Select(
-						TEXT("Parent Attached"),
-						FObserver::OnAdd<FTypedElementParentColumn>().ForceToGameThread(true),
-						[this](IQueryContext& Context, TypedElementRowHandle Row)
-						{
-							OnItemMoved(Row);
-						})
-						.Compile();
+		FQueryDescription UpdateParentQueryDescription =
+			Select(
+			TEXT("Update item parent"),
+			FProcessor(EQueryTickPhase::DuringPhysics, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Update))
+				.ForceToGameThread(true),
+			[this](IQueryContext& Context, TypedElementDataStorage::RowHandle Row, const FTypedElementParentColumn& ParentColumn)
+			{
+				if(TEDSOutlinerMode->HasItemParentChanged(Row, ParentColumn.Parent))
+				{
+					OnItemMoved(Row);
+				}
+			})
+		.Where()
+			.All<FTypedElementSyncFromWorldTag>()
+		.Compile();
+		
+		// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested
+		TEDSOutlinerMode->AppendQuery(UpdateParentQueryDescription, FinalQueryDescription);
 
-	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested
-	TEDSOutlinerMode->AppendQuery(ParentAddedQueryDescription, FinalQueryDescription);
-
-	// Query to track when a row gets added a parent column
-	FQueryDescription ParentRemovedQueryDescription =
-						Select(
-						TEXT("Parent Detached"),
-						FObserver::OnRemove<FTypedElementParentColumn>().ForceToGameThread(true),
-						[this](IQueryContext& Context, TypedElementRowHandle Row)
-						{
-							OnItemMoved(Row);
-						})
-						.Compile();
-
-	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested
-	TEDSOutlinerMode->AppendQuery(ParentRemovedQueryDescription, FinalQueryDescription);
-
-	ITypedElementDataStorageInterface* DataStorage = TEDSOutlinerMode->GetStorage();
-
+		ChildRowHandleQuery = DataStorage->RegisterQuery(MoveTemp(ChildHandleQueryDescription));
+		UpdateParentQuery = DataStorage->RegisterQuery(MoveTemp(UpdateParentQueryDescription));
+	}
+	
 	RowHandleQuery = DataStorage->RegisterQuery(MoveTemp(FinalQueryDescription));
 	RowAdditionQuery = DataStorage->RegisterQuery(MoveTemp(RowAdditionQueryDescription));
 	RowRemovalQuery = DataStorage->RegisterQuery(MoveTemp(RowRemovalQueryDescription));
-	ChildRowHandleQuery = DataStorage->RegisterQuery(MoveTemp(ChildHandleQueryDescription));
-	ParentAddedQuery = DataStorage->RegisterQuery(MoveTemp(ParentAddedQueryDescription));
-	ParentRemovedQuery = DataStorage->RegisterQuery(MoveTemp(ParentRemovedQueryDescription));
 
 	// Sync the row handle query with the mode
 	TEDSOutlinerMode->SetRowHandleQuery(RowHandleQuery);
@@ -295,6 +315,5 @@ void FTypedElementOutlinerHierarchy::UnregisterQueries()
 	DataStorage->UnregisterQuery(RowAdditionQuery);
 	DataStorage->UnregisterQuery(RowRemovalQuery);
 	DataStorage->UnregisterQuery(ChildRowHandleQuery);
-	DataStorage->UnregisterQuery(ParentAddedQuery);
-	DataStorage->UnregisterQuery(ParentRemovedQuery);
+	DataStorage->UnregisterQuery(UpdateParentQuery);
 }
