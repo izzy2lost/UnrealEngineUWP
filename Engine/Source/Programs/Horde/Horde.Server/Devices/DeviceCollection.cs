@@ -767,6 +767,11 @@ namespace Horde.Server.Devices
 						return false;
 					}
 
+					if (!String.IsNullOrEmpty(data.DeviceName) && !a.Name.Equals(data.DeviceName, StringComparison.OrdinalIgnoreCase))
+					{
+						return false;
+					}
+
 					return true;
 				});
 

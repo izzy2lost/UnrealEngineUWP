@@ -37,14 +37,20 @@ namespace Horde.Server.Devices
 		public List<string> ExcludeModels { get; set; }
 
 		/// <summary>
+		/// Specific device to reserve
+		/// </summary>
+		public string? DeviceName { get; set; } = null;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DeviceRequestData(DevicePlatformId platformId, string requestedPlatform, List<string>? includeModels = null, List<string>? excludeModels = null)
+		public DeviceRequestData(DevicePlatformId platformId, string requestedPlatform, List<string>? includeModels = null, List<string>? excludeModels = null, string? deviceName = null)
 		{
 			PlatformId = platformId;
 			IncludeModels = includeModels ?? new List<string>();
 			ExcludeModels = excludeModels ?? new List<string>();
 			RequestedPlatform = requestedPlatform;
+			DeviceName = deviceName;
 		}
 	}
 

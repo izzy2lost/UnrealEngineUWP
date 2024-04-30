@@ -245,7 +245,7 @@ namespace Horde.Server.Tests.Devices
 			return job;
 		}
 
-		static LegacyCreateReservationRequest SetupReservationTestAsync(IJob job, string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1", JobStepId? stepId = null, string? modelId = null)
+		static LegacyCreateReservationRequest SetupReservationTestAsync(IJob job, string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1", JobStepId? stepId = null, string? modelId = null, string? deviceName = null)
 		{
 			if (stepId == null)
 			{
@@ -265,6 +265,7 @@ namespace Horde.Server.Tests.Devices
 			request.Duration = "00:10:00";
 			request.JobId = job.Id.ToString();
 			request.StepId = stepId.ToString();
+			request.DeviceName = deviceName;
 
 			return request;
 		}
@@ -566,6 +567,26 @@ namespace Horde.Server.Tests.Devices
 
 			string? secondModel = device.Model;
 			Assert.IsTrue(secondModel != firstModel && (secondModel == "TestDevicePlatform1_Model2" || secondModel == "TestDevicePlatform1_Model3"));
+		}
+
+		[TestMethod]
+		public async Task TestReservationDeviceNameAsync()
+		{
+			await SetupDevicesAsync();
+
+			IJob job = await SetupJobAsync();
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, "TestDevicePool1", "TestDevicePlatform1", null, null, "testdevice1_platform1_testdevicepool1");
+
+			// create a reservation
+			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
+			Assert.AreEqual(1, reservation.DeviceNames.Length);
+			Assert.AreEqual("testdevice1_platform1_testdevicepool1", reservation.DeviceNames[0], StringComparer.OrdinalIgnoreCase);
+			Assert.AreEqual("Test job", reservation.JobName);
+			Assert.AreEqual("abcd", reservation.StepId);
+
+			// get the device in the reservation, and make sure it is the right device
+			GetLegacyDeviceResponse device = ResultToValue(await DeviceController!.GetDeviceV1Async(reservation.DeviceNames[0]));
+			Assert.AreEqual(device.Name, "testdevice1_platform1_testdevicepool1", StringComparer.OrdinalIgnoreCase);
 		}
 
 		[TestMethod]

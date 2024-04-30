@@ -851,6 +851,11 @@ namespace Horde.Server.Devices
 		/// </summary>
 		public string? StepId { get; set; } = null;
 
+		/// <summary>
+		/// A specific device to reserve
+		/// </summary>
+		public string? DeviceName { get; set; } = null;
+
 	}
 
 	/// <summary>

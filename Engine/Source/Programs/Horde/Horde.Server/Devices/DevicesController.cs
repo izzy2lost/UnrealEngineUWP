@@ -814,7 +814,7 @@ namespace Horde.Server.Devices
 					}
 				}
 
-				requestedDevices.Add(new DeviceRequestData(platform.Id, platformName, includeModels, excludeModels));
+				requestedDevices.Add(new DeviceRequestData(platform.Id, platformName, includeModels, excludeModels, request.DeviceName));
 			}
 
 			(IDeviceReservation? reservation, string? errorMessage, bool installRequired) = await _deviceService.TryCreateReservationAsync(poolIdValue, requestedDevices, request.Hostname, request.ReservationDetails, request.JobId == null ? null : JobId.Parse(request.JobId), request.StepId == null ? null : JobStepId.Parse(request.StepId));
