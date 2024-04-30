@@ -173,7 +173,6 @@ Options for executing a job
 Name | Description
 ---- | -----------
 `executor` | `string`<br>Name of the executor to use
-`useNewTempStorage` | `boolean`<br>Whether to use the new temp storage backend
 `useWine` | `boolean`<br>Whether to execute using Wine emulation on Linux
 `runInSeparateProcess` | `boolean`<br>Executes the job lease in a separate process
 `workspaceMaterializer` | `string`<br>What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
