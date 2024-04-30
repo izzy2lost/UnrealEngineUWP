@@ -116,6 +116,14 @@ void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 	{
 		Entry->Initialize(this);
 	}
+
+	if (IInterface_AssetUserData* OuterUserData = Cast<IInterface_AssetUserData>(GetOuter()))
+	{
+		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass()))
+		{
+			OuterUserData->AddAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass());
+		}
+	}
 }
 
 void UAnimNextRigVMAssetEditorData::PostLoad()
@@ -130,14 +138,6 @@ void UAnimNextRigVMAssetEditorData::PostLoad()
 
 	// delay compilation until the package has been loaded
 	FCoreUObjectDelegates::OnEndLoadPackage.AddUObject(this, &UAnimNextRigVMAssetEditorData::HandlePackageDone);
-	
-	if (IInterface_AssetUserData* OuterUserData = Cast<IInterface_AssetUserData>(GetOuter()))
-	{
-		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass()))
-		{
-			OuterUserData->AddAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass());
-		}
-	}
 }
 
 void UAnimNextRigVMAssetEditorData::PostLoadExternalPackages()

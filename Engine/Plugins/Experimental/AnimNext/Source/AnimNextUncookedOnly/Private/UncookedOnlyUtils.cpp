@@ -1633,7 +1633,7 @@ void FUtils::GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorDa
 		if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 		{
 			FWorkspaceOutlinerItemExport& Export = OutExports.Exports.AddDefaulted_GetRef();
-			Export.Identifier = GraphInterface->GetEdGraph()->GetFName();
+			Export.Identifier = Entry->GetEntryName();
 			Export.ParentIdentifier = EditorData->GetOuter()->GetFName();					
 			Export.AssetPath = EditorData->GetOuter();
 
