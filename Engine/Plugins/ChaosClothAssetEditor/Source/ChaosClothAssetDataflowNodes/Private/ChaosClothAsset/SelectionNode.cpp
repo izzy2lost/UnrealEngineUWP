@@ -416,7 +416,7 @@ void FChaosClothAssetSelectionNode::Evaluate(Dataflow::FContext& Context, const 
 	{
 		FString InputNameString = GetValue<FString>(Context, &InputName.StringValue);
 		UE::Chaos::ClothAsset::FWeightMapTools::MakeWeightMapName(InputNameString);
-		SetValue(Context, InputNameString.IsEmpty() ? Name : InputNameString, &Name);
+		SetValue(Context, Name.IsEmpty() ? InputNameString : Name, &Name);
 	}
 }
 
