@@ -41,6 +41,7 @@ namespace Gauntlet
 		static List<Action> InnerPostAbortHandlers = new List<Action>();
 		public static bool CancelSignalled { get; private set; }
 
+		public static bool IsRunningDev => Params.ParseParam("dev");
 
 		/// <summary>
 		/// Returns the device pool id 

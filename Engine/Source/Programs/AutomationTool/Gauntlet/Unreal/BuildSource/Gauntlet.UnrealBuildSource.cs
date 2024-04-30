@@ -573,6 +573,12 @@ namespace Gauntlet
             {
                 Config.FilesToCopy = Role.FilesToCopy;
             }
+
+			if(Globals.IsRunningDev)
+			{
+				Config.OverlayExecutable = new OverlayExecutable(Role, Config.ProjectName);
+			}
+
 			return Config;
 		}
 
@@ -729,9 +735,8 @@ namespace Gauntlet
 					}
 				}
 
-				bool IsRunningDev = Globals.Params.ParseParam("dev");
-
 				// Turn FooGame into Foo
+				bool IsRunningDev = Globals.IsRunningDev;
 				string ExeBase = ProjectName.Replace("Game", "");
 
 				if (TargetPlatform == UnrealTargetPlatform.Android)
@@ -765,8 +770,6 @@ namespace Gauntlet
 					{
 						throw new AutomationException("No suitable build for {0} found at {1}", TargetPlatform, string.Join(",", BuildPaths));
 					}
-
-					//ExePath = AndroidSource.SourceApkPath;			
 				}
 				else
 				{

@@ -101,6 +101,8 @@ namespace Gauntlet
 
 		public IBuild Build { get; set; }
 
+		public OverlayExecutable OverlayExecutable{ get; set; }
+
 		// Prevents installing a build on device
 		public bool SkipInstall => ForceSkipInstall.HasValue ? ForceSkipInstall.Value : _SkipInstall;
 
@@ -112,10 +114,10 @@ namespace Gauntlet
 
 		// Force a skip install
 		public static bool? ForceSkipInstall = null;
-		
+
 		[AutoParamWithNames(false, "SkipInstall", "SkipDeploy", "SkipCopy")]
 		private bool _SkipInstall { get; set; }
-		
+
 		[AutoParamWithNames(false, "FullClean")]
 		private bool _FullClean { get; set; }
 

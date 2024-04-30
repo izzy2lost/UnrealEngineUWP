@@ -179,7 +179,7 @@ namespace Gauntlet
 
 			RequiredBuildFlags = BuildFlags.None;
 
-			if (Globals.Params.ParseParam("dev") && !RoleType.UsesEditor())
+			if (Globals.IsRunningDev && !RoleType.UsesEditor())
 			{
 				RequiredBuildFlags |= BuildFlags.CanReplaceExecutable;
 			}
@@ -827,7 +827,7 @@ namespace Gauntlet
 				}
 				catch (Exception Ex)
 				{
-					if(IsOutOfSpaceException(Ex))
+					if(IsOutOfSpaceException(Ex) || IsOverlayException(Ex))
 					{
 						RemainingAttempts = 0;
 						ReleaseSessionDevices();
@@ -990,10 +990,9 @@ namespace Gauntlet
 
 			// We only want to move artifacts for editor data if there was a crash on a buildmachine.
 			// Also, don't move artifacts in dev mode, because peoples saved data could be huuuuuuuge!
-			bool IsDevBuild = InContext.TestParams.ParseParam("dev");
 			bool IsEditorBuild = InRunningRole.Role.RoleType.UsesEditor();
 			bool IsBuildMachine = CommandUtils.IsBuildMachine;
-			bool SkipArchivingAssets = IsDevBuild || (IsEditorBuild && (IsBuildMachine == false || InRunningRole.AppInstance.ExitCode == 0));
+			bool SkipArchivingAssets = Globals.IsRunningDev || (IsEditorBuild && (IsBuildMachine == false || InRunningRole.AppInstance.ExitCode == 0));
 			bool bRetainArtifacts = InContext.TestParams.ParseParam("RetainDeviceArtifacts");
 
 			// Check if we should copy artifacts
@@ -1067,7 +1066,7 @@ namespace Gauntlet
 				{
 					Log.Info("Skipping archival of assets for editor {Role}", RoleName);
 				}
-				else if (IsDevBuild)
+				else if (Globals.IsRunningDev)
 				{
 					Log.Info("Skipping archival of assets for dev build");
 				}
@@ -1689,6 +1688,12 @@ namespace Gauntlet
 						Log.Error(KnownLogEvents.Gauntlet_DeviceEvent, Message);
 						throw;
 					}
+					else if(IsOverlayException(Ex))
+					{
+						// Errors with Overlay executables are caused by missing files or improper setup, inform user and exit early
+						Log.Error(KnownLogEvents.Gauntlet_DeviceEvent, Message);
+						throw;
+					}
 					else
 					{
 						UnrealDeviceReservation.MarkProblemDevice(Device, Message);
@@ -1938,6 +1943,11 @@ namespace Gauntlet
 		private bool IsOutOfSpaceException(Exception Ex)
 		{
 			return Ex.Message.Contains("not enough space", StringComparison.OrdinalIgnoreCase);
+		}
+
+		private bool IsOverlayException(Exception Ex)
+		{
+			return Ex.Message.Contains("Overlay Error", StringComparison.OrdinalIgnoreCase);
 		}
 	}
 
