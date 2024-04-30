@@ -475,7 +475,7 @@ namespace Gauntlet
 		{
 			if (!HasExited)
 			{
-				if (bGenerateDump) 
+				if (bGenerateDump)
 				{
 					GenerateDump();
 				}

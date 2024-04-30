@@ -359,12 +359,13 @@ namespace Gauntlet
 
 		protected override void GenerateDump()
 		{
-			string CrashDumpPath = string.Empty;
+			string CrashDumpPath = Path.Combine(Install.DesktopDevice.UserDir, "Saved", "Crashes");
 			bool WroteDump = false;
 			if (!Directory.Exists(CrashDumpPath))
 			{
 				Directory.CreateDirectory(CrashDumpPath);
 			}
+
 			string DumpName = Path.Combine(CrashDumpPath, Path.GetFileNameWithoutExtension(ProcessResult.ProcessObject.ProcessName) + ".dmp");
 			using (FileStream CrashDumpStream = File.Create(DumpName))
 			{
