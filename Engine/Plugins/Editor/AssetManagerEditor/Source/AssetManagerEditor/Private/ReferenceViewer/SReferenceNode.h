@@ -26,5 +26,12 @@ public:
 	// End SGraphNode implementation
 
 private:
+
+	/** Returns visibility setting for elements which should be hidden if node is collapsed */
+	EVisibility GetCollapsedVisibility() const;
+
 	TSharedPtr<class FAssetThumbnail> AssetThumbnail;
+
+	/** Whether the current node is collapsed (representing more than one node) or not */
+	bool bIsCollapsed = false;
 };

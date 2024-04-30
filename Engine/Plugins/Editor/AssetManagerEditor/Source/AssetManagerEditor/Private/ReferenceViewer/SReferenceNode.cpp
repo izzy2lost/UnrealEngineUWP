@@ -14,11 +14,21 @@
 
 #define LOCTEXT_NAMESPACE "ReferenceViewer"
 
+namespace FReferenceNode::Private
+{
+	static constexpr int32 ThumbnailSize = 128;
+	static FVector2D CollapsedNodeTextBoxScale(ThumbnailSize * 0.7f, ThumbnailSize * 0.6f);
+}
+
 void SReferenceNode::Construct( const FArguments& InArgs, UEdGraphNode_Reference* InNode )
 {
-	const int32 ThumbnailSize = 128;
+	using namespace FReferenceNode::Private;
 
-	if (InNode->AllowsThumbnail())
+	if (InNode->IsCollapsed())
+	{
+		bIsCollapsed = true;
+	}
+	else if (InNode->AllowsThumbnail())
 	{
 		if (InNode->UsesThumbnail())
 		{
@@ -26,7 +36,7 @@ void SReferenceNode::Construct( const FArguments& InArgs, UEdGraphNode_Reference
 			TSharedPtr<FAssetThumbnailPool> AssetThumbnailPool = InNode->GetReferenceViewerGraph()->GetAssetThumbnailPool();
 			AssetThumbnail = MakeShareable( new FAssetThumbnail( InNode->GetAssetData(), ThumbnailSize, ThumbnailSize, AssetThumbnailPool ) );
 		}
-		else if (InNode->IsPackage() || InNode->IsCollapsed())
+		else if (InNode->IsPackage())
 		{
 			// Just make a generic thumbnail
 			AssetThumbnail = MakeShareable( new FAssetThumbnail( InNode->GetAssetData(), ThumbnailSize, ThumbnailSize, NULL ) );
@@ -72,21 +82,45 @@ void SReferenceNode::UpdateGraphNode()
 		IconBrush = GraphNode->GetIconAndTint(IconColor).GetOptionalIcon();
 	}
 
-	TSharedRef<SWidget> ThumbnailWidget = SNullWidget::NullWidget;
+	TSharedRef<SWidget> MainNodeWidget = SNullWidget::NullWidget;
 	UEdGraphNode_Reference* RefGraphNode = CastChecked<UEdGraphNode_Reference>(GraphNode);
 	bool bIsADuplicate = RefGraphNode->IsADuplicate();
 
 	FLinearColor OpacityColor = RefGraphNode->GetIsFiltered() ? FLinearColor(1.0, 1.0, 1.0, 0.4) : FLinearColor::White;
-	
-	if ( AssetThumbnail.IsValid() )
-	{
 
+	if (bIsCollapsed)
+	{
+		using namespace FReferenceNode::Private;
+
+		MainNodeWidget =
+			SNew(SBox)
+			.MinDesiredWidth(CollapsedNodeTextBoxScale.X)
+			.MinDesiredHeight(CollapsedNodeTextBoxScale.Y)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 30))
+				.ColorAndOpacity(FColor::White)
+				.Text_Lambda([WeakGraphNode = TWeakObjectPtr<UEdGraphNode>(GraphNode)]()
+				{
+					if (UEdGraphNode* GraphNode = WeakGraphNode.Get())
+					{
+						return GraphNode->GetNodeTitle(ENodeTitleType::FullTitle);
+					}
+
+					return LOCTEXT("InvalidNodeTitle", "Invalid Node");
+				})
+			];
+	}
+	else if (AssetThumbnail.IsValid())
+	{
 		FAssetThumbnailConfig ThumbnailConfig;
 		ThumbnailConfig.bAllowFadeIn = RefGraphNode->UsesThumbnail();
 		ThumbnailConfig.bForceGenericThumbnail = !RefGraphNode->UsesThumbnail();
 		ThumbnailConfig.AssetTypeColorOverride = FLinearColor::Transparent;
 
-		ThumbnailWidget =
+		MainNodeWidget =
 			SNew(SBox)
 			.WidthOverride(AssetThumbnail->GetSize().X)
 			.HeightOverride(AssetThumbnail->GetSize().Y)
@@ -131,6 +165,7 @@ void SReferenceNode::UpdateGraphNode()
 				.Padding(0)
 				[
 					SNew(SBorder)
+					.Visibility(this, &SReferenceNode::GetCollapsedVisibility)
 					.BorderImage( FReferenceViewerStyle::Get().GetBrush("Graph.Node.ColorSpill") )
 					.Padding( FMargin(10.0f, 4.0f, 6.0f, 4.0f) )
 					.BorderBackgroundColor( this, &SReferenceNode::GetNodeTitleColor )
@@ -220,14 +255,14 @@ void SReferenceNode::UpdateGraphNode()
 								SAssignNew(LeftNodeBox, SVerticalBox)
 							]
 						]
-						
+
 						+SHorizontalBox::Slot()
 						.VAlign(VAlign_Center)
 						.HAlign(HAlign_Center)
 						.FillWidth(1.0f)
 						[
 							// Thumbnail
-							ThumbnailWidget
+							MainNodeWidget
 						]
 
 						+SHorizontalBox::Slot()
@@ -274,6 +309,11 @@ void SReferenceNode::UpdateGraphNode()
 	CreateBelowWidgetControls(MainVerticalBox);
 
 	CreatePinWidgets();
+}
+
+EVisibility SReferenceNode::GetCollapsedVisibility() const
+{
+	return bIsCollapsed ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 #undef LOCTEXT_NAMESPACE
