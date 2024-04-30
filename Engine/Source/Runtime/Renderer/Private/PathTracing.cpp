@@ -499,6 +499,15 @@ TAutoConsoleVariable<int32> CVarPathTracingAdaptiveSamplingVisualize(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<float> CVarPathTracingBackgroundAlpha(
+	TEXT("r.PathTracing.BackgroundAlpha"),
+	0.0f,
+	TEXT("Value of the alpha channel for pixels that do hit anything (default 0.0)\n")
+	TEXT("Note that this refers to the normal interpretation of alpha which the path tracer uses internally, so 0 corresponds to a transparent pixel while 1 refers to a solid pixel."),
+	ECVF_RenderThreadSafe
+);
+
+
 BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(float, BlendFactor)
 	SHADER_PARAMETER(uint32, Iteration)
@@ -506,6 +515,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(uint32, MaxSamples)
 	SHADER_PARAMETER(uint32, MaxBounces)
 	SHADER_PARAMETER(uint32, MaxSSSBounces)
+	SHADER_PARAMETER(float, BackgroundAlpha)
 	SHADER_PARAMETER(float , SSSGuidingRatio)
 	SHADER_PARAMETER(uint32, MISMode)
 	SHADER_PARAMETER(uint32, VolumeMISMode)
@@ -559,6 +569,7 @@ struct FPathTracingConfig
 		return
 			PathTracingData.MaxSamples != Other.PathTracingData.MaxSamples ||
 			PathTracingData.MaxBounces != Other.PathTracingData.MaxBounces ||
+			PathTracingData.BackgroundAlpha != Other.PathTracingData.BackgroundAlpha ||
 			PathTracingData.MaxSSSBounces != Other.PathTracingData.MaxSSSBounces ||
 			PathTracingData.SSSGuidingRatio != Other.PathTracingData.SSSGuidingRatio ||
 			PathTracingData.MISMode != Other.PathTracingData.MISMode ||
@@ -715,6 +726,7 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	}
 
 	PathTracingData.MaxBounces = MaxBounces;
+	PathTracingData.BackgroundAlpha = FMath::Clamp(CVarPathTracingBackgroundAlpha.GetValueOnRenderThread(), 0.0f, 1.0f);
 	PathTracingData.MaxSSSBounces = ShowFlags.SubsurfaceScattering ? CVarPathTracingMaxSSSBounces.GetValueOnRenderThread() : 0;
 	PathTracingData.SSSGuidingRatio = FMath::Clamp(CVarPathTracingSSSGuidingRatio.GetValueOnRenderThread(), 0.0f, 1.0f);
 	PathTracingData.MaxNormalBias = GetRaytracingMaxNormalBias();

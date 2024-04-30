@@ -38,6 +38,8 @@ uint MaxBounces;
 uint MaxSSSBounces;
 float SSSGuidingRatio;
 
+float BackgroundAlpha;
+
 // 0: only Material sampling
 // 1: only Light sampling
 // 2: both Material and Light
@@ -515,7 +517,7 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 				LightHitPayload.ShadingModelID = SHADINGMODELID_UNLIT;
 				// light hits are fully transparent to match how the light loop works (the light surface does not cast a shadow)
 				LightHitPayload.BSDFOpacity = 1.0;
-				LightHitPayload.TransparencyColor = 1.0;
+				LightHitPayload.TransparencyColor = LightHit.HitT == POSITIVE_INFINITY ? 1.0 - BackgroundAlpha : 1.0;
 				LightHitPayload.SetFrontFace();
 				PackedPayload = PackPathTracingPayload(LightHitPayload);
 			}
@@ -668,6 +670,10 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 		if (PackedPayload.IsMiss())
 		{
 			// Ray didn't hit any real geometry
+			if (bIsCameraRay)
+			{
+				PathState.Alpha += Luminance(PathState.PathThroughput) * BackgroundAlpha;
+			}
 			break;
 		}
 
