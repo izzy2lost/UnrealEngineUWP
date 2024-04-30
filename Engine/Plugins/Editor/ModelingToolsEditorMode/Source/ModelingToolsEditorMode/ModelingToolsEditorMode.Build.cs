@@ -54,6 +54,7 @@ public class ModelingToolsEditorMode : ModuleRules
 				"ToolPresetAsset",
 				"ToolPresetEditor",
 				"EditorConfig",
+				"StylusInput",
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);

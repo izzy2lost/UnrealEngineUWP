@@ -116,7 +116,7 @@ protected:
 	void OnEditorClosed();
 
 	// Stylus support is currently disabled; this is left in for reference if/when it is brought back
-	//TUniquePtr<FStylusStateTracker> StylusStateTracker;
+	TUniquePtr<FStylusStateTracker> StylusStateTracker;
 
 	TSharedPtr<FLevelObjectsObserver> LevelObjectsObserver;
 
