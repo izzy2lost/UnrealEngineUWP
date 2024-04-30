@@ -151,8 +151,11 @@ public:
 		/** The instance name of the owning content browser. */
 		SLATE_ARGUMENT( FName, OwningContentBrowserName )
 
-		/** Default path to create even if it doesn't exist for use by path picker */
+		/** Default path to select use by path picker */
 		SLATE_ARGUMENT(FString, DefaultPath)
+
+		/** If DefaultPath doesn't exist, create it */
+		SLATE_ARGUMENT(bool, CreateDefaultPath)
 
 	SLATE_END_ARGS()
 

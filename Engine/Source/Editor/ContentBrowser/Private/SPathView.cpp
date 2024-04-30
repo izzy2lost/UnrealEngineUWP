@@ -1098,7 +1098,7 @@ void SPathView::Construct( const FArguments& InArgs )
 		{
 			InternalPath = FName();
 		}
-		if (!TreeData->FindTreeItem(VirtualPath))
+		if (InArgs._CreateDefaultPath && !TreeData->FindTreeItem(VirtualPath))
 		{
 			const FString DefaultPathLeafName = FPaths::GetPathLeaf(VirtualPath.ToString());
 			TreeData->AddFolderItem(FContentBrowserItemData(nullptr,
