@@ -387,17 +387,6 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceRuntimeGrid(const IWo
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnDataLayersLoadFilterMismatch(const IWorldPartitionActorDescInstanceView& ActorDescView)
-{
-	if (Filter(ActorDescView))
-	{
-		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayersLoadFilterMismatchError", "{0} contains runtime data layers with different types of Load Filter"),
-			FText::FromString(GetFullActorName(ActorDescView)));
-
-		AssetFails(CurrentAsset, CurrentError);
-	}
-}
-
 void UWorldPartitionChangelistValidator::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
 	if (Filter(ActorDescView))

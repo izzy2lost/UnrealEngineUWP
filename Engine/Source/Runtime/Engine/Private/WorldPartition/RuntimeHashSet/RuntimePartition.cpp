@@ -2,8 +2,6 @@
 
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
-#include "WorldPartition/DataLayer/DataLayerInstance.h"
-#include "Algo/AllOf.h"
 
 URuntimePartition::URuntimePartition(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -80,15 +78,4 @@ URuntimePartition::FCellDesc URuntimePartition::CreateCellDesc(const FString& In
 
 	return CellDesc;
 }
-
-URuntimePartition::FCellDescInstance::FCellDescInstance(const FCellDesc& InCellDesc, URuntimePartition* InSourcePartition, const TArray<const UDataLayerInstance*>& InDataLayerInstances, const FGuid& InContentBundleID)
-	: FCellDesc(InCellDesc)
-	, SourcePartition(InSourcePartition)
-	, DataLayerInstances(InDataLayerInstances)
-	, ContentBundleID(InContentBundleID)
-{
-	const bool bAreClientOnlyDataLayers = DataLayerInstances.Num() && Algo::AllOf(DataLayerInstances, [](const UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsClientOnly(); });
-	bClientOnlyVisible = InCellDesc.bClientOnlyVisible || bAreClientOnlyDataLayers;
-}
-
 #endif

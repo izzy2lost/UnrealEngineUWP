@@ -50,11 +50,6 @@ public:
 	virtual void OnInvalidReferenceRuntimeGrid(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) = 0;
 
 	/**
-	 * Called when an actor contains runtime data layers with different types of LoadFilter.
-	 */
-	virtual void OnDataLayersLoadFilterMismatch(const IWorldPartitionActorDescInstanceView& ActorDescView) = 0;
-
-	/**
 	 * Called when the world references a streamed actor.
 	 */
 	enum class EWorldReferenceInvalidReason

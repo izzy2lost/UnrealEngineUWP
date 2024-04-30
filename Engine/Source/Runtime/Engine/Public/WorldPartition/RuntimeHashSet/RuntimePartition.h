@@ -44,7 +44,12 @@ public:
 	 */
 	struct FCellDescInstance : public FCellDesc
 	{
-		FCellDescInstance(const FCellDesc& InCellDesc, URuntimePartition* InSourcePartition, const TArray<const UDataLayerInstance*>& InDataLayerInstances, const FGuid& InContentBundleID);
+		FCellDescInstance(const FCellDesc& InCellDesc, URuntimePartition* InSourcePartition, const TArray<const UDataLayerInstance*>& InDataLayerInstances, const FGuid& InContentBundleID)
+			: FCellDesc(InCellDesc)
+			, SourcePartition(InSourcePartition)
+			, DataLayerInstances(InDataLayerInstances)
+			, ContentBundleID(InContentBundleID)
+		{}
 
 		URuntimePartition* SourcePartition;
 		TArray<const UDataLayerInstance*> DataLayerInstances;
