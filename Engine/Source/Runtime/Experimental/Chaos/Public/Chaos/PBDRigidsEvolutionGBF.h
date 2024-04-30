@@ -317,6 +317,15 @@ namespace Chaos
 #if CHAOS_EVOLUTION_COLLISION_TESTMODE
 		void TestModeResetCollisions();
 #endif
+
+#if CHAOS_DEBUG_DRAW
+	public:
+		void SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene);
+
+	private:
+		ChaosDD::Private::FChaosDDScenePtr CDDScene;
+		ChaosDD::Private::FChaosDDTimelinePtr CDDTickTimeline;
+#endif
 	};
 
 }

@@ -431,6 +431,17 @@ namespace Chaos
 
 		/** Sets if we are resimming or not */
 		void SetIsResimming(bool bIsResimming);
+
+#if CHAOS_DEBUG_DRAW
+	public:
+		CHAOS_API virtual void SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene) override final;
+
+	private:
+		// NOTE: A physics frame may consist of multiple sub-steps (ticks) so this debug draw timeline only
+		// captures debug draw that happens outside of the tick(s). See FPBDRigidsEvolutionGBF::SetDebugDrawScene
+		ChaosDD::Private::FChaosDDScenePtr CDDScene;
+		ChaosDD::Private::FChaosDDTimelinePtr CDDFrameTimeline;
+#endif
 	};
 
 	template<>

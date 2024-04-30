@@ -20,6 +20,8 @@
 
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
 
+#include "ChaosDebugDraw/ChaosDDTypes.h"
+
 #ifndef CHAOS_DEBUG_NAME
 #define CHAOS_DEBUG_NAME 0
 #endif
@@ -202,5 +204,16 @@ public:
 	{
 		return CVDContextData;
 	};
+#endif
+
+#if CHAOS_DEBUG_DRAW
+public:
+	const ChaosDD::Private::FChaosDDScenePtr& GetDebugDrawScene() const
+	{ 
+		return CDDScene;
+	}
+
+private:
+	ChaosDD::Private::FChaosDDScenePtr CDDScene;
 #endif
 };

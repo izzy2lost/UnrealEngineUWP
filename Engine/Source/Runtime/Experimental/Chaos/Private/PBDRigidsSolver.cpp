@@ -29,6 +29,10 @@
 #include "Chaos/PhysicsSolverBaseImpl.h"
 #include "Chaos/ConvexOptimizer.h"
 
+#include "ChaosDebugDraw/ChaosDDContext.h"
+#include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDTimeline.h"
+
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "ChaosLog.h"
@@ -1297,6 +1301,10 @@ namespace Chaos
 	{
 		const FReal StartSimTime = GetSolverTime();
 
+#if CHAOS_DEBUG_DRAW
+		ChaosDD::Private::FChaosDDContext::BeginFrame(CDDFrameTimeline, StartSimTime, GetLastDt());
+#endif
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		if(IsNetworkPhysicsPredictionEnabled() && CanDebugNetworkPhysicsPrediction())
 		{
@@ -1320,7 +1328,31 @@ namespace Chaos
 			//final step so we can destroy proxies
 			DestroyPendingProxies_Internal();
 		}
+
+#if CHAOS_DEBUG_DRAW
+		ChaosDD::Private::FChaosDDContext::EndFrame();
+#endif
 	}
+
+#if CHAOS_DEBUG_DRAW
+	void FPBDRigidsSolver::SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene)
+	{
+		if (CDDScene.IsValid() && CDDFrameTimeline.IsValid())
+		{
+			CDDScene->ReleaseTimeline(CDDFrameTimeline);
+		}
+
+		CDDScene = InCDDScene;
+		CDDFrameTimeline.Reset();
+
+		if (CDDScene.IsValid())
+		{
+			CDDFrameTimeline = CDDScene->CreateTimeline(FString::Format(TEXT("{0} {1}"), { CDDScene->GetName(), "Frame" }));
+		}
+
+		GetEvolution()->SetDebugDrawScene(InCDDScene);
+	}
+#endif
 
 	void FPBDRigidsSolver::SetExternalTimestampConsumed_Internal(const int32 Timestamp)
 	{

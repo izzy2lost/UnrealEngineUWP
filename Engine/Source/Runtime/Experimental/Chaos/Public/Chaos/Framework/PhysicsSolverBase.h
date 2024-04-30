@@ -18,6 +18,8 @@
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
 #endif
 
+#include "ChaosDebugDraw/ChaosDDTypes.h"
+
 class FChaosSolversModule;
 class FPhysicsReplicationAsync;
 
@@ -894,6 +896,11 @@ namespace Chaos
 		{
 			return CVDContextData;
 		};
+#endif
+
+#if CHAOS_DEBUG_DRAW
+	public:
+		virtual void SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene) = 0;
 #endif
 	};
 }

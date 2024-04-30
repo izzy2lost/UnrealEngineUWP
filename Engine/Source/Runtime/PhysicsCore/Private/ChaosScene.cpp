@@ -38,6 +38,9 @@
 
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
+#include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDTimeline.h"
+
 DECLARE_CYCLE_STAT(TEXT("Update Kinematics On Deferred SkelMeshes"),STAT_UpdateKinematicsOnDeferredSkelMeshesChaos,STATGROUP_Physics);
 CSV_DEFINE_CATEGORY(ChaosPhysics,true);
 CSV_DEFINE_CATEGORY(AABBTreeExpensiveStats, false);
@@ -77,6 +80,11 @@ FChaosScene::FChaosScene(
 	SceneSolver->GetChaosVDContextData().OwnerID = GetChaosVDContextData().Id;
 	SceneSolver->GetChaosVDContextData().Id = FChaosVDRuntimeModule::Get().GenerateUniqueID();
 	SceneSolver->GetChaosVDContextData().Type = static_cast<int32>(EChaosVDContextType::Solver);
+#endif
+
+#if CHAOS_DEBUG_DRAW
+	CDDScene = MakeShared<ChaosDD::Private::FChaosDDScene>(DebugName.ToString());
+	SceneSolver->SetDebugDrawScene(CDDScene);
 #endif
 
 	SceneSolver->PhysSceneHack = this;

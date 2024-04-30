@@ -2,6 +2,8 @@
 
 #include "Chaos/ChaosDebugDrawComponent.h"
 #include "Chaos/DebugDrawQueue.h"
+#include "ChaosDebugDraw/ChaosDDRenderer.h"
+#include "ChaosDebugDraw/ChaosDDScene.h"
 #include "ChaosLog.h"
 #include "Debug/DebugDrawService.h"
 #include "DrawDebugHelpers.h"
@@ -14,6 +16,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Physics/Experimental/PhysScene_Chaos.h"
 #include "VisualLogger/VisualLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosDebugDrawComponent)
@@ -55,7 +58,7 @@ int bChaosDebugDraw_DrawMode = 0;
 FAutoConsoleVariableRef CVarArrowSize(TEXT("p.Chaos.DebugDraw.Mode"), bChaosDebugDraw_DrawMode, TEXT("Where to send debug draw commands. 0 = UE Debug Draw; 1 = VisLog; 2 = Both"));
 
 
-float CommandLifeTime(const Chaos::FLatentDrawCommand& Command, const bool bIsPaused)
+float CommandLifeTime(const float LifeTime)
 {
 	// The linebatch time handling is a bit awkward and we need to translate
 	// Linebatcher Lifetime < 0: eternal (regardless of bPersistent flag)
@@ -64,14 +67,99 @@ float CommandLifeTime(const Chaos::FLatentDrawCommand& Command, const bool bIsPa
 	// Whereas in our Command, 
 	// Command lifetime <= 0: 1 frame
 	// Command lifetime > 0: specified duration
-	if (Command.LifeTime <= 0)
+	if (LifeTime <= 0)
 	{
 		// One frame - must be non-zero but also less than the next frame time which we don't know
 		// NOTE: this only works because UChaosDebugDrawComponent ticks after the line batcher
 		return UE_SMALL_NUMBER;
 	}
 	
-	return Command.LifeTime;
+	return LifeTime;
+}
+
+void DebugDrawChaosCommand(const UWorld* World, const Chaos::FLatentDrawCommand& Command)
+{
+	using namespace Chaos;
+
+	const uint8 DepthPriority = ChaosDebugDraw_SeeThrough ? Command.DepthPriority : 0;
+	switch (Command.Type)
+	{
+	case FLatentDrawCommand::EDrawType::Point:
+		DrawDebugPoint(World, Command.LineStart, Command.Thickness, Command.Color, Command.bPersistentLines, CommandLifeTime(Command.LifeTime), DepthPriority);
+		break;
+	case FLatentDrawCommand::EDrawType::Line:
+		DrawDebugLine(World, Command.LineStart, Command.LineEnd, Command.Color, Command.bPersistentLines, CommandLifeTime(Command.LifeTime), DepthPriority, Command.Thickness);
+		break;
+	case FLatentDrawCommand::EDrawType::DirectionalArrow:
+		DrawDebugDirectionalArrow(World, Command.LineStart, Command.LineEnd, Command.ArrowSize, Command.Color, Command.bPersistentLines, CommandLifeTime(Command.LifeTime), DepthPriority, Command.Thickness);
+		break;
+	case FLatentDrawCommand::EDrawType::Sphere:
+		DrawDebugSphere(World, Command.LineStart, Command.Radius, Command.Segments, Command.Color, Command.bPersistentLines, CommandLifeTime(Command.LifeTime), DepthPriority, Command.Thickness);
+		break;
+	case FLatentDrawCommand::EDrawType::Box:
+		DrawDebugBox(World, Command.Center, Command.Extent, Command.Rotation, Command.Color, Command.bPersistentLines, CommandLifeTime(Command.LifeTime), DepthPriority, Command.Thickness);
+		break;
+	case FLatentDrawCommand::EDrawType::String:
+		DrawDebugString(World, Command.TextLocation, Command.Text, Command.TestBaseActor, Command.Color, CommandLifeTime(Command.LifeTime), Command.bDrawShadow, Command.FontScale);
+		break;
+	case FLatentDrawCommand::EDrawType::Circle:
+	{
+		FMatrix M = FRotationMatrix::MakeFromYZ(Command.YAxis, Command.ZAxis);
+		M.SetOrigin(Command.Center);
+		DrawDebugCircle(World, M, Command.Radius, Command.Segments, Command.Color, Command.bPersistentLines, CommandLifeTime(Command.LifeTime), DepthPriority, Command.Thickness, Command.bDrawAxis);
+		break;
+	}
+	case FLatentDrawCommand::EDrawType::Capsule:
+		DrawDebugCapsule(World, Command.Center, Command.HalfHeight, Command.Radius, Command.Rotation, Command.Color, Command.bPersistentLines, CommandLifeTime(Command.LifeTime), DepthPriority, Command.Thickness);
+	default:
+		break;
+	}
+}
+
+void VisLogChaosCommand(const AActor* Actor, const Chaos::FLatentDrawCommand& Command)
+{
+	using namespace Chaos;
+
+	switch (Command.Type)
+	{
+	case FLatentDrawCommand::EDrawType::Point:
+		UE_VLOG_SEGMENT_THICK(Actor, LogChaos, Log, Command.LineStart, Command.LineStart, Command.Color, Command.Thickness, TEXT_EMPTY);
+		break;
+	case FLatentDrawCommand::EDrawType::Line:
+		UE_VLOG_SEGMENT(Actor, LogChaos, Log, Command.LineStart, Command.LineEnd, Command.Color, TEXT_EMPTY);
+		break;
+	case FLatentDrawCommand::EDrawType::DirectionalArrow:
+		UE_VLOG_SEGMENT(Actor, LogChaos, Log, Command.LineStart, Command.LineEnd, Command.Color, TEXT_EMPTY);
+		break;
+	case FLatentDrawCommand::EDrawType::Sphere:
+	{
+		// VLOG Capsule uses the bottom end as the origin (though the variable is named Center)
+		FVector Base = Command.LineStart - Command.Radius * FVector::UpVector;
+		UE_VLOG_CAPSULE(Actor, LogChaos, Log, Base, Command.Radius + KINDA_SMALL_NUMBER, Command.Radius, FQuat::Identity, Command.Color, TEXT_EMPTY);
+		break;
+	}
+	case FLatentDrawCommand::EDrawType::Box:
+		UE_VLOG_OBOX(Actor, LogChaos, Log, FBox(-Command.Extent, Command.Extent), FQuatRotationTranslationMatrix::Make(Command.Rotation, Command.Center), Command.Color, TEXT_EMPTY);
+		break;
+	case FLatentDrawCommand::EDrawType::String:
+		UE_VLOG(Command.TestBaseActor, LogChaos, Log, TEXT("%s"), *Command.Text);
+		break;
+	case FLatentDrawCommand::EDrawType::Circle:
+	{
+		const FMatrix M = FRotationMatrix::MakeFromYZ(Command.YAxis, Command.ZAxis);
+		UE_VLOG_CIRCLE(Actor, LogChaos, Log, Command.Center, M.GetUnitAxis(EAxis::X), Command.Radius, Command.Color, TEXT_EMPTY);
+		break;
+	}
+	case FLatentDrawCommand::EDrawType::Capsule:
+	{
+		// VLOG Capsule uses the bottom end as the origin (though the variable is named Center)
+		FVector Base = Command.Center - Command.HalfHeight * (Command.Rotation * FVector::UpVector);
+		UE_VLOG_CAPSULE(Actor, LogChaos, Log, Base, Command.HalfHeight, Command.Radius, Command.Rotation, Command.Color, TEXT_EMPTY);
+		break;
+	}
+	default:
+		break;
+	}
 }
 
 void DebugDrawChaos(const AActor* DebugDrawActor, const TArray<Chaos::FLatentDrawCommand>& DrawCommands, const bool bIsPaused)
@@ -110,39 +198,7 @@ void DebugDrawChaos(const AActor* DebugDrawActor, const TArray<Chaos::FLatentDra
 	{
 		for (const FLatentDrawCommand& Command : DrawCommands)
 		{
-			const uint8 DepthPriority = ChaosDebugDraw_SeeThrough ? Command.DepthPriority: 0;
-			switch (Command.Type)
-			{
-			case FLatentDrawCommand::EDrawType::Point:
-				DrawDebugPoint(World, Command.LineStart, Command.Thickness, Command.Color, Command.bPersistentLines, CommandLifeTime(Command, bIsPaused), DepthPriority);
-				break;
-			case FLatentDrawCommand::EDrawType::Line:
-				DrawDebugLine(World, Command.LineStart, Command.LineEnd, Command.Color, Command.bPersistentLines, CommandLifeTime(Command, bIsPaused), DepthPriority, Command.Thickness);
-				break;
-			case FLatentDrawCommand::EDrawType::DirectionalArrow:
-				DrawDebugDirectionalArrow(World, Command.LineStart, Command.LineEnd, Command.ArrowSize, Command.Color, Command.bPersistentLines, CommandLifeTime(Command, bIsPaused), DepthPriority, Command.Thickness);
-				break;
-			case FLatentDrawCommand::EDrawType::Sphere:
-				DrawDebugSphere(World, Command.LineStart, Command.Radius, Command.Segments, Command.Color, Command.bPersistentLines, CommandLifeTime(Command, bIsPaused), DepthPriority, Command.Thickness);
-				break;
-			case FLatentDrawCommand::EDrawType::Box:
-				DrawDebugBox(World, Command.Center, Command.Extent, Command.Rotation, Command.Color, Command.bPersistentLines, CommandLifeTime(Command, bIsPaused), DepthPriority, Command.Thickness);
-				break;
-			case FLatentDrawCommand::EDrawType::String:
-				DrawDebugString(World, Command.TextLocation, Command.Text, Command.TestBaseActor, Command.Color, CommandLifeTime(Command, bIsPaused), Command.bDrawShadow, Command.FontScale);
-				break;
-			case FLatentDrawCommand::EDrawType::Circle:
-			{
-				FMatrix M = FRotationMatrix::MakeFromYZ(Command.YAxis, Command.ZAxis);
-				M.SetOrigin(Command.Center);
-				DrawDebugCircle(World, M, Command.Radius, Command.Segments, Command.Color, Command.bPersistentLines, CommandLifeTime(Command, bIsPaused), DepthPriority, Command.Thickness, Command.bDrawAxis);
-				break;
-			}
-			case FLatentDrawCommand::EDrawType::Capsule:
-				DrawDebugCapsule(World, Command.Center, Command.HalfHeight, Command.Radius, Command.Rotation, Command.Color, Command.bPersistentLines, CommandLifeTime(Command, bIsPaused), DepthPriority, Command.Thickness);
-			default:
-				break;
-			}
+			DebugDrawChaosCommand(World, Command);
 		}
 	}
 
@@ -153,52 +209,49 @@ void DebugDrawChaos(const AActor* DebugDrawActor, const TArray<Chaos::FLatentDra
 		for (const FLatentDrawCommand& Command : DrawCommands)
 		{
 			const AActor* Actor = (Command.TestBaseActor) ? Command.TestBaseActor : DebugDrawActor;
-
-			switch (Command.Type)
-			{
-			case FLatentDrawCommand::EDrawType::Point:
-				UE_VLOG_SEGMENT_THICK(Actor, LogChaos, Log, Command.LineStart, Command.LineStart, Command.Color, Command.Thickness, TEXT_EMPTY);
-				break;
-			case FLatentDrawCommand::EDrawType::Line:
-				UE_VLOG_SEGMENT(Actor, LogChaos, Log, Command.LineStart, Command.LineEnd, Command.Color, TEXT_EMPTY);
-				break;
-			case FLatentDrawCommand::EDrawType::DirectionalArrow:
-				UE_VLOG_SEGMENT(Actor, LogChaos, Log, Command.LineStart, Command.LineEnd, Command.Color, TEXT_EMPTY);
-				break;
-			case FLatentDrawCommand::EDrawType::Sphere:
-			{
-				// VLOG Capsule uses the bottom end as the origin (though the variable is named Center)
-				FVector Base = Command.LineStart - Command.Radius * FVector::UpVector;
-				UE_VLOG_CAPSULE(Actor, LogChaos, Log, Base, Command.Radius + KINDA_SMALL_NUMBER, Command.Radius, FQuat::Identity, Command.Color, TEXT_EMPTY);
-				break;
-			}
-			case FLatentDrawCommand::EDrawType::Box:
-				UE_VLOG_OBOX(Actor, LogChaos, Log, FBox(-Command.Extent, Command.Extent), FQuatRotationTranslationMatrix::Make(Command.Rotation, Command.Center), Command.Color, TEXT_EMPTY);
-				break;
-			case FLatentDrawCommand::EDrawType::String:
-				UE_VLOG(Command.TestBaseActor, LogChaos, Log, TEXT("%s"), *Command.Text);
-				break;
-			case FLatentDrawCommand::EDrawType::Circle:
-			{
-				const FMatrix M = FRotationMatrix::MakeFromYZ(Command.YAxis, Command.ZAxis);
-				UE_VLOG_CIRCLE(Actor, LogChaos, Log, Command.Center, M.GetUnitAxis(EAxis::X), Command.Radius, Command.Color, TEXT_EMPTY);
-				break;
-			}
-			case FLatentDrawCommand::EDrawType::Capsule:
-			{
-				// VLOG Capsule uses the bottom end as the origin (though the variable is named Center)
-				FVector Base = Command.Center - Command.HalfHeight * (Command.Rotation * FVector::UpVector);
-				UE_VLOG_CAPSULE(Actor, LogChaos, Log, Base, Command.HalfHeight, Command.Radius, Command.Rotation, Command.Color, TEXT_EMPTY);
-				break;
-			}
-			default:
-				break;
-			}
+			VisLogChaosCommand(Actor, Command);
 		}
 	}
 }
 #endif
 
+#if CHAOS_DEBUG_DRAW
+
+class FChaosDDRenderer : public ChaosDD::Private::IChaosDDRenderer
+{
+public:
+	FChaosDDRenderer(UWorld* InWorld, AActor* InDebugDrawActor)
+		: World(InWorld)
+		, DebugDrawActor(InDebugDrawActor)
+	{
+		DepthPriority = 10;
+		bIsPaused = false;
+	}
+
+	virtual void DrawCommand(const Chaos::FLatentDrawCommand& Command) const override final
+	{
+		const bool bDrawUe = bChaosDebugDraw_DrawMode != 1;
+		if (bDrawUe)
+		{
+			DebugDrawChaosCommand(World, Command);
+		}
+
+		const bool bDrawVisLog = bChaosDebugDraw_DrawMode != 0;
+		if (bDrawVisLog)
+		{
+			const AActor* Actor = (Command.TestBaseActor) ? Command.TestBaseActor : DebugDrawActor;
+			VisLogChaosCommand(Actor, Command);
+		}
+	}
+
+private:
+	UWorld* World;
+	AActor* DebugDrawActor;
+	int8 DepthPriority;
+	bool bIsPaused;
+};
+
+#endif
 
 
 UChaosDebugDrawComponent::UChaosDebugDrawComponent()
@@ -289,8 +342,13 @@ void UChaosDebugDrawComponent::TickComponent(float DeltaTime, enum ELevelTick Ti
 	UWorld* World = GetWorld();
 	if (World != nullptr)
 	{
+		FVector RegionOfInterestOrigin = FVec3(0);
+		float RegionOfInterestRadius = ChaosDebugDraw_Radius;
+
 		if (World->ViewLocationsRenderedLastFrame.Num() > 0)
 		{
+			RegionOfInterestOrigin = World->ViewLocationsRenderedLastFrame[0];
+
 			if (bChaosDebugDraw_SingleActor)
 			{
 				if (const APlayerController* Controller = GEngine->GetFirstLocalPlayerController(World))
@@ -311,28 +369,39 @@ void UChaosDebugDrawComponent::TickComponent(float DeltaTime, enum ELevelTick Ti
 					{
 						FVector Origin, BoxExtent;
 						HitResult.GetActor()->GetActorBounds(true, Origin, BoxExtent);
-						const float Radius = BoxExtent.Size();
-						if (Radius <= ChaosDebugDraw_SingleActorMaxRadius)
-						{
-							FDebugDrawQueue::GetInstance().SetRegionOfInterest(Origin, Radius);
-						}
+						const float Radius = FMath::Min(BoxExtent.Size(), ChaosDebugDraw_SingleActorMaxRadius);
+						RegionOfInterestOrigin = Origin;
+						RegionOfInterestRadius = Radius;
 					}
 				}
 			}
-			else
-			{
-				FDebugDrawQueue::GetInstance().SetRegionOfInterest(World->ViewLocationsRenderedLastFrame[0], ChaosDebugDraw_Radius);
-			}
+
 		}
 
+		FDebugDrawQueue::GetInstance().SetRegionOfInterest(RegionOfInterestOrigin, RegionOfInterestRadius);
 		FDebugDrawQueue::GetInstance().SetMaxCost(ChaosDebugDraw_MaxElements);
 
+		// Draw any commands from threads that did not have the debug draw context initialized
+		// @todo(chaos): we should make sure all threads initialize the context...
 		const bool bIsPaused = World->IsPaused();
 		if (!bIsPaused)
 		{
 			FDebugDrawQueue::GetInstance().ExtractAllElements(DrawCommands);
 
 			DebugDrawChaos(GetOwner(), DrawCommands, World->IsPaused());
+		}
+
+		const ChaosDD::Private::FChaosDDScenePtr& CDDScene = World->GetPhysicsScene()->GetDebugDrawScene();
+		if (CDDScene.IsValid())
+		{
+			CDDScene->SetDrawRegion(FSphere3d(RegionOfInterestOrigin, RegionOfInterestRadius));
+			CDDScene->SetCommandBudget(ChaosDebugDraw_MaxElements);
+
+			if (!bIsPaused)
+			{
+				FChaosDDRenderer CDDRenderer = FChaosDDRenderer(World, GetOwner());
+				CDDScene->RenderLatestFrames(CDDRenderer);
+			}
 		}
 	}
 #endif

@@ -27,6 +27,10 @@
 
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
+#include "ChaosDebugDraw/ChaosDDContext.h"
+#include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDTimeline.h"
+
 //UE_DISABLE_OPTIMIZATION
 
 namespace Chaos
@@ -358,12 +362,39 @@ void FPBDRigidsEvolutionGBF::Advance(const FReal Dt,const FReal MaxStepDt,const 
 
 void FPBDRigidsEvolutionGBF::AdvanceOneTimeStep(const FReal Dt,const FSubStepInfo& SubStepInfo)
 {	
+#if CHAOS_DEBUG_DRAW
+	// @todo(chaos): need the time when we want to show historical debug draw
+	ChaosDD::Private::FChaosDDContext::BeginFrame(CDDTickTimeline, 0.0f, Dt);
+#endif
+
 	PrepareTick();
 
 	AdvanceOneTimeStepImpl(Dt, SubStepInfo);
 
 	UnprepareTick();
+
+#if CHAOS_DEBUG_DRAW
+	ChaosDD::Private::FChaosDDContext::EndFrame();
+#endif
 }
+
+#if CHAOS_DEBUG_DRAW
+void FPBDRigidsEvolutionGBF::SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene)
+{
+	if (CDDScene.IsValid() && CDDTickTimeline.IsValid())
+	{
+		CDDScene->ReleaseTimeline(CDDTickTimeline);
+	}
+
+	CDDScene = InCDDScene;
+	CDDTickTimeline.Reset();
+
+	if (CDDScene.IsValid())
+	{
+		CDDTickTimeline = CDDScene->CreateTimeline(FString::Format(TEXT("{0} {1}"), { CDDScene->GetName(), "Tick" }));
+	}
+}
+#endif
 
 void FPBDRigidsEvolutionGBF::ReloadParticlesCache()
 {

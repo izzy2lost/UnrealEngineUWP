@@ -7,6 +7,9 @@
 
 namespace Chaos
 {
+	bool bChaosDebugDraw_UseLegacyQueue = false;
+	FAutoConsoleVariableRef CVarChaos_DebugDraw_UseLegacyQueue(TEXT("p.Chaos.DebugDraw.UseLegacyQueue"), bChaosDebugDraw_UseLegacyQueue, TEXT(""));
+
 	void FDebugDrawQueue::SetConsumerActive(void* Consumer, bool bConsumerActive)
 	{
 		FScopeLock Lock(&ConsumersCS);
