@@ -30,6 +30,16 @@ void UTG_Expression_Transform::Evaluate(FTG_EvaluationContext* InContext)
 	FVector2f OutCoverage = Coverage;
 	FVector2f OutOffset = Offset;
 
+	// hide debug grid when exporting
+	if (InContext->Cycle->GetDetails().bExporting)
+	{
+		// show warning to user that debug grid is being turned off
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
+		const FString ErrorMsg = FString::Format(TEXT("Export command issued, turning 'Debug Grid' off in {0} node."), {GetTitleName().ToString()} );
+		TextureGraphEngine::GetErrorReporter(InContext->Cycle->GetMix())->ReportWarning(ErrorType, ErrorMsg, GetParentNode());
+		ShowDebugGrid = 0.0f;
+	}
+	
 	T_Transform::TransformParameter XformParam{
 		.Coverage = OutCoverage,
 		.Translation = OutOffset,
@@ -53,7 +63,7 @@ void UTG_Expression_Transform::Evaluate(FTG_EvaluationContext* InContext)
 		.MirrorY = MirrorY,
 		.ShowDebugGrid = ShowDebugGrid
 	};
-
+	
 	Output = T_Transform::Create(InContext->Cycle, DesiredDescriptor, Input,
 		XformParam, CellParam, ColorParam, InContext->TargetId);
 }

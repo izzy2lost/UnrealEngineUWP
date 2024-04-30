@@ -253,7 +253,7 @@ FString UTG_Pin::GetEvaluatedVarValue() const
 		UEnum* Enum = ByteProperty->GetIntPropertyEnum();
 		if (Enum)
 		{
-			CurrentValue = Enum->GetNameByValue(FCString::Atoi(*CurrentValue)).ToString();
+			CurrentValue = Enum->GetNameStringByIndex(FCString::Atoi(*CurrentValue));
 		}
 	}
 	FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
@@ -262,7 +262,7 @@ FString UTG_Pin::GetEvaluatedVarValue() const
 		UEnum* Enum = EnumProperty->GetEnum();
 		if (Enum)
 		{
-			CurrentValue = Enum->GetNameByValue(FCString::Atoi(*CurrentValue)).ToString();
+			CurrentValue = Enum->GetNameStringByIndex(FCString::Atoi(*CurrentValue));
 		}
 	}
 
