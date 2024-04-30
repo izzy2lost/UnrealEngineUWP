@@ -495,7 +495,7 @@ namespace UE::Learning::Action
 	/**
 	 * Sample an action vector from a vector representing the action distribution.
 	 *
-	 * @param InOutSeed					Seed to use when sampling the action vector
+	 * @param InOutRandomState			Random State/Seed to use when sampling the action vector
 	 * @param OutActionVector			Output action vector
 	 * @param ActionDistributionVector	Input Action Distribution vector
 	 * @param Schema					Action Schema
@@ -503,7 +503,7 @@ namespace UE::Learning::Action
 	 * @param ActionNoiseScale			Scale factor for the noise. Set this to zero to always choose the mean (expected) action.
 	 */
 	LEARNING_API void SampleVectorFromDistributionVector(
-		uint32& InOutSeed,
+		uint32& InOutRandomState,
 		TLearningArrayView<1, float> OutActionVector,
 		const TLearningArrayView<1, const float> ActionDistributionVector,
 		const FSchema& Schema,

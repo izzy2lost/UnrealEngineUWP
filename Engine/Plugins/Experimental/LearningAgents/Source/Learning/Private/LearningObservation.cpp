@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LearningObservation.h"
+#include "LearningRandom.h"
 
 #include "NNERuntimeBasicCpuBuilder.h"
 
@@ -1618,6 +1619,192 @@ namespace UE::Learning::Observation
 		{
 			UE_LEARNING_NOT_IMPLEMENTED();
 			OutObjectElement = FObjectElement();
+			return;
+		}
+		}
+	}
+
+	void AddGaussianNoiseToVector(
+		uint32& InOutRandomState,
+		TLearningArrayView<1, float> InOutObservationVector,
+		const FSchema& Schema,
+		const FSchemaElement SchemaElement,
+		const float NoiseScale)
+	{
+		UE_LEARNING_CHECK(Schema.IsValid(SchemaElement));
+
+		const EType SchemaElementType = Schema.GetType(SchemaElement);
+
+		const int32 ObservationVectorSize = InOutObservationVector.Num();
+		UE_LEARNING_CHECK(ObservationVectorSize == Schema.GetObservationVectorSize(SchemaElement));
+
+		switch (SchemaElementType)
+		{
+
+		case EType::Null:
+		{
+			return;
+		}
+
+		case EType::Continuous:
+		{
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+			UE_LEARNING_CHECK(ObservationVectorSize == SchemaParameters.Num);
+
+			TLearningArray<1, float, TInlineAllocator<32>> NoiseValues;
+			NoiseValues.SetNumUninitialized({ SchemaParameters.Num });
+			Random::SampleGaussianArray(NoiseValues, InOutRandomState, 0.0f, NoiseScale);
+			for (int32 ValueIdx = 0; ValueIdx < SchemaParameters.Num; ValueIdx++)
+			{
+				InOutObservationVector[ValueIdx] += NoiseValues[ValueIdx];
+			}
+
+			return;
+		}
+
+		case EType::And:
+		{
+			const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
+
+			int32 SubElementOffset = 0;
+			for (int32 SchemaElementIdx = 0; SchemaElementIdx < Parameters.Elements.Num(); SchemaElementIdx++)
+			{
+				const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Elements[SchemaElementIdx]);
+
+				AddGaussianNoiseToVector(
+					InOutRandomState,
+					InOutObservationVector.Slice(SubElementOffset, SubElementSize),
+					Schema,
+					Parameters.Elements[SchemaElementIdx],
+					NoiseScale);
+
+				SubElementOffset += SubElementSize;
+			}
+			UE_LEARNING_CHECK(SubElementOffset == ObservationVectorSize);
+
+			return;
+		}
+
+		case EType::OrExclusive:
+		{
+			const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
+			const int32 MaxSubElementSize = Private::GetMaxObservationVectorSize(Schema, Parameters.Elements);
+
+			int32 SchemaElementIndex = INDEX_NONE;
+			for (int32 SubElementIdx = 0; SubElementIdx < Parameters.Elements.Num(); SubElementIdx++)
+			{
+				UE_LEARNING_CHECK(InOutObservationVector[MaxSubElementSize + SubElementIdx] == 0.0f || InOutObservationVector[MaxSubElementSize + SubElementIdx] == 1.0f);
+				if (InOutObservationVector[MaxSubElementSize + SubElementIdx])
+				{
+					SchemaElementIndex = SubElementIdx;
+					break;
+				}
+			}
+			UE_LEARNING_CHECK(SchemaElementIndex != INDEX_NONE);
+
+			const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Elements[SchemaElementIndex]);
+
+			AddGaussianNoiseToVector(
+				InOutRandomState,
+				InOutObservationVector.Slice(0, SubElementSize),
+				Schema,
+				Parameters.Elements[SchemaElementIndex],
+				NoiseScale);
+
+			return;
+		}
+
+		case EType::OrInclusive:
+		{
+			const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
+			const int32 TotalSubElementSize = Private::GetTotalObservationVectorSize(Schema, Parameters.Elements);
+
+			int32 SubElementOffset = 0;
+			for (int32 SubElementIdx = 0; SubElementIdx < Parameters.Elements.Num(); SubElementIdx++)
+			{
+				const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Elements[SubElementIdx]);
+
+				UE_LEARNING_CHECK(
+					InOutObservationVector[TotalSubElementSize + SubElementIdx] == 0.0f ||
+					InOutObservationVector[TotalSubElementSize + SubElementIdx] == 1.0f);
+
+				if (InOutObservationVector[TotalSubElementSize + SubElementIdx] == 1.0f)
+				{
+					AddGaussianNoiseToVector(
+						InOutRandomState,
+						InOutObservationVector.Slice(SubElementOffset, SubElementSize),
+						Schema,
+						Parameters.Elements[SubElementIdx],
+						NoiseScale);
+				}
+
+				SubElementOffset += SubElementSize;
+			}
+			UE_LEARNING_CHECK(SubElementOffset + Parameters.Elements.Num() == ObservationVectorSize);
+
+			return;
+		}
+
+		case EType::Array:
+		{
+			const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
+			const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Element);
+
+			for (int32 ElementIdx = 0; ElementIdx < Parameters.Num; ElementIdx++)
+			{
+				AddGaussianNoiseToVector(
+					InOutRandomState,
+					InOutObservationVector.Slice(ElementIdx* SubElementSize, SubElementSize),
+					Schema,
+					Parameters.Element,
+					NoiseScale);
+			}
+
+			return;
+		}
+
+		case EType::Set:
+		{
+			const FSchemaSetParameters Parameters = Schema.GetSet(SchemaElement);
+			const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Element);
+
+			for (int32 SubElementIdx = 0; SubElementIdx < Parameters.MaxNum; SubElementIdx++)
+			{
+				UE_LEARNING_CHECK(
+					InOutObservationVector[SubElementSize * Parameters.MaxNum + SubElementIdx] == 0.0f ||
+					InOutObservationVector[SubElementSize * Parameters.MaxNum + SubElementIdx] == 1.0f);
+
+				if (InOutObservationVector[SubElementSize * Parameters.MaxNum + SubElementIdx] == 0.0f)
+				{
+					break;
+				}
+
+				AddGaussianNoiseToVector(
+					InOutRandomState,
+					InOutObservationVector.Slice(SubElementIdx * SubElementSize, SubElementSize),
+					Schema,
+					Parameters.Element,
+					NoiseScale);
+			}
+
+			return;
+		}
+
+		case EType::Encoding:
+		{
+			AddGaussianNoiseToVector(
+				InOutRandomState,
+				InOutObservationVector,
+				Schema,
+				Schema.GetEncoding(SchemaElement).Element,
+				NoiseScale);
+
+			return;
+		}
+
+		default:
+		{
+			UE_LEARNING_NOT_IMPLEMENTED();
 			return;
 		}
 		}

@@ -1264,7 +1264,7 @@ namespace UE::Learning::Action
 	}
 
 	void SampleVectorFromDistributionVector(
-		uint32& InOutSeed,
+		uint32& InOutRandomState,
 		TLearningArrayView<1, float> OutActionVector,
 		const TLearningArrayView<1, const float> ActionDistributionVector,
 		const FSchema& Schema,
@@ -1287,7 +1287,7 @@ namespace UE::Learning::Action
 
 			Random::SampleDistributionIndependantNormal(
 				OutActionVector,
-				InOutSeed,
+				InOutRandomState,
 				ActionDistributionVector.Slice(0, ValueNum),
 				ActionDistributionVector.Slice(ValueNum, ValueNum),
 				ActionNoiseScale);
@@ -1303,7 +1303,7 @@ namespace UE::Learning::Action
 
 			Random::SampleDistributionMultinoulli(
 				OutActionVector,
-				InOutSeed,
+				InOutRandomState,
 				ActionDistributionVector,
 				ActionNoiseScale);
 
@@ -1318,7 +1318,7 @@ namespace UE::Learning::Action
 
 			Random::SampleDistributionBernoulli(
 				OutActionVector,
-				InOutSeed,
+				InOutRandomState,
 				ActionDistributionVector,
 				ActionNoiseScale);
 
@@ -1338,7 +1338,7 @@ namespace UE::Learning::Action
 				const int32 SubElementActionDistributionVectorSize = Schema.GetActionDistributionVectorSize(SubElement);
 
 				SampleVectorFromDistributionVector(
-					InOutSeed,
+					InOutRandomState,
 					OutActionVector.Slice(SubElementActionVectorOffset, SubElementActionVectorSize),
 					ActionDistributionVector.Slice(SubElementActionDistributionVectorOffset, SubElementActionDistributionVectorSize),
 					Schema,
@@ -1368,7 +1368,7 @@ namespace UE::Learning::Action
 			// Sample which sub-element to generate
 			Random::SampleDistributionMultinoulli(
 				OutActionVector.Slice(SubElementActionVectorMax, Parameters.Elements.Num()),
-				InOutSeed,
+				InOutRandomState,
 				ActionDistributionVector.Slice(SubElementActionDistributionVectorTotal, Parameters.Elements.Num()),
 				ActionNoiseScale);
 
@@ -1384,7 +1384,7 @@ namespace UE::Learning::Action
 
 					// Sample Sub-Element
 					SampleVectorFromDistributionVector(
-						InOutSeed,
+						InOutRandomState,
 						OutActionVector.Slice(0, SubElementActionVectorSize),
 						ActionDistributionVector.Slice(SubElementActionDistributionVectorOffset, SubElementActionDistributionVectorSize),
 						Schema,
@@ -1414,7 +1414,7 @@ namespace UE::Learning::Action
 			// Sample which sub-elements to generate
 			Random::SampleDistributionBernoulli(
 				OutActionVector.Slice(SubElementActionVectorTotal, Parameters.Elements.Num()),
-				InOutSeed,
+				InOutRandomState,
 				ActionDistributionVector.Slice(SubElementActionDistributionVectorTotal, Parameters.Elements.Num()),
 				ActionNoiseScale);
 
@@ -1431,7 +1431,7 @@ namespace UE::Learning::Action
 
 					// Sample sub-elements
 					SampleVectorFromDistributionVector(
-						InOutSeed,
+						InOutRandomState,
 						OutActionVector.Slice(SubElementActionVectorOffset, SubElementActionVectorSize),
 						ActionDistributionVector.Slice(SubElementActionDistributionVectorOffset, SubElementActionDistributionVectorSize),
 						Schema,
@@ -1456,7 +1456,7 @@ namespace UE::Learning::Action
 			for (int32 ElementIdx = 0; ElementIdx < Parameters.Num; ElementIdx++)
 			{
 				SampleVectorFromDistributionVector(
-					InOutSeed,
+					InOutRandomState,
 					OutActionVector.Slice(ElementIdx * SubElementActionVectorSize, SubElementActionVectorSize),
 					ActionDistributionVector.Slice(ElementIdx * SubElementActionDistributionVectorSize, SubElementActionDistributionVectorSize),
 					Schema,
@@ -1472,7 +1472,7 @@ namespace UE::Learning::Action
 			const FSchemaEncodingParameters Parameters = Schema.GetEncoding(SchemaElement);
 
 			SampleVectorFromDistributionVector(
-				InOutSeed,
+				InOutRandomState,
 				OutActionVector,
 				ActionDistributionVector,
 				Schema,

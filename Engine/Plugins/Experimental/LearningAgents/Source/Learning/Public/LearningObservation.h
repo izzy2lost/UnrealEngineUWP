@@ -504,4 +504,21 @@ namespace UE::Learning::Observation
 		const FSchema& Schema,
 		const FSchemaElement SchemaElement,
 		const TLearningArrayView<1, const float> ObservationVector);
+
+	/**
+	 * Add Gaussian noise to all the continuous parts of an observation vector.
+	 *
+	 * @param InOutRandomState			Random State/Seed to use when sampling the noise
+	 * @param InOutObservationVector	Observation vector to add the noise to
+	 * @param Schema					Observation Schema
+	 * @param SchemaElement				Observation Schema Element
+	 * @param NoiseScale				Scale of the noise to apply
+	 */
+	LEARNING_API void AddGaussianNoiseToVector(
+		uint32& InOutRandomState,
+		TLearningArrayView<1, float> InOutObservationVector,
+		const FSchema& Schema,
+		const FSchemaElement SchemaElement,
+		const float NoiseScale = 1.0f);
+
 }
