@@ -21,6 +21,9 @@
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnClientAddedToSession, FLiveLinkHubClientId);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnClientRemovedFromSession, FLiveLinkHubClientId);
 
+class ULiveLinkFramePreProcessor;
+class ULiveLinkFrameTranslator;
+
 /**
  * Holds the state of the hub for an active session, can be swapped out with a different session using the session manager.
  */
@@ -43,6 +46,12 @@ public:
 
 	/** Returns whether a client is in this session. */
 	virtual bool IsClientInSession(const FLiveLinkHubClientId& Client) = 0;
+
+	/** Set the preprocessors for a subject. */
+	virtual void SetPreProcessors(const FLiveLinkSubjectKey& SubjectKey, TConstArrayView<ULiveLinkFramePreProcessor*> PreProcessors) = 0;
+
+	/** Set the translators for a subject. */
+	virtual void SetTranslator(const FLiveLinkSubjectKey& SubjectKey, ULiveLinkFrameTranslator* Translator) = 0;
 
 	/** Get the list of clients in this session (The list of clients that can receive data from the hub) */
 	virtual TArray<FLiveLinkHubClientId> GetSessionClients() const = 0;
@@ -139,6 +148,24 @@ public:
 		return CachedSessionClients.Contains(Client);
 	}
 
+	virtual void SetPreProcessors(const FLiveLinkSubjectKey& SubjectKey, TConstArrayView<ULiveLinkFramePreProcessor*> PreProcessors) override
+	{
+		FWriteScopeLock Locker(SessionDataLock);
+		if (FLiveLinkHubSubjectProxy* SubjectProxy = SessionData.SubjectsConfig.SubjectProxies.Find(SubjectKey))
+		{
+			SubjectProxy->SetPreProcessors(PreProcessors);
+		}
+	}
+
+	virtual void SetTranslator(const FLiveLinkSubjectKey& SubjectKey, ULiveLinkFrameTranslator* Translator) override
+	{
+		FWriteScopeLock Locker(SessionDataLock);
+		if (FLiveLinkHubSubjectProxy* SubjectProxy = SessionData.SubjectsConfig.SubjectProxies.Find(SubjectKey))
+		{
+			SubjectProxy->SetTranslator(Translator);
+		}
+	}
+
 	void AddRestoredClient(FLiveLinkHubUEClientInfo& InOutRestoredClientInfo)
 	{
 		if (const TSharedPtr<FLiveLinkHubProvider> LiveLinkProvider = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkProvider())
@@ -195,7 +222,7 @@ private:
 			ILiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 
 			FLiveLinkHubSubjectProxy SubjectSettings;
-			SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString());
+			SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString(), Cast<ULiveLinkSubjectSettings>(LiveLinkClient.GetSubjectSettings(SubjectKey)));
 
 			{
 				FWriteScopeLock Locker(SessionDataLock);

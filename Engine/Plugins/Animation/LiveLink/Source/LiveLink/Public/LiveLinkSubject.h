@@ -111,6 +111,12 @@ public:
 	/** Set the last time a frame was received. */
 	void SetLastPushTime(double InLastPushTime) { LastPushTime = InLastPushTime; }
 
+	/** Apply this subject's preprocessors to a frame data. */
+	void PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData);
+
+	/** Validates if the incoming frame data is compatible with the static data for this subject. */
+	bool ValidateFrameData(const FLiveLinkFrameDataStruct& InFrameData);
+
 private:
 	int32 FindNewFrame_WorldTime(const FLiveLinkWorldTime& FrameTime) const;
 	int32 FindNewFrame_WorldTimeInternal(const FLiveLinkWorldTime& FrameTime) const;

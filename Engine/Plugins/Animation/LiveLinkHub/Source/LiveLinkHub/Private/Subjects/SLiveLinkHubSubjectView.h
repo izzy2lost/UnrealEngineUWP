@@ -4,17 +4,23 @@
 
 #include "Async/Async.h"
 #include "IStructureDetailsView.h"
-#include "Widgets/SCompoundWidget.h"
+#include "IPropertyRowGenerator.h"
 
 #include "Delegates/DelegateCombinations.h"
 #include "DetailsViewArgs.h"
+#include "Features/IModularFeatures.h"
 #include "IDetailsView.h"
+#include "ISinglePropertyView.h"
 #include "LiveLinkHubSubjectModel.h"
+#include "LiveLinkSubjectSettings.h"
 #include "LiveLinkTypes.h"
 #include "PropertyEditorModule.h"
 #include "Modules/ModuleManager.h"
+#include "Widgets/SCompoundWidget.h"
+#include "Widgets/SNullWidget.h"
 
 DECLARE_DELEGATE_TwoParams(FOnRenameLiveLinkHubSubject, const FLiveLinkSubjectKey& /*SubjectKey*/, FName /*NewName*/);
+DECLARE_DELEGATE_ThreeParams(FOnSubjectProcessorModified, const FLiveLinkSubjectKey& /*SubjectKey*/,  const TArray<TSubclassOf<ULiveLinkFramePreProcessor>>& /*UpdatedPreProcessors*/, TSubclassOf<ULiveLinkFrameTranslator> /*UpdatedTranslator*/);
 
 /**
  * Provides the UI that displays information about a livelink hub subject.
@@ -24,7 +30,9 @@ class SLiveLinkHubSubjectView : public SCompoundWidget
 public:
 
 	SLATE_BEGIN_ARGS(SLiveLinkHubSubjectView) {}
+	SLATE_ARGUMENT(FLiveLinkSubjectKey, SubjectKey)
 	SLATE_EVENT(FOnRenameLiveLinkHubSubject, OnRenameSubject)
+	SLATE_EVENT(FOnSubjectProcessorModified, OnProcessorModified)
 	SLATE_END_ARGS()
 
 	//~ Begin SWidget interface
@@ -32,6 +40,7 @@ public:
 	{
 		SubjectModel = InSubjectModel;
 		OnRenameSubjectDelegate = InArgs._OnRenameSubject;
+		OnProcessorModifiedDelegate = InArgs._OnProcessorModified;
 
 		FDetailsViewArgs DetailsViewArgs;
 		DetailsViewArgs.bUpdatesFromSelection = false;
@@ -53,15 +62,22 @@ public:
 
 		ChildSlot
 		[
-			SettingsDetailsView->GetWidget().ToSharedRef()
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SettingsDetailsView->GetWidget().ToSharedRef()
+			]
 		];
 	}
 
 	/** Clear the subject details. */
-	void ClearSubjectDetails()
+	void RefreshSubjectDetails(const TSharedRef<ILiveLinkHubSession>& ActiveSession)
 	{
 		SubjectData->Reset();
 		SettingsDetailsView->SetStructureData(nullptr);
+
+		SetSubject(SubjectKey);
 	}
 
 	/** Set the subject to be displayed in the details view. */
@@ -90,11 +106,19 @@ public:
 	/** Handler called when a subject property is modified, used to trigger a rename on the session's subject config. */
 	void OnSubjectPropertyModified(const FPropertyChangedEvent& PropertyChangedEvent)
 	{
-		if (SubjectData && PropertyChangedEvent.GetPropertyName() == FLiveLinkHubSubjectProxy::GetOutboundNamePropertyName())
+		if (SubjectData)
 		{
 			if (FLiveLinkHubSubjectProxy* Proxy = SubjectData->Get())
 			{
-				OnRenameSubjectDelegate.ExecuteIfBound(SubjectKey, Proxy->GetOutboundName());
+				if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkHubSubjectProxy, OutboundName))
+				{
+					OnRenameSubjectDelegate.ExecuteIfBound(SubjectKey, Proxy->GetOutboundName());
+				}
+				else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkHubSubjectProxy, PreProcessors)
+					|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkHubSubjectProxy, Translator))
+				{
+					OnProcessorModifiedDelegate.ExecuteIfBound(SubjectKey, Proxy->PreProcessors, Proxy->Translator);
+				}
 			}
 		}
 	}
@@ -110,4 +134,6 @@ private:
 	TSharedPtr<TStructOnScope<FLiveLinkHubSubjectProxy>> SubjectData;
 	/** Delegate called when the outbound name is changed by the user. */
 	FOnRenameLiveLinkHubSubject OnRenameSubjectDelegate;
+	/** Delegate called when a translator or preprocessor is modified by the user. */
+	FOnSubjectProcessorModified OnProcessorModifiedDelegate;
 };

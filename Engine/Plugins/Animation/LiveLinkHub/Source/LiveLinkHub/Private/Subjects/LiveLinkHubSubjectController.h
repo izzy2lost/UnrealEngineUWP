@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "IStructureDetailsView.h"
 #include "LiveLinkHub.h"
 #include "LiveLinkHubModule.h"
 #include "LiveLinkTypes.h"
@@ -38,17 +37,18 @@ public:
 	TSharedRef<SWidget> MakeSubjectView()
 	{
 		return SAssignNew(SubjectsView, SLiveLinkHubSubjectView, SubjectModel.ToSharedRef())
-			.OnRenameSubject_Raw(this, &FLiveLinkHubSubjectController::OnSubjectRenamed);
+			.OnRenameSubject_Raw(this, &FLiveLinkHubSubjectController::OnSubjectRenamed)
+			.OnProcessorModified_Raw(this, &FLiveLinkHubSubjectController::OnSubjectProcessorModified);
 	}
 
 	/** Set the displayed subject in the subject view. */
-	void SetSubject(const FLiveLinkSubjectKey& Subject)
+	void SetSubject(const FLiveLinkSubjectKey& Subject) const
 	{
 		SubjectsView->SetSubject(Subject);
 	}
 
 	/** Handle modifying the session config for the specified subject. */
-	void OnSubjectRenamed(const FLiveLinkSubjectKey& SubjectKey, FName NewName)
+	void OnSubjectRenamed(const FLiveLinkSubjectKey& SubjectKey, FName NewName) const
 	{
 		if (TSharedPtr<ILiveLinkHubSessionManager> SessionManager = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub()->GetSessionManager())
 		{
@@ -56,12 +56,59 @@ public:
 		}
 	}
 
+	void OnSubjectProcessorModified(const FLiveLinkSubjectKey& SubjectKey, const TArray<TSubclassOf<ULiveLinkFramePreProcessor>>& UpdatedPreprocessors, const TSubclassOf<ULiveLinkFrameTranslator> UpdatedTranslator) const
+	{
+		FLiveLinkHubClient& LiveLinkClient = static_cast<FLiveLinkHubClient&>(IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+		ULiveLinkSubjectSettings* Settings = Cast<ULiveLinkSubjectSettings>(LiveLinkClient.GetSubjectSettings(SubjectKey));
+
+		Settings->PreProcessors.Reset(UpdatedPreprocessors.Num());
+		for (TSubclassOf<ULiveLinkFramePreProcessor> PreProcessor : UpdatedPreprocessors)
+		{
+			Settings->PreProcessors.Add(PreProcessor.GetDefaultObject());
+		}
+
+		Settings->Translators.Reset();
+
+		if (UpdatedTranslator)
+		{
+			Settings->Translators.Add(UpdatedTranslator.GetDefaultObject());
+		}
+
+		// todo: If we are removing the translator, we will need to do additional handling to restore the original static data that was overriden
+
+		if (Settings->ValidateProcessors())
+		{
+			// Apply to the underlying data from the session.
+			if (const TSharedPtr<ILiveLinkHubSessionManager> SessionManager = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub()->GetSessionManager())
+			{
+				SessionManager->GetCurrentSession()->SetPreProcessors(SubjectKey, Settings->PreProcessors);
+
+				if (Settings->Translators.Num())
+				{
+					SessionManager->GetCurrentSession()->SetTranslator(SubjectKey, Settings->Translators[0]);
+				}
+				else
+				{
+					SessionManager->GetCurrentSession()->SetTranslator(SubjectKey, nullptr);
+				}
+			}
+
+			// Apply to the livelink client
+			LiveLinkClient.CacheSubjectSettings(SubjectKey, Settings);
+		}
+		else
+		{
+			// Refresh the view since the underlying data might have been rolled back.
+			SubjectsView->SetSubject(SubjectKey);
+		}
+	}
+
 	/** Handle updating the subject details when the session has been swapped out for a different one. */
-	void OnActiveSessionChanged(const TSharedRef<ILiveLinkHubSession>& ActiveSession)
+	void OnActiveSessionChanged(const TSharedRef<ILiveLinkHubSession>& ActiveSession) const
 	{
 		if (SubjectsView)
 		{
-			SubjectsView->ClearSubjectDetails();
+			SubjectsView->RefreshSubjectDetails(ActiveSession);
 		}
 	}
 

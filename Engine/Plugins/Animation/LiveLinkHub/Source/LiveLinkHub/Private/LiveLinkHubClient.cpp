@@ -37,6 +37,21 @@ FLiveLinkHubClient::~FLiveLinkHubClient()
 {
 }
 
+void FLiveLinkHubClient::CacheSubjectSettings(const FLiveLinkSubjectKey& SubjectKey, ULiveLinkSubjectSettings* Settings) const
+{
+	FScopeLock Lock(&CollectionAccessCriticalSection);
+
+	if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
+	{
+		ULiveLinkSourceSettings* SourceSettings = GetSourceSettings(SubjectKey.Source);
+		ULiveLinkSubjectSettings* SubjectSettings = Settings;
+
+		SubjectItem->GetLiveSubject()->CacheSettings(SourceSettings, SubjectSettings);
+
+		BroadcastStaticDataUpdate(SubjectItem->GetLiveSubject(), SubjectItem->GetSubject()->GetRole(), SubjectItem->GetLiveSubject()->GetStaticData());
+	}
+}
+
 const FLiveLinkStaticDataStruct* FLiveLinkHubClient::GetSubjectStaticData(const FLiveLinkSubjectKey& InSubjectKey)
 {
 	FScopeLock Lock(&CollectionAccessCriticalSection);
@@ -379,7 +394,7 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 		}
 	}
 
-	OnStaticDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, Role, InStaticData);
+	BroadcastStaticDataUpdate(LiveLinkSubject, Role, InStaticData);
 
 	if (LiveLinkSubject)
 	{
@@ -406,15 +421,37 @@ void FLiveLinkHubClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKe
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLinkHub_PushFrameData);
 
-	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
+	bool bFrameValid = true;
 	{
-		if (FLiveLinkSubject* LiveSubject = SubjectItem->GetLiveSubject())
+		FScopeLock Lock(&CollectionAccessCriticalSection);
+		if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
 		{
-			LiveSubject->SetLastPushTime(FApp::GetCurrentTime());
+			if (FLiveLinkSubject* LiveSubject = SubjectItem->GetLiveSubject())
+			{
+				LiveSubject->SetLastPushTime(FApp::GetCurrentTime());
+				bFrameValid = LiveSubject->ValidateFrameData(FrameData);
+				if (bFrameValid)
+				{
+					LiveSubject->PreprocessFrame(FrameData);
+
+					// Translator support (Disabled for now since we don't have a way to handle the static data that's given back by the translator)
+					TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> Translators = LiveSubject->GetFrameTranslators();
+					if (Translators.Num() && Translators[0].IsValid())
+					{
+						FLiveLinkSubjectFrameData OutTranslatedFrame;
+						Translators[0]->Translate(LiveSubject->GetStaticData(), FrameData, OutTranslatedFrame);
+						FrameData = MoveTemp(OutTranslatedFrame.FrameData);
+					}
+				}
+			}
 		}
 	}
 
-	OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, FrameData);
+	if (bFrameValid)
+	{
+		OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, FrameData);
+	}
+
 	BroadcastFrameDataUpdate(SubjectKey, FrameData);
 }
 
@@ -447,6 +484,34 @@ void FLiveLinkHubClient::RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSu
 {
 	OnSubjectMarkedPendingKill_AnyThread().Broadcast(InSubjectKey);
 	FLiveLinkClient::RemoveSubject_AnyThread(InSubjectKey);
+}
+
+void FLiveLinkHubClient::BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const
+{
+	// If we have a translator, we need to broadcast the translated static data to the clients.
+	FLiveLinkStaticDataStruct StaticDataStruct;
+	TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> Translators = InLiveSubject->GetFrameTranslators();
+	if (Translators.Num() && Translators[0].IsValid())
+	{
+
+		ULiveLinkFrameTranslator::FWorkerSharedPtr Translator = Translators[0];
+		TSubclassOf<ULiveLinkRole> FromRole = Translator->GetFromRole();
+		UScriptStruct* FrameDataStruct = FromRole->GetDefaultObject<ULiveLinkRole>()->GetFrameDataStruct();
+		FStructOnScope FrameDataOnScope(FrameDataStruct);
+		FrameDataStruct->InitializeDefaultValue(FrameDataOnScope.GetStructMemory());
+
+		FLiveLinkFrameDataStruct BaseFrameStruct(FrameDataStruct);
+		FrameDataStruct->InitializeDefaultValue(FrameDataOnScope.GetStructMemory());
+
+		FLiveLinkSubjectFrameData OutTranslatedFrame;
+		Translator->Translate(InLiveSubject->GetStaticData(), BaseFrameStruct, OutTranslatedFrame);
+
+		OnStaticDataReceivedDelegate_AnyThread.Broadcast(InLiveSubject->GetSubjectKey(), Translator->GetToRole(), OutTranslatedFrame.StaticData);
+	}
+	else
+	{
+		OnStaticDataReceivedDelegate_AnyThread.Broadcast(InLiveSubject->GetSubjectKey(), InRole, InStaticData);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -10,10 +10,11 @@
 
 class FLiveLinkHubPlaybackController;
 class FLiveLinkHubRecordingController;
+class FLiveLinkSubject;
 class ILiveLinkHub;
 struct ILiveLinkProvider;
 
-DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnFrameDataReceived_AnyThread, const FLiveLinkSubjectKey&, const FLiveLinkFrameDataStruct&);
+DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnFrameDataReceived_AnyThread, const FLiveLinkSubjectKey&, FLiveLinkFrameDataStruct&);
 DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnStaticDataReceived_AnyThread, const FLiveLinkSubjectKey&, TSubclassOf<ULiveLinkRole>, const FLiveLinkStaticDataStruct&);
 DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnSubjectMarkedPendingKill_AnyThread, const FLiveLinkSubjectKey&);
 
@@ -48,6 +49,9 @@ public:
 		return OnSubjectMarkedPendingKillDelegate_AnyThread;
 	}
 
+	/** Cache subject settings for the subject specified by the subject key. */
+	void CacheSubjectSettings(const FLiveLinkSubjectKey& SubjectKey, ULiveLinkSubjectSettings* Settings) const;
+
 public:
 	//~ Begin ILiveLinkClient interface
 	virtual bool CreateSource(const FLiveLinkSourcePreset& InSourcePreset) override;
@@ -64,6 +68,8 @@ private:
 	bool CreatePlaybackSource(const FLiveLinkSourcePreset& InSourcePreset);
 	/** Create a LiveLinkPlaybackSubject which acts as a dummy subject when doing playback. */
 	bool CreatePlaybackSubject(const FLiveLinkSubjectPreset& InSubjectPreset);
+	/** Broadcast a static data update to this client's listeners. */
+	void BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const;
 	/** Lock to stop multiple threads accessing the Subjects from the collection at the same time */
 	mutable FCriticalSection CollectionAccessCriticalSection;
 

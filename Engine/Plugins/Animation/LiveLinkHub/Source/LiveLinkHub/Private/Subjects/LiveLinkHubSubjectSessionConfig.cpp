@@ -7,6 +7,7 @@
 #include "Features/IModularFeatures.h"
 #include "LiveLinkClient.h"
 #include "LiveLinkHubModule.h"
+#include "LiveLinkSubjectSettings.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -21,7 +22,9 @@ void FLiveLinkHubSubjectSessionConfig::Initialize()
 	for (const FLiveLinkSubjectKey& SubjectKey : LiveLinkClient.GetSubjects(bIncludeDisabledSubject, bIncludeVirtualSubject))
 	{
 		FLiveLinkHubSubjectProxy SubjectSettings;
-		SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString());
+
+		ULiveLinkSubjectSettings* Settings = Cast<ULiveLinkSubjectSettings>(LiveLinkClient.GetSubjectSettings(SubjectKey));
+		SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString(), Settings);
 
 		SubjectProxies.Add(SubjectKey, MoveTemp(SubjectSettings));
 	}
@@ -47,12 +50,24 @@ void FLiveLinkHubSubjectSessionConfig::RenameSubject(const FLiveLinkSubjectKey& 
 	}
 }
 
-void FLiveLinkHubSubjectProxy::Initialize(const FLiveLinkSubjectKey& InSubjectKey, FString InSource)
+void FLiveLinkHubSubjectProxy::Initialize(const FLiveLinkSubjectKey& InSubjectKey, FString InSource, ULiveLinkSubjectSettings* InSubjectSettings)
 {
 	SubjectName = InSubjectKey.SubjectName.Name.ToString();
 	SubjectKey = InSubjectKey;
 	OutboundName = InSubjectKey.SubjectName.Name.ToString();
 	Source = MoveTemp(InSource);
+
+	PreProcessors.Reset(InSubjectSettings->PreProcessors.Num());
+	for (const ULiveLinkFramePreProcessor* PreProcessor : InSubjectSettings->PreProcessors)
+	{
+		PreProcessors.Add(PreProcessor->GetClass());
+	}
+
+	Translator = nullptr;
+	if (InSubjectSettings->Translators.Num() && InSubjectSettings->Translators[0])
+	{
+		Translator = InSubjectSettings->Translators[0]->GetClass();
+	}
 }
 
 FName FLiveLinkHubSubjectProxy::GetOutboundName() const

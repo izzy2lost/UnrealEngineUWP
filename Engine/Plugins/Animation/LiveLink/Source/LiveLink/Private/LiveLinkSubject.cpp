@@ -335,29 +335,9 @@ bool FLiveLinkSubject::HasStaticData() const
 void FLiveLinkSubject::AddFrameData(FLiveLinkFrameDataStruct&& InFrameData)
 {
 	check(IsInGameThread());
-	if (!StaticData.IsValid())
-	{
-		static const FName InvalidStatFrame = "LiveLinkSubject_InvalidStatFrame";
-		FLiveLinkLog::WarningOnce(InvalidStatFrame, SubjectKey, TEXT("Can't add frame for subject '%s'. The static frame data is invalid."), *SubjectKey.SubjectName.ToString());
-		return;
-	}
 
-	if (Role == nullptr)
+	if (!ValidateFrameData(InFrameData))
 	{
-		return;
-	}
-
-	if (Role->GetDefaultObject<ULiveLinkRole>()->GetFrameDataStruct() != InFrameData.GetStruct())
-	{
-		static const FName NAME_IncompatibleRoles = "LiveLinkSubject_IncompatibleRoles";
-		FLiveLinkLog::WarningOnce(NAME_IncompatibleRoles, SubjectKey, TEXT("Can't add frame for subject '%s'. The frame data is incompatible with current role '%s'."), *SubjectKey.SubjectName.ToString(), *Role->GetName());
-		return;
-	}
-
-	if (!FLiveLinkRoleTrait::Validate(Role, InFrameData))
-	{
-		static const FName NAME_UnsupportedFrameData = "LiveLinkSubject_UnsupportedFrameData";
-		FLiveLinkLog::WarningOnce(NAME_UnsupportedFrameData, SubjectKey, TEXT("Trying to add unsupported frame data type to role '%s'."), *Role->GetName());
 		return;
 	}
 
@@ -452,6 +432,45 @@ void FLiveLinkSubject::AddFrameData(FLiveLinkFrameDataStruct&& InFrameData)
 	}
 
 	LastPushTime = FApp::GetCurrentTime();
+}
+
+void FLiveLinkSubject::PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData)
+{
+	for (ULiveLinkFramePreProcessor::FWorkerSharedPtr PreProcessor : FramePreProcessors)
+	{
+		PreProcessor->PreProcessFrame(InOutFrameData);
+	}
+}
+
+bool FLiveLinkSubject::ValidateFrameData(const FLiveLinkFrameDataStruct& InFrameData)
+{
+	if (!StaticData.IsValid())
+	{
+		static const FName InvalidStatFrame = "LiveLinkSubject_InvalidStatFrame";
+		FLiveLinkLog::WarningOnce(InvalidStatFrame, SubjectKey, TEXT("Can't add frame for subject '%s'. The static frame data is invalid."), *SubjectKey.SubjectName.ToString());
+		return false;
+	}
+
+	if (Role == nullptr)
+	{
+		return false;
+	}
+
+	if (Role->GetDefaultObject<ULiveLinkRole>()->GetFrameDataStruct() != InFrameData.GetStruct())
+	{
+		static const FName NAME_IncompatibleRoles = "LiveLinkSubject_IncompatibleRoles";
+		FLiveLinkLog::WarningOnce(NAME_IncompatibleRoles, SubjectKey, TEXT("Can't add frame for subject '%s'. The frame data is incompatible with current role '%s'."), *SubjectKey.SubjectName.ToString(), *Role->GetName());
+		return false;
+	}
+
+	if (!FLiveLinkRoleTrait::Validate(Role, InFrameData))
+	{
+		static const FName NAME_UnsupportedFrameData = "LiveLinkSubject_UnsupportedFrameData";
+		FLiveLinkLog::WarningOnce(NAME_UnsupportedFrameData, SubjectKey, TEXT("Trying to add unsupported frame data type to role '%s'."), *Role->GetName());
+		return false;
+	}
+
+	return true;
 }
 
 int32 FLiveLinkSubject::FindNewFrame_WorldTime(const FLiveLinkWorldTime& WorldTime) const
@@ -1262,4 +1281,3 @@ void FLiveLinkSubject::ResetBufferStats()
 	EvaluationStatistics.FrameDrop = 0;
 	EvaluationStatistics.LastEvaluationData = FTimedDataInputEvaluationData();
 }
-

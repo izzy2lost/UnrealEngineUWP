@@ -50,6 +50,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LiveLink")
     bool bRebroadcastSubject;
 
+	/** Validate PreProcessors, Translators and Interpolation processors. Usually called after a property change event.
+	 * Will revert a given change if it does not match the current subject role.
+	 */
+	bool LIVELINKINTERFACE_API ValidateProcessors();
+
 public:
 	//~ Begin UObject interface
 #if WITH_EDITOR
