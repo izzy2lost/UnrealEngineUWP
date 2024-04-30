@@ -71,7 +71,7 @@ private:
 		const FPCGStackContext& InStackContext);
 
 	/** Discovers whether task is on a statically active branch (and needs to be passed to graph executor). */
-	static bool CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<int32, bool>& InTaskIdToActiveFlag);
+	static bool CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<FPCGTaskId, bool>& InTaskIdToActiveFlag);
 
 	/** Culls nodes that are inactive for e.g. missing required inputs or on a statically inactive branch. */
 	static void CullTasksStaticInactive(TArray<FPCGGraphTask>& InOutCompiledTasks);
