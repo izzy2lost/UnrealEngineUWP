@@ -179,6 +179,15 @@ TSubclassOf<AActor> UPCGDataFromActorSettings::GetDefaultActorSelectorClass() co
 	return TSubclassOf<AActor>();
 }
 
+#if WITH_EDITOR
+bool UPCGDataFromActorSettings::DisplayModeSettings() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return bDisplayModeSettings;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+#endif
+
 void UPCGDataFromActorSettings::PostLoad()
 {
 	Super::PostLoad();

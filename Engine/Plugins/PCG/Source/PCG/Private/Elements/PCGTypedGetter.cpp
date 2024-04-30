@@ -14,7 +14,6 @@
 
 UPCGGetLandscapeSettings::UPCGGetLandscapeSettings()
 {
-	bDisplayModeSettings = false;
 	Mode = EPCGGetDataFromActorMode::ParseActorComponents;
 	ActorSelector.bShowActorFilter = false;
 	ActorSelector.bIncludeChildren = false;
@@ -137,7 +136,6 @@ void FPCGGetLandscapeDataElement::ProcessActor(FPCGContext* Context, const UPCGD
 
 UPCGGetSplineSettings::UPCGGetSplineSettings()
 {
-	bDisplayModeSettings = false;
 	Mode = EPCGGetDataFromActorMode::ParseActorComponents;
 }
 
@@ -158,7 +156,6 @@ FText UPCGGetSplineSettings::GetNodeTooltipText() const
 
 UPCGGetVolumeSettings::UPCGGetVolumeSettings()
 {
-	bDisplayModeSettings = false;
 	Mode = EPCGGetDataFromActorMode::ParseActorComponents;
 }
 
@@ -181,7 +178,6 @@ FText UPCGGetVolumeSettings::GetNodeTooltipText() const
 
 UPCGGetPrimitiveSettings::UPCGGetPrimitiveSettings()
 {
-	bDisplayModeSettings = false;
 	Mode = EPCGGetDataFromActorMode::ParseActorComponents;
 }
 
@@ -202,7 +198,6 @@ FText UPCGGetPrimitiveSettings::GetNodeTooltipText() const
 
 UPCGGetPCGComponentSettings::UPCGGetPCGComponentSettings()
 {
-	bDisplayModeSettings = false;
 	Mode = EPCGGetDataFromActorMode::GetDataFromPCGComponent;
 
 	ActorSelector.bShowActorFilter = false;

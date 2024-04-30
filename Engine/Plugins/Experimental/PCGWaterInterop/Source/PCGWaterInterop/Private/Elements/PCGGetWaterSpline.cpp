@@ -12,7 +12,6 @@
 
 UPCGGetWaterSplineSettings::UPCGGetWaterSplineSettings()
 {
-	bDisplayModeSettings = false;
 	Mode = EPCGGetDataFromActorMode::ParseActorComponents;
 }
 

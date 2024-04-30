@@ -66,12 +66,19 @@ public:
 	/** Override this to change the default value the selector will revert to when changing the actor selection type */
 	virtual TSubclassOf<AActor> GetDefaultActorSelectorClass() const;
 
+protected:
+#if WITH_EDITOR
+	UFUNCTION()
+	virtual bool DisplayModeSettings() const;
+#endif
+
+public:
 	/** Describes which actors to select for data collection. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
 	FPCGActorSelectorSettings ActorSelector;
 
 	/** Describes what kind of data we will collect from the found actor(s). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (EditCondition = bDisplayModeSettings, EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (EditCondition = "DisplayModeSettings()", EditConditionHides, HideEditConditionToggle))
 	EPCGGetDataFromActorMode Mode = EPCGGetDataFromActorMode::ParseActorComponents;
 
 	/** Also produces a single point data at the actor location. */
@@ -94,10 +101,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (EditCondition = "Mode == EPCGGetDataFromActorMode::GetSinglePoint", EditConditionHides))
 	bool bMergeSinglePointData = false;
 
-	// This can be set false by inheriting nodes to hide the 'Mode' property.
-	UPROPERTY(Transient, meta = (EditCondition = false, EditConditionHides))
-	bool bDisplayModeSettings = true;
-
 	/** Provide pin names to match against the found component output pins. Data will automatically be wired to the expected pin if the name comparison succeeds. All unmatched pins will go into the standard out pin. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (EditCondition = "Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents", EditConditionHides))
 	TArray<FName> ExpectedPins;
@@ -115,6 +118,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Data Retrieval Settings")
 	bool bTrackActorsOnlyWithinBounds = true;
 #endif // WITH_EDITORONLY_DATA
+
+	UE_DEPRECATED(5.5, "No longer in use, override DisplayModeSettings() instead.")
+	UPROPERTY(Transient, meta = (EditCondition = false, EditConditionHides))
+	bool bDisplayModeSettings = true;
 };
 
 struct FPCGDataFromActorContext : public FPCGContext
