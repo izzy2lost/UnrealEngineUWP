@@ -10,7 +10,6 @@
 #include "Math/NumericLimits.h"
 #include "Math/UnrealMathUtility.h"
 #include "HAL/UnrealMemory.h"
-#include "Memory/LinearVirtualMemoryAllocator.h"
 #include "Templates/UnrealTemplate.h"
 #include "Misc/CString.h"
 #include "Misc/Crc.h"
@@ -454,9 +453,9 @@ public:
 
 	~FNameEntryAllocator()
 	{
-		for (int32 Index = CurrentBlock; Index >= 0; --Index)
+		for (uint32 Index = 0; Index <= CurrentBlock; ++Index)
 		{
-			GetPersistentLinearAllocator().TryDeallocate(Blocks[Index], BlockSizeBytes);
+			FMemory::Free(Blocks[Index]);
 		}
 	}
 
@@ -657,7 +656,7 @@ private:
 	static uint8* AllocBlock()
 	{
 		LLM_SCOPE(ELLMTag::FName);
-		return (uint8*)GetPersistentLinearAllocator().Allocate(BlockSizeBytes, alignof(FNameEntry));
+		return (uint8*)FMemory::MallocPersistentAuxiliary(BlockSizeBytes, alignof(FNameEntry));
 	}
 	
 	void AllocateNewBlock()

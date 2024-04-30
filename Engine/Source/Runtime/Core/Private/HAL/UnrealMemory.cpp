@@ -23,7 +23,6 @@
 #include "HAL/MallocDoubleFreeFinder.h"
 #include "HAL/MallocFrameProfiler.h"
 #include "HAL/MallocStomp2.h"
-#include "Memory/LinearVirtualMemoryAllocator.h"
 
 #if MALLOC_GT_HOOKS
 
@@ -672,24 +671,69 @@ void FUseSystemMallocForNew::operator delete[](void* Ptr)
 	FMemory::SystemFree(Ptr);
 }
 
+static bool GPersistentAuxiliaryEnabled = true;
+static uint8 * GPersistentAuxiliary = nullptr;
+static uint8 * GPersistentAuxiliaryEnd = nullptr;
+static TAtomic<SIZE_T> GPersistentAuxiliaryCurrentOffset;
+static SIZE_T GPersistentAuxiliarySize = 0;
+
+
+void FMemory::RegisterPersistentAuxiliary(void* InMemory, SIZE_T InSize)
+{
+	check(GPersistentAuxiliary == nullptr);
+	GPersistentAuxiliaryCurrentOffset = 0;
+	GPersistentAuxiliarySize = InSize;
+	GPersistentAuxiliary = (uint8 *)InMemory;
+	GPersistentAuxiliaryEnd = GPersistentAuxiliary + InSize;
+}
 void* FMemory::MallocPersistentAuxiliary(SIZE_T InSize, uint32 InAlignment)
 {
-	return GetPersistentLinearAllocator().Allocate(InSize, InAlignment);
+	if (GPersistentAuxiliary != nullptr && GPersistentAuxiliaryEnabled)
+	{
+		const uint32 Alignment = FMath::Max<uint32>(InAlignment, 16u);
+		const SIZE_T AlignedSize = Align(InSize, Alignment);
+		// 1st check if there is room, this is atomic but could still fail when actually incrementing the offset.
+		if (GPersistentAuxiliaryCurrentOffset + AlignedSize <= GPersistentAuxiliarySize)
+		{
+			SIZE_T OldOffset = GPersistentAuxiliaryCurrentOffset.AddExchange(AlignedSize);
+			if (OldOffset + AlignedSize <= GPersistentAuxiliarySize)
+			{
+				// we were able to increment the offset and it's still within the bounds of the aux memory.
+				return &GPersistentAuxiliary[OldOffset];
+			}
+			// we've gone over the end of the aux memory, this could waste some space, if it's a problem protect with a critical section.
+		}
+	}
+	return FMemory::Malloc(InSize, InAlignment);
 }
-
 void FMemory::FreePersistentAuxiliary(void* InPtr)
 {
-	GetPersistentLinearAllocator().TryDeallocate(InPtr, 0);
+	if (GPersistentAuxiliary != nullptr)
+	{
+		uint8* Ptr = (uint8*)InPtr;
+		if (Ptr >= GPersistentAuxiliary && Ptr < GPersistentAuxiliaryEnd)
+		{
+			// it is part of the GPersistentAuxiliary
+			return;
+		}
+	}
+	return FMemory::Free(InPtr);
 }
-
 bool FMemory::IsPersistentAuxiliaryActive()
 {
-	return GetPersistentLinearAllocator().IsInitialized();
+	return GPersistentAuxiliary != nullptr && GPersistentAuxiliaryEnabled;
 }
-
+void FMemory::DisablePersistentAuxiliary()
+{
+	GPersistentAuxiliaryEnabled = false;
+}
+void FMemory::EnablePersistentAuxiliary()
+{
+	GPersistentAuxiliaryEnabled = true;
+}
 SIZE_T FMemory::GetUsedPersistentAuxiliary()
 {
-	return GetPersistentLinearAllocator().GetAllocatedMemorySize();
+	return GPersistentAuxiliaryCurrentOffset;
 }
 
 
