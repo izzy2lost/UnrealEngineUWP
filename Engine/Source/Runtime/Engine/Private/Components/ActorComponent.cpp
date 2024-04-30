@@ -110,6 +110,14 @@ FAutoConsoleVariableRef CVarEnableDeferredPhysicsCreation(
 	TEXT("Enables/Disables deferred physics creation.")
 );
 
+// Allows for CreatePhysicsState to be deferred, to batch work and parallelize.
+int32 GPrecachePSOsOnComponentRecreateRenderContext = 1;
+FAutoConsoleVariableRef CVarPrecachePSOsOnComponentRecreateRenderContext(
+	TEXT("r.PrecachePSOsOnComponentRecreateRenderContext"),
+	GPrecachePSOsOnComponentRecreateRenderContext,
+	TEXT("If > 0, re-creating a component's render context will also re-precache the component's PSOs.")
+);
+
 void FRegisterComponentContext::Process()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRegisterComponentContext::Process)
@@ -297,6 +305,28 @@ void FGlobalComponentReregisterContext::UpdateAllPrimitiveSceneInfos()
 	UpdateAllPrimitiveSceneInfosForScenes(MoveTemp(ScenesToUpdateAllPrimitiveSceneInfos));
 
 	check(ScenesToUpdateAllPrimitiveSceneInfos.Num() == 0);
+}
+
+
+FComponentRecreateRenderStateContext::~FComponentRecreateRenderStateContext()
+{
+	if (Component && !Component->IsRenderStateCreated() && Component->IsRegistered())
+	{
+		if (GPrecachePSOsOnComponentRecreateRenderContext)
+		{
+			Component->PrecachePSOs();
+		}
+		Component->CreateRenderState_Concurrent(nullptr);
+
+		UpdateAllPrimitiveSceneInfosForSingleComponent(Component, ScenesToUpdateAllPrimitiveSceneInfos);
+	}
+
+	if (ComponentInterface && !ComponentInterface->IsRenderStateCreated() && ComponentInterface->IsRegistered())
+	{
+		ComponentInterface->CreateRenderState(nullptr);
+
+		UpdateAllPrimitiveSceneInfosForSingleComponentInterface(ComponentInterface, ScenesToUpdateAllPrimitiveSceneInfos);
+	}
 }
 
 FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext()
