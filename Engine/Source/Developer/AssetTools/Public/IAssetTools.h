@@ -465,6 +465,14 @@ public:
 	virtual void ExportAssets(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const = 0;
 	
 	/**
+	 * Exports the specified objects to file using the clean filename as the saved filename.
+	 *
+	 * @param	AssetsToExport					List of assets to export
+	 * @param	ExportPath						The directory path to export to.
+	 */
+	virtual void ExportAssetsWithCleanFilename(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const = 0;
+
+	/**
 	 * Exports the specified objects to file. First prompting the user to pick an export directory and optionally prompting the user to pick a unique directory per file
 	 *
 	 * @param	AssetsToExport					List of assets to export

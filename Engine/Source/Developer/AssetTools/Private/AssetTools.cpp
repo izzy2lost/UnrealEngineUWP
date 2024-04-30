@@ -2917,18 +2917,28 @@ void UAssetToolsImpl::ExportAssets(const TArray<FString>& AssetsToExport, const 
 	}
 
 	const bool bPromptIndividualFilenames = false;
-	ExportAssetsInternal(AssetObjectsToExport, bPromptIndividualFilenames, ExportPath);
+	const bool bExportAsCleanFileName = false;
+	ExportAssetsInternal(AssetObjectsToExport, bPromptIndividualFilenames, bExportAsCleanFileName, ExportPath);
 }
 
 void UAssetToolsImpl::ExportAssets(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const
 {
 	const bool bPromptIndividualFilenames = false;
-	ExportAssetsInternal(AssetsToExport, bPromptIndividualFilenames, ExportPath);
+	const bool bSaveAsCleanFilename = false;
+	ExportAssetsInternal(AssetsToExport, bPromptIndividualFilenames, bSaveAsCleanFilename, ExportPath);
 }
 
+void UAssetToolsImpl::ExportAssetsWithCleanFilename(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const
+{
+	const bool bPromptIndividualFilenames = false;
+	const bool bSaveAsCleanFilename = true;
+	ExportAssetsInternal(AssetsToExport, bPromptIndividualFilenames, bSaveAsCleanFilename, ExportPath);
+}
+ 
 void UAssetToolsImpl::ExportAssetsWithDialog(const TArray<UObject*>& AssetsToExport, bool bPromptForIndividualFilenames)
 {
-	ExportAssetsInternal(AssetsToExport, bPromptForIndividualFilenames, TEXT(""));
+	const bool bSaveAsCleanFilename = false;
+	ExportAssetsInternal(AssetsToExport, bPromptForIndividualFilenames, bSaveAsCleanFilename, TEXT(""));
 }
 
 void UAssetToolsImpl::ExportAssetsWithDialog(const TArray<FString>& AssetsToExport, bool bPromptForIndividualFilenames)
@@ -2949,7 +2959,8 @@ void UAssetToolsImpl::ExportAssetsWithDialog(const TArray<FString>& AssetsToExpo
 		}
 	}
 
-	ExportAssetsInternal(AssetObjectsToExport, bPromptForIndividualFilenames, TEXT(""));
+	const bool bSaveAsCleanFilename = false;
+	ExportAssetsInternal(AssetObjectsToExport, bPromptForIndividualFilenames, bSaveAsCleanFilename, TEXT(""));
 }
 
 void UAssetToolsImpl::ExpandDirectories(const TArray<FString>& Files, const FString& DestinationPath, TArray<TPair<FString, FString>>& FilesAndDestinations) const
@@ -4218,7 +4229,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 	return ReturnObjects;
 }
 
-void UAssetToolsImpl::ExportAssetsInternal(const TArray<UObject*>& ObjectsToExport, bool bPromptIndividualFilenames, const FString& ExportPath) const
+void UAssetToolsImpl::ExportAssetsInternal(const TArray<UObject*>& ObjectsToExport, bool bPromptIndividualFilenames, bool bSaveAsCleanFilename, const FString& ExportPath) const
 {
 	FString LastExportPath = !ExportPath.IsEmpty() ? ExportPath : FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_EXPORT);
 
@@ -4476,7 +4487,8 @@ void UAssetToolsImpl::ExportAssetsInternal(const TArray<UObject*>& ObjectsToExpo
 				}
 
 				FPaths::NormalizeFilename(PackageName);
-				SaveFileName /= PackageName;
+				
+				SaveFileName /= bSaveAsCleanFilename ? FPaths::GetCleanFilename(PackageName) : PackageName;
 			}
 			else
 			{
