@@ -4121,6 +4121,14 @@ half GetFloatFacingSign(FIsFrontFace bIsFrontFace)
 	#define OPTIONAL_IsFrontFace , in FIsFrontFace bIsFrontFace : FrontFaceSemantic
 #endif
 
+#ifndef VF_SUPPORTS_WORLD_POSITION_SHADER_OFFSETS
+#define VF_SUPPORTS_WORLD_POSITION_SHADER_OFFSETS 1
+#endif 
+// Helper macro to globally ignore requests for non-offset world positions in materials when lower than shader model 4. We do this
+// because we are using an extra interpolator for this second world position, and in < ES31 there may not be enough
+// NOTE: Forced on in development shaders because the Out-Of-Bounds Pixels visualizer uses it
+#define USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS	((NEEDS_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS || USE_DEVELOPMENT_SHADERS) && VF_SUPPORTS_WORLD_POSITION_SHADER_OFFSETS)
+
 /** Initializes the subset of Parameters that was not set in GetMaterialPixelParameters. */
 void CalcMaterialParametersEx(
 	in out FMaterialPixelParameters Parameters,
