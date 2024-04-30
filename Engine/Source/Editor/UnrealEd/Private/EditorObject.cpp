@@ -1427,7 +1427,7 @@ static const TCHAR* ImportPropertiesStep(
 					Params.ObjectRemapper = ObjectRemapper;
 					Params.PropertiesToSkip = PropertiesToSkip;
 
-					ImportObjectsPropertiesStep(Params);
+					CurrentSourceText = ImportObjectsPropertiesStep(Params);
 				}
 			}
 			else if( FParse::Command(&Str,TEXT("CustomProperties")))

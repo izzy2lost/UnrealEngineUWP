@@ -182,7 +182,7 @@ void UActorElementEditorWorldInterface::CopyElements(TArrayView<const FTypedElem
 	ActorElementsCopy->ActorsToCopy = Actors;
 
 	constexpr int32 Indent = 3;
-	UExporter::ExportToOutputDevice(nullptr, ActorElementsCopy, nullptr, Out, TEXT("copy"), Indent, PPF_DeepCompareInstances);
+	UExporter::ExportToOutputDevice(nullptr, ActorElementsCopy, nullptr, Out, TEXT("copy"), Indent, PPF_DeepCompareInstances | PPF_ExportsNotFullyQualified);
 }
 
 TSharedPtr<FWorldElementPasteImporter> UActorElementEditorWorldInterface::GetPasteImporter()
