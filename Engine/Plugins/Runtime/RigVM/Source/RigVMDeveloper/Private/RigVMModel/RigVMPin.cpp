@@ -2275,7 +2275,11 @@ bool URigVMPin::CanLink(const URigVMPin* InSourcePin, const URigVMPin* InTargetP
 
 						return false;
 					}
-					SourceNodes.Append(SourceNodes[SourceNodeIndex]->GetLinkedSourceNodes());
+					const TArray<URigVMNode*> LinkedSourceNodes = SourceNodes[SourceNodeIndex]->GetLinkedSourceNodes();
+					for(URigVMNode* LinkedSourceNode : LinkedSourceNodes)
+					{
+						SourceNodes.AddUnique(LinkedSourceNode);
+					}
 				}
 			}
 		}
