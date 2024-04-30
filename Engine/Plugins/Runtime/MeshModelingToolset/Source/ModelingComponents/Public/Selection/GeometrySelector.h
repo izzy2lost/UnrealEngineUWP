@@ -410,15 +410,17 @@ public:
 	virtual void AccumulateSelectionBounds(const FGeometrySelection& Selection, FGeometrySelectionBounds& BoundsInOut, bool bTransformToWorld) = 0;
 
 	/** Prefer AccumulateSelectionElements with Flags parameter. */
-	virtual void AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& ElementsInOut, bool bTransformToWorld, UE::Geometry::EEnumerateMappingFlags Flags = UE::Geometry::EEnumerateMappingFlags::Default) = 0;
+	UE_DEPRECATED(5.5, "AccumulateSelectionElements which takes a bIsForPreview boolean is deprecated."
+				"Please use the function of the same name which takes EEnumerateSelectionMapping flags instead")
+	virtual void AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& ElementsInOut, bool bTransformToWorld, bool bIsForPreview) = 0;
 	
 	/**
 	 * Accumulate geometric elements (currently 3D triangles, line segments, and points) for the provided Selection in the provided ElementsInOut. 
 	 * ElementsInOut is not cleared.
 	 * @param bTransformToWorld if true each geometric element will be transformed to World space, based on GetLocalToWorldTransform()
-	 * @param bIsForPreview if true, geometry is being collected for a preview of selection. Selector may return simplified geometry in this case
+	 * @param Flags determines which pieces of the geometry should be rendered
 	 */
-	virtual void AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& ElementsInOut, bool bTransformToWorld, bool bIsForPreview) = 0;
+	virtual void AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& ElementsInOut, bool bTransformToWorld, UE::Geometry::EEnumerateSelectionMapping Flags = UE::Geometry::EEnumerateSelectionMapping::Default) = 0;
 
 	/**
 	 * Accumulate all geometric elements (currently 3D triangles, line segments, and points) in the provided ElementsInOut

@@ -36,6 +36,8 @@ namespace ToolSelectionUtil
 	MODELINGCOMPONENTS_API void SetNewActorSelection(UInteractiveToolManager* ToolManager, const TArray<AActor*>& Actors);
 
 	/** Prefer AccumulateSelectionElements with Flags parameter. */
+	UE_DEPRECATED(5.5, "AccumulateSelectionElements which takes a bMapFacesToEdges boolean is deprecated."
+				"Please use the function of the same name which takes EEnumerateSelectionMapping flags instead")
 	MODELINGCOMPONENTS_API bool AccumulateSelectionElements(
 		UE::Geometry::FGeometrySelectionElements& Elements,
 		const UE::Geometry::FGeometrySelection& Selection,
@@ -57,7 +59,7 @@ namespace ToolSelectionUtil
 		const UE::Geometry::FDynamicMesh3& SourceMesh,
 		const UE::Geometry::FGroupTopology* Topology = nullptr,
 		const FTransform* ApplyTransform = nullptr,
-		const UE::Geometry::EEnumerateMappingFlags Flags = UE::Geometry::EEnumerateMappingFlags::Default);
+		const UE::Geometry::EEnumerateSelectionMapping Flags = UE::Geometry::EEnumerateSelectionMapping::Default);
 	
 	/**
 	 * Render the given Elements using FPrimitiveDrawInterface

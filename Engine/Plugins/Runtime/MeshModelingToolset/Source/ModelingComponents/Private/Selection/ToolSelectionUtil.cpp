@@ -56,7 +56,7 @@ bool ToolSelectionUtil::AccumulateSelectionElements(
 		SourceMesh,
 		GroupTopology,
 		ApplyTransform,
-		EEnumerateMappingFlags::Default | (bMapFacesToEdges ? EEnumerateMappingFlags::FacesToEdges : EEnumerateMappingFlags::None));
+		EEnumerateSelectionMapping::Default | (bMapFacesToEdges ? EEnumerateSelectionMapping::FacesToEdges : EEnumerateSelectionMapping::None));
 }
 
 bool ToolSelectionUtil::AccumulateSelectionElements(
@@ -65,7 +65,7 @@ bool ToolSelectionUtil::AccumulateSelectionElements(
 	const FDynamicMesh3& SourceMesh,
 	const FGroupTopology* GroupTopology,
 	const FTransform* ApplyTransform,
-	const EEnumerateMappingFlags Flags)
+	const EEnumerateSelectionMapping Flags)
 {
 	auto AddPoint = [&Elements](uint32 Vid, const FVector3d& Point) { Elements.Points.Add(Point); };
 	auto AddSegment = [&Elements](uint32 Eid, const FSegment3d& Segment) { Elements.Segments.Add(Segment); };
@@ -169,7 +169,7 @@ void FSelectionRenderHelper::Initialize(const FGeometrySelection& Selection,
 	const FGroupTopology* Topology,
 	const FTransform* ApplyTransform)
 {
-	bool bSuccess = ToolSelectionUtil::AccumulateSelectionElements(Elements, Selection, SourceMesh, Topology, ApplyTransform, false);
+	bool bSuccess = ToolSelectionUtil::AccumulateSelectionElements(Elements, Selection, SourceMesh, Topology, ApplyTransform, EEnumerateSelectionMapping::Default | EEnumerateSelectionMapping::None);
 	ensure(bSuccess);
 }
 

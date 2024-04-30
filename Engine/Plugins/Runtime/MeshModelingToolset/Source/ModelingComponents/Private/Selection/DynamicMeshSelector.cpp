@@ -646,7 +646,7 @@ void FBaseDynamicMeshSelector::AccumulateSelectionBounds(const FGeometrySelectio
 	{
 		TargetMesh->ProcessMesh([&](const UE::Geometry::FDynamicMesh3& SourceMesh)
 		{
-			UE::Geometry::EnumerateTriangleSelectionVertices(Selection, SourceMesh, UseTransform,
+			UE::Geometry::EnumerateTriangleSelectionVertices(Selection, SourceMesh, &UseTransform,
 				[&](uint32 VertexID, const FVector3d& Position) { 
 					TargetWorldBounds.Contain(Position); 
 					ElementCount++;
@@ -665,20 +665,11 @@ void FBaseDynamicMeshSelector::AccumulateSelectionBounds(const FGeometrySelectio
 
 void FBaseDynamicMeshSelector::AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& Elements, bool bTransformToWorld, bool bIsForPreview)
 {
-	const FTransform UseWorldTransform = GetLocalToWorldTransform();
-	const FTransform* ApplyTransform = (bTransformToWorld) ? &UseWorldTransform : nullptr;
-	const bool bMapFacesToEdges = bIsForPreview;
-
-	ToolSelectionUtil::AccumulateSelectionElements(
-		Elements,
-		Selection,
-		TargetMesh->GetMeshRef(),
-		Selection.TopologyType == EGeometryTopologyType::Polygroup ? GetGroupTopology() : nullptr,
-		ApplyTransform,
-		bMapFacesToEdges);
+	// where if bIsForPreview is true, we are mapping faces to edges
+	AccumulateSelectionElements(Selection, Elements, bTransformToWorld, EEnumerateSelectionMapping::Default | (bIsForPreview ? EEnumerateSelectionMapping::FacesToEdges : EEnumerateSelectionMapping::None));
 }
 
-void FBaseDynamicMeshSelector::AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& Elements, bool bTransformToWorld, const EEnumerateMappingFlags Flags)
+void FBaseDynamicMeshSelector::AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& Elements, bool bTransformToWorld, const EEnumerateSelectionMapping Flags)
 {
 	const FTransform UseWorldTransform = GetLocalToWorldTransform();
 	const FTransform* ApplyTransform = (bTransformToWorld) ? &UseWorldTransform : nullptr;
@@ -700,7 +691,7 @@ void FBaseDynamicMeshSelector::AccumulateElementsFromPredicate(FGeometrySelectio
 		Selection.ElementType = ElementType;
 		Selection.TopologyType = bUseGroupTopology ? EGeometryTopologyType::Polygroup : EGeometryTopologyType::Triangle;
 		InitializeSelectionFromPredicate(Selection, [&Predicate, ElementType](FGeoSelectionID InID){ return Predicate(ElementType, InID); });
-		AccumulateSelectionElements(Selection, Elements, bTransformToWorld, bIsForPreview);
+		AccumulateSelectionElements(Selection, Elements, bTransformToWorld, EEnumerateSelectionMapping::Default);
 	};
 
 	AccumulateElementsOfTypeFromPredicate(EGeometryElementType::Vertex);
@@ -894,7 +885,7 @@ void FBasicDynamicMeshSelectionTransformer::BeginTransform(const FGeometrySelect
 		}
 		else
 		{
-			UE::Geometry::EnumerateTriangleSelectionVertices(Selection, SourceMesh, FTransform::Identity,
+			UE::Geometry::EnumerateTriangleSelectionVertices(Selection, SourceMesh, nullptr,
 				[&](uint32 VertexID, const FVector3d& Position) { VertexIDs.Add((int32)VertexID); }
 			);
 		}

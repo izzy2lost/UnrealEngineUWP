@@ -1482,7 +1482,7 @@ void UGeometrySelectionManager::RebuildSelectionRenderCache()
 		
 		FGeometrySelectionElements& SelectionElements = CachedSelectionRenderElements[k];
 		SelectionElements.Reset();
-		Target->Selector->AccumulateSelectionElements(Target->Selection, SelectionElements, true, false);
+		Target->Selector->AccumulateSelectionElements(Target->Selection, SelectionElements, true, EEnumerateSelectionMapping::Default);
 	}
 
 	bSelectionRenderCachesDirty = false;
@@ -1530,11 +1530,11 @@ void UGeometrySelectionManager::RebuildPreviewRenderCache()
 	
 	if (ActivePreviewSelection.IsEmpty() == false)
 	{
-		EEnumerateMappingFlags MappingFlags = EEnumerateMappingFlags::Default | EEnumerateMappingFlags::FacesToEdges;
+		EEnumerateSelectionMapping MappingFlags = EEnumerateSelectionMapping::Default | EEnumerateSelectionMapping::FacesToEdges;
 		if (CVarGeometrySelectionManager_FullSelectionHoverHighlights.GetValueOnGameThread() == 0)
 		{
 			// Unset FacesToFaces flag if full hover highlights are disabled
-			MappingFlags &= ~EEnumerateMappingFlags::FacesToFaces;
+			MappingFlags &= ~EEnumerateSelectionMapping::FacesToFaces;
 		}
 		
 		Target->Selector->AccumulateSelectionElements(SelectedActivePreviewSelection, CachedSelectedPreviewRenderElements, true, MappingFlags);

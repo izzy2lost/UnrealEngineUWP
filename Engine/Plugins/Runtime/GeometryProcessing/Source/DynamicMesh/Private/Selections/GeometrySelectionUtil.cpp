@@ -466,12 +466,19 @@ bool UE::Geometry::UpdateSelectionWithNewElements(
 	
 }
 
-
-
 bool UE::Geometry::EnumerateTriangleSelectionVertices(
 	const FGeometrySelection& MeshSelection,
 	const UE::Geometry::FDynamicMesh3& Mesh,
 	const FTransform& ApplyTransform,
+	TFunctionRef<void(uint64, const FVector3d&)> VertexFunc)
+{
+	return EnumerateTriangleSelectionVertices(MeshSelection, Mesh, &ApplyTransform, VertexFunc);
+}
+
+bool UE::Geometry::EnumerateTriangleSelectionVertices(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const FTransform* ApplyTransform,
 	TFunctionRef<void(uint64, const FVector3d&)> VertexFunc)
 {
 	if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Triangle ) == false )
@@ -481,38 +488,63 @@ bool UE::Geometry::EnumerateTriangleSelectionVertices(
 
 	if (MeshSelection.ElementType == EGeometryElementType::Face)
 	{
-		for (uint64 TriangleID : MeshSelection.Selection)
+		for (const uint64 TriangleID : MeshSelection.Selection)
 		{
 			if (Mesh.IsTriangle((int32)TriangleID))
 			{
-				FIndex3i Triangle = Mesh.GetTriangle((int32)TriangleID);
-				VertexFunc((uint64)Triangle.A, ApplyTransform.TransformPosition(Mesh.GetVertex(Triangle.A)));
-				VertexFunc((uint64)Triangle.B, ApplyTransform.TransformPosition(Mesh.GetVertex(Triangle.B)));
-				VertexFunc((uint64)Triangle.C, ApplyTransform.TransformPosition(Mesh.GetVertex(Triangle.C)));
+				const FIndex3i Triangle = Mesh.GetTriangle((int32)TriangleID);
+				FVector3d TriVertexA, TriVertexB, TriVertexC;
+				TriVertexA = Mesh.GetVertex(Triangle.A);
+				TriVertexB = Mesh.GetVertex(Triangle.B);
+				TriVertexC = Mesh.GetVertex(Triangle.C);
+				
+				if (ApplyTransform)
+				{
+					TriVertexA = ApplyTransform->TransformPosition(TriVertexA);
+					TriVertexB = ApplyTransform->TransformPosition(TriVertexB);
+					TriVertexC = ApplyTransform->TransformPosition(TriVertexC);
+				}
+				VertexFunc((uint64)Triangle.A, TriVertexA);
+				VertexFunc((uint64)Triangle.B, TriVertexB);
+				VertexFunc((uint64)Triangle.C, TriVertexC);
 			}
 		}
 	}
 	else if (MeshSelection.ElementType == EGeometryElementType::Edge)
 	{
-		for (uint64 EncodedID : MeshSelection.Selection)
+		for (const uint64 EncodedID : MeshSelection.Selection)
 		{
-			FMeshTriEdgeID TriEdgeID(FGeoSelectionID(EncodedID).GeometryID);
-			int32 EdgeID = Mesh.IsTriangle(TriEdgeID.TriangleID) ? Mesh.GetTriEdge(TriEdgeID.TriangleID, TriEdgeID.TriEdgeIndex) : IndexConstants::InvalidID;
+			const FMeshTriEdgeID TriEdgeID(FGeoSelectionID(EncodedID).GeometryID);
+			const int32 EdgeID = Mesh.IsTriangle(TriEdgeID.TriangleID) ? Mesh.GetTriEdge(TriEdgeID.TriangleID, TriEdgeID.TriEdgeIndex) : IndexConstants::InvalidID;
 			if (Mesh.IsEdge(EdgeID))
 			{
-				FIndex2i EdgeV = Mesh.GetEdgeV(EdgeID);
-				VertexFunc((uint64)EdgeV.A, ApplyTransform.TransformPosition(Mesh.GetVertex(EdgeV.A)));
-				VertexFunc((uint64)EdgeV.B, ApplyTransform.TransformPosition(Mesh.GetVertex(EdgeV.B)));
+				const FIndex2i EdgeV = Mesh.GetEdgeV(EdgeID);
+				FVector3d EdgeVertexA, EdgeVertexB;
+				EdgeVertexA = Mesh.GetVertex(EdgeV.A);
+				EdgeVertexB = Mesh.GetVertex(EdgeV.B);
+
+				if (ApplyTransform)
+				{
+					EdgeVertexA = ApplyTransform->TransformPosition(EdgeVertexA);
+					EdgeVertexB = ApplyTransform->TransformPosition(EdgeVertexB);
+				}
+				VertexFunc((uint64)EdgeV.A, EdgeVertexA);
+				VertexFunc((uint64)EdgeV.B, EdgeVertexB);
 			}
 		}
 	}
 	else if (MeshSelection.ElementType == EGeometryElementType::Vertex)
 	{
-		for (uint64 VertexID : MeshSelection.Selection)
+		for (const uint64 VertexID : MeshSelection.Selection)
 		{
 			if (Mesh.IsVertex((int32)VertexID))
 			{
-				VertexFunc((uint64)VertexID, ApplyTransform.TransformPosition(Mesh.GetVertex((int32)VertexID)));
+				FVector3d Vertex = Mesh.GetVertex((int32)VertexID);
+				if (ApplyTransform)
+				{
+					Vertex = ApplyTransform->TransformPosition(Vertex);
+				}
+				VertexFunc(VertexID, Vertex);
 			}
 		}
 	}
@@ -1037,7 +1069,7 @@ bool UE::Geometry::EnumerateTriangleSelectionElements(
 		EdgeFunc,
 		TriangleFunc,
 		ApplyTransform,
-		EEnumerateMappingFlags::Default | (bMapFacesToEdgeLoops ? EEnumerateMappingFlags::FacesToEdges : EEnumerateMappingFlags::None)
+		EEnumerateSelectionMapping::Default | (bMapFacesToEdgeLoops ? EEnumerateSelectionMapping::FacesToEdges : EEnumerateSelectionMapping::None)
 		);
 }
 
@@ -1048,93 +1080,66 @@ bool UE::Geometry::EnumerateTriangleSelectionElements(
 	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
 	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
 	const FTransform* ApplyTransform,
-	const EEnumerateMappingFlags Flags
+	const EEnumerateSelectionMapping Flags
 )
 {
 	if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Triangle ) == false )
 	{
 		return false;
 	}
+	
+	auto ApplyTriangleFunc = [&ApplyTransform, &TriangleFunc, &Mesh](const int32 TriangleID)
+	{
+		FVector3d VertA, VertB, VertC;
+		Mesh.GetTriVertices((int32)TriangleID, VertA, VertB, VertC);
+		if (ApplyTransform)
+		{
+			VertA = ApplyTransform->TransformPosition(VertA);
+			VertB = ApplyTransform->TransformPosition(VertB);
+			VertC = ApplyTransform->TransformPosition(VertC);
+		}
+		TriangleFunc(TriangleID, FTriangle3d(VertA, VertB, VertC));	
+	};
+
+	auto ApplyEdgeFunc = [&ApplyTransform, &EdgeFunc, &Mesh](const int32 EdgeID)
+	{
+		FVector3d VertA, VertB;
+		Mesh.GetEdgeV(EdgeID, VertA, VertB);
+		if (ApplyTransform)
+		{
+			VertA = ApplyTransform->TransformPosition(VertA);
+			VertB = ApplyTransform->TransformPosition(VertB);
+		}
+		EdgeFunc(EdgeID, FSegment3d(VertA, VertB));
+	};
+
+	auto ApplyVertexFunc = [&VertexFunc](const uint64 VertexID, const FVector3d& VertA)
+	{
+		VertexFunc((int32)VertexID, VertA);
+	};
+	
 
 	if (MeshSelection.ElementType == EGeometryElementType::Face)
 	{
-		for (const uint64 EncodedID : MeshSelection.Selection)
+		// Call TriangleFunc if we are mapping Faces to Faces
+		if ((Flags & EEnumerateSelectionMapping::FacesToFaces) != EEnumerateSelectionMapping::None)
 		{
-			const int32 TriangleID = (int32)FGeoSelectionID(EncodedID).GeometryID;
-			if (Mesh.IsTriangle(TriangleID))
-			{
-				FVector3d A, B, C;
-				Mesh.GetTriVertices((int32)TriangleID, A, B, C);
-				if (ApplyTransform != nullptr)
-				{
-					A = ApplyTransform->TransformPosition(A);
-					B = ApplyTransform->TransformPosition(B);
-					C = ApplyTransform->TransformPosition(C);
-				}
-				
-				// Call TriangleFunc if we are mapping Faces to Faces
-				if ((Flags & EEnumerateMappingFlags::FacesToFaces) != EEnumerateMappingFlags::None)
-				{
-					TriangleFunc(TriangleID, FTriangle3d(A, B, C));
-				}
-				
-				// Call EdgeFunc for each of the triangle's edges if we are mapping Faces to Edges
-				if ((Flags & EEnumerateMappingFlags::FacesToEdges) != EEnumerateMappingFlags::None)
-				{
-					const FIndex3i Edges = Mesh.GetTriEdges((int32)TriangleID);
-					EdgeFunc(Edges.A, FSegment3d(A, B));
-					EdgeFunc(Edges.B, FSegment3d(B, C));
-					EdgeFunc(Edges.C, FSegment3d(C, A));
-				}
+			EnumerateTriangleSelectionTriangles(MeshSelection, Mesh, ApplyTriangleFunc);
+		}
 
-				// TODO [katie.caputo] add FacesToVerts path
-			}
+		// Call EdgeFunc if we are mapping Faces to Edges
+		if ((Flags & EEnumerateSelectionMapping::FacesToEdges) != EEnumerateSelectionMapping::None)
+		{
+			EnumerateTriangleSelectionEdges(MeshSelection, Mesh, ApplyEdgeFunc);
 		}
 	}
 	else if (MeshSelection.ElementType == EGeometryElementType::Edge)
 	{
-		for (const uint64 EncodedID : MeshSelection.Selection)
-		{
-			const FMeshTriEdgeID TriEdgeID( FGeoSelectionID(EncodedID).GeometryID );
-			const int32 EdgeID = Mesh.IsTriangle(TriEdgeID.TriangleID) ? Mesh.GetTriEdge(TriEdgeID.TriangleID, TriEdgeID.TriEdgeIndex) : IndexConstants::InvalidID;
-			if (Mesh.IsEdge(EdgeID))
-			{
-				FVector3d A, B;
-				Mesh.GetEdgeV(EdgeID, A, B);
-				if (ApplyTransform != nullptr)
-				{
-					A = ApplyTransform->TransformPosition(A);
-					B = ApplyTransform->TransformPosition(B);
-				}
-
-				// Call EdgeFunc if we are mapping Edges to Edges
-				if ((Flags & EEnumerateMappingFlags::EdgesToEdges) != EEnumerateMappingFlags::None)
-				{
-					EdgeFunc(EdgeID, FSegment3d(A, B));
-				}
-				// TODO [katie.caputo] add EdgesToFaces and EdgesToVerts path
-			}
-		}
-		
+		EnumerateTriangleSelectionEdges(MeshSelection, Mesh, ApplyEdgeFunc);
 	}
 	else if (MeshSelection.ElementType == EGeometryElementType::Vertex)
 	{
-		for (const uint64 EncodedID : MeshSelection.Selection)
-		{
-			const int32 VertexID = (int32)FGeoSelectionID(EncodedID).GeometryID;
-			if (Mesh.IsVertex(VertexID))
-			{
-				const FVector3d A = Mesh.GetVertex(VertexID);
-
-				// Call VertexFunc if we are mapping Vertices to Vertices
-				if ((Flags & EEnumerateMappingFlags::VertsToVerts) != EEnumerateMappingFlags::None)
-				{
-					VertexFunc(VertexID, (ApplyTransform != nullptr) ? ApplyTransform->TransformPosition(A) : A);
-				}
-
-				// TODO [katie.caputo] add VertsToFaces and VertsToEdges path
-			}
-		}
+		EnumerateTriangleSelectionVertices(MeshSelection, Mesh, ApplyTransform, ApplyVertexFunc);
 	}
 	else
 	{
@@ -1163,7 +1168,7 @@ bool UE::Geometry::EnumeratePolygroupSelectionElements(
 		EdgeFunc,
 		TriangleFunc,
 		ApplyTransform,
-		EEnumerateMappingFlags::Default | (bMapFacesToEdgeLoops ? EEnumerateMappingFlags::FacesToEdges : EEnumerateMappingFlags::None)
+		EEnumerateSelectionMapping::Default | (bMapFacesToEdgeLoops ? EEnumerateSelectionMapping::FacesToEdges : EEnumerateSelectionMapping::None)
 		);
 }
 
@@ -1175,7 +1180,7 @@ bool UE::Geometry::EnumeratePolygroupSelectionElements(
 	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
 	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
 	const FTransform* ApplyTransform,
-	const EEnumerateMappingFlags Flags
+	const EEnumerateSelectionMapping Flags
 )
 {
 if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) == false )
@@ -1183,13 +1188,13 @@ if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) ==
 		return false;
 	}
 
-	auto ProcessGroupEdgeID = [GroupTopology, &Mesh, ApplyTransform, &EdgeFunc, Flags](const int32 GroupEdgeID)
+	auto ProcessGroupEdgeID = [GroupTopology, &Mesh, ApplyTransform, &EdgeFunc](const int32 GroupEdgeID)
 	{
 		for (const int32 EdgeID : GroupTopology->GetGroupEdgeEdges(GroupEdgeID))
 		{
 			FVector3d A, B;
 			Mesh.GetEdgeV(EdgeID, A, B);
-			if (ApplyTransform != nullptr)
+			if (ApplyTransform)
 			{
 				A = ApplyTransform->TransformPosition(A);
 				B = ApplyTransform->TransformPosition(B);
@@ -1207,13 +1212,15 @@ if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) ==
 			if (Mesh.IsTriangle(SeedTriangleID))
 			{
 				// Call TriangleFunc if we are mapping Faces to Faces
-				if ((Flags & EEnumerateMappingFlags::FacesToFaces) != EEnumerateMappingFlags::None)
+				// Note: While EnumeratePolygroupSelectionTriangles would also return all faces, implementing it this way minimizes redundancy in the
+				// MeshSelection.Selection loop and more consistent with the rest of the Polygroup selection elements enumeration
+				if ((Flags & EEnumerateSelectionMapping::FacesToFaces) != EEnumerateSelectionMapping::None)
 				{
 					for (const int32 TriangleID : GroupTopology->GetGroupFaces(GroupID))
 					{
 						FVector3d A, B, C;
 						Mesh.GetTriVertices(TriangleID, A, B, C);
-						if (ApplyTransform != nullptr)
+						if (ApplyTransform)
 						{
 							A = ApplyTransform->TransformPosition(A);
 							B = ApplyTransform->TransformPosition(B);
@@ -1224,7 +1231,7 @@ if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) ==
 				}
 
 				// Process the polygroup edges if we are mapping Faces to Edges
-				if ((Flags & EEnumerateMappingFlags::FacesToEdges) != EEnumerateMappingFlags::None)
+				if ((Flags & EEnumerateSelectionMapping::FacesToEdges) != EEnumerateSelectionMapping::None)
 				{
 					TArray<int32> GroupEdgeIDs;
 					if ( const FGroupTopology::FGroup* Group = GroupTopology->FindGroupByID(GroupID) )
@@ -1242,8 +1249,6 @@ if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) ==
 						ProcessGroupEdgeID(GroupEdgeID);
 					}
 				}
-
-				// TODO [katie.caputo] add FaceToVerts path
 			}
 		}
 	}
@@ -1257,13 +1262,7 @@ if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) ==
 			{
 				const int32 GroupEdgeID = GroupTopology->FindGroupEdgeID(SeedEdgeID);
 
-				// Process the polygroup edges if we are mapping Edges to Edges
-				if ((Flags & EEnumerateMappingFlags::EdgesToEdges) != EEnumerateMappingFlags::None)
-				{
-					ProcessGroupEdgeID(GroupEdgeID);
-				}
-
-				// TODO [katie.caputo]: Add EdgesToVerts and EdgesToFaces path
+				ProcessGroupEdgeID(GroupEdgeID);
 			}
 		}
 	}
@@ -1275,14 +1274,8 @@ if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) ==
 			if (Mesh.IsVertex(VertexID))
 			{
 				const FVector3d A = Mesh.GetVertex(VertexID);
-
-				// Call VertexFunc if we are mapping Vertices to Vertices
-				if ((Flags & EEnumerateMappingFlags::VertsToVerts) != EEnumerateMappingFlags::None)
-				{
-					VertexFunc(VertexID, (ApplyTransform != nullptr) ? ApplyTransform->TransformPosition(A) : A);
-				}
-
-				// todo [katie.caputo]: Add VertsToEdges and VertsToFaces path
+				
+				VertexFunc(VertexID, (ApplyTransform) ? ApplyTransform->TransformPosition(A) : A);
 			}
 		}
 	}
@@ -1540,9 +1533,7 @@ bool UE::Geometry::ConvertSelection(
 		checkSlow(ToSelectionOut.TopologyType == EGeometryTopologyType::Triangle);
 		checkSlow(ToSelectionOut.ElementType == EGeometryElementType::Vertex);
 
-		// TODO Add a function which gets the Vids only, to remove the matrix-vector multiplication we just ignore
-		const FTransform Transform = FTransform::Identity;
-		return EnumerateTriangleSelectionVertices(FromSelectionIn, Mesh, Transform,
+		return EnumerateTriangleSelectionVertices(FromSelectionIn, Mesh, nullptr,
 			[&ToSelectionOut](uint64 Vid, const FVector3d& Unused)
 			{
 				ToSelectionOut.Selection.Add( FGeoSelectionID::MeshVertex((int32)Vid).Encoded() );
@@ -1661,9 +1652,7 @@ bool UE::Geometry::ConvertTriangleSelectionToOverlaySelection(
 			TrianglesOut.Add(ValidTid);
 		});
 
-		// TODO Add a function which gets the Vids only, to remove the matrix-vector multiplication we just ignore
-		const FTransform Transform = FTransform::Identity;
-		EnumerateTriangleSelectionVertices(MeshSelection, Mesh, Transform,
+		EnumerateTriangleSelectionVertices(MeshSelection, Mesh, nullptr,
 			[&VerticesOut, IncidentSelection](uint64 Vid, const FVector3d& Unused)
 		{
 			IncidentSelection->Selection.Add(FGeoSelectionID::MeshVertex((int)Vid).Encoded() );
@@ -1678,9 +1667,7 @@ bool UE::Geometry::ConvertTriangleSelectionToOverlaySelection(
 			TrianglesOut.Add(ValidTid);
 		});
 
-		// TODO Add a function which gets the Vids only, to remove the matrix-vector multiplication we just ignore
-		const FTransform Transform = FTransform::Identity;
-		EnumerateTriangleSelectionVertices(MeshSelection, Mesh, Transform,
+		EnumerateTriangleSelectionVertices(MeshSelection, Mesh, nullptr,
 			[&VerticesOut](uint64 Vid, const FVector3d& Unused)
 		{
 			VerticesOut.Add((int)Vid);
