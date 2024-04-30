@@ -1864,6 +1864,11 @@ void SLevelViewportToolBar::FillViewMenu(UToolMenu* Menu)
 
 			for (const FActorPrimitiveColorHandler::FPrimitiveColorHandler& PrimitiveColorHandler : PrimitiveColorHandlers)
 			{
+				if (!PrimitiveColorHandler.bAvailalbleInEditor)
+				{
+					continue;
+				}
+
 				SubMenuSection.AddMenuEntry(
 					NAME_None,
 					PrimitiveColorHandler.HandlerText,

@@ -22,15 +22,17 @@ class ENGINE_API FActorPrimitiveColorHandler
 public:
 	struct FPrimitiveColorHandler
 	{
-		FPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InGetColorFunc, const FActivateFunc& InActivateFunc)
+		FPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, bool bInAvailalbleInEditor, const FGetColorFunc& InGetColorFunc, const FActivateFunc& InActivateFunc)
 			: HandlerName(InHandlerName)
 			, HandlerText(InHandlerText)
+			, bAvailalbleInEditor(bInAvailalbleInEditor)
 			, GetColorFunc(InGetColorFunc)
 			, ActivateFunc(InActivateFunc)
 		{}
 
 		FName HandlerName;
 		FText HandlerText;
+		bool bAvailalbleInEditor;
 		FGetColorFunc GetColorFunc;
 		FActivateFunc ActivateFunc;
 	};	
@@ -39,6 +41,7 @@ public:
 	static FActorPrimitiveColorHandler& Get();
 
 	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InHandlerFunc, const FActivateFunc& InActivateFunc = []() {});
+	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, bool bInAvailalbleInEditor, const FGetColorFunc& InHandlerFunc, const FActivateFunc& InActivateFunc = []() {});
 	void UnregisterPrimitiveColorHandler(FName InHandlerName);
 	void GetRegisteredPrimitiveColorHandlers(TArray<FPrimitiveColorHandler>& OutPrimitiveColorHandlers) const;
 
