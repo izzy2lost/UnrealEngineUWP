@@ -6,6 +6,7 @@
 
 #include "Templates/SharedPointer.h"
 #include "Templates/PointerVariants.h"
+#include "CastedTo.h"
 
 class FControlFlowContainerBase : public TSharedFromThis<FControlFlowContainerBase>
 {
@@ -50,9 +51,9 @@ public:
 private:
 	virtual const void* const GetOwningObject() const override final
 	{
-		return OwningObject.IsValid() ? OwningObject.Pin().Get() : nullptr;
+		return OwningObject.IsValid() ? OwningObject.Cast() : nullptr;
 	}
 
 private:
-	TWeakPtrVariant<T> OwningObject;
+	TWeakContainer<T> OwningObject;
 };
