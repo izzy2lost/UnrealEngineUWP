@@ -929,6 +929,33 @@ FBox USkinWeightsPaintTool::GetWorldSpaceFocusBox()
 	return PreviewMesh->GetActor()->GetComponentsBoundingBox();
 }
 
+void USkinWeightsPaintTool::OnUpdateModifierState(int ModifierID, bool bIsOn)
+{
+	// toggle Relax mode on while shift key is held, then swap back to prior mode on release
+	if (ModifierID == ShiftModifier)
+	{
+		if (bIsOn)
+		{
+			// when shift key is pressed
+			if (!bShiftToggle)
+			{
+				WeightToolProperties->PriorBrushMode = WeightToolProperties->BrushMode;
+				WeightToolProperties->SetBrushMode(EWeightEditOperation::Relax);
+			}
+		}
+		else
+		{
+			// when shift key is released
+			if (bShiftToggle)
+			{
+				WeightToolProperties->SetBrushMode(WeightToolProperties->PriorBrushMode);
+			}
+		}
+	}
+
+	Super::OnUpdateModifierState(ModifierID, bIsOn);
+}
+
 void USkinWeightsPaintTool::OnTick(float DeltaTime)
 {
 	if (bStampPending)
@@ -1011,7 +1038,6 @@ void USkinWeightsPaintTool::OnBeginDrag(const FRay& WorldRay)
 	if (IsInBrushStroke())
 	{
 		bInvertStroke = GetCtrlToggle();
-		bSmoothStroke = GetShiftToggle();
 		BeginChange();
 		StartStamp = UBaseBrushTool::LastBrushStamp;
 		LastStamp = StartStamp;
@@ -1035,7 +1061,6 @@ void USkinWeightsPaintTool::OnEndDrag(const FRay& Ray)
 	UDynamicMeshBrushTool::OnEndDrag(Ray);
 
 	bInvertStroke = false;
-	bSmoothStroke = false;
 	bStampPending = false;
 
 	if (ActiveChange)
@@ -1216,8 +1241,8 @@ FVector4f USkinWeightsPaintTool::GetColorOfVertex(VertexIndex InVertexIndex, Bon
 					continue;
 				}
 				
-				const float Value = InCurrentBoneIndex == BoneWeight.BoneIndex ? 1.0f: 0.25f;
-				constexpr float Saturation = 1.f;
+				const float Value = InCurrentBoneIndex == BoneWeight.BoneIndex ? 1.0f: 0.6f;
+				constexpr float Saturation = 0.75f;
 				const FLinearColor BoneColor = SkeletalDebugRendering::GetSemiRandomColorForBone(BoneWeight.BoneIndex, Value, Saturation);
 				Color = FLinearColor::LerpUsingHSV(Color, BoneColor, BoneWeight.Weight);
 			}
@@ -1287,7 +1312,7 @@ void USkinWeightsPaintTool::ApplyStamp(const FBrushStampData& Stamp)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::EditWeightOfVerticesInStamp);
 		// generate a weight edit from this stamp (includes modifications caused by normalization)
-		if (bSmoothStroke || WeightToolProperties->BrushMode == EWeightEditOperation::Relax)
+		if (WeightToolProperties->BrushMode == EWeightEditOperation::Relax)
 		{
 			// use mesh topology to iteratively smooth weights across neighboring vertices
 			const float UseStrength = CalculateBrushStrengthToUse(EWeightEditOperation::Relax);
@@ -1446,24 +1471,30 @@ void USkinWeightsPaintTool::RelaxWeightOnVertices(
 		return;
 	}
 
-	for (int32 Index = 0; Index < VerticesToEdit.Num(); ++Index)
+	constexpr int32 NumRelaxIterations = 3;
+	constexpr float PercentPerIter = 1.0f / static_cast<float>(NumRelaxIterations);
+	for (int32 Iteration=0; Iteration<NumRelaxIterations; ++Iteration)
 	{
-		const int32 VertexID = VerticesToEdit[Index];
-		const float UseFalloff = VertexFalloffs.IsValidIndex(Index) ? VertexFalloffs[Index] * UseStrength : UseStrength;
-
-		TMap<int32, float> FinalWeights;
-		const bool bSmoothSuccess = SmoothWeightsOp->SmoothWeightsAtVertex(VertexID, UseFalloff, FinalWeights);
-
-		if (ensure(bSmoothSuccess))
+		for (int32 VertexIndex = 0; VertexIndex < VerticesToEdit.Num(); ++VertexIndex)
 		{
-			// apply weight edits
-			for (const TTuple<BoneIndex, float>& FinalWeight : FinalWeights)
+			const int32 VertexID = VerticesToEdit[VertexIndex];
+			float UseFalloff = VertexFalloffs.IsValidIndex(VertexIndex) ? VertexFalloffs[VertexIndex] * UseStrength : UseStrength;
+			UseFalloff *= PercentPerIter;
+
+			TMap<int32, float> FinalWeights;
+			const bool bSmoothSuccess = SmoothWeightsOp->SmoothWeightsAtVertex(VertexID, UseFalloff, FinalWeights);
+
+			if (ensure(bSmoothSuccess))
 			{
-				// record an edit for this vertex, for this bone
-				const int32 BoneIndex = FinalWeight.Key;
-				const float NewWeight = FinalWeight.Value;
-				const float OldWeight = Weights.GetWeightOfBoneOnVertex(BoneIndex, VertexID, Weights.PreChangeWeights);
-				InOutWeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
+				// apply weight edits
+				for (const TTuple<BoneIndex, float>& FinalWeight : FinalWeights)
+				{
+					// record an edit for this vertex, for this bone
+					const int32 BoneIndex = FinalWeight.Key;
+					const float NewWeight = FinalWeight.Value;
+					const float OldWeight = Weights.GetWeightOfBoneOnVertex(BoneIndex, VertexID, Weights.PreChangeWeights);
+					InOutWeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
+				}
 			}
 		}
 	}

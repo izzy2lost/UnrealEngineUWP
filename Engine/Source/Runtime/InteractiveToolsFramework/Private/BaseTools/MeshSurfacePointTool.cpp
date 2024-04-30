@@ -53,11 +53,6 @@ void UMeshSurfacePointToolBuilder::InitializeNewTool(UMeshSurfacePointTool* NewT
 	NewTool->SetWorld(SceneState.World);
 }
 
-
-static const int UMeshSurfacePointTool_ShiftModifier = 1;
-static const int UMeshSurfacePointTool_CtrlModifier = 2;
-
-
 /*
  * Tool
  */
@@ -70,14 +65,14 @@ void UMeshSurfacePointTool::Setup()
 
 	// add input behaviors
 	UClickDragInputBehavior* DragBehavior = NewObject<UClickDragInputBehavior>();
-	DragBehavior->Modifiers.RegisterModifier(UMeshSurfacePointTool_ShiftModifier, FInputDeviceState::IsShiftKeyDown);
-	DragBehavior->Modifiers.RegisterModifier(UMeshSurfacePointTool_CtrlModifier, FInputDeviceState::IsCtrlKeyDown);
+	DragBehavior->Modifiers.RegisterModifier(ShiftModifier, FInputDeviceState::IsShiftKeyDown);
+	DragBehavior->Modifiers.RegisterModifier(CtrlModifier, FInputDeviceState::IsCtrlKeyDown);
 	DragBehavior->Initialize(this);
 	AddInputBehavior(DragBehavior);
 
 	UMouseHoverBehavior* HoverBehavior = NewObject<UMouseHoverBehavior>();
-	HoverBehavior->Modifiers.RegisterModifier(UMeshSurfacePointTool_ShiftModifier, FInputDeviceState::IsShiftKeyDown);
-	HoverBehavior->Modifiers.RegisterModifier(UMeshSurfacePointTool_CtrlModifier, FInputDeviceState::IsCtrlKeyDown);
+	HoverBehavior->Modifiers.RegisterModifier(ShiftModifier, FInputDeviceState::IsShiftKeyDown);
+	HoverBehavior->Modifiers.RegisterModifier(CtrlModifier, FInputDeviceState::IsCtrlKeyDown);
 	HoverBehavior->Initialize(this);
 	AddInputBehavior(HoverBehavior);
 }
@@ -144,11 +139,11 @@ void UMeshSurfacePointTool::SetCtrlToggle(bool bCtrlDown)
 
 void UMeshSurfacePointTool::OnUpdateModifierState(int ModifierID, bool bIsOn)
 {
-	if (ModifierID == UMeshSurfacePointTool_ShiftModifier)
+	if (ModifierID == ShiftModifier)
 	{
 		bShiftToggle = bIsOn;
 	}
-	else if (ModifierID == UMeshSurfacePointTool_CtrlModifier)
+	else if (ModifierID == CtrlModifier)
 	{
 		bCtrlToggle = bIsOn;
 	}

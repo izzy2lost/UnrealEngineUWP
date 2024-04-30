@@ -280,21 +280,22 @@ class MESHMODELINGTOOLSEDITORONLYEXP_API USkinWeightsPaintToolProperties : publi
 public:
 
 	// brush vs selection modes
-	UPROPERTY()
+	UPROPERTY(Config)
 	EWeightEditMode EditingMode;
 
 	// custom brush modes and falloff types
-	UPROPERTY()
+	UPROPERTY(Config)
 	EWeightEditOperation BrushMode;
+	EWeightEditOperation PriorBrushMode; // when toggling with modifier key
 
 	// weight color properties
-	UPROPERTY(EditAnywhere, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
 	EWeightColorMode ColorMode;
-	UPROPERTY(EditAnywhere, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
 	TArray<FLinearColor> ColorRamp;
-	UPROPERTY(EditAnywhere, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
 	FLinearColor MinColor;
-	UPROPERTY(EditAnywhere, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
 	FLinearColor MaxColor;
 	bool bColorModeChanged = false;
 
@@ -322,6 +323,17 @@ public:
 
 	// pointer back to paint tool
 	TObjectPtr<USkinWeightsPaintTool> WeightTool;
+
+	void SetBrushMode(EWeightEditOperation InBrushMode)
+	{
+		BrushMode = InBrushMode;
+
+		// sync base tool settings with the mode specific saved values
+		// these are the source of truth for the base class viewport rendering of brush
+		BrushRadius = GetBrushConfig().Radius;
+		BrushStrength = GetBrushConfig().Strength;
+		BrushFalloffAmount = GetBrushConfig().Falloff;
+	}
 };
 
 // An interactive tool for painting and editing skin weights.
@@ -352,6 +364,9 @@ public:
 	// IInteractiveToolCameraFocusAPI
 	virtual bool SupportsWorldSpaceFocusBox() override { return true; }
 	virtual FBox GetWorldSpaceFocusBox() override;
+
+	// IClickDragBehaviorTarget implementation
+	virtual void OnUpdateModifierState(int ModifierID, bool bIsOn) override;
 
 	// using when ToolChange is applied via Undo/Redo
 	void ExternalUpdateWeights(const int32 BoneIndex, const TMap<int32, float>& IndexValues);
@@ -429,7 +444,6 @@ protected:
 		TArray<float>& VertexFalloffs);
 	float CalculateBrushStrengthToUse(EWeightEditOperation EditMode) const;
 	bool bInvertStroke = false;
-	bool bSmoothStroke = false;
 	FBrushStampData StartStamp;
 	FBrushStampData LastStamp;
 	bool bStampPending;

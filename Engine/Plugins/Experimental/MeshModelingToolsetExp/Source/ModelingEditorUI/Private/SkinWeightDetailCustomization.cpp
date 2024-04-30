@@ -169,13 +169,7 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 			})
 			.OnValueChanged_Lambda([this](EWeightEditOperation Mode)
 			{
-				SkinToolSettings->BrushMode = Mode;
-
-				// sync base tool settings with the mode specific saved values
-				// these are the source of truth for the base class viewport rendering of brush
-				SkinToolSettings->BrushRadius = SkinToolSettings->GetBrushConfig().Radius;
-				SkinToolSettings->BrushStrength = SkinToolSettings->GetBrushConfig().Strength;
-				SkinToolSettings->BrushFalloffAmount = SkinToolSettings->GetBrushConfig().Falloff;
+				SkinToolSettings->SetBrushMode(Mode);
 			})
 			+SSegmentedControl<EWeightEditOperation>::Slot(EWeightEditOperation::Add)
 			.Text(LOCTEXT("BrushAddMode", "Add"))
