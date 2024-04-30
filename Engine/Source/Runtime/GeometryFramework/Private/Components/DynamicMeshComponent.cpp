@@ -316,12 +316,16 @@ bool UDynamicMeshComponent::ValidateMaterialSlots(bool bCreateIfMissing, bool bD
 }
 
 
-void UDynamicMeshComponent::ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet)
+void UDynamicMeshComponent::ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet, bool bDeleteExtraSlots)
 {
 	for (int k = 0; k < NewMaterialSet.Num(); ++k)
 	{
 		SetMaterial(k, NewMaterialSet[k]);
 	}	
+	if (bDeleteExtraSlots)
+	{
+		SetNumMaterials(NewMaterialSet.Num());
+	}
 }
 
 

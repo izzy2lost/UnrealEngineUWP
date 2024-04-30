@@ -571,9 +571,10 @@ public:
 	 * Set new list of Materials for the Mesh. Dynamic Mesh Component does not have 
 	 * Slot Names, so the size of the Material Set should be the same as the number of
 	 * different Material IDs on the mesh MaterialID attribute
+	 * @param bDeleteExtraSlots if true, extra Material Slots beyond max NewMaterialSet.Num() are removed
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
-	GEOMETRYFRAMEWORK_API void ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet);
+	GEOMETRYFRAMEWORK_API void ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet, bool bDeleteExtraSlots = true);
 
 	/**
 	 * Compute the maximum MaterialID on the DynamicMesh, and ensure that Material Slots match.
