@@ -138,7 +138,7 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 	const float FloorSweepDistance = TargetHeight + CommonLegacySettings->MaxStepHeight;
 	const float ShrinkRadius = 1.0f;
 	const float QueryRadius = FMath::Max(PawnRadius - ShrinkRadius, 0.0f);
-	UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
+	UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
 		QueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 	if (!OutFloorResult.bBlockingHit)
@@ -163,7 +163,7 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 	{
 		// Collision should prevent movement. Just try to find ground at start of movement
 		const float ShrinkMultiplier = 0.75f;
-		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
+		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), FVector::ZeroVector, UpdatedPrimitive, UpDir,
 			ShrinkMultiplier * QueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
@@ -212,11 +212,11 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 		}
 		else
 		{
-			NewQueryRadius = 0.75f * QueryRadius;
+			NewQueryRadius = 0.25f * QueryRadius;
 			NewDeltaPos = DeltaPos - DP * HorizSurfaceDir;
 		}
 
-		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
+		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
 			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
@@ -234,9 +234,9 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 		// Try a query at the start of the movement to find a walkable surface and prevent movement
 
 		NewDeltaPos = FVector::ZeroVector;
-		NewQueryRadius = 0.75f * QueryRadius;
+		NewQueryRadius = 0.25f * QueryRadius;
 
-		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
+		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
 			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
@@ -321,7 +321,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		const FVector StartGroundVelocity = UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(StartingSyncState->GetLocation_WorldSpace(), FloorResult.HitResult, DeltaSeconds);
 		
 		FVector TargetVelocity = StartingSyncState->GetVelocity_WorldSpace();
-		FVector TargetPosition = StartingSyncState->GetLocation_WorldSpace();
+		FVector TargetPosition = StartingSyncState->GetLocation_WorldSpace() - UpDir * (FloorResult.FloorDist - TargetHeight);
 		if (FloorResult.bWalkableFloor)
 		{
 			const FVector ProposedMovePlaneVelocity = ProposedMove.LinearVelocity - ProposedMove.LinearVelocity.ProjectOnToNormal(PrevGroundNormal);
@@ -352,7 +352,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 		const float ProjectedRelativeVerticalVelocity = FloorResult.HitResult.ImpactNormal.Dot(ProjectedVelocity - ProjectedGroundVelocity);
 		const float VerticalVelocityLimit = 2.0f / DeltaSeconds;
-		if (ProjectedRelativeVerticalVelocity > VerticalVelocityLimit)
+		if ((ProjectedRelativeVerticalVelocity > VerticalVelocityLimit) && (ProjectedVelocity.Z > VerticalVelocityLimit))
 		{
 			bIsLiftingOffSurface = true;
 		}

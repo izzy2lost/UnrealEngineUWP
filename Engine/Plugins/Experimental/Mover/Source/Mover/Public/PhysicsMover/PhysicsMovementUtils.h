@@ -17,7 +17,7 @@ class UPrimitiveComponent;
 class MOVER_API UPhysicsMovementUtils
 {
 public:
-	static void FloorSweep(const FVector& Location, const FVector& DeltaPos, const UPrimitiveComponent* UpdatedPrimitive, const FVector& UpDir,
+	static void FloorSweep_Internal(const FVector& Location, const FVector& DeltaPos, const UPrimitiveComponent* UpdatedPrimitive, const FVector& UpDir,
 		float QueryRadius, float QueryDistance, float MaxWalkSlopeCosine, float TargetHeight, FFloorCheckResult& OutFloorResult, FWaterCheckResult& OutWaterResult);
 
 	// If the hit result hit something, return the particle handle
