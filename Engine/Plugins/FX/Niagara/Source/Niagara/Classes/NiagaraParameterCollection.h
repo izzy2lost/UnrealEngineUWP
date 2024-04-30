@@ -163,7 +163,12 @@ public:
 	Takes the friendly name presented to the UI and converts to the real parameter name used under the hood.
 	Converts from "ParameterName" to "CollectionUniqueName_ParameterName".
 	*/
-	NIAGARA_API FString ParameterNameFromFriendlyName(const FString& FriendlyName)const;
+	UE_DEPRECATED(5.5, "Use ParameterNameFromFriendlyString(FString) or ConditionalAddFullNamespace(FName) instead")
+	NIAGARA_API FString ParameterNameFromFriendlyName(const FString& FriendlyName) const;
+
+	NIAGARA_API FName ConditionalAddFullNamespace(FName FriendlyParameterName) const;
+	NIAGARA_API FName ParameterNameFromFriendlyString(const FString& FriendlyName) const;
+
 	/**
 	Takes the real parameter name used under the hood and converts to the friendly name for use in the UI.
 	Converts from "CollectionUniqueName_ParameterName" to "ParameterName".
@@ -172,8 +177,14 @@ public:
 	NIAGARA_API FNiagaraVariable CollectionParameterFromFriendlyParameter(const FNiagaraVariable& FriendlyParameter)const;
 	NIAGARA_API FNiagaraVariable FriendlyParameterFromCollectionParameter(const FNiagaraVariable& CollectionParameter)const;
 
-	NIAGARA_API FString FriendlyNameFromParameterName(FString ParameterName)const;
-	NIAGARA_API FString GetFullNamespace()const;
+	UE_DEPRECATED(5.5, "Use FriendlyNameFromParameterName(FName) instead")
+	NIAGARA_API FString FriendlyNameFromParameterName(FString ParameterName) const;
+	NIAGARA_API FName FriendlyNameFromParameterName(FName ParameterName) const;
+
+	UE_DEPRECATED(5.5, "Use GetFullNamespaceName() instead")
+	NIAGARA_API FString GetFullNamespace() const;
+
+	FName GetFullNamespaceName() const { return FullNamespace; };
 
 	/** The compile Id is an indicator to any compiled scripts that reference this collection that contents may have changed and a recompile is recommended to be safe.*/
 	NIAGARA_API FNiagaraCompileHash GetCompileHash() const;
@@ -203,7 +214,7 @@ protected:
 	/** Namespace for this parameter collection. Is enforced to be unique across all parameter collections. */
 	UPROPERTY(EditAnywhere, Category = "Parameter Collection", AssetRegistrySearchable)
 	FName Namespace;
-	
+
 	UPROPERTY()
 	TArray<FNiagaraVariable> Parameters;
 
@@ -217,4 +228,9 @@ protected:
 	/** Used to track whenever something of note changes in this parameter collection that might invalidate a compilation downstream of a script/emitter/system.*/
 	UPROPERTY()
 	FGuid CompileId;
+
+	void BuildFullNamespace();
+
+	// transient variable holding the full namespace (NPC.<namespace>.)
+	FName FullNamespace;
 };

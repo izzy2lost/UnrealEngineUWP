@@ -47,7 +47,7 @@ FName FNiagaraCollectionParameterViewModel::GetName() const
 {
 	if (CollectionInst && CollectionInst->GetParent())
 	{
-		return *CollectionInst->GetParent()->FriendlyNameFromParameterName(Parameter.GetName().ToString());
+		return CollectionInst->GetParent()->FriendlyNameFromParameterName(Parameter.GetName());
 	}
 	else
 	{
@@ -62,7 +62,7 @@ FText FNiagaraCollectionParameterViewModel::GetTypeDisplayName() const
 
 void FNiagaraCollectionParameterViewModel::NameTextCommitted(const FText& Name, ETextCommit::Type CommitInfo)
 {
-	FName NewName = *CollectionInst->GetParent()->ParameterNameFromFriendlyName(*Name.ToString());
+	FName NewName = CollectionInst->GetParent()->ParameterNameFromFriendlyString(Name.ToString());
 
 	FName OldName = Parameter.GetName();
 	if (!Parameter.GetName().IsEqual(NewName, ENameCase::CaseSensitive))
@@ -82,7 +82,7 @@ bool FNiagaraCollectionParameterViewModel::VerifyNodeNameTextChanged(const FText
 		return false;
 	}
 
-	FName NewName = *CollectionInst->GetParent()->ParameterNameFromFriendlyName(*NewText.ToString());
+	FName NewName = CollectionInst->GetParent()->ParameterNameFromFriendlyString(NewText.ToString());
 
 	for (FNiagaraVariable& Var : CollectionInst->GetParent()->GetParameters())
 	{

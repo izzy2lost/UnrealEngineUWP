@@ -2383,7 +2383,7 @@ UNiagaraParameterCollection* FNiagaraEditorModule::FindCollectionForVariable(con
 		{
 			if (UNiagaraParameterCollection* Collection = CollectionPtr.Get())
 			{
-				if (Prefix.StartsWith(Collection->GetFullNamespace()))
+				if (Prefix.StartsWith(Collection->GetFullNamespaceName().ToString()))
 				{
 					return Collection;
 				}

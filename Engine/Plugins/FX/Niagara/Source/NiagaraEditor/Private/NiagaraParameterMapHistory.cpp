@@ -930,7 +930,9 @@ FNiagaraCompilationGraphBridge::FParameterCollection TNiagaraParameterMapHistory
 	FString VarName = InVar.GetName().ToString();
 	for (int32 i = 0; i < EncounteredParameterCollections.Collections.Num(); ++i)
 	{
-		if (VarName.StartsWith(EncounteredParameterCollections.CollectionNamespaces[i]))
+		FNameBuilder CollectionNameBuilder(EncounteredParameterCollections.CollectionNamespaces[i]);
+
+		if (VarName.StartsWith(CollectionNameBuilder))
 		{
 			bMissingParameter = !EncounteredParameterCollections.CollectionVariables[i].Contains(InVar);
 			return EncounteredParameterCollections.Collections[i];
@@ -2184,7 +2186,7 @@ bool TNiagaraParameterMapHistoryBuilder<FNiagaraCompilationGraphBridge>::AddPara
 	int32 Index = CollectionStore.Collections.AddUnique(Collection);
 	CollectionStore.CollectionNamespaces.SetNum(CollectionStore.Collections.Num());
 	CollectionStore.CollectionVariables.SetNum(CollectionStore.Collections.Num());
-	CollectionStore.CollectionNamespaces[Index] = Collection->GetFullNamespace();
+	CollectionStore.CollectionNamespaces[Index] = Collection->GetFullNamespaceName();
 	CollectionStore.CollectionVariables[Index] = Collection->GetParameters();
 
 	return true;

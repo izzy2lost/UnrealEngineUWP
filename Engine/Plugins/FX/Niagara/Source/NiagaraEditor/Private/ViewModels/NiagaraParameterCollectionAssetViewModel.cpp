@@ -111,7 +111,7 @@ FName FNiagaraParameterCollectionAssetViewModel::GenerateNewName(FNiagaraTypeDef
 		Existing.Add(ParameterViewModel->GetName());
 	}
 
-	return *Collection->ParameterNameFromFriendlyName(FNiagaraUtilities::GetUniqueName(ProposedName, Existing).ToString());
+	return Collection->ConditionalAddFullNamespace(FNiagaraUtilities::GetUniqueName(ProposedName, Existing));
 }
 
 void FNiagaraParameterCollectionAssetViewModel::AddParameter(TSharedPtr<FNiagaraTypeDefinition> ParameterType)
@@ -228,7 +228,7 @@ void FNiagaraParameterCollectionAssetViewModel::DeleteParameters(TArray<FNiagara
 	TSet<FNiagaraVariableBase> ResolvedParametersToDelete;
 	for(const FNiagaraVariableBase& Parameter : ParametersToDelete)
 	{
-		FNiagaraVariableBase ToDelete(Parameter.GetType(), *Collection->ParameterNameFromFriendlyName(Parameter.GetName().ToString()));
+		FNiagaraVariableBase ToDelete(Parameter.GetType(), Collection->ConditionalAddFullNamespace(Parameter.GetName()));
 		ResolvedParametersToDelete.Add(ToDelete);
 	}
 
@@ -353,7 +353,7 @@ void FNiagaraParameterCollectionAssetViewModel::OnParameterNameChanged(FName Old
 	int32 Index = Collection->IndexOfParameter(ParameterVariable);
 	check(Index != INDEX_NONE);
 
-	FName ParamName = *Collection->ParameterNameFromFriendlyName(GetParameters()[Index]->GetName().ToString());
+	FName ParamName = Collection->ConditionalAddFullNamespace(GetParameters()[Index]->GetName());
 	Collection->GetParameters()[Index].SetName(ParamName);
 	Instance->RenameParameter(ParameterVariable, ParamName);
 	CollectionChanged(false);

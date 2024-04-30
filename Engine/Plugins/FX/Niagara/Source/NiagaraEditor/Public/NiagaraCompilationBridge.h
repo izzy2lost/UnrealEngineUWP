@@ -119,7 +119,7 @@ struct FNiagaraCompilationGraphBridge
 		/** Cached off contents of used parameter collections, in case they change during threaded compilation. */
 		TArray<TArray<FNiagaraVariable>> CollectionVariables;
 		/** Cached off contents of used parameter collections, in case they change during threaded compilation. */
-		TArray<FString> CollectionNamespaces;
+		TArray<FName> CollectionNamespaces;
 	};
 
 	struct FAvailableParameterCollections
