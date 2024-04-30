@@ -6,6 +6,7 @@
 
 #if PLATFORM_HAS_FPlatformVirtualMemoryBlock
 #include <atomic>
+#include "HAL/PlatformMemory.h"
 #include "HAL/CriticalSection.h"
 
 struct FLinearVirtualMemoryAllocator
