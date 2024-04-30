@@ -129,6 +129,34 @@ namespace Chaos::Private
 		const VectorRegister4Float R2 = MakeVectorRegisterFloatFromDouble(MakeVectorRegister(M.M[2][0], M.M[2][1], M.M[2][2], 0.0));
 		return VectorMultiplyAdd(R0, VecX, VectorMultiplyAdd(R1, VecY, VectorMultiply(R2, VecZ)));
 	}
+
+	/**
+	 * Calculates the cross product of two vectors (XYZ components). W of the input should be 0, and will remain 0.
+	 * This function is not using FMA for stability reason, rounding with FMA could cause numerical instability. 
+	 * 
+	 * @param Vec1	1st vector
+	 * @param Vec2	2nd vector
+	 * @return		cross(Vec1.xyz, Vec2.xyz). W of the input should be 0, and will remain 0.
+	 */
+	FORCEINLINE VectorRegister4Float VectorCrossNoFMA(const VectorRegister4Float& Vec1, const VectorRegister4Float& Vec2)
+	{
+#if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+		return VectorCross(Vec1, Vec2);
+#elif PLATFORM_ENABLE_VECTORINTRINSICS
+		// YZX
+		VectorRegister4Float A = VectorSwizzle(Vec2, 1, 2, 0, 3);
+		VectorRegister4Float B = VectorSwizzle(Vec1, 1, 2, 0, 3);
+		// XY, YZ, ZX
+		A = VectorMultiply(A, Vec1);
+		// XY-YX, YZ-ZY, ZX-XZ
+		A = VectorSubtract(A, VectorMultiply(B, Vec2));
+		// YZ-ZY, ZX-XZ, XY-YX
+		return VectorSwizzle(A, 1, 2, 0, 3);
+#else
+		return VectorCross(Vec1, Vec2);
+#endif
+	}
+
 }
 
 /**

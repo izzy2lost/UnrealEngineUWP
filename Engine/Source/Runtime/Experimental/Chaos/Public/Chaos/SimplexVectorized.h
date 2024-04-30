@@ -75,7 +75,7 @@ namespace Chaos
 
 
 		// Handle degenerate triangle
-		const VectorRegister4Float TriNormal = VectorCross(AB, AC);
+		const VectorRegister4Float TriNormal = Private::VectorCrossNoFMA(AB, AC);
 		const VectorRegister4Float TriNormal2 = VectorDot3(TriNormal, TriNormal);
 		const VectorRegister4Float MinFloat = MakeVectorRegisterFloatConstant(std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min());
 		const VectorRegister4Float AMin = VectorMultiply(A, MinFloat);
@@ -308,10 +308,10 @@ namespace Chaos
 		*/
 
 		VectorRegister4Float Cofactors[4];
-		Cofactors[0] = VectorNegate(VectorDot3(X1, VectorCross(X2, X3)));
-		Cofactors[1] = VectorDot3(X0, VectorCross(X2, X3));
-		Cofactors[2] = VectorNegate(VectorDot3(X0, VectorCross(X1, X3)));
-		Cofactors[3] = VectorDot3(X0, VectorCross(X1, X2));
+		Cofactors[0] = VectorNegate(VectorDot3(X1, Private::VectorCrossNoFMA(X2, X3)));
+		Cofactors[1] = VectorDot3(X0, Private::VectorCrossNoFMA(X2, X3));
+		Cofactors[2] = VectorNegate(VectorDot3(X0, Private::VectorCrossNoFMA(X1, X3)));
+		Cofactors[3] = VectorDot3(X0, Private::VectorCrossNoFMA(X1, X2));
 		VectorRegister4Float DetM = VectorAdd(VectorAdd(Cofactors[0], Cofactors[1]), VectorAdd(Cofactors[2], Cofactors[3]));
 
 		bool bSignMatch[4];
