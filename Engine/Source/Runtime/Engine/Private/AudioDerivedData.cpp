@@ -1141,7 +1141,12 @@ void FStreamedAudioPlatformData::Cache(USoundWave& InSoundWave, const FPlatformA
 			FWriteScopeLock AsyncTaskScope(AsyncTaskLock.Get());
 			check(AsyncTask == nullptr);
 			AsyncTask = new FStreamedAudioAsyncCacheDerivedDataTask(this, &InSoundWave, CompressionOverrides, AudioFormatName, Flags, InTargetPlatform);
-			int64 RequiredMemory = -1; // @todo RequiredMemory
+
+			// Use the size of the Uncompressed data x3 as guestmate of how much memory will be used.
+			const int64 PayloadSize = InSoundWave.RawData.GetPayloadSize() * 3;
+			// If there is no payoad size for some reason, use the default of -1.
+			const int64 RequiredMemory = PayloadSize > 0 ? PayloadSize : -1;
+
 			AsyncTask->StartBackgroundTask(SoundWaveThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait, RequiredMemory, TEXT("AudioDerivedData") );
 		}
 

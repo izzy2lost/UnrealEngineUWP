@@ -971,7 +971,6 @@ public:
 		{
 			return RawData.GetPayloadId();
 		}
-		UE_DEPRECATED(5.4, "GetPayloadSize is provided just for API backwards compatibility.")
 		int64 GetPayloadSize() const
 		{
 			return RawData.GetPayloadSize();
