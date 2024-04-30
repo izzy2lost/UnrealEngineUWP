@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
 
@@ -31,15 +30,5 @@ namespace Horde.Server.Agents.Sessions
 		/// Finishing time for this session
 		/// </summary>
 		public DateTime? FinishTime { get; }
-
-		/// <summary>
-		/// Properties of this agent at the time the session started
-		/// </summary>
-		public IReadOnlyList<string>? Properties { get; }
-
-		/// <summary>
-		/// Version of the agent software
-		/// </summary>
-		public string? Version { get; }
 	}
 }

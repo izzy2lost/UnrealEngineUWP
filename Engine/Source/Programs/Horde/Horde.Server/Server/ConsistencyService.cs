@@ -78,7 +78,7 @@ namespace Horde.Server.Server
 					if (agent == null || agent.SessionId != session.Id)
 					{
 						_logger.LogWarning("Forcing agent {AgentId} session {SessionId} to complete.", session.AgentId, session.Id);
-						await _sessionCollection.UpdateAsync(session.Id, utcNow, null, null, cancellationToken);
+						await _sessionCollection.UpdateAsync(session.Id, utcNow, cancellationToken);
 						sessionIdToInstance.Remove(session.Id);
 					}
 				}

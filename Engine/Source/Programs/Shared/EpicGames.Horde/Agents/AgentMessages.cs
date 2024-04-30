@@ -81,9 +81,7 @@ namespace EpicGames.Horde.Agents
 	/// <param name="Id"> Unique id for this session </param>
 	/// <param name="StartTime"> Start time for this session </param>
 	/// <param name="FinishTime"> Finishing time for this session </param>
-	/// <param name="Properties"> Properties of this agent </param>
-	/// <param name="Version"> Version of the software running during this session </param>
-	public record GetAgentSessionResponse(SessionId Id, DateTime StartTime, DateTime? FinishTime, List<string>? Properties, string? Version);
+	public record GetAgentSessionResponse(SessionId Id, DateTime StartTime, DateTime? FinishTime);
 
 	/// <summary>
 	/// Information about a workspace synced on an agent
