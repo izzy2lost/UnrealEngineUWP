@@ -1456,7 +1456,7 @@ TArray<FPCGPinProperties> UPCGSplineSamplerSettings::InputPinProperties() const
 	FPCGPinProperties& SplinePinProperty = PinProperties.Emplace_GetRef(PCGSplineSamplerConstants::SplineLabel, EPCGDataType::PolyLine, /*bAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true);
 	SplinePinProperty.SetRequiredPin();
 
-	// Only one connection allowed, user can union multiple shapes.
+	// Only one connection/data allowed. To avoid ambiguity, samplers should require users to union or intersect multiple shapes.
 	PinProperties.Emplace(PCGSplineSamplerConstants::BoundingShapeLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/false, /*bAllowMultipleData=*/false, LOCTEXT("SplineSamplerBoundingShapePinTooltip",
 		"Optional. All sampled points must be contained within this shape."
 	));

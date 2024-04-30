@@ -151,7 +151,7 @@ TArray<FPCGPinProperties> UPCGVolumeSamplerSettings::InputPinProperties() const
 	));
 	VolumePinProperty.SetRequiredPin();
 
-	// Only one connection allowed, user can union multiple shapes.
+	// Only one connection/data allowed. To avoid ambiguity, samplers should require users to union or intersect multiple shapes.
 	PinProperties.Emplace(PCGVolumeSamplerConstants::BoundingShapeLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/false, /*bAllowMultipleData=*/false, LOCTEXT("VolumeSamplerBoundingShapePinTooltip",
 		"Optional. All sampled points must be contained within this shape."
 	));
