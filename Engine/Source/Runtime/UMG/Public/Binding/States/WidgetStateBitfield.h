@@ -32,6 +32,7 @@ public:
 	UMG_API FWidgetStateBitfield(const FName InStateName);
 
 	/** Interprets name value pair as enum state */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API FWidgetStateBitfield(const FName InStateName, const uint8 InValue);
 
 public:
@@ -65,9 +66,11 @@ public:
 	UMG_API bool HasBinaryStates() const;
 
 	/** True if any enum state is used, does not indicate if state is actually set. Use 'HasEmptyUsedEnumStates' for that. */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API bool HasEnumStates() const;
 
 	/** True if any enum used enum states are empty, usually indicating a failed '&' test */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API bool HasEmptyUsedEnumStates() const;
 
 public:
@@ -89,9 +92,11 @@ public:
 	UMG_API bool HasAllBinaryFlags(const FWidgetStateBitfield& InBitfield) const;
 
 	/** True if any enum state flag is met */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API bool HasAnyEnumFlags(const FWidgetStateBitfield& InBitfield) const;
 
 	/** True if all enum state flags are met */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API bool HasAllEnumFlags(const FWidgetStateBitfield& InBitfield) const;
 
 public:
@@ -130,6 +135,7 @@ public:
 	 * @param EnumStateIndex Index for enum state to assign value to
 	 * @param EnumStateValue Value to assign for given enum state
 	 */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void SetEnumState(uint8 EnumStateIndex, uint8 EnumStateValue);
 
 	/**
@@ -137,9 +143,11 @@ public:
 	 *
 	 * @param EnumStateBitfield state bitfield, all used states will copy-overwrite current enum state
 	 */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void SetEnumState(const FWidgetStateBitfield& EnumStateBitfield);
 
 	/** Set enum state to given value, clearing all existing values for that state, slow version w/ FName map lookup */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void SetEnumStateSlow(FName EnumStateName, uint8 EnumStateValue);
 
 	/**
@@ -147,6 +155,7 @@ public:
 	 *
 	 * @param EnumStateBitfield state bitfield, all used states will be cleared
 	 */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void ClearEnumState(const FWidgetStateBitfield& EnumStateBitfield);
 
 	/**
@@ -154,41 +163,19 @@ public:
 	 *
 	 * @param EnumStateIndex Index for enum state to mark as unused
 	 */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void ClearEnumState(uint8 EnumStateIndex);
 
 	/** Clear all existing values for given state & mark the state unused, slow version w/ map lookup */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void ClearEnumState(FName EnumStateName);
 
 	/** Negate only enum states, does not change usage, but marks existing values as not allowed */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void NegateEnumStates();
 
 private:
 
-	/** 
-	 * Note: This implementation is private, we choose to limit 64 binary and 16 enum states. 
-	 * We believe that is more than enum, but if not it's possible to use:
-	 * 
-	 * TBitArray<TInlineAllocator<32>> BinaryStates;
-	 * TArray<TSet<uint8, TInlineAllocator<1>>, TInlineAllocator<8>> EnumStates;
-	 * 
-	 * With some additional modifications to the .cpp impl.
-	 */
-
 	/** Binary states captured by this state field */
 	uint64 BinaryStates = 0;
-
-	/** 
-	 * An empty intersection of enum states may / may not be a reason to convert this field to true, so track states used 
-	 * In particular for '&' IsEnumStateUsed will still grow by '|'. Ex: ECheckboxState & EAssetViewType => false.
-	 */
-	uint16 IsEnumStateUsed = 0;
-
-	/**
-	 * A negation of enum states does not change usage, but indicates that states should be removed on intersection.
-	 * On union, if allowance is the same the state set is union'd, else the allowed set is maintained
-	 */
-	uint16 IsEnumStateNotAllowed = 0;
-
-	/** Binary states captured by this state field. Note: 16 == sizeof(IsEnumStateUsed) * CHAR_BIT */
-	TStaticArray<TSet<uint8, DefaultKeyFuncs<uint8, false>, TInlineSetAllocator<1>>, 16> EnumStates;
 };

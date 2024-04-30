@@ -109,8 +109,12 @@ FWidgetStateBitfield UWidgetStateSettings::GetInitialRegistrationBitfield(const 
 		bool InitBinaryState = BinaryStateRegistrationCDO->GetRegisteredWidgetState(InWidget);
 		InitBitfield.SetBinaryState(BinaryStateIndex, InitBinaryState);
 		BinaryStateIndex++;
+
+		ensureMsgf(BinaryStateIndex <= 64, TEXT("Num Binary states should not exceed 64, as it is stored in a uint64. Remove 'UWidgetBinaryStateRegistration' subclasses from your project to address."));
 	}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	
 	uint8 EnumStateIndex = 0;
 	for (const TObjectPtr<UWidgetEnumStateRegistration>& EnumStateRegistrationCDO : EnumStateRegistrationCDOs)
 	{
@@ -127,5 +131,7 @@ FWidgetStateBitfield UWidgetStateSettings::GetInitialRegistrationBitfield(const 
 		EnumStateIndex++;
 	}
 
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
 	return InitBitfield;
 }

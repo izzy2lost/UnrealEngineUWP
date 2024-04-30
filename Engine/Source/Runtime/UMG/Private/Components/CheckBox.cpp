@@ -329,9 +329,11 @@ const FWidgetStateBitfield& UWidgetCheckedStateRegistration::GetBitfieldFromValu
 
 void UWidgetCheckedStateRegistration::InitializeStaticBitfields() const
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Unchecked = FWidgetStateBitfield(GetStateName(), (uint8)ECheckBoxState::Unchecked);
 	Checked = FWidgetStateBitfield(GetStateName(), (uint8)ECheckBoxState::Checked);
 	Undetermined = FWidgetStateBitfield(GetStateName(), (uint8)ECheckBoxState::Undetermined);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 /////////////////////////////////////////////////////

@@ -208,6 +208,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	AccessibleWidgetData = nullptr;
 
 	bShouldBroadcastState = true;
+	bWidgetStateInitialized = false;
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -1341,13 +1342,6 @@ void UWidget::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	SynchronizeAccessibleData();
 }
 
-void UWidget::ReleaseSlateResources(bool bReleaseChildren)
-{
-	UVisual::ReleaseSlateResources(bReleaseChildren);
-
-	MyWidgetStateBitfield.Reset();
-}
-
 #if WITH_EDITOR
 bool UWidget::Modify(bool bAlwaysMarkDirty)
 {
@@ -1803,14 +1797,15 @@ bool UWidget::AddBinding(FDelegateProperty* DelegateProperty, UObject* SourceObj
 
 FDelegateHandle UWidget::RegisterPostStateListener(const FOnWidgetStateBroadcast::FDelegate& ListenerDelegate, bool bBroadcastCurrentState)
 {
-	if (!MyWidgetStateBitfield.IsValid())
+	if (!bWidgetStateInitialized)
 	{
-		MyWidgetStateBitfield = MakeShared<FWidgetStateBitfield>(UWidgetStateSettings::Get()->GetInitialRegistrationBitfield(this));
+		MyWidgetStateBitfield = UWidgetStateSettings::Get()->GetInitialRegistrationBitfield(this);
+		bWidgetStateInitialized = true;
 	}
 
 	if (bBroadcastCurrentState)
 	{
-		ListenerDelegate.ExecuteIfBound(this, *MyWidgetStateBitfield);
+		ListenerDelegate.ExecuteIfBound(this, MyWidgetStateBitfield);
 	}
 
 	return PostWidgetStateChanged.Add(ListenerDelegate);
@@ -1819,11 +1814,6 @@ FDelegateHandle UWidget::RegisterPostStateListener(const FOnWidgetStateBroadcast
 void UWidget::UnregisterPostStateListener(const FDelegateHandle& ListenerDelegate)
 {
 	PostWidgetStateChanged.Remove(ListenerDelegate);
-
-	if (!PostWidgetStateChanged.IsBound())
-	{
-		MyWidgetStateBitfield.Reset();
-	}
 }
 
 void UWidget::OnBindingChanged(const FName& Property)
@@ -1833,20 +1823,15 @@ void UWidget::OnBindingChanged(const FName& Property)
 
 void UWidget::BroadcastBinaryPostStateChange(const FWidgetStateBitfield& StateChange, bool bInValue)
 {
-	if (bShouldBroadcastState && MyWidgetStateBitfield.IsValid())
+	if (bShouldBroadcastState && bWidgetStateInitialized)
 	{
-		MyWidgetStateBitfield->SetBinaryState(StateChange, bInValue);
-		PostWidgetStateChanged.Broadcast(this, *MyWidgetStateBitfield);
+		MyWidgetStateBitfield.SetBinaryState(StateChange, bInValue);
+		PostWidgetStateChanged.Broadcast(this, MyWidgetStateBitfield);
 	}
 }
 
 void UWidget::BroadcastEnumPostStateChange(const FWidgetStateBitfield& StateChange)
 {
-	if (bShouldBroadcastState && MyWidgetStateBitfield.IsValid())
-	{
-		MyWidgetStateBitfield->SetEnumState(StateChange);
-		PostWidgetStateChanged.Broadcast(this, *MyWidgetStateBitfield);
-	}
 }
 
 namespace UE::UMG::Private

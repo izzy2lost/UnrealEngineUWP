@@ -50,22 +50,6 @@ bool FOperatorBoolTest::RunTest(const FString& Parameters)
 		GPassing &= TestEqual(TEXT("Has binary is false"), Test.HasBinaryStates(), false);
 	}
 
-	{
-		FWidgetStateBitfield Test = {};
-
-		Test.SetEnumStateSlow(FName("CheckedState"), 1);
-		GPassing &= TestEqual(TEXT("Any enum is true"), Test, true);
-
-		GPassing &= TestEqual(TEXT("Has enum is true"), Test.HasEnumStates(), true);
-		GPassing &= TestEqual(TEXT("Has empty unused is false"), Test.HasEmptyUsedEnumStates(), false);
-
-		Test.ClearEnumState(FName("CheckedState"));
-		GPassing &= TestEqual(TEXT("No enum is false"), Test, false);
-
-		GPassing &= TestEqual(TEXT("Has enum is false"), Test.HasEnumStates(), false);
-		GPassing &= TestEqual(TEXT("Has empty unused is false - none in use"), Test.HasEmptyUsedEnumStates(), false);
-	}
-
 	return GPassing;
 }
 
@@ -106,39 +90,6 @@ bool FOperatorBitwiseAndTest::RunTest(const FString& Parameters)
 		GPassing &= TestEqual(TEXT("Bit: Hovered & PressedHovered is true"), UWidgetHoveredStateRegistration::Bit.Intersect(PressedHovered), true);
 	}
 
-	{
-		FWidgetStateBitfield Checked = {};
-		FWidgetStateBitfield Unchecked = {};
-
-		Checked.SetEnumState(UWidgetCheckedStateRegistration::Checked);
-		Unchecked.SetEnumState(UWidgetCheckedStateRegistration::Unchecked);
-
-		GPassing &= TestEqual(TEXT("Checked & Unchecked is false"), Checked.Intersect(Unchecked), false);
-
-		GPassing &= TestEqual(TEXT("Bit: Checked & Unchecked is false"), UWidgetCheckedStateRegistration::Checked.Intersect(UWidgetCheckedStateRegistration::Unchecked), false);
-		GPassing &= TestEqual(TEXT("Bit: Checked & Unchecked is false"), Checked.Intersect(UWidgetCheckedStateRegistration::Unchecked), false);
-		GPassing &= TestEqual(TEXT("Bit: Checked & Unchecked is false"), UWidgetCheckedStateRegistration::Checked.Intersect(Unchecked), false);
-	}
-
-	{
-		FWidgetStateBitfield Checked = {};
-		FWidgetStateBitfield Hovered = {};
-		FWidgetStateBitfield CheckedHovered = {};
-
-		Checked.SetEnumState(UWidgetCheckedStateRegistration::Checked);
-		Hovered.SetBinaryState(UWidgetHoveredStateRegistration::Bit, true);
-
-		CheckedHovered.SetEnumState(UWidgetCheckedStateRegistration::Checked);
-		CheckedHovered.SetBinaryState(UWidgetHoveredStateRegistration::Bit, true);
-
-		GPassing &= TestEqual(TEXT("Checked & Hovered is false"), Checked.Intersect(Hovered), false);
-		GPassing &= TestEqual(TEXT("Checked & CheckedHovered is false"), Checked.Intersect(CheckedHovered), false);
-		GPassing &= TestEqual(TEXT("CheckedHovered & Checked is true"), CheckedHovered.Intersect(Checked), true);
-		GPassing &= TestEqual(TEXT("Hovered & CheckedHovered is false"), Hovered.Intersect(CheckedHovered), false);
-		GPassing &= TestEqual(TEXT("CheckedHovered & Hovered is true"), CheckedHovered.Intersect(Hovered), true);
-		GPassing &= TestEqual(TEXT("CheckedHovered & CheckedHovered is true"), CheckedHovered.Intersect(CheckedHovered), true);
-	}
-
 	return GPassing;
 }
 
@@ -170,25 +121,6 @@ bool FOperatorBitwiseOrTest::RunTest(const FString& Parameters)
 		GPassing &= TestEqual(TEXT("Bit: Hovered | Pressed is PressedHovered"), UWidgetHoveredStateRegistration::Bit.Union(UWidgetPressedStateRegistration::Bit), PressedHovered);
 	}
 
-	{
-		FWidgetStateBitfield Checked = {};
-		FWidgetStateBitfield Unchecked = {};
-		FWidgetStateBitfield CheckedUnchecked = {};
-
-		Checked.SetEnumState(UWidgetCheckedStateRegistration::Checked);
-		Unchecked.SetEnumState(UWidgetCheckedStateRegistration::Unchecked);
-		CheckedUnchecked.SetEnumState(UWidgetCheckedStateRegistration::Checked.Union(UWidgetCheckedStateRegistration::Unchecked));
-
-		GPassing &= TestEqual(TEXT("Checked | Unchecked is CheckedUnchecked"), Checked.Union(Unchecked), CheckedUnchecked);
-		GPassing &= TestEqual(TEXT("Checked | Unchecked is true"), Checked.Union(Unchecked), true);
-
-		GPassing &= TestEqual(TEXT("CheckedUnchecked & Checked is true"), CheckedUnchecked.Intersect(Checked), true);
-		GPassing &= TestEqual(TEXT("CheckedUnchecked & Unchecked is true"), CheckedUnchecked.Intersect(Unchecked), true);
-
-		GPassing &= TestEqual(TEXT("Checked & CheckedUnchecked is true"), Checked.Intersect(CheckedUnchecked), true);
-		GPassing &= TestEqual(TEXT("Unchecked & CheckedUnchecked is true"), Unchecked.Intersect(CheckedUnchecked), true);
-	}
-
 	return GPassing;
 }
 
@@ -211,20 +143,6 @@ bool FOperatorBitwiseNotTest::RunTest(const FString& Parameters)
 		GPassing &= TestEqual(TEXT("Pressed & ~Pressed is false"), Pressed.Intersect(~Pressed), false);
 		GPassing &= TestEqual(TEXT("Pressed does not have any flags ~Pressed"), Pressed.HasAnyFlags(~Pressed), false);
 		GPassing &= TestEqual(TEXT("~Pressed does not have any flags Pressed"), (~Pressed).HasAnyFlags(Pressed), false);
-	}
-
-	{
-		FWidgetStateBitfield Checked = {};
-		FWidgetStateBitfield Unchecked = {};
-		FWidgetStateBitfield CheckedUnchecked = {};
-
-		Checked.SetEnumState(UWidgetCheckedStateRegistration::Checked);
-		Unchecked.SetEnumState(UWidgetCheckedStateRegistration::Unchecked);
-		CheckedUnchecked.SetEnumState(UWidgetCheckedStateRegistration::Checked.Union(UWidgetCheckedStateRegistration::Unchecked));
-
-		GPassing &= TestEqual(TEXT("Checked & ~Checked is false"), Checked.Intersect(~Checked), false);
-		GPassing &= TestEqual(TEXT("Unchecked & ~Unchecked is false"), Unchecked.Intersect(~Unchecked), false);
-		GPassing &= TestEqual(TEXT("CheckedUnchecked & ~CheckedUnchecked is false"), CheckedUnchecked.Intersect(~CheckedUnchecked), false);
 	}
 
 	return GPassing;
@@ -301,32 +219,6 @@ bool FHasFlagTest::RunTest(const FString& Parameters)
 		GPassing &= TestEqual(TEXT("Hovered all flag true"), Test.HasAllFlags(UWidgetHoveredStateRegistration::Bit), false);
 		GPassing &= TestEqual(TEXT("PressedHovered any flag true"), Test.HasAnyFlags(PressedHovered), true);
 		GPassing &= TestEqual(TEXT("PressedHovered all flag true"), Test.HasAllFlags(PressedHovered), false);
-	}
-
-	{
-		FWidgetStateBitfield Test = {};
-
-		Test.SetEnumState(UWidgetCheckedStateRegistration::Checked);
-		GPassing &= TestEqual(TEXT("Checked any flag true"), Test.HasAnyFlags(UWidgetCheckedStateRegistration::Checked), true);
-		GPassing &= TestEqual(TEXT("Checked all flag true"), Test.HasAllFlags(UWidgetCheckedStateRegistration::Checked), true);
-		GPassing &= TestEqual(TEXT("Checked any enum flag true"), Test.HasAnyEnumFlags(UWidgetCheckedStateRegistration::Checked), true);
-		GPassing &= TestEqual(TEXT("Checked all enum flag true"), Test.HasAllEnumFlags(UWidgetCheckedStateRegistration::Checked), true);
-
-		Test.SetEnumState(UWidgetCheckedStateRegistration::Unchecked);
-		GPassing &= TestEqual(TEXT("Unchecked any flag true"), Test.HasAnyFlags(UWidgetCheckedStateRegistration::Unchecked), true);
-		GPassing &= TestEqual(TEXT("Unchecked all flag true"), Test.HasAllFlags(UWidgetCheckedStateRegistration::Unchecked), true);
-		GPassing &= TestEqual(TEXT("Unchecked any enum flag true"), Test.HasAnyEnumFlags(UWidgetCheckedStateRegistration::Unchecked), true);
-		GPassing &= TestEqual(TEXT("Unchecked all enum flag true"), Test.HasAllEnumFlags(UWidgetCheckedStateRegistration::Unchecked), true);
-		GPassing &= TestEqual(TEXT("Checked any flag false"), Test.HasAnyFlags(UWidgetCheckedStateRegistration::Checked), false);
-		GPassing &= TestEqual(TEXT("Checked all flag false"), Test.HasAllFlags(UWidgetCheckedStateRegistration::Checked), false);
-		GPassing &= TestEqual(TEXT("Checked any enum flag false"), Test.HasAnyEnumFlags(UWidgetCheckedStateRegistration::Checked), false);
-		GPassing &= TestEqual(TEXT("Checked all enum flag false"), Test.HasAllEnumFlags(UWidgetCheckedStateRegistration::Checked), false);
-
-		Test.ClearEnumState(UWidgetCheckedStateRegistration::Unchecked);
-		GPassing &= TestEqual(TEXT("Unchecked any flag false"), Test.HasAnyFlags(UWidgetCheckedStateRegistration::Unchecked), false);
-		GPassing &= TestEqual(TEXT("Unchecked all flag false"), Test.HasAllFlags(UWidgetCheckedStateRegistration::Unchecked), false);
-		GPassing &= TestEqual(TEXT("Unchecked any enum flag false"), Test.HasAnyEnumFlags(UWidgetCheckedStateRegistration::Unchecked), false);
-		GPassing &= TestEqual(TEXT("Unchecked all enum flag false"), Test.HasAllEnumFlags(UWidgetCheckedStateRegistration::Unchecked), false);
 	}
 
 	return GPassing;
