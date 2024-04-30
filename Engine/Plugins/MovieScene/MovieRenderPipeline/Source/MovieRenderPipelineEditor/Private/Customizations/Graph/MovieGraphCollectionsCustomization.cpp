@@ -238,6 +238,18 @@ void FMovieGraphConditionGroupQueryBuilder::GenerateChildContent(IDetailChildren
 		.ShowPropertyButtons(false)
 		.OverrideResetToDefault(FResetToDefaultOverride::Hide())
 		.CustomWidget()
+		.AddCustomContextMenuAction(FUIAction(
+			FExecuteAction::CreateLambda([this, QueryIndex]()
+			{
+				if (WeakConditionGroup.IsValid())
+				{
+					const FScopedTransaction Transaction(LOCTEXT("DuplicateConditionGroupQuery", "Duplicate Condition Group Query"));
+					WeakConditionGroup->DuplicateQuery(QueryIndex);
+				}
+			})),
+			LOCTEXT("DuplicateConditionGroupQuery", "Duplicate"),
+			LOCTEXT("DuplicateConditionGroupQueryTooltip", "Duplicate this condition."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Duplicate"))
 		.FilterString(Query->GetClass()->GetDisplayNameText())
 		.NameContent()
 		.HAlign(HAlign_Fill)

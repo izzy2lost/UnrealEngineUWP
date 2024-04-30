@@ -563,6 +563,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool RemoveQuery(UMovieGraphConditionGroupQueryBase* InQuery);
 
+	/**
+	 * Duplicates the condition group query at the specified index. The duplicate is placed at the end of the query list. Returns the duplicate
+	 * query on success, else nullptr.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	UMovieGraphConditionGroupQueryBase* DuplicateQuery(const int32 QueryIndex);
+
 	/** Determines if this is the first condition group under the parent collection. */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool IsFirstConditionGroup() const;

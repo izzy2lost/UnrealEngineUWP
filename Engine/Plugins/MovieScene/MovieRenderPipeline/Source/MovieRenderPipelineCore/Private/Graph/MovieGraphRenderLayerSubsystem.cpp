@@ -2287,6 +2287,32 @@ bool UMovieGraphConditionGroup::RemoveQuery(UMovieGraphConditionGroupQueryBase* 
 	return Queries.RemoveSingle(InQuery) == 1;
 }
 
+UMovieGraphConditionGroupQueryBase* UMovieGraphConditionGroup::DuplicateQuery(const int32 QueryIndex)
+{
+	if (!Queries.IsValidIndex(QueryIndex))
+	{
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid query index provided to DuplicateQuery()."));
+		return nullptr;
+	}
+	
+	const UMovieGraphConditionGroupQueryBase* SourceQuery = Queries[QueryIndex];
+
+	FObjectDuplicationParameters DuplicationParameters = InitStaticDuplicateObjectParams(SourceQuery, this);
+	UMovieGraphConditionGroupQueryBase* DuplicateQuery = Cast<UMovieGraphConditionGroupQueryBase>(StaticDuplicateObjectEx(DuplicationParameters));
+
+	if (DuplicateQuery)
+	{
+		Modify();
+		Queries.Add(DuplicateQuery);
+	}
+	else
+	{
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Failed to duplicate condition group query."));
+	}
+
+	return DuplicateQuery;
+}
+
 bool UMovieGraphConditionGroup::IsFirstConditionGroup() const
 {
 	const UMovieGraphCollection* ParentCollection = GetTypedOuter<UMovieGraphCollection>();
