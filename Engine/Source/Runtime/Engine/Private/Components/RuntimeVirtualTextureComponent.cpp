@@ -15,6 +15,7 @@
 #include "RHIGlobals.h"
 #include "SceneInterface.h"
 #include "SceneUtils.h"
+#include "UnrealEngine.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
 #include "VT/RuntimeVirtualTexture.h"
@@ -107,9 +108,9 @@ void URuntimeVirtualTextureComponent::OnUnregister()
 
 #endif
 
-void URuntimeVirtualTextureComponent::SetVirtualTexture(URuntimeVirtualTexture* InVirtualTexture) 
+void URuntimeVirtualTextureComponent::SetVirtualTexture(URuntimeVirtualTexture* InVirtualTexture)
 {
-	VirtualTexture = InVirtualTexture; 
+	VirtualTexture = InVirtualTexture;
 	MarkRenderStateDirty();
 }
 
@@ -166,6 +167,20 @@ void URuntimeVirtualTextureComponent::DestroyRenderState_Concurrent()
 	Super::DestroyRenderState_Concurrent();
 }
 
+static ERuntimeVirtualTextureMaterialQuality ConvertMaterialQualityEnum(EMaterialQualityLevel::Type InMaterialQualityLevel)
+{
+	switch (InMaterialQualityLevel)
+	{
+	case EMaterialQualityLevel::Low: return ERuntimeVirtualTextureMaterialQuality::Low;
+	case EMaterialQualityLevel::Medium: return ERuntimeVirtualTextureMaterialQuality::Medium;
+	case EMaterialQualityLevel::High: return ERuntimeVirtualTextureMaterialQuality::High;
+	case EMaterialQualityLevel::Epic: return ERuntimeVirtualTextureMaterialQuality::Epic;
+	default: check(0);
+	}
+
+	return ERuntimeVirtualTextureMaterialQuality::Low;
+}
+
 bool URuntimeVirtualTextureComponent::IsEnabledInScene() const
 {
 	const bool bUseNanite = UseNanite(GetScene()->GetShaderPlatform());
@@ -181,6 +196,15 @@ bool URuntimeVirtualTextureComponent::IsEnabledInScene() const
 			if (!EnableInGamePerPlatform.GetValue())
 			{
 				return false;
+			}
+
+			if (bUseMinMaterialQuality)
+			{
+				ERuntimeVirtualTextureMaterialQuality CurrentQuality = ConvertMaterialQualityEnum(GetCachedScalabilityCVars().MaterialQualityLevel);
+ 				if (CurrentQuality < MinInGameMaterialQuality)
+ 				{
+ 					return false;
+ 				}
 			}
 		}
 	}

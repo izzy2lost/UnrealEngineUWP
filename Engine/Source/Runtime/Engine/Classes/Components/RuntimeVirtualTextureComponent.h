@@ -7,12 +7,23 @@
 #include "PerPlatformProperties.h"
 #include "RenderCommandFence.h"
 #include "SceneComponent.h"
+#include "SceneTypes.h"
 #include "RuntimeVirtualTextureComponent.generated.h"
 
 class URuntimeVirtualTexture;
 class UTexture2D;
 class UVirtualTextureBuilder;
 enum class EShadingPath;
+
+/** Enumeration of material quality. Similar to EMaterialQualityLevel, but as a UENUM for appearance in UI. */
+UENUM()
+enum class ERuntimeVirtualTextureMaterialQuality : uint8
+{
+	Low = 0,
+	Medium = 1,
+	High = 2,
+	Epic = 3,
+};
 
 /** Component used to place a URuntimeVirtualTexture in the world. */
 UCLASS(Blueprintable, ClassGroup = Rendering, HideCategories = (Activation, Collision, Cooking, HLOD, Mobility, LOD, Navigation, Object, Physics), MinimalAPI)
@@ -48,6 +59,14 @@ protected:
 	/** Enable the virtual texture only when Nanite is enabled. Can be used for a Displacement virtual texture with Nanite tessellation. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture)
 	bool bEnableForNaniteOnly = false;
+
+	/** Use a minimum material quality to determine if we enable the virtual texture. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture, Meta = (InlineEditConditionToggle))
+	bool bUseMinMaterialQuality = false;
+
+	/** The minimum material quality for which we enable the virtual texture. Only affects In-Game and PIE. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture, Meta = (EditCondition = "bUseMinMaterialQuality"))
+	ERuntimeVirtualTextureMaterialQuality MinInGameMaterialQuality = ERuntimeVirtualTextureMaterialQuality::Low;
 
 	/** Set to true to enable scalability settings for the virtual texture. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture, meta = (InlineEditConditionToggle))
