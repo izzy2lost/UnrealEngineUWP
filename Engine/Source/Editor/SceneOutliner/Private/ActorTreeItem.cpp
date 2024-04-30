@@ -247,26 +247,6 @@ private:
 		{
 			return BaseColor.GetValue();
 		}
-
-		if (!Actor)
-		{
-			// Deleted actor!
-			return FLinearColor(0.2f, 0.2f, 0.25f);
-		}
-
-		UWorld* OwningWorld = Actor->GetWorld();
-		if (!OwningWorld)
-		{
-			// Deleted world!
-			return FLinearColor(0.2f, 0.2f, 0.25f);
-		}
-
-		const bool bRepresentingPIEWorld = TreeItem->Actor->GetWorld()->IsPlayInEditor();
-		if (bRepresentingPIEWorld && !TreeItem->bExistsInCurrentWorldAndPIE)
-		{
-			// Highlight actors that are exclusive to PlayWorld
-			return FLinearColor(0.9f, 0.8f, 0.4f);
-		}
 		
 		return FSlateColor::UseForeground();
 	}

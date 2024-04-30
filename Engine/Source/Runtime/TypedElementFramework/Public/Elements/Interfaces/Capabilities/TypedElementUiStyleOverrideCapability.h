@@ -16,7 +16,7 @@ public:
 
 	~ITypedElementUiStyleOverrideCapability() override = default;
 
-	virtual void SetColorAndOpacity(const TAttribute<FLinearColor>& InColorAndOpacity) = 0;
+	virtual void SetForegroundColor(const TAttribute<FSlateColor>& InColorAndOpacity) = 0;
 };
 
 template<typename WidgetType>
@@ -25,9 +25,9 @@ class TTypedElementUiStyleOverrideCapability : public ITypedElementUiStyleOverri
 public:
 	explicit TTypedElementUiStyleOverrideCapability(WidgetType& InWidget) : Widget(InWidget){}
 	
-	void SetColorAndOpacity(const TAttribute<FLinearColor>& InColorAndOpacity) override
+	virtual void SetForegroundColor(const TAttribute<FSlateColor>& InColorAndOpacity) override
 	{
-		Widget.SetColorAndOpacity(InColorAndOpacity);
+		Widget.SetForegroundColor(InColorAndOpacity);
 	}
 
 private:
