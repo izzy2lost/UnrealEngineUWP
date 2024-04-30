@@ -18,24 +18,20 @@ class SSplitter;
 enum class EDetailNodeType;
 struct FCustomDetailsViewArgs;
 
-class FCustomDetailsViewItem : public FCustomDetailsViewItemBase
+class FCustomDetailsViewDetailTreeNodeItem : public FCustomDetailsViewItemBase
 {
 public:
-	explicit FCustomDetailsViewItem(const TSharedRef<SCustomDetailsView>& InCustomDetailsView
+	explicit FCustomDetailsViewDetailTreeNodeItem(const TSharedRef<SCustomDetailsView>& InCustomDetailsView
 		, const TSharedPtr<ICustomDetailsViewItem>& InParentItem
 		, const TSharedPtr<IDetailTreeNode>& InDetailTreeNode);
 
-	virtual ~FCustomDetailsViewItem() override;
+	virtual ~FCustomDetailsViewDetailTreeNodeItem() override;
 
 	void InitWidget(const TSharedRef<IDetailTreeNode>& InDetailTreeNode);
-
-	TArray<TSharedPtr<ICustomDetailsViewItem>> GenerateChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem
-		, const TArray<TSharedRef<IDetailTreeNode>>& InDetailTreeNodes);
 
 	//~ Begin ICustomDetailsViewItem
 	virtual IDetailsView* GetDetailsView() const override;
 	virtual void RefreshItemId() override;
-	virtual void RefreshChildren(TSharedPtr<ICustomDetailsViewItem> InParentOverride = nullptr) override;
 	virtual const TArray<TSharedPtr<ICustomDetailsViewItem>>& GetChildren() const override final { return Children; }
 	virtual void SetResetToDefaultOverride(const FResetToDefaultOverride& InOverride) override;
 	//~ End ICustomDetailsViewItem
@@ -79,11 +75,15 @@ protected:
 	/** Generate details context menu based on property handle */
 	virtual TSharedPtr<SWidget> GenerateContextMenuWidget() override;
 
+	virtual void GenerateCustomChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem,
+		TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) override;
+
+	bool IsStruct() const;
+
+	bool HasParentStruct() const;
+
 	/** The Property Handle of this Detail Tree Node. Can be null */
 	TSharedPtr<IPropertyHandle> PropertyHandle;
-
-	/** Cached list of Children gotten since this Item was last refreshed/generated */
-	TArray<TSharedPtr<ICustomDetailsViewItem>> Children;
 
 	/** Weak pointer to the Detail Tree Node this Item represents */
 	TWeakPtr<IDetailTreeNode> DetailTreeNodeWeak;
@@ -93,8 +93,4 @@ protected:
 
 	/** Cached value of the visibility state of the ResetToDefault Widget */
 	bool bResetToDefaultVisible = false;
-
-	bool IsStruct() const;
-
-	bool HasParentStruct() const;
 };

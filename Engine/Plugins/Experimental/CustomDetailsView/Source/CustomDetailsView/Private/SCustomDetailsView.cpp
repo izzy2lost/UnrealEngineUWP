@@ -4,9 +4,11 @@
 #include "Brushes/SlateColorBrush.h"
 #include "DetailColumnSizeData.h"
 #include "IDetailTreeNode.h"
+#include "Items/CustomDetailsViewCustomCategoryItem.h"
 #include "Items/CustomDetailsViewCustomItem.h"
-#include "Items/CustomDetailsViewItem.h"
+#include "Items/CustomDetailsViewDetailTreeNodeItem.h"
 #include "Items/CustomDetailsViewRootItem.h"
+#include "Items/ICustomDetailsViewCustomCategoryItem.h"
 #include "Slate/SCustomDetailsTreeView.h"
 #include "Slate/SCustomDetailsViewItemRow.h"
 #include "Styling/StyleColors.h"
@@ -201,7 +203,7 @@ TSharedPtr<ICustomDetailsViewItem> SCustomDetailsView::GetRootItem() const
 
 TSharedPtr<ICustomDetailsViewItem> SCustomDetailsView::FindItem(const FCustomDetailsViewItemId& InItemId) const
 {
-	if (const TSharedPtr<ICustomDetailsViewItem>* const FoundItem = ItemMap.Find(InItemId))
+	if (const TSharedRef<ICustomDetailsViewItem>* const FoundItem = ItemMap.Find(InItemId))
 	{
 		return *FoundItem;
 	}
@@ -247,20 +249,20 @@ void SCustomDetailsView::ExtendTree(FCustomDetailsViewItemId InHook, ECustomDeta
 	ExtensionMap.FindOrAdd(InHook).FindOrAdd(InPosition).Emplace(InItem);
 }
 
-const ICustomDetailsView::FTreeExtensionType& SCustomDetailsView::GetTreeExtensions(FCustomDetailsViewItemId InHook) const
+const UE::CustomDetailsView::FTreeExtensionType& SCustomDetailsView::GetTreeExtensions(FCustomDetailsViewItemId InHook) const
 {
-	if (const FTreeExtensionType* ItemExtensionMap = ExtensionMap.Find(InHook))
+	if (const UE::CustomDetailsView::FTreeExtensionType* ItemExtensionMap = ExtensionMap.Find(InHook))
 	{
 		return *ItemExtensionMap;
 	}
 
-	static FTreeExtensionType EmptyMap;
+	static UE::CustomDetailsView::FTreeExtensionType EmptyMap;
 	return EmptyMap;
 }
 
 TSharedRef<ICustomDetailsViewItem> SCustomDetailsView::CreateDetailTreeItem(TSharedRef<IDetailTreeNode> InDetailTreeNode)
 {
-	TSharedRef<ICustomDetailsViewItem> NewItem = MakeShared<FCustomDetailsViewItem>(SharedThis(this), nullptr, InDetailTreeNode);
+	TSharedRef<ICustomDetailsViewItem> NewItem = MakeShared<FCustomDetailsViewDetailTreeNodeItem>(SharedThis(this), nullptr, InDetailTreeNode);
 	NewItem->RefreshItemId();
 
 	return NewItem;
@@ -273,9 +275,42 @@ TSharedPtr<ICustomDetailsViewCustomItem> SCustomDetailsView::CreateCustomItem(FN
 		return nullptr;
 	}
 
-	AddedCustomItems.Add(InItemName);
+	TSharedRef<ICustomDetailsViewCustomItem> NewCustomItem = MakeShared<FCustomDetailsViewCustomItem>(SharedThis(this), nullptr, InItemName, InLabel, InToolTip);
+	AddedCustomItems.Add(InItemName, NewCustomItem->AsItem());
 
-	return MakeShared<FCustomDetailsViewCustomItem>(SharedThis(this), nullptr, InItemName, InLabel, InToolTip);
+	return NewCustomItem;
+}
+
+TSharedPtr<ICustomDetailsViewCustomCategoryItem> SCustomDetailsView::CreateCustomCategoryItem(FName InItemName, const FText& InLabel, const FText& InToolTip)
+{
+	if (AddedCustomItems.Contains(InItemName))
+	{
+		return nullptr;
+	}
+
+	TSharedRef<ICustomDetailsViewCustomCategoryItem> NewCustomCategoryItem = MakeShared<FCustomDetailsViewCustomCategoryItem>(SharedThis(this), nullptr, InItemName, InLabel, InToolTip);
+	NewCustomCategoryItem->AsItem()->RefreshItemId();
+
+	// Auto expand
+	OnExpansionChanged(NewCustomCategoryItem->AsItem(), true);
+
+	if (ViewTree.IsValid())
+	{
+		ViewTree->SetItemExpansion(NewCustomCategoryItem->AsItem(), true);
+	}
+
+	AddedCustomItems.Add(InItemName, NewCustomCategoryItem->AsItem());
+
+	return NewCustomCategoryItem;
+}
+
+TSharedPtr<ICustomDetailsViewItem> SCustomDetailsView::FindCustomItem(const FName& InItemName) const
+{
+	if (const TSharedRef<ICustomDetailsViewItem>* const FoundItem = AddedCustomItems.Find(InItemName))
+	{
+		return *FoundItem;
+	}
+	return nullptr;
 }
 
 bool SCustomDetailsView::FilterItems(const TArray<FString>& InFilterStrings)

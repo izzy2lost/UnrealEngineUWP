@@ -8,6 +8,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 class FStructOnScope;
+class ICustomDetailsViewCustomCategoryItem;
 class ICustomDetailsViewCustomItem;
 class IDetailTreeNode;
 class UObject;
@@ -59,8 +60,6 @@ public:
 class ICustomDetailsView : public SCompoundWidget, public ICustomDetailsViewBase
 {
 public:
-	using FTreeExtensionType = TMap<ECustomDetailsTreeInsertPosition, TArray<TSharedPtr<ICustomDetailsViewItem>>>;
-
 	/**
 	 * Get the Root Item of the Main Tree.
 	 * WARNING: This Item is not meant to make Widgets or have an Item Id. It's purely for having one source to house the entire tree
@@ -88,11 +87,17 @@ public:
 	virtual void ExtendTree(FCustomDetailsViewItemId InHook, ECustomDetailsTreeInsertPosition InPosition, TSharedRef<ICustomDetailsViewItem> InItem) = 0;
 
 	/** Retrieves all the extensions for the given item. */
-	virtual const FTreeExtensionType& GetTreeExtensions(FCustomDetailsViewItemId InHook) const = 0;
+	virtual const UE::CustomDetailsView::FTreeExtensionType& GetTreeExtensions(FCustomDetailsViewItemId InHook) const = 0;
 
 	/** Creates a custom details view item based on a property handle. */
 	virtual TSharedRef<ICustomDetailsViewItem> CreateDetailTreeItem(TSharedRef<IDetailTreeNode> InDetailTreeNode) = 0;
 
 	/** Creates a custom details view item that has a customisable name and value widget. */
 	virtual TSharedPtr<ICustomDetailsViewCustomItem> CreateCustomItem(FName InItemName, const FText& InLabel = FText::GetEmpty(), const FText& InToolTip = FText::GetEmpty()) = 0;
+
+	/** Creates a custom details view item that acts as a category. */
+	virtual TSharedPtr<ICustomDetailsViewCustomCategoryItem> CreateCustomCategoryItem(FName InItemName, const FText& InLabel = FText::GetEmpty(), const FText& InToolTip = FText::GetEmpty()) = 0;
+
+	/** Find a previously added custom item. */
+	virtual TSharedPtr<ICustomDetailsViewItem> FindCustomItem(const FName& InItemName) const = 0;
 };

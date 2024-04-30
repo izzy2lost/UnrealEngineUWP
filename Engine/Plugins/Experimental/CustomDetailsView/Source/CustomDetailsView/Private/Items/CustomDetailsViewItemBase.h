@@ -38,11 +38,13 @@ public:
 	virtual TSharedPtr<ICustomDetailsView> GetCustomDetailsView() const override;
 	virtual IDetailsView* GetDetailsView() const override { return nullptr; }
 	virtual const FCustomDetailsViewItemId& GetItemId() const override final;
-	virtual void RefreshChildren(TSharedPtr<ICustomDetailsViewItem> InParentOverride = nullptr) override {}
 	virtual TSharedPtr<ICustomDetailsViewItem> GetRoot() const override;
 	virtual TSharedPtr<ICustomDetailsViewItem> GetParent() const override;
 	virtual void SetParent(TSharedPtr<ICustomDetailsViewItem> InParent) override;
 	virtual const TArray<TSharedPtr<ICustomDetailsViewItem>>& GetChildren() const override;
+	virtual void RefreshChildren(TSharedPtr<ICustomDetailsViewItem> InParentOverride = nullptr) override;
+	virtual TOptional<EDetailNodeType> GetNodeType() const override;
+	virtual void AddAsChild(const TSharedRef<ICustomDetailsViewItem>& InParentItem, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) override;
 	virtual TSharedRef<SWidget> MakeWidget(const TSharedPtr<SWidget>& InPrependWidget, const TSharedPtr<SWidget>& InOwningWidget) override;
 	virtual TSharedPtr<SWidget> GetWidget(ECustomDetailsViewWidgetType InWidgetType) const override;
 	virtual TSharedPtr<SWidget> GetOverrideWidget(ECustomDetailsViewWidgetType InWidgetType) const override;
@@ -79,11 +81,20 @@ public:
 protected:
 	FReply OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent);
 
+	TArray<TSharedPtr<ICustomDetailsViewItem>> GenerateChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem);
+
+	//~ Begin ICustomDetailsViewItem
 	/** Generate optional context menu on row right click */
 	virtual TSharedPtr<SWidget> GenerateContextMenuWidget()
 	{
 		return nullptr;
 	}
+
+	virtual void GenerateCustomChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) {};
+
+	virtual void GatherChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem, const UE::CustomDetailsView::FTreeExtensionType& InTreeExtensions,
+		ECustomDetailsTreeInsertPosition InPosition, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) override;
+	//~ End ICustomDetailsViewItem
 
 	/** Weak pointer to the Entity View holding this Item */
 	TWeakPtr<SCustomDetailsView> CustomDetailsViewWeak;
@@ -93,6 +104,9 @@ protected:
 
 	/** The Identifier for this Item */
 	FCustomDetailsViewItemId ItemId;
+
+	/** Cached list of Children gotten since this Item was last refreshed/generated */
+	TArray<TSharedPtr<ICustomDetailsViewItem>> Children;
 
 	/** The Widgets generated for each Widget Type */
 	TMap<ECustomDetailsViewWidgetType, TSharedPtr<SWidget>> Widgets;

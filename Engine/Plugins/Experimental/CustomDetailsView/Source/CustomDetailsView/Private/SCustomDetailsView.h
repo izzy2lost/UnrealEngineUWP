@@ -7,7 +7,7 @@
 #include "Containers/ContainersFwd.h"
 #include "ICustomDetailsView.h"
 #include "Items/CustomDetailsViewCustomItem.h"
-#include "Items/CustomDetailsViewItem.h"
+#include "Items/CustomDetailsViewDetailTreeNodeItem.h"
 #include "Templates/SharedPointer.h"
 
 class SCustomDetailsTreeView;
@@ -77,9 +77,11 @@ public:
 	virtual TSharedRef<STreeView<TSharedPtr<ICustomDetailsViewItem>>> MakeSubTree(const TArray<TSharedPtr<ICustomDetailsViewItem>>* InSourceItems) const override;
 	virtual void RebuildTree(ECustomDetailsViewBuildType InBuildType) override;
 	virtual void ExtendTree(FCustomDetailsViewItemId InHook, ECustomDetailsTreeInsertPosition InPosition, TSharedRef<ICustomDetailsViewItem> InItem) override;
-	virtual const FTreeExtensionType& GetTreeExtensions(FCustomDetailsViewItemId InHook) const override;
+	virtual const UE::CustomDetailsView::FTreeExtensionType& GetTreeExtensions(FCustomDetailsViewItemId InHook) const override;
 	virtual TSharedRef<ICustomDetailsViewItem> CreateDetailTreeItem(TSharedRef<IDetailTreeNode> InDetailTreeNode) override;
 	virtual TSharedPtr<ICustomDetailsViewCustomItem> CreateCustomItem(FName InItemName, const FText& InLabel = FText::GetEmpty(), const FText& InToolTip = FText::GetEmpty()) override;
+	virtual TSharedPtr<ICustomDetailsViewCustomCategoryItem> CreateCustomCategoryItem(FName InItemName, const FText& InLabel = FText::GetEmpty(), const FText& InToolTip = FText::GetEmpty()) override;
+	virtual TSharedPtr<ICustomDetailsViewItem> FindCustomItem(const FName& InItemName) const override;
 	virtual bool FilterItems(const TArray<FString>& InFilterStrings) override;
 	//~ End ICustomDetailsView
 
@@ -89,9 +91,9 @@ private:
 	/** Single Root of Tree, not part of the visual part Tree Widget, but provides things like the Root Items (i.e. its Children) */
 	TSharedPtr<FCustomDetailsViewRootItem> RootItem;
 
-	TSet<FName> AddedCustomItems;
+	TMap<FName, TSharedRef<ICustomDetailsViewItem>> AddedCustomItems;
 
-	TMap<FCustomDetailsViewItemId, TSharedPtr<ICustomDetailsViewItem>> ItemMap;	
+	TMap<FCustomDetailsViewItemId, TSharedRef<ICustomDetailsViewItem>> ItemMap;	
 
 	TSharedPtr<SCustomDetailsTreeView> ViewTree;
 
@@ -99,7 +101,7 @@ private:
 
 	bool bPendingRebuild = true;
 
-	TMap<FCustomDetailsViewItemId, FTreeExtensionType> ExtensionMap;
+	TMap<FCustomDetailsViewItemId, UE::CustomDetailsView::FTreeExtensionType> ExtensionMap;
 
 	TSharedPtr<FSlateBrush> BackgroundBrush;
 };

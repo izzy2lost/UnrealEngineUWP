@@ -80,6 +80,64 @@ void FCustomDetailsViewItemBase::UpdateIndentLevel()
 	}
 }
 
+TArray<TSharedPtr<ICustomDetailsViewItem>> FCustomDetailsViewItemBase::GenerateChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem)
+{
+	const TSharedPtr<SCustomDetailsView> CustomDetailsView = CustomDetailsViewWeak.Pin();
+
+	if (!CustomDetailsView.IsValid())
+	{
+		return {};
+	}
+
+	const UE::CustomDetailsView::FTreeExtensionType& TreeExtensions = CustomDetailsView->GetTreeExtensions(ItemId);
+
+	TArray<TSharedPtr<ICustomDetailsViewItem>> OutChildren;
+
+	GatherChildren(InParentItem, TreeExtensions, ECustomDetailsTreeInsertPosition::FirstChild, OutChildren);
+
+	GenerateCustomChildren(InParentItem, OutChildren);
+
+	GatherChildren(InParentItem, TreeExtensions, ECustomDetailsTreeInsertPosition::Child, OutChildren);
+	GatherChildren(InParentItem, TreeExtensions, ECustomDetailsTreeInsertPosition::LastChild, OutChildren);
+
+	return OutChildren;
+}
+
+void FCustomDetailsViewItemBase::GatherChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem, 
+	const UE::CustomDetailsView::FTreeExtensionType& InTreeExtensions, ECustomDetailsTreeInsertPosition InPosition, 
+	TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren)
+{
+	if (const TArray<TSharedPtr<ICustomDetailsViewItem>>* ExtensionList = InTreeExtensions.Find(InPosition))
+	{
+		for (const TSharedPtr<ICustomDetailsViewItem>& Extension : *ExtensionList)
+		{
+			Extension->AddAsChild(InParentItem, OutChildren);
+		}
+	}
+}
+
+void FCustomDetailsViewItemBase::AddAsChild(const TSharedRef<ICustomDetailsViewItem>& InParentItem, 
+	TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren)
+{
+	const TSharedPtr<SCustomDetailsView> CustomDetailsView = CustomDetailsViewWeak.Pin();
+
+	if (!CustomDetailsView.IsValid())
+	{
+		return;
+	}
+
+	SetParent(InParentItem);
+	RefreshItemId();
+	RefreshChildren(SharedThis(this));
+
+	const UE::CustomDetailsView::FTreeExtensionType& TreeExtensions = CustomDetailsView->GetTreeExtensions(ItemId);
+	GatherChildren(InParentItem, TreeExtensions, ECustomDetailsTreeInsertPosition::Before, OutChildren);
+
+	OutChildren.Add(SharedThis(this));
+
+	GatherChildren(InParentItem, TreeExtensions, ECustomDetailsTreeInsertPosition::After, OutChildren);
+}
+
 TSharedPtr<ICustomDetailsView> FCustomDetailsViewItemBase::GetCustomDetailsView() const
 {
 	return CustomDetailsViewWeak.Pin();
@@ -112,10 +170,26 @@ void FCustomDetailsViewItemBase::SetParent(TSharedPtr<ICustomDetailsViewItem> In
 	ParentWeak = InParent;
 }
 
-inline const TArray<TSharedPtr<ICustomDetailsViewItem>>& FCustomDetailsViewItemBase::GetChildren() const
+const TArray<TSharedPtr<ICustomDetailsViewItem>>& FCustomDetailsViewItemBase::GetChildren() const
 {
-	static const TArray<TSharedPtr<ICustomDetailsViewItem>> NoChildren = {};
-	return NoChildren;
+	return Children;
+}
+
+void FCustomDetailsViewItemBase::RefreshChildren(TSharedPtr<ICustomDetailsViewItem> InParentOverride)
+{
+	Children.Reset();
+
+	if (!InParentOverride.IsValid())
+	{
+		InParentOverride = SharedThis(this);
+	}
+
+	Children = GenerateChildren(InParentOverride.ToSharedRef());
+}
+
+TOptional<EDetailNodeType> FCustomDetailsViewItemBase::GetNodeType() const
+{
+	return NodeType;
 }
 
 TSharedRef<SWidget> FCustomDetailsViewItemBase::MakeWidget(const TSharedPtr<SWidget>& InPrependWidget, const TSharedPtr<SWidget>& InOwningWidget)
@@ -146,8 +220,11 @@ TSharedRef<SWidget> FCustomDetailsViewItemBase::MakeWidget(const TSharedPtr<SWid
 		&& (OverrideWidgets.Contains(ECustomDetailsViewWidgetType::WholeRow)
 			|| (DetailWidgetRow.HasAnyContent() && !DetailWidgetRow.HasNameContent() && !DetailWidgetRow.HasValueContent()));
 
-	const bool bHasName = bNameAllowed && (OverrideWidgets.Contains(ECustomDetailsViewWidgetType::Name) || DetailWidgetRow.HasNameContent());
-	const bool bHasValue = bValueAllowed && (OverrideWidgets.Contains(ECustomDetailsViewWidgetType::Value) || DetailWidgetRow.HasValueContent());
+	const TSharedRef<SWidget>* OverrideNameWidget = OverrideWidgets.Find(ECustomDetailsViewWidgetType::Name);
+	const TSharedRef<SWidget>* OverrideValueWidget = OverrideWidgets.Find(ECustomDetailsViewWidgetType::Value);
+
+	const bool bHasName = bNameAllowed && ((OverrideNameWidget && (*OverrideNameWidget) != SNullWidget::NullWidget) || DetailWidgetRow.HasNameContent());
+	const bool bHasValue = bValueAllowed && ((OverrideValueWidget && (*OverrideValueWidget) != SNullWidget::NullWidget) || DetailWidgetRow.HasValueContent());
 
 	if (bHasWholeRow)
 	{
@@ -248,6 +325,8 @@ void FCustomDetailsViewItemBase::SetOverrideWidget(ECustomDetailsViewWidgetType 
 		{
 			OverrideWidgets.Remove(InWidgetType);
 		}
+
+		return;
 	}
 
 	OverrideWidgets.Add(InWidgetType, InWidget.ToSharedRef());

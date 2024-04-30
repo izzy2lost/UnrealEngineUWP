@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CustomDetailsViewItem.h"
+#include "CustomDetailsViewDetailTreeNodeItem.h"
 #include "CustomDetailsViewSequencer.h"
 #include "DetailColumnSizeData.h"
 #include "DetailRowMenuContext.h"
@@ -19,7 +19,7 @@
 
 #define LOCTEXT_NAMESPACE "CustomDetailsViewItem"
 
-FCustomDetailsViewItem::FCustomDetailsViewItem(const TSharedRef<SCustomDetailsView>& InCustomDetailsView
+FCustomDetailsViewDetailTreeNodeItem::FCustomDetailsViewDetailTreeNodeItem(const TSharedRef<SCustomDetailsView>& InCustomDetailsView
 		, const TSharedPtr<ICustomDetailsViewItem>& InParentItem
 		, const TSharedPtr<IDetailTreeNode>& InDetailTreeNode)
 	: FCustomDetailsViewItemBase(InCustomDetailsView, InParentItem)
@@ -33,7 +33,7 @@ FCustomDetailsViewItem::FCustomDetailsViewItem(const TSharedRef<SCustomDetailsVi
 	}
 }
 
-FCustomDetailsViewItem::~FCustomDetailsViewItem()
+FCustomDetailsViewDetailTreeNodeItem::~FCustomDetailsViewDetailTreeNodeItem()
 {
 	if (FSlateApplication::IsInitialized() && UpdateResetToDefaultHandle.IsValid())
 	{
@@ -41,7 +41,7 @@ FCustomDetailsViewItem::~FCustomDetailsViewItem()
 	}
 }
 
-void FCustomDetailsViewItem::RefreshItemId()
+void FCustomDetailsViewDetailTreeNodeItem::RefreshItemId()
 {
 	if (TSharedPtr<IDetailTreeNode> DetailTreeNode = DetailTreeNodeWeak.Pin())
 	{
@@ -53,7 +53,7 @@ void FCustomDetailsViewItem::RefreshItemId()
 	}
 }
 
-void FCustomDetailsViewItem::InitWidget(const TSharedRef<IDetailTreeNode>& InDetailTreeNode)
+void FCustomDetailsViewDetailTreeNodeItem::InitWidget(const TSharedRef<IDetailTreeNode>& InDetailTreeNode)
 {
 	if (!FSlateApplication::IsInitialized())
 	{
@@ -91,88 +91,7 @@ void FCustomDetailsViewItem::InitWidget(const TSharedRef<IDetailTreeNode>& InDet
 	DetailWidgetRow.ExtensionWidget.Widget->SetEnabled(IsEnabledAttribute);
 }
 
-TArray<TSharedPtr<ICustomDetailsViewItem>> FCustomDetailsViewItem::GenerateChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem
-	, const TArray<TSharedRef<IDetailTreeNode>>& InDetailTreeNodes)
-{
-	if (!CustomDetailsViewWeak.IsValid())
-	{
-		return TArray<TSharedPtr<ICustomDetailsViewItem>>();
-	}
-
-	const TSharedRef<SCustomDetailsView> CustomDetailsView = CustomDetailsViewWeak.Pin().ToSharedRef();
-
-	TArray<TSharedPtr<ICustomDetailsViewItem>> OutChildren;
-	OutChildren.Reserve(InDetailTreeNodes.Num());
-
-	const SCustomDetailsView::FTreeExtensionType& TreeExtensions = CustomDetailsView->GetTreeExtensions(ItemId);
-
-	auto AddExtensions = [&OutChildren, &InParentItem](const SCustomDetailsView::FTreeExtensionType& InTreeExtensions, ECustomDetailsTreeInsertPosition InPosition)
-		{
-			if (const TArray<TSharedPtr<ICustomDetailsViewItem>>* ExtensionList = InTreeExtensions.Find(InPosition))
-			{
-				for (const TSharedPtr<ICustomDetailsViewItem>& Extension : *ExtensionList)
-				{
-					Extension->SetParent(InParentItem);
-				}
-
-				OutChildren.Append(*ExtensionList);
-			}
-		};
-
-	AddExtensions(TreeExtensions, ECustomDetailsTreeInsertPosition::FirstChild);
-
-	const ECustomDetailsViewNodePropertyFlag ChildNodePropertyFlags = (IsStruct() || HasParentStruct())
-		? ECustomDetailsViewNodePropertyFlag::HasParentStruct
-		: ECustomDetailsViewNodePropertyFlag::None;
-
-	for (const TSharedRef<IDetailTreeNode>& DetailTreeNode : InDetailTreeNodes)
-	{
-		using namespace UE::CustomDetailsView::Private;
-		const EAllowType AllowType = CustomDetailsView->GetAllowType(DetailTreeNode, ChildNodePropertyFlags);
-
-		// If DisallowSelfAndChildren, this Tree Node Path is completely blocked, continue.
-		if (AllowType == EAllowType::DisallowSelfAndChildren)
-		{
-			continue;
-		}
-
-		// If DisallowSelf, grab the children nodes. Self's Children node's parent is set to Self's Parent rather than Self
-		if (AllowType == EAllowType::DisallowSelf)
-		{
-			FCustomDetailsViewItem ChildItem = FCustomDetailsViewItem(CustomDetailsView, InParentItem, DetailTreeNode);
-			ChildItem.RefreshItemId();
-			ChildItem.RefreshChildren(InParentItem);
-
-			OutChildren.Append(ChildItem.GetChildren());
-
-			continue;
-		}
-
-		// Support Type here has to be allowed
-		check(AllowType == EAllowType::Allowed);
-
-		TSharedRef<FCustomDetailsViewItem> Item = CustomDetailsView->CreateItem<FCustomDetailsViewItem>(CustomDetailsView
-			, InParentItem, DetailTreeNode);
-
-		Item->RefreshItemId();
-		Item->RefreshChildren(InParentItem);
-
-		const SCustomDetailsView::FTreeExtensionType& ChildTreeExtensions = CustomDetailsView->GetTreeExtensions(Item->GetItemId());
-
-		AddExtensions(ChildTreeExtensions, ECustomDetailsTreeInsertPosition::Before);
-
-		OutChildren.Add(Item);
-
-		AddExtensions(ChildTreeExtensions, ECustomDetailsTreeInsertPosition::After);
-	}
-
-	AddExtensions(TreeExtensions, ECustomDetailsTreeInsertPosition::Child);
-	AddExtensions(TreeExtensions, ECustomDetailsTreeInsertPosition::LastChild);
-
-	return OutChildren;
-}
-
-IDetailsView* FCustomDetailsViewItem::GetDetailsView() const
+IDetailsView* FCustomDetailsViewDetailTreeNodeItem::GetDetailsView() const
 {
 	if (const TSharedPtr<IDetailTreeNode> DetailTreeNode = GetRowTreeNode())
 	{
@@ -194,33 +113,12 @@ IDetailsView* FCustomDetailsViewItem::GetDetailsView() const
 	return nullptr;
 }
 
-void FCustomDetailsViewItem::RefreshChildren(TSharedPtr<ICustomDetailsViewItem> InParentOverride)
-{
-	Children.Reset();
-	const TSharedPtr<IDetailTreeNode> DetailTreeNode = DetailTreeNodeWeak.Pin();
-
-	if (!DetailTreeNode.IsValid())
-	{
-		return;
-	}
-
-	TArray<TSharedRef<IDetailTreeNode>> NodeChildren;
-	DetailTreeNode->GetChildren(NodeChildren);
-
-	if (!InParentOverride.IsValid())
-	{
-		InParentOverride = SharedThis(this);
-	}
-
-	Children = GenerateChildren(InParentOverride.ToSharedRef(), NodeChildren);
-}
-
-void FCustomDetailsViewItem::SetResetToDefaultOverride(const FResetToDefaultOverride& InOverride)
+void FCustomDetailsViewDetailTreeNodeItem::SetResetToDefaultOverride(const FResetToDefaultOverride& InOverride)
 {
 	DetailWidgetRow.CustomResetToDefault = InOverride;
 }
 
-void FCustomDetailsViewItem::AddExtensionWidget(const TSharedRef<SSplitter>& InSplitter
+void FCustomDetailsViewDetailTreeNodeItem::AddExtensionWidget(const TSharedRef<SSplitter>& InSplitter
 	, const FDetailColumnSizeData& InColumnSizeData
 	, const FCustomDetailsViewArgs& InViewArgs)
 {
@@ -232,16 +130,16 @@ void FCustomDetailsViewItem::AddExtensionWidget(const TSharedRef<SSplitter>& InS
 		FPropertyRowExtensionButton& ResetToDefault = ExtensionButtons.AddDefaulted_GetRef();
 
 		ResetToDefault.Label   = LOCTEXT("ResetToDefault", "Reset to Default");
-		ResetToDefault.ToolTip = TAttribute<FText>::CreateSP(this, &FCustomDetailsViewItem::GetResetToDefaultToolTip);
-		ResetToDefault.Icon    = TAttribute<FSlateIcon>::CreateSP(this, &FCustomDetailsViewItem::GetResetToDefaultIcon);
+		ResetToDefault.ToolTip = TAttribute<FText>::CreateSP(this, &FCustomDetailsViewDetailTreeNodeItem::GetResetToDefaultToolTip);
+		ResetToDefault.Icon    = TAttribute<FSlateIcon>::CreateSP(this, &FCustomDetailsViewDetailTreeNodeItem::GetResetToDefaultIcon);
 
-		ResetToDefault.UIAction = FUIAction(FExecuteAction::CreateSP(this, &FCustomDetailsViewItem::OnResetToDefaultClicked)
-			, FCanExecuteAction::CreateSP(this, &FCustomDetailsViewItem::CanResetToDefault));
+		ResetToDefault.UIAction = FUIAction(FExecuteAction::CreateSP(this, &FCustomDetailsViewDetailTreeNodeItem::OnResetToDefaultClicked)
+			, FCanExecuteAction::CreateSP(this, &FCustomDetailsViewDetailTreeNodeItem::CanResetToDefault));
 
 		// Add Updating Reset To Default to the Slate App PostTick
 		if (!UpdateResetToDefaultHandle.IsValid())
 		{
-			UpdateResetToDefaultHandle = FSlateApplication::Get().OnPostTick().AddSP(this, &FCustomDetailsViewItem::UpdateResetToDefault);
+			UpdateResetToDefaultHandle = FSlateApplication::Get().OnPostTick().AddSP(this, &FCustomDetailsViewDetailTreeNodeItem::UpdateResetToDefault);
 		}
 	}
 
@@ -296,37 +194,37 @@ void FCustomDetailsViewItem::AddExtensionWidget(const TSharedRef<SSplitter>& InS
 		];
 }
 
-TSharedRef<SWidget> FCustomDetailsViewItem::MakeEditConditionWidget()
+TSharedRef<SWidget> FCustomDetailsViewDetailTreeNodeItem::MakeEditConditionWidget()
 {
 	return SNew(SCheckBox)
-		.OnCheckStateChanged(this, &FCustomDetailsViewItem::OnEditConditionCheckChanged)
-		.IsChecked(this, &FCustomDetailsViewItem::GetEditConditionCheckState)
-		.Visibility(this, &FCustomDetailsViewItem::GetEditConditionVisibility);
+		.OnCheckStateChanged(this, &FCustomDetailsViewDetailTreeNodeItem::OnEditConditionCheckChanged)
+		.IsChecked(this, &FCustomDetailsViewDetailTreeNodeItem::GetEditConditionCheckState)
+		.Visibility(this, &FCustomDetailsViewDetailTreeNodeItem::GetEditConditionVisibility);
 }
 
-bool FCustomDetailsViewItem::HasEditConditionToggle() const
+bool FCustomDetailsViewDetailTreeNodeItem::HasEditConditionToggle() const
 {
 	return DetailWidgetRow.OnEditConditionValueChanged.IsBound();
 }
 
-EVisibility FCustomDetailsViewItem::GetEditConditionVisibility() const
+EVisibility FCustomDetailsViewDetailTreeNodeItem::GetEditConditionVisibility() const
 {
 	return HasEditConditionToggle() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-ECheckBoxState FCustomDetailsViewItem::GetEditConditionCheckState() const
+ECheckBoxState FCustomDetailsViewDetailTreeNodeItem::GetEditConditionCheckState() const
 {
 	return DetailWidgetRow.EditConditionValue.Get() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
-void FCustomDetailsViewItem::OnEditConditionCheckChanged(ECheckBoxState InCheckState)
+void FCustomDetailsViewDetailTreeNodeItem::OnEditConditionCheckChanged(ECheckBoxState InCheckState)
 {
 	checkSlow(HasEditConditionToggle());
 	FScopedTransaction EditConditionChangedTransaction(LOCTEXT("EditConditionChanged", "Edit Condition Changed"));
 	DetailWidgetRow.OnEditConditionValueChanged.ExecuteIfBound(InCheckState == ECheckBoxState::Checked);
 }
 
-void FCustomDetailsViewItem::OnKeyframeClicked()
+void FCustomDetailsViewDetailTreeNodeItem::OnKeyframeClicked()
 {
 	const TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = GetKeyframeHandler();
 	if (KeyframeHandler.IsValid() && PropertyHandle.IsValid())
@@ -335,7 +233,7 @@ void FCustomDetailsViewItem::OnKeyframeClicked()
 	}
 }
 
-bool FCustomDetailsViewItem::IsKeyframeVisible() const
+bool FCustomDetailsViewDetailTreeNodeItem::IsKeyframeVisible() const
 {
 	const TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = GetKeyframeHandler();
 
@@ -353,12 +251,12 @@ bool FCustomDetailsViewItem::IsKeyframeVisible() const
 	return KeyframeHandler->IsPropertyKeyable(ObjectClass, *PropertyHandle);
 }
 
-bool FCustomDetailsViewItem::IsResetToDefaultVisible() const
+bool FCustomDetailsViewDetailTreeNodeItem::IsResetToDefaultVisible() const
 {
 	return bResetToDefaultVisible;
 }
 
-void FCustomDetailsViewItem::UpdateResetToDefault(float InDeltaTime)
+void FCustomDetailsViewDetailTreeNodeItem::UpdateResetToDefault(float InDeltaTime)
 {
 	bResetToDefaultVisible = false;
 
@@ -379,12 +277,12 @@ void FCustomDetailsViewItem::UpdateResetToDefault(float InDeltaTime)
 	}
 }
 
-bool FCustomDetailsViewItem::CanResetToDefault() const
+bool FCustomDetailsViewDetailTreeNodeItem::CanResetToDefault() const
 {
 	return IsResetToDefaultVisible() && DetailWidgetRow.ValueWidget.Widget->IsEnabled();
 }
 
-void FCustomDetailsViewItem::OnResetToDefaultClicked()
+void FCustomDetailsViewDetailTreeNodeItem::OnResetToDefaultClicked()
 {
 	if (DetailWidgetRow.CustomResetToDefault.IsSet())
 	{
@@ -396,14 +294,14 @@ void FCustomDetailsViewItem::OnResetToDefaultClicked()
 	}
 }
 
-FText FCustomDetailsViewItem::GetResetToDefaultToolTip() const
+FText FCustomDetailsViewDetailTreeNodeItem::GetResetToDefaultToolTip() const
 {
 	return IsResetToDefaultVisible()
 		? LOCTEXT("ResetToDefaultPropertyValueToolTip", "Reset this property to its default value.")
 		: FText::GetEmpty();
 }
 
-FSlateIcon FCustomDetailsViewItem::GetResetToDefaultIcon() const
+FSlateIcon FCustomDetailsViewDetailTreeNodeItem::GetResetToDefaultIcon() const
 {
 	static const FSlateIcon ResetIcon_Enabled(FAppStyle::Get().GetStyleSetName(), "PropertyWindow.DiffersFromDefault");
 	static const FSlateIcon ResetIcon_Disabled(FAppStyle::Get().GetStyleSetName(), "NoBrush");
@@ -413,7 +311,7 @@ FSlateIcon FCustomDetailsViewItem::GetResetToDefaultIcon() const
 		: ResetIcon_Disabled;
 }
 
-TSharedPtr<SWidget> FCustomDetailsViewItem::GenerateContextMenuWidget()
+TSharedPtr<SWidget> FCustomDetailsViewDetailTreeNodeItem::GenerateContextMenuWidget()
 {
 	UToolMenus* Menus = UToolMenus::Get();
 
@@ -445,7 +343,62 @@ TSharedPtr<SWidget> FCustomDetailsViewItem::GenerateContextMenuWidget()
 	return Menus->GenerateWidget(DetailViewContextMenuName, ToolMenuContext);
 }
 
-bool FCustomDetailsViewItem::IsStruct() const
+void FCustomDetailsViewDetailTreeNodeItem::GenerateCustomChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren)
+{
+	if (!CustomDetailsViewWeak.IsValid())
+	{
+		return;
+	}
+
+	const TSharedRef<SCustomDetailsView> CustomDetailsView = CustomDetailsViewWeak.Pin().ToSharedRef();
+	const TSharedPtr<IDetailTreeNode> DetailTreeNode = DetailTreeNodeWeak.Pin();
+
+	if (!DetailTreeNode.IsValid())
+	{
+		return;
+	}
+
+	const ECustomDetailsViewNodePropertyFlag ChildNodePropertyFlags = (IsStruct() || HasParentStruct())
+		? ECustomDetailsViewNodePropertyFlag::HasParentStruct
+		: ECustomDetailsViewNodePropertyFlag::None;
+
+	TArray<TSharedRef<IDetailTreeNode>> NodeChildren;
+	DetailTreeNode->GetChildren(NodeChildren);
+
+	for (const TSharedRef<IDetailTreeNode>& ChildTreeNode : NodeChildren)
+	{
+		using namespace UE::CustomDetailsView::Private;
+		const EAllowType AllowType = CustomDetailsView->GetAllowType(ChildTreeNode, ChildNodePropertyFlags);
+
+		// If DisallowSelfAndChildren, this Tree Node Path is completely blocked, continue.
+		if (AllowType == EAllowType::DisallowSelfAndChildren)
+		{
+			continue;
+		}
+
+		// If DisallowSelf, grab the children nodes. Self's Children node's parent is set to Self's Parent rather than Self
+		if (AllowType == EAllowType::DisallowSelf)
+		{
+			FCustomDetailsViewDetailTreeNodeItem ChildItem = FCustomDetailsViewDetailTreeNodeItem(CustomDetailsView, InParentItem, ChildTreeNode);
+			ChildItem.RefreshItemId();
+			ChildItem.RefreshChildren(InParentItem);
+
+			OutChildren.Append(ChildItem.GetChildren());
+
+			continue;
+		}
+
+		// Support Type here has to be allowed
+		check(AllowType == EAllowType::Allowed);
+
+		TSharedRef<FCustomDetailsViewDetailTreeNodeItem> Item = CustomDetailsView->CreateItem<FCustomDetailsViewDetailTreeNodeItem>(CustomDetailsView
+			, InParentItem, ChildTreeNode);
+
+		Item->AddAsChild(InParentItem, OutChildren);
+	}
+}
+
+bool FCustomDetailsViewDetailTreeNodeItem::IsStruct() const
 {
 	if (PropertyHandle.IsValid())
 	{
@@ -458,13 +411,13 @@ bool FCustomDetailsViewItem::IsStruct() const
 	return false;
 }
 
-bool FCustomDetailsViewItem::HasParentStruct() const
+bool FCustomDetailsViewDetailTreeNodeItem::HasParentStruct() const
 {
 	for (TSharedPtr<ICustomDetailsViewItem> Parent = GetParent(); Parent.IsValid(); Parent = Parent->GetParent())
 	{
 		if (Parent->GetItemId().IsType(EDetailNodeType::Item))
 		{
-			if (StaticCastSharedPtr<FCustomDetailsViewItem>(Parent)->IsStruct())
+			if (StaticCastSharedPtr<FCustomDetailsViewDetailTreeNodeItem>(Parent)->IsStruct())
 			{
 				return true;
 			}
