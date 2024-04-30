@@ -17,7 +17,7 @@
 #define USE_NAIVE_TLockFreeFixedSizeAllocator_TLSCacheBase (0) // this is useful for find who really leaked
 #endif
 
-template<int32 SIZE, typename TBundleRecycler, typename TTrackingCounter = FNoopCounter, bool AllowDisablingOfTrim = false>
+template<int32 SIZE, typename TBundleRecycler, typename TTrackingCounter = FNoopCounter>
 class TLockFreeFixedSizeAllocator_TLSCacheBase : public FNoncopyable
 {
 	enum
@@ -66,7 +66,7 @@ public:
 				TLS.PartialBundle = GlobalFreeListBundles.Pop();
 				if (!TLS.PartialBundle)
 				{
-					TLS.PartialBundle = (void**)FMemory::MallocPersistentAuxiliary(SIZE_PER_BUNDLE);
+					TLS.PartialBundle = (void**)FMemory::Malloc(SIZE_PER_BUNDLE);
 					void **Next = TLS.PartialBundle;
 					for (int32 Index = 0; Index < NUM_PER_BUNDLE - 1; Index++)
 					{
@@ -190,7 +190,7 @@ private:
  * never returns free space until program shutdown.
  * alignment isn't handled, assumes FMemory::Malloc will work
  */
-template<int32 SIZE, int TPaddingForCacheContention, typename TTrackingCounter = FNoopCounter, bool AllowDisablingOfTrim = false>
+template<int32 SIZE, int TPaddingForCacheContention, typename TTrackingCounter = FNoopCounter>
 class TLockFreeFixedSizeAllocator
 {
 public:
@@ -218,7 +218,7 @@ public:
 		}
 		else
 		{
-			Memory = FMemory::MallocPersistentAuxiliary(SIZE);
+			Memory = FMemory::Malloc(SIZE);
 		}
 		return Memory;
 	}
@@ -241,16 +241,9 @@ public:
 	*/
 	void Trim()
 	{
-		if (AllowDisablingOfTrim)
-		{
-			if (FMemory::IsPersistentAuxiliaryActive())
-			{
-				return;
-			}
-		}
 		while (void* Mem = FreeList.Pop())
 		{
-			FMemory::FreePersistentAuxiliary(Mem);
+			FMemory::Free(Mem);
 			NumFree.Decrement();
 		}
 	}
@@ -294,8 +287,8 @@ private:
  * never returns free space, even at shutdown
  * alignment isn't handled, assumes FMemory::Malloc will work
  */
-template<int32 SIZE, int TPaddingForCacheContention, typename TTrackingCounter = FNoopCounter, bool AllowDisablingOfTrim = false>
-class TLockFreeFixedSizeAllocator_TLSCache : public TLockFreeFixedSizeAllocator_TLSCacheBase<SIZE, TLockFreePointerListUnordered<void*, TPaddingForCacheContention>, TTrackingCounter, AllowDisablingOfTrim>
+template<int32 SIZE, int TPaddingForCacheContention, typename TTrackingCounter = FNoopCounter>
+class TLockFreeFixedSizeAllocator_TLSCache : public TLockFreeFixedSizeAllocator_TLSCacheBase<SIZE, TLockFreePointerListUnordered<void*, TPaddingForCacheContention>, TTrackingCounter>
 {
 };
 
@@ -304,8 +297,8 @@ class TLockFreeFixedSizeAllocator_TLSCache : public TLockFreeFixedSizeAllocator_
  *
  * Never returns free space until program shutdown.
  */
-template<class T, int TPaddingForCacheContention, bool AllowDisablingOfTrim = false>
-class TLockFreeClassAllocator : private TLockFreeFixedSizeAllocator<sizeof(T), TPaddingForCacheContention, FNoopCounter, AllowDisablingOfTrim>
+template<class T, int TPaddingForCacheContention>
+class TLockFreeClassAllocator : private TLockFreeFixedSizeAllocator<sizeof(T), TPaddingForCacheContention, FNoopCounter>
 {
 public:
 	/**
@@ -348,8 +341,8 @@ public:
  *
  * Never returns free space until program shutdown.
  */
-template<class T, int TPaddingForCacheContention, bool AllowDisablingOfTrim = false>
-class TLockFreeClassAllocator_TLSCache : private TLockFreeFixedSizeAllocator_TLSCache<sizeof(T), TPaddingForCacheContention, FNoopCounter , AllowDisablingOfTrim>
+template<class T, int TPaddingForCacheContention>
+class TLockFreeClassAllocator_TLSCache : private TLockFreeFixedSizeAllocator_TLSCache<sizeof(T), TPaddingForCacheContention, FNoopCounter>
 {
 public:
 	/**
