@@ -102,6 +102,7 @@ public:
 		SLATE_STYLE_ARGUMENT(FWindowStyle, Style)
 		SLATE_ARGUMENT(bool, ShowAppIcon)
 		SLATE_ATTRIBUTE(FText, Title)
+		SLATE_ATTRIBUTE(FText, CloseButtonToolTipText)
 	SLATE_END_ARGS()
 	
 public:
@@ -201,6 +202,8 @@ private:
 
 	FText HandleWindowTitleText( ) const;
 
+	FText GetMaximizeButtonToolTip() const;
+
 protected:
 
 	// Holds a weak pointer to the owner window.
@@ -227,6 +230,7 @@ private:
 	TSharedPtr<SButton> CloseButton;
 
 	TAttribute<FText> Title;
+	TAttribute<FText> CloseButtonToolTipText;
 
 	SHorizontalBox::FSlot* WindowMenuSlot;
 	SHorizontalBox::FSlot* RightSideContentSlot;

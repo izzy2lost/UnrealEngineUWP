@@ -272,7 +272,7 @@ public:
 		, _LayoutBorder( _Style->BorderPadding )
 		, _UserResizeBorder(FMargin(5, 5, 5, 5))
 		, _bManualManageDPI( false )
-
+		, _CloseButtonToolTipText(NSLOCTEXT("SWindow", "Window_DefaultCloseButtonToolTip", "Close"))
 	{
 	}
 
@@ -375,7 +375,10 @@ public:
 
 		SLATE_DEFAULT_SLOT( FArguments, Content )
 
-	SLATE_END_ARGS()
+		/** Optional tooltip for the close button, when HasCloseButton is true. */
+		SLATE_ATTRIBUTE(FText, CloseButtonToolTipText)
+
+		SLATE_END_ARGS()
 
 	/**
 	 * Default constructor. Use SNew(SWindow) instead.
@@ -1070,6 +1073,8 @@ public:
 	/** Windows that are not hittestable should not show up in the hittest grid. */
 	SLATECORE_API EVisibility GetWindowVisibility() const;
 
+	/** Return the tooltip text that should be used for the window's Close button. */
+	SLATECORE_API TAttribute<FText> GetWindowCloseButtonToolTipText() const;
 protected:
 	/**Returns swindow title bar widgets. */
 	SLATECORE_API virtual TSharedRef<SWidget> MakeWindowTitleBar(const TSharedRef<SWindow>& Window, const TSharedPtr<SWidget>& CenterContent, EHorizontalAlignment CenterContentAlignment);
@@ -1087,6 +1092,9 @@ protected:
 
 	/** Title of the window, displayed in the title bar as well as potentially in the task bar (Windows platform) */
 	TAttribute<FText> Title;
+
+	/** Tooltip text displayed over the window's Close button (on Windows only). */
+	TAttribute<FText> CloseButtonToolTipText;
 
 	/** When true, grabbing anywhere on the window will allow it to be dragged. */
 	bool bDragAnywhere;

@@ -319,6 +319,7 @@ void SDockingArea::SetParentWindow( const TSharedRef<SWindow>& NewParentWindow )
 		FWindowTitleBarArgs Args(NewParentWindow);
 		Args.CenterContent = SNullWidget::NullWidget;
 		Args.CenterContentAlignment = HAlign_Fill;
+		Args.CloseButtonToolTipText = NewParentWindow->GetWindowCloseButtonToolTipText();
 
 		TSharedRef<SWidget> TitleBarWidget = FSlateApplication::Get().MakeWindowTitleBar(Args, TitleBar);
 		(*WindowControlsArea)

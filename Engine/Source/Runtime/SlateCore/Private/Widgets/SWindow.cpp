@@ -240,6 +240,7 @@ void SWindow::Construct(const FArguments& InArgs)
 	this->WindowBackground = &InArgs._Style->BackgroundBrush;
 
 	this->Title = InArgs._Title;
+	this->CloseButtonToolTipText = InArgs._CloseButtonToolTipText;
 	this->bDragAnywhere = InArgs._bDragAnywhere;
 	this->TransparencySupport = InArgs._SupportsTransparency.Value;
 	this->Opacity = InArgs._InitialOpacity;
@@ -506,6 +507,7 @@ TSharedRef<SWidget> SWindow::MakeWindowTitleBar(const TSharedRef<SWindow>& Windo
 	FWindowTitleBarArgs Args(Window);
 	Args.CenterContent = CenterContent;
 	Args.CenterContentAlignment = TitleContentAlignment;
+	Args.CloseButtonToolTipText = CloseButtonToolTipText;
 
 	return FSlateApplicationBase::Get().MakeWindowTitleBar(Args, TitleBar);
 }
@@ -543,6 +545,7 @@ void SWindow::ConstructWindowInternals()
 	FWindowTitleBarArgs Args(SharedThis(this));
 	Args.CenterContent = nullptr;
 	Args.CenterContentAlignment = GetTitleAlignment();
+	Args.CloseButtonToolTipText = CloseButtonToolTipText;
 
 	TSharedRef<SWidget> TitleBarWidget = FSlateApplicationBase::Get().MakeWindowTitleBar(Args, TitleBar);
 
@@ -1138,6 +1141,11 @@ EVisibility SWindow::GetWindowVisibility() const
 	return ( AcceptsInput() || FSlateApplicationBase::Get().IsWindowHousingInteractiveTooltip(SharedThis(this)) )
 		? EVisibility::Visible
 		: EVisibility::HitTestInvisible;
+}
+
+TAttribute<FText> SWindow::GetWindowCloseButtonToolTipText() const
+{
+	return CloseButtonToolTipText;
 }
 
 void SWindow::UpdateMorphTargetShape( const FSlateRect& TargetShape )

@@ -199,6 +199,7 @@ void FMainFrameModule::CreateDefaultMainFrameAuxiliary(const bool bStartImmersiv
 		TSharedRef<SWindow> RootWindow = SNew(SWindow)
 			.AutoCenter(WindowConfig.CenterRules)
 			.Title( WindowConfig.WindowTitle )
+			.CloseButtonToolTipText(LOCTEXT("MainFrameModuleCloseButtonToolTip", "Close Unreal Editor"))
 			.IsInitiallyMaximized( DefaultWindowLocation.InitiallyMaximized )
 			.ScreenPosition( DefaultWindowLocation.ScreenPosition )
 			.ClientSize( DefaultWindowLocation.WindowSize )

@@ -44,6 +44,9 @@ struct FWindowTitleBarArgs
 
 	/** The horizontal alignment of the center content. */
 	EHorizontalAlignment CenterContentAlignment;
+
+	/** The text for the tooltip that shows when the user hovers over the Close button. */
+	TAttribute<FText> CloseButtonToolTipText;
 };
 
 /**

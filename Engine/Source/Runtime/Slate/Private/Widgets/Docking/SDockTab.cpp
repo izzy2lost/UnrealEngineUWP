@@ -952,7 +952,7 @@ FText SDockTab::GetCloseButtonToolTipText() const
 		GetVisualTabRole() == ETabRole::MajorTab ? FTabCommands::Get().CloseMajorTab : FTabCommands::Get().CloseMinorTab;
 
 	FFormatNamedArguments Arguments;
-	Arguments.Add(TEXT("Label"), CloseCommand->GetLabel());
+	Arguments.Add(TEXT("Label"), NSLOCTEXT("DockTab", "CloseButtonToolTipLabel", "Close Tab"));
 
 	FText InputText = CloseCommand->GetInputText();
 	if (InputText.IsEmptyOrWhitespace())
@@ -961,10 +961,10 @@ FText SDockTab::GetCloseButtonToolTipText() const
 	}
 	else
 	{
-		Arguments.Add(TEXT("InputText"), FText::Format(NSLOCTEXT("DockTab", "CloseButtonInputText", " ({0})"), InputText));
+		Arguments.Add(TEXT("InputText"), FText::Format(NSLOCTEXT("DockTab", "CloseButtonInputText", "({0})"), InputText));
 	}
 
-	return FText::Format(NSLOCTEXT("DockTab", "CloseButtonToolTip", "{Label}{InputText}"), Arguments);
+	return FText::Format(NSLOCTEXT("DockTab", "CloseButtonToolTipFormat", "{Label} {InputText}"), Arguments);
 }
 
 EVisibility SDockTab::HandleIsCloseButtonVisible() const
