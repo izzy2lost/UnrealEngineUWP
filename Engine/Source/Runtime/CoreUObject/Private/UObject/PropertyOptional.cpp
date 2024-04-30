@@ -70,6 +70,11 @@ bool FOptionalProperty::HasIntrusiveUnsetOptionalState() const
 	return false;
 }
 
+bool FOptionalProperty::SameType(const FProperty* Other) const
+{
+	return Super::SameType(Other) && ValueProperty && ValueProperty->SameType(CastFieldChecked<FOptionalProperty>(Other)->ValueProperty);
+}
+
 void FOptionalProperty::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);

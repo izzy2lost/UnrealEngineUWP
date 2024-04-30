@@ -237,6 +237,7 @@ public:
 	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
 	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
 	virtual bool HasIntrusiveUnsetOptionalState() const override;
+	virtual bool SameType(const FProperty* Other) const override;
 
 	virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const override;
 	// End of FProperty interface
