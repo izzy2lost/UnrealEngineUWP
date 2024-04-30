@@ -1110,8 +1110,9 @@ void URigVMEdGraphNode::SetModelNode(URigVMNode* InModelNode)
 	ModelNodePath = InModelNode->GetNodePath();
 	CachedModelNode = InModelNode;
 	SyncGraphNodeTitleWithModelNodeTitle();
-	AllocateDefaultPins();
-	PostReconstructNode();
+	//AllocateDefaultPins();
+	ReconstructNode();
+	//PostReconstructNode();
 }
 
 bool URigVMEdGraphNode::ModelPinRemoved_Internal(const URigVMPin* InModelPin)
