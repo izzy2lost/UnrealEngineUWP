@@ -31,9 +31,9 @@
 // On platform supporting diagnostic buffer, shader print data are stored into the diagnostic buffer which is always 
 // bound. This allows to access shader print functionality in any shader without explicit shader binding
 #define SHADER_PRINT_USE_DIAGNOSTIC_BUFFER (PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER && (PIXELSHADER || COMPUTESHADER || RAYGENSHADER) && !SHADER_PRINT_USE_GLOBAL_RESOURCE && SHADER_PRINT_EXPERIMENTAL_DIAGNOSTIC_BUFFER)
-// Offset to the ShaderPrint parameters
-#define SHADER_PRINT_DIAGNOSTIC_BUFFER_PARAMETERS_OFFSET 6u
-// Offset to the ShaderPrint entries
+// Offset to the ShaderPrint parameters (see FD3D12DiagnosticBuffer in D3D12Device.h , 6 uint x 64 lanes + 2 uints for BreadCrumbMarker) in Uints
+#define SHADER_PRINT_DIAGNOSTIC_BUFFER_PARAMETERS_OFFSET (6u * 64u + 2u)
+// Offset to the ShaderPrint entries in Uints (12 uints for storing constant parameters)
 #define SHADER_PRINT_DIAGNOSTIC_BUFFER_ENTRY_OFFSET (SHADER_PRINT_DIAGNOSTIC_BUFFER_PARAMETERS_OFFSET + 12u)
 
 // Global buffers for ShaderPrint collection.
