@@ -191,7 +191,7 @@ public class AgentServiceTest : TestSetup
 		// Ephemeral agent is marked as deleted once its session is terminated
 		Assert.IsTrue((await AgentService.GetAgentAsync(agent.Id))!.Deleted);
 
-		await Clock.AdvanceAsync(TimeSpan.FromDays(8));
+		await Clock.AdvanceAsync(TimeSpan.FromHours(25));
 		await AgentService.TickAsync(CancellationToken.None);
 
 		// Once more time has passed, the ephemeral agent marked as deleted is removed from database
