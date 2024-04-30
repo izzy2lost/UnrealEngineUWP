@@ -904,7 +904,7 @@ void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 		RayTracingGeometryGroupHandle = RenderData->RayTracingGeometryGroupHandle;
 	}
 
-	if (IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
+	if (IsRayTracingEnabled() && bNeedsDynamicRayTracingGeometries)
 	{
 		CreateDynamicRayTracingGeometries(RHICmdList);
 	}

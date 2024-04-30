@@ -756,7 +756,7 @@ void FStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHI
 		RayTracingGeometryGroupHandle = RenderData->RayTracingGeometryGroupHandle;
 	}
 
-	if(IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
+	if(IsRayTracingEnabled() && bNeedsDynamicRayTracingGeometries)
 	{
 		CreateDynamicRayTracingGeometries(RHICmdList);
 	}
