@@ -414,6 +414,12 @@ namespace Gauntlet
 				// clear artifact path
 				CleanDeviceArtifacts();
 			}
+
+			if(Globals.IsRunningDev && AppConfig.OverlayExecutable.GetOverlay(ExecutablePath, out string OverlayExecutable))
+			{
+				CommandArguments += string.Format(" -basedir=\"{0}\"", Path.GetDirectoryName(ExecutablePath));
+				ExecutablePath = OverlayExecutable;
+			}
 		}
 	}
 
