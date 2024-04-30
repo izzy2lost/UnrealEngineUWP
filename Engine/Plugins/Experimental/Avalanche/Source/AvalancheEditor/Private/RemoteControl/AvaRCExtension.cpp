@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaRCExtension.h"
+#include "AvaRCSignatureCustomization.h"
 #include "Editor.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "IAvaSceneInterface.h"
+#include "IRemoteControlUIModule.h"
 #include "LevelEditor.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlTrackerComponent.h"
@@ -21,12 +23,14 @@ URemoteControlPreset* FAvaRCExtension::GetRemoteControlPreset() const
 
 void FAvaRCExtension::Activate()
 {
+	RegisterSignatureCustomization();
 	OpenRemoteControlTab();
 }
 
 void FAvaRCExtension::Deactivate()
 {
 	CloseRemoteControlTab();
+	UnregisterSignatureCustomization();
 }
 
 void FAvaRCExtension::ExtendLevelEditorLayout(FLayoutExtender& InExtender) const
@@ -82,6 +86,29 @@ void FAvaRCExtension::CloseRemoteControlTab() const
 			AssetEditorSubsystem->CloseAllEditorsForAsset(RemoteControlPreset);
 		}
 	}
+}
+
+void FAvaRCExtension::RegisterSignatureCustomization()
+{
+	UnregisterSignatureCustomization();
+
+	SignatureCustomization = MakeShared<FAvaRCSignatureCustomization>();
+	IRemoteControlUIModule::Get().RegisterSignatureCustomization(SignatureCustomization);
+}
+
+void FAvaRCExtension::UnregisterSignatureCustomization()
+{
+	if (!SignatureCustomization.IsValid())
+	{
+		return;
+	}
+
+	if (IRemoteControlUIModule* RCUIModule = FModuleManager::GetModulePtr<IRemoteControlUIModule>(TEXT("RemoteControlUI")))
+	{
+		RCUIModule->UnregisterSignatureCustomization(SignatureCustomization);
+	}
+
+	SignatureCustomization.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

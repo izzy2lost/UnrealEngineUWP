@@ -4,8 +4,9 @@
 
 #include "IAvaEditorExtension.h"
 
-class URemoteControlTrackerComponent;
+class IRCSignatureCustomization;
 class URemoteControlPreset;
+class URemoteControlTrackerComponent;
 
 class FAvaRCExtension: public FAvaEditorExtension
 {
@@ -25,6 +26,11 @@ public:
 
 protected:
 	void OpenRemoteControlTab() const;
-
 	void CloseRemoteControlTab() const;
+
+	void RegisterSignatureCustomization();
+	void UnregisterSignatureCustomization();
+
+private:
+	TSharedPtr<IRCSignatureCustomization> SignatureCustomization;
 };
