@@ -68,6 +68,7 @@ namespace UnrealBuildTool.Rules
 					"TypedElementFramework",
 					"TypedElementRuntime",
 					"UnrealEd",
+					"LevelEditor"
 				}
 			);
 
