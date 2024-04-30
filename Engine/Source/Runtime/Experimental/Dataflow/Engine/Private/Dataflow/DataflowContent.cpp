@@ -13,6 +13,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowContent)
 
+void UDataflowContextObject::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	UDataflowContextObject* This = CastChecked<UDataflowContextObject>(InThis);
+	Collector.AddReferencedObject(This->PrimarySelectedNode);
+	Super::AddReferencedObjects(InThis, Collector);
+}
 
 //
 // UDataflowBaseContent
@@ -88,6 +94,14 @@ void UDataflowBaseContent::Serialize(FArchive& Ar)
 		DataflowContext = MakeShared<Dataflow::FEngineContext>(DataflowOwner, DataflowAsset, LastModifiedTimestamp);
 	}
 	DataflowContext->Serialize(Ar);
+}
+
+void UDataflowBaseContent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	UDataflowBaseContent* This = CastChecked<UDataflowBaseContent>(InThis);
+	Collector.AddReferencedObject(This->DataflowOwner);
+	Collector.AddReferencedObject(This->DataflowAsset);
+	Super::AddReferencedObjects(InThis, Collector);
 }
 
 //
@@ -234,3 +248,13 @@ FVector2f UDataflowSkeletalContent::GetSimulationRange() const
 	return FVector2f(0.0f, 0.0f);
 }
 
+void UDataflowSkeletalContent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	UDataflowSkeletalContent* This = CastChecked<UDataflowSkeletalContent>(InThis);
+	Collector.AddReferencedObject(This->SkeletalMesh);
+	Collector.AddReferencedObject(This->AnimationAsset);
+	Collector.AddReferencedObject(This->Skeleton);
+	Collector.AddReferencedObject(This->SkeletalMeshComponent);
+	Collector.AddReferencedObject(This->AnimationNodeInstance);
+	Super::AddReferencedObjects(InThis, Collector);
+}

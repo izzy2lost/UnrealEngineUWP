@@ -337,7 +337,7 @@ void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowBa
 	}
 }
 
-void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSharedPtr<Dataflow::FEngineContext>& Context, Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& InPropertyChangedEvent, const TSet<UObject*>& SelectedNodes)
+void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSharedPtr<Dataflow::FEngineContext>& Context, Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& InPropertyChangedEvent, const TSet<TObjectPtr<UObject> >& SelectedNodes)
 {
 	if (InPropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
 	{
@@ -404,7 +404,7 @@ void FDataflowEditorCommands::DeleteNodes(UDataflow* Graph, const FGraphPanelSel
 	}
 }
 
-void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetailsView> PropertiesEditor, UObject* Asset, UDataflow* Graph, const TSet<UObject*>& NewSelection)
+void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetailsView> PropertiesEditor, UObject* Asset, UDataflow* Graph, const TSet<TObjectPtr<UObject> >& NewSelection)
 {
 	PropertiesEditor->SetStructureData(nullptr);
 
@@ -412,7 +412,11 @@ void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetail
 	{
 		if (const TSharedPtr<Dataflow::FGraph> DataflowGraph = Graph->GetDataflow())
 		{
-			FGraphPanelSelectionSet SelectedNodes = NewSelection;
+			auto AsRawPointers = [](const TSet<TObjectPtr<UObject> >& NewSelection) {
+				TSet<UObject*> Raw; for (UObject* Elem : NewSelection) Raw.Add(Elem);
+				return Raw;
+			};
+			FGraphPanelSelectionSet SelectedNodes = AsRawPointers(NewSelection);
 			if (SelectedNodes.Num())
 			{
 				TArray<UObject*> Objects;

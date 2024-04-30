@@ -535,8 +535,8 @@ void FDataflowEditorToolkit::OnNodeTitleCommitted(const FText& InNewText, ETextC
 
 void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewSelection)
 {
-	auto FindDataflowNodesInSet = [](const TSet<UObject*>& InSet) {
-		TSet<UObject*> Results;
+	auto FindDataflowNodesInSet = [](const TSet<TObjectPtr<UObject>>& InSet) {
+		TSet<TObjectPtr<UObject>> Results;
 		for (UObject* Item : InSet)
 		{
 			if (Cast<UDataflowEdNode>(Item))
@@ -619,22 +619,27 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 
 	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent(); EditorContent->GetDataflowAsset())
 	{
+		auto AsObjectPointers = [](const TSet<UObject*>& Set) {
+			TSet<TObjectPtr<UObject> > Objs; for (UObject* Elem : Set) Objs.Add(Elem);
+			return Objs;
+		};
+
 		// Only keep UDataflowEdNode from NewSelection
-		TSet<UObject*> NodeSelection = FindDataflowNodesInSet(InNewSelection);
+		TSet< TObjectPtr<UObject> > NodeSelection = FindDataflowNodesInSet(AsObjectPointers(InNewSelection));
 
 		if (!NodeSelection.Num())
 		{
 			// The selection is empty. 
 			ResetListeners();
-			SelectedDataflowNodes = TSet<UObject*>();
+			SelectedDataflowNodes = TSet<TObjectPtr<UObject>>();
 			if (PrimarySelection) bPrimarySelectionChanged = true;
 			PrimarySelection = nullptr;
 		}
 		else
 		{
-			TSet<UObject*> DeselectedNodes = SelectedDataflowNodes.Difference(NodeSelection);
-			TSet<UObject*> StillSelectedNodes = SelectedDataflowNodes.Intersect(NodeSelection);
-			TSet<UObject*> NewlySelectedNodes = NodeSelection.Difference(SelectedDataflowNodes);
+			TSet<TObjectPtr<UObject>> DeselectedNodes = SelectedDataflowNodes.Difference(NodeSelection);
+			TSet<TObjectPtr<UObject>> StillSelectedNodes = SelectedDataflowNodes.Intersect(NodeSelection);
+			TSet<TObjectPtr<UObject>> NewlySelectedNodes = NodeSelection.Difference(SelectedDataflowNodes);
 
 			// Something has been removed
 			if (DeselectedNodes.Num())
@@ -1286,5 +1291,12 @@ FLinearColor FDataflowEditorToolkit::GetWorldCentricTabColorScale() const
 {
 	return FLinearColor(0.3f, 0.2f, 0.5f, 0.5f);
 }
+
+void FDataflowEditorToolkit::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObjects(SelectedDataflowNodes);
+	Collector.AddReferencedObject(PrimarySelection);
+}
+
 
 #undef LOCTEXT_NAMESPACE

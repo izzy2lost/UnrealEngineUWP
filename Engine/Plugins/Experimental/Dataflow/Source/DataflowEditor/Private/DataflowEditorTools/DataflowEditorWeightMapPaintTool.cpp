@@ -2055,5 +2055,14 @@ void UDataflowEditorWeightMapPaintTool::UpdateVertexColorOverlay(const TSet<int>
 	}
 }
 
+void UDataflowEditorWeightMapPaintTool::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	UDataflowEditorWeightMapPaintTool* This = CastChecked<UDataflowEditorWeightMapPaintTool>(InThis);
+	Collector.AddReferencedObject(This->PreviewMeshActor);
+	Collector.AddReferencedObject(This->DynamicMeshComponent);
+	Collector.AddReferencedObject(This->MeshElementsDisplay);
+	Collector.AddReferencedObject(This->DataflowEditorContextObject);
+	Super::AddReferencedObjects(InThis, Collector);
+}
 
 #undef LOCTEXT_NAMESPACE

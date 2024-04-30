@@ -62,6 +62,9 @@ public:
 		return nullptr;
 	}
 
+	//~ UObject interface
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 protected:
 
 	/** Render collection to be used */
@@ -136,6 +139,9 @@ public:
 
 	virtual void Serialize(FArchive& Ar);
 
+	//~ UObject interface
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 protected:
 
 	/** Data flow asset that we will edit */
@@ -208,6 +214,9 @@ public:
 	void SetAnimationAsset(const TObjectPtr<UAnimationAsset>& InAnimation);
 	const TObjectPtr<UAnimationAsset>& GetAnimationAsset() const { return AnimationAsset; }
 
+	//~ UObject interface
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 protected:
 
 	/** Data flow skeletal mesh*/
@@ -216,7 +225,7 @@ protected:
 
 	/** Animation asset to be used to preview simulation */
 	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
-	TObjectPtr<UAnimationAsset> AnimationAsset;
+	TObjectPtr<UAnimationAsset> AnimationAsset = nullptr;
 
 	/** Data flow skeleton */
 	UPROPERTY(EditAnywhere, Category = "Skeleton", Transient, SkipSerialization)
@@ -224,9 +233,9 @@ protected:
 
 	/** Skeletal mesh component used in the preview scene */
 	UPROPERTY(Transient, SkipSerialization)
-	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
+	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = nullptr;
 
 	/** Anim node instance used with skelmesh component */
 	UPROPERTY(Transient, SkipSerialization)
-	TObjectPtr<UAnimSingleNodeInstance> AnimationNodeInstance;
+	TObjectPtr<UAnimSingleNodeInstance> AnimationNodeInstance = nullptr;
 };

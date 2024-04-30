@@ -12,6 +12,7 @@
 #include "Dataflow/DataflowCollectionSpreadSheet.h"
 #include "Dataflow/DataflowConstructionViewport.h"
 #include "Dataflow/DataflowSimulationViewport.h"
+//#include "UObject\GCObject.h"
 
 class FEditorViewportTabContent;
 class IDetailsView;
@@ -42,7 +43,7 @@ namespace Dataflow
 	};
 }
 
-class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook
+class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook, public FGCObject
 {
 	using FBaseCharacterFXEditorToolkit::ObjectScene;
 
@@ -74,6 +75,14 @@ public:
 	/** Dataflow preview scenes accessor */
 	const TSharedPtr<FDataflowSimulationScene>& GetSimulationScene() const {return SimulationScene;}
 
+
+	// FSerializableObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override
+	{
+		return TEXT("FDataflowEditorToolkit");
+	}
+	// End of FSerializableObject interface
 protected:
 
 	UDataflowEditor* DataflowEditor = nullptr;
@@ -174,7 +183,7 @@ private:
 
 	// The currently selected set of dataflow nodes. 
 	UPROPERTY()
-	TSet<UObject*> SelectedDataflowNodes;
+	TSet< TObjectPtr<UObject> > SelectedDataflowNodes;
 
 	// The most recently selected dataflow node.
 	UPROPERTY()

@@ -290,6 +290,10 @@ public:
 	void SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowEditorContextObject);
 	void SetEditorMode(UDataflowEditorMode* InMode) { Mode = InMode; }
 
+	//~ UObject interface
+
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 public:
 
 
@@ -402,10 +406,10 @@ protected:
 	TObjectPtr<AInternalToolFrameworkActor> PreviewMeshActor = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent;
+	TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UMeshElementsVisualizer> MeshElementsDisplay;
+	TObjectPtr<UMeshElementsVisualizer> MeshElementsDisplay = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UDataflowContextObject> DataflowEditorContextObject = nullptr;
