@@ -105,12 +105,7 @@ namespace Gauntlet
 			{
 				CleanArtifactDirectory(GetInstallArtifactPath());
 			}
-			// Clean crash dumps
-			ITargetDevice ThisDevice = (ITargetDevice)this;
-			CleanArtifactDirectory(ThisDevice.CrashDumpPath);
 		}
-
-		public virtual bool CopyCrashDumps() { return false; }
 
 		public virtual void InstallBuild(UnrealAppConfig AppConfig)
 		{
