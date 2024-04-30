@@ -3253,11 +3253,14 @@ namespace UnrealGameSync
 					{
 						launchArguments.AppendFormat("\"{0}\"", SelectedFileName);
 					}
-					foreach (Tuple<string, bool> editorArgument in _settings.EditorArguments)
+
+					List<LockableEditorArgument> tempEditorArguments = GetEditorArgumentsWithDefaults();
+
+					foreach (LockableEditorArgument editorArgument in tempEditorArguments)
 					{
-						if (editorArgument.Item2)
+						if (editorArgument.Enabled)
 						{
-							launchArguments.AppendFormat(" {0}", editorArgument.Item1);
+							launchArguments.AppendFormat(" {0}", editorArgument.Name);
 						}
 					}
 					if (editorBuildConfig == BuildConfig.Debug || editorBuildConfig == BuildConfig.DebugGame)
@@ -4797,7 +4800,7 @@ namespace UnrealGameSync
 			OptionsContextMenu_EditorBuildConfiguration.Enabled = !ShouldSyncPrecompiledEditor;
 			UpdateCheckedBuildConfig();
 			OptionsContextMenu_CustomizeBuildSteps.Enabled = (_workspace != null);
-			OptionsContextMenu_EditorArguments.Checked = _settings.EditorArguments.Any(x => x.Item2);
+			OptionsContextMenu_EditorArguments.Checked = GetEditorArgumentsWithDefaults().Any(x => x.Enabled);
 			OptionsContextMenu_ScheduledSync.Checked = _settings.ScheduleEnabled;
 			OptionsContextMenu_TimeZone_Local.Checked = _settings.ShowLocalTimes;
 			OptionsContextMenu_TimeZone_PerforceServer.Checked = !_settings.ShowLocalTimes;
@@ -5269,13 +5272,85 @@ namespace UnrealGameSync
 			ModifyEditorArguments();
 		}
 
+		private List<LockableEditorArgument> GetDefaultEditorArguments()
+		{
+			List<string> defaultEditorArgumentDefinitions = new List<string>();
+			ConfigUtils.GetProjectSettings(_perforceMonitor.LatestProjectConfigFile, SelectedProjectIdentifier, "DefaultEditorArgument", defaultEditorArgumentDefinitions);
+
+			List<LockableEditorArgument> defaultEditorArguments = new List<LockableEditorArgument>(); 
+			foreach (string editorArgumentDefinition in defaultEditorArgumentDefinitions.Distinct())
+			{
+				LockableEditorArgument? editorArgument;
+				if (LockableEditorArgument.TryParseConfigEntry(editorArgumentDefinition, out editorArgument))
+				{
+					defaultEditorArguments.Add(editorArgument);
+				}
+			}
+
+			return defaultEditorArguments;
+		}
+
+		private List<LockableEditorArgument> GetEditorArgumentsWithDefaults()
+		{
+			List<LockableEditorArgument> defaultEditorArguments = GetDefaultEditorArguments();
+
+			List<LockableEditorArgument> currentEditorArguments = new List<LockableEditorArgument>();
+
+			foreach (LockableEditorArgument editorArgument in _settings.EditorArguments)
+			{
+				currentEditorArguments.Add( new LockableEditorArgument(editorArgument.Name, editorArgument.Enabled) );
+			}
+			
+			foreach (LockableEditorArgument defaultEditorArgument in defaultEditorArguments)
+			{
+				// Check to see if the user already has this default argument in their list
+				int index = currentEditorArguments.FindIndex(x => x.Name == defaultEditorArgument.Name);
+
+				if (index != -1)
+				{
+					if (defaultEditorArgument.Locked)
+					{
+						currentEditorArguments[index] = new LockableEditorArgument(defaultEditorArgument.Name, defaultEditorArgument.Enabled, /* Locked = */ true);
+					}
+				}
+				else
+				{
+					currentEditorArguments.Add(new LockableEditorArgument(defaultEditorArgument));
+				}
+			}
+
+			return currentEditorArguments;
+		}
+
 		private bool ModifyEditorArguments()
 		{
-			using ArgumentsWindow arguments = new ArgumentsWindow(_settings.EditorArguments, _settings.EditorArgumentsPrompt);
+			List<LockableEditorArgument> tempEditorArguments = GetEditorArgumentsWithDefaults();
+			List<LockableEditorArgument> defaultEditorArguments = GetDefaultEditorArguments();
+
+			using ArgumentsWindow arguments = new ArgumentsWindow(tempEditorArguments, defaultEditorArguments, _settings.EditorArgumentsPrompt);
 			if (arguments.ShowDialog(this) == DialogResult.OK)
 			{
 				_settings.EditorArguments.Clear();
-				_settings.EditorArguments.AddRange(arguments.GetItems());
+
+				// If the user hasn't changed the value of a default editor argument,
+				// we don't need to save it in the global user editor arguments.
+				foreach (LockableEditorArgument editorArgument in arguments.GetItems())
+				{
+					int index = defaultEditorArguments.FindIndex(x => x.Name == editorArgument.Name);
+
+					if (index != -1)
+					{
+						LockableEditorArgument defaultEditorArgument = defaultEditorArguments[index];
+
+						if (editorArgument.Enabled == defaultEditorArgument.Enabled)
+						{
+							continue;
+						}
+					}
+
+					_settings.EditorArguments.Add(new LockableEditorArgument(editorArgument));
+				}
+
 				_settings.EditorArgumentsPrompt = arguments.PromptBeforeLaunch;
 				_settings.Save(_logger);
 				return true;

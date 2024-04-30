@@ -51,6 +51,52 @@ namespace UnrealGameSync
 	}
 
 	/// <summary>
+	/// Config specified class to add a lockable editor argument to a project
+	/// </summary>
+	public class LockableEditorArgument
+	{
+		public string Name { get; set; } = "";
+		public bool Enabled { get; set; } = false;
+		public bool Locked { get; set; } = false;
+
+		public LockableEditorArgument( string name, bool enabled, bool locked = false )
+		{
+			Name = name;
+			Enabled = enabled;
+			Locked = locked;
+		}
+
+		public LockableEditorArgument(LockableEditorArgument lockableEditorArgument)
+		{
+			Name = lockableEditorArgument.Name;
+			Enabled = lockableEditorArgument.Enabled;
+			Locked = lockableEditorArgument.Locked;
+		}
+
+		public static bool TryParseConfigEntry(string text, [NotNullWhen(true)] out LockableEditorArgument? editorArgument)
+		{
+			ConfigObject definitionObject = new ConfigObject(text);
+
+			string editorArgumentName = definitionObject.GetValue("Name", "");
+			if (editorArgumentName.Length > 0)
+			{
+				editorArgument = new LockableEditorArgument(
+					editorArgumentName,
+					definitionObject.GetValue("Enabled", false),
+					definitionObject.GetValue("Locked", false)
+				);
+				return true;
+			}
+			else
+			{
+				editorArgument = null;
+			}
+
+			return false;
+		}
+	}
+
+	/// <summary>
 	/// Config specified class to determine what is the Latest Change to Sync
 	/// Can be configured using badges, good and starred CLs
 	/// </summary>
@@ -419,6 +465,7 @@ namespace UnrealGameSync
 		public List<ConfigObject> BuildSteps { get; init; } = new List<ConfigObject>();
 		public FilterType FilterType { get; set; }
 		public HashSet<string> FilterBadges { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		[JsonIgnore]
 		public List<string> RequiredBadges { get; init; } = new List<string>();
 
 		static readonly object _syncRoot = new object();
@@ -524,7 +571,7 @@ namespace UnrealGameSync
 		public List<UserSelectedProjectSettings> ScheduleProjects { get; init; } = new List<UserSelectedProjectSettings>();
 
 		// Run configuration
-		public List<Tuple<string, bool>> EditorArguments { get; init; } = new List<Tuple<string, bool>>();
+		public List<LockableEditorArgument> EditorArguments { get; init; } = new List<LockableEditorArgument>();
 		public bool EditorArgumentsPrompt { get; set; }
 
 		// Notification settings
@@ -703,7 +750,7 @@ namespace UnrealGameSync
 			TabLabels = _configFile.GetEnumValue("General.TabLabels", TabLabels.Stream);
 
 			// Editor arguments
-			string[] arguments = _configFile.GetValues("General.EditorArguments", new string[] { "0:-log", "0:-fastload" });
+			string[] arguments = _configFile.GetValues("General.EditorArguments", Array.Empty<string>());
 			if (Version < UserSettingsVersion.XgeShaderCompilation)
 			{
 				arguments = Enumerable.Concat(arguments, new string[] { "0:-noxgeshadercompile" }).ToArray();
@@ -712,15 +759,15 @@ namespace UnrealGameSync
 			{
 				if (argument.StartsWith("0:", StringComparison.Ordinal))
 				{
-					EditorArguments.Add(new Tuple<string, bool>(argument.Substring(2), false));
+					EditorArguments.Add(new LockableEditorArgument(argument.Substring(2), /* Enabled = */ false));
 				}
 				else if (argument.StartsWith("1:", StringComparison.Ordinal))
 				{
-					EditorArguments.Add(new Tuple<string, bool>(argument.Substring(2), true));
+					EditorArguments.Add(new LockableEditorArgument(argument.Substring(2), /* Enabled = */ true));
 				}
 				else
 				{
-					EditorArguments.Add(new Tuple<string, bool>(argument, true));
+					EditorArguments.Add(new LockableEditorArgument(argument, /* Enabled = */ true));
 				}
 			}
 			EditorArgumentsPrompt = _configFile.GetValue("General.EditorArgumentsPrompt", false);
@@ -1035,9 +1082,9 @@ namespace UnrealGameSync
 
 			// Editor arguments
 			List<string> editorArgumentList = new List<string>();
-			foreach (Tuple<string, bool> editorArgument in EditorArguments)
+			foreach (LockableEditorArgument editorArgument in  EditorArguments)
 			{
-				editorArgumentList.Add(String.Format("{0}:{1}", editorArgument.Item2 ? 1 : 0, editorArgument.Item1));
+				editorArgumentList.Add(String.Format("{0}:{1}", editorArgument.Enabled ? 1 : 0, editorArgument.Name));
 			}
 			generalSection.SetValues("EditorArguments", editorArgumentList.ToArray());
 			generalSection.SetValue("EditorArgumentsPrompt", EditorArgumentsPrompt);
