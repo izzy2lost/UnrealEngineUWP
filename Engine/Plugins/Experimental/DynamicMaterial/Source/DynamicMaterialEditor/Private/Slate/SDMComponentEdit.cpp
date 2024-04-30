@@ -30,6 +30,7 @@
 #include "IDetailTreeNode.h"
 #include "ISinglePropertyView.h"
 #include "Items/CustomDetailsViewItemId.h"
+#include "Items/ICustomDetailsViewCustomCategoryItem.h"
 #include "Items/ICustomDetailsViewCustomItem.h"
 #include "Items/ICustomDetailsViewItem.h"
 #include "Menus/DMMaterialStageSourceMenus.h"
@@ -342,6 +343,40 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			}
 		}
 
+		FName CategoryName = EditRow.CategoryOverrideName;
+
+		if (CategoryName == NAME_None && EditRow.PropertyHandle.IsValid())
+		{
+			// Sub category (possibly)
+			if (TSharedPtr<IPropertyHandle> SubCategoryProperty = EditRow.PropertyHandle->GetParentHandle())
+			{
+				if (SubCategoryProperty->IsCategoryHandle())
+				{
+					// "Material Designer" (possibly)
+					if (TSharedPtr<IPropertyHandle> MaterialDesignerCategoryProperty = SubCategoryProperty->GetParentHandle())
+					{
+						if (MaterialDesignerCategoryProperty->IsCategoryHandle())
+						{
+							CategoryName = *SubCategoryProperty->GetPropertyDisplayName().ToString();
+						}
+					}
+				}
+			}
+		}
+
+		TSharedPtr<ICustomDetailsViewItem> CategoryItem;
+
+		if (CategoryName != NAME_None)
+		{
+			CategoryItem = DetailsView->FindCustomItem(CategoryName);
+
+			if (!CategoryItem.IsValid())
+			{
+				CategoryItem = DetailsView->CreateCustomCategoryItem(CategoryName, FText::FromName(CategoryName))->AsItem();
+				DetailsView->ExtendTree(RootId, ECustomDetailsTreeInsertPosition::Child, CategoryItem.ToSharedRef());
+			}
+		}
+
 		if (bHasValidCustomWidget)
 		{
 			TSharedPtr<ICustomDetailsViewCustomItem> Item = DetailsView->CreateCustomItem(
@@ -356,7 +391,16 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			}
 
 			Item->SetValueWidget(EditRow.ValueWidget.ToSharedRef());
-			DetailsView->ExtendTree(RootId, Position, Item->AsItem());
+
+			if (CategoryItem.IsValid())
+			{
+				DetailsView->ExtendTree(CategoryItem->GetItemId(), Position, Item->AsItem());
+			}
+			else
+			{
+				DetailsView->ExtendTree(RootId, Position, Item->AsItem());
+			}
+
 			continue;
 		}
 
@@ -388,7 +432,14 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			Item->SetResetToDefaultOverride(EditRow.ResetToDefaultOverride.GetValue());
 		}
 
-		DetailsView->ExtendTree(RootId, Position, Item);
+		if (CategoryItem.IsValid())
+		{
+			DetailsView->ExtendTree(CategoryItem->GetItemId(), Position, Item);
+		}
+		else
+		{
+			DetailsView->ExtendTree(RootId, Position, Item);
+		}
 	}
 
 	DetailsView->RebuildTree(ECustomDetailsViewBuildType::InstantBuild);

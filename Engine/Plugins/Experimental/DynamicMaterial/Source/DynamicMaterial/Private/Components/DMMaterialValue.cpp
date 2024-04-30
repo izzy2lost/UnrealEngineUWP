@@ -6,6 +6,7 @@
 #include "Model/DynamicMaterialModel.h"
 #include "Materials/Material.h"
 #include "UObject/Package.h"
+#include "Utils/DMDetailsViewUtils.h"
 
 #if WITH_EDITOR
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -439,34 +440,13 @@ void UDMMaterialValue::EnsureDetailObjects()
 	FPropertyRowGeneratorArgs RowGeneratorArgs;
 	PropertyRowGenerator = PropertyEditor.CreatePropertyRowGenerator(RowGeneratorArgs);
 	PropertyRowGenerator->SetObjects({this});
- 
-	for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyRowGenerator->GetRootTreeNodes())
+
+	DetailTreeNode = FDMDetailsViewUtils::SearchNodesForProperty(PropertyRowGenerator->GetRootTreeNodes(), ValueName);
+
+	if (DetailTreeNode.IsValid())
 	{
-		if (CategoryNode->GetNodeName() != TEXT("Material Designer"))
-		{
-			continue;
-		}
- 
-		TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
-		CategoryNode->GetChildren(ChildNodes);
- 
-		for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
-		{
-			if (ChildNode->GetNodeType() != EDetailNodeType::Item)
-			{
-				continue;
-			}
- 
-			if (ChildNode->GetNodeName() != ValueName)
-			{
-				continue;
-			}
- 
-			DetailTreeNode = ChildNode;
-			PropertyHandle = ChildNode->CreatePropertyHandle();
-			return;
-		}
-	}
+		PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+	}	 
 }
 
 TSharedPtr<IDetailTreeNode> UDMMaterialValue::GetDetailTreeNode()

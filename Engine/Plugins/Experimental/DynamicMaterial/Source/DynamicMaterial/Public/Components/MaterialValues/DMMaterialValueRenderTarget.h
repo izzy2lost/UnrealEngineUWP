@@ -88,15 +88,15 @@ public:
 protected:
 	FDelegateHandle EndOfFrameDelegateHandle;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetTextureSize, BlueprintSetter = SetTextureSize, Category = "Material Designer",
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetTextureSize, BlueprintSetter = SetTextureSize, Category = "Material Designer|Render Target",
 		meta = (AllowPrivateAccess = "true"))
 	FIntPoint TextureSize;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetTextureFormat, BlueprintSetter = SetTextureFormat, Category = "Material Designer",
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetTextureFormat, BlueprintSetter = SetTextureFormat, Category = "Material Designer|Render Target",
 		meta = (AllowPrivateAccess = "true"))
 	TEnumAsByte<ETextureRenderTargetFormat> TextureFormat;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetClearColor, BlueprintSetter = SetClearColor, Category = "Material Designer",
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetClearColor, BlueprintSetter = SetClearColor, Category = "Material Designer|Render Target",
 		meta = (AllowPrivateAccess = "true"))
 	FLinearColor ClearColor;
 

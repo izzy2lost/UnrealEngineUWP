@@ -35,6 +35,7 @@
 #include "Styling/StyleColors.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Utils/DMBlueprintFunctionLibrary.h"
+#include "Utils/DMDetailsViewUtils.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -53,33 +54,7 @@ namespace UE::DynamicMaterialEditor::Private
 {
 	TSharedPtr<IDetailTreeNode> SearchGeneratorForNode(const TSharedRef<IPropertyRowGenerator>& InGenerator, FName InPropertyName)
 	{
-		for (const TSharedRef<IDetailTreeNode>& CategoryNode : InGenerator->GetRootTreeNodes())
-		{
-			if (CategoryNode->GetNodeName() != TEXT("Material Designer"))
-			{
-				continue;
-			}
-
-			TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
-			CategoryNode->GetChildren(ChildNodes);
-
-			for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
-			{
-				if (ChildNode->GetNodeType() != EDetailNodeType::Item)
-				{
-					continue;
-				}
-
-				if (ChildNode->GetNodeName() != InPropertyName)
-				{
-					continue;
-				}
-
-				return ChildNode;
-			}
-		}
-
-		return nullptr;
+		return FDMDetailsViewUtils::SearchNodesForProperty(InGenerator->GetRootTreeNodes(), InPropertyName);
 	}
 
 	TSharedPtr<IPropertyRowGenerator> SearchForGenerator(const TArray<FDMPropertyHandle>& InPropertyHandles, UObject* InObject)

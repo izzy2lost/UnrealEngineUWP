@@ -6,6 +6,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Serialization/CustomVersion.h"
+#include "Utils/DMDetailsViewUtils.h"
 
 #if WITH_EDITOR
 #include "IDetailTreeNode.h"
@@ -508,33 +509,15 @@ void UDMTextureUV::EnsureDetailObjects()
 	PropertyRowGenerator = PropertyEditor.CreatePropertyRowGenerator(RowGeneratorArgs);
 	PropertyRowGenerator->SetObjects({this});
 
-	for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyRowGenerator->GetRootTreeNodes())
+	const TArray<TSharedRef<IDetailTreeNode>>& CategoryNodes = PropertyRowGenerator->GetRootTreeNodes();
+
+	for (const TPair<FName, bool>& TextureProperty : TextureProperties)
 	{
-		if (CategoryNode->GetNodeName() != TEXT("Material Designer"))
+		if (TSharedPtr<IDetailTreeNode> DetailTreeNode = FDMDetailsViewUtils::SearchNodesForProperty(CategoryNodes, TextureProperty.Key))
 		{
-			continue;
+			DetailTreeNodes.Emplace(DetailTreeNode->GetNodeName(), DetailTreeNode);
+			PropertyHandles.Emplace(DetailTreeNode->GetNodeName(), DetailTreeNode->CreatePropertyHandle());
 		}
-
-		TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
-		CategoryNode->GetChildren(ChildNodes);
-
-		for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
-		{
-			if (ChildNode->GetNodeType() != EDetailNodeType::Item)
-			{
-				continue;
-			}
-			
-			if (TextureProperties.Contains(ChildNode->GetNodeName()) == false)
-			{
-				continue;
-			}
-
-			DetailTreeNodes.Emplace(ChildNode->GetNodeName(), ChildNode);
-			PropertyHandles.Emplace(ChildNode->GetNodeName(), ChildNode->CreatePropertyHandle());
-		}
-
-		return;
 	}
 }
 #endif

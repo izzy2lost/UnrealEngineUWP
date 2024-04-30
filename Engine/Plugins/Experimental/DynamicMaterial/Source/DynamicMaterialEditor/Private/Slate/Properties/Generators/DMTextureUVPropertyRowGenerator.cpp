@@ -126,6 +126,7 @@ void UE::DynamicMaterialEditor::Private::AddVisualizerRow(const TSharedRef<SWidg
 	VisualizerHandle.NameToolTipOverride = LOCTEXT("VisualizerToolTip", "A graphical Texture UV editor.\n\n- Offset Mode: Change the Texture UV offset.\n- Pivot Mode: Change the Texture UV pivot, rotation and scale.\n\nControl+click to reset values to default.");
 	VisualizerHandle.ValueName = FName(*InTextureUV->GetComponentPath());
 	VisualizerHandle.ValueWidget = SNew(SDMTextureUVVisualizerProperty, Stage, InTextureUV);
+	VisualizerHandle.CategoryOverrideName = TEXT("Texture UV");
 	InOutPropertyRows.Add(VisualizerHandle);
 }
 

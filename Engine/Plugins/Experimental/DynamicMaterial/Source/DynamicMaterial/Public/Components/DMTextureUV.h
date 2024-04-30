@@ -180,35 +180,35 @@ public:
 
 protected:
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetUVSource, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetUVSource, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", ToolTip = "Forces a material rebuild.", NotKeyframeable))
 	EDMUVSource UVSource = EDMUVSource::Texture;
 
 	EDMUVSource UVSource_PreUndo = UVSource;
 #endif
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetOffset, Setter = SetOffset, BlueprintSetter = SetOffset, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetOffset, Setter = SetOffset, BlueprintSetter = SetOffset, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", Delta = 0.001))
 	FVector2D Offset = FVector2D(0.f, 0.f);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetPivot, Setter = SetPivot, BlueprintSetter = SetPivot, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetPivot, Setter = SetPivot, BlueprintSetter = SetPivot, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", ToolTip="Pivot for rotation and scale.", Delta = 0.001))
 	FVector2D Pivot = FVector2D(0.5, 0.5);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetRotation, Setter = SetRotation, BlueprintSetter = SetRotation, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetRotation, Setter = SetRotation, BlueprintSetter = SetRotation, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", Delta = 1.0))
 	float Rotation = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetScale, Setter = SetScale, BlueprintSetter = SetScale, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetScale, Setter = SetScale, BlueprintSetter = SetScale, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", AllowPreserveRatio, Delta = 0.001))
 	FVector2D Scale = FVector2D(1.f, 1.f);
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetMirrorOnX, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetMirrorOnX, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", ToolTip = "Forces a material rebuild.", NotKeyframeable))
 	bool bMirrorOnX = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetMirrorOnY, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetMirrorOnY, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", ToolTip = "Forces a material rebuild.", NotKeyframeable))
 	bool bMirrorOnY = false;
 

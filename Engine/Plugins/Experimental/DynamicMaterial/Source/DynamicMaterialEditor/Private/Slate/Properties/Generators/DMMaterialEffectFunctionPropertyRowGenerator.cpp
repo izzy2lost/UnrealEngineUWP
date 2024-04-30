@@ -96,10 +96,12 @@ void FDMMaterialEffectFunctionPropertyRowGenerator::AddComponentProperties(const
 		}
 
 		const FText Description = FText::FromString(Inputs[InputIndex].ExpressionInput->Description);
+		const FName MaterialFunctionCategory = TEXT("Function Inputs");
 
 		for (FDMPropertyHandle& ValuePropertyRow : ValuePropertyRows)
 		{
 			ValuePropertyRow.NameToolTipOverride = Description;
+			ValuePropertyRow.CategoryOverrideName = MaterialFunctionCategory;
 		}
 
 		InOutPropertyRows.Append(ValuePropertyRows);

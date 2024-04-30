@@ -121,7 +121,8 @@ struct FDMPropertyHandle
 	TOptional<FText> NameToolTipOverride;
 	TOptional<FResetToDefaultOverride> ResetToDefaultOverride;
 	TSharedPtr<SWidget> ValueWidget;
-	FName ValueName;
+	FName ValueName = NAME_None;
+	FName CategoryOverrideName = NAME_None;
 };
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
