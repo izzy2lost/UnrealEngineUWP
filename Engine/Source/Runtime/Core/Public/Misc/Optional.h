@@ -228,9 +228,16 @@ public:
 	OptionalType& Emplace(ArgsType&&... Args)
 	{
 		// Destroy the member in-place before replacing it - a bit nasty, but it'll work since we don't support exceptions
-		if (IsSet())
+		if constexpr (bUsingIntrusiveUnsetState)
 		{
 			DestroyValue();
+		}
+		else
+		{
+			if (IsSet())
+			{
+				DestroyValue();
+			}
 		}
 
 		// If this fails to compile when trying to call Emplace with a non-public constructor,

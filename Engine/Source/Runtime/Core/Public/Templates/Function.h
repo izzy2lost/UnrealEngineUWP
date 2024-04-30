@@ -722,10 +722,6 @@ public:
 	explicit TFunctionRef(FIntrusiveUnsetOptionalState)
 	{
 	}
-	void operator=(FIntrusiveUnsetOptionalState)
-	{
-		Super::Reset();
-	}
 	bool operator==(FIntrusiveUnsetOptionalState) const
 	{
 		return !Super::IsSet();

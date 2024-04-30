@@ -538,11 +538,6 @@ public:
 		: Object(nullptr)
 	{
 	}
-	void operator=(FIntrusiveUnsetOptionalState)
-	{
-		Object = nullptr;
-		SharedReferenceCount = {};
-	}
 	bool operator==(FIntrusiveUnsetOptionalState) const
 	{
 		return !IsValid();
@@ -1130,11 +1125,6 @@ public:
 		: Object((ObjectType*)-1)
 	{
 	}
-	void operator=(FIntrusiveUnsetOptionalState)
-	{
-		Object = (ObjectType*)-1;
-		SharedReferenceCount = {};
-	}
 	bool operator==(FIntrusiveUnsetOptionalState) const
 	{
 		return Object == (ObjectType*)-1;
@@ -1525,11 +1515,6 @@ public:
 	explicit TWeakPtr(FIntrusiveUnsetOptionalState)
 		: Object((ObjectType*)-1)
 	{
-	}
-	void operator=(FIntrusiveUnsetOptionalState)
-	{
-		Object = (ObjectType*)-1;
-		WeakReferenceCount = SharedPointerInternals::FWeakReferencer< Mode >{};
 	}
 	bool operator==(FIntrusiveUnsetOptionalState) const
 	{

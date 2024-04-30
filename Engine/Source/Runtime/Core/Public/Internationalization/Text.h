@@ -779,11 +779,6 @@ public:
 	, Flags(0)
 	{
 	}
-	void operator=(FIntrusiveUnsetOptionalState)
-	{
-		TextData = nullptr;
-		Flags = 0;	
-	}
 	bool operator==(FIntrusiveUnsetOptionalState) const
 	{
 		return TextData == nullptr;

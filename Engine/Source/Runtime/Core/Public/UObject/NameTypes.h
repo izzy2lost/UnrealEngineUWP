@@ -58,7 +58,6 @@ struct FNameEntryId
 	FNameEntryId() : Value(0) {}
 	FNameEntryId(ENoInit) {}
 	explicit FNameEntryId(FIntrusiveUnsetOptionalState) : Value(~0u) {}
-	void operator=(FIntrusiveUnsetOptionalState) { Value = ~0u; }
 
 	bool IsNone() const
 	{
@@ -944,18 +943,14 @@ public:
 
 	/** Special constructor used by TOptional<FName> */
 	explicit FName(FIntrusiveUnsetOptionalState I)
-	: FName()
-	{
-		ComparisonIndex = I;
-#if WITH_CASE_PRESERVING_NAME
-		DisplayIndex = I;
+		: ComparisonIndex(I)
+#if !UE_FNAME_OUTLINE_NUMBER
+		, Number(NAME_NO_NUMBER_INTERNAL)
 #endif
-	}
-
-	/** Special assignment operator used by TOptional<FName> */
-	inline void operator=(FIntrusiveUnsetOptionalState I)
+#if WITH_CASE_PRESERVING_NAME
+		, DisplayIndex(I)
+#endif
 	{
-		*this = FName(I);
 	}
 
 	FORCEINLINE explicit FName(FMinimalName InName);
