@@ -196,7 +196,7 @@ namespace Gauntlet
 				catch (Exception Ex)
 				{
 					// Ignore errors
-					Log.Warning(KnownLogEvents.Gauntlet_BuildDropEvent, "Fail to parse PlistInfo':\r{Exception}", Ex);
+					Log.Warning(KnownLogEvents.Gauntlet_BuildDropEvent, "Fail to parse PlistInfo:\n{Exception}", Ex);
 					Document = new XDocument();
 				}
 			}
