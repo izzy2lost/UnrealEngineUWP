@@ -578,7 +578,7 @@ TexPtr Device_FX::AllocateRenderTarget(const BufferDescriptor& Desc)
 
 	SCOPE_CYCLE_COUNTER(STAT_Device_FX_AllocateRendertarget)
 
-		RTList* List = nullptr;
+	RTList* List = nullptr;
 	HashType Hash = Desc.FormatHashValue();
 
 	{
@@ -686,10 +686,10 @@ int32 Device_FX::InitRTResource(TexPtr TextureObj, UTextureRenderTarget* RT)
 	UE_LOG(LogDevice, VeryVerbose, TEXT("New RT Array allocation: %s %llu [Ptr: 0x%x, Size: %dx%d]"), *TextureObj->GetDescriptor().Name,
 		TextureObj->GetDescriptor().Format_HashValue(), RT, RTRes->GetSizeX(), RTRes->GetSizeY());
 
-	FTextureRHIRef rhiTexture = RTRes->GetTextureRHI();
-	check(rhiTexture);
+	FTextureRHIRef RHITexture = RTRes->GetTextureRHI();
+	check(RHITexture);
 
-	RHIBindDebugLabelName(rhiTexture, *TextureObj->GetDescriptor().Name);
+	RHIBindDebugLabelName(RHITexture, *TextureObj->GetDescriptor().Name);
 
 	return 0;
 }
