@@ -217,6 +217,7 @@ TSharedRef<SWidget> SBasePropertyOverrideWidget::CreateRowWidget(FBasePropertyOv
 		[
 			SNew(STextBlock)
 			.Text(FText::FromName(RowData->ParameterName))
+			.HighlightText(RowData->HighlightText)
 		]
 	+ SHorizontalBox::Slot()
 		.Padding(2, 0, 0, 0)
@@ -241,6 +242,7 @@ TSharedRef<SWidget> SStaticSwitchParameterWidget::CreateRowWidget(FStaticSwitchP
 		[
 			SNew(STextBlock)
 			.Text(FText::FromName(RowData->ParameterName))
+			.HighlightText(RowData->HighlightText)
 		]
 	+ SHorizontalBox::Slot()
 		.Padding(2, 0, 0, 0)
@@ -267,6 +269,7 @@ TSharedRef<SWidget> SStaticComponentMaskParameterWidget::CreateRowWidget(FStatic
 		[
 			SNew(STextBlock)
 			.Text(FText::FromName(RowData->ParameterName))
+			.HighlightText(RowData->HighlightText)
 		]
 		+ SHorizontalBox::Slot()
 		.HAlign(HAlign_Right)
@@ -356,6 +359,7 @@ TSharedRef<SWidget> SStaticMaterialLayerParameterWidget::CreateRowWidget(FStatic
 		[
 			SNew(STextBlock)
 			.Text(FText::FromName(RowData->ParameterName))
+			.HighlightText(RowData->HighlightText)
 		]
 	+ SHorizontalBox::Slot()
 		.Padding(2, 0, 0, 0)

@@ -7,11 +7,12 @@
 struct FBasePropertyOverrideNode
 {
 public:
-	FBasePropertyOverrideNode(FName InParameterName, FName InParameterID, float InParameterValue, bool bInOverride) :
+	FBasePropertyOverrideNode(FName InParameterName, FName InParameterID, float InParameterValue, bool bInOverride, const FText& InHighlightText = FText::GetEmpty()) :
 		ParameterName(InParameterName),
 		ParameterID(InParameterID),
 		ParameterValue(InParameterValue),
-		bOverride(bInOverride)
+		bOverride(bInOverride),
+		HighlightText(InHighlightText)
 	{
 
 	}
@@ -19,6 +20,7 @@ public:
 	FName ParameterID;
 	float ParameterValue;
 	bool bOverride;
+	FText HighlightText;
 
 	TArray<TSharedRef<FBasePropertyOverrideNode>>* Children;
 };
@@ -26,31 +28,35 @@ public:
 struct FStaticMaterialLayerParameterNode
 {
 public:
-	FStaticMaterialLayerParameterNode(FName InParameterName, FString InParameterValue, bool bInOverride):
+	FStaticMaterialLayerParameterNode(FName InParameterName, FString InParameterValue, bool bInOverride, const FText& InHighlightText = FText::GetEmpty()):
 		ParameterName(InParameterName),
 		ParameterValue(InParameterValue),
-		bOverride(bInOverride)
+		bOverride(bInOverride),
+		HighlightText(InHighlightText)
 	{
 
 	}
 	FName ParameterName;
 	FString ParameterValue;
 	bool bOverride;
+	FText HighlightText;
 };
 
 struct FStaticSwitchParameterNode
 {
 public:
-	FStaticSwitchParameterNode(FName InParameterName, bool InParameterValue, bool bInOverride) :
+	FStaticSwitchParameterNode(FName InParameterName, bool InParameterValue, bool bInOverride, const FText& InHighlightText = FText::GetEmpty()) :
 		ParameterName(InParameterName),
 		ParameterValue(InParameterValue),
-		bOverride(bInOverride)
+		bOverride(bInOverride),
+		HighlightText(InHighlightText)
 	{
 
 	}
 	FName ParameterName;
 	bool ParameterValue;
 	bool bOverride;
+	FText HighlightText;
 
 	TArray<TSharedRef<FStaticSwitchParameterNode>>* Children;
 };
@@ -58,13 +64,14 @@ public:
 struct FStaticComponentMaskParameterNode
 {
 public:
-	FStaticComponentMaskParameterNode(FName InParameterName, bool InR, bool InG, bool InB, bool InA, bool bInOverride) :
+	FStaticComponentMaskParameterNode(FName InParameterName, bool InR, bool InG, bool InB, bool InA, bool bInOverride, const FText& InHighlightText = FText::GetEmpty()) :
 		ParameterName(InParameterName),
 		R(InR),
 		G(InG),
 		B(InB),
 		A(InA),
-		bOverride(bInOverride)
+		bOverride(bInOverride),
+		HighlightText(InHighlightText)
 	{
 
 	}
@@ -74,6 +81,7 @@ public:
 	bool B;
 	bool A;
 	bool bOverride;
+	FText HighlightText;
 };
 
 typedef TSharedRef<FBasePropertyOverrideNode, ESPMode::ThreadSafe> FBasePropertyOverrideNodeRef;
@@ -113,18 +121,18 @@ public:
 		return &ChildNodes;
 	}
 
-	int ActualNumberOfChildren() const
+	int32 ActualNumberOfChildren() const
 	{
 		return ChildNodes.Num();
 	}
 
-	int TotalNumberOfChildren() const
+	int32 TotalNumberOfChildren() const
 	{
 		int32 TotalChildren = 0;
 
-		for(int i = 0; i < ChildNodes.Num(); ++i)
+		for(const FAnalyzedMaterialNodeRef& ChildNode : ChildNodes)
 		{
-			TotalChildren += ChildNodes[i]->TotalNumberOfChildren();
+			TotalChildren += ChildNode->TotalNumberOfChildren();
 		}
 
 		return TotalChildren + ChildNodes.Num();
@@ -156,6 +164,53 @@ public:
 		FStaticComponentMaskParameterNodeRef* StaticComponentMaskParameter = StaticComponentMaskParameters.FindByPredicate([&](const FStaticComponentMaskParameterNodeRef& Entry) { return Entry->ParameterName == ParameterName; });
 		check(StaticComponentMaskParameter != nullptr);
 		return *StaticComponentMaskParameter;
+	}
+
+	bool HasAnyFilteredParameters(const FString& ParameterFilter) const
+	{
+		// Check if this material node has any filtered parameters
+		const bool bHasAnyFilteredBaseProperties = BasePropertyOverrides.FindByPredicate(
+			[&](const FBasePropertyOverrideNodeRef& Entry) -> bool
+			{
+				// Only overridden parameters are displayed, so ignore any inherited parameters for this search
+				return Entry->bOverride && Entry->ParameterName.ToString().Contains(ParameterFilter);
+			}) != nullptr;
+		if (bHasAnyFilteredBaseProperties)
+		{
+			return true;
+		}
+
+		const bool bHasAnyFilteredStaticSwitchParameters = StaticSwitchParameters.FindByPredicate(
+			[&](const FStaticSwitchParameterNodeRef& Entry) -> bool
+			{
+				// Only overridden parameters are displayed, so ignore any inherited parameters for this search
+				return Entry->bOverride && Entry->ParameterName.ToString().Contains(ParameterFilter);
+			}) != nullptr;
+		if (bHasAnyFilteredStaticSwitchParameters)
+		{
+			return true;
+		}
+
+		const bool bHasAnyFilteredStaticComponentMaskParameters = StaticComponentMaskParameters.FindByPredicate(
+			[&](const FStaticComponentMaskParameterNodeRef& Entry) -> bool
+			{
+				// Only overridden parameters are displayed, so ignore any inherited parameters for this search
+				return Entry->bOverride && Entry->ParameterName.ToString().Contains(ParameterFilter);
+			}) != nullptr;
+		if (bHasAnyFilteredStaticComponentMaskParameters)
+		{
+			return true;
+		}
+
+		// Now check child nodes recursively
+		for (const FAnalyzedMaterialNodeRef& Child : ChildNodes)
+		{
+			if (Child->HasAnyFilteredParameters(ParameterFilter))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	FString Path;

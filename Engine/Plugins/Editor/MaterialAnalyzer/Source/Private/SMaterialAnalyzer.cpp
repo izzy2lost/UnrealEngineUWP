@@ -17,6 +17,7 @@
 #include "Widgets/Input/SEditableText.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/STreeView.h"
+#include "Styling/StyleColors.h"
 
 #define LOCTEXT_NAMESPACE "MaterialAnalyzer"
 
@@ -26,7 +27,6 @@ SMaterialAnalyzer::SMaterialAnalyzer()
 	: BuildBaseMaterialTreeTask(nullptr)
 	, AnalyzeTreeTask(nullptr)
 	, AnalyzeForIdenticalPermutationsTask(nullptr)
-	, bRequestedTreeRefresh(false)
 	, bWaitingForAssetRegistryLoad(false)
 {
 	BasePropertyOverrideNames.Empty();
@@ -122,6 +122,14 @@ void SMaterialAnalyzer::Construct(const FArguments& InArgs, const TSharedRef<SDo
 				.FillWidth(0.5f)
 				[
 					AssetPickerWidget
+				]
+				+ SHorizontalBox::Slot()
+				.FillWidth(0.5f)
+				[
+					SNew(SEditableText)
+					.HintText(LOCTEXT("MaterialParametersToFilterHint", "Parameters to Filter"))
+					.ColorAndOpacity(FSlateColor::UseForeground())
+					.OnTextCommitted(this, &SMaterialAnalyzer::OnParameterFilterChanged)
 				]
 				+SHorizontalBox::Slot()
 				.FillWidth(0.5f)
@@ -238,12 +246,36 @@ void SMaterialAnalyzer::OnAssetAdded(const FAssetData& InAssetData)
 
 void SMaterialAnalyzer::OnAssetSelected(const FAssetData& AssetData)
 {
-	if(AnalyzeTreeTask == nullptr)
+	if (AnalyzeTreeTask == nullptr)
 	{
 		CurrentlySelectedAsset = AssetData;
+		UpdateViewForSelectedAsset();
+	}
+}
 
-		const FAssetData* ParentAssetData = &AssetData;
-		const FAssetData* NextParentAssetData = FindParentAssetData(&AssetData, AssetDataArray);
+void SMaterialAnalyzer::OnParameterFilterChanged(const FText& Filter, const ETextCommit::Type InTextAction)
+{
+	if (AnalyzeTreeTask == nullptr)
+	{
+		ParameterFilter = Filter;
+		bHasParameterFilterChanged = true;
+
+		// Parameter filter is applied in two steps:
+		// 1. Re-build analyzed material tree in order to highlight the filtered parameters (FBuildBasicMaterialTreeAsyncTask)
+		// 2. Apply filter to UI elements by re-analyzing material tree (FAnalyzeMaterialTreeAsyncTask)
+		if (CurrentlySelectedAsset.IsValid())
+		{
+			RecentlyAddedAssetData.Add(CurrentlySelectedAsset);
+		}
+	}
+}
+
+void SMaterialAnalyzer::UpdateViewForSelectedAsset()
+{
+	if (CurrentlySelectedAsset.IsValid())
+	{
+		const FAssetData* ParentAssetData = &CurrentlySelectedAsset;
+		const FAssetData* NextParentAssetData = FindParentAssetData(&CurrentlySelectedAsset, AssetDataArray);
 		// get the topmost parent
 		while (NextParentAssetData != nullptr)
 		{
@@ -266,7 +298,7 @@ void SMaterialAnalyzer::OnAssetSelected(const FAssetData& AssetData)
 
 		SuggestionsBox->ClearChildren();
 
-		AnalyzeTreeTask = new FAsyncTask<FAnalyzeMaterialTreeAsyncTask>(*NewRoot, AssetDataArray);
+		AnalyzeTreeTask = new FAsyncTask<FAnalyzeMaterialTreeAsyncTask>(*NewRoot, AssetDataArray, ParameterFilter);
 
 		StartAsyncWork(FText::Format(LOCTEXT("AnalyzingMaterial", "Analyzing {0}"), FText::FromString(AnalyzeTreeTask->GetTask().CurrentMaterialNode->Path)));
 		AnalyzeTreeTask->StartBackgroundTask();
@@ -295,6 +327,17 @@ void SMaterialAnalyzer::Tick(const FGeometry& AllottedGeometry, const double InC
 			BuildBaseMaterialTreeTask = nullptr;
 			AsyncWorkFinished(FText::Format(FTextFormat(LOCTEXT("DoneWithMaterialInterfaces", "Done with {0} MaterialInterfaces")), GetTotalNumberOfMaterialNodes()));
 
+			// If the parameter filter has changed, we also have to run analysis async task again,
+			// which applies the actual parameter filter to UI elements in the tree view pane.
+			if (bHasParameterFilterChanged)
+			{
+				UpdateViewForSelectedAsset();
+				bHasParameterFilterChanged = false;
+			}
+			else
+			{
+				MaterialTree->RequestTreeRefresh();
+			}
 		}
 
 		if (BuildBaseMaterialTreeTask == nullptr && RecentlyAddedAssetData.Num() > 0)
@@ -429,7 +472,7 @@ TSharedRef< ITableRow > SMaterialAnalyzer::OnGenerateSuggestionRow(TSharedPtr<FP
 							[
 								SNew(SImage)
 								.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
-								.ColorAndOpacity(FSlateColor::UseForeground())
+								.ColorAndOpacity(FSlateColor(EStyleColor::Black))
 							]
 							+SHorizontalBox::Slot()
 							.AutoWidth()
@@ -437,6 +480,7 @@ TSharedRef< ITableRow > SMaterialAnalyzer::OnGenerateSuggestionRow(TSharedPtr<FP
 							[
 								SNew(STextBlock)
 								.Text(LOCTEXT("CreateLocalCollection", "Create Local Collection"))
+								.ColorAndOpacity(FSlateColor(EStyleColor::Black))
 							]
 						]
 					]
@@ -509,6 +553,8 @@ FReply SMaterialAnalyzer::CreateLocalSuggestionCollection(TSharedPtr<FPermutatio
 
 void SMaterialAnalyzer::StartAsyncWork(const FText& WorkText)
 {
+	bIsAsyncWorkInProgress = true;
+
 	if(StatusBox.IsValid())
 	{
 		StatusBox->SetText(WorkText);
@@ -519,8 +565,6 @@ void SMaterialAnalyzer::StartAsyncWork(const FText& WorkText)
 		StatusThrobber->SetAnimate(SThrobber::Horizontal);
 		StatusThrobber->SetVisibility(EVisibility::SelfHitTestInvisible);
 	}
-
-	bAllowMaterialSelection = false;
 }
 
 void SMaterialAnalyzer::AsyncWorkFinished(const FText& CompleteText)
@@ -536,7 +580,7 @@ void SMaterialAnalyzer::AsyncWorkFinished(const FText& CompleteText)
 		StatusThrobber->SetVisibility(EVisibility::Collapsed);
 	}
 
-	bAllowMaterialSelection = true;
+	bIsAsyncWorkInProgress = false;
 }
 
 int32 SMaterialAnalyzer::GetTotalNumberOfMaterialNodes()
@@ -597,7 +641,21 @@ TSharedRef<ITableRow> SMaterialAnalyzer::HandleReflectorTreeGenerateRow(FAnalyze
 
 void SMaterialAnalyzer::HandleReflectorTreeGetChildren(FAnalyzedMaterialNodeRef InMaterialNode, TArray<FAnalyzedMaterialNodeRef>& OutChildren)
 {
-	OutChildren = InMaterialNode->GetChildNodes();
+	if (ParameterFilter.IsEmpty())
+	{
+		OutChildren = InMaterialNode->GetChildNodes();
+	}
+	else
+	{
+		OutChildren.Empty(InMaterialNode->GetChildNodes().Num());
+		for (const FAnalyzedMaterialNodeRef& ChildNode : InMaterialNode->GetChildNodes())
+		{
+			if (ChildNode->HasAnyFilteredParameters(ParameterFilter.ToString()))
+			{
+				OutChildren.Add(ChildNode);
+			}
+		}
+	}
 }
 
 void SMaterialAnalyzer::HandleReflectorTreeRecursiveExpansion(FAnalyzedMaterialNodeRef InTreeNode, bool bIsItemExpanded)
@@ -711,10 +769,21 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 	
 	CurrentMaterialNode->BasePropertyOverrides.Empty(BasePropertyOverrideNames.Num());
 
+	const FString ParameterFilterString = this->ParameterFilter.ToString();
+	auto IsIncludedInParameterFilter = [&ParameterFilterString](const FName& Name) -> bool
+		{
+			return ParameterFilterString.IsEmpty() || Name.ToString().Contains(ParameterFilterString);
+		};
+
 	for (const TPair<FName, FName>& BasePropertyOverrideName : BasePropertyOverrideNames)
 	{
 		float TempValue = 0.0f;
 		bool bIsOverridden = false;
+
+		if (!IsIncludedInParameterFilter(BasePropertyOverrideName.Value))
+		{
+			continue;
+		}
 
 		if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_OpacityMaskClipValue")))
 		{
@@ -849,12 +918,13 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 				new FBasePropertyOverrideNode(ParentParameter->ParameterName,
 					ParentParameter->ParameterID,
 					ParentParameter->ParameterValue,
-					false)));	
+					false,
+					this->ParameterFilter)));	
 		}
 		else
 		{
 			CurrentMaterialNode->BasePropertyOverrides.Add(FBasePropertyOverrideNodeRef(
-				new FBasePropertyOverrideNode(BasePropertyOverrideName.Value, BasePropertyOverrideName.Key, TempValue, bIsOverridden)));
+				new FBasePropertyOverrideNode(BasePropertyOverrideName.Value, BasePropertyOverrideName.Key, TempValue, bIsOverridden, this->ParameterFilter)));
 		}
 	}
 
@@ -872,11 +942,12 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 		CurrentMaterialNode->MaterialLayerParameters.Add(FStaticMaterialLayerParameterNodeRef(
 			new FStaticMaterialLayerParameterNode(FName(),
 				MaterialLayers.GetStaticPermutationString(),
-				bIsOverridden)));
+				bIsOverridden,
+				this->ParameterFilter)));
 	}
 	
 	CurrentMaterialNode->StaticSwitchParameters.Empty(StaticSwitchParameterInfo.Num());
-	
+
 	for (int ParameterIndex = 0; ParameterIndex < StaticSwitchParameterInfo.Num(); ++ParameterIndex)
 	{
 		FMaterialParameterMetadata Meta;
@@ -888,6 +959,11 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 		else if(CurrentMaterial)
 		{
 			bIsOverridden = CurrentMaterial->GetParameterValue(EMaterialParameterType::StaticSwitch, StaticSwitchParameterInfo[ParameterIndex], Meta);
+		}
+
+		if (!IsIncludedInParameterFilter(StaticSwitchParameterInfo[ParameterIndex].Name))
+		{
+			continue;
 		}
 
 		if (!bIsOverridden)
@@ -902,12 +978,13 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 			CurrentMaterialNode->StaticSwitchParameters.Add(FStaticSwitchParameterNodeRef(
 				new FStaticSwitchParameterNode(ParentParameter->ParameterName,
 					ParentParameter->ParameterValue,
-					false)));
+					false,
+					this->ParameterFilter)));
 		}
 		else
 		{
 			CurrentMaterialNode->StaticSwitchParameters.Add(FStaticSwitchParameterNodeRef(
-				new FStaticSwitchParameterNode(StaticSwitchParameterInfo[ParameterIndex].Name, Meta.Value.AsStaticSwitch(), true)));
+				new FStaticSwitchParameterNode(StaticSwitchParameterInfo[ParameterIndex].Name, Meta.Value.AsStaticSwitch(), true, this->ParameterFilter)));
 		}
 	}
 	
@@ -915,6 +992,11 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 	
 	for (int ParameterIndex = 0; ParameterIndex < StaticMaskParameterInfo.Num(); ++ParameterIndex)
 	{
+		if (!IsIncludedInParameterFilter(StaticMaskParameterInfo[ParameterIndex].Name))
+		{
+			continue;
+		}
+
 		FMaterialParameterMetadata Meta;
 		bool bIsOverridden = false;
 		if (CurrentMaterialInstance)
@@ -941,7 +1023,8 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 					ParentParameter->G,
 					ParentParameter->B,
 					ParentParameter->A,
-					false)));
+					false,
+					this->ParameterFilter)));
 		}
 		else
 		{
@@ -951,7 +1034,8 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 					Meta.Value.Bool[1],
 					Meta.Value.Bool[2],
 					Meta.Value.Bool[3],
-					true)));
+					true,
+					this->ParameterFilter)));
 		}
 	}
 
