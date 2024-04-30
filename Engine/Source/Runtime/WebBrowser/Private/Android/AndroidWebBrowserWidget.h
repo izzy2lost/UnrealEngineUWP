@@ -35,6 +35,7 @@ class SAndroidWebBrowserWidget : public SViewport
 		SLATE_ARGUMENT(FString, InitialURL);
 		SLATE_ARGUMENT(bool, UseTransparency);
 		SLATE_ARGUMENT(TSharedPtr<FAndroidWebBrowserWindow>, WebBrowserWindow);
+		SLATE_ARGUMENT(FString, UserAgentApplication);
 
 	SLATE_END_ARGS()
 

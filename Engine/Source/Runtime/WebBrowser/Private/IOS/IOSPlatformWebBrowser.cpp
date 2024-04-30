@@ -26,6 +26,7 @@ class SIOSWebBrowserWidget : public SLeafWidget
 	SLATE_ARGUMENT(FString, InitialURL);
 	SLATE_ARGUMENT(bool, UseTransparency);
 	SLATE_ARGUMENT(TSharedPtr<FWebBrowserWindow>, WebBrowserWindow);
+	SLATE_ARGUMENT(FString, UserAgentApplication);
 
 	SLATE_END_ARGS()
 
@@ -44,7 +45,7 @@ class SIOSWebBrowserWidget : public SLeafWidget
 		check(bSupportsMetal);
 
 		WebViewWrapper = [IOSWebViewWrapper alloc];
-		[WebViewWrapper create : TSharedPtr<SIOSWebBrowserWidget>(this) useTransparency : Args._UseTransparency supportsMetal : bSupportsMetal supportsMetalMRT : bSupportsMetalMRT];
+		[WebViewWrapper create : TSharedPtr<SIOSWebBrowserWidget>(this) userAgentApplication : Args._UserAgentApplication.GetNSString() useTransparency : Args._UseTransparency supportsMetal : bSupportsMetal supportsMetalMRT : bSupportsMetalMRT];
 
 		WebBrowserWindowPtr = Args._WebBrowserWindow;
 		IsIOS3DBrowser = false;
@@ -454,7 +455,7 @@ private:
 @synthesize NextURL;
 @synthesize NextContent;
 
--(void)create:(TSharedPtr<SIOSWebBrowserWidget>)InWebBrowserWidget useTransparency : (bool)InUseTransparency
+-(void)create:(TSharedPtr<SIOSWebBrowserWidget>)InWebBrowserWidget userAgentApplication: (NSString*)UserAgentApplication useTransparency : (bool)InUseTransparency
 supportsMetal : (bool)InSupportsMetal supportsMetalMRT : (bool)InSupportsMetalMRT;
 {
 	WebBrowserWidget = InWebBrowserWidget;
@@ -476,6 +477,7 @@ supportsMetal : (bool)InSupportsMetal supportsMetalMRT : (bool)InSupportsMetalMR
 
 		WKWebViewConfiguration *theConfiguration = [[WKWebViewConfiguration alloc] init];
 		NSString* MessageHandlerName = [NSString stringWithFString : FMobileJSScripting::JSMessageHandler];
+		theConfiguration.applicationNameForUserAgent = UserAgentApplication;
 		[theConfiguration.userContentController addScriptMessageHandler:self name: MessageHandlerName];
 
 		WebView = [[WKWebView alloc]initWithFrame:CGRectMake(1, 1, 100, 100)  configuration : theConfiguration];
@@ -844,8 +846,9 @@ namespace {
 
 }
 
-FWebBrowserWindow::FWebBrowserWindow(FString InUrl, TOptional<FString> InContentsToLoad, bool InShowErrorMessage, bool InThumbMouseButtonNavigation, bool InUseTransparency, bool bInJSBindingToLoweringEnabled)
+FWebBrowserWindow::FWebBrowserWindow(FString InUrl, TOptional<FString> InContentsToLoad, bool InShowErrorMessage, bool InThumbMouseButtonNavigation, bool InUseTransparency, bool bInJSBindingToLoweringEnabled, FString InUserAgentApplication)
 	: CurrentUrl(MoveTemp(InUrl))
+	, UserAgentApplication(MoveTemp(InUserAgentApplication))
 	, ContentsToLoad(MoveTemp(InContentsToLoad))
 	, bUseTransparency(InUseTransparency)
 	, DocumentState(EWebBrowserDocumentState::NoDocument)
@@ -879,6 +882,7 @@ TSharedRef<SWidget> FWebBrowserWindow::CreateWidget()
 		SNew(SIOSWebBrowserWidget)
 		.UseTransparency(bUseTransparency)
 		.InitialURL(CurrentUrl)
+		.UserAgentApplication(UserAgentApplication)
 		.WebBrowserWindow(SharedThis(this));
 
 	BrowserWidget = BrowserWidgetRef;

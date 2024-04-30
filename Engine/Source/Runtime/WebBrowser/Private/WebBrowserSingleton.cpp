@@ -225,6 +225,9 @@ FWebBrowserSingleton::FWebBrowserSingleton(const FWebBrowserInitSettings& WebBro
 	: WebBrowserWindowFactory(MakeShareable(new FWebBrowserWindowFactory()))
 #else
 	: WebBrowserWindowFactory(MakeShareable(new FNoWebBrowserWindowFactory()))
+#if PLATFORM_IOS || (PLATFORM_ANDROID && USE_ANDROID_JNI)
+	, UserAgentApplication(WebBrowserInitSettings.ProductVersion)
+#endif
 #endif
 	, bDevToolsShortcutEnabled(UE_BUILD_DEBUG)
 	, bJSBindingsToLoweringEnabled(true)
@@ -292,7 +295,8 @@ FWebBrowserSingleton::FWebBrowserSingleton(const FWebBrowserInitSettings& WebBro
 		CefString(&Settings.locale) = TCHAR_TO_WCHAR(*LocaleCode);
 
 		// Append engine version to the user agent string.
-		CefString(&Settings.user_agent_product) = TCHAR_TO_WCHAR(*WebBrowserInitSettings.ProductVersion);
+		FString UserAgentApplication = FString::Printf(TEXT("%s Chrome/%d.%d.%d.%d"), *WebBrowserInitSettings.ProductVersion, CHROME_VERSION_MAJOR, CHROME_VERSION_MINOR, CHROME_VERSION_BUILD, CHROME_VERSION_PATCH);
+		CefString(&Settings.user_agent_product) = TCHAR_TO_WCHAR(*UserAgentApplication);
 
 #if CEF3_DEFAULT_CACHE
 		// Enable on disk cache
@@ -622,7 +626,8 @@ TSharedPtr<IWebBrowserWindow> FWebBrowserSingleton::CreateBrowserWindow(const FC
 		WindowSettings.bShowErrorMessage,
 		WindowSettings.bThumbMouseButtonNavigation,
 		WindowSettings.bUseTransparency,
-		bJSBindingsToLoweringEnabled));
+		bJSBindingsToLoweringEnabled,
+		UserAgentApplication));
 
 	{
 		FScopeLock Lock(&WindowInterfacesCS);
@@ -637,7 +642,8 @@ TSharedPtr<IWebBrowserWindow> FWebBrowserSingleton::CreateBrowserWindow(const FC
 		WindowSettings.bShowErrorMessage, 
 		WindowSettings.bThumbMouseButtonNavigation, 
 		WindowSettings.bUseTransparency,
-		bJSBindingsToLoweringEnabled));
+		bJSBindingsToLoweringEnabled,
+		UserAgentApplication));
 
 	{
 		FScopeLock Lock(&WindowInterfacesCS);

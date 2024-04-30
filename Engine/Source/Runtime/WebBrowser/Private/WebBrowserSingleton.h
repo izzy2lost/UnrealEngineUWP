@@ -171,7 +171,7 @@ private:
 
 	/** List of currently existing browser windows */
 #if WITH_CEF3
-	TArray<TWeakPtr<FCEFWebBrowserWindow>>	WindowInterfaces;
+	TArray<TWeakPtr<FCEFWebBrowserWindow>> WindowInterfaces;
 #elif PLATFORM_IOS || PLATFORM_SPECIFIC_WEB_BROWSER || (PLATFORM_ANDROID && USE_ANDROID_JNI)
 	TArray<TWeakPtr<IWebBrowserWindow>>	WindowInterfaces;
 #endif
@@ -180,6 +180,10 @@ private:
 	FCriticalSection WindowInterfacesCS;
 
 	TSharedRef<IWebBrowserWindowFactory> WebBrowserWindowFactory;
+
+#if !WITH_CEF3 && (PLATFORM_IOS || (PLATFORM_ANDROID && USE_ANDROID_JNI))
+	FString UserAgentApplication;
+#endif
 
 	bool bDevToolsShortcutEnabled;
 
