@@ -715,10 +715,13 @@ void UVCamBlueprintFunctionLibrary::SetPlaybackSpeed(float Value)
 
 bool UVCamBlueprintFunctionLibrary::IsAssetDirty(const FAssetData& AssetData)
 {
-	UPackage* Package = AssetData.GetPackage();
-	if (Package && Package->IsDirty())
+	if (AssetData.IsAssetLoaded())
 	{
-		return true;
+		UPackage* Package = AssetData.GetPackage();
+		if (Package && Package->IsDirty())
+		{
+			return true;
+		}
 	}
 	return false;
 }
