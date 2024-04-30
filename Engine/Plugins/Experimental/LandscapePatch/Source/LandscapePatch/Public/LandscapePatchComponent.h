@@ -67,7 +67,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LandscapePatch")
 	virtual ALandscapePatchManager* GetPatchManager() const;
 
-	void ApplyComponentInstanceData(struct FLandscapePatchComponentInstanceData* ComponentInstanceData);
+	void ApplyComponentInstanceData(struct FLandscapePatchComponentInstanceData* ComponentInstanceData, ECacheApplyPhase CacheApplyPhase);
 
 	// For now we keep the patches largely editor-only, since we don't yet support runtime landscape editing.
 	// The above functions are also editor-only (and don't work at runtime), but can't be in WITH_EDITOR blocks
@@ -181,7 +181,7 @@ struct FLandscapePatchComponentInstanceData : public FSceneComponentInstanceData
 	virtual void ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase) override
 	{
 		Super::ApplyToComponent(Component, CacheApplyPhase);
-		CastChecked<ULandscapePatchComponent>(Component)->ApplyComponentInstanceData(this);
+		CastChecked<ULandscapePatchComponent>(Component)->ApplyComponentInstanceData(this, CacheApplyPhase);
 	}
 
 #if WITH_EDITORONLY_DATA

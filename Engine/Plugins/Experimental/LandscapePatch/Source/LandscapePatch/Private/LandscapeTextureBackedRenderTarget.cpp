@@ -19,6 +19,7 @@ namespace LandscapeTextureBackedRenderTargetLocals
 	UTexture2D* CreateTexture(UObject* Parent)
 	{
 		UTexture2D* Texture = Parent ? NewObject<UTexture2D>(Parent) : NewObject<UTexture2D>();
+		Texture->SetFlags(RF_Transactional);
 		Texture->SRGB = false;
 		Texture->MipGenSettings = TMGS_NoMipmaps;
 		Texture->AddressX = TA_Clamp;
@@ -51,16 +52,24 @@ void ULandscapeTextureBackedRenderTargetBase::PostLoad()
 {
 	Super::PostLoad();
 
+	SetFlags(RF_Transactional);
+	if (IsValid(InternalTexture))
+	{
+		InternalTexture->SetFlags(RF_Transactional);
+	}
+
 	if (!bUseInternalTextureOnly && IsValid(InternalTexture))
 	{
 		InternalTexture->ConditionalPostLoad();
 
-		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-		RenderTarget->InitAutoFormat(SizeX, SizeY);
-		RenderTarget->UpdateResourceImmediate(false);
+		ReinitializeRenderTarget();
 
 		CopyBackFromInternalTexture();
+	}
+
+	if (IsValid(RenderTarget))
+	{
+		RenderTarget->SetFlags(RF_Transactional);
 	}
 }
 
@@ -93,10 +102,7 @@ void ULandscapeTextureBackedRenderTargetBase::PostEditImport()
 
 	if (!bUseInternalTextureOnly && IsValid(InternalTexture))
 	{
-		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-		RenderTarget->InitAutoFormat(SizeX, SizeY);
-		RenderTarget->UpdateResourceImmediate(false);
+		ReinitializeRenderTarget();
 
 		CopyBackFromInternalTexture();
 	}
@@ -130,10 +136,7 @@ void ULandscapeTextureBackedRenderTargetBase::SetUseInternalTextureOnly(bool bUs
 
 		if (IsValid(InternalTexture)) // if initialized
 		{
-			RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-			RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-			RenderTarget->InitAutoFormat(SizeX, SizeY);
-			RenderTarget->UpdateResourceImmediate(false);
+			ReinitializeRenderTarget();
 
 			if (bCopyExisting)
 			{
@@ -189,14 +192,7 @@ void ULandscapeTextureBackedRenderTargetBase::Initialize()
 	}
 	else
 	{
-		if (!IsValid(RenderTarget))
-		{
-			RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-		}
-
-		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-		RenderTarget->InitAutoFormat(SizeX, SizeY);
-		RenderTarget->UpdateResourceImmediate();
+		ReinitializeRenderTarget();
 	}
 #endif // WITH_EDITOR
 }
@@ -312,6 +308,7 @@ void ULandscapeWeightTextureBackedRenderTarget::CopyBackFromInternalTexture()
 	{
 		Modify();
 		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
+		RenderTarget->SetFlags(RF_Transactional);
 		bCreatedNewRenderTarget = true;
 	}
 
@@ -464,6 +461,7 @@ void ULandscapeHeightTextureBackedRenderTarget::CopyBackFromInternalTexture()
 	{
 		Modify();
 		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
+		RenderTarget->SetFlags(RF_Transactional);
 		bCreatedNewRenderTarget = true;
 	}
 
@@ -524,4 +522,21 @@ bool ULandscapeTextureBackedRenderTargetBase::IsCopyingBackAndForthAllowed()
 		// scripts. However if we do have a world, it should be the normal editor one.
 		&& (!World || (IsValid(World) && World->WorldType == EWorldType::Editor))
 		&& FApp::CanEverRender();
+}
+
+void ULandscapeTextureBackedRenderTargetBase::ReinitializeRenderTarget()
+{
+	if (!IsValid(RenderTarget))
+	{
+		Modify();
+		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
+		RenderTarget->SetFlags(RF_Transactional);
+	}
+	else
+	{
+		RenderTarget->Modify();
+	}
+	RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
+	RenderTarget->InitAutoFormat(SizeX, SizeY);
+	RenderTarget->UpdateResourceImmediate(false);
 }

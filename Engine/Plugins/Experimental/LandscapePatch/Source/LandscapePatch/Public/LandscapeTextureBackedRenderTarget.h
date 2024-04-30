@@ -60,6 +60,8 @@ protected:
 	virtual ETextureSourceFormat GetInternalTextureFormat() PURE_VIRTUAL(ULandscapeTextureBackedRenderTargetBase::GetInternalTextureFormat, return ETextureSourceFormat::TSF_G8;);
 	virtual ETextureRenderTargetFormat GetRenderTargetFormat() PURE_VIRTUAL(ULandscapeTextureBackedRenderTargetBase::GetRenderTargetFormat, return ETextureRenderTargetFormat::RTF_R8;);
 
+	void ReinitializeRenderTarget();
+
 	UPROPERTY(VisibleAnywhere, Category = InternalData)
 	TObjectPtr<UTexture2D> InternalTexture = nullptr;
 

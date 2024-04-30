@@ -2,6 +2,7 @@
 
 #include "LandscapeTexturePatch.h"
 
+#include "Engine/World.h"
 #include "Landscape.h"
 #include "LandscapeDataAccess.h"
 #include "LandscapeLayerInfoObject.h" // VisibilityLayer->LayerName
@@ -113,6 +114,11 @@ UTextureRenderTarget2D* ULandscapeTexturePatch::RenderLayer_Native(const FLandsc
 
 		for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatchEntry : WeightPatches)
 		{
+			if (!IsValid(WeightPatchEntry))
+			{
+				continue;
+			}
+
 			if ((bIsWeightmapTarget && (WeightPatchEntry->WeightmapLayerName == InParameters.WeightmapLayerName)) ||
 				(bIsVisibilityLayerTarget && WeightPatchEntry->bEditVisibilityLayer))
 			{
@@ -247,10 +253,10 @@ UTextureRenderTarget2D* ULandscapeTexturePatch::ApplyToWeightmap(ULandscapeWeigh
 	case ELandscapeTexturePatchSourceMode::None:
 		return InCombinedResult;
 	case ELandscapeTexturePatchSourceMode::InternalTexture:
-		PatchUObject = PatchInfo->InternalData->GetInternalTexture();
+		PatchUObject = PatchInfo->InternalData ? PatchInfo->InternalData->GetInternalTexture() : nullptr;
 		break;
 	case ELandscapeTexturePatchSourceMode::TextureBackedRenderTarget:
-		PatchUObject = PatchInfo->InternalData->GetRenderTarget();
+		PatchUObject = PatchInfo->InternalData ? PatchInfo->InternalData->GetRenderTarget() : nullptr;
 		break;
 	case ELandscapeTexturePatchSourceMode::TextureAsset:
 		if (IsValid(PatchInfo->TextureAsset) && !ensureMsgf(PatchInfo->TextureAsset->VirtualTextureStreaming == 0,
@@ -513,6 +519,7 @@ FLandscapeHeightPatchConvertToNativeParams ULandscapeTexturePatch::GetHeightConv
 
 #endif // WITH_EDITOR
 
+
 void ULandscapeTexturePatch::ReinitializeHeight()
 {
 #if WITH_EDITOR
@@ -584,7 +591,7 @@ void ULandscapeTexturePatch::ReinitializeWeights()
 			}
 
 			TArray<TObjectPtr<ULandscapeWeightPatchTextureInfo>> FoundPatches = WeightPatches.FilterByPredicate(
-				[&WeightmapLayerName](const TObjectPtr<ULandscapeWeightPatchTextureInfo>& PatchInfo) { return PatchInfo->WeightmapLayerName == WeightmapLayerName; });
+				[&WeightmapLayerName](const TObjectPtr<ULandscapeWeightPatchTextureInfo>& PatchInfo) { return PatchInfo && PatchInfo->WeightmapLayerName == WeightmapLayerName; });
 
 			if (FoundPatches.IsEmpty())
 			{
@@ -837,7 +844,7 @@ bool ULandscapeTexturePatch::AffectsWeightmapLayer(const FName& InLayerName) con
 
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InLayerName)
 		{
 			return true;
 		}
@@ -852,7 +859,10 @@ bool ULandscapeTexturePatch::AffectsVisibilityLayer() const
 		return false;
 	}
 
-	return Algo::AnyOf(WeightPatches, [](const TObjectPtr<ULandscapeWeightPatchTextureInfo>& InWeightPatch) { return InWeightPatch->bEditVisibilityLayer; });
+	return Algo::AnyOf(WeightPatches, [](const TObjectPtr<ULandscapeWeightPatchTextureInfo>& InWeightPatch) 
+	{ 
+		return IsValid(InWeightPatch) && InWeightPatch->bEditVisibilityLayer; 
+	});
 }
 
 // We override IsEnabled to make the patch not request updates when all the source modes are "none"
@@ -869,6 +879,10 @@ bool ULandscapeTexturePatch::IsEnabled() const
 	}
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
+		if (!IsValid(WeightPatch))
+		{
+			continue;
+		}
 		if (WeightPatch->SourceMode != ELandscapeTexturePatchSourceMode::None || WeightPatch->bReinitializeOnNextRender)
 		{
 			return true;
@@ -876,6 +890,36 @@ bool ULandscapeTexturePatch::IsEnabled() const
 	}
 	// If we got to here, we are enabled, but all of the contained data had a source mode of "None"
 	return false;
+}
+
+void ULandscapeTexturePatch::MakeSureInternalDataIsAllocated()
+{
+	if (!ensure(!IsTemplate()))
+	{
+		return;
+	}
+
+	// If we're instancing a blueprint actor, then it might be missing the needed internal data if the source mode
+	// was set to internal texture or render target, because we can't reliably create those in the archetype.
+	// So, we initialize that data if it's missing but needed when instancing.
+	if (!HeightInternalData && (HeightSourceMode == ELandscapeTexturePatchSourceMode::InternalTexture
+		|| HeightSourceMode == ELandscapeTexturePatchSourceMode::TextureBackedRenderTarget))
+	{
+		TransitionHeightSourceModeInternal(ELandscapeTexturePatchSourceMode::None, HeightSourceMode);
+	}
+
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
+	{
+		if (!IsValid(WeightPatch))
+		{
+			continue;
+		}
+		if (!WeightPatch->InternalData && (WeightPatch->SourceMode == ELandscapeTexturePatchSourceMode::InternalTexture
+			|| WeightPatch->SourceMode == ELandscapeTexturePatchSourceMode::TextureBackedRenderTarget))
+		{
+			WeightPatch->TransitionSourceModeInternal(ELandscapeTexturePatchSourceMode::None, WeightPatch->SourceMode);
+		}
+	}
 }
 #endif // WITH_EDITOR
 
@@ -1008,7 +1052,7 @@ void ULandscapeTexturePatch::SetResolution(FVector2D ResolutionIn)
 	ResizePatch(HeightSourceMode, HeightInternalData);
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (ensure(IsValid(WeightPatch)))
+		if (IsValid(WeightPatch))
 		{
 			ResizePatch(WeightPatch->SourceMode, WeightPatch->InternalData);
 		}
@@ -1088,19 +1132,16 @@ void ULandscapeTexturePatch::PostEditChangeProperty(FPropertyChangedEvent& Prope
 		}
 		else if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(ULandscapeTexturePatch, WeightPatches))
 		{
-			if (NumWeightPatches != WeightPatches.Num())
+			// In certain cases, changes to the internals of a weight info object trigger a PostEditChangeProperty
+			//  on the patch instead of the info object. For instance this happens when editing the objects in the
+			//  blueprint editor and propagating the change to an instance (something that frequently does not work
+			//  due to propagation being unreliable for this array, see comment on WeightPatches).
+			for (TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 			{
-				// User must have added/removed a weight patch, so make sure that all the owner pointers are set
-				for (TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
+				if (IsValid(WeightPatch))
 				{
-					if (!IsValid(WeightPatch))
-					{
-						// The entries that users add start out as null
-						WeightPatch = NewObject<ULandscapeWeightPatchTextureInfo>(this);
-					}
-					WeightPatch->OwningPatch = this;
+					WeightPatch->SetSourceMode(WeightPatch->DetailPanelSourceMode);
 				}
-				NumWeightPatches = WeightPatches.Num();
 			}
 		}
 		else if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(FLandscapeTexturePatchEncodingSettings, ZeroInEncoding)
@@ -1147,7 +1188,6 @@ void ULandscapeWeightPatchTextureInfo::PreDuplicate(FObjectDuplicationParameters
 void ULandscapeWeightPatchTextureInfo::SetSourceMode(ELandscapeTexturePatchSourceMode NewMode)
 {
 #if WITH_EDITOR
-	using namespace LandscapeTexturePatchLocals;
 
 	if (SourceMode == NewMode)
 	{
@@ -1155,8 +1195,29 @@ void ULandscapeWeightPatchTextureInfo::SetSourceMode(ELandscapeTexturePatchSourc
 	}
 	Modify();
 
+	if (!IsTemplate())
+	{
+		TransitionSourceModeInternal(SourceMode, NewMode);
+	}
+	// In a template, it is not safe to try to allocate a texture, etc. All we do is clear out the
+	// texture asset pointer if it is not needed, to avoid referencing assets unnecessarily.
+	else if (SourceMode != ELandscapeTexturePatchSourceMode::TextureAsset)
+	{
+		TextureAsset = nullptr;
+	}
+
+	SourceMode = NewMode;
+	DetailPanelSourceMode = NewMode;
+#endif // WITH_EDITOR
+}
+
+#if WITH_EDITOR
+void ULandscapeWeightPatchTextureInfo::TransitionSourceModeInternal(ELandscapeTexturePatchSourceMode OldMode, ELandscapeTexturePatchSourceMode NewMode)
+{
+	using namespace LandscapeTexturePatchLocals;
+
 	FVector2D Resolution(1, 1);
-	if (OwningPatch.IsValid())
+	if (ULandscapeTexturePatch* OwningPatch = Cast<ULandscapeTexturePatch>(GetOuter()))
 	{
 		Resolution = OwningPatch->GetResolution();
 	}
@@ -1164,14 +1225,12 @@ void ULandscapeWeightPatchTextureInfo::SetSourceMode(ELandscapeTexturePatchSourc
 	TransitionSourceMode<ULandscapeWeightTextureBackedRenderTarget>(SourceMode, NewMode, TextureAsset, InternalData, [&Resolution, this]()
 	{
 		ULandscapeWeightTextureBackedRenderTarget* InternalDataToReturn = NewObject<ULandscapeWeightTextureBackedRenderTarget>(this);
+		InternalDataToReturn->SetFlags(RF_Transactional);
 		InternalDataToReturn->SetResolution(Resolution.X, Resolution.Y);
 		return InternalDataToReturn;
 	});
-
-	SourceMode = NewMode;
-	DetailPanelSourceMode = NewMode;
-#endif // WITH_EDITOR
 }
+#endif
 
 void ULandscapeTexturePatch::SetHeightSourceMode(ELandscapeTexturePatchSourceMode NewMode)
 {
@@ -1184,20 +1243,39 @@ void ULandscapeTexturePatch::SetHeightSourceMode(ELandscapeTexturePatchSourceMod
 	}
 	Modify();
 
+	if (!IsTemplate())
+	{
+		TransitionHeightSourceModeInternal(HeightSourceMode, NewMode);
+	}
+	// In a template, it is not safe to try to allocate a texture, etc. All we do is clear out the
+	// texture asset pointer if it is not needed, to avoid referencing assets unnecessarily.
+	else if (HeightSourceMode != ELandscapeTexturePatchSourceMode::TextureAsset)
+	{
+		HeightTextureAsset = nullptr;
+	}
+
+	HeightSourceMode = NewMode;
+	DetailPanelHeightSourceMode = NewMode;
+#endif // WITH_EDITOR
+}
+
+#if WITH_EDITOR
+void ULandscapeTexturePatch::TransitionHeightSourceModeInternal(ELandscapeTexturePatchSourceMode OldMode, ELandscapeTexturePatchSourceMode NewMode)
+{
+	using namespace LandscapeTexturePatchLocals;
+
 	TransitionSourceMode<ULandscapeHeightTextureBackedRenderTarget>(HeightSourceMode, NewMode, HeightTextureAsset, HeightInternalData, [this]()
 	{
 		ULandscapeHeightTextureBackedRenderTarget* InternalDataToReturn = NewObject<ULandscapeHeightTextureBackedRenderTarget>(this);
+		InternalDataToReturn->SetFlags(RF_Transactional);
 		InternalDataToReturn->SetResolution(ResolutionX, ResolutionY);
 		InternalDataToReturn->SetFormat(HeightRenderTargetFormat);
 		InternalDataToReturn->ConversionParams = GetHeightConvertToNativeParams();
 
 		return InternalDataToReturn;
 	});
-
-	HeightSourceMode = NewMode;
-	DetailPanelHeightSourceMode = NewMode;
-#endif // WITH_EDITOR
 }
+#endif
 
 void ULandscapeTexturePatch::SetHeightTextureAsset(UTexture* TextureIn)
 {
@@ -1292,6 +1370,11 @@ void ULandscapeTexturePatch::AddWeightPatch(const FName& WeightmapLayerName, ELa
 	// Try to modify an existing entry instead if possible
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
+		if (!IsValid(WeightPatch))
+		{
+			continue;
+		}
+
 		if (WeightPatch->WeightmapLayerName == WeightmapLayerName)
 		{
 			if (WeightPatch->SourceMode != SourceMode)
@@ -1306,46 +1389,55 @@ void ULandscapeTexturePatch::AddWeightPatch(const FName& WeightmapLayerName, ELa
 		}
 	}
 
-	ULandscapeWeightPatchTextureInfo* NewWeightPatch = NewObject<ULandscapeWeightPatchTextureInfo>(this);
+	// The object creation is modeled after SPropertyEditorEditInline::OnClassPicked, which is how these are created
+	// from the detail panel. We probably don't need the archetype check, admittedly, but might as well keep it.
+	EObjectFlags NewObjectFlags = GetMaskedFlags(RF_PropagateToSubObjects);
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		NewObjectFlags |= RF_ArchetypeObject;
+	}
+	ULandscapeWeightPatchTextureInfo* NewWeightPatch = NewObject<ULandscapeWeightPatchTextureInfo>(this, NAME_None, NewObjectFlags);
+
 	NewWeightPatch->WeightmapLayerName = WeightmapLayerName;
 	NewWeightPatch->SourceMode = SourceMode;
 	NewWeightPatch->DetailPanelSourceMode = SourceMode;
 	NewWeightPatch->bUseAlphaChannel = bUseAlphaChannel;
-	NewWeightPatch->OwningPatch = this;
 
 	if (NewWeightPatch->SourceMode == ELandscapeTexturePatchSourceMode::InternalTexture
 		|| NewWeightPatch->SourceMode == ELandscapeTexturePatchSourceMode::TextureBackedRenderTarget)
 	{
 		NewWeightPatch->InternalData = NewObject<ULandscapeWeightTextureBackedRenderTarget>(NewWeightPatch);
+		NewWeightPatch->InternalData->SetFlags(RF_Transactional);
 		NewWeightPatch->InternalData->SetResolution(ResolutionX, ResolutionY);
 		NewWeightPatch->InternalData->SetUseAlphaChannel(bUseAlphaChannel);
 		NewWeightPatch->InternalData->Initialize();
 	}
 
 	WeightPatches.Add(NewWeightPatch);
-	++NumWeightPatches;
 #endif // WITH_EDITOR
 }
 
 void ULandscapeTexturePatch::RemoveWeightPatch(const FName& InWeightmapLayerName)
 {
-	NumWeightPatches -= WeightPatches.RemoveAll([InWeightmapLayerName](const TObjectPtr<ULandscapeWeightPatchTextureInfo>& PatchInfo)
+	WeightPatches.RemoveAll([InWeightmapLayerName](const TObjectPtr<ULandscapeWeightPatchTextureInfo>& PatchInfo)
 	{ 
-		return PatchInfo->WeightmapLayerName == InWeightmapLayerName; 
+		return PatchInfo && PatchInfo->WeightmapLayerName == InWeightmapLayerName; 
 	});
 }
 
 void ULandscapeTexturePatch::RemoveAllWeightPatches()
 {
 	WeightPatches.Reset();
-	NumWeightPatches = 0;
 }
 
 void ULandscapeTexturePatch::DisableAllWeightPatches()
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		WeightPatch->SetSourceMode(ELandscapeTexturePatchSourceMode::None);
+		if (IsValid(WeightPatch))
+		{
+			WeightPatch->SetSourceMode(ELandscapeTexturePatchSourceMode::None);
+		}
 	}
 }
 
@@ -1354,7 +1446,7 @@ TArray<FName> ULandscapeTexturePatch::GetAllWeightPatchLayerNames()
 	TArray<FName> Names;
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName != NAME_None)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName != NAME_None)
 		{
 			Names.AddUnique(WeightPatch->WeightmapLayerName);
 		}
@@ -1367,7 +1459,7 @@ void ULandscapeTexturePatch::SetUseAlphaChannelForWeightPatch(const FName& InWei
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			WeightPatch->bUseAlphaChannel = bUseAlphaChannel;
 			if (WeightPatch->InternalData)
@@ -1388,12 +1480,9 @@ void ULandscapeTexturePatch::SetWeightPatchSourceMode(const FName& InWeightmapLa
 
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
-			if (WeightPatch->SourceMode != NewMode)
-			{
-				WeightPatch->SetSourceMode(NewMode);
-			}
+			WeightPatch->SetSourceMode(NewMode);
 			return;
 		}
 	}
@@ -1406,7 +1495,7 @@ ELandscapeTexturePatchSourceMode ULandscapeTexturePatch::GetWeightPatchSourceMod
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			return WeightPatch->SourceMode;
 		}
@@ -1418,7 +1507,7 @@ UTextureRenderTarget2D* ULandscapeTexturePatch::GetWeightPatchRenderTarget(const
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			return WeightPatch->InternalData ? WeightPatch->InternalData->GetRenderTarget() : nullptr;
 		}
@@ -1430,7 +1519,7 @@ UTexture2D* ULandscapeTexturePatch::GetWeightPatchInternalTexture(const FName& I
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			return WeightPatch->InternalData ? WeightPatch->InternalData->GetInternalTexture() : nullptr;
 		}
@@ -1448,7 +1537,7 @@ void ULandscapeTexturePatch::SetWeightPatchTextureAsset(const FName& InWeightmap
 
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			WeightPatch->TextureAsset = TextureIn;
 			return;
@@ -1463,7 +1552,7 @@ void ULandscapeTexturePatch::SetWeightPatchBlendModeOverride(const FName& InWeig
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			WeightPatch->OverrideBlendMode = BlendModeIn;
 			WeightPatch->bOverrideBlendMode = true;
@@ -1476,7 +1565,7 @@ void ULandscapeTexturePatch::ClearWeightPatchBlendModeOverride(const FName& InWe
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			WeightPatch->bOverrideBlendMode = false;
 			return;
@@ -1488,9 +1577,123 @@ void ULandscapeTexturePatch::SetEditVisibilityLayer(const FName& InWeightmapLaye
 {
 	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
 	{
-		if (WeightPatch->WeightmapLayerName == InWeightmapLayerName)
+		if (IsValid(WeightPatch) && WeightPatch->WeightmapLayerName == InWeightmapLayerName)
 		{
 			WeightPatch->bEditVisibilityLayer = bEditVisibilityLayer;
 		}
 	}
+}
+
+#if WITH_EDITOR
+TStructOnScope<FActorComponentInstanceData> ULandscapeTexturePatch::GetComponentInstanceData() const
+{
+	return MakeStructOnScope<FActorComponentInstanceData, FLandscapeTexturePatchInstanceData>(this);
+}
+#endif
+
+FLandscapeTexturePatchInstanceData::FLandscapeTexturePatchInstanceData(const ULandscapeTexturePatch* Patch)
+	: FLandscapePatchComponentInstanceData(Patch)
+{
+#if WITH_EDITOR
+
+	if (!ensure(Patch))
+	{
+		return;
+	}
+
+	HeightInternalData = Patch->HeightInternalData;
+	if (HeightInternalData.IsValid())
+	{
+		// Disconnect owner so that the object doesn't get destroyed
+		HeightInternalData->Rename(nullptr, GetTransientPackage());
+	}
+
+	for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : Patch->WeightPatches)
+	{
+		if (!IsValid(WeightPatch))
+		{
+			continue;
+		}
+
+		WeightPatchInternalData.Add(WeightPatch->InternalData);
+		
+		if (IsValid(WeightPatch->InternalData))
+		{
+			// Disconnect owner so that the object doesn't get destroyed
+			WeightPatch->InternalData->Rename(nullptr, GetTransientPackage());
+		}
+	}
+#endif
+}
+
+// Called before/after rerunning construction scripts
+void ULandscapeTexturePatch::ApplyComponentInstanceData(FLandscapeTexturePatchInstanceData* ComponentInstanceData, ECacheApplyPhase CacheApplyPhase)
+{
+#if WITH_EDITOR
+
+	if (CacheApplyPhase == ECacheApplyPhase::PostUserConstructionScript)
+	{
+		// Avoid stomping user construction script changes.
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!ComponentInstanceData 
+		// TODO: Replace with !IsPatchInWorld() once that CL is in
+		|| IsTemplate() || !IsValid(this) || !IsValid(World) || World->WorldType != EWorldType::Editor)
+	{
+		return;
+	}
+
+	if (ComponentInstanceData->HeightInternalData.IsValid() 
+		&& (HeightSourceMode == ELandscapeTexturePatchSourceMode::InternalTexture
+			|| HeightSourceMode == ELandscapeTexturePatchSourceMode::TextureBackedRenderTarget))
+	{
+		HeightInternalData = ComponentInstanceData->HeightInternalData.Get();
+
+		// Attach to the new object
+		HeightInternalData->Rename(nullptr, this);
+	}
+	
+	for (int32 i = 0; i < ComponentInstanceData->WeightPatchInternalData.Num(); ++i)
+	{
+		if (i >= WeightPatches.Num() || !IsValid(WeightPatches[i]) || !ComponentInstanceData->WeightPatchInternalData[i].IsValid())
+		{
+			continue;
+		}
+
+		if (WeightPatches[i]->SourceMode == ELandscapeTexturePatchSourceMode::InternalTexture
+			|| WeightPatches[i]->SourceMode == ELandscapeTexturePatchSourceMode::TextureBackedRenderTarget)
+		{
+			WeightPatches[i]->InternalData = ComponentInstanceData->WeightPatchInternalData[i].Get();
+
+			// Attach to the new object
+			WeightPatches[i]->InternalData->Rename(nullptr, WeightPatches[i]);
+		}
+	}
+
+	// Note: For the below, one might think that we should override PostApplyToComponent, but that is actually
+	//  unreliable because it is called from FActorComponentInstanceData::ApplyToComponent, and gets skipped
+	//  if that subclass didn't happen to serialize some properties itself. Also, if it does get called, it is
+	//  not at the end because the Super call gets done earlier (not just by us, but by intermediate subclasses).
+
+	// If we didn't carry over internal data, we need to make sure at this point that it exists, because
+	//  we cannot create it in the template
+	MakeSureInternalDataIsAllocated();
+
+	// Make sure the blueprint-set resolution and format is applied
+	if (HeightInternalData)
+	{
+		HeightInternalData->SetResolution(ResolutionX, ResolutionY);
+		HeightInternalData->SetFormat(HeightRenderTargetFormat);
+	}
+	for (TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
+	{
+		if (IsValid(WeightPatch) && WeightPatch->InternalData)
+		{
+			WeightPatch->InternalData->SetResolution(ResolutionX, ResolutionY);
+		}
+	}
+	
+#endif // WITH_EDITOR
 }

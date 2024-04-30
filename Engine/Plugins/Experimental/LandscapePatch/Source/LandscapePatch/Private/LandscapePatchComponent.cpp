@@ -472,11 +472,18 @@ FLandscapePatchComponentInstanceData::FLandscapePatchComponentInstanceData(const
 #endif
 }
 
-// Called after rerunning construction scripts (when patch is part of a blueprint) to carry over extra data.
-void ULandscapePatchComponent::ApplyComponentInstanceData(FLandscapePatchComponentInstanceData* ComponentInstanceData)
+// Called before/after rerunning construction scripts (when patch is part of a blueprint) to carry over extra data.
+void ULandscapePatchComponent::ApplyComponentInstanceData(FLandscapePatchComponentInstanceData* ComponentInstanceData, 
+	ECacheApplyPhase CacheApplyPhase)
 {
 #if WITH_EDITOR
 	using namespace LandscapePatchComponentLocals;
+
+	if (CacheApplyPhase == ECacheApplyPhase::PostUserConstructionScript)
+	{
+		// Avoid stomping user construction script changes.
+		return;
+	}
 
 	if (!ComponentInstanceData || !IsRealPatch())
 	{
