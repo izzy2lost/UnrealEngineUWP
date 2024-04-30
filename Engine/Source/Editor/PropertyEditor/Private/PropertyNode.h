@@ -128,7 +128,7 @@ public:
 	}
 	void Add(const UObject* Object, uint8* Address, bool bIsStruct = false)
 	{
-		ReadAddresses.Emplace(FAddressPair(Object, Address, bIsStruct));
+		ReadAddresses.Add(FAddressPair(Object, Address, bIsStruct));
 	}
 
 	int32 Num() const
@@ -362,8 +362,6 @@ private:
  */
 class FPropertyNode : public TSharedFromThis<FPropertyNode>
 {
-protected:
-	typedef TArray<FAddressPair, TInlineAllocator<1>> FUncachedPropertyNodeAddresses;
 public:
 
 	FPropertyNode();
@@ -1120,17 +1118,6 @@ public:
 	}
 
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange ) const;
-
-	/**
-	 * Returns addresses of given property node
-	 * If the property node is a struct indirection, will not dereference the indirection to the struct.  This behaviour
-	 * differs from the GetReadAddressUncached function.
-	 * This function is intended to only be called internally.
-	 * @param InPropertyNode 
-	 * @param OutAddresses 
-	 * @return 
-	 */
-	virtual bool InternalGetReadAddressUncached(const FPropertyNode& InPropertyNode, FUncachedPropertyNodeAddresses& OutAddresses) const;
 	
 protected:
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange, const TSet<UObject*>& InAffectedArchetypeInstances ) const;

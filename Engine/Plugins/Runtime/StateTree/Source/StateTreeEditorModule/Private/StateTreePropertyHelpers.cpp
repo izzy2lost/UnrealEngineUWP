@@ -45,8 +45,8 @@ void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& InPrope
 		{
 			if (StructProperty->Struct == FInstancedStruct::StaticStruct())
 			{
-				FInstancedStruct* InstancedStruct = FInstancedStruct::CastFromVoid(CurrentAddress);
-				CurrentAddress = InstancedStruct ? InstancedStruct->GetMutableMemory() : nullptr;
+				FInstancedStruct& InstancedStruct = *reinterpret_cast<FInstancedStruct*>(CurrentAddress);
+				CurrentAddress = InstancedStruct.GetMutableMemory();
 			}
 			else if (StructProperty->Struct == FStateTreeEditorNode::StaticStruct())
 			{

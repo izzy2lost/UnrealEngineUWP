@@ -870,12 +870,12 @@ uint8* FStateTreePropertyBindings::GetAddress(FStateTreeDataView InStructView, c
 		case EStateTreePropertyAccessType::StructInstance:
 		{
 			check(Indirection->InstanceStruct);
-			FInstancedStruct* InstancedStruct = FInstancedStruct::CastFromVoid(Address + Indirection->Offset);
-			const UScriptStruct* InstanceType = InstancedStruct ? InstancedStruct->GetScriptStruct() : nullptr; 
+			FInstancedStruct& InstancedStruct = *reinterpret_cast<FInstancedStruct*>(Address + Indirection->Offset);
+			const UScriptStruct* InstanceType = InstancedStruct.GetScriptStruct(); 
 			if (InstanceType != nullptr
 				&& InstanceType->IsChildOf(Indirection->InstanceStruct))
 			{
-				Address = InstancedStruct->GetMutableMemory();
+				Address = InstancedStruct.GetMutableMemory();
 			}
 			else
 			{
