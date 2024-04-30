@@ -385,7 +385,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 		bool bOutputIsMSAA = Output.Texture->Desc.NumSamples > 1;
 		if (DepthOutput.IsValid())
 		{
-			PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(DepthOutput.Texture, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthWrite);
+			PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(DepthOutput.Texture, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite);
 			verify(Output.Texture->Desc.NumSamples == DepthOutput.Texture->Desc.NumSamples);
 		}
 

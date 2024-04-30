@@ -334,6 +334,7 @@ void RenderMeshEdges(FSceneViewFamily& ViewFamily)
 		WireframeShowFlags.SetPostProcessing(false);
 		WireframeShowFlags.SetCompositeEditorPrimitives(false);
 		WireframeShowFlags.SetGrid(false);
+		WireframeShowFlags.SetShaderPrint(false);
 		//WireframeShowFlags.SetScreenPercentage(false);
 		//WireframeShowFlags.SetTranslucency(false);
 	}
