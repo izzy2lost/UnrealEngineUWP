@@ -76,16 +76,6 @@ namespace EpicGames.Horde.Agents
 	public record GetAgentLeaseResponse(LeaseId Id, LeaseId? ParentId, AgentId? AgentId, double? AgentRate, string Name, LogId? LogId, DateTime StartTime, DateTime? FinishTime, bool Executing, Dictionary<string, string>? Details, LeaseOutcome? Outcome, LeaseState? State);
 
 	/// <summary>
-	/// Information about an agent session
-	/// </summary>
-	/// <param name="Id"> Unique id for this session </param>
-	/// <param name="StartTime"> Start time for this session </param>
-	/// <param name="FinishTime"> Finishing time for this session </param>
-	/// <param name="Properties"> Properties of this agent </param>
-	/// <param name="Version"> Version of the software running during this session </param>
-	public record GetAgentSessionResponse(SessionId Id, DateTime StartTime, DateTime? FinishTime, List<string>? Properties, string? Version);
-
-	/// <summary>
 	/// Information about a workspace synced on an agent
 	/// </summary>
 	/// <param name="Cluster"> The Perforce server and port to connect to </param>

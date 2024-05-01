@@ -312,7 +312,7 @@ namespace Horde.Server.Agents
 		/// <returns>Sessions </returns>
 		[HttpGet]
 		[Route("/api/v1/agents/{agentId}/sessions")]
-		public async Task<ActionResult<List<GetAgentSessionResponse>>> FindSessionsAsync(AgentId agentId, [FromQuery] DateTimeOffset? startTime, [FromQuery] DateTimeOffset? finishTime, [FromQuery] int index = 0, [FromQuery] int count = 50)
+		public async Task<ActionResult<List<GetSessionResponse>>> FindSessionsAsync(AgentId agentId, [FromQuery] DateTimeOffset? startTime, [FromQuery] DateTimeOffset? finishTime, [FromQuery] int index = 0, [FromQuery] int count = 50)
 		{
 			if (!_globalConfig.Value.Authorize(SessionAclAction.ViewSession, User))
 			{
@@ -326,12 +326,12 @@ namespace Horde.Server.Agents
 			}
 
 			List<ISession> sessions = await _agentService.FindSessionsAsync(agentId, startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count);
-			return sessions.ConvertAll(x => CreateGetAgentSessionResponse(x));
+			return sessions.ConvertAll(x => CreateGetSessionResponse(x));
 		}
 
-		static GetAgentSessionResponse CreateGetAgentSessionResponse(ISession session)
+		static GetSessionResponse CreateGetSessionResponse(ISession session)
 		{
-			return new GetAgentSessionResponse(session.Id, session.StartTime, session.FinishTime, (session.Properties != null) ? new List<string>(session.Properties) : null, session.Version);
+			return new GetSessionResponse(session.Id, session.StartTime, session.FinishTime, new List<string>(session.Properties), new Dictionary<string, int>(session.Resources), session.Version);
 		}
 
 		/// <summary>
@@ -342,7 +342,7 @@ namespace Horde.Server.Agents
 		/// <returns>Sessions </returns>
 		[HttpGet]
 		[Route("/api/v1/agents/{agentId}/sessions/{sessionId}")]
-		public async Task<ActionResult<GetAgentSessionResponse>> GetSessionAsync(AgentId agentId, SessionId sessionId)
+		public async Task<ActionResult<GetSessionResponse>> GetSessionAsync(AgentId agentId, SessionId sessionId)
 		{
 			if (!_globalConfig.Value.Authorize(SessionAclAction.ViewSession, User))
 			{
@@ -361,7 +361,7 @@ namespace Horde.Server.Agents
 				return NotFound();
 			}
 
-			return CreateGetAgentSessionResponse(session);
+			return CreateGetSessionResponse(session);
 		}
 
 		/// <summary>

@@ -32,11 +32,12 @@ namespace Horde.Server.Agents.Sessions
 
 			public DateTime StartTime { get; set; }
 			public DateTime? FinishTime { get; set; }
-			public List<string>? Properties { get; set; }
-			public Dictionary<string, int>? Resources { get; set; }
-			public string? Version { get; set; }
+			public List<string> Properties { get; set; } = new List<string>();
+			public Dictionary<string, int> Resources { get; set; } = new Dictionary<string, int>();
+			public string Version { get; set; } = String.Empty;
 
-			IReadOnlyList<string>? ISession.Properties => Properties;
+			IReadOnlyList<string> ISession.Properties => Properties;
+			IReadOnlyDictionary<string, int> ISession.Resources => Resources;
 
 			[BsonConstructor]
 			private SessionDocument()
@@ -56,7 +57,10 @@ namespace Horde.Server.Agents.Sessions
 				{
 					Resources = new Dictionary<string, int>(resources);
 				}
-				Version = version;
+				if (version != null)
+				{
+					Version = version;
+				}
 			}
 		}
 
