@@ -196,25 +196,7 @@ public:
         }
     }
 #endif
-
-	////////////////////////////////////////////////////////
-	// Start - intrusive TOptional<UE_STRING_CLASS> state //
-	////////////////////////////////////////////////////////
-	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
-	using IntrusiveUnsetOptionalStateType = UE_STRING_CLASS;
-
-	explicit UE_STRING_CLASS(FIntrusiveUnsetOptionalState Tag)
-		: Data(Tag)
-	{
-	}
-	bool operator==(FIntrusiveUnsetOptionalState Tag) const
-	{
-		return Data == Tag;
-	}
-	//////////////////////////////////////////////////////
-	// End - intrusive TOptional<UE_STRING_CLASS> state //
-	//////////////////////////////////////////////////////
-
+    
 #if defined(__OBJC__) && UE_STRING_CHARTYPE_IS_TCHAR
 	/** Convert Objective-C NSString* to string class */
 	FORCEINLINE UE_STRING_CLASS(const NSString* In) : UE_STRING_CLASS((__bridge CFStringRef)In)

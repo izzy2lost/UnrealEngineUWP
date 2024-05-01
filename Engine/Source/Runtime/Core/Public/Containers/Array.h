@@ -4,7 +4,6 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
-#include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Misc/ReverseIterate.h"
 #include "HAL/UnrealMemory.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -683,26 +682,6 @@ public:
 		// note ArrayNum, ArrayMax and data pointer are not invalidated
 		// they are left unchanged and use-after-destruct will see them the same as before destruct
 	}
-
-	///////////////////////////////////////////////
-	// Start - intrusive TOptional<TArray> state //
-	///////////////////////////////////////////////
-	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
-	using IntrusiveUnsetOptionalStateType = TArray;
-
-	explicit TArray(FIntrusiveUnsetOptionalState Tag)
-		: ArrayNum(0)
-		, ArrayMax(-1)
-	{
-		// Use ArrayMax == -1 as our intrusive state so that the destructor still works without change, as it doesn't use ArrayMax.
-	}
-	bool operator==(FIntrusiveUnsetOptionalState Tag) const
-	{
-		return ArrayMax == -1;
-	}
-	/////////////////////////////////////////////
-	// End - intrusive TOptional<TArray> state //
-	/////////////////////////////////////////////
 
 	/**
 	 * Helper function for returning a typed pointer to the first array entry.

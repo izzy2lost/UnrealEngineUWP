@@ -5,7 +5,6 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/ReverseIterate.h"
-#include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Templates/Invoke.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Traits/ElementType.h"
@@ -263,25 +262,6 @@ public:
 	{
 		static_assert(std::is_const_v<ElementType>, "Only views of const elements can bind to initializer lists");
 	}
-
-	///////////////////////////////////////////////////
-	// Start - intrusive TOptional<TArrayView> state //
-	///////////////////////////////////////////////////
-	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
-	using IntrusiveUnsetOptionalStateType = TArrayView;
-
-	explicit TArrayView(FIntrusiveUnsetOptionalState)
-		: DataPtr(nullptr)
-		, ArrayNum(-1)
-	{
-	}
-	bool operator==(FIntrusiveUnsetOptionalState) const
-	{
-		return ArrayNum == -1;
-	}
-	/////////////////////////////////////////////////
-	// End - intrusive TOptional<TArrayView> state //
-	/////////////////////////////////////////////////
 
 public:
 
