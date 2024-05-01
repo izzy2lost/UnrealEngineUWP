@@ -680,6 +680,9 @@ void UNiagaraParameterCollection::PostLoad()
 {
 	Super::PostLoad();
 
+	// after serialization we need to build the transient full namespace
+	BuildFullNamespace();
+
 	DefaultInstance->ConditionalPostLoad();
 
 	if (CompileId.IsValid() == false)
