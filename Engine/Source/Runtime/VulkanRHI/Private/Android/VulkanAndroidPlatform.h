@@ -149,7 +149,7 @@ public:
 	static VkPipelineCache PrecompilePSO(FVulkanDevice* Device, const TArrayView<uint8> OptionalPSOCacheData, const VkGraphicsPipelineCreateInfo* PipelineInfo, FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArrayView<uint32_t> VS, TArrayView<uint32_t> PS, size_t& AfterSize);
 
 	static bool AreRemoteCompileServicesActive();
-	static bool StartAndWaitForRemoteCompileServices(int NumServices);
+	static bool StartRemoteCompileServices(int NumServices);
 	static void StopRemoteCompileServices();
 
 	// Do not attempt to immediately recreate swapchain

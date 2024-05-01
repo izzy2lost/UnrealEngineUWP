@@ -18,6 +18,7 @@ import android.os.StrictMode;
 import android.os.Trace;
 import android.util.Log;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemClock;
 
 import com.epicgames.unreal.GameActivity;
 import com.epicgames.unreal.Logger;
@@ -221,11 +222,11 @@ public class PSOProgramServiceAccessor
 
 				if(bUseVulkan)
 				{
-					bSuccess = _PSOProgramServiceAccessor.StartAndWaitForVulkanServices(numServices);
+					bSuccess = _PSOProgramServiceAccessor.StartVulkanServices(numServices);
 				}
 				else
 				{
-					bSuccess = _PSOProgramServiceAccessor.StartAndWaitForServices(numServices, bUseRobustEGLContext);
+					bSuccess = _PSOProgramServiceAccessor.StartServices(numServices, bUseRobustEGLContext);
 				}
 			}
 			catch (Exception e)
@@ -267,7 +268,27 @@ public class PSOProgramServiceAccessor
 		}
 	}
 
-	boolean StartAndWaitForServices(int numServices, boolean bUseRobustEGLContext)
+	public static boolean AndroidThunkJava_AreProgramServicesReady()
+	{
+		boolean bSuccess = _PSOProgramServiceAccessor.ServiceInstances.length > 0;
+		for (OGLServiceInstance ServiceInstance : _PSOProgramServiceAccessor.ServiceInstances )
+		{
+			bSuccess = bSuccess && ServiceInstance.IsServiceBound();
+		}
+		return bSuccess;
+	}
+
+	public static boolean AndroidThunkJava_HaveServicesFailed()
+	{
+		boolean bHasFailed = _PSOProgramServiceAccessor.ServiceInstances.length == 0;
+		for (OGLServiceInstance ServiceInstance : _PSOProgramServiceAccessor.ServiceInstances )
+		{
+			bHasFailed = bHasFailed || ServiceInstance.HasBindFailed();
+		}
+		return bHasFailed;
+	}
+
+	boolean StartServices(int numServices, boolean bUseRobustEGLContext)
 	{
 		numServices = Math.max(1, Math.min(numServices, ServiceClassTypes.length));
 
@@ -280,12 +301,12 @@ public class PSOProgramServiceAccessor
 		boolean bSuccess = true;
 		for (OGLServiceInstance ServiceInstance : ServiceInstances )
 		{
-			bSuccess = bSuccess && ServiceInstance.doBindAndWait();
+			bSuccess = bSuccess && ServiceInstance.doBind();
 		}
 		return bSuccess;
 	}
 
-	boolean StartAndWaitForVulkanServices(int numServices)
+	boolean StartVulkanServices(int numServices)
 	{
 		numServices = Math.max(1, Math.min(numServices, VulkanServiceClassTypes.length));
 
@@ -298,7 +319,7 @@ public class PSOProgramServiceAccessor
 		boolean bSuccess = true;
 		for (OGLServiceInstance ServiceInstance : ServiceInstances )
 		{
-			bSuccess = bSuccess && ServiceInstance.doBindAndWait();
+			bSuccess = bSuccess && ServiceInstance.doBind();
 		}
 		return bSuccess;
 	}
@@ -329,23 +350,23 @@ public class PSOProgramServiceAccessor
 	}
 
 	static final private Object ProgramLinkLock = new Object();
-	public static JNIProgramLinkResponse AndroidThunkJava_OGLRemoteProgramLink(byte[] ContextData, String VertexShader, String PixelShader, String ComputeShader)
+	public static JNIProgramLinkResponse AndroidThunkJava_OGLRemoteProgramLink(byte[] ContextData, String VertexShader, String PixelShader, String ComputeShader, boolean bAllowTimeOuts)
 	{
 		if(GameActivity.IsActivityPaused())
 		{
 			// one at a time when backgrounded.
 			synchronized (ProgramLinkLock)
 			{
-				return OGLRemoteProgramLink_internal(ContextData, VertexShader, PixelShader, ComputeShader);
+				return OGLRemoteProgramLink_internal(ContextData, VertexShader, PixelShader, ComputeShader, bAllowTimeOuts);
 			}
 		}
 		else
 		{
-			return OGLRemoteProgramLink_internal(ContextData, VertexShader, PixelShader, ComputeShader);
+			return OGLRemoteProgramLink_internal(ContextData, VertexShader, PixelShader, ComputeShader, bAllowTimeOuts);
 		}
 	}
 
-	private static JNIProgramLinkResponse OGLRemoteProgramLink_internal(byte[] ContextData, String VertexShader, String PixelShader, String ComputeShader)
+	private static JNIProgramLinkResponse OGLRemoteProgramLink_internal(byte[] ContextData, String VertexShader, String PixelShader, String ComputeShader, boolean bAllowTimeOuts)
 	{
 		try
 		{
@@ -427,25 +448,25 @@ public class PSOProgramServiceAccessor
 				{
 					int pendingJobs = thisInstance.PendingJobs.incrementAndGet();
 
-					long tStartTime = System.nanoTime();
-					// wait for 10s before giving up on the compile job.
-					long tTimeoutInMS = 10000;
+					long tStartTimeMS = System.currentTimeMillis();
+					// if we're allowed to time out, wait for 10s before giving up on the compile job.
+					long tTimeoutInMS = bAllowTimeOuts ? 10000 : Long.MAX_VALUE;
 
 					while (pendingResponse.ResponseState != JobResponse.ResponseStateEnum.Responded)
 					{
 						// we must loop as waits can randomly wake.
 						pendingResponse.SyncObj.wait(1000);
 
-						if ((System.nanoTime() - tStartTime) >= (tTimeoutInMS * 1000000))
+						if ((System.currentTimeMillis() - tStartTimeMS) >= tTimeoutInMS)
 						{
-							Log.error("OGLRemoteProgramLink TIMED OUT WAITING " + ThisJobID + " for " + (System.nanoTime() - tStartTime) / 1000000 + "ms. pending tasks "+thisInstance.PendingJobs.get());
+							Log.error("OGLRemoteProgramLink TIMED OUT WAITING " + ThisJobID + " for " + (System.currentTimeMillis() - tStartTimeMS) + "ms. pending tasks "+thisInstance.PendingJobs.get()+"limit "+tTimeoutInMS);
 							//timeout
 							SyncObs.remove(ThisJobID);
 							thisInstance.ReadBackServiceLog();
 							return null;
 						}
 					}
-					long totalWaitTimeMS = (System.nanoTime() - tStartTime) / 1000000;
+					long totalWaitTimeMS = System.currentTimeMillis() - tStartTimeMS;
 					if(totalWaitTimeMS > 2500)
 					{
 						Log.verbose("OGLRemoteProgramLink responded " + ThisJobID + " total wait time "+totalWaitTimeMS+" ms. pending tasks "+thisInstance.PendingJobs.get());
@@ -995,36 +1016,15 @@ public class PSOProgramServiceAccessor
 			}
 			return mShouldUnbind;
 		}
-
-		boolean doBindAndWait()
+		private long bindStartTime = 0;
+		boolean doBind()
 		{
 			synchronized (mConnection.mConnectionSync)
 			{
 				boolean bSuccess = doBindService();
-				long tBefore = System.nanoTime();
-				long tTimeoutInMS = 10000;
-
 				if(bSuccess)
 				{
-					try
-					{
-						while (mBound.get() == -1)
-						{
-							mConnection.mConnectionSync.wait(1000);
-							if ((System.nanoTime() - tBefore) >= (tTimeoutInMS * 1000000))
-							{
-								Log.error("OGLRemoteProgramLink "+Name()+" TIMED OUT waiting for service bind " + (System.nanoTime() - tBefore) / 1000000 + "ms.");
-								//timeout
-								bSuccess = false;
-								break;
-							}
-						}
-					}
-					catch (Exception e)
-					{
-						bSuccess = false;
-						e.printStackTrace();
-					}
+					bindStartTime = SystemClock.uptimeMillis();
 				}
 				return bSuccess;
 			}
@@ -1039,12 +1039,18 @@ public class PSOProgramServiceAccessor
 				mContext.unbindService(mConnection);
 				mShouldUnbind = false;
 				mBound.set(-1);
+				bindStartTime = 0;
 			}
 		}
 
 		boolean IsServiceBound()
 		{
 			return mBound.get() == 1;
+		}
+
+		boolean HasBindFailed()
+		{
+			return !mShouldUnbind || (!IsServiceBound() && (SystemClock.uptimeMillis()-bindStartTime>10000));
 		}
 
 		boolean SendMessage(Message msg) throws RemoteException

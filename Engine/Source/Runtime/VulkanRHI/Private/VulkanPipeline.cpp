@@ -564,7 +564,7 @@ void FVulkanPipelineStateCacheManager::OnShaderPipelineCacheOpened(FString const
 #if PLATFORM_ANDROID
 		if (GNumRemoteProgramCompileServices)
 		{
-			FVulkanAndroidPlatform::StartAndWaitForRemoteCompileServices(GNumRemoteProgramCompileServices);
+			FVulkanAndroidPlatform::StartRemoteCompileServices(GNumRemoteProgramCompileServices);
 		}
 #endif
 	}

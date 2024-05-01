@@ -554,7 +554,7 @@ void FOpenGLProgramBinaryCache::OnShaderPipelineCacheOpened(FString const& Name,
 			check(!FAndroidOpenGL::AreRemoteCompileServicesActive() || IsPrecachingEnabled());
 			if(FAndroidOpenGL::AreRemoteCompileServicesActive() == false)
 			{
-				FAndroidOpenGL::StartAndWaitForRemoteCompileServices(GNumRemoteProgramCompileServices);
+				FAndroidOpenGL::StartRemoteCompileServices(GNumRemoteProgramCompileServices);
 			}
 		}
 #endif
