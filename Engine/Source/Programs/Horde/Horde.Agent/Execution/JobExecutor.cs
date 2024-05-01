@@ -960,7 +960,6 @@ namespace Horde.Agent.Execution
 				}
 
 				logger.LogInformation("Build product(s) from a previous step have been modified:\n{FileList}", modifiedFileList);
-				return false;
 			}
 
 			// Determine all the output files which are required to be copied to temp storage (because they're referenced by nodes in another agent)
