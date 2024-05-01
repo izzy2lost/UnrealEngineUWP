@@ -340,9 +340,9 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FContentBundleEditor::GenerateStreaming);
 
+	// Skipping streaming generation for non-injected content
 	if (GetStatus() != EContentBundleStatus::ContentInjected)
 	{
-		UE_LOG(LogContentBundle, Log, TEXT("%s Skipping streaming generation. It's status is: %s."), *ContentBundle::Log::MakeDebugInfoString(*this), *UEnum::GetDisplayValueAsText(GetStatus()).ToString());
 		return;
 	}
 
