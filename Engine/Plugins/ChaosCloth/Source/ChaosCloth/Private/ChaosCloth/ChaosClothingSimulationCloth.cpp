@@ -1136,12 +1136,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FVec3f OutLinearVelocityScale;
 		FRealSingle OutAngularVelocityScale;
 		FRealSingle OutMaxVelocityScale;
+		bool bDisableFictitiousForces = false;
 		if (bNeedsReset)
 		{
 			// Make sure not to do any pre-sim transform just after a reset
 			OutLinearVelocityScale = FVec3f(1.f);
 			OutAngularVelocityScale = 1.f;
 			OutMaxVelocityScale = 1.f;
+			bDisableFictitiousForces = true; // It doesn't actually matter what value we set here since AngularVelocityScale == 1 means fictitious forces will be 0.
 
 			// Reset to start pose
 			LODData[LODIndex]->ResetStartPose(Solver);
@@ -1162,6 +1164,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			OutLinearVelocityScale = FVec3f(0.f);
 			OutAngularVelocityScale = 0.f;
 			OutMaxVelocityScale = 1.f;
+			bDisableFictitiousForces = true; // Disable fictitious forces. Otherwise they will be applied since AngularVelocityScale < 1.
 			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Cloth in group Id %d Needs teleport."), GroupId);
 		}
 		else
@@ -1181,7 +1184,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			OutLinearVelocityScale,
 			OutAngularVelocityScale,
 			FictitiousAngularScale,
-			OutMaxVelocityScale);
+			OutMaxVelocityScale, 
+			bDisableFictitiousForces);
 		if (!Solver->IsLegacySolver())
 		{
 			Solver->SetProperties(ParticleRangeId, ConfigProperties, LODData[LODIndex]->WeightMaps);

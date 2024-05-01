@@ -145,7 +145,8 @@ namespace Chaos
 			const TVec3<FRealSingle>& LinearVelocityScale,
 			FRealSingle AngularVelocityScale,
 			FRealSingle FictitiousAngularScale,
-			FRealSingle MaxVelocityScale = 1.f);
+			FRealSingle MaxVelocityScale = 1.f,
+			bool bDisableFictitiousForces = false);
 
 		/** PBDSolver version */
 		CHAOSCLOTH_API void SetProperties(

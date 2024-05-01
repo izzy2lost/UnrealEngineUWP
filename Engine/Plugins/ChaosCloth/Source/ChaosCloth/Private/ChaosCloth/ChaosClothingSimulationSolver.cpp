@@ -1078,7 +1078,8 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 	const FRigidTransform3& ReferenceSpaceTransform,
 	const TVec3<FRealSingle>& LinearVelocityScale,
 	FRealSingle AngularVelocityScale, FRealSingle FictitiousAngularScale,
-	FRealSingle MaxVelocityScale
+	FRealSingle MaxVelocityScale, 
+	bool bDisableFictitiousForces
 )
 {
 	FRigidTransform3 OldRootBoneLocalTransform = OldReferenceSpaceTransform;
@@ -1127,7 +1128,7 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 		Softs::FSolverRotation3(PreSimulationTransform.GetRotation()));
 
 	// Fictitious angular scale only applied for PBDEvolution. It's applied by ExternalForces for Evolution.
-	const FReal AppliedFictitiousAngularScale = PBDEvolution ? FMath::Min((FReal)2., (FReal)FictitiousAngularScale) : (FReal)1.;
+	const FReal AppliedFictitiousAngularScale = bDisableFictitiousForces ? (FReal)0.f : (PBDEvolution ? FMath::Min((FReal)2., (FReal)FictitiousAngularScale) : (FReal)1.);
 
 	// Save the reference bone relative angular velocity for calculating the fictitious forces
 	const FVec3 FictitiousAngularDisplacement = ReferenceSpaceTransform.TransformVector(Axis * PartialDeltaAngle)
