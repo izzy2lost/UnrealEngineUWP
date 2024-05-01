@@ -243,7 +243,7 @@ void FMovieGraphConditionGroupQueryBuilder::GenerateChildContent(IDetailChildren
 			{
 				if (WeakConditionGroup.IsValid())
 				{
-					const FScopedTransaction Transaction(LOCTEXT("DuplicateConditionGroupQuery", "Duplicate Condition Group Query"));
+					const FScopedTransaction Transaction(LOCTEXT("DuplicateConditionGroupQuery_Transaction", "Duplicate Condition Group Query"));
 					WeakConditionGroup->DuplicateQuery(QueryIndex);
 				}
 			})),
