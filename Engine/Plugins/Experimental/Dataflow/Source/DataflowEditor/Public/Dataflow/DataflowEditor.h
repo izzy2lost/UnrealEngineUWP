@@ -45,7 +45,7 @@ public:
 	virtual void Initialize(const TArray<TObjectPtr<UObject>>& InObjects) override;
 
 	/** Initialize an editor with a given content and an owner */
-	void InitializeContent(TObjectPtr<UDataflowBaseContent> BaseContent, const TObjectPtr<UObject>& ContentOwner);
+	void InitializeContent(const TObjectPtr<UObject>& ContentOwner);
 
 	TObjectPtr<UDataflowBaseContent> GetDataflowContent() { return DataflowContent; }
 	const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const { return DataflowContent; }

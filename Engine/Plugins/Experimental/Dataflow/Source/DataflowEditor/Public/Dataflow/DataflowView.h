@@ -9,7 +9,8 @@
 #include "Dataflow/DataflowSelection.h"
 
 class UPrimitiveComponent;
-
+class UDataflowEditor;
+class UDataflowBaseContent;
 /**
 *
 * Base listener class to interface between the DataflowToolkit and Dataflow views
@@ -29,9 +30,10 @@ public:
 * FDataflowNodeView class implements common functions for single node based Dataflow views
 *
 */
-class FDataflowNodeView : public IDataflowViewListener, public FGCObject
+class FDataflowNodeView : public FGCObject, public IDataflowViewListener
 {
 public:
+	FDataflowNodeView(TObjectPtr<UDataflowBaseContent> InContent = nullptr);
 	virtual ~FDataflowNodeView();
 
 	UDataflowEdNode* GetSelectedNode() const { return SelectedNode; }
@@ -39,8 +41,7 @@ public:
 
 	TArray<FString>& GetSupportedOutputTypes() { return SupportedOutputTypes; }
 
-	TSharedPtr<Dataflow::FContext> GetContext() { return Context; }
-	void SetContext(TSharedPtr<Dataflow::FContext>& InContext);
+	TObjectPtr<UDataflowBaseContent> GetEditorContent();
 
 	/**
 	* Virtual functions to overwrite in view widget classes
@@ -72,9 +73,12 @@ public:
 	virtual FString GetReferencerName() const override { return TEXT("FDataflowNodeView"); }
 
 private:
+	TObjectPtr<UDataflowBaseContent> EditorContent = nullptr;
+
 	TObjectPtr<UDataflowEdNode> SelectedNode = nullptr;
-	TSharedPtr<Dataflow::FContext> Context;
+
 	bool bIsPinnedDown = false;
+
 	bool bIsRefreshLocked = false;
 
 	TArray<FString> SupportedOutputTypes;

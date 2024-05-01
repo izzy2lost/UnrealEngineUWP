@@ -8,6 +8,7 @@
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowCollectionSpreadSheetWidget.h"
 #include "Dataflow/DataflowConstructionScene.h"
 #include "Dataflow/DataflowConstructionViewportClient.h"
 #include "Dataflow/DataflowEditorCollectionComponent.h"
@@ -48,6 +49,7 @@
 #include "Selection.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Widgets/Docking/SDockTab.h"
+
 
 #define LOCTEXT_NAMESPACE "DataflowEditorToolkit"
 
@@ -910,8 +912,10 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_NodeDetails(const FSpawnTa
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SkeletonView(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == SkeletonViewTabId);
+	check(DataflowEditor);
+	check(DataflowEditor->GetDataflowContent());
 
-	SkeletonEditorView = MakeShared<FDataflowSkeletonView>(DataflowEditor);
+	SkeletonEditorView = MakeShared<FDataflowSkeletonView>(DataflowEditor->GetDataflowContent());
 	ViewListeners.Add(SkeletonEditorView.Get());
 
 	FSkeletonTreeArgs SkeletonTreeArgs;
@@ -935,10 +939,12 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SkeletonView(const FSpawnT
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawnTabArgs& Args)
 {
 	//	check(Args.GetTabId().TabType == SelectionViewTabId_1);
+	check(DataflowEditor);
+	check(DataflowEditor->GetDataflowContent());
 
-	if (Args.GetTabId() == SelectionViewTabId_1)
+		if (Args.GetTabId() == SelectionViewTabId_1)
 	{
-		DataflowSelectionView_1 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView());
+		DataflowSelectionView_1 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
 		if (DataflowSelectionView_1.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_1.Get());
@@ -946,7 +952,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	}
 	else if (Args.GetTabId() == SelectionViewTabId_2)
 	{
-		DataflowSelectionView_2 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView());
+		DataflowSelectionView_2 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
 		if (DataflowSelectionView_2.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_2.Get());
@@ -954,7 +960,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	}
 	else if (Args.GetTabId() == SelectionViewTabId_3)
 	{
-		DataflowSelectionView_3 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView());
+		DataflowSelectionView_3 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
 		if (DataflowSelectionView_3.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_3.Get());
@@ -962,7 +968,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	}
 	else if (Args.GetTabId() == SelectionViewTabId_4)
 	{
-		DataflowSelectionView_4 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView());
+		DataflowSelectionView_4 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
 		if (DataflowSelectionView_4.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_4.Get());
@@ -972,9 +978,9 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	TSharedPtr<SSelectionViewWidget> SelectionViewWidget;
 
 	TSharedRef<SDockTab> DockableTab = SNew(SDockTab)
-		[
-			SAssignNew(SelectionViewWidget, SSelectionViewWidget)
-		];
+	[
+		SAssignNew(SelectionViewWidget, SSelectionViewWidget)
+	];
 
 	if (SelectionViewWidget)
 	{
@@ -983,42 +989,18 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 			if (Args.GetTabId() == SelectionViewTabId_1)
 			{
 				DataflowSelectionView_1->SetSelectionView(SelectionViewWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowSelectionView_1->SetContext(CurrentContext);
-				}
 			}
 			else if (Args.GetTabId() == SelectionViewTabId_2)
 			{
 				DataflowSelectionView_2->SetSelectionView(SelectionViewWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowSelectionView_2->SetContext(CurrentContext);
-				}
 			}
 			else if (Args.GetTabId() == SelectionViewTabId_3)
 			{
 				DataflowSelectionView_3->SetSelectionView(SelectionViewWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowSelectionView_3->SetContext(CurrentContext);
-				}
 			}
 			else if (Args.GetTabId() == SelectionViewTabId_4)
 			{
 				DataflowSelectionView_4->SetSelectionView(SelectionViewWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowSelectionView_4->SetContext(CurrentContext);
-				}
 			}
 		}
 	}
@@ -1030,9 +1012,12 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(const FSpawnTabArgs& Args)
 {
+	check(DataflowEditor);
+	check(DataflowEditor->GetDataflowContent());
+
 	if (Args.GetTabId() == CollectionSpreadSheetTabId_1)
 	{
-		DataflowCollectionSpreadSheet_1 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet());
+		DataflowCollectionSpreadSheet_1 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
 		if (DataflowCollectionSpreadSheet_1.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_1.Get());
@@ -1040,7 +1025,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 	}
 	else if (Args.GetTabId() == CollectionSpreadSheetTabId_2)
 	{
-		DataflowCollectionSpreadSheet_2 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet());
+		DataflowCollectionSpreadSheet_2 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
 		if (DataflowCollectionSpreadSheet_2.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_2.Get());
@@ -1048,7 +1033,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 	}
 	else if (Args.GetTabId() == CollectionSpreadSheetTabId_3)
 	{
-		DataflowCollectionSpreadSheet_3 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet());
+		DataflowCollectionSpreadSheet_3 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
 		if (DataflowCollectionSpreadSheet_3.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_3.Get());
@@ -1056,7 +1041,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 	}
 	else if (Args.GetTabId() == CollectionSpreadSheetTabId_4)
 	{
-		DataflowCollectionSpreadSheet_4 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet());
+		DataflowCollectionSpreadSheet_4 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
 		if (DataflowCollectionSpreadSheet_4.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_4.Get());
@@ -1077,42 +1062,18 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 			if (Args.GetTabId() == CollectionSpreadSheetTabId_1)
 			{
 				DataflowCollectionSpreadSheet_1->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowCollectionSpreadSheet_1->SetContext(CurrentContext);
-				}
 			}
 			else if (Args.GetTabId() == CollectionSpreadSheetTabId_2)
 			{
 				DataflowCollectionSpreadSheet_2->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowCollectionSpreadSheet_2->SetContext(CurrentContext);
-				}
 			}
 			else if (Args.GetTabId() == CollectionSpreadSheetTabId_3)
 			{
 				DataflowCollectionSpreadSheet_3->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowCollectionSpreadSheet_3->SetContext(CurrentContext);
-				}
 			}
 			else if (Args.GetTabId() == CollectionSpreadSheetTabId_4)
 			{
 				DataflowCollectionSpreadSheet_4->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-				// Set the Context on the interface
-				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->GetDataflowContext())
-				{
-					DataflowCollectionSpreadSheet_4->SetContext(CurrentContext);
-				}
 			}
 		}
 	}

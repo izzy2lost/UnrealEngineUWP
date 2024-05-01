@@ -1,10 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowView.h"
-#include "Templates/EnableIf.h"
+
+#include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowSelection.h"
+#include "Templates/EnableIf.h"
 
 #define LOCTEXT_NAMESPACE "DataflowView"
+
+FDataflowNodeView::FDataflowNodeView(TObjectPtr<UDataflowBaseContent> InContent)
+	: FGCObject()
+	, EditorContent(InContent)
+{
+}
+
 
 FDataflowNodeView::~FDataflowNodeView()
 {
@@ -20,6 +29,14 @@ FDataflowNodeView::~FDataflowNodeView()
 	}
 }
 
+TObjectPtr<UDataflowBaseContent> FDataflowNodeView::GetEditorContent()
+{
+	if (ensure(EditorContent))
+	{
+		return EditorContent;
+	}
+	return nullptr;
+}
 
 bool FDataflowNodeView::SelectedNodeHaveSupportedOutputTypes(UDataflowEdNode* InNode)
 {
@@ -48,10 +65,6 @@ bool FDataflowNodeView::SelectedNodeHaveSupportedOutputTypes(UDataflowEdNode* In
 }
 
 
-void FDataflowNodeView::SetContext(TSharedPtr<Dataflow::FContext>& InContext)
-{
-	Context = InContext;
-}
 
 void FDataflowNodeView::OnConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InComponents)
 {
@@ -119,6 +132,10 @@ void FDataflowNodeView::OnNodeInvalidated(FDataflowNode* InvalidatedNode)
 void FDataflowNodeView::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(SelectedNode);
+	if (EditorContent)
+	{
+		Collector.AddReferencedObject(EditorContent);
+	}
 }
 
 

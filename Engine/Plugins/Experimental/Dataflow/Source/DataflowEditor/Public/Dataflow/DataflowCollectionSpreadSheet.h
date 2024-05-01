@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "Widgets/SCompoundWidget.h"
-#include "Widgets/Views/SListView.h"
-#include "Dataflow/DataflowEdNode.h"
-#include "Dataflow/DataflowCollectionSpreadSheetWidget.h"
-#include "Dataflow/DataflowSelection.h"
+#include "CoreMinimal.h"
 #include "Dataflow/DataflowView.h"
 
+class UDataflowEditor;
+class UPrimitiveComponent;
+class SCollectionSpreadSheetWidget;
 
 /**
 *
@@ -18,6 +17,8 @@
 class FDataflowCollectionSpreadSheet : public FDataflowNodeView
 {
 public:
+
+	FDataflowCollectionSpreadSheet(TObjectPtr<UDataflowBaseContent> InContent = nullptr);
 	~FDataflowCollectionSpreadSheet();
 
 	virtual void SetSupportedOutputTypes() override;

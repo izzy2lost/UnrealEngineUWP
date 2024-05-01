@@ -20,7 +20,7 @@ struct FSkeletonTreeArgs;
 class FDataflowSkeletonView : public FDataflowNodeView
 {
 public:
-	FDataflowSkeletonView(UDataflowEditor* InDataflowEditor = nullptr);
+	FDataflowSkeletonView(TObjectPtr<UDataflowBaseContent> InContent = nullptr);
 	~FDataflowSkeletonView();
 
 	/** Create the Skeleton Tree Editor*/
@@ -49,8 +49,6 @@ public:
 
 
 private:
-	UDataflowEditor* DataflowEditor = nullptr;
-
 	TSharedPtr<ISkeletonTree> SkeletonEditor;
 
 	/* Skeletal Mesh in the SkeletalViewer*/

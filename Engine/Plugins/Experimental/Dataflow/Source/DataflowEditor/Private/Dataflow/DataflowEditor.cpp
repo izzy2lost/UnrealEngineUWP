@@ -26,69 +26,67 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 {
 	if(!InObjects.IsEmpty())
 	{
-		InitializeContent(nullptr, InObjects[0]);
+		InitializeContent(InObjects[0]);
 	}
 }
 
-void UDataflowEditor::InitializeContent(TObjectPtr<UDataflowBaseContent> BaseContent, const TObjectPtr<UObject>& ContentOwner)
+void UDataflowEditor::InitializeContent(const TObjectPtr<UObject>& ContentOwner)
 {
+	check(DataflowContent == nullptr);
+
 	TArray<TObjectPtr<UObject>> RequiredObjects = { ContentOwner };
 
-	DataflowContent = BaseContent;
-	if(!DataflowContent)
+	if (UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
 	{
-		if(UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
-		{
-			DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
+		DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
 
-			DataflowContent->SetDataflowAsset(DataflowAsset);
-			DataflowContent->SetDataflowTerminal(FString());
-		}
-		else
+		DataflowContent->SetDataflowAsset(DataflowAsset);
+		DataflowContent->SetDataflowTerminal(FString());
+	}
+	else
+	{
+		if (Private::HasDataflowAsset(ContentOwner))
 		{
-			if(Private::HasDataflowAsset(ContentOwner))
+			if (Private::HasSkeletalMesh(ContentOwner))
 			{
-				if(Private::HasSkeletalMesh(ContentOwner))
-				{
-					DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowSkeletalContent>(ContentOwner);
-					const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent);
-					
-					SkeletalContent->SetSkeletalMesh(Private::GetSkeletalMeshFrom(ContentOwner));
-                    SkeletalContent->SetSkeleton(Private::GetSkeletonFrom(ContentOwner));
-                    SkeletalContent->SetAnimationAsset(Private::GetAnimationAssetFrom(ContentOwner));
-				}
-				else
-				{
-					DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
-				}
+				DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowSkeletalContent>(ContentOwner);
+				const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent);
 
-				DataflowContent->SetDataflowAsset(Private::GetDataflowAssetFrom(ContentOwner));
-				DataflowContent->SetDataflowTerminal(Private::GetDataflowTerminalFrom(ContentOwner));
-				RequiredObjects.Add(Private::GetDataflowAssetFrom(ContentOwner));
+				SkeletalContent->SetSkeletalMesh(Private::GetSkeletalMeshFrom(ContentOwner));
+				SkeletalContent->SetSkeleton(Private::GetSkeletonFrom(ContentOwner));
+				SkeletalContent->SetAnimationAsset(Private::GetAnimationAssetFrom(ContentOwner));
 			}
+			else
+			{
+				DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
+			}
+
+			DataflowContent->SetDataflowAsset(Private::GetDataflowAssetFrom(ContentOwner));
+			DataflowContent->SetDataflowTerminal(Private::GetDataflowTerminalFrom(ContentOwner));
+			RequiredObjects.Add(Private::GetDataflowAssetFrom(ContentOwner));
 		}
 	}
 
 	if (!DataflowContent) return;
 	RequiredObjects.Add(DataflowContent);
 
-	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
 	{
-		if(!SkeletalContent->GetSkeletalMesh())
+		if (!SkeletalContent->GetSkeletalMesh())
 		{
 			const FName SkeletalMeshName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeletalMesh"));
 			USkeletalMesh* SkeletalMesh = NewObject<USkeletalMesh>(SkeletalContent->GetDataflowAsset(), SkeletalMeshName);
 
 			USkeleton* Skeleton = SkeletalContent->GetSkeleton();
-			if(!Skeleton)
+			if (!Skeleton)
 			{
 				const FName SkeletonName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
-                Skeleton = NewObject<USkeleton>(SkeletalContent->GetDataflowAsset(), SkeletonName);
+				Skeleton = NewObject<USkeleton>(SkeletalContent->GetDataflowAsset(), SkeletonName);
 			}
 			SkeletalMesh->SetSkeleton(Skeleton);
 			SkeletalContent->SetSkeletalMesh(SkeletalMesh);
 		}
-		else if(!SkeletalContent->GetSkeleton())
+		else if (!SkeletalContent->GetSkeleton())
 		{
 			SkeletalContent->SetSkeleton(SkeletalContent->GetSkeletalMesh()->GetSkeleton());
 		}
