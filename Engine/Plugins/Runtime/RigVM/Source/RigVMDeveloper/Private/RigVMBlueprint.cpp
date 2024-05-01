@@ -203,6 +203,8 @@ URigVMBlueprint::URigVMBlueprint(const FObjectInitializer& ObjectInitializer)
 	CompileLog.SetSourcePath(GetPathName());
 #endif
 
+	AssetVariant.Guid = FRigVMVariant::GenerateGUID();
+
 	if(GetClass() == URigVMBlueprint::StaticClass())
 	{
 		CommonInitialization(ObjectInitializer);
@@ -1085,6 +1087,11 @@ void URigVMBlueprint::PostLoad()
 	OnChanged().RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &URigVMBlueprint::OnPreVariableChange);
 	OnChanged().AddUObject(this, &URigVMBlueprint::OnPostVariableChange);
+
+	if (!AssetVariant.Guid.IsValid())
+	{
+		AssetVariant.Guid = FRigVMVariant::GenerateGUID(GetPackage()->GetPathName());
+	}
 
 	if (UPackage* Package = GetOutermost())
 	{

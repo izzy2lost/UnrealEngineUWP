@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "RigVMEditorModule.h"
+#include "AssetToolsModule.h"
 #include "Modules/ModuleManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Editor/RigVMEditorCommands.h"
@@ -20,6 +21,7 @@
 #include "UserDefinedStructureCompilerUtils.h"
 #include "EdGraph/RigVMEdGraphConnectionDrawingPolicy.h"
 #include "BlueprintActionDatabaseRegistrar.h"
+#include "ContentBrowserMenuContexts.h"
 #include "EdGraph/NodeSpawners/RigVMEdGraphUnitNodeSpawner.h"
 #include "EdGraph/NodeSpawners/RigVMEdGraphVariableNodeSpawner.h"
 #include "EdGraph/NodeSpawners/RigVMEdGraphTemplateNodeSpawner.h"
@@ -74,6 +76,40 @@ void FRigVMEditorModule::StartupModule()
 		if (ensure(AssetRegistry))
 		{
 			AssetRegistry->OnAssetRemoved().AddStatic(&FRigVMBlueprintUtils::HandleAssetDeleted);
+		}
+
+		if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("ContentBrowser.AssetContextMenu"))
+		{
+			if (FToolMenuSection* Section = Menu->FindSection("CommonAssetActions"))
+			{
+				Section->AddDynamicEntry("CreateVariant", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+				{
+					UContentBrowserAssetContextMenuContext* Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
+					if (Context)
+					{
+						TArray<UObject*> SelectedObjects = Context->GetSelectedObjects();
+						if (SelectedObjects.Num() == 1 && SelectedObjects[0]->IsA<URigVMBlueprint>())
+						{
+							InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SelectedObjects]()
+							{
+								FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+
+								FString PathName = FPackageName::GetLongPackagePath(SelectedObjects[0]->GetPathName());
+								FString ObjectName = SelectedObjects[0]->GetName();
+								FString PackageName;
+								FString BasePackageName = PathName + "/" + ObjectName;
+								AssetToolsModule.Get().CreateUniqueAssetName(BasePackageName, TEXT(""), PackageName, ObjectName);
+
+								UObject* DuplicateAsset = AssetToolsModule.Get().DuplicateAsset(ObjectName, PathName, SelectedObjects[0]);
+								if (URigVMBlueprint* DuplicateBlueprint = Cast<URigVMBlueprint>(DuplicateAsset))
+								{
+									DuplicateBlueprint->AssetVariant = Cast<URigVMBlueprint>(SelectedObjects[0])->AssetVariant;
+								}
+							}));
+						}
+					}
+				}));
+			}
 		}
 	}
 

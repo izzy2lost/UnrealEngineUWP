@@ -504,6 +504,10 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 
+	/** Variant information about this asset */
+	UPROPERTY(AssetRegistrySearchable)
+	FRigVMVariant AssetVariant;
+
 	UPROPERTY(transient, DuplicateTransient)
 	TObjectPtr<URigVMGraph> TemplateModel;
 

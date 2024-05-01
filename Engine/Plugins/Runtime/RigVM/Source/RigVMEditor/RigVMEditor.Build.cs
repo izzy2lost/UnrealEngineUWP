@@ -33,6 +33,7 @@ public class RigVMEditor : ModuleRules
                 "MessageLog",
 				"StructUtils",
 				"StructUtilsEditor",
+				"ContentBrowser",
 			}
 		);
 	}
