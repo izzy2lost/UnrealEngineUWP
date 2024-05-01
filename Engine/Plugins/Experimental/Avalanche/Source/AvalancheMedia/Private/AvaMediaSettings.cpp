@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMediaSettings.h"
+#include "IAvaMediaModule.h"
+#include "Misc/MessageDialog.h"
+
+#define LOCTEXT_NAMESPACE "AvaMediaSettings"
 
 UAvaMediaSettings::UAvaMediaSettings()
 {
@@ -45,5 +49,39 @@ ELogVerbosity::Type UAvaMediaSettings::ToLogVerbosity(EAvaMediaLogVerbosity InAv
 	}
 }
 
+#if WITH_EDITOR
+void UAvaMediaSettings::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
+	// Check if playback client is auto-start.
+	static const FName AutoStartPlaybackClientPropertyName = GET_MEMBER_NAME_CHECKED(UAvaMediaSettings, bAutoStartPlaybackClient);
 
+	if (InPropertyChangedEvent.MemberProperty->GetFName() == AutoStartPlaybackClientPropertyName)
+	{
+		IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
+		if (bAutoStartPlaybackClient && !AvaMediaModule.IsPlaybackClientStarted())
+		{
+			const FText MessageText = LOCTEXT("StartPlaybackClientQuestion", "Do you want to start the playback client now?");
+			const EAppReturnType::Type Reply = FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::Yes, MessageText);
+
+			if (Reply == EAppReturnType::Yes)
+			{
+				AvaMediaModule.StartPlaybackClient();
+			}
+		}
+		else if (!bAutoStartPlaybackClient && AvaMediaModule.IsPlaybackClientStarted())
+		{
+			const FText MessageText = LOCTEXT("StopPlaybackClientQuestion", "Playback Client is currently running. Do you want to stop it now?");
+			const EAppReturnType::Type Reply = FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::Yes, MessageText);
+
+			if (Reply == EAppReturnType::Yes)
+			{
+				AvaMediaModule.StopPlaybackClient();
+			}
+		}
+	}
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

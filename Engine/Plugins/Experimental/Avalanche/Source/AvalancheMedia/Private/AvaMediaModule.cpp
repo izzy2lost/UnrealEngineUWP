@@ -4,6 +4,7 @@
 
 #include "Application/ThrottleManager.h"
 #include "AvaMediaSettings.h"
+#include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/OutputDevices/AvaBroadcastRenderTargetMediaUtils.h"
 #include "IMediaIOCoreModule.h"
 #include "Interfaces/IPluginManager.h"
@@ -59,7 +60,8 @@ void FAvaMediaModule::StartupModule()
 
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 				TEXT("MotionDesignPlaybackServer.Start"),
-				TEXT("Starts the playback server."),
+				TEXT("Starts the playback server. Arguments: [ServerName]\n")
+				TEXT("ServerName\tSpecifies the server name. Will use computer name if left empty."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StartPlaybackServerCommand),
 				ECVF_Default
 				));
@@ -71,7 +73,8 @@ void FAvaMediaModule::StartupModule()
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 				TEXT("MotionDesignPlaybackClient.Start"),
-				TEXT("Starts the playback client."),
+				TEXT("Starts the playback client. Arguments: [-Force]\n")
+				TEXT("-Force\tStops playback server and force client to start."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StartPlaybackClientCommand),
 				ECVF_Default
 				));
@@ -107,7 +110,8 @@ void FAvaMediaModule::StartupModule()
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 				TEXT("MotionDesignRundownServer.Start"),
-				TEXT("Starts the rundown server."),
+				TEXT("Starts the rundown server. Arguments: [ServerName]\n")
+				TEXT("ServerName\tSpecifies the server name. Will use computer name if left empty."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StartRundownServerCommand),
 				ECVF_Default
 				));
@@ -119,7 +123,8 @@ void FAvaMediaModule::StartupModule()
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 				TEXT("MotionDesignPlaybackDevices.Save"),
-				TEXT("Save Device Providers data."),
+				TEXT("Save Device Providers data. Arguments: [ServerName]\n")
+				TEXT("ServerName\tSpecifies the server name. Will use computer name if left empty."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::SaveDeviceProvidersCommand),
 				ECVF_Default
 				));
@@ -197,7 +202,16 @@ void FAvaMediaModule::ShutdownModule()
 
 void FAvaMediaModule::StartPlaybackClient()
 {
-	StartPlaybackClientCommand({});
+	TArray<FString> CommandArgs;
+
+	// In editor mode, the client has priority over the server.
+	const bool bIsEditorMode = GIsEditor && !IsRunningGame();
+	if (bIsEditorMode)
+	{
+		CommandArgs.Add(TEXT("-Force"));
+	}
+
+	StartPlaybackClientCommand(CommandArgs);
 }
 
 void FAvaMediaModule::StopPlaybackClient()
@@ -576,26 +590,51 @@ void FAvaMediaModule::StopPlaybackServerCommand(const TArray<FString>& InArgs)
 
 void FAvaMediaModule::StartPlaybackClientCommand(const TArray<FString>& InArgs)
 {
+	if (AvaPlaybackClient)
+	{
+		UE_LOG(LogAvaMedia, Log, TEXT("Playback client already started."));
+		return;
+	}
+	
+	bool bForce = false;
+	for (const FString& Arg : InArgs)
+	{
+		if (Arg.Compare(TEXT("-Force"), ESearchCase::IgnoreCase) == 0)
+		{
+			bForce = true;
+		}
+	}
+	
 	// Starting a playback server in the same process as playback client is forbidden.
 	if (AvaPlaybackServer)
 	{
-		UE_LOG(LogAvaMedia, Error, TEXT("A Playback Client can't be started in the same process as a Playback Server."));
-		return;
-	}
-
-	if (!AvaPlaybackClient)
-	{
-		using namespace UE::AvaPlaybackClient::Delegates;
-		if (GetOnConnectionEvent().IsBoundToObject(this))
+		if (!bForce)
 		{
-			GetOnConnectionEvent().AddRaw(this, &FAvaMediaModule::OnAvaPlaybackClientConnectionEvent);
+			UE_LOG(LogAvaMedia, Error, TEXT("A playback client can't be started in the same process as a playback server."));
+			return;
 		}
 
-		AvaPlaybackClient = MakeShared<FAvaPlaybackClient>(this);
-		AvaPlaybackClient->Init();
-		OnAvaPlaybackClientStarted.Broadcast();
-		UE_LOG(LogAvaMedia, Log, TEXT("Playback Client Started"));
+		UE_LOG(LogAvaMedia, Warning, TEXT("Playback server has been stopped in editor mode in favor of playback client."));
+		StopPlaybackServer();
+
+#if WITH_EDITOR
+		// Stopping the playback server requires a reload of the broadcast client config.
+		UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
+		Broadcast.LoadBroadcast();
+		Broadcast.QueueNotifyChange(EAvaBroadcastChange::CurrentProfile); // Force a refresh of broadcast editor (if opened).
+#endif
 	}
+
+	using namespace UE::AvaPlaybackClient::Delegates;
+	if (GetOnConnectionEvent().IsBoundToObject(this))
+	{
+		GetOnConnectionEvent().AddRaw(this, &FAvaMediaModule::OnAvaPlaybackClientConnectionEvent);
+	}
+
+	AvaPlaybackClient = MakeShared<FAvaPlaybackClient>(this);
+	AvaPlaybackClient->Init();
+	OnAvaPlaybackClientStarted.Broadcast();
+	UE_LOG(LogAvaMedia, Log, TEXT("Playback client started"));
 }
 
 void FAvaMediaModule::StopPlaybackClientCommand(const TArray<FString>& InArgs)

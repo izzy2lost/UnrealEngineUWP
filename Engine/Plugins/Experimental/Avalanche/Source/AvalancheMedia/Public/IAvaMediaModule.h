@@ -55,6 +55,7 @@ public:
 
 	/**
 	 * @brief Starts the playback client (if not already started).
+	 * @remark In editor mode, this will stop the playback server. 
 	 */
 	virtual void StartPlaybackClient() = 0;
 

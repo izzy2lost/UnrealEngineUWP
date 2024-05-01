@@ -535,18 +535,8 @@ void FAvaBroadcastEditor::StartPlaybackClientAction()
 		{
 			return;
 		}
-
-		AvaMediaModule.StopPlaybackServer();
-
-		// Stopping the playback server requires a reload of the broadcast client config.
-		if (BroadcastEditor && BroadcastEditor->GetBroadcastObject())
-		{
-			BroadcastEditor->GetBroadcastObject()->LoadBroadcast();
-			// Force a refresh of the channels tab.
-			BroadcastEditor->GetBroadcastObject()->QueueNotifyChange(EAvaBroadcastChange::CurrentProfile);
-		}
 	}
-		
+
 	AvaMediaModule.StartPlaybackClient();
 }
 

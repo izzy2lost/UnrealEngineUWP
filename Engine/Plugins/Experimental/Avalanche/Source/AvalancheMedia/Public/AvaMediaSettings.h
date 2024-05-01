@@ -85,6 +85,12 @@ public:
 
 	static ELogVerbosity::Type ToLogVerbosity(EAvaMediaLogVerbosity InAvaMediaLogVerbosity);
 
+	//~ Begin UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+	//~ End UObject
+	
 	/** Specifies the background clear color for the channel. */
 	UPROPERTY(config, EditAnywhere, Category = "Broadcast")
 	FLinearColor ChannelClearColor = FLinearColor::Black;

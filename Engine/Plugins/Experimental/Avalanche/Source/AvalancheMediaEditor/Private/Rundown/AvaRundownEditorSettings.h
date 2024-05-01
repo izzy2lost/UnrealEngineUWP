@@ -19,6 +19,10 @@ public:
 	static const UAvaRundownEditorSettings* Get();
 	static UAvaRundownEditorSettings* GetMutable();
 
+	//~ Begin UObject
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& InPropertyChangedEvent) override;
+	//~ End UObject
+	
 	/**
 	 * Configuring the default page action when closing the editor.
 	 * By default it will stop the pages.
