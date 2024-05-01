@@ -25,6 +25,52 @@ void UMLDeformerMorphModel::Serialize(FArchive& Archive)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMLDeformerMorphModel::Serialize)
 
+	bool bModifiedPropertiesForCook = false;
+	TArray<FVector3f> SavedMorphTargetDeltas;
+	auto ModifyPropertiesForCook = [this, &bModifiedPropertiesForCook, &SavedMorphTargetDeltas]()
+		{
+			bModifiedPropertiesForCook = true;
+			SavedMorphTargetDeltas = MoveTemp(MorphTargetDeltas);
+			MorphTargetDeltas.Empty();
+		};
+	auto RestorePropertiesForCook = [this, &bModifiedPropertiesForCook, &SavedMorphTargetDeltas]()
+		{
+			if (!bModifiedPropertiesForCook)
+			{
+				return;
+			}
+			MorphTargetDeltas = MoveTemp(SavedMorphTargetDeltas);
+		};
+	ON_SCOPE_EXIT
+	{
+		RestorePropertiesForCook();
+	};
+
+	int32 NumSaveLODs = 0;
+	if (Archive.IsSaving())
+	{
+		// Strip editor only data on cook.
+		NumSaveLODs = GetNumLODs();
+		if (Archive.IsCooking())
+		{
+			ModifyPropertiesForCook();
+
+			// Check if we want to limit the number of LODs (can be per platform/device).
+			UE::MLDeformer::FMLDeformerModule& MLDeformerModule = FModuleManager::LoadModuleChecked<UE::MLDeformer::FMLDeformerModule>("MLDeformerFramework");
+			const int32 MaxLODLevels = FMath::Clamp(MLDeformerModule.GetMaxLODLevelsOnCookCVar().GetInt(), 1, 1000);	// Limit to 1000 LODs, which should never be reached.
+
+			// Get lowest value between what we generated, console variable and the UI/property max lods value.
+			NumSaveLODs = FMath::Min3(NumSaveLODs, MaxLODLevels, GetMaxNumLODs());
+
+			UE_LOG(LogMLDeformer, Display, TEXT("Cooking MLD asset '%s' with %d LOD levels"), *GetFullName(), NumSaveLODs);
+		}
+		else
+		{
+			// Get lowest number between how many LODs we have generated and the number of LODs we setup in the UI/Property.
+			NumSaveLODs = FMath::Min(NumSaveLODs, GetMaxNumLODs());
+		}
+	}
+
 	Super::Serialize(Archive);
 	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
 
@@ -32,30 +78,9 @@ void UMLDeformerMorphModel::Serialize(FArchive& Archive)
 	bool bHasMorphData = false;
 	if (Archive.IsSaving())
 	{
-		// Strip editor only data on cook.
-		int32 NumLODs = GetNumLODs();
-		if (Archive.IsCooking())
-		{			
-			MorphTargetDeltas.Empty();
-
-			// Check if we want to limit the number of LODs (can be per platform/device).
-			UE::MLDeformer::FMLDeformerModule& MLDeformerModule = FModuleManager::LoadModuleChecked<UE::MLDeformer::FMLDeformerModule>("MLDeformerFramework");
-			const int32 MaxLODLevels = FMath::Clamp(MLDeformerModule.GetMaxLODLevelsOnCookCVar().GetInt(), 1, 1000);	// Limit to 1000 LODs, which should never be reached.
-
-			// Get lowest value between what we generated, console variable and the UI/property max lods value.
-			NumLODs = FMath::Min3(NumLODs, MaxLODLevels, GetMaxNumLODs());
-
-			UE_LOG(LogMLDeformer, Display, TEXT("Cooking MLD asset '%s' with %d LOD levels"), *GetFullName(), NumLODs);
-		}
-		else
-		{
-			// Get lowest number between how many LODs we have generated and the number of LODs we setup in the UI/Property.
-			NumLODs = FMath::Min(NumLODs, GetMaxNumLODs());
-		}
-
 		// Save all LOD levels, strip out LODs we don't want.
-		Archive << NumLODs;
-		for (int32 LOD = 0; LOD < NumLODs; ++LOD)
+		Archive << NumSaveLODs;
+		for (int32 LOD = 0; LOD < NumSaveLODs; ++LOD)
 		{
 			bHasMorphData = GetMorphTargetSet(LOD).IsValid() ? GetMorphTargetSet(LOD)->MorphBuffers.IsMorphCPUDataValid() : false;
 			Archive << bHasMorphData;
