@@ -250,7 +250,6 @@ void SWidgetHittestGrid::Construct(const FArguments& InArgs, TSharedPtr<const SW
 		+ SVerticalBox::Slot()
 		[
 			SAssignNew(NavigationIntermediateResultTree, SWidgetHittestGridTree)
-			.ItemHeight(24.0f)
 			.ListItemsSource(&IntermediateResultNodesRoot)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(this, &SWidgetHittestGrid::HandleWidgetHittestGridGenerateRow)

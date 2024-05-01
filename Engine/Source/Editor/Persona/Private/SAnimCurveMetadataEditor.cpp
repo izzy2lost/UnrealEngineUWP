@@ -476,7 +476,6 @@ void SAnimCurveMetadataEditor::Construct(const FArguments& InArgs, UObject* InAn
 			.ListItemsSource( &AnimCurveList )
 			.OnGenerateRow( this, &SAnimCurveMetadataEditor::GenerateAnimCurveRow )
 			.OnContextMenuOpening( this, &SAnimCurveMetadataEditor::OnGetContextMenuContent )
-			.ItemHeight( 18.0f )
 			.SelectionMode(ESelectionMode::Multi)
 			.OnSelectionChanged( this, &SAnimCurveMetadataEditor::OnSelectionChanged )
 			.HeaderRow

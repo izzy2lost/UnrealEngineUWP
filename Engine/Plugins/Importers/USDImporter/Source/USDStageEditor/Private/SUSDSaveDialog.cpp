@@ -209,7 +209,6 @@ void SUsdSaveDialog::Construct(const FArguments& InArgs)
 				SNew(SListView< TSharedPtr<FUsdSaveDialogRowData> >)
 				.ListItemsSource(&Rows)
 				.OnGenerateRow(this, &SUsdSaveDialog::OnGenerateListRow)
-				.ItemHeight(20)
 				.HeaderRow(HeaderRowWidget)
 				.SelectionMode(ESelectionMode::None)
 			]

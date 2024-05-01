@@ -894,7 +894,6 @@ TSharedRef<SWidget> FPropertyViewerImpl::CreateTree(bool bHasPreWidget, bool bSh
 	if (FilterHandler)
 	{
 		SAssignNew(TreeWidget, STreeView<TSharedPtr<FTreeNode>>)
-			.ItemHeight(1.0f)
 			.TreeItemsSource(&FilteredTreeSource)
 			.SelectionMode(SelectionMode)
 			.OnGetChildren(FilterHandler.ToSharedRef(), &FTreeFilter::OnGetFilteredChildren)
@@ -908,7 +907,6 @@ TSharedRef<SWidget> FPropertyViewerImpl::CreateTree(bool bHasPreWidget, bool bSh
 	else
 	{
 		SAssignNew(TreeWidget, STreeView<TSharedPtr<FTreeNode>>)
-			.ItemHeight(1.0f)
 			.TreeItemsSource(&TreeSource)
 			.SelectionMode(SelectionMode)
 			.OnGetChildren(this, &FPropertyViewerImpl::HandleGetChildren)

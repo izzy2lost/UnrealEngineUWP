@@ -154,7 +154,6 @@ void SMaterialCustomPrimitiveDataPanel::Construct(const FArguments& InArgs, UMat
 							+ SScrollBox::Slot()
 							[
 								SAssignNew(ListViewWidget, SListView<TSharedPtr<FCustomPrimitiveDataRowData>>)
-								.ItemHeight(24)
 								.ListItemsSource(&Items)
 								.OnGenerateRow(this, &SMaterialCustomPrimitiveDataPanel::OnGenerateRowForList)
 								.SelectionMode(ESelectionMode::None)

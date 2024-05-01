@@ -30,8 +30,7 @@ void SEditorSysConfigAssistantIssueListView::Construct(const FArguments& InArgs)
 	SAssignNew(IssueListView, SListView<TSharedPtr<FEditorSysConfigIssue>>)
 		.SelectionMode(ESelectionMode::None)
 		.ListItemsSource(&IssueList)
-		.OnGenerateRow(this, &SEditorSysConfigAssistantIssueListView::HandleIssueListViewGenerateRow)
-		.ItemHeight(16.0f);
+		.OnGenerateRow(this, &SEditorSysConfigAssistantIssueListView::HandleIssueListViewGenerateRow);
 
 	ChildSlot
 	[

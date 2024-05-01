@@ -145,7 +145,6 @@ void SPackageReportDialog::Construct( const FArguments& InArgs, const FText& InR
 				[
 					SAssignNew( ReportTreeView, PackageReportTree )
 					.TreeItemsSource(&PackageReportRootNode.Children)
-					.ItemHeight(18)
 					.SelectionMode(ESelectionMode::Single)
 					.OnGenerateRow( this, &SPackageReportDialog::GenerateTreeRow )
 					.OnGetChildren( this, &SPackageReportDialog::GetChildrenForTree )

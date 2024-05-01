@@ -320,7 +320,6 @@ public:
 		if (FilterTreeView.IsValid() == false)
 		{
 			SAssignNew(FilterTreeView, SFilterTreeView)
-			.ItemHeight(24)
 			.TreeItemsSource(&FilterListItems)
 			.OnGenerateRow(this, &SGameplayCueEditorImpl::OnGenerateWidgetForFilterListView)
 			.OnGetChildren( this, &SGameplayCueEditorImpl::OnGetFilterChildren )
@@ -1315,7 +1314,6 @@ void SGameplayCueEditorImpl::Construct(const FArguments& InArgs)
 			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 			[
 				SAssignNew(GameplayCueTreeView, SGameplayCueTreeView)
-				.ItemHeight(24)
 				.TreeItemsSource(&GameplayCueListItems)
 				.OnGenerateRow(this, &SGameplayCueEditorImpl::OnGenerateWidgetForGameplayCueListView)
 				.OnGetChildren(this, &SGameplayCueEditorImpl::OnGetChildren )

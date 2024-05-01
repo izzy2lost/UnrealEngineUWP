@@ -114,7 +114,6 @@ void SGraphSeriesList::Construct(const FArguments& InArgs, const TSharedRef<FGra
 
 	ListView = SNew(SListView<TSharedPtr<FGraphSeries>>)
 		.IsFocusable(true)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::None)
 		.ListItemsSource(&FilteredSeries)
 		.OnGenerateRow(this, &SGraphSeriesList::OnGenerateRow);

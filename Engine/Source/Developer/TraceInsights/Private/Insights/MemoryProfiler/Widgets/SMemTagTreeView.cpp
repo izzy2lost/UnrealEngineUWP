@@ -134,7 +134,6 @@ void SMemTagTreeView::Construct(const FArguments& InArgs, TSharedPtr<SMemoryProf
 				.OnSelectionChanged(this, &SMemTagTreeView::TreeView_OnSelectionChanged)
 				.OnMouseButtonDoubleClick(this, &SMemTagTreeView::TreeView_OnMouseButtonDoubleClick)
 				.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SMemTagTreeView::TreeView_GetMenuContent))
-				.ItemHeight(16.0f)
 				.HeaderRow
 				(
 					SAssignNew(TreeViewHeaderRow, SHeaderRow)

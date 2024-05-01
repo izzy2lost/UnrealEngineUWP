@@ -202,7 +202,6 @@ void SLibraryView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluepri
 	FilterHandler->SetGetChildrenDelegate(LibraryFilterHandler::FOnGetChildren::CreateRaw(this, &SLibraryView::OnGetChildren));
 
 	SAssignNew(WidgetTemplatesView, STreeView< TSharedPtr<FWidgetViewModel> >)
-		.ItemHeight(1.0f)
 		.SelectionMode(ESelectionMode::SingleToggle)
 		.OnGenerateRow(this, &SLibraryView::OnGenerateWidgetTemplateLibrary)
 		.OnGetChildren(FilterHandler.ToSharedRef(), &LibraryFilterHandler::OnGetFilteredChildren)

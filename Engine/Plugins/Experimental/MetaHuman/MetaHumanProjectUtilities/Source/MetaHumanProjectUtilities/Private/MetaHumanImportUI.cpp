@@ -287,7 +287,6 @@ namespace UE::MetaHumanImportUI::Private
 				.Padding(DefaultPadding)
 				[
 					SNew(SListView< TSharedRef<FMetaHumanData> >)
-					.ItemHeight(24)
 					.ListItemsSource(&MetaHumanUpgrades)
 					.OnGenerateRow(this, &SBatchImportDialog::OnGenerateWidgetForMetaHumanList)
 					.HeaderRow(MetaHumanHeader)
@@ -531,7 +530,6 @@ namespace UE::MetaHumanImportUI::Private
 					.BodyContent()
 					[
 						SNew(SListView< TSharedRef<FReleaseNoteData> >)
-						.ItemHeight(24)
 						.ListItemsSource(&ReleaseNotes)
 						.OnGenerateRow(this, &SOverwriteDialog::OnGenerateWidgetForReleaseNoteList)
 						.HeaderRow(ReleaseNotesHeader)
@@ -544,7 +542,6 @@ namespace UE::MetaHumanImportUI::Private
 				.Padding(DefaultPadding)
 				[
 					SNew(SListView< TSharedRef<FMetaHumanData> >)
-					.ItemHeight(24)
 					.ListItemsSource(&IncomingMetaHumans)
 					.OnGenerateRow(this, &SOverwriteDialog::OnGenerateWidgetForMetaHumanList)
 					.HeaderRow(IncomingMetaHumanHeader)
@@ -557,7 +554,6 @@ namespace UE::MetaHumanImportUI::Private
 				.Padding(DefaultPadding)
 				[
 					SNew(SListView< TSharedRef<FMetaHumanData> >)
-					.ItemHeight(24)
 					.ListItemsSource(&ExistingMetaHumans)
 					.OnGenerateRow(this, &SOverwriteDialog::OnGenerateWidgetForMetaHumanList)
 					.HeaderRow(ExistingMetaHumanHeader)
@@ -575,7 +571,6 @@ namespace UE::MetaHumanImportUI::Private
 					.BodyContent()
 					[
 						SNew(SListView< TSharedRef<FFileChangeData> >)
-						.ItemHeight(24)
 						.ListItemsSource(&UpdatedFiles)
 						.OnGenerateRow(this, &SOverwriteDialog::OnGenerateWidgetForFileList)
 						.HeaderRow(UpdateHeader)

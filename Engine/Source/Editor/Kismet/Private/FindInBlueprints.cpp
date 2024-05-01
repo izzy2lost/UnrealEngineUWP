@@ -810,7 +810,6 @@ void SFindInBlueprints::Construct( const FArguments& InArgs, TSharedPtr<FBluepri
 				.Padding(FMargin(8.f, 8.f, 4.f, 0.f))
 				[
 					SAssignNew(TreeView, STreeViewType)
-					.ItemHeight(24)
 					.TreeItemsSource( &ItemsFound )
 					.OnGenerateRow( this, &SFindInBlueprints::OnGenerateRow )
 					.OnGetChildren( this, &SFindInBlueprints::OnGetChildren )

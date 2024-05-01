@@ -71,7 +71,6 @@ void SMessagingTypes::Construct(const FArguments& InArgs, const TSharedRef<FMess
 					[
 						// type list
 						SAssignNew(TypeListView, SListView<TSharedPtr<FMessageTracerTypeInfo>>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&TypeList)
 							.SelectionMode(ESelectionMode::Multi)
 							.OnGenerateRow(this, &SMessagingTypes::HandleTypeListGenerateRow)

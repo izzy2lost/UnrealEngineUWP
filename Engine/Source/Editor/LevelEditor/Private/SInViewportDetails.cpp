@@ -309,7 +309,6 @@ TSharedRef<SWidget> SInViewportDetails::MakeDetailsWidget()
 	{
 		NodeList = SNew(SListView< TSharedPtr<IDetailTreeNode> >)
 			.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("PropertyTable.InViewport.ListView"))
-			.ItemHeight(24)
 			.ListItemsSource(&Nodes)
 			.OnGenerateRow(this, &SInViewportDetails::GenerateListRow);
 

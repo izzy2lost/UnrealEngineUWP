@@ -328,8 +328,6 @@ void SNiagaraSpreadsheetView::Construct(const FArguments& InArgs, TSharedRef<FNi
 
 		SAssignNew(CaptureData[i].OutputsListView, STreeView< TSharedPtr<int32> >)
 			.IsEnabled(this, &SNiagaraSpreadsheetView::IsPausedAtRightTimeOnRightHandle)
-			// List view items are this tall
-			.ItemHeight(12)
 			// Tell the list view where to get its source data
 			.TreeItemsSource(&CaptureData[i].SupportedOutputIndices)
 			// When the list view needs to generate a widget for some data item, use this method
@@ -361,8 +359,6 @@ void SNiagaraSpreadsheetView::Construct(const FArguments& InArgs, TSharedRef<FNi
 
 		SAssignNew(CaptureData[i].InputsListView, STreeView< TSharedPtr<int32> >)
 			.IsEnabled(this, &SNiagaraSpreadsheetView::IsPausedAtRightTimeOnRightHandle)
-			// List view items are this tall
-			.ItemHeight(12)
 			// Tell the list view where to get its source data
 			.TreeItemsSource(&CaptureData[i].SupportedInputIndices)
 			// When the list view needs to generate a widget for some data item, use this method

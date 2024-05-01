@@ -1568,8 +1568,6 @@ void SClassViewer::Construct(const FArguments& InArgs, const FClassViewerInitial
 		.OnContextMenuOpening(OnContextMenuOpening)
 		// Find out when the user selects something in the tree
 		.OnSelectionChanged(this, &SClassViewer::OnClassViewerSelectionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)
@@ -1593,8 +1591,6 @@ void SClassViewer::Construct(const FArguments& InArgs, const FClassViewerInitial
 		.OnSelectionChanged(this, &SClassViewer::OnClassViewerSelectionChanged)
 		// Called when the expansion state of an item changes
 		.OnExpansionChanged(this, &SClassViewer::OnClassViewerExpansionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)

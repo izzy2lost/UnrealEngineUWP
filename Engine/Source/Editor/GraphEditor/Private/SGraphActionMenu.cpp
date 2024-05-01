@@ -370,7 +370,6 @@ void SGraphActionMenu::Construct( const FArguments& InArgs, bool bIsReadOnly/* =
 	}
 
 	TreeView = SNew(STreeView< TSharedPtr<FGraphActionNode> >)
-		.ItemHeight(24)
 		.TreeItemsSource(&(this->FilteredRootAction->Children))
 		.OnGenerateRow(this, &SGraphActionMenu::MakeWidget, bIsReadOnly)
 		.OnSelectionChanged(this, &SGraphActionMenu::OnItemSelected)

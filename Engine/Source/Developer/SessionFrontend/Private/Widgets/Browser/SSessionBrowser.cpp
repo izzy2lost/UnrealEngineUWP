@@ -56,7 +56,6 @@ void SSessionBrowser::Construct( const FArguments& InArgs, TSharedRef<ISessionMa
 			.Padding(0.0f)
 			[
 				SAssignNew(SessionTreeView, STreeView<TSharedPtr<FSessionBrowserTreeItem>>)
-				.ItemHeight(20.0f)
 				.OnExpansionChanged(this, &SSessionBrowser::HandleSessionTreeViewExpansionChanged)
 				.OnGenerateRow(this, &SSessionBrowser::HandleSessionTreeViewGenerateRow)
 				.OnGetChildren(this, &SSessionBrowser::HandleSessionTreeViewGetChildren)

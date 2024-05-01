@@ -33,7 +33,6 @@ namespace
 	constexpr float SmallManualWidth = 25.f;
 	constexpr float MediumManualWidth = 80.f;
 	constexpr float LargeManualWidth = 160.f;
-	constexpr float ListViewRowHeight = 36.f;
 }
 
 void SPCGEditorGraphDeterminismRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const FPCGNodeTestResultPtr& Item, int32 ItemIndex)
@@ -128,7 +127,6 @@ void SPCGEditorGraphDeterminismListView::Construct(const FArguments& InArgs, TWe
 
 	SAssignNew(ListView, SListView<FPCGNodeTestResultPtr>)
 		.ListItemsSource(&ListViewItems)
-		.ItemHeight(ListViewRowHeight)
 		.OnGenerateRow(this, &SPCGEditorGraphDeterminismListView::OnGenerateRow)
 		.HeaderRow(GeneratedHeaderRow);
 

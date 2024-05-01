@@ -409,7 +409,6 @@ void SCallStackViewer::Construct(const FArguments& InArgs, TArray<TSharedRef<FCa
 				.AutoHeight()
 				[
 					SAssignNew(CallStackTreeWidget, SCallStackTree)
-					.ItemHeight(25.0f)
 					.TreeItemsSource(CallStackSource)
 					.OnGenerateRow(SCallStackTree::FOnGenerateRow::CreateStatic(RowGenerator, SelfWeak))
 					.OnGetChildren(SCallStackTree::FOnGetChildren::CreateStatic(ChildrenAccessor))

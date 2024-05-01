@@ -554,7 +554,6 @@ void SProjectLauncherPreviewPage::Construct( const FArguments& InArgs, const TSh
 													[
 														// device list
 														SAssignNew(DeviceProxyListView, SListView<TSharedPtr<ITargetDeviceProxy>>)
-															.ItemHeight(16.0f)
 															.ListItemsSource(&DeviceProxyList)
 															.SelectionMode(ESelectionMode::None)
 															.OnGenerateRow(this, &SProjectLauncherPreviewPage::HandleDeviceProxyListViewGenerateRow)

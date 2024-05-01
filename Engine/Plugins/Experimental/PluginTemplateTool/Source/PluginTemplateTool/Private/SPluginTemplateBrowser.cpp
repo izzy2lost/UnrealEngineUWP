@@ -29,7 +29,6 @@ void SPluginTemplateBrowser::Construct(const FArguments& InArgs)
 			[
 				SNew(SPluginTemplateListView)
 					.SelectionMode(ESelectionMode::Single)
-					.ItemHeight(24)
 					.ListItemsSource(&PluginTemplateListItems)
 					.OnGenerateRow(this, &SPluginTemplateBrowser::OnGenerateWidgetForTemplateListView)
 					.HeaderRow

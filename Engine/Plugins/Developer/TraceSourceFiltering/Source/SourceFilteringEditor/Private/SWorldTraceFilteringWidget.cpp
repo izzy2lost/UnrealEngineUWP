@@ -45,7 +45,6 @@ void SWorldTraceFilteringWidget::Construct(const FArguments& InArgs)
 		.AutoHeight()
 		[	
 			SAssignNew(WorldListView, SListView<TSharedPtr<FWorldObject>>)
-			.ItemHeight(20.f)
 			.ListItemsSource(&WorldObjects)
 			.OnGenerateRow_Lambda([this](TSharedPtr<FWorldObject> InItem, const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow>
 			{

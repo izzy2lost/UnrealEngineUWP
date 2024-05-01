@@ -916,7 +916,6 @@ void SColorThemesViewer::Construct(const FArguments& InArgs)
 			.WidthOverride(360)
 			[
 				SAssignNew(ColorThemeList, SListView< TSharedPtr<FColorTheme> >)
-					.ItemHeight(32)
 					.ListItemsSource(&ColorThemes)
 					.OnGenerateRow(this, &SColorThemesViewer::OnGenerateColorThemeBars)
 			]

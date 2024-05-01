@@ -398,7 +398,6 @@ void SMovieGraphActiveRenderSettingsTabContent::Construct(const FArguments& InAr
 			{
 				return TraversalError.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed;
 			})
-			.ItemHeight(28)
 			.TreeItemsSource(&RootElements)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(this, &SMovieGraphActiveRenderSettingsTabContent::GenerateTreeRow)

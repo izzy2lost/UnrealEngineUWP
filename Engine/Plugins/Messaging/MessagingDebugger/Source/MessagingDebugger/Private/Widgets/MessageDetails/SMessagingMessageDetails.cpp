@@ -99,7 +99,6 @@ void SMessagingMessageDetails::Construct(const FArguments& InArgs, const TShared
 					[
 						// message list
 						SAssignNew(DispatchStateListView, SListView<TSharedPtr<FMessageTracerDispatchState>>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&DispatchStateList)
 							.SelectionMode(ESelectionMode::None)
 							.OnGenerateRow(this, &SMessagingMessageDetails::HandleDispatchStateListGenerateRow)

@@ -1370,7 +1370,6 @@ void SNiagaraConsoleInputBox::Construct(const FArguments& InArgs)
 				.SelectionMode(ESelectionMode::Single)							// Ideally the mouse over would not highlight while keyboard controls the UI
 				.OnGenerateRow(this, &SNiagaraConsoleInputBox::MakeSuggestionListItemWidget)
 				.OnSelectionChanged(this, &SNiagaraConsoleInputBox::SuggestionSelectionChanged)
-				.ItemHeight(18)
 			]
 		]
 	)

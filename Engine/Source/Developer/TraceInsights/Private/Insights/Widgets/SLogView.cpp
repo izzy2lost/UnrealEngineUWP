@@ -656,7 +656,6 @@ void SLogView::Construct(const FArguments& InArgs)
 				[
 					SAssignNew(ListView, SListView<TSharedPtr<FLogMessage>>)
 					.ExternalScrollbar(ExternalScrollbar)
-					.ItemHeight(20.0f)
 					.SelectionMode(ESelectionMode::Single)
 					.OnMouseButtonClick(this, &SLogView::OnMouseButtonClick)
 					.OnSelectionChanged(this, &SLogView::OnSelectionChanged)

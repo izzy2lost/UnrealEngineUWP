@@ -192,7 +192,6 @@ void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, const TWeakO
 	
 	// Construct list view
 	SAssignNew(LayerListView, SWidgetLayerListView)
-	.ItemHeight(20.0f)
 	.SelectionMode(ESelectionMode::Single)
 	.OnGenerateRow(this, &SLandscapeLayerListDialog::OnGenerateRow)
 	.ListItemsSource(&WidgetLayerList);

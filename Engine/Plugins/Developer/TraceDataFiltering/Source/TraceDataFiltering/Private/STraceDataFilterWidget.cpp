@@ -275,7 +275,6 @@ void STraceDataFilterWidget::OnSearchboxTextChanged(const FText& FilterText)
 void STraceDataFilterWidget::ConstructTreeview()
 {
 	SAssignNew(Treeview, STreeView<TSharedPtr<ITraceObject>>)
-	.ItemHeight(20.0f)
 	.OnGetChildren(TreeviewFilterHandler.ToSharedRef(), &TreeFilterHandler<TSharedPtr<ITraceObject>>::OnGetFilteredChildren)
 	.OnGenerateRow(this, &STraceDataFilterWidget::OnGenerateRow)
 	.OnContextMenuOpening(this, &STraceDataFilterWidget::OnContextMenuOpening)

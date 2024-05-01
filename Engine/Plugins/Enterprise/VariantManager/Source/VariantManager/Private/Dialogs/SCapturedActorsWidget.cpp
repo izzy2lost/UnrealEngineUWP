@@ -29,7 +29,6 @@ void SCapturedActorsWidget::Construct(const FArguments& InArgs)
 		.BodyContent()
 		[
 			SNew(SListView<UObject*>)
-			.ItemHeight(24)
 			.SelectionMode(ESelectionMode::None)
 			.ListItemsSource(&AllActors)
 			.OnGenerateRow(this, &SCapturedActorsWidget::MakeRow)

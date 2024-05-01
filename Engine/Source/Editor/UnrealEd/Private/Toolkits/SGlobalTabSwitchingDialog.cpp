@@ -398,7 +398,6 @@ void SGlobalTabSwitchingDialog::Construct(const FArguments& InArgs, FVector2D In
 		.VAlign(VAlign_Center);
 
 	MainTabsListWidget = SNew(STabListWidget)
-		.ItemHeight(64)
 		.ListItemsSource(&MainTabsListDataSource)
 		.OnGenerateRow(this, &SGlobalTabSwitchingDialog::OnGenerateTabSwitchListItemWidget)
 		.OnSelectionChanged(this, &SGlobalTabSwitchingDialog::OnMainTabListSelectionChanged)

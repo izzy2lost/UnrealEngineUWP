@@ -93,7 +93,6 @@ namespace UE::PoseSearch
 								TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedItems = TreeView->GetSelectedItems();
 								OnSelectionChanged.Broadcast(SelectedItems, Type);
 							})
-						.ItemHeight(24)
 					]
 					+SOverlay::Slot()
 					[

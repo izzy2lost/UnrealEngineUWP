@@ -57,7 +57,6 @@ namespace UE::ConcertReplicationScriptingEditor
 					SAssignNew(PropertyListView, SListView<TSharedPtr<FConcertPropertyChain>>)
 					.ListItemsSource(&DisplayedProperties)
 					.SelectionMode(ESelectionMode::None)
-					.ItemHeight(23.0f)
 					.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
 					.OnGenerateRow(this, &SConcertPropertyChainCombo::MakePropertyChainRow)
 				]

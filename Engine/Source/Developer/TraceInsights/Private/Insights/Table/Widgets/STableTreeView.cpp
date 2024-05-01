@@ -267,7 +267,6 @@ void STableTreeView::ConstructWidget(TSharedPtr<FTable> InTablePtr)
 				.OnExpansionChanged(this, &STableTreeView::TreeView_OnExpansionChanged)
 				.OnMouseButtonDoubleClick(this, &STableTreeView::TreeView_OnMouseButtonDoubleClick)
 				.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &STableTreeView::TreeView_GetMenuContent))
-				.ItemHeight(16.0f)
 				.HeaderRow
 				(
 					SAssignNew(TreeViewHeaderRow, SHeaderRow)

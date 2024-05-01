@@ -880,7 +880,6 @@ TSharedRef<SDockTab> SWidgetReflector::SpawnWidgetHierarchyTab(const FSpawnTabAr
 				[
 					// The tree view that shows all the info that we capture.
 					SAssignNew(ReflectorTree, SReflectorTree)
-					.ItemHeight(24.0f)
 					.TreeItemsSource(&FilteredTreeRoot)
 					.OnGenerateRow(this, &SWidgetReflector::HandleReflectorTreeGenerateRow)
 					.OnGetChildren(this, &SWidgetReflector::HandleReflectorTreeGetChildren)

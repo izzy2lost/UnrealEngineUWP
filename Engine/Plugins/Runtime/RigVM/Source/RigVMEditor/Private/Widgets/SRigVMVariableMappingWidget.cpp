@@ -308,7 +308,6 @@ void SRigVMVariableMappingWidget::Construct(const FArguments& InArgs/*, FSimpleM
 				.TreeItemsSource(&VariableMappingList)
 				.OnGenerateRow(this, &SRigVMVariableMappingWidget::MakeTreeRowWidget)
 				.OnGetChildren(this, &SRigVMVariableMappingWidget::GetChildrenForInfo)
-				.ItemHeight(22.0f)
 			]
 		];
 

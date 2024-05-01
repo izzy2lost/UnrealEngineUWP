@@ -180,7 +180,6 @@ void FLandscapeEditorDetailCustomization_CopyPaste::CustomizeDetails(IDetailLayo
 				.MenuContent()
 				[
 					SNew(SListView<TSharedPtr<FString>>)
-					.ItemHeight(24.0f)
 					.ListItemsSource(&GuessedDimensionComboList)
 					.SelectionMode(ESelectionMode::Type::Single)
 					.OnGenerateRow_Lambda([](TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& Owner)

@@ -25,7 +25,6 @@ void SVariantManagerActorListView::Construct(const FArguments& InArgs, TWeakPtr<
 	SListView::Construct
 	(
 		SListView::FArguments()
-		.ItemHeight(24)
 		.SelectionMode(ESelectionMode::Multi)
 		.ListItemsSource(InArgs._ListItemsSource)
 		.OnContextMenuOpening(this, &SVariantManagerActorListView::OnActorListContextMenuOpening)

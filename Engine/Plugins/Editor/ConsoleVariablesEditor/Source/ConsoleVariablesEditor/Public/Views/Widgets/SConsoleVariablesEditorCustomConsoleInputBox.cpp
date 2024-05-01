@@ -163,7 +163,6 @@ void SConsoleVariablesEditorCustomConsoleInputBox::Construct(
 							}
 						}
 					})
-					.ItemHeight(18)
 				]
 			]
 		)

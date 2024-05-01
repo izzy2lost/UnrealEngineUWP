@@ -46,7 +46,6 @@ void SSessionConsoleShortcutWindow::Construct(const FArguments& InArgs)
 			.Padding(6.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SAssignNew(ShortcutListView, SListView<TSharedPtr<FConsoleShortcutData>>)
-					.ItemHeight(24.0f)
 					.ListItemsSource(&Shortcuts)
 					.SelectionMode(ESelectionMode::None)
 					.OnGenerateRow(this, &SSessionConsoleShortcutWindow::HandleShortcutListViewGenerateRow)

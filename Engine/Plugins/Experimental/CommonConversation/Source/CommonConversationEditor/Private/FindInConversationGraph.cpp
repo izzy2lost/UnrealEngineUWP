@@ -143,7 +143,6 @@ void SFindInConversation::Construct( const FArguments& InArgs, TSharedPtr<FConve
 				.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 				[
 					SAssignNew(TreeView, STreeViewType)
-					.ItemHeight(24)
 					.TreeItemsSource(&ItemsFound)
 					.OnGenerateRow(this, &SFindInConversation::OnGenerateRow)
 					.OnGetChildren(this, &SFindInConversation::OnGetChildren)

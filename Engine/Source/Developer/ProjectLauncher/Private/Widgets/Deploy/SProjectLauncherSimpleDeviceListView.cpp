@@ -47,8 +47,7 @@ void SProjectLauncherSimpleDeviceListView::Construct(const FArguments& InArgs, c
 	SAssignNew(DeviceProxyListView, SListView<TSharedPtr<ITargetDeviceProxy>>)
 		.SelectionMode(ESelectionMode::None)
 		.ListItemsSource(&DeviceProxyList)
-		.OnGenerateRow(this, &SProjectLauncherSimpleDeviceListView::HandleDeviceProxyListViewGenerateRow)
-		.ItemHeight(16.0f);
+		.OnGenerateRow(this, &SProjectLauncherSimpleDeviceListView::HandleDeviceProxyListViewGenerateRow);
 
 	ChildSlot
 	[

@@ -246,7 +246,6 @@ void SConsoleInputBox::Construct(const FArguments& InArgs)
 					.SelectionMode( ESelectionMode::Single )							// Ideally the mouse over would not highlight while keyboard controls the UI
 					.OnGenerateRow(this, &SConsoleInputBox::MakeSuggestionListItemWidget)
 					.OnSelectionChanged(this, &SConsoleInputBox::SuggestionSelectionChanged)
-					.ItemHeight(18)
 				]
 			]
 		)

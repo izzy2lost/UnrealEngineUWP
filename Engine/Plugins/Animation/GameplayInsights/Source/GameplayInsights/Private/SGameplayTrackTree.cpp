@@ -183,7 +183,6 @@ void SGameplayTrackTree::Construct(const FArguments& InArgs, FGameplaySharedData
 	InSharedData.OnTracksChanged().AddSP(this, &SGameplayTrackTree::HandleTracksChanged);
 
 	TreeView = SNew(STreeView<TSharedRef<FGameplayTrackTreeEntry>>)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::None)
 		.TreeItemsSource(&FilteredTracks)
 		.OnGenerateRow(this, &SGameplayTrackTree::OnGenerateRow)

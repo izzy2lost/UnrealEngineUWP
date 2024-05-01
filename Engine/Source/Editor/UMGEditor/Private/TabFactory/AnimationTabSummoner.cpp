@@ -382,7 +382,6 @@ public:
 		InBlueprintEditor->OnSelectedAnimationChanged.AddSP(this, &SUMGAnimationList::AnimationListSelelctionSync);
 
 		SAssignNew(AnimationListView, SWidgetAnimationListView)
-			.ItemHeight(20.0f)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(this, &SUMGAnimationList::OnGenerateWidgetForMovieScene)
 			.OnItemScrolledIntoView(this, &SUMGAnimationList::OnItemScrolledIntoView)

@@ -1261,7 +1261,6 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 {
 	TSharedRef<SWidget> Widget = SAssignNew(TraceListView, SListView<TSharedPtr<FTraceViewModel>>)
 		.IsFocusable(true)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::Multi)
 		.OnSelectionChanged(this, &STraceStoreWindow::TraceList_OnSelectionChanged)
 		.OnMouseButtonDoubleClick(this, &STraceStoreWindow::TraceList_OnMouseButtonDoubleClick)

@@ -61,7 +61,6 @@ void SStateTreeView::Construct(const FArguments& InArgs, TSharedRef<FStateTreeVi
 		.OnGenerateRow(this, &SStateTreeView::HandleGenerateRow)
 		.OnGetChildren(this, &SStateTreeView::HandleGetChildren)
 		.TreeItemsSource(&Subtrees)
-		.ItemHeight(32)
 		.OnSelectionChanged(this, &SStateTreeView::HandleTreeSelectionChanged)
 		.OnExpansionChanged(this, &SStateTreeView::HandleTreeExpansionChanged)
 		.OnContextMenuOpening(this, &SStateTreeView::HandleContextMenuOpening)

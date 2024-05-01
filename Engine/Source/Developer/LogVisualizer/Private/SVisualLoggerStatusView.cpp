@@ -31,7 +31,6 @@ void SVisualLoggerStatusView::Construct(const FArguments& InArgs, const TSharedR
 				+ SVerticalBox::Slot()
 				[
 					SAssignNew(StatusItemsView, STreeView<TSharedPtr<FLogStatusItem> >)
-					.ItemHeight(40.0f)
 					.TreeItemsSource(&StatusItems)
 					.OnGenerateRow(this, &SVisualLoggerStatusView::HandleGenerateLogStatus)
 					.OnGetChildren(this, &SVisualLoggerStatusView::OnLogStatusGetChildren)

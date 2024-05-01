@@ -371,7 +371,6 @@ void FConcertConsoleVariableSessionCustomization::CustomizeDetails(IDetailLayout
 		Row.WholeRowContent()
 		[
 			SAssignNew(ClientsListViewWeak,SListView<TSharedPtr<FConcertCVarDetails>>)
-			.ItemHeight(20.0f)
 			.SelectionMode(ESelectionMode::None)
 			.ListItemsSource(&Clients)
 			.OnGenerateRow_Lambda(HandleGenerateRow)

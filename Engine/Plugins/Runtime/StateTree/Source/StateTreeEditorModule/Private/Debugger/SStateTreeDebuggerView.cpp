@@ -512,7 +512,6 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 				}
 			})
 		.TreeItemsSource(&EventsTreeElements)
-		.ItemHeight(32)
 		.AllowOverscroll(EAllowOverscroll::No)
 		.ExternalScrollbar(VerticalScrollBar);
 

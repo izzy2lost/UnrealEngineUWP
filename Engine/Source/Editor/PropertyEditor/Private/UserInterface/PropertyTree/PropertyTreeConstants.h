@@ -5,8 +5,6 @@
 
 namespace PropertyTreeConstants
 {
-	const uint32 ItemHeight = 22;
-
 	const FName ColumnId_Name( TEXT("Property") );
 	const FName ColumnId_Property( TEXT("Value") );
 

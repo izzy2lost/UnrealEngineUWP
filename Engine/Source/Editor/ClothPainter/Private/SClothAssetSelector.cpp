@@ -807,7 +807,6 @@ void SClothAssetSelector::Construct(const FArguments& InArgs, USkeletalMesh* InM
 				.MinDesiredHeight(100.0f)
 				[
 					SAssignNew(AssetList, SAssetList)
-					.ItemHeight(24)
 					.ListItemsSource(&AssetListItems)
 					.OnGenerateRow(this, &SClothAssetSelector::OnGenerateWidgetForClothingAssetItem)
 					.OnSelectionChanged(this, &SClothAssetSelector::OnAssetListSelectionChanged)
@@ -862,7 +861,6 @@ void SClothAssetSelector::Construct(const FArguments& InArgs, USkeletalMesh* InM
 				.MinDesiredHeight(100.0f)
 				[
 					SAssignNew(MaskList, SMaskList)
-					.ItemHeight(24)
 					.ListItemsSource(&MaskListItems)
 					.OnGenerateRow(this, &SClothAssetSelector::OnGenerateWidgetForMaskItem)
 					.OnSelectionChanged(this, &SClothAssetSelector::OnMaskSelectionChanged)

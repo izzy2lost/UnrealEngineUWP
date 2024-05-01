@@ -329,7 +329,6 @@ void SRigVMExecutionStackView::Construct( const FArguments& InArgs, TSharedRef<F
 				.OnSelectionChanged(this, &SRigVMExecutionStackView::OnSelectionChanged)
 				.OnContextMenuOpening(this, &SRigVMExecutionStackView::CreateContextMenu)
 				.OnMouseButtonDoubleClick(this, &SRigVMExecutionStackView::HandleItemMouseDoubleClick)
-				.ItemHeight(28)
 			]
 		]
 	];

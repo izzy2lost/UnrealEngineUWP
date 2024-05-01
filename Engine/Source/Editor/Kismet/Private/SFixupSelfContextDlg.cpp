@@ -117,7 +117,6 @@ void SFixupSelfContextDialog::Construct(const FArguments& InArgs, const TArray< 
 					.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 					[
 						SNew(SListView<FListViewItem>)
-						.ItemHeight(24.0f)
 						.ListItemsSource(&FunctionsToFixup)
 						.SelectionMode(ESelectionMode::None)
 						.OnGenerateRow(this, &SFixupSelfContextDialog::OnGenerateRow)

@@ -361,7 +361,6 @@ namespace PackageRestore
 						.ListItemsSource(PackageRestoreItems)
 						.OnGenerateRow(this, &SPackageRestoreDialog::MakePackageRestoreListItemWidget)
 						.HeaderRow(HeaderRowWidget)
-						.ItemHeight(20)
 					]
 					+SVerticalBox::Slot()
 					.AutoHeight()

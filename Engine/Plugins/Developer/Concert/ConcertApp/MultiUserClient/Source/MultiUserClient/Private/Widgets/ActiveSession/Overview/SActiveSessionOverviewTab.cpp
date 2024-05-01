@@ -385,7 +385,6 @@ void SActiveSessionOverviewTab::Construct(const FArguments& InArgs, TSharedPtr<I
 					.BodyContent()
 					[
 						SAssignNew(ClientsListView, SListView<TSharedPtr<FConcertSessionClientInfo>>)
-						.ItemHeight(20.0f)
 						.SelectionMode(ESelectionMode::Single)
 						.ListItemsSource(&Clients)
 						.OnGenerateRow(this, &SActiveSessionOverviewTab::HandleGenerateRow)

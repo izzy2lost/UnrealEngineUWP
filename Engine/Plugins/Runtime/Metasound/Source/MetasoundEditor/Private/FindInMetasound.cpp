@@ -382,7 +382,6 @@ namespace Metasound::Editor
 				.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 				[
 					SAssignNew(TreeView, STreeViewType)
-					.ItemHeight(24)
 					.TreeItemsSource(&ItemsFound)
 					.OnGenerateRow(this, &SFindInMetasound::OnGenerateRow)
 					.OnGetChildren(this, &SFindInMetasound::OnGetChildren)

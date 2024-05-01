@@ -195,7 +195,6 @@ void SSkeletonSlotNames::Construct(const FArguments& InArgs, const TSharedRef<IE
 			.OnContextMenuOpening( this, &SSkeletonSlotNames::OnGetContextMenuContent )
 			.SelectionMode(ESelectionMode::Single)
 			.OnSelectionChanged( this, &SSkeletonSlotNames::OnNotifySelectionChanged )
-			.ItemHeight( 22.0f )
 			.HeaderRow
 			(
 				SNew( SHeaderRow )

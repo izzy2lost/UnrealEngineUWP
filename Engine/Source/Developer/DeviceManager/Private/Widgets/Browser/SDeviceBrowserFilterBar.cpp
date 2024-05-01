@@ -123,7 +123,6 @@ void SDeviceBrowserFilterBar::Construct(const FArguments& InArgs, TSharedRef<FDe
 				.MenuContent()
 				[
 					SAssignNew(PlatformListView, SListView<TSharedPtr<FDeviceBrowserFilterEntry> >)
-					.ItemHeight(24.0f)
 					.ListItemsSource(&Filter->GetFilteredPlatforms())
 					.OnGenerateRow_Lambda(PlatformListViewGenerateRow)
 				]

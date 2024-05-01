@@ -138,7 +138,6 @@ void SPaletteView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluepri
 	FilterHandler->SetGetChildrenDelegate(PaletteFilterHandler::FOnGetChildren::CreateRaw(this, &SPaletteView::OnGetChildren));
 
 	SAssignNew(WidgetTemplatesView, STreeView< TSharedPtr<FWidgetViewModel> >)
-		.ItemHeight(1.0f)
 		.SelectionMode(ESelectionMode::SingleToggle)
 		.OnGenerateRow(this, &SPaletteView::OnGenerateWidgetTemplateItem)
 		.OnGetChildren(FilterHandler.ToSharedRef(), &PaletteFilterHandler::OnGetFilteredChildren)

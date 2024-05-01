@@ -377,7 +377,6 @@ void SMorphTargetViewer::Construct(const FArguments& InArgs, const TSharedRef<IP
 			.OnGenerateRow( this, &SMorphTargetViewer::GenerateMorphTargetRow )
 			.OnContextMenuOpening( this, &SMorphTargetViewer::OnGetContextMenuContent )
 			.OnSelectionChanged( this, &SMorphTargetViewer::OnRowsSelectedChanged )
-			.ItemHeight( 22.0f )
 			.HeaderRow
 			(
 				SNew( SHeaderRow )

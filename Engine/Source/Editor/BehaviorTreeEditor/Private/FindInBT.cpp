@@ -190,7 +190,6 @@ this->ChildSlot
 				.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 				[
 					SAssignNew(TreeView, STreeViewType)
-					.ItemHeight(24)
 					.TreeItemsSource(&ItemsFound)
 					.OnGenerateRow(this, &SFindInBT::OnGenerateRow)
 					.OnGetChildren(this, &SFindInBT::OnGetChildren)

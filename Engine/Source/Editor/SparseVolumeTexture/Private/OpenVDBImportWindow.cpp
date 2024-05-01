@@ -200,7 +200,6 @@ void SOpenVDBImportWindow::Construct(const FArguments& InArgs)
 			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 			[
 				SNew(SListView<TSharedPtr<FOpenVDBGridInfo>>)
-				.ItemHeight(24)
 				.ScrollbarVisibility(EVisibility::Visible)
 				.ListItemsSource(OpenVDBGridInfo)
 				.OnGenerateRow(this, &SOpenVDBImportWindow::GenerateGridInfoItemRow)

@@ -1099,8 +1099,6 @@ void SStructViewer::Construct(const FArguments& InArgs, const FStructViewerIniti
 		.OnContextMenuOpening(OnContextMenuOpening)
 		// Find out when the user selects something in the tree
 		.OnSelectionChanged(this, &SStructViewer::OnStructViewerSelectionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)
@@ -1124,8 +1122,6 @@ void SStructViewer::Construct(const FArguments& InArgs, const FStructViewerIniti
 		.OnSelectionChanged(this, &SStructViewer::OnStructViewerSelectionChanged)
 		// Called when the expansion state of an item changes
 		.OnExpansionChanged(this, &SStructViewer::OnStructViewerExpansionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)

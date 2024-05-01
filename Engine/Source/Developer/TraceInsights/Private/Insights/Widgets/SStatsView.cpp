@@ -297,7 +297,6 @@ void SStatsView::Construct(const FArguments& InArgs)
 					.OnSelectionChanged(this, &SStatsView::TreeView_OnSelectionChanged)
 					.OnMouseButtonDoubleClick(this, &SStatsView::TreeView_OnMouseButtonDoubleClick)
 					.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SStatsView::TreeView_GetMenuContent))
-					.ItemHeight(16.0f)
 					.HeaderRow
 					(
 						SAssignNew(TreeViewHeaderRow, SHeaderRow)

@@ -138,7 +138,6 @@ void SConcertSandboxPersistWidget::Construct(const FArguments& InArgs)
 				SNew(SBorder)
 				[
 					SAssignNew(ListView, SListView<TSharedPtr<FConcertPersistItem>>)
-					.ItemHeight(20)
 					.ListItemsSource(&ListViewItems)
 					.OnGenerateRow(this, &SConcertSandboxPersistWidget::OnGenerateRowForList)
 					.HeaderRow

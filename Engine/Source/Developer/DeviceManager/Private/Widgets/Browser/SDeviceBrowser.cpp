@@ -89,7 +89,6 @@ void SDeviceBrowser::Construct(const FArguments& InArgs, const TSharedRef<FDevic
 					[
 						// device list
 						SAssignNew(DeviceServiceListView, SListView<ITargetDeviceServicePtr>)
-							.ItemHeight(20.0f)
 							.ListItemsSource(&DeviceServiceList)
 							.OnContextMenuOpening_Lambda(DeviceServiceListViewContextMenuOpening)
 							.OnGenerateRow_Lambda(DeviceServiceListViewGenerateRow)

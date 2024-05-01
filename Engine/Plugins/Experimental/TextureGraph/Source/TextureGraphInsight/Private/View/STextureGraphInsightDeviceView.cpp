@@ -279,7 +279,6 @@ void STextureGraphInsightDeviceListView::Construct(const FArguments& Args)
 	ChildSlot
 	[
 		SAssignNew(_tableView, SItemTableView)
-		.ItemHeight(24)
 		.TreeItemsSource(&_rootItems)
 		.OnGenerateRow(this, &STextureGraphInsightDeviceListView::OnGenerateRowForView)
 		.OnGetChildren(this, &STextureGraphInsightDeviceListView::OnGetChildrenForView)

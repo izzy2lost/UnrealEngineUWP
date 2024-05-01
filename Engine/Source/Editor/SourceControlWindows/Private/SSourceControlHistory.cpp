@@ -702,7 +702,6 @@ public:
 						[
 							SAssignNew( MainHistoryListView, SHistoryFileListType)
 							.TreeItemsSource( &HistoryCollection )
-							.ItemHeight(25.f)
 							.SelectionMode(ESelectionMode::Multi)
 							.OnSelectionChanged(this, &SSourceControlHistoryWidget::OnRevisionPropertyChanged)
 							.OnGenerateRow( this, &SSourceControlHistoryWidget::OnGenerateRowForHistoryFileList )

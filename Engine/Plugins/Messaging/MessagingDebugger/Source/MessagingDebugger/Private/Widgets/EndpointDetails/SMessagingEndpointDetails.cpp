@@ -74,7 +74,6 @@ void SMessagingEndpointDetails::Construct(const FArguments& InArgs, const TShare
 					[
 						// address list
 						SAssignNew(AddressListView, SListView<TSharedPtr<FMessageTracerAddressInfo>>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&AddressList)
 							.SelectionMode(ESelectionMode::None)
 							.OnGenerateRow(this, &SMessagingEndpointDetails::HandleAddressListGenerateRow)

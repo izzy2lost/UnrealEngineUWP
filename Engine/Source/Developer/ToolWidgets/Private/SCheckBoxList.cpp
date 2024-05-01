@@ -123,7 +123,6 @@ void SCheckBoxList::Construct(const FArguments& InArgs, const TArray<TSharedRef<
 		SAssignNew(ListView, SListView<TSharedRef<CheckBoxList::FItemPair>>)
 		.ListItemsSource(&Items)
 		.OnGenerateRow(this, &SCheckBoxList::HandleGenerateRow)
-		.ItemHeight(20)
 		.HeaderRow(HeaderRowWidget)
 		.SelectionMode(ESelectionMode::None)
 	];

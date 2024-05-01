@@ -117,9 +117,7 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 			// Called to child items for any given parent item
 			.OnGetChildren( this, &FCustomizableObjectDetails::OnGetChildrenForStateTree )
 			// Generates the actual widget for a tree item
-			.OnGenerateRow( this, &FCustomizableObjectDetails::OnGenerateRowForStateTree ) 
-			// Allow for some spacing between items with a larger item height.
-			.ItemHeight(20.0f)
+			.OnGenerateRow( this, &FCustomizableObjectDetails::OnGenerateRowForStateTree )
 			.HeaderRow
 			(
 				SNew(SHeaderRow)

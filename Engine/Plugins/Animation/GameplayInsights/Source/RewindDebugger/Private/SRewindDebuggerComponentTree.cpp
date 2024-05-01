@@ -146,7 +146,6 @@ void SRewindDebuggerComponentTree::Construct(const FArguments& InArgs)
 	DebugComponents = InArgs._DebugComponents;
 
 	ComponentTreeView = SNew(STreeView<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>)
-									.ItemHeight(20.0f)
 									.TreeItemsSource(DebugComponents)
 									.OnGenerateRow(this, &SRewindDebuggerComponentTree::ComponentTreeViewGenerateRow)
 									.OnGetChildren_Static(&ComponentTreeViewGetChildren)

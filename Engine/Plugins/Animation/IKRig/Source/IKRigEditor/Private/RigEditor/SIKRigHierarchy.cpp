@@ -461,7 +461,6 @@ void SIKRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FIKRigEdito
                 .OnMouseButtonDoubleClick(this, &SIKRigHierarchy::OnItemDoubleClicked)
                 .OnSetExpansionRecursive(this, &SIKRigHierarchy::OnSetExpansionRecursive)
                 .HighlightParentNodesForSelection(false)
-                .ItemHeight(24)
                 .HeaderRow
 				(
 					SNew(SHeaderRow)

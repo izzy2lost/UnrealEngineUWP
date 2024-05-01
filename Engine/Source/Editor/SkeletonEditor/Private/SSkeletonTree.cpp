@@ -668,7 +668,6 @@ void SSkeletonTree::CreateTreeColumns()
 		.OnItemScrolledIntoView(this, &SSkeletonTree::OnItemScrolledIntoView)
 		.OnMouseButtonDoubleClick(this, &SSkeletonTree::OnTreeDoubleClick)
 		.OnSetExpansionRecursive(this, &SSkeletonTree::SetTreeItemExpansionRecursive)
-		.ItemHeight(24)
 		.HighlightParentNodesForSelection(true)
 		.HeaderRow
 		(

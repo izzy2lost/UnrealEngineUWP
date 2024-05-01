@@ -216,8 +216,6 @@ void SAutomationWindow::Construct( const FArguments& InArgs, const IAutomationCo
 		//on selection
 		.OnSelectionChanged(this, &SAutomationWindow::OnTestSelectionChanged)
 		.OnExpansionChanged( this, &SAutomationWindow::OnExpansionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 #if WITH_EDITOR
 		// If in editor - add a context menu for opening assets when in editor
 		.OnContextMenuOpening(this, &SAutomationWindow::HandleAutomationListContextMenuOpening)
@@ -612,7 +610,6 @@ void SAutomationWindow::Construct( const FArguments& InArgs, const IAutomationCo
 											.FillSize(1.0f)
 											[
 												SAssignNew(LogListView, SListView<TSharedPtr<FAutomationOutputMessage> >)
-												.ItemHeight(18)
 												.ListItemsSource(&LogMessages)
 												.SelectionMode(ESelectionMode::Multi)
 												.OnGenerateRow(this, &SAutomationWindow::OnGenerateWidgetForLog)

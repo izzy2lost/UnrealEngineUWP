@@ -196,7 +196,6 @@ namespace
 							)
 							.ListItemsSource(&TaskListModels)
 							.OnGenerateRow(this, &SLocalizationCommandletExecutor::OnGenerateTaskListRow)
-							.ItemHeight(24.0)
 							.SelectionMode(ESelectionMode::Single)
 						]
 					]

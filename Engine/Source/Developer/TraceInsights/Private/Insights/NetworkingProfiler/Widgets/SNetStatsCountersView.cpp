@@ -182,7 +182,6 @@ void SNetStatsCountersView::Construct(const FArguments& InArgs, TSharedPtr<SNetw
 				.OnSelectionChanged(this, &SNetStatsCountersView::TreeView_OnSelectionChanged)
 				.OnMouseButtonDoubleClick(this, &SNetStatsCountersView::TreeView_OnMouseButtonDoubleClick)
 				.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SNetStatsCountersView::TreeView_GetMenuContent))
-				.ItemHeight(16.0f)
 				.HeaderRow
 				(
 					SAssignNew(TreeViewHeaderRow, SHeaderRow)

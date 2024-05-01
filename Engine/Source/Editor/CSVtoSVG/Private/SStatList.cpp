@@ -16,7 +16,6 @@
 void SStatList::Construct(const FArguments& Args)
 {
 	StatListView = SNew(SListView<TSharedPtr<FString>>)
-					.ItemHeight(20.0f)
 					.ListItemsSource(&StatList)
 					.OnGenerateRow(this, &SStatList::OnGenerateWidgetForList);
 

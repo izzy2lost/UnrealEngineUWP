@@ -212,7 +212,7 @@ public:
 
 		SLATE_ARGUMENT(TArray<FSubobjectEditorTreeNodePtrType>*, TreeItemsSource)
 
-		SLATE_ATTRIBUTE(float, ItemHeight)
+		SLATE_ATTRIBUTE_DEPRECATED(float, ItemHeight, 5.5, "The ItemHeight is only used for Tile. See ShouldArrangeAsTiles")
 
 		SLATE_EVENT(FOnContextMenuOpening, OnContextMenuOpening)
 

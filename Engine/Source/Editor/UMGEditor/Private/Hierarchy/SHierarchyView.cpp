@@ -325,7 +325,6 @@ void SHierarchyView::RebuildTreeView()
 	}
 
 	SAssignNew(WidgetTreeView, STreeView< TSharedPtr<FHierarchyModel> >)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::Multi)
 		.OnGetChildren(FilterHandler.ToSharedRef(), &TreeFilterHandler< TSharedPtr<FHierarchyModel> >::OnGetFilteredChildren)
 		.OnGenerateRow(this, &SHierarchyView::WidgetHierarchy_OnGenerateRow)

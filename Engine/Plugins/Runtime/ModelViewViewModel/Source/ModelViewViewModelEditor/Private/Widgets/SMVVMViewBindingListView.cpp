@@ -183,7 +183,6 @@ void SBindingsList::Construct(const FArguments& InArgs, TSharedPtr<SBindingsPane
 		.OnGetChildren(this, &SBindingsList::GetChildrenOfEntry)
 		.OnContextMenuOpening(this, &SBindingsList::OnSourceConstructContextMenu)
 		.OnSelectionChanged(this, &SBindingsList::OnSourceListSelectionChanged)
-		.ItemHeight(32)
 	];
 
 	Refresh();

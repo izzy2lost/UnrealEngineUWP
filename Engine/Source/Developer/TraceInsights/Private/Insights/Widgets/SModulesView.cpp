@@ -647,7 +647,6 @@ void SModulesView::Construct(const FArguments& InArgs)
 					[
 						SAssignNew(ListView, SListView<TSharedPtr<FModule>>)
 						.ExternalScrollbar(ExternalScrollbar)
-						.ItemHeight(20.0f)
 						.SelectionMode(ESelectionMode::Single)
 						.OnMouseButtonClick(this, &SModulesView::OnMouseButtonClick)
 						.OnSelectionChanged(this, &SModulesView::OnSelectionChanged)

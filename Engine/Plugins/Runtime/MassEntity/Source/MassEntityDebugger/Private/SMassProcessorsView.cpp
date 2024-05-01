@@ -98,7 +98,6 @@ void SMassProcessorsView::Construct(const FArguments& InArgs, TSharedRef<FMassDe
 			.MinSize(250.0f)
 			[
 				SAssignNew(ProcessorsListWidget, SListView<TSharedPtr<FMassDebuggerProcessorData> >)
-					.ItemHeight(20.f)
 					.ListItemsSource(&DebuggerModel->CachedProcessors)
 					.SelectionMode(ESelectionMode::Multi)
 					.OnSelectionChanged(this, &SMassProcessorsView::ProcessorListSelectionChanged)

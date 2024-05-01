@@ -1901,7 +1901,6 @@ TSharedPtr<SWidget> SInterchangeGenericAssetSkeletonConflictWidget::ConstructSke
 	FText SkeletonStatus = NSLOCTEXT("SInterchangeGenericAssetSkeletonConflictWidget", "ConstructSkeletonComparison_SkeletonStatus", "The skeleton has some conflicts");
 	
 	CompareTree = SNew(STreeView<TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint>>)
-		.ItemHeight(24)
 		.SelectionMode(ESelectionMode::None)
 		.TreeItemsSource(&Joints)
 		.OnGenerateRow(this, &SInterchangeGenericAssetSkeletonConflictWidget::OnGenerateRowCompareTreeView)

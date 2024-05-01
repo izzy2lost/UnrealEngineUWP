@@ -502,7 +502,6 @@ namespace HLODOutliner
 	TSharedRef<SHLODOutliner::SHLODTree> SHLODOutliner::CreateTreeviewWidget()
 	{
 		return SAssignNew(TreeView, SHLODTree)
-			.ItemHeight(24.0f)
 			.TreeItemsSource(&HLODTreeRoot)
 			.OnGenerateRow(this, &SHLODOutliner::OnOutlinerGenerateRow)
 			.OnGetChildren(this, &SHLODOutliner::OnOutlinerGetChildren)

@@ -39,7 +39,6 @@ namespace UE::MLDeformer
 			[
 				SAssignNew(NameListView, SListView<TSharedPtr<FString>>)
 				.SelectionMode(ESelectionMode::Single)
-				.ItemHeight(20.0f)
 				.ListItemsSource(&CurveNames)
 				.OnSelectionChanged(this, &SCurvePickerWidget::HandleSelectionChanged)
 				.OnGenerateRow(this, &SCurvePickerWidget::HandleGenerateRow)

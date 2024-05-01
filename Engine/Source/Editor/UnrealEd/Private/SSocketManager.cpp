@@ -351,9 +351,6 @@ void SSocketManager::Construct(const FArguments& InArgs)
 						// Find out when the user selects something in the tree
 						.OnSelectionChanged(this, &SSocketManager::SocketSelectionChanged_Execute)
 
-						// Allow for some spacing between items with a larger item height.
-						.ItemHeight(24.0f)
-
 						.OnContextMenuOpening(this, &SSocketManager::OnContextMenuOpening)
 						.OnItemScrolledIntoView(this, &SSocketManager::OnItemScrolledIntoView)
 

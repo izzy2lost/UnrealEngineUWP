@@ -132,7 +132,6 @@ void STimerTreeView::Construct(const FArguments& InArgs, const FText& InViewName
 				//.OnSelectionChanged(this, &STimerTreeView::TreeView_OnSelectionChanged)
 				//.OnMouseButtonDoubleClick(this, &STimerTreeView::TreeView_OnMouseButtonDoubleClick)
 				.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &STimerTreeView::TreeView_GetMenuContent))
-				.ItemHeight(16.0f)
 				.HeaderRow
 				(
 					SAssignNew(TreeViewHeaderRow, SHeaderRow)

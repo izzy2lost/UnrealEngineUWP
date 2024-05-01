@@ -117,7 +117,6 @@ void STimingViewTrackList::Construct(const FArguments& InArgs, const TSharedRef<
 
 	ListView = SNew(SListView<TSharedPtr<FBaseTimingTrack>>)
 		.IsFocusable(true)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::None)
 		.ListItemsSource(&FilteredTracks)
 		.OnGenerateRow(this, &STimingViewTrackList::OnGenerateRow);

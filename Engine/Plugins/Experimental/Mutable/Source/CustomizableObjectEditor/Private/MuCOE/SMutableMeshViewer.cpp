@@ -535,7 +535,6 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateBufferChannelsListView(
 	const FText ComponentCountTooltip = FText(LOCTEXT("ChannelComponentTooltip","The amount of components each unit of data has."));
 	
 	return SNew(SListView<TSharedPtr<FBufferChannelElement>>)
-		.ItemHeight(24)
 		.ListItemsSource(InBufferChannelElements.Get())
 		.OnGenerateRow(this, &SMutableMeshViewer::OnGenerateBufferChannelRow)
 		.SelectionMode(ESelectionMode::None)

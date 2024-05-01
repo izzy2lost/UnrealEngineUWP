@@ -51,7 +51,6 @@ public:
 		using SSuper = SListView<TSharedPtr<FLocationItem>>;
 		SSuper::Construct(SSuper::FArguments()
 			.ListItemsSource(&Items)
-			.ItemHeight(18.0f)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(InArgs._OnGenerateRow)
 			.OnSelectionChanged(InArgs._OnSelectionChanged)

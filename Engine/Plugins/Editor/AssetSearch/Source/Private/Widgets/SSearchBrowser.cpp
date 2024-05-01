@@ -87,7 +87,6 @@ void SSearchBrowser::Construct( const FArguments& InArgs )
 					+ SOverlay::Slot()
 					[
 						SAssignNew(SearchTreeView, STreeView< TSharedPtr<FSearchNode> >)
-						.ItemHeight(24.0f)
 						.TreeItemsSource(&SearchResults)
 						.SelectionMode(ESelectionMode::Single)
 						.OnGenerateRow(this, &SSearchBrowser::HandleListGenerateRow)

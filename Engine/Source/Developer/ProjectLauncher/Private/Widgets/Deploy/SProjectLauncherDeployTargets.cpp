@@ -62,7 +62,6 @@ void SProjectLauncherDeployTargets::Construct(const FArguments& InArgs, const TS
 			[
 				// device list
 				SAssignNew(DeviceProxyListView, SListView<TSharedPtr<ITargetDeviceProxy>>)
-					.ItemHeight(16.0f)
 					.HeaderRow
 					(
 					SNew(SHeaderRow)

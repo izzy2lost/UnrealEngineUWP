@@ -304,7 +304,6 @@ void SRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	SuperArgs.OnMouseButtonDoubleClick(Delegates.OnMouseButtonDoubleClick);
 	SuperArgs.OnSetExpansionRecursive(Delegates.OnSetExpansionRecursive);
 	SuperArgs.HighlightParentNodesForSelection(true);
-	SuperArgs.ItemHeight(24);
 	SuperArgs.AllowInvisibleItemSelection(true);  //without this we deselect everything when we filter or we collapse
 	
 	SuperArgs.ShouldStackHierarchyHeaders_Lambda([]() -> bool {

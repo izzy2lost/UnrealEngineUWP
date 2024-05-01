@@ -222,7 +222,6 @@ void SActionableMessageViewportWidget::Construct(const FArguments& InArgs)
 		[
 			SAssignNew(ActionableMessageList, SListView<TSharedPtr<FActionableMessage>>)
 			.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("ActionableMessage.ListView"))
-			.ItemHeight(48)
 			.ListItemsSource(&ActionableMessages)
 			.OnGenerateRow(this, &SActionableMessageViewportWidget::OnGenerateRow)
 			.Visibility_Lambda([this]()

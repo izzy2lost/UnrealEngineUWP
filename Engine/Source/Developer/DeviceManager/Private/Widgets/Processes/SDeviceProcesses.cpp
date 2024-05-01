@@ -103,7 +103,6 @@ void SDeviceProcesses::Construct(const FArguments& InArgs, const TSharedRef<FDev
 							.Padding(0.0f)
 							[
 								SAssignNew(ProcessTreeView, STreeView<TSharedPtr<FDeviceProcessesProcessTreeNode>>)
-									.ItemHeight(20.0f)
 									.OnGenerateRow_Lambda(
 										[](TSharedPtr<FDeviceProcessesProcessTreeNode> Item, const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow> {
 											return SNew(SDeviceProcessesProcessListRow, OwnerTable)

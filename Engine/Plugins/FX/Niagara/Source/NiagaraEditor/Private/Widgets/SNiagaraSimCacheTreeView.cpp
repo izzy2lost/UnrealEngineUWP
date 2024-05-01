@@ -175,8 +175,6 @@ void SNiagaraSimCacheTreeView::SetupRootEntries()
 
 void SNiagaraSimCacheTreeView::Construct(const FArguments& InArgs)
 {
-	constexpr float ItemHeight = 50.0f;
-
 	ViewModel = InArgs._SimCacheViewModel;
 
 	ViewModel->OnBufferChanged().AddSP(this, &SNiagaraSimCacheTreeView::OnBufferChanged);
@@ -185,7 +183,6 @@ void SNiagaraSimCacheTreeView::Construct(const FArguments& InArgs)
 	ViewModel->BuildEntries(SharedThis(this));
 	
 	TreeView = SNew(STreeView<TSharedRef<FNiagaraSimCacheTreeItem>>)
-	.ItemHeight(ItemHeight)
 	.SelectionMode(ESelectionMode::Multi)
 	.TreeItemsSource(ViewModel->GetCurrentRootEntries())
 	.OnGenerateRow(this, &SNiagaraSimCacheTreeView::OnGenerateRow)

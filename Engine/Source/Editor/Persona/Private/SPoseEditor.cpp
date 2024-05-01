@@ -352,7 +352,6 @@ void SPoseViewer::Construct(const FArguments& InArgs, const TSharedRef<IPersonaT
 					.OnGenerateRow(this, &SPoseViewer::GeneratePoseRow)
 					.OnContextMenuOpening(this, &SPoseViewer::OnGetContextMenuContent)
 					.OnMouseButtonDoubleClick(this, &SPoseViewer::OnListDoubleClick)
-					.ItemHeight(22.0f)
 					.HeaderRow
 					(
 						SNew(SHeaderRow)
@@ -378,7 +377,6 @@ void SPoseViewer::Construct(const FArguments& InArgs, const TSharedRef<IPersonaT
 				.ListItemsSource(&CurveList)
 				.OnGenerateRow(this, &SPoseViewer::GenerateCurveRow)
 				.OnContextMenuOpening(this, &SPoseViewer::OnGetContextMenuContentForCurveList)
-				.ItemHeight(22.0f)
 				.HeaderRow
 				(
 					SNew(SHeaderRow)

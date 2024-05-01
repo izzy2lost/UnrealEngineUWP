@@ -3186,7 +3186,6 @@ TSharedPtr<SWidget> SSourceControlChangelistsWidget::OnOpenContextMenu()
 TSharedRef<STreeView<FChangelistTreeItemPtr>> SSourceControlChangelistsWidget::CreateChangelistTreeView(TArray<TSharedPtr<IChangelistTreeItem>>& ItemSources)
 {
 	return SNew(STreeView<FChangelistTreeItemPtr>)
-		.ItemHeight(24.0f)
 		.TreeItemsSource(&ItemSources)
 		.OnGenerateRow(this, &SSourceControlChangelistsWidget::OnGenerateRow)
 		.OnGetChildren(this, &SSourceControlChangelistsWidget::OnGetChangelistChildren)
@@ -3213,7 +3212,6 @@ TSharedRef<SListView<FChangelistTreeItemPtr>> SSourceControlChangelistsWidget::C
 	}
 
 	TSharedRef<SListView<FChangelistTreeItemPtr>> FileView = SNew(SListView<FChangelistTreeItemPtr>)
-		.ItemHeight(24.0f)
 		.ListItemsSource(&FileListNodes)
 		.OnGenerateRow(this, &SSourceControlChangelistsWidget::OnGenerateRow)
 		.SelectionMode(ESelectionMode::Multi)
@@ -3304,7 +3302,6 @@ TSharedRef<SListView<FChangelistTreeItemPtr>> SSourceControlChangelistsWidget::C
 TSharedRef<SListView<FChangelistTreeItemPtr>> SSourceControlChangelistsWidget::CreateUnsavedAssetsFilesView()
 {
 	TSharedRef<SListView<FChangelistTreeItemPtr>> FileView = SNew(SListView<FChangelistTreeItemPtr>)
-		.ItemHeight(24.0f)
 		.ListItemsSource(&FileListNodes)
 		.OnGenerateRow(this, &SSourceControlChangelistsWidget::OnGenerateRow)
 		.SelectionMode(ESelectionMode::Multi)

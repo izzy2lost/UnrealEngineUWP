@@ -275,7 +275,6 @@ TSharedRef<SWidget> FStateTreeStateLinkDetails::GenerateStatePicker()
 			[
 				SAssignNew(StateItemTree, STreeView<TSharedPtr<FStateTreeStateItem>>)
 				.SelectionMode(ESelectionMode::Single)
-				.ItemHeight(20.0f)
 				.TreeItemsSource(&FilteredRootItem->Children)
 				.OnGenerateRow(this, &FStateTreeStateLinkDetails::GenerateStateItemRow)
 				.OnGetChildren(this, &FStateTreeStateLinkDetails::GetStateItemChildren)

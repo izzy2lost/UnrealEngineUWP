@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SStateTreeNodeTypePicker.h"
 
@@ -33,7 +33,6 @@ void SStateTreeNodeTypePicker::Construct(const SStateTreeNodeTypePicker::FArgume
 
 	NodeTypeTree = SNew(STreeView<TSharedPtr<FStateTreeNodeTypeItem>>)
 		.SelectionMode(ESelectionMode::Single)
-		.ItemHeight(20.0f)
 		.TreeItemsSource(&FilteredRootNode->Children)
 		.OnGenerateRow(this, &SStateTreeNodeTypePicker::GenerateNodeTypeRow)
 		.OnGetChildren(this, &SStateTreeNodeTypePicker::GetNodeTypeChildren)

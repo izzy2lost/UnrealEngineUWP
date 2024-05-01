@@ -80,7 +80,6 @@ void SDeviceApps::Construct(const FArguments& InArgs, const TSharedRef<FDeviceMa
 							.Padding(0.0f)
 							[
 								SAssignNew(AppListView, SListView<TSharedPtr<FString> >)
-									.ItemHeight(20.0f)
 									.ListItemsSource(&AppList)
 									.OnGenerateRow_Lambda(AppListViewGenerateRow)
 									.OnSelectionChanged_Lambda(AppListViewSelectionChanged)

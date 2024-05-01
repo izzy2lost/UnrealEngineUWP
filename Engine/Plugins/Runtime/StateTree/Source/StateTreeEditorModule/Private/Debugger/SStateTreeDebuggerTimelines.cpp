@@ -106,7 +106,6 @@ void SStateTreeDebuggerTimelines::Construct(const FArguments& InArgs)
 	OnExpansionChanged = InArgs._OnExpansionChanged;
 
 	InstanceTreeView = SNew(STreeView<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>)
-									.ItemHeight(20.0f)
 									.OnSelectionChanged(InArgs._OnSelectionChanged)
 									.TreeItemsSource(InstanceTracks)
 									.OnGenerateRow(this, &SStateTreeDebuggerTimelines::GenerateTreeRow)

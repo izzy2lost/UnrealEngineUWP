@@ -236,9 +236,6 @@ void SCustomizableObjectProperties::Construct(const FArguments& InArgs )
 					// Find out when the user selects something in the tree
 					//.OnSelectionChanged( this, &SClassViewer::OnClassViewerSelectionChanged )
 
-					// Allow for some spacing between items with a larger item height.
-					.ItemHeight(20.0f)
-
 					.HeaderRow
 					(
 						SNew(SHeaderRow)

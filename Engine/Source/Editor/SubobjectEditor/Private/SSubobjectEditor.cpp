@@ -641,7 +641,6 @@ void SSubobjectEditorDragDropTree::Construct(const FArguments& InArgs)
 		.OnGetChildren(InArgs._OnGetChildren)
 		.OnSetExpansionRecursive(InArgs._OnSetExpansionRecursive)
 		.TreeItemsSource(InArgs._TreeItemsSource)
-		.ItemHeight(InArgs._ItemHeight)
 		.OnContextMenuOpening(InArgs._OnContextMenuOpening)
 		.OnMouseButtonDoubleClick(InArgs._OnMouseButtonDoubleClick)
 		.OnSelectionChanged(InArgs._OnSelectionChanged)
@@ -2112,7 +2111,6 @@ void SSubobjectEditor::ConstructTreeWidget()
 		.OnMouseButtonDoubleClick(this, &SSubobjectEditor::HandleItemDoubleClicked)
 		.ClearSelectionOnClick(ClearSelectionOnClick())
 		.OnTableViewBadState(this, &SSubobjectEditor::DumpTree)
-		.ItemHeight(24)
 		.HeaderRow
 	    (
 			HeaderRow

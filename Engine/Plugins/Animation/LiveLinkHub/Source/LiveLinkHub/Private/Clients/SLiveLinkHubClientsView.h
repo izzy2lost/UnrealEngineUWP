@@ -358,7 +358,6 @@ public:
 						[
 							SAssignNew(DiscoveredClientsListView, SListView<TSharedPtr<FLiveLinkHubClientId>>)
 							.ListItemsSource(&DiscoveredClients)
-							.ItemHeight(20.0f)
 							.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnDiscoveredClientPicked)
 							.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateDiscoveredClientsRow)
 						]
@@ -370,7 +369,6 @@ public:
 			[
 				SAssignNew(TreeView, STreeView<FClientTreeItemPtr>)
 				.TreeItemsSource(&Clients)
-				.ItemHeight(20.0f)
 				.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnSelectionChanged)
 				.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateClientRow)
 				.OnContextMenuOpening(this, &SLiveLinkHubClientsView::OnContextMenuOpening)

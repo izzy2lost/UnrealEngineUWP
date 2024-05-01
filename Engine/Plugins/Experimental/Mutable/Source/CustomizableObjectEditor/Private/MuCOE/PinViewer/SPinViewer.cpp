@@ -234,7 +234,6 @@ void SPinViewer::Construct(const FArguments& InArgs)
 			SAssignNew(ListView, SListView<TSharedPtr<FEdGraphPinReference>>)
 			.ListItemsSource(&PinReferences)
 			.OnGenerateRow(this, &SPinViewer::GenerateNodePinRow)
-			.ItemHeight(22.0f)
 			.SelectionMode(ESelectionMode::None)
 			.IsFocusable(false)
 			.HeaderRow

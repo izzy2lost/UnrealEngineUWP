@@ -43,7 +43,6 @@ void SModuleUI::Construct(const SModuleUI::FArguments& InArgs)
 				.FillHeight( 1.0f )		// We want the list to stretch vertically to fill up the user-resizable space
 			[
 				SAssignNew( ModuleListView, SModuleListView )
-					.ItemHeight( 24 )
 					.ListItemsSource( &ModuleListItems )
 					.OnGenerateRow( this, &SModuleUI::OnGenerateWidgetForModuleListView )
 					.HeaderRow

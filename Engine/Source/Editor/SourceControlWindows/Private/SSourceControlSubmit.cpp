@@ -245,7 +245,6 @@ void SSourceControlSubmitWidget::Construct(const FArguments& InArgs)
 		SNew(SBorder)
 		[
 			SAssignNew(ListView, SListView<TSharedPtr<FFileTreeItem>>)
-			.ItemHeight(20)
 			.ListItemsSource(&ListViewItems)
 			.OnGenerateRow(this, &SSourceControlSubmitWidget::OnGenerateRowForList)
 			.OnContextMenuOpening(this, &SSourceControlSubmitWidget::OnCreateContextMenu)

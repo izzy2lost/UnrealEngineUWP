@@ -66,7 +66,6 @@ void SMessageLogListing::Construct( const FArguments& InArgs, const TSharedRef< 
 						.OnGenerateRow(this, &SMessageLogListing::MakeMessageLogListItemWidget)
 						.OnSelectionChanged(this, &SMessageLogListing::OnLineSelectionChanged)
 						.ExternalScrollbar(ScrollBar)
-						.ItemHeight(24.0f)
 						.ConsumeMouseWheel(EConsumeMouseWheel::Always)
 					]
 				]
@@ -398,8 +397,7 @@ TSharedRef<SWidget> SMessageLogListing::OnGetFilterMenuContent()
 	return 
 		SNew( SListView< TSharedRef<FMessageFilter> >)
 		.ListItemsSource(&MessageLogListingViewModel->GetMessageFilters())
-		.OnGenerateRow(this, &SMessageLogListing::MakeShowWidget)
-		.ItemHeight(24);
+		.OnGenerateRow(this, &SMessageLogListing::MakeShowWidget);
 }
 
 

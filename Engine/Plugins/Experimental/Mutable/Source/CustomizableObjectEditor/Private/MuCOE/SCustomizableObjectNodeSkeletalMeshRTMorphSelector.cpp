@@ -167,7 +167,6 @@ void SCustomizableObjectNodeSkeletalMeshRTMorphSelector::UpdateWidget()
             SAssignNew(ListWidget, ListViewType)
             .ListItemsSource(&Items)
             .OnGenerateRow(this, &ThisType::GenerateRow)
-            .ItemHeight(22.0f)
             .SelectionMode(ESelectionMode::Single)
             .IsFocusable(true)
             .HeaderRow

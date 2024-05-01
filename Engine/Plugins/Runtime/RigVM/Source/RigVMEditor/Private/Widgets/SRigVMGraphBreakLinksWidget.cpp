@@ -87,7 +87,6 @@ void SRigVMGraphBreakLinksWidget::Construct(const FArguments& InArgs, TArray<URi
 			.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 			[			
 			   SNew( SListView< URigVMLink* > )
-			     .ItemHeight(24)
 			     .ListItemsSource( &Links )
 			     .ListViewStyle( FAppStyle::Get(), "SimpleListView" )
 			     .OnMouseButtonDoubleClick(this, &SRigVMGraphBreakLinksWidget::HandleItemMouseDoubleClick)

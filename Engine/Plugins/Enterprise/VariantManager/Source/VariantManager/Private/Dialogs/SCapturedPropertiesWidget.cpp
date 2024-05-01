@@ -25,7 +25,6 @@ void SCapturedPropertiesWidget::Construct(const FArguments& InArgs)
 		.BodyContent()
 		[
 			SAssignNew(PropListView, SListView<TSharedPtr<FCapturableProperty>>)
-			.ItemHeight(24)
 			.SelectionMode(ESelectionMode::None)
 			.ListItemsSource(&FilteredCapturedProperties)
 			.OnGenerateRow(this, &SCapturedPropertiesWidget::MakeCapturedPropertyWidget)

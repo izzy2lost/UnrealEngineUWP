@@ -185,7 +185,6 @@ void SRigCurveContainer::Construct(const FArguments& InArgs, TSharedRef<FControl
 			.ListItemsSource( &RigCurveList )
 			.OnGenerateRow( this, &SRigCurveContainer::GenerateRigCurveRow )
 			.OnContextMenuOpening( this, &SRigCurveContainer::OnGetContextMenuContent )
-			.ItemHeight( 22.0f )
 			.SelectionMode(ESelectionMode::Multi)
 			.OnSelectionChanged( this, &SRigCurveContainer::OnSelectionChanged )
 			.HeaderRow

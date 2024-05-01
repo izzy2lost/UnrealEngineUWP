@@ -64,8 +64,7 @@ public:
 			.SelectionMode(ESelectionMode::Single)
 			.ListItemsSource(&PlacementList)
 			.OnGenerateRow(this, &SMediaPlacementPalette::MakeListViewWidget)
-			.OnSelectionChanged(this, &SMediaPlacementPalette::OnSelectionChanged)
-			.ItemHeight(35);
+			.OnSelectionChanged(this, &SMediaPlacementPalette::OnSelectionChanged);
 
 		ChildSlot
 		[

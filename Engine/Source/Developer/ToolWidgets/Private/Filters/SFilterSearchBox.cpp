@@ -197,8 +197,7 @@ void SFilterSearchBox::Construct( const FArguments& InArgs )
 				.SelectionMode( ESelectionMode::Single )
 				.OnGenerateRow(this, &SFilterSearchBox::MakeSearchHistoryRowWidget)
 				.OnSelectionChanged( this, &SFilterSearchBox::OnSelectionChanged)
-				.ItemHeight(18)
-				.ScrollbarDragFocusCause(EFocusCause::SetDirectly) 
+				.ScrollbarDragFocusCause(EFocusCause::SetDirectly)
 			]
 		)
 	];

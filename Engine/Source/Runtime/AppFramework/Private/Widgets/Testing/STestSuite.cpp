@@ -1251,7 +1251,6 @@ public:
 			+ SVerticalBox::Slot()
 			[
 				SNew(SListView< TSharedRef<FDocumentInfo> >)
-				.ItemHeight(24)
 				.SelectionMode(ESelectionMode::None)
 				.ListItemsSource( &Documents )
 				.OnGenerateRow( this, &SDocumentsTest::GenerateListRow )

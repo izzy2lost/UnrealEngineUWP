@@ -219,7 +219,6 @@ void SCAQueryDetails::Construct(const FArguments& InArgs, TSharedPtr<SCollisionA
 			.Padding(1.0)
 			[
 				SAssignNew(ResultListWidget, SListView< TSharedPtr<FCAHitInfo> >)
-				.ItemHeight(20)
 				.ListItemsSource(&ResultList)
 				.SelectionMode(ESelectionMode::Single)
 				.OnSelectionChanged(this, &SCAQueryDetails::ResultListSelectionChanged)

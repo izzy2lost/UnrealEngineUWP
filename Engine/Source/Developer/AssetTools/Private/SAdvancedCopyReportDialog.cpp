@@ -191,7 +191,6 @@ void SAdvancedCopyReportDialog::Construct( const FArguments& InArgs, const FAdva
 					SAssignNew( ReportTreeView, SAdvancedCopyReportTree )
 					.HeaderRow(HeaderRowWidget)
 					.TreeItemsSource(&PackageReportRootNode.Children)
-					.ItemHeight(18)
 					.SelectionMode(ESelectionMode::Single)
 					.OnGenerateRow( this, &SAdvancedCopyReportDialog::GenerateTreeRow )
 					.OnGetChildren( this, &SAdvancedCopyReportDialog::GetChildrenForTree )

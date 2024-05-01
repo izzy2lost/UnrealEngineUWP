@@ -149,7 +149,6 @@ void SMaterialAnalyzer::Construct(const FArguments& InArgs, const TSharedRef<SDo
 					.BorderImage(FCoreStyle::Get().GetBrush("ToolPanel.GroupBorder"))
 					[
 						SAssignNew(MaterialTree, SAnalyzedMaterialTree)
-						.ItemHeight(24.0f)
 						.TreeItemsSource(&MaterialTreeRoot)
 						.OnGenerateRow(this, &SMaterialAnalyzer::HandleReflectorTreeGenerateRow)
 						.OnGetChildren(this, &SMaterialAnalyzer::HandleReflectorTreeGetChildren)

@@ -30,7 +30,6 @@ void SMoviePipelineFormatTokenAutoCompleteBox::Construct(const FArguments& InArg
 				.AutoHeight()
 				[
 					SAssignNew(SuggestionListView, SListView<TSharedPtr<FString>>)
-					.ItemHeight(18.f)
 					.ListItemsSource(&Suggestions)
 					.SelectionMode(ESelectionMode::Single)
 					.OnGenerateRow(this, &SMoviePipelineFormatTokenAutoCompleteBox::HandleSuggestionListViewGenerateRow)

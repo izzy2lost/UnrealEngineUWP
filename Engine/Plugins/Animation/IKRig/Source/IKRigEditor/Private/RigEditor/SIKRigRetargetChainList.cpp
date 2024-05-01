@@ -398,7 +398,6 @@ void SIKRigRetargetChainList::Construct(const FArguments& InArgs, TSharedRef<FIK
 			.OnGenerateRow( this, &SIKRigRetargetChainList::MakeListRowWidget )
 			.OnMouseButtonClick(this, &SIKRigRetargetChainList::OnItemClicked)
 			.OnContextMenuOpening(this, &SIKRigRetargetChainList::CreateContextMenu)
-			.ItemHeight( 22.0f )
 			.HeaderRow
 			(
 				SNew( SHeaderRow )

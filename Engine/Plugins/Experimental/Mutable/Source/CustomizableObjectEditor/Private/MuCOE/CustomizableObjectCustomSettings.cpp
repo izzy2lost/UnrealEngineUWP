@@ -187,7 +187,6 @@ void SCustomizableObjectCustomSettings::Construct(const FArguments& InArgs)
 					.Padding(4.0f)
 					[
 						SAssignNew(LightsListView, SListView<TSharedPtr<FString>>)
-						.ItemHeight(24.f)
 						.ListItemsSource(&LightNames)
 						.OnGenerateRow(this, &SCustomizableObjectCustomSettings::OnGenerateWidgetForList)
 						.OnSelectionChanged(this, &SCustomizableObjectCustomSettings::OnListSelectionChanged)

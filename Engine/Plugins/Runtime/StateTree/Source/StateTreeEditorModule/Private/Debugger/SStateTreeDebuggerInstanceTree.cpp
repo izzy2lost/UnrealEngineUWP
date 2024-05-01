@@ -97,7 +97,6 @@ void SStateTreeDebuggerInstanceTree::Construct(const FArguments& InArgs)
 	InstanceTracks = InArgs._InstanceTracks;
 
 	TreeView = SNew(STreeView<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>)
-				.ItemHeight(20.0f)
 				.TreeItemsSource(InstanceTracks)
 				.OnGenerateRow(this, &SStateTreeDebuggerInstanceTree::GenerateTreeRow)
 				.OnGetChildren_Lambda([](const TSharedPtr<RewindDebugger::FRewindDebuggerTrack>& Item, TArray<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>& OutChildren)

@@ -55,7 +55,6 @@ public:
 			.OnGenerateRow(this, &SComponentSelectionTree::GenerateRow)
 			.OnGetChildren(this, &SComponentSelectionTree::OnGetChildNodes)
 			.OnSelectionChanged(this, &SComponentSelectionTree::OnSelectionChanged)
-			.ItemHeight(24)
 		];
 
 		BuildTree(InPreviewActor);

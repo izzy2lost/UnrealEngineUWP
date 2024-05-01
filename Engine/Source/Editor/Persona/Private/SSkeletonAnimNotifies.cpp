@@ -139,7 +139,6 @@ void SSkeletonAnimNotifies::Construct(const FArguments& InArgs, const TSharedPtr
 		.OnGenerateRow( this, &SSkeletonAnimNotifies::GenerateNotifyRow )
 		.OnContextMenuOpening( OnContextMenuOpening )
 		.OnSelectionChanged( this, &SSkeletonAnimNotifies::OnNotifySelectionChanged )
-		.ItemHeight( 18.0f )
 		.OnItemScrolledIntoView( this, &SSkeletonAnimNotifies::OnItemScrolledIntoView );
 	
 	CurrentFilterFlags = EAnimNotifyFilterFlags::None;
