@@ -419,10 +419,10 @@ protected:
 	mutable TMap<FName, const FSpatialHashStreamingGrid*> NameToGridMapping;
 	mutable bool bIsNameToGridMappingDirty;
 
-	virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) override;
-	virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) override;
-	virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) override;
-	virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) override;
+	ENGINE_API virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) override;
+	ENGINE_API virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) override;
+	ENGINE_API virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) override;
+	ENGINE_API virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) override;
 
 	UPROPERTY(Transient)
 	TMap<FGuid, TObjectPtr<URuntimeSpatialHashExternalStreamingObject>> WorldAssetStreamingObjects;

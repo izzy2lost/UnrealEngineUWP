@@ -191,10 +191,10 @@ public:
 	ENGINE_API virtual uint32 ComputeUpdateStreamingHash() const override;
 
 protected:
-	virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) override;
-	virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) override;
-	virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) override;
-	virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) override;
+	ENGINE_API virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) override;
+	ENGINE_API virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) override;
+	ENGINE_API virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) override;
+	ENGINE_API virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) override;
 
 private:
 	ENGINE_API virtual void OnBeginPlay() override;
