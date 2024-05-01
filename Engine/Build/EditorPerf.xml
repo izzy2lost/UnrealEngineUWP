@@ -268,9 +268,9 @@
 	<Property Name="GenerateTSANReportNodeList" Value=""/>
 	<Macro Name="GenerateTSANReport" Arguments="NodeName;TestOutputDir;Phase;TestNameSuffix">
 		<Property Name="LogFilePath" Value="$(TestOutputDir)/$(Phase)$(TestNameSuffix)/Editor/EditorOutput.log"/>
-		<Property Name="GenerateTSANReportNodeName" Value="Generate $(NodeName) TSAN Report"/>
+		<Property Name="GenerateTSANReportNodeName" Value="Sanitizer Report - $(NodeName)"/>
 		<Node Name="$(GenerateTSANReportNodeName)">
-			<Command Name="LogThreadSanitizerOutput" Arguments="-logfile=&quot;$(LogFilePath)&quot;" />
+			<Command Name="LogSanitizerOutput" Arguments="-logfile=&quot;$(LogFilePath)&quot;" />
 		</Node>
 		<Property Name="GenerateTSANReportNodeList" Value="$(GenerateTSANReportNodeList); $(GenerateTSANReportNodeName)"/>
 	</Macro>
@@ -434,12 +434,14 @@
 							<Expand Name="GenerateTSANReport" NodeName="$(RunNodeLazyLoadZenName)" TestOutputDir="$(TestOutputDir)" Phase="$(Phase)" TestNameSuffix="ZenLoader" If="$(EnableLazyLoadZenLoaderTest) And $(WithTSAN)"/>
 						</Do>
 					</ForEach>
-					
-					<Property Name="RunNodeUploadPhaseTraces" Value="Upload $(OutputName) Traces"/>
-					<Node Name="$(RunNodeUploadPhaseTraces)">
-						<Expand Name="UploadTestTraces" Platform="$(Platform)" ProjectName="$(Project)"/>
-					</Node>
-					<Property Name="UploadNodeList" Value="$(RunNodeUploadPhaseTraces)"/>
+
+					<Do If="!$(WithTSAN)">
+						<Property Name="RunNodeUploadPhaseTraces" Value="Upload $(OutputName) Traces"/>
+						<Node Name="$(RunNodeUploadPhaseTraces)">
+							<Expand Name="UploadTestTraces" Platform="$(Platform)" ProjectName="$(Project)"/>
+						</Node>
+						<Property Name="UploadNodeList" Value="$(RunNodeUploadPhaseTraces)"/>
+					</Do>
 				</Agent>
 				<Label Category="$(RunCategory)" Name="$(Project) Editor Run" Requires="$(RunNodeRequires);$(RunNodeList);$(UploadNodeList)" UgsBadge="$(Project) Editor Run"/>
 				<Property Name="RunGraphNodes" Value="$(RunGraphNodes);$(RunNodeList);$(GenerateTSANReportNodeList);$(UploadNodeList)"/>

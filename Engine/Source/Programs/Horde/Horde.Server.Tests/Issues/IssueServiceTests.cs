@@ -700,7 +700,7 @@ namespace Horde.Server.Tests.Issues
 				@"=================="
 			};
 
-			IJob job = CreateJob(_mainStreamId, 120, "Generate SomeJobs TSAN Report", _graph);
+			IJob job = CreateJob(_mainStreamId, 120, "Sanitizer Report for 'SomeJob'", _graph);
 			await ParseEventsAsync(job, 0, 0, lines);
 			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
@@ -751,7 +751,7 @@ namespace Horde.Server.Tests.Issues
 				@"==================",
 			};
 
-			IJob job = CreateJob(_mainStreamId, 120, "Generate SomeJobs TSAN Report", _graph);
+			IJob job = CreateJob(_mainStreamId, 120, "Sanitizer Report for 'SomeJob'", _graph);
 			await ParseEventsAsync(job, 0, 0, lines);
 			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
@@ -769,6 +769,102 @@ namespace Horde.Server.Tests.Issues
 			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("ThreadSanitizer", StringComparison.OrdinalIgnoreCase));
 			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("data race", StringComparison.OrdinalIgnoreCase));
 			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("Paths.cpp", StringComparison.OrdinalIgnoreCase)); 
+		}
+
+		[TestMethod]
+		public async Task AddressSanitizerDeduplicateSimilarIssuesTestAsync()
+		{
+			// We have three unique errors reported, but we key issues on the file since file lines change over time without fixes, so only two unique issues should be found
+			string[] lines =
+			{
+				@"=================================================================",
+				@"==30562==ERROR: AddressSanitizer: heap-use-after-free on address 0x617002aa8418 at pc 0x7f98a08bd090 bp 0x7ffc30203af0 sp 0x7ffc30203ae8",
+				@"READ of size 8 at 0x617002aa8418 thread T0",
+				@"    #0 0x7f98a08bd08f in UObjectBase::GetFName() const /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10",
+				@"",
+				@"0x617002aa8418 is located 24 bytes inside of 712-byte region [0x617002aa8400,0x617002aa86c8)",
+				@"freed by thread T0 here:",
+				@"    #0 0x7f9a283e6b08 in __interceptor_free.part.5 /src/build/llvm-src/compiler-rt/lib/asan/asan_malloc_linux.cpp:52",
+				@"",
+				@"previously allocated by thread T0 here:",
+				@"    #0 0x7f9a283e730d in posix_memalign /src/build/llvm-src/compiler-rt/lib/asan/asan_malloc_linux.cpp:145",
+				@"",
+				@"SUMMARY: AddressSanitizer: heap-use-after-free /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10 in UObjectBase::GetFName() const",
+				@"==30562==ABORTING",
+				@"=================================================================",
+				@"==30562==ERROR: AddressSanitizer: heap-use-after-free on address 0x617002aa8418 at pc 0x7f98a08bd090 bp 0x7ffc30203af0 sp 0x7ffc30203ae8",
+				@"SUMMARY: AddressSanitizer: heap-use-after-free /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10 in UObjectBase::GetFName() const",
+				@"==30562==ABORTING",
+				@"=================================================================",
+				@"==30562==ERROR: AddressSanitizer: heap-use-after-free on address 0x617002aa8418 at pc 0x7f98a08bd090 bp 0x7ffc30203af0 sp 0x7ffc30203ae8",
+				@"SUMMARY: AddressSanitizer: heap-use-after-free /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/SomeOtherFile.h:166:10 in UObjectBase::GetFName() const",
+				@"==30562==ABORTING"
+			};
+
+			IJob job = CreateJob(_mainStreamId, 120, "Sanitizer Report for 'SomeJob'", _graph);
+			await ParseEventsAsync(job, 0, 0, lines);
+			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
+
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			Assert.AreEqual(2, issues.Count);
+
+			IIssue issue1 = issues[0];
+			Assert.AreEqual(issue1.Fingerprints.Count, 1);
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("AddressSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("heap-use-after-free", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("SomeOtherFile.h", StringComparison.OrdinalIgnoreCase));
+
+			IIssue issue2 = issues[1];
+			Assert.AreEqual(issue2.Fingerprints.Count, 1);
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("AddressSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("heap-use-after-free", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("UObjectBase.h", StringComparison.OrdinalIgnoreCase));
+		}
+
+		[TestMethod]
+		public async Task AddressSanitizerEnsureUniqueIssuesForSameFileTestAsync()
+		{
+			// We have three unique errors reported, but we key issues on the file since file lines change over time without fixes, so only two unique issues should be found
+			string[] lines =
+			{
+				@"=================================================================",
+				@"==30562==ERROR: AddressSanitizer: heap-use-after-free on address 0x617002aa8418 at pc 0x7f98a08bd090 bp 0x7ffc30203af0 sp 0x7ffc30203ae8",
+				@"READ of size 8 at 0x617002aa8418 thread T0",
+				@"    #0 0x7f98a08bd08f in UObjectBase::GetFName() const /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10",
+				@"",
+				@"0x617002aa8418 is located 24 bytes inside of 712-byte region [0x617002aa8400,0x617002aa86c8)",
+				@"freed by thread T0 here:",
+				@"    #0 0x7f9a283e6b08 in __interceptor_free.part.5 /src/build/llvm-src/compiler-rt/lib/asan/asan_malloc_linux.cpp:52",
+				@"",
+				@"previously allocated by thread T0 here:",
+				@"    #0 0x7f9a283e730d in posix_memalign /src/build/llvm-src/compiler-rt/lib/asan/asan_malloc_linux.cpp:145",
+				@"",
+				@"SUMMARY: AddressSanitizer: heap-use-after-free /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10 in UObjectBase::GetFName() const",
+				@"==30562==ABORTING",
+				@"=================================================================",
+				@"==30562==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x617002aa8418 at pc 0x7f98a08bd090 bp 0x7ffc30203af0 sp 0x7ffc30203ae8",
+				@"SUMMARY: AddressSanitizer: stack-buffer-overflow /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10 in UObjectBase::GetFName() const",
+				@"==30562==ABORTING",
+			};
+
+			IJob job = CreateJob(_mainStreamId, 120, "Sanitizer Report for 'SomeJob'", _graph);
+			await ParseEventsAsync(job, 0, 0, lines);
+			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
+
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			Assert.AreEqual(2, issues.Count);
+
+			IIssue issue1 = issues[0];
+			Assert.AreEqual(issue1.Fingerprints.Count, 1);
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("AddressSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("stack-buffer-overflow", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue1.Fingerprints[0].Type.Contains("UObjectBase.h", StringComparison.OrdinalIgnoreCase));
+
+			IIssue issue2 = issues[1];
+			Assert.AreEqual(issue2.Fingerprints.Count, 1);
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("AddressSanitizer", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("heap-use-after-free", StringComparison.OrdinalIgnoreCase));
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("UObjectBase.h", StringComparison.OrdinalIgnoreCase));
 		}
 
 		[TestMethod]

@@ -342,6 +342,11 @@ namespace EpicGames.Core
 		public static EventId Sanitizer_Thread{ get; } = new EventId(801);
 
 		/// <summary>
+		/// Address Sanitizer Error
+		/// </summary>
+		public static EventId Sanitizer_Address { get; } = new EventId(802);
+
+		/// <summary>
 		/// Horde error codes
 		/// </summary>
 		public static EventId Horde { get; } = new EventId(1000);

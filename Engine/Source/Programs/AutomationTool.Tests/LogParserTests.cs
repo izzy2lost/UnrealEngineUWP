@@ -749,7 +749,7 @@ namespace AutomationTool.Tests
 
 			List<LogEvent> logEvents = Parse(lines);
 			Assert.AreEqual(20, logEvents[0].LineCount);
-			CheckEventGroup(logEvents, 0, 20, LogLevel.Error, KnownLogEvents.Sanitizer_Thread);
+			CheckEventGroup(logEvents, 0, 20, LogLevel.Warning, KnownLogEvents.Sanitizer_Thread);
 
 			Assert.AreEqual("/mnt/horde/++UE5/Sync/Engine/Source/Runtime/Core/Private/HAL/PThreadRunnableThread.h", logEvents[12].GetProperty("SourceFile").ToString());
 			Assert.AreEqual("90", logEvents[12].GetProperty("Line").ToString());
@@ -762,6 +762,77 @@ namespace AutomationTool.Tests
 			Assert.AreEqual("33", logEvents[18].GetProperty("Column").ToString());
 			Assert.AreEqual("FPaths::IsStaged()", logEvents[18].GetProperty("Symbol").ToString());
 			Assert.AreEqual("data race", logEvents[18].GetProperty("SummaryReason").ToString());
+		}
+
+		[TestMethod]
+		public void AddressSanitizerErrorMatcher()
+		{
+			string[] lines =
+			{
+				@"=================================================================",
+				@"==30562==ERROR: AddressSanitizer: heap-use-after-free on address 0x617002aa8418 at pc 0x7f98a08bd090 bp 0x7ffc30203af0 sp 0x7ffc30203ae8",
+				@"READ of size 8 at 0x617002aa8418 thread T0",
+				@"    #0 0x7f98a08bd08f in UObjectBase::GetFName() const /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10",
+				@"",
+				@"0x617002aa8418 is located 24 bytes inside of 712-byte region [0x617002aa8400,0x617002aa86c8)",
+				@"freed by thread T0 here:",
+				@"    #0 0x7f9a283e6b08 in __interceptor_free.part.5 /src/build/llvm-src/compiler-rt/lib/asan/asan_malloc_linux.cpp:52",
+				@"",
+				@"previously allocated by thread T0 here:",
+				@"    #0 0x7f9a283e730d in posix_memalign /src/build/llvm-src/compiler-rt/lib/asan/asan_malloc_linux.cpp:145",
+				@"",
+				@"SUMMARY: AddressSanitizer: heap-use-after-free /mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h:166:10 in UObjectBase::GetFName() const",
+				@"Shadow bytes around the buggy address:",
+				@"  0x617002aa8180: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+				@"  0x617002aa8200: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+				@"  0x617002aa8280: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+				@"  0x617002aa8300: 00 00 00 00 00 00 00 00 fa fa fa fa fa fa fa fa",
+				@"  0x617002aa8380: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa",
+				@"=>0x617002aa8400: fd fd fd[fd]fd fd fd fd fd fd fd fd fd fd fd fd",
+				@"  0x617002aa8480: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd",
+				@"  0x617002aa8500: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd",
+				@"  0x617002aa8580: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd",
+				@"  0x617002aa8600: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd",
+				@"  0x617002aa8680: fd fd fd fd fd fd fd fd fd fa fa fa fa fa fa fa",
+				@"Shadow byte legend (one shadow byte represents 8 application bytes):",
+				@"  Addressable:           00",
+				@"  Partially addressable: 01 02 03 04 05 06 07 ",
+				@"  Heap left redzone:       fa",
+				@"  Freed heap region:       fd",
+				@"  Stack left redzone:      f1",
+				@"  Stack mid redzone:       f2",
+				@"  Stack right redzone:     f3",
+				@"  Stack after return:      f5",
+				@"  Stack use after scope:   f8",
+				@"  Global redzone:          f9",
+				@"  Global init order:       f6",
+				@"  Poisoned by user:        f7",
+				@"  Container overflow:      fc",
+				@"  Array cookie:            ac",
+				@"  Intra object redzone:    bb",
+				@"  ASan internal:           fe",
+				@"  Left alloca redzone:     ca",
+				@"  Right alloca redzone:    cb",
+				@"==30562==ABORTING",
+			};
+
+			List<LogEvent> logEvents = Parse(lines);
+			Assert.AreEqual(45, logEvents[0].LineCount);
+			CheckEventGroup(logEvents, 0, 45, LogLevel.Error, KnownLogEvents.Sanitizer_Address);
+
+			LogValue? column;
+			Assert.AreEqual("/src/build/llvm-src/compiler-rt/lib/asan/asan_malloc_linux.cpp", logEvents[7].GetProperty("SourceFile").ToString());
+			Assert.AreEqual("52", logEvents[7].GetProperty("Line").ToString());
+			Assert.IsFalse(logEvents[7].TryGetProperty("Column", out column));
+			Assert.AreEqual("__interceptor_free.part.5", logEvents[7].GetProperty("Symbol").ToString());
+
+			// Summary
+			Assert.AreEqual("/mnt/horde/FNR+Main+Inc/Sync/Engine/Source/Runtime/CoreUObject/Public/UObject/UObjectBase.h", logEvents[12].GetProperty("SummarySourceFile").ToString());
+			Assert.AreEqual("166", logEvents[12].GetProperty("Line").ToString());
+			Assert.IsTrue(logEvents[12].TryGetProperty("Column", out column));
+			Assert.AreEqual("10", column.ToString());
+			Assert.AreEqual("UObjectBase::GetFName() const", logEvents[12].GetProperty("Symbol").ToString());
+			Assert.AreEqual("heap-use-after-free", logEvents[12].GetProperty("SummaryReason").ToString());
 		}
 
 		[TestMethod]
