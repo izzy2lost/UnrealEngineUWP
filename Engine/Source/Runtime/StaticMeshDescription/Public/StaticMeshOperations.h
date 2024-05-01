@@ -99,7 +99,19 @@ public:
 	static STATICMESHDESCRIPTION_API void AppendMeshDescription(const FMeshDescription& SourceMesh, FMeshDescription& TargetMesh, FAppendSettings& AppendSettings);
 	static STATICMESHDESCRIPTION_API void AppendMeshDescriptions(const TArray<const FMeshDescription*>& SourceMeshes, FMeshDescription& TargetMesh, FAppendSettings& AppendSettings);
 
-	static STATICMESHDESCRIPTION_API void AreNormalsAndTangentsValid(const FMeshDescription& MeshDescription, bool& bHasInvalidNormals, bool& bHasInvalidTangents);
+	/** Check the mesh description's vertex instance normals and tangents to see if any of the values are invalid (e.g. nearly zero or they contain a NaN).
+	 *  \note This does not check if the vectors are normalized (which they should for correct normals and tangents).
+	 *  \param MeshDescription The mesh description object to check.
+	 *  \param bHasInvalidNormals The vertex instance normal attribute contains a near zero-length vector or a NaN component value.
+	 *  \param bHasInvalidTangents The vertex instance tangent attribute contains a near zero-length vector or a NaN component value.
+	 */
+	static STATICMESHDESCRIPTION_API void HasInvalidVertexInstanceNormalsOrTangents(const FMeshDescription& MeshDescription, bool& bHasInvalidNormals, bool& bHasInvalidTangents);
+
+	UE_DEPRECATED(5.5, "Use HasInvalidVertexInstanceNormalsOrTangents")
+	static void AreNormalsAndTangentsValid(const FMeshDescription& MeshDescription, bool& bHasInvalidNormals, bool& bHasInvalidTangents)
+	{
+		HasInvalidVertexInstanceNormalsOrTangents(MeshDescription, bHasInvalidNormals, bHasInvalidTangents);
+	}
 
 
 	/** Find all overlapping vertex using the threshold in the mesh description. */

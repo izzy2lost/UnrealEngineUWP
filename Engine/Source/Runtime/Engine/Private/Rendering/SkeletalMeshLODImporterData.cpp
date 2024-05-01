@@ -2376,9 +2376,9 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 	// Check if we have any broken data, including UVs and normals/tangents.
 	FSkeletalMeshOperations::ValidateAndFixData(OutMeshDescription, SkeletalMeshPath);
 
-	bool bNormalsValid, bTangentsValid;
-	FStaticMeshOperations::AreNormalsAndTangentsValid(OutMeshDescription, bNormalsValid, bTangentsValid);
-	if (!bNormalsValid || !bTangentsValid)
+	bool bHasInvalidNormals, bHasInvalidTangents;
+	FStaticMeshOperations::HasInvalidVertexInstanceNormalsOrTangents(OutMeshDescription, bHasInvalidNormals, bHasInvalidTangents);
+	if (bHasInvalidNormals || bHasInvalidTangents)
 	{
 		// This is required by FSkeletalMeshOperations::ComputeTangentsAndNormals to function correctly.
 		FSkeletalMeshOperations::ComputeTriangleTangentsAndNormals(OutMeshDescription, UE_SMALL_NUMBER, !SkeletalMeshPath.IsEmpty() ? *SkeletalMeshPath : nullptr);

@@ -417,7 +417,7 @@ void SanitizeMeshDescription(FMeshDescription* MeshDescription)
 
 	bool bHasInvalidNormals = false;
 	bool bHasInvalidTangents = false;
-	FStaticMeshOperations::AreNormalsAndTangentsValid(*MeshDescription, bHasInvalidNormals, bHasInvalidTangents);
+	FStaticMeshOperations::HasInvalidVertexInstanceNormalsOrTangents(*MeshDescription, bHasInvalidNormals, bHasInvalidTangents);
 	if (!bHasInvalidNormals || !bHasInvalidTangents)
 	{
 		FStaticMeshOperations::ComputeTriangleTangentsAndNormals(*MeshDescription, THRESH_POINTS_ARE_SAME);

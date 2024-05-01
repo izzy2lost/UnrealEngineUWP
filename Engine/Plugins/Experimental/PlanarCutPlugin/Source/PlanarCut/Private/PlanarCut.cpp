@@ -1034,7 +1034,7 @@ FDynamicMesh3 ConvertMeshDescriptionToCuttingDynamicMesh(const FMeshDescription*
 	FDynamicMesh3 FullMesh; // full-featured conversion of the source mesh
 	Converter.Convert(CuttingMesh, FullMesh, true);
 	bool bHasInvalidNormals, bHasInvalidTangents;
-	FStaticMeshOperations::AreNormalsAndTangentsValid(*CuttingMesh, bHasInvalidNormals, bHasInvalidTangents);
+	FStaticMeshOperations::HasInvalidVertexInstanceNormalsOrTangents(*CuttingMesh, bHasInvalidNormals, bHasInvalidTangents);
 	if (bHasInvalidNormals || bHasInvalidTangents)
 	{
 		FDynamicMeshAttributeSet& Attribs = *FullMesh.Attributes();

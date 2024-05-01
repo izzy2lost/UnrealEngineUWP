@@ -1302,7 +1302,7 @@ void FStaticMeshOperations::AppendMeshDescription(const FMeshDescription& Source
 
 //////////////////////////////////////////////////////////////////////////
 // Normals tangents and Bi-normals
-void FStaticMeshOperations::AreNormalsAndTangentsValid(const FMeshDescription& MeshDescription, bool& bHasInvalidNormals, bool& bHasInvalidTangents)
+void FStaticMeshOperations::HasInvalidVertexInstanceNormalsOrTangents(const FMeshDescription& MeshDescription, bool& bHasInvalidNormals, bool& bHasInvalidTangents)
 {
 	bHasInvalidNormals = false;
 	bHasInvalidTangents = false;
@@ -1369,7 +1369,7 @@ void FStaticMeshOperations::RecomputeNormalsAndTangentsIfNeeded(FMeshDescription
 		bool bRecomputeNormals = false;
 		bool bRecomputeTangents = false;
 		
-		AreNormalsAndTangentsValid(MeshDescription, bRecomputeNormals, bRecomputeTangents);
+		HasInvalidVertexInstanceNormalsOrTangents(MeshDescription, bRecomputeNormals, bRecomputeTangents);
 		
 		ComputeNTBsOptions |= (bRecomputeNormals ? EComputeNTBsFlags::Normals : EComputeNTBsFlags::None);
 		ComputeNTBsOptions |= (bRecomputeTangents ? EComputeNTBsFlags::Tangents : EComputeNTBsFlags::None);
