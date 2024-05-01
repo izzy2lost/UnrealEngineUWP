@@ -271,13 +271,13 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		];
 
 		// Use the 'other developer' filter from the filter list widget. 
-		OtherDevelopersFilter = StaticCastSharedPtr<FFrontendFilter_ShowOtherDevelopers>(FilterListPtr->GetFrontendFilter(TEXT("ShowOtherDevelopers")));
+		OtherDevelopersFilter = StaticCastSharedPtr<FFilter_ShowOtherDevelopers>(FilterListPtr->GetFrontendFilter(TEXT("ShowOtherDevelopersBackend")));
 	}
 	else
 	{
 		// Filter UI is off, but the 'other developer' filter is a built-in feature.
-		OtherDevelopersFilter = MakeShared<FFrontendFilter_ShowOtherDevelopers>(nullptr);
-		FrontendFilters->Add(OtherDevelopersFilter);
+		OtherDevelopersFilter = MakeShared<FFilter_ShowOtherDevelopers>(nullptr, FName(SaveSettingsName));
+		OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), false, *FrontendFilters);
 	}
 
 	// Make game-specific filter
@@ -542,16 +542,21 @@ void SAssetPicker::SetNewBackendFilter(const FARFilter& NewFilter)
 void SAssetPicker::OnFilterChanged()
 {
 	FARFilter Filter;
+	TArray<TSharedRef<const FPathPermissionList>> CustomPermissionLists;
 	
 	if ( FilterListPtr.IsValid() )
 	{
-		Filter = FilterListPtr->GetCombinedBackendFilter();
+		Filter = FilterListPtr->GetCombinedBackendFilter(CustomPermissionLists);
+	}
+	else if (!IsShowingOtherDevelopersContent())
+	{
+		CustomPermissionLists.Add(OtherDevelopersFilter->GetPathPermissionList());
 	}
 
 	Filter.Append(CurrentBackendFilter);
 	if (AssetViewPtr.IsValid())
 	{
-		AssetViewPtr->SetBackendFilter( Filter );
+		AssetViewPtr->SetBackendFilter(Filter, &CustomPermissionLists);
 	}
 }
 
@@ -656,10 +661,30 @@ void SAssetPicker::RefreshAssetView(bool bRefreshSources)
 	}
 }
 
+bool SAssetPicker::IsShowingOtherDevelopersContent() const
+{
+	if (FilterListPtr.IsValid())
+	{
+		return FilterListPtr->IsFrontendFilterActive(OtherDevelopersFilter);
+	}
+	else
+	{
+		for (int32 i=0; i < FrontendFilters->Num(); ++i)
+		{
+			if (FrontendFilters->GetFilterAtIndex(i) == OtherDevelopersFilter)
+			{
+				// Inverse filter, so its presence in the list means "hide other developers content"
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 FText SAssetPicker::GetShowOtherDevelopersToolTip() const
 {
 	// NOTE: This documents the filter effect rather than the button action.
-	if (FilterListPtr ? FilterListPtr->IsFrontendFilterActive(OtherDevelopersFilter) : OtherDevelopersFilter->GetShowOtherDeveloperAssets())
+	if (IsShowingOtherDevelopersContent())
 	{
 		return LOCTEXT("ShowingOtherDevelopersFilterTooltipText", "Showing Other Developers Assets");
 	}
@@ -678,7 +703,14 @@ void SAssetPicker::HandleShowOtherDevelopersCheckStateChanged( ECheckBoxState In
 	}
 	else
 	{
-		OtherDevelopersFilter->SetShowOtherDeveloperAssets(InCheckboxState == ECheckBoxState::Checked); // The checked state matches the active state.
+		if (InCheckboxState == ECheckBoxState::Checked)
+		{
+			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do show other developers content*/ true, *FrontendFilters);
+		}
+		else
+		{
+			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do not show other developers content*/ false, *FrontendFilters);
+		}
 	}
 }
 
@@ -690,7 +722,14 @@ ECheckBoxState SAssetPicker::GetShowOtherDevelopersCheckState() const
 	}
 	else
 	{
-		return OtherDevelopersFilter->GetShowOtherDeveloperAssets() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; // The checked state matches the active state.
+		if (IsShowingOtherDevelopersContent())
+		{
+			return ECheckBoxState::Checked;
+		}
+		else
+		{
+			return ECheckBoxState::Unchecked;
+		}
 	}
 }
 

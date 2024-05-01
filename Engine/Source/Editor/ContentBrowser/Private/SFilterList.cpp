@@ -71,11 +71,15 @@ void SFilterList::Construct( const FArguments& InArgs )
 
 	TSharedPtr<FFrontendFilterCategory> DefaultCategory = MakeShareable( new FFrontendFilterCategory(LOCTEXT("FrontendFiltersCategory", "Other Filters"), LOCTEXT("FrontendFiltersCategoryTooltip", "Filter assets by all filters in this category.")) );
 	
+	TSharedRef<FFilter_ShowOtherDevelopers> OtherDevelopersFilter = MakeShared<FFilter_ShowOtherDevelopers>(DefaultCategory, InArgs._FilterBarIdentifier);
+	// This filter affecst the backend query so we must perform a full refresh when it changes
+	OtherDevelopersFilter->OnChanged().Add(this->OnFilterChanged);
+
 	// Add all built-in frontend filters here
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_CheckedOut(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_Modified(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_Writable(DefaultCategory)) );
-	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ShowOtherDevelopers(DefaultCategory)) );
+	AllFrontendFilters_Internal.Add(OtherDevelopersFilter);
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ReplicatedBlueprint(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add(MakeShared<FFilter_ShowRedirectors>(DefaultCategory));
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_InUseByLoadedLevels(DefaultCategory)) );
@@ -183,6 +187,16 @@ TSharedRef<SWidget> SFilterList::ExternalMakeAddFilterMenu()
 	return SAssetFilterBar<FAssetFilterType>::MakeAddFilterMenu();
 }
 
+FARFilter SFilterList::GetCombinedBackendFilter(TArray<TSharedRef<const FPathPermissionList>>& OutPermissionLists) const
+{
+	TSharedPtr<FFilter_ShowOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_ShowOtherDevelopers>(GetFrontendFilter("ShowOtherDevelopersBackend"));
+	if (!OtherDevelopersFilter->IsActive()) // Filter when inactive, because it's an inverse filter 
+	{
+		OutPermissionLists.Add(OtherDevelopersFilter->GetPathPermissionList());
+	}
+	return Super::GetCombinedBackendFilter();
+}
+
 void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserItem> ItemList)
 {
 	if (HasAnyFilters() && ItemList.Num() > 0)
@@ -198,7 +212,8 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 
 				FContentBrowserDataFilter DataFilter;
 				DataFilter.bRecursivePaths = true;
-				ContentBrowserUtils::AppendAssetFilterToContentBrowserFilter(GetCombinedBackendFilter(), nullptr, nullptr, DataFilter);
+				TArray<TSharedRef<const FPathPermissionList>> UnusedPermissionLists;
+				ContentBrowserUtils::AppendAssetFilterToContentBrowserFilter(GetCombinedBackendFilter(UnusedPermissionLists), nullptr, nullptr, DataFilter);
 
 				ContentBrowserData->CompileFilter(RootPath, DataFilter, CompiledDataFilter);
 			}
@@ -254,6 +269,30 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 			}
 		}
 
+		auto AddAndActivateInverseFilter = [this, &ExecuteOnFilterChanged](const TSharedRef<FFilterBase<FAssetFilterType>>& InFilter) 
+		{
+			int32 ExistingIndex = Filters.IndexOfByPredicate([InFilter](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == InFilter; });
+			TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(InFilter) : Filters[ExistingIndex];
+			FilterWidget->SetEnabled(true, false);
+			SetFrontendFilterActive(InFilter, true);
+			ExecuteOnFilterChanged = true;
+		};
+		
+		TSharedPtr<FFilter_ShowOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_ShowOtherDevelopers>(GetFrontendFilter("ShowOtherDevelopersBackend"));
+		// Special case: if item is hidden because of "other developers" filter, disable it
+		if (OtherDevelopersFilter.IsValid() && OtherDevelopersFilter->IsActive())
+		{
+			TSharedRef<const FPathPermissionList> PermissionList = OtherDevelopersFilter->GetPathPermissionList();	
+			for (const FContentBrowserItem& Item : ItemList)
+			{
+				if (PermissionList->PassesStartsWithFilter(WriteToString<256>(Item.GetInternalPath())))
+				{
+					AddAndActivateInverseFilter(OtherDevelopersFilter.ToSharedRef());
+					break;
+				}
+			}
+		}
+
 		// Special case: if the object is a redirector then enable the 'show redirectors' filter - this will also prevent
 		// folders that contain only redirectors from being hidden with the "hide empty folders" setting
 		FString RedirectorClassPath = UObjectRedirector::StaticClass()->GetPathName();
@@ -266,11 +305,7 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 			TSharedPtr<FFilter_ShowRedirectors> RedirectorFilter = StaticCastSharedPtr<FFilter_ShowRedirectors>(GetFrontendFilter("ShowRedirectorsBackend"));
 			if (RedirectorFilter.IsValid())
 			{
-				int32 ExistingIndex = Filters.IndexOfByPredicate([RedirectorFilter](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == RedirectorFilter; });
-				TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(RedirectorFilter.ToSharedRef()) : Filters[ExistingIndex];
-				FilterWidget->SetEnabled(true, false);
-				SetFrontendFilterActive(RedirectorFilter.ToSharedRef(), true);
-				ExecuteOnFilterChanged = true;
+				AddAndActivateInverseFilter(RedirectorFilter.ToSharedRef());
 			}
 		}
 

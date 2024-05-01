@@ -2,9 +2,18 @@
 
 #include "Filters.h"
 
+#include "Algo/AnyOf.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "ContentBrowserDataSubsystem.h"
+#include "ContentBrowserLog.h"
 #include "FrontendFilterBase.h"
+#include "IContentBrowserDataModule.h"
 
 #define LOCTEXT_NAMESPACE "ContentBrowser"
+
+/** 
+ * FFilter_ShowRedirectors 
+ */
 
 FFilter_ShowRedirectors::FFilter_ShowRedirectors(TSharedPtr<FFrontendFilterCategory> InCategory)
 	: FFrontendFilter(InCategory)
@@ -47,9 +56,130 @@ void FFilter_ShowRedirectors::LoadSettings(const FString& IniFilename, const FSt
 
 }
 
-bool FFilter_ShowRedirectors::PassesFilter(FAssetFilterType InItem) const
+/** 
+ * FFilter_OtherDevelopers 
+ */
+
+FFilter_ShowOtherDevelopers::FFilter_ShowOtherDevelopers(TSharedPtr<FFrontendFilterCategory> InCategory, FName InFilterBarIdentifier)
+	: FFrontendFilter(InCategory)
+	, FilterBarIdentifier(InFilterBarIdentifier)
+	, PathPermissionList(MakeShared<FPathPermissionList>())
 {
-	return true; // All items pass, this filter just communicates with the backend 
+	UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+	ItemDataUpdatedHandle = ContentBrowserData->OnItemDataUpdated().AddRaw(this, &FFilter_ShowOtherDevelopers::HandleItemDataUpdated);
+	ItemDataRefreshedHandle = ContentBrowserData->OnItemDataRefreshed().AddRaw(this, &FFilter_ShowOtherDevelopers::HandleItemDataRefreshed);
+
+	BuildFilter();
+}
+
+FFilter_ShowOtherDevelopers::~FFilter_ShowOtherDevelopers()
+{
+	UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+	ContentBrowserData->OnItemDataUpdated().Remove(ItemDataUpdatedHandle);
+	ContentBrowserData->OnItemDataRefreshed().Remove(ItemDataRefreshedHandle);
+}
+
+TSharedRef<const FPathPermissionList> FFilter_ShowOtherDevelopers::GetPathPermissionList() 
+{
+	return PathPermissionList;
+}
+
+void FFilter_ShowOtherDevelopers::BuildFilter()
+{
+	static const FName NAME_OtherDevelopers{"OtherDevelopers"};
+	// Update list of other developer folders and put into permission list 
+	FName BaseDevelopersPath{TEXTVIEW("/Game/Developers")};
+	FName UserDeveloperFolder(TStringBuilder<256>{ InPlace, BaseDevelopersPath, TEXTVIEW("/"), FPaths::GameUserDeveloperFolderName() });
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	TArray<FName> ChildPaths;
+	AssetRegistry.GetSubPaths(BaseDevelopersPath, ChildPaths, false);
+	TSet<FName> PreviousPaths = MoveTemp(OtherDeveloperFolders);
+	OtherDeveloperFolders.Reset();
+	OtherDeveloperFolders.Append(TSet<FName>(ChildPaths));
+	OtherDeveloperFolders.Remove(UserDeveloperFolder);
+	if (OtherDeveloperFolders.Num() != PreviousPaths.Num() || OtherDeveloperFolders.Difference(PreviousPaths).Num() != 0
+		|| PreviousPaths.Difference(OtherDeveloperFolders).Num() != 0)
+	{
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers rebuilt exclusion list: %s"), *FilterBarIdentifier.ToString(), 
+			*FString::JoinBy(OtherDeveloperFolders, TEXT(","), UE_PROJECTION_MEMBER(FName, ToString)));
+		PathPermissionList = MakeShared<FPathPermissionList>();
+		for (FName OtherPath : OtherDeveloperFolders)
+		{
+			PathPermissionList->AddDenyListItem(NAME_OtherDevelopers, WriteToString<256>(OtherPath).ToView());
+		}
+		BroadcastChangedEvent();
+	}
+	else
+	{
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers keeping previous exclusion list"), *FilterBarIdentifier.ToString());
+	}
+}
+
+void FFilter_ShowOtherDevelopers::HandleItemDataRefreshed()
+{
+	BuildFilter();
+}
+
+void FFilter_ShowOtherDevelopers::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUpdate> InUpdatedItems)
+{
+	const bool bNeedsRebuild = Algo::AnyOf(InUpdatedItems, [](const FContentBrowserItemDataUpdate& Update){
+		FName InternalPath = Update.GetItemData().GetInternalPath();
+		if (!InternalPath.IsNone() && Update.GetItemData().IsFolder() && Update.GetUpdateType() == EContentBrowserItemUpdateType::Added)
+		{
+			if (WriteToString<256>(InternalPath).ToView().StartsWith(TEXTVIEW("/Game/Developers"), ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+		return false;
+	});	
+	if (bNeedsRebuild)
+	{
+		BuildFilter();
+	}
+}
+
+/** Returns the human readable name for this filter */
+FText FFilter_ShowOtherDevelopers::GetDisplayName() const
+{
+	return LOCTEXT("FrontendFilter_ShowOtherDevelopers", "Other Developers"); 
+}
+
+/** Returns the tooltip for this filter, shown in the filters menu */
+FText FFilter_ShowOtherDevelopers::GetToolTipText() const
+{ 
+	return LOCTEXT("FrontendFilter_ShowOtherDevelopersTooltip", "Allow display of assets in developer folders that aren't yours."); 
+}
+
+/** Returns the name of the icon to use in menu entries */
+FName FFilter_ShowOtherDevelopers::GetIconName() const
+{
+	return NAME_None;
+}
+
+/** Notification that the filter became active or inactive */
+void FFilter_ShowOtherDevelopers::ActiveStateChanged(bool bActive)
+{
+	if (bActive)
+	{
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers active, hiding content from other developers"), *FilterBarIdentifier.ToString());
+	}
+	else
+	{
+		UE_LOG(LogContentBrowser, Verbose, TEXT("[%s] FFilterShowOtherDevelopers inactive, showing content from all developers"), *FilterBarIdentifier.ToString());
+	}
+}
+
+/** Can be overriden for custom FilterBar subclasses to save settings, currently not implemented in any gneeric Filter Bar */
+void FFilter_ShowOtherDevelopers::SaveSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) const
+{
+}
+
+/** Can be overriden for custom FilterBar subclasses to load settings, currently not implemented in any gneeric Filter Bar */
+void FFilter_ShowOtherDevelopers::LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString)
+{
 }
 
 #undef LOCTEXT_NAMESPACE

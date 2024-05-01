@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Misc/FilterCollection.h"
 #include "Misc/IFilter.h"
 #include "Internationalization/Text.h"
 #include "Math/Color.h"
@@ -66,7 +67,11 @@ public:
 	/** Can be overriden for custom FilterBar subclasses to load settings, currently not implemented in any gneeric Filter Bar */
 	virtual void LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) = 0;
 
-	/** Set this filter as checked, and activates or deactivates it */
+	/** 
+	 * Set this filter as checked, and activates or deactivates it.
+	 * @note this only works for filters registered by a widget such as SBasicFilterBar that manages them and 
+	 *  should be called by external code rather than by the managing widget itself.
+	 */
 	void SetActive(bool bActive) { SetActiveEvent.Broadcast(bActive); }
 
 	/** Checks whether the filter is checked/pinned and active/enabled */
@@ -78,6 +83,29 @@ public:
 		}
 
 		return false;
+	}
+
+	/** 
+	 * Manage the state of a filter in a collection taking into account whether it is an inverse filter or not.
+	 * Adds or removes the filter from the collcetion and calls ActiveStateChanged
+	 */
+	static void SetActiveInCollection(TSharedRef<FFilterBase<FilterType>> This, bool bActive, TFilterCollection<FilterType>& Collection)
+	{
+		if(This->IsInverseFilter())
+		{
+			//Inverse filters are active when they are "disabled"
+			bActive = !bActive;
+		}
+		This->ActiveStateChanged(bActive);
+
+		if (bActive)
+		{
+			Collection.Add(This);
+		}
+		else
+		{
+			Collection.Remove(This);
+		}
 	}
 
 	// IFilter implementation

@@ -967,21 +967,7 @@ protected:
  	/** Sets the active state of a frontend filter. */
  	void SetFrontendFilterActive(const TSharedRef<FFilterBase<FilterType>>& Filter, bool bActive)
 	{
-		if(Filter->IsInverseFilter())
-		{
-			//Inverse filters are active when they are "disabled"
-			bActive = !bActive;
-		}
-		Filter->ActiveStateChanged(bActive);
-
-		if ( bActive )
-		{
-			ActiveFilters->Add(Filter);
-		}
-		else
-		{
-			ActiveFilters->Remove(Filter);
-		}
+		Filter->SetActiveInCollection(Filter, bActive, *ActiveFilters);
 	}
 
 	/* 'Activate' A filter by adding it to the filter bar, does not turn it on */

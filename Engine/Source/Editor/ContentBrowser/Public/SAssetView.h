@@ -308,8 +308,14 @@ public:
 	/** Returns true if a real asset path is selected (i.e \Engine\* or \Game\*) */
 	bool IsAssetPathSelected() const;
 
-	/** Notifies the asset view that the filter-list filter has changed */
-	void SetBackendFilter(const FARFilter& InBackendFilter);
+	/**
+	 * @brief Provide a backend filter for the asset view and invalidate current source items.
+	 * 
+	 * @param InBackendFilter Asset registry filter for uassets
+	 * @param InCustomPermissionLists Optional permission lists to allow/deny specific folders.
+	 * 	All folders will be allowed by default, so only denials will have any effect.
+	 */
+	void SetBackendFilter(const FARFilter& InBackendFilter, TArray<TSharedRef<const FPathPermissionList>>* InCustomPermissionLists = nullptr);
 
 	/** Get the current backend filter */
 	const FARFilter& GetBackendFilter() const { return BackendFilter; }
@@ -933,6 +939,9 @@ private:
 	TSharedPtr<FPathPermissionList> AssetClassPermissionList;
 	TSharedPtr<FPathPermissionList> FolderPermissionList;
 	TSharedPtr<FPathPermissionList> WritableFolderPermissionList;
+	// Paths which should be filtered out based on current filters the user has selected 
+	//  - not 'permissions' so may be ignore if e.g. the user explicitly selects a filtered folder
+	TArray<TSharedRef<const FPathPermissionList>> BackendCustomPathFilters;
 	TSharedPtr<FAssetFilterCollectionType> FrontendFilters;
 
 	TAttribute<bool> bShowRedirectors;

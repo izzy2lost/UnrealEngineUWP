@@ -19,7 +19,7 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-class FFrontendFilter_ShowOtherDevelopers;
+class FFilter_ShowOtherDevelopers;
 class FFrontendFilter_Text;
 class FUICommandList;
 class SAssetSearchBox;
@@ -121,6 +121,9 @@ private:
 	/** Gets if showing other developers assets */
 	ECheckBoxState GetShowOtherDevelopersCheckState() const;
 
+	/** Returns whether the ShowOtherDevelopersFilter is active i.e. if we should show content belonging to other developers */
+	bool IsShowingOtherDevelopersContent() const;
+
 	/** Called upon the Rename UICommand being executed, sends rename request to the asset view */
 	void OnRenameRequested() const;
 
@@ -188,7 +191,7 @@ private:
 	/** Filters needed for filtering the assets */
 	TSharedPtr< FAssetFilterCollectionType > FilterCollection;
 	TSharedPtr< FFrontendFilter_Text > TextFilter;
-	TSharedPtr< FFrontendFilter_ShowOtherDevelopers > OtherDevelopersFilter;
+	TSharedPtr<FFilter_ShowOtherDevelopers> OtherDevelopersFilter;
 
 	EAssetTypeCategories::Type DefaultFilterMenuExpansion;
 

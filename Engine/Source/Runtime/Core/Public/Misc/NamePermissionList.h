@@ -357,7 +357,7 @@ public:
 	 * Result will contain AllowList paths that pass both filters.
 	 * @return new combined filter.
 	 */
-	CORE_API FPathPermissionList CombinePathFilters(const FPathPermissionList& OtherFilter) const;
+	CORE_API [[nodiscard]] FPathPermissionList CombinePathFilters(const FPathPermissionList& OtherFilter) const;
 
 	/**
 	* Unregisters specified owners then adds specified filters in one operation (to avoid multiple filters changed events).

@@ -23,6 +23,7 @@
 #include "UObject/NameTypes.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
+class FFilter_ShowOtherDevelopers;
 class FFrontendFilter;
 class SWidget;
 class UClass;
@@ -40,6 +41,7 @@ enum class ECheckBoxState : uint8;
  */
 class SFilterList : public SAssetFilterBar<FAssetFilterType>
 {
+	using Super = SAssetFilterBar<FAssetFilterType>; 
 public:
 	DECLARE_DELEGATE_OneParam(FOnFilterBarLayoutChanging, EFilterBarLayout /* NewLayout */)
 	/**
@@ -118,6 +120,14 @@ public:
 
 	/** Retrieve a specific frontend filter */
 	TSharedPtr<FFrontendFilter> GetFrontendFilter(const FString& InName) const;
+	
+	/** 
+	 * Replaces super version of GetCombinedBackendFilter to allow returning FPathPermissionLists as well.
+	 * Permission lists will be combined into a content browser data filter after a delay. Filters may modify them 
+	 * via the shared ref but should not do so off the game thread.
+	 */
+	FARFilter GetCombinedBackendFilter(TArray<TSharedRef<const FPathPermissionList>>& OutPermissionLists) const;
+	FARFilter GetCombinedBackendFilter() const = delete;
 	
 	/** Handler for when the floating add filter button was clicked */
 	TSharedRef<SWidget> ExternalMakeAddFilterMenu();

@@ -2,6 +2,7 @@
 
 #include "SAssetView.h"
 
+#include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
 #include "AssetRegistry/AssetRegistryState.h"
 #include "AssetSelection.h"
@@ -595,10 +596,18 @@ bool SAssetView::IsAssetPathSelected() const
 	return NumAssetPaths > 0 && NumClassPaths == 0;
 }
 
-void SAssetView::SetBackendFilter(const FARFilter& InBackendFilter)
+void SAssetView::SetBackendFilter(const FARFilter& InBackendFilter, TArray<TSharedRef<const FPathPermissionList>>* InCustomPermissionLists)
 {
 	// Update the path and collection lists
 	BackendFilter = InBackendFilter;
+	if (InCustomPermissionLists)
+	{
+		BackendCustomPathFilters = *InCustomPermissionLists;
+	}
+	else
+	{
+		BackendCustomPathFilters.Reset();
+	}
 	RequestSlowFullListRefresh();
 }
 
@@ -1937,6 +1946,43 @@ FContentBrowserDataFilter SAssetView::CreateBackendDataFilter(bool bInvalidateCa
 		| (IsShowingLocalizedContent() ? EContentBrowserItemAttributeFilter::IncludeLocalized : EContentBrowserItemAttributeFilter::IncludeNone);
 
 	TSharedPtr<FPathPermissionList> CombinedFolderPermissionList = ContentBrowserUtils::GetCombinedFolderPermissionList(FolderPermissionList, IsShowingReadOnlyFolders() ? nullptr : WritableFolderPermissionList);
+	
+	UContentBrowserDataSubsystem* CBData = IContentBrowserDataModule::Get().GetSubsystem();
+	if (BackendCustomPathFilters.Num())
+	{
+		if (!CombinedFolderPermissionList.IsValid())
+		{
+			CombinedFolderPermissionList = MakeShared<FPathPermissionList>();
+		}
+
+		if (!CombinedFolderPermissionList->HasAllowListEntries() 
+		&& Algo::AnyOf(BackendCustomPathFilters, UE_PROJECTION_MEMBER(FPathPermissionList, HasAllowListEntries)))
+		{
+			// Need to add an explicit allow-root to the combined list before combining so that the allow list entries don't take everything away
+			CombinedFolderPermissionList->AddAllowListItem("AssetView", TEXTVIEW("/"));
+		}
+
+		TArray<FName> SelectedPaths;
+		SelectedPaths.Reserve(SourcesData.VirtualPaths.Num());
+		// Convert paths to internal if possible
+		for (FName VirtualPath : SourcesData.VirtualPaths)
+		{
+			FName ConvertedPath;
+			CBData->TryConvertVirtualPath(VirtualPath, ConvertedPath);
+			SelectedPaths.Add(ConvertedPath);
+		}
+		// If a filter list explicitly denies a folder we have selected, ignore that filter.
+		for (const TSharedRef<const FPathPermissionList>& CustomList : BackendCustomPathFilters)
+		{
+			const bool bFiltersExplicitSelection = !bRecurse && Algo::AnyOf(SelectedPaths, [&CustomList](FName SelectedPath) {
+				return !CustomList->PassesStartsWithFilter(WriteToString<256>(SelectedPath));
+			});
+			if (!bFiltersExplicitSelection)
+			{
+				CombinedFolderPermissionList = MakeShared<FPathPermissionList>(CombinedFolderPermissionList->CombinePathFilters(*CustomList));
+			}
+		}
+	}
 
 	if (bShowDisallowedAssetClassAsUnsupportedItems && AssetClassPermissionList && AssetClassPermissionList->HasFiltering())
 	{

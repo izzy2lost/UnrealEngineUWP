@@ -3737,8 +3737,9 @@ void SContentBrowser::UpdatePath()
 
 void SContentBrowser::OnFilterChanged()
 {
-	FARFilter Filter = FilterListPtr->GetCombinedBackendFilter();
-	AssetViewPtr->SetBackendFilter( Filter );
+	TArray<TSharedRef<const FPathPermissionList>> CustomPermissionLists;
+	FARFilter Filter = FilterListPtr->GetCombinedBackendFilter(CustomPermissionLists);
+	AssetViewPtr->SetBackendFilter(Filter, &CustomPermissionLists);
 
 	// Notify 'filter changed' delegate
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>( TEXT("ContentBrowser") );
