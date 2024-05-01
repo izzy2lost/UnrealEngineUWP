@@ -36,7 +36,7 @@ namespace ChaosDD::Private
 	{
 		FChaosDDContext& Context = Get();
 
-		if (ensure(Context.GetTimeline().IsValid()))
+		if (Context.GetTimeline().IsValid())
 		{
 			Context.GetTimeline()->EndFrame();
 
