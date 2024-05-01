@@ -13,6 +13,7 @@
 #include "Framework/Text/SlateTextLayout.h"
 #include "Framework/Text/SlateTextRun.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Internationalization/BreakIterator.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -1085,9 +1086,44 @@ void FOutputLogTextLayoutMarshaller::MarkMessagesCacheAsDirty()
 
 FName FOutputLogTextLayoutMarshaller::GetCategoryForLocation(const FTextLocation Location) const
 {
-	if (Messages.IsValidIndex(Location.GetLineIndex()))
+	if (TextLayout)
 	{
-		return Messages[Location.GetLineIndex()]->Category;
+		TSharedRef<IBreakIterator> WordBreakIterator{ FBreakIterator::CreateWordBreakIterator() };
+
+		int32 LineIndex = Location.GetLineIndex();
+
+		// A Message may be split across multiple lines in the TextLayout, so work backwards to find the Category on the first line of the message.
+		while (TextLayout->GetLineModels().IsValidIndex(LineIndex))
+		{
+			const FTextLayout::FLineModel& LineModel = TextLayout->GetLineModels()[LineIndex];	
+
+			WordBreakIterator->SetStringRef(&LineModel.Text.Get());
+
+			int32 PreviousBreak = WordBreakIterator->ResetToBeginning();
+			int32 CurrentBreak = 0;
+
+			// Iterate words starting from the beginning of the line, as the Category is one of the first words in a message.
+			while ((CurrentBreak = WordBreakIterator->MoveToNext()) != INDEX_NONE)
+			{
+				FTextSelection Selection{ FTextLocation(LineIndex, CurrentBreak), FTextLocation(LineIndex, PreviousBreak) };
+
+				FString SelectedText;
+				TextLayout->GetSelectionAsText(SelectedText, Selection);
+
+				FName PossibleCategory(SelectedText, FNAME_Find);
+
+				if (!PossibleCategory.IsNone() && Filter->IsLogCategoryAvailable(PossibleCategory))
+				{
+					return PossibleCategory;
+				}
+
+				PreviousBreak = CurrentBreak;
+			}
+
+			WordBreakIterator->ClearString();
+
+			LineIndex--;
+		}
 	}
 
 	return NAME_None;
@@ -2317,7 +2353,7 @@ bool FOutputLogFilter::IsMessageAllowed(const TSharedPtr<FOutputLogMessage>& Mes
 
 	// Filter by Category
 	{
-		if (!bShowAllCategories && !IgnoreFilterVerbosities.Contains(Message->Verbosity) && !IsLogCategoryEnabled(Message->Category))
+		if (!IgnoreFilterVerbosities.Contains(Message->Verbosity) && !IsLogCategoryEnabled(Message->Category))
 		{
 			return false;
 		}
@@ -2356,6 +2392,11 @@ void FOutputLogFilter::AddAvailableLogCategory(const FName& LogCategory)
 	{
 		ToggleLogCategory(LogCategory);
 	}
+}
+
+bool FOutputLogFilter::IsLogCategoryAvailable(const FName& LogCategory) const
+{
+	return AvailableLogCategories.Contains(LogCategory);
 }
 
 void FOutputLogFilter::ToggleLogCategory(const FName& LogCategory)

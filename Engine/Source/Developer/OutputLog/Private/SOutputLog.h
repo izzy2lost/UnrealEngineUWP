@@ -283,6 +283,9 @@ struct FOutputLogFilter
 	/** Adds a Log Category to the list of available categories, if it isn't already present */
 	void AddAvailableLogCategory(const FName& LogCategory);
 
+	/** Returns true if the specified log category is in the list of available categories */
+	bool IsLogCategoryAvailable(const FName& LogCategory) const;
+
 	/** Enables or disables a Log Category in the filter */
 	void ToggleLogCategory(const FName& LogCategory);
 
