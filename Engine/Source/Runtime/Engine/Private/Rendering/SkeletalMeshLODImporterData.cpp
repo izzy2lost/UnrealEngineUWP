@@ -2220,6 +2220,11 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 					// Don't perform sRGB conversion (which mirrors what CreateFromMeshDescription does).
 					VertexInstanceColors.Set(VertexInstanceID, Wedge.Color.ReinterpretAsLinear());
 				}
+				else
+				{
+					// The default color for import data is black. 
+					VertexInstanceColors.Set(VertexInstanceID, FLinearColor::Black);
+				}
 				for (int32 UVIndex = 0; UVIndex < static_cast<int32>(NumTexCoords); UVIndex++)
 				{
 					VertexInstanceUVs.Set(VertexInstanceID, UVIndex, Wedge.UVs[UVIndex]);
@@ -2764,18 +2769,22 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	SkelMeshImportData.bHasTangents = bHaveValidTangents;
 	
 	SkelMeshImportData.Wedges.SetNumZeroed(InMeshDescription.VertexInstances().GetArraySize());
+	
 	for (FVertexInstanceID VertexInstanceID: InMeshDescription.VertexInstances().GetElementIDs())
 	{
 		SkeletalMeshImportData::FVertex& Wedge = SkelMeshImportData.Wedges[VertexInstanceID.GetValue()];
 		
 		Wedge.VertexIndex = static_cast<uint32>(InMeshDescription.GetVertexInstanceVertex(VertexInstanceID).GetValue());
 		Wedge.MatIndex = 0;			// We set this later -- not that this is actually used by any internal process.
+		
 		constexpr bool bSRGB = false; //avoid linear to srgb conversion
-		Wedge.Color = FLinearColor(VertexInstanceColors[VertexInstanceID]).ToFColor(bSRGB);
-		if (Wedge.Color != FColor::White)
+		const FLinearColor VertexColor = VertexInstanceColors[VertexInstanceID];
+		if (VertexColor != FLinearColor::Black)
 		{
 			SkelMeshImportData.bHasVertexColors = true;
 		}
+		Wedge.Color = VertexColor.ToFColor(bSRGB);
+		
 		for (int32 UVChannelIndex = 0; UVChannelIndex < static_cast<int32>(SkelMeshImportData.NumTexCoords); ++UVChannelIndex)
 		{
 			Wedge.UVs[UVChannelIndex] = VertexInstanceUVs.Get(VertexInstanceID, UVChannelIndex);

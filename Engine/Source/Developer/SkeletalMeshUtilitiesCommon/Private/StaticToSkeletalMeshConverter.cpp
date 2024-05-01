@@ -271,6 +271,32 @@ static bool AddLODFromStaticMeshSourceModel(
 			SkinWeights.Set(VertexID, RootBinding);
 		}
 
+		// Convert weird static mesh inverse sRGB gamma to linear.
+		// FIXME: Remove once static mesh color space has been fixed to be linear again.
+		TVertexInstanceAttributesRef<FVector4f> VertexInstanceColors = SkeletalMeshAttributes.GetVertexInstanceColors();
+		auto ConvertLinearToSRGBGamma = [](float V)
+		{
+			V = FMath::Clamp(V, 0.0f, 1.0f);
+			if (V <= 0.0031308)
+			{
+				return V * 12.92f;
+			}
+			else
+			{
+				return 1.055f * FMath::Pow(V, 1.0f / 2.4f) - 0.055f;
+			}
+		};
+		
+		for (FVertexInstanceID VertexInstanceID: SkeletalMeshGeometry.VertexInstances().GetElementIDs())
+		{
+			FLinearColor VertexColor = VertexInstanceColors.Get(VertexInstanceID);
+			VertexColor.R = ConvertLinearToSRGBGamma(VertexColor.R);
+			VertexColor.G = ConvertLinearToSRGBGamma(VertexColor.G);
+			VertexColor.B = ConvertLinearToSRGBGamma(VertexColor.B);
+			VertexInstanceColors.Set(VertexInstanceID, VertexColor);
+		}
+		
+
 		if (!AddLODFromMeshDescription(MoveTemp(SkeletalMeshGeometry), InSkeletalMesh, InMeshUtilities))
 		{
 			return false;

@@ -162,6 +162,10 @@ void USkeletonEditingTool::SetupPreviewMesh()
 		PreviewMesh->SetSecondaryRenderMaterial(SelectionMaterial);
 	}
 
+	// FIXME: This setting really belongs on the underlying mesh.
+	UDynamicMeshComponent* DynamicMeshComponent = Cast<UDynamicMeshComponent>(PreviewMesh->GetRootComponent());
+	DynamicMeshComponent->SetVertexColorSpaceTransformMode(EDynamicMeshVertexColorTransformMode::LinearToSRGB);
+
 	// hide the skeletal mesh component
 	UE::ToolTarget::HideSourceObject(Target);
 }
