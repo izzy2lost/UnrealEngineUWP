@@ -42,26 +42,20 @@ public:
 
 	/** global static instance of invalid (zero) id */
 	static const FUniqueNetIdEOSRef& EmptyId();
+	static const FUniqueNetIdEOSRef& DedicatedServerId();
 
 	static FName GetTypeStatic();
 
 	virtual FName GetType() const override;
 	virtual const uint8* GetBytes() const override;
 	virtual int32 GetSize() const override;
+
 	virtual bool IsValid() const override;
 	virtual uint32 GetTypeHash() const override;
 	virtual FString ToString() const override;
 	virtual FString ToDebugString() const override;
-
-	virtual const EOS_EpicAccountId GetEpicAccountId() const override
-	{
-		return EpicAccountId;
-	}
-
-	virtual const EOS_ProductUserId GetProductUserId() const override
-	{
-		return ProductUserId;
-	}
+	virtual const EOS_EpicAccountId GetEpicAccountId() const override;
+	virtual const EOS_ProductUserId GetProductUserId() const override;
 
 private:
 	EOS_EpicAccountId EpicAccountId = nullptr;
@@ -78,6 +72,7 @@ private:
 
 	FUniqueNetIdEOS() = default;
 	
+	bool IsDSValue() const;
 	explicit FUniqueNetIdEOS(const uint8* Bytes, int32 Size);
 	explicit FUniqueNetIdEOS(EOS_EpicAccountId InEpicAccountId, EOS_ProductUserId InProductUserId);
 };
