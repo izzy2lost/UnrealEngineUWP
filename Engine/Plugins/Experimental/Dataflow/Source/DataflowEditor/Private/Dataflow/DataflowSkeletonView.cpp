@@ -9,19 +9,28 @@
 #include "IEditableSkeleton.h"
 #include "ISkeletonTree.h"
 #include "ISkeletonTreeItem.h"
+#include "ISkeletonEditorModule.h"
 #include "Engine/SkeletalMesh.h"
 
-//#include "Widgets/SCompoundWidget.h"
 
 FDataflowSkeletonView::FDataflowSkeletonView(UDataflowEditor* InDataflowEditor)
 	: DataflowEditor(InDataflowEditor)
 	, SkeletonEditor(nullptr)
 	, SkeletalMesh(NewObject<USkeletalMesh>())
-	, SelectedNode(nullptr)
 	, CollectionIndexRemap(TArray<int32>())
 
 {
-	SkeletalMesh->SetSkeleton(NewObject<USkeleton>(SkeletalMesh, NAME_Name));
+	check(DataflowEditor);
+
+	SetSkeleton(NewObject<USkeleton>(SkeletalMesh, NAME_Name));
+	if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowEditor->GetDataflowContent()))
+	{
+		if (SkeletalContent->GetDataflowAsset())
+		{
+			SetSkeleton(SkeletalContent->GetSkeleton());
+		}
+	}
+
 }
 
 FDataflowSkeletonView::~FDataflowSkeletonView()
@@ -30,6 +39,15 @@ FDataflowSkeletonView::~FDataflowSkeletonView()
 	{
 		// remove widget delegates (see FDataflowCollectionSpreadSheet)
 	}
+}
+
+TSharedPtr<ISkeletonTree> FDataflowSkeletonView::CreateEditor(FSkeletonTreeArgs& InSkeletonTreeArgs)
+{
+	ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
+	SkeletonEditor = SkeletonEditorModule.CreateSkeletonTree(GetSkeleton(), InSkeletonTreeArgs);
+	SkeletonEditor->Refresh();
+	// add widget delegates (see FDataflowCollectionSpreadSheet)
+	return SkeletonEditor;
 }
 
 void FDataflowSkeletonView::SetSupportedOutputTypes()
@@ -52,6 +70,10 @@ void FDataflowSkeletonView::SetSkeleton(USkeleton* Skeleton)
 		SkeletalMesh = NewObject<USkeletalMesh>();
 		SkeletalMesh->SetSkeleton(NewObject<USkeleton>(SkeletalMesh, NAME_Name));
 	}
+	if (SkeletonEditor)
+	{
+		SkeletonEditor->Refresh();
+	}
 }
 
 USkeleton* FDataflowSkeletonView::GetSkeleton()
@@ -65,8 +87,9 @@ USkeleton* FDataflowSkeletonView::GetSkeleton()
 
 void FDataflowSkeletonView::UpdateViewData()
 {
-	if(!ensure(DataflowEditor)) return;
+	if (!ensure(DataflowEditor)) return;
 
+	bool bNeedsDefaultSkeleton = true;
 	if (TObjectPtr<UDataflowEdNode> EdNode = GetSelectedNode())
 	{
 		if (GetSelectedNode()->IsBound())
@@ -85,7 +108,6 @@ void FDataflowSkeletonView::UpdateViewData()
 								FManagedArrayCollection DefaultCollection;
 								const FManagedArrayCollection& Result = Output->GetValue(*EditorContent->GetDataflowContext(), DefaultCollection);
 
-								SelectedNode = EdNode;
 								SkeletalMesh = NewObject<USkeletalMesh>();
 								TObjectPtr<USkeleton> Skeleton = NewObject<USkeleton>(SkeletalMesh, Node->Name);
 
@@ -99,6 +121,7 @@ void FDataflowSkeletonView::UpdateViewData()
 									SkeletonEditor->SetSkeletalMesh(SkeletalMesh);
 									SkeletonEditor->Refresh();
 								}
+								bNeedsDefaultSkeleton = false;
 							}
 						}
 					}
@@ -106,19 +129,41 @@ void FDataflowSkeletonView::UpdateViewData()
 			}
 		}
 	}
-}
 
-void FDataflowSkeletonView::SetSkeletonEditor(TSharedPtr<ISkeletonTree>& InSkeletonEditor)
-{
-	ensure(!SkeletonEditor);
 
-	SkeletonEditor = InSkeletonEditor;
-
-	if (SkeletonEditor)
+	if (bNeedsDefaultSkeleton)
 	{
-		// add widget delegates (see FDataflowCollectionSpreadSheet)
+		SetSkeleton(NewObject<USkeleton>(SkeletalMesh, NAME_Name));
+		if (DataflowEditor)
+		{
+			if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowEditor->GetDataflowContent()))
+			{
+				if (SkeletalContent->GetDataflowAsset())
+				{
+					SetSkeleton(SkeletalContent->GetSkeleton());
+				}
+			}
+		}
+		if (SkeletonEditor)
+		{
+			SkeletonEditor->Refresh();
+		}
 	}
 }
+
+void FDataflowSkeletonView::ConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InSelectedComponents)
+{
+	if (ensure(SkeletonEditor))
+	{
+		SkeletonEditor->DeselectAll();
+		for (UPrimitiveComponent* Component : InSelectedComponents)
+		{
+			SkeletonEditor->SetSelectedBone(FName(Component->GetName()), ESelectInfo::Type::Direct);
+		}
+		SkeletonEditor->Refresh();
+	}
+}
+
 
 void FDataflowSkeletonView::SkeletonViewSelectionChanged(const TArrayView<TSharedPtr<ISkeletonTreeItem>>& InSelectedItems, ESelectInfo::Type InSelectInfo)
 {
@@ -135,7 +180,5 @@ void FDataflowSkeletonView::SkeletonViewSelectionChanged(const TArrayView<TShare
 void FDataflowSkeletonView::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FDataflowNodeView::AddReferencedObjects(Collector);
-
-	Collector.AddReferencedObject(SelectedNode);
 	Collector.AddReferencedObject(SkeletalMesh);
 }

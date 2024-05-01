@@ -8,6 +8,7 @@
 #include "Dataflow/SelectionViewWidget.h"
 #include "Dataflow/DataflowSelection.h"
 
+class UPrimitiveComponent;
 
 /**
 *
@@ -17,6 +18,7 @@
 class IDataflowViewListener
 {
 public:
+	virtual void OnConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InSelectedComponents) = 0;
 	virtual void OnSelectedNodeChanged(UDataflowEdNode* InNode) = 0;  // nullptr is valid
 	virtual void OnNodeInvalidated(FDataflowNode* InvalidatedNode) = 0;
 };
@@ -45,6 +47,7 @@ public:
 	*/
 	virtual void UpdateViewData() = 0;
 	virtual void SetSupportedOutputTypes() = 0;
+	virtual void ConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InComponent) = 0;
 
 	/**
 	* Callback for PinnedDown change
@@ -59,6 +62,7 @@ public:
 	/**
 	* Virtual function overrides from IDataflowViewListener base class
 	*/
+	virtual void OnConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InNode) override;
 	virtual void OnSelectedNodeChanged(UDataflowEdNode* InNode) override;  // nullptr is valid
 	virtual void OnNodeInvalidated(FDataflowNode* InvalidatedNode) override;
 

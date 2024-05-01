@@ -95,7 +95,7 @@ protected:
 	void OnNodeDeleted(const TSet<UObject*>& NewSelection);
 	void OnNodeSingleClicked(UObject* ClickedNode) const;
 	void OnAssetPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);
-	
+	void OnConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& SelectedComponents);
 	// Callback to remove the closed one from the listener views
 	void OnTabClosed(TSharedRef<SDockTab> Tab);
 	
@@ -179,7 +179,8 @@ private:
 	FDelegateHandle OnSelectionChangedMulticastDelegateHandle;
     FDelegateHandle OnNodeDeletedMulticastDelegateHandle;
     FDelegateHandle OnFinishedChangingPropertiesDelegateHandle;
-    FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
+	FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
+	FDelegateHandle OnConstructionSelectionChangedDelegateHandle;
 
 	// The currently selected set of dataflow nodes. 
 	UPROPERTY()

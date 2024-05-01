@@ -53,6 +53,11 @@ void FDataflowNodeView::SetContext(TSharedPtr<Dataflow::FContext>& InContext)
 	Context = InContext;
 }
 
+void FDataflowNodeView::OnConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InComponents)
+{
+	ConstructionViewSelectionChanged(InComponents);
+}
+
 
 void FDataflowNodeView::OnSelectedNodeChanged(UDataflowEdNode* InNode)
 {

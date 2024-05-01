@@ -6,7 +6,9 @@
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowComponentSelectionState.h"
 #include "Dataflow/DataflowContent.h"
+#include "Delegates/Delegate.h"
 #include "InputBehaviorSet.h"
+
 
 class FDataflowEditorToolkit;
 class ADataflowActor;
@@ -44,6 +46,9 @@ public:
 	// FGCObject Interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override { return TEXT("FDataflowConstructionViewportClient"); }
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSelectionChangedMulticast, const TArray<UPrimitiveComponent*>&)
+	FOnSelectionChangedMulticast OnSelectionChangedMulticast;
 
 private:
 

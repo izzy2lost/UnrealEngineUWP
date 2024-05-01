@@ -22,6 +22,7 @@ public:
 
 	virtual void SetSupportedOutputTypes() override;
 	virtual void UpdateViewData() override;
+	virtual void ConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InSelectedComponents) override {};
 
 	void SetCollectionSpreadSheet(TSharedPtr<SCollectionSpreadSheetWidget>& InCollectionSpreadSheet);
 

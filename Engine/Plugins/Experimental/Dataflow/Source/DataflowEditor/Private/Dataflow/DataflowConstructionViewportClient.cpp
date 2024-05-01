@@ -130,7 +130,6 @@ void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitPro
 		{
 			Component->PushSelectionToProxy();
 		}
-
 	};
 
 	auto SelectSingleNodeInGraph = [&](TObjectPtr<const UDataflowEdNode> Node)
@@ -166,6 +165,7 @@ void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitPro
 		}
 	};
 
+	TArray<UPrimitiveComponent*> CurrentlySelectedComponents;
 	if (!IsInteractiveToolActive())
 	{
 		if (USelection* SelectedComponents = ModeTools->GetSelectedComponents())
@@ -182,8 +182,11 @@ void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitPro
 			}
 
 			EnableToolForSelectedNode(SelectedComponents);
+
+			SelectedComponents->GetSelectedObjects<UPrimitiveComponent>(CurrentlySelectedComponents);
 		}
 	}
+	OnSelectionChangedMulticast.Broadcast(CurrentlySelectedComponents);
 }
 
 void FDataflowConstructionViewportClient::SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InViewMode)

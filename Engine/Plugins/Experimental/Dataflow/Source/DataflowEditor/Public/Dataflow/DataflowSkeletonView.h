@@ -10,6 +10,7 @@ class ISkeletonTreeItem;
 class USkeleton;
 class USkeletalMesh;
 class UDataflowEdNode;
+struct FSkeletonTreeArgs;
 
 /**
 *
@@ -22,8 +23,8 @@ public:
 	FDataflowSkeletonView(UDataflowEditor* InDataflowEditor = nullptr);
 	~FDataflowSkeletonView();
 
-	/** Set the Skeleton Tree*/
-	void SetSkeletonEditor(TSharedPtr<ISkeletonTree>& InSkeletonTree);
+	/** Create the Skeleton Tree Editor*/
+	TSharedPtr<ISkeletonTree> CreateEditor(FSkeletonTreeArgs& InSkeletonTreeArgs);
 
 	/** Set selection types*/
 	virtual void SetSupportedOutputTypes() override;
@@ -37,22 +38,23 @@ public:
 	/** Update the view */
 	virtual void UpdateViewData() override;
 
+	/** Update the view based on changes in the construction view */
+	virtual void ConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InSelectedComponents) override;
+
 	/** Add GC managed objects*/
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	/** Selection View Callbacks */
 	void SkeletonViewSelectionChanged(const TArrayView<TSharedPtr<ISkeletonTreeItem>>& InSelectedItems, ESelectInfo::Type InSelectInfo);
 
+
 private:
 	UDataflowEditor* DataflowEditor = nullptr;
 
 	TSharedPtr<ISkeletonTree> SkeletonEditor;
 
-
 	/* Skeletal Mesh in the SkeletalViewer*/
 	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
-
-	TObjectPtr<UDataflowEdNode> SelectedNode = nullptr;
 
 	/* Rempping from the selected node to the SkeletalMesh*/
 	TArray<int32> CollectionIndexRemap;
