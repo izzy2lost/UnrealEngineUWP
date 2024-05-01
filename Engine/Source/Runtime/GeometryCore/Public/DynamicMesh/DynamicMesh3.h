@@ -1408,7 +1408,18 @@ protected:
 		TriangleEdges[TriangleID] = FIndex3i(e0, e1, e2);
 	}
 
-	GEOMETRYCORE_API int AddEdgeInternal(int vA, int vB, int tA, int tB = InvalidID);
+	inline int AddEdgeInternal(int vA, int vB, int tA, int tB = InvalidID)
+	{
+		if (vB < vA) {
+			int t = vB; vB = vA; vA = t;
+		}
+		int eid = EdgeRefCounts.Allocate();
+		Edges.InsertAt(FEdge{ {vA, vB},{tA, tB} }, eid);
+		VertexEdgeLists.Insert(vA, eid);
+		VertexEdgeLists.Insert(vB, eid);
+		return eid;
+
+	}
 	GEOMETRYCORE_API int AddTriangleInternal(int a, int b, int c, int e0, int e1, int e2);
 
 	inline int ReplaceTriangleVertex(int TriangleID, int vOld, int vNew)
