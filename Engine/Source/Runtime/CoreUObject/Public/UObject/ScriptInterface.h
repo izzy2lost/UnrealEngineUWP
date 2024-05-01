@@ -139,7 +139,8 @@ class TScriptInterface : public FScriptInterface
 {
 public:
 	using InterfaceType = InInterfaceType;
-	
+	using UObjectType = typename TCopyQualifiersFromTo<InterfaceType, UObject>::Type;
+
 	/**
 	 * Default constructor
 	 */
@@ -155,12 +156,12 @@ public:
 	 */
 	template <
 		typename U
-		UE_REQUIRES(std::is_convertible_v<U, UObject*>)
+		UE_REQUIRES(std::is_convertible_v<U, UObjectType*>)
 	>
 	FORCEINLINE TScriptInterface(U&& Source)
 	{
 		// Always set the object
-		UObject* SourceObject = ImplicitConv<UObject*>(Source);
+		UObjectType* SourceObject = ImplicitConv<UObjectType*>(Source);
 		SetObject(SourceObject);
 
 		if constexpr (std::is_base_of<InInterfaceType, std::remove_pointer_t<std::remove_reference_t<U>>>::value)
@@ -235,7 +236,7 @@ public:
 	 */
 	template <
 		typename U
-		UE_REQUIRES(std::is_convertible_v<U, UObject*>)
+		UE_REQUIRES(std::is_convertible_v<U, UObjectType*>)
 	>
 	TScriptInterface& operator=(U&& Source)
 	{
@@ -342,6 +343,30 @@ public:
 	FORCEINLINE void SetInterface(InInterfaceType* InInterfacePointer)
 	{
 		FScriptInterface::SetInterface((void*)InInterfacePointer);
+	}
+
+	/**
+	 * Returns the ObjectPointer contained by this TScriptInterface
+	 */
+	FORCEINLINE UObjectType* GetObject() const
+	{
+		return FScriptInterface::GetObject();
+	}
+
+	/**
+	 * Returns the ObjectPointer contained by this TScriptInterface
+	 */
+	FORCEINLINE TObjectPtr<UObjectType>& GetObjectRef()
+	{
+		return *(TObjectPtr<UObjectType>*)&FScriptInterface::GetObjectRef();
+	}
+
+	/**
+	 * Sets the value of the ObjectPointer for this TScriptInterface
+	 */
+	FORCEINLINE void SetObject( UObjectType* InObjectPointer )
+	{
+		FScriptInterface::SetObject(const_cast<UObject*>(InObjectPointer));
 	}
 
 	/**
