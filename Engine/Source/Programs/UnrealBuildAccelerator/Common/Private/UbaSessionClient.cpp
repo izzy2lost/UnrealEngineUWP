@@ -1911,6 +1911,94 @@ namespace uba
 		return SendUpdateDirectoryTable(reader);
 	}
 
+	bool SessionClient::LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType)
+	{
+		// TODO: Remove this once we have figured out a bug that seems to exist for remote execution
+		#if PLATFORM_WINDOWS
+		auto rules = process.m_startInfo.rules;
+		if (!rules)
+			return true;
+
+		const tchar* errorPos = nullptr;
+		if (rules->index == 1)
+		{
+			if (!Contains(line, TC("C1083"), false, &errorPos))
+				return true;
+		}
+		else
+		{
+			if (!Contains(line, TC("' file not found")))
+				return true;
+			if (!Contains(line, TC("fatal error: '"), false, &errorPos))
+				return true;
+		}
+
+		const tchar* fileBegin = TStrchr(errorPos, '\'');
+		if (!fileBegin)
+			return true;
+		++fileBegin;
+		const tchar* fileEnd = TStrchr(fileBegin, '\'');
+		if (!fileEnd)
+			return true;
+
+		StringBuffer<> searchString;
+		searchString.Append(fileBegin, fileEnd - fileBegin).Replace('/', PathSeparator);
+
+		MemoryBlock memoryBlock;
+		DirectoryTable dirTable(&memoryBlock);
+		{
+			SCOPED_WRITE_LOCK(m_directoryTable.m_memoryLock, lock2);
+			m_directoryTable.m_memorySize = m_directoryTableMemPos;
+			dirTable.Init(m_directoryTable.m_memory, 0, m_directoryTable.m_memorySize);
+		}
+
+		u32 foundCount = 0;
+		dirTable.TraverseAllFilesNoLock([&](const DirectoryTable::EntryInformation& info, const StringBufferBase& path)
+			{
+				if (!path.Contains(searchString.data))
+					return;
+				++foundCount;
+				StringBuffer<> logStr;
+				logStr.Appendf(TC("File %s found in directory table while searching for matches for %s (size %llu attr %u)"), path.data, searchString.data, info.size, info.attributes);
+				process.LogLine(false, logStr.data, logType);
+
+				StringKey fileNameKey = ToStringKey(path);
+				SCOPED_READ_LOCK(m_fileMappingTableLookupLock, mlock);
+				auto findIt = m_fileMappingTableLookup.find(fileNameKey);
+				if (findIt != m_fileMappingTableLookup.end())
+				{
+					auto& entry = findIt->second;
+					SCOPED_READ_LOCK(entry.lock, entryCs);
+					logStr.Clear().Appendf(TC("File %s found in mapping table table."), path.data);
+					if (entry.handled && entry.mapping.IsValid())
+					{
+						StringBuffer<128> mappingName;
+						Storage::GetMappingString(mappingName, entry.mapping, entry.mappingOffset);
+						logStr.Appendf(TC(" Mapping name: %s"), mappingName.data);
+					}
+				}
+				else
+					logStr.Clear().Appendf(TC("File %s not found in mapping table table."), path.data);
+				process.LogLine(false, logStr.data, logType);
+
+				CasKey key;
+				if (GetCasKeyForFile(key, process.m_id, path, fileNameKey))
+					logStr.Clear().Appendf(TC("File %s caskey is %s"), path.data, CasKeyString(key).str);
+				else
+					logStr.Clear().Appendf(TC("File %s caskey not found"), path.data);
+				process.LogLine(false, logStr.data, logType);
+			});
+		if (!foundCount)
+		{
+			StringBuffer<> logStr;
+			logStr.Appendf(TC("No matching entry found in directory table while searching for matches for %s. DirTable size: %u"), searchString.data, GetDirectoryTableSize());
+			process.LogLine(false, logStr.data, logType);
+		}
+
+		#endif
+		return true;
+	}
+
 	void SessionClient::TraceSessionUpdate()
 	{
 		float cpuLoad = 0.0f;//UpdateCpuLoad();

@@ -979,7 +979,12 @@ namespace uba
 		bool printInSession = reader.ReadBool();
 		bool isError = reader.ReadBool();
 		TString line = reader.ReadString();
-		LogLine(printInSession, std::move(line), isError ? LogEntryType_Error : LogEntryType_Info);
+		LogEntryType entryType = isError ? LogEntryType_Error : LogEntryType_Info;
+
+		if (!m_session.LogLine(*this, line.c_str(), entryType))
+			return false;
+
+		LogLine(printInSession, std::move(line), entryType);
 		return true;
 	}
 

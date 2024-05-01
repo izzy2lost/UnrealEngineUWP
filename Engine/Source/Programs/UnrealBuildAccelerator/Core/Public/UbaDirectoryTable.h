@@ -311,6 +311,42 @@ namespace uba
 			}
 		}
 
+#if PLATFORM_WINDOWS
+		template<typename Func>
+		void TraverseFilesRecursiveNoLock(const StringBufferBase& path, const Func& func)
+		{
+			auto findIt = m_lookup.find(ToStringKey(path));
+			if (findIt == m_lookup.end())
+				return;
+			StringKeyHasher hasher;
+			hasher.Update(path.data, path.count);
+			PopulateDirectory(hasher, findIt->second);
+			for (auto& fileKv : findIt->second.files)
+			{
+				DirectoryTable::EntryInformation info;
+				StringBuffer<> fileName(path);
+				fileName.Append(PathSeparator);
+				GetEntryInformation(info, fileKv.second, fileName.data + fileName.count, fileName.capacity - fileName.count);
+				fileName.count = TStrlen(fileName.data);
+				if (CaseInsensitiveFs)
+					fileName.MakeLower();
+				func(info, fileName);
+				TraverseFilesRecursiveNoLock(fileName, func);
+			}
+		}
+
+		template<typename Func>
+		void TraverseAllFilesNoLock(const Func& func)
+		{
+			for (tchar l='a';l!='z'; ++l)
+			{
+				StringBuffer<4> drive;
+				drive.Append(l).Append(':');
+				TraverseFilesRecursiveNoLock(drive, func);
+			}
+		}
+#endif
+
 		DirectoryTable(MemoryBlock* block) : m_memoryBlock(block), m_lookup(block) {}
 
 		MemoryBlock* m_memoryBlock;

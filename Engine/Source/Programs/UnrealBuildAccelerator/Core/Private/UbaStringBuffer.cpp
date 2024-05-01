@@ -45,7 +45,12 @@ namespace uba
 	bool Contains(const tchar* str, const tchar* sub, bool ignoreCase, const tchar** pos)
 	{
 		if (!ignoreCase)
-			return TStrstr(str, sub) != 0;
+		{
+			auto res = TStrstr(str, sub);
+			if (pos)
+				*pos = res;
+			return res != nullptr;
+		}
 		for (const tchar* a = str; *a; ++a)
 		{
 			bool contains = true;

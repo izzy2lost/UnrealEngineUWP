@@ -2260,6 +2260,11 @@ namespace uba
 		return true;
 	}
 
+	bool Session::LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType)
+	{
+		return true;
+	}
+
 	void Session::PrintSessionStats(Logger& logger)
 	{
 		u64 mappingBufferSize;

@@ -64,6 +64,7 @@ namespace uba
 		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer) override;
 		virtual bool FlushWrittenFiles(ProcessImpl& process) override;
 		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats) override;
+		virtual bool LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType) override;
 		virtual void TraceSessionUpdate() override;
 
 		struct InternalProcessStartInfo;

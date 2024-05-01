@@ -134,6 +134,7 @@ namespace uba
 		virtual void FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size);
 		virtual bool FlushWrittenFiles(ProcessImpl& process);
 		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats);
+		virtual bool LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType);
 
 		static constexpr CasKey CasKeyIsDirectory = { ~u64(0), ~u64(0), ~u32(0) };
 
