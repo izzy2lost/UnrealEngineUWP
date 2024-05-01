@@ -24,9 +24,6 @@
 #include "LandscapeProxy.h"
 #include "Engine/LevelStreaming.h"
 
-#include "WorldPartition/WorldPartitionRuntimeSpatialHash.h"
-#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
-
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartition)
 
 #if WITH_EDITOR
@@ -2205,26 +2202,6 @@ FBox UWorldPartition::GetRuntimeWorldBounds() const
 	return EditorHash->GetNonSpatialBounds();
 }
 #endif
-
-bool UWorldPartition::SupportsWorldAssetStreaming(const FName& InTargetGrid)
-{
-	return RuntimeHash ? RuntimeHash->SupportsWorldAssetStreaming(InTargetGrid) : false;
-}
-
-FGuid UWorldPartition::RegisterWorldAssetStreaming(const FRegisterWorldAssetStreamingParams& InParams)
-{
-	return RuntimeHash ? RuntimeHash->RegisterWorldAssetStreaming(InParams) : FGuid();
-}
-
-bool UWorldPartition::UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid)
-{
-	return RuntimeHash ? RuntimeHash->UnregisterWorldAssetStreaming(InWorldAssetStreamingGuid) : false;
-}
-
-TArray<UWorldPartitionRuntimeCell*> UWorldPartition::GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid)
-{
-	return RuntimeHash ? RuntimeHash->GetWorldAssetStreamingCells(InWorldAssetStreamingGuid) : TArray<UWorldPartitionRuntimeCell*>();
-}
 
 #undef LOCTEXT_NAMESPACE
 
