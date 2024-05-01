@@ -88,6 +88,15 @@ void UProjectPackagingSettings::PostEditChangeProperty(FPropertyChangedEvent& Pr
 		? PropertyChangedEvent.MemberProperty->GetFName()
 		: NAME_None;
 
+	// there is an issue where the default BuildConfig doesn't get propagated to the per-platform packaging settings instances
+	// because their ConfigSystem doesn't get updated - so we do the nuclear option here and wipe them all - they will get re-loaded
+	// when queried next. we just do it for all properties because any one of these could need the per-platform version to update
+	// this code runs before the ReloadConfig is called on each instance
+	if (Name != NAME_None)
+	{
+		FConfigCacheIni::ClearOtherPlatformConfigs();
+	}
+
 	if (Name == FName(TEXT("DirectoriesToAlwaysCook")) || Name == FName(TEXT("DirectoriesToNeverCook")) || Name == FName(TEXT("TestDirectoriesToNotSearch")) || Name == NAME_None)
 	{
 		// We need to fix paths for no name updates to catch the reloadconfig call

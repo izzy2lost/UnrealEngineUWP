@@ -264,6 +264,14 @@ void FChaosVDRuntimeModule::StopRecording()
 	if (FullCaptureRequesterHandle.IsValid())
 	{
 		FTSTicker::GetCoreTicker().RemoveTicker(FullCaptureRequesterHandle);
+
+		FullCaptureRequesterHandle.Reset();
+	}
+	
+	if (RecordingTimerHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(RecordingTimerHandle);
+		RecordingTimerHandle.Reset();
 	}
 
 	{

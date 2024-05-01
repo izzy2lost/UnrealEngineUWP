@@ -192,7 +192,7 @@ struct FEvaluateConstraintChannels
 				UpdateHandle.Constraint = TransformConstraint;
 				UpdateHandle.TransformHandle = ComponentHandle;
 				System->DynamicOffsets.Add(UpdateHandle);
-				TransformConstraint->EnsurePrimaryDependency(BoundObject->GetWorld());
+				TransformConstraint->EnsurePrimaryDependency(World);
 			}
 		}
 		else
