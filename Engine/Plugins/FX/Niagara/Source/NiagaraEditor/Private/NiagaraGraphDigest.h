@@ -88,6 +88,8 @@ public:
 	FNiagaraCompilationInputPin(const UEdGraphPin* InPin);
 	FNiagaraCompilationInputPin(const FNiagaraCompilationInputPin& SourceInputPin, const FNiagaraCompilationNode* InOwningNode, FNiagaraCompilationGraphDuplicateContext& Context);
 
+	bool Disconnect();
+
 	virtual FLinkedPinView GetLinkedPins() const override
 	{
 		return MakeArrayView(reinterpret_cast<const FNiagaraCompilationPin* const*>(&LinkedTo), 1);
@@ -372,7 +374,7 @@ protected:
 	void PatchGenericNumericsFromCaller(FNiagaraCompilationGraphInstanceContext& Context);
 	void InheritDebugState(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode);
 	void PropagateDefaultValues(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode);
-	void RemoveUnconnectedNodes();
+	void StripUnconnectedPins(FNiagaraCompilationGraphInstanceContext& Context);
 };
 
 class FNiagaraCompilationScript

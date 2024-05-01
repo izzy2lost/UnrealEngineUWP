@@ -1100,6 +1100,8 @@ void FNiagaraCompilationGraphInstanced::Refine(FNiagaraCompilationGraphInstanceC
 		}
 	}
 
+	StripUnconnectedPins(InstantiationContext);
+
 	// validate that now that we've refined the graph we have no more generic numerics and also ensure
 	// that there are no more static switches connected
 	ValidateRefinement();
@@ -1202,6 +1204,55 @@ void FNiagaraCompilationGraphInstanced::ResolveNumerics(FNiagaraCompilationGraph
 					&& (OutputNode.Outputs[InputPinIt].GetType() == GenericTypeDef))
 				{
 					OutputNode.Outputs[InputPinIt].SetType(PlaceholderTypeDef);
+				}
+			}
+		}
+	}
+}
+
+void FNiagaraCompilationGraphInstanced::StripUnconnectedPins(FNiagaraCompilationGraphInstanceContext& Context)
+{
+	// through instantiation some pins may become disconnected (for example because of static switches being evaluated).  For some nodes,
+	// like MapGet, this can be problematic because the culled paths may lead to some pins being in a weird state.
+	
+	// If the output of a MapGet is unconnected, then it's default input pin can also be disconnected.
+	TArray<FNiagaraCompilationNodeParameterMapGet*, TInlineAllocator<32>> MapGetNodes;
+
+	for (TUniquePtr<FNiagaraCompilationNode>& Node : Nodes)
+	{
+		if (FNiagaraCompilationNodeParameterMapGet* MapGetNode = Node->AsType<FNiagaraCompilationNodeParameterMapGet>())
+		{
+			MapGetNodes.Add(MapGetNode);
+		}
+	}
+
+	bool bVisitMapGetNodes = !MapGetNodes.IsEmpty();
+
+	while (bVisitMapGetNodes)
+	{
+		bVisitMapGetNodes = false;
+
+		for (FNiagaraCompilationNodeParameterMapGet* MapGetNode : MapGetNodes)
+		{
+			const int32 OutputPinCount = MapGetNode->OutputPins.Num();
+			for (int32 OutputPinIt = 0; OutputPinIt < OutputPinCount; ++OutputPinIt)
+			{
+				const FNiagaraCompilationOutputPin& OutputPin = MapGetNode->OutputPins[OutputPinIt];
+				if (OutputPin.LinkedTo.IsEmpty())
+				{
+					if (MapGetNode->DefaultInputPinIndices.IsValidIndex(OutputPinIt))
+					{
+						const int32 InputPinIndex = MapGetNode->DefaultInputPinIndices[OutputPinIt];
+						if (MapGetNode->InputPins.IsValidIndex(InputPinIndex))
+						{
+							// if we do change something in the graph then revisit our map nodes to see if there
+							// may be more connections that can be removed
+							if (MapGetNode->InputPins[InputPinIndex].Disconnect())
+							{
+								bVisitMapGetNodes = true;
+							}
+						}
+					}
 				}
 			}
 		}
@@ -1600,6 +1651,19 @@ const FNiagaraCompilationInputPin* FNiagaraCompilationInputPin::TraceBranchMap(c
 	}
 
 	return CurrentInputPin;
+}
+
+bool FNiagaraCompilationInputPin::Disconnect()
+{
+	if (LinkedTo)
+	{
+		FNiagaraCompilationOutputPin* MutableOutputPin = const_cast<FNiagaraCompilationOutputPin*>(LinkedTo);
+		LinkedTo = nullptr;
+
+		return MutableOutputPin->LinkedTo.RemoveSingle(this) > 0;
+	}
+
+	return false;
 }
 
 FNiagaraCompilationOutputPin::FNiagaraCompilationOutputPin(const UEdGraphPin* InPin)
