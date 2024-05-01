@@ -101,10 +101,25 @@ protected:
 template<>
 struct TStructOpsTypeTraits<FRuntimePartitionStreamingData> : public TStructOpsTypeTraitsBase2<FRuntimePartitionStreamingData>
 {
-	enum
-	{
-		WithCopy = false
-	};
+	enum { WithCopy = false };
+};
+
+USTRUCT()
+struct FRuntimePartitionStreamingDataList
+{
+	GENERATED_USTRUCT_BODY()
+
+	friend class UWorldPartitionRuntimeHashSet;
+
+protected:
+	UPROPERTY()
+	TArray<FRuntimePartitionStreamingData> List;
+};
+
+template<>
+struct TStructOpsTypeTraits<FRuntimePartitionStreamingDataList> : public TStructOpsTypeTraitsBase2<FRuntimePartitionStreamingDataList>
+{
+	enum { WithCopy = false	};
 };
 
 UCLASS()
@@ -173,6 +188,12 @@ public:
 	ENGINE_API virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const override;
 	ENGINE_API virtual uint32 ComputeUpdateStreamingHash() const override;
 
+protected:
+	virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) override;
+	virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) override;
+	virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) override;
+	virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) override;
+
 private:
 	ENGINE_API virtual void OnBeginPlay() override;
 
@@ -203,6 +224,9 @@ private:
 
 	UPROPERTY()
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
+
+	UPROPERTY(Transient)
+	TMap<FGuid, FRuntimePartitionStreamingDataList> WorldAssetStreamingDatas;
 
 	// Optimized data
 	TMap<FName, TArray<const FRuntimePartitionStreamingData*>> RuntimeSpatiallyLoadedDataGridMap;

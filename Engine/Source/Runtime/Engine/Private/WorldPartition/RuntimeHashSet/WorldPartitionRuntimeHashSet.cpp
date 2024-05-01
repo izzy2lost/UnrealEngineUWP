@@ -4,6 +4,8 @@
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionLHGrid.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionPersistent.h"
+#include "WorldPartition/WorldPartitionRuntimeLevelStreamingCell.h"
+#include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
@@ -572,6 +574,192 @@ uint32 UWorldPartitionRuntimeHashSet::ComputeUpdateStreamingHash() const
 	return HashBuilder.GetHash();
 }
 
+bool UWorldPartitionRuntimeHashSet::SupportsWorldAssetStreaming(const FName& InTargetGrid)
+{
+	return IsValidGrid(InTargetGrid, nullptr);
+}
+
+FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams)
+{
+	if (!InParams.IsValid())
+	{
+		return FGuid();
+	}
+
+	if (WorldAssetStreamingDatas.Contains(InParams.Guid))
+	{
+		return FGuid();
+	}
+
+	if (!IsValidGrid(InParams.TargetGrid, nullptr) || (!InParams.TargetGridHLOD.IsNone() && !IsValidGrid(InParams.TargetGridHLOD, nullptr)))
+	{
+		return FGuid();
+	}
+
+	URuntimeHashSetExternalStreamingObject* StreamingObject = CastChecked<URuntimeHashSetExternalStreamingObject>(CreateExternalStreamingObject(URuntimeHashSetExternalStreamingObject::StaticClass(), this, GetTypedOuter<UWorld>()));
+	if (!StreamingObject)
+	{
+		return FGuid();
+	}		
+
+	FGuid SourceCellGuid;
+		
+	// 2 passes : 1st for target grid, 2nd for HLOD target grid
+	for (const bool bIsHLODPass : { false, true })
+	{
+		const FName TargetGrid = bIsHLODPass ? InParams.TargetGridHLOD : InParams.TargetGrid;
+		if (TargetGrid.IsNone())
+		{
+			continue;
+		}
+
+		TArray<FName> MainPartitionTokens;
+		TArray<FName> HLODPartitionTokens;
+		if (!ParseGridName(TargetGrid, MainPartitionTokens, HLODPartitionTokens))
+		{
+			continue;
+		}
+
+		FRuntimePartitionStreamingData StreamingData;
+		StreamingData.LoadingRange = -1;
+
+		bool bClientOnlyVisible = false;
+		bool bBlockOnSlowStreaming = false;
+		for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
+		{
+			if (RuntimePartitionDesc.MainLayer && ((RuntimePartitionDesc.Name == MainPartitionTokens[0]) || MainPartitionTokens[0].IsNone()))
+			{
+				StreamingData.Name = RuntimePartitionDesc.Name;
+				StreamingData.LoadingRange = RuntimePartitionDesc.MainLayer->LoadingRange;
+				bClientOnlyVisible = RuntimePartitionDesc.MainLayer->bClientOnlyVisible;
+				bBlockOnSlowStreaming = RuntimePartitionDesc.MainLayer->bBlockOnSlowStreaming;
+				break;
+			}
+		}
+
+		if (StreamingData.LoadingRange == -1)
+		{
+			continue;
+		}
+
+		// Create Cell
+		FName TargetGridName = (bIsHLODPass ? InParams.TargetGridHLOD : InParams.TargetGrid);
+		FGuid InstanceGuid = InParams.Guid;
+		FArchiveMD5 ArMD5;
+		ArMD5 << TargetGridName << InstanceGuid;
+		const FGuid CellGuid = ArMD5.GetGuidFromHash();
+		check(CellGuid.IsValid());
+		if (!bIsHLODPass)
+		{
+			SourceCellGuid = CellGuid;
+		}
+
+		const FString CellName = FString::Printf(TEXT("InjectedCell_%s"), *CellGuid.ToString());
+		const TSoftObjectPtr<UWorld>& WorldAsset = bIsHLODPass ? InParams.WorldAssetHLOD : InParams.WorldAsset;
+
+		if (UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = Cast<UWorldPartitionRuntimeLevelStreamingCell>(
+			CreateRuntimeCell(UWorldPartitionRuntimeLevelStreamingCell::StaticClass(), UWorldPartitionRuntimeCellData::StaticClass(), CellName, InParams.CellInstanceSuffix, StreamingObject)))
+		{
+			RuntimeCell->SetClientOnlyVisible(bClientOnlyVisible);
+			RuntimeCell->SetBlockOnSlowLoading(bBlockOnSlowStreaming);
+			RuntimeCell->SetIsHLOD(bIsHLODPass);
+			RuntimeCell->SetGuid(CellGuid);
+			RuntimeCell->SetCellDebugColor(FLinearColor::MakeRandomSeededColor(GetTypeHash(CellName)));
+
+			if (bIsHLODPass)
+			{
+				RuntimeCell->SetSourceCellGuid(SourceCellGuid);
+			}
+
+			UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
+			RuntimeCellData->DebugName = CellName + InParams.CellInstanceSuffix;
+			RuntimeCellData->CellBounds = InParams.Bounds;
+			RuntimeCellData->ContentBounds = InParams.Bounds;
+			RuntimeCellData->HierarchicalLevel = MAX_int32;
+			RuntimeCellData->Priority = InParams.Priority;
+			RuntimeCellData->GridName = TargetGrid;
+
+			if (RuntimeCell->CreateAndSetLevelStreaming(WorldAsset, InParams.Transform))
+			{
+				StreamingData.SpatiallyLoadedCells.Add(RuntimeCell);
+				StreamingData.DestroyPartitionsSpatialIndex();
+				StreamingData.CreatePartitionsSpatialIndex();
+				WorldAssetStreamingDatas.FindOrAdd(InParams.Guid).List.Emplace(MoveTemp(StreamingData));
+				UpdateRuntimeDataGridMap();
+			}
+			else
+			{
+				UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *RuntimeCell->GetName(), *WorldAsset.ToString(), *InParams.Transform.ToString());StreamingData.CreatePartitionsSpatialIndex();
+				return FGuid();
+			}
+		}		
+		else
+		{
+			UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *RuntimeCell->GetName(), *WorldAsset.ToString(), *InParams.Transform.ToString());StreamingData.CreatePartitionsSpatialIndex();
+			return FGuid();
+		}
+	}
+
+	return InParams.Guid;
+}
+
+bool UWorldPartitionRuntimeHashSet::UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid)
+{
+	if (FRuntimePartitionStreamingDataList* StreamingDatas = WorldAssetStreamingDatas.Find(InWorldAssetStreamingGuid))
+	{
+		auto TrashCells = [](TArray<TObjectPtr<UWorldPartitionRuntimeCell>>& InCells)
+		{
+			auto TrashObject = [](UObject* InObject)
+			{
+				FName NewUniqueTrashName = MakeUniqueObjectName(InObject->GetOuter(), InObject->GetClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InObject->GetName())));
+				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty);
+			};
+
+			for (UWorldPartitionRuntimeCell* Cell : InCells)
+			{
+				if (UWorldPartitionRuntimeLevelStreamingCell* LevelStreamingCell = Cast<UWorldPartitionRuntimeLevelStreamingCell>(Cell))
+				{
+					if (UWorldPartitionLevelStreamingDynamic* LevelStreaming = LevelStreamingCell->GetLevelStreaming())
+					{
+						TrashObject(LevelStreaming);
+
+						// Make sure to flag this streaming level to be unloaded and removed as we don't want any future RequestLevel 
+						// of a newly created streaming level of the same WorldAsset to fail. 
+						LevelStreaming->SetIsRequestingUnloadAndRemoval(true);
+					}
+				}
+
+				TrashObject(Cell);
+			}
+		};
+
+		for (FRuntimePartitionStreamingData& StreamingData : StreamingDatas->List)
+		{
+			TrashCells(StreamingData.SpatiallyLoadedCells);
+			TrashCells(StreamingData.NonSpatiallyLoadedCells);
+		}
+
+		WorldAssetStreamingDatas.Remove(InWorldAssetStreamingGuid);
+		return true;
+	}
+
+	return false;
+}
+
+TArray<UWorldPartitionRuntimeCell*> UWorldPartitionRuntimeHashSet::GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid)
+{
+	TArray<UWorldPartitionRuntimeCell*> Result;
+	if (FRuntimePartitionStreamingDataList* StreamingDatas = WorldAssetStreamingDatas.Find(InWorldAssetStreamingGuid))
+	{
+		for (FRuntimePartitionStreamingData& StreamingData : StreamingDatas->List)
+		{
+			Result.Append(StreamingData.SpatiallyLoadedCells);
+			Result.Append(StreamingData.NonSpatiallyLoadedCells);
+		}
+	}
+	return Result;
+}
+
 #if WITH_EDITOR
 void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
@@ -819,6 +1007,17 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingData(TFunctionRef<bool(const
 		}
 	}
 
+	for (const auto& [Guid, StreamingDatas] : WorldAssetStreamingDatas)
+	{
+		for (const FRuntimePartitionStreamingData& StreamingData : StreamingDatas.List)
+		{
+			if (!Func(StreamingData))
+			{
+				return;
+			}
+		}
+	}
+
 	for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& InjectedExternalStreamingObject : InjectedExternalStreamingObjects)
 	{
 		if (InjectedExternalStreamingObject.IsValid())
@@ -843,12 +1042,11 @@ void UWorldPartitionRuntimeHashSet::UpdateRuntimeDataGridMap()
 		RuntimeSpatiallyLoadedDataGridMap.Reset();
 		RuntimeNonSpatiallyLoadedDataGridList.Reset();
 
-		for (const FRuntimePartitionStreamingData& StreamingData : RuntimeStreamingData)
+		ForEachStreamingData([this](const FRuntimePartitionStreamingData& StreamingData)
 		{
 			if (StreamingData.SpatiallyLoadedCells.Num())
 			{
-				TArray<const FRuntimePartitionStreamingData*>& StreamingDataList = RuntimeSpatiallyLoadedDataGridMap.Add(StreamingData.Name);
-				check(StreamingDataList.IsEmpty());
+				TArray<const FRuntimePartitionStreamingData*>& StreamingDataList = RuntimeSpatiallyLoadedDataGridMap.FindOrAdd(StreamingData.Name);
 				StreamingDataList.Add(&StreamingData);
 			}
 
@@ -856,29 +1054,9 @@ void UWorldPartitionRuntimeHashSet::UpdateRuntimeDataGridMap()
 			{
 				RuntimeNonSpatiallyLoadedDataGridList.Add(&StreamingData);
 			}
-		}
 
-		for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& InjectedExternalStreamingObject : InjectedExternalStreamingObjects)
-		{
-			if (InjectedExternalStreamingObject.IsValid())
-			{
-				URuntimeHashSetExternalStreamingObject* ExternalStreamingObject = CastChecked<URuntimeHashSetExternalStreamingObject>(InjectedExternalStreamingObject.Get());
-			
-				for (const FRuntimePartitionStreamingData& StreamingData : ExternalStreamingObject->RuntimeStreamingData)
-				{
-					if (StreamingData.SpatiallyLoadedCells.Num())
-					{
-						TArray<const FRuntimePartitionStreamingData*>& StreamingDataList = RuntimeSpatiallyLoadedDataGridMap.FindOrAdd(StreamingData.Name);
-						StreamingDataList.Add(&StreamingData);
-					}
-
-					if (!StreamingData.NonSpatiallyLoadedCells.IsEmpty())
-					{
-						RuntimeNonSpatiallyLoadedDataGridList.Add(&StreamingData);
-					}
-				}
-			}
-		}
+			return true;
+		});
 	}
 	else
 	{
