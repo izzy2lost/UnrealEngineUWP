@@ -373,6 +373,12 @@ namespace UnrealBuildTool
 				return null;
 			}
 
+			if (String.IsNullOrEmpty(hordeConfig.HordeServer))
+			{
+				logger.LogInformation("Horde disabled. Url not set.");
+				return null;
+			}
+
 			Uri? server = (hordeConfig.HordeServer == null) ? null : new Uri(hordeConfig.HordeServer);
 			string? token = hordeConfig.HordeToken;
 
