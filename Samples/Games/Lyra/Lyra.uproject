@@ -195,11 +195,13 @@
 			"Enabled": true,
 			"PlatformAllowList": [
 				"XB1",
-				"XSX"
+				"XSX",
+				"WinGDK"
 			],
 			"SupportedTargetPlatforms": [
 				"XB1",
-				"XSX"
+				"XSX",
+				"WinGDK"
 			]
 		},
 		{
