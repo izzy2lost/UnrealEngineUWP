@@ -8981,6 +8981,7 @@ bool UEngine::HandleObjCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 			const bool bOnlyListGCObjects = FParse::Param(Cmd, TEXT("GCONLY"));
 			const bool bOnlyListGCObjectsNoClusters = FParse::Param(Cmd, TEXT("GCNOCLUSTERS"));
 			const bool bOnlyListRootObjects = FParse::Param(Cmd, TEXT("ROOTONLY"));
+			const bool bOnlyListRefCountedObjects = FParse::Param(Cmd, TEXT("REFCOUNTEDONLY"));
 			const bool bShouldIncludeDefaultObjects = FParse::Param(Cmd, TEXT("INCLUDEDEFAULTS"));
 			const bool bOnlyListDefaultObjects = FParse::Param(Cmd, TEXT("DEFAULTSONLY"));
 			const bool bShowDetailedObjectInfo = FParse::Param(Cmd, TEXT("NODETAILEDINFO")) == false && bTrackDetailedObjectInfo;
@@ -9028,6 +9029,11 @@ bool UEngine::HandleObjCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 				}
 
 				if ( bOnlyListRootObjects && !It->IsRooted() )
+				{
+					continue;
+				}
+
+				if (bOnlyListRefCountedObjects && !It->HasAnyInternalFlags(EInternalObjectFlags::RefCounted))
 				{
 					continue;
 				}

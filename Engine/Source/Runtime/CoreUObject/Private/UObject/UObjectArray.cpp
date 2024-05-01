@@ -269,6 +269,7 @@ void FUObjectArray::AllocateUObjectIndex(UObjectBase* Object, EInternalObjectFla
 	{
 		ObjectItem->Flags |= (int32)UE::GC::GReachableObjectFlag;
 	}
+	ObjectItem->RefCount = 0;
 	ObjectItem->ClusterRootIndex = 0;
 	ObjectItem->SerialNumber = SerialNumber;
 	Object->InternalIndex = Index;
@@ -338,6 +339,9 @@ void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 	FUObjectItem* ObjectItem = IndexToObject(Index);
 	UE_CLOG(ObjectItem->Object != Object, LogUObjectArray, Fatal, TEXT("Removing object (0x%016llx) at index %d but the index points to a different object (0x%016llx)!"), (int64)(PTRINT)Object, Index, (int64)(PTRINT)ObjectItem->Object);
 
+	// Can't destroy a refcounted object
+	check((ObjectItem->RefCount == 0 && (ObjectItem->GetFlags() & EInternalObjectFlags::RefCounted) == EInternalObjectFlags::None) || GExitPurge);
+
 	// Clear root flags to remove this object's index from UE::GC::Private::GRoots array 
 	if ((ObjectItem->Flags & (int32)EInternalObjectFlags_RootFlags) != 0)
 	{
@@ -346,6 +350,7 @@ void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 
 	ObjectItem->Object = nullptr;
 	ObjectItem->Flags = 0;
+	ObjectItem->RefCount = 0;
 	ObjectItem->ClusterRootIndex = 0;
 	ObjectItem->SerialNumber = 0;
 

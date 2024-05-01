@@ -11,6 +11,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/ScriptDelegates.h"
 #include "UObject/UObjectArray.h"
+#include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtrFwd.h"
 
 #include <type_traits>
@@ -163,6 +164,25 @@ public:
 	/** Dereference the weak pointer even if it is marked as Garbage or Unreachable */
 	COREUOBJECT_API class UObject* GetEvenIfUnreachable() const;
 
+	/**
+	 * Get a strong object ptr to the weak pointer.
+	 * @param bEvenIfGarbage if this is true, Garbage objects are considered valid
+	 * @return TStrongObjectPtr will be invalid if this object is gone or the weak pointer is explicitly null, otherwise a valid TStrongObjectPtr
+	 */
+	COREUOBJECT_API class TStrongObjectPtr<UObject> Pin(bool bEvenIfGarbage) const;
+
+	/**
+	 * Get a strong object ptr to the weak pointer. This is an optimized version implying bEvenIfGarbage=false.
+	 * @return TStrongObjectPtr will be invalid if this object is gone or the weak pointer is explicitly null, otherwise a valid TStrongObjectPtr
+	 */
+	COREUOBJECT_API class TStrongObjectPtr<UObject> Pin(/*bool bEvenIfGarbage = false*/) const;
+
+	/*
+	 * Get a strong object ptr even if it is marked as Garbage or Unreachable 
+	 * @return TStrongObjectPtr will be invalid if this object is gone or the weak pointer is explicitly null, otherwise a valid TStrongObjectPtr
+	 */
+	COREUOBJECT_API class TStrongObjectPtr<UObject> PinEvenIfUnreachable() const;
+
 	// This is explicitly not added to avoid resolving weak pointers too often - use Get() once in a function.
 	explicit operator bool() const = delete;
 
@@ -314,6 +334,8 @@ private:
 		return ((ObjectItem != nullptr) && GUObjectArray.IsValid(ObjectItem, bEvenIfGarbage)) ? (UObject*)ObjectItem->Object : nullptr;
 	}
 
+	COREUOBJECT_API TStrongObjectPtr<UObject> Internal_Pin(bool bEvenIfGarbage) const;
+	
 #if UE_WEAKOBJECTPTR_ZEROINIT_FIX
 	int32		ObjectIndex = UE::Core::Private::InvalidWeakObjectIndex;
 	int32		ObjectSerialNumber = 0;

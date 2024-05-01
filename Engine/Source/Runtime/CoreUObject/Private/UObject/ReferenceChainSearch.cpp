@@ -1289,6 +1289,11 @@ FString FReferenceChainSearch::GetObjectFlags(const FGCObjectInfo& InObject)
 		Flags += FString::Printf(TEXT("(Unreachable<%d>) "), (int32)UE::GC::GUnreachableObjectFlag);
 	}
 
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::RefCounted))
+	{
+		Flags += FString::Printf(TEXT("(refcounted<%d>) "), InObject.GetRefCount());
+	}
+
 	if (InObject.IsRooted())
 	{
 		Flags += TEXT("(root) ");

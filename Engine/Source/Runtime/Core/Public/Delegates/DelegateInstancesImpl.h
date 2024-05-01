@@ -156,6 +156,7 @@ public:
 
 	bool ExecuteIfSafe(ParamTypes... Params) const final
 	{
+		TStrongObjectPtr<UserClass> PinnedObject = IsInGameThread() ? nullptr : this->UserObjectPtr.Pin();
 		if (UserClass* ActualUserObject = this->UserObjectPtr.Get())
 		{
 			using FParmsWithPayload = TPayload<RetValType(typename TDecay<ParamTypes>::Type..., typename TDecay<VarTypes> ::Type...)>;
@@ -651,6 +652,7 @@ public:
 
 	bool ExecuteIfSafe(ParamTypes... Params) const final
 	{
+		TStrongObjectPtr<UserClass> PinnedObject = IsInGameThread() ? nullptr : this->UserObject.Pin();
 		if (UserClass* ActualUserObject = this->UserObject.Get())
 		{
 			using MutableUserClass = std::remove_const_t<UserClass>;
@@ -963,6 +965,7 @@ public:
 
 	bool ExecuteIfSafe(ParamTypes... Params) const final
 	{
+		TStrongObjectPtr<UserClass> PinnedObject = IsInGameThread() ? nullptr : ContextObject.Pin();
 		if (ContextObject.IsValid())
 		{
 			(void)this->Payload.ApplyAfter(Functor, Forward<ParamTypes>(Params)...);

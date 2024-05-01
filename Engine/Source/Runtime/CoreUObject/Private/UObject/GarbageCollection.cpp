@@ -624,6 +624,14 @@ bool FUObjectItem::ClearRootFlags(EInternalObjectFlags FlagsToClear)
 	constexpr int32 RootFlags = (int32)EInternalObjectFlags_RootFlags;
 	FScopeLock RootsLock(&GRootsCritical);
 	const int32 OldFlags = GetFlagsInternal();
+
+	// Now that we have the lock, we prevent the removal if refcount is not 0
+	// This avoids a race condition between ReleaseRef and AddRef.
+	if ((FlagsToClear & EInternalObjectFlags::RefCounted) == EInternalObjectFlags::RefCounted && GetRefCountInternal())
+	{
+		FlagsToClear &= ~EInternalObjectFlags::RefCounted;
+	}
+
 	if ((OldFlags & RootFlags) != 0 && ((OldFlags & ~(int32)FlagsToClear) & RootFlags) == 0)
 	{
 		GRoots.Remove(GUObjectArray.ObjectToIndex(Object));
@@ -6223,6 +6231,18 @@ void UObjectBase::MarkAsReachable() const
 	{
 		::MarkAsReachable<false>(this);
 	});
+}
+
+void UObjectBase::AddRef() const
+{
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(this);
+	ObjectItem->AddRef();
+}
+
+void UObjectBase::ReleaseRef() const
+{
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(this);
+	ObjectItem->ReleaseRef();
 }
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)

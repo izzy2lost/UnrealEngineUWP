@@ -48,6 +48,8 @@ public:
 	int32 ClusterRootIndex;	
 	// Weak Object Pointer Serial number associated with the object
 	int32 SerialNumber;
+	// RefCount associated with the object preventing its destruction.
+	int32 RefCount;
 
 #if STATS || ENABLE_STATNAMEDEVENTS_UOBJECT
 	/** Stat id of this object, 0 if nobody asked for it yet */
@@ -63,6 +65,7 @@ public:
 		, Flags(0)
 		, ClusterRootIndex(0)
 		, SerialNumber(0)
+		, RefCount(0)
 #if ENABLE_STATNAMEDEVENTS_UOBJECT
 		, StatIDStringStorage(nullptr)
 #endif
@@ -163,7 +166,8 @@ public:
 		bool Result = false;
 		UE_AUTORTFM_OPEN(
 		{
-			FlagToClear &= ~UE::GC::GReachableObjectFlag; // reachability bit can only be cleared by GC through *_ForGC functions
+			FlagToClear &= ~UE::GC::GReachableObjectFlag;     // reachability bit can only be cleared by GC through *_ForGC functions
+			FlagToClear &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be cleared internally by AddRef/ReleaseRef.
 			if (!!(FlagToClear & EInternalObjectFlags_RootFlags))
 			{
 				Result = ClearRootFlags(FlagToClear);
@@ -213,6 +217,7 @@ public:
 		bool Result = false;
 		UE_AUTORTFM_OPEN(
 		{
+			FlagToSet &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be set by AddRef/ReleaseRef.
 			if (!!(FlagToSet & EInternalObjectFlags_RootFlags))
 			{
 				Result = SetRootFlags(FlagToSet);
@@ -308,6 +313,38 @@ public:
 		return !!(GetFlagsInternal() & int32(EInternalObjectFlags::RootSet));
 	}
 
+	FORCEINLINE int32 GetRefCount() const
+	{
+		return RefCount;
+	}
+
+	void AddRef()
+	{
+		UE_AUTORTFM_OPEN(
+		{
+			FPlatformAtomics::InterlockedIncrement(&RefCount);
+			if ((GetFlags() & EInternalObjectFlags::RefCounted) != EInternalObjectFlags::RefCounted)
+			{
+				SetRootFlags(EInternalObjectFlags::RefCounted);
+			}
+		});
+	}
+
+	void ReleaseRef()
+	{
+		UE_AUTORTFM_OPEN(
+		{
+			// This alone is not thread-safe as we may race with AddRef and in that case we don't want ClearRootFlags to apply.
+			// We fix this by validating that the refcount is still 0 while inside the root locks in ClearRootFlags.
+			const int32 NewRefCount = FPlatformAtomics::InterlockedDecrement(&RefCount);
+			check(NewRefCount >= 0);
+			if (NewRefCount == 0)
+			{
+				ClearRootFlags(EInternalObjectFlags::RefCounted);
+			}
+		});
+	}
+
 #if STATS || ENABLE_STATNAMEDEVENTS_UOBJECT
 	COREUOBJECT_API void CreateStatID() const;
 #endif
@@ -355,6 +392,12 @@ private:
 	{
 		return FPlatformAtomics::AtomicRead_Relaxed((int32*)&Flags);
 	}
+	
+	FORCEINLINE int32 GetRefCountInternal() const
+	{
+		return FPlatformAtomics::AtomicRead_Relaxed((int32*)&RefCount);
+	}
+
 	COREUOBJECT_API bool SetRootFlags(EInternalObjectFlags FlagsToSet);
 	COREUOBJECT_API bool ClearRootFlags(EInternalObjectFlags FlagsToClear);
 };

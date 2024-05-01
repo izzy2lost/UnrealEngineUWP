@@ -713,6 +713,11 @@ namespace EpicGames.Core
 		Unreachable = 1 << 28,
 
 		/// <summary>
+		/// Object currently has ref-counts associated with it.
+		/// </summary>
+		RefCounted = 1 << 29,
+
+		/// <summary>
 		/// Object will not be garbage collected, even if unreferenced.
 		/// </summary>
 		RootSet = 1 << 30,
@@ -722,10 +727,10 @@ namespace EpicGames.Core
 		/// </summary>
 		PendingConstruction = 1 << 31,
 
-		GarbageCollectionKeepFlags = Native | Async | AsyncLoading | LoaderImport,
+		GarbageCollectionKeepFlags = Native | Async | AsyncLoading | LoaderImport | RefCounted,
 
 		//~ Make sure this is up to date!
-		AllFlags = ReachabilityFlag0 | ReachabilityFlag1 | MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction
+		AllFlags = ReachabilityFlag0 | ReachabilityFlag1 | MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction | RefCounted
 	};
 
 	/// <summary>

@@ -35,6 +35,7 @@ public:
 		, InternalFlags(Obj->GetInternalFlags())
 		, ClusterRootIndex(GUObjectArray.ObjectToObjectItem(Obj)->ClusterRootIndex)
 		, bDisregardForGC(GUObjectArray.IsDisregardForGC(Obj))
+		, RefCount(GUObjectArray.ObjectToObjectItem(Obj)->GetRefCount())
 	{
 
 	}
@@ -55,6 +56,8 @@ private:
 	int32 ClusterRootIndex = -1;
 	/** True if the object was inside of the disregard for GC set */
 	bool bDisregardForGC = false;
+	/** Current ref-count of the UObject. */
+	int32 RefCount = 0;
 
 public:
 
@@ -120,6 +123,11 @@ public:
 	{
 		check(Class);
 		return Class->Name.ToString();
+	}
+
+	int32 GetRefCount() const
+	{
+		return RefCount;
 	}
 
 	bool IsValid() const

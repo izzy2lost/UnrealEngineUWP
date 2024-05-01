@@ -186,6 +186,12 @@ public:
 	*/
 	COREUOBJECT_API void MarkAsReachable() const;
 
+	/** Increments ref-count on the object. Should always be paired with RAII (i.e. TStrongObjectPtr). */
+	COREUOBJECT_API void AddRef() const;
+
+	/** Release ref-count on the object. */
+	COREUOBJECT_API void ReleaseRef() const;
+
 protected:
 	/**
 	 * Set the object flags directly

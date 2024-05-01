@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "UObject/WeakObjectPtr.h"
+#include "UObject/GarbageCollection.h"
 #include "UObject/Object.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogWeakObjectPtr, Log, All);
@@ -102,6 +103,36 @@ UObject* FWeakObjectPtr::GetEvenIfUnreachable() const
 		Result = static_cast<UObject*>(ObjectItem->Object);
 	}
 	return Result;
+}
+
+TStrongObjectPtr<UObject> FWeakObjectPtr::Pin(/*bool bEvenIfGarbage = false*/) const
+{
+	// Using a literal here allows the optimizer to remove branches later down the chain.
+	return Internal_Pin(false);
+}
+
+TStrongObjectPtr<UObject> FWeakObjectPtr::Pin(bool bEvenIfGarbage) const
+{
+	return Internal_Pin(bEvenIfGarbage);
+}
+
+TStrongObjectPtr<UObject> FWeakObjectPtr::PinEvenIfUnreachable() const
+{
+	FGCScopeGuard GCScopeGuard;
+	UObject* Result = nullptr;
+	if (Internal_IsValid(true, true))
+	{
+		FUObjectItem* ObjectItem = GUObjectArray.IndexToObject(GetObjectIndex_Private(), true);
+		Result = static_cast<UObject*>(ObjectItem->Object);
+	}
+	return TStrongObjectPtr<UObject>(Result);
+}
+
+TStrongObjectPtr<UObject> FWeakObjectPtr::Internal_Pin(bool bEvenIfGarbage) const
+{
+	FGCScopeGuard GCScopeGuard;
+	FUObjectItem* const ObjectItem = Internal_GetObjectItem();
+	return TStrongObjectPtr<UObject>(((ObjectItem != nullptr) && GUObjectArray.IsValid(ObjectItem, bEvenIfGarbage)) ? (UObject*)ObjectItem->Object : nullptr);
 }
 
 void FWeakObjectPtr::Serialize(FArchive& Ar)

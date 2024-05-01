@@ -7,6 +7,7 @@
 #include "Templates/Requires.h"
 #include "Containers/Map.h"
 #include "UObject/WeakObjectPtrTemplatesFwd.h"
+#include "UObject/StrongObjectPtrTemplatesFwd.h"
 
 #include <type_traits>
 
@@ -124,6 +125,28 @@ public:
 	FORCEINLINE T* Get(/*bool bEvenIfPendingKill = false*/) const
 	{
 		return (T*)TWeakObjectPtrBase::Get();
+	}
+
+	/**
+	 * Pin the weak pointer and get a strongptr.
+	 * @param bEvenIfPendingKill if this is true, pendingkill objects are considered valid
+	 * @return nullptr if this object is gone or the weak pointer is explicitly null, otherwise a valid uobject pointer
+	 */
+	FORCEINLINE TStrongObjectPtr<T> Pin(bool bEvenIfPendingKill) const
+	{
+		TStrongObjectPtr<T> StrongPtr;
+		StrongPtr.Attach((T*)TWeakObjectPtrBase::Pin(bEvenIfPendingKill).Detach());
+		return StrongPtr;
+	}
+
+	/**
+	 * Pin the weak pointer as a strong ptr. This is an optimized version implying bEvenIfPendingKill=false.
+	 */
+	FORCEINLINE TStrongObjectPtr<T> Pin(/*bool bEvenIfPendingKill = false*/) const
+	{
+		TStrongObjectPtr<T> StrongPtr;
+		StrongPtr.Attach((T*)TWeakObjectPtrBase::Pin().Detach());
+		return StrongPtr;
 	}
 
 	/** Deferences the weak pointer even if its marked RF_Unreachable. This is needed to resolve weak pointers during GC (such as ::AddReferenceObjects) */

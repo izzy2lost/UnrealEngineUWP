@@ -858,7 +858,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 		check(ObjectPackage != ANY_PACKAGE_DEPRECATED); // this could never have returned anything but nullptr
 
 		// If they specified an outer use that during the hashing
-		FUObjectHashTables & ThreadHash = FUObjectHashTables::Get();
+		FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 		Result = StaticFindObjectFastInternalThreadSafe(ThreadHash, ObjectClass, ObjectPackage, ObjectName, bExactClass, bAnyPackage, ExcludeFlags, ExclusiveInternalFlags);
 	});
 
