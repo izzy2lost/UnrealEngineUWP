@@ -250,8 +250,6 @@ void ULevelStreamingLevelInstance::InitializeActors(const TArray<AActor*>& InAct
 								}
 							}, /*bIncludeNestedObjects*/ true);
 						}
-
-						FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(Actor->GetExternalPackage());
 					}
 
 					// Must happen before the actors are registered with the world, which is the case for this delegate.
@@ -276,6 +274,11 @@ void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPostEvent(const TAr
 				{
 					if (IsValid(Actor))
 					{
+						if (Actor->IsPackageExternal())
+						{
+							FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(Actor->GetExternalPackage());
+						}
+
 						Actor->PushSelectionToProxies();
 						if (LevelInstance)
 						{
@@ -448,8 +451,7 @@ void ULevelStreamingLevelInstance::OnCurrentStateChanged(ELevelStreamingState In
 
 		ForEachObjectWithOuter(Level, [](UObject* InObject)
 		{
-			// Skip actors as they are already handled in OnLoadedActorsAddedToLevelPreEvent
-			if (InObject && InObject->IsPackageExternal() && !InObject->IsA<AActor>())
+			if (InObject && InObject->IsPackageExternal())
 			{
 				FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(InObject->GetPackage());
 			}
