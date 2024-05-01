@@ -6,6 +6,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Misc/PackageName.h"
 #include "Model/AsyncEnumerateTask.h"
+#include "Styling/SlateIconFinder.h"
 
 FName FGameplayProvider::ProviderName("GameplayProvider");
 
@@ -55,9 +56,9 @@ static UClass* FindBlueprintClass(const FString& TargetNameRaw)
 
 // This is copied from EditorUtilitySubsystem (where it is not public)
 // Should probably be somewhere shared
-static UClass* FindClassByPathName(const FString& RawTargePathtName)
+static UClass* FindClassByPathName(const FString& RawTargePathName, bool bCheckBlueprintClasses)
 {
-	FString TargetName = RawTargePathtName;
+	FString TargetName = RawTargePathName;
 
 	// Check native classes and loaded assets first before resorting to the asset registry
 	bool bIsValidClassName = true;
@@ -96,7 +97,7 @@ static UClass* FindClassByPathName(const FString& RawTargePathtName)
 	}
 
 	// If we still haven't found anything yet, try the asset registry for blueprints that match the requirements
-	if (ResultClass == nullptr)
+	if (ResultClass == nullptr && bCheckBlueprintClasses)
 	{
 		ResultClass = FindBlueprintClass(TargetName);
 	}
@@ -272,12 +273,12 @@ const FClassInfo* FGameplayProvider::FindClassInfo(uint64 InClassId) const
 	return nullptr;
 }
 
-const UClass* FGameplayProvider::FindClass(uint64 InClassId) const
+const UClass* FGameplayProvider::FindClass(uint64 InClassId, bool bSearchBlueprints) const
 {
 #if WITH_EDITOR
 	if (const FClassInfo* ClassInfo = FindClassInfo(InClassId))
 	{
-		return FindClassByPathName(ClassInfo->PathName);
+		return FindClassByPathName(ClassInfo->PathName, bSearchBlueprints);
 	}
 	return nullptr;
 #else
@@ -645,6 +646,34 @@ void FGameplayProvider::ReadViewTimeline(TFunctionRef<void(const IGameplayProvid
 double FGameplayProvider::GetRecordingDuration() const
 {
 	return RecordingDuration;
+}
+
+FSlateIcon FGameplayProvider::FindIconForClass(uint64 ClassId) const
+{
+	FSlateIcon Icon;
+#if WITH_EDITOR
+	// traverse class hierarchy until we find a class that exists, and return the icon for that class
+	// loaded trace data may contain classes from different projects than this editor is compiled against or loading
+	// but we will still find a Character icon for example for subclasses of Character
+	while(ClassId)
+	{
+		// don't search blueprints because it's very slow and icons are associated with native classes
+		if (const UClass* FoundClass = FindClass(ClassId, false))
+		{
+			Icon = FSlateIconFinder::FindIconForClass(FoundClass);
+			break;
+		}
+		
+		const FClassInfo& ClassInfo = GetClassInfo(ClassId);
+		ClassId = ClassInfo.SuperId;
+	}
+	
+	if (!Icon.IsSet())
+	{
+		Icon = FSlateIconFinder::FindIconForClass(UObject::StaticClass());
+	}
+#endif
+	return Icon;
 }
 
 void FGameplayProvider::AppendView(uint64 InPlayerId, double InTime, const FVector& InPosition, const FRotator& InRotation, float InFov, float InAspectRatio)

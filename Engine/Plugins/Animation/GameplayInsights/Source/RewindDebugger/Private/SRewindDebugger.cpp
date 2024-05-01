@@ -212,17 +212,8 @@ TSharedRef<SWidget> SRewindDebugger::MakeSelectActorMenu()
 				{
 					FString ActorName = ObjectInfo.Name;
 					FText SelectedLabel = FText::FromString(ActorName);
-					FSlateIcon ActorIcon;
-
+					FSlateIcon ActorIcon = GameplayProvider->FindIconForClass(ObjectInfo.ClassId);
 					const FClassInfo& ClassInfo = GameplayProvider->GetClassInfo(ObjectInfo.ClassId);
-					if (UClass* FoundClass = UClass::TryFindTypeSlow<UClass>(ClassInfo.Name))
-					{
-						ActorIcon = FSlateIconFinder::FindIconForClass(FoundClass);
-					}
-					else
-					{
-						ActorIcon = FSlateIconFinder::FindIconForClass(AActor::StaticClass());
-					}
 
 					MenuBuilder.AddMenuEntry(SelectedLabel, FText(), ActorIcon, FExecuteAction::CreateLambda([this, ActorName]()
 					{
@@ -389,18 +380,12 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 								SNew(SImage)
 								.Image_Lambda([this]
 									{
-										FSlateIcon ActorIcon = FSlateIconFinder::FindIconForClass(AActor::StaticClass());
 										if (DebugComponents != nullptr && DebugComponents->Num()>0)
 										{
-#if OBJECT_TRACE_ENABLED
-											if (UObject* Object = FObjectTrace::GetObjectFromId((*DebugComponents)[0]->GetObjectId()))
-											{
-												ActorIcon = FSlateIconFinder::FindIconForClass(Object->GetClass());
-											}
-#endif // OBJECT_TRACE_ENABLED
+											return (*DebugComponents)[0]->GetIcon().GetIcon();
 										}
 
-										return ActorIcon.GetIcon();
+										return FSlateIconFinder::FindIconForClass(AActor::StaticClass()).GetIcon();
 									}
 								)
 							]

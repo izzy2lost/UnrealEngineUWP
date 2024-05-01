@@ -98,6 +98,8 @@ struct FWorldInfo
 	bool bIsSimulating = false;
 };
 
+struct FSlateIcon;
+
 // Delegate fired when an object receives an end play event
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnObjectEndPlay, uint64 /*ObjectId*/, double /*Time*/, const FObjectInfo& /*ObjectInfo*/);
 
@@ -119,7 +121,7 @@ public:
 	virtual void EnumerateSubobjects(uint64 ObjectId, TFunctionRef<void(uint64 SubobjectId)> Callback) const = 0;
 	virtual const FObjectPropertyValue * FindPropertyValueFromStorageIndex(uint64 InObjectId, int64 InStorageIndex) const = 0;
 	virtual const FClassInfo* FindClassInfo(uint64 InClassId) const = 0;
-	virtual const UClass* FindClass(uint64 InClassId) const = 0;
+	virtual const UClass* FindClass(uint64 InClassId, bool bSearchBlueprints) const = 0;
 	virtual const FClassInfo* FindClassInfo(const TCHAR* InClassPath) const = 0;
 	virtual bool IsSubClassOf(uint64 InSubClassId, uint64 InParentClassId) const = 0;
 	virtual const FObjectInfo* FindObjectInfo(uint64 InObjectId) const = 0;
@@ -137,4 +139,5 @@ public:
 	virtual TRange<double> GetObjectTraceLifetime(uint64 ObjectId) const = 0;
 	virtual TRange<double> GetObjectRecordingLifetime(uint64 ObjectId) const = 0;
 	virtual double GetRecordingDuration() const = 0;
+	virtual FSlateIcon FindIconForClass(uint64 ClassId) const = 0;
 };

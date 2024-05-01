@@ -46,7 +46,7 @@ private:
 
 	bool bAddController;
 	mutable bool bDisplayNameValid;
-	
+	bool bIconSearched;
 };
 
 }

@@ -45,6 +45,7 @@ FRewindDebuggerObjectTrack::FRewindDebuggerObjectTrack(uint64 InObjectId, const 
 	, ObjectId(InObjectId)
 	, bAddController(bInAddController)
 	, bDisplayNameValid(false)
+	, bIconSearched(false)
 {
 	ExistenceRange = MakeShared<SEventTimelineView::FTimelineEventData>();
 	
@@ -197,17 +198,20 @@ bool FRewindDebuggerObjectTrack::UpdateInternal()
 		ExistenceRange->Windows.Add({Existence.GetLowerBoundValue(), Existence.GetUpperBoundValue(), LOCTEXT("Object Existence","Object Existence"), LOCTEXT("Object Existence","Object Existence"), FLinearColor(0.1f,0.11f,0.1f)});
 	}
 
-	if (!Icon.IsSet())
+	if (!bIconSearched)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebuggerObjectTrack::FindIcon);
 		if (const FObjectInfo* ObjectInfo = GameplayProvider->FindObjectInfo(ObjectId))
 		{
-			if (const UClass* FoundClass = GameplayProvider->FindClass(ObjectInfo->ClassId))
-			{
-				Icon = FSlateIconFinder::FindIconForClass(FoundClass);
-				bChanged = true;
-			}
+			Icon = GameplayProvider->FindIconForClass(ObjectInfo->ClassId);
 		}
+						
+		if (!Icon.IsSet())
+		{
+			Icon = FSlateIconFinder::FindIconForClass(UObject::StaticClass());
+		}
+		bIconSearched = true;
+		bChanged = true;
 	}
 
 	TArray<uint64, TInlineAllocator<32>> FoundObjects;

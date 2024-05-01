@@ -29,7 +29,7 @@ public:
 	virtual void EnumerateSubobjects(uint64 ObjectId, TFunctionRef<void(uint64 SubobjectId)> Callback) const override;
 	virtual const FObjectPropertyValue* FindPropertyValueFromStorageIndex(uint64 InObjectId, int64 InStorageIndex) const override;
 	virtual const FClassInfo* FindClassInfo(uint64 InClassId) const override;
-	virtual const UClass* FindClass(uint64 InClassId) const override;
+	virtual const UClass* FindClass(uint64 InClassId, bool bSearchBlueprints = true) const override;
 	virtual const FClassInfo* FindClassInfo(const TCHAR* InClassPath) const override;
 	virtual bool IsSubClassOf(uint64 InSubClassId, uint64 InParentClassId) const override;
 	virtual const FObjectInfo* FindObjectInfo(uint64 InObjectId) const override;
@@ -44,6 +44,7 @@ public:
 	virtual const RecordingInfoTimeline* GetRecordingInfo(uint32 RecordingId) const override; 
 	virtual void ReadViewTimeline(TFunctionRef<void(const ViewTimeline&)> Callback) const override;
 	virtual double GetRecordingDuration() const override;
+	virtual FSlateIcon FindIconForClass(uint64 ClassId) const override;
 
 
 	/** Add a class message */
