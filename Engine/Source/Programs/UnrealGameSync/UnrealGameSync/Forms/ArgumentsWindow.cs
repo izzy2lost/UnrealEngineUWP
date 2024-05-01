@@ -326,7 +326,7 @@ namespace UnrealGameSync
 				}
 				else if (item.Checked != defaultArgument.Enabled)
 				{
-					extraInfo = extraInfo + ": Modifed";
+					extraInfo = extraInfo + ": Modified";
 				}
 			}
 
