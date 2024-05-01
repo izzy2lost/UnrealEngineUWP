@@ -6,7 +6,7 @@
 #include "EdGraph/TG_EditorGraphNodeFactory.h"
 #include "EdGraph/TG_EditorGraphPanelPinFactory.h"
 #include "TextureGraphEngine.h"
-#include "TG_AssetTypeActions.h"
+#include "AssetDefinition_TextureGraph.h"
 #include "TG_Editor.h"
 #include "TG_EditorCommands.h"
 #include "TG_Style.h"
@@ -29,7 +29,6 @@ void FTextureGraphEditorModule::StartupModule()
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 	// Register all custom AssetTypeActions here.
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	RegisterAssetTypeAction(AssetTools, MakeShareable(new FAssetTypeActions_TSX()));
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_ParameterInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ParameterInfoCustomization::Create));

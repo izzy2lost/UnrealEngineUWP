@@ -63,6 +63,7 @@ public class TextureGraphEditor : ModuleRules
 				"GraphEditor", 
 				"MessageLog",
 				"EditorWidgets",
+				"AssetDefinition",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
