@@ -165,7 +165,7 @@ void FD3D11DynamicRHI::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32
 
 	StateCache.SetComputeShader(ComputeShader->Resource);
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
+	RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
 
 	if (ComputeShader->bShaderNeedsGlobalConstantBuffer)
 	{
@@ -184,7 +184,7 @@ void FD3D11DynamicRHI::RHIDispatchIndirectComputeShader(FRHIBuffer* ArgumentBuff
 	FD3D11ComputeShader* ComputeShader = ResourceCast(ComputeShaderRHI);
 	FD3D11Buffer* ArgumentBuffer = ResourceCast(ArgumentBufferRHI);
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(1, 1, 1));
+	RegisterGPUDispatch(FIntVector(1, 1, 1));
 
 	StateCache.SetComputeShader(ComputeShader->Resource);
 	
@@ -1096,7 +1096,7 @@ void FD3D11DynamicRHI::RHIDrawPrimitive(uint32 BaseVertexIndex,uint32 NumPrimiti
 
 	uint32 VertexCount = GetVertexCountForPrimitiveCount(NumPrimitives,PrimitiveType);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
 	StateCache.SetPrimitiveTopology(GetD3D11PrimitiveType(PrimitiveType));
 	if(NumInstances > 1)
 	{
@@ -1116,7 +1116,7 @@ void FD3D11DynamicRHI::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBufferRHI, u
 
 	RHI_DRAW_CALL_INC();
 
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1134,7 +1134,7 @@ void FD3D11DynamicRHI::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIBu
 
 	RHI_DRAW_CALL_INC();
 
-	GPUProfilingData.RegisterGPUWork(1);
+	RegisterGPUWork(1);
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1160,7 +1160,7 @@ void FD3D11DynamicRHI::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, int32
 	// called should make sure the input is valid, this avoid hidden bugs
 	ensure(NumPrimitives > 0);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1200,7 +1200,7 @@ void FD3D11DynamicRHI::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBufferRH
 
 	RHI_DRAW_CALL_INC();
 
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 	
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1264,7 +1264,7 @@ void FD3D11DynamicRHI::RHIClearMRTImpl(const bool* bClearColorArray, int32 NumCl
 		Direct3DDeviceIMContext->ClearDepthStencilView(DepthStencilView,ClearFlags,Depth,Stencil);
 	}
 
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 }
 
 // Blocks the CPU until the GPU catches up and goes idle.

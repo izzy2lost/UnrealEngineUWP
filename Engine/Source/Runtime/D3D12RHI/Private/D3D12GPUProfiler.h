@@ -8,6 +8,8 @@
 class FD3D12SyncPoint;
 using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
+
 // This class has multiple inheritance but really FGPUTiming is a static class
 class FD3D12BufferedGPUTiming : public FGPUTiming, public FD3D12DeviceChild
 {
@@ -120,3 +122,5 @@ struct FD3D12GPUProfiler : public FGPUProfiler, public FD3D12DeviceChild
 	void BeginFrame();
 	void EndFrame();
 };
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)

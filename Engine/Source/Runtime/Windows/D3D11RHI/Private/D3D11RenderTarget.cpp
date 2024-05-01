@@ -102,7 +102,7 @@ void FD3D11DynamicRHI::ResolveTextureUsingShader(
 				// Clear the destination texture.
 				if (bClearDestTexture)
 				{
-					Context.GPUProfilingData.RegisterGPUWork(0);
+					Context.RegisterGPUWork(0);
 
 					Context.Direct3DDeviceIMContext->ClearDepthStencilView(DestTextureDSV,D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,0,0);
 				}
@@ -124,7 +124,7 @@ void FD3D11DynamicRHI::ResolveTextureUsingShader(
 				// Clear the destination texture.
 				if (bClearDestTexture)
 				{
-					Context.GPUProfilingData.RegisterGPUWork(0);
+					Context.RegisterGPUWork(0);
 
 					FLinearColor ClearColor(0,0,0,0);
 					Context.Direct3DDeviceIMContext->ClearRenderTargetView(DestTextureRTV,(float*)&ClearColor);
@@ -874,7 +874,7 @@ void FD3D11DynamicRHI::RHIEndRenderPass()
 
 void FD3D11DynamicRHI::ResolveTexture(UE::RHICore::FResolveTextureInfo Info)
 {
-	GPUProfilingData.RegisterGPUWork();
+	RegisterGPUWork();
 
 	FD3D11Texture* SourceTexture      = ResourceCast(Info.SourceTexture);
 	const FRHITextureDesc& SourceDesc = SourceTexture->GetDesc();

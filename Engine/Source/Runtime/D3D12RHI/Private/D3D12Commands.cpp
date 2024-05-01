@@ -1400,12 +1400,14 @@ void FD3D12CommandContext::SetRenderTargetsAndClear(const FRHISetRenderTargetsIn
 #endif
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 void FD3D12CommandContext::RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery)
 {
 	FGPUTimingCalibrationTimestamp Timestamp = GetParentDevice()->GetCalibrationTimestamp(QueueType);
 	CalibrationQuery->CPUMicroseconds[GetGPUIndex()] = Timestamp.CPUMicroseconds;
 	CalibrationQuery->GPUMicroseconds[GetGPUIndex()] = Timestamp.GPUMicroseconds;
 }
+#endif
 
 // Primitive drawing.
 
@@ -1540,10 +1542,12 @@ void FD3D12CommandContext::RHIDispatchShaderBundle(
 
 void FD3D12CommandContext::SetupDraw(FRHIBuffer* IndexBufferRHI, uint32 NumPrimitives /* = 0 */, uint32 NumVertices /* = 0 */)
 {
-	if (bTrackingEvents)
+#if (RHI_NEW_GPU_PROFILER == 0)
+	if (IsDefaultContext() && Device->GetGPUProfiler().bTrackingEvents)
 	{
 		GetParentDevice()->RegisterGPUWork(NumPrimitives, NumVertices);
 	}
+#endif
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1565,10 +1569,12 @@ void FD3D12CommandContext::SetupDraw(FRHIBuffer* IndexBufferRHI, uint32 NumPrimi
 
 void FD3D12CommandContext::SetupDispatchDraw(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
 {
-	if (bTrackingEvents)
+#if (RHI_NEW_GPU_PROFILER == 0)
+	if (IsDefaultContext() && Device->GetGPUProfiler().bTrackingEvents)
 	{
 		GetParentDevice()->RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));
 	}
+#endif
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();

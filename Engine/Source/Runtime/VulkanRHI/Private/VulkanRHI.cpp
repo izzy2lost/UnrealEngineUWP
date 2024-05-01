@@ -431,14 +431,22 @@ FVulkanCommandListContext::FVulkanCommandListContext(FVulkanDynamicRHI* InRHI, F
 	, PendingGfxState(nullptr)
 	, PendingComputeState(nullptr)
 	, FrameCounter(0)
+#if (RHI_NEW_GPU_PROFILER == 0)
 	, GpuProfiler(this, InDevice)
+#endif
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming = new FVulkanGPUTiming(this, InDevice);
+#endif
 
 	// Create CommandBufferManager, contain all active buffers
 	CommandBufferManager = new FVulkanCommandBufferManager(InDevice, this);
 	CommandBufferManager->Init(this);
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming->Initialize();
+#endif
+
 	if (IsImmediate())
 	{
 		// Insert the Begin frame timestamp query. On EndDrawingViewport() we'll insert the End and immediately after a new Begin()
@@ -472,9 +480,11 @@ FVulkanCommandListContext::~FVulkanCommandListContext()
 {
 	if (FVulkanPlatform::SupportsTimestampRenderQueries())
 	{
+#if (RHI_NEW_GPU_PROFILER == 0)
 		FrameTiming->Release();
 		delete FrameTiming;
 		FrameTiming = nullptr;
+#endif
 	}
 
 	check(CommandBufferManager != nullptr);
@@ -1107,7 +1117,9 @@ void FVulkanCommandListContext::RHIBeginFrame()
 	extern uint32 GVulkanRHIDeletionFrameNumber;
 	++GVulkanRHIDeletionFrameNumber;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	GpuProfiler.BeginFrame();
+#endif
 
 #if VULKAN_RHI_RAYTRACING
 	if (GRHISupportsRayTracing)
@@ -1176,9 +1188,10 @@ void FVulkanCommandListContext::RHIEndFrame()
 	check(IsImmediate());
 	//FRCLog::Printf(FString::Printf(TEXT("FVulkanCommandListContext::RHIEndFrame()")));
 	
+#if (RHI_NEW_GPU_PROFILER == 0)
 	ReadAndCalculateGPUFrameTime();
-
-	GetGPUProfiler().EndFrame();
+	GpuProfiler.EndFrame();
+#endif
 
 	bool bTrimMemory = false;
 	GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
@@ -1243,6 +1256,7 @@ void FVulkanCommandListContext::RHIEndFrame()
 		#endif
 		}
 		
+	#if (RHI_NEW_GPU_PROFILER == 0)
 		if (IsImmediate())
 		{
 		#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
@@ -1256,10 +1270,12 @@ void FVulkanCommandListContext::RHIEndFrame()
 				GpuProfiler.PushEvent(GetNameStr(), Color);
 			}
 		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
 	}
 
 	void FVulkanCommandListContext::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
+	#if (RHI_NEW_GPU_PROFILER == 0)
 		//only valid on immediate context currently.  needs to be fixed for parallel rhi execute
 		if (IsImmediate())
 		{
@@ -1275,6 +1291,7 @@ void FVulkanCommandListContext::RHIEndFrame()
 			}
 		#endif
 		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 		if (ShouldEmitBreadcrumbs())
 		{
@@ -1524,7 +1541,7 @@ void FVulkanDynamicRHI::RHIRegisterWork(uint32 NumPrimitives)
 	FVulkanCommandListContextImmediate& ImmediateContext = GetDevice()->GetImmediateContext();
 	if (FVulkanPlatform::RegisterGPUWork() && ImmediateContext.IsImmediate())
 	{
-		ImmediateContext.GetGPUProfiler().RegisterGPUWork(1);
+		ImmediateContext.RegisterGPUWork(NumPrimitives);
 	}
 }
 

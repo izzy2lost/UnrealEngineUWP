@@ -1396,7 +1396,7 @@ FTextureRHIRef FOpenGLDynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 S
 void FOpenGLDynamicRHI::RHIGenerateMips(FRHITexture* TextureRHI)
 {
 	VERIFY_GL_SCOPE();
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 	FOpenGLTexture* Texture = ResourceCast(TextureRHI);

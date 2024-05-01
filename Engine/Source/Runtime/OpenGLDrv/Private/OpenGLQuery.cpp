@@ -605,11 +605,15 @@ bool FOpenGLDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 	{
 		if (Query->QueryType == RQT_AbsoluteTime)
 		{
+#if RHI_NEW_GPU_PROFILER
+			checkNoEntry(); // @todo - new gpu profiler
+#else
 			// GetTimingFrequency is the number of ticks per second
 			uint64 Div = FMath::Max(1llu, FOpenGLBufferedGPUTiming::GetTimingFrequency() / (1000 * 1000));
 
 			// convert from GPU specific timestamp to micro sec (1 / 1 000 000 s) which seems a reasonable resolution
 			OutResult = Query->Result / Div;
+#endif
 		}
 		else
 		{
@@ -736,6 +740,8 @@ FOpenGLEventQuery::~FOpenGLEventQuery()
 /*=============================================================================
  * class FOpenGLBufferedGPUTiming
  *=============================================================================*/
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 /**
  * Constructor.
@@ -1113,6 +1119,8 @@ void FOpenGLDisjointTimeStampQuery::ReleaseResources()
 		PlatformReleaseRenderQuery(DisjointQuery, Context);
 	}
 }
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 // Fence implementation
 struct FOpenGLGPUFenceProxy

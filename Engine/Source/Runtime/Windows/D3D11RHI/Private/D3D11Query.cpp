@@ -166,11 +166,15 @@ bool FD3D11RenderQuery::CacheResult(FD3D11DynamicRHI& RHI, bool bWait)
 	// Adjust timer queries to engine-clock ticks.
 	if (QueryType == RQT_AbsoluteTime)
 	{
+#if RHI_NEW_GPU_PROFILER
+		checkNoEntry(); // @todo - new gpu profiler
+#else
 		// GetTimingFrequency is the number of ticks per second
 		uint64 Div = FMath::Max(1llu, FGPUTiming::GetTimingFrequency() / (1000 * 1000));
 
 		// convert from GPU specific timestamp to micro sec (1 / 1 000 000 s) which seems a reasonable resolution
 		Temp = Temp / Div;
+#endif
 	}
 
 	Result = Temp;
@@ -339,6 +343,8 @@ FD3D11EventQuery::FD3D11EventQuery(class FD3D11DynamicRHI* InD3DRHI):
 /*=============================================================================
  * class FD3D11BufferedGPUTiming
  *=============================================================================*/
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 /**
  * Constructor.
@@ -754,3 +760,5 @@ void FD3D11DisjointTimeStampQuery::ReleaseRHI()
 {
 
 }
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)

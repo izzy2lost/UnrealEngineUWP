@@ -17,6 +17,8 @@ static FAutoConsoleVariableRef CVarD3D12RHIStablePowerState(
 	ECVF_Default
 );
 
+#if (RHI_NEW_GPU_PROFILER == 0)
+
 FD3D12BufferedGPUTiming::FD3D12BufferedGPUTiming(FD3D12Device* InParent)
 	: FD3D12DeviceChild(InParent)
 {
@@ -332,3 +334,4 @@ void FD3D12GPUProfiler::EndFrame()
 	CurrentEventNodeFrame = NULL;
 }
 
+#endif // (RHI_NEW_GPU_PROFILER == 0)

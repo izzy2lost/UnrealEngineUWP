@@ -1753,10 +1753,12 @@ void FD3D12DynamicRHI::Init()
 
 	InitializeSubmissionPipe();
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	for (TSharedPtr<FD3D12Adapter>& Adapter : ChosenAdapters)
 	{
 		FD3D12BufferedGPUTiming::Initialize(Adapter.Get());
 	}
+#endif
 
 	FRenderResource::InitPreRHIResources();
 	GIsRHIInitialized = true;

@@ -435,7 +435,7 @@ void FD3D12DynamicRHI::EnqueueEndOfPipeTask(TUniqueFunction<void()> TaskFunc, TU
 
 void FD3D12DynamicRHI::FlushTiming(bool bCreateNew)
 {
-	auto Lambda = [this, OldTiming = MoveTemp(CurrentTiming)]()
+	auto Lambda = [this, OldTiming = MoveTemp(CurrentTimingPerQueue)]()
 	{
 		if (OldTiming)
 		{
@@ -445,8 +445,8 @@ void FD3D12DynamicRHI::FlushTiming(bool bCreateNew)
 
 	if (bCreateNew)
 	{
-		CurrentTiming = MakeUnique<TIndirectArray<FD3D12Timing>>();
-		CurrentTiming->Reserve(GD3D12MaxNumQueues);
+		CurrentTimingPerQueue = MakeUnique<TIndirectArray<FD3D12Timing>>();
+		CurrentTimingPerQueue->Reserve(GD3D12MaxNumQueues);
 	}
 
 	EnqueueEndOfPipeTask(MoveTemp(Lambda), [&](FD3D12Payload& Payload)
@@ -455,7 +455,7 @@ void FD3D12DynamicRHI::FlushTiming(bool bCreateNew)
 		{
 			FD3D12Timing* NewTiming = new FD3D12Timing(Payload.Queue);
 			Payload.Timing = NewTiming;
-			CurrentTiming->Add(NewTiming);
+			CurrentTimingPerQueue->Add(NewTiming);
 		}
 		else
 		{

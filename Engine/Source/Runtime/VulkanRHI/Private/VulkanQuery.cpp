@@ -385,6 +385,7 @@ void FVulkanOcclusionQuery::ReleaseFromPool()
 	IndexInPool = UINT32_MAX;
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 void FVulkanCommandListContext::ReadAndCalculateGPUFrameTime()
 {
 	check(IsImmediate());
@@ -412,6 +413,7 @@ void FVulkanCommandListContext::ReadAndCalculateGPUFrameTime()
 		GGPUFrameTime = 0;
 	}
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 
 FRenderQueryRHIRef FVulkanDynamicRHI::RHICreateRenderQuery(ERenderQueryType QueryType)
@@ -437,11 +439,16 @@ FRenderQueryRHIRef FVulkanDynamicRHI::RHICreateRenderQuery(ERenderQueryType Quer
 
 bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64& OutNumPixels, bool bWait, uint32 GPUIndex)
 {
-	auto ToMicroseconds = [](uint64 Timestamp)
+	auto ToMicroseconds = [](uint64 Timestamp) -> uint64
 	{
+#if RHI_NEW_GPU_PROFILER
+		checkNoEntry(); // @todo - new gpu profiler
+		return 0;
+#else
 		const double Frequency = double(FVulkanGPUTiming::GetTimingFrequency());
 		uint64 Microseconds = (uint64)((double(Timestamp) / Frequency) * 1000.0 * 1000.0);
 		return Microseconds;
+#endif
 	};
 
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
@@ -628,6 +635,7 @@ void FVulkanCommandListContext::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
 	}
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 void FVulkanCommandListContext::RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery)
 {
 	if (Device->GetOptionalExtensions().HasEXTCalibratedTimestamps)
@@ -637,15 +645,20 @@ void FVulkanCommandListContext::RHICalibrateTimers(FRHITimestampCalibrationQuery
 		CalibrationQuery->GPUMicroseconds[0] = CalibrationTimestamp.GPUMicroseconds;
 	}
 }
+#endif
 
 void FVulkanCommandListContext::WriteBeginTimestamp(FVulkanCmdBuffer* CmdBuffer)
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming->StartTiming(CmdBuffer);
+#endif
 }
 
 void FVulkanCommandListContext::WriteEndTimestamp(FVulkanCmdBuffer* CmdBuffer)
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming->EndTiming(CmdBuffer);
+#endif
 }
 
 FVulkanTimingQuery::FVulkanTimingQuery()

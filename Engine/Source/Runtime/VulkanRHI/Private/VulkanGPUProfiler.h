@@ -15,6 +15,8 @@ class FVulkanCommandListContext;
 class FVulkanDevice;
 class FVulkanTimingQueryPool;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
+
 class FVulkanGPUTiming : public FGPUTiming
 {
 public:
@@ -205,3 +207,5 @@ struct FVulkanGPUProfiler : public FGPUProfiler
 	TArray<uint64> CrashMarkers;
 	bool bBeginFrame;
 };
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)

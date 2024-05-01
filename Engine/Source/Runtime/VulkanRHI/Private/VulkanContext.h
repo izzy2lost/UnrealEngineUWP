@@ -93,7 +93,10 @@ public:
 	// Render time measurement
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override;
+#endif
 
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
@@ -191,12 +194,14 @@ public:
 	void WriteBeginTimestamp(FVulkanCmdBuffer* CmdBuffer);
 	void WriteEndTimestamp(FVulkanCmdBuffer* CmdBuffer);
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	void ReadAndCalculateGPUFrameTime();
 	
 	inline FVulkanGPUProfiler& GetGPUProfiler()
 	{
 		return GpuProfiler;
 	}
+#endif
 
 	inline FVulkanDevice* GetDevice() const
 	{
@@ -283,8 +288,16 @@ private:
 	// Number of times EndFrame() has been called on this context
 	uint64 FrameCounter;
 
+#if RHI_NEW_GPU_PROFILER
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ checkNoEntry(); } // @todo - new gpu profiler
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { checkNoEntry(); } // @todo - new gpu profiler
+#else
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ GpuProfiler.RegisterGPUWork(NumPrimitives, NumVertices); }
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { GpuProfiler.RegisterGPUDispatch(GroupCount); }
+
 	FVulkanGPUProfiler GpuProfiler;
 	FVulkanGPUTiming* FrameTiming;
+#endif
 
 	template <typename TRHIShader>
 	void ApplyStaticUniformBuffers(TRHIShader* Shader);

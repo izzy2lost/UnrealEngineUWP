@@ -20,6 +20,8 @@ D3D12CommandContext.h: D3D12 Command Context Interfaces
 #include "RHICoreShader.h"
 #include "RHICore.h"
 
+#include "GPUProfiler.h"
+
 #if USE_PIX
 	#include "Windows/AllowWindowsPlatformTypes.h"
 	THIRD_PARTY_INCLUDES_START
@@ -329,6 +331,10 @@ protected:
 		}
 	}
 
+#if RHI_NEW_GPU_PROFILER
+	TArray<TUniquePtr<UE::RHI::GPUProfiler::FBreadcrumbEvent>> BreadcrumbEvents; // @todo - new gpu profiler - optimize storage / allocation
+#endif
+
 public:
 	// Flushes any pending commands in this context to the GPU.
 	void FlushCommands(ED3D12FlushFlags FlushFlags = ED3D12FlushFlags::None);
@@ -556,8 +562,6 @@ public:
 	/** When a new compute PSO is set, we discard all old constants set for the previous shader. */
 	bool bDiscardSharedComputeConstants = false;
 
-	bool bTrackingEvents = false;
-
 	/** Used by variable rate shading to cache the current state of the combiners and the constant shading rate*/
 #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
 	static_assert(D3D12_RS_SET_SHADING_RATE_COMBINER_COUNT == ED3D12VRSCombinerStages::Num);
@@ -649,7 +653,9 @@ public:
 	virtual void RHICopyToStagingBuffer(FRHIBuffer* SourceBuffer, FRHIStagingBuffer* DestinationStagingBuffer, uint32 Offset, uint32 NumBytes) final override;
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
+#if (RHI_NEW_GPU_PROFILER == 0)
 	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override;
+#endif
 	virtual void RHIBeginScene() final override;
 	virtual void RHIEndScene() final override;
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override;
@@ -937,10 +943,12 @@ public:
 	{
 		ContextRedirect(RHIEndRenderQuery(RenderQuery));
 	}
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FORCEINLINE virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override
 	{
 		ContextRedirect(RHICalibrateTimers(CalibrationQuery));
 	}
+#endif
 	FORCEINLINE virtual void RHIBeginScene() final override
 	{
 		ContextRedirect(RHIBeginScene());

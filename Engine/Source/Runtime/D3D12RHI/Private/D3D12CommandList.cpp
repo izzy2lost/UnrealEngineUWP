@@ -369,6 +369,9 @@ void FD3D12CommandList::EndQuery(FD3D12QueryLocation const& Location)
 
 			case ED3D12QueryType::CommandListBegin:
 			case ED3D12QueryType::IdleBegin:
+#if RHI_NEW_GPU_PROFILER
+			case ED3D12QueryType::ProfilerTimestampTOP:
+#endif
 				Position = ED3D12QueryPosition::TopOfPipe;
 				break;
 
@@ -376,6 +379,9 @@ void FD3D12CommandList::EndQuery(FD3D12QueryLocation const& Location)
 			case ED3D12QueryType::IdleEnd:
 			case ED3D12QueryType::AdjustedMicroseconds:
 			case ED3D12QueryType::AdjustedRaw:
+#if RHI_NEW_GPU_PROFILER
+			case ED3D12QueryType::ProfilerTimestampBOP:
+#endif
 				Position = ED3D12QueryPosition::BottomOfPipe;
 				break;
 			}

@@ -77,7 +77,9 @@ FD3D12Queue::~FD3D12Queue()
 FD3D12Device::FD3D12Device(FRHIGPUMask InGPUMask, FD3D12Adapter* InAdapter)
 	: FD3D12SingleNodeGPUObject(InGPUMask)
 	, FD3D12AdapterChild       (InAdapter)
+#if (RHI_NEW_GPU_PROFILER == 0)
 	, GPUProfilingData         (this)
+#endif
 	, ResidencyManager         (*this)
 	, DescriptorHeapManager    (this)
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
@@ -507,16 +509,6 @@ void FD3D12Device::UpdateMSAASettings()
 	AvailableMSAAQualities[8] = 0;
 }
 
-void FD3D12Device::RegisterGPUWork(uint32 NumPrimitives, uint32 NumVertices)
-{
-	GetGPUProfiler().RegisterGPUWork(NumPrimitives, NumVertices);
-}
-
-void FD3D12Device::RegisterGPUDispatch(FIntVector GroupCount)
-{
-	GetGPUProfiler().RegisterGPUDispatch(GroupCount);
-}
-
 void FD3D12Device::BlockUntilIdle()
 {
 	// Submit a new sync point to each queue
@@ -756,6 +748,7 @@ uint64 FD3D12Device::GetTimestampFrequency(ED3D12QueueType QueueType)
 	return Frequency;
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 FGPUTimingCalibrationTimestamp FD3D12Device::GetCalibrationTimestamp(ED3D12QueueType QueueType)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(D3D12GetCalibrationTimestamp);
@@ -775,6 +768,7 @@ FGPUTimingCalibrationTimestamp FD3D12Device::GetCalibrationTimestamp(ED3D12Queue
 
 	return Result;
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 void FD3D12Device::InitExplicitDescriptorHeap()
 {

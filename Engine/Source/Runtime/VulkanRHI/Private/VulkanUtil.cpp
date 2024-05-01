@@ -20,6 +20,7 @@ FVulkanDynamicRHI*	GVulkanRHI = nullptr;
 
 extern CORE_API bool GIsGPUCrashed;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 static FString		EventDeepString(TEXT("EventTooDeep"));
 static const uint32	EventDeepCRC = FCrc::StrCrc32<TCHAR>(*EventDeepString);
@@ -60,79 +61,6 @@ void FVulkanGPUTiming::CalibrateTimers(FVulkanDevice& Device)
 		FGPUTimingCalibrationTimestamp CalibrationTimestamp = Device.GetCalibrationTimestamp();
 		SetCalibrationTimestamp(CalibrationTimestamp);
 	}
-}
-
-FVulkanStagingBuffer::~FVulkanStagingBuffer()
-{
-	if (StagingBuffer)
-	{
-		check(Device);
-		Device->GetStagingManager().ReleaseBuffer(nullptr, StagingBuffer);
-	}
-}
-
-void* FVulkanStagingBuffer::Lock(uint32 Offset, uint32 NumBytes)
-{
-	check(!bIsLocked);
-	bIsLocked = true;
-	const uint32 EndOffset = Offset + NumBytes;
-	checkf(EndOffset <= QueuedNumBytes, TEXT("Lock at Offset (%u) and NumBytes (%u) reads beyond the allocated size of the staging buffer (%u)"), Offset, NumBytes, QueuedNumBytes);
-	// make sure cached memory is invalidated
-	StagingBuffer->InvalidateMappedMemory();
-	return (void*)((uint8*)StagingBuffer->GetMappedPointer() + Offset);
-}
-
-void FVulkanStagingBuffer::Unlock()
-{
-	check(bIsLocked);
-	bIsLocked = false;
-}
-
-FStagingBufferRHIRef FVulkanDynamicRHI::RHICreateStagingBuffer()
-{
-	return new FVulkanStagingBuffer();
-}
-
-void* FVulkanDynamicRHI::RHILockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI, FRHIGPUFence* FenceRHI, uint32 Offset, uint32 NumBytes)
-{
-	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
-
-	if (FenceRHI && !FenceRHI->Poll())
-	{
-		Device->SubmitCommandsAndFlushGPU();
-
-		// SubmitCommandsAndFlushGPU might update fence state if it was tied to a previously submitted command buffer.
-		// Its state will have been updated from Submitted to NeedReset, and would assert in WaitForCmdBuffer (which is not needed in such a case)
-		if (!FenceRHI->Poll())
-		{
-			FVulkanGPUFence* Fence = ResourceCast(FenceRHI);
-			Device->GetImmediateContext().GetCommandBufferManager()->WaitForCmdBuffer(Fence->GetCmdBuffer());
-		}
-	}
-
-	return StagingBuffer->Lock(Offset, NumBytes);
-}
-
-void FVulkanDynamicRHI::RHIUnlockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI)
-{
-	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
-	StagingBuffer->Unlock();
-}
-
-void FVulkanGPUFence::Clear()
-{
-	CmdBuffer = nullptr;
-	FenceSignaledCounter = MAX_uint64;
-}
-
-bool FVulkanGPUFence::Poll() const
-{
-	return (CmdBuffer && (FenceSignaledCounter < CmdBuffer->GetFenceSignaledCounter()));
-}
-
-FGPUFenceRHIRef FVulkanDynamicRHI::RHICreateGPUFence(const FName& Name)
-{
-	return new FVulkanGPUFence(Name);
 }
 
 FVulkanGPUTiming::~FVulkanGPUTiming()
@@ -769,6 +697,81 @@ void AftermathResolveMarkerCallback(const void* Marker, void** ResolvedMarkerDat
 }
 #endif
 
+#endif // (RHI_NEW_GPU_PROFILER == 0)
+
+FVulkanStagingBuffer::~FVulkanStagingBuffer()
+{
+	if (StagingBuffer)
+	{
+		check(Device);
+		Device->GetStagingManager().ReleaseBuffer(nullptr, StagingBuffer);
+	}
+}
+
+void* FVulkanStagingBuffer::Lock(uint32 Offset, uint32 NumBytes)
+{
+	check(!bIsLocked);
+	bIsLocked = true;
+	const uint32 EndOffset = Offset + NumBytes;
+	checkf(EndOffset <= QueuedNumBytes, TEXT("Lock at Offset (%u) and NumBytes (%u) reads beyond the allocated size of the staging buffer (%u)"), Offset, NumBytes, QueuedNumBytes);
+	// make sure cached memory is invalidated
+	StagingBuffer->InvalidateMappedMemory();
+	return (void*)((uint8*)StagingBuffer->GetMappedPointer() + Offset);
+}
+
+void FVulkanStagingBuffer::Unlock()
+{
+	check(bIsLocked);
+	bIsLocked = false;
+}
+
+FStagingBufferRHIRef FVulkanDynamicRHI::RHICreateStagingBuffer()
+{
+	return new FVulkanStagingBuffer();
+}
+
+void* FVulkanDynamicRHI::RHILockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI, FRHIGPUFence* FenceRHI, uint32 Offset, uint32 NumBytes)
+{
+	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
+
+	if (FenceRHI && !FenceRHI->Poll())
+	{
+		Device->SubmitCommandsAndFlushGPU();
+
+		// SubmitCommandsAndFlushGPU might update fence state if it was tied to a previously submitted command buffer.
+		// Its state will have been updated from Submitted to NeedReset, and would assert in WaitForCmdBuffer (which is not needed in such a case)
+		if (!FenceRHI->Poll())
+		{
+			FVulkanGPUFence* Fence = ResourceCast(FenceRHI);
+			Device->GetImmediateContext().GetCommandBufferManager()->WaitForCmdBuffer(Fence->GetCmdBuffer());
+		}
+	}
+
+	return StagingBuffer->Lock(Offset, NumBytes);
+}
+
+void FVulkanDynamicRHI::RHIUnlockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI)
+{
+	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
+	StagingBuffer->Unlock();
+}
+
+void FVulkanGPUFence::Clear()
+{
+	CmdBuffer = nullptr;
+	FenceSignaledCounter = MAX_uint64;
+}
+
+bool FVulkanGPUFence::Poll() const
+{
+	return (CmdBuffer && (FenceSignaledCounter < CmdBuffer->GetFenceSignaledCounter()));
+}
+
+FGPUFenceRHIRef FVulkanDynamicRHI::RHICreateGPUFence(const FName& Name)
+{
+	return new FVulkanGPUFence(Name);
+}
+
 namespace VulkanRHI
 {
 	VkBuffer CreateBuffer(FVulkanDevice* InDevice, VkDeviceSize Size, VkBufferUsageFlags BufferUsageFlags, VkMemoryRequirements& OutMemoryRequirements)
@@ -921,11 +924,17 @@ namespace VulkanRHI
 		{
 			FVulkanDevice* Device = GVulkanRHI->GetDevice();
 
+#if RHI_NEW_GPU_PROFILER
+			checkNoEntry(); // @todo - new gpu profiler
+#else
+
 #if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
 			if (UE::RHI::UseGPUCrashDebugging())
 			{
 				Device->GetImmediateContext().GetGPUProfiler().DumpCrashMarkers(Device->GetCrashMarkerMappedPointer());
 			}
+#endif
+
 #endif
 
 			CheckDeviceFault(Device);

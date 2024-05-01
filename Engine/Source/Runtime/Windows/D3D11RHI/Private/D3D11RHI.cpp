@@ -32,7 +32,28 @@ extern void UniformBufferBeginFrame();
 void FD3D11DynamicRHI::RHIBeginFrame()
 {
 	UniformBufferBeginFrame();
+#if (RHI_NEW_GPU_PROFILER == 0)
 	GPUProfilingData.BeginFrame(this);
+#endif
+}
+
+void FD3D11DynamicRHI::RHIBeginScene()
+{
+	// Nothing to do
+}
+
+void FD3D11DynamicRHI::RHIEndScene()
+{
+	// Nothing to do
+}
+
+void FD3D11DynamicRHI::RHIEndFrame()
+{
+#if (RHI_NEW_GPU_PROFILER == 0)
+	GPUProfilingData.EndFrame();
+#endif
+	UpdateMemoryStats();
+	CurrentComputeShader = nullptr;
 }
 
 template <int32 Frequency>
@@ -276,6 +297,8 @@ void FD3D11DynamicRHI::ClearAllShaderResources()
 	ClearAllShaderResourcesForFrequency<SF_Compute>();
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
+
 void FD3DGPUProfiler::BeginFrame(FD3D11DynamicRHI* InRHI)
 {
 	CurrentEventNode = NULL;
@@ -326,25 +349,6 @@ void FD3DGPUProfiler::BeginFrame(FD3D11DynamicRHI* InRHI)
 	{
 		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
 	}
-}
-
-void FD3D11DynamicRHI::RHIEndFrame()
-{
-	GPUProfilingData.EndFrame();
-	UpdateMemoryStats();
-	CurrentComputeShader = nullptr;
-}
-
-void FD3D11DynamicRHI::UpdateMemoryStats()
-{
-#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
-	// Some older drivers don't support querying memory stats, so don't do anything if this fails.
-	FD3DMemoryStats MemoryStats;
-	if (SUCCEEDED(UE::DXGIUtilities::GetD3DMemoryStats(GetAdapter().DXGIAdapter, MemoryStats)))
-	{
-		UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
-	}
-#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
 }
 
 void FD3DGPUProfiler::EndFrame()
@@ -472,16 +476,6 @@ float FD3D11EventNode::GetTiming()
 	return Result;
 }
 
-void FD3D11DynamicRHI::RHIBeginScene()
-{
-	// Nothing to do
-}
-
-void FD3D11DynamicRHI::RHIEndScene()
-{
-	// Nothing to do
-}
-
 FD3DGPUProfiler::FD3DGPUProfiler(class FD3D11DynamicRHI* InD3DRHI)
 	: FGPUProfiler()
 	, FrameTiming(InD3DRHI, 4)
@@ -546,6 +540,8 @@ void FD3D11EventNodeFrame::LogDisjointQuery()
 	}
 }
 
+#endif // (RHI_NEW_GPU_PROFILER == 0)
+
 static void D3D11UpdateBufferStatsCommon(ID3D11Buffer* Buffer, int64 BufferSize, bool bAllocating)
 {
 	// this is a work-around on Windows. Due to the fact that there is no way
@@ -581,6 +577,18 @@ void D3D11BufferStats::UpdateBufferStats(FD3D11Buffer& Buffer, bool bAllocating)
 		UE::RHICore::UpdateGlobalBufferStats(BufferDesc, BufferDesc.Size, bAllocating);
 		D3D11UpdateBufferStatsCommon(Resource, BufferDesc.Size, bAllocating);
 	}
+}
+
+void FD3D11DynamicRHI::UpdateMemoryStats()
+{
+#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
+	// Some older drivers don't support querying memory stats, so don't do anything if this fails.
+	FD3DMemoryStats MemoryStats;
+	if (SUCCEEDED(UE::DXGIUtilities::GetD3DMemoryStats(GetAdapter().DXGIAdapter, MemoryStats)))
+	{
+		UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
+	}
+#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
 }
 
 ID3D11Device* FD3D11DynamicRHI::RHIGetDevice() const

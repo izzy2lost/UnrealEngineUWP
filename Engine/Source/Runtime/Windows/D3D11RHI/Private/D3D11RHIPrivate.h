@@ -102,6 +102,7 @@ struct FD3D11GlobalStats
 	static int64 GTotalGraphicsMemory;
 };
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 // This class has multiple inheritance but really FGPUTiming is a static class
 class FD3D11BufferedGPUTiming : public FRenderResource, public FGPUTiming
@@ -301,6 +302,8 @@ struct FD3DGPUProfiler : public FGPUProfiler
 	void BeginFrame(class FD3D11DynamicRHI* InRHI);
 	void EndFrame();
 };
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 struct FD3D11TransitionData
 {
@@ -834,19 +837,20 @@ protected:
 	bool bRenderDoc = false;
 
 public:
-	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)
-	{
-		GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices);
-	}
-	void RegisterGPUDispatch(FIntVector GroupCount)
-	{
-		GPUProfilingData.RegisterGPUDispatch(GroupCount);
-	}
+#if RHI_NEW_GPU_PROFILER
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ checkNoEntry(); } // @todo - new gpu profiler
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { checkNoEntry(); } // @todo - new gpu profiler
+#else
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices); }
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { GPUProfilingData.RegisterGPUDispatch(GroupCount); }
+#endif
 
 	inline const FD3D11Adapter& GetAdapter() const { return Adapter; }
 
 protected:
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FD3DGPUProfiler GPUProfilingData;
+#endif
 
 	FD3D11Adapter Adapter;
 

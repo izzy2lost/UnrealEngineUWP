@@ -58,7 +58,11 @@ bool FOpenGLDynamicRHI::RHIIsValidTexture(GLuint InTexture) const
 
 void FOpenGLDynamicRHI::RHISetExternalGPUTime(uint32 InExternalGPUTime)
 {
-	GetGPUProfilingData().ExternalGPUTime = InExternalGPUTime;
+#if RHI_NEW_GPU_PROFILER
+	checkNoEntry(); // @todo - new gpu profiler
+#else
+	GPUProfilingData.ExternalGPUTime = InExternalGPUTime;
+#endif
 }
 
 #if PLATFORM_ANDROID
@@ -138,18 +142,22 @@ void FOpenGLDynamicRHI::RHIEGLTerminateContext()
 	#endif
 		}
 
+	#if (RHI_NEW_GPU_PROFILER == 0)
 		if (GPUProfilingData.IsProfilingGPU())
 		{
 			GPUProfilingData.PushEvent(GetNameStr(), FColor::White);
 		}
+	#endif
 	}
 
 	void FOpenGLDynamicRHI::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
+	#if (RHI_NEW_GPU_PROFILER == 0)
 		if (GPUProfilingData.IsProfilingGPU())
 		{
 			GPUProfilingData.PopEvent();
 		}
+	#endif
 
 		if (ShouldEmitBreadcrumbs())
 		{
@@ -159,17 +167,6 @@ void FOpenGLDynamicRHI::RHIEGLTerminateContext()
 		}
 	}
 #endif // WITH_RHI_BREADCRUMBS
-
-void FOpenGLGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)
-{
-	FGPUProfiler::PushEvent(Name, Color);
-}
-
-void FOpenGLGPUProfiler::PopEvent()
-{
-	FGPUProfiler::PopEvent();
-
-}
 
 // only use shader hashes to determine GL PSO hash;
 uint64 FOpenGLDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateInitializer& Initializer)
@@ -226,6 +223,8 @@ bool FOpenGLDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineS
 
 	return true;
 }
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 void FOpenGLGPUProfiler::BeginFrame(FOpenGLDynamicRHI* InRHI)
 {
@@ -533,6 +532,8 @@ float FOpenGLEventNode::GetTiming()
 
 	return Result;
 }
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 void FOpenGLDynamicRHI::InitializeStateResources()
 {

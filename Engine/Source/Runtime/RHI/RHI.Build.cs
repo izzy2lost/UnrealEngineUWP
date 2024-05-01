@@ -11,6 +11,9 @@ public class RHI : ModuleRules
 		PrivateDependencyModuleNames.Add("TraceLog");
 		PrivateDependencyModuleNames.Add("ApplicationCore");
 
+		// @todo - new gpu profiler. This is experimental.
+		PublicDefinitions.Add("RHI_NEW_GPU_PROFILER=0");
+
 		if (Target.bCompileAgainstEngine)
 		{
 			DynamicallyLoadedModuleNames.Add("NullDrv");

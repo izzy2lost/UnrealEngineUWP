@@ -30,14 +30,7 @@
 #include "UObject/NameTypes.h"
 #include <tuple>
 
-struct FColor;
-
 #define WANTS_DRAW_MESH_EVENTS (WITH_PROFILEGPU && WITH_RHI_BREADCRUMBS)
-
-class FRealtimeGPUProfiler;
-class FRealtimeGPUProfilerEvent;
-class FRealtimeGPUProfilerFrame;
-class FRenderQueryPool;
 
 #if WITH_RHI_BREADCRUMBS
 
@@ -152,6 +145,32 @@ class FRenderQueryPool;
 #define SCOPED_RHI_CONDITIONAL_DRAW_EVENT_COLOR(RHICmdContext, Color, Name, Condition)               UE_DEPRECATED_MACRO(5.5, "SCOPED_RHI_CONDITIONAL_DRAW_EVENT_COLOR has been deprecated. Use standard RHI breadcrumb events instead." )
 #define SCOPED_RHI_CONDITIONAL_DRAW_EVENTF_COLOR(RHICmdContext, Color, Name, Condition, Format, ...) UE_DEPRECATED_MACRO(5.5, "SCOPED_RHI_CONDITIONAL_DRAW_EVENTF_COLOR has been deprecated. Use standard RHI breadcrumb events instead.")
 
+#if RHI_NEW_GPU_PROFILER
+
+	// @todo
+	#define DECLARE_GPU_STAT(StatName)
+	#define DECLARE_GPU_STAT_NAMED(StatName, NameString)
+	#define DECLARE_GPU_DRAWCALL_STAT(StatName)
+	#define DECLARE_GPU_DRAWCALL_STAT_NAMED(StatName, NameString)
+	#define DECLARE_GPU_DRAWCALL_STAT_EXTERN(StatName)
+
+	#define DECLARE_GPU_STAT_NAMED_EXTERN(StatName, NameString)
+	#define DEFINE_GPU_STAT(StatName)
+	#define DEFINE_GPU_DRAWCALL_STAT(StatName)
+
+	#define SCOPED_GPU_STAT_VERBOSE(RHICmdList, StatName, Description)
+	#define SCOPED_GPU_STAT(RHICmdList, StatName) 
+
+	#define GPU_STATS_BEGINFRAME(RHICmdList) 
+	#define GPU_STATS_ENDFRAME(RHICmdList) 
+	#define GPU_STATS_SUSPENDFRAME()
+
+#else
+
+class FRealtimeGPUProfiler;
+class FRealtimeGPUProfilerEvent;
+class FRealtimeGPUProfilerFrame;
+
 #if HAS_GPU_STATS
 
 	CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API,GPU);
@@ -209,10 +228,6 @@ class FRenderQueryPool;
 RENDERCORE_API bool AreGPUStatsEnabled();
 
 #if HAS_GPU_STATS
-
-class FRealtimeGPUProfilerEvent;
-class FRealtimeGPUProfilerFrame;
-class FRenderQueryPool;
 
 class FRealtimeGPUProfilerQuery
 {
@@ -349,3 +364,5 @@ public:
 };
 
 #endif // HAS_GPU_STATS
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)

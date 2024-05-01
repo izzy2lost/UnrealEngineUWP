@@ -37,6 +37,8 @@ struct Rect;
 
 template<class T> struct TOpenGLResourceTraits;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
+
 // This class has multiple inheritance but really FGPUTiming is a static class
 class FOpenGLBufferedGPUTiming : public FGPUTiming
 {
@@ -259,12 +261,11 @@ struct FOpenGLGPUProfiler : public FGPUProfiler
 
 	void Cleanup();
 
-	virtual void PushEvent(const TCHAR* Name, FColor Color) override;
-	virtual void PopEvent() override;
-
 	void BeginFrame(class FOpenGLDynamicRHI* InRHI);
 	void EndFrame();
 };
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
@@ -779,10 +780,6 @@ public:
 
 	virtual void RHIPostExternalCommandsReset() final override;
 
-	FOpenGLGPUProfiler& GetGPUProfilingData() {
-		return GPUProfilingData;
-	}
-
 	GLuint GetOpenGLFramebuffer(uint32 NumSimultaneousRenderTargets, FOpenGLTexture** RenderTargets, const uint32* ArrayIndices, const uint32* MipmapLevels, FOpenGLTexture* DepthStencilTarget);
 	GLuint GetOpenGLFramebuffer(uint32 NumSimultaneousRenderTargets, FOpenGLTexture** RenderTargets, const uint32* ArrayIndices, const uint32* MipmapLevels, FOpenGLTexture* DepthStencilTarget, int32 NumRenderingSamples);
 	
@@ -852,8 +849,33 @@ private:
 	/** A critical section to protect modifications and iteration over Queries list */
 	FCriticalSection QueriesListCriticalSection;
 
+#if RHI_NEW_GPU_PROFILER
+
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)
+	{
+		checkNoEntry(); // @todo - new gpu profiler
+	}
+
+	void RegisterGPUDispatch(FIntVector GroupCount)
+	{
+		checkNoEntry(); // @todo - new gpu profiler
+	}
+
+#else
+
 	FOpenGLGPUProfiler GPUProfilingData;
 	friend FOpenGLGPUProfiler;
+
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)
+	{
+		GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices);
+	}
+	void RegisterGPUDispatch(FIntVector GroupCount)
+	{
+		GPUProfilingData.RegisterGPUDispatch(GroupCount);
+	}
+
+#endif
 
 	FCriticalSection CustomPresentSection;
 	TRefCountPtr<class FRHICustomPresent> CustomPresent;

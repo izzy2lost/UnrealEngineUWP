@@ -1034,7 +1034,7 @@ public:
 			DeviceDiagnosticsConfigCreateInfoNV.flags = VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV | VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV | VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV;
 			AddToPNext(DeviceCreateInfo, DeviceDiagnosticsConfigCreateInfoNV);
 
-#if NV_AFTERMATH
+#if NV_AFTERMATH && (RHI_NEW_GPU_PROFILER == 0)
 			// Vulkan's breadcrumb / markers implementation differs from the one provided by RHICore.
 			// @todo unify the implementation so this isn't necessary
 			extern void AftermathResolveMarkerCallback(const void* Marker, void** ResolvedMarkerData, uint32_t * MarkerSize);

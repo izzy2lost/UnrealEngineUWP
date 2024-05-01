@@ -103,15 +103,7 @@ static TAutoConsoleVariable<int32> GProfileGPUSort(
 	TEXT("3 : By number of verts\n"),
 	ECVF_Default);
 
-struct FNodeStatsCompare
-{
-	/** Sorts nodes by descending durations. */
-	FORCEINLINE bool operator()( const FGPUProfilerEventNodeStats& A, const FGPUProfilerEventNodeStats& B ) const
-	{
-		return B.TimingResult < A.TimingResult;
-	}
-};
-
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 /** Recursively generates a histogram of nodes and stores their timing in TimingResult. */
 static void GatherStatsEventNode(FGPUProfilerEventNode* Node, int32 Depth, TMap<FString, FGPUProfilerEventNodeStats>& EventHistogram)
@@ -510,6 +502,15 @@ void FGPUProfilerEventNodeFrame::DumpEventTree()
 
 		if (RootWildcardString == TEXT("*") && bShowHistogram)
 		{
+			struct FNodeStatsCompare
+			{
+				/** Sorts nodes by descending durations. */
+				FORCEINLINE bool operator()(const FGPUProfilerEventNodeStats& A, const FGPUProfilerEventNodeStats& B) const
+				{
+					return B.TimingResult < A.TimingResult;
+				}
+			};
+
 			// Sort descending based on node duration
 			EventHistogram.ValueSort( FNodeStatsCompare() );
 
@@ -665,5 +666,60 @@ TStaticArray<FGPUTimingCalibrationTimestamp, MAX_NUM_GPUS> FGPUTiming::GCalibrat
 
 /** Whether the static variables have been initialized. */
 bool FGPUTiming::GAreGlobalsInitialized = false;
+
+#else
+
+namespace UE::RHI::GPUProfiler
+{
+	static TArray<IEventSink*>& GetSinks()
+	{
+		static TArray<IEventSink*> Sinks;
+		return Sinks;
+	}
+
+	void RegisterEventSink(IEventSink* Sink)
+	{
+		GetSinks().Add(Sink);
+	}
+
+	void PushEvents(
+		FQueue Queue,
+		TConstArrayView<TUniquePtr<FBreadcrumbEvent>> BreadcrumbEvents,
+		TConstArrayView<TUniquePtr<FWorkEvent      >> WorkEvents,
+		TConstArrayView<TUniquePtr<FMarkerEvent    >> MarkerEvents)
+	{
+		if (BreadcrumbEvents.IsEmpty()
+		   || WorkEvents.IsEmpty()
+		   || MarkerEvents.IsEmpty())
+		{
+			return;
+		}
+
+		for (IEventSink* Sink : GetSinks())
+		{
+			Sink->ProcessEvents(Queue, BreadcrumbEvents, WorkEvents, MarkerEvents);
+		}
+	}
+
+	struct FGPUProfilerSink_ProfileGPU final : public IEventSink
+	{
+		FGPUProfilerSink_ProfileGPU()
+		{
+			RegisterEventSink(this);
+		}
+
+		void ProcessEvents(
+			FQueue Queue,
+			TConstArrayView<TUniquePtr<FBreadcrumbEvent>> const& BreadcrumbEvents,
+			TConstArrayView<TUniquePtr<FWorkEvent      >> const& WorkEvents,
+			TConstArrayView<TUniquePtr<FMarkerEvent    >> const& MarkerEvents) override
+		{
+			// @todo - new gpu profiler
+		}
+
+	} GGPUProfilerSink_ProfileGPU;
+}
+
+#endif // RHI_NEW_GPU_PROFILER
 
 #undef LOCTEXT_NAMESPACE

@@ -2298,7 +2298,7 @@ void FOpenGLDynamicRHI::RHIDrawPrimitive(uint32 BaseVertexIndex,uint32 NumPrimit
 	GLsizei NumElements = 0;
 	FindPrimitiveType(PrimitiveType, NumPrimitives, DrawMode, NumElements);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
 	if (NumInstances == 1)
 	{
 		SCOPE_CYCLE_COUNTER_DETAILED(STAT_OpenGLDrawPrimitiveDriverTime);
@@ -2321,7 +2321,7 @@ void FOpenGLDynamicRHI::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBufferRHI, 
 		VERIFY_GL_SCOPE();
 
 		check(ArgumentBufferRHI);
-		GPUProfilingData.RegisterGPUWork(0);
+		RegisterGPUWork(0);
 
 		FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 		BindPendingFramebuffer(ContextState);
@@ -2368,7 +2368,7 @@ void FOpenGLDynamicRHI::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIB
 		VERIFY_GL_SCOPE();
 
 		FOpenGLBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);
-		GPUProfilingData.RegisterGPUWork(1);
+		RegisterGPUWork(1);
 
 		check(ArgumentsBufferRHI);
 
@@ -2485,7 +2485,7 @@ void FOpenGLDynamicRHI::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, int3
 	GLenum IndexType = IndexBuffer->GetStride() == sizeof(uint32) ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT;
 	StartIndex *= IndexBuffer->GetStride() == sizeof(uint32) ? sizeof(uint32) : sizeof(uint16);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, NumElements * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, NumElements * NumInstances);
 	if (NumInstances > 1)
 	{
 		SCOPE_CYCLE_COUNTER_DETAILED(STAT_OpenGLDrawPrimitiveDriverTime);
@@ -2516,7 +2516,7 @@ void FOpenGLDynamicRHI::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBufferR
 		VERIFY_GL_SCOPE();
 
 		FOpenGLBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);
-		GPUProfilingData.RegisterGPUWork(1);
+		RegisterGPUWork(1);
 
 		check(ArgumentBufferRHI);
 
@@ -2639,7 +2639,7 @@ void FOpenGLDynamicRHI::RHIClearMRT(const bool* bClearColorArray,int32 NumClearC
 	bool bPrevScissorEnabled = PendingState.bScissorEnabled;
 
 	bool bScissorChanged = false;
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 	BindPendingFramebuffer(ContextState);
 
@@ -2820,7 +2820,7 @@ void FOpenGLDynamicRHI::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint3
 
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
+	RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
 
 	BindPendingComputeShaderState(ContextState, ComputeShader);
 	CommitComputeResourceTables(ComputeShader);
@@ -2845,7 +2845,7 @@ void FOpenGLDynamicRHI::RHIDispatchIndirectComputeShader(FRHIBuffer* ArgumentBuf
 
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(1, 1, 1));	
+	RegisterGPUDispatch(FIntVector(1, 1, 1));	
 
 	BindPendingComputeShaderState(ContextState, ComputeShader);
 

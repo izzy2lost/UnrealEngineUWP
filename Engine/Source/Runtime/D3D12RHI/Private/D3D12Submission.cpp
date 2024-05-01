@@ -220,32 +220,64 @@ void FD3D12DynamicRHI::SubmitCommands(TConstArrayView<FD3D12FinalizedCommands*> 
 {
 	SCOPED_NAMED_EVENT_TEXT("CommandList_Submit", FColor::Magenta);
 
-	TArray<FD3D12Payload*> AllPayloads;
-#if WITH_RHI_BREADCRUMBS
-	TArray<TSharedPtr<FRHIBreadcrumbAllocator>> BreadcrumbAllocators;
-#endif
+#if RHI_NEW_GPU_PROFILER
 
+	TArray<FD3D12Payload*> AllPayloads;
 	for (FD3D12FinalizedCommands* Payloads : Commands)
 	{
-#if WITH_RHI_BREADCRUMBS
+	#if WITH_RHI_BREADCRUMBS
+		TSharedPtr<FRHIBreadcrumbAllocatorArray> BreadcrumbAllocators {};
+		if (Payloads->BreadcrumbAllocators.Num())
+		{
+			BreadcrumbAllocators = MakeShared<FRHIBreadcrumbAllocatorArray>(MoveTemp(Payloads->BreadcrumbAllocators));
+		}
+
 		for (FD3D12Payload* Payload : *Payloads)
 		{
 			Payload->BreadcrumbRange = Payloads->BreadcrumbRange;
+			if (BreadcrumbAllocators.IsValid())
+			{
+				Payload->BatchedObjects.BreadcrumbAllocators.Add(BreadcrumbAllocators);
+			}
 		}
-#endif
+	#endif
 
-		AllPayloads.Append(MoveTemp(static_cast<TArray<FD3D12Payload*>&>(*Payloads)));
-#if WITH_RHI_BREADCRUMBS
-		BreadcrumbAllocators.Append(MoveTemp(Payloads->BreadcrumbAllocators));
-#endif
+		AllPayloads.Append(MoveTemp(*Payloads));
 		delete Payloads;
 	}
 
 	SubmitPayloads(MoveTemp(AllPayloads));
 
-#if WITH_RHI_BREADCRUMBS
+#else
+
+	TArray<FD3D12Payload*> AllPayloads;
+	#if WITH_RHI_BREADCRUMBS
+	TArray<TSharedPtr<FRHIBreadcrumbAllocator>> BreadcrumbAllocators;
+	#endif
+
+	for (FD3D12FinalizedCommands* Payloads : Commands)
+	{
+	#if WITH_RHI_BREADCRUMBS
+		for (FD3D12Payload* Payload : *Payloads)
+		{
+			Payload->BreadcrumbRange = Payloads->BreadcrumbRange;
+		}
+	#endif
+
+		AllPayloads.Append(MoveTemp(static_cast<TArray<FD3D12Payload*>&>(*Payloads)));
+	#if WITH_RHI_BREADCRUMBS
+		BreadcrumbAllocators.Append(MoveTemp(Payloads->BreadcrumbAllocators));
+	#endif
+		delete Payloads;
+	}
+
+	SubmitPayloads(MoveTemp(AllPayloads));
+
+	#if WITH_RHI_BREADCRUMBS
 	// Enqueue the breadcrumb allocator references for cleanup once all prior payloads have completed on the GPU.
 	DeferredDelete([Array = MoveTemp(BreadcrumbAllocators)]() {});
+	#endif
+
 #endif
 }
 
@@ -382,24 +414,24 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 						FD3D12Queue& TargetQueue = CommandList->Device->GetQueue(CommandList->QueueType);
 
 						// Occlusion + Pipeline Stats Queries
-						TargetQueue.PendingOcclusionQueries.Append(MoveTemp(CommandList->State.OcclusionQueries));
-						TargetQueue.PendingPipelineStatsQueries.Append(MoveTemp(CommandList->State.PipelineStatsQueries));
+						TargetQueue.BatchedObjects.OcclusionQueries.Append(MoveTemp(CommandList->State.OcclusionQueries));
+						TargetQueue.BatchedObjects.PipelineStatsQueries.Append(MoveTemp(CommandList->State.PipelineStatsQueries));
 
 						// Timestamp Queries
 						// Keep only the first Begin() in the batch
 						if (TargetQueue.NumCommandListsInBatch++ == 0)
 						{
-							TargetQueue.PendingTimestampQueries.Emplace(MoveTemp(CommandList->State.BeginTimestamp));
+							TargetQueue.BatchedObjects.TimestampQueries.Emplace(MoveTemp(CommandList->State.BeginTimestamp));
 						}
 						else
 						{
 							// Remove the previous End() timestamp, to join the range together.
-							check(TargetQueue.PendingTimestampQueries.Last().Type == ED3D12QueryType::CommandListEnd);
-							TargetQueue.PendingTimestampQueries.RemoveAt(TargetQueue.PendingTimestampQueries.Num() - 1);
+							check(TargetQueue.BatchedObjects.TimestampQueries.Last().Type == ED3D12QueryType::CommandListEnd);
+							TargetQueue.BatchedObjects.TimestampQueries.RemoveAt(TargetQueue.BatchedObjects.TimestampQueries.Num() - 1);
 						}
 
-						TargetQueue.PendingTimestampQueries.Append(MoveTemp(CommandList->State.TimestampQueries));
-						TargetQueue.PendingTimestampQueries.Emplace(MoveTemp(CommandList->State.EndTimestamp));
+						TargetQueue.BatchedObjects.TimestampQueries.Append(MoveTemp(CommandList->State.TimestampQueries));
+						TargetQueue.BatchedObjects.TimestampQueries.Emplace(MoveTemp(CommandList->State.EndTimestamp));
 
 						if (TargetQueue.NumCommandListsInBatch >= MaxBatchSize)
 						{
@@ -444,138 +476,6 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 						AccumulateQueries(CurrentCommandList);
 					}
 				}
-				
-				// Prepare the command lists from each payload for submission
-				for (FD3D12Queue* Queue : QueuesWithPayloads)
-				{
-					FD3D12Payload* Payload = Queue->PayloadToSubmit;
-					check(Payload->SyncPointsToWait.Num() == 0);
-
-					Queue->BarrierTimestamps.CloseAndReset(Payload->QueryRanges);
-					Queue->NumCommandListsInBatch = 0;
-
-					// Gather query ranges from this payload, grouping by heap pointer
-					for (FD3D12QueryRange& Range : Payload->QueryRanges)
-					{
-						check(Range.End > Range.Start);
-						CurrentQueue.PendingQueryRanges.FindOrAdd(Range.Heap).Emplace(MoveTemp(Range));
-					}
-					Payload->QueryRanges.Reset();
-
-					check(Payload->TimestampQueries.Num() == 0);
-					check(Payload->OcclusionQueries.Num() == 0);
-					check(Payload->PipelineStatsQueries.Num() == 0);
-
-					if (Queue->PendingQueryRanges.Num())
-					{
-						// If this payload will signal a CPU-visible sync point, we need to resolve queries.
-						// This makes sure that the query data has reached the CPU before the sync point the CPU is waiting on is signaled.
-						bool bResolveQueries = false;
-						for (FD3D12SyncPoint* SyncPoint : Payload->SyncPointsToSignal)
-						{
-							if (SyncPoint->GetType() == ED3D12SyncPointType::GPUAndCPU)
-							{
-								bResolveQueries = true;
-								break;
-							}
-						}
-
-						if (bResolveQueries)
-						{
-							FD3D12CommandList* ResolveCommandList = nullptr;
-							{
-								// We've got queries to resolve. Allocate a command list.
-								auto GetResolveCommandList = [&]() -> FD3D12CommandList*
-								{
-									if (ResolveCommandList)
-										return ResolveCommandList;
-
-									if (!Queue->BarrierAllocator)
-										Queue->BarrierAllocator = Queue->Device->ObtainCommandAllocator(Queue->QueueType); 
-
-									return ResolveCommandList = Queue->Device->ObtainCommandList(Queue->BarrierAllocator, nullptr, nullptr);
-								};
-
-								// Ranges are grouped by heap pointer.
-								for (auto& [Heap, Ranges] : Queue->PendingQueryRanges)
-								{
-									{
-								#if ENABLE_RESIDENCY_MANAGEMENT
-										TArray<FD3D12ResidencyHandle*, TInlineAllocator<2>> ResidencyHandles;
-										ResidencyHandles.Add(&Heap->GetHeapResidencyHandle());
-										ResidencyHandles.Append(Heap->GetResultBuffer()->GetResidencyHandles());
-										GetResolveCommandList()->UpdateResidency(ResidencyHandles);
-								#endif // ENABLE_RESIDENCY_MANAGEMENT
-									}
-
-									// Sort the ranges into ascending order so we can merge adjacent ones,
-									// to reduce the number of ResolveQueryData calls we need to make.
-									Ranges.Sort();
-
-									int32 Index = 0;
-									uint32 Start, End;
-
-									auto GetNextRange = [&]()
-									{
-										if (Index >= Ranges.Num())
-											return false;
-
-										Start = Ranges[Index].Start;
-										End = Ranges[Index].End;
-										Index++;
-
-										while (Index < Ranges.Num() && Ranges[Index].Start == End)
-										{
-											// Ranges are contiguous. Extend.
-											End = Ranges[Index].End;
-											Index++;
-										}
-
-										return true;
-									};
-
-									while (GetNextRange())
-									{
-										if (Heap->GetD3DQueryHeap())
-										{
-											GetResolveCommandList()->GraphicsCommandList()->ResolveQueryData(
-												Heap->GetD3DQueryHeap(),
-												Heap->QueryType,
-												Start,
-												End - Start,
-												Heap->GetResultBuffer()->GetResource(),
-												Start * Heap->GetResultSize()
-											);
-										}
-
-										Payload->QueryRanges.Emplace(Heap, Start, End);
-									}
-								}
-
-								Queue->PendingQueryRanges.Reset();
-							}
-
-							Payload->TimestampQueries     = MoveTemp(Queue->PendingTimestampQueries    );
-							Payload->OcclusionQueries     = MoveTemp(Queue->PendingOcclusionQueries    );
-							Payload->PipelineStatsQueries = MoveTemp(Queue->PendingPipelineStatsQueries);
-
-							if (ResolveCommandList)
-							{
-								ResolveCommandList->Close();
-								Payload->CommandListsToExecute.Add(ResolveCommandList);
-							}
-						}
-					}
-
-					if (Queue->BarrierAllocator)
-					{
-						Payload->AllocatorsToRelease.Add(Queue->BarrierAllocator);
-						Queue->BarrierAllocator = nullptr;
-					}
-
-					// Hand payload down to the interrupt thread.
-					PayloadsToHandDown.Add(Payload);
-				}
 
 				// Queues with work to submit other than the current one (CurrentQueue) are performing barrier operations.
 				// Submit this work first, followed by a fence signal + enqueued wait.
@@ -583,13 +483,13 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 				{
 					if (OtherQueue != &CurrentQueue)
 					{
-						uint64 ValueSignaled = OtherQueue->FinalizePayload(true);
+						uint64 ValueSignaled = OtherQueue->FinalizePayload(true, PayloadsToHandDown);
 						CurrentQueue.PayloadToSubmit->AddQueueFenceWait(OtherQueue->Fence, ValueSignaled);
 					}
 				}
 
 				// Now submit the original payload
-				CurrentQueue.FinalizePayload(false);
+				CurrentQueue.FinalizePayload(false, PayloadsToHandDown);
 			}
 		});
 	} while (bProgress);
@@ -774,11 +674,137 @@ void FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD3D12CommandLis
 	}
 }
 
-uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal)
+uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToHandDown)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ExecuteCommandList);
 	LLM_SCOPE_BYNAME(TEXT("RHIMisc/ExecuteCommandLists"));
+
 	check(PayloadToSubmit && this == &PayloadToSubmit->Queue);
+	check(PayloadToSubmit->SyncPointsToWait.Num() == 0);
+
+	NumCommandListsInBatch = 0;
+
+	BarrierTimestamps.CloseAndReset(PayloadToSubmit->BatchedObjects.QueryRanges);
+
+#if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
+	if (PayloadToSubmit->BatchedObjects.BreadcrumbAllocators.Num())
+	{
+		BatchedObjects.BreadcrumbAllocators.Append(MoveTemp(PayloadToSubmit->BatchedObjects.BreadcrumbAllocators));
+	}
+
+	BatchedObjects.BreadcrumbEvents.Append(MoveTemp(PayloadToSubmit->BatchedObjects.BreadcrumbEvents));
+#endif
+
+	// Gather query ranges from this payload, grouping by heap pointer
+	if (BatchedObjects.QueryRanges.Num())
+	{
+		for (auto& [Heap, Ranges] : PayloadToSubmit->BatchedObjects.QueryRanges)
+		{
+			BatchedObjects.QueryRanges.FindOrAdd(Heap).Append(MoveTemp(Ranges));
+		}
+		PayloadToSubmit->BatchedObjects.QueryRanges.Reset();
+	}
+	else
+	{
+		BatchedObjects.QueryRanges = MoveTemp(PayloadToSubmit->BatchedObjects.QueryRanges);
+	}
+
+	check(PayloadToSubmit->BatchedObjects.IsEmpty());
+
+	if (!BatchedObjects.IsEmpty())
+	{
+		// Always resolve queries if we're switching the Timing struct,
+		// since we need to gather the timestamps for that frame.
+		bool bResolveQueries = PayloadToSubmit->Timing.IsSet();
+
+		if (!bResolveQueries)
+		{
+			// If this payload will signal a CPU-visible sync point, we need to resolve queries.
+			// This makes sure that the query data has reached the CPU before the sync point the CPU is waiting on is signaled.
+			for (FD3D12SyncPoint* SyncPoint : PayloadToSubmit->SyncPointsToSignal)
+			{
+				if (SyncPoint->GetType() == ED3D12SyncPointType::GPUAndCPU)
+				{
+					bResolveQueries = true;
+					break;
+				}
+			}
+		}
+
+		if (bResolveQueries)
+		{
+			{
+				FD3D12CommandList* ResolveCommandList = nullptr;
+
+				// We've got queries to resolve. Allocate a command list.
+				auto GetResolveCommandList = [&]() -> FD3D12CommandList*
+				{
+					if (ResolveCommandList)
+						return ResolveCommandList;
+
+					if (!BarrierAllocator)
+						BarrierAllocator = Device->ObtainCommandAllocator(QueueType);
+
+					return ResolveCommandList = Device->ObtainCommandList(BarrierAllocator, nullptr, nullptr);
+				};
+
+				// Ranges are grouped by heap pointer.
+				for (auto& [Heap, Ranges] : BatchedObjects.QueryRanges)
+				{
+					{
+#if ENABLE_RESIDENCY_MANAGEMENT
+						TArray<FD3D12ResidencyHandle*, TInlineAllocator<2>> ResidencyHandles;
+						ResidencyHandles.Add(&Heap->GetHeapResidencyHandle());
+						ResidencyHandles.Append(Heap->GetResultBuffer()->GetResidencyHandles());
+						GetResolveCommandList()->UpdateResidency(ResidencyHandles);
+#endif // ENABLE_RESIDENCY_MANAGEMENT
+					}
+
+					if (Heap->GetD3DQueryHeap())
+					{
+						// Sort the ranges into ascending order so we can merge adjacent ones,
+						// to reduce the number of ResolveQueryData calls we need to make.
+						Ranges.Sort();
+
+						for (int32 Index = 0; Index < Ranges.Num(); )
+						{
+							FD3D12QueryRange Range = Ranges[Index++];
+
+							while (Index < Ranges.Num() && Ranges[Index].Start == Range.End)
+							{
+								// Ranges are contiguous. Extend.
+								Range.End = Ranges[Index++].End;
+							}
+
+							GetResolveCommandList()->GraphicsCommandList()->ResolveQueryData(
+								Heap->GetD3DQueryHeap(),
+								Heap->QueryType,
+								Range.Start,
+								Range.End - Range.Start,
+								Heap->GetResultBuffer()->GetResource(),
+								Range.Start * Heap->GetResultSize()
+							);
+						}
+					}
+				}
+
+				if (ResolveCommandList)
+				{
+					ResolveCommandList->Close();
+					PayloadToSubmit->CommandListsToExecute.Add(ResolveCommandList);
+				}
+			}
+
+			// Move all the batched objects in this queue into the payload, so they get passed down the pipe.
+			PayloadToSubmit->BatchedObjects = MoveTemp(BatchedObjects);
+		}
+	}
+
+	if (BarrierAllocator)
+	{
+		PayloadToSubmit->AllocatorsToRelease.Add(BarrierAllocator);
+		BarrierAllocator = nullptr;
+	}
 
 	// Keep the latest fence value in the submitted payload.
 	// The interrupt thread uses this to determine when work has completed.
@@ -793,6 +819,8 @@ uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal)
 	}
 
 	PayloadsToSubmit.Add(PayloadToSubmit);
+	PayloadsToHandDown.Add(PayloadToSubmit);
+
 	PayloadToSubmit = nullptr;
 
 	return Fence.NextCompletionValue;
@@ -948,6 +976,22 @@ void FD3D12Queue::FlushBatchedPayloads()
 
 	for (FD3D12Payload* Payload : PayloadsToSubmit)
 	{
+#if RHI_NEW_GPU_PROFILER
+		if (Payload->Timing.IsSet())
+		{
+			Flush();
+
+			{
+				SCOPED_NAMED_EVENT(CalibrateClocks, FColor::Red);
+				FD3D12Timing* LocalTiming = *Payload->Timing;
+				// Calibrate the GPU timestamp / clock
+				VERIFYD3D12RESULT(D3DCommandQueue->GetClockCalibration(&LocalTiming->GPUTimestamp, &LocalTiming->CPUTimestamp));
+				VERIFYD3D12RESULT(D3DCommandQueue->GetTimestampFrequency(&LocalTiming->GPUFrequency));
+				QueryPerformanceFrequency(reinterpret_cast<LARGE_INTEGER*>(&LocalTiming->CPUFrequency));
+			}
+		}
+#endif // RHI_NEW_GPU_PROFILER
+
 		if (Payload->HasWaitWork())
 		{
 			Flush();
@@ -1220,13 +1264,13 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 					CurrentQueue.Timing = Payload->Timing.GetValue();
 				}
 
-				for (FD3D12QueryLocation& Query : Payload->OcclusionQueries)
+				for (FD3D12QueryLocation& Query : Payload->BatchedObjects.OcclusionQueries)
 				{
 					check(Query.Target);
 					Query.CopyResultTo(Query.Target);
 				}
 
-				for (FD3D12QueryLocation& Query : Payload->PipelineStatsQueries)
+				for (FD3D12QueryLocation& Query : Payload->BatchedObjects.PipelineStatsQueries)
 				{
 					if (Query.Target)
 					{
@@ -1239,7 +1283,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 					}
 				}
 
-				if (Payload->TimestampQueries.Num())
+				if (Payload->BatchedObjects.TimestampQueries.Num())
 				{
 					FD3D12QueryLocation* IdleBegin = nullptr;
 					FD3D12QueryLocation* ListBegin = nullptr;
@@ -1247,7 +1291,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 					// Some timestamp queries report in microseconds
 					const double MicrosecondsScale = 1000000.0 / CurrentQueue.Device->GetTimestampFrequency(CurrentQueue.QueueType);
 
-					for (FD3D12QueryLocation& Query : Payload->TimestampQueries)
+					for (FD3D12QueryLocation& Query : Payload->BatchedObjects.TimestampQueries)
 					{
 						if (Query.Target)
 						{
@@ -1305,6 +1349,21 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 								*static_cast<uint64*>(Query.Target) = FPlatformMath::TruncToInt(double(*static_cast<uint64*>(Query.Target)) * MicrosecondsScale);
 							}
 							break;
+
+#if RHI_NEW_GPU_PROFILER
+						case ED3D12QueryType::ProfilerTimestampTOP:
+						case ED3D12QueryType::ProfilerTimestampBOP:
+							{
+								// Convert from GPU timestamp to CPU timestamp (relative to FPlatformTime::Cycles64())
+								uint64& Target = *static_cast<uint64*>(Query.Target);
+
+								uint64 GPUDelta = Target - CurrentQueue.Timing->GPUTimestamp;
+								uint64 CPUDelta = (GPUDelta * CurrentQueue.Timing->CPUFrequency) / CurrentQueue.Timing->GPUFrequency;
+
+								Target = CPUDelta + CurrentQueue.Timing->CPUTimestamp;
+							}
+							break;
+#endif // RHI_NEW_GPU_PROFILER
 						}
 					}
 
@@ -1320,6 +1379,20 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 					SyncPoint->GraphEvent->DispatchSubsequents();
 				}
 			}
+
+#if RHI_NEW_GPU_PROFILER && WITH_RHI_BREADCRUMBS
+			if (Payload->BatchedObjects.BreadcrumbAllocators.Num())
+			{
+				check(CurrentQueue.Timing);
+				CurrentQueue.Timing->BreadcrumbAllocators.Append(MoveTemp(Payload->BatchedObjects.BreadcrumbAllocators));
+			}
+
+			if (Payload->BatchedObjects.BreadcrumbEvents.Num())
+			{
+				check(CurrentQueue.Timing);
+				CurrentQueue.Timing->BreadcrumbEvents.Append(MoveTemp(Payload->BatchedObjects.BreadcrumbEvents));
+			}
+#endif
 
 			// We're done with this payload now.
 
@@ -1364,8 +1437,27 @@ static TAutoConsoleVariable<int32> CVarGPUTimeFromTimestamps(
 	TEXT("Prefer timestamps instead of GetHardwareGPUFrameTime to compute GPU frame time"),
 	ECVF_RenderThreadSafe);
 
-void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& Timing)
+void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPerQueue)
 {
+#if RHI_NEW_GPU_PROFILER
+	for (FD3D12Timing const& Timing : TimingPerQueue)
+	{
+		UE::RHI::GPUProfiler::FQueue QueueID {};
+		QueueID.GPU = Timing.Queue.Device->GetGPUIndex();
+		QueueID.Index = 0;
+
+		switch (Timing.Queue.QueueType)
+		{
+		default: checkNoEntry(); [[fallthrough]];
+		case ED3D12QueueType::Direct: QueueID.Type = UE::RHI::GPUProfiler::FQueue::EType::Graphics; break;
+		case ED3D12QueueType::Async : QueueID.Type = UE::RHI::GPUProfiler::FQueue::EType::Compute ; break;
+		case ED3D12QueueType::Copy  : QueueID.Type = UE::RHI::GPUProfiler::FQueue::EType::Copy    ; break;
+		}
+		
+		UE::RHI::GPUProfiler::PushEvents(QueueID, Timing.BreadcrumbEvents, {}, {});
+	}
+#endif // RHI_NEW_GPU_PROFILER
+
 	// The total number of cycles where at least one GPU pipe was busy during the frame.
 	uint64 UnionBusyCycles = 0;
 	int32 BusyPipes = 0;
@@ -1378,7 +1470,7 @@ void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& Timing)
 	{
 		// Find the next minimum timestamp
 		FD3D12Timing* NextMin = nullptr;
-		for (FD3D12Timing& Current : Timing)
+		for (FD3D12Timing& Current : TimingPerQueue)
 		{
 			if (Current.HasMoreTimestamps() && (!NextMin || Current.GetCurrentTimestamp() < NextMin->GetCurrentTimestamp()))
 			{
@@ -1416,7 +1508,7 @@ void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& Timing)
 	check(BusyPipes == 0);
 	
 	D3D12_QUERY_DATA_PIPELINE_STATISTICS PipelineStats{};
-	for (FD3D12Timing& Current : Timing)
+	for (FD3D12Timing& Current : TimingPerQueue)
 	{
 		PipelineStats += Current.PipelineStats;
 	}
@@ -1455,7 +1547,7 @@ void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& Timing)
 		GGPUFrameTime = FPlatformMath::TruncToInt(double(UnionBusyCycles) * Scale32);
 	}
 
-	for (FD3D12Timing& Current : Timing)
+	for (FD3D12Timing& Current : TimingPerQueue)
 	{
 		switch (Current.Queue.QueueType)
 		{

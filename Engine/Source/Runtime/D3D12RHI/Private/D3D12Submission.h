@@ -10,6 +10,7 @@
 #include "Templates/Function.h"
 #include "Templates/RefCounting.h"
 #include "RHIBreadcrumbs.h"
+#include "GPUProfiler.h"
 
 enum class ED3D12QueueType;
 
@@ -140,6 +141,34 @@ struct FD3D12CommitReservedResourceDesc
 	uint64 CommitSizeInBytes = 0;
 };
 
+struct FD3D12BatchedPayloadObjects
+{
+	TArray<FD3D12QueryLocation> TimestampQueries;
+	TArray<FD3D12QueryLocation> OcclusionQueries;
+	TArray<FD3D12QueryLocation> PipelineStatsQueries;
+	TMap<TRefCountPtr<FD3D12QueryHeap>, TArray<FD3D12QueryRange>> QueryRanges;
+
+#if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
+	TArray<TSharedPtr<FRHIBreadcrumbAllocatorArray>, TInlineAllocator<1>> BreadcrumbAllocators {};
+	TArray<TUniquePtr<UE::RHI::GPUProfiler::FBreadcrumbEvent>> BreadcrumbEvents;
+#endif
+
+	bool IsEmpty() const
+	{
+		return
+			   TimestampQueries    .Num() == 0
+			&& OcclusionQueries    .Num() == 0
+			&& PipelineStatsQueries.Num() == 0
+			&& QueryRanges         .Num() == 0
+#if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
+			&& BreadcrumbAllocators.Num() == 0
+			&& BreadcrumbEvents    .Num() == 0
+#endif
+		;
+
+	}
+};
+
 // A single unit of work (specific to a single GPU node and queue type) to be processed by the submission thread.
 struct FD3D12PayloadBase
 {
@@ -206,10 +235,8 @@ struct FD3D12PayloadBase
 
 	// Cleanup
 	TArray<FD3D12CommandAllocator*> AllocatorsToRelease;
-	TArray<FD3D12QueryLocation> TimestampQueries;
-	TArray<FD3D12QueryLocation> OcclusionQueries;
-	TArray<FD3D12QueryLocation> PipelineStatsQueries;
-	TArray<FD3D12QueryRange> QueryRanges;
+
+	FD3D12BatchedPayloadObjects BatchedObjects;
 
 #if WITH_RHI_BREADCRUMBS
 	FRHIBreadcrumbRange BreadcrumbRange {};

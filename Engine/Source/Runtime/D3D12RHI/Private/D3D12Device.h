@@ -104,6 +104,18 @@ public:
 
 	D3D12_QUERY_DATA_PIPELINE_STATISTICS PipelineStats {};
 
+#if RHI_NEW_GPU_PROFILER
+	// Timer calibration data
+	uint64 GPUFrequency = 0, GPUTimestamp = 0;
+	uint64 CPUFrequency = 0, CPUTimestamp = 0;
+
+#if WITH_RHI_BREADCRUMBS
+	TArray<TSharedPtr<FRHIBreadcrumbAllocatorArray>> BreadcrumbAllocators {};
+	TArray<TUniquePtr<UE::RHI::GPUProfiler::FBreadcrumbEvent>> BreadcrumbEvents;
+#endif
+
+#endif
+
 	uint64 GetCurrentTimestamp()  const { return Timestamps[TimestampIndex]; }
 	uint64 GetPreviousTimestamp() const { return Timestamps[TimestampIndex - 1]; }
 
@@ -149,11 +161,7 @@ public:
 
 	uint32 NumCommandListsInBatch = 0;
 
-	// Query ranges/locations to be resolved when the submission thread receives a command list which is still open.
-	TMap<FD3D12QueryHeap*, TArray<FD3D12QueryRange>> PendingQueryRanges;
-	TArray<FD3D12QueryLocation> PendingTimestampQueries;
-	TArray<FD3D12QueryLocation> PendingOcclusionQueries;
-	TArray<FD3D12QueryLocation> PendingPipelineStatsQueries;
+	FD3D12BatchedPayloadObjects BatchedObjects;
 
 	// A pool of reusable command list/allocator/context objects
 	struct
@@ -175,7 +183,7 @@ public:
 	bool bSupportsTileMapping = true;
 
 	// Batches the current payload's command lists, returning the latest fence value signaled for this queue.
-	uint64 FinalizePayload(bool bRequiresSignal);
+	uint64 FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToHandDown);
 
 	// Ensures all prior batched command lists have reached the driver ID3D12Queue object.
 	void FlushBatchedPayloads();
@@ -204,14 +212,22 @@ public:
 
 	ID3D12Device* GetDevice();
 
+#if RHI_NEW_GPU_PROFILER
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ /*checkNoEntry();*/ } // @todo - new gpu profiler
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { /*checkNoEntry();*/ } // @todo - new gpu profiler
+#else
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices); }
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { GPUProfilingData.RegisterGPUDispatch(GroupCount); }
+
 	// GPU Profiler
 	FORCEINLINE FD3D12GPUProfiler& GetGPUProfiler() { return GPUProfilingData; }
-
-	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0);
-	void RegisterGPUDispatch(FIntVector GroupCount);
+#endif
 
 	uint64 GetTimestampFrequency(ED3D12QueueType QueueType);
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FGPUTimingCalibrationTimestamp GetCalibrationTimestamp(ED3D12QueueType QueueType);
+#endif
 
 	// Misc
 	void BlockUntilIdle();
@@ -322,7 +338,9 @@ private:
 	void UpdateMSAASettings();
 	void UpdateConstantBufferPageProperties();
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FD3D12GPUProfiler GPUProfilingData;
+#endif
 
 	struct FResidencyManager : public FD3D12ResidencyManager
 	{

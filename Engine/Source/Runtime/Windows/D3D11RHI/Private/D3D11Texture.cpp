@@ -1777,7 +1777,7 @@ void FD3D11DynamicRHI::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHITexture
 
 	check(SourceTexture && DestTexture);
 
-	GPUProfilingData.RegisterGPUWork();
+	RegisterGPUWork();
 
 	const FRHITextureDesc& SourceDesc = SourceTextureRHI->GetDesc();
 	const FRHITextureDesc& DestDesc = DestTextureRHI->GetDesc();
@@ -1849,7 +1849,7 @@ void FD3D11DynamicRHI::RHICopyBufferRegion(FRHIBuffer* DstBuffer, uint64 DstOffs
 	check(DstBufferD3D11 && SrcBufferD3D11);
 	check(DstOffset + NumBytes <= DstBuffer->GetSize() && SrcOffset + NumBytes <= SrcBuffer->GetSize());
 
-	GPUProfilingData.RegisterGPUWork();
+	RegisterGPUWork();
 
 	D3D11_BOX SrcBox;
 	SrcBox.left = SrcOffset;

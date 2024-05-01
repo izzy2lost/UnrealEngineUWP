@@ -21,6 +21,10 @@ enum class ED3D12QueryType
 	IdleEnd,
 	AdjustedMicroseconds,
 	AdjustedRaw,
+#if RHI_NEW_GPU_PROFILER
+	ProfilerTimestampTOP,
+	ProfilerTimestampBOP,
+#endif
 	Occlusion
 };
 
@@ -92,25 +96,20 @@ private:
 
 struct FD3D12QueryRange
 {
-	TRefCountPtr<FD3D12QueryHeap> Heap;
-	uint32 Start = 0;
-	uint32 End = 0;
+	uint32 Start = 0, End = 0;
 
 	FD3D12QueryRange() = default;
-	FD3D12QueryRange(FD3D12QueryHeap* Heap, uint32 Start, uint32 End)
-	: Heap(Heap)
-	, Start(Start)
-	, End(End)
-	{
-	}
+	FD3D12QueryRange(uint32 Start, uint32 End)
+		: Start(Start)
+		, End(End)
+	{}
 
-	inline bool IsFull() const;
+	inline bool IsFull(FD3D12QueryHeap* Heap) const;
 
 	bool operator == (FD3D12QueryRange const& RHS) const
 	{
-		return Heap  == RHS.Heap
-		&& Start == RHS.Start
-		&& End   == RHS.End;
+		return Start == RHS.Start
+			&& End   == RHS.End;
 	}
 
 	bool operator < (FD3D12QueryRange const& RHS) const
@@ -141,17 +140,13 @@ struct FD3D12QueryLocation
 
 	FD3D12QueryLocation() = default;
 	FD3D12QueryLocation(FD3D12QueryHeap* Heap, uint32 Index, ED3D12QueryType Type, void* Target)
-	: Heap(Heap)
-	, Index(Index)
-	, Type(Type)
-	, Target(Target)
-	{
-	}
+		: Heap	(Heap  )
+		, Index	(Index )
+		, Type	(Type  )
+		, Target(Target)
+	{}
 
-	operator bool() const
-	{
-		return Heap != nullptr;
-	}
+	operator bool() const { return Heap != nullptr; }
 };
 
 inline void FD3D12QueryLocation::CopyResultTo(void* Dst) const
@@ -174,7 +169,7 @@ inline TValueType FD3D12QueryLocation::GetResult() const
 	return Value;
 }
 
-inline bool FD3D12QueryRange::IsFull() const
+inline bool FD3D12QueryRange::IsFull(FD3D12QueryHeap* Heap) const
 {
 	return End >= Heap->NumQueries;
 }
@@ -197,12 +192,18 @@ public:
 	FD3D12QueryLocation Allocate(ED3D12QueryType Type, void* Target);
 
 	// Resets the allocator and returns the used query ranges
-	void CloseAndReset(TArray<FD3D12QueryRange>& OutRanges);
+	void CloseAndReset(TMap<TRefCountPtr<FD3D12QueryHeap>, TArray<FD3D12QueryRange>>& OutRanges);
 
-	bool HasQueries() const	{ return !(Ranges.Num() == 0 || Ranges[0].Start == Ranges[0].End); }
+	bool HasQueries() const
+	{
+		return !(CurrentRange == nullptr || CurrentRange->Start == CurrentRange->End);
+	}
 
 private:
-	TArray<FD3D12QueryRange> Ranges;
+	TMap<TRefCountPtr<FD3D12QueryHeap>, FD3D12QueryRange> Heaps;
+	
+	FD3D12QueryHeap* CurrentHeap = nullptr;
+	FD3D12QueryRange* CurrentRange = nullptr;
 };
 
 /** D3D12 Render query */

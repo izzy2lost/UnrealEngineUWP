@@ -1529,6 +1529,7 @@ FVulkanTransientHeapCache& FVulkanDevice::GetOrCreateTransientHeapCache()
 	return *TransientHeapCache;
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 FGPUTimingCalibrationTimestamp FVulkanDevice::GetCalibrationTimestamp()
 {
 	auto ToMicroseconds = [](uint64_t Timestamp)
@@ -1555,3 +1556,4 @@ FGPUTimingCalibrationTimestamp FVulkanDevice::GetCalibrationTimestamp()
 	}
 	return CalibrationTimestamp;
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)

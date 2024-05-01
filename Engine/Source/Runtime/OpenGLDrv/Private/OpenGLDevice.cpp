@@ -211,7 +211,9 @@ FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext(bool bA
 
 void FOpenGLDynamicRHI::RHIBeginFrame()
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	GPUProfilingData.BeginFrame(this);
+#endif
 
 #if PLATFORM_ANDROID //adding #if since not sure if this is required for any other platform.
 	PendingState.DepthStencil = 0 ;
@@ -224,7 +226,9 @@ extern void OpenGLCommands_OnEndFrame();
 
 void FOpenGLDynamicRHI::RHIEndFrame()
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	GPUProfilingData.EndFrame();
+#endif
 
 	OpenGL_PollAllFences();
 
@@ -1294,7 +1298,9 @@ FOpenGLDynamicRHI::FOpenGLDynamicRHI()
 ,	bIsRenderingContextAcquired(false)
 ,   BeginSceneContextType(CONTEXT_Other)
 ,	PlatformDevice(NULL)
+#if (RHI_NEW_GPU_PROFILER == 0)
 ,	GPUProfilingData(this)
+#endif
 {
 	check(Singleton == nullptr);
 	Singleton = this;
@@ -1509,7 +1515,9 @@ void FOpenGLDynamicRHI::Cleanup()
 		// Reset the RHI initialized flag.
 		GIsRHIInitialized = false;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 		GPUProfilingData.Cleanup();
+#endif
 
 		// Ask all initialized FRenderResources to release their RHI resources.
 		FRenderResource::ReleaseRHIForAllResources();

@@ -286,7 +286,7 @@ void FVulkanCommandListContext::RHIDispatchComputeShader(uint32 ThreadGroupCount
 
 	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
 	{
-		GpuProfiler.RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
+		RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
 	}
 
 	VulkanRHI::DebugHeavyWeightBarrier(CmdBuffer, 2);
@@ -313,7 +313,7 @@ void FVulkanCommandListContext::RHIDispatchIndirectComputeShader(FRHIBuffer* Arg
 
 	if (FVulkanPlatform::RegisterGPUWork()/* && IsImmediate()*/)
 	{
-		GpuProfiler.RegisterGPUDispatch(FIntVector(1, 1, 1));	
+		RegisterGPUDispatch(FIntVector(1, 1, 1));	
 	}
 
 	VulkanRHI::DebugHeavyWeightBarrier(CmdBuffer, 2);
@@ -635,7 +635,7 @@ void FVulkanCommandListContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 
 
 	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
 	{
-		GpuProfiler.RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
+		RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
 	}
 }
 
@@ -661,7 +661,7 @@ void FVulkanCommandListContext::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBuf
 
 	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
 	{
-		GpuProfiler.RegisterGPUWork(1);
+		RegisterGPUWork(1);
 	}
 }
 
@@ -688,7 +688,7 @@ void FVulkanCommandListContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferR
 
 	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
 	{
-		GpuProfiler.RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
+		RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
 	}
 }
 
@@ -715,7 +715,7 @@ void FVulkanCommandListContext::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRH
 
 	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
 	{
-		GpuProfiler.RegisterGPUWork(1);
+		RegisterGPUWork(1);
 	}
 }
 
@@ -741,7 +741,7 @@ void FVulkanCommandListContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* Inde
 
 	if (FVulkanPlatform::RegisterGPUWork() && IsImmediate())
 	{
-		GpuProfiler.RegisterGPUWork(1); 
+		RegisterGPUWork(1); 
 	}
 }
 

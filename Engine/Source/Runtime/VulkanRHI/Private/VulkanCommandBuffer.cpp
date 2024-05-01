@@ -66,7 +66,9 @@ FVulkanCmdBuffer::FVulkanCmdBuffer(FVulkanDevice* InDevice, FVulkanCommandBuffer
 	, FenceSignaledCounter(0)
 	, SubmittedFenceCounter(0)
 	, CommandBufferPool(InCommandBufferPool)
+#if (RHI_NEW_GPU_PROFILER == 0)
 	, Timing(nullptr)
+#endif
 	, LastValidTiming(0)
 	, LayoutManager(InDevice->SupportsParallelRendering() && !GVulkanAutoCorrectUnknownLayouts,
 		&InCommandBufferPool->GetMgr().GetCommandListContext()->GetQueue()->GetLayoutManager())
@@ -124,12 +126,14 @@ FVulkanCmdBuffer::~FVulkanCmdBuffer()
 		FreeMemory();
 	}
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	if (Timing)
 	{
 		Timing->Release();
 		delete Timing;
 		Timing = nullptr;
 	}
+#endif
 }
 
 void FVulkanCmdBuffer::FreeMemory()
@@ -229,6 +233,7 @@ void FVulkanCmdBuffer::End()
 {
 	checkf(IsOutsideRenderPass(), TEXT("Can't End as we're inside a render pass! CmdBuffer 0x%p State=%d"), CommandBufferHandle, (int32)State);
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	if (GVulkanProfileCmdBuffers || GVulkanUseCmdBufferTimingForGPUTime)
 	{
 		if (Timing)
@@ -237,6 +242,7 @@ void FVulkanCmdBuffer::End()
 			LastValidTiming = FenceSignaledCounter;
 		}
 	}
+#endif
 
 	for (PendingQuery& Query : PendingTimestampQueries)
 	{
@@ -262,6 +268,7 @@ void FVulkanCmdBuffer::End()
 
 inline void FVulkanCmdBuffer::InitializeTimings(FVulkanCommandListContext* InContext)
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	if ((GVulkanProfileCmdBuffers || GVulkanUseCmdBufferTimingForGPUTime) && !Timing)
 	{
 		if (InContext)
@@ -274,6 +281,7 @@ inline void FVulkanCmdBuffer::InitializeTimings(FVulkanCommandListContext* InCon
 			Timing->Initialize(PoolSize);
 		}
 	}
+#endif
 }
 
 void FVulkanCmdBuffer::AddWaitSemaphore(VkPipelineStageFlags InWaitFlags, TArrayView<VulkanRHI::FSemaphore*> InWaitSemaphores)
@@ -314,10 +322,12 @@ void FVulkanCmdBuffer::Begin()
 	if (GVulkanProfileCmdBuffers || GVulkanUseCmdBufferTimingForGPUTime)
 	{
 		InitializeTimings(CommandBufferPool->GetMgr().GetCommandListContext());
+#if (RHI_NEW_GPU_PROFILER == 0)
 		if (Timing)
 		{
 			Timing->StartTiming(this);
 		}
+#endif
 	}
 	check(!CurrentDescriptorPoolSetContainer);
 
@@ -761,6 +771,7 @@ void FVulkanCommandBufferManager::PrepareForNewActiveCommandBuffer()
 	ActiveCmdBuffer->Begin();
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 uint32 FVulkanCommandBufferManager::CalculateGPUTime()
 {
 	uint32 Time = 0;
@@ -774,6 +785,7 @@ uint32 FVulkanCommandBufferManager::CalculateGPUTime()
 	}
 	return Time;
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 FVulkanCmdBuffer* FVulkanCommandBufferManager::GetUploadCmdBuffer()
 {

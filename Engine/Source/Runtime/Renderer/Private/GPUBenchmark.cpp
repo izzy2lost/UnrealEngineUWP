@@ -395,6 +395,7 @@ void RendererGPUBenchmark(FRHICommandListImmediate& RHICmdList, FSynthBenchmarkR
 {
 	check(IsInRenderingThread());
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	// Multi-GPU support : Benchmark needs to be made MGPU-aware.
 	bool bValidGPUTimer = (FGPUTiming::GetTimingFrequency() / (1000 * 1000)) != 0;
 
@@ -403,6 +404,7 @@ void RendererGPUBenchmark(FRHICommandListImmediate& RHICmdList, FSynthBenchmarkR
 		UE_LOG(LogSynthBenchmark, Warning, TEXT("RendererGPUBenchmark failed, look for \"GPU Timing Frequency\" in the log"));
 		return;
 	}
+#endif
 
 	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	MeasureLongGPUTaskExecutionTime(RHICmdList);

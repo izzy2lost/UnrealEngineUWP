@@ -239,9 +239,9 @@ public:
 	// Called when the GPU has crashed. This function will not return.
 	void ProcessInterruptQueueOnGPUCrash();
 
-	TUniquePtr<TIndirectArray<FD3D12Timing>> CurrentTiming;
+	TUniquePtr<TIndirectArray<FD3D12Timing>> CurrentTimingPerQueue;
 	void FlushTiming(bool bCreateNew);
-	void ProcessTimestamps(TIndirectArray<FD3D12Timing>& Timing);
+	void ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPerQueue);
 
 	void InitializeSubmissionPipe();
 	void ShutdownSubmissionPipe();

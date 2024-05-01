@@ -8,6 +8,12 @@
 #include "GPUProfiler.h"
 #include "Misc/ScopeRWLock.h"
 
+#if RHI_NEW_GPU_PROFILER
+
+// @todo - new gpu profiler
+
+#else
+
 typedef TArray<TCHAR, TInlineAllocator<4096u>> FDescriptionStringBuffer;
 
 // Only exposed for debugging. Disabling this carries a severe performance penalty
@@ -1153,3 +1159,4 @@ void FRealtimeGPUProfiler::FetchPerfByDescription(TArray<FRealtimeGPUProfilerDes
 }
 #endif  // GPUPROFILERTRACE_ENABLED
 
+#endif // (RHI_NEW_GPU_PROFILER == 0)

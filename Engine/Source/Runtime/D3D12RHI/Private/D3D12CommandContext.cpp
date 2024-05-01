@@ -198,6 +198,16 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 		#endif
 		}
 
+	#if RHI_NEW_GPU_PROFILER
+		{
+			using namespace UE::RHI::GPUProfiler;
+
+			auto& Event = BreadcrumbEvents.Emplace_GetRef(MakeUnique<FBreadcrumbEvent>(FBreadcrumbEvent::FBeginBreadcrumb{ .Breadcrumb = Breadcrumb }));
+
+			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampTOP, &Event->Value.Get<FBreadcrumbEvent::FBeginBreadcrumb>().GPUTimestampTOP);
+			EndQuery(TimestampQuery);
+		}
+	#else
 		if (IsDefaultContext() && !IsAsyncComputeContext())
 		{
 			FD3D12GPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
@@ -206,10 +216,21 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 				GPUProfiler.PushEvent(GetNameStr(), FColor::White);
 			}
 		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
 	}
 
 	void FD3D12CommandContext::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
+	#if RHI_NEW_GPU_PROFILER
+		{
+			using namespace UE::RHI::GPUProfiler;
+
+			auto& Event = BreadcrumbEvents.Emplace_GetRef(MakeUnique<FBreadcrumbEvent>(FBreadcrumbEvent::FEndBreadcrumb{ .Breadcrumb = Breadcrumb }));
+
+			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampBOP, &Event->Value.Get<FBreadcrumbEvent::FEndBreadcrumb>().GPUTimestampBOP);
+			EndQuery(TimestampQuery);
+		}
+	#else
 		if (IsDefaultContext() && !IsAsyncComputeContext())
 		{
 			FD3D12GPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
@@ -218,6 +239,7 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 				GPUProfiler.PopEvent();
 			}
 		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 		// Only emit formatted strings to platform APIs when requested.
 		if (ShouldEmitBreadcrumbs())
@@ -313,6 +335,10 @@ FD3D12QueryLocation FD3D12ContextCommon::AllocateQuery(ED3D12QueryType Type, voi
 
 	case ED3D12QueryType::AdjustedRaw:
 	case ED3D12QueryType::AdjustedMicroseconds:
+#if RHI_NEW_GPU_PROFILER
+	case ED3D12QueryType::ProfilerTimestampTOP:
+	case ED3D12QueryType::ProfilerTimestampBOP:
+#endif
 		return TimestampQueries.Allocate(Type, Target);
 
 	case ED3D12QueryType::Occlusion:
@@ -398,9 +424,13 @@ void FD3D12ContextCommon::CloseCommandList()
 	CommandList->Close();
 	CommandList = nullptr;
 
-	TimestampQueries.CloseAndReset(Payload->QueryRanges);
-	OcclusionQueries.CloseAndReset(Payload->QueryRanges);
-	PipelineStatsQueries.CloseAndReset(Payload->QueryRanges);
+	TimestampQueries    .CloseAndReset(Payload->BatchedObjects.QueryRanges);
+	OcclusionQueries    .CloseAndReset(Payload->BatchedObjects.QueryRanges);
+	PipelineStatsQueries.CloseAndReset(Payload->BatchedObjects.QueryRanges);
+
+#if RHI_NEW_GPU_PROFILER
+	Payload->BatchedObjects.BreadcrumbEvents.Append(MoveTemp(BreadcrumbEvents));
+#endif
 }
 
 void FD3D12CommandContext::CloseCommandList()
@@ -482,7 +512,7 @@ FD3D12QueryLocation FD3D12QueryAllocator::Allocate(ED3D12QueryType Type, void* T
 	check(Type != ED3D12QueryType::None);
 
 	// Allocate a new heap if needed
-	if (Ranges.Num() == 0 || Ranges.Last().IsFull())
+	if (!CurrentRange || CurrentRange->IsFull(CurrentHeap))
 	{
 		TRefCountPtr<FD3D12QueryHeap> Heap = Device->ObtainQueryHeap(QueueType, QueryType);
 		if (!Heap)
@@ -491,38 +521,44 @@ FD3D12QueryLocation FD3D12QueryAllocator::Allocate(ED3D12QueryType Type, void* T
 			return {};
 		}
 
-		FD3D12QueryRange& Range = Ranges.Emplace_GetRef();
-		Range.Heap = MoveTemp(Heap);
+		CurrentHeap = Heap;
+		CurrentRange = &Heaps.FindOrAdd(MoveTemp(Heap));
 	}
 
-	FD3D12QueryRange& Range = Ranges.Last();
 	return FD3D12QueryLocation(
-		Range.Heap,
-		Range.End++,
+		CurrentHeap,
+		CurrentRange->End++,
 		Type,
 		Target
 	);
 }
 
-void FD3D12QueryAllocator::CloseAndReset(TArray<FD3D12QueryRange>& OutRanges)
+void FD3D12QueryAllocator::CloseAndReset(TMap<TRefCountPtr<FD3D12QueryHeap>, TArray<FD3D12QueryRange>>& OutRanges)
 {
 	if (HasQueries())
 	{
-		OutRanges.Append(Ranges);
+		for (auto const& Pair : Heaps)
+		{
+			OutRanges.FindOrAdd(Pair.Key).Emplace(Pair.Value);
+		}
 
-		if (Ranges.Last().IsFull())
+		if (CurrentRange->IsFull(CurrentHeap))
 		{
 			// No space in any heap. Reset the whole array.
-			Ranges.Reset();
+			Heaps.Reset();
+
+			CurrentRange = nullptr;
+			CurrentHeap = nullptr;
 		}
 		else
 		{
 			// The last heap still has space. Reuse it for the next batch of command lists.
-			FD3D12QueryRange LastRange = MoveTemp(Ranges.Last());
+			FD3D12QueryRange LastRange = *CurrentRange;
 			LastRange.Start = LastRange.End;
 
-			Ranges.Reset();
-			Ranges.Emplace(MoveTemp(LastRange));
+			Heaps.Reset();
+			CurrentRange = &Heaps.FindOrAdd(CurrentHeap);
+			*CurrentRange = LastRange;
 		}
 	}
 }
@@ -624,7 +660,9 @@ void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
 			{
 				for (auto& Device : Adapter->GetDevices())
 				{
+#if (RHI_NEW_GPU_PROFILER == 0)
 					Device->GetGPUProfiler().BeginFrame();
+#endif
 
 					Device->GetDefaultBufferAllocator().BeginFrame(Contexts);
 					Device->GetTextureAllocator().BeginFrame(Contexts);
@@ -636,8 +674,6 @@ void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
 
 void FD3D12CommandContext::RHIBeginFrame()
 {
-	bTrackingEvents = IsDefaultContext() && Device->GetGPUProfiler().bTrackingEvents;
-
 #if D3D12_RHI_RAYTRACING
 	Device->GetRayTracingCompactionRequestHandler()->Update(*this);
 #endif // D3D12_RHI_RAYTRACING
@@ -723,7 +759,9 @@ void FD3D12CommandContextBase::RHIEndFrame()
 	for (uint32 GPUIndex : GPUMask)
 	{
 		Device = ParentAdapter->GetDevice(GPUIndex);
+#if (RHI_NEW_GPU_PROFILER == 0)
 		Device->GetGPUProfiler().EndFrame();
+#endif
 	}
 
 	// Close the previous frame's timing and start a new one

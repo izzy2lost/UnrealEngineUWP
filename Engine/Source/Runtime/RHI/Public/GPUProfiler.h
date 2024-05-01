@@ -10,6 +10,138 @@
 #include "Templates/RefCounting.h"
 #include "RHI.h"
 
+#if RHI_NEW_GPU_PROFILER
+
+namespace UE::RHI::GPUProfiler
+{
+	struct FQueue
+	{
+		enum class EType : uint8
+		{
+			Graphics,
+			Compute,
+			Copy,
+			SwapChain
+		};
+
+		EType Type;
+		uint8 GPU;
+		uint8 Index;
+	};
+
+	struct FBreadcrumbEvent
+	{
+		struct FFrameBoundary
+		{
+			uint32 FrameNumber;
+		};
+
+		struct FBeginBreadcrumb
+		{
+			FRHIBreadcrumbNode* Breadcrumb;
+			uint64 GPUTimestampTOP;
+		};
+
+		struct FEndBreadcrumb
+		{
+			FRHIBreadcrumbNode* Breadcrumb;
+			uint64 GPUTimestampBOP;
+		};
+		
+		TVariant<
+			  FFrameBoundary
+			, FBeginBreadcrumb
+			, FEndBreadcrumb
+		> Value;
+
+		template <typename T>
+		FBreadcrumbEvent(T const& Value)
+			: Value(TInPlaceType<T>(), Value)
+		{}
+	};
+
+	struct FWorkEvent
+	{
+		struct FBeginWork
+		{
+			uint64 CPUTimestamp;
+			uint64 GPUTimestampTOP;
+		};
+
+		struct FEndWork
+		{
+			uint64 GPUTimestampBOP;
+		};
+
+		struct FSignalFence
+		{
+			uint64 CPUTimestamp;
+			uint64 ID;
+		};
+
+		struct FWaitFence
+		{
+			uint64 CPUTimestamp;
+			uint64 ID;
+		};
+
+		TVariant<
+			  FBeginWork
+			, FEndWork
+			, FSignalFence
+			, FWaitFence
+		> Value;
+
+		template <typename T>
+		FWorkEvent(T const& Value)
+			: Value(TInPlaceType<T>(), Value)
+		{}
+	};
+
+	struct FMarkerEvent
+	{
+		struct FFlip
+		{
+			uint64 GPUTimestamp;
+		};
+
+		struct FVsync
+		{
+			uint64 GPUTimestamp;
+		};
+
+		TVariant<
+			  FFlip
+			, FVsync
+		> Value;
+
+		template <typename T>
+		FMarkerEvent(T const& Value)
+			: Value(TInPlaceType<T>(), Value)
+		{}
+	};
+
+	struct IEventSink
+	{
+		virtual void ProcessEvents(
+			FQueue Queue,
+			TConstArrayView<TUniquePtr<FBreadcrumbEvent>> const& BreadcrumbEvents,
+			TConstArrayView<TUniquePtr<FWorkEvent      >> const& WorkEvents,
+			TConstArrayView<TUniquePtr<FMarkerEvent    >> const& MarkerEvents) = 0;
+	};
+
+	RHI_API void RegisterEventSink(IEventSink* Sink);
+
+	RHI_API void PushEvents(
+		FQueue Queue,
+		TConstArrayView<TUniquePtr<FBreadcrumbEvent>> BreadcrumbEvents,
+		TConstArrayView<TUniquePtr<FWorkEvent      >> WorkEvents,
+		TConstArrayView<TUniquePtr<FMarkerEvent    >> MarkerEvents
+	);
+}
+
+#else
+
 /** Stats for a single perf event node. */
 class FGPUProfilerEventNodeStats : public FRefCountedObject
 {
@@ -329,3 +461,5 @@ struct FGPUProfiler
 
 	bool IsProfilingGPU() const { return bTrackingEvents; }
 };
+
+#endif

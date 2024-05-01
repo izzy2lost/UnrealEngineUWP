@@ -5124,7 +5124,7 @@ void FEngineLoop::Exit()
 
 	IStreamingManager::Shutdown();
 
-#if HAS_GPU_STATS
+#if HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 	FRealtimeGPUProfiler::SafeRelease();
 #endif
 

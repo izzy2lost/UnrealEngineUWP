@@ -56,7 +56,9 @@ FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LE
 	, PresentCounter(0)
 	, CurrentDSVAccessType(FExclusiveDepthStencil::DepthWrite_StencilWrite)
 	, bDiscardSharedConstants(false)
+#if (RHI_NEW_GPU_PROFILER == 0)
 	, GPUProfilingData(this)
+#endif
 	, Adapter(InAdapter)
 {
 	// This should be called once at the start 
@@ -244,8 +246,10 @@ void FD3D11DynamicRHI::Shutdown()
 	// Cleanup the D3D device.
 	CleanupD3DDevice();
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	// Release buffered timestamp queries
 	GPUProfilingData.FrameTiming.ReleaseResource();
+#endif
 
 	// Release the buffer of zeroes.
 	FMemory::Free(ZeroBuffer);
@@ -266,7 +270,9 @@ void FD3D11DynamicRHI::Shutdown()
 			FRHIBreadcrumb::FBuffer Buffer;
 			TCHAR const* Name = Breadcrumb->Name.GetTCHAR(Buffer);
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 			GPUProfilingData.PushEvent(Name, FColor::White);
+#endif
 		}
 	}
 
@@ -274,7 +280,9 @@ void FD3D11DynamicRHI::Shutdown()
 	{
 		if (ShouldEmitBreadcrumbs())
 		{
+#if (RHI_NEW_GPU_PROFILER == 0)
 			GPUProfilingData.PopEvent();
+#endif
 		}
 
 	#if NV_AFTERMATH

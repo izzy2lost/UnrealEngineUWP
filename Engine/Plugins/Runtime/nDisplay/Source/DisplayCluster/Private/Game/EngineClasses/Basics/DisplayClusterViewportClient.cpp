@@ -187,7 +187,7 @@ public:
 
 	virtual int32 DrawStatsHUD(FCanvas* InCanvas, int32 InX, int32 InY) override
 	{
-#if GPUPROFILERTRACE_ENABLED
+#if GPUPROFILERTRACE_ENABLED && (RHI_NEW_GPU_PROFILER == 0)
 		if (GDisplayClusterShowStats)
 		{
 			// Get GPU perf results

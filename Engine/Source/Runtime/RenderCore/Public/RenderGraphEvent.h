@@ -77,7 +77,7 @@ enum class ERDGScopeFlags : uint8
 };
 ENUM_CLASS_FLAGS(ERDGScopeFlags);
 
-#if HAS_GPU_STATS
+#if HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 // Scope type for the legacy "realtime" GPU profiler and draw call counter stats
 struct FRDGScope_GPU
 {
@@ -103,7 +103,7 @@ struct FRDGScope_GPU
 	inline void BeginGPU(FRHIComputeCommandList& RHICmdList);
 	inline void EndGPU  (FRHIComputeCommandList& RHICmdList);
 };
-#endif // HAS_GPU_STATS
+#endif // HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 
 #if CSV_PROFILER
 struct FRDGScope_CSVExclusive
@@ -282,7 +282,7 @@ struct FRDGScope
 #if RDG_EVENTS
 		, FRDGScope_RHI
 #endif
-#if HAS_GPU_STATS
+#if HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 		, FRDGScope_GPU
 #endif
 #if CSV_PROFILER
@@ -385,7 +385,7 @@ private:
 
 #endif
 
-#if HAS_GPU_STATS
+#if HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 	#define RDG_GPU_STAT_SCOPE(GraphBuilder, StatName)                      TRDGEventScopeGuard<FRDGScope_GPU> PREPROCESSOR_JOIN(__RDG_GPUStatEvent_##StatName,__LINE__) ((GraphBuilder), ERDGScopeFlags::AlwaysEnable, (GraphBuilder).RHICmdList.GetGPUMask(), CSV_STAT_FNAME(StatName), GET_STATID(Stat_GPU_##StatName), nullptr    , DrawcallCountCategory_##StatName);
 	#define RDG_GPU_STAT_SCOPE_VERBOSE(GraphBuilder, StatName, Description) TRDGEventScopeGuard<FRDGScope_GPU> PREPROCESSOR_JOIN(__RDG_GPUStatEvent_##StatName,__LINE__) ((GraphBuilder), ERDGScopeFlags::AlwaysEnable, (GraphBuilder).RHICmdList.GetGPUMask(), CSV_STAT_FNAME(StatName), GET_STATID(Stat_GPU_##StatName), Description, DrawcallCountCategory_##StatName);
 #else
@@ -496,7 +496,7 @@ public:
 	template <typename TScopeType>
 	friend class TRDGEventScopeGuard;
 	friend FRDGScope_Budget;
-#if HAS_GPU_STATS
+#if HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 	friend FRDGScope_GPU;
 #endif
 #if RDG_EVENTS

@@ -149,10 +149,12 @@ public:
 		return LayoutManager;
 	}
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	inline bool HasValidTiming() const
 	{
 		return (Timing != nullptr) && (FMath::Abs((int64)FenceSignaledCounter - (int64)LastValidTiming) < 3);
 	}
+#endif
 
 	void VULKANRHI_API AddWaitSemaphore(VkPipelineStageFlags InWaitFlags, VulkanRHI::FSemaphore* InWaitSemaphore)
 	{
@@ -241,7 +243,9 @@ private:
 
 	FVulkanCommandBufferPool* CommandBufferPool;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FVulkanGPUTiming* Timing;
+#endif
 	uint64 LastValidTiming;
 
 	void AcquirePoolSetContainer();
@@ -374,7 +378,9 @@ public:
 		return Pool.GetHandle();
 	}
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	uint32 CalculateGPUTime();
+#endif
 
 	void FreeUnusedCmdBuffers(bool bTrimMemory);
 

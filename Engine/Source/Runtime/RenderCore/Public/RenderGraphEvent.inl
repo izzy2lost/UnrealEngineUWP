@@ -2,6 +2,12 @@
 
 #pragma once
 
+#if RHI_NEW_GPU_PROFILER
+
+// @todo - new gpu profiler
+
+#else
+
 #if HAS_GPU_STATS
 inline FRDGScope_GPU::FRDGScope_GPU(FRDGScopeState& State, FRHIGPUMask GPUMask, const FName& CsvStatName, const TStatId& Stat, const TCHAR* Description, FRHIDrawStatsCategory const& Category)
 	: CurrentCategory(Category.ShouldCountDraws() ? &Category : nullptr),
@@ -89,6 +95,8 @@ inline void FRDGScope_GPU::EndGPU(FRHIComputeCommandList& RHICmdList)
 	}
 }
 #endif
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 #if RDG_EVENTS
 
