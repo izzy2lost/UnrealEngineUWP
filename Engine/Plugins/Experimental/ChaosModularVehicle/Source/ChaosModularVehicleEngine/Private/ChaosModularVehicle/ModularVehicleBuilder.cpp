@@ -51,7 +51,7 @@ void FModularVehicleBuilder::FixupTreeLinks(TUniquePtr<Chaos::FSimModuleTree>& S
 
 				if (ParentModule && ParentModule->GetSimType() == eSimType::Wheel)
 				{
-					FSuspensionSimModule* Suspension = static_cast<FSuspensionSimModule*>(Module);
+					FSuspensionBaseInterface* Suspension = static_cast<FSuspensionBaseInterface*>(Module);
 					FWheelBaseInterface* Wheel = static_cast<FWheelBaseInterface*>(ParentModule);
 					Wheel->SetSuspensionSimTreeIndex(Suspension->GetTreeIndex());
 					Suspension->SetWheelSimTreeIndex(Wheel->GetTreeIndex());
@@ -68,7 +68,7 @@ void FModularVehicleBuilder::FixupTreeLinks(TUniquePtr<Chaos::FSimModuleTree>& S
 
 					if (ChildModule && ChildModule->GetSimType() == eSimType::Wheel)
 					{
-						FSuspensionSimModule* Suspension = static_cast<FSuspensionSimModule*>(Module);
+						FSuspensionBaseInterface* Suspension = static_cast<FSuspensionBaseInterface*>(Module);
 						FWheelBaseInterface* Wheel = static_cast<FWheelBaseInterface*>(ChildModule);
 						Wheel->SetSuspensionSimTreeIndex(Suspension->GetTreeIndex());
 						Suspension->SetWheelSimTreeIndex(Wheel->GetTreeIndex());

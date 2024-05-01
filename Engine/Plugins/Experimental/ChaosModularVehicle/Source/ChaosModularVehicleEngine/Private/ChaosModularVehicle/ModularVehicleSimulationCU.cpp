@@ -194,7 +194,7 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 							if (Node.SimModule->IsClustered() && Node.SimModule->IsBehaviourType(Chaos::eSimModuleTypeFlags::Raycast))
 							{
 								Chaos::FSpringTrace OutTrace;
-								Chaos::FSuspensionSimModule* Suspension = static_cast<Chaos::FSuspensionSimModule*>(Node.SimModule);
+								Chaos::FSuspensionBaseInterface* Suspension = static_cast<Chaos::FSuspensionBaseInterface*>(Node.SimModule);
 
 								// would be cleaner an faster to just store radius in suspension also
 								float WheelRadius = 0;
@@ -243,7 +243,7 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 									}
 								}
 
-								float Offset = Suspension->Setup().MaxLength;
+								float Offset = Suspension->GetMaxSpringLength();
 								if (HitResult.bBlockingHit && GModularVehicleDebugParams.SuspensionRaycastsEnabled)
 								{
 									Offset = HitResult.Distance - WheelRadius;
@@ -345,17 +345,19 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 								FVector Up = ClusterWorldTM.GetUnitAxis(EAxis::Z);
 
 								FVector HitPoint;
-
+								float HitDistance = 0.f;
 								if (InputData.PhysicsInputs.TraceType == ETraceType::Spherecast)
 								{
 									HitPoint = HitResult.Location;
+									HitDistance = HitResult.Distance;
 								}
 								else
 								{
 									HitPoint = HitResult.ImpactPoint + Up * WheelRadius;
+									HitDistance = HitResult.Distance - WheelRadius;
 								}
 
-								Suspension->SetTargetPoint(HitPoint, HitResult.ImpactNormal, HitResult.bBlockingHit);
+								Suspension->SetTargetPoint(HitPoint, HitResult.ImpactNormal, HitDistance, HitResult.bBlockingHit);
 							}
 
 						}

@@ -20,12 +20,8 @@ namespace Chaos
 		, SpringDisplacement(0.f)
 		, LastDisplacement(0.f)
 		, SpringSpeed(0.f)
-		, WheelSimTreeIndex(INVALID_IDX)
 		, Constraint(nullptr)
 		, ConstraintIndex(INVALID_IDX)
-		, TargetPos(FVector::ZeroVector)
-		, ImpactNormal(FVector::ZeroVector)
-		, WheelInContact(false)
 	{
 		AccessSetup().MaxLength = FMath::Abs(Settings.MaxRaise + Settings.MaxDrop);
 

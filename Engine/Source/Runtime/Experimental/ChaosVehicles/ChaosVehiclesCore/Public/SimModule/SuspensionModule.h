@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "SimModule/SimulationModuleBase.h"
+#include "SimModule/SuspensionBaseInterface.h"
 
 namespace Chaos
 {
@@ -92,26 +92,7 @@ namespace Chaos
 		//	float Swaybar;				// Anti-roll bar
 	};
 
-	/** Suspension world ray/shape trace start and end positions */
-	struct CHAOSVEHICLESCORE_API FSpringTrace
-	{
-		FVector Start;
-		FVector End;
-
-		FVector TraceDir()
-		{
-			FVector Dir(End - Start);
-			return Dir.FVector::GetSafeNormal();
-		}
-
-		float Length()
-		{
-			FVector Dir(End - Start);
-			return Dir.Size();
-		}
-	};
-
-	class CHAOSVEHICLESCORE_API FSuspensionSimModule : public ISimulationModuleBase, public TSimModuleSettings<FSuspensionSettings>
+	class CHAOSVEHICLESCORE_API FSuspensionSimModule : public FSuspensionBaseInterface, public TSimModuleSettings<FSuspensionSettings>
 	{
 		friend FSuspensionSimModuleDatas;
 		friend FSuspensionOutputData;
@@ -120,7 +101,6 @@ namespace Chaos
 
 		FSuspensionSimModule(const FSuspensionSettings& Settings);
 
-		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & Raycast); }
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
 		{
 			return MakeShared<FSuspensionSimModuleDatas>(
@@ -136,13 +116,12 @@ namespace Chaos
 			return FSuspensionOutputData::MakeNew();
 		}
 
-		virtual eSimType GetSimType() const { return eSimType::Suspension; }
-
 		virtual const FString GetDebugName() const { return TEXT("Suspension"); }
 
-		float GetSpringLength() const;
-		void SetSpringLength(float InLength, float WheelRadius);
-		void GetWorldRaycastLocation(const FTransform& BodyTransform, float WheelRadius, FSpringTrace& OutTrace);
+		virtual float GetMaxSpringLength() const override { return Setup().MaxLength; }
+		virtual float GetSpringLength() const override;
+		virtual  void SetSpringLength(float InLength, float WheelRadius) override;
+		virtual void GetWorldRaycastLocation(const FTransform& BodyTransform, float WheelRadius, FSpringTrace& OutTrace) override;
 
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
 
@@ -150,32 +129,19 @@ namespace Chaos
 
 		const FVector& GetRestLocation() const { return Setup().RestOffset; }
 
-		void SetWheelSimTreeIndex(int WheelTreeIndexIn) { WheelSimTreeIndex = WheelTreeIndexIn; }
-		int GetWheelSimTreeIndex() const { return WheelSimTreeIndex; } 
-
 		void UpdateConstraint();
 
 		void SetSuspensionConstraint(FSuspensionConstraint* InConstraint);
 		void SetConstraintIndex(int32 InConstraintIndex) { ConstraintIndex = InConstraintIndex; }
 		int32 GetConstraintIndex() const { return ConstraintIndex; }
-		void SetTargetPoint(const FVector& InTargetPoint, const FVector& InImpactNormal, bool InWheelInContact)
-		{
-			TargetPos = InTargetPoint;
-			ImpactNormal = InImpactNormal;
-			WheelInContact = InWheelInContact;
-		}
 	private:
 
 		float SpringDisplacement;
 		float LastDisplacement;
 		float SpringSpeed;
-		int WheelSimTreeIndex;
 
 		FSuspensionConstraint* Constraint;
 		int32 ConstraintIndex;
-		FVector TargetPos;
-		FVector ImpactNormal;
-		bool WheelInContact;
 	};
 
 
