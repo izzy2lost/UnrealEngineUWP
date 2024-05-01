@@ -642,7 +642,7 @@ public:
 	}
 	bool operator!=(const FContentBrowserMinimalItemData& Other) const
 	{
-		return ItemType == Other.ItemType && VirtualPath == Other.VirtualPath && DataSource == Other.DataSource;
+		return ItemType != Other.ItemType || VirtualPath != Other.VirtualPath || DataSource != Other.DataSource;
 	}
 
 	/** Return a string representation for debugging. */
