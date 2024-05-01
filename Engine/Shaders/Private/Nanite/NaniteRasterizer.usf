@@ -534,8 +534,9 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 	uint NumCachedVerts = 0;
 	for( uint FirstTriIndex = 0; FirstTriIndex < TriRange.Num; FirstTriIndex += 32 )
 	{
-		const uint TriIndex = TriRange.Start + FirstTriIndex + GroupThreadIndex;
-		const bool bTriValid = TriIndex < TriRange.Num;
+		const uint LocalTriIndex = FirstTriIndex + GroupThreadIndex;
+		const uint TriIndex = TriRange.Start + LocalTriIndex;
+		const bool bTriValid = LocalTriIndex < TriRange.Num;
 
 		uint3 VertIndexes = 0;
 		if( bTriValid )
