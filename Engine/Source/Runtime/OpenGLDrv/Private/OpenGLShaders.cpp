@@ -3090,6 +3090,7 @@ void FOpenGLDynamicRHI::BindPendingComputeShaderState(FOpenGLContextState& Conte
 	bool ForceUniformBindingUpdate = false;
 
 	GetOpenGLProgramsCache().Touch(ComputeShader->LinkedProgram);
+	ComputeShader->LinkedProgram->UpdateShaders<FOpenGLLinkedProgram::FComputeProgram>(ComputeShader);
 
 	GLuint PendingProgram = ComputeShader->LinkedProgram->Program;
 	if (ContextState.Program != PendingProgram)
