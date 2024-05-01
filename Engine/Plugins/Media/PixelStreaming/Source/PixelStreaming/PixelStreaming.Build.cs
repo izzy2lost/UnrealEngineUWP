@@ -100,6 +100,13 @@ namespace UnrealBuildTool.Rules
                 "NVML",
                 "AudioPlatformConfiguration"
             });
+            if (Target.bBuildEditor == true)
+            {
+                PrivateDependencyModuleNames.AddRange(new string[]
+                {
+                    "UnrealEd"
+                });
+            }
 
             PrivateDefinitions.Add("PIXELSTREAMING_DUMP_ENCODING=0");
 
