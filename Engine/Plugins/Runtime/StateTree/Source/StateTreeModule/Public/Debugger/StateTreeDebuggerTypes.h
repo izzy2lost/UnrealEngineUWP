@@ -141,6 +141,11 @@ struct STATETREEMODULE_API FInstanceEventCollection
 
 	struct FContiguousTraceInfo
 	{
+		explicit FContiguousTraceInfo(int32 LastSpanIndex)
+			: LastSpanIndex(LastSpanIndex)
+		{
+		}
+
 		/** Indicates the index of the last spans of the trace and from which the frame index will be used to offset new events since their frames will restart at 0. */
 		int32 LastSpanIndex = INDEX_NONE;
 	};

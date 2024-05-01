@@ -890,7 +890,8 @@ bool FStateTreeDebugger::ProcessEvent(const FStateTreeInstanceDebugId InstanceId
 			bShouldAddFrameToSpans = true;
 
 			const UE::StateTreeDebugger::FInstanceEventCollection::FContiguousTraceInfo& TraceInfo =
-				ExistingCollection->ContiguousTracesData.Emplace_GetRef(ExistingCollection->FrameSpans.Num()-1);
+				ExistingCollection->ContiguousTracesData.Emplace_GetRef(
+					UE::StateTreeDebugger::FInstanceEventCollection::FContiguousTraceInfo(ExistingCollection->FrameSpans.Num()-1));
 			FrameToAddInSpans.Index += ExistingCollection->FrameSpans[TraceInfo.LastSpanIndex].Frame.Index + 1;
 		}
 	}
