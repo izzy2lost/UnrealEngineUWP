@@ -18,7 +18,7 @@ struct FCellCoord
 
 	inline FString ToString() const
 	{
-		return FString::Printf(TEXT("%" INT64_FMT "_%" INT64_FMT "_%" INT64_FMT "_%d"), X, Y, Z, Level);
+		return FString::Printf(TEXT("L%d_X%" INT64_FMT "_Y%" INT64_FMT "_Z%" INT64_FMT), Level, X, Y, Z);
 	}
 
 	inline bool operator==(const FCellCoord& Other) const
@@ -33,23 +33,23 @@ struct FCellCoord
 		return FMath::CeilToInt32(FMath::Max<FVector::FReal>(FMath::Log2(MaxLength / InCellSize), 0));
 	}
 
-	static inline FCellCoord GetCellCoords(const FVector& InPos, int32 InCellSize, int32 InLevel)
+	static inline FCellCoord GetCellCoords(const FVector& InPos, int32 InCellSize, int32 InLevel, const FVector& InOrigin)
 	{
 		check(InLevel >= 0);
 		const int64 CellSizeForLevel = (int64)InCellSize * (1LL << InLevel);
 		return FCellCoord(
-			FMath::FloorToInt(InPos.X / CellSizeForLevel),
-			FMath::FloorToInt(InPos.Y / CellSizeForLevel),
-			FMath::FloorToInt(InPos.Z / CellSizeForLevel),
+			FMath::FloorToInt((InPos.X - InOrigin.X) / CellSizeForLevel),
+			FMath::FloorToInt((InPos.Y - InOrigin.Y) / CellSizeForLevel),
+			FMath::FloorToInt((InPos.Z - InOrigin.Z) / CellSizeForLevel),
 			InLevel
 		);
 	}
 
-	static inline FBox GetCellBounds(const FCellCoord& InCellCoord, int32 InCellSize)
+	static inline FBox GetCellBounds(const FCellCoord& InCellCoord, int32 InCellSize, const FVector& InOrigin)
 	{
 		check(InCellCoord.Level >= 0);
 		const int64 CellSizeForLevel = (int64)InCellSize * (1LL << InCellCoord.Level);
-		const FVector Min = FVector(
+		const FVector Min = InOrigin + FVector(
 			static_cast<FVector::FReal>(InCellCoord.X * CellSizeForLevel), 
 			static_cast<FVector::FReal>(InCellCoord.Y * CellSizeForLevel), 
 			static_cast<FVector::FReal>(InCellCoord.Z * CellSizeForLevel)
@@ -57,6 +57,7 @@ struct FCellCoord
 		const FVector Max = Min + FVector(static_cast<double>(CellSizeForLevel));
 		return FBox(Min, Max);
 	}
+
 	friend uint32 GetTypeHash(const FCellCoord& CellCoord)
 	{
 		FHashBuilder HashBuilder;
@@ -110,7 +111,7 @@ void URuntimePartitionLHGrid::PostEditChangeProperty(FPropertyChangedEvent& InPr
 	{
 		WorldGridPreviewer->CellSize = CellSize;
 		WorldGridPreviewer->GridColor = DebugColor;
-		WorldGridPreviewer->GridOffset = FVector::ZeroVector;
+		WorldGridPreviewer->GridOffset = Origin;
 		WorldGridPreviewer->LoadingRange = LoadingRange;
 		WorldGridPreviewer->Update();
 	}
@@ -151,7 +152,7 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 		if (ActorSetInstance->bIsSpatiallyLoaded)
 		{
 			const int32 GridLevel = FCellCoord::GetLevelForBox(ActorSetInstance->Bounds, CellSize);
-			const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorSetInstance->Bounds.GetCenter(), CellSize, GridLevel);
+			const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorSetInstance->Bounds.GetCenter(), CellSize, GridLevel, Origin);
 			CellsActorSetInstances.FindOrAdd(CellCoord).Add(ActorSetInstance);
 		}
 		else
@@ -168,8 +169,8 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 
 		if (bIsSpatiallyLoaded)
 		{
-			CellDesc.Bounds = FCellCoord::GetCellBounds(CellCoord, CellSize);
-			CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize);
+			CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize, Origin);
+			CellDesc.Bounds = CellDesc.CellBounds.GetValue();
 		}
 	}
 

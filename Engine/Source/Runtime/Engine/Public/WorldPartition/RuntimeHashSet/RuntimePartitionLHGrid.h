@@ -36,7 +36,10 @@ public:
 private:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
-	uint32 CellSize;
+	uint32 CellSize = 25600;
+
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	FVector Origin = FVector::ZeroVector;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Transient, SkipSerialization)
 	bool bShowGridPreview = false;

@@ -29,6 +29,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 		// Gather all HLOD layers into their corresponding grids
 		TMap<FName, TMap<FName, TSet<const UHLODLayer*>>> GridHLODLayersMap;
 		const UHLODLayer* DefaultHLODLayer = WorldPartition->GetDefaultHLODLayer();
+		const bool bUseAlignedGridLevels = SpatialHash->GetUseAlignedGridLevels();
 
 		for (const FSpatialHashRuntimeGrid& Grid : SpatialHash->Grids)
 		{
@@ -67,6 +68,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 				URuntimePartitionLHGrid* LHGrid = NewObject<URuntimePartitionLHGrid>(HashSet, NAME_None);
 				LHGrid->Name = RuntimePartitionDesc.Name;
 				LHGrid->CellSize = Grid.CellSize;
+				LHGrid->Origin = bUseAlignedGridLevels ? FVector::ZeroVector : FVector(LHGrid->CellSize * -0.5f);
 				LHGrid->bBlockOnSlowStreaming = Grid.bBlockOnSlowStreaming;
 				LHGrid->bClientOnlyVisible = Grid.bClientOnlyVisible;
 				LHGrid->Priority = Grid.Priority;
@@ -88,6 +90,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 					{
 						URuntimePartitionLHGrid* HLODLHGrid = NewObject<URuntimePartitionLHGrid>(HashSet, NAME_None);
 						HLODLHGrid->CellSize = HLODSetup.HLODLayers[0]->GetCellSize();
+						HLODLHGrid->Origin = bUseAlignedGridLevels ? FVector::ZeroVector : FVector(HLODLHGrid->CellSize * -0.5f);
 						HLODLHGrid->LoadingRange = HLODSetup.HLODLayers[0]->GetLoadingRange();
 						HLODSetup.PartitionLayer = HLODLHGrid;
 					}
