@@ -55,7 +55,7 @@ namespace ChaosDD::Private
 
 			ActiveFrame = MakeShared<FChaosDDFrame>(this->AsShared(), NextFrameIndex++, InTime, InDt, DrawRegion, CommandBudget, CommandQueueLength);
 
-			UE_LOG(LogChaosDD, VeryVerbose, TEXT("BeginFrame %s %lld"), *GetName(), ActiveFrame->GetFrameIndex());
+			//UE_LOG(LogChaosDD, VeryVerbose, TEXT("BeginFrame %s %lld"), *GetName(), ActiveFrame->GetFrameIndex());
 		}
 
 		void EndFrame()
@@ -65,7 +65,7 @@ namespace ChaosDD::Private
 			// Missing BeginFrame?
 			check(ActiveFrame.IsValid());
 
-			UE_LOG(LogChaosDD, VeryVerbose, TEXT("EndFrame %s %lld (%d Commands)"), *GetName(), ActiveFrame->GetFrameIndex(), ActiveFrame->GetNumCommands());
+			//UE_LOG(LogChaosDD, VeryVerbose, TEXT("EndFrame %s %lld (%d Commands)"), *GetName(), ActiveFrame->GetFrameIndex(), ActiveFrame->GetNumCommands());
 
 			// Remeber the queue size to prevent array growth every frame
 			CommandQueueLength = FMath::RoundUpToPowerOfTwo(FMath::Max(CommandQueueLength, ActiveFrame->GetNumCommands()));
