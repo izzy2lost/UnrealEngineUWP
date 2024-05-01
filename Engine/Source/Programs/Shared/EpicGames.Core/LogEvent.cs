@@ -220,7 +220,7 @@ namespace EpicGames.Core
 			LogException? exception = null;
 
 			ReadOnlySpan<byte> propertyName;
-			for (; reader.TryReadNextPropertyName(out propertyName); reader.Skip())
+			for (; JsonExtensions.TryReadNextPropertyName(ref reader, out propertyName); reader.Skip())
 			{
 				if (Utf8StringComparer.OrdinalIgnoreCase.Equals(propertyName, LogEventPropertyName.Time.Span))
 				{
@@ -264,7 +264,7 @@ namespace EpicGames.Core
 			Dictionary<string, object> properties = new Dictionary<string, object>();
 
 			ReadOnlySpan<byte> propertyName;
-			for (; reader.TryReadNextPropertyName(out propertyName); reader.Skip())
+			for (; JsonExtensions.TryReadNextPropertyName(ref reader, out propertyName); reader.Skip())
 			{
 				string name = Encoding.UTF8.GetString(propertyName);
 				object value = ReadPropertyValue(ref reader);
@@ -313,7 +313,7 @@ namespace EpicGames.Core
 			Dictionary<Utf8String, object>? properties = null;
 
 			ReadOnlySpan<byte> propertyName;
-			for (; reader.TryReadNextPropertyName(out propertyName); reader.Skip())
+			for (; JsonExtensions.TryReadNextPropertyName(ref reader, out propertyName); reader.Skip())
 			{
 				if (Utf8StringComparer.OrdinalIgnoreCase.Equals(propertyName, LogEventPropertyName.Type.Span))
 				{

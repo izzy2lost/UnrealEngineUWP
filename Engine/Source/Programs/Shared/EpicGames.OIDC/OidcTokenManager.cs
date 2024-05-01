@@ -339,11 +339,7 @@ namespace EpicGames.OIDC
 								{
 									// timed out
 									loginResult = new LoginResult($"Login timed out after: {_loginTimeout.TotalMinutes} minutes");
-#if NET8_0_OR_GREATER
-									await tokenSource.CancelAsync();
-#else
 									tokenSource.Cancel();
-#endif
 									// we do not await the processHttpTask as the GetContext method does not provide any way to cancel, as such this task will be stuck until httplistener is disposed
 								}
 							}
@@ -441,11 +437,7 @@ namespace EpicGames.OIDC
 
 							await using Stream body = request.InputStream;
 							using StreamReader reader = new StreamReader(body, request.ContentEncoding);
-#if NET7_0_OR_GREATER
-							responseData = await reader.ReadToEndAsync(cancellationToken);
-#else
 							responseData = await reader.ReadToEndAsync();
-#endif
 
 							loginResult = await oidcClient!.ProcessResponseAsync(responseData, loginState, cancellationToken: cancellationToken);
 							break;

@@ -401,9 +401,7 @@ namespace EpicGames.Horde.Compute.Clients
 			await writer.WriteLineAsync(request.ToCharArray(), cancellationToken);
 
 			string exceptionMetadata = $"Connection: {response.ConnectionAddress} Target: {response.Ip}:{response.Port}";
-#pragma warning disable CA2016 // Forward the 'CancellationToken' parameter to methods
 			Task<string?> readTask = reader.ReadLineAsync();
-#pragma warning restore CA2016 // Forward the 'CancellationToken' parameter to methods
 			Task timeoutTask = Task.Delay(15000, cancellationToken);
 			if (await Task.WhenAny(readTask, timeoutTask) == timeoutTask)
 			{

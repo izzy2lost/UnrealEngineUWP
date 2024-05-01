@@ -82,11 +82,7 @@ namespace EpicGames.Core
 			{
 				try
 				{
-#if NET8_0_OR_GREATER
-					await _cancellationTokenSource.CancelAsync();
-#else
 					_cancellationTokenSource.Cancel();
-#endif
 					await _task.WaitAsync(cancellationToken).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException)
@@ -161,11 +157,7 @@ namespace EpicGames.Core
 			{
 				try
 				{
-#if NET8_0_OR_GREATER
-					await _cancellationTokenSource.CancelAsync();
-#else
 					_cancellationTokenSource.Cancel();
-#endif
 					await _task.WaitAsync(cancellationToken);
 				}
 				catch (OperationCanceledException)

@@ -4,6 +4,8 @@ using System;
 using System.Diagnostics;
 using System.Text.Json;
 
+#pragma warning disable CA1045 // Do not pass types by reference
+
 namespace EpicGames.Core
 {
 	/// <summary>
@@ -17,7 +19,7 @@ namespace EpicGames.Core
 		/// <param name="reader">Token reader</param>
 		/// <param name="propertyName">Receives the property name on success</param>
 		/// <returns>True if the read succeeded</returns>
-		public static bool TryReadNextPropertyName(this Utf8JsonReader reader, out ReadOnlySpan<byte> propertyName)
+		public static bool TryReadNextPropertyName(ref Utf8JsonReader reader, out ReadOnlySpan<byte> propertyName)
 		{
 			if (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
 			{
