@@ -26,7 +26,6 @@
 #include "UObject/UObjectBase.h"
 #include "UObject/UObjectMarks.h"
 #include "UObject/ObjectFwd.h"
-#include "AutoRTFM/AutoRTFM.h"
 
 class UClass;
 class UObject;
@@ -772,37 +771,29 @@ public:
 	  */
 	FORCEINLINE TStatId GetStatID(bool bForDeferredUse = false) const
 	{
-		TStatId Result{};
-		AutoRTFM::Open([&]
-		{
 #if STATS
-			const TStatId& StatID = GUObjectArray.IndexToObject(InternalIndex)->StatID;
+		const TStatId& StatID = GUObjectArray.IndexToObject(InternalIndex)->StatID;
 
-			// this is done to avoid even registering stats for a disabled group (unless we plan on using it later)
-			if (bForDeferredUse || FThreadStats::IsCollectingData(GET_STATID(STAT_UObjectsStatGroupTester)))
-			{
-				if (!StatID.IsValidStat())
-				{
-					CreateStatID();
-				}
-				Result = StatID;
-			}
-			else
-			{
-				Result = TStatId(); // not doing stats at the moment, or ever
-			}
-#elif ENABLE_STATNAMEDEVENTS_UOBJECT
-			const TStatId& StatID = GUObjectArray.IndexToObject(InternalIndex)->StatID;
-			if (!StatID.IsValidStat() && (bForDeferredUse || GCycleStatsShouldEmitNamedEvents))
+		// this is done to avoid even registering stats for a disabled group (unless we plan on using it later)
+		if (bForDeferredUse || FThreadStats::IsCollectingData(GET_STATID(STAT_UObjectsStatGroupTester)))
+		{
+			if (!StatID.IsValidStat())
 			{
 				CreateStatID();
 			}
-			Result = StatID;
+			return StatID;
+		}
+		return TStatId(); // not doing stats at the moment, or ever
+#elif ENABLE_STATNAMEDEVENTS_UOBJECT
+		const TStatId& StatID = GUObjectArray.IndexToObject(InternalIndex)->StatID;
+		if (!StatID.IsValidStat() && (bForDeferredUse || GCycleStatsShouldEmitNamedEvents))
+		{
+			CreateStatID();
+		}
+		return StatID;
 #else
-			Result = TStatId(); // not doing stats at the moment, or ever
+		return TStatId(); // not doing stats at the moment, or ever
 #endif // STATS
-		});
-		return Result;
 	}
 
 private:
@@ -939,59 +930,49 @@ public:
 	 */
 	FORCEINLINE_STATS FScopeCycleCounterUObject(const UObjectBaseUtility *Object)
 	{
-		AutoRTFM::Open([&]
+		if (Object)
 		{
-			if (Object)
+			bool bStarted = false;
+			TStatId ObjectStatId = Object->GetStatID();
+			if (FThreadStats::IsCollectingData(ObjectStatId))
 			{
-				bool bStarted = false;
-				TStatId ObjectStatId = Object->GetStatID();
-				if (FThreadStats::IsCollectingData(ObjectStatId))
-				{
-					Start(ObjectStatId);
-					bStarted = true;
-				}
+				Start(ObjectStatId);
+				bStarted = true;
+			}
 
 #if CPUPROFILERTRACE_ENABLED
-				if (!bStarted && UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel))
-				{
-					StartObjectTrace(Object);
-				}
-#endif
+			if (!bStarted && UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel))
+			{
+				StartObjectTrace(Object);
 			}
-		});
-
-		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Stop(); });
+#endif
+		}
 	}
 	/**
 	 * Constructor, starts timing with an alternate enable stat to use high performance disable for only SOME UObject stats
 	 */
 	FORCEINLINE_STATS FScopeCycleCounterUObject(const UObjectBaseUtility *Object, TStatId OtherStat)
 	{
-		AutoRTFM::Open([&]
+		if (Object)
 		{
-			if (Object)
+			bool bStarted = false;
+			if (FThreadStats::IsCollectingData(OtherStat))
 			{
-				bool bStarted = false;
-				if (FThreadStats::IsCollectingData(OtherStat))
+				TStatId ObjectStatId = Object->GetStatID();
+				if (!ObjectStatId.IsNone())
 				{
-					TStatId ObjectStatId = Object->GetStatID();
-					if (!ObjectStatId.IsNone())
-					{
-						Start(ObjectStatId);
-						bStarted = true;
-					}
+					Start(ObjectStatId);
+					bStarted = true;
 				}
+			}
 
 #if CPUPROFILERTRACE_ENABLED
-				if (!bStarted && UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel))
-				{
-					StartObjectTrace(Object);
-				}
-#endif
+			if (!bStarted && UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel))
+			{
+				StartObjectTrace(Object);
 			}
-		});
-		
-		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Stop(); });
+#endif
+		}
 	}
 
 #if CPUPROFILERTRACE_ENABLED
@@ -1003,11 +984,7 @@ public:
 	 */
 	FORCEINLINE_STATS ~FScopeCycleCounterUObject()
 	{
-		AutoRTFM::PopOnAbortHandler(this);
-		AutoRTFM::Open([&]
-		{
-			Stop();
-		});
+		Stop();
 	}
 };
 
@@ -1032,22 +1009,14 @@ public:
 #endif
 	{
 #if ENABLE_STATNAMEDEVENTS_UOBJECT && CPUPROFILERTRACE_ENABLED
-		AutoRTFM::Open([&]
+		if (GCycleStatsShouldEmitNamedEvents && UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel) && Object)
 		{
-			if (GCycleStatsShouldEmitNamedEvents && UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel) && Object)
+			const TStatId ObjectStatId = Object->GetStatID();
+			if (ObjectStatId.IsValidStat())
 			{
-				const TStatId ObjectStatId = Object->GetStatID();
-				if (ObjectStatId.IsValidStat())
-				{
-					bPop = true;
-					FCpuProfilerTrace::OutputBeginDynamicEvent(ObjectStatId.StatString);
-				}
+				bPop = true;
+				FCpuProfilerTrace::OutputBeginDynamicEvent(ObjectStatId.StatString);
 			}
-		});
-
-		if(bPop)
-		{
-			AutoRTFM::PushOnAbortHandler(this, [](){ FCpuProfilerTrace::OutputEndEvent(); });
 		}
 #endif
 	}
@@ -1060,15 +1029,10 @@ public:
 	FORCEINLINE_STATS ~FScopeCycleCounterUObject()
 	{
 #if ENABLE_STATNAMEDEVENTS_UOBJECT && CPUPROFILERTRACE_ENABLED
-		AutoRTFM::PopOnAbortHandler(this);
-
-		AutoRTFM::Open([&]
+		if (bPop)
 		{
-			if (bPop)
-			{
-				FCpuProfilerTrace::OutputEndEvent();
-			}
-		});
+			FCpuProfilerTrace::OutputEndEvent();
+		}
 #endif
 	}
 };
@@ -1092,10 +1056,7 @@ public:
 	{
 		if (GHitchDetected &&  StatObject)
 		{
-			AutoRTFM::Open([&]
-			{
-				ReportHitch();
-			});
+			ReportHitch();
 		}
 	}
 

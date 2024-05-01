@@ -16,7 +16,6 @@
 #include "StatsCommon.h"
 #include "ProfilingDebugging/UMemoryDefines.h"
 #include "Stats/Stats2.h"
-#include "AutoRTFM/AutoRTFM.h"
 
 /** 
  *	Learn about the Stats System at docs.unrealengine.com
@@ -67,30 +66,19 @@ public:
 	 */
 	FORCEINLINE_STATS FScopeCycleCounter( TStatId StatId, EStatFlags StatFlags, bool bAlways = false)
 	{
-		AutoRTFM::Open([&]
-		{
-			Start( StatId, StatFlags, bAlways);
-		});
-
-		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Stop(); });
+		Start( StatId, StatFlags, bAlways);
 	}
 
 	FORCEINLINE_STATS FScopeCycleCounter(TStatId StatId, bool bAlways = false)
 		: FScopeCycleCounter(StatId, EStatFlags::None, bAlways)
-	{
-		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Stop(); });
-	}
+	{}
 
 	/**
 	 * Updates the stat with the time spent
 	 */
 	FORCEINLINE_STATS ~FScopeCycleCounter()
 	{
-		AutoRTFM::PopOnAbortHandler(this);
-		AutoRTFM::Open([&]
-		{
-			Stop();
-		});
+		Stop();
 	}
 
 };
@@ -198,12 +186,8 @@ public:
 	{
 		if (GCycleStatsShouldEmitNamedEvents && InStatId.IsValidStat())
 		{
-			AutoRTFM::Open([&]
-			{
-				bPop = true;
-				FPlatformMisc::BeginNamedEvent(FColor(0), InStatId.StatString);
-			});
-			AutoRTFM::PushOnAbortHandler(this, [](){ FPlatformMisc::EndNamedEvent(); });
+			bPop = true;
+			FPlatformMisc::BeginNamedEvent(FColor(0), InStatId.StatString);
 		}
 	}
 
@@ -214,15 +198,10 @@ public:
 
 	FORCEINLINE ~FScopeCycleCounter()
 	{
-		AutoRTFM::PopOnAbortHandler(this);
-
-		AutoRTFM::Open([&]
+		if (bPop)
 		{
-			if (bPop)
-			{
-				FPlatformMisc::EndNamedEvent();
-			}
-		});
+			FPlatformMisc::EndNamedEvent();
+		}
 	}
 private:
 #if USE_LIGHTWEIGHT_STATS_FOR_HITCH_DETECTION && USE_HITCH_DETECTION
