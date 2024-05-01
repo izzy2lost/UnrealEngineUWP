@@ -1271,7 +1271,7 @@ void FPhysicsAssetEditorEditMode::UpdateCoM()
 
 FVector FPhysicsAssetEditorEditMode::CalculateCoMNudgeForWorldSpacePosition(const int32 BodyIndex, const FVector& CoMPositionWorldSpace) const
 {
-	FVector	CalculatedCoMOffset;
+	FVector	CalculatedCoMOffset = FVector::ZeroVector;
 
 	if (SharedData->EditorSkelComp->Bodies.IsValidIndex(BodyIndex))
 	{
