@@ -29,7 +29,7 @@ void FChaosClothAssetSetPhysicsAssetNode::Evaluate(Dataflow::FContext& Context, 
 		if (FCollectionClothFacade(ClothCollection).IsValid())  // Can only act on the collection if it is a valid cloth collection
 		{
 			FCollectionClothFacade CollectionClothFacade(ClothCollection);
-			CollectionClothFacade.SetPhysicsAssetPathName(PhysicsAsset.GetPathName());
+			CollectionClothFacade.SetPhysicsAssetPathName(PhysicsAsset ? PhysicsAsset.GetPathName() : FString());
 		}
 
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
