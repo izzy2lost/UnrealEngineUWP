@@ -1950,7 +1950,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
    useEffect(() => {
       const interval = setInterval(() => {
          agentStore.update(true)
-      }, 5000);
+      }, 15000);
       return () => clearInterval(interval);
    }, []);
 

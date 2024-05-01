@@ -35,6 +35,8 @@ export class AgentStore {
     // don't need this for now
     modifiedAfterDate: Date = new Date(0);
 
+    inflight?: boolean;
+
     @action
     private _setPools(data: PoolData[]) {
         this._pools = data;
@@ -117,6 +119,13 @@ export class AgentStore {
     async update(slim = false): Promise<void> {
         return new Promise<void>((resolve, reject) => {
 
+            if (this.inflight !== undefined && slim) {                
+                resolve();
+                return;
+            }
+
+            this.inflight = true;
+
             const filter = "id,name,sessionId,sessionExpiresAt,online,enabled,ephemeral,comment,version,forceVersion,pools,capabilities,leases,acl,updateTime,deleted,pendingConform,pendingFullConform,conformAttemptCount,lastConformTime,nextConformTime,lastShutdownReason,pendingShutdown,status";
             const promises: any[] = [];
             promises.push(backend.getAgents({ includeDeleted: false, modifiedAfter: this.modifiedAfterDate?.toISOString(), filter:filter    }));
@@ -132,6 +141,8 @@ export class AgentStore {
                 resolve();
             }).catch(reason => {
                 console.error(`Error getting agents and pools: ${reason}`);
+            }).finally(() => {
+                this.inflight = undefined;
             });
         });
     }
