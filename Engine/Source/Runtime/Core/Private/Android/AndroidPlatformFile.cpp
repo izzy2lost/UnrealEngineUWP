@@ -1408,11 +1408,6 @@ public:
 	{
 		return FileSize(Filename, false);
 	}
-	
-	int64 FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlags) override
-	{
-		return IPlatformFile::FileSize(Filename, PlatformFlags);
-	}
 
 	int64 FileSize(const TCHAR* Filename, bool AllowLocal)
 	{

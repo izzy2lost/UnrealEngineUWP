@@ -12,7 +12,7 @@
 #include "Misc/ConfigTypes.h"
 // @todo mvoe types into ConfigTypes.h so we don't need to include the monster here
 #include "Misc/ConfigCacheIni.h"
-#include "GenericPlatform/GenericPlatformFile.h"
+
 
 #ifndef CUSTOM_CONFIG
 #define CUSTOM_CONFIG ""
@@ -233,4 +233,4 @@ private:
 	void LogVariables(const TCHAR* InBaseIniName, const FString& Platform);
 };
 
-bool DoesConfigFileExistWrapper(const TCHAR* IniFile, const TSet<FString>* IniCacheSet = nullptr, EPlatformFileFlags PlatformFlag = EPlatformFileFlags::StorageServerOnly);
+bool DoesConfigFileExistWrapper(const TCHAR* IniFile, const TSet<FString>* IniCacheSet = nullptr);

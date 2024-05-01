@@ -268,16 +268,7 @@ public:
 	 *	@param Filename		Platform-independent Unreal filename.
 	 *	@return				File size in bytes or INDEX_NONE if the file didn't exist.
 	 **/
-	virtual int64 FileSize(const TCHAR* Filename ) = 0;
-
-	/**
-	 *	Returns the size of a file. (Thread-safe)
-	 *
-	 *	@param Filename		Platform-independent Unreal filename.
-	 *  @param PlatformFlag	Flags to control special behavior of some platforms files implementations
-	 *	@return				File size in bytes or INDEX_NONE if the file didn't exist.
-	 **/
-	virtual int64 FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlag) = 0;
+	virtual int64 FileSize( const TCHAR* Filename )=0;
 
 	/**
 	 * Sends a message to the file server, and will block until it's complete. Will return 

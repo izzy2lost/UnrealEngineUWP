@@ -94,15 +94,6 @@ enum class ESymlinkResult : int8
 
 ENUM_CLASS_FLAGS(EDirectoryVisitorFlags);
 
-enum class EPlatformFileFlags : uint8
-{
-	Default = 0x00,
-	StorageServerOnly = 0x01,
-};
-
-ENUM_CLASS_FLAGS(EPlatformFileFlags);
-
-
 /** Results that can be returned from IPlatformFile FileJournal API. */
 enum class EFileJournalResult
 {
@@ -380,12 +371,6 @@ public:
 	virtual bool		FileExists(const TCHAR* Filename) = 0;
 	/** Return the size of the file, or -1 if it doesn't exist. **/
 	virtual int64		FileSize(const TCHAR* Filename) = 0;
-	/** Fallback to vanilla FileSize if this function is not overidden by a Platform implementation**/
-	virtual int64		FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlags)
-	{
-		return FileSize(Filename);
-	}
-
 	/** Delete a file and return true if the file exists. Will not delete read only files. **/
 	virtual bool		DeleteFile(const TCHAR* Filename) = 0;
 	/** Delete an array of files and return true if ALL deletes are succeeded. **/

@@ -470,7 +470,7 @@ void FixupArrayOfStructKeysForSection(SectionType* Section, const FString& Secti
 /**
  * Check if an ini file exists, allowing a delegate to determine if it will handle loading it
  */
-/*static*/ bool DoesConfigFileExistWrapper(const TCHAR* IniFile, const TSet<FString>* IniCacheSet, EPlatformFileFlags PlatformFlag)
+/*static*/ bool DoesConfigFileExistWrapper(const TCHAR* IniFile, const TSet<FString>* IniCacheSet)
 {
 	// will any delegates return contents via TSPreLoadConfigFileDelegate()?
 	int32 ResponderCount = 0;
@@ -510,7 +510,7 @@ void FixupArrayOfStructKeysForSection(SectionType* Section, const FString& Secti
 	}
 
 	// otherwise just look for the normal file to exist
-	const bool bFileExistsCached = IFileManager::Get().FileSize(IniFile, PlatformFlag) >= 0;
+	const bool bFileExistsCached = IFileManager::Get().FileExists(IniFile);
 	return bFileExistsCached;
 }
 

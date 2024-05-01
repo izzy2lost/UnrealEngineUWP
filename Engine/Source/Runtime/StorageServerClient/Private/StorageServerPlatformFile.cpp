@@ -383,6 +383,7 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 		ExcludedNonServerExtensions.Add(TEXT("uexp"));
 		ExcludedNonServerExtensions.Add(TEXT("uptnl"));
 		ExcludedNonServerExtensions.Add(TEXT("ushaderbytecode"));
+		ExcludedNonServerExtensions.Add(TEXT("ini")); //special cases of local only ini file needs to be managed as special exclusion
 #endif
 		// Don't initialize the connection yet because we want to incorporate project file path information into the initialization.
 
@@ -527,28 +528,6 @@ int64 FStorageServerPlatformFile::FileSize(const TCHAR* Filename)
 	}
 	return IsNonServerFilenameAllowed(Filename) ? LowerLevel->FileSize(Filename) : -1;
 }
-
-int64 FStorageServerPlatformFile::FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlags)
-{
-	TStringBuilder<1024> StorageServerFilename;
-	if (MakeStorageServerPath(Filename, StorageServerFilename))
-	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
-		{
-			const FFileStatData FileStatData = SendGetStatDataMessage(*FileChunkId);
-			check(FileStatData.bIsValid);
-			return FileStatData.FileSize;
-		}
-	}
-
-	if (PlatformFlags == EPlatformFileFlags::StorageServerOnly)
-	{
-		return -1;
-	}
-
-	return IsNonServerFilenameAllowed(Filename) ? LowerLevel->FileSize(Filename) : -1;
-}
-
 
 bool FStorageServerPlatformFile::IsReadOnly(const TCHAR* Filename)
 {
@@ -850,11 +829,17 @@ bool FStorageServerPlatformFile::IsNonServerFilenameAllowed(FStringView InFilena
 #if EXCLUDE_NONSERVER_UE_EXTENSIONS
 	if (!HostAddrs.IsEmpty() && (LowerLevel == &IPlatformFile::GetPlatformPhysical()))
 	{
-		FName Ext = FName(FPathViews::GetExtension(InFilename));
-		bAllowed = !ExcludedNonServerExtensions.Contains(Ext);
-		UE_CLOG(!bAllowed, LogStorageServerPlatformFile, VeryVerbose,
-			TEXT("Access to file '%.*s' is limited to server contents due to file extension being listed in ExcludedNonServerExtensions."),
-			InFilename.Len(), InFilename.GetData())
+		bool bRelative = FPathViews::IsRelativePath(InFilename);
+
+		if (bRelative)
+		{
+			FName Ext = FName(FPathViews::GetExtension(InFilename));
+			bAllowed = !ExcludedNonServerExtensions.Contains(Ext);
+
+			UE_CLOG(!bAllowed, LogStorageServerPlatformFile, VeryVerbose,
+				TEXT("Access to file '%.*s' is limited to server contents due to file extension being listed in ExcludedNonServerExtensions."),
+				InFilename.Len(), InFilename.GetData())
+		}
 	}
 #endif
 
