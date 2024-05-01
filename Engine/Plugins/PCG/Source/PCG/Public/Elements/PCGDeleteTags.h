@@ -49,7 +49,7 @@ public:
 	FString SelectedTags;
 
 	/** Enables deprecated behavior using spaces as separators. Disable to update the node to current behavior. */
-	UE_DEPRECATED(5.6, "bTokenizeOnWhiteSpace has been deprecated.")
+	UE_DEPRECATED(5.5, "bTokenizeOnWhiteSpace has been deprecated.")
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "bTokenizeOnWhiteSpace", EditConditionHides, DeprecationMessage = "bTokenizeOnWhiteSpace has been deprecated."))
 	bool bTokenizeOnWhiteSpace = false;
 };

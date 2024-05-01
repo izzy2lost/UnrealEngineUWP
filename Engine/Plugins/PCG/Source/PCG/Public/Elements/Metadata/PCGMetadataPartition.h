@@ -45,16 +45,16 @@ public:
 	FString PartitionAttributeNames;
 
 	/** Enables deprecated behavior using spaces as separators. Disable to update the node to current behavior. */
-	UE_DEPRECATED(5.6, "bTokenizeOnWhiteSpace has been deprecated.")
+	UE_DEPRECATED(5.5, "bTokenizeOnWhiteSpace has been deprecated.")
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "bTokenizeOnWhiteSpace", EditConditionHides, DeprecationMessage = "bTokenizeOnWhiteSpace has been deprecated."))
 	bool bTokenizeOnWhiteSpace = false;
 
 #if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.6, "PartitionAttribute has been deprecated.")
+	UE_DEPRECATED(5.5, "PartitionAttribute has been deprecated.")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "PartitionAttribute has been deprecated."))
 	FName PartitionAttribute_DEPRECATED = NAME_None;
 
-	UE_DEPRECATED(5.6, "PartitionAttributeSource has been deprecated.")
+	UE_DEPRECATED(5.5, "PartitionAttributeSource has been deprecated.")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "PartitionAttributeSource has been deprecated."))
 	FPCGAttributePropertyInputSelector PartitionAttributeSource_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
