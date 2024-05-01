@@ -41,11 +41,19 @@ FTransform GetConstraintMatrix(const USkeletalMeshComponent* const SkeletalMeshC
 	return LFrame * BoneTM;
 }
 
+void DrawWireStar(FPrimitiveDrawInterface* PDI, const FVector& Position, float Size, const FLinearColor& Color, uint8 DepthPriority, const float Thickness)
+{
+	PDI->DrawLine(Position + Size * FVector(1, 0, 0), Position - Size * FVector(1, 0, 0), Color, DepthPriority, Thickness);
+	PDI->DrawLine(Position + Size * FVector(0, 1, 0), Position - Size * FVector(0, 1, 0), Color, DepthPriority, Thickness);
+	PDI->DrawLine(Position + Size * FVector(0, 0, 1), Position - Size * FVector(0, 0, 1), Color, DepthPriority, Thickness);
+}
+
 ////////////////////////////////////////
 // struct FPhysicsAssetRenderSettings
 
 FPhysicsAssetRenderSettings::FPhysicsAssetRenderSettings()
-	: CollisionViewMode(EPhysicsAssetEditorCollisionViewMode::Solid)
+	: CenterOfMassViewMode(EPhysicsAssetEditorCenterOfMassViewMode::None)
+	, CollisionViewMode(EPhysicsAssetEditorCollisionViewMode::Solid)
 	, ConstraintViewMode(EPhysicsAssetEditorConstraintViewMode::AllLimits)
 	, ConstraintViewportManipulationFlags(EConstraintTransformComponentFlags::All)
 	, ConstraintTransformComponentDisplayRelativeToDefaultFlags(EConstraintTransformComponentFlags::None)
@@ -53,14 +61,16 @@ FPhysicsAssetRenderSettings::FPhysicsAssetRenderSettings()
 	, PhysicsBlend(1.0f)
 	, bHideKinematicBodies(false)
 	, bHideSimulatedBodies(false)
+	, bHideBodyMass(false)
 	, bRenderOnlySelectedConstraints(false)
-	, bShowCOM(false)
 	, bShowConstraintsAsPoints(false)
 	, bDrawViolatedLimits(false)
 	, BoneUnselectedColor(170, 155, 225)
 	, NoCollisionColor(200, 200, 200)
 	, COMRenderColor(255, 255, 100)
-	, COMRenderSize(5.0f)
+	, COMRenderSize(3.0f)
+	, COMRenderLineThickness(0.2f)
+	, COMRenderMassTextOffsetScreenspace(8.0f)
 	, InfluenceLineLength(2.0f)
 	, BoneUnselectedMaterial(nullptr)
 	, BoneNoCollisionMaterial(nullptr)
@@ -254,12 +264,14 @@ void FPhysicsAssetRenderSettings::ResetEditorViewportOptions()
 {
 	const FPhysicsAssetRenderSettings DefaultObject = FPhysicsAssetRenderSettings();
 
+	CenterOfMassViewMode = DefaultObject.CenterOfMassViewMode;
 	CollisionViewMode = DefaultObject.CollisionViewMode;
 	ConstraintViewMode = DefaultObject.ConstraintViewMode;
 	ConstraintDrawSize = DefaultObject.ConstraintDrawSize;
 	PhysicsBlend = DefaultObject.PhysicsBlend;
 	bHideKinematicBodies = DefaultObject.bHideKinematicBodies;
 	bHideSimulatedBodies = DefaultObject.bHideSimulatedBodies;
+	bHideBodyMass = DefaultObject.bHideBodyMass;
 	bRenderOnlySelectedConstraints = DefaultObject.bRenderOnlySelectedConstraints;
 	bShowConstraintsAsPoints = DefaultObject.bShowConstraintsAsPoints;
 	bDrawViolatedLimits = DefaultObject.bDrawViolatedLimits;
@@ -429,10 +441,43 @@ namespace PhysicsAssetRender
 	
 				PDI->SetHitProxy(NULL);
 			}
+		}
+	}
 
-			if (RenderSettings->bShowCOM && SkeletalMeshComponent->Bodies.IsValidIndex(i))
+	void DebugDrawCenterOfMass(USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunctionRef< FVector(const uint32) > GetCoMPosition, TFunctionRef< bool(const uint32) > IsSelected, CreateCoMHitProxyFn CreateHitProxy)
+	{
+		static const float SelectedItemRenderSizeMultiplier = 1.5f;
+
+		const FPhysicsAssetRenderSettings* const RenderSettings = UPhysicsAssetRenderUtilities::GetSettings(PhysicsAsset);
+
+		if (RenderSettings && (RenderSettings->CenterOfMassViewMode != EPhysicsAssetEditorCenterOfMassViewMode::None))
+		{
+			const bool bDrawSelectedOnly = RenderSettings->CenterOfMassViewMode == EPhysicsAssetEditorCenterOfMassViewMode::Selected;
+
+			for (int32 BodyIndex = 0, BodyCount = SkeletalMeshComponent->Bodies.Num(); BodyIndex < BodyCount; ++BodyIndex)
 			{
-				SkeletalMeshComponent->Bodies[i]->DrawCOMPosition(PDI, RenderSettings->COMRenderSize, RenderSettings->COMRenderColor);
+				const bool bIsSelected = IsSelected(BodyIndex);
+
+				if (!bDrawSelectedOnly || bIsSelected)
+				{
+					const FBodyInstance* const BodyInstance = SkeletalMeshComponent->Bodies[BodyIndex];
+
+					if (BodyInstance && BodyInstance->IsValidBodyInstance())
+					{
+						float COMRenderSize = RenderSettings->COMRenderSize;
+						float COMRenderLineThickness = RenderSettings->COMRenderLineThickness;
+
+						if (bIsSelected)
+						{
+							COMRenderSize *= SelectedItemRenderSizeMultiplier;
+							COMRenderLineThickness *= SelectedItemRenderSizeMultiplier;
+						}
+
+						PDI->SetHitProxy(CreateHitProxy(BodyIndex));
+						DrawWireStar(PDI, GetCoMPosition(BodyIndex), COMRenderSize, RenderSettings->COMRenderColor, SDPG_Foreground, COMRenderLineThickness);
+						PDI->SetHitProxy(NULL);
+					}
+				}
 			}
 		}
 	}

@@ -112,20 +112,20 @@ void UPhysicsAssetEditorSkeletalMeshComponent::DebugDraw(const FSceneView* View,
 
 	ElemSelectedMaterial->SetVectorParameterValue(SelectionColorName, LinearSelectionColor);
 
-	
-
 	FPhysicsAssetRenderSettings* const RenderSettings = UPhysicsAssetRenderUtilities::GetSettings(PhysicsAsset);
 	
 	if (RenderSettings)
 	{
 		// Copy render settings from editor viewport. These settings must be applied to the rendering in all editors 
 		// when an asset is open in the Physics Asset Editor but should not persist after the editor has been closed.
+		RenderSettings->CenterOfMassViewMode = SharedData->GetCurrentCenterOfMassViewMode(SharedData->bRunningSimulation);
 		RenderSettings->CollisionViewMode = SharedData->GetCurrentCollisionViewMode(SharedData->bRunningSimulation);
 		RenderSettings->ConstraintViewMode = SharedData->GetCurrentConstraintViewMode(SharedData->bRunningSimulation);
 		RenderSettings->ConstraintDrawSize = SharedData->EditorOptions->ConstraintDrawSize;
 		RenderSettings->PhysicsBlend = SharedData->EditorOptions->PhysicsBlend;
 		RenderSettings->bHideKinematicBodies = SharedData->EditorOptions->bHideKinematicBodies;
 		RenderSettings->bHideSimulatedBodies = SharedData->EditorOptions->bHideSimulatedBodies;
+		RenderSettings->bHideBodyMass = SharedData->EditorOptions->bHideBodyMass;
 		RenderSettings->bRenderOnlySelectedConstraints = SharedData->EditorOptions->bRenderOnlySelectedConstraints;
 		RenderSettings->bShowConstraintsAsPoints = SharedData->EditorOptions->bShowConstraintsAsPoints;
 		RenderSettings->bDrawViolatedLimits = SharedData->EditorOptions->bDrawViolatedLimits;
@@ -138,6 +138,13 @@ void UPhysicsAssetEditorSkeletalMeshComponent::DebugDraw(const FSceneView* View,
 			auto HitProxyFn = [](const int32 BodyIndex, const EAggCollisionShape::Type PrimitiveType, const int32 PrimitiveIndex) { return new HPhysicsAssetEditorEdBoneProxy(BodyIndex, PrimitiveType, PrimitiveIndex); };
 
 			PhysicsAssetRender::DebugDrawBodies(this, PhysicsAsset, PDI, ColorFn, MaterialFn, TransformFn, HitProxyFn);
+		}
+		
+		{
+			auto COMPositionFn = [this](const int32 BodyIndex) { return this->SharedData->GetCOMRenderPosition(BodyIndex);  };
+			auto IsSelectedFn = [this](const uint32 InIndex) { return this->SharedData->IsBodySelected(InIndex) || this->SharedData->IsCoMSelected(InIndex); };
+			auto HitProxyFn = [](const int32 BodyIndex) { return new HPhysicsAssetEditorEdCoMProxy(BodyIndex); };
+			PhysicsAssetRender::DebugDrawCenterOfMass(this, PhysicsAsset, PDI, COMPositionFn, IsSelectedFn, HitProxyFn);
 		}
 
 		// Draw Constraints.

@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PhysicsAssetEditorModule.h"
-#include "Modules/ModuleManager.h"
-#include "PhysicsAssetEditorSharedData.h"
-#include "IPhysicsAssetEditor.h"
-#include "PhysicsAssetEditor.h"
-#include "PhysicsAssetGraph/PhysicsAssetGraphPanelNodeFactory.h"
 #include "EdGraphUtilities.h"
+#include "IPhysicsAssetEditor.h"
+#include "Modules/ModuleManager.h"
+#include "PhysicsAssetEditorBodySetupDetailsCustomization.h"
+#include "PhysicsAssetEditor.h"
 #include "PhysicsAssetEditorEditMode.h"
+#include "PhysicsAssetEditorSharedData.h"
+#include "PhysicsAssetGraph/PhysicsAssetGraphPanelNodeFactory.h"
+#include "PropertyEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "PhysicsAssetEditorModule"
 
@@ -33,6 +35,10 @@ public:
 		FEdGraphUtilities::RegisterVisualNodeFactory(PhysicsAssetGraphPanelNodeFactory);
 
 		FEditorModeRegistry::Get().RegisterMode<FPhysicsAssetEditorEditMode>(FPhysicsAssetEditorEditMode::ModeName, LOCTEXT("PhysicsAssetEditorEditMode", "Physics Asset Editor"), FSlateIcon(), false);
+
+		// Register details customizations.
+		FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		PropertyEditorModule.RegisterCustomClassLayout("BodySetup", FOnGetDetailCustomizationInstance::CreateStatic(&FPhysicsAssetEditorBodySetupDetailsCustomization::MakeInstance));
 	}
 
 	/** Called before the module is unloaded, right before the module object is destroyed. */

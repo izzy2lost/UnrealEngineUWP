@@ -90,6 +90,12 @@ private:
 	bool HandleBeginTransform();
 	bool HandleEndTransform(FEditorViewportClient* InViewportClient) const;
 
+	// Update the Center of Mass position after body transforms have been manipulated in the view port.
+	void UpdateCoM();
+
+	// Calculate a Center of Mass nudge (offset) for a given body that will locate that body's CoM at the supplied position in world space.
+	FVector CalculateCoMNudgeForWorldSpacePosition(const int32 BodyIndex, const FVector& CoMPositionWorldSpace) const;
+
 private:
 	/** Shared data */
 	FPhysicsAssetEditorSharedData* SharedData;

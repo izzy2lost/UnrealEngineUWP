@@ -73,7 +73,7 @@ public:
 	TSharedPtr<FPhysicsAssetEditorSharedData> GetSharedData() const;
 
 	/** Handles a group selection change... assigns the proper object to the properties widget and the hierarchy tree view */
-	void HandleViewportSelectionChanged(const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedBodies, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedConstraints);
+	void HandleViewportSelectionChanged(const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedBodies, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedConstraints, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedCoMs);
 
 	/** Repopulates the hierarchy tree view */
 	void RefreshHierachyTree();
@@ -238,6 +238,8 @@ private:
 	bool IsToggleSimulation() const;
 	void OnMeshRenderingMode(EPhysicsAssetEditorMeshViewMode Mode, bool bSimulation);
 	bool IsMeshRenderingMode(EPhysicsAssetEditorMeshViewMode Mode, bool bSimulation) const;
+	void OnCenterOfMassRenderingMode(EPhysicsAssetEditorCenterOfMassViewMode Mode, bool bSimulation);
+	bool IsCenterOfMassRenderingMode(EPhysicsAssetEditorCenterOfMassViewMode Mode, bool bSimulation) const;
 	void OnCollisionRenderingMode(EPhysicsAssetEditorCollisionViewMode Mode, bool bSimulation);
 	bool IsCollisionRenderingMode(EPhysicsAssetEditorCollisionViewMode Mode, bool bSimulation) const;
 	void OnConstraintRenderingMode(EPhysicsAssetEditorConstraintViewMode Mode, bool bSimulation);
@@ -251,9 +253,11 @@ private:
 	void ToggleRenderOnlySelectedSolid();
 	void ToggleHideSimulatedBodies();
 	void ToggleHideKinematicBodies();
+	void ToggleHideBodyMass();
 	bool IsRenderingOnlySelectedSolid() const;
 	bool IsHidingSimulatedBodies() const;
 	bool IsHidingKinematicBodies() const;
+	bool IsHidingBodyMass() const;
 	void OnToggleMassProperties();
 	bool IsToggleMassProperties() const;
 	void OnSetCollision(bool bEnable);

@@ -440,7 +440,7 @@ protected:
 	/** 
 	 * @brief Enable automatic inertia conditioning to stabilize constraints.
 	 * 
-	 * Inertia conitioning increases inertia when an object is long and thin and also when it has joints that are outside the
+	 * Inertia conditioning increases inertia when an object is long and thin and also when it has joints that are outside the
 	 * collision shapes of the body. Increasing the inertia reduces the amount of rotation applied at joints which helps stabilize
 	 * joint chains, especially when bodies are small. In principle you can get the same behaviour by setting the InertiaTensorScale
 	 * appropriately, but this takes some of the guesswork out of it.
@@ -556,7 +556,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = Physics, meta = (DisplayName = "Plane Normal"))
 	FVector CustomDOFPlaneNormal;
 
-	/** User specified offset for the center of mass of this object, from the calculated location */
+	/** User specified offset for this object's Center of Mass. The offset is defined in bone space and will be added to the calculated location. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics, meta = (DisplayName = "Center Of Mass Offset"))
 	FVector COMNudge;
 

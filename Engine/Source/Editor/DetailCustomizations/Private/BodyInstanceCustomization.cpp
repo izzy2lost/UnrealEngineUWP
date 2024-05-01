@@ -1318,7 +1318,13 @@ void FBodyInstanceCustomizationHelper::UpdateFilters()
 	}
 }
 
-void FBodyInstanceCustomizationHelper::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler)
+
+void FBodyInstanceCustomizationHelper::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler)
+{
+	CustomizeDetails(DetailBuilder, BodyInstanceHandler, TFunction<void(TSharedRef<IPropertyHandle>)>());
+}
+
+void FBodyInstanceCustomizationHelper::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler, TFunction<void(TSharedRef<IPropertyHandle>)> CustomizeCoMNudge)
 {
 	if( BodyInstanceHandler->IsValidHandle() )
 	{
@@ -1365,7 +1371,16 @@ void FBodyInstanceCustomizationHelper::CustomizeDetails( IDetailLayoutBuilder& D
 			.Visibility(TAttribute<EVisibility>(this, &FBodyInstanceCustomizationHelper::IsAutoWeldVisible));
 
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, bStartAwake), bDisplayStartAwake);
-		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, COMNudge), bDisplayCOMNudge);
+
+		if (CustomizeCoMNudge && bDisplayCOMNudge)
+		{
+			CustomizeCoMNudge(BodyInstanceHandler);
+		}
+		else
+		{
+			EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, COMNudge), bDisplayCOMNudge);
+		}
+
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, MassScale), bDisplayMassScale);
 
 		if (bDisplayMaxAngularVelocity)

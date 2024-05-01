@@ -19,6 +19,14 @@ enum class EPhysicsAssetEditorCollisionViewMode : uint8
 };
 
 UENUM()
+enum class EPhysicsAssetEditorCenterOfMassViewMode : uint8
+{
+	All,
+	Selected,
+	None
+};
+
+UENUM()
 enum class EPhysicsAssetEditorMeshViewMode : uint8
 {
 	Solid,
@@ -125,11 +133,15 @@ class UPhysicsAssetEditorOptions : public UObject
 
 	/** View mode for meshes in edit mode */
 	UPROPERTY(config)
-		EPhysicsAssetEditorMeshViewMode MeshViewMode;
+	EPhysicsAssetEditorMeshViewMode MeshViewMode;
 
 	/** View mode for collision in edit mode */
 	UPROPERTY(config)
 	EPhysicsAssetEditorCollisionViewMode CollisionViewMode;
+
+	/** View mode for Center of Mass in edit mode */
+	UPROPERTY(config)
+	EPhysicsAssetEditorCenterOfMassViewMode CenterOfMassViewMode;
 
 	/** View mode for constraints in edit mode */
 	UPROPERTY(config)
@@ -143,6 +155,10 @@ class UPhysicsAssetEditorOptions : public UObject
 	UPROPERTY(config)
 	EPhysicsAssetEditorCollisionViewMode SimulationCollisionViewMode;
 
+	/** View mode for Center of Mass in simulation mode */
+	UPROPERTY(config)
+	EPhysicsAssetEditorCenterOfMassViewMode SimulationCenterOfMassViewMode;
+	
 	/** View mode for constraints in simulation mode */
 	UPROPERTY(config)
 	EPhysicsAssetEditorConstraintViewMode SimulationConstraintViewMode;
@@ -162,6 +178,10 @@ class UPhysicsAssetEditorOptions : public UObject
 	/** When set, disables rendering for kinematic bodies */
 	UPROPERTY(config)
 	bool bHideKinematicBodies;
+
+	/** When set, disables rendering for body mass text displayed next to Center of Mass indicator */
+	UPROPERTY(config)
+	bool bHideBodyMass;
 
 	/** When set, cloth will reset each time simulation is toggled */
 	UPROPERTY(EditAnywhere, config, Category=Clothing)
