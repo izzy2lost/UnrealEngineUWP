@@ -1124,6 +1124,52 @@ namespace Chaos
 			ConnectedComponentsDFSIterative(AdjacencyList, ConnectedComponents);
 		}
 
+		inline TArray<int32> ComputeBoundaryNodes(const TArray<TVec3<int32>>& TriangleMesh)
+		{
+			TMap<TPair<int32, int32>, int32> FaceCountPerEdge;
+		
+			auto AddTriToFaceCountPerEdge = [&FaceCountPerEdge](const TVec3<int32> &Face)
+			{
+				auto AddEdge = [&FaceCountPerEdge](int32 A, int32 B)
+				{
+					FaceCountPerEdge.FindOrAdd(TPair<int32, int32>(FMath::Min(A, B), FMath::Max(A, B)))++;
+				};
+				AddEdge(Face[0], Face[1]);
+				AddEdge(Face[0], Face[2]);
+				AddEdge(Face[1], Face[2]);
+			};
+
+			auto CandidateTriWouldMakeNonManifoldEdge = [&FaceCountPerEdge](int32 A, int32 B, int32 C)
+			{
+				auto GetCount = [&FaceCountPerEdge](int32 InnerA, int32 InnerB)
+				{
+					int32 *Count = FaceCountPerEdge.Find(TPair<int32, int32>(FMath::Min(InnerA, InnerB), FMath::Max(InnerA, InnerB)));
+					return Count ? *Count : 0;
+				};
+				return GetCount(A, B) > 1 || GetCount(B, C) > 1 || GetCount(C, A) > 1;
+			};
+
+			for (const TVec3<int32> &Face : TriangleMesh)
+			{
+				AddTriToFaceCountPerEdge(Face);
+			}
+
+			TArray<TPair<int32, int32>> AllEdges;
+			TSet<int32> BoundaryVerts;
+			int32 NumKeys = FaceCountPerEdge.GetKeys(AllEdges);
+
+			for (const TPair<int32, int32>& Edge: AllEdges)
+			{
+				if (FaceCountPerEdge[Edge] == 1)
+				{
+					BoundaryVerts.Emplace(Edge.Key);
+					BoundaryVerts.Emplace(Edge.Value);
+				}
+			}
+
+			return BoundaryVerts.Array();
+		}
+
 		inline TArray<TArray<int32>> ComputeIncidentElements(const TArray<TArray<int32>>& Constraints, TArray<TArray<int32>>* LocalIndex = nullptr)
 		{
 			int32 MaxIdx = 0;

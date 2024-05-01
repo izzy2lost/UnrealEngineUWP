@@ -25,8 +25,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 		float PositionTargetStiffness = 10000.f;
 
-	//UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	//	float TriangleRadiusPadding = .1f;
+	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelectionSet"))
+		TArray<int32> VertexSelectionSetIn;
 
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (ClampMin = "0.0", ClampMax = "2.0", UIMin = "0.0", UIMax = "2.0"))
 		float VertexRadiusRatio = .001f;
@@ -36,6 +36,7 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&VertexSelectionSetIn);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 

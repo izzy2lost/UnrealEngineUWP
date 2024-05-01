@@ -6,10 +6,9 @@
 #include "GeometryCollection/Facades/CollectionMeshFacade.h"
 #include "GeometryCollection/Facades/CollectionPositionTargetFacade.h"
 #include "ChaosFlesh/TetrahedralCollection.h"
+#include "ChaosFlesh/ChaosFleshCollectionFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshSetVertexTrianglePositionTargetBindingNode)
-
-//DEFINE_LOG_CATEGORY_STATIC(ChaosFleshSetVertexTrianglePositionTargetBindingNodeLog, Log, All);
 
 void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
@@ -17,12 +16,20 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FCo
 	{
 		DataType InCollection = GetValue<DataType>(Context, &Collection);
 
+		TUniquePtr<FFleshCollection> InFleshCollection(GetValue<DataType>(Context, &Collection).NewCopy<FFleshCollection>());
+
+		Chaos::FFleshCollectionFacade TetCollection(*InFleshCollection);
 		if (TManagedArray<FVector3f>* Vertices = InCollection.FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup))
+		{
+			if (TManagedArray<FIntVector>* Indices = InCollection.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
 			{
-				if (TManagedArray<FIntVector>* Indices = InCollection.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
+				if (TetCollection.IsTetrahedronValid())
 				{
+					TArray<FVector3f> Vertex = TetCollection.Vertex.Get().GetConstArray();
+					TetCollection.ComponentSpaceVertices(Vertex);
 					GeometryCollection::Facades::FCollectionMeshFacade MeshFacade(InCollection);
 					TArray<int32> ComponentIndex = MeshFacade.GetGeometryGroupIndexArray();
+					TArray<Chaos::TVector<float, 3>> IndicesPositions; 
 					TArray<Chaos::TVector<int32, 3>> IndicesArray;
 					for (int32 i = 0; i < Indices->Num(); i++)
 					{
@@ -31,9 +38,9 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FCo
 						{
 							CurrentIndices[j] = (*Indices)[i][j];
 						}
-						if (CurrentIndices[0] != -1
-							&& CurrentIndices[1] != -1
-							&& CurrentIndices[2] != -1)
+						if (CurrentIndices[0] != INDEX_NONE
+							&& CurrentIndices[1] != INDEX_NONE
+							&& CurrentIndices[2] != INDEX_NONE)
 						{
 							IndicesArray.Emplace(CurrentIndices);
 						}
@@ -49,7 +56,7 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FCo
 							ActualParticleCount += 1;
 						}
 					}
-					TArray<Chaos::TVector<float, 3>> IndicesPositions; 
+					
 					IndicesPositions.SetNum(ActualParticleCount);
 					TArray<int32> IndicesMap;
 					IndicesMap.SetNum(ActualParticleCount);
@@ -63,40 +70,83 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FCo
 							CurrentParticleIndex += 1;
 						}
 					}
-					Chaos::FReal SphereRadius = (Chaos::FReal)0.;
-
-					Chaos::TVec3<float> CoordMaxs(-FLT_MAX);
-					Chaos::TVec3<float> CoordMins(FLT_MAX);
-					for (int32 i = 0; i < IndicesPositions.Num(); i++)
-					{
-						for (int32 j = 0; j < 3; j++)
-						{
-							if (IndicesPositions[i][j] > CoordMaxs[j])
-							{
-								CoordMaxs[j] = IndicesPositions[i][j];
-							}
-							if (IndicesPositions[i][j] < CoordMins[j])
-							{
-								CoordMins[j] = IndicesPositions[i][j];
-							}
-						}
-					}
-					Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * VertexRadiusRatio;
-					SphereRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
-
 					TArray<Chaos::TSphere<Chaos::FReal, 3>*> VertexSpherePtrs;
 					TArray<Chaos::TSphere<Chaos::FReal, 3>> VertexSpheres;
-
-					VertexSpheres.Init(Chaos::TSphere<Chaos::FReal, 3>(Chaos::TVec3<Chaos::FReal>(0), SphereRadius), IndicesPositions.Num());
-					VertexSpherePtrs.SetNum(IndicesPositions.Num());
-
-					for (int32 i = 0; i < IndicesPositions.Num(); i++)
+					Chaos::FReal SphereRadius = (Chaos::FReal)0.;
+					Chaos::TVec3<float> CoordMaxs(-FLT_MAX);
+					Chaos::TVec3<float> CoordMins(FLT_MAX);
+					if (FindInput(&VertexSelectionSetIn) && FindInput(&VertexSelectionSetIn)->GetConnection())
 					{
-						Chaos::TVec3<Chaos::FReal> SphereCenter(IndicesPositions[i]);
-						Chaos::TSphere<Chaos::FReal, 3> VertexSphere(SphereCenter, SphereRadius);
-						VertexSpheres[i] = Chaos::TSphere<Chaos::FReal, 3>(SphereCenter, SphereRadius);
-						VertexSpherePtrs[i] = &VertexSpheres[i];
+						TArray<int32> VertexSelectionSet = GetValue<TArray<int32>>(Context, &VertexSelectionSetIn);
+						TArray<Chaos::TVector<float, 3>> VertexPositions;
+						VertexPositions.SetNum(VertexSelectionSet.Num());
+						for (int32 i = 0; i < VertexSelectionSet.Num(); i++)
+						{
+							if (VertexSelectionSet[i] > INDEX_NONE && VertexSelectionSet[i] < Vertex.Num())
+							{
+								VertexPositions[i] = Vertex[VertexSelectionSet[i]];
+							}
+						}
+						for (int32 i = 0; i < VertexPositions.Num(); i++)
+						{
+							for (int32 j = 0; j < 3; j++)
+							{
+								if (VertexPositions[i][j] > CoordMaxs[j])
+								{
+									CoordMaxs[j] = VertexPositions[i][j];
+								}
+								if (VertexPositions[i][j] < CoordMins[j])
+								{
+									CoordMins[j] = VertexPositions[i][j];
+								}
+							}
+						}
+						Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * VertexRadiusRatio;
+						SphereRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
+
+						VertexSpheres.Init(Chaos::TSphere<Chaos::FReal, 3>(Chaos::TVec3<Chaos::FReal>(0), SphereRadius), VertexPositions.Num());
+						VertexSpherePtrs.SetNum(VertexPositions.Num());
+
+						for (int32 i = 0; i < VertexPositions.Num(); i++)
+						{
+							Chaos::TVec3<Chaos::FReal> SphereCenter(VertexPositions[i]);
+							Chaos::TSphere<Chaos::FReal, 3> VertexSphere(SphereCenter, SphereRadius);
+							VertexSpheres[i] = Chaos::TSphere<Chaos::FReal, 3>(SphereCenter, SphereRadius);
+							VertexSpherePtrs[i] = &VertexSpheres[i];
+						}
+						IndicesMap = VertexSelectionSet;
 					}
+					else
+					{
+						for (int32 i = 0; i < IndicesPositions.Num(); i++)
+						{
+							for (int32 j = 0; j < 3; j++)
+							{
+								if (IndicesPositions[i][j] > CoordMaxs[j])
+								{
+									CoordMaxs[j] = IndicesPositions[i][j];
+								}
+								if (IndicesPositions[i][j] < CoordMins[j])
+								{
+									CoordMins[j] = IndicesPositions[i][j];
+								}
+							}
+						}
+						Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * VertexRadiusRatio;
+						SphereRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
+
+						VertexSpheres.Init(Chaos::TSphere<Chaos::FReal, 3>(Chaos::TVec3<Chaos::FReal>(0), SphereRadius), IndicesPositions.Num());
+						VertexSpherePtrs.SetNum(IndicesPositions.Num());
+
+						for (int32 i = 0; i < IndicesPositions.Num(); i++)
+						{
+							Chaos::TVec3<Chaos::FReal> SphereCenter(IndicesPositions[i]);
+							Chaos::TSphere<Chaos::FReal, 3> VertexSphere(SphereCenter, SphereRadius);
+							VertexSpheres[i] = Chaos::TSphere<Chaos::FReal, 3>(SphereCenter, SphereRadius);
+							VertexSpherePtrs[i] = &VertexSpheres[i];
+						}
+					}
+
 					Chaos::TBoundingVolumeHierarchy<
 						TArray<Chaos::TSphere<Chaos::FReal, 3>*>,
 						TArray<int32>,
@@ -108,9 +158,9 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FCo
 
 					for (int32 i = 0; i < Indices->Num(); i++)
 					{
-						TArray<int32> TriangleIntersections0 = VertexBVH.FindAllIntersections((*Vertices)[(*Indices)[i][0]]);
-						TArray<int32> TriangleIntersections1 = VertexBVH.FindAllIntersections((*Vertices)[(*Indices)[i][1]]);
-						TArray<int32> TriangleIntersections2 = VertexBVH.FindAllIntersections((*Vertices)[(*Indices)[i][2]]);
+						TArray<int32> TriangleIntersections0 = VertexBVH.FindAllIntersections(Vertex[(*Indices)[i][0]]);
+						TArray<int32> TriangleIntersections1 = VertexBVH.FindAllIntersections(Vertex[(*Indices)[i][1]]);
+						TArray<int32> TriangleIntersections2 = VertexBVH.FindAllIntersections(Vertex[(*Indices)[i][2]]);
 						TriangleIntersections0.Sort();
 						TriangleIntersections1.Sort();
 						TriangleIntersections2.Sort();
@@ -131,11 +181,11 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FCo
 						Chaos::TVector<float, 3> ClosestBary(0.f);
 						for (int32 j = 0; j < TriangleIntersections.Num(); j++)
 						{
-							if (ComponentIndex[IndicesMap[TriangleIntersections[j]]] >= 0 && TriangleIndex >= 0 && ComponentIndex[IndicesMap[TriangleIntersections[j]]] != TriangleIndex)
+							if (ComponentIndex[IndicesMap[TriangleIntersections[j]]] > INDEX_NONE && TriangleIndex > INDEX_NONE && ComponentIndex[IndicesMap[TriangleIntersections[j]]] != TriangleIndex)
 							{
-								Chaos::TVector<float, 3> Bary, TriPos0((*Vertices)[(*Indices)[i][0]]), TriPos1((*Vertices)[(*Indices)[i][1]]), TriPos2((*Vertices)[(*Indices)[i][2]]), ParticlePos((*Vertices)[IndicesMap[TriangleIntersections[j]]]);
+								Chaos::TVector<float, 3> Bary, TriPos0(Vertex[(*Indices)[i][0]]), TriPos1(Vertex[(*Indices)[i][1]]), TriPos2(Vertex[(*Indices)[i][2]]), ParticlePos(Vertex[IndicesMap[TriangleIntersections[j]]]);
 								Chaos::TVector<Chaos::FRealSingle, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
-								Chaos::FRealSingle CurrentDistance = ((*Vertices)[IndicesMap[TriangleIntersections[j]]] - ClosestPoint).Size();
+								Chaos::FRealSingle CurrentDistance = (Vertex[IndicesMap[TriangleIntersections[j]]] - ClosestPoint).Size();
 								if (CurrentDistance < MinDis)
 								{
 									MinDis = CurrentDistance;
@@ -179,6 +229,7 @@ void FSetVertexTrianglePositionTargetBindingDataflowNode::Evaluate(Dataflow::FCo
 						}
 					}
 				}
+			}
 		}
 		SetValue(Context, MoveTemp(InCollection), &Collection);
 	}
