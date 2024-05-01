@@ -3299,18 +3299,29 @@ public:
 	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const = 0;
 };
 
+class FShaderBundleCreateInfo
+{
+public:
+	FShaderBundleCreateInfo() = default;
+
+	uint32 NumRecords	= 0u;
+	uint32 ArgOffset	= 0u;
+	uint32 ArgStride	= 0u;
+};
+
 class FRHIShaderBundle : public FRHIResource
 {
 public:
-	// Dispatch XYZ + Padding
-	static constexpr uint32 ArgumentByteStride = sizeof(uint32) * 4u;
-
-	const uint32 NumRecords = 0;
+	const uint32 NumRecords	= 0;
+	const uint32 ArgOffset	= 0;
+	const uint32 ArgStride	= 0;
 
 public:
-	FRHIShaderBundle(uint32 InNumRecords)
-		: FRHIResource(RRT_ShaderBundle)
-		, NumRecords(InNumRecords)
+	FRHIShaderBundle(const FShaderBundleCreateInfo& CreateInfo)
+	: FRHIResource(RRT_ShaderBundle)
+	, NumRecords(CreateInfo.NumRecords)
+	, ArgOffset(CreateInfo.ArgOffset)
+	, ArgStride(CreateInfo.ArgStride)
 	{
 	}
 };

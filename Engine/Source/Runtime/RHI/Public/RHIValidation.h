@@ -1248,9 +1248,9 @@ public:
 	}
 #endif // RHI_RAYTRACING
 
-	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords) override final
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo) override final
 	{
-		return RHI->RHICreateShaderBundle(NumRecords);
+		return RHI->RHICreateShaderBundle(CreateInfo);
 	}
 
 //protected:

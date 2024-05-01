@@ -977,7 +977,7 @@ public:
 		return nullptr;
 	}
 
-	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo)
 	{
 		checkNoEntry();
 		return nullptr;
@@ -1466,9 +1466,9 @@ FORCEINLINE FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const u
 	return GDynamicRHI->RHICreateRayTracingShader(Code, Hash, ShaderFrequency);
 }
 
-FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
+FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo)
 {
-	return GDynamicRHI->RHICreateShaderBundle(NumRecords);
+	return GDynamicRHI->RHICreateShaderBundle(CreateInfo);
 }
 
 /**

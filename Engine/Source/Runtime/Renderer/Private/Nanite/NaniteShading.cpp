@@ -460,8 +460,11 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 			// Create Shader Bundle
 			if (UseShaderBundle(ShaderPlatform) && ShadingCommands.NumCommands > 0)
 			{
-				const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
-				ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
+				FShaderBundleCreateInfo CreateInfo;
+				CreateInfo.ArgOffset = 0u;
+				CreateInfo.ArgStride = 16u;
+				CreateInfo.NumRecords = ShadingCommands.MaxShadingBin + 1u;
+				ShadingCommands.ShaderBundle = RHICreateShaderBundle(CreateInfo);
 				check(ShadingCommands.ShaderBundle != nullptr);
 			}
 			else
