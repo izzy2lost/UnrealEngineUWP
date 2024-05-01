@@ -86,12 +86,6 @@ void VCell::VisitReferencesImpl(TVisitor& Visitor)
 	}
 }
 
-inline EArrayType VCell::GetArrayType() const
-{
-	checkSlow(IsA<VArrayBase>());
-	return static_cast<EArrayType>(Misc3 & 0x0F);
-}
-
 DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapValue);
 } // namespace Verse
 #endif // WITH_VERSE_VM

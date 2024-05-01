@@ -18,15 +18,7 @@ struct VMutableArray : VArrayBase
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VArrayBase);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-private:
-	uint32 Capacity;
-
 public:
-	void SetValue(FAllocationContext Context, uint32 Index, VValue Value)
-	{
-		Super::SetValue(Context, Index, Value, &Capacity);
-	}
-
 	void AddValue(FAllocationContext Context, VValue Value);
 
 	template <typename T>
@@ -39,12 +31,17 @@ public:
 	{
 		static_assert(std::is_base_of_v<VArrayBase, VArray>);
 		static_assert(sizeof(VArray) == sizeof(VArrayBase));
-		SetEmergentType(Context, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, NumValues), &VArray::StaticCppClassInfo));
+		SetEmergentType(Context, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, Num()), &VArray::StaticCppClassInfo));
 	}
 
-	static VMutableArray& New(FAllocationContext Context, uint32 InitialCapacity, EArrayType ArrayType = EArrayType::None)
+	static VMutableArray& New(FAllocationContext Context, uint32 NumValues, uint32 InitialCapacity, EArrayType ArrayType)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InitialCapacity, ArrayType);
+		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, NumValues, InitialCapacity, ArrayType);
+	}
+
+	static VMutableArray& New(FAllocationContext Context, uint32 NumValues, EArrayType ArrayType)
+	{
+		return VMutableArray::New(Context, NumValues, NumValues, ArrayType);
 	}
 
 	static VMutableArray& New(FAllocationContext Context, std::initializer_list<VValue> InitList)
@@ -52,7 +49,7 @@ public:
 		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InitList);
 	}
 
-	template <typename InitIndexFunc>
+	template <typename InitIndexFunc, typename = std::enable_if_t<std::is_same_v<VValue, std::invoke_result_t<InitIndexFunc, uint32>>>>
 	static VMutableArray& New(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc)
 	{
 		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InNumValues, InitFunc);
@@ -63,30 +60,37 @@ public:
 		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, String);
 	}
 
+	static VMutableArray& New(FAllocationContext Context)
+	{
+		return VMutableArray::New(Context, 0, 0, EArrayType::None);
+	}
+
 	static void SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor) { Serialize(This, Context, Visitor); }
 
 	COREUOBJECT_API VValue FreezeImpl(FRunningContext Context);
 
 private:
-	VMutableArray(FAllocationContext Context, uint32 InitialCapacity, EArrayType ArrayType)
-		: VArrayBase(Context, InitialCapacity, ArrayType, &GlobalTrivialEmergentType.Get(Context))
-		, Capacity(InitialCapacity)
+	VMutableArray(FAllocationContext Context, uint32 NumValues, uint32 InitialCapacity, EArrayType ArrayType)
+		: VArrayBase(Context, NumValues, InitialCapacity, ArrayType, &GlobalTrivialEmergentType.Get(Context))
 	{
-		NumValues = 0;
+		V_DIE_UNLESS(InitialCapacity >= NumValues);
 	}
 
 	VMutableArray(FAllocationContext Context, std::initializer_list<VValue> InitList)
 		: VArrayBase(Context, InitList, &GlobalTrivialEmergentType.Get(Context))
-		, Capacity(static_cast<uint32>(InitList.size())) {}
+	{
+	}
 
-	template <typename InitIndexFunc>
+	template <typename InitIndexFunc, typename = std::enable_if_t<std::is_same_v<VValue, std::invoke_result_t<InitIndexFunc, uint32>>>>
 	VMutableArray(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc)
 		: VArrayBase(Context, InNumValues, InitFunc, &GlobalTrivialEmergentType.Get(Context))
-		, Capacity(InNumValues) {}
+	{
+	}
 
 	VMutableArray(FAllocationContext Context, FUtf8StringView String)
 		: VArrayBase(Context, String, &GlobalTrivialEmergentType.Get(Context))
-		, Capacity(static_cast<uint32>(String.Len())) {}
+	{
+	}
 };
 
 } // namespace Verse

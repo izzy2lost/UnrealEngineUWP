@@ -29,7 +29,7 @@ bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunctio
 		return false;
 	}
 
-	if (DetermineCombinedType(GetArrayType(), Other->GetArrayType()) != EArrayType::VValue)
+	if (DetermineCombinedType(GetArrayType(), OtherArray.GetArrayType()) != EArrayType::VValue)
 	{
 		return FMemory::Memcmp(GetData(), OtherArray.GetData(), ByteLength()) == 0;
 	}
@@ -49,23 +49,22 @@ bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunctio
 VValue VArrayBase::MeltImpl(FRunningContext Context)
 {
 	EArrayType ArrayType = GetArrayType();
-	VMutableArray& MeltedArray = VMutableArray::New(Context, Num(), ArrayType);
 	if (ArrayType != EArrayType::VValue)
 	{
+		VMutableArray& MeltedArray = VMutableArray::New(Context, Num(), Num(), ArrayType);
 		FMemory::Memcpy(MeltedArray.GetData(), GetData(), ByteLength());
-		MeltedArray.NumValues = Num();
+		return MeltedArray;
 	}
-	else
+
+	VMutableArray& MeltedArray = VMutableArray::New(Context, 0, Num(), EArrayType::VValue);
+	for (uint32 I = 0; I < Num(); ++I)
 	{
-		for (uint32 I = 0; I < Num(); ++I)
+		VValue Result = VValue::Melt(Context, GetValue(I));
+		if (Result.IsPlaceholder())
 		{
-			VValue Result = VValue::Melt(Context, GetValue(I));
-			if (Result.IsPlaceholder())
-			{
-				return Result;
-			}
-			MeltedArray.AddValue(Context, Result);
+			return Result;
 		}
+		MeltedArray.AddValue(Context, Result);
 	}
 	return MeltedArray;
 }

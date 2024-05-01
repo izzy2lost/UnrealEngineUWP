@@ -16,28 +16,35 @@ inline void VMutableArray::AddValue(FAllocationContext Context, VValue Value)
 {
 	if (!GetData())
 	{
-		Capacity = 4;
-		AllocateBuffer(Context, DetermineArrayType(Value), Capacity);
+		uint32 Num = 0;
+		uint32 Capacity = 4;
+		VBuffer NewBuffer = VBuffer(Context, Num, Capacity, DetermineArrayType(Value));
+		SetBufferWithStoreBarrier(Context, NewBuffer);
 	}
 	else if (GetArrayType() != EArrayType::VValue && GetArrayType() != DetermineArrayType(Value))
 	{
+		uint32 Capacity = this->Capacity();
 		if (Num() == Capacity) // Check our capacity before re-allocating as VValues
 		{
 			Capacity = Capacity * 2;
 		}
-		ConvertDataToVValues(Context, &Capacity);
+		ConvertDataToVValues(Context, Capacity);
 	}
-	else if (Num() == Capacity)
+	else if (Num() == Capacity())
 	{
-		Capacity = Capacity * 2;
-		TAux<void> NewValues(Context.AllocateAuxCell(ByteLength(GetArrayType()) * Capacity));
-		FMemory::Memcpy(NewValues.GetPtr(), Values.Get().GetPtr(), ByteLength());
-		Values.Set(Context, BitCast<TAux<void>>(NewValues));
+		uint32 NewCapacity = Capacity() * 2;
+		VBuffer NewBuffer = VBuffer(Context, Num(), NewCapacity, GetArrayType());
+		FMemory::Memcpy(NewBuffer.GetData(), GetData(), ByteLength());
+		// We might be copying around a VValue buffer, so we gotta barrier before we expose this buffer to the GC.
+		SetBufferWithStoreBarrier(Context, NewBuffer);
 	}
 
 	uint32 Index = Num();
-	++NumValues;
+	V_DIE_UNLESS(Index < Capacity());
 	SetValue(Context, Index, Value);
+	// The above store needs to happen before the GC sees an updated NumValues.
+	StoreStoreFence();
+	++Buffer.Get().GetHeader()->NumValues;
 	if (IsString())
 	{
 		SetNullTerminator();
@@ -47,17 +54,21 @@ inline void VMutableArray::AddValue(FAllocationContext Context, VValue Value)
 template <typename T>
 inline void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 {
-	checkSlow(GetArrayType() != EArrayType::VValue && GetArrayType() == Array.GetArrayType());
+	checkSlow(GetArrayType() != EArrayType::None && GetArrayType() != EArrayType::VValue && GetArrayType() == Array.GetArrayType());
 	const uint32 NewNumValues = Num() + Array.Num();
+	uint32 Capacity = this->Capacity();
 	if (NewNumValues > Capacity)
 	{
 		Capacity = NewNumValues * 2;
-		TAux<void> NewValues(Context.AllocateAuxCell(sizeof(T) * Capacity));
-		FMemory::Memcpy(NewValues.GetPtr(), GetData(), ByteLength());
-		Values.Set(Context, NewValues);
+		VBuffer NewBuffer = VBuffer(Context, NewNumValues, Capacity, GetArrayType());
+		FMemory::Memcpy(NewBuffer.GetData(), GetData(), ByteLength());
+		// We need the store of the array type in the buffer to happen
+		// before the GC sees the new buffer.
+		SetBufferWithStoreBarrier(Context, NewBuffer);
 	}
 	FMemory::Memcpy(GetData<T>() + Num(), Array.GetData<T>(), Array.ByteLength());
-	NumValues = NewNumValues;
+	// We don't need to barrier here because the GC doesn't mark primitive arrays.
+	Buffer.Get().GetHeader()->NumValues = NewNumValues;
 	if (IsString())
 	{
 		SetNullTerminator();
@@ -76,7 +87,7 @@ inline void VMutableArray::Append<TWriteBarrier<VValue>>(FAllocationContext Cont
 
 inline VMutableArray& VMutableArray::Concat(FAllocationContext Context, VArrayBase& Lhs, VArrayBase& Rhs)
 {
-	VMutableArray& NewArray = VMutableArray::New(Context, Lhs.Num() + Rhs.Num(), DetermineCombinedType(Lhs.GetArrayType(), Rhs.GetArrayType()));
+	VMutableArray& NewArray = VMutableArray::New(Context, 0, Lhs.Num() + Rhs.Num(), DetermineCombinedType(Lhs.GetArrayType(), Rhs.GetArrayType()));
 	NewArray.Append(Context, Lhs);
 	NewArray.Append(Context, Rhs);
 	return NewArray;

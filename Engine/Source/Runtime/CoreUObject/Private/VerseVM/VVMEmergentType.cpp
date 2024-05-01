@@ -38,7 +38,7 @@ VEmergentType& VEmergentType::GetOrCreateMeltTransitionSlow(FAllocationContext C
 	Transition->MeltTransition.Set(Context, Transition); // The MeltTransition of a MeltTransition is itself.
 
 	// The object should be done constructing before we expose it to the concurrent GC.
-	storeStoreFence();
+	StoreStoreFence();
 	MeltTransition.Set(Context, Transition);
 	return *Transition;
 }

@@ -19,20 +19,24 @@ TGlobalTrivialEmergentTypePtr<&VMutableArray::StaticCppClassInfo> VMutableArray:
 
 void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 {
-	if (!GetData())
+	if (!Buffer && Array.Num())
 	{
-		Capacity = Array.Num();
-		AllocateBuffer(Context, Array.GetArrayType(), Capacity);
+		uint32 Num = 0;
+		uint32 Capacity = Array.Num();
+		VBuffer NewBuffer = VBuffer(Context, Num, Capacity, Array.GetArrayType());
+		// We barrier because the GC needs to see the store to ArrayType/Num if
+		// it sees the new buffer.
+		SetBufferWithStoreBarrier(Context, NewBuffer);
 	}
 	else if (GetArrayType() != EArrayType::VValue && GetArrayType() != Array.GetArrayType())
 	{
-		Capacity = Num() + Array.Num();
-		ConvertDataToVValues(Context, &Capacity);
+		ConvertDataToVValues(Context, Num() + Array.Num());
 	}
 
 	switch (GetArrayType())
 	{
 		case EArrayType::None:
+			V_DIE_UNLESS(Array.GetArrayType() == EArrayType::None);
 			// Empty-Untyped VMutableArray appending Empty-Untyped VMutableArray
 			break;
 		case EArrayType::VValue:

@@ -68,7 +68,7 @@ struct VArray : VArrayBase
 		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, InitList);
 	}
 
-	template <typename InitIndexFunc>
+	template <typename InitIndexFunc, typename = std::enable_if_t<std::is_same_v<VValue, std::invoke_result_t<InitIndexFunc, uint32>>>>
 	static VArray& New(FAllocationContext Context, uint32 NumValues, InitIndexFunc&& InitFunc)
 	{
 		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, NumValues, InitFunc);
@@ -90,7 +90,7 @@ private:
 	VArray(FAllocationContext Context, std::initializer_list<VValue> InitList)
 		: VArrayBase(Context, InitList, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, static_cast<uint32>(InitList.size())), &StaticCppClassInfo)) {}
 
-	template <typename InitIndexFunc>
+	template <typename InitIndexFunc, typename = std::enable_if_t<std::is_same_v<VValue, std::invoke_result_t<InitIndexFunc, uint32>>>>
 	VArray(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc)
 		: VArrayBase(Context, InNumValues, InitFunc, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, InNumValues), &StaticCppClassInfo)) {}
 

@@ -15,7 +15,7 @@ namespace Verse
 struct VNameValueMap
 {
 	VNameValueMap(FAllocationContext Context, uint32 Capacity)
-		: NameAndValues(Context, &VMutableArray::New(Context, Capacity))
+		: NameAndValues(Context, &VMutableArray::New(Context, 0, Capacity, EArrayType::VValue))
 	{
 	}
 

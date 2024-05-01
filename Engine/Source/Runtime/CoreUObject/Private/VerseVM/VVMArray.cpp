@@ -42,11 +42,11 @@ VArray& VArray::Concat(FRunningContext Context, VArrayBase& Lhs, VArrayBase& Rhs
 	uint32 Index = 0;
 	for (int I = 0; I < Lhs.Num(); ++I)
 	{
-		NewArray.SetValue(Context, Index++, Lhs.GetValue(I));
+		NewArray.SetVValue(Context, Index++, Lhs.GetValue(I));
 	}
 	for (int J = 0; J < Rhs.Num(); ++J)
 	{
-		NewArray.SetValue(Context, Index++, Rhs.GetValue(J));
+		NewArray.SetVValue(Context, Index++, Rhs.GetValue(J));
 	}
 	return NewArray;
 }

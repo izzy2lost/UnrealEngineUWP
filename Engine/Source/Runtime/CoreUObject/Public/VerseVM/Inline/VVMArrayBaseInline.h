@@ -7,7 +7,6 @@
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMArray.h"
 #include "VerseVM/VVMArrayBase.h"
-#include "VerseVM/VVMAtomics.h"
 #include "VerseVM/VVMInt.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMMutableArray.h"
@@ -41,40 +40,38 @@ inline VValue VArrayBase::GetValue(uint32 Index)
 	switch (GetArrayType())
 	{
 		case EArrayType::VValue:
-			return BitCast<TAux<TWriteBarrier<VValue>>>(Values.Get())[Index].Follow();
+			return GetData<VValue>()[Index].Follow();
 		case EArrayType::Int32:
-			return VValue::FromInt32(BitCast<TAux<int32>>(Values.Get())[Index]);
+			return VValue::FromInt32(GetData<int32>()[Index]);
 		case EArrayType::Char8:
-			return VValue::Char(BitCast<TAux<uint8>>(Values.Get())[Index]);
+			return VValue::Char(GetData<uint8>()[Index]);
 		case EArrayType::Char32:
-			return VValue::Char32(BitCast<TAux<uint32>>(Values.Get())[Index]);
+			return VValue::Char32(GetData<uint32>()[Index]);
 		default:
 			V_DIE("Unhandled EArrayType encountered!");
 	}
 }
 
-inline void VArrayBase::ConvertDataToVValues(FAllocationContext Context, const uint32* Capacity)
+inline void VArrayBase::ConvertDataToVValues(FAllocationContext Context, uint32 NewCapacity)
 {
-	V_DIE_IF(IsA<VMutableArray>() && !Capacity);
 	if (GetArrayType() != EArrayType::VValue)
 	{
-		const uint32 NewCapacity = Capacity ? *Capacity : Num();
-
-		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NewCapacity));
-		for (uint32 Index = 0; Index < Num(); ++Index)
+		uint32 Num = this->Num();
+		VBuffer NewBuffer = VBuffer(Context, Num, NewCapacity, EArrayType::VValue);
+		for (uint32 Index = 0; Index < Num; ++Index)
 		{
-			new (&NewValues[Index]) TWriteBarrier<VValue>(Context, GetValue(Index));
+			new (&NewBuffer.GetData<TWriteBarrier<VValue>>()[Index]) TWriteBarrier<VValue>(Context, GetValue(Index));
 		}
 
-		storeStoreFence();
-		Values.Set(Context, BitCast<TAux<void>>(NewValues));
-		SetArrayType(EArrayType::VValue);
+		// We need to see the store to ArrayType/Num/all the VValues before the GC
+		// sees the buffer itself.
+		SetBufferWithStoreBarrier(Context, NewBuffer);
 	}
 }
 
-inline void VArrayBase::SetValue(FAllocationContext Context, uint32 Index, VValue Value, const uint32* Capacity)
+inline void VArrayBase::SetValue(FAllocationContext Context, uint32 Index, VValue Value)
 {
-	checkSlow(IsInBounds(Index));
+	checkSlow(Index < Capacity());
 	EArrayType ArrayType = GetArrayType();
 	if (ArrayType == EArrayType::VValue)
 	{
@@ -82,7 +79,7 @@ inline void VArrayBase::SetValue(FAllocationContext Context, uint32 Index, VValu
 	}
 	else if (ArrayType != DetermineArrayType(Value))
 	{
-		ConvertDataToVValues(Context, Capacity);
+		ConvertDataToVValues(Context, Capacity());
 		SetVValue(Context, Index, Value);
 	}
 	else
@@ -109,7 +106,7 @@ void VArrayBase::Serialize(T*& This, FAllocationContext Context, FAbstractVisito
 {
 	if (Visitor.IsLoading())
 	{
-		uint8 ScratchArrayType;
+		std::underlying_type_t<EArrayType> ScratchArrayType;
 		Visitor.Visit(ScratchArrayType, TEXT("ArrayType"));
 		EArrayType ArrayType = static_cast<EArrayType>(ScratchArrayType);
 
@@ -119,7 +116,6 @@ void VArrayBase::Serialize(T*& This, FAllocationContext Context, FAbstractVisito
 			Visitor.Visit(ScratchNumValues, TEXT("NumValues"));
 			This = &T::New(Context, (uint32)ScratchNumValues, ArrayType);
 			Visitor.VisitBulkData(This->GetData(), This->ByteLength(), TEXT("Values"));
-			This->NumValues = ScratchNumValues; // Need to do this for VMutableArrays
 		}
 		else
 		{
@@ -127,13 +123,18 @@ void VArrayBase::Serialize(T*& This, FAllocationContext Context, FAbstractVisito
 			This = &T::New(Context, (uint32)ScratchNumValues, ArrayType);
 			Visitor.Visit(This->template GetData<TWriteBarrier<VValue>>(), This->template GetData<TWriteBarrier<VValue>>() + ScratchNumValues);
 			Visitor.EndArray();
-			This->NumValues = ScratchNumValues; // Need to do this for VMutableArrays
 		}
 	}
 	else
 	{
 		EArrayType ArrayType = This->GetArrayType();
-		uint8 ScratchArrayType = static_cast<uint8>(ArrayType);
+		EArrayType SerializedArrayType = ArrayType;
+		if (!This->Num())
+		{
+			SerializedArrayType = EArrayType::None;
+		}
+
+		std::underlying_type_t<EArrayType> ScratchArrayType = static_cast<std::underlying_type_t<EArrayType>>(SerializedArrayType);
 		Visitor.Visit(ScratchArrayType, TEXT("ArrayType"));
 
 		uint64 ScratchNumValues = This->Num();
@@ -154,37 +155,51 @@ void VArrayBase::Serialize(T*& This, FAllocationContext Context, FAbstractVisito
 template <typename TVisitor>
 inline void VArrayBase::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.VisitAux(GetData(), TEXT("ValuesBuffer")); // Visit the buffer we allocated for the array as Aux memory
+	VBuffer ThisBuffer = Buffer.Get();
+	Visitor.VisitAux(ThisBuffer.GetPtr(), TEXT("ValuesBuffer")); // Visit the buffer we allocated for the array as Aux memory
 
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		uint64 ScratchNumValues = Num();
+		uint64 ScratchNumValues = ThisBuffer.Num();
 		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		switch (GetArrayType())
+		switch (ThisBuffer.GetArrayType())
 		{
 			case EArrayType::None:
 				// Empty-Untyped VMutableArray
 				break;
 			case EArrayType::VValue:
-				Visitor.Visit(GetData<TWriteBarrier<VValue>>(), GetData<TWriteBarrier<VValue>>() + Num());
+				Visitor.Visit(ThisBuffer.GetData<TWriteBarrier<VValue>>(), ThisBuffer.GetData<TWriteBarrier<VValue>>() + ThisBuffer.Num());
 				break;
 			case EArrayType::Int32:
-				Visitor.Visit(GetData<int32>(), GetData<int32>() + Num());
+				Visitor.Visit(ThisBuffer.GetData<int32>(), ThisBuffer.GetData<int32>() + ThisBuffer.Num());
 				break;
 			case EArrayType::Char8:
-				Visitor.Visit(GetData<uint8>(), GetData<uint8>() + Num());
+				Visitor.Visit(ThisBuffer.GetData<uint8>(), ThisBuffer.GetData<uint8>() + ThisBuffer.Num());
 				break;
 			case EArrayType::Char32:
-				Visitor.Visit(GetData<uint32>(), GetData<uint32>() + Num());
+				Visitor.Visit(ThisBuffer.GetData<uint32>(), ThisBuffer.GetData<uint32>() + ThisBuffer.Num());
 				break;
 			default:
 				V_DIE("Unhandled EArrayType encountered!");
 		}
 		Visitor.EndArray();
 	}
-	else if (GetArrayType() == EArrayType::VValue) // Check if we contain elements requiring marking
+	else if (ThisBuffer.GetArrayType() == EArrayType::VValue) // Check if we contain elements requiring marking
 	{
-		Visitor.Visit(GetData<TWriteBarrier<VValue>>(), GetData<TWriteBarrier<VValue>>() + Num()); // Visit allocated elements in the buffer
+		// This can race with the mutator while the mutator is growing the array.
+		// The reason we don't read garbage VValues is that the mutator will fence
+		// between storing the new Value and incrementing Num. So the GC is guaranteed
+		// to see the new VValue before it sees the new Num. Therefore, the array the
+		// GC sees here is guaranteed to have non-garbage VValues from 0..Num.
+		//
+		// It's also OK if the GC misses VValues that the mutator adds because the
+		// mutator will barrier those new VValues.
+		//
+		// TODO: In the future we need to support concurrently shrinking arrays.
+		// This will happen in the future for two reasons:
+		// - STM rollback.
+		// - We'll eventually add Verse stdlib APIs that allow elements to be removed from arrays.
+		Visitor.Visit(ThisBuffer.GetData<TWriteBarrier<VValue>>(), ThisBuffer.GetData<TWriteBarrier<VValue>>() + ThisBuffer.Num());
 	}
 }
 

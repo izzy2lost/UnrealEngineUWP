@@ -13,7 +13,7 @@ namespace Verse
 //// Just a compiler fence. Has no effect on the hardware, but tells the compiler
 //// not to move things around this call. Should not affect the compiler's ability
 //// to do things like register allocation and code motion over pure operations.
-inline void compilerFence()
+inline void CompilerFence()
 {
 #if PLATFORM_WINDOWS
 	_ReadWriteBarrier();
@@ -26,49 +26,49 @@ inline void compilerFence()
 #if PLATFORM_CPU_ARM_FAMILY
 
 //// Full memory fence. No accesses will float above this, and no accesses will sink below it.
-inline void arm_dmb()
+inline void ArmDmb()
 {
 	asm volatile("dmb ish" ::
 					 : "memory");
 }
 
 // Like the above, but only affects stores.
-inline void arm_dmb_st()
+inline void ArmDmbSt()
 {
 	asm volatile("dmb ishst" ::
 					 : "memory");
 }
 
-inline void arm_isb()
+inline void ArmIsb()
 {
 	asm volatile("isb" ::
 					 : "memory");
 }
 
-inline void loadLoadFence()
+inline void LoadLoadFence()
 {
-	arm_dmb();
+	ArmDmb();
 }
-inline void loadStoreFence()
+inline void LoadStoreFence()
 {
-	arm_dmb();
+	ArmDmb();
 }
-inline void storeLoadFence()
+inline void StoreLoadFence()
 {
-	arm_dmb();
+	ArmDmb();
 }
-inline void storeStoreFence()
+inline void StoreStoreFence()
 {
-	arm_dmb_st();
+	ArmDmbSt();
 }
-inline void crossModifyingCodeFence()
+inline void CrossModifyingCodeFence()
 {
-	arm_isb();
+	ArmIsb();
 }
 
 #elif PLATFORM_CPU_X86_FAMILY
 
-inline void x86_ortop()
+inline void X86Ortop()
 {
 #if PLATFORM_WINDOWS
 	FGenericPlatformMisc::MemoryBarrier();
@@ -81,7 +81,7 @@ inline void x86_ortop()
 #endif
 }
 
-inline void x86_cpuid()
+inline void X86Cpuid()
 {
 #if PLATFORM_WINDOWS
 	int info[4];
@@ -96,46 +96,46 @@ inline void x86_cpuid()
 #endif
 }
 
-inline void loadLoadFence()
+inline void LoadLoadFence()
 {
-	compilerFence();
+	CompilerFence();
 }
-inline void loadStoreFence()
+inline void LoadStoreFence()
 {
-	compilerFence();
+	CompilerFence();
 }
-inline void storeLoadFence()
+inline void StoreLoadFence()
 {
-	x86_ortop();
+	X86Ortop();
 }
-inline void storeStoreFence()
+inline void StoreStoreFence()
 {
-	compilerFence();
+	CompilerFence();
 }
-inline void crossModifyingCodeFence()
+inline void CrossModifyingCodeFence()
 {
-	x86_cpuid();
+	X86Cpuid();
 }
 
 #else
 
-inline void loadLoadFence()
+inline void LoadLoadFence()
 {
 	std::atomic_thread_fence(std::memory_order_seq_cst);
 }
-inline void loadStoreFence()
+inline void LoadStoreFence()
 {
 	std::atomic_thread_fence(std::memory_order_seq_cst);
 }
-inline void storeLoadFence()
+inline void StoreLoadFence()
 {
 	std::atomic_thread_fence(std::memory_order_seq_cst);
 }
-inline void storeStoreFence()
+inline void StoreStoreFence()
 {
 	std::atomic_thread_fence(std::memory_order_seq_cst);
 }
-inline void crossModifyingCodeFence()
+inline void CrossModifyingCodeFence()
 {
 	std::atomic_thread_fence(std::memory_order_seq_cst);
 } // Probably not strong enough.

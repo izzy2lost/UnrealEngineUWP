@@ -25,16 +25,6 @@ struct VCppClassInfo;
 struct VEmergentType;
 struct FOpResult;
 
-// The first 3 bits of Misc3 are used to represent this enum on VArrayBase's
-enum class EArrayType : uint8
-{
-	None,
-	VValue,
-	Int32,
-	Char8,
-	Char32
-};
-
 struct VCell
 {
 	// If set in GCData, means that this object has an object in the libpas verse_heap client_data for the verse_heap_page_header
@@ -85,7 +75,6 @@ struct VCell
 	COREUOBJECT_API bool Subsumes(FRunningContext Context, VValue);
 	bool IsDeeplyMutable() { return Misc2 & DeeplyMutableTag; }
 	bool SetIsDeeplyMutable() { return Misc2 |= DeeplyMutableTag; }
-	EArrayType GetArrayType() const;
 
 private:
 	// Use this if your cell subtype has any outgoing strong references.  It is used by both the

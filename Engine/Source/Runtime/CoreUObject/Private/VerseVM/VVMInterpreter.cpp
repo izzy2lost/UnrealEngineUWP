@@ -1501,7 +1501,12 @@ class FInterpreter
 	{
 		const VValue Size = GetOperand(Op.Size);
 		REQUIRE_CONCRETE(Size); // Must be an Int32 (although UInt32 is better)
-		DEF(Op.Dest, VMutableArray::New(Context, static_cast<uint32>(Size.AsInt32())));
+		// TODO: We should kill this opcode until we actually have a use for it.
+		// Allocating this with None array type means we're not actually reserving a
+		// capacity. The way to do this right in the future is to use profiling to
+		// guide what array type we pick. This opcode is currently only being
+		// used in our bytecode tests.
+		DEF(Op.Dest, VMutableArray::New(Context, 0, static_cast<uint32>(Size.AsInt32()), EArrayType::None));
 
 		return {FOpResult::Return};
 	}

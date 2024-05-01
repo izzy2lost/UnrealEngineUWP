@@ -5,6 +5,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Containers/StringView.h"
+#include "VVMAtomics.h"
 #include "VVMAux.h"
 #include "VVMEmergentTypeCreator.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
@@ -17,19 +18,170 @@ namespace Verse
 struct VInt;
 struct FOpResult;
 
+enum class EArrayType : uint8
+{
+	None,
+	VValue,
+	Int32,
+	Char8,
+	Char32
+};
+
+inline bool IsString(EArrayType Type)
+{
+	return Type == EArrayType::Char8;
+}
+
+inline size_t ByteLength(EArrayType ArrayType)
+{
+	switch (ArrayType)
+	{
+		case EArrayType::None:
+			return 0; // Empty-Untyped VMutableArray
+		case EArrayType::VValue:
+			return sizeof(TWriteBarrier<VValue>);
+		case EArrayType::Int32:
+			return sizeof(int32);
+		case EArrayType::Char8:
+			return sizeof(uint8);
+		case EArrayType::Char32:
+			return sizeof(uint32);
+		default:
+			V_DIE("Unhandled EArrayType encountered!");
+	}
+}
+
+struct VBuffer : TAux<void>
+{
+	// Note: We don't need to align uint8/uint32 arrays this way. However, that will
+	// make accessing the data branch on Type. So it might never be worth doing.
+	struct alignas(sizeof(VValue)) Header
+	{
+		uint32 NumValues;
+		// These are immutable per VBuffer. This means that if the GC sees a buffer with
+		// a particular type, it's type can't change while it's scanning the buffer.
+		const uint32 Capacity;
+		const EArrayType Type;
+	};
+
+	VBuffer() = default;
+
+	VBuffer(FAllocationContext Context, uint32 NumValues, uint32 Capacity, EArrayType Type)
+	{
+		V_DIE_IF(Type == EArrayType::None);
+		V_DIE_UNLESS(Capacity >= NumValues);
+
+		// If we are UTF8, add +1 to capacity and set a null-terminator
+		uint32 AllocationCapacity = Capacity + (IsString(Type) ? 1 : 0);
+		V_DIE_UNLESS(AllocationCapacity > 0);
+
+		Ptr = Context.AllocateAuxCell(sizeof(Header) + ByteLength(Type) * AllocationCapacity);
+		new (GetHeader()) Header{NumValues, Capacity, Type};
+
+		if (IsString(Type))
+		{
+			SetNullTerminator();
+		}
+	}
+
+	VBuffer(FAllocationContext Context, uint32 NumValues, EArrayType Type)
+		: VBuffer(Context, NumValues, NumValues, Type)
+	{
+	}
+
+	Header* GetHeader() const
+	{
+		return static_cast<Header*>(Ptr);
+	}
+
+	void* GetDataStart()
+	{
+		return Ptr ? static_cast<char*>(Ptr) + sizeof(Header) : nullptr;
+	}
+
+	const void* GetDataStart() const
+	{
+		return const_cast<VBuffer*>(this)->GetDataStart();
+	}
+
+	EArrayType GetArrayType() const
+	{
+		if (Header* Header = GetHeader())
+		{
+			checkSlow(Header->Type != EArrayType::None);
+			return Header->Type;
+		}
+		return EArrayType::None;
+	}
+
+	uint32 Num() const
+	{
+		if (Header* Header = GetHeader())
+		{
+			return Header->NumValues;
+		}
+		return 0;
+	}
+
+	uint32 Capacity() const
+	{
+		if (Header* Header = GetHeader())
+		{
+			return Header->Capacity;
+		}
+		return 0;
+	}
+
+	void SetNullTerminator()
+	{
+		SetChar(Num(), static_cast<UTF8CHAR>(0));
+	}
+
+	void SetVValue(FAllocationContext Context, uint32 Index, VValue Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::VValue);
+		new (&GetData<TWriteBarrier<VValue>>()[Index]) TWriteBarrier<VValue>(Context, Value);
+	}
+	void SetInt32(uint32 Index, int32 Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::Int32);
+		new (&GetData<int32>()[Index]) int32(Value);
+	}
+	void SetChar(uint32 Index, uint8 Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::Char8);
+		new (&GetData<uint8>()[Index]) uint8(Value);
+	}
+	void SetChar32(uint32 Index, uint32 Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::Char32);
+		new (&GetData<uint32>()[Index]) uint32(Value);
+	}
+
+	template <typename T = void>
+	T* GetData() { return BitCast<T*>(GetDataStart()); }
+
+	template <typename T = void>
+	const T* GetData() const { return BitCast<T*>(GetDataStart()); }
+};
+
+static_assert(IsTAux<VBuffer>);
+
 struct VArrayBase : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 
 protected:
-	// Our Aux memory buffer is typed as void so we can accomodate all the types listed in ::EArrayType
-	TWriteBarrier<TAux<void>> Values;
-	uint32 NumValues;
+	TWriteBarrier<VBuffer> Buffer;
 
-	void SetArrayType(EArrayType ArrayType)
+	void SetBufferWithoutStoreBarrier(FAccessContext Context, VBuffer NewBuffer)
 	{
-		Misc3 &= ~(static_cast<uint8_t>(GetArrayType())); // Clear any existing type
-		Misc3 |= static_cast<uint8_t>(ArrayType);
+		this->Buffer.Set(Context, NewBuffer);
+	}
+	void SetBufferWithStoreBarrier(FAccessContext Context, VBuffer NewBuffer)
+	{
+		StoreStoreFence();
+		SetBufferWithoutStoreBarrier(Context, NewBuffer);
 	}
 
 	static EArrayType DetermineArrayType(VValue Value)
@@ -54,150 +206,121 @@ protected:
 		return A == B ? A : EArrayType::VValue;
 	}
 
-	static size_t ByteLength(EArrayType ArrayType)
+	VArrayBase(FAllocationContext Context, uint32 NumValues, uint32 Capacity, EArrayType ArrayType, VEmergentType* Type)
+		: VHeapValue(Context, Type)
 	{
-		switch (ArrayType)
+		SetIsDeeplyMutable();
+
+		V_DIE_UNLESS(Capacity >= NumValues);
+		if (ArrayType != EArrayType::None && Capacity)
 		{
-			case EArrayType::None:
-				return 0; // Empty-Untyped VMutableArray
-			case EArrayType::VValue:
-				return sizeof(TWriteBarrier<VValue>);
-			case EArrayType::Int32:
-				return sizeof(int32);
-			case EArrayType::Char8:
-				return sizeof(uint8);
-			case EArrayType::Char32:
-				return sizeof(uint32);
-			default:
-				V_DIE("Unhandled EArrayType encountered!");
+			SetBufferWithoutStoreBarrier(Context, VBuffer(Context, NumValues, Capacity, ArrayType));
+		}
+		else
+		{
+			V_DIE_IF(NumValues);
 		}
 	}
 
-	VArrayBase(FAllocationContext Context, uint32 InNumValues, EArrayType ArrayType, VEmergentType* Type)
-		: VHeapValue(Context, Type)
-		, NumValues(InNumValues)
+	VArrayBase(FAllocationContext Context, uint32 NumValues, EArrayType ArrayType, VEmergentType* Type)
+		: VArrayBase(Context, NumValues, NumValues, ArrayType, Type)
 	{
-		SetIsDeeplyMutable();
-		if (ArrayType != EArrayType::None)
-		{
-			AllocateBuffer(Context, ArrayType, NumValues);
-		}
 	}
 
 	VArrayBase(FAllocationContext Context, std::initializer_list<VValue> InitList, VEmergentType* Type)
 		: VHeapValue(Context, Type)
-		, NumValues(InitList.size())
 	{
 		SetIsDeeplyMutable();
-		if (NumValues)
+
+		if (InitList.size())
 		{
-			AllocateBuffer(Context, DetermineArrayType(*InitList.begin()), NumValues);
+			SetBufferWithoutStoreBarrier(Context, VBuffer(Context, InitList.size(), DetermineArrayType(*InitList.begin())));
 			uint32 Index = 0;
-			for (const VValue& Value : InitList)
+			for (VValue Value : InitList)
 			{
-				SetValue(Context, Index++, Value, &NumValues);
+				SetValue(Context, Index++, Value);
 			}
 		}
 	}
 
-	template <typename InitIndexFunc>
-	VArrayBase(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc, VEmergentType* Type)
+	template <typename InitIndexFunc, typename = std::enable_if_t<std::is_same_v<VValue, std::invoke_result_t<InitIndexFunc, uint32>>>>
+	VArrayBase(FAllocationContext Context, uint32 NumValues, InitIndexFunc&& InitFunc, VEmergentType* Type)
 		: VHeapValue(Context, Type)
-		, NumValues(InNumValues)
 	{
 		SetIsDeeplyMutable();
+
 		if (NumValues)
 		{
-			AllocateBuffer(Context, DetermineArrayType(InitFunc(0)), NumValues);
+			SetBufferWithoutStoreBarrier(Context, VBuffer(Context, NumValues, DetermineArrayType(InitFunc(0))));
 			for (uint32 Index = 0; Index < NumValues; ++Index)
 			{
-				SetValue(Context, Index, InitFunc(Index), &NumValues);
+				SetValue(Context, Index, InitFunc(Index));
 			}
 		}
 	}
 
 	VArrayBase(FAllocationContext Context, FUtf8StringView String, VEmergentType* Type)
 		: VHeapValue(Context, Type)
-		, NumValues(String.Len())
+		, Buffer(Context, VBuffer(Context, String.Len(), EArrayType::Char8))
 	{
 		SetIsDeeplyMutable();
-		AllocateBuffer(Context, EArrayType::Char8, NumValues);
 		FMemory::Memcpy(GetData(), String.GetData(), String.Len());
-	}
-
-	void AllocateBuffer(FAllocationContext Context, EArrayType ArrayType, uint32 Capacity)
-	{
-		checkSlow(!GetData());
-		SetArrayType(ArrayType);
-
-		if (IsString())
-		{
-			// If we are UTF8, add +1 to capacity and set a null-terminator
-			TAux<void> NewValues = TAux<void>(Context.AllocateAuxCell(ByteLength(ArrayType) * (Capacity + 1)));
-			Values.Set(Context, NewValues);
-			SetChar(Num(), static_cast<UTF8CHAR>(0));
-		}
-		else
-		{
-			TAux<void> NewValues = TAux<void>(Context.AllocateAuxCell(ByteLength(ArrayType) * Capacity));
-			Values.Set(Context, NewValues);
-		}
 	}
 
 	void SetNullTerminator()
 	{
-		SetChar(Num(), static_cast<UTF8CHAR>(0));
+		Buffer.Get().SetNullTerminator();
 	}
 
-	void ConvertDataToVValues(FAllocationContext Context, const uint32* Capacity);
+	void ConvertDataToVValues(FAllocationContext Context, uint32 NewCapacity);
 
 	template <typename T>
 	static void Serialize(T*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 public:
-	uint32 Num() const { return NumValues; }
+	uint32 Num() const { return Buffer.Get().Num(); }
+	uint32 Capacity() const { return Buffer.Get().Capacity(); }
 	bool IsInBounds(uint32 Index) const;
 	bool IsInBounds(const VInt& Index, const uint32 Bounds) const;
 	VValue GetValue(uint32 Index);
 
 	/// Capacity parameter is required for handling when a re-allocation to VValues takes place during SetValue from a VMutableArray.
-	void SetValue(FAllocationContext Context, uint32 Index, VValue Value, const uint32* Capacity = nullptr);
+	void SetValue(FAllocationContext Context, uint32 Index, VValue Value);
 	void SetVValue(FAllocationContext Context, uint32 Index, VValue Value)
 	{
-		checkSlow(GetArrayType() == EArrayType::VValue);
-		new (&BitCast<TAux<TWriteBarrier<VValue>>>(Values.Get())[Index]) TWriteBarrier<VValue>(Context, Value);
+		Buffer.Get().SetVValue(Context, Index, Value);
 	}
 	void SetInt32(uint32 Index, int32 Value)
 	{
-		checkSlow(GetArrayType() == EArrayType::Int32);
-		new (&BitCast<TAux<int32>>(Values.Get())[Index]) int32(Value);
+		Buffer.Get().SetInt32(Index, Value);
 	}
 	void SetChar(uint32 Index, uint8 Value)
 	{
-		checkSlow(GetArrayType() == EArrayType::Char8);
-		new (&BitCast<TAux<uint8>>(Values.Get())[Index]) uint8(Value);
+		Buffer.Get().SetChar(Index, Value);
 	}
 	void SetChar32(uint32 Index, uint32 Value)
 	{
-		checkSlow(GetArrayType() == EArrayType::Char32);
-		new (&BitCast<TAux<uint32>>(Values.Get())[Index]) uint32(Value);
+		Buffer.Get().SetChar32(Index, Value);
 	}
 
-	void* GetData() { return Values.Get().GetPtr(); };
-	const void* GetData() const { return Values.Get().GetPtr(); };
+	void* GetData() { return Buffer.Get().GetData(); };
+	const void* GetData() const { return Buffer.Get().GetData(); };
+
 	template <typename T>
-	T* GetData() { return BitCast<TAux<T>>(Values.Get()).GetPtr(); }
+	T* GetData() { return Buffer.Get().GetData<T>(); }
 	template <typename T>
-	const T* GetData() const { return BitCast<TAux<T>>(Values.Get()).GetPtr(); }
+	const T* GetData() const { return Buffer.Get().GetData<T>(); }
+
+	EArrayType GetArrayType() const { return Buffer.Get().GetArrayType(); }
 
 	size_t ByteLength()
 	{
-		return Num() * ByteLength(GetArrayType());
+		return Num() * ::Verse::ByteLength(GetArrayType());
 	}
 
 	bool IsString() const
 	{
-		return GetArrayType() == EArrayType::Char8;
+		return ::Verse::IsString(GetArrayType());
 	}
 
 	FString AsString() const
@@ -220,6 +343,8 @@ public:
 		return FUtf8StringView();
 	}
 
+	// TODO SOL-6407: Is this actually right? Nothing is stopping us from having
+	// an array with a bunch of VValue chars.
 	bool Equals(const FUtf8StringView String) const
 	{
 		if (IsString())
