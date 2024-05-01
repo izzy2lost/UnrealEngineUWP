@@ -10,6 +10,12 @@ namespace UE::Online {
 
 class FOnlineServicesEOS;
 
+namespace ELinkAccountTag
+{
+// An internal account is an account which has nothing external allowing the user to login on the epicgames.com website.
+ONLINESERVICESEOS_API extern const FName InternalAccount;
+}
+
 class ONLINESERVICESEOS_API FAuthEOS : public FAuthEOSGS
 {
 public:
