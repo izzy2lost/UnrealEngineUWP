@@ -9,6 +9,7 @@
 #include "ChaosClothAsset/WeightedValue.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowObject.h"
+#include "InteractiveToolChange.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AddWeightMapNode)
 
@@ -349,4 +350,74 @@ void FChaosClothAssetAddWeightMapNode::CalculateFinalRenderVertexWeightValues(co
 {
 	UE::Chaos::ClothAsset::Private::CalculateFinalVertexWeightValues(InputMap, FinalOutputMap, MapOverrideType, GetRenderVertexWeights());
 }
+
+
+// Object encapsulating a change to the AddWeightMap node's values. Used for Undo/Redo.
+class FChaosClothAssetAddWeightMapNode::FWeightMapNodeChange final : public FToolCommandChange
+{
+
+public: 
+
+	FWeightMapNodeChange(const FChaosClothAssetAddWeightMapNode& Node) :
+		NodeGuid(Node.GetGuid()),
+		SavedWeights(Node.GetVertexWeights()),
+		SavedRenderWeights(Node.GetRenderVertexWeights()),
+		SavedMapOverrideType(Node.MapOverrideType),
+		SavedWeightMapName(Node.Name)
+	{}
+
+private:
+
+	FGuid NodeGuid;
+	TArray<float> SavedWeights;
+
+	// Note we could store only one set of weights and use a bool to determine whether we are updating sim or render vertices, however in the future 
+	// we may enable writing both weight maps to the node at once.
+	TArray<float> SavedRenderWeights;
+
+	EChaosClothAssetWeightMapOverrideType SavedMapOverrideType;
+	FString SavedWeightMapName;
+
+	virtual FString ToString() const final
+	{
+		return TEXT("ChaosClothAssetAddWeightMapNodeChange");
+	}
+
+	virtual void Apply(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	virtual void Revert(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	void SwapApplyRevert(UObject* Object)
+	{
+		if (UDataflow* const Dataflow = Cast<UDataflow>(Object))
+		{
+			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->GetDataflow()->FindBaseNode(NodeGuid))
+			{
+				if (FChaosClothAssetAddWeightMapNode* const Node = BaseNode->AsType<FChaosClothAssetAddWeightMapNode>())
+				{
+					Swap(Node->GetVertexWeights(), SavedWeights);
+					Swap(Node->GetRenderVertexWeights(), SavedRenderWeights);
+					Swap(Node->MapOverrideType, SavedMapOverrideType);
+					Swap(Node->Name, SavedWeightMapName);
+
+					Node->Invalidate();
+				}
+			}
+		}
+	}
+};
+
+TUniquePtr<FToolCommandChange> FChaosClothAssetAddWeightMapNode::MakeWeightMapNodeChange(const FChaosClothAssetAddWeightMapNode& Node)
+{
+	return MakeUnique<FChaosClothAssetAddWeightMapNode::FWeightMapNodeChange>(Node);
+}
+
+
+
 #undef LOCTEXT_NAMESPACE

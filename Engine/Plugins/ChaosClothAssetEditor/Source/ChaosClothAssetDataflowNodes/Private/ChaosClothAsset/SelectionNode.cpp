@@ -10,6 +10,7 @@
 #include "ChaosClothAsset/WeightedValue.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowObject.h"
+#include "InteractiveToolChange.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SelectionNode)
 
@@ -501,5 +502,79 @@ void FChaosClothAssetSelectionNode::CalculateFinalSecondarySet(const TSet<int32>
 {
 	UE::Chaos::ClothAsset::Private::CalculateFinalSet(InputSet, FinalSet, SelectionOverrideType, SecondaryIndices, RemoveSecondaryIndices);
 }
+
+
+// Object encapsulating a change to the Selection Node's values. Used for Undo/Redo.
+class FChaosClothAssetSelectionNode::FSelectionNodeChange final : public FToolCommandChange
+{
+public:
+
+	FSelectionNodeChange(const FChaosClothAssetSelectionNode& Node) :
+		NodeGuid(Node.GetGuid()),
+		SavedName(Node.Name),
+		SavedSelectionOverrideType(Node.SelectionOverrideType),
+		SavedGroup(Node.Group),
+		SavedIndices(Node.Indices),
+		SavedRemoveIndices(Node.RemoveIndices),
+		SavedSecondaryGroup(Node.SecondaryGroup),
+		SavedSecondaryIndices(Node.SecondaryIndices),
+		SavedRemoveSecondaryIndices(Node.RemoveSecondaryIndices)
+	{}
+
+private:
+
+	FGuid NodeGuid;
+	FString SavedName;
+	EChaosClothAssetSelectionOverrideType SavedSelectionOverrideType;
+	FChaosClothAssetNodeSelectionGroup SavedGroup;
+	TSet<int32> SavedIndices;
+	TSet<int32> SavedRemoveIndices;
+	FChaosClothAssetNodeSelectionGroup SavedSecondaryGroup;
+	TSet<int32> SavedSecondaryIndices;
+	TSet<int32> SavedRemoveSecondaryIndices;
+
+	virtual FString ToString() const final
+	{
+		return TEXT("ChaosClothAssetSelectionNodeChange");
+	}
+
+	virtual void Apply(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	virtual void Revert(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	void SwapApplyRevert(UObject* Object)
+	{
+		if (UDataflow* const Dataflow = Cast<UDataflow>(Object))
+		{
+			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->GetDataflow()->FindBaseNode(NodeGuid))
+			{
+				if (FChaosClothAssetSelectionNode* const Node = BaseNode->AsType<FChaosClothAssetSelectionNode>())
+				{
+					Swap(Node->Name, SavedName);
+					Swap(Node->SelectionOverrideType, SavedSelectionOverrideType);
+					Swap(Node->Group, SavedGroup);
+					Swap(Node->Indices, SavedIndices);
+					Swap(Node->RemoveIndices, SavedRemoveIndices);
+					Swap(Node->SecondaryGroup, SavedSecondaryGroup);
+					Swap(Node->SecondaryIndices, SavedSecondaryIndices);
+					Swap(Node->RemoveSecondaryIndices, SavedRemoveSecondaryIndices);
+					Node->Invalidate();
+				}
+			}
+		}
+	}
+};
+
+TUniquePtr<FToolCommandChange> FChaosClothAssetSelectionNode::MakeWeightMapNodeChange(const FChaosClothAssetSelectionNode& Node)
+{
+	return MakeUnique<FChaosClothAssetSelectionNode::FSelectionNodeChange>(Node);
+}
+
 
 #undef LOCTEXT_NAMESPACE

@@ -536,6 +536,16 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 {
 	using namespace UE::Chaos::ClothAsset;
 
+	checkf(SelectionNodeToUpdate, TEXT("Expected non-null pointer to Selection Node"));
+
+	// Save previous state for undo
+	if (UDataflow* const Dataflow = ClothEditorContextObject->GetDataflowAsset())
+	{
+		GetToolManager()->GetContextTransactionsAPI()->AppendChange(Dataflow, 
+			FChaosClothAssetSelectionNode::MakeWeightMapNodeChange(*SelectionNodeToUpdate),
+			LOCTEXT("SelectionNodeChangeDescription", "Update Selection Node"));
+	}
+
 	const UE::Geometry::FGroupTopologySelection& Selection = SelectionMechanic->GetActiveSelection();
 	const EClothPatternVertexType ViewMode = ClothEditorContextObject->GetConstructionViewMode();
 

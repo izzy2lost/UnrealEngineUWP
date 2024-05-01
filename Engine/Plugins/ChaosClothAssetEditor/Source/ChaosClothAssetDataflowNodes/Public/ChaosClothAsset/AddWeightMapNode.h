@@ -93,7 +93,9 @@ public:
 
 private:
 	friend class UClothEditorWeightMapPaintTool;
-	friend class FWeightMapNodeChange;
+
+	class FWeightMapNodeChange;
+	static TUniquePtr<class FToolCommandChange> CHAOSCLOTHASSETDATAFLOWNODES_API MakeWeightMapNodeChange(const FChaosClothAssetAddWeightMapNode& Node);
 
 	const TArray<float>& GetVertexWeights() const { return VertexWeights; }
 	TArray<float>& GetVertexWeights() { return VertexWeights; }
