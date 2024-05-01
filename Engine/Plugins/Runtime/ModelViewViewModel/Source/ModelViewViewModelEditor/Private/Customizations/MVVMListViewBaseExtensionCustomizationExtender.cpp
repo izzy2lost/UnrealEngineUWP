@@ -166,7 +166,9 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CreateListBaseViewExtensio
 	{
 		if (UListViewBase* WidgetPtr = Widget.Get())
 		{
-			if (Extension->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName()).IsEmpty())
+			TArray<UMVVMBlueprintViewExtension*> Extensions = Extension->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName());
+			bool bExists = Extensions.ContainsByPredicate([](UMVVMBlueprintViewExtension* Extension) { return Cast<UMVVMBlueprintViewExtension_ListViewBase>(Extension) != nullptr; });
+			if (!bExists)
 			{
 				UMVVMBlueprintViewExtension* NewExtension = Extension->CreateBlueprintWidgetExtension(UMVVMBlueprintViewExtension_ListViewBase::StaticClass(), WidgetPtr->GetFName());
 				UMVVMBlueprintViewExtension_ListViewBase* NewListViewExtension = CastChecked<UMVVMBlueprintViewExtension_ListViewBase>(NewExtension);

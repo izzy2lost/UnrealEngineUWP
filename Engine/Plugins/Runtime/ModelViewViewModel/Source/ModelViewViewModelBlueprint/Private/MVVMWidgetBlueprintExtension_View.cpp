@@ -93,7 +93,7 @@ void UMVVMWidgetBlueprintExtension_View::RemoveBlueprintWidgetExtension(UMVVMBlu
 
 	const FScopedTransaction Transaction(LOCTEXT("RemoveViewModelExtension", "Remove viewmodel extension"));
 	Modify();
-	BlueprintExtensions.Remove(Extension);
+	BlueprintExtensions.RemoveSingle(Extension);
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetWidgetBlueprint());
 }
 
@@ -102,7 +102,7 @@ TArray<UMVVMBlueprintViewExtension*> UMVVMWidgetBlueprintExtension_View::GetBlue
 	TArray<UMVVMBlueprintViewExtension*> ThisWidgetExtensions;
 	for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
 	{
-		if (Extension.WidgetName == WidgetName)
+		if (Extension.WidgetName == WidgetName && Extension.ExtensionObj)
 		{
 			ThisWidgetExtensions.Add(Extension.ExtensionObj);
 		}
@@ -116,38 +116,57 @@ void UMVVMWidgetBlueprintExtension_View::VerifyWidgetExtensions()
 	{
 		if (const UWidgetTree* WidgetTree = WidgetBlueprint->WidgetTree)
 		{
-			TArray <FName, TInlineAllocator<4>> WidgetNamesToRemove;
-			for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
+			bool bModified = false;
+			auto UpdateModify = [&bModified, Self=this]()
 			{
-				if (!Extension.WidgetName.IsNone())
+				if (!bModified)
 				{
-					WidgetNamesToRemove.Add(Extension.WidgetName);
+					bModified = true;
+					Self->Modify();
+				}
+			};
+
+			TArray <FName, TInlineAllocator<4>> WidgetNamesToRemove;
+			for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; --Index)
+			{
+				if (BlueprintExtensions[Index].ExtensionObj == nullptr)
+				{
+					UpdateModify();
+					BlueprintExtensions.RemoveAtSwap(Index);
+				}
+				else if (!BlueprintExtensions[Index].WidgetName.IsNone())
+				{
+					WidgetNamesToRemove.Add(BlueprintExtensions[Index].WidgetName);
 				}
 			}
+
 			// Find widgets that are no longer in the tree and delete their extensions.
-			WidgetTree->ForEachWidget([&WidgetNamesToRemove, this](TObjectPtr<UWidget> Widget) {
-				if (Widget)
-				{
-					for (int32 Index = WidgetNamesToRemove.Num() - 1; Index >= 0; Index--)
+			if (WidgetNamesToRemove.Num() > 0)
+			{
+				WidgetTree->ForEachWidget([&WidgetNamesToRemove, this](TObjectPtr<UWidget> Widget) {
+					if (Widget)
 					{
-						const FName WidgetName = WidgetNamesToRemove[Index];
-						if (WidgetName == Widget->GetFName())
+						for (int32 Index = WidgetNamesToRemove.Num() - 1; Index >= 0; Index--)
 						{
-							WidgetNamesToRemove.Remove(WidgetName);
+							const FName WidgetName = WidgetNamesToRemove[Index];
+							if (WidgetName == Widget->GetFName())
+							{
+								WidgetNamesToRemove.RemoveSingleSwap(WidgetName);
+							}
 						}
 					}
-				}
-			});
+					});
+			}
 
 			if (WidgetNamesToRemove.Num() > 0)
 			{
-				Modify();
-			}
-			for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; Index--)
-			{
-				if (WidgetNamesToRemove.Contains(BlueprintExtensions[Index].WidgetName))
+				UpdateModify();
+				for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; --Index)
 				{
-					BlueprintExtensions.RemoveAt(Index);
+					if (WidgetNamesToRemove.Contains(BlueprintExtensions[Index].WidgetName))
+					{
+						BlueprintExtensions.RemoveAtSwap(Index);
+					}
 				}
 			}
 		}

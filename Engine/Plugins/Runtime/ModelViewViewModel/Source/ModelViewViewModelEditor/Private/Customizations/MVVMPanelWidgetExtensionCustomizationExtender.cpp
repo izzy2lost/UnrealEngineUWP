@@ -207,7 +207,9 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CreatePanelWidgetViewExtens
 	{
 		if (UPanelWidget* WidgetPtr = Widget.Get())
 		{
-			if (Extension->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName()).IsEmpty())
+			TArray<UMVVMBlueprintViewExtension*> Extensions = Extension->GetBlueprintExtensionsForWidget(WidgetPtr->GetFName());
+			bool bExists = Extensions.ContainsByPredicate([](UMVVMBlueprintViewExtension* Extension){ return Cast<UMVVMBlueprintViewExtension_PanelWidget>(Extension) != nullptr; });
+			if (!bExists)
 			{
 				UMVVMBlueprintViewExtension* NewExtension = Extension->CreateBlueprintWidgetExtension(UMVVMBlueprintViewExtension_PanelWidget::StaticClass(), WidgetPtr->GetFName());
 				UMVVMBlueprintViewExtension_PanelWidget* NewPanelWidgetExtension = CastChecked<UMVVMBlueprintViewExtension_PanelWidget>(NewExtension);
