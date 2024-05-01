@@ -25,7 +25,9 @@ public:
 	virtual bool SupportsHLODs() const override { return true; }
 	virtual void InitHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition, int32 InHLODIndex);
 	virtual void SetDefaultValues() override;
+#endif
 	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const override;
+#if WITH_EDITOR
 	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;
 	virtual FArchive& AppendCellGuid(FArchive& InAr) override;
 	//~ End URuntimePartition interface

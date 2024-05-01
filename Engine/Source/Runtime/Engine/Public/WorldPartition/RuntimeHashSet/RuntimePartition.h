@@ -64,12 +64,13 @@ public:
 	virtual void SetDefaultValues();
 	virtual bool SupportsHLODs() const PURE_VIRTUAL(URuntimePartition::SupportsHLODs, return true;);
 	virtual void InitHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition, int32 InHLODIndex);
+#endif
 	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const PURE_VIRTUAL(URuntimePartition::IsValidPartitionTokens, return false;);
+#if WITH_EDITOR
 	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) PURE_VIRTUAL(URuntimePartition::GenerateStreaming, return false;);
 	virtual FArchive& AppendCellGuid(FArchive& InAr) { return InAr << Name << HLODIndex; }
 #endif
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FName Name;
 
@@ -90,7 +91,6 @@ public:
 
 	UPROPERTY()
 	int32 HLODIndex;
-#endif
 
 protected:
 #if WITH_EDITOR

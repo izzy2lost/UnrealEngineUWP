@@ -42,14 +42,13 @@ struct FRuntimePartitionDesc
 {
 	GENERATED_USTRUCT_BODY()
 
-#if WITH_EDITORONLY_DATA
-	/** Partition class */
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
-	TSubclassOf<URuntimePartition> Class;
-
 	/** Name for this partition, used to map actors to it through the Actor.RuntimeGrid property  */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle))
 	FName Name;
+
+	/** Partition class */
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	TSubclassOf<URuntimePartition> Class;
 
 	/** Main partition object */
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
@@ -58,7 +57,6 @@ struct FRuntimePartitionDesc
 	/** HLOD setups used by this partition, one for each layers in the hierarchy */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, ForceInlineRow))
 	TArray<FRuntimePartitionHLODSetup> HLODSetups;
-#endif
 
 #if WITH_EDITOR
 	void UpdateHLODPartitionLayers();
@@ -101,10 +99,25 @@ protected:
 template<>
 struct TStructOpsTypeTraits<FRuntimePartitionStreamingData> : public TStructOpsTypeTraitsBase2<FRuntimePartitionStreamingData>
 {
-	enum
-	{
-		WithCopy = false
-	};
+	enum { WithCopy = false };
+};
+
+USTRUCT()
+struct FRuntimePartitionStreamingDataList
+{
+	GENERATED_USTRUCT_BODY()
+
+	friend class UWorldPartitionRuntimeHashSet;
+
+protected:
+	UPROPERTY()
+	TArray<FRuntimePartitionStreamingData> List;
+};
+
+template<>
+struct TStructOpsTypeTraits<FRuntimePartitionStreamingDataList> : public TStructOpsTypeTraitsBase2<FRuntimePartitionStreamingDataList>
+{
+	enum { WithCopy = false	};
 };
 
 UCLASS()
@@ -149,13 +162,17 @@ public:
 	ENGINE_API virtual bool SupportsHLODs() const override;
 	ENGINE_API virtual bool SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const override;
 	ENGINE_API virtual bool GenerateStreaming(class UWorldPartitionStreamingPolicy* StreamingPolicy, const IStreamingGenerationContext* StreamingGenerationContext, TArray<FString>* OutPackagesToGenerate) override;
+#endif
 	ENGINE_API virtual bool IsValidGrid(FName GridName, const UClass* ActorClass) const;
+#if WITH_EDITOR
 	ENGINE_API virtual bool IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const;
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const override;
+#endif
 
 	// Helpers
 	static ENGINE_API bool ParseGridName(FName GridName, TArray<FName>& MainPartitionTokens, TArray<FName>& HLODPartitionTokens);
 
+#if WITH_EDITOR
 	// Conversions
 	static ENGINE_API UWorldPartitionRuntimeHashSet* CreateFrom(const UWorldPartitionRuntimeHash* SrcHash);
 #endif
@@ -172,6 +189,12 @@ public:
 	ENGINE_API virtual void ForEachStreamingCellsQuery(const FWorldPartitionStreamingQuerySource& QuerySource, TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func, FWorldPartitionQueryCache* QueryCache) const override;
 	ENGINE_API virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const override;
 	ENGINE_API virtual uint32 ComputeUpdateStreamingHash() const override;
+
+protected:
+	virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) override;
+	virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) override;
+	virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) override;
+	virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) override;
 
 private:
 	ENGINE_API virtual void OnBeginPlay() override;
@@ -203,6 +226,9 @@ private:
 
 	UPROPERTY()
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
+
+	UPROPERTY(Transient)
+	TMap<FGuid, FRuntimePartitionStreamingDataList> WorldAssetStreamingDatas;
 
 	// Optimized data
 	TMap<FName, TArray<const FRuntimePartitionStreamingData*>> RuntimeSpatiallyLoadedDataGridMap;

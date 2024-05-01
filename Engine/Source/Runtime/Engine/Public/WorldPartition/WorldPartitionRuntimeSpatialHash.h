@@ -419,6 +419,14 @@ protected:
 	mutable TMap<FName, const FSpatialHashStreamingGrid*> NameToGridMapping;
 	mutable bool bIsNameToGridMappingDirty;
 
+	virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) override;
+	virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) override;
+	virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) override;
+	virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) override;
+
+	UPROPERTY(Transient)
+	TMap<FGuid, TObjectPtr<URuntimeSpatialHashExternalStreamingObject>> WorldAssetStreamingObjects;
+
 private:
 	ENGINE_API virtual bool Draw2D(FWorldPartitionDraw2DContext& DrawContext) const override;
 	ENGINE_API virtual void Draw3D(const TArray<FWorldPartitionStreamingSource>& Sources) const override;

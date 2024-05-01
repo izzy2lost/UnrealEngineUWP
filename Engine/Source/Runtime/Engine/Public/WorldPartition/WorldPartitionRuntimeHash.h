@@ -153,6 +153,7 @@ class UWorldPartitionRuntimeHash : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
+	friend class UWorldPartition;
 	friend class URuntimePartition;
 	friend struct FFortWorldPartitionUtils;
 
@@ -266,6 +267,11 @@ protected:
 #endif
 
 	TSet<TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>> InjectedExternalStreamingObjects;
+
+	virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) { return false; }
+	virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) { return FGuid(); }
+	virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) { return false; }
+	virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) { return {}; }
 
 #if WITH_EDITOR
 private:

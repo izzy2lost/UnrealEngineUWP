@@ -130,12 +130,14 @@ void URuntimePartitionLHGrid::SetDefaultValues()
 	Super::SetDefaultValues();
 	CellSize = LoadingRange / 2;
 }
+#endif
 
 bool URuntimePartitionLHGrid::IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const
 {
 	return InPartitionTokens.Num() == 1;
 }
 
+#if WITH_EDITOR
 bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult)
 {
 	UWorldPartition* WorldPartition = GetTypedOuter<UWorldPartition>();

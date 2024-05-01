@@ -711,6 +711,48 @@ public:
 	}
 #endif
 
+public:
+	/**
+	 * Experimental: World Asset Streaming can be used to inject streaming levels into the runtime grids dynamically, with one level of HLODs support.
+	 */
+	struct FRegisterWorldAssetStreamingParams
+	{
+		FRegisterWorldAssetStreamingParams() 
+		{}
+
+		TSoftObjectPtr<UWorld> WorldAsset;
+		FName TargetGrid;
+
+		TSoftObjectPtr<UWorld> WorldAssetHLOD;
+		FName TargetGridHLOD;
+
+		FGuid Guid;
+		FTransform Transform;
+		FBox Bounds;
+		int32 Priority;
+		FString CellInstanceSuffix;
+
+		bool IsValid() const
+		{
+			return !WorldAsset.IsNull() && !TargetGrid.IsNone() && Guid.IsValid() && Bounds.IsValid;
+		}
+
+		FRegisterWorldAssetStreamingParams& SetWorldAsset(const TSoftObjectPtr<UWorld>& InWorldAsset) { WorldAsset = InWorldAsset; return *this; }
+		FRegisterWorldAssetStreamingParams& SetTargetGrid(const FName& InTargetGrid) { TargetGrid = InTargetGrid; return *this; }
+		FRegisterWorldAssetStreamingParams& SetWorldAssetHLOD(const TSoftObjectPtr<UWorld>& InWorldAssetHLOD) { WorldAssetHLOD = InWorldAssetHLOD; return *this; }
+		FRegisterWorldAssetStreamingParams& SetTargetGridHLOD(const FName& InTargetGridHLOD) { TargetGridHLOD = InTargetGridHLOD; return *this; }
+		FRegisterWorldAssetStreamingParams& SetGuid(const FGuid InGuid) { Guid = InGuid; return *this; }
+		FRegisterWorldAssetStreamingParams& SetTransform(const FTransform InTransform) { Transform = InTransform; return *this; }
+		FRegisterWorldAssetStreamingParams& SetBounds(const FBox& InBounds) { Bounds = InBounds; return *this; }
+		FRegisterWorldAssetStreamingParams& SetPriority(const int32& InPriority) { Priority = InPriority; return *this; }
+		FRegisterWorldAssetStreamingParams& SetCellInstanceSuffix(const FString& InCellInstanceSuffix) { CellInstanceSuffix = InCellInstanceSuffix; return *this; }
+	};
+
+	ENGINE_API bool SupportsWorldAssetStreaming(const FName& InTargetGrid);
+	ENGINE_API FGuid RegisterWorldAssetStreaming(const FRegisterWorldAssetStreamingParams& InParams);
+	ENGINE_API bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid);
+	ENGINE_API TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid);
+
 private:
 
 #if WITH_EDITORONLY_DATA

@@ -11,11 +11,13 @@ class URuntimePartitionLevelStreaming : public URuntimePartition
 	GENERATED_BODY()
 
 public:
-#if WITH_EDITOR
 	//~ Begin URuntimePartition interface
+#if WITH_EDITOR
 	virtual bool SupportsHLODs() const override { return true; }
-	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const override;
-	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;
-	//~ End URuntimePartition interface
 #endif
+	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const override;
+#if WITH_EDITOR
+	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;
+#endif
+	//~ End URuntimePartition interface
 };
