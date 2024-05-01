@@ -27,6 +27,8 @@ class UPCGComponent;
 class UPCGGraph;
 class UPCGSubsystem;
 class UWorld;
+class UWorldPartition;
+class FWorldPartitionActorDescInstance;
 
 /**
 * This class handle any necessary mapping between actors and pcg components.
@@ -45,7 +47,7 @@ public:
 	~FPCGActorAndComponentMapping() = default;
 
 	/** Initializes callbacks, etc, tied to the PCG subsystem */
-	void Initialize(UWorld* World);
+	void Initialize();
 
 	/** Deinitializes callbacks, etc, tied to the PCG subsystem */
 	void Deinitialize();
@@ -53,9 +55,14 @@ public:
 	/** Should be called by the subsystem to handle delayed operations. */
 	void Tick();
 
+	/** Returns the PCGSubystem's World */
+	UWorld* GetWorld() const;
+
 #if WITH_EDITOR
 	/** Notify that we exited the Landscape edit mode. */
 	void NotifyLandscapeEditModeExited();
+
+	static void BuildPartitionActorRecords(APCGWorldActor* PCGWorldActor, UWorldPartition* WorldPartition, TMap<FPCGPartitionActorRecord, FGuid>& OutPartitionActorRecords, TSet<FGuid>& OutInvalidPartitionActors);
 #endif // WITH_EDITOR
 
 	/** Register a new PCG Component or update it. Returns true if it was added/updated. Thread safe */
@@ -88,6 +95,9 @@ public:
 	/** Retrieves a partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
 	APCGPartitionActor* GetPartitionActor(uint32 GridSize, const FIntVector& CellCoords, bool bRuntimeGenerated = false) const;
 
+	/** Returns true if there is record of a partition actor living in a certain grid cell, regardless of whether or not it is loaded. */
+	bool DoesPartitionActorRecordExist(const FGuid& GridGuid, uint32 GridSize, const FIntVector& GridCoords) const;
+
 private:
 
 #if WITH_EDITOR
@@ -96,9 +106,6 @@ private:
 
 	/** If the partition grid size change, call this to empty the Partition actors map */
 	void ResetPartitionActorsMap();
-
-	void RegisterTrackingCallbacks();
-	void TeardownTrackingCallbacks();
 
 	void RegisterTracking(UPCGComponent* InComponent);
 	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
@@ -159,6 +166,8 @@ private:
 	/** Return true if the actor is tracked.*/
 	bool IsActorTracked(const AActor* InActor) const;
 
+	void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* InActorDescInstance);
+	void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance);
 	void OnActorAdded(AActor* InActor);
 	void OnActorLoaded(AActor& InActor);
 	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty);
@@ -195,6 +204,9 @@ private:
 
 	/** Gather all settings from a given component that track the key, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
 	bool ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const;
+
+	/** Build initial records for existing partition actors */
+	void BuildPartitionActorRecords();
 #endif // WITH_EDITOR
 
 private:
@@ -259,5 +271,10 @@ private:
 
 	// Time keeper for cleaning up cached previous actor data
 	double LastPreviousActorDataCleanup = -1.0;
+
+	// Set of existing PCG Partition Actors (for World Partition worlds)
+	TMap<FPCGPartitionActorRecord, FGuid> PartitionActorRecords;
+	// Previously generated PCG Partition Actors to ignore (will prevent them from getting registered and mark them for deletion)
+	TSet<FGuid> InvalidPartitionActors;
 #endif // WITH_EDITOR
 };

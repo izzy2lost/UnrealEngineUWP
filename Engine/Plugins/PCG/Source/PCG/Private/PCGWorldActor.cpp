@@ -15,6 +15,7 @@
 
 #if WITH_EDITOR
 #include "UObject/UObjectHash.h"
+#include "PCGActorAndComponentMapping.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/ActorPartition/PartitionActorDesc.h"
@@ -54,6 +55,18 @@ void APCGWorldActor::BeginCacheForCookedPlatformData(const ITargetPlatform* Targ
 	check(LandscapeCacheObject);
 
 	UWorld* World = GetWorld();
+
+	// Cache Partition Actor Records at Cook
+	if (UWorldPartition* WorldPartition = World->GetWorldPartition())
+	{
+		TMap<FPCGPartitionActorRecord, FGuid> PartitionActorRecords;
+		TSet<FGuid> InvalidPartitionActors;
+		FPCGActorAndComponentMapping::BuildPartitionActorRecords(this, WorldPartition, PartitionActorRecords, InvalidPartitionActors);
+
+		TArray<FPCGPartitionActorRecord> SerializedPartitionActorRecords;
+		PartitionActorRecords.GenerateKeyArray(SerializedPartitionActorRecords);
+		RuntimePartitionActorRecords = TSet<FPCGPartitionActorRecord>(SerializedPartitionActorRecords);
+	}
 
 	if (World && LandscapeCacheObject->SerializationMode == EPCGLandscapeCacheSerializationMode::SerializeOnlyAtCook)
 	{
@@ -224,14 +237,6 @@ void APCGWorldActor::MergeFrom(APCGWorldActor* OtherWorldActor)
 	// TODO: Is this really important to check? It seems it can fail, cf FORT-664546. We might want to do something special about it.
 	// ensure(PartitionGridSize == OtherWorldActor->PartitionGridSize && bUse2DGrid == OtherWorldActor->bUse2DGrid && GridGuids.OrderIndependentCompareEqual(OtherWorldActor->GridGuids));
 	LandscapeCacheObject->TakeOwnership(OtherWorldActor->LandscapeCacheObject);
-
-	// TODO: We could support this better by somehow auto-collapsing new PAs in the same cell into one PA?
-	if (SerializedPartitionActorRecords.Num() > 0 && OtherWorldActor->SerializedPartitionActorRecords.Num() > 0)
-	{
-		UE_LOG(LogPCG, Error, TEXT("Merged two world actors that both manage serialized PCG partition actors, which is not supported. If you have multiple PCG"
-			" partition actors in the same cell, you should delete all serialized partition actors via \"Tools > PCG Framework > Delete all PCG partition actors\""
-			" and regenerate the partitioned components."));
-	}
 }
 
 #if WITH_EDITOR
@@ -241,7 +246,9 @@ APCGWorldActor* APCGWorldActor::CreatePCGWorldActor(UWorld* InWorld)
 
 	if (InWorld)
 	{
-		PCGActor = InWorld->SpawnActor<APCGWorldActor>();
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.OverrideLevel = InWorld->PersistentLevel;
+		PCGActor = InWorld->SpawnActor<APCGWorldActor>(SpawnParams);
 
 		if (PCGActor)
 		{
@@ -314,7 +321,6 @@ void APCGWorldActor::OnPartitionGridSizeChanged()
 
 	// Then delete all PCGPartitionActors
 	PCGSubsystem->DeleteSerializedPartitionActors(/*bDeleteOnlyUnused=*/false);
-	SerializedPartitionActorRecords.Reset();
 
 	// And finally, regenerate all components that are partitioned (registered to the PCGSubsystem)
 	// to let them recreate the needed PCG Partition Actors.

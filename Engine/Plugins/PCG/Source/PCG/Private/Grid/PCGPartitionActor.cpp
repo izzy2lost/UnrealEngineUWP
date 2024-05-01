@@ -12,6 +12,10 @@
 #include "Components/BoxComponent.h"
 #include "Engine/World.h"
 
+#if WITH_EDITOR
+#include "Grid/PCGPartitionActorDesc.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGPartitionActor)
 
 constexpr uint32 InvalidPCGGridSizeValue = 0u;
@@ -240,6 +244,31 @@ uint32 APCGPartitionActor::GetDefaultGridSize(UWorld* InWorld) const
 
 	UE_LOG(LogPCG, Error, TEXT("[APCGPartitionActor::InternalGetDefaultGridSize] PCG World Actor was null. Returning default value"));
 	return APCGWorldActor::DefaultPartitionGridSize;
+}
+
+TUniquePtr<class FWorldPartitionActorDesc> APCGPartitionActor::CreateClassActorDesc() const
+{
+	return TUniquePtr<FWorldPartitionActorDesc>(new FPCGPartitionActorDesc());
+}
+
+bool APCGPartitionActor::IsUserManaged() const
+{
+	// Allows actor to be deleted
+	if (IsInvalidForPCG())
+	{
+		return true;
+	}
+
+	return Super::IsUserManaged();
+}
+
+void APCGPartitionActor::SetInvalidForPCG()
+{
+	if (!bIsInvalidForPCG)
+	{
+		bIsInvalidForPCG = true;
+		SetActorLabel(TEXT("TO_DELETE_") + GetActorLabel());
+	}
 }
 #endif
 

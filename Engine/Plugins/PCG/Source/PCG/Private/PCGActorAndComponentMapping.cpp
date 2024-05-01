@@ -30,6 +30,13 @@
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "Materials/MaterialInterface.h"
 
+#if WITH_EDITOR
+#include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "WorldPartition/WorldPartitionHelpers.h"
+#include "Grid/PCGPartitionActorDesc.h"
+#endif
+
 namespace PCGActorAndComponentMapping
 {
 	FBox GetActorBounds(const AActor* InActor)
@@ -171,34 +178,18 @@ FPCGActorAndComponentMapping::FPCGActorAndComponentMapping(UPCGSubsystem* InPCGS
 	NonPartitionedOctree.Reset(FVector::ZeroVector, OctreeExtent);
 }
 
-void FPCGActorAndComponentMapping::Initialize(UWorld* World)
+void FPCGActorAndComponentMapping::Initialize()
 {
 #if WITH_EDITOR
-	RegisterTrackingCallbacks();
-
-	// Considering that some landscape might already be loaded, we should attach to their change callbacks now
-	if (World)
-	{
-		UPCGActorHelpers::ForEachActorInWorld<ALandscapeProxy>(World, [this](AActor* InActor)
-		{
-			if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
-			{
-				if (!LandscapeProxy->OnComponentDataChanged.IsBoundToObject(this))
-				{
-					LandscapeProxy->OnComponentDataChanged.AddRaw(this, &FPCGActorAndComponentMapping::OnLandscapeChanged);
-				}
-			}
-
-			return true;
-		});
-	}
+	BuildPartitionActorRecords();
+	RegisterDelegates();
 #endif // WITH_EDITOR
 }
 
 void FPCGActorAndComponentMapping::Deinitialize()
 {
 #if WITH_EDITOR
-	TeardownTrackingCallbacks();
+	UnregisterDelegates();
 #endif
 }
 
@@ -253,6 +244,11 @@ void FPCGActorAndComponentMapping::Tick()
 		ComponentsToDependencyMap.Empty();
 	}
 #endif // WITH_EDITOR
+}
+
+UWorld* FPCGActorAndComponentMapping::GetWorld() const
+{
+	return PCGSubsystem->GetWorld();
 }
 
 TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToRegisteredLocalComponents(UPCGComponent* OriginalComponent, const TFunctionRef<FPCGTaskId(UPCGComponent*)>& InFunc) const
@@ -584,7 +580,29 @@ TArray<UPCGComponent*> FPCGActorAndComponentMapping::GetAllIntersectingComponent
 
 void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* InActor, bool bDoComponentMapping)
 {
-	check(InActor && PCGSubsystem);
+	check(InActor);
+		
+#if WITH_EDITOR
+	if (InActor->IsInvalidForPCG())
+	{
+		// No need to log actor was already flagged to be invalid (and logged a message for it), we can ignore it.
+		return;
+	}
+
+	// Ignore Invalid Actors 
+	if (InvalidPartitionActors.Contains(InActor->GetActorGuid()))
+	{
+		InActor->SetInvalidForPCG();
+		UE_LOG(LogPCG, Warning, TEXT("[RegisterPartitionActor] Invalid PCG Partiton Actor '%s' (%s). Please delete actor to remove warning."), *InActor->GetName(), *InActor->GetPackage()->GetName());
+		return;
+	} // Invalidate actor if there is a duplicate for the same grid information
+	else if (FGuid* FoundGuid = PartitionActorRecords.Find({ InActor->GetGridGuid(), InActor->GetGridSize(), InActor->GetGridCoord() }); FoundGuid && *FoundGuid != InActor->GetActorGuid())
+	{
+		InActor->SetInvalidForPCG();
+		UE_LOG(LogPCG, Warning, TEXT("[RegisterPartitionActor] Duplicate PCG Partition Actor '%s' (%s). Please delete actor to remove warning."), *InActor->GetName(), *InActor->GetPackage()->GetName());
+		return;
+	}
+#endif
 
 	const uint32 GridSize = InActor->GetPCGGridSize();
 	const FIntVector GridCoord = InActor->GetGridCoord();
@@ -619,8 +637,6 @@ void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* In
 	// Register to all the components that intersect with the PA. Ignore for runtime generated, it is handled manually
 	if (!bIsRuntimeGenerated)
 	{
-		WorldActor->AddSerializedPartitionActorRecord({ InActor->PCGGuid, GridSize, GridCoord });
-
 		FWriteScopeLock WriteLock(ComponentToPartitionActorsMapLock);
 		ForAllIntersectingPartitionedComponents(FBoxCenterAndExtent(InActor->GetFixedBounds()), [this, InActor, bDoComponentMapping, WorldActor](UPCGComponent* Component)
 		{
@@ -657,6 +673,14 @@ void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* In
 void FPCGActorAndComponentMapping::UnregisterPartitionActor(APCGPartitionActor* Actor)
 {
 	check(Actor);
+
+#if WITH_EDITOR
+	// Ignore Invalid Actors 
+	if (Actor->IsInvalidForPCG())
+	{
+		return;
+	}
+#endif
 
 	const FIntVector GridCoord = Actor->GetGridCoord();
 	const uint32 GridSize = Actor->GetPCGGridSize();
@@ -931,6 +955,27 @@ APCGPartitionActor* FPCGActorAndComponentMapping::GetPartitionActor(uint32 GridS
 	return nullptr;
 }
 
+bool FPCGActorAndComponentMapping::DoesPartitionActorRecordExist(const FGuid& GridGuid, uint32 GridSize, const FIntVector& GridCoords) const
+{
+#if WITH_EDITOR
+	// In Editor this will not be empty (including -game)
+	if (PartitionActorRecords.Contains({ GridGuid, GridSize, GridCoords }))
+	{
+		return true;
+	}
+#endif
+
+	// In Game Worlds (including PIE) the Subsystem is responsible for transferring the partition actor records to the PCG World Actor so that it can be queried
+	// @todo_pcg: If the partition actor existed on the editor side it will get streamed in with its owning WP Cell, if it didn't it is probably going to get spawned in the persistent level 
+	// which equates to a different overall behavior (one will be streamed-in/out by WP and other will be spawned and never unspawn). So we need to revisit this as it is not a consistent behavior.
+	if (APCGWorldActor* PCGWorldActor = PCGSubsystem->GetPCGWorldActor())
+	{
+		return PCGWorldActor->RuntimePartitionActorRecords.Contains({ GridGuid, GridSize, GridCoords });
+	}
+	
+	return false;
+}
+
 #if WITH_EDITOR
 void FPCGActorAndComponentMapping::RegisterTracking(UPCGComponent* InComponent)
 {
@@ -948,12 +993,8 @@ void FPCGActorAndComponentMapping::RegisterTracking(UPCGComponent* InComponent)
 		return;
 	}
 
-	UWorld* World = PCGSubsystem ? PCGSubsystem->GetWorld() : nullptr;
-
-	if (!World)
-	{
-		return;
-	}
+	UWorld* World = GetWorld();
+	check(World);
 
 	// Components owner needs to be always tracked
 	AlwaysTrackedKeysToComponentsMap.FindOrAdd(FPCGSelectionKey(EPCGActorFilter::Self)).Add(InComponent);
@@ -986,12 +1027,8 @@ void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bo
 		return;
 	}
 
-	UWorld* World = PCGSubsystem ? PCGSubsystem->GetWorld() : nullptr;
-
-	if (!World)
-	{
-		return;
-	}
+	UWorld* World = GetWorld();
+	check(World);
 
 	// If no keys are provided, update all tracking keys.
 	TArray<FPCGSelectionKey> AllKeys;
@@ -1181,7 +1218,7 @@ void FPCGActorAndComponentMapping::ResetPartitionActorsMap()
 	PartitionActorsMapLock.WriteUnlock();
 }
 
-void FPCGActorAndComponentMapping::RegisterTrackingCallbacks()
+void FPCGActorAndComponentMapping::RegisterDelegates()
 {
 	GEngine->OnLevelActorAdded().AddRaw(this, &FPCGActorAndComponentMapping::OnActorAdded);
 	GEngine->OnLevelActorDeleted().AddRaw(this, &FPCGActorAndComponentMapping::OnActorDeleted);
@@ -1189,9 +1226,17 @@ void FPCGActorAndComponentMapping::RegisterTrackingCallbacks()
 	FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FPCGActorAndComponentMapping::OnObjectModified);
 	FCoreUObjectDelegates::OnObjectPreSave.AddRaw(this, &FPCGActorAndComponentMapping::OnObjectSaved);
 
-	UWorld* World = PCGSubsystem ? PCGSubsystem->GetWorld() : nullptr;
-	// Need the World condition for static analysis...
-	if (World && IsValid(World) && World->PersistentLevel)
+	UWorld* World = GetWorld();
+	check(World);
+
+	// Listen to added/removed ActorDescs to keep track of unloaded Partiton Actors
+	if (UWorldPartition* WorldPartition = World->GetWorldPartition())
+	{
+		WorldPartition->OnActorDescInstanceAddedEvent.AddRaw(this, &FPCGActorAndComponentMapping::OnActorDescInstanceAdded);
+		WorldPartition->OnActorDescInstanceRemovedEvent.AddRaw(this, &FPCGActorAndComponentMapping::OnActorDescInstanceRemoved);
+	}
+
+	if (World->PersistentLevel)
 	{
 		World->PersistentLevel->OnLoadedActorAddedToLevelEvent.AddRaw(this, &FPCGActorAndComponentMapping::OnActorLoaded);
 		World->PersistentLevel->OnLoadedActorRemovedFromLevelEvent.AddRaw(this, &FPCGActorAndComponentMapping::OnActorUnloaded);
@@ -1201,9 +1246,22 @@ void FPCGActorAndComponentMapping::RegisterTrackingCallbacks()
 			LevelInstanceSubsystem->OnLevelInstancesUpdated().AddRaw(this, &FPCGActorAndComponentMapping::OnLevelInstancesUpdated);
 		}
 	}
+
+	// Considering that some landscape might already be loaded, we should attach to their change callbacks now
+	UPCGActorHelpers::ForEachActorInWorld<ALandscapeProxy>(World, [this](AActor* InActor)
+	{
+		if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
+		{
+			if (!LandscapeProxy->OnComponentDataChanged.IsBoundToObject(this))
+			{
+				LandscapeProxy->OnComponentDataChanged.AddRaw(this, &FPCGActorAndComponentMapping::OnLandscapeChanged);
+			}
+		}
+		return true;
+	});
 }
 
-void FPCGActorAndComponentMapping::TeardownTrackingCallbacks()
+void FPCGActorAndComponentMapping::UnregisterDelegates()
 {
 	GEngine->OnLevelActorAdded().RemoveAll(this);
 	GEngine->OnLevelActorDeleted().RemoveAll(this);
@@ -1211,9 +1269,16 @@ void FPCGActorAndComponentMapping::TeardownTrackingCallbacks()
 	FCoreUObjectDelegates::OnObjectModified.RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectPreSave.RemoveAll(this);
 
-	UWorld* World = PCGSubsystem ? PCGSubsystem->GetWorld() : nullptr;
-	// Need the World condition for static analysis...
-	if (World && IsValid(World) && World->PersistentLevel)
+	UWorld* World = GetWorld();
+	check(World);
+
+	if (UWorldPartition* WorldPartition = World->GetWorldPartition())
+	{
+		WorldPartition->OnActorDescInstanceAddedEvent.RemoveAll(this);
+		WorldPartition->OnActorDescInstanceRemovedEvent.RemoveAll(this);
+	}
+
+	if (World->PersistentLevel)
 	{
 		World->PersistentLevel->OnLoadedActorAddedToLevelEvent.RemoveAll(this);
 		World->PersistentLevel->OnLoadedActorRemovedFromLevelEvent.RemoveAll(this);
@@ -1278,7 +1343,7 @@ bool FPCGActorAndComponentMapping::ShouldDelayActor(AActor* InActor) const
 void FPCGActorAndComponentMapping::ProcessDelayedEvents()
 {
 	// Safeguard, we can't add delayed actors if the subsystem is not initialized
-	if (!PCGSubsystem || !PCGSubsystem->IsInitialized() || DelayedChangedActors.IsEmpty())
+	if (!PCGSubsystem->IsInitialized() || DelayedChangedActors.IsEmpty())
 	{
 		return;
 	}
@@ -1309,7 +1374,7 @@ void FPCGActorAndComponentMapping::OnLevelInstancesUpdated(const TArray<ILevelIn
 void FPCGActorAndComponentMapping::OnActorLoaded(AActor& InActor)
 {
 	// We have to make sure to not create a infinite loop
-	if (PCGActorAndComponentMapping::ShouldIgnoreActor(&InActor) || !PCGSubsystem || InActor.GetWorld() != PCGSubsystem->GetWorld())
+	if (PCGActorAndComponentMapping::ShouldIgnoreActor(&InActor) || InActor.GetWorld() != GetWorld())
 	{
 		return;
 	}
@@ -1321,7 +1386,7 @@ void FPCGActorAndComponentMapping::OnActorLoaded(AActor& InActor)
 void FPCGActorAndComponentMapping::OnActorAdded(AActor* InActor)
 {
 	// We have to make sure to not create a infinite loop
-	if (PCGActorAndComponentMapping::ShouldIgnoreActor(InActor) || !PCGSubsystem || InActor->GetWorld() != PCGSubsystem->GetWorld())
+	if (PCGActorAndComponentMapping::ShouldIgnoreActor(InActor) || InActor->GetWorld() != GetWorld())
 	{
 		return;
 	}
@@ -1329,6 +1394,99 @@ void FPCGActorAndComponentMapping::OnActorAdded(AActor* InActor)
 	// Implementation note: We delay adding because OnActorAdded fires before an actor's properties are set,
 	// so the actor is not ready for processing until the next tick.
 	OnActorAdded_Internal(InActor, /*bShouldDirty=*/ true);
+}
+
+void FPCGActorAndComponentMapping::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* InActorDescInstance)
+{
+	if (InActorDescInstance->GetActorNativeClass()->IsChildOf(APCGPartitionActor::StaticClass()))
+	{
+		const FPCGPartitionActorDesc* ActorDesc = static_cast<const FPCGPartitionActorDesc*>(InActorDescInstance->GetActorDesc());
+		FPCGPartitionActorRecord PartitionActorRecord = { ActorDesc->GridGuid, ActorDesc->GridSize, FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ) };
+		if (!PartitionActorRecords.Contains(PartitionActorRecord))
+		{
+			PartitionActorRecords.Add(MoveTemp(PartitionActorRecord), ActorDesc->GetGuid());
+		}
+	}
+}
+
+void FPCGActorAndComponentMapping::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance)
+{
+	if (InActorDescInstance->GetActorNativeClass()->IsChildOf(APCGPartitionActor::StaticClass()))
+	{
+		const FPCGPartitionActorDesc* ActorDesc = static_cast<const FPCGPartitionActorDesc*>(InActorDescInstance->GetActorDesc());
+		FPCGPartitionActorRecord PartitionActorRecord = { ActorDesc->GridGuid, ActorDesc->GridSize, FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ) };
+		if (FGuid* FoundGuid = PartitionActorRecords.Find(PartitionActorRecord); FoundGuid && *FoundGuid == InActorDescInstance->GetGuid())
+		{
+			PartitionActorRecords.Remove(PartitionActorRecord);
+		}
+	}
+}
+
+void FPCGActorAndComponentMapping::BuildPartitionActorRecords(APCGWorldActor* PCGWorldActor, UWorldPartition* WorldPartition, TMap<FPCGPartitionActorRecord, FGuid>& OutPartitionActorRecords, TSet<FGuid>& OutInvalidPartitionActors)
+{
+	check(WorldPartition);
+	
+	FWorldPartitionHelpers::ForEachActorDescInstance<APCGPartitionActor>(WorldPartition, [PCGWorldActor, &OutPartitionActorRecords, &OutInvalidPartitionActors](const FWorldPartitionActorDescInstance* ActorDescInstance)
+	{
+		const FPCGPartitionActorDesc* ActorDesc = static_cast<const FPCGPartitionActorDesc*>(ActorDescInstance->GetActorDesc());
+		if (ActorDesc->bRequiresGuidFixup && PCGWorldActor)
+		{
+			PCGHiGenGrid::FSizeToGuidMap SizeToGuidMap;
+			PCGWorldActor->GetSerializedGridGuids(SizeToGuidMap);
+			if (FGuid* FoundGuid = SizeToGuidMap.Find(ActorDesc->GridSize))
+			{
+				FPCGPartitionActorDesc* NonConstActorDesc = const_cast<FPCGPartitionActorDesc*>(ActorDesc);
+				NonConstActorDesc->GridGuid = *FoundGuid;
+				NonConstActorDesc->bRequiresGuidFixup = false;
+			}
+		}
+
+		// Add to invalid list if we couldn't properly fixup or if it was already marked invalid
+		if (ActorDesc->bRequiresGuidFixup || ActorDesc->bInvalid)
+		{
+			OutInvalidPartitionActors.Add(ActorDesc->GetGuid());
+		}
+		else // Add to existing valid PCG Partition actors
+		{
+			FPCGPartitionActorRecord PartitionActorRecord = { ActorDesc->GridGuid, ActorDesc->GridSize, FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ) };
+			if (!OutPartitionActorRecords.Contains(PartitionActorRecord))
+			{
+				OutPartitionActorRecords.Add(MoveTemp(PartitionActorRecord), ActorDesc->GetGuid());
+			}
+		}
+		return true;
+	});
+}
+
+void FPCGActorAndComponentMapping::BuildPartitionActorRecords()
+{
+	UWorld* World = GetWorld();
+	if (UWorldPartition* WorldPartition = World->GetWorldPartition())
+	{
+		APCGWorldActor* PCGWorldActor = PCGSubsystem->FindPCGWorldActor();
+
+		InvalidPartitionActors.Empty();
+		PartitionActorRecords.Empty();
+		BuildPartitionActorRecords(PCGWorldActor, WorldPartition, PartitionActorRecords, InvalidPartitionActors);
+
+		// If we are a PIE world copy cache from the Editor World
+		if (World->IsPlayInEditor() && PCGWorldActor)
+		{
+			FString SourceWorldPath, RemappedWorldPath;
+			if (World->GetSoftObjectPathMapping(SourceWorldPath, RemappedWorldPath))
+			{
+				if (UWorld* EditorWorld = (UWorld*)FindObject<UWorld>(nullptr, *SourceWorldPath))
+				{
+					if (UPCGSubsystem* EditorPCGSubsystem = EditorWorld->GetSubsystem<UPCGSubsystem>())
+					{
+						TArray<FPCGPartitionActorRecord> SerializedPartitionActorRecords;
+						EditorPCGSubsystem->ActorAndComponentMapping.PartitionActorRecords.GenerateKeyArray(SerializedPartitionActorRecords);
+						PCGWorldActor->RuntimePartitionActorRecords = TSet<FPCGPartitionActorRecord>(SerializedPartitionActorRecords);
+					}
+				}
+			}
+		}
+	}
 }
 
 void FPCGActorAndComponentMapping::OnActorChanged_Recursive(AActor* InActor, UObject* InOriginatingChangeObject)
@@ -1361,7 +1519,7 @@ void FPCGActorAndComponentMapping::OnActorChanged_Recursive(AActor* InActor, UOb
 void FPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool bShouldDirty)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorAdded);
-	check(!PCGActorAndComponentMapping::ShouldIgnoreActor(InActor) && PCGSubsystem && InActor->GetWorld() == PCGSubsystem->GetWorld());
+	check(!PCGActorAndComponentMapping::ShouldIgnoreActor(InActor) && InActor->GetWorld() == GetWorld());
 
 	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
 	{
@@ -1409,7 +1567,7 @@ void FPCGActorAndComponentMapping::OnActorUnloaded(AActor& InActor)
 
 void FPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
 {
-	if (PCGActorAndComponentMapping::ShouldIgnoreActor(InActor) || !PCGSubsystem || InActor->GetWorld() != PCGSubsystem->GetWorld())
+	if (PCGActorAndComponentMapping::ShouldIgnoreActor(InActor) || InActor->GetWorld() != GetWorld())
 	{
 		return;
 	}
@@ -1421,7 +1579,7 @@ void FPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
 void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorAndComponentMapping::OnActorDeleted);
-	check(InActor && PCGSubsystem && InActor->GetWorld() == PCGSubsystem->GetWorld());
+	check(InActor && InActor->GetWorld() == GetWorld());
 
 	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
 	{
@@ -1467,7 +1625,7 @@ void FPCGActorAndComponentMapping::OnObjectModified(UObject* InObject)
 		}
 	}
 
-	if (!Actor || (PCGSubsystem && Actor->GetWorld() != PCGSubsystem->GetWorld()))
+	if (!Actor || (Actor->GetWorld() != GetWorld()))
 	{
 		return;
 	}
@@ -1555,7 +1713,7 @@ void FPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 		}
 	}
 
-	if (PCGSubsystem && Actor && Actor->GetWorld() != PCGSubsystem->GetWorld())
+	if (Actor && Actor->GetWorld() != GetWorld())
 	{
 		return;
 	}
@@ -1623,7 +1781,7 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 
 	const AActor* Actor = Cast<AActor>(InObject);
 
-	ensure(!PCGSubsystem || !Actor || Actor->GetWorld() == PCGSubsystem->GetWorld());
+	ensure(!Actor || Actor->GetWorld() == GetWorld());
 
 	/** First gather all the components that are tracking this actor */
 	TSet<UPCGComponent*> CulledTrackedComponents;
@@ -1832,7 +1990,7 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 		return;
 	}
 
-	ULevelInstanceSubsystem* LevelInstanceSubsystem = (PCGSubsystem && PCGSubsystem->GetWorld()) ? PCGSubsystem->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>() : nullptr;
+	ULevelInstanceSubsystem* LevelInstanceSubsystem = GetWorld()->GetSubsystem<ULevelInstanceSubsystem>();
 	const UPCGComponent* OriginatingComponent = Cast<const UPCGComponent>(InOriginatingChangeObject);
 
 	// And refresh all dirtied components
@@ -2051,11 +2209,6 @@ void FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned(UPCGComponent* I
 bool FPCGActorAndComponentMapping::ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const
 {
 	check(InComponent);
-
-	if (!PCGSubsystem)
-	{
-		return false;
-	}
 
 	bool bShouldDirty = InComponent->ShouldTrackLandscape() && InOriginatingChange && InOriginatingChange->IsA<ALandscapeProxy>();
 	auto ClearCache = [this, InOriginatingChange, bIntersect, &bShouldDirty](const FPCGSelectionKey& Key, const FPCGSettingsAndCulling& SettingsAndCulling)

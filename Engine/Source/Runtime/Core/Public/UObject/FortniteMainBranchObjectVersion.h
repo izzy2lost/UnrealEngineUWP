@@ -453,6 +453,9 @@ struct FFortniteMainBranchObjectVersion
 		// Changed HitLighting to HitLightingForReflections, and HitLighting now means hit lighting for entire Lumen
 		LumenRayLightingModeOverrideEnum,
 
+		// PCGPartitionActorDesc
+		PCGPartitionActorDesc,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

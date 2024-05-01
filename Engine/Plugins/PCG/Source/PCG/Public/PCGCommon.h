@@ -345,3 +345,25 @@ namespace PCGQualityHelpers
 	/** Get the pin label associated with the current 'pcg.Quality' value. If the quality level is invalid, it will return the default pin label. */
 	PCG_API FName GetQualityPinLabel();
 }
+
+/** This record uniquely identifies a partition actor. */
+USTRUCT(BlueprintType)
+struct FPCGPartitionActorRecord
+{
+	GENERATED_BODY()
+		
+	/** Unique ID for the grid this actor belongs to. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	FGuid GridGuid;
+
+	/** The grid size this actor lives on. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	uint32 GridSize = 0;
+
+	/** The specific grid cell this actor lives in. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	FIntVector GridCoords = FIntVector::ZeroValue;
+
+	bool operator==(const FPCGPartitionActorRecord& InOther) const;
+	friend uint32 GetTypeHash(const FPCGPartitionActorRecord& In);
+};

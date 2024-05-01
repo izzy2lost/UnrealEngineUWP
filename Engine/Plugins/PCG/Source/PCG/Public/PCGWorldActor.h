@@ -12,28 +12,6 @@
 class UPCGLandscapeCache;
 namespace EEndPlayReason { enum Type : int; }
 
-/** This record uniquely identifies a partition actor. */
-USTRUCT(BlueprintType)
-struct FPCGPartitionActorRecord
-{
-	GENERATED_BODY()
-
-	/** Unique ID for the grid this actor belongs to. */
-	UPROPERTY(VisibleAnywhere, Category = Debug)
-	FGuid GridGuid;
-
-	/** The grid size this actor lives on. */
-	UPROPERTY(VisibleAnywhere, Category = Debug)
-	uint32 GridSize = 0;
-
-	/** The specific grid cell this actor lives in. */
-	UPROPERTY(VisibleAnywhere, Category = Debug)
-	FIntVector GridCoords = FIntVector::ZeroValue;
-
-	bool operator==(const FPCGPartitionActorRecord& InOther) const;
-	friend uint32 GetTypeHash(const FPCGPartitionActorRecord& In);
-};
-
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable)
 class APCGWorldActor : public AActor
 {
@@ -72,15 +50,6 @@ public:
 	/** Returns the transient grid GUIDs used for the partitioned actors, one per grid size. */
 	void GetTransientGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
 
-	/** Add a record for tracking loaded and unloaded partition actors. */
-	void AddSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { Modify(); SerializedPartitionActorRecords.Add(PartitionActorRecord); }
-
-	/** Remove a record for tracking loaded and unloaded partition actors. */
-	void RemoveSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { Modify(); SerializedPartitionActorRecords.Remove(PartitionActorRecord); }
-
-	/** Returns true if there is record of a partition actor living in a certain grid cell, regardless of whether or not it is loaded. */
-	bool DoesSerializedPartitionActorExist(const FGuid& GridGuid, uint32 GridSize, const FIntVector& GridCoords) const { return SerializedPartitionActorRecords.Contains({ GridGuid, GridSize, GridCoords }); }
-
 	void MergeFrom(APCGWorldActor* OtherWorldActor);
 
 #if WITH_EDITOR
@@ -108,6 +77,8 @@ public:
 #endif
 
 private:
+	friend class FPCGActorAndComponentMapping;
+
 	void RegisterToSubsystem();
 	void UnregisterFromSubsystem();
 
@@ -125,9 +96,9 @@ private:
 	TMap<uint32, FGuid> TransientGridGuids;
 	mutable FRWLock TransientGridGuidsLock;
 
-	/** Keeps a record of what grid cells contain a serialized partition actor. Useful for tracking the existence of PAs even when they are not yet loaded. */
+	/** Keeps a record of what grid cells contain a serialized partition actor for game worlds. */
 	UPROPERTY()
-	TSet<FPCGPartitionActorRecord> SerializedPartitionActorRecords;
+	TSet<FPCGPartitionActorRecord> RuntimePartitionActorRecords;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

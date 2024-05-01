@@ -48,6 +48,8 @@ public:
 	virtual uint32 GetDefaultGridSize(UWorld* InWorld) const override;
 	virtual FGuid GetGridGuid() const override { return PCGGuid; }
 	virtual bool ShouldIncludeGridSizeInLabel() const override { return true; }
+	virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
+	virtual bool IsUserManaged() const override;
 	//~End APartitionActor Interface
 #endif
 
@@ -110,8 +112,10 @@ public:
 private:
 	UPCGSubsystem* GetSubsystem() const;
 
+	friend class FPCGActorAndComponentMapping;
 #if WITH_EDITOR
 	void UpdateBoundsComponentExtents();
+	void SetInvalidForPCG();
 #endif // WITH_EDITOR
 
 	// Note: this map is not a property and not serialized since we will rebuild it from the LocalToOriginal
@@ -139,6 +143,10 @@ private:
 	/** Box component to draw the Partition actor bounds in the Editor viewport */
 	UPROPERTY(Transient)
 	TObjectPtr<UBoxComponent> BoundsComponent;
+
+	/** Flag used to ignore some invalid actors so they don't get registered into the PCG Subsystem */
+	UPROPERTY(Transient, NonTransactional)
+	bool bIsInvalidForPCG = false;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Tracks the registration status of this PA with the ActorAndComponentMapping system. Helps us avoid invalid (un)registers. */
@@ -156,4 +164,10 @@ public:
 	 * This does not respect traditional PA name contents like GridGuid, ShouldIncludeGridSizeInName, or ContextHash.
 	 */
 	static FString GetPCGPartitionActorName(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated);
+
+#if WITH_EDITOR
+	bool IsInvalidForPCG() const { return bIsInvalidForPCG; }
+#endif
 };
+
+DEFINE_ACTORDESC_TYPE(APCGPartitionActor, FPCGPartitionActorDesc);

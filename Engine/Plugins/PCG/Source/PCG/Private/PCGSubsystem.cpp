@@ -169,7 +169,20 @@ void UPCGSubsystem::PostInitialize()
 {
 	Super::PostInitialize();
 
-	ActorAndComponentMapping.Initialize(GetWorld());
+	// Gather world pcg actor if it exists
+	if (!PCGWorldActor)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			UPCGActorHelpers::ForEachActorInLevel<APCGWorldActor>(World->PersistentLevel, [this](AActor* InActor)
+			{
+				PCGWorldActor = Cast<APCGWorldActor>(InActor);
+				return PCGWorldActor == nullptr;
+			});
+		}
+	}
+
+	ActorAndComponentMapping.Initialize();
 
 	// Initialize graph executor
 	check(!GraphExecutor);
@@ -178,19 +191,6 @@ void UPCGSubsystem::PostInitialize()
 	// Initialize runtime generation scheduler
 	check(!RuntimeGenScheduler);
 	RuntimeGenScheduler = new FPCGRuntimeGenScheduler(GetWorld(), &ActorAndComponentMapping);
-
-	// Gather world pcg actor if it exists
-	if (!PCGWorldActor)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			UPCGActorHelpers::ForEachActorInWorld<APCGWorldActor>(World, [this](AActor* InActor)
-			{
-				PCGWorldActor = Cast<APCGWorldActor>(InActor);
-				return PCGWorldActor == nullptr;
-			});
-		}
-	}
 }
 
 UPCGSubsystem* UPCGSubsystem::GetInstance(UWorld* World)
@@ -1128,7 +1128,7 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FGuid& Gu
 	else if (!bRuntimeGenerated)
 	{
 		// Check if there is already an unloaded actor for this cell. RuntimeGenerated PAs are never unloaded, so we ignore them.
-		if (PCGWorldActor->DoesSerializedPartitionActorExist(Guid, GridSize, GridCoords))
+		if (ActorAndComponentMapping.DoesPartitionActorRecordExist(Guid, GridSize, GridCoords))
 		{
 			return nullptr;
 		}
@@ -1390,8 +1390,6 @@ void UPCGSubsystem::DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool
 			if (!bOnlyChildren)
 			{
 				ActorsToDelete.Add(PartitionActor);
-
-				PCGWorldActor->RemoveSerializedPartitionActorRecord({ PartitionActor->PCGGuid, PartitionActor->GetPCGGridSize(), PartitionActor->GetGridCoord() });
 			}
 
 			for (AActor* ActorToDelete : ActorsToDelete)
