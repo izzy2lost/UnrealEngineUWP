@@ -5,6 +5,7 @@
 #include "Misc/Parse.h"
 #include "Misc/ScopeRWLock.h"
 #include "Misc/StringBuilder.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "ProfilingDebugging/CountersTrace.h"
 #include "HAL/PlatformFileManager.h"
 #include "GenericPlatform/GenericPlatformFile.h"
@@ -670,6 +671,8 @@ uint64 FFileIoStoreReader::GetTocAllocatedSize() const
 
 FIoStatus FFileIoStoreReader::Initialize(const TCHAR* InTocFilePath, int32 InOrder)
 {
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FName(InTocFilePath), FName(TEXT("FileIoStoreReader")), FName(InTocFilePath));
+
 	FStringView ContainerPathView(InTocFilePath);
 	if (!ContainerPathView.EndsWith(TEXT(".utoc")))
 	{
