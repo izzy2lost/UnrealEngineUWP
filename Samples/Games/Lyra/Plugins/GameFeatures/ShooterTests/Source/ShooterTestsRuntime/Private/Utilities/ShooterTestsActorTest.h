@@ -2,8 +2,11 @@
 
 #pragma once
 
-#include "AbilitySystem/LyraAbilitySystemComponent.h"
 #include "CQTest.h"
+
+#if WITH_AUTOMATION_TESTS
+
+#include "AbilitySystem/LyraAbilitySystemComponent.h"
 #include "Character/LyraCharacter.h"
 #include "Components/MapTestSpawner.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -176,3 +179,5 @@ struct ShooterTestsActorAnimationTest : public ShooterTestsActorBaseTest<Derived
 
 /** Macro to quickly create tests based on the above test object with custom flags. */
 #define ACTOR_ANIMATION_TEST_WITH_FLAGS(_ClassName, _TestDir, _Flags) TEST_CLASS_WITH_BASE_AND_FLAGS(_ClassName, _TestDir, ShooterTestsActorAnimationTest, _Flags)
+
+#endif // WITH_AUTOMATION_TESTS

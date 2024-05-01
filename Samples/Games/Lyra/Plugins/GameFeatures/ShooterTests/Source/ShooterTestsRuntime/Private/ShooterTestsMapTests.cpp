@@ -2,6 +2,8 @@
 
 #include "CQTest.h"
 
+#if WITH_AUTOMATION_TESTS
+
 #include "AbilitySystem/LyraAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/LyraHealthSet.h"
 #include "Character/LyraCharacter.h"
@@ -113,3 +115,5 @@ TEST_CLASS_WITH_FLAGS(AbilitySpawnerMapTest, "Project.Functional Tests.ShooterTe
 			.Until([this]() { return !IsPlayerDamaged(); });
 	}
 };
+
+#endif // WITH_AUTOMATION_TESTS

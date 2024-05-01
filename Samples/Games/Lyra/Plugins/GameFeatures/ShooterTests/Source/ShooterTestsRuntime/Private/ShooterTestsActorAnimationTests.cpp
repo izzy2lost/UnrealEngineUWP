@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc.All Rights Reserved.
 
+#include "Utilities/ShooterTestsActorTest.h"
+
+#if WITH_AUTOMATION_TESTS
+
 #include "Components/CQTestBlueprintHelper.h"
 #include "Equipment/LyraEquipmentManagerComponent.h"
 #include "Equipment/LyraPickupDefinition.h"
 #include "Misc/Paths.h"
 #include "ObjectBuilder.h"
-#include "Utilities/ShooterTestsActorTest.h"
 #include "Weapons/LyraWeaponInstance.h"
 #include "Weapons/LyraWeaponSpawner.h"
 
@@ -170,3 +173,5 @@ ACTOR_ANIMATION_TEST_WITH_FLAGS(WeaponMeleeAnimationTest, "Project.Functional Te
 		TestInputActionAnimation(TEXT("AM_MM_Shotgun_Melee"), [this]() { PawnActions->PerformMelee(); });
 	}
 };
+
+#endif // WITH_AUTOMATION_TESTS
