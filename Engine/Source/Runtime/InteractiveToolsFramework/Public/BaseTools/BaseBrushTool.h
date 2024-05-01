@@ -128,9 +128,9 @@ private:
 	bool bAdjustingHorizontally = true;
 
 	// the speed (centimeters per unit of screen coordinate) to adjust brush size when dragging
-	float SizeAdjustSpeed = 0.04f; // sensible default based on 1080p monitor
+	float SizeAdjustSpeed = 0.002f; // sensible default
 	// the speed (in strength per unit of screen coordinate) to adjust brush strength when dragging
-	float StrengthAdjustSpeed = 0.005f; // sensible default based on 1080p monitor
+	float StrengthAdjustSpeed = 0.005f; // sensible default
 
 	// the target brush tool to adjust
 	UBaseBrushTool* BrushTool;

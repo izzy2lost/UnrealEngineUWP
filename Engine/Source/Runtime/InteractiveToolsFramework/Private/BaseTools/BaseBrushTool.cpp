@@ -101,7 +101,7 @@ void UBrushAdjusterInputBehavior::OnDragUpdate(FVector2D InScreenPosition)
 	if (bAdjustingHorizontally)
 	{
 		// adjust brush size based on horizontal mouse drag
-		float NewRadius = StartBrushRadius + HorizontalDelta * (SizeAdjustSpeed * DPIScale);
+		float NewRadius = StartBrushRadius + HorizontalDelta * (SizeAdjustSpeed * DPIScale * BrushTool->LastBrushStamp.HitResult.Distance);
 		NewRadius = FMath::Max(NewRadius, 0.01f);
 		BrushTool->BrushProperties->BrushRadius = NewRadius;
 		BrushTool->LastBrushStamp.Radius = NewRadius;
