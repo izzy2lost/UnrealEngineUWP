@@ -70,8 +70,9 @@ enum class ELoginStatus : uint8
 	/** Player has been validated by the platform specific authentication service. */
 	LoggedIn
 };
-ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ELoginStatus Status);
-ONLINESERVICESINTERFACE_API void LexFromString(ELoginStatus& OutStatus, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ELoginStatus Value);
+ONLINESERVICESINTERFACE_API bool LexTryParseString(ELoginStatus& OutValue, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API void LexFromString(ELoginStatus& OutValue, const TCHAR* InStr);
 
 inline bool IsOnlineStatus(ELoginStatus LoginStatus)
 {
@@ -88,8 +89,9 @@ enum class ERemoteAuthTicketAudience : uint8
 	 */
 	DedicatedServer,
 };
-ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ERemoteAuthTicketAudience Audience);
-ONLINESERVICESINTERFACE_API void LexFromString(ERemoteAuthTicketAudience& OutAudience, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ERemoteAuthTicketAudience Value);
+ONLINESERVICESINTERFACE_API bool LexTryParseString(ERemoteAuthTicketAudience& OutValue, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API void LexFromString(ERemoteAuthTicketAudience& OutValue, const TCHAR* InStr);
 
 /** Some auth interfaces have more than one method for providing credentials when linking to an
  *  external account. An example usage is when the auth interface can provide a token for linking
@@ -103,8 +105,9 @@ enum class EExternalAuthTokenMethod : uint8
 	/** Acquire an external auth token using the secondary method provided by the auth interface. */
 	Secondary,
 };
-ONLINESERVICESINTERFACE_API const TCHAR* LexToString(EExternalAuthTokenMethod Method);
-ONLINESERVICESINTERFACE_API void LexFromString(EExternalAuthTokenMethod& OutMethod, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API const TCHAR* LexToString(EExternalAuthTokenMethod Value);
+ONLINESERVICESINTERFACE_API bool LexTryParseString(EExternalAuthTokenMethod& OutValue, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API void LexFromString(EExternalAuthTokenMethod& OutValue, const TCHAR* InStr);
 
 struct FAccountInfo
 {
@@ -199,6 +202,8 @@ struct FAuthLinkAccount
 		FPlatformUserId PlatformUserId = PLATFORMUSERID_NONE;
 		/** The id associated with external auth data used to continue a previous login attempt. */
 		FLoginContinuationId ContinuationId;
+		/** Implementation dependent tags which affect how the account is linked. */
+		TArray<FName> Tags;
 	};
 
 	struct Result
