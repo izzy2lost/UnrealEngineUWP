@@ -403,12 +403,12 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_RASTER_BINS)
 		{
-			Result = IntToColor(RasterBin);
+			Result = IntToColor(RasterBin) * 0.8 + 0.2;
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_BINS)
 		{
 			const uint ShadingBin = GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-			Result = IntToColor(ShadingBin);
+			Result = IntToColor(ShadingBin) * 0.8 + 0.2;
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_HIERARCHY_OFFSET)
 		{
