@@ -331,7 +331,7 @@ namespace Horde.Server.Agents
 
 		static GetAgentSessionResponse CreateGetAgentSessionResponse(ISession session)
 		{
-			return new GetAgentSessionResponse(session.Id, session.StartTime, session.FinishTime);
+			return new GetAgentSessionResponse(session.Id, session.StartTime, session.FinishTime, (session.Properties != null) ? new List<string>(session.Properties) : null, session.Version);
 		}
 
 		/// <summary>

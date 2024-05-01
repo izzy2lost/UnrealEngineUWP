@@ -32,17 +32,31 @@ namespace Horde.Server.Agents.Sessions
 
 			public DateTime StartTime { get; set; }
 			public DateTime? FinishTime { get; set; }
+			public List<string>? Properties { get; set; }
+			public Dictionary<string, int>? Resources { get; set; }
+			public string? Version { get; set; }
+
+			IReadOnlyList<string>? ISession.Properties => Properties;
 
 			[BsonConstructor]
 			private SessionDocument()
 			{
 			}
 
-			public SessionDocument(SessionId id, AgentId agentId, DateTime startTime)
+			public SessionDocument(SessionId id, AgentId agentId, DateTime startTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, string? version)
 			{
 				Id = id;
 				AgentId = agentId;
 				StartTime = startTime;
+				if (properties != null)
+				{
+					Properties = new List<string>(properties);
+				}
+				if (resources != null)
+				{
+					Resources = new Dictionary<string, int>(resources);
+				}
+				Version = version;
 			}
 		}
 
@@ -65,9 +79,9 @@ namespace Horde.Server.Agents.Sessions
 		}
 
 		/// <inheritdoc/>
-		public async Task<ISession> AddAsync(SessionId id, AgentId agentId, DateTime startTime, CancellationToken cancellationToken = default)
+		public async Task<ISession> AddAsync(SessionId id, AgentId agentId, DateTime startTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, string? version, CancellationToken cancellationToken = default)
 		{
-			SessionDocument newSession = new SessionDocument(id, agentId, startTime);
+			SessionDocument newSession = new SessionDocument(id, agentId, startTime, properties, resources, version);
 			await _sessions.InsertOneAsync(newSession, null, cancellationToken);
 			return newSession;
 		}
@@ -105,12 +119,20 @@ namespace Horde.Server.Agents.Sessions
 		}
 
 		/// <inheritdoc/>
-		public Task UpdateAsync(SessionId sessionId, DateTime? finishTime, CancellationToken cancellationToken = default)
+		public Task UpdateAsync(SessionId sessionId, DateTime? finishTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, CancellationToken cancellationToken = default)
 		{
 			List<UpdateDefinition<SessionDocument>> updates = new List<UpdateDefinition<SessionDocument>>();
 			if (finishTime != null)
 			{
 				updates.Add(Builders<SessionDocument>.Update.Set(x => x.FinishTime, finishTime));
+			}
+			if (properties != null)
+			{
+				updates.Add(Builders<SessionDocument>.Update.Set(x => x.Properties, new List<string>(properties)));
+			}
+			if (resources != null)
+			{
+				updates.Add(Builders<SessionDocument>.Update.Set(x => x.Resources, new Dictionary<string, int>(resources)));
 			}
 			return _sessions.FindOneAndUpdateAsync(x => x.Id == sessionId, Builders<SessionDocument>.Update.Combine(updates), cancellationToken: cancellationToken);
 		}

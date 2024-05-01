@@ -505,11 +505,17 @@ namespace Horde.Server.Server
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>An empty response</returns>
-		public override Task<Empty> SendTelemetryEvents(RpcSendTelemetryEventsRequest request, ServerCallContext context)
+		public override async Task<Empty> SendTelemetryEvents(RpcSendTelemetryEventsRequest request, ServerCallContext context)
 		{
-			SessionId? sessionId = context.GetHttpContext().User.GetSessionClaim();
+			ISession? session = null;
 
-			TelemetryRecordMeta agentMeta = new TelemetryRecordMeta("HordeAgent", "(Unknown)", ServerApp.DeploymentEnvironment, sessionId?.ToString() ?? "(Unknown)");
+			SessionId? sessionId = context.GetHttpContext().User.GetSessionClaim();
+			if (sessionId != null)
+			{
+				session = await _agentService.GetSessionAsync(sessionId.Value);
+			}
+
+			TelemetryRecordMeta agentMeta = new TelemetryRecordMeta("HordeAgent", session?.Version ?? "(Unknown)", ServerApp.DeploymentEnvironment, sessionId?.ToString() ?? "(Unknown)");
 			foreach (RpcWrappedTelemetryEvent wrappedEvent in request.Events)
 			{
 				OneofDescriptor oneofDescriptor = RpcWrappedTelemetryEvent.Descriptor.Oneofs[0];
@@ -519,7 +525,7 @@ namespace Horde.Server.Server
 				_telemetrySink.SendEvent(TelemetryStoreId.Default, agentMeta, wrappedValue);
 			}
 
-			return Task.FromResult<Empty>(new Empty());
+			return new Empty();
 		}
 	}
 }
