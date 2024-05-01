@@ -42,15 +42,12 @@
 #define UE_AUTORTFM_FORCEINLINE inline
 #define UE_AUTORTFM_MEMCPY ::memcpy
 #else
+#include <Templates/Function.h>
 #include <HAL/Platform.h>
 #include <HAL/PlatformMemory.h>
 #define UE_AUTORTFM_API CORE_API
 #define UE_AUTORTFM_FORCEINLINE FORCEINLINE
 #define UE_AUTORTFM_MEMCPY FPlatformMemory::Memcpy
-#endif
-
-#if UE_AUTORTFM
-template <typename FuncType> class TFunction;
 #endif
 
 #define UE_AUTORTFM_UNUSED(UNUSEDVAR) (void)UNUSEDVAR
