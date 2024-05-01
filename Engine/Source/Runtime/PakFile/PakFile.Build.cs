@@ -9,6 +9,7 @@ public class PakFile : ModuleRules
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		PrivateDependencyModuleNames.Add("Core");
 		PrivateDependencyModuleNames.Add("CoreUObject");
+		PrivateDependencyModuleNames.Add("TraceLog");
 		PublicDependencyModuleNames.Add("RSA");
 
 		bAllowAutoRTFMInstrumentation = true;
