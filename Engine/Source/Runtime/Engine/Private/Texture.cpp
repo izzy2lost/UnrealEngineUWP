@@ -3581,6 +3581,11 @@ void FTextureSource::SetId(const FGuid& InId, bool bInGuidIsHash)
 uint32 UTexture::GetMaximumDimension() const
 {
 	// the various virtual implementations of this wind up returning GRHIGlobals.MaxCubeTextureDimensions etc.
+	//
+	// BEWARE : this can be higher than GetMaximumDimensionOfNonVT() , but you don't actually want that!
+	//	probably this should be doing Min(GetMaximumDimensionOfNonVT,*) here so that values over GetMaximumDimensionOfNonVT
+	//	are never returned out of here
+	// because it does not, you should always do that Min on the usage side
 
 	// just assume anyone who doesn't implement this virtual is 2d
 	return GetMax2DTextureDimension();
