@@ -74,7 +74,8 @@ void FWorldGridPreviewer::Update()
 		MaterialInstance->SetScalarParameterValueEditorOnly(TEXT("Grid_CellSize"), (float)CellSize);
 		MaterialInstance->SetScalarParameterValueEditorOnly(TEXT("Grid_LoadingRange"), (float)LoadingRange);
 		MaterialInstance->SetVectorParameterValueEditorOnly(TEXT("Grid_Color"), GridColor);
-		//MaterialInstance->SetVectorParameterValueEditorOnly(TEXT("Grid_Offset"), GridOffset);		
+		// Grid material has cell's orinig at center, and our grid are using top-left
+		MaterialInstance->SetVectorParameterValueEditorOnly(TEXT("Grid_Offset"), FLinearColor(GridOffset + CellSize * 0.5f));
 	}
 }
 #endif
