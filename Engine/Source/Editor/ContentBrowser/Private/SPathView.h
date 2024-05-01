@@ -494,6 +494,9 @@ protected:
 	TAttribute<bool> bShowRedirectors;
 	bool bLastShowRedirectors = false;
 
+	/** The config instance to use. */
+	FName OwningContentBrowserName;
+
 private:
 	/** Used to track if the list of last expanded path should be updated */
 	bool bLastExpandedPathsDirty = false;
@@ -542,9 +545,6 @@ private:
 
 	/** The favorites path view if one is set. */
 	TSharedPtr<SExpandableArea> FavoritesArea;
-
-	/** The config instance to use. */
-	FName OwningContentBrowserName;
 };
 
 
