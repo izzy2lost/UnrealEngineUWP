@@ -1478,9 +1478,10 @@ void FPCGSplineSamplerElement::GetDependenciesCrc(const FPCGDataCollection& InIn
 	{
 		bool bUnbounded;
 		PCGSettingsHelpers::GetOverrideValue(InInput, Settings, GET_MEMBER_NAME_CHECKED(FPCGSplineSamplerParams, bUnbounded), Settings->SamplerParams.bUnbounded, bUnbounded);
+		const bool bBoundsConnected = InInput.GetInputsByPin(PCGSplineSamplerConstants::BoundingShapeLabel).Num() > 0;
 
 		// If we're operating in bounded mode then we'll use actor bounds, and therefore take dependency on actor data.
-		if (!bUnbounded && InComponent)
+		if (!bUnbounded && !bBoundsConnected && InComponent)
 		{
 			if (const UPCGData* Data = InComponent->GetActorPCGData())
 			{
