@@ -2,9 +2,16 @@
 
 using UnrealBuildTool;
 
-[SupportedPlatforms("Win64")]
 public class HeadlessChaos : TestModuleRules
 {
+	static HeadlessChaos()
+	{
+		TestMetadata = new Metadata();
+		TestMetadata.TestName = "HeadlessChaos";
+		TestMetadata.TestShortName = "Headless Chaos";
+		TestMetadata.UsesCatch2 = false;
+	}
+
 	public HeadlessChaos(ReadOnlyTargetRules Target) : base(Target, false)
 	{
 		PublicIncludePathModuleNames.Add("Launch");
@@ -49,7 +56,5 @@ public class HeadlessChaos : TestModuleRules
 		}
 
 		PrivateDefinitions.Add("CHAOS_INCLUDE_LEVEL_1=1");
-
-		UpdateBuildGraphPropertiesFile(new Metadata() { TestName = "HeadlessChaos", TestShortName = "Headless Chaos", UsesCatch2 = false });
 	}
 }

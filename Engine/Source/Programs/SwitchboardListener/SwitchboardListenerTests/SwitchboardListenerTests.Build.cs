@@ -5,6 +5,13 @@ using UnrealBuildTool;
 
 public class SwitchboardListenerTests : TestModuleRules
 {
+	static SwitchboardListenerTests()
+	{
+		TestMetadata = new Metadata();
+		TestMetadata.TestName = "SwitchboardListener";
+		TestMetadata.TestShortName = "SwitchboardListener";
+	}
+
 	public SwitchboardListenerTests(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(new string[] {
@@ -14,7 +21,5 @@ public class SwitchboardListenerTests : TestModuleRules
 		});
 
 		PrivateIncludePathModuleNames.Add("LowLevelTestsRunner");
-
-		UpdateBuildGraphPropertiesFile(new Metadata() { TestName = "SwitchboardListener", TestShortName = "SwitchboardListener" });
 	}
 }

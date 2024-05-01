@@ -4,6 +4,16 @@ using UnrealBuildTool;
 
 public class ReplicationSystemLowLevelTests : TestModuleRules
 {
+	static ReplicationSystemLowLevelTests()
+	{
+		TestMetadata = new Metadata();
+		TestMetadata.TestName = "ReplicationSystem";
+		TestMetadata.TestShortName = "Replication System";
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.LinuxArm64);
+		TestMetadata.PlatformRunContainerized.Add(UnrealTargetPlatform.LinuxArm64, true);
+	}
+
 	public ReplicationSystemLowLevelTests(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
@@ -26,12 +36,5 @@ public class ReplicationSystemLowLevelTests : TestModuleRules
 				"ApplicationCore"
 			}
 		);
-
-		UpdateBuildGraphPropertiesFile(new Metadata() {
-			TestName = "ReplicationSystem",
-			TestShortName = "Replication System",
-			SupportedPlatforms = { UnrealTargetPlatform.Win64, UnrealTargetPlatform.Linux, UnrealTargetPlatform.LinuxArm64 },
-			PlatformRunContainerized = { { UnrealTargetPlatform.LinuxArm64, true } }
-		});
 	}
 }

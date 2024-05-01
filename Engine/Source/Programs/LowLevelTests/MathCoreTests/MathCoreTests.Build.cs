@@ -3,32 +3,16 @@ using UnrealBuildTool;
 
 public class MathCoreTests : TestModuleRules
 {
-	protected Metadata MathCoreTestsMetadata = new Metadata() {
-		TestName = "MathCore",
-		TestShortName = "MathCore",
-		ReportType = "xml",
-		SupportedPlatforms = {
-			UnrealTargetPlatform.Win64,
-			UnrealTargetPlatform.Linux,
-			UnrealTargetPlatform.Mac,
-			UnrealTargetPlatform.Android,
-			UnrealTargetPlatform.IOS } };
-
-	/// <summary>
-	/// Test metadata to be used with BuildGraph
-	/// </summary>
-	public Metadata TestMetadata
-	{ 
-		get { return MathCoreTestsMetadata; }
-	}
-
-	public MathCoreTests(ReadOnlyTargetRules Target) : base(Target, InUsesCatch2:true)
+	static MathCoreTests()
 	{
-		PrivateDependencyModuleNames.AddRange(
-			new string[] {
-				"Core",
-				"MathCore",
-			});
+		TestMetadata = new Metadata();
+		TestMetadata.TestName = "MathCore";
+		TestMetadata.TestShortName = "MathCore";
+		TestMetadata.ReportType = "xml";
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Android);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.IOS);
 
 		string PlatformCompilationArgs;
 		foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
@@ -44,6 +28,14 @@ public class MathCoreTests : TestModuleRules
 			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
 		}
 		TestMetadata.PlatformsRunUnsupported.Remove(UnrealTargetPlatform.Android);
-		UpdateBuildGraphPropertiesFile(TestMetadata);
+	}
+
+	public MathCoreTests(ReadOnlyTargetRules Target) : base(Target, InUsesCatch2:true)
+	{
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"Core",
+				"MathCore",
+			});
 	}
 }

@@ -3,45 +3,17 @@ using UnrealBuildTool;
 
 public class FoundationTests : TestModuleRules
 {
-	protected Metadata FoundationTestsMetadata = new Metadata() {
-		TestName = "Foundation",
-		TestShortName = "Foundation",
-		ReportType = "xml",
-		SupportedPlatforms = {
-			UnrealTargetPlatform.Win64,
-			UnrealTargetPlatform.Linux,
-			UnrealTargetPlatform.Mac,
-			UnrealTargetPlatform.Android,
-			UnrealTargetPlatform.IOS } };
-
-	/// <summary>
-	/// Test metadata to be used with BuildGraph
-	/// </summary>
-	public Metadata TestMetadata
-	{ 
-		get { return FoundationTestsMetadata; }
-	}
-
-	public FoundationTests(ReadOnlyTargetRules Target) : base(Target, true)
+	static FoundationTests()
 	{
-		PrivateDependencyModuleNames.AddRange(
-			new string[] {
-				"Core",
-				"Cbor",
-				"CoreUObject",
-				"TelemetryUtils",
-				"AssetRegistry",
-				"Serialization",
-			});
-
-		if (Target.bBuildWithEditorOnlyData)
-		{
-			PrivateDependencyModuleNames.AddRange(
-				new string[] {
-					"DesktopPlatform"
-				});
-		}
-
+		TestMetadata = new Metadata();
+		TestMetadata.TestName = "Foundation";
+		TestMetadata.TestShortName = "Foundation";
+		TestMetadata.ReportType = "xml";
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Android);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.IOS);
+		
 		string PlatformCompilationArgs;
 		foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
 		{
@@ -63,7 +35,25 @@ public class FoundationTests : TestModuleRules
 		// Allow Android run for this test
 		// Will remove Android from PlatformsRunUnsupported as more diverse types of tests can run on this platform
 		TestMetadata.PlatformsRunUnsupported.Remove(UnrealTargetPlatform.Android);
+	}
+	public FoundationTests(ReadOnlyTargetRules Target) : base(Target, true)
+	{
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"Core",
+				"Cbor",
+				"CoreUObject",
+				"TelemetryUtils",
+				"AssetRegistry",
+				"Serialization",
+			});
 
-		UpdateBuildGraphPropertiesFile(TestMetadata);
+		if (Target.bBuildWithEditorOnlyData)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"DesktopPlatform"
+				});
+		}
 	}
 }

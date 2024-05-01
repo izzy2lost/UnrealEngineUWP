@@ -24,7 +24,22 @@
 	<Macro Name="Catch2BuildAppendExtraCMakeArgs" Arguments="ExtraArgValue">
 		<Property Name="CMakeAdditionalArgs" Value="$(CMakeAdditionalArgs) $(ExtraArgValue)"/>
 	</Macro>
-	<Macro Name="SelectAgentType" Arguments="Platform;BuildPlatform"/>
+	<Macro Name="SelectBuildPlatformAndAgentType" Arguments="Platform">
+		<Do If="'$(Platform)' == 'Linux' Or '$(Platform)' == 'LinuxArm64'">
+			<Property Name="AgentType" Value="Linux"/>
+			<Property Name="BuildPlatform" Value="Linux"/>
+		</Do>
+		<Do If="'$(Platform)' == 'Mac' Or '$(Platform)' == 'iOS'">
+			<Property Name="AgentType" Value="Mac"/>
+			<Property Name="BuildPlatform" Value="Mac"/>
+		</Do>
+		<Do If="'$(Platform)' == 'Win64' Or '$(Platform)' == 'Android'">
+			<Property Name="AgentType" Value="Win64"/>
+			<Property Name="BuildPlatform" Value="Win64"/>
+		</Do>
+	</Macro>
+
+	<Macro Name ="SetupAllPlatformProperties"/>
 
 	<Macro Name="SetupPlatformProperties" Arguments="Platform;BuildPlatform" OptionalArguments="AlternateDevicePool">
 		<Property Name="AllTestablePlatforms" Value="$(AllTestablePlatforms);$(Platform)"/>
@@ -41,16 +56,9 @@
 			<Property Name="AlternateDevicePoolPlatformsProperty" Value="$(AlternateDevicePoolPlatformsProperty);$(AlternateDevicePool)"/>
 		</Do>
 	</Macro>
-	<Macro Name="SetupAllPlatformProperties"/>
 
-	<!-- All test metadata scripts along with platform specific versions for both public and internal paths -->
-	<Include Script="LowLevelTests/*.xml"/>
-	<Include Script="../Platforms/*/Build/LowLevelTests/*.xml"/>
-	<Include Script="../Restricted/NotForLicensees/Build/LowLevelTests/*.xml"/>
-	<Include Script="../Restricted/NotForLicensees/Platforms/*/Build/LowLevelTests/*.xml"/>
-
-	<Expand Name="SetupAllPlatformProperties"/>
-
+	<Macro Name="RunAllTests"/>
+	
 	<Option Name="BuildCatch2Libs" DefaultValue="false" Description="True if building Catch2 static libraries"/>
 	<Option Name="TestCatch2Libs" DefaultValue="false" Description="True if additionally building Catch2 with extras and tests"/>
 	<Option Name="Catch2LibVariation" DefaultValue="VS2019" Description="Catch2 library variation, e.g. VS2022"/>
@@ -90,7 +98,7 @@
 		<Property Name="TestsAllSupportedPlatforms" Value="false" If="$(TestPlatform$(Platform))"/>
 	</ForEach>
 	
-	<Option Name="TestArgs" DefaultValue="" Description="Extra test arguments."/>
+	<Option Name="TestArgs" DefaultValue="" Description="Initial test arguments, applies to all tests."/>
 
 	<Option Name="GauntletDevicePool" DefaultValue="UE4" Description="Gauntlet Device Pool to use to run target platform tests"/>
 	<Option Name="AlternateGauntletDevicePool" DefaultValue="UE5" Description="Alternate Gauntlet Device Pool to use to run target platform tests"/>
@@ -120,103 +128,121 @@
 	<Property Name="CheckedRunAfterStep" Value="false"/>
 	<Property Name="CheckedRunAfterStep" Value="True" If="'$(PreflightChange)' == '' OR $(RunAfterSteps)"/>
 
-	<Macro Name="ExpandAfterSteps" Arguments="Platform;TestName">
+	<Macro Name="TestAfterStep" Arguments="Platform;TestName;ShortName">
 		<Node Name="$(TestName) AfterStep $(Platform)">
 			<Expand Name="$(TestName)AfterSteps" Platform="$(Platform)" />	
 		</Node>
-		<Label Category="After" Name="$($(TestName)Short) After $(Platform)" Requires="$(TestName) AfterStep $(Platform)"/>
+		<Label Category="After" Name="$(ShortName) After $(Platform)" Requires="$(TestName) AfterStep $(Platform)"/>
 		<Property Name="AfterTestNodes" Value="$(AfterTestNodes);$(TestName) AfterStep $(Platform)" If="$(RunAllTests) Or $(Run$(TestName)Tests)"/>
 	</Macro>
 	
-	<Macro Name="BuildAndStageTest" Arguments="Platform;TestName">
-		<Property Name="LocalAchiveDirectory" Value="$(RootDir)/$($(TestName)Target)"/>
-		<Do If="'$($(TestName)StagesWithProjectFile)' == 'True'">
-			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$($(TestName)Target) -configuration=$(Configuration) -platform=$(Platform) $($(Platform)$(TestName)ExtraCompilationArgs)"/>
+	<Macro Name="BuildAndStageTest" Arguments="Platform;TestName;StagesWithProjectFile;TargetName;ExtraCompilationArgs">
+		<Property Name="LocalAchiveDirectory" Value="$(RootDir)/$(TargetName)"/>
+		<Do If="'$(StagesWithProjectFile)' == 'True'">
+			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$(TargetName) -configuration=$(Configuration) -platform=$(Platform) $(ExtraCompilationArgs)"/>
 		</Do>
-		<Do If="'$($(TestName)StagesWithProjectFile)' != 'True'">
-			<Compile Target="$($(TestName)Target)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="-Mode=Test $($(Platform)$(TestName)ExtraCompilationArgs)"/>
+		<Do If="'$(StagesWithProjectFile)' != 'True'">
+			<Compile Target="$(TargetName)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="-Mode=Test $(ExtraCompilationArgs)"/>
 		</Do>
 	</Macro>
-	<Macro Name="DeployAndTest" Arguments="TestName;Platform;BuildPlatform">
-		<Property Name="PlatformStageDirName" Value="$(Platform)"/>
-		<Property Name="PlatformStageDirName" Value="Windows" If="'$(Platform)' == 'Win64'"/>
-		<Property Name="DevicePool" Value="$(GauntletDevicePool)" />
-		<Property Name="DevicePool" Value="$(AlternateGauntletDevicePool)" If="ContainsItem('$(AlternateDevicePoolPlatforms)', '$(Platform)', ';')" />
-		<Property Name="TestArgsExt" Value="$(TestArgs)"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -deviceurl=$(GauntletDeviceService) -devicepool=$(DevicePool)" If="'$(GauntletDeviceService)' != ''"/>
-		<Property Name="TestModeSuffix" Value=""/>
-		<Property Name="TestTags" Value=""/>
-		<Property Name="TestTags" Value="$($(Platform)$(TestName)Tags)" If="'$($(Platform)$(TestName)Tags)' != ''"/>
-		<Property Name="TestTags" Value="$(OverrideTags)" If="'$(OverrideTags)' != ''"/>
-		<Do If="'$(Platform)' == 'Android'">
-			<Property Name="TestArgsExt" Value="$(TestArgsExt) -cleandevice"/>
-		</Do>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -tags=&quot;$(TestTags)&quot;"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) --buildmachine" If="$(IsBuildMachine)"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -timeout=$(PerTestTimeout)"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(TestName)GauntletArgs)"/>
-		<Do If="'$($(TestName)ExtraArgs)' != ''">
-			<Property Name="TestArgsExt" Value="$(TestArgsExt) -extra-args=&quot;$($(TestName)ExtraArgs)&quot;"/>
-		</Do>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(Platform)ExtraArgs)"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -VerifyLogin" If="$(EnableDeviceLoginVerification)"/>
-		<Do If="'$(Device)' != ''">
-			<Property Name="TestArgsExt" Value="$(TestArgsExt) -device=$(Device) "/>
-		</Do>
-		<Do If="'$(AttachToDebugger)' != 'false'">
-			<Property Name="TestArgsExt" Value="$(TestArgsExt) -AttachToDebugger "/>
-		</Do>
-		<Do If="'$($(TestName)ReportType)' != ''">
-			<Property Name="TestArgsExt" Value="$(TestArgsExt) -ReportType=$($(TestName)ReportType)"/>
-		</Do>
-		<Do If="'$($(TestName)UsesCatch2)' != 'True'">
-			<Property Name="TestArgsExt" Value=""/>
+	
+	<!-- Deploy and run test, one agent per test per platform -->
+	<Macro Name="DeployAndTest" Arguments="TestName;ShortName;TargetName;BinaryRelativePath;Platform;ReportType" OptionalArguments="Deactivated;StagesWithProjectFile;Tags;PlatformExtraArgs;ExtraArgs;GauntletArgs;PlatformGauntletArgs;RunUnsupported;HasAfterSteps;UsesCatch2;RunContainerized;ExtraCompilationArgs">
+		<Do If="'$(Deactivated)' == 'True'">
+			<Warning Message="Test $(TestName) set as deactivated, will build but will not run."/>
 		</Do>
 
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -SkipStage -Build=&quot;$(RootDir)\$($(TestName)Target)\$(PlatformStageDirName)&quot;" If="'$($(TestName)StagesWithProjectFile)' == 'True'"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -build=&quot;$($(TestName)BinariesRelative)/$(Platform)/$($(TestName)Target)$(TestModeSuffix)&quot;" If="'$($(TestName)StagesWithProjectFile)' != 'True'"/>
+		<Property Name="AgentType" Value=""/>
+		<Property Name="BuildPlatform" Value=""/>
 
-		<Property Name="AppRunsContainerized" Value="$($(Platform)$(TestName)RunContainerized)"/>
-
-		<Do If="'$(AppRunsContainerized)' == 'True'">
-			<Property Name="TestTargetLowercase" Value=""/>
-			<StringOp Input="$($(TestName)Target)" Method="ToLower" Output="TestTargetLowercase"/>
-
-			<Property Name="BinariesRelativeForwardSlash" Value=""/>
-			<StringOp Input="$($(TestName)BinariesRelative)" Method="Replace" Arguments="\;/" Output="BinariesRelativeForwardSlash"/>
-
-			<!-- Builds docker image -->
-			<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
-			<Expand Name="$(Platform)DockerSetup" AppNameLowercase="$(TestTargetLowercase)" AppDir="$(BinariesRelativeForwardSlash)/$(Platform)/$($(TestName)Target)$(TestModeSuffix)"/>
-			<Property Name="TestArgsExt" Value="$(TestArgsExt) -containerized"/>
-		</Do>
-
-		<Do If="'$(Platform)' == 'Android'">
-			<Expand Name="SelectAdbKeysPath" BuildPlatform="$(BuildPlatform)"/>
-			<Property Name="TestArgsExt" Value="$(TestArgsExt) -adbkeys=$(AdbKeysPath) -captureoutput"/>
-		</Do>
+		<Expand Name="SelectBuildPlatformAndAgentType" Platform="$(Platform)"/>
 		
-		<Command Name="RunLowLevelTests"
-				Arguments="-test=LowLevelTests -testapp=$($(TestName)Target)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose"/>
+		<Agent Name="Low Level Tests $(Platform)" Type="$(AgentType)">
+			<Property Name="TestRequirements" Value=""/>
+			<Do If="$(BuildCatch2Libs)">
+				<Property Name="TestRequirements" Value="$(TestRequirements);Catch2 Build Library $(Platform)"/>
+			</Do>
+			<Node Name="$(ShortName) Tests $(Platform)" Requires="$(TestRequirements)">
+				<Do If="'$(Deactivated)' == ''">
+					<Expand Name="BuildAndStageTest" TestName="$(TestName)" Platform="$(Platform)" TargetName="$(TargetName)" StagesWithProjectFile="$(StagesWithProjectFile)" ExtraCompilationArgs="$(ExtraCompilationArgs)"/>
+				</Do>
+				<Do If="'$(RunUnsupported)' == '' AND '$(Deactivated)' == ''">
+					<Property Name="PlatformStageDirName" Value="$(Platform)"/>
+					<Property Name="PlatformStageDirName" Value="Windows" If="'$(Platform)' == 'Win64'"/>
+					<Property Name="DevicePool" Value="$(GauntletDevicePool)" />
+					<Property Name="DevicePool" Value="$(AlternateGauntletDevicePool)" If="ContainsItem('$(AlternateDevicePoolPlatforms)', '$(Platform)', ';')" />
+					<Property Name="TestArgsExt" Value="$(TestArgs)"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -deviceurl=$(GauntletDeviceService) -devicepool=$(DevicePool)" If="'$(GauntletDeviceService)' != ''"/>
+					<Property Name="TestModeSuffix" Value=""/>
+					<Property Name="TestTags" Value=""/>
+					<Property Name="TestTags" Value="$(Tags)" If="'$(Tags)' != ''"/>
+					<Property Name="TestTags" Value="$(OverrideTags)" If="'$(OverrideTags)' != ''"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -cleandevice" If="'$(Platform)' == 'Android'"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -tags=&quot;$(TestTags)&quot;"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) --buildmachine" If="$(IsBuildMachine)"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -timeout=$(PerTestTimeout)"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) $(GauntletArgs)" If="'$(GauntletArgs)' != ''"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) $(PlatformGauntletArgs)" If="'$(PlatformGauntletArgs)' != ''"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -extra-args=&quot;$(ExtraArgs)&quot;" If="'$(ExtraArgs)' != ''"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) $(PlatformExtraArgs)" If="'$(PlatformExtraArgs)' != ''"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -VerifyLogin" If="$(EnableDeviceLoginVerification)"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -device=$(Device) " If="'$(Device)' != ''"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -AttachToDebugger " If="'$(AttachToDebugger)' != 'False'"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -ReportType=$(ReportType)" If="'$(ReportType)' != ''"/>
+					<Do If="'$(UsesCatch2)' != ''">
+						<Property Name="TestArgsExt" Value=""/>
+					</Do>
 
-		<Do If="'$(AppRunsContainerized)' == 'True'">
-			<Property Name="TestTargetLowercase" Value=""/>
-			<StringOp Input="$($(TestName)Target)" Method="ToLower" Output="TestTargetLowercase"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -SkipStage -Build=&quot;$(RootDir)\$(TargetName)\$(PlatformStageDirName)&quot;" If="'$(StagesWithProjectFile)' == 'True'"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -build=&quot;$(BinaryRelativePath)/$(Platform)/$(TargetName)$(TestModeSuffix)&quot;" If="'$(StagesWithProjectFile)' != 'True'"/>
 
-			<!-- Stop any running docker container and remove image -->
-			<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
-		</Do>
+					<Property Name="AppRunsContainerized" Value="$(RunContainerized)"/>
+
+					<Do If="'$(AppRunsContainerized)' == 'True'">
+						<Property Name="TestTargetLowercase" Value=""/>
+						<StringOp Input="$(TargetName)" Method="ToLower" Output="TestTargetLowercase"/>
+
+						<Property Name="BinariesRelativeForwardSlash" Value=""/>
+						<StringOp Input="$(BinaryRelativePath)" Method="Replace" Arguments="\;/" Output="BinariesRelativeForwardSlash"/>
+
+						<!-- Builds docker image -->
+						<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
+						<Expand Name="$(Platform)DockerSetup" AppNameLowercase="$(TestTargetLowercase)" AppDir="$(BinariesRelativeForwardSlash)/$(Platform)/$(TargetName)$(TestModeSuffix)"/>
+						<Property Name="TestArgsExt" Value="$(TestArgsExt) -containerized"/>
+					</Do>
+
+					<Do If="'$(Platform)' == 'Android'">
+						<Expand Name="SelectAdbKeysPath" BuildPlatform="$(BuildPlatform)"/>
+						<Property Name="TestArgsExt" Value="$(TestArgsExt) -adbkeys=$(AdbKeysPath) -captureoutput"/>
+					</Do>
+
+					<Command Name="RunLowLevelTests"
+							Arguments="-test=LowLevelTests -testapp=$(TargetName)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose"/>
+
+					<Do If="'$(AppRunsContainerized)' == 'True'">
+						<Property Name="TestTargetLowercase" Value=""/>
+						<StringOp Input="$(TargetName)" Method="ToLower" Output="TestTargetLowercase"/>
+
+						<!-- Stop any running docker container and remove image -->
+						<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
+					</Do>
+				</Do>
+			</Node>
+			<Label Category="Test" Name="$(ShortName) $(Platform)" Requires="$(ShortName) Tests $(Platform)"/>
+			<Property Name="TestNodes" Value="$(TestNodes);$(ShortName) Tests $(Platform)" If="$(RunAllTests) Or $(Run$(TestName)Tests)"/>
+				
+			<Do If="'$(CheckedRunAfterStep)' == 'True' AND '$(HasAfterSteps)' == 'True'">
+				<Expand Name="TestAfterStep" TestName="$(TestName)" ShortName="$(ShortName)" Platform="$(Platform)"/>
+			</Do>
+		</Agent>
 	</Macro>
 
+	<!-- Catch2 build targets -->
 	<ForEach Name="BuildPlatform" Values="$(BuildPlatforms)">
 		<ForEach Name="Platform" Values="$(PlatformsBuiltFrom$(BuildPlatform))">
 			<Property Name="AgentType" Value="$(BuildPlatform)"/>
-			<Expand Name="SelectAgentType" Platform="$(Platform)" BuildPlatform="$(BuildPlatform)" />
-			<Property Name="BuildAgentType" Value="$(AgentType)"/>
-			<Do If="'$(Platform)' == 'Linux' Or '$(Platform)' == 'LinuxArm64'">
-				<Property Name="BuildAgentType" Value="Win64"/>
-			</Do>
-			<Agent Name="Catch2 Build $(Platform)" Type="$(BuildAgentType)">
+			<Expand Name="SelectBuildPlatformAndAgentType" Platform="$(Platform)" />
+			<Agent Name="Catch2 Build $(Platform)" Type="$(AgentType)">
 				<Node Name="Catch2 Build Library $(Platform)">
 					<Property Name="Generator" Value="Makefile"/>
 					<Property Name="TargetConfigs" Value="debug+release"/>
@@ -253,42 +279,16 @@
 				</Node>
 				<Property Name="Catch2BuildNodes" Value="$(Catch2BuildNodes);Catch2 Build Library $(Platform)"/>
 			</Agent>
-			<Agent Name="Low Level Tests $(Platform)" Type="$(AgentType)">
-				<ForEach Name="TestName" Values="$(TestNames)">
-					<Property Name="TestSupportedOnPlatform" Value="false"/>
-					<Property Name="TestRunsOnPlatform" Value="false"/>
-					<Property Name="RunsTestOnPlatform" Value="false"/>
-					
-					<Property Name="TestSupportedOnPlatform" Value="true" If="Contains('$($(TestName)SupportedPlatforms)', '$(Platform)')"/>
-					<Property Name="TestRunsOnPlatform" Value="true" If="($(TestSupportedOnPlatform) And $(TestsAllSupportedPlatforms)) Or $(TestPlatform$(Platform))"/>
-					<Property Name="RunsTestOnPlatform" Value="true" If="!$($(TestName)Disabled) And $(TestRunsOnPlatform) And ($(Run$(TestName)Tests) Or $(RunsAllTests))"/>
-
-					<Do If="$(RunsTestOnPlatform)">
-						<Do If="!$(TestSupportedOnPlatform)">
-							<Warning Message="Low level test $(TestName) not yet tested for support on platform $(Platform)."/>
-						</Do>
-
-						<Property Name="TestRequirements" Value=""/>
-						<Do If="$(BuildCatch2Libs)">
-							<Property Name="TestRequirements" Value="$(TestRequirements);Catch2 Build Library $(Platform)"/>
-						</Do>
-						<Node Name="$($(TestName)Short) Tests $(Platform)" Requires="$(TestRequirements)">
-							<Expand Name="BuildAndStageTest" TestName="$(TestName)" Platform="$(Platform)"/>
-							<Do If="'$($(Platform)$(TestName)RunSupported)' == 'True'">
-								<Expand Name="DeployAndTest" TestName="$(TestName)" Platform="$(Platform)" BuildPlatform="$(BuildPlatform)"/>
-							</Do>
-						</Node>
-						<Label Category="Test" Name="$($(TestName)Short) $(Platform)" Requires="$($(TestName)Short) Tests $(Platform)"/>
-						<Property Name="TestNodes" Value="$(TestNodes);$($(TestName)Short) Tests $(Platform)" If="$(RunAllTests) Or $(Run$(TestName)Tests)"/>
-						
-						<Do If="'$(CheckedRunAfterStep)' == 'True' AND '$($(TestName)HasAfterSteps)' == 'True'">
-							<Expand Name="ExpandAfterSteps" TestName="$(TestName)" Platform="$(Platform)" />
-						</Do>
-					</Do>
-				</ForEach>
-			</Agent>
 		</ForEach>
 	</ForEach>
+
+	<!-- All test metadata scripts along with platform specific versions for both public and internal paths -->
+	<Include Script="LowLevelTests/*.xml"/>
+	<Include Script="../Platforms/*/Build/LowLevelTests/*.xml"/>
+	<Include Script="../Restricted/NotForLicensees/Build/LowLevelTests/*.xml"/>
+	<Include Script="../Restricted/NotForLicensees/Platforms/*/Build/LowLevelTests/*.xml"/>
+
+	<Expand Name="RunAllTests"/>
 	
 	<Aggregate Name="Run Low Level Tests" Requires="$(TestNodes);$(AfterTestNodes)"/>
 	<Aggregate Name="Build Catch2 Libraries" Requires="$(Catch2BuildNodes)"/>

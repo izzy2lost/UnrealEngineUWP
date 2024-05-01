@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 
 namespace UnrealBuildTool
@@ -15,9 +16,15 @@ namespace UnrealBuildTool
 	/// </summary>
 	public class TestModuleRules : ModuleRules
 	{
-		private readonly XNamespace BuildGraphNamespace = XNamespace.Get("http://www.epicgames.com/BuildGraph");
-		private readonly XNamespace SchemaInstance = XNamespace.Get("http://www.w3.org/2001/XMLSchema-instance");
-		private readonly XNamespace SchemaLocation = XNamespace.Get("http://www.epicgames.com/BuildGraph ../../Build/Graph/Schema.xsd");
+		private static readonly XNamespace BuildGraphNamespace = XNamespace.Get("http://www.epicgames.com/BuildGraph");
+		private static readonly XNamespace SchemaInstance = XNamespace.Get("http://www.w3.org/2001/XMLSchema-instance");
+		private static readonly XNamespace SchemaLocation = XNamespace.Get("http://www.epicgames.com/BuildGraph ../../Build/Graph/Schema.xsd");
+		private static readonly List<string> RestrictedFoldersNonPlatform = new List<string>() {
+			RestrictedFolder.NotForLicensees.ToString(),
+			RestrictedFolder.NoRedist.ToString(),
+			RestrictedFolder.EpicInternal.ToString(),
+			RestrictedFolder.CarefullyRedist.ToString()
+		};
 
 		private bool bUsesCatch2 = true;
 
@@ -25,6 +32,11 @@ namespace UnrealBuildTool
 		/// Associated tested module of this test module.
 		/// </summary>
 		public ModuleRules? TestedModule { get; private set; }
+
+		/// <summary>
+		/// Test metadata, used with BuildGraph only.
+		/// </summary>
+		protected static Metadata TestMetadata = new Metadata();
 
 		/// <summary>
 		/// Constructs a TestModuleRules object as its own test module.
@@ -153,65 +165,29 @@ namespace UnrealBuildTool
 
 #pragma warning disable 8602
 #pragma warning disable 8604
+
 		/// <summary>
-		/// Generates or updates metadata file for LowLevelTests.xml containing test flags: name, short name, target name, relative binaries path, supported platforms etc.
-		/// <paramref name="TestMetadata">The test metadata specifying name, short name etc used to populate the BuildGraph properties file.</paramref>
+		/// Deprecated, test metadata now generated explicitly using -Mode-Test with -GenerateMetadata.
 		/// </summary>
+		/// <param name="TestMetadata"></param>
+		[Obsolete("Use RunUBT -Mode=Test -GenerateMetadata instead")]
 		protected void UpdateBuildGraphPropertiesFile(Metadata TestMetadata)
 		{
-			bool bUpdateBuildGraphPropertiesFile = false;
-			TestTargetRules? TestTargetRules = Target.InnerTestTargetRules;
-			if (TestTargetRules != null)
-			{
-				bUpdateBuildGraphPropertiesFile = TestTargetRules.bUpdateBuildGraphPropertiesFile;
-			}
+		}
 
-			bool bIsBuildMachine = Unreal.IsBuildMachine();
-			if (bIsBuildMachine || !bUpdateBuildGraphPropertiesFile || TestMetadata == null)
-			{
-				return;
-			}
-
-			string BaseFolder = GetBaseFolder();
-
-			string GeneratedPropertiesScriptFile;
-
-			string NonPublicPath = Path.Combine(BaseFolder, "Restricted", "NotForLicensees", "Build", "LowLevelTests", $"{TestMetadata.TestName}.xml");
+		/// <summary>
+		/// Generates or updates metadata file for LowLevelTests.xml containing test flags: name, short name, target name, relative binaries path, supported platforms etc.
+		/// Called by RunUBT.bat -Mode=Test -GenerateMetadata
+		/// </summary>
+		private static void UpdateBuildGraphMetadata(Metadata TestMetadata, string ModuleDirectory, string ModuleName, ILogger Log)
+		{
+			string BaseFolder = GetBaseFolder(ModuleDirectory);
 
 			bool ModuleInRestrictedPath = IsRestrictedPath(ModuleDirectory);
 
-			if (ModuleInRestrictedPath)
-			{
-				GeneratedPropertiesScriptFile = NonPublicPath;
-			}
-			else
-			{
-				GeneratedPropertiesScriptFile = Path.Combine(BaseFolder, "Build", "LowLevelTests", $"{TestMetadata.TestName}.xml");
-			}
-
-			if (!System.IO.File.Exists(GeneratedPropertiesScriptFile))
-			{
-				string? DirGenProps = Path.GetDirectoryName(GeneratedPropertiesScriptFile);
-				if (DirGenProps != null && !System.IO.Directory.Exists(DirGenProps))
-				{
-					System.IO.Directory.CreateDirectory(DirGenProps);
-				}
-				using (FileStream FileStream = System.IO.File.Create(GeneratedPropertiesScriptFile))
-				{
-					XDocument XInitFile = new XDocument(new XElement(BuildGraphNamespace + "BuildGraph", new XAttribute(XNamespace.Xmlns + "xsi", SchemaInstance), new XAttribute(SchemaInstance + "schemaLocation", SchemaLocation)));
-					XInitFile.Root?.Add(
-						new XElement(
-							BuildGraphNamespace + "Property",
-							new XAttribute("Name", "TestNames"),
-							new XAttribute("Value", "$(TestNames);" + TestMetadata.TestName)));
-
-					XInitFile.Save(FileStream);
-				}
-			}
-
 			// All relevant properties
-			string TestTargetName = Target.LaunchModuleName ?? "Launch";
-			string TestBinariesPath = TryGetBinariesPath();
+			string TestTargetName = ModuleName ?? "Launch";
+			string TestBinariesPath = TryGetBinariesPath(ModuleDirectory);
 
 			// Do not save full paths
 			if (Path.IsPathRooted(TestBinariesPath))
@@ -219,43 +195,15 @@ namespace UnrealBuildTool
 				TestBinariesPath = Path.GetRelativePath(Unreal.RootDirectory.FullName, TestBinariesPath);
 			}
 
-			MakeFileWriteable(GeneratedPropertiesScriptFile);
-			XDocument GenPropsDoc = XDocument.Load(GeneratedPropertiesScriptFile);
-			XElement? Root = GenPropsDoc.Root;
-			// First descendant must be TestNames
-			if (Root != null && Root.FirstNode != null)
-			{
-				XElement TestNames = (XElement)Root.FirstNode;
-				if (TestNames != null)
-				{
-					XElement lastUpdatedNode = TestNames;
-
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "Disabled", Convert.ToString(TestMetadata.Disabled));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "Short", Convert.ToString(TestMetadata.TestShortName));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "StagesWithProjectFile", Convert.ToString(TestMetadata.StagesWithProjectFile));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "Target", Convert.ToString(TestTargetName));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "BinariesRelative", Convert.ToString(TestBinariesPath));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "ReportType", Convert.ToString(TestMetadata.ReportType));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "GauntletArgs", Convert.ToString(TestMetadata.InitialExtraArgs) + Convert.ToString(TestMetadata.GauntletArgs));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "ExtraArgs", Convert.ToString(TestMetadata.ExtraArgs));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "HasAfterSteps", Convert.ToString(TestMetadata.HasAfterSteps));
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "UsesCatch2", Convert.ToString(TestMetadata.UsesCatch2));
-
-					InsertOrUpdateTestOption(ref lastUpdatedNode, TestMetadata.TestName, $"Run {TestMetadata.TestShortName} Tests", "Run", "Tests", false.ToString());
-
-					InsertOrUpdateTestFlagProperty(ref lastUpdatedNode, TestMetadata.TestName, "SupportedPlatforms", TestMetadata.SupportedPlatforms.Aggregate("", (current, next) => (String.IsNullOrEmpty(current) ? next.ToString() : current + ";" + next.ToString())));
-				}
-			}
-
-			GenPropsDoc.Save(GeneratedPropertiesScriptFile);
-
 			// Platform-specific configurations
 			string GeneratedPropertiesPlatformFile;
 
 			string NonPublicPathPlatform;
 
-			// Generate peroperty file for each platform
-			foreach (UnrealTargetPlatform ValidPlatform in UnrealTargetPlatform.GetValidPlatforms())
+			Dictionary<string, XDocument> SaveAtEnd = new Dictionary<string, XDocument>();
+
+			// Generate peroperty file for each supported platform
+			foreach (UnrealTargetPlatform ValidPlatform in TestMetadata.SupportedPlatforms)
 			{
 				bool IsRestrictedPlatformName = IsPlatformRestricted(ValidPlatform);
 				if (IsRestrictedPlatformName)
@@ -297,26 +245,100 @@ namespace UnrealBuildTool
 				}
 
 				MakeFileWriteable(GeneratedPropertiesPlatformFile);
-				XDocument XInitPlatformFile = XDocument.Load(GeneratedPropertiesPlatformFile);
+				XElement Root;
+				if (!SaveAtEnd.ContainsKey(GeneratedPropertiesPlatformFile))
+				{
+					XDocument XInitPlatformFile = XDocument.Load(GeneratedPropertiesPlatformFile);
+					// Any manually edited elements to keep
+					List<XElement> KeepElements = XInitPlatformFile.Root!.Elements().Where(e => e.Attribute("Name").Value == $"{TestMetadata.TestName}AfterSteps").ToList();
+					XInitPlatformFile.Root!.Elements().Remove();
+					foreach (var Element in KeepElements)
+					{
+						XInitPlatformFile.Root!.Add(Element);
+					}
+					SaveAtEnd.Add(GeneratedPropertiesPlatformFile, XInitPlatformFile);
+				}
 
-				// Adding per-test and per-platform tags
+				Root = SaveAtEnd[GeneratedPropertiesPlatformFile].Root!;
+
+				// Optional metadata, use Expand and set any non-default metadata
+				Dictionary<string, string> ExpandArguments = new Dictionary<string, string>();
+
+				if (!IsRestrictedPlatformName)
+				{
+					InsertOrUpdateTestOption(Root, $"Run{TestMetadata.TestName}Tests", $"Run {TestMetadata.TestShortName} Tests", false.ToString());
+				}
+
+				if (TestMetadata.Deactivated)
+				{
+					ExpandArguments.Add("Deactivated", Convert.ToString(TestMetadata.Deactivated));
+				}
+				ExpandArguments.Add("TestName", Convert.ToString(TestMetadata.TestName));
+				ExpandArguments.Add("ShortName", Convert.ToString(TestMetadata.TestShortName));
+				if (TestMetadata.StagesWithProjectFile)
+				{
+					ExpandArguments.Add("StagesWithProjectFile", Convert.ToString(TestMetadata.StagesWithProjectFile));
+				}
+				ExpandArguments.Add("TargetName", Convert.ToString(TestTargetName));
+				ExpandArguments.Add("BinaryRelativePath", Convert.ToString(TestBinariesPath));
+				ExpandArguments.Add("ReportType", Convert.ToString(TestMetadata.ReportType));
+				if (!string.IsNullOrEmpty(TestMetadata.GauntletArgs))
+				{
+					ExpandArguments.Add("GauntletArgs", Convert.ToString(TestMetadata.InitialExtraArgs) + Convert.ToString(TestMetadata.GauntletArgs));
+				}
+				if(TestMetadata.PlatformGauntletArgs.ContainsKey(ValidPlatform))
+				{
+					ExpandArguments.Add("PlatformGauntletArgs", TestMetadata.PlatformGauntletArgs[ValidPlatform]);
+				}
+				if (!string.IsNullOrEmpty(TestMetadata.ExtraArgs))
+				{
+					ExpandArguments.Add("ExtraArgs", Convert.ToString(TestMetadata.ExtraArgs));
+				}
+				if (TestMetadata.HasAfterSteps)
+				{
+					ExpandArguments.Add("HasAfterSteps", Convert.ToString(TestMetadata.HasAfterSteps));
+				}
+				if (!TestMetadata.UsesCatch2)
+				{
+					ExpandArguments.Add("UsesCatch2", Convert.ToString(TestMetadata.UsesCatch2));
+				}
 				string TagsValue = TestMetadata.PlatformTags.ContainsKey(ValidPlatform) ? TestMetadata.PlatformTags[ValidPlatform] : String.Empty;
-				AppendOrUpdateTestFlagProperty(ref XInitPlatformFile, TestMetadata.TestName, ValidPlatform.ToString(), "Tags", TagsValue);
+				if (!string.IsNullOrEmpty(TagsValue))
+				{
+					ExpandArguments.Add("Tags", TagsValue);
+					
+				}
 
 				string ExtraCompilationArgsValue = TestMetadata.PlatformCompilationExtraArgs.ContainsKey(ValidPlatform) ? TestMetadata.PlatformCompilationExtraArgs[ValidPlatform] : String.Empty;
-				AppendOrUpdateTestFlagProperty(ref XInitPlatformFile, TestMetadata.TestName, ValidPlatform.ToString(), "ExtraCompilationArgs", ExtraCompilationArgsValue);
+				if (!string.IsNullOrEmpty (ExtraCompilationArgsValue))
+				{
+					ExpandArguments.Add("ExtraCompilationArgs", ExtraCompilationArgsValue);
+				}
 
-				string RunSupportedValue = TestMetadata.PlatformsRunUnsupported.Contains(ValidPlatform) ? "False" : "True";
-				AppendOrUpdateTestFlagProperty(ref XInitPlatformFile, TestMetadata.TestName, ValidPlatform.ToString(), "RunSupported", RunSupportedValue);
+				// By default all test supported platforms have run supported, generally only a few don't (e.g. iOS)
+				bool RunUnsupportedPlatform = TestMetadata.PlatformsRunUnsupported.Contains(ValidPlatform);
+				if (RunUnsupportedPlatform)
+				{
+					ExpandArguments.Add("RunUnsupported", "True");
+				}
 
 				string RunContainerizedValue = TestMetadata.PlatformRunContainerized.ContainsKey(ValidPlatform) ? "True" : "False";
-				AppendOrUpdateTestFlagProperty(ref XInitPlatformFile, TestMetadata.TestName, ValidPlatform.ToString(), "RunContainerized", RunContainerizedValue);
+				if (RunContainerizedValue == "True")
+				{
+					ExpandArguments.Add("RunContainerized", RunContainerizedValue);
+				}
 
-				XInitPlatformFile.Save(GeneratedPropertiesPlatformFile);
+				AppendOrUpdateRunAllTestsNode(Root, "DeployAndTest", ValidPlatform.ToString(), ExpandArguments);
+			}
+
+			foreach (KeyValuePair<string, XDocument> KVP in SaveAtEnd)
+			{
+				Log.LogInformation("Saving metadata to {File}", KVP.Key);
+				KVP.Value.Save(KVP.Key);
 			}
 		}
 
-		private string GetBaseFolder()
+		private static string GetBaseFolder(string ModuleDirectory)
 		{
 			string RelativeModulePath = Path.GetRelativePath(Unreal.RootDirectory.FullName, ModuleDirectory);
 			string[] BreadCrumbs = RelativeModulePath.Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
@@ -327,25 +349,17 @@ namespace UnrealBuildTool
 			return Unreal.EngineDirectory.FullName;
 		}
 
-		private bool IsPlatformRestricted(UnrealTargetPlatform Platform)
+		private static bool IsPlatformRestricted(UnrealTargetPlatform Platform)
 		{
 			return RestrictedFolder.GetNames().Contains(Platform.ToString());
 		}
 
-		private bool IsRestrictedPath(string ModuleDirectory)
+		private static bool IsRestrictedPath(string ModuleDirectory)
 		{
-			foreach (string RestrictedFolderName in RestrictedFolder.GetNames())
-			{
-				if (ModuleDirectory.Contains(RestrictedFolderName))
-				{
-					return true;
-				}
-			}
-
-			return false;
+			return ModuleDirectory.Split(new char[] { '/', '\\' }).Intersect(RestrictedFoldersNonPlatform).Count() > 0;
 		}
 
-		private string TryGetBinariesPath()
+		private static string TryGetBinariesPath(string ModuleDirectory)
 		{
 			int SourceFolderIndex = ModuleDirectory.IndexOf("Source");
 			if (SourceFolderIndex < 0)
@@ -355,73 +369,58 @@ namespace UnrealBuildTool
 				{
 					return ModuleDirectory.Substring(0, PluginFolderIndex) + "Binaries";
 				}
-				throw new Exception("Could not detect source folder path for module " + GetType());
+				throw new Exception("Could not detect source folder path for module from directory " + ModuleDirectory);
 			}
 			return ModuleDirectory.Substring(0, SourceFolderIndex) + "Binaries";
 		}
 
-		private void AppendOrUpdateTestFlagProperty(ref XDocument Document, string FlagRadix, string FlagPrefix, string FlagSuffix, string FlagValue)
+		private static void AppendOrUpdateRunAllTestsNode(XElement Root, string MacroName, string Platform, Dictionary<string, string> ExpandArguments)
 		{
-			XElement? Existing = Document.Root!.Elements().Where(element => element.Attribute("Name").Value == FlagPrefix + FlagRadix + FlagSuffix).FirstOrDefault();
-			if (Existing != null)
+			XElement? ExtendNode = Root.Elements().Where(element => element.Name.LocalName == "Extend").FirstOrDefault();
+			if (ExtendNode == null)
 			{
-				Existing!.SetAttributeValue("Value", FlagValue);
+				ExtendNode = new XElement(BuildGraphNamespace + "Extend");
+				ExtendNode.SetAttributeValue("Name", "RunAllTests");
+				Root.Add(ExtendNode);
 			}
-			else
+			
+			XElement? ExpandNode = ExtendNode.Elements().Where(element => element.Attribute("Name").Value == MacroName && element.Attribute("Platform").Value == Platform).FirstOrDefault();
+			if (ExpandNode == null)
 			{
-				XElement ElementAppend = new XElement(BuildGraphNamespace + "Property");
-				ElementAppend.SetAttributeValue("Name", FlagPrefix + FlagRadix + FlagSuffix);
-				ElementAppend.SetAttributeValue("Value", FlagValue);
-				Document.Root!.Add(ElementAppend);
+				ExpandNode = new XElement(BuildGraphNamespace + "Expand");
+				ExpandNode.SetAttributeValue("Name", MacroName);
+				ExpandNode.SetAttributeValue("Platform", Platform);
+				ExtendNode.Add(ExpandNode);
 			}
-		}
-		private void InsertOrUpdateTestFlagProperty(ref XElement ElementUpsertAfter, string TestName, string FlagSuffix, string FlagValue)
-		{
-			IEnumerable<XElement> NextChunk = ElementUpsertAfter.ElementsAfterSelf(BuildGraphNamespace + "Property")
-				.Where(prop => prop.Attribute("Name").Value.EndsWith(FlagSuffix));
-			if (!NextChunk
-				.Where(prop => prop.Attribute("Name").Value == TestName + FlagSuffix).Any())
+			foreach (KeyValuePair<string, string> ArgumentAndValue in ExpandArguments)
 			{
-				XElement ElementInsert = new XElement(BuildGraphNamespace + "Property");
-				ElementInsert.SetAttributeValue("Name", TestName + FlagSuffix);
-				ElementInsert.SetAttributeValue("Value", FlagValue);
-				ElementUpsertAfter.AddAfterSelf(ElementInsert);
+				ExpandNode!.SetAttributeValue(ArgumentAndValue.Key, ArgumentAndValue.Value);
 			}
-			else
-			{
-				NextChunk
-					.Where(prop => prop.Attribute("Name").Value == TestName + FlagSuffix).First().SetAttributeValue("Value", FlagValue);
-			}
-			ElementUpsertAfter = NextChunk.Last();
 		}
 
-		private void InsertOrUpdateTestOption(ref XElement ElementUpsertAfter, string OptionRadix, string Description, string OptionPrefix, string OptionSuffix, string DefaultValue)
+		private static void InsertOrUpdateTestOption(XElement Root, string OptionName, string Description, string DefaultValue)
 		{
-			IEnumerable<XElement> NextChunk = ElementUpsertAfter.ElementsAfterSelf(BuildGraphNamespace + "Option")
-				.Where(prop => prop.Attribute("Name").Value.StartsWith(OptionPrefix) && prop.Attribute("Name").Value.EndsWith(OptionSuffix));
-			if (!NextChunk
-				.Where(prop => prop.Attribute("Name").Value == OptionPrefix + OptionRadix + OptionSuffix).Any())
+			XElement? OptionElementWithName = Root.Elements(BuildGraphNamespace + "Option")
+				.Where(prop => prop.Attribute("Name").Value == OptionName).FirstOrDefault();
+			if (OptionElementWithName == null)
 			{
 				XElement ElementInsert = new XElement(BuildGraphNamespace + "Option");
-				ElementInsert.SetAttributeValue("Name", OptionPrefix + OptionRadix + OptionSuffix);
+				ElementInsert.SetAttributeValue("Name", OptionName);
 				ElementInsert.SetAttributeValue("DefaultValue", DefaultValue);
 				ElementInsert.SetAttributeValue("Description", Description);
-				ElementUpsertAfter.AddAfterSelf(ElementInsert);
+				Root.Add(ElementInsert);
 			}
 			else
 			{
-				XElement ElementUpdate = NextChunk
-					.Where(prop => prop.Attribute("Name").Value == OptionPrefix + OptionRadix + OptionSuffix).First();
-				ElementUpdate.SetAttributeValue("Description", Description);
-				ElementUpdate.SetAttributeValue("DefaultValue", DefaultValue);
+				OptionElementWithName.SetAttributeValue("Description", Description);
+				OptionElementWithName.SetAttributeValue("DefaultValue", DefaultValue);
 			}
-			ElementUpsertAfter = NextChunk.Last();
 		}
 
 #pragma warning restore 8604
 #pragma warning restore 8602
 
-		private void MakeFileWriteable(string InFilePath)
+		private static void MakeFileWriteable(string InFilePath)
 		{
 			System.IO.File.SetAttributes(InFilePath, System.IO.File.GetAttributes(InFilePath) & ~FileAttributes.ReadOnly);
 		}
@@ -459,9 +458,9 @@ namespace UnrealBuildTool
 			public bool StagesWithProjectFile { get; set; }
 
 			/// <summary>
-			/// Is this test disabled?
+			/// Is this test deactivated?
 			/// </summary>
-			public bool Disabled { get; set; }
+			public bool Deactivated { get; set; }
 
 			/// <summary>
 			/// Depercated, use GauntletArgs or ExtraArgs instead to help indicate arguments to launch the test under.
@@ -512,6 +511,16 @@ namespace UnrealBuildTool
 			{
 				get => PlatformTagsPrivate;
 				set => PlatformTagsPrivate = value;
+			}
+
+			private Dictionary<UnrealTargetPlatform, string> PlatformGauntletArgsPrivate = new Dictionary<UnrealTargetPlatform, string>();
+			/// <summary>
+			/// Per-platform gauntlet args.
+			/// </summary>
+			public Dictionary<UnrealTargetPlatform, string> PlatformGauntletArgs
+			{
+				get => PlatformGauntletArgsPrivate;
+				set => PlatformGauntletArgsPrivate = value;
 			}
 
 			private Dictionary<UnrealTargetPlatform, string> PlatformCompilationExtraArgsPrivate = new Dictionary<UnrealTargetPlatform, string>();

@@ -3,20 +3,25 @@ using UnrealBuildTool;
 
 public class PlainPropsTests : TestModuleRules
 {
-	protected Metadata PlainPropsMetadata = new Metadata() {
-		TestName = "PlainProps",
-		TestShortName = "PlainProps",
-		ReportType = "xml",
-		SupportedPlatforms = {
-			UnrealTargetPlatform.Win64,
-			UnrealTargetPlatform.Linux,
-			UnrealTargetPlatform.Mac} };
+	static PlainPropsTests()
+	{
+		TestMetadata = new Metadata();
+		TestMetadata.TestName = "PlainProps";
+		TestMetadata.TestShortName = "PlainProps";
+		TestMetadata.ReportType = "xml";
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
+		
+		string PlatformCompilationArgs;
+		foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
+		{
+			PlatformCompilationArgs = "-allmodules";
+			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
+		}
 
-	public Metadata TestMetadata
-	{ 
-		get { return PlainPropsMetadata; }
+		// Platform-specific tags
+		TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Linux, "~[.]~[Slow]");
 	}
-
 	public PlainPropsTests(ReadOnlyTargetRules Target) : base(Target, true)
 	{
 		PrivateDependencyModuleNames.AddRange(
@@ -29,17 +34,5 @@ public class PlainPropsTests : TestModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(new string[] { "DesktopPlatform" });
 		}
-
-		string PlatformCompilationArgs;
-		foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
-		{
-			PlatformCompilationArgs = "-allmodules";
-			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
-		}
-
-		// Platform-specific tags
-		TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Linux, "~[.]~[Slow]");
-
-		UpdateBuildGraphPropertiesFile(TestMetadata);
 	}
 }
