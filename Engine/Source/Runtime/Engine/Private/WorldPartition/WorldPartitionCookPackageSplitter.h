@@ -28,6 +28,10 @@ public:
 	{
 		return EGeneratedRequiresGenerator::Populate;
 	}
+	virtual bool RequiresGeneratorPackageDestructBeforeResplit() override
+	{
+		return true;
+	}
 
 	virtual TArray<ICookPackageSplitter::FGeneratedPackage> GetGenerateList(const UPackage* OwnerPackage, const UObject* OwnerObject) override;
 	virtual bool PopulateGeneratedPackage(UPackage* OwnerPackage, UObject* OwnerObject,

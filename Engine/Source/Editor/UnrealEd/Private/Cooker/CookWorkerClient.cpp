@@ -340,6 +340,9 @@ void FCookWorkerClient::HandleGeneratorMessage(FGeneratorEventMessage&& Generato
 			case EGeneratorEvent::QueuedGeneratedPackagesFencePassed:
 				GenerationHelper->OnRequestFencePassed(COTFS);
 				break;
+			case EGeneratorEvent::AllSavesCompleted:
+				GenerationHelper->OnAllSavesCompleted(COTFS);
+				break;
 			default:
 				// We do not handle the remaining GeneratorEvents on clients
 				break;

@@ -921,6 +921,28 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 		bRetiredAnyPackages = true;
 		PackageData->SetWorkerAssignment(FWorkerId::Invalid(), ESendFlags::QueueNone);
 
+		if (PackageData->IsGenerated())
+		{
+			TRefCountPtr<FGenerationHelper> ParentGenerationHelper = PackageData->GetOrFindParentGenerationHelper();
+			if (!ParentGenerationHelper)
+			{
+				UE_LOG(LogCook, Warning,
+					TEXT("RecordResults received for generated package %s, but its ParentGenerationHelper has already been destructed so we can not update the save flag. Leaving the save flag unupdated; this might cause workers to run out of memory due to keeping the Generator referenced."),
+					*PackageData->GetPackageName().ToString());
+			}
+			else
+			{
+				ParentGenerationHelper->MarkPackageSavedRemotely(COTFS, *PackageData);
+				PackageData->SetParentGenerationHelper(nullptr);
+			}
+		}
+		TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
+		if (GenerationHelper)
+		{
+			GenerationHelper->MarkPackageSavedRemotely(COTFS, *PackageData);
+			GenerationHelper.SafeRelease();
+		}
+
 		// MPCOOKTODO: Refactor FSaveCookedPackageContext::FinishPlatform and ::FinishPackage so we can call them from
 		// here to reduce duplication
 		if (Result.GetSuppressCookReason() == ESuppressCookReason::NotSuppressed)
@@ -1006,6 +1028,7 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 			TRefCountPtr<FGenerationHelper> GenerationHelper =
 				GeneratorPackageData->CreateUninitializedGenerationHelper();
 			GenerationHelper->NotifyStartQueueGeneratedPackages(COTFS, WorkerId);
+			GenerationHelper->TrackGeneratedPackageListedRemotely(COTFS, PackageData);
 		}
 	}
 
@@ -1059,28 +1082,28 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 void FCookWorkerServer::HandleGeneratorMessage(FGeneratorEventMessage& GeneratorMessage)
 {
 	FPackageData* PackageData = COTFS.PackageDatas->FindPackageDataByPackageName(GeneratorMessage.PackageName);
-	TRefCountPtr<FGenerationHelper> GenerationHelper;
-	if (PackageData)
-	{
-		GenerationHelper = PackageData->CreateUninitializedGenerationHelper();
-	}
-	if (!GenerationHelper)
+	if (!PackageData)
 	{
 		// This error should be impossible because GeneratorMessages are only sent in response to assignment from the server.
 		UE_LOG(LogCook, Error,
-			TEXT("CookWorkerServer received unexpected GeneratorMessage for package %s. The PackageData %s on the CookDirector. ")
+			TEXT("CookWorkerServer received unexpected GeneratorMessage for package %s. The PackageData %s does not exist on the CookDirector. ")
 			TEXT("\n\tCook of this generator package and its generated packages will be invalid."),
 			*GeneratorMessage.PackageName.ToString(),
 			(!PackageData ? TEXT("does not exist") : TEXT("is not a valid generator")));
 		return;
 	}
+
+	TRefCountPtr<FGenerationHelper> GenerationHelper;
+	GenerationHelper = PackageData->CreateUninitializedGenerationHelper();
+	check(GenerationHelper);
+
 	switch (GeneratorMessage.Event)
 	{
 	case EGeneratorEvent::QueuedGeneratedPackages:
 		GenerationHelper->EndQueueGeneratedPackagesOnDirector(COTFS, GetWorkerId());
 		break;
 	default:
-		// We do not handle the remaining GeneratorEvents on clients
+		// We do not handle the remaining GeneratorEvents on the server
 		break;
 	}
 }

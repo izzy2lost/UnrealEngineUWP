@@ -64,6 +64,21 @@ public:
 	}
 
 	/**
+	 * An ICookPackageSplitter for a single generator package normally is constructed only once and handles
+	 * all generated packages for that generator, but during MPCook in cases of load balancing between CookWorkers,
+	 * it is possible that the original splitter is destructed but then recreated later. This is guaranteed not
+	 * to happen without a GarbageCollection pass in between, but that GarbageCollection may fail to destruct the
+	 * generator package if it is still referenced from other packages or systems. Depending on the ICookPackageSplitter's
+	 * implemenation, this failure to GC might cause an error, because changes made from the previous splitter are not 
+	 * handled in the next splitter. If RequiresGeneratorPackageDestructBeforeResplit is true, the cooker will log this failure
+	 * to GC the generator package as an error.
+	 */
+	virtual bool RequiresGeneratorPackageDestructBeforeResplit()
+	{
+		return false;
+	}
+
+	/**
 	 * Return value for the DoesGeneratedRequireGenerator function. All levels behave correctly, but provide
 	 * different tradeoffs of guarantees to the splitter versus performance.
 	 */
@@ -154,9 +169,12 @@ public:
 		bool bCreatedAsMap = false;
 	};
 	/**
-	 * Called before presaving the parent generator package, to give the generator a chance to inform the cooker which objects will
-	 * be moved into the generator package that are not already present in it.
+	 * Called before presaving the parent generator package, to give the generator a chance to inform the cooker which
+	 * objects will be moved into the generator package that are not already present in it.
 	 * 
+	 * PopulateGeneratorPackage is guaranteed to not be called again until the splitter has been destroyed and the
+	 * generator package has been garbage collected.
+	 *
 	 * @param OwnerPackage				The generator package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackages			Placeholder UPackage and relative path information for all packages that will be generated
@@ -225,6 +243,9 @@ public:
 	 * Return a list of all the objects that will be moved into the Generated package during its save, so the cooker
 	 * can call BeginCacheForCookedPlatformData on them before the move
 	 * After returning, the given package will be queued for saving into the TargetDomain
+	 * 
+	 * PopulateGeneratedPackage is guaranteed to not be called again on the same generated package until the splitter
+	 * has been destroyed and the generator package has been garbage collected.
 	 *
 	 * @param OwnerPackage				The parent package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for

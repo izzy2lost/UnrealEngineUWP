@@ -592,10 +592,14 @@ void FCookDirector::RemoveFromWorker(FPackageData& PackageData)
 	OwningWorker->AbortAssignment(PackageData, ECookDirectorThread::SchedulerThread);
 }
 
-void FCookDirector::BroadcastGeneratorFencePassed(FGenerationHelper& GenerationHelper)
+void FCookDirector::BroadcastGeneratorMessage(FGeneratorEventMessage&& Message)
 {
-	FName PackageName = GenerationHelper.GetOwner().GetPackageName();
-	FGeneratorEventMessage Message(EGeneratorEvent::QueuedGeneratedPackagesFencePassed, PackageName);
+	if (bReceivingMessages)
+	{
+		QueuedGeneratorBroadcasts.Add(MoveTemp(Message));
+		return;
+	}
+
 	{
 		FScopeLock CommunicationScopeLock(&CommunicationLock);
 		InitializeWorkers();
@@ -670,10 +674,21 @@ void FCookDirector::TickFromSchedulerThread()
 
 	bool bIsStalled = bLocalWorkerIdle && !COTFS.PackageDatas->GetAssignedToWorkerSet().IsEmpty()
 		&& WorkersWithMessage.IsEmpty();
-	for (TRefCountPtr<FCookWorkerServer>& Worker : WorkersWithMessage)
 	{
-		Worker->HandleReceiveMessages(ECookDirectorThread::SchedulerThread);
+		bReceivingMessages = true;
+		for (TRefCountPtr<FCookWorkerServer>& Worker : WorkersWithMessage)
+		{
+			Worker->HandleReceiveMessages(ECookDirectorThread::SchedulerThread);
+		}
+		bReceivingMessages = false;
 	}
+	for (FGeneratorEventMessage& Message : QueuedGeneratorBroadcasts)
+	{
+		BroadcastGeneratorMessage(MoveTemp(Message));
+	}
+	QueuedGeneratorBroadcasts.Empty();
+
+	// Process any queued messages
 	WorkersWithMessage.Empty();
 
 	SetWorkersStalled(bIsStalled);

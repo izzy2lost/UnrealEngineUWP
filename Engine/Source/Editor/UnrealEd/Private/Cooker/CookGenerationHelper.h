@@ -92,13 +92,15 @@ public:
 	bool HasCreatedPackage() const;
 	void SetHasCreatedPackage(bool bValue);
 	bool HasSaved() const;
-	void SetHasSaved(bool bValue);
+	void SetHasSaved(FGenerationHelper& GenerationHelper, bool bValue);
 	bool HasTakenOverCachedCookedPlatformData() const;
 	void SetHasTakenOverCachedCookedPlatformData(bool bValue);
 	bool HasIssuedUndeclaredMovedObjectsWarning() const;
 	void SetHasIssuedUndeclaredMovedObjectsWarning(bool bValue);
 	bool IsGenerator() const;
 	void SetIsGenerator(bool bValue);
+	bool HasCalledPopulate() const;
+	void SetHasCalledPopulate(bool bValue);
 
 	/**
 	 * Steal the list of cached objects to call BeginCacheForCookedPlatformData on from the PackageData,
@@ -135,13 +137,21 @@ public:
 	/** Return the packagename, for use in debug messages. Handles PackageData==nullptr by returning RelativePath. */
 	FString GetPackageName() const;
 
+	/**
+	 * Reset this info to a state appropriate for an uninitialized GenerationHelper; all references to UObjects
+	 * are dropped, but information necessary even when in the uninitialized GenerationHelper state is kept.
+	 */
+	void Uninitialize();
+
 public:
+	// When adding a new variable, add it to Uninitialize as well
 	FIoHash PackageHash;
 	FString RelativePath;
 	FString GeneratedRootPath;
 	FBlake3Hash GenerationHash;
 	TArray<FAssetDependency> PackageDependencies;
-	FPackageData* PackageData = nullptr;
+	/** Cannot be null, set in constructor */
+	FPackageData* PackageData;
 	TArray<TWeakObjectPtr<UPackage>> KeepReferencedPackages;
 	TMap<UObject*, FCachedObjectInOuterGeneratorInfo> CachedObjectsInOuterInfo;
 private:
@@ -152,6 +162,7 @@ private:
 	bool bTakenOverCachedCookedPlatformData : 1;
 	bool bIssuedUndeclaredMovedObjectsWarning : 1;
 	bool bGenerator : 1;
+	bool bHasCalledPopulate : 1;
 };
 
 /**
@@ -224,6 +235,11 @@ public:
 	const FName GetSplitDataObjectName() const;
 	/** Return the Splitter's value for virtual bool UseInternalReferenceToAvoidGarbageCollect(). */
 	bool IsUseInternalReferenceToAvoidGarbageCollect() const;
+	/**
+	 * Return the Splitter's value for virtual bool RequiresGeneratorPackageDestructBeforeResplit(). Returns false if not
+	 * initialized. Does not call Initialize.
+	 */
+	bool IsRequiresGeneratorPackageDestructBeforeResplit() const;
 	/** Return the Splitter's value for virtual bool DoesGeneratedRequireGenerator(). */
 	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator() const;
 	/** Return the cached pointer to the SplitDataObject. Returns null if no longer in memory or marked as garbage. */
@@ -259,6 +275,11 @@ public:
 	 */
 	bool TryCallPopulateGeneratorPackage(
 		TArray<ICookPackageSplitter::FGeneratedPackageForPreSave>& InOutGeneratedPackagesForPresave);
+	/**
+	 * Call the Splitter's PopulateGeneratedPackage if not yet called. Assumes GenerateList has been called. Logs
+	 * errors and returns false on failure.
+	 */
+	bool TryCallPopulateGeneratedPackage(UE::Cook::FCookGenerationInfo& Info, TArray<UObject*>& OutObjectsToMove);
 	/**
 	 * Mark that the SavePackage of the Owner is starting. Keeps a reference to keep the generator alive until save
 	 * is finished.
@@ -302,11 +323,18 @@ public:
 	/** Return the information set by SetPreviousGeneratedPackages if not yet cleared. Does not call Initialize. */
 	const TMap<FName, FIoHash>& GetPreviousGeneratedPackages() const;
 
-	/** Callback during garbage collection. Does not call initialize. */
-	void PreGarbageCollect(FCookGenerationInfo& Info, TArray<TObjectPtr<UObject>>& GCKeepObjects,
+	/**
+	 * Callback during garbage collection. Does not call initialize. Caller must pass in a refcount to show
+	 * a guarantee that clearing internal references will not delete before function return.
+	 */
+	void PreGarbageCollect(const TRefCountPtr<FGenerationHelper>& RefcountHeldByCaller,
+		FPackageData& PackageData, TArray<TObjectPtr<UObject>>& GCKeepObjects,
 		TArray<UPackage*>& GCKeepPackages, TArray<FPackageData*>& GCKeepPackageDatas, bool& bOutShouldDemote);
-	/** Callback during garbage collection. Does not call initialize. */
-	void PostGarbageCollect();
+	/**
+	 * Callback during garbage collection. Does not call initialize. Caller must pass in a refcount to show
+	 * a guarantee that clearing internal references will not delete before function return.
+	 */
+	void PostGarbageCollect(const TRefCountPtr<FGenerationHelper>& RefcountHeldByCaller);
 	/**
 	 * Called from PackageData function of the same name to decide whether to demote the package out of save.
 	 * Does not call Initialize.
@@ -322,6 +350,10 @@ public:
 	bool IsWaitingForQueueResults() const;
 	void SetKeepForGeneratorSave();
 	void ClearKeepForGeneratorSave();
+	void SetKeepForAllSavedOrGC();
+	void ClearKeepForAllSavedOrGC();
+	void SetKeepForCompletedAllSavesMessage();
+	void ClearKeepForCompletedAllSavesMessage();
 
 	/**
 	 * Helper for assignment of generated packages in MPCook. Return the id of the CookWorker that saved the
@@ -333,6 +365,23 @@ public:
 	 * needed by some assignment schemes.
 	 */
 	int32& GetMPCookNextAssignmentIndex();
+
+	/**
+	 * Called for each of the generated packages that were discovered when TryGenerateList was called on a
+	 * remote CookWorker. Does not call Initialize.
+	 */
+	void TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData);
+	/**
+	 * Called on the director when the generator or one of the generated packages was saved on a remote worker.
+	 * Used to manage KeepForGCOrAllSaved lifetime. Does not call Initialize.
+	 */
+	void MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData);
+
+	/**
+	 * Called on the director and every CookWorker when all saves have been completed; this indicates that
+	 * some of our contract points are complete and the splitter can be destroyed. Does not call Initialize.
+	 */
+	void OnAllSavesCompleted(UCookOnTheFlyServer& COTFS);
 
 	/** Helper function for Initialize and for TryCreateValidGenerationHelper. */
 	static void SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& COTFS, FName PackageName, UPackage* Package,
@@ -360,8 +409,15 @@ private:
 private:
 	void ConditionalInitialize() const;
 	void NotifyCompletion(ICookPackageSplitter::ETeardown Status);
+	void PreGarbageCollectGCLifetimeData();
+	void PostGarbageCollectGCLifetimeData();
+	void Uninitialize();
+	void ModifyNumSaved(int32 Delta);
+	void VerifyGeneratorPackageGarbageCollected();
 
 private:
+	// When adding a new variable, add it to Uninitialize as well
+
 	/** PackageData for the package that is being split */
 	FCookGenerationInfo OwnerInfo;
 	FWeakObjectPtr SplitDataObject;
@@ -378,16 +434,23 @@ private:
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForIterative;
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForQueueResults;
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForGeneratorSave;
+	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForAllSavedOrGC;
 	int32 MPCookNextAssignmentIndex = 0;
+	int32 NumSaved = 0;
 	FWorkerId WorkerIdThatSavedGenerator = FWorkerId::Invalid();
 	EInitializeStatus InitializeStatus = EInitializeStatus::Uninitialized;
 	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGeneratorValue =
 		ICookPackageSplitter::EGeneratedRequiresGenerator::None;
 	bool bUseInternalReferenceToAvoidGarbageCollect = false;
+	bool bRequiresGeneratorPackageDestructBeforeResplit = false;
 	bool bGeneratedList = false;
-	bool bCalledPopulateGeneratorPackage = false;
 	bool bCurrentGCHasKeptGeneratorPackage = false;
 	bool bCurrentGCHasKeptGeneratorKeepPackages = false;
+	bool bKeepForAllSavedOrGC = false;
+	bool bKeepForCompletedAllSavesMessage = false;
+	bool bNeedConfirmGeneratorPackageDestroyed = false;
+	
+	friend FCookGenerationInfo;
 };
 
 
@@ -430,9 +493,13 @@ inline bool FCookGenerationInfo::HasSaved() const
 	return bHasSaved;
 }
 
-inline void FCookGenerationInfo::SetHasSaved(bool bValue)
+inline void FCookGenerationInfo::SetHasSaved(FGenerationHelper& GenerationHelper, bool bValue)
 {
-	bHasSaved = bValue;
+	if (bValue != bHasSaved)
+	{
+		bHasSaved = bValue;
+		GenerationHelper.ModifyNumSaved(bValue ? 1 : -1);
+	}
 }
 
 inline bool FCookGenerationInfo::HasTakenOverCachedCookedPlatformData() const
@@ -465,6 +532,16 @@ inline void FCookGenerationInfo::SetIsGenerator(bool bValue)
 	bGenerator = bValue;
 }
 
+inline bool FCookGenerationInfo::HasCalledPopulate() const
+{
+	return bHasCalledPopulate;
+}
+
+inline void FCookGenerationInfo::SetHasCalledPopulate(bool bValue)
+{
+	bHasCalledPopulate = bValue;
+}
+
 inline TConstArrayView<FAssetDependency> FCookGenerationInfo::GetDependencies() const
 {
 	return PackageDependencies;
@@ -472,7 +549,7 @@ inline TConstArrayView<FAssetDependency> FCookGenerationInfo::GetDependencies() 
 
 inline FString FCookGenerationInfo::GetPackageName() const
 {
-	return PackageData ? *PackageData->GetPackageName().ToString() : *RelativePath;
+	return PackageData->GetPackageName().ToString();
 }
 
 inline bool FGenerationHelper::IsInitialized() const
@@ -533,6 +610,11 @@ inline bool FGenerationHelper::IsUseInternalReferenceToAvoidGarbageCollect() con
 {
 	ConditionalInitialize();
 	return bUseInternalReferenceToAvoidGarbageCollect;
+}
+
+inline bool FGenerationHelper::IsRequiresGeneratorPackageDestructBeforeResplit() const
+{
+	return bRequiresGeneratorPackageDestructBeforeResplit;
 }
 
 inline ICookPackageSplitter::EGeneratedRequiresGenerator FGenerationHelper::DoesGeneratedRequireGenerator() const
@@ -601,6 +683,36 @@ inline void FGenerationHelper::SetKeepForGeneratorSave()
 inline void FGenerationHelper::ClearKeepForGeneratorSave()
 {
 	ReferenceFromKeepForGeneratorSave.SafeRelease();
+}
+
+inline void FGenerationHelper::SetKeepForAllSavedOrGC()
+{
+	ReferenceFromKeepForAllSavedOrGC = this;
+	bKeepForAllSavedOrGC = true;
+}
+
+inline void FGenerationHelper::ClearKeepForAllSavedOrGC()
+{
+	bKeepForAllSavedOrGC = false;
+	if (!bKeepForAllSavedOrGC && !bKeepForCompletedAllSavesMessage)
+	{
+		ReferenceFromKeepForAllSavedOrGC.SafeRelease();
+	}
+}
+
+inline void FGenerationHelper::SetKeepForCompletedAllSavesMessage()
+{
+	ReferenceFromKeepForAllSavedOrGC = this;
+	bKeepForCompletedAllSavesMessage = true;
+}
+
+inline void FGenerationHelper::ClearKeepForCompletedAllSavesMessage()
+{
+	bKeepForCompletedAllSavesMessage = false;
+	if (!bKeepForAllSavedOrGC && !bKeepForCompletedAllSavesMessage)
+	{
+		ReferenceFromKeepForAllSavedOrGC.SafeRelease();
+	}
 }
 
 inline FWorkerId FGenerationHelper::GetWorkerIdThatSavedGenerator() const

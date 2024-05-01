@@ -449,6 +449,7 @@ enum class EGeneratorEvent
 	Invalid,
 	QueuedGeneratedPackages,
 	QueuedGeneratedPackagesFencePassed,
+	AllSavesCompleted,
 	Num,
 };
 

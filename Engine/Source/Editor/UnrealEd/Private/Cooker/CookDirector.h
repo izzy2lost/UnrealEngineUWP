@@ -30,6 +30,7 @@ class UCookOnTheFlyServer;
 namespace UE::Cook { class FCookWorkerServer; }
 namespace UE::Cook { struct FAssignPackageExtraData; }
 namespace UE::Cook { struct FCookWorkerProfileData; }
+namespace UE::Cook { struct FGeneratorEventMessage; }
 namespace UE::Cook { struct FGenerationHelper; }
 namespace UE::Cook { struct FHeartbeatMessage; }
 namespace UE::Cook { struct FInitialConfigMessage; }
@@ -80,7 +81,7 @@ public:
 	 * Report EGeneratorEvent::QueuedGeneratedPackagesFencePassed to all CookWorkers so any of them
 	 * waiting on the fence to be passed before clearing their data can clear their data.
 	 */
-	void BroadcastGeneratorFencePassed(FGenerationHelper& GenerationHelper);
+	void BroadcastGeneratorMessage(FGeneratorEventMessage&& Message);
 
 	/** Periodic tick function. Sends/Receives messages to CookWorkers. */
 	void TickFromSchedulerThread();
@@ -244,6 +245,7 @@ private:
 	TArray<FCookWorkerProfileData> RemoteWorkerProfileDatas;
 	TArray<FPendingConnection> PendingConnections;
 	TUniquePtr<FCookWorkerProfileData> LocalWorkerProfileData;
+	TArray<FGeneratorEventMessage> QueuedGeneratorBroadcasts;
 	UCookOnTheFlyServer& COTFS;
 	double WorkersStalledStartTimeSeconds = 0.;
 	double WorkersStalledWarnTimeSeconds = 0.;
@@ -257,6 +259,7 @@ private:
 	bool bCookCompleteSent = false;
 	bool bWorkersStalled = false;
 	bool bMultiprocessAvailable = false;
+	bool bReceivingMessages = false;
 
 	// Data that is read-only while the CommunicationThread is active and is readable from any thread
 	FBeginCookContextForWorker BeginCookContext;
