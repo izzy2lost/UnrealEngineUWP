@@ -582,12 +582,10 @@ void FVulkanDynamicRHI::Init()
 
 void FVulkanDynamicRHI::PostInit()
 {
-#if VULKAN_RHI_RAYTRACING
 	if (GRHISupportsRayTracing)
 	{
 		Device->InitializeRayTracing();
 	}
-#endif // VULKAN_RHI_RAYTRACING
 }
 
 void FVulkanDynamicRHI::Shutdown()
@@ -629,9 +627,7 @@ void FVulkanDynamicRHI::Shutdown()
 			Device->SamplerMap.Empty();
 		}
 
-#if VULKAN_RHI_RAYTRACING
 		Device->CleanUpRayTracing();
-#endif // VULKAN_RHI_RAYTRACING
 
 		// Flush all pending deletes before destroying the device.
 		FRHICommandListImmediate::Get().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
@@ -679,7 +675,6 @@ void FVulkanDynamicRHI::CreateInstance()
 	// Use the API version stored in the profile
 	ApiVersion = GetVulkanApiVersionForFeatureLevel(GMaxRHIFeatureLevel, false);
 
-#if VULKAN_RHI_RAYTRACING
 	// Run a profile check to see if this device can support our raytacing requirements since it might change the required API version of the instance
 	if (FVulkanPlatform::SupportsProfileChecks() && GVulkanRayTracingCVar.GetValueOnAnyThread())
 	{
@@ -707,7 +702,6 @@ void FVulkanDynamicRHI::CreateInstance()
 			}
 		}
 	}
-#endif // VULKAN_RHI_RAYTRACING
 
 	UE_LOG(LogVulkanRHI, Log, TEXT("Using API Version %u.%u."), VK_API_VERSION_MAJOR(ApiVersion), VK_API_VERSION_MINOR(ApiVersion));
 
@@ -939,7 +933,6 @@ void FVulkanDynamicRHI::InitInstance()
 		GSupportsTimestampRenderQueries = FVulkanPlatform::SupportsTimestampRenderQueries();
 		GSupportsMobileMultiView = Device->GetOptionalExtensions().HasKHRMultiview ? true : false;
 		GRHISupportsMSAAShaderResolve = Device->GetOptionalExtensions().HasQcomRenderPassShaderResolve ? true : false;
-#if VULKAN_RHI_RAYTRACING
 		GRHISupportsRayTracing = RHISupportsRayTracing(GMaxRHIShaderPlatform) && Device->GetOptionalExtensions().HasRaytracingExtensions();
 
 		if (GRHISupportsRayTracing)
@@ -954,7 +947,6 @@ void FVulkanDynamicRHI::InitInstance()
 
 			GRHIRayTracingInstanceDescriptorSize = uint32(sizeof(VkAccelerationStructureInstanceKHR));
 		}
-#endif
 #if VULKAN_ENABLE_DUMP_LAYER
 		// Disable RHI thread by default if the dump layer is enabled
 		GRHISupportsRHIThread = false;
@@ -1121,12 +1113,10 @@ void FVulkanCommandListContext::RHIBeginFrame()
 	GpuProfiler.BeginFrame();
 #endif
 
-#if VULKAN_RHI_RAYTRACING
 	if (GRHISupportsRayTracing)
 	{
 		Device->GetRayTracingCompactionRequestHandler()->Update(*this);
 	}
-#endif
 }
 
 
@@ -1708,11 +1698,9 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
 		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumBufferInfos);
 		break;
-#if VULKAN_RHI_RAYTRACING
 	case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
 		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumAccelerationStructures);
 		break;
-#endif
 	case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
 	case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
 		break;
@@ -1829,12 +1817,10 @@ void FVulkanDescriptorSetsLayout::Compile(FVulkanDescriptorSetLayoutMap& DSetLay
 
 	check(LayoutTypes[VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT] <= Limits.maxDescriptorSetInputAttachments);
 
-#if VULKAN_RHI_RAYTRACING
 	if (GRHISupportsRayTracing)
 	{
 		check(LayoutTypes[VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR] < Device->GetOptionalExtensionProperties().AccelerationStructureProps.maxDescriptorSetAccelerationStructures);
 	}
-#endif
 	
 	LayoutHandles.Empty(SetLayouts.Num());
 
@@ -2282,7 +2268,6 @@ void FVulkanDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TAr
 					}
 					break;
 
-#if VULKAN_RHI_RAYTRACING
 				case FRHIResourceReplaceInfo::EType::RTGeometry:
 					{
 						FVulkanRayTracingGeometry* Src = ResourceCast(Info.GetRTGeometry().Src);
@@ -2300,7 +2285,6 @@ void FVulkanDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TAr
 						}
 					}
 					break;
-#endif // VULKAN_RHI_RAYTRACING
 				}
 			}
 		}

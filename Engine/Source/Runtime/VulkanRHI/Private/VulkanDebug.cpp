@@ -4072,7 +4072,6 @@ void FWrapLayer::CreateWin32SurfaceKHR(VkResult Result, VkInstance Instance, con
 }
 #endif
 
-#if VULKAN_RHI_RAYTRACING
 void FWrapLayer::CreateAccelerationStructureKHR(VkResult Result, VkDevice Device, const VkAccelerationStructureCreateInfoKHR* CreateInfo, const VkAllocationCallbacks* Allocator, VkAccelerationStructureKHR* AccelerationStructure)
 {
 	if (Result == VK_RESULT_MAX_ENUM)
@@ -4264,7 +4263,7 @@ void FWrapLayer::CmdCopyAccelerationStructureKHR(VkResult Result, VkCommandBuffe
 #endif
 	}
 }
-#endif // VULKAN_RHI_RAYTRACING
+
 
 void FWrapLayer::GetBufferDeviceAddressKHR(VkResult Result, VkDevice Device, const VkBufferDeviceAddressInfo* Info)
 {

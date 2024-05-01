@@ -4,8 +4,6 @@
 
 #include "VulkanRHIPrivate.h"
 
-#if VULKAN_RHI_RAYTRACING
-
 #include "RayTracingBuiltInResources.h"
 
 class FVulkanCommandListContext;
@@ -343,4 +341,4 @@ private:
 	FVulkanRayTracingCompactedSizeQueryPool* QueryPool = nullptr;
 };
 
-#endif // VULKAN_RHI_RAYTRACING
+

@@ -21,9 +21,7 @@ THIRD_PARTY_INCLUDES_END
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
-#if VULKAN_RHI_RAYTRACING
 #include "VulkanRayTracing.h"
-#endif
 
 // This 'frame number' should only be used for the deletion queue
 uint32 GVulkanRHIDeletionFrameNumber = 0;
@@ -2639,12 +2637,11 @@ namespace VulkanRHI
 
 		uint32 Alignment = CalculateBufferAlignmentFromVKUsageFlags(InDevice, VulkanBufferUsage);
 
-#if VULKAN_RHI_RAYTRACING
 		if (EnumHasAllFlags(InUEUsage, BUF_RayTracingScratch))
 		{
 			Alignment = GRHIRayTracingScratchBufferAlignment;
 		}
-#endif
+
 		return Alignment;
 	}
 
@@ -2660,7 +2657,6 @@ namespace VulkanRHI
 		{
 			Priority = VULKAN_MEMORY_MEDIUM_PRIORITY;
 		}
-#if VULKAN_RHI_RAYTRACING
 		else if (VKHasAnyFlags(BufferUsageFlags, 
 			(VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
 			VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
@@ -2668,7 +2664,6 @@ namespace VulkanRHI
 		{
 			Priority = VULKAN_MEMORY_MEDIUM_PRIORITY;
 		}
-#endif // VULKAN_RHI_RAYTRACING
 		else if (VKHasAnyFlags(BufferUsageFlags, (VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT)))
 		{
 			Priority = VULKAN_MEMORY_LOW_PRIORITY;
@@ -4857,13 +4852,11 @@ namespace VulkanRHI
 					Device->GetDeviceMemoryManager().Free(Entry->DeviceMemoryAllocation);
 					break;
 				}
-#if VULKAN_RHI_RAYTRACING
 				case EType::AccelerationStructure:
 				{
 					VulkanDynamicAPI::vkDestroyAccelerationStructureKHR(DeviceHandle, (VkAccelerationStructureKHR)Entry->Handle, VULKAN_CPU_ALLOCATOR);
 					break;
 				}
-#endif // VULKAN_RHI_RAYTRACING
 				case EType::BindlessHandle:
 				{
 					check(Device->SupportsBindless());

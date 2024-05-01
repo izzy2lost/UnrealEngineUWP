@@ -21,10 +21,7 @@ class FVulkanTransientHeapCache;
 class FVulkanDeviceExtension;
 class FVulkanOcclusionQueryPool;
 class FVulkanRenderPassManager;
-
-#if VULKAN_RHI_RAYTRACING
 class FVulkanRayTracingCompactionRequestHandler;
-#endif
 
 #define VULKAN_USE_DEBUG_NAMES 1
 
@@ -105,7 +102,6 @@ struct FOptionalVulkanDeviceExtensions
 		return HasAMDBufferMarker || HasNVDiagnosticCheckpoints;
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	inline bool HasRaytracingExtensions() const
 	{
 		return 
@@ -117,7 +113,6 @@ struct FOptionalVulkanDeviceExtensions
 			HasSPIRV_14 && 
 			HasShaderFloatControls;
 	}
-#endif
 };
 
 // All the features and properties we need to keep around from extension initialization
@@ -131,10 +126,8 @@ struct FOptionalVulkanDeviceExtensionProperties
 	VkPhysicalDeviceDescriptorBufferPropertiesEXT DescriptorBufferProps;
 	VkPhysicalDeviceSubgroupSizeControlPropertiesEXT SubgroupSizeControlProperties;
 
-#if VULKAN_RHI_RAYTRACING
 	VkPhysicalDeviceAccelerationStructurePropertiesKHR AccelerationStructureProps;
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR RayTracingPipelineProps;
-#endif // VULKAN_RHI_RAYTRACING
 
 	VkPhysicalDeviceFragmentShadingRateFeaturesKHR FragmentShadingRateFeatures;
 	VkPhysicalDeviceFragmentDensityMapFeaturesEXT FragmentDensityMapFeatures;
@@ -338,12 +331,10 @@ public:
 		return GpuSubgroupProps;
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	FVulkanRayTracingCompactionRequestHandler* GetRayTracingCompactionRequestHandler() { return RayTracingCompactionRequestHandler; }
 
 	void InitializeRayTracing();
 	void CleanUpRayTracing();
-#endif // VULKAN_RHI_RAYTRACING
 
 #if VULKAN_SUPPORTS_VALIDATION_CACHE
 	inline VkValidationCacheEXT GetValidationCache() const
@@ -583,9 +574,7 @@ private:
 	VkPhysicalDeviceIDPropertiesKHR GpuIdProps;
 	VkPhysicalDeviceSubgroupProperties GpuSubgroupProps;
 
-#if VULKAN_RHI_RAYTRACING
 	FVulkanRayTracingCompactionRequestHandler* RayTracingCompactionRequestHandler = nullptr;
-#endif // VULKAN_RHI_RAYTRACING
 
 	FVulkanPhysicalDeviceFeatures PhysicalDeviceFeatures;
 

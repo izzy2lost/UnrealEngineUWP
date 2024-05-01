@@ -111,7 +111,6 @@ public:
 	virtual void RHIEndRenderPass() final override;
 	virtual void RHINextSubpass() final override;
 
-#if VULKAN_RHI_RAYTRACING
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override;
 	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene) final override;
 	virtual void RHIBindAccelerationStructureMemory(FRHIRayTracingScene* Scene, FRHIBuffer* Buffer, uint32 BufferOffset) final override;
@@ -130,7 +129,6 @@ public:
 		FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType) final override;
-#endif // VULKAN_RHI_RAYTRACING
 
 	inline FVulkanCommandBufferManager* GetCommandBufferManager()
 	{

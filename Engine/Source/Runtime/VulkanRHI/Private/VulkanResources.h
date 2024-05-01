@@ -267,7 +267,6 @@ typedef TVulkanBaseShader<FRHIPixelShader, SF_Pixel>				FVulkanPixelShader;
 typedef TVulkanBaseShader<FRHIComputeShader, SF_Compute>			FVulkanComputeShader;
 typedef TVulkanBaseShader<FRHIGeometryShader, SF_Geometry>			FVulkanGeometryShader;
 
-#if VULKAN_RHI_RAYTRACING
 class FVulkanRayTracingShader : public FRHIRayTracingShader, public FVulkanShader
 {
 private:
@@ -305,7 +304,6 @@ public:
 		return FRHIResource::GetRefCount();
 	}
 };
-#endif // VULKAN_RHI_RAYTRACING
 
 class FVulkanShaderFactory
 {
@@ -330,10 +328,8 @@ public:
 		return nullptr;
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	template <EShaderFrequency ShaderFrequency>
 	FVulkanRayTracingShader* CreateRayTracingShader(TArrayView<const uint8> Code, FVulkanDevice* Device);
-#endif
 
 	void LookupShaders(const uint64 InShaderKeys[ShaderStage::NumStages], FVulkanShader* OutShaders[ShaderStage::NumStages]) const;
 
@@ -410,12 +406,10 @@ public:
 		uint32 Size     = 0;
 	};
 
-#if VULKAN_RHI_RAYTRACING
 	struct FAccelerationStructureView
 	{
 		VkAccelerationStructureKHR Handle = VK_NULL_HANDLE;
 	};
-#endif
 
 	struct FTextureView
 	{
@@ -429,9 +423,7 @@ public:
 		, FTypedBufferView
 		, FTextureView
 		, FStructuredBufferView
-#if VULKAN_RHI_RAYTRACING
 		, FAccelerationStructureView
-#endif
 	> TStorage;
 
 	enum EType
@@ -440,9 +432,7 @@ public:
 		TypedBuffer           = TStorage::IndexOfType<FTypedBufferView      >(),
 		Texture               = TStorage::IndexOfType<FTextureView          >(),
 		StructuredBuffer      = TStorage::IndexOfType<FStructuredBufferView >(),
-#if VULKAN_RHI_RAYTRACING
 		AccelerationStructure = TStorage::IndexOfType<FAccelerationStructureView>(),
-#endif
 	};
 
 	FVulkanView(FVulkanDevice& InDevice, VkDescriptorType InDescriptorType);
@@ -464,9 +454,7 @@ public:
 	FTypedBufferView           const& GetTypedBufferView          () const { return Storage.Get<FTypedBufferView          >(); }
 	FTextureView               const& GetTextureView              () const { return Storage.Get<FTextureView              >(); }
 	FStructuredBufferView      const& GetStructuredBufferView     () const { return Storage.Get<FStructuredBufferView     >(); }
-#if VULKAN_RHI_RAYTRACING
 	FAccelerationStructureView const& GetAccelerationStructureView() const { return Storage.Get<FAccelerationStructureView>(); }
-#endif
 
 	// NOTE: The InOffset applies to the FVulkanResourceMultiBuffer (it does not include any internal Allocation offsets that may exist)
 	FVulkanView* InitAsTypedBufferView(
@@ -494,12 +482,10 @@ public:
 		, uint32 InOffset
 		, uint32 InSize);
 
-#if VULKAN_RHI_RAYTRACING
 	FVulkanView* InitAsAccelerationStructureView(
 		  FVulkanResourceMultiBuffer* Buffer
 		, uint32 Offset
 		, uint32 Size);
-#endif
 
 	// No moving or copying
 	FVulkanView(FVulkanView     &&) = delete;
@@ -1518,7 +1504,6 @@ static FORCEINLINE FVulkanTexture* ResourceCast(FRHITexture* Texture)
 	return static_cast<FVulkanTexture*>(Texture->GetTextureBaseRHI());
 }
 
-#if VULKAN_RHI_RAYTRACING
 class FVulkanRayTracingScene;
 class FVulkanRayTracingGeometry;
 class FVulkanRayTracingPipelineState;
@@ -1543,4 +1528,3 @@ struct TVulkanResourceTraits<FRHIRayTracingShader>
 {
 	typedef FVulkanRayTracingShader TConcreteType;
 };
-#endif // VULKAN_RHI_RAYTRACING

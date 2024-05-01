@@ -97,7 +97,6 @@ ShaderType* FVulkanShaderFactory::CreateShader(TArrayView<const uint8> Code, FVu
 	return RetShader;
 }
 
-#if VULKAN_RHI_RAYTRACING
 template <EShaderFrequency ShaderFrequency>
 FVulkanRayTracingShader* FVulkanShaderFactory::CreateRayTracingShader(TArrayView<const uint8> Code, FVulkanDevice* Device)
 {
@@ -182,7 +181,6 @@ FVulkanRayTracingShader* FVulkanShaderFactory::CreateRayTracingShader(TArrayView
 
 	return RetShader;
 }
-#endif // VULKAN_RHI_RAYTRACING
 
 void FVulkanShaderFactory::LookupShaders(const uint64 InShaderKeys[ShaderStage::NumStages], FVulkanShader* OutShaders[ShaderStage::NumStages]) const
 {
@@ -473,7 +471,6 @@ TRefCountPtr<FVulkanShaderModule> FVulkanShader::GetOrCreateHandle()
 	return Module;
 }
 
-#if VULKAN_RHI_RAYTRACING
 TRefCountPtr<FVulkanShaderModule> FVulkanRayTracingShader::GetOrCreateHandle(uint32 ModuleIdentifier)
 {
 	check(Device->SupportsBindless());
@@ -541,7 +538,6 @@ TRefCountPtr<FVulkanShaderModule> FVulkanRayTracingShader::GetOrCreateHandle(uin
 
 	return Module;
 }
-#endif // VULKAN_RHI_RAYTRACING
 
 
 TRefCountPtr<FVulkanShaderModule> FVulkanShader::CreateHandle(const FVulkanLayout* Layout, uint32 LayoutHash)
@@ -641,7 +637,6 @@ FComputeShaderRHIRef FVulkanDynamicRHI::RHICreateComputeShader(TArrayView<const 
 	return Device->GetShaderFactory().CreateShader<FVulkanComputeShader>(Code, Device);
 }
 
-#if VULKAN_RHI_RAYTRACING
 FRayTracingShaderRHIRef FVulkanDynamicRHI::RHICreateRayTracingShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)
 {
 	switch (ShaderFrequency)
@@ -663,7 +658,6 @@ FRayTracingShaderRHIRef FVulkanDynamicRHI::RHICreateRayTracingShader(TArrayView<
 		return nullptr;
 	}
 }
-#endif // VULKAN_RHI_RAYTRACING
 
 FVulkanLayout::FVulkanLayout(FVulkanDevice* InDevice)
 	: VulkanRHI::FDeviceChild(InDevice)
@@ -717,10 +711,8 @@ bool FVulkanGfxLayout::UsesInputAttachment(FVulkanShaderHeader::EAttachmentType 
 uint32 FVulkanDescriptorSetWriter::SetupDescriptorWrites(
 	const TArray<VkDescriptorType>& Types, FVulkanHashableDescriptorInfo* InHashableDescriptorInfos,
 	VkWriteDescriptorSet* InWriteDescriptors, VkDescriptorImageInfo* InImageInfo, VkDescriptorBufferInfo* InBufferInfo, uint8* InBindingToDynamicOffsetMap,
-#if VULKAN_RHI_RAYTRACING
 	VkWriteDescriptorSetAccelerationStructureKHR* InAccelerationStructuresWriteDescriptors,
 	VkAccelerationStructureKHR* InAccelerationStructures,
-#endif // VULKAN_RHI_RAYTRACING
 	const FVulkanSamplerState& DefaultSampler, const FVulkanView::FTextureView& DefaultImageView)
 {
 	HashableDescriptorInfos = InHashableDescriptorInfos;
@@ -772,7 +764,6 @@ uint32 FVulkanDescriptorSetWriter::SetupDescriptorWrites(
 		case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
 		case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
 			break;
-#if VULKAN_RHI_RAYTRACING
 		case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
 			InAccelerationStructuresWriteDescriptors->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
 			InAccelerationStructuresWriteDescriptors->pNext = nullptr;
@@ -780,7 +771,6 @@ uint32 FVulkanDescriptorSetWriter::SetupDescriptorWrites(
 			InAccelerationStructuresWriteDescriptors->pAccelerationStructures = InAccelerationStructures++;
 			InWriteDescriptors->pNext = InAccelerationStructuresWriteDescriptors++;
 			break;
-#endif // VULKAN_RHI_RAYTRACING
 		default:
 			checkf(0, TEXT("Unsupported descriptor type %d"), (int32)Types[Index]);
 			break;

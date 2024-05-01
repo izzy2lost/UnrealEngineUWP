@@ -77,11 +77,8 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 		DSWriteContainer.DescriptorWrites.AddZeroed(SetInfo.Types.Num());
 		DSWriteContainer.DescriptorImageInfo.AddZeroed(SetInfo.NumImageInfos);
 		DSWriteContainer.DescriptorBufferInfo.AddZeroed(SetInfo.NumBufferInfos);
-
-#if VULKAN_RHI_RAYTRACING
 		DSWriteContainer.AccelerationStructureWrites.AddZeroed(SetInfo.NumAccelerationStructures);
 		DSWriteContainer.AccelerationStructures.AddZeroed(SetInfo.NumAccelerationStructures);
-#endif // VULKAN_RHI_RAYTRACING
 
 		checkf(SetInfo.Types.Num() < 255, TEXT("Need more bits for BindingToDynamicOffsetMap (currently 8)! Requires %d descriptor bindings in a set!"), SetInfo.Types.Num());
 		DSWriteContainer.BindingToDynamicOffsetMap.AddUninitialized(SetInfo.Types.Num());
@@ -103,11 +100,8 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 	VkWriteDescriptorSet* CurrentDescriptorWrite = DSWriteContainer.DescriptorWrites.GetData();
 	VkDescriptorImageInfo* CurrentImageInfo = DSWriteContainer.DescriptorImageInfo.GetData();
 	VkDescriptorBufferInfo* CurrentBufferInfo = DSWriteContainer.DescriptorBufferInfo.GetData();
-
-#if VULKAN_RHI_RAYTRACING
 	VkWriteDescriptorSetAccelerationStructureKHR* CurrentAccelerationStructuresWriteDescriptors = DSWriteContainer.AccelerationStructureWrites.GetData();
 	VkAccelerationStructureKHR* CurrentAccelerationStructures = DSWriteContainer.AccelerationStructures.GetData();
-#endif // VULKAN_RHI_RAYTRACING
 
 	uint8* CurrentBindingToDynamicOffsetMap = DSWriteContainer.BindingToDynamicOffsetMap.GetData();
 	TArray<uint32> DynamicOffsetsStart;
@@ -123,10 +117,8 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 		uint32 NumDynamicOffsets = DSWriter[Set].SetupDescriptorWrites(
 			SetInfo.Types, CurrentHashableDescriptorInfo,
 			CurrentDescriptorWrite, CurrentImageInfo, CurrentBufferInfo, CurrentBindingToDynamicOffsetMap,
-#if VULKAN_RHI_RAYTRACING
 			CurrentAccelerationStructuresWriteDescriptors,
 			CurrentAccelerationStructures,
-#endif // VULKAN_RHI_RAYTRACING
 			DefaultSampler, DefaultImageView);
 
 		TotalNumDynamicOffsets += NumDynamicOffsets;
@@ -143,11 +135,8 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 		CurrentDescriptorWrite += SetInfo.Types.Num();
 		CurrentImageInfo += SetInfo.NumImageInfos;
 		CurrentBufferInfo += SetInfo.NumBufferInfos;
-
-#if VULKAN_RHI_RAYTRACING
 		CurrentAccelerationStructuresWriteDescriptors += SetInfo.NumAccelerationStructures;
 		CurrentAccelerationStructures += SetInfo.NumAccelerationStructures;
-#endif // VULKAN_RHI_RAYTRACING
 
 		CurrentBindingToDynamicOffsetMap += SetInfo.Types.Num();
 	}
@@ -758,11 +747,9 @@ void FVulkanCommonPipelineDescriptorState::SetSRV(FVulkanCmdBuffer* CmdBuffer, b
 		MarkDirty(DSWriter[DescriptorSet].WriteStorageBuffer(BindingIndex, SRV->GetStructuredBufferView()));
 		break;
 
-#if VULKAN_RHI_RAYTRACING
 	case FVulkanView::EType::AccelerationStructure:
 		MarkDirty(DSWriter[DescriptorSet].WriteAccelerationStructure(BindingIndex, SRV->GetAccelerationStructureView().Handle));
 		break;
-#endif
 	}
 }
 
@@ -798,10 +785,8 @@ void FVulkanCommonPipelineDescriptorState::SetUAV(FVulkanCmdBuffer* CmdBuffer, b
 		MarkDirty(DSWriter[DescriptorSet].WriteStorageBuffer(BindingIndex, UAV->GetStructuredBufferView()));
 		break;
 
-#if VULKAN_RHI_RAYTRACING
 	case FVulkanView::EType::AccelerationStructure:
 		MarkDirty(DSWriter[DescriptorSet].WriteAccelerationStructure(BindingIndex, UAV->GetAccelerationStructureView().Handle));
 		break;
-#endif
 	}
 }

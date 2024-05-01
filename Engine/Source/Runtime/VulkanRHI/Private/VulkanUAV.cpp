@@ -5,11 +5,7 @@
 #include "VulkanDescriptorSets.h"
 #include "VulkanLLM.h"
 #include "ClearReplacementShaders.h"
-
-#if VULKAN_RHI_RAYTRACING
 #include "VulkanRayTracing.h"
-#endif // VULKAN_RHI_RAYTRACING
-
 
 FVulkanView::FVulkanView(FVulkanDevice& InDevice, VkDescriptorType InDescriptorType)
 	: Device(InDevice)
@@ -53,11 +49,9 @@ void FVulkanView::Invalidate()
 		// Nothing to do
 		break;
 
-#if VULKAN_RHI_RAYTRACING
 	case EType::AccelerationStructure:
 		Device.GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::FDeferredDeletionQueue2::EType::AccelerationStructure, Storage.Get<FAccelerationStructureView>().Handle);
 		break;
-#endif
 	}
 
 	Storage.Emplace<FInvalidatedState>();
@@ -248,7 +242,6 @@ FVulkanView* FVulkanView::InitAsStructuredBufferView(FVulkanResourceMultiBuffer*
 	return this;
 }
 
-#if VULKAN_RHI_RAYTRACING
 FVulkanView* FVulkanView::InitAsAccelerationStructureView(FVulkanResourceMultiBuffer* Buffer, uint32 Offset, uint32 Size)
 {
 	check(GetViewType() == EType::Null);
@@ -268,7 +261,6 @@ FVulkanView* FVulkanView::InitAsAccelerationStructureView(FVulkanResourceMultiBu
 
 	return this;
 }
-#endif
 
 
 
@@ -424,11 +416,9 @@ void FVulkanShaderResourceView::UpdateView()
 				InitAsTypedBufferView(Buffer, Info.Format, Info.OffsetInBytes, Info.SizeInBytes);
 				break;
 
-#if VULKAN_RHI_RAYTRACING
 			case FRHIViewDesc::EBufferType::AccelerationStructure:
 				InitAsAccelerationStructureView(Buffer, Info.OffsetInBytes, Info.SizeInBytes);
 				break;
-#endif
 
 			default:
 				checkNoEntry();
@@ -514,11 +504,9 @@ void FVulkanUnorderedAccessView::UpdateView()
 				InitAsTypedBufferView(Buffer, Info.Format, Info.OffsetInBytes, Info.SizeInBytes);
 				break;
 
-#if VULKAN_RHI_RAYTRACING
 			case FRHIViewDesc::EBufferType::AccelerationStructure:
 				checkNoEntry(); // @todo implement
 				break;
-#endif
 
 			default:
 				checkNoEntry();

@@ -1264,13 +1264,11 @@ void FVulkanDevice::InitGPU()
 		DefaultTexture = new FVulkanTexture(*this, Desc, nullptr);
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	if (RHISupportsRayTracing(GMaxRHIShaderPlatform) && GetOptionalExtensions().HasRaytracingExtensions())
 	{
 		check(RayTracingCompactionRequestHandler == nullptr);
 		RayTracingCompactionRequestHandler = new FVulkanRayTracingCompactionRequestHandler(this);
 	}
-#endif
 
 	FVulkanPlatform::PostInitGPU(*this);
 }

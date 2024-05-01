@@ -537,11 +537,7 @@ void FVulkanBindlessDescriptorManager::Init()
 			// Skip anything we don't support
 			if (SetIndex == VulkanBindless::BindlessAccelerationStructureSet)
 			{
-#if VULKAN_RHI_RAYTRACING
 				const bool bHasRaytracingExtensions = Device->GetOptionalExtensions().HasRaytracingExtensions();
-#else
-				const bool bHasRaytracingExtensions = false;
-#endif
 
 				if (!bHasRaytracingExtensions)
 				{
@@ -872,7 +868,6 @@ void FVulkanBindlessDescriptorManager::UpdateTexelBuffer(FRHIDescriptorHandle De
 
 void FVulkanBindlessDescriptorManager::UpdateAccelerationStructure(FRHIDescriptorHandle DescriptorHandle, VkAccelerationStructureKHR AccelerationStructure, bool bImmediateUpdate)
 {
-#if VULKAN_RHI_RAYTRACING
 	if (bIsSupported)
 	{
 		check(GetDescriptorTypeForSetIndex(DescriptorHandle.GetRawType()) == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
@@ -887,7 +882,6 @@ void FVulkanBindlessDescriptorManager::UpdateAccelerationStructure(FRHIDescripto
 		DescriptorData.accelerationStructure = BufferAddress;
 		UpdateDescriptor(DescriptorHandle, DescriptorData, bImmediateUpdate);
 	}
-#endif
 }
 
 

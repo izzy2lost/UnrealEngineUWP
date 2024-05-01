@@ -2,8 +2,6 @@
 
 #include "VulkanRayTracing.h"
 
-#if VULKAN_RHI_RAYTRACING
-
 #include "VulkanContext.h"
 #include "VulkanDescriptorSets.h"
 #include "BuiltInRayTracingShaders.h"
@@ -2282,5 +2280,3 @@ void FVulkanCommandListContext::RHISetRayTracingBindings(
 
 	ParallelForWithExistingTaskContext(TEXT("SetRayTracingBindings"), MakeArrayView(TaskContexts), NumBindings, ItemsPerTask, BindingTask);
 }
-
-#endif // VULKAN_RHI_RAYTRACING

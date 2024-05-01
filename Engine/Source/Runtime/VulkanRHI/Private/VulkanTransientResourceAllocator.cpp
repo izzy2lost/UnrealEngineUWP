@@ -13,14 +13,13 @@ FVulkanTransientHeap::FVulkanTransientHeap(const FInitializer& Initializer, FVul
 	EBufferUsageFlags UEBufferUsageFlags = BUF_VertexBuffer | BUF_IndexBuffer | BUF_DrawIndirect 
 		| BUF_UnorderedAccess | BUF_StructuredBuffer | BUF_ShaderResource | BUF_KeepCPUAccessible;
 
-#if VULKAN_RHI_RAYTRACING
 	if (InDevice->GetOptionalExtensions().HasRaytracingExtensions())
 	{
 		UEBufferUsageFlags |= BUF_RayTracingScratch;
 		// AccelerationStructure not yet supported as TransientResource see FVulkanTransientResourceAllocator::CreateBuffer
 		//UEBufferUsageFlags |= BUF_AccelerationStructure;
 	}
-#endif
+
 	const bool bZeroSize = false;
 	VkBufferUsageFlags BufferUsageFlags = FVulkanResourceMultiBuffer::UEToVKBufferUsageFlags(InDevice, UEBufferUsageFlags, bZeroSize);
 
