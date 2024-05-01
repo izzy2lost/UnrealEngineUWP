@@ -406,7 +406,7 @@ public:
 };
 
 
-/** Clear convex hulls from the selected transforms */
+/** Clear convex hulls from a collection */
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FClearConvexHullsDataflowNode : public FDataflowNode
 {
@@ -417,8 +417,8 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Convex hulls will be cleared from these transforms */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	/** [Optional] selection of transforms to clear convex on, if not set all the transform will be used */
+	UPROPERTY(meta = (DataflowInput))
 	FDataflowTransformSelection TransformSelection;
 
 	FClearConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())

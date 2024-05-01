@@ -403,20 +403,26 @@ void FClearConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 	{
 		FManagedArrayCollection InCollection = GetValue(Context, &Collection);
 
-		if (!IsConnected(&Collection) || !IsConnected(&TransformSelection) || !FGeometryCollectionConvexUtility::HasConvexHullData(&InCollection))
+		if (!IsConnected(&Collection) || !FGeometryCollectionConvexUtility::HasConvexHullData(&InCollection))
 		{
 			SetValue(Context, MoveTemp(InCollection), &Collection);
 			return;
 		}
 
-		const FDataflowTransformSelection& InSelection = GetValue(Context, &TransformSelection);
-
-		const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
-		TArray<int32> Selection = InTransformSelection.AsArray();
-
-		TArray<int32> ToClear = InTransformSelection.AsArray();
 		GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
-		SelectionFacade.Sanitize(ToClear);
+
+		TArray<int32> ToClear;
+		if (IsConnected(&TransformSelection))
+		{ 
+			const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+			ToClear = InTransformSelection.AsArray();
+
+			SelectionFacade.Sanitize(ToClear, /* bFavorParent */false);
+		}
+		else
+		{
+			ToClear = SelectionFacade.SelectAll();
+		}
 
 		FGeometryCollectionConvexUtility::RemoveConvexHulls(&InCollection, ToClear);
 		SetValue(Context, MoveTemp(InCollection), &Collection);
