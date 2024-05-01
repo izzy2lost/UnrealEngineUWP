@@ -148,12 +148,12 @@ public:
 		}
 	}
 
-	/** Initialize the attribute values to the given max triangle ID */
+	/** Initialize the attribute values with InitialValue, and resize to the parent mesh's max vertex ID */
 	void Initialize(AttribValueType InitialValue = (AttribValueType)0)
 	{
 		check(Parent != nullptr);
-		AttribValues.Resize(0);
-		AttribValues.Resize( Parent->MaxVertexID() * AttribDimension, InitialValue );
+		AttribValues.Resize(Parent->MaxVertexID() * AttribDimension);
+		AttribValues.Fill(InitialValue);
 	}
 
 	void SetNewValue(int NewVertexID, const AttribValueType* Data)

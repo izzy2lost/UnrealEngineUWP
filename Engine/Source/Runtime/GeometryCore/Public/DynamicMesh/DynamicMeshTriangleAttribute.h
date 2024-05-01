@@ -159,7 +159,7 @@ public:
 	}
 
 
-	/** Initialize the attribute values to the given max triangle ID */
+	/** Initialize the attribute values with InitialValue, and resize to the parent mesh's max triangle ID */
 	void Initialize(AttribValueType InitialValue = (AttribValueType)0)
 	{
 		check(ParentMesh != nullptr);
