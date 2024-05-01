@@ -1963,6 +1963,7 @@ bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck
 
 	return (bSkipProjectCheck || bLumenSupported)
 		&& FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Platform)
+		&& (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM6) || Platform == SP_VULKAN_SM5) // SP_VULKAN_SM5 is needed to run on mobile
 		&& !IsForwardShadingEnabled(Platform);
 }
 
