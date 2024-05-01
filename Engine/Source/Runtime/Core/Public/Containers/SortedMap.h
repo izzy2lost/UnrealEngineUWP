@@ -59,6 +59,24 @@ public:
 		}
 	}
 
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<TSortedMap> state //
+	///////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TSortedMap;
+
+	explicit TSortedMap(FIntrusiveUnsetOptionalState Tag)
+		: Pairs(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Pairs == Tag;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<TSortedMap> state //
+	/////////////////////////////////////////////////
+
 	/** Assignment operator for moving elements from a TSortedMap with a different ArrayAllocator. */
 	template<typename OtherArrayAllocator>
 	TSortedMap& operator=(TSortedMap<KeyType, ValueType, OtherArrayAllocator, SortPredicate>&& Other)

@@ -161,6 +161,24 @@ protected:
 		: Pairs(Other.Pairs)
 	{ }
 
+	/////////////////////////////////////////////////
+	// Start - intrusive TOptional<TMapBase> state //
+	/////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TMapBase;
+
+	explicit TMapBase(FIntrusiveUnsetOptionalState Tag)
+		: Pairs(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Pairs == Tag;
+	}
+	///////////////////////////////////////////////
+	// End - intrusive TOptional<TMapBase> state //
+	///////////////////////////////////////////////
+
 	/** Assignment operator for moving elements from a TMap with a different SetAllocator */
 	template<typename OtherSetAllocator>
 	TMapBase& operator=(TMapBase<KeyType, ValueType, OtherSetAllocator, KeyFuncs>&& Other)
@@ -1064,6 +1082,24 @@ protected:
 		return *this;
 	}
 
+	/////////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TSortableMapBase> state //
+	/////////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TSortableMapBase;
+
+	explicit TSortableMapBase(FIntrusiveUnsetOptionalState Tag)
+		: Super(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Super::operator==(Tag);
+	}
+	///////////////////////////////////////////////////////
+	// End - intrusive TOptional<TSortableMapBase> state //
+	///////////////////////////////////////////////////////
+
 public:
 	/**
 	 * Sorts the pairs array using each pair's Key as the sort criteria, then rebuilds the map's hash.
@@ -1205,6 +1241,24 @@ public:
 			this->Add(Element.Key, Element.Value);
 		}
 	}
+
+	/////////////////////////////////////////////
+	// Start - intrusive TOptional<TMap> state //
+	/////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TMap;
+
+	explicit TMap(FIntrusiveUnsetOptionalState Tag)
+		: Super(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Super::operator==(Tag);
+	}
+	///////////////////////////////////////////
+	// End - intrusive TOptional<TMap> state //
+	///////////////////////////////////////////
 
 	/** Assignment operator for moving elements from a TMap with a different SetAllocator */
 	template<typename OtherSetAllocator>
@@ -1390,6 +1444,24 @@ public:
 			this->Add(Element.Key, Element.Value);
 		}
 	}
+
+	//////////////////////////////////////////////////
+	// Start - intrusive TOptional<TMultiMap> state //
+	//////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TMultiMap;
+
+	explicit TMultiMap(FIntrusiveUnsetOptionalState Tag)
+		: Super(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Super::operator==(Tag);
+	}
+	////////////////////////////////////////////////
+	// End - intrusive TOptional<TMultiMap> state //
+	////////////////////////////////////////////////
 
 	/** Assignment operator for moving elements from a TMap with a different SetAllocator */
 	template<typename OtherSetAllocator>
