@@ -529,8 +529,7 @@ namespace UE::CoreUObject::Private
 			return { 0 };
 		}
 
-		const bool bHasPlaceholderType = UE::FPropertyBagRepository::IsPropertyBagPlaceholderType(ObjectRef.ResolveObjectRefClass());
-		return MakePackedObjectRef(ObjectRef.PackageName, ObjectRef.ClassPackageName, ObjectRef.ClassName, ObjectRef.GetObjectPath(), bHasPlaceholderType);
+		return MakePackedObjectRef(ObjectRef.PackageName, ObjectRef.ClassPackageName, ObjectRef.ClassName, ObjectRef.GetObjectPath());
 	}
 
 
