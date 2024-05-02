@@ -286,7 +286,7 @@ namespace uba
 		return true;
 	}
 
-	bool CacheServer::RunMaintenance(bool force)
+	bool CacheServer::RunMaintenance(bool force, const Function<bool()>& shouldExit)
 	{
 		SCOPED_WRITE_LOCK(m_maintenanceLock, lock);
 		SCOPED_READ_LOCK(m_connectionsLock, lock2);
@@ -319,6 +319,9 @@ namespace uba
 			m_logger.Detail(TC("  Found %llu cas files (%s)"), existingCas.size(), TimeToText(GetTime() - traverseStartTime).str);
 		}
 		u64 totalCasCount = existingCas.size() + deletedCasCount;
+
+		if (shouldExit())
+			return true;
 
 		u64 now = GetSystemTimeAsFileTime();
 		u64 oldest = now;
@@ -458,6 +461,9 @@ namespace uba
 		while (!deletedCasFiles.empty()); // if cas files are deleted we need to do another loop and check cache entry inputs to see if files were inputs
 
 		m_logger.Detail(TC("  Deleted %llu cas files and %llu cache entries (%s)"), deletedCasCount, deleteEntryCount.load(), TimeToText(GetTime() - deleteCacheEntriesStartTime).str);
+
+		if (shouldExit())
+			return true;
 
 		Atomic<u32> bucketCounter;
 		m_server.ParallelFor(16, m_buckets, [&](auto& it)

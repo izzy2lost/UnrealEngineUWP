@@ -22,7 +22,7 @@ namespace uba
 		bool Load();
 		bool Save();
 
-		bool RunMaintenance(bool force);
+		bool RunMaintenance(bool force, const Function<bool()>& shouldExit);
 
 	private:
 		bool SaveNoLock();

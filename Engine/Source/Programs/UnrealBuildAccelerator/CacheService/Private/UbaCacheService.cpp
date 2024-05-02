@@ -49,24 +49,30 @@ namespace uba
 		return -1;
 	}
 
-	bool g_exitRequested;
+	ReaderWriterLock* g_exitLock = new ReaderWriterLock();
+	LoggerWithWriter* g_logger;
+	Atomic<bool> g_shouldExit;
+
+	bool ShouldExit()
+	{
+		return g_shouldExit || IsEscapePressed();
+	}
 	
 	void CtrlBreakPressed()
 	{
-		if (!g_exitRequested)
-			LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("Exiting..."));
-		g_exitRequested = true;
+		g_shouldExit = true;
+
+		g_exitLock->EnterWrite();
+		if (g_logger)
+			g_logger->Info(TC("  Exiting..."));
+		g_exitLock->LeaveWrite();
 	}
 
 	#if PLATFORM_WINDOWS
 	BOOL ConsoleHandler(DWORD signal)
 	{
-		if (signal == CTRL_C_EVENT)
-		{
-			CtrlBreakPressed();
-			return TRUE;
-		}
-		return FALSE;
+		CtrlBreakPressed();
+		return TRUE;
 	}
 	#else
 	void ConsoleHandler(int sig)
@@ -167,6 +173,11 @@ namespace uba
 		FilteredLogWriter logWriter(g_consoleLogWriter, quiet ? LogEntryType_Info : LogEntryType_Detail);
 		LoggerWithWriter logger(logWriter, TC(""));
 
+		g_exitLock->EnterWrite();
+		g_logger = &logger;
+		g_exitLock->LeaveWrite();
+		auto glg = MakeGuard([]() { g_exitLock->EnterWrite(); g_logger = nullptr; g_exitLock->LeaveWrite(); });
+
 		const tchar* dbgStr = TC("");
 		#if UBA_DEBUG
 		dbgStr = TC(" (DEBUG)");
@@ -220,7 +231,7 @@ namespace uba
 		if (!cacheServer.Load())
 			return -1;
 
-		if (!cacheServer.RunMaintenance(true))
+		if (!cacheServer.RunMaintenance(true, ShouldExit))
 			return -1;
 
 		{
@@ -230,10 +241,10 @@ namespace uba
 			if (!networkServer.StartListen(networkBackend, port, listenIp.data))
 				return -1;
 
-			while (!g_exitRequested && !IsEscapePressed())
+			while (!ShouldExit())
 			{
 				Sleep(1000);
-				if (!cacheServer.RunMaintenance(false))
+				if (!cacheServer.RunMaintenance(false, ShouldExit))
 					break;
 			}
 		}
