@@ -59,6 +59,7 @@ private:
 	friend class FWorkspaceEditor;
 	friend class FWorkspaceOutlinerMode;
 	friend class FWorkspaceOutlinerSourceControlColumn;
+	friend class FWorkspaceOutlinerFileStateColumn;
 	friend SWorkspaceTabWrapper;
 };
 
