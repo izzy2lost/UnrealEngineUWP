@@ -7,6 +7,7 @@
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/RecordedTransformTrack.h"
 #include "GeometryCollection/Facades/CollectionHierarchyFacade.h"
+#include "GeometryCollection/Facades/CollectionTransformFacade.h"
 #include "GeometryCollectionProxyData.h"
 #include "Async/ParallelFor.h"
 
@@ -177,116 +178,39 @@ namespace GeometryCollectionAlgo
 		return false;
 	}
 
-	bool HasCycle(TManagedArray<int32>& Parents, int32 Node)
+	bool HasCycle(const TManagedArray<int32>& Parents, int32 Node)
 	{
-		const int32 NumParents = Parents.Num();
-		int32 WalkNode = Node;
-		for (int32 Iters = 0; WalkNode != FGeometryCollection::Invalid && Iters < NumParents; ++Iters)
+		return GeometryCollection::Facades::FCollectionTransformFacade::HasCycle(Parents, Node);
+	}
+	bool HasCycle(const TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones)
+	{
+		return GeometryCollection::Facades::FCollectionTransformFacade::HasCycle(Parents, SelectedBones);
+	}
+
+	void ParentTransform(FManagedArrayCollection* ManagedArrayCollection, const int32 TransformIndex, const int32 ChildIndex)
+	{
+		if (ManagedArrayCollection)
 		{
-			WalkNode = Parents[WalkNode];
+			GeometryCollection::Facades::FCollectionTransformFacade Facade(*ManagedArrayCollection);
+			Facade.ParentTransform(TransformIndex, ChildIndex);
 		}
-		return WalkNode != FGeometryCollection::Invalid;
 	}
-	bool HasCycle(TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones)
+
+	void ParentTransforms(FManagedArrayCollection* ManagedArrayCollection, const int32 TransformIndex, const TArray<int32>& SelectedBones)
 	{
-		for (int32 Bone : SelectedBones)
+		if (ManagedArrayCollection)
 		{
-			if (HasCycle(Parents, Bone))
-			{
-				return true;
-			}
+			GeometryCollection::Facades::FCollectionTransformFacade Facade(*ManagedArrayCollection);
+			Facade.ParentTransforms(TransformIndex, SelectedBones);
 		}
-		return false;
 	}
 
-	void ParentTransform(FTransformCollection* GeometryCollection, const int32 TransformIndex, const int32 ChildIndex)
+	void UnparentTransform(FManagedArrayCollection* ManagedArrayCollection, const int32 ChildIndex)
 	{
-		TArray<int32> SelectedBones;
-		SelectedBones.Add(ChildIndex);
-		ParentTransforms(GeometryCollection, TransformIndex, SelectedBones);
-	}
-
-	void ParentTransforms(FTransformCollection* GeometryCollection, const int32 TransformIndex,
-		const TArray<int32>& SelectedBones)
-	{
-		check(GeometryCollection != nullptr);
-
-		TManagedArray<FTransform3f>& Transform = GeometryCollection->Transform;
-		TManagedArray<int32>& Parents = GeometryCollection->Parent;
-		TManagedArray<TSet<int32>>& Children = GeometryCollection->Children;
-
-		if (ensure(-1 <= TransformIndex && TransformIndex < GeometryCollection->NumElements(FGeometryCollection::TransformGroup)))
+		if (ManagedArrayCollection)
 		{
-			// pre calculate global positions
-			TArray<FTransform3f> GlobalTransform;
-			GeometryCollectionAlgo::GlobalMatrices(GeometryCollection->Transform, Parents, GlobalTransform);
-
-			// append children 
-			for (int32 Index = 0; Index < SelectedBones.Num(); Index++)
-			{
-				int32 BoneIndex = SelectedBones[Index];
-				if (ensure(0 <= BoneIndex && BoneIndex < Parents.Num()))
-				{
-					// remove entry in previous parent
-					int32 ParentIndex = Parents[BoneIndex];
-					if (ParentIndex != FGeometryCollection::Invalid)
-					{
-						if (ensure(0 <= ParentIndex && ParentIndex < Parents.Num()))
-						{
-							Children[ParentIndex].Remove(BoneIndex);
-						}
-					}
-
-					// set new parent
-					Parents[BoneIndex] = TransformIndex;
-				}
-			}
-
-			FTransform3f ParentInverse = FTransform3f::Identity;
-			if (TransformIndex != FGeometryCollection::Invalid)
-			{
-				Children[TransformIndex].Append(SelectedBones);
-				ParentInverse = GlobalTransform[TransformIndex].Inverse();
-			}
-
-			// move the children to the local space of the transform. 
-			for (int32 Index = 0; Index < SelectedBones.Num(); Index++)
-			{
-				int32 BoneIndex = SelectedBones[Index];
-				Transform[BoneIndex] = GlobalTransform[BoneIndex] * ParentInverse;
-			}
-
-		}
-
-		// error check for circular dependencies
-		ensure(!HasCycle(Parents, TransformIndex));
-		ensure(!HasCycle(Parents, SelectedBones));
-	}
-
-	void UnparentTransform(FManagedArrayCollection* Collection, const int32 ChildIndex)
-	{
-		if (Collection)
-		{
-			if (Collection->HasAttribute(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup))
-			{
-				if (Collection->HasAttribute(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup))
-				{
-					int32 NumTransforms = Collection->NumElements(FTransformCollection::TransformGroup);
-
-					if (0 < ChildIndex && ChildIndex < NumTransforms)
-					{
-						TManagedArray<int32>& Parent = Collection->ModifyAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
-						TManagedArray< TArray<int32> >& Children = Collection->ModifyAttribute< TArray<int32> >(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup);
-
-						int32 ParentIndex = Parent[ChildIndex];
-						if (0 <= ParentIndex && ParentIndex < NumTransforms)
-						{
-							Children[ParentIndex].Remove(ChildIndex);
-							Parent[ChildIndex] = INDEX_NONE;
-						}
-					}
-				}
-			}
+			GeometryCollection::Facades::FCollectionTransformFacade Facade(*ManagedArrayCollection);
+			Facade.UnparentTransform(ChildIndex);
 		}
 	}
 

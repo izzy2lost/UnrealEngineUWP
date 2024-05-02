@@ -91,28 +91,28 @@ namespace GeometryCollectionAlgo
 	*/
 	bool 
 	CHAOS_API
-	HasCycle(TManagedArray<int32>& Parents, int32 Node);
+	HasCycle(const TManagedArray<int32>& Parents, int32 Node);
 
 	/*
 	*
 	*/
 	bool 
 	CHAOS_API
-	HasCycle(TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones);
+	HasCycle(const TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones);
 
 	/*
 	* Parent a single transform
 	*/
 	void
 	CHAOS_API 
-	ParentTransform(FTransformCollection* GeometryCollection, const int32 TransformIndex, const int32 ChildIndex);
+	ParentTransform(FManagedArrayCollection* ManagedArrayCollection, const int32 TransformIndex, const int32 ChildIndex);
 		
 	/*
 	*  Parent the list of transforms to the selected index. 
 	*/
 	void 
 	CHAOS_API 
-	ParentTransforms(FTransformCollection* GeometryCollection, const int32 TransformIndex, const TArray<int32>& SelectedBones);
+	ParentTransforms(FManagedArrayCollection* ManagedArrayCollection, const int32 TransformIndex, const TArray<int32>& SelectedBones);
 
 
 	/*
@@ -120,7 +120,7 @@ namespace GeometryCollectionAlgo
 	*/
 	void
 	CHAOS_API
-	UnparentTransform(FManagedArrayCollection* Collection, const int32 ChildIndex);
+	UnparentTransform(FManagedArrayCollection* ManagedArrayCollection, const int32 ChildIndex);
 
 	/*
 	*  Find the average position of the transforms.

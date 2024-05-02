@@ -105,7 +105,28 @@ namespace GeometryCollection::Facades
 		/** Sets the selected bone's transform to identity */
 		CHAOS_API void SetBoneTransformToIdentity(int32 BoneIdx);
 
+		/** Does the transform heirarchy have a cycle*/
+		static bool CHAOS_API HasCycle(const TManagedArray<int32>& Parents, int32 Node);
+
+		/** Does the transform heirarchy have a cycle*/
+		static bool CHAOS_API HasCycle(const TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones);
+
+		/** Parent a single transform */
+		void CHAOS_API ParentTransform(const int32 TransformIndex, const int32 ChildIndex);
+
+		/**  Parent the list of transforms to the selected index. */
+		void CHAOS_API ParentTransforms(const int32 TransformIndex, const TArray<int32>& SelectedBones);
+
+		/**  Unparent the child index from its parent */
+		void CHAOS_API UnparentTransform(const int32 ChildIndex);
+
+		/** Adds a Identity transform and nests all roots under the new transform */
+		CHAOS_API void EnforceSingleRoot(FString RootName);
+
 	private:
+		const FManagedArrayCollection& ConstCollection;
+		FManagedArrayCollection* Collection = nullptr;
+
 		TManagedArrayAccessor<int32>		ParentAttribute;
 		TManagedArrayAccessor<TSet<int32>>	ChildrenAttribute;
 		TManagedArrayAccessor<FTransform3f>	TransformAttribute;
