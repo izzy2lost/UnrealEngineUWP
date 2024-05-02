@@ -307,7 +307,6 @@ namespace Jupiter.FunctionalTests.Storage
 		}
 	}
 
-
 	[TestClass]
 	public class FileSystemStoreTests : StorageTests
 	{

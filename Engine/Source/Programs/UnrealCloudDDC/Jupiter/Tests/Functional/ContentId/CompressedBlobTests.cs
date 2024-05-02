@@ -529,7 +529,6 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 				uploadResult.EnsureSuccessStatusCode();
 			}
 
-
 			BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
 			using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/compressed-blobs/{TestNamespace}/exist", UriKind.Relative));
 			string jsonBody = JsonSerializer.Serialize(new BlobId[] { uncompressedPayloadIdentifier, newContent });
