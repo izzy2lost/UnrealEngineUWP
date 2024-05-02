@@ -209,7 +209,6 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 	Chooser.Get<FObjectChooserBase>().GetDebugName(Name);
 	
 	TRACE_ANIM_NODE_VALUE(Context, TEXT("Name"), ToCStr(Name));
-	TRACE_ANIM_NODE_VALUE(Context, TEXT("Asset"), CurrentAsset);
 }
 
 void FAnimNode_ChooserPlayer::Evaluate_AnyThread(FPoseContext& Output)
