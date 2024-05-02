@@ -280,51 +280,44 @@ MATERIALX_NAMESPACE_BEGIN
 
 		namespace DefaultValue
 		{
-			namespace Float
-			{
-				static float Base = 1.f;
-				static float DiffuseRoughness = 0.f;
-				static float Metalness = 0.f;
-				static float Specular = 1.f;
-				static float SpecularRoughness = 0.2f;
-				static float SpecularIOR = 1.5f;
-				static float SpecularAnisotropy = 0.f;
-				static float SpecularRotation = 0.f;
-				static float Transmission = 0.f;
-				static float TransmissionDepth = 0.f;
-				static float TransmissionScatterAnisotropy = 0.f;
-				static float TransmissionDispersion = 0.f;
-				static float TransmissionExtraRoughness = 0.f;
-				static float Subsurface = 0.f;
-				static float SubsurfaceScale = 1.f;
-				static float SubsurfaceAnisotropy = 0.f;
-				static float Sheen = 0.f;
-				static float SheenRoughness = 0.3f;
-				static float Coat = 0.f;
-				static float CoatRoughness = 0.1f;
-				static float CoatAnisotropy = 0.f;
-				static float CoatRotation = 0.f;
-				static float CoatIOR = 1.5f;
-				static float CoatAffectColor = 0.f;
-				static float CoatAffectRoughness = 0.f;
-				static float ThinFilmThickness = 0.f;
-				static float ThinFilmIOR = 1.5f;
-				static float Emission = 0.f;
-			}
-
-			namespace Color3
-			{
-				constexpr FLinearColor BaseColor{ 0.8, 0.8, 0.8 };
-				constexpr FLinearColor SpecularColor{ 1, 1, 1 };
-				constexpr FLinearColor TransmissionColor{ 1, 1, 1 };
-				constexpr FLinearColor TransmissionScatter{ 0, 0, 0 };
-				constexpr FLinearColor SubsurfaceColor{ 1, 1, 1 };
-				constexpr FLinearColor SubsurfaceRadius{ 1, 1, 1 };
-				constexpr FLinearColor SheenColor{ 1, 1, 1 };
-				constexpr FLinearColor CoatColor{ 1, 1, 1 };
-				constexpr FLinearColor EmissionColor{ 1, 1, 1 };
-				constexpr FLinearColor Opacity{ 1, 1, 1 };
-			}
+			static constexpr float Base = 1.f;
+			constexpr FLinearColor BaseColor{ 0.8, 0.8, 0.8 };
+			static constexpr float DiffuseRoughness = 0.f;
+			static constexpr float Metalness = 0.f;
+			static constexpr float Specular = 1.f;
+			constexpr FLinearColor SpecularColor{ 1, 1, 1 };
+			static constexpr float SpecularRoughness = 0.2f;
+			static constexpr float SpecularIOR = 1.5f;
+			static constexpr float SpecularAnisotropy = 0.f;
+			static constexpr float SpecularRotation = 0.f;
+			static constexpr float Transmission = 0.f;
+			static constexpr float TransmissionDepth = 0.f;
+			static constexpr float TransmissionScatterAnisotropy = 0.f;
+			static constexpr float TransmissionDispersion = 0.f;
+			static constexpr float TransmissionExtraRoughness = 0.f;
+			static constexpr float Subsurface = 0.f;
+			constexpr FLinearColor SubsurfaceColor{ 1, 1, 1 };
+			constexpr FLinearColor SubsurfaceRadius{ 1, 1, 1 };
+			static constexpr float SubsurfaceScale = 1.f;
+			static constexpr float SubsurfaceAnisotropy = 0.f;
+			static constexpr float Sheen = 0.f;
+			constexpr FLinearColor SheenColor{ 1, 1, 1 };
+			static constexpr float SheenRoughness = 0.3f;
+			static constexpr float Coat = 0.f;
+			constexpr FLinearColor CoatColor{ 1, 1, 1 };
+			static constexpr float CoatRoughness = 0.1f;
+			static constexpr float CoatAnisotropy = 0.f;
+			static constexpr float CoatRotation = 0.f;
+			static constexpr float CoatIOR = 1.5f;
+			static constexpr float CoatAffectColor = 0.f;
+			static constexpr float CoatAffectRoughness = 0.f;
+			static constexpr float ThinFilmThickness = 0.f;
+			static constexpr float ThinFilmIOR = 1.5f;
+			constexpr FLinearColor TransmissionColor{ 1, 1, 1 };
+			constexpr FLinearColor TransmissionScatter{ 0, 0, 0 };
+			static constexpr float Emission = 0.f;
+			constexpr FLinearColor EmissionColor{ 1, 1, 1 };
+			constexpr FLinearColor Opacity{ 1, 1, 1 };
 		}
 	}
 
