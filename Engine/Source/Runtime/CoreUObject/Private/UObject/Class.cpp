@@ -775,6 +775,7 @@ EPropertyVisitorControlFlow UStruct::Visit(FPropertyVisitorPath& Path, void* Dat
 	for (const FProperty* Property = PropertyLink; Property; Property = Property->PropertyLinkNext)
 	{
 		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(Property));
+		Path.Top().ParentStructType = this;
 
 		// ArrayDim of one means it is just a single property, not a static array
 		if(Property->ArrayDim == 1)

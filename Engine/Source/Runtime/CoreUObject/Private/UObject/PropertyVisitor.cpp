@@ -111,11 +111,18 @@ void* FPropertyVisitorPath::GetPropertyDataPtr(UObject* Object) const
 	void* DataPtr = nullptr;
 	checkf(Object, TEXT("Expecting an valid object"));
 
-	Object->GetClass()->Visit(Object, [this, &DataPtr](const FPropertyVisitorPath& InPath, void* Data)
+	int32 MatchedPathDepth = 0;
+	Object->GetClass()->Visit(Object, [this, &DataPtr, &MatchedPathDepth](const FPropertyVisitorPath& InPath, void* Data)
 	{
+		if (InPath.Num() <= MatchedPathDepth)
+		{
+			// We've returned a level that we previously found a match in; we can stop now
+			return EPropertyVisitorControlFlow::Stop;
+		}
 		bool bIsEqual = false;
 		if (InPath.Contained(*this, &bIsEqual))
 		{
+			MatchedPathDepth = InPath.Num();
 			if(bIsEqual)
 			{
 				DataPtr = Data;

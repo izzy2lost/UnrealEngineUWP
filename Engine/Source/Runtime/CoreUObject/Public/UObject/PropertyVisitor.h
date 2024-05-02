@@ -31,8 +31,12 @@ struct FPropertyVisitorInfo
 		, PropertyInfo(InPropertyInfo)
 		, bContainsInnerProperties(false)
 	{}
-	FPropertyVisitorInfo(const FPropertyVisitorInfo& Other) = default;
-	FPropertyVisitorInfo(FPropertyVisitorInfo&& Other) = default;
+
+	FPropertyVisitorInfo(const FPropertyVisitorInfo&) = default;
+	FPropertyVisitorInfo(FPropertyVisitorInfo&&) = default;
+
+	FPropertyVisitorInfo& operator=(const FPropertyVisitorInfo&) = default;
+	FPropertyVisitorInfo& operator=(FPropertyVisitorInfo&&) = default;
 
 	void SetIndex(int32 InIndex, EPropertyVisitorInfoType InPropertyInfo)
 	{
@@ -42,6 +46,13 @@ struct FPropertyVisitorInfo
 
 	/** The property currently being visited */
 	const FProperty* Property;
+
+	/**
+	 * The parent struct that provided the property being iterated, if iterating a sub-property within a struct.
+	 * @note This is slighty different than Property->GetOwnerStruct() as you might be iterating a FDerived instance 
+	 *       but processing a FBase struct property. In this case this will be set to FDerived rather than FBase.
+	 */
+	const UStruct* ParentStructType = nullptr;
 
 	/**
      * Index of the element being visited in the container, otherwise INDEX_NONE.
@@ -59,8 +70,13 @@ struct FPropertyVisitorPath
 {
 public:
 	FPropertyVisitorPath() = default;
-	FPropertyVisitorPath(const FPropertyVisitorPath& Other) = default;
-	FPropertyVisitorPath(FPropertyVisitorPath&& Other) = default;
+	
+	FPropertyVisitorPath(const FPropertyVisitorPath&) = default;
+	FPropertyVisitorPath(FPropertyVisitorPath&&) = default;
+
+	FPropertyVisitorPath& operator=(const FPropertyVisitorPath&) = default;
+	FPropertyVisitorPath& operator=(FPropertyVisitorPath&&) = default;
+	
 	explicit FPropertyVisitorPath(const FPropertyVisitorInfo& Info)
 	{
 		Push(Info);
