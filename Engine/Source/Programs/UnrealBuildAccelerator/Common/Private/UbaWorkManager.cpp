@@ -26,6 +26,7 @@ namespace uba
 		Worker(WorkManagerImpl& manager) : m_workAvailable(false)
 		{
 			m_loop = true;
+			manager.PushWorker(this);
 			m_thread.Start([&]() { ThreadWorker(manager); return 0; });
 		}
 		~Worker()
@@ -41,7 +42,6 @@ namespace uba
 
 		void ThreadWorker(WorkManagerImpl& manager)
 		{
-			manager.PushWorker(this);
 			while (true)
 			{
 				if (!m_workAvailable.IsSet())
