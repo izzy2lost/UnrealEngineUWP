@@ -173,9 +173,9 @@ FNaniteBuildAsyncCacheTask::FNaniteBuildAsyncCacheTask(
 	, WeakDisplacedMesh(&InDisplacedMesh)
 	, Parameters(InDisplacedMesh.Parameters)
 	// Once we pass the BeginCache throttling gate, we want to finish as fast as possible
-	// to avoid holding on to memory for a long time. We use the highest priority for all
-	// subsequent task.
-	, Owner(UE::DerivedData::EPriority::Highest)
+	// to avoid holding on to memory for a long time. We use the high priority since it will go fast,
+	// but also it will avoid starving the critical threads in the subsequent task.
+	, Owner(UE::DerivedData::EPriority::High)
 	, bIsWaitingOnMeshCompilation(ShouldWaitForBaseMeshCompilation())
 	, KeyHash(InKeyHash)
 {
@@ -888,6 +888,8 @@ bool UNaniteDisplacedMesh::IsCompiling() const
 
 bool UNaniteDisplacedMesh::TryCancelAsyncTasks()
 {
+	bool bHadCachedTaskForRunningPlatform = CacheTasksByKeyHash.Contains(DataKeyHash);
+	
 	for (auto It = CacheTasksByKeyHash.CreateIterator(); It; ++It)
 	{
 		if (It->Value->Poll())
@@ -906,6 +908,13 @@ bool UNaniteDisplacedMesh::TryCancelAsyncTasks()
 		}
 	}
 	
+
+	if (bHadCachedTaskForRunningPlatform && !CacheTasksByKeyHash.Contains(DataKeyHash))
+	{
+		// Reset the cached Key for the running platform since we won't have any rendering data
+		DataKeyHash = FIoHash();
+	}
+
 	return CacheTasksByKeyHash.IsEmpty();
 }
 
