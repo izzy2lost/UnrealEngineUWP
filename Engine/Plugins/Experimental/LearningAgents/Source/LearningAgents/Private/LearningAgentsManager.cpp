@@ -13,14 +13,9 @@ ULearningAgentsManager::ULearningAgentsManager() : Super(FObjectInitializer::Get
 ULearningAgentsManager::ULearningAgentsManager(FVTableHelper& Helper) : Super(Helper) {}
 ULearningAgentsManager::~ULearningAgentsManager() = default;
 
-void ULearningAgentsManager::PostInitProperties()
+void ULearningAgentsManager::OnRegister()
 {
-	Super::PostInitProperties();
-
-	if (HasAnyFlags(RF_ClassDefaultObject))
-	{
-		return;
-	}
+	Super::OnRegister();
 
 	// Pre-populate the vacant ids
 	OnEventAgentIds.Reserve(MaxAgentNum);
