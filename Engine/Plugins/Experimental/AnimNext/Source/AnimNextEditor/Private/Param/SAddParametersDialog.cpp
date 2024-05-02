@@ -91,7 +91,6 @@ void SAddParametersDialog::Construct(const FArguments& InArgs, const FAssetData&
 					SAssignNew(EntriesList, SListView<TSharedRef<FParameterToAddEntry>>)
 					.ListItemsSource(&Entries)
 					.OnGenerateRow(this, &SAddParametersDialog::HandleGenerateRow)
-					.ItemHeight(20.0f)
 					.HeaderRow(
 						SNew(SHeaderRow)
 						+SHeaderRow::Column(Column_Name)

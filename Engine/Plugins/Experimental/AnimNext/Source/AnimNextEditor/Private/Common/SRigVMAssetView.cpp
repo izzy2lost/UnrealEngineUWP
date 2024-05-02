@@ -262,7 +262,6 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 			.OnGetChildren(this, &SRigVMAssetView::HandleGetChildren)
 			.OnItemScrolledIntoView(this, &SRigVMAssetView::HandleItemScrolledIntoView)
 			.OnSelectionChanged(this, &SRigVMAssetView::HandleSelectionChanged)
-			.ItemHeight(20.0f)
 			.HeaderRow(
 				SNew(SHeaderRow)
 				+SHeaderRow::Column(Column_RevisionControl)
