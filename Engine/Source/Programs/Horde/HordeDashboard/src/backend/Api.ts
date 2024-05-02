@@ -2097,6 +2097,16 @@ export type GetAgentTypeResponse = {
 
 }
 
+export type GetAgentTelemetrySampleResponse = {
+	time: Date;
+	userCpu: number;
+	idleCpu: number;
+	systemCpu: number;
+	freeRam: number;
+	usedRam: number;
+	totalRam: number;
+}
+
 /**Information about a workspace type */
 export type GetWorkspaceTypeResponse = {
 
