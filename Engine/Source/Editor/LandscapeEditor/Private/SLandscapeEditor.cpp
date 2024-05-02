@@ -213,13 +213,8 @@ void FLandscapeToolKit::BuildToolPalette(FName PaletteName, class FToolBarBuilde
 		ToolBarBuilder.AddToolBarButton(Commands.SelectComponentTool);
 		ToolBarBuilder.AddToolBarButton(Commands.AddComponentTool);
 		ToolBarBuilder.AddToolBarButton(Commands.DeleteComponentTool);
-		// MoveToLevel isn't supported because in GridBased worlds don't support Proxies in different Levels
-		// Resize isn't supported and instead should be done through a Commandlet for GridBased worlds
-		if (!LandscapeEdMode->IsGridBased())
-		{
-			ToolBarBuilder.AddToolBarButton(Commands.MoveToLevelTool);
-			ToolBarBuilder.AddToolBarButton(Commands.ResizeLandscape);
-		}
+		ToolBarBuilder.AddToolBarButton(Commands.MoveToLevelTool);
+		ToolBarBuilder.AddToolBarButton(Commands.ResizeLandscape);
 		ToolBarBuilder.AddToolBarButton(Commands.SplineTool);
 	}
 
@@ -367,7 +362,23 @@ bool FLandscapeToolKit::IsToolEnabled(FName ToolName) const
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode != nullptr)
 	{
-		if (ToolName == "NewLandscape" || LandscapeEdMode->GetLandscapeList().Num() > 0)
+		// When using World Partition:
+		// MoveToLevel isn't supported because we don't support Proxies in different levels.
+		// Resize isn't supported and instead should be done via a user provided Commandlet.
+		if (LandscapeEdMode->IsGridBased() &&
+			(ToolName == "MoveToLevel" || ToolName == "ResizeLandscape"))
+		{
+			return false;
+		}
+
+		// NewLandscape is always available.
+		if (ToolName == "NewLandscape")
+		{
+			return true;
+		}
+
+		// Other tools are available if there is an existing landscape.
+		if (LandscapeEdMode->GetLandscapeList().Num() > 0)
 		{
 			return true;
 		}
