@@ -383,37 +383,16 @@ void UInstancedActorsStationaryLODBatchProcessor::Execute(FMassEntityManager& En
 				return NextTickTime;
 			};
 
-		TConstArrayView<FSharedStruct> AllSharedFragmentsOfType = EntityManager.GetSharedFragmentsOfType<FInstancedActorsDataSharedFragment>();
-		if (AllSharedFragmentsOfType.Num() > 0)
+		TArray<UInstancedActorsSubsystem::FNextTickSharedFragment>& SortedSharedFragments = InstancedActorSubsystem->GetTickableSharedFragments();
+		if (SortedSharedFragments.Num() > 0)
 		{
-			if (SortedSharedFragments.Num() == 0)
-			{
-				SortedSharedFragments.Reserve(AllSharedFragmentsOfType.Num());
-				for (const FSharedStruct& SharedStruct : AllSharedFragmentsOfType)
-				{
-					SortedSharedFragments.Add({ SharedStruct });
-				}
-				// we should call SortedSharedFragments.Heapify() but there's no point since all elements have the same NextTickTime now (0).
-			}
-			else if (SortedSharedFragments.Num() < AllSharedFragmentsOfType.Num())
-			{
-				// We add all of them at the front for immediate processing.
-				const int32 StartingIndex = SortedSharedFragments.Num();
-				const int32 NewItemsCount = (AllSharedFragmentsOfType.Num() - SortedSharedFragments.Num());
-				SortedSharedFragments.InsertDefaulted(0, NewItemsCount);
-				for (int32 NewIndex = 0; NewIndex < NewItemsCount; ++NewIndex)
-				{
-					SortedSharedFragments[NewIndex].SharedStruct = AllSharedFragmentsOfType[StartingIndex + NewIndex];
-				}
-				SortedSharedFragments.Heapify();
-			}
-
 			while (SortedSharedFragments.HeapTop().NextTickTime < CurrentTime)
 			{
-				FNextTickSharedFragment WrappedSharedFragment;
+				UInstancedActorsSubsystem::FNextTickSharedFragment WrappedSharedFragment;
 				SortedSharedFragments.HeapPop(WrappedSharedFragment, EAllowShrinking::No);
 				FInstancedActorsDataSharedFragment& ManagerSharedFragment = WrappedSharedFragment.SharedStruct.Get<FInstancedActorsDataSharedFragment>();
 				
+				ManagerSharedFragment.LastTickTime = CurrentTime;
 				WrappedSharedFragment.NextTickTime = ExecutionFunction(ManagerSharedFragment);
 				SortedSharedFragments.HeapPush(MoveTemp(WrappedSharedFragment));
 			}

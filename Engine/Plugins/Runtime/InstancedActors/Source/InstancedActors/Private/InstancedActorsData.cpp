@@ -144,6 +144,13 @@ namespace UE::InstancedActors
 			TEXT("If enabled, forces all calls to UInstancedActorsData::AddVisualizationAsync to immediately sync load required assets and ")
 			TEXT("initialize the visualization, instead of requesting async loads and deferring initialization."),
 			ECVF_Default);
+
+		bool bUpdateNextTickTimeFragments = true;
+		FAutoConsoleVariableRef CVarUpdateNextTickTimeFragments(
+			TEXT("IA.UpdateNextTickTimeFragments"),
+			bUpdateNextTickTimeFragments,
+			TEXT("If enabled (default) forces LOD updated for newly re-spawned entities (i.e. spawned by IAD that has been reloaded)"),
+			ECVF_Default);
 	} // CVars
 
 	namespace Helpers
@@ -318,6 +325,19 @@ void UInstancedActorsData::SpawnEntities()
 
 	// Now we've seeded Mass entity locations, we can free up now-superfluous InstanceTransforms
 	InstanceTransforms.Empty();
+
+	if (UE::InstancedActors::CVars::bUpdateNextTickTimeFragments)
+	{
+		FInstancedActorsDataSharedFragment* AsShared = SharedInstancedActorDataStruct.GetPtr<FInstancedActorsDataSharedFragment>();
+		// our shared fragment was being ticked in the past, so it's possible it's scheduled to tick in quite some time
+		// while we need the update ASAP. We're letting the UInstancedActorsSubsystem know to reschedule it.
+		if (ensure(AsShared) && AsShared->LastTickTime > 0.0)
+		{
+			UInstancedActorsSubsystem* InstancedActorSubsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
+			check(InstancedActorSubsystem);
+			InstancedActorSubsystem->UpdateAndResetTickTime(SharedInstancedActorDataStruct);
+		}
+	}
 }
 
 void UInstancedActorsData::DespawnEntities()
@@ -640,10 +660,12 @@ FMassEntityHandle UInstancedActorsData::GetEntity(FInstancedActorsInstanceIndex 
 
 void UInstancedActorsData::SetSharedInstancedActorDataStruct(FSharedStruct InSharedStruct)
 {
-	checkf(SharedInstancedActorDataStruct.IsValid() == false || SharedInstancedActorDataStruct.Identical(&InSharedStruct, 0), TEXT("We don't expect to override this value"));
 	checkf(InSharedStruct.GetPtr<FInstancedActorsDataSharedFragment>(), TEXT("We expect only FInstancedActorsDataSharedFragment-base types here"));
+	checkf(SharedInstancedActorDataStruct.IsValid() == false 
+		|| InSharedStruct.GetMemory() == SharedInstancedActorDataStruct.GetMemory()
+		, TEXT("We don't expect to override this value"));
 
-	SharedInstancedActorDataStruct = InSharedStruct;
+	SharedInstancedActorDataStruct = TStructView<FInstancedActorsDataSharedFragment>(InSharedStruct.GetMemory());
 }
 
 FString UInstancedActorsData::GetDebugName(bool bCompact) const

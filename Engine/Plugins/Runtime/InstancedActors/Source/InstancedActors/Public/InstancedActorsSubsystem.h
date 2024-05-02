@@ -158,8 +158,34 @@ public:
 	INSTANCEDACTORS_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	INSTANCEDACTORS_API virtual void Deinitialize() override;
 	//~ End USubsystem Overrides
-		
+
+	struct FNextTickSharedFragment
+	{
+		FSharedStruct SharedStruct;
+		double NextTickTime = 0;
+
+		bool operator<(const FNextTickSharedFragment& Other) const
+		{
+			return NextTickTime < Other.NextTickTime;
+		}
+	};
+
+	TArray<UInstancedActorsSubsystem::FNextTickSharedFragment>& GetTickableSharedFragments();
+	void UpdateAndResetTickTime(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment);
+
 protected:
+	/** 
+	 * Fetches all registered FInstancedActorsDataSharedFragment from the EntityManager and adds the missing ones to SortedSharedFragments
+	 * @param InstancedActorsDataSharedFragment optionally the function can check if given shared fragment is amongst 
+	 *	the newly added fragments
+	 * @param returns whether InstancedActorsDataSharedFragment has been found, or `true` if that param is not provided. 
+	 */
+	bool RegisterNewSharedFragmentsInternal(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment = TConstStructView<FInstancedActorsDataSharedFragment>());
+
+	/** The container storing a sorted queue of FSharedStruct instances, ordered by the NextTickTime */
+	TArray<FNextTickSharedFragment> SortedSharedFragments;
+
+	TSharedPtr<FMassEntityManager> EntityManager;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UInstancedActorsProjectSettings> ProjectSettings;

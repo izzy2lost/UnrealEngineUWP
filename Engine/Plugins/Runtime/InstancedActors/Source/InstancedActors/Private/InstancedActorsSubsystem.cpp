@@ -16,6 +16,7 @@
 #include "Engine/Level.h"
 #include "EngineUtils.h"
 #include "MassEntityTypes.h"
+#include "MassEntitySubsystem.h"
 #include "Misc/ArchiveMD5.h"
 #include "Misc/ReverseIterate.h"
 
@@ -152,6 +153,10 @@ void UInstancedActorsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	UWorld* World = GetWorld();
 	check(World);
 
+	UMassEntitySubsystem* EntitySubsystem = Collection.InitializeDependency<UMassEntitySubsystem>();
+	check(EntitySubsystem);
+	EntityManager = EntitySubsystem->GetMutableEntityManager().AsShared();
+
 	// As playlist GFP's are initialized after main map load, we account for latent subsystem creation here by registering any existing
 	// AInstancedActorsModifierVolume's and AInstancedActorsManager's that may already have loaded before subsystem creation.
 
@@ -180,7 +185,6 @@ void UInstancedActorsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UInstancedActorsSubsystem::Deinitialize()
 {
-
 #if WITH_EDITOR
 	InstancedActorsCVars::CVarRefreshSettings.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate());
 #endif
@@ -189,6 +193,7 @@ void UInstancedActorsSubsystem::Deinitialize()
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem Deinitialize);
 
+	EntityManager.Reset();
 	ExemplarActors.Reset();
 
 	if (IsValid(ExemplarActorWorld))
@@ -819,4 +824,62 @@ void UInstancedActorsSubsystem::PopAllDirtyRepresentationInstances(TArray<FInsta
 FInstancedActorsVisualizationDesc UInstancedActorsSubsystem::CreateVisualDescriptionFromActor(const AActor& ExemplarActor) const
 {
 	return FInstancedActorsVisualizationDesc::FromActor(ExemplarActor);
+}
+
+TArray<UInstancedActorsSubsystem::FNextTickSharedFragment>& UInstancedActorsSubsystem::GetTickableSharedFragments()
+{	
+	RegisterNewSharedFragmentsInternal();
+	return SortedSharedFragments;
+}
+
+void UInstancedActorsSubsystem::UpdateAndResetTickTime(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem_UpdateTickableSharedFragments);
+
+	const bool bParamStructFound = RegisterNewSharedFragmentsInternal(InstancedActorsDataSharedFragment);
+	if (bParamStructFound == false)
+	{
+		// we need to find the one. Naive implementation for now.
+		// starting from back in assumption stuff has been removed and re-added so the relevant data should be closer 
+		// to the back due to being at EMassLOD::Off level
+		for (int32 Index = SortedSharedFragments.Num() - 1; Index >= 0; --Index)
+		{
+			if (SortedSharedFragments[Index].SharedStruct == InstancedActorsDataSharedFragment)
+			{
+				FNextTickSharedFragment TickFragment = SortedSharedFragments[Index];
+				// setting to 0 will force update the very next time Batch LOD is being calculated. 
+				TickFragment.NextTickTime = 0;
+				SortedSharedFragments.HeapRemoveAt(Index, EAllowShrinking::No);
+				SortedSharedFragments.HeapPush(MoveTemp(TickFragment));
+				break;
+			}
+		}
+	}
+}
+
+bool UInstancedActorsSubsystem::RegisterNewSharedFragmentsInternal(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment)
+{
+	check(EntityManager);
+
+	const bool bParamStructProvided = InstancedActorsDataSharedFragment.IsValid();
+	// starting with !bParamStructProvided will result in short-circuiting the assignment operation below if InstancedActorsDataSharedFragment is empty
+	bool bParamStructFound = !bParamStructProvided;
+	TConstArrayView<FSharedStruct> AllSharedFragmentsOfType = EntityManager->GetSharedFragmentsOfType<FInstancedActorsDataSharedFragment>();
+	
+	if (SortedSharedFragments.Num() < AllSharedFragmentsOfType.Num())
+	{
+		// We add all of them at the front for immediate processing.
+		const int32 StartingIndex = SortedSharedFragments.Num();
+		const int32 NewItemsCount = (AllSharedFragmentsOfType.Num() - SortedSharedFragments.Num());
+		SortedSharedFragments.InsertDefaulted(0, NewItemsCount);
+		for (int32 NewIndex = 0; NewIndex < NewItemsCount; ++NewIndex)
+		{
+			SortedSharedFragments[NewIndex].SharedStruct = AllSharedFragmentsOfType[StartingIndex + NewIndex];
+			bParamStructFound = bParamStructFound || (AllSharedFragmentsOfType[StartingIndex + NewIndex] == InstancedActorsDataSharedFragment);
+		}
+		SortedSharedFragments.Heapify();
+	}
+	check(SortedSharedFragments.Num() == AllSharedFragmentsOfType.Num());
+
+	return bParamStructFound;
 }

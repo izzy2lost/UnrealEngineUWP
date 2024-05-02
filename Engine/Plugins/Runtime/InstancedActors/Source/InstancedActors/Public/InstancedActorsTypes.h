@@ -292,6 +292,8 @@ struct FInstancedActorsDataSharedFragment : public FMassSharedFragment
 	TWeakObjectPtr<UInstancedActorsData> InstanceData;
 
 	EInstancedActorsBulkLOD BulkLOD = EInstancedActorsBulkLOD::MAX;
+
+	double LastTickTime = 0.0;
 };
 
 USTRUCT()

@@ -434,7 +434,7 @@ protected:
 
 private:
 	// Represents the shared fragment registered with MassEntityManager, that points back to this UInstancedActorsData instance
-	FSharedStruct SharedInstancedActorDataStruct;
+	TStructView<FInstancedActorsDataSharedFragment> SharedInstancedActorDataStruct;
 
 	// List of FInstancedActorsDelta's to apply to instances, replicated via fast array replication to clients.
 	// Formed at runtime via player actions and persisted / restored by game's persistence system
