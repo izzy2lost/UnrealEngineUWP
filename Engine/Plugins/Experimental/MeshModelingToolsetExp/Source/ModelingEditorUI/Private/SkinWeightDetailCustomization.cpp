@@ -84,42 +84,38 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	}
 	
 	// COLOR MODE category
-	IDetailCategoryBuilder& WeightColorsCategory = DetailBuilder.EditCategory("WeightColors", FText::GetEmpty(), ECategoryPriority::Important);
-	WeightColorsCategory.InitiallyCollapsed(true);
-	WeightColorsCategory.AddCustomRow(LOCTEXT("ColorModeCategory", "Color Mode"), false)
-	.NameContent()
+	IDetailCategoryBuilder& MeshDisplayCategory = DetailBuilder.EditCategory("MeshDisplay", FText::GetEmpty(), ECategoryPriority::Important);
+	MeshDisplayCategory.InitiallyCollapsed(false);
+	MeshDisplayCategory.AddCustomRow(LOCTEXT("ColorModeCategory", "Color Mode"), false)
+	.WholeRowContent()
 	[
-		SNew(STextBlock)
-		.Text(LOCTEXT("ColorModeLabel", "Color Mode"))
-		.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-		.ToolTipText(LOCTEXT("ColorModeTooltip", "Determines how the weight colors are displayed."))
-	]
-	.ValueContent()
-	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
+		SNew(SBox)
+		.Padding(2.0f)
+		.HAlign(HAlign_Center)
 		[
-			SNew(SBox)
-			.Padding(2.0f)
-			.HAlign(HAlign_Center)
-			[
-				SNew(SSegmentedControl<EWeightColorMode>)
-				.Value_Lambda([this]()
-				{
-					return SkinToolSettings->ColorMode;
-				})
-				.OnValueChanged_Lambda([this](EWeightColorMode Mode)
-				{
-					SkinToolSettings->ColorMode = Mode;
-					SkinToolSettings->bColorModeChanged = true;
-				})
-				+ SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::MinMax)
-				.Text(LOCTEXT("MinMaxMode", "Min / Max"))
-				+SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::Ramp)
-				.Text(LOCTEXT("RampMode", "Ramp"))
-				+SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::MultiColor)
-				.Text(LOCTEXT("MultiColorMode", "Multi Color"))
-			]
+			SNew(SSegmentedControl<EWeightColorMode>)
+			.ToolTipText(LOCTEXT("WeightColorTooltip",
+					"Adjust the weight display in the viewport.\n\n"
+					"Greyscale: Displays weights on the current bone by blending from black (0) to white (1).\n"
+					"Ramp: Displays weights on the current bone. Weights at 0 and 1 use the min and max colors. Weights inbetween 0 and 1 use the ramp colors.\n"
+					"Multi Color: Displays weights on ALL bones using the color of the bones.\n"
+					"Full Material: Shows the normal fully-lit mesh material.\n"))
+			.Value_Lambda([this]()
+			{
+				return SkinToolSettings->ColorMode;
+			})
+			.OnValueChanged_Lambda([this](EWeightColorMode Mode)
+			{
+				SkinToolSettings->SetColorMode(Mode);
+			})
+			+ SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::Greyscale)
+			.Text(LOCTEXT("GreyscaleMode", "Greyscale"))
+			+SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::Ramp)
+			.Text(LOCTEXT("RampMode", "Ramp"))
+			+SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::BoneColors)
+			.Text(LOCTEXT("BoneColorsMode", "Bone Colors"))
+			+SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::FullMaterial)
+			.Text(LOCTEXT("MaterialMode", "Full Material"))
 		]
 	];
 
@@ -199,9 +195,7 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 			})
 			.OnValueChanged_Lambda([this](EWeightBrushFalloffMode Mode)
 			{
-				SkinToolSettings->bColorModeChanged = true;
-				SkinToolSettings->GetBrushConfig().FalloffMode = Mode;
-				SkinToolSettings->SaveConfig();
+				SkinToolSettings->SetFalloffMode(Mode);
 			})
 			+SSegmentedControl<EWeightBrushFalloffMode>::Slot(EWeightBrushFalloffMode::Surface)
 			.Text(LOCTEXT("SurfaceMode", "Surface"))

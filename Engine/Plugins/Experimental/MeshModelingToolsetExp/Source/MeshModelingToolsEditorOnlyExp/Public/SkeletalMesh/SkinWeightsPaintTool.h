@@ -46,9 +46,10 @@ enum class EWeightEditMode : uint8
 UENUM()
 enum class EWeightColorMode : uint8
 {
-	MinMax,
+	Greyscale,
 	Ramp,
-	MultiColor,
+	BoneColors,
+	FullMaterial
 };
 
 // brush falloff mode
@@ -289,13 +290,13 @@ public:
 	EWeightEditOperation PriorBrushMode; // when toggling with modifier key
 
 	// weight color properties
-	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
 	EWeightColorMode ColorMode;
-	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
 	TArray<FLinearColor> ColorRamp;
-	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
 	FLinearColor MinColor;
-	UPROPERTY(EditAnywhere, Config, Category = WeightColors)
+	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
 	FLinearColor MaxColor;
 	bool bColorModeChanged = false;
 
@@ -324,16 +325,9 @@ public:
 	// pointer back to paint tool
 	TObjectPtr<USkinWeightsPaintTool> WeightTool;
 
-	void SetBrushMode(EWeightEditOperation InBrushMode)
-	{
-		BrushMode = InBrushMode;
-
-		// sync base tool settings with the mode specific saved values
-		// these are the source of truth for the base class viewport rendering of brush
-		BrushRadius = GetBrushConfig().Radius;
-		BrushStrength = GetBrushConfig().Strength;
-		BrushFalloffAmount = GetBrushConfig().Falloff;
-	}
+	void SetFalloffMode(EWeightBrushFalloffMode InFalloffMode);
+	void SetColorMode(EWeightColorMode InColorMode);
+	void SetBrushMode(EWeightEditOperation InBrushMode);
 };
 
 // An interactive tool for painting and editing skin weights.
@@ -402,6 +396,9 @@ public:
 
 	// convert an index to a name
 	FName GetBoneNameFromIndex(BoneIndex InIndex) const;
+
+	// toggle the display of weights on the preview mesh (if false, uses the normal skeletal mesh material)
+	void SetDisplayVertexColors(bool bShowVertexColors=true) const;
 
 	// HOW TO EDIT WEIGHTS WITH UNDO/REDO:
 	//
@@ -523,9 +520,10 @@ protected:
 	TWeakObjectPtr<USkeletalMeshEditorContextObjectBase> EditorContext = nullptr;
 	UPROPERTY()
 	TWeakObjectPtr<UPersonaEditorModeManagerContext> PersonaModeManagerContext = nullptr;
-
+	
 	// editor state to restore when exiting the paint tool
 	FString PreviewProfileToRestore;
+	bool bBoneColorsToRestore;
 
 	friend SkinPaintTool::FSkinToolDeformer;
 };

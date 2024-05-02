@@ -29,6 +29,7 @@
 #include "SkeletalDebugRendering.h"
 #include "Editor/Persona/Public/IPersonaEditorModeManager.h"
 #include "Editor/Persona/Public/PersonaModule.h"
+#include "Preferences/PersonaOptions.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkinWeightsPaintTool)
 
@@ -759,16 +760,17 @@ void USkinWeightsPaintTool::Setup()
 		// Create an overlay that has no split elements, init with zero value.
 		Mesh.Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB){return true;}, 0.f);
 	});
-	UMaterialInterface* VtxColorMaterial = GetToolManager()->GetContextQueriesAPI()->GetStandardMaterial(EStandardToolContextMaterials::VertexColorMaterial);
-	if (VtxColorMaterial != nullptr)
-	{
-		PreviewMesh->SetOverrideRenderMaterial(VtxColorMaterial);
-	}
+
+	// start by displaying vertex color material
+	SetDisplayVertexColors(true);
 
 	// modify viewport render settings to optimize for painting weights
 	FPreviewProfileController PreviewProfileController;
 	PreviewProfileToRestore = PreviewProfileController.GetActiveProfile();
 	PreviewProfileController.SetActiveProfile(UDefaultEditorProfiles::EditingProfileName.ToString());
+	// turn on bone colors
+	bBoneColorsToRestore = GetDefault<UPersonaOptions>()->bShowBoneColors;
+	GetMutableDefault<UPersonaOptions>()->bShowBoneColors = true;
 
 	// build octree for vertices
 	VerticesOctree.Initialize(PreviewMesh->GetMesh(), true);
@@ -981,6 +983,32 @@ void USkinWeightsPaintTool::OnTick(float DeltaTime)
 	Weights.Deformer.UpdateVertexDeformation(this);
 }
 
+void USkinWeightsPaintToolProperties::SetFalloffMode(EWeightBrushFalloffMode InFalloffMode)
+{
+	bColorModeChanged = true;
+	GetBrushConfig().FalloffMode = InFalloffMode;
+	SaveConfig();
+}
+
+void USkinWeightsPaintToolProperties::SetColorMode(EWeightColorMode InColorMode)
+{
+	ColorMode = InColorMode;
+	bColorModeChanged = true;
+
+	WeightTool->SetDisplayVertexColors(ColorMode != EWeightColorMode::FullMaterial);
+}
+
+void USkinWeightsPaintToolProperties::SetBrushMode(EWeightEditOperation InBrushMode)
+{
+	BrushMode = InBrushMode;
+
+	// sync base tool settings with the mode specific saved values
+	// these are the source of truth for the base class viewport rendering of brush
+	BrushRadius = GetBrushConfig().Radius;
+	BrushStrength = GetBrushConfig().Strength;
+	BrushFalloffAmount = GetBrushConfig().Falloff;
+}
+
 bool USkinWeightsPaintTool::HitTest(const FRay& Ray, FHitResult& OutHit)
 {
 	// do not query the triangle octree until all async ops are finished
@@ -1180,14 +1208,14 @@ FVector4f USkinWeightsPaintTool::GetColorOfVertex(VertexIndex InVertexIndex, Bon
 {
 	switch (WeightToolProperties->ColorMode)
 	{
-	case EWeightColorMode::MinMax:
+	case EWeightColorMode::Greyscale:
 		{
 			if (InCurrentBoneIndex == INDEX_NONE)
 			{
 				return WeightToolProperties->MinColor; // with no bone selected, all vertices are drawn black
 			}
 			const float Value = Weights.GetWeightOfBoneOnVertex(InCurrentBoneIndex, InVertexIndex, Weights.CurrentWeights);
-			return FMath::Lerp(WeightToolProperties->MinColor, WeightToolProperties->MaxColor, Value);
+			return FMath::Lerp(FLinearColor::Black, FLinearColor::White, Value);
 		}
 	case EWeightColorMode::Ramp:
 		{
@@ -1230,7 +1258,7 @@ FVector4f USkinWeightsPaintTool::GetColorOfVertex(VertexIndex InVertexIndex, Bon
 			const FLinearColor& EndColor = Colors[ColorIndex+1];
 			return UE::Geometry::ToVector4<float>(FMath::Lerp(StartColor, EndColor, Param));
 		}
-	case EWeightColorMode::MultiColor:
+	case EWeightColorMode::BoneColors:
 		{
 			FVector4f Color = FVector4f::Zero();
 			const VertexWeights& VertexWeights = Weights.CurrentWeights[InVertexIndex];
@@ -1248,6 +1276,8 @@ FVector4f USkinWeightsPaintTool::GetColorOfVertex(VertexIndex InVertexIndex, Bon
 			}
 			return Color;
 		}
+	case EWeightColorMode::FullMaterial:
+		return FLinearColor::White;
 	default:
 		checkNoEntry();
 		return FLinearColor::Black;
@@ -1613,6 +1643,7 @@ void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 	// restore viewport show flags and preview settings
 	FPreviewProfileController PreviewProfileController;
 	PreviewProfileController.SetActiveProfile(PreviewProfileToRestore);
+	GetMutableDefault<UPersonaOptions>()->bShowBoneColors = bBoneColorsToRestore;
 
 	if (EditorContext.IsValid())
 	{
@@ -2185,6 +2216,19 @@ FName USkinWeightsPaintTool::GetBoneNameFromIndex(BoneIndex InIndex) const
 	}
 
 	return NAME_None;
+}
+
+void USkinWeightsPaintTool::SetDisplayVertexColors(bool bShowVertexColors) const
+{
+	if (bShowVertexColors)
+	{
+		UMaterialInterface* VtxColorMaterial = GetToolManager()->GetContextQueriesAPI()->GetStandardMaterial(EStandardToolContextMaterials::VertexColorMaterial);
+		PreviewMesh->SetOverrideRenderMaterial(VtxColorMaterial);
+	}
+	else
+	{
+		PreviewMesh->ClearOverrideRenderMaterial();
+	}
 }
 
 void USkinWeightsPaintTool::OnPropertyModified(UObject* ModifiedObject, FProperty* ModifiedProperty)
