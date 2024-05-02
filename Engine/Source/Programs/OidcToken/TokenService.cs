@@ -44,6 +44,7 @@ namespace OidcToken
 			{
 				try
 				{
+					Logger.LogDebug("OidcToken started with arguments: {@Settings}", Settings.CurrentValue);
 					await Main();
 					ExitCode = 0;
 				}

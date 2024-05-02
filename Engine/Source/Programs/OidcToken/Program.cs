@@ -14,6 +14,9 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Serilog;
+using Serilog.Events;
+using System.Runtime.InteropServices;
 
 namespace OidcToken
 {
@@ -64,6 +67,28 @@ namespace OidcToken
 			}
 
 			await Host.CreateDefaultBuilder(args)
+				.UseSerilog((context, configuration) =>
+				{
+					configuration.ReadFrom.Configuration(context.Configuration);
+					if (!options.ResultToConsole)
+					{
+						configuration.WriteTo.Console(restrictedToMinimumLevel: LogEventLevel.Information);
+					}
+
+					// configure logging output directory match expectation per platform
+					if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+					{
+						configuration.WriteTo.File(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnrealEngine\\Common\\OidcToken\\Logs\\oidc-token.log"), rollingInterval:RollingInterval.Day, restrictedToMinimumLevel: LogEventLevel.Debug, retainedFileCountLimit: 7);
+					}
+					else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+					{
+						configuration.WriteTo.File(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Epic/UnrealEngine/Common/OidcToken/Logs/oidc-token.log"), rollingInterval: RollingInterval.Day, restrictedToMinimumLevel: LogEventLevel.Debug, retainedFileCountLimit: 7);
+					}
+					else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+					{
+						configuration.WriteTo.File(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Epic/UnrealEngine/Common/OidcToken/Logs/oidc-token.log"), rollingInterval: RollingInterval.Day, restrictedToMinimumLevel: LogEventLevel.Debug, retainedFileCountLimit: 7);
+					}
+				})
 				.ConfigureAppConfiguration(builder =>
 				{
 					builder.AddConfiguration(config);
@@ -73,15 +98,6 @@ namespace OidcToken
 						Dictionary<string, string?> values = new Dictionary<string, string?>();
 						values[nameof(TokenServiceOptions.Service)] = hordeAuthConfig.ProfileName;
 						builder.AddInMemoryCollection(values);
-					}
-				})
-				.ConfigureLogging(loggingBuilder =>
-				{
-					loggingBuilder.ClearProviders();
-
-					if (!options.ResultToConsole)
-					{
-						loggingBuilder.AddConsole();
 					}
 				})
 				.ConfigureServices(
@@ -120,7 +136,7 @@ namespace OidcToken
 					services.AddOptions<OidcTokenOptions>().Bind(serviceConfig).ValidateDataAnnotations();
 
 					services.AddSingleton<OidcTokenManager>();
-					services.AddTransient<ITokenStore>(TokenStoreFactory.CreateTokenStore);
+					services.AddSingleton<ITokenStore>(TokenStoreFactory.CreateTokenStore);
 
 					services.AddHostedService<TokenService>();
 				})

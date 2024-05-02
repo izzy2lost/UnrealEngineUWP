@@ -18,6 +18,7 @@ using IdentityModel.OidcClient;
 using IdentityModel.OidcClient.Results;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 #pragma warning disable CS1591 // Missing XML documentation on public types
@@ -226,6 +227,7 @@ namespace EpicGames.OIDC
 		private readonly ProviderInfo _providerInfo;
 		private readonly TimeSpan _loginTimeout;
 		private readonly ITokenStore _tokenStore;
+		private readonly ILogger<OidcTokenClient>? _logger;
 		private readonly Uri _authorityUri;
 		private readonly string _clientId;
 		private readonly string _scopes;
@@ -237,12 +239,13 @@ namespace EpicGames.OIDC
 		private readonly List<Uri> _redirectUris;
 		private readonly string? _genericErrorInformation;
 
-		public OidcTokenClient(string name, ProviderInfo providerInfo, TimeSpan loginTimeout, ITokenStore tokenStore)
+		public OidcTokenClient(string name, ProviderInfo providerInfo, TimeSpan loginTimeout, ITokenStore tokenStore, ILogger<OidcTokenClient>? logger = null)
 		{
 			_name = name;
 			_providerInfo = providerInfo;
 			_loginTimeout = loginTimeout;
 			_tokenStore = tokenStore;
+			_logger = logger;
 
 			_authorityUri = providerInfo.ServerUri;
 			_clientId = providerInfo.ClientId;
@@ -499,8 +502,9 @@ namespace EpicGames.OIDC
 			return httpPageFailure;
 		}
 
-		private static Process? OpenBrowser(string url)
+		private Process? OpenBrowser(string url)
 		{
+			_logger?.LogDebug("Opening browser.");
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				return Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
@@ -509,6 +513,7 @@ namespace EpicGames.OIDC
 			{
 				if (IsRunningWsl())
 				{
+					_logger?.LogDebug("Running under wsl, using wslview to open browser.");
 					try
 					{
 						return Process.Start("wslview", url);

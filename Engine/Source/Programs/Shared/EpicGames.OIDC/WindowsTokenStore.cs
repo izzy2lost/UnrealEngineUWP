@@ -9,6 +9,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #pragma warning disable CS1591 // Missing XML documentation on public types
 
@@ -16,6 +18,8 @@ namespace EpicGames.OIDC
 {
 	public class WindowsTokenStore : ITokenStore, IDisposable
 	{
+		private readonly ILogger<WindowsTokenStore>? _logger = null;
+
 		private class TokenStoreState
 		{
 			public Dictionary<string, string> Providers { get; set; } = new Dictionary<string, string>();
@@ -43,6 +47,14 @@ namespace EpicGames.OIDC
 			ReadStoreFromDisk();
 		}
 
+		[ActivatorUtilitiesConstructor]
+		public WindowsTokenStore(ILogger<WindowsTokenStore> logger)
+		{
+			_logger = logger;
+
+			ReadStoreFromDisk();
+		}
+
 		private static FileInfo GetStorePath()
 		{
 			return new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnrealEngine", "Common", "OidcToken", "oidcTokenStore.dat"));
@@ -53,6 +65,7 @@ namespace EpicGames.OIDC
 			FileInfo fi = GetStorePath();
 			if (!fi.Exists)
 			{
+				_logger?.LogDebug("No existing token store found at {Path}. Assuming empty store.", fi.FullName);
 				// if we have no store on disk then we just initialize it to empty
 				return;
 			}
@@ -72,6 +85,7 @@ namespace EpicGames.OIDC
 
 			if (state == null)
 			{
+				_logger?.LogDebug("Failed to deserialize state. Dropping the existing state.");
 				// if we fail to deserialize the state just drop it, will mean users will need to login again
 				return;
 			}
@@ -142,12 +156,14 @@ namespace EpicGames.OIDC
 				{
 					// unable to decrypt the data, ignore it
 					refreshToken = "";
+					_logger?.LogDebug("Unable to decrypt refresh token. Ignoring.");
 					return false;
 				}
 				if (e.NativeErrorCode == unchecked((int)0x8009000B)) // key not valid for use in specified state
 				{
 					// unable to decrypt the data, ignore it
 					refreshToken = "";
+					_logger?.LogDebug("Unable to decrypt refresh token, key not valid for use in specified state. Ignoring.");
 					return false;
 				}
 				throw;
