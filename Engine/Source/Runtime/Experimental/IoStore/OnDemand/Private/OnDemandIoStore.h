@@ -163,6 +163,8 @@ private:
 								const FString& Url,
 								const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall);
 
+	TArray<FSharedOnDemandContainer> GetMountedContainers();
+
 	FSharedInstallCache					InstallCache;
 	FSharedPackageStoreBackend			PackageStoreBackend;
 	FDelegateHandle						OnMountPakHandle;
