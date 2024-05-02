@@ -2729,7 +2729,7 @@ protected:
 
 
 	/** Renders decals. */
-	void RenderDecals(FRHICommandList& RHICmdList, FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
+	void RenderDecals(FRHICommandList& RHICmdList, FViewInfo& View);
 	void RenderDBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, FDBufferTextures& DBufferTextures, FInstanceCullingManager& InstanceCullingManager);
 
 	/** Renders the atmospheric and height fog */
@@ -2799,6 +2799,8 @@ private:
 	FInstanceCullingDrawParams SkyPassInstanceCullingDrawParams;
 	FInstanceCullingDrawParams DebugViewModeInstanceCullingDrawParams;
 	FInstanceCullingDrawParams TranslucencyInstanceCullingDrawParams;
+	FInstanceCullingDrawParams MeshDecalSceneColorInstanceCullingDrawParams;
+	FInstanceCullingDrawParams MeshDecalSceneColorAndGBufferInstanceCullingDrawParams;
 
 	const FViewInfo* CachedView = nullptr;
 };

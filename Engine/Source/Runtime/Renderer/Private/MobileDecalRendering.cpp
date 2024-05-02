@@ -43,7 +43,7 @@ static bool DoesPlatformSupportDecals(EShaderPlatform ShaderPlatform)
 	return true;
 }
 
-void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
+void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, FViewInfo& View)
 {
 	if (!DoesPlatformSupportDecals(View.GetShaderPlatform()) || !ViewFamily.EngineShowFlags.Decals || View.bIsPlanarReflection)
 	{
@@ -67,6 +67,19 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, FViewInfo& 
 	EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType(RenderTargetMode);
 	if (View.ParallelMeshDrawCommandPasses[DecalMeshPassType].HasAnyDraw())
 	{
+		const FInstanceCullingDrawParams* InstanceCullingDrawParams = nullptr;
+		switch (DecalMeshPassType)
+		{
+		case EMeshPass::MeshDecal_SceneColor:
+			InstanceCullingDrawParams = &MeshDecalSceneColorInstanceCullingDrawParams;
+			break;
+		case EMeshPass::MeshDecal_SceneColorAndGBuffer:
+			InstanceCullingDrawParams = &MeshDecalSceneColorAndGBufferInstanceCullingDrawParams;
+			break;
+		default:
+			checkf(false, TEXT("Unexpected MeshDecal pass, please add corresponding InstanceCullingDrawParams!"))
+		};
+				
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
 		View.ParallelMeshDrawCommandPasses[DecalMeshPassType].DispatchDraw(nullptr, RHICmdList, InstanceCullingDrawParams);
 	}
