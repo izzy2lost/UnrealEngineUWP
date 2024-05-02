@@ -6,6 +6,8 @@
 #include "Misc/Attribute.h"
 #include "Math/Color.h"
 
+struct FSlateColor;
+
 /**
  * Interface to provide access to widgets that support working with style overrides.
  */

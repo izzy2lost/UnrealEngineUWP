@@ -8,6 +8,7 @@ class ICustomDetailsViewItem;
 class FText;
 class SWidget;
 enum class EDetailNodeType;
+template<typename OptionalType> struct TOptional;
 
 class ICustomDetailsViewCustomItem
 {
