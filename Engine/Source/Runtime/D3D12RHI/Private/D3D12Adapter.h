@@ -241,6 +241,18 @@ public:
 	const FD3D12RootSignature* GetRootSignature(const class FD3D12WorkGraphShader* Shader);
 	const FD3D12RootSignature* GetGlobalRayTracingRootSignature();
 
+#if USE_STATIC_ROOT_SIGNATURE
+	FORCEINLINE const FD3D12RootSignature* GetStaticGraphicsWithConstantsRootSignature() const
+	{
+		return &StaticGraphicsWithConstantsRootSignature;
+	}
+
+	FORCEINLINE const FD3D12RootSignature* GetStaticComputeWithConstantsRootSignature() const
+	{
+		return &StaticComputeWithConstantsRootSignature;
+	}
+#endif
+
 	FORCEINLINE FD3D12RootSignatureManager* GetRootSignatureManager()
 	{
 		return &RootSignatureManager;
