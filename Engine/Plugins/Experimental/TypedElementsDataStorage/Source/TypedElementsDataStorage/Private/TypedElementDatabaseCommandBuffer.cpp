@@ -170,11 +170,19 @@ void FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnsCommand(TypedElement
 
 bool FTypedElementDatabaseCommandBuffer::Execute_IsRowAvailable(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row)
 {
+	if (Row == TypedElementInvalidRowHandle)
+	{
+		return false;
+	}
 	return MassEntityManager.IsEntityValid(FMassEntityHandle::FromNumber(Row));
 }
 
 bool FTypedElementDatabaseCommandBuffer::Execute_HasRowBeenAssigned(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row)
 {
+	if (Row == TypedElementInvalidRowHandle)
+	{
+		return false;
+	}
 	return MassEntityManager.IsEntityActive(FMassEntityHandle::FromNumber(Row));
 }
 
