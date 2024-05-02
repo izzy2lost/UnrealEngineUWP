@@ -568,9 +568,14 @@ const TelemetryPanel: React.FC<{}> = observer(({ }) => {
       </Stack>;
    }
 
+
    const sparkWidth = 1100;
    const data = (currentData[0] as GetAgentTelemetrySampleResponse[]);
    const leases = ((currentData.length > 1) ? currentData[1] : []) as GetAgentLeaseResponse[];
+
+   if (!data.length) {
+      return null;
+   }
 
    const cpuData = data.map(d => {
       if (cpuKey == "user") return d.userCpu;
