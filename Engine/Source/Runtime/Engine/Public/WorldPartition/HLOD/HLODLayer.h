@@ -67,6 +67,10 @@ public:
 
 	static ENGINE_API FName GetRuntimeGridName(uint32 InLODLevel, int32 InCellSize, double InLoadingRange);
 
+	// Get name of properties
+	static const FName GetLayerTypePropertyName() { return GET_MEMBER_NAME_CHECKED(UHLODLayer, LayerType); };
+	static const FName GetHLODBuilderSettingsPropertyName() { return GET_MEMBER_NAME_CHECKED(UHLODLayer, HLODBuilderSettings); }
+
 private:
 	//~ Begin UObject Interface.
 	ENGINE_API virtual void PostLoad() override;

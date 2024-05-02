@@ -27,7 +27,8 @@ public class WorldPartitionHLODUtilities : ModuleRules
 				"MaterialUtilities",
 				"MeshDescription",
 				"MeshMergeUtilities",
-				"StaticMeshDescription"
+				"StaticMeshDescription",
+				"WorldPartitionEditor"
 			}
         );
 

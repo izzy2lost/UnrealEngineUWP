@@ -57,7 +57,7 @@ void FWorldPartitionDetails::CustomizeDetails(IDetailLayoutBuilder& InDetailBuil
 		.Visibility(TAttribute<EVisibility>::CreateLambda([this]() { return WorldPartition.IsValid() && WorldPartition->SupportsStreaming() ? EVisibility::Visible : EVisibility::Hidden; }));
 
 	// Disable world partition button
-	if (GetDefault<UWorldPartitionEditorSettings>()->bAdvancedMode)
+	if (GetDefault<UWorldPartitionEditorSettings>()->GetAdvancedMode())
 	{
 		// Default world partition settings
 		WorldPartitionCategory.AddCustomRow(LOCTEXT("DefaultWorldPartitionSettingsRow", "DefaultWorldPartitionSettings"), true)

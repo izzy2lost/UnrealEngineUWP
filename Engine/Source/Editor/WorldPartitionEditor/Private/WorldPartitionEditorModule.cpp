@@ -328,123 +328,107 @@ bool FWorldPartitionEditorModule::IsEditingContentBundle(const FGuid& ContentBun
 int32 FWorldPartitionEditorModule::GetPlacementGridSize() const
 {
 	// Currently shares setting with Foliage. Can be changed when exposed.
-	return GetDefault<UWorldPartitionEditorSettings>()->InstancedFoliageGridSize;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetInstancedFoliageGridSize();
 }
 
 int32 FWorldPartitionEditorModule::GetInstancedFoliageGridSize() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->InstancedFoliageGridSize;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetInstancedFoliageGridSize();
 }
 
 int32 FWorldPartitionEditorModule::GetMinimapLowQualityWorldUnitsPerPixelThreshold() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->MinimapLowQualityWorldUnitsPerPixelThreshold;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetMinimapLowQualityWorldUnitsPerPixelThreshold();
 }
 
 bool FWorldPartitionEditorModule::GetEnableLoadingInEditor() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor();
 }
 
 void FWorldPartitionEditorModule::SetEnableLoadingInEditor(bool bInEnableLoadingInEditor)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor = bInEnableLoadingInEditor;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetEnableLoadingInEditor(bInEnableLoadingInEditor);
 }
 
 bool FWorldPartitionEditorModule::GetEnableStreamingGenerationLogOnPIE() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bEnableStreamingGenerationLogOnPIE;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetEnableStreamingGenerationLogOnPIE();
 }
 
 void FWorldPartitionEditorModule::SetEnableStreamingGenerationLogOnPIE(bool bEnableStreamingGenerationLogOnPIE)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bEnableStreamingGenerationLogOnPIE = bEnableStreamingGenerationLogOnPIE;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetEnableStreamingGenerationLogOnPIE(bEnableStreamingGenerationLogOnPIE);
 }
 
 bool FWorldPartitionEditorModule::GetDisablePIE() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetDisablePIE();
 }
 
 void FWorldPartitionEditorModule::SetDisablePIE(bool bInDisablePIE)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bDisablePIE = bInDisablePIE;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetDisablePIE(bInDisablePIE);
 }
 
 bool FWorldPartitionEditorModule::GetDisableBugIt() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bDisableBugIt;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetDisableBugIt();
 }
 
 void FWorldPartitionEditorModule::SetDisableBugIt(bool bInDisableBugIt)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bDisableBugIt = bInDisableBugIt;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetDisableBugIt(bInDisableBugIt);
 }
 
 bool FWorldPartitionEditorModule::GetAdvancedMode() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bAdvancedMode;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetAdvancedMode();
 }
 
 void FWorldPartitionEditorModule::SetAdvancedMode(bool bInAdvancedMode)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bAdvancedMode = bInAdvancedMode;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetAdvancedMode(bInAdvancedMode);
 }
 
 bool FWorldPartitionEditorModule::GetShowHLODsInEditor() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bShowHLODsInEditor;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetShowHLODsInEditor();
 }
 
 void FWorldPartitionEditorModule::SetShowHLODsInEditor(bool bInShowHLODsInEditor)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsInEditor != bInShowHLODsInEditor)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsInEditor = bInShowHLODsInEditor;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetShowHLODsInEditor(bInShowHLODsInEditor);
 }
 
 bool FWorldPartitionEditorModule::GetShowHLODsOverLoadedRegions() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bShowHLODsOverLoadedRegions;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetShowHLODsOverLoadedRegions();
 }
 
 void FWorldPartitionEditorModule::SetShowHLODsOverLoadedRegions(bool bInShowHLODsOverLoadedRegions)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsOverLoadedRegions != bInShowHLODsOverLoadedRegions)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsOverLoadedRegions = bInShowHLODsOverLoadedRegions;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetShowHLODsOverLoadedRegions(bInShowHLODsOverLoadedRegions);
 }
 
 double FWorldPartitionEditorModule::GetHLODInEditorMinDrawDistance() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->HLODMinDrawDistance;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetHLODMinDrawDistance();
 }
 
 void FWorldPartitionEditorModule::SetHLODInEditorMinDrawDistance(double InMinDrawDistance)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMinDrawDistance != InMinDrawDistance)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMinDrawDistance = InMinDrawDistance;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetHLODMinDrawDistance(InMinDrawDistance);
 }
 
 double FWorldPartitionEditorModule::GetHLODInEditorMaxDrawDistance() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->HLODMaxDrawDistance;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetHLODMaxDrawDistance();
 }
 
 void FWorldPartitionEditorModule::SetHLODInEditorMaxDrawDistance(double InMaxDrawDistance)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMaxDrawDistance != InMaxDrawDistance)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMaxDrawDistance = InMaxDrawDistance;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetHLODMaxDrawDistance(InMaxDrawDistance);
 }
 
 bool FWorldPartitionEditorModule::IsHLODInEditorAllowed(UWorld* InWorld, FText* OutDisallowedReason) const
@@ -691,7 +675,7 @@ bool FWorldPartitionEditorModule::ConvertMap(const FString& InLongPackageName)
 	}
 
 	UWorldPartitionConvertOptions* DefaultConvertOptions = GetMutableDefault<UWorldPartitionConvertOptions>();
-	DefaultConvertOptions->CommandletClass = GetDefault<UWorldPartitionEditorSettings>()->CommandletClass;
+	DefaultConvertOptions->CommandletClass = GetDefault<UWorldPartitionEditorSettings>()->GetCommandletClass();
 	DefaultConvertOptions->bInPlace = false;
 	DefaultConvertOptions->bSkipStableGUIDValidation = false;
 	DefaultConvertOptions->LongPackageName = InLongPackageName;

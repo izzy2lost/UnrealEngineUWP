@@ -346,7 +346,7 @@ void SWorldPartitionEditorGrid2D::SToolBar::Construct(const FArguments& InArgs)
 
 EVisibility SWorldPartitionEditorGrid2D::SToolBar::IsOptionsMenuVisible() const
 {
-	if (GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE && !GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	if (GetDefault<UWorldPartitionEditorSettings>()->GetDisablePIE() && !GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor())
 	{
 		return EVisibility::Collapsed;
 	}
@@ -608,8 +608,8 @@ void SWorldPartitionEditorGrid2D::BindCommands()
 	CommandList->MapAction(Commands.BugItHere, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::BugItHere));
 
 	// Options
-	CommandList->MapAction(Commands.FollowPlayerInPIE, FExecuteAction::CreateLambda([this]() { bFollowPlayerInPIE = !bFollowPlayerInPIE; }), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() { return bFollowPlayerInPIE; }), FIsActionButtonVisible::CreateLambda([this]() { return !GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE; }));
-	CommandList->MapAction(Commands.BugItGoLoadRegion, FExecuteAction::CreateLambda([this]() { GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->SetBugItGoLoadRegion(!GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->GetBugItGoLoadRegion()); }), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() { return GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->GetBugItGoLoadRegion(); }), FIsActionButtonVisible::CreateLambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor; }));
+	CommandList->MapAction(Commands.FollowPlayerInPIE, FExecuteAction::CreateLambda([this]() { bFollowPlayerInPIE = !bFollowPlayerInPIE; }), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() { return bFollowPlayerInPIE; }), FIsActionButtonVisible::CreateLambda([this]() { return !GetDefault<UWorldPartitionEditorSettings>()->GetDisablePIE(); }));
+	CommandList->MapAction(Commands.BugItGoLoadRegion, FExecuteAction::CreateLambda([this]() { GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->SetBugItGoLoadRegion(!GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->GetBugItGoLoadRegion()); }), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() { return GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->GetBugItGoLoadRegion(); }), FIsActionButtonVisible::CreateLambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor(); }));
 
 	// Show toggles
 	CommandList->MapAction(Commands.ShowActors, FExecuteAction::CreateLambda([this]() { bShowActors = !bShowActors; InvalidateShownActorsCache(); }), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() { return bShowActors; }));
@@ -621,7 +621,7 @@ void SWorldPartitionEditorGrid2D::BindCommands()
 
 	// Quick Actions
 	CommandList->MapAction(Commands.FocusSelection, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::FocusSelection), FCanExecuteAction::CreateLambda(CanFocusSelection));
-	CommandList->MapAction(Commands.FocusLoadedRegions, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::FocusLoadedRegions), FCanExecuteAction::CreateLambda([this]() { return IsInteractive() && GetWorldPartition() && GetWorldPartition()->HasLoadedUserCreatedRegions(); }), FIsActionChecked(), FIsActionButtonVisible::CreateLambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor; }));
+	CommandList->MapAction(Commands.FocusLoadedRegions, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::FocusLoadedRegions), FCanExecuteAction::CreateLambda([this]() { return IsInteractive() && GetWorldPartition() && GetWorldPartition()->HasLoadedUserCreatedRegions(); }), FIsActionChecked(), FIsActionButtonVisible::CreateLambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor(); }));
 	CommandList->MapAction(Commands.FocusWorld, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::FocusWorld), FCanExecuteAction::CreateLambda([this]() { return IsInteractive(); }));
 }
 
@@ -637,7 +637,7 @@ bool SWorldPartitionEditorGrid2D::IsMiniMapUnloadedOpacityEnabled() const
 		return false;
 	}
 
-	if (!GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	if (!GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor())
 	{
 		return false;
 	}
@@ -915,7 +915,7 @@ TSharedRef<SWidget> SWorldPartitionEditorGrid2D::GenerateContextualMenu() const
 	const FEditorCommands& Commands = FEditorCommands::Get();
 	UToolMenu* ConxtextualMenu = UToolMenus::Get()->RegisterMenu(MenuName);
 
-	if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	if (GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor())
 	{
 		static const FName SectionSelectionName(TEXT("ContextMenu.Selection"));
 		FToolMenuSection& SectionSelection = ConxtextualMenu->AddSection(SectionSelectionName, LOCTEXT("WorldPartitionSelectionHeader", "Selection"));
@@ -933,17 +933,17 @@ TSharedRef<SWidget> SWorldPartitionEditorGrid2D::GenerateContextualMenu() const
 	FToolMenuSection& SectionMisc = ConxtextualMenu->AddSection(SectionMiscName, LOCTEXT("WorldPartitionMiscHeader", "Misc"));
 	SectionMisc.AddMenuEntry(Commands.MoveCameraHere);
 
-	if (!GetDefault<UWorldPartitionEditorSettings>()->bDisableBugIt)
+	if (!GetDefault<UWorldPartitionEditorSettings>()->GetDisableBugIt())
 	{
 		SectionMisc.AddMenuEntry(Commands.BugItHere);
 	}
 
-	if (!GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE)
+	if (!GetDefault<UWorldPartitionEditorSettings>()->GetDisablePIE())
 	{
 		SectionMisc.AddMenuEntry(Commands.PlayFromHere);
 	}
 
-	if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	if (GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor())
 	{
 		SectionMisc.AddMenuEntry(Commands.LoadFromHere);
 	}
@@ -1045,7 +1045,7 @@ FReply SWorldPartitionEditorGrid2D::OnMouseButtonDoubleClick(const FGeometry& In
 	{
 		if (InMouseEvent.IsShiftDown())
 		{
-			if (!GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE)
+			if (!GetDefault<UWorldPartitionEditorSettings>()->GetDisablePIE())
 			{
 				PlayFromHere();
 			}
@@ -1054,7 +1054,7 @@ FReply SWorldPartitionEditorGrid2D::OnMouseButtonDoubleClick(const FGeometry& In
 		{
 			MoveCameraHere();
 
-			if (InMouseEvent.IsControlDown() && GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+			if (InMouseEvent.IsControlDown() && GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor())
 			{
 				LoadFromHere();
 			}

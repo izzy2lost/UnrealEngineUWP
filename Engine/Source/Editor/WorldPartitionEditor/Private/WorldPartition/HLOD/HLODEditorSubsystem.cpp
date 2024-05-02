@@ -10,8 +10,12 @@
 #include "Subsystems/UnrealEditorSubsystem.h"
 #include "WorldPartitionEditorModule.h"
 #include "WorldPartition/HLOD/HLODEditorData.h"
+#include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionEditorSettings.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+
+#include "PropertyPermissionList.h"
 
 static TAutoConsoleVariable<bool> CVarHLODInEditorEnabled(
 	TEXT("wp.Editor.HLOD.AllowShowingHLODsInEditor"),
@@ -21,6 +25,7 @@ static TAutoConsoleVariable<bool> CVarHLODInEditorEnabled(
 #define LOCTEXT_NAMESPACE "HLODEditorSubsystem"
 
 static FName NAME_HLODRelevantColorHandler(TEXT("HLODRelevantColorHandler"));
+TMap<EHLODSettingsVisibility, UWorldPartitionHLODEditorSubsystem::FStructsPropertiesMap> UWorldPartitionHLODEditorSubsystem::StructsPropertiesVisibility;
 
 UWorldPartitionHLODEditorSubsystem::UWorldPartitionHLODEditorSubsystem()
 {
@@ -40,6 +45,11 @@ UWorldPartitionHLODEditorSubsystem::UWorldPartitionHLODEditorSubsystem()
 		});
 	}
 #endif
+
+	if (IsTemplate())
+	{
+		HLOD_ADD_CLASS_SETTING_FILTER_NAME(BasicSettings, UHLODLayer, UHLODLayer::GetHLODBuilderSettingsPropertyName());
+	}
 }
 
 UWorldPartitionHLODEditorSubsystem::~UWorldPartitionHLODEditorSubsystem()
@@ -83,16 +93,53 @@ void UWorldPartitionHLODEditorSubsystem::Initialize(FSubsystemCollectionBase& Co
 	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnWorldPartitionUninitialized);
 
 	GEngine->OnLevelActorListChanged().AddUObject(this, &UWorldPartitionHLODEditorSubsystem::ForceHLODStateUpdate);
+
+	UWorldPartitionEditorSettings::OnSettingsChanged().AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnWorldPartitionEditorSettingsChanged);
+
+	ApplyHLODSettingsFiltering();
 }
 
 void UWorldPartitionHLODEditorSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
+	UWorldPartitionEditorSettings::OnSettingsChanged().RemoveAll(this);
+
 	GEngine->OnLevelActorListChanged().RemoveAll(this);
 
 	GetWorld()->OnWorldPartitionInitialized().RemoveAll(this);
 	GetWorld()->OnWorldPartitionUninitialized().RemoveAll(this);
+}
+
+void UWorldPartitionHLODEditorSubsystem::OnWorldPartitionEditorSettingsChanged(const FName& InPropertyName, const UWorldPartitionEditorSettings& InWorldPartitionEditorSettings)
+{
+	if (InPropertyName == UWorldPartitionEditorSettings::GetEnableAdvancedHLODSettingsPropertyName())
+	{
+		ApplyHLODSettingsFiltering();
+	}
+}
+
+void UWorldPartitionHLODEditorSubsystem::ApplyHLODSettingsFiltering()
+{
+	static const FName PropertyPermissionListOwnerName = "AdvancedHLODSettingsFiltering";
+
+	FPropertyEditorPermissionList::Get().UnregisterOwner(PropertyPermissionListOwnerName);
+
+	UEnum* HLODLayerTypeEnum = StaticEnum<EHLODLayerType>();
+	if (!GetDefault<UWorldPartitionEditorSettings>()->GetEnableAdvancedHLODSettings())
+	{
+		for (const TPair<TSoftObjectPtr<UStruct>, TSet<FName>>& StructProperties : StructsPropertiesVisibility.FindOrAdd(EHLODSettingsVisibility::BasicSettings))
+		{
+			FNamePermissionList PermissionList;
+
+			for (FName PropertyName : StructProperties.Value)
+			{
+				PermissionList.AddAllowListItem(PropertyPermissionListOwnerName, PropertyName);
+			}
+
+			FPropertyEditorPermissionList::Get().AddPermissionList(StructProperties.Key, PermissionList, EPropertyPermissionListRules::UseExistingPermissionList);
+		}
+	}
 }
 
 void UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
@@ -207,6 +254,11 @@ void UWorldPartitionHLODEditorSubsystem::Tick(float DeltaTime)
 TStatId UWorldPartitionHLODEditorSubsystem::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(WorldPartitionHLODEditorSubsystem, STATGROUP_Tickables);
+}
+
+void UWorldPartitionHLODEditorSubsystem::AddHLODSettingsFilter(EHLODSettingsVisibility InSettingsVisibility, TSoftObjectPtr<UStruct> InStruct, FName InPropertyName)
+{
+	StructsPropertiesVisibility.FindOrAdd(InSettingsVisibility).FindOrAdd(InStruct).Add(InPropertyName);
 }
 
 #undef LOCTEXT_NAMESPACE
