@@ -210,7 +210,6 @@ TSharedRef< class SWidget > FMenuBuilder::MakeWidget( FMultiBox::FOnMakeMultiBox
 
 TSharedRef< class SWidget > FMenuBuilder::MakeWidget( FMultiBox::FOnMakeMultiBoxBuilderOverride* InMakeMultiBoxBuilderOverride, uint32 MaxHeight)
 {
-	// Make menu builders searchable (by default)
 	TAttribute<float> MaxHeightAttribute;
 	if (MaxHeight < INT_MAX)
 	{
