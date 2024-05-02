@@ -988,9 +988,7 @@ void UTakeRecorder::Start()
 
 	if (Sequencer.IsValid())
 	{
-		FRootInstanceHandle RootInstanceHandle = Sequencer->GetEvaluationTemplate().GetRootInstanceHandle();
-		FInstanceRegistry* InstanceRegistry = Sequencer->GetEvaluationTemplate().GetEntitySystemLinker()->GetInstanceRegistry();
-		CompileSuppression = MakeUnique<FScopedVolatilityManagerSuppression>(InstanceRegistry, RootInstanceHandle);
+		CompileSuppression = MakeUnique<FScopedVolatilityManagerSuppression>(Sequencer->GetSharedPlaybackState().ToSharedPtr());
 	}
 }
 

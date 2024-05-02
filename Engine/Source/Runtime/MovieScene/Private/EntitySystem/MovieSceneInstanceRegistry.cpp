@@ -144,16 +144,28 @@ void FInstanceRegistry::CleanupLinkerEntities(const TSet<FMovieSceneEntityID>& E
 	}
 }
 
-FScopedVolatilityManagerSuppression::FScopedVolatilityManagerSuppression(FInstanceRegistry* InInstanceRegistry, FRootInstanceHandle InRootInstanceHandle)
-	: InstanceRegistry(InInstanceRegistry)
-	, RootInstanceHandle(InRootInstanceHandle)
+FScopedVolatilityManagerSuppression::FScopedVolatilityManagerSuppression(TSharedPtr<FSharedPlaybackState> PlaybackState)
+	: WeakPlaybackState(PlaybackState)
 {
+	ensure(PlaybackState.IsValid());
+
+	FRootInstanceHandle RootInstanceHandle = PlaybackState->GetRootInstanceHandle();
+	FInstanceRegistry* InstanceRegistry = PlaybackState->GetLinker()->GetInstanceRegistry();
+
 	FSequenceInstance& Instance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	PreviousVolatilityManager = MoveTemp(Instance.VolatilityManager);
 }
 
 FScopedVolatilityManagerSuppression::~FScopedVolatilityManagerSuppression()
 {
+	if (!WeakPlaybackState.IsValid())
+	{
+		return;
+	}
+
+	FRootInstanceHandle RootInstanceHandle = WeakPlaybackState.Pin()->GetRootInstanceHandle();
+	FInstanceRegistry* InstanceRegistry = WeakPlaybackState.Pin()->GetLinker()->GetInstanceRegistry();
+
 	FSequenceInstance& Instance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	Instance.VolatilityManager = MoveTemp(PreviousVolatilityManager);
 	Instance.ConditionalRecompile();

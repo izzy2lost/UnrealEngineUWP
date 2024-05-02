@@ -9,6 +9,7 @@
 #include "Evaluation/MovieScenePlayback.h"
 #include "EntitySystem/MovieSceneSequenceInstance.h"
 #include "EntitySystem/MovieSceneComponentDebug.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "MovieSceneSequenceID.h"
 
 
@@ -134,12 +135,11 @@ private:
  */
 struct MOVIESCENE_API FScopedVolatilityManagerSuppression
 {
-	FScopedVolatilityManagerSuppression(FInstanceRegistry* InInstanceRegistry, FRootInstanceHandle InRootInstanceHandle);
+	FScopedVolatilityManagerSuppression(TSharedPtr<FSharedPlaybackState> PlaybackState);
 	~FScopedVolatilityManagerSuppression();
 
 private:
-	FInstanceRegistry* InstanceRegistry;
-	FRootInstanceHandle RootInstanceHandle;
+	TWeakPtr<FSharedPlaybackState> WeakPlaybackState;
 	TUniquePtr<FCompiledDataVolatilityManager> PreviousVolatilityManager;
 };
 
