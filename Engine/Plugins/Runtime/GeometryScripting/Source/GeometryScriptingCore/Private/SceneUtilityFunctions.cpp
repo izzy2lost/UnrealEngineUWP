@@ -50,6 +50,12 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponen
 	UGeometryScriptDebug* Debug)
 {
 	Outcome = EGeometryScriptOutcomePins::Failure;
+	
+	if (ToDynamicMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromComponent_InvalidInput", "CopyMeshFromComponent: ToDynamicMesh is Null"));
+		return ToDynamicMesh;
+	}
 
 	UE::Conversion::FToMeshOptions ToMeshOptions;
 	ToMeshOptions.bUseClosestLOD = false;
@@ -123,6 +129,12 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyCollisionMeshesF
 	UGeometryScriptDebug* Debug)
 {
 	Outcome = EGeometryScriptOutcomePins::Failure;
+
+	if (ToDynamicMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyCollisionMeshesFromObject_InvalidInput", "CopyCollisionMeshesFromObject: ToDynamicMesh is Null"));
+		return ToDynamicMesh;
+	}
 
 	FDynamicMesh3 AccumulatedMesh;
 	ToDynamicMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
