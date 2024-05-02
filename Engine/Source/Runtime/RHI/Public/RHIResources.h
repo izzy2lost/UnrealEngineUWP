@@ -3299,6 +3299,20 @@ public:
 	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const = 0;
 };
 
+enum class ERHIShaderBundleMode : uint8
+{
+	// Compute shaders
+	CS,
+
+	// Mesh and pixel shaders
+	MSPS,
+
+	// Vertex and pixel shaders
+	VSPS,
+
+	MAX
+};
+
 class FShaderBundleCreateInfo
 {
 public:
@@ -3307,6 +3321,8 @@ public:
 	uint32 NumRecords	= 0u;
 	uint32 ArgOffset	= 0u;
 	uint32 ArgStride	= 0u;
+
+	ERHIShaderBundleMode Mode = ERHIShaderBundleMode::CS;
 };
 
 class FRHIShaderBundle : public FRHIResource
@@ -3315,6 +3331,7 @@ public:
 	const uint32 NumRecords	= 0;
 	const uint32 ArgOffset	= 0;
 	const uint32 ArgStride	= 0;
+	const ERHIShaderBundleMode Mode = ERHIShaderBundleMode::CS;
 
 public:
 	FRHIShaderBundle(const FShaderBundleCreateInfo& CreateInfo)
@@ -3322,7 +3339,27 @@ public:
 	, NumRecords(CreateInfo.NumRecords)
 	, ArgOffset(CreateInfo.ArgOffset)
 	, ArgStride(CreateInfo.ArgStride)
+	, Mode(CreateInfo.Mode)
 	{
+		if (Mode == ERHIShaderBundleMode::CS)
+		{
+			// Load3
+			check(ArgStride >= 12u);
+		}
+		else if (Mode == ERHIShaderBundleMode::MSPS)
+		{
+			// Load
+			check(ArgStride >= 4u);
+		}
+		else if (Mode == ERHIShaderBundleMode::VSPS)
+		{
+			// Load4
+			check(ArgStride >= 16u);
+		}
+		else
+		{
+			checkNoEntry();
+		}
 	}
 };
 

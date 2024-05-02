@@ -9,6 +9,11 @@ class FDispatchShaderBundleCS : public FGlobalShader
 {
 	DECLARE_EXPORTED_GLOBAL_SHADER(FDispatchShaderBundleCS, RENDERCORE_API);
 
+	// TODO: Dependency issues
+	// class FBundleMode : SHADER_PERMUTATION_ENUM_CLASS("BUNDLE_MODE", ERHIShaderBundleMode);
+	class FBundleMode : SHADER_PERMUTATION_INT("BUNDLE_MODE", 3);
+	using FPermutationDomain = TShaderPermutationDomain<FBundleMode>;
+
 public:
 
 	FDispatchShaderBundleCS() = default;

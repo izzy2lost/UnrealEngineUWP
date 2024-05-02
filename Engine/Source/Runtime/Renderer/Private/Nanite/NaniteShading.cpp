@@ -464,6 +464,7 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 				CreateInfo.ArgOffset = 0u;
 				CreateInfo.ArgStride = 16u;
 				CreateInfo.NumRecords = ShadingCommands.MaxShadingBin + 1u;
+				CreateInfo.Mode = ERHIShaderBundleMode::CS;
 				ShadingCommands.ShaderBundle = RHICreateShaderBundle(CreateInfo);
 				check(ShadingCommands.ShaderBundle != nullptr);
 			}
