@@ -115,7 +115,7 @@ AActor* FDatasmithLandscapeImporter::ImportLandscapeActor( const TSharedRef< IDa
 	{
 		if(ImportLandscapeLayersList[i].LayerInfo != nullptr)
 		{
-			Landscape->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(ImportLandscapeLayersList[i].LayerInfo, ImportLandscapeLayersList[i].SourceFilePath));
+			Landscape->AddTargetLayer(ImportLandscapeLayersList[i].LayerInfo->LayerName, FLandscapeTargetLayerSettings(ImportLandscapeLayersList[i].LayerInfo, ImportLandscapeLayersList[i].SourceFilePath));
 
 			int32 LayerInfoIndex = LandscapeInfo->GetLayerInfoIndex(ImportLandscapeLayersList[i].LayerName);
 			if(ensure(LayerInfoIndex != INDEX_NONE))

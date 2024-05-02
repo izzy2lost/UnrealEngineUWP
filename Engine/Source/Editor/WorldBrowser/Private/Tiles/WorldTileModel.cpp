@@ -1053,7 +1053,7 @@ ALandscapeProxy* FWorldTileModel::ImportLandscapeTile(const FLandscapeImportSett
 
 	for (const FLandscapeImportLayerInfo& ImportLayerInfo : Settings.ImportLayers)
 	{
-		LandscapeProxy->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(ImportLayerInfo.LayerInfo, ImportLayerInfo.SourceFilePath));
+		LandscapeProxy->AddTargetLayer(ImportLayerInfo.LayerInfo->LayerName, FLandscapeTargetLayerSettings(ImportLayerInfo.LayerInfo, ImportLayerInfo.SourceFilePath));
 	}
 
 	return LandscapeProxy;

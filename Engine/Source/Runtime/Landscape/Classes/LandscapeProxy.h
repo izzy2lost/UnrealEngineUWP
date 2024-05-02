@@ -74,7 +74,34 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLandscapeProxyComponentDataChanged, ALan
 // ----------------------------------------------------------------------------------
 
 USTRUCT()
-struct FLandscapeEditorLayerSettings
+struct FLandscapeTargetLayerSettings
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(Category = "General", EditAnywhere)
+	TObjectPtr<ULandscapeLayerInfoObject> LayerInfoObj;
+	
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FString ReimportLayerFilePath;
+
+	FLandscapeTargetLayerSettings() = default;
+
+	explicit FLandscapeTargetLayerSettings(ULandscapeLayerInfoObject* InLayerInfo, const FString& InFilePath = FString())
+		: LayerInfoObj(InLayerInfo)
+		, ReimportLayerFilePath(InFilePath)
+	{
+	}
+
+	bool operator==(const FLandscapeTargetLayerSettings& Other) const
+    {
+    	return LayerInfoObj == Other.LayerInfoObj;
+    }
+#endif // WITH_EDITORONLY_DATA
+};
+
+USTRUCT()
+struct UE_DEPRECATED(5.5, "FLandscapeEditorLayerSettings is deprecated; please use FLandscapeTargetLayerSettings instead")  FLandscapeEditorLayerSettings
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -442,6 +469,10 @@ protected:
 	bool bDisableRuntimeGrassMapGeneration = false;
 
 public:
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	bool bInitWeightLayersFromMaterial;
+#endif //WITH_EDITORONLY_DATA
 	/** Offset in quads from global components grid origin (in quads) **/
 	UPROPERTY()
 	FIntPoint LandscapeSectionOffset;
@@ -804,9 +835,12 @@ public:
 	UPROPERTY()
 	FGuid ReimportDestinationLayerGuid;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "TargetLayers will be used instead")
 	UPROPERTY()
-	TArray<FLandscapeEditorLayerSettings> EditorLayerSettings;
-
+	TArray<FLandscapeEditorLayerSettings> EditorLayerSettings_DEPRECATED;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
 	TMap<UTexture2D*, FLandscapeEditLayerReadback*> HeightmapsCPUReadback;
 	TMap<UTexture2D*, FLandscapeEditLayerReadback*> WeightmapsCPUReadback;
 
@@ -1001,6 +1035,9 @@ public:
 	static constexpr int32 NaniteComponentMaxSide = 8;
 	static constexpr int32 NaniteMaxComponents = NaniteComponentMaxSide * NaniteComponentMaxSide;
 	int32 NumNaniteRequiredComponents() const { return FMath::DivideAndRoundUp(LandscapeComponents.Num(), NaniteMaxComponents); }
+
+	UE_DEPRECATED(5.5, "This version of HasLayer is deprecated.  Use HasTargetLayer(ULandscapeLayerInfoObject* LayerInfoObject) instead.")
+	bool HasLayer(ULandscapeLayerInfoObject* LayerInfoObject) const;
 #endif	//WITH_EDITOR
 
 	bool AreNaniteComponentsValid(const FGuid& InProxyContentId) const;
@@ -1235,6 +1272,12 @@ public:
 
 	LANDSCAPE_API static const TArray<FName>& GetLayersFromMaterial(UMaterialInterface* Material);
 	LANDSCAPE_API const TArray<FName>& GetLayersFromMaterial() const;
+
+	// Get all Layer names used by the materials assigned the proxy and components ( Proxy Material, Component, Component LOD Material and Hole Material)
+	LANDSCAPE_API TArray<FName> RetrieveAllLayerNamesFromMaterials() const;
+	
+	// Query all the LandscapeLayerInfo Objects from the weight layers allocated on this proxy.
+	LANDSCAPE_API TMap<FName, ULandscapeLayerInfoObject*> RetrieveAllocationInfos() const;
 
 	/**
 	* Creates a new LandscapeLayerInfoObject
@@ -1482,7 +1525,33 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Landscape")
 	LANDSCAPE_API virtual void DeleteUnusedLayers();
+	
+	// TargetLayer API Start
+	// ---------------------
+	
+	// Add a TargetLayer with a unique name and no layer object info
+	LANDSCAPE_API FLandscapeTargetLayerSettings& AddTargetLayer();
 
+	// Add a named TargetLayer 
+	LANDSCAPE_API FLandscapeTargetLayerSettings& AddTargetLayer(const FName& Name, const FLandscapeTargetLayerSettings& TargetLayerSettings, bool bPostEditChange = true);
+
+	// Update a existing Target Layer
+	LANDSCAPE_API bool UpdateTargetLayer(const FName& Name, const FLandscapeTargetLayerSettings& TargetLayerSettings, bool bPostEditChange = true);
+
+	// Remove Named TargetLayer,
+	// Returns true if a layer has been removed.
+	LANDSCAPE_API bool RemoveTargetLayer(const FName& Name, bool bPostEditChange = true);
+
+	// Query if a TargetLayer exists by Name or by checking the ULandscapeLayerInfoObject in  TargetLayerSettings
+	LANDSCAPE_API bool HasTargetLayer(const FName& Name) const;
+	LANDSCAPE_API bool HasTargetLayer(const FLandscapeTargetLayerSettings& TargetLayerSettings) const;
+	LANDSCAPE_API bool HasTargetLayer(const ULandscapeLayerInfoObject* LayerInfoObject) const;
+
+	// All the Target layers 
+	LANDSCAPE_API const TMap<FName, FLandscapeTargetLayerSettings>& GetTargetLayers() const;
+
+	// TargetLayer API End
+	// -------------------
 protected:
 	friend class ALandscape;
 
@@ -1520,7 +1589,10 @@ protected:
 	bool bUpgradeSharedPropertiesPerformed = false;
 #endif // WITH_EDITOR
 private:
-
+	
+	UPROPERTY(Category = "Target Layers", VisibleAnywhere, meta = (NoResetToDefault, LandscapeInherited) )
+	TMap<FName, FLandscapeTargetLayerSettings> TargetLayers;
+	
 	/** Returns Grass Update interval */
 	FORCEINLINE int32 GetGrassUpdateInterval() const 
 	{

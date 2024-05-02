@@ -18,6 +18,8 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
 #include "LandscapeEditorModule.h"
@@ -30,19 +32,18 @@
 #include "DetailCategoryBuilder.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 #include "SLandscapeEditor.h"
 #include "Dialogs/DlgPickAssetPath.h"
 #include "ObjectTools.h"
 #include "ScopedTransaction.h"
 #include "DesktopPlatformModule.h"
-#include "AssetRegistry/AssetRegistryModule.h"
 
 #include "LandscapeRender.h"
-#include "Materials/MaterialExpressionLandscapeVisibilityMask.h"
 #include "LandscapeEdit.h"
-#include "IDetailGroup.h"
-#include "Widgets/SBoxPanel.h"
+#include "Landscape.h"
+#include "LandscapeEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "LandscapeEditor.TargetLayers"
 
@@ -282,9 +283,96 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 					]
 				]
 			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
+				PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateRaw(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayer), NSLOCTEXT("Landscape", "CreateLayer", "Create Layer"))
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(SButton)
+				.ButtonStyle( FAppStyle::Get(), "SimpleButton" )
+				.ToolTipText(NSLOCTEXT("Landscape", "CreateLayersFromMaterials", "Create Layers From Assigned Materials"))
+				.OnClicked(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMaterials)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("LandscapeEditor.Layer.Sync"))
+				]
+			]
 		];
 	}
 	NodeRow.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })));
+}
+
+
+
+FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMaterials()
+{
+	FScopedTransaction Transaction(LOCTEXT("LandscapeWeightLayer_CreateFromMaterials", "Create Weight Layers from Assigned materials"));
+	
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode(); 
+	if (LandscapeEdMode == NULL)
+	{
+		return FReply::Handled(); 
+	}
+	
+	ALandscape* LandscapeActor = LandscapeEdMode->CurrentToolTarget.LandscapeInfo->LandscapeActor.Get();
+	
+	TSet<FName> LayerNames;
+	LandscapeActor->GetLandscapeInfo()->ForEachLandscapeProxy([&LayerNames](ALandscapeProxy* Proxy)
+	{
+		LayerNames.Append(Proxy->RetrieveAllLayerNamesFromMaterials());
+		return true;
+	});
+
+	UE::Landscape::FLayerInfoFinder LayerInfoFinder;
+	for (const FName& LayerName : LayerNames)
+	{
+		if (!LandscapeActor->GetTargetLayers().Find(LayerName))
+		{
+			ULandscapeLayerInfoObject* LandscapeLayerInfo = LayerInfoFinder.Find(LayerName);
+			LandscapeActor->AddTargetLayer(LayerName, FLandscapeTargetLayerSettings(LandscapeLayerInfo));
+		}
+	}
+	
+	LandscapeEdMode->GetLandscape()->GetLandscapeInfo()->UpdateLayerInfoMap();
+	if (LandscapeEdMode)
+	{
+		LandscapeEdMode->UpdateTargetList();
+	}
+
+	return FReply::Handled();
+}
+
+void FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayer()
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode == NULL)
+	{
+		return; 
+	}
+	
+	TWeakObjectPtr<ALandscape> Landscape = LandscapeEdMode->CurrentToolTarget.LandscapeInfo->LandscapeActor;
+
+	if (!Landscape.Get())
+	{
+		return; 
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("LandscapeWeightLayer_Create", "Create a Weight Layer"));
+	
+	Landscape->AddTargetLayer();
+	
+	LandscapeEdMode->CurrentToolTarget.LandscapeInfo->UpdateLayerInfoMap();
+	LandscapeEdMode->UpdateTargetList();
+	LandscapeEdMode->RefreshDetailPanel();
 }
 
 TSharedRef<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLayerDisplayOrderButtonMenuContent()
@@ -416,6 +504,8 @@ const FSlateBrush* FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLaye
 		{
 			case ELandscapeLayerDisplayMode::Alphabetical: return FAppStyle::Get().GetBrush("LandscapeEditor.Target_DisplayOrder.Alphabetical");
 			case ELandscapeLayerDisplayMode::UserSpecific: return FAppStyle::Get().GetBrush("LandscapeEditor.Target_DisplayOrder.Custom");
+			default:
+				return nullptr;
 		}
 	}
 
@@ -537,7 +627,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 							[
 								SNew(STextBlock)
 									.Font(IDetailLayoutBuilder::GetDetailFont())
-									.Text(Target->TargetName)
+									.Text(Target->TargetLayerDisplayName)
 									.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
 							]
 					]
@@ -620,15 +710,40 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 							+ SVerticalBox::Slot()
 							.AutoHeight()
 							.VAlign(VAlign_Center)
-							.Padding(0, 2, 0, 0)
+							.Padding(4, 3, 0, 3)
 							[
 								SNew(SHorizontalBox)
 									+ SHorizontalBox::Slot()
 									[
-										SNew(STextBlock)
-											.Font(IDetailLayoutBuilder::GetDetailFont())
-											.Text(Target->TargetName)
+										SNew(SInlineEditableTextBlock)
+											.Font(IDetailLayoutBuilder::GetDetailFontBold())
+											.Text(Target->TargetLayerDisplayName)
 											.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
+											.OnTextCommitted_Lambda([Target]( const FText& Text, ETextCommit::Type Type)
+											{
+												FScopedTransaction Transaction(LOCTEXT("LandscapeWeightLayer_Rename", "Rename Weight Layer"));
+												ALandscape* Landscape = Cast<ALandscape>(Target->Owner);
+												
+												const TMap<FName, FLandscapeTargetLayerSettings>& TargetLayers = Landscape->GetTargetLayers();
+												const FLandscapeTargetLayerSettings* LayerSettings = nullptr;
+												
+												if (Target->LayerName == FName(Text.ToString()))
+												{
+													LayerSettings = TargetLayers.Find(FName(Target->TargetLayerDisplayName.ToString()));	
+												}
+												
+												Landscape->RemoveTargetLayer(FName(Target->TargetLayerDisplayName.ToString()));
+											
+												Target->TargetLayerDisplayName = Text;
+												Target->LayerName = FName(Text.ToString());
+												Landscape->AddTargetLayer(Target->LayerName, LayerSettings ? *LayerSettings : FLandscapeTargetLayerSettings());	
+												
+												Target->LandscapeInfo->UpdateLayerInfoMap();
+												if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
+												{
+													LandscapeEdMode->UpdateTargetList();
+												}
+											})
 									]
 									+ SHorizontalBox::Slot()
 									.HAlign(HAlign_Right)
@@ -705,7 +820,6 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 											.ForegroundColor(FSlateColor::UseForeground())
 											.IsFocusable(false)
 											.ToolTipText(LOCTEXT("Tooltip_Delete", "Delete Layer"))
-											.Visibility_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLayerDeleteVisibility, Target)
 											.OnClicked_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerDeleteClicked, Target)
 											[
 												SNew(SImage)
@@ -1196,7 +1310,10 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 		if (ensure(SelectedLayerInfo->LayerName == Target->GetLayerName()))
 		{
 			ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
-			LandscapeInfo->Modify();
+			ALandscape* LandscapeActor = LandscapeInfo->LandscapeActor.Get();
+			
+			LandscapeActor->AddTargetLayer(Target->LayerName, FLandscapeTargetLayerSettings(SelectedLayerInfo));
+			
 			if (Target->LayerInfoObj.IsValid())
 			{
 				int32 Index = LandscapeInfo->GetLayerInfoIndex(Target->LayerInfoObj.Get(), Target->Owner.Get());
@@ -1217,7 +1334,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 					FLandscapeInfoLayerSettings& LayerSettings = LandscapeInfo->Layers[Index];
 					LayerSettings.LayerInfoObj = SelectedLayerInfo;
 
-					Target->LandscapeInfo->CreateLayerEditorSettingsFor(SelectedLayerInfo);
+					Target->LandscapeInfo->CreateTargetLayerSettingsFor(SelectedLayerInfo);
 				}
 			}
 						
@@ -1344,7 +1461,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerCreateClicked(
 			}
 
 			Target->LayerInfoObj = LayerInfo;
-			Target->LandscapeInfo->CreateLayerEditorSettingsFor(LayerInfo);
+			Target->LandscapeInfo->CreateTargetLayerSettingsFor(LayerInfo);
 
 			// Notify the asset registry
 			FAssetRegistryModule::AssetCreated(LayerInfo);
@@ -1356,10 +1473,16 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerCreateClicked(
 			TArray<UObject*> Objects;
 			Objects.Add(LayerInfo);
 			GEditor->SyncBrowserToObjects(Objects);
-			
-			LandscapeEdMode->TargetsListUpdated.Broadcast();
+
+			ALandscape* LandscapeActor = Target->LandscapeInfo->LandscapeActor.Get();
+			LandscapeActor->UpdateTargetLayer(FName(LayerName), FLandscapeTargetLayerSettings(LayerInfo));
 
 			FillEmptyLayers(LandscapeInfo, LayerInfo);
+
+			if (FEdModeLandscape* Mode = (FEdModeLandscape*)GLevelEditorModeTools().GetActiveMode(FBuiltinEditorModes::EM_Landscape))
+			{
+				Mode->UpdateTargetList();
+			}
 		}
 	}
 }
@@ -1374,10 +1497,10 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerMakePublicCl
 	bool bSucceed = ObjectTools::RenameObjects(Objects, false, TEXT(""), Path);
 	if (bSucceed)
 	{
-		FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-		if (LandscapeEdMode)
+		FEdModeLandscape* Mode = (FEdModeLandscape*)GLevelEditorModeTools().GetActiveMode(FBuiltinEditorModes::EM_Landscape);
+		if (Mode)
 		{
-			LandscapeEdMode->UpdateTargetList();
+			Mode->UpdateTargetList();
 		}
 	}
 	else
@@ -1516,8 +1639,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnDebugModeColorChannelChan
 				}
 				LandscapeInfo->UpdateDebugColorMaterial();
 
-				FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-				if (LandscapeEdMode)
+				if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
 				{
 					LandscapeEdMode->UpdateTargetList();
 				}

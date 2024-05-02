@@ -105,6 +105,8 @@ protected:
 	TOptional<SDragAndDropVerticalBox::EItemDropZone> HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, SDragAndDropVerticalBox::EItemDropZone DropZone, SVerticalBox::FSlot* Slot);
 	FReply HandleAcceptDrop(FDragDropEvent const& DragDropEvent, SDragAndDropVerticalBox::EItemDropZone DropZone, int32 SlotIndex, SVerticalBox::FSlot* Slot);
 
+	FReply HandleCreateLayersFromMaterials();
+	void HandleCreateLayer();
 	const FSlateBrush* GetTargetLayerDisplayOrderBrush() const;
 	TSharedRef<SWidget> GetTargetLayerDisplayOrderButtonMenuContent();
 	void SetSelectedDisplayOrder(ELandscapeLayerDisplayMode InDisplayOrder);

@@ -2271,16 +2271,6 @@ const TArray<FLandscapeListInfo>& FEdModeLandscape::GetLandscapeList()
 	return LandscapeList;
 }
 
-void FEdModeLandscape::AddLayerInfo(ULandscapeLayerInfoObject* LayerInfo)
-{
-	if (CurrentToolTarget.LandscapeInfo.IsValid() && CurrentToolTarget.LandscapeInfo->GetLayerInfoIndex(LayerInfo) == INDEX_NONE)
-	{
-		ALandscapeProxy* Proxy = CurrentToolTarget.LandscapeInfo->GetLandscapeProxy();
-		CurrentToolTarget.LandscapeInfo->Layers.Add(FLandscapeInfoLayerSettings(LayerInfo, Proxy));
-		UpdateTargetList();
-	}
-}
-
 int32 FEdModeLandscape::UpdateLandscapeList()
 {
 	LandscapeList.Empty();
@@ -3716,7 +3706,10 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 				NewLandscape->BodyInstance.SetObjectType(OldLandscape->BodyInstance.GetObjectType());
 				NewLandscape->BodyInstance.SetResponseToChannels(OldLandscape->BodyInstance.GetResponseToChannels());
 			}
-			NewLandscape->EditorLayerSettings = OldLandscape->EditorLayerSettings;
+			for (const TTuple<FName, FLandscapeTargetLayerSettings>& Layer : OldLandscape->GetTargetLayers())
+			{
+				NewLandscape->AddTargetLayer(Layer.Key, Layer.Value);
+			}
 			NewLandscape->bUsedForNavigation = OldLandscape->bUsedForNavigation;
 			NewLandscape->MaxPaintedLayersPerComponent = OldLandscape->MaxPaintedLayersPerComponent;
 

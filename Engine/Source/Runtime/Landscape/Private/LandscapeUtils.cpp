@@ -12,6 +12,7 @@
 #include "Engine/Texture2D.h"
 #include "LandscapeComponent.h"
 #include "ObjectTools.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #endif
 
 // Channel remapping
@@ -283,6 +284,30 @@ bool UseWeightmapTextureArray(EShaderPlatform InPlatform)
 	return IsMobilePlatform(InPlatform) && (LandscapeMobileWeightTextureArray != 0);	
 }
 
+FLayerInfoFinder::FLayerInfoFinder()
+{
+	const UClass* AssetClass = ULandscapeLayerInfoObject::StaticClass();
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	FARFilter Filter;
+	FName PackageName = *AssetClass->GetPackage()->GetName();
+	FName AssetName = AssetClass->GetFName();
+											
+	Filter.ClassPaths.Add(FTopLevelAssetPath(PackageName,AssetName));
+	AssetRegistryModule.Get().GetAssets(Filter, LayerInfoAssets);
+}
+
+ULandscapeLayerInfoObject* FLayerInfoFinder::Find(const FName& LayerName) const
+{
+	for (const FAssetData& LayerInfoAsset : LayerInfoAssets)
+	{
+		ULandscapeLayerInfoObject* LayerInfo = CastChecked<ULandscapeLayerInfoObject>(LayerInfoAsset.GetAsset());
+		if (LayerInfo && LayerInfo->LayerName == LayerName)
+		{
+			return LayerInfo;
+		}
+	}
+	return nullptr;
+}
 #endif //!WITH_EDITOR
 
 } // end namespace UE::Landscape

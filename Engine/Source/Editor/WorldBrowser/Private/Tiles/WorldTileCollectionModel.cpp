@@ -1638,7 +1638,7 @@ void FWorldTileCollectionModel::ImportTiledLandscape_Executed()
 			Landscape->SetLandscapeGuid(LandscapeGuid);
 			for (const auto& ImportLayerInfo : ImportLayers)
 			{
-				Landscape->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(ImportLayerInfo.LayerInfo));
+				Landscape->AddTargetLayer(ImportLayerInfo.LayerName, FLandscapeTargetLayerSettings(ImportLayerInfo.LayerInfo));
 			}
 			Landscape->CreateLandscapeInfo();
 		}
@@ -1785,8 +1785,9 @@ void FWorldTileCollectionModel::ReimportTiledLandscape_Executed(FName TargetLaye
 		}
 		else // Weightmap
 		{
-			for (FLandscapeEditorLayerSettings& LayerSettings : Landscape->EditorLayerSettings)
+			for (const TPair<FName, FLandscapeTargetLayerSettings>& Pair : Landscape->GetTargetLayers())
 			{
+				const FLandscapeTargetLayerSettings& LayerSettings = Pair.Value;
 				if (LayerSettings.LayerInfoObj && (LayerSettings.LayerInfoObj->LayerName == TargetLayer || TargetLayer == NAME_None))
 				{
 					if (!LayerSettings.ReimportLayerFilePath.IsEmpty())

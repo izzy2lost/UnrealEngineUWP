@@ -8,6 +8,7 @@
 #include "RHIDefinitions.h"
 #endif
 #include "UObject/NameTypes.h"
+#include "AssetRegistry/AssetData.h"
 
 class ULevel;
 enum EShaderPlatform : uint16;
@@ -111,7 +112,15 @@ bool UseWeightmapTextureArray(EShaderPlatform InPlatform);
 
 /** Check if Landscape.MobileWeightTextureArray CVar set and we should attempt to use texture arrays for weight maps on mobile platforms  */
 bool IsMobileWeightmapTextureArrayEnabled();
-	
+
+struct FLayerInfoFinder
+{
+	LANDSCAPE_API FLayerInfoFinder();
+	LANDSCAPE_API ~FLayerInfoFinder() = default;
+	LANDSCAPE_API ULandscapeLayerInfoObject* Find(const FName& LayerName) const;
+	TArray<FAssetData> LayerInfoAssets;
+};
+
 #endif //!WITH_EDITOR
 
 } // end namespace UE::Landscape

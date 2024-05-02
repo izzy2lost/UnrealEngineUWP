@@ -25,6 +25,7 @@ class ULandscapeLayerInfoObject;
 class ULevel;
 class UMaterialInstanceConstant;
 struct FLandscapeEditorLayerSettings;
+struct FLandscapeTargetLayerSettings;
 class ULandscapeSplinesComponent;
 class ULandscapeSplineControlPoint;
 class ULandscapeSplineSegment;
@@ -114,7 +115,13 @@ struct FLandscapeInfoLayerSettings
 	LANDSCAPE_API FName GetLayerName() const;
 
 #if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS	
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use the GetTargetLayerSettings instead")
 	LANDSCAPE_API FLandscapeEditorLayerSettings& GetEditorSettings() const;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+	LANDSCAPE_API const FLandscapeTargetLayerSettings& GetTargetLayerSettings() const;
+
 #endif
 };
 
@@ -240,14 +247,20 @@ public:
 	LANDSCAPE_API void UpdateAllAddCollisions();
 	LANDSCAPE_API void UpdateAddCollision(FIntPoint LandscapeKey);
 
-	LANDSCAPE_API FLandscapeEditorLayerSettings& GetLayerEditorSettings(ULandscapeLayerInfoObject* LayerInfo) const;
-	LANDSCAPE_API void CreateLayerEditorSettingsFor(ULandscapeLayerInfoObject* LayerInfo);
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use the GetTargetLayerSettings(ULandscapeLayerInfoObject* LayerInfo) instead")
+	LANDSCAPE_API FLandscapeTargetLayerSettings& GetLayerEditorSettings(ULandscapeLayerInfoObject* LayerInfo) const;
+	
+	LANDSCAPE_API const FLandscapeTargetLayerSettings& GetTargetLayerSettings(ULandscapeLayerInfoObject* LayerInfo) const;
+
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use the CreateTargetLayerSettingsFor instead")
+	LANDSCAPE_API void CreateLayerEditorSettingsFor(ULandscapeLayerInfoObject* LayerInfo) {}
+	
+	LANDSCAPE_API void CreateTargetLayerSettingsFor(ULandscapeLayerInfoObject* LayerInfo);
 
 	LANDSCAPE_API ULandscapeLayerInfoObject* GetLayerInfoByName(FName LayerName, ALandscapeProxy* Owner = nullptr) const;
 	LANDSCAPE_API int32 GetLayerInfoIndex(FName LayerName, ALandscapeProxy* Owner = nullptr) const;
 	LANDSCAPE_API int32 GetLayerInfoIndex(ULandscapeLayerInfoObject* LayerInfo, ALandscapeProxy* Owner = nullptr) const;
 	LANDSCAPE_API bool UpdateLayerInfoMap(ALandscapeProxy* Proxy = nullptr, bool bInvalidate = false);
-
 
 	LANDSCAPE_API bool CanDeleteLandscape(FText& OutReason) const;
 
@@ -445,7 +458,7 @@ private:
 	bool ApplySplinesInternal(bool bOnlySelected, TScriptInterface<ILandscapeSplineInterface> SplineOwner, TSet<TObjectPtr<ULandscapeComponent>>* OutModifiedComponents, bool bMarkPackageDirty, int32 LandscapeMinX, int32 LandscapeMinY, int32 LandscapeMaxX, int32 LandscapeMaxY, TFunctionRef<TSharedPtr<FModulateAlpha>(ULandscapeLayerInfoObject*)> GetOrCreateModulate);
 	void MoveSegment(ULandscapeSplineSegment* InSegment, TScriptInterface<ILandscapeSplineInterface> From, TScriptInterface<ILandscapeSplineInterface> To);
 	void MoveControlPoint(ULandscapeSplineControlPoint* InControlPoint, TScriptInterface<ILandscapeSplineInterface> From, TScriptInterface<ILandscapeSplineInterface> To);
-	bool UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy, bool bInvalidate);
+	void UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy);
 	bool TryAddToModifiedPackages(UPackage* InPackage, const ALandscape* InLandscapeOverride = nullptr);
 #endif
 };

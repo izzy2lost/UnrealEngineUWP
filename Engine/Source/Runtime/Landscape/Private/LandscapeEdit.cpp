@@ -90,6 +90,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "Misc/TransactionObjectEvent.h"
 #endif
 #include "Algo/Compare.h"
+#include "LandscapeProxy.h"
 #include "Algo/Count.h"
 #include "Algo/Transform.h"
 #include "Algo/ForEach.h"
@@ -1117,6 +1118,7 @@ void ULandscapeComponent::FixupWeightmaps(const FGuid& InEditLayerGuid)
 	{
 		ULandscapeInfo* Info = GetLandscapeInfo();
 		ALandscapeProxy* Proxy = GetLandscapeProxy();
+		ALandscape* Landscape = Proxy->GetLandscapeActor();
 
 		TArray<TObjectPtr<UTexture2D>>& LocalWeightmapTextures = GetWeightmapTextures(InEditLayerGuid);
 		TArray<TObjectPtr<ULandscapeWeightmapUsage>>& LocalWeightmapTextureUsages = GetWeightmapTexturesUsage(InEditLayerGuid);
@@ -1145,14 +1147,16 @@ void ULandscapeComponent::FixupWeightmaps(const FGuid& InEditLayerGuid)
 			for (const auto& Allocation : LocalWeightmapLayerAllocations)
 			{
 				if (!Allocation.LayerInfo
-					|| (Allocation.LayerInfo != ALandscapeProxy::VisibilityLayer && Info->GetLayerInfoIndex(Allocation.LayerInfo) == INDEX_NONE))
+					|| (Allocation.LayerInfo != ALandscapeProxy::VisibilityLayer && Proxy && !Landscape->HasTargetLayer(Allocation.LayerInfo->LayerName)))
 				{
 					if (!bFixedLayerDeletion)
 					{
 						FFormatNamedArguments Arguments;
 						Arguments.Add(TEXT("LandscapeName"), FText::FromString(GetPathName()));
+						Arguments.Add(TEXT("TargetLayerName"), FText::FromString(Allocation.LayerInfo->LayerName.ToString()));
+						Arguments.Add(TEXT("EditLayerName"), FText::FromString(InEditLayerGuid.IsValid() ? LayersData[InEditLayerGuid].DebugName.ToString() : FString(TEXT("unknown"))));
 						FMessageLog("MapCheck").Warning()
-							->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_FixedUpDeletedLayerWeightmap", "{LandscapeName} : Fixed up deleted layer weightmap"), Arguments)))
+							->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_FixedUpDeletedLayerWeightmap", "{LandscapeName} : Fixed up deleted layer weightmap Edit Layer: '{EditLayerName}' Target Layer: '{TargetLayerName}'"), Arguments)))
 							->AddToken(FMapErrorToken::Create(FMapErrors::FixedUpDeletedLayerWeightmap));
 					}
 
@@ -1160,7 +1164,7 @@ void ULandscapeComponent::FixupWeightmaps(const FGuid& InEditLayerGuid)
 					LayersToDelete.Add(Allocation.LayerInfo);
 				}
 			}
-
+			
 			if (bFixedLayerDeletion)
 			{
 				// Delete material layer in the base/render layer
@@ -2972,6 +2976,50 @@ const TArray<FName>& ALandscapeProxy::GetLayersFromMaterial(UMaterialInterface* 
 const TArray<FName>& ALandscapeProxy::GetLayersFromMaterial() const
 {
 	return GetLayersFromMaterial(LandscapeMaterial);
+}
+
+TArray<FName> ALandscapeProxy::RetrieveAllLayerNamesFromMaterials() const
+{
+	TSet<FName> LayerNames;
+	LayerNames.Append(GetLayersFromMaterial());
+
+	for (int32 ComponentIndex = 0; ComponentIndex < LandscapeComponents.Num(); ComponentIndex++)
+	{
+		const ULandscapeComponent* Component = LandscapeComponents[ComponentIndex];
+
+		// Add layers from per-component override materials
+		if ((Component != nullptr) && (Component->OverrideMaterial != nullptr))
+		{
+			LayerNames.Append(GetLayersFromMaterial(Component->OverrideMaterial));
+
+			// Hole Override material
+			LayerNames.Append(GetLayersFromMaterial( Component->OverrideHoleMaterial));
+				
+			// LOD Materials
+			for(const FLandscapePerLODMaterialOverride& OverrideMaterial : Component->GetPerLODOverrideMaterials())
+			{
+				LayerNames.Append(GetLayersFromMaterial(OverrideMaterial.Material));	
+			}
+		}
+	}
+	return LayerNames.Array();
+}
+
+TMap<FName, ULandscapeLayerInfoObject*> ALandscapeProxy::RetrieveAllocationInfos() const
+{
+	TMap<FName, ULandscapeLayerInfoObject*> InfoObjects;
+	for (const TObjectPtr<ULandscapeComponent>& Component : LandscapeComponents)
+	{
+		for (const FWeightmapLayerAllocationInfo& Allocation : Component->GetWeightmapLayerAllocations())
+		{
+			if (Allocation.LayerInfo)
+			{
+				InfoObjects.Add(Allocation.GetLayerName(), Allocation.LayerInfo);
+			}
+		}
+	}
+	
+	return InfoObjects;
 }
 
 ULandscapeLayerInfoObject* ALandscapeProxy::CreateLayerInfo(const TCHAR* InLayerName, const ULevel* InLevel, const ULandscapeLayerInfoObject* InTemplate)
@@ -4848,31 +4896,25 @@ void ULandscapeInfo::DeleteLayer(ULandscapeLayerInfoObject* LayerInfo, const FNa
 {
 	GWarn->BeginSlowTask(LOCTEXT("BeginDeletingLayerTask", "Deleting Layer"), true);
 
-	// Remove data from all components
-	FLandscapeEditDataInterface LandscapeEdit(this);
-	LandscapeEdit.DeleteLayer(LayerInfo);
-
+	LandscapeActor->Modify();
 	// Remove from layer settings array
 	{
 		int32 LayerIndex = Layers.IndexOfByPredicate([LayerInfo, LayerName](const FLandscapeInfoLayerSettings& LayerSettings) { return LayerSettings.LayerInfoObj == LayerInfo && LayerSettings.LayerName == LayerName; });
 		if (LayerIndex != INDEX_NONE)
 		{
 			Layers.RemoveAt(LayerIndex);
+			LandscapeActor->RemoveTargetLayer(LayerName);
 		}
 	}
-
-	ForEachLandscapeProxy([LayerInfo](ALandscapeProxy* Proxy)
-	{
-		Proxy->Modify();
-		int32 Index = Proxy->EditorLayerSettings.IndexOfByKey(LayerInfo);
-		if (Index != INDEX_NONE)
-		{
-			Proxy->EditorLayerSettings.RemoveAt(Index);
-		}
-		return true;
-	});
-
-	//UpdateLayerInfoMap();
+	
+	LandscapeActor->RemoveTargetLayer(LayerName);
+	
+	
+	// Remove data from all components
+	FLandscapeEditDataInterface LandscapeEdit(this);
+	LandscapeEdit.DeleteLayer(LayerInfo);
+	
+	UpdateLayerInfoMap();
 
 	GWarn->EndSlowTask();
 }
@@ -4896,37 +4938,9 @@ void ULandscapeInfo::ReplaceLayer(ULandscapeLayerInfoObject* FromLayerInfo, ULan
 			}
 		}
 
-		ForEachLandscapeProxy([FromLayerInfo, ToLayerInfo](ALandscapeProxy* Proxy)
-		{
-			Proxy->Modify();
-			FLandscapeEditorLayerSettings* ToEditorLayerSettings = Proxy->EditorLayerSettings.FindByKey(ToLayerInfo);
-			if (ToEditorLayerSettings != nullptr)
-			{
-				// If the new layer already exists, simple remove the old layer
-				int32 Index = Proxy->EditorLayerSettings.IndexOfByKey(FromLayerInfo);
-				if (Index != INDEX_NONE)
-				{
-					Proxy->EditorLayerSettings.RemoveAt(Index);
-				}
-			}
-			else
-			{
-				FLandscapeEditorLayerSettings* FromEditorLayerSettings = Proxy->EditorLayerSettings.FindByKey(FromLayerInfo);
-				if (FromEditorLayerSettings != nullptr)
-				{
-					// If only the old layer exists (most common case), change it to point to the new layer info
-					FromEditorLayerSettings->LayerInfoObj = ToLayerInfo;
-				}
-				else
-				{
-					// If neither exists in the EditorLayerSettings cache, add it
-					Proxy->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(ToLayerInfo));
-				}
-			}
-			return true;
-		});
-
-		//UpdateLayerInfoMap();
+		LandscapeActor->RemoveTargetLayer(FromLayerInfo->LayerName);
+		LandscapeActor->AddTargetLayer(ToLayerInfo->LayerName, FLandscapeTargetLayerSettings(ToLayerInfo));
+		UpdateLayerInfoMap();
 
 		GWarn->EndSlowTask();
 	}
@@ -5076,7 +5090,7 @@ void ALandscape::PostEditMove(bool bFinished)
 	if (bFinished)
 	{
 		// align all proxies to landscape actor
-		auto* LandscapeInfo = GetLandscapeInfo();
+		ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 		if (LandscapeInfo)
 		{
 			LandscapeInfo->FixupProxiesTransform(true);
@@ -6156,9 +6170,6 @@ void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		InvalidateGeneratedComponentData(/* bInvalidateLightingCache = */false);
 		MarkComponentsRenderStateDirty();
 	}
-
-	// Remove null layer infos
-	EditorLayerSettings.RemoveAll([](const FLandscapeEditorLayerSettings& Entry) { return Entry.LayerInfoObj == nullptr; });
 
 	// Remove any null landscape components
 	LandscapeComponents.RemoveAll([](const ULandscapeComponent* Component) { return Component == nullptr; });

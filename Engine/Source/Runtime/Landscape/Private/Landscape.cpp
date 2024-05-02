@@ -3837,38 +3837,49 @@ FName FLandscapeInfoLayerSettings::GetLayerName() const
 	return LayerName;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FLandscapeEditorLayerSettings& FLandscapeInfoLayerSettings::GetEditorSettings() const
+{
+	static FLandscapeEditorLayerSettings DeprecatedSettings;
+	return DeprecatedSettings;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+const FLandscapeTargetLayerSettings& FLandscapeInfoLayerSettings::GetTargetLayerSettings() const
 {
 	check(LayerInfoObj);
 
 	ULandscapeInfo* LandscapeInfo = Owner->GetLandscapeInfo();
-	return LandscapeInfo->GetLayerEditorSettings(LayerInfoObj);
+	return LandscapeInfo->GetTargetLayerSettings(LayerInfoObj);
 }
 
-FLandscapeEditorLayerSettings& ULandscapeInfo::GetLayerEditorSettings(ULandscapeLayerInfoObject* LayerInfo) const
+FLandscapeTargetLayerSettings& ULandscapeInfo::GetLayerEditorSettings(ULandscapeLayerInfoObject* LayerInfo) const
+{
+	static FLandscapeTargetLayerSettings DeprecatedSettings;
+	return DeprecatedSettings;
+}
+
+const FLandscapeTargetLayerSettings& ULandscapeInfo::GetTargetLayerSettings(ULandscapeLayerInfoObject* LayerInfo) const
 {
 	ALandscapeProxy* Proxy = GetLandscapeProxy();
-	FLandscapeEditorLayerSettings* EditorLayerSettings = Proxy->EditorLayerSettings.FindByKey(LayerInfo);
-	if (EditorLayerSettings)
+	const FName* LayerName = Proxy->GetTargetLayers().FindKey(FLandscapeTargetLayerSettings(LayerInfo));
+	if (LayerName)
 	{
-		return *EditorLayerSettings;
+		return *Proxy->GetTargetLayers().Find(*LayerName);
 	}
 	else
 	{
-		int32 Index = Proxy->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(LayerInfo));
-		return Proxy->EditorLayerSettings[Index];
+		return Proxy->AddTargetLayer(LayerInfo->LayerName, FLandscapeTargetLayerSettings(LayerInfo));
 	}
 }
 
-void ULandscapeInfo::CreateLayerEditorSettingsFor(ULandscapeLayerInfoObject* LayerInfo)
+void ULandscapeInfo::CreateTargetLayerSettingsFor(ULandscapeLayerInfoObject* LayerInfo)
 {
 	ForEachLandscapeProxy([LayerInfo](ALandscapeProxy* Proxy)
 	{
-		FLandscapeEditorLayerSettings* EditorLayerSettings = Proxy->EditorLayerSettings.FindByKey(LayerInfo);
-		if (!EditorLayerSettings)
+		if (!Proxy->HasTargetLayer(LayerInfo->LayerName))
 		{
-			Proxy->Modify();
-			Proxy->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(LayerInfo));
+			Proxy->AddTargetLayer(LayerInfo->LayerName, FLandscapeTargetLayerSettings(LayerInfo));
 		}
 		return true;
 	});
@@ -3917,193 +3928,71 @@ int32 ULandscapeInfo::GetLayerInfoIndex(FName LayerName, ALandscapeProxy* Owner 
 }
 
 
-bool ULandscapeInfo::UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy, bool bInvalidate)
+void ULandscapeInfo::UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeInfo::UpdateLayerInfoMapInternal);
 
-	bool bHasCollision = false;
-	if (GIsEditor)
+	if (GIsEditor && Proxy && Proxy->bInitWeightLayersFromMaterial)
 	{
-		if (Proxy)
+		Proxy->bInitWeightLayersFromMaterial = false;
+		// add the landscape layers from the material on the proxy & LandscapeLayerInfos from the WeightMap Allocations
+		if (LandscapeActor.IsValid())
 		{
-			if (bInvalidate)
+			TArray<FName> LayerNames = Proxy->RetrieveAllLayerNamesFromMaterials();
+			const TMap<FName, ULandscapeLayerInfoObject*> InfoObjects = Proxy->RetrieveAllocationInfos();
+			for(const FName& LayerName : LayerNames)
 			{
-				// this is a horribly dangerous combination of parameters...
-
-				for (int32 i = 0; i < Layers.Num(); i++)
+				ULandscapeLayerInfoObject* const * LayerInfoObject = InfoObjects.Find(LayerName);
+				if (!LandscapeActor->HasTargetLayer(LayerName))
 				{
-					if (Layers[i].Owner == Proxy)
-					{
-						Layers.RemoveAt(i--);
-					}
+					LandscapeActor->AddTargetLayer(LayerName, FLandscapeTargetLayerSettings(LayerInfoObject ? *LayerInfoObject : nullptr), false);
 				}
 			}
-			else // Proxy && !bInvalidate
+			
+			for (const auto& Layer : LandscapeActor->GetTargetLayers())
 			{
-				TArray<FName> LayerNames = Proxy->GetLayersFromMaterial();
-
-				// Validate any existing layer infos owned by this proxy
-				for (int32 i = 0; i < Layers.Num(); i++)
+				if (!Layer.Value.LayerInfoObj)
 				{
-					if (Layers[i].Owner == Proxy)
+					ULandscapeLayerInfoObject* const * LayerInfoObject = InfoObjects.Find(Layer.Key);
+					if (LayerInfoObject && LandscapeActor->HasTargetLayer(Layer.Key))
 					{
-						Layers[i].bValid = LayerNames.Contains(Layers[i].GetLayerName());
+						LandscapeActor->UpdateTargetLayer(Layer.Key, FLandscapeTargetLayerSettings(*LayerInfoObject), false);
 					}
 				}
-
-				// Add placeholders for any unused material layers
-				for (int32 i = 0; i < LayerNames.Num(); i++)
-				{
-					int32 LayerInfoIndex = GetLayerInfoIndex(LayerNames[i]);
-					if (LayerInfoIndex == INDEX_NONE)
-					{
-						FLandscapeInfoLayerSettings LayerSettings(LayerNames[i], Proxy);
-						LayerSettings.bValid = true;
-						Layers.Add(LayerSettings);
-					}
-				}
-
-				// Populate from layers used in components
-				for (int32 ComponentIndex = 0; ComponentIndex < Proxy->LandscapeComponents.Num(); ComponentIndex++)
-				{
-					ULandscapeComponent* Component = Proxy->LandscapeComponents[ComponentIndex];
-
-					// Add layers from per-component override materials
-					if ((Component != nullptr) && (Component->OverrideMaterial != nullptr))
-					{
-						TArray<FName> ComponentLayerNames = Proxy->GetLayersFromMaterial(Component->OverrideMaterial);
-						for (int32 i = 0; i < ComponentLayerNames.Num(); i++)
-						{
-							int32 LayerInfoIndex = GetLayerInfoIndex(ComponentLayerNames[i]);
-							if (LayerInfoIndex == INDEX_NONE)
-							{
-								FLandscapeInfoLayerSettings LayerSettings(ComponentLayerNames[i], Proxy);
-								LayerSettings.bValid = true;
-								Layers.Add(LayerSettings);
-							}
-						}
-					}
-
-					const TArray<FWeightmapLayerAllocationInfo>& ComponentWeightmapLayerAllocations = Component->GetWeightmapLayerAllocations();
-
-					for (int32 AllocationIndex = 0; AllocationIndex < ComponentWeightmapLayerAllocations.Num(); AllocationIndex++)
-					{
-						ULandscapeLayerInfoObject* LayerInfo = ComponentWeightmapLayerAllocations[AllocationIndex].LayerInfo;
-						if (LayerInfo)
-						{
-							int32 LayerInfoIndex = GetLayerInfoIndex(LayerInfo);
-							bool bValid = LayerNames.Contains(LayerInfo->LayerName);
-
-							if (bValid)
-							{
-								//LayerInfo->IsReferencedFromLoadedData = true;
-							}
-
-							if (LayerInfoIndex != INDEX_NONE)
-							{
-								FLandscapeInfoLayerSettings& LayerSettings = Layers[LayerInfoIndex];
-
-								// Valid layer infos take precedence over invalid ones
-								// Landscape Actors take precedence over Proxies
-								if ((bValid && !LayerSettings.bValid)
-									|| (bValid == LayerSettings.bValid && Proxy->IsA<ALandscape>()))
-								{
-									LayerSettings.Owner = Proxy;
-									LayerSettings.bValid = bValid;
-									LayerSettings.ThumbnailMIC = nullptr;
-								}
-							}
-							else
-							{
-								// handle existing placeholder layers
-								LayerInfoIndex = GetLayerInfoIndex(LayerInfo->LayerName);
-								if (LayerInfoIndex != INDEX_NONE)
-								{
-									FLandscapeInfoLayerSettings& LayerSettings = Layers[LayerInfoIndex];
-
-									//if (LayerSettings.Owner == Proxy)
-									{
-										LayerSettings.Owner = Proxy;
-										LayerSettings.LayerInfoObj = LayerInfo;
-										LayerSettings.bValid = bValid;
-										LayerSettings.ThumbnailMIC = nullptr;
-									}
-								}
-								else
-								{
-									FLandscapeInfoLayerSettings LayerSettings(LayerInfo, Proxy);
-									LayerSettings.bValid = bValid;
-									Layers.Add(LayerSettings);
-								}
-							}
-						}
-					}
-				}
-
-				// Add any layer infos cached in the actor
-				Proxy->EditorLayerSettings.RemoveAll([](const FLandscapeEditorLayerSettings& Settings) { return Settings.LayerInfoObj == nullptr; });
-				for (int32 i = 0; i < Proxy->EditorLayerSettings.Num(); i++)
-				{
-					FLandscapeEditorLayerSettings& EditorLayerSettings = Proxy->EditorLayerSettings[i];
-					if (LayerNames.Contains(EditorLayerSettings.LayerInfoObj->LayerName))
-					{
-						// intentionally using the layer name here so we don't add layer infos from
-						// the cache that have the same name as an actual assignment from a component above
-						int32 LayerInfoIndex = GetLayerInfoIndex(EditorLayerSettings.LayerInfoObj->LayerName);
-						if (LayerInfoIndex != INDEX_NONE)
-						{
-							FLandscapeInfoLayerSettings& LayerSettings = Layers[LayerInfoIndex];
-							if (LayerSettings.LayerInfoObj == nullptr)
-							{
-								LayerSettings.Owner = Proxy;
-								LayerSettings.LayerInfoObj = EditorLayerSettings.LayerInfoObj;
-								LayerSettings.bValid = true;
-							}
-						}
-					}
-					else
-					{
-						Proxy->Modify();
-						Proxy->EditorLayerSettings.RemoveAt(i--);
-					}
-				}
-
-				// Add Visibility Layer info if not initialized
-				if (ALandscapeProxy::VisibilityLayer != nullptr)
-				{
-					int32 LayerInfoIndex = GetLayerInfoIndex(ALandscapeProxy::VisibilityLayer->LayerName);
-
-					if ((LayerInfoIndex != INDEX_NONE) && (Layers[LayerInfoIndex].LayerInfoObj == nullptr))
-					{
-						Layers[LayerInfoIndex].LayerInfoObj = ALandscapeProxy::VisibilityLayer;
-					}
-				}
-			}
-		}
-		else // !Proxy
-		{
-			Layers.Empty();
-
-			if (!bInvalidate)
-			{
-				ForEachLandscapeProxy([this](ALandscapeProxy* EachProxy)
-				{
-					if (!EachProxy->IsPendingKillPending())
-					{
-						checkSlow(EachProxy->GetLandscapeInfo() == this);
-						UpdateLayerInfoMapInternal(EachProxy, false);
-					}
-					return true;
-				});
 			}
 		}
 	}
-	return bHasCollision;
+
+	if (LandscapeActor.IsValid())
+	{
+		Layers.Empty();
+
+		for (const TTuple<FName, FLandscapeTargetLayerSettings>& TargetLayer : LandscapeActor->GetTargetLayers())
+		{
+			FLandscapeInfoLayerSettings InfoLayerSettings (TargetLayer.Key, LandscapeActor.Get());
+			InfoLayerSettings.bValid = true;
+			InfoLayerSettings.LayerInfoObj = TargetLayer.Value.LayerInfoObj;
+			Layers.Add(InfoLayerSettings);
+		}
+		
+		// Add Visibility Layer info if not initialized
+		if (ALandscapeProxy::VisibilityLayer != nullptr)
+		{
+			int32 LayerInfoIndex = GetLayerInfoIndex(ALandscapeProxy::VisibilityLayer->LayerName);
+
+			if ((LayerInfoIndex != INDEX_NONE) && (Layers[LayerInfoIndex].LayerInfoObj == nullptr))
+			{
+				Layers[LayerInfoIndex].LayerInfoObj = ALandscapeProxy::VisibilityLayer;
+			}
+		}
+	}
+	
 }
 
 bool ULandscapeInfo::UpdateLayerInfoMap(ALandscapeProxy* Proxy /*= nullptr*/, bool bInvalidate /*= false*/)
 {
-	bool bResult = UpdateLayerInfoMapInternal(Proxy, bInvalidate);
+	UpdateLayerInfoMapInternal(Proxy);
+
 	if (GIsEditor)
 	{
 		ALandscape* Landscape = LandscapeActor.Get();
@@ -4112,7 +4001,9 @@ bool ULandscapeInfo::UpdateLayerInfoMap(ALandscapeProxy* Proxy /*= nullptr*/, bo
 			Landscape->RequestLayersInitialization(/*bInRequestContentUpdate*/false);
 		}
 	}
-	return bResult;
+	// return value is unused and has no meaning.
+	return true;
+
 }
 
 #endif // WITH_EDITOR
@@ -4227,6 +4118,9 @@ void ALandscapeProxy::PostLoad()
 	}
 
 #if WITH_EDITOR
+	const int32 LinkerVersion = GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	bInitWeightLayersFromMaterial = LinkerVersion < FFortniteMainBranchObjectVersion::LandscapeTargetLayersInLandscapeActor;
+	
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (!LandscapeMaterialsOverride_DEPRECATED.IsEmpty())
 		{
@@ -4268,15 +4162,14 @@ void ALandscapeProxy::PostLoad()
 				RecreateCollisionComponents();
 			}
 		}
-
-	EditorLayerSettings.RemoveAll([](const FLandscapeEditorLayerSettings& Settings) { return Settings.LayerInfoObj == nullptr; });
-
+	
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 	if (EditorCachedLayerInfos_DEPRECATED.Num() > 0)
 	{
 		for (int32 i = 0; i < EditorCachedLayerInfos_DEPRECATED.Num(); i++)
 		{
-			EditorLayerSettings.Add(FLandscapeEditorLayerSettings(EditorCachedLayerInfos_DEPRECATED[i]));
+			TargetLayers.Add(EditorCachedLayerInfos_DEPRECATED[i]->LayerName, FLandscapeTargetLayerSettings(EditorCachedLayerInfos_DEPRECATED[i]));
 		}
 		EditorCachedLayerInfos_DEPRECATED.Empty();
 	}
@@ -5436,20 +5329,28 @@ void ULandscapeInfo::ForEachLandscapeProxy(TFunctionRef<bool(ALandscapeProxy*)> 
 {
 	if (ALandscape* Landscape = LandscapeActor.Get())
 	{
-		if (!Fn(Landscape))
+		if (!Landscape->IsPendingKillPending())
 		{
-			return;
+			if ( !Fn(Landscape))
+			{
+				return;
+			}	
 		}
+		
 	}
 
 	for (TWeakObjectPtr<ALandscapeStreamingProxy> StreamingProxyPtr : StreamingProxies)
 	{
 		if (ALandscapeProxy* LandscapeProxy = StreamingProxyPtr.Get())
 		{
-			if (!Fn(LandscapeProxy))
+			if (!LandscapeProxy->IsPendingKillPending())
 			{
-				return;
+				if (!Fn(LandscapeProxy))
+				{
+					return;
+				}	
 			}
+			
 		}
 	}
 }
@@ -5579,6 +5480,10 @@ void ULandscapeInfo::RegisterActor(ALandscapeProxy* Proxy, bool bMapCheck, bool 
 			LandscapeActor = Landscape;
 
 #if WITH_EDITOR
+			// Now we have associated a LandscapeActor with this info
+			// we can ask for the WeightMaps
+			UpdateLayerInfoMap(LandscapeActor.Get());
+			
 			// Update registered splines so they can pull the actor pointer
 			for (TScriptInterface<ILandscapeSplineInterface> SplineActor : SplineActors)
 			{
@@ -6522,6 +6427,105 @@ void ALandscapeProxy::EnableNaniteComponents(bool bInNaniteActive)
 		}
 	}
 }
+
+#if WITH_EDITOR
+bool ALandscapeProxy::HasLayer(ULandscapeLayerInfoObject* LayerInfoObject) const
+{
+	return TargetLayers.FindKey(FLandscapeTargetLayerSettings(LayerInfoObject)) == nullptr;
+}
+
+bool  ALandscapeProxy::RemoveTargetLayer(const FName& Name,  bool bPostEditChange)
+{
+	Modify();
+	
+	int32 NumItemsRemoved = TargetLayers.Remove(Name);
+	if (FProperty* Property = StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(ALandscapeProxy, TargetLayers)); Property != nullptr && bPostEditChange)
+	{
+		FPropertyChangedEvent PropertyChangedEvent(Property);
+		PostEditChangeProperty(PropertyChangedEvent);	
+	}
+	
+	return NumItemsRemoved > 0;
+}
+
+FLandscapeTargetLayerSettings& ALandscapeProxy::AddTargetLayer()
+{
+	int32 StartIndex = GetTargetLayers().Num();
+	FName NewName;
+	do
+	{
+		NewName = FName(FString::Format(TEXT("Layer_{0}"), { StartIndex++ } ));
+	} while (HasTargetLayer(NewName));
+
+	return AddTargetLayer(NewName, FLandscapeTargetLayerSettings());
+}
+	
+FLandscapeTargetLayerSettings& ALandscapeProxy::AddTargetLayer(const FName& Name, const FLandscapeTargetLayerSettings& TargetLayerSettings, bool bPostEditChange)
+{
+	Modify();
+
+	check(!HasTargetLayer(Name));
+	
+	FLandscapeTargetLayerSettings& Settings = TargetLayers.Add(Name, TargetLayerSettings);
+
+	if (FProperty* Property = StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(ALandscapeProxy, TargetLayers)); Property != nullptr && bPostEditChange)
+	{
+		FPropertyChangedEvent PropertyChangedEvent(Property);
+		PostEditChangeProperty(PropertyChangedEvent);	
+	}
+	
+	return Settings;
+}
+
+bool ALandscapeProxy::UpdateTargetLayer(const FName& Name, const FLandscapeTargetLayerSettings& InTargetLayerSettings, bool bPostEditChange)
+{
+	FLandscapeTargetLayerSettings* TargetLayerSettings = TargetLayers.Find(Name);
+
+	check(TargetLayerSettings);
+	if (TargetLayerSettings)
+	{
+		*TargetLayerSettings = InTargetLayerSettings;
+		
+		if (FProperty* Property = StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(ALandscapeProxy, TargetLayers));  Property != nullptr && bPostEditChange)
+		{
+			FPropertyChangedEvent PropertyChangedEvent(Property);
+			PostEditChangeProperty(PropertyChangedEvent);
+		}
+
+		Modify();
+		return true;
+	}
+
+	return false;
+}
+
+bool ALandscapeProxy::HasTargetLayer(const FName& Name) const
+{
+	return TargetLayers.Find(Name) != nullptr; 
+}
+
+bool ALandscapeProxy::HasTargetLayer(const FLandscapeTargetLayerSettings& TargetLayerSettings) const
+{
+	return TargetLayers.FindKey(TargetLayerSettings) != nullptr;
+}
+
+bool ALandscapeProxy::HasTargetLayer(const ULandscapeLayerInfoObject* LayerInfoObject) const
+{
+	for (const auto& It : TargetLayers)
+	{
+		if (It.Value.LayerInfoObj == LayerInfoObject)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+const TMap<FName, FLandscapeTargetLayerSettings>& ALandscapeProxy::GetTargetLayers() const
+{
+	return TargetLayers;
+}
+#endif
 
 bool ALandscapeProxy::AreNaniteComponentsValid(const FGuid& InProxyContentId) const
 {

@@ -456,6 +456,9 @@ struct FFortniteMainBranchObjectVersion
 		// PCGPartitionActorDesc
 		PCGPartitionActorDesc,
 
+		// Target layers are now defined in the Landscape actor and not continuously synced from the assigned material.
+		LandscapeTargetLayersInLandscapeActor,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

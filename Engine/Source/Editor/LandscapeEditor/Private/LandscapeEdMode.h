@@ -64,7 +64,7 @@ struct FLandscapeToolMode
 
 struct FLandscapeTargetListInfo
 {
-	FText TargetName;
+	FText TargetLayerDisplayName;									// UI Display Name
 	ELandscapeToolTargetType TargetType;
 	TWeakObjectPtr<ULandscapeInfo> LandscapeInfo;
 
@@ -76,8 +76,8 @@ struct FLandscapeTargetListInfo
 	uint32 bValid : 1;												// ignored for heightmap
 	int32 LayerIndex;
 
-	FLandscapeTargetListInfo(FText InTargetName, ELandscapeToolTargetType InTargetType, const FLandscapeInfoLayerSettings& InLayerSettings, int32 InLayerIndex)
-		: TargetName(InTargetName)
+	FLandscapeTargetListInfo(FText InTargetLayerDisplayName, ELandscapeToolTargetType InTargetType, const FLandscapeInfoLayerSettings& InLayerSettings, int32 InLayerIndex)
+		: TargetLayerDisplayName(InTargetLayerDisplayName)
 		, TargetType(InTargetType)
 		, LandscapeInfo(InLayerSettings.Owner->GetLandscapeInfo())
 		, LayerInfoObj(InLayerSettings.LayerInfoObj)
@@ -90,8 +90,8 @@ struct FLandscapeTargetListInfo
 	{
 	}
 
-	FLandscapeTargetListInfo(FText InTargetName, ELandscapeToolTargetType InTargetType, ULandscapeInfo* InLandscapeInfo, int32 InLayerIndex)
-		: TargetName(InTargetName)
+	FLandscapeTargetListInfo(FText InTargetLayerDisplayName, ELandscapeToolTargetType InTargetType, ULandscapeInfo* InLandscapeInfo, int32 InLayerIndex)
+		: TargetLayerDisplayName(InTargetLayerDisplayName)
 		, TargetType(InTargetType)
 		, LandscapeInfo(InLandscapeInfo)
 		, LayerInfoObj(nullptr)
@@ -134,21 +134,20 @@ struct FLandscapeTargetListInfo
 		return nullptr;
 	}
 
-	FLandscapeEditorLayerSettings* GetEditorLayerSettings() const
+	const FLandscapeTargetLayerSettings* GetTargetLayerSettings() const
 	{
 		if (TargetType == ELandscapeToolTargetType::Weightmap)
 		{
 			check(LayerInfoObj.IsValid());
 			ALandscapeProxy* Proxy = LandscapeInfo->GetLandscapeProxy();
-			FLandscapeEditorLayerSettings* EditorLayerSettings = Proxy->EditorLayerSettings.FindByKey(LayerInfoObj.Get());
-			if (EditorLayerSettings)
+			const FName* TargetLayerName = Proxy->GetTargetLayers().FindKey(FLandscapeTargetLayerSettings(LayerInfoObj.Get()));
+			if (TargetLayerName)
 			{
-				return EditorLayerSettings;
+				return Proxy->GetTargetLayers().Find(*TargetLayerName);
 			}
 			else
 			{
-				int32 Index = Proxy->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(LayerInfoObj.Get()));
-				return &Proxy->EditorLayerSettings[Index];
+				return &Proxy->AddTargetLayer(LayerInfoObj->LayerName, FLandscapeTargetLayerSettings(LayerInfoObj.Get()));
 			}
 		}
 		return nullptr;
@@ -160,7 +159,7 @@ struct FLandscapeTargetListInfo
 	{
 		if (TargetType == ELandscapeToolTargetType::Weightmap)
 		{
-			FLandscapeEditorLayerSettings* EditorLayerSettings = GetEditorLayerSettings();
+			const FLandscapeTargetLayerSettings* EditorLayerSettings = GetTargetLayerSettings();
 			check(EditorLayerSettings);
 			return EditorLayerSettings->ReimportLayerFilePath;
 		}
@@ -184,9 +183,15 @@ struct FLandscapeTargetListInfo
 	{
 		if (TargetType == ELandscapeToolTargetType::Weightmap)
 		{
-			FLandscapeEditorLayerSettings* EditorLayerSettings = GetEditorLayerSettings();
-			check(EditorLayerSettings);
-			EditorLayerSettings->ReimportLayerFilePath = InNewPath;
+			check(LayerInfoObj.IsValid());
+			ALandscapeProxy* Proxy = LandscapeInfo->GetLandscapeProxy();
+			const FName* TargetLayerName = Proxy->GetTargetLayers().FindKey(FLandscapeTargetLayerSettings(LayerInfoObj.Get()));
+			if (TargetLayerName)
+			{
+				FLandscapeTargetLayerSettings LayerSettings = *Proxy->GetTargetLayers().Find(*TargetLayerName);
+				LayerSettings.ReimportLayerFilePath = InNewPath;
+				Proxy->UpdateTargetLayer(*TargetLayerName, LayerSettings);
+			}
 		}
 		else //if (TargetType == ELandscapeToolTargetType::Heightmap)
 		{
@@ -520,8 +525,6 @@ public:
 	const TArray<FName>& GetTargetShownList() const;
 	int32 GetTargetLayerStartingIndex() const;
 	const TArray<FLandscapeListInfo>& GetLandscapeList();
-
-	void AddLayerInfo(ULandscapeLayerInfoObject* LayerInfo);
 
 	int32 UpdateLandscapeList();
 	void UpdateTargetList();

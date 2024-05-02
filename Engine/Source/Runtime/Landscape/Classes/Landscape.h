@@ -11,6 +11,7 @@
 #include "Delegates/DelegateCombinations.h"
 #include "Templates/SubclassOf.h"
 #include "Algo/Transform.h"
+#include "LandscapeLayerInfoObject.h"
 
 #include "Landscape.generated.h"
 

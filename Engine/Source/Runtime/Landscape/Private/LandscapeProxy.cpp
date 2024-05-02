@@ -20,7 +20,7 @@
 LANDSCAPE_API FLandscapeImportLayerInfo::FLandscapeImportLayerInfo(const FLandscapeInfoLayerSettings& InLayerSettings)
 	: LayerName(InLayerSettings.GetLayerName())
 	, LayerInfo(InLayerSettings.LayerInfoObj)
-	, SourceFilePath(InLayerSettings.GetEditorSettings().ReimportLayerFilePath)
+	, SourceFilePath(InLayerSettings.GetTargetLayerSettings().ReimportLayerFilePath)
 {
 }
 
