@@ -2049,7 +2049,7 @@ FGuid UWorldPartitionRuntimeSpatialHash::RegisterWorldAssetStreaming(const UWorl
 		}
 		else
 		{
-			UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *StreamingCell->GetName(), *WorldAsset.ToString(), *InParams.Transform.ToString());
+			UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *CellName, *WorldAsset.ToString(), *InParams.Transform.ToString());
 			return FGuid();
 		}
 	}

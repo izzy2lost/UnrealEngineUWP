@@ -196,9 +196,14 @@ void UWorldPartitionRuntimeHashSet::FlushStreamingContent()
 	RuntimeStreamingData.Empty();
 	UpdateRuntimeDataGridMap();
 }
-#endif
 
 bool UWorldPartitionRuntimeHashSet::IsValidGrid(FName GridName, const UClass* ActorClass) const
+{
+	return IsValidGridInternal(GridName, ActorClass);
+}
+#endif
+
+bool UWorldPartitionRuntimeHashSet::IsValidGridInternal(FName GridName, const UClass* ActorClass) const
 {
 	TArray<FName> MainPartitionTokens;
 	TArray<FName> HLODPartitionTokens;
@@ -580,7 +585,7 @@ uint32 UWorldPartitionRuntimeHashSet::ComputeUpdateStreamingHash() const
 
 bool UWorldPartitionRuntimeHashSet::SupportsWorldAssetStreaming(const FName& InTargetGrid)
 {
-	return IsValidGrid(InTargetGrid, nullptr);
+	return IsValidGridInternal(InTargetGrid, nullptr);
 }
 
 FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams)
@@ -595,7 +600,7 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 		return FGuid();
 	}
 
-	if (!IsValidGrid(InParams.TargetGrid, nullptr) || (!InParams.TargetGridHLOD.IsNone() && !IsValidGrid(InParams.TargetGridHLOD, nullptr)))
+	if (!IsValidGridInternal(InParams.TargetGrid, nullptr) || (!InParams.TargetGridHLOD.IsNone() && !IsValidGridInternal(InParams.TargetGridHLOD, nullptr)))
 	{
 		return FGuid();
 	}
@@ -699,7 +704,7 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 		}		
 		else
 		{
-			UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *RuntimeCell->GetName(), *WorldAsset.ToString(), *InParams.Transform.ToString());StreamingData.CreatePartitionsSpatialIndex();
+			UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *CellName, *WorldAsset.ToString(), *InParams.Transform.ToString());StreamingData.CreatePartitionsSpatialIndex();
 			return FGuid();
 		}
 	}
