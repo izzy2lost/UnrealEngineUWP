@@ -50,6 +50,7 @@ class FIdIndexerBase : public FDebugIds
 {
 public:
 	FScopeId							NestScope(FScopeId Outer, FFlatScopeId Inner);
+	FParametricTypeId					MakeParametricTypeId(FConcreteTypenameId Name, TConstArrayView<FTypeId> Params);
 	FTypeId								MakeParametricType(FTypeId Type, TConstArrayView<FTypeId> Params);
 
 	FEnumSchemaId						IndexEnum(FTypeId Type);

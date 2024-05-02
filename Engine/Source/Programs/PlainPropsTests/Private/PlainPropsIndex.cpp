@@ -127,10 +127,14 @@ FScopeId FIdIndexerBase::NestScope(FScopeId Outer, FFlatScopeId Inner)
 	return FScopeId(NestedScopes.Index(Outer, Inner));
 }
 
+FParametricTypeId FIdIndexerBase::MakeParametricTypeId(FConcreteTypenameId Name, TConstArrayView<FTypeId> Params)
+{
+	return ParametricTypes.Index({Name, IntCastChecked<uint8>(Params.Num()), Params.GetData()});
+}
+
 FTypeId FIdIndexerBase::MakeParametricType(FTypeId Type, TConstArrayView<FTypeId> Params)
 {
-	FParametricTypeId ParametricType = ParametricTypes.Index({Type.Name.AsConcrete(), IntCastChecked<uint8>(Params.Num()), Params.GetData()});
-	return {Type.Scope, FTypenameId(ParametricType)};
+	return {Type.Scope, FTypenameId(MakeParametricTypeId(Type.Name.AsConcrete(), Params))};
 }
 
 FEnumSchemaId FIdIndexerBase::IndexEnum(FTypeId Type)
@@ -142,15 +146,5 @@ FStructSchemaId	FIdIndexerBase::IndexStruct(FTypeId Type)
 {
 	return { IntCastChecked<uint32>(Structs.Add(Type).AsInteger()) };
 }
-//
-//FParametricTypeView	FIdIndexerBase::Resolve(FParametricTypeId Id) const
-//{
-//	return ParametricTypes.Resolve(Id);
-//}
-//
-//FNestedScope FIdIndexerBase::Resolve(FNestedScopeId Id) const
-//{
-//	return NestedScopes.Resolve(Id);
-//}
 
 } // namespace PlainProps

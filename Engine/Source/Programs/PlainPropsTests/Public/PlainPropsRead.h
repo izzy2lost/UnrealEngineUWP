@@ -13,7 +13,6 @@ namespace PlainProps
 {
 
 struct FEnumSchema;
-struct FIdBinding;
 struct FSchemaBatch;
 struct FStructSchema;
 
@@ -28,10 +27,8 @@ class FReadBatchId
 
 // @param Schemas must outlive read batch
 const FSchemaBatch*		ValidateSchemas(FMemoryView Schemas);
-FSchemaBatch*			CreateTranslatedSchemas(const FSchemaBatch* Schemas, FIdBinding NewIds);
 FReadBatchId			MountReadSchemas(const FSchemaBatch* Schemas);
 const FSchemaBatch*		UnmountReadSchemas(FReadBatchId Batch);
-void					DestroyTranslatedSchemas(const FSchemaBatch* Schemas);
 
 uint32					NumStructSchemas(FReadBatchId Batch);
 const FStructSchema&	ResolveStructSchema(FReadBatchId Batch, FStructSchemaId Id);
@@ -371,10 +368,10 @@ bool EqualItems(RangeTypeA&& A, RangeTypeB&& B)
 class FLeafRangeView
 {
 public:
-	ELeafType GetType() const;
-	SIZE_T GetSizeOf() const;
-	uint64 Num() const { return NumItems; }
-	uint64 NumBytes() const { return NumItems * GetSizeOf(); }
+	ELeafType				GetType() const;
+	SIZE_T					GetSizeOf() const;
+	uint64					Num() const { return NumItems; }
+	uint64					NumBytes() const { return NumItems * GetSizeOf(); }
 	
 	// These ranges hide the internal representations so we can change format in the future, 
 	// e.g. store zeroes or 1.0f in some compact fashion or even var int encodings

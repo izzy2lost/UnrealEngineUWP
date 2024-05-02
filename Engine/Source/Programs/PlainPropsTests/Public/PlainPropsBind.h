@@ -4,6 +4,7 @@
 
 #include "Containers/ArrayView.h"
 #include "Memory/MemoryFwd.h"
+#include "Memory/MemoryView.h"
 #include  "PlainPropsTypes.h"
 #include  "PlainPropsCtti.h"
 #include  "PlainPropsDeclare.h"
@@ -11,43 +12,17 @@
 namespace PlainProps 
 {
 
-// Todo: Include Build.h and Load.h instead?
-enum class EMemberPresence;
-enum class EEnumMode;
 struct FBuiltStruct;
+class FIdIndexerBase;
 struct FLoadBatch;
 class FMemberBuilder;
+struct FSchemaBatch;
 class FStructBinding;
 struct FStructView;
 class FRangeBinding;
 struct FTypedRange;
 class IRangeBinding;
 template<class T> class TIdIndexer;
-
-//////////////////////////////////////////////////////////////////////////
-
-struct FIdBinding
-{
-	TConstArrayView<FNameId>			Names;
-	TConstArrayView<FNestedScopeId>		Scopes;
-	TConstArrayView<FParametricTypeId>	Parametrics;
-};
-
-class FIdBinder
-{
-	const uint32 NumNames;
-	const uint32 NumScopes;
-	const uint32 NumParameters;
-	const FNameId* Data;
-
-public:
-	template<class NameType>
-	FIdBinder(TIdIndexer<NameType>& Indexer, TConstArrayView<NameType> Names, TConstArrayView<FNestedScope> Scopes, TConstArrayView<FParametricType> ParametericTypes);
-
-	FIdBinding Get() const;
-};
-
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +54,11 @@ struct FBitfieldBindType
 
 union FLeafBindType
 {
-	constexpr explicit FLeafBindType(FLeafType In) : Arithmetic({EMemberKind::Leaf, ToLeafBindType(In.Type), In.Width}) {}
+	constexpr explicit FLeafBindType(ELeafBindType ArithmeticType, ELeafWidth Width) : Arithmetic({EMemberKind::Leaf, ArithmeticType, Width}) {}
+	constexpr explicit FLeafBindType(FUnpackedLeafType In) : Arithmetic({EMemberKind::Leaf, ToLeafBindType(In.Type), In.Width}) {}
+	constexpr explicit FLeafBindType(FLeafType In) : FLeafBindType(FUnpackedLeafType(In)) {}
 	constexpr explicit FLeafBindType(FBitfieldBindType In) : Bitfield({EMemberKind::Leaf, ELeafBindType::BitfieldBool, In.Idx}) {}
+	constexpr explicit FLeafBindType(uint8 BitfieldIdx) : Bitfield({EMemberKind::Leaf, ELeafBindType::BitfieldBool, BitfieldIdx}) {}
 
 	struct
 	{
@@ -108,6 +86,8 @@ struct FStructBindType : FStructType {};
 union FMemberBindType
 {
 	constexpr explicit FMemberBindType(FLeafType In) : Leaf(In) {}
+	constexpr explicit FMemberBindType(FUnpackedLeafType In) : Leaf(In) {}
+	constexpr explicit FMemberBindType(FLeafBindType In) : Leaf(In) {}
 	constexpr explicit FMemberBindType(FBitfieldBindType In) : Leaf(In) {}
 	constexpr explicit FMemberBindType(FRangeType In) : Range(In) {}
 	constexpr explicit FMemberBindType(ERangeSizeType MaxSize) : Range({EMemberKind::Range, MaxSize}) {}
@@ -148,7 +128,11 @@ struct FStructSchemaBinding
 	const uint32*			GetOffsets() const			{ return AlignPtr<uint32>(GetInnerRangeTypes() + NumInnerRanges); }
 	const FSchemaId*		GetInnerSchemas() const		{ return AlignPtr<FSchemaId>(GetOffsets() + NumMembers); }
 	const FRangeBinding*	GetRangeBindings() const	{ return AlignPtr<FRangeBinding>(GetInnerSchemas() + NumInnerSchemas); }
+	uint32					CalculateSize() const;
+	bool					HasSuper() const			{ return NumInnerSchemas > 0 && Members[0].IsStruct() && Members[0].AsStruct().IsSuper; }
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct FUnpackedLeafBindType
 {
@@ -174,7 +158,10 @@ struct FUnpackedLeafBindType
 	}
 
 //	constexpr bool operator==(FUnpackedLeafBindType O) { return Type == O.Type && Width == O.Width; }
-//	FMemberBindType Pack() const { return FMemberBindType(Type, Width); }
+	FMemberBindType Pack() const
+	{ 
+		return FMemberBindType(Type == ELeafBindType::BitfieldBool ? FLeafBindType(BitfieldIdx) : FLeafBindType(Type, Width));
+	}
 };
 
 struct FLeafMemberBinding
@@ -188,12 +175,14 @@ struct FRangeMemberBinding
 {
 	const FMemberBindType*	InnerTypes;
 	const FRangeBinding*	RangeBindings;
+	uint32					NumRanges; // At least 1, >1 for nested ranges
 	FOptionalSchemaId		InnermostSchema;
 	uint64					Offset;
 };
 
 struct FStructMemberBinding
 {
+	FStructType			Type;
 	FStructSchemaId		Id;
 	uint64				Offset;
 };
@@ -212,20 +201,14 @@ public:
 	FLeafMemberBinding			GrabLeaf();				// @pre PeekKind() == EMemberKind::Leaf
 	FRangeMemberBinding			GrabRange();			// @pre PeekKind() == EMemberKind::Range
 	FStructMemberBinding		GrabStruct();			// @pre PeekKind() == EMemberKind::Struct
+	void						SkipMember();
 
 protected: // for unit tests
 	const FStructSchemaBinding& Schema;
-	//const FMemberBindType*	Footer;
 	const uint16				NumMembers;
-	//const uint16			NumInnerRanges;			// Number of ranges and nested ranges
-	//const uint16			NumInnerSchemas;		// Number of static structs and enums
 	uint16						MemberIdx = 0;
 	uint16						InnerRangeIdx = 0;		// Types of [nested] ranges
 	uint16						InnerSchemaIdx = 0;		// Types of static structs and enums
-
-	//const uint32*				GetOffsets() const;
-	//const FMemberBindType*		GetInnerRanges() const;
-	//const FSchemaId*			GetInnerSchemas() const;
 
 	using FMemberBindTypeRange = TConstArrayView<FMemberBindType>;
 
@@ -430,14 +413,15 @@ using RangeBind = typename TRangeBind<T>::Type;
 
 struct FMemberBinding
 {
-	uint64							Offset;
+	FMemberBinding() : InnermostType(FLeafBindType(ELeafBindType::Bool, ELeafWidth::B8)) {}
+
+	uint64							Offset = 0;
 	FMemberBindType					InnermostType;		// Always Leaf or Struct
 	FOptionalSchemaId				InnermostSchema;	// Enum or struct schema
 	TConstArrayView<FRangeBinding>	RangeBindings;		// Non-empty -> Range
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 class FStructBindings
 {
@@ -459,18 +443,39 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-//struct FNamedMemberBinding : FMemberBinding
-//{
-//	FMemberId					Name;
-//};
+template<typename Enum, typename Ids>
+FEnumSchemaId IndexNativeEnum()
+{
+	static FEnumSchemaId Id = Ids::IndexEnum(CttiOf<Enum>::Name);
+	return Id;
+}
+
+template<typename Struct, typename Ids>
+FStructSchemaId IndexNativeStruct()
+{
+	static FStructSchemaId Id = Ids::IndexStruct(CttiOf<Struct>::Name);
+	return Id;
+}
+
+template<typename Struct, typename Ids>
+FOptionalStructSchemaId IndexOptionalNativeStruct()
+{
+	if constexpr (!std::is_void_v<Struct>)
+	{
+		return IndexNativeStruct<Struct, Ids>();
+	}
+	
+	return NoId;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 template<typename Type, class Ids>
 FMemberBindType BindMemberLeaf(FOptionalSchemaId& OutSchema)
 {
-	OutSchema = std::is_enum_v<Type> ? IndexNativeEnum<Type, Ids>() : NoId;
-	return ReflectLeaf<Type>;
+	OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexNativeEnum<Type, Ids>())) : NoId;
+	return FMemberBindType(ReflectLeaf<Type>);
 }
-
 
 template<typename CustomBinding, class Runtime>
 FStructSchemaId BindCustomStructOnce()
@@ -578,8 +583,8 @@ FMemberBinding BindMember()
 	using Ids = typename Runtime::Ids;
 	using Type = Var::Type;
 
-	FMemberBindType Dummy(ERangeSizeType);
-	FMemberBinding Out = { Var::Offset, Dummy };
+	FMemberBinding Out;
+	Out.Offset = Var::Offset;
 	if constexpr (std::is_arithmetic_v<Type> || std::is_enum_v<Type>)
 	{
 		Out.InnermostType = BindMemberLeaf<Type, Ids>(Out.InnermostSchema);
@@ -605,32 +610,7 @@ FMemberBinding BindMember()
 	return Out;
 }
 
-template<typename Enum, typename Ids>
-FEnumSchemaId IndexNativeEnum()
-{
-	static FEnumSchemaId Id = Ids::IndexEnum(CttiOf<Enum>::Name);
-	return Id;
-}
-
-template<typename Struct, typename Ids>
-FStructSchemaId IndexNativeStruct()
-{
-	static FStructSchemaId Id = Ids::IndexStruct(CttiOf<Struct>::Name);
-	return Id;
-}
-
-
-template<typename Struct, typename Ids>
-FOptionalStructSchemaId IndexOptionalNativeStruct()
-{
-	if constexpr (!std::is_void_v<Struct>)
-	{
-		return IndexNativeStruct<Struct, Ids>();
-	}
-	
-	return NoId;
-}
-
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 template<class Ctti, class Ids>
 FEnumSchemaId DeclareNativeEnum(FDeclarations& Out, EEnumMode Mode)
@@ -697,6 +677,128 @@ void BindNativeStruct(FStructBindings& Out, FStructSchemaId DeclaredId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct FMemberBinder
+{
+	FMemberBinder(FStructSchemaBinding& InSchema)
+	: Schema(InSchema)
+	, MemberIt(Schema.Members)
+	, RangeTypeIt(const_cast<FMemberBindType*>(Schema.GetInnerRangeTypes()))
+	, OffsetIt(const_cast<uint32*>(Schema.GetOffsets()))
+	, InnerSchemaIt(const_cast<FSchemaId*>(Schema.GetInnerSchemas()))
+	, RangeBindingIt(const_cast<FRangeBinding*>(Schema.GetRangeBindings()))
+	{}
+
+	~FMemberBinder()
+	{
+		check(MemberIt == Schema.GetInnerRangeTypes());
+		check(Align(RangeTypeIt, alignof(uint32)) == (const void*)Schema.GetOffsets());
+		check(OffsetIt == (const void*)Schema.GetInnerSchemas());
+		check(Align(InnerSchemaIt, alignof(FRangeBinding)) == (const void*)Schema.GetRangeBindings());
+		check(Schema.NumInnerRanges == RangeBindingIt - Schema.GetRangeBindings());
+	}
+
+	void AddMember(FMemberBindType Type, uint32 Offset)
+	{
+		*MemberIt++ = Type;
+		*OffsetIt++ = Offset;
+	}
+
+	void AddRange(TConstArrayView<FRangeBinding> Ranges, FMemberBindType InnermostType, uint32 Offset)
+	{
+		AddMember(FMemberBindType(Ranges[0].GetSizeType()), Offset);
+
+		for (FRangeBinding Range : Ranges.RightChop(1))
+		{
+			*RangeTypeIt++ = FMemberBindType(Range.GetSizeType());
+		}
+		*RangeTypeIt++ = InnermostType;
+
+		FMemory::Memcpy(RangeBindingIt, Ranges.GetData(), Ranges.Num() * Ranges.GetTypeSize());
+		RangeBindingIt += Ranges.Num();
+	}
+	
+	void AddInnerSchema(FSchemaId InnermostSchema)
+	{
+		*InnerSchemaIt++ = InnermostSchema;
+	}
+
+	void AddOptionalInnerSchema(FOptionalSchemaId InnermostSchema)
+	{
+		if (InnermostSchema)
+		{
+			AddInnerSchema(InnermostSchema.Get());
+		}
+	}
+
+	FStructSchemaBinding& Schema;
+	FMemberBindType* MemberIt;
+	FMemberBindType* RangeTypeIt;
+	uint32* OffsetIt;
+	FSchemaId* InnerSchemaIt;
+	FRangeBinding* RangeBindingIt;
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+// Save -> load ids
+struct FIdBinding
+{
+	TConstArrayView<FNameId>			Names;
+	TConstArrayView<FNestedScopeId>		NestedScopes;
+	TConstArrayView<FParametricTypeId>	ParametricTypes;
+	TConstArrayView<FSchemaId>			Schemas;
+
+	FNameId								Remap(FNameId Old) const				{ return Names[Old.Idx]; }
+	FMemberId							Remap(FMemberId Old) const				{ return { Remap(Old.Id) }; }
+	FFlatScopeId						Remap(FFlatScopeId Old) const			{ return { Remap(Old.Name) }; }
+	FNestedScopeId						Remap(FNestedScopeId Old) const			{ return NestedScopes[Old.Idx]; }
+	FScopeId							Remap(FScopeId Old) const				{ return Old.IsNested() ? FScopeId(Remap(Old.AsNested())) : FScopeId(Remap(Old.AsFlat())); }
+	FConcreteTypenameId					Remap(FConcreteTypenameId Old) const	{ return { Remap(Old.Id) }; }	
+	FParametricTypeId					Remap(FParametricTypeId Old) const		{ return ParametricTypes[Old.Idx]; }
+	FTypenameId							Remap(FTypenameId Old) const			{ return Old.IsConcrete() ? FTypenameId(Remap(Old.AsConcrete())) : FTypenameId(Remap(Old.AsParametric())); }
+	FTypeId								Remap(FTypeId Old) const				{ return { Remap(Old.Scope), Remap(Old.Name) }; }
+
+	TConstArrayView<FStructSchemaId>	GetStructIds(int32 NumStructs) const
+	{
+		// All saved struct schema ids are lower than enum schema ids
+		check(NumStructs <= Schemas.Num());
+		return MakeArrayView(static_cast<const FStructSchemaId*>(Schemas.GetData()), NumStructs);
+	}
+};
+
+struct FIdTranslatorBase
+{
+	static uint32 CalculateTranslationSize(int32 NumSavedNames, const FSchemaBatch& Batch);
+	static FIdBinding TranslateIds(FMutableMemoryView To, FIdIndexerBase& Indexer, TConstArrayView<FNameId> TranslatedNames, const FSchemaBatch& From);
+};
+
+// Maps saved ids -> runtime load ids
+struct FIdTranslator : FIdTranslatorBase
+{
+	template<class NameType>
+	FIdTranslator(TIdIndexer<NameType>& Indexer, TConstArrayView<NameType> SavedNames, const FSchemaBatch& Batch)
+	{
+		Allocator.SetNumUninitialized(CalculateTranslationSize(SavedNames.Num(), Batch));
+		
+		// Translate names
+		TArrayView<FNameId> NewNames(reinterpret_cast<FNameId*>(&Allocator[0]), SavedNames.Num());
+		FNameId* NameIt = &NewNames[0];
+		for (const NameType& SavedName : SavedNames)
+		{
+			(*NameIt++) = Indexer.MakeName(SavedName);
+		}
+
+		FMutableMemoryView OtherIds(NameIt, Allocator.Num() - NewNames.Num() * sizeof(FNameId));
+		Translation = TranslateIds(/* out */ OtherIds, Indexer, NewNames, Batch);
+	}
+	
+	FIdBinding								Translation;
+	TArray<uint8, TInlineAllocator<1024>>	Allocator;
+};
+
+FSchemaBatch*			CreateTranslatedSchemas(const FSchemaBatch& Schemas, FIdBinding NewIds);
+void					DestroyTranslatedSchemas(const FSchemaBatch* Schemas);
 
 } // namespace PlainProps
 

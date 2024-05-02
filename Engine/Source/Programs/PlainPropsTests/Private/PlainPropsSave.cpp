@@ -259,8 +259,9 @@ template<class SaverType, typename InnerContextType>
 
 [[nodiscard]] static FRangeMemberBinding GetInnerRange(FRangeMemberBinding Member)
 {
+	check(Member.NumRanges > 1);
 	check(Member.InnerTypes[0].IsRange());
-	return { Member.InnerTypes + 1, Member.RangeBindings + 1, Member.InnermostSchema };
+	return { Member.InnerTypes + 1, Member.RangeBindings + 1, Member.NumRanges - 1, Member.InnermostSchema };
 }
 
  ELeafWidth GetArithmeticWidth(FLeafBindType Leaf)

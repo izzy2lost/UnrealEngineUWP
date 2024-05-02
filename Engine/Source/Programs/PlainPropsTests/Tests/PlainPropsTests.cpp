@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-//#if WITH_TESTS //TMPTORP
+#if WITH_TESTS
 #include "Tests/TestHarnessAdapter.h"
 #include "Containers/AnsiString.h"
 #include "Containers/Map.h"
@@ -1285,87 +1285,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 	}
 }
 
-//
-//namespace Test
-//{
-//
-//class FBindings
-//{
-//
-//	
-//};
-//	
-//struct FPt
-//{
-//	float x, y;
-//};
-//UE_REFLECT_STRUCT(FPt, A, B);
-//
-//
-//enum EFlat { A = 1, B = 3 };
-//enum EFlag { A = 0, B = 2 };
-//
-//UE_REFLECT_ENUM(EFlat, A, B);
-//UE_REFLECT_ENUM(EFlag, A, B);
-//
-//struct FEnums
-//{
-//	EFlat Flat;
-//	EFlag Flag;
-//};
-//
-//UE_REFLECT_STRUCT(FEnums, Flat, Flag);
-//
-//struct Leaves
-//{
-//	uint16 U16;
-//	int64 I64;
-//	bool Bool;
-//	char AsciiChar;
-//	uint8 BitfieldBool : 1;
-//	uint32 StaticU32s[3];
-//};
-//
-//UE_REFLECT_STRUCT(Leaves, U16, I64, Bool, AsciiChar, BitfieldBool, StaticU32s);
-//
-//GTestBindings.Add(LeavesCtti);
-//
-//struct FNestedStructs
-//{
-//	FPt Point;
-//	FPt StaticPoints[2];
-//};
-//UE_REFLECT_STRUCT(FNestedStructs, Point, StaticPoints);
-//
-//struct FLeafRanges
-//{
-//	TArray<int32> IntArray;
-//	TOptional<uint8> MaybeByte;
-//	TUniquePtr<float> FloatPtr;
-//	TSet<uint16> ShortSet;
-//	TSparseArray<bool> SparseBools;
-//};
-//
-//struct FSuper
-//{
-//	uint16 Pad;
-//	bool A;
-//};
-//UE_REFLECT_STRUCT(FSuper, A);
-//
-//struct FSub : FSuper
-//{
-//	bool B;
-//	uint32 Pad;
-//};
-//UE_REFLECT_SUBSTRUCT(FSub, FSuper, B);
-//
-//
-//struct FSubs
-//{
-//	TArray<FSub> Subs;
-//};
-
+////////////////////////////////////////////////////////////////////////////
 
 TEST_CASE_NAMED(FPlainPropsLoadSaveTest, "System::Core::Serialization::PlainProps::LoadSave", "[Core][PlainProps][SmokeFilter]")
 {
@@ -1424,9 +1344,5 @@ TEST_CASE_NAMED(FPlainPropsLoadSaveTest, "System::Core::Serialization::PlainProp
 	{}
 }
 
-
-//} // namespace Test
-
-
 } // namespace PlainProps
-//#endif // WITH_TESTS
+#endif // WITH_TESTS

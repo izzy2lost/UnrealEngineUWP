@@ -89,7 +89,7 @@ struct TScopedStructBinding
 	TScopedStructBinding(EMemberPresence Occupancy = EMemberPresence::AllowSparse)
 	: Id(DeclareNativeStruct<Ctti, Ids>(Runtime::GetDeclarations(), Occupancy))
 	{
-		//BindNativeStruct<Ctti, Runtime>(Runtime::GetBindings());
+		BindNativeStruct<Ctti, Runtime>(Runtime::GetBindings(), Id);
 		//if constexpr (bDeltaBindMembers)
 		//{
 		//	BindNativeStruct<Ctti, FDeltaRuntime>(Runtime::GetBindings());	
@@ -193,8 +193,6 @@ TArray64<uint8> FBatchSaver::Write() const
 	TArray64<uint8> Out;
 	WriteU32(Out, Magics[0]);
 	WriteNumAndArray(Out, TArrayView<const FName, int32>(UsedNames));
-	//WriteNumAndArray(Out, Writer.GetUsedScopes());
-	//WriteNumAndArray(Out, Writer.GetUsedParametrics());
 
 	// Write schemas
 	WriteU32(Out, Magics[1]);
@@ -204,7 +202,7 @@ TArray64<uint8> FBatchSaver::Write() const
 	WriteNumAndArray(Out, TArrayView<const uint8, int64>(Tmp));
 	Tmp.Reset();
 
-	//// Write objects
+	// Write objects
 	WriteU32(Out, Magics[2]);
 	for (const TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>& Object : SavedObjects)
 	{
@@ -232,18 +230,19 @@ public:
 		// Read ids
 		FByteReader It(Data);
 		CHECK(It.Grab<uint32>() == Magics[0]);
-		Names = GrabNumAndArray<FName>(It);
+		SavedNames = GrabNumAndArray<FName>(It);
+		CHECK(SavedNames.Num() != 0);
 		
 		// Read schemas
 		CHECK(It.Grab<uint32>() == Magics[1]);
 		It.SkipAlignmentPadding<uint32>();
 		uint32 SchemasSize = It.Grab<uint32>();
-		const FSchemaBatch* SaveSchemas = ValidateSchemas(It.GrabSlice(SchemasSize));
+		const FSchemaBatch* SavedSchemas = ValidateSchemas(It.GrabSlice(SchemasSize));
 		CHECK(It.Grab<uint32>() == Magics[2]);
 		
-		// Bind saved ids to current ids, remap schemas with new ids and mount it
-		FIdBinder SaveToLoadIds(GNames, Names, SaveSchemas->GetNestedScopes(), SaveSchemas->GetParametricTypes());
-		FSchemaBatch* LoadSchemas = CreateTranslatedSchemas(SaveSchemas, SaveToLoadIds.Get());
+		// Bind saved ids to runtime ids, make new schemas with new ids and mount them
+		FIdTranslator LoadIds(GNames, SavedNames, *SavedSchemas);
+		FSchemaBatch* LoadSchemas = CreateTranslatedSchemas(*SavedSchemas, LoadIds.Translation);
 		FReadBatchId Batch = MountReadSchemas(LoadSchemas);
 
 		// Read objects
@@ -259,28 +258,32 @@ public:
 		CHECK(!Objects.IsEmpty());
 
 		// Finally create load plans
-		Plans = CreateLoadPlans(Batch, GTypes, Bindings);
+		TConstArrayView<FStructSchemaId> LoadStructIds = LoadIds.Translation.GetStructIds(SavedSchemas->NumStructSchemas);
+		Plans = CreateLoadPlans(Batch, GTypes, Bindings, LoadStructIds);
 	}
 
 	~FBatchLoader()
 	{
+		CHECK(LoadIdx == Objects.Num()); // Test should load all saved objects
 		DestroyLoadPlans(Plans);
 		const FSchemaBatch* LoadSchemas = UnmountReadSchemas(Objects[0].Schema.Batch);
 		DestroyTranslatedSchemas(LoadSchemas);
 	}
 
 	template<class T>
-	T Load();
+	T Load()
+	{
+		T Out;
+		FStructView In = Objects[LoadIdx++];
+		LoadStruct(reinterpret_cast<uint8*>(&Out), In, *Plans);
+		return MoveTemp(Out);
+	}
 
 private:
-	TConstArrayView<FName> Names;
+	TConstArrayView<FName> SavedNames;
 	FLoadBatch* Plans;
 	TArray<FStructView> Objects;
 	int32 LoadIdx = 0;
-
-	//virtual FNestedScope				Resolve(FNestedScopeId Id) const override						{ return Scopes[Id.Idx]; }
-	//virtual FParametricTypeView			Resolve(FParametricTypeId Id) const override					{ return Parametrics[Id.Idx]; }
-	//virtual void						AppendDebugString(FString& Out, FNameId Name) const override	{ return Names[Name.Idx].AppendString(Out); }
 };
 
 
@@ -406,15 +409,15 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	{
 		TScopedStructBinding<FInt, FDefaultRuntime> Int;
 
-		//TestSaveAndLoad<FDefaultRuntime>(
-		//[](FBatchSaver& Batch)
-		//{
-		//	//Batch.Save<FDefaultRuntime>(FInt{1234});
-		//}, 
-		//[](FBatchLoader& Batch)
-		//{
-		//	//CHECK(Batch.Load<FInt>().X == 1234);
-		//});
+		TestSaveAndLoad<FDefaultRuntime>(
+		[](FBatchSaver& Batch)
+		{
+			Batch.Save(FInt{1234});
+		}, 
+		[](FBatchLoader& Batch)
+		{
+			CHECK(Batch.Load<FInt>().X == 1234);
+		});
 	}
 
 	SECTION("TUniquePtr")

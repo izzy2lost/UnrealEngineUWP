@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include  "PlainPropsRead.h"
-#include  "PlainPropsInternalFormat.h"
 #include  "PlainPropsInternalRead.h"
 #include "Misc/Optional.h"
 
@@ -18,7 +17,7 @@ void FSchemaBatch::ValidateBounds(uint64 NumBytes) const
 	check(sizeof(FSchemaBatch) + NumSchemas * sizeof(uint32) <= NestedScopesOffset);
 	check(NestedScopesOffset + NumNestedScopes * sizeof(FNestedScope) + NumParametricTypes * sizeof(FParametricType) <= NumBytes);
 
-	for (uint32 SchemaOffset : MakeArrayView(SchemaOffsets, NumSchemas))
+	for (uint32 SchemaOffset : GetSchemaOffsets())
 	{
 		check(SchemaOffset < NestedScopesOffset);
 		check(IsAligned(SchemaOffset, Alignment));
@@ -118,7 +117,7 @@ const FSchemaBatch* UnmountReadSchemas(FReadBatchId Id)
 
 uint32 NumStructSchemas(FReadBatchId Batch)
 {
-	return GReadSchemas.Get(Batch).NumSchemas;
+	return GReadSchemas.Get(Batch).NumStructSchemas;
 }
 
 const FStructSchema& ResolveStructSchema(FReadBatchId Batch, FStructSchemaId Schema)

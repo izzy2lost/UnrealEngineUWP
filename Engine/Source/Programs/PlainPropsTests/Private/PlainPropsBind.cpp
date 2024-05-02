@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include  "PlainPropsBind.h"
-//#include  "PlainPropsInternalFormat.h"
-//#include  "PlainPropsInternalRead.h"
-//#include <type_traits>
+#include  "PlainPropsIndex.h"
+#include  "PlainPropsInternalFormat.h"
+#include  "PlainPropsInternalRead.h"
 
 namespace PlainProps
 {
@@ -16,6 +16,19 @@ static_assert((uint8)ELeafType::Float		== (uint8)ELeafBindType::Float);
 static_assert((uint8)ELeafType::Hex			== (uint8)ELeafBindType::Hex);
 static_assert((uint8)ELeafType::Enum		== (uint8)ELeafBindType::Enum);
 static_assert((uint8)ELeafType::Unicode		== (uint8)ELeafBindType::Unicode);
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32 FStructSchemaBinding::CalculateSize() const
+{
+	uint32 Out = sizeof(FStructSchemaBinding) + NumMembers * sizeof(FMemberBindType);
+	Out = Align(Out + NumMembers * sizeof(uint32), sizeof(uint32));
+	Out = Align(Out + NumInnerSchemas * sizeof(FSchemaId), sizeof(FSchemaId));
+	Out = Align(Out + NumInnerRanges * sizeof(FRangeBinding), sizeof(FRangeBinding));
+	return Out;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 FMemberVisitor::FMemberVisitor(const FStructSchemaBinding& InSchema)
 : Schema(InSchema)
@@ -50,12 +63,11 @@ FLeafMemberBinding FMemberVisitor::GrabLeaf()
 FStructMemberBinding FMemberVisitor::GrabStruct()
 {
 	checkf(!PeekType().AsStruct().IsDynamic, TEXT("Bound structs can't be dynamic"));
-	return { static_cast<FStructSchemaId>(GrabInnerSchema()), GrabMemberOffset() };
+	return { PeekType().AsStruct(), static_cast<FStructSchemaId>(GrabInnerSchema()), GrabMemberOffset() };
 }
 
 static bool HasSchema(FMemberBindType Type)
 {
-	checkf(!Type.IsStruct() || !Type.AsStruct().IsDynamic, TEXT("Bound structs can't be dynamic"));
 	return Type.IsStruct() || Type.AsLeaf().Bind.Type == ELeafBindType::Enum;
 }
 
@@ -76,7 +88,23 @@ FRangeMemberBinding FMemberVisitor::GrabRange()
 	FOptionalSchemaId InnermostSchema = HasSchema(InnerTypes.Last()) ? ToOptional(GrabInnerSchema()) : NoId; 
 	uint64 Offset = GrabMemberOffset();
 		
-	return { &InnerTypes[0], RangeBindings, InnermostSchema, Offset};
+	return { &InnerTypes[0], RangeBindings, static_cast<uint32>(InnerTypes.Num()), InnermostSchema, Offset};
+}
+
+void FMemberVisitor::SkipMember()
+{
+	FMemberBindType Type = PeekType();
+	if (Type.IsRange())
+	{
+		FMemberBindTypeRange InnerTypes = GrabInnerTypes();
+		InnerSchemaIdx += HasSchema(InnerTypes.Last());
+	}
+	else
+	{
+		InnerSchemaIdx += HasSchema(Type);
+	}
+	
+	++MemberIdx;
 }
 
 FSchemaId FMemberVisitor::GrabInnerSchema()
@@ -91,7 +119,6 @@ FRangeBinding::FRangeBinding(const IRangeBinding& Binding, ERangeSizeType SizeTy
 	check(&Binding == &GetBinding());
 	check(SizeType == GetSizeType());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -133,62 +160,28 @@ static uint16 CountRanges(TConstArrayView<FMemberBinding> Members)
 
 void FStructBindings::BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Members)
 {
+	// Make header, allocate and copy header
 	FStructSchemaBinding Header = { IntCastChecked<uint16>(Members.Num()), CountInnerSchemas(Members), CountRanges(Members) };
+	FStructSchemaBinding* Schema = new (FMemory::MallocZeroed(Header.CalculateSize())) FStructSchemaBinding {Header};
 
-	// Calculate size
-	uint64 Size = sizeof(Header);
-	Size += (Members.Num() + Header.NumInnerRanges) * sizeof(FMemberBindType);
-	Size = Align(Size, sizeof(uint32));
-	Size += Members.Num() * sizeof(uint32);
-	Size = Align(Size, sizeof(FSchemaId));
-	Size += Header.NumInnerSchemas * sizeof(FSchemaId);
-	Size = Align(Size, sizeof(FRangeBinding));
-	Size += Header.NumInnerRanges * sizeof(FRangeBinding);
-
-	// Allocate and copy header
-	FStructSchemaBinding* Schema = new (FMemory::MallocZeroed(Size)) FStructSchemaBinding {Header};
-
-	// Copy footer
-	FMemberBindType* MemberIt		= Schema->Members;
-	FMemberBindType* RangeTypeIt	= const_cast<FMemberBindType*>(Schema->GetInnerRangeTypes());
-	uint32* OffsetIt				= const_cast<uint32*>(Schema->GetOffsets());
-	FSchemaId* InnerSchemaIt		= const_cast<FSchemaId*>(Schema->GetInnerSchemas());
-	FRangeBinding* RangeBindingIt	= const_cast<FRangeBinding*>(Schema->GetRangeBindings());
+	// Write footer
+	FMemberBinder Footer(*Schema);
 	for (const FMemberBinding& Member : Members)
 	{
-		if (TConstArrayView<FRangeBinding> Ranges = Member.RangeBindings; Ranges.IsEmpty())
+		TConstArrayView<FRangeBinding> Ranges = Member.RangeBindings;
+		if (Ranges.IsEmpty())
 		{
-			*MemberIt++ = Member.InnermostType;
+			Footer.AddMember(Member.InnermostType, IntCastChecked<uint32>(Member.Offset));
 		}
 		else
 		{
-			*MemberIt++ = FMemberBindType(Ranges[0].GetSizeType());
-
-			for (FRangeBinding Range : Ranges.RightChop(1))
-			{
-				*RangeTypeIt++ = FMemberBindType(Range.GetSizeType());
-			}
-			*RangeTypeIt++ = Member.InnermostType;
-
-			FMemory::Memcpy(RangeBindingIt, Ranges.GetData(), Ranges.Num() * Ranges.GetTypeSize());
-			RangeBindingIt += Ranges.Num();
+			Footer.AddRange(Ranges, Member.InnermostType, IntCastChecked<uint32>(Member.Offset));
 		}
 
-		if (Member.InnermostSchema)
-		{
-			*InnerSchemaIt++ = Member.InnermostSchema.Get();
-		}
-
-		*OffsetIt++ = IntCastChecked<uint32>(Member.Offset);
+		Footer.AddOptionalInnerSchema(Member.InnermostSchema);
 	}
 
-	// Validate copying
-	check(MemberIt == Schema->GetInnerRangeTypes());
-	check(RangeTypeIt == (const void*)Schema->GetOffsets());
-	check(OffsetIt == (const void*)Schema->GetInnerSchemas());
-	check(InnerSchemaIt == (const void*)Schema->GetRangeBindings());
-	check(Header.NumInnerRanges == RangeBindingIt - Schema->GetRangeBindings());
-
+	// Register
 	Bind(Id, FStructBinding(*Schema));
 }
 
@@ -211,5 +204,119 @@ FStructBinding FStructBindings::Get(FStructSchemaId Id) const
 }
 
 //void FStructBindings::DropStruct(FStructSchemaId Id);
+
+
+//////////////////////////////////////////////////////////////////////////
+
+uint32 FIdTranslatorBase::CalculateTranslationSize(int32 NumSavedNames, const FSchemaBatch& Batch)
+{
+	static_assert(sizeof(FNameId) == sizeof(FNestedScopeId));
+	static_assert(sizeof(FNameId) == sizeof(FParametricTypeId));
+	static_assert(sizeof(FNameId) == sizeof(FSchemaId));
+	return sizeof(FNameId) * (NumSavedNames + Batch.NumNestedScopes + Batch.NumParametricTypes + Batch.NumSchemas);
+}
+
+FFlatScopeId Translate(FFlatScopeId From, TConstArrayView<FNameId> ToNames)
+{
+	return { ToNames[From.Name.Idx] };
+}
+
+static void TranslateScopeIds(TArrayView<FNestedScopeId> Out, FIdIndexerBase& Indexer, TConstArrayView<FNameId> ToNames, TConstArrayView<FNestedScope> From)
+{
+	uint32 OutIdx = 0;
+	for (FNestedScope Scope : From)
+	{
+		check(Scope.Outer.IsFlat() || Scope.Outer.AsNested().Idx < OutIdx);
+		FScopeId Outer = Scope.Outer.IsFlat() ? FScopeId(Translate(Scope.Outer.AsFlat(), ToNames)) : FScopeId(Out[Scope.Outer.AsNested().Idx]);
+		FFlatScopeId Inner = Translate(Scope.Inner, ToNames);
+		Out[OutIdx] = Indexer.NestScope(Outer, Inner).AsNested();
+	}
+}
+
+static void TranslateParametricTypeIds(TArrayView<FParametricTypeId> Out, FIdIndexerBase& Indexer, const FIdBinding& To, TConstArrayView<FParametricType> From, const FTypeId* FromParameters)
+{
+	TArray<FTypeId, TInlineAllocator<8>> Params;
+	uint32 OutIdx = 0;
+	for (FParametricType Parametric : From)
+	{
+		Params.Reset();
+		for (FTypeId FromParameter : MakeArrayView(FromParameters + Parametric.Parameters.Idx, Parametric.Parameters.NumParameters))
+		{
+			Params.Add(To.Remap(FromParameter));
+		}
+		Out[OutIdx] = Indexer.MakeParametricTypeId(To.Remap(Parametric.Name), Params);
+	}
+}
+
+static void TranslateSchemaIds(TArrayView<FSchemaId> Out, FIdIndexerBase& Indexer, const FIdBinding& To, const FSchemaBatch& From)
+{
+	uint32 OutIdx = 0;
+	for (const FStructSchema& FromSchema : GetStructSchemas(From))
+	{
+		FTypeId ToType = To.Remap(FromSchema.Type);
+		Out[OutIdx++] = Indexer.IndexStruct(ToType);
+	}
+	
+	for (const FEnumSchema& FromSchema : GetEnumSchemas(From))
+	{
+		FTypeId ToType = To.Remap(FromSchema.Type);
+		Out[OutIdx++] = Indexer.IndexEnum(ToType);
+	}
+}
+
+FIdBinding FIdTranslatorBase::TranslateIds(FMutableMemoryView To, FIdIndexerBase& Indexer, TConstArrayView<FNameId> ToNames, const FSchemaBatch& From)
+{
+	TArrayView<FNestedScopeId> ToScopes(static_cast<FNestedScopeId*>(To.GetData()), From.NumNestedScopes);
+	TArrayView<FParametricTypeId> ToParametricTypes(reinterpret_cast<FParametricTypeId*>(ToScopes.end()), From.NumParametricTypes);
+	TArrayView<FSchemaId> ToSchemas(reinterpret_cast<FSchemaId*>(ToParametricTypes.end()), From.NumSchemas);
+	FIdBinding Out = {ToNames, ToScopes, ToParametricTypes, ToSchemas};
+	check(uintptr_t(To.GetDataEnd()) == uintptr_t(ToSchemas.end()));
+
+	TranslateScopeIds(ToScopes, Indexer, ToNames, From.GetNestedScopes());
+	TranslateParametricTypeIds(ToParametricTypes, Indexer, Out, From.GetParametricTypes(), From.GetFirstParameter());
+	TranslateSchemaIds(ToSchemas, Indexer, Out, From);
+
+	return Out;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+FSchemaBatch* CreateTranslatedSchemas(const FSchemaBatch& In, FIdBinding NewIds)
+{
+	const FMemoryView InSchemas = GetSchemaData(In);
+	const uint32 Num = In.NumSchemas;
+	const uint64 Size = sizeof(FSchemaBatch) + /* offsets */ sizeof(uint32) * Num + InSchemas.GetSize();
+
+	// Allocate and copy header
+	FSchemaBatch* Out = new (FMemory::Malloc(Size)) FSchemaBatch {In};
+	Out->NumNestedScopes = 0;
+	Out->NestedScopesOffset = 0;
+	Out->NumParametricTypes = 0;
+
+	// Initialize schema offsets
+	const uint32 DroppedBytes = IntCastChecked<uint32>(uintptr_t(InSchemas.GetData()) - uintptr_t(In.SchemaOffsets + Num));
+	for (uint32 Idx = 0; Idx < Num; ++Idx)
+	{
+		Out->SchemaOffsets[Idx] = In.SchemaOffsets[Idx] - DroppedBytes;
+	}
+
+	// Copy schemas and remap type ids
+	FMemory::Memcpy(reinterpret_cast<uint8*>(Out) + Out->GetSchemaOffsets()[0], InSchemas.GetData(), InSchemas.GetSize());
+	for (FStructSchema& Schema : GetStructSchemas(*Out))
+	{
+		Schema.Type = NewIds.Remap(Schema.Type);
+	}
+	for (FEnumSchema& Schema : GetEnumSchemas(*Out))
+	{
+		Schema.Type = NewIds.Remap(Schema.Type);
+	}
+
+	return Out;
+}
+
+void DestroyTranslatedSchemas(const FSchemaBatch* Schemas)
+{
+	FMemory::Free(const_cast<FSchemaBatch*>(Schemas));
+}
 
 } // namespace PlainProps

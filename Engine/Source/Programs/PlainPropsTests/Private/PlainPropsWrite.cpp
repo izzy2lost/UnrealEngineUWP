@@ -31,17 +31,17 @@ struct FWriteIds
 	TArray<FParametricType>				KeptParametrics;
 	TArray<FTypeId>						KeptParameters;
 
-	FNameId					Remap(FNameId Old) const				{ return Names[Old.Idx].Get(); }
-	FMemberId				Remap(FMemberId Old) const				{ return { Remap(Old.Id) }; }
-	FFlatScopeId			Remap(FFlatScopeId Old) const			{ return { Remap(Old.Name) }; }
-	FNestedScopeId			Remap(FNestedScopeId Old) const			{ return NestedScopes[Old.Idx].Get(); }
-	FScopeId				Remap(FScopeId Old) const				{ return Old.IsNested() ? FScopeId(Remap(Old.AsNested())) : FScopeId(Remap(Old.AsFlat())); }
-	FConcreteTypenameId		Remap(FConcreteTypenameId Old) const	{ return { Remap(Old.Id) }; }	
-	FParametricTypeId		Remap(FParametricTypeId Old) const		{ return ParametricTypes[Old.Idx].Get(); }
-	FTypenameId				Remap(FTypenameId Old) const			{ return Old.IsConcrete() ? FTypenameId(Remap(Old.AsConcrete())) : FTypenameId(Remap(Old.AsParametric())); }
-	FTypeId					Remap(FTypeId Old) const				{ return { Remap(Old.Scope), Remap(Old.Name) }; }
-	FSchemaId				RemapStruct(FSchemaId Old) const		{ return Structs[Old.Idx].Get(); }
-	FSchemaId				RemapEnum(FSchemaId Old) const			{ return Enums[Old.Idx].Get(); }
+	FNameId								Remap(FNameId Old) const				{ return Names[Old.Idx].Get(); }
+	FMemberId							Remap(FMemberId Old) const				{ return { Remap(Old.Id) }; }
+	FFlatScopeId						Remap(FFlatScopeId Old) const			{ return { Remap(Old.Name) }; }
+	FNestedScopeId						Remap(FNestedScopeId Old) const			{ return NestedScopes[Old.Idx].Get(); }
+	FScopeId							Remap(FScopeId Old) const				{ return Old.IsNested() ? FScopeId(Remap(Old.AsNested())) : FScopeId(Remap(Old.AsFlat())); }
+	FConcreteTypenameId					Remap(FConcreteTypenameId Old) const	{ return { Remap(Old.Id) }; }	
+	FParametricTypeId					Remap(FParametricTypeId Old) const		{ return ParametricTypes[Old.Idx].Get(); }
+	FTypenameId							Remap(FTypenameId Old) const			{ return Old.IsConcrete() ? FTypenameId(Remap(Old.AsConcrete())) : FTypenameId(Remap(Old.AsParametric())); }
+	FTypeId								Remap(FTypeId Old) const				{ return { Remap(Old.Scope), Remap(Old.Name) }; }
+	FSchemaId							RemapStruct(FSchemaId Old) const		{ return Structs[Old.Idx].Get(); }
+	FSchemaId							RemapEnum(FSchemaId Old) const			{ return Enums[Old.Idx].Get(); }
 };
 
 static TConstArrayView<FNameId> GetUsedNames(const FBuiltStructSchema& Used)
@@ -467,6 +467,7 @@ static void WriteSchemasImpl(TArray64<uint8>& Out, const FBuiltSchemas& Schemas,
 	Header.NestedScopesOffset = IntCastChecked<uint32>(NestedScopePos - HeaderPos);
 	Header.NumParametricTypes = NewIds.KeptParametrics.Num();
 	Header.NumSchemas = NewIds.NumKeptSchemas;
+	Header.NumStructSchemas = Schemas.Structs.Num();
 	FMemory::Memcpy(&Out[HeaderPos], &Header, sizeof(FSchemaBatch));
 
 	// Write schema offsets
