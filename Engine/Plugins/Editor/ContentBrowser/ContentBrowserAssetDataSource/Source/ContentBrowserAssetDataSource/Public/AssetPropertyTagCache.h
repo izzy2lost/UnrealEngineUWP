@@ -61,8 +61,16 @@ public:
 	/** Get (or populate) the cache for the given asset class */
 	const FClassPropertyTagCache& GetCacheForClass(FTopLevelAssetPath InClassName);
 
+	/** Get the cache for the given asset class if it has been created */
+	const FClassPropertyTagCache* FindCacheForClass(FTopLevelAssetPath InClassName);
+
 private:
-	/** Mapping of the asset class name to its cache */
+	mutable FRWLock Lock;
+
+	/** 
+	 * Mapping of the asset class name to its cache. 
+	 * Values are not modified after construction, so they can safely be returned after releasing the lock. 
+	 */
 	TMap<FTopLevelAssetPath, TSharedPtr<FClassPropertyTagCache>> ClassToCacheMap;
 };
 

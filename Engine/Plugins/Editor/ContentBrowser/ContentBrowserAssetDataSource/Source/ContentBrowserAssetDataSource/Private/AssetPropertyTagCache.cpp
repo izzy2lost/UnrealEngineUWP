@@ -11,12 +11,26 @@ FAssetPropertyTagCache& FAssetPropertyTagCache::Get()
 	return AssetPropertyTagCache;
 }
 
+const FAssetPropertyTagCache::FClassPropertyTagCache* FAssetPropertyTagCache::FindCacheForClass(FTopLevelAssetPath InClassName)
+{
+	FReadScopeLock ReadScope(Lock);
+	TSharedPtr<FClassPropertyTagCache> ClassCache = ClassToCacheMap.FindRef(InClassName);
+	return ClassCache.Get();
+}
+
 const FAssetPropertyTagCache::FClassPropertyTagCache& FAssetPropertyTagCache::GetCacheForClass(FTopLevelAssetPath InClassName)
 {
-	TSharedPtr<FClassPropertyTagCache> ClassCache = ClassToCacheMap.FindRef(InClassName);
+	TSharedPtr<FClassPropertyTagCache> ClassCache;
+	
+	{
+		FReadScopeLock ReadScope(Lock);
+		ClassCache = ClassToCacheMap.FindRef(InClassName);
+	}
+	
+	// On a miss, race with other potential creations rather than hold the lock against queries for another class
 	if (!ClassCache)
 	{
-		ClassCache = ClassToCacheMap.Add(InClassName, MakeShared<FClassPropertyTagCache>());
+		ClassCache = MakeShared<FClassPropertyTagCache>();
 
 		auto GetAssetClass = [&InClassName]()
 		{
@@ -91,6 +105,9 @@ const FAssetPropertyTagCache::FClassPropertyTagCache& FAssetPropertyTagCache::Ge
 				}
 			}
 		}
+
+		FWriteScopeLock WriteScope(Lock);
+		ClassToCacheMap.Add(InClassName, ClassCache);
 	}
 
 	check(ClassCache);
