@@ -255,6 +255,10 @@ struct FOwnedBulkDataPtr
 	{
 		return MappedRegion;
 	}
+	bool IsDataMemoryMapped() const
+	{
+		return MappedHandle != nullptr;
+	}
 
 	void RelinquishOwnership()
 	{
