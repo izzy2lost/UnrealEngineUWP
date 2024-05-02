@@ -137,15 +137,14 @@ UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(ID
 }
 
 UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
+	: State(EDMState::Idle)
+	, Domain(EMaterialDomain::MD_Surface)
+	, BlendMode(EBlendMode::BLEND_Opaque)
+	, ShadingModel(EDMMaterialShadingModel::DefaultLit)
+	, bPixelAnimationFlag(false)
+	, bTwoSidedFlag(true)
+	, ChannelListPreset(NAME_None)
 {
-	State = EDMState::Idle;
-
-	BlendMode = EBlendMode::BLEND_Translucent;
-	ShadingModel = EDMMaterialShadingModel::Unlit;
-	bPixelAnimationFlag = false;
-	bTwoSidedFlag = true;
-	ChannelListPreset = NAME_None;
-
 	Properties.Emplace(EDMMaterialPropertyType::BaseColor,           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor"));
 	Properties.Emplace(EDMMaterialPropertyType::EmissiveColor,       CreateDefaultSubobject<UDMMaterialPropertyEmissiveColor>(      "MaterialProperty_EmissiveColor"));
 	Properties.Emplace(EDMMaterialPropertyType::Opacity,             CreateDefaultSubobject<UDMMaterialPropertyOpacity>(            "MaterialProperty_Opacity"));
@@ -184,6 +183,26 @@ void UDynamicMaterialModelEditorOnlyData::AssignPropertyAlphaValues()
 	Properties[EDMMaterialPropertyType::AmbientOcclusion   ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalAmbientOcclusionValueName));
 	Properties[EDMMaterialPropertyType::Refraction         ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRefractionValueName));
 	Properties[EDMMaterialPropertyType::PixelDepthOffset   ]->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalPixelDepthOffsetValueName));
+}
+
+TArray<FName> UDynamicMaterialModelEditorOnlyData::GetPresetOptions() const
+{
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
+	{
+		return {ChannelListPreset};
+	}
+
+	TArray<FName> PresetNames;
+	PresetNames.Reserve(Settings->MaterialChannelPresets.Num());
+
+	for (const FDMMaterialChannelListPreset& Preset : Settings->MaterialChannelPresets)
+	{
+		PresetNames.Add(Preset.Name);
+	}
+
+	return PresetNames;
 }
 
 void UDynamicMaterialModelEditorOnlyData::Initialize()

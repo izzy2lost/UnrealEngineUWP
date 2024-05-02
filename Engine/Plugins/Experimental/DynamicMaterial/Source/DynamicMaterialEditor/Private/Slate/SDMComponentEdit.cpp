@@ -834,13 +834,35 @@ void SDMComponentEdit::OnUndo()
 void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModel* InMaterialModel,
 	TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects)
 {
-	const FName Category = FName("Global Settings");
+	const FName MaterialTypeCategory = FName("Material Type");
+	auto AddVariable = [InEditorWidget, &InOutPropertyRows, &MaterialTypeCategory](UObject* InObject, FName InPropertyName)
+		{
+			if (IsValid(InObject))
+			{
+				FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
+					InObject, InPropertyName));
+
+				ValueHandle.CategoryOverrideName = MaterialTypeCategory;
+			}
+		};
+
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
+	{
+		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, ChannelListPreset));
+		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, Domain));
+		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, BlendMode));
+		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, ShadingModel));
+		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, bPixelAnimationFlag));
+		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, bTwoSidedFlag));
+	}
+
+	const FName MaterialSettingsCategory = FName("Material Settings");
 	const FName UIMin = FName("UIMin");
 	const FName UIMax = FName("UIMax");
 	const FName ClampMin = FName("ClampMin");
 	const FName ClampMax = FName("ClampMax");
 
-	auto AddGlobalVar = [InEditorWidget, InMaterialModel, &InOutPropertyRows, &InOutProcessedObjects, &Category , &UIMin, &UIMax, &ClampMin, &ClampMax]
+	auto AddGlobalValue = [InEditorWidget, InMaterialModel, &InOutPropertyRows, &InOutProcessedObjects, &MaterialSettingsCategory , &UIMin, &UIMax, &ClampMin, &ClampMax]
 		(UDMMaterialValue* InValue, const FText& InNameOverride)
 		{
 			if (IsValid(InValue))
@@ -850,7 +872,7 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 					FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
 						InValue, UDMMaterialValue::ValueName));
 
-					ValueHandle.CategoryOverrideName = Category;
+					ValueHandle.CategoryOverrideName = MaterialSettingsCategory;
 					ValueHandle.NameOverride = InNameOverride;
 
 					if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(InValue))
@@ -869,15 +891,15 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 			}
 		};
 
-	AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName), LOCTEXT("GlobalOffset", "Global Offset"));
-	AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTilingValueName), LOCTEXT("GlobalTiling", "Global Tiling"));
-	AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRotationValueName), LOCTEXT("GlobalRotation", "Global Rotation"));
+	AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName), LOCTEXT("GlobalOffset", "Global Offset"));
+	AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTilingValueName), LOCTEXT("GlobalTiling", "Global Tiling"));
+	AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRotationValueName), LOCTEXT("GlobalRotation", "Global Rotation"));
 
 	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
 	{
 		if (EditorOnlyData->GetBlendMode() != BLEND_Opaque)
 		{
-			AddGlobalVar(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName), LOCTEXT("GlobalOpacity", "Global Opacity"));
+			AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName), LOCTEXT("GlobalOpacity", "Global Opacity"));
 		}
 
 		const FText PropertyFormat = LOCTEXT("PropertyFormat", "Global {0}");
@@ -897,7 +919,7 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 					{
 						if (UDMMaterialValueFloat1* AlphaValue = Cast<UDMMaterialValueFloat1>(MaterialProperty->GetComponent(UDynamicMaterialModelEditorOnlyData::AlphaValueName)))
 						{
-							AddGlobalVar(
+							AddGlobalValue(
 								AlphaValue,
 								FText::Format(
 									PropertyFormat,

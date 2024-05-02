@@ -866,6 +866,9 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 
 void SDMEditor::OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel)
 {
+	RefreshSlotPickerList();
+	RefreshSlotWidget();
+	RefreshComponentEditWidget();
 }
 
 void SDMEditor::OnValuesUpdated(UDynamicMaterialModel* InMaterialModel)

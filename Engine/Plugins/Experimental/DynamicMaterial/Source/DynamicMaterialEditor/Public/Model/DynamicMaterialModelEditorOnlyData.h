@@ -45,6 +45,7 @@ class DYNAMICMATERIALEDITOR_API UDynamicMaterialModelEditorOnlyData : public UOb
 	GENERATED_BODY()
 
 	friend class UDynamicMaterialModelFactory;
+	friend class SDMComponentEdit;
 
 public:
 	static const FString SlotsPathToken;
@@ -217,24 +218,26 @@ protected:
 	TObjectPtr<UDynamicMaterialModel> MaterialModel;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	EDMState State = EDMState::Idle;
+	EDMState State;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", 
+		meta = (ValidEnumValues = "MD_Surface,MD_PostProcess,MD_DeferredDecal"))
+	TEnumAsByte<EMaterialDomain> Domain;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer",
+		meta = (ValidEnumValues = "BLEND_Opaque,BLEND_Translucent,BLEND_Masked,BLEND_Additive,BLEND_Modulate"))
+	TEnumAsByte<EBlendMode> BlendMode;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (ValidEnumValues = "Unlit,DefaultLit"))
+	EDMMaterialShadingModel ShadingModel;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	TEnumAsByte<EMaterialDomain> Domain = EMaterialDomain::MD_Surface;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	TEnumAsByte<EBlendMode> BlendMode = EBlendMode::BLEND_Translucent;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	EDMMaterialShadingModel ShadingModel = EDMMaterialShadingModel::Unlit;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bPixelAnimationFlag;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bTwoSidedFlag;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (GetOptions = GetPresetOptions, NoResetToDefault))
 	FName ChannelListPreset;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
@@ -284,6 +287,9 @@ protected:
 	//~ End IDynamicMaterialModelEditorOnlyDataInterface
 
 	void AssignPropertyAlphaValues();
+
+	UFUNCTION()
+	TArray<FName> GetPresetOptions() const;
 
 	void LoadDeprecatedModelData_Base(bool bInCreateMaterialPackage, EBlendMode InBlendMode, EDMMaterialShadingModel InShadingModel);
 	void LoadDeprecatedModelData_Expressions(TArray<TObjectPtr<UMaterialExpression>>& InExpressions);
