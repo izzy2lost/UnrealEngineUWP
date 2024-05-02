@@ -13,8 +13,6 @@
 
 REGISTER_ASSETDEPENDENCY_GATHERER(FExternalAssetDependencyGatherer, UWorkspace);
 
-const FName UWorkspace::ExportsAssetRegistryTag = TEXT("Exports");
-
 bool UWorkspace::AddAsset(const FAssetData& InAsset, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if(!IsAssetSupported(InAsset))
@@ -356,26 +354,4 @@ void UWorkspace::PostDuplicate(bool bDuplicateForPIE)
 	Super::PostDuplicate(bDuplicateForPIE);
 
 	Guid = FGuid::NewGuid();
-}
-
-void UWorkspace::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
-{
-	Super::GetAssetRegistryTags(Context);
-
-	FWorkspaceAssetRegistryExports Exports;
-	Exports.Assets.Reserve(AssetEntries.Num());
-
-	for(const UWorkspaceAssetEntry* AssetEntry : AssetEntries)
-	{
-		if (AssetEntry)
-		{
-			Exports.Assets.Emplace(AssetEntry->Asset.GetUniqueID());
-		}
-	
-	}
-
-	FString TagValue;
-	FWorkspaceAssetRegistryExports::StaticStruct()->ExportText(TagValue, &Exports, nullptr, nullptr, PPF_None, nullptr);
-
-	Context.AddTag(FAssetRegistryTag(ExportsAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
 }

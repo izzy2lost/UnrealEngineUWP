@@ -74,8 +74,6 @@ class UWorkspace : public UObject
 	friend class UAssetDefinition_Workspace;
 	friend class UWorkspaceState;
 
-	WORKSPACEEDITOR_API static const FName ExportsAssetRegistryTag;
-
 	// Adds an asset to the workspace
 	// @return true if the asset was added
 	UFUNCTION(BlueprintCallable, Category = "Workspace")
@@ -120,7 +118,6 @@ class UWorkspace : public UObject
 	// UObject interface
 	virtual void PostLoad() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
-	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 	virtual bool IsEditorOnly() const override { return true; }
 	virtual void Serialize(FArchive& Ar) override;

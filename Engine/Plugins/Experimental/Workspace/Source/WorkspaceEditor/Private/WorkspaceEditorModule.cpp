@@ -3,6 +3,7 @@
 #include "WorkspaceEditorModule.h"
 
 #include "EdGraphUtilities.h"
+#include "ExternalPackageHelper.h"
 #include "WorkspaceDocumentState.h"
 #include "GraphDocumentState.h"
 #include "SGraphDocument.h"
@@ -126,8 +127,26 @@ FObjectDocumentArgs FWorkspaceEditorModule::CreateGraphDocumentArgs(const FGraph
 
 bool FWorkspaceEditorModule::GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FWorkspaceAssetRegistryExports& OutExports)
 {
-	const FString TagValue = InWorkspaceAsset.GetTagValueRef<FString>(UWorkspace::ExportsAssetRegistryTag);
-	return FWorkspaceAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FWorkspaceAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
+	const FString ExternalObjectsPath = FExternalPackageHelper::GetExternalObjectsPath(InWorkspaceAsset.PackageName.ToString());
+	FARFilter Filter;
+	Filter.bRecursivePaths = true;
+	Filter.bIncludeOnlyOnDiskAssets = true;
+	Filter.PackagePaths.Add(*ExternalObjectsPath);
+
+	TArray<FAssetData> AssetDataEntries;
+	const IAssetRegistry& AssetRegistry = FAssetRegistryModule::GetRegistry();
+	AssetRegistry.GetAssets(Filter, AssetDataEntries);
+
+	for (const FAssetData& AssetDataEntry : AssetDataEntries)
+	{
+		FSoftObjectPath SoftObjectPath(AssetDataEntry.GetTagValueRef<FString>(UWorkspaceAssetEntry::ExportsAssetRegistryTag));
+		if(SoftObjectPath.IsValid())
+		{
+			OutExports.Assets.Add({SoftObjectPath});
+		}
+	}
+
+	return OutExports.Assets.Num() > 0;
 }
 
 void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass/*= UWorkspaceFactory::StaticClass()*/)
