@@ -430,6 +430,9 @@ public:
 	TArray<TObjectPtr<UPropertyWrapper>> PropertyWrappers;
 	/** Unique id incremented each time this class properties get destroyed */
 	int32 FieldPathSerialNumber;
+
+	/** Number of fields, inclusive of base fields and fixed-size array elements. Generated during Link(). */
+	UE_INTERNAL int32 TotalFieldCount = 0;
 #endif
 
 	/** Cached schema for optimized unversioned and filtereditoronly property serialization, owned by this. */

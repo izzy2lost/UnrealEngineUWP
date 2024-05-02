@@ -186,6 +186,11 @@ class FProperty : public FField
 private:
 	TEnumAsByte<ELifetimeCondition> BlueprintReplicationCondition;
 
+#if WITH_EDITORONLY_DATA
+	/** Index of the property within its owner, inclusive of base properties. Generated during Link(). */
+	uint16		IndexInOwner = 0;
+#endif
+
 	// In memory variables (generated during Link()).
 	int32		Offset_Internal;
 
@@ -356,6 +361,14 @@ protected:
 	COREUOBJECT_API void Init();
 
 public:
+#if WITH_EDITORONLY_DATA
+	/** Return the index of the property in its owner. Only valid after Link(). */
+	UE_INTERNAL FORCEINLINE int32 GetIndexInOwner() const
+	{
+		return IndexInOwner;
+	}
+#endif
+
 	/** Return offset of property from container base. */
 	FORCEINLINE int32 GetOffset_ForDebug() const
 	{

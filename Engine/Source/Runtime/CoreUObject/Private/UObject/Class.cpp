@@ -849,11 +849,17 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 		int32 LoopNum = 1;
 		for (int32 LoopIter = 0; LoopIter < LoopNum; LoopIter++)
 		{
+		#if WITH_EDITORONLY_DATA
+			TotalFieldCount = 0;
+		#endif
 			PropertiesSize = 0;
 			MinAlignment = 1;
 
 			if (InheritanceSuper)
 			{
+			#if WITH_EDITORONLY_DATA
+				TotalFieldCount = InheritanceSuper->TotalFieldCount;
+			#endif
 				PropertiesSize = InheritanceSuper->GetPropertiesSize();
 				MinAlignment = InheritanceSuper->GetMinAlignment();
 			}
