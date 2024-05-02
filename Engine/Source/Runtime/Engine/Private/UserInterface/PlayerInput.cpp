@@ -158,6 +158,8 @@ void UPlayerInput::FlushPressedKeys()
 		KeyState.bDown = false;
 		KeyState.bDownPrevious = false;
 		KeyState.LastUpDownTransitionTime = TimeSeconds;
+		// Flag each key as having been flushed this frame so that we can correctly evaluate it next time
+		KeyState.bWasJustFlushed = true;
 	}
 }
 
@@ -345,11 +347,15 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 		UWorld* World = GetWorld();
 		check(World);
 
-		const bool bIsFirstEventForKey = (ExistingKeyState == nullptr);
+		const bool bIsFirstEventForKey = (ExistingKeyState == nullptr) || KeyState.bWasJustFlushed;
+
+		const float WorldRealTimeSeconds = World->GetRealTimeSeconds();
 
 		// If this is the first key press for us and it is a repeat, then we have missed the initial IE_Pressed event.
 		// This can happen if you are holding down a key between level transitions and the player controller gets recreated,
 		// which means that we will be using a new UPlayerInput object and the KeyState map is emptied.
+		// This can ALSO happen if "FlushPressedKeys" gets called, like when we change player controller input modes, and you keep holding down the key 
+		// in between those transitions
 		if (UE::Input::bAutoReconcilePressedEventsOnFirstRepeat && bIsFirstEventForKey && Params.Event == IE_Repeat && KeyState.EventAccumulator[IE_Pressed].IsEmpty())
 		{
 			// Mark as having received the IE_Pressed event already, so that we can correctly evaluate the 
@@ -359,8 +365,12 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 			// every frame, even if you are just holding it
 			KeyState.RawValueAccumulator.X = Params.Delta.X;
 			KeyState.EventAccumulator[IE_Pressed].Add(++EventCount);
-			KeyState.LastUpDownTransitionTime = World->GetRealTimeSeconds();
+			KeyState.LastUpDownTransitionTime = WorldRealTimeSeconds;
 			KeyState.SampleCountAccumulator++;
+
+			// We can assume that if we are getting a "Repeat event" that this key was already down the previous frame and it is down this frame
+			KeyState.bDown = true;
+			KeyState.bDownPrevious = true;
 		}
 
 		switch(Params.Event)
@@ -373,7 +383,6 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 			{
 				// check for doubleclick
 				// note, a tripleclick will currently count as a 2nd double click.
-				const float WorldRealTimeSeconds = World->GetRealTimeSeconds();
 				if ((WorldRealTimeSeconds - KeyState.LastUpDownTransitionTime) < GetDefault<UInputSettings>()->DoubleClickTime)
 				{
 					KeyState.EventAccumulator[IE_DoubleClick].Add(++EventCount);
@@ -409,6 +418,9 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 		{
 			return IsKeyHandledByAction( Params.Key);
 		}
+
+		// We have now processed this key's state, so we can clear its "just flushed" flag and treat it normally
+		KeyState.bWasJustFlushed = false;
 
 		return true;
 	}
