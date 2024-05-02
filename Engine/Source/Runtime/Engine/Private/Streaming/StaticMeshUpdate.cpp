@@ -138,46 +138,13 @@ static void CheckRayTracingGeometryInitializer(
 	ERayTracingGeometryInitializerType ExpectedInitializerType,
 	const FRayTracingGeometryInitializer& Initializer)
 {
-	const FName OwnerName = UStaticMesh::GetLODPathName(Mesh, LODIdx);
-
 	FRayTracingGeometryInitializer TmpInitializer;
-	LODResource.SetupRayTracingGeometryInitializer(TmpInitializer, Mesh->GetFName(), OwnerName);
+	LODResource.SetupRayTracingGeometryInitializer(TmpInitializer, Initializer.DebugName, Initializer.OwnerName);
+	// simply copied names since they're not always available during streaming
 
 	TmpInitializer.Type = ExpectedInitializerType;
 
-	// Can't compare TmpInitializer == Initializer directly due to some members not having equality operators
-
-	check(TmpInitializer.IndexBuffer == Initializer.IndexBuffer);
-	check(TmpInitializer.IndexBufferOffset == Initializer.IndexBufferOffset);
-	check(TmpInitializer.GeometryType == Initializer.GeometryType);
-	check(TmpInitializer.TotalPrimitiveCount == Initializer.TotalPrimitiveCount);
-
-	// Can't compare Segments directly due to some members not having equality operators
-	check(TmpInitializer.Segments.Num() == Initializer.Segments.Num());
-
-	for (int32 SegmentIndex = 0; SegmentIndex < TmpInitializer.Segments.Num(); ++SegmentIndex)
-	{
-		//check(TmpInitializer.Segments[SegmentIndex] == Initializer.Segments[SegmentIndex]);
-		check(TmpInitializer.Segments[SegmentIndex].VertexBuffer == Initializer.Segments[SegmentIndex].VertexBuffer);
-		check(TmpInitializer.Segments[SegmentIndex].VertexBufferElementType == Initializer.Segments[SegmentIndex].VertexBufferElementType);
-		check(TmpInitializer.Segments[SegmentIndex].VertexBufferOffset == Initializer.Segments[SegmentIndex].VertexBufferOffset);
-		check(TmpInitializer.Segments[SegmentIndex].VertexBufferStride == Initializer.Segments[SegmentIndex].VertexBufferStride);
-		check(TmpInitializer.Segments[SegmentIndex].MaxVertices == Initializer.Segments[SegmentIndex].MaxVertices);
-		check(TmpInitializer.Segments[SegmentIndex].FirstPrimitive == Initializer.Segments[SegmentIndex].FirstPrimitive);
-		check(TmpInitializer.Segments[SegmentIndex].NumPrimitives == Initializer.Segments[SegmentIndex].NumPrimitives);
-		check(TmpInitializer.Segments[SegmentIndex].bForceOpaque == Initializer.Segments[SegmentIndex].bForceOpaque);
-		check(TmpInitializer.Segments[SegmentIndex].bAllowDuplicateAnyHitShaderInvocation == Initializer.Segments[SegmentIndex].bAllowDuplicateAnyHitShaderInvocation);
-		check(TmpInitializer.Segments[SegmentIndex].bEnabled == Initializer.Segments[SegmentIndex].bEnabled);
-	}
-
-	check(TmpInitializer.OfflineData == Initializer.OfflineData);
-	check(TmpInitializer.SourceGeometry == Initializer.SourceGeometry);
-	check(TmpInitializer.bFastBuild == Initializer.bFastBuild);
-	check(TmpInitializer.bAllowUpdate == Initializer.bAllowUpdate);
-	check(TmpInitializer.bAllowCompaction == Initializer.bAllowCompaction);
-	check(TmpInitializer.Type == Initializer.Type);
-	// Can't compare DebugName directly due to FDebugName not having equality operator
-	check(TmpInitializer.OwnerName == Initializer.OwnerName);
+	check(TmpInitializer == Initializer);
 }
 #endif
 

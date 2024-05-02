@@ -3150,6 +3150,67 @@ public:
 	FName OwnerName;
 };
 
+#if DO_CHECK
+FORCEINLINE bool operator==(const FRayTracingGeometryInitializer& LHS, const FRayTracingGeometryInitializer& RHS)
+{
+	// Can't compare LHS == RHS directly due to some members not having equality operators
+
+	if (LHS.IndexBuffer != RHS.IndexBuffer
+		|| LHS.IndexBufferOffset != RHS.IndexBufferOffset
+		|| LHS.GeometryType != RHS.GeometryType
+		|| LHS.TotalPrimitiveCount != RHS.TotalPrimitiveCount)
+	{
+		return false;
+	}
+
+	// Can't compare Segments directly due to some members not having equality operators
+	if (LHS.Segments.Num() != RHS.Segments.Num())
+	{
+		return false;
+	}
+
+	for (int32 SegmentIndex = 0; SegmentIndex < LHS.Segments.Num(); ++SegmentIndex)
+	{
+		//if (LHS.Segments[SegmentIndex] != RHS.Segments[SegmentIndex])
+		//{
+		//	return false;
+		//}
+
+		if (LHS.Segments[SegmentIndex].VertexBuffer != RHS.Segments[SegmentIndex].VertexBuffer
+			|| LHS.Segments[SegmentIndex].VertexBufferElementType != RHS.Segments[SegmentIndex].VertexBufferElementType
+			|| LHS.Segments[SegmentIndex].VertexBufferOffset != RHS.Segments[SegmentIndex].VertexBufferOffset
+			|| LHS.Segments[SegmentIndex].VertexBufferStride != RHS.Segments[SegmentIndex].VertexBufferStride
+			|| LHS.Segments[SegmentIndex].MaxVertices != RHS.Segments[SegmentIndex].MaxVertices
+			|| LHS.Segments[SegmentIndex].FirstPrimitive != RHS.Segments[SegmentIndex].FirstPrimitive
+			|| LHS.Segments[SegmentIndex].NumPrimitives != RHS.Segments[SegmentIndex].NumPrimitives
+			|| LHS.Segments[SegmentIndex].bForceOpaque != RHS.Segments[SegmentIndex].bForceOpaque
+			|| LHS.Segments[SegmentIndex].bAllowDuplicateAnyHitShaderInvocation != RHS.Segments[SegmentIndex].bAllowDuplicateAnyHitShaderInvocation
+			|| LHS.Segments[SegmentIndex].bEnabled != RHS.Segments[SegmentIndex].bEnabled)
+		{
+			return false;
+		}
+	}
+
+	if (LHS.OfflineData != RHS.OfflineData
+		|| LHS.SourceGeometry != RHS.SourceGeometry
+		|| LHS.bFastBuild != RHS.bFastBuild
+		|| LHS.bAllowUpdate != RHS.bAllowUpdate
+		|| LHS.bAllowCompaction != RHS.bAllowCompaction
+		|| LHS.Type != RHS.Type)
+	{
+		return false;
+	}
+
+	// Can't compare DebugName directly due to FDebugName not having equality operator
+	if (LHS.OwnerName != RHS.OwnerName)
+	{
+		return false;
+	}
+
+	return true;
+}
+#endif
+
 enum ERayTracingSceneLifetime
 {
 	// Scene may only be used during the frame when it was created.
