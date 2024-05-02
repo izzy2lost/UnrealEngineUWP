@@ -7,12 +7,12 @@
 
 namespace UE::VersePath::Private
 {
+	static const FText IdentDefaultTerm = LOCTEXT("IdentDefaultTerm", "Verse identifier");
+
 	struct FNullTerminal
 	{
 		explicit FNullTerminal() = default;
 	};
-
-	static const FText IdentDefaultTerm = LOCTEXT("IdentDefaultTerm", "Verse identifier");
 
 	FORCEINLINE bool operator==(const TCHAR* Ch, FNullTerminal) { return *Ch == TEXT('\0'); }
 	FORCEINLINE bool operator!=(const TCHAR* Ch, FNullTerminal) { return *Ch != TEXT('\0'); }
@@ -44,19 +44,19 @@ namespace UE::VersePath::Private
 		return FStringView(Start, Len);
 	}
 
-	void ReportInvalidChars(FStringView InvalidChars, FText& OutErrorMessage, const FText& Owner)
+	FText MakeInvalidCharsMessage(const TSet<TCHAR>& InvalidChars, const FText& Owner)
 	{
 		if (InvalidChars.IsEmpty())
 		{
-			return;
+			return FText::GetEmpty();
 		}
 
 		bool bContainsWhitespace = false;
 		FString InvalidCharsNoWhitespace;
-		InvalidCharsNoWhitespace.Reserve(InvalidChars.Len() * 2);
+		InvalidCharsNoWhitespace.Reserve(InvalidChars.Num() * 2);
 		for (TCHAR InvalidChar : InvalidChars)
 		{
-			if (FText::IsWhitespace(InvalidChar))
+			if (FChar::IsWhitespace(InvalidChar))
 			{
 				bContainsWhitespace = true;
 			}
@@ -72,7 +72,7 @@ namespace UE::VersePath::Private
 
 		if (bContainsWhitespace && !InvalidCharsNoWhitespace.IsEmpty())
 		{
-			OutErrorMessage = FText::Format(
+			return FText::Format(
 				LOCTEXT("ForbiddenWhitescapeAndChars", "{0} cannot contain whitespace characters or the following characters: {1}"),
 				Owner,
 				FText::AsCultureInvariant(MoveTemp(InvalidCharsNoWhitespace)));
@@ -80,11 +80,11 @@ namespace UE::VersePath::Private
 		}
 		else if (bContainsWhitespace)
 		{
-			OutErrorMessage = FText::Format(LOCTEXT("ForbiddenWhitescape", "{0} cannot contain whitespace characters"), Owner);
+			return FText::Format(LOCTEXT("ForbiddenWhitescape", "{0} cannot contain whitespace characters"), Owner);
 		}
 		else
 		{
-			OutErrorMessage = FText::Format(
+			return FText::Format(
 				LOCTEXT("ForbiddenChars", "{0} cannot contain the following characters: {1}"),
 				Owner,
 				FText::AsCultureInvariant(MoveTemp(InvalidCharsNoWhitespace)));
@@ -116,16 +116,15 @@ namespace UE::VersePath::Private
 	};
 
 	template <typename EndType>
-	FString GetInvalidDomainLabelChars(const TCHAR* Ptr, EndType End, bool bStopOnSlash, bool bStopOnAtSign)
+	TSet<TCHAR> GetDomainLabelInvalidChars(const TCHAR* Ptr, EndType End, bool bStopOnSlash, bool bStopOnAtSign)
 	{
-		FString InvalidChars;
-		int32 Index = INDEX_NONE;
+		TSet<TCHAR> InvalidChars;
 		while (!IsDomainLabelEnd(Ptr, End, bStopOnSlash, bStopOnAtSign))
 		{
 			TCHAR Ch = *Ptr;
-			if (!IsValidDomainLabelChar(Ch) && !InvalidChars.FindChar(Ch, Index))
+			if (!IsValidDomainLabelChar(Ch))
 			{
-				InvalidChars.AppendChar(Ch);
+				InvalidChars.Add(Ch);
 			}
 			++Ptr;
 		}
@@ -133,10 +132,10 @@ namespace UE::VersePath::Private
 	}
 
 	template <typename EndType>
-	void ReportInvalidDomainLabelChars(const TCHAR* Ptr, EndType End, bool bStopOnSlash, bool bStopOnAtSign, FText& OutErrorMessage)
+	FText MakeDomainLabelInvalidCharsMessage(const TCHAR* Ptr, EndType End, bool bStopOnSlash, bool bStopOnAtSign)
 	{
-		const FString InvalidChars = GetInvalidDomainLabelChars(Ptr, End, bStopOnSlash, bStopOnAtSign);
-		ReportInvalidChars(InvalidChars, OutErrorMessage, LOCTEXT("DomainLabel", "Domain label"));
+		const TSet<TCHAR> InvalidChars = GetDomainLabelInvalidChars(Ptr, End, bStopOnSlash, bStopOnAtSign);
+		return MakeInvalidCharsMessage(InvalidChars, LOCTEXT("DomainLabel", "Domain label"));
 	}
 
 	template <typename EndType>
@@ -167,13 +166,12 @@ namespace UE::VersePath::Private
 				}
 				else
 				{
-					ReportInvalidDomainLabelChars(LocalPtr, End, bStopOnSlash, bStopOnAtSign, *OutErrorMessage);
+					*OutErrorMessage = MakeDomainLabelInvalidCharsMessage(LocalPtr, End, bStopOnSlash, bStopOnAtSign);
 				}
 			}
 			return false;
 		}
 
-		bool bSuccess = true;
 		++LocalPtr;
 		for (;;)
 		{
@@ -189,30 +187,28 @@ namespace UE::VersePath::Private
 			}
 			else
 			{
-				bSuccess = false;
 				if (OutErrorMessage)
 				{
-					ReportInvalidDomainLabelChars(LocalPtr, End, bStopOnSlash, bStopOnAtSign, *OutErrorMessage);
+					*OutErrorMessage = MakeDomainLabelInvalidCharsMessage(LocalPtr, End, bStopOnSlash, bStopOnAtSign);
 				}
-				break;
+				return false;
 			}
 		}
 
 		Ptr = LocalPtr;
-		return bSuccess;
+		return true;
 	}
 
 	template <typename EndType>
-	FString GetInvalidIdentChars(const TCHAR* Ptr, EndType End, bool bStopOnSlash)
+	TSet<TCHAR> GetIdentInvalidChars(const TCHAR* Ptr, EndType End, bool bStopOnSlash)
 	{
-		FString InvalidChars;
-		int32 Index = INDEX_NONE;
+		TSet<TCHAR> InvalidChars;
 		while (Ptr != End && (!bStopOnSlash || *Ptr != TEXT('/')))
 		{
 			TCHAR Ch = *Ptr;
-			if (!IsAlphaNum(Ch) && !InvalidChars.FindChar(Ch, Index))
+			if (!IsAlphaNum(Ch))
 			{
-				InvalidChars.AppendChar(Ch);
+				InvalidChars.Add(Ch);
 			}
 			++Ptr;
 		}
@@ -220,10 +216,10 @@ namespace UE::VersePath::Private
 	}
 
 	template <typename EndType>
-	void ReportInvalidIdentChars(const TCHAR* Ptr, EndType End, bool bStopOnSlash, FText& OutErrorMessage, const FText& IdentTerm)
+	FText MakeIdentInvalidCharsMessage(const TCHAR* Ptr, EndType End, bool bStopOnSlash, const FText& IdentTerm)
 	{
-		const FString InvalidChars = GetInvalidIdentChars(Ptr, End, bStopOnSlash);
-		ReportInvalidChars(InvalidChars, OutErrorMessage, IdentTerm);
+		const TSet<TCHAR> InvalidChars = GetIdentInvalidChars(Ptr, End, bStopOnSlash);
+		return MakeInvalidCharsMessage(InvalidChars, IdentTerm);
 	}
 
 	template <typename EndType>
@@ -257,13 +253,12 @@ namespace UE::VersePath::Private
 				}
 				else
 				{
-					ReportInvalidIdentChars(LocalPtr, End, bStopOnSlash, *OutErrorMessage, IdentTermToUse);
+					*OutErrorMessage = MakeIdentInvalidCharsMessage(LocalPtr, End, bStopOnSlash, IdentTermToUse);
 				}
 			}
 			return false;
 		}
 
-		bool bSuccess = true;
 		++LocalPtr;
 		for (;;)
 		{
@@ -278,17 +273,16 @@ namespace UE::VersePath::Private
 			}
 			else
 			{
-				bSuccess = false;
 				if (OutErrorMessage)
 				{
-					ReportInvalidIdentChars(LocalPtr, End, bStopOnSlash, *OutErrorMessage, IdentTermToUse);
+					*OutErrorMessage = MakeIdentInvalidCharsMessage(LocalPtr, End, bStopOnSlash, IdentTermToUse);
 				}
-				break;
+				return false;
 			}
 		}
 
 		Ptr = LocalPtr;
-		return bSuccess;
+		return true;
 	}
 
 	FORCEINLINE void MakeInvalidDomainErrorMessage(const FStringView Domain, FText& OutErrorMessage)
@@ -556,10 +550,42 @@ bool UE::Core::FVersePath::TryMake(FVersePath& OutPath, FString&& Path, FText* O
 
 FString UE::Core::MangleGuidToVerseIdent(const FString& Guid)
 {
-	FString Ident = TEXT("_") + Guid;
-	Ident.ReplaceInline(TEXT("-"), TEXT(""), ESearchCase::CaseSensitive);
-	Ident.ReplaceInline(TEXT("{"), TEXT(""), ESearchCase::CaseSensitive);
-	Ident.ReplaceInline(TEXT("}"), TEXT(""), ESearchCase::CaseSensitive);
+	return MakeValidVerseIdentifier(Guid);
+}
+
+FString UE::Core::MakeValidVerseIdentifier(FStringView Str)
+{
+	FString Ident;
+	Ident.Reserve(Str.Len() + 1);
+
+	bool bIsLastCharWhitespace = false;
+	for (TCHAR Char : Str)
+	{
+		if (UE::VersePath::Private::IsAlphaNum(Char))
+		{
+			if (Ident.IsEmpty() && UE::VersePath::Private::IsNum(Char))
+			{
+				Ident.AppendChar(TEXT('_'));
+			}
+			Ident.AppendChar(Char);
+			bIsLastCharWhitespace = false;
+		}
+		else if (FChar::IsWhitespace(Char) && !Ident.IsEmpty() && Ident[Ident.Len() - 1] != TEXT('_'))
+		{
+			Ident.AppendChar(TEXT('_'));
+			bIsLastCharWhitespace = true;
+		}
+	}
+
+	if (Ident.IsEmpty())
+	{
+		Ident.AppendChar(TEXT('_'));
+	}
+	else if (bIsLastCharWhitespace && Ident.Len() > 1)
+	{
+		Ident.RemoveFromEnd(TEXT("_"));
+	}
+
 	return Ident;
 }
 

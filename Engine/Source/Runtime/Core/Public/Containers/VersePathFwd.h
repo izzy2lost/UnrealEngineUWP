@@ -22,5 +22,8 @@ namespace UE::Core
 
 	uint32 GetTypeHash(const UE::Core::FVersePath& VersePath);
 
+	UE_DEPRECATED(5.5, "Use MakeValidVerseIdentifier instead")
 	CORE_API FString MangleGuidToVerseIdent(const FString& Guid);
+
+	CORE_API FString MakeValidVerseIdentifier(FStringView Str);
 }
