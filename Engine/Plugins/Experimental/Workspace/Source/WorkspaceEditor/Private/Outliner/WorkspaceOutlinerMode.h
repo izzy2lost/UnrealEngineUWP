@@ -33,6 +33,8 @@ namespace UE::Workspace
 
 		void OpenItems(TArrayView<const FSceneOutlinerTreeItemPtr> Items) const;
 		void DeleteItems(TArrayView<const FSceneOutlinerTreeItemPtr> Items) const;
+
+		void OnAssetRegistryAssetUpdate(const FAssetData& AssetData);
 	private:
 		TWeakObjectPtr<UWorkspace> WeakWorkspace;
 		TWeakPtr<IWorkspaceEditor> WeakWorkspaceEditor;

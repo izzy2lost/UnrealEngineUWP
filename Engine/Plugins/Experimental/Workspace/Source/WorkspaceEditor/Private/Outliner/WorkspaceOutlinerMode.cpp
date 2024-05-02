@@ -22,6 +22,11 @@ FWorkspaceOutlinerMode::FWorkspaceOutlinerMode(SSceneOutliner* InSceneOutliner, 
 	{
 		Workspace->ModifiedDelegate.AddRaw(this, &FWorkspaceOutlinerMode::OnWorkspaceModified);
 	}
+
+	if (FAssetRegistryModule* AssetRegistryModule = FModuleManager::LoadModulePtr<FAssetRegistryModule>(AssetRegistryConstants::ModuleName))
+	{
+		AssetRegistryModule->Get().OnAssetUpdated().AddRaw(this, &FWorkspaceOutlinerMode::OnAssetRegistryAssetUpdate);
+	}
 }
 
 FWorkspaceOutlinerMode::~FWorkspaceOutlinerMode()
@@ -29,6 +34,11 @@ FWorkspaceOutlinerMode::~FWorkspaceOutlinerMode()
 	if (UWorkspace* Workspace = WeakWorkspace.Get())
 	{
 		Workspace->ModifiedDelegate.RemoveAll(this);
+	}
+
+	if (FAssetRegistryModule* AssetRegistryModule = FModuleManager::LoadModulePtr<FAssetRegistryModule>(AssetRegistryConstants::ModuleName))
+	{
+		AssetRegistryModule->Get().OnAssetUpdated().RemoveAll(this);
 	}
 }
 
@@ -268,6 +278,10 @@ void FWorkspaceOutlinerMode::DeleteItems(TArrayView<const FSceneOutlinerTreeItem
 	}
 }
 
+void FWorkspaceOutlinerMode::OnAssetRegistryAssetUpdate(const FAssetData& AssetData)
+{
+	SceneOutliner->FullRefresh();
+}
 }	
 
 #undef LOCTEXT_NAMESPACE // "FWorkspaceOutlinerMode"

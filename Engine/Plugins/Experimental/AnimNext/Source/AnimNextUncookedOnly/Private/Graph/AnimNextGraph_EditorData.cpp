@@ -3,6 +3,7 @@
 #include "Graph/AnimNextGraph_EditorData.h"
 
 #include "UncookedOnlyUtils.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Curves/CurveFloat.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_AnimationGraph.h"
@@ -14,6 +15,7 @@
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/LinkerLoad.h"
 
@@ -132,6 +134,11 @@ void UAnimNextGraph_EditorData::RecompileVM()
 	CachedExports = FAnimNextParameterProviderAssetRegistryExports();
 	UE::AnimNext::UncookedOnly::FUtils::GetAssetParameters(this, CachedExports.GetValue());
 	UE::AnimNext::UncookedOnly::FUtils::Compile(GetTypedOuter<UAnimNextGraph>());
+	
+	if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
+	{
+		AssetRegistry->AssetUpdateTags(GetTypedOuter<UAnimNextGraph>(), EAssetRegistryTagsCaller::Fast);
+	}
 }
 
 void UAnimNextGraph_EditorData::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject)
