@@ -315,6 +315,17 @@ DYNAMICMESH_API bool InitializeSelectionFromTriangles(
 
 
 /**
+ * Convert PolyGroup IDs to target Selection type
+ */
+DYNAMICMESH_API bool InitializeSelectionFromPolyGroups(
+	const FDynamicMesh3& Mesh,
+	const FGroupTopology& GroupTopology,
+	TArrayView<const int> GroupIDs,
+	FGeometrySelection& SelectionOut);
+
+
+
+/**
  * Convert Selection from one type to another, based on geometry/topology types in FromSelectionIn and ToSelectionOut.
  * 
  * The following table describes the conversions, the FromSelectionIn/ToSelectionOut type are rows/columns respectively:
@@ -323,12 +334,12 @@ DYNAMICMESH_API bool InitializeSelectionFromTriangles(
  *                 To:    Triangle               Polygroup           
  *   From:                Vertex  Edge    Face   Vertex  Edge    Face
  *   ----------------------------------------------------------------
- *   Triangle Vertex      1       .       .      .       .       .   
- *   Triangle Edge        1       1       .      .       .       .   
+ *   Triangle Vertex      1       .       .      4#      .       .   
+ *   Triangle Edge        1       1       .      4#      .       .   
  *   Triangle Face        1       1       1      4#      3#      2#  
  *   Polygroup Vertex     6#      .       .      1       .       .   
- *   Polygroup Edge       5#      .       .      .       1       .   
- *   Polygroup Face       .       .       .      .       .       1   
+ *   Polygroup Edge       5#      1#      .      1#      1       .   
+ *   Polygroup Face       1#      1#      1#     1#      1#      1   
  *   ================================================================
  *
  *   Key:
@@ -337,7 +348,7 @@ DYNAMICMESH_API bool InitializeSelectionFromTriangles(
  *   2  supported. Polygroup faces containing any input triangle are selected
  *   3  supported. Polygroup edges containing any input triangle edge are selected, but
  *                 polygroup edges containing only input triangle vertices are not.
- *   4  supported. Polygroup corners coinciding with any input triangle vertex are selected
+ *   4  supported. Polygroup corners coinciding with any input triangle face/edge/vertex are selected
  *   5  supported. All mesh vertices along the polygroup edge are selected
  *   6  supported. All mesh vertices coinciding with polygroup corners are selected
  *   #  indicates GroupTopology must not be null for this combination. If this symbol is missing GroupTopology is ignored
