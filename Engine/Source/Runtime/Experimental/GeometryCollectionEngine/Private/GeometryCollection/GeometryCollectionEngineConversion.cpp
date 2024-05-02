@@ -1265,25 +1265,40 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	// 
 	// Transform Attributes 
 	// 
+	auto MakeUnique = [&BoneName](FString& NewName, int32& CurrentIndex)
+	{
+		FString TestName = FString::Printf(TEXT("%s%d"), *NewName, CurrentIndex);
+		while (BoneName.Contains(TestName))
+		{
+			TestName = FString::Printf(TEXT("%s%d"), *NewName, CurrentIndex);
+			CurrentIndex++;
+		}
+		return TestName;
+	};
 
 	// add transforms for the separated geometry components. 
+	int32 SplitMeshIndex = 1;
 	TArray<int32> ComponentToTransformGroupIndex;
 	ComponentToTransformGroupIndex.Init(INDEX_NONE, ComponentsSourceIndices.Num());
 	int32 ComponentTransformBaseIndex = GeometryCollection.AddElements(ComponentsSourceIndices.Num(), FTransformCollection::TransformGroup);
 	for (int ComponentIndex = 0; ComponentIndex < ComponentsSourceIndices.Num(); ComponentIndex++)
 	{
+		FString BaseName("SplitMesh");
+
 		int32 ComponentTransformIndex = ComponentTransformBaseIndex + ComponentIndex;
 		Parent[ComponentTransformIndex] = RootIndex;
 		if (RootIndex != INDEX_NONE)
 		{
 			Children[RootIndex].Add(ComponentTransformIndex);
+			BaseName = FString::Printf(TEXT("%s_SplitMesh"), *BoneName[RootIndex]);
 		}
 
-		BoneName[ComponentTransformIndex] = FString::Printf(TEXT("%s_Mesh%d"), *BoneName[RootIndex], ComponentTransformIndex);
+		BoneName[ComponentTransformIndex] = MakeUnique(BaseName, SplitMeshIndex);
 		LocalSpaceTransform[ComponentTransformIndex] = FTransform3f::Identity;
 		SimulationType[ComponentTransformIndex] = FGeometryCollection::ESimulationTypes::FST_None;
 		BoneColor[ComponentTransformIndex] = FLinearColor::MakeRandomColor();
 		ComponentToTransformGroupIndex[ComponentIndex] = ComponentTransformIndex;
+		SplitMeshIndex++;
 	}
 
 	TArray<FTransform> ComponentTransform;
@@ -1728,6 +1743,7 @@ void FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(const FMan
 			}
 		}
 
+		Transforms.EnforceSingleRoot("root");
 		UE_LOG(UGeometryCollectionConversionLogging, Log, TEXT("FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(NumTransforms:%d)"), OutSkeleton->GetReferenceSkeleton().GetRawBoneNum());
 	}
 }

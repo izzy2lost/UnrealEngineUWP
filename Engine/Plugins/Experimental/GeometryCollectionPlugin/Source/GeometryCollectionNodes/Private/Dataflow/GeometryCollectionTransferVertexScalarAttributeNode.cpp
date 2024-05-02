@@ -288,7 +288,13 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::NearestVertexTransfer
 float FGeometryCollectionTransferVertexScalarAttributeNode::MaxEdgeLength(TArray<FVector>& Vert, const TManagedArray<FIntVector3>& Tri, int VertexOFfset, int TriStart, int TriCount)
 {
 	auto TriInRange = [](const FIntVector3& T, int Max) {
-		for (int k = 0; k < 3; k++) if (T[0] < 0 || Max <= T[0]) return false;
+		for (int k = 0; k < 3; k++)
+		{
+			if (ensure(T[k] < 0 || Max <= T[k]))
+			{
+				return false;
+			}
+		}
 		return true;
 	};
 

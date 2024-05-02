@@ -22,6 +22,7 @@
 #include "Generate/IsosurfaceStuffing.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "GeometryCollection/Facades/CollectionTetrahedralMetricsFacade.h"
+#include "GeometryCollection/Facades/CollectionTransformFacade.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "MeshDescription.h"
 #include "MeshDescriptionToDynamicMesh.h"
@@ -181,6 +182,8 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 				}
 			};
 			AppendProcessedGeometry();
+
+			GeometryCollection::Facades::FCollectionTransformFacade(*InCollectionVal.Get()).EnforceSingleRoot("root");
 		}
 		SetValue<const DataType&>(Context, *InCollectionVal, &Collection);
 	}
