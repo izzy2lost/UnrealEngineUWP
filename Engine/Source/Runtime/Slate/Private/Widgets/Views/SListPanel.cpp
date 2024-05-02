@@ -7,17 +7,30 @@
 // Used to subtract a tiny amount from the available dimension to avoid floating point precision problems when arranging children
 static const float FloatingPointPrecisionOffset = 0.001f;
 
+SLATE_IMPLEMENT_WIDGET(SListPanel)
+void SListPanel::PrivateRegisterAttributes(FSlateAttributeInitializer& AttributeInitializer)
+{
+	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "ItemWidth", ItemWidthAttribute, EInvalidateWidgetReason::Layout);
+	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "ItemHeight", ItemHeightAttribute, EInvalidateWidgetReason::Layout);
+	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "NumDesiredItems", NumDesiredItemsAttribute, EInvalidateWidgetReason::Layout);
+	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "ItemAlignment", ItemAlignmentAttribute, EInvalidateWidgetReason::Layout);
+}
+
 SListPanel::SListPanel()
 	: Children(this)
+	, ItemAlignmentAttribute(*this)
+	, ItemWidthAttribute(*this, 16.0f)
+	, ItemHeightAttribute(*this, 0.0f)
+	, NumDesiredItemsAttribute(*this, 0)
 {
 }
 
 void SListPanel::Construct( const FArguments& InArgs )
 {
-	ItemWidth = InArgs._ItemWidth;
-	ItemHeight = InArgs._ItemHeight;
-	NumDesiredItems = InArgs._NumDesiredItems;
-	ItemAlignment = InArgs._ItemAlignment;
+	ItemWidthAttribute.Assign(*this, InArgs._ItemWidth);
+	ItemHeightAttribute.Assign(*this, InArgs._ItemHeight);
+	NumDesiredItemsAttribute.Assign(*this, InArgs._NumDesiredItems);
+	ItemAlignmentAttribute.Assign(*this, InArgs._ItemAlignment);
 	Orientation = InArgs._ListOrientation;
 	Children.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
 }
@@ -42,7 +55,7 @@ void SListPanel::OnArrangeChildren( const FGeometry& AllottedGeometry, FArranged
 		if (ShouldArrangeAsTiles())
 		{
 			// This is a tile view list - arrange items side by side along the line axis until there is no more room, then create a new line along the scroll axis.
-			const EListItemAlignment ListItemAlignment = ItemAlignment.Get();
+			const EListItemAlignment ListItemAlignment = ItemAlignmentAttribute.Get();
 			const float ItemPadding = GetItemPadding(AllottedGeometry, ListItemAlignment);
 			const float HalfItemPadding = ItemPadding * 0.5f;
 
@@ -130,12 +143,12 @@ void SListPanel::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	{
 		const FTableViewDimensions AllottedDimensions(Orientation, AllottedGeometry.GetLocalSize());
 
-		const EListItemAlignment ListItemAlignment = ItemAlignment.Get();
+		const EListItemAlignment ListItemAlignment = ItemAlignmentAttribute.Get();
 		const float ItemPadding = GetItemPadding(AllottedGeometry, ListItemAlignment);
 		FTableViewDimensions ItemDimensions = GetItemSize(AllottedGeometry, ListItemAlignment);
 		ItemDimensions.LineAxis += ItemPadding;
 
-		const int32 NumChildren = NumDesiredItems.Get();
+		const int32 NumChildren = NumDesiredItemsAttribute.Get();
 
 		if (ItemDimensions.LineAxis > 0.0f && NumChildren > 0)
 		{
@@ -149,7 +162,7 @@ void SListPanel::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	}
 	else
 	{
-		PreferredNumLines = NumDesiredItems.Get();
+		PreferredNumLines = NumDesiredItemsAttribute.Get();
 	}
 }
 
@@ -220,12 +233,12 @@ void SListPanel::ClearItems()
 
 FTableViewDimensions SListPanel::GetDesiredItemDimensions() const
 {
-	return FTableViewDimensions(Orientation, ItemWidth.Get(), ItemHeight.Get());
+	return FTableViewDimensions(Orientation, ItemWidthAttribute.Get(), ItemHeightAttribute.Get());
 }
 
 float SListPanel::GetItemPadding(const FGeometry& AllottedGeometry) const
 {
-	return GetItemPadding(AllottedGeometry, ItemAlignment.Get());
+	return GetItemPadding(AllottedGeometry, ItemAlignmentAttribute.Get());
 }
 
 float SListPanel::GetItemPadding(const FGeometry& AllottedGeometry, const EListItemAlignment ListItemAlignment) const
@@ -250,7 +263,7 @@ float SListPanel::GetItemPadding(const FGeometry& AllottedGeometry, const EListI
 
 FTableViewDimensions SListPanel::GetItemSize(const FGeometry& AllottedGeometry) const
 {
-	return GetItemSize(AllottedGeometry, ItemAlignment.Get());
+	return GetItemSize(AllottedGeometry, ItemAlignmentAttribute.Get());
 }
 
 FTableViewDimensions SListPanel::GetItemSize(const FGeometry& AllottedGeometry, const EListItemAlignment ListItemAlignment) const
@@ -316,10 +329,10 @@ bool SListPanel::ShouldArrangeAsTiles() const
 
 void SListPanel::SetItemHeight(TAttribute<float> Height)
 {
-	ItemHeight = Height;
+	ItemHeightAttribute.Assign(*this, MoveTemp(Height));
 }
 
 void SListPanel::SetItemWidth(TAttribute<float> Width)
 {
-	ItemWidth = Width;
+	ItemWidthAttribute.Assign(*this, MoveTemp(Width));
 }

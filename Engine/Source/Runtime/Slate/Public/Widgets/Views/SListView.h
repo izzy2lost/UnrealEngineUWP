@@ -43,11 +43,10 @@
  *   Given: TArray< TSharedPtr<FText> > Items;
  *
  *   SNew( SListView< TSharedPtr<FText> > )
- *     .ItemHeight(24)
  *     .ListItemsSource( &Items )
  *     .OnGenerateRow(this, &MyClass::GenerateItemRow)
  *
- * In the example we make all our widgets be 24 screen units tall. The ListView will create widgets based on data items
+ * The ListView will create widgets based on data items
  * in the Items TArray. When the ListView needs to generate an item, it will do so using the specified OnGenerateRow method.
  *
  * A sample implementation of MyClass::GenerateItemRow has to return a STableRow with optional content:
@@ -92,7 +91,6 @@ public:
 		, _OnGeneratePinnedRow()
 		, _OnEntryInitialized()
 		, _OnRowReleased()
-		, _ItemHeight(16)
 		, _MaxPinnedItems(6)
 		, _OnContextMenuOpening()
 		, _OnMouseButtonClick()
@@ -140,7 +138,7 @@ public:
 
 		SLATE_ITEMS_SOURCE_ARGUMENT( ItemType, ListItemsSource )
 
-		SLATE_ATTRIBUTE( float, ItemHeight )
+		SLATE_ATTRIBUTE_DEPRECATED( float, ItemHeight, 5.5, "The ItemHeight is only used for Tile. See ShouldArrangeAsTiles")
 
 		SLATE_ATTRIBUTE(int32, MaxPinnedItems)
 
@@ -284,8 +282,8 @@ public:
 		}
 		else
 		{
-			// Make the TableView
-			ConstructChildren( 0, InArgs._ItemHeight, EListItemAlignment::LeftAligned, InArgs._HeaderRow, InArgs._ExternalScrollbar, InArgs._Orientation, InArgs._OnListViewScrolled, InArgs._ScrollBarStyle, InArgs._PreventThrottling );
+			// Make the ListView
+			ConstructChildren( 0.0f, 0.0f, EListItemAlignment::LeftAligned, InArgs._HeaderRow, InArgs._ExternalScrollbar, InArgs._Orientation, InArgs._OnListViewScrolled, InArgs._ScrollBarStyle, InArgs._PreventThrottling );
 			if(this->ScrollBar.IsValid())
 			{
 				this->ScrollBar->SetDragFocusCause(InArgs._ScrollbarDragFocusCause);
