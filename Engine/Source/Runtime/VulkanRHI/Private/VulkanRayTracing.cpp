@@ -26,7 +26,7 @@ static FAutoConsoleVariableRef CVarVulkanRayTracingMaxBatchedCompaction(
 	ECVF_ReadOnly
 );
 
-static int32 GVulkanRayTracingAllowDeferredOperation = -1;
+static int32 GVulkanRayTracingAllowDeferredOperation = 0;
 static FAutoConsoleVariableRef CVarVulkanRayTracingAllowDeferredOperation(
 	TEXT("r.Vulkan.RayTracing.AllowDeferredOperation"),
 	GVulkanRayTracingAllowDeferredOperation,
@@ -1564,6 +1564,11 @@ FVulkanRayTracingPipelineState::FVulkanRayTracingPipelineState(FVulkanDevice* co
 		if (GVulkanRayTracingAllowDeferredOperation > 0)
 		{
 			MaxConcurrency = FMath::Min(MaxConcurrency, GVulkanRayTracingAllowDeferredOperation);
+		}
+		else if (MaxConcurrency > 3)
+		{
+			// Prevent automatic detection from completely clogging the machine
+			MaxConcurrency -= 2;
 		}
 
 		bool bCompleted = false;
