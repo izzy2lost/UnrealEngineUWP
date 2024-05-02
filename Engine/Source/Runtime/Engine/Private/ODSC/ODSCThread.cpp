@@ -303,6 +303,12 @@ void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* 
 		}
 		else
 		{
+			// Losing connection when exit is requested is expected, do not try to reconnect
+			if (ExitRequest.GetValue())
+			{
+				return;
+			}
+
 			UE_LOG(LogODSC, Display, TEXT("Detected that CookOnTheFlyServerConnection has been lost, trying again"));
 			if (!ConnectToODSCHost())
 			{
