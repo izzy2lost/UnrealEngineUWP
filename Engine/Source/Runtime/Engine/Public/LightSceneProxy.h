@@ -451,7 +451,7 @@ protected:
 	/** The index of the atmospheric light. Multiple lights can be considered when computing the sky/atmospheric scattering. */
 	const uint8 AtmosphereSunLightIndex;
 
-	const FLinearColor AtmosphereSunDiskColorScale;
+	FLinearColor AtmosphereSunDiskColorScale;
 
 	/** The light type (ELightComponentType) */
 	const uint8 LightType;

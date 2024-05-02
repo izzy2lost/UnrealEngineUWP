@@ -384,6 +384,17 @@ public:
 			});
 	}
 
+	void UpdateAtmosphereSunDiskColorScale_GameThread(const UDirectionalLightComponent* Component)
+	{
+		FLinearColor NewAtmosphereSunDiskColorScale = Component->AtmosphereSunDiskColorScale;
+		FDirectionalLightSceneProxy* Proxy = this;
+		ENQUEUE_RENDER_COMMAND(FUpdateLightShaftOverrideDirectionCommand)(
+			[Proxy, NewAtmosphereSunDiskColorScale](FRHICommandList& RHICmdList)
+			{
+				Proxy->AtmosphereSunDiskColorScale = NewAtmosphereSunDiskColorScale;
+			});
+	}
+
 	/** Accesses parameters needed for rendering the light. */
 	virtual void GetLightShaderParameters(FLightRenderParameters& LightParameters, uint32 Flags=0) const override
 	{
@@ -1375,7 +1386,11 @@ void UDirectionalLightComponent::SetAtmosphereSunDiskColorScale(FLinearColor New
 		&& AtmosphereSunDiskColorScale != NewValue)
 	{
 		AtmosphereSunDiskColorScale = NewValue;
-		MarkRenderStateDirty();
+		if (SceneProxy)
+		{
+			FDirectionalLightSceneProxy* DirectionalLightSceneProxy = (FDirectionalLightSceneProxy*)SceneProxy;
+			DirectionalLightSceneProxy->UpdateAtmosphereSunDiskColorScale_GameThread(this);
+		}
 	}
 }
 
