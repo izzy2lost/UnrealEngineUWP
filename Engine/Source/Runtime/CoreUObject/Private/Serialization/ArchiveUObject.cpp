@@ -4,6 +4,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
 #include "Serialization/SerializedPropertyScope.h"
+#include "UObject/ObjectRedirector.h"
 #include "UObject/UnrealType.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
@@ -177,6 +178,32 @@ FArchive& FObjectAndNameAsStringProxyArchive::operator<<(UObject*& Obj)
 		if(!Obj && bLoadIfFindFails)
 		{
 			Obj = LoadObject<UObject>(nullptr, *LoadedString);
+		}
+
+		if (bResolveRedirectors && Obj && Obj->IsA(UObjectRedirector::StaticClass()))
+		{
+			int32 Count = 0;
+			constexpr int32 MaxCountBeforeUseSet = 5;
+			while (Obj && Obj->IsA(UObjectRedirector::StaticClass()) && ++Count <= MaxCountBeforeUseSet)
+			{
+				Obj = static_cast<UObjectRedirector*>(Obj)->DestinationObject;
+			}
+			if (Obj && Obj->IsA(UObjectRedirector::StaticClass()))
+			{
+				TSet<UObject*> Seen;
+				Seen.Add(Obj);
+				while (Obj && Obj->IsA(UObjectRedirector::StaticClass()))
+				{
+					Obj = static_cast<UObjectRedirector*>(Obj)->DestinationObject;
+					bool bExists;
+					Seen.Add(Obj, &bExists);
+					if (bExists)
+					{
+						// Cycle, return null
+						Obj = nullptr;
+					}
+				}
+			}
 		}
 	}
 	else if (Obj)

@@ -44,6 +44,7 @@
 #include "Stats/StatsMisc.h"
 #include "Stats/StatsTrace.h"
 #include "SubstrateDefinitions.h"
+#include "UObject/ObjectRedirector.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include <memory>
 #include <tuple>
@@ -410,7 +411,32 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 		Ar << bSubstrateComplexSpecialPath;
 		Ar << bTextureSampleDebug;
 		Ar << SubstrateDefines;
-		Ar << ParameterCollections;
+
+		TArray<UObject*> ParameterCollectionObjects;
+		if (!Ar.IsLoading())
+		{
+			ParameterCollectionObjects.Reserve(ParameterCollections.Num());
+			for (const TObjectPtr<UMaterialParameterCollection>& Object : ParameterCollections)
+			{
+				ParameterCollectionObjects.Add(Object);
+			}
+		}
+		Ar << ParameterCollectionObjects;
+		if (Ar.IsLoading())
+		{
+			ParameterCollections.Reset(ParameterCollectionObjects.Num());
+			for (UObject* Object : ParameterCollectionObjects)
+			{
+				UMaterialParameterCollection* Collection = Cast<UMaterialParameterCollection>(Object);
+				if (!Collection && Object)
+				{
+					UE_LOG(LogMaterial, Error,
+						TEXT("FEnvironmentDefines.ParameterCollections had object %s which is not a UMaterialParameterCollection; setting it to null."),
+						*Object->GetFullName());
+				}
+				ParameterCollections.Add(Collection);
+			}
+		}
 	}
 };
 
@@ -1215,6 +1241,7 @@ bool FHLSLMaterialTranslator::Translate()
 		// Serialize the environment defines from the buffer retrieved from the DDC.
 		FMemoryReaderView EnvironmentDefinesBufferReader{ TArrayView<uint8>{ (uint8*)EnvironmentDefinesBuffer.GetData(), (int)EnvironmentDefinesBuffer.GetSize() } };
 		FObjectAndNameAsStringProxyArchive EnvironmentDefinesBufferReaderProxy{ EnvironmentDefinesBufferReader, true };
+		EnvironmentDefinesBufferReaderProxy.bResolveRedirectors = true;
 		EnvironmentDefines->Serialize(EnvironmentDefinesBufferReaderProxy);
 
 		MaterialCompilationOutput = DDCMaterialCompilationOutput;
