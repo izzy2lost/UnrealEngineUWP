@@ -1672,6 +1672,38 @@ void FInstancedPropertyBag::AddProperty(const FName InName, const FProperty* InS
 	AddProperties({ FPropertyBagPropertyDesc(InName, InSourceProperty ) });
 }
 
+EPropertyBagResult FInstancedPropertyBag::ReplaceAllPropertiesAndValues(const TConstArrayView<FPropertyBagPropertyDesc> InDescs, const TConstArrayView<TConstArrayView<uint8>> InValues)
+{
+	if (InDescs.Num() != InValues.Num())
+	{
+		return EPropertyBagResult::OutOfBounds;
+	}
+
+	Reset();
+
+	const UPropertyBag* NewBagStruct = UPropertyBag::GetOrCreateFromDescs(InDescs);
+	InitializeFromBagStruct(NewBagStruct);
+
+	for (int32 Index = 0; Index < NewBagStruct->PropertyDescs.Num(); ++Index)
+	{
+		const FPropertyBagPropertyDesc& Desc = NewBagStruct->PropertyDescs[Index];
+		const TConstArrayView<uint8>& NewValue = InValues[Index];
+
+		if (NewValue.Num() == Desc.CachedProperty->GetSize())
+		{
+			void* TargetAddress = Value.GetMutableMemory() + Desc.CachedProperty->GetOffset_ForInternal();
+			void const* SourceAddress = NewValue.GetData();
+			Desc.CachedProperty->CopyCompleteValue(TargetAddress, SourceAddress);
+		}
+		else
+		{
+			return EPropertyBagResult::TypeMismatch;
+		}
+	}
+
+	return EPropertyBagResult::Success;
+}
+
 void FInstancedPropertyBag::RemovePropertiesByName(const TConstArrayView<FName> PropertiesToRemove)
 {
 	TArray<FPropertyBagPropertyDesc> Descs;

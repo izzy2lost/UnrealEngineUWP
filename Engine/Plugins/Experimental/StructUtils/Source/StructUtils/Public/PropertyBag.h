@@ -417,6 +417,14 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 	void AddProperty(const FName InName, const FProperty* InSourceProperty);
 
 	/**
+	 * Clears all properties, then adds the supplied properties to the bag and sets their respective values.
+	 * Numeric property values will be converted if possible, when a property's type changes.
+	 * @param InDescs Descriptors of new properties to add. Must be the same size as InValues.
+	 * @param InValues Values of new properties to add. Must be the same size as InDescs.
+	 */
+	EPropertyBagResult ReplaceAllPropertiesAndValues(const TConstArrayView<FPropertyBagPropertyDesc> InDescs, const TConstArrayView<TConstArrayView<uint8>> InValues);
+
+	/**
 	 * Removes properties from the bag by name if they exists.
 	 */
 	void RemovePropertiesByName(const TConstArrayView<FName> PropertiesToRemove);
