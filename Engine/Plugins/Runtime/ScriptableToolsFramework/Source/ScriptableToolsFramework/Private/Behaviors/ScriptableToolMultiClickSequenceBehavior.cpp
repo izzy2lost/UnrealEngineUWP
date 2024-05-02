@@ -82,7 +82,7 @@ bool UScriptableToolClickSequenceBehavior::CanBeginClickSequence(const FInputDev
 	bool bShouldBegin = false;
 	if (CanBeginClickSequenceFunc.IsBound())
 	{
-		bShouldBegin = CanBeginClickSequenceFunc.Execute(ClickPos, BehaviorHost->GetActiveModifiers(), MouseButton);
+		bShouldBegin = CanBeginClickSequenceFunc.Execute(ClickPos, MouseButton);
 	}
 	return bShouldBegin;
 }

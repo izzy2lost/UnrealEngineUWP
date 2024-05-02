@@ -48,7 +48,7 @@ FInputRayHit UScriptableToolMouseWheelBehavior::ShouldRespondToMouseWheel(const 
 	FInputRayHit RayHit;
 	if (TestShouldRespondToMouseWheelFunc.IsBound())
 	{
-		RayHit = TestShouldRespondToMouseWheelFunc.Execute(CurrentPos, BehaviorHost->GetActiveModifiers());
+		RayHit = TestShouldRespondToMouseWheelFunc.Execute(CurrentPos);
 	}
 	return RayHit;
 }
@@ -60,7 +60,7 @@ void UScriptableToolMouseWheelBehavior::OnMouseWheelScrollUp(const FInputDeviceR
 
 void UScriptableToolMouseWheelBehavior::OnMouseWheelScrollDown(const FInputDeviceRay& CurrentPos)
 {
-	OnMouseWheelScrollUpFunc.ExecuteIfBound(CurrentPos, BehaviorHost->GetActiveModifiers());
+	OnMouseWheelScrollDownFunc.ExecuteIfBound(CurrentPos, BehaviorHost->GetActiveModifiers());
 }
 
 void UScriptableToolMouseWheelBehavior::OnUpdateModifierState(int ModifierID, bool bIsOn)

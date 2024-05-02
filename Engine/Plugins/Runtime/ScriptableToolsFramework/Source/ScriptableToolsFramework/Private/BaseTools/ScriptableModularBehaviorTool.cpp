@@ -10,9 +10,9 @@
 #include "Behaviors/ScriptableToolSingleClickOrDragBehavior.h"
 
 void UScriptableModularBehaviorTool::AddSingleClickBehavior(
-	const FTestIfHitByClickDelegate& TestIfHitByClickDelegate,
-	const FOnHitByClickDelegate& OnHitByClickDelegate,
-	const FMouseBehaviorModiferCheckDelegate& ModifierCheckFunction,
+	const FTestIfHitByClickDelegate TestIfHitByClickDelegate,
+	const FOnHitByClickDelegate OnHitByClickDelegate,
+	const FMouseBehaviorModiferCheckDelegate ModifierCheckFunction,
 	int CapturePriority,
 	EScriptableToolMouseButton MouseButton,
 	bool bHitTestOnRelease
@@ -27,12 +27,12 @@ void UScriptableModularBehaviorTool::AddSingleClickBehavior(
 
 
 void UScriptableModularBehaviorTool::AddClickDragBehavior(
-	const FTestCanBeginClickDragSequenceDelegate& TestCanBeginClickDragSequenceFuncIn,
-	const FOnClickPressDelegate& OnClickPressFuncIn,
-	const FOnClickDragDelegate& OnClickDragFuncIn,
-	const FOnClickReleaseDelegate& OnClickReleaseFuncIn,
-	const FOnTerminateDragSequenceDelegate& OnTerminateDragSequenceFuncIn,
-	const FMouseBehaviorModiferCheckDelegate& ModifierCheckFuncIn,
+	const FTestCanBeginClickDragSequenceDelegate TestCanBeginClickDragSequenceFuncIn,
+	const FOnClickPressDelegate OnClickPressFuncIn,
+	const FOnClickDragDelegate OnClickDragFuncIn,
+	const FOnClickReleaseDelegate OnClickReleaseFuncIn,
+	const FOnTerminateDragSequenceDelegate OnTerminateDragSequenceFuncIn,
+	const FMouseBehaviorModiferCheckDelegate ModifierCheckFuncIn,
 	int CapturePriority,
 	EScriptableToolMouseButton MouseButtonIn,
 	bool bUpdateModifiersDuringDrag

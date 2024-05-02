@@ -46,9 +46,9 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority, MouseButton, bHitTestOnRelease"))
 	void AddSingleClickBehavior(
-		const FTestIfHitByClickDelegate& IfHitByClick,
-		const FOnHitByClickDelegate& OnHitByClick,
-		const FMouseBehaviorModiferCheckDelegate& CaptureCheck,
+		const FTestIfHitByClickDelegate IfHitByClick,
+		const FOnHitByClickDelegate OnHitByClick,
+		const FMouseBehaviorModiferCheckDelegate CaptureCheck,
 		int CapturePriority = 100,
 		EScriptableToolMouseButton MouseButton = EScriptableToolMouseButton::LeftButton,
 		bool bHitTestOnRelease = true
@@ -75,12 +75,12 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority, MouseButton, bUpdateModifiersDuringDrag"))
 	void AddClickDragBehavior(		
-		const FTestCanBeginClickDragSequenceDelegate& CanBeginClickDragSequence,
-		const FOnClickPressDelegate& OnClickPress,
-		const FOnClickDragDelegate& OnClickDrag,
-		const FOnClickReleaseDelegate& OnClickRelease,
-		const FOnTerminateDragSequenceDelegate& OnTerminateDragSequence,
-		const FMouseBehaviorModiferCheckDelegate& CaptureCheck,
+		const FTestCanBeginClickDragSequenceDelegate CanBeginClickDragSequence,
+		const FOnClickPressDelegate OnClickPress,
+		const FOnClickDragDelegate OnClickDrag,
+		const FOnClickReleaseDelegate OnClickRelease,
+		const FOnTerminateDragSequenceDelegate OnTerminateDragSequence,
+		const FMouseBehaviorModiferCheckDelegate CaptureCheck,
 		int CapturePriority = 100,
 		EScriptableToolMouseButton MouseButton = EScriptableToolMouseButton::LeftButton,
 		bool bUpdateModifiersDuringDrag = false

@@ -82,7 +82,7 @@ FInputRayHit UScriptableToolSingleClickOrDragBehavior::IsHitByClick(const FInput
 	FInputRayHit RayHit;
 	if (TestIfHitByClickFunc.IsBound())
 	{
-		RayHit = TestIfHitByClickFunc.Execute(ClickPos, BehaviorHost->GetActiveModifiers(), MouseButton);
+		RayHit = TestIfHitByClickFunc.Execute(ClickPos, MouseButton);
 	}
 	return RayHit;
 }
