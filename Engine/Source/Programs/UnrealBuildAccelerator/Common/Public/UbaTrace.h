@@ -100,6 +100,8 @@ namespace uba
 
 	private:
 		struct WriterScope;
+		void FreeMemory();
+		bool EnsureMemory(u64 size);
 		u32 AddString(const tchar* string);
 
 		LoggerWithWriter m_logger;
