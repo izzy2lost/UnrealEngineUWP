@@ -3311,32 +3311,6 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::QueueGeneratedPackages(UE::Cook::FGen
 
 	FCookGenerationInfo& Info = GenerationHelper.GetOwnerInfo();
 
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::ClearOldPackagesLastAttempt)
-	{
-		for (const FCookGenerationInfo& ChildInfo: GenerationHelper.GetPackagesToGenerate())
-		{
-			const FString GeneratedPackageName = ChildInfo.PackageData->GetPackageName().ToString();
-			if (FindObject<UPackage>(nullptr, *GeneratedPackageName))
-			{
-				if (Info.GetSaveState() < FCookGenerationInfo::ESaveState::ClearOldPackagesLastAttempt)
-				{
-					PackageData.SetIsPrepareSaveRequiresGC(true);
-					Info.SetSaveState(FCookGenerationInfo::ESaveState::ClearOldPackagesLastAttempt);
-					return EPollStatus::Incomplete;
-				}
-				else
-				{
-					UE_LOG(LogCook, Error,
-						TEXT("PackageSplitter was unable to construct new generated packages because an old version of the package is already in memory and GC did not remove it. Splitter=%s, Generated=%s."),
-						*GenerationHelper.GetSplitDataObjectName().ToString(), *ChildInfo.RelativePath);
-					return EPollStatus::Error;
-				}
-			}
-		}
-
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::ClearOldPackagesLastAttempt);
-	}
-
 	UPackage* Owner = PackageData.GetPackage();
 	FName OwnerName = Owner->GetFName();
 	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::QueueGeneratedPackages)
@@ -6733,14 +6707,14 @@ void UCookOnTheFlyServer::RecordExternalActorDependencies(TConstArrayView<FName>
 
 	if (IsCookWorkerMode())
 	{
-		// The dependencies will be replicated to the CookDirectory during ReportPromoteToSaveComplete
+		// The dependencies will be replicated to the CookDirector during ReportPromoteToSaveComplete
 		return;
 	}
 
 	// External actors are a special case in the cooker, and they are only referenced through the
-	// WorldPartitionCookPackageSplitter. They are marked as NeverCook, but we need to add them
-	// to the cook results so we can detect whether they change in iterative cooks. Call a function
-	// on the splitter to get a list of them and add them.
+	// WorldPartitionCookPackageSplitter. They are marked as NeverCook, but we need to add them to the cook results so
+	// we can detect whether they change in iterative cooks. The splitter has passed in its list of
+	// ExternalActorDependencies; add them to the list of cooked packages stored in the AssetRegistry.
 	for (FName DependencyName : ExternalActorDependencies)
 	{
 		FPackageData* DependencyData = PackageDatas->TryAddPackageDataByPackageName(DependencyName);

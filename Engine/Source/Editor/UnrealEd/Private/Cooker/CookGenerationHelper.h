@@ -63,9 +63,7 @@ public:
 	{
 		StartSave = 0,
 
-		ClearOldPackagesFirstAttempt = StartSave,
-		ClearOldPackagesLastAttempt,
-		QueueGeneratedPackages,
+		QueueGeneratedPackages = StartSave,
 
 		StartPopulate,
 		FinishCachePreMove = StartPopulate,
@@ -642,6 +640,7 @@ inline TConstArrayView<FName> FGenerationHelper::GetExternalActorDependencies()
 inline TArray<FName> FGenerationHelper::ReleaseExternalActorDependencies()
 {
 	TArray<FName> Result = MoveTemp(ExternalActorDependencies);
+	ExternalActorDependencies.Empty();
 	return Result;
 }
 

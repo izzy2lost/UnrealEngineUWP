@@ -129,14 +129,14 @@ void FGenerationHelper::Uninitialize()
 	}
 	OwnerPackage.Reset();
 	// Keep PreviousGeneratedPackages; they are allowed in the uninitialized state
-	check(ExternalActorDependencies.IsEmpty()); // We can not still be in the save state, so this should be empty
+	ExternalActorDependencies.Empty();
 	check(OwnerObjectsToMove.IsEmpty()); // We can not still be in the save state, so this should be empty
 	// Do not modify the reference tracking variables
 	// ReferenceFromKeepForIterative
 	// ReferenceFromKeepForQueueResults
 	// ReferenceFromKeepForGeneratorSave
 	// ReferenceFromKeepForAllSavedOrGC
-	check(MPCookNextAssignmentIndex == 0); // We can not still be in the save state, so should have been cleared
+	MPCookNextAssignmentIndex = 0;
 	// Keep NumSaved; it is allowed in the uninitialized state
 	// Keep WorkerIdThatSavedGenerator; it is allowed in the uninitialized state
 	// InitializeStatus was modified above
@@ -887,28 +887,8 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 		}
 	}
 
-	if (ReleaseSaveReason == EStateChangeReason::RecreateObjectCache ||
-		ReleaseSaveReason == EStateChangeReason::DoneForNow)
-	{
-		if (Info.IsGenerator())
-		{
-			if (Info.GetSaveState() >= FCookGenerationInfo::ESaveState::StartPopulate)
-			{
-				Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
-			}
-			else
-			{
-				// Redo all the steps since we didn't make it to the FinishCachePreObjectsToMove.
-				// Restarting in the middle of that flow is not robust
-				Info.SetSaveState(FCookGenerationInfo::ESaveState::StartSave);
-			}
-		}
-		else
-		{
-			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
-		}
-	}
-	else
+	if (ReleaseSaveReason != EStateChangeReason::RecreateObjectCache &&
+		ReleaseSaveReason != EStateChangeReason::DoneForNow)
 	{
 		// The save is completed and we will not come back to it; set state back to initial
 		// state and drop our reference keeping this GenerationHelper in memory for the save.
@@ -923,14 +903,14 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 
 			// And also teardown data needed during save
 			ClearKeepForGeneratorSave();
-			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartSave);
 		}
 		else
 		{
-			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
 			Info.PackageData->SetParentGenerationHelper(nullptr);
 		}
 	}
+	Info.SetSaveState(Info.IsGenerator() ? FCookGenerationInfo::ESaveState::StartSave
+		: FCookGenerationInfo::ESaveState::StartPopulate);
 
 	if (Info.HasTakenOverCachedCookedPlatformData())
 	{
@@ -1422,6 +1402,12 @@ FCookGenerationInfo::FCookGenerationInfo(FPackageData& InPackageData, bool bInGe
 
 void FCookGenerationInfo::Uninitialize()
 {
+	// Check that we have left the save state first, since other assertions assume we have left the save state
+	checkf(GeneratorSaveState == (bGenerator ? ESaveState::StartSave : ESaveState::StartPopulate),
+		TEXT("Cooker bug: Expected FCookGenerationInfo::Uninitialize to not be called for a package still in the save state, ")
+		TEXT("but %s package %s has SaveState %d."),
+		bGenerator ? TEXT("generator") : TEXT("generated"), *GetPackageName(), static_cast<int32>(GeneratorSaveState));
+
 	PackageHash.Reset();
 	RelativePath.Empty();
 	GeneratedRootPath.Empty();
@@ -1430,11 +1416,9 @@ void FCookGenerationInfo::Uninitialize()
 	// Keep PackageData; it is allowed in the uninitialized state
 	KeepReferencedPackages.Empty();
 	check(CachedObjectsInOuterInfo.IsEmpty()); // We can not still be in the save state, so this should be empty
-	// We can not still be in the save state, so this should have been cleared
-	check(GeneratorSaveState == (bGenerator ? ESaveState::StartSave : ESaveState::StartPopulate));
 	bCreateAsMap = false;
 	bHasCreatedPackage = false;
-	bHasSaved = false;
+	// Keep bHasSaved; it is allowed in the uninitialized state
 	bTakenOverCachedCookedPlatformData = false;
 	bIssuedUndeclaredMovedObjectsWarning = false;
 	// Keep bGenerator; it is allowed in the uninitialized state
