@@ -198,6 +198,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels", meta = (TitleProperty = Name))
 	TArray<FDMMaterialChannelListPreset> MaterialChannelPresets;
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Material Functions")
+	bool bUseLinearColorForVectors;
+
+	/** This variable is accessed in multiple places, so this is a quick accessor. */
+	static bool IsUseLinearColorForVectorsEnabled();
+
 	FOnFinishedChangingProperties OnSettingsChanged;
 
 	//~ Begin UObject

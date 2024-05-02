@@ -83,6 +83,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	SectionName = TEXT("Material Designer");
 
 	bFollowSelection = true;
+	bUseLinearColorForVectors = true;
 
 	ResetAllLayoutSettings();
 
@@ -167,6 +168,16 @@ UDynamicMaterialEditorSettings* UDynamicMaterialEditorSettings::Get()
 		DefaultSettings->SetFlags(RF_Transactional);
 	}
 	return DefaultSettings;
+}
+
+bool UDynamicMaterialEditorSettings::IsUseLinearColorForVectorsEnabled()
+{
+	if (const UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
+	{
+		return Settings->bUseLinearColorForVectors;
+	}
+
+	return true;
 }
 
 void UDynamicMaterialEditorSettings::PreEditChange(FEditPropertyChain& InPropertyAboutToChange)

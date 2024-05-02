@@ -5,12 +5,14 @@
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
 #include "Components/MaterialValues/DMMaterialValueFloat2.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
 #include "DMComponentPath.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "DynamicMaterialEditorModule.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
@@ -491,7 +493,14 @@ bool UDMMaterialEffectFunction::NeedsFunctionInit() const
 				break;
 
 			case EFunctionInputType::FunctionInput_Vector3:
-				ValueType = EDMValueType::VT_Float3_XYZ;
+				if (UDynamicMaterialEditorSettings::IsUseLinearColorForVectorsEnabled())
+				{
+					ValueType = EDMValueType::VT_Float3_RGB;
+				}
+				else
+				{
+					ValueType = EDMValueType::VT_Float3_XYZ;
+				}
 				break;
 
 			case EFunctionInputType::FunctionInput_Vector4:
@@ -626,7 +635,14 @@ void UDMMaterialEffectFunction::InitFunction()
 				break;
 
 			case EFunctionInputType::FunctionInput_Vector3:
-				ValueType = EDMValueType::VT_Float3_XYZ;
+				if (UDynamicMaterialEditorSettings::IsUseLinearColorForVectorsEnabled())
+				{
+					ValueType = EDMValueType::VT_Float3_RGB;
+				}
+				else
+				{
+					ValueType = EDMValueType::VT_Float3_XYZ;
+				}
 				break;
 
 			case EFunctionInputType::FunctionInput_Vector4:
@@ -669,10 +685,15 @@ void UDMMaterialEffectFunction::InitFunction()
 					break;
 
 				case EFunctionInputType::FunctionInput_Vector3:
-					if (UDMMaterialValueFloat3XYZ* Float3Value = Cast<UDMMaterialValueFloat3XYZ>(Value))
+					if (UDMMaterialValueFloat3XYZ* Float3XYZ = Cast<UDMMaterialValueFloat3XYZ>(Value))
 					{
-						Float3Value->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y, FunctionInput->PreviewValue.Z});
-						Float3Value->ApplyDefaultValue();
+						Float3XYZ->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y, FunctionInput->PreviewValue.Z});
+						Float3XYZ->ApplyDefaultValue();
+					}
+					else if (UDMMaterialValueFloat3RGB* Float3RGB = Cast<UDMMaterialValueFloat3RGB>(Value))
+					{
+						Float3RGB->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y, FunctionInput->PreviewValue.Z});
+						Float3RGB->ApplyDefaultValue();
 					}
 					break;
 
