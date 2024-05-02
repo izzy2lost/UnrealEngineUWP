@@ -334,7 +334,8 @@ void RasterizeBottomLevelOrthoGridCS(
 		if (all(GroupThreadId == 0) && (StdRelError < HomogeneousThreshold) && (GSZeroCrossings[0] < 4))
 		{
 			Extinction = ExtinctionMean;
-			GSAllocatedVoxelCount = GSAllocatedVoxelResolution = 1;
+			GSAllocatedVoxelCount = 1; 
+			GSAllocatedVoxelResolution = 1;
 		}
 #endif // #if DIM_ENABLE_HOMOGENEOUS_AGGREGATION
 
@@ -365,7 +366,8 @@ void RasterizeBottomLevelOrthoGridCS(
 					InterlockedExchange(RWBottomLevelGridAllocatorBuffer[0], BottomLevelGridBufferSize, Dummy);
 
 					BottomLevelIndex = EMPTY_VOXEL_INDEX;
-					GSAllocatedVoxelCount = GSAllocatedVoxelResolution = 0;
+					GSAllocatedVoxelCount = 0;
+					GSAllocatedVoxelResolution = 0;
 				}
 
 				// Update the index with the properly allocated index
@@ -381,7 +383,8 @@ void RasterizeBottomLevelOrthoGridCS(
 			}
 			else
 			{
-				GSAllocatedVoxelCount = GSAllocatedVoxelResolution = 0;
+				GSAllocatedVoxelCount = 0; 
+				GSAllocatedVoxelResolution = 0;
 			}
 		}
 

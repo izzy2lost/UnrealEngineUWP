@@ -844,7 +844,7 @@ void RecombineMainCS(
 				UNROLL
 				for (uint i = 0; i < 5; i++)
 				{
-					const uint ReduceSize = 32 >> i;
+					const uint ReduceSize = 32u >> i;
 					if (GroupThreadIndex < ReduceSize)
 					{
 						MaxConsideredAbsCocRadius = max(MaxConsideredAbsCocRadius, SharedMaxConsideredAbsCocRadius[GroupThreadIndex + ReduceSize]);

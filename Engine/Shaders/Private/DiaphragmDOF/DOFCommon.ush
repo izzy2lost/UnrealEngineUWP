@@ -24,6 +24,9 @@
 // Ignores race condition detection when writing to LDS.
 #pragma warning(disable: 3584)
 
+// Equality comparison with extraneous parentheses
+#pragma dxc diagnostic ignored "-Wparentheses-equality"
+
 
 //------------------------------------------------------- Readability helpers.
 
