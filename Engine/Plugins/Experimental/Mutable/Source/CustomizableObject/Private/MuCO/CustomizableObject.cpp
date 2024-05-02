@@ -2737,6 +2737,12 @@ FCompilationRequest::FCompilationRequest(UCustomizableObject& InCustomizableObje
 {
 	CustomizableObject = &InCustomizableObject;
 	Options = InCustomizableObject.CompileOptions;
+	Options.bRealTimeMorphTargetsEnabled = InCustomizableObject.bEnableRealTimeMorphTargets;
+	Options.bClothingEnabled = InCustomizableObject.bEnableClothing;
+	Options.b16BitBoneWeightsEnabled = InCustomizableObject.bEnable16BitBoneWeights;
+	Options.bSkinWeightProfilesEnabled = InCustomizableObject.bEnableAltSkinWeightProfiles;
+	Options.bPhysicsAssetMergeEnabled = InCustomizableObject.bEnablePhysicsAssetMerge;
+	Options.bAnimBpPhysicsManipulationEnabled = InCustomizableObject.bEnableAnimBpPhysicsAssetsManipualtion;
 	bAsync = bAsyncCompile;
 }
 
