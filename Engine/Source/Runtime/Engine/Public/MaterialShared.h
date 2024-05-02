@@ -1550,10 +1550,12 @@ public:
 	uint32 GetNumUsedCustomInterpolatorScalars() const { return GetContent()->MaterialCompilationOutput.NumUsedCustomInterpolatorScalars; }
 	void GetEstimatedNumTextureSamples(uint32& VSSamples, uint32& PSSamples) const { VSSamples = GetContent()->MaterialCompilationOutput.EstimatedNumTextureSamplesVS; PSSamples = GetContent()->MaterialCompilationOutput.EstimatedNumTextureSamplesPS; }
 	uint32 GetEstimatedNumVirtualTextureLookups() const { return GetContent()->MaterialCompilationOutput.EstimatedNumVirtualTextureLookups; }
-	void GetEstimatedLWCFuncUsages(TStaticArray<uint16, (int)ELWCFunctionKind::Max>& UsagesVS, TStaticArray<uint16, (int)ELWCFunctionKind::Max>& UsagesPS) const
+	using FLWCUsagesArray = TStaticArray<uint16, (int)ELWCFunctionKind::Max>;
+	void GetEstimatedLWCFuncUsages(FLWCUsagesArray& UsagesVS, FLWCUsagesArray& UsagesPS, FLWCUsagesArray& UsagesCS) const
 	{
 		CopyAssignItems(UsagesVS.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesVS, (int)ELWCFunctionKind::Max);
 		CopyAssignItems(UsagesPS.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesPS, (int)ELWCFunctionKind::Max);
+		CopyAssignItems(UsagesCS.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesCS, (int)ELWCFunctionKind::Max);
 	}
 	ENGINE_API void GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexityVS, uint32& LWCComplexityPS, uint32& LWCComplexityCS) const;
 	uint32 GetNumPreshaders() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.UniformPreshaders.Num(); }
@@ -2762,7 +2764,7 @@ public:
 	ENGINE_API void GetEstimatedNumTextureSamples(uint32& VSSamples, uint32& PSSamples) const;
 	ENGINE_API uint32 GetEstimatedNumVirtualTextureLookups() const;
 	using FLWCUsagesArray = TStaticArray<uint16, (int)ELWCFunctionKind::Max>;
-	ENGINE_API void GetEstimatedLWCFuncUsages(FLWCUsagesArray& UsagesVS, FLWCUsagesArray& UsagesPS) const;
+	ENGINE_API void GetEstimatedLWCFuncUsages(FLWCUsagesArray& UsagesVS, FLWCUsagesArray& UsagesPS, FLWCUsagesArray& UsagesCS) const;
 #endif
 	ENGINE_API uint32 GetNumVirtualTextureStacks() const;
 

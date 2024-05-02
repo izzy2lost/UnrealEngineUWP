@@ -2316,18 +2316,24 @@ void FMaterialEditor::DrawMaterialInfoStrings(
 			DrawPositionY += SpacingBetweenLines;
 		}
 
-		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesVS;
-		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesPS;
-		MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS);
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesVS;
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesPS;
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesCS;
+		MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS, LWCFuncUsagesCS);
 		for (int KindIndex = 0; KindIndex < (int)ELWCFunctionKind::Max; ++KindIndex)
 		{
-			int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex];
+			int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex] + LWCFuncUsagesCS[KindIndex];
 			if (Usages > 0)
 			{
 				Canvas->DrawShadowedString(
 					5,
 					DrawPositionY,
-					*FString::Printf(TEXT("LWC %s usages (Est.): %u"), *UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), Usages),
+					*FString::Printf(
+						TEXT("LWC %s usages (Est.): %u (VS), %u (PS), %u (CS)"), 
+						*UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), 
+						LWCFuncUsagesVS[KindIndex],
+						LWCFuncUsagesPS[KindIndex],
+						LWCFuncUsagesCS[KindIndex]),
 					FontToUse,
 					FLinearColor(1,1,0)
 				);
@@ -2935,247 +2941,253 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 	// Always show basic features so that errors aren't hidden
 	FeatureLevelsToDisplay[NumFeatureLevels++] = GMaxRHIFeatureLevel;
 
-		UMaterial* MaterialForStats = bStatsFromPreviewMaterial ? Material : OriginalMaterial;
+	UMaterial* MaterialForStats = bStatsFromPreviewMaterial ? Material : OriginalMaterial;
 
-		for (int32 i = 0; i < NumFeatureLevels; ++i)
+	for (int32 i = 0; i < NumFeatureLevels; ++i)
+	{
+		TArray<FString>				 CompileErrors;
+		TArray<UMaterialExpression*> FailingExpression;
+
+		ERHIFeatureLevel::Type FeatureLevel = FeatureLevelsToDisplay[i];
+		const FMaterialResource* MaterialResource = MaterialForStats->GetMaterialResource(FeatureLevel);
+
+		if (MaterialResource == nullptr)
 		{
-			TArray<FString>				 CompileErrors;
-			TArray<UMaterialExpression*> FailingExpression;
+			continue;
+		}
 
-			ERHIFeatureLevel::Type FeatureLevel = FeatureLevelsToDisplay[i];
-			const FMaterialResource* MaterialResource = MaterialForStats->GetMaterialResource(FeatureLevel);
+		if (MaterialFunction && ExpressionPreviewMaterial)
+		{
+			bool bHasValidOutput = true;
+			int32 NumInputs = 0;
+			int32 NumOutputs = 0;
+			// For Material Layers
 
-			if (MaterialResource == nullptr)
+			if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
 			{
-				continue;
+				// Material layers must have a single MA input and output only
+				for (UMaterialExpression* Expression : MaterialFunction->GetExpressions())
+				{
+					if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
+					{
+						++NumInputs;
+						if (NumInputs > 1 || !InputExpression->IsResultMaterialAttributes(0))
+						{
+							CompileErrors.Add(TEXT("Layer graphs only support a single material attributes input."));
+							FailingExpression.Add(nullptr);
+						}
+					}
+					else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
+					{
+						++NumOutputs;
+						if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
+						{
+							CompileErrors.Add(TEXT("Layer graphs only support a single material attributes output."));
+							FailingExpression.Add(nullptr);
+						}
+					}
+					else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
+					{
+						CompileErrors.Add(TEXT("Layer graphs do not support layers within layers."));
+						FailingExpression.Add(nullptr);
+					}
+				}
+
+				if (NumInputs > 1 || NumOutputs < 1)
+				{
+					CompileErrors.Add(TEXT("Layer graphs require a single material attributes output and optionally, a single material attributes input."));
+					FailingExpression.Add(nullptr);
+				}
 			}
-
-			if (MaterialFunction && ExpressionPreviewMaterial)
+			else if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
 			{
-				bool bHasValidOutput = true;
-				int32 NumInputs = 0;
-				int32 NumOutputs = 0;
-				// For Material Layers
-
-				if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
+				// Material layer blends can have two MA inputs and single MA output only
+				for (UMaterialExpression* Expression : MaterialFunction->GetExpressions())
 				{
-					// Material layers must have a single MA input and output only
-					for (UMaterialExpression* Expression : MaterialFunction->GetExpressions())
+					if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
 					{
-						if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
+						++NumInputs;
+						if (NumInputs > 2 || !InputExpression->IsResultMaterialAttributes(0))
 						{
-							++NumInputs;
-							if (NumInputs > 1 || !InputExpression->IsResultMaterialAttributes(0))
-							{
-								CompileErrors.Add(TEXT("Layer graphs only support a single material attributes input."));
-								FailingExpression.Add(nullptr);
-							}
-						}
-						else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
-						{
-							++NumOutputs;
-							if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
-							{
-								CompileErrors.Add(TEXT("Layer graphs only support a single material attributes output."));
-								FailingExpression.Add(nullptr);
-							}
-						}
-						else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
-						{
-							CompileErrors.Add(TEXT("Layer graphs do not support layers within layers."));
+							CompileErrors.Add(TEXT("Layer blend graphs only support two material attributes inputs."));
 							FailingExpression.Add(nullptr);
 						}
 					}
-
-					if (NumInputs > 1 || NumOutputs < 1)
+					else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
 					{
-						CompileErrors.Add(TEXT("Layer graphs require a single material attributes output and optionally, a single material attributes input."));
-						FailingExpression.Add(nullptr);
-					}
-				}
-				else if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
-				{
-					// Material layer blends can have two MA inputs and single MA output only
-					for (UMaterialExpression* Expression : MaterialFunction->GetExpressions())
-					{
-						if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
+						++NumOutputs;
+						if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
 						{
-							++NumInputs;
-							if (NumInputs > 2 || !InputExpression->IsResultMaterialAttributes(0))
-							{
-								CompileErrors.Add(TEXT("Layer blend graphs only support two material attributes inputs."));
-								FailingExpression.Add(nullptr);
-							}
-						}
-						else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
-						{
-							++NumOutputs;
-							if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
-							{
-								CompileErrors.Add(TEXT("Layer blend graphs only support a single material attributes output."));
-								FailingExpression.Add(nullptr);
-							}
-						}
-						else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
-						{
-							CompileErrors.Add(TEXT("Layer blend graphs do not support layers within layers."));
+							CompileErrors.Add(TEXT("Layer blend graphs only support a single material attributes output."));
 							FailingExpression.Add(nullptr);
 						}
 					}
-
-					if (NumOutputs < 1)
+					else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
 					{
-						CompileErrors.Add(TEXT("Layer blend graphs can have up to two material attributes inputs and a single output."));
+						CompileErrors.Add(TEXT("Layer blend graphs do not support layers within layers."));
 						FailingExpression.Add(nullptr);
 					}
 				}
-				else
+
+				if (NumOutputs < 1)
 				{
-					// Add a compile error message for functions missing an output
-					FMaterialResource* CurrentResource = ExpressionPreviewMaterial->GetMaterialResource(FeatureLevel);
-					if (CurrentResource)
-					{
-						CompileErrors = CurrentResource->GetCompileErrors();
-						FailingExpression = CurrentResource->GetErrorExpressions();
-					}
-
-					bool bFoundFunctionOutput = false;
-					for (UMaterialExpression* MaterialExpression : Material->GetExpressions())
-					{
-						if (MaterialExpression->IsA(UMaterialExpressionFunctionOutput::StaticClass()))
-						{
-							bFoundFunctionOutput = true;
-							break;
-						}
-					}
-
-					if (!bFoundFunctionOutput)
-					{
-						CompileErrors.Add(TEXT("Missing a function output"));
-						FailingExpression.Add(nullptr);
-					}
+					CompileErrors.Add(TEXT("Layer blend graphs can have up to two material attributes inputs and a single output."));
+					FailingExpression.Add(nullptr);
 				}
 			}
 			else
 			{
-				CompileErrors = MaterialResource->GetCompileErrors();
-				FailingExpression = MaterialResource->GetErrorExpressions();
-			}
+				// Add a compile error message for functions missing an output
+				FMaterialResource* CurrentResource = ExpressionPreviewMaterial->GetMaterialResource(FeatureLevel);
+				if (CurrentResource)
+				{
+					CompileErrors = CurrentResource->GetCompileErrors();
+					FailingExpression = CurrentResource->GetErrorExpressions();
+				}
 
-			// Only show general info if there are no errors and stats are enabled - Stats show for Materials, layers and blends
+				bool bFoundFunctionOutput = false;
+				for (UMaterialExpression* MaterialExpression : Material->GetExpressions())
+				{
+					if (MaterialExpression->IsA(UMaterialExpressionFunctionOutput::StaticClass()))
+					{
+						bFoundFunctionOutput = true;
+						break;
+					}
+				}
+
+				if (!bFoundFunctionOutput)
+				{
+					CompileErrors.Add(TEXT("Missing a function output"));
+					FailingExpression.Add(nullptr);
+				}
+			}
+		}
+		else
+		{
+			CompileErrors = MaterialResource->GetCompileErrors();
+			FailingExpression = MaterialResource->GetErrorExpressions();
+		}
+
+		// Only show general info if there are no errors and stats are enabled - Stats show for Materials, layers and blends
 		if (CompileErrors.Num() == 0 && (!MaterialFunction || MaterialFunction->GetMaterialFunctionUsage() != EMaterialFunctionUsage::Default))
-			{
+		{
 			TArray<FMaterialStatsUtils::FShaderInstructionsInfo> Results;
 			TArray<FMaterialStatsUtils::FShaderInstructionsInfo> EmptyMaterialResults;
 			FMaterialStatsUtils::GetRepresentativeInstructionCounts(Results, MaterialResource);
 
-				//Built in stats is no longer exposed to the UI but may still be useful so they're still in the code.
-				bool bBuiltinStats = false;
+			//Built in stats is no longer exposed to the UI but may still be useful so they're still in the code.
+			bool bBuiltinStats = false;
 			const FMaterialResource* EmptyMaterialResource = EmptyMaterial ? EmptyMaterial->GetMaterialResource(FeatureLevel) : nullptr;
 			if (bShowBuiltinStats && bStatsFromPreviewMaterial && EmptyMaterialResource && Results.Num() > 0)
-				{
+			{
 				FMaterialStatsUtils::GetRepresentativeInstructionCounts(EmptyMaterialResults, EmptyMaterialResource);
 
 				if (EmptyMaterialResults.Num() > 0)
-					{
-						//The instruction counts should match. If not, the preview material has been changed without the EmptyMaterial being updated to match.
+				{
+					//The instruction counts should match. If not, the preview material has been changed without the EmptyMaterial being updated to match.
 					if (ensure(Results.Num() == EmptyMaterialResults.Num()))
-						{
-							bBuiltinStats = true;
-						}
+					{
+						bBuiltinStats = true;
 					}
 				}
+			}
 
 			for (int32 InstructionIndex = 0; InstructionIndex < Results.Num(); InstructionIndex++)
-				{
+			{
 				FString InstructionCountString = FString::Printf(TEXT("%s: %u instructions"), *Results[InstructionIndex].ShaderDescription, Results[InstructionIndex].InstructionCount);
-					if (bBuiltinStats)
-					{
+				if (bBuiltinStats)
+				{
 					InstructionCountString += FString::Printf(TEXT(" - Built-in instructions: %u"), EmptyMaterialResults[InstructionIndex].InstructionCount);
-					}
-					TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(InstructionCountString, FLinearColor::Yellow)));
-					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
-					Line->AddToken(FTextToken::Create(FText::FromString(InstructionCountString)));
-					Messages.Add(Line);
 				}
+				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(InstructionCountString, FLinearColor::Yellow)));
+				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
+				Line->AddToken(FTextToken::Create(FText::FromString(InstructionCountString)));
+				Messages.Add(Line);
+			}
 
-				// Display the number of samplers used by the material.
-				const int32 SamplersUsed = MaterialResource->GetSamplerUsage();
+			// Display the number of samplers used by the material.
+			const int32 SamplersUsed = MaterialResource->GetSamplerUsage();
 
-				if (SamplersUsed >= 0)
-				{
-					int32 MaxSamplers = GetExpectedFeatureLevelMaxTextureSamplers(MaterialResource->GetFeatureLevel());
-					FString SamplersString = FString::Printf(TEXT("%s samplers: %u/%u"), FeatureLevel <= ERHIFeatureLevel::ES3_1 ? TEXT("Mobile texture") : TEXT("Texture"), SamplersUsed, MaxSamplers);
-					TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(SamplersString, FLinearColor::Yellow)));
-					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create( EMessageSeverity::Info );
-					Line->AddToken( FTextToken::Create( FText::FromString( SamplersString ) ) );
-					Messages.Add(Line);
-				}
+			if (SamplersUsed >= 0)
+			{
+				int32 MaxSamplers = GetExpectedFeatureLevelMaxTextureSamplers(MaterialResource->GetFeatureLevel());
+				FString SamplersString = FString::Printf(TEXT("%s samplers: %u/%u"), FeatureLevel <= ERHIFeatureLevel::ES3_1 ? TEXT("Mobile texture") : TEXT("Texture"), SamplersUsed, MaxSamplers);
+				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(SamplersString, FLinearColor::Yellow)));
+				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create( EMessageSeverity::Info );
+				Line->AddToken( FTextToken::Create( FText::FromString( SamplersString ) ) );
+				Messages.Add(Line);
+			}
 				
-				// Display estimated texture look-up/sample counts
-				uint32 NumVSTextureSamples = 0, NumPSTextureSamples = 0;
-				MaterialResource->GetEstimatedNumTextureSamples(NumVSTextureSamples, NumPSTextureSamples);
+			// Display estimated texture look-up/sample counts
+			uint32 NumVSTextureSamples = 0, NumPSTextureSamples = 0;
+			MaterialResource->GetEstimatedNumTextureSamples(NumVSTextureSamples, NumPSTextureSamples);
 
-				if (NumVSTextureSamples > 0 || NumPSTextureSamples > 0)
-				{
-					FString SamplesString = FString::Printf(TEXT("Texture Lookups (Est.): VS(%u), PS(%u)"), NumVSTextureSamples, NumPSTextureSamples);
+			if (NumVSTextureSamples > 0 || NumPSTextureSamples > 0)
+			{
+				FString SamplesString = FString::Printf(TEXT("Texture Lookups (Est.): VS(%u), PS(%u)"), NumVSTextureSamples, NumPSTextureSamples);
 
-					TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(SamplesString, FLinearColor::Yellow)));
-					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
-					Line->AddToken(FTextToken::Create(FText::FromString(SamplesString)));
-					Messages.Add(Line);
-				}
+				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(SamplesString, FLinearColor::Yellow)));
+				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
+				Line->AddToken(FTextToken::Create(FText::FromString(SamplesString)));
+				Messages.Add(Line);
+			}
 
-				// Display estimated virtual texture look-up counts
-				uint32 NumVirtualTextureLookups = MaterialResource->GetEstimatedNumVirtualTextureLookups();
-				if (NumVirtualTextureLookups > 0)
-				{
-					FString LookupsString = FString::Printf(TEXT("Virtual Texture Lookups (Est.): %u"), NumVirtualTextureLookups);
+			// Display estimated virtual texture look-up counts
+			uint32 NumVirtualTextureLookups = MaterialResource->GetEstimatedNumVirtualTextureLookups();
+			if (NumVirtualTextureLookups > 0)
+			{
+				FString LookupsString = FString::Printf(TEXT("Virtual Texture Lookups (Est.): %u"), NumVirtualTextureLookups);
 
-					TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(LookupsString, FLinearColor::Yellow)));
-					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
-					Line->AddToken(FTextToken::Create(FText::FromString(LookupsString)));
-					Messages.Add(Line);
-				}
+				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(LookupsString, FLinearColor::Yellow)));
+				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
+				Line->AddToken(FTextToken::Create(FText::FromString(LookupsString)));
+				Messages.Add(Line);
+			}
 
-				const uint32 NumVirtualTextureStacks = MaterialResource->GetNumVirtualTextureStacks();
-				if (NumVirtualTextureStacks > 0u)
-				{
-					FString VTString = FString::Printf(TEXT("Virtual Texture Stacks: %u"), NumVirtualTextureStacks);
+			const uint32 NumVirtualTextureStacks = MaterialResource->GetNumVirtualTextureStacks();
+			if (NumVirtualTextureStacks > 0u)
+			{
+				FString VTString = FString::Printf(TEXT("Virtual Texture Stacks: %u"), NumVirtualTextureStacks);
 
-					TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(VTString, FLinearColor::Yellow)));
-					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
-					Line->AddToken(FTextToken::Create(FText::FromString(VTString)));
-					Messages.Add(Line);
-				}
+				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(VTString, FLinearColor::Yellow)));
+				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
+				Line->AddToken(FTextToken::Create(FText::FromString(VTString)));
+				Messages.Add(Line);
+			}
 
-				// Display the number of custom/user interpolators used by the material.
-				uint32 UVScalarsUsed, CustomInterpolatorScalarsUsed;
-				MaterialResource->GetUserInterpolatorUsage(UVScalarsUsed, CustomInterpolatorScalarsUsed);
+			// Display the number of custom/user interpolators used by the material.
+			uint32 UVScalarsUsed, CustomInterpolatorScalarsUsed;
+			MaterialResource->GetUserInterpolatorUsage(UVScalarsUsed, CustomInterpolatorScalarsUsed);
 
-				if (UVScalarsUsed > 0 || CustomInterpolatorScalarsUsed > 0)
-				{
-					uint32 TotalScalars = UVScalarsUsed + CustomInterpolatorScalarsUsed;
-					uint32 MaxScalars = FMath::DivideAndRoundUp(TotalScalars, 4u) * 4;
+			if (UVScalarsUsed > 0 || CustomInterpolatorScalarsUsed > 0)
+			{
+				uint32 TotalScalars = UVScalarsUsed + CustomInterpolatorScalarsUsed;
+				uint32 MaxScalars = FMath::DivideAndRoundUp(TotalScalars, 4u) * 4;
 
-					FString InterpolatorsString = FString::Printf(TEXT("User interpolators: %u/%u Scalars (%u/4 Vectors) (TexCoords: %i, Custom: %i)"),
-						TotalScalars, MaxScalars, MaxScalars / 4, UVScalarsUsed, CustomInterpolatorScalarsUsed);
+				FString InterpolatorsString = FString::Printf(TEXT("User interpolators: %u/%u Scalars (%u/4 Vectors) (TexCoords: %i, Custom: %i)"),
+															  TotalScalars, MaxScalars, MaxScalars / 4, UVScalarsUsed, CustomInterpolatorScalarsUsed);
 
-					TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(InterpolatorsString, FLinearColor::Yellow)));
-					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create( EMessageSeverity::Info );
-					Line->AddToken(FTextToken::Create(FText::FromString(InterpolatorsString)));
-					Messages.Add(Line);
-				}
+				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(InterpolatorsString, FLinearColor::Yellow)));
+				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create( EMessageSeverity::Info );
+				Line->AddToken(FTextToken::Create(FText::FromString(InterpolatorsString)));
+				Messages.Add(Line);
+			}
 
-			TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesVS;
-			TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesPS;
-			MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS);
+			FMaterialResource::FLWCUsagesArray LWCFuncUsagesVS;
+			FMaterialResource::FLWCUsagesArray LWCFuncUsagesPS;
+			FMaterialResource::FLWCUsagesArray LWCFuncUsagesCS;
+			MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS, LWCFuncUsagesCS);
 			for (int KindIndex = 0; KindIndex < (int)ELWCFunctionKind::Max; ++KindIndex)
 			{
-				int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex];
+				int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex] + LWCFuncUsagesCS[KindIndex];
 				if (Usages > 0)
 				{
-					FString Message = FString::Printf(TEXT("LWC %s usages (Est.): %u"), *UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), Usages);
+					FString Message = FString::Printf(
+						TEXT("LWC %s usages (Est.): %u (VS), %u (PS), %u (CS)"), 
+						*UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), 
+						LWCFuncUsagesVS[KindIndex],
+						LWCFuncUsagesPS[KindIndex],
+						LWCFuncUsagesCS[KindIndex]);
 						
 					TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(Message, FLinearColor::Yellow)));
 					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);
@@ -3184,49 +3196,49 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 				}
 			}
 
-				if (FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap())
-				{
-					// Add shader count
-					FString ShaderCountString = FString::Printf(TEXT("Shader Count: %u"), ShaderMap->GetShaderNum());
-					TSharedRef<FTokenizedMessage> ShaderCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
-					ShaderCountLine->AddToken(FTextToken::Create(FText::FromString(ShaderCountString)));
-					Messages.Add(ShaderCountLine);
-
-					// Add number of preshaders and stats
-					uint32 TotalParams, TotalOps;
-					MaterialResource->GetPreshaderStats(TotalParams, TotalOps);
-					FString PreshaderCountString = FString::Printf(TEXT("Preshaders: %u  (%u param fetches, %u ops)"), ShaderMap->GetNumPreshaders(), TotalParams, TotalOps);
-					TSharedRef<FTokenizedMessage> PreshaderCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
-					PreshaderCountLine->AddToken(FTextToken::Create(FText::FromString(PreshaderCountString)));
-					Messages.Add(PreshaderCountLine);
-
-					if (MaterialResource->GetMaterialDomain() == MD_LightFunction)
-					{
-						const bool bIsCompatibleWithLightFunctionAtlas = ShaderMap->IsLightFunctionAtlasCompatible();
-						FString LightFunctionAtlasStr = FString::Printf(TEXT("Light function material%s compatible with the light function atlas for fast batched deferred light shading."), bIsCompatibleWithLightFunctionAtlas ? TEXT(" IS") : TEXT(" IS NOT"));
-						TSharedRef<FTokenizedMessage> LightFunctionAtlasCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
-						LightFunctionAtlasCountLine->AddToken(FTextToken::Create(FText::FromString(LightFunctionAtlasStr)));
-						Messages.Add(LightFunctionAtlasCountLine);
-					}
-				}
-			}
-
-			FString FeatureLevelName;
-			GetFeatureLevelName(FeatureLevel,FeatureLevelName);
-			for(int32 ErrorIndex = 0; ErrorIndex < CompileErrors.Num(); ErrorIndex++)
+			if (FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap())
 			{
-				FString ErrorString = FString::Printf(TEXT("[%s] %s"), *FeatureLevelName, *CompileErrors[ErrorIndex]);
-				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(ErrorString, FLinearColor::Red)));
-				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create( EMessageSeverity::Error );
-				if(FailingExpression.Num() && ensure(FailingExpression.Num() == CompileErrors.Num()) && FailingExpression[ErrorIndex])
+				// Add shader count
+				FString ShaderCountString = FString::Printf(TEXT("Shader Count: %u"), ShaderMap->GetShaderNum());
+				TSharedRef<FTokenizedMessage> ShaderCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
+				ShaderCountLine->AddToken(FTextToken::Create(FText::FromString(ShaderCountString)));
+				Messages.Add(ShaderCountLine);
+
+				// Add number of preshaders and stats
+				uint32 TotalParams, TotalOps;
+				MaterialResource->GetPreshaderStats(TotalParams, TotalOps);
+				FString PreshaderCountString = FString::Printf(TEXT("Preshaders: %u  (%u param fetches, %u ops)"), ShaderMap->GetNumPreshaders(), TotalParams, TotalOps);
+				TSharedRef<FTokenizedMessage> PreshaderCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
+				PreshaderCountLine->AddToken(FTextToken::Create(FText::FromString(PreshaderCountString)));
+				Messages.Add(PreshaderCountLine);
+
+				if (MaterialResource->GetMaterialDomain() == MD_LightFunction)
 				{
-					Line->SetMessageLink(FUObjectToken::Create(FailingExpression[ErrorIndex]));
+					const bool bIsCompatibleWithLightFunctionAtlas = ShaderMap->IsLightFunctionAtlasCompatible();
+					FString LightFunctionAtlasStr = FString::Printf(TEXT("Light function material%s compatible with the light function atlas for fast batched deferred light shading."), bIsCompatibleWithLightFunctionAtlas ? TEXT(" IS") : TEXT(" IS NOT"));
+					TSharedRef<FTokenizedMessage> LightFunctionAtlasCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
+					LightFunctionAtlasCountLine->AddToken(FTextToken::Create(FText::FromString(LightFunctionAtlasStr)));
+					Messages.Add(LightFunctionAtlasCountLine);
 				}
-				Line->AddToken( FTextToken::Create( FText::FromString( ErrorString ) ) );
-				Messages.Add(Line);
-				bForceDisplay = true;
 			}
 		}
+
+		FString FeatureLevelName;
+		GetFeatureLevelName(FeatureLevel,FeatureLevelName);
+		for(int32 ErrorIndex = 0; ErrorIndex < CompileErrors.Num(); ErrorIndex++)
+		{
+			FString ErrorString = FString::Printf(TEXT("[%s] %s"), *FeatureLevelName, *CompileErrors[ErrorIndex]);
+			TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(ErrorString, FLinearColor::Red)));
+			TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create( EMessageSeverity::Error );
+			if(FailingExpression.Num() && ensure(FailingExpression.Num() == CompileErrors.Num()) && FailingExpression[ErrorIndex])
+			{
+				Line->SetMessageLink(FUObjectToken::Create(FailingExpression[ErrorIndex]));
+			}
+			Line->AddToken( FTextToken::Create( FText::FromString( ErrorString ) ) );
+			Messages.Add(Line);
+			bForceDisplay = true;
+		}
+	}
 
 	bool bNeedsRefresh = false;
 	if (TempMaterialInfoList.Num() != MaterialInfoList.Num())

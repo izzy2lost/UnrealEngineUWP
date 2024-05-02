@@ -730,15 +730,21 @@ void FMaterialStatsUtils::ExtractMatertialStatsInfo(EShaderPlatform ShaderPlatfo
 		OutInfo.ShaderCount.StrDescriptionLong = FString::Printf(TEXT("Total Shaders: %u"), TotalShadersForMaterial);
 
 		FString LWCMessage;
-		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesVS; 
-		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesPS; 
-		MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS);
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesVS;
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesPS;
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesCS;
+		MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS, LWCFuncUsagesCS);
 		for (int KindIndex = 0; KindIndex < (int)ELWCFunctionKind::Max; ++KindIndex)
 		{
-			int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex];
+			int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex] + LWCFuncUsagesCS[KindIndex];
 			if (Usages > 0)
 			{
-				LWCMessage += FString::Printf(TEXT("%s: %u\n"), *UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), Usages);
+				LWCMessage += FString::Printf(
+					TEXT("%s: %u (VS), %u (PS), %u (CS)\n"), 
+					*UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), 
+					LWCFuncUsagesVS[KindIndex],
+					LWCFuncUsagesPS[KindIndex],
+					LWCFuncUsagesCS[KindIndex]);
 			}
 		}
 

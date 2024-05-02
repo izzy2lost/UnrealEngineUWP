@@ -4146,11 +4146,11 @@ uint32 FMaterialResource::GetEstimatedNumVirtualTextureLookups() const
 	return 0;
 }
 
-void FMaterialResource::GetEstimatedLWCFuncUsages(FLWCUsagesArray& UsagesVS, FLWCUsagesArray& UsagesPS) const
+void FMaterialResource::GetEstimatedLWCFuncUsages(FLWCUsagesArray& UsagesVS, FLWCUsagesArray& UsagesPS, FLWCUsagesArray& UsagesCS) const
 {
 	if (const FMaterialShaderMap* ShaderMap = GetGameThreadShaderMap())
 	{
-		ShaderMap->GetEstimatedLWCFuncUsages(UsagesVS, UsagesPS);
+		ShaderMap->GetEstimatedLWCFuncUsages(UsagesVS, UsagesPS, UsagesCS);
 	}
 }
 
