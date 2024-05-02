@@ -281,13 +281,21 @@ void FTypedElementOutlinerHierarchy::RecompileQueries()
 			TEXT("Update item parent"),
 			FProcessor(EQueryTickPhase::DuringPhysics, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Update))
 				.ForceToGameThread(true),
-			[this](IQueryContext& Context, TypedElementDataStorage::RowHandle Row, const FTypedElementParentColumn& ParentColumn)
+			[this](IQueryContext& Context, TypedElementDataStorage::RowHandle Row)
 			{
-				if(TEDSOutlinerMode->HasItemParentChanged(Row, ParentColumn.Parent))
+				TypedElementDataStorage::RowHandle ParentRowHandle = InvalidRowHandle;
+
+				if(const FTypedElementParentColumn* ParentColumn = Context.GetColumn<FTypedElementParentColumn>())
+				{
+					ParentRowHandle = ParentColumn->Parent;
+				}
+				
+				if(TEDSOutlinerMode->HasItemParentChanged(Row, ParentRowHandle))
 				{
 					OnItemMoved(Row);
 				}
 			})
+			.ReadOnly<FTypedElementParentColumn>(EOptional::Yes)
 		.Where()
 			.All<FTypedElementSyncFromWorldTag>()
 		.Compile();

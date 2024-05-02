@@ -74,7 +74,7 @@ void UTypedElementActorParentFactory::RegisterUpdateOrRemoveParentColumn(ITypedE
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync actor's parent to column"),
-			FProcessor(EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
+			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
 				.ForceToGameThread(true),
 			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTypedElementParentColumn& Parent)
 			{
@@ -83,9 +83,10 @@ void UTypedElementActorParentFactory::RegisterUpdateOrRemoveParentColumn(ITypedE
 					if (AActor* ParentActor = ActorInstance->GetAttachParentActor())
 					{
 						uint64 IdHash = GenerateIndexHash(ParentActor);
-						if (Parent.Parent != IdHash)
+						RowHandle ParentRow = Context.FindIndexedRow(IdHash);
+
+						if (Parent.Parent != ParentRow)
 						{
-							RowHandle ParentRow = Context.FindIndexedRow(IdHash);
 							if (Context.IsRowAvailable(ParentRow))
 							{
 								Parent.Parent = ParentRow;
