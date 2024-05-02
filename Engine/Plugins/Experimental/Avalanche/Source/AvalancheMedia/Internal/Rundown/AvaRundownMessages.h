@@ -4,6 +4,7 @@
 
 #include "Broadcast/Channel/AvaBroadcastMediaOutputInfo.h"
 #include "Rundown/AvaRundownPage.h"
+#include "Viewport/AvaViewportQualitySettings.h"
 #include "AvaRundownMessages.generated.h"
 
 namespace EAvaRundownApiVersion
@@ -528,6 +529,107 @@ public:
 };
 
 USTRUCT()
+struct FAvaRundownGetProfiles : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+};
+
+USTRUCT()
+struct FAvaRundownProfiles : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+	/** List of all profiles. */
+	UPROPERTY()
+	TArray<FString> Profiles;
+
+	/** Current Active Profile. */
+	UPROPERTY()
+	FString CurrentProfile;
+};
+
+/**
+ * Creates a new empty profile with the given name.
+ * Fails if the profile already exist.
+ */
+USTRUCT()
+struct FAvaRundownCreateProfile : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString ProfileName;
+
+	/**
+	 * If true the created profile is make "current".
+	 */
+	UPROPERTY()
+	bool bMakeCurrent = true;
+};
+
+/**
+ * Duplicates an existing profile.
+ * Fails if the new profile name already exist.
+ * Fails if the source profile does not exist.
+ */
+USTRUCT()
+struct FAvaRundownDuplicateProfile : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString SourceProfileName;
+
+	UPROPERTY()
+	FString NewProfileName;
+
+	/**
+	 * If true the created profile is make "current".
+	 */
+	UPROPERTY()
+	bool bMakeCurrent = true;
+};
+
+USTRUCT()
+struct FAvaRundownRenameProfile : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString OldProfileName;
+
+	UPROPERTY()
+	FString NewProfileName;
+};
+
+/**
+ * Delete the specified profile.
+ * Fails if profile to be deleted is the current profile.
+ */
+USTRUCT()
+struct FAvaRundownDeleteProfile : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString ProfileName;
+};
+
+/**
+ * Specified profile is made "current".
+ * The current profile becomes the context for all other broadcasts commands.
+ * Fails if some channels are currently broadcasting.
+ */
+USTRUCT()
+struct FAvaRundownSetCurrentProfile : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString ProfileName;
+};
+
+USTRUCT()
 struct FAvaRundownOutputDeviceItem
 {
 	GENERATED_BODY()
@@ -599,6 +701,9 @@ public:
 	FString Name;
 
 	UPROPERTY()
+	EAvaBroadcastChannelType Type = EAvaBroadcastChannelType::Program;
+
+	UPROPERTY()
 	EAvaBroadcastChannelState State = EAvaBroadcastChannelState::Offline;
 
 	UPROPERTY()
@@ -663,6 +768,38 @@ public:
 
 	UPROPERTY()
 	EAvaRundownChannelActions Action = EAvaRundownChannelActions::None;
+};
+
+UENUM()
+enum class EAvaRundownChannelEditActions
+{
+	None,
+	Add,
+	Remove
+};
+
+USTRUCT()
+struct FAvaRundownChannelEditAction : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString ChannelName;
+
+	UPROPERTY()
+	EAvaRundownChannelEditActions Action = EAvaRundownChannelEditActions::None;
+};
+
+USTRUCT()
+struct FAvaRundownRenameChannel : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString OldChannelName;
+
+	UPROPERTY()
+	FString NewChannelName;
 };
 
 USTRUCT()
@@ -742,4 +879,45 @@ struct FAvaRundownChannelImage : public FAvaRundownMsgBase
 public:
 	UPROPERTY()
 	TArray<uint8> ImageData;
+};
+
+/**
+ * Queries the given channel's quality settings.
+ * Response message is FAvaRundownChannelQualitySettings.
+ */
+USTRUCT()
+struct FAvaRundownGetChannelQualitySettings : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString ChannelName;
+};
+
+/** Response to FAvaRundownGetChannelQualitySettings. */
+USTRUCT()
+struct FAvaRundownChannelQualitySettings : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString ChannelName;
+
+	/** Advanced viewport client engine features indexed by FEngineShowFlags names. */
+	UPROPERTY()
+	TArray<FAvaViewportQualitySettingsFeature> Features;
+};
+
+/** Sets the given channel's quality settings. */
+USTRUCT()
+struct FAvaRundownSetChannelQualitySettings : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY()
+	FString ChannelName;
+
+	/** Advanced viewport client engine features indexed by FEngineShowFlags names. */
+	UPROPERTY()
+	TArray<FAvaViewportQualitySettingsFeature> Features;
 };
