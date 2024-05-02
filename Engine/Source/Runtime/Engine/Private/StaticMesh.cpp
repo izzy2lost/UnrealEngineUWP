@@ -4131,17 +4131,39 @@ EDataValidationResult UStaticMesh::IsDataValid(FDataValidationContext& Context) 
 			ValidationResult = EDataValidationResult::Invalid;
 		}
 		
-		if (!GIsBuildMachine && IsHiResMeshDescriptionValid())
+		if (!GIsBuildMachine)
 		{
-			if (const FMeshDescription* BaseLodMeshDescription = GetMeshDescription(0))
+			const int32 LodCount = GetNumSourceModels();
+			for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
 			{
-				if (const FMeshDescription* HiResMeshDescription = GetHiResMeshDescription())
+				const FStaticMeshSourceModel& SrcModel = GetSourceModel(LodIndex);
+				if (const FMeshDescription* LodMeshDescription = GetMeshDescription(LodIndex))
 				{
-					//Validate the number of sections
-					if (HiResMeshDescription->PolygonGroups().Num() > BaseLodMeshDescription->PolygonGroups().Num())
+					if (LodMeshDescription->IsEmpty())
 					{
-						Context.AddError(LOCTEXT("StaticMeshValidation_HiresMoreSectionThanLod0", "Invalid hi-res mesh description. The number of sections from the hires mesh is higher than LOD 0 section count. This is not supported and LOD 0 will be used as a fallback to build nanite data."));
+						FFormatNamedArguments Args;
+						Args.Add(TEXT("LODIndex"), LodIndex);
+						Context.AddError(FText::Format(LOCTEXT("StaticMeshValidation_EmptyLodMeshDescription", "Empty lod {LODIndex} mesh geometry. Lod {LODIndex} mesh geometry should not be empty."), Args));
 						ValidationResult = EDataValidationResult::Invalid;
+					}
+					//If we have the lod 0 meshdescription, verify the hi-res mesh description
+					if (LodIndex == 0 && IsHiResMeshDescriptionValid())
+					{
+						if (const FMeshDescription* HiResMeshDescription = GetHiResMeshDescription())
+						{
+							if (HiResMeshDescription->IsEmpty())
+							{
+								Context.AddError(LOCTEXT("StaticMeshValidation_EmptyHiResMeshDescription", "Empty hi-res mesh geometry. Nanite hi-res mesh geometry should not be empty."));
+								ValidationResult = EDataValidationResult::Invalid;
+							}
+
+							//Validate the number of sections
+							if (HiResMeshDescription->PolygonGroups().Num() > LodMeshDescription->PolygonGroups().Num())
+							{
+								Context.AddError(LOCTEXT("StaticMeshValidation_HiresMoreSectionThanLod0", "Invalid hi-res mesh description. The number of sections from the hires mesh is higher than LOD 0 section count. This is not supported and LOD 0 will be used as a fallback to build nanite data."));
+								ValidationResult = EDataValidationResult::Invalid;
+							}
+						}
 					}
 				}
 			}

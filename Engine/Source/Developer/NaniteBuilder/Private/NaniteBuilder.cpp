@@ -537,7 +537,7 @@ bool FBuilderModule::Build(
 	const uint32 NumInputTriangles = InputMeshData.TriangleIndices.Num() / 3;
 	if (NumInputTriangles == 0)
 	{
-		UE_LOG(LogStaticMesh, Error, TEXT("Failed to build Nanite mesh. Input has 0 triangles."));
+		UE_LOG(LogStaticMesh, Warning, TEXT("Failed to build Nanite mesh. Input has 0 triangles."));
 		return false;
 	}
 

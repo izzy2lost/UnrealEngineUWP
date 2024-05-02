@@ -241,7 +241,7 @@ static bool BuildNanite(
 
 	if (!NaniteBuilderModule.BuildMaterialIndices(InputMeshData.Sections, TriangleCount, InputMeshData.MaterialIndices))
 	{
-		UE_LOGFMT_NSLOC(LogStaticMesh, Error, "StaticMesh", "NaniteBuildError", "Failed to build Nanite from static mesh. See previous line(s) for details.");
+		UE_LOGFMT_NSLOC(LogStaticMesh, Warning, "StaticMesh", "NaniteBuildError", "Failed to build Nanite from static mesh. See previous line(s) for details.");
 		return false;
 	}
 
@@ -266,7 +266,7 @@ static bool BuildNanite(
 			OnFreeInputMeshData
 	))
 	{
-		UE_LOGFMT_NSLOC(LogStaticMesh, Error, "StaticMesh", "NaniteHiResBuildError", "Failed to build Nanite for HiRes static mesh. See previous line(s) for details.");
+		UE_LOGFMT_NSLOC(LogStaticMesh, Warning, "StaticMesh", "NaniteHiResBuildError", "Failed to build Nanite for HiRes static mesh. See previous line(s) for details.");
 		return false;
 	}
 
