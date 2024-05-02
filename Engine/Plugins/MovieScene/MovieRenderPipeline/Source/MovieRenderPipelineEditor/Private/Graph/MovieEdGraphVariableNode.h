@@ -17,5 +17,15 @@ public:
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual void AllocateDefaultPins() override;
 	virtual bool CanPasteHere(const UEdGraph* TargetGraph) const override;
+	virtual FText GetTooltipText() const override;
 	// ~End UEdGraphNode interface
+
+protected:
+	// ~Begin UMoviePipelineEdGraphNodeBase interface
+	virtual FString GetPinTooltip(const UMovieGraphPin* InPin) const override;
+	// ~End UMoviePipelineEdGraphNodeBase interface
+
+private:
+	/** Get the description (if any) for the variable this node represents. */
+	FString GetVariableDescription() const;
 };

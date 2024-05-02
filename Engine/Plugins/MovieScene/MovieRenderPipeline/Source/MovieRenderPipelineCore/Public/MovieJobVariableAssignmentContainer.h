@@ -257,6 +257,12 @@ protected:
 	FName ConvertVariableToInternalName(const UMovieGraphVariable* InGraphVariable) const;
 
 private:
+	/* The metadata key on properties that is associated with a value which identifies a graph variable (by GUID). */
+	static inline FName VariableGuidMetaDataKey = FName(TEXT("VariableGUID"));
+	
+	/* The metadata key on properties that is associated with a tooltip value. */
+	static inline FName ToolTipMetaDataKey = FName(TEXT("ToolTip"));
+	
 	/** The properties managed by this object. */
 	UPROPERTY(EditAnywhere, meta=(ShowOnlyInnerProperties, FixedLayout), Category = "Value")
 	FInstancedPropertyBag Value;

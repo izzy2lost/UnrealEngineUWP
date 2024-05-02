@@ -137,7 +137,8 @@ TSharedRef<SWidget> SMovieGraphMembersTabContent::CreateActionWidget(FCreateWidg
 			[
 				SNew(STextBlock)
 				.Text(InCreateData->Action->GetMenuDescription())
-			];	
+				.ToolTipText(InCreateData->Action->GetTooltipDescription())
+			];
 	}
 	
 	return
@@ -235,7 +236,7 @@ void SMovieGraphMembersTabContent::CollectAllActions(FGraphActionListBuilderBase
 	auto AddToActionMenu = [&ActionMenuBuilder, this](UMovieGraphMember* ActionTarget, const EActionSection Section, const FText& Category) -> void
 	{
 		const FText MemberActionDesc = FText::FromString(ActionTarget->GetMemberName());
-		const FText MemberActionTooltip;
+		const FText MemberActionTooltip = FText::FromString(ActionTarget->Description);
 		const FText MemberActionKeywords;
 		const int32 MemberActionSectionID = static_cast<int32>(Section);
 		const TSharedPtr<FMovieGraphSchemaAction> MemberAction(new FMovieGraphSchemaAction(Category, MemberActionDesc, MemberActionTooltip, 0, MemberActionKeywords, MemberActionSectionID));

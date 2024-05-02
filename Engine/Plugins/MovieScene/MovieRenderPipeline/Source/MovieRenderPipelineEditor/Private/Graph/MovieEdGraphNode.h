@@ -53,7 +53,7 @@ protected:
 	void CreatePins(const TArray<UMovieGraphPin*>& InInputPins, const TArray<UMovieGraphPin*>& InOutputPins);
 	
 	/** Gets the tooltip for the given pin. */
-	FString GetPinTooltip(const UMovieGraphPin* InPin) const;
+	virtual FString GetPinTooltip(const UMovieGraphPin* InPin) const;
 
 	/** Recreate the pins on this node, discarding all existing pins. */
 	void ReconstructPins();

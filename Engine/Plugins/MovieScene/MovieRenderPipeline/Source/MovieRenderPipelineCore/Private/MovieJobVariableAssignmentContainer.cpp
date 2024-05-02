@@ -282,7 +282,8 @@ bool UMovieJobVariableAssignmentContainer::GenerateVariableOverride(const UMovie
 	NewProperty.Name = FName(InGraphVariable->GetMemberName());
 	NewProperty.ID = FGuid::NewGuid();
 #if WITH_EDITOR
-	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData("VariableGUID", InGraphVariable->GetGuid().ToString()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(VariableGuidMetaDataKey, InGraphVariable->GetGuid().ToString()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(ToolTipMetaDataKey, InGraphVariable->Description));
 #endif
 
 	// Track a separate EditCondition property that can enable/disable the above property. Since the variable can be
@@ -291,7 +292,7 @@ bool UMovieJobVariableAssignmentContainer::GenerateVariableOverride(const UMovie
 	FPropertyBagPropertyDesc NewPropertyEditCondition = FPropertyBagPropertyDesc(FName(EditCondPropName), EPropertyBagPropertyType::Bool);
 	NewPropertyEditCondition.ID = FGuid::NewGuid();
 #if WITH_EDITOR
-	NewPropertyEditCondition.MetaData.Add(FPropertyBagPropertyDescMetaData("VariableGUID", InGraphVariable->GetGuid().ToString()));
+	NewPropertyEditCondition.MetaData.Add(FPropertyBagPropertyDescMetaData(VariableGuidMetaDataKey, InGraphVariable->GetGuid().ToString()));
 #endif
 
 #if WITH_EDITOR
@@ -312,7 +313,7 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 	{
 		const FPropertyBagPropertyDescMetaData* Meta = Desc.MetaData.FindByPredicate([](const FPropertyBagPropertyDescMetaData& MetaData)
 		{
-			return MetaData.Key == "VariableGUID";
+			return MetaData.Key == VariableGuidMetaDataKey;
 		});
 		
 		if (Meta)
@@ -412,6 +413,17 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 			{
 				bNeedsToRegenerate = true;
 				Desc.ContainerTypes = { static_cast<EPropertyBagContainerType>(Variable->GetValueContainerType()) };
+			}
+
+			FPropertyBagPropertyDescMetaData* ToolTipMetaDataEntry =
+				Desc.MetaData.FindByPredicate([](const FPropertyBagPropertyDescMetaData& InMetaDataEntry)
+				{
+					return InMetaDataEntry.Key == ToolTipMetaDataKey;
+				});
+			if (ToolTipMetaDataEntry && (ToolTipMetaDataEntry->Value != Variable->Description))
+			{
+				bNeedsToRegenerate = true;
+				ToolTipMetaDataEntry->Value = Variable->Description;
 			}
 		}
 	}
