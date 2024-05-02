@@ -30,6 +30,10 @@
 #include "Serialization/MemoryWriter.h"
 #endif
 
+#if WITH_EDITOR
+#include "UObject/ArchiveCookContext.h"
+#endif
+
 DEFINE_LOG_CATEGORY_STATIC(LogAudioDerivedData, Log, All);
 
 static int32 AllowAsyncCompression = 1;
@@ -1503,6 +1507,12 @@ void FStreamedAudioPlatformData::Serialize(FArchive& Ar, USoundWave* Owner)
 
 	Ar << NumChunks;
 	Ar << AudioFormat;
+
+	if (Ar.IsCooking() && Ar.IsSaving() && Ar.GetCookContext() && Ar.GetCookContext()->GetCookTagList())
+	{
+		FCookTagList* CookTags = Ar.GetCookContext()->GetCookTagList();
+		CookTags->Add(Owner, "StreamingFormat", LexToString(AudioFormat));
+	}
 
 	if (Ar.IsLoading())
 	{
