@@ -159,7 +159,7 @@ TSharedRef<FSlateStyleSet> FDynamicMaterialEditorStyle::Create()
 
 	Style->Set("Icons.Remove", new IMAGE_BRUSH("Icons/EditorIcons/Remove_16px", Icon16x16));
 
-	Style->Set("Icons.Normalize", new IMAGE_BRUSH("Icons/EditorIcons/Normalize", Icon16x16));
+	Style->Set("Icons.Normalize", new IMAGE_BRUSH_SVG("Icons/EditorIcons/Normalize", Icon16x16));
 
 	Style->Set("Icons.Stage.EnabledButton", new IMAGE_BRUSH("Icons/EditorIcons/WhiteBall", Icon8x8));
 	Style->Set("Icons.Stage.BaseToggle", new IMAGE_BRUSH("Icons/EditorIcons/BaseToggle_16x", Icon16x16));
