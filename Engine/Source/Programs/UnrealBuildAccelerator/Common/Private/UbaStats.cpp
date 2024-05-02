@@ -277,7 +277,8 @@ namespace uba
 		#define UBA_CACHE_STAT(type, var, ver) LogStat(logger, #var, var, frequency);
 		UBA_CACHE_STATS
 		#undef UBA_CACHE_STAT
-		logger.Info(TC("   Bytes   Raw/Comp %9s %9s"), BytesToText(fetchBytesRaw).str, BytesToText(fetchBytesComp).str);
+		if (fetchBytesComp)
+			logger.Info(TC("   Bytes   Raw/Comp %9s %9s"), BytesToText(fetchBytesRaw).str, BytesToText(fetchBytesComp).str);
 	}
 
 	bool CacheStats::IsEmpty()
