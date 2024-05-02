@@ -1508,11 +1508,13 @@ void FStreamedAudioPlatformData::Serialize(FArchive& Ar, USoundWave* Owner)
 	Ar << NumChunks;
 	Ar << AudioFormat;
 
+#if WITH_EDITOR
 	if (Ar.IsCooking() && Ar.IsSaving() && Ar.GetCookContext() && Ar.GetCookContext()->GetCookTagList())
 	{
 		FCookTagList* CookTags = Ar.GetCookContext()->GetCookTagList();
 		CookTags->Add(Owner, "StreamingFormat", LexToString(AudioFormat));
 	}
+#endif
 
 	if (Ar.IsLoading())
 	{

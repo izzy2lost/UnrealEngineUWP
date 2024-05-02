@@ -1231,6 +1231,7 @@ void USoundWave::Serialize( FArchive& Ar )
 	SerializeCuePoints(Ar, bCooked && Ar.IsLoading());
 
 	// Save cook tags
+#if WITH_EDITOR
 	if (Ar.IsCooking() && Ar.IsSaving() && Ar.GetCookContext() && Ar.GetCookContext()->GetCookTagList())
 	{
 		FCookTagList* CookTags = Ar.GetCookContext()->GetCookTagList();
@@ -1249,6 +1250,7 @@ void USoundWave::Serialize( FArchive& Ar )
 		}
 		CookTags->Add(this, "FormatContainerFormats", FormatsListStr.ToString());
 	}
+#endif
 
 	if (bCooked)
 	{
