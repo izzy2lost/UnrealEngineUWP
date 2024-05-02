@@ -164,7 +164,7 @@ void UAvaGameInstancePlayableGroup::RequestEndPlayWorld(bool bInForceImmediate)
 bool UAvaGameInstancePlayableGroup::IsWorldPlaying() const
 {
 	const UAvaGameInstance* AvaGameInstance = GetAvaGameInstance();
-	return AvaGameInstance ? AvaGameInstance->IsWorldCreated() : false;
+	return AvaGameInstance ? AvaGameInstance->IsWorldPlaying() : false;
 }
 
 bool UAvaGameInstancePlayableGroup::IsRenderTargetReady() const
