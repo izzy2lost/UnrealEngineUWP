@@ -393,7 +393,7 @@ public:
 
 	bool IsActiveViewHeapBindless() const
 	{
-		return (BindlessResourcesHeap != nullptr) || (bUsingExplicitCacheHeaps && bExplicitViewHeapIsBindless);
+		return IsUsingBindlessResources() || (BindlessResourcesHeap != nullptr) || (bUsingExplicitCacheHeaps && bExplicitViewHeapIsBindless);
 	}
 #endif
 
