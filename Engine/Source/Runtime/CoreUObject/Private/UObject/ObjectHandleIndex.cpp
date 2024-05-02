@@ -15,10 +15,9 @@
 #include "UObject/Package.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/ObjectPathId.h"
+#include "UObject/PropertyBagRepository.h"
 
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
-
-
 
 static inline FName GetNameOrNone(UObject* Object)
 {
@@ -131,6 +130,9 @@ namespace UE::CoreUObject::Private
 	void InitObjectHandles(int32 MaxObjects)
 	{
 		GObjectHandleIndex.ObjectIndexToPackedObjectRef.SetNumZeroed(MaxObjects);
+
+		// This allows the debug visualizer to evaluate a resolved handle to see if it has a packed ref stored in the global table.
+		GCoreObjectIndexToPackedObjectRefDebug = reinterpret_cast<const UPTRINT*>(GObjectHandleIndex.ObjectIndexToPackedObjectRef.GetData());
 	}
 
 	static FAutoConsoleCommand CmdPrintUnresolvedObjects(
@@ -178,11 +180,12 @@ namespace UE::CoreUObject::Private
 			})
 	);
 
-	static inline FPackedObjectRef Pack(FPackageId PackageId, FObjectId ObjectId)
+	static inline FPackedObjectRef Pack(FPackageId PackageId, FObjectId ObjectId, bool bHasPlaceholderType = false)
 	{
-		checkf(PackageId.ToIndex() <= 0x7FFFFFFF, TEXT("Package count exceeded the space permitted within packed object references.  This implies over 2 billion packages are in use."));
+		checkf(PackageId.ToIndex() <= PackageIdMask, TEXT("Package count exceeded the space permitted within packed object references.  This implies over %d packages are in use."), PackageIdMask);
 		return { static_cast<UPTRINT>(PackageId.ToIndex()) << PackageIdShift |
-				static_cast<UPTRINT>(ObjectId.ToPackedIndex() << ObjectIdShift) | 1 };
+				static_cast<UPTRINT>(ObjectId.ToPackedIndex() << ObjectIdShift) |
+				static_cast<UPTRINT>(bHasPlaceholderType << TypeIdShift) | 1 };
 	}
 
 	static inline void Unpack(FPackedObjectRef PackedObjectRef, FPackageId& OutPackageId, FObjectId& OutObjectId)
@@ -293,12 +296,12 @@ namespace UE::CoreUObject::Private
 		return;
 	}
 
-	static inline FPackedObjectRef MakePackedObjectRef(FName PackageName, FName ClassPackageName, FName ClassName, FObjectPathId ObjectPath)
+	static inline FPackedObjectRef MakePackedObjectRef(FName PackageName, FName ClassPackageName, FName ClassName, FObjectPathId ObjectPath, bool bHasPlaceholderType = false)
 	{
 		FPackageId PackageId;
 		FObjectId ObjectId;
 		MakeReferenceIds(PackageName, ClassPackageName, ClassName, ObjectPath, PackageId, ObjectId);
-		return Pack(PackageId, ObjectId);
+		return Pack(PackageId, ObjectId, bHasPlaceholderType);
 	}
 
 	static void GetObjectDataFromId(FPackageId PackageId, FObjectId ObjectId, FMinimalName& OutPackageName, FObjectPathId& OutPathId, FMinimalName& OutClassPackageName, FMinimalName& OutClassName)
@@ -526,7 +529,8 @@ namespace UE::CoreUObject::Private
 			return { 0 };
 		}
 
-		return MakePackedObjectRef(ObjectRef.PackageName, ObjectRef.ClassPackageName, ObjectRef.ClassName, ObjectRef.GetObjectPath());
+		const bool bHasPlaceholderType = UE::FPropertyBagRepository::IsPropertyBagPlaceholderType(ObjectRef.ResolveObjectRefClass());
+		return MakePackedObjectRef(ObjectRef.PackageName, ObjectRef.ClassPackageName, ObjectRef.ClassName, ObjectRef.GetObjectPath(), bHasPlaceholderType);
 	}
 
 
@@ -564,7 +568,8 @@ namespace UE::CoreUObject::Private
 			return { 0 };
 		}
 
-		if (UE::LinkerLoad::FindLoadBehavior(*Object->GetClass()) == UE::LinkerLoad::EImportBehavior::Eager)
+		const bool bHasPlaceholderType = UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(Object);
+		if (!bHasPlaceholderType && UE::LinkerLoad::FindLoadBehavior(*Object->GetClass()) == UE::LinkerLoad::EImportBehavior::Eager)
 		{
 			return { 0 };
 		}
@@ -580,7 +585,7 @@ namespace UE::CoreUObject::Private
 
 		UObject* Class = Object->GetClass();
 		FName ClassPackageName = GetNameOrNone(Class->GetOutermost());
-		PackedObjectRef = UE::CoreUObject::Private::MakePackedObjectRef(PackageName, ClassPackageName, GetNameOrNone(Class), FObjectPathId(Object));
+		PackedObjectRef = UE::CoreUObject::Private::MakePackedObjectRef(PackageName, ClassPackageName, GetNameOrNone(Class), FObjectPathId(Object), bHasPlaceholderType);
 		return PackedObjectRef;
 	}
 

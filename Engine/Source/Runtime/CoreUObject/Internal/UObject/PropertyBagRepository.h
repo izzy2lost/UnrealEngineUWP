@@ -45,10 +45,7 @@ private:
 	// used to make sure IDOs don't have name overlap
 	TMap<const UObject*, TObjectPtr<UObject>> Namespaces;
 
-	/** Internal registry that tracks the current set of types for property bag container objects instanced as placeholders for package exports that have invalid or missing class imports on load. */
-	TUniquePtr<class FPropertyBagPlaceholderTypeRegistry> PropertyBagPlaceholderTypeRegistry;
-
-	FPropertyBagRepository();
+	FPropertyBagRepository() = default;
 
 public:
 	FPropertyBagRepository(const FPropertyBagRepository &) = delete;
@@ -115,9 +112,9 @@ public:
 	// End FGCObject interface
 
 	// query for whether or not the given struct/class is a placeholder type
-	static COREUOBJECT_API bool IsPropertyBagPlaceholderType(UStruct* Type);
+	static COREUOBJECT_API bool IsPropertyBagPlaceholderType(const UStruct* Type);
 	// query for whether or not the given object was created as a placeholder type
-	static COREUOBJECT_API bool IsPropertyBagPlaceholderObject(UObject* Object);
+	static COREUOBJECT_API bool IsPropertyBagPlaceholderObject(const UObject* Object);
 	// query for whether or not creating property bag placeholder objects should be allowed
 	static COREUOBJECT_API bool IsPropertyBagPlaceholderObjectSupportEnabled();
 	// query whether an object supports IDO generation

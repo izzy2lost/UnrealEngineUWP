@@ -661,7 +661,7 @@ void FLinkerLoad::PRIVATE_PatchNewObjectIntoExport(UObject* OldObject, UObject* 
 		FObjectExport& ObjExport = OldObjectLinker->ExportMap[CachedLinkerIndex];
 		
 		// Since we don't copy the internal flags, the mirrored flags need can't be set on the new object as well
-		const EObjectFlags OldObjectFlags = OldObject->GetFlags() & ~(RF_MirroredGarbage | RF_HasPlaceholderType);
+		const EObjectFlags OldObjectFlags = OldObject->GetFlags() & ~(RF_MirroredGarbage);
 
 		// Detach the old object to make room for the new
 		OldObject->ClearFlags(RF_NeedLoad|RF_NeedPostLoad|RF_NeedPostLoadSubobjects);
@@ -5105,11 +5105,6 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 		{
 			return nullptr;
 		}
-		else if (LoadClass && UE::FPropertyBagRepository::IsPropertyBagPlaceholderType(LoadClass))
-		{
-			// Modify the export's object flags for instancing to indicate that it has a placeholder type.
-			Export.ObjectFlags |= RF_HasPlaceholderType;
-		}
 #endif
 		if( !LoadClass )
 		{
@@ -6237,17 +6232,27 @@ FArchive& FLinkerLoad::operator<<(FObjectPtr& ObjectPtr)
 	// Wrapper that only allows pointers to exports with placeholder types when type safety features are enabled.
 	auto AsTypeSafeObjectPtr_Lambda = [this](UObject* ResolvedObject)
 	{
-#if WITH_EDITOR && !UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		// If type safety features are disabled, resolve unsafe references to placeholder-typed objects now to NULL.
-		// Note: Similar to hard references above, this means we won't find it for replacement at reinstancing time.
+#if WITH_EDITOR
+		// Note: References to placeholder objects cannot resolve to it if the underlying pointer type is unsafe.
 		if (ResolvedObject && UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(ResolvedObject))
 		{
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE && UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+			// If type safety features are enabled, create a packed reference mapping for the placeholder-typed object.
+			// This resolves to the placeholder object for UObject-typed pointers. For other types it resolves to NULL.
+			// However, the underlying value when serialized will always resolve to the object reference (e.g. for GC).
+			// Note: We could return an FObjectPtr that wraps the packed reference result, but that implies a lazy load.
+			// We need to register the packed object reference here, but we don't need to also defer the pointer resolve.
+			UE::CoreUObject::Private::MakePackedObjectRef(ResolvedObject);
+#else
+			// If type safety features are disabled, resolve unsafe references to placeholder-typed objects now to NULL.
+			// Note: Similar to hard references above, this means we won't find it for replacement at reinstancing time.
 			const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(GetSerializedProperty());
 			if (!ObjectProperty || !ResolvedObject->GetClass()->IsChildOf(ObjectProperty->PropertyClass))
 			{
 				UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *ResolvedObject->GetPathName());
 				ResolvedObject = nullptr;
 			}
+#endif
 		}
 #endif
 		return FObjectPtr(ResolvedObject);

@@ -27,9 +27,16 @@ DEFINE_LOG_CATEGORY_STATIC(LogPropertyBagRepository, Log, All);
 namespace UE
 {
 
+/** Internal registry that tracks the current set of types for property bag container objects instanced as placeholders for package exports that have invalid or missing class imports on load. */
 class FPropertyBagPlaceholderTypeRegistry
 {
 public:
+	static FPropertyBagPlaceholderTypeRegistry& Get()
+	{
+		static FPropertyBagPlaceholderTypeRegistry Instance;
+		return Instance;
+	}
+
 	void AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		ConsumePendingPlaceholderTypes();
@@ -41,13 +48,17 @@ public:
 		PendingPlaceholderTypes.Enqueue(Type);
 	}
 
-	bool Contains(UStruct* Type)
+	bool Contains(const UStruct* Type)
 	{
 		ConsumePendingPlaceholderTypes();
 		return PlaceholderTypes.Contains(Type);
 	}
 
 protected:
+	FPropertyBagPlaceholderTypeRegistry() = default;
+	FPropertyBagPlaceholderTypeRegistry(const FPropertyBagPlaceholderTypeRegistry&) = delete;
+	FPropertyBagPlaceholderTypeRegistry& operator=(const FPropertyBagPlaceholderTypeRegistry&) = delete;
+
 	void ConsumePendingPlaceholderTypes()
 	{
 		if (!PendingPlaceholderTypes.IsEmpty())
@@ -120,11 +131,6 @@ FPropertyBagRepository& FPropertyBagRepository::Get()
 {
 	static FPropertyBagRepository Repo;
 	return Repo;
-}
-
-FPropertyBagRepository::FPropertyBagRepository()
-{
-	PropertyBagPlaceholderTypeRegistry = MakeUnique<FPropertyBagPlaceholderTypeRegistry>();
 }
 
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
@@ -573,7 +579,7 @@ void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector
 		Collector.AddReferencedObject(Element.Value);
 	}
 
-	PropertyBagPlaceholderTypeRegistry->AddReferencedObjects(Collector);
+	FPropertyBagPlaceholderTypeRegistry::Get().AddReferencedObjects(Collector);
 }
 
 FString FPropertyBagRepository::GetReferencerName() const
@@ -671,25 +677,24 @@ void FPropertyBagRepository::ShrinkMaps()
 	InstanceDataObjectToOwner.Compact();
 }
 
-bool FPropertyBagRepository::IsPropertyBagPlaceholderType(UStruct* Type)
+bool FPropertyBagRepository::IsPropertyBagPlaceholderType(const UStruct* Type)
 {
 	if (!Type)
 	{
 		return false;
 	}
 
-	return FPropertyBagRepository::Get().PropertyBagPlaceholderTypeRegistry->Contains(Type);
+	return FPropertyBagPlaceholderTypeRegistry::Get().Contains(Type);
 }
 
-bool FPropertyBagRepository::IsPropertyBagPlaceholderObject(UObject* Object)
+bool FPropertyBagRepository::IsPropertyBagPlaceholderObject(const UObject* Object)
 {
 	if (!Object)
 	{
 		return false;
 	}
 
-	return Object->HasAnyFlags(RF_HasPlaceholderType|RF_ClassDefaultObject)
-		&& IsPropertyBagPlaceholderType(Object->GetClass());
+	return IsPropertyBagPlaceholderType(Object->GetClass());
 }
 
 namespace Private
@@ -751,7 +756,7 @@ UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer
 
 	// Use the property bag repository for now to manage property bag placeholder types (e.g. object lifetime).
 	// Note: The object lifetime of instances of this type will rely on existing references that are serialized.
-	FPropertyBagRepository::Get().PropertyBagPlaceholderTypeRegistry->Add(PlaceholderType);
+	FPropertyBagPlaceholderTypeRegistry::Get().Add(PlaceholderType);
 
 	return PlaceholderType;
 }

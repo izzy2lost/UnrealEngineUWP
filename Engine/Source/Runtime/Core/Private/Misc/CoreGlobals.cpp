@@ -253,6 +253,7 @@ float				GNearClippingPlane_RenderThread		= 10.0f;				/* Near clipping plane (Re
 
 bool					GExitPurge						= false;
 
+const UPTRINT* GCoreObjectIndexToPackedObjectRefDebug = nullptr;
 FChunkedFixedUObjectArray* GCoreObjectArrayForDebugVisualizers = nullptr;
 
 namespace UE::CoreUObject::Private
@@ -264,6 +265,7 @@ UE::CoreUObject::Private::FStoredObjectPathDebug* GCoreComplexObjectPathDebug = 
 UE::CoreUObject::Private::FObjectHandlePackageDebugData* GCoreObjectHandlePackageDebug = nullptr;
 #if PLATFORM_UNIX
 uint8** CORE_API GNameBlocksDebug = FNameDebugVisualizer::GetBlocks();
+const UPTRINT*& CORE_API GObjectIndexToPackedObjectRefDebug = GCoreObjectIndexToPackedObjectRefDebug;
 FChunkedFixedUObjectArray*& CORE_API GObjectArrayForDebugVisualizers = GCoreObjectArrayForDebugVisualizers;
 UE::CoreUObject::Private::FStoredObjectPathDebug*& GComplexObjectPathDebug = GCoreComplexObjectPathDebug;
 UE::CoreUObject::Private::FObjectHandlePackageDebugData*& CORE_API GObjectHandlePackageDebug = GCoreObjectHandlePackageDebug;

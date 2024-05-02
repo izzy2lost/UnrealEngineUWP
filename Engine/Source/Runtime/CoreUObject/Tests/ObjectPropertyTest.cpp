@@ -41,7 +41,7 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddress")
 	UObjectPtrTestClassWithRef* Obj = NewObject<UObjectPtrTestClassWithRef>(TestPackage, TEXT("Object"));
 	UObjectPtrTestClass* Other = NewObject<UObjectPtrTestClass>(Obj, TEXT("Other"));
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	FObjectHandle Handle = MakeUnresolvedHandle(Other);
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr = *reinterpret_cast<TObjectPtr<UObjectPtrTestClass>*>(&Handle);
 #else
@@ -104,7 +104,7 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 	UObjectPtrTestClassWithRef* Obj = NewObject<UObjectPtrTestClassWithRef>(TestPackage, TEXT("Object"));
 	UObjectPtrTestClass* Other = NewObject<UObjectPtrTestClass>(Obj, TEXT("Other"));
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	FObjectHandle Handle = MakeUnresolvedHandle(Other);
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr = *reinterpret_cast<TObjectPtr<UObjectPtrTestClass>*>(&Handle);
 #else
@@ -426,7 +426,7 @@ TEST_CASE("UE::FObjectProperty::Identical::ObjectPtr")
 	TObjectPtr<UObject> Obj1 = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("UObjectPtrTestClass"));
 	TObjectPtr<UObject> Obj2 = NewObject<UObjectPtrTestClass>(TestPackage2, TEXT("UObjectPtrTestClass"));
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 
 	FObjectHandle Handle1 = MakeUnresolvedHandle(ObjWithRef.Get());
 	FObjectHandle Handle2 = MakeUnresolvedHandle(Obj1.Get());
@@ -447,7 +447,7 @@ TEST_CASE("UE::FObjectProperty::Identical::ObjectPtr")
 
 	CHECK(ResolveCount == 0);
 	CHECK(Property->Identical(&Obj1, &Obj2, PPF_DeepComparison));
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	CHECK(ResolveCount == 2);
 #endif
 	
@@ -506,7 +506,7 @@ TEST_CASE("UE::FObjectProperty::CopySingleValue")
 	UObject* RawPtr = Obj1;
 	TObjectPtr<UObject> PtrObj2 = Obj2;
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	FObjectHandle Handle = MakeUnresolvedHandle(Obj2);
 	PtrObj2 = TObjectPtr<UObject>(FObjectPtr(Handle) );
 #endif

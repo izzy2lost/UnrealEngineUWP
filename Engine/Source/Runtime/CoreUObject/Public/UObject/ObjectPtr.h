@@ -603,10 +603,16 @@ public:
 #if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
 		// Do a NULL test first before comparing the underlying handles, in case either side is
 		// a non-NULL, but unsafe type pointer (which would equate to NULL when Get() is called).
-		return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr) ? ObjectPtr_Private::IsObjectPtrNull<U>(Other.ObjectPtr) : ObjectPtr == Other.ObjectPtr;
-#else
-		return ObjectPtr == Other.ObjectPtr;
+		if (ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr))
+		{
+			return ObjectPtr_Private::IsObjectPtrNull<U>(Other.ObjectPtr);
+		}
+		else if (ObjectPtr_Private::IsObjectPtrNull<U>(Other.ObjectPtr))
+		{
+			return false;
+		}
 #endif
+		return ObjectPtr == Other.ObjectPtr;
 	}
 
 	// Equality/Inequality comparisons against nullptr

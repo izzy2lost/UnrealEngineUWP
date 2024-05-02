@@ -808,6 +808,9 @@ struct FScopedLoadingState
 bool CORE_API GetEmitDrawEvents();
 void CORE_API SetEmitDrawEvents(bool EmitDrawEvents);
 
+/** Array to help visualize packed object references */
+extern CORE_API const UPTRINT* GCoreObjectIndexToPackedObjectRefDebug;
+
 /** Array to help visualize weak pointers in the debugger */
 class FChunkedFixedUObjectArray;
 

@@ -88,6 +88,11 @@ namespace UE::CoreUObject::Private
 
 	/** Read the handle as a pointer without checking if it is resolved. Invalid to call for unresolved handles. */
 	inline UObject* ReadObjectHandlePointerNoCheck(FObjectHandle Handle);
+
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	/** Determines if the handle represents a reference that is considered to be safe for object subtype pointers. */
+	inline bool IsObjectHandleTypeSafeNoReadNoCheck(FObjectHandle Handle);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -116,12 +121,12 @@ inline bool IsObjectHandleResolved(FObjectHandle Handle)
 }
 
 /* return true if a handle is type safe.
- * null and unresolved handles are considered safe
+ * null handles are considered safe, otherwise does a bit test
  */ 
 inline bool IsObjectHandleTypeSafe(FObjectHandle Handle)
 {
 #if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-	return IsObjectHandleNull(Handle) || !IsObjectHandleResolved(Handle) || !UE::CoreUObject::Private::HasAnyFlags(UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(Handle), static_cast<int32>(RF_HasPlaceholderType));
+	return UE::CoreUObject::Private::IsObjectHandleTypeSafeNoReadNoCheck(Handle);
 #else
 	return true;
 #endif
@@ -350,9 +355,22 @@ namespace UE::CoreUObject::Private
 		};
 	};
 
-	inline constexpr uint32 ObjectIdShift = 1;
-	inline constexpr uint32 PackageIdShift = 33;
-	inline constexpr uint32 PackageIdMask = 0x7FFF'FFFF;
+	inline constexpr uint32 TypeIdShift = 1;
+	inline constexpr uint32 ObjectIdShift = 2;
+	inline constexpr uint32 PackageIdShift = 34;
+	inline constexpr uint32 PackageIdMask = 0x3FFF'FFFF;
+
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	inline bool IsObjectHandleTypeSafeNoReadNoCheck(FObjectHandle Handle)
+	{
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+		constexpr uint32 UnsafeTypeMask = (1 << TypeIdShift);
+		return IsObjectHandleNull(Handle) || ((Handle.PointerOrRef & (UnsafeTypeMask | 1)) == 1) || (IsObjectHandleResolved(Handle) && !(FindExistingPackedObjectRef(ReadObjectHandlePointerNoCheck(Handle)).EncodedRef & UnsafeTypeMask));
+#else
+		return true;
+#endif
+	}
+#endif
 
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	//forward declarations

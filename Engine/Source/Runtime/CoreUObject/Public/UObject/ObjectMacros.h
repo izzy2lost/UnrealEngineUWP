@@ -571,7 +571,7 @@ enum EObjectFlags
 	// RF_Dynamic				=0x04000000,	///< Was removed along with bp nativization
 	RF_WillBeLoaded				=0x08000000,	///< This object was constructed during load and will be loaded shortly
 	RF_HasExternalPackage		=0x10000000,	///< This object has an external package assigned and should look it up when getting the outermost package
-	RF_HasPlaceholderType		=0x20000000,	///< This object was instanced from a placeholder type (e.g. on load). References to it are serialized but externally resolve to NULL from a logical point of view (for type safety).
+	// RF_Unused				=0x20000000,
 
 	// RF_MirroredGarbage is mirrored in EInternalObjectFlags::Garbage because checking the internal flags is much faster for the Garbage Collector
 	// while checking the object flags is much faster outside of it where the Object pointer is already available and most likely cached.
@@ -585,6 +585,8 @@ UE_DEPRECATED(5.4, "RF_InternalGarbage should no longer be used. Use IsValid(Obj
 inline constexpr EObjectFlags RF_InternalGarbage = RF_MirroredGarbage;
 UE_DEPRECATED(5.4, "RF_InternalMirroredFlags should no longer be used. Use IsValid(Object) instead.")
 inline constexpr EObjectFlags RF_InternalMirroredFlags = RF_MirroredGarbage;
+UE_DEPRECATED(5.5, "RF_HasPlaceholderType is no longer in use.")
+inline constexpr EObjectFlags RF_HasPlaceholderType = EObjectFlags(0x20000000);
 
 /** Mask for all object flags */
 #define RF_AllFlags				(EObjectFlags)0xffffffff	///< All flags, used mainly for error checking
