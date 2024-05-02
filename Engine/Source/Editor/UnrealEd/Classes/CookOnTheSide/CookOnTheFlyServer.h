@@ -175,6 +175,7 @@ namespace UE::Cook
 	class FCookWorkerClient;
 	class FCookWorkerServer;
 	class FDiagnostics;
+	class FODSCClientData; 
 	class FPackageWriterMPCollector;
 	class FRequestCluster;
 	class FRequestQueue;
@@ -1607,6 +1608,7 @@ private:
 	float WaitForAsyncSleepSeconds = 0.0f;
 	float DisplayUpdatePeriodSeconds = 0.0f;
 	EIdleStatus IdleStatus = EIdleStatus::Done;
+	TUniquePtr<UE::Cook::FODSCClientData> ODSCClientData;
 
 	friend FAssetRegistryGenerator;
 	friend UE::Cook::FAssetRegistryMPCollector;

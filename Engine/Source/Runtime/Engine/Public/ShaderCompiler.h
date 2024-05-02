@@ -27,6 +27,7 @@
 #include "Containers/Deque.h"
 #include "Hash/Blake3.h"
 #include "SceneTypes.h"
+#include "UObject/StrongObjectPtr.h"
 
 class FAsyncCompilationNotification;
 class FCbObjectView;
@@ -38,6 +39,7 @@ class FShaderCompileJob;
 class FShaderCompilerStats;
 class FShaderKeyGenerator;
 class FShaderPipelineCompileJob;
+class UMaterialInterface;
 struct FAnalyticsEventAttribute;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogShaderCompilers, Log, All);
@@ -1245,6 +1247,9 @@ struct FShaderRecompileData
 
 	/** On-demand shader compiler payload.  */
 	TArray<FODSCRequestPayload> ShadersToRecompile;
+
+	/** Optional Array of the loaded materials  */
+	TArray<TStrongObjectPtr<UMaterialInterface>>* LoadedMaterialsToRecompile = nullptr;
 
 	/** Default constructor. */
 	FShaderRecompileData() {};

@@ -39,6 +39,7 @@
 #include "Cooker/LooseCookedPackageWriter.h"
 #include "Cooker/MPCollector.h"
 #include "Cooker/NetworkFileCookOnTheFlyRequestManager.h"
+#include "Cooker/OnDemandShaderCompilation.h"
 #include "Cooker/PackageTracker.h"
 #include "Cooker/WorkerRequestsLocal.h"
 #include "Cooker/WorkerRequestsRemote.h"
@@ -639,6 +640,18 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 				bool bAlreadyInitialized = false;
 				CookOnTheFlyServerInterface->AddPlatform(Connection.GetPlatformName(), bAlreadyInitialized);
 			}
+			if (ODSCClientData)
+			{
+				ODSCClientData->OnClientConnected(&Connection);
+			}
+		});
+
+	CookOnTheFlyNetworkServer->OnClientDisconnected().AddLambda([this](ICookOnTheFlyClientConnection& Connection)
+		{
+			if (ODSCClientData)
+			{
+				ODSCClientData->OnClientDisconnected(&Connection);
+			}
 		});
 
 	CookOnTheFlyNetworkServer->OnRequest(ECookOnTheFlyMessage::RecompileShaders).BindLambda([this](ICookOnTheFlyClientConnection& Connection, const FCookOnTheFlyRequest& Request)
@@ -655,6 +668,7 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 				TArray<FString> RecompileModifiedFiles;
 				TArray<uint8> MeshMaterialMaps;
 				TArray<uint8> GlobalShaderMap;
+				TArray<TStrongObjectPtr<UMaterialInterface>> LoadedMaterialsToRecompile;
 
 				FShaderRecompileData RecompileData(Connection.GetTargetPlatform()->PlatformName(), &RecompileModifiedFiles, &MeshMaterialMaps, &GlobalShaderMap);
 				{
@@ -662,9 +676,18 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 					*Ar << RecompileData;
 				}
 
+				RecompileData.LoadedMaterialsToRecompile = &LoadedMaterialsToRecompile;
+
+				const void* ConnectionPtr = &Connection;
 				FEventRef RecompileCompletedEvent;
-				UE::Cook::FRecompileShaderCompletedCallback RecompileCompleted = [this, &RecompileCompletedEvent]()
+				UE::Cook::FRecompileShaderCompletedCallback RecompileCompleted = [this, &RecompileCompletedEvent, ConnectionPtr, &LoadedMaterialsToRecompile]()
 				{
+					if (ODSCClientData)
+					{
+						ODSCClientData->KeepClientPersistentData(ConnectionPtr, LoadedMaterialsToRecompile);
+					}
+					LoadedMaterialsToRecompile.Empty();
+
 					RecompileCompletedEvent->Trigger();
 				};
 
@@ -7174,7 +7197,13 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	// It would be better to always calculate it, but we want to avoid the performance cost until it becomes more widely used
 	bIterativeCalculateExe = !bIterativeIgnoreExe || !bConfigSettingSetIterativeIgnoreExe;
 
-	bRunningAsShaderServer = FParse::Param(FCommandLine::Get(), TEXT("odsc"));;
+	bRunningAsShaderServer = FParse::Param(FCommandLine::Get(), TEXT("odsc"));
+    ODSCClientData = nullptr;
+	if (bRunningAsShaderServer)
+	{
+		ODSCClientData = MakeUnique<UE::Cook::FODSCClientData>();
+	}
+
 	bSkipSave = FParse::Param(FCommandLine::Get(), TEXT("CookSkipSave"));
 
 	FString Severity;
@@ -10418,6 +10447,8 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 
 void UCookOnTheFlyServer::ShutdownCookSession()
 {
+	ODSCClientData.Reset();
+
 	if (CookDirector)
 	{
 		CookDirector->ShutdownCookSession();

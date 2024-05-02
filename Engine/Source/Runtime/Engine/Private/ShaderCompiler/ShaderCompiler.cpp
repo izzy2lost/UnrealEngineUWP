@@ -64,6 +64,7 @@
 
 #if WITH_EDITOR
 #include "UObject/ArchiveCookContext.h"
+#include "UObject/UObjectGlobals.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
 #include "TextureCompiler.h"
@@ -10251,7 +10252,23 @@ void RecompileShadersForRemote(
 	if (Args.ShadersToRecompile.Num() && (Args.MeshMaterialMaps != nullptr))
 	{
 		TMap<FString, TArray<TRefCountPtr<FMaterialShaderMap>>> CompiledShaderMaps;
-		UMaterial::CompileODSCMaterialsForRemoteRecompile(Args.ShadersToRecompile, CompiledShaderMaps);
+		{
+			// UMaterial::CompileODSCMaterialsForRemoteRecompile will call LoadObjects on the material names but doesn't keep them around. Add a GC guard to ensure we can still get them
+			// before they get unloaded, so that the whole chain UMaterial->FMaterial->FMaterialShaderMap is kept intact, and we can merge the next batch of ODSC requests
+			FGCScopeGuard NoGCScopeGuard;
+			UMaterial::CompileODSCMaterialsForRemoteRecompile(Args.ShadersToRecompile, CompiledShaderMaps);
+			if (Args.LoadedMaterialsToRecompile)
+			{
+				for (auto Iter : CompiledShaderMaps)
+				{
+					TStrongObjectPtr<UMaterialInterface> MaterialInterface = TStrongObjectPtr<UMaterialInterface>(FindObject<UMaterialInterface>(nullptr, *Iter.Key));
+					if (MaterialInterface)
+					{
+						Args.LoadedMaterialsToRecompile->Add(MaterialInterface);
+					}
+				}
+			}
+		}
 		SaveShaderMapsForRemote(TargetPlatform, CompiledShaderMaps, Args.MeshMaterialMaps);
 	}
 	else
