@@ -94,6 +94,8 @@ void FCreateLeafConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, c
 				const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 				bRestrictToSelection = true;
 				SelectedBones = InOptionalSelectionFilter.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+				SelectionFacade.Sanitize(SelectedBones, /* bFavorParent */false);
 			}
 
 			float InSimplificationDistanceThreshold = GetValue(Context, &SimplificationDistanceThreshold);
@@ -240,6 +242,8 @@ void FGenerateClusterConvexHullsFromLeafHullsDataflowNode::Evaluate(Dataflow::FC
 			{
 				const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 				SelectionArray = InOptionalSelectionFilter.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+				SelectionFacade.Sanitize(SelectionArray, /* bFavorParent */false);
 			}
 
 			bool bHasNegativeSpace = false;
@@ -326,6 +330,8 @@ void FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::Evaluate(Dataflow
 			{
 				const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 				SelectionArray = InOptionalSelectionFilter.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+				SelectionFacade.Sanitize(SelectionArray, /* bFavorParent */false);
 			}
 
 			bool bHasNegativeSpace = false;
@@ -442,6 +448,8 @@ void FMergeConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 		{
 			const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 			SelectionArray = InOptionalSelectionFilter.AsArray();
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+			SelectionFacade.Sanitize(SelectionArray, /* bFavorParent */false);
 		}
 
 		bool bHasPrecomputedNegativeSpace = false;

@@ -2027,6 +2027,11 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 
 	for (int32 TransformIndex : TransformsToProcess)
 	{
+		if (TransformIndex < 0 || TransformIndex >= SimulationTypeAttribute.Num())
+		{
+			UE_LOG(LogChaos, Warning, TEXT("Transform Index %d out of bounds [0,%d)"), TransformIndex, SimulationTypeAttribute.Num());
+			continue;
+		}
 		// only do this for clusters
 		const bool bIsCluster = (SimulationTypeAttribute.Get()[TransformIndex] == FGeometryCollection::ESimulationTypes::FST_Clustered);
 		if (bIsCluster)
