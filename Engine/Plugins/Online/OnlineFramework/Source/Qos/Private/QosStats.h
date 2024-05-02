@@ -133,6 +133,10 @@ private:
 		FQosStats_Timer SearchTime;
 		/** Array of region information */
 		TArray<FQosStats_RegionInfo> Regions;
+		/** name for the region chosen based on rules */
+		FString  RulesChosenRegion;
+		/** name for the sub region chosen based on rules */
+		FString  RulesChosenSubRegion;
 		/** Number of search results tested */
 		int32 NumTotalSearches;
 		/** Number of successful search results */
@@ -170,6 +174,9 @@ private:
 	static const FString QosStats_BestRegionPing;
 	static const FString QosStats_BestEndpointId;
 	static const FString QosStats_BestEndpointPing;
+	static const FString QosStats_ChosenRegionId;
+	static const FString QosStats_ChosenSubRegionId;
+	static const FString QosStats_ChosenSubRegionPing;
 
 	/** Version of the stats for separation */
 	int32 StatsVersion;
@@ -241,6 +248,20 @@ public:
 	 * @param Result results of the qos pass
 	 */
 	void EndQosPass(EDatacenterResultType Result);
+
+	/**
+	 * Set the chosen region from Qos Evaluation (may differ from the fastest/best based on rules)
+	 *
+	 * @param Region string region code of chosen region
+	 */
+	void SetChosenRegion(FString&& Region);
+
+	/**
+	 * Set the chosen SubRegion from Qos Evaluation (may differ from the fastest/best based on rules)
+	 *
+	 * @param Region string SubRegion code of chosen region
+	 */
+	void SetChosenSubRegion(FString && SubRegion);
 
 	/**
 	 * Record previously saved stats to an analytics provider

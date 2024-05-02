@@ -602,7 +602,7 @@ private:
 	 */
 	void SanityCheckDefinitions() const;
 
-	void OnQosEvaluationComplete(EQosCompletionResult Result, const TArray<FDatacenterQosInstance>& DatacenterInstances);
+	void OnQosEvaluationComplete(EQosCompletionResult Result, const TArray<FDatacenterQosInstance>& DatacenterInstances, FString* OutSelectedRegion, FString* OutSelectedSubRegion);
 
 	/**
 	 * Use the existing set value, or if it is currently invalid, set the next best region available

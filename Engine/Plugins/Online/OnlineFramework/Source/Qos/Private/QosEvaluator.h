@@ -36,8 +36,10 @@ DECLARE_DELEGATE_OneParam(FOnQosPingEvalComplete, EQosCompletionResult /** Resul
  *
  * @param Result the QoS operation result
  * @param DatacenterInstances The per-datacenter ping information
+ * @param OutSelectedRegion If present target will be set to the ReionManagers recommended region (may differ from actual best)
+ * @param OutSelectedSubRegion If present target will be set to the ReionManagers recommended sub region (may differ from actual best)
  */
-DECLARE_DELEGATE_TwoParams(FOnQosSearchComplete, EQosCompletionResult /** Result */, const TArray<FDatacenterQosInstance>& /** DatacenterInstances */);
+DECLARE_DELEGATE_FourParams(FOnQosSearchComplete, EQosCompletionResult /** Result */, const TArray<FDatacenterQosInstance>& /** DatacenterInstances */, FString*  /** OutSelectedRegion */, FString*  /** OutSelectedSubRegion */);
 
 
 /**

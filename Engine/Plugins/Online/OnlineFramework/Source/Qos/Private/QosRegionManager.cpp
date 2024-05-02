@@ -401,7 +401,7 @@ bool UQosRegionManager::IsQosEvaluationInProgress() const
 	return Evaluator != nullptr;
 }
 
-void UQosRegionManager::OnQosEvaluationComplete(EQosCompletionResult Result, const TArray<FDatacenterQosInstance>& DatacenterInstances)
+void UQosRegionManager::OnQosEvaluationComplete(EQosCompletionResult Result, const TArray<FDatacenterQosInstance>& DatacenterInstances, FString* OutSelectedRegion, FString* OutSelectedSubRegion)
 {
 	// toss the evaluator
 	if (Evaluator != nullptr)
@@ -498,10 +498,21 @@ void UQosRegionManager::OnQosEvaluationComplete(EQosCompletionResult Result, con
 			TrySetDefaultRegion();
 		}
 	}
+	FString BestRegion = GetBestRegion();
 	TArray<FString> BestRegionSubregions;
-	GetSubregionPreferences(GetBestRegion(), BestRegionSubregions);
+	GetSubregionPreferences(BestRegion, BestRegionSubregions);
 	UE_LOG(LogQos, Log, TEXT("[UQosRegionManager::OnQosEvaluationComplete] ping eval has completed.  Best region is '%s', recommended subregion is '%s'"),
-		*GetBestRegion(), BestRegionSubregions.Num() ? *BestRegionSubregions[0] : TEXT("NONE"));
+		*BestRegion, BestRegionSubregions.Num() ? *BestRegionSubregions[0] : TEXT("NONE"));
+
+	if (OutSelectedRegion)
+	{
+		*OutSelectedRegion = BestRegion;
+	}
+	
+	if (OutSelectedSubRegion)
+	{
+		*OutSelectedSubRegion = *BestRegionSubregions[0];
+	}
 
 #if DEBUG_SUBCOMPARE_BY_SUBSPACE
 	DumpRegionStats();
