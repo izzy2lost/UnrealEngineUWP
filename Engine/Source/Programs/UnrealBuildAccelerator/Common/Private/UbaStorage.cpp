@@ -12,7 +12,7 @@
 
 namespace uba
 {
-	constexpr u32 CasTableVersion = IsWindows ? 32 : 34;
+	constexpr u32 CasTableVersion = IsWindows ? 33 : 35;
 	constexpr u32 MaxWorkItemsPerAction = 128; // Cap this to not starve other things
 
 #if UBA_USE_SPARSEFILE
@@ -817,7 +817,7 @@ namespace uba
 			{
 				outReturnValue = false;
 				m_logger.Error(TC("Failed to delete %s. Clean cas folder and restart"), casFile.data);
-				return true;
+				return false;
 			}
 		}
 		else
@@ -896,37 +896,60 @@ namespace uba
 		return true;
 	}
 
-	void StorageImpl::TraverseAllCasFiles(const tchar* dir, u32 recursion, const Function<void(const StringBufferBase& fullPath, const DirectoryEntry& e)>& func)
+	void StorageImpl::TraverseAllCasFiles(const tchar* dir, const Function<void(const StringBufferBase& fullPath, const DirectoryEntry& e)>& func, bool allowParallel)
 	{
+		Atomic<u32> workLeft;
+
+		auto traverseCasFileDir = [&func, &workLeft, this](const tchar* casFileDir)
+			{
+				TraverseDir(m_logger, casFileDir,
+					[&](const DirectoryEntry& e)
+					{
+						UBA_ASSERT(!IsDirectory(e.attributes));
+						StringBuffer<> fullPath(casFileDir);
+						fullPath.EnsureEndsWithSlash().Append(e.name);
+						func(fullPath, e);
+					});
+				--workLeft;
+			};
+
 		TraverseDir(m_logger, dir,
 			[&](const DirectoryEntry& e)
 			{
+				if (!IsDirectory(e.attributes))
+					return;
 				StringBuffer<> fullPath(dir);
 				fullPath.EnsureEndsWithSlash().Append(e.name);
-				if (IsDirectory(e.attributes))
+				++workLeft;
+
+				if (allowParallel && m_workManager)
 				{
-					TraverseAllCasFiles(fullPath.data, recursion + 1, func);
+					m_workManager->AddWork([&traverseCasFileDir, p = TString(fullPath.data)]() { traverseCasFileDir(p.data()); }, 1, TC("TraverseCasFiles"));
 				}
-				else if (recursion != 0)
+				else
 				{
-					func(fullPath, e);
+					traverseCasFileDir(fullPath.data);
 				}
 			});
+
+		while (workLeft)
+			m_workManager->DoWork();
 	}
 
 	void StorageImpl::TraverseAllCasFiles(const Function<void(const CasKey& key, u64 size)>& func)
 	{
 		StringBuffer<> casRoot;
 		casRoot.Append(m_rootDir.data, m_rootDir.count - 1);
-		TraverseAllCasFiles(casRoot.data, 0, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
+		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
 				func(CasKeyFromString(e.name), e.size);
 			});
 	}
 
-	void StorageImpl::CheckAllCasFiles()
+	bool StorageImpl::CheckAllCasFiles(u64 checkContentOfFilesNewerThanTime)
 	{
 #if !UBA_USE_SPARSEFILE
+		u64 startTime = GetTime();
 		u64 before = m_casTotalBytes;
 		m_casTotalBytes = 0;
 		// Need to scan all files to see so there are no orphans in the folders
@@ -935,12 +958,71 @@ namespace uba
 
 		m_logger.Info(TC("Previous run was not gracefully shutdown. Reparsing cas directory %s to check for added/missing files"), casRoot.data);
 
-		TraverseAllCasFiles(casRoot.data, 0, [this](const StringBufferBase& fullPath, const DirectoryEntry& e)
+		Atomic<bool> success = true;
+		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
 				CasKey casKey = CasKeyFromString(e.name);
+				bool deleteFile = false;
+				u64 size = e.size;
+
+				// Do quick check on new files so the have good content (ignore files with zero size, they are tested further down)
+				if (size && e.lastWritten >= checkContentOfFilesNewerThanTime)
+				{
+					FileAccessor fa(m_logger, fullPath.data);
+					if (fa.OpenMemoryRead())
+					{
+						if (IsCompressed(casKey))
+						{
+							BinaryReader reader(fa.GetData(), 0, fa.GetSize());
+							if (reader.GetLeft() < 12)
+							{
+								m_logger.Detail(TC("Corrupt cas. Is %llu, must be at least 12 bytes (%s)"), size, e.name);
+								deleteFile = true;
+							}
+							else
+							{
+								reader.ReadU64(); // Decompressed size
+								while (true)
+								{
+									if (reader.GetLeft() <= 8)
+									{
+										m_logger.Detail(TC("Corrupt cas. Missing beginning of block (%s)"), size, e.name);
+										deleteFile = true;
+										break;
+									}
+
+									u32 compressedBlockSize = reader.ReadU32();
+									reader.ReadU32();
+
+									if (!compressedBlockSize || compressedBlockSize > reader.GetLeft())
+									{
+										m_logger.Detail(TC("Corrupt cas. Bad block (%s)"), size, e.name);
+										deleteFile = true;
+										break;
+									}
+
+									reader.Skip(compressedBlockSize);
+
+									if (!reader.GetLeft())
+										break;
+								}
+							}
+						}
+						else
+						{
+							// TODO: Some simple validation of uncompressed file.. maybe even rehash and check? (since it is not many uncompressed files.. zero on server and a few on client)
+						}
+					}
+					else
+					{
+						deleteFile = true;
+					}
+				}
+
+
+				SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 				auto insres = m_casLookup.try_emplace(casKey);
 				CasEntry& entry = insres.first->second;
-				u64 size = e.size;
 				entry.verified = true;
 				entry.exists = true;
 
@@ -955,23 +1037,35 @@ namespace uba
 				{
 					UBA_ASSERT(entry.key == casKey);
 					// We should probably delete this one.. something is wrong
-					if (entry.size != 0 && entry.size != size)
+					if (entry.size != 0 && entry.size != size && !deleteFile)
 						m_logger.Detail(TC("Found cas entry which has a different size than what the table thought! Was %llu, is %llu (%s)"), entry.size, size, e.name);
 					entry.size = size;
 				}
 
-				if (!size)
+				if (!size && casKey != ToCasKey(CasKeyHasher(), IsCompressed(casKey)))
 				{
-					CasKeyHasher hasher;
-					if (casKey != ToCasKey(hasher, IsCompressed(casKey)))
-					{
-						m_logger.Detail(TC("Found file that has size 0 but does not have correct caskey (%s)"), e.name);
-						DeleteFileW(fullPath.data);
-						DetachEntry(entry);
-						m_casLookup.erase(insres.first);
-					}
+					m_logger.Detail(TC("Found file that has size 0 but does not have correct caskey (%s)"), e.name);
+					deleteFile = true;
 				}
-			});
+
+				if (!deleteFile)
+					return;
+
+				DetachEntry(entry);
+				m_casLookup.erase(insres.first);
+				m_casTotalBytes -= size;
+				lookupLock.Leave();
+
+				if (DeleteFileW(fullPath.data))
+					return;
+
+				m_logger.Error(TC("Failed to delete file (%s)"), fullPath.data);
+				success = false;
+
+			}, true);
+
+		if (!success)
+			return false;
 
 		u32 didNotExistCount = 0;
 		// All files we saw is tagged as "handled") so let's see if there are cas entries we didn't find
@@ -993,13 +1087,18 @@ namespace uba
 		if (didNotExistCount)
 			m_logger.Info(TC("Found %u cas entries that didn't have a file"), didNotExistCount);
 
+		u64 duration = GetTime() - startTime;
+
 		u64 after = m_casTotalBytes;
 		if (before != after)
-			m_logger.Info(TC("Corrected storage size from %s to %s"), BytesToText(before).str, BytesToText(after).str);
+			m_logger.Info(TC("Corrected storage size from %s to %s in %s"), BytesToText(before).str, BytesToText(after).str, TimeToText(duration).str);
+		else
+			m_logger.Info(TC("Validated storage (size %s) in %s"), BytesToText(after).str, TimeToText(duration).str);
 		m_casMaxBytes = m_casTotalBytes;
 #else
 		UBA_ASSERT(false); // not implemented
 #endif
+		return true;
 	}
 
 	void StorageImpl::HandleOverflow(Set<CasKey>* outDeletedFiles)
@@ -1310,8 +1409,18 @@ namespace uba
 		bool resave = false;
 		if (wasTerminated)
 		{
-			CheckAllCasFiles();
+			u64 fileTime = 0;
+			FileHandle fh = uba::CreateFileW(isRunningName, 0, 0x00000007, 0x00000003, FILE_FLAG_BACKUP_SEMANTICS);
+			auto fhg = MakeGuard([&]() { uba::CloseFile(isRunningName, fh); });
+			if (fh != InvalidFileHandle)
+				GetFileLastWriteTime(fileTime, fh);
+
+			if (!CheckAllCasFiles(fileTime))
+				return false;
 			resave = true;
+
+			if (fh != InvalidFileHandle)
+				SetFileLastWriteTime(fh, GetSystemTimeAsFileTime());
 		}
 
 		if (!m_manuallyHandleOverflow)
@@ -1513,7 +1622,7 @@ namespace uba
 		u32 errorCount = 0;
 		u64 newestWrittenError = 0;
 		ReaderWriterLock lock;
-		TraverseAllCasFiles(casRoot.data, 0, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
+		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
 				++entryCount;
 				workManager.AddWork([&, filePath = TString(fullPath.data), name = TString(e.name), lastWritten = e.lastWritten]()
@@ -1971,6 +2080,12 @@ namespace uba
 		return true;
 	}
 
+	bool StorageImpl::ReportBadCasFile(const CasKey& casKey)
+	{
+		DropCasFile(casKey, true, TC("BadCasFile"));
+		return true;
+	}
+
 	bool StorageImpl::CalculateCasKey(CasKey& out, const tchar* fileName)
 	{
 		FileHandle fileHandle;
@@ -2099,7 +2214,7 @@ namespace uba
 						return m_logger.Error(TC("Failed to open file %s for read (%s)"), casFile.data, LastErrorToText().data);
 
 					if (!ReadFile(m_logger, casFile.data, readHandle, &decompressedSize, sizeof(u64)))
-						return m_logger.Error(TC("Failed to read first bytes from file %s (%s)"), casFile.data, LastErrorToText().data);
+						return m_logger.Error(TC("Failed to read first 8 bytes from compressed file %s (%s)"), casFile.data, LastErrorToText().data);
 				}
 
 				bool writeDirectlyToFile = casEntry->mappingHandle.IsValid() && false; // Experiment to try to fix bottlenecks on cloud
@@ -2464,6 +2579,8 @@ namespace uba
 			u8* slot = m_bufferSlots.Pop();
 			auto _ = MakeGuard([&]() { m_bufferSlots.Push(slot); });
 
+			u64 bytesRead = 8; // We know size has already been read
+
 			u8* readBuffer = slot;
 			u8* writePos = dest;
 			u64 left = decompressedSize;
@@ -2471,15 +2588,34 @@ namespace uba
 			{
 				u32 sizes[2];
 				if (!ReadFile(m_logger, fileName, fileHandle, sizes, sizeof(u32) * 2))
+				{
+					u64 compressedSize;
+					if (!uba::GetFileSizeEx(compressedSize, fileHandle))
+						return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText().data);
+					if (bytesRead + 8 > compressedSize)
+						return m_logger.Error(TC("File %s corrupt. Tried to read 8 bytes. File is smaller than expected (Read: %llu, Size: %llu)"), fileName, bytesRead, compressedSize);
 					return false;
+				}
 				u32 compressedBlockSize = sizes[0];
 				u32 decompressedBlockSize = sizes[1];
 
+				bytesRead += 8;
+
 				if (!ReadFile(m_logger, fileName, fileHandle, readBuffer, compressedBlockSize))
+				{
+					u64 compressedSize;
+					if (!uba::GetFileSizeEx(compressedSize, fileHandle))
+						return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText().data);
+					if (bytesRead + compressedBlockSize > compressedSize)
+						return m_logger.Error(TC("File %s corrupt. Compressed block size (%u) is larger than what is left of file (%llu)"), fileName, compressedBlockSize, compressedSize - bytesRead);
 					return false;
+				}
+				bytesRead += compressedBlockSize;
+
 				TimerScope ts(stats.decompressToMem);
 				OO_SINTa decompLen = OodleLZ_Decompress(readBuffer, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize);
-				UBA_ASSERT(decompLen == decompressedBlockSize); (void)decompLen;
+				if (decompLen != decompressedBlockSize)
+					return m_logger.Error(TC("Failed to decompress data from file %s at pos %llu"), fileName, decompressedSize - left);
 				writePos += decompressedBlockSize;
 				left -= decompressedBlockSize;
 			}

@@ -119,7 +119,10 @@ namespace uba
 
 	bool TestFiles(Logger& logger, const StringBufferBase& rootDir)
 	{
-		FileAccessor fileHandle(logger, TC("UbaTestFile"));
+		StringBuffer<> testFileName(rootDir);
+		testFileName.Append(TC("UbaTestFile"));
+
+		FileAccessor fileHandle(logger, testFileName.data);
 		if (!fileHandle.CreateWrite())
 			return logger.Error(TC("Failed to create file for write"));
 
@@ -131,12 +134,22 @@ namespace uba
 			return false;
 
 		FileHandle fileHandle2;
-		if (!OpenFileSequentialRead(logger, TC("UbaTestFile"), fileHandle2))
+		if (!OpenFileSequentialRead(logger, testFileName.data, fileHandle2))
 			return logger.Error(TC("Failed to create file for read"));
 
 		u64 writeTime = 0;
 		if (!GetFileLastWriteTime(writeTime, fileHandle2))
 			return logger.Error(TC("Failed to get last written time"));
+
+		u64 writeTime2 = 0;
+		TraverseDir(logger, rootDir.data, [&](const DirectoryEntry& de)
+			{
+				if (Equals(de.name, TC("UbaTestFile")))
+					writeTime2 = de.lastWritten;
+			});
+
+		if (writeTime != writeTime2)
+			return logger.Error(TC("GetFileLastWriteTime and TraverseDir are returning different last write time for same file"));
 
 		u64 systemTime = GetSystemTimeAsFileTime();
 		if (systemTime < writeTime)
@@ -146,10 +159,10 @@ namespace uba
 
 
 		u8 byte2 = 0;
-		if (!ReadFile(logger, TC("UbaTestFile"), fileHandle2, &byte2, 1))
+		if (!ReadFile(logger, testFileName.data, fileHandle2, &byte2, 1))
 			return false;
 
-		if (!CloseFile(TC("UbaTestFile"), fileHandle2))
+		if (!CloseFile(testFileName.data, fileHandle2))
 			return false;
 
 		FileHandle fileHandle3;
@@ -174,28 +187,31 @@ namespace uba
 			return logger.Error(TC("Fail to remove TestDir"));
 
 		u64 size = 0;
-		if (!FileExists(logger, TC("UbaTestFile"), &size) || size != 1)
+		if (!FileExists(logger, testFileName.data, &size) || size != 1)
 			return logger.Error(TC("UbaTestFile not found"));
 
-		DeleteFileW(TC("UbaTestFile2"));
+		StringBuffer<> testFileName2(rootDir);
+		testFileName2.Append(TC("UbaTestFile2"));
 
-		if (DeleteFileW(TC("UbaTestFile2")))
+		DeleteFileW(testFileName2.data);
+
+		if (DeleteFileW(testFileName2.data))
 			return logger.Error(TC("Did not fail to delete non-existing UbaTestFile2 (or were things not cleaned before test)"));
 		else if (GetLastError() != ERROR_FILE_NOT_FOUND)
 			return logger.Error(TC("GetLastError did not return correct error failing to delete non-existing file UbaTestFile2"));
 
-		if (!CreateHardLinkW(TC("UbaTestFile2"), TC("UbaTestFile")))
+		if (!CreateHardLinkW(testFileName2.data, testFileName.data))
 			return logger.Error(TC("Failed to create hardlink from UbaTestFile to UbaTestFile2"));
 
-		if (!DeleteFileW(TC("UbaTestFile")))
+		if (!DeleteFileW(testFileName.data))
 			return logger.Error(TC("Failed to delete UbaTestFile"));
 
-		if (FileExists(logger, TC("UbaTestFile")))
+		if (FileExists(logger, testFileName.data))
 			return logger.Error(TC("Found non-existing file UbaTestFile"));
 
 		// CreateHardLinkW is a symbolic link on non-windows.. need to revisit
 		#if PLATFORM_WINDOWS
-		if (!FileExists(logger, TC("UbaTestFile2")))
+		if (!FileExists(logger, testFileName2.data))
 			return logger.Error(TC("Failed to find file UbaTestFile2"));
 
 		StringBuffer<> currentDir;
@@ -203,13 +219,13 @@ namespace uba
 			return logger.Error(TC("GetCurrentDirectoryW failed"));
 
 		bool foundFile = false;
-		if (!TraverseDir(logger, currentDir.data, [&](const DirectoryEntry& de) { foundFile |= TStrcmp(de.name, TC("UbaTestFile2")) == 0; }, true))
+		if (!TraverseDir(logger, rootDir.data, [&](const DirectoryEntry& de) { foundFile |= TStrcmp(de.name, TC("UbaTestFile2")) == 0; }, true))
 			return logger.Error(TC("Failed to TraverseDir '.'"));
 
 		if (!foundFile)
 			return logger.Error(TC("Did not find UbaTestFile2 with TraverseDir"));
 
-		if (!DeleteFileW(TC("UbaTestFile2")))
+		if (!DeleteFileW(testFileName2.data))
 			return false;
 		#endif
 

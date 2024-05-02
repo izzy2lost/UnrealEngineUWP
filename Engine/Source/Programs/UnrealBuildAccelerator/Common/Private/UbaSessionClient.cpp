@@ -414,110 +414,138 @@ namespace uba
 			return true;
 		}
 
-		StringBuffer<> newName;
-		bool isDir = casKey == CasKeyIsDirectory;
-		u64 fileSize = InvalidValue;
-		CasKey newCasKey;
+		// Code for doing retry if failing to decompress casfile. We've seen cases of corrupt cas files on clients
+		bool shouldRetry = true;
+		FileMappingEntry* retryEntry = nullptr;
+		auto retryEntryGuard = MakeGuard([&]() { if (retryEntry) retryEntry->lock.LeaveWrite(); });
 
-		u32 memoryMapAlignment = 0;
-		if (m_allowMemoryMaps)
+		while (true)
 		{
-			memoryMapAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
-			if (!memoryMapAlignment && !m_useStorage)
-				memoryMapAlignment = 64 * 1024;
-		}
+			StringBuffer<> newName;
+			bool isDir = casKey == CasKeyIsDirectory;
+			u64 fileSize = InvalidValue;
+			CasKey newCasKey;
 
-		if (isDir)
-		{
-			newName.Append(TC("$d"));
-		}
-		else if (casKey != CasKeyZero)
-		{
-			if (m_useStorage || memoryMapAlignment == 0)
+			u32 memoryMapAlignment = 0;
+			if (m_allowMemoryMaps)
 			{
-				bool storeUncompressed = memoryMapAlignment == 0;
-				bool allowProxy = msg.process.m_startInfo.rules->AllowStorageProxy(fileName);
-				if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, allowProxy))
-					return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
-
-				#if !UBA_USE_SPARSEFILE
-				if (!m_storage.GetCasFileName(newName, newCasKey))
-					return false;
-				#else
-				if (!memoryMapAlignment)
-					memoryMapAlignment = 4096;
-				MemoryMap map;
-				if (!CreateMemoryMapFromView(map, fileNameKey, fileName.data, newCasKey, memoryMapAlignment))
-					return false;
-				newName.Append(map.name);
-				fileSize = map.size;
-				#endif
+				memoryMapAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
+				if (!memoryMapAlignment && !m_useStorage)
+					memoryMapAlignment = 64 * 1024;
 			}
-			else
+
+			if (isDir)
 			{
-				StorageStats& stats = m_storage.Stats();
-				TimerScope ts(stats.ensureCas);
-
-				SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
-				auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
-				FileMappingEntry& entry = insres.first->second;
-				lookupLock.Leave();
-
-				SCOPED_WRITE_LOCK(entry.lock, entryCs);
-				ts.Leave();
-
-				if (entry.handled)
+				newName.Append(TC("$d"));
+			}
+			else if (casKey != CasKeyZero)
+			{
+				if (m_useStorage || memoryMapAlignment == 0)
 				{
-					if (!entry.success)
-						return false;
-				}
-				else
-				{
-					TimerScope s(m_stats.storageRetrieve);
-					casKey = AsCompressed(casKey, false);
-					entry.handled = true;
-					Storage::RetrieveResult result;
+					bool storeUncompressed = memoryMapAlignment == 0;
 					bool allowProxy = msg.process.m_startInfo.rules->AllowStorageProxy(fileName);
-					if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, allowProxy))
+					if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, allowProxy))
 						return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
-					entry.success = true;
-					entry.size = result.size;
-					entry.mapping = result.view.handle;
-					entry.mappingOffset = result.view.offset;
+
+					#if !UBA_USE_SPARSEFILE
+					if (!m_storage.GetCasFileName(newName, newCasKey))
+						return false;
+					#else
+					if (!memoryMapAlignment)
+						memoryMapAlignment = 4096;
+					MemoryMap map;
+					if (!CreateMemoryMapFromView(map, fileNameKey, fileName.data, newCasKey, memoryMapAlignment))
+						return false;
+					newName.Append(map.name);
+					fileSize = map.size;
+					#endif
 				}
-
-				fileSize = entry.size;
-				if (entry.mapping.IsValid())
-					Storage::GetMappingString(newName, entry.mapping, entry.mappingOffset);
 				else
-					newName.Append(entry.isDir ? TC("$d") : TC("$f"));
+				{
+					StorageStats& stats = m_storage.Stats();
+					TimerScope ts(stats.ensureCas);
+
+					SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
+					auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
+					FileMappingEntry& entry = insres.first->second;
+					lookupLock.Leave();
+
+					SCOPED_WRITE_LOCK(entry.lock, entryCs);
+					ts.Leave();
+
+					if (entry.handled)
+					{
+						if (!entry.success)
+							return false;
+					}
+					else
+					{
+						TimerScope s(m_stats.storageRetrieve);
+						casKey = AsCompressed(casKey, false);
+						entry.handled = true;
+						Storage::RetrieveResult result;
+						bool allowProxy = msg.process.m_startInfo.rules->AllowStorageProxy(fileName);
+						if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, allowProxy))
+							return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
+						entry.success = true;
+						entry.size = result.size;
+						entry.mapping = result.view.handle;
+						entry.mappingOffset = result.view.offset;
+					}
+
+					fileSize = entry.size;
+					if (entry.mapping.IsValid())
+						Storage::GetMappingString(newName, entry.mapping, entry.mappingOffset);
+					else
+						newName.Append(entry.isDir ? TC("$d") : TC("$f"));
+				}
 			}
-		}
 
-		UBA_ASSERTF(!newName.IsEmpty(), TC("No casfile available for %s using %s"), fileName.data, CasKeyString(casKey).str);
+			UBA_ASSERTF(!newName.IsEmpty(), TC("No casfile available for %s using %s"), fileName.data, CasKeyString(casKey).str);
 
-		if (newName[0] != '^')
-		{
-			if (!isDir && memoryMapAlignment)
+			if (newName[0] != '^')
 			{
-				MemoryMap map;
-				if (!CreateMemoryMapFromFile(map, fileNameKey, newName.data, IsCompressed(newCasKey), memoryMapAlignment))
-					return false;
+				if (!isDir && memoryMapAlignment)
+				{
+					if (retryEntry)
+						retryEntryGuard.Execute();
 
-				fileSize = map.size;
-				newName.Clear().Append(map.name);
+					MemoryMap map;
+					if (!CreateMemoryMapFromFile(map, fileNameKey, newName.data, IsCompressed(newCasKey), memoryMapAlignment))
+					{
+						if (!shouldRetry)
+							return false;
+						shouldRetry = false;
+
+						// We need to take a lock around the file map entry since there might be another thread also wanting to map this
+						{
+							SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
+							retryEntry = &m_fileMappingTableLookup.try_emplace(fileNameKey).first->second;
+							lookupLock.Leave();
+							retryEntry->lock.EnterWrite();
+							retryEntry->handled = false;
+						}
+
+						if (!m_storage.ReportBadCasFile(newCasKey))
+							return false;
+
+						continue;
+					}
+					fileSize = map.size;
+					newName.Clear().Append(map.name);
+				}
+				else if (!IsRarelyRead(msg.process, fileName))
+				{
+					AddFileMapping(fileNameKey, fileName.data, newName.data, fileSize);
+				}
 			}
-			else if (!IsRarelyRead(msg.process, fileName))
-			{
-				AddFileMapping(fileNameKey, fileName.data, newName.data, fileSize);
-			}
+
+			out.directoryTableSize = GetDirectoryTableSize();
+			out.mappedFileTableSize = GetFileMappingSize();
+			out.fileName.Append(newName);
+			out.size = fileSize;
+			return true;
 		}
-
-		out.directoryTableSize = GetDirectoryTableSize();
-		out.mappedFileTableSize = GetFileMappingSize();
-		out.fileName.Append(newName);
-		out.size = fileSize;
-		return true;
 	}
 
 	bool SessionClient::SendFiles(ProcessImpl& process, Timer& sendFiles)

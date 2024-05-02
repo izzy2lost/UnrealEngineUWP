@@ -205,6 +205,7 @@ namespace uba
 			if (casEntry->verified && casEntry->exists)
 				return true;
 
+			casEntry->dropped = false;  // In case this comes from a retry where previous cas was dropped
 			casEntry->verified = true;
 		}
 

@@ -42,6 +42,7 @@ namespace uba
 			storageClientInfo.startProxyUserData = this;
 			storageClient = new StorageClient(storageClientInfo);
 
+			storageClient->LoadCasTable(false);
 			SessionClientCreateInfo sessionClientInfo(*storageClient, *networkClient, info.logWriter);
 			sessionClientInfo.maxProcessCount = info.maxProcessorCount;
 			sessionClientInfo.rootDir = clientRootDir.data;
