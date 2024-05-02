@@ -143,6 +143,11 @@ UMovieSceneColorSection::UMovieSceneColorSection(const FObjectInitializer& Objec
 
 TSharedPtr<FStructOnScope> UMovieSceneColorSection::GetKeyStruct(TArrayView<const FKeyHandle> KeyHandles)
 {
+	if (!ChannelProxy)
+	{
+		GetChannelProxy();
+	}
+	
 	TSharedRef<FStructOnScope> KeyStruct = MakeShareable(new FStructOnScope(FMovieSceneColorKeyStruct::StaticStruct()));
 	auto Struct = (FMovieSceneColorKeyStruct*)KeyStruct->GetStructMemory();
 
