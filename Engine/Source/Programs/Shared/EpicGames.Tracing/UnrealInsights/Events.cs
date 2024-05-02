@@ -189,6 +189,7 @@ namespace EpicGames.Tracing.UnrealInsights
 	{
 		public ushort Size => 7;
 		public EventType Type => EventType.WellKnown(PredefinedEventUid.EnterScope_T, "LeaveScopeTimestamp");
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0052:Remove unread private members", Justification = "Serialize() unimplemented")]
 		readonly ulong _timestamp;
 
 		public LeaveScopeEventTimestamp(ulong timestamp)

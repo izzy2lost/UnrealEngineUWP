@@ -98,6 +98,7 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			}
 		}
 
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter")]
 		public void Serialize(ushort uid, BinaryWriter writer)
 		{
 			if (_eventType.HasSerial)
@@ -210,6 +211,7 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			}
 		}
 
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter")]
 		public static GenericEvent Deserialize(ushort uid, BinaryReader reader, EventType eventType)
 		{
 			Field[] fields = new Field[eventType.Fields.Count];

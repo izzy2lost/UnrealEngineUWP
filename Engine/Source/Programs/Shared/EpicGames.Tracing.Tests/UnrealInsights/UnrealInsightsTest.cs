@@ -131,13 +131,10 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 		}
 		
 		[TestMethod]
-		[Ignore]
 		public void WriteUtraceExample()
 		{
-			string fileName = "d:\\Temp\\mytrace.utrace";
-			
-			FileStream fs = File.Open(fileName, FileMode.Create);
-			using BinaryWriter binaryWriter = new BinaryWriter(fs);
+			using MemoryStream ms = new MemoryStream();
+			using BinaryWriter binaryWriter = new BinaryWriter(ms);
 			UnrealInsightsWriter writer = new UnrealInsightsWriter();
 			
 			byte[] cpuBatchData1 = GenericEventTest.HexStringToBytes("87 A7 EB AE 8A D1 0B 01 A7 02 02 04 FB 23 03 A4 0A 61 04 0B 05 F2 80 42 AA 1C EB 5C 06 C0 BC 03 17 07 02 47 08 C2 02 AB 15 09 AA 03 07 0A AE 01 05 0B D8 0D 05 0C B7 01 0D D8 03 00 03 0E A4 03 6F 0F 89 FF 03 10 F3 C4 04 11 60 06 A7 02 10 AB 19 12 B3 04 10 9F 11 13 0A 04 02 04 ED 03 10 91 11 14 80 01 02 97 02 10 A9 D6 0B 15 10 06 DD 03 10 CB 85 04 16 12 06 D3 01 10 89 16 17 0C 02 D6 02 07 18 DA 84 28 99 01 19 18 05 1A 0A A5 10 1B CD 01 1C 06 88 6A C5 49 1D B8 EB 24 A9 17 20 AF 01 10 CD F9 01 21 71 22 F2 AE 12 85 04 23 D1 0D 24 85 74 25 EA 58 91 0D 25 80 E6 02 A9 1C 25 88 CD 06 A7 27 25 D0 DA 09 8B 20 25 DE AD 0B AF 33 25 C0 A9 09 ED 23 25 C4 81 0A F5 2D 25 9A EC 0A F3 35 25 D4 CF 03 FF 19 25 BE 92 01 B1 0D 25 98 22");
@@ -186,11 +183,10 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 			}
 			writer.Write(binaryWriter);
 
-			fs.Close();
+			ms.Seek(0, SeekOrigin.Begin);
 
 			UnrealInsightsReader reader = new UnrealInsightsReader();
-			using FileStream stream = File.Open(fileName, FileMode.Open);
-			reader.Read(stream);
+			reader.Read(ms);
 			reader.PrintEventSummary();
 
 			Assert.AreEqual(0, reader.EventsPerThread[TransportPacket.ThreadIdEvents].Count);

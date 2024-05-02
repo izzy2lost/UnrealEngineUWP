@@ -8,6 +8,7 @@ using System.Text;
 
 namespace EpicGames.Tracing.UnrealInsights.Events
 {
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0052:Remove unread private members")]
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields")]
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles")]
 	public class EventTypeField

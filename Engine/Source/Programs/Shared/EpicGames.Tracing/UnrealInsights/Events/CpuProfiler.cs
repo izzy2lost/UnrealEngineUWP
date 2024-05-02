@@ -29,8 +29,8 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			
 			Field[] fields =
 			{
-				Field.FromInt((int) id),
-				Field.FromString(name),
+				Field.FromInt((int) Id),
+				Field.FromString(_name),
 			};
 			
 			_genericEvent = new GenericEvent(0, fields, EventType);

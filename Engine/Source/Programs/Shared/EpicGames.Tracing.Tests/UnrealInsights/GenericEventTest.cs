@@ -418,6 +418,13 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 			using MemoryStream ms = new MemoryStream();
 			using BinaryWriter writer = new BinaryWriter(ms);
 			@event.Serialize(uid, writer);
+
+			if (isImportant)
+			{
+				byte[] expectedData = HexStringToBytes(expectedHexData);
+				int expectedEventSize = expectedData.Length - TraceImportantEventHeader.HeaderSize;
+				Assert.AreEqual(expectedData.Length, @event.Size);
+			}
 			
 			AssertHexString(expectedHexData, ms.ToArray());
 		}

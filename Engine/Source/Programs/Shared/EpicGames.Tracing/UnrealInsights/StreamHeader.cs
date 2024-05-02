@@ -33,7 +33,21 @@ namespace EpicGames.Tracing.UnrealInsights
 
 		public void Serialize(BinaryWriter writer)
 		{
-			writer.Write(MagicTrc);
+			if (_magicFourCc != MagicTrc && _magicFourCc != MagicTrc2)
+			{
+				throw new ArgumentException("Only support magic number TRCE and TRC2");
+			}
+			writer.Write(_magicFourCc);
+			if (_magicFourCc == MagicTrc2)
+			{
+				if (_metadataSize != 4)
+				{
+					throw new ArgumentException("Only support metadata size of 4 bytes (got " + _metadataSize + ")");
+				}
+				writer.Write(_metadataSize);
+				writer.Write(_metadataField0);
+				writer.Write(_controlPort);
+			}
 			writer.Write(_transportVersion);
 			writer.Write(_protocolVersion);
 		}
