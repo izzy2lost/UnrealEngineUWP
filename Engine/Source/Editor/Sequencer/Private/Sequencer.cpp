@@ -3959,7 +3959,7 @@ FGuid FSequencer::GetHandleToObject( UObject* Object, bool bCreateHandleIfMissin
 	}
 
 	UMovieSceneSequence* FocusedMovieSceneSequence = GetFocusedMovieSceneSequence();
-	UMovieScene* FocusedMovieScene = FocusedMovieSceneSequence->GetMovieScene();
+	UMovieScene* FocusedMovieScene = FocusedMovieSceneSequence ? FocusedMovieSceneSequence->GetMovieScene() : nullptr;
 	
 	if (!FocusedMovieScene)
 	{
