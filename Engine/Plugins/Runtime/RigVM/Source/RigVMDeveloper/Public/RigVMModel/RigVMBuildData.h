@@ -128,10 +128,27 @@ public:
 	// Will find all the function variants matching the given variant guid
 	TArray<FRigVMVariantRef> FindFunctionVariantRefs(const FGuid& InGuid);
 
+#if WITH_EDITOR
+	// Returns all known public function identifiers used in the project
+	TArray<FRigVMGraphFunctionIdentifier> GetAllFunctionIdentifiers(bool bOnlyPublic = true) const;
+#endif
+
+	// Returns all known public function identifiers used in the project
+	TArray<FRigVMGraphFunctionIdentifier> GetUsedFunctionIdentifiers(bool bOnlyPublic = true) const;
+
+	// Returns all known function references
+	FRigVMFunctionReferenceArray GetAllFunctionReferences() const;
+
 private:
 
 	// disable default constructor
 	URigVMBuildData();
+
+	static TArray<UClass*> FindAllRigVMAssetClasses();
+
+	void SetupRigVMGraphFunctionPointers();
+	void TearDownRigVMGraphFunctionPointers();
+	static TArray<FRigVMGraphFunctionHeader> GetFunctionHeadersForAsset(const FAssetData& InAssetData);
 	
 	static bool bInitialized;
 
@@ -146,5 +163,6 @@ private:
 	friend class URigVMController;
 	friend struct FRigVMClient;
 	friend class URigVMCompiler;
+	friend class FRigVMDeveloperModule;
 };
 

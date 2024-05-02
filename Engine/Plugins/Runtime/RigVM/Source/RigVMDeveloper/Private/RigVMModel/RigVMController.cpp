@@ -12311,7 +12311,7 @@ TArray<FRigVMVariantRef> URigVMController::FindVariantsOfFunction(const FName& I
     	return Result;
     }
 
-	return URigVMBuildData::Get()->FindFunctionVariantRefs(FunctionData->Header.Variant.Guid);
+	return FunctionData->Header.LibraryPointer.GetVariants(true);
 }
 
 FRigVMGraphVariableDescription URigVMController::AddLocalVariable(const FName& InVariableName, const FString& InCPPType, UObject* InCPPTypeObject, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)

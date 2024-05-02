@@ -474,7 +474,16 @@ public:
 		return Ar;
 	}
 
+	bool IsVariant() const;
+	TArray<FRigVMVariantRef> GetVariants(bool bIncludeSelf = false) const;
+	TArray<FRigVMGraphFunctionIdentifier> GetVariantIdentifiers(bool bIncludeSelf = false) const;
 	bool IsVariantOf(const FRigVMGraphFunctionIdentifier& InOther) const;
+
+protected:
+	
+	static TFunction<TArray<FRigVMVariantRef>(const FGuid& InGuid)> GetVariantRefsByGuidFunc;
+
+	friend class URigVMBuildData;
 };
 
 USTRUCT(BlueprintType)
@@ -596,9 +605,20 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 
 	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
 
-	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FString& InHostPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
+	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FSoftObjectPath& InFunctionObjectPath, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
+
+	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
 
 	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
+
+protected:
+
+	static FName GetFunctionNameFromObjectPath(const FString& InObjectPath, const FName& InOptionalFunctionName = NAME_None);
+	
+	static TFunction<FRigVMGraphFunctionHeader(const FSoftObjectPath&, const FName&, bool*)> FindFunctionHeaderFromPathFunc;
+
+	friend class URigVMBuildData;
+	friend struct FRigVMGraphFunctionData;
 };
 
 USTRUCT(BlueprintType)
@@ -645,7 +665,7 @@ struct RIGVM_API FRigVMGraphFunctionData
 
 	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
 
-	static FRigVMGraphFunctionData* FindFunctionData(const FString& InHostPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
+	static FRigVMGraphFunctionData* FindFunctionData(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
 
 	static FRigVMGraphFunctionData* FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
 
@@ -659,4 +679,7 @@ struct RIGVM_API FRigVMGraphFunctionData
 
 	static const inline TCHAR* EntryString = TEXT("Entry");
 	static const inline TCHAR* ReturnString = TEXT("Return");
+	static TFunction<IRigVMGraphFunctionHost*(UObject*)> GetFunctionHostFromObjectFunc;
+
+	friend class URigVMBuildData;
 };

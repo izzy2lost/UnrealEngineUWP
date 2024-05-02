@@ -8,6 +8,7 @@
 #include "UObject/UObjectIterator.h"
 #include "RigVMModel/RigVMClient.h"
 #include "UObject/StrongObjectPtr.h"
+#include "RigVMBlueprint.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMBuildData)
 
@@ -61,6 +62,149 @@ URigVMBuildData::URigVMBuildData()
 {
 }
 
+TArray<UClass*> URigVMBuildData::FindAllRigVMAssetClasses()
+{
+	// Find all classes which implement IRigVMClientHost
+	TArray<UClass*> ImplementedClasses;
+	for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
+	{
+		if (ClassIterator->ImplementsInterface(URigVMClientHost::StaticClass()))
+		{
+			ImplementedClasses.AddUnique(*ClassIterator);
+
+			const UObject* CDO = ClassIterator->GetDefaultObject();
+			if(const URigVMBlueprint* BlueprintCDO = Cast<URigVMBlueprint>(CDO))
+			{
+				if(UClass* GeneratedClass = BlueprintCDO->GetRigVMBlueprintGeneratedClass())
+				{
+					ImplementedClasses.AddUnique(GeneratedClass);
+				}
+			}
+		}
+	}
+	return ImplementedClasses;
+}
+
+void URigVMBuildData::SetupRigVMGraphFunctionPointers()
+{
+	FRigVMGraphFunctionIdentifier::GetVariantRefsByGuidFunc = [this](const FGuid& InGuid)
+	{
+		return FindFunctionVariantRefs(InGuid);
+	};
+	FRigVMGraphFunctionHeader::FindFunctionHeaderFromPathFunc = [this](const FSoftObjectPath& InObjectPath, const FName& InFunctionName, bool *bOutIsPublic)
+	{
+		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		TArray<FAssetData> Assets;
+		AssetRegistryModule.GetRegistry().GetAssetsByPath(*InObjectPath.ToString(), Assets, true);
+		if(!Assets.IsEmpty())
+		{
+			const FString FunctionNameString = InFunctionName.ToString();
+			const TArray<FRigVMGraphFunctionHeader> Headers = GetFunctionHeadersForAsset(Assets[0]);
+			for(const FRigVMGraphFunctionHeader& Header : Headers)
+			{
+				if(Header.LibraryPointer.GetFunctionName() == FunctionNameString)
+				{
+					if(bOutIsPublic)
+					{
+						// if this isn't loaded - it means that the asset is not loaded thus the function can only be public
+						*bOutIsPublic = true;
+						
+						const FSoftObjectPath LibraryNodeSoftPath = Header.LibraryPointer.GetNodeSoftPath();
+						if(const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(LibraryNodeSoftPath.ResolveObject()))
+						{
+							if(const URigVMFunctionLibrary* FunctionLibrary = LibraryNode->GetTypedOuter<URigVMFunctionLibrary>())
+							{
+								*bOutIsPublic = FunctionLibrary->IsFunctionPublic(Header.LibraryPointer.GetFunctionFName());
+							}
+						}
+					}
+					return Header;
+				}
+			}
+		}
+		if(bOutIsPublic)
+		{
+			*bOutIsPublic = false;
+		}
+		return FRigVMGraphFunctionHeader();
+	};
+	FRigVMGraphFunctionData::GetFunctionHostFromObjectFunc = [this](UObject* InObject) -> IRigVMGraphFunctionHost*
+	{
+		if(IRigVMGraphFunctionHost* Host = InObject->GetImplementingOuter<IRigVMGraphFunctionHost>())
+		{
+			return Host;
+		}
+		if(URigVMBlueprint* Blueprint = Cast<URigVMBlueprint>(InObject))
+		{
+			return Blueprint->GetRigVMGraphFunctionHost();
+		}
+		if(URigVMBlueprint* Blueprint = InObject->GetTypedOuter<URigVMBlueprint>())
+		{
+			return Blueprint->GetRigVMGraphFunctionHost();
+		}
+		return nullptr;
+	};
+}
+
+void URigVMBuildData::TearDownRigVMGraphFunctionPointers()
+{
+	FRigVMGraphFunctionIdentifier::GetVariantRefsByGuidFunc.Reset();
+	FRigVMGraphFunctionHeader::FindFunctionHeaderFromPathFunc.Reset();
+	FRigVMGraphFunctionData::GetFunctionHostFromObjectFunc.Reset();
+}
+
+TArray<FRigVMGraphFunctionHeader> URigVMBuildData::GetFunctionHeadersForAsset(const FAssetData& InAssetData)
+{
+	TArray<FRigVMGraphFunctionHeader> Result;
+	if (!InAssetData.IsInstanceOf(URigVMBlueprint::StaticClass()) &&
+	!InAssetData.IsInstanceOf(URigVMBlueprintGeneratedClass::StaticClass()))
+	{
+		return Result;
+	}
+
+	// If the asset is loaded, gather the function variants from the function store
+	// which will include private functions
+	if (InAssetData.IsAssetLoaded())
+	{
+		UObject* AssetObject = InAssetData.GetAsset();
+		URigVMBlueprintGeneratedClass* GeneratedClass = Cast<URigVMBlueprintGeneratedClass>(AssetObject);
+		if (!GeneratedClass)
+		{
+			if (URigVMBlueprint* RigVMBlueprint = Cast<URigVMBlueprint>(AssetObject))
+			{
+				GeneratedClass = RigVMBlueprint->GetRigVMBlueprintGeneratedClass();
+			}
+		}
+
+		if (GeneratedClass)
+		{
+			for (int32 Pass=0; Pass<2; Pass++)
+			{
+				TArray<FRigVMGraphFunctionData>& Functions = (Pass == 0)
+					? GeneratedClass->GraphFunctionStore.PrivateFunctions
+					: GeneratedClass->GraphFunctionStore.PublicFunctions;
+				
+				for (FRigVMGraphFunctionData& Data : Functions)
+				{
+					Result.Add(Data.Header);
+				}
+			}
+
+			return Result;
+		}
+	}
+
+	// If asset is not loaded, gather function variants from metadata
+	const FString PublicGraphFunctionsString = InAssetData.GetTagValueRef<FString>(TEXT("PublicGraphFunctions"));
+	if(!PublicGraphFunctionsString.IsEmpty())
+	{
+		static const FName FunctionsPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, PublicGraphFunctions);
+		const FArrayProperty* PublicGraphFunctionsProperty = CastField<FArrayProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(FunctionsPropertyName));
+		PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &Result, nullptr, EPropertyPortFlags::PPF_None);
+	}
+	return Result;
+}
+
 URigVMBuildData* URigVMBuildData::Get()
 {
 	// static in a function scope ensures that the GC system is initiated before 
@@ -85,15 +229,7 @@ void URigVMBuildData::InitializeIfNeeded()
 		return;
 	}
 
-	// Find all classes which implement IRigVMClientHost
-	TArray<UClass*> ImplementedClasses;
-	for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
-	{
-		if (ClassIterator->ImplementsInterface(URigVMClientHost::StaticClass()))
-		{
-			ImplementedClasses.Add(*ClassIterator);
-		}
-	}
+	TArray<UClass*> ImplementedClasses = FindAllRigVMAssetClasses();
 
 	// Loop the classes
 	for (UClass* Class : ImplementedClasses)
@@ -105,15 +241,15 @@ void URigVMBuildData::InitializeIfNeeded()
 			const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
 			// find all assets of this class in the project
-			TArray<FAssetData> ControlRigAssetDatas;
-			FARFilter ControlRigAssetFilter;
-			ControlRigAssetFilter.ClassPaths.Add(Class->GetClassPathName());
-			AssetRegistryModule.Get().GetAssets(ControlRigAssetFilter, ControlRigAssetDatas);
+			TArray<FAssetData> AssetDatas;
+			FARFilter AssetFilter;
+			AssetFilter.ClassPaths.Add(Class->GetClassPathName());
+			AssetRegistryModule.Get().GetAssets(AssetFilter, AssetDatas);
 
 			// loop over all found assets
-			for(const FAssetData& ControlRigAssetData : ControlRigAssetDatas)
+			for(const FAssetData& AssetData : AssetDatas)
 			{
-				RegisterReferencesFromAsset(ControlRigAssetData);
+				RegisterReferencesFromAsset(AssetData);
 			}
 		}
 	}
@@ -390,60 +526,14 @@ TArray<FRigVMVariantRef> URigVMBuildData::GatherFunctionVariantRefsForAsset(cons
 {
 	TArray<FRigVMVariantRef> Result;
 
-	if (!InAssetData.IsInstanceOf(URigVMBlueprint::StaticClass()) &&
-		!InAssetData.IsInstanceOf(URigVMBlueprintGeneratedClass::StaticClass()))
+	const TArray<FRigVMGraphFunctionHeader> FunctionHeaders = GetFunctionHeadersForAsset(InAssetData);
+	for(const FRigVMGraphFunctionHeader& FunctionHeader : FunctionHeaders)
 	{
-		return Result;
-	}
-
-	// If the asset is loaded, gather the function variants from the function store
-	// which will include private functions
-	if (InAssetData.IsAssetLoaded())
-	{
-		UObject* AssetObject = InAssetData.GetAsset();
-		URigVMBlueprintGeneratedClass* GeneratedClass = Cast<URigVMBlueprintGeneratedClass>(AssetObject);
-		if (!GeneratedClass)
-		{
-			if (URigVMBlueprint* RigVMBlueprint = Cast<URigVMBlueprint>(AssetObject))
-			{
-				GeneratedClass = RigVMBlueprint->GetRigVMBlueprintGeneratedClass();
-			}
-		}
-
-		if (GeneratedClass)
-		{
-			for (int32 Pass=0; Pass<2; Pass++)
-			{
-				TArray<FRigVMGraphFunctionData>& Functions = (Pass == 0)
-					? GeneratedClass->GraphFunctionStore.PrivateFunctions
-					: GeneratedClass->GraphFunctionStore.PublicFunctions;
-				
-				for (FRigVMGraphFunctionData& Data : Functions)
-				{
-					FRigVMVariantRef& VariantRef = Result.Add_GetRef(FRigVMVariantRef());
-					VariantRef.Variant = Data.Header.Variant;
-					VariantRef.ObjectPath = Data.Header.LibraryPointer.GetNodeSoftPath();
-				}
-			}
-
-			return Result;
-		}
-	}
-
-	// If asset is not loaded, gather function variants from metadata
-	FString PublicGraphFunctionsString = InAssetData.GetTagValueRef<FString>(TEXT("PublicGraphFunctions"));
-	TArray<FRigVMGraphFunctionHeader> PublicFunctions;
-	static const FName FunctionsPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, PublicGraphFunctions);
-	FArrayProperty* PublicGraphFunctionsProperty = CastField<FArrayProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(FunctionsPropertyName));
-	PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
-
-	for(FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
-	{
-		if (PublicFunction.LibraryPointer.IsValid())
+		if (FunctionHeader.LibraryPointer.IsValid())
 		{
 			FRigVMVariantRef& VariantRef = Result.Add_GetRef(FRigVMVariantRef());
-			VariantRef.Variant = PublicFunction.Variant;
-			VariantRef.ObjectPath = PublicFunction.LibraryPointer.GetNodeSoftPath();
+			VariantRef.Variant = FunctionHeader.Variant;
+			VariantRef.ObjectPath = FunctionHeader.LibraryPointer.GetNodeSoftPath();
 			if (!VariantRef.Variant.Guid.IsValid())
 			{
 				VariantRef.Variant.Guid = FRigVMVariant::GenerateGUID(VariantRef.ObjectPath.ToString());
@@ -459,6 +549,130 @@ TArray<FRigVMVariantRef> URigVMBuildData::FindFunctionVariantRefs(const FGuid& I
 	TArray<FRigVMVariantRef> Result = GatherAllFunctionVariantRefs();
 	Result = Result.FilterByPredicate([InGuid](const FRigVMVariantRef& VariantRef) { return VariantRef.Variant.Guid == InGuid; });
 	return Result;
+}
+
+#if WITH_EDITOR
+
+TArray<FRigVMGraphFunctionIdentifier> URigVMBuildData::GetAllFunctionIdentifiers(bool bOnlyPublic) const
+{
+	static const FName PublicGraphFunctionsName = TEXT("PublicGraphFunctions");
+	TArray<FRigVMGraphFunctionIdentifier> Identifiers;
+	TArray<UClass*> ImplementedClasses = FindAllRigVMAssetClasses();
+
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	// find all assets of this class in the project
+	TArray<FAssetData> AssetDatas;
+	FARFilter AssetFilter;
+	for(const UClass* Class : ImplementedClasses)
+	{
+		AssetFilter.ClassPaths.AddUnique(Class->GetClassPathName());
+	}
+	AssetRegistryModule.Get().GetAssets(AssetFilter, AssetDatas);
+
+	// loop over all found assets
+	TSet<FName> PackagesProcessed;
+	for(const FAssetData& AssetData : AssetDatas)
+	{
+		// Avoid duplication
+		if (PackagesProcessed.Contains(AssetData.PackageName))
+		{
+			continue;
+		}
+		PackagesProcessed.Add(AssetData.PackageName);
+
+		if(AssetData.IsAssetLoaded())
+		{
+			IRigVMGraphFunctionHost* FunctionHost = Cast<IRigVMGraphFunctionHost>(AssetData.GetAsset());
+			if(FunctionHost == nullptr)
+			{
+				if(IRigVMClientHost* ClientHost = Cast<IRigVMClientHost>(AssetData.GetAsset()))
+				{
+					FunctionHost = ClientHost->GetRigVMGraphFunctionHost();
+				}
+			}
+			if(FunctionHost)
+			{
+				if(const FRigVMGraphFunctionStore* Store = FunctionHost->GetRigVMGraphFunctionStore())
+				{
+					for(const FRigVMGraphFunctionData& Data : Store->PublicFunctions)
+					{
+						Identifiers.Add(Data.Header.LibraryPointer);
+					}
+					if(!bOnlyPublic)
+					{
+						for(const FRigVMGraphFunctionData& Data : Store->PrivateFunctions)
+						{
+							Identifiers.Add(Data.Header.LibraryPointer);
+						}
+					}
+					continue;
+				}
+			}
+		}
+
+		FString PublicGraphFunctionsString = AssetData.GetTagValueRef<FString>(PublicGraphFunctionsName);
+		if (PublicGraphFunctionsString.IsEmpty())
+		{
+			PublicGraphFunctionsString = AssetData.GetTagValueRef<FString>(PublicGraphFunctionsName);
+		}
+		if (!PublicGraphFunctionsString.IsEmpty())
+		{
+			const FArrayProperty* Property = CastField<FArrayProperty>(AssetData.GetClass()->FindPropertyByName(PublicGraphFunctionsName));
+			if (Property)
+			{
+				TArray<FRigVMGraphFunctionHeader> PublicFunctions;
+				Property->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+				for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+				{
+					Identifiers.Add(PublicFunction.LibraryPointer);
+				}
+			}
+			else
+			{
+				const FString& HeadersString = PublicGraphFunctionsString;
+				const FArrayProperty* HeadersArrayProperty = CastField<FArrayProperty>(FRigVMGraphFunctionHeaderArray::StaticStruct()->FindPropertyByName(TEXT("Headers")));
+				TArray<FRigVMGraphFunctionHeader> PublicFunctions;
+				HeadersArrayProperty->ImportText_Direct(*HeadersString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+		
+				for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+				{
+					Identifiers.Add(PublicFunction.LibraryPointer);
+				}
+			}
+		}
+	}
+
+	return Identifiers;
+}
+
+#endif
+
+TArray<FRigVMGraphFunctionIdentifier> URigVMBuildData::GetUsedFunctionIdentifiers(bool bOnlyPublic) const
+{
+	TArray<FRigVMGraphFunctionIdentifier> Identifiers;
+#if WITH_EDITOR
+	Identifiers = GetAllFunctionIdentifiers().FilterByPredicate([this](const FRigVMGraphFunctionIdentifier& Identifier)
+	{
+		const FRigVMFunctionReferenceArray* References = FindFunctionReferences(Identifier); 
+		return References != nullptr && References->Num() > 0;
+	});
+#else
+	// outside of editor we can't do much - just get the keys
+	// of the used references array
+	GraphFunctionReferences.GenerateKeyArray(Identifiers);
+#endif
+	return Identifiers;
+}
+
+FRigVMFunctionReferenceArray URigVMBuildData::GetAllFunctionReferences() const
+{
+	FRigVMFunctionReferenceArray FunctionReferences;
+	for (const TTuple<FRigVMGraphFunctionIdentifier, FRigVMFunctionReferenceArray>& FunctionReferenceInfo : GraphFunctionReferences)
+	{
+		FunctionReferences.FunctionReferences.Append(FunctionReferenceInfo.Value.FunctionReferences);
+	}
+	return FunctionReferences;
 }
 
 

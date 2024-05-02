@@ -7,6 +7,7 @@
 #include "RigVMDeveloperModule.h"
 #include "RigVMBlueprint.h"
 #include "RigVMBlueprintCompiler.h"
+#include "RigVMModel/RigVMBuildData.h"
 
 DEFINE_LOG_CATEGORY(LogRigVMDeveloper);
 
@@ -29,6 +30,7 @@ void FRigVMDeveloperModule::StartupModule()
 	FKismetCompilerContext::RegisterCompilerForBP(URigVMBlueprint::StaticClass(), &FRigVMDeveloperModule::GetRigVMCompiler);
 	IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
 	KismetCompilerModule.GetCompilers().Add(&RigVMBlueprintCompiler);
+	URigVMBuildData::Get()->SetupRigVMGraphFunctionPointers();
 }
 
 void FRigVMDeveloperModule::ShutdownModule()
@@ -38,6 +40,7 @@ void FRigVMDeveloperModule::ShutdownModule()
 	{
 		KismetCompilerModule->GetCompilers().Remove(&RigVMBlueprintCompiler);
 	}
+	URigVMBuildData::Get()->TearDownRigVMGraphFunctionPointers();
 }
 
 TSharedPtr<FKismetCompilerContext> FRigVMDeveloperModule::GetRigVMCompiler(UBlueprint* BP, FCompilerResultsLog& InMessageLog, const FKismetCompilerOptions& InCompileOptions)
