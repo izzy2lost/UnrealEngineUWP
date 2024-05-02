@@ -334,7 +334,7 @@ protected:
 
 	virtual void OnTransitionSingleActor(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx);
 
-	void OtherActorLeftScene(AActor& Actor);
+	virtual void OtherActorLeftScene(AActor& Actor);
 
 private:
 
