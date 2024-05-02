@@ -5,6 +5,7 @@
 #include "PCGData.h"
 #include "PCGNode.h" // IWYU pragma: keep
 #include "Helpers/PCGAsyncState.h"
+#include "Utils/PCGExtraCapture.h"
 
 #include "UObject/GCObject.h"
 
@@ -48,6 +49,8 @@ USTRUCT(BlueprintType)
 struct PCG_API FPCGContext
 {
 	GENERATED_BODY()
+
+	friend class FPCGGraphExecutor;
 
 	virtual ~FPCGContext() = default;
 
@@ -134,4 +137,9 @@ private:
 
 	// List of params that were in effect overriden
 	TArray<const FPCGSettingsOverridableParam*> OverriddenParams;
+
+#if WITH_EDITOR
+	friend class PCGUtils::FExtraCapture;
+	PCGUtils::FCallTime Timer;
+#endif
 };

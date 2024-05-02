@@ -26,7 +26,7 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 	const double CurrentTime = FPlatformTime::Seconds();
 	const double ThisFrameTime = CurrentTime - InScopedCall.StartTime;
 
-	FCallTime& Timer = const_cast<FPCGStack*>(InScopedCall.Context->Stack)->Timer;
+	FCallTime& Timer = InScopedCall.Context->Timer;
 
 	switch (InScopedCall.Phase)
 	{
@@ -104,7 +104,7 @@ PCGUtils::FCallTreeInfo PCGUtils::FExtraCapture::CalculateCallTreeInfo(const UPC
 	FCallTreeInfo RootInfo;
 
 	// Basically, what we want is - visit all entries in the "NodeToStacksInWhichNodeExecuted" and build our information from there.
-	TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> NodeToStacksInWhichNodeExecuted = Component->GetExecutedNodeStacks();
+	TMap<TObjectKey<const UPCGNode>, TSet<UPCGComponent::NodeExecutedNotificationData>> NodeToStacksInWhichNodeExecuted = Component->GetExecutedNodeStacks();
 
 	TArray<const UPCGNode*> NodePath;
 	TArray<int32> NodePathLoop;
@@ -178,10 +178,12 @@ PCGUtils::FCallTreeInfo PCGUtils::FExtraCapture::CalculateCallTreeInfo(const UPC
 	for (const auto& NodeToStacks : NodeToStacksInWhichNodeExecuted)
 	{
 		const UPCGNode* Node = NodeToStacks.Key.ResolveObjectPtr();
-		const TSet<FPCGStack>& Stacks = NodeToStacks.Value;
+		const TSet<UPCGComponent::NodeExecutedNotificationData>& NodeExecutions = NodeToStacks.Value;
 
-		for (const FPCGStack& Stack : Stacks)
+		for(const UPCGComponent::NodeExecutedNotificationData& NodeExecution : NodeExecutions)
 		{
+			const FPCGStack& Stack = NodeExecution.Stack;
+
 			if (!GetNodePath(Stack))
 			{
 				continue;
@@ -205,7 +207,7 @@ PCGUtils::FCallTreeInfo PCGUtils::FExtraCapture::CalculateCallTreeInfo(const UPC
 			FCallTreeInfo* Info = GetCallInfo();
 
 			check(Info);
-			Info->CallTime = Stack.Timer;
+			Info->CallTime = NodeExecution.Timer;
 		}
 	}
 

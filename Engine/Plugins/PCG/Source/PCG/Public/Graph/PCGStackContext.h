@@ -60,6 +60,17 @@ struct PCG_API FPCGStack
 	friend class FPCGStackContext;
 
 public:
+#if WITH_EDITOR
+	// Disable deprecation warnings on the rule of 5 because of the Timer member. To be removed when that that member is removed.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FPCGStack() = default;
+	FPCGStack(const FPCGStack&) = default;
+	FPCGStack(FPCGStack&&) = default;
+	FPCGStack& operator=(const FPCGStack&) = default;
+	FPCGStack& operator=(FPCGStack&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITOR
+
 	/** Push frame onto top of stack. */
 	void PushFrame(const FPCGStackFrame& Frame) { StackFrames.Add(Frame); }
 	void PushFrame(const UObject* InFrameObject) { StackFrames.Emplace(InFrameObject); }
@@ -115,6 +126,7 @@ public:
 
 #if WITH_EDITOR
 	// Used to store node & hierarchy information
+	UE_DEPRECATED(5.5, "The timer has been moved to the FPCGContext struct.")
 	PCGUtils::FCallTime Timer;
 #endif
 

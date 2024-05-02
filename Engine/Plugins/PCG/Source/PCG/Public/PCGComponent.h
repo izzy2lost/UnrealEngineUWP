@@ -341,7 +341,7 @@ public:
 	bool IsInspecting() const;
 	void EnableInspection();
 	void DisableInspection();
-	void StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData, bool bUsedCache);
+	void StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const PCGUtils::FCallTime* InTimer, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData, bool bUsedCache);
 	const FPCGDataCollection* GetInspectionData(const FPCGStack& InStack) const;
 	void ClearInspectionData(bool bClearPerNodeExecutionData = true);
 
@@ -349,10 +349,21 @@ public:
 	bool WasNodeExecuted(const UPCGNode* InNode, const FPCGStack& Stack) const;
 
 	/** Called at execution time each time a node has been executed. */
-	void NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack, bool bNodeUsedCache);
+	void NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack, const PCGUtils::FCallTime* InTimer, bool bNodeUsedCache);
 
 	/* Retrieves the executed nodes information */
-	TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> GetExecutedNodeStacks() const;
+	struct NodeExecutedNotificationData
+	{
+		NodeExecutedNotificationData(const FPCGStack& InStack, const PCGUtils::FCallTime& InTimer) : Stack(InStack), Timer(InTimer) {}
+		// Important implementation note: some logic in WasNodeExecuted relies on the fact we don't use the timer for the operator== and hash functions.
+		friend PCG_API uint32 GetTypeHash(const NodeExecutedNotificationData& NotifData) { return GetTypeHash(NotifData.Stack); }
+		bool operator==(const NodeExecutedNotificationData& OtherNotifData) const { return Stack == OtherNotifData.Stack; }
+
+		FPCGStack Stack;
+		PCGUtils::FCallTime Timer;
+	};
+
+	TMap<TObjectKey<const UPCGNode>, TSet<NodeExecutedNotificationData>> GetExecutedNodeStacks() const;
 
 	/** Retrieve the inactive pin bitmask for the given node and stack in the last execution. */
 	uint64 GetNodeInactivePinMask(const UPCGNode* InNode, const FPCGStack& Stack) const;
@@ -626,7 +637,7 @@ private:
 	mutable FRWLock NodeToStacksThatProducedDataLock;
 
 	/** Map from nodes to all stacks for which a task for the node was executed. */
-	TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> NodeToStacksInWhichNodeExecuted;
+	TMap<TObjectKey<const UPCGNode>, TSet<NodeExecutedNotificationData>> NodeToStacksInWhichNodeExecuted;
 	mutable FRWLock NodeToStacksInWhichNodeExecutedLock;
 
 	/** Map from nodes to stacks to mask of output pins that were deactivated during execution. */

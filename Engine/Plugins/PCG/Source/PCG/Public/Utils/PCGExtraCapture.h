@@ -18,21 +18,18 @@ namespace PCGUtils
 #if WITH_EDITOR
 	struct PCG_API FCallTime
 	{
-		// sum of all frames
-		double ExecutionStartTime = MAX_dbl;
-		double ExecutionTime = 0.0;
-		double ExecutionEndTime = 0.0;
-		// how many frames
-		int32 ExecutionFrameCount = 0;
-		double MinExecutionFrameTime = MAX_dbl;
-		double MaxExecutionFrameTime = 0.0;
-
 		double PrepareDataStartTime = MAX_dbl;
 		double PrepareDataTime = 0.0;
 		double PrepareDataEndTime = 0.0;
-		int32 PrepareDataFrameCount = 0;
-
+		double ExecutionStartTime = MAX_dbl;
+		double ExecutionTime = 0.0;
+		double ExecutionEndTime = 0.0;
+		double MinExecutionFrameTime = MAX_dbl;
+		double MaxExecutionFrameTime = 0.0;
 		double PostExecuteTime = 0.0;
+
+		int32 ExecutionFrameCount = 0;
+		int32 PrepareDataFrameCount = 0;
 
 		double PrepareDataWallTime() const { return PrepareDataEndTime - PrepareDataStartTime; }
 		double ExecutionWallTime() const { return ExecutionEndTime - ExecutionStartTime; }

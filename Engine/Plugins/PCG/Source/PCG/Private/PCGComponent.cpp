@@ -2156,26 +2156,25 @@ void UPCGComponent::DisableInspection()
 	}
 };
 
-void UPCGComponent::NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack, bool bNodeUsedCache)
+void UPCGComponent::NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack, const PCGUtils::FCallTime* InTimer, bool bNodeUsedCache)
 {
 	if (!ensure(InStack && InNode))
 	{
 		return;
 	}
 
-	FPCGStack Stack = *InStack;
-
 	// Reset timer information if taken from cache to provide good info in the profiling window
-	if (bNodeUsedCache)
+	PCGUtils::FCallTime Timer;
+	if (InTimer && !bNodeUsedCache)
 	{
-		Stack.Timer = PCGUtils::FCallTime();
+		Timer = *InTimer;
 	}
 
 	FWriteScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
-	NodeToStacksInWhichNodeExecuted.FindOrAdd(InNode).Add(MoveTemp(Stack));
+	NodeToStacksInWhichNodeExecuted.FindOrAdd(InNode).Add(UPCGComponent::NodeExecutedNotificationData(*InStack, MoveTemp(Timer)));
 }
 
-TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> UPCGComponent::GetExecutedNodeStacks() const
+TMap<TObjectKey<const UPCGNode>, TSet<UPCGComponent::NodeExecutedNotificationData>> UPCGComponent::GetExecutedNodeStacks() const
 {
 	FReadScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
 	return NodeToStacksInWhichNodeExecuted;
@@ -2211,12 +2210,14 @@ void UPCGComponent::NotifyNodeDynamicInactivePins(const UPCGNode* InNode, const 
 bool UPCGComponent::WasNodeExecuted(const UPCGNode* InNode, const FPCGStack& Stack) const
 {
 	FReadScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
-	const TSet<FPCGStack>* FoundStacks = NodeToStacksInWhichNodeExecuted.Find(InNode);
+	const TSet<UPCGComponent::NodeExecutedNotificationData>* FoundNotifications = NodeToStacksInWhichNodeExecuted.Find(InNode);
 
-	return FoundStacks && FoundStacks->Contains(Stack);
+	// Since the operator== & hash functions don't rely on the timer, we can just build a stub from the stack.
+	UPCGComponent::NodeExecutedNotificationData NotificationStub(Stack, PCGUtils::FCallTime());
+	return FoundNotifications && FoundNotifications->Contains(NotificationStub);
 }
 
-void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData, bool bUsedCache)
+void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const PCGUtils::FCallTime* InTimer, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData, bool bUsedCache)
 {
 	if (!InNode || !ensure(InStack))
 	{
@@ -2224,7 +2225,7 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 	}
 
 	// Notify component that this task executed. Useful for editor visualization.
-	NotifyNodeExecuted(InNode, InStack, bUsedCache);
+	NotifyNodeExecuted(InNode, InStack, InTimer, bUsedCache);
 
 	if (!InOutputData.TaggedData.IsEmpty())
 	{
