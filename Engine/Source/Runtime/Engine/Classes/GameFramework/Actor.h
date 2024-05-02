@@ -3171,11 +3171,9 @@ public:
 	UE_DEPRECATED(5.3, "Use MarkComponentsAsGarbage instead.")
 	virtual void MarkComponentsAsPendingKill() { MarkComponentsAsGarbage(); }
 
-	/**
-	 * Called to mark all components and nested subobjects as garbage when the actor is being destroyed.
-	 * This will call OnComponentDestroyed on ActorComponents before marking them as garbage.
+	/** Called to mark all components as garbage when the actor is being destroyed
 	 *
-	 * @param bModify if True, Modify will be called on ActorComponents before OnComponentDestroyed
+	 *  @param bModify if True, Modify will be called on actor before marking components
 	 */
 	ENGINE_API virtual void MarkComponentsAsGarbage(bool bModify = true);
 	
