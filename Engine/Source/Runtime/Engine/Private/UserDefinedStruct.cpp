@@ -313,9 +313,11 @@ void UUserDefinedStruct::InitializeStruct(void* Dest, int32 ArrayDim) const
 			void* DestStruct = (uint8*)Dest + (Stride * ArrayIndex);
 			CopyScriptStruct(DestStruct, DefaultInstance);
 
+#if WITH_EDITOR
 			// When copying into another struct we need to register this raw struct pointer so any deferred dependencies will get fixed later
 			FScopedPlaceholderRawContainerTracker TrackStruct(DestStruct);
 			FBlueprintSupport::RegisterDeferredDependenciesInStruct(this, DestStruct);
+#endif
 		}	
 	}
 }

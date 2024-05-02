@@ -163,14 +163,10 @@ bool FBlueprintSupport::IsDeferredDependencyPlaceholder(const UObject* LoadedObj
 		LoadedObj->IsA<ULinkerPlaceholderExportObject>() );
 }
 
+#if WITH_EDITOR
 void FBlueprintSupport::RegisterDeferredDependenciesInStruct(const UStruct* Struct, void* StructData)
 {
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
-	if (GEventDrivenLoaderEnabled)
-	{
-		return;
-	}
-
 	for (TPropertyValueIterator<const FObjectProperty> It(Struct, StructData); It; ++It)
 	{
 		const FObjectProperty* Property = It.Key();
@@ -216,6 +212,7 @@ void FBlueprintSupport::RegisterDeferredDependenciesInStruct(const UStruct* Stru
 	}
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 }
+#endif
 
 void FBlueprintSupport::RepairDeferredDependenciesInObject(UObject* Object)
 {

@@ -109,8 +109,10 @@ struct FBlueprintSupport
 	/** Tells if the specified object is one of the many flavors of FLinkerPlaceholderBase that we have. */
 	COREUOBJECT_API static bool IsDeferredDependencyPlaceholder(const UObject* LoadedObj);
 
+#if WITH_EDITOR
 	/** Registers any object properties in this struct with the deferred dependency system */
 	COREUOBJECT_API static void RegisterDeferredDependenciesInStruct(const UStruct* Struct, void* StructData);
+#endif
 
 	/** Repair function to scan for any deferred dependency placeholders and attempt to resolve them in-place with real assets */
 	COREUOBJECT_API static void RepairDeferredDependenciesInObject(UObject* Object);
