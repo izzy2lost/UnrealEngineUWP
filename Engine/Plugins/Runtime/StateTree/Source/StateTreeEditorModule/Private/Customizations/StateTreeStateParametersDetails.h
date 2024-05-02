@@ -3,7 +3,9 @@
 #pragma once
 
 #include "IPropertyTypeCustomization.h"
+#include "PropertyBagDetails.h"
 
+class IDetailPropertyRow;
 class IPropertyHandle;
 class IPropertyUtilities;
 class UStateTree;
@@ -40,4 +42,31 @@ private:
 	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData = nullptr;
 	TWeakObjectPtr<UStateTree> WeakStateTree = nullptr;
 	TWeakObjectPtr<UStateTreeState> WeakState = nullptr;
+};
+
+
+class FStateTreeStateParametersInstanceDataDetails : public FPropertyBagInstanceDataDetails
+{
+public:
+	FStateTreeStateParametersInstanceDataDetails(
+		const TSharedPtr<IPropertyHandle>& InStructProperty,
+		const TSharedPtr<IPropertyHandle>& InParametersStructProperty,
+		const TSharedPtr<IPropertyUtilities>& InPropUtils,
+		const bool bInFixedLayout,
+		FGuid InID,
+		TWeakObjectPtr<UStateTreeEditorData> InEditorData,
+		TWeakObjectPtr<UStateTreeState> InState);
+	
+	virtual void OnChildRowAdded(IDetailPropertyRow& ChildRow) override;
+
+	virtual bool HasPropertyOverrides() const override;
+	virtual void PreChangeOverrides() override;
+	virtual void PostChangeOverrides() override;
+	virtual void EnumeratePropertyBags(TSharedPtr<IPropertyHandle> PropertyBagHandle, const EnumeratePropertyBagFuncRef& Func) const override;
+
+private:
+	TSharedPtr<IPropertyHandle> StructProperty;
+	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData;
+	TWeakObjectPtr<UStateTreeState> WeakState;
+	FGuid ID;
 };

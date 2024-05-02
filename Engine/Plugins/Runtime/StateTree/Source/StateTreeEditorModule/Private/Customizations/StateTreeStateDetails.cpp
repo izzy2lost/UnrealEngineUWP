@@ -10,7 +10,9 @@
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorNodeUtils.h"
 #include "StateTreeEditorStyle.h"
+#include "StateTreePropertyHelpers.h"
 #include "StateTreeSchema.h"
+#include "StateTreeStateParametersDetails.h"
 #include "Debugger/StateTreeDebuggerUIExtensions.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -29,13 +31,14 @@ TSharedRef<IDetailCustomization> FStateTreeStateDetails::MakeInstance()
 
 void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	// Find StateTreeEditorData associated with this panel.
-	UStateTreeEditorData* EditorData = nullptr;
 	TArray<TWeakObjectPtr<UObject>> Objects;
 	DetailBuilder.GetObjectsBeingCustomized(Objects);
+	
+	// Find StateTreeEditorData associated with this panel.
+	UStateTreeEditorData* EditorData = nullptr;
 	for (TWeakObjectPtr<UObject>& WeakObject : Objects)
 	{
-		if (const UObject* Object = WeakObject.Get())
+		if (UObject* Object = WeakObject.Get())
 		{
 			if (UStateTreeEditorData* OuterEditorData = Object->GetTypedOuter<UStateTreeEditorData>())
 			{
@@ -44,9 +47,25 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 			}
 		}
 	}
+
+	// Find StateTreeState associated with this panel.
+	TWeakObjectPtr<UStateTreeState> WeakState;
+	for (TWeakObjectPtr<UObject>& WeakObject : Objects)
+	{
+		if (UObject* Object = WeakObject.Get())
+		{
+			if (UStateTreeState* State = Cast<UStateTreeState>(Object))
+			{
+				WeakState = State;
+				break;
+			}
+		}
+	}
+	
 	const UStateTreeSchema* Schema = EditorData ? EditorData->Schema : nullptr;
 	const FString SchemaPath = Schema ? Schema->GetClass()->GetPathName() : FString();
 	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData = EditorData;
+
 	
 	const TSharedPtr<IPropertyHandle> IDProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, ID));
 	const TSharedPtr<IPropertyHandle> NameProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Name));
@@ -186,12 +205,21 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		// Show parameters as a category.
 		ParametersProperty->MarkHiddenByCustomization();
 
-		TSharedPtr<IPropertyHandle> PropertyBagParametersProperty = ParametersProperty->GetChildHandle(TEXT("Parameters")); // FInstancedPropertyBag
-		check(PropertyBagParametersProperty);
+		TSharedPtr<IPropertyHandle> ParametersParametersProperty = ParametersProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeStateParameters, Parameters)); // FInstancedPropertyBag
+		check(ParametersParametersProperty);
+		TSharedPtr<IPropertyHandle> ParametersFixedLayoutProperty = ParametersProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeStateParameters, bFixedLayout));
+		check(ParametersFixedLayoutProperty);
+		TSharedPtr<IPropertyHandle> ParametersIDProperty = ParametersProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeStateParameters, ID));
+		check(ParametersIDProperty);
 
+		bool bFixedLayout = false;
+		ParametersFixedLayoutProperty->GetValue(bFixedLayout);
+
+		
 		const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
-			.IsEnabled(PropUtils.ToSharedRef(), &IPropertyUtilities::IsPropertyEditingEnabled)
-			+SHorizontalBox::Slot()
+			.IsEnabled(PropUtils.ToSharedRef(), &IPropertyUtilities::IsPropertyEditingEnabled);
+
+		HeaderContentWidget->AddSlot()
 			.VAlign(VAlign_Center)
 			.Padding(FMargin(4, 0, 0, 0))
 			.AutoWidth()
@@ -199,17 +227,31 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 				SNew(STextBlock)
 				.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Category")
 				.Text(ParametersDisplayName)
-			]
-			+SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			.HAlign(HAlign_Right)
-			.VAlign(VAlign_Center)
-			[
-				FPropertyBagDetails::MakeAddPropertyWidget(PropertyBagParametersProperty, PropUtils.ToSharedRef(), EPropertyBagPropertyType::Bool, FLinearColor(UE::StateTree::Colors::Grey)).ToSharedRef()
 			];
+
+		if (!bFixedLayout)
+		{
+			HeaderContentWidget->AddSlot()
+				.FillWidth(1.f)
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
+				[
+					FPropertyBagDetails::MakeAddPropertyWidget(
+						ParametersParametersProperty,
+						PropUtils.ToSharedRef(),
+						EPropertyBagPropertyType::Bool,
+						FLinearColor(UE::StateTree::Colors::Grey)).ToSharedRef()
+				];
+		}
+		
 		ParametersCategory.HeaderContent(HeaderContentWidget, /*FullRowContent*/true);
 
-		TSharedRef<FPropertyBagInstanceDataDetails> InstanceDetails = MakeShareable(new FPropertyBagInstanceDataDetails(PropertyBagParametersProperty, PropUtils.ToSharedRef(), false));
+		FGuid ID;
+		UE::StateTree::PropertyHelpers::GetStructValue<FGuid>(ParametersIDProperty, ID);
+
+		// Show the Value (FInstancedStruct) as child rows.
+		TSharedRef<FStateTreeStateParametersInstanceDataDetails> InstanceDetails =
+			MakeShareable(new FStateTreeStateParametersInstanceDataDetails(ParametersProperty, ParametersProperty, PropUtils, bFixedLayout, ID, WeakEditorData, WeakState));
 		ParametersCategory.AddCustomBuilder(InstanceDetails);
 	}
 	
