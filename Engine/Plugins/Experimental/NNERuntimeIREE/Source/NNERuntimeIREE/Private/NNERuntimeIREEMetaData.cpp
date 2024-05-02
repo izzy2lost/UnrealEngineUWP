@@ -368,9 +368,10 @@ bool UNNERuntimeIREEModuleMetaData::ParseFromString(const FString& ModuleString)
 
 		FString MatchedFunctionPattern = ModuleString.Mid(FunctionStart, InputArgumentsStart - FunctionStart - 1);
 		bool bIsPrivate = MatchedFunctionPattern.Find("private") != INDEX_NONE;
-		if (bIsPrivate)
+		bool bIsProtected = MatchedFunctionPattern.Find("protected") != INDEX_NONE;
+		if (bIsPrivate || bIsProtected)
 		{
-			//continue;
+			continue;
 		}
 		int32 FunctionNameStart = MatchedFunctionPattern.Find("@");
 		check(FunctionNameStart != INDEX_NONE);
