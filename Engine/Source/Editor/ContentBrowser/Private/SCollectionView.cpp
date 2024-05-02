@@ -322,13 +322,7 @@ void SCollectionView::HandleSourceControlProviderChanged(ISourceControlProvider&
 
 void SCollectionView::HandleSourceControlStateChanged()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(SCollectionView::HandleSourceControlStateChanged);
-
-	// Update the status of each collection
-	for (const auto& AvailableCollectionInfo : AvailableCollections)
-	{
-		UpdateCollectionItemStatus(AvailableCollectionInfo.Value.ToSharedRef());
-	}
+	bQueueItemStatusUpdate = true;
 }
 
 void SCollectionView::UpdateCollectionItemStatus( const TSharedRef<FCollectionItem>& CollectionItem )
@@ -776,6 +770,18 @@ void SCollectionView::Tick( const FGeometry& AllottedGeometry, const double InCu
 		if (CollectionFilesToRefresh.Num() > 0)
 		{
 			ISourceControlModule::Get().QueueStatusUpdate(CollectionFilesToRefresh);
+		}
+	}
+
+	if (bQueueItemStatusUpdate)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("CollectionView Update Collection Items Status");
+
+		bQueueItemStatusUpdate = false;
+		// Update the status of each collection
+		for (const TPair<FCollectionNameType, TSharedPtr<FCollectionItem>>& AvailableCollectionInfo : AvailableCollections)
+		{
+			UpdateCollectionItemStatus(AvailableCollectionInfo.Value.ToSharedRef());
 		}
 	}
 }

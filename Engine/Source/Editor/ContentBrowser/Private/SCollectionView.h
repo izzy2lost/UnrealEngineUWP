@@ -377,4 +377,7 @@ private:
 
 	/** True if we should queue an SCC refresh for the collections on the next Tick */
 	bool bQueueSCCRefresh;
+
+	/** True if we need to update the source control state of items on next tick */
+	bool bQueueItemStatusUpdate = false;
 };
