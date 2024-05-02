@@ -44,13 +44,11 @@ inline uint64 GetShaderKeyForGfxStage(const FBoundShaderStateInput& BSI, ShaderS
 	case ShaderStage::Geometry:
 		return GetShaderKey<FVulkanGeometryShader>(BSI.GetGeometryShader());
 #endif
-#if RHI_RAYTRACING
 	case ShaderStage::RayGen:
 	case ShaderStage::RayHitGroup:
 	case ShaderStage::RayMiss:
 	case ShaderStage::RayCallable:
 		return 0; // VKRT todo
-#endif
 	default:
 		check(0);
 	}
