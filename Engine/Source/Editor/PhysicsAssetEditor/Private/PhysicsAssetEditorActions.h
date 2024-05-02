@@ -76,7 +76,6 @@ public:
 	TSharedPtr<FUICommandInfo> RenderOnlySelectedConstraints;
 	TSharedPtr<FUICommandInfo> DrawConstraintsAsPoints;
 	TSharedPtr<FUICommandInfo> DrawViolatedLimits;
-	TSharedPtr<FUICommandInfo> ToggleMassProperties;
 	TSharedPtr<FUICommandInfo> DisableCollision;
 	TSharedPtr<FUICommandInfo> DisableCollisionAll;
 	TSharedPtr<FUICommandInfo> EnableCollision;

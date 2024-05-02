@@ -49,8 +49,10 @@ UPhysicsAssetEditorOptions::UPhysicsAssetEditorOptions(const FObjectInitializer&
 
 	// view options
 	MeshViewMode = EPhysicsAssetEditorMeshViewMode::Solid;
+	CenterOfMassViewMode = EPhysicsAssetEditorCenterOfMassViewMode::None;
 	CollisionViewMode = EPhysicsAssetEditorCollisionViewMode::Solid;
 	ConstraintViewMode = EPhysicsAssetEditorConstraintViewMode::AllLimits;
+	SimulationCenterOfMassViewMode = EPhysicsAssetEditorCenterOfMassViewMode::None;
 	SimulationMeshViewMode = EPhysicsAssetEditorMeshViewMode::Solid;
 	SimulationCollisionViewMode = EPhysicsAssetEditorCollisionViewMode::Solid;
 	SimulationConstraintViewMode = EPhysicsAssetEditorConstraintViewMode::None;
@@ -59,6 +61,7 @@ UPhysicsAssetEditorOptions::UPhysicsAssetEditorOptions(const FObjectInitializer&
 	bSolidRenderingForSelectedOnly = false;
 	bHideSimulatedBodies = false;
 	bHideKinematicBodies = false;
+	bHideBodyMass = true;
 	bResetClothWhenSimulating = false;
 }
 

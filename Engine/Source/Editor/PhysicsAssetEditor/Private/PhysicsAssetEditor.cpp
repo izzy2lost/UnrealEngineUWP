@@ -775,7 +775,32 @@ void FPhysicsAssetEditor::ExtendViewportMenus()
 		if (PhysicsAssetEditor)
 		{
 			FToolMenuSection& Section = CharacterMenu->AddSection("PhysicsAssetShowCommands", LOCTEXT("PhysicsShowCommands", "Physics Rendering"), FToolMenuInsert("AnimViewportSceneElements", EToolMenuInsertType::Before));
-			Section.AddMenuEntry(FPhysicsAssetEditorCommands::Get().ToggleMassProperties);
+
+			Section.AddSubMenu(TEXT("MassPropertiesSubMenu"), LOCTEXT("MassPropertiesSubMenu", "Mass Properties"), FText::GetEmpty(),
+				FNewToolMenuDelegate::CreateLambda([WeakPhysicsAssetEditor = PhysicsAssetEditor.ToWeakPtr()](UToolMenu* InSubMenu)
+					{
+						const FPhysicsAssetEditorCommands& Commands = FPhysicsAssetEditorCommands::Get();
+
+						{
+							FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderSettings", LOCTEXT("CenterOfMassRenderSettingsHeader", "Center of Mass Drawing"));
+							Section.AddMenuEntry(Commands.HideBodyMass);
+						}
+
+						{
+							FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderingMode", LOCTEXT("CenterOfMassRenderingModeHeader", "Center of Mass Drawing (Edit)"));
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_All);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Selected);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_None);
+						}
+
+						{
+							FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderingModeSim", LOCTEXT("CenterOfMassRenderingModeSimHeader", "Center of Mass Drawing (Simulation)"));
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_All);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_Selected);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_None);
+						}
+					}));
+
 			Section.AddSubMenu(TEXT("MeshRenderModeSubMenu"), LOCTEXT("MeshRenderModeSubMenu", "Mesh"), FText::GetEmpty(),
 				FNewToolMenuDelegate::CreateLambda([](UToolMenu* InSubMenu)
 			{
@@ -821,31 +846,6 @@ void FPhysicsAssetEditor::ExtendViewportMenus()
 					Section.AddMenuEntry(Commands.CollisionRenderingMode_Simulation_Wireframe);
 					Section.AddMenuEntry(Commands.CollisionRenderingMode_Simulation_SolidWireframe);
 					Section.AddMenuEntry(Commands.CollisionRenderingMode_Simulation_None);
-				}
-			}));
-
-			Section.AddSubMenu(TEXT("CenterOfMassModeSubMenu"), LOCTEXT("CenterOfMassModeSubMenu", "Center of Mass"), FText::GetEmpty(),
-				FNewToolMenuDelegate::CreateLambda([WeakPhysicsAssetEditor = PhysicsAssetEditor.ToWeakPtr()](UToolMenu* InSubMenu)
-			{
-				const FPhysicsAssetEditorCommands& Commands = FPhysicsAssetEditorCommands::Get();
-
-				{
-					FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderSettings", LOCTEXT("CenterOfMassRenderSettingsHeader", "Center of Mass Drawing"));
-					Section.AddMenuEntry(Commands.HideBodyMass);
-				}
-
-				{
-					FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderingMode", LOCTEXT("CenterOfMassRenderingModeHeader", "Center of Mass Drawing (Edit)"));
-					Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_All);
-					Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Selected);
-					Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_None);
-				}
-
-				{
-					FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderingModeSim", LOCTEXT("CenterOfMassRenderingModeSimHeader", "Center of Mass Drawing (Simulation)"));
-					Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_All);
-					Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_Selected);
-					Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_None);
 				}
 			}));
 
@@ -1545,12 +1545,6 @@ void FPhysicsAssetEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::ToggleRenderOnlySelectedConstraints),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsRenderingOnlySelectedConstraints));
-
-	ViewportCommandList->MapAction(
-		Commands.ToggleMassProperties,
-		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnToggleMassProperties),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsToggleMassProperties));
 
 	SkeletonTreeCommandList = MakeShared<FUICommandList_Pinnable>();
 
