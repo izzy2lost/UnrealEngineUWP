@@ -764,7 +764,7 @@ public:
 	/** Whether any components lower on the input stack should be allowed to receive input. */
 	uint8 bBlockInput:1;
 
-	/** Clears any inut callback delegates from the given UObject */
+	/** Clears any input callback delegates from the given UObject */
 	ENGINE_API virtual void ClearBindingsForObject(UObject* InOwner);
 	
 	ENGINE_API void ConditionalBuildKeyMap(UPlayerInput* PlayerInput);
