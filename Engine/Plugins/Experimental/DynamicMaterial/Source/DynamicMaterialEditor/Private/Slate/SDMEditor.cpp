@@ -688,7 +688,7 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 			.Content()
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("Settings", "Settings"))
+				.Text(LOCTEXT("GlobalSettings", "Global"))
 			]
 		];
 
