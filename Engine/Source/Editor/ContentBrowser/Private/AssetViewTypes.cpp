@@ -35,16 +35,27 @@ FAssetViewItem::FAssetViewItem(const FContentBrowserItemData& InItemData)
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
+void FAssetViewItem::ResetItemData(FContentBrowserItemData InItemData)
+{
+	Item = FContentBrowserItem{MoveTemp(InItemData)};
+	// Do not broadcast event here, it will be broadcast on the main thread after bulk building/recycling of items
+}
+
+void FAssetViewItem::BroadcastItemDataChanged()
+{
+	ItemDataChangedEvent.Broadcast();
+}
+
 void FAssetViewItem::AppendItemData(const FContentBrowserItem& InItem)
 {
 	Item.Append(InItem);
-	ItemDataChangedEvent.Broadcast();
+	// Do not broadcast event here, caller is responsible for broadcasting in a threadsafe way
 }
 
 void FAssetViewItem::AppendItemData(const FContentBrowserItemData& InItemData)
 {
 	Item.Append(InItemData);
-	ItemDataChangedEvent.Broadcast();
+	// Do not broadcast event here, caller is responsible for broadcasting in a threadsafe way
 }
 
 void FAssetViewItem::RemoveItemData(const FContentBrowserItem& InItem)
@@ -76,12 +87,19 @@ void FAssetViewItem::RemoveItemData(const FContentBrowserMinimalItemData& InItem
 
 void FAssetViewItem::ClearCachedCustomColumns()
 {
+	check(IsInGameThread());
 	CachedCustomColumnData.Reset();
 	CachedCustomColumnDisplayText.Reset();
 }
 
 void FAssetViewItem::CacheCustomColumns(TArrayView<const FAssetViewCustomColumn> CustomColumns, const bool bUpdateSortData, const bool bUpdateDisplayText, const bool bUpdateExisting)
 {
+	check(IsInGameThread());
+	if (bUpdateExisting && CachedCustomColumnData.IsEmpty())
+	{
+		return;
+	}
+
 	for (const FAssetViewCustomColumn& Column : CustomColumns)
 	{
 		FAssetData ItemAssetData;
@@ -195,17 +213,11 @@ FSimpleDelegate& FAssetViewItem::OnRenameCanceled()
 	return RenameCanceledEvent;
 }
 
-bool FAssetViewItem::ShouldRenameWhenScrolledIntoView() const
+FString FAssetViewItem::ItemToString_Debug(TSharedPtr<FAssetViewItem> AssetItem) 
 {
-	return bRenameWhenScrolledIntoView;
-}
-
-void FAssetViewItem::RenameWhenScrolledIntoView()
-{
-	bRenameWhenScrolledIntoView = true;
-}
-
-void FAssetViewItem::ClearRenameWhenScrolledIntoView()
-{
-	bRenameWhenScrolledIntoView = false;
+	if (AssetItem.IsValid())
+	{
+		return AssetItem->GetItem().GetVirtualPath().ToString();
+	}
+	return TEXT("nullptr");
 }

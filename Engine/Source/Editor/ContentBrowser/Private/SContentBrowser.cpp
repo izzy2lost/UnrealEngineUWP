@@ -10,6 +10,7 @@
 #include "AssetRegistry/AssetDataTagMap.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "AssetTextFilter.h"
 #include "AssetThumbnail.h"
 #include "AssetToolsModule.h"
 #include "AssetViewUtils.h"
@@ -345,7 +346,7 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 	PathContextMenu->SetOnFolderFavoriteToggled(FPathContextMenu::FOnFolderFavoriteToggled::CreateSP(this, &SContentBrowser::ToggleFolderFavorite));
 	PathContextMenu->SetOnPrivateContentEditToggled(FPathContextMenu::FOnPrivateContentEditToggled::CreateSP(this, &SContentBrowser::TogglePrivateContentEdit));
 	FrontendFilters = MakeShareable(new FAssetFilterCollectionType());
-	TextFilter = MakeShareable( new FFrontendFilter_Text() );
+	TextFilter = MakeShared<FAssetTextFilter>();
 
 	PluginPathFilters = MakeShareable(new FPluginFilterCollectionType());
 
@@ -382,34 +383,35 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
 	const bool bEnablePrivateContentFeature = EnablePublicAssetFeatureCVar && EnablePublicAssetFeatureCVar->GetBool();
 	AssetViewPtr = SNew(SAssetView)
-					   .ThumbnailLabel(Config != nullptr ? Config->ThumbnailLabel : EThumbnailLabel::ClassName)
-					   //.ThumbnailScale(Config != nullptr ? Config->ThumbnailScale : 0.18f)
-					   .InitialViewType(Config != nullptr ? Config->InitialAssetViewType : EAssetViewType::Tile)
-					   .OnNewItemRequested(this, &SContentBrowser::OnNewItemRequested)
+			.ThumbnailLabel(Config != nullptr ? Config->ThumbnailLabel : EThumbnailLabel::ClassName)
+			//.ThumbnailScale(Config != nullptr ? Config->ThumbnailScale : 0.18f)
+			.InitialViewType(Config != nullptr ? Config->InitialAssetViewType : EAssetViewType::Tile)
+			.OnNewItemRequested(this, &SContentBrowser::OnNewItemRequested)
 					   .OnItemSelectionChanged(this, &SContentBrowser::OnItemSelectionChanged, EContentBrowserViewContext::AssetView)
-					   .OnItemsActivated(this, &SContentBrowser::OnItemsActivated)
-					   .OnGetItemContextMenu(this, &SContentBrowser::GetItemContextMenu, EContentBrowserViewContext::AssetView)
-					   .OnItemRenameCommitted(this, &SContentBrowser::OnItemRenameCommitted)
-					   .OnShouldFilterItem(bEnablePrivateContentFeature ? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter) : FOnShouldFilterItem())
-					   .FrontendFilters(FrontendFilters)
-					   .ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
-					   .HighlightedText(this, &SContentBrowser::GetHighlightedText)
-					   .ShowBottomToolbar(bShowBottomToolbar)
-					   .ShowViewOptions(false) // We control this for the main content browser
-					   .AllowThumbnailEditMode(true)
-					   .AllowThumbnailHintLabel(false)
-					   .CanShowFolders(Config != nullptr ? Config->bCanShowFolders : true)
-					   .CanShowClasses(Config != nullptr ? Config->bCanShowClasses : true)
-					   .CanShowRealTimeThumbnails(Config != nullptr ? Config->bCanShowRealTimeThumbnails : true)
-					   .CanShowDevelopersFolder(Config != nullptr ? Config->bCanShowDevelopersFolder : true)
-					   .CanShowFavorites(true)
-					   .CanDockCollections(true)
-					   .AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserAssets")))
-					   .OwningContentBrowser(SharedThis(this))
-					   .OnSearchOptionsChanged(this, &SContentBrowser::HandleAssetViewSearchOptionsChanged)
-					   .bShowPathViewFilters(true)
-					   .FillEmptySpaceInTileView(true)
-					   .ShowDisallowedAssetClassAsUnsupportedItems(true);
+			.OnItemsActivated(this, &SContentBrowser::OnItemsActivated)
+			.OnGetItemContextMenu(this, &SContentBrowser::GetItemContextMenu, EContentBrowserViewContext::AssetView)
+			.OnItemRenameCommitted(this, &SContentBrowser::OnItemRenameCommitted)
+			.OnShouldFilterItem(bEnablePrivateContentFeature ? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter) : FOnShouldFilterItem())
+			.FrontendFilters(FrontendFilters)
+			.TextFilter(TextFilter)
+			.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
+			.HighlightedText(this, &SContentBrowser::GetHighlightedText)
+			.ShowBottomToolbar(bShowBottomToolbar)
+			.ShowViewOptions(false) // We control this for the main content browser
+			.AllowThumbnailEditMode(true)
+			.AllowThumbnailHintLabel(false)
+			.CanShowFolders(Config != nullptr ? Config->bCanShowFolders : true)
+			.CanShowClasses(Config != nullptr ? Config->bCanShowClasses : true)
+			.CanShowRealTimeThumbnails(Config != nullptr ? Config->bCanShowRealTimeThumbnails : true)
+			.CanShowDevelopersFolder(Config != nullptr ? Config->bCanShowDevelopersFolder : true)
+			.CanShowFavorites(true)
+			.CanDockCollections(true)
+			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserAssets")))
+			.OwningContentBrowser(SharedThis(this))
+			.OnSearchOptionsChanged(this, &SContentBrowser::HandleAssetViewSearchOptionsChanged)
+			.bShowPathViewFilters(true)
+			.FillEmptySpaceInTileView(true)
+			.ShowDisallowedAssetClassAsUnsupportedItems(true);
 
 	TSharedRef<SWidget> ViewOptions = SNullWidget::NullWidget;
 
@@ -1070,7 +1072,7 @@ TSharedRef<SWidget> SContentBrowser::CreateAssetView(const FContentBrowserConfig
 					.UseSharedSettings(true)
 					.CreateTextFilter(SFilterList::FCreateTextFilter::CreateLambda([this]
 					{
-						TSharedPtr<FFrontendFilter_CustomText> NewFilter = MakeShareable(new FFrontendFilter_CustomText);
+						TSharedPtr<FFrontendFilter_CustomText> NewFilter = MakeShared<FFrontendFilter_CustomText>();
 
 						// Make sure the new filter has the right search options from the AssetView. We only have to set it once, SFilterList handles syncing it on change
 						NewFilter->UpdateCustomTextFilterIncludes(AssetViewPtr->IsIncludingClassNames(), AssetViewPtr->IsIncludingAssetPaths(), AssetViewPtr->IsIncludingCollectionNames());
@@ -2414,16 +2416,14 @@ void SContentBrowser::SetSearchBoxText(const FText& InSearchText)
 	// Has anything changed? (need to test case as the operators are case-sensitive)
 	if (!InSearchText.ToString().Equals(TextFilter->GetRawFilterText().ToString(), ESearchCase::CaseSensitive))
 	{
-		TextFilter->SetRawFilterText( InSearchText );
-		SearchBoxPtr->SetError( TextFilter->GetFilterErrorText() );
-		if(InSearchText.IsEmpty())
+		TextFilter->SetRawFilterText(InSearchText);
+		SearchBoxPtr->SetError(TextFilter->GetFilterErrorText());
+		if (InSearchText.IsEmpty())
 		{
-			FrontendFilters->Remove(TextFilter);
 			AssetViewPtr->SetUserSearching(false);
 		}
 		else
 		{
-			FrontendFilters->Add(TextFilter);
 			AssetViewPtr->SetUserSearching(true);
 		}
 	}

@@ -8,6 +8,7 @@
 #include "Editor.h"
 #include "FrontendFilters.h"
 #include "SAssetView.h"
+#include "AssetTextFilter.h"
 
 #if WITH_EDITOR
 	#include "Styling/AppStyle.h"
@@ -118,11 +119,9 @@ void FWidgetTemplateListViewModel::ConstructListView(TArray<TSharedPtr<FWidgetTe
 
 		CachedLowercaseWidgetFilter = FString(FilterString.ToString()).ToLower();
 
-		SearchFilter = MakeShared<FFrontendFilter_Text>();
-		SearchFilter->SetActive(false);
+		SearchFilter = MakeShared<FAssetTextFilter>();
 
 		TemplatesFilter = MakeShared<FAssetFilterCollectionType>();
-		TemplatesFilter->Add(SearchFilter);
 	}
 
 	if (!AssetViewPtr)
@@ -132,6 +131,7 @@ void FWidgetTemplateListViewModel::ConstructListView(TArray<TSharedPtr<FWidgetTe
 			.InitialSourcesData(*LibrarySourceData)
 			.InitialThumbnailSize(EThumbnailSize::Small)
 			.FrontendFilters(TemplatesFilter)
+			.TextFilter(SearchFilter)
 			.ForceShowEngineContent(true)
 			.ForceShowPluginContent(true)
 			.ForceHideScrollbar(true)
@@ -240,7 +240,6 @@ void FWidgetTemplateListViewModel::SetSearchText(const FText& InSearchText)
 {
 	if (SearchFilter && AssetViewPtr)
 	{
-		SearchFilter->SetActive(!InSearchText.IsEmpty());
 		SearchFilter->SetRawFilterText(InSearchText);
 
 		AssetViewPtr->SetUserSearching(!InSearchText.IsEmpty());

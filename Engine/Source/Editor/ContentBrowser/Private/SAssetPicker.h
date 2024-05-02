@@ -20,7 +20,6 @@
 #include "Widgets/SCompoundWidget.h"
 
 class FFilter_ShowOtherDevelopers;
-class FFrontendFilter_Text;
 class FUICommandList;
 class SAssetSearchBox;
 class SAssetView;
@@ -190,7 +189,7 @@ private:
 
 	/** Filters needed for filtering the assets */
 	TSharedPtr< FAssetFilterCollectionType > FilterCollection;
-	TSharedPtr< FFrontendFilter_Text > TextFilter;
+	TSharedPtr<class FAssetTextFilter> TextFilter;
 	TSharedPtr<FFilter_ShowOtherDevelopers> OtherDevelopersFilter;
 
 	EAssetTypeCategories::Type DefaultFilterMenuExpansion;

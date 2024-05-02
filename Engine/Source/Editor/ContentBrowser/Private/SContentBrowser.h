@@ -30,7 +30,7 @@
 class FContentBrowserItemDataTemporaryContext;
 class FContentBrowserItemDataUpdate;
 class FExtender;
-class FFrontendFilter_Text;
+class FAssetTextFilter;
 class FSourcesSearch;
 class FTabManager;
 class FUICommandList;
@@ -417,7 +417,7 @@ private:
 	 * e.g. private content feature
 	 */
 	void OnConsoleVariableChanged();
-
+	
 	/** Handler for clicking the history back button */
 	FReply BackClicked();
 
@@ -735,8 +735,8 @@ private:
 	/** The list of FrontendFilters currently applied to the asset view */
 	TSharedPtr<FAssetFilterCollectionType> FrontendFilters;
 
-	/** The text filter to use on the assets */
-	TSharedPtr< FFrontendFilter_Text > TextFilter;
+	/** The text filter to use on the assets, separate from FrontendFilters so it can be specifically optimized */
+	TSharedPtr<FAssetTextFilter> TextFilter;
 
 	/** Commands handled by this widget */
 	TSharedPtr< FUICommandList > Commands;

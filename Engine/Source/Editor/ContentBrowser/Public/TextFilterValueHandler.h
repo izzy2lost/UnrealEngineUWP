@@ -8,7 +8,8 @@
 #include "TextFilterValueHandler.generated.h"
 
 UCLASS(abstract, transient, MinimalAPI)
-class UTextFilterValueHandler : public UObject
+class UE_DEPRECATED(5.5, "This type has been replaced by IAssetTextFilterHandler which must be manually instantiated and registered and must be implemented in a threadsafe way.")
+UTextFilterValueHandler : public UObject
 {
 	GENERATED_BODY()
 public:

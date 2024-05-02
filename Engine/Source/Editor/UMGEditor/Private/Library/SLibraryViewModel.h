@@ -50,7 +50,7 @@ private:
 	TSharedPtr<SAssetView> AssetViewPtr;
 
 	/** Filter we forward our search text to for the asset view */
-	TSharedPtr<class FFrontendFilter_Text> SearchFilter;
+	TSharedPtr<class FAssetTextFilter> SearchFilter;
 
 	/** Source data for the asset view */
 	TSharedPtr<struct FSourcesData> LibrarySourceData;

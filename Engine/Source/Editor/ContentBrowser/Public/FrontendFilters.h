@@ -35,6 +35,7 @@ class FMenuBuilder;
 struct FAssetCompileData;
 
 /** A filter for text search */
+UE_DEPRECATED(5.5, "FFrontendFilter_Text has been deprecated in favor of FAssetTextFilter, used by SAssetView to perform text filtering in parallel.");
 class CONTENTBROWSER_API FFrontendFilter_Text : public FFrontendFilter
 {
 public:

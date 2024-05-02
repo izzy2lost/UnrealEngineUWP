@@ -28,6 +28,9 @@ public:
 	explicit FAssetViewItem(FContentBrowserItemData&& InItemData);
 	explicit FAssetViewItem(const FContentBrowserItemData& InItemData);
 
+	// When recycling an object, clear the item data and replace it with the given data.
+	void ResetItemData(FContentBrowserItemData InItemData);
+
 	void AppendItemData(const FContentBrowserItem& InItem);
 
 	void AppendItemData(const FContentBrowserItemData& InItemData);
@@ -41,7 +44,10 @@ public:
 	/** Clear cached custom column data */
 	void ClearCachedCustomColumns();
 
-	/** Updates cached custom column data (only does something for files) */
+	/**
+	 * Updates cached custom column data (only does something for files) 
+	 * @param bUpdateExisting If true, only updates existing columns, if false only adds missing columns 
+	 */
 	void CacheCustomColumns(TArrayView<const FAssetViewCustomColumn> CustomColumns, const bool bUpdateSortData, const bool bUpdateDisplayText, const bool bUpdateExisting);
 	
 	/** Get the display value of a custom column on this item */
@@ -62,6 +68,10 @@ public:
 
 	bool IsTemporary() const;
 
+	// Called when the view explicitly wants to notify widgets of changes
+	// Not called during bulk rebuilds when the view will be re-populated even if items are being recycled
+	void BroadcastItemDataChanged();
+
 	/** Get the event fired when the data for this item changes */
 	FSimpleMulticastDelegate& OnItemDataChanged();
 
@@ -71,14 +81,8 @@ public:
 	/** Get the event fired whenever a rename is canceled */
 	FSimpleDelegate& OnRenameCanceled();
 
-	/** True if this item should enter inline renaming on the next scroll into view */
-	bool ShouldRenameWhenScrolledIntoView() const;
-
-	/** Set that this item should enter inline renaming on the next scroll into view */
-	void RenameWhenScrolledIntoView();
-
-	/** Clear that this item should enter inline renaming on the next scroll into view */
-	void ClearRenameWhenScrolledIntoView();
+	/** Helper function to turn an item into a string for debugging */
+	static FString ItemToString_Debug(TSharedPtr<FAssetViewItem> AssetItem);
 
 private:
 	/** Underlying Content Browser item data */
@@ -92,9 +96,6 @@ private:
 
 	/** Broadcasts whenever a rename is canceled */
 	FSimpleDelegate RenameCanceledEvent;
-
-	/** True if this item should enter inline renaming on the next scroll into view */
-	bool bRenameWhenScrolledIntoView = false;
 
 	/** Map of values/types for custom columns */
 	TMap<FName, TTuple<FString, UObject::FAssetRegistryTag::ETagType>> CachedCustomColumnData;

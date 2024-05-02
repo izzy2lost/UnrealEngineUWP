@@ -8,6 +8,7 @@
 #include "Filters/FilterBase.h"
 #include "Filters/GenericFilter.h"
 #include "FrontendFilterBase.h"
+#include "Misc/TextFilterExpressionEvaluator.h"
 #include "Templates/SharedPointer.h"
 
 /** 
@@ -53,6 +54,48 @@ public:
 
 	/** Pass all objects - filter is just used to set backend query state. */
 	virtual bool PassesFilter(FAssetFilterType InItem) const override { return true; }
+};
+
+/** 
+ * Expression context which gathers up the names of any dynamic collections being referenced by the current query 
+ * Private utility class for FAssetTextFilter and deprecated FFrontendFilter_Text
+ */
+class FFrontendFilter_GatherDynamicCollectionsExpressionContext : public ITextFilterExpressionContext
+{
+public:
+	FFrontendFilter_GatherDynamicCollectionsExpressionContext(TArray<FCollectionNameType>& OutReferencedDynamicCollections);
+	~FFrontendFilter_GatherDynamicCollectionsExpressionContext();
+
+	virtual bool TestBasicStringExpression(const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode) const override;
+	virtual bool TestComplexExpression(const FName& InKey, const FTextFilterString& InValue, const ETextFilterComparisonOperation InComparisonOperation, const ETextFilterTextComparisonMode InTextComparisonMode) const override;
+
+private:
+	bool TestAgainstAvailableCollections(const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode) const;
+
+	/** Contains a collection name along with its recursion depth in the dynamic query - used so we can test them depth first */
+	struct FDynamicCollectionNameAndDepth
+	{
+		FDynamicCollectionNameAndDepth(FCollectionNameType InCollection, const int32 InRecursionDepth)
+			: Collection(InCollection)
+			, RecursionDepth(InRecursionDepth)
+		{
+		}
+
+		FCollectionNameType Collection;
+		int32 RecursionDepth;
+	};
+
+	/** The currently available dynamic collections */
+	TArray<FCollectionNameType> AvailableDynamicCollections;
+
+	/** This will be populated with any dynamic collections that are being referenced by the current query - these collections may not all match when tested against the actual asset data */
+	TArray<FCollectionNameType>& ReferencedDynamicCollections;
+
+	/** Dynamic collections that have currently be found as part of the query (or recursive sub-query) */
+	mutable TArray<FDynamicCollectionNameAndDepth> FoundDynamicCollections;
+
+	/** Incremented when we test a sub-query, decremented once we're done */
+	mutable int32 CurrentRecursionDepth;
 };
 
 // Non-frontend filter which modifies content browser backend query to exclude folders belonging to other developers 

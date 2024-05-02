@@ -21,6 +21,7 @@
 #include "Delegates/Delegate.h"
 #include "Editor.h"
 #include "Engine/World.h"
+#include "Filters.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandInfo.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -108,144 +109,115 @@ namespace FrontendFilterHelper
 /////////////////////////////////////////
 // FFrontendFilter_Text
 /////////////////////////////////////////
-
-/** Expression context which gathers up the names of any dynamic collections being referenced by the current query */
-class FFrontendFilter_GatherDynamicCollectionsExpressionContext : public ITextFilterExpressionContext
+namespace UE::ContentBrowser
 {
-public:
-	FFrontendFilter_GatherDynamicCollectionsExpressionContext(TArray<FCollectionNameType>& OutReferencedDynamicCollections)
-		: AvailableDynamicCollections()
-		, ReferencedDynamicCollections(OutReferencedDynamicCollections)
-		, CurrentRecursionDepth(0)
-		, CollectionKeyName("Collection")
-		, TagKeyName("Tag")
+	/** Keys used by FFrontendFilter_GatherDynamicCollectionsExpressionContext::TestComplexExpression */
+	const FName CollectionKeyName("Collection");
+	const FName TagKeyName("Tag");
+}
+
+FFrontendFilter_GatherDynamicCollectionsExpressionContext::FFrontendFilter_GatherDynamicCollectionsExpressionContext(TArray<FCollectionNameType>& OutReferencedDynamicCollections)
+	: AvailableDynamicCollections()
+	, ReferencedDynamicCollections(OutReferencedDynamicCollections)
+	, CurrentRecursionDepth(0)
+{
+	if (FCollectionManagerModule::IsModuleAvailable())
 	{
-		if (FCollectionManagerModule::IsModuleAvailable())
+		FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
+
+		TArray<FCollectionNameType> AvailableCollections;
+		CollectionManagerModule.Get().GetCollections(AvailableCollections);
+
+		for (const FCollectionNameType& AvailableCollection : AvailableCollections)
 		{
-			FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
-
-			TArray<FCollectionNameType> AvailableCollections;
-			CollectionManagerModule.Get().GetCollections(AvailableCollections);
-
-			for (const FCollectionNameType& AvailableCollection : AvailableCollections)
+			// Only care about dynamic collections
+			ECollectionStorageMode::Type StorageMode = ECollectionStorageMode::Static;
+			CollectionManagerModule.Get().GetCollectionStorageMode(AvailableCollection.Name, AvailableCollection.Type, StorageMode);
+			if (StorageMode != ECollectionStorageMode::Dynamic)
 			{
-				// Only care about dynamic collections
-				ECollectionStorageMode::Type StorageMode = ECollectionStorageMode::Static;
-				CollectionManagerModule.Get().GetCollectionStorageMode(AvailableCollection.Name, AvailableCollection.Type, StorageMode);
-				if (StorageMode != ECollectionStorageMode::Dynamic)
-				{
-					continue;
-				}
-
-				AvailableDynamicCollections.Add(AvailableCollection);
+				continue;
 			}
+
+			AvailableDynamicCollections.Add(AvailableCollection);
 		}
 	}
+}
 
-	~FFrontendFilter_GatherDynamicCollectionsExpressionContext()
+FFrontendFilter_GatherDynamicCollectionsExpressionContext::~FFrontendFilter_GatherDynamicCollectionsExpressionContext()
+{
+	// Sort and populate the final list of referenced dynamic collections
+	FoundDynamicCollections.Sort([](const FDynamicCollectionNameAndDepth& A, const FDynamicCollectionNameAndDepth& B)
 	{
-		// Sort and populate the final list of referenced dynamic collections
-		FoundDynamicCollections.Sort([](const FDynamicCollectionNameAndDepth& A, const FDynamicCollectionNameAndDepth& B)
-		{
-			return A.RecursionDepth > B.RecursionDepth;
-		});
+		return A.RecursionDepth > B.RecursionDepth;
+	});
 
-		ReferencedDynamicCollections.Reset();
-		ReferencedDynamicCollections.Reserve(FoundDynamicCollections.Num());
-		for (const auto& FoundDynamicCollection : FoundDynamicCollections)
-		{
-			ReferencedDynamicCollections.Add(FoundDynamicCollection.Collection);
-		}
+	ReferencedDynamicCollections.Reset();
+	ReferencedDynamicCollections.Reserve(FoundDynamicCollections.Num());
+	for (const auto& FoundDynamicCollection : FoundDynamicCollections)
+	{
+		ReferencedDynamicCollections.Add(FoundDynamicCollection.Collection);
 	}
+}
 
-	virtual bool TestBasicStringExpression(const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode) const override
+bool FFrontendFilter_GatherDynamicCollectionsExpressionContext::TestBasicStringExpression(const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode) const 
+{
+	TestAgainstAvailableCollections(InValue, InTextComparisonMode);
+	return false;
+}
+
+bool FFrontendFilter_GatherDynamicCollectionsExpressionContext::TestComplexExpression(const FName& InKey, const FTextFilterString& InValue, const ETextFilterComparisonOperation InComparisonOperation, const ETextFilterTextComparisonMode InTextComparisonMode) const 
+{
+	using namespace UE::ContentBrowser;
+
+	// Special case for collections, as these aren't contained within the asset registry meta-data
+	if (InKey == CollectionKeyName || InKey == TagKeyName)
 	{
+		// Collections can only work with Equal or NotEqual type tests
+		if (InComparisonOperation != ETextFilterComparisonOperation::Equal && InComparisonOperation != ETextFilterComparisonOperation::NotEqual)
+		{
+			return false;
+		}
+
 		TestAgainstAvailableCollections(InValue, InTextComparisonMode);
-		return false;
 	}
 
-	virtual bool TestComplexExpression(const FName& InKey, const FTextFilterString& InValue, const ETextFilterComparisonOperation InComparisonOperation, const ETextFilterTextComparisonMode InTextComparisonMode) const override
+	return false;
+}
+
+bool FFrontendFilter_GatherDynamicCollectionsExpressionContext::TestAgainstAvailableCollections(const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode) const
+{
+	for (const FCollectionNameType& DynamicCollection : AvailableDynamicCollections)
 	{
-		// Special case for collections, as these aren't contained within the asset registry meta-data
-		if (InKey == CollectionKeyName || InKey == TagKeyName)
+		const FString DynamicCollectionNameStr = DynamicCollection.Name.ToString();
+		if (TextFilterUtils::TestBasicStringExpression(DynamicCollectionNameStr, InValue, InTextComparisonMode))
 		{
-			// Collections can only work with Equal or NotEqual type tests
-			if (InComparisonOperation != ETextFilterComparisonOperation::Equal && InComparisonOperation != ETextFilterComparisonOperation::NotEqual)
+			const bool bCollectionAlreadyProcessed = FoundDynamicCollections.ContainsByPredicate([&DynamicCollection](const FDynamicCollectionNameAndDepth& Other)
 			{
-				return false;
-			}
+				return DynamicCollection == Other.Collection;
+			});
 
-			TestAgainstAvailableCollections(InValue, InTextComparisonMode);
-		}
-
-		return false;
-	}
-
-private:
-	bool TestAgainstAvailableCollections(const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode) const
-	{
-		for (const FCollectionNameType& DynamicCollection : AvailableDynamicCollections)
-		{
-			const FString DynamicCollectionNameStr = DynamicCollection.Name.ToString();
-			if (TextFilterUtils::TestBasicStringExpression(DynamicCollectionNameStr, InValue, InTextComparisonMode))
+			if (!bCollectionAlreadyProcessed)
 			{
-				const bool bCollectionAlreadyProcessed = FoundDynamicCollections.ContainsByPredicate([&](const FDynamicCollectionNameAndDepth& Other)
-				{
-					return DynamicCollection == Other.Collection;
-				});
+				FoundDynamicCollections.Add(FDynamicCollectionNameAndDepth(DynamicCollection, CurrentRecursionDepth));
 
-				if (!bCollectionAlreadyProcessed)
+				if (FCollectionManagerModule::IsModuleAvailable())
 				{
-					FoundDynamicCollections.Add(FDynamicCollectionNameAndDepth(DynamicCollection, CurrentRecursionDepth));
-
-					if (FCollectionManagerModule::IsModuleAvailable())
-					{
-						FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
-						
-						// Also need to gather any collections referenced by this dynamic collection
-						++CurrentRecursionDepth;
-						bool bUnused = false;
-						CollectionManagerModule.Get().TestDynamicQuery(DynamicCollection.Name, DynamicCollection.Type, *this, bUnused);
-						--CurrentRecursionDepth;
-					}
+					FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
+					
+					// Also need to gather any collections referenced by this dynamic collection
+					++CurrentRecursionDepth;
+					bool bUnused = false;
+					CollectionManagerModule.Get().TestDynamicQuery(DynamicCollection.Name, DynamicCollection.Type, *this, bUnused);
+					--CurrentRecursionDepth;
 				}
-
-				return true;
 			}
-		}
 
-		return false;
+			return true;
+		}
 	}
 
-	/** Contains a collection name along with its recursion depth in the dynamic query - used so we can test them depth first */
-	struct FDynamicCollectionNameAndDepth
-	{
-		FDynamicCollectionNameAndDepth(FCollectionNameType InCollection, const int32 InRecursionDepth)
-			: Collection(InCollection)
-			, RecursionDepth(InRecursionDepth)
-		{
-		}
-
-		FCollectionNameType Collection;
-		int32 RecursionDepth;
-	};
-
-	/** The currently available dynamic collections */
-	TArray<FCollectionNameType> AvailableDynamicCollections;
-
-	/** This will be populated with any dynamic collections that are being referenced by the current query - these collections may not all match when tested against the actual asset data */
-	TArray<FCollectionNameType>& ReferencedDynamicCollections;
-
-	/** Dynamic collections that have currently be found as part of the query (or recursive sub-query) */
-	mutable TArray<FDynamicCollectionNameAndDepth> FoundDynamicCollections;
-
-	/** Incremented when we test a sub-query, decremented once we're done */
-	mutable int32 CurrentRecursionDepth;
-
-	/** Keys used by TestComplexExpression */
-	const FName CollectionKeyName;
-	const FName TagKeyName;
-};
+	return false;
+}
 
 /** Expression context to test the given asset data against the current text filter */
 class FFrontendFilter_TextFilterExpressionContext : public ITextFilterExpressionContext
@@ -369,10 +341,12 @@ public:
 	virtual bool TestBasicStringExpression(const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode) const override
 	{
 		bool bIsHandlerMatch = false;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (UTextFilterValueHandlers::HandleTextFilterValue(*AssetPtr, InValue, InTextComparisonMode, bIsHandlerMatch))
 		{
 			return bIsHandlerMatch;
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		if (InValue.CompareName(AssetPtr->GetItemName(), InTextComparisonMode))
 		{
@@ -435,10 +409,12 @@ public:
 	virtual bool TestComplexExpression(const FName& InKey, const FTextFilterString& InValue, const ETextFilterComparisonOperation InComparisonOperation, const ETextFilterTextComparisonMode InTextComparisonMode) const override
 	{
 		bool bIsHandlerMatch = false;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (UTextFilterKeyValueHandlers::HandleTextFilterKeyValue(*AssetPtr, InKey, InValue, InComparisonOperation, InTextComparisonMode, bIsHandlerMatch))
 		{
 			return bIsHandlerMatch;
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Special case for the asset name, as this isn't contained within the asset registry meta-data
 		if (InKey == NameKeyName)
@@ -708,7 +684,6 @@ void FFrontendFilter_Text::RebuildReferencedDynamicCollections()
 {
 	TextFilterExpressionEvaluator.TestTextFilter(FFrontendFilter_GatherDynamicCollectionsExpressionContext(ReferencedDynamicCollections));
 }
-
 
 /////////////////////////////////////////
 // FFrontendFilter_CheckedOut

@@ -3,6 +3,7 @@
 #include "SAssetPicker.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "AssetTextFilter.h"
 #include "AssetThumbnail.h"
 #include "CollectionManagerTypes.h"
 #include "ContentBrowserDataFilter.h"
@@ -316,6 +317,11 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		}
 	}
 
+	if (!InArgs._AssetPickerConfig.bAutohideSearchBar)
+	{
+		TextFilter = MakeShared<FAssetTextFilter>();
+	}
+	
 	// clang-format off
 	VerticalBox->AddSlot()
 	.FillHeight(1.f)
@@ -333,7 +339,8 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		.OnVisualizeAssetToolTip(InArgs._AssetPickerConfig.OnVisualizeAssetToolTip)
 		.OnAssetToolTipClosing(InArgs._AssetPickerConfig.OnAssetToolTipClosing)
 		.FrontendFilters(FrontendFilters)
-	   	.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
+		.TextFilter(TextFilter)
+		.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
 		.InitialSourcesData(CurrentSourcesData)
 		.InitialBackendFilter(CurrentBackendFilter)
 		.InitialViewType(InArgs._AssetPickerConfig.InitialAssetViewType)
@@ -385,9 +392,8 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 
 	LoadSettings();
 
-	if (AssetViewPtr.IsValid() && !InArgs._AssetPickerConfig.bAutohideSearchBar)
+	if (TextFilter.IsValid())
 	{
-		TextFilter = MakeShareable(new FFrontendFilter_Text());
 		bool bClassNamesProvided = (InArgs._AssetPickerConfig.Filter.ClassPaths.Num() != 1);
 		TextFilter->SetIncludeClassName(bClassNamesProvided || AssetViewPtr->IsIncludingClassNames());
 		TextFilter->SetIncludeAssetPath(AssetViewPtr->IsIncludingAssetPaths());
@@ -487,12 +493,10 @@ void SAssetPicker::SetSearchBoxText(const FText& InSearchText)
 		TextFilter->SetRawFilterText(InSearchText);
 		if (InSearchText.IsEmpty())
 		{
-			FrontendFilters->Remove(TextFilter);
 			AssetViewPtr->SetUserSearching(false);
 		}
 		else
 		{
-			FrontendFilters->Add(TextFilter);
 			AssetViewPtr->SetUserSearching(true);
 		}
 	}

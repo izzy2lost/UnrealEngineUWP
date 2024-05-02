@@ -225,20 +225,24 @@ private:
 
 /* A custom implementation of ICustomTextFilter that uses FFrontendFilter_Text to handle comparing items in the
  * Asset View to Custom Text Filters. This ensures that the advanced search syntax etc behaves properly when used
- * by a custom text filter created by saving a search
+ * by a custom text filter created by saving a search.
+ * This is implemented as a fake frontend filter which modifies background asynchronous text filtering behavior in the asset view.
  */
 class FFrontendFilter_CustomText :
 	public ICustomTextFilter<FAssetFilterType>,
-	public FFrontendFilter_Text,
+	public FFrontendFilter,
 	public TSharedFromThis<FFrontendFilter_CustomText>
 {
 public:
+	FFrontendFilter_CustomText();
 
 	// FFrontendFilter implementation
 	virtual FString GetName() const override;
 	virtual FText GetDisplayName() const override;
 	virtual FText GetToolTipText() const override;
 	virtual FLinearColor GetColor() const override;
+	virtual TOptional<FText> GetAsCustomTextFilter();
+	virtual bool PassesFilter(FAssetFilterType InItem) const override { return true; }
 	
 	/** Updates bIncludeClassName, bIncludeAssetPath and bIncludeCollectionNames for this filter */
 	void UpdateCustomTextFilterIncludes(const bool InIncludeClassName, const bool InIncludeAssetPath, const bool InIncludeCollectionNames);
@@ -259,6 +263,13 @@ protected:
 	/* The Display Name of this custom filter that the user sees */
 	FText DisplayName;
 
+	/** The raw text of the query, either simple string or advanced search syntax. */
+	FText RawFilterText;
+
 	/* The Color of this filter pill */
 	FLinearColor Color;
+
+	bool bIncludeClassName = false;
+	bool bIncludeAssetPath = false;
+	bool bIncludeCollectionNames = false;
 };

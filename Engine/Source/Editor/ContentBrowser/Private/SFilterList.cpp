@@ -756,6 +756,12 @@ void SFilterList::SetFilterLayout(EFilterBarLayout InFilterBarLayout)
 // FFilterListCustomTextFilter
 /////////////////////////////////////////
 
+FFrontendFilter_CustomText::FFrontendFilter_CustomText()
+	: FFrontendFilter(nullptr)
+{
+
+}
+
 /** Returns the system name for this filter */
 FString FFrontendFilter_CustomText::GetName() const
 {
@@ -769,7 +775,7 @@ FText FFrontendFilter_CustomText::GetDisplayName() const
 }
 FText FFrontendFilter_CustomText::GetToolTipText() const
 {
-	return GetRawFilterText();
+	return RawFilterText;
 }
 
 FLinearColor FFrontendFilter_CustomText::GetColor() const
@@ -779,16 +785,16 @@ FLinearColor FFrontendFilter_CustomText::GetColor() const
 
 void FFrontendFilter_CustomText::UpdateCustomTextFilterIncludes(const bool InIncludeClassName, const bool InIncludeAssetPath, const bool InIncludeCollectionNames)
 {
-	SetIncludeClassName(InIncludeClassName);
-	SetIncludeAssetPath(InIncludeAssetPath);
-	SetIncludeCollectionNames(InIncludeCollectionNames);
+	bIncludeClassName = InIncludeClassName;
+	bIncludeAssetPath = InIncludeAssetPath;
+	bIncludeCollectionNames = InIncludeCollectionNames;
 }
 
 void FFrontendFilter_CustomText::SetFromCustomTextFilterData(const FCustomTextFilterData& InFilterData)
 {
 	Color = InFilterData.FilterColor;
 	DisplayName = InFilterData.FilterLabel;
-	SetRawFilterText(InFilterData.FilterString);
+	RawFilterText = InFilterData.FilterString;
 }
 
 FCustomTextFilterData FFrontendFilter_CustomText::CreateCustomTextFilterData() const
@@ -797,7 +803,7 @@ FCustomTextFilterData FFrontendFilter_CustomText::CreateCustomTextFilterData() c
 
 	CustomTextFilterData.FilterColor = Color;
 	CustomTextFilterData.FilterLabel = DisplayName;
-	CustomTextFilterData.FilterString = GetRawFilterText();
+	CustomTextFilterData.FilterString = RawFilterText;
 
 	return CustomTextFilterData;
 }
@@ -805,6 +811,11 @@ FCustomTextFilterData FFrontendFilter_CustomText::CreateCustomTextFilterData() c
 TSharedPtr<FFilterBase<FAssetFilterType>> FFrontendFilter_CustomText::GetFilter()
 {
 	return AsShared();
+}
+
+TOptional<FText> FFrontendFilter_CustomText::GetAsCustomTextFilter()
+{
+	return RawFilterText;
 }
 
 #undef LOCTEXT_NAMESPACE

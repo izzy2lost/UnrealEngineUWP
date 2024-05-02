@@ -33,6 +33,7 @@
 #include "Misc/Optional.h"
 #include "SourcesData.h"
 #include "Styling/SlateColor.h"
+#include "Templates/PimplPtr.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UniquePtr.h"
@@ -45,8 +46,10 @@
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 
+class FAssetTextFilter;
 class FAssetThumbnail;
 class FAssetViewItem;
+class FAssetViewItemCollection;
 class FContentBrowserItemDataTemporaryContext;
 class FContentBrowserItemDataUpdate;
 class FDragDropEvent;
@@ -182,6 +185,9 @@ public:
 		/** The filter collection used to further filter down assets returned from the backend */
 		SLATE_ARGUMENT( TSharedPtr<FAssetFilterCollectionType>, FrontendFilters )
 
+		/** Text filter object */
+		SLATE_ARGUMENT(TSharedPtr<FAssetTextFilter>, TextFilter)
+
 		/** If true, redirectors are visible even if not explicitly searching for them. */
 		SLATE_ATTRIBUTE(bool, ShowRedirectors);
 
@@ -294,6 +300,7 @@ public:
 		SLATE_ARGUMENT(TOptional<FName>, AssetViewOptionsProfile)
 	SLATE_END_ARGS()
 
+	SAssetView();
 	~SAssetView();
 
 	/** Constructs this widget with InArgs */
@@ -711,6 +718,7 @@ private:
 	/** Handler for column view widget creation */
 	TSharedRef<ITableRow> MakeColumnViewWidget(TSharedPtr<FAssetViewItem> AssetItem, const TSharedRef<STableViewBase>& OwnerTable);
 
+
 	/** Handler for when any asset item widget gets destroyed */
 	void AssetItemWidgetDestroyed(const TSharedPtr<FAssetViewItem>& Item);
 	
@@ -899,20 +907,8 @@ private:
 private:
 	friend class FAssetViewFrontendFilterHelper;
 
-	/** The available items from querying the backend data sources */
-	TMap<FContentBrowserItemKey, TSharedPtr<FAssetViewItem>> AvailableBackendItems;
-
-	/**
-	 * The items from AvailableBackendItems that are pending a run through any additional filtering before they can be shown in the filtered view list.
-	 * @note This filtering will run without amortization via ProcessItemsPendingFilter, so only use it for items that *must* be processed this frame.
-	 */
-	TSet<TSharedPtr<FAssetViewItem>> ItemsPendingPriorityFilter;
-
-	/**
-	 * The items from AvailableBackendItems that are pending a run through any additional frontend filters before they can be shown in the filtered view list.
-	 * @note This filtering will run amortized on the game thread via ProcessItemsPendingFilter.
-	 */
-	TSet<TSharedPtr<FAssetViewItem>> ItemsPendingFrontendFilter;
+	/** Private type managing data retrieved from the backend and async filtering thereof */
+	TPimplPtr<FAssetViewItemCollection> Items;
 
 	/** The items that are being shown in the filtered view list */
 	TArray<TSharedPtr<FAssetViewItem>> FilteredAssetItems;
@@ -943,6 +939,7 @@ private:
 	//  - not 'permissions' so may be ignore if e.g. the user explicitly selects a filtered folder
 	TArray<TSharedRef<const FPathPermissionList>> BackendCustomPathFilters;
 	TSharedPtr<FAssetFilterCollectionType> FrontendFilters;
+	TSharedPtr<FAssetTextFilter> TextFilter;
 
 	TAttribute<bool> bShowRedirectors;
 	bool bLastShowRedirectors;
@@ -1020,6 +1017,9 @@ private:
 	double SortDelaySeconds;
 
 	/** Weak ptr to the asset that is waiting to be renamed when scrolled into view, and the window is active */
+	TWeakPtr<FAssetViewItem> AwaitingScrollIntoViewForRename;
+
+	/** Weak ptr to the asset that is waiting to be renamed now that it has scrolled into view, if window is active */
 	TWeakPtr<FAssetViewItem> AwaitingRename;
 
 	/** Set when the user is in the process of naming an asset */
