@@ -2,8 +2,8 @@
 
 #include "Broadcast/OutputDevices/AvaBroadcastOutputUtils.h"
 
-#include "AvaMediaModule.h"
 #include "Broadcast/OutputDevices/AvaGameViewportMediaOutput.h"
+#include "MediaIOCoreDefinitions.h"
 #include "MediaOutput.h"
 #include "Playback/AvaPlaybackMessages.h"
 #include "Serialization/MemoryReader.h"

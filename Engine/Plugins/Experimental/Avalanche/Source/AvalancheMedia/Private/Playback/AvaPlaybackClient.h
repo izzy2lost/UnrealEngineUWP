@@ -9,14 +9,14 @@
 #include "Playback/AvaPlaybackMessages.h"
 #include "Playback/IAvaPlaybackClient.h"
 
-class FAvaMediaModule;
+class IAvaMediaModule;
 struct FAvaBroadcastOutputChannel;
 
 // Listens to command to play and broadcast
 class FAvaPlaybackClient : public IAvaPlaybackClient
 {
 public:
-	FAvaPlaybackClient(FAvaMediaModule* InParentModule);
+	FAvaPlaybackClient(IAvaMediaModule* InParentModule);
 	virtual ~FAvaPlaybackClient() override;
 
 	void Init();
@@ -160,7 +160,7 @@ protected:
 	FString GetServerNameForMediaOutputFallback(const UMediaOutput* InMediaOutput) const;
 
 private:
-	FAvaMediaModule* ParentModule;
+	IAvaMediaModule* ParentModule;
 	
 	TArray<IConsoleObject*> ConsoleCommands;
 	

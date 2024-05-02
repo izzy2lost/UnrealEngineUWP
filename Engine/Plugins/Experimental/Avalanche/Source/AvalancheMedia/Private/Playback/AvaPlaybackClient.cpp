@@ -5,16 +5,19 @@
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "AvaMediaMessageUtils.h"
-#include "AvaMediaModule.h"
 #include "AvaMediaSettings.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Broadcast/IAvaBroadcastSettings.h"
+#include "Broadcast/OutputDevices/AvaBroadcastDeviceProviderProxy.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputUtils.h"
+#include "IAvaMediaModule.h"
 #include "IAvaModule.h"
 #include "IMediaIOCoreModule.h"
 #include "MediaOutput.h"
 #include "MessageEndpointBuilder.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/Paths.h"
+#include "Playback/AvaPlaybackClientDelegates.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
 
@@ -29,7 +32,7 @@ namespace UE::AvaPlaybackClient::Private
 	}
 }
 
-FAvaPlaybackClient::FAvaPlaybackClient(FAvaMediaModule* InParentModule)
+FAvaPlaybackClient::FAvaPlaybackClient(IAvaMediaModule* InParentModule)
 	: ParentModule(InParentModule)
 {
 	UPackage::PreSavePackageWithContextEvent.AddRaw(this, &FAvaPlaybackClient::OnPreSavePackage);
