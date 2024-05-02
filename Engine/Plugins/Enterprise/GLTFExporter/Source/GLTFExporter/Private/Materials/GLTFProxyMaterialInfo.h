@@ -46,4 +46,15 @@ public:
 
 	static const TGLTFProxyMaterialParameterInfo<float> TransmissionFactor;
 	static const FGLTFProxyMaterialTextureParameterInfo TransmissionTexture; //Only using Red Channel
+
+	static const TGLTFProxyMaterialParameterInfo<float> IridescenceFactor;
+	static const TGLTFProxyMaterialParameterInfo<float> IridescenceIOR;
+	static const FGLTFProxyMaterialTextureParameterInfo IridescenceTexture;
+	static const TGLTFProxyMaterialParameterInfo<float> IridescenceThicknessMinimum;
+	static const TGLTFProxyMaterialParameterInfo<float> IridescenceThicknessMaximum;
+	static const FGLTFProxyMaterialTextureParameterInfo IridescenceThicknessTexture;
+
+	static const TGLTFProxyMaterialParameterInfo<float> AnisotropyStrength;
+	static const TGLTFProxyMaterialParameterInfo<float> AnisotropyRotation;
+	static const FGLTFProxyMaterialTextureParameterInfo AnisotropyTexture;
 };

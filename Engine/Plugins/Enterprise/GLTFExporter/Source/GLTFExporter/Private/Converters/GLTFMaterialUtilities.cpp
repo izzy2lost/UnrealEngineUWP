@@ -1001,6 +1001,11 @@ void FGLTFImportMaterialMatchMakingHelper::Process()
 			GetValue(Inputs::IridescenceThicknessMinimum, JsonMaterial.Iridescence.IridescenceThicknessMinimum);
 			GetValue(Inputs::IridescenceThicknessMaximum, JsonMaterial.Iridescence.IridescenceThicknessMaximum);
 			GetValue(Inputs::IridescenceThicknessTexture, JsonMaterial.Iridescence.IridescenceThicknessTexture);
+
+			//Anisotropy
+			GetValue(Inputs::AnisotropyStrength, JsonMaterial.Anisotropy.AnisotropyStrength);
+			GetValue(Inputs::AnisotropyRotation, JsonMaterial.Anisotropy.AnisotropyRotation);
+			GetValue(Inputs::AnisotropyTexture, JsonMaterial.Anisotropy.AnisotropyTexture);
 		}
 
 		//Importer does not support Emissive for Transmission at the moment
