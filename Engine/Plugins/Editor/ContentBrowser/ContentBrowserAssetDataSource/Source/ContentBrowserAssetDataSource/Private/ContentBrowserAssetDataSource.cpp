@@ -3,6 +3,7 @@
 #include "ContentBrowserAssetDataSource.h"
 
 #include "Algo/Transform.h"
+#include "AssetPropertyTagCache.h"
 #include "Async/ParallelFor.h"
 #include "ContentBrowserAssetDataCore.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -155,7 +156,7 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 	CollectionManager = &FCollectionManagerModule::GetModule().Get();
 
 	// Listen for asset registry updates
-	AssetRegistry->OnAssetAdded().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetAdded);
+	AssetRegistry->OnAssetsAdded().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetsAdded);
 	AssetRegistry->OnAssetRemoved().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetRemoved);
 	AssetRegistry->OnAssetRenamed().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetRenamed);
 	AssetRegistry->OnAssetUpdated().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetUpdated);
@@ -245,6 +246,8 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 
 	DiscoveryStatusText = LOCTEXT("InitializingAssetDiscovery", "Initializing Asset Discovery...");
 
+	FAssetPropertyTagCache& PropertyTagCache = FAssetPropertyTagCache::Get();
+
 	// Populate the initial set of folder attributes
 	// This will be updated as the scan finds more content
 	AssetRegistry->EnumerateAllCachedPaths([this](FName PathName) { 
@@ -252,8 +255,9 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 		OnPathsAdded({NameBuilder.ToView()});
 		return true; 
 	});
-	AssetRegistry->EnumerateAllAssets([this](const FAssetData& InAssetData)
+	AssetRegistry->EnumerateAllAssets([this, &PropertyTagCache ](const FAssetData& InAssetData)
 		{
+			PropertyTagCache.GetCacheForClass(InAssetData.AssetClassPath);
 			OnPathPopulated(InAssetData);
 			return true;
 		}, /*bIncludeOnlyOnDiskAssets*/true);
@@ -290,7 +294,7 @@ void UContentBrowserAssetDataSource::Shutdown()
 		{
 			AssetRegistryMaybe->OnFileLoadProgressUpdated().RemoveAll(this);
 
-			AssetRegistryMaybe->OnAssetAdded().RemoveAll(this);
+			AssetRegistryMaybe->OnAssetsAdded().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetRemoved().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetRenamed().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetUpdated().RemoveAll(this);
@@ -3135,14 +3139,22 @@ void UContentBrowserAssetDataSource::OnAssetRegistryFileLoadProgress(const IAsse
 	}
 }
 
-void UContentBrowserAssetDataSource::OnAssetAdded(const FAssetData& InAssetData)
+void UContentBrowserAssetDataSource::OnAssetsAdded(TConstArrayView<FAssetData> InAssets)
 {
-	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
-	{
-		// The owner folder of this asset is no longer considered empty
-		OnPathPopulated(InAssetData);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnAssetsAdded);
 
-		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFileItem(InAssetData)));
+	FAssetPropertyTagCache& Cache = FAssetPropertyTagCache::Get();
+	for (const FAssetData& InAssetData : InAssets)
+	{
+		Cache.GetCacheForClass(InAssetData.AssetClassPath);
+
+		if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
+		{
+			// The owner folder of this asset is no longer considered empty
+			OnPathPopulated(InAssetData);
+
+			QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFileItem(InAssetData)));
+		}
 	}
 }
 

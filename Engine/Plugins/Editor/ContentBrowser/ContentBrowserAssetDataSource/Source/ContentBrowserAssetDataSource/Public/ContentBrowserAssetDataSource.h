@@ -377,7 +377,7 @@ private:
 
 	void OnAssetRegistryFileLoadProgress(const IAssetRegistry::FFileLoadProgressUpdateData& InProgressUpdateData);
 
-	void OnAssetAdded(const FAssetData& InAssetData);
+	void OnAssetsAdded(TConstArrayView<FAssetData> InAssets);
 
 	void OnAssetRemoved(const FAssetData& InAssetData);
 

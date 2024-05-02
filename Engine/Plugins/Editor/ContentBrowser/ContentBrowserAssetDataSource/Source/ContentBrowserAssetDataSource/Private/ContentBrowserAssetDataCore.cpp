@@ -1529,7 +1529,7 @@ bool GetVirtualizationItemAttribute(const FAssetData& InAssetData, IAssetRegistr
 	}
 }
 
-void GetGenericItemAttribute(const FName InTagKey, const FString& InTagValue, const FAssetPropertyTagCache::FClassPropertyTagCache& InClassPropertyTagCache, const bool InIncludeMetaData, FContentBrowserItemDataAttributeValue& OutAttributeValue)
+void GetGenericItemAttribute(const FName InTagKey, const FString& InTagValue, const FAssetPropertyTagCache::FClassPropertyTagCache* InClassPropertyTagCache, const bool InIncludeMetaData, FContentBrowserItemDataAttributeValue& OutAttributeValue)
 {
 	check(!InTagKey.IsNone());
 
@@ -1549,7 +1549,8 @@ void GetGenericItemAttribute(const FName InTagKey, const FString& InTagValue, co
 	if (InIncludeMetaData)
 	{
 		FContentBrowserItemDataAttributeMetaData AttributeMetaData;
-		if (const FAssetPropertyTagCache::FPropertyTagCache* PropertyTagCache = InClassPropertyTagCache.GetCacheForTag(InTagKey))
+		const FAssetPropertyTagCache::FPropertyTagCache* PropertyTagCache = InClassPropertyTagCache ? InClassPropertyTagCache->GetCacheForTag(InTagKey) : nullptr;
+		if (PropertyTagCache)
 		{
 			AttributeMetaData.AttributeType = PropertyTagCache->TagType;
 			AttributeMetaData.DisplayFlags = PropertyTagCache->DisplayFlags;
@@ -1785,17 +1786,20 @@ bool GetAssetDataAttribute(const FAssetData& InAssetData, const bool InIncludeMe
 
 	// Generic attribute keys
 	{
-		const FAssetPropertyTagCache::FClassPropertyTagCache& ClassPropertyTagCache = FAssetPropertyTagCache::Get().GetCacheForClass(InAssetData.AssetClassPath);
+		const FAssetPropertyTagCache::FClassPropertyTagCache* ClassPropertyTagCache = FAssetPropertyTagCache::Get().FindCacheForClass(InAssetData.AssetClassPath);
 
 		FName FoundAttributeKey = InAttributeKey;
 		FAssetDataTagMapSharedView::FFindTagResult FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
 		if (!FoundValue.IsSet())
 		{
-			// Check to see if the key we were given resolves as an alias
-			FoundAttributeKey = ClassPropertyTagCache.GetTagNameFromAlias(FoundAttributeKey);
-			if (!FoundAttributeKey.IsNone())
+			if (ensureMsgf(ClassPropertyTagCache, TEXT("FAssetPropertyTagCache not populated for type %s"), *WriteToString<256>(InAssetData.AssetClassPath)))
 			{
-				FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
+				// Check to see if the key we were given resolves as an alias
+				FoundAttributeKey = ClassPropertyTagCache->GetTagNameFromAlias(FoundAttributeKey);
+				if (!FoundAttributeKey.IsNone())
+				{
+					FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
+				}
 			}
 		}
 		if (FoundValue.IsSet())
@@ -1865,7 +1869,7 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 	static const FTopLevelAssetPath BlueprintAssetClass = FTopLevelAssetPath(TEXT("/Script/Engine"), TEXT("Blueprint"));
 	static const FName ParentClassTag = FName("ParentClass");
 	{
-		const FAssetPropertyTagCache::FClassPropertyTagCache& ClassPropertyTagCache = FAssetPropertyTagCache::Get().GetCacheForClass(InAssetData.AssetClassPath);
+		const FAssetPropertyTagCache::FClassPropertyTagCache* ClassPropertyTagCache = FAssetPropertyTagCache::Get().FindCacheForClass(InAssetData.AssetClassPath);
 		const FAssetPropertyTagCache::FClassPropertyTagCache* ParentClassPropertyTagCache = nullptr;
 
 		if (InAssetData.AssetClassPath == BlueprintAssetClass)
@@ -1877,7 +1881,7 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 				FTopLevelAssetPath ParentClassPathName = UClass::TryConvertShortTypeNameToPathName<UClass>(ParentClassName, ELogVerbosity::Warning, TEXT("GetAssetFileItemAttributes"));
 				if (!ParentClassPathName.IsNull())
 				{
-					ParentClassPropertyTagCache = &FAssetPropertyTagCache::Get().GetCacheForClass(ParentClassPathName);
+					ParentClassPropertyTagCache = FAssetPropertyTagCache::Get().FindCacheForClass(ParentClassPathName);
 				}
 				else
 				{
@@ -1893,7 +1897,7 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 			GetGenericItemAttribute(TagAndValue.Key, TagAndValue.Value.AsString(), ClassPropertyTagCache, InIncludeMetaData, GenericAttributeValue);
 			if (ParentClassPropertyTagCache && ParentClassPropertyTagCache->GetCacheForTag(TagAndValue.Key))
 			{
-				GetGenericItemAttribute(TagAndValue.Key, TagAndValue.Value.AsString(), *ParentClassPropertyTagCache, InIncludeMetaData, GenericAttributeValue);
+				GetGenericItemAttribute(TagAndValue.Key, TagAndValue.Value.AsString(), ParentClassPropertyTagCache, InIncludeMetaData, GenericAttributeValue);
 			}
 		}
 	}
