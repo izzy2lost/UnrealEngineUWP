@@ -52,6 +52,7 @@ struct FSkeletalMeshPoseMessage
 	uint16 FrameCounter = 0;
 	uint16 LodIndex = 0;
 	uint16 NumExternalMorphSets = 0;
+	bool bIsVisible = true;
 };
 
 struct FPoseWatchMessage

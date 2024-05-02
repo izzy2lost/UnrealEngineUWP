@@ -92,6 +92,7 @@ void FRewindDebuggerAnimation::OnPIEResumed(bool bSimulating)
 		{
 			MeshComponent->SetRelativeTransform(MeshData.Value.RelativeTransform, false, nullptr, ETeleportType::TeleportPhysics);
 			MeshComponent->SetForcedLOD(MeshData.Value.ForcedLod);
+			MeshComponent->SetVisibility(MeshData.Value.bIsVisible);
 		}
 	}
 
@@ -178,6 +179,7 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 					ResetData.Component = MeshComponent;
 					ResetData.RelativeTransform = MeshComponent->GetRelativeTransform();
 					ResetData.ForcedLod = MeshComponent->GetForcedLOD();
+					ResetData.bIsVisible = MeshComponent->GetVisibleFlag();
 					MeshComponentsToReset.Add(ObjectId, ResetData);
 				}
 			}
@@ -186,6 +188,7 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 			MeshComponent->SetForcedLOD(PoseMessage->LodIndex + 1);
 			MeshComponent->UpdateLODStatus();
 			MeshComponent->UpdateChildTransforms(EUpdateTransformFlags::None, ETeleportType::TeleportPhysics);
+			MeshComponent->SetVisibility(PoseMessage->bIsVisible);
 		}
 	}
 }

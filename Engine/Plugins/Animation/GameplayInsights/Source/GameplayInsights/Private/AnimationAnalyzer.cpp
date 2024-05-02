@@ -194,7 +194,7 @@ bool FAnimationAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventCon
 	{
 		uint64 Cycle = EventData.GetValue<uint64>("Cycle");
 		double RecordingTime = EventData.GetValue<double>("RecordingTime");
-		
+		bool bIsVisible = EventData.GetValue<bool>("IsVisible", true);	
 		uint64 ComponentId = EventData.GetValue<uint64>("ComponentId");
 		uint64 MeshId = EventData.GetValue<uint64>("MeshId");
 		uint32 BoneCount = EventData.GetValue<uint32>("BoneCount");
@@ -215,6 +215,7 @@ bool FAnimationAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventCon
 			RecordingTime,
 			LodIndex,
 			FrameCounter,
+			bIsVisible,
 			ComponentToWorldFloatArray,
 			PoseFloatArray,
 			CurveIds,

@@ -868,6 +868,7 @@ void FAnimationProvider::AppendSkeletalMeshComponent(
 	double InRecordingTime,
 	uint16 InLodIndex,
 	uint16 InFrameCounter,
+	bool bInIsVisible,
 	const TArrayView<const float>& InComponentToWorldRaw,
 	const TArrayView<const float>& InPoseRaw,
 	const TArrayView<const uint32>& InCurveIds,
@@ -924,6 +925,7 @@ void FAnimationProvider::AppendSkeletalMeshComponent(
 
 	FSkeletalMeshPoseMessage Message;
 	Message.RecordingTime = InRecordingTime;
+	Message.bIsVisible = bInIsVisible;
 	Message.ComponentToWorld = ComponentToWorld;
 	Message.TransformStartIndex = SkeletalMeshPoseTransforms.Num();
 	Message.CurveStartIndex = SkeletalMeshCurves.Num();
