@@ -142,7 +142,7 @@ namespace OidcToken
 				})
 				.RunConsoleAsync();
 
-			return 0;
+			return Environment.ExitCode;
 		}
 
 		class GetHordeAuthConfigResponse
