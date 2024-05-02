@@ -27,6 +27,11 @@
 
 #define LOCTEXT_NAMESPACE "MVVMBlueprintViewEvent"
 
+namespace UE::MVVM::Private
+{
+	static FLazyName HiddenName = "Hidden";
+}
+
 void UMVVMBlueprintViewEvent::SetEventPath(FMVVMBlueprintPropertyPath InEventPath)
 {
 	if (InEventPath == EventPath)
@@ -275,6 +280,8 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 	}
 	else
 	{
+		UE::MVVM::ConversionFunctionHelper::SetMetaData(CreateSetterGraphResult.GetValue().NewGraph, UE::MVVM::Private::HiddenName.Resolve(), FStringView());
+
 		UMVVMK2Node_AreSourcesValidForEvent* BranchNode = Cast<UMVVMK2Node_AreSourcesValidForEvent>(UE::MVVM::ConversionFunctionHelper::InsertEarlyExitBranchNode(CreateSetterGraphResult.GetValue().NewGraph, UMVVMK2Node_AreSourcesValidForEvent::StaticClass()));
 		SetCachedWrapperGraphInternal(CreateSetterGraphResult.GetValue().NewGraph, CreateSetterGraphResult.GetValue().WrappedNode, BranchNode);
 		LoadPinValuesInternal();

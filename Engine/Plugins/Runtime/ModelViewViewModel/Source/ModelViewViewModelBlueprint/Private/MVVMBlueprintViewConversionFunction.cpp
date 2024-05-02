@@ -24,6 +24,7 @@
 namespace UE::MVVM::Private
 {
 	static FLazyName DefaultConversionFunctionName = TEXT("__ConversionFunction");
+	static FLazyName HiddenName = "Hidden";
 }
 
 bool UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(const UBlueprint* WidgetBlueprint, const UFunction* Function)
@@ -414,6 +415,8 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(
 		check(Node.Get());
 		Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Node, bConst, bWrapperGraphTransient, [](UK2Node*){});
 	}
+	UE::MVVM::ConversionFunctionHelper::SetMetaData(Result.NewGraph, UE::MVVM::Private::HiddenName.Resolve(), FStringView());
+
 	const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(Blueprint, Result.NewGraph, Result.WrappedNode);
 	LoadPinValuesInternal(Blueprint);
 	return CachedWrapperGraph;

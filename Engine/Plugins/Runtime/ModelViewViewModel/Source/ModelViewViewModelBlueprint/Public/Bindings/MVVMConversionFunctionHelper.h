@@ -83,6 +83,9 @@ namespace UE::MVVM::ConversionFunctionHelper
 	
 	/** Return the pin used as the return value. */
 	MODELVIEWVIEWMODELBLUEPRINT_API UEdGraphPin* FindOutputPin(const UK2Node* Node);
+
+	/** Add metadata to the Graph/Function. */
+	MODELVIEWVIEWMODELBLUEPRINT_API void SetMetaData(UEdGraph* NewGraph, FName MetaData, FStringView Value);
 } //namespace
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

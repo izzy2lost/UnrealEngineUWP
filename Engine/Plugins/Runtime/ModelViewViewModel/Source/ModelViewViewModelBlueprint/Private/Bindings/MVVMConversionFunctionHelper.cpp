@@ -75,6 +75,16 @@ namespace Private
 		}
 		return nullptr;
 	}
+	
+	void RenameObjectToTransientPackage(UObject* ObjectToRename)
+	{
+		const ERenameFlags RenFlags = REN_DoNotDirty | REN_ForceNoResetLoaders | REN_DontCreateRedirectors;
+
+		ObjectToRename->Rename(nullptr, GetTransientPackage(), RenFlags);
+		ObjectToRename->SetFlags(RF_Transient);
+		ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);
+		FLinkerLoad::InvalidateExport(ObjectToRename);
+	}
 
 	struct FCreateGraphResult
 	{
@@ -84,8 +94,16 @@ namespace Private
 	};
 	FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* FunctionEntryDefinition, bool bIsConst, bool bIsEditable, bool bAddToBlueprint)
 	{
+		if (UObject* ExistingObject = StaticFindObject(nullptr, Blueprint, *GraphName.ToString(), true))
+		{
+			RenameObjectToTransientPackage(ExistingObject);
+		}
+
 		FName UniqueFunctionName = FBlueprintEditorUtils::FindUniqueKismetName(Blueprint, GraphName.ToString());
+		ensure(GraphName == UniqueFunctionName);
 		UEdGraph* FunctionGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, UniqueFunctionName, UEdGraph::StaticClass(), UMVVMConversionFunctionGraphSchema::StaticClass());
+		ensure(FunctionGraph->GetFName() == GraphName);
+
 		FunctionGraph->bEditable = bIsEditable;
 		if (bAddToBlueprint)
 		{
@@ -1276,6 +1294,18 @@ TArray<UEdGraphPin*> FindInputPins(const UK2Node* Node)
 UEdGraphPin* FindOutputPin(const UK2Node* Node)
 {
 	return Node? Private::FindNewOutputPin(Node) : nullptr;
+}
+
+void SetMetaData(UEdGraph* NewGraph, FName MetaData, FStringView Value)
+{
+	if (NewGraph == nullptr || MetaData.IsNone())
+	{
+		return;
+	}
+	if (UK2Node_FunctionEntry* FunctionEntry = Private::FindFunctionEntry(NewGraph))
+	{
+		FunctionEntry->MetaData.SetMetaData(MetaData, Value);
+	}
 }
 
 } // UE::MVVM::ConversionFunctionHelper
