@@ -159,6 +159,15 @@ struct MASSLOD_API FMassSimulationVariableTickSharedFragment : public FMassShare
 		}
 		return true;
 	}
+
+	/**
+	 * Custom hash function for GetOrCreateConstSharedFragment to use. This hashes the parameters of LODTickRateController
+	 * which are the values indicating the uniqueness of a given shared fragment
+	 */
+	friend FORCEINLINE uint32 GetTypeHash(const FMassSimulationVariableTickSharedFragment& SharedFragmentInstance)
+	{
+		return GetTypeHash(SharedFragmentInstance.LODTickRateController);
+	}
 };
 
 UCLASS(meta = (DisplayName = "Simulation LOD"))

@@ -50,6 +50,11 @@ public:
 	template <typename TLODFragment, typename TVariableTickRateFragment>
 	bool UpdateTickRateFromLOD(FMassExecutionContext& Context, TConstArrayView<TLODFragment> LODList, TArrayView<TVariableTickRateFragment> TickRateList, const double Time);
 
+	friend FORCEINLINE uint32 GetTypeHash(const TMassLODTickRateController<TVariableTickChunkFragment, FLODLogic>& SharedFragmentInstance)
+	{
+		return HashCombineFast(GetTypeHash(SharedFragmentInstance.TickRates), uint32(SharedFragmentInstance.bShouldSpreadFirstUpdate));
+	}
+
 protected:
 
 	/** Tick rate for each LOD */
