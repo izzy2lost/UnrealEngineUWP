@@ -867,7 +867,6 @@ TSharedRef<SWidget> UCameraLensDistortionAlgoAruco::BuildCalibrationActionButton
 TSharedRef<SWidget> UCameraLensDistortionAlgoAruco::BuildCalibrationRowListWidget()
 {
 	CalibrationRowListWidget = SNew(SListView<TSharedPtr<FLensDistortionArucoRowData>>)
-		.ItemHeight(24)
 		.ListItemsSource(&CalibrationRows)
 		.SelectionMode(ESelectionMode::Multi)
 		.OnGenerateRow_Lambda([](TSharedPtr<FLensDistortionArucoRowData> InItem, const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow>

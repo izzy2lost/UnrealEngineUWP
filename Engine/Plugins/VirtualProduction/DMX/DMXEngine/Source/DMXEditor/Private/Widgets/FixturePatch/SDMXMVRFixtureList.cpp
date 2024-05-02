@@ -594,7 +594,6 @@ void SDMXMVRFixtureList::Construct(const FArguments& InArgs, TWeakPtr<FDMXEditor
 			SAssignNew(ListView, FDMXMVRFixtureListType)
 			.ListViewStyle(&TableViewStyle)
 			.HeaderRow(GenerateHeaderRow())
-			.ItemHeight(40.0f)
 			.ListItemsSource(&ListSource)
 			.OnGenerateRow(this, &SDMXMVRFixtureList::OnGenerateRow)
 			.OnSelectionChanged(this, &SDMXMVRFixtureList::OnSelectionChanged)

@@ -292,7 +292,6 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 
 	// Groups List
 	SAssignNew(GroupsListView, SListView<TSharedPtr<SRCPanelTreeNode>>)
-		.ItemHeight(24.f)
 		.SelectionMode(ESelectionMode::Single)
 		.ListItemsSource(reinterpret_cast<TArray<TSharedPtr<SRCPanelTreeNode>>*>(&FieldGroups))
 		.ClearSelectionOnClick(true)
@@ -335,7 +334,6 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 
 	// Fields List
 	SAssignNew(FieldsListView, STreeView<TSharedPtr<SRCPanelTreeNode>>)
-		.ItemHeight(24.f)
 		.OnGenerateRow(this, &SRCPanelExposedEntitiesList::OnGenerateRow)
 		.OnSelectionChanged(this, &SRCPanelExposedEntitiesList::OnSelectionChanged)
 		.SelectionMode(ESelectionMode::Multi)

@@ -1935,7 +1935,6 @@ TSharedRef<SWidget> UCameraNodalOffsetAlgoPoints::BuildCalibrationPointsComboBox
 TSharedRef<SWidget> UCameraNodalOffsetAlgoPoints::BuildCalibrationPointsTable()
 {
 	CalibrationListView = SNew(SListView<TSharedPtr<FNodalOffsetPointsRowData>>)
-		.ItemHeight(24)
 		.ListItemsSource(&CalibrationRows)
 		.OnGenerateRow_Lambda([&](TSharedPtr<FNodalOffsetPointsRowData> InItem, const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow>
 		{

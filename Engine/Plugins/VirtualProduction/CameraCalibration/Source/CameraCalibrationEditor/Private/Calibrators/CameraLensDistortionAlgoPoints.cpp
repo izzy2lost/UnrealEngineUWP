@@ -897,7 +897,6 @@ TSharedRef<SWidget> UCameraLensDistortionAlgoPoints::BuildCurrentFocalLengthWidg
 TSharedRef<SWidget> UCameraLensDistortionAlgoPoints::BuildCalibrationPointsTable()
 {
 	CalibrationListView = SNew(SListView<TSharedPtr<FLensDistortionPointsRowData>>)
-		.ItemHeight(24)
 		.ListItemsSource(&CalibrationRows)
 		.OnGenerateRow_Lambda([&](TSharedPtr<FLensDistortionPointsRowData> InItem, const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow>
 		{

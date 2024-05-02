@@ -25,7 +25,6 @@ void SPropertyAnimatorCoreEditorPropertiesView::Construct(const FArguments& InAr
 			SAssignNew(PropertiesTree, STreeView<FPropertiesViewItemPtr>)
 		   .TreeItemsSource(&PropertiesTreeSource)
 		   .SelectionMode(ESelectionMode::None)
-		   .ItemHeight(30.f)
 		   .HeaderRow(
 			   SNew(SHeaderRow)
 			   + SHeaderRow::Column(SPropertyAnimatorCoreEditorEditPanel::HeaderPropertyColumnName)

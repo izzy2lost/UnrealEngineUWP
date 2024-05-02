@@ -191,7 +191,6 @@ void SCameraCalibrationLinkedPointsDialog::Construct(const FArguments& InArgs , 
         [
         	SAssignNew(LinkedItemsTree, STreeView<TSharedPtr<FLinkedTreeItem>>)
 			.TreeItemsSource(&LinkedItems)
-			.ItemHeight(24.0f)
 			.OnGenerateRow_Lambda([](TSharedPtr<FLinkedTreeItem> InItem, const TSharedRef<STableViewBase>& OwnerTable) { return InItem->MakeTreeRowWidget(OwnerTable); })
 			.OnGetChildren_Lambda([](TSharedPtr<FLinkedTreeItem> InItem, TArray<TSharedPtr<FLinkedTreeItem>>& OutNodes) { OutNodes = InItem->GetChildren(); })
 			.ClearSelectionOnClick(false)

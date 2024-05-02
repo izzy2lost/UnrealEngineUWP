@@ -191,7 +191,6 @@ void SDMXPixelMappingHierarchyView::BuildChildSlotAndRefresh()
 			.Padding(4.f)
 			[
 				SAssignNew(HierarchyTreeView, STreeView<TSharedPtr<FDMXPixelMappingHierarchyItem>>)
-				.ItemHeight(20.0f)
 				.SelectionMode(ESelectionMode::Multi)
 				.HeaderRow(GenerateHeaderRow())
 				.OnGetChildren(FilterHandler.ToSharedRef(), &TreeFilterHandler<TSharedPtr<FDMXPixelMappingHierarchyItem>>::OnGetFilteredChildren)
