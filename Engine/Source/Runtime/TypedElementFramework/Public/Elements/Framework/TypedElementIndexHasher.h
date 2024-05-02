@@ -7,6 +7,7 @@
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectPtr.h"
+#include "UObject/SoftObjectPath.h"
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -25,6 +26,7 @@ namespace TypedElementDataStorage
 	inline IndexHash GenerateIndexHash(const FString& Object);
 	inline IndexHash GenerateIndexHash(FStringView Object);
 	inline IndexHash GenerateIndexHash(FName Object);
+	inline IndexHash GenerateIndexHash(const FSoftObjectPath& ObjectPath);
 } // namespace TypedElementDataStorage
 
 #include "Elements/Framework/TypedElementIndexHasher.inl"

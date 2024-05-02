@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Hash/CityHash.h"
+#include "UObject/TopLevelAssetPath.h"
 
 namespace TypedElementDataStorage
 {
@@ -44,6 +45,17 @@ namespace TypedElementDataStorage
 	{
 		constexpr static const char SeedName[] = "FName";
 		static uint64 Seed = CityHash64(SeedName, sizeof(SeedName) - 1);
-		return CityHash128to64({ Seed, Object.GetComparisonIndex().ToUnstableInt() });
+		return CityHash128to64({ Seed, Object.ToUnstableInt() });
+	}
+
+	IndexHash GenerateIndexHash(const FSoftObjectPath& ObjectPath)
+	{
+		constexpr static const char SeedName[] = "FSoftObjectPath";
+		static uint64 Seed = CityHash64(SeedName, sizeof(SeedName) - 1);
+
+		FTopLevelAssetPath TopLevelAssetPath = ObjectPath.GetAssetPath();
+		uint64 Hash = CityHash128to64({ Seed, GenerateIndexHash(TopLevelAssetPath.GetPackageName()) });
+		Hash = CityHash128to64({ Hash, GenerateIndexHash(TopLevelAssetPath.GetAssetName()) });
+		return CityHash128to64({ Hash, GenerateIndexHash(ObjectPath.GetSubPathString()) });
 	}
 } // namespace TypedElementDataStorage
