@@ -142,7 +142,6 @@ public:
 			.Padding(5, 5)
 			[
 				SAssignNew(DocumentList, SListView<TSharedRef<FDocumentInfo>>)
-				.ItemHeight(24)
 				.SelectionMode(ESelectionMode::None)
 				.ListItemsSource(&InViewModel->GetDocuments())
 				.OnGenerateRow(this, &SAutomationDriverSpecSuiteImpl::GenerateListRow)

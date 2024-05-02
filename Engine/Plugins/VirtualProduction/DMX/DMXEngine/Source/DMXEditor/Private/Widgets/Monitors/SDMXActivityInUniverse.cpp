@@ -100,8 +100,7 @@ void SDMXActivityInUniverse::Construct(const FArguments& InArgs)
 					.OnGenerateRow(this, &SDMXActivityInUniverse::GenerateChannelRow)
 					.ListItemsSource(&ChannelListSource)
 					.Orientation(EOrientation::Orient_Horizontal)
-					.ScrollbarVisibility(EVisibility::Collapsed)					
-					.ItemHeight(40.0f)
+					.ScrollbarVisibility(EVisibility::Collapsed)
 				]
 			]
 			+ SVerticalBox::Slot()

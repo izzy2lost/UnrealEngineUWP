@@ -123,7 +123,6 @@ void SDMXFixtureTypeFunctionsEditor::RebuildList()
 				(
 					SAssignNew(ListView, SListView<TSharedPtr<FDMXFixtureTypeFunctionsEditorItemBase>>)
 					.HeaderRow(GenerateHeaderRow())
-					.ItemHeight(40.0f)
 					.ListItemsSource(&ListSource)
 					.OnGenerateRow(this, &SDMXFixtureTypeFunctionsEditor::OnGenerateRow)
 					.OnSelectionChanged(this, &SDMXFixtureTypeFunctionsEditor::OnListSelectionChanged)

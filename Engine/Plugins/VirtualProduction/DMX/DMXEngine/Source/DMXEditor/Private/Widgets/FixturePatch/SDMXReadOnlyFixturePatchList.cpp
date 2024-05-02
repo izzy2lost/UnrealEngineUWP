@@ -118,7 +118,6 @@ void SDMXReadOnlyFixturePatchList::Construct(const FArguments& InArgs)
 			[
 				SAssignNew(ListView, SListView<TSharedPtr<FDMXReadOnlyFixturePatchListItem>>)
 				.HeaderRow(GenerateHeaderRow())
-				.ItemHeight(60.0f)
 				.ListItemsSource(&ListItems)
 				.OnGenerateRow(this, &SDMXReadOnlyFixturePatchList::OnGenerateRow)
 				.OnContextMenuOpening(InArgs._OnContextMenuOpening)

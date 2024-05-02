@@ -205,7 +205,6 @@ void SDMXActivityMonitor::Construct(const FArguments& InArgs)
 						+ SScrollBox::Slot()				
 						[
 							SAssignNew(UniverseList, SListView<TSharedPtr<SDMXActivityInUniverse>>)
-							.ItemHeight(20.0f)
 							.ListItemsSource(&UniverseListSource)
 							.Visibility(EVisibility::Visible)
 							.OnGenerateRow(this, &SDMXActivityMonitor::OnGenerateUniverseRow)

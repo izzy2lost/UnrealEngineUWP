@@ -163,7 +163,6 @@ void STimedDataMonitorBufferVisualizer::Construct(const FArguments& InArgs)
 		.ListItemsSource(&ListItemsSource)
 		.OnGenerateRow(this, &STimedDataMonitorBufferVisualizer::MakeListViewWidget)
 		.OnRowReleased(this, &STimedDataMonitorBufferVisualizer::ReleaseListViewWidget)
-		.ItemHeight(60)
 		.HeaderRow(
 			SNew(SHeaderRow)
 			+ SHeaderRow::Column(TimedDataBufferVisualizer::HeaderIdName_DisplayName)

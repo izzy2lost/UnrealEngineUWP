@@ -751,7 +751,6 @@ void SFiltersAndPresets::Construct( const FArguments& InArgs )
 				.OnGenerateRow( this, &SFiltersAndPresets::GroupAndStatTree_OnGenerateRow )
 				.OnMouseButtonDoubleClick( this, &SFiltersAndPresets::GroupAndStatTree_OnMouseButtonDoubleClick )
 				//.OnSelectionChanged( this, &SFiltersAndPresets::GroupAndStatTree_OnSelectionChanged )
-				.ItemHeight( 12 )
 			]
 		]
 	];

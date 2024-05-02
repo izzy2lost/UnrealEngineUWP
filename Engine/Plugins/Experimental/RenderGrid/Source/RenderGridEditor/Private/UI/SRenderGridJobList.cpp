@@ -370,7 +370,6 @@ void UE::RenderGrid::Private::SRenderGridJobListTable::Construct(const FArgument
 		SListView::FArguments()
 		.ListItemsSource(InArgs._ListItemsSource)
 		.HeaderRow(InArgs._HeaderRow)
-		.ItemHeight(20.0f)
 		.OnGenerateRow(this, &SRenderGridJobListTable::HandleJobListGenerateRow)
 		.OnSelectionChanged(this, &SRenderGridJobListTable::HandleJobListSelectionChanged)
 		.SelectionMode(ESelectionMode::Multi)

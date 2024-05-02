@@ -753,7 +753,6 @@ void SEventGraph::Construct( const FArguments& InArgs )
 											.OnGenerateRow(this, &SEventGraph::EventGraph_OnGenerateRow)
 											.OnSelectionChanged(this, &SEventGraph::EventGraph_OnSelectionChanged)
 											.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SEventGraph::EventGraph_GetMenuContent))
-											.ItemHeight(12.0f)
 											.HeaderRow
 											(
 												SAssignNew(TreeViewHeaderRow,SHeaderRow)

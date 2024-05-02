@@ -188,7 +188,6 @@ void SDisplayClusterColorGradingObjectList::Construct(const FArguments& InArgs)
 		[
 			SAssignNew(ListView, SListView<FDisplayClusterColorGradingListItemRef>)
 			.ListItemsSource(InArgs._ColorGradingItemsSource)
-			.ItemHeight(28)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(this, &SDisplayClusterColorGradingObjectList::GenerateListItemRow)
 			.OnSelectionChanged(this, &SDisplayClusterColorGradingObjectList::OnSelectionChanged)

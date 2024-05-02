@@ -84,7 +84,6 @@ void SDMXEntityTreeViewBase::Construct(const FArguments& InArgs)
 	// and also controls selection and drag/drop
 	RootNode = MakeShared<FDMXEntityTreeRootNode>();
 	EntitiesTreeWidget = SNew(STreeView<TSharedPtr<FDMXEntityTreeNodeBase>>)
-		.ItemHeight(24)
 		.TreeItemsSource(&RootNode->GetChildren())
 		.SelectionMode(ESelectionMode::Multi)
 		.OnGenerateRow(this, &SDMXEntityTreeViewBase::OnGenerateRow)

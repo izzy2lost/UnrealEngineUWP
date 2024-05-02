@@ -127,7 +127,6 @@ void SStormSyncReportDialog::Construct(const FArguments& InArgs, const FText& In
 				[
 					SAssignNew(ReportTreeView, SStormSyncReportTreeView)
 					.TreeItemsSource(&PackageReportRootNode.Children)
-					.ItemHeight(18)
 					.SelectionMode(ESelectionMode::Single)
 					.OnGenerateRow(this, &SStormSyncReportDialog::GenerateTreeRow)
 					.OnGetChildren_Static(&SStormSyncReportDialog::GetChildrenForTree)

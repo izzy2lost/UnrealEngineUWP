@@ -25,7 +25,6 @@ void SPropertyAnimatorCoreEditorControllersView::Construct(const FArguments& InA
 			SAssignNew(ControllersTree, STreeView<FControllersViewItemPtr>)
 			.TreeItemsSource(&ControllersTreeSource)
 			.SelectionMode(ESelectionMode::Multi)
-			.ItemHeight(30.f)
 			.HeaderRow(
 				SNew(SHeaderRow)
 				+ SHeaderRow::Column(SPropertyAnimatorCoreEditorEditPanel::HeaderAnimatorColumnName)

@@ -49,7 +49,6 @@ namespace UE::AdvancedRenamer::Private
 	constexpr float RightBlockOffsetX = 314.f;
 	const FVector2D RightBlockSize = {281.f, 490.f};
 	const FVector2D ListViewSize = {277.f, 431.f};
-	constexpr float ListLineHeight = 15.f;
 	constexpr float ApplyButtonHeight = 25.f;
 	static FName OriginalNameColumnName = "OriginalName";
 	static FName NewNameColumnName = "NewName";
@@ -731,7 +730,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateRenamePreview()
 				.Content()
 				[
 					SAssignNew(RenamePreviewList, SListView<TSharedPtr<FAdvancedRenamerPreview>>)
-					.ItemHeight(ListLineHeight)
 					.ListItemsSource(&Renamer->GetPreviews())
 					.OnGenerateRow(this, &SAdvancedRenamerPanel::OnGenerateRowForList)
 					.HeaderRow(

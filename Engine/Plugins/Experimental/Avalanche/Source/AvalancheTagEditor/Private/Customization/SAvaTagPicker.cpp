@@ -39,7 +39,6 @@ void SAvaTagPicker::Construct(const FArguments& InArgs, const TSharedRef<IProper
 		.OnGenerateRow(this, &SAvaTagPicker::CreateTagTableRow)
 		.SelectionMode(ESelectionMode::Single)
 		.ListItemsSource(&TagOptions)
-		.ItemHeight(24.0f)
 		.IsFocusable(false)
 		.HandleGamepadEvents(false)
 		.HandleSpacebarSelection(false)

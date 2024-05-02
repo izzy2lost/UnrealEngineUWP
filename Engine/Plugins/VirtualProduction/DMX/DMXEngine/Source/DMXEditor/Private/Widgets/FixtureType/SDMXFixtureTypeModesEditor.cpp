@@ -121,7 +121,6 @@ void SDMXFixtureTypeModesEditor::RebuildList()
 			ListContentBorder->SetContent
 			(
 				SAssignNew(ListView, SListView<TSharedPtr<FDMXFixtureTypeModesEditorModeItem>>)
-				.ItemHeight(40.0f)
 				.ListItemsSource(&ListSource)
 				.OnGenerateRow(this, &SDMXFixtureTypeModesEditor::OnGenerateModeRow)
 				.OnSelectionChanged(this, &SDMXFixtureTypeModesEditor::OnListSelectionChanged)

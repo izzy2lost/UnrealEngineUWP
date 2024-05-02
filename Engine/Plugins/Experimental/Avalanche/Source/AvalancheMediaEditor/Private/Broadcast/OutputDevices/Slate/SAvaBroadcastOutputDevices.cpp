@@ -23,7 +23,6 @@ void SAvaBroadcastOutputDevices::Construct(const FArguments& InArgs, const TShar
 	RootItem = MakeShared<FAvaBroadcastOutputRootItem>();
 	
 	SAssignNew(OutputTree, STreeView<FAvaOutputTreeItemPtr>)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::Single)
 		.OnGenerateRow(this, &SAvaBroadcastOutputDevices::OnGenerateItemRow)
 		.OnGetChildren(this, &SAvaBroadcastOutputDevices::OnGetRowChildren)
