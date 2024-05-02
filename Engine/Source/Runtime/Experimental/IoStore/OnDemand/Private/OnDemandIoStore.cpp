@@ -791,6 +791,8 @@ FIoStatus FOnDemandIoStore::InstallContainers(
 			{
 				return FIoStatusBuilder(EIoErrorCode::FileNotOpen) << TEXT("Failed to serialize container header");
 			}
+
+			Ar << ContainerHeader;
 		}
 
 		if (ContainerHeader.PackageIds.Num())
