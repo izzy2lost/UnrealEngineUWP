@@ -22,17 +22,36 @@
 TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty> UMVVMBlueprintViewExtension_PanelWidget::AddProperties()
 {
 	TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty> PropertiesToAdd;
-	PanelPropertyName = FName(FText::Format(LOCTEXT("ExtensionVariableName", "{0}_{1}"), FText::FromName(WidgetName), FText::FromString(TEXT("Viewmodel_Extension"))).ToString());
 
-	UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty Property;
-	Property.AuthoritativeClass = UMVVMPanelWidgetViewExtension::StaticClass();
-	Property.DisplayName = FText::FromName(PanelPropertyName);
-	Property.Name = PanelPropertyName;
-	Property.CategoryName = TEXT("PanelWidgetExtension");
-	Property.bReadOnly = true;
+	if (!WidgetName.IsNone())
+	{
+		// Add the runtime panel widget extension as a variable
+		PanelPropertyName = FName(FString::Printf(TEXT("%s_%s"), *WidgetName.ToString(), *FString(TEXT("Viewmodel_Extension"))));
+		UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty Property;
+		Property.AuthoritativeClass = UMVVMPanelWidgetViewExtension::StaticClass();
+		Property.DisplayName = FText::FromName(PanelPropertyName);
+		Property.Name = PanelPropertyName;
+		Property.CategoryName = TEXT("PanelWidgetExtension");
+		Property.bReadOnly = true;
+		PropertiesToAdd.Add(Property);
+	}
 
-	PropertiesToAdd.Add(Property);
 	return PropertiesToAdd;
+}
+
+TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetWidgetProperty> UMVVMBlueprintViewExtension_PanelWidget::AddWidgetProperties()
+{
+	TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetWidgetProperty> WidgetPropertiesToAdd;
+
+	if (!WidgetName.IsNone())
+	{
+		// Add the panel widget as a variable
+		UE::MVVM::Compiler::FBlueprintViewUserWidgetWidgetProperty WidgetProperty;
+		WidgetProperty.WidgetName = WidgetName;
+		WidgetPropertiesToAdd.Add(WidgetProperty);
+	}
+
+	return WidgetPropertiesToAdd;
 }
 
 void UMVVMBlueprintViewExtension_PanelWidget::Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class)

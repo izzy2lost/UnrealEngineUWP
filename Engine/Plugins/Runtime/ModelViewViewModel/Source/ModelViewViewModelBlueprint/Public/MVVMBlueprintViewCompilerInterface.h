@@ -61,6 +61,17 @@ enum class EMessageType
 	Error = 2
 };
 
+/**
+ * Data to be used by the compiler to create a property for a widget in the widget tree
+ */
+struct FBlueprintViewUserWidgetWidgetProperty
+{
+	FName WidgetName;
+};
+
+/**
+ * Data to be used by the compiler to create new user widget properties
+ */
 struct FBlueprintViewUserWidgetProperty
 {
 	UClass* AuthoritativeClass = nullptr;

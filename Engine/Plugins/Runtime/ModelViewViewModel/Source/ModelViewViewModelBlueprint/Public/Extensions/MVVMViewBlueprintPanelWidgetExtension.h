@@ -34,6 +34,7 @@ class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewExtension_PanelWidget : 
 public:
 	//~ Begin UMVVMBlueprintViewExtension overrides
 	virtual TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty> AddProperties() override;
+	virtual TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetWidgetProperty> AddWidgetProperties() override;
 	virtual void Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class) override;
 	virtual void Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension) override;
 	virtual bool WidgetRenamed(FName OldName, FName NewName) override;

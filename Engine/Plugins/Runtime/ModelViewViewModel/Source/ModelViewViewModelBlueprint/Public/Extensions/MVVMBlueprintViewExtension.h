@@ -26,6 +26,12 @@ public:
 	{
 		return TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetProperty>();
 	};
+
+	virtual TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetWidgetProperty> AddWidgetProperties()
+	{
+		return TArray<UE::MVVM::Compiler::FBlueprintViewUserWidgetWidgetProperty>();
+	};
+
 	virtual void Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class) {}
 	virtual void Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension) {}
 	virtual bool WidgetRenamed(FName OldName, FName NewName) 

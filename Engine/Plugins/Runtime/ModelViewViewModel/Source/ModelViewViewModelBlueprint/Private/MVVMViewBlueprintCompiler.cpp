@@ -1075,7 +1075,28 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 				CompilerUserWidgetProperty.bPrivate = Property.bPrivate;
 				CompilerUserWidgetProperty.bReadOnly = Property.bReadOnly;
 				CompilerUserWidgetProperty.CategoryName = Property.CategoryName;
-				CompilerUserWidgetProperty.CreationType = FCompilerUserWidgetProperty::ECreationType::CreateOnlyIfDoesntExist;
+				CompilerUserWidgetProperty.CreationType = FCompilerUserWidgetProperty::ECreationType::CreateIfDoesntExist;
+			}
+
+			TArray<Compiler::FBlueprintViewUserWidgetWidgetProperty> WidgetProperties = ExtensionPtr->AddWidgetProperties();
+			for (const Compiler::FBlueprintViewUserWidgetWidgetProperty& WidgetProperty : WidgetProperties)
+			{
+				if (WidgetNameToWidgetPointerMap.Find(WidgetProperty.WidgetName))
+				{				
+					FMVVMBlueprintPropertyPath WidgetPropertyPath;
+					WidgetPropertyPath.SetWidgetName(WidgetProperty.WidgetName);
+					TValueOrError<void, FText> SourceContextResult = GenerateCompilerContext(false, WidgetPropertyPath);
+					if (SourceContextResult.HasError())
+					{
+						AddMessage(SourceContextResult.StealError(), Compiler::EMessageType::Error);
+						bIsCreateVariableStepValid = false;
+					}
+				}
+				else
+				{
+					AddMessage(FText::Format(LOCTEXT("InvalidWidgetPropertyRequested", "Could not find the widget : {0} in the widget tree to make the property requested by viewmodel extension."), FText::FromName(WidgetProperty.WidgetName)), Compiler::EMessageType::Error);
+					bIsCreateVariableStepValid = false;
+				}
 			}
 		}
 	}
