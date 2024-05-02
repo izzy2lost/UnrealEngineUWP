@@ -19,7 +19,15 @@
 //TEST_CLASS(MyFixtureName, GenerateTestDirectory)
 TEST_CLASS(MyFixtureName, "Game.Example")
 {
+	//static variables setup in BEFORE_ALL and torn down in AFTER_ALL
+
 	//Member variables shared between tests
+
+	BEFORE_ALL()
+	{
+		//static method
+		//delete if empty
+	}
 
 	BEFORE_EACH()
 	{
@@ -28,6 +36,12 @@ TEST_CLASS(MyFixtureName, "Game.Example")
 
 	AFTER_EACH()
 	{
+		//delete if empty
+	}
+
+	AFTER_ALL()
+	{
+		//static method
 		//delete if empty
 	}
 
@@ -52,6 +66,14 @@ enum class ECQTestSuppressLogBehavior
 
 static const FString GenerateTestDirectory = TEXT("");
 static constexpr uint32 DefaultFlags = EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter;
+
+template <typename T>
+concept HasBeforeAll = requires(T t) { { T::BeforeAll(FString()) }; };
+
+template <typename T>
+concept HasAfterAll = requires(T t) { { T::AfterAll(FString()) }; };
+
+using BeforeAfterAllFunc = void(*)(const FString&);
 
 template <typename AsserterType>
 struct TBaseTest
@@ -104,6 +126,9 @@ struct TBaseTest
 
 	bool bInitializing{ true };
 
+	BeforeAfterAllFunc BeforeAllFunc = nullptr;
+	BeforeAfterAllFunc AfterAllFunc = nullptr;
+
 	FAutomationTestBase& TestRunner;
 	AsserterType Assert;
 	FTestCommandBuilder TestCommandBuilder;
@@ -113,12 +138,13 @@ template <typename AsserterType>
 struct TTestRunner;
 
 template <typename AsserterType>
-using TTestInstanceGenerator = TUniquePtr<TBaseTest<AsserterType>> (*)(TTestRunner<AsserterType>&);
+using TTestInstanceGenerator = TUniquePtr<TBaseTest<AsserterType>>(*)(TTestRunner<AsserterType>&);
 
 template <typename AsserterType>
 struct TTestRunner : public FAutomationTestBase
 {
 	TTestRunner(FString Name, int32 LineNumber, const char* FileName, FString TestDir, uint32 TestFlags, TTestInstanceGenerator<AsserterType> Factory);
+	~TTestRunner();
 
 	uint32 GetTestFlags() const override;
 	FString GetTestSourceFileName() const override;
@@ -143,6 +169,8 @@ struct TTestRunner : public FAutomationTestBase
 	TArray<FString> TestNames;
 	TMap<FString, int32> TestLineNumbers{};
 	TTestInstanceGenerator<AsserterType> TestInstanceFactory;
+	FDelegateHandle BeforeAllDelegate{};
+	FDelegateHandle AfterAllDelegate{};
 
 protected:
 	FString GetBeautifiedTestName() const override;
@@ -160,7 +188,17 @@ struct TTest : TBaseTest<AsserterType>
 	using DerivedType = Derived;
 
 	TTest()
-		: TBaseTest<AsserterType>(*Derived::TestRunner, Derived::TestRunner->bInitializing) {}
+		: TBaseTest<AsserterType>(*Derived::TestRunner, Derived::TestRunner->bInitializing)
+	{
+		if constexpr (HasBeforeAll<Derived>)
+		{
+			this->BeforeAllFunc = Derived::BeforeAll;
+		}
+		if constexpr (HasAfterAll<Derived>)
+		{
+			this->AfterAllFunc = Derived::AfterAll;
+		}
+	}
 
 	void RunTest(const FString& TestName) override;
 
@@ -185,24 +223,24 @@ struct TTest : TBaseTest<AsserterType>
 };
 
 #if WITH_AUTOMATION_WORKER
-	#define _TEST_CLASS_IMPL(_ClassName, _TestDir, _BaseClass, _AsserterType, _TestFlags)                                                  \
-		struct _ClassName;                                                                                                                 \
-		struct F##_ClassName##_Runner : public TTestRunner<_AsserterType>                                                                  \
-		{                                                                                                                                  \
-			F##_ClassName##_Runner()                                                                                                       \
-				: TTestRunner(#_ClassName, __LINE__, __FILE__, _TestDir, _TestFlags, TTest<_ClassName, _AsserterType>::CreateTestClass) {} \
-		};                                                                                                                                 \
-		F##_ClassName##_Runner _ClassName##_RunnerInstance;                                                                                \
-		struct _ClassName : public _BaseClass<_ClassName, _AsserterType>
+#define _TEST_CLASS_IMPL(_ClassName, _TestDir, _BaseClass, _AsserterType, _TestFlags)                                                  \
+	struct _ClassName;                                                                                                                 \
+	struct F##_ClassName##_Runner : public TTestRunner<_AsserterType>                                                                  \
+	{                                                                                                                                  \
+		F##_ClassName##_Runner()                                                                                                       \
+			: TTestRunner(#_ClassName, __LINE__, __FILE__, _TestDir, _TestFlags, TTest<_ClassName, _AsserterType>::CreateTestClass) {} \
+	};                                                                                                                                 \
+	F##_ClassName##_Runner _ClassName##_RunnerInstance;                                                                                \
+	struct _ClassName : public _BaseClass<_ClassName, _AsserterType>
 
-	#define TEST_METHOD(_MethodName)                                                                       \
-		FFunctionRegistrar reg##_MethodName{ FString(#_MethodName), &DerivedType::_MethodName, __LINE__ }; \
+#define TEST_METHOD(_MethodName)                                                                       \
+	FFunctionRegistrar reg##_MethodName{ FString(#_MethodName), &DerivedType::_MethodName, __LINE__ }; \
 	void _MethodName()
 #else
-	#define _TEST_CLASS_IMPL(_ClassName, _TestDir, _BaseClass, _AsserterType, _TestFlags) \
-			struct _ClassName : public _BaseClass<_ClassName, _AsserterType>
+#define _TEST_CLASS_IMPL(_ClassName, _TestDir, _BaseClass, _AsserterType, _TestFlags) \
+	struct _ClassName : public _BaseClass<_ClassName, _AsserterType>
 
-	#define TEST_METHOD(_MethodName) void _MethodName()
+#define TEST_METHOD(_MethodName) void _MethodName()
 #endif
 
 #define TEST_CLASS_WITH_ASSERTS(_ClassName, _TestDir, _AsserterType) _TEST_CLASS_IMPL(_ClassName, _TestDir, TTest, _AsserterType, DefaultFlags)
@@ -222,7 +260,9 @@ struct TTest : TBaseTest<AsserterType>
 #define ASSERT_THAT(_assertion) if (!Assert._assertion) {return;}
 #define ASSERT_FAIL(_Msg) Assert.Fail(_Msg); return;
 
+#define BEFORE_ALL() static void BeforeAll(const FString&)
 #define BEFORE_EACH() virtual void Setup() override
 #define AFTER_EACH() virtual void TearDown() override
+#define AFTER_ALL() static void AfterAll(const FString&)
 
 #include "Impl/CQTest.inl"

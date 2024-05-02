@@ -149,7 +149,28 @@ inline TTestRunner<AsserterType>::TTestRunner(FString InName, int32 InLineNumber
 
 	CurrentTestPtr = TestInstanceFactory(*this);
 
+	if (CurrentTestPtr->BeforeAllFunc)
+	{
+		BeforeAllDelegate = FAutomationTestFramework::Get().GetOnEnteringTestSection(GetBeautifiedTestName()).AddStatic(CurrentTestPtr->BeforeAllFunc);
+	}
+	if (CurrentTestPtr->AfterAllFunc)
+	{
+		AfterAllDelegate = FAutomationTestFramework::Get().GetOnLeavingTestSection(GetBeautifiedTestName()).AddStatic(CurrentTestPtr->AfterAllFunc);
+	}
+
 	bInitializing = false;
+}
+
+template <typename AsserterType>
+inline TTestRunner<AsserterType>::~TTestRunner() {
+	if (BeforeAllDelegate.IsValid())
+	{
+		FAutomationTestFramework::Get().GetOnEnteringTestSection(GetBeautifiedTestName()).Remove(BeforeAllDelegate);
+	}
+	if (AfterAllDelegate.IsValid())
+	{
+		FAutomationTestFramework::Get().GetOnLeavingTestSection(GetBeautifiedTestName()).Remove(AfterAllDelegate);
+	}
 }
 
 template <typename AsserterType>

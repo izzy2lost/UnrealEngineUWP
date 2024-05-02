@@ -181,6 +181,56 @@ namespace CQTestTests
 		}
 	};
 
+	TEST_CLASS(BeforeAndAfterAll, "TestFramework.CQTest.Core")
+	{
+		inline static uint32 BeforeAllCallCount = 0;
+		FString ExpectedError = TEXT("Expected Error Message");
+
+		BEFORE_ALL()
+		{
+			BeforeAllCallCount++;
+		}
+
+		AFTER_ALL()
+		{
+			BeforeAllCallCount = 0;
+		}
+
+		BEFORE_EACH()
+		{
+			ASSERT_THAT(AreEqual(1, BeforeAllCallCount));
+		}
+
+		AFTER_EACH()
+		{
+			ClearExpectedError(*this->TestRunner, ExpectedError);
+			ASSERT_THAT(AreEqual(1, BeforeAllCallCount));
+		}
+
+		TEST_METHOD(StaticMember_IsAvailable_DuringTest)
+		{
+			ASSERT_THAT(AreEqual(1, BeforeAllCallCount));
+		}
+
+		TEST_METHOD(BeforeAll_IsCalled_OnlyOnce)
+		{
+			ASSERT_THAT(AreEqual(1, BeforeAllCallCount));
+		}
+
+		TEST_METHOD(AfterAll_WhenTestFails_StillFires)
+		{
+			Assert.Fail(ExpectedError);
+		}
+	};
+
+	static_assert(HasBeforeAll<BeforeAndAfterAll>);
+	static_assert(HasAfterAll<BeforeAndAfterAll>);
+
+	TEST(ValidateAfterAll, "TestFramework.CQTest.Core")
+	{
+		ASSERT_THAT(AreEqual(0, BeforeAndAfterAll::BeforeAllCallCount));
+	}
+
 	// --------------------------------------------------------
 	// Latent commands are awaited
 	// --------------------------------------------------------
