@@ -333,6 +333,13 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 			Section.AddMenuEntry(bIsLevelEditor ? BaseViewportCommands.ToggleInGameExposure : BaseViewportCommands.ToggleAutoExposure);
 			Section.AddEntry(FToolMenuEntry::InitWidget("FixedEV100", FixedEV100Menu, LOCTEXT("FixedEV100", "EV100")));
 		}
+
+		// Wireframe Opacity
+		{
+			TSharedRef<SWidget> WireOpacityMenu = Viewport.Pin()->BuildWireframeMenu();
+			FToolMenuSection& Section = Menu->AddSection("Wireframe", LOCTEXT("WireframeHeader", "Wireframe"));
+			Section.AddEntry(FToolMenuEntry::InitWidget("WireframeOpacity", WireOpacityMenu, LOCTEXT("WireframeOpacity", "Opacity")));
+		}
 	}
 }
 

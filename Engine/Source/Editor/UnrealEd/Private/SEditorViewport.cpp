@@ -678,6 +678,33 @@ TSharedRef<SWidget> SEditorViewport::BuildFixedEV100Menu()  const
 		];
 };
 
+TSharedRef<SWidget> SEditorViewport::BuildWireframeMenu() const
+{
+	return 
+		SNew( SBox )
+		.HAlign( HAlign_Right )
+		[
+			SNew( SBox )
+			.Padding( FMargin(0.0f, 0.0f, 0.0f, 0.0f) )
+			.WidthOverride( 100.0f )
+			[
+				SNew ( SBorder )
+				.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
+				.Padding(FMargin(1.0f))
+				[
+					SNew(SSpinBox<float>)
+					.Style(&FAppStyle::Get(), "Menu.SpinBox")
+					.Font( FAppStyle::GetFontStyle( TEXT( "MenuItem.Font" ) ) )
+					.MinValue(0.f)
+					.MaxValue(1.f)
+					.SupportDynamicSliderMaxValue(false)
+					.Value( this, &SEditorViewport::OnGetWireframeOpacity )
+					.OnValueChanged( const_cast<SEditorViewport*>(this), &SEditorViewport::OnWireframeOpacityChanged )
+					.ToolTipText(LOCTEXT("WireframeOpacity_ToolTip", "Adjust opacity of wireframes in view."))
+				]
+			]
+		];
+};
 				
 void SEditorViewport::UpdateInViewportMenuLocation(const FVector2D InLocation)
 {
@@ -714,6 +741,24 @@ void SEditorViewport::OnFixedEV100ValueChanged(float NewValue)
 		Client->ExposureSettings.FixedEV100 = NewValue;
 		Client->Invalidate();
 	}
+}
+
+void SEditorViewport::OnWireframeOpacityChanged(float Opacity)
+{
+	if( Client.IsValid() )
+	{
+		Client->WireframeOpacity = Opacity;
+		Client->Invalidate();
+	}
+}
+float SEditorViewport::OnGetWireframeOpacity() const
+{
+	if(Client.IsValid())
+	{
+		return Client->WireframeOpacity;
+	}
+	
+	return 0.8f;
 }
 
 bool SEditorViewport::IsWidgetModeActive( UE::Widget::EWidgetMode Mode ) const

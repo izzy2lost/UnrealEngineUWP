@@ -1782,6 +1782,9 @@ public:
 	/** Editor setting to allow designers to override the automatic expose */
 	FExposureSettings		ExposureSettings;
 
+	/** Editor setting to adjust wireframe opacity */
+	float WireframeOpacity = 0.2f;
+
 	FName CurrentBufferVisualizationMode;
 	FName CurrentNaniteVisualizationMode;
 	FName CurrentLumenVisualizationMode;

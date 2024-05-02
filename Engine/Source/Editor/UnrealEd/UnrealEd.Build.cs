@@ -185,6 +185,7 @@ public class UnrealEd : ModuleRules
 				"VirtualizationEditor",
 				"GeometryCore",
 				"UniversalObjectLocatorEditor",
+				"Renderer",
 			}
 		);
 

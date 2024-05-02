@@ -96,6 +96,9 @@ public:
 
 	/** Build the exposure menu using EV100 settings */
 	UNREALED_API TSharedRef<SWidget> BuildFixedEV100Menu()  const;
+	
+	/** Build the slider to adjust wireframe opacity */
+	UNREALED_API TSharedRef<SWidget> BuildWireframeMenu()  const;
 
 	/**
  * Called when the user wants to show the in-viewport context menu
@@ -142,6 +145,9 @@ protected:
 	/** Called to know whether the fixed EV100 slider is enabled. */
 	UNREALED_API bool IsFixedEV100Enabled() const;
 
+	/** Adjustable wireframe opacity */
+	UNREALED_API void OnWireframeOpacityChanged(float Opacity);
+	UNREALED_API float OnGetWireframeOpacity() const;
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() = 0;
 

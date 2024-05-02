@@ -21,6 +21,7 @@
 #include "Settings/LevelEditorMiscSettings.h"
 #include "Engine/DebugDisplayProperty.h"
 #include "Engine/RendererSettings.h"
+#include "MeshEdges.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/BillboardComponent.h"
 #include "Audio/AudioDebug.h"
@@ -4075,6 +4076,9 @@ void FEditorViewportClient::SetupViewForRendering(FSceneViewFamily& ViewFamily, 
 	View.CurrentRayTracingDebugVisualizationMode = CurrentRayTracingDebugVisualizationMode;
 #endif
 
+	// assign wireframe opacity to the view
+	GetMeshEdgesViewSettings(View).Opacity = WireframeOpacity;
+	
 	//Look if the pixel inspector tool is on
 	View.bUsePixelInspector = false;
 	FPixelInspectorModule& PixelInspectorModule = FModuleManager::LoadModuleChecked<FPixelInspectorModule>(TEXT("PixelInspectorModule"));
