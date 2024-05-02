@@ -112,12 +112,11 @@ void PackSubstrateOut(
 	inout FSubstrateTopLayerData TopLayerData,
 	inout FSubstrateOpaqueRoughRefractionData OpaqueRoughRefractionData
 #if MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING
-	,
-	in FMaterialPixelParameters MaterialParameters,
-	in FVertexFactoryInterpolantsVSToPS Interpolants,
-	in FBasePassInterpolantsVSToPS BasePassInterpolants,
-	in VTPageTableResult LightmapVTPageTableResult,
-	in float3 VolumetricLightmapBrickTextureUVs
+	,in FMaterialPixelParameters MaterialParameters
+	,in FVertexFactoryInterpolantsVSToPS Interpolants
+	,in FBasePassInterpolantsVSToPS BasePassInterpolants
+	,in VTPageTableResult LightmapVTPageTableResult
+	,in float3 VolumetricLightmapBrickTextureUVs
 #endif
 )
 {

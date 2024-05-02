@@ -798,7 +798,8 @@ void FPixelShaderInOut_MainPS(
 	FVertexFactoryInterpolantsVSToPS Interpolants,
 	FBasePassInterpolantsVSToPS BasePassInterpolants,
 	in FPixelShaderIn In,
-	inout FPixelShaderOut Out)
+	inout FPixelShaderOut Out,
+	bool bAllowWrite=true)
 {
 #if INSTANCED_STEREO
 	const uint EyeIndex = Interpolants.EyeIndex;
@@ -1696,7 +1697,7 @@ void FPixelShaderInOut_MainPS(
 
 		// Generate the Substrate material data to write out
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(ResolvedView.BufferSizeAndInvSize.xy), SubstrateStruct.MaxBytesPerPixel);
-		FRWSubstrateMaterialContainer RWSubstrateMaterialContainer = InitialiseRWSubstrateMaterialContainer(SubstrateStruct.MaterialTextureArrayUAVWithoutRTs);
+		FRWSubstrateMaterialContainer RWSubstrateMaterialContainer = InitialiseRWSubstrateMaterialContainer(SubstrateStruct.MaterialTextureArrayUAVWithoutRTs, bAllowWrite);
 		PackSubstrateOut(
 			RWSubstrateMaterialContainer,
 			SubstrateStruct.MaterialTextureArrayUAVWithoutRTs,
@@ -1724,12 +1725,15 @@ void FPixelShaderInOut_MainPS(
 		Out.SubstrateTopLayerData = SubstratePackTopLayerData(TopLayerData);
 	#if SUBSTRATE_OUTPUT_ROUGH_REFRACTION
 		OpaqueRoughRefractionData.OpaqueRoughRefractionEnabled = true; // As long as we output to rough refraction, we want it to be enabled for the tiling process.
-		SubstrateStruct.OpaqueRoughRefractionTextureUAV[PixelPos] = SubstratePackOpaqueRoughRefractionData(OpaqueRoughRefractionData);
+		if (bAllowWrite)
+		{
+			SubstrateStruct.OpaqueRoughRefractionTextureUAV[PixelPos] = SubstratePackOpaqueRoughRefractionData(OpaqueRoughRefractionData);
+		}
 	#endif
 
 		// Only write SSS data if needed
 		BRANCH
-		if(SubstrateSubSurfaceHeaderGetIsValid(SSSData.Header))
+		if(SubstrateSubSurfaceHeaderGetIsValid(SSSData.Header) && bAllowWrite)
 		{
 			SubstrateStoreSubsurfaceHeader(SubstrateStruct.MaterialTextureArrayUAVWithoutRTs, SubstrateStruct.FirstSliceStoringSubstrateSSSDataWithoutMRT, PixelPos, SSSData.Header.Bytes);
 			if (SubstrateSubSurfaceHeaderHasExtras(SSSData.Header))

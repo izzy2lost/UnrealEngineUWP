@@ -1760,13 +1760,14 @@ FSubstrateAddressing GetSubstratePixelDataByteOffset(uint2 PixelPos, uint2 ViewB
 struct FRWSubstrateMaterialContainerStruct
 {
 	uint MaterialRenderTargets[SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT];
+	bool bAllowWrite;
 //	RWTexture2DArray<uint> ExtraMaterialDataUAV; // If this is used, we cannot run shaders on debug...
 };
 
 #if SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
 
 #define FRWSubstrateMaterialContainer	FRWSubstrateMaterialContainerStruct
-FRWSubstrateMaterialContainer InitialiseRWSubstrateMaterialContainer(RWTexture2DArray<uint> ExtraMaterialDataUAV)
+FRWSubstrateMaterialContainer InitialiseRWSubstrateMaterialContainer(RWTexture2DArray<uint> ExtraMaterialDataUAV, bool bInAllowWrite)
 {
 	FRWSubstrateMaterialContainer Out;
 	UNROLL
@@ -1774,6 +1775,7 @@ FRWSubstrateMaterialContainer InitialiseRWSubstrateMaterialContainer(RWTexture2D
 	{
 		Out.MaterialRenderTargets[i] = 0;
 	}
+	Out.bAllowWrite = bInAllowWrite;
 //	Out.ExtraMaterialDataUAV = ExtraMaterialDataUAV;
 	return Out;
 }
@@ -1791,7 +1793,7 @@ void SubstrateStoreUint1(inout FRWSubstrateMaterialContainer SubstrateBuffer, RW
 		#error Substrate SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT has been update but not SubstrateStore function
 		#endif
 	}
-	else
+	else if (SubstrateBuffer.bAllowWrite) // Only write data to UAV if pixel is allowed to write (i.e., it is not an helper lane/pixel)
 	{
 		ExtraMaterialDataUAV[uint3(SubstrateAddressing.PixelCoords, SubstrateAddressing.CurrentIndex - SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT)] = Data;
 	}

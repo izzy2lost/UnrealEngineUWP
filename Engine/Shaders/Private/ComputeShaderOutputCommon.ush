@@ -115,7 +115,7 @@ uint4 PassData;
 
 #endif // SUBSTRATE_OPAQUE_DEFERRED
 
-FPixelShaderOut ShadePixel(const float2 SVPositionXY, uint QuadIndex)
+FPixelShaderOut ShadePixel(const float2 SVPositionXY, uint QuadIndex, uint PixelWriteMask)
 {
 #if PIXELSHADEROUTPUT_INTERPOLANTS || PIXELSHADEROUTPUT_BASEPASS
 #if IS_NANITE_PASS
@@ -148,7 +148,7 @@ FPixelShaderOut ShadePixel(const float2 SVPositionXY, uint QuadIndex)
 
 #if PIXELSHADEROUTPUT_BASEPASS
 	FBasePassInterpolantsVSToPS BasePassInterpolants = (FBasePassInterpolantsVSToPS)0;
-	FPixelShaderInOut_MainPS(Interpolants, BasePassInterpolants, PixelShaderIn, PixelShaderOut);
+	FPixelShaderInOut_MainPS(Interpolants, BasePassInterpolants, PixelShaderIn, PixelShaderOut, PixelWriteMask != 0);
 #endif
 
 #if !HIGH_PRECISION_GBUFFERS
@@ -251,7 +251,7 @@ void ExportPixel(const uint2 PixelPos, FPixelShaderOut ShadedPixel)
 void ProcessPixel(uint ShadingBin, const uint2 PixelPos, const float2 SVPositionXY, uint QuadIndex, uint DispatchIndex, uint PixelWriteMask, uint HelperLaneCount)
 {
 	// All lanes shade (regardless of export - so ddx/ddy are valid)
-	FPixelShaderOut ShadedPixel = ShadePixel(SVPositionXY, QuadIndex);
+	FPixelShaderOut ShadedPixel = ShadePixel(SVPositionXY, QuadIndex, PixelWriteMask);
 
 #if VIS_HELPER_LANES
 	ShadedPixel.MRT[3].rgb = ColorMapTurbo(float(HelperLaneCount) / 4.0f);
