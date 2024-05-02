@@ -170,7 +170,7 @@ public:
 	virtual FColor GetDebugColor() const { return FColor::Black; }
 
 	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
-	EDataLayerRuntimeState GetInitialRuntimeState() const { return IsRuntime() && !IsClientOnly() && !IsServerOnly() ? InitialRuntimeState : EDataLayerRuntimeState::Unloaded; }
+	EDataLayerRuntimeState GetInitialRuntimeState() const { return IsRuntime() ? InitialRuntimeState : EDataLayerRuntimeState::Unloaded; }
 
 	UFUNCTION(Category = "Data Layer", BlueprintCallable)
 	virtual FString GetDataLayerShortName() const { return TEXT("Invalid Data Layer"); }

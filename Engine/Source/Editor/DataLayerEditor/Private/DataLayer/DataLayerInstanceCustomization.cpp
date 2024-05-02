@@ -30,20 +30,20 @@ void FDataLayerInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 	DetailBuilder.GetObjectsBeingCustomized(ObjectsBeingCustomized);
 	
 	uint32 CustomizedDataLayerInstanceWithAssetCount = 0;
-	bool bHasRuntime = false;
+	bool bHasInitialRuntimeState = false;
 	for (const TWeakObjectPtr<UObject>& SelectedObject : ObjectsBeingCustomized)
 	{
 		UDataLayerInstance* DataLayerInstance = Cast<UDataLayerInstance>(SelectedObject.Get());
-		if (DataLayerInstance && DataLayerInstance->IsRuntime() && !DataLayerInstance->IsClientOnly() && !DataLayerInstance->IsServerOnly())
+		if (DataLayerInstance && DataLayerInstance->IsRuntime())
 		{
-			bHasRuntime = true;
+			bHasInitialRuntimeState = true;
 		}
 		if (Cast<UDataLayerInstanceWithAsset>(SelectedObject.Get()))
 		{
 			++CustomizedDataLayerInstanceWithAssetCount;
 		}
 	}
-	if (!bHasRuntime)
+	if (!bHasInitialRuntimeState)
 	{
 		DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDataLayerInstance, InitialRuntimeState));
 	}

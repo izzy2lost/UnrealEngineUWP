@@ -237,7 +237,7 @@ bool UDataLayerInstance::CanEditChange(const FProperty* InProperty) const
 
 	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UDataLayerInstance, InitialRuntimeState))
 	{
-		if (!IsRuntime() || IsClientOnly() || IsServerOnly())
+		if (!IsRuntime())
 		{
 			return false;
 		}
