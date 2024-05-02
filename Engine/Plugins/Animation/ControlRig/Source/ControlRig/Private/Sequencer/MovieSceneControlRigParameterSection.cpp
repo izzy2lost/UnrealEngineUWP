@@ -25,6 +25,7 @@
 #include "AnimationCoreLibrary.h"
 #include "UObject/ObjectSaveContext.h"
 
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneControlRigParameterSection)
 
 #if WITH_EDITOR
@@ -1564,8 +1565,8 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 
 	FMovieSceneChannelProxyData Channels;
 	ControlChannelMap.Empty();
-	// Need to create the channels in sorted orders
-	if (ControlRig )
+	// Need to create the channels in sorted orders, only if we have controls
+	if (ControlRig && ControlRig->AvailableControls().Num() > 0)
 	{
 		TArray<FRigControlElement*> SortedControls;
 		ControlRig->GetControlsInOrder(SortedControls);
@@ -2395,7 +2396,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 	*/
 
 	//if we had the same with same number of controls keep the mask otherwise reset it.
-	if (!bSameControlRig || ControlRig->AvailableControls().Num() != ControlsMask.Num())
+	if (!bSameControlRig || (ControlRig->AvailableControls().Num() > 0  && ControlRig->AvailableControls().Num() != ControlsMask.Num()))
 	{
 		TArray<bool> OnArray;
 		OnArray.Init(true, ControlRig->AvailableControls().Num());
