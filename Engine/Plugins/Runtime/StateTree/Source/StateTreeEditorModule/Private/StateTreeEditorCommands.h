@@ -32,8 +32,8 @@ public:
 	TSharedPtr<FUICommandInfo> DeleteStates;
 	TSharedPtr<FUICommandInfo> EnableStates;
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	TSharedPtr<FUICommandInfo> EnableOnEnterStateBreakpoint;
 	TSharedPtr<FUICommandInfo> EnableOnExitStateBreakpoint;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 };

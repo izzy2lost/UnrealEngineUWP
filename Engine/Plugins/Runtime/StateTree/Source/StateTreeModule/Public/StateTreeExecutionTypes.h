@@ -486,7 +486,7 @@ struct STATETREEMODULE_API FStateTreeTransitionSource
 };
 
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 struct STATETREEMODULE_API FStateTreeInstanceDebugId
 {
 	FStateTreeInstanceDebugId() = default;
@@ -524,7 +524,7 @@ struct STATETREEMODULE_API FStateTreeInstanceDebugId
 	uint32 Id = INDEX_NONE;
 	uint32 SerialNumber = INDEX_NONE;
 };
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 
 /** Describes current state of a delayed transition. */
 USTRUCT()
@@ -616,7 +616,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	void Reset()
 	{
 		ActiveFrames.Reset();
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 		InstanceDebugId.Reset();
 #endif
 		EnterStateFailedTaskIndex = FStateTreeIndex16::Invalid;
@@ -656,7 +656,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	TArray<FStateTreeTransitionDelayedState> DelayedTransitions;
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 	/** Id for the active instance used for debugging. */
 	mutable FStateTreeInstanceDebugId InstanceDebugId;
 #endif

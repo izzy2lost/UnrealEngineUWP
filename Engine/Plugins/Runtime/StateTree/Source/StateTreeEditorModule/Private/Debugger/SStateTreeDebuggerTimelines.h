@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "SSimpleTimeSlider.h"
 #include "Widgets/Views/STreeView.h"
@@ -84,4 +84,4 @@ private:
 	FSimpleDelegate OnExpansionChanged;
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

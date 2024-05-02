@@ -499,9 +499,9 @@ protected:
 		TArray<FStateTreeFrameStateSelectionEvents, TFixedAllocator<MaxExecutionFrames>> FramesStateSelectionEvents;
 	};
 	
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 	FStateTreeInstanceDebugId GetInstanceDebugId() const;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 
 	/** @return Prefix that will be used by STATETREE_LOG and STATETREE_CLOG, Owner name by default. */
 	virtual FString GetInstanceDescription() const;

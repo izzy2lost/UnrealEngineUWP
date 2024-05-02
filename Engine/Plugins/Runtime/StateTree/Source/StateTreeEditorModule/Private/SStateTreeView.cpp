@@ -213,7 +213,7 @@ void SStateTreeView::BindCommands()
 			return CanEnableStates() || CanDisableStates();
 		}));
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	CommandList->MapAction(
 		Commands.EnableOnEnterStateBreakpoint,
 		FExecuteAction::CreateSPLambda(this, [this]
@@ -255,7 +255,7 @@ void SStateTreeView::BindCommands()
 				&& (StateTreeViewModel->CanAddStateBreakpoint(EStateTreeBreakpointType::OnExit)
 					|| StateTreeViewModel->CanRemoveStateBreakpoint(EStateTreeBreakpointType::OnExit));
 		}));
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 bool SStateTreeView::HasSelection() const
@@ -522,11 +522,11 @@ TSharedPtr<SWidget> SStateTreeView::HandleContextMenuOpening()
 	MenuBuilder.AddSeparator();
 	MenuBuilder.AddMenuEntry(FStateTreeEditorCommands::Get().EnableStates);
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	MenuBuilder.AddSeparator();
 	MenuBuilder.AddMenuEntry(FStateTreeEditorCommands::Get().EnableOnEnterStateBreakpoint);
 	MenuBuilder.AddMenuEntry(FStateTreeEditorCommands::Get().EnableOnExitStateBreakpoint);
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	
 	return MenuBuilder.MakeWidget();
 }

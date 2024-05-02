@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Trace/Analyzer.h"
 
@@ -39,4 +39,4 @@ private:
 	FStateTreeTraceProvider& Provider;
 	double WorldTime = 0;
 };
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

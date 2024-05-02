@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "RewindDebuggerTrack.h"
 #include "SStateTreeDebuggerEventTimelineView.h"
@@ -83,4 +83,4 @@ private:
 	TArray<TSharedPtr<FStateTreeDebuggerInstanceTrack>> SubTracks;
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

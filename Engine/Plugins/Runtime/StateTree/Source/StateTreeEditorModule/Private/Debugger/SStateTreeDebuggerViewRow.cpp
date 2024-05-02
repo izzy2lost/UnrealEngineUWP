@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/SStateTreeDebuggerViewRow.h"
 #include "StateTreeEditorStyle.h"
@@ -230,4 +230,4 @@ FText SStateTreeDebuggerViewRow::GetEventTooltip() const
 	return FText::FromString(Tooltip);
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

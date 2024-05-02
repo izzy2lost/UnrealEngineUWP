@@ -607,19 +607,19 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 
 			auto IsTaskBreakpointEnabledFunc = [WeakEditorData = WeakEditorData, TaskId]
 				{
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 					const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 					if (EditorData != nullptr && EditorData->HasAnyBreakpoint(TaskId))
 					{
 						return EVisibility::Visible;
 					}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 					return EVisibility::Hidden;
 				};
 			
 			auto GetTaskBreakpointTooltipFunc = [WeakEditorData = WeakEditorData, TaskId]
 				{
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 					if (const UStateTreeEditorData* EditorData = WeakEditorData.Get())
 					{
 						const bool bHasBreakpointOnEnter = EditorData->HasBreakpoint(TaskId, EStateTreeBreakpointType::OnEnter);
@@ -639,7 +639,7 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 							return LOCTEXT("StateTreeTaskBreakpointOnExitTooltip","Break when exiting task");
 						}
 					}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 					return FText::GetEmpty();
 				};
 
@@ -817,20 +817,20 @@ EVisibility SStateTreeViewRow::GetConditionVisibility() const
 
 EVisibility SStateTreeViewRow::GetStateBreakpointVisibility() const
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	const UStateTreeState* State = WeakState.Get();
 	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 	if (State != nullptr && EditorData != nullptr)
 	{
 		return (EditorData != nullptr && EditorData->HasAnyBreakpoint(State->ID)) ? EVisibility::Visible : EVisibility::Hidden;
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	return EVisibility::Hidden;
 }
 
 FText SStateTreeViewRow::GetStateBreakpointTooltipText() const
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	const UStateTreeState* State = WeakState.Get();
 	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 	if (State != nullptr && EditorData != nullptr)
@@ -853,7 +853,7 @@ FText SStateTreeViewRow::GetStateBreakpointTooltipText() const
 			return LOCTEXT("StateTreeStateBreakpointOnExitTooltip","Break when exiting state");
 		}
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	return FText::GetEmpty();
 }
 
@@ -867,7 +867,7 @@ const FSlateBrush* SStateTreeViewRow::GetSelectorIcon() const
 		}
 		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryEnterState)
 		{
-			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
+			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
 		}
 		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder)
 		{
@@ -876,7 +876,7 @@ const FSlateBrush* SStateTreeViewRow::GetSelectorIcon() const
 				|| State->Type == EStateTreeStateType::LinkedAsset)
 			{
 				// Backwards compatible behavior
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
+				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
 			}
 			else
 			{
@@ -887,7 +887,7 @@ const FSlateBrush* SStateTreeViewRow::GetSelectorIcon() const
 		{
 			if (State->Children.IsEmpty())
 			{
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
+				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
 			}
 
 			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectCHildrenAtRandom");
@@ -1178,7 +1178,7 @@ FText SStateTreeViewRow::GetTransitionsDesc(const UStateTreeState& State, const 
 			continue;
 		}
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 		// Apply filter for transitions with/without breakpoint
 		const bool bHasBreakpoint = TreeEditorData != nullptr && TreeEditorData->HasBreakpoint(Transition.ID, EStateTreeBreakpointType::OnTransition);
 		if ((FilterOptions.WithBreakpoint == ETransitionDescRequirement::RequiredTrue && bHasBreakpoint == false)
@@ -1186,7 +1186,7 @@ FText SStateTreeViewRow::GetTransitionsDesc(const UStateTreeState& State, const 
 		{
 			continue;
 		}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 		const bool bMatch = FilterOptions.bUseMask ? EnumHasAnyFlags(Transition.Trigger, Trigger) : Transition.Trigger == Trigger;
 		if (bMatch)
@@ -1267,7 +1267,7 @@ const FSlateBrush* SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& 
 			continue;
 		}
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 		// Apply filter for transitions with/without breakpoint
 		const bool bHasBreakpoint = EditorData != nullptr && EditorData->HasBreakpoint(Transition.ID, EStateTreeBreakpointType::OnTransition);
 		if ((FilterOptions.WithBreakpoint == ETransitionDescRequirement::RequiredTrue && bHasBreakpoint == false)
@@ -1275,7 +1275,7 @@ const FSlateBrush* SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& 
 		{
 			continue;
 		}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 		
 		// The icons here depict "transition direction", not the type specifically.
 		const bool bMatch = FilterOptions.bUseMask ? EnumHasAnyFlags(Transition.Trigger, Trigger) : Transition.Trigger == Trigger;
@@ -1430,7 +1430,7 @@ EVisibility SStateTreeViewRow::GetTransitionsVisibility(const UStateTreeState& S
 
 EVisibility SStateTreeViewRow::GetTransitionsBreakpointVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	if (const UStateTreeEditorData* EditorData = WeakEditorData.Get())
 	{
 		for (const FStateTreeTransition& Transition : State.Transitions)
@@ -1444,7 +1444,7 @@ EVisibility SStateTreeViewRow::GetTransitionsBreakpointVisibility(const UStateTr
 			}
 		}
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	
 	return EVisibility::Collapsed;
 }

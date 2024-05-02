@@ -1183,7 +1183,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitAllNodes(TFunctionRef<EStateTreeVis
 	return VisitHierarchyNodes(InFunc);
 }
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 bool UStateTreeEditorData::HasAnyBreakpoint(const FGuid ID) const
 {
 	return Breakpoints.ContainsByPredicate([ID](const FStateTreeEditorBreakpoint& Breakpoint) { return Breakpoint.ID == ID; });
@@ -1230,7 +1230,7 @@ bool UStateTreeEditorData::RemoveBreakpoint(const FGuid ID, const EStateTreeBrea
 	return Index != INDEX_NONE;
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UStateTreeEditorData::AddPropertyBinding(const FStateTreeEditorPropertyPath& SourcePath, const FStateTreeEditorPropertyPath& TargetPath)

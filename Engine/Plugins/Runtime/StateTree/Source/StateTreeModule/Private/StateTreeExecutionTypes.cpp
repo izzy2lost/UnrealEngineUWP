@@ -4,6 +4,6 @@
 
 const FStateTreeExternalDataHandle FStateTreeExternalDataHandle::Invalid = FStateTreeExternalDataHandle();
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 const FStateTreeInstanceDebugId FStateTreeInstanceDebugId::Invalid = FStateTreeInstanceDebugId();
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE

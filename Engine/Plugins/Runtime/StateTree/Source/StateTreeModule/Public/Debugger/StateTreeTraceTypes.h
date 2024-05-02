@@ -12,6 +12,13 @@ struct FStateTreeStateHandle;
 enum class EStateTreeStateSelectionBehavior : uint8;
 enum class EStateTreeRunStatus : uint8;
 
+UENUM()
+enum class EStateTreeTraceStatus : uint8
+{
+	TracesStarted,
+	StoppingTrace,
+	TracesStopped
+};
 
 UENUM()
 enum class EStateTreeTraceEventType : uint8
@@ -37,10 +44,9 @@ enum class EStateTreeTraceEventType : uint8
 	OnTransition			UMETA(DisplayName = "Transition"),
 	OnTreeStarted			UMETA(DisplayName = "Tree Started"),
 	OnTreeStopped			UMETA(DisplayName = "Tree Stopped")
-
 };
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 struct FStateTreeTraceBaseEvent
 {
@@ -255,4 +261,4 @@ using FStateTreeTraceEventVariantType = TVariant<FStateTreeTracePhaseEvent,
 												FStateTreeTraceActiveStatesEvent,
 												FStateTreeTraceInstanceFrameEvent>;
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

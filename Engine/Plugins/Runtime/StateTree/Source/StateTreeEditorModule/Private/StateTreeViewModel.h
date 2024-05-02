@@ -94,7 +94,7 @@ public:
 	void NotifyStatesChangedExternally(const TSet<UStateTreeState*>& ChangedStates, const FPropertyChangedEvent& PropertyChangedEvent) const;
 
 	// Debugging
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	bool CanAddStateBreakpoint(EStateTreeBreakpointType Type) const;
 	bool CanRemoveStateBreakpoint(EStateTreeBreakpointType Type) const;
 	ECheckBoxState GetStateBreakpointCheckState(EStateTreeBreakpointType Type) const;
@@ -104,7 +104,7 @@ public:
 
 	TSharedRef<FStateTreeDebugger> GetDebugger() const { return Debugger; }
 	void RefreshDebuggerBreakpoints();
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 	bool IsStateActiveInDebugger(const UStateTreeState& State) const;
 
@@ -139,13 +139,13 @@ protected:
 	TWeakObjectPtr<UStateTreeEditorData> TreeDataWeak;
 	TSet<TWeakObjectPtr<UStateTreeState>> SelectedStates;
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	void HandleBreakpointsChanged(const UStateTree& StateTree);
 	void HandlePostCompile(const UStateTree& StateTree);
 
 	TSharedRef<FStateTreeDebugger> Debugger;
 	TArray<FGuid> ActiveStates;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	
 	FOnAssetChanged OnAssetChanged;
 	FOnStatesChanged OnStatesChanged;

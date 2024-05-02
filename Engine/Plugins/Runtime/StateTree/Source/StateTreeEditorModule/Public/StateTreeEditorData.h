@@ -232,13 +232,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return false;
 	}
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	bool HasAnyBreakpoint(FGuid ID) const;
 	bool HasBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType) const;
 	const FStateTreeEditorBreakpoint* GetBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType) const;
 	void AddBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType);
 	bool RemoveBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType);
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 	// ~StateTree Builder API
 

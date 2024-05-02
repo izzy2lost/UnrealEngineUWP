@@ -233,9 +233,9 @@ namespace UE::StateTree::Editor
 
 FStateTreeViewModel::FStateTreeViewModel()
 	: TreeDataWeak(nullptr)
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	, Debugger(MakeShareable(new FStateTreeDebugger))
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 {
 }
 
@@ -254,14 +254,14 @@ void FStateTreeViewModel::Init(UStateTreeEditorData* InTreeData)
 
 	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FStateTreeViewModel::HandleIdentifierChanged);
 	
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	UE::StateTree::Delegates::OnBreakpointsChanged.AddSP(this, &FStateTreeViewModel::HandleBreakpointsChanged);
 	UE::StateTree::Delegates::OnPostCompile.AddSP(this, &FStateTreeViewModel::HandlePostCompile);
 
 	Debugger->SetAsset(GetStateTree());
 	BindToDebuggerDelegates();
 	RefreshDebuggerBreakpoints();
-#endif // WITH_STATETREE_DEBUGGER	
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 const UStateTree* FStateTreeViewModel::GetStateTree() const
@@ -282,7 +282,7 @@ void FStateTreeViewModel::HandleIdentifierChanged(const UStateTree& StateTree) c
 	}
 }
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 bool FStateTreeViewModel::CanAddStateBreakpoint(const EStateTreeBreakpointType Type) const
 {
 	const UStateTreeEditorData* EditorData = TreeDataWeak.Get();
@@ -516,7 +516,7 @@ void FStateTreeViewModel::RefreshDebuggerBreakpoints()
 	}
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 void FStateTreeViewModel::NotifyAssetChangedExternally() const
 {
@@ -1226,7 +1226,7 @@ void FStateTreeViewModel::MoveSelectedStates(UStateTreeState* TargetState, const
 
 void FStateTreeViewModel::BindToDebuggerDelegates()
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	Debugger->OnActiveStatesChanged.BindSPLambda(this, [this](const FStateTreeTraceActiveStates& NewActiveStates)
 	{
 		if (const UStateTree* OuterStateTree = GetStateTree())
@@ -1245,16 +1245,16 @@ void FStateTreeViewModel::BindToDebuggerDelegates()
 			}
 		}
 	});
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 bool FStateTreeViewModel::IsStateActiveInDebugger(const UStateTreeState& State) const
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	return ActiveStates.Contains(State.ID);
 #else
 	return false;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 #undef LOCTEXT_NAMESPACE

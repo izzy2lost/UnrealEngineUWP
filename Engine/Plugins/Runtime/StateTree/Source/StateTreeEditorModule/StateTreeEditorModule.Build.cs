@@ -60,7 +60,8 @@ namespace UnrealBuildTool.Rules
 				"MessageLog",
 			});
 
-			PublicDefinitions.Add("WITH_STATETREE_DEBUGGER=1");
+			PublicDefinitions.Add("WITH_STATETREE_TRACE=1");
+			PublicDefinitions.Add("WITH_STATETREE_TRACE_DEBUGGER=1");
 		}
 	}
 }

@@ -3,14 +3,14 @@
 #pragma once
 #include "StateTreeTraceTypes.h"
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Math/Range.h"
 #include "StateTree.h"
 #include "StateTreeTypes.h"
 #include "TraceServices/Model/Frames.h"
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 UENUM()
 enum class EStateTreeBreakpointType : uint8
@@ -21,15 +21,7 @@ enum class EStateTreeBreakpointType : uint8
 	OnTransition,
 };
 
-UENUM()
-enum class EStateTreeTraceStatus : uint8
-{
-	TracesStarted,
-	StoppingTrace,
-	TracesStopped
-};
-
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 class UStateTree;
 enum class EStateTreeTraceEventType : uint8;
@@ -328,4 +320,4 @@ private:
 	static EStateTreeTraceEventType GetMatchingEventType(EStateTreeBreakpointType BreakpointType);
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

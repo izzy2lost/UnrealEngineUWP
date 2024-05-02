@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 
 #include "Debugger/StateTreeTrace.h"
-#include "Debugger/StateTreeDebugger.h"
+#include "Debugger/StateTreeTraceTypes.h"
 #include "Exporters/Exporter.h"
 #include "ObjectTrace.h"
 #include "Serialization/BufferArchive.h"
@@ -773,4 +773,4 @@ void OutputActiveStatesEventTrace(
 
 } // UE::StateTreeTrace
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE

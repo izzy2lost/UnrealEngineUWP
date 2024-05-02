@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Delegates/IDelegateInstance.h"
 #include "IStateTreeTraceProvider.h"
@@ -343,4 +343,4 @@ private:
 	FDelegateHandle TracingStateChangedHandle;
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

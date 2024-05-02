@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "StateTreeTraceTypes.h"
 #include "TraceServices/Model/AnalysisSession.h"
@@ -40,4 +40,4 @@ public:
 	virtual bool ReadTimelines(const UStateTree& StateTree, TFunctionRef<void(const FStateTreeInstanceDebugId ProcessedInstanceId, const FEventsTimeline&)> Callback) const = 0;
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

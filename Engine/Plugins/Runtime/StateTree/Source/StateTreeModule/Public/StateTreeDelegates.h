@@ -67,12 +67,12 @@ extern STATETREEMODULE_API FOnRequestEditorHash OnRequestEditorHash;
 
 #endif // WITH_EDITOR
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 
 /** Called by the StateTree module when StateTree traces are enabled/disabled. */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnTracingStateChanged, EStateTreeTraceStatus);
 extern STATETREEMODULE_API FOnTracingStateChanged OnTracingStateChanged;
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 
 }; // UE::StateTree::Delegates

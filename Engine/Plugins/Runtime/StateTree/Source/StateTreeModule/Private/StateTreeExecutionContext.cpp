@@ -22,7 +22,7 @@
 	UE_VLOG_UELOG(GetOwner(), LogStateTree, LogVerbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__); \
 	STATETREE_TRACE_LOG_EVENT(TraceVerbosity, Format, ##__VA_ARGS__)
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 	#define ID_NAME PREPROCESSOR_JOIN(InstanceId,__LINE__) \
 
 	#define STATETREE_TRACE_SCOPED_PHASE(Phase) \
@@ -66,7 +66,7 @@
 	#define STATETREE_TRACE_EVALUATOR_EVENT(Index, DataView, EventType)
 	#define STATETREE_TRACE_CONDITION_EVENT(Index, DataView, EventType)
 	#define STATETREE_TRACE_TRANSITION_EVENT(Source, EventType)
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 
 namespace UE::StateTree
 {
@@ -737,7 +737,7 @@ void FStateTreeExecutionContext::RequestTransition(const FStateTreeTransitionReq
 	}
 }
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 FStateTreeInstanceDebugId FStateTreeExecutionContext::GetInstanceDebugId() const
 {
 	FStateTreeInstanceDebugId& InstanceDebugId = GetExecState().InstanceDebugId; 
@@ -748,7 +748,7 @@ FStateTreeInstanceDebugId FStateTreeExecutionContext::GetInstanceDebugId() const
 	}
 	return InstanceDebugId;
 }
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 
 void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeExecutionFrame> CurrentActiveFrames, TArrayView<FStateTreeExecutionFrame> NextActiveFrames)
 {

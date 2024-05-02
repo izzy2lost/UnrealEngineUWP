@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/SStateTreeDebuggerTimelines.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -201,4 +201,4 @@ void SStateTreeDebuggerTimelines::Refresh()
 	}
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "IStateTreeTraceProvider.h"
 #include "Model/PointTimeline.h"
@@ -60,4 +60,4 @@ private:
 
 	TArray<FStateTreeDebugIdPair> StateTreeAssets;
 };
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

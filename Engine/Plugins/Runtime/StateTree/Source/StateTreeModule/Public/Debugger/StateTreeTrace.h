@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 
 #include "Trace/Trace.h"
 #include "Containers/ContainersFwd.h"
@@ -89,7 +89,7 @@ namespace UE::StateTreeTrace
 #define TRACE_STATETREE_ACTIVE_STATES_EVENT(InstanceId, ActivateFrames) \
 		UE::StateTreeTrace::OutputActiveStatesEventTrace(InstanceId, ActivateFrames);
 
-#else //STATETREE_DEBUG_TRACE_ENABLED
+#else //WITH_STATETREE_TRACE
 
 #define TRACE_STATETREE_INSTANCE_EVENT(InstanceID, StateTree, InstanceName, EventType)
 #define TRACE_STATETREE_INSTANCE_FRAME_EVENT(InstanceID, Frame)
@@ -102,4 +102,4 @@ namespace UE::StateTreeTrace
 #define TRACE_STATETREE_TRANSITION_EVENT(InstanceId, TransitionIdx, EventType)
 #define TRACE_STATETREE_ACTIVE_STATES_EVENT(InstanceId, ActiveFrames)
 
-#endif // STATETREE_DEBUG_TRACE_ENABLED
+#endif // WITH_STATETREE_TRACE

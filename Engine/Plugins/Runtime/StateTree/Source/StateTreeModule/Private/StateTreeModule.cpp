@@ -4,22 +4,24 @@
 
 #include "StateTreeTypes.h"
 
-#if WITH_STATETREE_DEBUGGER
-#include "Debugger/StateTreeDebuggerTypes.h"
+#if WITH_STATETREE_TRACE
 #include "Debugger/StateTreeTrace.h"
-#include "Debugger/StateTreeTraceModule.h"
-#include "Features/IModularFeatures.h"
+#include "Debugger/StateTreeTraceTypes.h"
 #include "HAL/IConsoleManager.h"
-#include "Misc/CoreDelegates.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "StateTreeDelegates.h"
 #include "StateTreeSettings.h"
+#endif // WITH_STATETREE_TRACE
+
+#if WITH_STATETREE_TRACE_DEBUGGER
+#include "Debugger/StateTreeDebuggerTypes.h"
+#include "Debugger/StateTreeTraceModule.h"
+#include "Features/IModularFeatures.h"
+#include "Misc/CoreDelegates.h"
 #include "Trace/StoreClient.h"
-#include "Trace/StoreService.h"
 #include "TraceServices/AnalysisService.h"
 #include "TraceServices/ITraceServicesModule.h"
-
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 #if WITH_EDITORONLY_DATA
 #include "StateTreeInstanceData.h"
@@ -37,7 +39,7 @@ class FStateTreeModule : public IStateTreeModule
 	virtual bool IsTracing() const override;
 	virtual void StopTraces() override;
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	/**
 	 * Gets the store client.
 	 */
@@ -49,16 +51,18 @@ class FStateTreeModule : public IStateTreeModule
 		}
 		return StoreClient.Get();
 	}
-	
+
 	TSharedPtr<TraceServices::IAnalysisService> TraceAnalysisService;
 	TSharedPtr<TraceServices::IModuleService> TraceModuleService;
 
-	TArray<const FString> ChannelsToRestore;
-
 	/** The client used to connect to the trace store. */
 	TUniquePtr<UE::Trace::FStoreClient> StoreClient;
-	
+
 	FStateTreeTraceModule StateTreeTraceModule;
+#endif // WITH_STATETREE_TRACE_DEBUGGER
+
+#if WITH_STATETREE_TRACE
+	TArray<const FString> ChannelsToRestore;
 
 	/** Keep track if StartTraces was explicitly called. */
 	bool bIsTracing = false;
@@ -81,21 +85,24 @@ class FStateTreeModule : public IStateTreeModule
 				IStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule");
 				StateTreeModule.StopTraces();
 			}));
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 };
 
 IMPLEMENT_MODULE(FStateTreeModule, StateTreeModule)
 
 void FStateTreeModule::StartupModule()
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	ITraceServicesModule& TraceServicesModule = FModuleManager::LoadModuleChecked<ITraceServicesModule>("TraceServices");
 	TraceAnalysisService = TraceServicesModule.GetAnalysisService();
 	TraceModuleService = TraceServicesModule.GetModuleService();
 
 	IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &StateTreeTraceModule);
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
+#if WITH_STATETREE_TRACE
 	UE::StateTreeTrace::RegisterGlobalDelegates();
+
 #if !WITH_EDITOR
 	// We don't automatically start traces for Editor targets since we rely on the debugger
 	// to start recording either on user action or on PIE session start.
@@ -106,7 +113,7 @@ void FStateTreeModule::StartupModule()
 	}
 #endif // !WITH_EDITOR
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 
 #if WITH_EDITORONLY_DATA
 	UE::StateTree::RegisterInstanceDataForLocalization();
@@ -115,24 +122,27 @@ void FStateTreeModule::StartupModule()
 
 void FStateTreeModule::ShutdownModule()
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 	StopTraces();
 
+	UE::StateTreeTrace::UnregisterGlobalDelegates();
+#endif // WITH_STATETREE_TRACE
+
+#if WITH_STATETREE_TRACE_DEBUGGER
 	if (StoreClient.IsValid())
 	{
 		StoreClient.Reset();
 	}
 
-	UE::StateTreeTrace::UnregisterGlobalDelegates();
-	
 	IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &StateTreeTraceModule);
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 bool FStateTreeModule::StartTraces(int32& OutTraceId)
 {
 	OutTraceId = INDEX_NONE;
-#if WITH_STATETREE_DEBUGGER
+
+#if WITH_STATETREE_TRACE
 	if (IsRunningCommandlet() || bIsTracing)
 	{
 		return false;
@@ -141,12 +151,14 @@ bool FStateTreeModule::StartTraces(int32& OutTraceId)
 	FGuid SessionGuid, TraceGuid;
 	const bool bAlreadyConnected = FTraceAuxiliary::IsConnected(SessionGuid, TraceGuid);
 
-	if (UE::Trace::FStoreClient* Client = GetStoreClient())
+#if WITH_STATETREE_TRACE_DEBUGGER
+	if (const UE::Trace::FStoreClient* Client = GetStoreClient())
 	{
-		const UE::Trace::FStoreClient::FSessionInfo* SessionInfo = StoreClient->GetSessionInfoByGuid(TraceGuid);
+		const UE::Trace::FStoreClient::FSessionInfo* SessionInfo = Client->GetSessionInfoByGuid(TraceGuid);
 		// Note that 0 is returned instead of INDEX_NONE to match default invalid value for GetTraceId 
 		OutTraceId = SessionInfo != nullptr ? SessionInfo->GetTraceId(): 0;
 	}
+#endif // WITH_STATETREE_TRACE_DEBUGGER 
 
 	// If trace is already connected let's keep track of enabled channels to restore them when we stop recording
 	if (bAlreadyConnected)
@@ -195,21 +207,21 @@ bool FStateTreeModule::StartTraces(int32& OutTraceId)
 	return bAreTracesStarted;
 #else
 	return false;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 }
 
 bool FStateTreeModule::IsTracing() const
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 	return bIsTracing;
 #else
 	return false;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 }
 
 void FStateTreeModule::StopTraces()
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 	if (bIsTracing == false)
 	{
 		return;
@@ -246,7 +258,7 @@ void FStateTreeModule::StopTraces()
 		UE_LOG(LogStateTree, Log, TEXT("StateTree traces stopped"));
 		UE::StateTree::Delegates::OnTracingStateChanged.Broadcast(EStateTreeTraceStatus::TracesStopped);
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 }
 
 #undef LOCTEXT_NAMESPACE

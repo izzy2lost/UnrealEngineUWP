@@ -14,7 +14,7 @@ namespace UnrealBuildTool.Rules
 			);
 
 			PublicDependencyModuleNames.AddRange(
-				new string[] {
+				new [] {
 					"Core",
 					"CoreUObject",
 					"DeveloperSettings",
@@ -27,7 +27,7 @@ namespace UnrealBuildTool.Rules
 			);
 
 			PrivateDependencyModuleNames.AddRange(
-				new string[] {
+				new [] {
 					"PropertyPath",
 				}
 			);
@@ -37,29 +37,45 @@ namespace UnrealBuildTool.Rules
 			if (Target.bBuildEditor)
 			{
 				PublicDependencyModuleNames.AddRange(
-					new string[] {
+					new [] {
 						"UnrealEd",
 						"BlueprintGraph",
 					}
 				);
 			}
 
-			// Until we split use of TraceServices and TraceAnalysis in the debugger we enable only on platforms supporting both at the moment
-			if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop) && (Target.Configuration != UnrealTargetConfiguration.Shipping || Target.bBuildEditor))
+			// Allow debugger traces on all non-shipping targets and shipping editors (UEFN)
+			if (Target.Configuration != UnrealTargetConfiguration.Shipping || Target.bBuildEditor)
 			{
-				PublicDefinitions.Add("WITH_STATETREE_DEBUGGER=1");
+				PublicDefinitions.Add("WITH_STATETREE_TRACE=1");
 				PublicDependencyModuleNames.AddRange(
-					new string[]
+					new []
 					{
-						"TraceLog",
-						"TraceServices",
-						"TraceAnalysis"
+						"TraceLog"
 					}
 				);
+				
+				// Allow debugger trace analysis on editor platforms
+				if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop) && Target.bBuildEditor)
+				{
+					PublicDefinitions.Add("WITH_STATETREE_TRACE_DEBUGGER=1");
+					PublicDependencyModuleNames.AddRange(
+						new []
+						{
+							"TraceServices",
+							"TraceAnalysis"
+						}
+					);
+				}
+				else
+				{
+					PublicDefinitions.Add("WITH_STATETREE_TRACE_DEBUGGER=0");
+				}
 			}
 			else
 			{
-				PublicDefinitions.Add("WITH_STATETREE_DEBUGGER=0");
+				PublicDefinitions.Add("WITH_STATETREE_TRACE=0");
+				PublicDefinitions.Add("WITH_STATETREE_TRACE_DEBUGGER=0");
 			}
 		}
 	}

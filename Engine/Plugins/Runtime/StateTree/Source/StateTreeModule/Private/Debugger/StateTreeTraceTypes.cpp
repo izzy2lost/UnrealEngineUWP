@@ -5,7 +5,7 @@
 #include "StateTree.h"
 #include "StateTreeNodeBase.h"
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 namespace UE::StateTreeTrace
 {
@@ -398,4 +398,4 @@ FString FStateTreeTraceInstanceFrameEvent::GetTypeString(const UStateTree& State
 	return TEXT("New instance frame");
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

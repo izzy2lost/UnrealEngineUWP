@@ -75,9 +75,9 @@ void FStateTreeEditorModule::StartupModule()
 	UE::StateTree::Delegates::OnRequestCompile.BindStatic(&UE::StateTree::Editor::CompileStateTree);
 	UE::StateTree::Delegates::OnRequestEditorHash.BindStatic(&UE::StateTree::Editor::CalcAssetHash);
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	FStateTreeDebuggerCommands::Register();
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 	MenuExtensibilityManager = MakeShareable(new FExtensibilityManager);
 	ToolBarExtensibilityManager = MakeShareable(new FExtensibilityManager);
@@ -108,9 +108,9 @@ void FStateTreeEditorModule::ShutdownModule()
 {
 	UE::StateTree::Delegates::OnRequestCompile.Unbind();
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	FStateTreeDebuggerCommands::Unregister();
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	
 	MenuExtensibilityManager.Reset();
 	ToolBarExtensibilityManager.Reset();

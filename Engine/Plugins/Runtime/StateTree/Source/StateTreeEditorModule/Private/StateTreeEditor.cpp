@@ -50,9 +50,9 @@ const FName FStateTreeEditor::AssetDetailsTabId(TEXT("StateTreeEditor_AssetDetai
 const FName FStateTreeEditor::StateTreeViewTabId(TEXT("StateTreeEditor_StateTreeView"));
 const FName FStateTreeEditor::StateTreeStatisticsTabId(TEXT("StateTreeEditor_StateTreeStatistics"));
 const FName FStateTreeEditor::CompilerResultsTabId(TEXT("StateTreeEditor_CompilerResults"));
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 const FName FStateTreeEditor::DebuggerTabId(TEXT("StateTreeEditor_Debugger"));
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 
 namespace UE::StateTree::Editor
@@ -113,12 +113,12 @@ void FStateTreeEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>& 
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Log.TabIcon"));
 	
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	InTabManager->RegisterTabSpawner(DebuggerTabId, FOnSpawnTab::CreateSP(this, &FStateTreeEditor::SpawnTab_Debugger))
 	   .SetDisplayName(NSLOCTEXT("StateTreeEditor", "DebuggerTab", "Debugger"))
 	   .SetGroup(WorkspaceMenuCategoryRef)
 	   .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Debug"));
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 
@@ -131,9 +131,9 @@ void FStateTreeEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>
 	InTabManager->UnregisterTabSpawner(StateTreeViewTabId);
 	InTabManager->UnregisterTabSpawner(StateTreeStatisticsTabId);
 	InTabManager->UnregisterTabSpawner(CompilerResultsTabId);
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	InTabManager->UnregisterTabSpawner(DebuggerTabId);
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UStateTree* InStateTree)
@@ -235,9 +235,9 @@ void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedP
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.25f)
 					->AddTab(CompilerResultsTabId, ETabState::ClosedTab)
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 					->AddTab(DebuggerTabId, ETabState::ClosedTab)
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 				)
 			)
 			->Split
@@ -400,7 +400,7 @@ TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_CompilerResults(const FSpawnTabA
 	return SpawnedTab;
 }
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_Debugger(const FSpawnTabArgs& Args)
 {
 	TSharedPtr<SWidget> Widget = SNullWidget::NullWidget;
@@ -423,7 +423,7 @@ TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_Debugger(const FSpawnTabArgs& Ar
 			Widget.ToSharedRef()
 		];
 }
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 FText FStateTreeEditor::GetStatisticsText() const
 {

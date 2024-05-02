@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/StateTreeTraceProvider.h"
 #include "Debugger/StateTreeDebugger.h"
@@ -164,4 +164,4 @@ void FStateTreeTraceProvider::GetInstances(TArray<UE::StateTreeDebugger::FInstan
 
 #undef LOCTEXT_NAMESPACE
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

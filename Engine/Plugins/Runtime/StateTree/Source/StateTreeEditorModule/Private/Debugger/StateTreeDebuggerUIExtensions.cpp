@@ -74,7 +74,7 @@ void OnStateEnableToggled(TSharedPtr<IPropertyHandle> EnabledProperty)
 
 bool HasStateBreakpoint(const TArray<TWeakObjectPtr<>>& StatesBeingCustomized, const UStateTreeEditorData* EditorData, const EStateTreeBreakpointType Type)
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	if (EditorData == nullptr)
 	{
 		return false;
@@ -89,13 +89,13 @@ bool HasStateBreakpoint(const TArray<TWeakObjectPtr<>>& StatesBeingCustomized, c
 			}
 		}
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	return false;
 }
 
 void OnStateBreakpointToggled(const TArray<TWeakObjectPtr<>>& States, UStateTreeEditorData* EditorData, const EStateTreeBreakpointType Type)
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	if (EditorData == nullptr || States.IsEmpty())
 	{
 		return;
@@ -115,24 +115,24 @@ void OnStateBreakpointToggled(const TArray<TWeakObjectPtr<>>& States, UStateTree
 			}
 		}
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 bool HasTaskBreakpoint(TSharedPtr<IPropertyHandle> StructProperty, const UStateTreeEditorData* EditorData, const EStateTreeBreakpointType Type)
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	const FStateTreeEditorNode* Node = EditorNodeUtils::GetCommonNode(StructProperty);
 	if (EditorData != nullptr && Node != nullptr)
 	{
 		return EditorData->HasBreakpoint(Node->ID, Type);
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	return false;
 }
 
 void OnTaskBreakpointToggled(TSharedPtr<IPropertyHandle> StructProperty, UStateTreeEditorData* EditorData, const EStateTreeBreakpointType Type)
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	const FStateTreeEditorNode* Node = EditorNodeUtils::GetMutableCommonNode(StructProperty);
 	if (EditorData != nullptr && Node != nullptr)
 	{
@@ -145,7 +145,7 @@ void OnTaskBreakpointToggled(TSharedPtr<IPropertyHandle> StructProperty, UStateT
 			EditorData->AddBreakpoint(Node->ID, Type);
 		}
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 ECheckBoxState GetBreakpointCheckState(
@@ -154,7 +154,7 @@ ECheckBoxState GetBreakpointCheckState(
 	TFunctionRef<ECheckBoxState(const UObject& OuterObject, const IPropertyHandle& PropertyHandle, const UStateTreeEditorData&)> Callback)
 {
 	ECheckBoxState CommonState = ECheckBoxState::Unchecked;
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	if (StructPropertyHandle.IsValid() == false
 		|| StructPropertyHandle->IsValidHandle() == false
 		|| EditorData == nullptr)
@@ -182,13 +182,13 @@ ECheckBoxState GetBreakpointCheckState(
 			}
 		}
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	return CommonState;
 }
 
 ECheckBoxState GetTransitionBreakpointCheckState(const TSharedPtr<IPropertyHandle>& StructPropertyHandle, const UStateTreeEditorData* EditorData)
 {
-#if WITH_STATETREE_DEBUGGER	
+#if WITH_STATETREE_TRACE_DEBUGGER
 	return GetBreakpointCheckState(StructPropertyHandle, EditorData,
 		[](const UObject& OuterObject, const IPropertyHandle& PropertyHandle, const UStateTreeEditorData& EditorData)
 		{
@@ -204,7 +204,7 @@ ECheckBoxState GetTransitionBreakpointCheckState(const TSharedPtr<IPropertyHandl
 		});
 #else
 	return  ECheckBoxState::Unchecked;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 ECheckBoxState GetTransitionEnabledCheckState(const TSharedPtr<IPropertyHandle>& StructPropertyHandle)
@@ -267,7 +267,7 @@ void OnTransitionEnableToggled(const TSharedPtr<IPropertyHandle>& StructProperty
 
 void OnTransitionBreakpointToggled(const TSharedPtr<IPropertyHandle>& StructPropertyHandle, UStateTreeEditorData* EditorData)
 {	
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	if (StructPropertyHandle.IsValid() == false
 		|| StructPropertyHandle->IsValidHandle() == false
 		|| EditorData == nullptr)
@@ -312,7 +312,7 @@ void OnTransitionBreakpointToggled(const TSharedPtr<IPropertyHandle>& StructProp
 			}
 		}
 	}
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 TArray<TWeakObjectPtr<UObject>> GetWeakOuterObjects(const TSharedPtr<IPropertyHandle>& PropertyHandle)

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "StateTreeDebuggerCommands.h"
 
@@ -35,4 +35,4 @@ void FStateTreeDebuggerCommands::RegisterCommands()
 
 #undef LOCTEXT_NAMESPACE
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
