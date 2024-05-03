@@ -179,8 +179,6 @@ namespace Horde.Server.Jobs
 			int codeChange = lastCodeCommit?.Number ?? change;
 
 			// New properties for the job
-			List<string> arguments = create.Arguments ?? template.GetDefaultArguments(false);
-
 			bool? updateIssues = null;
 			if (template.UpdateIssues)
 			{
@@ -200,8 +198,10 @@ namespace Horde.Server.Jobs
 			options.AutoSubmit = create.AutoSubmit;
 			options.UpdateIssues = updateIssues;
 			options.Claims.AddRange(User.Claims.Select(x => new AclClaimConfig(x)));
-			options.Arguments.AddRange(arguments);
 			options.JobOptions ??= create.JobOptions;
+
+			// Find all the default parameters, and override any settings with the values in the request
+			template.GetDefaultParameters(options.Parameters, false);
 
 			if (create.Parameters != null)
 			{
@@ -209,12 +209,12 @@ namespace Horde.Server.Jobs
 				{
 					options.Parameters[parameter] = value;
 				}
-				foreach (Parameter parameter in template.Parameters)
-				{
-					parameter.GetArguments(options.Parameters, false, options.Arguments);
-				}
 			}
 
+			// Build the final arguments list from the combined parameter set
+			template.GetArgumentsForParameters(create.Arguments, options.Parameters, options.Arguments);
+
+			// Merge the environment variables
 			foreach ((string key, string value) in environment)
 			{
 				options.Environment[key] = value;

@@ -1372,7 +1372,8 @@ namespace Horde.Server.Jobs
 					CreateJobOptions options = new CreateJobOptions(templateRefConfig);
 					options.PreflightChange = newJob.PreflightChange;
 					options.PreflightDescription = newJob.PreflightDescription;
-					options.Arguments.AddRange(template.GetDefaultArguments(true));
+					template.GetDefaultParameters(options.Parameters, true);
+					template.GetArgumentsForParameters(null, options.Parameters, options.Arguments);
 
 					await CreateJobAsync(chainedJobId, streamConfig, jobTrigger.TemplateRefId, template.Hash, triggerGraph, templateRefConfig.Name, change.Value, codeChange, options);
 					return newJob;
