@@ -32,7 +32,7 @@
 RWTexture2D<uint> RWScreenProbeSceneDepth;
 RWTexture2D<uint> RWScreenProbeWorldSpeed;
 RWTexture2D<UNORM float2> RWScreenProbeWorldNormal;
-RWTexture2D<float3> RWScreenProbeTranslatedWorldPosition;
+RWTexture2D<float4> RWScreenProbeTranslatedWorldPosition;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +92,7 @@ void WriteDownsampledProbeMaterial(float2 ScreenUV, uint2 ScreenProbeAtlasCoord,
 
 	RWScreenProbeWorldSpeed[ScreenProbeAtlasCoord] = EncodeScreenProbeSpeed(length(ProbeWorldVelocity), ProbeMaterial.bHasBackfaceDiffuse, ProbeMaterial.bSupportsScreenTraces);
 
-	RWScreenProbeTranslatedWorldPosition[ScreenProbeAtlasCoord] = ProbeTranslatedWorldPosition;
+	RWScreenProbeTranslatedWorldPosition[ScreenProbeAtlasCoord] = float4(ProbeTranslatedWorldPosition, 0.0f);
 }
 
 #ifdef ScreenProbeDownsampleDepthUniformCS
@@ -1610,7 +1610,7 @@ void ScreenProbeIntegrateCS(
 
 #endif
 
-RWTexture2DArray<float3> RWNewHistoryDiffuseIndirect;
+RWTexture2DArray<float4> RWNewHistoryDiffuseIndirect;
 RWTexture2DArray<float3> RWNewHistoryBackfaceDiffuseIndirect;
 RWTexture2DArray<float3> RWNewHistoryRoughSpecularIndirect;
 RWTexture2DArray<UNORM float> RWNumHistoryFramesAccumulated;
@@ -2001,7 +2001,7 @@ void ScreenProbeTemporalReprojectionCS(
 	OutDiffuseIndirect.rgb = -min(-OutDiffuseIndirect.rgb, 0.0f);
 	OutRoughSpecularIndirect.rgb = -min(-OutRoughSpecularIndirect.rgb, 0.0f);
 
-	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = OutDiffuseIndirect;
+	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = float4(OutDiffuseIndirect, 0.0f);
 	RWNewHistoryRoughSpecularIndirect[Coord.SvPositionFlatten] = OutRoughSpecularIndirect;
 	RWNumHistoryFramesAccumulated[Coord.SvPositionFlatten] = NewNumFramesAccumulated / MaxFramesAccumulated;
 

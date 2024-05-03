@@ -1243,7 +1243,7 @@ void UpsampleAndIntegrateCS(
 }
 #endif
 
-RWTexture2DArray<float3> RWNewHistoryDiffuseIndirect;
+RWTexture2DArray<float4> RWNewHistoryDiffuseIndirect;
 RWTexture2DArray<float3> RWNewHistoryRoughSpecularIndirect;
 RWTexture2DArray<UNORM float> RWNumHistoryFramesAccumulated;
 
@@ -1507,7 +1507,7 @@ void TemporalAccumulationCS(
 	OutDiffuseIndirect.rgb = -min(-OutDiffuseIndirect.rgb, 0.0f);
 	OutRoughSpecularIndirect.rgb = -min(-OutRoughSpecularIndirect.rgb, 0.0f);
 
-	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = OutDiffuseIndirect;
+	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = float4(OutDiffuseIndirect, 0.0f);
 	RWNewHistoryRoughSpecularIndirect[Coord.SvPositionFlatten] = OutRoughSpecularIndirect;
 	RWNumHistoryFramesAccumulated[Coord.SvPositionFlatten] = NewNumFramesAccumulated / MaxFramesAccumulated;
 
