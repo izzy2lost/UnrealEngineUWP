@@ -24,6 +24,10 @@ public:
 	/** Default Controller class to use for the specified role */
 	UPROPERTY(config, EditAnywhere, Category = "LiveLink", meta = (AllowAbstract = "false"))
 	TMap<TSubclassOf<ULiveLinkRole>, TSubclassOf<ULiveLinkControllerBase>> DefaultControllerForRole;
+
+	/** If true, all LiveLink subjects with pending frame data will be updated immediately before the LiveLink components execute (only applies to PIE) */
+	UPROPERTY(config, EditAnywhere, Category = "LiveLink")
+	bool bUpdateSubjectsImmediatelyInPIE = true;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

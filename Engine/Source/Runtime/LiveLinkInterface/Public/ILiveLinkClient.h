@@ -349,6 +349,9 @@ public:
 	*/
 	virtual void ForceTick() = 0;
 
+	/** Returns true if the client has pending subject frames to process during its next tick */
+	virtual bool HasPendingSubjectFrames() = 0;
+
 	/** Notify when the list of sources has changed. */
 	virtual FSimpleMulticastDelegate& OnLiveLinkSourcesChanged() = 0;
 

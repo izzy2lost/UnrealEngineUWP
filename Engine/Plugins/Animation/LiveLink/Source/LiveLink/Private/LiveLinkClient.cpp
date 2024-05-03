@@ -1278,6 +1278,12 @@ void FLiveLinkClient::ForceTick()
 	Tick();
 }
 
+bool FLiveLinkClient::HasPendingSubjectFrames()
+{
+	FScopeLock Lock(&CollectionAccessCriticalSection);
+	return !SubjectFrameToPush.IsEmpty();
+}
+
 bool FLiveLinkClient::EvaluateFrame_AnyThread(FLiveLinkSubjectName InSubjectName, TSubclassOf<ULiveLinkRole> InDesiredRole, FLiveLinkSubjectFrameData& OutFrame)
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLink_EvaluateFrame);
