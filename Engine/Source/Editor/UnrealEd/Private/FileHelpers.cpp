@@ -958,13 +958,15 @@ static bool SaveWorld(UWorld* World,
 			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 			IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 			
-			// Make sure when we exit SaveWorld AssetRegistry is up to date with saved map
-			AssetRegistry.ScanModifiedAssetFiles({ FinalFilename });
+			// Make sure when we exit SaveWorld AssetRegistry is up to date with saved map. Ignore warnings if the map is
+			// stored in /Temp.
+			AssetRegistry.ScanModifiedAssetFiles({ FinalFilename }, UE::AssetRegistry::EScanFlags::IgnoreInvalidPathWarning);
 			
 			if (bPackageNeedsRename || bNewlyCreated || !bNewPackageExists)
 			{
 				// Force rescan to make sure assets are found on map open or world partition initialize`
-				AssetRegistry.ScanPathsSynchronous( ULevel::GetExternalObjectsPaths(NewPackageName) , true);
+				AssetRegistry.ScanSynchronous(ULevel::GetExternalObjectsPaths(NewPackageName), {} /* FilePaths */,
+					UE::AssetRegistry::EScanFlags::IgnoreInvalidPathWarning | UE::AssetRegistry::EScanFlags::ForceRescan);
 			}
 
 			if (RenamedWorldPartition && RenamedWorldPartition->IsStreamingEnabled())

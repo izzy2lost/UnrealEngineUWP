@@ -59,13 +59,14 @@ namespace EAssetAvailabilityProgressReportingType
 namespace UE::AssetRegistry
 {
 
-	// Please update LexToString when modifying this enum
+// Please update LexToString when modifying this enum
 enum class EScanFlags : uint32
 {
 	None = 0,
 	ForceRescan = 1 << 0,				// the paths will be scanned again, even if they were previously scanned
 	IgnoreDenyListScanFilters = 1 << 1,	// ignore deny list scan filters
 	WaitForInMemoryObjects = 1 << 2,	// update the tags of all assets that have loaded into memory before returning from the scan
+	IgnoreInvalidPathWarning = 1 << 3,  // By default, scans of invalid paths (unmounted, or /Temp) log a warning. Suppress that warning.
 };
 ENUM_CLASS_FLAGS(EScanFlags);
 
@@ -669,6 +670,7 @@ public:
 	/** Forces a rescan of specific filenames, call this when you need to refresh from disk */
 	UFUNCTION(BlueprintCallable, Category = "AssetRegistry")
 	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths) = 0;
+	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths, UE::AssetRegistry::EScanFlags ScanFlags) = 0;
 
 	/** Event for when one or more files have been blocked from the registry */
 	DECLARE_EVENT_OneParam( IAssetRegistry, FFilesBlockedEvent, const TArray<FString>& /*Files*/ );

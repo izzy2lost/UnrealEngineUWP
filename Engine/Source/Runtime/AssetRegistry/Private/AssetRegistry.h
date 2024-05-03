@@ -102,6 +102,7 @@ public:
 	virtual void ScanFilesSynchronous(const TArray<FString>& InFilePaths, bool bForceRescan = false) override;
 	virtual void PrioritizeSearchPath(const FString& PathToPrioritize) override;
 	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths) override;
+	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths, UE::AssetRegistry::EScanFlags ScanFlags) override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void AppendState(const FAssetRegistryState& InState) override;
 	virtual SIZE_T GetAllocatedSize(bool bLogDetailed = false) const override;

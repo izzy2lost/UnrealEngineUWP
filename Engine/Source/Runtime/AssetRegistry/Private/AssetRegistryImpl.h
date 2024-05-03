@@ -227,7 +227,7 @@ public:
 	void ScanPathsSynchronous(Impl::FScanPathContext& Context);
 	void PrioritizeSearchPath(const FString& PathToPrioritize);
 	void ScanModifiedAssetFiles(Impl::FEventContext& EventContext, Impl::FClassInheritanceContext& InheritanceContext,
-		const TArray<FString>& InFilePaths);
+		const TArray<FString>& InFilePaths, UE::AssetRegistry::EScanFlags ScanFlags);
 	void Serialize(FArchive& Ar, Impl::FEventContext& EventContext);
 	void AppendState(Impl::FEventContext& EventContext, const FAssetRegistryState& InState,
 		FAssetRegistryState::EInitializationMode Mode = FAssetRegistryState::EInitializationMode::Append);
@@ -700,8 +700,9 @@ struct FClassInheritanceContext
 struct FScanPathContext
 {
 	FScanPathContext(FEventContext& InEventContext, FClassInheritanceContext& InInheritanceContext,
-		const TArray<FString>& InDirs, const TArray<FString>& InFiles, bool bInForceRescan = false,
-		bool bInIgnoreDenyListScanFilters = false, TArray<FSoftObjectPath>* FoundAssets = nullptr);
+		const TArray<FString>& InDirs, const TArray<FString>& InFiles,
+		UE::AssetRegistry::EScanFlags InScanFlags = UE::AssetRegistry::EScanFlags::None,
+		TArray<FSoftObjectPath>* FoundAssets = nullptr);
 
 	TArray<FString> PackageDirs;
 	TArray<FString> LocalDirs;
@@ -714,6 +715,7 @@ struct FScanPathContext
 	int32 NumFoundAssets = 0;
 	bool bForceRescan = false;
 	bool bIgnoreDenyListScanFilters = false;
+	bool bIgnoreInvalidPathWarning = false;
 	EGatherStatus Status = EGatherStatus::TickActiveGatherActive;
 };
 

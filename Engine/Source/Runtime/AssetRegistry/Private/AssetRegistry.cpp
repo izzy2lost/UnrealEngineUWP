@@ -128,7 +128,8 @@ namespace UE::AssetRegistry
 		const TCHAR* Names[] = {
 			TEXT("ForceRescan"),
 			TEXT("IgnoreDenyListScanFilters"),
-			TEXT("WaitForInMemoryObjects")
+			TEXT("WaitForInMemoryObjects"),
+			TEXT("IgnoreInvalidPathWarning")
 		};
 		
 		if (Flags == EScanFlags::None)
@@ -4005,15 +4006,13 @@ void UAssetRegistryImpl::ScanPathsSynchronousInternal(const TArray<FString>& InD
 	UE_TRACK_REFERENCING_OPNAME_SCOPED(PackageAccessTrackingOps::NAME_ResetContext);
 	const double SearchStartTime = FPlatformTime::Seconds();
 
-	const bool bForceRescan = !!(InScanFlags & UE::AssetRegistry::EScanFlags::ForceRescan);
-	const bool bIgnoreDenyListScanFilters = !!(InScanFlags & UE::AssetRegistry::EScanFlags::IgnoreDenyListScanFilters);
 	const bool bWaitForInMemoryObjects = !!(InScanFlags & UE::AssetRegistry::EScanFlags::WaitForInMemoryObjects);
 
 	UE::AssetRegistry::Impl::FEventContext EventContext;
 	UE::AssetRegistry::Impl::FClassInheritanceContext InheritanceContext;
 	UE::AssetRegistry::Impl::FClassInheritanceBuffer InheritanceBuffer;
 	UE::AssetRegistry::Impl::FScanPathContext Context(EventContext, InheritanceContext, InDirs, InFiles,
-		bForceRescan, bIgnoreDenyListScanFilters, nullptr /* OutFindAssets */);
+		InScanFlags, nullptr /* OutFindAssets */);
 
 	bool bInitialSearchStarted;
 	bool bInitialSearchCompleted;
@@ -5523,13 +5522,14 @@ namespace Impl
 {
 
 FScanPathContext::FScanPathContext(FEventContext& InEventContext, FClassInheritanceContext& InInheritanceContext, 
-	const TArray<FString>& InDirs, const TArray<FString>& InFiles, bool bInForceRescan,
-	bool bInIgnoreDenyListScanFilters, TArray<FSoftObjectPath>* FoundAssets)
+	const TArray<FString>& InDirs, const TArray<FString>& InFiles, UE::AssetRegistry::EScanFlags InScanFlags,
+	TArray<FSoftObjectPath>* FoundAssets)
 	: EventContext(InEventContext)
 	, InheritanceContext(InInheritanceContext)
 	, OutFoundAssets(FoundAssets)
-	, bForceRescan(bInForceRescan)
-	, bIgnoreDenyListScanFilters(bInIgnoreDenyListScanFilters)
+	, bForceRescan(!!(InScanFlags & UE::AssetRegistry::EScanFlags::ForceRescan))
+	, bIgnoreDenyListScanFilters(!!(InScanFlags & UE::AssetRegistry::EScanFlags::IgnoreDenyListScanFilters))
+	, bIgnoreInvalidPathWarning(!!(InScanFlags & UE::AssetRegistry::EScanFlags::IgnoreInvalidPathWarning))
 {
 	if (OutFoundAssets)
 	{
@@ -5568,14 +5568,20 @@ FScanPathContext::FScanPathContext(FEventContext& InEventContext, FClassInherita
 		}
 		else if (!FPackageName::TryConvertToMountedPath(InFile, &LocalPath, &PackageName, nullptr, nullptr, &Extension, &FlexNameType))
 		{
-			UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is not in a mounted path, will not scan."), *InFile);
-			bLogCallstack = true;
+			if (!bIgnoreInvalidPathWarning)
+			{
+				UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is not in a mounted path, will not scan."), *InFile);
+				bLogCallstack = true;
+			}
 			continue;
 		}
 		if (FPackageName::IsTempPackage(PackageName))
 		{
-			UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is in the /Temp path, will not scan."), *InFile);
-			bLogCallstack = true;
+			if (!bIgnoreInvalidPathWarning)
+			{
+				UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is in the /Temp path, will not scan."), *InFile);
+				bLogCallstack = true;
+			}
 			continue;
 		}
 		if (Extension.IsEmpty())
@@ -5589,8 +5595,11 @@ FScanPathContext::FScanPathContext(FEventContext& InEventContext, FClassInherita
 				if (FPackageName::InternalDoesPackageExistEx(PackagePath, FPackageName::EPackageLocationFilter::Any,
 					false /* bMatchCaseOnDisk */, &PackagePath) == FPackageName::EPackageLocationFilter::None)
 				{
-					UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: Package %s does not exist, will not scan."), *InFile);
-					bLogCallstack = true;
+					if (!bIgnoreInvalidPathWarning)
+					{
+						UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: Package %s does not exist, will not scan."), *InFile);
+						bLogCallstack = true;
+					}
 					continue;
 				}
 				Extension = PackagePath.GetExtensionString(EPackageSegment::Header);
@@ -5609,14 +5618,20 @@ FScanPathContext::FScanPathContext(FEventContext& InEventContext, FClassInherita
 		}
 		else if (!FPackageName::TryConvertToMountedPath(InDir, &LocalPath, &PackageName, nullptr, nullptr, &Extension, &FlexNameType))
 		{
-			UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is not in a mounted path, will not scan."), *InDir);
-			bLogCallstack = true;
+			if (!bIgnoreInvalidPathWarning)
+			{
+				UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is not in a mounted path, will not scan."), *InDir);
+				bLogCallstack = true;
+			}
 			continue;
 		}
 		if (FPackageName::IsTempPackage(PackageName))
 		{
-			UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is in the /Temp path, will not scan."), *InDir);
-			bLogCallstack = true;
+			if (!bIgnoreInvalidPathWarning)
+			{
+				UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: %s is in the /Temp path, will not scan."), *InDir);
+				bLogCallstack = true;
+			}
 			continue;
 		}
 		LocalDirs.Add(LocalPath + Extension);
@@ -7094,12 +7109,12 @@ void FAssetRegistryImpl::OnDirectoryChanged(Impl::FEventContext& EventContext,
 			if (GlobalGatherer->IsSynchronous())
 			{
 				Impl::FScanPathContext Context(EventContext, InheritanceContext, NewDirs, NewFiles,
-					false /* bForceRescan */, false /* bIgnoreDenyListScanFilters */, nullptr /* OutFoundAssets */);
+					UE::AssetRegistry::EScanFlags::None, nullptr /* OutFoundAssets */);
 				ScanPathsSynchronous(Context);
 			}
 		}
 	}
-	ScanModifiedAssetFiles(EventContext, InheritanceContext, ModifiedFiles);
+	ScanModifiedAssetFiles(EventContext, InheritanceContext, ModifiedFiles, UE::AssetRegistry::EScanFlags::None);
 }
 
 void FAssetRegistryImpl::OnDirectoryRescanRequired(Impl::FEventContext& EventContext,
@@ -7239,12 +7254,12 @@ void FAssetRegistryImpl::OnDirectoryRescanRequired(Impl::FEventContext& EventCon
 			{
 				TArray<FString> UnusedNewDirs;
 				Impl::FScanPathContext Context(EventContext, InheritanceContext, UnusedNewDirs, FinalResult.NewFiles,
-					false /* bForceRescan */, false /* bIgnoreDenyListScanFilters */, nullptr /* OutFoundAssets */);
+					UE::AssetRegistry::EScanFlags::None, nullptr /* OutFoundAssets */);
 				ScanPathsSynchronous(Context);
 			}
 		}
 	}
-	ScanModifiedAssetFiles(EventContext, InheritanceContext, FinalResult.ModifiedFiles);
+	ScanModifiedAssetFiles(EventContext, InheritanceContext, FinalResult.ModifiedFiles, UE::AssetRegistry::EScanFlags::None);
 }
 
 }
@@ -7437,6 +7452,11 @@ void FAssetRegistryImpl::UpdateRedirectCollector()
 
 void UAssetRegistryImpl::ScanModifiedAssetFiles(const TArray<FString>& InFilePaths)
 {
+	ScanModifiedAssetFiles(InFilePaths, UE::AssetRegistry::EScanFlags::None);
+}
+
+void UAssetRegistryImpl::ScanModifiedAssetFiles(const TArray<FString>& InFilePaths, UE::AssetRegistry::EScanFlags ScanFlags)
+{
 	UE::AssetRegistry::Impl::FEventContext EventContext;
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
@@ -7444,7 +7464,7 @@ void UAssetRegistryImpl::ScanModifiedAssetFiles(const TArray<FString>& InFilePat
 		UE::AssetRegistry::Impl::FClassInheritanceContext InheritanceContext;
 		UE::AssetRegistry::Impl::FClassInheritanceBuffer InheritanceBuffer;
 		GetInheritanceContextWithRequiredLock(InterfaceScopeLock, InheritanceContext, InheritanceBuffer);
-		GuardedData.ScanModifiedAssetFiles(EventContext, InheritanceContext, InFilePaths);
+		GuardedData.ScanModifiedAssetFiles(EventContext, InheritanceContext, InFilePaths, ScanFlags);
 	}
 
 #if WITH_EDITOR
@@ -7463,7 +7483,8 @@ namespace UE::AssetRegistry
 {
 
 void FAssetRegistryImpl::ScanModifiedAssetFiles(Impl::FEventContext& EventContext,
-	Impl::FClassInheritanceContext& InheritanceContext, const TArray<FString>& InFilePaths)
+	Impl::FClassInheritanceContext& InheritanceContext, const TArray<FString>& InFilePaths,
+	UE::AssetRegistry::EScanFlags InScanFlags)
 {
 	if (InFilePaths.Num() > 0)
 	{
@@ -7491,10 +7512,13 @@ void FAssetRegistryImpl::ScanModifiedAssetFiles(Impl::FEventContext& EventContex
 			}
 		}
 
+		// ScanModifiedAssetFiles always does a force rescan of the given files
+		InScanFlags |= UE::AssetRegistry::EScanFlags::ForceRescan;
+
 		// Re-scan and update the asset registry with the new asset data
 		TArray<FSoftObjectPath> FoundAssets;
 		Impl::FScanPathContext Context(EventContext, InheritanceContext, TArray<FString>(), InFilePaths,
-			true /* bForceRescan */, false /* bIgnoreDenyListScanFilters */, &FoundAssets);
+			InScanFlags, &FoundAssets);
 		ScanPathsSynchronous(Context);
 
 		// Remove any assets that are no longer present in the package
