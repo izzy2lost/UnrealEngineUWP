@@ -436,12 +436,27 @@ bool UCookCommandlet::CookByTheBook(const TArray<ITargetPlatform*>& Platforms)
 		CookOptions |= Switches.Contains(TEXT("ValidationErrorsAreFatal")) ? ECookByTheBookOptions::ValidationErrorsAreFatal : ECookByTheBookOptions::None;
 	}
 
+	const ECookByTheBookOptions SkipRequestFlags = ECookByTheBookOptions::NoAlwaysCookMaps |
+		ECookByTheBookOptions::NoDefaultMaps | ECookByTheBookOptions::NoGameAlwaysCookPackages |
+		ECookByTheBookOptions::NoInputPackages | ECookByTheBookOptions::ForceDisableSaveGlobalShaders;
 	if (bCookSinglePackage)
 	{
-		const ECookByTheBookOptions SinglePackageFlags = ECookByTheBookOptions::NoAlwaysCookMaps | ECookByTheBookOptions::NoDefaultMaps | ECookByTheBookOptions::NoGameAlwaysCookPackages |
-			ECookByTheBookOptions::NoInputPackages | ECookByTheBookOptions::SkipSoftReferences | ECookByTheBookOptions::ForceDisableSaveGlobalShaders;
-		CookOptions |= SinglePackageFlags;
+		CookOptions |= SkipRequestFlags;
+		CookOptions |= ECookByTheBookOptions::SkipSoftReferences;
 		CookOptions |= bKeepSinglePackageRefs ? ECookByTheBookOptions::None : ECookByTheBookOptions::SkipHardReferences;
+	}
+	if (Switches.Contains(TEXT("CookSkipRequests")))
+	{
+		CookOptions |= SkipRequestFlags;
+		CookOptions |= ECookByTheBookOptions::NoStartupPackages;
+	}
+	if (Switches.Contains(TEXT("CookSkipSoftRefs")))
+	{
+		CookOptions |= ECookByTheBookOptions::SkipSoftReferences;
+	}
+	if (Switches.Contains(TEXT("CookSkipHardRefs")))
+	{
+		CookOptions |= ECookByTheBookOptions::SkipHardReferences;
 	}
 
 	// Also append any cookdirs from the project ini files; these dirs are relative to the game content directory or start with a / root
