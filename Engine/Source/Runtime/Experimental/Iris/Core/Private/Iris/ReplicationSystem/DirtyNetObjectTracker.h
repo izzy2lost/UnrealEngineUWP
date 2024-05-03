@@ -26,8 +26,6 @@ struct FDirtyNetObjectTrackerInitParams
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	uint32 ReplicationSystemId = 0;
 	uint32 MaxObjectCount = 0;
-	uint32 NetObjectIndexRangeStart = 0;
-	uint32 NetObjectIndexRangeEnd = 0;
 };
 
 class FDirtyNetObjectTracker
@@ -92,7 +90,7 @@ private:
 	FNetBitArray ForceNetUpdateObjects;
 
 	// List of objects set to be dirty this frame. Is always reset at the end of the net tick flush
-	StorageType* DirtyNetObjectContainer = nullptr;
+	FNetBitArray DirtyNetObjects;
 
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	
@@ -100,9 +98,6 @@ private:
 
 	uint32 ReplicationSystemId;
 
-	uint32 DirtyNetObjectWordCount = 0;
-	uint32 NetObjectIdRangeStart = 0;
-	uint32 NetObjectIdRangeEnd = 0;
 	uint32 NetObjectIdCount = 0;
 	
 	bool bShouldResetPolledGlobalDirtyTracker = false;
