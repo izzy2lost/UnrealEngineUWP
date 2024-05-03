@@ -949,7 +949,7 @@ ByteAddressBuffer		FroxelInitAndRefineCountBuffer;
 Buffer<uint4>			FroxelLowResInitListBuffer;
 Buffer<uint4>			FroxelRefineListBufferSRV;
 
-static_assert(TRACING_INDIRECT_DISPATCH_THREADGROUP_X == THREADGROUP_SIZE);
+HLSL_STATIC_ASSERT(SOFTWARE_TRACE_INDIRECT_DISPATCH_THREADGROUP_X == THREADGROUP_SIZE, "");
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void TranslucencyVolumeFroxelProbesSoftwareRayTracingCS(
 	uint3 GroupId : SV_GroupID,
