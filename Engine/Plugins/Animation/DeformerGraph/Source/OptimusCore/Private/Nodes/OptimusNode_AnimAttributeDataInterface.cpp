@@ -185,12 +185,9 @@ void UOptimusNode_AnimAttributeDataInterface::UpdatePinNames()
 
 void UOptimusNode_AnimAttributeDataInterface::ClearOutputPins()
 {
-	for (UOptimusNodePin* Pin : GetPins())
+	for (UOptimusNodePin* Pin : GetPinsByDirection(EOptimusNodePinDirection::Output, false))
 	{
-		if (Pin->GetDirection() == EOptimusNodePinDirection::Output)
-		{
-			RemovePin(Pin);
-		}
+		RemovePin(Pin);
 	}
 }
 
