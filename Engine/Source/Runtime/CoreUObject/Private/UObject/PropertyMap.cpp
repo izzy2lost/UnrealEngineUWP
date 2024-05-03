@@ -694,8 +694,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			if (NumKeysToRemove && !bReplaceMap)
 			{
-				TGuardValue<bool> SerializeUnknownProperty(Context->bSerializeUnknownProperty, false);
-
 				// Load and discard keys to remove, map is empty
 				void* TempKeyValueStorage = FMemory::Malloc(MapLayout.SetLayout.Size);
 				KeyProp->InitializeValue(TempKeyValueStorage);
@@ -747,12 +745,9 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 			if (NumKeysToRemove)
 			{
-				TGuardValue<bool> SerializeUnknownProperty(Context->bSerializeUnknownProperty, false);
-
 				TempKeyValueStorage = (uint8*)FMemory::Malloc(MapLayout.SetLayout.Size);
 				KeyProp->InitializeValue(TempKeyValueStorage);
 
-				
 				UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 				FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 				for (; NumKeysToRemove; --NumKeysToRemove)
