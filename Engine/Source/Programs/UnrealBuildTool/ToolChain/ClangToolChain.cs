@@ -372,7 +372,11 @@ namespace UnrealBuildTool
 
 			if (CompileEnvironment.bEnableCoroutines)
 			{
-				Arguments.Add("-fcoroutines-ts");
+				if (CompileEnvironment.CppStandard < CppStandardVersion.Cpp20)
+				{
+					Arguments.Add("-fcoroutines-ts");
+				}
+
 				if (!CompileEnvironment.bEnableExceptions)
 				{
 					Arguments.Add("-Wno-coroutine-missing-unhandled-exception");

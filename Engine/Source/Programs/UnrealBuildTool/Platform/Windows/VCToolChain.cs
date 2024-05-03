@@ -1136,7 +1136,10 @@ namespace UnrealBuildTool
 				}
 				else if (Target.WindowsPlatform.Compiler.IsClang() && !Target.WindowsPlatform.Compiler.IsIntel())
 				{
-					Arguments.Add("-fcoroutines-ts");
+					if (CompileEnvironment.CppStandard < CppStandardVersion.Cpp20)
+					{
+						Arguments.Add("-fcoroutines-ts");
+					}
 				}
 			}
 
