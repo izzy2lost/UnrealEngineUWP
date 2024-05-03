@@ -1000,6 +1000,15 @@ namespace
             shaderProfile = L"cs";
             break;
 
+		// UE Change Begin: Add mesh shading stages,
+		case ShaderStage::MeshShader:
+			shaderProfile = L"ms";
+			break;
+		case ShaderStage::AmplificationShader:
+			shaderProfile = L"as";
+			break;
+		// UE Change Begin: Add mesh shading stages,
+
         // UE Change Begin: Ray tracing shaders use a library profile.
         case ShaderStage::RayGen:
         case ShaderStage::RayMiss:
@@ -1202,14 +1211,6 @@ namespace
             dxcArgStrings.push_back(std::to_wstring(options.shiftAllTexturesBindings));
             dxcArgStrings.push_back(L"all");
         }
-
-        // UE Change Begin: Ensure 1.2 for ray tracing shaders
-        const bool bIsRayTracingShader = (source.stage >= ShaderStage::RayGen) && (source.stage <= ShaderStage::RayCallable);
-        if (bIsRayTracingShader)
-        {
-            dxcArgStrings.push_back(L"-fspv-target-env=vulkan1.2");
-        }
-        // UE Change End: Ensure 1.2 for ray tracing shaders
 
         switch (targetLanguage)
         {
