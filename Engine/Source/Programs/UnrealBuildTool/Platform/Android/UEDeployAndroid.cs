@@ -4992,7 +4992,11 @@ namespace UnrealBuildTool
 				string? OutputDirectory = Path.GetDirectoryName(OutputPath);
 				if (OutputDirectory != null && Path.GetRelativePath(DestApkDirectory, OutputDirectory) != OutputDirectory)
 				{
-					DestApkDirectory = OutputDirectory;
+					// only override if not UnrealGame (BluePrint project)
+					if (!Path.GetFileName(OutputPath).StartsWith("UnrealGame"))
+					{
+						DestApkDirectory = OutputDirectory;
+					}
 				}
 				string? DestApkName = null;
 				if (bSkipGradleBuild)
