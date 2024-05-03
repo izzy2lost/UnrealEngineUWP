@@ -297,13 +297,7 @@ uint32 FPendingInstanceUpdateKeyFuncs::GetKeyHash(const TWeakObjectPtr<const UCu
 
 int32 FMutablePendingInstanceWork::Num() const
 {
-	return PendingInstanceUpdates.Num() + PendingInstanceDiscards.Num() + PendingIDsToRelease.Num() + NumLODUpdatesLastTick;
-}
-
-
-void FMutablePendingInstanceWork::SetLODUpdatesLastTick(int32 NumLODUpdates)
-{
-	NumLODUpdatesLastTick = NumLODUpdates;
+	return PendingInstanceUpdates.Num() + PendingInstanceDiscards.Num() + PendingIDsToRelease.Num();
 }
 
 
@@ -3608,7 +3602,7 @@ int32 UCustomizableObjectSystem::TickInternal()
 				}
 			}
 
-			Private->MutablePendingInstanceWork.SetLODUpdatesLastTick(RequestedLODUpdates.Num());
+			Private->NumLODUpdatesLastTick = RequestedLODUpdates.Num();
 
 			// If the chosen LODUpdate has the same instance as a PendingUpdate, choose the PendingUpdate to apply both the LOD update
 			// and customization change
@@ -3866,10 +3860,12 @@ int32 UCustomizableObjectSystem::GetNumInstances() const
 	return NumBuiltInstances;
 }
 
+
 int32 UCustomizableObjectSystem::GetNumPendingInstances() const
 {
-	return GetPrivate()->MutablePendingInstanceWork.Num();
+	return GetPrivate()->MutablePendingInstanceWork.Num() + GetPrivate()->NumLODUpdatesLastTick;
 }
+
 
 int32 UCustomizableObjectSystem::GetTotalInstances() const
 {

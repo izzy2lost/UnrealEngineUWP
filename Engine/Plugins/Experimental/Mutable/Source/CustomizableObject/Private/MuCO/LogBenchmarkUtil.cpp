@@ -157,7 +157,7 @@ void FLogBenchmarkUtil::UpdateStats()
 	NumInstancesLOD2 = LocalNumInstancesLOD2;
 	NumAllocatedSkeletalMeshes = LocalNumAllocatedSkeletalMeshes;
 
-	NumPendingInstanceUpdates = System->GetPrivate()->MutablePendingInstanceWork.Num();
+	NumPendingInstanceUpdates = System->GetNumPendingInstances();
 
 	// Textures
 	uint32 LocalNumAllocatedTextures = 0;

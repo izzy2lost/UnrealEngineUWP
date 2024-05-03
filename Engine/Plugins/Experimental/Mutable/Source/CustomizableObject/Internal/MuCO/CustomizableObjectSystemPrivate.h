@@ -158,14 +158,10 @@ class FMutablePendingInstanceWork
 
 	TSet<mu::Instance::ID> PendingIDsToRelease;
 
-	int32 NumLODUpdatesLastTick = 0;
-
 public:
-	// Returns the number of pending instance updates, LOD Updates, discards and releases last tick.
+	// Returns the number of pending instance updates, LOD Updates and discards.
 	int32 Num() const;
-
-	void SetLODUpdatesLastTick(int32 NumLODUpdates);
-
+	
 	// Adds a new instance update
 	void AddUpdate(const FMutablePendingInstanceUpdate& UpdateToAdd);
 
@@ -803,6 +799,8 @@ public:
 	/** Map used to cache per platform MaxChunkSize. If MaxChunkSize > 0, streamed data will be split in multiple files */
 	TMap<FString, int64> PlatformMaxChunkSize;
 #endif
+
+	int32 NumLODUpdatesLastTick = 0;
 };
 
 
