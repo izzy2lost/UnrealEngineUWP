@@ -18,6 +18,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureColourMap.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureFromChannels.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureFromColor.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeTextureFromFloats.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureInterpolate.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureInvert.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureLayer.h"
@@ -40,6 +41,7 @@
 #include "MuT/NodeImageLayerColour.h"
 #include "MuT/NodeImageParameter.h"
 #include "MuT/NodeImagePlainColour.h"
+#include "MuT/NodeColourFromScalars.h"
 #include "MuT/NodeImageProject.h"
 #include "MuT/NodeImageResize.h"
 #include "MuT/NodeImageSaturate.h"
@@ -434,6 +436,48 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		if (color)
 		{
 			ImageFromColour->SetColour(color);
+		}
+
+		if (ReferenceTextureSize > 0)
+		{
+			ImageFromColour->SetSize(ReferenceTextureSize, ReferenceTextureSize);
+		}
+	}
+
+	else if (const UCustomizableObjectNodeTextureFromFloats* TypedNodeFromFloats = Cast<UCustomizableObjectNodeTextureFromFloats>(Node))
+	{		
+		mu::NodeColourFromScalarsPtr Color = new mu::NodeColourFromScalars();
+
+		if (const UEdGraphPin* RPin = FollowInputPin(*TypedNodeFromFloats->RPin()))
+		{
+			mu::NodeScalarPtr R = GenerateMutableSourceFloat(RPin, GenerationContext);
+			Color->SetX(R);
+		}
+
+		if (const UEdGraphPin* GPin = FollowInputPin(*TypedNodeFromFloats->GPin()))
+		{
+			mu::NodeScalarPtr G = GenerateMutableSourceFloat(GPin, GenerationContext);
+			Color->SetY(G);
+		}
+
+		if (const UEdGraphPin* BPin = FollowInputPin(*TypedNodeFromFloats->BPin()))
+		{
+			mu::NodeScalarPtr B = GenerateMutableSourceFloat(BPin, GenerationContext);
+			Color->SetZ(B);
+		}
+
+		if (const UEdGraphPin* APin = FollowInputPin(*TypedNodeFromFloats->APin()))
+		{
+			mu::NodeScalarPtr A = GenerateMutableSourceFloat(APin, GenerationContext);
+			Color->SetW(A);
+		}
+
+		mu::NodeImagePlainColourPtr ImageFromColour = new mu::NodeImagePlainColour;
+		Result = ImageFromColour;
+
+		if (Color)
+		{
+			ImageFromColour->SetColour(Color);
 		}
 
 		if (ReferenceTextureSize > 0)

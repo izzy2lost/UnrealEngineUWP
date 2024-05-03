@@ -60,6 +60,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureColourMap.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureFromChannels.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureFromColor.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeTextureFromFloats.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureInterpolate.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureInvert.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureLayer.h"
@@ -430,6 +431,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureToChannels>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureFromChannels>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureFromColor>(),
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureFromFloats>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureProject>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureParameter>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeTextureInvert>(),
