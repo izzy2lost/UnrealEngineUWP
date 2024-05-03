@@ -245,16 +245,19 @@ struct FMallocBinnedGPU::Private
 	*/
 	static FPoolInfoSmall* GetOrCreatePoolInfoSmall(FMallocBinnedGPU& Allocator, uint32 InPoolIndex, uint32 BlockOfBlocksIndex)
 	{
-		FPoolInfoSmall*& InfoBlock = Allocator.SmallPoolTables[InPoolIndex].PoolInfos[BlockOfBlocksIndex / Allocator.SmallPoolInfosPerPlatformPage];
+		const uint32 InfosPerPage = Allocator.SmallPoolInfosPerPlatformPage;
+		const uint32 InfoOuterIndex = BlockOfBlocksIndex / InfosPerPage;
+		const uint32 InfoInnerIndex = BlockOfBlocksIndex % InfosPerPage;
+		FPoolInfoSmall*& InfoBlock = Allocator.SmallPoolTables[InPoolIndex].PoolInfos[InfoOuterIndex];
 		if (!InfoBlock)
 		{
 			InfoBlock = (FPoolInfoSmall*)FMemory::Malloc(Allocator.ArenaParams.BasePageSize);
 			Allocator.MallocedPointers.Add(InfoBlock);
 			MBG_STAT(Allocator.BinnedGPUPoolInfoMemory += Allocator.ArenaParams.AllocationGranularity;)
-			DefaultConstructItems<FPoolInfoSmall>((void*)InfoBlock, Allocator.SmallPoolInfosPerPlatformPage);
+			DefaultConstructItems<FPoolInfoSmall>((void*)InfoBlock, InfosPerPage);
 		}
 
-		FPoolInfoSmall* Result = &InfoBlock[BlockOfBlocksIndex % Allocator.SmallPoolInfosPerPlatformPage];
+		FPoolInfoSmall* Result = &InfoBlock[InfoInnerIndex];
 
 		bool bGuaranteedToBeNew = false;
 		if (BlockOfBlocksIndex >= Allocator.SmallPoolTables[InPoolIndex].NumEverUsedBlockOfBlocks)
