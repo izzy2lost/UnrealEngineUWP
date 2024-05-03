@@ -343,7 +343,7 @@ void FClusterSplitTask::RunChild( inout FClusterSplitTask ParentTask, bool bActi
 			Encoded.z != ~0u &&
 			Encoded.w != ~0u );
 
-		SplitWorkQueue.DataBuffer.Store4( WriteOffset * 16, Encoded );
+		SplitWorkQueue.DataBuffer_Store4( WriteOffset * 16, Encoded );
 	}
 }
 

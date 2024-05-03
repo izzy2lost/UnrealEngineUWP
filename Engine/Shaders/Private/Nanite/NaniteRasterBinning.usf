@@ -400,7 +400,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 	{
 #if NANITE_TESSELLATION_PATCH_REFS
 		const uint PatchIndex = VisiblePatches.Load(VisibleIndex * 8);
-		const uint PatchEncoded = SplitWorkQueue.DataBuffer.Load(PatchIndex * 16);
+		const uint PatchEncoded = SplitWorkQueue.DataBuffer_Load(PatchIndex * 16);
 #else
 		const uint PatchEncoded = VisiblePatches.Load(VisibleIndex * 16);
 #endif

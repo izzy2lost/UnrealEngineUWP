@@ -816,6 +816,11 @@ precise float4 MakePrecise(in precise float4 v) { precise float4 pv = v; return 
 #define RWCoherentByteAddressBufferRef RWByteAddressBuffer
 #endif
 
+// Flag to say if the compiler needs globallycoherent locals of RWCoherentByteAddressBufferRef/etc
+#ifndef COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+#define COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS 0
+#endif
+
 #ifndef ISOLATE
 #define ISOLATE
 #endif

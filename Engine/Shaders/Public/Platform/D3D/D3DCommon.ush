@@ -9,6 +9,9 @@ D3DCommon.ush: Common defines for the D3D shader compiler
 
 #include "/Engine/Shared/HLSLReservedSpaces.h"
 
+// DXC needs local globallycoherent variables to correctly end up as globallycoherent
+#define COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS 1
+
 #if SM6_PROFILE
 	#define COMPILER_SUPPORTS_WAVE_SIZE 1
 	#define WAVESIZE(N) [WaveSize(N)]
@@ -145,3 +148,4 @@ void UEReportAssertWithPayload(uint AssertID, uint4 Payload)
 	#define GetResourceFromHeap(Type, Index) ResourceDescriptorHeap[Index]
 	#define GetSamplerFromHeap(Type, Index) SamplerDescriptorHeap[Index]
 #endif
+

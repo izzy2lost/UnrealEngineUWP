@@ -325,6 +325,26 @@ struct FOutputQueue
 		WaveInterlockedAddScalar( StateBuffer[ StateIndex ].TaskCount, 1 );
 		return WriteOffset;
 	}
+
+	uint DataBuffer_Load(uint Address)
+	{
+		return DataBuffer.Load(Address);
+	}
+
+	uint4 DataBuffer_Load4(uint Address)
+	{
+		return DataBuffer.Load4(Address);
+	}
+
+	void DataBuffer_Store4(uint Address, uint4 Values)
+	{
+		DataBuffer.Store4(Address, Values);
+	}
+
+	FWorkQueueState GetState(uint Index)
+	{
+		return StateBuffer[Index];
+	}
 };
 
 struct FInputQueue
@@ -350,14 +370,26 @@ struct FInputQueue
 
 struct FGlobalWorkQueue
 {
-	RWCoherentByteAddressBufferRef						DataBuffer;
-	RWCoherentStructuredBufferRef( FWorkQueueState )	StateBuffer;	// Ideally this was GDS but we don't have that API control.
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+	RWCoherentByteAddressBufferRef                   DataBuffer_Private;
+	RWCoherentStructuredBufferRef( FWorkQueueState ) StateBuffer_Private;	// Ideally this was GDS but we don't have that API control.
+
+	RWCoherentByteAddressBuffer                   GetDataBuffer()  { return (RWCoherentByteAddressBuffer)DataBuffer_Private; }
+	RWCoherentStructuredBuffer( FWorkQueueState ) GetStateBuffer() { return (RWCoherentStructuredBuffer( FWorkQueueState ))StateBuffer_Private; }
+#else
+	RWCoherentByteAddressBufferRef                   DataBuffer;
+	RWCoherentStructuredBufferRef( FWorkQueueState ) StateBuffer;	// Ideally this was GDS but we don't have that API control.
+#endif
 
 	uint	StateIndex;
 	uint	Size;
 
 	uint Add()
 	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentStructuredBuffer(FWorkQueueState) StateBuffer = GetStateBuffer();
+#endif
+
 		uint WriteCount = WaveActiveCountBits( true );
 		uint WriteOffset = 0;
 		if( WaveIsFirstLane() )
@@ -371,6 +403,10 @@ struct FGlobalWorkQueue
 
 	uint Remove()
 	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentStructuredBuffer(FWorkQueueState) StateBuffer = GetStateBuffer();
+#endif
+
 		uint ReadOffset;
 		WaveInterlockedAddScalar_( StateBuffer[ StateIndex ].ReadOffset, 1, ReadOffset );
 		return ReadOffset;
@@ -379,19 +415,61 @@ struct FGlobalWorkQueue
 	// Only call after current task has completely finished adding work!
 	void ReleaseTask()
 	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentStructuredBuffer(FWorkQueueState) StateBuffer = GetStateBuffer();
+#endif
+
 		WaveInterlockedAddScalar( StateBuffer[ StateIndex ].TaskCount, -1 );
 	}
 
 	bool IsEmpty()
 	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentStructuredBuffer(FWorkQueueState) StateBuffer = GetStateBuffer();
+#endif
+
 	#if 1
 		return StateBuffer[ StateIndex ].TaskCount == 0;
 	#else
 		uint Count = 0;
 		if( WaveIsFirstLane() )
+		{
 			InterlockedAdd( StateBuffer[ StateIndex ].TaskCount, 0, Count );
+		}
 		return WaveReadLaneFirst( Count ) == 0;
 	#endif
+	}
+
+	uint DataBuffer_Load(uint Address)
+	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentByteAddressBuffer DataBuffer = GetDataBuffer();
+#endif
+		return DataBuffer.Load(Address);
+	}
+
+	uint4 DataBuffer_Load4(uint Address)
+	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentByteAddressBuffer DataBuffer = GetDataBuffer();
+#endif
+		return DataBuffer.Load4(Address);
+	}
+
+	void DataBuffer_Store4(uint Address, uint4 Values)
+	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentByteAddressBuffer DataBuffer = GetDataBuffer();
+#endif
+		DataBuffer.Store4(Address, Values);
+	}
+
+	FWorkQueueState GetState(uint Index)
+	{
+#if COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+		RWCoherentStructuredBuffer(FWorkQueueState) StateBuffer = GetStateBuffer();
+#endif
+		return StateBuffer[Index];
 	}
 };
 

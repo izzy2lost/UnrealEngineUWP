@@ -516,7 +516,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 				Encoded.z != ~0u &&
 				Encoded.w != ~0u );
 	
-			SplitWorkQueue.DataBuffer.Store4( WriteOffset * 16, Encoded );
+			SplitWorkQueue.DataBuffer_Store4( WriteOffset * 16, Encoded );
 		}
 	}
 
@@ -795,10 +795,10 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 
 #if NANITE_TESSELLATION_PATCH_REFS
 		const uint2 VisiblePatch = VisiblePatches.Load2(VisibleIndex * 8);
-		Patches_EncodedPatch = SplitWorkQueue.DataBuffer.Load4(VisiblePatch.x * 16);
+		Patches_EncodedPatch = SplitWorkQueue.DataBuffer_Load4(VisiblePatch.x * 16);
 #if !NANITE_SEPARATE_SPLIT_QUEUE_CLEAR
 		DeviceMemoryBarrierWithGroupSync();
-		SplitWorkQueue.DataBuffer.Store4(VisiblePatch.x * 16, ~0u);
+		SplitWorkQueue.DataBuffer_Store4(VisiblePatch.x * 16, ~0u);
 #endif
 #else
 		Patches_EncodedPatch = VisiblePatches.Load4(VisibleIndex * 16);
