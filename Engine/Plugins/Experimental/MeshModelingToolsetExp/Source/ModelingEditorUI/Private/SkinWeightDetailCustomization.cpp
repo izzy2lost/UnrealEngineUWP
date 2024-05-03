@@ -99,7 +99,7 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 					"Greyscale: Displays weights on the current bone by blending from black (0) to white (1).\n"
 					"Ramp: Displays weights on the current bone. Weights at 0 and 1 use the min and max colors. Weights inbetween 0 and 1 use the ramp colors.\n"
 					"Multi Color: Displays weights on ALL bones using the color of the bones.\n"
-					"Full Material: Shows the normal fully-lit mesh material.\n"))
+					"Full Material: Displays normal mesh materials with textures.\n"))
 			.Value_Lambda([this]()
 			{
 				return SkinToolSettings->ColorMode;

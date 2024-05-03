@@ -760,9 +760,8 @@ void USkinWeightsPaintTool::Setup()
 		// Create an overlay that has no split elements, init with zero value.
 		Mesh.Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB){return true;}, 0.f);
 	});
-
-	// start by displaying vertex color material
-	SetDisplayVertexColors(true);
+	// optionally display vertex color material
+	SetDisplayVertexColors(WeightToolProperties->ColorMode != EWeightColorMode::FullMaterial);
 
 	// modify viewport render settings to optimize for painting weights
 	FPreviewProfileController PreviewProfileController;
@@ -835,6 +834,8 @@ void USkinWeightsPaintTool::Setup()
 
 	// trigger last used mode
 	ToggleEditingMode();
+	
+	SetFocusInViewport();
 	
 	// inform user of tool keys
 	// TODO talk with UX team about viewport overlay to show hotkeys
@@ -988,6 +989,8 @@ void USkinWeightsPaintToolProperties::SetFalloffMode(EWeightBrushFalloffMode InF
 	bColorModeChanged = true;
 	GetBrushConfig().FalloffMode = InFalloffMode;
 	SaveConfig();
+
+	WeightTool->SetFocusInViewport();
 }
 
 void USkinWeightsPaintToolProperties::SetColorMode(EWeightColorMode InColorMode)
@@ -995,7 +998,8 @@ void USkinWeightsPaintToolProperties::SetColorMode(EWeightColorMode InColorMode)
 	ColorMode = InColorMode;
 	bColorModeChanged = true;
 
-	WeightTool->SetDisplayVertexColors(ColorMode != EWeightColorMode::FullMaterial);
+	WeightTool->SetDisplayVertexColors(ColorMode!=EWeightColorMode::FullMaterial);
+	WeightTool->SetFocusInViewport();
 }
 
 void USkinWeightsPaintToolProperties::SetBrushMode(EWeightEditOperation InBrushMode)
@@ -1007,6 +1011,8 @@ void USkinWeightsPaintToolProperties::SetBrushMode(EWeightEditOperation InBrushM
 	BrushRadius = GetBrushConfig().Radius;
 	BrushStrength = GetBrushConfig().Strength;
 	BrushFalloffAmount = GetBrushConfig().Falloff;
+
+	WeightTool->SetFocusInViewport();
 }
 
 bool USkinWeightsPaintTool::HitTest(const FRay& Ray, FHitResult& OutHit)
@@ -1104,6 +1110,20 @@ bool USkinWeightsPaintTool::OnUpdateHover(const FInputDeviceRay& DevicePos)
 {
 	UDynamicMeshBrushTool::OnUpdateHover(DevicePos);
 	return true;
+}
+
+double USkinWeightsPaintTool::EstimateMaximumTargetDimension()
+{
+	if (const IPrimitiveComponentBackedTarget* TargetComponent = Cast<IPrimitiveComponentBackedTarget>(Target))
+	{
+		const USkeletalMeshComponent* Component = Cast<USkeletalMeshComponent>(TargetComponent->GetOwnerComponent());
+		if (USkeletalMesh* SkeletalMesh = Component->GetSkeletalMeshAsset())
+		{
+			return SkeletalMesh->GetBounds().SphereRadius * 2.0f;
+		}
+	}
+	
+	return Super::EstimateMaximumTargetDimension();
 }
 
 void USkinWeightsPaintTool::CalculateVertexROI(
@@ -1616,6 +1636,14 @@ BoneIndex USkinWeightsPaintTool::GetBoneIndexFromName(const FName BoneName) cons
 	return Found ? *Found : INDEX_NONE;
 }
 
+void USkinWeightsPaintTool::SetFocusInViewport() const
+{
+	if (PersonaModeManagerContext.IsValid())
+	{
+		PersonaModeManagerContext->SetFocusInViewport();	
+	}
+}
+
 void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 {
 	// save tool properties
@@ -2119,6 +2147,8 @@ void USkinWeightsPaintTool::HandleSkeletalMeshModified(const TArray<FName>& InBo
 	default:
 		checkNoEntry();
 	}
+
+	SetFocusInViewport();
 }
 
 void USkinWeightsPaintTool::ToggleEditingMode()
@@ -2144,6 +2174,8 @@ void USkinWeightsPaintTool::ToggleEditingMode()
 			PersonaModeManagerContext->GetPersonaEditorModeManager()->DeactivateMode(FPersonaEditModes::SkeletonSelection);	
 		}
 	}
+
+	SetFocusInViewport();
 }
 
 TObjectPtr<UPolygonSelectionMechanic> USkinWeightsPaintTool::GetSelectionMechanic()
@@ -2272,6 +2304,8 @@ void USkinWeightsPaintTool::OnPropertyModified(UObject* ModifiedObject, FPropert
 			Color.A = 1.f;
 		}
 	}
+	
+	SetFocusInViewport();
 }
 
 

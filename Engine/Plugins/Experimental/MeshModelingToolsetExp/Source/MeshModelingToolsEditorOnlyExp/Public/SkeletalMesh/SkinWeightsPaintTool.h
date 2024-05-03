@@ -49,7 +49,7 @@ enum class EWeightColorMode : uint8
 	Greyscale,
 	Ramp,
 	BoneColors,
-	FullMaterial
+	FullMaterial,
 };
 
 // brush falloff mode
@@ -347,6 +347,7 @@ public:
 	virtual void OnUpdateDrag(const FRay& Ray) override;
 	virtual void OnEndDrag(const FRay& Ray) override;
 	virtual bool OnUpdateHover(const FInputDeviceRay& DevicePos) override;
+	virtual double EstimateMaximumTargetDimension() override;
 
 	void Init(const FToolBuilderState& InSceneState);
 	
@@ -399,6 +400,8 @@ public:
 
 	// toggle the display of weights on the preview mesh (if false, uses the normal skeletal mesh material)
 	void SetDisplayVertexColors(bool bShowVertexColors=true) const;
+	// set focus back to viewport so that hotkeys are immediately detected while hovering
+	void SetFocusInViewport() const;
 
 	// HOW TO EDIT WEIGHTS WITH UNDO/REDO:
 	//
