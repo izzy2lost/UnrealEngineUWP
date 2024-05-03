@@ -13,8 +13,10 @@ UMockNetObjectFilter::UMockNetObjectFilter()
 {
 }
 
-void UMockNetObjectFilter::OnInit(FNetObjectFilterInitParams& Params)
+void UMockNetObjectFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
+	AddFilterTraits(ENetFilterTraits::NeedsUpdate);
+
 	++CallStatus.CallCounts.Init;
 
 	CallStatus.SuccessfulCallCounts.Init += Cast<UMockNetObjectFilterConfig>(Params.Config) != nullptr;
@@ -116,7 +118,7 @@ void UMockNetObjectFilter::Filter(FNetObjectFilteringParams& Params)
 	++CallStatus.CallCounts.Filter;
 
 	bool bIsProperCall = true;
-	UE::Net::FNetBitArrayView::ForAllExclusiveBits(Params.FilteredObjects, MakeNetBitArrayView(AddedObjectIndices), [](...) {}, [&bIsProperCall](...) {bIsProperCall = false; });
+	UE::Net::FNetBitArray::ForAllExclusiveBits(FilteredObjects, AddedObjectIndices, [](...) {}, [&bIsProperCall](...) {bIsProperCall = false; });
 	CallStatus.SuccessfulCallCounts.Filter += bIsProperCall;
 
 	if (CallSetup.Filter.bFilterOutByDefault)
@@ -141,7 +143,7 @@ void UMockNetObjectFilter::PostFilter(FNetObjectPostFilteringParams& Params)
 // UMockNetObjectFilterWithCondition
 //**************************************************************************************************
 
-void UMockNetObjectFilterWithCondition::OnInit(FNetObjectFilterInitParams& Params)
+void UMockNetObjectFilterWithCondition::OnInit(const FNetObjectFilterInitParams& Params)
 {
 	Super::OnInit(Params);
 
@@ -165,7 +167,7 @@ void UMockNetObjectFilterWithCondition::Filter(FNetObjectFilteringParams& Params
 
 	bool bIsProperCall = true;
 
-	Params.FilteredObjects.ForAllSetBits([&](uint32 ObjectIndex)
+	FilteredObjects.ForAllSetBits([&](uint32 ObjectIndex)
 	{
 		UTestFilteringObject* FilterObject = CastChecked<UTestFilteringObject>(ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager().GetReplicatedObjectInstance(ObjectIndex));
 		

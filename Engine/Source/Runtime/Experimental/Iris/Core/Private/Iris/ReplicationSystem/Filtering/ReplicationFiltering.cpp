@@ -121,7 +121,7 @@ public:
 		}
 	}
 
-	void PrepareBatch(const uint32* ObjectIndices, uint32 ObjectCount, const uint8* FilterIndices)
+	void PrepareBatch(const uint32* ObjectIndices, uint32 ObjectCount, const TArray<uint8>& FilterIndices)
 	{
 		ResetBatch();
 
@@ -171,6 +171,7 @@ FReplicationFiltering::FReplicationFiltering()
 , bHasDynamicFilters(0)
 , bHasDirtyExclusionFilterGroup(0)
 , bHasDirtyInclusionFilterGroup(0)
+, bHasDynamicFiltersWithUpdateTrait(0)
 {
 	StaticChecks();
 }
@@ -422,7 +423,7 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 		if (FilterInfo.Filter->AddObject(ObjIndex, AddParams))
 		{
 			++FilterInfo.ObjectCount;
-			FilterInfo.FilteredObjects.SetBit(ObjIndex);
+			FilterInfo.Filter->GetFilteredObjects().SetBit(ObjIndex);
 			this->ObjectIndexToDynamicFilterIndex[ObjIndex] = static_cast<uint8>(FilterIndex);
 			this->DynamicFilterEnabledObjects.SetBit(ObjIndex);
 			return true;
@@ -1224,7 +1225,7 @@ void FReplicationFiltering::PreUpdateDynamicFiltering()
 				continue;
 			}
 
-			FNetObjectPreFilteringParams PreFilteringParams(MakeNetBitArrayView(Info.FilteredObjects));
+			FNetObjectPreFilteringParams PreFilteringParams;
 			PreFilteringParams.FilteringInfos = MakeArrayView(NetObjectFilteringInfos);
 			PreFilteringParams.ValidConnections = MakeNetBitArrayView(ValidConnections);
 			Info.Filter->PreFilter(PreFilteringParams);
@@ -1285,16 +1286,16 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 					continue;
 				}
 
-				FNetObjectFilteringParams FilteringParams(MakeNetBitArrayView(Info.FilteredObjects));
+				FNetObjectFilteringParams FilteringParams;
 				FilteringParams.OutAllowedObjects = AllowedObjects;
-				FilteringParams.FilteringInfos = NetObjectFilteringInfos.GetData();
+				FilteringParams.FilteringInfos = MakeArrayView(NetObjectFilteringInfos);
 				FilteringParams.ConnectionId = ConnId;
 				FilteringParams.View = Connections->GetReplicationView(ConnId);
 
 				// Execute the filter here
 				Info.Filter->Filter(FilteringParams);
 
-				const uint32* FilteredObjectsData = Info.FilteredObjects.GetData();
+				const uint32* FilteredObjectsData = Info.Filter->GetFilteredObjects().GetData();
 				for (SIZE_T WordIt = 0, WordEndIt = WordCountForObjectBitArrays; WordIt != WordEndIt; ++WordIt)
 				{
 					const uint32 FilteredObjects = FilteredObjectsData[WordIt];
@@ -1439,6 +1440,12 @@ void FReplicationFiltering::PostUpdateDynamicFiltering()
 
 void FReplicationFiltering::NotifyFiltersOfDirtyObjects()
 {
+	if (!bHasDynamicFiltersWithUpdateTrait)
+	{
+		// No filters use UpdateObjects so we can skip early.
+		return;
+	}
+
 	IRIS_PROFILER_SCOPE(FReplicationFiltering_UpdateFilterWithDirtyObjects);
 
 	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystem->GetReplicationSystemInternal()->GetDirtyNetObjectTracker());
@@ -1464,12 +1471,11 @@ void FReplicationFiltering::NotifyFiltersOfDirtyObjects()
 
 void FReplicationFiltering::BatchNotifyFiltersOfDirtyObjects(FUpdateDirtyObjectsBatchHelper& BatchHelper, const uint32* DirtyObjectIndices, uint32 ObjectCount)
 {
-	BatchHelper.PrepareBatch(DirtyObjectIndices, ObjectCount, ObjectIndexToDynamicFilterIndex.GetData());
+	BatchHelper.PrepareBatch(DirtyObjectIndices, ObjectCount, ObjectIndexToDynamicFilterIndex);
 
 	FNetObjectFilterUpdateParams UpdateParameters;
-	UpdateParameters.FilteringInfos = NetObjectFilteringInfos.GetData();
+	UpdateParameters.FilteringInfos = MakeArrayView(NetObjectFilteringInfos);
 
-	// $IRIS TODO: We should probably have a trait asking if the Filter needs to receive UpdateObjects.
 	for (const FUpdateDirtyObjectsBatchHelper::FPerFilterInfo& PerFilterInfo : BatchHelper.PerFilterInfos)
 	{
 		if (PerFilterInfo.ObjectCount == 0)
@@ -1479,7 +1485,6 @@ void FReplicationFiltering::BatchNotifyFiltersOfDirtyObjects(FUpdateDirtyObjects
 
 		UpdateParameters.ObjectIndices = PerFilterInfo.ObjectIndices;
 		UpdateParameters.ObjectCount = PerFilterInfo.ObjectCount;
-		// $IRIS TODO: Add a trait asking if the Filter needs to receive UpdateObjects. Most do nothing in UpdateObjects()
 		const int32 FilterIndex = static_cast<int32>(&PerFilterInfo - BatchHelper.PerFilterInfos.GetData());
 		UNetObjectFilter* Filter = DynamicFilterInfos[FilterIndex].Filter.Get();
 		Filter->UpdateObjects(UpdateParameters);
@@ -2393,9 +2398,8 @@ void FReplicationFiltering::InitFilters()
 		check(Info.Filter.IsValid());
 		Info.Name = FilterDefinition.FilterName;
 		Info.ObjectCount = 0;
-		Info.FilteredObjects.Init(MaxObjectCount);
 
-		FNetObjectFilterInitParams InitParams(MakeNetBitArrayView(Info.FilteredObjects));
+		FNetObjectFilterInitParams InitParams;
 		InitParams.ReplicationSystem = ReplicationSystem;
 		InitParams.Config = (NetObjectFilterConfigClass ? NewObject<UNetObjectFilterConfig>((UObject*)GetTransientPackage(), NetObjectFilterConfigClass) : nullptr);
 		InitParams.MaxObjectCount = MaxObjectCount;
@@ -2404,6 +2408,7 @@ void FReplicationFiltering::InitFilters()
 		Info.Filter->Init(InitParams);
 
 		bHasDynamicFilters = true;
+		bHasDynamicFiltersWithUpdateTrait = bHasDynamicFiltersWithUpdateTrait || Info.Filter->HasFilterTrait(ENetFilterTraits::NeedsUpdate);
 	}
 }
 
@@ -2416,7 +2421,7 @@ void FReplicationFiltering::RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 F
 	FNetObjectFilteringInfo& NetObjectFilteringInfo = NetObjectFilteringInfos[ObjectIndex];
 	FFilterInfo& FilterInfo = DynamicFilterInfos[FilterIndex];
 	--FilterInfo.ObjectCount;
-	FilterInfo.FilteredObjects.ClearBit(ObjectIndex);
+	FilterInfo.Filter->GetFilteredObjects().ClearBit(ObjectIndex);
 	FilterInfo.Filter->RemoveObject(ObjectIndex, NetObjectFilteringInfo);
 
 	DynamicFilterEnabledObjects.ClearBit(ObjectIndex);
@@ -2477,7 +2482,7 @@ FString FReplicationFiltering::PrintFilterObjectInfo(FInternalNetRefIndex Object
 
 	const FFilterInfo& FilterInfo = DynamicFilterInfos[DynamicFilterIndex];
 
-	if (!FilterInfo.FilteredObjects.IsBitSet(ObjectIndex))
+	if (!FilterInfo.Filter->GetFilteredObjects().IsBitSet(ObjectIndex))
 	{
 		ensureMsgf(false, TEXT("Problem with Filter configs for %s.  DynamicIndex %u Filter %s but not in FilteredObjects list"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), DynamicFilterIndex, *FilterInfo.Name.ToString());
 		return TEXT("[WrongSettings]");
@@ -2485,7 +2490,7 @@ FString FReplicationFiltering::PrintFilterObjectInfo(FInternalNetRefIndex Object
 
 	UNetObjectFilter::FDebugInfoParams DebugParams;
 	DebugParams.FilterName = FilterInfo.Name;
-	DebugParams.FilteringInfos = NetObjectFilteringInfos.GetData();
+	DebugParams.FilteringInfos = MakeArrayView(NetObjectFilteringInfos);
 	DebugParams.ConnectionId = ConnectionId;
 	DebugParams.View = Connections->GetReplicationView(ConnectionId);
 
@@ -2498,7 +2503,7 @@ void FReplicationFiltering::BuildObjectsInFilterList(FNetBitArrayView OutObjects
 	{
 		if (FilterInfo.Name == FilterName)
 		{
-			OutObjectsInFilter.Copy(FilterInfo.FilteredObjects);
+			OutObjectsInFilter.Copy(FilterInfo.Filter->GetFilteredObjects());
 			return;
 		}
 	}

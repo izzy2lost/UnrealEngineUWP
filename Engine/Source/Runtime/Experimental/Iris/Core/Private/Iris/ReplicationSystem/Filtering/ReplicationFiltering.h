@@ -183,8 +183,6 @@ private:
 		TStrongObjectPtr<UNetObjectFilter> Filter;
 		FName Name;
 		uint32 ObjectCount = 0;
-		// Objects with this filter set.
-		FNetBitArray FilteredObjects;
 	};
 
 private:
@@ -335,6 +333,8 @@ private:
 	uint32 bHasDynamicFilters : 1;
 	uint32 bHasDirtyExclusionFilterGroup : 1;
 	uint32 bHasDirtyInclusionFilterGroup : 1;
+	// Is true if any initialized DynamicFilter has the NeedsUpdate trait
+	uint32 bHasDynamicFiltersWithUpdateTrait : 1;
 };
 
 inline bool FReplicationFiltering::HasDynamicFilters() const

@@ -50,12 +50,11 @@ protected:
 	};
 
 	// UNetObjectFilter interface
-	IRISCORE_API virtual void OnInit(FNetObjectFilterInitParams&) override;
+	IRISCORE_API virtual void OnInit(const FNetObjectFilterInitParams&) override;
 	IRISCORE_API virtual void AddConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual void RemoveConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
 	IRISCORE_API virtual void RemoveObject(uint32 ObjectIndex, const FNetObjectFilteringInfo&) override;
-	IRISCORE_API virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
 	IRISCORE_API virtual void PreFilter(FNetObjectPreFilteringParams&) override;
 	IRISCORE_API virtual void Filter(FNetObjectFilteringParams&) override;
 

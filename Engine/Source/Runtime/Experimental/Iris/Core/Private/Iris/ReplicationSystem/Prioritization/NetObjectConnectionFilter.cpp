@@ -27,7 +27,7 @@ void UNetObjectConnectionFilter::SetReplicateToConnection(UE::Net::FNetRefHandle
 	}
 }
 
-void UNetObjectConnectionFilter::OnInit(FNetObjectFilterInitParams& Params)
+void UNetObjectConnectionFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
 	NetRefHandleManager = &Params.ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
 
@@ -81,11 +81,6 @@ void UNetObjectConnectionFilter::RemoveObject(uint32 ObjectIndex, const FNetObje
 
 	// For good measure. It's not strictly needed.
 	LocalToNetRefIndex[LocalIndex] = UE::Net::Private::FNetRefHandleManager::InvalidInternalIndex;
-}
-
-void UNetObjectConnectionFilter::UpdateObjects(FNetObjectFilterUpdateParams&)
-{
-	// Intentionally left empty.
 }
 
 void UNetObjectConnectionFilter::PreFilter(FNetObjectPreFilteringParams& Params)

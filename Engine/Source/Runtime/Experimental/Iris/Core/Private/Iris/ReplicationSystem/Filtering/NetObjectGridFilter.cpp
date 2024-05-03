@@ -12,7 +12,7 @@
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
 
-void UNetObjectGridFilter::OnInit(FNetObjectFilterInitParams& Params)
+void UNetObjectGridFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
 	AddFilterTraits(ENetFilterTraits::Spatial);
 
@@ -555,15 +555,11 @@ FString UNetObjectGridFilter::PrintDebugInfoForObject(const FDebugInfoParams& Pa
 // UNetObjectGridWorldLocFilter
 //*************************************************************************************************
 
-void UNetObjectGridWorldLocFilter::OnInit(FNetObjectFilterInitParams& Params)
+void UNetObjectGridWorldLocFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
 	Super::OnInit(Params);
 
 	WorldLocations = &Params.ReplicationSystem->GetWorldLocations();
-}
-
-void UNetObjectGridWorldLocFilter::UpdateObjects(FNetObjectFilterUpdateParams&)
-{
 }
 
 void UNetObjectGridWorldLocFilter::PreFilter(FNetObjectPreFilteringParams& Params)
@@ -579,7 +575,7 @@ void UNetObjectGridWorldLocFilter::PreFilter(FNetObjectPreFilteringParams& Param
 
 	// Update cell info for all objects that have moved.
 	UE::Net::FNetBitArrayView ObjectsWithDirtyWorldLocations = WorldLocations->GetObjectsWithDirtyInfo();
-	UE::Net::FNetBitArrayView::ForAllSetBits(Params.FilteredObjects, ObjectsWithDirtyWorldLocations, UE::Net::FNetBitArrayBase::AndOp, UpdateCells);
+	UE::Net::FNetBitArrayView::ForAllSetBits(MakeNetBitArrayView(FilteredObjects), ObjectsWithDirtyWorldLocations, UE::Net::FNetBitArrayBase::AndOp, UpdateCells);
 }
 
 void UNetObjectGridWorldLocFilter::UpdateObjectInfo(UNetObjectGridFilter::FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol)

@@ -66,7 +66,7 @@ public:
 	inline void ResetFunctionCallStatus() { CallStatus = FFunctionCallStatus({}); }
 
 protected:
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
+	virtual void OnInit(const FNetObjectFilterInitParams&) override;
 	virtual void AddConnection(uint32 ConnectionId) override;
 	virtual void RemoveConnection(uint32 ConnectionId) override;
 	virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
@@ -98,7 +98,7 @@ class UMockNetObjectFilterWithCondition : public UMockNetObjectFilter
 
 protected:
 
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
+	virtual void OnInit(const FNetObjectFilterInitParams&) override;
 	virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
 	virtual void Filter(FNetObjectFilteringParams&) override;
 

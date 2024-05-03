@@ -3,28 +3,17 @@
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Iris/ReplicationSystem/Filtering/ReplicationFiltering.h"
 
-FNetObjectFilteringParams::FNetObjectFilteringParams(const UE::Net::FNetBitArrayView InFilteredObjects)
-: FilteredObjects(InFilteredObjects)
-, FilteringInfos(nullptr)
-, ConnectionId(0)
-{
-}
-
-FNetObjectPreFilteringParams::FNetObjectPreFilteringParams(const UE::Net::FNetBitArrayView InFilteredObjects)
-: FilteredObjects(InFilteredObjects)
-{
-}
-
 UNetObjectFilter::UNetObjectFilter()
 {
 }
 
-void UNetObjectFilter::Init(FNetObjectFilterInitParams& Params)
+void UNetObjectFilter::Init(const FNetObjectFilterInitParams& Params)
 {
+	FilteredObjects.Init(Params.MaxObjectCount);
+
 	{
 		UE::Net::Private::FNetObjectFilteringInfoAccessor FilteringInfoAccessor;
-		TArrayView<FNetObjectFilteringInfo> NetObjectFilteringInfos = FilteringInfoAccessor.GetNetObjectFilteringInfos(Params.ReplicationSystem);
-		FilterInfo = FFilterInfo(Params.FilteredObjects, NetObjectFilteringInfos);
+		FilteringInfos = FilteringInfoAccessor.GetNetObjectFilteringInfos(Params.ReplicationSystem);
 	}
 
 	OnInit(Params);
@@ -35,6 +24,10 @@ void UNetObjectFilter::AddConnection(uint32 ConnectionId)
 }
 
 void UNetObjectFilter::RemoveConnection(uint32 ConnectionId)
+{
+}
+
+void UNetObjectFilter::UpdateObjects(FNetObjectFilterUpdateParams&)
 {
 }
 
@@ -50,25 +43,10 @@ void UNetObjectFilter::PostFilter(FNetObjectPostFilteringParams&)
 {
 }
 
-// FFilterInfo implementation
-UNetObjectFilter::FFilterInfo::FFilterInfo(const UE::Net::FNetBitArrayView InFilteredObjects, const TArrayView<FNetObjectFilteringInfo> InFilteringInfos)
-: FilteredObjects(InFilteredObjects)
-, FilteringInfos(InFilteringInfos)
+FNetObjectFilteringInfo* UNetObjectFilter::GetFilteringInfo(uint32 ObjectIndex)
 {
-}
-
-UNetObjectFilter::FFilterInfo& UNetObjectFilter::FFilterInfo::operator=(const UNetObjectFilter::FFilterInfo& Other)
-{
-	// Re-initialize this instance.
-	this->~FFilterInfo();
-	new (this) FFilterInfo(Other.FilteredObjects, Other.FilteringInfos);
-	return *this;
-}
-
-FNetObjectFilteringInfo* UNetObjectFilter::FFilterInfo::GetFilteringInfo(uint32 ObjectIndex)
-{
-	// Only allow retriving infos for objects handled by this instance.
-	if (!IsAddedToFilter(ObjectIndex))
+	// Only allow retreiving infos for objects handled by this instance.
+	if (!IsObjectFiltered(ObjectIndex))
 	{
 		return nullptr;
 	}
