@@ -117,6 +117,7 @@ DEFINE_STAT(STAT_Navigation_RecastMarkAreas);
 DEFINE_STAT(STAT_Navigation_RecastBuildContours);
 DEFINE_STAT(STAT_Navigation_RecastBuildNavigation);
 DEFINE_STAT(STAT_Navigation_GenerateNavigationDataLayer);
+DEFINE_STAT(STAT_Navigation_RecastBuildLinks);
 DEFINE_STAT(STAT_Navigation_RecastBuildRegions);
 DEFINE_STAT(STAT_Navigation_UpdateNavOctree);
 DEFINE_STAT(STAT_Navigation_CollisionTreeMemory);
@@ -146,6 +147,7 @@ DEFINE_STAT(STAT_Navigation_DetourPERM_TILE_DATA);
 DEFINE_STAT(STAT_Navigation_DetourPERM_TILE_DYNLINK_OFFMESH);
 DEFINE_STAT(STAT_Navigation_DetourPERM_TILE_DYNLINK_CLUSTER);
 DEFINE_STAT(STAT_Navigation_DetourPERM_TILES);
+DEFINE_STAT(STAT_Navigation_DetourPERM_TILE_LINK_BUILDER);
 
 DEFINE_STAT(STAT_DetourTileMemory);
 DEFINE_STAT(STAT_DetourTileMeshHeaderMemory);

@@ -155,6 +155,11 @@ inline double dtfMod(double x, double y)
 	return fmod(x, y);
 }
 
+inline float dtLerp(float a, float b, float t)
+{
+	return a + (b-a)*t;
+}
+
 /// @}
 /// @name Vector helper functions.
 /// @{
@@ -348,6 +353,14 @@ inline void dtVnormalize(dtReal* v)
 	v[0] *= d;
 	v[1] *= d;
 	v[2] *= d;
+}
+
+/// Returns true if the vectors are the same.
+///  @param[in]		a	A vector. [(x, y, z)]
+///  @param[in]		b	A vector. [(x, y, z)]
+inline bool dtVisEqual(const unsigned short* a, const unsigned short* b)
+{
+	return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
 }
 
 /// Performs a 'sloppy' colocation check of the specified points.

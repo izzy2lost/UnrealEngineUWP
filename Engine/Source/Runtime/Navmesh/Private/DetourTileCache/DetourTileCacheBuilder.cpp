@@ -152,10 +152,10 @@ struct dtTempContour
 		poly(pbuf), npoly(0), cpoly(npbuf) 
 	{
 	}
-	unsigned short* verts;	// x, y, z, reg, area
+	unsigned short* verts; // v[0], v[1], v[2] coordinates, v[3] region, v[4] area (high bit indicates vertex pinning, removed in countour simplification).
 	int nverts;
 	int cverts;
-	unsigned short* poly;
+	unsigned short* poly; // index in verts for the contour of the poly
 	int npoly;
 	int cpoly;
 };
@@ -348,6 +348,7 @@ static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, const bo
 
 		getNeighbourRegAndAreaAndVertexHeight(layer, x, y, dir, neiReg, neiArea, cornerNeiArea, vertexHeight);	// UE
 
+		// Check if the region in the provided direction is different than the region at x,y.
 		if (neiReg != layer.regs[x+y*w])
 		{
 			// Solid edge.
@@ -954,6 +955,7 @@ dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc, dtTileCacheLayer& lay
 			const int idx = x+y*w;
 			if (flags[idx] == 0)
 			{
+				// All cell edges are connected, ignore it.
 				continue;
 			}
 
@@ -1034,7 +1036,7 @@ dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc, dtTileCacheLayer& lay
 					dst[2] = v[2];
 
 					// Store portal direction and store remove status to the fourth component.
-					dst[3] = 0x0f;
+					dst[3] = 0x0f;	// Set direction to 0xf
 					if (nei != 0xffff && nei >= 0xf800)
 						dst[3] = (unsigned char)(nei - 0xf800);
 					if (shouldRemove)
@@ -1233,7 +1235,7 @@ static unsigned short addVertex(unsigned short x, unsigned short y, unsigned sho
 
 namespace TileCacheData
 {
-	struct rcEdge
+	struct dtEdge
 	{
 		unsigned short vert[2];			// index in verts (a,b)
 		unsigned short polyEdge[2];		// index in polys (a,b)
@@ -1257,7 +1259,7 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 	unsigned short* nextEdge = firstEdge + nverts;
 	int edgeCount = 0;
 	
-	dtFixedArray<TileCacheData::rcEdge> edges(alloc, maxEdgeCount);
+	dtFixedArray<TileCacheData::dtEdge> edges(alloc, maxEdgeCount);
 	if (!edges)
 		return false;
 	
@@ -1277,7 +1279,7 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 			const unsigned short v1 = (j+1 >= MAX_VERTS_PER_POLY || t[j+1] == DT_TILECACHE_NULL_IDX) ? t[0] : t[j+1];
 			if (v0 < v1)
 			{
-				TileCacheData::rcEdge& edge = edges[edgeCount];
+				TileCacheData::dtEdge& edge = edges[edgeCount];
 				edge.vert[0] = v0;
 				edge.vert[1] = v1;
 				edge.poly[0] = (unsigned short)i;
@@ -1308,7 +1310,7 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 				bool found = false;
 				for (unsigned short e = firstEdge[v1]; e != DT_TILECACHE_NULL_IDX; e = nextEdge[e])
 				{
-					TileCacheData::rcEdge& edge = edges[e];
+					TileCacheData::dtEdge& edge = edges[e];
 					if (edge.vert[1] == v0 && edge.poly[0] == edge.poly[1])
 					{
 						// Edges matches
@@ -1322,7 +1324,7 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 				if (!found)
 				{
 					// Matching edge not found, it is an open edge, add it.
-					TileCacheData::rcEdge& edge = edges[edgeCount];
+					TileCacheData::dtEdge& edge = edges[edgeCount];
 					edge.vert[0] = v1;
 					edge.vert[1] = v0;
 					edge.poly[0] = (unsigned short)i;
@@ -1371,7 +1373,7 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 				
 				for (int m = 0; m < edgeCount; ++m)
 				{
-					TileCacheData::rcEdge& e = edges[m];
+					TileCacheData::dtEdge& e = edges[m];
 					// Skip connected edges.
 					if (e.poly[0] != e.poly[1])
 						continue;
@@ -1414,11 +1416,10 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 				
 				for (int m = 0; m < edgeCount; ++m)
 				{
-					TileCacheData::rcEdge& e = edges[m];
+					TileCacheData::dtEdge& e = edges[m];
 					// Skip connected edges.
 					if (e.poly[0] != e.poly[1])
 						continue;
-
 					const unsigned short* eva = &verts[e.vert[0]*3];
 					const unsigned short* evb = &verts[e.vert[1]*3];
 					if (eva[2] == z && evb[2] == z)
@@ -1446,11 +1447,13 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 	
 	
 	// Store adjacency
+	// Adjacency between poly is store in the second arrays of polys.
 	for (int i = 0; i < edgeCount; ++i)
 	{
-		const TileCacheData::rcEdge& e = edges[i];
+		const TileCacheData::dtEdge& e = edges[i];
 		if (e.poly[0] != e.poly[1])
 		{
+			// If not the same poly, store the direction of the portal.
 			unsigned short* p0 = &polys[e.poly[0]*MAX_VERTS_PER_POLY*2];
 			unsigned short* p1 = &polys[e.poly[1]*MAX_VERTS_PER_POLY*2];
 			p0[MAX_VERTS_PER_POLY + e.polyEdge[0]] = e.poly[1];
@@ -1458,6 +1461,7 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 		}
 		else if (e.polyEdge[1] != 0xff) // if we have a direction
 		{
+			// Same poly
 			unsigned short* p0 = &polys[e.poly[0]*MAX_VERTS_PER_POLY*2];
 			p0[MAX_VERTS_PER_POLY + e.polyEdge[0]] = 0x8000 | (unsigned short)e.polyEdge[1];
 		}
@@ -2293,7 +2297,7 @@ dtStatus dtBuildTileCachePolyMesh(dtTileCacheAlloc* alloc,
 	
 	for (int i = 0; i < lcset.nconts; ++i)
 	{
-		dtTileCacheContour& cont = lcset.conts[i];
+		const dtTileCacheContour& cont = lcset.conts[i];
 		
 		// Skip null contours.
 		if (cont.nverts < 3 || lcset.conts[i].area == DT_TILECACHE_NULL_AREA)

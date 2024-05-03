@@ -53,6 +53,33 @@ void duIntToCol(int i, float* col)
 	col[2] = 1 - b*63.0f/255.0f;
 }
 
+//@UE BEGIN
+// Color palette
+unsigned int duColor::red			= duRGBA(0xe53935ff);		
+unsigned int duColor::pink			= duRGBA(0xd81b60ff);
+unsigned int duColor::purple		= duRGBA(0x8e24aaff);
+unsigned int duColor::deepPurple	= duRGBA(0x5e35b1ff);
+unsigned int duColor::indigo		= duRGBA(0x3949abff);
+unsigned int duColor::blue			= duRGBA(0x1e88e5ff);
+unsigned int duColor::lightBlue		= duRGBA(0x039be5ff);
+unsigned int duColor::cyan			= duRGBA(0x00acc1ff);
+unsigned int duColor::teal			= duRGBA(0x00897bff);
+unsigned int duColor::green			= duRGBA(0x43a047ff);
+unsigned int duColor::lightGreen	= duRGBA(0x7cb342ff);
+unsigned int duColor::lime			= duRGBA(0xc0ca33ff);
+unsigned int duColor::yellow		= duRGBA(0xfdd835ff);
+unsigned int duColor::amber			= duRGBA(0xffb300ff);
+unsigned int duColor::orange		= duRGBA(0xfb8c00ff);
+unsigned int duColor::orangeRed		= duRGBA(0xf4511eff);
+unsigned int duColor::brown			= duRGBA(0x6d4c41ff);
+
+unsigned int duColor::white			= duRGBA(0xffffffff);
+unsigned int duColor::lightGrey		= duRGBA(0xe0e0e0ff);
+unsigned int duColor::grey			= duRGBA(0x9e9e9eff);
+unsigned int duColor::drakGrey		= duRGBA(0x616161ff);
+unsigned int duColor::black			= duRGBA(0x000000ff);
+//@UE END
+
 void duCalcBoxColors(unsigned int* colors, unsigned int colTop, unsigned int colSide)
 {
 	if (!colors) return;

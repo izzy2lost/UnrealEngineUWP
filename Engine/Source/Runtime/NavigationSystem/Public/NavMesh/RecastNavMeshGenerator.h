@@ -40,6 +40,7 @@ struct FKAggregateGeom;
 struct FTileCacheCompressor;
 struct FTileCacheAllocator;
 struct FTileGenerationContext;
+struct dtLinkBuilderData;
 class dtNavMesh;
 class FNavRegenTimeSliceManager;
 class UNavigationSystemV1;
@@ -64,6 +65,8 @@ struct FRecastBuildConfig : public rcConfig
 	uint32 bFilterLowSpanSequences : 1;
 	/** if set, only low height spans with corresponding area modifier will be stored in tile cache (reduces memory, can't modify without full tile rebuild) */
 	uint32 bFilterLowSpanFromTileCache : 1;
+	/** if set, navigation links will be automatically generated */
+	uint32 bGenerateLinks : 1;
 
 	/** region partitioning method used by tile cache */
 	int32 TileCachePartitionType;
@@ -87,7 +90,7 @@ struct FRecastBuildConfig : public rcConfig
 	/** Ledge filtering mode */
 	ENavigationLedgeSlopeFilterMode LedgeSlopeFilterMode;
 	/** Is the config completely setup */
-	bool bIsTileSetupConfigCompleted = false;
+	bool bIsTileSetupConfigCompleted;
 	
 	FRecastBuildConfig()
 	{
@@ -104,6 +107,7 @@ struct FRecastBuildConfig : public rcConfig
 		bUseExtraTopCellWhenMarkingAreas = true;
 		bFilterLowSpanSequences = false;
 		bFilterLowSpanFromTileCache = false;
+		bGenerateLinks = false;
 		// Still initializing, even though the property is deprecated, to avoid static analysis warnings
 		MaxPolysPerTile = -1;
 		AgentIndex = 0;
@@ -438,20 +442,43 @@ protected:
 	NAVIGATIONSYSTEM_API bool RecastBuildTileCache(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
 	/** End functions used by GenerateCompressedLayersTimeSliced / GenerateCompressedLayers */
 
-	/** builds CompressedLayers array (geometry + modifiers) time sliced*/
+	/** Builds CompressedLayers array (geometry + modifiers) time sliced*/
 	NAVIGATIONSYSTEM_API virtual ETimeSliceWorkResult GenerateCompressedLayersTimeSliced(FNavMeshBuildContext& BuildContext);
+
+	
 	/** builds CompressedLayers array (geometry + modifiers) */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API virtual bool GenerateCompressedLayers(FNavMeshBuildContext& BuildContext);
 
 	/** Builds a navigation data layer */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API bool GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor, FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, int32 LayerIdx);
 
 	/** builds NavigationData array (layers + obstacles) time sliced */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API ETimeSliceWorkResult GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext);
 
 	/** builds NavigationData array (layers + obstacles) */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API bool GenerateNavigationData(FNavMeshBuildContext& BuildContext);
+	
+	
+	/** Builds CompressedLayers array (geometry + modifiers) */
+	NAVIGATIONSYSTEM_API virtual bool GenerateCompressedLayers(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& OutLinkBuilderData);
 
+	/** Builds a navigation data layer */
+	NAVIGATIONSYSTEM_API bool GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor, FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, dtLinkBuilderData& InOutLinkBuilderData, int32 LayerIdx);
+
+	/** Builds NavigationData array (layers + obstacles) time sliced */
+	NAVIGATIONSYSTEM_API ETimeSliceWorkResult GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& InOutLinkBuilderData);
+
+	/** Builds NavigationData array (layers + obstacles) */
+	NAVIGATIONSYSTEM_API bool GenerateNavigationData(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& LinkBuilderData);
+
+	/** Builds navigation links */
+	dtStatus BuildTileCacheLinks(FNavMeshBuildContext& BuildContext, struct dtTileCacheAlloc* alloc, const dtTileCacheLayer& layer,
+		const struct dtTileCacheContourSet& lcset, const dtLinkBuilderData& linkBuilderData, TArray<FNavigationLink>& OutGeneratedLinks) const;
+	
 	NAVIGATIONSYSTEM_API virtual void ApplyVoxelFilter(struct rcHeightfield* SolidHF, FVector::FReal WalkableRadius);
 
 	/** Compute rasterization mask */

@@ -1,0 +1,1034 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#include "Detour/DetourNavLinkBuilder.h"
+
+#include "Detour/DetourAlloc.h"
+#include "Detour/DetourCommon.h"
+#include "DetourTileCache/DetourTileCacheBuilder.h"
+#include "Recast/Recast.h"
+
+//@UE BEGIN
+namespace UE::Detour::NavLink::Private
+{
+	static void insertSort(unsigned char* a, const int n)
+	{
+		int j;
+		for (int i = 1; i < n; i++)
+		{
+			const unsigned char value = a[i];
+			for (j = i - 1; j >= 0 && a[j] > value; j--)
+			{
+				a[j+1] = a[j];
+			}
+			a[j+1] = value;
+		}
+	}
+
+	static dtReal getClosestPtPtSeg(const dtReal* pt, const dtReal* sp, const dtReal* sq)
+	{
+		dtReal dir[3], diff[3];
+		dtVsub(dir, sq, sp);
+		dtVsub(diff, pt, sp);
+		dtReal t = dtVdot(dir,diff);
+		if (t <= 0.0)
+			return 0.0;
+	
+		const dtReal d = dtVdot(dir,dir);
+		if (t >= d)
+			return 1.0;
+
+		return t/d;
+	}
+
+	static void closestPtSegSeg(const dtReal* ap, const dtReal* aq, const dtReal* bp, const dtReal* bq, dtReal& s, dtReal& t)
+	{
+		constexpr dtReal EPSILON = 1e-6;
+		dtReal d1[3], d2[3], r[3];
+		dtVsub(d1, aq, ap);
+		dtVsub(d2, bq, bp);
+		dtVsub(r, ap, bp);
+		const dtReal a = dtVdot(d1,d1); // Squared length of segment S1, always nonnegative
+		const dtReal e = dtVdot(d2,d2); // Squared length of segment S2, always nonnegative
+		const dtReal f = dtVdot(d2,r);
+	
+		// Check if either or both segments degenerate into points
+		if (a <= EPSILON && e <= EPSILON)
+		{
+			// Both segments degenerate into points
+			s = t = 0.0;
+			return;
+		}
+	
+		if (a <= EPSILON)
+		{
+			s = 0.0;
+			t = f / e;
+			t = dtClamp(t, 0.0, 1.0);
+		}
+		else
+		{
+			const dtReal c = dtVdot(d1,r);
+			if (e <= EPSILON)
+			{
+				// Second segment degenerates into a point
+				t = 0.0;
+				s = dtClamp(-c / a, 0.0, 1.0); // t = 0 => s = (b*t - c) / a = -c / a
+			}
+			else
+			{
+				// The general nondegenerate case starts here
+				const dtReal b = dtVdot(d1,d2);
+				const dtReal denom = a*e-b*b; // Always nonnegative
+			
+				// If segments not parallel, compute closest point on L1 to L2, and
+				// clamp to segment S1. Else pick arbitrary s (here 0)
+				if (denom != 0.0)
+					s = dtClamp((b*f - c*e) / denom, 0.0, 1.0);
+				else
+					s = 0.0;
+			
+				// Compute point on L2 closest to S1(s) using
+				// t = Dot((p.start+D1*s)-q.start,D2) / Dot(D2,D2) = (b*s + f) / e
+				t = (b*s + f) / e;
+			
+				// If t in [0,1] done. Else clamp t, recompute s for the new value
+				// of t using s = Dot((q.start+D2*t)-p.start,D1) / Dot(D1,D1)= (t*b - c) / a
+				// and clamp s to [0, 1]
+				if (t < 0.0)
+				{
+					t = 0.0;
+					s = dtClamp(-c / a, 0.0, 1.0);
+				}
+				else if (t > 1.0)
+				{
+					t = 1.0;
+					s = dtClamp((b - c) / a, 0.0, 1.0);
+				}
+			}
+		}
+	}
+
+	static bool isectSegAABB(const dtReal* sp, const dtReal* sq,
+					  const float* amin, const float* amax,
+					  float& tmin, float& tmax)
+	{
+		static constexpr float EPS = 1e-6f;
+	
+		dtReal d[3];
+		dtVsub(d, sq, sp);
+		tmin = 0;  // set to -FLT_MAX to get first hit on the line
+		tmax = FLT_MAX;		// set to max distance ray can travel (for segment)
+	
+		// For all three slabs
+		for (int i = 0; i < 3; i++)
+		{
+			if (dtAbs(d[i]) < EPS)
+			{
+				// Ray is parallel to slab. No hit if origin not within slab
+				if (sp[i] < amin[i] || sp[i] > amax[i])
+					return false;
+			}
+			else
+			{
+				// Compute intersection t value of ray with near and far plane of slab
+				const float ood = 1.0f / d[i];
+				float t1 = (amin[i] - sp[i]) * ood;
+				float t2 = (amax[i] - sp[i]) * ood;
+
+				// Make t1 be intersection with near plane, t2 with far plane
+				if (t1 > t2)
+					dtSwap(t1, t2);
+
+				// Compute the intersection of slab intersections intervals
+				if (t1 > tmin)
+					tmin = t1;
+
+				if (t2 < tmax) 
+					tmax = t2;
+
+				// Exit with no collision as soon as slab intersection becomes empty
+				if (tmin > tmax)
+					return false;
+			}
+		}
+	
+		return true;
+	}
+
+	static dtReal distSegSegSqr(const dtReal* ap, const dtReal* aq, const dtReal* bp, const dtReal* bq)
+	{
+		dtReal s, t;
+		closestPtSegSeg(ap, aq, bp, bq, s,t);
+		dtReal anp[3], bnp[3];
+		dtVlerp(anp, ap,aq, s);
+		dtVlerp(bnp, bp,bq, t);
+		return dtVdistSqr(anp, bnp);
+	}
+	
+	static float getHeight(const float x, const float* pts, const int npts)
+	{
+		if (x <= pts[0])
+			return pts[1];
+
+		if (x >= pts[(npts-1)*2])
+			return pts[(npts-1)*2+1];
+	
+		for (int i = 1; i < npts; ++i)
+		{
+			const float* q = &pts[i*2];
+			if (x <= q[0])
+			{
+				const float* p = &pts[(i-1)*2];
+				const float u = (x-p[0]) / (q[0]-p[0]);
+				return dtLerp(p[1], q[1], u);
+			}
+		}
+	
+		return pts[(npts-1)*2+1];
+	}
+
+	inline bool overlapRange(const float amin, const float amax, const float bmin, const float bmax)
+	{
+		return (amin <= bmax && amax >= bmin);
+	}
+
+	inline void trans2d(dtReal* dst, const dtReal* ax, const dtReal* ay, const float* pt)
+	{
+		dst[0] = ax[0]*pt[0] + ay[0]*pt[1];
+		dst[1] = ax[1]*pt[0] + ay[1]*pt[1];
+		dst[2] = ax[2]*pt[0] + ay[2]*pt[1];
+	}
+}
+
+dtNavLinkBuilder::Trajectory2D::~Trajectory2D()
+{
+	dtFree(samples, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+}
+
+dtNavLinkBuilder::GroundSegment::~GroundSegment()
+{
+	dtFree(gsamples, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+}
+
+dtNavLinkBuilder::dtNavLinkBuilder() :
+	m_solid(nullptr),
+	m_chf(nullptr),
+	m_edges(nullptr),
+	m_nedges(0),
+	m_links(nullptr),
+	m_nlinks(0),
+	m_clinks(0),
+	m_debugSelectedEdge(-1)
+{
+}
+
+dtNavLinkBuilder::~dtNavLinkBuilder()
+{	
+	cleanup();
+}
+
+void dtNavLinkBuilder::cleanup()
+{
+	m_solid = nullptr;
+	m_chf = nullptr;
+
+	dtFree(m_edges, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+	m_edges = nullptr;
+	m_nedges = 0;
+	
+	dtFree(m_links, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+	m_links = nullptr;
+	m_nlinks = 0;
+	m_clinks = 0;
+}
+
+bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLinkBuilderConfig& builderConfig,
+                                 const dtTileCacheContourSet& lcset, const dtReal* orig, const dtLinkBuilderData& linkBuilderData)
+{
+	cleanup();
+	m_linkBuilderConfig = builderConfig;
+
+	m_cs = cfg.cs;
+	m_solid = linkBuilderData.solidHF;
+	m_chf = linkBuilderData.compactHF;
+
+	// Build edges.
+	m_nedges = 0;
+	for (int i = 0; i < lcset.nconts; ++i)
+	{
+		m_nedges += lcset.conts[i].nverts;
+	}
+
+	if (!m_nedges)
+	{
+		ctx.log(RC_LOG_ERROR, "fillEdges: No edges!");
+		return false;
+	}
+
+	dtAssert(m_edges == nullptr);
+	m_edges = (Edge*)dtAlloc(sizeof(Edge)*m_nedges, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+	if (!m_edges)
+	{
+		ctx.log(RC_LOG_ERROR, "fillEdges: Failed to alloc edges (%d)", m_nedges);
+		return false;
+	}
+
+	const dtReal cs = cfg.cs;
+	const dtReal ch = cfg.ch;
+	
+	m_nedges = 0;
+	for (int i = 0; i < lcset.nconts; ++i)
+	{
+		const dtTileCacheContour& c = lcset.conts[i];
+		if (!c.nverts)
+			continue;
+
+		for (int j = 0, k = c.nverts-1; j < c.nverts; k=j++)
+		{
+			const unsigned short* va = &c.verts[k*4];
+			const unsigned short* vb = &c.verts[j*4];
+			
+			if ((va[3] & 0xf) != 0xf)	// A direction is set, so it's a portal edge.
+				continue;
+			
+			// Check k-j for matching contour
+			bool matchFound = false;
+			for (int ii = 0; ii < lcset.nconts; ++ii)
+			{
+				if (i == ii)
+					continue;
+				
+				const dtTileCacheContour& otherCont = lcset.conts[ii];
+				if (otherCont.nverts < 3)
+					continue;
+			
+				for (int jj = 0, kk = otherCont.nverts-1; jj < otherCont.nverts; kk=jj++)
+				{
+					const unsigned short* otherVa = &otherCont.verts[kk*4];
+					const unsigned short* otherVb = &otherCont.verts[jj*4];
+			
+					if( (dtVisEqual(va, otherVa) && dtVisEqual(vb, otherVb)) ||
+						(dtVisEqual(va, otherVb) && dtVisEqual(vb, otherVa))    )
+					{
+						// Same edge, skip it.
+						matchFound = true;
+						break;
+					}
+				}
+			
+				if (matchFound)
+				{
+					break;
+				}
+			}
+			
+			if (!matchFound)
+			{
+				// Add edge
+				Edge* e = &m_edges[m_nedges++];
+
+				e->sp[0] = orig[0] + vb[0]*cs;
+				e->sp[1] = orig[1] + (vb[1]+2)*ch;
+				e->sp[2] = orig[2] + vb[2]*cs;
+
+				e->sq[0] = orig[0] + va[0]*cs;
+				e->sq[1] = orig[1] + (va[1]+2)*ch;
+				e->sq[2] = orig[2] + va[2]*cs;
+			}
+		}
+	}
+
+	return true;
+}
+
+dtNavLinkBuilder::JumpLink* dtNavLinkBuilder::addLink()
+{
+	if (m_nlinks+1 > m_clinks)
+	{
+		m_clinks = m_clinks ? m_clinks*2 : 8;
+
+		JumpLink* n = (JumpLink*)dtAlloc(sizeof(JumpLink)*m_clinks, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+
+		if (m_nlinks)
+		{
+			memcpy(n, m_links, sizeof(JumpLink)*m_nlinks);
+		}
+		dtFree(m_links, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+		m_links = n;
+	}
+	
+	JumpLink* link = &m_links[m_nlinks++];
+	return link;
+}
+
+void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& acfg, const EdgeSampler* es)
+{
+	using namespace UE::Detour::NavLink::Private;
+	
+	if (es->start.ngsamples != es->end.ngsamples)
+	{
+		return;
+	}
+	
+	const int nsamples = es->start.ngsamples;
+
+	// Filter small holes.
+	constexpr int RAD = 2;
+	GroundSampleFlag kernel[RAD*2+1];
+
+	GroundSampleFlag* nflags = (GroundSampleFlag*)dtAlloc(sizeof(GroundSampleFlag)*nsamples, DT_ALLOC_TEMP);
+	
+	for (int i = 0; i < nsamples; ++i)
+	{
+		const int a = dtMax(0, i-RAD);
+		const int b = dtMin(nsamples-1, i+RAD);
+		int nkernel = 0;
+		for (int j = a; j <= b; ++j)
+		{
+			kernel[nkernel++] = (GroundSampleFlag)(es->start.gsamples[i].flags & UNRESTRICTED);
+		}
+		insertSort((unsigned char*)kernel, nkernel);
+		nflags[i] = kernel[(nkernel+1)/2];
+	}
+
+	const int agentRadiusVx = acfg.agentRadius / acfg.cellSize;
+	
+	// Build segments
+	int start = -1;
+	for (int i = 0; i <= nsamples; ++i)
+	{
+		const bool valid = i < nsamples && nflags[i] != UNSET;
+		if (start == -1)
+		{
+			if (valid)
+				start = i;
+		}
+		else
+		{
+			if (!valid)
+			{
+				if (i - start > agentRadiusVx)
+				{
+					const float u0 = (float)start/(float)nsamples;
+					const float u1 = (float)i/(float)nsamples;
+
+					dtReal sp[3], sq[3], ep[3], eq[3];
+
+					dtVlerp(sp, es->start.p,es->start.q, u0);
+					dtVlerp(sq, es->start.p,es->start.q, u1);
+					dtVlerp(ep, es->end.p,es->end.q, u0);
+					dtVlerp(eq, es->end.p,es->end.q, u1);
+					sp[1] = es->start.gsamples[start].height;
+					sq[1] = es->start.gsamples[i-1].height;
+					ep[1] = es->end.gsamples[start].height;
+					eq[1] = es->end.gsamples[i-1].height;
+
+					JumpLink* link = addLink();
+
+					link->action = es->action;
+					link->flags = VALID;
+					link->nspine = es->trajectory.nspine;
+
+					const float startx = es->trajectory.spine[0];
+					const float endx = es->trajectory.spine[(es->trajectory.nspine-1)*2];
+					const float deltax = endx - startx;
+					
+					const float starty = es->trajectory.spine[1];
+					const float endy = es->trajectory.spine[(es->trajectory.nspine-1)*2+1];
+					
+					// Build link->spine0
+					for (int j = 0; j < es->trajectory.nspine; ++j)
+					{
+						const float* spt = &es->trajectory.spine[j*2];
+						const float u = (spt[0] - startx)/deltax;
+						const float dy = spt[1] - dtLerp(starty, endy, u) + m_linkBuilderConfig.agentClimb;
+						dtReal* p = &link->spine0[j*3];
+						dtVlerp(p, sp, ep, u);
+						dtVmad(p, p, es->ay, dy);
+					}
+
+					// Build link->spine1
+					for (int j = 0; j < es->trajectory.nspine; ++j)
+					{
+						const float* spt = &es->trajectory.spine[j*2];
+						const float u = (spt[0] - startx)/deltax;
+						const float dy = spt[1] - dtLerp(starty, endy, u) + m_linkBuilderConfig.agentClimb;
+						dtReal* p = &link->spine1[j*3];
+						dtVlerp(p, sq, eq, u);
+						dtVmad(p, p, es->ay, dy);
+					}
+				}
+				
+				start = -1;
+			}
+		}
+	}
+
+	dtFree(nflags, DT_ALLOC_TEMP);
+}
+
+void dtNavLinkBuilder::filterJumpOverLinks() const
+{
+	using namespace UE::Detour::NavLink::Private;
+	
+	// Filter out links which overlap
+	const float thresholdSquared = dtSqr(m_chf->cs*5.0f);
+	
+	for (int i = 0; i < m_nlinks-1; ++i)
+	{
+		JumpLink* li = &m_links[i];
+		if (li->flags == INVALID)
+			continue;
+		
+		const dtReal* spi = &li->spine0[0];
+		const dtReal* sqi = &li->spine1[0];
+		const dtReal* epi = &li->spine0[(li->nspine-1)*3];
+		const dtReal* eqi = &li->spine1[(li->nspine-1)*3];
+		
+		for (int j = i+1; j < m_nlinks; ++j)
+		{
+			JumpLink* lj = &m_links[j];
+			if (lj->flags == INVALID)
+				continue;
+			
+			const dtReal* spj = &lj->spine0[0];
+			const dtReal* sqj = &lj->spine1[0];
+			const dtReal* epj = &lj->spine0[(lj->nspine-1)*3];
+			const dtReal* eqj = &lj->spine1[(lj->nspine-1)*3];
+			
+			const dtReal d0 = distSegSegSqr(spi,sqi, epj,eqj);
+			const dtReal d1 = distSegSegSqr(epi,eqi, spj,sqj);
+			
+			if (d0 < thresholdSquared && d1 < thresholdSquared)
+			{
+				if (dtVdistSqr(spi,sqi) > dtVdistSqr(spj,sqj))
+				{
+					lj->flags = INVALID;
+				}
+				else
+				{
+					li->flags = INVALID;
+					break;
+				}
+			}
+		}
+	}
+}
+
+void dtNavLinkBuilder::buildForAllEdges(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction action)
+{
+	for (int i = 0; i < m_nedges; ++i)
+	{
+		EdgeSampler sampler;
+		const bool success = sampleEdge(action, m_edges[i].sp, m_edges[i].sq, &sampler);
+		if (success)
+		{
+			addEdgeLinks(builderConfig, &sampler);
+		}
+	}
+	
+	filterJumpOverLinks();
+}
+
+void dtNavLinkBuilder::debugBuildEdge(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction action, int edgeIndex, EdgeSampler& sampler)
+{
+	if (edgeIndex >= m_nedges)
+	{
+		return;
+	}
+	
+	m_debugSelectedEdge = edgeIndex;
+
+	const bool success = sampleEdge(action, m_edges[edgeIndex].sp, m_edges[edgeIndex].sq, &sampler);
+	if (success)
+	{
+		addEdgeLinks(builderConfig, &sampler);
+	}
+
+	filterJumpOverLinks();
+}
+
+bool dtNavLinkBuilder::getCompactHeightfieldHeight(const dtReal* pt, const float hrange, dtReal* height) const
+{
+	const float range = m_chf->cs;
+	const int ix0 = dtClamp((int)floorf((pt[0]-range - m_chf->bmin[0])/m_chf->cs), 0, m_chf->width-1);
+	const int iz0 = dtClamp((int)floorf((pt[2]-range - m_chf->bmin[2])/m_chf->cs), 0, m_chf->height-1);
+	const int ix1 = dtClamp((int)floorf((pt[0]+range - m_chf->bmin[0])/m_chf->cs), 0, m_chf->width-1);
+	const int iz1 = dtClamp((int)floorf((pt[2]+range - m_chf->bmin[2])/m_chf->cs), 0, m_chf->height-1);
+	
+	dtReal bestDist = DT_REAL_MAX;
+	dtReal bestHeight = DT_REAL_MAX;
+	bool found = false;
+	
+	for (int z = iz0; z <= iz1; ++z)
+	{
+		for (int x = ix0; x <= ix1; ++x)
+		{
+			const rcCompactCell& c = m_chf->cells[x+z*m_chf->width];
+			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
+			{
+				const rcCompactSpan& s = m_chf->spans[i];
+				if (m_chf->areas[i] == RC_NULL_AREA)
+				{
+					continue;
+				}
+				
+				const dtReal y = m_chf->bmin[1] + s.y * m_chf->ch;
+				const dtReal dist = abs(y - pt[1]);
+				if (dist < hrange && dist < bestDist)
+				{
+					bestDist = dist;
+					bestHeight = y;
+					found = true;
+				}
+			}
+		}
+	}
+	
+	if (found)
+	{
+		*height = bestHeight;
+	}
+	else
+	{
+		*height = pt[1];
+	}
+	
+	return found;
+}
+
+// Compare ymin, ymax range with the solid height field spans to see if it collides.
+// Returns true if there is a collision.
+bool dtNavLinkBuilder::checkHeightfieldCollision(const dtReal x, const dtReal ymin, const dtReal ymax, const dtReal z) const
+{
+	using namespace UE::Detour::NavLink::Private;
+	
+	const int w = m_solid->width;
+	const int h = m_solid->height;
+	const dtReal cs = m_solid->cs;
+	const dtReal ch = m_solid->ch;
+	const rcReal* orig = m_solid->bmin;
+	const int ix = (int)floorf((x - orig[0])/cs);
+	const int iz = (int)floorf((z - orig[2])/cs);
+	
+	if (ix < 0 || iz < 0 || ix > w || iz > h)
+	{
+		return false;
+	}
+	
+	const rcSpan* s = m_solid->spans[ix + iz*w];
+	if (!s)
+	{
+		return false;
+	}
+	
+	while (s)
+	{
+		const float symin = orig[1] + s->data.smin*ch;
+		const float symax = orig[1] + s->data.smax*ch;
+		if (overlapRange(ymin, ymax, symin, symax))
+			return true;
+		
+		s = s->next;
+	}
+
+	return false;
+}
+
+// Returns true if none of the samples ymin, ymax collide with the heghtfield.
+bool dtNavLinkBuilder::isTrajectoryClear(const dtReal* pa, const dtReal* pb, const Trajectory2D* tra) const
+{
+	for (int i = 0; i < tra->nsamples; ++i)
+	{
+		dtReal p[3];
+		const TrajectorySample* s = &tra->samples[i];
+		const float u = (float)i / (float)(tra->nsamples-1);
+		dtVlerp(p, pa, pb, u);
+		if (checkHeightfieldCollision(p[0], p[1] + s->ymin, p[1] + s->ymax, p[2]))
+		{
+			return false;
+		}
+	}
+	
+	return true;	
+}
+
+void dtNavLinkBuilder::sampleGroundSegment(GroundSegment* seg, const float nsamples, const float groundRange) const
+{
+	dtReal delta[3];
+	dtVsub(delta, seg->p, seg->q);
+	
+	seg->ngsamples = nsamples;
+	// TODO: profile, preallocate, use dtChunkArray or else.
+	dtAssert(seg->gsamples == nullptr);
+	seg->gsamples = (GroundSample*)dtAlloc(sizeof(GroundSample)*seg->ngsamples, DT_ALLOC_PERM_TILE_LINK_BUILDER);	 
+	seg->npass = 0;
+	
+	for (int i = 0; i < seg->ngsamples; ++i)
+	{
+		const float u = (float)i/(float)(seg->ngsamples-1);
+		dtReal pt[3];
+
+		GroundSample* s = &seg->gsamples[i];
+		dtVlerp(pt, seg->p, seg->q, u);
+		s->flags = dtNavLinkBuilder::UNSET;
+		if (!getCompactHeightfieldHeight(pt, groundRange, &s->height))
+		{
+			continue;
+		}
+		
+		s->flags = static_cast<GroundSampleFlag>((unsigned char)s->flags | (unsigned char)HAS_GROUND);
+		seg->npass++;
+	}
+}
+
+void dtNavLinkBuilder::sampleAction(const EdgeSampler* es) const
+{
+	if (es->start.ngsamples != es->end.ngsamples)
+		return;
+	
+	const int nsamples = es->start.ngsamples;
+	
+	for (int i = 0; i < nsamples; ++i)
+	{
+		GroundSample* ssmp = &es->start.gsamples[i];
+		GroundSample* esmp = &es->end.gsamples[i];
+		
+		if ((ssmp->flags & HAS_GROUND) == 0 || (esmp->flags & HAS_GROUND) == 0)
+			continue;
+
+		const dtReal u = (dtReal)i/(dtReal)(nsamples-1);
+		dtReal spt[3], ept[3];
+		dtVlerp(spt, es->start.p, es->start.q, u);
+		dtVlerp(ept, es->end.p, es->end.q, u);
+		
+		spt[1] = ssmp->height;
+		ept[1] = esmp->height;
+		
+		if (!isTrajectoryClear(spt, ept, &es->trajectory))
+			continue;
+
+		ssmp->flags = static_cast<GroundSampleFlag>((unsigned char)ssmp->flags | (unsigned char)UNRESTRICTED);
+	}
+}
+
+void dtNavLinkBuilder::initTrajectory(Trajectory2D* tra) const
+{
+	using namespace UE::Detour::NavLink::Private;
+	
+	const float cs = m_linkBuilderConfig.cellSize;
+	
+	const float* pa = &tra->spine[0];
+	const float* pb = &tra->spine[(tra->nspine-1)*2];
+	
+	const float dx = pb[0] - pa[0];
+	tra->nsamples = dtMax(2, (int)ceilf(dx/cs));
+	// TODO: profile, preallocate, use dtChunkArray or else.
+	dtAssert(tra->samples == nullptr);
+	tra->samples = (TrajectorySample*)dtAlloc(sizeof(TrajectorySample)*tra->nsamples, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+	
+	for (int i = 0; i < tra->nsamples; ++i)
+	{
+		const float u = (float)i / (float)(tra->nsamples-1);
+		TrajectorySample* s = &tra->samples[i];
+		s->x = dtLerp(pa[0], pb[0], u);
+		
+		const float y0 = getHeight(s->x-m_linkBuilderConfig.agentRadius, tra->spine, tra->nspine);
+		const float y1 = getHeight(s->x+m_linkBuilderConfig.agentRadius, tra->spine, tra->nspine);
+
+		const float y = dtLerp(pa[1], pb[1], u);
+		
+		s->ymin = dtMin(y0,y1) + m_linkBuilderConfig.agentClimb - y;
+		s->ymax = dtMax(y0,y1) + m_linkBuilderConfig.agentHeight - y; 
+	}
+}
+
+int dtNavLinkBuilder::findPotentialJumpOverEdges(const dtReal* sp, const dtReal* sq,
+												  const float depthRange, const float heightRange,
+												  dtReal* outSegs, const int maxOutSegs) const
+{
+	using namespace UE::Detour::NavLink::Private;
+	
+	// Find potential edges to join to.
+	const float widthRange = sqrtf(dtVdistSqr(sp,sq));
+	const float amin[3] = {0, -heightRange*0.5f, 0};
+	const float amax[3] = { widthRange, heightRange*0.5f, depthRange};
+	
+	const dtReal thr = cosf((180 - 45)/180*RC_PI);
+	
+	dtReal ax[3], ay[3], az[3];
+	dtVsub(ax, sq, sp);
+	dtVnormalize(ax);
+	dtVset(az, ax[2], 0, -ax[0]);
+	dtVnormalize(az);
+	dtVset(ay, 0, 1, 0);
+	
+	static constexpr int MAX_SEGS = 64;
+	PotentialSeg segs[MAX_SEGS];
+	int nsegs = 0;
+	
+	for (int i = 0; i < m_nedges; ++i)
+	{
+		dtReal p[3], lsp[3], lsq[3];
+		dtVsub(p, m_edges[i].sp, sp);
+		lsp[0] = ax[0]*p[0] + ay[0]*p[1] + az[0]*p[2];
+		lsp[1] = ax[1]*p[0] + ay[1]*p[1] + az[1]*p[2];
+		lsp[2] = ax[2]*p[0] + ay[2]*p[1] + az[2]*p[2];
+		
+		dtVsub(p, m_edges[i].sq, sp);
+		lsq[0] = ax[0]*p[0] + ay[0]*p[1] + az[0]*p[2];
+		lsq[1] = ax[1]*p[0] + ay[1]*p[1] + az[1]*p[2];
+		lsq[2] = ax[2]*p[0] + ay[2]*p[1] + az[2]*p[2];
+		
+		float tmin, tmax;
+		if (isectSegAABB(lsp, lsq, amin, amax, tmin, tmax))
+		{
+			if (tmin > 1.0f)
+				continue;
+			if (tmax < 0.0f)
+				continue;
+			
+			dtReal edir[3];
+			dtVsub(edir, m_edges[i].sq, m_edges[i].sp);
+			edir[1] = 0;
+			dtVnormalize(edir);
+			
+			if (dtVdot(ax, edir) > thr)
+				continue;
+			
+			if (nsegs < MAX_SEGS)
+			{
+				segs[nsegs].umin = dtClamp(tmin, 0.0f, 1.0f);
+				segs[nsegs].umax = dtClamp(tmax, 0.0f, 1.0f);
+				segs[nsegs].dmin = dtMin(lsp[2], lsq[2]);
+				segs[nsegs].dmax = dtMax(lsp[2], lsq[2]);
+				segs[nsegs].idx = i;
+				segs[nsegs].mark = 0;
+				nsegs++;
+			}
+		}
+	}
+	
+	const float eps = m_chf->cs;
+	unsigned char mark = 1;
+	for (int i = 0; i < nsegs; ++i)
+	{
+		if (segs[i].mark != 0)
+			continue;
+
+		segs[i].mark = mark;
+		
+		for (int j = i+1; j < nsegs; ++j)
+		{
+			if (overlapRange(segs[i].dmin-eps, segs[i].dmax+eps,
+						 	 segs[j].dmin-eps, segs[j].dmax+eps))
+			{
+				segs[j].mark = mark;
+			}
+		}
+		
+		mark++;
+	}
+
+
+	int nout = 0;
+	
+	for (int i = 1; i < mark; ++i)
+	{
+		// Find destination mid point.
+		constexpr float toUU = 100.f;
+		float umin = 10.0f * toUU;
+		float umax = -10.0 * toUU;
+		dtReal ptmin[3], ptmax[3];
+		
+		for (int j = 0; j < nsegs; ++j)
+		{
+			PotentialSeg* seg = &segs[j];
+			if (seg->mark != (unsigned char)i)
+				continue;
+			
+			dtReal pa[3], pb[3];
+			dtVlerp(pa, m_edges[seg->idx].sp, m_edges[seg->idx].sq, seg->umin);
+			dtVlerp(pb, m_edges[seg->idx].sp, m_edges[seg->idx].sq, seg->umax);
+			
+			const float ua = getClosestPtPtSeg(pa, sp, sq);
+			const float ub = getClosestPtPtSeg(pb, sp, sq);
+			
+			if (ua < umin)
+			{
+				dtVcopy(ptmin, pa);
+				umin = ua;
+			}
+			if (ua > umax)
+			{
+				dtVcopy(ptmax, pa);
+				umax = ua;
+			}
+			
+			if (ub < umin)
+			{
+				dtVcopy(ptmin, pb);
+				umin = ub;
+			}
+			if (ub > umax)
+			{
+				dtVcopy(ptmax, pb);
+				umax = ub;
+			}
+		}
+		
+		if (umin > umax)
+			continue;
+		
+		dtReal end[3];
+		dtVlerp(end, ptmin, ptmax, 0.5f);
+		
+		dtReal start[3];
+		dtVlerp(start, sp, sq, (umin+umax)*0.5f);
+		
+		dtReal orig[3];
+		dtVlerp(orig, start, end, 0.5f);
+		
+		dtReal dir[3], norm[3];
+		dtVsub(dir, end, start);
+		dir[1] = 0;
+		dtVnormalize(dir);
+		dtVset(norm, dir[2], 0, -dir[0]);
+		
+		dtReal ssp[3], ssq[3];
+		
+		const dtReal width = widthRange * (umax-umin);
+		dtVmad(ssp, orig, norm, width*0.5f);
+		dtVmad(ssq, orig, norm, -width*0.5f);
+		
+		if (nout < maxOutSegs)
+		{
+			dtVcopy(&outSegs[nout*6+0], ssp);
+			dtVcopy(&outSegs[nout*6+3], ssq);
+			nout++;
+		}
+	}
+		
+	return nout;
+}
+	
+
+void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
+										const float jumpStartDist, const float jumpEndDist,
+										const float jumpDownDist, const float groundRange)
+{
+	es->action = DT_LINK_ACTION_JUMP_DOWN;
+	dtVcopy(es->rigp, sp);
+	dtVcopy(es->rigq, sq);
+	
+	dtVsub(es->ax, sq, sp);
+	dtVnormalize(es->ax);
+	dtVset(es->az, es->ax[2], 0, -es->ax[0]);
+	dtVnormalize(es->az);
+	dtVset(es->ay, 0, 1, 0);
+	
+	// Build action sampling spine.
+	es->trajectory.nspine = MAX_SPINE;
+	for (int i = 0; i < MAX_SPINE; ++i)
+	{
+		float* pt = &es->trajectory.spine[i*2];
+		const float u = (float)i/(float)(MAX_SPINE-1);
+		pt[0] = jumpStartDist + u * (jumpEndDist - jumpStartDist);
+		pt[1] = u*u*u * jumpDownDist;
+	}
+
+	es->groundRange = groundRange;
+}
+
+void dtNavLinkBuilder::initJumpOverRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
+										const float jumpStartDist, const float jumpEndDist,
+										const float jumpHeight, const float groundRange)
+{
+	es->action = DT_LINK_ACTION_JUMP_OVER;
+	dtVcopy(es->rigp, sp);
+	dtVcopy(es->rigq, sq);
+	
+	dtVsub(es->ax, sq, sp);
+	dtVnormalize(es->ax);
+	dtVset(es->az, es->ax[2], 0, -es->ax[0]);
+	dtVnormalize(es->az);
+	dtVset(es->ay, 0, 1, 0);
+	
+	// Build action sampling spine.
+	es->trajectory.nspine = MAX_SPINE;
+	for (int i = 0; i < MAX_SPINE; ++i)
+	{
+		float* pt = &es->trajectory.spine[i*2];
+		const float u = (float)i/(float)(MAX_SPINE-1);
+		pt[0] = jumpStartDist + u * (jumpEndDist - jumpStartDist);
+		pt[1] = (1-dtSqr(u*2-1)) * jumpHeight;
+	}
+	
+	es->groundRange = groundRange;
+}
+
+bool dtNavLinkBuilder::sampleEdge(dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* es) const
+{
+	using namespace UE::Detour::NavLink::Private;
+
+	constexpr float toUU = 100.f;
+	
+	if (desiredAction == DT_LINK_ACTION_JUMP_DOWN)
+	{
+		constexpr float jumpStartDist = -0.25f * toUU;
+		constexpr float jumpEndDist = 2.f * toUU;
+		constexpr float jumpDownDist = -2.f * toUU;
+		constexpr float groundRange = 1.f * toUU;
+		initJumpDownRig(es, sp, sq, jumpStartDist, jumpEndDist, jumpDownDist, groundRange);
+	}
+	else if (desiredAction == DT_LINK_ACTION_JUMP_OVER)
+	{
+		constexpr float jumpDist = 2.5f * toUU;
+		constexpr float heightRange = 1.f * toUU;
+		static constexpr int NSEGS = 8;
+		dtReal segs[NSEGS*6];
+		int nsegs = findPotentialJumpOverEdges(sp, sq, jumpDist, heightRange, segs, NSEGS);
+		int ibest = -1;
+		float dbest = 0;
+		for (int i = 0; i < nsegs; ++i)
+		{
+			const dtReal* seg = &segs[i*6];
+			const float d = dtVdistSqr(seg,seg+3);
+			if (d > dbest)
+			{
+				dbest = d;
+				ibest = i;
+			}
+		}
+		if (ibest == -1)
+		{
+			return false;
+		}
+
+		constexpr float jumpHeight = 1.f * toUU;
+		constexpr float groundRange = 0.5f * toUU;
+		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], -jumpDist*0.5f, jumpDist*0.5f, jumpHeight, groundRange);
+	}
+	
+	initTrajectory(&es->trajectory);
+
+	// Init start end segments.
+	dtReal offset[3];
+	trans2d(offset, es->az, es->ay, &es->trajectory.spine[0]);
+	dtVadd(es->start.p, es->rigp, offset);
+	dtVadd(es->start.q, es->rigq, offset);
+	trans2d(offset, es->az, es->ay, &es->trajectory.spine[(es->trajectory.nspine-1)*2]);
+	dtVadd(es->end.p, es->rigp, offset);
+	dtVadd(es->end.q, es->rigq, offset);
+
+	// Sample start and end ground segments.
+	const float dist = sqrtf(dtVdistSqr(es->rigp, es->rigq));
+	const int ngsamples = dtMax(2, (int)ceilf(dist/m_cs)); // One trajectory per cs
+	
+	sampleGroundSegment(&es->start, ngsamples, es->groundRange);
+	sampleGroundSegment(&es->end, ngsamples, es->groundRange);
+
+	sampleAction(es);
+	
+	return true;
+}
+//@UE END

@@ -109,6 +109,10 @@ static void* DetourMalloc(int Size, dtAllocHint Hint)
 		INC_MEMORY_STAT_BY(STAT_Navigation_DetourPERM_TILES, ActualSize);
 		break;
 
+	case DT_ALLOC_PERM_TILE_LINK_BUILDER:
+		INC_MEMORY_STAT_BY(STAT_Navigation_DetourPERM_TILE_LINK_BUILDER, ActualSize);
+		break;
+		
 	default:
 		ensureMsgf(false, TEXT("Unsupported allocation hint %d"), Hint);
 		break;
@@ -195,6 +199,10 @@ static void DetourFree(void* Original, dtAllocHint Hint)
 		DEC_MEMORY_STAT_BY(STAT_Navigation_DetourPERM_TILES, Size);
 		break;
 
+	case DT_ALLOC_PERM_TILE_LINK_BUILDER:
+		DEC_MEMORY_STAT_BY(STAT_Navigation_DetourPERM_TILE_LINK_BUILDER, Size);
+		break;
+		
 	default:
 		ensureMsgf(false, TEXT("Unsupported allocation hint %d"), Hint);
 		break;

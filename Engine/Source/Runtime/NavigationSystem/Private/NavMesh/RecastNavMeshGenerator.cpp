@@ -26,6 +26,7 @@
 
 // recast includes
 #include "Detour/DetourNavMeshBuilder.h"
+#include "Detour/DetourNavLinkBuilder.h"
 #include "DetourTileCache/DetourTileCacheBuilder.h"
 #include "NavMesh/RecastHelpers.h"
 #include "NavAreas/NavArea_LowHeight.h"
@@ -38,6 +39,7 @@
 #include "DebugUtils/DebugDraw.h"
 #include "DebugUtils/RecastDebugDraw.h"
 #include "DebugUtils/DetourDebugDraw.h"
+#include "DebugUtils/DetourNavLinkDebugDraw.h"
 #endif //RECAST_INTERNAL_DEBUG_DATA
 
 #ifndef OUTPUT_NAV_TILE_LAYER_COMPRESSION_DATA
@@ -2476,6 +2478,10 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateTileTimeSliced()
 	FNavMeshBuildContext BuildContext(*this);
 	ETimeSliceWorkResult WorkResult = ETimeSliceWorkResult::Succeeded;
 
+	UE_CLOG(TileConfig.bGenerateLinks, LogNavigation, Warning, TEXT("Generating links in time slice mode is currently not supported so it's been disabled. Turn off bGenerateNavLinks to avoid the warning."));
+	dtLinkBuilderData LinkBuiderData;
+	LinkBuiderData.generatingLinks = false; // Make sure it's disable for now.
+	
 	check(TimeSliceManager);
 
 	switch (GenerateTileTimeSlicedState)
@@ -2516,7 +2522,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateTileTimeSliced()
 	} //fall through to next state
 	case EGenerateTileTimeSlicedState::GenerateNavigationData:
 	{
-		WorkResult = GenerateNavigationDataTimeSliced(BuildContext);
+		WorkResult = GenerateNavigationDataTimeSliced(BuildContext, LinkBuiderData);
 
 		if (WorkResult != ETimeSliceWorkResult::CallAgainNextTimeSlice)
 		{
@@ -2535,7 +2541,6 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateTileTimeSliced()
 	return WorkResult;
 }
 
-
 bool FRecastTileGenerator::GenerateTile()
 {
 #if RECAST_INTERNAL_DEBUG_DATA
@@ -2548,11 +2553,16 @@ bool FRecastTileGenerator::GenerateTile()
 	FNavMeshBuildContext BuildContext(*this);
 	bool bSuccess = true;
 
+	dtLinkBuilderData LinkBuiderData;
+	LinkBuiderData.generatingLinks = TileConfig.bGenerateLinks;
+
 	if (bRegenerateCompressedLayers)
 	{
 		CompressedLayers.Reset();
 
-		bSuccess = GenerateCompressedLayers(BuildContext);
+		// CompactHF is part of FTileRasterizationContext RasterContext that gets deleted after the GenerateCompressedLayers
+		// so if we are generating links, keep the chf.
+		bSuccess = GenerateCompressedLayers(BuildContext, LinkBuiderData);
 
 #if RECAST_INTERNAL_DEBUG_DATA
 		PostCompressLayerStamp = FPlatformTime::Seconds();
@@ -2567,9 +2577,12 @@ bool FRecastTileGenerator::GenerateTile()
 
 	if (bSuccess)
 	{
-		bSuccess = GenerateNavigationData(BuildContext);
+		bSuccess = GenerateNavigationData(BuildContext, LinkBuiderData);
 	}
 
+	rcFreeHeightField(LinkBuiderData.solidHF);
+	rcFreeCompactHeightfield(LinkBuiderData.compactHF);
+	
 #if RECAST_INTERNAL_DEBUG_DATA	
 	const double EndStamp = FPlatformTime::Seconds();
 	BuildContext.InternalDebugData.BuildTime = EndStamp - StartStamp;
@@ -3460,6 +3473,34 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateCompressedLayersTimeSliced(FN
 	return ETimeSliceWorkResult::Succeeded;
 }
 
+// Deprecated
+bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildContext)
+{
+	dtLinkBuilderData LinBuilderData;
+	return GenerateCompressedLayers(BuildContext, LinBuilderData);
+}
+
+// Deprecated
+bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor, FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, int32 LayerIdx)
+{
+	dtLinkBuilderData LinBuilderData;
+	return GenerateNavigationDataLayer(BuildContext, TileCompressor, GenNavAllocator, GenerationContext, LinBuilderData, LayerIdx);
+}
+
+// Deprecated
+ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext)
+{
+	dtLinkBuilderData LinBuilderData;
+	return GenerateNavigationDataTimeSliced(BuildContext, LinBuilderData);
+}
+
+// Deprecated
+bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildContext)
+{
+	dtLinkBuilderData LinBuilderData;
+	return GenerateNavigationData(BuildContext, LinBuilderData);
+}
+
 namespace UE::NavMesh::Private
 {
 #if RECAST_INTERNAL_DEBUG_DATA
@@ -3477,10 +3518,9 @@ namespace UE::NavMesh::Private
 #endif //RECAST_INTERNAL_DEBUG_DATA
 };
 
-bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildContext)
+bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& OutLinkBuilderData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildCompressedLayers);
-
 
 	FTileRasterizationContext RasterContext;
 	CompressedLayers.Reset();
@@ -3578,6 +3618,17 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 		}
 	}
 #endif
+
+	if (OutLinkBuilderData.generatingLinks)
+	{
+		OutLinkBuilderData.solidHF = RasterContext.SolidHF;
+		OutLinkBuilderData.compactHF = RasterContext.CompactHF;
+
+		// When generating links, set SolidHF and CompactHF to null to prevent free 
+		// on the destruction of RasterContext since we will need those later.
+		RasterContext.SolidHF = nullptr;
+		RasterContext.CompactHF = nullptr;
+	}
 	
 	return RecastBuildTileCache(BuildContext, RasterContext);
 }
@@ -3625,14 +3676,89 @@ struct FTileGenerationContext
 	TArray<FNavMeshTileData> NavigationData;
 };
 
-bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor, FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, int32 LayerIdx)
+dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildContext, dtTileCacheAlloc* alloc, const dtTileCacheLayer& layer,
+	const dtTileCacheContourSet& lcset, const dtLinkBuilderData& linkBuilderData, TArray<FNavigationLink>& OutGeneratedLinks) const
+{
+	duDebugDraw* dd = nullptr;
+	int32 DebugEdge = -1;
+
+#if RECAST_INTERNAL_DEBUG_DATA
+	if (IsTileDebugActive() && (TileDebugSettings.LinkGenerationDebugFlags != 0))
+	{
+		DebugEdge = TileDebugSettings.LinkGenerationSelectedEdge;
+		dd = &BuildContext.InternalDebugData;
+	}
+	const uint16 DebugFlags = TileDebugSettings.LinkGenerationDebugFlags;
+#endif // RECAST_INTERNAL_DEBUG_DATA
+
+	dtAssert(alloc);
+
+	if (!linkBuilderData.solidHF || !linkBuilderData.compactHF)
+	{
+		return DT_FAILURE;
+	}
+
+	const dtReal* orig = layer.header->bmin;
+	dtLinkBuilderConfig linkBuilderConfig;
+	linkBuilderConfig.agentRadius = TileConfig.walkableRadius * TileConfig.cs;
+	linkBuilderConfig.agentHeight = TileConfig.walkableHeight * TileConfig.ch;
+	linkBuilderConfig.agentClimb = TileConfig.walkableClimb * TileConfig.ch;
+	linkBuilderConfig.cellSize = TileConfig.cs;
+	linkBuilderConfig.cellHeight = TileConfig.ch;
+
+	dtNavLinkBuilder linkBuilder;
+	if (!linkBuilder.findEdges(BuildContext, TileConfig, linkBuilderConfig, lcset, orig, linkBuilderData))
+	{
+		return DT_FAILURE;
+	}
+
+	if (DebugEdge == -1)
+	{
+		linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN);
+		linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER);
+
+#if RECAST_INTERNAL_DEBUG_DATA
+		duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, nullptr);
+	}
+	else
+	{
+		dtNavLinkBuilder::EdgeSampler sampler1;
+		linkBuilder.debugBuildEdge(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN, DebugEdge, sampler1);
+		duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, &sampler1);
+		
+		dtNavLinkBuilder::EdgeSampler sampler2;
+		linkBuilder.debugBuildEdge(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER, DebugEdge, sampler2);
+		duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, &sampler2);
+#endif // RECAST_INTERNAL_DEBUG_DATA		
+	}
+
+	// Make FNavigationLinks
+	for (int i = 0; i < linkBuilder.m_nlinks; ++i)
+	{
+		const dtNavLinkBuilder::JumpLink* link = &linkBuilder.m_links[i];
+		
+		if (link->flags == dtNavLinkBuilder::INVALID)
+			continue;
+
+		// For now, just make a link using the center of the range.
+		dtReal midA[3];
+		dtVlerp(midA, &link->spine0[0], &link->spine1[0], 0.5);
+		dtReal midB[3];
+		dtVlerp(midB, &link->spine0[(link->nspine-1)*3], &link->spine1[(link->nspine-1)*3], 0.5);
+		OutGeneratedLinks.Add(FNavigationLink(Recast2UnrealPoint(midA), Recast2UnrealPoint(midB)));
+	}
+	
+	return DT_SUCCESS;
+}
+
+bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor,
+	FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, dtLinkBuilderData& InOutLinkBuilderData, int32 LayerIdx)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_GenerateNavigationDataLayer)
 		
 	dtStatus status = DT_SUCCESS;
 
 	FNavMeshTileData& CompressedData = CompressedLayers[LayerIdx];
-	const dtTileCacheLayerHeader* TileHeader = (const dtTileCacheLayerHeader*)CompressedData.GetData();
 	GenerationContext.ResetIntermediateData();
 
 	// Decompress tile layer data. 
@@ -3804,6 +3930,7 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 			return false;
 		}
 
+		// Fills GenerationContext.PolyMesh with connectivity information.
 		status = dtBuildTileCachePolyMeshDetail(&GenNavAllocator, TileConfig.cs, TileConfig.ch, TileConfig.detailSampleDist, TileConfig.detailSampleMaxError,
 			*GenerationContext.Layer, *GenerationContext.PolyMesh, *GenerationContext.DetailMesh);
 		if (dtStatusFailed(status))
@@ -3820,6 +3947,21 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 #endif
 	}
 
+	// Build Links
+	TArray<FNavigationLink> GeneratedLinks;
+	if (InOutLinkBuilderData.generatingLinks)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildLinks);
+
+		status = BuildTileCacheLinks(BuildContext, &GenNavAllocator, *GenerationContext.Layer, *GenerationContext.ContourSet, InOutLinkBuilderData, GeneratedLinks);
+
+		if (dtStatusFailed(status))
+		{
+			BuildContext.log(RC_LOG_ERROR, "GenerateNavigationDataLayer: Failed to generate links (0x%08X).", status);
+			return false;
+		}
+	}
+
 	unsigned char* NavData = nullptr;
 	int32 NavDataSize = 0;
 
@@ -3834,17 +3976,18 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 			return false;
 		}
 
+		const float DefaultSnapHeight = static_cast<float>(TileConfig.walkableClimb) * static_cast<float>(TileConfig.ch);
+		
 		// if we didn't fail already then it's high time we created data for off-mesh links
 		FOffMeshData OffMeshData;
-		if (OffmeshLinks.Num() > 0)
+		if (!OffmeshLinks.IsEmpty() || !GeneratedLinks.IsEmpty())
 		{
 			SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastGatherOffMeshData);
 
-			OffMeshData.Reserve(OffmeshLinks.Num());
+			OffMeshData.Reserve(OffmeshLinks.Num() + GeneratedLinks.Num());
 			OffMeshData.AreaClassToIdMap = &AdditionalCachedData.AreaClassToIdMap;
 			OffMeshData.FlagsPerArea = AdditionalCachedData.FlagsPerOffMeshLinkArea;
 			const FSimpleLinkNavModifier* LinkModifier = OffmeshLinks.GetData();
-			const float DefaultSnapHeight = static_cast<float>(TileConfig.walkableClimb) * static_cast<float>(TileConfig.ch);
 
 			for (int32 LinkModifierIndex = 0; LinkModifierIndex < OffmeshLinks.Num(); ++LinkModifierIndex, ++LinkModifier)
 			{
@@ -3853,6 +3996,8 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 				OffMeshData.AddSegmentLinks(LinkModifier->SegmentLinks, LinkModifier->LocalToWorld, TileConfig.AgentIndex, DefaultSnapHeight);
 #endif // WITH_NAVMESH_SEGMENT_LINKS
 			}
+
+			OffMeshData.AddLinks(GeneratedLinks, FTransform::Identity, TileConfig.AgentIndex, DefaultSnapHeight);
 		}
 
 		// fill flags, or else detour won't be able to find polygons
@@ -3921,7 +4066,7 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 	return true;
 }
 
-ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext)
+ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& InOutLinkBuilderData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildNavigation);
 
@@ -3963,7 +4108,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNav
 				break;
 			}
 
-			const bool bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, *GenNavDataTimeSlicedAllocator, *GenNavDataTimeSlicedGenerationContext, GenNavDataLayerTimeSlicedIdx);
+			const bool bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, *GenNavDataTimeSlicedAllocator, *GenNavDataTimeSlicedGenerationContext, InOutLinkBuilderData, GenNavDataLayerTimeSlicedIdx);
 
 			MARK_TIMESLICE_SECTION_DEBUG(TimeSliceManager->GetTimeSlicer(), GenerateLayers);
 
@@ -4001,7 +4146,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNav
 	return WorkResult;
 }
 
-bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildContext)
+bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& LinkBuilderData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildNavigation);
 
@@ -4020,7 +4165,7 @@ bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildCon
 			continue;
 		}
 
-		bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, GenNavAllocator, GenerationContext, LayerIdx);
+		bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, GenNavAllocator, GenerationContext, LinkBuilderData, LayerIdx);
 
 		if (!bGenDataLayer)
 		{
@@ -4747,6 +4892,8 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 	{
 		OutConfig.walkableHeight = 1;
 	}
+
+	OutConfig.bGenerateLinks = DestNavMesh->bGenerateNavLinks;
 
 	const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 	OutConfig.AgentIndex = NavSys ? NavSys->GetSupportedAgentIndex(DestNavMesh) : 0;

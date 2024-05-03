@@ -520,6 +520,13 @@ struct FRecastNavMeshTileGenerationDebug
 
 	UPROPERTY(EditAnywhere, Category = Debug)
 	uint32 bTileCacheDetailMesh : 1;
+
+	UPROPERTY(EditAnywhere, Category = Debug, meta = (Bitmask, BitmaskEnum = "/Script/NavigationSystem.ELinkGenerationDebugFlags"))
+	uint16 LinkGenerationDebugFlags;
+
+	/** Using -1 as no selected edge. */
+	UPROPERTY(EditAnywhere, Category = Debug)
+	int32 LinkGenerationSelectedEdge;
 };
 
 /**
@@ -886,6 +893,10 @@ class ARecastNavMesh : public ANavigationData
 	/* In a world partitioned map, is this navmesh using world partitioning */
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta = (EditCondition = "bAllowWorldPartitionedNavMesh", HideEditConditionToggle, DisplayName = "IsWorldPartitionedNavMesh"))
 	uint32 bIsWorldPartitioned : 1;
+
+	/** Experimental: if set, navlinks will be automatically generated. */ 
+	UPROPERTY(EditAnywhere, Category=Generation, config)
+	uint32 bGenerateNavLinks : 1;
 	
 	/** controls whether voxel filtering will be applied (via FRecastTileGenerator::ApplyVoxelFilter). 
 	 *	Results in generated navmesh better fitting navigation bounds, but hits (a bit) generation performance */
