@@ -833,13 +833,15 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 				if (UMaterialInterface* ExistingMaterial = UE::Interchange::InterchangeGenericMaterialPipeline::Private::FindExistingMaterialFromSearchLocation(MaterialName, ContentBasePath, ClosureSearchLocation))
 				{
 					//Make sure we have the correct type of material (can be material instance) before setting the custom object reference.
-					if ((MaterialBaseFactoryNode->IsA<UInterchangeMaterialInstanceFactoryNode>() && ExistingMaterial->IsA<UMaterialInstance>())
-						|| (MaterialBaseFactoryNode->IsA<UInterchangeMaterialFactoryNode>() && ExistingMaterial->IsA<UMaterial>()))
+					const bool bIsMaterial = MaterialBaseFactoryNode->IsA<UInterchangeMaterialFactoryNode>() && ExistingMaterial->IsA<UMaterial>();
+					const bool bIsMaterialinstance = MaterialBaseFactoryNode->IsA<UInterchangeMaterialInstanceFactoryNode>() && ExistingMaterial->IsA<UMaterialInstance>();
+					if (bIsMaterial || bIsMaterialinstance)
 					{
 						MaterialBaseFactoryNode->SetCustomReferenceObject(ExistingMaterial);
-						//No need to import an existing material
-						MaterialBaseFactoryNode->SetCustomIsMaterialImportEnabled(false);
-						MaterialBaseFactoryNode->SetEnabled(false);
+						//Reimport can only be done on material instances
+						const bool bEnableReimport = !bIsMaterial && bIsMaterialinstance;
+						MaterialBaseFactoryNode->SetCustomIsMaterialImportEnabled(bEnableReimport);
+						MaterialBaseFactoryNode->SetEnabled(bEnableReimport);
 					}
 				}
 			}
