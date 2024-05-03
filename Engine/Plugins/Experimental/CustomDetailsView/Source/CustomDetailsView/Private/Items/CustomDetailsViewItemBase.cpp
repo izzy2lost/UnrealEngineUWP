@@ -356,6 +356,11 @@ bool FCustomDetailsViewItemBase::IsWidgetVisible() const
 	return DetailWidgetRow.HasAnyContent() && DetailWidgetRow.WholeRowWidget.Widget->GetVisibility().IsVisible();
 }
 
+void FCustomDetailsViewItemBase::SetValueWidgetWidthOverride(TOptional<float> InWidth)
+{
+	ValueWidthOverride = InWidth;
+}
+
 void FCustomDetailsViewItemBase::AddWholeRowWidget(const TSharedRef<SSplitter>& InSplitter, const TSharedPtr<SWidget>& InPrependWidget,
 	const FDetailColumnSizeData& InColumnSizeData, const FMargin& InPadding)
 {
@@ -491,16 +496,38 @@ void FCustomDetailsViewItemBase::AddValueWidget(const TSharedRef<SSplitter>& InS
 		return;
 	}
 
-	TSharedRef<SWidget> ValueWidget = SNew(SBox)
-		.Padding(InPadding)
-		.HAlign(DetailWidgetRow.ValueWidget.HorizontalAlignment)
-		.VAlign(DetailWidgetRow.ValueWidget.VerticalAlignment)
-		.MinDesiredWidth(UE::CustomDetailsView::Private::GetOptionalSize(DetailWidgetRow.ValueWidget.MinWidth))
-		.MaxDesiredWidth(UE::CustomDetailsView::Private::GetOptionalSize(DetailWidgetRow.ValueWidget.MaxWidth))
-		.Clipping(EWidgetClipping::ClipToBounds)
-		[
-			ValueWidgetInner.ToSharedRef()
-		];
+	TSharedPtr<SWidget> ValueWidget;
+
+	if (!ValueWidthOverride.IsSet())
+	{
+		ValueWidget = SNew(SBox)
+			.Padding(InPadding)
+			.HAlign(DetailWidgetRow.ValueWidget.HorizontalAlignment)
+			.VAlign(DetailWidgetRow.ValueWidget.VerticalAlignment)
+			.MinDesiredWidth(UE::CustomDetailsView::Private::GetOptionalSize(DetailWidgetRow.ValueWidget.MinWidth))
+			.MaxDesiredWidth(UE::CustomDetailsView::Private::GetOptionalSize(DetailWidgetRow.ValueWidget.MaxWidth))
+			.Clipping(EWidgetClipping::ClipToBounds)
+			[
+				ValueWidgetInner.ToSharedRef()
+			];
+	}
+	else
+	{
+		ValueWidget = SNew(SBox)
+			.Padding(InPadding)
+			.HAlign(DetailWidgetRow.ValueWidget.HorizontalAlignment)
+			.VAlign(DetailWidgetRow.ValueWidget.VerticalAlignment)
+			.Clipping(EWidgetClipping::ClipToBounds)
+			[
+				SNew(SBox)
+				.HAlign(HAlign_Fill)
+				.MinDesiredWidth(ValueWidthOverride.GetValue())
+				.MaxDesiredWidth(ValueWidthOverride.GetValue())
+				[
+					ValueWidgetInner.ToSharedRef()
+				]
+			];
+	}
 
 	Widgets.Add(ECustomDetailsViewWidgetType::Value, ValueWidget);
 
@@ -508,7 +535,7 @@ void FCustomDetailsViewItemBase::AddValueWidget(const TSharedRef<SSplitter>& InS
 		.Value(InColumnSizeData.GetValueColumnWidth())
 		.OnSlotResized(InColumnSizeData.GetOnValueColumnResized())
 		[
-			ValueWidget
+			ValueWidget.ToSharedRef()
 		];
 }
 

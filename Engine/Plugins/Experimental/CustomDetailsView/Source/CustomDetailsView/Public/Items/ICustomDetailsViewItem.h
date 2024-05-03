@@ -79,6 +79,9 @@ public:
 	/** Checks to see if widget is visible */
 	virtual bool IsWidgetVisible() const = 0;
 
+	/** Overrides the created value widget's maximum width. */
+	virtual void SetValueWidgetWidthOverride(TOptional<float> InWidth) = 0;
+
 protected:
 	/** Adds the children of this node. */
 	virtual void GatherChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem,

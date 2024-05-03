@@ -52,6 +52,7 @@ public:
 	virtual void SetKeyframeEnabled(bool bInKeyframeEnabled) override;
 	virtual void SetResetToDefaultOverride(const FResetToDefaultOverride& InOverride) override {}
 	virtual bool IsWidgetVisible() const override;
+	virtual void SetValueWidgetWidthOverride(TOptional<float> InWidth) override;
 	//~ End ICustomDetailsViewItem
 
 	virtual void AddWholeRowWidget(const TSharedRef<SSplitter>& InSplitter
@@ -125,4 +126,7 @@ protected:
 
 	/** If false, the keyframe button for this widget will never display. */
 	bool bKeyframeEnabled = true;
+
+	/** Overrides the create value widget's maximum width, if set. */
+	TOptional<float> ValueWidthOverride;
 };
