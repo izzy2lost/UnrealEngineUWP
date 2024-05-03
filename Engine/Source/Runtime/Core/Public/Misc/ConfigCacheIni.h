@@ -510,6 +510,8 @@ public:
 	FConfigCommandStreamSection* FindOrAddSectionInternal(const FString& SectionName);
 	bool FillFileFromDisk(const FString& Filename, bool bHandleSymbolCommands);
 
+	void Shrink();
+
 	// This holds per-object config class names, with their ArrayOfStructKeys. Since the POC sections are all unique,
 	// we can't track it just in that section. This is expected to be empty/small
 	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
@@ -519,7 +521,7 @@ public:
 	
 	uint8 Dirty;
 
-	// used to determine if existing settings should be removed from a FCOnfigFile before applying this stream - used for compatibility with
+	// used to determine if existing settings should be removed from a FConfigFile before applying this stream - used for compatibility with
 	// how Saved config files are stored (replace the static layers values fully if at least one key exists)
 	uint8 bIsSavedConfigFile = false;
 	
@@ -690,6 +692,8 @@ private:
 	/** Delete all of the inner ConfigFiles, for destruction or preparing to re-read
 	 */
 	void Cleanup();
+
+	void Shrink();
 
 	void FillFileFromBuffer(FStringView Buffer, bool bHandleSymbolCommands, const FString& FileHint);
 	bool FillFileFromDisk(const FString& Filename, bool bHandleSymbolCommands);

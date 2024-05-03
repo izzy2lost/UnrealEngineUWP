@@ -1055,6 +1055,21 @@ bool FConfigFile::Combine(const FString& Filename)
 	return FillFileFromDisk(Filename, true);
 }
 
+void FConfigFile::Shrink()
+{
+	FConfigFileMap::Shrink();
+	for (FConfigFileMap::TIterator It(*this); It; ++It)
+	{
+		It.Value().Shrink();
+	}
+
+	PerObjectConfigArrayOfStructKeys.Shrink();
+	for (auto& Pair : PerObjectConfigArrayOfStructKeys)
+	{
+		Pair.Value.Shrink();
+	}
+}
+
 // Assumes GetTypeHash(AltKeyType) matches GetTypeHash(KeyType)
 template<class KeyType, class ValueType, class AltKeyType>
 ValueType& FindOrAddHeterogeneous(TMap<KeyType, ValueType>& Map, const AltKeyType& Key)
@@ -1532,11 +1547,6 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 
 	// Avoid memory wasted in array slack.
 	File->Shrink();
-	for (auto Pair : AsConst(*File))
-	{
-		Pair.Value.Shrink();
-	}
-
 }
 
 template<typename FileType>
@@ -2763,6 +2773,20 @@ FConfigCommandStreamSection* FConfigCommandStream::FindOrAddSectionInternal(cons
 	return &FindOrAdd(SectionName);
 }
 
+void FConfigCommandStream::Shrink()
+{
+	TMap<FString, FConfigCommandStreamSection>::Shrink();
+	for (auto& Pair : *this)
+	{
+		Pair.Value.Shrink();
+	}
+
+	PerObjectConfigArrayOfStructKeys.Shrink();
+	for (auto& Pair : PerObjectConfigArrayOfStructKeys)
+	{
+		Pair.Value.Shrink();
+	}
+}
 
 
 
