@@ -801,7 +801,7 @@ void FDataflowNode::ForwardInput(Dataflow::FContext& Context, const void* InputR
 {
 	if (const FDataflowOutput* Output = FindOutput(Reference))
 	{
-		if (const FDataflowInput* Input = FindInput(Reference))
+		if (const FDataflowInput* Input = FindInput(InputReference))
 		{
 			// we need to pull the value first so the upstream of the graph evaluate 
 			Input->PullValue(Context);

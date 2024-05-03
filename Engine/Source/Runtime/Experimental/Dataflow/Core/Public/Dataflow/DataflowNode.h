@@ -396,29 +396,5 @@ struct FDataflowAnyType
 	DATAFLOWCORE_API static const FName TypeName;
 };
 
-USTRUCT()
-struct FDataflowReRouteNode : public FDataflowNode
-{
-	GENERATED_USTRUCT_BODY()
-
-	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowReRouteNode, "ReRouteNode", "Core", "")
-
-public:
-	FDataflowReRouteNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
-		: Super(Param, InGuid)
-	{
-		RegisterInputConnection(&Value);
-		RegisterOutputConnection(&Value, &Value);
-	}
-
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
-	{
-		ForwardInput(Context, &Value, &Value);
-	}
-
-public:
-	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Value", DisplayName = "Value"))
-	FDataflowAnyType Value;
-};
 
 
