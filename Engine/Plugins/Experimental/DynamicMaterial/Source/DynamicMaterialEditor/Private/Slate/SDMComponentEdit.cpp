@@ -320,7 +320,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 	TArray<FDMPropertyHandle> EditRows = GetEditRows();
 
-	for (const FDMPropertyHandle& EditRow : EditRows)
+	for (FDMPropertyHandle& EditRow : EditRows)
 	{
 		const bool bHasValidCustomWidget = EditRow.ValueWidget.IsValid() && !EditRow.ValueName.IsNone() && EditRow.NameOverride.IsSet();
 
@@ -329,15 +329,20 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			continue;
 		}
 
+		if (!EditRow.PropertyHandle.IsValid() && EditRow.DetailTreeNode)
+		{
+			EditRow.PropertyHandle = EditRow.DetailTreeNode->CreatePropertyHandle();
+		}
+
 		ECustomDetailsTreeInsertPosition Position = ECustomDetailsTreeInsertPosition::Child;
 
-		if (EditRow.DetailTreeNode)
+		if (EditRow.PropertyHandle.IsValid())
 		{
-			if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("HighPriority"))
+			if (EditRow.PropertyHandle->HasMetaData("HighPriority"))
 			{
 				Position = ECustomDetailsTreeInsertPosition::FirstChild;
 			}
-			else if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("LowPriority"))
+			else if (EditRow.PropertyHandle->HasMetaData("LowPriority"))
 			{
 				Position = ECustomDetailsTreeInsertPosition::LastChild;
 			}
@@ -422,7 +427,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			);
 		}
 
-		if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("NotKeyframeable"))
+		if (EditRow.PropertyHandle.IsValid() && EditRow.PropertyHandle->HasMetaData("NotKeyframeable"))
 		{
 			Item->SetKeyframeEnabled(false);
 		}

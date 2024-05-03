@@ -193,6 +193,7 @@ public:
 	virtual void PostEditUndo() override;
 	virtual void PostEditImport() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	//~ End UObject
 
 	void SaveEditor();
@@ -237,7 +238,9 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bTwoSidedFlag;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (GetOptions = GetPresetOptions, NoResetToDefault))
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", 
+		meta = (GetOptions = GetPresetOptions, NoResetToDefault, DisplayName = "Material Type Preset",
+			ToolTip = "Sets the available channels and default material properties."))
 	FName ChannelListPreset;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
@@ -290,6 +293,13 @@ protected:
 
 	UFUNCTION()
 	TArray<FName> GetPresetOptions() const;
+
+	void OnChannelListPresetChanged();
+	void OnDomainChanged();
+	void OnBlendModeChanged();
+	void OnShadingModelChanged();
+	void OnPixelAnimationFlagChanged();
+	void OnTwoSidedFlagChanged();
 
 	void LoadDeprecatedModelData_Base(bool bInCreateMaterialPackage, EBlendMode InBlendMode, EDMMaterialShadingModel InShadingModel);
 	void LoadDeprecatedModelData_Expressions(TArray<TObjectPtr<UMaterialExpression>>& InExpressions);

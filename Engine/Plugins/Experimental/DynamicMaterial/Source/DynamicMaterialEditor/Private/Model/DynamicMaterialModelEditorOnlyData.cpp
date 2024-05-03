@@ -205,6 +205,193 @@ TArray<FName> UDynamicMaterialModelEditorOnlyData::GetPresetOptions() const
 	return PresetNames;
 }
 
+void UDynamicMaterialModelEditorOnlyData::OnChannelListPresetChanged()
+{
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(ChannelListPreset);
+
+	if (!Preset)
+	{
+		return;
+	}
+
+	for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+		PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+		++PropertyIndex)
+	{
+		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+		if (Property == EDMMaterialPropertyType::EmissiveColor || Property == EDMMaterialPropertyType::OpacityMask)
+		{
+			continue;
+		}
+
+		if (Preset->IsPropertyEnabled(Property))
+		{
+			AddSlotForMaterialProperty(Property);
+		}
+		else
+		{
+			RemoveSlotForMaterialProperty(Property);
+		}
+	}
+
+	SetBlendMode(Preset->DefaultBlendMode);
+	SetShadingModel(Preset->DefaultShadingModel);
+	SetPixelAnimationFlag(Preset->bDefaultAnimated);
+	SetTwoSidedFlag(Preset->bDefaultTwoSided);
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
+{
+	if (Domain == EMaterialDomain::MD_PostProcess)
+	{
+		const FDMUpdateGuard Guard;
+
+		// Post process only supports emissive.
+		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+			++PropertyIndex)
+		{
+			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+			switch (Property)
+			{
+				case EDMMaterialPropertyType::BaseColor:
+				case EDMMaterialPropertyType::EmissiveColor:
+					RemoveSlotForMaterialProperty(Property);
+					continue;
+
+				default:
+					// Do nothing
+					break;
+			}
+		}
+
+		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
+
+		SetShadingModel(EDMMaterialShadingModel::Unlit);
+		SetBlendMode(EBlendMode::BLEND_Opaque);
+	}
+	else if (Domain == EMaterialDomain::MD_DeferredDecal)
+	{
+		// Post process only supports basic types.
+		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+			++PropertyIndex)
+		{
+			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+			switch (Property)
+			{
+				case EDMMaterialPropertyType::BaseColor:
+				case EDMMaterialPropertyType::EmissiveColor:
+				case EDMMaterialPropertyType::Opacity:
+				case EDMMaterialPropertyType::OpacityMask:
+					RemoveSlotForMaterialProperty(Property);
+					continue;
+
+				default:
+					// Do nothing
+					break;
+			}
+		}
+
+		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::EmissiveColor, EDMMaterialPropertyType::BaseColor);
+
+		SetShadingModel(EDMMaterialShadingModel::DefaultLit);
+		SetBlendMode(EBlendMode::BLEND_Translucent);
+	}
+
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnBlendModeChanged()
+{
+	switch (BlendMode)
+	{
+		case EBlendMode::BLEND_Opaque:
+			SetPixelAnimationFlag(false);
+			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::Opacity);
+			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask);
+			break;
+
+		case EBlendMode::BLEND_Masked:
+			SetPixelAnimationFlag(false);
+			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::Opacity, EDMMaterialPropertyType::OpacityMask);
+			break;
+
+		case EBlendMode::BLEND_Translucent:
+		case EBlendMode::BLEND_Additive:
+		case EBlendMode::BLEND_Modulate:
+			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::OpacityMask, EDMMaterialPropertyType::Opacity);
+			break;
+	}
+
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnShadingModelChanged()
+{
+	EDMMaterialPropertyType FromProperty;
+	EDMMaterialPropertyType ToProperty;
+
+	switch (ShadingModel)
+	{
+		case EDMMaterialShadingModel::Unlit:
+			FromProperty = EDMMaterialPropertyType::BaseColor;
+			ToProperty = EDMMaterialPropertyType::EmissiveColor;
+			break;
+
+		case EDMMaterialShadingModel::DefaultLit:
+			FromProperty = EDMMaterialPropertyType::EmissiveColor;
+			ToProperty = EDMMaterialPropertyType::BaseColor;
+			break;
+
+		default:
+			return;
+	}
+
+	EnsureSwapSlotMaterialProperty(FromProperty, ToProperty);
+
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnPixelAnimationFlagChanged()
+{
+	if (MaterialModel)
+	{
+		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
+		{
+			if (GUndo)
+			{
+				Material->Modify();
+			}
+
+			Material->bHasPixelAnimation = bPixelAnimationFlag;
+		}
+	}
+
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnTwoSidedFlagChanged()
+{
+	if (MaterialModel)
+	{
+		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
+		{
+			if (GUndo)
+			{
+				Material->Modify();
+			}
+
+			Material->TwoSided = bTwoSidedFlag;
+		}
+	}
+
+	RequestMaterialBuild();
+}
+
 void UDynamicMaterialModelEditorOnlyData::Initialize()
 {
 	if (!Slots.IsEmpty())
@@ -782,38 +969,7 @@ void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetNam
 {
 	ChannelListPreset = InPresetName;
 
-	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(InPresetName);
-
-	if (!Preset)
-	{
-		return;
-	}
-
-	for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-		PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-		++PropertyIndex)
-	{
-		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-		if (Property == EDMMaterialPropertyType::EmissiveColor || Property == EDMMaterialPropertyType::OpacityMask)
-		{
-			continue;
-		}
-
-		if (Preset->IsPropertyEnabled(Property))
-		{
-			AddSlotForMaterialProperty(Property);
-		}
-		else
-		{
-			RemoveSlotForMaterialProperty(Property);
-		}
-	}
-
-	SetBlendMode(Preset->DefaultBlendMode);
-	SetShadingModel(Preset->DefaultShadingModel);
-	SetPixelAnimationFlag(Preset->bDefaultAnimated);
-	SetTwoSidedFlag(Preset->bDefaultTwoSided);
+	OnChannelListPresetChanged();
 }
 
 UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath,
@@ -951,66 +1107,7 @@ void UDynamicMaterialModelEditorOnlyData::SetDomain(TEnumAsByte<EMaterialDomain>
 
 	Domain = InDomain;
 
-	if (Domain == EMaterialDomain::MD_PostProcess)
-	{
-		const FDMUpdateGuard Guard;
-
-		// Post process only supports emissive.
-		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-			++PropertyIndex)
-		{
-			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-			switch (Property)
-			{
-				case EDMMaterialPropertyType::BaseColor:
-				case EDMMaterialPropertyType::EmissiveColor:
-					RemoveSlotForMaterialProperty(Property);
-					continue;
-
-				default:
-					// Do nothing
-					break;
-			}			
-		}
-
-		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
-
-		SetShadingModel(EDMMaterialShadingModel::Unlit);
-		SetBlendMode(EBlendMode::BLEND_Opaque);
-	}
-	else if (Domain == EMaterialDomain::MD_DeferredDecal)
-	{
-		// Post process only supports basic types.
-		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-			++PropertyIndex)
-		{
-			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-			switch (Property)
-			{
-				case EDMMaterialPropertyType::BaseColor:
-				case EDMMaterialPropertyType::EmissiveColor:
-				case EDMMaterialPropertyType::Opacity:
-				case EDMMaterialPropertyType::OpacityMask:
-					RemoveSlotForMaterialProperty(Property);
-					continue;
-
-				default:
-					// Do nothing
-					break;
-			}			
-		}
-
-		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::EmissiveColor, EDMMaterialPropertyType::BaseColor);
-
-		SetShadingModel(EDMMaterialShadingModel::DefaultLit);
-		SetBlendMode(EBlendMode::BLEND_Translucent);
-	}
-
-	RequestMaterialBuild();
+	OnDomainChanged();
 }
 
 void UDynamicMaterialModelEditorOnlyData::SetBlendMode(TEnumAsByte<EBlendMode> InBlendMode)
@@ -1022,27 +1119,7 @@ void UDynamicMaterialModelEditorOnlyData::SetBlendMode(TEnumAsByte<EBlendMode> I
 
 	BlendMode = InBlendMode;
 
-	switch (InBlendMode)
-	{
-		case EBlendMode::BLEND_Opaque:
-			SetPixelAnimationFlag(false);
-			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::Opacity);
-			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask);
-			break;
-
-		case EBlendMode::BLEND_Masked:
-			SetPixelAnimationFlag(false);
-			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::Opacity, EDMMaterialPropertyType::OpacityMask);
-			break;
-
-		case EBlendMode::BLEND_Translucent:
-		case EBlendMode::BLEND_Additive:
-		case EBlendMode::BLEND_Modulate:
-			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::OpacityMask, EDMMaterialPropertyType::Opacity);
-			break;
-	}
-
-	RequestMaterialBuild();
+	OnBlendModeChanged();
 }
 
 void UDynamicMaterialModelEditorOnlyData::SetShadingModel(EDMMaterialShadingModel InShadingModel)
@@ -1054,28 +1131,7 @@ void UDynamicMaterialModelEditorOnlyData::SetShadingModel(EDMMaterialShadingMode
 
 	ShadingModel = InShadingModel;
 
-	EDMMaterialPropertyType FromProperty;
-	EDMMaterialPropertyType ToProperty;
-
-	switch (ShadingModel)
-	{
-		case EDMMaterialShadingModel::Unlit:
-			FromProperty = EDMMaterialPropertyType::BaseColor;
-			ToProperty = EDMMaterialPropertyType::EmissiveColor;
-			break;
-
-		case EDMMaterialShadingModel::DefaultLit:
-			FromProperty = EDMMaterialPropertyType::EmissiveColor;
-			ToProperty = EDMMaterialPropertyType::BaseColor;
-			break;
-
-		default:
-			return;
-	}
-
-	EnsureSwapSlotMaterialProperty(FromProperty, ToProperty);
-
-	RequestMaterialBuild();
+	OnShadingModelChanged();
 }
 
 bool UDynamicMaterialModelEditorOnlyData::IsPixelAnimationFlagSet() const
@@ -1092,20 +1148,7 @@ void UDynamicMaterialModelEditorOnlyData::SetPixelAnimationFlag(bool bInFlagValu
 
 	bPixelAnimationFlag = bInFlagValue;
 
-	if (MaterialModel)
-	{
-		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
-		{
-			if (GUndo)
-			{
-				Material->Modify();
-			}
-
-			Material->bHasPixelAnimation = bPixelAnimationFlag;
-		}
-	}
-
-	RequestMaterialBuild();
+	OnPixelAnimationFlagChanged();
 }
 
 bool UDynamicMaterialModelEditorOnlyData::IsTwoSidedFlagSet() const
@@ -1122,20 +1165,7 @@ void UDynamicMaterialModelEditorOnlyData::SetTwoSidedFlag(bool bInFlagValue)
 
 	bTwoSidedFlag = bInFlagValue;
 
-	if (MaterialModel)
-	{
-		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
-		{
-			if (GUndo)
-			{
-				Material->Modify();
-			}
-
-			Material->TwoSided = bTwoSidedFlag;
-		}
-	}
-
-	RequestMaterialBuild();
+	OnTwoSidedFlagChanged();
 }
 
 FName UDynamicMaterialModelEditorOnlyData::GetChannelListPreset() const
@@ -1505,6 +1535,38 @@ void UDynamicMaterialModelEditorOnlyData::PostDuplicate(bool bDuplicateForPIE)
 	PostEditorDuplicate();
 	ReinitComponents();
 	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
+{
+	UObject::PostEditChangeChainProperty(PropertyChangedEvent);
+
+	const FName Property = PropertyChangedEvent.GetMemberPropertyName();
+
+	if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, ChannelListPreset))
+	{
+		OnChannelListPresetChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, Domain))
+	{
+		OnDomainChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, BlendMode))
+	{
+		OnBlendModeChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, ShadingModel))
+	{
+		OnShadingModelChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, bPixelAnimationFlag))
+	{
+		OnPixelAnimationFlagChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, bTwoSidedFlag))
+	{
+		OnTwoSidedFlagChanged();
+	}
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType)
