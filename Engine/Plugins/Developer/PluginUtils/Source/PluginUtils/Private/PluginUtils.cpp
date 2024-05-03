@@ -1151,6 +1151,23 @@ bool FPluginUtils::ValidateNewPluginNameAndLocation(const FString& PluginName, c
 		return false;
 	}
 
+	// Check if a mount point with the same name exists
+	{
+		FString MountPoint;
+		MountPoint.Reserve(PluginName.Len() + 2);
+		MountPoint.AppendChar(TEXT('/'));
+		MountPoint.Append(PluginName);
+		MountPoint.AppendChar(TEXT('/'));
+		if (FPackageName::MountPointExists(MountPoint))
+		{
+			if (FailReason)
+			{
+				*FailReason = FText::Format(LOCTEXT("MountPointExists", "Mount point {0} already exists"), FText::FromString(MountPoint));
+			}
+			return false;
+		}
+	}
+
 	return true;
 }
 
