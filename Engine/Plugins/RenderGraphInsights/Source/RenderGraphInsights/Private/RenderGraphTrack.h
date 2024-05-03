@@ -312,6 +312,7 @@ private:
 
 	enum class EResourceColor
 	{
+		Name,
 		Type,
 		Size,
 		TransientCache
@@ -325,7 +326,7 @@ private:
 
 	EResourceShow ResourceShow = EResourceShow::All;
 	EResourceSort ResourceSort = EResourceSort::Creation;
-	EResourceColor ResourceColor = EResourceColor::Type;
+	EResourceColor ResourceColor = EResourceColor::Name;
 	EVisualizer Visualizer = EVisualizer::Resources;
 	FString FilterText;
 	float FilterSize{};
