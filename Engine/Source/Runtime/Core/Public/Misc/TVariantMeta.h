@@ -11,6 +11,19 @@
 
 #include "Misc/AssertionMacros.h"
 
+// Disable the concept checks on MSVC until this internal compile error gets fixed:
+//
+// https://developercommunity.visualstudio.com/t/Internal-compile-error-when-returning-a/10650542
+#ifndef _MSC_VER
+	#if defined(__cpp_concepts) && __cpp_concepts >= 202002L
+		#define UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS 1
+	#endif
+#endif
+
+#if !defined(UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS)
+	#define UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS 0
+#endif
+
 template <typename T, typename... Ts>
 class TVariant;
 
@@ -156,6 +169,11 @@ namespace Private
 		}
 
 		TAlignedBytes<SizeofValue, AlignofValue> Storage;
+
+#if !UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS
+		/** Index into the template parameter pack for the type held. */
+		uint8 TypeIndex;
+#endif
 	};
 
 	/** Helper to lookup indices of each type in a template parameter pack */
@@ -377,6 +395,19 @@ namespace Private
 		static constexpr InvokeFn Invokers[] = { WrapperType::template FuncPtr<EncodedIndices>... };
 		return Invokers[EncodedIndex](Forward<Func>(Callable), Forward<Variants>(Args)...);
 	}
+
+#if !UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS
+	template <typename T, typename... Ts>
+	struct TDestructibleVariantStorage : TVariantStorage<T, Ts...>
+	{
+	protected:
+		~TDestructibleVariantStorage()
+		{
+			UE::Core::Private::TDestructorLookup<T, Ts...>::Destruct(this->TypeIndex, this);
+		}
+	};
+#endif
+
 } // namespace Private
 } // namespace Core
 } // namespace UE
