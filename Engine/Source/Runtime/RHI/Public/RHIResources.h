@@ -3318,7 +3318,6 @@ public:
 	FRHIRayTracingGeometry() = default;
 	FRHIRayTracingGeometry(const FRayTracingGeometryInitializer& InInitializer)
 		: Initializer(InInitializer)
-		, InitializedType(InInitializer.Type)
 	{}
 
 	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const = 0;
@@ -3336,7 +3335,6 @@ public:
 	}
 protected:
 	FRayTracingGeometryInitializer Initializer = {};
-	ERayTracingGeometryInitializerType InitializedType = ERayTracingGeometryInitializerType::Rendering;
 };
 
 /** Top level ray tracing acceleration structure (contains instances of meshes). */

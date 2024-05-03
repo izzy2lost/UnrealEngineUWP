@@ -3105,7 +3105,6 @@ void FD3D12RayTracingGeometry::UpdateResidency(FD3D12CommandContext& CommandCont
 
 void FD3D12RayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& InInitializer)
 {
-	checkf(InitializedType == ERayTracingGeometryInitializerType::StreamingDestination, TEXT("Only FD3D12RayTracingGeometry that was created as StreamingDestination can update their initializer."));
 	Initializer = InInitializer;
 
 	for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)

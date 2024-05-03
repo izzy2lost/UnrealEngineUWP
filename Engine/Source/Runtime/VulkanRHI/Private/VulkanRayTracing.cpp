@@ -437,7 +437,6 @@ FVulkanRayTracingGeometry::~FVulkanRayTracingGeometry()
 
 void FVulkanRayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& InInitializer)
 {
-	checkf(InitializedType == ERayTracingGeometryInitializerType::StreamingDestination, TEXT("Only FVulkanRayTracingGeometry that was created as StreamingDestination can update their initializer."));
 	Initializer = InInitializer;
 
 	// TODO: Update HitGroup Parameters
