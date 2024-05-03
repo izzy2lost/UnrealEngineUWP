@@ -414,6 +414,10 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(
 		check(Node.Get());
 		Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Node, bConst, bWrapperGraphTransient, [](UK2Node*){});
 	}
+
+	static FName NAME_Hidden("Hidden");
+	UE::MVVM::ConversionFunctionHelper::SetMetaData(Result.NewGraph, NAME_Hidden, FStringView());
+
 	const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(Blueprint, Result.NewGraph, Result.WrappedNode);
 	LoadPinValuesInternal(Blueprint);
 	return CachedWrapperGraph;

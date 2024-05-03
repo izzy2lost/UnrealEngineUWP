@@ -48,12 +48,13 @@ namespace Private
 
 	TOptional<FFieldVariant> PassFilter(const UBlueprint* Blueprint, const FMVVMAvailableBinding& Binding, const UStruct* Struct, const FMVVMFieldVariant& FieldVariant, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty)
 	{
+		static FName NAME_Hidden("Hidden");
 		if (ensure(!FieldVariant.IsEmpty()))
 		{
 			if (FieldVariant.IsFunction())
 			{
 				const UFunction* Function = FieldVariant.GetFunction();
-				if (Function == nullptr)
+				if (Function == nullptr || Function->HasMetaData(NAME_Hidden))
 				{
 					return TOptional<FFieldVariant>();
 				}
@@ -104,7 +105,7 @@ namespace Private
 			else if (FieldVariant.IsProperty())
 			{
 				const FProperty* Property = FieldVariant.GetProperty();
-				if (Property == nullptr)
+				if (Property == nullptr || Property->HasMetaData(NAME_Hidden))
 				{
 					return TOptional<FFieldVariant>();
 				}
