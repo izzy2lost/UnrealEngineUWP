@@ -1242,9 +1242,10 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						static uint32 FallBackTracing = 0;
 						for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
 						{
+							uint32 FrameIndex = View.CachedViewUniformShaderParameters->StateFrameIndex;
 							// Halton takes more time to update all pixels of a 16x16 probe.so LFSR is preferred when there is a state.
-							uint32 CoordX = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 2) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
-							uint32 CoordY = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 3) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+							uint32 CoordX = Halton(FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 2) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+							uint32 CoordY = Halton(FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 3) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
 							ProbeSamplesToTrace[i] = FUintVector4(CoordX % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, CoordY % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, 0, 0);
 							FallBackTracing++;
 						}
