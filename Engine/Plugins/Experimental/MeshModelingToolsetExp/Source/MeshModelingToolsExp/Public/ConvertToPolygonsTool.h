@@ -117,31 +117,17 @@ public:
 	/** group filtering */
 	UPROPERTY(EditAnywhere, Category = Filtering, meta = (UIMin = "1", UIMax = "100", ClampMin = "1", ClampMax = "10000", EditCondition = "ConversionMode != EConvertToPolygonsMode::CopyFromLayer"))
 	int32 MinGroupSize = 2;
-
-
-	/** If true, normals are recomputed per-group, with hard edges at group boundaries */
-	UPROPERTY(EditAnywhere, Category = Output, meta=(EditCondition = "ConversionMode != EConvertToPolygonsMode::CopyFromLayer") )
-	bool bCalculateNormals = false;
 	
 	/** Display each group with a different auto-generated color */
 	UPROPERTY(EditAnywhere, Category = Display)
 	bool bShowGroupColors = true;
-};
 
-
-
-
-
-
-
-UCLASS()
-class MESHMODELINGTOOLSEXP_API UOutputPolygroupLayerProperties : public UInteractiveToolPropertySet
-{
-	GENERATED_BODY()
-public:
+	/** If true, normals are recomputed per-group, with hard edges at group boundaries */
+	UPROPERTY(EditAnywhere, Category = Output, meta = (EditCondition = "ConversionMode != EConvertToPolygonsMode::CopyFromLayer"))
+	bool bCalculateNormals = false;
 
 	/** Select PolyGroup layer to use. */
-	UPROPERTY(EditAnywhere, Category = "Output", meta = (DisplayName = "Output Layer", GetOptions = GetGroupOptionsList, NoResetToDefault))
+	UPROPERTY(EditAnywhere, Category = Output, meta = (DisplayName = "Output Layer", GetOptions = GetGroupOptionsList, NoResetToDefault))
 	FName GroupLayer = "Default";
 
 	// Provides set of available group layers
@@ -156,7 +142,7 @@ public:
 	bool bShowNewLayerName = false;
 
 	/** Name of the new Group Layer */
-	UPROPERTY(EditAnywhere, Category = "Output", meta = (TransientToolProperty, DisplayName = "New Layer Name",
+	UPROPERTY(EditAnywhere, Category = Output, meta = (TransientToolProperty, DisplayName = "New Layer Name",
 		EditCondition = "bShowNewLayerName", HideEditConditionToggle, NoResetToDefault))
 	FString NewLayerName = TEXT("polygroups");
 };
@@ -210,9 +196,6 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UPolygroupLayersProperties> CopyFromLayerProperties = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<UOutputPolygroupLayerProperties> OutputProperties = nullptr;
 
 
 	UPROPERTY()
