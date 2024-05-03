@@ -2060,7 +2060,7 @@ struct FFileSyncTaskBatch
 
 						bool bOk = true;
 
-						if (Block.IsCompressed())
+						if (Block.bCompressed)
 						{
 							bOk = Decompress(Block.Data, Block.CompressedSize, OutputView.Data, OutputView.Size);
 						}

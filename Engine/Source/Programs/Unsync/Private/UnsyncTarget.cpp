@@ -523,9 +523,10 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 					FBlockWriteCmd Cmd = WriteIt->second;
 
 					// TODO: avoid this copy by storing IOBuffer in DownloadedBlock
-					bool	  bCompressed	 = Block.IsCompressed();
-					uint64	  DownloadedSize = bCompressed ? Block.CompressedSize : Block.DecompressedSize;
-					FIOBuffer DownloadedData = FIOBuffer::Alloc(DownloadedSize, L"downloaded_data");
+					const bool	 bCompressed	= Block.bCompressed;
+					const uint64 DownloadedSize = bCompressed ? Block.CompressedSize : Block.DecompressedSize;
+					FIOBuffer	 DownloadedData = FIOBuffer::Alloc(DownloadedSize, L"downloaded_data");
+
 					memcpy(DownloadedData.GetData(), Block.Data, DownloadedSize);
 
 					DecompressionSemaphore.Acquire();

@@ -178,8 +178,8 @@ struct FRequestBlocksPacket
 struct FBlockPacket
 {
 	FHash128 Hash			  = {};
-	uint64	 DecompressedSize = 0;
-	FBuffer	 CompressedData;
+	uint64	 DecompressedSize = 0; // 0 if data is not compressed
+	FBuffer	 Data;
 };
 
 struct FPatchHeader

@@ -342,9 +342,9 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 			break;
 		}
 
-		BlockPacket.CompressedData.Resize(CompressedDataSize);
+		BlockPacket.Data.Resize(CompressedDataSize);
 
-		bOk &= (SocketRecvAll(*SocketHandle, BlockPacket.CompressedData.Data(), BlockPacket.CompressedData.Size()) == CompressedDataSize);
+		bOk &= (SocketRecvAll(*SocketHandle, BlockPacket.Data.Data(), BlockPacket.Data.Size()) == CompressedDataSize);
 
 		if (!bOk)
 		{
@@ -363,9 +363,21 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 		if (bOk)
 		{
 			FDownloadedBlock DownloadedBlock;
-			DownloadedBlock.DecompressedSize = BlockPacket.DecompressedSize;
-			DownloadedBlock.CompressedSize	 = BlockPacket.CompressedData.Size();
-			DownloadedBlock.Data			 = BlockPacket.CompressedData.Data();
+
+			DownloadedBlock.CompressedSize = BlockPacket.Data.Size();
+			DownloadedBlock.Data		   = BlockPacket.Data.Data();
+
+			if (BlockPacket.DecompressedSize != 0)
+			{
+				DownloadedBlock.bCompressed		 = true;
+				DownloadedBlock.DecompressedSize = BlockPacket.DecompressedSize;
+			}
+			else
+			{
+				DownloadedBlock.bCompressed		 = false;
+				DownloadedBlock.DecompressedSize = DownloadedBlock.CompressedSize;
+			}
+
 			CompletionCallback(DownloadedBlock, BlockPacket.Hash);
 		}
 
@@ -660,7 +672,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc&					 Remote,
 		ConnectionPool.Release(std::move(Connection));
 	}
 
-	const uint64 MaxChunkSize = 16_MB;
+	const uint64 MaxChunkSize = 8_MB;
 
 	FIOWriter& Result = OutputCallback(FileSize);
 	if (!Result.IsValid())
@@ -681,7 +693,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc&					 Remote,
 	}
 
 	FAtomicError Error;
-	FSemaphore	 DownloadSempahore(4);	// up to 4 concurrent connections
+	FSemaphore	 DownloadSempahore(8);	// limit concurrent connections
 
 	FLogProgressScope DownloadProgress(FileSize, ELogProgressUnits::MB);
 

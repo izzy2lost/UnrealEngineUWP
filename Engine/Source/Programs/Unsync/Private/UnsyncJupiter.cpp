@@ -939,7 +939,8 @@ FJupiterProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FB
 			UNSYNC_ASSERT(OffsetFromFirst + Block.Size <= Buffer->Size());
 
 			FDownloadedBlock ResultBlock;
-			ResultBlock.CompressedSize	 = 0;  // TODO: support compression
+			ResultBlock.bCompressed		 = false;
+			ResultBlock.CompressedSize	 = Block.Size;
 			ResultBlock.DecompressedSize = Block.Size;
 			ResultBlock.Data			 = Buffer->Data() + OffsetFromFirst;
 

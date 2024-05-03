@@ -43,8 +43,7 @@ struct FDownloadedBlock
 	uint64		 DecompressedSize = 0;
 	uint64		 CompressedSize	  = 0;
 	const uint8* Data			  = nullptr;
-
-	bool IsCompressed() const { return CompressedSize != 0; }
+	bool		 bCompressed	  = false;
 };
 
 using FBlockDownloadCallback = std::function<void(const FDownloadedBlock& Block, FHash128 BlockHash)>;
