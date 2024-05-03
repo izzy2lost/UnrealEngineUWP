@@ -1126,6 +1126,9 @@ public:
     /** Finds an FConfigBranch, using base name or a filename (can pass in NAME_None or empty string as needed) */
     CORE_API FConfigBranch* FindBranch(FName BaseIniName, const FString& Filename);
 
+	/** Same as FConfigBRanch, but this will not reload a formerly SafeUnload'd branch */
+	CORE_API FConfigBranch* FindBranchWithNoReload(FName BaseIniName, const FString& Filename);
+
     /** Create a new branch for FIlename, and return it */
 	CORE_API FConfigBranch& AddNewBranch(const FString& Filename);
 	
