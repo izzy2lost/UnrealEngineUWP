@@ -663,6 +663,37 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 	DebugOutput[PixelPos] = float4(Result, Opacity);
 }
 
+// Axis 0...5 == -X, +X, -Y, +Y, -Z, +Z 
+void SetMinMaxValueByAxis(float Value, uint Axis, inout float3 MinPoint, inout float3 MaxPoint)
+{
+	switch(Axis)
+	{
+	case 0: MinPoint.x = Value; break;
+	case 1: MaxPoint.x = Value; break;
+	case 2: MinPoint.y = Value; break;
+	case 3: MaxPoint.y = Value; break;
+	case 4: MinPoint.z = Value; break;
+	case 5: MaxPoint.z = Value; break;
+	default: break;
+	}
+}
+
+float GetMinMaxValueByAxis(uint Axis, float3 MinPoint, float3 MaxPoint)
+{
+	switch(Axis)
+	{
+	case 0: return MinPoint.x;
+	case 1: return MaxPoint.x;
+	case 2: return MinPoint.y;
+	case 3: return MaxPoint.y;
+	case 4: return MinPoint.z;
+    case 5: return MaxPoint.z;
+	default: return 0.f;
+	}
+}
+
+
+
 [numthreads(1, 1, 1)]
 void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 {
@@ -723,13 +754,13 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FeedbackResults.HierarchyOffset		= InstanceData.NaniteHierarchyOffset;
 		FeedbackResults.RuntimeResourceID	= InstanceData.NaniteRuntimeResourceID;
 
-		const float4 ApproximateClusterBoundsColor	= ColorTurquoise;
+		const float4 ApproximateClusterBoundsColor	= ColorCyan;
 		const float4 SkinnedClusterBoundsColor		= ColorLightGreen;
 		const float4 ClusterBoundsColor				= ColorLightRed;
 		const float4 InstanceBoundsColor			= ColorOrange;
 		const float4 ClusterLODBoundsColor			= ColorYellow;
 
-		FShaderPrintContext ShaderPrint = InitShaderPrintContext();
+		FShaderPrintContext ShaderPrint = InitShaderPrintContext(true, float2(0.15, 0.1));
 		const float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
 
 		const float3 WPOExtent = GetLocalMaxWPOExtent(PrimitiveData, InstanceData, bWPOEnabled);
@@ -808,9 +839,6 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		ClusterBoxBoundsExtent += WPOExtent + AbsMaxMaterialDisplacement.xxx;
 
-		const float3 InstanceBoxBoundsCenter = InstanceData.LocalBoundsCenter;
-		const float3 InstanceBoxBoundsExtent = InstanceData.LocalBoundsExtent; // TODO: Verify WPO and material disp. is baked in already
-
 		// Skinned Bounds
 		AddOBBTWS(
 			ShaderPrint,
@@ -820,18 +848,27 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			LocalToTranslatedWorld
 		);
 
+		// Estimated Skinned Bounds
 		BRANCH
 		if (bIsSkinned)
 		{
 			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
 
+			float3 MinBounds = float( 999999999.0f).xxx;
+			float3 MaxBounds = float(-999999999.0f).xxx;
+			
 			// Operate on max of 16 bones for now. This computation will be moved to the cluster generation/encoding on the CPU side.
 			static const uint IBI = 0xFFFFFFFFu;
-			uint SeenBoneIndexes[16] = {IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI};
-			float SeenBoneWeights[16] = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
-
+			uint ClusterBoneIndexes[16] = {IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI};
+			float ClusterBoneWeightMin[16];
+			float ClusterBoneWeightMax[16];
+			float3 ClusterBoneBoundsMin[16];
+			float3 ClusterBoneBoundsMax[16];
+			
 			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
 			{
+				float3 PointLocal = DecodePosition(VertexID, Cluster);
+				
 				LOOP
 				for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
 				{
@@ -845,59 +882,216 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 						break;
 					}
 					// Have we seen this bone index already?
-					for (uint SeenBoneIndex = 0; SeenBoneIndex < 16; ++SeenBoneIndex)
+					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
 					{
-						if (SeenBoneIndexes[SeenBoneIndex] == BoneIndex)
+						if (ClusterBoneIndexes[ClusterBoneIndex] == BoneIndex)
 						{
-							// Store the accumulated weight.
-							// NOTE: We're not using this for now, but this may change later.
-							SeenBoneWeights[SeenBoneIndex] += BoneWeight;
+							ClusterBoneWeightMin[ClusterBoneIndex] = min(BoneWeight, ClusterBoneWeightMin[ClusterBoneIndex]);
+							ClusterBoneWeightMax[ClusterBoneIndex] = max(BoneWeight, ClusterBoneWeightMax[ClusterBoneIndex]);
+							
+							ClusterBoneBoundsMin[ClusterBoneIndex] = min(PointLocal, ClusterBoneBoundsMin[ClusterBoneIndex]);
+							ClusterBoneBoundsMax[ClusterBoneIndex] = max(PointLocal, ClusterBoneBoundsMax[ClusterBoneIndex]);
 							break;
 						}
-						if (SeenBoneIndexes[SeenBoneIndex] == IBI)
+						if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
 						{
-							SeenBoneIndexes[SeenBoneIndex] = BoneIndex;
-							SeenBoneWeights[SeenBoneIndex] = BoneWeight;
+							ClusterBoneIndexes[ClusterBoneIndex] = BoneIndex;
+							ClusterBoneWeightMin[ClusterBoneIndex] = BoneWeight;
+							ClusterBoneWeightMax[ClusterBoneIndex] = BoneWeight;
+							ClusterBoneBoundsMin[ClusterBoneIndex] = PointLocal;
+							ClusterBoneBoundsMax[ClusterBoneIndex] = PointLocal;
 							break;
 						}
 					}
 				}
 			}
-			
-			float3 ClusterBoxMin = Cluster.BoxBoundsCenter - Cluster.BoxBoundsExtent;
-			float3 ClusterBoxMax = Cluster.BoxBoundsCenter + Cluster.BoxBoundsExtent;
 
-			float3 ClusterBoxCorners[8] = {
-				float3(ClusterBoxMin.x, ClusterBoxMin.y, ClusterBoxMin.z),
-				float3(ClusterBoxMax.x, ClusterBoxMin.y, ClusterBoxMin.z),
-				float3(ClusterBoxMin.x, ClusterBoxMax.y, ClusterBoxMin.z),
-				float3(ClusterBoxMax.x, ClusterBoxMax.y, ClusterBoxMin.z),
-				float3(ClusterBoxMin.x, ClusterBoxMin.y, ClusterBoxMax.z),
-				float3(ClusterBoxMax.x, ClusterBoxMin.y, ClusterBoxMax.z),
-				float3(ClusterBoxMin.x, ClusterBoxMax.y, ClusterBoxMax.z),
-				float3(ClusterBoxMax.x, ClusterBoxMax.y, ClusterBoxMax.z)
-			};
-				
-			float3 MinBounds = float( 999999999.0f).xxx;
-			float3 MaxBounds = float(-999999999.0f).xxx;
-
-			for (uint SeenBoneIndex = 0; SeenBoneIndex < 16; ++SeenBoneIndex)
+			// Deform each of the cluster bone bboxes by their associated bone transform.
+			uint ClusterBoneCount = 0;
+			for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
 			{
-				uint BoneIndex = SeenBoneIndexes[SeenBoneIndex];
+				if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
+				{
+					break;
+				}
+				ClusterBoneCount++;
+
+				float3 BoneBoundsMin = ClusterBoneBoundsMin[ClusterBoneIndex];
+				float3 BoneBoundsMax = ClusterBoneBoundsMax[ClusterBoneIndex];
+				
+				float3 BoneBoundsCorners[8] = {
+					float3(BoneBoundsMin.x, BoneBoundsMin.y, BoneBoundsMin.z),
+					float3(BoneBoundsMax.x, BoneBoundsMin.y, BoneBoundsMin.z),
+					float3(BoneBoundsMin.x, BoneBoundsMax.y, BoneBoundsMin.z),
+					float3(BoneBoundsMax.x, BoneBoundsMax.y, BoneBoundsMin.z),
+					float3(BoneBoundsMin.x, BoneBoundsMin.y, BoneBoundsMax.z),
+					float3(BoneBoundsMax.x, BoneBoundsMin.y, BoneBoundsMax.z),
+					float3(BoneBoundsMin.x, BoneBoundsMax.y, BoneBoundsMax.z),
+					float3(BoneBoundsMax.x, BoneBoundsMax.y, BoneBoundsMax.z)
+				};
+
+				uint BoneIndex = ClusterBoneIndexes[ClusterBoneIndex];
 				if (BoneIndex == IBI)
 				{
 					break;
 				}
-				float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
+				float3x4 BoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
+				ClusterBoneBoundsMin[ClusterBoneIndex] = float(999999999.0f).xxx;
+				ClusterBoneBoundsMax[ClusterBoneIndex] = float(-999999999.0f).xxx;
 
-				for (uint BoxCornerIndex = 0; BoxCornerIndex < 8; ++BoxCornerIndex)
+				for (uint CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
 				{
-					float3 SkinnedClusterBoxCorner = mul(CurrentBoneTransform, float4(ClusterBoxCorners[BoxCornerIndex], 1.0f)) /* * BoneWeight */;
+					float3 SkinnedClusterBoxCorner = mul(BoneTransform, float4(BoneBoundsCorners[CornerIndex], 1.0f));
 						
-					MinBounds = min(MinBounds, SkinnedClusterBoxCorner);
-					MaxBounds = max(MaxBounds, SkinnedClusterBoxCorner);
+					ClusterBoneBoundsMin[ClusterBoneIndex] = min(ClusterBoneBoundsMin[ClusterBoneIndex], SkinnedClusterBoxCorner);
+					ClusterBoneBoundsMax[ClusterBoneIndex] = max(ClusterBoneBoundsMax[ClusterBoneIndex], SkinnedClusterBoxCorner);
 				}
 			}
+
+			for (uint Axis = 0; Axis < 6; ++Axis)
+			{
+				// Find the extrema and second extrema bone values for this axis based on their deformed bbox.
+				uint ExtremaIndex = IBI;
+				uint ExtremaIndex2 = IBI;
+				float ExtremaValue = (Axis % 2 == 0) ? 999999999.0f : -999999999.0f;
+				float ExtremaValue2 = (Axis % 2 == 0) ? 999999999.0f : -999999999.0f;
+
+#if 0
+				ShaderPrint.StartPos.x = 0.15 + 0.12 * Axis;
+				ShaderPrint.StartPos.y = 0.1;
+				ShaderPrint.Pos = ShaderPrint.StartPos;
+				switch(Axis)
+				{
+				case 0:
+					Print(ShaderPrint, TEXT("Axis: -X"), FontCyan);
+					break;
+				case 1:
+					Print(ShaderPrint, TEXT("Axis: +X"), FontCyan);
+					break;
+				case 2:
+					Print(ShaderPrint, TEXT("Axis: -Y"), FontCyan);
+					break;
+				case 3:
+					Print(ShaderPrint, TEXT("Axis: +Y"), FontCyan);
+					break;
+				case 4:
+					Print(ShaderPrint, TEXT("Axis: -Z"), FontCyan);
+					break;
+				case 5:
+					Print(ShaderPrint, TEXT("Axis: +Z"), FontCyan);
+					break;
+				}
+				Newline(ShaderPrint);
+#endif
+				
+				for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
+				{
+					if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
+					{
+						break;
+					}
+					
+					float BBoxValue = GetMinMaxValueByAxis(Axis, ClusterBoneBoundsMin[ClusterBoneIndex], ClusterBoneBoundsMax[ClusterBoneIndex]);
+
+					if (Axis % 2 == 0)		// Negative
+					{
+						if (BBoxValue < ExtremaValue)
+						{
+							if (ExtremaValue < ExtremaValue2)
+							{
+								ExtremaIndex2 = ExtremaIndex;
+								ExtremaValue2 = ExtremaValue;
+							}
+							
+							ExtremaIndex = ClusterBoneIndex;
+							ExtremaValue = BBoxValue;
+						}
+						else if (BBoxValue < ExtremaValue2)
+						{
+							ExtremaIndex2 = ClusterBoneIndex;
+							ExtremaValue2 = BBoxValue;
+						}
+					}
+					else
+					{
+						if (BBoxValue > ExtremaValue)
+						{
+							if (ExtremaValue > ExtremaValue2)
+							{
+								ExtremaIndex2 = ExtremaIndex;
+								ExtremaValue2 = ExtremaValue;
+							}
+							
+							ExtremaIndex = ClusterBoneIndex;
+							ExtremaValue = BBoxValue;
+						}
+						else if (BBoxValue > ExtremaValue2)
+						{
+							ExtremaIndex2 = ClusterBoneIndex;
+							ExtremaValue2 = BBoxValue;
+						}
+					}
+				}
+
+				float SkinnedValue = ClusterBoneWeightMax[ExtremaIndex] * ExtremaValue;
+
+				if (ExtremaIndex2 != IBI)
+				{
+					float Weight2 = 1.0f - ClusterBoneWeightMax[ExtremaIndex];
+					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
+					{
+						if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
+						{
+							break;
+						}
+						if (ClusterBoneIndex != ExtremaIndex && ClusterBoneIndex != ExtremaIndex2)
+						{
+							float MinWeight = ClusterBoneWeightMin[ClusterBoneIndex];
+							Weight2 -= MinWeight;
+
+							SkinnedValue += MinWeight * GetMinMaxValueByAxis(Axis, ClusterBoneBoundsMin[ClusterBoneIndex], ClusterBoneBoundsMax[ClusterBoneIndex]); 
+						}
+					}
+					SkinnedValue += Weight2 * ExtremaValue2;
+				}
+
+#if 0
+				Print(ShaderPrint, TEXT("Index 1: "), FontCyan);
+				Print(ShaderPrint, ExtremaIndex, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("BBox 1: "), FontCyan);
+				Print(ShaderPrint, ExtremaValue, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MaxWeight 1: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMax[ExtremaIndex], FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MinWeight 1: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMin[ExtremaIndex], FontCyan);
+				Newline(ShaderPrint);
+				
+				
+				Print(ShaderPrint, TEXT("Index 2: "), FontCyan);
+				Print(ShaderPrint, ExtremaIndex2, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("BBox 2: "), FontCyan);
+				Print(ShaderPrint, ExtremaValue2, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MaxWeight 2: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMax[ExtremaIndex2], FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MinWeight 2: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMin[ExtremaIndex2], FontCyan);
+				Newline(ShaderPrint);
+#endif
+
+				SetMinMaxValueByAxis(SkinnedValue, Axis, MinBounds, MaxBounds);
+			}
+
+#if 0
+			Print(ShaderPrint, TEXT("Cluster Bone Count: "), FontGreen);
+			Print(ShaderPrint, ClusterBoneCount, FontGreen);
+			Newline(ShaderPrint);
+#endif
 
 			ClusterBoxBoundsCenter = (MaxBounds + MinBounds) * 0.5f;
 			ClusterBoxBoundsExtent = (MaxBounds - MinBounds) * 0.5f;
