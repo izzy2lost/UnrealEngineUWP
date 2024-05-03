@@ -936,7 +936,7 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 
 				return EDMIterationResult::Continue;
 			}, 
-			/* Start from */ EDMMaterialPropertyType::OpacityMask
+			/* Start from */ EDMMaterialPropertyType::Roughness
 		);
 	}
 }
