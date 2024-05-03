@@ -8,6 +8,7 @@
 #include "UbaNetworkBackendTcp.h"
 #include "UbaPlatform.h"
 #include "UbaProtocol.h"
+#include "UbaRootPaths.h"
 #include "UbaScheduler.h"
 #include "UbaSessionClient.h"
 #include "UbaSessionServer.h"
@@ -68,6 +69,7 @@ namespace uba
 		logger.Info(TC("   -loop=<count>           Loop the commandline <count> number of times. Will exit when/if it fails"));
 		logger.Info(TC("   -workdir=<dir>          Working directory"));
 		logger.Info(TC("   -checkcas               Check so all cas entries are correct"));
+		logger.Info(TC("   -checkfiletable         Check so file table has correct cas stored"));
 		logger.Info(TC("   -checkaws               Check if we are inside aws and output information about aws"));
 		logger.Info(TC("   -deletecas              Deletes the casdb"));
 		logger.Info(TC("   -getcas                 Will print hash of application"));
@@ -167,6 +169,7 @@ namespace uba
 		bool printSummary = false;
 		bool populateCache = false;
 		bool writeCacheSummary = false;
+		TString checkFileTable;
 		TString cacheFilterString;
 
 		u32 loopCount = 1;
@@ -308,6 +311,15 @@ namespace uba
 			{
 				checkCas = true;
 			}
+			else if (name.Equals(TC("-checkfiletable")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-checkfiletable needs a value"));
+				StringBuffer<> temp;
+				if ((temp.count = GetFullPathNameW(value.Replace('/', PathSeparator).data, temp.capacity, temp.data, nullptr)) == 0)
+					return PrintHelp(StringBuffer<>().Appendf(TC("-checkfiletable has invalid path %s"), temp.data).data);
+				checkFileTable = temp.data;
+			}
 			else if (name.Equals(TC("-checkcas2")))
 			{
 				checkCas2 = true;
@@ -387,6 +399,18 @@ namespace uba
 			storageInfo.storeCompressed = storeCompressed;
 			StorageImpl storage(storageInfo);
 			bool success = storage.CheckCasContent(DefaultProcessorCount);
+			return success ? 0 : -1;
+		}
+
+		if (!checkFileTable.empty())
+		{
+			StorageCreateInfo storageInfo(g_rootDir.data, logWriter);
+			storageInfo.casCapacityBytes = 0;
+			storageInfo.storeCompressed = storeCompressed;
+			StorageImpl storage(storageInfo);
+			if (!storage.LoadCasTable())
+				return -1;
+			bool success = storage.CheckFileTable(checkFileTable.data(), DefaultProcessorCount);
 			return success ? 0 : -1;
 		}
 
@@ -594,6 +618,14 @@ namespace uba
 			}
 		}
 
+		// Remove empty spaces and line feeds etc at the end.. just to solve annoying copy paste command lines and accidentally getting line feed
+		while (!arguments.empty())
+		{
+			tchar lastChar = arguments[arguments.size()-1];
+			if (lastChar != '\n' && lastChar != '\r' && lastChar != '\t' && lastChar != ' ')
+				break;
+			arguments.resize(arguments.size() - 1);
+		}
 
 
 		if (isRemote)
@@ -626,6 +658,13 @@ namespace uba
 				return logger.Error(TC("Error exit code: %u"), process.GetExitCode());
 			u64 time = GetTime() - start;
 			logger.Info(TC("%s run took %s"), (enableDetour ? TC("Boxed") : TC("Native")), TimeToText(time).str);
+
+			if (populateCache)
+			{
+				logger.Error(TC("Populating cache not implemented... todo"));
+				RootPaths rootPaths;
+				cacheClient->WriteToCache(rootPaths, 0, pinfo, nullptr, 1, nullptr, 0);
+			}
 			return true;
 		};
 

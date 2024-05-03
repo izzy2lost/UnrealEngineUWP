@@ -1689,6 +1689,77 @@ namespace uba
 		return true;
 	}
 
+	bool StorageImpl::CheckFileTable(const tchar* searchPath, u32 workerCount)
+	{
+		m_logger.Info(TC("Searching %s to check files against file table..."), searchPath);
+		WorkManagerImpl workManager(workerCount);
+
+		List<TString> directories;
+		directories.push_back(searchPath);
+
+		Atomic<u32> foundFiles;
+		Atomic<u32> trackedFiles;
+		Atomic<u32> testedFiles;
+		Atomic<u32> errorCount;
+
+		u64 startTime = GetTime();
+		
+		while (!directories.empty())
+		{
+			TString dir = directories.front();
+			directories.pop_front();
+			TraverseDir(m_logger, dir.data(), [&](const DirectoryEntry& e)
+				{
+					StringBuffer<> path(dir);
+					path.EnsureEndsWithSlash().Append(e.name);
+					if (CaseInsensitiveFs)
+						path.MakeLower();
+
+					if (IsDirectory(e.attributes))
+					{
+						if (Equals(e.name, TC("Content")))
+							return;
+						directories.push_back(path.data);
+						return;
+					}
+					u64 lastWritten = e.lastWritten;
+					u64 size = e.size;
+
+					workManager.AddWork([&, p = TString(path.data), lastWritten, size]()
+						{
+							++foundFiles;
+							StringKey key = ToStringKey(p.data(), p.size());
+							
+							auto findIt = m_fileTableLookup.find(key);
+							if (findIt == m_fileTableLookup.end())
+								return;
+							++trackedFiles;
+
+							FileEntry& fe = findIt->second;
+							if (fe.lastWritten != lastWritten || fe.size != size)
+								return;
+							++testedFiles;
+
+							CasKey casKey;
+							if (!CalculateCasKey(casKey, p.data()))
+								m_logger.Warning(TC("Failed to calculate cas key for %s"), p.data());
+
+							if (casKey != fe.casKey)
+							{
+								++errorCount;
+								m_logger.Error(TC("CasKey mismatch for %s even though size and lastwritten were the same. Corrupt path table!"), p.data());
+							}
+
+						}, 1, TC(""));
+				});
+		}
+		workManager.FlushWork();
+
+		m_logger.Info(TC("Done. %u errors found. Searched %u files where %u was tracked and %u matched table."), errorCount.load(), foundFiles.load(), trackedFiles.load(), testedFiles.load(), TimeToText(GetTime() - startTime).str);
+
+		return errorCount == 0;
+	}
+
 	const tchar* StorageImpl::GetTempPath()
 	{
 		return m_tempPath.data;
@@ -1736,7 +1807,7 @@ namespace uba
 			Atomic<u32> atomicDeleteCount;
 			TraverseDir(m_logger, m_rootDir.data, [&](const DirectoryEntry& e)
 				{
-					if (!IsDirectory(e.attributes))
+					if (IsDirectory(e.attributes))
 						return;
 					workManager.AddWork([&, name = TString(e.name)]()
 						{

@@ -105,6 +105,7 @@ namespace uba
 
 		bool LoadCasTable(bool logStats = true);
 		bool CheckCasContent(u32 workerCount);
+		bool CheckFileTable(const tchar* searchPath, u32 workerCount);
 		const tchar* GetTempPath();
 
 		virtual bool SaveCasTable(bool deleteIsRunningfile, bool deleteDropped = true) override;
