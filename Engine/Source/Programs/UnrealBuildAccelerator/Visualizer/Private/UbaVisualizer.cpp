@@ -437,7 +437,7 @@ namespace uba
 		wndClassEx.cbSize = sizeof(wndClassEx);
 		wndClassEx.style = CS_HREDRAW | CS_VREDRAW;
 		wndClassEx.lpfnWndProc = &StaticWinProc;
-		wndClassEx.hIcon = NULL;//Icon;
+		wndClassEx.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(123));
 		wndClassEx.hCursor = LoadCursor(NULL, IDC_ARROW);
 		wndClassEx.hInstance = hInstance;
 		wndClassEx.hbrBackground = NULL;
