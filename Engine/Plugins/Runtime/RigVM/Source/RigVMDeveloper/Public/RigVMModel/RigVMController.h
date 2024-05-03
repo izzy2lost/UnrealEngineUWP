@@ -1383,9 +1383,6 @@ protected:
 
 	ERigVMPinDefaultValueType GetDefaultValueType(const URigVMPin* InPin, const FString& InDefaultValue) const;
 
-	// work to do after a duplication of the host asset
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
-
 	template<typename T>
 	static void SortGraphElementsByGraphDepth(TArray<T*>& InOutElements, bool bReverse = false)
 	{

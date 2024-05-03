@@ -251,9 +251,6 @@ public:
 	// try to reattach detached links and delete remaining ones
 	void ProcessDetachedLinks();
 
-	// work to be done after a duplication of the source asset
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
-
 	// work to be done before saving
 	void PreSave(FObjectPreSaveContext ObjectSaveContext);
 

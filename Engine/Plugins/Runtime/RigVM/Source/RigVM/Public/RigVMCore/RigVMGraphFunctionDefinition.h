@@ -603,8 +603,6 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 		return Ar;
 	}
 
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
-
 	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FSoftObjectPath& InFunctionObjectPath, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
 
 	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
@@ -662,8 +660,6 @@ struct RIGVM_API FRigVMGraphFunctionData
 		Ar << Data.SerializedCollapsedNode;
 		return Ar;
 	}
-
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
 
 	static FRigVMGraphFunctionData* FindFunctionData(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
 

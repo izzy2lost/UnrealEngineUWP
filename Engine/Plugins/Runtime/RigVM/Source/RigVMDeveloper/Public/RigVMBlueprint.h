@@ -584,6 +584,8 @@ private:
 	void Notify(ERigVMGraphNotifType InNotifType, UObject* InSubject);
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
+	void ReplaceFunctionIdentifiers(const FString& OldAssetPath, const FString& NewAssetPath);
+
 #if WITH_EDITOR
 
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")

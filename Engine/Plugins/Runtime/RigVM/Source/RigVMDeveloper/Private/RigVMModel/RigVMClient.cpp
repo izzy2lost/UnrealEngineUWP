@@ -995,16 +995,6 @@ void FRigVMClient::ProcessDetachedLinks()
 	}
 }
 
-void FRigVMClient::PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName)
-{
-	TArray<URigVMGraph*> AllModels = GetAllModels(true, true);
-	for(URigVMGraph* Model : AllModels)
-	{
-		URigVMController* Controller = GetOrCreateController(Model);
-		Controller->PostDuplicateHost(InOldPathName, InNewPathName);
-	}
-}
-
 void FRigVMClient::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	if (!ObjectSaveContext.IsCooking())

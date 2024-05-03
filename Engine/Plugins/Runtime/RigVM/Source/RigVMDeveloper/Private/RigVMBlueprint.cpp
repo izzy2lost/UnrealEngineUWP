@@ -383,6 +383,9 @@ void URigVMBlueprint::PostRename(UObject* OldOuter, const FName OldName)
 			MemoryClass->Rename(nullptr, GetPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 	}
+
+	const FString OldAssetPath = FString::Printf(TEXT("%s.%s"), *OldOuter->GetPathName(), *OldName.ToString());
+	ReplaceFunctionIdentifiers(OldAssetPath, GetPathName());
 }
 
 void URigVMBlueprint::GetPreloadDependencies(TArray<UObject*>& OutDeps)
@@ -2625,6 +2628,64 @@ void URigVMBlueprint::PreDuplicate(FObjectDuplicationParameters& DupParams)
 
 }
 
+void URigVMBlueprint::ReplaceFunctionIdentifiers(const FString& InOldAssetPath, const FString& InNewAssetPath)
+{
+	if (!InOldAssetPath.Equals(GetPathName()))
+	{
+		const FString OldLibraryPath = InOldAssetPath + TEXT(":");
+		const FString NewLibraryPath = InNewAssetPath + TEXT(":");
+		const FString OldHostPath = InOldAssetPath + TEXT("_C");
+		const FString NewHostPath = InNewAssetPath + TEXT("_C");
+
+		auto ReplaceIdentifier = [OldLibraryPath, NewLibraryPath, OldHostPath, NewHostPath](FRigVMGraphFunctionIdentifier& Identifier)
+		{
+			FString& LibraryNodePath = Identifier.GetLibraryNodePath();
+			FSoftObjectPath& HostPath = Identifier.HostObject;
+			FString HostPathStr = HostPath.ToString();
+			if(LibraryNodePath.StartsWith(OldLibraryPath, ESearchCase::CaseSensitive))
+			{
+				LibraryNodePath = NewLibraryPath + LibraryNodePath.Mid(OldLibraryPath.Len());
+			}
+			if(HostPathStr.StartsWith(OldHostPath, ESearchCase::CaseSensitive))
+			{
+				HostPathStr = NewHostPath + HostPathStr.Mid(OldHostPath.Len());
+				HostPath = HostPathStr;
+			}
+		};
+
+		// Replace identifiers in store
+		if(URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass())
+		{
+			FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
+			for (int32 i=0; i<2; ++i)
+			{
+				TArray<FRigVMGraphFunctionData>& Functions = (i == 0) ? Store.PublicFunctions : Store.PrivateFunctions;
+				for (FRigVMGraphFunctionData& Data : Functions)
+				{
+					ReplaceIdentifier(Data.Header.LibraryPointer);
+					for (TPair<FRigVMGraphFunctionIdentifier, uint32>& Pair : Data.Header.Dependencies)
+					{
+						ReplaceIdentifier(Pair.Key);
+					}
+				}
+			}
+		}
+
+		// Replace identifiers in function references
+		TArray<URigVMGraph*> AllModels = RigVMClient.GetAllModels(true, true);
+		for(URigVMGraph* Model : AllModels)
+		{
+			for (URigVMNode* Node : Model->GetNodes())
+			{
+				if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
+				{
+					ReplaceIdentifier(FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer);
+				}
+			}
+		}
+	}
+}
+
 void URigVMBlueprint::PostDuplicate(bool bDuplicateForPIE)
 {
 	// assuming PostDuplicate is always followed by a PostLoad:
@@ -2640,37 +2701,11 @@ void URigVMBlueprint::PostDuplicate(bool bDuplicateForPIE)
 		// it will be filled during PostLoad based on the graph model
 		Super::PostDuplicate(bDuplicateForPIE);
 	}
-	
-	auto UpdateFunctionHeaders = [this](const FString& InOldPath, const FString& InNewPath)
-	{
-		if(InOldPath.IsEmpty() || InNewPath.IsEmpty())
-		{
-			return;
-		}
-		if(!InNewPath.Equals(InOldPath, ESearchCase::CaseSensitive))
-		{
-			if(URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass())
-			{
-				FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
-				// technically not needed, the store should be empty, it will not be populated until PostLoad
-				// this code is kept here just in case things change in the future
-				if (!(ensure(Store.PublicFunctions.Num() == 0) && ensure(Store.PrivateFunctions.Num() == 0)))
-				{
-					Store.PostDuplicateHost(InOldPath, InNewPath);
-				}
-			}
-			RigVMClient.PostDuplicateHost(InOldPath, InNewPath);
-		}
-	};
 
-	// update the paths once for the blueprint and once for the generated class
-	// make sure all function headers pointing to things in the old BP are changed to
-	// point to their duplicates in the new BP
-	UpdateFunctionHeaders(PreDuplicateAssetPath.ToString(), GetPathName());
-	if(const URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass())
-	{
-		UpdateFunctionHeaders(PreDuplicateHostPath.ToString(), CRGeneratedClass->GetPathName());
-	}
+	const FString OldAssetPath = PreDuplicateAssetPath.ToString();
+	const FString NewAssetPath = GetPathName();
+	
+	ReplaceFunctionIdentifiers(OldAssetPath, NewAssetPath);
 
 	PreDuplicateAssetPath.Reset();
 	PreDuplicateHostPath.Reset();

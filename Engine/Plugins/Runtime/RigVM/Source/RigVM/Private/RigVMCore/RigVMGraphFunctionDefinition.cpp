@@ -137,39 +137,6 @@ FRigVMGraphFunctionData* FRigVMGraphFunctionHeader::GetFunctionData(bool bLoadIf
 	return nullptr;
 }
 
-void FRigVMGraphFunctionHeader::PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName)
-{
-	const FString OldPathName = InOldPathName + TEXT(":");
-	const FString NewPathName = InNewPathName + TEXT(":");
-
-	auto ReplacePathName = [InOldPathName, InNewPathName, OldPathName, NewPathName](FString& InOutObjectPath)
-	{
-		if(InOutObjectPath.Equals(InOldPathName, ESearchCase::CaseSensitive))
-		{
-			InOutObjectPath = InNewPathName;
-		}
-		else if(InOutObjectPath.StartsWith(OldPathName, ESearchCase::CaseSensitive))
-		{
-			InOutObjectPath = NewPathName + InOutObjectPath.Mid(OldPathName.Len());
-		}
-	};
-	
-	auto ReplaceSoftPathName = [InOldPathName, InNewPathName, OldPathName, NewPathName, ReplacePathName](FSoftObjectPath& InOutObjectPath)
-	{
-		FString PathName = InOutObjectPath.ToString();
-		ReplacePathName(PathName);
-		InOutObjectPath = FSoftObjectPath(PathName);
-	};
-
-	ReplacePathName(LibraryPointer.GetLibraryNodePath());
-	ReplaceSoftPathName(LibraryPointer.HostObject);
-	for (TPair<FRigVMGraphFunctionIdentifier, uint32>& Pair : Dependencies)
-	{
-		ReplacePathName(Pair.Key.GetLibraryNodePath());
-		ReplaceSoftPathName(Pair.Key.HostObject);
-	}
-}
-
 FRigVMGraphFunctionHeader FRigVMGraphFunctionHeader::FindGraphFunctionHeader(const FSoftObjectPath& InFunctionObjectPath, bool* bOutIsPublic, FString* OutErrorMessage)
 {
 	return FindGraphFunctionHeader(InFunctionObjectPath, NAME_None, bOutIsPublic, OutErrorMessage);
@@ -250,11 +217,6 @@ TFunction<IRigVMGraphFunctionHost*(UObject*)> FRigVMGraphFunctionData::GetFuncti
 bool FRigVMGraphFunctionData::IsMutable() const
 {
 	return Header.IsMutable();
-}
-
-void FRigVMGraphFunctionData::PostDuplicateHost(const FString& InOldHostPathName, const FString& InNewHostPathName)
-{
-	Header.PostDuplicateHost(InOldHostPathName, InNewHostPathName);
 }
 
 FRigVMGraphFunctionData* FRigVMGraphFunctionData::FindFunctionData(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic, FString* OutErrorMessage)
