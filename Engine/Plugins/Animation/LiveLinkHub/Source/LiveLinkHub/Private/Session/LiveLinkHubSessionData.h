@@ -46,4 +46,8 @@ struct FLiveLinkHubPersistedSessionData : public FLiveLinkHubSessionData
 	/** Live link hub client info. */
 	UPROPERTY()
 	TArray<FLiveLinkHubUEClientInfo> Clients;
+
+	/** Timecode settings for the live link hub. */
+	UPROPERTY()
+	FLiveLinkHubTimecodeSettings TimecodeSettings;
 };

@@ -20,6 +20,7 @@
 #include "LiveLinkHubCommands.h"
 #include "LiveLinkHubMessages.h"
 #include "LiveLinkHubModule.h"
+#include "Session/LiveLinkHubSessionManager.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub"
 
@@ -94,6 +95,25 @@ void SLiveLinkTimecode::SendUpdatedTimecodeToEditor()
 			Provider->SetTimecodeSettings(MoveTemp(Settings));
 		}
 	}
+}
+
+void SLiveLinkTimecode::UpdateTimecodeFromSettings()
+{
+	FLiveLinkHubTimecodeSettings Settings;
+	using namespace UE::LiveLinkTimecode::Private;
+
+	const TSharedPtr<FLiveLinkHub> LiveLinkHub = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub();
+	if (LiveLinkHub.IsValid())
+	{
+		TSharedPtr<FLiveLinkHubProvider> Provider = LiveLinkHub->GetLiveLinkProvider();
+		if (Provider.IsValid())
+		{
+			Settings = Provider->GetTimecodeSettings();
+		}
+	}
+
+	bIsTimecodeSource = Settings.Source != ELiveLinkHubTimecodeSource::NotDefined;
+	ActiveTimecodeSource = Settings.SubjectName.IsNone() ? System24fps : Settings.SubjectName;
 }
 
 void SLiveLinkTimecode::SetTimecodeSource(const FName SourceId)
@@ -177,9 +197,21 @@ TSharedRef<SWidget> SLiveLinkTimecode::MakeMenu()
 
 void SLiveLinkTimecode::Construct(const FArguments& InArgs)
 {
-	ActiveTimecodeSource = UE::LiveLinkTimecode::Private::System24fps;
 	WorkingClient = (FLiveLinkClient*)&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+	
+	const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	TSharedPtr<ILiveLinkHubSessionManager> SessionManager = LiveLinkHubModule.GetSessionManager();
+	if (SessionManager.IsValid())
+	{
+		SessionManager->OnActiveSessionChanged().AddLambda([this](const TSharedRef<ILiveLinkHubSession>&)
+		{
+			// Update the UI when a config is loaded.
+			UpdateTimecodeFromSettings();
+		});
+	}
 
+	UpdateTimecodeFromSettings();
+	
 	check(WorkingClient);
 	ChildSlot
 	[

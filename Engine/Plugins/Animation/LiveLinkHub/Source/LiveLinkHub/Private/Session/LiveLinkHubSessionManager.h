@@ -159,7 +159,13 @@ public:
 			LiveLinkHubSessionData.Clients.Add(ClientKeyVal.Value);
 		}
 
-		LastConfigPath = SavePath;
+		const FLiveLinkHubTimecodeSettings& TimecodeSettings = LiveLinkProvider->GetTimecodeSettings();
+		LiveLinkHubSessionData.TimecodeSettings = TimecodeSettings;
+		
+		if (!SavePath.IsEmpty())
+		{
+			LastConfigPath = SavePath;
+		}
 		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_SAVE, FPaths::GetPath(LastConfigPath));
 
 		UE::LiveLinkHub::FileUtilities::Private::SaveConfig(LiveLinkHubSessionData, LastConfigPath);
@@ -229,6 +235,9 @@ private:
 				LiveLinkHubClient->CreateSubject(SubjectPreset);
 			}
 		}
+
+		SessionData->TimecodeSettings.AssignTimecodeSettingsAsProviderToEngine();
+		LiveLinkProvider->SetTimecodeSettings(SessionData->TimecodeSettings);
 
 		TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
 		{

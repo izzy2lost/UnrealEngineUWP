@@ -57,6 +57,9 @@ public:
 	/** Timecode settings that should be shared to connected editors. */
 	void SetTimecodeSettings(FLiveLinkHubTimecodeSettings InSettings);
 
+	/** Retrieve current timecode settings. */
+	const FLiveLinkHubTimecodeSettings& GetTimecodeSettings() const { return TimecodeSettings; }
+
 private:
 	/** Handle a connection message resulting from a livelink hub message bus source connecting to this provider. */
 	void HandleHubConnectMessage(const FLiveLinkHubConnectMessage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
