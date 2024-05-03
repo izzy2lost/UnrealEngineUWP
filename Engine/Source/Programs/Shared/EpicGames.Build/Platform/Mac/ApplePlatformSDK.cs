@@ -52,14 +52,14 @@ namespace UnrealBuildBase
 				int ExitCode;
 				// xcode-select -p gives the currently selected Xcode location (xcodebuild -version may fail if Xcode.app is broken)
 				// Example output: /Applications/Xcode.app/Contents/Developer
-				string Output = RunLocalProcessAndReturnStdOut("sh", "-c 'xcode-select -p'", out ExitCode);
+				string Output = RunLocalProcessAndReturnStdOut("/bin/sh", "-c 'xcode-select -p'", out ExitCode);
 
 				if (ExitCode == 0)
 				{
 					DirectoryReference DeveloperDir = new DirectoryReference(Output);
 					FileReference Plist = FileReference.Combine(DeveloperDir.ParentDirectory!, "Info.plist");
 					// Find out the version number in Xcode.app/Contents/Info.plist
-					Output = RunLocalProcessAndReturnStdOut("sh",
+					Output = RunLocalProcessAndReturnStdOut("/bin/sh",
 						  $"-c 'plutil -extract CFBundleShortVersionString raw {Plist}'", out ExitCode);
 					if (ExitCode == 0)
 					{

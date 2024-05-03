@@ -1139,7 +1139,7 @@ namespace UnrealBuildTool
 			}
 
 			// run the script
-			Utils.RunLocalProcessAndReturnStdOut("sh", $"\"{SignProjectScript.FullName}\"");
+			Utils.RunLocalProcessAndReturnStdOut("/bin/sh", $"\"{SignProjectScript.FullName}\"");
 
 			// Set parameters to make sure it uses the correct identity and keychain
 			// pass back the comandline arguments to xcodebuild to use these certicicates
@@ -1162,7 +1162,7 @@ namespace UnrealBuildTool
 				CleanWriter.WriteLine("security list-keychain -s login.keychain");
 			}
 
-			Utils.RunLocalProcessAndReturnStdOut("sh", $"\"{CleanProjectScript.FullName}\"");
+			Utils.RunLocalProcessAndReturnStdOut("/bin/sh", $"\"{CleanProjectScript.FullName}\"");
 		}
 
 		private static FileItem GetPostBuildOutputFile(FileReference Executable, string TargetName, UnrealTargetPlatform Platform)
