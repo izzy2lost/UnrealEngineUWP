@@ -201,7 +201,7 @@ public:
 	// FlEditorViewportClient interface
 	virtual FSceneInterface* GetScene() const override;
 	virtual FLinearColor GetBackgroundColor() const override { return FLinearColor::Black; }
-
+	virtual void Tick(float DeltaSeconds) override;
 	// End of FEditorViewportClient
 
 	void UpdateLighting();

@@ -91,6 +91,17 @@ FAnimationSegmentViewportClient::FAnimationSegmentViewportClient(FAdvancedPrevie
 }
 
 
+void FAnimationSegmentViewportClient::Tick(float DeltaSeconds)
+{
+	FEditorViewportClient::Tick(DeltaSeconds);
+	
+	// Tick the preview scene world.
+	if (PreviewScene)
+	{
+		PreviewScene->GetWorld()->Tick(LEVELTICK_All, DeltaSeconds);
+	}
+}
+
 void FAnimationSegmentViewportClient::UpdateLighting()
 {
 	const USkeletalMeshEditorSettings* Options = GetDefault<USkeletalMeshEditorSettings>();
@@ -708,8 +719,6 @@ void SAnimationSegmentViewport::Tick( const FGeometry& AllottedGeometry, const d
 		{
 			Description->SetText(LOCTEXT("Default", "Default"));
 		}
-
-		Component->GetScene()->GetWorld()->Tick(LEVELTICK_All, InDeltaTime);
 	}
 	else
 	{
