@@ -815,20 +815,6 @@ static void DDC1_StoreClassicTextureInDerivedData(
 		// CompressedDataSize can exceed int32 ; eg. 16k x 16k x RGBA16F == 2 GB
 		// DDC1 should be 64-bit safe now
 
-		// CompressedImage sizes were padded up to multiple of 4 for d3d, no longer ; log the align-up-to-4 sizes for debugging?
-
-		// log what the TextureFormat built :
-		//	(todo: change to "LogTexture" instead of "LogTextureUpload" and remove the align-up-to-4 debug logs)
-		UE_LOG(LogTextureUpload, Verbose, TEXT("Built texture: %s Compressed Mip %d PF=%d=%s : %dx%dx%d : %lld ; up4 %dx%d=%d"),
-			*TexturePathName,
-			MipIndex, (int)CompressedImage.PixelFormat,
-			GetPixelFormatString((EPixelFormat)CompressedImage.PixelFormat),
-			CompressedImage.SizeX, CompressedImage.SizeY, CompressedImage.NumSlicesWithDepth,
-			CompressedDataSize,
-			(CompressedImage.SizeX + 3) & (~3),
-			(CompressedImage.SizeY + 3) & (~3),
-			((CompressedImage.SizeX + 3) & (~3)) * ((CompressedImage.SizeY + 3) & (~3)));
-
 		NewMip->BulkData.Lock(LOCK_READ_WRITE);
 		void* NewMipData = NewMip->BulkData.Realloc(CompressedDataSize);
 		FMemory::Memcpy(NewMipData, CompressedImage.RawData.GetData(), CompressedDataSize);

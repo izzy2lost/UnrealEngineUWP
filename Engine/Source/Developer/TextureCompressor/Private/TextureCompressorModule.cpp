@@ -4057,6 +4057,27 @@ public:
 			IntermediateMipChain.Empty();
 		}
 
+		if ( bCompressSucceeded )
+		{
+			// make sure this log is done before the decode for platform preview
+			//  -logcmds="LogTextureUpload Verbose,LogTextureCompressor Verbose"
+
+			for(int32 MipIndex=0;MipIndex < OutTextureMips.Num();MipIndex++)
+			{
+				const FCompressedImage2D & CompressedImage = OutTextureMips[MipIndex];
+
+				int64 CompressedDataSize = CompressedImage.RawData.Num();
+
+				// log what the TextureFormat built :
+				UE_LOG(LogTextureCompressor, Verbose, TEXT("Built texture: [%.*s] Compressed Mip %d PF=%d=%s : %dx%dx%d : CompressedDataSize=%lld"),
+					DebugTexturePathName.Len(),DebugTexturePathName.GetData(),
+					MipIndex, (int)CompressedImage.PixelFormat,
+					GetPixelFormatString((EPixelFormat)CompressedImage.PixelFormat),
+					CompressedImage.SizeX, CompressedImage.SizeY, CompressedImage.NumSlicesWithDepth,
+					CompressedDataSize);
+			}
+		}
+
 		return bCompressSucceeded;
 	}
 
@@ -4344,33 +4365,6 @@ private:
 					//	 I mean, maybe not?  Most of the time MipGen is "SimpleAverage" which produces a really bad resize
 					FImageCore::EResizeImageFilter ResizeFilter = FImageCore::EResizeImageFilter::Default;
 					FImageCore::ResizeImage(BaseImage,DestImage,ResizeFilter);
-
-					#if 0
-					{
-						UE_LOG(LogTextureCompressor, Display, TEXT("ResizeImage from: %d x %d x %s -> %d x %d x %s"),
-							BaseImage.SizeX,BaseImage.SizeY,ERawImageFormat::GetName(BaseImage.Format),
-							DestImage.SizeX,DestImage.SizeY,ERawImageFormat::GetName(DestImage.Format));
-						
-						IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>( FName("ImageWrapper") );
-		
-						TArray64<uint8> Buffer;
-						ImageWrapperModule.CompressImage(Buffer,EImageFormat::PNG,BaseImage,0);
-						FFileHelper::SaveArrayToFile(Buffer,TEXT("r:\\BaseImage.png"));
-						
-						ImageWrapperModule.CompressImage(Buffer,EImageFormat::EXR,DestImage,0);
-						FFileHelper::SaveArrayToFile(Buffer,TEXT("r:\\DestImage.exr"));
-
-						FImage DestImage8;
-						DestImage.CopyTo(DestImage8,ERawImageFormat::BGRA8,EGammaSpace::sRGB);
-						ImageWrapperModule.CompressImage(Buffer,EImageFormat::PNG,DestImage8,0);
-						FFileHelper::SaveArrayToFile(Buffer,TEXT("r:\\DestImage.png"));
-						
-						bool BaseAlpha = FImageCore::DetectAlphaChannel(BaseImage);
-						bool DestAlpha = FImageCore::DetectAlphaChannel(DestImage);
-
-						check( BaseAlpha == DestAlpha );
-					}
-					#endif
 				}
 				else
 				{
