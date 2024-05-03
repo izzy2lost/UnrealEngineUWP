@@ -9,6 +9,7 @@
 #include "PCGEditorSettings.h"
 #include "PCGEditorStyle.h"
 #include "PCGEditorUtils.h"
+#include "PCGEngineSettings.h"
 #include "PCGModule.h"
 #include "PCGSubsystem.h"
 #include "PCGVolumeFactory.h"
@@ -261,6 +262,76 @@ void FPCGEditorModule::RegisterMenuExtensions()
 			}
 			
 		}), FToolMenuInsert(NAME_None, EToolMenuInsertType::Default));
+	}
+
+	if (UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.LevelEditorToolBar.PlayToolBar"))
+	{
+		FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("Play");
+
+		if (const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>())
+		{
+			if (EditorSettings->bShowPauseButton)
+			{
+				FToolMenuEntry PCGPauseButton = FToolMenuEntry::InitToolBarButton(
+					"PCGPauseButton",
+					FUIAction(
+						FExecuteAction::CreateLambda([]()
+						{
+							const bool bWasPaused = PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread();
+
+							if (bWasPaused)
+							{
+								bool bShouldCancelAll = true;
+
+								if (FSlateApplication::Get().GetModifierKeys().IsControlDown())
+								{
+									bShouldCancelAll = false;
+								}
+								else if (FSlateApplication::Get().GetModifierKeys().IsAltDown())
+								{
+									bShouldCancelAll = true;
+								}
+								else if (const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>())
+								{
+									bShouldCancelAll = EditorSettings->bUnpauseCancelsAll;
+								}
+
+								if (bShouldCancelAll)
+								{
+									if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
+									{
+										PCGSubsystem->CancelAllGeneration();
+									}
+								}
+							}
+
+							PCGComponent::CVarPausePCGExecution->Set(!bWasPaused);
+						}),
+						FIsActionButtonVisible::CreateLambda([](){ return true; }),
+						FIsActionChecked::CreateLambda([]()
+						{
+							return PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread();
+						})
+					),
+					TAttribute<FText>::CreateLambda([]()
+					{
+						if(PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread())
+						{
+							return LOCTEXT("PCGPauseButton_Off", "Paused");
+						}
+						else
+						{
+							return LOCTEXT("PCGPauseButton_On", "PCG");
+						}
+					}),
+					LOCTEXT("PCGPauseButton_Tooltip", "Toggles PCG processing on/off and will cancel tasks depending on settings.\nUse Ctrl to unpause without cancelling all tasks.\nUse Alt to unpause and cancel all tasks."),
+					FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.EditorIcon"),
+					EUserInterfaceActionType::ToggleButton
+				);
+				PCGPauseButton.StyleNameOverride = "CalloutToolbar"; // used to show the button text
+				Section.AddEntry(PCGPauseButton);
+			}
+		}
 	}
 }
 

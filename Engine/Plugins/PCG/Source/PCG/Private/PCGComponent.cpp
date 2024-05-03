@@ -69,6 +69,13 @@ namespace PCGComponent
 		false,
 		TEXT("Disable refresh for all PCG Components."));
 
+#if WITH_EDITOR
+	TAutoConsoleVariable<bool> CVarPausePCGExecution(
+		TEXT("pcg.PauseExecution"),
+		false,
+		TEXT("Pauses all execution of PCG but does not cancel tasks."));
+#endif
+
 	template <typename DelegateType>
 	static void BroadcastDynamicDelegate(const DelegateType& Delegate, UPCGComponent* PCGComponent)
 	{

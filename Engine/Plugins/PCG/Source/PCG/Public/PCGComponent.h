@@ -76,6 +76,13 @@ enum class EPCGComponentDirtyFlag : uint8
 };
 ENUM_CLASS_FLAGS(EPCGComponentDirtyFlag);
 
+namespace PCGComponent
+{
+#if WITH_EDITOR
+	extern PCG_API TAutoConsoleVariable<bool> CVarPausePCGExecution;
+#endif
+}
+
 UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (BlueprintSpawnableComponent, PrioritizeCategories = "PCG"))
 class PCG_API UPCGComponent : public UActorComponent
 {

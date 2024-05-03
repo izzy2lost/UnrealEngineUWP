@@ -600,6 +600,13 @@ void FPCGGraphExecutor::Execute()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::Execute);
 
+#if WITH_EDITOR
+	if (PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread())
+	{
+		return;
+	}
+#endif // WITH_EDITOR
+
 	// Process any newly scheduled graphs to execute
 	ScheduleLock.Lock();
 
