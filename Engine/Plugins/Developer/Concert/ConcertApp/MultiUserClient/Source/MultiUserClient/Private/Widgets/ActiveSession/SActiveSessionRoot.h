@@ -24,7 +24,7 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		static const FName OverviewTabId;
+		static const FName SessionOverviewTabId;
 		static const FName ReplicationTabId;
 
 		SLATE_BEGIN_ARGS(SActiveSessionRoot)
@@ -40,7 +40,7 @@ namespace UE::MultiUserClient
 		TSharedPtr<FTabManager> TabManager;
 		
 		void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FWorkspaceItem>& AppMenuGroup, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
-		TSharedRef<SDockTab> SpawnTab_Overview(const FSpawnTabArgs& Args);
+		TSharedRef<SDockTab> SpawnTab_SessionOverview(const FSpawnTabArgs& Args);
 		TSharedRef<SDockTab> SpawnTab_ReplicationControls(const FSpawnTabArgs& Args, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 	};
 }

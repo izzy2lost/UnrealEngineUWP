@@ -55,11 +55,8 @@ namespace UE::ConcertSharedSlate
 	/** Params for creating a IReplicationStreamViewer. */
 	struct FCreateViewerParams
 	{
-		/** Required. Displays the properties in a tree view. You can pass in e.g. custom UI with advanced filtering. */
-		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateSearchablePropertyTreeView();
-
 		/** Required. In the lower half of the editor, this view presents the properties associated with the object that is currently selected in the upper part of the view. */
-		TSharedRef<IPropertyAssignmentView> PropertyAssignmentView = CreatePerObjectAssignmentView(); // TODO DP: Change this to the matrix view
+		TSharedRef<IPropertyAssignmentView> PropertyAssignmentView = CreatePerObjectAssignmentView();
 		
 		/**
 		 * Optional. Determines the objects displayed as children to the top-level objects in the top section.
@@ -87,8 +84,6 @@ namespace UE::ConcertSharedSlate
 		/** Optional widget to add to the right of the object list search bar. */
 		TAlwaysValidWidget RightOfObjectSearchBar;
 	};
-
-	// TODO DP 5.5: Create factory function that uses FCreateViewerParams and creates an IReplicationStreamViewer
 
 	/** Params for creating an IReplicationStreamEditor */
 	struct FCreateEditorParams
@@ -144,9 +139,9 @@ namespace UE::ConcertSharedSlate
 		/**
 		 * This model consolidates all objects in all streams.
 		 * 
-		 * When an object is added
-		 * - to one of the streams,
-		 * - via the "add" button,
+		 * When an object is added (i.e. IEditableReplicationStreamModel::OnObjectsChanged broadcasts), e.g. when
+		 * - to an object is added to one of the managed streams (e.g. stream is remotely changed),
+		 * - via the "Add" button,
 		 * it is added here, too. 
 		 * This is needed for the internal operation of the multi view.
 		 *
@@ -168,7 +163,7 @@ namespace UE::ConcertSharedSlate
 		 */
 		TSharedRef<IPropertySelectionSourceModel> PropertySource;
 
-		/** Optional. If set, the Add Actor button should automatically assign the added object to stream returned */
+		/** Optional. If set, the Add button should automatically assign the added object to stream returned by this callback. */
 		FGetAutoAssignTarget GetAutoAssignToStreamDelegate;
 	};
 

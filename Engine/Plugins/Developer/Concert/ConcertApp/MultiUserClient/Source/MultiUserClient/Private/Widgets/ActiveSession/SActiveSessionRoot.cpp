@@ -16,7 +16,7 @@
 
 namespace UE::MultiUserClient
 {
-	const FName SActiveSessionRoot::OverviewTabId(TEXT("OverviewTabId"));
+	const FName SActiveSessionRoot::SessionOverviewTabId(TEXT("OverviewTabId"));
 	const FName SActiveSessionRoot::ReplicationTabId(TEXT("ReplicationTabId"));
 	
 	void SActiveSessionRoot::Construct(
@@ -42,9 +42,9 @@ namespace UE::MultiUserClient
 				->Split
 				(
 					FTabManager::NewStack()
-					->AddTab(OverviewTabId, ETabState::OpenedTab)
+					->AddTab(SessionOverviewTabId, ETabState::OpenedTab)
 					->AddTab(ReplicationTabId, ETabState::OpenedTab)
-					->SetForegroundTab(OverviewTabId)
+					->SetForegroundTab(SessionOverviewTabId)
 					->SetHideTabWell(false)
 					)
 			);
@@ -82,7 +82,7 @@ namespace UE::MultiUserClient
 		TSharedRef<FMultiUserReplicationManager> InReplicationManager
 		)
 	{
-		InTabManager->RegisterTabSpawner(OverviewTabId, FOnSpawnTab::CreateSP(this, &SActiveSessionRoot::SpawnTab_Overview))
+		InTabManager->RegisterTabSpawner(SessionOverviewTabId, FOnSpawnTab::CreateSP(this, &SActiveSessionRoot::SpawnTab_SessionOverview))
 			.SetDisplayName(LOCTEXT("OverviewTab.DisplayName", "Overview"))
 			.SetGroup(AppMenuGroup);
 	
@@ -91,11 +91,11 @@ namespace UE::MultiUserClient
 			.SetGroup(AppMenuGroup);
 	}
 
-	TSharedRef<SDockTab> SActiveSessionRoot::SpawnTab_Overview(const FSpawnTabArgs& Args)
+	TSharedRef<SDockTab> SActiveSessionRoot::SpawnTab_SessionOverview(const FSpawnTabArgs& Args)
 	{
 		return SNew(SDockTab)
-			.Label(LOCTEXT("OverviewTab.Label", "Overview"))
-			.ToolTipText(LOCTEXT("OverviewTab.Tooltip", "Displays active session clients and activity."))
+			.Label(LOCTEXT("SessionOverviewTab.Label", "Session"))
+			.ToolTipText(LOCTEXT("SessionOverviewTab.Tooltip", "Displays active session clients and activity."))
 			[
 				SNew(SActiveSessionOverviewTab, ConcertSyncClient)
 			];
