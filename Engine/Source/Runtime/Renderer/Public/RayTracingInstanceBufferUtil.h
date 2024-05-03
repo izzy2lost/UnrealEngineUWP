@@ -127,6 +127,7 @@ RENDERER_API void BuildRayTracingInstanceBuffer(
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
 	const FRayTracingCullingParameters* CullingParameters,
+	FUnorderedAccessViewRHIRef OutputStatsUAV,
 	FUnorderedAccessViewRHIRef DebugInstanceGPUSceneIndexUAV);
 
 UE_DEPRECATED(5.5, "GPUInstances no longer supported. Use GPUSceneInstances instead.")
@@ -148,6 +149,7 @@ inline void BuildRayTracingInstanceBuffer(
 		InstancesUAV, InstanceUploadSRV, AccelerationStructureAddressesSRV, CPUInstanceTransformSRV,
 		NumNativeGPUSceneInstances, NumNativeCPUInstances,
 		CullingParameters,
+		nullptr,
 		DebugInstanceGPUSceneIndexUAV);
 }
 

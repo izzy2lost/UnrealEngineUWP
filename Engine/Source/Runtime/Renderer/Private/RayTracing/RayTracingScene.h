@@ -11,6 +11,7 @@
 #include "Math/DoubleFloat.h"
 #include "RHI.h"
 #include "RHIUtilities.h"
+#include "RHIGPUReadback.h"
 #include "RenderGraphResources.h"
 #include "Misc/MemStack.h"
 #include "Containers/ArrayView.h"
@@ -171,6 +172,16 @@ private:
 	bool bInstanceDebugDataEnabled = false;
 
 	bool bUsedThisFrame = false;
+
+#if STATS
+	const uint32 MaxReadbackBuffers = 4;
+
+	TArray<FRHIGPUBufferReadback*> StatsReadbackBuffers;
+	uint32 StatsReadbackBuffersWriteIndex = 0;
+	uint32 StatsReadbackBuffersNumPending = 0;
+
+	uint32 NumActiveInstances = 0;
+#endif
 };
 
 #endif // RHI_RAYTRACING

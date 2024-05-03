@@ -28,6 +28,7 @@ static TAutoConsoleVariable<int32> CVarRayTracingSceneBuildMode(
 
 BEGIN_SHADER_PARAMETER_STRUCT(FBuildInstanceBufferPassParams, )
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, InstanceBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, OutputStats)
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, DebugInstanceGPUSceneIndexBuffer)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 END_SHADER_PARAMETER_STRUCT()
@@ -174,6 +175,12 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		}
 	}
 
+#if STATS
+	FRDGBufferRef OutputStatsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("FRayTracingScene::OutputStatsBuffer"));
+	FRDGBufferUAVRef OutputStatsBufferUAV = GraphBuilder.CreateUAV(OutputStatsBuffer);
+	AddClearUAVPass(GraphBuilder, OutputStatsBufferUAV, 0);
+#endif
+
 	FRDGBufferUAVRef DebugInstanceGPUSceneIndexBufferUAV = nullptr;
 	if (bNeedsDebugInstanceGPUSceneIndexBuffer)
 	{
@@ -234,6 +241,10 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		PassParams->DebugInstanceGPUSceneIndexBuffer = DebugInstanceGPUSceneIndexBufferUAV;
 		PassParams->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 
+#if STATS
+		PassParams->OutputStats = OutputStatsBufferUAV;
+#endif
+
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("RayTracingBuildInstanceBuffer"),
 			PassParams,
@@ -287,9 +298,62 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 					NumNativeGPUSceneInstances,
 					NumNativeCPUInstances,
 					CullingParameters.bUseInstanceCulling ? &CullingParameters : nullptr,
+					PassParams->OutputStats ? PassParams->OutputStats->GetRHI() : nullptr,
 					PassParams->DebugInstanceGPUSceneIndexBuffer ? PassParams->DebugInstanceGPUSceneIndexBuffer->GetRHI() : nullptr);
 			});
 	}
+
+#if STATS
+	// readback
+	{
+		//  if necessary create readback buffers
+		if (StatsReadbackBuffers.IsEmpty())
+		{
+			StatsReadbackBuffers.SetNum(MaxReadbackBuffers);
+
+			for (uint32 Index = 0; Index < MaxReadbackBuffers; ++Index)
+			{
+				StatsReadbackBuffers[Index] = new FRHIGPUBufferReadback(TEXT("FRayTracingScene::StatsReadbackBuffer"));
+			}
+		}
+		
+		// copy stats to readback buffer
+		{
+			AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("FRayTracingScene::StatsReadback"), OutputStatsBuffer,
+				[ReadbackBuffer = StatsReadbackBuffers[StatsReadbackBuffersWriteIndex], OutputStatsBuffer](FRHICommandList& RHICmdList)
+				{
+					ReadbackBuffer->EnqueueCopy(RHICmdList, OutputStatsBuffer->GetRHI(), 0u);
+				});
+
+			StatsReadbackBuffersWriteIndex = (StatsReadbackBuffersWriteIndex + 1u) % MaxReadbackBuffers;
+			StatsReadbackBuffersNumPending = FMath::Min(StatsReadbackBuffersNumPending + 1u, MaxReadbackBuffers);
+		}
+
+		// process ready results
+		while (StatsReadbackBuffersNumPending > 0)
+		{
+			uint32 Index = (StatsReadbackBuffersWriteIndex + MaxReadbackBuffers - StatsReadbackBuffersNumPending) % MaxReadbackBuffers;
+			FRHIGPUBufferReadback* ReadbackBuffer = StatsReadbackBuffers[Index];
+			if (ReadbackBuffer->IsReady())
+			{
+				StatsReadbackBuffersNumPending--;
+
+				auto ReadbackBufferPtr = (const uint32*)ReadbackBuffer->Lock(sizeof(uint32));
+
+				NumActiveInstances = ReadbackBufferPtr[0];
+
+				ReadbackBuffer->Unlock();
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		SET_DWORD_STAT(STAT_RayTracingTotalInstances, NumNativeInstances);
+		SET_DWORD_STAT(STAT_RayTracingActiveInstances, FMath::Min(NumActiveInstances, NumNativeInstances));
+	}
+#endif
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FRayTracingSceneBuildPassParams, )
@@ -458,6 +522,20 @@ void FRayTracingScene::EndFrame()
 
 		RayTracingSceneBuffer = nullptr;
 		RayTracingScenePooledBuffer = nullptr;
+
+#if STATS
+		for (auto& ReadbackBuffer : StatsReadbackBuffers)
+		{
+			delete ReadbackBuffer;
+		}
+
+		StatsReadbackBuffers.Empty();
+
+		StatsReadbackBuffersWriteIndex = 0;
+		StatsReadbackBuffersNumPending = 0;
+
+		NumActiveInstances = 0;
+#endif
 	}
 
 	bUsedThisFrame = false;

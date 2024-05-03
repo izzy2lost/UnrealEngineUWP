@@ -141,8 +141,6 @@ void FillRayTracingInstanceUploadBuffer(
 		LayerBaseIndices[LayerIndex] = LayerBaseIndices[LayerIndex - 1] + SceneInitializer.NumNativeInstancesPerLayer[LayerIndex - 1];
 	}
 
-	int32 NumInactiveNativeInstances = 0;
-
 	const int32 NumSceneInstances = Instances.Num();
 	const int32 MinBatchSize = 128;
 	ParallelFor(
@@ -160,8 +158,7 @@ void FillRayTracingInstanceUploadBuffer(
 			BaseInstancePrefixSum,
 			LayerBaseIndices,
 			PreViewTranslation,
-			&SceneInitializer,
-			&NumInactiveNativeInstances
+			&SceneInitializer
 		](int32 SceneInstanceIndex)
 		{
 			const FRayTracingGeometryInstance& SceneInstance = Instances[SceneInstanceIndex];
@@ -191,7 +188,6 @@ void FillRayTracingInstanceUploadBuffer(
 				BaseDescriptorIndex += NumNativeGPUSceneInstances;
 			}
 
-			int32 NumInactiveNativeInstancesThisSceneInstance = 0;
 			for (uint32 TransformIndex = 0; TransformIndex < NumTransforms; ++TransformIndex)
 			{
 				FRayTracingInstanceDescriptorInput InstanceDesc;
@@ -250,22 +246,7 @@ void FillRayTracingInstanceUploadBuffer(
 
 				OutInstanceUploadData[BaseDescriptorIndex + TransformIndex] = InstanceDesc;
 			}
-
-#if STATS
-			FPlatformAtomics::InterlockedAdd(&NumInactiveNativeInstances, NumInactiveNativeInstancesThisSceneInstance);
-#endif
 		});
-
-#if STATS
-	uint32 TotalNumNativeInstances = 0;
-	for (uint32 NumNativeInstances : SceneInitializer.NumNativeInstancesPerLayer)
-	{
-		TotalNumNativeInstances += NumNativeInstances;
-	}
-
-	SET_DWORD_STAT(STAT_RayTracingTotalInstances, TotalNumNativeInstances);
-	SET_DWORD_STAT(STAT_RayTracingActiveInstances, TotalNumNativeInstances - NumInactiveNativeInstances);
-#endif
 }
 
 struct FRayTracingBuildInstanceBufferCS : public FGlobalShader
@@ -300,6 +281,8 @@ struct FRayTracingBuildInstanceBufferCS : public FGlobalShader
 		SHADER_PARAMETER(FVector3f, ViewOrigin)
 		SHADER_PARAMETER(uint32, CullingMode)
 
+		SHADER_PARAMETER_UAV(RWStructuredBuffer<uint>, RWOutputStats)
+
 		// Debug parameters
 		SHADER_PARAMETER_UAV(RWStructuredBuffer<uint>, RWDebugInstanceGPUSceneIndices)
 	END_SHADER_PARAMETER_STRUCT()
@@ -307,7 +290,9 @@ struct FRayTracingBuildInstanceBufferCS : public FGlobalShader
 	class FUseGPUSceneDim : SHADER_PERMUTATION_BOOL("USE_GPUSCENE");
 	class FOutputInstanceGPUSceneIndexDim : SHADER_PERMUTATION_BOOL("OUTPUT_INSTANCE_GPUSCENE_INDEX");
 	class FGpuCullingDim : SHADER_PERMUTATION_BOOL("GPU_CULLING");
-	using FPermutationDomain = TShaderPermutationDomain<FUseGPUSceneDim, FOutputInstanceGPUSceneIndexDim, FGpuCullingDim>;
+	class FOutputStatsDim : SHADER_PERMUTATION_BOOL("OUTPUT_STATS");
+	class FUseWaveOpsDim : SHADER_PERMUTATION_BOOL("USE_WAVE_OPS");
+	using FPermutationDomain = TShaderPermutationDomain<FUseGPUSceneDim, FOutputInstanceGPUSceneIndexDim, FGpuCullingDim, FOutputStatsDim, FUseWaveOpsDim>;
 		
 	static constexpr uint32 ThreadGroupSize = 64;
 
@@ -325,6 +310,13 @@ struct FRayTracingBuildInstanceBufferCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (PermutationVector.Get<FUseWaveOpsDim>() && !RHISupportsWaveOperations(Parameters.Platform))
+		{
+			return false;
+		}
+
 		return IsRayTracingEnabledForProject(Parameters.Platform);
 	}
 };
@@ -342,6 +334,7 @@ void BuildRayTracingInstanceBuffer(
 	FShaderResourceViewRHIRef AccelerationStructureAddressesSRV,
 	FShaderResourceViewRHIRef InstanceTransformSRV,
 	const FRayTracingCullingParameters* CullingParameters,
+	FUnorderedAccessViewRHIRef OutputStatsUAV,
 	FUnorderedAccessViewRHIRef DebugInstanceGPUSceneIndexUAV)
 {
 	FRayTracingBuildInstanceBufferCS::FParameters PassParams;
@@ -372,11 +365,15 @@ void BuildRayTracingInstanceBuffer(
 		PassParams.CullingMode = uint32(CullingParameters->CullingMode);
 	}
 
+	PassParams.RWOutputStats = OutputStatsUAV;
+
 	PassParams.RWDebugInstanceGPUSceneIndices = DebugInstanceGPUSceneIndexUAV;
 
 	FRayTracingBuildInstanceBufferCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRayTracingBuildInstanceBufferCS::FUseGPUSceneDim>(InstanceTransformSRV == nullptr);
 	PermutationVector.Set<FRayTracingBuildInstanceBufferCS::FOutputInstanceGPUSceneIndexDim>(DebugInstanceGPUSceneIndexUAV != nullptr);
+	PermutationVector.Set<FRayTracingBuildInstanceBufferCS::FOutputStatsDim>(OutputStatsUAV != nullptr);
+	PermutationVector.Set<FRayTracingBuildInstanceBufferCS::FUseWaveOpsDim>(GRHISupportsWaveOperations);
 	PermutationVector.Set<FRayTracingBuildInstanceBufferCS::FGpuCullingDim>(CullingParameters != nullptr);
 
 	auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FRayTracingBuildInstanceBufferCS>(PermutationVector);
@@ -404,6 +401,7 @@ void BuildRayTracingInstanceBuffer(
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
 	const FRayTracingCullingParameters* CullingParameters,
+	FUnorderedAccessViewRHIRef OutputStatsUAV,
 	FUnorderedAccessViewRHIRef DebugInstanceGPUSceneIndexUAV)
 {
 	if (NumNativeGPUSceneInstances > 0)
@@ -419,6 +417,7 @@ void BuildRayTracingInstanceBuffer(
 			AccelerationStructureAddressesSRV,
 			nullptr,
 			CullingParameters,
+			OutputStatsUAV,
 			DebugInstanceGPUSceneIndexUAV);
 	}
 
@@ -435,6 +434,7 @@ void BuildRayTracingInstanceBuffer(
 			AccelerationStructureAddressesSRV,
 			CPUInstanceTransformSRV,
 			nullptr,
+			OutputStatsUAV,
 			nullptr);
 	}
 }
