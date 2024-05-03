@@ -3,6 +3,8 @@
 using UnrealBuildTool;
 using System;
 using System.IO;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 public class Core : ModuleRules
 {
@@ -346,6 +348,8 @@ public class Core : ModuleRules
 		IWYUSupport = IWYUSupport.KeepAsIs;
 
 		bAllowAutoRTFMInstrumentation = true;
+
+		PrivateDefinitions.Add("UE_PERSISTENT_ALLOCATOR_RESERVE_SIZE=" + GetPersistentAllocatorReserveSize().ToString() + "ULL");
 	}
 
 	protected virtual bool SupportsBinaryConfig(ReadOnlyTargetRules Target)
@@ -363,5 +367,31 @@ public class Core : ModuleRules
 			 Target.Platform == UnrealTargetPlatform.Linux ||
 			 Target.Platform == UnrealTargetPlatform.LinuxArm64 ||
 			 Target.Platform == UnrealTargetPlatform.Win64);
+	}
+
+	private ulong ReadPersistentAllocatorReserveSize(ConfigHierarchyType ConfigHierarchy)
+	{
+		ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchy, DirectoryReference.FromFile(Target.ProjectFile), Target.Platform);
+		int SizeOfPermanentObjectPool = 0;
+		if (Ini.GetInt32("/Script/Engine.GarbageCollectionSettings", "gc.SizeOfPermanentObjectPool", out SizeOfPermanentObjectPool))
+		{
+			Target.Logger.LogWarning("/Script/Engine.GarbageCollectionSettings, gc.SizeOfPermanentObjectPool ini for Project {0} setting was deprecated in a favor of MemoryPools, PersistentAllocatorReserveSizeMB", Target.ProjectFile.ToString());
+		}
+		int PersistentAllocatorReserveSizeMB = 0;
+		Ini.GetInt32("MemoryPools", "PersistentAllocatorReserveSizeMB", out PersistentAllocatorReserveSizeMB);
+		return (ulong)PersistentAllocatorReserveSizeMB * 1024 * 1024;
+	}
+
+	private ulong GetPersistentAllocatorReserveSize()
+	{
+		ConfigHierarchyType ConfigHierarchy = Target.Type == TargetType.Editor ? ConfigHierarchyType.Editor : ConfigHierarchyType.Engine;
+		ulong PersistentAllocatorReserveSizeMB = ReadPersistentAllocatorReserveSize(ConfigHierarchy);
+		if (PersistentAllocatorReserveSizeMB == 0 && ConfigHierarchy == ConfigHierarchyType.Editor)
+		{
+			// if Editor doesn't define PersistentAllocatorReserveSizeMB, read the one from the Engine and simply double it
+			PersistentAllocatorReserveSizeMB = ReadPersistentAllocatorReserveSize(ConfigHierarchyType.Engine) * 2;
+		}
+
+		return PersistentAllocatorReserveSizeMB;
 	}
 }

@@ -1,0 +1,132 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Memory/LinearVirtualMemoryAllocator.h"
+
+
+CORE_API FLinearVirtualMemoryAllocatorExtends GPersistentLinearAllocatorExtends;
+
+static struct FInitializer
+{
+	FInitializer()
+	{
+		GPersistentLinearAllocatorExtends.Address = (uint64)GetPersistentLinearAllocator().GetBasePointer();
+		GPersistentLinearAllocatorExtends.Size = (uint64)GetPersistentLinearAllocator().GetReservedMemorySize();
+	}
+} Initializer;
+
+
+#if PLATFORM_HAS_FPlatformVirtualMemoryBlock
+
+#include "CoreGlobals.h"
+#include "Misc/ScopeLock.h"
+#include "HAL/LowLevelMemTracker.h"
+
+FLinearVirtualMemoryAllocator::FLinearVirtualMemoryAllocator(SIZE_T ReserveMemorySize)
+	: Reserved(ReserveMemorySize)
+{
+	if (FPlatformMemory::CanOverallocateVirtualMemory() && ReserveMemorySize)
+	{
+		VirtualMemory = VirtualMemory.AllocateVirtual(ReserveMemorySize);
+		if (!VirtualMemory.GetVirtualPointer())
+		{
+			UE_LOG(LogMemory, Warning, TEXT("LinearVirtualMemoryAllocator failed to reserve %u MB and will default to FMemory::Malloc instead"), ReserveMemorySize / 1024 / 1024);
+			Reserved = 0;
+		}
+	}
+	else
+	{
+#if PLATFORM_IOS || PLATFORM_TVOS
+		UE_LOG(LogMemory, Warning, TEXT("LinearVirtualMemoryAllocator requires com.apple.developer.kernel.extended-virtual-addressing entitlement to work"));
+#else
+		UE_LOG(LogMemory, Warning, TEXT("This platform does not allow to allocate more virtual memory than there is physical memory. LinearVirtualMemoryAllocator will default to FMemory::Malloc instead"));
+#endif
+		Reserved = 0;
+	}
+
+	GPersistentLinearAllocatorExtends.Address = (uint64)VirtualMemory.GetVirtualPointer();
+	GPersistentLinearAllocatorExtends.Size = (uint64)Reserved;
+}
+
+void* FLinearVirtualMemoryAllocator::Allocate(SIZE_T Size, uint32 Alignment)
+{
+	Alignment = FMath::Max(Alignment, 8u);
+	{
+		void* Mem = nullptr;
+		{
+			FScopeLock AutoLock(&Lock);
+			if (CanFit(Size, Alignment))
+			{
+				CurrentOffset = Align(CurrentOffset, Alignment);
+				const SIZE_T NewOffset = CurrentOffset + Size;
+				if (NewOffset > Committed)
+				{
+					LLM_PLATFORM_SCOPE(ELLMTag::FMalloc);
+					const size_t CommitGranularity = UE_USE_VERYLARGEPAGEALLOCATOR ? 2ul * 1024 * 1024 : 65536ul;
+					const SIZE_T ToCommit = Align(NewOffset - Committed, FMath::Max(VirtualMemory.GetCommitAlignment(), CommitGranularity));
+					VirtualMemory.Commit(Committed, ToCommit);
+					Committed += ToCommit;
+					LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, (uint8*)VirtualMemory.GetVirtualPointer() + CurrentOffset, ToCommit));
+				}
+				Mem = (uint8*)VirtualMemory.GetVirtualPointer() + CurrentOffset;
+				CurrentOffset += Size;
+			}
+		}
+		if (Mem)
+		{
+			LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, Mem, Size, ELLMTag::Untagged, ELLMAllocType::FMalloc));
+			return Mem;
+		}
+	}
+
+	ExceedsReservation.fetch_add(Size, std::memory_order_relaxed);
+	return FMemory::Malloc(Size, Alignment);
+}
+
+void FLinearVirtualMemoryAllocator::PreAllocate(SIZE_T Size, uint32 Alignment)
+{
+	Alignment = FMath::Max(Alignment, 8u);
+
+	FScopeLock AutoLock(&Lock);
+	if (CanFit(Size, Alignment))
+	{
+		CurrentOffset = Align(CurrentOffset, Alignment);
+		const SIZE_T NewOffset = CurrentOffset + Size;
+		if (NewOffset > Committed)
+		{
+			const SIZE_T ToCommit = Align(NewOffset - Committed, VirtualMemory.GetCommitAlignment());
+			VirtualMemory.Commit(Committed, ToCommit);
+			Committed += ToCommit;
+		}
+	}
+}
+
+bool FLinearVirtualMemoryAllocator::TryDeallocate(void* Ptr, SIZE_T Size)
+{
+	if (ContainsPointer(Ptr))
+	{
+		FScopeLock AutoLock(&Lock);
+		if ((uint8*)Ptr + Size == (uint8*)VirtualMemory.GetVirtualPointer() + CurrentOffset)
+		{
+			LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Default, Ptr, ELLMAllocType::FMalloc));
+			CurrentOffset -= Size;
+			return true;
+		}
+
+		return false;
+	}
+
+	FMemory::Free(Ptr);
+	return true;
+}
+
+bool FLinearVirtualMemoryAllocator::CanFit(SIZE_T Size, uint32 Alignment) const
+{
+	return (Reserved - Align(CurrentOffset, Alignment)) >= Size;
+}
+
+FLinearVirtualMemoryAllocator& GetPersistentLinearAllocator()
+{
+	static FLinearVirtualMemoryAllocator GPersistentLinearAllocator(UE_PERSISTENT_ALLOCATOR_RESERVE_SIZE);
+	return GPersistentLinearAllocator;
+}
+#endif //~PLATFORM_HAS_FPlatformVirtualMemoryBlock

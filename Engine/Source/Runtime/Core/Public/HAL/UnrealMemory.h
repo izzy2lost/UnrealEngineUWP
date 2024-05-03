@@ -277,12 +277,25 @@ struct FMemory
 	* Functions to handle special memory given to the title from the platform
 	* This memory is allocated like a stack, it's never really freed
 	*/
-	static CORE_API void RegisterPersistentAuxiliary(void* InMemory, SIZE_T InSize);
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
+	static inline void RegisterPersistentAuxiliary(void* /*InMemory*/, SIZE_T /*InSize*/) {}
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API void* MallocPersistentAuxiliary(SIZE_T InSize, uint32 InAlignment = 0);
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API void FreePersistentAuxiliary(void* InPtr);
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API bool IsPersistentAuxiliaryActive();
-	static CORE_API void DisablePersistentAuxiliary();
-	static CORE_API void EnablePersistentAuxiliary();
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
+	static inline void DisablePersistentAuxiliary() {}
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
+	static inline void EnablePersistentAuxiliary() {}
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API SIZE_T GetUsedPersistentAuxiliary();
 private:
 	static CORE_API void GCreateMalloc();

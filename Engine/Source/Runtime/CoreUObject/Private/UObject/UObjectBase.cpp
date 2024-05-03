@@ -984,7 +984,6 @@ void UObjectBaseInit()
 
 	// Zero initialize and later on get value from .ini so it is overridable per game/ platform...
 	int32 MaxObjectsNotConsideredByGC = 0;
-	int32 SizeOfPermanentObjectPool = 0;
 	int32 MaxUObjects = 2 * 1024 * 1024; // Default to ~2M UObjects
 	bool bPreAllocateUObjectArray = false;	
 
@@ -1002,9 +1001,6 @@ void UObjectBaseInit()
 		else
 		{
 			GConfig->GetInt(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.MaxObjectsNotConsideredByGC"), MaxObjectsNotConsideredByGC, GEngineIni);
-
-			// Not used on PC as in-place creation inside bigger pool interacts with the exit purge and deleting UObject directly.
-			GConfig->GetInt(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.SizeOfPermanentObjectPool"), SizeOfPermanentObjectPool, GEngineIni);
 		}
 
 		// Maximum number of UObjects in cooked game
@@ -1023,25 +1019,14 @@ void UObjectBaseInit()
 		// Maximum number of UObjects in the editor
 		GConfig->GetInt(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.MaxObjectsInEditor"), MaxUObjects, GEngineIni);
 #endif
-	}
 
-	if (MaxObjectsNotConsideredByGC <= 0 && SizeOfPermanentObjectPool > 0)
-	{
-		// If permanent object pool is enabled but disregard for GC is disabled, GC will mark permanent object pool objects
-		// as unreachable and may destroy them so disable permanent object pool too.
-		// An alternative would be to make GC not mark permanent object pool objects as unreachable but then they would have to
-		// be considered as root set objects because they could be referencing objects from outside of permanent object pool.
-		// This would be inconsistent and confusing and also counter productive (the more root set objects the more expensive MarkAsUnreachable phase is).
-		SizeOfPermanentObjectPool = 0;
-		UE_LOG(LogInit, Warning, TEXT("Disabling permanent object pool because disregard for GC is disabled (gc.MaxObjectsNotConsideredByGC=%d)."), MaxObjectsNotConsideredByGC);
+		GUObjectAllocator.DisablePersistentAllocator();
 	}
 
 	// Log what we're doing to track down what really happens as log in LaunchEngineLoop doesn't report those settings in pristine form.
-	UE_LOG(LogInit, Log, TEXT("%s for max %d objects, including %i objects not considered by GC, pre-allocating %i bytes for permanent pool."), 
-		bPreAllocateUObjectArray ? TEXT("Pre-allocating") : TEXT("Presizing"),
-		MaxUObjects, MaxObjectsNotConsideredByGC, SizeOfPermanentObjectPool);
+	UE_LOG(LogInit, Log, TEXT("%s for max %d objects, including %i objects not considered by GC."), 
+		bPreAllocateUObjectArray ? TEXT("Pre-allocating") : TEXT("Presizing"), MaxUObjects, MaxObjectsNotConsideredByGC);
 
-	GUObjectAllocator.AllocatePermanentObjectPool(SizeOfPermanentObjectPool);
 	GUObjectArray.AllocateObjectPool(MaxUObjects, MaxObjectsNotConsideredByGC, bPreAllocateUObjectArray);
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	UE::CoreUObject::Private::InitObjectHandles(GUObjectArray.GetObjectArrayCapacity());
