@@ -174,6 +174,22 @@ void FNetworkPhysicsCallback::ProcessInputs_Internal(int32 PhysicsStep, const TA
 	PostProcessInputsInternal.Broadcast(PhysicsStep);
 }
 
+void FNetworkPhysicsCallback::PreResimStep_Internal(int32 PhysicsStep, bool bFirst)
+{
+	if (bFirst)
+	{
+		for (Chaos::ISimCallbackObject* SimCallbackObject : RewindableCallbackObjects)
+		{
+			SimCallbackObject->FirstPreResimStep_Internal(PhysicsStep);
+		}
+	}
+}
+
+void FNetworkPhysicsCallback::PostResimStep_Internal(int32 PhysicsStep)
+{
+
+}
+
 int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCompleted)
 {
 	int32 ResimFrame = INDEX_NONE;

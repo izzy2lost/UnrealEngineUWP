@@ -319,6 +319,8 @@ struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 	virtual void ProcessInputs_External(int32 PhysicsStep, const TArray<Chaos::FSimCallbackInputAndObject>& SimCallbackInputs);
 	virtual void ProcessInputs_Internal(int32 PhysicsStep, const TArray<Chaos::FSimCallbackInputAndObject>& SimCallbackInputs) override;
 	virtual void ApplyCallbacks_Internal(int32 PhysicsStep, const TArray<Chaos::ISimCallbackObject*>& SimCallbackObjects) override;
+	virtual void PreResimStep_Internal(int32 PhysicsStep, bool bFirst) override;
+	virtual void PostResimStep_Internal(int32 PhysicsStep) override;
 	virtual int32 TriggerRewindIfNeeded_Internal(int32 LatestStepCompleted) override;
 	virtual void RegisterRewindableSimCallback_Internal(Chaos::ISimCallbackObject* SimCallbackObject) override
 	{
