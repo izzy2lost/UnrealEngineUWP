@@ -975,6 +975,8 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 		return 0;
 	}
 
+	static constexpr bool bSorted = true;
+	
 	const TArray<AActor*> Selection = GetCurrentSelection();
 
 	const bool bIsConstraintsActor = Selection.Num() == 1 && Selection[0]->IsA<AConstraintsActor>();
@@ -985,14 +987,7 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 		if (bIsConstraintsActor)
 		{
 			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-			static constexpr bool bSorted = true;
-			TArray< TObjectPtr<UTickableConstraint> > StaticConstraints;
-
-			StaticConstraints = Controller.GetStaticConstraints(bSorted);
-			for (TObjectPtr<UTickableConstraint>& Constraint : StaticConstraints)
-			{
-				Constraints.Add(Constraint);
-			}
+			Constraints = Controller.GetStaticConstraints(bSorted);
 		}
 		else
 		{
@@ -1000,6 +995,7 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 			{
 				FTransformConstraintUtils::GetParentConstraints(World, Actor, Constraints);
 			}
+			
 			//remove if not active...
 			for (int32 Index = Constraints.Num() - 1; Index >= 0; --Index)
 			{
@@ -1013,7 +1009,6 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 	else
 	{
 		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-		static constexpr bool bSorted = true;
 		Constraints = Controller.GetAllConstraints(bSorted);
 		if (ShowConstraints == EShowConstraints::ShowLevelSequence)
 		{

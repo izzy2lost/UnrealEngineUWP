@@ -277,7 +277,7 @@ public:
 	CONSTRAINTS_API TArray< TWeakObjectPtr<UTickableConstraint> > GetAllConstraints(const bool bSorted = false) const;
 
 	/** Returns the static/non-animated constraints*/
-	CONSTRAINTS_API TArray< TObjectPtr<UTickableConstraint> >GetStaticConstraints(const bool bSorted = false) const;
+	CONSTRAINTS_API TArray< TWeakObjectPtr<UTickableConstraint> > GetStaticConstraints(const bool bSorted = false) const;
 
 	/** Returns a filtered constraints array checking if the predicate for each element is true. */
 	template <typename Predicate>
