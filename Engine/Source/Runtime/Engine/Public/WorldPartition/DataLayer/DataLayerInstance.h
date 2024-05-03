@@ -34,6 +34,17 @@ enum class EDataLayerRuntimeState : uint8
 	Activated
 };
 
+UENUM(BlueprintType)
+enum class EOverrideBlockOnSlowStreaming : uint8
+{
+	// Uses default runtime partition 'Block on Slow Streaming' setting
+	NoOverride,
+	// Blocks on slow streaming (Overrides runtime partition 'Block on Slow Streaming' setting)
+	Blocking,
+	// Doesn't block on slow streaming (Overrides runtime partition 'Block on Slow Streaming' setting)
+	NotBlocking
+};
+
 const inline TCHAR* GetDataLayerRuntimeStateName(EDataLayerRuntimeState State)
 {
 	switch (State)
@@ -92,6 +103,7 @@ public:
 	ENGINE_API bool IsLoadedInEditorChangedByUserOperation() const { return bIsLoadedInEditorChangedByUserOperation; }
 	ENGINE_API virtual bool IsReadOnly(FText* OutReason = nullptr) const;
 	virtual bool IsIncludedInActorFilterDefault() const { return false; }
+	ENGINE_API EOverrideBlockOnSlowStreaming GetOverrideBlockOnSlowStreaming() const { return OverrideBlockOnSlowStreaming; }
 
 	// Data Layer Instance features support
 	ENGINE_API bool CanBeChildOf(const UDataLayerInstance* InParent, FText* OutReason = nullptr) const;
@@ -242,6 +254,9 @@ protected:
 	/** Whether this data layer is locked, which means the user can't change actors assignation, remove or rename it */
 	UPROPERTY()
 	uint32 bIsLocked : 1;
+
+	UPROPERTY(Category = "Runtime|Advanced", EditAnywhere)
+	EOverrideBlockOnSlowStreaming OverrideBlockOnSlowStreaming;
 #endif
 
 	/** Initial runtime state of this data layer instance. Only supported if it's runtime and not client/server only. */

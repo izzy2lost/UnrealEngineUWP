@@ -153,8 +153,10 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeCell->SetDataLayers(CellDescInstance.DataLayerInstances);
 		RuntimeCell->SetContentBundleUID(CellDescInstance.ContentBundleID);
 		RuntimeCell->SetClientOnlyVisible(CellDescInstance.bClientOnlyVisible);
-		RuntimeCell->SetBlockOnSlowLoading(CellDescInstance.bBlockOnSlowStreaming);
-		RuntimeCell->SetIsHLOD(CellDescInstance.SourcePartition->HLODIndex != INDEX_NONE);
+		const bool bIsHLOD = CellDescInstance.SourcePartition->HLODIndex != INDEX_NONE;
+		const bool bBlockOnSlowStreaming = ResolveBlockOnSlowStreamingForCell(CellDescInstance.bBlockOnSlowStreaming, bIsHLOD, CellDescInstance.DataLayerInstances);
+		RuntimeCell->SetBlockOnSlowLoading(bBlockOnSlowStreaming);
+		RuntimeCell->SetIsHLOD(bIsHLOD);
 		RuntimeCell->SetGuid(CellUniqueId.Guid);
 		RuntimeCell->SetCellDebugColor(CellDescInstance.SourcePartition->DebugColor);
 

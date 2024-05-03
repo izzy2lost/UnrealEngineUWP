@@ -1576,13 +1576,14 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 
 					const TArray<const UDataLayerInstance*>& DataLayers = GridCellDataChunk.GetDataLayers();
 					const bool bAreClientOnlyDataLayers = DataLayers.Num() && Algo::AllOf(DataLayers, [](const UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsClientOnly(); });
-
+					const bool bIsHLOD = RuntimeGrid.HLODLayer ? true : false;
+					const bool bBlockOnSlowStreaming = ResolveBlockOnSlowStreamingForCell(CurrentStreamingGrid.bBlockOnSlowStreaming, bIsHLOD, DataLayers);
 					StreamingCell->SetIsAlwaysLoaded(bIsCellAlwaysLoaded);
 					StreamingCell->SetDataLayers(DataLayers);
 					StreamingCell->SetContentBundleUID(GridCellDataChunk.GetContentBundleID());
 					StreamingCell->SetClientOnlyVisible(CurrentStreamingGrid.bClientOnlyVisible || bAreClientOnlyDataLayers);
-					StreamingCell->SetBlockOnSlowLoading(CurrentStreamingGrid.bBlockOnSlowStreaming);
-					StreamingCell->SetIsHLOD(RuntimeGrid.HLODLayer ? true : false);
+					StreamingCell->SetBlockOnSlowLoading(bBlockOnSlowStreaming);
+					StreamingCell->SetIsHLOD(bIsHLOD);
 					StreamingCell->SetGuid(CellGuid);
 
 					FBox2D Bounds;

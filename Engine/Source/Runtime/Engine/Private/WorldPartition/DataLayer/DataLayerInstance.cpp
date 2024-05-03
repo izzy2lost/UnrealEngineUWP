@@ -28,6 +28,7 @@ UDataLayerInstance::UDataLayerInstance(const FObjectInitializer& ObjectInitializ
 	, bIsInitiallyLoadedInEditor(true)
 	, bIsLoadedInEditor(true)
 	, bIsLocked(false)
+	, OverrideBlockOnSlowStreaming(EOverrideBlockOnSlowStreaming::NoOverride)
 #endif
 	, InitialRuntimeState(EDataLayerRuntimeState::Unloaded)
 {}

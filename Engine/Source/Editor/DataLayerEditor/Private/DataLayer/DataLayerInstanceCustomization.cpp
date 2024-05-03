@@ -46,6 +46,7 @@ void FDataLayerInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 	if (!bHasInitialRuntimeState)
 	{
 		DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDataLayerInstance, InitialRuntimeState));
+		DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDataLayerInstance, OverrideBlockOnSlowStreaming));
 	}
 
 	TSharedRef<IPropertyHandle> DataLayerAssetProperty = DetailBuilder.GetProperty("DataLayerAsset", UDataLayerInstanceWithAsset::StaticClass());

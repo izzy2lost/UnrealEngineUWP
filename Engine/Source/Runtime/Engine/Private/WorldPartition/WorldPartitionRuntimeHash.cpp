@@ -480,6 +480,30 @@ void UWorldPartitionRuntimeHash::ForceExternalActorLevelReference(bool bForceExt
 		}
 	}
 }
+
+bool UWorldPartitionRuntimeHash::ResolveBlockOnSlowStreamingForCell(bool bInOwnerBlockOnSlowStreaming, bool bInIsHLODCell, const TArray<const UDataLayerInstance*>& InCellDataLayerInstances) const
+{
+	if (bInIsHLODCell)
+	{
+		return false;
+	}
+
+	TOptional<bool> DataLayersOverrideBlockOnSlowStreaming;
+	for (const UDataLayerInstance* DataLayerInstance : InCellDataLayerInstances)
+	{
+		if (DataLayerInstance->GetOverrideBlockOnSlowStreaming() != EOverrideBlockOnSlowStreaming::NoOverride)
+		{
+			bool bIsBlocking = DataLayerInstance->GetOverrideBlockOnSlowStreaming() == EOverrideBlockOnSlowStreaming::Blocking;
+			DataLayersOverrideBlockOnSlowStreaming = bIsBlocking;
+			if (bIsBlocking)
+			{
+				break;
+			}
+		}
+	}
+	const bool bBlockOnSlowStreaming = DataLayersOverrideBlockOnSlowStreaming.IsSet() ? DataLayersOverrideBlockOnSlowStreaming.GetValue() : bInOwnerBlockOnSlowStreaming;
+	return bBlockOnSlowStreaming;
+}
 #endif
 
 bool UWorldPartitionRuntimeHash::IsCellRelevantFor(bool bClientOnlyVisible) const
