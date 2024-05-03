@@ -194,6 +194,8 @@ void URootMotionModifier::OnStateChanged(ERootMotionModifierState LastState)
 			const FVector CurrentLocation = (CharacterOwner->GetActorLocation() - CurrentRotation.GetUpVector() * CapsuleHalfHeight);
 			StartTransform = FTransform(CurrentRotation, CurrentLocation);
 
+			TotalRootMotionWithinWindow = UMotionWarpingUtilities::ExtractRootMotionFromAnimation(Animation.Get(), StartTime, EndTime);
+
 			OnActivateDelegate.ExecuteIfBound(OwnerComp, this);
 		}
 		else if (LastState == ERootMotionModifierState::Active && (State == ERootMotionModifierState::Disabled || State == ERootMotionModifierState::MarkedForRemoval))

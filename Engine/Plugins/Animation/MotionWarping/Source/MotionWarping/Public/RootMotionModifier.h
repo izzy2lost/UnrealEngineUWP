@@ -100,6 +100,10 @@ public:
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "Defaults")
 	float ActualStartTime = 0.f;
 
+	/** Total root motion within the warping window */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Defaults")
+	FTransform TotalRootMotionWithinWindow;
+
 	/** Delegate called when this modifier is activated (starts affecting the root motion) */
 	UPROPERTY()
 	FOnRootMotionModifierDelegate OnActivateDelegate;

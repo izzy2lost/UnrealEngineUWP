@@ -164,7 +164,7 @@ FTransform URootMotionModifier_SkewWarp::ProcessRootMotion(const FTransform& InR
 		}
 
 		// if there is translation in the animation, warp it
-		if (!TotalTranslation.IsNearlyZero())
+		if (!TotalRootMotionWithinWindow.GetTranslation().IsNearlyZero())
 		{
 			if (!DeltaTranslation.IsNearlyZero())
 			{
