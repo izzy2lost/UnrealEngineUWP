@@ -1295,7 +1295,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						FComputeShaderUtils::AddPass(
 							GraphBuilder,
 							RDG_EVENT_NAME("%s %ux%ux%u", TEXT("FroxelProbesUpdateScheduler"), VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.X, VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Y, VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Z),
-							ComputePassFlags | ERDGPassFlags::NeverCull,
+							ComputePassFlags,
 							ComputeShader,
 							PassParameters,
 							GroupSize);
@@ -1338,7 +1338,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						FComputeShaderUtils::AddPass(
 							GraphBuilder,
 							RDG_EVENT_NAME("FroxelProbesUpdateIndirectArgsSetup"),
-							ComputePassFlags | ERDGPassFlags::NeverCull,
+							ComputePassFlags,
 							ComputeShader,
 							PassParameters,
 							GroupSize);
@@ -1469,7 +1469,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						GraphBuilder.AddPass(
 							RDG_EVENT_NAME("FroxelProbesClear"),
 							PassParameters,
-							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+							ERDGPassFlags::Compute,
 							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
 							{
 								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->DispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
@@ -1505,7 +1505,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						GraphBuilder.AddPass(
 							RDG_EVENT_NAME("FroxelProbesCopyLowResInit"),
 							PassParameters,
-							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+							ERDGPassFlags::Compute,
 							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
 							{
 								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->DispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
@@ -1546,7 +1546,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						GraphBuilder.AddPass(
 							RDG_EVENT_NAME("FroxelProbesReprojectRefine"),
 							PassParameters,
-							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+							ERDGPassFlags::Compute,
 							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
 							{
 								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->DispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
