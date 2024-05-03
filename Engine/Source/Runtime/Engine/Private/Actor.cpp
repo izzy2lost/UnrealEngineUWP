@@ -73,6 +73,7 @@
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
+#include "WorldPartition/ActorInstanceGuids.h"
 
 DEFINE_LOG_CATEGORY(LogActor);
 
@@ -919,6 +920,11 @@ void AActor::Serialize(FArchive& Ar)
 		}
 	}
 #endif
+
+	if ((Ar.IsCooking() || Ar.IsLoadingFromCookedPackage()) && (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::LevelInstanceStaticLightingSupport))
+	{		
+		FActorInstanceGuid::Serialize(Ar, *this);
+	}
 }
 
 void AActor::PostLoad()
@@ -3619,6 +3625,8 @@ void AActor::PostRegisterAllComponents()
 	ensureMsgf(bHasRegisteredAllComponents == true, TEXT("bHasRegisteredAllComponents must be set to true prior to calling PostRegisterAllComponents()"));
 
 	FNavigationSystem::OnActorRegistered(*this);
+
+	FActorInstanceGuid::ReleaseActorInstanceGuid(*this);
 }
 
 /** Util to call OnComponentCreated on components */

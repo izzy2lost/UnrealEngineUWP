@@ -788,6 +788,9 @@ public:
 
 	ENGINE_API const FMeshMapBuildData* GetMeshMapBuildData(const FStaticMeshComponentLODInfo& LODInfo, bool bCheckForResourceCluster = true) const;
 
+	void UpdateMapBuildDataId();
+	void UpdateStaticLightingData();
+
 	/** Called during scene proxy creation to get the Nanite resource data */
 	DECLARE_DELEGATE_RetVal(const Nanite::FResources*, FOnGetNaniteResources);
 	virtual FOnGetNaniteResources& OnGetNaniteResources() { return OnGetNaniteResourcesEvent; }

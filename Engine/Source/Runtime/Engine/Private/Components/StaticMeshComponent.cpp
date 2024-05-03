@@ -48,6 +48,7 @@
 #include "Rendering/NaniteResources.h"
 #include "NaniteVertexFactory.h"
 #include "StaticMeshSceneProxyDesc.h"
+#include "WorldPartition/ActorInstanceGuids.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshComponent)
 
@@ -64,6 +65,7 @@ FStaticMeshComponentInstanceData::FStaticMeshComponentInstanceData(const UStatic
 {
 	for (const FStaticMeshComponentLODInfo& LODDataEntry : SourceComponent->LODData)
 	{
+		CachedStaticLighting.Add(LODDataEntry.OriginalMapBuildDataId);
 		CachedStaticLighting.Add(LODDataEntry.MapBuildDataId);
 	}
 
@@ -143,7 +145,8 @@ bool FStaticMeshComponentInstanceData::ApplyVertexColorData(UStaticMeshComponent
 			FStaticMeshComponentLODInfo& LODInfo = StaticMeshComponent->LODData[LODIndex];
 			if(CachedStaticLighting.IsValidIndex(LODIndex))
 			{
-				LODInfo.MapBuildDataId = CachedStaticLighting[LODIndex];
+				LODInfo.OriginalMapBuildDataId = CachedStaticLighting[(LODIndex*2)];
+				LODInfo.MapBuildDataId = CachedStaticLighting[(LODIndex*2)+1];
 			}
 		}
 
@@ -373,7 +376,7 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 			if (LODData[LODIndex].LegacyMapBuildData)
 			{
 				LODData[LODIndex].LegacyMapBuildData->IrrelevantLights = IrrelevantLights_DEPRECATED;
-				LegacyComponentData.Data.Emplace(LODData[LODIndex].MapBuildDataId, LODData[LODIndex].LegacyMapBuildData);
+				LegacyComponentData.Data.Emplace(LODData[LODIndex].OriginalMapBuildDataId, LODData[LODIndex].LegacyMapBuildData);
 				LODData[LODIndex].LegacyMapBuildData = nullptr;
 			}
 		}
@@ -476,6 +479,22 @@ void UStaticMeshComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	Super::PreSave(ObjectSaveContext);
 
 	CachePaintedDataIfNecessary();
+	
+	// Detect when to create MapBuildDataID
+	// To avoid having to resubmit all Actors on 1st Static Lighting computation we want this GUID to always be created and serialized as soon as possible. 
+	// But we only create it for the editor save context, on cook builds we avoid creating it since if it's missing it won't link to anything and it'll make the
+	// cook non-deterministic
+	if (!ObjectSaveContext.IsCooking())
+	{
+		UpdateStaticLightingData();
+
+		int32 LODIndex = 0;
+		for (FStaticMeshComponentLODInfo& LODInfo : LODData)
+		{
+			LODInfo.CreateMapBuildDataId(LODIndex);
+			LODIndex++;
+		}
+	}
 }
 #endif // WITH_EDITORONLY_DATA
 
@@ -755,6 +774,8 @@ void UStaticMeshComponent::OnRegister()
 #endif //WITH_EDITORONLY_DATA
 
 	Super::OnRegister();
+
+	UpdateMapBuildDataId();
 
 	// World transform might have changes causing negative determinant which changes the culling mode
 	PrecachePSOs();
@@ -2906,7 +2927,8 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 
 			for (int32 i = 0; i < NumLODLightMaps; ++i)
 			{
-				LODData[i].MapBuildDataId = StaticMeshInstanceData->CachedStaticLighting[i];
+				LODData[i].OriginalMapBuildDataId = StaticMeshInstanceData->CachedStaticLighting[(i*2)];
+				LODData[i].MapBuildDataId = StaticMeshInstanceData->CachedStaticLighting[(i*2)+1];
 			}
 		}
 		else
@@ -3413,6 +3435,54 @@ bool UStaticMeshComponent::ComponentIsTouchingSelectionFrustum(const FConvexVolu
 #endif // #if WITH_EDITOR
 
 
+FGuid GetMapDataIdForLOD(const FGuid& LOD0Guid, uint32 LodIndex)
+{
+	FString GuidBaseString = LOD0Guid.ToString(EGuidFormats::Digits);
+	GuidBaseString += TEXT("LOD_") + FString::FromInt(LodIndex);
+
+	FSHA1 Sha;
+	Sha.Update((uint8*)*GuidBaseString, GuidBaseString.Len() * sizeof(TCHAR));
+	Sha.Final();
+	// Retrieve the hash and use it to construct a pseudo-GUID.
+	uint32 Hash[5];
+	Sha.GetHash((uint8*)Hash);
+	return FGuid(Hash[0] ^ Hash[4], Hash[1], Hash[2], Hash[3]);
+}
+
+void UStaticMeshComponent::UpdateStaticLightingData()
+{
+	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
+	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
+
+	if (!bAllowStaticLighting)
+		return;
+
+	if (HasStaticLighting() && LODData.IsEmpty() && StaticMesh)
+	{		
+		SetLODDataCount(StaticMesh->GetNumLODs(), LODData.Num());
+	}
+}
+
+void UStaticMeshComponent::UpdateMapBuildDataId()
+{	
+	if (GetOwner())	
+	{
+		//@todo_ow: Detect cases where MapBuildDataId has been successfully set on cook and skip?
+		if (LODData.Num() && LODData[0].OriginalMapBuildDataId.IsValid())
+		{
+			FGuid ActorInstanceGuid = FActorInstanceGuid::GetActorInstanceGuid(*GetOwner());
+
+			// We already have a GUID, but in case of a LevelInstance Actor we must adjust it to be unique
+			LODData[0].MapBuildDataId = FGuid::Combine(LODData[0].OriginalMapBuildDataId, ActorInstanceGuid);
+			
+			for (int i = 1; i < LODData.Num(); i++)
+			{
+				LODData[i].OriginalMapBuildDataId = GetMapDataIdForLOD(LODData[0].OriginalMapBuildDataId, i);
+				LODData[i].MapBuildDataId = FGuid::Combine(LODData[i].OriginalMapBuildDataId, ActorInstanceGuid);
+			}
+		}
+	}
+}
 //////////////////////////////////////////////////////////////////////////
 // StaticMeshComponentLODInfo
 
@@ -3439,30 +3509,29 @@ FStaticMeshComponentLODInfo::FStaticMeshComponentLODInfo(UStaticMeshComponent* I
 
 bool FStaticMeshComponentLODInfo::CreateMapBuildDataId(int32 LodIndex)
 {
-	if (!MapBuildDataId.IsValid())
+	bool bReturnVal = false;
+
+	if (!OriginalMapBuildDataId.IsValid())
 	{
 		if (LodIndex == 0 || OwningComponent == nullptr)
 		{
-			MapBuildDataId = FGuid::NewGuid();
+			OriginalMapBuildDataId = FGuid::NewGuid();
 		}
 		else
 		{
-			FString GuidBaseString = OwningComponent->LODData[0].MapBuildDataId.ToString(EGuidFormats::Digits);
-			GuidBaseString += TEXT("LOD_") + FString::FromInt(LodIndex);
-
-			FSHA1 Sha;
-			Sha.Update((uint8*)*GuidBaseString, GuidBaseString.Len() * sizeof(TCHAR));
-			Sha.Final();
-			// Retrieve the hash and use it to construct a pseudo-GUID.
-			uint32 Hash[5];
-			Sha.GetHash((uint8*)Hash);
-			MapBuildDataId = FGuid(Hash[0] ^ Hash[4], Hash[1], Hash[2], Hash[3]);
+			OriginalMapBuildDataId = GetMapDataIdForLOD(OwningComponent->LODData[0].OriginalMapBuildDataId, LodIndex);
 		}
 
-		return true;
+		bReturnVal = true;
 	}
 
-	return false;
+	if (!MapBuildDataId.IsValid() && OwningComponent)
+	{
+		OwningComponent->UpdateMapBuildDataId();
+		bReturnVal = true;
+	}
+
+	return bReturnVal;
 }
 
 /** Destructor */
@@ -3660,14 +3729,20 @@ FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I)
 	{
 		if (Ar.IsLoading() && Ar.CustomVer(FRenderingObjectVersion::GUID) < FRenderingObjectVersion::MapBuildDataSeparatePackage)
 		{
-			I.MapBuildDataId = FGuid::NewGuid();
+			I.OriginalMapBuildDataId = FGuid::NewGuid();
 			I.LegacyMapBuildData = new FMeshMapBuildData();
 			Ar << I.LegacyMapBuildData->LightMap;
 			Ar << I.LegacyMapBuildData->ShadowMap;
 		}
 		else
-		{
-			Ar << I.MapBuildDataId;
+		{	
+			//@todo_ow: Serialize only MapBuildDataId for cooked versions? Doesn't work in runtime instanced levels
+			// so we'd need to know if the ID we have is the original or has the ActorInstanceGuid mixed in
+			if (Ar.IsCooking() || Ar.IsLoadingFromCookedPackage())
+			{
+				Ar << I.MapBuildDataId;
+			}
+			Ar << I.OriginalMapBuildDataId;
 		}
 	}
 

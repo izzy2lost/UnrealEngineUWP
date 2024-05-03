@@ -513,6 +513,7 @@ struct FPrecomputedLightInstanceData : public FSceneComponentInstanceData
 	FPrecomputedLightInstanceData(const ULightComponent* SourceComponent)
 		: FSceneComponentInstanceData(SourceComponent)
 		, Transform(SourceComponent->GetComponentTransform())
+		, OriginalLightGuid(SourceComponent->OriginalLightGuid)		
 		, LightGuid(SourceComponent->LightGuid)
 		, PreviewShadowMapChannel(SourceComponent->PreviewShadowMapChannel)
 	{}
@@ -531,6 +532,9 @@ struct FPrecomputedLightInstanceData : public FSceneComponentInstanceData
 
 	UPROPERTY()
 	FTransform Transform;
+
+	UPROPERTY()
+	FGuid OriginalLightGuid;
 
 	UPROPERTY()
 	FGuid LightGuid;

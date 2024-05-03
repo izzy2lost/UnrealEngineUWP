@@ -23,6 +23,16 @@ class FPrecomputedVolumetricLightmapData;
 struct FAssetCompileData;
 struct FVolumetricLightMapGridDesc;
 
+DECLARE_LOG_CATEGORY_EXTERN(LogMapBuildDataRegistry, Log, All);
+
+#define UE_LOG_MAPBUILDATA_ENABLED 0
+
+#if UE_LOG_MAPBUILDATA_ENABLED
+#define UE_LOG_MAPBUILDDATA(...) UE_LOG(LogMapBuildDataRegistry, __VA_ARGS__)
+#else
+#define UE_LOG_MAPBUILDDATA(...) 
+#endif
+
 struct FPerInstanceLightmapData
 {
 	FVector2f LightmapUVBias;

@@ -20,6 +20,8 @@
 
 #endif
 
+#include "WorldPartition/ActorInstanceGuids.h"
+
 #define LOCTEXT_NAMESPACE "LevelInstanceActor"
 
 void FLevelInstanceActorImpl::RegisterLevelInstance()
@@ -84,6 +86,8 @@ bool FLevelInstanceActorImpl::IsLoadingEnabled() const
 
 void FLevelInstanceActorImpl::OnLevelInstanceLoaded()
 {
+	FActorInstanceGuid::SetLevelInstanceGuid(LevelInstance->GetLoadedLevel(), ULevelInstanceSubsystem::GetOwningLevel(LevelInstance->GetLoadedLevel()), LevelInstance->GetLevelInstanceGuid());
+
 #if WITH_EDITOR
 	AActor* Actor = CastChecked<AActor>(LevelInstance);
 	if (!Actor->GetWorld()->IsGameWorld())

@@ -40,6 +40,8 @@ MapBuildData.cpp
 DECLARE_MEMORY_STAT(TEXT("Stationary Light Static Shadowmap"),STAT_StationaryLightBuildData,STATGROUP_MapBuildData);
 DECLARE_MEMORY_STAT(TEXT("Reflection Captures"),STAT_ReflectionCaptureBuildData,STATGROUP_MapBuildData);
 
+DEFINE_LOG_CATEGORY(LogMapBuildDataRegistry);
+
 FArchive& operator<<(FArchive& Ar, FMeshMapBuildData& MeshMapBuildData)
 {
 	Ar << MeshMapBuildData.LightMap;
@@ -580,6 +582,20 @@ void UMapBuildDataRegistry::Serialize(FArchive& Ar)
 			}
 		}
 	}
+
+#if UE_LOG_MAPBUILDATA_ENABLED 
+
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Loaded Registry %s"), *GetFullName());
+	for (auto& It : MeshBuildData)
+	{
+		UE_LOG_MAPBUILDDATA(Log, TEXT("    => Mesh GUID : %s"), *It.Key.ToString());
+	}
+
+	for (auto& It : LightBuildData)
+	{
+		UE_LOG_MAPBUILDDATA(Log, TEXT("    => Light GUID : %s"), *It.Key.ToString());
+	}
+#endif
 }
 
 void UMapBuildDataRegistry::PostLoad()
@@ -692,6 +708,8 @@ FMeshMapBuildData& UMapBuildDataRegistry::AllocateMeshBuildData(const FGuid& Mes
 	check(MeshId.IsValid());
 	check(!bSetupResourceClusters);
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Allocating MeshBuildData in Registry %s for Guid: %s"), *GetFullName(), *MeshId.ToString());
+
 	if (bMarkDirty)
 	{
 		MarkPackageDirty();
@@ -711,6 +729,7 @@ const FMeshMapBuildData* UMapBuildDataRegistry::GetMeshBuildData(FGuid MeshId) c
 		return nullptr;
 	}
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding MeshBuildData (%p) in Registry %s for Guid: %s"), FoundData, *GetFullName(), *MeshId.ToString());
 	return FoundData;
 }
 
@@ -723,6 +742,7 @@ FMeshMapBuildData* UMapBuildDataRegistry::GetMeshBuildData(FGuid MeshId)
 		return nullptr;
 	}
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding MeshBuildData (%p) in Registry %s for Guid: %s"), FoundData, *GetFullName(), *MeshId.ToString());
 	return FoundData;
 }
 
@@ -836,16 +856,20 @@ FLightComponentMapBuildData& UMapBuildDataRegistry::FindOrAllocateLightBuildData
 		MarkPackageDirty();
 	}
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Allocating LightBuildData in Registry %s for Guid: %s"), *GetFullName(), *LightId.ToString());
+
 	return LightBuildData.FindOrAdd(LightId);
 }
 
 const FLightComponentMapBuildData* UMapBuildDataRegistry::GetLightBuildData(FGuid LightId) const
 {
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding LightBuildData (%p) in Registry %s for Guid: %s"), LightBuildData.Find(LightId), *GetFullName(), *LightId.ToString());
 	return LightBuildData.Find(LightId);
 }
 
 FLightComponentMapBuildData* UMapBuildDataRegistry::GetLightBuildData(FGuid LightId)
 {
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding LightBuildData (%p) in Registry %s for Guid: %s"), LightBuildData.Find(LightId), *GetFullName(), *LightId.ToString());
 	return LightBuildData.Find(LightId);
 }
 
@@ -1226,7 +1250,9 @@ UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
 		return World->PersistentLevel->MapBuildData;		
 	}
 
-	return Get(OwnerLevel, World);
+	UMapBuildDataRegistry* Registry = Get(OwnerLevel, World);
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Returning Registry %s for Actor %s, %s"), *Registry->GetFullName(), *Actor->GetActorNameOrLabel(), *Actor->GetFullName());
+	return Registry;
 }
 
 UMapBuildDataRegistry* UMapBuildDataRegistry::Get(ULevel* OwnerLevel, UWorld* World)

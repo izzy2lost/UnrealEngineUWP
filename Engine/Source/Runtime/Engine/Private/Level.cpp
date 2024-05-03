@@ -80,6 +80,7 @@ Level.cpp: Level-related functions
 #include "UObject/MetaData.h"
 #include "UObject/PropertyBagRepository.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Level)
 
@@ -3036,6 +3037,11 @@ void ULevel::OnLevelLoaded()
 		WorldPartitionRuntimeCell = Cast<const UWorldPartitionRuntimeCell>(LevelStreaming->GetWorldPartitionCell());
 	}
 
+	if (ULevel* OwningLevel = ULevelInstanceSubsystem::GetOwningLevel(this, true))
+	{
+		MapBuildData = OwningLevel->MapBuildData;
+	}
+
 	// 1. Cook commandlet does it's own UWorldPartition::Initialize call in FWorldPartitionCookPackageSplitter::GetGenerateList
 	// 2. Do not Initialize if World doesn't have a UWorldPartitionSubsystem
 	if (!IsRunningCookCommandlet() && OwningWorld->HasSubsystem<UWorldPartitionSubsystem>())
@@ -3283,6 +3289,12 @@ void ULevel::InitializeRenderingResources()
 		ULevel* ActiveLightingScenario = OwningWorld->GetActiveLightingScenario();
 		UMapBuildDataRegistry* EffectiveMapBuildData = MapBuildData;
 
+		if (!IsMapBuildDataOwner())
+		{
+			// If we're using the MapBuildData of our owning Level don't touch the rendering resources, owning level will take care of it
+			return;
+		}
+
 		if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
 		{
 			EffectiveMapBuildData = ActiveLightingScenario->MapBuildData;
@@ -3314,6 +3326,12 @@ void ULevel::ReleaseRenderingResources()
 {
 	if (OwningWorld && FApp::CanEverRender())
 	{
+		if (!IsMapBuildDataOwner())
+		{
+			// If we're using the MapBuildData of our owning Level don't touch the rendering resources, owning level will take care of it
+			return;
+		}
+
 		if (VolumetricLightmapGridManager)
 		{
 			VolumetricLightmapGridManager->RemoveFromScene(OwningWorld->Scene);
@@ -3474,6 +3492,11 @@ UPackage* ULevel::CreateMapBuildDataPackage() const
 	return BuiltDataPackage;
 }
 
+bool ULevel::IsMapBuildDataOwner() const
+{
+	return ULevelInstanceSubsystem::GetOwningLevel(this, true) == this;
+}
+
 UMapBuildDataRegistry* ULevel::GetOrCreateMapBuildData()
 {
 	if (!MapBuildData 
@@ -3495,6 +3518,14 @@ UMapBuildDataRegistry* ULevel::GetOrCreateMapBuildData()
 		FName ShortPackageName = FPackageName::GetShortFName(BuiltDataPackage->GetFName());
 		// Top level UObjects have to have both RF_Standalone and RF_Public to be saved into packages
 		MapBuildData = NewObject<UMapBuildDataRegistry>(BuiltDataPackage, ShortPackageName, RF_Standalone | RF_Public);
+		// assign to all transient Levels inside the World
+		for (ULevel* Level : GetWorld()->GetLevels())
+		{
+			if (ULevelInstanceSubsystem::GetOwningLevel(Level, true) == this)
+			{
+				Level->MapBuildData = MapBuildData;
+			}
+		}
 		MarkPackageDirty();
 	}
 

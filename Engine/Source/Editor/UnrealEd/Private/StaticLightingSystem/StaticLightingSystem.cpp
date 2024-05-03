@@ -87,6 +87,7 @@ DEFINE_LOG_CATEGORY(LogStaticLightingSystem);
 #include "BuildSettings.h"
 #include "Misc/EngineBuildSettings.h"
 #include "TargetReceipt.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "StaticLightingSystem"
 
@@ -1367,6 +1368,13 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 			}
 
 			const bool bBuildLightingForLevel = Options.ShouldBuildLightingForLevel( Level );
+
+			// in this specific case the Level MapBuildData is shared with another level and 
+			// this specific level doesn't own it's data so we need to skip it
+			if (!Level->IsMapBuildDataOwner())
+			{
+				continue;
+			}
 
 			UMapBuildDataRegistry* Registry = LightingContext.GetRegistryForLevel(Level);
 		

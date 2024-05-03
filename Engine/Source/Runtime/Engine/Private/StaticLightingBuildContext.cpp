@@ -9,6 +9,7 @@
 #include "Engine/MapBuildDataRegistry.h"
 #include "WorldPartition/WorldPartition.h"
 #include "PrecomputedVolumetricLightmap.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 
 #if WITH_EDITOR
 
@@ -261,19 +262,26 @@ UMapBuildDataRegistry* FStaticLightingBuildContext::GetOrCreateRegistryForActor(
 {
 	check(Actor);
 
-	ULevel* Level = Actor->GetLevel();	
+	// For Actors in LevelInstances we need to defer storage to the level that owns the LevelInstance
+	ULevel* Level = ULevelInstanceSubsystem::GetOwningLevel(Actor->GetLevel(), true);
 
-	return GetLightingStorageLevel(Level)->GetOrCreateMapBuildData();
+	UMapBuildDataRegistry* Registry = GetLightingStorageLevel(Level)->GetOrCreateMapBuildData();
+	
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Creating/Returning Registry %s for Actor %s, %s"), *Registry->GetFullName(), *Actor->GetActorNameOrLabel(), *Actor->GetFullName());
+
+	return Registry;
 }
 
 UMapBuildDataRegistry* FStaticLightingBuildContext::GetRegistryForLevel(ULevel* Level) const
 {
-	return GetLightingStorageLevel(Level)->MapBuildData;
+	// For  we need to defer storage to the level that owns the LevelInstance
+	return GetLightingStorageLevel(ULevelInstanceSubsystem::GetOwningLevel(Level, true))->MapBuildData;
 }
 
 UMapBuildDataRegistry* FStaticLightingBuildContext::GetOrCreateRegistryForLevel(ULevel* Level) const
 {
-	return GetLightingStorageLevel(Level)->GetOrCreateMapBuildData();
+	// For  we need to defer storage to the level that owns the LevelInstance
+	return GetLightingStorageLevel(ULevelInstanceSubsystem::GetOwningLevel(Level, true))->GetOrCreateMapBuildData();
 }
 
 #endif

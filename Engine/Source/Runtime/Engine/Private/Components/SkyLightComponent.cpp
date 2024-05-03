@@ -692,6 +692,7 @@ TStructOnScope<FActorComponentInstanceData> USkyLightComponent::GetComponentInst
 {
 	TStructOnScope<FActorComponentInstanceData> InstanceData = MakeStructOnScope<FActorComponentInstanceData, FPrecomputedSkyLightInstanceData>(this);
 	FPrecomputedSkyLightInstanceData* SkyLightInstanceData = InstanceData.Cast<FPrecomputedSkyLightInstanceData>();
+	SkyLightInstanceData->OriginalLightGuid = OriginalLightGuid;
 	SkyLightInstanceData->LightGuid = LightGuid;
 	SkyLightInstanceData->ProcessedSkyTexture = ProcessedSkyTexture;
 
@@ -707,6 +708,7 @@ void USkyLightComponent::ApplyComponentInstanceData(FPrecomputedSkyLightInstance
 {
 	check(LightMapData);
 
+	OriginalLightGuid = (HasStaticShadowing() ? LightMapData->OriginalLightGuid : FGuid());
 	LightGuid = (HasStaticShadowing() ? LightMapData->LightGuid : FGuid());
 	ProcessedSkyTexture = LightMapData->ProcessedSkyTexture;
 	IrradianceEnvironmentMap = LightMapData->IrradianceEnvironmentMap;

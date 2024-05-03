@@ -75,6 +75,7 @@ public:
 	ENGINE_API ILevelInstanceInterface* GetLevelInstance(const FLevelInstanceID& LevelInstanceID) const;
 	ENGINE_API ILevelInstanceInterface* GetOwningLevelInstance(const ULevel* Level) const;
 	ENGINE_API FLevelInstanceID RegisterLevelInstance(ILevelInstanceInterface* LevelInstance);
+	ENGINE_API static ULevel* GetOwningLevel(const ULevel* Level, bool bFollowChainToNonLevelInstanceOwningLevel = false);
 	ENGINE_API void UnregisterLevelInstance(ILevelInstanceInterface* LevelInstance);
 	ENGINE_API void RequestLoadLevelInstance(ILevelInstanceInterface* LevelInstance, bool bUpdate);
 	ENGINE_API void RequestUnloadLevelInstance(ILevelInstanceInterface* LevelInstance);

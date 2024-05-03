@@ -462,6 +462,9 @@ struct FFortniteMainBranchObjectVersion
 		// Fix to get full name of templated type ( Tarray > TArray<Float> for example )
 		DataflowTemplatedTypeFix,
 
+		// Changes for LevelInstance support in StaticLighting
+		LevelInstanceStaticLightingSupport,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

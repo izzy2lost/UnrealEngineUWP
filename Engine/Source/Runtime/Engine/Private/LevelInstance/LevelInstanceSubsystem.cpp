@@ -745,6 +745,51 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::GetOwningLevelInstance(const U
 	return nullptr;
 }
 
+ULevel* ULevelInstanceSubsystem::GetOwningLevel(const ULevel* Level, bool bFollowChainToNonLevelInstanceOwningLevel /*= false*/)
+{	
+	auto GetOwningLevelInternal = [] (const ULevel* ForLevel) -> ULevel*
+	{
+		if (ForLevel->GetWorld() != ForLevel->GetTypedOuter<UWorld>())
+		{	
+			if (ULevelStreaming* LevelStreaming = ULevelStreaming::FindStreamingLevel(ForLevel))
+			{
+				if (ULevelStreamingLevelInstance* LevelInstanceStreaming = Cast<ULevelStreamingLevelInstance>(LevelStreaming))
+				{
+					if (AActor* LevelActor = Cast<AActor>(LevelInstanceStreaming->GetLevelInstance()))
+					{
+						return LevelActor->GetLevel();
+					}
+				}
+				if (UWorldPartitionLevelStreamingDynamic* WPLevelStreaming = Cast<UWorldPartitionLevelStreamingDynamic>(LevelStreaming))
+				{
+					if (UObject* WorldPartition =  WPLevelStreaming->GetOuterWorldPartition().ResolveObject())
+					{						
+						return WorldPartition->GetTypedOuter<ULevel>();
+					}
+				}
+			}
+		}
+
+		return nullptr;
+	};
+
+	// locate the non instanced level responsible for getting us in the world
+	const ULevel* OwningLevel = bFollowChainToNonLevelInstanceOwningLevel ? Level : nullptr;
+	const ULevel* CurrentLevel = Level;
+
+	do
+	{
+    	CurrentLevel = GetOwningLevelInternal(CurrentLevel);
+		if (CurrentLevel)
+		{
+			OwningLevel = CurrentLevel;
+		}
+	} while(CurrentLevel && bFollowChainToNonLevelInstanceOwningLevel);
+	
+	return const_cast<ULevel*>(OwningLevel);
+}
+
+
 void ULevelInstanceSubsystem::ForEachActorInLevelInstance(const ILevelInstanceInterface* LevelInstance, TFunctionRef<bool(AActor* LevelActor)> Operation) const
 {
 	if (ULevel* LevelInstanceLevel = GetLevelInstanceLevel(LevelInstance))

@@ -1113,6 +1113,8 @@ public:
 
 	ENGINE_API UMapBuildDataRegistry* GetOrCreateMapBuildData();
 
+	ENGINE_API bool IsMapBuildDataOwner() const;
+
 	/** Sets whether this level is a lighting scenario and handles propagating the change. */
 	ENGINE_API void SetLightingScenario(bool bNewIsLightingScenario);
 

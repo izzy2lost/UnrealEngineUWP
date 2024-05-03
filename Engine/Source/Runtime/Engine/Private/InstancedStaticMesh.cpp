@@ -2075,6 +2075,7 @@ TStructOnScope<FActorComponentInstanceData> UInstancedStaticMeshComponent::GetCo
 
 	for (const FStaticMeshComponentLODInfo& LODDataEntry : LODData)
 	{
+		StaticMeshInstanceData->CachedStaticLighting.MapBuildDataIds.Add(LODDataEntry.OriginalMapBuildDataId);
 		StaticMeshInstanceData->CachedStaticLighting.MapBuildDataIds.Add(LODDataEntry.MapBuildDataId);
 	}
 
@@ -2159,7 +2160,8 @@ void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticM
 
 		for (int32 i = 0; i < NumLODLightMaps; ++i)
 		{
-			LODData[i].MapBuildDataId = InstancedMeshData->CachedStaticLighting.MapBuildDataIds[i];
+			LODData[i].OriginalMapBuildDataId = InstancedMeshData->CachedStaticLighting.MapBuildDataIds[(i*2)];
+			LODData[i].MapBuildDataId = InstancedMeshData->CachedStaticLighting.MapBuildDataIds[(i*2)+1];
 		}
 	}
 
@@ -2869,7 +2871,7 @@ void UInstancedStaticMeshComponent::ApplyLightMapping(FStaticLightingTextureMapp
 		SetLODDataCount(ResolvedMesh->GetNumLODs(), ResolvedMesh->GetNumLODs());
 		FStaticMeshComponentLODInfo& LODInfo = LODData[0];
 
-		// Ensure this LODInfo has a valid MapBuildDataId
+		// Ensure this LODInfo has a valid OriginalMapBuildDataId
 		if (LODInfo.CreateMapBuildDataId(0))
 		{
 			MarkPackageDirty();

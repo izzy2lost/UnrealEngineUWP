@@ -390,6 +390,9 @@ public:
 	}
 
 	UPROPERTY()
+	FGuid OriginalLightGuid;
+
+	UPROPERTY()
 	FGuid LightGuid;
 
 	UPROPERTY()

@@ -33,6 +33,7 @@
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealType.h"
 #include "UObject/Package.h"
+#include "WorldPartition/ActorInstanceGuids.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LightComponent)
 
@@ -163,7 +164,16 @@ void ULightComponentBase::SetSamplesPerPixel(int NewValue)
 
 void ULightComponentBase::Serialize(FArchive& Ar)
 {
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
 	Super::Serialize(Ar);
+
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LevelInstanceStaticLightingSupport)
+	{
+		// Starting from there LightGuid is a mix of OrigignalLightGuid & ActorInstanceGuid so move the value where it belongs
+		OriginalLightGuid = LightGuid;
+		LightGuid.Invalidate();
+	}
 
 	if (Ar.UEVer() < VER_UE4_INVERSE_SQUARED_LIGHTS_DEFAULT)
 	{
@@ -242,15 +252,19 @@ void ULightComponentBase::PostEditChangeProperty(FPropertyChangedEvent& Property
 void ULightComponentBase::ValidateLightGUIDs()
 {
 	// Validate light guids.
-	if (!LightGuid.IsValid())
+	if (!OriginalLightGuid.IsValid())
 	{
 		UpdateLightGUIDs();
 	}
+
+	
+	LightGuid = (OriginalLightGuid.IsValid() && GetOwner() )? FGuid::Combine( OriginalLightGuid , FActorInstanceGuid::GetActorInstanceGuid(*GetOwner())) : FGuid();
 }
 
 void ULightComponentBase::UpdateLightGUIDs()
 {
-	LightGuid = (HasStaticShadowing() ? FGuid::NewGuid() : FGuid());
+	OriginalLightGuid = (HasStaticShadowing() ? FGuid::NewGuid() : FGuid());
+	LightGuid = (OriginalLightGuid.IsValid() && GetOwner() )? FGuid::Combine( OriginalLightGuid , FActorInstanceGuid::GetActorInstanceGuid(*GetOwner())) : FGuid();
 }
 
 bool ULightComponentBase::HasStaticLighting() const
@@ -270,6 +284,7 @@ void ULightComponentBase::PostLoad()
 
 	if (!HasStaticShadowing())
 	{
+		OriginalLightGuid.Invalidate();
 		LightGuid.Invalidate();
 	}
 }
@@ -277,6 +292,8 @@ void ULightComponentBase::PostLoad()
 void ULightComponentBase::OnRegister()
 {
 	Super::OnRegister();
+
+	ValidateLightGUIDs();
 
 	if (SpriteComponent)
 	{
@@ -541,7 +558,7 @@ void ULightComponent::Serialize(FArchive& Ar)
 			LegacyData->ShadowMapChannel = ShadowMapChannel_DEPRECATED;
 
 			FLightComponentLegacyMapBuildData LegacyLightData;
-			LegacyLightData.Id = LightGuid;
+			LegacyLightData.Id = OriginalLightGuid;
 			LegacyLightData.Data = LegacyData;
 			GLightComponentsWithLegacyBuildData.AddAnnotation(this, MoveTemp(LegacyLightData));
 		}
@@ -830,10 +847,22 @@ bool ULightComponent::IsReadyForFinishDestroy()
 
 void ULightComponent::OnRegister()
 {
-	Super::OnRegister();
-
 	// Update GUIDs on attachment if they are not valid.
 	ValidateLightGUIDs();
+
+	if (OriginalLightGuid.IsValid() && !HasStaticLighting() && HasStaticShadowing())	
+	{		
+		// Since we support LevelInstances the channel must always be reassigned on load
+		if (UMapBuildDataRegistry* DataRegistry = UMapBuildDataRegistry::Get(this))
+		{
+			if (FLightComponentMapBuildData* LightBuildData = DataRegistry->GetLightBuildData(LightGuid))
+			{
+				PreviewShadowMapChannel = LightBuildData->ShadowMapChannel;
+			}
+		}
+	}
+
+	Super::OnRegister();
 }
 
 void ULightComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -1295,6 +1324,7 @@ void ULightComponent::InvalidateLightingCacheDetailed(bool bInvalidateBuildEnque
 	else
 	{
 		// Movable lights will have a GUID of 0
+		OriginalLightGuid.Invalidate();
 		LightGuid.Invalidate();
 	}
 }
@@ -1314,7 +1344,8 @@ void ULightComponent::ApplyComponentInstanceData(FPrecomputedLightInstanceData* 
 		return;
 	}
 
-	LightGuid = (HasStaticShadowing() ? LightMapData->LightGuid : FGuid());
+	OriginalLightGuid = (HasStaticShadowing() ? LightMapData->OriginalLightGuid : FGuid());
+	LightGuid = (HasStaticShadowing() ? LightMapData->LightGuid : FGuid());	
 	PreviewShadowMapChannel = LightMapData->PreviewShadowMapChannel;
 
 	MarkRenderStateDirty();
