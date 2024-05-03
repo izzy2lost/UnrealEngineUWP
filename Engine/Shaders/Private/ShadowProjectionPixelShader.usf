@@ -104,8 +104,8 @@ EARLYDEPTHSTENCIL
 #endif
 void Main(
 	out float4 OutColor : SV_Target0
-#if INSTANCED_STEREO
-	, in nointerpolation uint EyeIndex : TEXCOORD0
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	, in nointerpolation uint EyeIndex : VIEW_ID
 #elif MOBILE_MULTI_VIEW
 	, in nointerpolation uint ViewId : SV_ViewID
 #endif
@@ -117,19 +117,19 @@ void Main(
 	#endif
 	
 	float ArrayIndex = 0;
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	ResolvedView = ResolveView(EyeIndex);
 	ArrayIndex = EyeIndex;
 #elif MOBILE_MULTI_VIEW
 	ResolvedView = ResolveView(ViewId);
-	ArrayIndex = ViewId;;
+	ArrayIndex = ViewId;
 #else
 	ResolvedView = ResolveView();
 #endif
 
 	const FPQMPContext PQMPContext = PQMPInit(SVPos.xy);
 	float2 ScreenUV = float2(SVPos.xy * ResolvedView.BufferSizeAndInvSize.zw);
-#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
+#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
 	float SceneW = CalcSceneDepth(ScreenUV, ArrayIndex);
 #else
 	float SceneW = CalcSceneDepth(ScreenUV);
@@ -146,7 +146,7 @@ void Main(
 	
 	float4 ShadowPosition = float4(0, 0, 0, 0);
 	
-#if ((MOBILE_MULTI_VIEW || INSTANCED_STEREO) && SHADING_PATH_MOBILE)
+#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
 	ShadowPosition = mul(ScreenPosition, ResolvedView.MobileMultiviewShadowTransform);
 	ShadowPosition = mul(ShadowPosition, ScreenToShadowMatrix);
 #else

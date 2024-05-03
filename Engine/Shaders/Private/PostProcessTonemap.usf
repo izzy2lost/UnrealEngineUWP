@@ -676,11 +676,10 @@ half4 FetchAndResolveSceneColor(float2 UV, float ArrayIndex)
 void MobileCustomResolve_MainPS(
 	in float4 SvPosition							: SV_POSITION, 
 	in noperspective float2 UV						: TEXCOORD0,
-#if MOBILE_MULTI_VIEW_FALLBACK
-	in nointerpolation uint EyeIndex				: TEXCOORD1,
-#endif
 	out				 float4 OutColor				: SV_Target0
-#if USE_MULTI_VIEW_ID_SV
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint EyeIndex				: VIEW_ID
+#elif USE_MULTI_VIEW_ID_SV
 	, in nointerpolation uint MultiViewId : SV_ViewID
 #endif
 )

@@ -126,7 +126,7 @@ void ProjectionPassCS(
 	uint2 GroupId : SV_GroupID,
 	uint2 DispatchThreadId : SV_DispatchThreadID,
 	uint2 GroupThreadId : SV_GroupThreadID
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	, uint InstanceId : SV_InstanceID
 	, out uint LayerIndex : SV_RenderTargetArrayIndex
 #elif MOBILE_MULTI_VIEW
@@ -135,7 +135,7 @@ void ProjectionPassCS(
 #endif
 )
 {
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	const uint EyeIndex = GetEyeIndex(InstanceId);
 	ResolvedView = ResolveView(EyeIndex);
 	LayerIndex = EyeIndex;
@@ -187,22 +187,21 @@ void ReflectionPassVS(
 	in float2 InPosition : ATTRIBUTE0,
 	out float4 OutPosition : SV_POSITION,
 	out float4 PixelPosition : TEXCOORD0
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	, uint InstanceId : SV_InstanceID
 	, out uint LayerIndex : SV_RenderTargetArrayIndex
+	, out nointerpolation uint EyeIndex : VIEW_ID
 #elif MOBILE_MULTI_VIEW
 	, in uint ViewId : SV_ViewID
-	, out nointerpolation uint MultiViewIndex : VIEW_ID
 #endif
 )
 {
-#if INSTANCED_STEREO
-	const uint EyeIndex = GetEyeIndex(InstanceId);
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	EyeIndex = GetEyeIndex(InstanceId);
 	ResolvedView = ResolveView(EyeIndex);
 	LayerIndex = EyeIndex;
 #elif MOBILE_MULTI_VIEW
 	ResolvedView = ResolveView(ViewId);
-	MultiViewIndex = ViewId;
 #else
 	ResolvedView = ResolveView();
 #endif
@@ -280,13 +279,17 @@ half4 DecodeReflectionColor(int2 ReflectingPixel, uint EncodeValue)
 void ReflectionPassPS(
 	in float4 SvPosition : SV_Position,
 	in float4 PixelPosition : TEXCOORD0,
-#if MOBILE_MULTI_VIEW
-	in nointerpolation uint MultiViewId : VIEW_ID,
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+	in nointerpolation uint EyeIndex : VIEW_ID,
+#elif MOBILE_MULTI_VIEW
+	in nointerpolation uint ViewId : SV_ViewID,
 #endif
 	out HALF4_TYPE OutColor : SV_Target0)
 {
-#if MOBILE_MULTI_VIEW
-	ResolvedView = ResolveView(MultiViewId);
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(EyeIndex);
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
 #else
 	ResolvedView = ResolveView();
 #endif

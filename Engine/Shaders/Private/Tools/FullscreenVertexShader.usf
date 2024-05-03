@@ -29,7 +29,7 @@ void MainVS(
 	,	out noperspective float2 OutUV : TEXCOORD0
 	#if INSTANCED_STEREO // Mobile multi view fallback path
 	,	in uint InstanceId : SV_InstanceID
-	,	out nointerpolation uint EyeIndex : TEXCOORD1
+	,	out nointerpolation uint EyeIndex : VIEW_ID
 	,	out uint LayerIndex : SV_RenderTargetArrayIndex
 	#endif
 #endif

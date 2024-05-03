@@ -8,15 +8,15 @@
 
 void ShadowProjectionNoTransformVS(
 	in float4 InPosition : ATTRIBUTE0
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	, in uint InstanceId : SV_InstanceID
-	, out nointerpolation uint EyeIndex : TEXCOORD0
+	, out nointerpolation uint EyeIndex : VIEW_ID
 	, out nointerpolation uint LayerIndex : SV_RenderTargetArrayIndex
 #endif
 	, out float4 OutPosition : SV_POSITION
 )
 {
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	EyeIndex = GetEyeIndex(InstanceId);
 	LayerIndex = EyeIndex;
 #endif
@@ -30,9 +30,9 @@ float4 PreShadowToPreViewTranslation;
 
 void ShadowVolumeBoundProjectionVS(
 	in float4 InPosition : ATTRIBUTE0
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	, in uint InstanceId : SV_InstanceID
-	, out nointerpolation uint EyeIndex : TEXCOORD0
+	, out nointerpolation uint EyeIndex : VIEW_ID
 	, out uint LayerIndex : SV_RenderTargetArrayIndex
 #elif MOBILE_MULTI_VIEW
 	, in nointerpolation uint ViewId : SV_ViewID
@@ -40,7 +40,7 @@ void ShadowVolumeBoundProjectionVS(
 	, out float4 OutPosition : SV_POSITION
 )
 {
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	EyeIndex = GetEyeIndex(InstanceId);
 	LayerIndex = EyeIndex;
 	ResolvedView = ResolveView(EyeIndex);
