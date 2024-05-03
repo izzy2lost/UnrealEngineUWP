@@ -6,27 +6,23 @@
 #include "Providers/IAdvancedRenamerProvider.h"
 #include "Templates/SharedPointer.h"
 
-class FRegexPattern;
-struct FAdvancedRenamerOptions;
 struct FAdvancedRenamerPreview;
 
 class FAdvancedRenamer : public IAdvancedRenamer
 {
 public:
-	FAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InProvider, FAdvancedRenamerOptions* InInitialOptions = nullptr);
+	FAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InProvider);
 
 	//~ Begin IAdvancedRenamer
 	virtual const TSharedRef<IAdvancedRenamerProvider>& GetProvider() const override;
-	virtual const FAdvancedRenamerOptions& GetOptions() const override;
-	virtual FAdvancedRenamerOptions& GetOptions() override;
-	virtual void SetOption(const FAdvancedRenamerOptions& InOptions) override;
 	virtual const TArray<TSharedPtr<FAdvancedRenamerPreview>>& GetPreviews() override;
 	virtual TSharedPtr<FAdvancedRenamerPreview> GetPreview(int32 InIndex) const override;
+	virtual void AddSection(FAdvancedRenamerExecuteSection InSection) override;
 	virtual bool HasRenames() const override;
 	virtual bool IsDirty() const override;
 	virtual void MarkDirty() override;
 	virtual void MarkClean() override;
-	virtual FString ApplyRename(const FString& InName, int32 InIndex) const override;
+	virtual FString ApplyRename(const FString& InName) override;
 	virtual bool UpdatePreviews() override;
 	virtual bool Execute() override;
 	//~ End IAdvancedRenamer
@@ -41,18 +37,26 @@ public:
 	virtual bool ExecuteRename(int32 InIndex, const FString& InNewName) override;
 	//~ End IAdvancedRenamerProvider
 
-protected:
+private:
+	/** Called before the whole Rename logic start */
+	void BeforeOperationsStartExecute();
+	
+	/** Called after the whole Rename logic end */
+	void AfterOperationsEndExecute();
+
+private:
+	/** Provider for this Renamer */
 	TSharedRef<IAdvancedRenamerProvider> Provider;
+
+	/** Previews Name list */
 	TArray<TSharedPtr<FAdvancedRenamerPreview>> Previews;
-	FAdvancedRenamerOptions Options;
+	
+	/** Renamer sections list */
+	TArray<FAdvancedRenamerExecuteSection> Sections;
+
+	/** Whether or not at least 1 preview has a Rename */
 	bool bHasRenames;
+	
+	/** if true the Rename logic will be executed */
 	bool bDirty;
-
-	FString ApplyBaseName(const FString& InOriginalName) const;
-	FString ApplyPrefix(const FString& InOriginalName) const;
-	FString ApplySuffix(const FString& InOriginalName, int32 InIndex) const;
-	FString ApplySearchPlainText(const FString& InOriginalName) const;
-	FString ApplySearchReplaceRegex(const FString& InOriginalName) const;
-
-	FString RegexReplace(const FString& InOriginalString, const FRegexPattern& InPattern, const FString& InReplaceString) const;
 };

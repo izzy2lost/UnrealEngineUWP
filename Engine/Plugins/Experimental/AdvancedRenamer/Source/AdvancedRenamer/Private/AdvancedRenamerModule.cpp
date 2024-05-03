@@ -4,6 +4,11 @@
 
 #include "AdvancedRenamer.h"
 #include "AdvancedRenamerCommands.h"
+#include "AdvancedRenamerSections/AdvancedRenamerAddPrefixSuffixSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerChangeCaseSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerRemovePrefixSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerRemoveSuffixSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerSearchAndReplaceSection.h"
 #include "AdvancedRenamerStyle.h"
 #include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
@@ -24,22 +29,58 @@ namespace UE::AdvancedRenamer::Private
 	{
 		return SNew(SWindow)
 			.Title(LOCTEXT("AdvancedRenameWindow", "Rename Actors"))
-			.ClientSize(FVector2D(600, 538))
+			.ClientSize(FVector2D(731, 547))
 			.SizingRule(ESizingRule::UserSized)
 			.SupportsMaximize(false)
 			.SupportsMinimize(false)
-			.MinWidth(600)
-			.MinHeight(538)
-			.MaxHeight(538);
+			.MinWidth(737)
+			.MinHeight(586.5f);
+	}
+
+	static TAutoConsoleVariable<bool> CVarBatchRenamerEnableIntegration(
+		TEXT("BatchRenamer.EnableIntegration"),
+		false,
+		TEXT("If enabled, the Batch Renamer will hook into the ContentBrowser and Outliner.")
+	);
+
+	static bool bPreviousCVarValue = false;
+
+	void OnBatchRenamerEnabledChanged(IConsoleVariable* InVar)
+	{
+		if (InVar)
+		{
+			const bool bCurrentValue = InVar->GetBool();
+			if (bCurrentValue != bPreviousCVarValue)
+			{
+				if (InVar->GetBool())
+				{
+					FAdvancedRenamerContentBrowserIntegration::Initialize();
+					FAdvancedRenamerLevelEditorIntegration::InitializeMenu();
+				}
+				else
+				{
+					FAdvancedRenamerContentBrowserIntegration::Shutdown();
+					FAdvancedRenamerLevelEditorIntegration::ShutdownMenu();
+				}
+				bPreviousCVarValue = bCurrentValue;
+			}
+		}
 	}
 }
 
 void FAdvancedRenamerModule::StartupModule()
 {
 	FAdvancedRenamerStyle::Initialize();
-	FAdvancedRenamerCommands::Register();
-	FAdvancedRenamerContentBrowserIntegration::Initialize();
 	FAdvancedRenamerLevelEditorIntegration::Initialize();
+	FAdvancedRenamerCommands::Register();
+
+	{
+		// Enable plugins integration section from CVar
+		using namespace UE::AdvancedRenamer::Private;
+		EnableRenamerHandle = CVarBatchRenamerEnableIntegration.AsVariable()->OnChangedDelegate().AddStatic(&OnBatchRenamerEnabledChanged);
+	}
+
+	RegisterDefaultSections();
 }
 
 void FAdvancedRenamerModule::ShutdownModule()
@@ -48,6 +89,12 @@ void FAdvancedRenamerModule::ShutdownModule()
 	FAdvancedRenamerStyle::Shutdown();
 	FAdvancedRenamerContentBrowserIntegration::Shutdown();
 	FAdvancedRenamerLevelEditorIntegration::Shutdown();
+	FAdvancedRenamerLevelEditorIntegration::ShutdownMenu();
+	if (EnableRenamerHandle.IsValid())
+	{
+		using namespace UE::AdvancedRenamer::Private;
+		CVarBatchRenamerEnableIntegration.AsVariable()->OnChangedDelegate().Remove(EnableRenamerHandle);
+	}
 }
 
 TSharedRef<IAdvancedRenamer> FAdvancedRenamerModule::CreateAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider)
@@ -203,6 +250,15 @@ TArray<AActor*> FAdvancedRenamerModule::GetActorsSharingClassesInWorld(const TAr
 	}
 
 	return AllActors;
+}
+
+void FAdvancedRenamerModule::RegisterDefaultSections()
+{
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerSearchAndReplaceSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerRemovePrefixSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerRemoveSuffixSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerAddPrefixSuffixSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerChangeCaseSection>());
 }
 
 IMPLEMENT_MODULE(FAdvancedRenamerModule, AdvancedRenamer)
