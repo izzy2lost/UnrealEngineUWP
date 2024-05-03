@@ -284,37 +284,40 @@ void ParseAlembicObject(FPCGExternalDataContext* Context, const Alembic::Abc::IO
 			}
 
 			Alembic::AbcGeom::ICompoundProperty Parameters = Points.getSchema().getArbGeomParams();
-			for (int Index = 0; Index < Parameters.getNumProperties(); ++Index)
+			if (Parameters.valid())
 			{
-				Alembic::Abc::PropertyHeader PropertyHeader = Parameters.getPropertyHeader(Index);
-				FString PropName(PropertyHeader.getName().c_str());
-
-				// We'll parse only properties that affect every point/object
-				if (PropertyHeader.getPropertyType() != Alembic::Abc::kArrayProperty &&
-					!(PropertyHeader.getPropertyType() == Alembic::Abc::kCompoundProperty && (PropertyHeader.getDataType().getPod() == Alembic::Util::kUnknownPOD || PropertyHeader.getDataType().getPod() == Alembic::Util::kStringPOD)))
+				for (int Index = 0; Index < Parameters.getNumProperties(); ++Index)
 				{
-					PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("AlembicPropertyType", "Property '{0}' is not supported (expected array)."), FText::FromString(PropName)));
-					continue;
-				}
+					Alembic::Abc::PropertyHeader PropertyHeader = Parameters.getPropertyHeader(Index);
+					FString PropName(PropertyHeader.getName().c_str());
 
-				TUniquePtr<const IPCGAttributeAccessor> AlembicPropAccessor = CreateAlembicPropAccessor(Parameters, PropertyHeader, PropName);
-				TUniquePtr<IPCGAttributeAccessor> PointPropertyAccessor;
+					// We'll parse only properties that affect every point/object
+					if (PropertyHeader.getPropertyType() != Alembic::Abc::kArrayProperty &&
+						!(PropertyHeader.getPropertyType() == Alembic::Abc::kCompoundProperty && (PropertyHeader.getDataType().getPod() == Alembic::Util::kUnknownPOD || PropertyHeader.getDataType().getPod() == Alembic::Util::kStringPOD)))
+					{
+						PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("AlembicPropertyType", "Property '{0}' is not supported (expected array)."), FText::FromString(PropName)));
+						continue;
+					}
 
-				// Setup attribute property selector
-				FPCGAttributePropertySelector PointPropertySelector;
-				if (const FPCGAttributePropertySelector* MappedField = Settings->AttributeMapping.Find(PropName))
-				{
-					PointPropertySelector = *MappedField;
-					PropName = PointPropertySelector.GetName().ToString();
-				}
-				else
-				{
-					PointPropertySelector.Update(PropName);
-				}
+					TUniquePtr<const IPCGAttributeAccessor> AlembicPropAccessor = CreateAlembicPropAccessor(Parameters, PropertyHeader, PropName);
+					TUniquePtr<IPCGAttributeAccessor> PointPropertyAccessor;
 
-				if (CreatePointAccessorAndValidate(Context, PointData, AlembicPropAccessor, PointPropertySelector, PropName, PointPropertyAccessor))
-				{
-					PointDataAccessorMapping.RowToPointAccessors.Emplace(MoveTemp(AlembicPropAccessor), MoveTemp(PointPropertyAccessor), PointPropertySelector);
+					// Setup attribute property selector
+					FPCGAttributePropertySelector PointPropertySelector;
+					if (const FPCGAttributePropertySelector* MappedField = Settings->AttributeMapping.Find(PropName))
+					{
+						PointPropertySelector = *MappedField;
+						PropName = PointPropertySelector.GetName().ToString();
+					}
+					else
+					{
+						PointPropertySelector.Update(PropName);
+					}
+
+					if (CreatePointAccessorAndValidate(Context, PointData, AlembicPropAccessor, PointPropertySelector, PropName, PointPropertyAccessor))
+					{
+						PointDataAccessorMapping.RowToPointAccessors.Emplace(MoveTemp(AlembicPropAccessor), MoveTemp(PointPropertyAccessor), PointPropertySelector);
+					}
 				}
 			}
 		}
