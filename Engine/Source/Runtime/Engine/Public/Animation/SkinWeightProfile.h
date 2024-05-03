@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Rendering/SkinWeightVertexBuffer.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "UObject/NameTypes.h"
 #include "Misc/CoreStats.h"
 #include "RenderingThread.h"

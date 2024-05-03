@@ -10,7 +10,7 @@
 #include "PhysicsEngine/BodyInstance.h"
 #include "Async/AsyncWork.h"
 #include "Engine/Texture.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "LandscapeNaniteComponent.h"
 #include "LandscapeWeightmapUsage.h"
 #include "LandscapeHeightfieldCollisionComponent.h"

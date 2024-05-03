@@ -12,7 +12,7 @@ THIRD_PARTY_INCLUDES_END
 
 #include "CoreMinimal.h"
 #include "Containers/Ticker.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "Engine/LatentActionManager.h"
 #include "Serialization/BulkData.h"
 #include "UObject/ObjectMacros.h"

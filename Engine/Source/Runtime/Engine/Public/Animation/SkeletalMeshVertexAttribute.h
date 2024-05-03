@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 
 #include "SkeletalMeshVertexAttribute.generated.h"
 

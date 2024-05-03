@@ -10,7 +10,7 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/StaticMesh.h"
 #include "MeshReductionSettings.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "PerQualityLevelProperties.h"
 
 struct FMeshDescription;

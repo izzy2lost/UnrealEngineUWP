@@ -20,7 +20,7 @@
 #include "Animation/CustomAttributes.h"
 #include "Animation/AnimData/AnimDataNotifications.h"
 #include "Animation/AttributeCurve.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "IO/IoHash.h"
 
 #if WITH_EDITOR

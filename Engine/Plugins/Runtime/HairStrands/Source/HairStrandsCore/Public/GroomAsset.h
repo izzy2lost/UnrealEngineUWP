@@ -19,7 +19,7 @@
 #include "HairStrandsInterface.h"
 #include "Engine/SkeletalMesh.h"
 #include "Interfaces/Interface_AssetUserData.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "UObject/StrongObjectPtr.h"
 
 #include "GroomAsset.generated.h"

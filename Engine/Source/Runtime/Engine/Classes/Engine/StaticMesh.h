@@ -21,7 +21,7 @@
 #include "Engine/StreamableRenderAsset.h"
 #include "Templates/UniquePtr.h"
 #include "StaticMeshSourceData.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "MeshTypes.h"
 #include "PerQualityLevelProperties.h"
 

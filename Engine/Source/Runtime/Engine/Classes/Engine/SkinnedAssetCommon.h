@@ -10,7 +10,7 @@
 #include "Components.h"
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "SkeletalMeshReductionSettings.h"
 #include "Animation/SkeletalMeshVertexAttribute.h"
 

@@ -35,7 +35,7 @@
 #include "Templates/UniquePtr.h"
 #include "Serialization/BulkData.h"
 #include "WeightedRandomSampler.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "RayTracingGeometry.h"
 #if WITH_EDITORONLY_DATA
 #include "Interface_CollisionDataProviderCore.h"

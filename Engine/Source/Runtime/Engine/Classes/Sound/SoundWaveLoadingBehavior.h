@@ -5,7 +5,7 @@
 #include "UObject/ObjectMacros.h"
 
 #if WITH_EDITOR
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #endif //WITH_EDITOR
 
 #include "SoundWaveLoadingBehavior.generated.h"

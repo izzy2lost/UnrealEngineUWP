@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/TextureDefines.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "RenderCommandFence.h"
 #include "SceneComponent.h"
 #include "SceneTypes.h"

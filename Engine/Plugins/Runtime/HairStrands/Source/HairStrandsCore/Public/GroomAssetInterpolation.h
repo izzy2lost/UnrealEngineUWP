@@ -4,7 +4,7 @@
 
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "GroomAssetInterpolation.generated.h"
 
 UENUM()

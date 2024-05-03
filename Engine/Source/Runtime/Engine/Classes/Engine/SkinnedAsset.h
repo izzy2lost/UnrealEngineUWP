@@ -11,7 +11,7 @@
 #include "Engine/StreamableRenderAsset.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
 #include "ReferenceSkeleton.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "PSOPrecache.h"
 #include "SkinnedAsset.generated.h"
 

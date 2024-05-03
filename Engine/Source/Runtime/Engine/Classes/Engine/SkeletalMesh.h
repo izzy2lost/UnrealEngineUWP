@@ -15,7 +15,7 @@
 #include "Interfaces/Interface_AssetUserData.h"
 #include "Interfaces/Interface_CollisionDataProvider.h"
 #include "Misc/EnumClassFlags.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "PerQualityLevelProperties.h"
 #include "ReferenceSkeleton.h"
 #include "RenderCommandFence.h"

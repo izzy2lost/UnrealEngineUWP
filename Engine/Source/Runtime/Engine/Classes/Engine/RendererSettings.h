@@ -8,7 +8,7 @@
 #include "Engine/Scene.h"
 #include "Engine/DeveloperSettings.h"
 #include "PixelFormat.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "LegacyScreenPercentageDriver.h"
 
 #include "RendererSettings.generated.h"

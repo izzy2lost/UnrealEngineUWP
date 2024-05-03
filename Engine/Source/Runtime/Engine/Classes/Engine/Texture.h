@@ -15,7 +15,7 @@
 #include "Engine/TextureDefines.h"
 #include "MaterialValueType.h"
 #include "Engine/StreamableRenderAsset.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "ImageCore.h"
 #if WITH_EDITORONLY_DATA
 #include "Misc/TVariant.h"

@@ -6,7 +6,7 @@
 #if WITH_EDITOR
 #include "AnimationCompression.h"
 #include "AnimationUtils.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "Animation/AnimCompressionTypes.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "PlatformInfo.h"
