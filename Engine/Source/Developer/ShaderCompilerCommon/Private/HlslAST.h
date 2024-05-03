@@ -486,6 +486,16 @@ namespace CrossCompiler
 			FString Message;
 		};
 
+		struct FC99PragmaStatement : public FNode
+		{
+			FC99PragmaStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InArgument);
+			~FC99PragmaStatement();
+
+			virtual void Write(FASTWriter& Writer) const override;
+
+			FString Argument;
+		};
+
 		struct FSemanticSpecifier : public FNode
 		{
 			enum class ESpecType

@@ -1519,6 +1519,43 @@ Done:
 		return EParseResult::Matched;
 	}
 
+	EParseResult ParseC99PragmaStatementBody(FHlslParser& Parser, FLinearAllocator* Allocator, AST::FNode** OutDeclaration)
+	{
+		if (!Parser.Scanner.MatchToken(EHlslToken::LeftParenthesis))
+		{
+			Parser.Scanner.SourceError(TEXT("'(' expected!\n"));
+			return ParseResultError();
+		}
+
+		const FHlslToken* PragmaArgumentToken = Parser.Scanner.PeekToken();
+		if (!Parser.Scanner.MatchToken(EHlslToken::StringConstant))
+		{
+			Parser.Scanner.SourceError(TEXT("string constant expected!\n"));
+			return ParseResultError();
+		}
+		// Store the string inside the pragma so we can round-trip it properly
+		AST::FC99PragmaStatement* Statement = new(Allocator) AST::FC99PragmaStatement(Allocator, PragmaArgumentToken->SourceInfo, PragmaArgumentToken->String);
+
+		if (!Parser.Scanner.MatchToken(EHlslToken::RightParenthesis))
+		{
+			Parser.Scanner.SourceError(TEXT("')' expected!\n"));
+			return ParseResultError();
+		}
+
+		*OutDeclaration = Statement;
+
+		return EParseResult::Matched;
+	}
+
+	EParseResult ParseC99PragmaStatement(FHlslParser& Parser, FLinearAllocator* Allocator, AST::FNode** OutDeclaration)
+	{
+		if (!Parser.Scanner.MatchToken(EHlslToken::C99Pragma))
+		{
+			return EParseResult::NotMatched;
+		}
+		return ParseC99PragmaStatementBody(Parser, Allocator, OutDeclaration);
+	}
+
 	EParseResult ParseGlobalVariableDeclaration(FHlslParser& Parser, FLinearAllocator* Allocator, AST::FNode** OutDeclaration)
 	{
 		AST::FDeclaratorList* List = nullptr;
@@ -2224,6 +2261,12 @@ Done:
 			return Result;
 		}
 
+		Result = ParseC99PragmaStatement(Parser, Allocator, OutNode);
+		if (Result == EParseResult::Error || Result == EParseResult::Matched)
+		{
+			return Result;
+		}
+
 		// Ignore semicolons with no code before them.
 		if (Parser.Scanner.MatchToken(EHlslToken::Semicolon))
 		{
@@ -2240,6 +2283,7 @@ Done:
 		{
 			FStaticInitializer()
 			{
+				RulesStatements.Add(FRulePair(EHlslToken::C99Pragma, ParseC99PragmaStatementBody));
 				RulesStatements.Add(FRulePair(EHlslToken::LeftBrace, ParseStatementBlock));
 				RulesStatements.Add(FRulePair(EHlslToken::Return, ParseReturnStatement));
 				RulesStatements.Add(FRulePair(EHlslToken::Do, ParseDoStatement));

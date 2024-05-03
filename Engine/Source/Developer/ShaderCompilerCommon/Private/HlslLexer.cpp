@@ -442,6 +442,7 @@ namespace CrossCompiler
 				InsertToken(TEXT("operator"), EHlslToken::Operator);
 				InsertToken(TEXT("_Static_assert"), EHlslToken::StaticAssert); // HLSL2021 adopted C11 '_Static_assert'-statements
 				InsertToken(TEXT("static_assert"), EHlslToken::StaticAssert); // Some shader compilers support C++11 'static_assert'-statements
+				InsertToken(TEXT("_Pragma"), EHlslToken::C99Pragma); // C99/C++11 style pragma (distinct from #pragma because argument is a string constant)
 			}
 		} GStaticInitializer;
 	}
@@ -770,9 +771,22 @@ namespace CrossCompiler
 			OutString = TEXT("");
 			while (Peek() != '"')
 			{
-				OutString += Peek();
-				//@todo-rco: Check for \"
-				//@todo-rco: Check for EOL
+				auto Char = Peek();
+				OutString += Char;
+				if (Char == 0)
+				{
+					return false; // ill-formed string (EOL inside quote)
+				}
+				if (Char == '\\') // escaped character, we must have at least one more
+				{
+					++Current;
+					Char = Peek();
+					if (Char == 0)
+					{
+						return false; // EOL
+					}
+					OutString += Char; //@todo-rco: Should we validate we have escaped a valid character?
+				}
 				++Current;
 			}
 

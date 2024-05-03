@@ -2531,6 +2531,12 @@ uint UnreferencedFunction()
 	return GUnreferencedParameter;
 }
 
+_Pragma("")
+
+_Pragma("dxc diagnostic push")
+_Pragma("dxc diagnostic ignored \"-Wall\"") _Pragma("dxc diagnostic ignored \"-Wconversion\"")
+_Pragma("dxc diagnostic pop")
+
 typedef Texture2D<float4> UnreferencedTypedef;
 
 #define COMPILER_DEFINITION_TEST 123

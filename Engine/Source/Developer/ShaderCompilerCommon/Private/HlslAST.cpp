@@ -556,6 +556,21 @@ namespace CrossCompiler
 			Writer << TEXT(", \"") << *Message << TEXT("\");\n");
 		}
 
+		FC99PragmaStatement::FC99PragmaStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InArgument) :
+			FNode(InAllocator, InInfo),
+			Argument(InArgument)
+		{
+		}
+
+		FC99PragmaStatement::~FC99PragmaStatement()
+		{
+		}
+
+		void FC99PragmaStatement::Write(FASTWriter& Writer) const
+		{
+			Writer << TEXT("_Pragma(\"") << *Argument << TEXT("\")\n");
+		}
+
 		FFunctionDefinition::FFunctionDefinition(FLinearAllocator* InAllocator, const FSourceInfo& InInfo) :
 			FNode(InAllocator, InInfo),
 			Prototype(nullptr),
