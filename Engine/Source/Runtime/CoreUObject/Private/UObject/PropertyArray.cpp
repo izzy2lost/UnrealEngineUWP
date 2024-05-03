@@ -684,7 +684,6 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 
 				// Serialize the item at this array index
 				i = PropertyNode->ArrayIndex;
-				UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, i, UE::ESerializedPropertyPathNotify::Yes);
 				SerializeContainerItem(Array.EnterElement(), ArrayHelper.GetRawPtr(i));
 				PropertyNode = PropertyNode->PropertyListNext;
 
@@ -709,7 +708,6 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			NAME_UArraySerializeCount.SetNumber(i);
 			FArchive::FScopeAddDebugData P(UnderlyingArchive, NAME_UArraySerializeCount);
 #endif
-			UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, i, UE::ESerializedPropertyPathNotify::Yes);
 			SerializeContainerItem(Array.EnterElement(), ArrayHelper.GetRawPtr(i++));
 		}
 
@@ -1236,16 +1234,11 @@ EConvertFromTypeResult FArrayProperty::ConvertFromType(const FPropertyTag& Tag, 
 	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 	FStructuredArchive::FStream ValueStream = Slot.EnterStream();
 
-	EConvertFromTypeResult ConvertResult;
-	{
-		UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, 0, UE::ESerializedPropertyPathNotify::Yes);
-		ConvertResult = Inner->ConvertFromType(InnerPropertyTag, ValueStream.EnterElement(), ScriptArrayHelper.GetRawPtr(0), DefaultsStruct, nullptr);
-	}
+	EConvertFromTypeResult ConvertResult = Inner->ConvertFromType(InnerPropertyTag, ValueStream.EnterElement(), ScriptArrayHelper.GetRawPtr(0), DefaultsStruct, nullptr);
 	if (ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized)
 	{
 		for (int32 ElementIndex = 1; ElementIndex < ElementCount; ++ElementIndex)
 		{
-			UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, ElementIndex, UE::ESerializedPropertyPathNotify::Yes);
 			ConvertResult = Inner->ConvertFromType(InnerPropertyTag, ValueStream.EnterElement(), ScriptArrayHelper.GetRawPtr(ElementIndex), DefaultsStruct, nullptr);
 			check(ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized);
 		}

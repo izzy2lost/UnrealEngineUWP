@@ -1638,7 +1638,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					const FName Name = Property ? Property->GetFName() : Tag.Name;
 					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
 					const UE::FPropertyPathNameSegment Segment{Name, Tag.GetType(), Index};
-					SerializedPropertyPath.Emplace(SerializeContext, Segment, UE::ESerializedPropertyPathNotify::Yes);
+					SerializedPropertyPath.Emplace(SerializeContext, Segment);
 				}
 
 				bool bTryStoreUnknownPropertyPath = false;

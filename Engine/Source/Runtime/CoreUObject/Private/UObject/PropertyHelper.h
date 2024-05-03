@@ -98,20 +98,13 @@ FPropertyTypeName FindOriginalType(const FStructProperty* Struct);
  */
 FPropertyTypeName ApplyRedirectsToPropertyType(FPropertyTypeName OldTypeName, const FProperty* Property = nullptr);
 
-/** Whether to notify that a property has been serialized when terminating the property path scopes below. */
-enum class ESerializedPropertyPathNotify
-{
-	No,
-	Yes,
-};
-
 /**
  * Pushes a segment to SerializedPropertyPath for the lifetime of this object if path tracking is active.
  */
 class FSerializedPropertyPathScope
 {
 public:
-	[[nodiscard]] FSerializedPropertyPathScope(FUObjectSerializeContext* InContext, const FPropertyPathNameSegment& InSegment, ESerializedPropertyPathNotify InNotify)
+	[[nodiscard]] FSerializedPropertyPathScope(FUObjectSerializeContext* InContext, const FPropertyPathNameSegment& InSegment)
 	{
 		if (InContext->bTrackSerializedPropertyPath)
 		{
@@ -130,38 +123,6 @@ public:
 
 	FSerializedPropertyPathScope(const FSerializedPropertyPathScope&) = delete;
 	FSerializedPropertyPathScope& operator=(const FSerializedPropertyPathScope&) = delete;
-
-private:
-	FUObjectSerializeContext* Context = nullptr;
-};
-
-/**
- * Sets the index of the last segment of SerializedPropertyPath for the lifetime of this object if path tracking is active.
- *
- * Resets the index to INDEX_NONE when destructed.
- */
-class FSerializedPropertyPathIndexScope
-{
-public:
-	[[nodiscard]] FSerializedPropertyPathIndexScope(FUObjectSerializeContext* InContext, int32 InIndex, ESerializedPropertyPathNotify InNotify)
-	{
-		if (InContext->bTrackSerializedPropertyPath)
-		{
-			Context = InContext;
-			Context->SerializedPropertyPath.SetIndex(InIndex);
-		}
-	}
-
-	~FSerializedPropertyPathIndexScope()
-	{
-		if (Context)
-		{
-			Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
-		}
-	}
-
-	FSerializedPropertyPathIndexScope(const FSerializedPropertyPathIndexScope&) = delete;
-	FSerializedPropertyPathIndexScope& operator=(const FSerializedPropertyPathIndexScope&) = delete;
 
 private:
 	FUObjectSerializeContext* Context = nullptr;
