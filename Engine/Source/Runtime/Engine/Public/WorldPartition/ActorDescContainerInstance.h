@@ -27,6 +27,7 @@ protected:
 	UActorDescContainerInstance()
 #if WITH_EDITORONLY_DATA
 		: bIsInitialized(false) 
+		, bRegisteredDelegates(false)
 		, bCreateChildContainerHierarchy(false)
 #endif
 	{}
@@ -41,8 +42,7 @@ public:
 		FInitializeParams(FName InContainerPackageName, bool bInCreateContainerInstanceHierarchy = false)
 			: ContainerPackageName(InContainerPackageName)
 			, bCreateContainerInstanceHierarchy(bInCreateContainerInstanceHierarchy)
-		{
-		}
+		{}
 				
 		FInitializeParams& SetParent(const UActorDescContainerInstance* InParentContainerInstance, const FGuid& InContainerActorGuid)
 		{
@@ -55,6 +55,12 @@ public:
 		FInitializeParams& SetTransform(const FTransform& InTransform)
 		{
 			Transform = InTransform;
+			return *this;
+		}
+
+		FInitializeParams& SetShouldRegisterEditorDeletages(bool bInShouldRegisterEditorDeletages)
+		{
+			bShouldRegisterEditorDeletages = bInShouldRegisterEditorDeletages;
 			return *this;
 		}
 
@@ -73,6 +79,7 @@ public:
 		TOptional<FTransform> Transform;
 
 		bool bCreateContainerInstanceHierarchy;
+		bool bShouldRegisterEditorDeletages = true;
 
 		/* Custom filter function used to filter actors descriptors. */
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDescFunc;
@@ -195,6 +202,7 @@ protected:
 	TMap<FGuid, TObjectPtr<UActorDescContainerInstance>>		ChildContainerInstances;
 
 	bool														bIsInitialized;
+	bool														bRegisteredDelegates;
 	bool														bCreateChildContainerHierarchy;
 #endif
 };

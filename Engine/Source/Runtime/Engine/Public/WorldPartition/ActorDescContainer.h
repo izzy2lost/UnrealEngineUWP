@@ -75,6 +75,9 @@ public:
 		/** The associated Content Bundle Guid */
 		FGuid ContentBundleGuid;
 
+		/** If the container should bind to editor events */
+		bool bShouldRegisterEditorDeletages = true;
+
 		/** The associated External Data Layer Asset */
 		const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
 
@@ -145,6 +148,7 @@ public:
 	virtual ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(FName ActorName) const;
 
 	bool bContainerInitialized;
+	bool bRegisteredDelegates;
 
 	FName ContainerPackageName;
 	FGuid ContentBundleGuid;

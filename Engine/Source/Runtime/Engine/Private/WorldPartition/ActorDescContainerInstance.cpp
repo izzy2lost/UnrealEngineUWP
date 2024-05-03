@@ -36,6 +36,7 @@ void UActorDescContainerInstance::RegisterContainer(const FInitializeParams& InP
 	};
 	ContainerInitParams.ContentBundleGuid = InParams.ContentBundleGuid;
 	ContainerInitParams.ExternalDataLayerAsset = InParams.ExternalDataLayerAsset;
+	ContainerInitParams.bShouldRegisterEditorDeletages = InParams.bShouldRegisterEditorDeletages;
 
 	SetContainer(UActorDescContainerSubsystem::GetChecked().RegisterContainer(ContainerInitParams));
 }
@@ -168,7 +169,12 @@ void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 	}
 
 	// Register Delegates
-	RegisterDelegates();
+	bRegisteredDelegates = InParams.bShouldRegisterEditorDeletages && ShouldRegisterDelegates();
+	
+	if (bRegisteredDelegates)
+	{
+		RegisterDelegates();
+	}
 
 	bIsInitialized = true;
 }
@@ -193,7 +199,11 @@ void UActorDescContainerInstance::Uninitialize()
 
 	bIsInitialized = false;
 
-	UnregisterDelegates();
+	if (bRegisteredDelegates)
+	{
+		UnregisterDelegates();
+		bRegisteredDelegates = false;
+	}
 
 	for (TUniquePtr<FWorldPartitionActorDescInstance>& ActorDescInstancePtr : ActorDescList)
 	{
@@ -228,53 +238,47 @@ bool UActorDescContainerInstance::ShouldRegisterDelegates() const
 
 void UActorDescContainerInstance::RegisterDelegates()
 {
-	if (ShouldRegisterDelegates())
+	check(Container);
+
+	// Only listen to Object replaced events on ContainerInstance that have a direct World Partition outer (Loaded Container Instances: Main World or Loaded Level Instances)
+	if (GetOuterWorldPartition())
 	{
-		check(Container);
-
-		// Only listen to Object replaced events on ContainerInstance that have a direct World Partition outer (Loaded Container Instances: Main World or Loaded Level Instances)
-		if (GetOuterWorldPartition())
-		{
-			FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UActorDescContainerInstance::OnObjectsReplaced);
-		}
-
-		// Only listen to this event if we have registered Child Container Instances
-		if (bCreateChildContainerHierarchy)
-		{
-			UActorDescContainerSubsystem::GetChecked().ContainerReplaced().AddUObject(this, &UActorDescContainerInstance::OnContainerReplaced);
-		}
-
-		// No need to register Added descs events for instanced worlds as they don't support it for now (Level Instances get reloaded after an edit)
-		if (!GetInstancingContext())
-		{
-			Container->OnActorDescAddedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescAdded);
-		}
-
-		// Important to hook the other events that will invalidate existing FWorldPartitionActorDescInstance's because those can be hashed and loaded
-		// even in Instanced worlds (Level Instances)
-		Container->OnActorDescRemovedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescRemoved);
-		
-		Container->OnActorDescUpdatingEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescUpdating);
-		Container->OnActorDescUpdatedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescUpdated);
+		FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UActorDescContainerInstance::OnObjectsReplaced);
 	}
+
+	// Only listen to this event if we have registered Child Container Instances
+	if (bCreateChildContainerHierarchy)
+	{
+		UActorDescContainerSubsystem::GetChecked().ContainerReplaced().AddUObject(this, &UActorDescContainerInstance::OnContainerReplaced);
+	}
+
+	// No need to register Added descs events for instanced worlds as they don't support it for now (Level Instances get reloaded after an edit)
+	if (!GetInstancingContext())
+	{
+		Container->OnActorDescAddedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescAdded);
+	}
+
+	// Important to hook the other events that will invalidate existing FWorldPartitionActorDescInstance's because those can be hashed and loaded
+	// even in Instanced worlds (Level Instances)
+	Container->OnActorDescRemovedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescRemoved);
+		
+	Container->OnActorDescUpdatingEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescUpdating);
+	Container->OnActorDescUpdatedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescUpdated);
 }
 
 void UActorDescContainerInstance::UnregisterDelegates()
 {
-	if (ShouldRegisterDelegates())
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+
+	check(Container);
+	Container->OnActorDescAddedEvent.RemoveAll(this);
+	Container->OnActorDescRemovedEvent.RemoveAll(this);
+	Container->OnActorDescUpdatingEvent.RemoveAll(this);
+	Container->OnActorDescUpdatedEvent.RemoveAll(this);
+
+	if (UActorDescContainerSubsystem* ActorDescContainerSubsystem = UActorDescContainerSubsystem::Get())
 	{
-		FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
-
-		check(Container);
-		Container->OnActorDescAddedEvent.RemoveAll(this);
-		Container->OnActorDescRemovedEvent.RemoveAll(this);
-		Container->OnActorDescUpdatingEvent.RemoveAll(this);
-		Container->OnActorDescUpdatedEvent.RemoveAll(this);
-
-		if (UActorDescContainerSubsystem* ActorDescContainerSubsystem = UActorDescContainerSubsystem::Get())
-		{
-			ActorDescContainerSubsystem->ContainerReplaced().RemoveAll(this);
-		}
+		ActorDescContainerSubsystem->ContainerReplaced().RemoveAll(this);
 	}
 }
 

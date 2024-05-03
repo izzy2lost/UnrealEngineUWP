@@ -44,6 +44,7 @@ UActorDescContainer::UActorDescContainer(const FObjectInitializer& ObjectInitial
 	: Super(ObjectInitializer)
 #if WITH_EDITOR
 	, bContainerInitialized(false)
+	, bRegisteredDelegates(false)
 #endif
 {}
 
@@ -186,7 +187,12 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 		OnActorDescContainerInitialized.Broadcast(this);
 	}
 
-	RegisterEditorDelegates();
+	bRegisteredDelegates = InitParams.bShouldRegisterEditorDeletages && ShouldRegisterDelegates();
+	
+	if (bRegisteredDelegates)
+	{
+		RegisterEditorDelegates();
+	}
 
 	bContainerInitialized = true;
 }
@@ -195,7 +201,11 @@ void UActorDescContainer::Uninitialize()
 {
 	if (bContainerInitialized)
 	{
-		UnregisterEditorDelegates();
+		if (bRegisteredDelegates)
+		{
+			UnregisterEditorDelegates();
+			bRegisteredDelegates = false;
+		}
 		bContainerInitialized = false;
 	}
 
@@ -473,30 +483,24 @@ bool UActorDescContainer::ShouldRegisterDelegates() const
 
 void UActorDescContainer::RegisterEditorDelegates()
 {
-	if (ShouldRegisterDelegates())
-	{
-		FCoreUObjectDelegates::OnObjectPreSave.AddUObject(this, &UActorDescContainer::OnObjectPreSave);
-		FEditorDelegates::OnPackageDeleted.AddUObject(this, &UActorDescContainer::OnPackageDeleted);
+	FCoreUObjectDelegates::OnObjectPreSave.AddUObject(this, &UActorDescContainer::OnObjectPreSave);
+	FEditorDelegates::OnPackageDeleted.AddUObject(this, &UActorDescContainer::OnPackageDeleted);
 
-		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
-		ClassDescRegistry.OnClassDescriptorUpdated().AddUObject(this, &UActorDescContainer::OnClassDescriptorUpdated);
+	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
+	ClassDescRegistry.OnClassDescriptorUpdated().AddUObject(this, &UActorDescContainer::OnClassDescriptorUpdated);
 
-		UDeletedObjectPlaceholder::OnObjectCreated.AddUObject(this, &UActorDescContainer::OnDeletedObjectPlaceholderCreated);
-	}
+	UDeletedObjectPlaceholder::OnObjectCreated.AddUObject(this, &UActorDescContainer::OnDeletedObjectPlaceholderCreated);
 }
 
 void UActorDescContainer::UnregisterEditorDelegates()
 {
-	if (ShouldRegisterDelegates())
-	{
-		FCoreUObjectDelegates::OnObjectPreSave.RemoveAll(this);
-		FEditorDelegates::OnPackageDeleted.RemoveAll(this);
+	FCoreUObjectDelegates::OnObjectPreSave.RemoveAll(this);
+	FEditorDelegates::OnPackageDeleted.RemoveAll(this);
 
-		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
-		ClassDescRegistry.OnClassDescriptorUpdated().RemoveAll(this);
+	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
+	ClassDescRegistry.OnClassDescriptorUpdated().RemoveAll(this);
 
-		UDeletedObjectPlaceholder::OnObjectCreated.RemoveAll(this);
-	}
+	UDeletedObjectPlaceholder::OnObjectCreated.RemoveAll(this);
 }
 
 void UActorDescContainer::OnActorDescAdded(FWorldPartitionActorDesc* NewActorDesc)
