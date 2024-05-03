@@ -148,14 +148,20 @@ void FRewindDebuggerCamera::Update(float DeltaTime, IRewindDebugger* RewindDebug
 									{
 										FActorSpawnParameters SpawnParameters;
 										SpawnParameters.ObjectFlags |= RF_Transient;
-										CameraActor = RewindDebugger->GetWorldToVisualize()->SpawnActor<ACameraActor>(ViewMessage.Position, ViewMessage.Rotation, SpawnParameters);
-										CameraActor->SetActorLabel("RewindDebuggerCamera");
+										if (UWorld* World = RewindDebugger->GetWorldToVisualize())
+										{
+											CameraActor = World->SpawnActor<ACameraActor>(ViewMessage.Position, ViewMessage.Rotation, SpawnParameters);
+											CameraActor->SetActorLabel("RewindDebuggerCamera");
+										}
 									}
 
-									UCameraComponent* Camera = CameraActor->GetCameraComponent();
-									Camera->SetWorldLocationAndRotation(ViewMessage.Position, ViewMessage.Rotation);
-									Camera->SetFieldOfView(ViewMessage.Fov);
-									Camera->SetAspectRatio(ViewMessage.AspectRatio);
+									if (CameraActor.IsValid())
+									{
+										UCameraComponent* Camera = CameraActor->GetCameraComponent();
+										Camera->SetWorldLocationAndRotation(ViewMessage.Position, ViewMessage.Rotation);
+										Camera->SetFieldOfView(ViewMessage.Fov);
+										Camera->SetAspectRatio(ViewMessage.AspectRatio);
+									}
 
 									bCameraTraceDataFound = true;
 

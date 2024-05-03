@@ -229,8 +229,6 @@ void FRewindDebugger::OnPIEStopped(bool bSimulating)
 #endif // OBJECT_TRACE_ENABLED
 	}
 	
-	bTraceFileLoaded = IsRecording();
-	
 	bPIEStarted = false;
 	bPIESimulating = false;
 
@@ -449,8 +447,6 @@ void FRewindDebugger::StartRecording()
 	UnrealInsightsModule->StartAnalysisForLastLiveSession(5.0);
 
 	TargetObjectIds.Empty(2);
-
-	bTraceFileLoaded = false;
 }
 
 bool FRewindDebugger::CanOpenTrace() const
@@ -465,7 +461,6 @@ void FRewindDebugger::OpenTrace(const FString& FilePath)
 
 	IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 	TraceInsightsModule.StartAnalysisForTraceFile(*FilePath);
-	bTraceFileLoaded = GetAnalysisSession() != nullptr;
 
 	// todo: optionally open the map the trace file was recorded in
 }
@@ -510,7 +505,6 @@ void FRewindDebugger::ClearTrace()
 	StopRecording();
 	RecordingDuration.Set(0);
 	
-	bTraceFileLoaded = false;
 	TargetObjectIds.Empty();
 	CurrentTraceRange.SetLowerBoundValue(0);
 	CurrentTraceRange.SetUpperBoundValue(0);
@@ -774,16 +768,16 @@ UWorld* FRewindDebugger::GetWorldToVisualize() const
 	UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
 	if (GIsEditor && EditorEngine != nullptr && World == nullptr)
 	{
-		// when a trace file is loaded, use the editor world, otherwise use the play world
-		World = bTraceFileLoaded ?  EditorEngine->GetEditorWorldContext().World() : ToRawPtr(EditorEngine->PlayWorld);
-	}
-
-	if (!GIsEditor && World == nullptr)
-	{
-		World = GEngine->GetWorld();
+		// lets use PlayWorld during PIE/Simulate and regular world from editor otherwise, to draw debug information
+		World = EditorEngine->PlayWorld != nullptr ? ToRawPtr(EditorEngine->PlayWorld) : EditorEngine->GetEditorWorldContext().World();
 	}
 
 	return World;
+}
+
+bool FRewindDebugger::IsTraceFileLoaded() const
+{
+	return GetAnalysisSession()!=nullptr && !bPIEStarted;
 }
 
 void FRewindDebugger::SetCurrentViewRange(const TRange<double>& Range)

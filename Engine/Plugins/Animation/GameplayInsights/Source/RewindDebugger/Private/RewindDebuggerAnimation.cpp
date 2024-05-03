@@ -220,31 +220,34 @@ const FObjectInfo* FindOwningActorInfo(const IGameplayProvider* GameplayProvider
 
 FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::SpawnMesh(uint64 ObjectId, const IGameplayProvider* GameplayProvider)
 {
-	FSpawnedMeshComponentInfo* MeshComponentInfo = &SpawnedMeshComponents.Add(ObjectId);
-
-	UWorld* World = IRewindDebugger::Instance()->GetWorldToVisualize();
-
-	FActorSpawnParameters ActorSpawnParameters;
-	ActorSpawnParameters.bHideFromSceneOutliner = true;
-	ActorSpawnParameters.ObjectFlags |= RF_Transient;
-
-	MeshComponentInfo->Actor = World->SpawnActor<AActor>(ActorSpawnParameters);
-
-	if(const FObjectInfo* ActorInfo = FindOwningActorInfo(GameplayProvider, ObjectId))
+	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
+	check(RewindDebugger);
+	if (UWorld* World = RewindDebugger->GetWorldToVisualize())
 	{
-		MeshComponentInfo->Actor->SetActorLabel(FString(TEXT("RewindDebugger: ") + FString(ActorInfo->Name)));
+		FSpawnedMeshComponentInfo* MeshComponentInfo = &SpawnedMeshComponents.Add(ObjectId);
+
+		FActorSpawnParameters ActorSpawnParameters;
+		ActorSpawnParameters.bHideFromSceneOutliner = true;
+		ActorSpawnParameters.ObjectFlags |= RF_Transient;
+
+		MeshComponentInfo->Actor = World->SpawnActor<AActor>(ActorSpawnParameters);
+
+		if(const FObjectInfo* ActorInfo = FindOwningActorInfo(GameplayProvider, ObjectId))
+		{
+			MeshComponentInfo->Actor->SetActorLabel(FString(TEXT("RewindDebugger: ") + FString(ActorInfo->Name)));
+		}
+
+		MeshComponentInfo->Component = NewObject<USkeletalMeshComponent>(MeshComponentInfo->Actor.Get());
+		MeshComponentInfo->Component->PrimaryComponentTick.bStartWithTickEnabled = false;
+		MeshComponentInfo->Component->PrimaryComponentTick.bCanEverTick = false;
+
+		MeshComponentInfo->Actor->AddInstanceComponent(MeshComponentInfo->Component);
+
+		MeshComponentInfo->Component->SetAnimationMode(EAnimationMode::AnimationCustomMode);
+		MeshComponentInfo->Component->RegisterComponentWithWorld(World);
+		return MeshComponentInfo;
 	}
-
-	MeshComponentInfo->Component = NewObject<USkeletalMeshComponent>(MeshComponentInfo->Actor.Get());
-	MeshComponentInfo->Component->PrimaryComponentTick.bStartWithTickEnabled = false;
-	MeshComponentInfo->Component->PrimaryComponentTick.bCanEverTick = false;
-
-	MeshComponentInfo->Actor->AddInstanceComponent(MeshComponentInfo->Component);
-
-	MeshComponentInfo->Component->SetAnimationMode(EAnimationMode::AnimationCustomMode);
-	MeshComponentInfo->Component->RegisterComponentWithWorld(World);
-
-	return MeshComponentInfo;
+	return nullptr;
 }
 
 UAnimInstance* FRewindDebuggerAnimation::SpawnAnimInstance(uint64 ObjectId, const IGameplayProvider* GameplayProvider)
@@ -365,8 +368,11 @@ void FRewindDebuggerAnimation::Update(float DeltaTime, IRewindDebugger* RewindDe
 									bLoadMesh = true;
 									LastScrubTime = -1;
 								}
-								
-								MeshComponent = MeshComponentInfo->Component;
+
+								if (MeshComponentInfo)
+								{
+									MeshComponent = MeshComponentInfo->Component;
+								}
 							}
 
 							if (MeshComponent)

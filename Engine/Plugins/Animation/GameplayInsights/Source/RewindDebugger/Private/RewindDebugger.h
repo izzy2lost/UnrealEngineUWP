@@ -43,7 +43,7 @@ public:
 	virtual UWorld* GetWorldToVisualize() const override;
 	virtual bool IsRecording() const override { return bRecording; }
 	virtual bool IsPIESimulating() const override { return bPIESimulating; }
-	virtual bool IsTraceFileLoaded() const override { return bTraceFileLoaded; }
+	virtual bool IsTraceFileLoaded() const override;
 	virtual double GetRecordingDuration() const override { return RecordingDuration.Get(); }
 	virtual TSharedPtr<FDebugObjectInfo> GetSelectedComponent() const override;
 	virtual TSharedPtr<RewindDebugger::FRewindDebuggerTrack> GetSelectedTrack() const override;
@@ -172,7 +172,6 @@ private:
 	bool bTraceJustConnected = false;
 	bool bPIEStarted = false;
 	bool bPIESimulating = false;
-	bool bTraceFileLoaded = false;
 	
 	bool bRecording = false;
 

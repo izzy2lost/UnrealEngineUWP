@@ -34,6 +34,32 @@ bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, FSoftO
 	return false;
 }
 
+bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, UObject* OutResult) const
+{
+	UE::Chooser::FResolvedPropertyChainResult Result;
+	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Result))
+	{
+		if (Result.Function == nullptr)
+		{
+			// if the property is a soft object property, get the path directly
+			if (Result.PropertyType == UE::Chooser::EChooserPropertyAccessType::SoftObjectRef)
+			{
+				const FSoftObjectPtr& SoftObjectPtr = *reinterpret_cast<const FSoftObjectPtr*>(Result.Container + Result.PropertyOffset);
+				OutResult = SoftObjectPtr.Get();
+				return true;
+			}
+		
+			// otherwise get the value from the object property and convert to a soft object path
+			UObject** LoadedObject = reinterpret_cast<UObject**>(Result.Container + Result.PropertyOffset);
+			OutResult = *LoadedObject;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 bool FObjectContextProperty::SetValue(FChooserEvaluationContext& Context, UObject* OutputObject) const
 {
 	UE::Chooser::FResolvedPropertyChainResult Result;
