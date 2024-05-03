@@ -33,10 +33,6 @@ struct FUniformBufferGatherInfo
 		FMemory::Memzero(CodeHeaders);
 	}
 
-	// These maps are used to find UBs that are used on multiple stages
-	TMap<uint32, VkShaderStageFlags>	UBLayoutsToUsedStageMap;
-	TMap<uint32, VkShaderStageFlags>	CommonUBLayoutsToStageMap;
-
 	const FVulkanShaderHeader*	CodeHeaders[ShaderStage::NumStages];
 };
 
