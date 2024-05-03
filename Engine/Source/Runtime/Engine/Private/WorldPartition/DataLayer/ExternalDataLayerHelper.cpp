@@ -389,6 +389,28 @@ void FExternalDataLayerHelper::ForEachExternalDataLayerLevelPackagePath(const FS
 	}
 }
 
+FStringView FExternalDataLayerHelper::GetRelativeExternalActorPackagePath(FStringView InExternalDataLayerExternalActorPackagePath)
+{
+	uint32 ExternalActorIdx = UE::String::FindFirst(InExternalDataLayerExternalActorPackagePath, FPackagePath::GetExternalActorsFolderName(), ESearchCase::IgnoreCase);
+	if (ExternalActorIdx != INDEX_NONE)
+	{
+		FStringView RelativePath = InExternalDataLayerExternalActorPackagePath.RightChop(ExternalActorIdx + FCString::Strlen(FPackagePath::GetExternalActorsFolderName()));
+		if (RelativePath.Left(ExternalDataLayerFolder.Len()).Equals(GetExternalDataLayerFolder()))
+		{
+			if (!RelativePath.IsEmpty())
+			{
+				check(RelativePath.Left(GetExternalDataLayerFolder().Len()).Equals(GetExternalDataLayerFolder()));
+				RelativePath = RelativePath.RightChop(GetExternalDataLayerFolder().Len());
+				if (!RelativePath.IsEmpty())
+				{
+					return RelativePath.RightChop(RelativePath.Find(TEXT("/")));
+				}
+			}
+		}
+	}
+	return FStringView();
+}
+
 bool FExternalDataLayerHelper::IsExternalDataLayerPath(FStringView InExternalDataLayerPath, FExternalDataLayerUID* OutExternalDataLayerUID)
 {
 	int32 ExternalDataLayerFolderIdx = UE::String::FindFirst(InExternalDataLayerPath, GetExternalDataLayerFolder(), ESearchCase::IgnoreCase);

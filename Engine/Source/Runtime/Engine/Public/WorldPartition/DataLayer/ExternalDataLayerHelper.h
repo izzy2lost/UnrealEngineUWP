@@ -47,6 +47,12 @@ public:
 
 	/** Iterates through all possible External Data Layer Level Package Paths using Asset Registry. */
 	ENGINE_API static void ForEachExternalDataLayerLevelPackagePath(const FString& InLevelPackageName, TFunctionRef<void(const FString&)> Func);
+
+	/* Returns the external actor package relative path for an actor package of an actor using External Data Layers.
+	 * InExternalDataLayerExternalActorPackagePath format is : /{MountPoint}/{ExternalActorFolder}/{ExternalDataLayerFolder}/{EDL_UID}/{ExternalActorPackagePath}
+	 * return format is : /{ExternalActorPackagePath}, empty otherwise
+	 */
+	ENGINE_API static FStringView GetRelativeExternalActorPackagePath(FStringView InExternalDataLayerExternalActorPackagePath);
 #endif
 
 private:
