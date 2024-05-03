@@ -170,7 +170,7 @@ bool FPCGLoadDataAssetElement::ExecuteInternal(FPCGContext* Context) const
 			}
 		}
 	}
-	else if (!Settings->Asset.IsNull() || Settings->bWarnIfNoAsset)
+	else if (!Settings->Asset.IsNull() && Settings->bWarnIfNoAsset)
 	{
 		PCGE_LOG(Warning, GraphAndLog, FText::Format(NSLOCTEXT("PCGLoadDataAssetSettings", "UnableToLoadAsset", "Unable to load PCG asset '{0}'"), FText::FromString(Settings->Asset.ToString())));
 	}

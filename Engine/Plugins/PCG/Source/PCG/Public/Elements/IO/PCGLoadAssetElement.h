@@ -73,7 +73,7 @@ public:
 	FLinearColor AssetColor = FLinearColor::White;
 #endif // WITH_EDITORONLY_DATA
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (Tooltip="Warns if asset is null or couldn't be loaded"))
 	bool bWarnIfNoAsset = true;
 
 	/** By default, data table loading is asynchronous, can force it synchronous if needed. */
@@ -81,7 +81,7 @@ public:
 	bool bSynchronousLoad = false;
 
 	/** Controls whether the data output from the loaded asset will be passed to the default pin with tags or on the proper pins. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Settings", meta = (NoResetToDefaeult))
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Settings", meta = (NoResetToDefault))
 	bool bTagOutputsBasedOnOutputPins = true;
 };
 
