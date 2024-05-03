@@ -296,10 +296,16 @@ public:
 		checkNoEntry();
 	}
 
-	virtual void RHIDispatchShaderBundle(
+	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
+		bool bEmulated) {}
+
+	virtual void RHIDispatchGraphicsShaderBundle(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) {}
 
 	virtual void RHIBeginUAVOverlap() {}

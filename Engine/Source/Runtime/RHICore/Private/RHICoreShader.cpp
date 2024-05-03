@@ -88,9 +88,9 @@ void DispatchShaderBundleEmulation(
 	FRHIComputeCommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
-	TConstArrayView<FRHIShaderBundleDispatch> Dispatches)
+	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
 {
-	for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
+	for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 	{
 		if (Dispatch.Shader == nullptr)
 		{
@@ -119,6 +119,70 @@ void DispatchShaderBundleEmulation(
 
 		const uint32 IndirectOffset = (Dispatch.RecordIndex * ShaderBundle->ArgStride) + ShaderBundle->ArgOffset;
 		InRHICmdList.DispatchIndirectComputeShader(ArgumentBuffer, IndirectOffset);
+	}
+}
+
+void DispatchShaderBundleEmulation(
+	FRHICommandList& InRHICmdList,
+	FRHIShaderBundle* ShaderBundle,
+	FRHIBuffer* ArgumentBuffer,
+	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches)
+{
+	const uint32 StencilRef = 0u;
+
+	for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
+	{
+		const FBoundShaderStateInput& ShaderState = Dispatch.PipelineInitializer.BoundShaderState;
+
+		FRHIGraphicsShader* MSVSShader = ShaderBundle->Mode == ERHIShaderBundleMode::MSPS ? (FRHIGraphicsShader*)ShaderState.GetMeshShader() : (FRHIGraphicsShader*)ShaderState.GetVertexShader();
+
+		if (ShaderState.GetPixelShader() == nullptr || MSVSShader == nullptr)
+		{
+			continue;
+		}
+
+		checkf(ShaderState.GetPixelShader()->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
+		checkf(MSVSShader->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
+
+		SetGraphicsPipelineState(InRHICmdList, Dispatch.PipelineInitializer, StencilRef);
+
+		if (Dispatch.Parameters_MSVS.HasParameters())
+		{
+			InRHICmdList.SetShaderParameters(
+				MSVSShader,
+				Dispatch.Parameters_MSVS.ParametersData,
+				Dispatch.Parameters_MSVS.Parameters,
+				Dispatch.Parameters_MSVS.ResourceParameters,
+				Dispatch.Parameters_MSVS.BindlessParameters
+			);
+		}
+
+		if (Dispatch.Parameters_PS.HasParameters())
+		{
+			InRHICmdList.SetShaderParameters(
+				ShaderState.GetPixelShader(),
+				Dispatch.Parameters_PS.ParametersData,
+				Dispatch.Parameters_PS.Parameters,
+				Dispatch.Parameters_PS.ResourceParameters,
+				Dispatch.Parameters_PS.BindlessParameters
+			);
+		}
+
+		if (GRHISupportsShaderRootConstants)
+		{
+			InRHICmdList.SetShaderRootConstants(Dispatch.Constants);
+		}
+
+		const uint32 IndirectOffset = (Dispatch.RecordIndex * ShaderBundle->ArgStride) + ShaderBundle->ArgOffset;
+
+		if (ShaderBundle->Mode == ERHIShaderBundleMode::MSPS)
+		{
+			InRHICmdList.DispatchIndirectMeshShader(ArgumentBuffer, IndirectOffset);
+		}
+		else
+		{
+			InRHICmdList.DrawPrimitiveIndirect(ArgumentBuffer, IndirectOffset);
+		}
 	}
 }
 

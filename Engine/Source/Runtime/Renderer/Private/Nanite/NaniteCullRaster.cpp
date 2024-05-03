@@ -2694,7 +2694,6 @@ private:
 				RHICmdList.SetStreamSource(0, nullptr, 0);
 
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
-				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 				GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 				GraphicsPSOInit.PrimitiveType = (HardwarePath == ERasterHardwarePath::PrimitiveShader) ? PT_PointList : PT_TriangleList;

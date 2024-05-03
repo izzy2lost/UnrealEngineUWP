@@ -240,19 +240,34 @@ void FRHICommandDispatchIndirectComputeShader::Execute(FRHICommandListBase& CmdL
 	INTERNAL_DECORATOR_COMPUTE(RHIDispatchIndirectComputeShader)(ArgumentBuffer, ArgumentOffset);
 }
 
-void FRHICommandDispatchShaderBundle::Execute(FRHICommandListBase& CmdList)
+void FRHICommandDispatchComputeShaderBundle::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(DispatchShaderBundle);
 	extern RHI_API FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* ComputePipelineState);
 	for (int32 DispatchIndex = 0; DispatchIndex < Dispatches.Num(); ++DispatchIndex)
 	{
-		FRHIShaderBundleDispatch& Dispatch = Dispatches[DispatchIndex];
+		FRHIShaderBundleComputeDispatch& Dispatch = Dispatches[DispatchIndex];
 		if (Dispatch.RecordIndex != ~uint32(0u))
 		{
 			Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
 		}
 	}
-	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
+	INTERNAL_DECORATOR_COMPUTE(RHIDispatchComputeShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
+}
+
+void FRHICommandDispatchGraphicsShaderBundle::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(DispatchShaderBundle);
+	extern RHI_API FRHIGraphicsPipelineState* ExecuteSetGraphicsPipelineState(FGraphicsPipelineState* GraphicsPipelineState);
+	for (int32 DispatchIndex = 0; DispatchIndex < Dispatches.Num(); ++DispatchIndex)
+	{
+		FRHIShaderBundleGraphicsDispatch& Dispatch = Dispatches[DispatchIndex];
+		if (Dispatch.RecordIndex != ~uint32(0u))
+		{
+			Dispatch.RHIPipeline = ExecuteSetGraphicsPipelineState(Dispatch.PipelineState);
+		}
+	}
+	INTERNAL_DECORATOR_COMPUTE(RHIDispatchGraphicsShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
 }
 
 void FRHICommandSetShaderRootConstants::Execute(FRHICommandListBase& CmdList)

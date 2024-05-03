@@ -673,10 +673,16 @@ public:
 	virtual void RHISetShaderRootConstants(
 		const FUint32Vector4& Constants) override;
 
-	virtual void RHIDispatchShaderBundle(
+	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
+		bool bEmulated) override;
+
+	virtual void RHIDispatchGraphicsShaderBundle(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) override;
 
 	virtual void RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances) final override;
@@ -818,7 +824,7 @@ private:
 
 	static void ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12CommandContext>& RHICmdList, FD3D12UnorderedAccessView_RHI* UAV, const void* ClearValues, bool bFloat);
 
-	void DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIShaderResourceView* RecordArgBufferSRV, TConstArrayView<FRHIShaderBundleDispatch> Dispatches);
+	void DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIShaderResourceView* RecordArgBufferSRV, TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches);
 
 	void HandleDiscardResources          (TArrayView<const FRHITransition*> Transitions, bool bIsBeginTransition);
 	void HandleResourceTransitions       (const struct FD3D12TransitionData* TransitionData, bool& bUAVBarrier);

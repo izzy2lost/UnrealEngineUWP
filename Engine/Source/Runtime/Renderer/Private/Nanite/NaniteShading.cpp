@@ -1269,7 +1269,7 @@ void DispatchBasePass(
 
 			if (bBundleShading)
 			{
-				auto RecordDispatches = [&](FRHICommandDispatchShaderBundle& Command)
+				auto RecordDispatches = [&](FRHICommandDispatchComputeShaderBundle& Command)
 				{
 					Command.ShaderBundle		= ShaderBundle;
 					Command.bEmulated			= bBundleEmulation;
@@ -1291,7 +1291,7 @@ void DispatchBasePass(
 
 							if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 							{
-								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
+								FRHIShaderBundleComputeDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
 								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
@@ -1321,7 +1321,7 @@ void DispatchBasePass(
 						// Resolve invalid pipeline states
 						if (PendingPSOs.load(std::memory_order_relaxed) > 0)
 						{
-							for (FRHIShaderBundleDispatch& Dispatch : Command.Dispatches)
+							for (FRHIShaderBundleComputeDispatch& Dispatch : Command.Dispatches)
 							{
 								if (!Dispatch.IsValid() || Dispatch.PipelineState != nullptr)
 								{
@@ -1356,7 +1356,7 @@ void DispatchBasePass(
 
 							if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 							{
-								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
+								FRHIShaderBundleComputeDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
 								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
@@ -1393,7 +1393,7 @@ void DispatchBasePass(
 					}
 				};
 
-				RHICmdList.DispatchShaderBundle(RecordDispatches);
+				RHICmdList.DispatchComputeShaderBundle(RecordDispatches);
 			}
 			else // !bDispatchBundle
 			{

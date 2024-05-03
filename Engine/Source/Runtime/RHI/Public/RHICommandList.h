@@ -1760,24 +1760,52 @@ FRHICOMMAND_MACRO(FRHICommandDispatchIndirectComputeShader)
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
-using FRHIRecordBundleDispatchCallback = TFunction<void(FRHIShaderBundleDispatch& Dispatch)>;
+using FRHIRecordBundleComputeDispatchCallback = TFunction<void(FRHIShaderBundleComputeDispatch& Dispatch)>;
+using FRHIRecordBundleGraphicsDispatchCallback = TFunction<void(FRHIShaderBundleGraphicsDispatch& Dispatch)>;
 
-FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
+FRHICOMMAND_MACRO(FRHICommandDispatchComputeShaderBundle)
 {
 	FRHIShaderBundle* ShaderBundle;
 	FRHIShaderResourceView* RecordArgBufferSRV;
-	TArray<FRHIShaderBundleDispatch> Dispatches;
+	TArray<FRHIShaderBundleComputeDispatch> Dispatches;
 	bool bEmulated;
-	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle()
+	FORCEINLINE_DEBUGGABLE FRHICommandDispatchComputeShaderBundle()
 		: ShaderBundle(nullptr)
 		, RecordArgBufferSRV(nullptr)
 		, bEmulated(true)
 	{
 	}
-	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle(
+	FORCEINLINE_DEBUGGABLE FRHICommandDispatchComputeShaderBundle(
 		FRHIShaderBundle* InShaderBundle,
 		FRHIShaderResourceView* InRecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> InDispatches,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> InDispatches,
+		bool bInEmulated
+	)
+		: ShaderBundle(InShaderBundle)
+		, RecordArgBufferSRV(InRecordArgBufferSRV)
+		, Dispatches(InDispatches)
+		, bEmulated(bInEmulated)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
+FRHICOMMAND_MACRO(FRHICommandDispatchGraphicsShaderBundle)
+{
+	FRHIShaderBundle* ShaderBundle;
+	FRHIShaderResourceView* RecordArgBufferSRV;
+	TArray<FRHIShaderBundleGraphicsDispatch> Dispatches;
+	bool bEmulated;
+	FORCEINLINE_DEBUGGABLE FRHICommandDispatchGraphicsShaderBundle()
+		: ShaderBundle(nullptr)
+		, RecordArgBufferSRV(nullptr)
+		, bEmulated(true)
+	{
+	}
+	FORCEINLINE_DEBUGGABLE FRHICommandDispatchGraphicsShaderBundle(
+		FRHIShaderBundle* InShaderBundle,
+		FRHIShaderResourceView* InRecordArgBufferSRV,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> InDispatches,
 		bool bInEmulated
 	)
 		: ShaderBundle(InShaderBundle)
@@ -2712,10 +2740,10 @@ public:
 		ALLOC_COMMAND(FRHICommandSetShaderRootConstants)(Constants);
 	}
 
-	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(
+	FORCEINLINE_DEBUGGABLE void DispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 		bool bEmulated
 	)
 	{
@@ -2723,14 +2751,14 @@ public:
 
 		if (Bypass())
 		{
-			GetContext().RHIDispatchShaderBundle(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
+			GetContext().RHIDispatchComputeShaderBundle(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
 			return;
 		}
-		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
+		ALLOC_COMMAND(FRHICommandDispatchComputeShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
 	}
 
-	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(
-		TFunction<void(FRHICommandDispatchShaderBundle&)>&& RecordCallback
+	FORCEINLINE_DEBUGGABLE void DispatchComputeShaderBundle(
+		TFunction<void(FRHICommandDispatchComputeShaderBundle&)>&& RecordCallback
 	)
 	{
 		bUsesShaderBundles = true;
@@ -2738,13 +2766,50 @@ public:
 		// Need to explicitly enqueue the RHI command so we can avoid an unnecessary copy of the dispatches array.
 		if (Bypass())
 		{
-			FRHICommandDispatchShaderBundle DispatchBundleCommand;
+			FRHICommandDispatchComputeShaderBundle DispatchBundleCommand;
 			RecordCallback(DispatchBundleCommand);
 			DispatchBundleCommand.Execute(*this);
 		}
 		else
 		{
-			FRHICommandDispatchShaderBundle& DispatchBundleCommand = *ALLOC_COMMAND_CL(*this, FRHICommandDispatchShaderBundle);
+			FRHICommandDispatchComputeShaderBundle& DispatchBundleCommand = *ALLOC_COMMAND_CL(*this, FRHICommandDispatchComputeShaderBundle);
+			RecordCallback(DispatchBundleCommand);
+		}
+	}
+
+	FORCEINLINE_DEBUGGABLE void DispatchGraphicsShaderBundle(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
+		bool bEmulated
+	)
+	{
+		bUsesShaderBundles = true;
+
+		if (Bypass())
+		{
+			GetContext().RHIDispatchGraphicsShaderBundle(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
+			return;
+		}
+		ALLOC_COMMAND(FRHICommandDispatchGraphicsShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
+	}
+
+	FORCEINLINE_DEBUGGABLE void DispatchGraphicsShaderBundle(
+		TFunction<void(FRHICommandDispatchGraphicsShaderBundle&)>&& RecordCallback
+	)
+	{
+		bUsesShaderBundles = true;
+
+		// Need to explicitly enqueue the RHI command so we can avoid an unnecessary copy of the dispatches array.
+		if (Bypass())
+		{
+			FRHICommandDispatchGraphicsShaderBundle DispatchBundleCommand;
+			RecordCallback(DispatchBundleCommand);
+			DispatchBundleCommand.Execute(*this);
+		}
+		else
+		{
+			FRHICommandDispatchGraphicsShaderBundle& DispatchBundleCommand = *ALLOC_COMMAND_CL(*this, FRHICommandDispatchGraphicsShaderBundle);
 			RecordCallback(DispatchBundleCommand);
 		}
 	}

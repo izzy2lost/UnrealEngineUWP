@@ -196,7 +196,7 @@ struct FRHIBatchedShaderUnbinds
 	}
 };
 
-struct FRHIShaderBundleDispatch
+struct FRHIShaderBundleComputeDispatch
 {
 	uint32 RecordIndex = ~uint32(0u);
 	class FComputePipelineState* PipelineState = nullptr;
@@ -204,6 +204,26 @@ struct FRHIShaderBundleDispatch
 	FRHIWorkGraphShader* WorkGraphShader = nullptr;
 	FRHIComputePipelineState* RHIPipeline = nullptr;
 	FRHIBatchedShaderParameters Parameters;
+
+	FUint32Vector4 Constants;
+
+	inline bool IsValid() const
+	{
+		return RecordIndex != ~uint32(0u);
+	}
+};
+
+struct FRHIShaderBundleGraphicsDispatch
+{
+	uint32 RecordIndex = ~uint32(0u);
+	class FGraphicsPipelineState* PipelineState = nullptr;
+	FRHIGraphicsPipelineState* RHIPipeline = nullptr;
+
+	FGraphicsPipelineStateInitializer PipelineInitializer;
+
+	FRHIBatchedShaderParameters Parameters_MSVS;
+	FRHIBatchedShaderParameters Parameters_PS;
+
 	FUint32Vector4 Constants;
 
 	inline bool IsValid() const

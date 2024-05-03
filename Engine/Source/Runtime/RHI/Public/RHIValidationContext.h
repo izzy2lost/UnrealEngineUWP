@@ -225,14 +225,14 @@ public:
 		RHIContext->RHISetShaderRootConstants(Constants);
 	}
 
-	virtual void RHIDispatchShaderBundle(
+	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 		bool bEmulated) final override
 	{
 		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
-		for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
+		for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 		{
 			State.bComputePSOSet = true;
 
@@ -258,7 +258,44 @@ public:
 			Tracker->Assert(RecordArgBufferSRV->GetViewIdentity(),  ERHIAccess::SRVCompute);
 		}
 
-		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
+		RHIContext->RHIDispatchComputeShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
+	}
+	
+	virtual void RHIDispatchGraphicsShaderBundle(
+		FRHIShaderBundle* ShaderBundleRHI,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
+		bool bEmulated) final override
+	{
+		// TODO:
+#if 0
+		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
+		{
+			// Reset the graphics UAV tracker since the renderer must re-bind all resources after changing a shader.
+			Tracker->ResetUAVState(RHIValidation::EUAVMode::Graphics);
+
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVGraphics, RHIValidation::EUAVMode::Graphics);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVGraphics, RHIValidation::EUAVMode::Graphics);
+
+			if (bEmulated)
+			{
+				const uint32 ArgumentOffset = (Dispatch.RecordIndex * ShaderBundleRHI->ArgStride) + ShaderBundleRHI->ArgOffset;
+				//ValidateIndirectArgsBuffer
+				//FValidationRHI::ValidateDispatchIndirectArgsBuffer(RecordArgBufferSRV->GetBuffer(), ArgumentOffset);
+			}
+		}
+
+		if (bEmulated)
+		{
+			Tracker->Assert(RecordArgBufferSRV->GetBuffer()->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
+		}
+		else
+		{
+			Tracker->Assert(RecordArgBufferSRV->GetViewIdentity(),  ERHIAccess::SRVGraphics);
+		}
+#endif
+		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override
@@ -505,14 +542,14 @@ public:
 		RHIContext->RHISetShaderRootConstants(Constants);
 	}
 
-	virtual void RHIDispatchShaderBundle(
+	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 		bool bEmulated) final override
 	{
 		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
-		for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
+		for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 		{
 			State.bComputePSOSet = true;
 
@@ -535,10 +572,48 @@ public:
 		}
 		else
 		{
-			Tracker->Assert(RecordArgBufferSRV->GetViewIdentity(),  ERHIAccess::SRVCompute);
+			Tracker->Assert(RecordArgBufferSRV->GetViewIdentity(), ERHIAccess::SRVCompute);
 		}
 
-		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
+		RHIContext->RHIDispatchComputeShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
+	}
+
+	virtual void RHIDispatchGraphicsShaderBundle(
+		FRHIShaderBundle* ShaderBundleRHI,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
+		bool bEmulated) final override
+	{
+		// TODO
+#if 0
+		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
+		{
+			//State.bComputePSOSet = true;
+
+			// Reset the compute UAV tracker since the renderer must re-bind all resources after changing a shader.
+			Tracker->ResetUAVState(RHIValidation::EUAVMode::Graphics);
+
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVGraphics, RHIValidation::EUAVMode::Graphics);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVGraphics, RHIValidation::EUAVMode::Graphics);
+
+			if (bEmulated)
+			{
+				const uint32 ArgumentOffset = (Dispatch.RecordIndex * ShaderBundleRHI->ArgStride) + ShaderBundleRHI->ArgOffset;
+				//FValidationRHI::ValidateDispatchIndirectArgsBuffer(RecordArgBufferSRV->GetBuffer(), ArgumentOffset);
+			}
+		}
+
+		if (bEmulated)
+		{
+			Tracker->Assert(RecordArgBufferSRV->GetBuffer()->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
+		}
+		else
+		{
+			Tracker->Assert(RecordArgBufferSRV->GetViewIdentity(), ERHIAccess::SRVGraphics);
+		}
+#endif
+		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override

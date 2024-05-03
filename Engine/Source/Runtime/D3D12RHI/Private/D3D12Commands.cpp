@@ -1517,10 +1517,10 @@ void FD3D12CommandContext::RHISetShaderRootConstants(const FUint32Vector4& Const
 	StateCache.SetRootConstants(Constants);
 }
 
-void FD3D12CommandContext::RHIDispatchShaderBundle(
+void FD3D12CommandContext::RHIDispatchComputeShaderBundle(
 	FRHIShaderBundle* ShaderBundle,
 	FRHIShaderResourceView* RecordArgBufferSRV,
-	TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 	bool bEmulated
 )
 {
@@ -1537,6 +1537,30 @@ void FD3D12CommandContext::RHIDispatchShaderBundle(
 	else
 	{
 		DispatchWorkGraphShaderBundle(ShaderBundle, RecordArgBufferSRV, Dispatches);
+	}
+}
+
+void FD3D12CommandContext::RHIDispatchGraphicsShaderBundle(
+	FRHIShaderBundle* ShaderBundle,
+	FRHIShaderResourceView* RecordArgBufferSRV,
+	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
+	bool bEmulated
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(RHIDispatchShaderBundle);
+	SCOPE_CYCLE_COUNTER(STAT_D3D12DispatchShaderBundle);
+
+	check(ShaderBundle != nullptr && Dispatches.Num() > 0);
+
+	if (bEmulated)
+	{
+		TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
+		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBufferSRV->GetBuffer(), Dispatches);
+	}
+	else
+	{
+		checkNoEntry(); // Not implemented
+		//DispatchWorkGraphShaderBundle(ShaderBundle, RecordArgBufferSRV, Dispatches);
 	}
 }
 

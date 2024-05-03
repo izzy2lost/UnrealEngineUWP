@@ -7,7 +7,8 @@
 #include "ShaderCore.h"
 #include "ShaderParameterMacros.h"
 
-struct FRHIShaderBundleDispatch;
+struct FRHIShaderBundleComputeDispatch;
+struct FRHIShaderBundleGraphicsDispatch;
 
 namespace UE
 {
@@ -21,12 +22,20 @@ extern RHICORE_API void SetupShaderDiagnosticData(FRHIShader* RHIShader, class F
 extern RHICORE_API void RegisterDiagnosticMessages(const TArray<FShaderDiagnosticData>& In);
 extern RHICORE_API const FString* GetDiagnosticMessage(uint32 MessageID);
 
-/** Common implementation of dispatch shader bundle emulation shared by RHIs */
+/** Common implementations of dispatch shader bundle emulation shared by RHIs */
+
 extern RHICORE_API void DispatchShaderBundleEmulation(
 	FRHIComputeCommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
-	TConstArrayView<FRHIShaderBundleDispatch> Dispatches
+	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches
+);
+
+extern RHICORE_API void DispatchShaderBundleEmulation(
+	FRHICommandList& InRHICmdList,
+	FRHIShaderBundle* ShaderBundle,
+	FRHIBuffer* ArgumentBuffer,
+	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches
 );
 
 inline void InitStaticUniformBufferSlots(FRHIShaderData* ShaderData)

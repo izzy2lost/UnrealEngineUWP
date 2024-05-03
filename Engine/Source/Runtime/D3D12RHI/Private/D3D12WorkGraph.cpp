@@ -544,7 +544,7 @@ static void RecordBindings(
 
 #endif // D3D12_RHI_WORKGRAPHS
 
-void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIShaderResourceView* RecordArgBufferSRV, TConstArrayView<FRHIShaderBundleDispatch> Dispatches)
+void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIShaderResourceView* RecordArgBufferSRV, TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
 {
 #if D3D12_RHI_WORKGRAPHS
 
@@ -615,7 +615,7 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	auto RecordTask = [this, &LocalRootArgs, Pipeline, &TransientDescriptorCache, &ValidRecords, &Dispatches, &BinderOps](FTaskContext& Context, int32 RecordIndex)
 	{
 		uint32 DispatchIndex = ValidRecords[RecordIndex];
-		const FRHIShaderBundleDispatch& Dispatch = Dispatches[DispatchIndex];
+		const FRHIShaderBundleComputeDispatch& Dispatch = Dispatches[DispatchIndex];
 
 		check(Pipeline->RootArgOffsets.IsValidIndex(DispatchIndex));
 		uint32 RootArgOffset = Pipeline->RootArgOffsets[DispatchIndex];
