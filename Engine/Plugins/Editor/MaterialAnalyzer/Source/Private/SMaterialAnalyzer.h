@@ -248,6 +248,8 @@ protected:
 	void OnAssetSelected(const FAssetData& AssetData);
 	void OnParameterFilterChanged(const FText& Filter, const ETextCommit::Type InTextAction);
 
+	FReply OnExportAnalyzedMaterialToCSV();
+
 	void BuildBasicMaterialTree();
 
 	int32 GetTotalNumberOfMaterialNodes();
