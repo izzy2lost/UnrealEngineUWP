@@ -2329,7 +2329,10 @@ namespace Metasound
 			{
 				if (UMetasoundEditorGraphNode* Node = Cast<UMetasoundEditorGraphNode>(NodeObj))
 				{
-					Node->RemoveFromDocument();
+					if (Node->CanUserDeleteNode())
+					{
+						Node->RemoveFromDocument();
+					}
 				}
 				else if (UMetasoundEditorGraphCommentNode* CommentNode = Cast<UMetasoundEditorGraphCommentNode>(NodeObj))
 				{
