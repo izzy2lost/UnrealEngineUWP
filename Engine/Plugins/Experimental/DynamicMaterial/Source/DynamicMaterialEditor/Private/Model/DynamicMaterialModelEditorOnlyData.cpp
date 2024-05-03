@@ -214,26 +214,25 @@ void UDynamicMaterialModelEditorOnlyData::OnChannelListPresetChanged()
 		return;
 	}
 
-	for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-		PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-		++PropertyIndex)
-	{
-		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+	ForEachMaterialPropertyType(
+		[this, Preset](EDMMaterialPropertyType InProperty)
+		{
+			if (InProperty == EDMMaterialPropertyType::EmissiveColor || InProperty == EDMMaterialPropertyType::OpacityMask)
+			{
+				return EDMIterationResult::Continue;
+			}
 
-		if (Property == EDMMaterialPropertyType::EmissiveColor || Property == EDMMaterialPropertyType::OpacityMask)
-		{
-			continue;
-		}
+			if (Preset->IsPropertyEnabled(InProperty))
+			{
+				AddSlotForMaterialProperty(InProperty);
+			}
+			else
+			{
+				RemoveSlotForMaterialProperty(InProperty);
+			}
 
-		if (Preset->IsPropertyEnabled(Property))
-		{
-			AddSlotForMaterialProperty(Property);
-		}
-		else
-		{
-			RemoveSlotForMaterialProperty(Property);
-		}
-	}
+			return EDMIterationResult::Continue;
+		});
 
 	SetBlendMode(Preset->DefaultBlendMode);
 	SetShadingModel(Preset->DefaultShadingModel);
@@ -248,24 +247,23 @@ void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
 		const FDMUpdateGuard Guard;
 
 		// Post process only supports emissive.
-		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-			++PropertyIndex)
-		{
-			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-			switch (Property)
+		ForEachMaterialPropertyType(
+			[this](EDMMaterialPropertyType InProperty)
 			{
-				case EDMMaterialPropertyType::BaseColor:
-				case EDMMaterialPropertyType::EmissiveColor:
-					RemoveSlotForMaterialProperty(Property);
-					continue;
+				switch (InProperty)
+				{
+					case EDMMaterialPropertyType::BaseColor:
+					case EDMMaterialPropertyType::EmissiveColor:
+						RemoveSlotForMaterialProperty(InProperty);
+						break;
 
-				default:
-					// Do nothing
-					break;
-			}
-		}
+					default:
+						// Do nothing
+						break;
+				}
+
+				return EDMIterationResult::Continue;
+			});
 
 		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
 
@@ -275,26 +273,25 @@ void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
 	else if (Domain == EMaterialDomain::MD_DeferredDecal)
 	{
 		// Post process only supports basic types.
-		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-			++PropertyIndex)
-		{
-			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-			switch (Property)
+		ForEachMaterialPropertyType(
+			[this](EDMMaterialPropertyType InProperty)
 			{
-				case EDMMaterialPropertyType::BaseColor:
-				case EDMMaterialPropertyType::EmissiveColor:
-				case EDMMaterialPropertyType::Opacity:
-				case EDMMaterialPropertyType::OpacityMask:
-					RemoveSlotForMaterialProperty(Property);
-					continue;
+				switch (InProperty)
+				{
+					case EDMMaterialPropertyType::BaseColor:
+					case EDMMaterialPropertyType::EmissiveColor:
+					case EDMMaterialPropertyType::Opacity:
+					case EDMMaterialPropertyType::OpacityMask:
+						RemoveSlotForMaterialProperty(InProperty);
+						break;
 
-				default:
-					// Do nothing
-					break;
-			}
-		}
+					default:
+						// Do nothing
+						break;
+				}
+
+				return EDMIterationResult::Continue;
+			});
 
 		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::EmissiveColor, EDMMaterialPropertyType::BaseColor);
 
@@ -965,6 +962,20 @@ void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
 	}
 }
 
+void UDynamicMaterialModelEditorOnlyData::ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable,
+	EDMMaterialPropertyType InStart, EDMMaterialPropertyType InEnd)
+{
+	for (uint8 PropertyIndex = static_cast<uint8>(InStart); PropertyIndex <= static_cast<uint8>(InEnd); ++PropertyIndex)
+	{
+		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+		if (InCallable(Property) == EDMIterationResult::Break)
+		{
+			break;
+		}
+	}
+}
+
 void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetName)
 {
 	ChannelListPreset = InPresetName;
@@ -1231,22 +1242,21 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForMaterialProperty
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 {
-	constexpr uint8 Start = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-	constexpr uint8 End = static_cast<uint8>(EDMMaterialPropertyType::Any);
+	UDMMaterialSlot* NewSlot = nullptr;
 
-	for (uint8 PropertyIndex = Start; PropertyIndex < End; ++PropertyIndex)
-	{
-		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-		if (GetSlotForMaterialProperty(Property))
+	ForEachMaterialPropertyType(
+		[this, &NewSlot](EDMMaterialPropertyType InProperty)
 		{
-			continue;
-		}
+			if (GetSlotForMaterialProperty(InProperty))
+			{
+				return EDMIterationResult::Continue;
+			}
 
-		return AddSlotForMaterialProperty(Property);
-	}
+			NewSlot = AddSlotForMaterialProperty(InProperty);
+			return EDMIterationResult::Break;
+		});
 
-	return nullptr;
+	return NewSlot;
 }
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty(EDMMaterialPropertyType InType)

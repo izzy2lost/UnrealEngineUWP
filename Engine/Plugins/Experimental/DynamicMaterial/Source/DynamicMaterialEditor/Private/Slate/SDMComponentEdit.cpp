@@ -910,32 +910,34 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 		const FText PropertyFormat = LOCTEXT("PropertyFormat", "Global {0}");
 		UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
 
-		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::OpacityMask) + 1;
-			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-			++PropertyIndex)
-		{
-			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-			if (!!EditorOnlyData->GetSlotForMaterialProperty(Property))
+		EditorOnlyData->ForEachMaterialPropertyType(
+			[EditorOnlyData , &AddGlobalValue, &PropertyFormat, MaterialPropertyEnum]
+			(EDMMaterialPropertyType InProperty)
 			{
-				if (UDMMaterialProperty* MaterialProperty = EditorOnlyData->GetMaterialProperty(Property))
+				if (EditorOnlyData->GetSlotForMaterialProperty(InProperty))
 				{
-					if (MaterialProperty->IsValidForModel(*EditorOnlyData))
+					if (UDMMaterialProperty* MaterialProperty = EditorOnlyData->GetMaterialProperty(InProperty))
 					{
-						if (UDMMaterialValueFloat1* AlphaValue = Cast<UDMMaterialValueFloat1>(MaterialProperty->GetComponent(UDynamicMaterialModelEditorOnlyData::AlphaValueName)))
+						if (MaterialProperty->IsValidForModel(*EditorOnlyData))
 						{
-							AddGlobalValue(
-								AlphaValue,
-								FText::Format(
-									PropertyFormat,
-									MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property))
-								)
-							);
+							if (UDMMaterialValueFloat1* AlphaValue = Cast<UDMMaterialValueFloat1>(MaterialProperty->GetComponent(UDynamicMaterialModelEditorOnlyData::AlphaValueName)))
+							{
+								AddGlobalValue(
+									AlphaValue,
+									FText::Format(
+										PropertyFormat,
+										MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InProperty))
+									)
+								);
+							}
 						}
 					}
 				}
-			}
-		}
+
+				return EDMIterationResult::Continue;
+			}, 
+			/* Start from */ EDMMaterialPropertyType::OpacityMask
+		);
 	}
 }
 
