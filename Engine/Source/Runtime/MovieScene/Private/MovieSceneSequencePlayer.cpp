@@ -412,8 +412,14 @@ void UMovieSceneSequencePlayer::Pause()
 		if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = RootTemplateInstance.GetRunner())
 		{
 			FMovieSceneEvaluationRange CurrentTimeRange = PlayPosition.GetCurrentPositionAsRange();
-			const FMovieSceneContext Context(CurrentTimeRange, EMovieScenePlayerStatus::Stopped);
 
+			if (PlaybackClient)
+			{
+				PlaybackClient->WarpEvaluationRange(CurrentTimeRange);
+			}
+			
+			const FMovieSceneContext Context(CurrentTimeRange, EMovieScenePlayerStatus::Stopped);
+			
 			Runner->QueueUpdate(Context, RootTemplateInstance.GetRootInstanceHandle(), FSimpleDelegate::CreateWeakLambda(this, FinishPause));
 		}
 		else
