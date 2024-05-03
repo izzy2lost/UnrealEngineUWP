@@ -414,7 +414,8 @@ private:
 	int32 CreateItem_Locked(FContentBrowserItem&& InItem)
 	{
 		uint32 Hash = HashItem(InItem);
-		TSharedPtr<FAssetViewItem> Item = Items.Add_GetRef(MakeShared<FAssetViewItem>(MoveTemp(InItem)));
+		TSharedPtr<FAssetViewItem> NewItem = MakeShared<FAssetViewItem>(Items.Num(), MoveTemp(InItem));
+		Items.Add(MoveTemp(NewItem));
 		FilterState.AddZeroed(1);
 		++NumValidItems;
 		if (!RefreshLookup())
@@ -608,10 +609,9 @@ TSharedPtr<FAssetViewItem> FAssetViewItemCollection::UpdateData(FContentBrowserI
 		ExistingItemIndex = CreateItem_Locked(MoveTemp(InData));
 	}
 
-	if (ExistingItemIndex < FrontendFilterProgress) 
+	if (ExistingItemIndex < PublishProgress) 
 	{
 		// This item was already filtered so we may want to remove it from the view or add it 
-		// We only check FrontendFilterProgress here as we only publish items that have passed both filters 
 		ItemsPendingPriorityFilter.Add(ExistingItemIndex);
 	}
 	return Items[ExistingItemIndex];
@@ -645,7 +645,7 @@ TSharedPtr<FAssetViewItem> FAssetViewItemCollection::RemoveItemData(const FConte
 			}
 
 			// This item was already filtered so we may want to remove it from the view.
-			if (It < (uint32)FrontendFilterProgress) 
+			if (It < (uint32)PublishProgress) 
 			{
 				ItemsPendingPriorityFilter.Add(It);
 			}
@@ -668,7 +668,7 @@ void FAssetViewItemCollection::RemoveItem(const TSharedPtr<FAssetViewItem>& ToRe
 			check(!FilterState[It].Removed);
 		 	Lookup.Remove(Hash, It);
 			// This item was already filtered so we may want to remove it from the view.
-			if (It < (uint32)FrontendFilterProgress)
+			if (It < (uint32)PublishProgress)
 			{
 				ItemsPendingPriorityFilter.Add(It);
 			}
@@ -889,14 +889,12 @@ void FAssetViewItemCollection::UpdateItemFiltering(
 	int32 CanPublish = FMath::Min(FrontendFilterProgress, bAllItemsPassedTextFilter ? Items.Num() : TextFilterProgress);
 	for (int32 i = PublishProgress; i < CanPublish; ++i)
 	{
-		if (!FilterState[i].PriorityFiltered)
+		const bool bPublish = ItemPassedAllFilters(i);
+		checkf(!FilterState[i].Published, TEXT("Standard-publish item %d was already published. PublishProgress: %d CanPublish: %d"), i, PublishProgress, CanPublish);
+		FilterState[i].Published = bPublish;
+		if (bPublish)
 		{
-			const bool bPublish = ItemPassedAllFilters(i);
-			FilterState[i].Published = bPublish;
-			if (bPublish)
-			{
-				OutItems.Add(Items[i]);
-			}
+			OutItems.Add(Items[i]);
 		}
 	}
 
@@ -905,7 +903,7 @@ void FAssetViewItemCollection::UpdateItemFiltering(
 	{
 		// Check we didn't update the state again to failure or removal
 		const bool bPublish = ItemPassedAllFilters(Index);
-		check(!FilterState[Index].Published);
+		checkf(!FilterState[Index].Published, TEXT("Priority-publish item %d was already published. PublishProgress: %d CanPublish: %d"), Index, PublishProgress, CanPublish);
 		FilterState[Index].Published = bPublish;
 		if (bPublish)
 		{
@@ -1556,7 +1554,7 @@ void SAssetView::BeginCreateDeferredItem()
 {
 	if (DeferredItemToCreate.IsValid() && !DeferredItemToCreate->bWasAddedToView)
 	{
-		TSharedPtr<FAssetViewItem> NewItem = MakeShared<FAssetViewItem>(DeferredItemToCreate->ItemContext.GetItem());
+		TSharedPtr<FAssetViewItem> NewItem = MakeShared<FAssetViewItem>(INDEX_NONE, DeferredItemToCreate->ItemContext.GetItem());
 		AwaitingScrollIntoViewForRename = NewItem;
 		DeferredItemToCreate->bWasAddedToView = true;
 
@@ -2932,17 +2930,18 @@ void FAssetViewItemCollection::RefreshItemsFromBackend(const FSourcesData& Sourc
 				FContentBrowserItemData& ItemData = NewItemDatas[Index];
 				FName VirtualPath = ItemData.GetVirtualPath();
 				TSharedPtr<FAssetViewItem> OldItem;
+				int32 OldItemIndex = INDEX_NONE;
 				
 				FContentBrowserItemKey ItemKey(ItemData);
 				uint32 Hash = HashItem(ItemData);
 				if (bAllowItemRecycling)
 				{
-					for (uint32 SearchIndex = OldLookup.First(Hash); OldLookup.IsValid(SearchIndex); SearchIndex = OldLookup.Next(SearchIndex))
+					for (OldItemIndex = OldLookup.First(Hash); OldLookup.IsValid(OldItemIndex); OldItemIndex = OldLookup.Next(OldItemIndex))
 					{
-						if (OldItems[SearchIndex].IsValid() && ItemKey == FContentBrowserItemKey(OldItems[SearchIndex]->GetItem()))
+						if (OldItems[OldItemIndex].IsValid() && ItemKey == FContentBrowserItemKey(OldItems[OldItemIndex]->GetItem()))
 						{
 							bAnyRecycled.store(true, std::memory_order_relaxed);
-							OldItem = OldItems[SearchIndex];
+							OldItem = OldItems[OldItemIndex];
 							break;
 						}
 					}
@@ -2955,12 +2954,12 @@ void FAssetViewItemCollection::RefreshItemsFromBackend(const FSourcesData& Sourc
 
 				if (OldItem.IsValid())
 				{
-					OldItem->ResetItemData(MoveTemp(ItemData));
+					OldItem->ResetItemData(OldItemIndex, Index, MoveTemp(ItemData));
 					Items[Index] = MoveTemp(OldItem);
 				}
 				else
 				{
-					Items[Index] = MakeShared<FAssetViewItem>(MoveTemp(ItemData));
+					Items[Index] = MakeShared<FAssetViewItem>(Index, MoveTemp(ItemData));
 				}
 				Lookup.Add_Concurrent(Hash, Index);
 			}, UE::AssetView::AllowParallelism ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread);

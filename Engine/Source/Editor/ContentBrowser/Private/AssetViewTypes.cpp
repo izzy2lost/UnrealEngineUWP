@@ -11,34 +11,50 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/UnrealTemplate.h"
 
-FAssetViewItem::FAssetViewItem(FContentBrowserItem&& InItem)
+FAssetViewItem::FAssetViewItem(int32 InIndex)
+	: Index(InIndex)
+{
+}
+
+FAssetViewItem::FAssetViewItem(int32 InIndex, FContentBrowserItem&& InItem)
 	: Item(MoveTemp(InItem))
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
-FAssetViewItem::FAssetViewItem(const FContentBrowserItem& InItem)
+FAssetViewItem::FAssetViewItem(int32 InIndex, const FContentBrowserItem& InItem)
 	: Item(InItem)
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
-FAssetViewItem::FAssetViewItem(FContentBrowserItemData&& InItemData)
+FAssetViewItem::FAssetViewItem(int32 InIndex, FContentBrowserItemData&& InItemData)
 	: Item(MoveTemp(InItemData))
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
-FAssetViewItem::FAssetViewItem(const FContentBrowserItemData& InItemData)
+FAssetViewItem::FAssetViewItem(int32 InIndex, const FContentBrowserItemData& InItemData)
 	: Item(InItemData)
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
-void FAssetViewItem::ResetItemData(FContentBrowserItemData InItemData)
+void FAssetViewItem::ResetItemData(int32 OldIndex, int32 NewIndex, FContentBrowserItemData InItemData)
 {
-	Item = FContentBrowserItem{MoveTemp(InItemData)};
-	// Do not broadcast event here, it will be broadcast on the main thread after bulk building/recycling of items
+	if (Index.compare_exchange_strong(OldIndex, NewIndex, std::memory_order_relaxed))
+	{
+		Item = FContentBrowserItem{MoveTemp(InItemData)};
+		// Do not broadcast event here, it will be broadcast on the main thread after bulk building/recycling of items
+	}
+	else
+	{
+		checkf(false, TEXT("Concurrency issue detected recycling FAssetViewItem from old index %d to new index %d - already reassigned to"), OldIndex, NewIndex, Index.load());
+	}
 }
 
 void FAssetViewItem::BroadcastItemDataChanged()

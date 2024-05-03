@@ -11,6 +11,8 @@
 #include "UObject/NameTypes.h"
 #include "UObject/Object.h"
 
+#include <atomic>
+
 class FContentBrowserItemData;
 class FString;
 class FText;
@@ -20,16 +22,16 @@ struct FAssetViewCustomColumn;
 class FAssetViewItem
 {
 public:
-	FAssetViewItem() = default;
+	FAssetViewItem(int32 Index);
 
-	explicit FAssetViewItem(FContentBrowserItem&& InItem);
-	explicit FAssetViewItem(const FContentBrowserItem& InItem);
+	explicit FAssetViewItem(int32 Index, FContentBrowserItem&& InItem);
+	explicit FAssetViewItem(int32 Index, const FContentBrowserItem& InItem);
 
-	explicit FAssetViewItem(FContentBrowserItemData&& InItemData);
-	explicit FAssetViewItem(const FContentBrowserItemData& InItemData);
+	explicit FAssetViewItem(int32 Index, FContentBrowserItemData&& InItemData);
+	explicit FAssetViewItem(int32 Index, const FContentBrowserItemData& InItemData);
 
 	// When recycling an object, clear the item data and replace it with the given data.
-	void ResetItemData(FContentBrowserItemData InItemData);
+	void ResetItemData(int32 OldIndex, int32 Index, FContentBrowserItemData InItemData);
 
 	void AppendItemData(const FContentBrowserItem& InItem);
 
@@ -87,6 +89,12 @@ public:
 private:
 	/** Underlying Content Browser item data */
 	FContentBrowserItem Item;
+
+	/**
+	 * Index at which this is stored in the asset view's item collection.
+	 * Can be used to detect an item being added to the collection twice by mistake.
+	 */
+	std::atomic<int32> Index;
 
 	/** An event to fire when the data for this item changes */
 	FSimpleMulticastDelegate ItemDataChangedEvent;
