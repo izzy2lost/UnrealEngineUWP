@@ -336,8 +336,8 @@ void UObjectReplicationBridge::PrintReplicatedObjects(uint32 ArgTraits) const
 	uint32 TotalSubObjects = 0;
 
 	FNetBitArray RootObjects;
-	FNetBitArrayView RootObjectsView = MakeNetBitArrayView(RootObjects);
 	RootObjects.Init(NetRefHandleManager->GetMaxActiveObjectCount());
+	FNetBitArrayView RootObjectsView = MakeNetBitArrayView(RootObjects);
 	RootObjectsView.Set(NetRefHandleManager->GetGlobalScopableInternalIndices(), FNetBitArrayView::AndNotOp, NetRefHandleManager->GetSubObjectInternalIndicesView());
 
 	TArray<FRootObjectData> RootObjectArray;
@@ -390,8 +390,8 @@ void UObjectReplicationBridge::PrintRelevantObjects(uint32 ArgTraits) const
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 
 	FNetBitArray RootObjects;
-	FNetBitArrayView RootObjectsView = MakeNetBitArrayView(RootObjects);
 	RootObjects.Init(NetRefHandleManager->GetMaxActiveObjectCount());
+	FNetBitArrayView RootObjectsView = MakeNetBitArrayView(RootObjects);
 	RootObjectsView.Set(NetRefHandleManager->GetRelevantObjectsInternalIndices(), FNetBitArrayView::AndNotOp, NetRefHandleManager->GetSubObjectInternalIndicesView());
 
 	TArray<FRootObjectData> RootObjectArray;
