@@ -95,8 +95,9 @@ private:
 	FVirtualTextureFeedback::FMapResult FeedbackMapResult;
 	UE::Tasks::FTask AsyncTask;
 	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
-	uint32 NumProcessedLoadRequests = 0;
 	bool bAsyncTaskAllowed = false;
+	int32 PageUploadBudgetRVT = 0;
+	int32 PageUploadBudgetSVT = 0;
 
 	friend FVirtualTextureSystem;
 };
@@ -205,15 +206,19 @@ private:
 	void RequestTilesInternal(const IAllocatedVirtualTexture* AllocatedVT, int32 InMipLevel);
 	void RequestTilesInternal(const IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, int32 InMipLevel);
 	
-	void SubmitRequestsFromLocalTileList(FRHICommandList& RHICmdList, TArray<FVirtualTextureLocalTile>& OutDeferredTiles, const TSet<FVirtualTextureLocalTile>& LocalTileList, EVTProducePageFlags Flags, ERHIFeatureLevel::Type FeatureLevel, uint32 MaxRequestsToProduce);
+	int32 SubmitRequestsFromLocalTileList(FRHICommandList& RHICmdList, TArray<FVirtualTextureLocalTile>& OutDeferredTiles, const TSet<FVirtualTextureLocalTile>& LocalTileList, EVTProducePageFlags Flags, ERHIFeatureLevel::Type FeatureLevel, uint32 MaxRequestsToProduce);
 
 	void GatherFeedbackRequests(FConcurrentLinearBulkObjectAllocator& Allocator, const FVirtualTextureUpdateSettings& Settings, const FVirtualTextureFeedback::FMapResult& FeedbackResult, FUniqueRequestList* MergedRequestList);
 	void GatherLockedTileRequests(FUniqueRequestList* MergedRequestList);
 	void GatherPackedTileRequests(FConcurrentLinearBulkObjectAllocator& Allocator, const FVirtualTextureUpdateSettings& Settings, FUniqueRequestList* MergedRequestList);
 
-	void SubmitPreMappedRequests(FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, uint32 MaxMappedTilesToProduce);
+	enum class EUpdatePhase
+	{
+		Begin,
+		End
+	};
 
-	void SubmitThrottledRequests(FRHICommandList& RHICmdList, FVirtualTextureUpdater* Updater, bool bContinuousUpdates);
+	void SubmitThrottledRequests(FRHICommandList& RHICmdList, FVirtualTextureUpdater* Updater, EUpdatePhase UpdatePhase);
 	void SubmitRequests(FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, FConcurrentLinearBulkObjectAllocator& Allocator, FVirtualTextureUpdateSettings const& Settings, FUniqueRequestList* RequestList, bool bAsync);
 	void FinalizeRequests(FRDGBuilder& GraphBuilder);
 

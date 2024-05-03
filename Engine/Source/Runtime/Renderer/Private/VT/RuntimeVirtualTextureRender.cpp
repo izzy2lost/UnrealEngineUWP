@@ -25,7 +25,9 @@
 #include "SceneRendering.h"
 #include "EngineModule.h"
 
-CSV_DEFINE_CATEGORY(VT, (!UE_BUILD_SHIPPING));
+CSV_DECLARE_CATEGORY_EXTERN(VirtualTexturing);
+
+DECLARE_DWORD_COUNTER_STAT(TEXT("Num pages rendered"), STAT_RenderedPages, STATGROUP_VirtualTexturing);
 
 namespace RuntimeVirtualTexture
 {
@@ -1396,7 +1398,8 @@ namespace RuntimeVirtualTexture
 		FLinearColor const& FixedColor)
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "VirtualTextureDynamicCache");
-		CSV_CUSTOM_STAT(VT, RenderedPages, 1, ECsvCustomStatOp::Accumulate);
+		CSV_CUSTOM_STAT(VirtualTexturing, RenderedPages, 1, ECsvCustomStatOp::Accumulate);
+		INC_DWORD_STAT_BY(STAT_RenderedPages, 1);
 
 		// Initialize a temporary view required for the material render pass
 		//todo[vt]: Some of this, such as ViewRotationMatrix, can be computed once in the Finalizer and passed down.
