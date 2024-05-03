@@ -596,7 +596,7 @@ class FFroxelProbesUpdateIndirectArgsSetupCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelReprojRefineDispatchIndirectBufferUAV)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
 		SHADER_PARAMETER(FIntPoint, RayTracingThreadGroupSize)
-		SHADER_PARAMETER(uint32, bUsingRayTracing)
+		SHADER_PARAMETER(uint32, bSetupForHardwareRayTracing)
 	END_SHADER_PARAMETER_STRUCT()
 		
 	class FDebugPrint : SHADER_PERMUTATION_BOOL("PERMUTATION_DEBUG_PRINT");
@@ -1320,7 +1320,7 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					#else
 						PassParameters->RayTracingThreadGroupSize = FIntPoint(0, 0);
 					#endif
-						PassParameters->bUsingRayTracing = Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily) ? 1 : 0;
+						PassParameters->bSetupForHardwareRayTracing = Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily) ? 1 : 0;
 
 						const bool bDebugFroxelProbesUpdateIndirectArgs = CVarTranslucencyVolumeRadianceCacheFrustumProbesDebug.GetValueOnRenderThread() > 0;
 						if (bDebugFroxelProbesUpdateIndirectArgs)

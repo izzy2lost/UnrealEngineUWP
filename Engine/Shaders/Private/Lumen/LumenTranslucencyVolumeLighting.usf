@@ -520,7 +520,7 @@ RWBuffer<uint>			FroxelInitAndRefineTraceDispatchIndirectBufferUAV;
 RWBuffer<uint>			FroxelLowResCopyDispatchIndirectBufferUAV;
 RWBuffer<uint>			FroxelReprojRefineDispatchIndirectBufferUAV;
 
-uint					bUsingRayTracing;
+uint					bSetupForHardwareRayTracing;
 uint2					RayTracingThreadGroupSize;
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
@@ -560,7 +560,7 @@ void FroxelProbesUpdateIndirectArgsSetupMainCS(uint3 DispatchThreadId : SV_Dispa
 			+ FroxelReprojectRefineCount * TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
 
 		uint NumGroups = DivideAndRoundUp(NumRays, SOFTWARE_TRACE_INDIRECT_DISPATCH_THREADGROUP_X);
-		if (bUsingRayTracing > 0)
+		if (bSetupForHardwareRayTracing > 0)
 		{
 			NumGroups = (NumRays + RayTracingThreadGroupSize.x - 1) / RayTracingThreadGroupSize.x; // DivideAndRoundUp
 		}
