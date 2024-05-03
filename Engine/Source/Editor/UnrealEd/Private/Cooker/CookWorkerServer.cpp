@@ -932,14 +932,14 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 			}
 			else
 			{
-				ParentGenerationHelper->MarkPackageSavedRemotely(COTFS, *PackageData);
+				ParentGenerationHelper->MarkPackageSavedRemotely(COTFS, *PackageData, GetWorkerId());
 				PackageData->SetParentGenerationHelper(nullptr);
 			}
 		}
 		TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
 		if (GenerationHelper)
 		{
-			GenerationHelper->MarkPackageSavedRemotely(COTFS, *PackageData);
+			GenerationHelper->MarkPackageSavedRemotely(COTFS, *PackageData, GetWorkerId());
 			GenerationHelper.SafeRelease();
 		}
 

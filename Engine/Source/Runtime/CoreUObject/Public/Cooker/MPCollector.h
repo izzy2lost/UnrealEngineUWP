@@ -6,6 +6,7 @@
 #include "Async/Future.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
+#include "Containers/UnrealString.h"
 #include "HAL/Platform.h"
 #include "Misc/Guid.h"
 #include "Serialization/CompactBinary.h"
@@ -51,6 +52,8 @@ public:
 	bool operator!=(const FWorkerId& Other) const { return Id != Other.Id; }
 	bool operator<(const FWorkerId& Other) const { return Id < Other.Id; }
 	inline friend int32 GetTypeHash(const FWorkerId& WorkerId) { return WorkerId.Id; }
+
+	FString ToString();
 
 private:
 	constexpr explicit FWorkerId(uint8 InId) : Id(InId) {}
@@ -272,6 +275,12 @@ public:
 private:
 	TUniqueFunction<void(FMPCollectorServerMessageContext& Context, bool bReadSuccessful, MessageType&& Message)> Callback;
 };
+
+inline FString FWorkerId::ToString()
+{
+	return IsInvalid() ? TEXT("<Invalid>") : (IsLocal() ? TEXT("Local") :
+		FString::Printf(TEXT("CookWorker %u"), static_cast<uint32>(GetRemoteIndex())));
+}
 
 } // namespace UE::Cook
 

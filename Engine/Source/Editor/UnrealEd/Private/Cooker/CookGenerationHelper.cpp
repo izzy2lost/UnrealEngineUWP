@@ -5,6 +5,7 @@
 #include "Algo/Unique.h"
 #include "AssetRegistry/AssetData.h"
 #include "Cooker/CookDirector.h"
+#include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookWorkerServer.h"
 #include "Cooker/IWorkerRequests.h"
 #include "Cooker/PackageTracker.h"
@@ -136,9 +137,8 @@ void FGenerationHelper::Uninitialize()
 	// ReferenceFromKeepForQueueResults
 	// ReferenceFromKeepForGeneratorSave
 	// ReferenceFromKeepForAllSavedOrGC
-	MPCookNextAssignmentIndex = 0;
+	// Keep MPCookNextAssignmentIndex; it is allowed in the uninitialized state
 	// Keep NumSaved; it is allowed in the uninitialized state
-	// Keep WorkerIdThatSavedGenerator; it is allowed in the uninitialized state
 	// InitializeStatus was modified above
 	// Keep DoesGeneratedRequireGeneratorValue; it is allowed in the uninitialized state
 	// Keep bUseInternalReferenceToAvoidGarbageCollect; it is allowed in the uninitialized state
@@ -178,6 +178,161 @@ void FGenerationHelper::OnAllSavesCompleted(UCookOnTheFlyServer& COTFS)
 	// these references
 	ClearKeepForCompletedAllSavesMessage();
 	ClearKeepForAllSavedOrGC();
+}
+
+void FGenerationHelper::DiagnoseWhyNotShutdown()
+{
+	TStringBuilder<256> Lines;
+	int32 ExpectedNumSaved = PackagesToGenerate.Num() + 1;
+	if (NumSaved != ExpectedNumSaved)
+	{
+		Lines.Appendf(TEXT("\tNumSaved == %d, ExpectedNumSaved == %d.\n"), NumSaved, ExpectedNumSaved);
+	}
+	UCookOnTheFlyServer& COTFS = GetOwner().GetPackageDatas().GetCookOnTheFlyServer();
+	uint32 ExpectedRefCount = 1;
+	auto TestInfo = [this, &Lines, &COTFS, &ExpectedRefCount](FCookGenerationInfo& Info)
+		{
+			if (Info.PackageData->GetState() != EPackageState::Idle)
+			{
+				Lines.Appendf(TEXT("\t%s%s is not idle; it is in state %d.\n"),
+					Info.IsGenerator() ? TEXT("OwnerInfo") : TEXT("GeneratedPackage "),
+					Info.IsGenerator() ? TEXT("") : *Info.GetPackageName(),
+					static_cast<int32>(Info.PackageData->GetState()));
+			}
+			else
+			{
+				bool bMissingPlatform = false;
+				for (const ITargetPlatform* TargetPlatform : COTFS.PlatformManager->GetSessionPlatforms())
+				{
+					const FPackagePlatformData* PlatformData = Info.PackageData->GetPlatformDatas().Find(TargetPlatform);
+					if (!PlatformData || PlatformData->GetCookResults() == ECookResult::NotAttempted)
+					{
+						bMissingPlatform = true;
+					}
+				}
+				if (bMissingPlatform)
+				{
+					Lines.Appendf(TEXT("\t%s%s was not cooked.\n"),
+						Info.IsGenerator() ? TEXT("OwnerInfo") : TEXT("GeneratedPackage "),
+						Info.IsGenerator() ? TEXT("") : *Info.GetPackageName());
+				}
+			}
+			if (!Info.HasSaved())
+			{
+				Lines.Appendf(TEXT("\t%s%s has not marked saved.\n"),
+					Info.IsGenerator() ? TEXT("OwnerInfo") : TEXT("GeneratedPackage "),
+					Info.IsGenerator() ? TEXT("") : *Info.GetPackageName());
+			}
+			if (!Info.IsGenerator() && Info.PackageData->GetParentGenerationHelper())
+			{
+				Lines.Appendf(TEXT("\tGeneratedPackage %s has ParentGenerationHelper set.\n"), *Info.GetPackageName());
+				++ExpectedRefCount;
+			}
+		};
+	TestInfo(GetOwnerInfo());
+	for (FCookGenerationInfo& Info : GetPackagesToGenerate())
+	{
+		TestInfo(Info);
+	}
+
+	if (ReferenceFromKeepForIterative)
+	{
+		Lines.Append(TEXT("\tReferenceFromKeepForIterative is set.\n"));
+		++ExpectedRefCount;
+	}
+	if (ReferenceFromKeepForQueueResults)
+	{
+		Lines.Append(TEXT("\tReferenceFromKeepForQueueResults is set.\n"));
+		++ExpectedRefCount;
+	}
+	if (ReferenceFromKeepForGeneratorSave)
+	{
+		Lines.Append(TEXT("\tReferenceFromKeepForGeneratorSave is set.\n"));
+		++ExpectedRefCount;
+	}
+	if (bKeepForAllSavedOrGC)
+	{
+		Lines.Append(TEXT("\tbKeepForAllSavedOrGC is true.\n"));
+	}
+	if (bKeepForCompletedAllSavesMessage)
+	{
+		Lines.Append(TEXT("\tbKeepForCompletedAllSavesMessage is true.\n"));
+	}
+	if (ReferenceFromKeepForAllSavedOrGC)
+	{
+		if (!bKeepForAllSavedOrGC && !bKeepForCompletedAllSavesMessage)
+		{
+			Lines.Append(TEXT("\tReferenceFromKeepForAllSavedOrGC is set, despite bKeepForAllSavedOrGC and bKeepForCompletedAllSavesMessage being false.\n"));
+		}
+		++ExpectedRefCount;
+	}
+	if (GetRefCount() > ExpectedRefCount)
+	{
+		GetOwner().GetPackageDatas().LockAndEnumeratePackageDatas(
+			[this, &ExpectedRefCount, &Lines](FPackageData* PackageData)
+			{
+				if (PackageData->GetParentGenerationHelper().GetReference() == this &&
+					FindInfo(*PackageData) == nullptr)
+				{
+					Lines.Appendf(TEXT("\tGenerated package %s has ParentGenerationHelper set, but is not listed as a PackageToGenerate from the GenerationHelper.\n"),
+						*PackageData->GetPackageName().ToString());
+					++ExpectedRefCount;
+				}
+			});
+	}
+	if (GetRefCount() > ExpectedRefCount)
+	{
+		Lines.Appendf(TEXT("\tGetRefCount() has references from unknown sources. GetRefCount() == %u, ExpectedRefCount == %u.\n"),
+			GetRefCount(), ExpectedRefCount);
+	}
+
+	if (Lines.Len() != 0)
+	{
+		FWorkerId WorkerId = GetWorkerIdThatSavedGenerator();
+		Lines.Appendf(TEXT("\tGenerator: Saved on %s.\n"), *GetOwnerInfo().SavedOnWorker.ToString());
+		for (FCookGenerationInfo& Info : PackagesToGenerate)
+		{
+			Lines.Appendf(TEXT("\tGeneratedPackage %s: Saved on %s.\n"), *Info.GetPackageName(),
+				*Info.SavedOnWorker.ToString());
+		}
+	}
+	else
+	{
+		Lines.Appendf(TEXT("\tDiagnoseWhyNotShutdown was called unexpectedly; GetRefCount() == 1 so this GenerationHelper should be shut down.\n"));
+	}
+	if (Lines.ToView().EndsWith(TEXT("\n")))
+	{
+		Lines.RemoveSuffix(1);
+	}
+
+	UE_LOG(LogCook, Error,
+		TEXT("GenerationHelper for package %s is still allocated at end of cooksession. This is unexpected and could indicate some generated packages are missing."),
+		*GetOwner().GetPackageName().ToString());
+	UE_LOG(LogCook, Display, TEXT("Diagnostics:\n%s"), *Lines);
+}
+
+void FGenerationHelper::ForceUninitialize()
+{
+	TArray<FPackageData*> PackagesToDemote;
+	auto TestInfo = [&PackagesToDemote](FCookGenerationInfo& Info)
+		{
+			if (Info.PackageData->GetState() != EPackageState::Idle)
+			{
+				PackagesToDemote.Add(Info.PackageData);
+			}
+		};
+	TestInfo(GetOwnerInfo());
+	for (FCookGenerationInfo& Info : GetPackagesToGenerate())
+	{
+		TestInfo(Info);
+	}
+
+	UCookOnTheFlyServer& COTFS = GetOwner().GetPackageDatas().GetCookOnTheFlyServer();
+	for (FPackageData* PackageData : PackagesToDemote)
+	{
+		COTFS.DemoteToIdle(*PackageData, ESendFlags::QueueAddAndRemove, ESuppressCookReason::CookCanceled);
+	}
+	Uninitialize();
 }
 
 UPackage* FGenerationHelper::FindOrLoadPackage(UCookOnTheFlyServer& COTFS, FPackageData& OwnerPackageData)
@@ -738,11 +893,11 @@ void FGenerationHelper::NotifyStartQueueGeneratedPackages(UCookOnTheFlyServer& C
 	// Note this function can be called on an uninitialized Generator; the generator is only needed
 	// on the director so it can serve as the passer of messages. We have to keep ourselves referenced after
 	// this call, until after we send EGeneratorEvent::QueuedGeneratedPackagesFencePassed, so that we don't destruct
-	// and lose the WorkerIdThatSavedGenerator information.
-	if (COTFS.CookDirector)
+	// and lose the information from SavedOnWorker or TryGenerateList.
+	if (!COTFS.CookWorkerClient)
 	{
 		COTFS.PackageDatas->GetRequestQueue().AddRequestFenceListener(GetOwner().GetPackageName());
-		WorkerIdThatSavedGenerator = SourceWorkerId;
+		GetOwnerInfo().SavedOnWorker = SourceWorkerId;
 		SetKeepForCompletedAllSavesMessage();
 	}
 	SetKeepForQueueResults();
@@ -761,10 +916,18 @@ void FGenerationHelper::EndQueueGeneratedPackagesOnDirector(UCookOnTheFlyServer&
 	COTFS.PackageDatas->GetRequestQueue().AddRequestFenceListener(GetOwner().GetPackageName());
 	SetKeepForQueueResults();
 
-	// Setting the WorkerIdThatSavedGenerator in response to this event is usually not needed because it is also set
-	// from the reported GeneratedPackages, but we set it anyway in case there is an edge condition that skips those
-	// notifications.
-	WorkerIdThatSavedGenerator = SourceWorkerId;
+	// Setting OwnerInfo.SavedOnWorker and KeepForCompletedAllSavesMessage in response to this event is usually not
+	// needed because they are set from NotifyStartQueueGeneratedPackages, but we set them anyway in case there is an
+	// edge condition that skips those notifications.
+	SetKeepForCompletedAllSavesMessage();
+	GetOwnerInfo().SavedOnWorker = SourceWorkerId;
+
+	// The save message for the owner may have come in before this GenerationHelper was created and thus
+	// MarkPackageSavedRemotely was not called. Check for that case now and marked saved if so.
+	if (GetOwner().HasAnyCookedPlatform())
+	{
+		GetOwnerInfo().SetHasSaved(*this, true, SourceWorkerId);
+	}
 }
 
 void FGenerationHelper::OnRequestFencePassedBroadcast(UCookOnTheFlyServer& COTFS)
@@ -892,7 +1055,7 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 	{
 		// The save is completed and we will not come back to it; set state back to initial
 		// state and drop our reference keeping this GenerationHelper in memory for the save.
-		Info.SetHasSaved(*this, true);
+		Info.SetHasSaved(*this, true, FWorkerId::Local());
 
 		if (Info.IsGenerator())
 		{
@@ -1175,12 +1338,13 @@ void FGenerationHelper::TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer&
 	}
 }
 
-void FGenerationHelper::MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData)
+void FGenerationHelper::MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
+	FWorkerId SourceWorkerId)
 {
 	FCookGenerationInfo* Info = FindInfo(PackageData);
 	if (Info)
 	{
-		Info->SetHasSaved(*this, true);
+		Info->SetHasSaved(*this, true, SourceWorkerId);
 	}
 }
 
@@ -1416,6 +1580,7 @@ void FCookGenerationInfo::Uninitialize()
 	// Keep PackageData; it is allowed in the uninitialized state
 	KeepReferencedPackages.Empty();
 	check(CachedObjectsInOuterInfo.IsEmpty()); // We can not still be in the save state, so this should be empty
+	// Keep SavedOnWorker; it is allowed in the uninitialized state
 	bCreateAsMap = false;
 	bHasCreatedPackage = false;
 	// Keep bHasSaved; it is allowed in the uninitialized state

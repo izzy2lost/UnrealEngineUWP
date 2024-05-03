@@ -90,7 +90,7 @@ public:
 	bool HasCreatedPackage() const;
 	void SetHasCreatedPackage(bool bValue);
 	bool HasSaved() const;
-	void SetHasSaved(FGenerationHelper& GenerationHelper, bool bValue);
+	void SetHasSaved(FGenerationHelper& GenerationHelper, bool bValue, FWorkerId SourceWorkerId);
 	bool HasTakenOverCachedCookedPlatformData() const;
 	void SetHasTakenOverCachedCookedPlatformData(bool bValue);
 	bool HasIssuedUndeclaredMovedObjectsWarning() const;
@@ -152,6 +152,7 @@ public:
 	FPackageData* PackageData;
 	TArray<TWeakObjectPtr<UPackage>> KeepReferencedPackages;
 	TMap<UObject*, FCachedObjectInOuterGeneratorInfo> CachedObjectsInOuterInfo;
+	FWorkerId SavedOnWorker = FWorkerId::Invalid();
 private:
 	ESaveState GeneratorSaveState = ESaveState::StartSave;
 	bool bCreateAsMap : 1;
@@ -373,13 +374,21 @@ public:
 	 * Called on the director when the generator or one of the generated packages was saved on a remote worker.
 	 * Used to manage KeepForGCOrAllSaved lifetime. Does not call Initialize.
 	 */
-	void MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData);
+	void MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData, FWorkerId SourceWorkerId);
 
 	/**
 	 * Called on the director and every CookWorker when all saves have been completed; this indicates that
 	 * some of our contract points are complete and the splitter can be destroyed. Does not call Initialize.
 	 */
 	void OnAllSavesCompleted(UCookOnTheFlyServer& COTFS);
+
+	/** Diagnostics for shutdown errors. Report why the GenerationHelper is still referenced. */
+	void DiagnoseWhyNotShutdown();
+	/**
+	 * Helper for shutdown errors. Force the GenerationHelper to uninitialize so that the CookPackageSplitter
+	 * is shutdown correctly before the cooksession ends.
+	 */
+	void ForceUninitialize();
 
 	/** Helper function for Initialize and for TryCreateValidGenerationHelper. */
 	static void SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& COTFS, FName PackageName, UPackage* Package,
@@ -435,7 +444,6 @@ private:
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForAllSavedOrGC;
 	int32 MPCookNextAssignmentIndex = 0;
 	int32 NumSaved = 0;
-	FWorkerId WorkerIdThatSavedGenerator = FWorkerId::Invalid();
 	EInitializeStatus InitializeStatus = EInitializeStatus::Uninitialized;
 	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGeneratorValue =
 		ICookPackageSplitter::EGeneratedRequiresGenerator::None;
@@ -491,12 +499,17 @@ inline bool FCookGenerationInfo::HasSaved() const
 	return bHasSaved;
 }
 
-inline void FCookGenerationInfo::SetHasSaved(FGenerationHelper& GenerationHelper, bool bValue)
+inline void FCookGenerationInfo::SetHasSaved(FGenerationHelper& GenerationHelper, bool bValue,
+	FWorkerId SourceWorkerId)
 {
 	if (bValue != bHasSaved)
 	{
 		bHasSaved = bValue;
 		GenerationHelper.ModifyNumSaved(bValue ? 1 : -1);
+		if (bHasSaved)
+		{
+			SavedOnWorker = SourceWorkerId;
+		}
 	}
 }
 
@@ -716,7 +729,7 @@ inline void FGenerationHelper::ClearKeepForCompletedAllSavesMessage()
 
 inline FWorkerId FGenerationHelper::GetWorkerIdThatSavedGenerator() const
 {
-	return WorkerIdThatSavedGenerator;
+	return OwnerInfo.SavedOnWorker;
 }
 
 inline int32& FGenerationHelper::GetMPCookNextAssignmentIndex()

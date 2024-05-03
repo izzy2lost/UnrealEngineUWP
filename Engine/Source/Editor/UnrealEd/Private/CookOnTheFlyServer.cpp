@@ -10159,6 +10159,24 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 	check(PackageDatas->GetLoadReadyQueue().IsEmpty());
 	check(PackageDatas->GetSaveQueue().IsEmpty());
 
+	TArray<FPackageData*> DanglingGenerationHelpers;
+	PackageDatas->LockAndEnumeratePackageDatas([&DanglingGenerationHelpers](FPackageData* PackageData)
+		{
+			if (PackageData->GetGenerationHelper())
+			{
+				DanglingGenerationHelpers.Add(PackageData);
+			}
+		});
+	for (FPackageData* PackageData : DanglingGenerationHelpers)
+	{
+		TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
+		if (GenerationHelper)
+		{
+			GenerationHelper->DiagnoseWhyNotShutdown();
+			GenerationHelper->ForceUninitialize();
+		}
+	};
+
 	UE_LOG(LogCook, Display, TEXT("Finishing up..."));
 
 	{
