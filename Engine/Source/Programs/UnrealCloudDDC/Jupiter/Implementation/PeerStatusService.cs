@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MongoDB.Driver.Core.Configuration;
 
 namespace Jupiter.Implementation
 {

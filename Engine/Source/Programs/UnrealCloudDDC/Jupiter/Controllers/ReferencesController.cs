@@ -527,11 +527,11 @@ namespace Jupiter.Controllers
 			try
 			{
 				List<BlobId> blobs = await _refService.GetReferencedBlobsAsync(ns, bucket, key, ignoreMissingBlobs: true);
-				ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> blobStatePerRegion = new ConcurrentDictionary<string, ConcurrentDictionary<string, bool>>();
+				Dictionary<string, Dictionary<string, bool>> blobStatePerRegion = new Dictionary<string, Dictionary<string, bool>>();
 
 				await Parallel.ForEachAsync(blobs, async (blobId, cancellationToken) =>
 				{
-					ConcurrentDictionary<string, bool> blobState = new ConcurrentDictionary<string, bool>();
+					Dictionary<string, bool> blobState = new Dictionary<string, bool>();
 
 					foreach (string region in _peerStatusService.GetRegions())
 					{
@@ -539,7 +539,10 @@ namespace Jupiter.Controllers
 						blobState.TryAdd(region, exists);
 					}
 
-					blobStatePerRegion.TryAdd(blobId.ToString(), blobState);
+					lock (blobStatePerRegion)
+					{
+						blobStatePerRegion[blobId.ToString()] = blobState;
+					}
 				});
 
 				return Ok(new RefReplicationStateResponse(ns, bucket, key, blobStatePerRegion));
@@ -1224,7 +1227,7 @@ namespace Jupiter.Controllers
 
 	public class RefReplicationStateResponse
 	{
-		public RefReplicationStateResponse(NamespaceId ns, BucketId bucket, RefId key, ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> blobsPerRegion)
+		public RefReplicationStateResponse(NamespaceId ns, BucketId bucket, RefId key, Dictionary<string, Dictionary<string, bool>> blobsPerRegion)
 		{
 			Ns = ns;
 			Bucket = bucket;
@@ -1235,7 +1238,7 @@ namespace Jupiter.Controllers
 		public NamespaceId Ns { get;set; }
 		public BucketId Bucket { get;set; }
 		public RefId Key { get;set; }
-		public ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> BlobsPerRegion { get; init; }
+		public Dictionary<string, Dictionary<string, bool>> BlobsPerRegion { get; init; }
 	}
 
 	public class RefDeletedResponse
