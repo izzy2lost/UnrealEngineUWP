@@ -762,6 +762,11 @@ namespace UnrealBuildTool
 						RemoteActionFailedCrash(queue, action, e.ExitCode, e.ExecutingHost ?? "Unknown", "UBA error");
 						return;
 					}
+					else if (e.ExitCode != 0 && UBAConfig.bForcedRetryRemote)
+					{
+						RemoteActionFailedCrash(queue, action, e.ExitCode, e.ExecutingHost ?? "Unknown", "Force local retry");
+						return;
+					}
 
 					IProcess process = (IProcess)s;
 

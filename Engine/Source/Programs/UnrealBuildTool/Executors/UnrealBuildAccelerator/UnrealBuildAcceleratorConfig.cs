@@ -33,6 +33,13 @@ namespace UnrealBuildTool
 		public bool bForcedRetry { get; set; } = false;
 
 		/// <summary>
+		/// When set to true, actions that fail remotely with UBA will be retried locally with UBA.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-UBAForcedRetryRemote")]
+		public bool bForcedRetryRemote { get; set; } = false;
+
+		/// <summary>
 		/// When set to true, all errors and warnings from UBA will be output at the appropriate severity level to the log (rather than being output as 'information' and attempting to continue regardless).
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
