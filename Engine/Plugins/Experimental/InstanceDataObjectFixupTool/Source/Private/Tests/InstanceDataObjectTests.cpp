@@ -332,9 +332,9 @@ static UObject* GenerateTestInstanceDataObject(UObject* ObjectOld, UClass* NewCl
 	{
 		FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 
-		// scoped flag changes to load context to support property bag generation
+		// scoped flag changes to load context to support unknown property tracking
 		TGuardValue<bool> ScopedTrackSerializedPropertyPath(LoadContext->bTrackSerializedPropertyPath, true);
-		TGuardValue<bool> ScopedSerializeUnknownProperty(LoadContext->bSerializeUnknownProperty, true);
+		TGuardValue<bool> ScopedSerializeUnknownProperty(LoadContext->bTrackUnknownProperties, true);
 		TGuardValue<bool> ScopedImpersonateProperties(LoadContext->bImpersonateProperties, true);
 		
 		UPackage* TempPackage = CreateTestPackage(NewClass);

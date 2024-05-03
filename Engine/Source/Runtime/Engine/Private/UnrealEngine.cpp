@@ -17240,7 +17240,7 @@ public:
 		{
 			// this will had property path tracking and create a property bag to hold data not matching the current class schema
 			ScopedTrackSerializedPropertyPath.Emplace(LoadContext->bTrackSerializedPropertyPath, true);
-			ScopedSerializeUnknownProperty.Emplace(LoadContext->bSerializeUnknownProperty, true);
+			ScopedSerializeUnknownProperty.Emplace(LoadContext->bTrackUnknownProperties, true);
 			ScopedSerializedObject.Emplace(LoadContext->SerializedObject, DstObject);
 		}
 

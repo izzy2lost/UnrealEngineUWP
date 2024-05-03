@@ -1741,7 +1741,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					if (!bSearchedForUnknownPropertyTree)
 					{
 						bSearchedForUnknownPropertyTree = true;
-						if (SerializeContext->bSerializeUnknownProperty)
+						if (SerializeContext->bTrackUnknownProperties)
 						{
 							if (UObject* Object = SerializeContext->SerializedObject)
 							{

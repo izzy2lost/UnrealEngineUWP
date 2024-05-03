@@ -4692,13 +4692,13 @@ void FLinkerLoad::Preload( UObject* Object )
 
 					// Toggle support for IDOs
 					FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
-					// Enable property path tracking when IDO support is enabled. Both property bags and IDO creation require the paths.
+					// Enable property path tracking when IDO support is enabled. Both the property path name tree and IDO creation require the paths.
 					const bool bHasIDOSupport = UE::IsInstanceDataObjectSupportEnabled(Object);
 					TGuardValue<bool> ScopedTrackSerializedPropertyPath(LoadContext->bTrackSerializedPropertyPath, bHasIDOSupport);
-					// Enable creation of a property bag to hold any property that does not match the current class schema,
+					// Enable creation of a property path name tree to track any property that does not match the current class schema,
 					// except when impersonation is enabled because that implies we are deserializing an IDO.
 					const bool bCreateIDO = bHasIDOSupport && !LoadContext->bImpersonateProperties;
-					TGuardValue<bool> ScopedSerializeUnknownProperty(LoadContext->bSerializeUnknownProperty, bCreateIDO);
+					TGuardValue<bool> ScopedTrackUnknownProperties(LoadContext->bTrackUnknownProperties, bCreateIDO);
 
 					if (Object->HasAnyFlags(RF_ClassDefaultObject))
 					{
