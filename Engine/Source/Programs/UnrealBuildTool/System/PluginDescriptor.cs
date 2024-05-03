@@ -385,7 +385,7 @@ namespace UnrealBuildTool
 			}
 			catch (JsonException ex)
 			{
-				throw new JsonException($"{ex.Message} (in {FileName})", ex.Source ?? FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
+				throw new JsonException($"{ex.Message} (in {FileName})", FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
 			}
 		}
 

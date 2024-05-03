@@ -212,9 +212,10 @@ namespace UnrealBuildTool
 		/// <returns>New plugin descriptor</returns>
 		public static ProjectDescriptor FromFile(FileReference FileName)
 		{
-			JsonObject RawObject = JsonObject.Read(FileName);
 			try
 			{
+				JsonObject RawObject = JsonObject.Read(FileName);
+
 				ProjectDescriptor Descriptor = new ProjectDescriptor(RawObject, FileName.Directory, FileName);
 				if (Descriptor.Modules != null)
 				{
@@ -227,7 +228,7 @@ namespace UnrealBuildTool
 			}
 			catch (JsonException ex)
 			{
-				throw new JsonException($"{ex.Message} (in {FileName})", ex.Source ?? FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
+				throw new JsonException($"{ex.Message} (in {FileName})", FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
 			}
 		}
 
