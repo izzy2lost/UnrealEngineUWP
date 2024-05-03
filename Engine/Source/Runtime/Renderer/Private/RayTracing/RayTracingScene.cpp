@@ -15,8 +15,6 @@
 #include "SceneRendering.h"
 #include "RayTracingInstanceCulling.h"
 
-DECLARE_GPU_STAT(RayTracingScene);
-
 static TAutoConsoleVariable<int32> CVarRayTracingSceneBuildMode(
 	TEXT("r.RayTracing.Scene.BuildMode"),
 	1,
@@ -375,8 +373,6 @@ void FRayTracingScene::Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePas
 	GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingBuildScene"), PassParams, ComputePassFlags,
 		[this, PassParams](FRHICommandList& RHICmdList)
 		{
-			SCOPED_GPU_STAT(RHICmdList, RayTracingScene);
-
 			FRayTracingSceneBuildParams BuildParams;
 			BuildParams.Scene = RayTracingSceneRHI;
 			BuildParams.ScratchBuffer = PassParams->ScratchBuffer->GetRHI();
