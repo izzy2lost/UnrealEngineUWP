@@ -318,6 +318,7 @@ MATERIALX_NAMESPACE_BEGIN
 			static constexpr float Emission = 0.f;
 			constexpr FLinearColor EmissionColor{ 1, 1, 1 };
 			constexpr FLinearColor Opacity{ 1, 1, 1 };
+			constexpr bool ThinWalled = false;
 		}
 	}
 

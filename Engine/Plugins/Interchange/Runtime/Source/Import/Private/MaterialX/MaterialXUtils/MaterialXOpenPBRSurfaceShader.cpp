@@ -78,7 +78,17 @@ void FMaterialXOpenPBRSurfaceShader::Translate(MaterialX::NodePtr OpenPBRSurface
 	ConnectNodeOutputToInput(Input::GeometryOpacity, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryOpacity.ToString(), DefaultValue::GeometryOpacity);
 	ConnectNodeOutputToInput(Input::GeometryTangent, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryTangent.ToString(), DefaultValue::GeometryTangent, bTangentSpace);
 	ConnectNodeOutputToInput(Input::GeometryThinWalled, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryThinWalled.ToString(), DefaultValue::GeometryThinWalled);
-	
+	{
+		MaterialX::DocumentPtr Document = SurfaceShaderNode->getDocument();
+		MaterialX::InputPtr Input = GetInput(SurfaceShaderNode, mx::OpenPBRSurface::Input::GeometryThinWalled);
+		if(Input->hasValue() && mx::fromValueString<bool>(Input->getValueString()) == true)
+		{
+			// weird that we also have to enable that to have a two sided material (seems to only have meaning for Translucent material)
+			ShaderGraphNode->SetCustomTwoSidedTransmission(true);
+			ShaderGraphNode->SetCustomTwoSided(true);
+		}
+	}
+
 	//Fuzz
 	ConnectNodeOutputToInput(Input::FuzzColor, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::FuzzColor.ToString(), DefaultValue::FuzzColor);
 	ConnectNodeOutputToInput(Input::FuzzRoughness, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::FuzzRoughness.ToString(), DefaultValue::FuzzRoughness);

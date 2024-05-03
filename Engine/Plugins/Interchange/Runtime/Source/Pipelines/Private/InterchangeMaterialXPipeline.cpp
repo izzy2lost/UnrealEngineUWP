@@ -104,6 +104,7 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryNormal,
 					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryTangent,
 					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryOpacity,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryThinWalled,
 				},
 				// OpenPBRSurface Outputs
 				!bIsSubstrateEnabled ?
@@ -171,6 +172,7 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryNormal,
 						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryTangent,
 						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryOpacity,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryThinWalled,
 					},
 					// OpenPBRSurfaceTransmission Outputs
 					!bIsSubstrateEnabled ?
@@ -219,12 +221,14 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 						UE::Interchange::Materials::StandardSurface::Parameters::CoatRoughness,
 						UE::Interchange::Materials::StandardSurface::Parameters::CoatNormal,
 						UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmThickness,
+						UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmIOR,
 						UE::Interchange::Materials::StandardSurface::Parameters::Emission,
 						UE::Interchange::Materials::StandardSurface::Parameters::EmissionColor,
 						UE::Interchange::Materials::StandardSurface::Parameters::Normal,
 						UE::Interchange::Materials::StandardSurface::Parameters::Tangent,
+						UE::Interchange::Materials::StandardSurface::Parameters::ThinWalled,
 						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::SpecularColor : FName{},
-						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatIOR : FName{},
+						UE::Interchange::Materials::StandardSurface::Parameters::CoatIOR,
 						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatAnisotropy : FName{},
 						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatRotation : FName{},
 						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmIOR : FName{},
@@ -290,9 +294,10 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 						UE::Interchange::Materials::StandardSurface::Parameters::CoatRoughness,
 						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatAnisotropy : FName{},
 						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatRotation : FName{},
-						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::CoatIOR : FName{},
+						UE::Interchange::Materials::StandardSurface::Parameters::CoatIOR,
 						UE::Interchange::Materials::StandardSurface::Parameters::CoatNormal,
 						UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmThickness,
+						UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmIOR,
 						bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::ThinFilmIOR : FName{},
 						UE::Interchange::Materials::StandardSurface::Parameters::Emission,
 						UE::Interchange::Materials::StandardSurface::Parameters::EmissionColor,

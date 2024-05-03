@@ -147,6 +147,10 @@ protected:
 				{					
 					bIsConnected = AddVectorAttribute(Input, InputShaderName, ShaderNode, DefaultValue);
 				}
+				if constexpr(std::is_same_v<decltype(DefaultValue), bool>)
+				{
+					bIsConnected = AddBooleanAttribute(Input, InputShaderName, ShaderNode);
+				}
 			}
 		}
 

@@ -153,6 +153,17 @@ void FMaterialXStandardSurfaceShader::ConnectToStandardSurface(UInterchangeFunct
 	//Opacity
 	ConnectNodeOutputToInput(Input::Opacity, StandardSurfaceShaderNode, StandardSurface::Parameters::Opacity.ToString(), DefaultValue::Opacity);
 
+	//Thin Walled: we create a shader graph for that input even if it has no real-meaning, we only check the value to enable the Two-Sided option
+	ConnectNodeOutputToInput(Input::ThinWalled, StandardSurfaceShaderNode, StandardSurface::Parameters::ThinWalled.ToString(), DefaultValue::ThinWalled);
+	{
+		MaterialX::DocumentPtr Document = SurfaceShaderNode->getDocument();
+		MaterialX::InputPtr Input = GetInput(SurfaceShaderNode, mx::StandardSurface::Input::ThinWalled);
+		if(Input->hasValue() && mx::fromValueString<bool>(Input->getValueString()) == true)
+		{
+			ShaderGraphNode->SetCustomTwoSided(true);
+		}
+	}
+
 	// Outputs
 	UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, PBRMR::Parameters::BaseColor.ToString(), StandardSurfaceShaderNode->GetUniqueID(), TEXT("Base Color"));
 	UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, PBRMR::Parameters::Metallic.ToString(), StandardSurfaceShaderNode->GetUniqueID(), PBRMR::Parameters::Metallic.ToString());
@@ -300,6 +311,19 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface(UInterch
 
 	//Transmission Extra Roughness
 	ConnectNodeOutputToInput(Input::TransmissionExtraRoughness, StandardSurfaceShaderNode, StandardSurface::Parameters::TransmissionExtraRoughness.ToString(), DefaultValue::TransmissionExtraRoughness);
+
+	//Thin Walled: we create a shader graph for that input even if it has no real-meaning, we only check the value to enable the Two-Sided option
+	ConnectNodeOutputToInput(Input::ThinWalled, StandardSurfaceShaderNode, StandardSurface::Parameters::ThinWalled.ToString(), DefaultValue::ThinWalled);
+	{
+		MaterialX::DocumentPtr Document = SurfaceShaderNode->getDocument();
+		MaterialX::InputPtr Input = GetInput(SurfaceShaderNode, mx::StandardSurface::Input::ThinWalled);
+		if(Input->hasValue() && mx::fromValueString<bool>(Input->getValueString()) == true)
+		{
+			// weird that we also have to enable that to have a two sided material (seems to only have meaning for Translucent material)
+			ShaderGraphNode->SetCustomTwoSidedTransmission(true);
+			ShaderGraphNode->SetCustomTwoSided(true);
+		}
+	}
 
 	// Outputs
 	if(UInterchangeShaderPortsAPI::HasInput(StandardSurfaceShaderNode, StandardSurface::Parameters::Transmission))
