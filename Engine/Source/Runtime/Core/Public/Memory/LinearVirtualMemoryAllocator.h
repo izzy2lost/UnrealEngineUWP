@@ -3,10 +3,10 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include "HAL/UnrealMemory.h"
 
 #if PLATFORM_HAS_FPlatformVirtualMemoryBlock
 #include <atomic>
-#include "HAL/PlatformMemory.h"
 #include "HAL/CriticalSection.h"
 
 struct FLinearVirtualMemoryAllocator
