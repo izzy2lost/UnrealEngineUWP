@@ -118,7 +118,7 @@ namespace UE::Workspace
 				SNew(SImage)
 				.ColorAndOpacity(FSlateColor::UseForeground())
 				.Image(FAppStyle::GetBrush("ContentBrowser.ContentDirty"))
-				.ToolTipText(LOCTEXT("RevisionControlStatusTooltip", "File status of this entry"))
+				.ToolTipText(LOCTEXT("FileStatusTooltip", "File status of this entry"))
 			]
 		];	
 	}
