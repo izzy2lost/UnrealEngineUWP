@@ -3,12 +3,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver.Core.Configuration;
 
 namespace Jupiter.Implementation
 {
@@ -26,6 +28,17 @@ namespace Jupiter.Implementation
 
 	public interface IPeerStatusService
 	{
+		/// <summary>
+		/// Lists all known regions
+		/// </summary>
+		/// <returns></returns>
+		IEnumerable<string> GetRegions();
+
+		/// <summary>
+		/// Returns all the information about a particular region
+		/// </summary>
+		/// <param name="regionName"></param>
+		/// <returns></returns>
 		PeerStatus? GetPeerStatus(string regionName);
 
 		/// <summary>
@@ -39,6 +52,7 @@ namespace Jupiter.Implementation
 	public class PeerStatusServiceState
 	{
 	}
+
 	public class PeerStatusService : PollingService<PeerStatusServiceState>, IPeerStatusService
 	{
 		private readonly IOptionsMonitor<ClusterSettings> _clusterSettings;
@@ -47,6 +61,11 @@ namespace Jupiter.Implementation
 		private readonly Dictionary<string, PeerStatus> _peers = new Dictionary<string, PeerStatus>(StringComparer.InvariantCultureIgnoreCase);
 		private volatile bool _alreadyPolling = false;
 		private readonly ILogger _logger;
+
+		public IEnumerable<string> GetRegions()
+		{
+			return _clusterSettings.CurrentValue.Peers.Select(settings => settings.Name);
+		}
 
 		public PeerStatus? GetPeerStatus(string regionName)
 		{

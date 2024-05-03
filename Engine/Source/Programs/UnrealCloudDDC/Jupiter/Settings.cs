@@ -236,7 +236,7 @@ namespace Jupiter
 	public class ClusterSettings
 	{
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by serialization")]
-		public List<PeerSettings> Peers { get; set; } = new List<PeerSettings>();
+		public List<PeerSettings> Peers { get; set; } = new List<PeerSettings>() { new PeerSettings() { Name = "local"}};
 	}
 
 	public class PeerSettings

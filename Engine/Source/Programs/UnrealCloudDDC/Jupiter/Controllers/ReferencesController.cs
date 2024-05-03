@@ -21,6 +21,7 @@ using JetBrains.Annotations;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
 using Jupiter.Implementation;
+using Jupiter.Implementation.Blob;
 using Jupiter.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -58,11 +59,15 @@ namespace Jupiter.Controllers
 		private readonly IOptionsMonitor<UnrealCloudDDCSettings> _settings;
 		private readonly IRefService _refService;
 		private readonly IBlobService _blobStore;
+		private readonly IBlobIndex _blobIndex;
+		private readonly IPeerStatusService _peerStatusService;
 
-		public ReferencesController(IRefService refService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger, IOptionsMonitor<UnrealCloudDDCSettings> settings)
+		public ReferencesController(IRefService refService, IBlobService blobStore, IBlobIndex blobIndex, IPeerStatusService peerStatusService, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger, IOptionsMonitor<UnrealCloudDDCSettings> settings)
 		{
 			_refService = refService;
 			_blobStore = blobStore;
+			_blobIndex = blobIndex;
+			_peerStatusService = peerStatusService;
 			_diagnosticContext = diagnosticContext;
 			_formatResolver = formatResolver;
 			_bufferedPayloadFactory = bufferedPayloadFactory;
@@ -486,6 +491,58 @@ namespace Jupiter.Controllers
 				(RefRecord objectRecord, BlobContents? _) = await _refService.GetAsync(ns, bucket, key, fields);
 
 				return Ok(new RefMetadataResponse(objectRecord));
+			}
+			catch (NamespaceNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Namespace {e.Namespace} did not exist" });
+			}
+			catch (RefNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Object {e.Bucket} {e.Key} did not exist" });
+			}
+			catch (BlobNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Object {e.Blob} in {e.Ns} not found" });
+			}
+		}
+
+		/// <summary>
+		/// Returns the replicated state of this ref across all known cloud ddc regions
+		/// </summary>
+		/// <param name="ns">Namespace. Each namespace is completely separated from each other. Use for different types of data that is never expected to be similar (between two different games for instance). Example: `uc4.ddc`</param>
+		/// <param name="bucket">The category/type of record you are caching. Is a clustered key together with the actual key, but all records in the same bucket can be dropped easily. Example: `terrainTexture` </param>
+		/// <param name="key">The unique name of this particular key. `iAmAVeryValidKey`</param>
+		[HttpGet("{ns}/{bucket}/{key}/replicationState", Order = 500)]
+		public async Task<IActionResult> GetReplicationStateAsync(
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] BucketId bucket,
+			[FromRoute][Required] RefId key)
+		{
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.AdminAction });
+			if (accessResult != null)
+			{
+				return accessResult;
+			}
+
+			try
+			{
+				List<BlobId> blobs = await _refService.GetReferencedBlobsAsync(ns, bucket, key, ignoreMissingBlobs: true);
+				ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> blobStatePerRegion = new ConcurrentDictionary<string, ConcurrentDictionary<string, bool>>();
+
+				await Parallel.ForEachAsync(blobs, async (blobId, cancellationToken) =>
+				{
+					ConcurrentDictionary<string, bool> blobState = new ConcurrentDictionary<string, bool>();
+
+					foreach (string region in _peerStatusService.GetRegions())
+					{
+						bool exists = await _blobIndex.BlobExistsInRegionAsync(ns, blobId, region, CancellationToken.None);
+						blobState.TryAdd(region, exists);
+					}
+
+					blobStatePerRegion.TryAdd(blobId.ToString(), blobState);
+				});
+
+				return Ok(new RefReplicationStateResponse(ns, bucket, key, blobStatePerRegion));
 			}
 			catch (NamespaceNotFoundException e)
 			{
@@ -1163,6 +1220,22 @@ namespace Jupiter.Controllers
 				return Ok(new RefDeletedResponse(0));
 			}
 		}
+	}
+
+	public class RefReplicationStateResponse
+	{
+		public RefReplicationStateResponse(NamespaceId ns, BucketId bucket, RefId key, ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> blobsPerRegion)
+		{
+			Ns = ns;
+			Bucket = bucket;
+			Key = key;
+			BlobsPerRegion = blobsPerRegion;
+		}
+
+		public NamespaceId Ns { get;set; }
+		public BucketId Bucket { get;set; }
+		public RefId Key { get;set; }
+		public ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> BlobsPerRegion { get; init; }
 	}
 
 	public class RefDeletedResponse
