@@ -363,6 +363,7 @@ namespace UE::Cook
 		/** max number of objects of a specific type which are allowed to async cache at once */
 		TMap<FName, int32> MaxAsyncCacheForType;
 		bool bUseSoftGC = false;
+		bool bRandomizeCookOrder = false;
 
 		friend FCbWriter& ::operator<<(FCbWriter& Writer, const UE::Cook::FInitializeConfigSettings& Value);
 		friend bool ::LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FInitializeConfigSettings& Value);
@@ -387,6 +388,9 @@ namespace UE::Cook
 
 	/** Report whether commandline/config has disabled use of timeouts throughout the cooker, useful for debugging. */
 	bool IsCookIgnoreTimeouts();
+
+	TConstArrayView<const TCHAR*> GetCommandLineDelimiterStrs();
+	TConstArrayView<TCHAR> GetCommandLineDelimiterChars();
 }
 
 bool LexTryParseString(FPlatformMemoryStats::EMemoryPressureStatus& OutValue, FStringView Text);

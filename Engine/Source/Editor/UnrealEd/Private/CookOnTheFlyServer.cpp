@@ -9,6 +9,7 @@
 #include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Find.h"
+#include "Algo/RandomShuffle.h"
 #include "Algo/Unique.h"
 #include "AssetCompilingManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -2725,6 +2726,14 @@ void UCookOnTheFlyServer::AssignRequests(TArrayView<UE::Cook::FPackageData*> Req
 	}
 	else
 	{
+		TArray<FPackageData*> Shuffled;
+		if (bRandomizeCookOrder)
+		{
+			Shuffled = Requests;
+			Algo::RandomShuffle(Shuffled);
+			Requests = Shuffled;
+		}
+
 		for (FPackageData* PackageData : Requests)
 		{
 			RequestQueue.AddReadyRequest(PackageData);
@@ -6980,6 +6989,9 @@ void FInitializeConfigSettings::LoadLocal(const FString& InOutputDirectoryOverri
 			MaxAsyncCacheForType.Add(CacheSetting.Key, Count);
 		}
 	}
+
+	bRandomizeCookOrder = FParse::Param(FCommandLine::Get(), TEXT("RANDOMPACKAGEORDER")) ||
+		(FParse::Param(FCommandLine::Get(), TEXT("DIFFONLY")) && !FParse::Param(FCommandLine::Get(), TEXT("DIFFNORANDCOOK")));
 }
 
 static EMPCookGeneratorSplit ParseMPCookGeneratorSplitFromString(const FString& Text)
@@ -7120,7 +7132,7 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 		}
 		if (!ClassPathListStr.IsEmpty())
 		{
-			UE::String::ParseTokensMultiple(ClassPathListStr, { '+', ',', ';' },
+			UE::String::ParseTokensMultiple(ClassPathListStr, UE::Cook::GetCommandLineDelimiterChars(),
 				[this](FStringView Token)
 				{
 					FTopLevelAssetPath Path(Token);
@@ -7134,16 +7146,6 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 				});
 		}
 	}
-
-	bCookFirst = FParse::Param(FCommandLine::Get(), TEXT("CookFirst"));
-	bCookLast = FParse::Param(FCommandLine::Get(), TEXT("CookLast"));
-	if (bCookFirst && bCookLast)
-	{
-		UE_LOG(LogCook, Error, TEXT("-CookFirst and -CookLast are mutually exclusive. Ignoring -CookLast"));
-		bCookLast = false;
-	}
-	bRandomizeCookOrder = !bCookFirst && !bCookLast && (FParse::Param(FCommandLine::Get(), TEXT("RANDOMPACKAGEORDER")) ||
-		(FParse::Param(FCommandLine::Get(), TEXT("DIFFONLY")) && !FParse::Param(FCommandLine::Get(), TEXT("DIFFNORANDCOOK"))));
 
 	ParseCookFilters();
 
@@ -7219,9 +7221,9 @@ void UCookOnTheFlyServer::ParseCookFilters(const TCHAR* Parameter, const TCHAR* 
 	if (FParse::Value(FCommandLine::Get(), *FullParameter, IncludeClassesString))
 	{
 		TArray<FString> IncludeClasses;
-		const TCHAR* Delimiters[] = { TEXT(","), TEXT("+"), TEXT(";")};
-		IncludeClassesString.ParseIntoArray(IncludeClasses, Delimiters,
-			UE_ARRAY_COUNT(Delimiters), true /* bCullEmpty */);
+		TConstArrayView<const TCHAR*> Delimiters = UE::Cook::GetCommandLineDelimiterStrs();
+		IncludeClassesString.ParseIntoArray(IncludeClasses, Delimiters.GetData(), Delimiters.Num(),
+			true /* bCullEmpty */);
 		TArray<FTopLevelAssetPath> RootNames;
 		for (FString& IncludeClassString : IncludeClasses)
 		{
@@ -11813,9 +11815,36 @@ void UCookOnTheFlyServer::GenerateInitialRequests(FBeginCookContext& BeginContex
 		}
 	}
 
+	TArray<FString> CookMaps = BeginContext.StartupOptions->CookMaps;
+	TArray<FString> CookFirstPackages;
+	TArray<FString> CookLastPackages;
+	FString Text;
+	TConstArrayView<const TCHAR*> CommandLineDelimiters = UE::Cook::GetCommandLineDelimiterStrs();
+	if (FParse::Param(FCommandLine::Get(), TEXT("CookFirst")))
+	{
+		CookFirstPackages.Append(CookMaps);
+	}
+	if (FParse::Value(FCommandLine::Get(), TEXT("-CookFirst="), Text))
+	{
+		TArray<FString> Array;
+		Text.ParseIntoArray(Array, CommandLineDelimiters.GetData(), CommandLineDelimiters.Num(), true);
+		CookFirstPackages.Append(Array);
+		CookMaps.Append(Array);
+	}
+	if (FParse::Param(FCommandLine::Get(), TEXT("CookLast")))
+	{
+		CookLastPackages.Append(CookMaps);
+	}
+	if (FParse::Value(FCommandLine::Get(), TEXT("-CookLast="), Text))
+	{
+		TArray<FString> Array;
+		Text.ParseIntoArray(Array, CommandLineDelimiters.GetData(), CommandLineDelimiters.Num(), true);
+		CookLastPackages.Append(Array);
+		CookMaps.Append(Array);
+	}
+
 	TArray<FName> FilesInPath;
 	TMap<FName, UE::Cook::FInstigator> FilesInPathInstigators;
-	const TArray<FString>& CookMaps = BeginContext.StartupOptions->CookMaps;
 	const TArray<FString>& CookDirectories = BeginContext.StartupOptions->CookDirectories;
 	const TArray<FString>& IniMapSections = BeginContext.StartupOptions->IniMapSections;
 	ECookByTheBookOptions CookOptions = CookByTheBookOptions->StartupOptions;
@@ -11856,13 +11885,31 @@ void UCookOnTheFlyServer::GenerateInitialRequests(FBeginCookContext& BeginContex
 		GenerateLongPackageNames(FilesInPath, FilesInPathInstigators);
 	}
 	TSet<FName> CookFirstOrLastPackages;
-	bool bCookFirstOrLast = bCookFirst || bCookLast;
-	if (bCookFirstOrLast)
+	TMap<FString, TOptional<bool>> CookFirstOrLastPackagesInputs;
+	for (const FString& PackageName : CookFirstPackages)
 	{
-		for (const FString& CookMap : CookMaps)
+		CookFirstOrLastPackagesInputs.Add(PackageName, TOptional<bool>(true));
+	}
+	for (const FString& PackageName : CookLastPackages)
+	{
+		TOptional<bool>& IsCookFirst = CookFirstOrLastPackagesInputs.FindOrAdd(PackageName);
+		if (IsCookFirst.IsSet() && IsCookFirst.GetValue())
 		{
+			UE_LOG(LogCook, Error, TEXT("-CookFirst and -CookLast are mutually exclusive. Ignoring -CookLast for %s."),
+				*PackageName);
+		}
+		else
+		{
+			IsCookFirst.Emplace(false);
+		}
+	}
+	if (!CookFirstOrLastPackagesInputs.IsEmpty())
+	{
+		for (const TPair<FString, TOptional<bool>>& Pair : CookFirstOrLastPackagesInputs)
+		{
+			bool bCookLast = !Pair.Value.GetValue();
 			FString LongPackageName;
-			if (FPackageName::TryConvertFilenameToLongPackageName(CookMap, LongPackageName))
+			if (FPackageName::TryConvertFilenameToLongPackageName(Pair.Key, LongPackageName))
 			{
 				FName LongPackageFName(*LongPackageName);
 				CookFirstOrLastPackages.Add(LongPackageFName);
@@ -11877,6 +11924,7 @@ void UCookOnTheFlyServer::GenerateInitialRequests(FBeginCookContext& BeginContex
 			}
 		}
 	}
+	bool bCookFirstOrLast = !CookFirstOrLastPackages.IsEmpty();
 
 	// add all the files to the cook list for the requested platforms
 	for (FName PackageName : FilesInPath)

@@ -416,8 +416,6 @@ private:
 	static void IsRequestCookable(const ITargetPlatform* TargetPlatform, FName PackageName, FPackageData& PackageData,
 		UCookOnTheFlyServer& InCOTFS, FStringView InDLCPath, ESuppressCookReason& OutReason, bool& bOutCookable,
 		bool& bOutExplorable);
-	static void RandomizeCookOrder(TArray<FPackageData*>& InOutLeafToRootOrder,
-		const TMap<FPackageData*, TArray<FPackageData*>>& Edges);
 
 	TArray<FFilePlatformRequest> FilePlatformRequests;
 	/**

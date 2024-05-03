@@ -281,6 +281,18 @@ bool IsCookIgnoreTimeouts()
 	return bIsIgnoreCookTimeouts;
 }
 
+TConstArrayView<const TCHAR*> GetCommandLineDelimiterStrs()
+{
+	static const TCHAR* Delimiters[] = { TEXT(","), TEXT("+"), TEXT(";") };
+	return TConstArrayView<const TCHAR*>(Delimiters, UE_ARRAY_COUNT(Delimiters));
+}
+
+TConstArrayView<const TCHAR> GetCommandLineDelimiterChars()
+{
+	static const TCHAR Delimiters[] = { ',', '+', ';' };
+	return TConstArrayView<TCHAR>(Delimiters, UE_ARRAY_COUNT(Delimiters));
+}
+
 FDiscoveredPlatformSet::FDiscoveredPlatformSet(EDiscoveredPlatformSet InSource)
 	: Source(InSource)
 {
@@ -647,6 +659,7 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FInitializeConfigSettin
 	Writer << "MaxNumPackagesBeforePartialGC" << Value.MaxNumPackagesBeforePartialGC;
 	Writer << "ConfigSettingDenyList" << Value.ConfigSettingDenyList;
 	Writer << "MaxAsyncCacheForType" << Value.MaxAsyncCacheForType;
+	Writer << "bRandomizeCookOrder" << Value.bRandomizeCookOrder;
 	// Make sure new values are added to LoadFromCompactBinary and MoveOrCopy
 	Writer.EndObject();
 	return Writer;
@@ -682,6 +695,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FInitializeConfigSettin
 	bOk = LoadFromCompactBinary(Field["MaxNumPackagesBeforePartialGC"], OutValue.MaxNumPackagesBeforePartialGC) & bOk;
 	bOk = LoadFromCompactBinary(Field["ConfigSettingDenyList"], OutValue.ConfigSettingDenyList) & bOk;
 	bOk = LoadFromCompactBinary(Field["MaxAsyncCacheForType"], OutValue.MaxAsyncCacheForType) & bOk;
+	bOk = LoadFromCompactBinary(Field["bRandomizeCookOrder"], OutValue.bRandomizeCookOrder) & bOk;
 	// Make sure new values are added to MoveOrCopy and operator<<
 	return bOk;
 }
@@ -710,6 +724,7 @@ void FInitializeConfigSettings::MoveOrCopy(SourceType&& Source, TargetType&& Tar
 	Target.MaxNumPackagesBeforePartialGC = Source.MaxNumPackagesBeforePartialGC;
 	Target.ConfigSettingDenyList = MoveTempIfPossible(Source.ConfigSettingDenyList);
 	Target.MaxAsyncCacheForType = MoveTempIfPossible(Source.MaxAsyncCacheForType);
+	Target.bRandomizeCookOrder = Source.bRandomizeCookOrder;
 	// Make sure new values are added to operator<< and LoadFromCompactBinary
 }
 
