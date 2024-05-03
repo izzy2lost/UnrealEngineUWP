@@ -62,6 +62,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bResolveTJunctions = false;
 
+	/** If enabled, will split bowtie vertices before welding. This can in some cases enable more edges to be successfully welded */
+	UPROPERTY(EditAnywhere, Category = Options)
+	bool bSplitBowties = true;
+
 	/** Initial number of open boundary edges */
 	UPROPERTY(VisibleAnywhere, Category = Statistics)
 	int32 InitialEdges;
