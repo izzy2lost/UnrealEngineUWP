@@ -1147,7 +1147,7 @@ void ULandscapeComponent::FixupWeightmaps(const FGuid& InEditLayerGuid)
 			for (const auto& Allocation : LocalWeightmapLayerAllocations)
 			{
 				if (!Allocation.LayerInfo
-					|| (Allocation.LayerInfo != ALandscapeProxy::VisibilityLayer && Proxy && !Landscape->HasTargetLayer(Allocation.LayerInfo->LayerName)))
+					|| (Allocation.LayerInfo != ALandscapeProxy::VisibilityLayer && Landscape && !Landscape->HasTargetLayer(Allocation.LayerInfo->LayerName)))
 				{
 					if (!bFixedLayerDeletion)
 					{
