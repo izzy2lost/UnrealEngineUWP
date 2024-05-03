@@ -2682,6 +2682,16 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 	}
 
 #if WITH_EDITOR
+	TArray<FString> FClothVisualization::GetAllWeightMapNames() const
+	{
+		TSet<FString> AllNames;
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			AllNames.Append(Cloth->GetAllWeightMapNames());
+		}
+		return AllNames.Array();
+	}
+
 	void FClothVisualization::DrawKinematicColliderShaded(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver || !CollisionMaterial)

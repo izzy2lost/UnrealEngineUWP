@@ -96,6 +96,8 @@ namespace Chaos
 		CHAOSCLOTH_API void DrawSelfCollisionLayers(FPrimitiveDrawInterface* PDI = nullptr) const;
 		CHAOSCLOTH_API void DrawInpaintWeightsMatched(FPrimitiveDrawInterface* PDI = nullptr) const;
 		CHAOSCLOTH_API void DrawKinematicColliderShaded(FPrimitiveDrawInterface* PDI) const;
+		CHAOSCLOTH_API void DrawWeightMapWithName(FPrimitiveDrawInterface* PDI, const FString& Name) const;
+		CHAOSCLOTH_API TArray<FString> GetAllWeightMapNames() const;
 	protected:
 		// FGCObject interface
 		CHAOSCLOTH_API virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -120,8 +122,6 @@ namespace Chaos
 		TObjectPtr<const UMaterial> ClothMaterialColor = nullptr;
 		TObjectPtr<const UMaterial> ClothMaterialVertex = nullptr;
 		TObjectPtr<const UMaterial> CollisionMaterial = nullptr;
-		
-		void DrawWeightMapWithName(FPrimitiveDrawInterface* PDI, const FString& Name) const;
 #endif  // #if WITH_EDITOR
 #endif  // #if CHAOS_DEBUG_DRAW
 	};

@@ -969,6 +969,18 @@ TConstArrayView<FRealSingle> FClothingSimulationCloth::GetWeightMapByProperty(co
 	return GetWeightMapByName(Solver, PropertyString);
 }
 
+TSet<FString> FClothingSimulationCloth::GetAllWeightMapNames() const
+{
+	TSet<FString> Names;
+	for (const TUniquePtr<FLODData>& Data : LODData)
+	{
+		TSet<FString> LODNames;
+		Data->WeightMaps.GetKeys(LODNames);
+		Names.Append(MoveTemp(LODNames));
+	}
+	return Names;
+}
+
 TConstArrayView<int32> FClothingSimulationCloth::GetFaceIntMapByName(const FClothingSimulationSolver* Solver, const FString& Name) const
 {
 	const int32 LODIndex = LODIndices.FindChecked(Solver);

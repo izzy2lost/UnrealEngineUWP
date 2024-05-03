@@ -183,6 +183,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CHAOSCLOTH_API TConstArrayView<FRealSingle> GetWeightMapByName(const FClothingSimulationSolver* Solver, const FString& Name) const;
 		// Return the weight map of the specified property name if it exists and is available on the current LOD, or an empty array view otherwise.
 		CHAOSCLOTH_API TConstArrayView<FRealSingle> GetWeightMapByProperty(const FClothingSimulationSolver* Solver, const FString& Property) const;
+		// Return list of weight map names available across all LODs
+		CHAOSCLOTH_API TSet<FString> GetAllWeightMapNames() const;
 		// Return the face int map of the specified name if available on the current LOD, or an empty array view otherwise.
 		CHAOSCLOTH_API TConstArrayView<int32> GetFaceIntMapByName(const FClothingSimulationSolver* Solver, const FString& Name) const;
 		// Return the face int map of the specified property name if it exists and is available on the current LOD, or an empty array view otherwise.
