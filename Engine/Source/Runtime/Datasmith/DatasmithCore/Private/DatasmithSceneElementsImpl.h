@@ -1029,7 +1029,6 @@ private:
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FDatasmithClothActorElementImpl
 	: public FDatasmithActorElementImpl<IDatasmithClothActorElement>
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	FDatasmithClothActorElementImpl(const TCHAR* InName);
@@ -1040,6 +1039,7 @@ public:
 private:
 	TReflected<FString> Cloth;
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 class FDatasmithEnvironmentElementImpl : public FDatasmithLightActorElementImpl< IDatasmithEnvironmentElement >
