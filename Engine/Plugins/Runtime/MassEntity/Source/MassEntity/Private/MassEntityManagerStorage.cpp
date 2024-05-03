@@ -252,8 +252,12 @@ namespace UE::Mass
 	bool FConcurrentEntityStorage::IsValidIndex(int32 Index) const
 	{
 		// Page Index is which page in the array of pages we need to access
-		const uint32 PageIndex = static_cast<uint32>(Index) >> MaximumEntityCountShift;
-		return PageIndex < PageCount;
+		if (Index >= 0)
+		{
+			const uint32 PageIndex = static_cast<uint32>(Index) >> FMath::FloorLog2(MaxEntitiesPerPage);
+			return PageIndex < PageCount;
+		}
+		return false;
 	}
 
 	SIZE_T FConcurrentEntityStorage::GetAllocatedSize() const
