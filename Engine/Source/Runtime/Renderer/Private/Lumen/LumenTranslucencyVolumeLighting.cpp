@@ -548,14 +548,11 @@ class FFroxelProbesUpdateSchedulerCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>,  FroxelClearCountBufferUAV)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, FroxelClearCountBufferUAV)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint4>, FroxelClearListBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>,  FroxelLowResInitCountBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint4>, FroxelLowResInitListBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>,  FroxelReprojUpdateCountBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint4>, FroxelReprojUpdateListBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>,  FroxelRefineTraceRayCountBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint4>, FroxelRefineTraceRayListBufferUAV)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, FroxelInitAndRefineCountBufferUAV)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint2>, FroxelLowResInitListBufferUAV)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint4>, FroxelRefineListBufferUAV)
 		SHADER_PARAMETER_ARRAY(FUintVector4, ProbeSamplesToTrace, [MAX_FRUSTUM_PROBES_REFINE_TRACEPERFRAME])
 		SHADER_PARAMETER(FMatrix44f, UnjitteredPrevWorldToClip)
 		SHADER_PARAMETER(uint32, CameraCut)
@@ -591,21 +588,17 @@ class FFroxelProbesUpdateIndirectArgsSetupCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelClearCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, FroxelClearCountBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelClearDispatchIndirectBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelLowResInitCountBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelLowResTraceDispatchIndirectBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelLowResTraceDispatchIndirectBufferRTUAV)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, FroxelInitAndRefineCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelInitAndRefineTraceDispatchIndirectBufferUAV)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelLowResCopyDispatchIndirectBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelReprojUpdateCountBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelReprojUpdateDispatchIndirectBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelRefineTraceRayCountBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelRefineTraceRayDispatchIndirectBufferUAV)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelRefineTraceRayDispatchIndirectBufferRTUAV)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FroxelReprojRefineDispatchIndirectBufferUAV)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
 		SHADER_PARAMETER(FIntPoint, RayTracingThreadGroupSize)
+		SHADER_PARAMETER(uint32, bUsingRayTracing)
 	END_SHADER_PARAMETER_STRUCT()
-
+		
 	class FDebugPrint : SHADER_PERMUTATION_BOOL("PERMUTATION_DEBUG_PRINT");
 	using FPermutationDomain = TShaderPermutationDomain<FDebugPrint>;
 
@@ -648,9 +641,11 @@ class FUpdateFroxelProbesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<float>,  VolumeFroxelLowResProbeHitDistance)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVolumeFroxelProbeRadianceHitDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelUpdateCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, FroxelClearCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, FroxelInitAndRefineCountBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelUpdateListBuffer)
-		RDG_BUFFER_ACCESS(FroxelUpdateDispatchIndirectBuffer, ERHIAccess::IndirectArgs)
+		RDG_BUFFER_ACCESS(DispatchIndirectBuffer, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_ARRAY(FUintVector4, ProbeSamplesToTrace, [MAX_FRUSTUM_PROBES_REFINE_TRACEPERFRAME])
 		SHADER_PARAMETER(FMatrix44f, UnjitteredPrevWorldToClip)
 		SHADER_PARAMETER(FVector2f, ViewFroxelProbesHistoryPreExposureAndInv)
 	END_SHADER_PARAMETER_STRUCT()
@@ -679,91 +674,10 @@ class FUpdateFroxelProbesCS : public FGlobalShader
 IMPLEMENT_GLOBAL_SHADER(FUpdateFroxelProbesCS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "UpdateFroxelProbesMainCS", SF_Compute);
 
 
-class FFroxelProbesRefineTraceRayCS : public FGlobalShader
+class FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FFroxelProbesRefineTraceRayCS)
-	SHADER_USE_PARAMETER_STRUCT(FFroxelProbesRefineTraceRayCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVolumeFroxelProbeRadianceHitDistance)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelRefineTraceRayCountBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelRefineTraceRayListBuffer)
-		RDG_BUFFER_ACCESS(FroxelRefineTraceRayDispatchIndirectBuffer, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
-	END_SHADER_PARAMETER_STRUCT()
-
-	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
-	using FPermutationDomain = TShaderPermutationDomain<FDynamicSkyLight>;
-
-	static FIntVector GetGroupSize()
-	{
-		return FIntVector(64, 1, 1);
-	}
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		const FPermutationDomain PermutationVector(Parameters.PermutationId);
-		return DoesPlatformSupportLumenGI(Parameters.Platform);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FFroxelProbesRefineTraceRayCS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "FroxelProbesRefineTraceRayCS", SF_Compute);
-
-
-#if RHI_RAYTRACING
-
-class FFroxelProbesRefineHWRayTracing : public FLumenHardwareRayTracingShaderBase 
-{
-	DECLARE_LUMEN_RAYTRACING_SHADER(FFroxelProbesRefineHWRayTracing)
-
-	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FDynamicSkyLight>;
-
-	// Parameters, note: we cannot use FTranslucencyVolumeTraceFroxelProbesCS::FParameters because SharedParameters already includes lots of data itself in different form.
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVolumeFroxelProbeRadianceHitDistance)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelRefineTraceRayCountBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelRefineTraceRayListBuffer)
-		RDG_BUFFER_ACCESS(FroxelRefineTraceRayDispatchIndirectBuffer, ERHIAccess::IndirectArgs)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(Parameters, ShaderDispatchType, Lumen::ESurfaceCacheSampling::AlwaysResidentPagesWithoutFeedback, OutEnvironment);
-	}
-
-	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
-	{
-		return ERayTracingPayloadType::LumenMinimal;
-	}
-};
-
-IMPLEMENT_LUMEN_RAYGEN_AND_COMPUTE_RAYTRACING_SHADERS(FFroxelProbesRefineHWRayTracing)
-
-IMPLEMENT_GLOBAL_SHADER(FFroxelProbesRefineHWRayTracingRGS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "FroxelProbesRefineHWRayTracingRGS", SF_RayGen);
-IMPLEMENT_GLOBAL_SHADER(FFroxelProbesRefineHWRayTracingCS,  "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "FroxelProbesRefineHWRayTracingCS",  SF_Compute);
-
-#endif // RHI_RAYTRACING
-
-
-class FTranslucencyVolumeTraceFroxelProbesCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FTranslucencyVolumeTraceFroxelProbesCS)
-	SHADER_USE_PARAMETER_STRUCT(FTranslucencyVolumeTraceFroxelProbesCS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS)
+	SHADER_USE_PARAMETER_STRUCT(FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
@@ -773,19 +687,19 @@ class FTranslucencyVolumeTraceFroxelProbesCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelLowResInitCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, FroxelInitAndRefineCountBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelLowResInitListBuffer)
-		RDG_BUFFER_ACCESS(FroxelLowResTraceDispatchIndirectBuffer, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelRefineListBufferSRV)
+		RDG_BUFFER_ACCESS(FroxelProbeRayTraceDispatchIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
 	class FSimpleCoverageBasedExpand : SHADER_PERMUTATION_BOOL("GLOBALSDF_SIMPLE_COVERAGE_BASED_EXPAND");
-	class FLowResFroxelIndirect : SHADER_PERMUTATION_BOOL("PERMUTATION_LOWRES_FROXEL_INDIRECT");
-	using FPermutationDomain = TShaderPermutationDomain<FDynamicSkyLight, FSimpleCoverageBasedExpand, FLowResFroxelIndirect>;
+	using FPermutationDomain = TShaderPermutationDomain<FDynamicSkyLight, FSimpleCoverageBasedExpand>;
 
 	static FIntVector GetGroupSize()
 	{
-		return FIntVector(8, 8, 1);
+		return FIntVector(64, 1, 1);
 	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -802,19 +716,18 @@ class FTranslucencyVolumeTraceFroxelProbesCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeTraceFroxelProbesCS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelProbesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelProbesSoftwareRayTracingCS", SF_Compute);
 
 
 #if RHI_RAYTRACING
 
-class FTranslucencyVolumeFroxelLowResProbesRayTracing : public FLumenHardwareRayTracingShaderBase 
+class FTranslucencyVolumeFroxelProbesHardwareRayTracing : public FLumenHardwareRayTracingShaderBase
 {
-	DECLARE_LUMEN_RAYTRACING_SHADER(FTranslucencyVolumeFroxelLowResProbesRayTracing)
+	DECLARE_LUMEN_RAYTRACING_SHADER(FTranslucencyVolumeFroxelProbesHardwareRayTracing)
 
 	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
 	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FDynamicSkyLight>;
 
-	// Parameters, note: we cannot use FTranslucencyVolumeTraceFroxelProbesCS::FParameters because SharedParameters already includes lots of data itself in different form.
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeTraceRadiance)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWVolumeTraceHitDistance)
@@ -822,9 +735,10 @@ class FTranslucencyVolumeFroxelLowResProbesRayTracing : public FLumenHardwareRay
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FroxelLowResInitCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, FroxelInitAndRefineCountBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelLowResInitListBuffer)
-		RDG_BUFFER_ACCESS(FroxelLowResTraceDispatchIndirectBuffer, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, FroxelRefineListBufferSRV)
+		RDG_BUFFER_ACCESS(FroxelProbeRayTraceDispatchIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
@@ -838,10 +752,10 @@ class FTranslucencyVolumeFroxelLowResProbesRayTracing : public FLumenHardwareRay
 	}
 };
 
-IMPLEMENT_LUMEN_RAYGEN_AND_COMPUTE_RAYTRACING_SHADERS(FTranslucencyVolumeFroxelLowResProbesRayTracing)
+IMPLEMENT_LUMEN_RAYGEN_AND_COMPUTE_RAYTRACING_SHADERS(FTranslucencyVolumeFroxelProbesHardwareRayTracing)
 
-IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeFroxelLowResProbesRayTracingRGS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelLowResProbesRayTracingRGS", SF_RayGen);
-IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeFroxelLowResProbesRayTracingCS,  "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelLowResProbesRayTracingCS",  SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelProbesHardwareRayTracingRGS", SF_RayGen);
+IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeFroxelProbesHardwareRayTracingCS,  "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeFroxelProbesHardwareRayTracingCS",  SF_Compute);
 
 #endif // RHI_RAYTRACING
 
@@ -967,7 +881,9 @@ FLumenTranslucencyLightingVolumeParameters GetTranslucencyLightingVolumeParamete
 	Parameters.TranslucencyVolumeTracingFroxelProbesGridSize = FUintVector::DivideAndRoundUp(FUintVector(TranslucencyGridSize), Parameters.TranslucencyVolumeTracingFroxelProbesFroxelSize);
 	Parameters.TranslucencyVolumeTracingFroxelProbePixelSizeShift = FMath::FloorLog2(TranslucencyFroxelGridPixelSize * FrustomProbeFroxelSize);
 	Parameters.TranslucencyVolumeTracingFroxelProbeHZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(TranslucencyFroxelGridPixelSize * FrustomProbeFroxelSize) - 1, 0.0f);
-	Parameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame = FMath::Clamp(CVarTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame.GetValueOnRenderThread(), 1, 8);
+	Parameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame = 
+		FMath::Min((uint32)FMath::Clamp(CVarTranslucencyVolumeRadianceCacheFrustumProbesRefineTracePerFrame.GetValueOnRenderThread(), 1, 8), 
+			Parameters.TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);	//Refine traces are put in the first row of each low res probe. So we clamp so the size at maximum (otherwise we need to handle packing on multiple rows)
 	
 	Parameters.FurthestHZBTexture = View.HZB;
 	Parameters.HZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(TranslucencyFroxelGridPixelSize) - 1, 0.0f);
@@ -1051,70 +967,6 @@ void TraceVoxelsTranslucencyVolume(
 		GroupSize);
 }
 
-void TraceFroxelProbesTranslucencyVolume(
-	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
-	bool bDynamicSkyLight,
-	const FLumenCardTracingParameters& TracingParameters,
-	LumenRadianceCache::FRadianceCacheInterpolationParameters RadianceCacheParameters,
-	FLumenTranslucencyLightingVolumeParameters VolumeParameters,
-	FLumenTranslucencyLightingVolumeTraceSetupParameters TraceSetupParameters,
-	FRDGTextureRef VolumeTraceRadiance,
-	FRDGTextureRef VolumeTraceHitDistance,
-	ERDGPassFlags ComputePassFlags,
-	FRDGBufferRef FroxelLowResTraceDispatchIndirectBuffer = nullptr,
-	FRDGBufferSRVRef FroxelLowResInitCountBufferSRV = nullptr,
-	FRDGBufferSRVRef FroxelLowResInitListBufferSRV = nullptr)
-{
-	FTranslucencyVolumeTraceFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeTraceFroxelProbesCS::FParameters>();
-	PassParameters->RWVolumeTraceRadiance = GraphBuilder.CreateUAV(VolumeTraceRadiance);
-	PassParameters->RWVolumeTraceHitDistance = GraphBuilder.CreateUAV(VolumeTraceHitDistance);
-
-	PassParameters->TracingParameters = TracingParameters;
-	PassParameters->RadianceCacheParameters = RadianceCacheParameters;
-	PassParameters->VolumeParameters = VolumeParameters;
-	PassParameters->TraceSetupParameters = TraceSetupParameters;
-
-	// Indirect fill up data
-	PassParameters->FroxelLowResTraceDispatchIndirectBuffer = FroxelLowResTraceDispatchIndirectBuffer;
-	PassParameters->FroxelLowResInitCountBuffer = FroxelLowResInitCountBufferSRV;
-	PassParameters->FroxelLowResInitListBuffer = FroxelLowResInitListBufferSRV;
-	const bool bIndirectLowResProbeTracing = FroxelLowResTraceDispatchIndirectBuffer != nullptr;
-
-	PassParameters->SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;
-
-	FTranslucencyVolumeTraceFroxelProbesCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FTranslucencyVolumeTraceFroxelProbesCS::FDynamicSkyLight>(bDynamicSkyLight);
-	PermutationVector.Set<FTranslucencyVolumeTraceFroxelProbesCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
-	PermutationVector.Set<FTranslucencyVolumeTraceFroxelProbesCS::FLowResFroxelIndirect>(bIndirectLowResProbeTracing);
-	auto ComputeShader = View.ShaderMap->GetShader<FTranslucencyVolumeTraceFroxelProbesCS>(PermutationVector);
-
-	if (bIndirectLowResProbeTracing)
-	{
-		ClearUnusedGraphResources(ComputeShader, PassParameters);
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("TraceLowResFroxelProbesInd"),
-			PassParameters,
-			ERDGPassFlags::Compute,
-			[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
-			{
-				FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->FroxelLowResTraceDispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
-			});
-	}
-	else
-	{
-		const FIntVector GroupSize = FComputeShaderUtils::GetGroupCount(VolumeTraceRadiance->Desc.GetSize(), FTranslucencyVolumeTraceFroxelProbesCS::GetGroupSize());
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("%s %ux%ux%u", TEXT("TraceFroxelProbes"), VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.X, VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Y, VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Z),
-			ComputePassFlags,
-			ComputeShader,
-			PassParameters,
-			GroupSize);
-	}
-}
-
 LumenRadianceCache::FUpdateInputs FDeferredShadingSceneRenderer::GetLumenTranslucencyGIVolumeRadianceCacheInputs(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View, 
@@ -1166,16 +1018,9 @@ void PrepareLumenHardwareRayTracingTranslucencyVolumeLumenMaterial2(const FViewI
 		for (int32 DynamicSkyLight = 0; DynamicSkyLight < 2; ++DynamicSkyLight)
 		{
 			{
-				FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::FDynamicSkyLight>(DynamicSkyLight > 0);
-				TShaderRef<FTranslucencyVolumeFroxelLowResProbesRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FTranslucencyVolumeFroxelLowResProbesRayTracingRGS>(PermutationVector);
-
-				OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
-			}
-			{
-				FFroxelProbesRefineHWRayTracingRGS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FFroxelProbesRefineHWRayTracingRGS::FDynamicSkyLight>(DynamicSkyLight > 0);
-				TShaderRef<FFroxelProbesRefineHWRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FFroxelProbesRefineHWRayTracingRGS>(PermutationVector);
+				FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS::FDynamicSkyLight>(DynamicSkyLight > 0);
+				TShaderRef<FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS>(PermutationVector);
 
 				OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 			}
@@ -1286,85 +1131,130 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 
 				{
 					// Create buffer required for the froxel probe update scheduling
-					const uint32		FroxelCount = VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.X * VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Y * VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Z;
+					const uint32 FroxelProbeCount = VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.X * VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Y * VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Z;
+					const uint32 MaxFroxelProbeRefineRayTracedPerFrame = FroxelProbeCount * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
 
-					const uint32 R32_ByteSize		= sizeof(uint32) * 1;
-					const uint32 R16G16B16A16_ByteSize = sizeof(uint16) * 4;
+					const uint32 R32_ByteSize			= sizeof(uint32) * 1;
+					const uint32 R16G16B16A16_ByteSize	= sizeof(uint16) * 4;
 
+					FRDGBufferRef		FroxelClearCountBuffer								= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(16), TEXT("Lumen.FroxelClearCountByteAddressBuffer"));
+					FRDGBufferUAVRef	FroxelClearCountBufferUAV							= GraphBuilder.CreateUAV(FroxelClearCountBuffer, PF_R32_UINT);
+					FRDGBufferSRVRef	FroxelClearCountBufferSRV							= GraphBuilder.CreateSRV(FroxelClearCountBuffer, PF_R32_UINT);
 
-					FRDGBufferRef		FroxelClearCountBuffer							= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R32_ByteSize, 8), TEXT("Lumen.FroxelClearCountBuffer"));
-					FRDGBufferUAVRef	FroxelClearCountBufferUAV						= GraphBuilder.CreateUAV(FroxelClearCountBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelClearCountBufferSRV						= GraphBuilder.CreateSRV(FroxelClearCountBuffer, PF_R32_UINT);
+					FRDGBufferRef		FroxelClearListBuffer								= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R16G16B16A16_ByteSize, FroxelProbeCount), TEXT("Lumen.FroxelClearListBuffer"));
+					FRDGBufferUAVRef	FroxelClearListBufferUAV							= GraphBuilder.CreateUAV(FroxelClearListBuffer, PF_R16G16B16A16_UINT);
+					FRDGBufferSRVRef	FroxelClearListBufferSRV							= GraphBuilder.CreateSRV(FroxelClearListBuffer, PF_R16G16B16A16_UINT);
 
-					FRDGBufferRef		FroxelClearListBuffer							= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R16G16B16A16_ByteSize, FroxelCount), TEXT("Lumen.FroxelClearListBuffer"));
-					FRDGBufferUAVRef	FroxelClearListBufferUAV						= GraphBuilder.CreateUAV(FroxelClearListBuffer, PF_R16G16B16A16_UINT);
-					FRDGBufferSRVRef	FroxelClearListBufferSRV						= GraphBuilder.CreateSRV(FroxelClearListBuffer, PF_R16G16B16A16_UINT);
-
-					FRDGBufferRef		FroxelClearDispatchIndirectBuffer				= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelClearDispatchIndirectBuffer"));
-					FRDGBufferUAVRef	FroxelClearDispatchIndirectBufferUAV			= GraphBuilder.CreateUAV(FroxelClearDispatchIndirectBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelClearDispatchIndirectBufferSRV			= GraphBuilder.CreateSRV(FroxelClearDispatchIndirectBuffer, PF_R32_UINT);
+					FRDGBufferRef		FroxelClearDispatchIndirectBuffer					= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelClearDispatchIndirectBuffer"));
+					FRDGBufferUAVRef	FroxelClearDispatchIndirectBufferUAV				= GraphBuilder.CreateUAV(FroxelClearDispatchIndirectBuffer, PF_R32_UINT);
+					FRDGBufferSRVRef	FroxelClearDispatchIndirectBufferSRV				= GraphBuilder.CreateSRV(FroxelClearDispatchIndirectBuffer, PF_R32_UINT);
 					
-					FRDGBufferRef		FroxelLowResInitCountBuffer						= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R32_ByteSize, 8), TEXT("Lumen.FroxelLowResInitCountBuffer"));
-					FRDGBufferUAVRef	FroxelLowResInitCountBufferUAV					= GraphBuilder.CreateUAV(FroxelLowResInitCountBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelLowResInitCountBufferSRV					= GraphBuilder.CreateSRV(FroxelLowResInitCountBuffer, PF_R32_UINT);
+					// 8 bytes: 1uint for init and 1 uint for refine
+					FRDGBufferRef		FroxelInitAndRefineCountBuffer						= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(16), TEXT("Lumen.FroxelInitAndRefineCountByteAddressBuffer"));
+					FRDGBufferUAVRef	FroxelInitAndRefineCountBufferUAV					= GraphBuilder.CreateUAV(FroxelInitAndRefineCountBuffer, PF_R32_UINT);
+					FRDGBufferSRVRef	FroxelInitAndRefineCountBufferSRV					= GraphBuilder.CreateSRV(FroxelInitAndRefineCountBuffer, PF_R32_UINT);
 
-					FRDGBufferRef		FroxelLowResInitListBuffer						= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R16G16B16A16_ByteSize, FroxelCount), TEXT("Lumen.FroxelLowResInitListBuffer"));
-					FRDGBufferUAVRef	FroxelLowResInitListBufferUAV					= GraphBuilder.CreateUAV(FroxelLowResInitListBuffer, PF_R16G16B16A16_UINT);
-					FRDGBufferSRVRef	FroxelLowResInitListBufferSRV					= GraphBuilder.CreateSRV(FroxelLowResInitListBuffer, PF_R16G16B16A16_UINT);
+					// Contains the probe coordinate to initialise
+					FRDGBufferRef		FroxelLowResInitListBuffer							= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R16G16B16A16_ByteSize, FroxelProbeCount), TEXT("Lumen.FroxelLowResInitListBuffer"));
+					FRDGBufferUAVRef	FroxelLowResInitListBufferUAV						= GraphBuilder.CreateUAV(FroxelLowResInitListBuffer, PF_R16G16B16A16_UINT);
+					FRDGBufferSRVRef	FroxelLowResInitListBufferSRV						= GraphBuilder.CreateSRV(FroxelLowResInitListBuffer, PF_R16G16B16A16_UINT);
 
-					FRDGBufferRef		FroxelLowResTraceDispatchIndirectBuffer			= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelLowResTraceDispatchIndirectBuffer"));
-					FRDGBufferUAVRef	FroxelLowResTraceDispatchIndirectBufferUAV		= GraphBuilder.CreateUAV(FroxelLowResTraceDispatchIndirectBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelLowResTraceDispatchIndirectBufferSRV		= GraphBuilder.CreateSRV(FroxelLowResTraceDispatchIndirectBuffer, PF_R32_UINT);
+					// Contains the probe coordinate + UV to init
+					FRDGBufferRef		FroxelRefineListBuffer								= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R16G16B16A16_ByteSize, MaxFroxelProbeRefineRayTracedPerFrame), TEXT("Lumen.FroxelRefineListBuffer"));
+					FRDGBufferUAVRef	FroxelRefineListBufferUAV							= GraphBuilder.CreateUAV(FroxelRefineListBuffer, PF_R16G16B16A16_UINT);
+					FRDGBufferSRVRef	FroxelRefineListBufferSRV							= GraphBuilder.CreateSRV(FroxelRefineListBuffer, PF_R16G16B16A16_UINT);
 
-					FRDGBufferRef		FroxelLowResTraceDispatchIndirectBufferRT		= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelLowResTraceDispatchIndirectBufferRT"));
-					FRDGBufferUAVRef	FroxelLowResTraceDispatchIndirectBufferRTUAV	= GraphBuilder.CreateUAV(FroxelLowResTraceDispatchIndirectBufferRT, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelLowResTraceDispatchIndirectBufferRTSRV	= GraphBuilder.CreateSRV(FroxelLowResTraceDispatchIndirectBufferRT, PF_R32_UINT);
+					FRDGBufferRef		FroxelInitAndRefineTraceDispatchIndirectBuffer		= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelInitAndRefineTraceDispatchIndirectBuffer"));
+					FRDGBufferUAVRef	FroxelInitAndRefineTraceDispatchIndirectBufferUAV	= GraphBuilder.CreateUAV(FroxelInitAndRefineTraceDispatchIndirectBuffer, PF_R32_UINT);
+					FRDGBufferSRVRef	FroxelInitAndRefineTraceDispatchIndirectBufferSRV	= GraphBuilder.CreateSRV(FroxelInitAndRefineTraceDispatchIndirectBuffer, PF_R32_UINT);
 
-					FRDGBufferRef		FroxelLowResCopyDispatchIndirectBuffer			= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelLowResCopyDispatchIndirectBuffer"));
-					FRDGBufferUAVRef	FroxelLowResCopyDispatchIndirectBufferUAV		= GraphBuilder.CreateUAV(FroxelLowResCopyDispatchIndirectBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelLowResCopyDispatchIndirectBufferSRV		= GraphBuilder.CreateSRV(FroxelLowResCopyDispatchIndirectBuffer, PF_R32_UINT);
-					
-					FRDGBufferRef		FroxelReprojUpdateCountBuffer					= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R32_ByteSize, 8), TEXT("Lumen.FroxelReprojUpdateCountBuffer"));
-					FRDGBufferUAVRef	FroxelReprojUpdateCountBufferUAV				= GraphBuilder.CreateUAV(FroxelReprojUpdateCountBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelReprojUpdateCountBufferSRV				= GraphBuilder.CreateSRV(FroxelReprojUpdateCountBuffer, PF_R32_UINT);
+					FRDGBufferRef		FroxelLowResCopyDispatchIndirectBuffer				= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelLowResCopyDispatchIndirectBuffer"));
+					FRDGBufferUAVRef	FroxelLowResCopyDispatchIndirectBufferUAV			= GraphBuilder.CreateUAV(FroxelLowResCopyDispatchIndirectBuffer, PF_R32_UINT);
+					FRDGBufferSRVRef	FroxelLowResCopyDispatchIndirectBufferSRV			= GraphBuilder.CreateSRV(FroxelLowResCopyDispatchIndirectBuffer, PF_R32_UINT);
 
-					FRDGBufferRef		FroxelReprojUpdateListBuffer					= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R16G16B16A16_ByteSize, FroxelCount), TEXT("Lumen.FroxelReprojUpdateListBuffer"));
-					FRDGBufferUAVRef	FroxelReprojUpdateListBufferUAV					= GraphBuilder.CreateUAV(FroxelReprojUpdateListBuffer, PF_R16G16B16A16_UINT);
-					FRDGBufferSRVRef	FroxelReprojUpdateListBufferSRV					= GraphBuilder.CreateSRV(FroxelReprojUpdateListBuffer, PF_R16G16B16A16_UINT);
-
-					FRDGBufferRef		FroxelReprojUpdateDispatchIndirectBuffer		= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelReprojUpdateDispatchIndirectBuffer"));
-					FRDGBufferUAVRef	FroxelReprojUpdateDispatchIndirectBufferUAV		= GraphBuilder.CreateUAV(FroxelReprojUpdateDispatchIndirectBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelReprojUpdateDispatchIndirectBufferSRV		= GraphBuilder.CreateSRV(FroxelReprojUpdateDispatchIndirectBuffer, PF_R32_UINT);
-					
-					FRDGBufferRef		FroxelRefineTraceRayCountBuffer					= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R32_ByteSize, 8), TEXT("Lumen.FroxelRefineTraceRayCountBuffer"));
-					FRDGBufferUAVRef	FroxelRefineTraceRayCountBufferUAV				= GraphBuilder.CreateUAV(FroxelRefineTraceRayCountBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelRefineTraceRayCountBufferSRV				= GraphBuilder.CreateSRV(FroxelRefineTraceRayCountBuffer, PF_R32_UINT);
-
-					FRDGBufferRef		FroxelRefineTraceRayListBuffer					= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(R16G16B16A16_ByteSize, FroxelCount * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame), TEXT("Lumen.FroxelRefineTraceRayListBuffer"));
-					FRDGBufferUAVRef	FroxelRefineTraceRayListBufferUAV				= GraphBuilder.CreateUAV(FroxelRefineTraceRayListBuffer, PF_R16G16B16A16_UINT);
-					FRDGBufferSRVRef	FroxelRefineTraceRayListBufferSRV				= GraphBuilder.CreateSRV(FroxelRefineTraceRayListBuffer, PF_R16G16B16A16_UINT);
-
-					FRDGBufferRef		FroxelRefineTraceRayDispatchIndirectBuffer		= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelRefineTraceRayDispatchIndirectBuffer"));
-					FRDGBufferUAVRef	FroxelRefineTraceRayDispatchIndirectBufferUAV	= GraphBuilder.CreateUAV(FroxelRefineTraceRayDispatchIndirectBuffer, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelRefineTraceRayDispatchIndirectBufferSRV	= GraphBuilder.CreateSRV(FroxelRefineTraceRayDispatchIndirectBuffer, PF_R32_UINT);
-
-					FRDGBufferRef		FroxelRefineTraceRayDispatchIndirectBufferRT = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelRefineTraceRayDispatchIndirectBufferRT"));
-					FRDGBufferUAVRef	FroxelRefineTraceRayDispatchIndirectBufferRTUAV = GraphBuilder.CreateUAV(FroxelRefineTraceRayDispatchIndirectBufferRT, PF_R32_UINT);
-					FRDGBufferSRVRef	FroxelRefineTraceRayDispatchIndirectBufferRTSRV = GraphBuilder.CreateSRV(FroxelRefineTraceRayDispatchIndirectBufferRT, PF_R32_UINT);
+					FRDGBufferRef		FroxelReprojRefineDispatchIndirectBuffer			= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.FroxelReprojRefineDispatchIndirectBuffer"));
+					FRDGBufferUAVRef	FroxelReprojRefineDispatchIndirectBufferUAV			= GraphBuilder.CreateUAV(FroxelReprojRefineDispatchIndirectBuffer, PF_R32_UINT);
+					FRDGBufferSRVRef	FroxelReprojRefineDispatchIndirectBufferSRV			= GraphBuilder.CreateSRV(FroxelReprojRefineDispatchIndirectBuffer, PF_R32_UINT);
 
 					// Clear buffers that need to be cleared
 					AddClearUAVPass(GraphBuilder, FroxelClearCountBufferUAV, 0);
-					AddClearUAVPass(GraphBuilder, FroxelLowResInitCountBufferUAV, 0);
-					AddClearUAVPass(GraphBuilder, FroxelReprojUpdateCountBufferUAV, 0);
-					AddClearUAVPass(GraphBuilder, FroxelRefineTraceRayCountBufferUAV, 0);
+					AddClearUAVPass(GraphBuilder, FroxelInitAndRefineCountBufferUAV, 0);
 
+					////////////////////////////////////////
+					// Generate the samples we need this frame using LFSR to make sure we cover the full set of pixels in a minimum amount of frames (true for power of two)
+					////////////////////////////////////////
+					FUintVector4 ProbeSamplesToTrace[MAX_FRUSTUM_PROBES_REFINE_TRACEPERFRAME];
+					if (View.ViewState)
+					{
+						const uint32 PowerOfTwoProbeOctahedronRes = FMath::RoundUpToPowerOfTwo(VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution);
+						const uint32 LFSRTexelCount = PowerOfTwoProbeOctahedronRes * PowerOfTwoProbeOctahedronRes;
+						for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
+						{
+							uint32 Bitcount = 0;
+							uint32 SquareResolution = 0;
+							if (LFSRTexelCount == 4)
+							{
+								Bitcount = 2;
+								SquareResolution = 2;
+							}
+							else if (LFSRTexelCount == 16)
+							{
+								Bitcount = 4;
+								SquareResolution = 4;
+							}
+							else if (LFSRTexelCount == 64)
+							{
+								Bitcount = 6;
+								SquareResolution = 8;
+							}
+							else if (LFSRTexelCount == 256)
+							{
+								Bitcount = 8;
+								SquareResolution = 16;
+							}
+							else if (LFSRTexelCount == 1024)
+							{
+								Bitcount = 10;
+								SquareResolution = 32;
+							}
+							else if (LFSRTexelCount == 4096)
+							{
+								Bitcount = 12;
+								SquareResolution = 64;
+							}
+							else
+							{
+								check(false);	// this should not happen given a square with size of power of two.
+							}
+							uint32 NewValue = View.ViewState->Lumen.FroxelProbesLFSR.GetNextValueWithLast(Bitcount);
+
+							uint32 CoordX = NewValue / SquareResolution;
+							uint32 CoordY = NewValue - CoordX * SquareResolution;
+
+							// Since the RoundUpToPowerOfTwo the probe resolution, the square of pixel we parse can be larger than the actual probe resolution, that is why we modulate by the ProbesOctahedronResolution.
+							// This means that some texel will update at a high rate for some probe resolution.
+							ProbeSamplesToTrace[i] = FUintVector4(CoordX % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, CoordY % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, 0, 0);
+						}
+					}
+					else
+					{
+						// Default pixel update when no state is available, which should not happen anyway.
+						static uint32 FallBackTracing = 0;
+						for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
+						{
+							// Halton takes more time to update all pixels of a 16x16 probe.so LFSR is preferred when there is a state.
+							uint32 CoordX = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 2) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+							uint32 CoordY = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 3) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+							ProbeSamplesToTrace[i] = FUintVector4(CoordX % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, CoordY % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, 0, 0);
+							FallBackTracing++;
+						}
+					}
 
 					float ViewFroxelProbesHistoryPreExposure = 1.0f;
-					FRDGTextureRef ViewVolumeFroxelProbeRadianceHitDistance = GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
-					FRDGTextureRef ViewFroxelProbesDistanceHistory = GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
+					FRDGTextureRef ViewVolumeFroxelProbeRadianceHitDistanceHistory = GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
 					if (View.ViewState && View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance.IsValid())
 					{
-						ViewVolumeFroxelProbeRadianceHitDistance = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance);
+						ViewVolumeFroxelProbeRadianceHitDistanceHistory = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance);
 						ViewFroxelProbesHistoryPreExposure = View.ViewState->Lumen.ViewFroxelProbesHistoryPreExposure;
 					}
 					const FVector2f ViewFroxelProbesHistoryPreExposureAndInv = FVector2f(ViewFroxelProbesHistoryPreExposure, ViewFroxelProbesHistoryPreExposure > 0.0f ? 1.0f / ViewFroxelProbesHistoryPreExposure : 1.0f);
@@ -1374,101 +1264,33 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						&& !View.bCameraCut
 						&& !View.bPrevTransformsReset
 						&& ViewFamily.bRealtimeUpdate
-						&& ViewVolumeFroxelProbeRadianceHitDistance
-						&& ViewVolumeFroxelProbeRadianceHitDistance->Desc == VolumeFroxelProbeRadianceHitDistanceDesc);
+						&& ViewVolumeFroxelProbeRadianceHitDistanceHistory
+						&& ViewVolumeFroxelProbeRadianceHitDistanceHistory->Desc == VolumeFroxelProbeRadianceHitDistanceDesc);
 
+					////////////////////////////////////////
 					// Schedule froxel update
+					////////////////////////////////////////
 					{
 						FFroxelProbesUpdateSchedulerCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FFroxelProbesUpdateSchedulerCS::FParameters>();
 						PassParameters->View = View.ViewUniformBuffer;
 						PassParameters->VolumeParameters = VolumeParameters;
 						PassParameters->FroxelClearCountBufferUAV = FroxelClearCountBufferUAV;
 						PassParameters->FroxelClearListBufferUAV = FroxelClearListBufferUAV;
-						PassParameters->FroxelLowResInitCountBufferUAV = FroxelLowResInitCountBufferUAV;
+						PassParameters->FroxelInitAndRefineCountBufferUAV = FroxelInitAndRefineCountBufferUAV;
 						PassParameters->FroxelLowResInitListBufferUAV = FroxelLowResInitListBufferUAV;
-						PassParameters->FroxelReprojUpdateCountBufferUAV = FroxelReprojUpdateCountBufferUAV;
-						PassParameters->FroxelReprojUpdateListBufferUAV = FroxelReprojUpdateListBufferUAV;
-						PassParameters->FroxelRefineTraceRayCountBufferUAV = FroxelRefineTraceRayCountBufferUAV;
-						PassParameters->FroxelRefineTraceRayListBufferUAV = FroxelRefineTraceRayListBufferUAV;
+						PassParameters->FroxelRefineListBufferUAV = FroxelRefineListBufferUAV;
 						PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
 						PassParameters->CameraCut = bCameraCut ? 1 : 0;
 
-						// Generate the samples we need this frame using LFSR to make sure we cover the full set of pixels in a minimum amount of frames (true for power of two)
-						if (View.ViewState)
+						for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
 						{
-							const uint32 PowerOfTwoProbeOctahedronRes = FMath::RoundUpToPowerOfTwo(VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution);
-							const uint32 LFSRTexelCount = PowerOfTwoProbeOctahedronRes * PowerOfTwoProbeOctahedronRes;
-							for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
-							{
-							#if 1
-								uint32 Bitcount = 0;
-								uint32 SquareResolution = 0;
-								if (LFSRTexelCount == 4)
-								{
-									Bitcount = 2;
-									SquareResolution = 2;
-								}
-								else if (LFSRTexelCount == 16)
-								{
-									Bitcount = 4;
-									SquareResolution = 4;
-								}
-								else if (LFSRTexelCount == 64)
-								{
-									Bitcount = 6;
-									SquareResolution = 8;
-								}
-								else if (LFSRTexelCount == 256)
-								{
-									Bitcount = 8;
-									SquareResolution = 16;
-								}
-								else if (LFSRTexelCount == 1024)
-								{
-									Bitcount = 10;
-									SquareResolution = 32;
-								}
-								else if (LFSRTexelCount == 4096)
-								{
-									Bitcount = 12;
-									SquareResolution = 64;
-								}
-								else
-								{
-									check(false);	// this should not happen given a square with size of power of two.
-								}
-								uint32 NewValue = View.ViewState->Lumen.FroxelProbesLFSR.GetNextValueWithLast(Bitcount);
-
-								uint32 CoordX = NewValue / SquareResolution;
-								uint32 CoordY = NewValue - CoordX * SquareResolution;
-							#else
-								// Halton takes to more time to update all pixels of a 16x16 probe.
-								uint32 CoordX = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 2) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
-								uint32 CoordY = Halton(View.ViewState->FrameIndex * VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame + i, 3) * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
-							#endif
-
-								// Since the RoundUpToPowerOfTwo the probe resolution, the square of pixel we parse can be larger than the actual probe resolution, that is why we modulate by the ProbesOctahedronResolution.
-								// This means that some texel will update at a high rate for some probe resolution.
-								PassParameters->ProbeSamplesToTrace[i] = FUintVector4(CoordX % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, CoordY % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, 0, 0);
-							}
-						}
-						else
-						{
-							// Default pixel update when no state is available, which should not happen anyway.
-							static uint32 FallBackTracing = 0;
-							for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
-							{
-								uint32 CoordX = FallBackTracing / VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
-								uint32 CoordY = FallBackTracing - CoordX * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
-								PassParameters->ProbeSamplesToTrace[i] = FUintVector4(CoordX % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, CoordY % VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution, 0, 0);
-								FallBackTracing++;
-							}
+							PassParameters->ProbeSamplesToTrace[i] = ProbeSamplesToTrace[i];
 						}
 
 						FFroxelProbesUpdateSchedulerCS::FPermutationDomain PermutationVector;
 						auto ComputeShader = View.ShaderMap->GetShader<FFroxelProbesUpdateSchedulerCS>(PermutationVector);
 
-						const FIntVector GroupSize = FComputeShaderUtils::GetGroupCount(FIntVector(VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize), FTranslucencyVolumeTraceFroxelProbesCS::GetGroupSize());
+						const FIntVector GroupSize = FComputeShaderUtils::GetGroupCount(FIntVector(VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize), FFroxelProbesUpdateSchedulerCS::GetGroupSize());
 
 						FComputeShaderUtils::AddPass(
 							GraphBuilder,
@@ -1479,33 +1301,31 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 							GroupSize);
 					}
 
-
-					// Create indirect dispatch buffers
+					////////////////////////////////////////
+					// Create indirect dispatch buffers except ray tracing one
+					////////////////////////////////////////
 					{
 						FFroxelProbesUpdateIndirectArgsSetupCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FFroxelProbesUpdateIndirectArgsSetupCS::FParameters>();
 						PassParameters->VolumeParameters = VolumeParameters;
 						PassParameters->FroxelClearCountBuffer = FroxelClearCountBufferSRV;
 						PassParameters->FroxelClearDispatchIndirectBufferUAV = FroxelClearDispatchIndirectBufferUAV;
-						PassParameters->FroxelLowResInitCountBuffer = FroxelLowResInitCountBufferSRV;
-						PassParameters->FroxelLowResTraceDispatchIndirectBufferUAV = FroxelLowResTraceDispatchIndirectBufferUAV;
-						PassParameters->FroxelLowResTraceDispatchIndirectBufferRTUAV = FroxelLowResTraceDispatchIndirectBufferRTUAV;
+						PassParameters->FroxelClearCountBuffer = FroxelClearCountBufferSRV;
+						PassParameters->FroxelInitAndRefineCountBuffer = FroxelInitAndRefineCountBufferSRV;
+						PassParameters->FroxelInitAndRefineTraceDispatchIndirectBufferUAV = FroxelInitAndRefineTraceDispatchIndirectBufferUAV;
 						PassParameters->FroxelLowResCopyDispatchIndirectBufferUAV = FroxelLowResCopyDispatchIndirectBufferUAV;
-						PassParameters->FroxelReprojUpdateCountBuffer = FroxelReprojUpdateCountBufferSRV;
-						PassParameters->FroxelReprojUpdateDispatchIndirectBufferUAV = FroxelReprojUpdateDispatchIndirectBufferUAV;
-						PassParameters->FroxelRefineTraceRayCountBuffer = FroxelRefineTraceRayCountBufferSRV;
-						PassParameters->FroxelRefineTraceRayDispatchIndirectBufferUAV = FroxelRefineTraceRayDispatchIndirectBufferUAV;
-						PassParameters->FroxelRefineTraceRayDispatchIndirectBufferRTUAV = FroxelRefineTraceRayDispatchIndirectBufferRTUAV;
+						PassParameters->FroxelReprojRefineDispatchIndirectBufferUAV = FroxelReprojRefineDispatchIndirectBufferUAV;
 					#if RHI_RAYTRACING
-						PassParameters->RayTracingThreadGroupSize = bInlineRayTracing ? FTranslucencyVolumeFroxelLowResProbesRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()) : FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::GetThreadGroupSize();;
+						PassParameters->RayTracingThreadGroupSize = bInlineRayTracing ? FTranslucencyVolumeFroxelProbesHardwareRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()) : FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS::GetThreadGroupSize();
 					#else
-						PassParameters->RayTracingThreadGroupSize = FIntPoint(1, 1);
+						PassParameters->RayTracingThreadGroupSize = FIntPoint(0, 0);
 					#endif
+						PassParameters->bUsingRayTracing = Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily) ? 1 : 0;
 
 						const bool bDebugFroxelProbesUpdateIndirectArgs = CVarTranslucencyVolumeRadianceCacheFrustumProbesDebug.GetValueOnRenderThread() > 0;
 						if (bDebugFroxelProbesUpdateIndirectArgs)
 						{
 							ShaderPrint::SetEnabled(true);
-							ShaderPrint::RequestSpaceForCharacters(128);
+							ShaderPrint::RequestSpaceForCharacters(256);
 							ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintUniformBuffer);
 						}
 
@@ -1524,82 +1344,105 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 							GroupSize);
 					}
 
-
-					// Trace low res froxel probes that needs to be initialised
-				#if RHI_RAYTRACING
-					if (Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily))
+					////////////////////////////////////////
+					// Trace all the rays at once and write directly where it is needed.
+					////////////////////////////////////////
 					{
-						FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::FParameters>();
-
-						PassParameters->RWVolumeTraceRadiance    = GraphBuilder.CreateUAV(VolumeFroxelLowResProbeRadiance);
-						PassParameters->RWVolumeTraceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelLowResProbeHitDistance);
-
-						SetLumenHardwareRayTracingSharedParameters(
-							GraphBuilder,
-							GetSceneTextureParameters(GraphBuilder, View),
-							View,
-							TracingParameters,
-							&PassParameters->SharedParameters);
-
-						PassParameters->RadianceCacheParameters = RadianceCacheParameters;
-						PassParameters->VolumeParameters = VolumeParameters;
-						PassParameters->TraceSetupParameters = TraceSetupParameters;
-
-						// Indirect fill up data
-						PassParameters->FroxelLowResTraceDispatchIndirectBuffer = FroxelLowResTraceDispatchIndirectBufferRT;
-						PassParameters->FroxelLowResInitCountBuffer = FroxelLowResInitCountBufferSRV;
-						PassParameters->FroxelLowResInitListBuffer = FroxelLowResInitListBufferSRV;
-
-						FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::FPermutationDomain PermutationVector;
-						PermutationVector.Set<FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::FDynamicSkyLight>(bDynamicSkyLight);
-
-						if (bInlineRayTracing)
+					#if RHI_RAYTRACING
+						if (Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily))
 						{
-							FTranslucencyVolumeFroxelLowResProbesRayTracingCS::AddLumenRayTracingDispatchIndirect(
+
+							FTranslucencyVolumeFroxelProbesHardwareRayTracing::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeFroxelProbesHardwareRayTracing::FParameters>();
+
+							PassParameters->RWVolumeTraceRadiance    = GraphBuilder.CreateUAV(VolumeFroxelLowResProbeRadiance);
+							PassParameters->RWVolumeTraceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelLowResProbeHitDistance);
+							
+							SetLumenHardwareRayTracingSharedParameters(
 								GraphBuilder,
-								RDG_EVENT_NAME("RayTraceLowResFroxelProbes HWRT Indirect (inline)"),
+								GetSceneTextureParameters(GraphBuilder, View),
 								View,
-								PermutationVector,
-								PassParameters,
-								PassParameters->FroxelLowResTraceDispatchIndirectBuffer,
-								0, // IndirectArgsOffset
-								ComputePassFlags);
+								TracingParameters,
+								&PassParameters->SharedParameters);
+							
+							PassParameters->RadianceCacheParameters = RadianceCacheParameters;
+							PassParameters->VolumeParameters = VolumeParameters;
+							PassParameters->TraceSetupParameters = TraceSetupParameters;
+							
+							// Indirect fill up data
+							PassParameters->FroxelProbeRayTraceDispatchIndirectBuffer = FroxelInitAndRefineTraceDispatchIndirectBuffer;
+							PassParameters->FroxelInitAndRefineCountBuffer = FroxelInitAndRefineCountBufferSRV;
+							PassParameters->FroxelLowResInitListBuffer = FroxelLowResInitListBufferSRV;
+							PassParameters->FroxelRefineListBufferSRV = FroxelRefineListBufferSRV;
+
+							FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS::FPermutationDomain PermutationVector;
+							PermutationVector.Set<FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS::FDynamicSkyLight>(bDynamicSkyLight);
+
+							if (bInlineRayTracing)
+							{
+								FTranslucencyVolumeFroxelProbesHardwareRayTracingCS::AddLumenRayTracingDispatchIndirect(
+									GraphBuilder,
+									RDG_EVENT_NAME("ProbesHardwareRayTracing (inline CS)"),
+									View,
+									PermutationVector,
+									PassParameters,
+									PassParameters->FroxelProbeRayTraceDispatchIndirectBuffer,
+									0, // IndirectArgsOffset
+									ComputePassFlags);
+							}
+							else
+							{
+								const bool bUseMinimalPayload = true;
+								FTranslucencyVolumeFroxelProbesHardwareRayTracingRGS::AddLumenRayTracingDispatchIndirect(
+									GraphBuilder,
+									RDG_EVENT_NAME("ProbesHardwareRayTracing"),
+									View,
+									PermutationVector,
+									PassParameters,
+									PassParameters->FroxelProbeRayTraceDispatchIndirectBuffer,
+									0, // IndirectArgsOffset
+									bUseMinimalPayload);
+							}
 						}
 						else
+					#endif // RHI_RAYTRACING
 						{
-							const bool bUseMinimalPayload = true;
-							FTranslucencyVolumeFroxelLowResProbesRayTracingRGS::AddLumenRayTracingDispatchIndirect(
-								GraphBuilder,
-								RDG_EVENT_NAME("RayTraceLowResFroxelProbes HWRT Indirect"),
-								View,
-								PermutationVector,
+							FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS::FParameters>();
+							PassParameters->RWVolumeTraceRadiance = GraphBuilder.CreateUAV(VolumeFroxelLowResProbeRadiance);
+							PassParameters->RWVolumeTraceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelLowResProbeHitDistance);
+
+							PassParameters->TracingParameters = TracingParameters;
+							PassParameters->RadianceCacheParameters = RadianceCacheParameters;
+							PassParameters->VolumeParameters = VolumeParameters;
+							PassParameters->TraceSetupParameters = TraceSetupParameters;
+
+							// Indirect fill up data
+							PassParameters->FroxelProbeRayTraceDispatchIndirectBuffer = FroxelInitAndRefineTraceDispatchIndirectBuffer;
+							PassParameters->FroxelInitAndRefineCountBuffer = FroxelInitAndRefineCountBufferSRV;
+							PassParameters->FroxelLowResInitListBuffer = FroxelLowResInitListBufferSRV;
+							PassParameters->FroxelRefineListBufferSRV = FroxelRefineListBufferSRV;
+
+							PassParameters->SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;
+
+							FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS::FPermutationDomain PermutationVector;
+							PermutationVector.Set<FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS::FDynamicSkyLight>(bDynamicSkyLight);
+							PermutationVector.Set<FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
+							auto ComputeShader = View.ShaderMap->GetShader<FTranslucencyVolumeFroxelProbesSoftwareRayTracingCS>(PermutationVector);
+
+							ClearUnusedGraphResources(ComputeShader, PassParameters);
+							GraphBuilder.AddPass(
+								RDG_EVENT_NAME("ProbesSoftwareRayTracingCS"),
 								PassParameters,
-								PassParameters->FroxelLowResTraceDispatchIndirectBuffer,
-								0, // IndirectArgsOffset
-								bUseMinimalPayload);
+								ERDGPassFlags::Compute,
+								[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
+								{
+									FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->FroxelProbeRayTraceDispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
+								});
 						}
 					}
-					else
-				#endif // RHI_RAYTRACING
-					{
-						TraceFroxelProbesTranslucencyVolume(
-							GraphBuilder,
-							View,
-							bDynamicSkyLight,
-							TracingParameters,
-							RadianceCacheParameters,
-							VolumeParameters,
-							TraceSetupParameters,
-							VolumeFroxelLowResProbeRadiance,
-							VolumeFroxelLowResProbeHitDistance,
-							ComputePassFlags | ERDGPassFlags::NeverCull,
-							FroxelLowResTraceDispatchIndirectBuffer,
-							FroxelLowResInitCountBufferSRV,
-							FroxelLowResInitListBufferSRV);
-					}
 
-
-					// Clear non visible froxels
+					////////////////////////////////////////
+					// Clear froxel that needs to be.
+					////////////////////////////////////////
 					{
 						FUpdateFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateFroxelProbesCS::FParameters>();
 						PassParameters->View = View.ViewUniformBuffer;
@@ -1607,20 +1450,21 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						PassParameters->VolumeFroxelLowResProbeRadiance = nullptr;
 						PassParameters->VolumeFroxelLowResProbeHitDistance = nullptr;
 						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
-					
+
 						PassParameters->VolumeParameters = VolumeParameters;
 						PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
 						PassParameters->ViewFroxelProbesHistoryPreExposureAndInv = ViewFroxelProbesHistoryPreExposureAndInv;
-					
+
 						// Indirect fill up data
-						PassParameters->FroxelUpdateDispatchIndirectBuffer = FroxelClearDispatchIndirectBuffer;
-						PassParameters->FroxelUpdateCountBuffer = FroxelClearCountBufferSRV;
+						PassParameters->DispatchIndirectBuffer = FroxelClearDispatchIndirectBuffer;
+						PassParameters->FroxelClearCountBuffer = FroxelClearCountBufferSRV;
+						PassParameters->FroxelInitAndRefineCountBuffer = nullptr;
 						PassParameters->FroxelUpdateListBuffer = FroxelClearListBufferSRV;
-					
+
 						FUpdateFroxelProbesCS::FPermutationDomain PermutationVector;
 						PermutationVector.Set<FUpdateFroxelProbesCS::FProbeFillMode>(2); // Clear mode
 						auto ComputeShader = View.ShaderMap->GetShader<FUpdateFroxelProbesCS>(PermutationVector);
-					
+
 						ClearUnusedGraphResources(ComputeShader, PassParameters);
 						GraphBuilder.AddPass(
 							RDG_EVENT_NAME("FroxelProbesClear"),
@@ -1628,50 +1472,53 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
 							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
 							{
-								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->FroxelUpdateDispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
+								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->DispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
 							});
 					}
 
-
-					// Reproject previous data
-					{
-						FUpdateFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateFroxelProbesCS::FParameters>();
-						PassParameters->View = View.ViewUniformBuffer;
-						PassParameters->VolumeFroxelProbeRadianceHitDistanceHistory = ViewVolumeFroxelProbeRadianceHitDistance;
-						PassParameters->VolumeFroxelLowResProbeRadiance = nullptr;
-						PassParameters->VolumeFroxelLowResProbeHitDistance = nullptr;
-						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
-
-						PassParameters->VolumeParameters = VolumeParameters;
-						PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
-						PassParameters->ViewFroxelProbesHistoryPreExposureAndInv = ViewFroxelProbesHistoryPreExposureAndInv;
-
-						// Indirect fill up data
-						PassParameters->FroxelUpdateDispatchIndirectBuffer = FroxelReprojUpdateDispatchIndirectBuffer;
-						PassParameters->FroxelUpdateCountBuffer = FroxelReprojUpdateCountBufferSRV;
-						PassParameters->FroxelUpdateListBuffer = FroxelReprojUpdateListBufferSRV;
-
-						FUpdateFroxelProbesCS::FPermutationDomain PermutationVector;
-						PermutationVector.Set<FUpdateFroxelProbesCS::FProbeFillMode>(0); // Reproject last frame
-						auto ComputeShader = View.ShaderMap->GetShader<FUpdateFroxelProbesCS>(PermutationVector);
-
-						ClearUnusedGraphResources(ComputeShader, PassParameters);
-						GraphBuilder.AddPass(
-							RDG_EVENT_NAME("FroxelProbesReproject"),
-							PassParameters,
-							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
-							{
-								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->FroxelUpdateDispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
-							});
-					}
-
-
-					// Compose low res froxel probes on high res probes as init/reset
+					////////////////////////////////////////
+					// Copy low res probe onto froxels that needs to be initialised.
+					////////////////////////////////////////
 					{
 						FUpdateFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateFroxelProbesCS::FParameters>();
 						PassParameters->View = View.ViewUniformBuffer;
 						PassParameters->VolumeFroxelProbeRadianceHitDistanceHistory = nullptr;
+						PassParameters->VolumeFroxelLowResProbeRadiance = VolumeFroxelLowResProbeRadiance;
+						PassParameters->VolumeFroxelLowResProbeHitDistance = VolumeFroxelLowResProbeHitDistance;
+						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
+						
+						PassParameters->VolumeParameters = VolumeParameters;
+						PassParameters->UnjitteredPrevWorldToClip = UnjitteredPrevWorldToClip;
+						PassParameters->ViewFroxelProbesHistoryPreExposureAndInv = ViewFroxelProbesHistoryPreExposureAndInv;
+						
+						// Indirect fill up data
+						PassParameters->DispatchIndirectBuffer = FroxelLowResCopyDispatchIndirectBuffer;
+						PassParameters->FroxelClearCountBuffer = nullptr;
+						PassParameters->FroxelInitAndRefineCountBuffer = FroxelInitAndRefineCountBufferSRV;
+						PassParameters->FroxelUpdateListBuffer = FroxelLowResInitListBufferSRV;
+						
+						FUpdateFroxelProbesCS::FPermutationDomain PermutationVector;
+						PermutationVector.Set<FUpdateFroxelProbesCS::FProbeFillMode>(1); // Reset with low res probes
+						auto ComputeShader = View.ShaderMap->GetShader<FUpdateFroxelProbesCS>(PermutationVector);
+						
+						ClearUnusedGraphResources(ComputeShader, PassParameters);
+						GraphBuilder.AddPass(
+							RDG_EVENT_NAME("FroxelProbesCopyLowResInit"),
+							PassParameters,
+							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
+							{
+								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->DispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
+							});
+					}
+
+					////////////////////////////////////////
+					// Reproject probes that can be from last frame and refine with extra rays.
+					////////////////////////////////////////
+					{
+						FUpdateFroxelProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateFroxelProbesCS::FParameters>();
+						PassParameters->View = View.ViewUniformBuffer;
+						PassParameters->VolumeFroxelProbeRadianceHitDistanceHistory = ViewVolumeFroxelProbeRadianceHitDistanceHistory;
 						PassParameters->VolumeFroxelLowResProbeRadiance = VolumeFroxelLowResProbeRadiance;
 						PassParameters->VolumeFroxelLowResProbeHitDistance = VolumeFroxelLowResProbeHitDistance;
 						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
@@ -1681,111 +1528,30 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						PassParameters->ViewFroxelProbesHistoryPreExposureAndInv = ViewFroxelProbesHistoryPreExposureAndInv;
 
 						// Indirect fill up data
-						PassParameters->FroxelUpdateDispatchIndirectBuffer = FroxelLowResCopyDispatchIndirectBuffer;
-						PassParameters->FroxelUpdateCountBuffer = FroxelLowResInitCountBufferSRV;
-						PassParameters->FroxelUpdateListBuffer = FroxelLowResInitListBufferSRV;
+						PassParameters->DispatchIndirectBuffer = FroxelReprojRefineDispatchIndirectBuffer;
+						PassParameters->FroxelClearCountBuffer = nullptr;
+						PassParameters->FroxelInitAndRefineCountBuffer = FroxelInitAndRefineCountBufferSRV;
+						PassParameters->FroxelUpdateListBuffer = FroxelRefineListBufferSRV;
+
+						for (uint32 i = 0; i < VolumeParameters.TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
+						{
+							PassParameters->ProbeSamplesToTrace[i] = ProbeSamplesToTrace[i];
+						}
 
 						FUpdateFroxelProbesCS::FPermutationDomain PermutationVector;
-						PermutationVector.Set<FUpdateFroxelProbesCS::FProbeFillMode>(1); // Reset with low res probes
+						PermutationVector.Set<FUpdateFroxelProbesCS::FProbeFillMode>(0); // Reproject and refine probes
 						auto ComputeShader = View.ShaderMap->GetShader<FUpdateFroxelProbesCS>(PermutationVector);
 
 						ClearUnusedGraphResources(ComputeShader, PassParameters);
 						GraphBuilder.AddPass(
-							RDG_EVENT_NAME("FroxelProbesCopyLowResInit"),
+							RDG_EVENT_NAME("FroxelProbesReprojectRefine"),
 							PassParameters,
 							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
 							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
 							{
-								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->FroxelUpdateDispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
+								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->DispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
 							});
 					}
-
-
-				#if RHI_RAYTRACING
-					// Refine froxel probes using N rays per frame.
-					if (Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily))
-					{
-						FFroxelProbesRefineHWRayTracingRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FFroxelProbesRefineHWRayTracingRGS::FParameters>();
-
-						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
-
-						SetLumenHardwareRayTracingSharedParameters(
-							GraphBuilder,
-							GetSceneTextureParameters(GraphBuilder, View),
-							View,
-							TracingParameters,
-							&PassParameters->SharedParameters);
-
-						PassParameters->RadianceCacheParameters = RadianceCacheParameters;
-						PassParameters->VolumeParameters = VolumeParameters;
-						PassParameters->TraceSetupParameters = TraceSetupParameters;
-
-						// Indirect fill up data
-						PassParameters->FroxelRefineTraceRayDispatchIndirectBuffer = FroxelRefineTraceRayDispatchIndirectBufferRT;
-						PassParameters->FroxelRefineTraceRayCountBuffer = FroxelRefineTraceRayCountBufferSRV;
-						PassParameters->FroxelRefineTraceRayListBuffer = FroxelRefineTraceRayListBufferSRV;
-
-						FFroxelProbesRefineHWRayTracingRGS::FPermutationDomain PermutationVector;
-						PermutationVector.Set<FFroxelProbesRefineHWRayTracingRGS::FDynamicSkyLight>(bDynamicSkyLight);
-
-						if (bInlineRayTracing)
-						{
-							FFroxelProbesRefineHWRayTracingCS::AddLumenRayTracingDispatchIndirect(
-								GraphBuilder,
-								RDG_EVENT_NAME("FroxelProbesRefineTraceRay HWRT (inline)"),
-								View,
-								PermutationVector,
-								PassParameters,
-								PassParameters->FroxelRefineTraceRayDispatchIndirectBuffer,
-								0, // IndirectArgsOffset
-								ComputePassFlags);
-						}
-						else
-						{
-							const bool bUseMinimalPayload = true;
-							FFroxelProbesRefineHWRayTracingRGS::AddLumenRayTracingDispatchIndirect(
-								GraphBuilder,
-								RDG_EVENT_NAME("FroxelProbesRefineTraceRay HWRT"),
-								View,
-								PermutationVector,
-								PassParameters,
-								PassParameters->FroxelRefineTraceRayDispatchIndirectBuffer,
-								0, // IndirectArgsOffset
-								bUseMinimalPayload);
-						}
-					}
-					else
-				#endif // RHI_RAYTRACING
-					{
-						FFroxelProbesRefineTraceRayCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FFroxelProbesRefineTraceRayCS::FParameters>();
-						PassParameters->RWVolumeFroxelProbeRadianceHitDistance = GraphBuilder.CreateUAV(VolumeFroxelProbeRadianceHitDistance);
-
-						PassParameters->VolumeParameters = VolumeParameters;
-						PassParameters->TraceSetupParameters = TraceSetupParameters;
-						PassParameters->TracingParameters = TracingParameters;
-						PassParameters->RadianceCacheParameters = RadianceCacheParameters;
-						PassParameters->SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;
-
-						// Indirect fill up data
-						PassParameters->FroxelRefineTraceRayDispatchIndirectBuffer = FroxelRefineTraceRayDispatchIndirectBuffer;
-						PassParameters->FroxelRefineTraceRayCountBuffer = FroxelRefineTraceRayCountBufferSRV;
-						PassParameters->FroxelRefineTraceRayListBuffer = FroxelRefineTraceRayListBufferSRV;
-
-						FFroxelProbesRefineTraceRayCS::FPermutationDomain PermutationVector;
-						PermutationVector.Set<FFroxelProbesRefineTraceRayCS::FDynamicSkyLight>(bDynamicSkyLight);
-						auto ComputeShader = View.ShaderMap->GetShader<FFroxelProbesRefineTraceRayCS>(PermutationVector);
-
-						ClearUnusedGraphResources(ComputeShader, PassParameters);
-						GraphBuilder.AddPass(
-							RDG_EVENT_NAME("FroxelProbesRefineTraceRay"),
-							PassParameters,
-							ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-							[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
-							{
-								FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->FroxelRefineTraceRayDispatchIndirectBuffer->GetIndirectRHICallBuffer(), 0);
-							});
-					}
-
 
 					if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
 					{

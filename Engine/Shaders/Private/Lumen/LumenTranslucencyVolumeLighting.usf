@@ -28,9 +28,6 @@
 
 /*
  * Froxel Probes TODO
- *  - Single ray tracing dispatch
- *     - Do not trace low res probe indirectly, instead add them to trace ray bucket and write all to the new volume texture
- *     - Rays are added to the bucket in batch by the indirect compute copying the data today.
  *  - Add back pre exposition of data
  */
 
@@ -381,17 +378,14 @@ groupshared uint s_FroxelClearCount;
 groupshared uint s_FroxelClearGlobalGroupOffset;
 groupshared uint s_FroxelLowResInitCount;
 groupshared uint s_FroxelLowResInitGlobalGroupOffset;
-groupshared uint s_FroxelReprojUpdateCount;
-groupshared uint s_FroxelReprojUpdateGlobalGroupOffset;
+groupshared uint s_FroxelReprojRefineCount;
+groupshared uint s_FroxelReprojRefineGlobalGroupOffset;
 
-RWBuffer<uint>  FroxelClearCountBufferUAV;
-RWBuffer<uint4> FroxelClearListBufferUAV;			// 16 bit uint4
-RWBuffer<uint>  FroxelLowResInitCountBufferUAV;
-RWBuffer<uint4> FroxelLowResInitListBufferUAV;		// 16 bit uint4
-RWBuffer<uint>  FroxelReprojUpdateCountBufferUAV;
-RWBuffer<uint4> FroxelReprojUpdateListBufferUAV;	// 16 bit uint4
-RWBuffer<uint>  FroxelRefineTraceRayCountBufferUAV;
-RWBuffer<uint4> FroxelRefineTraceRayListBufferUAV;	// 16 bit uint4
+RWByteAddressBuffer		FroxelClearCountBufferUAV;
+RWBuffer<uint4>			FroxelClearListBufferUAV;
+RWByteAddressBuffer		FroxelInitAndRefineCountBufferUAV;
+RWBuffer<uint4>			FroxelLowResInitListBufferUAV;
+RWBuffer<uint4>			FroxelRefineListBufferUAV;
 
 uint4 ProbeSamplesToTrace[8];						// must match MAX_FRUSTUM_PROBES_REFINE_TRACEPERFRAME
 
@@ -406,8 +400,11 @@ void FroxelProbesUpdateSchedulerMainCS(
 	if(bGroupFirstThread)
 	{
 		s_FroxelClearCount  = 0;
+		s_FroxelClearGlobalGroupOffset = 0;
 		s_FroxelLowResInitCount  = 0;
-		s_FroxelReprojUpdateCount = 0;
+		s_FroxelLowResInitGlobalGroupOffset = 0;
+		s_FroxelReprojRefineCount = 0;
+		s_FroxelReprojRefineGlobalGroupOffset = 0;
 	}
 	GroupMemoryBarrierWithGroupSync();
 
@@ -439,7 +436,7 @@ void FroxelProbesUpdateSchedulerMainCS(
 		}
 		else
 		{
-			InterlockedAdd(s_FroxelReprojUpdateCount, 1, FroxelUpdateLocalGroupOffset);
+			InterlockedAdd(s_FroxelReprojRefineCount, 1, FroxelUpdateLocalGroupOffset);
 		}
 	}
 	GroupMemoryBarrierWithGroupSync();
@@ -447,9 +444,18 @@ void FroxelProbesUpdateSchedulerMainCS(
 	// Now update the global count and recover the global write offset.
 	if(bGroupFirstThread && bValidProbeCoord)
 	{
-		InterlockedAdd(FroxelClearCountBufferUAV[0], s_FroxelClearCount, s_FroxelClearGlobalGroupOffset);
-		InterlockedAdd(FroxelLowResInitCountBufferUAV[0], s_FroxelLowResInitCount, s_FroxelLowResInitGlobalGroupOffset);
-		InterlockedAdd(FroxelReprojUpdateCountBufferUAV[0], s_FroxelReprojUpdateCount, s_FroxelReprojUpdateGlobalGroupOffset);
+		if (s_FroxelClearCount > 0)
+		{
+			FroxelClearCountBufferUAV.InterlockedAdd(0, s_FroxelClearCount, s_FroxelClearGlobalGroupOffset);
+		}
+		if (s_FroxelLowResInitCount > 0)
+		{
+			FroxelInitAndRefineCountBufferUAV.InterlockedAdd(0, s_FroxelLowResInitCount, s_FroxelLowResInitGlobalGroupOffset);
+		}
+		if (s_FroxelReprojRefineCount > 0)
+		{
+			FroxelInitAndRefineCountBufferUAV.InterlockedAdd(4, s_FroxelReprojRefineCount, s_FroxelReprojRefineGlobalGroupOffset);
+		}
 	}
 	GroupMemoryBarrierWithGroupSync();
 	
@@ -466,12 +472,9 @@ void FroxelProbesUpdateSchedulerMainCS(
 		}
 		else
 		{
-			const uint TracesPerProbePerFrame = TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
-			uint TraceRayDataStartIndex = 0;
-			InterlockedAdd(FroxelRefineTraceRayCountBufferUAV[0], TracesPerProbePerFrame, TraceRayDataStartIndex);
-
-			uint StateFrameIndex = View.StateFrameIndex * TracesPerProbePerFrame;
-			for (int i = 0; i < TracesPerProbePerFrame; ++i)
+			const uint TraceCountPerProbePerFrame = TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
+			uint StateFrameIndex = View.StateFrameIndex * TraceCountPerProbePerFrame;
+			for (int i = 0; i < TraceCountPerProbePerFrame; ++i)
 			{
 #if 0
 				// Mark froxel probes octahedron coord to trace
@@ -485,10 +488,8 @@ void FroxelProbesUpdateSchedulerMainCS(
 
 				uint PackedProbeTexelCoord = (SampleCoord.x & 0xFF) | ((SampleCoord.y & 0xFF) << 8u); // This allows for probe resolution up to 256
 
-				FroxelRefineTraceRayListBufferUAV[TraceRayDataStartIndex + i] = uint4(FroxelProbeGridCoordinate, PackedProbeTexelCoord);
+				FroxelRefineListBufferUAV[(s_FroxelReprojRefineGlobalGroupOffset + FroxelUpdateLocalGroupOffset) * TraceCountPerProbePerFrame + i] = uint4(FroxelProbeGridCoordinate, PackedProbeTexelCoord);
 			}
-
-			FroxelReprojUpdateListBufferUAV[s_FroxelReprojUpdateGlobalGroupOffset + FroxelUpdateLocalGroupOffset] = uint4(FroxelProbeGridCoordinate, 0);
 		}
 
 	}
@@ -498,9 +499,7 @@ void FroxelProbesUpdateSchedulerMainCS(
 
 
 // low res probes are likely 4x4 so to waste less threads in a wave we organise tracing as group of 4x4x4, probe pixels on XY and different probes on Z.
-#define LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X	4
-#define LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y	4
-#define LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z	4
+#define SOFTWARE_TRACE_INDIRECT_DISPATCH_THREADGROUP_X	64
 
 #define UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X	4
 #define UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y	4
@@ -514,101 +513,82 @@ void FroxelProbesUpdateSchedulerMainCS(
 #include "../ShaderPrint.ush"
 #endif
 
-Buffer<uint>	FroxelClearCountBuffer;
-RWBuffer<uint>	FroxelClearDispatchIndirectBufferUAV;
-Buffer<uint>	FroxelLowResInitCountBuffer;
-RWBuffer<uint>	FroxelLowResTraceDispatchIndirectBufferUAV;
-RWBuffer<uint>	FroxelLowResTraceDispatchIndirectBufferRTUAV;
-RWBuffer<uint>	FroxelLowResCopyDispatchIndirectBufferUAV;
-Buffer<uint>	FroxelReprojUpdateCountBuffer;
-RWBuffer<uint>	FroxelReprojUpdateDispatchIndirectBufferUAV;
-Buffer<uint>	FroxelRefineTraceRayCountBuffer;
-RWBuffer<uint>	FroxelRefineTraceRayDispatchIndirectBufferUAV;
-RWBuffer<uint>	FroxelRefineTraceRayDispatchIndirectBufferRTUAV;
-// Due to shader print, we are now maxing out the 8 UAV slot on dx11. Next time we will have to merge indirect dispatch buffers into a single one.
+ByteAddressBuffer		FroxelClearCountBuffer;
+RWBuffer<uint>			FroxelClearDispatchIndirectBufferUAV;
+ByteAddressBuffer		FroxelInitAndRefineCountBuffer;
+RWBuffer<uint>			FroxelInitAndRefineTraceDispatchIndirectBufferUAV;
+RWBuffer<uint>			FroxelLowResCopyDispatchIndirectBufferUAV;
+RWBuffer<uint>			FroxelReprojRefineDispatchIndirectBufferUAV;
 
-uint2			RayTracingThreadGroupSize;
+uint					bUsingRayTracing;
+uint2					RayTracingThreadGroupSize;
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void FroxelProbesUpdateIndirectArgsSetupMainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	// Assuming we never go above 65k froxel update for now
 
+	const uint FroxelClearCount = FroxelClearCountBuffer.Load(0);
+	const uint2 FroxelInitAndRefineCount = FroxelInitAndRefineCountBuffer.Load2(0);
+	const uint FroxelInitCount = FroxelInitAndRefineCount.x;
+	const uint FroxelReprojectRefineCount = FroxelInitAndRefineCount.y;
+
 	if (DispatchThreadId.x == 0)
 	{
-		// Indirect disaptch to trace low res probes when reseting froxel probes due to impossible temporal reprojection
-		FroxelLowResTraceDispatchIndirectBufferUAV[0] = DivideAndRoundUp( TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution,	LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
-		FroxelLowResTraceDispatchIndirectBufferUAV[1] = DivideAndRoundUp( TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution,	LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y);
-		FroxelLowResTraceDispatchIndirectBufferUAV[2] = DivideAndRoundUp( FroxelLowResInitCountBuffer[0],									LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z);
+		// Indirect dispatch when clearing non visible probes to black
+		FroxelClearDispatchIndirectBufferUAV[0] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,	UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
+		FroxelClearDispatchIndirectBufferUAV[1] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,	UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y);
+		FroxelClearDispatchIndirectBufferUAV[2] = DivideAndRoundUp(FroxelClearCount,											UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z);
 	}
 	else if (DispatchThreadId.x == 1)
 	{
-		// Same as above but for ray tracing
-		const uint NumRays  = FroxelLowResInitCountBuffer[0] * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
-
-		uint NumGroups = (NumRays + RayTracingThreadGroupSize.x - 1) / RayTracingThreadGroupSize.x; // Roundup
-		int3 IndirectArgs = GetRayTracingThreadCountWrapped(NumGroups, RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
-		WriteDispatchIndirectArgs(FroxelLowResTraceDispatchIndirectBufferRTUAV, 0, IndirectArgs);
+		// Indirect dispatch when copying the low res traced data onto the froxel probes
+		FroxelLowResCopyDispatchIndirectBufferUAV[0] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,	UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
+		FroxelLowResCopyDispatchIndirectBufferUAV[1] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,	UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y);
+		FroxelLowResCopyDispatchIndirectBufferUAV[2] = DivideAndRoundUp(FroxelInitCount,											UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z);
 	}
 	else if (DispatchThreadId.x == 2)
 	{
-		// Indirect dispatch when copying the low res traced data onto the froxel probes
-		FroxelLowResCopyDispatchIndirectBufferUAV[0] = DivideAndRoundUp( TranslucencyVolumeTracingFroxelProbesOctahedronResolution,			UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
-		FroxelLowResCopyDispatchIndirectBufferUAV[1] = DivideAndRoundUp( TranslucencyVolumeTracingFroxelProbesOctahedronResolution,			UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y);
-		FroxelLowResCopyDispatchIndirectBufferUAV[2] = DivideAndRoundUp( FroxelLowResInitCountBuffer[0],									UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z);
+		// Indirect dispatch when reprojecting previous frame data into froxel probes
+		FroxelReprojRefineDispatchIndirectBufferUAV[0] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,	UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
+		FroxelReprojRefineDispatchIndirectBufferUAV[1] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,	UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y);
+		FroxelReprojRefineDispatchIndirectBufferUAV[2] = DivideAndRoundUp(FroxelReprojectRefineCount,									UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z);
 	}
 	else if (DispatchThreadId.x == 3)
 	{
-		// Indirect dispatch when reprojecting previous frame data into froxel probes
-		FroxelReprojUpdateDispatchIndirectBufferUAV[0] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,		UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
-		FroxelReprojUpdateDispatchIndirectBufferUAV[1] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution,		UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y);
-		FroxelReprojUpdateDispatchIndirectBufferUAV[2] = DivideAndRoundUp(FroxelReprojUpdateCountBuffer[0],									UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z);
-	}
-	else if (DispatchThreadId.x == 4)
-	{
-		// Indirect dispatch when refining a probe with N ray trace per frame
-		FroxelRefineTraceRayDispatchIndirectBufferUAV[0] = DivideAndRoundUp(FroxelRefineTraceRayCountBuffer[0], REFINE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
-		FroxelRefineTraceRayDispatchIndirectBufferUAV[1] = 1;
-		FroxelRefineTraceRayDispatchIndirectBufferUAV[2] = 1;
-	}
-	else if (DispatchThreadId.x == 5)
-	{
-		// Same as above but for ray tracing
-		const uint NumRays = FroxelRefineTraceRayCountBuffer[0];
+		const uint NumRays = FroxelInitCount * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution
+			+ FroxelReprojectRefineCount * TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
 
-		uint NumGroups = (NumRays + RayTracingThreadGroupSize.x - 1) / RayTracingThreadGroupSize.x; // Roundup
+		uint NumGroups = DivideAndRoundUp(NumRays, SOFTWARE_TRACE_INDIRECT_DISPATCH_THREADGROUP_X);
+		if (bUsingRayTracing > 0)
+		{
+			NumGroups = (NumRays + RayTracingThreadGroupSize.x - 1) / RayTracingThreadGroupSize.x; // DivideAndRoundUp
+		}
+
 		int3 IndirectArgs = GetRayTracingThreadCountWrapped(NumGroups, RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
-		WriteDispatchIndirectArgs(FroxelRefineTraceRayDispatchIndirectBufferRTUAV, 0, IndirectArgs);
+		WriteDispatchIndirectArgs(FroxelInitAndRefineTraceDispatchIndirectBufferUAV, 0, IndirectArgs);
 	}
-	else if (DispatchThreadId.x == 6)
-	{
-		// Indirect dispatch when clearing non visible probes to black
-		FroxelClearDispatchIndirectBufferUAV[0] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution, UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X);
-		FroxelClearDispatchIndirectBufferUAV[1] = DivideAndRoundUp(TranslucencyVolumeTracingFroxelProbesOctahedronResolution, UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y);
-		FroxelClearDispatchIndirectBufferUAV[2] = DivideAndRoundUp(FroxelClearCountBuffer[0], UPDATE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z);
-	}
-	// Only 8 threads are dispatched.
 
 #if PERMUTATION_DEBUG_PRINT
 	if (DispatchThreadId.x == 0)
 	{
 		FShaderPrintContext Context = InitShaderPrintContext(true, uint2(500, 500));
 
-		const uint LowResTraceCount = FroxelLowResInitCountBuffer[0] * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
-		const uint RefineTraceCount = FroxelRefineTraceRayCountBuffer[0];
+		const uint LowResTraceCount = FroxelInitCount * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
+		const uint RefineTraceCount = FroxelReprojectRefineCount;
 		const uint TotalTraceCount = LowResTraceCount + RefineTraceCount;
 
 		Print(Context, TEXT("** Froxel Probes Scheduled Work **"));
 		Newline(Context);
 		Newline(Context);
 		Print(Context, TEXT(" - LowRes reset probe count   = "));
-		Print(Context, FroxelLowResInitCountBuffer[0]);
+		Print(Context, FroxelInitCount);
 		Newline(Context);
 		Print(Context, TEXT(" - Reprojected  probe count   = "));
-		Print(Context, FroxelReprojUpdateCountBuffer[0]);
+		Print(Context, FroxelReprojectRefineCount);
 		Newline(Context);
 		Print(Context, TEXT(" - Cleared  probe count       = "));
-		Print(Context, FroxelClearCountBuffer[0]);
+		Print(Context, FroxelClearCount);
 		Newline(Context);
 		Newline(Context);
 		Print(Context, TEXT(" - LowRes  probe trace count  = "));
@@ -619,12 +599,6 @@ void FroxelProbesUpdateIndirectArgsSetupMainCS(uint3 DispatchThreadId : SV_Dispa
 		Newline(Context);
 		Print(Context, TEXT(" - Refined probe trace count  = "));
 		Print(Context, RefineTraceCount);
-		Print(Context, TEXT("  (Ray traced per probe per frame = "));
-		Print(Context, TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame, GetDefaultFontColor(), 2);
-		Print(Context, TEXT(")"));
-		Newline(Context);
-		Print(Context, TEXT(" - Total ray traced count     = "));
-		Print(Context, TotalTraceCount);
 	}
 #endif
 }
@@ -635,19 +609,24 @@ void FroxelProbesUpdateIndirectArgsSetupMainCS(uint3 DispatchThreadId : SV_Dispa
 
 
 #if defined(UpdateFroxelProbesMainCS)
-
-#if PERMUTATION_PROBE_FILL_MODE == 0	// Reproject last frame
+ 
+#if PERMUTATION_PROBE_FILL_MODE == 0	// Reproject last frame 
 Texture3D<float4>   VolumeFroxelProbeRadianceHitDistanceHistory;
-#elif PERMUTATION_PROBE_FILL_MODE == 1	// Copy low res probe data
 Texture3D<float3>   VolumeFroxelLowResProbeRadiance;
 Texture3D<float>    VolumeFroxelLowResProbeHitDistance;
-#elif PERMUTATION_PROBE_FILL_MODE == 2	// Fill to black
+#elif PERMUTATION_PROBE_FILL_MODE == 1	// Copy low res probe data 
+Texture3D<float3>   VolumeFroxelLowResProbeRadiance;
+Texture3D<float>    VolumeFroxelLowResProbeHitDistance;
+#elif PERMUTATION_PROBE_FILL_MODE == 2	// Fill to black 
 #endif
 
 RWTexture3D<float4> RWVolumeFroxelProbeRadianceHitDistance;
 
-Buffer<uint>  FroxelUpdateCountBuffer;
-Buffer<uint4> FroxelUpdateListBuffer;
+ByteAddressBuffer	FroxelClearCountBuffer;
+ByteAddressBuffer	FroxelInitAndRefineCountBuffer;
+Buffer<uint4>		FroxelUpdateListBuffer;
+
+uint4 ProbeSamplesToTrace[8];						// must match MAX_FRUSTUM_PROBES_REFINE_TRACEPERFRAME
 
 float2 ViewFroxelProbesHistoryPreExposureAndInv;
 
@@ -655,13 +634,28 @@ float2 ViewFroxelProbesHistoryPreExposureAndInv;
 void UpdateFroxelProbesMainCS(
 	uint3 DispatchThreadIdIn : SV_DispatchThreadID)
 {
-	uint FroxelLowResInitCount = FroxelUpdateCountBuffer[0];
-	if (DispatchThreadIdIn.z >= FroxelLowResInitCount)
+	uint FroxelUpdateListIndex = DispatchThreadIdIn.z;
+
+#if PERMUTATION_PROBE_FILL_MODE==2
+	uint FroxelToProcessCount = FroxelClearCountBuffer.Load(0);
+#else
+	const uint2 FroxelInitAndRefineCount = FroxelInitAndRefineCountBuffer.Load2(0);
+	const uint FroxelInitCount = FroxelInitAndRefineCount.x;
+	const uint FroxelTexelReprojectRefineCount = FroxelInitAndRefineCount.y;
+	uint FroxelToProcessCount = FroxelInitCount;
+	if (PERMUTATION_PROBE_FILL_MODE == 0)
+	{
+		FroxelUpdateListIndex = FroxelUpdateListIndex * TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
+		FroxelToProcessCount = FroxelTexelReprojectRefineCount;
+	}
+#endif
+
+	if (DispatchThreadIdIn.z >= FroxelToProcessCount)
 	{
 		return; // Not a froxel to regenerate
 	}
 
-	uint3 FroxelProbeGridCoordinate = FroxelUpdateListBuffer[DispatchThreadIdIn.z].xyz;
+	uint3 FroxelProbeGridCoordinate = FroxelUpdateListBuffer[FroxelUpdateListIndex].xyz;
 	uint2 FroxelProbeTraceTexelCoord = DispatchThreadIdIn.xy;
 
 	// on the Z axis
@@ -721,11 +715,23 @@ void UpdateFroxelProbesMainCS(
 		TraceHitDistance = ProbeRadianceHitDistance.a;
 	#endif
 
+		// Now override pixels that should be refined this frame.
+		// This is done as a gather operation to not have to dispatch another compute shader to scatter the data after.
+		for (int i = 0; i < TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame; ++i)
+		{
+			if (all(ProbeSamplesToTrace[i].xy == FroxelProbeTraceTexelCoord))
+			{
+				uint3 SourceCoord = uint3(FroxelProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution + uint2(i, 0), FroxelProbeGridCoordinate.z);
+				TraceRadiance		= VolumeFroxelLowResProbeRadiance[SourceCoord];
+				TraceHitDistance	= VolumeFroxelLowResProbeHitDistance[SourceCoord];
+			}
+		}
+
 		// Adapt to current exposure
 //		TraceRadiance *= ViewFroxelProbesHistoryPreExposureAndInv.y * View.PreExposure;
 
 	#if FROXEL_PROBE_DEBUG_COLOR
-		TraceRadiance *= float3(1, 1, 0);
+		TraceRadiance *= float3(0.96, 0.996, 0.0);
 	#endif
 
 		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
@@ -740,7 +746,7 @@ void UpdateFroxelProbesMainCS(
 		TraceHitDistance = VolumeFroxelLowResProbeHitDistance[SourceCoord];
 
 	#if FROXEL_PROBE_DEBUG_COLOR
-		TraceRadiance *= float3(1, 0, 0);
+		TraceRadiance *= float3(1, 1, 0.0);
 	#endif
 
 		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
@@ -801,8 +807,7 @@ FLumenTraceRayInlineCallback InitLumenTraceRayInlineCallback()
 
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
-#if defined(TranslucencyVolumeFroxelProbesCS) || defined(TranslucencyVolumeFroxelLowResProbesRayTracingRGS) || defined(TranslucencyVolumeFroxelLowResProbesRayTracingCS) || \
-	defined(FroxelProbesRefineTraceRayCS) || defined(FroxelProbesRefineHWRayTracingRGS) || defined(FroxelProbesRefineHWRayTracingCS)
+#if defined(TranslucencyVolumeFroxelProbesSoftwareRayTracingCS) || defined(TranslucencyVolumeFroxelProbesHardwareRayTracingRGS) || defined(TranslucencyVolumeFroxelProbesHardwareRayTracingCS)
 
 struct FTranslucencyVolumeTraceRayResult
 {
@@ -891,25 +896,25 @@ FTranslucencyVolumeTraceRayResult TranslucencyVolumeTraceRayCommon(uint3 FroxelP
 	return Result;
 }
 
-void TranslucencyVolumeFroxelProbesTracingCommon(
-	uint3 DispatchThreadId,
-	uint  FroxelProbesOctahedronResolution)
-{
-	uint3 FroxelProbeGridCoordinate = uint3(DispatchThreadId.xy / FroxelProbesOctahedronResolution, DispatchThreadId.z);
-	uint2 FroxelProbeTraceTexelCoord = DispatchThreadId.xy - FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution;
-	
-	uint3 FroxelGridCoordinate = FroxelProbeGridCoordinate * TranslucencyVolumeTracingFroxelProbesFroxelSize;
 
-	if (all(FroxelProbeGridCoordinate < TranslucencyVolumeTracingFroxelProbesGridSize) && all(FroxelProbeTraceTexelCoord < FroxelProbesOctahedronResolution))
+
+float4 TranslucencyVolumeFroxelProbesTracingCommon(
+	uint3 ProbeGridCoordinate,
+	uint2 ProbeTraceTexelCoord,
+	uint  ProbesOctahedronResolution)
+{
+	uint3 FroxelGridCoordinate = ProbeGridCoordinate * TranslucencyVolumeTracingFroxelProbesFroxelSize;
+
+	if (all(ProbeGridCoordinate < TranslucencyVolumeTracingFroxelProbesGridSize) && all(ProbeTraceTexelCoord < ProbesOctahedronResolution))
 	{
 		FTranslucencyVolumeTraceRayResult TraceResult;
 		TraceResult.Radiance = 0;
 		TraceResult.HitDistance = MaxTraceDistance;
 
-		if (IsFroxelProbeVisible(FroxelProbeGridCoordinate)) 
+		if (IsFroxelProbeVisible(ProbeGridCoordinate))
 		{
 			float3 LocalFrameJitterOffset = 0.5f; // Do not Jitter for now
-			ApplyDepthconstraintsToOffset(FroxelGridCoordinate + TranslucencyVolumeTracingFroxelProbesFroxelSize/2, LocalFrameJitterOffset);
+			ApplyDepthconstraintsToOffset(FroxelGridCoordinate + TranslucencyVolumeTracingFroxelProbesFroxelSize / 2, LocalFrameJitterOffset);
 
 			float3 WorldPosition = ComputeCellWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
 			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
@@ -917,13 +922,13 @@ void TranslucencyVolumeFroxelProbesTracingCommon(
 			float2 ProbeUV;
 			float ConeHalfAngle;
 			const float2 ProbeTexelCenter = 0.5; // No jittering so not using GetProbeTexelCenter for stability
-			GetFroxelProbeTracingUV(FroxelProbeTraceTexelCoord, ProbeTexelCenter, FroxelProbesOctahedronResolution,  ProbeUV, ConeHalfAngle);
+			GetFroxelProbeTracingUV(ProbeTraceTexelCoord, ProbeTexelCenter, ProbesOctahedronResolution, ProbeUV, ConeHalfAngle);
 
 			float3 WorldConeDirection = EquiAreaSphericalMapping(ProbeUV);
-			
-			TraceResult = TranslucencyVolumeTraceRayCommon(FroxelProbeGridCoordinate, WorldPosition, TranslatedWorldPosition, WorldConeDirection, ConeHalfAngle);
 
-		//	TraceResult.Radiance *= View.PreExposure;
+			TraceResult = TranslucencyVolumeTraceRayCommon(ProbeGridCoordinate, WorldPosition, TranslatedWorldPosition, WorldConeDirection, ConeHalfAngle);
+
+			//	TraceResult.Radiance *= View.PreExposure;
 			float MaxLighting = max3(TraceResult.Radiance.x, TraceResult.Radiance.y, TraceResult.Radiance.z);
 			if (MaxLighting > MaxRayIntensity)
 			{
@@ -931,66 +936,97 @@ void TranslucencyVolumeFroxelProbesTracingCommon(
 			}
 		}
 
-		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
-		RWVolumeTraceRadiance[WriteCoord] = TraceResult.Radiance;
-		RWVolumeTraceHitDistance[WriteCoord] = min(TraceResult.HitDistance, MaxHalfFloat);
+		return float4(TraceResult.Radiance, min(TraceResult.HitDistance, MaxHalfFloat));
 	}
+	return float4(0, 0, 0, MaxHalfFloat);
 }
 
 
 
-#if defined(TranslucencyVolumeFroxelProbesCS)
+#if defined(TranslucencyVolumeFroxelProbesSoftwareRayTracingCS)
 
-#if	PERMUTATION_LOWRES_FROXEL_INDIRECT
+ByteAddressBuffer		FroxelInitAndRefineCountBuffer;
+Buffer<uint4>			FroxelLowResInitListBuffer;
+Buffer<uint4>			FroxelRefineListBufferSRV;
 
-Buffer<uint>  FroxelLowResInitCountBuffer;
-Buffer<uint4> FroxelLowResInitListBuffer;
-
-[numthreads(LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X, LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Y, LOWRES_FROXEL_INDIRECT_DISPATCH_THREADGROUP_Z)]
-void TranslucencyVolumeFroxelProbesCS(
-	uint3 DispatchThreadIdIn : SV_DispatchThreadID)
-{
-	uint FroxelLowResInitCount = FroxelLowResInitCountBuffer[0];
-	if (DispatchThreadIdIn.z >= FroxelLowResInitCount)
-	{
-		return; // Not a froxel to regenerate
-	}
-	uint3 FroxelGridCoord = FroxelLowResInitListBuffer[DispatchThreadIdIn.z].xyz;
-	// on the Z axis
-	uint3 DispatchThreadId = uint3(DispatchThreadIdIn.xy, 0) + FroxelGridCoord * uint3(TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution.xx, 1);
-	uint  FroxelProbesOctahedronResolution = TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution; // Select the resoltion of low res probes
-
-	TranslucencyVolumeFroxelProbesTracingCommon(DispatchThreadId, FroxelProbesOctahedronResolution);
-}
-
-#else // PERMUTATION_LOWRES_FROXEL_INDIRECT
-
-[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void TranslucencyVolumeFroxelProbesCS(
+static_assert(TRACING_INDIRECT_DISPATCH_THREADGROUP_X == THREADGROUP_SIZE);
+[numthreads(THREADGROUP_SIZE, 1, 1)]
+void TranslucencyVolumeFroxelProbesSoftwareRayTracingCS(
+	uint3 GroupId : SV_GroupID,
+	uint GroupIndex : SV_GroupIndex,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	uint  FroxelProbesOctahedronResolution = TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+	const uint GroupLinearIndex = GetUnWrappedRayTracingDispatchThreadId(GroupId, RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
+	const uint ThreadIndex = GroupLinearIndex * THREADGROUP_SIZE + GroupIndex;
 
-	TranslucencyVolumeFroxelProbesTracingCommon(DispatchThreadId, FroxelProbesOctahedronResolution);
+	const uint2 FroxelInitAndRefineCount = FroxelInitAndRefineCountBuffer.Load2(0);
+	const uint FroxelInitCount = FroxelInitAndRefineCount.x;
+	const uint FroxelTexelReprojectRefineCount = FroxelInitAndRefineCount.y;
+
+	if (ThreadIndex < FroxelInitCount * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution)
+	{
+		uint ProbeIndex = ThreadIndex / (TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+		uint ProbeLocalThreadIndex = ThreadIndex % (TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+		uint2 ProbeTraceTexelCoord = uint2(ProbeLocalThreadIndex % TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution, ProbeLocalThreadIndex / TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+
+		float3 ProbeGridCoordinate = FroxelLowResInitListBuffer[ProbeIndex].xyz;
+
+		float4 RadHitDist = TranslucencyVolumeFroxelProbesTracingCommon(
+			ProbeGridCoordinate,
+			ProbeTraceTexelCoord,
+			TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+
+		uint3 WriteCoord = uint3(ProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution + ProbeTraceTexelCoord, ProbeGridCoordinate.z);
+		RWVolumeTraceRadiance[WriteCoord] = RadHitDist.rgb;
+		RWVolumeTraceHitDistance[WriteCoord] = RadHitDist.a;
+	}
+	else
+	{
+		// Remove all the rays for probe tracing
+		const uint LocalThreadIndex = ThreadIndex - FroxelInitCount * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
+
+		if (LocalThreadIndex < FroxelTexelReprojectRefineCount * TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame)
+		{
+			//uint ProbeIndex = LocalThreadIndex / TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
+			uint ProbeThreadIndex = LocalThreadIndex % TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
+
+			uint4 RayTracedData = FroxelRefineListBufferSRV[LocalThreadIndex];
+			uint3 ProbeGridCoordinate = RayTracedData.xyz;
+			uint PackedProbeTexelCoord = RayTracedData.w;
+			uint ProbeCoordX = PackedProbeTexelCoord & 0xFF;
+			uint ProbeCoordY = (PackedProbeTexelCoord >> 8) & 0xFF;
+			uint2 ProbeTraceTexelCoord = uint2(ProbeCoordX, ProbeCoordY);
+
+
+			// Trace for refining high resolution probe
+			float4 RadHitDist = TranslucencyVolumeFroxelProbesTracingCommon(
+				ProbeGridCoordinate,
+				ProbeTraceTexelCoord,
+				TranslucencyVolumeTracingFroxelProbesOctahedronResolution);
+
+
+			// Store in first row of low resolution probe
+			uint3 WriteCoord = uint3(ProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution + uint2(ProbeThreadIndex, 0), ProbeGridCoordinate.z);
+			RWVolumeTraceRadiance[WriteCoord] = RadHitDist.rgb;
+			RWVolumeTraceHitDistance[WriteCoord] = RadHitDist.a;
+		}
+
+	}
 }
-#endif // PERMUTATION_LOWRES_FROXEL_INDIRECT
 
-#endif // TranslucencyVolumeFroxelProbesCS
+#endif
 
-// Ray tracing version of TranslucencyVolumeFroxelProbesCS + PERMUTATION_LOWRES_FROXEL_INDIRECT=1
-#if defined(TranslucencyVolumeFroxelLowResProbesRayTracingRGS) || defined(TranslucencyVolumeFroxelLowResProbesRayTracingCS)
 
-Buffer<uint>  FroxelLowResInitCountBuffer;
-Buffer<uint4> FroxelLowResInitListBuffer;
+#if defined(TranslucencyVolumeFroxelProbesHardwareRayTracingRGS) || defined(TranslucencyVolumeFroxelProbesHardwareRayTracingCS)
 
-//LUMEN_HARDWARE_RAY_TRACING_ENTRY(TranslucencyVolumeFroxelLowResProbesRayTracing)
-//{
-//	uint ThreadIndex = GetUnWrappedRayTracingDispatchThreadId(DispatchRaysIndex(), RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
+ByteAddressBuffer		FroxelInitAndRefineCountBuffer;
+Buffer<uint4>			FroxelLowResInitListBuffer;
+Buffer<uint4>			FroxelRefineListBufferSRV;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
 
 [numthreads(INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X, INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y, 1)]
-void TranslucencyVolumeFroxelLowResProbesRayTracingCS(
+void TranslucencyVolumeFroxelProbesHardwareRayTracingCS(
 	uint3 GroupId : SV_GroupID,
 	uint GroupIndex : SV_GroupIndex)
 {
@@ -999,139 +1035,68 @@ void TranslucencyVolumeFroxelLowResProbesRayTracingCS(
 
 #else // LUMEN_HARDWARE_INLINE_RAYTRACING}
 
-RAY_TRACING_ENTRY_RAYGEN(TranslucencyVolumeFroxelLowResProbesRayTracingRGS)
+RAY_TRACING_ENTRY_RAYGEN(TranslucencyVolumeFroxelProbesHardwareRayTracingRGS)
 {
 	uint ThreadIndex = GetUnWrappedRayTracingDispatchThreadId(DispatchRaysIndex(), RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
 
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
-	uint ProbeIndex = ThreadIndex / (TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
-	uint ProbePixelLinearIndex = ThreadIndex - ProbeIndex * (TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
-	uint2 ProbePixelCoord;
-	ProbePixelCoord.y = ProbePixelLinearIndex / TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
-	ProbePixelCoord.x = ProbePixelLinearIndex - ProbePixelCoord.y * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
+	const uint2 FroxelInitAndRefineCount = FroxelInitAndRefineCountBuffer.Load2(0);
+	const uint FroxelInitCount = FroxelInitAndRefineCount.x;
+	const uint FroxelTexelReprojectRefineCount = FroxelInitAndRefineCount.y; 
 
-	uint FroxelLowResInitCount = FroxelLowResInitCountBuffer[0];
-	if (ProbeIndex >= FroxelLowResInitCount)
+	if (ThreadIndex < FroxelInitCount * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution)
 	{
-		return; // Not a froxel to regenerate
+		uint ProbeIndex = ThreadIndex / (TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+		uint ProbeLocalThreadIndex = ThreadIndex % (TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+		uint2 ProbeTraceTexelCoord = uint2(ProbeLocalThreadIndex % TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution, ProbeLocalThreadIndex / TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+
+		float3 ProbeGridCoordinate = FroxelLowResInitListBuffer[ProbeIndex].xyz;
+
+		float4 RadHitDist = TranslucencyVolumeFroxelProbesTracingCommon(
+			ProbeGridCoordinate,
+			ProbeTraceTexelCoord,
+			TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution);
+
+		uint3 WriteCoord = uint3(ProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution + ProbeTraceTexelCoord, ProbeGridCoordinate.z);
+		RWVolumeTraceRadiance[WriteCoord] = RadHitDist.rgb;
+		RWVolumeTraceHitDistance[WriteCoord] = RadHitDist.a;
 	}
-
-	uint3 FroxelGridCoord = FroxelLowResInitListBuffer[ProbeIndex].xyz;
-	// on the Z axis
-	uint3 DispatchThreadId = uint3(ProbePixelCoord, 0) + FroxelGridCoord * uint3(TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution.xx, 1);
-	uint  FroxelProbesOctahedronResolution = TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution; // Select the resoltion of low res probes
-
-	TranslucencyVolumeFroxelProbesTracingCommon(DispatchThreadId, FroxelProbesOctahedronResolution);
-}
-
-#endif // TranslucencyVolumeFroxelProbesCS
-
-
-
-#if defined(FroxelProbesRefineTraceRayCS) || defined(FroxelProbesRefineHWRayTracingRGS) || defined(FroxelProbesRefineHWRayTracingCS)
-
-Buffer<uint>	FroxelRefineTraceRayCountBuffer;
-Buffer<uint4>	FroxelRefineTraceRayListBuffer;
-
-RWTexture3D<float4> RWVolumeFroxelProbeRadianceHitDistance;
-
-void TranslucencyVolumeFroxelProbesRefineTraceRay(uint RayTraceLinearIndex)
-{
-	uint FroxelRefineTraceRayCount = FroxelRefineTraceRayCountBuffer[0];
-	if (RayTraceLinearIndex >= FroxelRefineTraceRayCount)
+	else
 	{
-		return; // Not a froxel to regenerate
+		// Remove all the rays for probe tracing
+		const uint LocalThreadIndex = ThreadIndex - FroxelInitCount * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution;
+
+		if (LocalThreadIndex < FroxelTexelReprojectRefineCount * TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame)
+		{
+			//uint ProbeIndex = LocalThreadIndex / TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
+			uint ProbeThreadIndex = LocalThreadIndex % TranslucencyVolumeTracingFroxelProbeRefineTraceCountPerFrame;
+
+			uint4 RayTracedData = FroxelRefineListBufferSRV[LocalThreadIndex];
+			uint3 ProbeGridCoordinate = RayTracedData.xyz;
+			uint PackedProbeTexelCoord = RayTracedData.w;
+			uint ProbeCoordX = PackedProbeTexelCoord & 0xFF;
+			uint ProbeCoordY = (PackedProbeTexelCoord >> 8) & 0xFF;
+			uint2 ProbeTraceTexelCoord = uint2(ProbeCoordX, ProbeCoordY);
+
+
+			// Trace for refining high resolution probe
+			float4 RadHitDist = TranslucencyVolumeFroxelProbesTracingCommon(
+				ProbeGridCoordinate,
+				ProbeTraceTexelCoord,
+				TranslucencyVolumeTracingFroxelProbesOctahedronResolution);
+
+
+			// Store in first row of low resolution probe
+			uint3 WriteCoord = uint3(ProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelLowResProbesOctahedronResolution + uint2(ProbeThreadIndex, 0), ProbeGridCoordinate.z);
+			RWVolumeTraceRadiance[WriteCoord] = RadHitDist.rgb;
+			RWVolumeTraceHitDistance[WriteCoord] = RadHitDist.a;
+		}
+
 	}
-
-	uint  FroxelProbesOctahedronResolution = TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
-
-	uint4 RayTracedData = FroxelRefineTraceRayListBuffer[RayTraceLinearIndex];
-	uint3 FroxelGridCoord = RayTracedData.xyz;
-	uint PackedProbeTexelCoord = RayTracedData.w;
-	uint ProbeCoordX = PackedProbeTexelCoord & 0xFF;
-	uint ProbeCoordY = (PackedProbeTexelCoord >> 8) & 0xFF;
-
-	uint3 FroxelProbeGridCoordinate = FroxelGridCoord;
-	uint2 FroxelProbeTraceTexelCoord = uint2(ProbeCoordX, ProbeCoordY);
-	uint3 FroxelGridCoordinate = FroxelProbeGridCoordinate * TranslucencyVolumeTracingFroxelProbesFroxelSize;
-
-	float3 LocalFrameJitterOffset = 0.5f; // Do not Jitter for now
-	ApplyDepthconstraintsToOffset(FroxelGridCoordinate + TranslucencyVolumeTracingFroxelProbesFroxelSize / 2, LocalFrameJitterOffset);
-
-	float3 WorldPosition = ComputeCellWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
-	float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
-
-	float2 ProbeUV;
-	float ConeHalfAngle;
-	const float2 ProbeTexelCenter = 0.5; // Do not Jitter for now
-	GetFroxelProbeTracingUV(FroxelProbeTraceTexelCoord, ProbeTexelCenter, FroxelProbesOctahedronResolution, ProbeUV, ConeHalfAngle);
-	float3 WorldConeDirection = EquiAreaSphericalMapping(ProbeUV);
-
-	FTranslucencyVolumeTraceRayResult TraceResult = TranslucencyVolumeTraceRayCommon(FroxelProbeGridCoordinate, WorldPosition, TranslatedWorldPosition, WorldConeDirection, ConeHalfAngle);
-
-//	TraceResult.Radiance *= View.PreExposure;
-	float MaxLighting = max3(TraceResult.Radiance.x, TraceResult.Radiance.y, TraceResult.Radiance.z);
-	if (MaxLighting > MaxRayIntensity)
-	{
-		TraceResult.Radiance *= MaxRayIntensity / MaxLighting;
-	}
-
-#if FROXEL_PROBE_DEBUG_COLOR
-	TraceResult.Radiance *= float3(0, 1, 1);
-#endif
-
-	uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * FroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
-	RWVolumeFroxelProbeRadianceHitDistance[WriteCoord] = float4(TraceResult.Radiance, min(TraceResult.HitDistance, MaxHalfFloat));
 }
 
-#endif // defined(FroxelProbesRefineTraceRayCS) || defined(FroxelProbesRefineHWRayTracingRGS) || defined(FroxelProbesRefineHWRayTracingCS)
-
-
-
-
-
-#if defined(FroxelProbesRefineTraceRayCS)
-
-[numthreads(REFINE_FROXEL_INDIRECT_DISPATCH_THREADGROUP_X, 1, 1)]
-void FroxelProbesRefineTraceRayCS(
-	uint3 DispatchThreadIdIn : SV_DispatchThreadID)
-{
-	TranslucencyVolumeFroxelProbesRefineTraceRay(DispatchThreadIdIn.x);
-}
-
-#endif
-
-
-// Ray tracing version of FroxelProbesRefineTraceRayCS
-#if defined(FroxelProbesRefineHWRayTracingRGS) || defined(FroxelProbesRefineHWRayTracingCS)
-
-#if LUMEN_HARDWARE_INLINE_RAYTRACING
-
-[numthreads(INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X, INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y, 1)]
-void FroxelProbesRefineHWRayTracingCS(
-	uint3 GroupId : SV_GroupID,
-	uint GroupIndex : SV_GroupIndex)
-{
-	uint GroupLinearIndex = GetUnWrappedRayTracingDispatchThreadId(GroupId, RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
-	uint RayTraceLinearIndex = GroupLinearIndex * INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X + GroupIndex;
-
-	TranslucencyVolumeFroxelProbesRefineTraceRay(RayTraceLinearIndex);
-}
-
-#else // LUMEN_HARDWARE_INLINE_RAYTRACING}
-
-RAY_TRACING_ENTRY_RAYGEN(FroxelProbesRefineHWRayTracingRGS)
-{
-	uint RayTraceLinearIndex = GetUnWrappedRayTracingDispatchThreadId(DispatchRaysIndex(), RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
-
-	TranslucencyVolumeFroxelProbesRefineTraceRay(RayTraceLinearIndex);
-}
-
-#endif // LUMEN_HARDWARE_INLINE_RAYTRACING
-
-#endif
-
+#endif // TranslucencyVolumeFroxelProbesHardwareRayTracingRGS TranslucencyVolumeFroxelProbesHardwareRayTracingCS
 
 
 #endif // All probe tracing shaders
