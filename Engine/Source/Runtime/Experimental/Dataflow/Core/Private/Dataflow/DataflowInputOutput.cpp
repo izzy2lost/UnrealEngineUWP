@@ -78,6 +78,24 @@ void FDataflowInput::PullValue(Dataflow::FContext& Context) const
 	}
 }
 
+void FDataflowInput::FixAndPropagateType(FName InType)
+{
+	check(InType.ToString().StartsWith(Type.ToString()));
+	Type = InType;
+
+	if (FDataflowOutput* Output = GetConnection())
+	{
+		if (Output && Output->GetType() != InType)
+		{
+			if (Output->IsAnyType())
+			{
+				Output->GetOwningNode()->PropagateTypeToAllAnyTypeInputsAndOutputs(InType);
+			}
+			Output->FixAndPropagateType(InType);
+		}
+	}
+}
+
 //
 //
 //  Output
@@ -207,6 +225,24 @@ void FDataflowOutput::ForwardInput(const void* InputReference, Dataflow::FContex
 				InputToForward->PullValue(Context);
 				Context.SetDataReference(CacheKey(), Property, ConnectionOut->CacheKey());
 			}
+		}
+	}
+}
+
+void FDataflowOutput::FixAndPropagateType(FName InType)
+{
+	check(InType.ToString().StartsWith(Type.ToString()));
+	Type = InType;
+
+	for (FDataflowInput* Input: Connections)
+	{
+		if (Input && Input->GetType() != InType)
+		{
+			if (Input->IsAnyType())
+			{
+				Input->GetOwningNode()->PropagateTypeToAllAnyTypeInputsAndOutputs(InType);
+			}
+			Input->FixAndPropagateType(InType);
 		}
 	}
 }

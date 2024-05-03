@@ -65,6 +65,11 @@ protected:
 	/** this should only be used for serialization */
 	DATAFLOWCORE_API void SetAsAnyType(bool bAnyType, const FName& ConcreteType);
 
+	/** this should only be used for serialization - for support of old simple TArray types*/
+	DATAFLOWCORE_API void ForceSimpleType(FName InType);
+	DATAFLOWCORE_API void FixAndPropagateType();
+	DATAFLOWCORE_API virtual void FixAndPropagateType(FName InType) { ensure(false); }
+
 public:
 	FDataflowConnection() {};
 	DATAFLOWCORE_API FDataflowConnection(Dataflow::FPin::EDirection Direction, FName InType, FName InName, FDataflowNode* OwningNode = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid());
@@ -95,7 +100,7 @@ public:
 	DATAFLOWCORE_API bool IsAnyType() const { return bIsAnyType; }
 	static bool IsAnyType(const FName& InType);
 
-	DATAFLOWCORE_API void SetConcreteType(const FName& InType);
+	DATAFLOWCORE_API void SetConcreteType(FName InType);
 
 	template<class T>
 	bool IsA(const T* InVar) const

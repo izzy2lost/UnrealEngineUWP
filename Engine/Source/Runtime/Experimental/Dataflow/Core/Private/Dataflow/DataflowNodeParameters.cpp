@@ -117,7 +117,9 @@ namespace Dataflow
 				if (Elem.Value && Elem.Value->Property && Elem.Value->Type == FContextCacheElementBase::EType::CacheElementTyped)
 				{
 					FProperty* Property = (FProperty*)Elem.Value->Property;
-					FName TypeName(Elem.Value->Property->GetCPPType());
+					FString ExtendedType;
+					const FString CPPType = Property->GetCPPType(&ExtendedType);
+					FName TypeName(CPPType + ExtendedType);
 					FGuid NodeGuid = Elem.Value->NodeGuid;
 					uint32 NodeHash = Elem.Value->NodeHash;
 

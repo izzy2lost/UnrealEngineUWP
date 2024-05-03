@@ -199,12 +199,34 @@ namespace Dataflow
 
 	void FGraph::SerializeForLoading(FArchive& Ar, FGraph* InGraph, UObject* OwningObject)
 	{
+		const bool bDataflowSeparateInputOutputSerialization = (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::DataflowSeparateInputOutputSerialization);
+		const bool bDataflowAnyTypeSupport = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowAnyTypeSupport);
+		const bool bDataflowTemplateTypeFix = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowTemplatedTypeFix);
+
 		FGuid ArGuid;
 		FName ArType, ArName;
 		int32 ArNum = 0;
 
 		TMap<FGuid, TSharedPtr<FDataflowNode> > NodeGuidMap;
 		TMap<FGuid, FDataflowConnection* > ConnectionGuidMap;
+		TArray<FDataflowConnection*> ConnectionsToFix;
+
+		// returns true if the connection is to be fixed
+		auto AddTemplateTypedConnectionToBeFixed = [&ConnectionsToFix, bDataflowTemplateTypeFix](FDataflowConnection* Connection, FName SerializedType) -> bool
+			{
+				if (Connection && !bDataflowTemplateTypeFix)
+				{
+					const bool bSametype = (Connection->GetType() == SerializedType);
+					const bool bIsOldTemplatedType = !bSametype && Connection->GetType().ToString().StartsWith(SerializedType.ToString());
+					if (bIsOldTemplatedType)
+					{
+						Connection->ForceSimpleType(SerializedType);
+						ConnectionsToFix.Add(Connection);
+						return true;
+					}
+				}
+				return false;
+			};
 
 		Ar << ArNum;
 		for (int32 Ndx = ArNum; Ndx > 0; Ndx--)
@@ -217,9 +239,6 @@ namespace Dataflow
 			{
 				ensure(!NodeGuidMap.Contains(ArGuid));
 				NodeGuidMap.Add(ArGuid, Node);
-
-				const bool bDataflowSeparateInputOutputSerialization = (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::DataflowSeparateInputOutputSerialization);
-				const bool bDataflowAnyTypeSupport = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowAnyTypeSupport);
 
 				if (!bDataflowSeparateInputOutputSerialization)
 				{
@@ -263,7 +282,10 @@ namespace Dataflow
 							}
 							if (Connection)
 							{
-								check(Connection->GetType() == ArType);
+								if (!AddTemplateTypedConnectionToBeFixed(Connection, ArType))
+								{
+									check(Connection->GetType() == ArType);
+								}
 								Connection->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Connection);
@@ -299,7 +321,10 @@ namespace Dataflow
 								{
 									Output->SetAsAnyType(bIsAnyType, ArType);
 								}
-								check(Output->GetType() == ArType);
+								if (!AddTemplateTypedConnectionToBeFixed(Output, ArType))
+								{
+									check(Output->GetType() == ArType || bIsAnyType);
+								}
 								Output->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Output);
@@ -333,7 +358,10 @@ namespace Dataflow
 								{
 									Input->SetAsAnyType(bIsAnyType, ArType);
 								}
-								check(Input->GetType() == ArType || bIsAnyType);
+								if (!AddTemplateTypedConnectionToBeFixed(Input, ArType))
+								{
+									check(Input->GetType() == ArType || bIsAnyType);
+								}
 								Input->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Input);
@@ -367,12 +395,20 @@ namespace Dataflow
 			{
 				if (ConnectionGuidMap.Contains(Con.Input) && ConnectionGuidMap.Contains(Con.Output))
 				{
-					if (ConnectionGuidMap[Con.Input]->GetType() == ConnectionGuidMap[Con.Output]->GetType())
+					FDataflowOutput* Output = static_cast<FDataflowOutput*>(ConnectionGuidMap[Con.Output]);
+					FDataflowInput* Input = static_cast<FDataflowInput*>(ConnectionGuidMap[Con.Input]);
+					if (Input->GetType() == Output->GetType())
 					{
-						InGraph->Connect(static_cast<FDataflowOutput*>(ConnectionGuidMap[Con.Output]), static_cast<FDataflowInput*>(ConnectionGuidMap[Con.Input]));
+						InGraph->Connect(Output, Input);
 					}
 				}
 			}
+		}
+
+		// fix templated types if any : see bDataflowTemplateTypeFix
+		for (FDataflowConnection* ConnectionToFix : ConnectionsToFix)
+		{
+			ConnectionToFix->FixAndPropagateType();
 		}
 	}
 }

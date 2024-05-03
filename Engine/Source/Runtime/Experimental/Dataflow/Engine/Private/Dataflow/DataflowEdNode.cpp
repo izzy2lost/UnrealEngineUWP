@@ -114,16 +114,36 @@ void UDataflowEdNode::UpdatePinsFromDataflowNode()
 					{
 						if (Pin->Direction == EEdGraphPinDirection::EGPD_Input)
 						{
-							if (!DataflowNode->FindInput(Pin->GetFName()))
+							const FDataflowInput* DataflowInput = DataflowNode->FindInput(Pin->GetFName());
+							if (!DataflowInput)
 							{
 								PinsToRemove.Add(Pin);
+							}
+							else if (DataflowInput->GetType() != Pin->PinType.PinCategory)
+							{
+								Pin->PinType = FEdGraphPinType();
+								Pin->PinType.bIsReference = false;
+								Pin->PinType.bIsConst = false;
+								Pin->PinType.PinCategory = DataflowInput->GetType();
+								Pin->PinType.PinSubCategory = NAME_None;
+								Pin->PinType.PinSubCategoryObject = nullptr;
 							}
 						}
 						else if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
 						{
-							if (!DataflowNode->FindOutput(Pin->GetFName()))
+							const FDataflowOutput* DataflowOutput = DataflowNode->FindOutput(Pin->GetFName());
+							if (!DataflowOutput)
 							{
 								PinsToRemove.Add(Pin);
+							}
+							else if (DataflowOutput->GetType() != Pin->PinType.PinCategory)
+							{
+								Pin->PinType = FEdGraphPinType();
+								Pin->PinType.bIsReference = false;
+								Pin->PinType.bIsConst = false;
+								Pin->PinType.PinCategory = DataflowOutput->GetType();
+								Pin->PinType.PinSubCategory = NAME_None;
+								Pin->PinType.PinSubCategoryObject = nullptr;
 							}
 						}
 					}

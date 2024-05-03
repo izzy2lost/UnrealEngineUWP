@@ -57,11 +57,26 @@ void FDataflowConnection::SetAsAnyType(bool bAnyType, const FName& ConcreteType)
 	}
 }
 
-void FDataflowConnection::SetConcreteType(const FName& InType)
+void FDataflowConnection::SetConcreteType(FName InType)
 {
 	// Can only change from AnyType to a concrete type
-	if (ensure(IsAnyType() && IsAnyType(Type) && !IsAnyType(InType)))
+	if (ensure(IsAnyType() && !IsAnyType(InType)))
 	{
 		Type = InType;
 	}
+}
+
+void FDataflowConnection::ForceSimpleType(FName InType)
+{
+	check(Type.ToString().StartsWith(InType.ToString()));
+	Type = InType;
+}
+
+void FDataflowConnection::FixAndPropagateType()
+{
+	FString ExtendedType;
+	const FString CPPType = Property->GetCPPType(&ExtendedType);
+	FName FixedType(CPPType + ExtendedType);
+
+	FixAndPropagateType(FixedType);
 }

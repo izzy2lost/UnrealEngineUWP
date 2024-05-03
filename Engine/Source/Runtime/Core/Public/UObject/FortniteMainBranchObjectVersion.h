@@ -459,6 +459,9 @@ struct FFortniteMainBranchObjectVersion
 		// Target layers are now defined in the Landscape actor and not continuously synced from the assigned material.
 		LandscapeTargetLayersInLandscapeActor,
 
+		// Fix to get full name of templated type ( Tarray > TArray<Float> for example )
+		DataflowTemplatedTypeFix,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

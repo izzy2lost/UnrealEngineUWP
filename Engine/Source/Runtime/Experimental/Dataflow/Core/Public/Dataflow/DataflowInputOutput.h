@@ -42,6 +42,11 @@ struct FDataflowInput : public FDataflowConnection
 	friend struct FDataflowConnection;
 
 	FDataflowOutput* Connection;
+
+protected:
+	friend struct FDataflowOutput;
+	virtual void FixAndPropagateType(FName InType) override;
+
 public:
 	FDataflowInput(const Dataflow::FInputParameters& Param = {}, FGuid InGuid = FGuid::NewGuid());
 
@@ -102,6 +107,10 @@ struct FDataflowOutput : public FDataflowConnection
 	TArray< FDataflowInput* > Connections;
 
 	uint32 PassthroughOffset = INDEX_NONE;
+
+protected:
+	friend struct FDataflowInput;
+	virtual void FixAndPropagateType(FName InType) override;
 
 public:
 	static DATAFLOWCORE_API FDataflowOutput NoOpOutput;

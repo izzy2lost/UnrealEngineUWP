@@ -315,6 +315,26 @@ void FDataflowNode::UnregisterPinConnection(const Dataflow::FPin& Pin)
 	}
 }
 
+void FDataflowNode::PropagateTypeToAllAnyTypeInputsAndOutputs(FName ConcreteType)
+{
+	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	{
+		FDataflowOutput* Output = Elem.Value;
+		if (Output->IsAnyType())
+		{
+			Output->SetConcreteType(ConcreteType);
+		}
+	}
+	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+	{
+		FDataflowInput* Input = Elem.Value;
+		if (Input->IsAnyType())
+		{
+			Input->SetConcreteType(ConcreteType);
+		}
+	}
+}
+
 void FDataflowNode::Invalidate(const Dataflow::FTimestamp& InModifiedTimestamp)
 {
 	if (LastModifiedTimestamp < InModifiedTimestamp)
@@ -440,12 +460,13 @@ void FDataflowNode::RegisterInputConnection(const void* InProperty, const FName&
 		if (const UStruct* Struct = ScriptOnStruct->GetStruct())
 		{
 			TArray<const FProperty*> PropertyChain;
-			const FProperty* const Property =
-				FindProperty(Struct, InProperty, PropertyName, &PropertyChain);
+			const FProperty* const Property = FindProperty(Struct, InProperty, PropertyName, &PropertyChain);
 			if (ensure(Property && PropertyChain.Num()))
 			{
 				const FName PropName(GetPropertyFullName(PropertyChain));
-				const FName PropType(Property->GetCPPType());
+				FString ExtendedType;
+				const FString CPPType = Property->GetCPPType(&ExtendedType);
+				const FName PropType(CPPType + ExtendedType);
 				AddInput(new FDataflowInput({ PropType, PropName, this, Property }));
 			}
 		}
@@ -490,7 +511,9 @@ void FDataflowNode::RegisterOutputConnection(const void* InProperty, const void*
 			if (ensure(Property && PropertyChain.Num()))
 			{
 				const FName PropName(GetPropertyFullName(PropertyChain));
-				const FName PropType(Property->GetCPPType());
+				FString ExtendedType;
+				const FString CPPType = Property->GetCPPType(&ExtendedType);
+				const FName PropType(CPPType + ExtendedType);
 				OutputConnection = new FDataflowOutput({ PropType, PropName, this, Property });
 
 				TArray<const FProperty*> PassthroughPropertyChain;

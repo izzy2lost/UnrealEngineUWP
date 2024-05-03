@@ -173,6 +173,8 @@ struct FDataflowNode
 	/** Unregister the connection if one exists matching this pin, then invalidate the graph. */
 	DATAFLOWCORE_API void UnregisterPinConnection(const Dataflow::FPin& Pin);
 
+	DATAFLOWCORE_API void PropagateTypeToAllAnyTypeInputsAndOutputs(FName ConcreteType);
+
 	//
 	// Evaluation
 	//
