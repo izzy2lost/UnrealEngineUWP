@@ -26,7 +26,7 @@ bool IsInstanceDataObjectSupportEnabled(UObject* Object = nullptr);
 UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer);
 
 /** Notify that a property in an struct was set when the struct was deserialized. */
-void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
+void MarkPropertySetBySerialization(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
 /** Query whether a property in the struct was set when the struct was deserialized. */
 bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
 /** Copy whether each property was set by serialization from one IDO to another. */
