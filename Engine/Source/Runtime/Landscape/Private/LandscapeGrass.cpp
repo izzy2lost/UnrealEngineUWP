@@ -203,12 +203,10 @@ static FAutoConsoleVariableRef CVarUpdateAllOnRebuild(
 	GGrassUpdateAllOnRebuild,
 	TEXT(""));
 
-#if RHI_RAYTRACING
 static TAutoConsoleVariable<int32> CVarRayTracingLandscapeGrass(
 	TEXT("r.RayTracing.Geometry.LandscapeGrass"),
 	0,
 	TEXT("Include landscapes grass in ray tracing effects (default = 1)"));
-#endif
 
 const TCHAR* GGrassQualityLevelCVarName = TEXT("r.grass.DensityQualityLevel");
 const TCHAR* GGrassQualityLevelScalabilitySection = TEXT("ViewDistanceQuality");

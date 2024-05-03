@@ -71,10 +71,8 @@ public:
 	/** Changes the viewport to lit wireframe mode */
 	TSharedPtr< FUICommandInfo > LitWireframeMode;
 
-#if RHI_RAYTRACING
 	TSharedPtr< FUICommandInfo > PathTracingMode;
 	TSharedPtr< FUICommandInfo > RayTracingDebugMode;
-#endif
 
 	/** Changes the viewport to detail lighting mode */
 	TSharedPtr< FUICommandInfo > DetailLightingMode;

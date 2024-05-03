@@ -942,7 +942,6 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			{
 				Frequency = SF_Compute;
 			}
-#if RHI_RAYTRACING
 			else if (!FCString::Strcmp(*Token, TEXT("rgs")))
 			{
 				Frequency = SF_RayGen;
@@ -959,7 +958,6 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			{
 				Frequency = SF_RayCallable;
 			}
-#endif // RHI_RAYTRACING
 			else if (!FCString::Strcmp(*Token, TEXT("wrs")))
 			{
 				Frequency = SF_WorkGraphRoot;

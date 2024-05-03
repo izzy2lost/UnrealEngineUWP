@@ -144,7 +144,6 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 				Section.AddMenuEntry(BaseViewportActions.CollisionVisibility, UViewModeUtils::GetViewModeDisplayName(VMI_CollisionVisibility));
 			}
 
-#if RHI_RAYTRACING
 			if (IsRayTracingEnabled())
 			{
 				static auto PathTracingCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PathTracing"));
@@ -155,7 +154,6 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 					Section.AddMenuEntry(BaseViewportActions.PathTracingMode, UViewModeUtils::GetViewModeDisplayName(VMI_PathTracing));
 				}
 			}
-#endif
 
 			// Optimization
 			{
@@ -250,7 +248,6 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 					/* bInOpenSubMenuOnClick = */ false, FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.QuadOverdrawMode"));
 			}
 
-#if RHI_RAYTRACING
 			if (IsRayTracingEnabled())
 			{
 				struct Local
@@ -264,7 +261,6 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 
 				Section.AddSubMenu("RayTracingDebugSubMenu", LOCTEXT("RayTracingDebugSubMenu", "Ray Tracing Debug"), LOCTEXT("RayTracing_ToolTip", "Select ray tracing buffer visualization view modes"), FNewMenuDelegate::CreateStatic(&Local::BuildRayTracingDebugMenu, ParentToolBar), false, FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.RayTracingDebugMode"));
 			}
-#endif
 
 			{
 				struct Local

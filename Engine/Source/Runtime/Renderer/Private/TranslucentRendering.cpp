@@ -178,12 +178,11 @@ EMeshPass::Type TranslucencyPassToMeshPass(ETranslucencyPass::Type TranslucencyP
 
 ETranslucencyView GetTranslucencyView(const FViewInfo& View)
 {
-#if RHI_RAYTRACING
 	if (ShouldRenderRayTracingTranslucency(View))
 	{
 		return ETranslucencyView::RayTracing;
 	}
-#endif
+
 	return View.IsUnderwater() ? ETranslucencyView::UnderWater : ETranslucencyView::AboveWater;
 }
 

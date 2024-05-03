@@ -1614,10 +1614,8 @@ public:
 	/** Feature level for this scene */
 	const ERHIFeatureLevel::Type FeatureLevel;
 
-#if RHI_RAYTRACING
 	/** Use to allow ray tracing on this view. */
 	bool bAllowRayTracing = true;
-#endif
 
 protected:
 	friend class FSceneRenderer;
@@ -1815,10 +1813,8 @@ public:
 		const FViewMatrices& InViewMatrices,
 		const FViewMatrices& InPrevViewMatrices) const;
 
-#if RHI_RAYTRACING
 	/** Current ray tracing debug visualization mode */
 	FName CurrentRayTracingDebugVisualizationMode;
-#endif
 
 	UE_DEPRECATED(5.2, "Use HasValidEyeAdaptationBuffer() instead.")
 	ENGINE_API bool HasValidEyeAdaptationTexture() const;

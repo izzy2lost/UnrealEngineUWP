@@ -339,7 +339,6 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	}
 
 	// Disable raytracing for lightcard and chromakey
-#if RHI_RAYTRACING
 	switch (RenderSettings.CaptureMode)
 	{
 	case EDisplayClusterViewportCaptureMode::Chromakey:
@@ -350,7 +349,6 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	default:
 		break;
 	}
-#endif // RHI_RAYTRACING
 
 	// Apply visibility settigns to view
 	VisibilitySettings.SetupSceneView(World, InOutView);

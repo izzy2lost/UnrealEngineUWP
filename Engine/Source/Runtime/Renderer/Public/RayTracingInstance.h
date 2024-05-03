@@ -5,8 +5,6 @@
 #include "RenderResource.h"
 #include "MeshBatch.h"
 
-#if RHI_RAYTRACING
-
 class FRayTracingGeometry;
 
 struct FRayTracingMaskAndFlags
@@ -168,5 +166,3 @@ struct FRayTracingInstance
 	~FRayTracingInstance() = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
-
-#endif

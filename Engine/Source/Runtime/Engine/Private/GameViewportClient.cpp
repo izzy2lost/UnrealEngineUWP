@@ -3673,7 +3673,6 @@ bool UGameViewportClient::HandleViewModeCommand( const TCHAR* Cmd, FOutputDevice
 		ViewModeIndex = VMI_Lit;
 	}
 
-#if RHI_RAYTRACING
 	if (!GRHISupportsRayTracing || !GRHISupportsRayTracingShaders)
 	{
 		if (ViewModeIndex == VMI_PathTracing)
@@ -3688,7 +3687,6 @@ bool UGameViewportClient::HandleViewModeCommand( const TCHAR* Cmd, FOutputDevice
 			ViewModeIndex = VMI_Lit;
 		}
 	}
-#endif
 #endif
 
 	ApplyViewMode((EViewModeIndex)ViewModeIndex, true, EngineShowFlags);
