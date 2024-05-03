@@ -28,12 +28,6 @@ static TAutoConsoleVariable<bool> CVarAliasUseNative(
 	TEXT("If true, the AlaisStudio tessellator will be used. Default false.\n"),
 	ECVF_Default);
 
-static TAutoConsoleVariable<bool> CVarAliasSkipThinZoneMeshing(
-	TEXT("ds.WireTranslator.SkipThinZoneMeshing"),
-	true,
-	TEXT("If true, the global thin zone cvar will be honored. Default true.\n"),
-	ECVF_Default);
-
 TAutoConsoleVariable<bool> GAliasLayerAsActor(
 	TEXT("ds.CADTranslator.Alias.LayersAsActors"),
 	false,

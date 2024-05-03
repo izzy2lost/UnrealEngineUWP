@@ -271,7 +271,7 @@ bool FCADKernelTools::Tessellate(UE::CADKernel::FTopologicalShapeEntity& CADTopo
 	TSharedRef<FModelMesh> CADKernelModelMesh = FEntity::MakeShared<FModelMesh>();
 
 	const double GeometricTolerance = FImportParameters::GStitchingTolerance * 10; // cm to mm
-	const bool bActivateThinZoneMeshing = TessellationContext.bSkipThinZoneMeshing ? false : FImportParameters::bGActivateThinZoneMeshing;
+	const bool bActivateThinZoneMeshing = FImportParameters::bGActivateThinZoneMeshing;
 	FMesher Mesher(*CADKernelModelMesh, GeometricTolerance, bActivateThinZoneMeshing);
 
 	DefineMeshCriteria(*CADKernelModelMesh, TessellationContext.ImportParameters, GeometricTolerance);

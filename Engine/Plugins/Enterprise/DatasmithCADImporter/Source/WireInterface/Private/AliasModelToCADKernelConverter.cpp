@@ -369,9 +369,6 @@ bool FAliasModelToCADKernelConverter::Tessellate(const CADLibrary::FMeshParamete
 
 	CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters);
 
-	const IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("ds.WireTranslator.SkipThinZoneMeshing"));
-	Context.bSkipThinZoneMeshing = ConsoleVariable ? ConsoleVariable->GetBool() : false;
-
 	return CADLibrary::FCADKernelTools::Tessellate(Model, Context, OutMeshDescription);
 }
 

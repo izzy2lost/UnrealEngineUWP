@@ -8,7 +8,10 @@ namespace UnrealBuildTool.Rules
 		public CADKernel(ReadOnlyTargetRules Target)
 			: base(Target)
 		{
+			//OptimizeCode = CodeOptimization.Never;
 			DeterministicWarningLevel = WarningLevel.Off; // __DATE__ in Private/CADKernel/Core/System.cpp
+			
+			PublicDefinitions.Add("CADKERNEL_THINZONE=0");
 
 			PublicDependencyModuleNames.AddRange(
 				new string[]

@@ -26,7 +26,9 @@ TUniquePtr<FMesherReport> FMesherReport::MesherReport;
 
 FMesher::FMesher(FModelMesh& InMeshModel, double InGeometricTolerance, bool bActivateThinZoneMeshing)
 	: GeometricTolerance(InGeometricTolerance)
+#if CADKERNEL_THINZONE
 	, bThinZoneMeshing(bActivateThinZoneMeshing)
+#endif
 	, MeshModel(InMeshModel)
 {
 }
@@ -40,7 +42,9 @@ void FMesher::MeshEntities(TArray<FTopologicalShapeEntity*>& InEntities)
 
 FParametricMesher::FParametricMesher(FModelMesh& InMeshModel, double GeometricTolerance, bool bActivateThinZoneMeshing)
 	: Tolerances(GeometricTolerance)
+#if CADKERNEL_THINZONE
 	, bThinZoneMeshing(bActivateThinZoneMeshing)
+#endif
 	, MeshModel(InMeshModel)
 {
 }

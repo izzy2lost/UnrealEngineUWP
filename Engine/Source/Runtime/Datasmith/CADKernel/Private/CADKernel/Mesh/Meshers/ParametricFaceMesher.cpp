@@ -27,7 +27,9 @@ FParametricFaceMesher::FParametricFaceMesher(FTopologicalFace& InFace, FModelMes
 	: Face(InFace)
 	, MeshModel(InMeshModel)
 	, Tolerances(InTolerances)
+#if CADKERNEL_THINZONE
 	, bThinZoneMeshing(bActivateThinZoneMeshing)
+#endif
 	, Grid(Face, MeshModel)
 {
 #ifdef DEBUG_ONLY_SURFACE_TO_DEBUG
