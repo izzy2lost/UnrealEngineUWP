@@ -108,7 +108,7 @@ public:
 	* have to be used in combination with certain Show Flags to produce a result similar to what you see in
 	* the viewport.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(EditCondition="bOverride_ViewModeIndex", InvalidEnumValues = "VMI_PathTracing"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(EditCondition="bOverride_ViewModeIndex", InvalidEnumValues = "VMI_PathTracing,VMI_VisualizeBuffer,VMI_Unknown"))
 	TEnumAsByte<EViewModeIndex> ViewModeIndex;
 
 	/**
