@@ -19,13 +19,6 @@ static TAutoConsoleVariable<int32> CVarSkinCacheRayTracingMaxUpdatePrimitivesPer
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarSkinCacheRayTracingAsyncBuild(
-	TEXT("r.SkinCache.RayTracing.AsyncBuild"),
-	0,
-	TEXT("Whether to build skinned ray tracing acceleration structures on async compute queue (default = 0).\n"),
-	ECVF_RenderThreadSafe
-);
-
 static int32 GMaxRayTracingPrimitivesPerCmdList = -1;
 FAutoConsoleVariableRef CVarSkinnedGeometryMaxRayTracingPrimitivesPerCmdList(
 	TEXT("r.SkinCache.MaxRayTracingPrimitivesPerCmdList"),
@@ -200,7 +193,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FSkinnedGeometryBLASUpdateParams, )
 	RDG_BUFFER_ACCESS(SharedScratchBuffer, ERHIAccess::UAVCompute)
 END_SHADER_PARAMETER_STRUCT()
 
-void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder)
+void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingSkinnedGeometryUpdateQueue::Commit);
 
@@ -320,9 +313,6 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder)
 
 	if (GeometryBuildRequests.Num())
 	{
-		const bool bRayTracingAsyncBuild = CVarSkinCacheRayTracingAsyncBuild.GetValueOnRenderThread() != 0 && GRHISupportsRayTracingAsyncBuildAccelerationStructure;
-		const ERDGPassFlags ComputePassFlags = bRayTracingAsyncBuild ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute;
-
 		GraphBuilder.AddPass(RDG_EVENT_NAME("CommitRayTracingSkinnedGeometryUpdates"), BLASUpdateParams, ComputePassFlags | ERDGPassFlags::NeverCull,
 			[
 				BuildRequests = MoveTemp(GeometryBuildRequests),

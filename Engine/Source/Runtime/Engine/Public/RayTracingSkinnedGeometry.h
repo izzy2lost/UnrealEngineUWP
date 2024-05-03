@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "RHIDefinitions.h"
+#include "RenderGraphDefinitions.h"
 
 #if RHI_RAYTRACING
 
@@ -35,7 +36,7 @@ public:
 	ENGINE_API void Commit(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer);
 
 	/** Commit all pending work using render graph. This allocates a transient scratch buffer internally. */
-	ENGINE_API void Commit(FRDGBuilder& GraphBuilder);
+	ENGINE_API void Commit(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);
 
 private:
 	/** Info about pending updates. */

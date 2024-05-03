@@ -58,7 +58,7 @@ FRayTracingSceneWithGeometryInstances FRayTracingScene::BuildInitializationData(
 
 void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene)
 {
-	CreateWithInitializationData(GraphBuilder, View, GPUScene, BuildInitializationData());
+	CreateWithInitializationData(GraphBuilder, View, GPUScene, BuildInitializationData(), ERDGPassFlags::Compute);
 }
 
 void FRayTracingScene::InitPreViewTranslation(const FViewMatrices& ViewMatrices)
@@ -66,7 +66,7 @@ void FRayTracingScene::InitPreViewTranslation(const FViewMatrices& ViewMatrices)
 	PreViewTranslation = FDFVector3(ViewMatrices.GetPreViewTranslation());
 }
 
-void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances)
+void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances, ERDGPassFlags ComputePassFlags)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(FRayTracingScene_BeginCreate);
 
@@ -237,7 +237,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("RayTracingBuildInstanceBuffer"),
 			PassParams,
-			ERDGPassFlags::Compute,
+			ComputePassFlags,
 			[PassParams,
 			this,
 			GPUScene,
