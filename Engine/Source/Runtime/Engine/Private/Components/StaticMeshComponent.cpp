@@ -143,7 +143,7 @@ bool FStaticMeshComponentInstanceData::ApplyVertexColorData(UStaticMeshComponent
 		for(int32 LODIndex = 0; LODIndex < StaticMeshComponent->LODData.Num(); ++LODIndex)
 		{
 			FStaticMeshComponentLODInfo& LODInfo = StaticMeshComponent->LODData[LODIndex];
-			if(CachedStaticLighting.IsValidIndex(LODIndex))
+			if(CachedStaticLighting.IsValidIndex((LODIndex*2)+1))
 			{
 				LODInfo.OriginalMapBuildDataId = CachedStaticLighting[(LODIndex*2)];
 				LODInfo.MapBuildDataId = CachedStaticLighting[(LODIndex*2)+1];
