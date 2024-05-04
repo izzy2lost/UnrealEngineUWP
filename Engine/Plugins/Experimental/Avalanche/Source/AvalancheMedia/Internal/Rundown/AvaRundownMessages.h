@@ -661,8 +661,13 @@ struct FAvaRundownOutputClassItem
 {
 	GENERATED_BODY()
 public:
+	/** Class name */
 	UPROPERTY()
 	FString Name;
+
+	/** Name of the server this class was seen on. */
+	UPROPERTY()
+	FString Server;
 
 	UPROPERTY()
 	TArray<FAvaRundownOutputDeviceItem> Devices;
