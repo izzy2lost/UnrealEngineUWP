@@ -7,6 +7,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Containers/StringFwd.h"
 
 class FArchive;
 class FString;
