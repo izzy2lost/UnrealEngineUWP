@@ -2155,7 +2155,7 @@ void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticM
 	// Restore static lighting if appropriate
 	if (bMatch)
 	{
-		const int32 NumLODLightMaps = InstancedMeshData->CachedStaticLighting.MapBuildDataIds.Num();
+		const int32 NumLODLightMaps = InstancedMeshData->CachedStaticLighting.MapBuildDataIds.Num()/2;
 		SetLODDataCount(NumLODLightMaps, NumLODLightMaps);
 
 		for (int32 i = 0; i < NumLODLightMaps; ++i)
