@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowNodeFactory.h"
 
 #include "Dataflow/DataflowNode.h"
+#include "Dataflow/DataflowCoreNodes.h"
 #include "Misc/MessageDialog.h"
 #include "Logging/LogMacros.h"
 
@@ -16,6 +17,7 @@ namespace Dataflow
 	{
 		// by default always register a reroute node
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowReRouteNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowBranchNode);
 	}
 
 

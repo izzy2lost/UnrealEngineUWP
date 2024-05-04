@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowSNodeFactories.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowEdNode.h"
+#include "Dataflow/DataflowCoreNodes.h"
 #include "EdGraphNode_Comment.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowSchema.h"

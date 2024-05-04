@@ -6,6 +6,7 @@
 #include "Dataflow/DataflowConnection.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNode.h"
+#include "Dataflow/DataflowCoreNodes.h"
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowNodeColorsRegistry.h"
 #include "Dataflow/DataflowNodeParameters.h"
