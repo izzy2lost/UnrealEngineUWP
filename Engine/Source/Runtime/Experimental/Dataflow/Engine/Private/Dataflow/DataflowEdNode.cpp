@@ -4,7 +4,6 @@
 
 #include "Dataflow/DataflowNode.h"
 #include "Dataflow/DataflowCore.h"
-#include "Dataflow/DataflowCoreNodes.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowRenderingFactory.h"
 #include "GeometryCollection/Facades/CollectionRenderingFacade.h"
