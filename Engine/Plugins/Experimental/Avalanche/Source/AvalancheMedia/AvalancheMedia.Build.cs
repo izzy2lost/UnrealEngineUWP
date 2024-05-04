@@ -40,6 +40,7 @@ public class AvalancheMedia : ModuleRules
 				"AvalancheRemoteControl",
 				"HeadMountedDisplay",
 				"Json",
+				"JsonUtilities",
 				"ImageCore",
 				"InputCore",
 				"Projects",

@@ -81,13 +81,9 @@ public:
 
 	const FAvaBroadcastProfile& GetCurrentProfile() const { return GetProfile(CurrentProfile); }
 
-#if WITH_EDITOR
 	void LoadBroadcast();
 	void SaveBroadcast();
 	FString GetBroadcastSaveFilepath() const;
-#else
-	void InitBroadcast();
-#endif
 
 	//Rather than Immediately calling the Broadcast Event change, it will queue all the multiple calls and dispatch it once to avoid redundancy
 	void QueueNotifyChange(EAvaBroadcastChange InChange);
@@ -197,6 +193,9 @@ protected:
 	/** Maps a channel name to a profile. Indicating which profile to use for a pinned channel. */
 	UPROPERTY()
 	TMap<FName, FName> PinnedChannels;
+
+	/** Full path to the last loaded config file. */
+	FString LoadedConfigFilepath;
 	
 #if WITH_EDITOR
 	bool bCanShowPreview = true;

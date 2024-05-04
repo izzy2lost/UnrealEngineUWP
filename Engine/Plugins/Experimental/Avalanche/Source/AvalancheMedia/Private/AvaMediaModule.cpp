@@ -617,12 +617,10 @@ void FAvaMediaModule::StartPlaybackClientCommand(const TArray<FString>& InArgs)
 		UE_LOG(LogAvaMedia, Warning, TEXT("Playback server has been stopped in editor mode in favor of playback client."));
 		StopPlaybackServer();
 
-#if WITH_EDITOR
 		// Stopping the playback server requires a reload of the broadcast client config.
 		UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 		Broadcast.LoadBroadcast();
 		Broadcast.QueueNotifyChange(EAvaBroadcastChange::CurrentProfile); // Force a refresh of broadcast editor (if opened).
-#endif
 	}
 
 	using namespace UE::AvaPlaybackClient::Delegates;

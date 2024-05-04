@@ -1336,9 +1336,8 @@ void FAvaRundownServer::HandleAddChannelDevice(const FAvaRundownAddChannelDevice
 
 	const FAvaBroadcastMediaOutputInfo OutputInfo;
 	const UMediaOutput* OutputDevice = TreeItem->AddMediaOutputToChannel(OutputChannel.GetChannelName(), OutputInfo);
-#if WITH_EDITOR
 	Broadcast.SaveBroadcast();
-#endif
+
 	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"AddChannelDevice\" successfully added device \"%s\""), *OutputDevice->GetFName().ToString());
 }
 
@@ -1370,9 +1369,7 @@ void FAvaRundownServer::HandleEditChannelDevice(const FAvaRundownEditChannelDevi
 
 	FAvaRundownServerMediaOutputUtils::EditMediaOutput(MediaOutput, InMessage.Data);
 	
-#if WITH_EDITOR
 	Broadcast.SaveBroadcast();
-#endif
 	
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"EditChannelDevice\". Successfully edited device \"%s\" on \"%s\""), *InMessage.MediaOutputName, *InMessage.ChannelName); 
 }
@@ -1418,9 +1415,7 @@ void FAvaRundownServer::HandleRemoveChannelDevice(const FAvaRundownRemoveChannel
 		return;
 	}
 
-#if WITH_EDITOR
 	Broadcast.SaveBroadcast();
-#endif
 	
 	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"RemoveChannelDevice\" Removed Device \"%s\""), *InMessage.MediaOutputName);
 }
