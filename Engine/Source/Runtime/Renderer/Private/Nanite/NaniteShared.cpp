@@ -11,8 +11,11 @@
 DEFINE_LOG_CATEGORY(LogNanite);
 DEFINE_GPU_STAT(NaniteDebug);
 
-IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(Nanite);
-IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FNaniteUniformParameters, "Nanite", Nanite);
+IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(NaniteRaster);
+IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FNaniteRasterUniformParameters, "NaniteRaster", NaniteRaster);
+
+IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(NaniteShading);
+IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FNaniteShadingUniformParameters, "NaniteShading", NaniteShading);
 
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(NaniteRayTracing);
 IMPLEMENT_STATIC_AND_SHADER_UNIFORM_BUFFER_STRUCT(FNaniteRayTracingUniformParameters, "NaniteRayTracing", NaniteRayTracing);

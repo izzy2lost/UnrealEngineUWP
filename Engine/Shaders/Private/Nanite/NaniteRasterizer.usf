@@ -18,7 +18,7 @@
 
 // Update this GUID to bump and recompile all Nanite rasterization material shaders
 // Merge conflicts on this line should be resolved by generating a new GUID
-#pragma message("UESHADERMETADATA_VERSION 59798E00-C394-440A-B3BA-E342488CF154")
+#pragma message("UESHADERMETADATA_VERSION 74FFD-642E-45FC-8E20-CF356E31A481")
 
 #if PIXELSHADER
 ALLOW_NO_PS_EXPORT
@@ -54,7 +54,35 @@ MAX_OCCUPANCY
 
 HOIST_DESCRIPTORS
 
-uint ActiveRasterBin;
+#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
+
+#include "/Engine/Shared/HLSLReservedSpaces.h"
+
+struct FUERootConstants
+{
+	uint  RecordIndex;
+	uint3 PassData;
+};
+
+// RecordIndex = Raster Bin
+// PassData .x = Unused, .y = Unused, .z = Unused
+ConstantBuffer<FUERootConstants> UERootConstants : UE_HLSL_REGISTER(b, 0, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS);
+
+#else
+
+// .x = Raster Bin, .y = Unused, .z = Unused, .w = Unused
+uint4 PassData;
+
+#endif
+
+uint GetRasterBin()
+{
+#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
+	return UERootConstants.RecordIndex;
+#else
+	return PassData.x;
+#endif
+}
 
 RWStructuredBuffer<FNaniteStats> OutStatsBuffer;
 
@@ -68,12 +96,12 @@ StructuredBuffer<uint2> RasterBinData;
 // .w = MaterialFlags
 uint4 FetchSWRasterBin(const uint ClusterIndex)
 {
-	const uint RasterBinOffset		= RasterBinMeta[ActiveRasterBin].ClusterOffset;
+	const uint RasterBinOffset		= RasterBinMeta[GetRasterBin()].ClusterOffset;
 	const uint2 PackedData			= RasterBinData[RasterBinOffset + ClusterIndex].xy;
 	const uint VisibleIndex			= PackedData.x;
 	const uint RangeStart			= PackedData.y >> 16u;
 	const uint RangeEnd				= PackedData.y & 0xFFFFu;
-	return uint4(VisibleIndex, RangeStart, RangeEnd, RasterBinMeta[ActiveRasterBin].MaterialFlags);
+	return uint4(VisibleIndex, RangeStart, RangeEnd, RasterBinMeta[GetRasterBin()].MaterialFlags);
 }
 
 // .x = VisibleIndex
@@ -82,13 +110,13 @@ uint4 FetchSWRasterBin(const uint ClusterIndex)
 // .w = MaterialFlags
 uint4 FetchHWRasterBin(const uint ClusterIndex)
 {
-	const uint RasterBinOffset		= RasterBinMeta[ActiveRasterBin].ClusterOffset;
-	const uint RasterBinCapacity	= RasterBinMeta[ActiveRasterBin].BinSWCount + RasterBinMeta[ActiveRasterBin].BinHWCount;
+	const uint RasterBinOffset		= RasterBinMeta[GetRasterBin()].ClusterOffset;
+	const uint RasterBinCapacity	= RasterBinMeta[GetRasterBin()].BinSWCount + RasterBinMeta[GetRasterBin()].BinHWCount;
 	const uint2 PackedData			= RasterBinData[RasterBinOffset + ((RasterBinCapacity - 1) - ClusterIndex)].xy; // HW clusters are written from the top
 	const uint VisibleIndex			= PackedData.x;
 	const uint RangeStart			= PackedData.y >> 16u;
 	const uint RangeEnd				= PackedData.y & 0xFFFFu;
-	return uint4(VisibleIndex, RangeStart, RangeEnd, RasterBinMeta[ActiveRasterBin].MaterialFlags);
+	return uint4(VisibleIndex, RangeStart, RangeEnd, RasterBinMeta[GetRasterBin()].MaterialFlags);
 }
 
 ViewState ResolveView(FNaniteView NaniteView)
@@ -412,7 +440,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 	float LowTessDistance = 0.0f;
 
 #if USES_DISPLACEMENT
-	MaterialShader.InitDisplacement(RasterBinMeta[ActiveRasterBin].MaterialDisplacementParams);
+	MaterialShader.InitDisplacement(RasterBinMeta[GetRasterBin()].MaterialDisplacementParams);
 	LowTessDistance = CalcDisplacementLowTessDistance(PrimitiveData, InstanceData, NaniteView);
 #endif
 
@@ -765,7 +793,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 	}
 	const uint ThreadGroupSize	= min(THREADGROUP_SIZE, WaveGetLaneCount());
 	
-	const uint TotalPatches		= RasterBinMeta[ActiveRasterBin].BinSWCount;
+	const uint TotalPatches		= RasterBinMeta[GetRasterBin()].BinSWCount;
 
 	const uint PatchStartIndex	= min(GroupID * MaxPatchesPerGroup, TotalPatches);
 	const uint PatchEndIndex	= min(PatchStartIndex + MaxPatchesPerGroup, TotalPatches);
@@ -903,7 +931,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		MaterialShader.TransformedTri = MakeTransformedNaniteTriangle(Patches_Verts, PatchStartLane + uint3(0, 1, 2));
 
 #if USES_DISPLACEMENT
-		MaterialShader.InitDisplacement(RasterBinMeta[ActiveRasterBin].MaterialDisplacementParams);
+		MaterialShader.InitDisplacement(RasterBinMeta[GetRasterBin()].MaterialDisplacementParams);
 #endif
 
 		uint PixelValue = (SplitPatch.VisibleClusterIndex + 1) << 7;
@@ -1157,7 +1185,7 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	MaterialShader.Cluster 				= Cluster;
 
 #if NANITE_TESSELLATION && USES_DISPLACEMENT
-	MaterialShader.InitDisplacement(RasterBinMeta[ActiveRasterBin].MaterialDisplacementParams);
+	MaterialShader.InitDisplacement(RasterBinMeta[GetRasterBin()].MaterialDisplacementParams);
 #endif
 	BRANCH
 	if ( (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0 )
@@ -1535,7 +1563,7 @@ void HWRasterizeMS(
 	if (GroupID.y > 0 || GroupID.z > 0)
 	{
 		// Due to wrapping, the visible index can be out of range
-		bValidIndex = (VisibleIndex < RasterBinMeta[ActiveRasterBin].BinHWCount);
+		bValidIndex = (VisibleIndex < RasterBinMeta[GetRasterBin()].BinHWCount);
 	}
 #endif
 

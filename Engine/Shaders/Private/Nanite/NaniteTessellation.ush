@@ -46,9 +46,6 @@ float3 DecodeBarycentrics( uint Encoded )
 ByteAddressBuffer TessellationTable_Offsets;
 ByteAddressBuffer TessellationTable_VertsAndIndexes;
 
-float InvDiceRate;
-uint MaxPatchesPerGroup;
-
 float CalcDisplacementLowTessDistance(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FNaniteView NaniteView)
 {
 	const float LowTessSize = PrimitiveData.MaterialDisplacementFadeOutSize;

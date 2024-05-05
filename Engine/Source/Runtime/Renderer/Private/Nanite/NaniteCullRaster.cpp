@@ -1377,11 +1377,9 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
 	SHADER_PARAMETER_STRUCT_INCLUDE( FRasterParameters, RasterParameters )
 
-	SHADER_PARAMETER( FIntVector4,	PageConstants )
-	SHADER_PARAMETER( uint32,		MaxVisibleClusters )
-	SHADER_PARAMETER( uint32,		RenderFlags )
-	SHADER_PARAMETER( uint32,		ActiveRasterBin )
-	SHADER_PARAMETER( uint32,		MeshPass )
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
+
+	SHADER_PARAMETER(FUintVector4, PassData)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer, ClusterPageData )
 
@@ -1395,8 +1393,6 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	
 	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Offsets )
 	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_VertsAndIndexes )
-	SHADER_PARAMETER( float,					InvDiceRate )
-	SHADER_PARAMETER( uint32,					MaxPatchesPerGroup )
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer,	VisiblePatches )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( Buffer< uint >,	VisiblePatchesArgs )
@@ -2710,7 +2706,7 @@ private:
 					SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, HWRaster, bShowDrawEvents != 0, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
 				#endif
 
-					Parameters.ActiveRasterBin = RasterizerPass.RasterBin;
+					Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
 
 					// NOTE: We do *not* use any CullMode overrides here because HWRasterize[VS/MS] already
 					// changes the index order in cases where the culling should be flipped.
@@ -2796,6 +2792,11 @@ private:
 						BindShaderParameters(RasterizerPass);
 					}
 
+					if (GRHISupportsShaderRootConstants)
+					{
+						RHICmdList.SetShaderRootConstants(Parameters.PassData);
+					}
+
 					if (IsMeshShaderRasterPath(HardwarePath))
 					{
 						RHICmdList.DispatchIndirectMeshShader(Parameters.IndirectArgs->GetIndirectRHICallBuffer(), RasterizerPass.IndirectOffset + 16);
@@ -2832,7 +2833,7 @@ private:
 					SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWRaster, bShowDrawEvents, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
 				#endif
 
-					Parameters.ActiveRasterBin = RasterizerPass.RasterBin;
+					Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
 
 					const TShaderRef<FMicropolyRasterizeCS>* ComputeShader = bPatches ? &RasterizerPass.PatchComputeShader : &RasterizerPass.ClusterComputeShader;
 
@@ -2858,6 +2859,11 @@ private:
 						RasterizerPass.ComputeMaterialProxy,
 						*RasterizerPass.ComputeMaterial
 					);
+
+					if (GRHISupportsShaderRootConstants)
+					{
+						RHICmdList.SetShaderRootConstants(Parameters.PassData);
+					}
 
 					RHICmdList.DispatchIndirectComputeShader(IndirectArgsBuffer, RasterizerPass.IndirectOffset);
 					UnsetShaderUAVs(RHICmdList, *ComputeShader, ShaderRHI);
@@ -4568,12 +4574,23 @@ FBinningData FRenderer::AddPass_Rasterize(
 	{
 		auto* RasterPassParameters = GraphBuilder.AllocParameters<FRasterizePassParameters>();
 
-		RasterPassParameters->RenderFlags				= RenderFlags;
+		// NaniteRaster Uniform Buffer
+		{
+			FNaniteRasterUniformParameters* UniformParameters	= GraphBuilder.AllocParameters<FNaniteRasterUniformParameters>();
+			UniformParameters->PageConstants					= PageConstants;
+			UniformParameters->MaxNodes							= Nanite::FGlobalResources::GetMaxNodes();
+			UniformParameters->MaxVisibleClusters				= Nanite::FGlobalResources::GetMaxVisibleClusters();
+			UniformParameters->InvDiceRate						= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
+			UniformParameters->MaxPatchesPerGroup				= GetMaxPatchesPerGroup();
+			UniformParameters->MeshPass							= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
+			UniformParameters->RenderFlags						= RenderFlags;
+			UniformParameters->DebugFlags						= DebugFlags;
+			RasterPassParameters->NaniteRaster					= GraphBuilder.CreateUniformBuffer(UniformParameters);
+		}
+
 		RasterPassParameters->ClusterPageData			= GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		RasterPassParameters->Scene						= SceneUniformBuffer;
 		RasterPassParameters->RasterParameters			= RasterParameters;
-		RasterPassParameters->PageConstants				= PageConstants;
-		RasterPassParameters->MaxVisibleClusters		= Nanite::FGlobalResources::GetMaxVisibleClusters();
 		RasterPassParameters->VisibleClustersSWHW		= GraphBuilder.CreateSRV(VisibleClustersSWHW);
 		RasterPassParameters->IndirectArgs				= BinningData.IndirectArgs;
 		RasterPassParameters->InViews					= ViewsBuffer != nullptr ? GraphBuilder.CreateSRV(ViewsBuffer) : nullptr;
@@ -4584,9 +4601,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 
 		RasterPassParameters->TessellationTable_Offsets	= GTessellationTable.Offsets.SRV;
 		RasterPassParameters->TessellationTable_VertsAndIndexes	= GTessellationTable.VertsAndIndexes.SRV;
-		RasterPassParameters->InvDiceRate				= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
-		RasterPassParameters->MaxPatchesPerGroup		= GetMaxPatchesPerGroup();
-		RasterPassParameters->MeshPass					= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
+
 		RasterPassParameters->VirtualShadowMap			= VirtualTargetParameters;
 
 		RasterPassParameters->OutStatsBuffer			= GraphBuilder.CreateUAV(StatsBuffer, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -5638,6 +5653,11 @@ void FRenderer::ExtractResults( FRasterResults& RasterResults )
 	RasterResults.MaxVisibleClusters	= Nanite::FGlobalResources::GetMaxVisibleClusters();
 	RasterResults.MaxNodes				= Nanite::FGlobalResources::GetMaxNodes();
 	RasterResults.RenderFlags			= RenderFlags;
+	RasterResults.DebugFlags			= DebugFlags;
+
+	RasterResults.InvDiceRate			= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
+	RasterResults.MaxPatchesPerGroup	= GetMaxPatchesPerGroup();
+	RasterResults.MeshPass				= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
 
 	RasterResults.ViewsBuffer			= ViewsBuffer;
 	RasterResults.VisibleClustersSWHW	= VisibleClustersSWHW;

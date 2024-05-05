@@ -86,7 +86,11 @@ struct FRasterResults
 	FIntVector4		PageConstants;
 	uint32			MaxVisibleClusters;
 	uint32			MaxNodes;
+	uint32			MaxPatchesPerGroup;
+	uint32			MeshPass;
+	float			InvDiceRate;
 	uint32			RenderFlags;
+	uint32			DebugFlags;
 
 	FRDGBufferRef	ViewsBuffer			= nullptr;
 	FRDGBufferRef	VisibleClustersSWHW	= nullptr;

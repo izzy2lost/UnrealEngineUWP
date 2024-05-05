@@ -79,8 +79,6 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 	const UlongType VisPixel	= VisBuffer64[PixelPos.xy];
 
 	// Calculate the HTile tile index and scalarize.
-	// With the same resolution between scene and material HTile, we can use the same tile index
-	// for both depth exports as an optimization.
 	const uint TileIndex = ToScalarMemory(ComputeTileOffset(PixelPos.xy, PixelsWide, PlatformConfig));
 
 	uint DepthInt = 0;

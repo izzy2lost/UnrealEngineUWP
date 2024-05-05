@@ -78,8 +78,8 @@ class FRayTracingBarycentricsCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, Output)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteUniformParameters, NaniteUniformBuffer)
-
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRasterUniformBuffer)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteShadingUniformParameters, NaniteShadingUniformBuffer)
 		SHADER_PARAMETER(float, RTDebugVisualizationNaniteCutError)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -95,7 +95,8 @@ class FRayTracingBarycentricsCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y"), ThreadGroupSizeY);
 
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
-		OutEnvironment.SetDefine(TEXT("NANITE_USE_UNIFORM_BUFFER"), 1);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_RASTER_UNIFORM_BUFFER"), 1);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_SHADING_UNIFORM_BUFFER"), 1);
 	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -117,7 +118,8 @@ void RenderRayTracingBarycentricsCS(FRDGBuilder& GraphBuilder, const FScene& Sce
 	PassParameters->Output = GraphBuilder.CreateUAV(SceneColor);
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-	PassParameters->NaniteUniformBuffer = CreateDebugNaniteUniformBuffer(GraphBuilder, Scene.GPUScene.InstanceSceneDataSOAStride);
+	PassParameters->NaniteRasterUniformBuffer = CreateDebugNaniteRasterUniformBuffer(GraphBuilder, Scene.GPUScene.InstanceSceneDataSOAStride);
+	PassParameters->NaniteShadingUniformBuffer = CreateDebugNaniteShadingUniformBuffer(GraphBuilder);
 
 	PassParameters->RTDebugVisualizationNaniteCutError = 0.0f;
 

@@ -47,7 +47,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteMaterialPassParameters, )
 
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)	// To access VTFeedbackBuffer
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteUniformParameters, Nanite)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteShadingUniformParameters, NaniteShading)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FOpaqueBasePassUniformParameters, BasePass)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardPassUniformParameters, CardPass)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget0)
@@ -63,27 +64,23 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteMaterialPassParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordArgBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
-TRDGUniformBufferRef<FNaniteUniformParameters> CreateDebugNaniteUniformBuffer(FRDGBuilder& GraphBuilder, uint32 InstanceSceneDataSOAStride)
+TRDGUniformBufferRef<FNaniteShadingUniformParameters> CreateDebugNaniteShadingUniformBuffer(FRDGBuilder& GraphBuilder)
 {
-	FNaniteUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteUniformParameters>();
-	UniformParameters->PageConstants.X           = InstanceSceneDataSOAStride;
-	UniformParameters->PageConstants.Y           = Nanite::GStreamingManager.GetMaxStreamingPages();
-	UniformParameters->MaxNodes                  = Nanite::FGlobalResources::GetMaxNodes();
-	UniformParameters->MaxVisibleClusters        = Nanite::FGlobalResources::GetMaxVisibleClusters();
+	FNaniteShadingUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteShadingUniformParameters>();
 
-	UniformParameters->ClusterPageData           = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
-	UniformParameters->HierarchyBuffer           = Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
-	UniformParameters->VisibleClustersSWHW       = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
+	UniformParameters->ClusterPageData				= Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
+	UniformParameters->HierarchyBuffer				= Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
+	UniformParameters->VisibleClustersSWHW			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
 
 #if RHI_RAYTRACING
-	UniformParameters->RayTracingCutError		= Nanite::GRayTracingManager.GetCutError();
-	UniformParameters->RayTracingDataBuffer		= Nanite::GRayTracingManager.GetAuxiliaryDataSRV(GraphBuilder);
+	UniformParameters->RayTracingCutError			= Nanite::GRayTracingManager.GetCutError();
+	UniformParameters->RayTracingDataBuffer			= Nanite::GRayTracingManager.GetAuxiliaryDataSRV(GraphBuilder);
 #else
-	UniformParameters->RayTracingCutError		= 0.0f;
-	UniformParameters->RayTracingDataBuffer		= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
+	UniformParameters->RayTracingCutError			= 0.0f;
+	UniformParameters->RayTracingDataBuffer			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
 #endif
 
-	UniformParameters->ShadingBinData			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder), PF_R32_UINT);
+	UniformParameters->ShadingBinData				= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder), PF_R32_UINT);
 
 	const FRDGSystemTextures& SystemTextures		= FRDGSystemTextures::Get(GraphBuilder);
 	UniformParameters->VisBuffer64					= SystemTextures.Black;
@@ -94,5 +91,22 @@ TRDGUniformBufferRef<FNaniteUniformParameters> CreateDebugNaniteUniformBuffer(FR
 	UniformParameters->MultiViewRectScaleOffsets	= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FVector4>(GraphBuilder));
 	UniformParameters->InViews						= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FPackedNaniteView>(GraphBuilder));
 
+	return GraphBuilder.CreateUniformBuffer(UniformParameters);
+}
+
+TRDGUniformBufferRef<FNaniteRasterUniformParameters> CreateDebugNaniteRasterUniformBuffer(FRDGBuilder& GraphBuilder, uint32 InstanceSceneDataSOAStride)
+{
+	FNaniteRasterUniformParameters* UniformParameters	= GraphBuilder.AllocParameters<FNaniteRasterUniformParameters>();
+	
+	UniformParameters->PageConstants.X					= InstanceSceneDataSOAStride;
+	UniformParameters->PageConstants.Y					= Nanite::GStreamingManager.GetMaxStreamingPages();
+	UniformParameters->MaxNodes							= Nanite::FGlobalResources::GetMaxNodes();
+	UniformParameters->MaxVisibleClusters				= Nanite::FGlobalResources::GetMaxVisibleClusters();
+	UniformParameters->MaxPatchesPerGroup				= 0u;
+	UniformParameters->MeshPass							= 0u;
+	UniformParameters->InvDiceRate						= 1.0f;
+	UniformParameters->RenderFlags						= 0u;
+	UniformParameters->DebugFlags						= 0u;
+	
 	return GraphBuilder.CreateUniformBuffer(UniformParameters);
 }

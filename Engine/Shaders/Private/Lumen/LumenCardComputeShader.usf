@@ -239,18 +239,18 @@ void Main(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 	const uint Unused			= PassData.w;
 #endif
 
-	const FLumenShadingBinMeta ShadingBinMeta = Nanite.ShadingBinData.Load<FLumenShadingBinMeta>(ShadingBin * (uint)sizeof(FLumenShadingBinMeta));
+	const FLumenShadingBinMeta ShadingBinMeta = NaniteShading.ShadingBinData.Load<FLumenShadingBinMeta>(ShadingBin * (uint)sizeof(FLumenShadingBinMeta));
 
-	const uint PackedTile  = Nanite.ShadingBinData.Load(ShadingBinMeta.DataByteOffset + ((uint)sizeof(uint) * GroupID));
+	const uint PackedTile  = NaniteShading.ShadingBinData.Load(ShadingBinMeta.DataByteOffset + ((uint)sizeof(uint) * GroupID));
 	const uint  CardIndex  = BitFieldExtractU32(PackedTile, 16, 16);
 
-	const FPackedNaniteView PackedView = Nanite.InViews[CardIndex];
+	const FPackedNaniteView PackedView = NaniteShading.InViews[CardIndex];
 
 	const uint  TopLeftX   = PackedView.ViewRect.x + (BitFieldExtractU32(PackedTile, 8, 0) * 8u);
 	const uint  TopLeftY   = PackedView.ViewRect.y + (BitFieldExtractU32(PackedTile, 8, 8) * 8u);
 
 	const uint2 PixelPos = uint2(TopLeftX, TopLeftY) + MortonDecode(ThreadIndex);
-	const UlongType VisPixel = Nanite.VisBuffer64[PixelPos];
+	const UlongType VisPixel = NaniteShading.VisBuffer64[PixelPos];
 
 	uint DepthInt = 0;
 	uint VisibleClusterIndex = 0;

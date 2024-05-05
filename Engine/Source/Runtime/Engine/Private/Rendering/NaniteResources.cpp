@@ -2838,12 +2838,15 @@ void FNaniteVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShad
 {
 	FVertexFactory::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
+	const bool bUseNaniteUniformBuffers = Parameters.ShaderType->GetFrequency() != SF_RayHitGroup;
+
 	OutEnvironment.SetDefine(TEXT("IS_NANITE_SHADING_PASS"), 1);
 	OutEnvironment.SetDefine(TEXT("IS_NANITE_PASS"), 1);
 	OutEnvironment.SetDefine(TEXT("USE_ANALYTIC_DERIVATIVES"), 1);
 	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
-	OutEnvironment.SetDefine(TEXT("NANITE_USE_UNIFORM_BUFFER"), Parameters.ShaderType->GetFrequency() != SF_RayHitGroup);
-	OutEnvironment.SetDefine(TEXT("NANITE_USE_RAYTRACING_UNIFORM_BUFFER"), Parameters.ShaderType->GetFrequency() == SF_RayHitGroup);
+	OutEnvironment.SetDefine(TEXT("NANITE_USE_RASTER_UNIFORM_BUFFER"), bUseNaniteUniformBuffers);
+	OutEnvironment.SetDefine(TEXT("NANITE_USE_SHADING_UNIFORM_BUFFER"), bUseNaniteUniformBuffers);
+	OutEnvironment.SetDefine(TEXT("NANITE_USE_RAYTRACING_UNIFORM_BUFFER"), !bUseNaniteUniformBuffers);
 	OutEnvironment.SetDefine(TEXT("NANITE_USE_VIEW_UNIFORM_BUFFER"), 1);
 	OutEnvironment.SetDefine(TEXT("NANITE_COMPUTE_SHADE"), 1);
 	OutEnvironment.SetDefine(TEXT("ALWAYS_EVALUATE_WORLD_POSITION_OFFSET"),

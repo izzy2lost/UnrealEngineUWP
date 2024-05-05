@@ -873,7 +873,7 @@ void CalculateSafeRasterizerArgs()
 		// Total number of visible clusters don't fit.
 		// Trim away the overlapping range from the SW/HW ranges.
 		
-		// TODO: Write status back to CPU so we can warn the user when this happens and r.Nanite.MaxVisibleClusters needs to be adjusted higher.	
+		// TODO: Write status back to CPU so we can warn the user when this happens and r.NaniteRaster.MaxVisibleClusters needs to be adjusted higher.
 
 		const int MaxClustersSW = max((int)MaxVisibleClusters - ClusterOffsetSW - TotalClustersHW, 0);
 		const int MaxClustersHW = max((int)MaxVisibleClusters - ClusterOffsetHW - TotalClustersSW, 0);

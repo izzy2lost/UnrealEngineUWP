@@ -292,13 +292,8 @@ extern TGlobalResource< FGlobalResources > GGlobalResources;
 
 } // namespace Nanite
 
-BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
-	SHADER_PARAMETER(FIntVector4,					PageConstants)
-	SHADER_PARAMETER(uint32,						MaxNodes)
-	SHADER_PARAMETER(uint32,						MaxVisibleClusters)
-	SHADER_PARAMETER(uint32,						RenderFlags)
-	SHADER_PARAMETER(float,							RayTracingCutError)
-	SHADER_PARAMETER(FVector4f,						RectScaleOffset) // xy: scale, zw: offset
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteShadingUniformParameters, )
+	SHADER_PARAMETER(float,			RayTracingCutError)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		ClusterPageData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		VisibleClustersSWHW)
@@ -318,7 +313,20 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPackedNaniteView>,	InViews)
 END_SHADER_PARAMETER_STRUCT()
 
-extern TRDGUniformBufferRef<FNaniteUniformParameters> CreateDebugNaniteUniformBuffer(FRDGBuilder& GraphBuilder, uint32 InstanceSceneDataSOAStride);
+extern TRDGUniformBufferRef<FNaniteShadingUniformParameters> CreateDebugNaniteShadingUniformBuffer(FRDGBuilder& GraphBuilder);
+
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteRasterUniformParameters, )
+	SHADER_PARAMETER(FIntVector4,	PageConstants)
+	SHADER_PARAMETER(uint32,		MaxNodes)
+	SHADER_PARAMETER(uint32,		MaxVisibleClusters)
+	SHADER_PARAMETER(uint32,		MaxPatchesPerGroup)
+	SHADER_PARAMETER(uint32,		MeshPass)
+	SHADER_PARAMETER(float,			InvDiceRate)
+	SHADER_PARAMETER(uint32,		RenderFlags)
+	SHADER_PARAMETER(uint32,		DebugFlags)
+END_SHADER_PARAMETER_STRUCT()
+
+extern TRDGUniformBufferRef<FNaniteRasterUniformParameters> CreateDebugNaniteRasterUniformBuffer(FRDGBuilder& GraphBuilder, uint32 InstanceSceneDataSOAStride);
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteRayTracingUniformParameters, )
 	SHADER_PARAMETER(FIntVector4,	PageConstants)
@@ -479,6 +487,7 @@ public:
 		// Force shader model 6.0+
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
+		OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
 
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
 		OutEnvironment.SetDefine(TEXT("NANITE_MATERIAL_SHADER"), 1);
@@ -486,7 +495,8 @@ public:
 		OutEnvironment.SetDefine(TEXT("IS_NANITE_RASTER_PASS"), 1);
 		OutEnvironment.SetDefine(TEXT("IS_NANITE_PASS"), 1);
 
-		OutEnvironment.SetDefine(TEXT("NANITE_USE_UNIFORM_BUFFER"), 0);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_SHADING_UNIFORM_BUFFER"), 0);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_RASTER_UNIFORM_BUFFER"), 1);
 		OutEnvironment.SetDefine(TEXT("NANITE_USE_VIEW_UNIFORM_BUFFER"), 0);
 
 		// Force definitions of GetObjectWorldPosition(), etc..

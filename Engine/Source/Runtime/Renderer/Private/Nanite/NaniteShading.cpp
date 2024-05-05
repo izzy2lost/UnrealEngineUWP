@@ -389,7 +389,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)	// To access VTFeedbackBuffer
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteUniformParameters, Nanite)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteShadingUniformParameters, NaniteShading)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FOpaqueBasePassUniformParameters, BasePass)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardPassUniformParameters, CardPass)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget0)
@@ -920,13 +921,24 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 
 	Result.ShadingBinArgs = ShadeBinning.ShadingBinArgs;
 
+	// NaniteRaster Uniform Buffer
 	{
-		FNaniteUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteUniformParameters>();
+		FNaniteRasterUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteRasterUniformParameters>();
 		UniformParameters->PageConstants = RasterResults.PageConstants;
 		UniformParameters->MaxNodes = RasterResults.MaxNodes;
 		UniformParameters->MaxVisibleClusters = RasterResults.MaxVisibleClusters;
+		UniformParameters->MaxPatchesPerGroup = RasterResults.MaxPatchesPerGroup;
+		UniformParameters->MeshPass = RasterResults.MeshPass;
+		UniformParameters->InvDiceRate = RasterResults.InvDiceRate;
 		UniformParameters->RenderFlags = RasterResults.RenderFlags;
+		UniformParameters->DebugFlags = RasterResults.DebugFlags;
+		Result.NaniteRaster = GraphBuilder.CreateUniformBuffer(UniformParameters);
+	}
 
+	// NaniteShading Uniform Buffer
+	{
+		FNaniteShadingUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteShadingUniformParameters>();
+	
 		UniformParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		UniformParameters->HierarchyBuffer = Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
 		UniformParameters->VisibleClustersSWHW = GraphBuilder.CreateSRV(VisibleClustersSWHW);
@@ -952,7 +964,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 
 		UniformParameters->ShadingBinData = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinData);
 
-		Result.Nanite = GraphBuilder.CreateUniformBuffer(UniformParameters);
+		Result.NaniteShading = GraphBuilder.CreateUniformBuffer(UniformParameters);
 	}
 
 	Result.View = View.GetShaderParameters(); // To get VTFeedbackBuffer
@@ -2481,38 +2493,52 @@ void DispatchLumenMeshCapturePass(
 
 	FNaniteShadingPassParameters* ShadingPassParameters = GraphBuilder.AllocParameters<FNaniteShadingPassParameters>();
 	{
-		FNaniteUniformParameters* UniformParameters		= GraphBuilder.AllocParameters<FNaniteUniformParameters>();
-		UniformParameters->PageConstants				= RasterResults.PageConstants;
-		UniformParameters->MaxNodes						= Nanite::FGlobalResources::GetMaxNodes();
-		UniformParameters->MaxVisibleClusters			= Nanite::FGlobalResources::GetMaxVisibleClusters();
-		UniformParameters->RenderFlags					= RasterResults.RenderFlags;
-		UniformParameters->RectScaleOffset				= FVector4f(1.0f, 1.0f, 0.0f, 0.0f); // This will be overridden in vertex shader
+		// NaniteRaster Uniform Buffer
+		{
+			FNaniteRasterUniformParameters* UniformParameters	= GraphBuilder.AllocParameters<FNaniteRasterUniformParameters>();
 
-		UniformParameters->ClusterPageData				= Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
-		UniformParameters->HierarchyBuffer				= Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
-		UniformParameters->VisibleClustersSWHW			= GraphBuilder.CreateSRV(RasterResults.VisibleClustersSWHW);
+			UniformParameters->PageConstants				= RasterResults.PageConstants;
+			UniformParameters->MaxNodes						= Nanite::FGlobalResources::GetMaxNodes();
+			UniformParameters->MaxVisibleClusters			= Nanite::FGlobalResources::GetMaxVisibleClusters();
+			UniformParameters->MaxPatchesPerGroup			= RasterResults.MaxPatchesPerGroup;
+			UniformParameters->MeshPass						= RasterResults.MeshPass;
+			UniformParameters->InvDiceRate					= RasterResults.InvDiceRate;
+			UniformParameters->RenderFlags					= RasterResults.RenderFlags;
+			UniformParameters->DebugFlags					= RasterResults.DebugFlags;
 
-	#if RHI_RAYTRACING
-		UniformParameters->RayTracingCutError			= Nanite::GRayTracingManager.GetCutError();
-		UniformParameters->RayTracingDataBuffer			= Nanite::GRayTracingManager.GetAuxiliaryDataSRV(GraphBuilder);
-	#else
-		UniformParameters->RayTracingCutError			= 0.0f;
-		UniformParameters->RayTracingDataBuffer			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
-	#endif
+			ShadingPassParameters->NaniteRaster				= GraphBuilder.CreateUniformBuffer(UniformParameters);
+		}
 
-		UniformParameters->VisBuffer64					= RasterContext.VisBuffer64;
-		UniformParameters->DbgBuffer64					= SystemTextures.Black;
-		UniformParameters->DbgBuffer32					= SystemTextures.Black;
-		UniformParameters->ShadingMask					= SystemTextures.Black;
+		// NaniteShading Uniform Buffer
+		{
+			FNaniteShadingUniformParameters* UniformParameters	= GraphBuilder.AllocParameters<FNaniteShadingUniformParameters>();
 
-		UniformParameters->ShadingBinData				= GraphBuilder.CreateSRV(ShadingBinData);
+			UniformParameters->ClusterPageData				= Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
+			UniformParameters->HierarchyBuffer				= Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
+			UniformParameters->VisibleClustersSWHW			= GraphBuilder.CreateSRV(RasterResults.VisibleClustersSWHW);
 
-		UniformParameters->MultiViewEnabled				= 1;
-		UniformParameters->MultiViewIndices				= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
-		UniformParameters->MultiViewRectScaleOffsets	= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FVector4>(GraphBuilder));
-		UniformParameters->InViews						= GraphBuilder.CreateSRV(PackedViewBuffer);
+		#if RHI_RAYTRACING
+			UniformParameters->RayTracingCutError			= Nanite::GRayTracingManager.GetCutError();
+			UniformParameters->RayTracingDataBuffer			= Nanite::GRayTracingManager.GetAuxiliaryDataSRV(GraphBuilder);
+		#else
+			UniformParameters->RayTracingCutError			= 0.0f;
+			UniformParameters->RayTracingDataBuffer			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
+		#endif
 
-		ShadingPassParameters->Nanite					= GraphBuilder.CreateUniformBuffer(UniformParameters);
+			UniformParameters->VisBuffer64					= RasterContext.VisBuffer64;
+			UniformParameters->DbgBuffer64					= SystemTextures.Black;
+			UniformParameters->DbgBuffer32					= SystemTextures.Black;
+			UniformParameters->ShadingMask					= SystemTextures.Black;
+
+			UniformParameters->ShadingBinData				= GraphBuilder.CreateSRV(ShadingBinData);
+
+			UniformParameters->MultiViewEnabled				= 1;
+			UniformParameters->MultiViewIndices				= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
+			UniformParameters->MultiViewRectScaleOffsets	= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FVector4>(GraphBuilder));
+			UniformParameters->InViews						= GraphBuilder.CreateSRV(PackedViewBuffer);
+
+			ShadingPassParameters->NaniteShading			= GraphBuilder.CreateUniformBuffer(UniformParameters);
+		}
 	}
 
 	CardPagesToRender[0].PatchView(&Scene, SharedView);

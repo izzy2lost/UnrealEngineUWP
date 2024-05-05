@@ -808,7 +808,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FNaniteView NaniteVi
 FMaterialPixelParameters GetMaterialPixelParameters(FNaniteView NaniteView, inout FVertexFactoryInterpolantsVSToPS Interpolants, inout float4 SvPosition)
 {
 	const uint2 PixelPos = SvPosition.xy - float2(0.5f, 0.5f);
-	const UlongType PackedPixel = Nanite.VisBuffer64[PixelPos];
+	const UlongType PackedPixel = NaniteShading.VisBuffer64[PixelPos];
 	const FBarycentrics Barycentrics = (FBarycentrics)0; // Unused for shading pass (barycentrics are invalid here for full screen tile grid)
 	return FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, true, uint3(0,0,0), true, Interpolants, SvPosition);
 }

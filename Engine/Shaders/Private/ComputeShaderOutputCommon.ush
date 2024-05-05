@@ -323,7 +323,7 @@ void MainCS(
 
 	const uint PixelIndex = (GroupID * COMPUTE_MATERIAL_GROUP_SIZE) + ThreadIndex;
 
-	const uint3 ShadingBinMeta = Nanite.ShadingBinData.Load3(ShadingBin * NANITE_SHADING_BIN_META_BYTES);
+	const uint3 ShadingBinMeta = NaniteShading.ShadingBinData.Load3(ShadingBin * NANITE_SHADING_BIN_META_BYTES);
 	const uint ElementCount = ShadingBinMeta.x;
 	const uint ElementIndex = bQuadBinning ? (PixelIndex >> 2) : PixelIndex;
 
@@ -341,7 +341,7 @@ void MainCS(
 	BRANCH
 	if (bQuadBinning)
 	{
-		const uint2 PackedElement = Nanite.ShadingBinData.Load2(DataByteOffset + (ShadingBinMeta.z * 4 + ElementIndex * 8));
+		const uint2 PackedElement = NaniteShading.ShadingBinData.Load2(DataByteOffset + (ShadingBinMeta.z * 4 + ElementIndex * 8));
 
 		const uint CornerIndex = (ThreadIndex & 3u);
 
@@ -355,7 +355,7 @@ void MainCS(
 	}
 	else
 	{
-		const uint PackedElement= Nanite.ShadingBinData.Load(DataByteOffset + (ShadingBinMeta.z * 4 + ElementIndex * 4));
+		const uint PackedElement= NaniteShading.ShadingBinData.Load(DataByteOffset + (ShadingBinMeta.z * 4 + ElementIndex * 4));
 		PixelPos				= uint2(BitFieldExtractU32(PackedElement, 13, 0), BitFieldExtractU32(PackedElement, 13, 13));
 		VRSShift				= uint2(BitFieldExtractU32(PackedElement, 1, 26), BitFieldExtractU32(PackedElement, 1, 27));
 		PixelWriteMask			= PackedElement >> 28;
