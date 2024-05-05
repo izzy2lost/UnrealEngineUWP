@@ -544,7 +544,7 @@ static void RecordBindings(
 
 #endif // D3D12_RHI_WORKGRAPHS
 
-void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIShaderResourceView* RecordArgBufferSRV, TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
+void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* RecordArgBuffer, TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
 {
 #if D3D12_RHI_WORKGRAPHS
 
@@ -702,12 +702,28 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	// Apply the transient descriptor heaps.
 	SetExplicitDescriptorCache(TransientDescriptorCache);
 
+	TSharedPtr<FD3D12ShaderResourceView> RecordArgBufferSRV;
+
 	// Gather root arguments for global work graph.
 	int32 DispatchSRVTable = INDEX_NONE;
 	{
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalSRVs[MAX_SRVS];
-		FD3D12ShaderResourceView_RHI* D3D12ArgShaderResourceView = FD3D12CommandContext::RetrieveObject<FD3D12ShaderResourceView_RHI>(RecordArgBufferSRV, GetGPUIndex());
-		LocalSRVs[WorkGraphGlobalShader->RecordArgBufferParam.GetBaseIndex()] = D3D12ArgShaderResourceView->GetOfflineCpuHandle();
+
+		FD3D12Buffer* RecordArgBufferPtr = FD3D12DynamicRHI::ResourceCast(RecordArgBuffer);
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+		SRVDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		SRVDesc.Buffer.FirstElement = 0;
+		SRVDesc.Buffer.NumElements = RecordArgBufferPtr->GetSize() >> 2u;
+		SRVDesc.Buffer.StructureByteStride = 0;
+		SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+
+		RecordArgBufferSRV = MakeShared<FD3D12ShaderResourceView>(GetParentDevice());
+		RecordArgBufferSRV->CreateView(RecordArgBufferPtr, SRVDesc, FD3D12ShaderResourceView::EFlags::None);
+
+		LocalSRVs[WorkGraphGlobalShader->RecordArgBufferParam.GetBaseIndex()] = RecordArgBufferSRV->GetOfflineCpuHandle();
 		DispatchSRVTable = TransientDescriptorCache.Allocate(LocalSRVs, 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 0);
 	}
 	check(DispatchSRVTable != INDEX_NONE);

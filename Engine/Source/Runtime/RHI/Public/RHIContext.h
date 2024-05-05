@@ -298,13 +298,13 @@ public:
 
 	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
-		FRHIShaderResourceView* RecordArgBufferSRV,
+		FRHIBuffer* RecordArgBuffer,
 		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 		bool bEmulated) {}
 
 	virtual void RHIDispatchGraphicsShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
-		FRHIShaderResourceView* RecordArgBufferSRV,
+		FRHIBuffer* RecordArgBuffer,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) {}
 

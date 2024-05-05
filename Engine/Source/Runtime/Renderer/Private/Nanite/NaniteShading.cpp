@@ -401,8 +401,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget6)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget7)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, OutTargets)
-
-	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordArgBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
 namespace Nanite
@@ -922,8 +920,6 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 
 	Result.ShadingBinArgs = ShadeBinning.ShadingBinArgs;
 
-	Result.RecordArgBuffer = nullptr;
-
 	{
 		FNaniteUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteUniformParameters>();
 		UniformParameters->PageConstants = RasterResults.PageConstants;
@@ -1178,10 +1174,7 @@ void DispatchBasePass(
 		// This is processed within the RDG pass lambda, so the setup task should be complete by now.
 		check(ShadingCommands.BuildCommandsTask.IsCompleted());
 
-		if (!bBundleShading || bBundleEmulation)
-		{
-			ShadingPassParameters->ShadingBinArgs->MarkResourceAsUsed();
-		}
+		ShadingPassParameters->ShadingBinArgs->MarkResourceAsUsed();
 
 		TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
 		auto GetOutputTargetRHI = [](const FRDGTextureUAVRef OutputTarget)
@@ -1213,7 +1206,7 @@ void DispatchBasePass(
 		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget7));
 
 		FRHIUnorderedAccessView* OutputTargetsArray = GetOutputTargetRHI(ShadingPassParameters->OutTargets);
-		FRHIBuffer* IndirectArgsBuffer = (!bBundleShading || bBundleEmulation) ? ShadingPassParameters->ShadingBinArgs->GetIndirectRHICallBuffer() : nullptr;
+		FRHIBuffer* IndirectArgsBuffer = ShadingPassParameters->ShadingBinArgs->GetIndirectRHICallBuffer();
 
 		if (ParallelCommandListSet)
 		{
@@ -1271,11 +1264,9 @@ void DispatchBasePass(
 			{
 				auto RecordDispatches = [&](FRHICommandDispatchComputeShaderBundle& Command)
 				{
-					Command.ShaderBundle		= ShaderBundle;
-					Command.bEmulated			= bBundleEmulation;
-					Command.RecordArgBufferSRV	= ShadingPassParameters->RecordArgBuffer->GetRHI();
-
-					check(!bBundleEmulation || Command.RecordArgBufferSRV->GetBuffer() == IndirectArgsBuffer);
+					Command.ShaderBundle	= ShaderBundle;
+					Command.bEmulated		= bBundleEmulation;
+					Command.RecordArgBuffer	= IndirectArgsBuffer;
 
 					Command.Dispatches.SetNum(ShaderBundle->NumRecords);
 
@@ -1449,12 +1440,6 @@ void DispatchBasePass(
 	}
 	else
 	{
-		if (bBundleShading)
-		{
-			ShadingPassParameters->RecordArgBuffer = GraphBuilder.CreateSRV(Binning.ShadingBinArgs);
-			check(ShadingPassParameters->RecordArgBuffer != nullptr);
-		}
-
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
@@ -1462,11 +1447,6 @@ void DispatchBasePass(
 			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
-				if (bBundleShading)
-				{
-					ShadingPassParameters->RecordArgBuffer->MarkResourceAsUsed();
-				}
-
 				ShadePassWork(
 					nullptr,
 					FUint32Vector4(
