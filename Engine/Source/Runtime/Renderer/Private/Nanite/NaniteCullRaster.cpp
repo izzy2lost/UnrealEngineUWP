@@ -42,6 +42,8 @@ static_assert(1 + NANITE_MAX_NODES_PER_PRIMITIVE_BITS + NANITE_MAX_VIEWS_PER_CUL
 static_assert(1 + NANITE_MAX_BVH_NODES_PER_GROUP <= 32, "FCandidateNode.z fields don't fit in 32bits");
 static_assert(NANITE_MAX_INSTANCES <= MAX_INSTANCE_ID, "Nanite must be able to represent the full scene instance ID range");
 
+extern TAutoConsoleVariable<int32> CVarNaniteBundleEmulation;
+
 TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents(
 	TEXT("r.Nanite.ShowMeshDrawEvents"),
 	0,
@@ -202,6 +204,14 @@ static TAutoConsoleVariable<float> CVarNaniteRasterIndirectionMultiplier(
 	TEXT("r.Nanite.RasterIndirectionMultiplier"),
 	3.0f,
 	TEXT(""),
+	ECVF_RenderThreadSafe
+);
+
+// TODO: Heavy work in progress, do not use
+static TAutoConsoleVariable<int32> CVarNaniteBundleRaster(
+	TEXT("r.Nanite.Bundle.Raster"),
+	0,
+	TEXT("Whether to enable Nanite shader bundle dispatch for raster"),
 	ECVF_RenderThreadSafe
 );
 
@@ -2651,6 +2661,9 @@ private:
 		FRasterBinMetaArray MetaBufferData;
 		FRDGBufferRef MetaBuffer = nullptr;
 
+		FShaderBundleRHIRef HWShaderBundle;
+		FShaderBundleRHIRef SWShaderBundle;
+
 		const FMaterialRenderProxy* FixedMaterialProxy = nullptr;
 		const FMaterialRenderProxy* HiddenMaterialProxy = nullptr;
 
@@ -2677,11 +2690,15 @@ private:
 			FHWRasterizePS::FParameters Parameters /* Intentional Copy */
 		) const
 		{
-			const bool bAllowPrecacheSkip = GSkipDrawOnPSOPrecaching != 0;
-			const bool bTestPrecacheSkip = CVarNaniteTestPrecacheDrawSkipping.GetValueOnRenderThread() != 0;
+			const bool bShowDrawEvents		= CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0;
+			const bool bAllowPrecacheSkip	= GSkipDrawOnPSOPrecaching != 0;
+			const bool bTestPrecacheSkip	= CVarNaniteTestPrecacheDrawSkipping.GetValueOnRenderThread() != 0;
+			const bool bBundleEmulation		= true;
 
 			if (DispatchList.Indirections.Num() > 0)
 			{
+				Parameters.IndirectArgs->MarkResourceAsUsed();
+
 				FRHIRenderPassInfo RPInfo;
 				RPInfo.ResolveRect = FResolveRect(ViewRect);
 
@@ -2689,121 +2706,203 @@ private:
 				RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, FMath::Min(ViewRect.Max.X, 32767), FMath::Min(ViewRect.Max.Y, 32767), 1.0f);
 				RHICmdList.SetStreamSource(0, nullptr, 0);
 
+				EPrimitiveType PrimitiveType = (HardwarePath == ERasterHardwarePath::PrimitiveShader) ? PT_PointList : PT_TriangleList;
+				FRHIBlendState* BlendState = TStaticBlendState<>::GetRHI();
+				FRHIDepthStencilState* DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+				FRHIVertexDeclaration* VertexDeclaration = IsMeshShaderRasterPath(HardwarePath) ? nullptr : GEmptyVertexDeclaration.VertexDeclarationRHI;
+
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
-				GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-				GraphicsPSOInit.PrimitiveType = (HardwarePath == ERasterHardwarePath::PrimitiveShader) ? PT_PointList : PT_TriangleList;
-				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = IsMeshShaderRasterPath(HardwarePath) ? nullptr : GEmptyVertexDeclaration.VertexDeclarationRHI;
+				GraphicsPSOInit.BlendState = BlendState;
+				GraphicsPSOInit.DepthStencilState = DepthStencilState;
+				GraphicsPSOInit.PrimitiveType = PrimitiveType;
+				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = VertexDeclaration;
 
-				Parameters.IndirectArgs->MarkResourceAsUsed();
-
-				const bool bShowDrawEvents = CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0;
-				for (const int32 Indirection : DispatchList.Indirections)
+				auto BindShadersToPSOInit = [HardwarePath, &GraphicsPSOInit](const FRasterizerPass& PassToBind)
 				{
-					const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
-
-				#if WANTS_DRAW_MESH_EVENTS
-					SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, HWRaster, bShowDrawEvents != 0, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
-				#endif
-
-					Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
-
-					// NOTE: We do *not* use any CullMode overrides here because HWRasterize[VS/MS] already
-					// changes the index order in cases where the culling should be flipped.
-					// The exception is if CM_None is specified for two sided materials, or if the entire raster pass has CM_None specified.
-					const bool bCullModeNone = RasterizerPass.RasterPipeline.bIsTwoSided;
-					GraphicsPSOInit.RasterizerState = GetStaticRasterizerState<false>(FM_Solid, bCullModeNone ? CM_None : CM_CW);
-
-					auto BindShadersToPSOInit = [HardwarePath, &GraphicsPSOInit](const FRasterizerPass& PassToBind)
-					{
-						if (IsMeshShaderRasterPath(HardwarePath))
-						{
-							GraphicsPSOInit.BoundShaderState.SetMeshShader(PassToBind.RasterMeshShader.GetMeshShader());
-						}
-						else
-						{
-							GraphicsPSOInit.BoundShaderState.VertexShaderRHI = PassToBind.RasterVertexShader.GetVertexShader();
-						}
-
-						GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PassToBind.RasterPixelShader.GetPixelShader();
-					};
-
-					auto BindShaderParameters = [HardwarePath, &RHICmdList, &ViewInfo, &Parameters](const FRasterizerPass& PassToBind)
-					{
-						if (IsMeshShaderRasterPath(HardwarePath))
-						{
-							SetShaderParametersMixedMS(RHICmdList, PassToBind.RasterMeshShader, Parameters, ViewInfo, PassToBind.VertexMaterialProxy, *PassToBind.VertexMaterial);
-						}
-						else
-						{
-							SetShaderParametersMixedVS(RHICmdList, PassToBind.RasterVertexShader, Parameters, ViewInfo, PassToBind.VertexMaterialProxy, *PassToBind.VertexMaterial);
-						}
-
-						SetShaderParametersMixedPS(RHICmdList, PassToBind.RasterPixelShader, Parameters, ViewInfo, PassToBind.PixelMaterialProxy, *PassToBind.PixelMaterial);
-					};
-
-					// Disabled for now because this will call PipelineStateCache::IsPrecaching which requires the PSO to have
-					// the minimal state hash computed. Computing this for each PSO each frame is not cheap and ideally the minimal
-					// PSO state can be cached like regular MDCs before activating this (UE-171561)
-					if (false) //bAllowPrecacheSkip && (bTestPrecacheSkip || PipelineStateCache::IsPrecaching(GraphicsPSOInit)))
-					{
-						// Programmable raster PSO has not been precached yet, fallback to fixed function in the meantime to avoid hitching.
-
-						uint32 FixedFunctionBin = NANITE_FIXED_FUNCTION_BIN;
-
-						if (RasterizerPass.bTwoSided)
-						{
-							FixedFunctionBin |= NANITE_FIXED_FUNCTION_BIN_TWOSIDED;
-						}
-
-						// Mutually exclusive
-						if (RasterizerPass.bSkinnedMesh)
-						{
-							FixedFunctionBin |= NANITE_FIXED_FUNCTION_BIN_SKINNED;
-						}
-						else if (RasterizerPass.bSplineMesh)
-						{
-							FixedFunctionBin |= NANITE_FIXED_FUNCTION_BIN_SPLINE;
-						}
-
-						const FRasterizerPass* FixedFunctionPass = RasterizerPasses.FindByPredicate([FixedFunctionBin](const FRasterizerPass& Pass)
-						{
-							return Pass.RasterBin == FixedFunctionBin;
-						});
-
-						check(FixedFunctionPass);
-
-						BindShadersToPSOInit(*FixedFunctionPass);
-						SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-						BindShaderParameters(*FixedFunctionPass);
-					}
-					else
-					{
-						BindShadersToPSOInit(RasterizerPass);
-
-					#if PSO_PRECACHING_VALIDATE
-						if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
-						{
-							PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &FNaniteVertexFactory::StaticType, nullptr, PSOCollectorIndex);
-						}
-					#endif
-
-						SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-						BindShaderParameters(RasterizerPass);
-					}
-
-					if (GRHISupportsShaderRootConstants)
-					{
-						RHICmdList.SetShaderRootConstants(Parameters.PassData);
-					}
-
 					if (IsMeshShaderRasterPath(HardwarePath))
 					{
-						RHICmdList.DispatchIndirectMeshShader(Parameters.IndirectArgs->GetIndirectRHICallBuffer(), RasterizerPass.IndirectOffset + 16);
+						GraphicsPSOInit.BoundShaderState.SetMeshShader(PassToBind.RasterMeshShader.GetMeshShader());
 					}
 					else
 					{
-						RHICmdList.DrawPrimitiveIndirect(Parameters.IndirectArgs->GetIndirectRHICallBuffer(), RasterizerPass.IndirectOffset + 16);
+						GraphicsPSOInit.BoundShaderState.VertexShaderRHI = PassToBind.RasterVertexShader.GetVertexShader();
+					}
+
+					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PassToBind.RasterPixelShader.GetPixelShader();
+				};
+
+				if (HWShaderBundle != nullptr)
+				{
+					auto RecordDispatches = [&](FRHICommandDispatchGraphicsShaderBundle& Command)
+					{
+						Command.ShaderBundle		= HWShaderBundle;
+						Command.bEmulated			= bBundleEmulation;
+						Command.RecordArgBuffer		= Parameters.IndirectArgs->GetIndirectRHICallBuffer();
+
+						Command.Dispatches.SetNum(HWShaderBundle->NumRecords);
+
+						for (FRHIShaderBundleGraphicsDispatch& Dispatch : Command.Dispatches)
+						{
+							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
+							Dispatch.RecordIndex = ~uint32(0u);
+						}
+
+						for (const int32 Indirection : DispatchList.Indirections)
+						{
+							const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
+							Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
+
+							FRHIShaderBundleGraphicsDispatch& Dispatch = Command.Dispatches[RasterizerPass.RasterBin];
+							Dispatch.RecordIndex = RasterizerPass.RasterBin;
+							Dispatch.Constants = Parameters.PassData;
+
+							// NOTE: We do *not* use any CullMode overrides here because HWRasterize[VS/MS] already
+							// changes the index order in cases where the culling should be flipped.
+							// The exception is if CM_None is specified for two sided materials, or if the entire raster pass has CM_None specified.
+							const bool bCullModeNone = RasterizerPass.RasterPipeline.bIsTwoSided;
+							GraphicsPSOInit.RasterizerState = GetStaticRasterizerState<false>(FM_Solid, bCullModeNone ? CM_None : CM_CW);
+
+							BindShadersToPSOInit(RasterizerPass);
+
+						#if PSO_PRECACHING_VALIDATE
+							if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+							{
+								PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &FNaniteVertexFactory::StaticType, nullptr, PSOCollectorIndex);
+							}
+						#endif
+
+							if (IsMeshShaderRasterPath(HardwarePath))
+							{
+								SetShaderParametersMixedMS(Dispatch.Parameters_MSVS, RasterizerPass.RasterMeshShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+							}
+							else
+							{
+								SetShaderParametersMixedVS(Dispatch.Parameters_MSVS, RasterizerPass.RasterVertexShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+							}
+
+							SetShaderParametersMixedPS(Dispatch.Parameters_PS, RasterizerPass.RasterPixelShader, Parameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
+
+							Dispatch.PipelineInitializer = GraphicsPSOInit;
+							Dispatch.PipelineState = FindGraphicsPipelineState(Dispatch.PipelineInitializer);
+							if (Dispatch.PipelineState == nullptr)
+							{
+								// If we don't have precaching, then GetGraphicsPipelineState() might return a PipelineState that isn't ready.
+								const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
+
+								Dispatch.PipelineState = GetGraphicsPipelineState(RHICmdList, Dispatch.PipelineInitializer, !bSkipDraw);
+									
+								if (bSkipDraw)
+								{
+									Dispatch.RecordIndex = ~uint32(0u);
+									continue;
+								}
+							}
+								
+							if (RHICmdList.Bypass())
+							{
+								Dispatch.RHIPipeline = ExecuteSetGraphicsPipelineState(Dispatch.PipelineState);
+							}
+						}
+						
+					};
+
+					RHICmdList.DispatchGraphicsShaderBundle(RecordDispatches);
+				}
+				else
+				{
+					for (const int32 Indirection : DispatchList.Indirections)
+					{
+						const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
+
+					#if WANTS_DRAW_MESH_EVENTS
+						SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, HWRaster, bShowDrawEvents != 0, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
+					#endif
+
+						Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
+
+						// NOTE: We do *not* use any CullMode overrides here because HWRasterize[VS/MS] already
+						// changes the index order in cases where the culling should be flipped.
+						// The exception is if CM_None is specified for two sided materials, or if the entire raster pass has CM_None specified.
+						const bool bCullModeNone = RasterizerPass.RasterPipeline.bIsTwoSided;
+						GraphicsPSOInit.RasterizerState = GetStaticRasterizerState<false>(FM_Solid, bCullModeNone ? CM_None : CM_CW);
+
+						auto BindShaderParameters = [HardwarePath, &RHICmdList, &ViewInfo, &Parameters](const FRasterizerPass& PassToBind)
+						{
+							if (IsMeshShaderRasterPath(HardwarePath))
+							{
+								SetShaderParametersMixedMS(RHICmdList, PassToBind.RasterMeshShader, Parameters, ViewInfo, PassToBind.VertexMaterialProxy, *PassToBind.VertexMaterial);
+							}
+							else
+							{
+								SetShaderParametersMixedVS(RHICmdList, PassToBind.RasterVertexShader, Parameters, ViewInfo, PassToBind.VertexMaterialProxy, *PassToBind.VertexMaterial);
+							}
+
+							SetShaderParametersMixedPS(RHICmdList, PassToBind.RasterPixelShader, Parameters, ViewInfo, PassToBind.PixelMaterialProxy, *PassToBind.PixelMaterial);
+						};
+
+						// Disabled for now because this will call PipelineStateCache::IsPrecaching which requires the PSO to have
+						// the minimal state hash computed. Computing this for each PSO each frame is not cheap and ideally the minimal
+						// PSO state can be cached like regular MDCs before activating this (UE-171561)
+						if (false) //bAllowPrecacheSkip && (bTestPrecacheSkip || PipelineStateCache::IsPrecaching(GraphicsPSOInit)))
+						{
+							// Programmable raster PSO has not been precached yet, fallback to fixed function in the meantime to avoid hitching.
+
+							uint32 FixedFunctionBin = NANITE_FIXED_FUNCTION_BIN;
+
+							if (RasterizerPass.bTwoSided)
+							{
+								FixedFunctionBin |= NANITE_FIXED_FUNCTION_BIN_TWOSIDED;
+							}
+
+							// Mutually exclusive
+							if (RasterizerPass.bSkinnedMesh)
+							{
+								FixedFunctionBin |= NANITE_FIXED_FUNCTION_BIN_SKINNED;
+							}
+							else if (RasterizerPass.bSplineMesh)
+							{
+								FixedFunctionBin |= NANITE_FIXED_FUNCTION_BIN_SPLINE;
+							}
+
+							const FRasterizerPass* FixedFunctionPass = RasterizerPasses.FindByPredicate([FixedFunctionBin](const FRasterizerPass& Pass)
+							{
+								return Pass.RasterBin == FixedFunctionBin;
+							});
+
+							check(FixedFunctionPass);
+
+							BindShadersToPSOInit(*FixedFunctionPass);
+							SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+							BindShaderParameters(*FixedFunctionPass);
+						}
+						else
+						{
+							BindShadersToPSOInit(RasterizerPass);
+
+						#if PSO_PRECACHING_VALIDATE
+							if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+							{
+								PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &FNaniteVertexFactory::StaticType, nullptr, PSOCollectorIndex);
+							}
+						#endif
+
+							SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+							BindShaderParameters(RasterizerPass);
+						}
+
+						if (GRHISupportsShaderRootConstants)
+						{
+							RHICmdList.SetShaderRootConstants(Parameters.PassData);
+						}
+
+						if (IsMeshShaderRasterPath(HardwarePath))
+						{
+							RHICmdList.DispatchIndirectMeshShader(Parameters.IndirectArgs->GetIndirectRHICallBuffer(), RasterizerPass.IndirectOffset + 16);
+						}
+						else
+						{
+							RHICmdList.DrawPrimitiveIndirect(Parameters.IndirectArgs->GetIndirectRHICallBuffer(), RasterizerPass.IndirectOffset + 16);
+						}
 					}
 				}
 
@@ -2820,53 +2919,126 @@ private:
 			bool bPatches
 		) const
 		{
+			const bool bShowDrawEvents	= CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0;
+			const bool bBundleEmulation	= CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
+
 			if (DispatchList.Indirections.Num() > 0)
 			{
 				Parameters.IndirectArgs->MarkResourceAsUsed();
 
-				const bool bShowDrawEvents = CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0;
-				for (const int32 Indirection : DispatchList.Indirections)
+				if (SWShaderBundle != nullptr)
 				{
-					const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
-
-				#if WANTS_DRAW_MESH_EVENTS
-					SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWRaster, bShowDrawEvents, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
-				#endif
-
-					Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
-
-					const TShaderRef<FMicropolyRasterizeCS>* ComputeShader = bPatches ? &RasterizerPass.PatchComputeShader : &RasterizerPass.ClusterComputeShader;
-
-					FRHIBuffer* IndirectArgsBuffer = Parameters.IndirectArgs->GetIndirectRHICallBuffer();
-					FRHIComputeShader* ShaderRHI = ComputeShader->GetComputeShader();
-
-					// TODO: Implement support for testing precache and skipping if needed
-
-					FComputeShaderUtils::ValidateIndirectArgsBuffer(IndirectArgsBuffer->GetSize(), RasterizerPass.IndirectOffset);
-
-					SetComputePipelineState(RHICmdList, ShaderRHI);
-
-				#if PSO_PRECACHING_VALIDATE
-					EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(ShaderRHI);
-					PSOCollectorStats::CheckComputePipelineStateInCache(*ShaderRHI, PSOPrecacheResult, RasterizerPass.ComputeMaterialProxy, PSOCollectorIndex);
-				#endif
-
-					SetShaderParametersMixedCS(
-						RHICmdList,
-						*ComputeShader,
-						Parameters,
-						ViewInfo,
-						RasterizerPass.ComputeMaterialProxy,
-						*RasterizerPass.ComputeMaterial
-					);
-
-					if (GRHISupportsShaderRootConstants)
+					auto RecordDispatches = [&](FRHICommandDispatchComputeShaderBundle& Command)
 					{
-						RHICmdList.SetShaderRootConstants(Parameters.PassData);
-					}
+						Command.ShaderBundle	= SWShaderBundle;
+						Command.bEmulated		= bBundleEmulation;
+						Command.RecordArgBuffer	= Parameters.IndirectArgs->GetIndirectRHICallBuffer();
 
-					RHICmdList.DispatchIndirectComputeShader(IndirectArgsBuffer, RasterizerPass.IndirectOffset);
-					UnsetShaderUAVs(RHICmdList, *ComputeShader, ShaderRHI);
+						Command.Dispatches.SetNum(SWShaderBundle->NumRecords);
+
+						for (FRHIShaderBundleComputeDispatch& Dispatch : Command.Dispatches)
+						{
+							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
+							Dispatch.RecordIndex = ~uint32(0u);
+						}
+
+						for (const int32 Indirection : DispatchList.Indirections)
+						{
+							const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
+							Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
+
+							FRHIShaderBundleComputeDispatch& Dispatch = Command.Dispatches[RasterizerPass.RasterBin];
+							Dispatch.RecordIndex = RasterizerPass.RasterBin;
+							Dispatch.Constants = Parameters.PassData;
+
+							const TShaderRef<FMicropolyRasterizeCS>* ComputeShader = bPatches ? &RasterizerPass.PatchComputeShader : &RasterizerPass.ClusterComputeShader;
+							Dispatch.Shader = ComputeShader->GetComputeShader();
+
+							SetShaderParametersMixedCS(
+								Dispatch.Parameters,
+								*ComputeShader,
+								Parameters,
+								ViewInfo,
+								RasterizerPass.ComputeMaterialProxy,
+								*RasterizerPass.ComputeMaterial
+							);
+
+							// TODO: Implement support for testing precache and skipping if needed
+
+						#if PSO_PRECACHING_VALIDATE
+							EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(Dispatch.Shader);
+							PSOCollectorStats::CheckComputePipelineStateInCache(*Dispatch.Shader, PSOPrecacheResult, RasterizerPass.ComputeMaterialProxy, PSOCollectorIndex);
+						#endif
+
+							Dispatch.PipelineState = FindComputePipelineState(Dispatch.Shader);
+							if (Dispatch.PipelineState == nullptr)
+							{
+								// If we don't have precaching, then GetComputePipelineState() might return a PipelineState that isn't ready.
+								const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
+
+								Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader, !bSkipDraw);
+									
+								if (bSkipDraw)
+								{
+									Dispatch.RecordIndex = ~uint32(0u);
+									continue;
+								}
+							}
+
+							if (RHICmdList.Bypass())
+							{
+								Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
+							}
+						}
+					};
+
+					RHICmdList.DispatchComputeShaderBundle(RecordDispatches);
+				}
+				else
+				{
+					for (const int32 Indirection : DispatchList.Indirections)
+					{
+						const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
+
+					#if WANTS_DRAW_MESH_EVENTS
+						SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWRaster, bShowDrawEvents, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
+					#endif
+
+						Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
+
+						const TShaderRef<FMicropolyRasterizeCS>* ComputeShader = bPatches ? &RasterizerPass.PatchComputeShader : &RasterizerPass.ClusterComputeShader;
+
+						FRHIBuffer* IndirectArgsBuffer = Parameters.IndirectArgs->GetIndirectRHICallBuffer();
+						FRHIComputeShader* ShaderRHI = ComputeShader->GetComputeShader();
+
+						// TODO: Implement support for testing precache and skipping if needed
+
+						FComputeShaderUtils::ValidateIndirectArgsBuffer(IndirectArgsBuffer->GetSize(), RasterizerPass.IndirectOffset);
+
+						SetComputePipelineState(RHICmdList, ShaderRHI);
+
+					#if PSO_PRECACHING_VALIDATE
+						EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(ShaderRHI);
+						PSOCollectorStats::CheckComputePipelineStateInCache(*ShaderRHI, PSOPrecacheResult, RasterizerPass.ComputeMaterialProxy, PSOCollectorIndex);
+					#endif
+
+						if (GRHISupportsShaderRootConstants)
+						{
+							RHICmdList.SetShaderRootConstants(Parameters.PassData);
+						}
+
+						SetShaderParametersMixedCS(
+							RHICmdList,
+							*ComputeShader,
+							Parameters,
+							ViewInfo,
+							RasterizerPass.ComputeMaterialProxy,
+							*RasterizerPass.ComputeMaterial
+						);
+
+						RHICmdList.DispatchIndirectComputeShader(IndirectArgsBuffer, RasterizerPass.IndirectOffset);
+						UnsetShaderUAVs(RHICmdList, *ComputeShader, ShaderRHI);
+					}
 				}
 			}
 		}
@@ -3988,6 +4160,11 @@ FBinningData FRenderer::AddPass_Binning(
 	return BinningData;
 }
 
+static bool UseShaderBundle(EShaderPlatform Platform)
+{
+	return  CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && (!!GRHISupportsShaderBundleDispatch);
+}
+
 void FRenderer::PrepareRasterizerPasses(
 	FRenderer::FDispatchContext& Context,
 	const ERasterHardwarePath HardwarePath,
@@ -4008,6 +4185,60 @@ void FRenderer::PrepareRasterizerPasses(
 	const uint32 RasterBinCount = RasterPipelines.GetBinCount();
 
 	Context.MetaBufferData.SetNumZeroed(RasterBinCount);
+
+	// Create Shader Bundle
+	if (UseShaderBundle(GetFeatureLevelShaderPlatform(FeatureLevel)) && RasterBinCount > 0)
+	{
+		/*  Nanite Notes:
+				8x Total DWords
+				See: WriteRasterizerArgsSWHW
+
+			SW (1/2):
+				SW: ThreadGroupCountX
+				SW: ThreadGroupCountY
+				SW: ThreadGroupCountZ
+				Padding
+			MS (2/2):
+				HW: ThreadGroupCountX
+				HW: ThreadGroupCountY (1 unless wrapped platform)
+				HW: ThreadGroupCountZ (1 unless wrapped platform)
+				Padding
+			VS (2/2):
+				HW: VertexCountPerInstance (NANITE_MAX_CLUSTER_TRIANGLES * 3)
+				HW: InstanceCount (NumClustersHW)
+				HW: StartVertexLocation (Always 0)
+				HW: StartInstanceLocation (Always 0)
+		*/
+		const uint32 NumRecords = RasterBinCount;
+		const uint32 ArgStride = NANITE_RASTERIZER_ARG_COUNT * 4u;
+		
+		// SW shader bundle
+		{
+			FShaderBundleCreateInfo BundleCreateInfo;
+			BundleCreateInfo.ArgOffset = 0u;
+			BundleCreateInfo.ArgStride = ArgStride;
+			BundleCreateInfo.NumRecords = NumRecords;
+			BundleCreateInfo.Mode = ERHIShaderBundleMode::CS;
+			Context.SWShaderBundle = RHICreateShaderBundle(BundleCreateInfo);
+			check(Context.SWShaderBundle != nullptr);
+		}
+
+		// HW shader bundle
+		{
+			FShaderBundleCreateInfo BundleCreateInfo;
+			BundleCreateInfo.ArgOffset = 16u;
+			BundleCreateInfo.ArgStride = ArgStride;
+			BundleCreateInfo.NumRecords = NumRecords;
+			BundleCreateInfo.Mode = IsMeshShaderRasterPath(HardwarePath) ? ERHIShaderBundleMode::MSPS : ERHIShaderBundleMode::VSPS;
+			Context.HWShaderBundle = RHICreateShaderBundle(BundleCreateInfo);
+			check(Context.HWShaderBundle != nullptr);
+		}
+	}
+	else
+	{
+		Context.SWShaderBundle = nullptr;
+		Context.HWShaderBundle = nullptr;
+	}
 
 	static UE::Tasks::FPipe GNaniteRasterSetupPipe(TEXT("NaniteRasterSetupPipe"));
 

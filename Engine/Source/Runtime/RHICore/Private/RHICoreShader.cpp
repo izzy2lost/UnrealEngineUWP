@@ -92,7 +92,7 @@ void DispatchShaderBundleEmulation(
 {
 	for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 	{
-		if (Dispatch.Shader == nullptr)
+		if (!Dispatch.IsValid() || Dispatch.Shader == nullptr)
 		{
 			continue;
 		}
@@ -132,8 +132,12 @@ void DispatchShaderBundleEmulation(
 
 	for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
 	{
-		const FBoundShaderStateInput& ShaderState = Dispatch.PipelineInitializer.BoundShaderState;
+		if (!Dispatch.IsValid())
+		{
+			continue;
+		}
 
+		const FBoundShaderStateInput& ShaderState = Dispatch.PipelineInitializer.BoundShaderState;
 		FRHIGraphicsShader* MSVSShader = ShaderBundle->Mode == ERHIShaderBundleMode::MSPS ? (FRHIGraphicsShader*)ShaderState.GetMeshShader() : (FRHIGraphicsShader*)ShaderState.GetVertexShader();
 
 		if (ShaderState.GetPixelShader() == nullptr || MSVSShader == nullptr)

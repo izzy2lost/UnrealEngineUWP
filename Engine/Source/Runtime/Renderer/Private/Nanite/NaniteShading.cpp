@@ -73,10 +73,9 @@ static FAutoConsoleVariableRef CVarNaniteFastTileVis(
 	ECVF_RenderThreadSafe
 );
 
-static int32 GNaniteBundleEmulation = 0;
-static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
+TAutoConsoleVariable<int32> CVarNaniteBundleEmulation(
 	TEXT("r.Nanite.Bundle.Emulation"),
-	GNaniteBundleEmulation,
+	0,
 	TEXT("Whether to force shader bundle dispatch emulation"),
 	ECVF_RenderThreadSafe
 );
@@ -1165,7 +1164,7 @@ void DispatchBasePass(
 	);
 
 	const bool bBundleShading = ShaderBundle != nullptr && UseShaderBundle(Scene.GetShaderPlatform());
-	const bool bBundleEmulation = bBundleShading && GNaniteBundleEmulation != 0;
+	const bool bBundleEmulation = bBundleShading && CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
 
 	auto ShadePassWork = []
 	(
