@@ -1394,8 +1394,7 @@ bool FMeshDrawCommand::SubmitDrawBegin(
 		}
 
 		// We can set the new StencilRef here to avoid the set below
-		bool bApplyAdditionalState = true;
-		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, MeshDrawCommand.StencilRef, EApplyRendertargetOption::CheckApply, bApplyAdditionalState);
+		SetGraphicsPipelineStateCheckApply(RHICmdList, GraphicsPSOInit, MeshDrawCommand.StencilRef);
 		StateCache.SetPipelineState(MeshDrawCommand.CachedPipelineId.GetId());
 		StateCache.StencilRef = MeshDrawCommand.StencilRef;
 	}

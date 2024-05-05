@@ -918,7 +918,7 @@ FComputePipelineState* FindComputePipelineState(FRHIComputeShader* ComputeShader
 FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bVerifyUse)
 {
 	FComputePipelineState* PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, ComputeShader, false);
-	if (bVerifyUse)
+	if (PipelineState && bVerifyUse)
 	{
 		PipelineState->Verify_IncUse();
 	}
@@ -931,16 +931,53 @@ void SetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShad
 	RHICmdList.SetComputePipelineState(PipelineState, ComputeShader);
 }
 
+FGraphicsPipelineState* FindGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer, bool bVerifyUse)
+{
+	return PipelineStateCache::FindGraphicsPipelineState(Initializer, bVerifyUse);
+}
+
+FGraphicsPipelineState* GetGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, EApplyRendertargetOption ApplyFlags, bool bVerifyUse)
+{
+#if PLATFORM_USE_FALLBACK_PSO
+	checkNoEntry();
+	return nullptr;
+#else
+	FGraphicsPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateGraphicsPipelineState(RHICmdList, Initializer, ApplyFlags);
+	if (PipelineState && bVerifyUse && !Initializer.bFromPSOFileCache)
+	{
+		PipelineState->Verify_IncUse();
+	}
+	return PipelineState;
+#endif
+}
+
+FGraphicsPipelineState* GetGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, bool bVerifyUse)
+{
+	return GetGraphicsPipelineState(RHICmdList, Initializer, EApplyRendertargetOption::CheckApply, bVerifyUse);
+}
+
 void SetGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, uint32 StencilRef, EApplyRendertargetOption ApplyFlags, bool bApplyAdditionalState)
 {
 #if PLATFORM_USE_FALLBACK_PSO
 	RHICmdList.SetGraphicsPipelineState(Initializer, StencilRef, bApplyAdditionalState);
 #else
-	FGraphicsPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateGraphicsPipelineState(RHICmdList, Initializer, ApplyFlags);
-
+	FGraphicsPipelineState* PipelineState = GetGraphicsPipelineState(RHICmdList, Initializer, ApplyFlags, true /* bVerifyUse */);
 	if (PipelineState && !Initializer.bFromPSOFileCache)
 	{
-		PipelineState->Verify_IncUse();
+		check(IsInRenderingThread() || IsInParallelRenderingThread());
+		RHICmdList.SetGraphicsPipelineState(PipelineState, Initializer.BoundShaderState, StencilRef, bApplyAdditionalState);
+	}
+#endif
+}
+
+void SetGraphicsPipelineStateCheckApply(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, uint32 StencilRef, bool bApplyAdditionalState)
+{
+#if PLATFORM_USE_FALLBACK_PSO
+	RHICmdList.SetGraphicsPipelineState(Initializer, StencilRef, bApplyAdditionalState);
+#else
+	FGraphicsPipelineState* PipelineState = GetGraphicsPipelineState(RHICmdList, Initializer, true /* bVerifyUse */);
+	if (PipelineState && !Initializer.bFromPSOFileCache)
+	{
 		check(IsInRenderingThread() || IsInParallelRenderingThread());
 		RHICmdList.SetGraphicsPipelineState(PipelineState, Initializer.BoundShaderState, StencilRef, bApplyAdditionalState);
 	}
