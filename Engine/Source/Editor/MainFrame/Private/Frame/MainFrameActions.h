@@ -110,6 +110,12 @@ public:
 
 	/** Saves all levels and asset packages */
 	static void SaveAll();
+
+	/** Determine whether we are allowed to submit content at this moment */
+	static bool CanSubmitContent();
+
+	/** Determine whether we are allocated to sync content at this moment */
+	static bool CanSyncContent();
 	
 	/** Opens a dialog to choose packages to save */
 	static void ChoosePackagesToSave();
@@ -199,9 +205,6 @@ public:
 
 	/** Whether menu to add code to the current project is visible */
 	static bool IsAddCodeToProjectVisible();
-
-	/** Checks whether a menu action for packaging the project can execute. */
-	static bool PackageProjectCanExecute( const FName PlatformInfoName );
 
 	/** Refresh the project in the current IDE */
 	static void RefreshCodeProject();
