@@ -2693,7 +2693,7 @@ private:
 			const bool bShowDrawEvents		= CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0;
 			const bool bAllowPrecacheSkip	= GSkipDrawOnPSOPrecaching != 0;
 			const bool bTestPrecacheSkip	= CVarNaniteTestPrecacheDrawSkipping.GetValueOnRenderThread() != 0;
-			const bool bBundleEmulation		= true;
+			const bool bBundleEmulation		= CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
 
 			if (DispatchList.Indirections.Num() > 0)
 			{
@@ -4160,9 +4160,9 @@ FBinningData FRenderer::AddPass_Binning(
 	return BinningData;
 }
 
-static bool UseShaderBundle(EShaderPlatform Platform)
+static bool UseRasterShaderBundle(EShaderPlatform Platform)
 {
-	return  CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && (!!GRHISupportsShaderBundleDispatch);
+	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && (!!GRHISupportsShaderBundleDispatch);
 }
 
 void FRenderer::PrepareRasterizerPasses(
@@ -4187,7 +4187,7 @@ void FRenderer::PrepareRasterizerPasses(
 	Context.MetaBufferData.SetNumZeroed(RasterBinCount);
 
 	// Create Shader Bundle
-	if (UseShaderBundle(GetFeatureLevelShaderPlatform(FeatureLevel)) && RasterBinCount > 0)
+	if (UseRasterShaderBundle(GetFeatureLevelShaderPlatform(FeatureLevel)) && RasterBinCount > 0)
 	{
 		/*  Nanite Notes:
 				8x Total DWords

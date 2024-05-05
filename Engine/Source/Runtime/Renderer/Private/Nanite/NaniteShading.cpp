@@ -152,7 +152,7 @@ static bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform)
 	return bValidDevice && bNaniteBundleSupportWorkGraphs && !!GRHISupportsShaderBundleWorkGraphDispatch && RHISupportsWorkGraphs(Platform);
 }
 
-static bool UseShaderBundle(EShaderPlatform Platform)
+static bool UseShadingShaderBundle(EShaderPlatform Platform)
 {
 	return  GNaniteBundleShading != 0 && (!!GRHISupportsShaderBundleDispatch || CanUseShaderBundleWorkGraph(Platform));
 }
@@ -456,7 +456,7 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 			}
 
 			// Create Shader Bundle
-			if (UseShaderBundle(ShaderPlatform) && ShadingCommands.NumCommands > 0)
+			if (UseShadingShaderBundle(ShaderPlatform) && ShadingCommands.NumCommands > 0)
 			{
 				FShaderBundleCreateInfo CreateInfo;
 				CreateInfo.ArgOffset = 0u;
@@ -1163,7 +1163,7 @@ void DispatchBasePass(
 		Binning
 	);
 
-	const bool bBundleShading = ShaderBundle != nullptr && UseShaderBundle(Scene.GetShaderPlatform());
+	const bool bBundleShading = ShaderBundle != nullptr && UseShadingShaderBundle(Scene.GetShaderPlatform());
 	const bool bBundleEmulation = bBundleShading && CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
 
 	auto ShadePassWork = []
