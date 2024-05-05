@@ -2,6 +2,7 @@
 
 #include "AvaBroadcastOutputClassItem.h"
 
+#include "AvaBroadcastDeviceProviderRegistry.h"
 #include "AvaBroadcastOutputDeviceItem.h"
 #include "AvaBroadcastOutputServerItem.h"
 #include "Broadcast/AvaBroadcast.h"
@@ -56,7 +57,11 @@ FText FAvaBroadcastOutputClassItem::GetDisplayName() const
 	check(OutputClass.IsValid());
 	return OutputClass->GetDisplayNameText();
 #else
-	return LOCTEXT("DisplayName_NotAvailable", "NotAvailable");	// Not available in game build.
+	if (OutputClass.IsValid())
+	{
+		return FAvaBroadcastDeviceProviderRegistry::Get().GetOutputClassDisplayText(OutputClass.Get());
+	}
+	return LOCTEXT("DisplayName_NotAvailable", "NotAvailable");
 #endif
 }
 

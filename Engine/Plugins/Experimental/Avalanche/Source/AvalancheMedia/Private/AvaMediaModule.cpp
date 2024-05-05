@@ -5,6 +5,7 @@
 #include "Application/ThrottleManager.h"
 #include "AvaMediaSettings.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Broadcast/OutputDevices/AvaBroadcastDeviceProviderRegistry.h"
 #include "Broadcast/OutputDevices/AvaBroadcastRenderTargetMediaUtils.h"
 #include "IMediaIOCoreModule.h"
 #include "Interfaces/IPluginManager.h"
@@ -423,6 +424,11 @@ void FAvaMediaModule::PostEngineInit()
 	const UAvaMediaSettings& Settings = UAvaMediaSettings::Get();
 
 	ManagedInstanceCache = MakeShared<FAvaRundownManagedInstanceCache>();
+
+#if WITH_EDITOR
+	// Initialise the device provider registry.
+	FAvaBroadcastDeviceProviderRegistry::Get();
+#endif
 	
 	// Allow for specification of the server name in the command line.
 	// Command line has priority over project settings. 

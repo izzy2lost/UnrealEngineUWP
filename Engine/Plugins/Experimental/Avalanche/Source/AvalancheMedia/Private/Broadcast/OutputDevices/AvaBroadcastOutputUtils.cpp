@@ -2,6 +2,7 @@
 
 #include "Broadcast/OutputDevices/AvaBroadcastOutputUtils.h"
 
+#include "AvaBroadcastDeviceProviderRegistry.h"
 #include "Broadcast/OutputDevices/AvaGameViewportMediaOutput.h"
 #include "MediaIOCoreDefinitions.h"
 #include "MediaOutput.h"
@@ -48,7 +49,7 @@ bool UE::AvaBroadcastOutputUtils::HasDeviceProviderName(const UClass* InMediaOut
 		&& InMediaOutputClass->IsChildOf(UMediaOutput::StaticClass())
 		&& InMediaOutputClass->HasMetaData(Private::NAME_MediaIOCustomLayout);
 #else
-	return false;
+	return FAvaBroadcastDeviceProviderRegistry::Get().HasDeviceProviderName(InMediaOutputClass);
 #endif
 }
 
@@ -59,22 +60,27 @@ FName UE::AvaBroadcastOutputUtils::GetDeviceProviderName(const UClass* InMediaOu
 	{
 		return FName(InMediaOutputClass->GetMetaData(Private::NAME_MediaIOCustomLayout));
 	}
-#endif
 	return FName();
+#else
+	return FAvaBroadcastDeviceProviderRegistry::Get().GetDeviceProviderName(InMediaOutputClass);
+#endif
 }
 
 FName UE::AvaBroadcastOutputUtils::GetDeviceProviderName(const UMediaOutput* InMediaOutput)
 {
-#if WITH_EDITORONLY_DATA
 	const UClass* const MediaOutputClass = IsValid(InMediaOutput) ? InMediaOutput->GetClass() : nullptr;
-	if (MediaOutputClass
-		&& IsValid(MediaOutputClass)
-		&& MediaOutputClass->HasMetaData(Private::NAME_MediaIOCustomLayout))
+	if (MediaOutputClass && IsValid(MediaOutputClass))
 	{
-		return FName(MediaOutputClass->GetMetaData(Private::NAME_MediaIOCustomLayout));
-	}
+#if WITH_EDITORONLY_DATA
+		if (MediaOutputClass->HasMetaData(Private::NAME_MediaIOCustomLayout))
+		{
+			return FName(MediaOutputClass->GetMetaData(Private::NAME_MediaIOCustomLayout));
+		}
+#else
+		return FAvaBroadcastDeviceProviderRegistry::Get().GetDeviceProviderName(MediaOutputClass);
 #endif
-	return FName();
+	}
+	return FName(); 
 }
 
 bool UE::AvaBroadcastOutputUtils::IsGameViewportOutput(const UMediaOutput* InMediaOutput)
