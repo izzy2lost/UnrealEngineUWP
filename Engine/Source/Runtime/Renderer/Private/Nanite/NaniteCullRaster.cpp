@@ -5294,6 +5294,7 @@ FRasterContext InitRasterContext(
 	if (CVarNaniteComputeRasterization.GetValueOnRenderThread() != 0)
 	{
 		bAsyncCompute = bAsyncCompute
+			&& (CVarNaniteBundleRaster.GetValueOnRenderThread() == 0) // TODO: Async compute is not 100% stable yet
 			&& GSupportsEfficientAsyncCompute
 			&& (CVarNaniteEnableAsyncRasterization.GetValueOnRenderThread() != 0) 
 			&& EnumHasAnyFlags(GRHIMultiPipelineMergeableAccessMask, ERHIAccess::UAVMask)
