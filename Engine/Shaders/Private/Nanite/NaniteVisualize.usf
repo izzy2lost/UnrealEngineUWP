@@ -858,13 +858,24 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			float3 MaxBounds = float(-999999999.0f).xxx;
 			
 			// Operate on max of 16 bones for now. This computation will be moved to the cluster generation/encoding on the CPU side.
-			static const uint IBI = 0xFFFFFFFFu;
-			uint ClusterBoneIndexes[16] = {IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI};
-			float ClusterBoneWeightMin[16];
-			float ClusterBoneWeightMax[16];
-			float3 ClusterBoneBoundsMin[16];
-			float3 ClusterBoneBoundsMax[16];
+			const uint MaxClusterBoneCount = 16;
+
+			const uint IBI = 0xFFFFFFFFu;
+			uint ClusterBoneIndexes[MaxClusterBoneCount] = {IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI};
+			float ClusterBoneWeightMin[MaxClusterBoneCount];
+			float ClusterBoneWeightMax[MaxClusterBoneCount];
+			float3 ClusterBoneBoundsMin[MaxClusterBoneCount];
+			float3 ClusterBoneBoundsMax[MaxClusterBoneCount];
 			
+			UNROLL
+			for (uint BoneIndex = 0; BoneIndex < MaxClusterBoneCount; ++BoneIndex)
+			{
+				ClusterBoneWeightMin[BoneIndex] = 0.0f;
+				ClusterBoneWeightMax[BoneIndex] = 0.0f;
+				ClusterBoneBoundsMin[BoneIndex] = MinBounds;
+				ClusterBoneBoundsMax[BoneIndex] = MaxBounds;
+			}
+
 			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
 			{
 				float3 PointLocal = DecodePosition(VertexID, Cluster);
