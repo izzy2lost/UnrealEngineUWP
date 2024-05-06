@@ -166,7 +166,7 @@ public:
 		{
 			FVector3d Point = VertexSource->GetVertex(VertexID);
 			ModifiedBounds.Contain(Point);
-			FSparseDynamicPointOctree3::ReinsertPoint(VertexID, ModifiedBounds);
+			FSparseDynamicPointOctree3::ReinsertPoint(VertexID, Point);
 		}
 	}
 
