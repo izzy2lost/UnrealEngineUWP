@@ -92,7 +92,7 @@ struct FTextureSourceData
 	// Clear the current source data and make it into a placeholder texture.
 	void InitAsPlaceholder();
 
-	void Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, bool bAllowAsyncLoading);
+	void Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, ETexturePowerOfTwoSetting::Type InPow2Setting, int32 InResizeDuringBuildX, int32 InResizeDuringBuildY, bool bAllowAsyncLoading);
 	bool IsValid() const { return bValid; }
 
 	// ImageWrapperModule is not used

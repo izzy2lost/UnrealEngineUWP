@@ -190,7 +190,7 @@ void FTextureSourceData::InitAsPlaceholder()
 	bValid = true;
 }
 
-void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, bool bAllowAsyncLoading)
+void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, ETexturePowerOfTwoSetting::Type InPow2Setting, int32 InResizeDuringBuildX, int32 InResizeDuringBuildY, bool bAllowAsyncLoading)
 {
 	check( bValid == false ); // we set to true at the end, acts as our return value
 	
@@ -271,9 +271,16 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 
 	for (FTextureSourceBlockData& Block : Blocks)
 	{
+		int32 AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ;
+		UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(
+			Block.SizeX, Block.SizeY, 1,
+			false,
+			InPow2Setting, InResizeDuringBuildX, InResizeDuringBuildY,
+			AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ);
+
 		// for the common case of NumBlocks == 1, BlockSizeX == Block.SizeX, MipBiasX/Y will both be zero
-		const int32 MipBiasX = FMath::CeilLogTwo(BlockSizeX / Block.SizeX);
-		const int32 MipBiasY = FMath::CeilLogTwo(BlockSizeY / Block.SizeY);
+		const int32 MipBiasX = FMath::CeilLogTwo(BlockSizeX / AdjustedSizeX);
+		const int32 MipBiasY = FMath::CeilLogTwo(BlockSizeY / AdjustedSizeY);
 		if (MipBiasX != MipBiasY)
 		{
 			// @todo Oodle: this is failing even if "pad to pow2 square" is set, can we allow it through in that case?
@@ -1656,10 +1663,19 @@ FTextureCacheDerivedDataWorker::FTextureCacheDerivedDataWorker(
 
 	// All of these settings are fixed across build settings and are derived directly from the texture.
 	// So we can just use layer 0 of whatever we have.
-	TextureData.Init(Texture, (TextureMipGenSettings)BuildSettingsPerLayerFetchOrBuild[0].MipGenSettings, BuildSettingsPerLayerFetchOrBuild[0].bCubemap, BuildSettingsPerLayerFetchOrBuild[0].bTextureArray, BuildSettingsPerLayerFetchOrBuild[0].bVolume, bAllowAsyncLoading);
+	const FTextureBuildSettings& BuildSettings = BuildSettingsPerLayerFetchOrBuild[0];
+	TextureData.Init(Texture,
+		(TextureMipGenSettings)BuildSettings.MipGenSettings,
+		BuildSettings.bCubemap,
+		BuildSettings.bTextureArray,
+		BuildSettings.bVolume,
+		(ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode,
+		BuildSettings.ResizeDuringBuildX,
+		BuildSettings.ResizeDuringBuildY,
+		bAllowAsyncLoading);
 
 	bool bNeedsCompositeData = Texture.GetCompositeTexture() && Texture.CompositeTextureMode != CTM_Disabled && Texture.GetCompositeTexture()->Source.IsValid();
-	if (BuildSettingsPerLayerFetchOrBuild[0].bCPUAccessible)
+	if (BuildSettings.bCPUAccessible)
 	{
 		// CPU accessible textures don't run image processing and thus don't need the composite data.
 		bNeedsCompositeData = false;
@@ -1677,7 +1693,15 @@ FTextureCacheDerivedDataWorker::FTextureCacheDerivedDataWorker(
 
 		if ( bMatchingBlocks )
 		{
-			CompositeTextureData.Init(*Texture.GetCompositeTexture(), (TextureMipGenSettings)BuildSettingsPerLayerFetchOrBuild[0].MipGenSettings, BuildSettingsPerLayerFetchOrBuild[0].bCubemap, BuildSettingsPerLayerFetchOrBuild[0].bTextureArray, BuildSettingsPerLayerFetchOrBuild[0].bVolume, bAllowAsyncLoading);
+			CompositeTextureData.Init(*Texture.GetCompositeTexture(),
+				(TextureMipGenSettings)BuildSettings.MipGenSettings,
+				BuildSettings.bCubemap,
+				BuildSettings.bTextureArray,
+				BuildSettings.bVolume,
+				(ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode,
+				BuildSettings.ResizeDuringBuildX,
+				BuildSettings.ResizeDuringBuildY,
+				bAllowAsyncLoading);
 		}
 	}
 }

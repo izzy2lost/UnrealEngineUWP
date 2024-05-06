@@ -254,40 +254,43 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 	const FTextureBuildSettings& BuildSettingsLayer0 = InSettingsPerLayer[0];
 	const int32 TileSize = BuildSettingsLayer0.VirtualTextureTileSize;
 
-	BlockSizeX = InSourceData.BlockSizeX;
-	BlockSizeY = InSourceData.BlockSizeY;
-
-	// BlockSize is potentially adjusted by rounding to power of 2
-	switch (BuildSettingsLayer0.PowerOfTwoMode)
+	if (BuildSettingsLayer0.PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution)
 	{
-	case ETexturePowerOfTwoSetting::None:
-		break;
-	case ETexturePowerOfTwoSetting::PadToPowerOfTwo:
-	case ETexturePowerOfTwoSetting::StretchToPowerOfTwo:
-		BlockSizeX = FMath::RoundUpToPowerOfTwo(BlockSizeX);
-		BlockSizeY = FMath::RoundUpToPowerOfTwo(BlockSizeY);
-		break;
-	case ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo:
-	case ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo:
-		BlockSizeX = FMath::RoundUpToPowerOfTwo(BlockSizeX);
-		BlockSizeY = FMath::RoundUpToPowerOfTwo(BlockSizeY);
-		BlockSizeX = FMath::Max(BlockSizeX, BlockSizeY);
-		BlockSizeY = BlockSizeX;
-		break;
-	case ETexturePowerOfTwoSetting::ResizeToSpecificResolution:
-		if (BuildSettingsLayer0.ResizeDuringBuildX)
+		// do not allow to set target width or height smaller than VT tile size
+		if ((BuildSettingsLayer0.ResizeDuringBuildX && BuildSettingsLayer0.ResizeDuringBuildX < TileSize) ||
+			(BuildSettingsLayer0.ResizeDuringBuildY && BuildSettingsLayer0.ResizeDuringBuildY < TileSize))
 		{
-			BlockSizeX = BuildSettingsLayer0.ResizeDuringBuildX;
+			// will need to adjust miptail block calculations for this to work
+
+			UE_LOG(LogVirtualTexturing, Warning, TEXT("InitializeFromBuildSettings failed : Explicit resize to smaller than tile size (%d) not supported (%d x %d) [%s]"),
+				TileSize, BuildSettingsLayer0.ResizeDuringBuildX, BuildSettingsLayer0.ResizeDuringBuildY, *InSourceData.TextureFullName);
+
+			return false;
 		}
-		if (BuildSettingsLayer0.ResizeDuringBuildY)
+
+		for (const auto& SourceBlock : InSourceData.Blocks)
 		{
-			BlockSizeY = BuildSettingsLayer0.ResizeDuringBuildY;
+			// if any of block sizes is not power of two any of them is smaller than VT tile size
+			if (!FMath::IsPowerOfTwo(SourceBlock.SizeX) || !FMath::IsPowerOfTwo(SourceBlock.SizeY) || SourceBlock.SizeX < TileSize || SourceBlock.SizeY < TileSize)
+			{
+				// then both target resize width & height must be set
+				if (BuildSettingsLayer0.ResizeDuringBuildX == 0 || BuildSettingsLayer0.ResizeDuringBuildY == 0)
+				{
+					UE_LOG(LogVirtualTexturing, Warning, TEXT("InitializeFromBuildSettings failed : Both resized width and height (%d x %d) must be set if any block is smaller than tile size (%d) [%s]"),
+						BuildSettingsLayer0.ResizeDuringBuildX, BuildSettingsLayer0.ResizeDuringBuildY, TileSize, *InSourceData.TextureFullName);
+					return false;
+				}
+			}
 		}
-		break;
-	default:
-		checkNoEntry();
-		break;
 	}
+
+	int32 BlockSizeZ; // not needed here
+	UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(
+		InSourceData.BlockSizeX, InSourceData.BlockSizeY, 1,
+		false,
+		(ETexturePowerOfTwoSetting::Type)BuildSettingsLayer0.PowerOfTwoMode,
+		BuildSettingsLayer0.ResizeDuringBuildX, BuildSettingsLayer0.ResizeDuringBuildY,
+		BlockSizeX, BlockSizeY, BlockSizeZ);
 
 	check(InSettingsPerLayer[0].MaxTextureResolution >= (uint32)TileSize);
 
@@ -944,10 +947,19 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 			TBSettings.MipGenSettings = TMGS_SimpleAverage;
 		}
 
+		// in case image is smaller than tile size, we need PowerOfTwoMode adjusted size to correctly calculate MipBias & LocalBlockSizeScale in a while loop below
+		int32 AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ;
+		UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(
+			SourceMips[0].SizeX, SourceMips[0].SizeY, 1,
+			false,
+			(ETexturePowerOfTwoSetting::Type)SettingsPerLayer[0].PowerOfTwoMode,
+			SettingsPerLayer[0].ResizeDuringBuildX, SettingsPerLayer[0].ResizeDuringBuildY,
+			AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ);
+
 		// For multi-block images, we may have scaled the max block size to be tile-sized, but individual blocks may still be smaller than 1 tile
 		// These need to be scaled up as well (scaling up individual blocks has the effect of reducing the block's mip-bias)
 		int32 LocalBlockSizeScale = DerivedInfo.BlockSizeScale;
-		while (SourceMips[0].SizeX * LocalBlockSizeScale < TileSize || SourceMips[0].SizeY * LocalBlockSizeScale < TileSize)
+		while (AdjustedSizeX * LocalBlockSizeScale < TileSize || AdjustedSizeY * LocalBlockSizeScale < TileSize)
 		{
 			check(BlockData.MipBias > 0u);
 			--BlockData.MipBias;
@@ -1114,6 +1126,7 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 		TBSettings.BaseTextureFormatName = LayerData.FormatName; // VTs never have platform prefix
 		TBSettings.bSRGB = BuildSettingsForLayer.bSRGB;
 		TBSettings.bUseLegacyGamma = BuildSettingsForLayer.bUseLegacyGamma;
+		TBSettings.PowerOfTwoMode = ETexturePowerOfTwoSetting::None; // no resizing - that's for source blocks only, miptail block size is already set up to be a power of two
 
 		// Make sure the output of the texture builder is in the same gamma space as we expect it.
 		check(TBSettings.GetDestGammaSpace() == BuildSettingsForLayer.GetDestGammaSpace());
