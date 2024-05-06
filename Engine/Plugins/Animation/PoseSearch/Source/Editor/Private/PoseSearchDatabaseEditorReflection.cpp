@@ -38,7 +38,7 @@ void UPoseSearchDatabaseReflectionBase::PostEditChangeProperty(FPropertyChangedE
 	}
 }
 
-bool UPoseSearchDatabaseSequenceReflection::ApplyChanges() const 
+bool UPoseSearchDatabaseSequenceReflection::ApplyChanges() 
 {
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 	{
@@ -50,6 +50,9 @@ bool UPoseSearchDatabaseSequenceReflection::ApplyChanges() const
 				FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(AssetTreeNode->SourceAssetIdx);
 				if (FPoseSearchDatabaseSequence* DatabaseSequence = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseSequence>())
 				{
+					Sequence.SamplingRange.Min = FMath::Clamp(Sequence.SamplingRange.Min, 0.0f, Sequence.GetPlayLength()); 
+					Sequence.SamplingRange.Max = FMath::Clamp(Sequence.SamplingRange.Max, 0.0f, Sequence.GetPlayLength()); 
+					
 					*DatabaseSequence = Sequence;
 					Database->MarkPackageDirty();
 
@@ -62,7 +65,7 @@ bool UPoseSearchDatabaseSequenceReflection::ApplyChanges() const
 	return false;
 }
 
-bool UPoseSearchDatabaseBlendSpaceReflection::ApplyChanges() const
+bool UPoseSearchDatabaseBlendSpaceReflection::ApplyChanges()
 {
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 	{
@@ -86,7 +89,7 @@ bool UPoseSearchDatabaseBlendSpaceReflection::ApplyChanges() const
 	return false;
 }
 
-bool UPoseSearchDatabaseAnimCompositeReflection::ApplyChanges() const
+bool UPoseSearchDatabaseAnimCompositeReflection::ApplyChanges()
 {
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 	{
@@ -98,7 +101,11 @@ bool UPoseSearchDatabaseAnimCompositeReflection::ApplyChanges() const
 				FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(AssetTreeNode->SourceAssetIdx);
 				if (FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseAnimComposite>())
 				{
+					AnimComposite.SamplingRange.Min = FMath::Clamp(AnimComposite.SamplingRange.Min, 0.0f, AnimComposite.GetPlayLength());
+					AnimComposite.SamplingRange.Max = FMath::Clamp(AnimComposite.SamplingRange.Max, 0.0f, AnimComposite.GetPlayLength());
+					
 					*DatabaseAnimComposite = AnimComposite;
+
 					Database->MarkPackageDirty();
 
 					return true;
@@ -110,7 +117,7 @@ bool UPoseSearchDatabaseAnimCompositeReflection::ApplyChanges() const
 	return false;
 }
 
-bool UPoseSearchDatabaseAnimMontageReflection::ApplyChanges() const
+bool UPoseSearchDatabaseAnimMontageReflection::ApplyChanges()
 {
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 	{
@@ -122,7 +129,11 @@ bool UPoseSearchDatabaseAnimMontageReflection::ApplyChanges() const
 				FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(AssetTreeNode->SourceAssetIdx);
 				if (FPoseSearchDatabaseAnimMontage* DatabaseAnimMontage = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseAnimMontage>())
 				{
+					AnimMontage.SamplingRange.Min = FMath::Clamp(AnimMontage.SamplingRange.Min, 0.0f, AnimMontage.GetPlayLength()); 
+					AnimMontage.SamplingRange.Max = FMath::Clamp(AnimMontage.SamplingRange.Max, 0.0f, AnimMontage.GetPlayLength());
+					
 					*DatabaseAnimMontage = AnimMontage;
+
 					Database->MarkPackageDirty();
 
 					return true;
@@ -134,7 +145,7 @@ bool UPoseSearchDatabaseAnimMontageReflection::ApplyChanges() const
 	return false;
 }
 
-bool UPoseSearchDatabaseMultiSequenceReflection::ApplyChanges() const
+bool UPoseSearchDatabaseMultiSequenceReflection::ApplyChanges()
 {
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 	{

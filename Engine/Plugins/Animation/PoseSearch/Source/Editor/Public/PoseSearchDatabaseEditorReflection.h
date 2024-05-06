@@ -24,7 +24,7 @@ public:
 		const TWeakPtr<UE::PoseSearch::FDatabaseAssetTreeNode>& InWeakAssetTreeNode,
 		const TSharedPtr<UE::PoseSearch::SDatabaseAssetTree>& InAssetTreeWidget);
 	
-	virtual bool ApplyChanges() const { return false; };
+	virtual bool ApplyChanges() { return false; };
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -59,7 +59,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Selected Sequence")
 	FPoseSearchDatabaseSequenceEx Sequence;
 	
-	virtual bool ApplyChanges() const override;
+	virtual bool ApplyChanges() override;
 };
 
 USTRUCT()
@@ -86,7 +86,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Selected Blend Space")
 	FPoseSearchDatabaseBlendSpaceEx BlendSpace;
 	
-	virtual bool ApplyChanges() const override;
+	virtual bool ApplyChanges() override;
 };
 
 USTRUCT()
@@ -113,7 +113,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Selected Anim Composite")
 	FPoseSearchDatabaseAnimCompositeEx AnimComposite;
 	
-	virtual bool ApplyChanges() const override;
+	virtual bool ApplyChanges() override;
 };
 
 USTRUCT()
@@ -140,7 +140,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Selected Anim Montage")
 	FPoseSearchDatabaseAnimMontageEx AnimMontage;
 	
-	virtual bool ApplyChanges() const override;
+	virtual bool ApplyChanges() override;
 };
 
 USTRUCT()
@@ -167,7 +167,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Selected Sequence")
 	FPoseSearchDatabaseMultiSequenceEx MultiSequence;
 	
-	virtual bool ApplyChanges() const override;
+	virtual bool ApplyChanges() override;
 };
 
 USTRUCT()
