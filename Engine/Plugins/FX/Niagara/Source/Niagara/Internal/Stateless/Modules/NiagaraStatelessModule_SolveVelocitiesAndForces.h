@@ -5,6 +5,7 @@
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModuleShaderParameters.h"
+#include "Stateless/NiagaraStatelessParticleSimContext.h"
 #include "Stateless/Modules/NiagaraStatelessModuleCommon.h"
 
 #include "VectorField/VectorField.h"
