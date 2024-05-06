@@ -59,7 +59,7 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 				
 				PropertyHelper.SetProperty(FName(TEXT("XPBDBucklingRatio")), BucklingRatio, {
 					FName(TEXT("XPBDAnisoBucklingRatio")),
-					FName(TEXT("BucklingRatios"))});
+					FName(TEXT("BucklingRatio"))});
 			}
 			PropertyHelper.SetPropertyEnum(FName(TEXT("XPBDRestAngleType")), RestAngleType, {
 				FName(TEXT("XPBDAnisoRestAngleType")),
@@ -170,7 +170,7 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 				FName(TEXT("XPBDBucklingStiffness")),
 				FName(TEXT("XPBDAnisoBucklingStiffnessWarp"))});
 			
-			PropertyHelper.SetProperty(FName(TEXT("BucklingRatios")), BucklingRatio, {
+			PropertyHelper.SetProperty(FName(TEXT("BucklingRatio")), BucklingRatio, {
 				FName(TEXT("XPBDBucklingRatio")),
 				FName(TEXT("XPBDAnisoBucklingRatio"))});
 		}
