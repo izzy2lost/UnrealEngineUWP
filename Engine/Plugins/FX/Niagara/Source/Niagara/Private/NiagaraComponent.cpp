@@ -4094,6 +4094,13 @@ void UNiagaraComponent::SetAsset(UNiagaraSystem* InAsset, bool bResetExistingOve
 	Asset = InAsset;
 
 #if WITH_EDITOR
+	if (Asset != nullptr && bResetExistingOverrideParameters)
+	{
+		// To mirror the cooked path we reset the parameters is the asset is valid
+		OverrideParameters.Empty();
+		InstanceParameterOverrides.Empty();
+	}
+
 	SynchronizeWithSourceSystem();
 	if (Asset != nullptr)
 	{
