@@ -4608,6 +4608,18 @@ void FControlRigEditMode::SetControlShapeTransform(
 			InShapeActor->ControlName, InGlobalTransform, bNotify, InContext, bUndo, bPrintPython, bFixEulerFlips);
 		return;
 	}
+
+	auto EvaluateRigIfAdditive = [ControlRig]()
+	{
+		// skip compensation and evaluate the rig to force notifications: auto-key and constraints updates (among others) are based on
+		// UControlRig::OnControlModified being broadcast but this only happens on evaluation for additive rigs.
+		// constraint compensation is disabled while manipulating in that case to avoid re-entrant evaluations 
+		if (ControlRig->IsAdditive())
+		{
+			TGuardValue<bool> CompensateGuard(FMovieSceneConstraintChannelHelper::bDoNotCompensate, true);
+			ControlRig->Evaluate_AnyThread();
+		}
+	};
 	
 	// find the last constraint in the stack (this could be cached on mouse press)
 	TArray< TWeakObjectPtr<UTickableConstraint> > Constraints;
@@ -4622,6 +4634,7 @@ void FControlRigEditMode::SetControlShapeTransform(
 		TGuardValue<bool> CompensateGuard(FMovieSceneConstraintChannelHelper::bDoNotCompensate, true);
 		ControlRig->SetControlGlobalTransform(
 			InShapeActor->ControlName, InGlobalTransform, bNotify, InContext, bUndo, bPrintPython, bFixEulerFlips);
+		EvaluateRigIfAdditive();
 	}
 
 	if (!bNeedsConstraintPostProcess)
@@ -4644,7 +4657,8 @@ void FControlRigEditMode::SetControlShapeTransform(
 	Context.bConstraintUpdate = false;
 	
 	ControlRig->SetControlLocalTransform(InShapeActor->ControlName, LocalTransform, bNotify, Context, bUndo, bFixEulerFlips);
-
+	EvaluateRigIfAdditive();
+	
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(ControlRig->GetWorld());
 	Controller.EvaluateAllConstraints();
 }

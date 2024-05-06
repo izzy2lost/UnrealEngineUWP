@@ -17,6 +17,18 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigTransformableHandle)
 
+namespace ControlHandleLocals
+{
+	using RigGuard = TGuardValue_Bitfield_Cleanup<TFunction<void()>>;
+	
+	TSet<UControlRig*> NotifyingRigs;
+
+	bool IsRigNotifying(const UControlRig* InControlRig)
+	{
+		return InControlRig ? NotifyingRigs.Contains(InControlRig) : false;
+	}
+}
+
 /**
  * UTransformableControlHandle
  */
@@ -63,11 +75,38 @@ void UTransformableControlHandle::PreEvaluate(const bool bTick) const
 	{
 		return;
 	}
+
+	if (ControlRig->IsAdditive())
+	{
+		if (ControlHandleLocals::IsRigNotifying(ControlRig.Get()))
+		{
+			return;
+		}
+		
+		if (const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMesh())
+		{
+			if (!SkeletalMeshComponent->PoseTickedThisFrame())
+			{
+				return TickTarget();
+			}
+		}
+	}
+	
 	return bTick ? TickTarget() : ControlRig->Evaluate_AnyThread();
 }
 
 void UTransformableControlHandle::TickTarget() const
 {
+	if (!ControlRig.IsValid())
+	{
+		return;
+	}
+	
+	if (ControlRig->IsAdditive() && ControlHandleLocals::IsRigNotifying(ControlRig.Get()))
+	{
+		return;
+	}
+	
 	if (const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMesh())
 	{
 		return TransformableHandleUtils::TickDependantComponents(SkeletalMeshComponent);
@@ -98,7 +137,7 @@ void UTransformableControlHandle::SetGlobalTransform(const FTransform& InGlobal)
 	const FRigElementKey& ControlKey = ControlElement->GetKey();
 	const FTransform& ComponentTransform = BoundComponent->GetComponentTransform();
 
-	static const FRigControlModifiedContext Context;
+	static const FRigControlModifiedContext Context(EControlRigSetKey::Never);
 	static constexpr bool bNotify = false, bSetupUndo = false, bPrintPython = false, bFixEulerFlips = false;
 
 	//use this function so we don't set the preferred angles
@@ -151,6 +190,11 @@ FTransform UTransformableControlHandle::GetLocalTransform() const
 	if (!ControlElement)
 	{
 		return FTransform::Identity;
+	}
+
+	if (ControlRig->IsAdditive())
+	{
+		return ControlRig->GetControlLocalTransform(ControlName);
 	}
 	
 	const FRigElementKey& ControlKey = ControlElement->GetKey();
@@ -438,6 +482,14 @@ void UTransformableControlHandle::OnControlModified(
 			{
 				GetEvaluationBinding().bPendingFlush = true;
 			}
+			
+			// guard from re-entrant notification
+			const ControlHandleLocals::RigGuard NotificationGuard([ControlRig = ControlRig.Get()]()
+			{
+				ControlHandleLocals::NotifyingRigs.Remove(ControlRig);
+			});
+			ControlHandleLocals::NotifyingRigs.Add(ControlRig.Get());
+			
 			Notify(Event);
 		}
 		else if (Event == EHandleEvent::GlobalTransformUpdated)
@@ -449,7 +501,15 @@ void UTransformableControlHandle::OnControlModified(
 				{
 					GetEvaluationBinding().bPendingFlush = true;
 				}
-				static constexpr  bool bPreTick = true;
+
+				// guard from re-entrant notification 
+				const ControlHandleLocals::RigGuard NotificationGuard([ControlRig = ControlRig.Get()]()
+				{
+					ControlHandleLocals::NotifyingRigs.Remove(ControlRig);
+				});
+				ControlHandleLocals::NotifyingRigs.Add(ControlRig.Get());
+				
+				const bool bPreTick = !ControlRig->IsAdditive();
 				Notify(EHandleEvent::UpperDependencyUpdated, bPreTick);
 			}
 		}
