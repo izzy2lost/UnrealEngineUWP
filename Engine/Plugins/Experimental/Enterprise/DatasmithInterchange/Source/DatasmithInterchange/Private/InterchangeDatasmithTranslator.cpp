@@ -183,6 +183,14 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 			const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
 			if (DatasmithTranslator)
 			{
+				FDatasmithTranslatorCapabilities Capabilities;
+				DatasmithTranslator->Initialize(Capabilities);
+
+				if (!Capabilities.bParallelLoadStaticMeshSupported)
+				{
+					AsyncMode = EAsyncExecution::TaskGraphMainThread;
+				}
+
 				TArray<TObjectPtr<UDatasmithOptionsBase>> OptionArray;
 				OptionArray.Add(CachedSettings->ImportOptions);
 				DatasmithTranslator->SetSceneImportOptions(OptionArray);
@@ -784,7 +792,7 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTrans
 		return EmptyPromise.GetFuture();
 	}
 
-	return Async(EAsyncExecution::TaskGraph, [this, MeshElement = MoveTemp(MeshElement), MeshGlobalTransform]
+	return Async(AsyncMode, [this, MeshElement = MoveTemp(MeshElement), MeshGlobalTransform]
 		{
 			TOptional<UE::Interchange::FMeshPayloadData> Result;
 

@@ -143,4 +143,5 @@ private:
 	mutable TObjectPtr<UInterchangeDatasmithTranslatorSettings> CachedSettings = nullptr;
 
 	mutable TMap<FString, UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc> AnimationPayLoadMapping;
+	mutable EAsyncExecution AsyncMode = EAsyncExecution::TaskGraph;
 };
