@@ -400,7 +400,7 @@ private:
 					AudioComponent->AttachToComponent(AttachComponent, FAttachmentTransformRules::KeepRelativeTransform, AttachKey.SocketName);
 				}
 
-				EvaluationData->VolumeMultiplier = VolumeMultiplier;
+				EvaluationData->VolumeMultiplier = VolumeMultiplier * AudioSection->EvaluateEasing(Context.GetTime());
 				EvaluationData->PitchMultiplier = PitchMultiplier;
 
 				EnsureAudioIsPlaying(nullptr, *AudioSection, *EvaluationData, Context, *Player);
