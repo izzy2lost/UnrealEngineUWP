@@ -137,6 +137,12 @@ void UPCGComponent::SetIsPartitioned(bool bIsNowPartitioned)
 	}
 }
 
+bool UPCGComponent::Use2DGrid() const
+{
+	check(GetGraph());
+	return GetGraph()->Use2DGrid();
+}
+
 void UPCGComponent::SetGraph_Implementation(UPCGGraphInterface* InGraph)
 {
 	SetGraphInterfaceLocal(InGraph);

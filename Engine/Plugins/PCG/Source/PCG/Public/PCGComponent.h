@@ -414,6 +414,9 @@ public:
 	/** Returns true if the component is managed by the runtime generation system. Nothing else should generate or cleanup this component. */
 	bool IsManagedByRuntimeGenSystem() const { return GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime; }
 
+	/** Returns true if component should output on a 2D Grid */
+	bool Use2DGrid() const;
+
 	/* Responsibility of the PCG Partition Actor to mark is local */
 	void MarkAsLocalComponent() { bIsComponentLocal = true; }
 

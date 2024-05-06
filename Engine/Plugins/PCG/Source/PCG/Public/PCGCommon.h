@@ -229,9 +229,6 @@ namespace PCGHiGenGrid
 	// Alias for array which is allocated on the stack (we have a strong idea of the max required elements).
 	using FSizeArray = TArray<uint32, TInlineAllocator<PCGHiGenGrid::NumGridValues>>;
 
-	// Alias for grid size to guid map allocated on the stack, which is unlikely to have a large number of elements.
-	using FSizeToGuidMap = TMap<uint32, FGuid, TInlineSetAllocator<32>>;
-
 	PCG_API bool IsValidGridSize(uint32 InGridSize);
 	PCG_API bool IsValidGrid(EPCGHiGenGrid InGrid);
 	PCG_API bool IsValidGridOrUninitialized(EPCGHiGenGrid InGrid);
@@ -346,9 +343,8 @@ namespace PCGQualityHelpers
 	PCG_API FName GetQualityPinLabel();
 }
 
-/** This record uniquely identifies a partition actor. */
-USTRUCT(BlueprintType)
-struct FPCGPartitionActorRecord
+USTRUCT(meta=(Deprecated = "5.5"))
+struct UE_DEPRECATED(5.5, "FPCGPartitionActorRecord is deprecated.") FPCGPartitionActorRecord
 {
 	GENERATED_BODY()
 		

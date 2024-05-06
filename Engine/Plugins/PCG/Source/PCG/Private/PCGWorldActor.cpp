@@ -24,6 +24,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGWorldActor)
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool FPCGPartitionActorRecord::operator==(const FPCGPartitionActorRecord& InOther) const
 {
 	return GridGuid == InOther.GridGuid && GridSize == InOther.GridSize && GridCoords == InOther.GridCoords;
@@ -35,6 +36,7 @@ uint32 GetTypeHash(const FPCGPartitionActorRecord& In)
 	HashResult = HashCombine(HashResult, GetTypeHash(In.GridCoords));
 	return HashResult;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 APCGWorldActor::APCGWorldActor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -63,13 +65,13 @@ void APCGWorldActor::BeginCacheForCookedPlatformData(const ITargetPlatform* Targ
 	// Cache Partition Actor Records at Cook
 	if (UWorldPartition* WorldPartition = World->GetWorldPartition())
 	{
-		TMap<FPCGPartitionActorRecord, FGuid> PartitionActorRecords;
+		TMap<FPCGGridCellDescriptor, FGuid> PartitionActorRecords;
 		TSet<FGuid> InvalidPartitionActors;
 		FPCGActorAndComponentMapping::BuildPartitionActorRecords(this, WorldPartition, PartitionActorRecords, InvalidPartitionActors);
 
-		TArray<FPCGPartitionActorRecord> SerializedPartitionActorRecords;
+		TArray<FPCGGridCellDescriptor> SerializedPartitionActorRecords;
 		PartitionActorRecords.GenerateKeyArray(SerializedPartitionActorRecords);
-		RuntimePartitionActorRecords = TSet<FPCGPartitionActorRecord>(SerializedPartitionActorRecords);
+		RuntimePartitionActorRecords = TSet<FPCGGridCellDescriptor>(SerializedPartitionActorRecords);
 	}
 
 	if (LandscapeCacheObject->SerializationMode == EPCGLandscapeCacheSerializationMode::SerializeOnlyAtCook)
@@ -158,81 +160,6 @@ void APCGWorldActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	UnregisterFromSubsystem();
 	Super::EndPlay(EndPlayReason);
-}
-
-void APCGWorldActor::CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes, bool bAreGridsSerialized)
-{
-	if (InGridSizes.IsEmpty())
-	{
-		return;
-	}
-
-	TMap<uint32, FGuid>& GuidsMap = bAreGridsSerialized ? GridGuids : TransientGridGuids;
-	FRWLock& GuidsLock = bAreGridsSerialized ? GridGuidsLock : TransientGridGuidsLock;
-
-	// Check if any need adding
-	PCGHiGenGrid::FSizeArray GridSizesToAdd;
-	{
-		FReadScopeLock ReadLock(GuidsLock);
-		for (uint32 GridSize : InGridSizes)
-		{
-			if (!GuidsMap.Contains(GridSize))
-			{
-				GridSizesToAdd.Push(GridSize);
-			}
-		}
-	}
-
-	if (GridSizesToAdd.Num() > 0)
-	{
-		FWriteScopeLock WriteLock(GuidsLock);
-
-		bool bModified = false;
-		for (uint32 GridSize : GridSizesToAdd)
-		{
-			if (!GuidsMap.Contains(GridSize))
-			{
-				GuidsMap.Add(GridSize, FGuid::NewGuid());
-				bModified = true;
-			}
-		}
-
-		if (bModified && bAreGridsSerialized)
-		{
-			// Set dirty flag if we added guids. Unfortunately if the guids are not up to date, this will produce save prompts
-			// to users. However, this was needed to ensure the guids are saved - without this guids were lost and PAs were leaked.
-			// The alternative would be to ensure this never happens automatically, but rather only happens when user clicks Generate
-			// or etc. However we take a very proactive approach to creating PAs in editor because they can't be created at runtime.
-
-			// Schedule dirtying rather than do immediately because dirtying is a no-op during level load
-			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GetWorld()))
-			{
-				PCGSubsystem->ScheduleGeneric([this]()
-				{
-					this->MarkPackageDirty();
-					return true;
-				}, nullptr, {});
-			}
-		}
-	}
-}
-
-void APCGWorldActor::GetSerializedGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const
-{
-	FReadScopeLock ReadLock(GridGuidsLock);
-	for (const TPair<uint32, FGuid>& SizeGuid : GridGuids)
-	{
-		OutSizeToGuidMap.Add(SizeGuid.Key, SizeGuid.Value);
-	}
-}
-
-void APCGWorldActor::GetTransientGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const
-{
-	FReadScopeLock ReadLock(TransientGridGuidsLock);
-	for (const TPair<uint32, FGuid>& SizeGuid : TransientGridGuids)
-	{
-		OutSizeToGuidMap.Add(SizeGuid.Key, SizeGuid.Value);
-	}
 }
 
 void APCGWorldActor::MergeFrom(APCGWorldActor* OtherWorldActor)
@@ -336,25 +263,11 @@ void APCGWorldActor::OnPartitionGridSizeChanged()
 	}
 }
 
-void APCGWorldActor::PostLoad()
-{
-	Super::PostLoad();
-
-	// Deprecation - PAs used to be placed on a grid with guid=0. If no grid guids are registered,
-	// register a 0 guid now for the current grid size, and this will result in already existing PAs
-	// being reused.
-	if (GridGuids.IsEmpty())
-	{
-		GridGuids.Add(PartitionGridSize, FGuid());
-	}
-}
-
 void APCGWorldActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(APCGWorldActor, PartitionGridSize)
-		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(APCGWorldActor, bUse2DGrid))
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(APCGWorldActor, PartitionGridSize))
 	{
 		OnPartitionGridSizeChanged();
 	}

@@ -206,6 +206,7 @@ public:
 	EPCGHiGenGrid GetDefaultGrid() const { ensure(IsHierarchicalGenerationEnabled()); return HiGenGridSize; }
 	uint32 GetDefaultGridSize() const;
 	bool IsHierarchicalGenerationEnabled() const { return bUseHierarchicalGeneration; }
+	bool Use2DGrid() const { return bUse2DGrid; }
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
@@ -387,6 +388,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (DisplayName = "HiGen Default Grid Size", EditCondition = "bUseHierarchicalGeneration"))
 	EPCGHiGenGrid HiGenGridSize = EPCGHiGenGrid::Grid256;
+
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (DisplayName = "2D Grid"))
+	bool bUse2DGrid = true;
 
 	/** Execution grid size for nodes. */
 	mutable TMap<const UPCGNode*, uint32> NodeToGridSize;

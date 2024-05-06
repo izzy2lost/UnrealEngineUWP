@@ -5,6 +5,7 @@
 #include "ActorPartition/PartitionActor.h"
 
 #include "PCGCommon.h"
+#include "Grid/PCGGridDescriptor.h"
 
 #include "PCGPartitionActor.generated.h"
 
@@ -46,16 +47,19 @@ public:
 #if WITH_EDITOR
 	//~Begin APartitionActor Interface
 	virtual uint32 GetDefaultGridSize(UWorld* InWorld) const override;
-	virtual FGuid GetGridGuid() const override { return PCGGuid; }
 	virtual bool ShouldIncludeGridSizeInLabel() const override { return true; }
 	virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
 	virtual bool IsUserManaged() const override;
 	//~End APartitionActor Interface
+
+	// Called from PCGActorAndComponentMapping in case we are dealing with an older PCGPartitionActor
+	void UpdateUse2DGridIfNeeded(bool bInUse2DGrid);
 #endif
 
 	FBox GetFixedBounds() const;
 	FIntVector GetGridCoord() const;
 	uint32 GetPCGGridSize() const { return PCGGridSize; }
+	FPCGGridDescriptor GetGridDescriptor() const;
 
 	bool IsUsing2DGrid() const { return bUse2DGrid; }
 
@@ -81,7 +85,10 @@ public:
 	void RemoveLocalComponent(UPCGComponent* LocalComponent);
 
 	/** To be called after the creation of a new actor to set the grid guid and size. */
-	void PostCreation(const FGuid& InGridGUID, uint32 InGridSize);
+	UE_DEPRECATED(5.5, "Use FPCGGridDescriptor version")
+	void PostCreation(const FGuid& InGridGUID, uint32 InGridSize) { }
+
+	void PostCreation(const FPCGGridDescriptor& GridDescriptor);
 
 	/** [Game thread only] Return if the actor is safe for deletion, meaning no generation is currently running on all original components. */
 	bool IsSafeForDeletion() const;
@@ -106,6 +113,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PCG|PartitionActor")
 	UPCGComponent* GetOriginalComponent(const UPCGComponent* LocalComponent) const;
 
+	UE_DEPRECATED(5.5, "PCGGuid is deprecated")
 	UPROPERTY()
 	FGuid PCGGuid;
 
@@ -147,6 +155,9 @@ private:
 	/** Flag used to ignore some invalid actors so they don't get registered into the PCG Subsystem */
 	UPROPERTY(Transient, NonTransactional)
 	bool bIsInvalidForPCG = false;
+
+	/** Set from PostLoad so that we can know if this actor needs to update its bUse2DGrid from the old APCGWorldActor::bUse2DGrid flag or not */
+	bool bRequiresUse2DGridFixup = false;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Tracks the registration status of this PA with the ActorAndComponentMapping system. Helps us avoid invalid (un)registers. */
@@ -163,7 +174,10 @@ public:
 	 * Gets the name this partition actor should have.
 	 * This does not respect traditional PA name contents like GridGuid, ShouldIncludeGridSizeInName, or ContextHash.
 	 */
+	UE_DEPRECATED(5.5, "Use FPCGGridDescriptor version")
 	static FString GetPCGPartitionActorName(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated);
+
+	static FString GetPCGPartitionActorName(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords);
 
 #if WITH_EDITOR
 	bool IsInvalidForPCG() const { return bIsInvalidForPCG; }

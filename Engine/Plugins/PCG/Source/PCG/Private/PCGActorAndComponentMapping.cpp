@@ -261,11 +261,9 @@ TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToRegisteredLocalCompon
 
 	const bool bIsRuntimeGenerated = OriginalComponent->IsManagedByRuntimeGenSystem();
 
-	const TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map = bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMap : ComponentToPartitionActorsMap;
-
 	// TODO: Might be more interesting to copy the set and release the lock.
-	FReadScopeLock ReadLock(bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMapLock : ComponentToPartitionActorsMapLock);
-	const TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = Map.Find(OriginalComponent);
+	FReadScopeLock ReadLock(ComponentToPartitionActorsMapLock);
+	const TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ComponentToPartitionActorsMap.Find(OriginalComponent);
 
 	if (!PartitionActorsPtr)
 	{
@@ -447,7 +445,6 @@ bool FPCGActorAndComponentMapping::RemapPCGComponent(const UPCGComponent* OldCom
 	};
 
 	RemapPreviousInstances(ComponentToPartitionActorsMap, ComponentToPartitionActorsMapLock);
-	RemapPreviousInstances(ComponentToRuntimeGenPartitionActorsMap, ComponentToRuntimeGenPartitionActorsMapLock);
 
 	// And update the mapping if bounds changed and we want to do actor mapping
 	if (bBoundsChanged && NewComponent->IsPartitioned() && bDoActorMapping)
@@ -596,7 +593,7 @@ void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* In
 		UE_LOG(LogPCG, Warning, TEXT("[RegisterPartitionActor] Invalid PCG Partiton Actor '%s' (%s). Please delete actor to remove warning."), *InActor->GetName(), *InActor->GetPackage()->GetName());
 		return;
 	} // Invalidate actor if there is a duplicate for the same grid information
-	else if (FGuid* FoundGuid = PartitionActorRecords.Find({ InActor->GetGridGuid(), InActor->GetGridSize(), InActor->GetGridCoord() }); FoundGuid && *FoundGuid != InActor->GetActorGuid())
+	else if (FGuid* FoundGuid = PartitionActorRecords.Find({ InActor->GetGridDescriptor(), InActor->GetGridCoord()}); FoundGuid && *FoundGuid != InActor->GetActorGuid())
 	{
 		InActor->SetInvalidForPCG();
 		UE_LOG(LogPCG, Warning, TEXT("[RegisterPartitionActor] Duplicate PCG Partition Actor '%s' (%s). Please delete actor to remove warning."), *InActor->GetName(), *InActor->GetPackage()->GetName());
@@ -604,18 +601,15 @@ void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* In
 	}
 #endif
 
-	const uint32 GridSize = InActor->GetPCGGridSize();
+	const FPCGGridDescriptor Descriptor = InActor->GetGridDescriptor();
 	const FIntVector GridCoord = InActor->GetGridCoord();
 
-	check(GridSize > 0);
-
-	const bool bIsRuntimeGenerated = InActor->IsRuntimeGenerated();
-	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& ActorsMap = bIsRuntimeGenerated ? RuntimeGenPartitionActorsMap : PartitionActorsMap;
+	check(Descriptor.GetGridSize() > 0);
 
 	{
-		FWriteScopeLock WriteLock(bIsRuntimeGenerated ? RuntimeGenPartitionActorsMapLock : PartitionActorsMapLock);
+		FWriteScopeLock WriteLock(PartitionActorsMapLock);
 
-		TMap<FIntVector, TObjectPtr<APCGPartitionActor>>& PartitionActorsMapGrid = ActorsMap.FindOrAdd(GridSize);
+		TMap<FIntVector, TObjectPtr<APCGPartitionActor>>& PartitionActorsMapGrid = PartitionActorsMap.FindOrAdd(Descriptor);
 		if (PartitionActorsMapGrid.Contains(GridCoord))
 		{
 			return;
@@ -627,15 +621,15 @@ void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* In
 	APCGWorldActor* WorldActor = PCGSubsystem->GetPCGWorldActor();
 	check(WorldActor);
 
-	// For deprecration: bUse2DGrid is now true by default. But if we already have Partition Actors that were created when the flag was false by default,
-	// we keep this flag
-	if (WorldActor->bUse2DGrid != InActor->IsUsing2DGrid())
-	{
-		WorldActor->bUse2DGrid = InActor->IsUsing2DGrid();
-	}
+#if WITH_EDITOR
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Handle move of the Use2DGrid flag for old partition actors that haven't been resaved
+	InActor->UpdateUse2DGridIfNeeded(WorldActor->bUse2DGrid);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITOR
 
 	// Register to all the components that intersect with the PA. Ignore for runtime generated, it is handled manually
-	if (!bIsRuntimeGenerated)
+	if (!Descriptor.IsRuntime())
 	{
 		FWriteScopeLock WriteLock(ComponentToPartitionActorsMapLock);
 		ForAllIntersectingPartitionedComponents(FBoxCenterAndExtent(InActor->GetFixedBounds()), [this, InActor, bDoComponentMapping, WorldActor](UPCGComponent* Component)
@@ -683,23 +677,20 @@ void FPCGActorAndComponentMapping::UnregisterPartitionActor(APCGPartitionActor* 
 #endif
 
 	const FIntVector GridCoord = Actor->GetGridCoord();
-	const uint32 GridSize = Actor->GetPCGGridSize();
-	if (!ensure(GridSize > 0))
+	const FPCGGridDescriptor GridDescriptor = Actor->GetGridDescriptor();
+	if (!ensure(GridDescriptor.GetGridSize() > 0))
 	{
 		return;
 	}
 
-	const bool bIsRuntimeGenerated = Actor->IsRuntimeGenerated();
-	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& ActorsMap = bIsRuntimeGenerated ? RuntimeGenPartitionActorsMap : PartitionActorsMap;
-
-	if (TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsMapGrid = ActorsMap.Find(GridSize))
+	if (TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsMapGrid = PartitionActorsMap.Find(GridDescriptor))
 	{
-		FWriteScopeLock WriteLock(bIsRuntimeGenerated ? RuntimeGenPartitionActorsMapLock : PartitionActorsMapLock);
+		FWriteScopeLock WriteLock(PartitionActorsMapLock);
 		PartitionActorsMapGrid->Remove(GridCoord);
 	}
 
 	// Unregister from all intersecting components. Ignore for runtime generated, it is handled manually
-	if (!bIsRuntimeGenerated)
+	if (!GridDescriptor.IsRuntime())
 	{
 		FWriteScopeLock WriteLock(ComponentToPartitionActorsMapLock);
 		ForAllIntersectingPartitionedComponents(FBoxCenterAndExtent(Actor->GetFixedBounds()), [this, Actor](UPCGComponent* Component)
@@ -715,27 +706,23 @@ void FPCGActorAndComponentMapping::UnregisterPartitionActor(APCGPartitionActor* 
 
 void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox& InBounds, TFunctionRef<void(APCGPartitionActor*)> InFunc) const
 {
-	// No PCGWorldActor just early out. Same for invalid bounds.
-	APCGWorldActor* PCGWorldActor = PCGSubsystem->GetPCGWorldActor();
-
-	if (!PCGWorldActor || !InBounds.IsValid)
+	if (!InBounds.IsValid)
 	{
 		return;
 	}
 
-	auto ForAllIntersectingPartitionActorsOfGridSize = [InFunc, PCGWorldActor, &InBounds](const TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& Map, FRWLock& Lock, uint32 GridSize)
+	auto ForAllIntersectingPartitionActorsOfGridSize = [InFunc, &InBounds, this](const FPCGGridDescriptor& GridDescriptor)
 	{
-		const bool bUse2DGrid = PCGWorldActor->bUse2DGrid;
-		FIntVector MinCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Min, GridSize, bUse2DGrid);
-		FIntVector MaxCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Max, GridSize, bUse2DGrid);
+		FReadScopeLock ReadLock(PartitionActorsMapLock);
 
-		FReadScopeLock ReadLock(Lock);
-
-		const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsMapGrid = Map.Find(GridSize);
+		const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsMapGrid = PartitionActorsMap.Find(GridDescriptor);
 		if (!PartitionActorsMapGrid || PartitionActorsMapGrid->IsEmpty())
 		{
 			return;
 		}
+
+		const FIntVector MinCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Min, GridDescriptor.GetGridSize(), GridDescriptor.Is2DGrid());
+		const FIntVector MaxCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Max, GridDescriptor.GetGridSize(), GridDescriptor.Is2DGrid());
 
 		for (int32 z = MinCellCoords.Z; z <= MaxCellCoords.Z; z++)
 		{
@@ -756,20 +743,16 @@ void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox&
 		}
 	};
 
-	PCGHiGenGrid::FSizeToGuidMap GridSizeToGuid;
-	PCGWorldActor->GetSerializedGridGuids(GridSizeToGuid);
-	for (const TPair<uint32, FGuid>& SizeAndGuid : GridSizeToGuid)
+	TArray<FPCGGridDescriptor> GridDescriptors;
 	{
-		const uint32 GridSize = SizeAndGuid.Key;
-		ForAllIntersectingPartitionActorsOfGridSize(PartitionActorsMap, PartitionActorsMapLock, GridSize);
+		FReadScopeLock ReadLock(PartitionActorsMapLock);
+
+		PartitionActorsMap.GenerateKeyArray(GridDescriptors);
 	}
 
-	GridSizeToGuid.Empty();
-	PCGWorldActor->GetTransientGridGuids(GridSizeToGuid);
-	for (const TPair<uint32, FGuid>& SizeAndGuid : GridSizeToGuid)
+	for (const FPCGGridDescriptor& GridDescriptor : GridDescriptors)
 	{
-		const uint32 GridSize = SizeAndGuid.Key;
-		ForAllIntersectingPartitionActorsOfGridSize(RuntimeGenPartitionActorsMap, RuntimeGenPartitionActorsMapLock, GridSize);
+		ForAllIntersectingPartitionActorsOfGridSize(GridDescriptor);
 	}
 }
 
@@ -795,38 +778,40 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 		bool bHasUnbounded = false;
 		PCGHiGenGrid::FSizeArray GridSizes;
 		ensure(PCGHelpers::GetGenerationGridSizes(InComponent->GetGraph(), WorldActor, GridSizes, bHasUnbounded));
+				
+		const bool bUse2DGrid = InComponent->Use2DGrid();
+		const bool bIsRuntimeGenerated = InComponent->IsManagedByRuntimeGenSystem();
+		TSet<FPCGGridDescriptor> GridDescriptors;
+		Algo::Transform(GridSizes, GridDescriptors, [bUse2DGrid, bIsRuntimeGenerated](uint32 GridSize) 
+		{ 
+			return FPCGGridDescriptor().SetGridSize(GridSize).SetIs2DGrid(bUse2DGrid).SetIsRuntime(bIsRuntimeGenerated);
+		});
 
-		auto UpdateMapping = [this, InComponent, &Bounds, WorldActor, &GridSizes](bool bIsRuntimeGenerated)
+		auto UpdateMapping = [this, InComponent, &Bounds, WorldActor, &GridDescriptors]()
 		{
-			TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map = bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMap : ComponentToPartitionActorsMap;
 			TSet<TObjectPtr<APCGPartitionActor>> RemovedActors;
 
 			{
-				FWriteScopeLock WriteLock(bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMapLock : ComponentToPartitionActorsMapLock);
-				TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = Map.Find(InComponent);
+				FWriteScopeLock WriteLock(ComponentToPartitionActorsMapLock);
+				TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ComponentToPartitionActorsMap.Find(InComponent);
 
 				if (!PartitionActorsPtr)
 				{
 					// Does not yet exists, add it
-					PartitionActorsPtr = &Map.Emplace(InComponent);
+					PartitionActorsPtr = &ComponentToPartitionActorsMap.Emplace(InComponent);
 					check(PartitionActorsPtr);
 				}
 
 				TSet<TObjectPtr<APCGPartitionActor>> NewMapping;
-				ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, &GridSizes, bIsRuntimeGenerated](APCGPartitionActor* Actor)
+				ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, &GridDescriptors](APCGPartitionActor* Actor)
 				{
 					if (!Actor)
 					{
 						return;
 					}
 
-					// TODO: This will need to be revisited when execution domains become a broader concept.
-					const bool bSameDomain = Actor->IsRuntimeGenerated() == bIsRuntimeGenerated;
-
-					// Only add a graph instance to partition actors that are:
-					// * In the same execution domain as the original component.
-					// * On a valid grid for the original component.
-					if (bSameDomain && GridSizes.Contains(Actor->GetPCGGridSize()))
+					// Only add a graph instance to partition actors with compatible Grid Descriptors
+					if (GridDescriptors.Contains(Actor->GetGridDescriptor()))
 					{
 						Actor->AddGraphInstance(InComponent);
 						NewMapping.Add(Actor);
@@ -849,7 +834,7 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 			}
 		};
 
-		UpdateMapping(InComponent->IsManagedByRuntimeGenSystem());
+		UpdateMapping();
 	}
 }
 
@@ -878,7 +863,6 @@ void FPCGActorAndComponentMapping::DeleteMappingPCGComponentPartitionActor(UPCGC
 	};
 
 	DeleteMapping(ComponentToPartitionActorsMap, ComponentToPartitionActorsMapLock);
-	DeleteMapping(ComponentToRuntimeGenPartitionActorsMap, ComponentToRuntimeGenPartitionActorsMapLock);
 }
 
 bool FPCGActorAndComponentMapping::IsComponentRegistered(const UPCGComponent* InComponent) const
@@ -924,12 +908,11 @@ TSet<UPCGComponent*> FPCGActorAndComponentMapping::GetAllRegisteredComponents() 
 	return Res;
 }
 
-UPCGComponent* FPCGActorAndComponentMapping::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated) const
-{
-	const TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& ActorsMap = bRuntimeGenerated ? RuntimeGenPartitionActorsMap : PartitionActorsMap;
-	FReadScopeLock ReadLock(bRuntimeGenerated ? RuntimeGenPartitionActorsMapLock : PartitionActorsMapLock);
+UPCGComponent* FPCGActorAndComponentMapping::GetLocalComponent(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent) const
+{	
+	FReadScopeLock ReadLock(PartitionActorsMapLock);
 
-	if (const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsOnGrid = ActorsMap.Find(GridSize))
+	if (const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsOnGrid = PartitionActorsMap.Find(GridDescriptor))
 	{
 		const TObjectPtr<APCGPartitionActor>* PartitionActor = PartitionActorsOnGrid->Find(CellCoords);
 		if (PartitionActor && *PartitionActor)
@@ -941,12 +924,11 @@ UPCGComponent* FPCGActorAndComponentMapping::GetLocalComponent(uint32 GridSize, 
 	return nullptr;
 }
 
-APCGPartitionActor* FPCGActorAndComponentMapping::GetPartitionActor(uint32 GridSize, const FIntVector& CellCoords, bool bRuntimeGenerated) const
+APCGPartitionActor* FPCGActorAndComponentMapping::GetPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords) const
 {
-	const TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& Map = bRuntimeGenerated ? RuntimeGenPartitionActorsMap : PartitionActorsMap;
-	FReadScopeLock ReadLock(bRuntimeGenerated ? RuntimeGenPartitionActorsMapLock : PartitionActorsMapLock);
+	FReadScopeLock ReadLock(PartitionActorsMapLock);
 
-	if (const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsOnGrid = Map.Find(GridSize))
+	if (const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsOnGrid = PartitionActorsMap.Find(GridDescriptor))
 	{
 		const TObjectPtr<APCGPartitionActor>* PartitionActor = PartitionActorsOnGrid->Find(CellCoords);
 		return PartitionActor ? *PartitionActor : nullptr;
@@ -955,11 +937,11 @@ APCGPartitionActor* FPCGActorAndComponentMapping::GetPartitionActor(uint32 GridS
 	return nullptr;
 }
 
-bool FPCGActorAndComponentMapping::DoesPartitionActorRecordExist(const FGuid& GridGuid, uint32 GridSize, const FIntVector& GridCoords) const
+bool FPCGActorAndComponentMapping::DoesPartitionActorRecordExist(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords) const
 {
 #if WITH_EDITOR
 	// In Editor this will not be empty (including -game)
-	if (PartitionActorRecords.Contains({ GridGuid, GridSize, GridCoords }))
+	if (PartitionActorRecords.Contains({ GridDescriptor, GridCoords }))
 	{
 		return true;
 	}
@@ -970,7 +952,7 @@ bool FPCGActorAndComponentMapping::DoesPartitionActorRecordExist(const FGuid& Gr
 	// which equates to a different overall behavior (one will be streamed-in/out by WP and other will be spawned and never unspawn). So we need to revisit this as it is not a consistent behavior.
 	if (APCGWorldActor* PCGWorldActor = PCGSubsystem->GetPCGWorldActor())
 	{
-		return PCGWorldActor->RuntimePartitionActorRecords.Contains({ GridGuid, GridSize, GridCoords });
+		return PCGWorldActor->RuntimePartitionActorRecords.Contains({ GridDescriptor, GridCoords });
 	}
 	
 	return false;
@@ -1401,7 +1383,7 @@ void FPCGActorAndComponentMapping::OnActorDescInstanceAdded(FWorldPartitionActor
 	if (InActorDescInstance->GetActorNativeClass()->IsChildOf(APCGPartitionActor::StaticClass()))
 	{
 		const FPCGPartitionActorDesc* ActorDesc = static_cast<const FPCGPartitionActorDesc*>(InActorDescInstance->GetActorDesc());
-		FPCGPartitionActorRecord PartitionActorRecord = { ActorDesc->GridGuid, ActorDesc->GridSize, FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ) };
+		FPCGGridCellDescriptor PartitionActorRecord = { ActorDesc->GetGridDescriptor(), FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ)};
 		if (!PartitionActorRecords.Contains(PartitionActorRecord))
 		{
 			PartitionActorRecords.Add(MoveTemp(PartitionActorRecord), ActorDesc->GetGuid());
@@ -1414,7 +1396,7 @@ void FPCGActorAndComponentMapping::OnActorDescInstanceRemoved(FWorldPartitionAct
 	if (InActorDescInstance->GetActorNativeClass()->IsChildOf(APCGPartitionActor::StaticClass()))
 	{
 		const FPCGPartitionActorDesc* ActorDesc = static_cast<const FPCGPartitionActorDesc*>(InActorDescInstance->GetActorDesc());
-		FPCGPartitionActorRecord PartitionActorRecord = { ActorDesc->GridGuid, ActorDesc->GridSize, FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ) };
+		FPCGGridCellDescriptor PartitionActorRecord = { ActorDesc->GetGridDescriptor(), FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ)};
 		if (FGuid* FoundGuid = PartitionActorRecords.Find(PartitionActorRecord); FoundGuid && *FoundGuid == InActorDescInstance->GetGuid())
 		{
 			PartitionActorRecords.Remove(PartitionActorRecord);
@@ -1422,33 +1404,32 @@ void FPCGActorAndComponentMapping::OnActorDescInstanceRemoved(FWorldPartitionAct
 	}
 }
 
-void FPCGActorAndComponentMapping::BuildPartitionActorRecords(APCGWorldActor* PCGWorldActor, UWorldPartition* WorldPartition, TMap<FPCGPartitionActorRecord, FGuid>& OutPartitionActorRecords, TSet<FGuid>& OutInvalidPartitionActors)
+void FPCGActorAndComponentMapping::BuildPartitionActorRecords(APCGWorldActor* PCGWorldActor, UWorldPartition* WorldPartition, TMap<FPCGGridCellDescriptor, FGuid>& OutPartitionActorRecords, TSet<FGuid>& OutInvalidPartitionActors)
 {
 	check(WorldPartition);
 	
 	FWorldPartitionHelpers::ForEachActorDescInstance<APCGPartitionActor>(WorldPartition, [PCGWorldActor, &OutPartitionActorRecords, &OutInvalidPartitionActors](const FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
 		const FPCGPartitionActorDesc* ActorDesc = static_cast<const FPCGPartitionActorDesc*>(ActorDescInstance->GetActorDesc());
-		if (ActorDesc->bRequiresGuidFixup && PCGWorldActor)
+		
+		// Fixup data
+		if (ActorDesc->bRequiresUse2DGridFixup && PCGWorldActor)
 		{
-			PCGHiGenGrid::FSizeToGuidMap SizeToGuidMap;
-			PCGWorldActor->GetSerializedGridGuids(SizeToGuidMap);
-			if (FGuid* FoundGuid = SizeToGuidMap.Find(ActorDesc->GridSize))
-			{
-				FPCGPartitionActorDesc* NonConstActorDesc = const_cast<FPCGPartitionActorDesc*>(ActorDesc);
-				NonConstActorDesc->GridGuid = *FoundGuid;
-				NonConstActorDesc->bRequiresGuidFixup = false;
-			}
+			FPCGPartitionActorDesc* NonConstActorDesc = const_cast<FPCGPartitionActorDesc*>(ActorDesc);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			NonConstActorDesc->bUse2DGrid = PCGWorldActor->bUse2DGrid;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			NonConstActorDesc->bRequiresUse2DGridFixup = false;
 		}
 
 		// Add to invalid list if we couldn't properly fixup or if it was already marked invalid
-		if (ActorDesc->bRequiresGuidFixup || ActorDesc->bInvalid)
+		if (ActorDesc->bInvalid)
 		{
 			OutInvalidPartitionActors.Add(ActorDesc->GetGuid());
 		}
 		else // Add to existing valid PCG Partition actors
 		{
-			FPCGPartitionActorRecord PartitionActorRecord = { ActorDesc->GridGuid, ActorDesc->GridSize, FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ) };
+			FPCGGridCellDescriptor PartitionActorRecord = { ActorDesc->GetGridDescriptor(), FIntVector3(ActorDesc->GridIndexX, ActorDesc->GridIndexY, ActorDesc->GridIndexZ)};
 			if (!OutPartitionActorRecords.Contains(PartitionActorRecord))
 			{
 				OutPartitionActorRecords.Add(MoveTemp(PartitionActorRecord), ActorDesc->GetGuid());
@@ -1479,9 +1460,9 @@ void FPCGActorAndComponentMapping::BuildPartitionActorRecords()
 				{
 					if (UPCGSubsystem* EditorPCGSubsystem = EditorWorld->GetSubsystem<UPCGSubsystem>())
 					{
-						TArray<FPCGPartitionActorRecord> SerializedPartitionActorRecords;
+						TArray<FPCGGridCellDescriptor> SerializedPartitionActorRecords;
 						EditorPCGSubsystem->ActorAndComponentMapping.PartitionActorRecords.GenerateKeyArray(SerializedPartitionActorRecords);
-						PCGWorldActor->RuntimePartitionActorRecords = TSet<FPCGPartitionActorRecord>(SerializedPartitionActorRecords);
+						PCGWorldActor->RuntimePartitionActorRecords = TSet<FPCGGridCellDescriptor>(SerializedPartitionActorRecords);
 					}
 				}
 			}

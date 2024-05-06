@@ -11,6 +11,7 @@
 
 #include "Components/BoxComponent.h"
 #include "Engine/World.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 #if WITH_EDITOR
 #include "Grid/PCGPartitionActorDesc.h"
@@ -68,6 +69,14 @@ void APCGPartitionActor::PostLoad()
 	if (GetGridSize() != PCGGridSize)
 	{
 		SetGridSize(PCGGridSize);
+	}
+#endif
+
+#if WITH_EDITORONLY_DATA
+	// Prior to this version bUse2DGrid was slave of the PCGWorldActor so make sure we update it one last time upon registration
+	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::PCGGridDescriptor)
+	{
+		bRequiresUse2DGridFixup = true;
 	}
 #endif
 
@@ -262,6 +271,15 @@ bool APCGPartitionActor::IsUserManaged() const
 	return Super::IsUserManaged();
 }
 
+void APCGPartitionActor::UpdateUse2DGridIfNeeded(bool bInUse2DGrid)
+{
+	if (bRequiresUse2DGridFixup)
+	{
+		bUse2DGrid = bInUse2DGrid;
+		bRequiresUse2DGridFixup = false;
+	}
+}
+
 void APCGPartitionActor::SetInvalidForPCG()
 {
 	if (!bIsInvalidForPCG)
@@ -292,6 +310,14 @@ FIntVector APCGPartitionActor::GetGridCoord() const
 {
 	const FVector Center = GetActorLocation();
 	return UPCGActorHelpers::GetCellCoord(Center, PCGGridSize, bUse2DGrid);
+}
+
+FPCGGridDescriptor APCGPartitionActor::GetGridDescriptor() const
+{
+	return FPCGGridDescriptor()
+		.SetGridSize(GetPCGGridSize())
+		.SetIs2DGrid(bUse2DGrid)
+		.SetIsRuntime(IsRuntimeGenerated());
 }
 
 bool APCGPartitionActor::Teleport(const FVector& NewLocation)
@@ -547,22 +573,13 @@ AActor* APCGPartitionActor::GetSceneOutlinerParent() const
 }
 #endif // WITH_EDITOR
 
-void APCGPartitionActor::PostCreation(const FGuid& InGridGUID, uint32 InGridSize)
+void APCGPartitionActor::PostCreation(const FPCGGridDescriptor& GridDescriptor)
 {
-	PCGGuid = InGridGUID;
-	PCGGridSize = InGridSize;
-
-	// Put in cache if we use the 2D grid or not.
-	if (APCGWorldActor* PCGActor = PCGHelpers::GetPCGWorldActor(GetWorld()))
-	{
-		bUse2DGrid = PCGActor->bUse2DGrid;
-	}
-	else
-	{
-		bUse2DGrid = true;
-	}
+	PCGGridSize = GridDescriptor.GetGridSize();
+	bUse2DGrid = GridDescriptor.Is2DGrid();
 
 #if WITH_EDITOR
+	SetGridSize(PCGGridSize);
 	UpdateBoundsComponentExtents();
 #endif // WITH_EDITOR
 
@@ -661,19 +678,35 @@ void APCGPartitionActor::UpdateBoundsComponentExtents()
 
 FString APCGPartitionActor::GetPCGPartitionActorName(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated)
 {
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GridSize)
+		.SetIsRuntime(bRuntimeGenerated);
+	return GetPCGPartitionActorName(GridDescriptor, GridCoords);
+}
+
+FString APCGPartitionActor::GetPCGPartitionActorName(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords)
+{
 	TStringBuilderWithBuffer<TCHAR, NAME_SIZE> ActorNameBuilder;
 
-	if (bRuntimeGenerated)
+	if (GridDescriptor.IsRuntime())
 	{
-		ActorNameBuilder += TEXT("PCGRuntimeGenPartitionActor_");
+		ActorNameBuilder += TEXT("PCGRuntimePartitionGridActor_");
 	}
 	else
 	{
-		ActorNameBuilder += TEXT("PCGPartitionActor_");
+		ActorNameBuilder += TEXT("PCGPartitionGridActor_");
 	}
 
-	ActorNameBuilder += FString::Printf(TEXT("%d_"), GridSize);
-	ActorNameBuilder += FString::Printf(TEXT("%d_%d_%d"), GridCoords.X, GridCoords.Y, GridCoords.Z);
+	ActorNameBuilder += FString::Printf(TEXT("%d_"), GridDescriptor.GetGridSize());
+	
+	if (GridDescriptor.Is2DGrid())
+	{
+		ActorNameBuilder += FString::Printf(TEXT("%d_%d"), GridCoords.X, GridCoords.Y);
+	}
+	else
+	{
+		ActorNameBuilder += FString::Printf(TEXT("%d_%d_%d"), GridCoords.X, GridCoords.Y, GridCoords.Z);
+	}
 
 	return ActorNameBuilder.ToString();
 }

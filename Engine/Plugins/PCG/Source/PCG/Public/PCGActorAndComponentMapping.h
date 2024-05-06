@@ -4,6 +4,7 @@
 
 #include "PCGCommon.h"
 #include "Elements/PCGActorSelector.h"
+#include "Grid/PCGGridDescriptor.h"
 #include "Grid/PCGComponentOctree.h"
 #include "RuntimeGen/PCGRuntimeGenScheduler.h"
 
@@ -62,7 +63,7 @@ public:
 	/** Notify that we exited the Landscape edit mode. */
 	void NotifyLandscapeEditModeExited();
 
-	static void BuildPartitionActorRecords(APCGWorldActor* PCGWorldActor, UWorldPartition* WorldPartition, TMap<FPCGPartitionActorRecord, FGuid>& OutPartitionActorRecords, TSet<FGuid>& OutInvalidPartitionActors);
+	static void BuildPartitionActorRecords(APCGWorldActor* PCGWorldActor, UWorldPartition* WorldPartition, TMap<FPCGGridCellDescriptor, FGuid>& OutPartitionActorRecords, TSet<FGuid>& OutInvalidPartitionActors);
 #endif // WITH_EDITOR
 
 	/** Register a new PCG Component or update it. Returns true if it was added/updated. Thread safe */
@@ -89,15 +90,13 @@ public:
 	/** Return a copy of all the registered components. Thread safe */
 	TSet<UPCGComponent*> GetAllRegisteredComponents() const;
 
-	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component is found. */
-	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated = false) const;
+	/** Retrieves a local component using grid descriptor and grid coordinates, returns nullptr if no such component is found. */
+	UPCGComponent* GetLocalComponent(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent) const;
 
-	/** Retrieves a partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
-	APCGPartitionActor* GetPartitionActor(uint32 GridSize, const FIntVector& CellCoords, bool bRuntimeGenerated = false) const;
+	APCGPartitionActor* GetPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords) const;
 
 	/** Returns true if there is record of a partition actor living in a certain grid cell, regardless of whether or not it is loaded. */
-	bool DoesPartitionActorRecordExist(const FGuid& GridGuid, uint32 GridSize, const FIntVector& GridCoords) const;
-
+	bool DoesPartitionActorRecordExist(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords) const;
 private:
 
 #if WITH_EDITOR
@@ -218,20 +217,12 @@ private:
 	FPCGComponentOctreeAndMap PartitionedOctree;
 
 	/** Mapping from grid size and grid coords to partition actor. We can only have 1 partition actor per grid cell. */
-	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> PartitionActorsMap;
+	TMap<FPCGGridDescriptor, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> PartitionActorsMap;
 	mutable FRWLock PartitionActorsMapLock;
-
-	/** Mapping from grid size and grid coords to RuntimeGen partition actor. We can only have 1 RuntimeGen partition actor per grid cell. */
-	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> RuntimeGenPartitionActorsMap;
-	mutable FRWLock RuntimeGenPartitionActorsMapLock;
 
 	/** Mapping between original components and its overlapping partition actors. */
 	TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>> ComponentToPartitionActorsMap;
 	mutable FRWLock ComponentToPartitionActorsMapLock;
-
-	/** Mapping between original components and its overlapping RuntimeGen partition actors. */
-	TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>> ComponentToRuntimeGenPartitionActorsMap;
-	mutable FRWLock ComponentToRuntimeGenPartitionActorsMapLock;
 
 	/** Components to be unregister at the next frame. cf. UnregisterComponent for a better understanding on why it is needed. */
 	TSet<UPCGComponent*> DelayedComponentToUnregister;
@@ -273,7 +264,7 @@ private:
 	double LastPreviousActorDataCleanup = -1.0;
 
 	// Set of existing PCG Partition Actors (for World Partition worlds)
-	TMap<FPCGPartitionActorRecord, FGuid> PartitionActorRecords;
+	TMap<FPCGGridCellDescriptor, FGuid> PartitionActorRecords;
 	// Previously generated PCG Partition Actors to ignore (will prevent them from getting registered and mark them for deletion)
 	TSet<FGuid> InvalidPartitionActors;
 #endif // WITH_EDITOR

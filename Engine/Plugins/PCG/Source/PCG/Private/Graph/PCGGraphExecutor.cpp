@@ -1995,16 +1995,18 @@ namespace PCGGraphExecutor
 			}
 			else
 			{
-				const APCGWorldActor* PCGWorldActor = Subsystem->GetPCGWorldActor();
 				const AActor* ComponentActor = InContext->SourceComponent->GetOwner();
-				if (PCGWorldActor && ComponentActor)
+				if (ComponentActor)
 				{
-					// Get grid coords using the parent grid (FromGridSize).
-					const FIntVector CellCoords = UPCGActorHelpers::GetCellCoord(ComponentActor->GetActorLocation(), FromGridSize, PCGWorldActor->bUse2DGrid);
+					FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
+						.SetGridSize(FromGridSize)
+						.SetIs2DGrid(InContext->SourceComponent->GetOriginalComponent()->Use2DGrid())
+						.SetIsRuntime(InContext->SourceComponent->IsManagedByRuntimeGenSystem());
 
-					// Search for a transient local component if the source component is runtime managed.
-					const bool bTransientComponent = InContext->SourceComponent->IsManagedByRuntimeGenSystem();
-					ComponentWithData = Subsystem->GetLocalComponent(FromGridSize, CellCoords, InContext->SourceComponent->GetOriginalComponent(), bTransientComponent);
+					// Get grid coords using the parent grid (FromGridSize).
+					const FIntVector CellCoords = UPCGActorHelpers::GetCellCoord(ComponentActor->GetActorLocation(), GridDescriptor.GetGridSize(), GridDescriptor.Is2DGrid());
+
+					ComponentWithData = Subsystem->GetLocalComponent(GridDescriptor, CellCoords, InContext->SourceComponent->GetOriginalComponent());
 				}
 			}
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PCGCommon.h"
+#include "Grid/PCGGridDescriptor.h"
 
 #include "GameFramework/Actor.h"
 #include "Misc/Guid.h"
@@ -35,20 +36,10 @@ public:
 
 	//~ Begin UObject Interface.
 #if WITH_EDITOR
-	virtual void PostLoad() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	virtual void BeginDestroy() override;
 	//~ End UObject Interface.
-
-	/** Creates guids for unused grid sizes. */
-	void CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes, bool bAreGridsSerialized);
-
-	/** Returns the serialized grid GUIDs used for the partitioned actors, one per grid size. */
-	void GetSerializedGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
-
-	/** Returns the transient grid GUIDs used for the partitioned actors, one per grid size. */
-	void GetTransientGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
 
 	void MergeFrom(APCGWorldActor* OtherWorldActor);
 
@@ -66,11 +57,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = CachedData, meta = (NoResetToDefault, DisplayName="Landscape Cache"))
 	TObjectPtr<UPCGLandscapeCache> LandscapeCacheObject = nullptr;
 
-	/** Disable creation of Partition Actors on the Z axis. Can improve performances if 3D partitioning is not needed. */
-	UPROPERTY(config, EditAnywhere, Category = GenerationSettings)
+#if WITH_EDITORONLY_DATA
+	/** This property was moved to the UPCGGraph but we keep it around to fixup existing data */
+	UE_DEPRECATED(5.5, "bUse2DGrid is deprecated")
+	UPROPERTY()
 	bool bUse2DGrid = true;
 
-#if WITH_EDITORONLY_DATA
 	/** Allows any currently active editor viewport to act as a Runtime Generation Source. */
 	UPROPERTY(EditAnywhere, Category = RuntimeGeneration)
 	bool bTreatEditorViewportAsGenerationSource = false;
@@ -86,19 +78,9 @@ private:
 	void OnPartitionGridSizeChanged();
 #endif
 
-	/** GUIDs of the serialized partitioned actor grids, one per grid size. */
-	UPROPERTY()
-	TMap<uint32, FGuid> GridGuids;
-	mutable FRWLock GridGuidsLock;
-
-	/** GUIDs of the transient partitioned actor grids, one per grid size. */
-	UPROPERTY(Transient)
-	TMap<uint32, FGuid> TransientGridGuids;
-	mutable FRWLock TransientGridGuidsLock;
-
 	/** Keeps a record of what grid cells contain a serialized partition actor for game worlds. */
 	UPROPERTY()
-	TSet<FPCGPartitionActorRecord> RuntimePartitionActorRecords;
+	TSet<FPCGGridCellDescriptor> RuntimePartitionActorRecords;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

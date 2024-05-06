@@ -4,14 +4,18 @@
 
 #if WITH_EDITOR
 #include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
 #include "Containers/Map.h"
+#include "Grid/PCGGridDescriptor.h"
+#include "UObject/ObjectMacros.h"
 #include "WorldPartition/ActorPartition/PartitionActorDesc.h"
 
 class FPCGPartitionActorDesc : public FPartitionActorDesc
 {
 public:
 	FPCGPartitionActorDesc() = default;
+
+	FPCGGridDescriptor GetGridDescriptor() const;
+	FIntVector GetGridCoord() const;
 protected:
 	virtual void Init(const AActor* InActor) override;
 	virtual uint32 GetSizeOf() const override { return sizeof(FPCGPartitionActorDesc); }
@@ -20,7 +24,8 @@ protected:
 private:
 	friend class FPCGActorAndComponentMapping;
 
-	bool bRequiresGuidFixup = false;
+	bool bUse2DGrid = true;
+	bool bRequiresUse2DGridFixup = false;
 	bool bInvalid = false;
 };
 #endif
