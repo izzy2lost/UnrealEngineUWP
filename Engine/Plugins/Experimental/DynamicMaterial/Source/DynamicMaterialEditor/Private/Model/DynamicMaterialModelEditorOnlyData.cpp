@@ -6,8 +6,6 @@
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
-#include "Components/DMMaterialStage.h"
-#include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMTextureUV.h"
 #include "Components/MaterialProperties/DMMPAmbientOcclusion.h"
@@ -24,9 +22,6 @@
 #include "Components/MaterialProperties/DMMPSpecular.h"
 #include "Components/MaterialProperties/DMMPTangent.h"
 #include "Components/MaterialProperties/DMMPWorldPositionOffset.h"
-#include "Components/MaterialStageBlends/DMMSBNormal.h"
-#include "Components/MaterialValues/DMMaterialValueFloat1.h"
-#include "Components/MaterialValues/DMMaterialValueFloat2.h"
 #include "CoreGlobals.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
@@ -39,16 +34,11 @@
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
-#include "Materials/MaterialExpressionMax.h"
-#include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialFunction.h"
 #include "Misc/Guid.h"
 #include "Model/DMMaterialBuildState.h"
-#include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModel.h"
 #include "UObject/Package.h"
-#include "Utils/DMMaterialFunctionLibrary.h"
-#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
 
@@ -516,105 +506,26 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 
 	TSharedRef<FDMMaterialBuildState> BuildState = CreateBuildState(MaterialModel->DynamicMaterial, bInDirtyAssets);
 
-	const bool bIsPostProcessMaterial = Domain == EMaterialDomain::MD_PostProcess;
-
 	/**
 	 * Process slots to build base material inputs.
 	 */
 	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
 	{
-		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
+		if (!Pair.Value->IsMaterialPin())
 		{
 			continue;
 		}
 
-		if (bIsPostProcessMaterial && Pair.Key != EDMMaterialPropertyType::EmissiveColor)
+		Pair.Value->GenerateExpressions(BuildState);
+
+		// Global opacity is handled at later
+		if (Pair.Key != EDMMaterialPropertyType::Opacity && Pair.Key != EDMMaterialPropertyType::OpacityMask)
 		{
-			continue;
-		}
-
-		// For now we don't have channel remapping!
-		FExpressionInput* MaterialPropertyPtr = BuildState->GetMaterialProperty(Pair.Key);
-
-		if (!MaterialPropertyPtr)
-		{
-			continue;
-		}
-
-		MaterialPropertyPtr->Expression = nullptr;
-		MaterialPropertyPtr->OutputIndex = 0;
-
-		UMaterialExpression* LastPropertyExpression = nullptr;
-		UDMMaterialSlot* Slot = GetSlotForMaterialProperty(Pair.Key);
-
-		if (!Slot || Slot->GetLayers().IsEmpty())
-		{
-			continue;
-		}
-
-		BuildState->SetCurrentMaterialProperty(Pair.Value);
-
-		Slot->GenerateExpressions(BuildState);
-
-		if (BuildState->GetSlotExpressions(Slot).IsEmpty())
-		{
-			continue;
-		}
-
-		LastPropertyExpression = BuildState->GetLastSlotPropertyExpression(Slot, Pair.Key);
-
-		if (!LastPropertyExpression)
-		{
-			continue;
-		}
-
-		MaterialPropertyPtr->Expression = LastPropertyExpression;
-
-		if (Pair.Value->GetInputConnectionMap().Channels.IsEmpty() == false)
-		{
-			MaterialPropertyPtr->OutputIndex = Pair.Value->GetInputConnectionMap().Channels[0].OutputIndex;
-		}
-		else
-		{
-			MaterialPropertyPtr->OutputIndex = 0;
-		}
-
-		// Global opacity is handled later
-		if (Pair.Key == EDMMaterialPropertyType::Opacity || Pair.Key == EDMMaterialPropertyType::OpacityMask)
-		{
-			continue;
-		}
-
-		UDMMaterialValueFloat1* AlphaValue = Cast<UDMMaterialValueFloat1>(Pair.Value->GetComponent(AlphaValueName));
-
-		if (!AlphaValue)
-		{
-			continue;
-		}
-
-		AlphaValue->GenerateExpression(BuildState);
-		UMaterialExpression* AlphaValueExpression = BuildState->GetLastValueExpression(AlphaValue);
-
-		if (MaterialPropertyPtr->Expression)
-		{
-			UMaterialExpressionMultiply* OpacityMultiply = BuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
-			OpacityMultiply->A.Expression = MaterialPropertyPtr->Expression;
-			OpacityMultiply->A.Mask = MaterialPropertyPtr->Mask;
-			OpacityMultiply->A.MaskR = MaterialPropertyPtr->MaskR;
-			OpacityMultiply->A.MaskG = MaterialPropertyPtr->MaskG;
-			OpacityMultiply->A.MaskB = MaterialPropertyPtr->MaskB;
-			OpacityMultiply->A.MaskA = MaterialPropertyPtr->MaskA;
-			OpacityMultiply->A.OutputIndex = MaterialPropertyPtr->OutputIndex;
-
-			OpacityMultiply->B.Expression = AlphaValueExpression;
-			OpacityMultiply->B.SetMask(1, 1, 0, 0, 0);
-			OpacityMultiply->B.OutputIndex = 0;
-
-			MaterialPropertyPtr->Expression = OpacityMultiply;
+			Pair.Value->AddAlphaMultiplier(BuildState);
 		}
 	}
 
-	if (!bIsPostProcessMaterial)
+	if (Domain != EMaterialDomain::MD_PostProcess)
 	{
 		/**
 		 * Generate opacity input based on base/emissive if it doesn't already have an input.
@@ -657,7 +568,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 				UMaterialExpression* OpacityOutputNode;
 				int32 OutputIndex;
 				int32 OutputChannel;
-				GenerateOpacityExpressions(BuildState, OpacitySlot, OpacityProperty, OpacityOutputNode, OutputIndex, OutputChannel);
+				UDMMaterialProperty::GenerateOpacityExpressions(BuildState, OpacitySlot, OpacityProperty, OpacityOutputNode, OutputIndex, OutputChannel);
 
 				if (OpacityOutputNode)
 				{
@@ -683,43 +594,20 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		/**
 		 * Apply global opacity slider after automatic opacity generation
 		 */
-		FExpressionInput* OpacityPropertyPtr = nullptr;
+		UDMMaterialProperty* OpacityProperty = nullptr;
 
-		if (BlendMode == BLEND_Translucent)
+		if (BlendMode == BLEND_Masked)
 		{
-			OpacityPropertyPtr = BuildState->GetMaterialProperty(EDMMaterialPropertyType::Opacity);
+			OpacityProperty = Properties.FindRef(EDMMaterialPropertyType::OpacityMask);
 		}
-		else if (BlendMode == BLEND_Masked)
+		else if (BlendMode != BLEND_Opaque)
 		{
-			OpacityPropertyPtr = BuildState->GetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
+			OpacityProperty = Properties.FindRef(EDMMaterialPropertyType::Opacity);
 		}
 
-		if (OpacityPropertyPtr != nullptr)
+		if (OpacityProperty != nullptr)
 		{
-			if (UDMMaterialValueFloat1* GlobalOpacityValue = MaterialModel->GetTypedGlobalParameterValue<UDMMaterialValueFloat1>(UDynamicMaterialModel::GlobalOpacityValueName))
-			{
-				GlobalOpacityValue->GenerateExpression(BuildState);
-				UMaterialExpression* GlobalOpacityExpression = BuildState->GetLastValueExpression(GlobalOpacityValue);
-
-				if (GlobalOpacityExpression && OpacityPropertyPtr->Expression)
-				{
-					UMaterialExpressionMultiply* OpacityMultiply = BuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
-					OpacityMultiply->A.Expression = OpacityPropertyPtr->Expression;
-					OpacityMultiply->A.Mask = OpacityPropertyPtr->Mask;
-					OpacityMultiply->A.MaskR = OpacityPropertyPtr->MaskR;
-					OpacityMultiply->A.MaskG = OpacityPropertyPtr->MaskG;
-					OpacityMultiply->A.MaskB = OpacityPropertyPtr->MaskB;
-					OpacityMultiply->A.MaskA = OpacityPropertyPtr->MaskA;
-					OpacityMultiply->A.OutputIndex = OpacityPropertyPtr->OutputIndex;
-
-					OpacityMultiply->B.Expression = GlobalOpacityExpression;
-					OpacityMultiply->B.SetMask(1, 1, 0, 0, 0);
-					OpacityMultiply->B.OutputIndex = 0;
-
-					OpacityPropertyPtr->Expression = OpacityMultiply;
-					OpacityPropertyPtr->SetMask(1, 1, 0, 0, 0);
-				}
-			}
+			OpacityProperty->AddAlphaMultiplier(BuildState);
 		}
 	}
 
@@ -728,54 +616,12 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	 */
 	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
 	{
-		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
+		if (!Pair.Value->IsMaterialPin())
 		{
 			continue;
 		}
 
-		UMaterialFunctionInterface* OutputProcessor = Pair.Value->GetOutputProcessor();
-
-		if (!OutputProcessor)
-		{
-			continue;
-		}
-
-		FExpressionInput* MaterialPropertyPtr = BuildState->GetMaterialProperty(Pair.Key);
-
-		if (!MaterialPropertyPtr)
-		{
-			continue;
-		}
-
-		UMaterialExpressionMaterialFunctionCall* MFC = FDMMaterialFunctionLibrary::Get().MakeExpression(
-			BuildState->GetDynamicMaterial(),
-			OutputProcessor,
-			UE_DM_NodeComment_Default
-		);
-
-		TArrayView<FExpressionInput*> Inputs = MFC->GetInputsView();
-
-		if (Inputs.IsEmpty())
-		{
-			continue;
-		}
-
-		UMaterialExpression* LastPropertyExpression = MaterialPropertyPtr->Expression;
-
-		if (!LastPropertyExpression)
-		{
-			LastPropertyExpression = Pair.Value->GetDefaultInput(BuildState);
-
-			if (!LastPropertyExpression)
-			{
-				continue;
-			}
-		}
-
-		LastPropertyExpression->ConnectExpression(Inputs[0], MaterialPropertyPtr->OutputIndex);
-		MFC->ConnectExpression(MaterialPropertyPtr, 0);
-
-		MaterialPropertyPtr->OutputIndex = 0;
+		Pair.Value->AddOutputProcessor(BuildState);
 	}
 
 	State = EDMState::Idle;
@@ -1668,136 +1514,6 @@ void UDynamicMaterialModelEditorOnlyData::OnSlotConnectorsUpdated(UDMMaterialSlo
 	for (EDMMaterialPropertyType Property : SlotProperties)
 	{
 		Properties[Property]->ResetInputConnectionMap();
-	}
-}
-
-void UDynamicMaterialModelEditorOnlyData::GenerateOpacityExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState, UDMMaterialSlot* InFromSlot,
-	EDMMaterialPropertyType InFromProperty, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const
-{
-	const TArray<TObjectPtr<UDMMaterialLayerObject>>& SlotLayers = InFromSlot->GetLayers();
-	OutExpression = nullptr;
-
-	for (const TObjectPtr<UDMMaterialLayerObject>& Layer : SlotLayers)
-	{
-		// Although we are working with masks, if the base is disabled, this is handled by the GenerateExpressions
-		// of the LayerBlend code (to multiply alpha together, instead of maxing it).
-		if (Layer->GetMaterialProperty() != InFromProperty || !Layer->IsEnabled() || !Layer->IsStageEnabled(EDMMaterialLayerStage::Base))
-		{
-			continue;
-		}
-
-		UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base);
-		UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask);
-
-		MaskStage->GenerateExpressions(InBuildState);
-		UDMMaterialStageThroughputLayerBlend* LayerBlend = Cast<UDMMaterialStageThroughputLayerBlend>(MaskStage->GetSource());
-
-		if (!LayerBlend)
-		{
-			continue;
-		}
-
-		UMaterialExpression* MaskOutputExpression;
-		int32 MaskOutputIndex;
-		int32 MaskOutputChannel;
-		LayerBlend->GetMaskOutput(InBuildState, MaskOutputExpression, MaskOutputIndex, MaskOutputChannel);
-
-		if (!MaskOutputExpression)
-		{
-			continue;
-		}
-
-		if (LayerBlend->UsePremultiplyAlpha())
-		{
-			if (UDMMaterialStageSource* Source = BaseStage->GetSource())
-			{
-				UMaterialExpression* LayerAlphaOutputExpression;
-				int32 LayerAlphaOutputIndex;
-				int32 LayerAlphaOutputChannel;
-
-				Source->GetMaskAlphaBlendNode(InBuildState, LayerAlphaOutputExpression, LayerAlphaOutputIndex, LayerAlphaOutputChannel);
-
-				if (LayerAlphaOutputExpression)
-				{
-					UMaterialExpressionMultiply* AlphaMultiply = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
-
-					AlphaMultiply->A.Expression = MaskOutputExpression;
-					AlphaMultiply->A.OutputIndex = MaskOutputIndex;
-					AlphaMultiply->A.Mask = 0;
-
-					if (MaskOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-					{
-						AlphaMultiply->A.Mask = 1;
-						AlphaMultiply->A.MaskR = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-						AlphaMultiply->A.MaskG = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-						AlphaMultiply->A.MaskB = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-						AlphaMultiply->A.MaskA = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-					}
-
-					AlphaMultiply->B.Expression = LayerAlphaOutputExpression;
-					AlphaMultiply->B.OutputIndex = LayerAlphaOutputIndex;
-					AlphaMultiply->B.Mask = 0;
-
-					if (LayerAlphaOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-					{
-						AlphaMultiply->B.Mask = 1;
-						AlphaMultiply->B.MaskR = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-						AlphaMultiply->B.MaskG = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-						AlphaMultiply->B.MaskB = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-						AlphaMultiply->B.MaskA = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-					}
-
-					MaskOutputExpression = AlphaMultiply;
-					MaskOutputIndex = 0;
-					MaskOutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
-				}
-			}
-		}
-
-		if (OutExpression == nullptr)
-		{
-			OutExpression = MaskOutputExpression;
-			
-			// The first output will use the node's output info.
-			OutOutputIndex = MaskOutputIndex;
-			OutOutputChannel = MaskOutputChannel;
-			continue;
-		}
-
-		UMaterialExpressionMax* Max = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMax>(UE_DM_NodeComment_Default);
-		check(Max);
-
-		Max->A.Expression = OutExpression;
-		Max->A.OutputIndex = OutOutputIndex;
-		Max->A.Mask = 0;
-
-		if (OutOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-		{
-			Max->A.Mask = 1;
-			Max->A.MaskR = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-			Max->A.MaskG = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-			Max->A.MaskB = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-			Max->A.MaskA = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-		}
-
-		Max->B.Expression = MaskOutputExpression;
-		Max->B.OutputIndex = MaskOutputIndex;
-		Max->B.Mask = 0;
-
-		if (MaskOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-		{
-			Max->B.Mask = 1;
-			Max->B.MaskR = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-			Max->B.MaskG = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-			Max->B.MaskB = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-			Max->B.MaskA = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-		}
-
-		OutExpression = Max;
-
-		// If we have to combine, it will use the Max node's output info
-		OutOutputIndex = 0;
-		OutOutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
 	}
 }
 

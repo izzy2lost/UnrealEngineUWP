@@ -66,11 +66,6 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
-	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty)
-	{
-		return (InMaterialProperty >= EDMMaterialPropertyType::Custom1 && InMaterialProperty <= EDMMaterialPropertyType::Custom4);
-	}
-
 	static bool bAllowUIFeedback = false;
 	static FText LogErrorObjectFormat = LOCTEXT("LogErrorObjectFormat", "%s (Source: %s)");
 

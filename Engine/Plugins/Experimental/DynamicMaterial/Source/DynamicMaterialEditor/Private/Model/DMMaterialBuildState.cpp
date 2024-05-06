@@ -60,12 +60,12 @@ UDynamicMaterialModel* FDMMaterialBuildState::GetMaterialModel() const
 	return MaterialModel;
 }
 
-UDMMaterialProperty* FDMMaterialBuildState::GetCurrentMaterialProperty() const
+const UDMMaterialProperty* FDMMaterialBuildState::GetCurrentMaterialProperty() const
 {
 	return CurrentProperty;
 }
 
-void FDMMaterialBuildState::SetCurrentMaterialProperty(UDMMaterialProperty* InProperty)
+void FDMMaterialBuildState::SetCurrentMaterialProperty(const UDMMaterialProperty* InProperty)
 {
 	CurrentProperty = InProperty;
 }

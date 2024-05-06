@@ -68,10 +68,10 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 #endif
 
 			UDMMaterialParameter* Parameter = CreateDefaultSubobject<UDMMaterialParameter>(InParameterName);
-			Parameter->ParameterName = InPropertyName;
+			Parameter->ParameterName = InParameterName;
 			Property->Parameter = Parameter;
 
-			ParameterMap.Add(InPropertyName, Parameter);
+			ParameterMap.Add(InParameterName, Parameter);
 		};
 
 	auto AddVector2Parameter = [this](FName InPropertyName, FName InParameterName, const FVector2D& InDefaultValue)
@@ -85,10 +85,10 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 #endif
 
 			UDMMaterialParameter* Parameter = CreateDefaultSubobject<UDMMaterialParameter>(InParameterName);
-			Parameter->ParameterName = InPropertyName;
+			Parameter->ParameterName = InParameterName;
 			Property->Parameter = Parameter;
 
-			ParameterMap.Add(InPropertyName, Parameter);
+			ParameterMap.Add(InParameterName, Parameter);
 		};
 
 	FDMUpdateGuard Guard;
@@ -350,6 +350,7 @@ void UDynamicMaterialModel::RenameParameter(UDMMaterialParameter* InParameter, F
 	}
 
 	InParameter->ParameterName = CreateUniqueParameterName(InBaseName);
+
 	ParameterMap.Emplace(InParameter->ParameterName, InParameter);
 
 	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
@@ -442,8 +443,6 @@ void UDynamicMaterialModel::PostLoad()
 	}
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	FixGlobalVars();
 
 	IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData();
 
@@ -573,6 +572,8 @@ void UDynamicMaterialModel::ReinitComponents()
 		}
 	}
 
+	FixGlobalVars();
+
 	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
 	{
 		ModelEditorOnlyData->ReinitComponents();
@@ -592,9 +593,19 @@ void UDynamicMaterialModel::FixGlobalVars()
 
 			UDMMaterialParameter* Parameter = Property->GetParameter();
 
-			if (!Parameter)
+			if (!Parameter || Parameter->GetParameterName() != InParameterName)
 			{
-				return;
+				if (Property->SetParameterName(InParameterName))
+				{
+					return;
+				}
+
+				Parameter = Property->GetParameter();
+
+				if (!Parameter)
+				{
+					return;
+				}
 			}
 	
 			if (const TWeakObjectPtr<UDMMaterialParameter>* FoundParameterPtr = ParameterMap.Find(InParameterName))

@@ -1,7 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialProperties/DMMPNormal.h"
+
+#include "Materials/MaterialExpressionMaterialFunctionCall.h"
+#include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
+
+namespace UE::DynamicMaterialEditor::Private
+{
+	UMaterialFunctionInterface* GetSafeNormalize()
+	{
+		static UMaterialFunctionInterface* NormalizeBlend = FDMMaterialFunctionLibrary::Get().GetFunction(
+			"SafeNormalize",
+			TEXT("/Script/Engine.MaterialFunction'/Engine/Functions/Engine_MaterialFunctions02/SafeNormalize.SafeNormalize'")
+		);
+
+		return NormalizeBlend;
+	}
+}
 
 UDMMaterialPropertyNormal::UDMMaterialPropertyNormal()
 	: UDMMaterialProperty(
@@ -36,4 +53,41 @@ UMaterialExpression* UDMMaterialPropertyNormal::GetDefaultInput(const TSharedRef
 TEnumAsByte<EMaterialSamplerType> UDMMaterialPropertyNormal::GetTextureSamplerType() const
 {
 	return EMaterialSamplerType::SAMPLERTYPE_Normal;
+}
+
+void UDMMaterialPropertyNormal::AddOutputProcessor(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
+{
+	Super::AddOutputProcessor(InBuildState);
+
+	FExpressionInput* MaterialPropertyPtr = InBuildState->GetMaterialProperty(MaterialProperty);
+
+	if (!MaterialPropertyPtr)
+	{
+		return;
+	}
+
+	UMaterialExpression* LastPropertyExpression = MaterialPropertyPtr->Expression;
+
+	if (!LastPropertyExpression)
+	{
+		return;
+	}
+
+	UMaterialExpressionMaterialFunctionCall* MaterialFunctionCall = FDMMaterialFunctionLibrary::Get().MakeExpression(
+		InBuildState->GetDynamicMaterial(),
+		UE::DynamicMaterialEditor::Private::GetSafeNormalize(),
+		UE_DM_NodeComment_Default
+	);
+
+	TArrayView<FExpressionInput*> Inputs = MaterialFunctionCall->GetInputsView();
+
+	if (Inputs.IsEmpty())
+	{
+		return;
+	}
+
+	LastPropertyExpression->ConnectExpression(Inputs[0], MaterialPropertyPtr->OutputIndex);
+	MaterialFunctionCall->ConnectExpression(MaterialPropertyPtr, 0);
+
+	MaterialPropertyPtr->OutputIndex = 0;
 }

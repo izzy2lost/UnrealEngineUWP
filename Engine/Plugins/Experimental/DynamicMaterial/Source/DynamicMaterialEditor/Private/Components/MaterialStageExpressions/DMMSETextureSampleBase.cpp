@@ -72,7 +72,7 @@ void UDMMaterialStageExpressionTextureSampleBase::GenerateExpressions(const TSha
 		return;
 	}
 
-	UDMMaterialProperty* CurrentProperty = InBuildState->GetCurrentMaterialProperty();
+	const UDMMaterialProperty* CurrentProperty = InBuildState->GetCurrentMaterialProperty();
 
 	if (!CurrentProperty)
 	{

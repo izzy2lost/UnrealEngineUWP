@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
  
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
+ 
 #include "Components/DMMaterialLayer.h"
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialSubStage.h"
@@ -16,16 +18,14 @@
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionMultiply.h"
-#include "Materials/MaterialExpressionSceneTexture.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Utils/DMInputNodeBuilder.h"
 #include "Utils/DMMaterialFunctionLibrary.h"
 #include "Utils/DMPrivate.h"
- 
+
 #define LOCTEXT_NAMESPACE "DMMaterialStageThroughputLayerBlend"
 
 namespace UE::DynamicMaterialEditor::Private
@@ -386,7 +386,7 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 		UMaterialExpression* LastExpression = nullptr;
 		int32 OutputIndex;
 		int32 OutputChannel;
-		ModelEditorOnlyData->GenerateOpacityExpressions(InBuildState, RGBSlot, RGBProperty, LastExpression, OutputIndex, OutputChannel);
+		UDMMaterialProperty::GenerateOpacityExpressions(InBuildState, RGBSlot, RGBProperty, LastExpression, OutputIndex, OutputChannel);
 
 		if (LastExpression)
 		{

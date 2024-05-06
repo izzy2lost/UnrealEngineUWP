@@ -852,7 +852,7 @@ void UDMMaterialSlot::UpdateBasePreviewMaterialFull(const TSharedRef<FDMMaterial
 
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& Pair : MaterialProperties)
 	{
-		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
+		if (!Pair.Value->IsMaterialPin())
 		{
 			continue;
 		}

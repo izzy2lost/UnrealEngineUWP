@@ -40,9 +40,9 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialBuildState : public IDMMaterialBuild
 
 	virtual UDynamicMaterialModel* GetMaterialModel() const override;
 
-	UDMMaterialProperty* GetCurrentMaterialProperty() const;
+	const UDMMaterialProperty* GetCurrentMaterialProperty() const;
 
-	void SetCurrentMaterialProperty(UDMMaterialProperty* InProperty);
+	void SetCurrentMaterialProperty(const UDMMaterialProperty* InProperty);
 
 	bool ShouldDirtyAssets() const { return bDirtyAssets; }
 
@@ -157,7 +157,7 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialBuildState : public IDMMaterialBuild
 private:
 	UMaterial* DynamicMaterial = nullptr;
 	UDynamicMaterialModel* MaterialModel = nullptr;
-	UDMMaterialProperty* CurrentProperty = nullptr;
+	const UDMMaterialProperty* CurrentProperty = nullptr;
 	bool bDirtyAssets;
 	bool bIgnoreUVs;
 	bool bIsPreviewMaterial;
