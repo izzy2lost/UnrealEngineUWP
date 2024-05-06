@@ -2102,7 +2102,7 @@ bool FNiagaraRendererMeshes::IsMaterialValid(const UMaterialInterface* Mat)const
 	bool bIsMaterialValid = false;
 	if (Mat)
 	{
-		bIsMaterialValid = (bIsHeterogeneousVolume && Mat->GetMaterial() && (Mat->GetMaterial()->MaterialDomain == MD_Volume)) ?
+		bIsMaterialValid = (bIsHeterogeneousVolume && Mat->GetMaterial_Concurrent() && (Mat->GetMaterial_Concurrent()->MaterialDomain == MD_Volume)) ?
 			Mat->CheckMaterialUsage_Concurrent(MATUSAGE_HeterogeneousVolumes) :
 			Mat->CheckMaterialUsage_Concurrent(MATUSAGE_NiagaraMeshParticles);
 	}
