@@ -1357,7 +1357,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 	else
 	{
 		// Set useful default value
-		DebugVisualizationMode = RAY_TRACING_DEBUG_VIZ_BASE_COLOR;
+		DebugVisualizationMode = RAY_TRACING_DEBUG_VIZ_BARYCENTRICS;
 	}
 
 	if (DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_BARYCENTRICS)
@@ -1419,6 +1419,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 	const bool bRayTracingPipeline = ShouldRenderRayTracingEffect(ERayTracingPipelineCompatibilityFlags::FullPipeline);
 	if (!bRayTracingPipeline)
 	{
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(SceneColorTexture), FLinearColor::Black);
 		return;
 	}
 

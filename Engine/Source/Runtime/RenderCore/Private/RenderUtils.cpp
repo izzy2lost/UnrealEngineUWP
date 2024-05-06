@@ -696,6 +696,10 @@ RENDERCORE_API ShaderPlatformMaskType GSimpleSkyDiffusePlatformMask;
 // Safe to use to make cook-time decisions, such as whether to compile ray tracing shaders.
 RENDERCORE_API ShaderPlatformMaskType GRayTracingPlatformMask;
 
+// Specifies whether ray tracing shaders *can* be used on a particular platform.
+// This takes into account whether RT is globally enabled for the project and specifically enabled on a target platform.
+RENDERCORE_API ShaderPlatformMaskType GRayTracingShadersPlatformMask;
+
 // Specifies whether ray tracing *is* enabled on the current running system (in current game or editor process).
 // This takes into account additional factors, such as concrete current GPU/OS/Driver capability, user-set game graphics options, etc.
 // Only safe to make run-time decisions, such as whether to build acceleration structures and render ray tracing effects.
@@ -742,6 +746,7 @@ RENDERCORE_API void RenderUtilsInit()
 	GSimpleSkyDiffusePlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 	GVelocityEncodeDepthPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 	GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+	GRayTracingShadersPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 
 	static IConsoleVariable* MobileAmbientOcclusionCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.AmbientOcclusion"));
 	GMobileAmbientOcclusionPlatformMask.Init(MobileAmbientOcclusionCVar && MobileAmbientOcclusionCVar->GetInt(), EShaderPlatform::SP_NumPlatforms);
@@ -795,6 +800,8 @@ RENDERCORE_API void RenderUtilsInit()
 				TArray<FName> PlatformRayTracingShaderFormats;
 				TargetPlatformSettings->GetRayTracingShaderFormats(PlatformRayTracingShaderFormats);
 
+				const bool bRayTracingShadersEnabled = TargetPlatformSettings->GetRayTracingMode() == ERayTracingRuntimeMode::Full;
+
 				for (FName FormatName : PlatformRayTracingShaderFormats)
 				{
 					EShaderPlatform MainShaderPlatform = ShaderFormatNameToShaderPlatform(FormatName);
@@ -807,6 +814,9 @@ RENDERCORE_API void RenderUtilsInit()
 					{
 						uint32 ShaderPlatformIndex = static_cast<uint32>(ShaderPlatform);
 						GRayTracingPlatformMask[ShaderPlatformIndex] = true;
+						GRayTracingShadersPlatformMask[ShaderPlatformIndex] = FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(ShaderPlatform)
+							? true
+							: bRayTracingShadersEnabled;
 					}
 				}
 			}
@@ -823,6 +833,11 @@ RENDERCORE_API void RenderUtilsInit()
 	if (RayTracingCVar && RayTracingCVar->GetInt() && GRHISupportsRayTracing)
 	{
 		GRayTracingPlatformMask.Init(true, EShaderPlatform::SP_NumPlatforms);
+
+		if (GRHISupportsRayTracingShaders)
+		{
+			GRayTracingShadersPlatformMask.Init(true, EShaderPlatform::SP_NumPlatforms);
+		}
 	}
 
 	// Load runtime values from and *.ini file used by a current platform
@@ -842,10 +857,31 @@ RENDERCORE_API void RenderUtilsInit()
 				GDistanceFieldsPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 			}
 
-			bool bRayTracing = false;
-			if (PlatformIniFile.GetBool(*CategoryName, TEXT("bEnableRayTracing"), bRayTracing) && !bRayTracing)
 			{
-				GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+				FString RayTracingModeString;
+				GConfig->GetString(FPlatformProperties::GetRuntimeSettingsClassName(), TEXT("RayTracingMode"), RayTracingModeString, GEngineIni);
+
+				if (RayTracingModeString.Equals(TEXT("Inline"), ESearchCase::IgnoreCase))
+				{
+					GRayTracingShadersPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+				}
+				else if (RayTracingModeString.Equals(TEXT("Full"), ESearchCase::IgnoreCase))
+				{
+					// nothing
+				}
+				else if (RayTracingModeString.Equals(TEXT("Disabled"), ESearchCase::IgnoreCase))
+				{
+					GRayTracingShadersPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+					GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+				}
+				else
+				{
+					bool bRayTracing = false;
+					if (PlatformIniFile.GetBool(*CategoryName, TEXT("bEnableRayTracing"), bRayTracing) && !bRayTracing)
+					{
+						GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+					}
+				}
 			}
 		}
 	}
@@ -922,6 +958,15 @@ RENDERCORE_API void RenderUtilsInit()
 				UE_LOG(LogRendererCore, Fatal, TEXT("Ray tracing requires skin cache to be enabled. Set r.SkinCache.CompileShaders=1."));
 			}
 
+			const bool bRayTracingShadersAllowedOnCurrentPlatform = GRayTracingShadersPlatformMask[(int)GMaxRHIShaderPlatform];
+			if (GRHISupportsRayTracingShaders && bRayTracingShadersAllowedOnCurrentPlatform)
+			{
+				UE_LOG(LogRendererCore, Log, TEXT("Ray tracing shaders are enabled."));
+			}
+			else
+			{
+				UE_LOG(LogRendererCore, Log, TEXT("Ray tracing shaders are disabled."));
+			}
 		}
 		else
 		{
@@ -1521,13 +1566,25 @@ bool IsRayTracingEnabledForProject(EShaderPlatform ShaderPlatform)
 	}
 }
 
+bool AreRayTracingShadersEnabledForProject(EShaderPlatform ShaderPlatform)
+{
+	if (RHISupportsRayTracing(ShaderPlatform) && RHISupportsRayTracingShaders(ShaderPlatform))
+	{
+		return GRayTracingShadersPlatformMask[(int)ShaderPlatform];
+	}
+	else
+	{
+		return false;
+	}
+}
+
 bool ShouldCompileRayTracingShadersForProject(EShaderPlatform ShaderPlatform)
 {
 	if (RHISupportsRayTracingShaders(ShaderPlatform))
 	{
 		const bool bRayTracingRequireSM6 = (GRayTracingRequireSM6 != 0);
 
-		return IsRayTracingEnabledForProject(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);		
+		return IsRayTracingEnabledForProject(ShaderPlatform) && AreRayTracingShadersEnabledForProject(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);
 	}
 	else
 	{

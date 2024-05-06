@@ -10,6 +10,13 @@ enum class EOfflineBVHMode
 	MinimizeMemory,
 };
 
+enum class ERayTracingRuntimeMode
+{
+	Disabled,
+	Inline,
+	Full
+};
+
 /**
  * Enumerates features that may be supported by target platforms.
  */
@@ -162,6 +169,11 @@ public:
 	* Gets whether the platform will use ray tracing.
 	*/
 	virtual bool UsesRayTracing() const = 0;
+
+	/**
+	* Gets ray tracing runtime mode (disabled/inline/hit-lighting).
+	*/
+	virtual ERayTracingRuntimeMode GetRayTracingMode() const = 0;
 
 	/**
 	 * Gets a platform-dependent bitfield describing which hardware generations are supported.

@@ -27,6 +27,7 @@ public:
 	TARGETPLATFORM_API virtual bool UsesSelectiveBasePassOutputs() const override;
 	TARGETPLATFORM_API virtual bool UsesDistanceFields() const override;
 	TARGETPLATFORM_API virtual bool UsesRayTracing() const override;
+	TARGETPLATFORM_API virtual ERayTracingRuntimeMode GetRayTracingMode() const override;
 	TARGETPLATFORM_API virtual uint32 GetSupportedHardwareMask() const override;
 	TARGETPLATFORM_API virtual EOfflineBVHMode GetStaticMeshOfflineBVHMode() const override;
 	TARGETPLATFORM_API virtual bool GetStaticMeshOfflineBVHCompression() const override;

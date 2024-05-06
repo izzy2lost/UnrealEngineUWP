@@ -59,6 +59,11 @@ bool FTargetPlatformBase::UsesRayTracing() const
 	return CVar ? (CVar->GetInt() != 0) : false;
 }
 
+ERayTracingRuntimeMode FTargetPlatformBase::GetRayTracingMode() const
+{
+	return ERayTracingRuntimeMode::Disabled;
+}
+
 uint32 FTargetPlatformBase::GetSupportedHardwareMask() const
 {
 	return 0;

@@ -1679,7 +1679,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			PreparePathTracingCloudMaterial(Scene, Views);
 		}
 
-		if (IsRayTracingEnabled(ViewFamily.GetShaderPlatform()) && RHISupportsRayTracingShaders(ViewFamily.GetShaderPlatform()))
+		if (IsRayTracingEnabled(ViewFamily.GetShaderPlatform()) && GRHISupportsRayTracingShaders)
 		{
 			// Nanite raytracing manager update must run before GPUScene update since it can modify primitive data
 			Nanite::GRayTracingManager.Update();
