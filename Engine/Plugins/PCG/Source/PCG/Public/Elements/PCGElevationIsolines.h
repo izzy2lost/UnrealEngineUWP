@@ -46,9 +46,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	double Resolution = 100.0;
 
+	/** Can add a tag (integer) to group output data that are at the same elevation. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bAddTagOnOutputForSameElevation = false;
+
+	/** Option to either have Z up or project the surface normal at this position (similar to project rotations on the projection node). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bProjectSurfaceNormal = false;
+
 	/** Will output splines rather than points. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bOutputAsSpline = false;
+
+	/** Spline can either be curved or linear. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bOutputAsSpline", EditConditionHides))
+	bool bLinearSpline = false;
 };
 
 class FPCGElevationIsolinesElement : public IPCGElement
