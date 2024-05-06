@@ -689,14 +689,15 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 			return false;
 		}
 
-		if (const auto Validation = UE::StateTree::Compiler::IsValidCount8(InstanceDataIndex); Validation.DidFail())
+		const int32 InstanceDataNum = InstanceDataIndex - FirstInstanceDataIndex[i];
+		if (const auto Validation = UE::StateTree::Compiler::IsValidCount8(InstanceDataNum); Validation.DidFail())
 		{
-			Validation.Log(Log, TEXT("InstanceDataIndex"));
+			Validation.Log(Log, TEXT("InstanceDataNum"));
 			return false;
 		}
 
 		CompactState.TasksNum = uint8(TasksNum);
-		CompactState.InstanceDataNum = uint8(InstanceDataIndex);
+		CompactState.InstanceDataNum = uint8(InstanceDataNum);
 	}
 	
 	return true;
