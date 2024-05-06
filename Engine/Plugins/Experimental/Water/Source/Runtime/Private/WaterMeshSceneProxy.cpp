@@ -165,8 +165,23 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	: FPrimitiveSceneProxy(Component)
 	, MaterialRelevance(Component->GetWaterMaterialRelevance(GetScene().GetFeatureLevel()))
 {
-	// Cache the tiles and settings
-	WaterQuadTree = Component->GetWaterQuadTree();
+	AWaterZone* WaterZone = CastChecked<AWaterZone>(Component->GetOwner());
+	checkf(WaterZone != nullptr, TEXT("WaterMeshComponent is owned by an actor that is not a WaterZone. This is not supported!"));
+
+	if (Component->ShouldBuildQuadTreeInSceneProxy())
+	{
+		// Get the QuadTreeBuilder and build the quadtree
+		const FWaterQuadTreeBuilder& WaterQuadTreeBuilder = Component->GetWaterQuadTreeBuilder();
+		const FVector2D GridPosition = WaterZone->IsLocalOnlyTessellationEnabled() ?
+			Component->GetDynamicWaterMeshCenter() :
+			FVector2D(FMath::GridSnap<FVector::FReal>(Component->GetComponentLocation().X, WaterQuadTreeBuilder.GetLeafSize()), FMath::GridSnap<FVector::FReal>(Component->GetComponentLocation().Y, WaterQuadTreeBuilder.GetLeafSize()));
+		WaterQuadTreeBuilder.BuildWaterQuadTree(WaterQuadTree, GridPosition);
+	}
+	else
+	{
+		WaterQuadTree = Component->GetWaterQuadTree();
+	}
+
 	// Leaf size * 0.5 equals the tightest possible LOD Scale that doesn't break the morphing. Can be scaled larger
 	LODScale = WaterQuadTree.GetLeafSize() * FMath::Max(Component->GetLODScale(), 0.5f);
 
@@ -253,11 +268,8 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 
 	WaterQuadTree.BuildMaterialIndices();
 
-	if (const AWaterZone* WaterZone = Component->GetOwner<AWaterZone>(); ensureMsgf(WaterZone != nullptr, TEXT("WaterMeshComponent is owned by an actor that is not a WaterZone. This is not supported!")))
-	{
-		const FBox WaterInfoBounds3D = WaterZone->GetDynamicWaterInfoBounds();
-		WaterInfoBounds = FBox2D(FVector2D(WaterInfoBounds3D.Min), FVector2D(WaterInfoBounds3D.Max));
-	}
+	const FBox WaterInfoBounds3D = WaterZone->GetDynamicWaterInfoBounds();
+	WaterInfoBounds = FBox2D(FVector2D(WaterInfoBounds3D.Min), FVector2D(WaterInfoBounds3D.Max));
 
 #if RHI_RAYTRACING
 	RayTracingWaterData.SetNum(DensityCount);
