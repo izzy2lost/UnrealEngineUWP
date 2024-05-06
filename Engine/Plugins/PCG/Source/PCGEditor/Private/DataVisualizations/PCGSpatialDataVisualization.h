@@ -14,6 +14,10 @@ struct FPCGContext;
 class PCGEDITOR_API IPCGSpatialDataVisualization : public IPCGDataVisualization
 {
 public:
+	// ~Begin IPCGDataVisualization interface
 	virtual void ExecuteDebugDisplay(FPCGContext* Context, const UPCGData* Data, AActor* TargetActor) const override;
+	virtual FPCGTableVisualizerInfo GetTableVisualizerInfo(const UPCGData* Data) const override;
+	// ~End IPCGDataVisualization interface
+
 	virtual const UPCGPointData* CollapseToDebugPointData(FPCGContext* Context, const UPCGData* Data) const;
 };

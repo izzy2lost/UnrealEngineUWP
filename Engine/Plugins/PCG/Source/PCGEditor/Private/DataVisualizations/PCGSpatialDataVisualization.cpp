@@ -3,16 +3,79 @@
 #include "DataVisualizations/PCGSpatialDataVisualization.h"
 
 #include "PCGContext.h"
+#include "PCGData.h"
 #include "PCGDebug.h"
+#include "PCGEditorCommon.h"
+#include "PCGPoint.h"
 #include "PCGSettings.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "DataVisualizations/PCGDataVisualizationHelpers.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
+#include "Metadata/Accessors/PCGCustomAccessor.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
 
 #define LOCTEXT_NAMESPACE "PCGSpatialDataVisualization"
+
+namespace PCGPointDataVisualizationConstants
+{
+	/** Names of the columns in the attribute list. */
+	const FName NAME_Index = FName(TEXT("$Index"));
+	const FName NAME_PositionX = FName(TEXT("$Position.X"));
+	const FName NAME_PositionY = FName(TEXT("$Position.Y"));
+	const FName NAME_PositionZ = FName(TEXT("$Position.Z"));
+	const FName NAME_RotationRoll = FName(TEXT("$Rotation.Roll"));
+	const FName NAME_RotationPitch = FName(TEXT("$Rotation.Pitch"));
+	const FName NAME_RotationYaw = FName(TEXT("$Rotation.Yaw"));
+	const FName NAME_ScaleX = FName(TEXT("$Scale.X"));
+	const FName NAME_ScaleY = FName(TEXT("$Scale.Y"));
+	const FName NAME_ScaleZ = FName(TEXT("$Scale.Z"));
+	const FName NAME_BoundsMinX = FName(TEXT("$BoundsMin.X"));
+	const FName NAME_BoundsMinY = FName(TEXT("$BoundsMin.Y"));
+	const FName NAME_BoundsMinZ = FName(TEXT("$BoundsMin.Z"));
+	const FName NAME_BoundsMaxX = FName(TEXT("$BoundsMax.X"));
+	const FName NAME_BoundsMaxY = FName(TEXT("$BoundsMax.Y"));
+	const FName NAME_BoundsMaxZ = FName(TEXT("$BoundsMax.Z"));
+	const FName NAME_ColorR = FName(TEXT("$Color.R"));
+	const FName NAME_ColorG = FName(TEXT("$Color.G"));
+	const FName NAME_ColorB = FName(TEXT("$Color.B"));
+	const FName NAME_ColorA = FName(TEXT("$Color.A"));
+	const FName NAME_Density = FName(TEXT("$Density"));
+	const FName NAME_Steepness = FName(TEXT("$Steepness"));
+	const FName NAME_Seed = FName(TEXT("$Seed"));
+	const FName NAME_MetadataEntry = FName(TEXT("MetadataEntry"));
+	const FName NAME_MetadataEntryParent = FName(TEXT("PointMetadataEntryParent"));
+
+	/** Labels of the columns. */
+	const FText TEXT_Index = LOCTEXT("Index", "$Index");
+	const FText TEXT_PositionX = LOCTEXT("PositionX", "$Position.X");
+	const FText TEXT_PositionY = LOCTEXT("PositionY", "$Position.Y");
+	const FText TEXT_PositionZ = LOCTEXT("PositionZ", "$Position.Z");
+	const FText TEXT_RotationRoll = LOCTEXT("RotationRoll", "$Rotation.Roll");
+	const FText TEXT_RotationPitch = LOCTEXT("RotationPitch", "$Rotation.Pitch");
+	const FText TEXT_RotationYaw = LOCTEXT("RotationYaw", "$Rotation.Yaw");
+	const FText TEXT_ScaleX = LOCTEXT("ScaleX", "$Scale.X");
+	const FText TEXT_ScaleY = LOCTEXT("ScaleY", "$Scale.Y");
+	const FText TEXT_ScaleZ = LOCTEXT("ScaleZ", "$Scale.Z");
+	const FText TEXT_BoundsMinX = LOCTEXT("BoundsMinX", "$BoundsMin.X");
+	const FText TEXT_BoundsMinY = LOCTEXT("BoundsMinY", "$BoundsMin.Y");
+	const FText TEXT_BoundsMinZ = LOCTEXT("BoundsMinZ", "$BoundsMin.Z");
+	const FText TEXT_BoundsMaxX = LOCTEXT("BoundsMaxX", "$BoundsMax.X");
+	const FText TEXT_BoundsMaxY = LOCTEXT("BoundsMaxY", "$BoundsMax.Y");
+	const FText TEXT_BoundsMaxZ = LOCTEXT("BoundsMaxZ", "$BoundsMax.Z");
+	const FText TEXT_ColorR = LOCTEXT("ColorR", "$Color.R");
+	const FText TEXT_ColorG = LOCTEXT("ColorG", "$Color.G");
+	const FText TEXT_ColorB = LOCTEXT("ColorB", "$Color.B");
+	const FText TEXT_ColorA = LOCTEXT("ColorA", "$Color.A");
+	const FText TEXT_Density = LOCTEXT("Density", "$Density");
+	const FText TEXT_Steepness = LOCTEXT("Steepness", "$Steepness");
+	const FText TEXT_Seed = LOCTEXT("Seed", "$Seed");
+	const FText TEXT_MetadataEntry = LOCTEXT("MetadataEntry", "Entry Key");
+	const FText TEXT_MetadataEntryParent = LOCTEXT("MetadataEntryParent", "Parent Key");
+}
 
 void IPCGSpatialDataVisualization::ExecuteDebugDisplay(FPCGContext* Context, const UPCGData* Data, AActor* TargetActor) const
 {
@@ -161,6 +224,75 @@ void IPCGSpatialDataVisualization::ExecuteDebugDisplay(FPCGContext* Context, con
 
 		ISMC->UpdateBounds();
 	}
+}
+
+FPCGTableVisualizerInfo IPCGSpatialDataVisualization::GetTableVisualizerInfo(const UPCGData* Data) const
+{
+	using namespace PCGDataVisualizationHelpers;
+	using namespace PCGPointDataVisualizationConstants;
+
+	// Collapse to point representation for visualization.
+	const UPCGPointData* PointData = CollapseToDebugPointData(/*Context=*/nullptr, Data);
+
+	FPCGTableVisualizerInfo Info;
+	Info.Data = PointData;
+
+	// Columns
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_Index,         TEXT_Index));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_PositionX,     TEXT_PositionX));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_PositionY,     TEXT_PositionY));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_PositionZ,     TEXT_PositionZ));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_RotationRoll,  TEXT_RotationRoll));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_RotationPitch, TEXT_RotationPitch));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_RotationYaw,   TEXT_RotationYaw));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_ScaleX,        TEXT_ScaleX));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_ScaleY,        TEXT_ScaleY));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_ScaleZ,        TEXT_ScaleZ));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_BoundsMinX,    TEXT_BoundsMinX));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_BoundsMinY,    TEXT_BoundsMinY));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_BoundsMinZ,    TEXT_BoundsMinZ));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_BoundsMaxX,    TEXT_BoundsMaxX));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_BoundsMaxY,    TEXT_BoundsMaxY));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_BoundsMaxZ,    TEXT_BoundsMaxZ));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_ColorR,        TEXT_ColorR));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_ColorG,        TEXT_ColorG));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_ColorB,        TEXT_ColorB));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_ColorA,        TEXT_ColorA));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_Density,       TEXT_Density));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_Steepness,     TEXT_Steepness));
+	Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_Seed,          TEXT_Seed));
+
+	if (FPCGEditorCommon::CVarShowAdvancedAttributesFields.GetValueOnAnyThread())
+	{
+		Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_MetadataEntry, TEXT_MetadataEntry, []()
+		{
+			return TSharedPtr<const IPCGAttributeAccessor>(PCGAttributeAccessorHelpers::CreatePropertyAccessor(GET_MEMBER_NAME_CHECKED(FPCGPoint, MetadataEntry), FPCGPoint::StaticStruct()).Release());
+		}));
+
+		Info.ColumnInfos.Add(CreateColumnInfo(PointData, NAME_MetadataEntryParent, TEXT_MetadataEntryParent, [PointData]()
+		{
+			return MakeShared<FPCGCustomPointAccessor<int64>>([PointData](const FPCGPoint& Point, void* OutValue)
+			{
+				if (const UPCGMetadata* Metadata = PointData->ConstMetadata())
+				{
+					*reinterpret_cast<int64*>(OutValue) = Metadata->GetParentKey(Point.MetadataEntry);
+					return true;
+				}
+				return false;
+			}, nullptr);
+		}));
+	}
+
+	// Add Metadata Columns
+	CreateMetadataColumnInfos(PointData, Info.ColumnInfos);
+
+	// Column Sorting
+	Info.SortingColumn = NAME_Index;
+
+	// Accessor Keys
+	Info.AccessorKeys = TSharedPtr<const IPCGAttributeAccessorKeys>(PCGAttributeAccessorHelpers::CreateConstKeys(PointData, FPCGAttributePropertyInputSelector()).Release());
+
+	return Info;
 }
 
 const UPCGPointData* IPCGSpatialDataVisualization::CollapseToDebugPointData(FPCGContext* Context, const UPCGData* Data) const

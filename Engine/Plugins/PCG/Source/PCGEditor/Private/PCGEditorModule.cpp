@@ -11,10 +11,12 @@
 #include "PCGEditorUtils.h"
 #include "PCGEngineSettings.h"
 #include "PCGModule.h"
+#include "PCGParamData.h"
 #include "PCGSubsystem.h"
 #include "PCGVolumeFactory.h"
 #include "Data/PCGSpatialData.h"
 #include "Data/PCGSplineData.h"
+#include "DataVisualizations/PCGParamDataVisualization.h"
 #include "DataVisualizations/PCGSpatialDataVisualization.h"
 #include "DataVisualizations/PCGSplineDataVisualization.h"
 #include "Grid/PCGPartitionActor.h"
@@ -534,6 +536,7 @@ void FPCGEditorModule::UnregisterSettings()
 void FPCGEditorModule::RegisterPCGDataVisualizations()
 {
 	FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetMutablePCGDataVisualizationRegistry();
+	DataVisRegistry.InternalRegistry.Add(UPCGParamData::StaticClass(), MakeUnique<const IPCGParamDataVisualization>());
 	DataVisRegistry.InternalRegistry.Add(UPCGSpatialData::StaticClass(), MakeUnique<const IPCGSpatialDataVisualization>());
 	DataVisRegistry.InternalRegistry.Add(UPCGSplineData::StaticClass(), MakeUnique<const IPCGSplineDataVisualization>());
 }

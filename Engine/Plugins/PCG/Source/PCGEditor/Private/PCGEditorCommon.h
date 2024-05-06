@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "HAL/IConsoleManager.h"
+
 #include "PCGEditorCommon.generated.h"
 
 UENUM()
@@ -42,4 +44,9 @@ namespace FPCGEditorCommon
 	const FName RenderTargetDataType = FName(TEXT("Render Target Data"));
 	const FName VolumeDataType = FName(TEXT("Volume Data"));
 	const FName PrimitiveDataType = FName(TEXT("Primitive Data"));	
+
+	static TAutoConsoleVariable<bool> CVarShowAdvancedAttributesFields(
+		TEXT("pcg.graph.ShowAdvancedAttributes"),
+		false,
+		TEXT("Control whether advanced attributes/properties are shown in the PCG graph editor"));
 };

@@ -27,6 +27,7 @@ class UPCGEditorGraphNodeBase;
 class UPCGMetadata;
 class UPCGParamData;
 class UPCGPointData;
+struct FPCGTableVisualizerColumnInfo;
 struct FPCGDataCollection;
 struct FPCGPoint;
 enum class EPCGMetadataTypes : uint8;
@@ -36,10 +37,15 @@ class SHeaderRow;
 class SSearchBox;
 struct FSlateBrush;
 
+namespace PCGEditorGraphAttributeListView
+{
+	constexpr float MaxColumnWidth = 200.0f;
+}
+
 struct FPCGListViewItem
 {
 	int32 Index = INDEX_NONE;
-	const FPCGPoint* PCGPoint = nullptr;
+	TFunction<void(int)> DoubleClickCallback = nullptr;
 };
 
 struct FPCGColumnData
@@ -186,7 +192,6 @@ private:
 	void OnSelectionChanged(TSharedPtr<FName> Item, ESelectInfo::Type SelectInfo);
 	FText OnGenerateSelectedDataText() const;
 	int32 GetSelectedDataIndex() const;
-	void GenerateColumnsFromMetadata(const UPCGData* InPCGData, const UPCGMetadata* PCGMetadata);
 
 	void ToggleAllAttributes();
 	void ToggleAttribute(FName InAttributeName);
@@ -204,7 +209,7 @@ private:
 
 	FReply OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) const;
 
-	void AddColumn(const UPCGData* InPCGData, const FName& InColumnId, const FText& ColumnLabel);
+	void AddColumn(const UPCGData* InPCGData, const FPCGTableVisualizerColumnInfo& InColumnInfo, TSharedPtr<const IPCGAttributeAccessorKeys> InAccessorKeys);
 	void AddPointDataColumns(const UPCGPointData* InPCGPointData);
 	void AddMetadataColumn(const UPCGData* InPCGData, const FName& InColumnId, EPCGMetadataTypes InMetadataType, const TCHAR* PostFix = nullptr);
 
@@ -264,5 +269,5 @@ private:
 	TSharedPtr<FPCGListViewUpdater> CurrentUpdateTask = nullptr;
 
 	/** Used to ensure data collapsed for inspection is kept alive. */
-	TStrongObjectPtr<const UPCGPointData> CollapsedPointData = nullptr;
+	TStrongObjectPtr<const UPCGData> DataStrongPtr = nullptr;
 };
