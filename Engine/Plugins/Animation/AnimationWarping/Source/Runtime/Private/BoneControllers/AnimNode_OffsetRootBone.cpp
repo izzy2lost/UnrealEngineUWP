@@ -68,6 +68,8 @@ void FAnimNode_OffsetRootBone::Update_AnyThread(const FAnimationUpdateContext& C
 	Super::Update_AnyThread(Context);
 	CachedDeltaTime = Context.GetDeltaTime();
 
+	GetEvaluateGraphExposedInputs().Execute(Context);
+
 	// If we just became relevant and haven't been initialized yet, then reset.
 	if (!bIsFirstUpdate && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter()))
 	{
