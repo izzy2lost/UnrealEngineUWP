@@ -26,15 +26,15 @@ namespace Expect
 		static constexpr char Name[] = "E1";
 		using Type = ::PlainProps::Test::E1;
 		static constexpr int NumEnumerators = 2;
-		static constexpr struct { const char* Name; Type Value; } Enumerators[] = { {"A", Type::A},  {"B", Type::B} };
+		static constexpr struct { const char* Name; Type Constant; } Enumerators[] = { {"A", Type::A},  {"B", Type::B} };
 	};
 }
 
 static_assert(std::string_view(Actual::E1_Ctti::Name) == std::string_view(Expect::E1_Ctti::Name));
 static_assert(std::is_same_v<Actual::E1_Ctti::Type, Expect::E1_Ctti::Type>);
 static_assert(Actual::E1_Ctti::NumEnumerators == Expect::E1_Ctti::NumEnumerators);
-static_assert(Actual::E1_Ctti::Enumerators[0].Value	== Expect::E1_Ctti::Enumerators[0].Value);
-static_assert(Actual::E1_Ctti::Enumerators[1].Value	== Expect::E1_Ctti::Enumerators[1].Value);
+static_assert(Actual::E1_Ctti::Enumerators[0].Constant	== Expect::E1_Ctti::Enumerators[0].Constant);
+static_assert(Actual::E1_Ctti::Enumerators[1].Constant	== Expect::E1_Ctti::Enumerators[1].Constant);
 static_assert(std::string_view(Actual::E1_Ctti::Enumerators[0].Name) == std::string_view(Expect::E1_Ctti::Enumerators[0].Name));
 static_assert(std::string_view(Actual::E1_Ctti::Enumerators[1].Name) == std::string_view(Expect::E1_Ctti::Enumerators[1].Name));
 

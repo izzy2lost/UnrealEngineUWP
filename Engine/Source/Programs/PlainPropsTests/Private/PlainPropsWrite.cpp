@@ -27,6 +27,7 @@ struct FWriteIds
 	TArray<FOptionalSchemaId>			Enums;
 
 	uint32								NumKeptSchemas;
+	uint32								NumKeptStructSchemas;
 	TArray<FNestedScope>				KeptScopes;
 	TArray<FParametricType>				KeptParametrics;
 	TArray<FTypeId>						KeptParameters;
@@ -189,6 +190,7 @@ FWriteIds::FWriteIds(const FIdIndexerBase& Declared, const FBuiltSchemas& Schema
 	{
 		Structs.Add(Struct.bUsed ? ToOptional(FSchemaId{ NewSchemaIdx++ }) : NoId);
 	}
+	NumKeptStructSchemas = NewSchemaIdx;
 	for (const FBuiltEnumSchema& Enum : Schemas.Enums)
 	{
 		Enums.Add(Enum.bUsed ? ToOptional(FSchemaId{ NewSchemaIdx++ }) : NoId);
@@ -467,7 +469,7 @@ static void WriteSchemasImpl(TArray64<uint8>& Out, const FBuiltSchemas& Schemas,
 	Header.NestedScopesOffset = IntCastChecked<uint32>(NestedScopePos - HeaderPos);
 	Header.NumParametricTypes = NewIds.KeptParametrics.Num();
 	Header.NumSchemas = NewIds.NumKeptSchemas;
-	Header.NumStructSchemas = Schemas.Structs.Num();
+	Header.NumStructSchemas = NewIds.NumKeptStructSchemas;
 	FMemory::Memcpy(&Out[HeaderPos], &Header, sizeof(FSchemaBatch));
 
 	// Write schema offsets

@@ -191,10 +191,8 @@ static void CreateSubsetLoadSchema(const FStructSchema& From, const FStructSchem
 			ToIt.SkipMember();
 		}
 
-		CopyMemberBinding(/* in-out */ ToIt, Footer);			
+		CopyMemberBinding(/* in-out */ ToIt, /* out */ Footer);	
 	}
-
-	unimplemented(); // todo copy kept members but skip enum schemas
 }
 
 [[nodiscard]] static FLoadStructPlan MakeSchemaLoadPlan(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
@@ -227,12 +225,12 @@ static void CreateSubsetLoadSchema(const FStructSchema& From, const FStructSchem
 	return Memcpy ? FLoadStructPlan(Memcpy.GetValue()) : MakeSchemaLoadPlan(From, To, ToMemberIds, ToStructIds, OutSubsetSchemas);
 }
 
-FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FStructBindings& Bindings, TConstArrayView<FStructSchemaId> LoadIds)
+FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FStructBindings& Bindings, TConstArrayView<FStructSchemaId> RuntimeIds)
 {
-	check(NumStructSchemas(ReadId) == LoadIds.Num());
+	check(NumStructSchemas(ReadId) == RuntimeIds.Num());
 
 	// Temporary data structures
-	const uint32 NumPlans = LoadIds.Num();
+	const uint32 NumPlans = RuntimeIds.Num();
 	TArray<FLoadStructPlan, TInlineAllocator<256>> Plans;
 	TArray<uint32, TInlineAllocator<256>> SubsetSchemaSizes;
 	SubsetByteArray SubsetSchemaData;
@@ -242,8 +240,8 @@ FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declaratio
 	// Create plans
 	for (FStructSchemaId SavedId = { 0 }; SavedId.Idx < NumPlans; ++SavedId.Idx)
 	{
-		FStructSchemaId LoadId = LoadIds[SavedId.Idx];
-		FStructBinding Binding = Bindings.Get(LoadId);
+		FStructSchemaId RuntimeId = RuntimeIds[SavedId.Idx];
+		FStructBinding Binding = Bindings.Get(RuntimeId);
 		int32 SubsetSchemaOffset = SubsetSchemaData.Num();
 		if (Binding.IsCustom())
 		{
@@ -251,11 +249,11 @@ FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declaratio
 		}
 		else
 		{
-			const FStructSchema& From = ResolveStructSchema(ReadId, LoadId);
+			const FStructSchema& From = ResolveStructSchema(ReadId, SavedId);
 			const FStructSchemaBinding& To = Binding.AsSchema();
 			// Possible optimization - some simple memcpy cases doesn't need to resolve the declaration
-			TConstArrayView<FMemberId> ToMemberIds = Declarations.Get(LoadId).GetMemberOrder();
-			Plans[SavedId.Idx] = MakeLoadPlan(From, To, ToMemberIds, LoadIds, /* out */ SubsetSchemaData);	
+			TConstArrayView<FMemberId> ToMemberIds = Declarations.Get(RuntimeId).GetMemberOrder();
+			Plans[SavedId.Idx] = MakeLoadPlan(From, To, ToMemberIds, RuntimeIds, /* out */ SubsetSchemaData);	
 		}
 		
 		SubsetSchemaSizes[SavedId.Idx] = SubsetSchemaData.Num() - SubsetSchemaOffset;
@@ -280,7 +278,7 @@ FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declaratio
 				check(IsAligned(Size, alignof(FStructSchemaBinding)));
 				check(Plans[Idx].IsSchema());
 				bool bSparse = Plans[Idx].IsSparseSchema();
-				Plans[Idx] = FLoadStructPlan(*reinterpret_cast<const FStructSchemaBinding*>(It), ELeafWidth::B32, bSparse);
+				Out->Plans[Idx] = FLoadStructPlan(*reinterpret_cast<const FStructSchemaBinding*>(It), ELeafWidth::B32, bSparse);
 				It += Size;
 			}
 		}

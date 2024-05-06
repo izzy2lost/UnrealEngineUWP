@@ -616,15 +616,18 @@ template<class Ctti, class Ids>
 FEnumSchemaId DeclareNativeEnum(FDeclarations& Out, EEnumMode Mode)
 {
 	using UnderlyingType = std::underlying_type_t<typename Ctti::Type>;
-	FTypeId Type = Ids::IndexNativeType(Ctti::Name);	
+
+	FTypeId Type = Ids::IndexNativeType(Ctti::Name);
+	FEnumSchemaId Id = Ids::IndexEnum(Type);
 	FEnumerator Enumerators[Ctti::NumEnumerators];
 	for (FEnumerator& Enumerator : Enumerators)
 	{
-		Enumerator.Name = Ids::IndexMember(Ctti::Enumerators[&Enumerator - Enumerators].Name);
+		Enumerator.Name = Ids::IndexName(Ctti::Enumerators[&Enumerator - Enumerators].Name);
 		Enumerator.Constant = static_cast<uint64>(static_cast<UnderlyingType>(Ctti::Enumerators[&Enumerator - Enumerators].Constant));
 	}
+	Out.DeclareEnum(Id, Type, Mode, LeafWidth<sizeof(UnderlyingType)>, Enumerators);
 
-	return Out.DeclareEnum(Type, Mode, LeafWidth<sizeof(UnderlyingType)>, Enumerators);
+	return Id;
 }
 
 //
@@ -694,7 +697,7 @@ struct FMemberBinder
 		check(MemberIt == Schema.GetInnerRangeTypes());
 		check(Align(RangeTypeIt, alignof(uint32)) == (const void*)Schema.GetOffsets());
 		check(OffsetIt == (const void*)Schema.GetInnerSchemas());
-		check(Align(InnerSchemaIt, alignof(FRangeBinding)) == (const void*)Schema.GetRangeBindings());
+		check(Align(InnerSchemaIt, alignof(FRangeBinding)) == (const void*)Schema.GetRangeBindings() || Schema.NumInnerRanges == 0);
 		check(Schema.NumInnerRanges == RangeBindingIt - Schema.GetRangeBindings());
 	}
 

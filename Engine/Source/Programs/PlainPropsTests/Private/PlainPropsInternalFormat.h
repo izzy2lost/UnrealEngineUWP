@@ -62,43 +62,32 @@ struct FStructSchema
 	uint16 NumInnerSchemas;
 	ESuper Inheritance : 2;
 	uint8 IsDense : 1;
-	// Needed? maybe sufficient check sizes match up
-	//uint8 IsContiguous : 1; // Dense and only non-bool leaves. Could extend to handle nested contiguous structs by complicating format slightly.
-
 	FMemberType Footer[0];
 	
-	static const FMemberType* GetMemberTypes(const FMemberType* Footer)
+	const FSchemaId*				GetInnerSchemas() const		{ return GetInnerSchemas(Footer, NumMembers, NumRangeTypes, NumMembers - UsesSuper(Inheritance)); }
+	FOptionalStructSchemaId			GetSuperSchema() const		{ return Inheritance != ESuper::No ? ToOptional(static_cast<FStructSchemaId>(*GetInnerSchemas())) : NoId; }
+	TConstArrayView<FMemberId>		GetMemberNames() const		{ return MakeArrayView(GetMemberNames(Footer, NumMembers, NumRangeTypes), NumMembers); }
+	TArrayView<FMemberId>			EditMemberNames() 			{ return MakeArrayView(const_cast<FMemberId*>(GetMemberNames(Footer, NumMembers, NumRangeTypes)), NumMembers); }
+
+	static const FMemberType*		GetMemberTypes(const FMemberType* Footer)
 	{
 		return Footer;
 	}
 	
-	static const FMemberType* GetRangeTypes(const FMemberType* Footer, uint32 NumMembers)
+	static const FMemberType*		GetRangeTypes(const FMemberType* Footer, uint32 NumMembers)
 	{
 		return Footer + NumMembers;
 	}
 
-	static const FMemberId*	GetMemberNames(const FMemberType* Footer, uint32 NumMembers, uint32 NumRangeTypes)
+	static const FMemberId*			GetMemberNames(const FMemberType* Footer, uint32 NumMembers, uint32 NumRangeTypes)
 	{
 		return AlignPtr<FMemberId>(Footer + NumMembers + NumRangeTypes);
 	}
-	
-	static const FSchemaId*	GetInnerSchemas(const FMemberType* Footer, uint32 NumMembers, uint32 NumRangeTypes, uint32 NumNames)
+		
+	static const FSchemaId*			GetInnerSchemas(const FMemberType* Footer, uint32 NumMembers, uint32 NumRangeTypes, uint32 NumNames)
 	{
 		return AlignPtr<FSchemaId>(GetMemberNames(Footer, NumMembers, NumRangeTypes) + NumNames);
 	}
-
-	const FSchemaId* GetInnerSchemas() const
-	{
-		return GetInnerSchemas(Footer, NumMembers, NumRangeTypes, NumMembers - UsesSuper(Inheritance));
-	}
-
-	FOptionalStructSchemaId GetSuperSchema() const
-	{
-		const FSchemaId* FirstSchema = GetInnerSchemas();
-		return Inheritance != ESuper::No ? ToOptional(static_cast<FStructSchemaId>(*FirstSchema)) : NoId;
-	}
-
-	TConstArrayView<FMemberId> GetMemberNames() const { return MakeArrayView(GetMemberNames(Footer, NumMembers, NumRangeTypes), NumMembers); }
 };
 
 static_assert(sizeof(FStructSchema) == 16 && alignof(FStructSchema) == 4,		"Add binary format versioning and read old format in AllocateReadSchemas");
@@ -163,10 +152,6 @@ inline constexpr uint64 GetLeafRangeSize(uint64 Num, FUnpackedLeafType Leaf)
 {
 	return Leaf.Type == ELeafType::Bool ? (Num + 7) / 8 : Num * SizeOf(Leaf.Width);
 }
-
-
-
-
 
 //////////////////////////////////////////////////////////////////////////
 

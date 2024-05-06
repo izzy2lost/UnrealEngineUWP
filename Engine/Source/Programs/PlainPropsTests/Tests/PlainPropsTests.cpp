@@ -426,7 +426,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			CHECK(Schema.Inheritance == ESuper::No);
 			CHECK(FStructSchema::GetMemberTypes(Schema.Footer)[0] == FUnpackedLeafType(ELeafType::Bool, ELeafWidth::B8).Pack());
 			CHECK(FStructSchema::GetMemberTypes(Schema.Footer)[8] == FUnpackedLeafType(ELeafType::Bool, ELeafWidth::B8).Pack());
-			TConstArrayView<FMemberId> MemberIds(FStructSchema::GetMemberNames(Schema.Footer, Schema.NumMembers, Schema.NumRangeTypes), Schema.NumMembers);
+			TConstArrayView<FMemberId> MemberIds = Schema.GetMemberNames();
 			CHECK(Names[MemberIds[0]] == "b1");
 			CHECK(Names[MemberIds[1]] == "b2");
 			CHECK(Names[MemberIds[2]] == "b3");

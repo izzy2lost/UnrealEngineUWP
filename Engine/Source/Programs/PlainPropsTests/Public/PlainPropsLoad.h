@@ -16,7 +16,7 @@ class FStructBindings;
 struct FTypedRange;
 
 
-PP_API FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FStructBindings& Bindings, TConstArrayView<FStructSchemaId> LoadIds);
+PP_API FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FStructBindings& Bindings, TConstArrayView<FStructSchemaId> RuntimeIds);
 PP_API void DestroyLoadPlans(FLoadBatch* Batch);
 PP_API void LoadStruct(uint8* Dst, FByteReader Src, FStructSchemaId Id, const FLoadBatch& Batch);
 PP_API void LoadStruct(uint8* Dst, FStructView Src, const FLoadBatch& Batch);

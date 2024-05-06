@@ -281,6 +281,15 @@ FIdBinding FIdTranslatorBase::TranslateIds(FMutableMemoryView To, FIdIndexerBase
 
 //////////////////////////////////////////////////////////////////////////
 
+template<class IdType>
+void RemapAll(TArrayView<IdType> Ids, FIdBinding NewIds)
+{
+	for (IdType& Id : Ids)
+	{
+		Id = NewIds.Remap(Id);
+	}
+}
+
 FSchemaBatch* CreateTranslatedSchemas(const FSchemaBatch& In, FIdBinding NewIds)
 {
 	const FMemoryView InSchemas = GetSchemaData(In);
@@ -305,10 +314,12 @@ FSchemaBatch* CreateTranslatedSchemas(const FSchemaBatch& In, FIdBinding NewIds)
 	for (FStructSchema& Schema : GetStructSchemas(*Out))
 	{
 		Schema.Type = NewIds.Remap(Schema.Type);
+		RemapAll(Schema.EditMemberNames(), NewIds);
 	}
 	for (FEnumSchema& Schema : GetEnumSchemas(*Out))
 	{
 		Schema.Type = NewIds.Remap(Schema.Type);
+		RemapAll(MakeArrayView(Schema.Footer, Schema.Num), NewIds);
 	}
 
 	return Out;
