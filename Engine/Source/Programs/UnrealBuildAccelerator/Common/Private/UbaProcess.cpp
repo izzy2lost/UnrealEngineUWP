@@ -1561,7 +1561,13 @@ namespace uba
 
 			Vector<const char*> envvars;
 
-			char** envvarsPtr = nullptr;
+			const char* it = (const char*)environment;
+			while (*it)
+			{
+				const char* s = it;
+				envvars.push_back(s);
+				it += TStrlen(s) + 1;
+			}
 
 			int outPipe[2] = { -1, -1 };
 			int errPipe[2] = { -1, -1 };
@@ -1570,14 +1576,6 @@ namespace uba
 
 			if (m_detourEnabled)
 			{
-				const char* it = (const char*)environment;
-				while (*it)
-				{
-					const char* s = it;
-					envvars.push_back(s);
-					it += TStrlen(s) + 1;
-				}
-
 				const char* detoursLib = m_session.m_detoursLibrary.c_str();
 				if (*detoursLib)
 				{
@@ -1630,10 +1628,9 @@ namespace uba
 					envvars.push_back("UBA_REMOTE=1");
 				if (!logFile.IsEmpty())
 					envvars.push_back(logFile.data);
-
-				envvars.push_back(nullptr);
-				envvarsPtr = (char**)envvars.data();
 			}
+
+			envvars.push_back(nullptr);
 
 			if (true)
 			{
@@ -1666,7 +1663,7 @@ namespace uba
 			pid_t processID;
 			while (true)
 			{
-				res = posix_spawnp(&processID, m_realApplication.c_str(), &fileActions, &attr, (char**)argsArray, envvarsPtr);
+				res = posix_spawnp(&processID, m_realApplication.c_str(), &fileActions, &attr, (char**)argsArray, (char**)envvars.data());
 				if (res == 0)
 					break;
 

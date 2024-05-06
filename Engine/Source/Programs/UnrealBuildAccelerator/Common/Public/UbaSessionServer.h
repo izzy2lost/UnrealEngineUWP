@@ -14,8 +14,8 @@ namespace uba
 	class SessionServer final : public Session
 	{
 	public:
-		// Ctor/dtor
-		SessionServer(const SessionServerCreateInfo& info);
+		// Ctor/dtor. "environmnent" should be an array of utf8-written strings. This is really only needed for posix platforms where process is a c# process
+		SessionServer(const SessionServerCreateInfo& info, const u8* environment = nullptr, u32 environmentSize = 0);
 		~SessionServer();
 
 		// Run process remotely.

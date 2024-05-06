@@ -237,6 +237,8 @@ namespace uba
 		HANDLE m_processJobObject = NULL;
 		#endif
 
+		Vector<u8> m_environmentMemory;
+
 		ReaderWriterLock m_environmentVariablesLock;
 		Vector<tchar> m_environmentVariables;
 		UnorderedSet<const tchar*, HashStringNoCase, EqualStringNoCase> m_localEnvironmentVariables;

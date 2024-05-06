@@ -1646,47 +1646,56 @@ namespace uba
 			return m_environmentVariables.data();
 
 #if PLATFORM_WINDOWS
-		auto strs = GetEnvironmentStringsW();
-		for (auto it = strs; *it; it += TStrlen(it) + 1)
+		auto HandleEnvironmentVar = [&](const tchar* env)
 		{
 			StringBuffer<> varName;
-			varName.Append(it, TStrchr(it, '=') - it);
-			const tchar* varValue = it + varName.count + 1;
+			varName.Append(env, TStrchr(env, '=') - env);
+			const tchar* varValue = env + varName.count + 1;
 
 			if (m_runningRemote && varName.Equals(TC("PATH")))
 			{
 				AddEnvironmentVariableNoLock(TC("PATH"), TC("c:\\noenvironment"));
-				continue;
+				return;
 			}
 			if (varName.Equals(TC("TEMP")) || varName.Equals(TC("TMP")))
 			{
 				AddEnvironmentVariableNoLock(varName.data, m_tempPath.data);
-				continue;
+				return;
 			}
 			if (varName.Equals(TC("_CL_")) || varName.Equals(TC("CL")))
 			{
-				continue;
+				return;
 			}
 
 			AddEnvironmentVariableNoLock(varName.data, varValue);
+		};
+
+		if (m_environmentMemory.empty())
+		{
+			auto strs = GetEnvironmentStringsW();
+			for (auto env = strs; *env; env += TStrlen(env) + 1)
+				HandleEnvironmentVar(env);
+			FreeEnvironmentStrings(strs);
 		}
-
-		FreeEnvironmentStrings(strs);
-
+		else
+		{
+			BinaryReader reader(m_environmentMemory.data(), 0, m_environmentMemory.size());
+			while (reader.GetLeft())
+				HandleEnvironmentVar(reader.ReadString().c_str());
+		}
 		AddEnvironmentVariableNoLock(TC("MSBUILDDISABLENODEREUSE"), TC("1")); // msbuild will reuse existing helper nodes but since those are not detoured we can't let that happen
 		AddEnvironmentVariableNoLock(TC("DOTNET_CLI_USE_MSBUILD_SERVER"), TC("0")); // Disable msbuild server
 		AddEnvironmentVariableNoLock(TC("DOTNET_CLI_TELEMETRY_OPTOUT"), TC("1")); // Stop talking to telemetry service
 #else
-		int i = 0;
-		while (char* env = environ[i++])
+		auto HandleEnvironmentVar = [&](const tchar* env)
 		{
 			if (StartsWith(env, "TMPDIR="))
-				continue;
+				return;
 
 			if (!StartsWith(env, "PATH="))
 			{
 				m_environmentVariables.insert(m_environmentVariables.end(), env, env + TStrlen(env) + 1);
-				continue;
+				return;
 			}
 
 			TString paths;
@@ -1717,6 +1726,19 @@ namespace uba
 				paths.append(s, e);
 			}
 			AddEnvironmentVariableNoLock("PATH", paths.c_str());
+		};
+
+		if (m_environmentMemory.empty())
+		{
+			int i = 0;
+			while (char* env = environ[i++])
+				HandleEnvironmentVar(env);
+		}
+		else
+		{
+			BinaryReader reader(m_environmentMemory.data(), 0, m_environmentMemory.size());
+			while (reader.GetLeft())
+				HandleEnvironmentVar(reader.ReadString().c_str());
 		}
 		AddEnvironmentVariableNoLock("TMPDIR", m_tempPath.data);
 #endif

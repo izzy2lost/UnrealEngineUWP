@@ -90,7 +90,7 @@ namespace uba
 	};
 
 
-	SessionServer::SessionServer(const SessionServerCreateInfo& info)
+	SessionServer::SessionServer(const SessionServerCreateInfo& info, const u8* environment, u32 environmentSize)
 	:	Session(info, TC("UbaSessionServer"), false, &info.server)
 	,	m_server(info.server)
 	,	m_maxRemoteProcessCount(~0u)
@@ -114,6 +114,12 @@ namespace uba
 				}
 			}
 		);
+
+		if (environmentSize)
+		{
+			m_environmentMemory.resize(environmentSize);
+			memcpy(m_environmentMemory.data(), environment, environmentSize);
+		}
 
 		m_uiLanguage = GetUserDefaultUILanguage();
 		m_resetCas = info.resetCas;

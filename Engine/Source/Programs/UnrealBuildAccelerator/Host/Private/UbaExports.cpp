@@ -313,9 +313,9 @@ extern "C"
 		delete info;
 	}
 
-	uba::SessionServer* SessionServer_Create(const uba::SessionServerCreateInfo& info)
+	uba::SessionServer* SessionServer_Create(const uba::SessionServerCreateInfo& info, const uba::u8* environment, uba::u32 environmentSize)
 	{
-		return new uba::SessionServer(info);
+		return new uba::SessionServer(info, environment, environmentSize);
 	}
 	void SessionServer_SetRemoteProcessAvailable(uba::SessionServer* server, SessionServer_RemoteProcessAvailableCallback* available, void* userData)
 	{
