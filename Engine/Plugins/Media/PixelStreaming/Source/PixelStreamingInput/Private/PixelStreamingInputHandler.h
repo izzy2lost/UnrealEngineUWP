@@ -96,6 +96,7 @@ namespace UE::PixelStreamingInput
 		/**
 		 * XR handling
 		 */
+		virtual void HandleOnXREyeViews(FMemoryReader Ar);
 		virtual void HandleOnXRHMDTransform(FMemoryReader Ar);
 		virtual void HandleOnXRControllerTransform(FMemoryReader Ar);
 		virtual void HandleOnXRButtonPressed(FMemoryReader Ar);
@@ -120,6 +121,19 @@ namespace UE::PixelStreamingInput
 		 * Populate default command handlers for data channel messages sent with "{ type: "Command" }".
 		 */
 		void PopulateDefaultCommandHandlers();
+
+		/**
+		 * Extract 4x4 WebXR ordered matrix and convert to FMatrix.
+		*/
+		FMatrix ExtractWebXRMatrix(FMemoryReader& Ar);
+
+		/**
+		 * Converts the 'Y up' 'right handed' WebXR coordinate system transform to Unreal's 'Z up'
+		 * 'left handed' coordinate system. Note: Ignores scale.
+		 * Assumes WebXR conforms to the following: (https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API/Geometry)
+		 * @return A 4x4 z-up transform matrix for use with UE.
+		*/
+		FTransform WebXRMatrixToUETransform(FMatrix Mat);
 
 		FIntPoint ConvertFromNormalizedScreenLocation(const FVector2D& ScreenLocation, bool bIncludeOffset = true);
 		FWidgetPath FindRoutingMessageWidget(const FVector2D& Location) const;
