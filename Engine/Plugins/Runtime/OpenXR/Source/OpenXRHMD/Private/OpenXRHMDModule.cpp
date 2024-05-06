@@ -690,6 +690,7 @@ bool FOpenXRHMDModule::InitInstance()
 		ExtensionSet.Add(XR_EPIC_VIEW_CONFIGURATION_FOV_EXTENSION_NAME);
 	}
 
+	ExtensionPlugins.Reset();
 	for (IOpenXRExtensionPlugin* Plugin : ExtModules)
 	{
 		TArray<const ANSICHAR*> RequiredExtensions, OptionalExtensions, Extensions;
