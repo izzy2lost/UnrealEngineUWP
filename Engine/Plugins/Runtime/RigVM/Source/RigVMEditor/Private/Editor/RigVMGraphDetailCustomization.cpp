@@ -28,6 +28,7 @@
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "Widgets/SRigVMGraphPinEnumPicker.h"
 #include "ScopedTransaction.h"
+#include "Misc/UObjectToken.h"
 
 #define LOCTEXT_NAMESPACE "RigVMGraphDetailCustomization"
 
@@ -958,6 +959,75 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
                     .OnSelectionChanged(this, &FRigVMGraphDetailCustomization::OnAccessSpecifierSelected)
             ]
         ];
+
+		// variant guid
+		SettingsCategory.AddCustomRow(FText::GetEmpty())
+		.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
+		{
+			return IsFunctionVariant() ? EVisibility::Visible : EVisibility::Collapsed;
+		}))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Variant Guid")))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text(this, &FRigVMGraphDetailCustomization::GetVariantGuidText)
+		];
+
+		/*
+		SettingsCategory.AddCustomRow(FText::GetEmpty())
+		.WholeRowContent()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			[
+				SNew(SButton)
+				.Visibility_Lambda([this]()
+				{
+					return IsFunctionVariant() ? EVisibility::Visible : EVisibility::Collapsed;
+				})
+				.Text(LOCTEXT("SplitVariant", "Split Variant"))
+				.ToolTipText(LOCTEXT("SplitVariantToolTip", "Splits this variant from the set and makes the function a unique function"))
+				.OnClicked(this, &FRigVMGraphDetailCustomization::OnSplitVariant)
+			]
+			+ SHorizontalBox::Slot()
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("MergeVariant", "Merge Variant"))
+				.ToolTipText(LOCTEXT("MergeVariantToolTip", "Merges this variant with an existing set"))
+				.OnClicked(this, &FRigVMGraphDetailCustomization::OnMergeVariant)
+			]
+		];
+		*/
+
+		// matching variants
+		SettingsCategory.AddCustomRow(FText::GetEmpty())
+		.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
+		{
+			return IsFunctionVariant() ? EVisibility::Visible : EVisibility::Collapsed;
+		}))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Matching Variants")))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SAssignNew(VariantLog, SRigVMLogWidget)
+			.LogLabel(LOCTEXT("Variants", "Variants"))
+			.LogName(TEXT("RigVMFunctionVariants"))
+			.ShowFilters(false)
+			.AllowClear(false)
+			.DiscardDuplicates(true)
+			.ScrollToBottom(false)
+			.HeightOverride(120)
+		];
 	}
 
 	// node color
@@ -988,6 +1058,8 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		Model,
 		Blueprint));
 	DefaultsCategory.AddCustomBuilder(DefaultsArgumentNode);
+	
+	RefreshVariantLog();
 }
 
 bool FRigVMGraphDetailCustomization::IsAddNewInputOutputEnabled() const
@@ -1311,6 +1383,115 @@ TSharedRef<ITableRow> FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpe
             SNew( STextBlock ) 
                 .Text(FText::FromString(SpecifierName->GetString()) )
         ];
+}
+
+bool FRigVMGraphDetailCustomization::IsFunctionVariant() const
+{
+	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	{
+		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		{
+			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
+			{
+				return LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost()).LibraryPointer.IsVariant(); 
+			}
+		}
+	}
+	return false;
+}
+
+FText FRigVMGraphDetailCustomization::GetVariantGuidText() const
+{
+	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	{
+		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		{
+			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
+			{
+				const FGuid Guid = LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost()).Variant.Guid; 
+				if(Guid.IsValid())
+				{
+					return FText::FromString(Guid.ToString(EGuidFormats::DigitsWithHyphensLower));
+				}
+			}
+		}
+	}
+	return FText();
+}
+
+/*
+FReply FRigVMGraphDetailCustomization::OnSplitVariant()
+{
+	// todo
+	RefreshVariantLog();
+	return FReply::Unhandled();
+}
+
+FReply FRigVMGraphDetailCustomization::OnMergeVariant()
+{
+	// todo
+	RefreshVariantLog();
+	return FReply::Unhandled();
+}
+*/
+
+void FRigVMGraphDetailCustomization::RefreshVariantLog()
+{
+	check(VariantLog);
+	
+	VariantLog->GetListing()->ClearMessages();
+
+	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	{
+		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		{
+			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
+			{
+				const FRigVMGraphFunctionHeader Header = LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost());
+				TArray<FRigVMGraphFunctionIdentifier> Variants = Header.LibraryPointer.GetVariantIdentifiers(false);
+				Variants.Sort([](const FRigVMGraphFunctionIdentifier& A, const FRigVMGraphFunctionIdentifier& B)
+				{
+					return A.GetLibraryNodePath().Compare(B.GetLibraryNodePath()) < 0;
+				});
+
+				for(const FRigVMGraphFunctionIdentifier& Variant : Variants)
+				{
+					if(URigVMLibraryNode* FunctionVariant = Cast<URigVMLibraryNode>(Variant.GetNodeSoftPath().TryLoad()))
+					{
+						const TSharedRef<FUObjectToken> ObjectToken = FUObjectToken::Create(FunctionVariant);
+
+						TWeakObjectPtr<URigVMLibraryNode> WeakFunctionVariant(FunctionVariant);
+						ObjectToken->OnMessageTokenActivated(FOnMessageTokenActivated::CreateLambda([WeakFunctionVariant](const TSharedRef<IMessageToken>&)
+						{
+							if(WeakFunctionVariant.IsValid())
+							{
+								if(UBlueprint* Blueprint = WeakFunctionVariant.Get()->GetTypedOuter<UBlueprint>())
+								{
+									GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Blueprint);
+					
+									if(IAssetEditorInstance* Editor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(Blueprint, true))
+									{
+										if(FRigVMEditor* RigVMEditor = static_cast<FRigVMEditor*>(Editor))
+										{
+											RigVMEditor->HandleJumpToHyperlink(WeakFunctionVariant.Get());
+										}
+									}
+								}
+							}
+						}));
+
+						const TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Info);
+						Message->AddToken(ObjectToken);
+						VariantLog->GetListing()->AddMessage(Message);
+					}
+				}
+			}
+		}
+	}
+	
 }
 
 FRigVMWrappedNodeDetailCustomization::FRigVMWrappedNodeDetailCustomization()

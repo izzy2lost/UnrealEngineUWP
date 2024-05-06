@@ -28,10 +28,10 @@ void SRigVMLogWidget::Construct(
 {
 	ListingModel = FMessageLogListingModel::Create(InArgs._LogName);
 	ListingView = FMessageLogListingViewModel::Create(ListingModel.ToSharedRef(), InArgs._LogLabel);
-	ListingView->SetShowFilters(true);
-	ListingView->SetAllowClear(true);
-	ListingView->SetDiscardDuplicates(false);
-	ListingView->SetScrollToBottom(true);
+	ListingView->SetShowFilters(InArgs._ShowFilters);
+	ListingView->SetAllowClear(InArgs._AllowClear);
+	ListingView->SetDiscardDuplicates(InArgs._DiscardDuplicates);
+	ListingView->SetScrollToBottom(InArgs._ScrollToBottom);
 
 	ChildSlot
 	[

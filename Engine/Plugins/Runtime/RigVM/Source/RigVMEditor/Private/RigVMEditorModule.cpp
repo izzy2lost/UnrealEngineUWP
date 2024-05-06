@@ -39,7 +39,10 @@
 #include "RigVMFunctions/Simulation/RigVMFunction_AlphaInterp.h"
 #include "RigVMFunctions/Debug/RigVMFunction_VisualDebug.h"
 #include "ScopedTransaction.h"
+#include "Editor/RigVMEditorTools.h"
 #include "UObject/UObjectIterator.h"
+#include "Widgets/SRigVMSwapFunctionsWidget.h"
+#include "Widgets/SRigVMBulkEditDialog.h"
 
 DEFINE_LOG_CATEGORY(LogRigVMEditor);
 
@@ -603,7 +606,7 @@ void FRigVMEditorModule::GetNodeContextMenuActions(IRigVMClientHost* RigVMClient
 	GetNodeVariablesContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeTemplatesContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeOrganizationContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
-	GetNodeVersioningContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
+	GetNodeVariantContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeTestContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 }
 
@@ -1143,12 +1146,13 @@ void FRigVMEditorModule::GetNodeOrganizationContextMenuActions(IRigVMClientHost*
 	}));
 }
 
-void FRigVMEditorModule::GetNodeVersioningContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
+void FRigVMEditorModule::GetNodeVariantContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
 {
 	const URigVMGraph* Model = ModelNode->GetGraph();
 	URigVMController* Controller = RigVMClientHost->GetRigVMClient()->GetController(Model);
 
 	bool bCanNodeBeUpgraded = false;
+	const bool bIsFunctionReference = ModelNode->IsA<URigVMFunctionReferenceNode>();
 	TArray<FName> SelectedNodeNames = Model->GetSelectNodes();
 	SelectedNodeNames.AddUnique(ModelNode->GetFName());
 
@@ -1160,19 +1164,73 @@ void FRigVMEditorModule::GetNodeVersioningContextMenuActions(IRigVMClientHost* R
 		}
 	}
 	
-	if(bCanNodeBeUpgraded)
+	if(bCanNodeBeUpgraded || bIsFunctionReference)
 	{
-		FToolMenuSection& VersioningSection = Menu->AddSection("RigVMEditorContextMenuVersioning", LOCTEXT("VersioningHeader", "Versioning"));
-		VersioningSection.AddMenuEntry(
-			"Upgrade Nodes",
-			LOCTEXT("UpgradeNodes", "Upgrade Nodes"),
-			LOCTEXT("UpgradeNodes_Tooltip", "Upgrades deprecated nodes to their current implementation"),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([Model, Controller]() {
-				TArray<FName> Nodes = Model->GetSelectNodes();
-				Controller->UpgradeNodes(Nodes, true, true);
-			})
-		));
+		FToolMenuSection& VariantSection = Menu->AddSection("RigVMEditorContextMenuVariant", LOCTEXT("VariantHeader", "Variants"));
+
+		if(bCanNodeBeUpgraded)
+		{
+			VariantSection.AddMenuEntry(
+				"Upgrade Nodes",
+				LOCTEXT("UpgradeNodes", "Upgrade Nodes"),
+				LOCTEXT("UpgradeNodes_Tooltip", "Upgrades deprecated nodes to their current implementation"),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateLambda([Model, Controller]() {
+					TArray<FName> Nodes = Model->GetSelectNodes();
+					Controller->UpgradeNodes(Nodes, true, true);
+				})
+			));
+		}
+
+		if(bIsFunctionReference)
+		{
+			VariantSection.AddMenuEntry(
+				"Swap function for selected nodes",
+				LOCTEXT("SwapSelectedFunction", "Swap function for selected nodes"),
+				LOCTEXT("SwapSelectedFunction_Tooltip", "Swaps this function for another one for all nodes matching within the selection"),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateLambda([Model]() {
+					TArray<FName> NodeNames = Model->GetSelectNodes();
+					TArray<URigVMFunctionReferenceNode*> FunctionReferenceNodes;
+					FRigVMGraphFunctionIdentifier Identifier;
+					for(const FName& NodeName : NodeNames)
+					{
+						if(URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Model->FindNodeByName(NodeName)))
+						{
+							if(Identifier.IsValid())
+							{
+								if(FunctionReferenceNode->GetFunctionIdentifier() != Identifier)
+								{
+									continue;
+								}
+							}
+							else
+							{
+								Identifier = FunctionReferenceNode->GetFunctionIdentifier();
+							}
+							FunctionReferenceNodes.Add(FunctionReferenceNode);
+						}
+					}
+					if(!FunctionReferenceNodes.IsEmpty())
+					{
+						SRigVMSwapFunctionsWidget::FArguments WidgetArgs;
+						WidgetArgs
+							.Source(Identifier)
+							.FunctionReferenceNodes(FunctionReferenceNodes)
+							.SkipPickingFunctionRefs(true)
+							.EnableUndo(true)
+							.CloseOnSuccess(true);
+
+						const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>> SwapFunctionsDialog =
+							SNew(SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>)
+							.WindowSize(FVector2D(800.0f, 640.0f))
+							.WidgetArgs(WidgetArgs);
+
+						SwapFunctionsDialog->ShowNormal();
+					}
+				})
+			));
+		}
 	}
 }
 

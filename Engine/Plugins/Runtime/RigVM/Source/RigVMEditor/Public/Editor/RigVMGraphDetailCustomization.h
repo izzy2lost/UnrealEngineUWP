@@ -17,6 +17,7 @@
 #include "EdGraph/RigVMEdGraphSchema.h"
 #include "SAdvancedTransformInputBox.h"
 #include "Widgets/SRigVMGraphPinNameListValueWidget.h"
+#include "Widgets/SRigVMLogWidget.h"
 #include "HAL/PlatformApplicationMisc.h"
 
 class IDetailLayoutBuilder;
@@ -192,6 +193,11 @@ public:
 	FText GetCurrentAccessSpecifierName() const;
 	void OnAccessSpecifierSelected( TSharedPtr<FRigVMStringWithTag> SpecifierName, ESelectInfo::Type SelectInfo );
 	TSharedRef<ITableRow> HandleGenerateRowAccessSpecifier( TSharedPtr<FRigVMStringWithTag> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable );
+	bool IsFunctionVariant() const;
+	FText GetVariantGuidText() const;
+	//FReply OnSplitVariant();
+	//FReply OnMergeVariant();
+	void RefreshVariantLog();
 
 private:
 
@@ -206,6 +212,9 @@ private:
 
 	/** The color block widget */
 	TSharedPtr<SColorBlock> ColorBlock;
+
+	/** The log widget used for function variants */
+	TSharedPtr<SRigVMLogWidget> VariantLog;
 
 	/** Set to true if the UI is currently picking a color */
 	bool bIsPickingColor;

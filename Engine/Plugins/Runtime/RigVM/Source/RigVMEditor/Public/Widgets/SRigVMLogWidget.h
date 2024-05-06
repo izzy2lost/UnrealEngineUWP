@@ -16,11 +16,19 @@ public:
 	SLATE_BEGIN_ARGS(SRigVMLogWidget)
 		: _LogName(TEXT("RigVMLog"))
 		, _LogLabel(NSLOCTEXT("SRigVMLogWidget", "RigVMLog", "RigVM Log"))
+		, _ShowFilters(true)
+		, _AllowClear(true)
+		, _DiscardDuplicates(false)
+		, _ScrollToBottom(true)
 	{
 	}
 	SLATE_ATTRIBUTE(FOptionalSize, HeightOverride)
 	SLATE_ARGUMENT(FName, LogName)
 	SLATE_ARGUMENT(FText, LogLabel)
+	SLATE_ARGUMENT(bool, ShowFilters);
+	SLATE_ARGUMENT(bool, AllowClear);
+	SLATE_ARGUMENT(bool, DiscardDuplicates);
+	SLATE_ARGUMENT(bool, ScrollToBottom);
 	SLATE_END_ARGS()
 
 	SRigVMLogWidget();

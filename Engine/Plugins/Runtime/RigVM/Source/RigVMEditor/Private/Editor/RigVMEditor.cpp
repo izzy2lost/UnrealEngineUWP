@@ -45,6 +45,9 @@
 #include "ScopedTransaction.h"
 #include "Editor/RigVMEditorMode.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
+#include "Widgets/SRigVMSwapFunctionsWidget.h"
+#include "Widgets/SRigVMBulkEditDialog.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 #define LOCTEXT_NAMESPACE "RigVMEditor"
 
@@ -1391,6 +1394,16 @@ void FRigVMEditor::BindCommands()
 		FRigVMEditorCommands::Get().FrameSelection,
 		FExecuteAction::CreateSP(this, &FRigVMEditor::FrameSelection),
 		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FRigVMEditorCommands::Get().SwapFunctionWithinAsset,
+		FExecuteAction::CreateSP(this, &FRigVMEditor::SwapFunctionWithinAsset),
+		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FRigVMEditorCommands::Get().SwapFunctionAcrossProject,
+		FExecuteAction::CreateSP(this, &FRigVMEditor::SwapFunctionAcrossProject),
+		FCanExecuteAction());
 }
 
 void FRigVMEditor::ToggleAutoCompileGraph()
@@ -1443,6 +1456,16 @@ TSharedRef<SWidget> FRigVMEditor::GenerateExecutionModeMenuContent()
 	MenuBuilder.BeginSection(TEXT("Events"));
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().ReleaseMode, TEXT("Release"), TAttribute<FText>(), TAttribute<FText>(), GetExecutionModeIcon(ERigVMEditorExecutionModeType_Release));
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().DebugMode, TEXT("Debug"), TAttribute<FText>(), TAttribute<FText>(), GetExecutionModeIcon(ERigVMEditorExecutionModeType_Debug));
+	MenuBuilder.EndSection();
+	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> FRigVMEditor::GenerateBulkEditMenuContent()
+{
+	FMenuBuilder MenuBuilder(true, GetToolkitCommands());
+	MenuBuilder.BeginSection(TEXT("Functions"), LOCTEXT("Functions", "Functions"));
+	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionWithinAsset, TEXT("SwapFunctionWithinAsset"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionAcrossProject, TEXT("SwapFunctionAcrossProject"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
 	MenuBuilder.EndSection();
 	return MenuBuilder.MakeWidget();
 }
@@ -2385,6 +2408,15 @@ void FRigVMEditor::HandleJumpToHyperlink(const UObject* InSubject)
 	{
 		GraphToJumpTo = Node->GetGraph();
 		NodeToJumpTo = Node;
+
+		if(const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
+		{
+			if(CollapseNode->GetGraph()->IsA<URigVMFunctionLibrary>())
+			{
+				GraphToJumpTo = CollapseNode->GetContainedGraph();
+				NodeToJumpTo = CollapseNode->GetEntryNode();
+			}
+		}
 	}
 	else if(const URigVMPin* Pin = Cast<URigVMPin>(InSubject))
 	{
@@ -3102,6 +3134,16 @@ void FRigVMEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder, bool bEndSection
 			NAME_None, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.StepOut"));
 
 		ToolbarBuilder.EndStyleOverride();
+
+
+		FUIAction DefaultBulkEditAction;
+		ToolbarBuilder.AddComboButton(
+			DefaultBulkEditAction,
+			FOnGetContent::CreateSP(this, &FRigVMEditor::GenerateBulkEditMenuContent),
+			LOCTEXT("BulkEdit_Label", "Bulk Edit"),
+			LOCTEXT("BulkEdit_ToolTip", "Perform changes across many nodes / assets"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Recompile"),
+			false);
 	}
 
 	if(bEndSection)
@@ -3394,6 +3436,36 @@ void FRigVMEditor::FrameSelection()
 			GraphEd->ZoomToFit(!bFrameAll);
 		}
 	}
+}
+
+void FRigVMEditor::SwapFunctionWithinAsset()
+{
+	const FAssetData Asset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(GetRigVMBlueprint()->GetPathName(), true);
+	SwapFunctionForAssets({Asset}, true);
+}
+
+void FRigVMEditor::SwapFunctionAcrossProject()
+{
+	const IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> AllAssets;
+	AssetRegistry.GetAssetsByClass(GetRigVMBlueprint()->GetClass()->GetClassPathName(), AllAssets, true);
+	SwapFunctionForAssets(AllAssets, false);
+}
+
+void FRigVMEditor::SwapFunctionForAssets(const TArray<FAssetData>& InAssets, bool bSetupUndo)
+{
+	SRigVMSwapFunctionsWidget::FArguments WidgetArgs;
+	WidgetArgs
+		.Assets(InAssets)
+		.EnableUndo(bSetupUndo)
+		.CloseOnSuccess(true);
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>> SwapFunctionsDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+
+	SwapFunctionsDialog->ShowNormal();
 }
 
 void FRigVMEditor::UpdateGraphCompilerErrors()

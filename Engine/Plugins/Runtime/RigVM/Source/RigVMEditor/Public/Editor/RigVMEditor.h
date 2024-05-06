@@ -7,6 +7,7 @@
 #include "RigVMHost.h"
 #include "RigVMBlueprint.h"
 #include "Editor/RigVMDetailsViewWrapperObject.h"
+#include "AssetRegistry/AssetData.h"
 
 class FRigVMEditor;
 
@@ -191,7 +192,11 @@ protected:
 	FRigVMController_BulkEditResult OnRequestBulkEditDialog(URigVMBlueprint* InBlueprint, URigVMController* InController, URigVMLibraryNode* InFunction, ERigVMControllerBulkEditType InEditType);
 	bool OnRequestBreakLinksDialog(TArray<URigVMLink*> InLinks);
 	TRigVMTypeIndex OnRequestPinTypeSelectionDialog(const TArray<TRigVMTypeIndex>& InTypes);
+
+public:
 	void HandleJumpToHyperlink(const UObject* InSubject);
+
+protected:
 	bool UpdateDefaultValueForVariable(FBPVariableDescription& InVariable, bool bUseCDO);
 
 	URigVMController* ActiveController;
@@ -215,6 +220,7 @@ protected:
 	void ToggleExecutionMode();
 	TSharedRef<SWidget> GenerateEventQueueMenuContent();
 	TSharedRef<SWidget> GenerateExecutionModeMenuContent();
+	TSharedRef<SWidget> GenerateBulkEditMenuContent();
 	virtual void GenerateEventQueueMenuContent(FMenuBuilder& MenuBuilder);
 
 	/** Wraps the normal blueprint editor's action menu creation callback */
@@ -302,6 +308,9 @@ protected:
 	virtual void HandleBreakpointActionRequested(const ERigVMBreakpointAction BreakpointAction);
 	virtual bool IsHaltedAtBreakpoint() const;
 	virtual void FrameSelection();
+	virtual void SwapFunctionWithinAsset();
+	virtual void SwapFunctionAcrossProject();
+	virtual void SwapFunctionForAssets(const TArray<FAssetData>& InAssets, bool bSetupUndo);
 
 	/** Once the log is collected update the graph */
 	void UpdateGraphCompilerErrors();
