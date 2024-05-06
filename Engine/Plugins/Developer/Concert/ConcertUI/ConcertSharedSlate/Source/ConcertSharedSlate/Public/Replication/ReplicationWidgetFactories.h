@@ -6,7 +6,6 @@
 #include "Editor/View/Column/IObjectTreeColumn.h"
 #include "Editor/View/Column/ReplicationColumnInfo.h"
 #include "Editor/View/Column/SelectionViewerColumns.h"
-#include "PropertyTreeFactory.h"
 #include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 #include "Replication/Utils/ReplicationWidgetDelegates.h"
 
@@ -83,6 +82,17 @@ namespace UE::ConcertSharedSlate
 		TAlwaysValidWidget LeftOfObjectSearchBar;
 		/** Optional widget to add to the right of the object list search bar. */
 		TAlwaysValidWidget RightOfObjectSearchBar;
+		
+		/**
+		 * Optional. Whether a given object should be displayed. 
+		 *
+		 * This is useful e.g. for hiding objects that are not in the local editor's opened world (for that purpuse couple this delegate with @see FHideObjectsNotInWorldLogic).
+		 * If the list of displayed objects changes, call IReplicationStreamViewer::Refresh.
+		 * 
+		 * If this returns false on an object, none of its children will be shown either
+		 * Child objects are determined using ObjectHierarchy.
+		 */
+		FShouldDisplayObject ShouldDisplayObjectDelegate;
 	};
 
 	/** Params for creating an IReplicationStreamEditor */

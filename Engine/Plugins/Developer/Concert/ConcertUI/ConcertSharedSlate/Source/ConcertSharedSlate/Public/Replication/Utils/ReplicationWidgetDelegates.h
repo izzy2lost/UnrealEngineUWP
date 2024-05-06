@@ -24,6 +24,10 @@ namespace UE::ConcertSharedSlate
 
 	/** Extends a context menu that is being built for a selection of objects. */
 	DECLARE_DELEGATE_TwoParams(FExtendObjectMenu, FMenuBuilder&, TConstArrayView<FSoftObjectPath> ContextObjects);
-	
+
+	/** Delegate for getting an object's class. */
 	DECLARE_DELEGATE_RetVal_OneParam(FSoftClassPath, FGetObjectClass, const FSoftObjectPath&);
+
+	/** Delegate for deciding whether an object should be displayed. */
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldDisplayObject, const FSoftObjectPath& ObjectPath);
 }

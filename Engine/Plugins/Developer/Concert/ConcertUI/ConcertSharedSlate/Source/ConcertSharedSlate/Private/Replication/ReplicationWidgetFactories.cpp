@@ -22,7 +22,7 @@ namespace UE::ConcertSharedSlate
 	
 	TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams EditorParams, FCreateViewerParams ViewerParams)
 	{
-		return SNew(SBaseReplicationStreamEditor, MoveTemp(EditorParams.DataModel), MoveTemp(EditorParams.ObjectSource), MoveTemp(EditorParams.PropertySource))
+		return SNew(SBaseReplicationStreamEditor, EditorParams.DataModel, EditorParams.ObjectSource, EditorParams.PropertySource)
 			.PropertyAssignmentView(MoveTemp(ViewerParams.PropertyAssignmentView))
 			.ObjectColumns(MoveTemp(ViewerParams.ObjectColumns))
 			.PrimaryObjectSort(ViewerParams.PrimaryObjectSort)
@@ -30,6 +30,7 @@ namespace UE::ConcertSharedSlate
 			.ObjectHierarchy(MoveTemp(ViewerParams.ObjectHierarchy))
 			.NameModel(MoveTemp(ViewerParams.NameModel))
 			.OnExtendObjectsContextMenu(MoveTemp(ViewerParams.OnExtendObjectsContextMenu))
+			.ShouldDisplayObject(MoveTemp(ViewerParams.ShouldDisplayObjectDelegate))
 			.LeftOfObjectSearchBar() [ MoveTemp(ViewerParams.LeftOfObjectSearchBar.Widget) ]
 			.RightOfObjectSearchBar() [ MoveTemp(ViewerParams.RightOfObjectSearchBar.Widget) ]
 			.IsEditingEnabled(MoveTemp(EditorParams.IsEditingEnabled))

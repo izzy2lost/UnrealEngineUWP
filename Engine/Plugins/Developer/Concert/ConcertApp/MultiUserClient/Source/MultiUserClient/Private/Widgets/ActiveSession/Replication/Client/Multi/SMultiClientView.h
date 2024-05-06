@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Replication/Editor/UnrealEditor/HideObjectsNotInWorldLogic.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -46,6 +47,9 @@ namespace UE::MultiUserClient
 		/** Used by widgets in columns. */
 		TSharedPtr<ConcertSharedSlate::IObjectHierarchyModel> ObjectHierarchy;
 
+		/** This logic helps us decide whether an object should be displayed and lets us know that the object list needs to be refreshed (e.g. due to world change). */
+		ConcertClientSharedSlate::FHideObjectsNotInWorldLogic HideObjectsNotInEditorWorld;
+
 		/** Creates this widget's editor content */
 		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager);
 
@@ -60,5 +64,7 @@ namespace UE::MultiUserClient
 		
 		/** Adds additional entries to the context menu for the object tree view. */
 		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const;
+		/** Decides whether the object should be displayed: do not show it if it's not in the editor world. */
+		bool ShouldDisplayObject(const FSoftObjectPath& Object) const;
 	};
 }

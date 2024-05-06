@@ -36,7 +36,9 @@ namespace UE::MultiUserClient
 			SubmissionQueue
 			)
 		, LocalClientEditModel(
+			// Transact ClientContentStorage
 			ConcertClientSharedSlate::CreateTransactionalStreamModel(
+				// Read & write the stream data in ClientContentStorage
 				CreateBaseStreamModel(
 					ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
 					MakeShared<FMultiUserStreamExtender>(EndpointId, InDiscoveryContainer)

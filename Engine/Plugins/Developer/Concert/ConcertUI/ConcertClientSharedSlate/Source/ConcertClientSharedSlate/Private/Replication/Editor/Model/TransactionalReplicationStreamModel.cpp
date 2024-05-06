@@ -10,10 +10,10 @@
 namespace UE::ConcertSharedSlate
 {
 	FTransactionalReplicationStreamModel::FTransactionalReplicationStreamModel(
-		TSharedRef<IEditableReplicationStreamModel> WrappedModel,
+		const TSharedRef<IEditableReplicationStreamModel>& WrappedModel,
 		UObject& OwningObject
 		)
-		: WrappedModel(MoveTemp(WrappedModel))
+		: FEditableStreamModelProxy(WrappedModel)
 		, OwningObject(&OwningObject)
 	{}
 
@@ -21,28 +21,28 @@ namespace UE::ConcertSharedSlate
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddObjects", "Add replicated objects"));
 		OwningObject->Modify();
-		WrappedModel->AddObjects(Objects);
+		GetWrappedModel()->AddObjects(Objects);
 	}
 
 	void FTransactionalReplicationStreamModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("RemoveObjects", "Remove replicated objects"));
 		OwningObject->Modify();
-		WrappedModel->RemoveObjects(Objects);
+		GetWrappedModel()->RemoveObjects(Objects);
 	}
 
 	void FTransactionalReplicationStreamModel::AddProperties(const FSoftObjectPath& SoftObjectPath, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddProperties", "Add replicated properties"));
 		OwningObject->Modify();
-		WrappedModel->AddProperties(SoftObjectPath, Properties);
+		GetWrappedModel()->AddProperties(SoftObjectPath, Properties);
 	}
 
 	void FTransactionalReplicationStreamModel::RemoveProperties(const FSoftObjectPath& SoftObjectPath, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("RemoveProperties", "Remove replicated properties"));
 		OwningObject->Modify();
-		WrappedModel->RemoveProperties(SoftObjectPath, Properties);
+		GetWrappedModel()->RemoveProperties(SoftObjectPath, Properties);
 	}
 
 	bool FTransactionalReplicationStreamModel::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const

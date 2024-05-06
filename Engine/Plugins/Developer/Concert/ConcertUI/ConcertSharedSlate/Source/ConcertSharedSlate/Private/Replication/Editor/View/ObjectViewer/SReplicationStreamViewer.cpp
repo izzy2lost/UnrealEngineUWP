@@ -25,11 +25,12 @@
 
 namespace UE::ConcertSharedSlate
 {
-	void SReplicationStreamViewer::Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel)
+	void SReplicationStreamViewer::Construct(const FArguments& InArgs, const TSharedRef<IReplicationStreamModel>& InPropertiesModel)
 	{
-		PropertiesModel = MoveTemp(InPropertiesModel);
+		PropertiesModel = InPropertiesModel;
 		ObjectHierarchy = InArgs._ObjectHierarchy;
 		NameModel = InArgs._NameModel;
+		ShouldDisplayObjectDelegate = InArgs._ShouldDisplayObject;
 		
 		ChildSlot
 		[
@@ -308,7 +309,7 @@ namespace UE::ConcertSharedSlate
 		{
 			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(ObjectPath);
 			const bool bIsActor = !ParentInfo; 
-			if (bIsActor || ShouldDisplayObject(ObjectPath, ParentInfo->Relationship))
+			if (bIsActor || ShouldDisplayChildObject(ObjectPath, ParentInfo->Relationship))
 			{
 				const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
 				ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
@@ -346,6 +347,11 @@ namespace UE::ConcertSharedSlate
 		EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
 		PropertiesModel->ForEachReplicatedObject([this, &Delegate, &NonActors, &Actors, &BreakBehavior](const FSoftObjectPath& Object)
 		{
+			if (!CanDisplayObject(Object))
+			{
+				return EBreakBehavior::Continue;
+			}
+			
 			Delegate(Object);
 			
 			if (ObjectUtils::IsActor(Object))
@@ -370,7 +376,7 @@ namespace UE::ConcertSharedSlate
 		for (const FSoftObjectPath& NonTopLevelObject : NonActors)
 		{
 			const TOptional<FSoftObjectPath> TopLevelObject = ObjectUtils::GetActorOf(NonTopLevelObject);
-			if (!TopLevelObject)
+			if (!TopLevelObject || !CanDisplayObject(*TopLevelObject))
 			{
 				continue;
 			}
@@ -446,7 +452,7 @@ namespace UE::ConcertSharedSlate
 		AddItem(OwningActor);
 		ObjectHierarchy->ForEachChildRecursive(OwningActor, [this, &AddItem](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)
 		{
-			if (ShouldDisplayObject(ChildObject, Relationship))
+			if (ShouldDisplayChildObject(ChildObject, Relationship))
 			{
 				AddItem(ChildObject);
 			}
@@ -473,8 +479,12 @@ namespace UE::ConcertSharedSlate
 			return EBreakBehavior::Continue;
 		});
 	}
+	bool SReplicationStreamViewer::CanDisplayObject(const FSoftObjectPath& ObjectPath) const
+	{
+		return !ShouldDisplayObjectDelegate.IsBound() || ShouldDisplayObjectDelegate.Execute(ObjectPath);
+	}
 
-	bool SReplicationStreamViewer::ShouldDisplayObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const
+	bool SReplicationStreamViewer::ShouldDisplayObjectRelation(EChildRelationship Relationship) const
 	{
 		const bool bSkipSubobject = Relationship == EChildRelationship::Subobject && !ObjectViewOptions.ShouldDisplaySubobjects();
 		return !bSkipSubobject;

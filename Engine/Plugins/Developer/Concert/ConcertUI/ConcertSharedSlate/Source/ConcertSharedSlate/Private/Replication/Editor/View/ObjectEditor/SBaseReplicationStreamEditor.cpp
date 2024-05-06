@@ -21,15 +21,15 @@ namespace UE::ConcertSharedSlate
 {
 	void SBaseReplicationStreamEditor::Construct(
 		const FArguments& InArgs,
-		TSharedRef<IEditableReplicationStreamModel> InPropertiesModel,
-		TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
-		TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource)
+		const TSharedRef<IEditableReplicationStreamModel>& InPropertiesModel,
+		const TSharedRef<IObjectSelectionSourceModel>& InObjectSelectionSource,
+		const TSharedRef<IPropertySelectionSourceModel>& InPropertySelectionSource)
 	{
-		ObjectSelectionSource = MoveTemp(InObjectSelectionSource);
-		PropertySelectionSource = MoveTemp(InPropertySelectionSource);
+		ObjectSelectionSource = InObjectSelectionSource;
+		PropertySelectionSource = InPropertySelectionSource;
 		ObjectHierarchy = InArgs._ObjectHierarchy;
 		
-		EditablePropertiesModel = MoveTemp(InPropertiesModel);
+		EditablePropertiesModel = InPropertiesModel;
 		EditablePropertiesModel->OnObjectsChanged().AddSP(this, &SBaseReplicationStreamEditor::OnObjectsChanged);
 		EditablePropertiesModel->OnPropertiesChanged().AddSP(this, &SBaseReplicationStreamEditor::OnPropertiesChanged);
 
@@ -48,6 +48,7 @@ namespace UE::ConcertSharedSlate
 				.NameModel(InArgs._NameModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
 				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)
+				.ShouldDisplayObject(InArgs._ShouldDisplayObject)
 				.LeftOfObjectSearchBar()
 				[
 					SNew(SHorizontalBox)

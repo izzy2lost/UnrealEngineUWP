@@ -36,7 +36,7 @@ namespace UE::ConcertSharedSlate
 			TSharedRef<IEditableMultiReplicationStreamModel> InMultiStreamModel,
 			FGetAutoAssignTarget InGetAutoAssignTargetDelegate
 			);
-		virtual ~FConsolidatedMultiStreamModel();
+		virtual ~FConsolidatedMultiStreamModel() override;
 		
 		//~ Begin IReplicationStreamModel Interface
 		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override;

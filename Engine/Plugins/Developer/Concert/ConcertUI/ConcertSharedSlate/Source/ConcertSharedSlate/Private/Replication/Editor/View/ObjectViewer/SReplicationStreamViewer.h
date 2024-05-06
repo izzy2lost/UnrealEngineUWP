@@ -72,6 +72,9 @@ namespace UE::ConcertSharedSlate
 		
 			/** Called to generate the context menu for objects. */
 			SLATE_EVENT(FOnContextMenuOpening, OnObjectsContextMenuOpening)
+			
+			/** Optional. Whether a given object should be displayed. If this returns false on an object, none of its children will be shown either. */
+			SLATE_EVENT(FShouldDisplayObject, ShouldDisplayObject)
 		
 			/** Optional widget to add to the left of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
@@ -82,7 +85,7 @@ namespace UE::ConcertSharedSlate
 			SLATE_ATTRIBUTE(FText, NoOutlinerObjects)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel);
+		void Construct(const FArguments& InArgs, const TSharedRef<IReplicationStreamModel>& InPropertiesModel);
 
 		//~ Begin IReplicationStreamViewer Interface
 		virtual void Refresh() override;
@@ -138,7 +141,10 @@ namespace UE::ConcertSharedSlate
 		bool bHasRequestedPropertyRefresh = false;
 		TArray<FSoftObjectPath> PendingToSelect;
 		TArray<FSoftObjectPath> PendingToExpand;
-		bool bPendingExpandRecursively;
+		bool bPendingExpandRecursively = false;
+		
+		/** Optional. Whether a given object should be displayed. If this returns false on an object, none of its children will be shown either. */
+		FShouldDisplayObject ShouldDisplayObjectDelegate;
 
 		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
 
@@ -172,7 +178,15 @@ namespace UE::ConcertSharedSlate
 			RequestObjectDataRefresh();
 			RequestPropertyDataRefresh();
 		}
-		bool ShouldDisplayObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const;
+		bool ShouldDisplayChildObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const
+		{
+			return CanDisplayObject(Object) && ShouldDisplayObjectRelation(Relationship);
+		}
+		
+		/** Invokes the ShouldDisplayObjectDelegate to determine whether ObjectPath should be displayed. */
+		bool CanDisplayObject(const FSoftObjectPath& ObjectPath) const;
+		/** Whether the view options allow this type of relationship to be shown. */
+		bool ShouldDisplayObjectRelation(EChildRelationship Relationship) const;
 		
 		FSoftClassPath GetObjectClass(const FSoftObjectPath& ObjectPath) const;
 	};

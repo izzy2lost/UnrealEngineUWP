@@ -2,12 +2,12 @@
 
 #include "Replication/ClientReplicationWidgetFactories.h"
 
-#include "Editor/View/PropertyTree/SFilteredPropertyTreeView.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/Model/Object/EditorObjectHierarchyModel.h"
 #include "Replication/Editor/Model/Object/EditorObjectNameModel.h"
 #include "Replication/Editor/Model/ReplicationStreamObject.h"
 #include "Replication/Editor/Model/TransactionalReplicationStreamModel.h"
+#include "Replication/Editor/View/PropertyTree/SFilteredPropertyTreeView.h"
 
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
@@ -25,12 +25,12 @@ namespace UE::ConcertClientSharedSlate
 	}
 
 	TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> CreateTransactionalStreamModel(
-		TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> BaseModel,
+		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& BaseModel,
 		UObject& OwnerObject
 		)
 	{
 		return MakeShared<ConcertSharedSlate::FTransactionalReplicationStreamModel>(
-			MoveTemp(BaseModel),
+			BaseModel,
 			OwnerObject
 			);
 	}

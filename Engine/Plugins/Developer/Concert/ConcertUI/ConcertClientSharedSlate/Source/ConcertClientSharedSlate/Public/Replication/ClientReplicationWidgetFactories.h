@@ -37,10 +37,9 @@ namespace UE::ConcertClientSharedSlate
 	 * @param OwnerObject The object containing the FConcertObjectReplicationMap - used for transactions.
 	 */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> CreateTransactionalStreamModel(
-		TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> BaseModel,
+		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& BaseModel,
 		UObject& OwnerObject
 		);
-
 	/** Simpler CreateTransactionalStreamModel overload that internally creates an UObject and sets it up automatically. */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> CreateTransactionalStreamModel();
 

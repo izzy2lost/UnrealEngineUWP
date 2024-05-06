@@ -52,6 +52,12 @@ namespace UE::MultiUserClient
 			);
 
 		RebuildClientSubscriptions();
+
+		// Changing worlds affects what things are displayed in the editor.
+		HideObjectsNotInEditorWorld.OnRefreshObjects().AddLambda([this]()
+		{
+			StreamEditor->GetEditorBase().Refresh();
+		});
 	}
 
 	SMultiClientView::~SMultiClientView()
@@ -112,7 +118,8 @@ namespace UE::MultiUserClient
 			{
 				MultiStreamColumns::ReplicationToggle(InConcertClient, ObjectHierarchyAttribute, InClientManager),
 				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, ObjectHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
-			}
+			},
+			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject)
 		};
 		
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params), MoveTemp(ViewerParams));
@@ -199,6 +206,11 @@ namespace UE::MultiUserClient
 				*StreamEditor
 				);
 		}
+	}
+
+	bool SMultiClientView::ShouldDisplayObject(const FSoftObjectPath& Object) const
+	{
+		return HideObjectsNotInEditorWorld.ShouldShowObject(Object);
 	}
 }
 
