@@ -27,7 +27,7 @@
  * `ExtrapolationHalfLifeMax` parameters, which specify the approximate average, min, and max decay periods.
  * More specifically they specify the "half-life" - or how it takes for the velocities to be decayed by half.
  */
-USTRUCT(Experimental, BlueprintInternalUseOnly)
+USTRUCT(BlueprintInternalUseOnly)
 struct FAnimNode_DeadBlending : public FAnimNode_Base, public IBoneReferenceSkeletonProvider
 {
 	GENERATED_BODY()
