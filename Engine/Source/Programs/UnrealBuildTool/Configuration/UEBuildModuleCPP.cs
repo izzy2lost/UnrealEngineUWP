@@ -650,6 +650,28 @@ namespace UnrealBuildTool
 			CompileEnvironment.bUseUnity = bModuleUsesUnityBuild;
 			GeneratedCPPCompileEnvironment.bUseUnity = bModuleUsesUnityBuild;
 
+			// Create and register a special action that can be used to compile single files (even when unity is enabled) for generated files
+			if (GeneratedFileItems.Any())
+			{
+				CppCompileEnvironment SingleGeneratedCPPCompileEnvironment = new CppCompileEnvironment(GeneratedCPPCompileEnvironment);
+				SingleGeneratedCPPCompileEnvironment.PrecompiledHeaderAction = PrecompiledHeaderAction.None;
+				foreach (DirectoryReference Directory in GeneratedFileItems.Select(x => x.Location.Directory).Distinct())
+				{
+					ToolChain.CreateSpecificFileAction(SingleGeneratedCPPCompileEnvironment, Directory, IntermediateDirectory, Graph);
+				}
+			}
+
+			// Create and register a special action that can be used to compile single files (even when unity is enabled) for normal files
+			if (ModuleDirectories.Any())
+			{
+				CppCompileEnvironment SingleCompileEnvironment = new CppCompileEnvironment(CompileEnvironment);
+				SingleCompileEnvironment.PrecompiledHeaderAction = PrecompiledHeaderAction.None;
+				foreach (DirectoryReference Directory in ModuleDirectories)
+				{
+					ToolChain.CreateSpecificFileAction(SingleCompileEnvironment, Directory, IntermediateDirectory, Graph);
+				}
+			}
+
 			// Compile Generated CPP Files
 			if (bModuleUsesUnityBuild)
 			{
@@ -1482,18 +1504,6 @@ namespace UnrealBuildTool
 			{
 				NormalFiles = NormalFiles.Concat(AdaptiveFiles).ToList();
 				AdaptiveFiles = new List<FileItem>();
-			}
-
-			// Create and register a special action that can be used to compile single files (even when unity is enabled)
-			if (NormalFiles.Count > 0 || AdaptiveFiles.Count > 0)
-			{
-				PrecompiledHeaderAction OldAction = CompileEnvironment.PrecompiledHeaderAction;
-				CompileEnvironment.PrecompiledHeaderAction = PrecompiledHeaderAction.None;
-				foreach (DirectoryReference Directory in ModuleDirectories)
-				{
-					ToolChain.CreateSpecificFileAction(CompileEnvironment, Directory, IntermediateDirectory, Graph);
-				}
-				CompileEnvironment.PrecompiledHeaderAction = OldAction;
 			}
 
 			CPPOutput OutputFiles = new CPPOutput();
