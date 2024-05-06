@@ -11127,7 +11127,7 @@ int32 FHLSLMaterialTranslator::DisplacementMagnitude()
 	return Constant(Material->GetDisplacementScaling().Magnitude);
 }
 
-int32 FHLSLMaterialTranslator::Derivative(int32 A, EDervativeComponent Component)
+int32 FHLSLMaterialTranslator::Derivative(int32 A, const TCHAR* Component)
 {
 	if (A == INDEX_NONE)
 	{
@@ -11149,29 +11149,10 @@ int32 FHLSLMaterialTranslator::Derivative(int32 A, EDervativeComponent Component
 
 	const FDerivInfo ADerivInfo = GetDerivInfo(A);
 	const EMaterialValueType ResultType = MakeNonLWCType(ADerivInfo.Type);
-	const bool bIsLWCType = IsLWCType(ADerivInfo.Type);
-	const TCHAR* FunctionName = bIsLWCType ? TEXT("WSDd") : TEXT("DD");
-	const TCHAR* FunctionNamePostfix = bIsLWCType ? TEXT("Demote") : TEXT("");
-	
-	// For non-LWC types, we use the DDX() and DDY() functions defined in Common.ush, which correctly deal with shader types that do not support hardware derivatives.
-	const TCHAR* ComponentLowerCase = TEXT("");
-	const TCHAR* ComponentUpperCase = TEXT("");
-	switch (Component)
-	{
-	case EDervativeComponent::X:
-		ComponentLowerCase = TEXT("x");
-		ComponentUpperCase = TEXT("X");
-		break;
-	case EDervativeComponent::Y:
-		ComponentLowerCase = TEXT("y");
-		ComponentUpperCase = TEXT("Y");
-		break;
-	default:
-		checkNoEntry();
-		break;
-	}
+	const TCHAR* FunctionName = IsLWCType(ADerivInfo.Type) ? TEXT("WSDd") : TEXT("dd");
+	const TCHAR* FunctionNamePostfix = IsLWCType(ADerivInfo.Type) ? TEXT("Demote") : TEXT("");
     
-	if (bIsLWCType)
+	if (IsLWCType(ADerivInfo.Type))
 	{
 		AddLWCFuncUsage(ELWCFunctionKind::Other);
 	}
@@ -11188,16 +11169,16 @@ int32 FHLSLMaterialTranslator::Derivative(int32 A, EDervativeComponent Component
     	case MCT_Float4: CastType = TEXT("(float4)"); break;
     }
             
-	const FString FiniteCode = FString::Printf(TEXT("%s%s%s(%s%s)"), FunctionName, bIsLWCType ? ComponentLowerCase : ComponentUpperCase, FunctionNamePostfix, CastType, *GetParameterCode(A));
+	const FString FiniteCode = FString::Printf(TEXT("%s%s%s(%s%s)"), FunctionName, Component, FunctionNamePostfix, CastType, *GetParameterCode(A));
 
 	if (IsAnalyticDerivEnabled() && ADerivInfo.DerivativeStatus == EDerivativeStatus::Valid)
 	{
 		FString ADeriv = GetParameterCodeDeriv(A, CompiledPDV_Analytic);
 
 		FString AnalyticCode = DerivativeAutogen.ConstructDeriv(
-			FString::Printf(TEXT("%s.Dd%s"), *ADeriv, ComponentLowerCase),
-			FString::Printf(TEXT("DD%s(%s.Ddx)"), ComponentUpperCase, *ADeriv),
-			FString::Printf(TEXT("DD%s(%s.Ddy)"), ComponentUpperCase, *ADeriv),
+			FString::Printf(TEXT("%s.Dd%s"), *ADeriv, Component),
+			FString::Printf(TEXT("dd%s(%s.Ddx)"), Component, *ADeriv),
+			FString::Printf(TEXT("dd%s(%s.Ddy)"), Component, *ADeriv),
 			MakeNonLWCType(ADerivInfo.DerivType)
 		);
 
@@ -11211,12 +11192,12 @@ int32 FHLSLMaterialTranslator::Derivative(int32 A, EDervativeComponent Component
 
 int32 FHLSLMaterialTranslator::DDX( int32 A )
 {
-	return Derivative(A, EDervativeComponent::X);
+	return Derivative(A, TEXT("x"));
 }
 
 int32 FHLSLMaterialTranslator::DDY( int32 A )
 {
-	return Derivative(A, EDervativeComponent::Y);
+	return Derivative(A, TEXT("y"));
 }
 
 int32 FHLSLMaterialTranslator::AntialiasedTextureMask(int32 Tex, int32 UV, float Threshold, uint8 Channel)
