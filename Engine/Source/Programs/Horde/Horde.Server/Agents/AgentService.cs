@@ -1168,7 +1168,7 @@ namespace Horde.Server.Agents
 			foreach (IAgent agent in await Agents.FindDeletedAsync(cancellationToken))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
-				bool noStatusChangeDuringPeriod = _clock.UtcNow > agent.LastStatusChange + TimeSpan.FromHours(24);
+				bool noStatusChangeDuringPeriod = _clock.UtcNow > agent.LastStatusChange + TimeSpan.FromHours(1);
 				if (agent is { Status: AgentStatus.Stopped, Ephemeral: true } && noStatusChangeDuringPeriod)
 				{
 					_logger.LogDebug("Deleting ephemeral agent {Agent}", agent.Id);
