@@ -383,7 +383,7 @@ protected:
 		const FValidateAssetsSettings& 				InSettings,
 		FValidateAssetsResults& 					OutResults) const;
 	
-	void LogAssetValidationSummary(FMessageLog& DataValidationLog, const FValidateAssetsSettings& InSettings, const FValidateAssetsResults& Results) const;
+	void LogAssetValidationSummary(FMessageLog& DataValidationLog, const FValidateAssetsSettings& InSettings, EDataValidationResult Result, const FValidateAssetsResults& Results) const;
 
 	EDataValidationResult ValidateObjectInternal(
 		const FAssetData& InAssetData,
