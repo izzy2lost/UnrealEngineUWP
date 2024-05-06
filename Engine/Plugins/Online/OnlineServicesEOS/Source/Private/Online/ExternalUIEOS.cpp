@@ -13,7 +13,7 @@
 namespace UE::Online {
 
 FExternalUIEOS::FExternalUIEOS(FOnlineServicesEOS& InServices)
-	: FExternalUICommon(InServices)
+	: Super(InServices)
 {
 }
 

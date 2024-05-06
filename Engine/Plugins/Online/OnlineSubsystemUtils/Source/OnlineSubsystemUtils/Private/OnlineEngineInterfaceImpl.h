@@ -17,6 +17,9 @@ class ONLINESUBSYSTEMUTILS_API UOnlineEngineInterfaceImpl : public UOnlineEngine
 {
 	GENERATED_UCLASS_BODY()
 
+public:
+	virtual void PostInitProperties() override;
+
 	/**
 	 * Subsystem
 	 */
@@ -162,5 +165,15 @@ private:
 	/** Mapping of delegate handles for each online Login() call while in flight */
 	TMap<FName, FDelegateHandle> OnLoginPIECompleteDelegateHandlesForPIEInstances;
 	void OnPIELoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error, FName OnlineIdentifier, FOnlineAutoLoginComplete InCompletionDelegate);
+
+private:
+	void InitCompatibilityInterface();
+
+	/** Whether to enable a compatibility interface for transitioning from OSSv1 to OSSv2. */
+	UPROPERTY(config)
+	bool bOnlineServicesCompatibilityEnabled = false;
+
+	UPROPERTY()
+	TObjectPtr<UOnlineEngineInterface> OnlineServicesCompatibilityInterface;
 };
 

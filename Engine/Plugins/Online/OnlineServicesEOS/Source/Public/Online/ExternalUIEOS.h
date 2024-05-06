@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Online/ExternalUICommon.h"
+#include "Online/ExternalUIEOSGS.h"
 
 #if defined(EOS_PLATFORM_BASE_FILE_NAME)
 #include EOS_PLATFORM_BASE_FILE_NAME
@@ -20,10 +20,10 @@ struct FExternalUIEOSConfig
 
 class FOnlineServicesEOS;
 
-class ONLINESERVICESEOS_API FExternalUIEOS : public FExternalUICommon
+class ONLINESERVICESEOS_API FExternalUIEOS : public FExternalUIEOSGS
 {
 public:
-	using Super = FExternalUICommon;
+	using Super = FExternalUIEOSGS;
 
 	FExternalUIEOS(FOnlineServicesEOS& InOwningSubsystem);
 	virtual void Initialize() override;

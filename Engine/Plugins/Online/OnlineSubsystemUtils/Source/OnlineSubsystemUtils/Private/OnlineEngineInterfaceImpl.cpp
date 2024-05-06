@@ -17,6 +17,12 @@ UOnlineEngineInterfaceImpl::UOnlineEngineInterfaceImpl(const FObjectInitializer&
 {
 }
 
+void UOnlineEngineInterfaceImpl::PostInitProperties()
+{
+	Super::PostInitProperties();
+	InitCompatibilityInterface();
+}
+
 bool UOnlineEngineInterfaceImpl::IsLoaded(FName OnlineIdentifier)
 {
 	return IOnlineSubsystem::IsLoaded(OnlineIdentifier);
@@ -556,6 +562,11 @@ void UOnlineEngineInterfaceImpl::BindToExternalUIOpening(const FOnlineExternalUI
 		OnExternalUIChangeDelegate.BindUObject(this, &ThisClass::OnExternalUIChange, Delegate);
 		Utils->SetEngineExternalUIBinding(OnExternalUIChangeDelegate);
 	}
+
+	if (UOnlineEngineInterface* CompatibilityInterface = OnlineServicesCompatibilityInterface.Get())
+	{
+		CompatibilityInterface->BindToExternalUIOpening(Delegate);
+	}
 }
 
 void UOnlineEngineInterfaceImpl::OnExternalUIChange(bool bInIsOpening, FOnlineExternalUIChanged Delegate)
@@ -678,3 +689,14 @@ void UOnlineEngineInterfaceImpl::OnPIELoginComplete(int32 LocalUserNum, bool bWa
 
 #endif
 
+void UOnlineEngineInterfaceImpl::InitCompatibilityInterface()
+{
+	if (bOnlineServicesCompatibilityEnabled)
+	{
+		const UClass* OnlineEngineInterfaceClass = StaticLoadClass(UOnlineEngineInterface::StaticClass(), NULL, TEXT("/Script/OnlineSubsystemUtils.OnlineServicesEngineInterfaceImpl"), NULL, LOAD_Quiet, NULL);
+		check(OnlineEngineInterfaceClass);
+
+		OnlineServicesCompatibilityInterface = NewObject<UOnlineEngineInterface>(GetTransientPackage(), OnlineEngineInterfaceClass);
+		check(OnlineServicesCompatibilityInterface);
+	}
+}
