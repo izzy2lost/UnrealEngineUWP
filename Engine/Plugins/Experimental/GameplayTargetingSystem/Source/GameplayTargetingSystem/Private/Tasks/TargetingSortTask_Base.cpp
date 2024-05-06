@@ -20,6 +20,7 @@ UTargetingSortTask_Base::UTargetingSortTask_Base(const FObjectInitializer& Objec
 	: Super(ObjectInitializer)
 {
 	bAscending = true;
+	bStableSort = false;
 }
 
 float UTargetingSortTask_Base::GetScoreForTarget(const FTargetingRequestHandle& TargetingHandle, const FTargetingDefaultResultData& TargetData) const
@@ -71,11 +72,20 @@ void UTargetingSortTask_Base::Execute(const FTargetingRequestHandle& TargetingHa
 				}
 			}
 
+			auto ByScore = [](const FTargetingDefaultResultData& Lhs, const FTargetingDefaultResultData& Rhs)
+			{
+				return Lhs.Score < Rhs.Score;
+			};
+
 			// sort the set
-			ResultData->TargetResults.Sort([this](const FTargetingDefaultResultData& Lhs, const FTargetingDefaultResultData& Rhs)
-				{
-					return Lhs.Score < Rhs.Score;
-				});
+			if (bStableSort)
+			{
+				ResultData->TargetResults.StableSort(ByScore);
+			}
+			else
+			{
+				ResultData->TargetResults.Sort(ByScore);
+			}
 
 #if ENABLE_DRAW_DEBUG
 			BuildPostSortDebugString(TargetingHandle, ResultData->TargetResults);

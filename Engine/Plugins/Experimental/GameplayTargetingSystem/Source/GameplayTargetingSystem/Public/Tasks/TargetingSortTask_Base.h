@@ -31,6 +31,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Target Sorting | Data")
 	uint8 bAscending : 1;
 
+	/** Should this task use a (slightly slower) sorting algorithm that preserves the relative ordering of targets with equal scores? */
+	UPROPERTY(EditAnywhere, Category = "Target Sorting | Data")
+	uint8 bStableSort : 1;
+
 	/** Debug Helper Methods */
 #if ENABLE_DRAW_DEBUG
 private:
