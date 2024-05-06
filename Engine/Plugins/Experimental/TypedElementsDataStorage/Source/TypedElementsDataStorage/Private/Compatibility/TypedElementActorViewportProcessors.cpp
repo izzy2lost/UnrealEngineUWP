@@ -206,7 +206,7 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync viewport overlay color column to actor"),
-			FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncDataStorageToExternal))
+			FObserver::OnAdd<FTypedElementViewportOverlayColorColumn>()
 				.ForceToGameThread(true),
 			[](FTypedElementUObjectColumn& Actor, const FTypedElementViewportOverlayColorColumn& ViewportColor)
 			{
@@ -221,7 +221,7 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 			}
 		)
 		.Where()
-			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
+			.All<FTypedElementActorTag>()
 		.Compile()
 	);
 

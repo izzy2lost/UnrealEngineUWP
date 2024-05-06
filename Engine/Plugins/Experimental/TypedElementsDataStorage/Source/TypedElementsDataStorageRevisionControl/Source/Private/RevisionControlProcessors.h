@@ -24,7 +24,8 @@ private:
 	void RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage) const;
 	void RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage) const;
 	mutable TypedElementDataStorage::QueryHandle FetchUpdates = TypedElementDataStorage::InvalidQueryHandle;
-	mutable TypedElementDataStorage::QueryHandle ApplyOverlays = TypedElementDataStorage::InvalidQueryHandle;
+	mutable TypedElementDataStorage::QueryHandle ApplyNewOverlays = TypedElementDataStorage::InvalidQueryHandle;
+	mutable TypedElementDataStorage::QueryHandle ChangeOverlay = TypedElementDataStorage::InvalidQueryHandle;
 	mutable TypedElementDataStorage::QueryHandle ApplyOverlaysObjectToSCC = TypedElementDataStorage::InvalidQueryHandle;
 	mutable TypedElementDataStorage::QueryHandle RemoveOverlays = TypedElementDataStorage::InvalidQueryHandle;
 };
