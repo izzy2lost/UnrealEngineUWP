@@ -167,7 +167,7 @@ void FAdvancedRenamerRemoveSuffixSection::ResetToDefault()
 	bRemoveSuffixNumbers = false;
 	SuffixWidgetSwitcherIndex = 0;
 	RemoveSuffixCharsValue = 1;
-	RemoveSuffixSeparatorText = LOCTEXT("AR_SuffixSeparator", "_");
+	RemoveSuffixSeparatorText = LOCTEXT("AR_SuffixSeparatorText", "_");
 	RemoveSuffixType = EAdvancedRenamerRemoveOldType::Separator;
 }
 

@@ -93,10 +93,10 @@ TSharedRef<SWidget> FAdvancedRenamerRemovePrefixSection::GetWidget()
 						.OnValueChanged(this, &FAdvancedRenamerRemovePrefixSection::OnRemoveOldPrefixTypeChanged)
 
 						+ SSegmentedControl<EAdvancedRenamerRemoveOldType>::Slot(EAdvancedRenamerRemoveOldType::Separator)
-						.Text(LOCTEXT("AR_SuffixSeparator", "Separator"))
+						.Text(LOCTEXT("AR_PrefixSeparator", "Separator"))
 
 						+ SSegmentedControl<EAdvancedRenamerRemoveOldType>::Slot(EAdvancedRenamerRemoveOldType::Chars)
-						.Text(LOCTEXT("AR_SuffixFirstChar(s)", "First Char(s)"))
+						.Text(LOCTEXT("AR_PrefixFirstChar(s)", "First Char(s)"))
 					]
 				]
 				+ SHorizontalBox::Slot()
@@ -136,7 +136,7 @@ void FAdvancedRenamerRemovePrefixSection::ResetToDefault()
 	bRemoveOldPrefixSection = false;
 	PrefixWidgetSwitcherIndex = 0;
 	RemovePrefixCharsValue = 1;
-	RemovePrefixSeparatorText = LOCTEXT("AR_PrefixSeparator", "_");
+	RemovePrefixSeparatorText = LOCTEXT("AR_PrefixSeparatorText", "_");
 	RemovePrefixType = EAdvancedRenamerRemoveOldType::Separator;
 }
 
