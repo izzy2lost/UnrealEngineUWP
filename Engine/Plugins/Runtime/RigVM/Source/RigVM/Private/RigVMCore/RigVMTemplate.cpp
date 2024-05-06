@@ -2278,3 +2278,82 @@ uint32 FRigVMTemplate::ComputeTypeHash() const
 	const FRigVMRegistryReadLock _; 
 	return GetTypeHash_NoLock(*this);
 }
+
+FRigVMTypeCacheScope_NoLock::FRigVMTypeCacheScope_NoLock()
+	: Argument(nullptr)
+	, bShouldCopyTypes(true)
+	, NumTypes(0)
+	, Types(TArray<TRigVMTypeIndex>())
+{
+}
+
+FRigVMTypeCacheScope_NoLock::FRigVMTypeCacheScope_NoLock(const FRigVMTemplateArgument& InArgument)
+	: Argument(&InArgument)
+	, bShouldCopyTypes(InArgument.FilterType != nullptr)//  ||bUseCategories)??
+{
+}
+
+FRigVMTypeCacheScope_NoLock::~FRigVMTypeCacheScope_NoLock()
+{
+}
+
+const FRigVMTypeCacheScope_NoLock& FRigVMTypeCacheScope_NoLock::UpdateIfRequired(const FRigVMTemplateArgument& InArgument)
+{
+	if(Argument != &InArgument)
+	{
+		*this = FRigVMTypeCacheScope_NoLock(InArgument);
+	}
+	return *this;
+}
+
+int32 FRigVMTypeCacheScope_NoLock::GetNumTypes_NoLock() const
+{
+	if(!NumTypes.IsSet())
+	{
+		if(bShouldCopyTypes)
+		{
+			UpdateTypesIfRequired();
+			NumTypes = Types.GetValue().Num();
+		}
+		else
+		{
+			check(Argument);
+			NumTypes = Argument->GetNumTypes_NoLock();
+		}
+	}
+	return NumTypes.GetValue();
+}
+
+TRigVMTypeIndex FRigVMTypeCacheScope_NoLock::GetTypeIndex_NoLock(int32 InIndex) const
+{
+	if(!Types.IsSet())
+	{
+		if(bShouldCopyTypes)
+		{
+			UpdateTypesIfRequired();
+		}
+		else
+		{
+			return Argument->GetTypeIndex_NoLock(InIndex);
+		}
+	}
+	return Types.GetValue()[InIndex];
+}
+
+void FRigVMTypeCacheScope_NoLock::UpdateTypesIfRequired() const
+{
+	check(bShouldCopyTypes);
+	if(Types.IsSet())
+	{
+		return;
+	}
+	Types = TArray<TRigVMTypeIndex>();
+	TArray<TRigVMTypeIndex>& TypesArray = Types.GetValue();
+	TypesArray.Reserve(Argument->GetNumTypes_NoLock());
+
+	Argument->ForEachType([&TypesArray](const TRigVMTypeIndex Type)
+	{
+		TypesArray.Add(Type);
+		return true;
+	});
+}

@@ -1752,21 +1752,26 @@ const FRigVMTemplate* FRigVMRegistry_NoLock::AddTemplateFromArguments_NoLock(con
 	// if any of the arguments are wildcards we'll need to update the types
 	for(FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
-		if(Argument.GetNumTypes_NoLock() == 1 && IsWildCardType_NoLock(Argument.GetTypeIndex_NoLock(0)))
+		const int32 NumTypes = Argument.GetNumTypes_NoLock();
+		if(NumTypes == 1)
 		{
-			Argument.InvalidatePermutations(Argument.GetTypeIndex_NoLock(0));
-			if(IsArrayType_NoLock(Argument.GetTypeIndex_NoLock(0)))
+			const TRigVMTypeIndex FirstTypeIndex = Argument.GetTypeIndex_NoLock(0);
+			if(IsWildCardType_NoLock(FirstTypeIndex))
 			{
-				Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue);
+				Argument.InvalidatePermutations(FirstTypeIndex);
+				if(IsArrayType_NoLock(FirstTypeIndex))
+				{
+					Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue);
+				}
+				else
+				{
+					Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue);
+				}
+				Argument.bUseCategories = true;
+				Argument.TypeIndices.Reset();
+		
+				NumPermutations = FMath::Max(NumPermutations, Argument.GetNumTypes_NoLock());
 			}
-			else
-			{
-				Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue);
-			}
-			Argument.bUseCategories = true;
-			Argument.TypeIndices.Reset();
-	
-			NumPermutations = FMath::Max(NumPermutations, Argument.GetNumTypes_NoLock()); 
 		}
 	}
 
@@ -1778,9 +1783,10 @@ const FRigVMTemplate* FRigVMRegistry_NoLock::AddTemplateFromArguments_NoLock(con
 		if (NumArguments == 1)
 		{
 			TSet< TRigVMTypeIndex > PermutationTypes; PermutationTypes.Reserve(NumPermutations);
+			const FRigVMTypeCacheScope_NoLock TypeCache(Template.Arguments[0]);
 			for(int32 Index = 0; Index < NumPermutations; Index++)
 			{
-				const TRigVMTypeIndex ArgType = Template.Arguments[0].GetTypeIndex_NoLock(Index);
+				const TRigVMTypeIndex ArgType = TypeCache.GetTypeIndex_NoLock(Index);
 				if (PermutationTypes.Contains(ArgType))
 				{
 					ToRemove.Add(Index);
@@ -1795,12 +1801,15 @@ const FRigVMTemplate* FRigVMRegistry_NoLock::AddTemplateFromArguments_NoLock(con
 		{
 			TSet< TArray<TRigVMTypeIndex> > PermutationTypes;
 			PermutationTypes.Reserve(NumPermutations);
-			TArray<TRigVMTypeIndex> ArgTypes; ArgTypes.SetNum(NumArguments);			
+			TArray<TRigVMTypeIndex> ArgTypes; ArgTypes.SetNum(NumArguments);
+			TArray<FRigVMTypeCacheScope_NoLock> TypeCaches;
+			TypeCaches.SetNum(NumArguments);
 			for(int32 Index = 0; Index < NumPermutations; Index++)
 			{
 				for(int32 ArgIndex = 0; ArgIndex < NumArguments; ArgIndex++)
 				{
-					ArgTypes[ArgIndex] = Template.Arguments[ArgIndex].GetTypeIndex_NoLock(Index);
+					(void)TypeCaches[ArgIndex].UpdateIfRequired(Template.Arguments[ArgIndex]);
+					ArgTypes[ArgIndex] = TypeCaches[ArgIndex].GetTypeIndex_NoLock(Index);
 				}
 				
 				if (PermutationTypes.Contains(ArgTypes))
@@ -1826,7 +1835,7 @@ const FRigVMTemplate* FRigVMRegistry_NoLock::AddTemplateFromArguments_NoLock(con
 		}
 		NumPermutations -= ToRemove.Num();
 	}
-	
+
 	for(FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
 		Argument.UpdateTypeToPermutations();

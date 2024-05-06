@@ -315,6 +315,7 @@ protected:
 	friend struct FRigVMRegistry_NoLock;
 	friend struct FRigVMStructUpgradeInfo;
 	friend class URigVMCompiler;
+	friend class FRigVMTypeCacheScope_NoLock;
 
 private:
 	struct CategoryViews
@@ -582,4 +583,26 @@ private:
 	friend class URigVMController;
 	friend class URigVMLibraryNode;
 	friend struct FRigVMDispatchFactory;
+};
+
+class FRigVMTypeCacheScope_NoLock
+{
+public:
+	FRigVMTypeCacheScope_NoLock();
+	FRigVMTypeCacheScope_NoLock(const FRigVMTemplateArgument& InArgument);
+	~FRigVMTypeCacheScope_NoLock();
+
+	bool IsValid() const { return Argument != nullptr; }
+	const FRigVMTypeCacheScope_NoLock& UpdateIfRequired(const FRigVMTemplateArgument& InArgument);
+	int32 GetNumTypes_NoLock() const;
+	TRigVMTypeIndex GetTypeIndex_NoLock(int32 InIndex) const;
+	
+private:
+
+	void UpdateTypesIfRequired() const;
+
+	const FRigVMTemplateArgument* Argument;
+	bool bShouldCopyTypes;
+	mutable TOptional<int32> NumTypes;
+	mutable TOptional<TArray<TRigVMTypeIndex>> Types;
 };
