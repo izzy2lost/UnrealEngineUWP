@@ -56,17 +56,48 @@ private:
 	void PopulateAssetBrowserDetailsSlot();
 	
 	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> GetMainFilters() const;
+	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> GetAllFilters() const;
 
 private:
 	/** This has to be called whenever any kind of filtering changes and refreshes the actual asset view */
 	void OnFilterChanged() const;
+
+	struct FSearchItem
+	{
+		TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> Path;
+
+		TSharedPtr<FNiagaraAssetBrowserMainFilter> GetEntry() const
+		{
+			TSharedPtr<FNiagaraAssetBrowserMainFilter> Entry = nullptr;
+			
+			if(Path.Num() > 0)
+			{
+				Entry = Path[Path.Num() - 1];
+			}
+			
+			return Entry;
+		}
+
+		bool operator==(const FSearchItem& Item) const
+		{
+			return Path == Item.Path;
+		}
+	};
 	
+	void OnFilterSearchTextChanged(const FText& Text);
+	void OnSearchButtonClicked(SSearchBox::SearchDirection SearchDirection);
+	void OnFilterSearchTextCommitted(const FText& Text, ETextCommit::Type Arg);
+	TOptional<SSearchBox::FSearchResultData> GetSearchResultData() const;
+	void GenerateSearchItems(TSharedRef<FNiagaraAssetBrowserMainFilter> Root, TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> ParentChain, TArray<FSearchItem>& OutSearchItems) const;
+	void ExpandMainFilterSearchResults();
+	void SelectNextMainFilterSearchResult();
+	void SelectPreviousMainFilterSearchResult();
+
 	void OnGetChildFiltersForFilter(TSharedRef<FNiagaraAssetBrowserMainFilter> NiagaraAssetBrowserMainFilter, TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>>& OutChildren) const;
 	bool OnCompareMainFiltersForEquality(const FNiagaraAssetBrowserMainFilter& NiagaraAssetBrowserMainFilter, const FNiagaraAssetBrowserMainFilter& NiagaraAssetBrowserMainFilter1) const;
 	
 	TSharedRef<ITableRow> GenerateWidgetRowForMainFilter(TSharedRef<FNiagaraAssetBrowserMainFilter> MainFilter, const TSharedRef<STableViewBase>& OwningTable) const;
-
-
+	
 	void OnAssetSelected(const FAssetData& AssetData);
 	void OnAssetsActivated(const TArray<FAssetData>& AssetData, EAssetTypeActivationMethod::Type) const;
 	TSharedPtr<SWidget> OnGetAssetContextMenu(const TArray<FAssetData>& AssetData) const;
@@ -104,6 +135,9 @@ private:
 
 	mutable TMap<FNiagaraAssetTagDefinition, TSharedRef<FFrontendFilter>> DropdownFilterCache;
 	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> AssetBrowserMainFilters;
+
+	TArray<FSearchItem> SourceSearchResults;
+	TOptional<FSearchItem> FocusedSearchResult;
 private:
 	TSharedPtr<STreeView<TSharedRef<FNiagaraAssetBrowserMainFilter>>> MainFilterSelector;
 	TSharedPtr<SNiagaraAssetBrowserContent> AssetBrowserContent;

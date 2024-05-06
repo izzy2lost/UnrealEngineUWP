@@ -224,8 +224,28 @@ void SNiagaraAssetBrowser::PopulateFiltersSlot()
 		MainFilterSelector->SetSelection(*AllFilter);
 		MainFilterSelector->SetItemExpansion(*AllFilter, true);
 	}
+
+	TSharedRef<SSearchBox> SearchBox = SNew(SSearchBox)
+		.OnTextChanged(this, &SNiagaraAssetBrowser::OnFilterSearchTextChanged)
+		.OnTextCommitted(this, &SNiagaraAssetBrowser::OnFilterSearchTextCommitted)
+		.OnSearch(SSearchBox::FOnSearch::CreateSP(this, &SNiagaraAssetBrowser::OnSearchButtonClicked))
+		.SearchResultData(this, &SNiagaraAssetBrowser::GetSearchResultData)
+		.DelayChangeNotificationsWhileTyping(true);
+
+	TSharedRef<SVerticalBox> MainFilterBox = SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(2.f)
+		[
+			SearchBox
+		]
+		+ SVerticalBox::Slot()
+		.Padding(1.f, 2.f)
+		[
+			MainFilterSelector.ToSharedRef()	
+		];
 	
-	FiltersSlot->AttachWidget(MainFilterSelector.ToSharedRef());
+	FiltersSlot->AttachWidget(MainFilterBox);
 }
 
 void SNiagaraAssetBrowser::PopulateAssetBrowserContentSlot()
@@ -351,8 +371,8 @@ TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMain
 			// If there is an asset, we check if we want to display a parent-entry per asset first
 			else
 			{
-				// If we only want to display the tags or we only have 1 tag defined, we add the tags directly to a flat list
-				if(AssetTagDefinitionData.DefinitionsAsset->DisplayTagsAsFlatList() || AssetTagDefinitionData.AssetTagDefinitions.Num() == 1)
+				// If we only want to display the tags we add the tags directly to a flat list
+				if(AssetTagDefinitionData.DefinitionsAsset->DisplayTagsAsFlatList())
 				{
 					for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionData.AssetTagDefinitions)
 					{
@@ -365,7 +385,21 @@ TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMain
 				// If not, we keep track of the asset here so we can construct a hierarchy of filters per asset
 				else
 				{
-					DisplayedAssetTagDefinitionAssets.Add(AssetTagDefinitionData.DefinitionsAsset);
+					// We only want to display the asset if at least one tag is valid
+					bool bAnyTagValid = false;
+					for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionData.AssetTagDefinitions)
+					{
+						if(IsAssetTagDefinitionValid(AssetTagDefinition))
+						{
+							bAnyTagValid = true;
+							break;
+						}
+					}
+
+					if(bAnyTagValid)
+					{
+						DisplayedAssetTagDefinitionAssets.Add(AssetTagDefinitionData.DefinitionsAsset);
+					}
 				}
 			}			
 		}
@@ -390,6 +424,7 @@ TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMain
 				TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> TagChildFilters;
 				for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionsAsset->GetAssetTagDefinitions())
 				{
+					// Filter out tags that are invalid; one asset can contain valid and invalid tags for a given use-case
 					if(IsAssetTagDefinitionValid(AssetTagDefinition))
 					{
 						TSharedRef<FNiagaraAssetBrowserMainFilter> AssetTagFilter = MakeShared<FNiagaraAssetBrowserMainFilter>(FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTag);
@@ -413,9 +448,191 @@ TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMain
 	return MainFilters;
 }
 
+TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetAllFilters() const
+{
+	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> AllFilters = GetMainFilters();
+
+	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> CurrentFilters = AllFilters;
+	while(CurrentFilters.IsEmpty() == false)
+	{
+		TSharedRef<FNiagaraAssetBrowserMainFilter> CurrentFilter = CurrentFilters[0];
+		CurrentFilters.RemoveAt(0);
+		AllFilters.AddUnique(CurrentFilter);
+		CurrentFilters.Append(CurrentFilter->ChildFilters);
+	}
+
+	return AllFilters;
+}
+
 void SNiagaraAssetBrowser::OnFilterChanged() const
 {
 	RefreshBackendFilter();
+}
+
+void SNiagaraAssetBrowser::ExpandMainFilterSearchResults()
+{
+	MainFilterSelector->ClearExpandedItems();
+
+	for(const FSearchItem& SearchResult : SourceSearchResults)
+	{
+		for(const TSharedRef<FNiagaraAssetBrowserMainFilter>& EntryInPath : SearchResult.Path)
+		{
+			MainFilterSelector->SetItemExpansion(EntryInPath, true);
+		}
+	}
+}
+
+void SNiagaraAssetBrowser::SelectNextMainFilterSearchResult()
+{
+	if(SourceSearchResults.IsEmpty())
+	{
+		return;
+	}
+	
+	if(!FocusedSearchResult.IsSet())
+	{
+		FocusedSearchResult = SourceSearchResults[0];
+	}
+	else
+	{
+		int32 CurrentSearchResultIndex = SourceSearchResults.Find(FocusedSearchResult.GetValue());
+		if(SourceSearchResults.IsValidIndex(CurrentSearchResultIndex+1))
+		{
+			FocusedSearchResult = SourceSearchResults[CurrentSearchResultIndex+1];
+		}
+		else
+		{
+			FocusedSearchResult = SourceSearchResults[0];
+		}
+	}
+
+	MainFilterSelector->ClearSelection();
+	MainFilterSelector->RequestScrollIntoView(FocusedSearchResult.GetValue().GetEntry().ToSharedRef());
+	MainFilterSelector->SetItemSelection(FocusedSearchResult.GetValue().GetEntry().ToSharedRef(), true);
+}
+
+void SNiagaraAssetBrowser::SelectPreviousMainFilterSearchResult()
+{
+	if(SourceSearchResults.IsEmpty())
+	{
+		return;
+	}
+	
+	if(!FocusedSearchResult.IsSet())
+	{
+		FocusedSearchResult = SourceSearchResults[0];
+	}
+	else
+	{
+		int32 CurrentSearchResultIndex = SourceSearchResults.Find(FocusedSearchResult.GetValue());
+		if(SourceSearchResults.IsValidIndex(CurrentSearchResultIndex-1))
+		{
+			FocusedSearchResult = SourceSearchResults[CurrentSearchResultIndex-1];
+		}
+		else
+		{
+			FocusedSearchResult = SourceSearchResults[SourceSearchResults.Num()-1];
+		}
+	}
+
+	MainFilterSelector->ClearSelection();
+	MainFilterSelector->RequestScrollIntoView(FocusedSearchResult.GetValue().GetEntry().ToSharedRef());
+	MainFilterSelector->SetItemSelection(FocusedSearchResult.GetValue().GetEntry().ToSharedRef(), true);
+}
+
+void SNiagaraAssetBrowser::GenerateSearchItems(TSharedRef<FNiagaraAssetBrowserMainFilter> Root, TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> ParentChain, TArray<FSearchItem>& OutSearchItems) const
+{
+	const TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> FilteredChildren = Root->ChildFilters;
+	ParentChain.Add(Root);
+	OutSearchItems.Add(FSearchItem{ParentChain});
+	for(TSharedRef<FNiagaraAssetBrowserMainFilter> Child : FilteredChildren)
+	{
+		GenerateSearchItems(Child, ParentChain, OutSearchItems);
+	}
+}
+
+void SNiagaraAssetBrowser::OnFilterSearchTextChanged(const FText& Text)
+{
+	SourceSearchResults.Empty();
+	FocusedSearchResult.Reset();
+	MainFilterSelector->ClearSelection();
+
+	if(!Text.IsEmpty())
+	{
+		FText NoWhitespaceText = FText::FromString(Text.ToString().Replace(TEXT(" "), TEXT("")));
+		TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> MainFilters = AssetBrowserMainFilters;
+		for(const TSharedRef<FNiagaraAssetBrowserMainFilter>& MainFilter : MainFilters)
+		{
+			TArray<FSearchItem> SearchItems;
+			GenerateSearchItems(MainFilter, {}, SearchItems);
+
+			for(const FSearchItem& SearchItem : SearchItems)
+			{
+				if(SearchItem.GetEntry()->DoesFilterMatchTextQuery(NoWhitespaceText))
+				{
+					SourceSearchResults.Add(SearchItem);
+				}
+			}
+		}
+
+		ExpandMainFilterSearchResults();
+		SelectNextMainFilterSearchResult();
+	}
+	else
+	{
+		MainFilterSelector->ClearExpandedItems();
+	}
+}
+
+void SNiagaraAssetBrowser::OnSearchButtonClicked(SSearchBox::SearchDirection SearchDirection)
+{
+	if(SearchDirection == SSearchBox::Next)
+	{
+		SelectNextMainFilterSearchResult();
+	}
+	else
+	{
+		SelectPreviousMainFilterSearchResult();
+	}
+}
+
+void SNiagaraAssetBrowser::OnFilterSearchTextCommitted(const FText& Text, ETextCommit::Type CommitType)
+{
+	bool bIsShiftDown = FSlateApplication::Get().GetModifierKeys().IsShiftDown();
+	if(CommitType == ETextCommit::OnEnter)
+	{
+		if(bIsShiftDown == false)
+		{
+			SelectNextMainFilterSearchResult();
+		}
+		else
+		{
+			SelectPreviousMainFilterSearchResult();
+		}
+	}
+}
+
+TOptional<SSearchBox::FSearchResultData> SNiagaraAssetBrowser::GetSearchResultData() const
+{
+	if(SourceSearchResults.Num() > 0)
+	{
+		SSearchBox::FSearchResultData SearchResultData;
+		SearchResultData.NumSearchResults = SourceSearchResults.Num();
+
+		if(FocusedSearchResult.IsSet())
+		{
+			// we add one just to make it look nicer as this is merely for cosmetic purposes
+			SearchResultData.CurrentSearchResultIndex = SourceSearchResults.Find(FocusedSearchResult.GetValue()) + 1;
+		}
+		else
+		{
+			SearchResultData.CurrentSearchResultIndex = INDEX_NONE;
+		}
+
+		return SearchResultData;
+	}
+
+	return TOptional<SSearchBox::FSearchResultData>();
 }
 
 void SNiagaraAssetBrowser::OnGetChildFiltersForFilter(TSharedRef<FNiagaraAssetBrowserMainFilter> NiagaraAssetBrowserMainFilter, TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>>& OutChildren) const
@@ -617,19 +834,9 @@ void SNiagaraAssetBrowser::OnMainFilterSelected(TSharedPtr<FNiagaraAssetBrowserM
 void SNiagaraAssetBrowser::OnAssetTagActivated(const FNiagaraAssetTagDefinition& NiagaraAssetTagDefinition)
 {
 	// First we attempt to select it as a main filter
-	// TArray<FNiagaraAssetBrowserMainFilter> MainFilters = GetMainFilters();
-	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> MainFilters = GetMainFilters();
-
-	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> AllFilters = MainFilters;
-	while(AllFilters.IsEmpty() == false)
-	{
-		TSharedRef<FNiagaraAssetBrowserMainFilter> CurrentFilter = AllFilters[0];
-		AllFilters.RemoveAt(0);
-		MainFilters.AddUnique(CurrentFilter);
-		AllFilters.Append(CurrentFilter->ChildFilters);
-	}
+	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> AllFilters = GetAllFilters();
 	
-	TSharedRef<FNiagaraAssetBrowserMainFilter>* FoundMainFilter = MainFilters.FindByPredicate([NiagaraAssetTagDefinition](const TSharedRef<FNiagaraAssetBrowserMainFilter>& MainFilterCandidate)
+	TSharedRef<FNiagaraAssetBrowserMainFilter>* FoundMainFilter = AllFilters.FindByPredicate([NiagaraAssetTagDefinition](const TSharedRef<FNiagaraAssetBrowserMainFilter>& MainFilterCandidate)
 	{
 		return MainFilterCandidate->AssetTagDefinition == NiagaraAssetTagDefinition;
 	});

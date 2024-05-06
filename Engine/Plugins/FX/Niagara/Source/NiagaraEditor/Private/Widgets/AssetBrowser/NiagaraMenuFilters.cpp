@@ -72,4 +72,14 @@ bool FNiagaraAssetBrowserMainFilter::DoesAssetHaveAnyTagFromTagDefinitionsAsset(
 	return AssetTagDefinitionsAsset->DoesAssetDataContainAnyTag(AssetCandidate);
 }
 
+bool FNiagaraAssetBrowserMainFilter::DoesFilterMatchTextQuery(const FText& Text)
+{
+	if(GetDisplayName().ToString().Replace(TEXT(" "), TEXT("")).Contains(Text.ToString()))
+	{
+		return true;
+	}
+
+	return false;
+}
+
 #undef LOCTEXT_NAMESPACE
