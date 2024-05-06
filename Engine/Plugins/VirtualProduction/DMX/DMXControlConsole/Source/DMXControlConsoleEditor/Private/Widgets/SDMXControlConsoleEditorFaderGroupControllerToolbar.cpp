@@ -815,15 +815,25 @@ namespace UE::DMX::Private
 
 	EVisibility SDMXControlConsoleEditorFaderGroupControllerToolbar::GetSearchBoxVisibility() const
 	{
-		// Visible only if the toolbar is expanded and the controller has more than the specified number of element controllers
-		constexpr int32 ElementControllersNumLimit = 3;
-
+		// Visible if the toolbar is expanded
+		if (!IsExpandedViewModeEnabledDelegate.IsBound() || !IsExpandedViewModeEnabledDelegate.Execute())
+		{
+			return EVisibility::Collapsed;
+		}
+		
+		// Visible if the filter string is not empty
 		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
+		const UDMXControlConsoleFaderGroup* FaderGroup = FaderGroupControllerModel.IsValid() ? FaderGroupControllerModel->GetFirstAvailableFaderGroup() : nullptr;
+		if (FaderGroup && !FaderGroup->FilterString.IsEmpty())
+		{
+			return EVisibility::Visible;
+		}
+		
+		// Visible if the controller has more than the specified number of element controllers
+		constexpr int32 ElementControllersNumLimit = 3;
 		const bool bIsVisible =
 			FaderGroupControllerModel.IsValid() &&
-			FaderGroupControllerModel->GetMatchingFilterElementControllersOnly().Num() > ElementControllersNumLimit &&
-			IsExpandedViewModeEnabledDelegate.IsBound() &&
-			IsExpandedViewModeEnabledDelegate.Execute();
+			FaderGroupControllerModel->GetMatchingFilterElementControllersOnly().Num() > ElementControllersNumLimit;
 
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
