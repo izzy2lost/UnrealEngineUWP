@@ -309,6 +309,12 @@ void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu
 	FToolMenuSection& ExposeAsPinSection = Menu->AddSection("MoviePipelineGraphExposeAsPin", LOCTEXT("ExposeAsPin", "Expose Property as Pin"));
 	for (const FMovieGraphPropertyInfo& PropertyInfo : OverrideablePropertyInfo)
 	{
+		// If a property is permanently exposed on the node, don't allow it to be toggled off
+		if (PropertyInfo.bIsPermanentlyExposed)
+		{
+			continue;
+		}
+		
 		ExposeAsPinSection.AddMenuEntry(
 			PropertyInfo.Name,
 			FText::FromName(PropertyInfo.Name),

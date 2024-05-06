@@ -515,6 +515,23 @@ TArray<FMovieGraphPropertyInfo> UMovieGraphNode::GetOverrideablePropertyInfo() c
 		}
 	}
 
+	// Some properties exist only via GetInputProperties(). Some of them may be non-branch-typed so they should be exposed as overrideable.
+	for (const FMovieGraphPinProperties& InputPinProperty : GetInputPinProperties())
+	{
+		if (InputPinProperty.bIsBranch)
+		{
+			continue;
+		}
+		
+		FMovieGraphPropertyInfo Info;
+		Info.Name = InputPinProperty.Label;
+		Info.ValueType = InputPinProperty.Type;
+		Info.ValueTypeObject = InputPinProperty.TypeObject;
+		Info.bIsPermanentlyExposed = InputPinProperty.bIsBuiltIn;
+
+		OverrideableProperties.Add(MoveTemp(Info));
+	}
+
 	return OverrideableProperties;
 }
 

@@ -58,6 +58,12 @@ struct FMovieGraphPropertyInfo
 	TObjectPtr<const UObject> ValueTypeObject;
 
 	/**
+	 * Whether this property is permanently exposed on the node. If true, it cannot be toggled on/off (via Expose Property as Pin).
+	 */
+	UPROPERTY()
+	bool bIsPermanentlyExposed = false;
+
+	/**
 	 * Determines if this struct represents the same property as another instance of this struct.
 	 *
 	 * The equality operator ensures equality of all members of the struct. However, there may be cases where, for
