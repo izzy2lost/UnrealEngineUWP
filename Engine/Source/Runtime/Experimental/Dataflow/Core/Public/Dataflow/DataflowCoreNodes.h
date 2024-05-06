@@ -28,7 +28,7 @@ public:
 	FDataflowAnyType Value;
 };
 
-USTRUCT()
+USTRUCT(meta=(Icon="GraphEditor.Branch_16x"))
 struct FDataflowBranchNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -46,7 +46,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "FalseValue"))
 	FDataflowAnyType FalseValue;
 
-	UPROPERTY(meta = (DataflowInput, DisplayName = "Condition"))
+	UPROPERTY(EditAnywhere, Category="Condition", meta = (DataflowInput, DisplayName = "Condition"))
 	bool bCondition = true;
 
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Result"))

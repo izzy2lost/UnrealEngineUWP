@@ -40,6 +40,8 @@ public:
 	DATAFLOWENGINE_API virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 #endif // WITH_EDITOR && !UE_BUILD_SHIPPING
 #if WITH_EDITOR
+	DATAFLOWENGINE_API virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
+	DATAFLOWENGINE_API virtual bool ShowPaletteIconOnNode() const override;
 	DATAFLOWENGINE_API virtual FLinearColor GetNodeTitleColor() const override;
 	DATAFLOWENGINE_API virtual FLinearColor GetNodeBodyTintColor() const override;
 	DATAFLOWENGINE_API virtual FText GetTooltipText() const override;

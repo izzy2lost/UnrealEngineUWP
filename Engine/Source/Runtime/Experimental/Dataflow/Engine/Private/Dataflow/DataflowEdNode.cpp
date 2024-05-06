@@ -9,6 +9,8 @@
 #include "Dataflow/DataflowRenderingFactory.h"
 #include "GeometryCollection/Facades/CollectionRenderingFacade.h"
 #include "Logging/LogMacros.h"
+#include "Textures/SlateIcon.h"
+#include "Styling/AppStyle.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowEdNode)
 
@@ -395,6 +397,25 @@ void UDataflowEdNode::Serialize(FArchive& Ar)
 }
 
 #if WITH_EDITOR
+
+FSlateIcon UDataflowEdNode::GetIconAndTint(FLinearColor& OutColor) const
+{
+	FSlateIcon Icon;
+	if (TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		if (const FString* IconName = DataflowNode->TypedScriptStruct()->FindMetaData("Icon"))
+		{
+			Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), FName(*IconName));
+		}
+	}
+
+	return Icon;
+}
+
+bool UDataflowEdNode::ShowPaletteIconOnNode() const
+{
+	return true;
+}
 
 FLinearColor UDataflowEdNode::GetNodeTitleColor() const
 {
