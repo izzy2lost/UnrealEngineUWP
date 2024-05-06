@@ -265,6 +265,8 @@ protected:
 
 	void HandleFrameRateOverrideSettingsChanged(UChaosVDEditorSettings* CVDSettings);
 
+	void PlaySolverStepData(int32 TrackID, const TSharedRef<FChaosVDScene>& InSceneToControlSharedPtr, const FChaosVDSolverFrameData& InSolverFrameData, int32 StepIndex);
+
 	/** Map containing all track info, by track type*/
 	TMap<EChaosVDTrackType, TrackInfoByIDMap> TrackInfoPerType;
 
