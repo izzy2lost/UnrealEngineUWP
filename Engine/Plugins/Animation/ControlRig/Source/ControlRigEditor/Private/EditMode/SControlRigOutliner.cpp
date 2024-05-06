@@ -1131,7 +1131,7 @@ void SControlRigOutliner::HandleSelectionChanged(TSharedPtr<FMultiRigTreeElement
 			if (GEditor)
 			{
 				// Replicating the UEditorEngine::HandleSelectCommand, without the transaction to avoid ensure(!GIsTransacting)
-				GEditor->SelectNone( true, true );
+				GEditor->SelectNone(true, true);
 				GEditor->RedrawLevelEditingViewports();
 			}
 		}
