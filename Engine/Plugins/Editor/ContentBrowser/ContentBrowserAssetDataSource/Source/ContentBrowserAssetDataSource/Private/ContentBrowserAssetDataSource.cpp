@@ -257,7 +257,10 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 	});
 	AssetRegistry->EnumerateAllAssets([this, &PropertyTagCache ](const FAssetData& InAssetData)
 		{
-			PropertyTagCache.GetCacheForClass(InAssetData.AssetClassPath);
+			if (InAssetData.GetOptionalOuterPathName().IsNone())
+			{
+				PropertyTagCache.TryCacheClass(InAssetData.AssetClassPath);
+			}
 			OnPathPopulated(InAssetData);
 			return true;
 		}, /*bIncludeOnlyOnDiskAssets*/true);
@@ -2125,12 +2128,12 @@ void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContent
 			return MoveTemp(Assets);
 		});
 
-		TArray<FAssetData> InMemoryAssets;
-		AssetRegistry->GetInMemoryAssets(AssetDataFilter->InclusiveFilter, InMemoryAssets);
+			TArray<FAssetData> InMemoryAssets;
+			AssetRegistry->GetInMemoryAssets(AssetDataFilter->InclusiveFilter, InMemoryAssets);
 
 		TSet<FName> IgnorePackages;
-		ProduceAssets(InMemoryAssets, IgnorePackages);
-		Algo::Transform(InMemoryAssets, IgnorePackages, [](const FAssetData& AssetData) { return AssetData.PackageName; });
+			ProduceAssets(InMemoryAssets, IgnorePackages);
+			Algo::Transform(InMemoryAssets, IgnorePackages, [](const FAssetData& AssetData) { return AssetData.PackageName; });
 
 		DiskTask.BusyWait();
 		TArray<FAssetData> DiskAssets = MoveTemp(DiskTask.GetResult());
@@ -3146,7 +3149,10 @@ void UContentBrowserAssetDataSource::OnAssetsAdded(TConstArrayView<FAssetData> I
 	FAssetPropertyTagCache& Cache = FAssetPropertyTagCache::Get();
 	for (const FAssetData& InAssetData : InAssets)
 	{
-		Cache.GetCacheForClass(InAssetData.AssetClassPath);
+		if (InAssetData.GetOptionalOuterPathName().IsNone())
+		{
+			Cache.TryCacheClass(InAssetData.AssetClassPath);
+		}
 
 		if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
 		{

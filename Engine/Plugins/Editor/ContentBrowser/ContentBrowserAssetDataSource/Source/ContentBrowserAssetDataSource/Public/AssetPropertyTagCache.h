@@ -58,6 +58,9 @@ public:
 	/** Get the singleton instance */
 	static FAssetPropertyTagCache& Get();
 
+	/** Try and populate the cache for the given class if it is loaded */
+	void TryCacheClass(FTopLevelAssetPath InClassName);
+
 	/** Get (or populate) the cache for the given asset class */
 	const FClassPropertyTagCache& GetCacheForClass(FTopLevelAssetPath InClassName);
 
