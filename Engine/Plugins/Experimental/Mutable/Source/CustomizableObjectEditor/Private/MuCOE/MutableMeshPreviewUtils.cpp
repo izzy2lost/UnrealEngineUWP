@@ -368,7 +368,6 @@ namespace MutableMeshPreviewUtils
 		 */
 		bool BuildSkeletalMeshRenderData(const mu::MeshPtrConst InMutableMesh, USkeletalMesh* OutSkeletalMesh)
 		{
-			OutSkeletalMesh->SetHasBeenSimplified(false);
 			OutSkeletalMesh->SetHasVertexColors(false);
 
 			// Find how many bones the bonemap could have

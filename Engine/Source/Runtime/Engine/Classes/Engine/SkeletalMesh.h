@@ -22,6 +22,7 @@
 #include "SkeletalMeshSampling.h"
 #include "SkeletalMeshSourceModel.h"
 #include "SkinnedAsset.h"
+#include "SkinnedAssetCommon.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -106,7 +107,7 @@ enum class ESkeletalMeshAsyncProperties : uint64
 	NegativeBoundsExtension = 1llu << 32,
 	PositiveBoundsExtension = 1llu << 33,
 	ExtendedBounds = 1llu << 34,
-	HasBeenSimplified = 1llu << 35,
+	// Spare = 1llu << 35,
 	EnablePerPolyCollision = 1llu << 36,
 	BodySetup = 1llu << 37,
 	MorphTargetIndexMap = 1llu << 38,
@@ -1278,31 +1279,18 @@ public:
 	UPROPERTY()
 	uint8 bUseHighPrecisionTangentBasis_DEPRECATED : 1;
 
-	/** true if this mesh has ever been simplified with Simplygon. */
-	UE_DEPRECATED(4.27, "Please do not access this member directly; use USkeletalMesh::GetHasBeenSimplified() or USkeletalMesh::SetHasBeenSimplified().")
-	UPROPERTY()
-	uint8 bHasBeenSimplified:1;
+	UE_DEPRECATED(5.5, "This functionality has been removed. Use FSkeletalMeshLODInfo::bHasBeenSimplified instead.")
 	static FName GetHasBeenSimplifiedMemberName()
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return GET_MEMBER_NAME_CHECKED(USkeletalMesh, bHasBeenSimplified);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		return NAME_None;
 	}
 
-	bool GetHasBeenSimplified() const
-	{
-		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::HasBeenSimplified, ESkinnedAssetAsyncPropertyLockType::ReadOnly);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return bHasBeenSimplified;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
+	UE_DEPRECATED(5.5, "This functionality has been removed. Use FSkeletalMeshLODInfo::bHasBeenSimplified instead.")
+	bool GetHasBeenSimplified() const;
 
-	void SetHasBeenSimplified(bool bInHasBeenSimplified)
+	UE_DEPRECATED(5.5, "This functionality has been removed. Use FSkeletalMeshLODInfo::bHasBeenSimplified instead.")
+	static void SetHasBeenSimplified(bool bInHasBeenSimplified)
 	{
-		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::HasBeenSimplified);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		bHasBeenSimplified = bInHasBeenSimplified;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/** Whether or not the mesh has vertex colors */

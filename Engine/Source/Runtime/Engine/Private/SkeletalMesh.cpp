@@ -5741,6 +5741,18 @@ TSoftObjectPtr<UObject> USkeletalMesh::GetDefaultAnimatingRig() const
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
+bool USkeletalMesh::GetHasBeenSimplified() const
+{
+	for (int32 LODIndex = 0, LODCount = GetLODNum(); LODIndex < LODCount; LODIndex++)
+	{
+		if (GetLODInfo(LODIndex)->bHasBeenSimplified)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void USkeletalMesh::GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeItem>& OutNodeItems) const
 {
 	
