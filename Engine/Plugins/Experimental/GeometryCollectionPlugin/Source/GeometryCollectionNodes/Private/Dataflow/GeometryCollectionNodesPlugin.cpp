@@ -5,29 +5,30 @@
 #include "CoreMinimal.h"
 
 #include "Dataflow/DataflowNodeFactory.h"
+#include "Dataflow/GeometryCollectionArrayNodes.h"
+#include "Dataflow/GeometryCollectionAssetNodes.h"
+#include "Dataflow/GeometryCollectionClusteringNodes.h"
+#include "Dataflow/GeometryCollectionConversionNodes.h"
+#include "Dataflow/GeometryCollectionDebugNodes.h"
+#include "Dataflow/GeometryCollectionEditNodes.h"
+#include "Dataflow/GeometryCollectionFieldNodes.h"
+#include "Dataflow/GeometryCollectionFracturingNodes.h"
+#include "Dataflow/GeometryCollectionMakeNodes.h"
+#include "Dataflow/GeometryCollectionMaterialNodes.h"
+#include "Dataflow/GeometryCollectionMathNodes.h"
+#include "Dataflow/GeometryCollectionMeshNodes.h"
 #include "Dataflow/GeometryCollectionNodes.h"
-#include "Dataflow/Nodes/GeometryCollectionAssetNodes.h"
+#include "Dataflow/GeometryCollectionOverrideNodes.h"
 #include "Dataflow/GeometryCollectionProcessingNodes.h"
+#include "Dataflow/GeometryCollectionSelectionNodes.h"
 #include "Dataflow/GeometryCollectionSkeletalMeshToCollectionNode.h"
 #include "Dataflow/GeometryCollectionSkeletonToCollectionNode.h"
-#include "Dataflow/GeometryCollectionSelectionNodes.h"
-#include "Dataflow/GeometryCollectionMeshNodes.h"
-#include "Dataflow/GeometryCollectionClusteringNodes.h"
-#include "Dataflow/GeometryCollectionFracturingNodes.h"
-#include "Dataflow/GeometryCollectionEditNodes.h"
-#include "Dataflow/GeometryCollectionUtilityNodes.h"
-#include "Dataflow/GeometryCollectionMaterialNodes.h"
-#include "Dataflow/GeometryCollectionFieldNodes.h"
-#include "Dataflow/GeometryCollectionOverrideNodes.h"
-#include "Dataflow/GeometryCollectionMakeNodes.h"
-#include "Dataflow/GeometryCollectionMathNodes.h"
-#include "Dataflow/GeometryCollectionConversionNodes.h"
-#include "Dataflow/GeometryCollectionVerticesNodes.h"
-#include "Dataflow/GeometryCollectionArrayNodes.h"
-#include "Dataflow/GeometryCollectionDebugNodes.h"
-#include "Dataflow/GeometryCollectionVertexScalarToVertexIndicesNode.h"
+#include "Dataflow/GeometryCollectionStaticMeshToCollectionNode.h"
 #include "Dataflow/GeometryCollectionTransferVertexScalarAttributeNode.h"
 #include "Dataflow/GeometryCollectionTriangleBoundaryIndicesNode.h"
+#include "Dataflow/GeometryCollectionUtilityNodes.h"
+#include "Dataflow/GeometryCollectionVerticesNodes.h"
+#include "Dataflow/GeometryCollectionVertexScalarToVertexIndicesNode.h"
 
 #define LOCTEXT_NAMESPACE "DataflowNodes"
 
@@ -56,6 +57,7 @@ void IGeometryCollectionNodesPlugin::StartupModule()
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSkeletonToCollectionDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSkeletalMeshToCollectionDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGeometryCollectionTransferVertexScalarAttributeNode);
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FStaticMeshToCollectionDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FTriangleBoundaryIndicesNode);
 }
 
