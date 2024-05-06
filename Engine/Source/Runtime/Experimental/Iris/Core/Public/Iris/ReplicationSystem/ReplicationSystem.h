@@ -61,15 +61,40 @@ public:
 
 	struct FReplicationSystemParams
 	{
-		//$IRIS TODO: These need documentation
+		/** The replication bridge that allows communication between the replication system and the game engine  */
 		UReplicationBridge* ReplicationBridge = nullptr;
+
+		/** The maximum amount of netobjects that can be registered to the replication system */
 		uint32 MaxReplicatedObjectCount = 65535U;
+
+		/**
+		 * The amount of netobjects to preallocate internal memory buffers for. Preallocated memory provides faster cache-friendly operations but
+		 * has the downside of using much more memory than might actually be needed. Reduce this value if you are operating on a memory constrained platform.
+		 */
 		uint32 PreAllocatedReplicatedObjectCount = 65535U;
+
+		/**
+		 * The maximum amount of netobjects that can replicate properties to remote connection. Can be much lower on clients where very few
+		 * netobjects have authority and support property replication
+		 */
 		uint32 MaxReplicatedWriterObjectCount = 65535U;
+
+		/** The maximum amount of netobjects that can be added to the delta compression manager */
 		uint32 MaxDeltaCompressedObjectCount = 2048U;
+
+		/** The maximum amount of filter groups that can be created. @see UReplicationSystem::CreateGroup */
 		uint32 MaxNetObjectGroupCount = 2048U;
+
+		/** Is this replication system owned by a server or a client. */
 		bool bIsServer = false;
+
+		/**
+		 * When true enable netobject subsystems like: property replication, filtering, prioritization, deltacompression, dirtytracking, etc.
+		 * Generally false on clients or on lightweight RPC-only systems.
+		 */
 		bool bAllowObjectReplication = false;
+
+		/** Delegate that receives every RPC executed locally. */
 		UE::Net::FForwardNetRPCCallDelegate ForwardNetRPCCallDelegate;
 	};
 

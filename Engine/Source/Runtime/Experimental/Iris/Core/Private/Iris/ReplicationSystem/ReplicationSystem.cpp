@@ -95,6 +95,17 @@ public:
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
 
+		{
+			FNetRefHandleManager::FInitParams HandleInitParams
+			{
+				.ReplicationSystemId = ReplicationSystemId,
+				.MaxActiveObjectCount = Params.MaxReplicatedObjectCount,
+				.PreAllocatedObjectCount = Params.PreAllocatedReplicatedObjectCount,
+			};
+
+			NetRefHandleManager.Init(HandleInitParams);
+		}
+
 		const uint32 MaxObjectCount =  NetRefHandleManager.GetMaxActiveObjectCount();
 
 		// DirtyNetObjectTracking is only needed when object replication is allowed
@@ -261,6 +272,8 @@ public:
 			ObjectReferencePackageMap->MarkAsGarbage();
 			ReplicationSystemInternal.SetIrisObjectReferencePackageMap(static_cast<UIrisObjectReferencePackageMap*>(nullptr));
 		}
+
+		ReplicationSystemInternal.GetNetRefHandleManager().Deinit();
 	}
 
 	void StartPreSendUpdate()
@@ -558,8 +571,8 @@ public:
 			ReplicationConditionals.RemoveConnection(ConnectionId);
 		}
 
-		FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 		{
+			FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 			Connections.RemoveConnection(ConnectionId);
 		}
 	}

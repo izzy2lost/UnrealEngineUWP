@@ -43,7 +43,7 @@ class FReplicationSystemInternal
 {
 public:
 	explicit FReplicationSystemInternal(const FReplicationSystemInternalInitParams& Params)
-	: NetRefHandleManager(ReplicationProtocolManager, Params.ReplicationSystemId, Params.MaxReplicatedObjectCount, Params.PreAllocatedReplicatedObjectCount)
+	: NetRefHandleManager(ReplicationProtocolManager)
 	, InternalInitParams(Params)
 	, DirtyNetObjectTracker()
 	, ReplicationBridge(nullptr)

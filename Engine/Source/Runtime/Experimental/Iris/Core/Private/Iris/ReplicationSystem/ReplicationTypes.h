@@ -10,11 +10,11 @@ namespace UE::Net::Private
 
 struct FReplicationParameters
 {
-	uint32 MaxActiveReplicatedObjectCount;	
-	uint32 PreAllocatedReplicatedObjectCount;
-	uint32 MaxReplicatedWriterObjectCount;
-	uint32 PacketSendWindowSize;
-	uint32 ConnectionId;
+	uint32 MaxActiveReplicatedObjectCount = 0;
+	uint32 PreAllocatedReplicatedObjectCount = 0;
+	uint32 MaxReplicatedWriterObjectCount = 0;
+	uint32 PacketSendWindowSize = 0;
+	uint32 ConnectionId = 0;
 	UReplicationSystem* ReplicationSystem = nullptr;
 	bool bAllowSendingAttachmentsToObjectsNotInScope = false;
 	bool bAllowReceivingAttachmentsFromRemoteObjectsNotInScope = false;
