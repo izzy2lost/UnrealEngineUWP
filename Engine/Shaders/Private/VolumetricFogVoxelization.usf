@@ -4,6 +4,9 @@
 	VolumetricFogVoxelization.usf
 =============================================================================*/
 
+// Change this to force recompilation of all shaders referencing this file.
+#pragma message("UESHADERMETADATA_VERSION 43567765-38CF-4EC3-B288-49B6F14EF801")
+
 // So vertex factories can interpolate dependencies of VertexFactoryGetTranslatedPrimitiveVolumeBounds
 #define PASS_NEEDS_PRIMITIVE_VOLUME_BOUNDS 1
 

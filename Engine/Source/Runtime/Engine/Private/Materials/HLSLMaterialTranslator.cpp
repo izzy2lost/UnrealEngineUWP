@@ -13483,8 +13483,36 @@ int32 FHLSLMaterialTranslator::SubstrateConversionFromLegacy(
 	);
 }
 
-int32 FHLSLMaterialTranslator::SubstrateVolumetricFogCloudBSDF(int32 Albedo, int32 Extinction, int32 EmissiveColor, int32 AmbientOcclusion)
+int32 FHLSLMaterialTranslator::SubstrateVolumetricFogCloudBSDF(int32 Albedo, int32 Extinction, int32 EmissiveColor, int32 AmbientOcclusion, bool bEmissiveOnly)
 {
+	// EmissiveOnly isrequired due to the legacy material shading model set by the user, which could be Unlit or Lit for volumetric domain.
+	// It was set on the material detail panel or overriden from a mateiral instance. Note: material attributes could not be used with the volumetric domain.
+
+	UMaterial* BaseMaterial = Material->GetMaterialInterface()->GetBaseMaterial();
+	// Material is probably an instanced material, so we check that this is the case before potentially overriding the ShadingModel from the material instance.
+	UMaterialInterface* BaseMaterialInterface = static_cast<UMaterialInterface*>(BaseMaterial);
+	UMaterialInterface* MaterialInterface = Material->GetMaterialInterface();
+	if (BaseMaterial && (BaseMaterialInterface != MaterialInterface))
+	{
+		FMaterialShadingModelField BaseMaterialShadingModels = BaseMaterial->GetShadingModels();
+		FMaterialShadingModelField MaterialShadingModels = Material->GetShadingModels();
+
+		// If the potentially instanced material does not have the same shading model as the instance material, this means it would have overridden the shading model.
+		// From the UI, only a single shading model is selectable, so we simply apply the one coming form the material instance.
+		if (MaterialShadingModels.IsValid() && MaterialShadingModels.CountShadingModels() == 1 && MaterialShadingModels != BaseMaterialShadingModels)
+		{
+			// Use the mode required by the overriden shading model.
+			bEmissiveOnly = MaterialShadingModels.GetFirstShadingModel() == MSM_Unlit ? true : false;
+		}
+	}
+
+	// Override to EmissiveOnly if that is the final shading model.
+	if (bEmissiveOnly)
+	{
+		Albedo = Extinction = Constant3(0.0f, 0.0f, 0.0f);
+		AmbientOcclusion = Constant(1.0f);
+	}
+
 	return AddCodeChunk(
 		MCT_Substrate, TEXT("GetSubstrateVolumeFogCloudBSDF(%s, %s, %s, %s)"),
 		*SubstrateGetCastParameterCode(Albedo,				MCT_Float3),

@@ -25643,14 +25643,20 @@ int32 UMaterialExpressionSubstrateVolumetricFogCloudBSDF::Compile(class FMateria
 		CompileWithDefaultFloat3(Compiler, Albedo, 0.0f, 0.0f, 0.0f),
 		CompileWithDefaultFloat3(Compiler, Extinction, 0.0f, 0.0f, 0.0f),
 		CompileWithDefaultFloat3(Compiler, EmissiveColor, 0.0f, 0.0f, 0.0f),
-		CompileWithDefaultFloat1(Compiler, AmbientOcclusion, 1.0f));
+		CompileWithDefaultFloat1(Compiler, AmbientOcclusion, 1.0f),
+		bEmissiveOnly);
 
 	return OutputCodeChunk;
 }
 
 void UMaterialExpressionSubstrateVolumetricFogCloudBSDF::GetCaption(TArray<FString>& OutCaptions) const
 {
-	OutCaptions.Add(TEXT("Substrate Volumetric-Fog-Cloud BSDF"));
+	FString Caption = TEXT("Substrate Volumetric-Fog-Cloud BSDF");
+	if (bEmissiveOnly)
+	{
+		Caption += TEXT("(Emissive Only)");
+	}
+	OutCaptions.Add(Caption);
 }
 
 uint32 UMaterialExpressionSubstrateVolumetricFogCloudBSDF::GetOutputType(int32 OutputIndex)

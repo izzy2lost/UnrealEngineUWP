@@ -3604,6 +3604,8 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, VolBSDF, 2, MP_EmissiveColor);	
 			ScalarMatInputConnectionTo(EditorOnly->AmbientOcclusion, VolBSDF, 3, MP_AmbientOcclusion);
 
+			VolBSDF->bEmissiveOnly = ShadingModel == MSM_Unlit;
+
 			// SUBSTRATE_TODO remove the VolumetricAdvancedOutput node and add the input onto FogCloudBSDF even if only used by the cloud renderer?
 			EditorOnly->FrontMaterial.Connect(0, VolBSDF);
 			bInvalidateShader = true;
@@ -4539,7 +4541,8 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 	
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, ShadingModel))
 		{
-			return !bSubstrateEnabled && MaterialDomain == MD_Surface;
+			// Volume can also use the unlit mode for emissive only volumetric effect (also overridable on material instance)
+			return !bSubstrateEnabled && (MaterialDomain == MD_Surface || MaterialDomain == MD_Volume);
 		}
 
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bIsThinSurface))
@@ -5084,11 +5087,11 @@ void UMaterial::RebuildShadingModelField()
 			}
 			else if (MaterialDomain == MD_LightFunction)
 			{
-				SubstrateMaterialInfo.AddShadingModel(SSM_VolumetricFogCloud);
+				SubstrateMaterialInfo.AddShadingModel(SSM_LightFunction);
 			}
 			else if (MaterialDomain == MD_Volume)
 			{
-				SubstrateMaterialInfo.AddShadingModel(SSM_LightFunction);
+				SubstrateMaterialInfo.AddShadingModel(SSM_VolumetricFogCloud);
 			}
 			else if (MaterialDomain == MD_PostProcess)
 			{
@@ -5173,7 +5176,14 @@ void UMaterial::RebuildShadingModelField()
 			else if (SubstrateMaterialInfo.HasOnlyShadingModel(SSM_VolumetricFogCloud))
 			{
 				MaterialDomain = EMaterialDomain::MD_Volume;
-				ShadingModel = MSM_DefaultLit;
+				// Volumetric shading model do support Unlit as an EmissiveOnly mode, on top of the lit mode.
+				TArray<UMaterialExpressionSubstrateVolumetricFogCloudBSDF*> ShadingModelExpressions;
+				GetAllExpressionsInMaterialAndFunctionsOfType(ShadingModelExpressions);
+				for (UMaterialExpressionSubstrateVolumetricFogCloudBSDF* MatExpr : ShadingModelExpressions)
+				{
+					ShadingModel = MatExpr->bEmissiveOnly ? MSM_Unlit : MSM_DefaultLit;
+					break; // We can only keep a single shading model due to an assert in UMaterialInstance::UpdateOverridableBaseProperties which want a single shading model for non material attribute workflow.
+				}
 				BlendMode = EBlendMode::BLEND_Additive;
 			}
 			else if (SubstrateMaterialInfo.HasOnlyShadingModel(SSM_Hair))

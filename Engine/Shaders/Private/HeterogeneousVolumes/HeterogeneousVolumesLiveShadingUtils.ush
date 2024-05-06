@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// Change this to force recompilation of all shaders referencing this file.
+#pragma message("UESHADERMETADATA_VERSION 80584AA0-BFD9-4021-BE67-273077B48601")
+
 FPrimitiveSceneData GetPrimitiveData(
 	uint PrimitiveId,
 	float4x4 LocalToWorld,

@@ -445,6 +445,10 @@ class UMaterialExpressionSubstrateVolumetricFogCloudBSDF : public UMaterialExpre
 	UPROPERTY()
 	FExpressionInput AmbientOcclusion;
 
+	/** Enabling this corresponds to selecting the Unlit shading model from the legacy material system. In this case, only the Emissive input will be considered. */
+	UPROPERTY(EditAnywhere, Category = Shading, meta = (DisplayName = "Unlit (EmissiveOnly)"))
+	uint32 bEmissiveOnly : 1;
+
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR
 	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
