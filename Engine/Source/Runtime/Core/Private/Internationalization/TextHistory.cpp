@@ -2370,7 +2370,6 @@ const FString& FTextHistory_StringTableEntry::GetDisplayString() const
 		{
 			return *DisplayString;
 		}
-		return FStringTableEntry::GetPlaceholderSourceString();
 	}
 	return GetSourceString();
 }
