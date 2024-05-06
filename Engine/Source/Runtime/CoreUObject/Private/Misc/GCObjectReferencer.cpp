@@ -13,9 +13,11 @@
 #include "UObject/GarbageCollectionVerification.h"
 #include "HAL/IConsoleManager.h"
 
+#include <atomic>
+
 // Global GC state flags
-extern bool GObjIncrementalPurgeIsInProgress;
-extern bool GObjUnhashUnreachableIsInProgress;
+extern std::atomic<bool> GObjIncrementalPurgeIsInProgress;
+extern std::atomic<bool> GObjUnhashUnreachableIsInProgress;
 
 namespace UE::GC
 {
