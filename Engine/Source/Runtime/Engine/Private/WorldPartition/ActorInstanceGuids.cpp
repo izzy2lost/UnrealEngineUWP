@@ -60,7 +60,7 @@ FGuid FActorInstanceGuid::GetLevelInstanceGuid(ULevel* Level)
 			if (!LevelGuids.IsDefault())
 			{
 				// Duplicate the annotation to this level to avoid having to look it up all the time
-				check(LevelGuids.ResolvedLevelInstanceGuid.IsValid());
+				check(LevelGuids.ResolvedLevelInstanceGuid.IsValid() || !LevelGuids.LevelInstanceGuid.IsValid());
 				GLevelInstanceGuids.AddAnnotation(Level, LevelGuids);
 			}
 		}
