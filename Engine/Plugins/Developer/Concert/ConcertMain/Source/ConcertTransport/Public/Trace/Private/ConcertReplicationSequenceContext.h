@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Containers/UnrealString.h"
+#include "UObject/SoftObjectPath.h"
+
 namespace UE::ConcertTrace::Private
 {
 	struct FConcertReplicationSequenceContext
