@@ -105,13 +105,35 @@ namespace UE::PixelStreamingInput
 
 		// XR Input Messages.
 		// clang-format off
+		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XREyeViews", FPixelStreamingInputMessage(109,		{	// Left eye transform (4x4 matrix)
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													// Left eye perspective projection (4x4 matrix)
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													// Right eye transform (4x4 matrix)
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													// Right eye perspective projection (4x4 matrix)
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																												}));
+
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRHMDTransform", FPixelStreamingInputMessage(110, {	// 4x4 Transform
 																													EType::Float, EType::Float, EType::Float, EType::Float,
 																													EType::Float, EType::Float, EType::Float, EType::Float,
 																													EType::Float, EType::Float, EType::Float, EType::Float,
 																													EType::Float, EType::Float, EType::Float, EType::Float,
 																												}));
-		
+
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRControllerTransform", FPixelStreamingInputMessage(111, {// 4x4 Transform
 																														EType::Float, EType::Float, EType::Float, EType::Float, 
 																														EType::Float, EType::Float, EType::Float, EType::Float, 
@@ -120,7 +142,7 @@ namespace UE::PixelStreamingInput
 																														// Handedness (L, R, Any)
 																														EType::Uint8 
 																														}));
-		
+
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonPressed", FPixelStreamingInputMessage(112,// Handedness,   ButtonIdx,      IsRepeat
 																												{ EType::Uint8, EType::Uint8, EType::Uint8 }));
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonTouched", FPixelStreamingInputMessage(113,// Handedness,   ButtonIdx,      IsRepeat
