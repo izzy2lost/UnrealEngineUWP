@@ -1235,6 +1235,22 @@ const UGameplayAbility* UAbilitySystemBlueprintLibrary::GetGameplayAbilityFromSp
 	return AbilityInstance;
 }
 
+bool UAbilitySystemBlueprintLibrary::IsGameplayAbilityActive(const UGameplayAbility* GameplayAbility)
+{
+	if (!GameplayAbility)
+	{
+		UE_LOG(LogAbilitySystem, Error, TEXT("%hs passed in invalid (null) GameplayAbility"), __func__);
+		return false;
+	}
+	else if (!GameplayAbility->IsInstantiated())
+	{
+		UE_LOG(LogAbilitySystem, Error, TEXT("%hs passed a non-instantiated instance: %s"), __func__, *GetNameSafe(GameplayAbility));
+		return false;
+	}
+
+	return GameplayAbility->IsActive();
+}
+
 bool UAbilitySystemBlueprintLibrary::EqualEqual_GameplayAbilitySpecHandle(const FGameplayAbilitySpecHandle& A, const FGameplayAbilitySpecHandle& B)
 {
 	return A == B;
