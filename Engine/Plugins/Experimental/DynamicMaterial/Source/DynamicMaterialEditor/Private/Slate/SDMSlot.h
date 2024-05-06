@@ -87,7 +87,7 @@ public:
 
 	void SetSelectedLayer(UDMMaterialLayerObject* InLayer) const;
 
-	UDMMaterialLayerObject* AddNewLayer(UDMMaterialStage* InNewBaseStage, UDMMaterialStage* InNewMaskStage = nullptr);
+	UDMMaterialLayerObject* AddNewLayer(UDMMaterialStage* InNewBaseStage = nullptr, UDMMaterialStage* InNewMaskStage = nullptr);
 
 protected:
 	TWeakPtr<SDMEditor> EditorWidgetWeak;
@@ -133,6 +133,8 @@ protected:
 
 	void OnLayerSelected(TSharedPtr<FDMMaterialLayerReference> InLayerItem, const int32 InLayerIndex);
 	void OnLayerStageSelected(const bool bInSelected, const TSharedRef<SDMStage>& InStageWidget);
+
+	void OnValueAdded(UDMMaterialStage* InStage, UDMMaterialValue* InValue);
 
 	void RefreshMainWidget();
 	void RefreshHeaderPropertyListWidget();

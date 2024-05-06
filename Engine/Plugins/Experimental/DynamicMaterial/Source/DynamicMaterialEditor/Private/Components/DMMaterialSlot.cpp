@@ -416,12 +416,84 @@ TSet<EDMValueType> UDMMaterialSlot::GetAllOutputConnectorTypes() const
 	return AllOutputTypes;
 }
 
+UDMMaterialLayerObject* UDMMaterialSlot::AddDefaultLayer(EDMMaterialPropertyType InMaterialProperty)
+{
+	if (!IsComponentValid())
+	{
+		return nullptr;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDMMaterialProperty* Property = ModelEditorOnlyData->GetMaterialProperty(InMaterialProperty);
+	check(Property);
+
+	UDMMaterialLayerObject* NewLayer = UDMMaterialLayerObject::CreateLayer(this, InMaterialProperty, {});
+	LayerObjects.Add(NewLayer);
+
+	{
+		const FDMUpdateGuard Guard;
+		Property->AddDefaultBaseStage(NewLayer);
+		Property->AddDefaultMaskStage(NewLayer);
+	}	
+
+	if (IsComponentAdded())
+	{
+		NewLayer->SetComponentState(EDMComponentLifetimeState::Added);
+	}
+
+	UpdateOutputConnectorTypes();
+
+	NewLayer->Update(EDMUpdateType::Structure);
+
+	OnLayersUpdateDelegate.Broadcast(this);
+
+	return NewLayer;
+}
+
 UDMMaterialLayerObject* UDMMaterialSlot::AddLayer(EDMMaterialPropertyType InMaterialProperty, UDMMaterialStage* InNewBase)
 {
-	UDMMaterialStage* NewMask = UDMMaterialStageThroughputLayerBlend::CreateStage();
-	check(NewMask);
+	if (!IsComponentValid())
+	{
+		return nullptr;
+	}
 
-	return AddLayerWithMask(InMaterialProperty, InNewBase, NewMask);
+	check(InNewBase);
+	check(InNewBase->GetSource());
+	check(InNewBase->GetSource()->GetOutputConnectors().IsEmpty() == false);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDMMaterialProperty* Property = ModelEditorOnlyData->GetMaterialProperty(InMaterialProperty);
+	check(Property);
+
+	if (GUndo)
+	{
+		InNewBase->Modify();
+	}
+
+	UDMMaterialLayerObject* NewLayer = UDMMaterialLayerObject::CreateLayer(this, InMaterialProperty, {InNewBase});
+	LayerObjects.Add(NewLayer);
+
+	{
+		const FDMUpdateGuard Guard;
+		Property->AddDefaultMaskStage(NewLayer);
+	}
+
+	if (IsComponentAdded())
+	{
+		NewLayer->SetComponentState(EDMComponentLifetimeState::Added);
+	}
+
+	UpdateOutputConnectorTypes();
+
+	NewLayer->Update(EDMUpdateType::Structure);
+
+	OnLayersUpdateDelegate.Broadcast(this);
+
+	return NewLayer;
 }
 
 UDMMaterialLayerObject* UDMMaterialSlot::AddLayerWithMask(EDMMaterialPropertyType InMaterialProperty, UDMMaterialStage* InNewBase, 
@@ -456,11 +528,11 @@ UDMMaterialLayerObject* UDMMaterialSlot::AddLayerWithMask(EDMMaterialPropertyTyp
 
 	UpdateOutputConnectorTypes();
 
-	InNewBase->Update(EDMUpdateType::Structure);
+	NewLayer->Update(EDMUpdateType::Structure);
 
 	OnLayersUpdateDelegate.Broadcast(this);
 
-	return LayerObjects.Last();
+	return NewLayer;
 }
 
 bool UDMMaterialSlot::PasteLayer(UDMMaterialLayerObject* InLayer)

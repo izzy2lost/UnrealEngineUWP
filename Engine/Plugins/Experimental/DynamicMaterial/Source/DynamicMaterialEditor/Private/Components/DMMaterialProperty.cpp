@@ -9,9 +9,11 @@
 #include "Components/DMMaterialSubStage.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
+#include "Components/MaterialStageExpressions/DMMSETextureSampleBase.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DMComponentPath.h"
 #include "DMValueDefinition.h"
@@ -131,56 +133,97 @@ TEnumAsByte<EMaterialSamplerType> UDMMaterialProperty::GetTextureSamplerType() c
 
 void UDMMaterialProperty::OnSlotAdded(UDMMaterialSlot* InSlot)
 {
+	if (!IsValid(InSlot))
+	{
+		return;
+	}
+
+	InSlot->AddDefaultLayer(MaterialProperty);
+}
+
+void UDMMaterialProperty::AddDefaultBaseStage(UDMMaterialLayerObject* InLayer)
+{
+	if (!IsValid(InLayer))
+	{
+		return;
+	}
+
 	UDMMaterialStage* DefaultStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	check(DefaultStage);
 
-	UDMMaterialStage* MaskStage = UDMMaterialStageThroughputLayerBlend::CreateStage();
-	check(MaskStage);
+	InLayer->SetStage(EDMMaterialLayerStage::Base, DefaultStage);
 
-	InSlot->AddLayerWithMask(MaterialProperty, DefaultStage, MaskStage);
+	const FDMDefaultMaterialPropertySlotValue& DefaultValue = UDynamicMaterialEditorSettings::Get()->GetDefaultSlotValue(MaterialProperty);
 
-	if (UTexture* BaseTexture = UDynamicMaterialEditorSettings::Get()->GetDefaultTextureForSlot(MaterialProperty))
+	switch (DefaultValue.Type)
 	{
-		UDMMaterialStageInputExpression* BaseInputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
-			DefaultStage,
-			UDMMaterialStageExpressionTextureSample::StaticClass(),
-			UDMMaterialStageBlendNormal::InputB,
-			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-			0,
-			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
-		);
-
-		if (UDMMaterialStageExpressionTextureSample* BaseInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(BaseInputExpression->GetMaterialStageExpression()))
+		case EDMDefaultMaterialPropertySlotValueType::Texture:
 		{
-			if (UDMMaterialStage* BaseTextureInputStage = BaseInputExpression->GetSubStage())
-			{
-				const TArray<UDMMaterialStageInput*> BaseTextureStageInputs = BaseTextureInputStage->GetInputs();
+			UDMMaterialStageInputExpression* BaseInputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				DefaultStage,
+				UDMMaterialStageExpressionTextureSample::StaticClass(),
+				UDMMaterialStageBlendNormal::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 
-				for (UDMMaterialStageInput* BaseTextureStageInput : BaseTextureStageInputs)
+			if (UDMMaterialStageExpressionTextureSample* BaseInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(BaseInputExpression->GetMaterialStageExpression()))
+			{
+				if (UDMMaterialStage* BaseTextureInputStage = BaseInputExpression->GetSubStage())
 				{
-					if (UDMMaterialStageInputValue* BaseTextureInputValue = Cast<UDMMaterialStageInputValue>(BaseTextureStageInput))
+					const TArray<UDMMaterialStageInput*> BaseTextureStageInputs = BaseTextureInputStage->GetInputs();
+
+					for (UDMMaterialStageInput* BaseTextureStageInput : BaseTextureStageInputs)
 					{
-						if (UDMMaterialValueTexture* BaseTextureValue = Cast<UDMMaterialValueTexture>(BaseTextureInputValue->GetValue()))
+						if (UDMMaterialStageInputValue* BaseTextureInputValue = Cast<UDMMaterialStageInputValue>(BaseTextureStageInput))
 						{
-							BaseTextureValue->SetDefaultValue(BaseTexture);
-							BaseTextureValue->ApplyDefaultValue();
-							break;
+							if (UDMMaterialValueTexture* BaseTextureValue = Cast<UDMMaterialValueTexture>(BaseTextureInputValue->GetValue()))
+							{
+								BaseTextureValue->SetDefaultValue(DefaultValue.Texture.LoadSynchronous());
+								BaseTextureValue->ApplyDefaultValue();
+								break;
+							}
 						}
 					}
 				}
 			}
+
+			break;
+		}
+
+		case EDMDefaultMaterialPropertySlotValueType::Color:
+		{
+			UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				DefaultStage,
+				UDMMaterialStageBlendNormal::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				EDMValueType::VT_Float3_RGB,
+				0
+			);
+
+			if (UDMMaterialValueFloat3RGB* RGBValue = Cast<UDMMaterialValueFloat3RGB>(InputValue->GetValue()))
+			{
+				RGBValue->SetDefaultValue(DefaultValue.Color);
+				RGBValue->ApplyDefaultValue();
+			}
+
+			break;
 		}
 	}
-	else
+}
+
+void UDMMaterialProperty::AddDefaultMaskStage(UDMMaterialLayerObject* InLayer)
+{
+	if (!IsValid(InLayer))
 	{
-		UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
-			DefaultStage,
-			UDMMaterialStageBlendNormal::InputB,
-			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-			EDMValueType::VT_Float3_RGB,
-			0
-		);
+		return;
 	}
+
+	UDMMaterialStage* MaskStage = UDMMaterialStageThroughputLayerBlend::CreateStage();
+	check(MaskStage);
+
+	InLayer->SetStage(EDMMaterialLayerStage::Mask, MaskStage);
 
 	if (UTexture* MaskTexture = UDynamicMaterialEditorSettings::Get()->DefaultMask.LoadSynchronous())
 	{

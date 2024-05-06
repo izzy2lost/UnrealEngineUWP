@@ -366,9 +366,14 @@ bool UDMMaterialLayerObject::SetStage(EDMMaterialLayerStage InStageType, UDMMate
 
 	Stages[Index] = InStage;
 
-	if (IsComponentAdded())
+	if (IsValid(InStage))
 	{
-		Stages[Index]->SetComponentState(EDMComponentLifetimeState::Added);
+		InStage->Rename(nullptr, this, UE::DynamicMaterial::RenameFlags);
+
+		if (IsComponentAdded())
+		{
+			InStage->SetComponentState(EDMComponentLifetimeState::Added);
+		}
 	}
 
 	return true;

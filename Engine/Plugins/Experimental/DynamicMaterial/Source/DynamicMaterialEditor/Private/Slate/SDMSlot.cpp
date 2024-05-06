@@ -2,6 +2,7 @@
 
 #include "SDMSlot.h"
 #include "Components/DMMaterialLayer.h"
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageBlend.h"
@@ -9,6 +10,7 @@
 #include "Components/DMMaterialStageFunction.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
+#include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMRenderTargetRenderer.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
@@ -21,6 +23,9 @@
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
+#include "Components/MaterialValues/DMMaterialValueFloat4.h"
+#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DetailLayoutBuilder.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
@@ -1169,7 +1174,11 @@ UDMMaterialLayerObject* SDMSlot::AddNewLayer(UDMMaterialStage* InNewBaseStage, U
 			return nullptr;
 		}
 
-		if (!InNewMaskStage)
+		if (!InNewBaseStage && !InNewMaskStage)
+		{
+			Slot->AddDefaultLayer(MaterialProperty);
+		}
+		else if (!InNewMaskStage)
 		{
 			Slot->AddLayer(MaterialProperty, InNewBaseStage);
 		}
@@ -1211,13 +1220,15 @@ void SDMSlot::AddNewLayer_NewLocalValue(TSubclassOf<UDMMaterialValue> InValueCla
 	UDMMaterialStage* NewBase = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewBase);
 
-	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+	UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
 		NewBase, 
 		UDMMaterialStageBlend::InputB,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
 		InValueClass,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 	);
+
+	OnValueAdded(NewBase, InputValue->GetValue());
 }
 
 void SDMSlot::AddNewLayer_GlobalValue(UDMMaterialValue* InValue)
@@ -1250,6 +1261,8 @@ void SDMSlot::AddNewLayer_GlobalValue(UDMMaterialValue* InValue)
 		InValue,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 	);
+
+	// Already existing global values should not have their value changed to the property default.
 }
 
 void SDMSlot::AddNewLayer_NewGlobalValue(EDMValueType InValueType)
@@ -1271,13 +1284,15 @@ void SDMSlot::AddNewLayer_NewGlobalValue(TSubclassOf<UDMMaterialValue> InValueCl
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewStage);
 
-	UDMMaterialStageInputValue::ChangeStageInput_NewValue(
+	UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewValue(
 		NewStage, 
 		UDMMaterialStageBlend::InputB,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
 		InValueClass,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 	);
+
+	OnValueAdded(NewStage, InputValue->GetValue());
 }
 
 void SDMSlot::AddNewLayer_Slot(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty)
@@ -1330,7 +1345,7 @@ void SDMSlot::AddNewLayer_Expression(TSubclassOf<UDMMaterialStageExpression> InE
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	UDMMaterialLayerObject* NewLayer = AddNewLayer(NewStage);
 
-	UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+	UDMMaterialStageInputExpression* NewExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
 		NewStage, 
 		InExpressionClass,
 		UDMMaterialStageBlend::InputB, 
@@ -1358,6 +1373,20 @@ void SDMSlot::AddNewLayer_Expression(TSubclassOf<UDMMaterialStageExpression> InE
 		default:
 			// No nothing
 			break;
+	}
+
+	if (InExpressionClass->IsChildOf(UDMMaterialStageExpressionTextureSampleBase::StaticClass()))
+	{
+		if (UDMMaterialSubStage* SubStage = NewExpression->GetSubStage())
+		{
+			for (UDMMaterialStageInput* Input : SubStage->GetInputs())
+			{
+				if (UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(Input))
+				{
+					OnValueAdded(NewStage, InputValue->GetValue());
+				}
+			}
+		}
 	}
 }
 
@@ -1518,6 +1547,60 @@ void SDMSlot::OnLayerStageSelected(const bool bInSelected, const TSharedRef<SDMS
 	if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
 	{
 		EditorWidget->SetEditedComponent(InStageWidget->GetStage());
+	}
+}
+
+void SDMSlot::OnValueAdded(UDMMaterialStage* InStage, UDMMaterialValue* InValue)
+{
+	if (!InStage || !InValue)
+	{
+		return;
+	}
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+
+	if (!Layer)
+	{
+		return;
+	}
+
+	UClass* ValueClass = InValue->GetClass();
+
+	// Do not include subclasses
+	if (ValueClass != UDMMaterialValueTexture::StaticClass()
+		&& ValueClass != UDMMaterialValueFloat3RGB::StaticClass()
+		&& ValueClass != UDMMaterialValueFloat4::StaticClass())
+	{
+		return;
+	}
+
+	const FDMDefaultMaterialPropertySlotValue& DefaultValue = GetDefault<UDynamicMaterialEditorSettings>()->GetDefaultSlotValue(Layer->GetMaterialProperty());
+
+	switch (DefaultValue.Type)
+	{
+		case EDMDefaultMaterialPropertySlotValueType::Texture:
+			if (UDMMaterialValueTexture* TextureValue = Cast<UDMMaterialValueTexture>(InValue))
+			{
+				if (UTexture* Texture = DefaultValue.Texture.LoadSynchronous())
+				{
+					TextureValue->SetDefaultValue(Texture);
+					TextureValue->ApplyDefaultValue();
+				}
+			}
+			break;
+
+		case EDMDefaultMaterialPropertySlotValueType::Color:
+			if (UDMMaterialValueFloat3RGB* RGBValue = Cast<UDMMaterialValueFloat3RGB>(InValue))
+			{
+				RGBValue->SetDefaultValue(DefaultValue.Color);
+				RGBValue->ApplyDefaultValue();
+			}
+			else if (UDMMaterialValueFloat4* RGBAValue = Cast<UDMMaterialValueFloat4>(InValue))
+			{
+				RGBAValue->SetDefaultValue(DefaultValue.Color);
+				RGBAValue->ApplyDefaultValue();
+			}
+			break;
 	}
 }
 

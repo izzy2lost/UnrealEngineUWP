@@ -9,6 +9,7 @@
 #include "DMMaterialProperty.generated.h"
 
 class FText;
+class UDMMaterialLayerObject;
 class UDMMaterialSlot;
 class UDMMaterialStageInputExpression;
 class UDynamicMaterialModel;
@@ -117,6 +118,16 @@ public:
 	 * @param InSlot The slot that was created.
 	 */
 	virtual void OnSlotAdded(UDMMaterialSlot* InSlot);
+
+	/**
+	 * Adds the default base stage for a layer in this property.
+	 */
+	virtual void AddDefaultBaseStage(UDMMaterialLayerObject* InLayer);
+
+	/**
+	 * Adds the default mask stage for a layer in this property.
+	 */
+	virtual void AddDefaultMaskStage(UDMMaterialLayerObject* InLayer);
 
 	/**
 	 * Adds a component to the component list. Sets component state to added.

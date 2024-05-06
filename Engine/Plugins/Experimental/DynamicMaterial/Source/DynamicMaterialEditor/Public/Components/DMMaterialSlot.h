@@ -64,6 +64,9 @@ public:
 	const TArray<TObjectPtr<UDMMaterialLayerObject>>& GetLayers() const { return LayerObjects; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	UDMMaterialLayerObject* AddDefaultLayer(EDMMaterialPropertyType InMaterialProperty);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	UDMMaterialLayerObject* AddLayer(EDMMaterialPropertyType InMaterialProperty, UDMMaterialStage* InNewBase);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")

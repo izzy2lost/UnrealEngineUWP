@@ -29,6 +29,34 @@ struct FDMMaterialEffectList
 	TArray<TSoftObjectPtr<UMaterialFunctionInterface>> Effects;
 };
 
+UENUM(BlueprintType)
+enum class EDMDefaultMaterialPropertySlotValueType : uint8
+{
+	Texture,
+	Color
+};
+
+USTRUCT(BlueprintType)
+struct FDMDefaultMaterialPropertySlotValue
+{
+	GENERATED_BODY()
+
+	FDMDefaultMaterialPropertySlotValue();
+	FDMDefaultMaterialPropertySlotValue(const TSoftObjectPtr<UTexture>& InTexture);
+	FDMDefaultMaterialPropertySlotValue(const FLinearColor& InColor);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
+	EDMDefaultMaterialPropertySlotValueType Type;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer", 
+		meta = (EditCondition = "Type == EDMDefaultMaterialPropertySlotValueType::Texture", EditConditionHides))
+	TSoftObjectPtr<UTexture> Texture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer",
+		meta = (EditCondition = "Type == EDMDefaultMaterialPropertySlotValueType::Color", EditConditionHides))
+	FLinearColor Color;
+};
+
 USTRUCT(BlueprintType)
 struct FDMMaterialChannelListPreset
 {
@@ -175,8 +203,11 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	TSoftObjectPtr<UTexture> DefaultMask;
 
+	/**
+	 * Overrides the default values given to slots created in the given material property.
+	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels")
-	TMap<EDMMaterialPropertyType, TSoftObjectPtr<UTexture>> OverriddenDefaultSlotTextures;
+	TMap<EDMMaterialPropertyType, FDMDefaultMaterialPropertySlotValue> DefaultSlotValueOverrides;
 
 	/*
 	 * Add paths to search for custom effects.
@@ -219,7 +250,7 @@ public:
 
 	TArray<FDMMaterialEffectList> GetEffectList() const;
 
-	UTexture* GetDefaultTextureForSlot(EDMMaterialPropertyType InProperty) const;
+	const FDMDefaultMaterialPropertySlotValue& GetDefaultSlotValue(EDMMaterialPropertyType InProperty) const;
 
 	const FDMMaterialChannelListPreset* GetPresetByName(FName InName) const;
 
