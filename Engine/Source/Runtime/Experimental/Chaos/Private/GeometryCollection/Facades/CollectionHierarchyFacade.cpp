@@ -79,6 +79,23 @@ namespace Chaos::Facades
 		return ParentAttribute[TransformIndex];
 	}
 
+	void FCollectionHierarchyFacade::EnumerateChildTransforms(int32 TransformIndex, TFunctionRef<bool(int32)> ShouldProcess, TFunctionRef<void(int32)> ProcessTransformFunc) const
+	{
+		checkSlow(ChildrenAttribute.IsValid() && ChildrenAttribute.IsValidIndex(TransformIndex));
+		
+		if (ShouldProcess(TransformIndex))
+		{
+			ProcessTransformFunc(TransformIndex);
+		}
+		else
+		{
+			for (int32 ChildTransformIndex : ChildrenAttribute[TransformIndex])
+			{
+				EnumerateChildTransforms(ChildTransformIndex, ShouldProcess, ProcessTransformFunc);
+			}
+		}
+	}
+
 	int32 FCollectionHierarchyFacade::GetInitialLevel(int32 TransformIndex) const
 	{
 		if (HasLevelAttribute())

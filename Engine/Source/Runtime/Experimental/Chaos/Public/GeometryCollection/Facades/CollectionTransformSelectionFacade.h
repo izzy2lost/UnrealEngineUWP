@@ -101,8 +101,8 @@ namespace GeometryCollection::Facades
 		CHAOS_API TArray<int32> SelectCluster() const;
 
 		/**  */
-		bool CanSelectContact() const { return TransformIndexAttribute.IsValid() && TransformToGeometryIndexAttribute.IsValid(); }
-		CHAOS_API void SelectContact(TArray<int32>& InOutSelection) const;
+		bool CanSelectContact() const { return ParentAttribute.IsValid() && LevelAttribute.IsValid() && SimulationTypeAttribute.IsValid(); }
+		CHAOS_API void SelectContact(TArray<int32>& InOutSelection, bool bIncludeNeighborsInParentLevels = true) const;
 
 		/**  */
 		bool CanSelectParent() const { return ParentAttribute.IsValid(); }

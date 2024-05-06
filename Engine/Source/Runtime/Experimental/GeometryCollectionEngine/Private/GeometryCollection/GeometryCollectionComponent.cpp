@@ -5468,6 +5468,7 @@ void FScopedColorEdit::SelectBones(GeometryCollection::ESelectionMode SelectionM
 			const TManagedArray<int32>& TransformIndex = GeometryCollectionPtr->TransformIndex;
 			const TManagedArray<int32>& TransformToGeometryIndex = GeometryCollectionPtr->TransformToGeometryIndex;
 			const TManagedArray<TSet<int32>>& Proximity = GeometryCollectionPtr->GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);
+			Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeometryCollectionPtr);
 
 			const TArray<int32> SelectedBones = GetSelectedBones();
 
@@ -5475,15 +5476,10 @@ void FScopedColorEdit::SelectBones(GeometryCollection::ESelectionMode SelectionM
 			for (int32 Bone : SelectedBones)
 			{
 				NewSelection.Add(Bone);
-				int32 GeometryIdx = TransformToGeometryIndex[Bone];
-				if (GeometryIdx != INDEX_NONE)
+				ProximityUtility.EnumerateNeighbors(HierarchyFacade, Bone, [&NewSelection](int32 NeighborTransformIdx)
 				{
-					const TSet<int32>& Neighbors = Proximity[GeometryIdx];
-					for (int32 NeighborGeometryIndex : Neighbors)
-					{
-						NewSelection.Add(TransformIndex[NeighborGeometryIndex]);
-					}
-				}
+					NewSelection.Add(NeighborTransformIdx);
+				}, true /*allow neighbors in parent levels*/, false /*bFilterDuplicates, not needed since we add to a set*/);
 			}
 
 			ResetBoneSelection();

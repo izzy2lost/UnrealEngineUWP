@@ -464,34 +464,29 @@ namespace GeometryCollection::Facades
 		return OutSelection;
 	}
 
-	void FCollectionTransformSelectionFacade::SelectContact(TArray<int32>& InOutSelection) const
+	void FCollectionTransformSelectionFacade::SelectContact(TArray<int32>& InOutSelection, bool bIncludeNeighborsInParentLevels) const
 	{
 		TSet<int32> NewSelection;
 
 		if (CanSelectContact())
 		{
-			// TODO: This needs to be looked at
 			if (TUniquePtr<FGeometryCollection> TempGeomCollection = TUniquePtr<FGeometryCollection>(ConstCollection.NewCopy<FGeometryCollection>()))
 			{
 				FGeometryCollectionProximityUtility ProximityUtility(TempGeomCollection.Get());
 				ProximityUtility.RequireProximity();
 
-				const TManagedArray<int32>& TransformIndex = TransformIndexAttribute.Get();
-				const TManagedArray<int32>& TransformToGeometryIndex = TransformToGeometryIndexAttribute.Get();
-				const TManagedArray<TSet<int32>>& Proximity = TempGeomCollection->GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::TransformGroup);
+				const TManagedArray<int32>& TransformIndex = TempGeomCollection->TransformIndex;
+				const TManagedArray<int32>& TransformToGeometryIndex = TempGeomCollection->TransformToGeometryIndex;
+				const TManagedArray<TSet<int32>>& Proximity = TempGeomCollection->GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);
+				Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*TempGeomCollection);
 
 				for (int32 Bone : InOutSelection)
 				{
 					NewSelection.Add(Bone);
-					int32 GeometryIdx = TransformToGeometryIndex[Bone];
-					if (GeometryIdx != INDEX_NONE)
-					{
-						const TSet<int32>& Neighbors = Proximity[GeometryIdx];
-						for (int32 NeighborGeometryIndex : Neighbors)
+					ProximityUtility.EnumerateNeighbors(HierarchyFacade, Bone, [&NewSelection](int32 NeighborTransformIdx)
 						{
-							NewSelection.Add(TransformIndex[NeighborGeometryIndex]);
-						}
-					}
+							NewSelection.Add(NeighborTransformIdx);
+						}, bIncludeNeighborsInParentLevels, false /*bFilterDuplicates, not needed since we add to a set*/);
 				}
 			}
 		}

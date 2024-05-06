@@ -602,6 +602,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
+	/** Whether to allow contact with bones that are in a parent level */
+	UPROPERTY(EditAnywhere, Category = Options)
+	bool bAllowContactInParentLevels = true;
+
 	FCollectionTransformSelectionContactDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{

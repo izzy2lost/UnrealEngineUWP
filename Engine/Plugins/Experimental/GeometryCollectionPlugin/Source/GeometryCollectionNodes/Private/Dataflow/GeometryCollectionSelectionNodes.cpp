@@ -599,7 +599,7 @@ void FCollectionTransformSelectionContactDataflowNode::Evaluate(Dataflow::FConte
 		GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 		TArray<int32> SelectionArr = InTransformSelection.AsArray();
 
-		TransformSelectionFacade.SelectLevel(SelectionArr);
+		TransformSelectionFacade.SelectContact(SelectionArr, bAllowContactInParentLevels);
 		InTransformSelection.SetFromArray(SelectionArr);
 
 		SetValue(Context, MoveTemp(InTransformSelection), &TransformSelection);
