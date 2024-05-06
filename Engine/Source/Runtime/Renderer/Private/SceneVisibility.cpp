@@ -5588,9 +5588,14 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 
 	// Create GPU-side representation of the view for instance culling.
 	InstanceCullingManager.AllocateViews(Views.Num());
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	for (FViewInfo& ViewInfo : Views)
 	{
-		Views[ViewIndex].GPUSceneViewId = InstanceCullingManager.RegisterView(Views[ViewIndex]);
+		ViewInfo.GPUSceneViewId = InstanceCullingManager.RegisterView(ViewInfo);
+
+		uint32 InstanceFactor = ViewInfo.bIsInstancedStereoEnabled && IStereoRendering::IsStereoEyeView(ViewInfo) && GEngine->StereoRenderingDevice.IsValid() ?
+			GEngine->StereoRenderingDevice->GetDesiredNumberOfViews(true) : 1;
+
+		ViewInfo.InstanceFactor = InstanceFactor > 0 ? InstanceFactor : 1;
 	}
 
 	{

@@ -1539,9 +1539,6 @@ public:
 
 	FShaderPrintData ShaderPrintData;
 
-	/** When using mobile multi view fallback path we need to instance draw calls ourselves to cover both eyes instead of letting the drivers do it for us. */
-	uint32 InstanceFactor = 1;
-
 private:
 	FLumenTranslucencyGIVolume LumenTranslucencyGIVolume;
 public:

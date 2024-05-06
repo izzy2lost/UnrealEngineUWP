@@ -2407,12 +2407,6 @@ bool FSceneView::IsInstancedStereoPass() const
 	return bIsInstancedStereoEnabled && IStereoRendering::IsStereoEyeView(*this) && IStereoRendering::IsAPrimaryView(*this);
 }
 
-int32 FSceneView::GetStereoPassInstanceFactor() const
-{
-	return bIsInstancedStereoEnabled && IStereoRendering::IsStereoEyeView(*this) && GEngine->StereoRenderingDevice.IsValid() ?
-		GEngine->StereoRenderingDevice->GetDesiredNumberOfViews(true) : 1;
-}
-
 FVector4f FSceneView::GetScreenPositionScaleBias(const FIntPoint& BufferSize, const FIntRect& ViewRect) const
 {
 	const float InvBufferSizeX = 1.0f / BufferSize.X;

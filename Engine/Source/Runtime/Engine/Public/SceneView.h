@@ -1614,6 +1614,9 @@ public:
 	/** Feature level for this scene */
 	const ERHIFeatureLevel::Type FeatureLevel;
 
+	/** When using mobile multi view fallback path we need to instance draw calls ourselves to cover both eyes instead of letting the drivers do it for us. */
+	uint32 InstanceFactor = 1;
+
 	/** Use to allow ray tracing on this view. */
 	bool bAllowRayTracing = true;
 
@@ -1790,7 +1793,7 @@ public:
 	ENGINE_API bool IsInstancedStereoPass() const;
 
 	/** Instance factor for a stereo pass (normally 2 for ISR views, but see IStereoRendering::GetDesiredNumberOfViews()). Returns 1 for non-instanced stereo views or regular (split screen etc) views. */
-	ENGINE_API int32 GetStereoPassInstanceFactor() const;
+	ENGINE_API int32 GetStereoPassInstanceFactor() const { return InstanceFactor; }
 
 	/** Sets up the view rect parameters in the view's uniform shader parameters */
 	ENGINE_API void SetupViewRectUniformBufferParameters(FViewUniformShaderParameters& ViewUniformShaderParameters, 

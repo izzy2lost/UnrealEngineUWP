@@ -1139,7 +1139,7 @@ void RenderMobileCustomResolve(FRHICommandList& RHICmdList, const FViewInfo& Vie
 		TargetSize,
 		VertexShader,
 		EDRF_UseTriangleOptimization,
-		View.InstanceFactor);
+		View.GetStereoPassInstanceFactor());
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FMobileCustomResolveParameters, )
