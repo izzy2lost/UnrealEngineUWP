@@ -5,22 +5,25 @@ public class PlainPropsTests : TestModuleRules
 {
 	static PlainPropsTests()
 	{
-		TestMetadata = new Metadata();
-		TestMetadata.TestName = "PlainProps";
-		TestMetadata.TestShortName = "PlainProps";
-		TestMetadata.ReportType = "xml";
-		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
-		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
-		
-		string PlatformCompilationArgs;
-		foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
+		if (InTestMode)
 		{
-			PlatformCompilationArgs = "-allmodules";
-			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
-		}
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "PlainProps";
+			TestMetadata.TestShortName = "PlainProps";
+			TestMetadata.ReportType = "xml";
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
 
-		// Platform-specific tags
-		TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Linux, "~[.]~[Slow]");
+			string PlatformCompilationArgs;
+			foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
+			{
+				PlatformCompilationArgs = "-allmodules";
+				TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
+			}
+
+			// Platform-specific tags
+			TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Linux, "~[.]~[Slow]");
+		}
 	}
 	public PlainPropsTests(ReadOnlyTargetRules Target) : base(Target, true)
 	{

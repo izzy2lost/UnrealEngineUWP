@@ -7,9 +7,12 @@ public class SwitchboardListenerTests : TestModuleRules
 {
 	static SwitchboardListenerTests()
 	{
-		TestMetadata = new Metadata();
-		TestMetadata.TestName = "SwitchboardListener";
-		TestMetadata.TestShortName = "SwitchboardListener";
+		if (InTestMode)
+		{
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "SwitchboardListener";
+			TestMetadata.TestShortName = "SwitchboardListener";
+		}
 	}
 
 	public SwitchboardListenerTests(ReadOnlyTargetRules Target) : base(Target)

@@ -7,10 +7,13 @@ public class NetworkPredictionTests : TestModuleRules
 {
 	static NetworkPredictionTests()
 	{
-		TestMetadata = new Metadata();
-		TestMetadata.TestName = "NetworkPredictionPlugin";
-		TestMetadata.TestShortName = "Net Prediction";
-		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+		if (InTestMode)
+		{
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "NetworkPredictionPlugin";
+			TestMetadata.TestShortName = "Net Prediction";
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+		}
 	}
 
 	public NetworkPredictionTests(ReadOnlyTargetRules Target) : base(Target)

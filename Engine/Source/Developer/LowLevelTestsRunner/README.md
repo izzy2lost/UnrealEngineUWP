@@ -94,12 +94,15 @@ Follow these steps to create your explicit test:
 	```csharp
 	public class UEModuleTests : TestModuleRules
 	{
-        sttic UEModuleTests()
+        static UEModuleTests()
         {
-          TestMetadata = new Metadata();
-		  TestMetadata.TestName = "UEModule";
-		  TestMetadata.TestShortName = "UE Module";
-		  // any other additional properties
+          if (InTestMode)
+          {
+            TestMetadata = new Metadata();
+		    TestMetadata.TestName = "UEModule";
+		    TestMetadata.TestShortName = "UE Module";
+		    // any other additional properties
+          }
         }
 
         public UEModuleTests(ReadOnlyTargetRules Target) : base(Target)

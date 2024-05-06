@@ -29,6 +29,11 @@ namespace UnrealBuildTool
 		private bool bUsesCatch2 = true;
 
 		/// <summary>
+		/// Check if running in test mode.
+		/// </summary>
+		protected static bool InTestMode = Environment.GetCommandLineArgs().Contains("-Mode=Test");
+
+		/// <summary>
 		/// Associated tested module of this test module.
 		/// </summary>
 		public ModuleRules? TestedModule { get; private set; }

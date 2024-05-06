@@ -6,9 +6,12 @@ public class ChaosUserDataPTTests : TestModuleRules
 {
 	static ChaosUserDataPTTests()
 	{
-		TestMetadata = new Metadata();
-		TestMetadata.TestName = "ChasoUserDataPT";
-		TestMetadata.TestShortName = "Chaos User Data PT";
+		if (InTestMode)
+		{
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "ChasoUserDataPT";
+			TestMetadata.TestShortName = "Chaos User Data PT";
+		}
 	}
 
 	public ChaosUserDataPTTests(ReadOnlyTargetRules Target) : base(Target)

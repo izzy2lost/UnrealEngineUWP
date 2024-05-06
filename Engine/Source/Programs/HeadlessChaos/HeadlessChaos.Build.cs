@@ -6,10 +6,13 @@ public class HeadlessChaos : TestModuleRules
 {
 	static HeadlessChaos()
 	{
-		TestMetadata = new Metadata();
-		TestMetadata.TestName = "HeadlessChaos";
-		TestMetadata.TestShortName = "Headless Chaos";
-		TestMetadata.UsesCatch2 = false;
+		if (InTestMode)
+		{
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "HeadlessChaos";
+			TestMetadata.TestShortName = "Headless Chaos";
+			TestMetadata.UsesCatch2 = false;
+		}
 	}
 
 	public HeadlessChaos(ReadOnlyTargetRules Target) : base(Target, false)

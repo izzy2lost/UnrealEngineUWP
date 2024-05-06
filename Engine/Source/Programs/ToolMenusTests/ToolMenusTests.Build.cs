@@ -5,25 +5,28 @@ public class ToolMenusTests : TestModuleRules
 {
 	static ToolMenusTests()
 	{
-		TestMetadata = new Metadata();
-		TestMetadata.TestName = "ToolMenus";
-		TestMetadata.TestShortName = "ToolMenus";
-		TestMetadata.ReportType = "xml";
-		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
-		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
-		
-		string PlatformCompilationArgs;
-		foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
+		if (InTestMode)
 		{
-			if (Platform == UnrealTargetPlatform.Android)
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "ToolMenus";
+			TestMetadata.TestShortName = "ToolMenus";
+			TestMetadata.ReportType = "xml";
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
+
+			string PlatformCompilationArgs;
+			foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
 			{
-				PlatformCompilationArgs = "-allmodules -architectures=arm64";
+				if (Platform == UnrealTargetPlatform.Android)
+				{
+					PlatformCompilationArgs = "-allmodules -architectures=arm64";
+				}
+				else
+				{
+					PlatformCompilationArgs = "-allmodules";
+				}
+				TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
 			}
-			else
-			{
-				PlatformCompilationArgs = "-allmodules";
-			}
-			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
 		}
 	}
 

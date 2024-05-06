@@ -6,12 +6,15 @@ public class ReplicationSystemLowLevelTests : TestModuleRules
 {
 	static ReplicationSystemLowLevelTests()
 	{
-		TestMetadata = new Metadata();
-		TestMetadata.TestName = "ReplicationSystem";
-		TestMetadata.TestShortName = "Replication System";
-		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
-		TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.LinuxArm64);
-		TestMetadata.PlatformRunContainerized.Add(UnrealTargetPlatform.LinuxArm64, true);
+		if (InTestMode)
+		{
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "ReplicationSystem";
+			TestMetadata.TestShortName = "Replication System";
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.LinuxArm64);
+			TestMetadata.PlatformRunContainerized.Add(UnrealTargetPlatform.LinuxArm64, true);
+		}
 	}
 
 	public ReplicationSystemLowLevelTests(ReadOnlyTargetRules Target) : base(Target)
