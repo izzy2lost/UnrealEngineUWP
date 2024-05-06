@@ -333,19 +333,19 @@ ENiagaraFunctionDebugState FNiagaraFixedConstantResolver::GetDebugState() const
 	return (ENiagaraFunctionDebugState)EnumValue.Value;
 }
 
-void FNiagaraFixedConstantResolver::AddNamedChildResolver(FName ScopeName, const FNiagaraFixedConstantResolver& ChildResolver)
+void FNiagaraFixedConstantResolver::AddChildResolver(const FGuid& ChildId, const FNiagaraFixedConstantResolver& ChildResolver)
 {
-	if (ensure(FindChildResolver(ScopeName) == nullptr))
+	if (ensure(FindChildResolver(ChildId) == nullptr))
 	{
-		ChildResolversByName.Emplace(ScopeName, ChildResolver);
+		ChildResolvers.Emplace(ChildId, ChildResolver);
 	}
 }
 
-const FNiagaraFixedConstantResolver* FNiagaraFixedConstantResolver::FindChildResolver(FName ScopeName) const
+const FNiagaraFixedConstantResolver* FNiagaraFixedConstantResolver::FindChildResolver(const FGuid& ChildId) const
 {
-	const FNamedResolverPair* ChildResolver = ChildResolversByName.FindByPredicate([ScopeName](const FNamedResolverPair& NamedPair) -> bool
+	const FNamedResolverPair* ChildResolver = ChildResolvers.FindByPredicate([ChildId](const FNamedResolverPair& NamedPair) -> bool
 	{
-			return NamedPair.Key == ScopeName;
+			return NamedPair.Key == ChildId;
 	});
 
 	return ChildResolver ? &ChildResolver->Value : nullptr;

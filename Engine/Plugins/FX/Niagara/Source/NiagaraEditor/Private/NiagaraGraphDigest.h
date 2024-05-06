@@ -401,7 +401,6 @@ public:
 	FString EmitterName;
 	FString EmitterPathName;
 	FString EmitterHandleIdString;
-	FName EmitterUniqueFName;
 	FNiagaraCompilationGraph::FSharedPtr CalledGraph;
 	ENiagaraScriptUsage Usage;
 };

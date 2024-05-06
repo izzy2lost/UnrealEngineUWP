@@ -46,8 +46,8 @@ public:
 
 	ENiagaraFunctionDebugState GetDebugState() const;
 
-	void AddNamedChildResolver(FName ScopeName, const FNiagaraFixedConstantResolver& ChildResolver);
-	const FNiagaraFixedConstantResolver* FindChildResolver(FName ScopeName) const;
+	void AddChildResolver(const FGuid& ChildId, const FNiagaraFixedConstantResolver& ChildResolver);
+	const FNiagaraFixedConstantResolver* FindChildResolver(const FGuid& ChildId) const;
 
 private:
 	void InitConstants();
@@ -70,8 +70,8 @@ private:
 
 	TArray<FNiagaraVariable, TFixedAllocator<(uint8)EResolvedConstant::Count>> ResolvedConstants;
 
-	using FNamedResolverPair = TTuple<FName, FNiagaraFixedConstantResolver>;
-	TArray<FNamedResolverPair> ChildResolversByName;
+	using FNamedResolverPair = TTuple<FGuid, FNiagaraFixedConstantResolver>;
+	TArray<FNamedResolverPair> ChildResolvers;
 };
 
 struct FNiagaraSimulationStageInfo

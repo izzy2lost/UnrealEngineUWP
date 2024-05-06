@@ -1368,6 +1368,7 @@ void FNiagaraSystemCompilationTask::DigestSystemInfo()
 			if (const UNiagaraEmitter* Emitter = HandleInstance.Emitter)
 			{
 				EmitterInfo.UniqueEmitterName = HandleInstance.Emitter->GetUniqueEmitterName();
+				EmitterInfo.EmitterHandleId = Handle.GetId();
 				EmitterInfo.UniqueInstanceName = Handle.GetUniqueInstanceName();
 				EmitterInfo.Enabled = Handle.GetIsEnabled();
 				EmitterInfo.ConstantResolver = FNiagaraFixedConstantResolver(FCompileConstantResolver(HandleInstance, ENiagaraScriptUsage::EmitterSpawnScript));
@@ -1376,7 +1377,7 @@ void FNiagaraSystemCompilationTask::DigestSystemInfo()
 				EmitterInfo.SourceGraph = DigestDatabase.CreateGraphDigest(EmitterGraph, ChangeIdBuilder);
 
 				// be sure to incorporate our constant resolver into the top level SystemInfo.ConstantResolver
-				SystemInfo.ConstantResolver.AddNamedChildResolver(*EmitterInfo.UniqueEmitterName, EmitterInfo.ConstantResolver);
+				SystemInfo.ConstantResolver.AddChildResolver(EmitterInfo.EmitterHandleId, EmitterInfo.ConstantResolver);
 			}
 
 			{

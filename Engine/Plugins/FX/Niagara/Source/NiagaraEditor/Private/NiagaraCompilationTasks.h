@@ -71,6 +71,7 @@ struct FNiagaraSystemCompilationTask
 
 	struct FEmitterInfo
 	{
+		FGuid EmitterHandleId;
 		FString UniqueEmitterName;
 		FString UniqueInstanceName;
 		FNiagaraDigestedGraphPtr SourceGraph;

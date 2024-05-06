@@ -2092,7 +2092,6 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 	EmitterName = InNode->GetName();
 	EmitterPathName = InNode->GetPathName();
 	EmitterHandleIdString = EmitterHandleID.ToString(EGuidFormats::Digits);
-	EmitterUniqueFName = *EmitterUniqueName;
 }
 
 
@@ -2104,7 +2103,6 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const FNiagaraCom
 	, EmitterName(InNode.EmitterName)
 	, EmitterPathName(InNode.EmitterPathName)
 	, EmitterHandleIdString(InNode.EmitterHandleIdString)
-	, EmitterUniqueFName(InNode.EmitterUniqueFName)
 	, Usage(InNode.Usage)
 {
 	// we need to replace the CalledGraph here with the graph that has been instantiated already
@@ -2140,7 +2138,7 @@ void FNiagaraCompilationNodeEmitter::BuildParameterMapHistory(FParameterMapHisto
 		return;
 	}
 
-	const FNiagaraFixedConstantResolver* ChildConstantResolver = Builder.ConstantResolver->FindChildResolver(EmitterUniqueFName);
+	const FNiagaraFixedConstantResolver* ChildConstantResolver = Builder.ConstantResolver->FindChildResolver(EmitterHandleID);
 	if (!ChildConstantResolver)
 	{
 		// if no child resolver was found for the specified emitter, that means that the emitter is likely not enabled and so we can proceed without
