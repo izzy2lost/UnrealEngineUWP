@@ -248,6 +248,8 @@ public:
 	FLinearColor GetNodeTitleColor() const override;
 	FText GetTooltipText() const override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
+	virtual void OnRenameNode(const FString& NewName) override;
+	virtual bool GetCanRenameNode() const override { return true; }
 	
 	// UCustomizableObjectNode interface
 	virtual void PostBackwardsCompatibleFixup() override;

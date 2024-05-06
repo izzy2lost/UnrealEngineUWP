@@ -3,6 +3,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeColorParameter.h"
 
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 
 class UCustomizableObjectNodeRemapPins;
 
@@ -20,7 +21,18 @@ void UCustomizableObjectNodeColorParameter::AllocateDefaultPins(UCustomizableObj
 
 FText UCustomizableObjectNodeColorParameter::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("Color Parameter", "Color Parameter");
+	if (TitleType == ENodeTitleType::ListView || ParameterName.IsEmpty())
+	{
+		return LOCTEXT("Color_Parameter", "Color Parameter");
+	}
+	else if (TitleType == ENodeTitleType::EditableTitle)
+	{
+		return FText::Format(LOCTEXT("Color_Parameter_EditableTitle", "{0}"), FText::FromString(ParameterName));
+	}
+	else
+	{
+		return FText::Format(LOCTEXT("Color_Parameter_Title", "{0}\nColor Parameter"), FText::FromString(ParameterName));
+	}
 }
 
 
@@ -36,6 +48,27 @@ FText UCustomizableObjectNodeColorParameter::GetTooltipText() const
 	return LOCTEXT("Color_Parameter_Tooltip", "Expose a runtime modifiable color parameter from the Customizable Object.");
 }
 
+
+void UCustomizableObjectNodeColorParameter::OnRenameNode(const FString& NewName)
+{
+	if (!NewName.IsEmpty())
+	{
+		ParameterName = NewName;
+	}
+}
+
+
+void UCustomizableObjectNodeColorParameter::BackwardsCompatibleFixup()
+{
+	Super::BackwardsCompatibleFixup();
+
+	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
+	{
+		ReconstructNode();
+	}
+}
 
 #undef LOCTEXT_NAMESPACE
 

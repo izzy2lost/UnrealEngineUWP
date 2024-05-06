@@ -329,6 +329,12 @@ private:
 	/** Whether we are able to cut the currently selected nodes */
 	bool CanCutNodes() const;
 
+	/** On starting to rename node */
+	void OnRenameNode();
+
+	/** Check if node can be renamed */
+	bool CanRenameNodes() const;
+
 	virtual UEdGraphNode* CreateCommentBox(const FVector2D& NodePos) override;
 
 	/** Updates the visibility of PreviewSkeletalMeshComponent */

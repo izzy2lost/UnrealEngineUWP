@@ -22,7 +22,18 @@ void UCustomizableObjectNodeTextureParameter::AllocateDefaultPins(UCustomizableO
 
 FText UCustomizableObjectNodeTextureParameter::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("Texture Parameter", "Texture Parameter");
+	if (TitleType == ENodeTitleType::ListView || ParameterName.IsEmpty())
+	{
+		return LOCTEXT("Texture_Parameter", "Texture Parameter");
+	}
+	else if (TitleType == ENodeTitleType::EditableTitle)
+	{
+		return FText::Format(LOCTEXT("Texture_Parameter_EditableTitle", "{0}"), FText::FromString(ParameterName));
+	}
+	else
+	{
+		return FText::Format(LOCTEXT("Texture_Parameter_Title", "{0}\nTexture Parameter"), FText::FromString(ParameterName));
+	}
 }
 
 
@@ -39,6 +50,15 @@ FText UCustomizableObjectNodeTextureParameter::GetTooltipText() const
 }
 
 
+void UCustomizableObjectNodeTextureParameter::OnRenameNode(const FString& NewName)
+{
+	if (!NewName.IsEmpty())
+	{
+		ParameterName = NewName;
+	}
+}
+
+
 void UCustomizableObjectNodeTextureParameter::BackwardsCompatibleFixup()
 {
 	Super::BackwardsCompatibleFixup();
@@ -49,7 +69,12 @@ void UCustomizableObjectNodeTextureParameter::BackwardsCompatibleFixup()
 	{
 		ReferenceValue = DefaultValue;
 		DefaultValue = {};
-	}	
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
+	{
+		ReconstructNode();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

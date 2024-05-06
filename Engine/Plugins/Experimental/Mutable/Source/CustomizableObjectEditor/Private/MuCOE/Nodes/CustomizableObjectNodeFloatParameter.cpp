@@ -40,7 +40,18 @@ bool UCustomizableObjectNodeFloatParameter::IsAffectedByLOD() const
 
 FText UCustomizableObjectNodeFloatParameter::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("Float_Parameter", "Float Parameter");
+	if (TitleType == ENodeTitleType::ListView || ParameterName.IsEmpty())
+	{
+		return LOCTEXT("Float_Parameter", "Float Parameter");
+	}
+	else if (TitleType == ENodeTitleType::EditableTitle)
+	{
+		return FText::Format(LOCTEXT("Float_Parameter_EditableTitle", "{0}"), FText::FromString(ParameterName));
+	}
+	else
+	{
+		return FText::Format(LOCTEXT("Float_Parameter_Title", "{0}\nFloat Parameter"), FText::FromString(ParameterName));
+	}
 }
 
 
@@ -57,6 +68,15 @@ FText UCustomizableObjectNodeFloatParameter::GetTooltipText() const
 }
 
 
+void UCustomizableObjectNodeFloatParameter::OnRenameNode(const FString& NewName)
+{
+	if (!NewName.IsEmpty())
+	{
+		ParameterName = NewName;
+	}
+}
+
+
 void UCustomizableObjectNodeFloatParameter::BackwardsCompatibleFixup()
 {
 	Super::BackwardsCompatibleFixup();
@@ -64,6 +84,11 @@ void UCustomizableObjectNodeFloatParameter::BackwardsCompatibleFixup()
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::RemovedParameterDecorations)
+	{
+		ReconstructNode();
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
 	{
 		ReconstructNode();
 	}

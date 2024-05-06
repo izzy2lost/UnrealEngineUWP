@@ -86,7 +86,18 @@ TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParam
 
 FText UCustomizableObjectNodeGroupProjectorParameter::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("Group_Projector_Parameter", "Group Projector Parameter");
+	if (TitleType == ENodeTitleType::ListView || ParameterName.IsEmpty())
+	{
+		return LOCTEXT("Group_Projector_Parameter", "Group Projector Parameter");
+	}
+	else if (TitleType == ENodeTitleType::EditableTitle)
+	{
+		return FText::Format(LOCTEXT("Group_Projector_Parameter_EditableTitle", "{0}"), FText::FromString(ParameterName));
+	}
+	else
+	{
+		return FText::Format(LOCTEXT("Group_Projector_Parameter_Title", "{0}\nGroup Projector Parameter"), FText::FromString(ParameterName));
+	}
 }
 
 
@@ -120,6 +131,11 @@ void UCustomizableObjectNodeGroupProjectorParameter::BackwardsCompatibleFixup()
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::GroupProjectorImagePinRemoved)
 	{
 		ReconstructNode();		
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
+	{
+		ReconstructNode();
 	}
 }
 

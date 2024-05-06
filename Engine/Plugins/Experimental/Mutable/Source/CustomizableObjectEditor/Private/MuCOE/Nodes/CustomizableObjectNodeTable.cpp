@@ -182,6 +182,11 @@ void UCustomizableObjectNodeTable::BackwardsCompatibleFixup()
 			}
 		}
 	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
+	{
+		ReconstructNode();
+	}
 }
 
 
@@ -229,22 +234,32 @@ void UCustomizableObjectNodeTable::PostEditChangeChainProperty(FPropertyChangedC
 
 FText UCustomizableObjectNodeTable::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	if (Table)
-	{
-		FFormatNamedArguments Args;
-		Args.Add(TEXT("TableName"), FText::FromString(Table->GetName()));
+	FFormatNamedArguments Args;
+	Args.Add(TEXT("ParamName"), FText::FromString(ParameterName));
 
-		return FText::Format(LOCTEXT("TableNode_Title_DataTable", "{TableName}\nData Table"), Args);
-	}
-	else if (Structure)
+	if (TitleType == ENodeTitleType::ListView && ParameterName.IsEmpty() && (Table || Structure))
 	{
-		FFormatNamedArguments Args;
-		Args.Add(TEXT("StructureName"), FText::FromString(Structure->GetName()));
-
-		return FText::Format(LOCTEXT("TableNode_Title_ScriptedStruct", "{StructureName}\nScript Struct"), Args);
+		return LOCTEXT("Mutable_Table_Title", "Table");
 	}
-	
-	return LOCTEXT("Mutable Table", "Table");
+	else if (TitleType == ENodeTitleType::EditableTitle)
+	{
+		return FText::Format(LOCTEXT("TableNode_EditableTitle", "{ParamName}"), Args);
+	}
+	else
+	{
+		if (Table)
+		{
+			Args.Add(TEXT("TableName"), FText::FromString(Table->GetName()));
+			return FText::Format(LOCTEXT("TableNode_Title_DataTable", "{ParamName}\n{TableName} - Data Table"), Args);
+		}
+		else if (Structure)
+		{
+			Args.Add(TEXT("StructureName"), FText::FromString(Structure->GetName()));
+			return FText::Format(LOCTEXT("TableNode_Title_ScriptedStruct", "{ParamName}\n{StructureName} - Script Struct"), Args);
+		}
+	}
+
+	return LOCTEXT("Mutable_Table", "Table");
 }
 
 
@@ -258,6 +273,15 @@ FLinearColor UCustomizableObjectNodeTable::GetNodeTitleColor() const
 FText UCustomizableObjectNodeTable::GetTooltipText() const
 {
 	return LOCTEXT("Node_Table_Tooltip", "Represents all the columns of Data Table asset.");
+}
+
+
+void UCustomizableObjectNodeTable::OnRenameNode(const FString& NewName)
+{
+	if (!NewName.IsEmpty())
+	{
+		ParameterName = NewName;
+	}
 }
 
 

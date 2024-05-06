@@ -10,6 +10,7 @@ class UCustomizableObjectNodeRemapPins;
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
+
 void UCustomizableObjectNodeProjectorParameter::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
@@ -48,6 +49,11 @@ void UCustomizableObjectNodeProjectorParameter::BackwardsCompatibleFixup()
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ProjectorNodesDefaultValueFix)
 	{
 		DefaultValue.ProjectionType = ProjectionType_DEPRECATED;
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
+	{
+		ReconstructNode();
 	}
 }
 
@@ -120,7 +126,18 @@ void UCustomizableObjectNodeProjectorParameter::SetProjectorDefaultAngle(float A
 
 FText UCustomizableObjectNodeProjectorParameter::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("Projector_Parameter", "Projector Parameter");
+	if (TitleType == ENodeTitleType::ListView || ParameterName.IsEmpty())
+	{
+		return LOCTEXT("Projector_Parameter", "Projector Parameter");
+	}
+	else if (TitleType == ENodeTitleType::EditableTitle)
+	{
+		return FText::Format(LOCTEXT("Projector_Parameter_EditableTitle", "{0}"), FText::FromString(ParameterName));
+	}
+	else
+	{
+		return FText::Format(LOCTEXT("Projector_Parameter_Title", "{0}\nProjector Parameter"), FText::FromString(ParameterName));
+	}
 }
 
 
@@ -134,6 +151,15 @@ FLinearColor UCustomizableObjectNodeProjectorParameter::GetNodeTitleColor() cons
 FText UCustomizableObjectNodeProjectorParameter::GetTooltipText() const
 {
 	return LOCTEXT("Projector_Parameter_Tooltip", "Exposes a runtime modifiable projector parameter from the Customizable Object.");
+}
+
+
+void UCustomizableObjectNodeProjectorParameter::OnRenameNode(const FString& NewName)
+{
+	if (!NewName.IsEmpty())
+	{
+		ParameterName = NewName;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

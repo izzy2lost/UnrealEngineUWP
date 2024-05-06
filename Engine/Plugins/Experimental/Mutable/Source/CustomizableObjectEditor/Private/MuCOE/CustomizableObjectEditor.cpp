@@ -545,6 +545,10 @@ void FCustomizableObjectEditor::CreateGraphEditorWidget(UEdGraph* InGraph)
 		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::DuplicateSelectedNodes),
 		FCanExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CanDuplicateSelectedNodes));
 
+	GraphEditorCommands->MapAction(FGenericCommands::Get().Rename,
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::OnRenameNode),
+		FCanExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CanRenameNodes));
+
 	GraphEditorCommands->MapAction(FCustomizableObjectEditorNodeContextCommands::Get().CreateComment,
 		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CreateCommentBoxFromKey));
 
@@ -2472,6 +2476,45 @@ void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableO
 	default:
 		break;
 	}
+}
+
+
+void FCustomizableObjectEditor::OnRenameNode()
+{
+	if (GraphEditor.IsValid())
+	{
+		const FGraphPanelSelectionSet& SelectedNodes = GraphEditor->GetSelectedNodes();
+
+		for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
+		{
+			// Rename only the first valid selected node
+			UEdGraphNode* SelectedNode = Cast<UEdGraphNode>(*NodeIt);
+			if (SelectedNode && SelectedNode->GetCanRenameNode())
+			{
+				GraphEditor->IsNodeTitleVisible(SelectedNode, true);
+				break;
+			}
+		}
+	}
+}
+
+
+bool FCustomizableObjectEditor::CanRenameNodes() const
+{
+	if (GraphEditor.IsValid())
+	{
+		const FGraphPanelSelectionSet& SelectedNodes = GraphEditor->GetSelectedNodes();
+
+		for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
+		{
+			if (UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter))
+			{
+				return Node->GetCanRenameNode();
+			}
+		}
+	}
+
+	return false;
 }
 
 
