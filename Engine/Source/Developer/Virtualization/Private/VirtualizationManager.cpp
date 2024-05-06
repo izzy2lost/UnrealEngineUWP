@@ -1847,6 +1847,12 @@ void FVirtualizationManager::CachePayloads(TArrayView<FPushRequest> Requests, co
 			return;
 		}
 
+		// Reset any previous caching results
+		for (FPushRequest& Request : Requests)
+		{
+			Request.ResetResult();
+		}	
+
 		const bool bResult = TryCacheDataToBackend(*BackendToCache, Requests, Flags);
 
 		if (!bResult)
@@ -1897,6 +1903,8 @@ bool FVirtualizationManager::TryCacheDataToBackend(IVirtualizationBackend& Backe
 				Stats.Accumulate(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Bytes, Request.GetPayload().GetCompressedSize(), bIsInGameThread);
 
 				bWasDataPushed = true;
+
+				UE_LOG(LogVirtualization, Verbose, TEXT("[%s] Cached payload '%s'"), *Backend.GetDebugName(), *LexToString(Request.GetIdentifier()));
 			}
 		}
 
