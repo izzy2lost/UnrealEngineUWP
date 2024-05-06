@@ -326,6 +326,12 @@ struct FUnversionedStructSchema
 	{
 #if WITH_EDITORONLY_DATA
 		FBlake3 HashBuilder;
+		// Append the full name of the struct. To improve performance, append the FNames of its outers individually
+		// rather than calculating the full name as a string for performance
+		for (const UObject* Outer = Struct; Outer; Outer = Outer->GetOuter())
+		{
+			AppendHash(HashBuilder, Outer->GetFName());
+		}
 #endif
 		TArray<FUnversionedPropertySerializer, TInlineAllocator<256>> Serializers;
 		for (FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
