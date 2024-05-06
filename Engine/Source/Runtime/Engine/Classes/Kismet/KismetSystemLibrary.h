@@ -996,9 +996,6 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "Value", AutoCreateRefTerm = "Value"))
 	static ENGINE_API void SetStructurePropertyByName(UObject* Object, FName PropertyName, const FGenericStruct& Value);
 
-	UE_DEPRECATED(5.2, "Function has been deprecated.")
-	static ENGINE_API void Generic_SetStructurePropertyByName(UObject* OwnerObject, FName StructPropertyName, const void* SrcStructAddr);
-
 	/** Based on UKismetArrayLibrary::execSetArrayPropertyByName */
 	DECLARE_FUNCTION(execSetStructurePropertyByName);
 
