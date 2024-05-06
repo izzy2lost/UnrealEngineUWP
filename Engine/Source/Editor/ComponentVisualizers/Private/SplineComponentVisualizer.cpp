@@ -1255,6 +1255,7 @@ bool FSplineComponentVisualizer::HandleInputDelta(FEditorViewportClient* Viewpor
 	ResetTempModes();
 
 	USplineComponent* SplineComp = GetEditedSplineComponent();
+	bool bInputHandled = false;
 	if (SplineComp != nullptr)
 	{
 		if (IsAnySelectedKeyIndexOutOfRange(SplineComp))
@@ -1292,7 +1293,7 @@ bool FSplineComponentVisualizer::HandleInputDelta(FEditorViewportClient* Viewpor
 		if (SelectionState->GetSelectedTangentHandle() != INDEX_NONE)
 		{
 			// Transform the tangent using an EPropertyChangeType::Interactive change. Later on, at the end of mouse tracking, a non-interactive change will be notified via void TrackingStopped :
-			return TransformSelectedTangent(EPropertyChangeType::Interactive, DeltaTranslate);
+			bInputHandled = TransformSelectedTangent(EPropertyChangeType::Interactive, DeltaTranslate);
 		}
 		else if (ViewportClient->IsAltPressed())
 		{
@@ -1333,17 +1334,24 @@ bool FSplineComponentVisualizer::HandleInputDelta(FEditorViewportClient* Viewpor
 					UpdateDuplicateKeyForAltDrag(Drag);
 				}
 
-				return true;
+				bInputHandled = true;
 			}
 		}
 		else
 		{
 			// Transform the spline keys using an EPropertyChangeType::Interactive change. Later on, at the end of mouse tracking, a non-interactive change will be notified via void TrackingStopped :
-			return TransformSelectedKeys(EPropertyChangeType::Interactive, DeltaTranslate, DeltaRotate, DeltaScale);
+			bInputHandled = TransformSelectedKeys(EPropertyChangeType::Interactive, DeltaTranslate, DeltaRotate, DeltaScale);
+		}
+	}
+	if (bInputHandled)
+	{
+		if (AActor* OwnerActor = SplineComp->GetOwner())
+		{
+			OwnerActor->PostEditMove(false);
 		}
 	}
 
-	return false;
+	return bInputHandled;
 }
 
 bool FSplineComponentVisualizer::TransformSelectedTangent(EPropertyChangeType::Type InPropertyChangeType, const FVector& InDeltaTranslate)
@@ -1832,6 +1840,10 @@ bool FSplineComponentVisualizer::HandleSnapTo(const bool bInAlign, const bool bI
 				SplineComp->bSplineHasBeenEdited = true;
 
 				NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+				if (AActor* Owner = SplineComp->GetOwner())
+				{
+					Owner->PostEditMove(true);
+				}
 				
 				if (bInAlign)
 				{
@@ -1856,6 +1868,10 @@ void FSplineComponentVisualizer::TrackingStopped(FEditorViewportClient* InViewpo
 		// After dragging, notify that the spline curves property has changed one last time, this time as a EPropertyChangeType::ValueSet :
 		USplineComponent* SplineComp = GetEditedSplineComponent();
 		NotifyPropertyModified(SplineComp, SplineCurvesProperty, EPropertyChangeType::ValueSet);
+		if (AActor* Owner = SplineComp->GetOwner())
+		{
+			Owner->PostEditMove(true);
+		}
 	}
 }
 
@@ -2120,6 +2136,10 @@ void FSplineComponentVisualizer::SnapKeyToTransform(const ESplineComponentSnapMo
 	SplineComp->bSplineHasBeenEdited = true;
 
 	NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+	if (AActor* Owner = SplineComp->GetOwner())
+	{
+		Owner->PostEditMove(true);
+	}
 
 	if (InSnapMode == ESplineComponentSnapMode::AlignToTangent || InSnapMode == ESplineComponentSnapMode::AlignPerpendicularToTangent)
 	{
@@ -2205,6 +2225,10 @@ void FSplineComponentVisualizer::OnStraightenKey(int32 Direction)
 	SplineComp->bSplineHasBeenEdited = true;
 
 	NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+	if (AActor* OwnerActor = SplineComp->GetOwner())
+	{
+		OwnerActor->PostEditMove(true);
+	}
 
 	SelectionState->Modify();
 	SelectionState->SetCachedRotation(SplineComp->GetQuaternionAtSplinePoint(LastKeyIndexSelected, ESplineCoordinateSpace::World));
@@ -2311,6 +2335,10 @@ void FSplineComponentVisualizer::SnapKeysToLastSelectedAxisPosition(const EAxis:
 	SplineComp->bSplineHasBeenEdited = true;
 
 	NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+	if (AActor* Owner = SplineComp->GetOwner())
+	{
+		Owner->PostEditMove(true);
+	}
 
 	SelectionState->Modify();
 	SelectionState->SetCachedRotation(SplineComp->GetQuaternionAtSplinePoint(LastKeyIndexSelected, ESplineCoordinateSpace::World));
@@ -2439,6 +2467,10 @@ void FSplineComponentVisualizer::OnDuplicateKey()
 	SplineComp->bSplineHasBeenEdited = true;
 
 	NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+	if (AActor* Owner = SplineComp->GetOwner())
+	{
+		Owner->PostEditMove(true);
+	}
 
 	if (NewSelectedKeys.Num() == 1)
 	{
@@ -2735,6 +2767,11 @@ void FSplineComponentVisualizer::SplitSegment(const FVector& InWorldPos, int32 I
 	SplineComp->bSplineHasBeenEdited = true;
 
 	NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+	if (AActor* Owner = SplineComp->GetOwner())
+	{
+		Owner->PostEditMove(true);
+	}
+
 
 	GEditor->RedrawLevelEditingViewports(true);
 }
@@ -3040,6 +3077,10 @@ void FSplineComponentVisualizer::OnDeleteKey()
 	SplineComp->bSplineHasBeenEdited = true;
 
 	NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+	if (AActor* OwnerActor = SplineComp->GetOwner())
+	{
+		OwnerActor->PostEditMove(true);
+	}
 
 	SelectionState->SetCachedRotation(SplineComp->GetQuaternionAtSplinePoint(SelectionState->GetLastKeyIndexSelected(), ESplineCoordinateSpace::World));
 
@@ -3114,6 +3155,10 @@ void FSplineComponentVisualizer::OnResetToAutomaticTangent(EInterpCurveMode Mode
 		SplineComp->bSplineHasBeenEdited = true;
 
 		NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+		if (AActor* OwnerActor = SplineComp->GetOwner())
+		{
+			OwnerActor->PostEditMove(true);
+		}
 
 		SelectionState->Modify();
 		SelectionState->SetCachedRotation(SplineComp->GetQuaternionAtSplinePoint(SelectionState->GetLastKeyIndexSelected(), ESplineCoordinateSpace::World));
@@ -3170,6 +3215,10 @@ void FSplineComponentVisualizer::OnSetKeyType(EInterpCurveMode Mode)
 		SplineComp->bSplineHasBeenEdited = true;
 
 		NotifyPropertyModified(SplineComp, SplineCurvesProperty);
+		if (AActor* OwnerActor = SplineComp->GetOwner())
+		{
+			OwnerActor->PostEditMove(true);
+		}
 
 		SelectionState->Modify();
 		SelectionState->SetCachedRotation(SplineComp->GetQuaternionAtSplinePoint(SelectionState->GetLastKeyIndexSelected(), ESplineCoordinateSpace::World));
@@ -3329,7 +3378,7 @@ void FSplineComponentVisualizer::OnResetToDefault()
 
 	if (AActor* Owner = SplineComp->GetOwner())
 	{
-		Owner->PostEditMove(false);
+		Owner->PostEditMove(true);
 	}
 
 	GEditor->RedrawLevelEditingViewports(true);
