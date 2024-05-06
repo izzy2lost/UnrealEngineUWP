@@ -120,7 +120,7 @@ void MobileFogPS(
 	}
 
 	// HalfResLocalFogVolumeViewSRV contains pre exposed color, so remove it for composition.
-	LFVContribution.rgb /= ResolvedView.PreExposure;
+	LFVContribution.rgb *= ResolvedView.OneOverPreExposure;
 
 	// Combine with the curren fog
 	FinalFog = float4(LFVContribution.rgb + FinalFog.rgb * LFVContribution.a, LFVContribution.a * FinalFog.a);

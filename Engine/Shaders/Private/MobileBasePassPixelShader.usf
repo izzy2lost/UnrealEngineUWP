@@ -1101,6 +1101,18 @@ void Main(
 	OutColor.rgb *= ResolvedView.PreExposure;
 #endif
 
+#if FORWARD_SHADING && MATERIAL_IS_SKY
+	if (MobileBasePass.bApplyHalfResLocalFogToSkyMeshes)
+	{
+		// Apply the half resolution texture to the sky dome mesh when needed.
+		const float2 ResolutionRatioCorrection = (ResolvedView.ViewSizeAndInvSize.xy * MobileBasePass.LFV.HalfResTextureSizeAndInvSize.zw * 0.5);
+		const float2 HalfResSourceTexCoord = float2(SvPosition.xy - ResolvedView.ViewRectMin.xy) * ResolvedView.ViewSizeAndInvSize.zw * ResolutionRatioCorrection;
+		float4 LFVContribution = Texture2DSampleLevel(MobileBasePass.HalfResLocalFogVolumeViewTexture, MobileBasePass.HalfResLocalFogVolumeViewSampler, HalfResSourceTexCoord, 0.0f);
+
+		OutColor.rgb = OutColor.rgb * LFVContribution.aaa + LFVContribution.rgb;
+	}
+#endif
+
 #if MATERIAL_IS_SKY || (!MATERIAL_SHADINGMODEL_UNLIT && !MOBILE_USE_GBUBUFFER)
 	// clamp lit color to avoid overflows
 	OutColor.rgb = SafeGetOutColor(OutColor.rgb);

@@ -337,6 +337,20 @@ void SetupMobileBasePassUniformParameters(
 
 	BasePassParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 
+	// We need to compose the half resolution LFV texture when rendering mesh with Sky materials. So that the Fog passes remains cheap and we can keep the stencil test on the fog pass.
+	if (BasePass > EMobileBasePass::DepthPrePass)
+	{
+		// HalfResLocalFogVolumeView is rendered after the depth pre pass so we only bind it after the depth pre pass
+		BasePassParameters.bApplyHalfResLocalFogToSkyMeshes = View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume ? 1 : 0;
+		BasePassParameters.HalfResLocalFogVolumeViewTexture = View.LocalFogVolumeViewData.HalfResLocalFogVolumeView;
+	}
+	else
+	{
+		BasePassParameters.bApplyHalfResLocalFogToSkyMeshes = 0;
+		BasePassParameters.HalfResLocalFogVolumeViewTexture = SystemTextures.BlackAlphaOne;
+	}
+	BasePassParameters.HalfResLocalFogVolumeViewSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
 	SetupReflectionUniformParameters(GraphBuilder, View, BasePassParameters.ReflectionsParameters);
 }
 

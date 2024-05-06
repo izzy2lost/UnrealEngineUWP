@@ -194,7 +194,7 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 	View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV= nullptr;
 
 	View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume = false;
-	View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackDummy(GraphBuilder);
+	View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
 	View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView);
 	View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth = GSystemTextures.GetBlackDummy(GraphBuilder);
 	View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth);
@@ -602,7 +602,7 @@ void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRD
 	else
 	{
 		View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.HalfResTextureSizeAndInvSize = FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
-		View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackDummy(GraphBuilder);
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
 		View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView);
 		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth = GSystemTextures.GetBlackDummy(GraphBuilder);
 		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth);
@@ -1033,10 +1033,14 @@ void RenderLocalFogVolumeHalfResMobile(
 	}
 	FMobileLocalFogVolumeTiledRenderHalfResPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMobileLocalFogVolumeTiledRenderHalfResPS::FParameters>();
 
-	PassParameters->View = View.GetShaderParameters();;
+	// When rendering the half resolution LFV texture, we are right after the depth prepass so it should not be bound (the texture is going to be generated now).
+	// That is why we notify that we are still in the prepass stage.
+	const EMobileBasePass BasePass = EMobileBasePass::DepthPrePass;
+
+	PassParameters->View = View.GetShaderParameters();
 	PassParameters->LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 	PassParameters->LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
-	PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, EMobileSceneTextureSetupMode::SceneDepth);
+	PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, BasePass, EMobileSceneTextureSetupMode::SceneDepth);
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView, ERenderTargetLoadAction::ENoAction);
 	PassParameters->RenderTargets[1] = FRenderTargetBinding(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth, ERenderTargetLoadAction::ENoAction);
 
