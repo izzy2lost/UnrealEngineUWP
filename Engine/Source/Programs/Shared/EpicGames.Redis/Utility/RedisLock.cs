@@ -51,7 +51,14 @@ namespace EpicGames.Redis.Utility
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			_cancellationSource?.Cancel();
+			if (_cancellationSource != null)
+			{
+#if NET8_0_OR_GREATER
+				await _cancellationSource.CancelAsync();
+#else
+				_cancellationSource.Cancel();
+#endif
+			}
 			if (_backgroundTask != null)
 			{
 				await _backgroundTask;
