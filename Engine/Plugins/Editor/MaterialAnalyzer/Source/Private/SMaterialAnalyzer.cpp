@@ -417,7 +417,7 @@ FReply SMaterialAnalyzer::OnExportAnalyzedMaterialToCSV()
 			}
 			else
 			{
-				FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, TEXT("Export operation failed!"), *NSLOCTEXT("UnrealEd", "Error", "Error").ToString());
+				FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, TEXT("Export operation failed!"), *NSLOCTEXT("UnrealEd", "Error", "!").ToString());
 			}
 		}
 	}
