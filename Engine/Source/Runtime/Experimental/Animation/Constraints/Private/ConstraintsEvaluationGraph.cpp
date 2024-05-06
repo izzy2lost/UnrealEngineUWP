@@ -255,6 +255,13 @@ void FConstraintsEvaluationGraph::MarkForEvaluation(const TWeakObjectPtr<UTickab
 	{
 		Rebuild();
 	}
+
+	if (State == Flushing)
+	{
+		// do not mark this constraint for evaluation while flushing.
+		// this can happen with UControlRig::OnControlModified being called while evaluating additive rigs
+		return;
+	}
 	
 	if (FConstraintNode* Node = FindNode(InConstraint))
 	{
