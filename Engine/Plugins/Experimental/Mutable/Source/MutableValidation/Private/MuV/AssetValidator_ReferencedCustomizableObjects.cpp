@@ -28,7 +28,7 @@ bool UAssetValidator_ReferencedCustomizableObjects::CanValidateAsset_Implementat
 	// Use module settings to decide if it needs to run or not.
 	if (const UMutableValidationSettings* ValidationSettings = GetDefault<UMutableValidationSettings>())
 	{
-		if (!ValidationSettings->bEnableIndirectValidation)
+		if (!ValidationSettings->bEnableIndirectCOValidation)
 		{
 			return false;
 		}

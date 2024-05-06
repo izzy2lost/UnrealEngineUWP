@@ -4,6 +4,7 @@
 
 #include "DataValidationModule.h"
 #include "Editor.h"
+#include "MutableValidationSettings.h"
 #include "AssetRegistry/AssetData.h"
 #include "Delegates/DelegateSignatureImpl.inl"
 #include "Engine/SkeletalMesh.h"
@@ -11,8 +12,6 @@
 #include "Engine/Texture.h"
 #include "Materials/Material.h"
 #include "MuCO/CustomizableObject.h"
-#include "MuCO/CustomizableObjectPrivate.h"
-#include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuCOE/GraphTraversal.h"
@@ -28,6 +27,15 @@ UAssetValidator_CustomizableObjects::UAssetValidator_CustomizableObjects() : Sup
 
 bool UAssetValidator_CustomizableObjects::CanValidateAsset_Implementation(const FAssetData& AssetData, UObject* InAsset, FDataValidationContext& InContext) const
 {
+	// Use module settings to decide if it needs to run or not.
+	if (const UMutableValidationSettings* ValidationSettings = GetDefault<UMutableValidationSettings>())
+	{
+		if (!ValidationSettings->bEnableDirectCOValidation)
+		{
+			return false;
+		}
+	}
+	
 	// Do not run if saving or running a commandlet (we do not want CIS failing due to our warnings and errors)
 	if (InContext.GetValidationUsecase() == EDataValidationUsecase::Save || InContext.GetValidationUsecase() == EDataValidationUsecase::Commandlet)
 	{
