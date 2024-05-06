@@ -114,6 +114,8 @@ namespace uba
 		#else
 		testRootDir.count = GetFullPathNameW("~/UbaTest", testRootDir.capacity, testRootDir.data, nullptr);
 		#endif
+		DeleteAllFiles(logger, testRootDir.data, false);
+		CreateDirectoryW(testRootDir.data);
 		testRootDir.EnsureEndsWithSlash();
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
