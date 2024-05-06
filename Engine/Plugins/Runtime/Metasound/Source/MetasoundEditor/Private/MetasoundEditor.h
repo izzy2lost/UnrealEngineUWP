@@ -321,6 +321,12 @@ namespace Metasound
 
 			/** Jumps to the nodes corresponding to the first valid currently selected interface item. */
 			void JumpToNodesForSelectedInterfaceItem();
+			
+			/** Delete all unused members from the selected section*/
+			void DeleteAllUnusedInSection();
+
+			/** Whether the selection is not to a valid member*/
+			bool CanDeleteUnusedMembers() const;
 
 			/** Called to undo the last action */
 			void UndoGraphAction();
