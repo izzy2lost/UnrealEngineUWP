@@ -489,7 +489,7 @@ bool SAdvancedRenamerPanel::IsApplyButtonEnabled() const
 
 FReply SAdvancedRenamerPanel::OnApplyButtonClicked()
 {
-	FScopedTransaction Transaction(LOCTEXT("AdvancedRenamerRename", "Advanced Renamer Rename"));
+	FScopedTransaction Transaction(LOCTEXT("AdvancedRenamerRename", "Batch Renamer Rename"));
 
 	if (!Renamer->Execute())
 	{

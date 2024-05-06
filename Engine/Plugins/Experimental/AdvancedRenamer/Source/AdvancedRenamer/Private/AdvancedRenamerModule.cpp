@@ -28,7 +28,7 @@ namespace UE::AdvancedRenamer::Private
 	TSharedRef<SWindow> CreateAdvancedRenamerWindow()
 	{
 		return SNew(SWindow)
-			.Title(LOCTEXT("AdvancedRenameWindow", "Rename Actors"))
+			.Title(LOCTEXT("AdvancedRenameWindow", "Batch Renamer"))
 			.ClientSize(FVector2D(731, 547))
 			.SizingRule(ESizingRule::UserSized)
 			.SupportsMaximize(false)
