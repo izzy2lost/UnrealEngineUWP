@@ -10,4 +10,4 @@ void FPostProcessMaterialChainGraphModule::ShutdownModule()
 {
 }
 	
-IMPLEMENT_MODULE(FPostProcessMaterialChainGraphModule, PostProcessMaterialChainGraph)
+IMPLEMENT_MODULE(FPostProcessMaterialChainGraphModule, PPMChainGraph)
