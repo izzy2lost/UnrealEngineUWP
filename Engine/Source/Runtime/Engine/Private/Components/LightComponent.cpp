@@ -614,7 +614,11 @@ void ULightComponent::PreSave(const class ITargetPlatform* TargetPlatform)
 void ULightComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	Super::PreSave(ObjectSaveContext);
-	ValidateLightGUIDs();
+
+	if (!ObjectSaveContext.IsCooking() && !IsTemplate())
+	{
+		ValidateLightGUIDs();
+	}
 }
 
 bool ULightComponent::CanEditChange(const FProperty* InProperty) const

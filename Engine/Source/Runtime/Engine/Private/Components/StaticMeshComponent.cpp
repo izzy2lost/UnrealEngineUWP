@@ -484,7 +484,7 @@ void UStaticMeshComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	// To avoid having to resubmit all Actors on 1st Static Lighting computation we want this GUID to always be created and serialized as soon as possible. 
 	// But we only create it for the editor save context, on cook builds we avoid creating it since if it's missing it won't link to anything and it'll make the
 	// cook non-deterministic
-	if (!ObjectSaveContext.IsCooking())
+	if (!ObjectSaveContext.IsCooking() && !IsTemplate())
 	{
 		UpdateStaticLightingData();
 
