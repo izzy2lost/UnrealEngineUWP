@@ -237,19 +237,28 @@ public:
 	explicit FStructBinding(const FStructSchemaBinding& Schema) : Handle(uint64(&Schema) | SchemaBit) {}
 	explicit FStructBinding(const ICustomStructBinding& Custom) : Handle(uint64(&Custom)) {}
 	
-	bool						IsSchema() const	{ return Handle & SchemaBit; }
-	bool						IsCustom() const	{ return !IsSchema(); }
-	const FStructSchemaBinding&	AsSchema() const	{ check(IsSchema()); return *reinterpret_cast<FStructSchemaBinding*>(Handle & ~SchemaBit); }
-	const ICustomStructBinding&	AsCustom() const	{ check(IsCustom()); return *reinterpret_cast<ICustomStructBinding*>(Handle & ~SchemaBit); }
+	bool						IsSchema() const		{ return Handle & SchemaBit; }
+	bool						IsCustom() const		{ return !IsSchema(); }
+	const FStructSchemaBinding&	AsSchema() const		{ check(IsSchema()); return *static_cast<FStructSchemaBinding*>(AsPtr()); }
+	const ICustomStructBinding&	AsCustom() const		{ check(IsCustom()); return *static_cast<ICustomStructBinding*>(AsPtr()); }
 
 private:
 	static constexpr uint64 SchemaBit = 1;
 	uint64 Handle;
 
-	friend class FStructBindings;
-	bool						IsBound() const		{ return Handle != 0; }
-	FStructSchemaBinding*		TryGetSchema() 		{ return (IsBound() && IsSchema()) ? reinterpret_cast<FStructSchemaBinding*>(Handle & ~SchemaBit) : nullptr; }
-	FStructBinding() : Handle(0) {}
+	friend class FStructBindingOwner;
+	explicit FStructBinding(uint64 InHandle) : Handle(InHandle) {}
+	void*						AsPtr() const			{ return reinterpret_cast<void*>(Handle & ~SchemaBit); }
+};
+
+class FStructBindingOwner
+{
+	uint64 Handle = 0;
+public:
+	~FStructBindingOwner();
+	explicit					operator bool() const	{ return Handle != 0; }
+	FStructBinding				Get() const;
+	void						TakeOwnership(FStructBinding Binding);
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -286,13 +295,12 @@ public:
 	template<typename ItemType>
 	void Set(ItemType* Items, uint64 NumItems)
 	{
-		Set(Items, Num, sizeof(ItemType));
+		Set(Items, NumItems, sizeof(ItemType));
 	}
 
 	void Set(void* Items, uint64 NumItems, uint32 ItemSize)
 	{
-		check(NumItems > 0);
-		check(Items != Data);
+		check(NumItems == 0 || Items != Data);
 		Data = reinterpret_cast<uint8*>(Items);
 		Num = NumItems;
 		Size = ItemSize;
@@ -366,7 +374,7 @@ struct FExistingItems
 	template<typename ItemType>
 	void SetAll(const ItemType* Items, uint64 NumItems)
 	{
-		SetAll(Items, NumItems, sizeof(ItemType));
+		SetAll(FExistingItemSlice{Items, NumItems}, sizeof(ItemType));
 	}
 
 	//bool HasAll() const
@@ -430,15 +438,15 @@ public:
 	FStructBindings() = default;
 	~FStructBindings();
 
-	void						BindStruct(FStructSchemaId Id, const ICustomStructBinding& Custom);
-	void						BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Schema);
-	FStructBinding				Get(FStructSchemaId Id) const;
-	void						DropStruct(FStructSchemaId Id);
+	void							BindStruct(FStructSchemaId Id, const ICustomStructBinding& Custom);
+	void							BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Schema);
+	FStructBinding					Get(FStructSchemaId Id) const;
+	void							DropStruct(FStructSchemaId Id);
 
 private:
-	TArray<FStructBinding>		Bindings;
+	TArray<FStructBindingOwner>		Bindings;
 
-	void						Bind(FStructSchemaId Id, FStructBinding Binding);
+	void							Bind(FStructSchemaId Id, FStructBinding Binding);
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -520,8 +528,8 @@ FMemberBindType BindType(FOptionalSchemaId& OutSchema)
 {
 	if constexpr (std::is_arithmetic_v<Type> || std::is_enum_v<Type>)
 	{
-		OutSchema = std::is_enum_v<Type> ? IndexNativeEnum<Type, Ids>() : NoId;
-		return ReflectLeaf<Type>;
+		OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexNativeEnum<Type, Ids>())) : NoId;
+		return FMemberBindType(ReflectLeaf<Type>);
 	}
 	else
 	{
@@ -539,43 +547,69 @@ constexpr uint32 CountRangeBindings()
 	}
 	else
 	{
-		return 1 + CountRangeBindings<typename RangeBinding::ItemType>();
+		using InnerBinding = RangeBind<typename RangeBinding::ItemType>;
+		return 1 + CountRangeBindings<InnerBinding>();
 	}
 }
+
+template<typename InnerBinding, typename InnerType>
+struct TGetInnermostImpl
+{
+	using Type = typename TGetInnermostImpl<RangeBind<InnerType>, InnerType>::Type;
+};
+
+template<typename InnerType>
+struct TGetInnermostImpl<void, InnerType>
+{
+	using Type = InnerType;
+};
 
 template<typename RangeBinding>
 struct TGetInnermost
 {
 	using InnerType = typename RangeBinding::ItemType;
-    using Type = std::conditional_t<std::is_void_v<RangeBinding>, InnerType, typename TGetInnermost<InnerType>::Type>;
+	using Type = TGetInnermostImpl<RangeBind<InnerType>, InnerType>::Type;
 };
 
 template<typename RangeBinding, uint32 N>
 TConstArrayView<FRangeBinding> GetRangeBindings()
 {
 	static_assert(N != 0);
+
+	struct FOnce
+	{
+		FOnce() : Binding(Instance, RangeSizeOf(typename RangeBinding::SizeType{})) {}
+		RangeBinding Instance;
+		FRangeBinding Binding;
+	};
+
 	if constexpr (N == 1)
 	{
-		static RangeBinding StaticInstance;
-		return {&StaticInstance, 1};
+		static FOnce Static;
+		return MakeArrayView(&Static.Binding, N);
 	}
 	else
 	{
-		struct FNestedBindings
-		{
-			FNestedBindings()
-			{
-				Instances[0] = &Instance;
-				FMemory::Memcpy(Instances + 1, GetRangeBindings<typename RangeBinding::ItemType, N - 1>().GetData(), (N - 1) * sizeof(FRangeBinding*) );
-			}
-			RangeBinding Instance;
-			FRangeBinding* Instances[N];
-		};
+		using InnerType = typename RangeBinding::ItemType;
+		using InnerRangeBinding = RangeBind<InnerType>;
 
-		static FNestedBindings Static;
-		return MakeArrayView(Static.Instances);
+		struct FNestedOnce : FOnce
+		{
+			FNestedOnce() 
+			{
+				FMemory::Memcpy(NestedBindings, GetRangeBindings<InnerRangeBinding, N - 1>().GetData(), sizeof(NestedBindings));
+			}
+			
+			uint8 NestedBindings[sizeof(FRangeBinding) * (N - 1)] = {};
+		};
+		static_assert(std::is_trivially_destructible_v<FRangeBinding>);
+		static_assert(offsetof(FNestedOnce, Binding) + sizeof(FRangeBinding) == offsetof(FNestedOnce, NestedBindings));	
+
+		static FNestedOnce Static;
+		return MakeArrayView(&Static.Binding, N);
 	}
 }
+
 
 template<class Var, class Runtime>
 FMemberBinding BindMember()

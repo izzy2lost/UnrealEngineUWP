@@ -341,19 +341,7 @@ static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoade
 //	return Out;
 //}
 //
-//struct Leaves
-//{
-//	uint16 U16;
-//	int64 I64;
-//	bool Bool;
-//	char AsciiChar;
-//	uint8 BitfieldBool : 1;
-//	uint32 StaticU32s[3];
-//};
 //
-//UE_REFLECT_STRUCT(Leaves, U16, I64, Bool, AsciiChar, BitfieldBool, StaticU32s);
-//
-//GTestBindings.Add(LeavesCtti);
 //
 //struct FNestedStructs
 //{
@@ -395,6 +383,7 @@ static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoade
 struct FInt { int32 X; };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FInt, void, X);
 
+//////////////////////////////////////////////////////////////////////////
 
 enum class EFlat1 : uint8 { A = 1, B = 3 };
 enum class EFlat2 : uint8 { A, B };
@@ -416,6 +405,32 @@ struct FEnums
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FEnums, void, Flat1, Flat2, Flag1, Flag2);
 
+//////////////////////////////////////////////////////////////////////////
+
+//struct FLeaves
+//{
+//	uint16 U16 = 0;
+//	int64 I64 = 0;
+//	bool Bool = false;
+//	char AsciiChar = 0;
+////	uint8 BitfieldBool : 1;
+//	uint32 StaticU32s[3] = {};
+//	double Double = 0.0;
+//};
+//PP_REFLECT_STRUCT(PlainProps::UE::Test, FLeaves, void, U16, I64, Bool, AsciiChar, StaticU32s, Double);
+
+//////////////////////////////////////////////////////////////////////////
+
+struct FLeafArrays
+{
+	TArray<bool> Bits;
+	TArray<int>	Bobs;
+
+	bool operator==(const FLeafArrays& O) const { return Bits == O.Bits && Bobs == O.Bobs; }
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FLeafArrays, void, Bits, Bobs);
+
+//////////////////////////////////////////////////////////////////////////
 
 TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps::UE::Core", "[Core][PlainProps][SmokeFilter]")
 {
@@ -459,13 +474,25 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			});
 	}
 
-	SECTION("Sparse")
-	{}
+	SECTION("TArrayBasic")
+	{
+		TScopedStructBinding<FLeafArrays, FDefaultRuntime> LeafArrays;
+		TestSaveAndLoad<FDefaultRuntime>(
+			[](FBatchSaver& Batch)
+			{
+				Batch.Save(FLeafArrays{{}, {}});
+				Batch.Save(FLeafArrays{{false}, {1, 2}});
+				Batch.Save(FLeafArrays{{true, false}, {3, 4, 5}});
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FLeafArrays>() == FLeafArrays{{}, {}});
+				CHECK(Batch.Load<FLeafArrays>() == FLeafArrays{{false}, {1, 2}});
+				CHECK(Batch.Load<FLeafArrays>() == FLeafArrays{{true, false}, {3, 4, 5}});
+			});
+	}
 
-	SECTION("TArray")
-	{}
-
-	SECTION("Complex")
+	SECTION("TArrayComplex")
 	{}
 
 	SECTION("FString")

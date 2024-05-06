@@ -21,7 +21,7 @@ static_assert((uint8)ELeafType::Unicode		== (uint8)ELeafBindType::Unicode);
 
 uint32 FStructSchemaBinding::CalculateSize() const
 {
-	uint32 Out = sizeof(FStructSchemaBinding) + NumMembers * sizeof(FMemberBindType);
+	uint32 Out = sizeof(FStructSchemaBinding) + (NumMembers + NumInnerRanges) * sizeof(FMemberBindType);
 	Out = Align(Out + NumMembers * sizeof(uint32), sizeof(uint32));
 	Out = Align(Out + NumInnerSchemas * sizeof(FSchemaId), sizeof(FSchemaId));
 	Out = Align(Out + NumInnerRanges * sizeof(FRangeBinding), sizeof(FRangeBinding));
@@ -122,16 +122,29 @@ FRangeBinding::FRangeBinding(const IRangeBinding& Binding, ERangeSizeType SizeTy
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-FStructBindings::~FStructBindings()
+FStructBindingOwner::~FStructBindingOwner()
 {
-	for (FStructBinding Binding : Bindings)
+	if (Handle & FStructBinding::SchemaBit)
 	{
-		if (FStructSchemaBinding* Schema = Binding.TryGetSchema())
-		{
-			FMemory::Free(Schema);
-		}
+		FMemory::Free(Get().AsPtr());
 	}
 }
+	
+FStructBinding FStructBindingOwner::Get() const
+{
+	check(*this);
+	return FStructBinding(Handle);
+}
+
+void FStructBindingOwner::TakeOwnership(FStructBinding Binding)
+{
+	check(!*this);
+	Handle = Binding.Handle;
+	check(*this);
+}
+
+FStructBindings::~FStructBindings()
+{}
 
 void FStructBindings::BindStruct(FStructSchemaId Id, const ICustomStructBinding& Custom)
 {
@@ -189,18 +202,15 @@ void FStructBindings::Bind(FStructSchemaId Id, FStructBinding Binding)
 {
 	if (Id.Idx >= static_cast<uint32>(Bindings.Num()))
 	{
-		Bindings.SetNumZeroed(Id.Idx + 1);
+		Bindings.SetNum(Id.Idx + 1);
 	}
-	check(!Bindings[Id.Idx].IsBound());
 
-	Bindings[Id.Idx] = Binding;
+	Bindings[Id.Idx].TakeOwnership(Binding);
 }
 
 FStructBinding FStructBindings::Get(FStructSchemaId Id) const
 {
-	FStructBinding Out = Bindings[Id.Idx];
-	check(Out.IsBound());
-	return Out;
+	return Bindings[Id.Idx].Get();
 }
 
 //void FStructBindings::DropStruct(FStructSchemaId Id);

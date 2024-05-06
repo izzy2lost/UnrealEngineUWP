@@ -107,7 +107,7 @@ struct TArrayBinding : public IRangeBinding
 
 	virtual void MakeItems(FLoadRangeContext& Ctx) const override
 	{
-		TArray<T>& Array = *Ctx.Request.GetRange<TArray<T>>();
+		TArray<T>& Array = Ctx.Request.GetRange<TArray<T>>();
 		if constexpr (std::is_default_constructible_v<T>)
 		{
 			Array.SetNum(Ctx.Request.NumTotal());
@@ -123,7 +123,7 @@ struct TArrayBinding : public IRangeBinding
 
 	virtual void ReadItems(FSaveRangeContext& Ctx) const override
 	{
-		const TArray<T>& Array = *Ctx.Request.GetRange<TArray<T>>();
+		const TArray<T>& Array = Ctx.Request.GetRange<TArray<T>>();
 		Ctx.Items.SetAll(Array.GetData(), static_cast<uint64>(Array.Num()));
 	}
 };

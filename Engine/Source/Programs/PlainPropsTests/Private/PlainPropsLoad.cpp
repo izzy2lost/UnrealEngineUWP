@@ -376,7 +376,7 @@ public:
 		}
 		else
 		{
-			FLoadRangeContext NoItemsCtx{.Request = {nullptr, 0}};
+			FLoadRangeContext NoItemsCtx{.Request = {Member, 0}};
 			(Binding.MakeItems)(NoItemsCtx);
 		}
 	}
