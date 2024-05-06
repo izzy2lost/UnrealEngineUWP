@@ -249,7 +249,7 @@ void FChaosVDParticleDataComponentVisualizer::DrawVisualizationForParticleData(c
 	}
 
 	const FQuat& OwnerRotation =  InVisualizationContext.SpaceTransform.TransformRotation(InParticleDataViewer.ParticlePositionRotation.MR);
-	const FVector OwnerCoMLocation = OwnerLocation + OwnerRotation *  InVisualizationContext.SpaceTransform.TransformPosition(InParticleDataViewer.ParticleMassProps.MCenterOfMass);
+	const FVector OwnerCoMLocation = InVisualizationContext.SpaceTransform.TransformPosition(InParticleDataViewer.ParticlePositionRotation.MX + (InParticleDataViewer.ParticlePositionRotation.MR *  InParticleDataViewer.ParticleMassProps.MCenterOfMass));
 	
 	FChaosVDScopedParticleHitProxy ScopedHitProxy(PDI, new HChaosVDParticleDataProxy(Component, {InParticleDataViewer.ParticleIndex, InParticleDataViewer.SolverID} ));
 

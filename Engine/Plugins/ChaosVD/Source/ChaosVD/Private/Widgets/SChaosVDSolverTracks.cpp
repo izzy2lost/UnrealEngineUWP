@@ -12,7 +12,7 @@ void SChaosVDSolverTracks::Construct(const FArguments& InArgs, TWeakPtr<FChaosVD
 {
 	ChildSlot
 	[
-		SAssignNew(SolverTracksListWidget, SListView<TSharedPtr<FChaosVDTrackInfo>>)
+		SAssignNew(SolverTracksListWidget, SListView<TSharedPtr<const FChaosVDTrackInfo>>)
 		.ListItemsSource(&CachedTrackInfoArray)
 		.SelectionMode( ESelectionMode::None )
 		.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
@@ -25,9 +25,9 @@ void SChaosVDSolverTracks::Construct(const FArguments& InArgs, TWeakPtr<FChaosVD
 	
 	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = InPlaybackController.Pin())
 	{
-		if (const FChaosVDTrackInfo* GameTrackInfo = CurrentPlaybackControllerPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID))
+		if (const TSharedPtr<const FChaosVDTrackInfo> GameTrackInfo = CurrentPlaybackControllerPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID))
 		{
-			HandleControllerTrackFrameUpdated(InPlaybackController, GameTrackInfo, InvalidGuid);
+			HandleControllerTrackFrameUpdated(InPlaybackController, GameTrackInfo.ToSharedRef(), InvalidGuid);
 		}
 	}
 	else
@@ -47,17 +47,19 @@ void SChaosVDSolverTracks::HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVD
 	{
 		// If the controller data was updated, need to update our cache track info data as it could have been changed.
 		// For example this can happen when we load another recording. We use the GameTrack info for that as it is the one that is always valid
-		const FChaosVDTrackInfo* GameTrackInfo = CurrentPlaybackControllerPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID);
-		UpdatedCachedTrackInfoData(InPlaybackController, GameTrackInfo);
+		if (const TSharedPtr<const FChaosVDTrackInfo> GameTrackInfo = CurrentPlaybackControllerPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID))
+		{
+			UpdatedCachedTrackInfoData(InPlaybackController, GameTrackInfo.ToSharedRef());
+		}
 	}
 }
 
-void SChaosVDSolverTracks::UpdatedCachedTrackInfoData(TWeakPtr<FChaosVDPlaybackController> InPlaybackController, const FChaosVDTrackInfo* UpdatedTrackInfo)
+void SChaosVDSolverTracks::UpdatedCachedTrackInfoData(TWeakPtr<FChaosVDPlaybackController> InPlaybackController, const TSharedRef<const FChaosVDTrackInfo>& UpdatedTrackInfo)
 {
 	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = InPlaybackController.Pin())
 	{
-		TArray<TSharedPtr<FChaosVDTrackInfo>> TrackInfoArray;
-		CurrentPlaybackControllerPtr->GetAvailableTrackInfosAtTrackFrame(EChaosVDTrackType::Solver, TrackInfoArray, UpdatedTrackInfo);
+		TArray<TSharedPtr<const FChaosVDTrackInfo>> TrackInfoArray;
+		CurrentPlaybackControllerPtr->GetAvailableTrackInfosAtTrackFrame(EChaosVDTrackType::Solver, UpdatedTrackInfo, TrackInfoArray);
 
 		if (TrackInfoArray != CachedTrackInfoArray)
 		{
@@ -72,7 +74,7 @@ void SChaosVDSolverTracks::UpdatedCachedTrackInfoData(TWeakPtr<FChaosVDPlaybackC
 	}
 }
 
-void SChaosVDSolverTracks::HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InPlaybackController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid)
+void SChaosVDSolverTracks::HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InPlaybackController, TWeakPtr<const FChaosVDTrackInfo> UpdatedTrackInfo, FGuid InstigatorGuid)
 {
 	if (InstigatorGuid == GetInstigatorID())
 	{
@@ -80,57 +82,71 @@ void SChaosVDSolverTracks::HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPl
 		return;
 	}
 
-	if (UpdatedTrackInfo == nullptr)
+	TSharedPtr<const FChaosVDTrackInfo> UpdatedTrackInfoPtr = UpdatedTrackInfo.Pin();
+
+	if (!UpdatedTrackInfoPtr)
 	{
 		return;
 	}
 
-	if (UpdatedTrackInfo->TrackType == EChaosVDTrackType::Solver)
+	// Only Game Frame Track Update can change the available solvers
+	if (UpdatedTrackInfoPtr->TrackType == EChaosVDTrackType::Solver)
 	{
 		return;
 	}
 
-	UpdatedCachedTrackInfoData(InPlaybackController, UpdatedTrackInfo);
+	UpdatedCachedTrackInfoData(InPlaybackController, UpdatedTrackInfoPtr.ToSharedRef());
 }
 
-TSharedRef<ITableRow> SChaosVDSolverTracks::MakeSolverTrackControlsFromTrackInfo(TSharedPtr<FChaosVDTrackInfo> TrackInfo, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SChaosVDSolverTracks::MakeSolverTrackControlsFromTrackInfo(TSharedPtr<const FChaosVDTrackInfo> TrackInfo, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	TSharedPtr<SVerticalBox> PlaybackControlsContainer;
-	SAssignNew(PlaybackControlsContainer, SVerticalBox)
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(10.0f, 2.0f, 10.0f, 0.0f)
-			[
-				SNew(SExpandableArea)
-					.InitiallyCollapsed(false)
-					.BorderBackgroundColor(FLinearColor::White)
-					.Padding(FMargin(8.f))
-					.HeaderContent()
-					[
-						SNew(SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.HAlign(HAlign_Left)
-						.VAlign(VAlign_Center)
-						.AutoWidth()
-						.Padding(0.f, 0.f, 0.f, 0.f)
+	TSharedPtr<SWidget> RowWidget;
+	if (TrackInfo)
+	{
+		RowWidget = SNew(SVerticalBox)
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(10.0f, 2.0f, 10.0f, 0.0f)
+				[
+					SNew(SExpandableArea)
+						.InitiallyCollapsed(false)
+						.BorderBackgroundColor(FLinearColor::White)
+						.Padding(FMargin(8.f))
+						.HeaderContent()
 						[
-							SNew(STextBlock)
-							.Text(FText::FromString(TrackInfo->TrackName))
-							.Font(FCoreStyle::Get().GetFontStyle("ExpandableArea.TitleFont"))
+							SNew(SHorizontalBox)
+							+SHorizontalBox::Slot()
+							.HAlign(HAlign_Left)
+							.VAlign(VAlign_Center)
+							.AutoWidth()
+							.Padding(0.f, 0.f, 0.f, 0.f)
+							[
+								SNew(STextBlock)
+								.Text(FText::FromName(TrackInfo->TrackName))
+								.Font(FCoreStyle::Get().GetFontStyle("ExpandableArea.TitleFont"))
+							]
 						]
-					]
-					.BodyContent()
-					[
-						SNew(SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.Padding(2.f, 4.f, 2.f, 12.f)
+						.BodyContent()
 						[
-							SNew(SChaosVDSolverPlaybackControls, TrackInfo->TrackID, PlaybackController)
+							SNew(SHorizontalBox)
+							+SHorizontalBox::Slot()
+							.Padding(2.f, 4.f, 2.f, 12.f)
+							[
+								SNew(SChaosVDSolverPlaybackControls, TrackInfo.ToSharedRef(), PlaybackController)
+							]
 						]
-					]
-			];
+				];
+	}
+	else
+	{
+		RowWidget = SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		[
+			SNew(STextBlock)
+			.Text(NSLOCTEXT("ChaosVisualDebugger", "SolverPlaybackControlsErrorMessage", "Failed to read data for solver."))
+		];
+	}
 
-	TSharedPtr<SWidget> RowWidget = PlaybackControlsContainer;
 	return
 		SNew(STableRow< TSharedPtr<FString> >, OwnerTable)
 		[

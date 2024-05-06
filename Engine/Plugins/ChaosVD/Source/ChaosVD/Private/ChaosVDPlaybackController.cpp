@@ -24,13 +24,21 @@ namespace Chaos::VisualDebugger::Cvars
 		TEXT("If true, each time we get playback a solver frame in a specific stage, we will play all the previous steps from that frame in sequence to ensure we have the correct visualization for what happened in that frame."));
 }
 
+bool FChaosVDTrackInfo::operator==(const FChaosVDTrackInfo& Other) const
+{
+	return Other.TrackID == TrackID && Other.TrackType == TrackType;
+}
+
+bool FChaosVDTrackInfo::AreSameTrack(const TSharedRef<const FChaosVDTrackInfo>& TrackA, const TSharedRef<const FChaosVDTrackInfo>& TrackB)
+{
+	return TrackA->TrackID == TrackB->TrackID && TrackA->TrackType == TrackB->TrackType; 
+}
+
 FChaosVDPlaybackController::FChaosVDPlaybackController(const TWeakPtr<FChaosVDScene>& InSceneToControl)
 {
 	SceneToControl = InSceneToControl;
 
 	RecordingStoppedHandle = FChaosVDRuntimeModule::Get().RegisterRecordingStopCallback(FChaosVDRecordingStateChangedDelegate::FDelegate::CreateRaw(this, &FChaosVDPlaybackController::HandleDisconnectedFromSession));
-
-	CurrentPlaybackInstigator = IChaosVDPlaybackControllerInstigator::InvalidGuid;
 }
 
 FChaosVDPlaybackController::~FChaosVDPlaybackController()
@@ -147,17 +155,13 @@ void FChaosVDPlaybackController::PlayFromClosestKeyFrame_AssumesLocked(const int
 	}
 }
 
-void FChaosVDPlaybackController::EnqueueTrackInfoUpdate(const FChaosVDTrackInfo& InTrackInfo, FGuid InstigatorID)
+void FChaosVDPlaybackController::EnqueueTrackInfoUpdate(const TSharedRef<const FChaosVDTrackInfo>& InTrackInfo, FGuid InstigatorID)
 {
 	// This will be used in the Game Thread on the first tick after this was added, so we need to make a copy of the state right now
 	FChaosVDQueuedTrackInfoUpdate InfoUpdate;
 	InfoUpdate.TrackInfo = InTrackInfo;
 	InfoUpdate.InstigatorID = InstigatorID;
 
-	// TODO: FChaosVDTrackInfo has the track name as an string which will be copied as well.
-	// We should move the names to another structure as these don't change often.
-	// It wasn't an issue for now, but now this copy might have an impact due to the number of updates there could be done.
-	
 	TrackInfoUpdateGTQueue.Enqueue(InfoUpdate);
 }
 
@@ -179,20 +183,13 @@ void FChaosVDPlaybackController::PlaySolverStepData(int32 TrackID, const TShared
 	}
 }
 
-void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, const int32 Step, FGuid InstigatorID, int32 Attempts)
+void FChaosVDPlaybackController::GoToRecordedSolverStage_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, const int32 StageNumber, FGuid InstigatorID)
 {
 	if (const TSharedPtr<FChaosVDScene> SceneToControlSharedPtr = SceneToControl.Pin())
 	{
 		if (ensure(LoadedRecording.IsValid()))
 		{
-			TSharedPtr<FChaosVDTrackInfo> CurrentTrackInfo;
-			if (TrackInfoByIDMap* TrackInfoByID = TrackInfoPerType.Find(EChaosVDTrackType::Solver))
-			{
-				if (const TSharedPtr<FChaosVDTrackInfo>* TrackInfo = TrackInfoByID->Find(InTrackID))
-				{
-					CurrentTrackInfo = *TrackInfo;
-				}
-			}
+			TSharedPtr<FChaosVDTrackInfo> CurrentTrackInfo = GetMutableTrackInfo(EChaosVDTrackType::Solver, InTrackID);
 
 			if (!ensure(CurrentTrackInfo.IsValid()))
 			{
@@ -202,6 +199,12 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 
 			if (FChaosVDSolverFrameData* SolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InTrackID, FrameNumber))
 			{
+				// All solver frames need to be played with a valid specified solver stage. If we don't have just early out
+				if (!SolverFrameData->SolverSteps.IsValidIndex(StageNumber))
+				{
+					return;
+				}
+
 				const int32 FrameDiff = FrameNumber - CurrentTrackInfo->CurrentFrame;
 				constexpr int32 FrameDriftTolerance = 1;
 
@@ -218,26 +221,34 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 					PlayFromClosestKeyFrame_AssumesLocked(InTrackID, FrameNumber, *SceneToControlSharedPtr.Get());
 				}
 
-				const int32 StepDiff = Step - CurrentTrackInfo->CurrentStep;
-				const bool bNeedsPlayPreviousSteps = CurrentTrackInfo->CurrentFrame != FrameNumber || StepDiff < 0 || FMath::Abs(StepDiff) > FrameDriftTolerance;
+				const int32 StageNumberDiff = StageNumber - CurrentTrackInfo->CurrentStage;
+				const bool bNeedsPlayPreviousSteps = CurrentTrackInfo->CurrentFrame != FrameNumber || StageNumberDiff < 0 || FMath::Abs(StageNumberDiff) > FrameDriftTolerance;
 
 				if (Chaos::VisualDebugger::Cvars::bPlayAllPreviousFrameSteps && bNeedsPlayPreviousSteps)
 				{
-					for (int32 StepIndex = 0; StepIndex <= Step; StepIndex++)
+					for (int32 StageIndex = 0; StageIndex <= StageNumber; StageIndex++)
 					{
-						PlaySolverStepData(InTrackID, SceneToControlSharedPtr.ToSharedRef(), *SolverFrameData, StepIndex);
+						PlaySolverStepData(InTrackID, SceneToControlSharedPtr.ToSharedRef(), *SolverFrameData, StageIndex);
 					}
 				}
 				else
 				{
-					PlaySolverStepData(InTrackID, SceneToControlSharedPtr.ToSharedRef(), *SolverFrameData, Step);
+					PlaySolverStepData(InTrackID, SceneToControlSharedPtr.ToSharedRef(), *SolverFrameData, StageNumber);
 				}
 
-				CurrentTrackInfo->CurrentFrame = FrameNumber;
-				CurrentTrackInfo->CurrentStep = Step;
+				if (CurrentTrackInfo->CurrentFrame != FrameNumber)
+				{
+					CurrentTrackInfo->CurrentFrame = FrameNumber;
+					SceneToControlSharedPtr->HandleEnterNewSolverFrame(FrameNumber, *SolverFrameData);
+				}
+
+				CurrentTrackInfo->CurrentStage = StageNumber;
 				CurrentTrackInfo->bIsReSimulated = SolverFrameData->bIsResimulated;
+
+				CurrentTrackInfo->CurrentStageNames.Reset();
+				Algo::Transform(SolverFrameData->SolverSteps, CurrentTrackInfo->CurrentStageNames, &FChaosVDStepData::StepName);
 			
-				EnqueueTrackInfoUpdate(*CurrentTrackInfo.Get(), InstigatorID);
+				EnqueueTrackInfoUpdate(CurrentTrackInfo.ToSharedRef(), InstigatorID);
 			}
 		}
 	}
@@ -247,50 +258,46 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 	}
 }
 
-void FChaosVDPlaybackController::GoToRecordedGameFrame_AssumesLocked(const int32 FrameNumber, FGuid InstigatorID, int32 Attempts)
+void FChaosVDPlaybackController::GoToRecordedGameFrame_AssumesLocked(const int32 FrameNumber, FGuid InstigatorID)
 {
 	if (const TSharedPtr<FChaosVDScene> SceneToControlSharedPtr = SceneToControl.Pin())
 	{
 		if (ensure(LoadedRecording.IsValid()))
 		{
-			if (TrackInfoByIDMap* TrackInfoByID = TrackInfoPerType.Find(EChaosVDTrackType::Game))
+			const TSharedPtr<FChaosVDTrackInfo> TrackInfoSharedPtr = GetMutableTrackInfo(EChaosVDTrackType::Game, GameTrackID);
+			if (!ensure(TrackInfoSharedPtr))
 			{
-				const TSharedPtr<FChaosVDTrackInfo>* TrackInfoSharedPtrPtr = TrackInfoByID->Find(GameTrackID);
-				if (!ensure(TrackInfoSharedPtrPtr))
-				{
-					return;
-				}
+				return;
+			}
+
+			if (const FChaosVDGameFrameData* FoundGameFrameData = LoadedRecording->GetGameFrameData_AssumesLocked(FrameNumber))
+			{
+				TArray<int32, TInlineAllocator<FChaosVDRecording::CommonTrackCount>> AvailableSolversID;
+				TArray<int32, TInlineAllocator<FChaosVDRecording::CommonTrackCount>> RemovedSolversID;
 				
-				if (const TSharedPtr<FChaosVDTrackInfo> TrackInfoSharedPtr = *TrackInfoSharedPtrPtr)
+				AvailableSolversID.Reset();
+				RemovedSolversID.Reset();
+				LoadedRecording->GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, AvailableSolversID);
+
+				SceneToControlSharedPtr->HandleEnterNewGameFrame(FrameNumber, AvailableSolversID, *FoundGameFrameData, RemovedSolversID);
+
+				// We need to reset the current frame track info for any solver that is removed as so when (or if) it is loaded again, starts on a clean state
+				for (const int32 SolverID : RemovedSolversID)
 				{
-					if (const FChaosVDGameFrameData* FoundGameFrameData = LoadedRecording->GetGameFrameData_AssumesLocked(FrameNumber))
+					if (TSharedPtr<FChaosVDTrackInfo> RemovedSolverTrackPtr = GetMutableTrackInfo(EChaosVDTrackType::Solver, SolverID))
 					{
-						TArray<int32> AvailableSolversID;
-						LoadedRecording->GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, AvailableSolversID);
-
-						SceneToControlSharedPtr->HandleEnterNewGameFrame(FrameNumber, AvailableSolversID, *FoundGameFrameData);
-
-						for (const int32 SolverID : AvailableSolversID)
-						{
-							// When Scrubbing the timeline by game frames instead of solvers, try to go to the first solver frame on the first platform cycle of the game frame.
-							// Game Frames are not in sync with Solver Frames and Solver steps.
-							const int32 SolverFrameNumber = LoadedRecording->GetLowestSolverFrameNumberAtCycle_AssumesLocked(SolverID, FoundGameFrameData->FirstCycle);
-	
-							const int32 StepNumber = GetTrackLastStepAtFrame(EChaosVDTrackType::Solver, SolverID, SolverFrameNumber);
-
-							GoToTrackFrame_AssumesLocked(InstigatorID, EChaosVDTrackType::Solver, SolverID, SolverFrameNumber, StepNumber);
-						}
+						RemovedSolverTrackPtr->CurrentFrame = 0;
 					}
-					
-					TrackInfoSharedPtr->CurrentFrame = FrameNumber;
-					EnqueueTrackInfoUpdate(*TrackInfoSharedPtr.Get(), InstigatorID);
 				}
+
+				TrackInfoSharedPtr->CurrentFrame = FrameNumber;
+				EnqueueTrackInfoUpdate(TrackInfoSharedPtr.ToSharedRef(), InstigatorID);
 			}
 		}
 	}
 }
 
-void FChaosVDPlaybackController::GoToTrackFrame(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 Step)
+void FChaosVDPlaybackController::GoToTrackFrame(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 StageNumber)
 {
 	if (!ensure(LoadedRecording.IsValid()))
 	{
@@ -298,10 +305,10 @@ void FChaosVDPlaybackController::GoToTrackFrame(FGuid InstigatorID, EChaosVDTrac
 	}
 
 	FReadScopeLock ReadLock(LoadedRecording->GetRecordingDataLock());
-	GoToTrackFrame_AssumesLocked(InstigatorID, TrackType, InTrackID, FrameNumber, Step);
+	GoToTrackFrame_AssumesLocked(InstigatorID, TrackType, InTrackID, FrameNumber, StageNumber);
 }
 
-void FChaosVDPlaybackController::GoToTrackFrame_AssumesLocked(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 Step)
+void FChaosVDPlaybackController::GoToTrackFrame_AssumesLocked(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 StageNumber)
 {
 	switch (TrackType)
 	{
@@ -309,13 +316,38 @@ void FChaosVDPlaybackController::GoToTrackFrame_AssumesLocked(FGuid InstigatorID
 		GoToRecordedGameFrame_AssumesLocked(FrameNumber, InstigatorID);
 		break;
 	case EChaosVDTrackType::Solver:
-		GoToRecordedSolverStep_AssumesLocked(InTrackID, FrameNumber, Step, InstigatorID);
+		GoToRecordedSolverStage_AssumesLocked(InTrackID, FrameNumber, StageNumber, InstigatorID);
 		break;
 	default:
 		ensure(false);
 		break;
 	}
 }
+
+
+void FChaosVDPlaybackController::GoToTrackFrameAndSync(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 StageNumber)
+{
+	if (!ensure(LoadedRecording.IsValid()))
+	{
+		return;
+	}
+
+	FReadScopeLock ReadLock(LoadedRecording->GetRecordingDataLock());
+	
+	GoToTrackFrame_AssumesLockedAndSync(InstigatorID, TrackType, InTrackID, FrameNumber, StageNumber);
+}
+
+
+void FChaosVDPlaybackController::GoToTrackFrame_AssumesLockedAndSync(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 StageNumber)
+{
+	GoToTrackFrame_AssumesLocked(InstigatorID, TrackType, InTrackID, FrameNumber, StageNumber);
+	
+	if (TSharedPtr<const FChaosVDTrackInfo> TrackToSyncWith = GetTrackInfo(TrackType, InTrackID))
+	{
+		SyncTracks_AssumesLocked(TrackToSyncWith.ToSharedRef());
+	}
+}
+
 
 int32 FChaosVDPlaybackController::GetTrackStepsNumberAtFrame_AssumesLocked(EChaosVDTrackType TrackType, const int32 InTrackID, const int32 FrameNumber) const
 {
@@ -360,7 +392,6 @@ const FChaosVDStepsContainer* FChaosVDPlaybackController::GetTrackStepsDataAtFra
 	case EChaosVDTrackType::Game:
 		// Game Tracks do not have steps
 		return nullptr;
-		break;
 	case EChaosVDTrackType::Solver:
 		{
 			if (const FChaosVDSolverFrameData* FrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InTrackID, FrameNumber))
@@ -408,54 +439,42 @@ int32 FChaosVDPlaybackController::GetTrackFramesNumber(EChaosVDTrackType TrackTy
 	}
 }
 
-int32 FChaosVDPlaybackController::ConvertCurrentFrameToOtherTrackFrame(const FChaosVDTrackInfo* FromTrack, const FChaosVDTrackInfo* ToTrack)
-{
+int32 FChaosVDPlaybackController::ConvertCurrentFrameToOtherTrackFrame_AssumesLocked(const TSharedRef<const FChaosVDTrackInfo>& InFromTrack, const TSharedRef<const FChaosVDTrackInfo>& InToTrack, EChaosVDSyncTimelinesMode TrackSyncMode)
+{	
+	if (!ensure(LoadedRecording.IsValid()))
+	{
+		return INDEX_NONE;
+	}
+
 	// Each track is on a different "space time", because it's source data ticked at different rates when was recorded, and some start/end at different points on time
 	// But all the recorded frame data on all of them use Platform Cycles as timestamps
 	// This method wraps specialized methods in the recording object to convert between these spaces. For example Game frame 1500 could be frame 5 on a specific solver
 	// And Frame 5 of that solver could be frame 30 on another solver.
 
-	if (FromTrack == nullptr || ToTrack == nullptr)
+	if (FChaosVDTrackInfo::AreSameTrack(InFromTrack, InToTrack))
 	{
-		ensureMsgf(false, TEXT("One of provided track infos is not valid"));
-		return INDEX_NONE;
-	}
-	
-	if (!ensure(LoadedRecording.IsValid()))
-    {
-    	return INDEX_NONE;
-    }
-
-	const bool bBothTracksHaveSameID = FromTrack->TrackID == ToTrack->TrackID;
-	const bool bBothTracksHaveSameType = FromTrack->TrackType == ToTrack->TrackType;
-	if (bBothTracksHaveSameType && bBothTracksHaveSameID)
-	{
-		return FromTrack->CurrentFrame;
+		return InFromTrack->CurrentFrame;
 	}
 
-	switch (FromTrack->TrackType)
+	switch (InFromTrack->TrackType)
 	{
 	case EChaosVDTrackType::Game:
 		{
 			// Convert from Game Frame to Solver Frame
-			return LoadedRecording->GetLowestSolverFrameNumberGameFrame(FromTrack->TrackID, FromTrack->CurrentFrame);
-			break;
-		}
-		
+			return LoadedRecording->GetLowestSolverFrameNumberGameFrame_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
+		}	
 	case EChaosVDTrackType::Solver:
 		{
-			if (ToTrack->TrackType == EChaosVDTrackType::Solver)
+			if (InToTrack->TrackType == EChaosVDTrackType::Solver)
 			{
-				ensureMsgf(false, TEXT("Frame conversion between solver tracks is not supported yet"));
-				return INDEX_NONE;
+				const FChaosVDSolverFrameData* FromSolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
+				return ensure(FromSolverFrameData) ? LoadedRecording->GetLowestSolverFrameNumberAtCycle_AssumesLocked(InToTrack->TrackID, FromSolverFrameData->FrameCycle) : INDEX_NONE;
 			}
-			return LoadedRecording->GetLowestGameFrameAtSolverFrameNumber(FromTrack->TrackID, FromTrack->CurrentFrame);
-			break;
+			return LoadedRecording->GetLowestGameFrameAtSolverFrameNumber_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
 		}
 	default:
 		ensure(false);
 		return INDEX_NONE;
-		break;
 	}
 }
 
@@ -480,14 +499,14 @@ int32 FChaosVDPlaybackController::GetTrackCurrentStep(EChaosVDTrackType TrackTyp
 		const TSharedPtr<FChaosVDTrackInfo>* TrackInfoPtrPtr = TrackInfoByID->Find(InTrackID);
 		if (const TSharedPtr<FChaosVDTrackInfo> TrackInfoSharedPtr = TrackInfoPtrPtr ? *TrackInfoPtrPtr : nullptr)
 		{
-			return TrackInfoSharedPtr->CurrentStep;
+			return TrackInfoSharedPtr->CurrentStage;
 		}
 	}
 
 	return INDEX_NONE;
 }
 
-int32 FChaosVDPlaybackController::GetTrackLastStepAtFrame(EChaosVDTrackType TrackType, int32 InTrackID, int32 InFrameNumber) const
+int32 FChaosVDPlaybackController::GetTrackLastStageAtFrame_AssumesLocked(EChaosVDTrackType TrackType, int32 InTrackID, int32 InFrameNumber) const
 {
 	switch (TrackType)
 	{
@@ -503,22 +522,21 @@ int32 FChaosVDPlaybackController::GetTrackLastStepAtFrame(EChaosVDTrackType Trac
 			return INDEX_NONE;
 			break;
 	}
-	
 }
 
-const FChaosVDTrackInfo* FChaosVDPlaybackController::GetTrackInfo(EChaosVDTrackType TrackType, int32 TrackID)
+TSharedPtr<const FChaosVDTrackInfo> FChaosVDPlaybackController::GetTrackInfo(EChaosVDTrackType TrackType, int32 TrackID)
 {
 	return GetMutableTrackInfo(TrackType, TrackID);
 }
 
-FChaosVDTrackInfo* FChaosVDPlaybackController::GetMutableTrackInfo(EChaosVDTrackType TrackType, int32 TrackID)
+TSharedPtr<FChaosVDTrackInfo> FChaosVDPlaybackController::GetMutableTrackInfo(EChaosVDTrackType TrackType, int32 TrackID)
 {
 	if (const TrackInfoByIDMap* TrackInfoByID = TrackInfoPerType.Find(TrackType))
 	{
 		const TSharedPtr<FChaosVDTrackInfo>* TrackInfoPtrPtr = TrackInfoByID->Find(TrackID);
 		if (const TSharedPtr<FChaosVDTrackInfo> TrackInfoSharedPtr = TrackInfoPtrPtr ? *TrackInfoPtrPtr : nullptr)
 		{
-			return TrackInfoSharedPtr.Get();
+			return TrackInfoSharedPtr;
 		}
 	}
 
@@ -527,15 +545,15 @@ FChaosVDTrackInfo* FChaosVDPlaybackController::GetMutableTrackInfo(EChaosVDTrack
 
 void FChaosVDPlaybackController::LockTrackInCurrentStep(EChaosVDTrackType TrackType, int32 TrackID)
 {
-	if (FChaosVDTrackInfo* TrackInfo = GetMutableTrackInfo(TrackType, TrackID))
+	if (TSharedPtr<FChaosVDTrackInfo> TrackInfo = GetMutableTrackInfo(TrackType, TrackID))
 	{
-		TrackInfo->LockedOnStep = TrackInfo->CurrentStep;
+		TrackInfo->LockedOnStep = TrackInfo->CurrentStage;
 	}
 }
 
 void FChaosVDPlaybackController::UnlockTrackStep(EChaosVDTrackType TrackType, int32 TrackID)
 {
-	if (FChaosVDTrackInfo* TrackInfo = GetMutableTrackInfo(TrackType, TrackID))
+	if (TSharedPtr<FChaosVDTrackInfo> TrackInfo = GetMutableTrackInfo(TrackType, TrackID))
 	{
 		TrackInfo->LockedOnStep = INDEX_NONE;
 	}
@@ -547,7 +565,13 @@ void FChaosVDPlaybackController::GetAvailableTracks(EChaosVDTrackType TrackType,
 	TrackInfoPerType.FindOrAdd(TrackType).GenerateValueArray(OutTrackInfo);
 }
 
-void FChaosVDPlaybackController::GetAvailableTrackInfosAtTrackFrame(EChaosVDTrackType TrackTypeToFind, TArray<TSharedPtr<FChaosVDTrackInfo>>& OutTrackInfo, const FChaosVDTrackInfo* TrackFrameInfo)
+void FChaosVDPlaybackController::GetAvailableTrackInfosAtTrackFrame(EChaosVDTrackType TrackTypeToFind, const TSharedRef<const FChaosVDTrackInfo>& InFromTrack, TArray<TSharedPtr<const FChaosVDTrackInfo>>& OutTrackInfo)
+{
+	FReadScopeLock ReadLock(LoadedRecording->GetRecordingDataLock());
+	return GetAvailableTrackInfosAtTrackFrame_AssumesLocked(TrackTypeToFind, InFromTrack, OutTrackInfo);
+}
+
+void FChaosVDPlaybackController::GetAvailableTrackInfosAtTrackFrame_AssumesLocked(EChaosVDTrackType TrackTypeToFind, const TSharedRef<const FChaosVDTrackInfo>& InFromTrack, TArray<TSharedPtr<const FChaosVDTrackInfo>>& OutTrackInfo)
 {
 	OutTrackInfo.Reset();
 
@@ -556,46 +580,58 @@ void FChaosVDPlaybackController::GetAvailableTrackInfosAtTrackFrame(EChaosVDTrac
 		return;
 	}
 
-	if (TrackFrameInfo == nullptr)
-	{
-		return;
-	}
-
 	int32 CorrectedFrameNumber = INDEX_NONE;
-	switch (TrackFrameInfo->TrackType)
+	switch (InFromTrack->TrackType)
 	{
-		case EChaosVDTrackType::Game:
-			{
-				CorrectedFrameNumber = TrackFrameInfo->CurrentFrame;
-			}
+	case EChaosVDTrackType::Game:
+		{
+			CorrectedFrameNumber = InFromTrack->CurrentFrame;
+		}
+		break;
+	case EChaosVDTrackType::Solver:
+		{
+			CorrectedFrameNumber = LoadedRecording->GetLowestGameFrameAtSolverFrameNumber_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
 			break;
-		case EChaosVDTrackType::Solver:
-			{
-				CorrectedFrameNumber = LoadedRecording->GetLowestGameFrameAtSolverFrameNumber(TrackFrameInfo->TrackID, TrackFrameInfo->CurrentFrame);
-				break;
-			}
-		default:
-			ensure(false);
-			break;
+		}
+	default:
+		ensure(false);
+		break;
 	}
 
-	TArray<int32> AvailableSolversID;
-	LoadedRecording->GetAvailableSolverIDsAtGameFrameNumber(CorrectedFrameNumber, AvailableSolversID);
-	
-	TrackInfoByIDMap& TrackInfoMap = TrackInfoPerType.FindOrAdd(TrackTypeToFind);
-	for (const int32 SolverID : AvailableSolversID)
+	switch (TrackTypeToFind)
 	{
-		// The recording might have the solver data available added because it was added the trace analysis thread, 
-		// but the playback controller didn't process it in the game thread yet
-		if (const TSharedPtr<FChaosVDTrackInfo>* SolverTrackInfo = TrackInfoMap.Find(SolverID))
+	case EChaosVDTrackType::Game:
 		{
-			OutTrackInfo.Add(*SolverTrackInfo);
-		}	
+			OutTrackInfo.Add(GetTrackInfo(EChaosVDTrackType::Game, GameTrackID));
+			break;
+		}
+	case EChaosVDTrackType::Solver:
+		{
+			TArray<int32, TInlineAllocator<FChaosVDRecording::CommonTrackCount>> AvailableSolversID;
+			LoadedRecording->GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(CorrectedFrameNumber, AvailableSolversID);
+	
+			TrackInfoByIDMap& TrackInfoMap = TrackInfoPerType.FindOrAdd(TrackTypeToFind);
+			for (const int32 SolverID : AvailableSolversID)
+			{
+				// The recording might have the solver data available added because it was added the trace analysis thread, 
+				// but the playback controller didn't process it in the game thread yet
+				if (const TSharedPtr<FChaosVDTrackInfo>* SolverTrackInfo = TrackInfoMap.Find(SolverID))
+				{
+					OutTrackInfo.Add(*SolverTrackInfo);
+				}	
+			}
+			break;
+		}
+	default:
+		ensure(false);
+		break;
 	}
 }
 
 bool FChaosVDPlaybackController::Tick(float DeltaTime)
-{	
+{
+	TickPlayback(DeltaTime);
+
 	if (!GeometryDataUpdateGTQueue.IsEmpty())
 	{
 		FChaosVDGeometryDataUpdate GeometryDataUpdate;
@@ -613,7 +649,6 @@ bool FChaosVDPlaybackController::Tick(float DeltaTime)
 	{
 		return true;
 	}
-
 
 	const bool bIsRecordingLoaded = LoadedRecording.IsValid();
 
@@ -639,7 +674,7 @@ bool FChaosVDPlaybackController::Tick(float DeltaTime)
 		FChaosVDQueuedTrackInfoUpdate TrackInfoUpdate;
 		while (TrackInfoUpdateGTQueue.Dequeue(TrackInfoUpdate))
 		{
-			OnTrackFrameUpdated().Broadcast(ThisWeakPtr, &TrackInfoUpdate.TrackInfo, TrackInfoUpdate.InstigatorID);
+			OnTrackFrameUpdated().Broadcast(ThisWeakPtr, TrackInfoUpdate.TrackInfo, TrackInfoUpdate.InstigatorID);
 		}
 	}
 
@@ -648,11 +683,20 @@ bool FChaosVDPlaybackController::Tick(float DeltaTime)
 		// Load at least the first frame
 		if (!bPlayedFirstFrame)
 		{
-			if (LoadedRecording->GetAvailableSolversNumber_AssumesLocked() > 0)
+			if (IsPlayingLiveSession())
+			{
+				if (const TSharedPtr<const FChaosVDTrackInfo> GameTrackInfo = GetTrackInfo(EChaosVDTrackType::Game, GameTrackID))
+				{
+					HandleFramePlaybackControlInput(EChaosVDPlaybackButtonsID::Play, GameTrackInfo.ToSharedRef(), PlaybackSelfInstigatorID);
+					bPlayedFirstFrame = true;
+				}
+			}
+			else if (LoadedRecording->GetAvailableGameFramesNumber() > 0 && LoadedRecording->GetAvailableSolversNumber_AssumesLocked() > 0)
 			{
 				constexpr int32 GameFrameToLoad = 0;
-				constexpr int32 Step = 0;
-				GoToTrackFrame(IChaosVDPlaybackControllerInstigator::InvalidGuid, EChaosVDTrackType::Game, GameTrackID, GameFrameToLoad, Step);
+				// Game frames do not have stages
+				constexpr int32 SolverStageToLoad = 0;
+				GoToTrackFrameAndSync(PlaybackSelfInstigatorID, EChaosVDTrackType::Game, GameTrackID, GameFrameToLoad, SolverStageToLoad);
 				bPlayedFirstFrame = true;
 			}
 		}
@@ -660,7 +704,7 @@ bool FChaosVDPlaybackController::Tick(float DeltaTime)
 		// If we are live, make sure we don't lag too much behind
 		if (!bPauseRequested && IsPlayingLiveSession())
 		{
-			if (const FChaosVDTrackInfo* GameTrackInfo = GetTrackInfo(EChaosVDTrackType::Game, GameTrackID))
+			if (const TSharedPtr<const FChaosVDTrackInfo> GameTrackInfo = GetTrackInfo(EChaosVDTrackType::Game, GameTrackID))
 			{
 				const int32 CurrentFrameDeltaFromLast = FMath::Abs(GameTrackInfo->MaxFrames - GameTrackInfo->CurrentFrame);
 				if (CurrentFrameDeltaFromLast > MaxFramesLaggingBehindDuringLiveSession)
@@ -669,7 +713,7 @@ bool FChaosVDPlaybackController::Tick(float DeltaTime)
 					// and we don't want to go to close to the threshold.
 					const int32 GameFrameToLoad = LoadedRecording->GetAvailableGameFramesNumber() - MinFramesLaggingBehindDuringLiveSession;
 					constexpr int32 Step = 0;
-					GoToTrackFrame(IChaosVDPlaybackControllerInstigator::InvalidGuid, EChaosVDTrackType::Game, GameTrackID, GameFrameToLoad, Step);
+					GoToTrackFrameAndSync(PlaybackSelfInstigatorID, EChaosVDTrackType::Game, GameTrackID, GameFrameToLoad, Step);
 				}
 			}
 		}
@@ -694,37 +738,27 @@ void FChaosVDPlaybackController::HandleDisconnectedFromSession()
 	bHasPendingGTUpdateBroadcast = true;
 }
 
-void FChaosVDPlaybackController::RequestStop(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator)
+void FChaosVDPlaybackController::StopPlayback(const FGuid& InstigatorGUID)
 {
-	constexpr int32 FrameNumber = 0;
-	constexpr int32 StepNumber = 0;
-	GoToTrackFrame(InPlaybackInstigator.GetInstigatorID(), EChaosVDTrackType::Game, GameTrackID, FrameNumber, StepNumber);
-}
-
-bool FChaosVDPlaybackController::AcquireExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator)
-{
-	const FGuid& InstigatorID = InPlaybackInstigator.GetInstigatorID();
-	if (InstigatorID == CurrentPlaybackInstigator || CurrentPlaybackInstigator == IChaosVDPlaybackControllerInstigator::InvalidGuid)
+	if (TSharedPtr<const FChaosVDTrackInfo> GameFramesTrack = GetTrackInfo(EChaosVDTrackType::Game, GameTrackID))
 	{
-		CurrentPlaybackInstigator = InPlaybackInstigator.GetInstigatorID();
-		bHasPendingGTUpdateBroadcast = true;
-		return true;
+		constexpr int32 FrameNumber = 0;
+		constexpr int32 StepNumber = 0;
+	
+		GoToTrackFrameAndSync(InstigatorGUID, GameFramesTrack->TrackType, GameFramesTrack->TrackID, FrameNumber, StepNumber);
 	}
+	
+	CurrentPlayingTrack = nullptr;
 
-	return false;
-}
-
-bool FChaosVDPlaybackController::ReleaseExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator)
-{
-	const FGuid& InstigatorID = InPlaybackInstigator.GetInstigatorID();
-	if (InstigatorID == CurrentPlaybackInstigator || CurrentPlaybackInstigator == IChaosVDPlaybackControllerInstigator::InvalidGuid)
+	VisitAvailableTracks([this](const TSharedPtr<FChaosVDTrackInfo>& TrackInfo)
 	{
-		CurrentPlaybackInstigator = IChaosVDPlaybackControllerInstigator::InvalidGuid;
-		bHasPendingGTUpdateBroadcast = true;
-		return true;
-	}
+		if (TrackInfo)
+		{
+			TrackInfo->bIsPlaying = false;
+		}
 
-	return false;
+		return true;
+	});
 }
 
 float FChaosVDPlaybackController::GetFrameTimeOverride() const
@@ -745,10 +779,10 @@ void FChaosVDPlaybackController::SetFrameRateOverride(float NewFrameRateOverride
 	CurrentFrameRateOverride = (NewFrameRateOverride >= MinimumFrameRateOverride) ? NewFrameRateOverride : InvalidFrameRateOverride;
 }
 
-float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const
+float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const TSharedRef<const FChaosVDTrackInfo>& InTrackInfo) const
 {
 	const float TargetFrameTimeOverride = GetFrameTimeOverride();
-	const bool bHasValidFrameRateOverride = bUseFrameRateOverride && !FMath::IsNearlyEqual(TargetFrameTimeOverride, FChaosVDPlaybackController::InvalidFrameRateOverride);
+	const bool bHasValidFrameRateOverride = bUseFrameRateOverride && !FMath::IsNearlyEqual(TargetFrameTimeOverride, InvalidFrameRateOverride);
 	if (bHasValidFrameRateOverride)
 	{
 		return TargetFrameTimeOverride;
@@ -761,7 +795,7 @@ float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackTy
 		{
 			case EChaosVDTrackType::Solver:
 				{
-					if (const FChaosVDSolverFrameData* FrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(TrackID, TrackInfo.CurrentFrame))
+					if (const FChaosVDSolverFrameData* FrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(TrackID, InTrackInfo->CurrentFrame))
 					{
 						CurrentTargetFrameTime = FrameData->GetFrameTime();
 					}
@@ -769,7 +803,7 @@ float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackTy
 				}
 			case EChaosVDTrackType::Game:
 				{
-					if (const FChaosVDGameFrameData* FrameData = LoadedRecording->GetGameFrameData_AssumesLocked(TrackInfo.CurrentFrame))
+					if (const FChaosVDGameFrameData* FrameData = LoadedRecording->GetGameFrameData_AssumesLocked(InTrackInfo->CurrentFrame))
 					{
 						CurrentTargetFrameTime = FrameData->GetFrameTime();
 					}
@@ -806,6 +840,228 @@ void FChaosVDPlaybackController::UpdateTrackVisibility(EChaosVDTrackType Type, i
 	}
 }
 
+void FChaosVDPlaybackController::HandleFramePlaybackControlInput(EChaosVDPlaybackButtonsID ButtonID, const TSharedRef<const FChaosVDTrackInfo>& InTrackInfoRef, FGuid Instigator)
+{
+	switch (ButtonID)
+	{
+	case EChaosVDPlaybackButtonsID::Play:
+		{
+			if (!ensure(!CurrentPlayingTrack))
+			{
+				UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Attempted to play when thera was another track playing. This should not happen, this is probably a widget with controls not properly disabled."), ANSI_TO_TCHAR(__FUNCTION__));
+				CurrentPlayingTrack->bIsPlaying = false;
+			}
+
+			bPauseRequested = false;
+
+			// We receive a const ref from the UI as the track info referenced there is read only, but once we are in the controller again we can and want to modify it.
+			CurrentPlayingTrack = ConstCastSharedRef<FChaosVDTrackInfo>(InTrackInfoRef);
+			CurrentPlayingTrack->bIsPlaying = true;
+			break;
+		}
+	case EChaosVDPlaybackButtonsID::Pause:
+		{
+			if (ensure(CurrentPlayingTrack.IsValid()))
+			{
+				CurrentPlayingTrack->bIsPlaying = false;
+			}
+			else
+			{
+				UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Attempted to pause but there was not a track currently playing. This should not happen."), ANSI_TO_TCHAR(__FUNCTION__));
+			}
+
+			bPauseRequested = true;
+
+			CurrentPlayingTrack = nullptr;
+
+			break;
+		}
+	case EChaosVDPlaybackButtonsID::Stop:
+		{
+			StopPlayback(Instigator);
+			break;
+		}
+	case EChaosVDPlaybackButtonsID::Next:
+		{
+			const int32 LastSolverStage = InTrackInfoRef->CurrentStageNames.Num() - 1;
+			const int32 NextFrame = InTrackInfoRef->CurrentFrame +1;
+			GoToTrackFrameAndSync(Instigator, InTrackInfoRef->TrackType, InTrackInfoRef->TrackID, NextFrame, LastSolverStage);
+		}
+		break;
+	case EChaosVDPlaybackButtonsID::Prev:
+		{
+			const int32 LastSolverStage = InTrackInfoRef->CurrentStageNames.Num() - 1;
+			const int32 PrevFrame = InTrackInfoRef->CurrentFrame -1;
+			GoToTrackFrameAndSync(Instigator, InTrackInfoRef->TrackType, InTrackInfoRef->TrackID, PrevFrame, LastSolverStage);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void FChaosVDPlaybackController::HandleFrameStagePlaybackControlInput(EChaosVDPlaybackButtonsID ButtonID, const TSharedRef<const FChaosVDTrackInfo>& InTrackInfoRef, FGuid Instigator)
+{
+	switch (ButtonID)
+	{
+	case EChaosVDPlaybackButtonsID::Next:
+		{
+			int32 NextSolverStage = InTrackInfoRef->CurrentStage +1;
+			GoToTrackFrame(Instigator, EChaosVDTrackType::Solver, InTrackInfoRef->TrackID, InTrackInfoRef->CurrentFrame, NextSolverStage);
+			break;
+		}
+	case EChaosVDPlaybackButtonsID::Prev:
+		{
+			int32 PrevSolverStage = InTrackInfoRef->CurrentStage -1;
+			GoToTrackFrame(Instigator, EChaosVDTrackType::Solver, InTrackInfoRef->TrackID, InTrackInfoRef->CurrentFrame, PrevSolverStage);
+		}
+		break;
+	case EChaosVDPlaybackButtonsID::Play:
+	case EChaosVDPlaybackButtonsID::Pause:
+	case EChaosVDPlaybackButtonsID::Stop:
+	default:
+		{
+			ensure(false);
+			UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Unsupported Input type | [%s]"), ANSI_TO_TCHAR(__FUNCTION__), *(UEnum::GetDisplayValueAsText(ButtonID).ToString()));
+			break;
+		}
+	}
+}
+
+void FChaosVDPlaybackController::TickPlayback(float DeltaTime)
+{
+	if (!CurrentPlayingTrack)
+	{
+		return;
+	}
+
+	if (!CurrentPlayingTrack->bIsPlaying)
+	{
+		return;
+	}
+
+	if (!IsPlayingLiveSession() && CurrentPlayingTrack->CurrentFrame == CurrentPlayingTrack->MaxFrames - 1)
+	{
+		StopPlayback(PlaybackSelfInstigatorID);
+		return;
+	}
+
+	CurrentPlaybackTime += DeltaTime;
+
+	const float CurrentFrameTime = GetFrameTimeForTrack(CurrentPlayingTrack->TrackType, CurrentPlayingTrack->TrackID, CurrentPlayingTrack.ToSharedRef());
+
+	const bool bIsGameTrack = CurrentPlayingTrack->TrackType == EChaosVDTrackType::Game;
+
+	while (CurrentPlaybackTime > CurrentFrameTime)
+	{
+		CurrentPlaybackTime -= CurrentFrameTime;
+		const int32 NextFrame = CurrentPlayingTrack->CurrentFrame + 1;
+		const int32 NextStageNumber =  bIsGameTrack ? 0 : GetTrackLastStageAtFrame_AssumesLocked(CurrentPlayingTrack->TrackType, CurrentPlayingTrack->TrackID, NextFrame);
+		GoToTrackFrameAndSync(PlaybackSelfInstigatorID, CurrentPlayingTrack->TrackType, CurrentPlayingTrack->TrackID, NextFrame, NextStageNumber);
+	}
+}
+
+void FChaosVDPlaybackController::GetTracksByType(EChaosVDTrackType Type, TArray<TSharedPtr<FChaosVDTrackInfo>>& OutTracks)
+{
+	OutTracks.Reset();
+	if (TrackInfoByIDMap* TracksById = TrackInfoPerType.Find(Type))
+	{
+		TracksById->GenerateValueArray(OutTracks);
+	}
+}
+
+void FChaosVDPlaybackController::SyncTracks(const TSharedRef<const FChaosVDTrackInfo>& FromTrack, EChaosVDSyncTimelinesMode TrackSyncMode)
+{
+	if (!ensure(LoadedRecording.IsValid()))
+	{
+		return;
+	}
+
+	FReadScopeLock ReadLock(LoadedRecording->GetRecordingDataLock());
+	
+	SyncTracks_AssumesLocked(FromTrack, TrackSyncMode);
+}
+
+void FChaosVDPlaybackController::SyncTracks_AssumesLocked(const TSharedRef<const FChaosVDTrackInfo>& FromTrack, EChaosVDSyncTimelinesMode TrackSyncMode)
+{
+	if (!ensure(TrackSyncMode == EChaosVDSyncTimelinesMode::RecordedTimestamp))
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Attempted to Sync tracks using an unsuported mode. |[%s] is not supported yet."), ANSI_TO_TCHAR(__FUNCTION__), *(UEnum::GetDisplayValueAsText(TrackSyncMode).ToString()));
+		return;
+	}
+
+	if (!FromTrack->bTrackSyncEnabled)
+	{
+		return;
+	}
+
+	TArray<TSharedPtr<const FChaosVDTrackInfo>> AvailableSolverTracks;
+	GetAvailableTrackInfosAtTrackFrame_AssumesLocked(EChaosVDTrackType::Solver, FromTrack, AvailableSolverTracks);
+
+	switch (FromTrack->TrackType)
+	{
+	case EChaosVDTrackType::Game:
+		{
+			for (const TSharedPtr<const FChaosVDTrackInfo>& SolverTrack : AvailableSolverTracks)
+			{
+				if (!SolverTrack->bTrackSyncEnabled)
+				{
+					continue;
+				}
+
+				const int32 SolverFrameNumber = LoadedRecording->GetLowestSolverFrameNumberGameFrame_AssumesLocked(SolverTrack->TrackID, FromTrack->CurrentFrame);
+				const int32 StageNumber = GetTrackLastStageAtFrame_AssumesLocked(EChaosVDTrackType::Solver, SolverTrack->TrackID, SolverFrameNumber);
+
+				GoToTrackFrame_AssumesLocked(PlaybackSelfInstigatorID, EChaosVDTrackType::Solver, SolverTrack->TrackID, SolverFrameNumber, StageNumber);
+			}
+
+			break;
+		}	
+	case EChaosVDTrackType::Solver:
+		{
+			if (const TSharedPtr<const FChaosVDTrackInfo>& GameFramesTrackInfo = GetTrackInfo(EChaosVDTrackType::Game, GameTrackID))
+			{
+				const int32 TargetGameFrameNumber = ConvertCurrentFrameToOtherTrackFrame_AssumesLocked(FromTrack, GameFramesTrackInfo.ToSharedRef());
+				constexpr int32 StageNumber = 0;
+				GoToTrackFrame_AssumesLocked(PlaybackSelfInstigatorID, GameFramesTrackInfo->TrackType, GameFramesTrackInfo->TrackID, TargetGameFrameNumber, StageNumber);
+			}
+
+			for (const TSharedPtr<const FChaosVDTrackInfo>& SolverTrack : AvailableSolverTracks)
+			{
+				if (!SolverTrack->bTrackSyncEnabled)
+				{
+					continue;
+				}
+
+				if (FChaosVDTrackInfo::AreSameTrack(FromTrack, SolverTrack.ToSharedRef()))
+				{
+					continue;
+				}
+
+				const int32 SolverFrameNumber = ConvertCurrentFrameToOtherTrackFrame_AssumesLocked(FromTrack, SolverTrack.ToSharedRef());
+				const int32 StageNumber = GetTrackLastStageAtFrame_AssumesLocked(EChaosVDTrackType::Solver, SolverTrack->TrackID, SolverFrameNumber);
+
+				GoToTrackFrame_AssumesLocked(PlaybackSelfInstigatorID, EChaosVDTrackType::Solver, SolverTrack->TrackID, SolverFrameNumber, StageNumber);
+			}
+			break;
+		}
+	default:
+		ensure(false);
+		break;
+	}
+}
+
+void FChaosVDPlaybackController::ToggleTrackSyncEnabled(const TSharedRef<const FChaosVDTrackInfo>& InTrackInfoRef)
+{
+	TSharedRef<FChaosVDTrackInfo> MutableTrackInfoRef = ConstCastSharedRef<FChaosVDTrackInfo>(InTrackInfoRef);
+	MutableTrackInfoRef->bTrackSyncEnabled = !MutableTrackInfoRef->bTrackSyncEnabled;
+}
+
+bool FChaosVDPlaybackController::IsPlaying() const
+{
+	return CurrentPlayingTrack && CurrentPlayingTrack->bIsPlaying;
+}
+
 void FChaosVDPlaybackController::UpdateSolverTracksData()
 {
 	if (!LoadedRecording.IsValid())
@@ -828,12 +1084,12 @@ void FChaosVDPlaybackController::UpdateSolverTracksData()
 		{
 			SolverTrackInfo = MakeShared<FChaosVDTrackInfo>();
 			SolverTrackInfo->CurrentFrame = 0;
-			SolverTrackInfo->CurrentStep = 0;
+			SolverTrackInfo->CurrentStage = 0;
 		};
 		
 		SolverTrackInfo->TrackID = SolverIDPair.Key;
 		SolverTrackInfo->MaxFrames = GetTrackFramesNumber(EChaosVDTrackType::Solver, SolverIDPair.Key);
-		SolverTrackInfo->TrackName = LoadedRecording->GetSolverName(SolverIDPair.Key);
+		SolverTrackInfo->TrackName = LoadedRecording->GetSolverFName(SolverIDPair.Key);
 		SolverTrackInfo->TrackType = EChaosVDTrackType::Solver;
 	}
 }
@@ -849,8 +1105,9 @@ void FChaosVDPlaybackController::HandleCurrentRecordingUpdated()
 	if (!GameTrackInfo.IsValid())
 	{
 		GameTrackInfo = MakeShared<FChaosVDTrackInfo>();
+		GameTrackInfo->TrackID = GameTrackID;
 		GameTrackInfo->CurrentFrame = 0;
-		GameTrackInfo->CurrentStep = 0;
+		GameTrackInfo->CurrentStage = 0;
 	}
 
 	GameTrackInfo->MaxFrames = LoadedRecording.IsValid() ? LoadedRecording->GetAvailableGameFrames_AssumesLocked().Num() : INDEX_NONE;

@@ -9,6 +9,7 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SChaosVDGameFramesPlaybackControls;
 enum class EChaosVDPlaybackButtonsID : uint8;
 class FChaosVDEditorModeTools;
 enum class EChaosVDActorTrackingMode;
@@ -65,21 +66,18 @@ protected:
 
 	virtual void RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController )override;
 	virtual void HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController) override;
-	virtual void HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid) override;
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangesSelectionSet) override;
 
 	void OnPlaybackSceneUpdated();
 	void OnSolverVisibilityUpdated(int32 SolverID, bool bNewVisibility);
+	void BindToSceneUpdateEvents();
+	void UnbindFromSceneUpdateEvents();
 
-	void OnFrameSelectionUpdated(int32 NewFrameIndex) const;
+	void HandleExternalViewportInvalidateRequest();
 
-	void HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID);
+	TSharedPtr<FChaosVDTrackInfo> CurrentGameTrackInfo;
 
-	bool CanPlayback() const;
-
-	void HanldeExternalViewportInvalidateRequest();
-
-	TSharedPtr<SChaosVDTimelineWidget> GameFramesTimelineWidget;
+	TSharedPtr<SChaosVDGameFramesPlaybackControls> GameFramesPlaybackControls;
 
 	TSharedPtr<FChaosVDPlaybackViewportClient> PlaybackViewportClient;
 	
@@ -93,4 +91,6 @@ protected:
 	static inline FChaosVDViewportInvalidationRequestHandler ExternalViewportInvalidationRequestHandler = FChaosVDViewportInvalidationRequestHandler();
 	
 	FDelegateHandle ExternalInvalidateHandlerHandle;
+
+	bool bIsPlaying = false;
 };

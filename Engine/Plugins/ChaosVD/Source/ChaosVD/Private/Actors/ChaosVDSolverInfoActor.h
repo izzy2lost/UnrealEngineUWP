@@ -29,8 +29,8 @@ public:
 	void SetSolverID(int32 InSolverID) { SolverID = InSolverID; }
 	int32 GetSolverID() const { return SolverID; }
 
-	void SetSolverName(const FString& InSolverName);
-	const FString& GetSolverName() { return SolverName; }
+	void SetSolverName(const FName& InSolverName);
+	const FName& GetSolverName() { return SolverName; }
 
 	void SetIsServer(bool bInIsServer) { bIsServer = bInIsServer; }
 	bool GetIsServer() const { return bIsServer; }
@@ -89,7 +89,7 @@ protected:
 	FTransform SimulationTransform;
 
 	UPROPERTY(VisibleAnywhere, Category="Solver Data")
-	FString SolverName;
+	FName SolverName;
 
 	UPROPERTY()
 	TObjectPtr<UChaosVDSolverCollisionDataComponent> CollisionDataComponent;

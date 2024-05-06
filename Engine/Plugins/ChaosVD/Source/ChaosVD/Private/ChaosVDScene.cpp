@@ -152,7 +152,7 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 		constexpr float AmountOfWork = 1.0f;
 		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedParticlesData.Num();
 
-		const FText ProgressBarTitle = FText::Format(FTextFormat(LOCTEXT("ProcessingParticleData", "Processing Particle Data for {0} Solver with ID {1} ...")), FText::FromString(SolverSceneData->GetSolverName()), FText::AsNumber(SolverID));
+		const FText ProgressBarTitle = FText::Format(FTextFormat(LOCTEXT("ProcessingParticleData", "Processing Particle Data for {0} Solver with ID {1} ...")), FText::FromName(SolverSceneData->GetSolverName()), FText::AsNumber(SolverID));
 		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, ProgressBarTitle);
 		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
 	
@@ -264,10 +264,11 @@ void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
 		AChaosVDSolverInfoActor* SolverDataInfo = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
 		check(SolverDataInfo);
 
-		FString SolverName = LoadedRecording->GetSolverName_AssumedLocked(SolverID);
-		const bool bIsServer = SolverName.Contains(TEXT("Server"));
+		FName SolverName = LoadedRecording->GetSolverFName_AssumedLocked(SolverID);
+		FString NameAsString = SolverName.ToString();
+		const bool bIsServer = NameAsString.Contains(TEXT("Server"));
 
-		const FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
+		const FStringFormatOrderedArguments Args {NameAsString, FString::FromInt(SolverID)};
 		const FName FolderPath = *FString::Format(TEXT("Solver {0} | ID {1}"), Args);
 
 		SolverDataInfo->SetFolderPath(FolderPath);
@@ -283,7 +284,7 @@ void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
 	}
 }
 
-void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData)
+void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32, TInlineAllocator<16>>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData, TArray<int32, TInlineAllocator<16>>& OutRemovedSolversIds)
 {
 	// Currently the particle actors from all the solvers are in the same level, and we manage them by keeping track
 	// of to which solvers they belong using maps.
@@ -314,6 +315,8 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 				PhysicsVDWorld->DestroyActor(SolverInfoActor);
 			}
 
+			OutRemovedSolversIds.Add(RemoveIterator.Key());
+
 			RemoveIterator.RemoveCurrent();
 			AmountRemoved++;
 		}
@@ -331,15 +334,15 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 			QueryDataComponent->UpdateQueriesFromFrameData(InNewGameFrameData);
 		}
 	}
+}
 
-	for (int32 SolverID : AvailableSolversIds)
+void FChaosVDScene::HandleEnterNewSolverFrame(int32 FrameNumber, const FChaosVDSolverFrameData& InFrameData)
+{
+	if (AChaosVDSolverInfoActor* SolverDataInfoContainer = SolverDataContainerBySolverID.FindChecked(InFrameData.SolverID))
 	{
-		if (AChaosVDSolverInfoActor* SolverDataInfoContainer = SolverDataContainerBySolverID.FindChecked(SolverID))
+		if (UChaosVDSolverCharacterGroundConstraintDataComponent* DataContainer = SolverDataInfoContainer->GetCharacterGroundConstraintDataComponent())
 		{
-			if (UChaosVDSolverCharacterGroundConstraintDataComponent* DataContainer = SolverDataInfoContainer->GetCharacterGroundConstraintDataComponent())
-			{
-				DataContainer->UpdateConstraintData(InNewGameFrameData.RecordedCharacterGroundConstraints);
-			}
+			DataContainer->UpdateConstraintData(InFrameData.RecordedCharacterGroundConstraints);
 		}
 	}
 }

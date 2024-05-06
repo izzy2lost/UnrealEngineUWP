@@ -87,7 +87,7 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 
 			FWideStringView DebugNameView;
 			EventData.GetString("DebugName", DebugNameView);
-			NewFrameData.DebugName = DebugNameView;
+			NewFrameData.DebugFName = FName(DebugNameView);
 
 			// Currently not all solvers have an end frame event, so lets just set the end frame time of the previous frame, with the start of this new one.
 			{

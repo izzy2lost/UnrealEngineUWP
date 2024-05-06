@@ -51,6 +51,17 @@ typedef TArray<FChaosVDStepData, TInlineAllocator<16>> FChaosVDStepsContainer;
 
 struct CHAOSVDDATA_API FChaosVDSolverFrameData
 {
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FChaosVDSolverFrameData() = default;
+	FChaosVDSolverFrameData(const FChaosVDSolverFrameData& Other) = default;
+	FChaosVDSolverFrameData(FChaosVDSolverFrameData&& Other) noexcept = default;
+	FChaosVDSolverFrameData& operator=(const FChaosVDSolverFrameData& Other) = default;
+	FChaosVDSolverFrameData& operator=(FChaosVDSolverFrameData&& Other) noexcept = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+	FName DebugFName;
+	UE_DEPRECATED(5.5, "Please use the DebugFName instead")
 	FString DebugName;
 	int32 SolverID = INDEX_NONE;
 	uint64 FrameCycle = 0;
@@ -61,6 +72,7 @@ struct CHAOSVDDATA_API FChaosVDSolverFrameData
 	TSet<int32> ParticlesDestroyedIDs;
 	double StartTime = -1.0;
 	double EndTime = -1.0;
+	TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>> RecordedCharacterGroundConstraints;
 	
 	/** Calculates and returns the frame time for this recorded frame.
 	 * @return Calculated frame time. -1 if it was not recorded
@@ -99,7 +111,6 @@ struct FChaosVDGameFrameData
 	TMap<FName, FChaosVDTrackedLocation> RecordedNonSolverLocationsByID;
 	TMap<FName, FChaosVDTrackedTransform> RecordedNonSolverTransformsByID;
 	TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>> RecordedSceneQueries;
-	TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>> RecordedCharacterGroundConstraints;
 };
 
 /**
@@ -109,6 +120,10 @@ struct FChaosVDGameFrameData
 struct CHAOSVDDATA_API FChaosVDRecording
 {
 	FChaosVDRecording();
+
+	/* Constant used to define inline allocators -
+	* Unless there are some scenarios with a lot of RBAN solvers in the recording, we usually don't go over 3 tracks most of the time so 16 should be plenty by default */
+	static constexpr int32 CommonTrackCount = 16;
 
 	/** Returns the current available recorded solvers number */
 	int32 GetAvailableSolversNumber_AssumesLocked() const { return RecordedFramesDataPerSolver.Num(); }
@@ -134,13 +149,19 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * Returns the name of the specified solver id
 	 * @param SolverID ID of the solver 
 	 */
-	FString GetSolverName(int32 SolverID);
+	FName GetSolverFName(int32 SolverID);
+
+	UE_DEPRECATED(5.5, "Please use the GetSolverFName instead")
+	FString GetSolverName(int32 SolverID) { return TEXT(""); }
 
 	/**
 	 * Returns the name of the specified solver id. Must be called from within a ReadLock
 	 * @param SolverID ID of the solver
 	 */
-	FString GetSolverName_AssumedLocked(int32 SolverID);
+	FName GetSolverFName_AssumedLocked(int32 SolverID);
+
+	UE_DEPRECATED(5.5, "Please use the GetSolverFName_AssumedLocked instead")
+	FString GetSolverName_AssumedLocked(int32 SolverID) { return TEXT(""); }
 
 	/**
 	 * Return a ptr to the existing solver frame data from the specified ID and Frame number
@@ -177,6 +198,7 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * @return Found frame number. INDEX_NONE if no frame is found for the specified cycle
 	 */
 	int32 GetLowestSolverFrameNumberGameFrame(int32 SolverID, int32 GameFrame);
+	int32 GetLowestSolverFrameNumberGameFrame_AssumesLocked(int32 SolverID, int32 GameFrame);
 	
 	/**
 	 * Searches and returns the lowest game frame number at the specified solver frame
@@ -185,6 +207,7 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * @return Found Game frame number. INDEX_NONE if no frame is found for the specified cycle
 	 */
 	int32 GetLowestGameFrameAtSolverFrameNumber(int32 SolverID, int32 SolverFrame);
+	int32 GetLowestGameFrameAtSolverFrameNumber_AssumesLocked(int32 SolverID, int32 SolverFrame);
 
 	/**
 	 * Adds a Solver Frame Data entry for a specific Solver ID. Creates a solver entry if it does not exist 
@@ -231,10 +254,14 @@ struct CHAOSVDDATA_API FChaosVDRecording
      * @param FrameNumber Game Frame number to evaluate
      * @param OutSolversID Solver's ID array to be filled with any IDs found
      */
-	void GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber, TArray<int32>& OutSolversID);
-	void GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32>& OutSolversID);
-	void GetAvailableSolverIDsAtGameFrame(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID);
-	void GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID);
+	template<typename TAllocator>
+	void GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber,TArray<int32, TAllocator>& OutSolversID);
+	template<typename TAllocator>
+	void GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32, TAllocator>& OutSolversID);
+	template<typename TAllocator>
+	void GetAvailableSolverIDsAtGameFrame(const FChaosVDGameFrameData& GameFrameData, TArray<int32, TAllocator>& OutSolversID);
+	template<typename TAllocator>
+	void GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FChaosVDGameFrameData& GameFrameData, TArray<int32, TAllocator>& OutSolversID);
 
 	/** Collapses the most important frame data from a range of solver frames into a single solver frame data */
 	void CollapseSolverFramesRange_AssumesLocked(int32 SolverID, int32 StartFrame, int32 EndFrame, FChaosVDSolverFrameData& OutCollapsedFrameData);
@@ -324,3 +351,54 @@ protected:
 	friend class FChaosVDTraceProvider;
 	friend class FChaosVDTraceImplicitObjectProcessor;
 };
+
+template <typename TAllocator>
+void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber, TArray<int32, TAllocator>& OutSolversID)
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	return GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, OutSolversID);
+}
+
+template <typename TAllocator>
+void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32, TAllocator>& OutSolversID)
+{
+	if (!GameFrames.IsValidIndex(FrameNumber))
+	{
+		return;
+	}
+	
+	GetAvailableSolverIDsAtGameFrame_AssumesLocked(GameFrames[FrameNumber], OutSolversID);
+}
+
+template <typename TAllocator>
+void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame(const FChaosVDGameFrameData& GameFrameData, TArray<int32, TAllocator>& OutSolversID)
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	GetAvailableSolverIDsAtGameFrame_AssumesLocked(GameFrameData, OutSolversID);
+}
+
+template <typename TAllocator>
+void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FChaosVDGameFrameData& GameFrameData, TArray<int32, TAllocator>& OutSolversID)
+{
+	OutSolversID.Reserve(RecordedFramesDataPerSolver.Num());
+
+	for (const TPair<int32, TArray<FChaosVDSolverFrameData>>& SolverFramesWithIDPair : RecordedFramesDataPerSolver)
+	{
+		if (SolverFramesWithIDPair.Value.IsEmpty())
+		{
+			continue;
+		}
+
+		if (SolverFramesWithIDPair.Value.Num() == 1 && SolverFramesWithIDPair.Value[0].FrameCycle < GameFrameData.FirstCycle)
+		{
+			OutSolversID.Add(SolverFramesWithIDPair.Key);
+		}
+		else
+		{
+			if (GameFrameData.FirstCycle > SolverFramesWithIDPair.Value[0].FrameCycle && GameFrameData.FirstCycle < SolverFramesWithIDPair.Value.Last().FrameCycle)
+			{
+				OutSolversID.Add(SolverFramesWithIDPair.Key);
+			}
+		}	
+	}
+}

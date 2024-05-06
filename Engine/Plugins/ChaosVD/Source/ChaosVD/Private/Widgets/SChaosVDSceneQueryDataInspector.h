@@ -5,6 +5,8 @@
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "Widgets/SCompoundWidget.h"
 
+enum class EChaosVDPlaybackButtonsID : uint8;
+class SChaosVDTimelineWidget;
 struct FChaosVDSceneQuerySelectionHandle;
 class SChaosVDNameListPicker;
 class FEditorModeTools;
@@ -70,7 +72,7 @@ protected:
 	bool GetSelectParticleHitStateEnable() const;
 	bool GetSQVisitStepsEnabled() const;
 
-	TSharedPtr<FChaosVDQueryDataWrapper> GetCurrentDataBeingInspected();
+	TSharedPtr<FChaosVDQueryDataWrapper> GetCurrentDataBeingInspected() const;
 
 	TSharedPtr<SChaosVDTimelineWidget> QueryStepsTimelineWidget;
 	
@@ -91,6 +93,12 @@ protected:
 	bool bIsUpToDate = true;
 
 	bool bListenToSelectionEvents = true;
+
+	int32 GetCurrentMinSQVisitIndex() const;
+	int32 GetCurrentMaxSQVisitIndex() const;
+	int32 GetCurrentSQVisitIndex() const;
+
+	void HandleSQVisitTimelineInput(EChaosVDPlaybackButtonsID InputID);
 
 	friend struct FScopedSQInspectorSilencedSelectionEvents;
 };

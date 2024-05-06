@@ -37,10 +37,10 @@ AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& Objec
 
 }
 
-void AChaosVDSolverInfoActor::SetSolverName(const FString& InSolverName)
+void AChaosVDSolverInfoActor::SetSolverName(const FName& InSolverName)
 {
 	SolverName = InSolverName;
-	SetActorLabel(TEXT("Solver Data Container | ") + InSolverName);
+	SetActorLabel(TEXT("Solver Data Container | ") + InSolverName.ToString());
 }
 
 void AChaosVDSolverInfoActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
@@ -100,7 +100,7 @@ bool AChaosVDSolverInfoActor::SelectParticleByID(int32 ParticleIDToSelect)
 	AChaosVDParticleActor* ParticleToSelect = GetParticleActor(ParticleIDToSelect);
 	if (!ParticleToSelect)
 	{
-		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Particle ID [%d] not found in Solver [%s]"), ANSI_TO_TCHAR(__FUNCTION__), ParticleIDToSelect, *GetSolverName());
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Particle ID [%d] not found in Solver [%s]"), ANSI_TO_TCHAR(__FUNCTION__), ParticleIDToSelect, *GetSolverName().ToString());
 		return false;
 	}
 
@@ -273,7 +273,7 @@ FName AChaosVDSolverInfoActor::GetFolderPathForParticleType(EChaosVDParticleType
 	}
 	else
 	{
-		const FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
+		const FStringFormatOrderedArguments Args {SolverName.ToString(), FString::FromInt(SolverID)};
 		const FName ParticleFolderPath = *FPaths::Combine(FString::Format(TEXT("Solver {0} | ID {1}"), Args), UEnum::GetDisplayValueAsText(ParticleType).ToString());
 
 		FolderPathByParticlePath.Add(ParticleType, ParticleFolderPath);

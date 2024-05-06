@@ -24,7 +24,7 @@ bool FChaosVDCharacterGroundConstraintDataProcessor::ProcessRawData(const TArray
 
 	if (bSuccess)
 	{
-		if (const TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
+		if (FChaosVDSolverFrameData* CurrentFrameData = ProviderSharedPtr->GetCurrentSolverFrame(Constraint->SolverID))
 		{
 			CurrentFrameData->RecordedCharacterGroundConstraints.Add(Constraint);
 		}

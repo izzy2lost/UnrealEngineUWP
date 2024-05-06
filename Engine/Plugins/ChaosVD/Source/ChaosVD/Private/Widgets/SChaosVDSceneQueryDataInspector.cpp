@@ -226,10 +226,13 @@ TSharedRef<SWidget> SChaosVDSceneQueryDataInspector::GenerateVisitStepControls()
 				+SVerticalBox::Slot()
 				[
 					SAssignNew(QueryStepsTimelineWidget, SChaosVDTimelineWidget)
-					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
+					.ButtonVisibilityFlags(EChaosVDTimelineElementIDFlags::AllManualStepping)
 					.IsEnabled_Raw(this, &SChaosVDSceneQueryDataInspector::GetSQVisitStepsEnabled)
 					.OnFrameChanged_Raw(this, &SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated)
-					.MaxFrames(0)	
+					.OnButtonClicked(this, &SChaosVDSceneQueryDataInspector::HandleSQVisitTimelineInput)
+					.MinFrames_Raw(this, &SChaosVDSceneQueryDataInspector::GetCurrentMinSQVisitIndex)
+					.MaxFrames_Raw(this, &SChaosVDSceneQueryDataInspector::GetCurrentMaxSQVisitIndex)
+					.CurrentFrame_Raw(this, &SChaosVDSceneQueryDataInspector::GetCurrentSQVisitIndex)
 				]
 			];
 }
@@ -295,13 +298,6 @@ void SChaosVDSceneQueryDataInspector::SetQueryDataToInspect(const FChaosVDSceneQ
 			QueryDataToInspect->CurrentVisitIndex = InQueryDataSelectionHandle.GetSQVisitIndex();
 		}
 
-		if (QueryStepsTimelineWidget)
-		{
-			const int32 SQVisitsNum = QueryDataToInspect->SQVisitData.Num();
-			QueryStepsTimelineWidget->UpdateMinMaxValue(0, SQVisitsNum > 0 ? SQVisitsNum -1 : 0);
-			QueryStepsTimelineWidget->SetCurrentTimelineFrame(QueryDataToInspect->CurrentVisitIndex);
-		}
-
 		if (QueryDataToInspect->SubQueriesIDs.Num() > 0)
 		{
 			TArray<TSharedPtr<FName>> NewSubQueryNameList;
@@ -336,6 +332,13 @@ void SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated(int32 NewS
 		return;
 	}
 
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	if (!QueryDataBeingInspected)
+	{
+		ClearInspector();
+		return;
+	}
+
 	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
 	if (!ScenePtr)
 	{
@@ -350,21 +353,20 @@ void SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated(int32 NewS
 		return;
 	}
 
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin())
+	// If we reach this point no need to clear the inspector, we have valid data. This is can be caused by the timeline widget going over as we no longer restrict th button actions
+	if (!QueryDataBeingInspected->SQVisitData.IsValidIndex(NewStepIndex))
 	{
-		const FChaosVDSceneQuerySelectionHandle NewSelection(CurrentSceneQueryBeingInspectedHandle.GetQueryData(), NewStepIndex);
-		QueryDataBeingInspected->CurrentVisitIndex = NewStepIndex;
-		
-
-		FScopedSQInspectorSilencedSelectionEvents IgnoreSelectionEventsScope(*this);
-		SQDataComponent->SelectQuery(NewSelection);
-
-		SetQueryDataToInspect(NewSelection);
+		UE_LOG(LogChaosVDEditor, VeryVerbose, TEXT("[%s] Attempted to process and invalid SQ Visit index | Input Index [%d] | Available SQ Visit Data Num [%d]"), ANSI_TO_TCHAR(__FUNCTION__), NewStepIndex, QueryDataBeingInspected->SQVisitData.Num())
+		return;
 	}
-	else
-	{
-		SetQueryDataToInspect(FChaosVDSceneQuerySelectionHandle());
-	}
+
+	const FChaosVDSceneQuerySelectionHandle NewSelection(CurrentSceneQueryBeingInspectedHandle.GetQueryData(), NewStepIndex);
+	QueryDataBeingInspected->CurrentVisitIndex = NewStepIndex;
+
+	FScopedSQInspectorSilencedSelectionEvents IgnoreSelectionEventsScope(*this);
+	SQDataComponent->SelectQuery(NewSelection);
+
+	SetQueryDataToInspect(NewSelection);
 
 	if (const TSharedPtr<FEditorModeTools> EditorModeToolsPtr = EditorModeToolsWeakPtr.Pin())
 	{
@@ -534,11 +536,6 @@ void SChaosVDSceneQueryDataInspector::ClearInspector()
 		SceneQueryHitDataDetailsView->SetStructureData(nullptr);
 	}
 
-	if (QueryStepsTimelineWidget)
-	{
-		QueryStepsTimelineWidget->UpdateMinMaxValue(0,0);
-	}
-
 	if (SubQueryNamePickerWidget)
 	{
 		SubQueryNamePickerWidget->UpdateNameList({});
@@ -610,10 +607,57 @@ bool SChaosVDSceneQueryDataInspector::GetSQVisitStepsEnabled() const
 	return QueryDataBeingInspected && QueryDataBeingInspected->SQVisitData.Num() > 0;
 }
 
-TSharedPtr<FChaosVDQueryDataWrapper> SChaosVDSceneQueryDataInspector::GetCurrentDataBeingInspected()
+TSharedPtr<FChaosVDQueryDataWrapper> SChaosVDSceneQueryDataInspector::GetCurrentDataBeingInspected() const
 {
 	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
 	return QueryDataBeingInspected;
+}
+
+int32 SChaosVDSceneQueryDataInspector::GetCurrentMinSQVisitIndex() const
+{
+	return 0;
+}
+
+int32 SChaosVDSceneQueryDataInspector::GetCurrentMaxSQVisitIndex() const
+{
+	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = GetCurrentDataBeingInspected())
+	{
+		const int32 SQVisitsNum = QueryDataBeingInspected->SQVisitData.Num();
+		return SQVisitsNum > 0 ? SQVisitsNum -1 : 0;
+	}
+
+	return 0;
+}
+
+int32 SChaosVDSceneQueryDataInspector::GetCurrentSQVisitIndex() const
+{
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = GetCurrentDataBeingInspected();
+	return  QueryDataBeingInspected ? QueryDataBeingInspected->CurrentVisitIndex : 0;
+}
+
+void SChaosVDSceneQueryDataInspector::HandleSQVisitTimelineInput(EChaosVDPlaybackButtonsID InputID)
+{
+	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = GetCurrentDataBeingInspected())
+	{
+		switch (InputID)
+		{
+		case EChaosVDPlaybackButtonsID::Next:
+			{
+				HandleQueryStepSelectionUpdated(QueryDataBeingInspected->CurrentVisitIndex +1);
+				break;	
+			}
+		case EChaosVDPlaybackButtonsID::Prev:
+			{
+				HandleQueryStepSelectionUpdated(QueryDataBeingInspected->CurrentVisitIndex -1);
+				break;	
+			}
+		case EChaosVDPlaybackButtonsID::Play:
+		case EChaosVDPlaybackButtonsID::Pause:
+		case EChaosVDPlaybackButtonsID::Stop:
+		default:
+			break;
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
