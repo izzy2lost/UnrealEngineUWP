@@ -282,6 +282,12 @@ bool UE::AvaPlayableRemoteControl::GetEntitiesControlledByController(const URemo
 					if (const URemoteControlPropertyIdRegistry* IdentityRegistry = InRemoteControlPreset->GetPropertyIdRegistry())
 					{
 						OutEntityIds.Append(IdentityRegistry->GetEntityIdsForPropertyId(IdentityAction->PropertyId));
+
+						// Explicit support for Sub-PropertyId
+						for (const TPair<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainer : IdentityAction->PropertySelfContainer)
+						{
+							OutEntityIds.Append(IdentityRegistry->GetEntityIdsForPropertyId(PropertyContainer.Key.PropertyId));
+						}
 					}
 				}
 				else
