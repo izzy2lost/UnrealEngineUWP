@@ -75,6 +75,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
 	static bool DoAssetsExist(const TArray<FString>& AssetPaths);
 
+	/** Returns the object's containing package */
+	UFUNCTION(BlueprintPure, Category = "Editor Scripting | Asset", meta = (Keywords = "outer owner package container asset", BlueprintAutocast))
+	static UPackage* GetPackageForObject(UPARAM(Required) UObject* Object);
 public:
 	/**
 	 * Find Package Referencers for an asset. Only Soft and Hard dependencies would be looked for.

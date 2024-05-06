@@ -301,6 +301,11 @@ bool UEditorAssetLibrary::DoAssetsExist(const TArray<FString>& AssetPaths)
 	return EditorAssetSubsystem->DoAssetsExist(AssetPaths);
 }
 
+UPackage* UEditorAssetLibrary::GetPackageForObject(UObject* Object)
+{
+	return Object ? Object->GetPackage() : nullptr;
+}
+
 TArray<FString> UEditorAssetLibrary::FindPackageReferencersForAsset(const FString& AnyAssetPath, bool bLoadAssetsToConfirm)
 {
 	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
