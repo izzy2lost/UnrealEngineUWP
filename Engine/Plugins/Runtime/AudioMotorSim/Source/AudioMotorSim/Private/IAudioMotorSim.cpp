@@ -15,9 +15,22 @@ UAudioMotorSimComponent::UAudioMotorSimComponent(const FObjectInitializer& Objec
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UAudioMotorSimComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	static const FName UpdateFunctionName(TEXT("BP_Update"));
+	if (!GetClass()->IsFunctionImplementedInScript(UpdateFunctionName))
+	{
+		bUpdateImplemented = false;
+	}
+}
+
 void UAudioMotorSimComponent::Update(FAudioMotorSimInputContext& Input, FAudioMotorSimRuntimeContext& RuntimeInfo)
 {
-	if (bEnabled)
+	QUICK_SCOPE_CYCLE_COUNTER(UAudioMotorSimComponent_Update);
+
+	if (bEnabled && bUpdateImplemented)
 	{
 		BP_Update(Input, RuntimeInfo);
 	}

@@ -37,6 +37,8 @@ class AUDIOMOTORSIM_API UAudioMotorSimComponent : public UActorComponent, public
 public:
 	UAudioMotorSimComponent(const FObjectInitializer& ObjectInitializer);
 	
+	virtual void BeginPlay() override;
+
 	virtual void Update(FAudioMotorSimInputContext& Input, FAudioMotorSimRuntimeContext& RuntimeInfo) override;
 
 	virtual void Reset() override;
@@ -74,4 +76,7 @@ public:
 	// will only update if enabled
     UPROPERTY(BlueprintReadOnly, Category="AudioMotorSim")
     bool bEnabled = true;
+
+private:
+	bool bUpdateImplemented = true;
 };
