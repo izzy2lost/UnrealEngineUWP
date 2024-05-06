@@ -93,6 +93,7 @@ private:
 	bool bStarted = false;
 
 private:
+	mutable FCriticalSection AssetSearchManagerCS;
 	FFileInfoDatabase FileInfoDatabase;
 	FCriticalSection FileInfoDatabaseCS;
 	FAssetSearchDatabase SearchDatabase;

@@ -837,31 +837,31 @@ public:
 	/** Multi-cast delegate serialization */
 	friend FArchive& operator<<( FArchive& Ar, TMulticastScriptDelegate& D )
 	{
-		// Special case to avoid taking a lock on empty script delegate.
-		// This is required for avoiding asserts on EmptyDelegate serialization.
-		if (Ar.IsSaving() && D.InvocationList.Num() == 0)
+		// Warning: This order of if/else is necessary because there are archivers (eg FArchiveGatherExternalActorRefs)
+		// that do not report as either IsLoading or IsSaving but should be treated as IsSaving in this case
+		if (Ar.IsLoading())
 		{
-			FReadAccessScope ReadScope = D.GetReadAccessScope();
-
+			FWriteAccessScope WriteScope = D.GetWriteAccessScope();
 			Ar << D.InvocationList;
+			// After loading the delegate, clean up the list to make sure there are no bad object references
+			D.CompactInvocationList();
 		}
 		else
 		{
-			FWriteAccessScope WriteScope = D.GetWriteAccessScope();
+			FReadAccessScope ReadScope = D.GetReadAccessScope();
+			// When saving the delegate, clean up the list to make sure there are no bad object references
+			// Don't do this in place because we don't want to require a write lock
+			typedef TArray<UnicastDelegateType, TInlineAllocator<4>> FInlineInvocationList;
+			FInlineInvocationList CompactedList;
 
-			if( Ar.IsSaving() )
+			for (const UnicastDelegateType& Delegate : D.InvocationList)
 			{
-				// When saving the delegate, clean up the list to make sure there are no bad object references
-				D.CompactInvocationList();
+				if (!Delegate.IsCompactable())
+				{
+					CompactedList.Add(Delegate);
+				}
 			}
-
-			Ar << D.InvocationList;
-
-			if( Ar.IsLoading() )
-			{
-				// After loading the delegate, clean up the list to make sure there are no bad object references
-				D.CompactInvocationList();
-			}
+			Ar << CompactedList;
 		}
 
 		return Ar;
