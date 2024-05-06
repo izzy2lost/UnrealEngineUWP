@@ -25,7 +25,7 @@ public class PoolUpdateServiceTest : TestSetup
 	public PoolUpdateServiceTest()
 	{
 		UpdateConfig(x => x.Pools.Clear());
-		_pus = new(AgentCollection, PoolCollection, Clock, GlobalConfig, Tracer, new NullLogger<PoolUpdateService>());
+		_pus = new PoolUpdateService(AgentService, PoolCollection, Clock, GlobalConfig, Tracer, new NullLogger<PoolUpdateService>());
 	}
 
 	[TestInitialize]

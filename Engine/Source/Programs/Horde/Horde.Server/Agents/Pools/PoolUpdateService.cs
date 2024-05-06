@@ -22,7 +22,7 @@ namespace Horde.Server.Agents.Pools
 	/// </summary>
 	public sealed class PoolUpdateService : IHostedService, IAsyncDisposable
 	{
-		readonly IAgentCollection _agents;
+		readonly AgentService _agentService;
 		readonly IPoolCollection _pools;
 		readonly IClock _clock;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
@@ -35,9 +35,9 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PoolUpdateService(IAgentCollection agents, IPoolCollection pools, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<PoolUpdateService> logger)
+		public PoolUpdateService(AgentService agentService, IPoolCollection pools, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<PoolUpdateService> logger)
 		{
-			_agents = agents;
+			_agentService = agentService;
 			_pools = pools;
 			_clock = clock;
 			_globalConfig = globalConfig;
@@ -82,8 +82,7 @@ namespace Horde.Server.Agents.Pools
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(ShutdownDisabledAgentsAsync)}");
 
 			IReadOnlyList<IPoolConfig> pools = await _pools.GetConfigsAsync(cancellationToken);
-			IEnumerable<IAgent> disabledAgents = await _agents.FindAsync(enabled: false, cancellationToken: cancellationToken);
-			disabledAgents = disabledAgents.Where(x => IsAgentAutoScaled(x, pools));
+			IEnumerable<IAgent> disabledAgents = (await _agentService.GetCachedAgentsAsync(cancellationToken)).Where(x => !x.Enabled && IsAgentAutoScaled(x, pools));
 
 			int c = 0;
 			foreach (IAgent agent in disabledAgents)
@@ -132,7 +131,8 @@ namespace Horde.Server.Agents.Pools
 		internal async ValueTask AutoConformAgentsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(AutoConformAgentsAsync)}");
-			List<IAgent> agents = (await _agents.FindAsync(status: AgentStatus.Ok, enabled: true, cancellationToken: cancellationToken)).Where(x => !x.RequestShutdown).ToList();
+			List<IAgent> agents = (await _agentService.GetCachedAgentsAsync(cancellationToken))
+				.Where(x => x is { Status: AgentStatus.Ok, Enabled: true, RequestShutdown: false }).ToList();
 
 			long MegabytesToBytes(long v) => v * 1024 * 1024;
 			foreach (IAgent agent in agents)
