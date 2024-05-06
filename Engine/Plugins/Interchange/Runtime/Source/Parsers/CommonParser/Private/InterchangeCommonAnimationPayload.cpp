@@ -46,7 +46,7 @@ namespace UE::Interchange
 	void FAnimationPayloadData::CalculateDataFor(const EInterchangeAnimationPayLoadType& ToType, const FTransform& DefaultTransform)
 	{
 #if WITH_ENGINE
-		if (Type == EInterchangeAnimationPayLoadType::CURVE
+		if (PayloadKey.Type == EInterchangeAnimationPayLoadType::CURVE
 			&& ToType == EInterchangeAnimationPayLoadType::STEPCURVE)
 		{
 
@@ -68,7 +68,7 @@ namespace UE::Interchange
 			}
 			AdditionalSupportedType = ToType;
 		}
-		else if (Type == EInterchangeAnimationPayLoadType::CURVE
+		else if (PayloadKey.Type == EInterchangeAnimationPayLoadType::CURVE
 				 && ToType == EInterchangeAnimationPayLoadType::BAKED)
 		{
 			if (Curves.Num() != 9)

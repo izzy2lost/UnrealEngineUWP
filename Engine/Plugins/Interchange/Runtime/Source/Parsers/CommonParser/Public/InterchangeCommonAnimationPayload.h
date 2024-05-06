@@ -47,9 +47,8 @@ namespace UE::Interchange
 		double RangeEndTime = 1.0 / BakeFrequency;
 		TArray<FTransform> Transforms;
 
-		//TYPE
+		//PayloadKey related:
 		FInterchangeAnimationPayLoadKey PayloadKey;
-		EInterchangeAnimationPayLoadType Type = EInterchangeAnimationPayLoadType::NONE; //Original
 		EInterchangeAnimationPayLoadType AdditionalSupportedType = EInterchangeAnimationPayLoadType::NONE;
 
 		//

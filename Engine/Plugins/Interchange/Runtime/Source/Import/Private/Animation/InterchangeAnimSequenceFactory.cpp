@@ -498,7 +498,7 @@ namespace UE::Interchange::Private
 					break;
 				}
 
-				if (AnimationTransformPayload.Type == EInterchangeAnimationPayLoadType::BAKED)
+				if (AnimationTransformPayload.PayloadKey.Type == EInterchangeAnimationPayLoadType::BAKED)
 				{
 					//Everything should match Key count, sample rate and range
 					if (!(ensure(FMath::IsNearlyEqual(AnimationTransformPayload.BakeFrequency, SampleRate, UE_DOUBLE_KINDA_SMALL_NUMBER)) &&
@@ -1122,7 +1122,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Imp
 
 			UE::Interchange::FAnimationPayloadData& AnimationTransformPayload = AnimationPayload;
 
-			if (AnimationTransformPayload.Type != EInterchangeAnimationPayLoadType::BAKED)
+			if (AnimationTransformPayload.PayloadKey.Type != EInterchangeAnimationPayLoadType::BAKED)
 			{
 				//Where Curve is null the LocalTransform should be used for the Baked Transform generation.
 				FTransform LocalTransform;
