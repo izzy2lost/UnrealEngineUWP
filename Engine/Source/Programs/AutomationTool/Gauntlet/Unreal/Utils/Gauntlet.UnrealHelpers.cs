@@ -351,7 +351,7 @@ namespace Gauntlet
 			{
 				ProjectNameRegEx += string.Format("|{0}", ModuleAndRole.Key);
 			}
-			string RegExMatch = string.Format(@"^(?:.+[_-])?(({0}(Game|Client|Server|CookedEditor)){1})(?:-(.+?)-(Debug|Test|Shipping))?(?:[_-](.+))?$", ShortName, ProjectNameRegEx);
+			string RegExMatch = string.Format(@"^(?:.+[_-])?(({0}(Game|Client|Server|CookedEditor)){1})(?:-(.+?)-(Debug|DebugGame|Test|Shipping))?(?:[_-](.+))?$", ShortName, ProjectNameRegEx);
 
 			// Format should be something like
 			// FortniteClient
