@@ -1166,7 +1166,7 @@ FIoStatus FIoStoreTocResource::Read(const TCHAR* TocFilePath, EIoStoreTocReadOpt
 
 	TUniquePtr<uint8[]> TocBuffer = MakeUnique<uint8[]>(TocSize);
 
-	if (!TocFileHandle->Read(TocBuffer.Get(), TocSize))
+	if (TocSize != 0 && !TocFileHandle->Read(TocBuffer.Get(), TocSize))
 	{
 		return FIoStatusBuilder(EIoErrorCode::CorruptToc) << TEXT("Failed to read IoStore TOC file '") << TocFilePath << TEXT("'");
 	}

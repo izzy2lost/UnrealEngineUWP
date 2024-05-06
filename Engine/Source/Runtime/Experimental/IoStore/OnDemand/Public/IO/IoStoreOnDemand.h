@@ -24,7 +24,6 @@ class FArchive;
 class FCbFieldView;
 class FCbWriter;
 struct FKeyChain;
-class IIoStoreWriter;
 struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
