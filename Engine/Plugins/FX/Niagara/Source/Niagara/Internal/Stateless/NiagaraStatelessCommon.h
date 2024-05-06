@@ -4,12 +4,25 @@
 
 #include "NiagaraCommon.h"
 
+enum class ENiagaraStatelessFeatureMask : uint8
+{
+	None			= 0,
+
+	ExecuteGPU		= 1 << 0,					// We can execute on the GPU (Might be broken down into GPUCompute | GPUGraphics | GPUAsyncCompute in future but this will remain the master mask)
+	ExecuteCPU		= 1 << 1,					// We can execute on the CPU
+	ExecuteAll		= ExecuteGPU | ExecuteCPU,	// We can execute on both the CPU & GPU
+
+	All				= ExecuteAll,				// We support all features
+};
+ENUM_CLASS_FLAGS(ENiagaraStatelessFeatureMask);
+
 template<typename TType>
 struct FNiagaraStatelessRange
 {
 	using ValueType = TType;
 
 	FNiagaraStatelessRange() = default;
+	FNiagaraStatelessRange(const FNiagaraStatelessRange& Other) = default;
 	explicit FNiagaraStatelessRange(const ValueType& InMinMax) : Min(InMinMax), Max(InMinMax) {}
 	explicit FNiagaraStatelessRange(const ValueType& InMin, const ValueType& InMax) : Min(InMin), Max(InMax) {}
 
@@ -27,11 +40,22 @@ using FNiagaraStatelessRangeVector3	= FNiagaraStatelessRange<FVector3f>;
 using FNiagaraStatelessRangeVector4	= FNiagaraStatelessRange<FVector4f>;
 using FNiagaraStatelessRangeColor	= FNiagaraStatelessRange<FLinearColor>;
 
+enum class ENiagaraStatelessBuiltDistributionFlag
+{
+	Random  = 0x00000001,	// StatelessDistributionFlag_Random
+	Uniform = 0x00000002,	// StatelessDistributionFlag_Uniform
+	Binding = 0x00000004,	// StatelessDistributionFlag_Binding
+};
+ENUM_CLASS_FLAGS(ENiagaraStatelessBuiltDistributionFlag);
+
 struct FNiagaraStatelessGlobals
 {
 	FNiagaraVariableBase	CameraOffsetVariable;
 	FNiagaraVariableBase	ColorVariable;
 	FNiagaraVariableBase	DynamicMaterialParameters0Variable;
+	FNiagaraVariableBase	DynamicMaterialParameters1Variable;
+	FNiagaraVariableBase	DynamicMaterialParameters2Variable;
+	FNiagaraVariableBase	DynamicMaterialParameters3Variable;
 	FNiagaraVariableBase	MeshIndexVariable;
 	FNiagaraVariableBase	MeshOrientationVariable;
 	FNiagaraVariableBase	PositionVariable;
@@ -58,8 +82,10 @@ struct FNiagaraStatelessGlobals
 	FNiagaraVariableBase	PreviousSpriteRotationVariable;
 	FNiagaraVariableBase	PreviousVelocityVariable;
 
+	ENiagaraStatelessFeatureMask	FeatureMask = ENiagaraStatelessFeatureMask::All;
+
 	inline static FLinearColor	GetDefaultColorValue() { return FLinearColor::White; }
-	inline static FVector4f		GetDefaultDynamicMaterialParameters0Value() { return FVector4f::Zero(); }
+	inline static FVector4f		GetDefaultDynamicMaterialParametersValue() { return FVector4f::Zero(); }
 	inline static float			GetDefaultLifetimeValue() { return 1.0f; }
 	inline static float			GetDefaultMassValue() { return 1.0f; }
 	inline static FQuat4f		GetDefaultMeshOrientationValue() { return FQuat4f::Identity; }
@@ -74,4 +100,5 @@ struct FNiagaraStatelessGlobals
 namespace NiagaraStatelessCommon
 {
 	extern void Initialize();
+	extern void UpdateSettings();
 }

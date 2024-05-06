@@ -1,0 +1,352 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Stateless/NiagaraStatelessParticleSimContext.h"
+
+#include "Stateless/NiagaraStatelessEmitterData.h"
+#include "Stateless/NiagaraStatelessEmitterInstance.h"
+#include "Stateless/NiagaraStatelessParticleSimExecData.h"
+
+namespace NiagaraStateless
+{
+	constexpr uint32 ParticleComponentOffsets[int32(EParticleComponent::Num)] =
+	{
+		0,	// uint32		- Alive
+		1,	// float		- Lifetime
+		2,	// float		- Age
+		3,	// float		- NormalizedAge
+		4,	// float		- PreviousAge
+		5,	// float		- PreviousNormalizedAge
+		6,	// FUintVector4	- RandomSeed
+	};
+	constexpr uint32 ParticleComponentTotalSize = 10;
+
+	FUintVector4 Rand4DPCG32(FUintVector4 v)
+	{
+		// Linear congruential step.
+		v.X = v.X * 1664525u + 1013904223u;
+		v.Y = v.Y * 1664525u + 1013904223u;
+		v.Z = v.Z * 1664525u + 1013904223u;
+		v.W = v.W * 1664525u + 1013904223u;
+
+		// shuffle
+		v.X += v.Y * v.W;
+		v.Y += v.Z * v.X;
+		v.Z += v.X * v.Y;
+		v.W += v.Y * v.Z;
+
+		// xoring high bits into low makes all 32 bits pretty good
+		v.X ^= (v.X >> 16u);
+		v.Y ^= (v.Y >> 16u);
+		v.Z ^= (v.Z >> 16u);
+		v.W ^= (v.W >> 16u);
+
+		// final shuffle
+		v.X += v.Y * v.W;
+		v.Y += v.Z * v.X;
+		v.Z += v.X * v.Y;
+		v.W += v.Y * v.Z;
+
+		return v;
+	}
+
+	FParticleSimulationContext::FParticleSimulationContext(const FNiagaraStatelessEmitterData* InEmitterData, TConstArrayView<uint8> InDynamicBufferData)
+		: EmitterData(InEmitterData)
+		, BuiltData(EmitterData->BuiltData)
+		, StaticFloatData(EmitterData->StaticFloatData)
+		, DynamicBufferData(InDynamicBufferData)
+	{
+		check(EmitterData->ParticleSimExecData);
+	}
+
+	void FParticleSimulationContext::Simulate(int32 EmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
+	{
+		NumInstances = 0;
+
+		FSpawnInfoShaderParameters SpawnParameters;
+		const uint32 ActiveParticles = EmitterData->CalculateActiveParticles(EmitterRandomSeed, SpawnInfos, EmitterAge, &SpawnParameters);
+		if (ActiveParticles > 0)
+		{
+			// Setup data buffer pointers
+			DestinationData->Allocate(ActiveParticles);
+			BufferStride	= DestinationData->GetFloatStride();
+			BufferFloatData	= DestinationData->GetComponentPtrFloat(0);
+			BufferInt32Data	= DestinationData->GetComponentPtrInt32(0);
+
+			// Run Simulation
+			SimulateInternal(EmitterRandomSeed, EmitterAge, InDeltaTime, SpawnParameters, ActiveParticles);
+		}
+
+		// Set instance count
+		DestinationData->SetNumInstances(NumInstances);
+	}
+
+	void FParticleSimulationContext::SimulateGPU(FRHICommandList& RHICmdList, int32 EmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
+	{
+		NumInstances = 0;
+
+		FSpawnInfoShaderParameters SpawnParameters;
+		const uint32 ActiveParticles = EmitterData->CalculateActiveParticles(EmitterRandomSeed, SpawnInfos, EmitterAge, &SpawnParameters);
+		if (ActiveParticles > 0)
+		{
+			check(DestinationData->GetNumInstancesAllocated() <= ActiveParticles);
+
+			FRWBuffer& FloatBuffer = DestinationData->GetGPUBufferFloat();
+			FRWBuffer& Int32Buffer = DestinationData->GetGPUBufferInt();
+
+			// Setup data buffer pointers
+			BufferStride	= DestinationData->GetFloatStride();
+			BufferFloatData	= FloatBuffer.NumBytes > 0 ? reinterpret_cast<uint8*>(RHICmdList.LockBuffer(FloatBuffer.Buffer, 0, FloatBuffer.NumBytes, RLM_WriteOnly)) : nullptr;
+			BufferInt32Data	= Int32Buffer.NumBytes > 0 ? reinterpret_cast<uint8*>(RHICmdList.LockBuffer(Int32Buffer.Buffer, 0, Int32Buffer.NumBytes, RLM_WriteOnly)) : nullptr;
+
+			// Run Simulation
+			SimulateInternal(EmitterRandomSeed, EmitterAge, InDeltaTime, SpawnParameters, ActiveParticles);
+
+			// Unlock buffers
+			if (BufferFloatData)
+			{
+				RHICmdList.UnlockBuffer(FloatBuffer.Buffer);
+			}
+			if (BufferInt32Data)
+			{
+				RHICmdList.UnlockBuffer(Int32Buffer.Buffer);
+			}
+		}
+
+		// Set instance count
+		DestinationData->SetNumInstances(NumInstances);
+	}
+
+	void FParticleSimulationContext::SimulateInternal(int32 EmitterRandomSeed, float EmitterAge, float InDeltaTime, FSpawnInfoShaderParameters& SpawnParameters, uint32 ActiveParticles)
+	{
+		// Setup simulation	
+		NumInstances = 0;
+		DeltaTime = InDeltaTime;
+		InvDeltaTime = DeltaTime > 0.0f ? 1.0f / DeltaTime : 0.0f;
+
+		// Setup Required Components
+		{
+			static TArray<uint8>		RequiredStorage;
+			static uint32				RequiredStorageStride;
+			if (RequiredStorageStride < int32(BufferStride))
+			{
+				RequiredStorageStride = BufferStride;
+				RequiredStorage.SetNumUninitialized(ParticleComponentTotalSize * BufferStride);
+			}
+
+			for (int32 i = 0; i < int32(EParticleComponent::Num); ++i)
+			{
+				RequiredComponents[i] = RequiredStorage.GetData() + (ParticleComponentOffsets[i] * BufferStride);
+			}
+		}
+
+		// Setup optional components
+		const FParticleSimulationExecData* ExecData = EmitterData->ParticleSimExecData;
+		VariableComponents.AddDefaulted(ExecData->VariableComponentOffsets.Num());
+		for (int32 i = 0; i < ExecData->VariableComponentOffsets.Num(); ++i)
+		{
+			const uint32 VariableOffset = ExecData->VariableComponentOffsets[i].GetOffset();
+			if (ExecData->VariableComponentOffsets[i].IsFloat())
+			{
+				VariableComponents[i] = BufferFloatData + (VariableOffset * BufferStride);
+			}
+			else //if (ExecData->VariableComponentOffsets.IsInt32())
+			{
+				VariableComponents[i] = BufferInt32Data + (VariableOffset * BufferStride);
+			}
+		}
+
+		// Setup particles
+		for (uint32 iParticle = 0; iParticle < ActiveParticles; ++iParticle)
+		{
+			uint32 Particle_UniqueIndex = 0;
+			float Particle_Age = -1.0f;
+			{
+				uint32 SpawnInfoIndex = iParticle;
+				for (int32 GpuSpawnIndex = 0; GpuSpawnIndex < NiagaraStateless::MaxGpuSpawnInfos; ++GpuSpawnIndex)
+				{
+					const uint32 SpawnInfoNumActive = GET_SCALAR_ARRAY_ELEMENT(SpawnParameters.SpawnInfo_NumActive, GpuSpawnIndex);
+					const uint32 SpawnInfoParticleOffset = GET_SCALAR_ARRAY_ELEMENT(SpawnParameters.SpawnInfo_ParticleOffset, GpuSpawnIndex);
+					const uint32 SpawnInfoUniqueOffset = GET_SCALAR_ARRAY_ELEMENT(SpawnParameters.SpawnInfo_UniqueOffset, GpuSpawnIndex);
+					const float  SpawnInfoTime = GET_SCALAR_ARRAY_ELEMENT(SpawnParameters.SpawnInfo_Time, GpuSpawnIndex);
+					const float  SpawnInfoRate = GET_SCALAR_ARRAY_ELEMENT(SpawnParameters.SpawnInfo_Rate, GpuSpawnIndex);
+					if (SpawnInfoIndex < SpawnInfoNumActive)
+					{
+						const uint32 SpawnParticleIndex = SpawnInfoIndex + SpawnInfoParticleOffset;
+						Particle_UniqueIndex = SpawnInfoIndex + SpawnInfoUniqueOffset + SpawnInfoParticleOffset;
+						Particle_Age = EmitterAge - (SpawnInfoTime + float(SpawnParticleIndex) * SpawnInfoRate);
+						break;
+					}
+
+					SpawnInfoIndex -= SpawnInfoNumActive;
+				}
+				if (Particle_Age < 0.0f)
+				{
+					continue;
+				}
+			}
+
+			FUintVector4 RandomSeed;
+			RandomSeed.X = 7123u;
+			RandomSeed.Y = EmitterRandomSeed;
+			RandomSeed.Z = Particle_UniqueIndex * 3581u;
+			RandomSeed.W = 0;
+
+			// Write random seed here so we can use our random functions
+			GetParticleRandomSeed()[NumInstances] = RandomSeed;
+
+			float Particle_Lifetime = RandomScaleBiasFloat(NumInstances, EmitterData->LifetimeRange);
+			if (Particle_Lifetime <= 0.0f || Particle_Age >= Particle_Lifetime)
+			{
+				return;
+			}
+
+			const float PreviousAge = FMath::Max(Particle_Age - DeltaTime, 0.0f);
+
+			// Initialize particle information
+			GetParticleAlive()[NumInstances] = 1;
+			GetParticleLifetime()[NumInstances] = Particle_Lifetime;
+			GetParticleAge()[NumInstances] = Particle_Age;
+			GetParticleNormalizedAge()[NumInstances] = Particle_Age / Particle_Lifetime;
+			GetParticlePreviousAge()[NumInstances] = PreviousAge;
+			GetParticlePreviousNormalizedAge()[NumInstances] = PreviousAge / Particle_Lifetime;
+
+			++NumInstances;
+		}
+
+		if (NumInstances == 0)
+		{
+			return;
+		}
+
+		// Execute the simulation
+		for (const auto& Callback : ExecData->SimulateFunctions)
+		{
+			BuiltDataOffset = Callback.BuiltDataOffset;
+			Callback.Function(*this);
+		}
+	}
+
+	uint32 FParticleSimulationContext::RandomUInt(uint32 iInstance) const
+	{
+		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
+		++RandomSeed.X;
+		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return RandomValue.X;
+	}
+
+	FUintVector2 FParticleSimulationContext::RandomUInt2(uint32 iInstance) const
+	{
+		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
+		++RandomSeed.X;
+		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return FUintVector2(RandomValue.X, RandomValue.Y);
+	}
+
+	FUintVector3 FParticleSimulationContext::RandomUInt3(uint32 iInstance) const
+	{
+		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
+		++RandomSeed.X;
+		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return FUintVector3(RandomValue.X, RandomValue.Y, RandomValue.Z);
+	}
+
+	FUintVector4 FParticleSimulationContext::RandomUInt4(uint32 iInstance) const
+	{
+		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
+		++RandomSeed.X;
+		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return RandomValue;
+	}
+
+	float FParticleSimulationContext::RandomFloat(uint32 iInstance) const
+	{
+		const uint32 V = RandomUInt(iInstance);
+		return float((V >> 8) & 0x00ffffff) / 16777216.0f;
+	}
+
+	FVector2f FParticleSimulationContext::RandomFloat2(uint32 iInstance) const
+	{
+		const FUintVector2 V = RandomUInt2(iInstance);
+		return FVector2f(
+			float((V.X >> 8) & 0x00ffffff) / 16777216.0f,
+			float((V.Y >> 8) & 0x00ffffff) / 16777216.0f
+		);
+	}
+
+	FVector3f FParticleSimulationContext::RandomFloat3(uint32 iInstance) const
+	{
+		const FUintVector3 V = RandomUInt3(iInstance);
+		return FVector3f(
+			float((V.X >> 8) & 0x00ffffff) / 16777216.0f,
+			float((V.Y >> 8) & 0x00ffffff) / 16777216.0f,
+			float((V.Z >> 8) & 0x00ffffff) / 16777216.0f
+		);
+	}
+
+	FVector4f FParticleSimulationContext::RandomFloat4(uint32 iInstance) const
+	{
+		const FUintVector4 V = RandomUInt4(iInstance);
+		return FVector4f(
+			float((V.X >> 8) & 0x00ffffff) / 16777216.0f,
+			float((V.Y >> 8) & 0x00ffffff) / 16777216.0f,
+			float((V.Z >> 8) & 0x00ffffff) / 16777216.0f,
+			float((V.W >> 8) & 0x00ffffff) / 16777216.0f
+		);
+	}
+
+	float FParticleSimulationContext::RandomSeedOffsetFloat(uint32 iInstance, uint32 SeedOffset) const
+	{
+		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
+		RandomSeed.X += SeedOffset;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f;
+	}
+
+	FVector2f FParticleSimulationContext::RandomSeedOffsetFloat2(uint32 iInstance, uint32 SeedOffset) const
+	{
+		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
+		RandomSeed.X += SeedOffset;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return FVector2f(
+			float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f,
+			float((RandomValue.Y >> 8) & 0x00ffffff) / 16777216.0f
+		);
+	}
+
+	FVector3f FParticleSimulationContext::RandomSeedOffsetFloat3(uint32 iInstance, uint32 SeedOffset) const
+	{
+		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
+		RandomSeed.X += SeedOffset;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return FVector3f(
+			float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f,
+			float((RandomValue.Y >> 8) & 0x00ffffff) / 16777216.0f,
+			float((RandomValue.Z >> 8) & 0x00ffffff) / 16777216.0f
+		);
+	}
+
+	FVector4f FParticleSimulationContext::RandomSeedOffsetFloat4(uint32 iInstance, uint32 SeedOffset) const
+	{
+		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
+		RandomSeed.X += SeedOffset;
+
+		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		return FVector4f(
+			float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f,
+			float((RandomValue.Y >> 8) & 0x00ffffff) / 16777216.0f,
+			float((RandomValue.Z >> 8) & 0x00ffffff) / 16777216.0f,
+			float((RandomValue.W >> 8) & 0x00ffffff) / 16777216.0f
+		);
+	}
+} //namespace NiagaraStateless

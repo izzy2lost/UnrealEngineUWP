@@ -5,6 +5,7 @@
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModuleShaderParameters.h"
+#include "Stateless/NiagaraStatelessParticleSimContext.h"
 #include "Stateless/Modules/NiagaraStatelessModuleCommon.h"
 
 #include "NiagaraParameterBinding.h"
@@ -31,6 +32,19 @@ class UNiagaraStatelessModule_InitializeParticle : public UNiagaraStatelessModul
 		FNiagaraStatelessRangeFloat		SpriteRotationRange;
 		FNiagaraStatelessRangeVector3	MeshScaleRange;
 		FNiagaraStatelessRangeFloat		RibbonWidthRange;
+
+		int32							PositionVariableOffset = INDEX_NONE;
+		int32							ColorVariableOffset = INDEX_NONE;
+		int32							RibbonWidthVariableOffset = INDEX_NONE;
+		int32							SpriteSizeVariableOffset = INDEX_NONE;
+		int32							SpriteRotationVariableOffset = INDEX_NONE;
+		int32							ScaleVariableOffset = INDEX_NONE;
+
+		int32							PreviousPositionVariableOffset = INDEX_NONE;
+		int32							PreviousRibbonWidthVariableOffset = INDEX_NONE;
+		int32							PreviousSpriteSizeVariableOffset = INDEX_NONE;
+		int32							PreviousSpriteRotationVariableOffset = INDEX_NONE;
+		int32							PreviousScaleVariableOffset = INDEX_NONE;
 	};
 
 public:
@@ -63,8 +77,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisableCurveDistribution))
 	FNiagaraDistributionVector3	InitialPosition = FNiagaraDistributionVector3(FVector3f::ZeroVector);
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
+		BuildContext.AddParticleSimulationExecSimulate(&UNiagaraStatelessModule_InitializeParticle::ParticleSimulate);
+
 		FModuleBuiltData* BuiltData			= BuildContext.AllocateBuiltData<FModuleBuiltData>();
 		BuiltData->ModuleFlags				 = SpriteSizeDistribution.IsUniform() ? EInitializeParticleModuleFlag_UniformSpriteSize : 0;
 		BuiltData->ModuleFlags				|= MeshScaleDistribution.IsUniform() ? EInitializeParticleModuleFlag_UniformMeshScale : 0;
@@ -77,6 +93,19 @@ public:
 		BuiltData->SpriteRotationRange		= BuildContext.ConvertDistributionToRange(SpriteRotationDistribution, FNiagaraStatelessGlobals::GetDefaultSpriteRotationValue());
 		BuiltData->MeshScaleRange			= BuildContext.ConvertDistributionToRange(MeshScaleDistribution, FNiagaraStatelessGlobals::GetDefaultScaleValue());
 		BuiltData->RibbonWidthRange			= BuildContext.ConvertDistributionToRange(RibbonWidthDistribution, FNiagaraStatelessGlobals::GetDefaultRibbonWidthValue());
+
+		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
+		BuiltData->PositionVariableOffset				= BuildContext.FindParticleVariableIndex(StatelessGlobals.PositionVariable);
+		BuiltData->ColorVariableOffset					= BuildContext.FindParticleVariableIndex(StatelessGlobals.ColorVariable);
+		BuiltData->RibbonWidthVariableOffset			= BuildContext.FindParticleVariableIndex(StatelessGlobals.RibbonWidthVariable);
+		BuiltData->SpriteSizeVariableOffset				= BuildContext.FindParticleVariableIndex(StatelessGlobals.SpriteSizeVariable);
+		BuiltData->SpriteRotationVariableOffset			= BuildContext.FindParticleVariableIndex(StatelessGlobals.SpriteRotationVariable);
+		BuiltData->ScaleVariableOffset					= BuildContext.FindParticleVariableIndex(StatelessGlobals.ScaleVariable);
+		BuiltData->PreviousPositionVariableOffset		= BuildContext.FindParticleVariableIndex(StatelessGlobals.PreviousPositionVariable);
+		BuiltData->PreviousRibbonWidthVariableOffset	= BuildContext.FindParticleVariableIndex(StatelessGlobals.PreviousRibbonWidthVariable);
+		BuiltData->PreviousSpriteSizeVariableOffset		= BuildContext.FindParticleVariableIndex(StatelessGlobals.PreviousSpriteSizeVariable);
+		BuiltData->PreviousSpriteRotationVariableOffset	= BuildContext.FindParticleVariableIndex(StatelessGlobals.PreviousSpriteRotationVariable);
+		BuiltData->PreviousScaleVariableOffset			= BuildContext.FindParticleVariableIndex(StatelessGlobals.PreviousScaleVariable);
 
 		NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
 		PhysicsBuildData.MassRange			= MassDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultMassValue());
@@ -94,6 +123,38 @@ public:
 		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->SpriteRotationRange, Parameters->InitializeParticle_SpriteRotationScale, Parameters->InitializeParticle_SpriteRotationBias);
 		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->MeshScaleRange,		Parameters->InitializeParticle_MeshScaleScale, Parameters->InitializeParticle_MeshScaleBias);
 		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->RibbonWidthRange,	Parameters->InitializeParticle_RibbonWidthScale, Parameters->InitializeParticle_RibbonWidthBias);
+	}
+
+	static void ParticleSimulate(const NiagaraStateless::FParticleSimulationContext& ParticleSimulationContext)
+	{
+		using namespace NiagaraStateless;
+
+		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
+
+		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
+		{
+			const FStatelessDistributionSampler<FVector3f> PositionSampler(ParticleSimulationContext, ModuleBuiltData->InitialPosition, i);
+
+			const FVector3f		Position	= PositionSampler.GetValue(ParticleSimulationContext, 0.0f);
+			const FLinearColor	Color		= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->ColorRange);
+			const float			RibbonWidth	= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->RibbonWidthRange);
+			const FVector2f		SpriteSize	= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->SpriteSizeRange);
+			const float			SpriteRot	= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->SpriteRotationRange);
+			const FVector3f		Scale		= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->MeshScaleRange);
+
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PositionVariableOffset,				i, Position);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->ColorVariableOffset,					i, Color);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->RibbonWidthVariableOffset,				i, RibbonWidth);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->SpriteSizeVariableOffset,				i, SpriteSize);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->SpriteRotationVariableOffset,			i, SpriteRot);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->ScaleVariableOffset,					i, Scale);
+
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousPositionVariableOffset,		i, Position);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousRibbonWidthVariableOffset,		i, RibbonWidth);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousSpriteSizeVariableOffset,		i, SpriteSize);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousSpriteRotationVariableOffset,	i, SpriteRot);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousScaleVariableOffset,			i, Scale);
+		}
 	}
 
 #if WITH_EDITORONLY_DATA

@@ -5,18 +5,10 @@
 float		SpriteRotationRate_Scale;
 float		SpriteRotationRate_Bias;
 
-struct FStatelessModule_SpriteRotationRate
+void SpriteRotationRate_Simulate(inout FStatelessParticle Particle)
 {
-	float RotationRate;
-};
+	const float RotationRate = RandomScaleBiasFloat(Particle, SpriteRotationRate_Scale, SpriteRotationRate_Bias);
 
-void SpriteRotationRate_Initialize(inout FStatelessModule_SpriteRotationRate ModuleData, inout FStatelessParticle Particle)
-{
-	ModuleData.RotationRate = RandomScaleBiasFloat(Particle, SpriteRotationRate_Scale, SpriteRotationRate_Bias);
-}
-	
-void SpriteRotationRate_Simulate(in FStatelessModule_SpriteRotationRate ModuleData, inout FStatelessParticle Particle)
-{
-	Particle.SpriteRotation += Particle.Age * ModuleData.RotationRate;
-	Particle.PreviousSpriteRotation += Particle.PreviousAge * ModuleData.RotationRate;
+	Particle.SpriteRotation += Particle.Age * RotationRate;
+	Particle.PreviousSpriteRotation += Particle.PreviousAge * RotationRate;
 }

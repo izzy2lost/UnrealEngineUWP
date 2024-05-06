@@ -16,6 +16,7 @@ namespace NiagaraStateless
 {
 	class FSimulationShader;
 	class FSpawnInfoShaderParameters;
+	class FParticleSimulationExecData;
 }
 
 struct FNiagaraStatelessEmitterData
@@ -35,6 +36,7 @@ struct FNiagaraStatelessEmitterData
 
 	bool											bCanEverExecute = false;
 	bool											bDeterministic = false;
+	ENiagaraStatelessFeatureMask					FeatureMask = ENiagaraStatelessFeatureMask::None;
 	int32											RandomSeed = 0;
 	FNiagaraStatelessRangeFloat						LifetimeRange = FNiagaraStatelessRangeFloat(0.0f, 0.0f);
 	FBox											FixedBounds = FBox(ForceInit);
@@ -50,8 +52,10 @@ struct FNiagaraStatelessEmitterData
 	const UNiagaraStatelessEmitterTemplate*			EmitterTemplate = nullptr;	// Used to access shader information
 
 	TArray<uint8>									BuiltData;					// Built data, generally allocated by modules if any
-	TArray<float>									StaticFloatData;			// Transient data used in build process, do not access directly
+	TArray<float>									StaticFloatData;			// Used with CPU generation, must be valid if ParticleSimExecData is also valid
 	FReadBuffer										StaticFloatBuffer;
+
+	NiagaraStateless::FParticleSimulationExecData*	ParticleSimExecData = nullptr;	// CPU simulation execution data, when null we don't provide a CPU path
 
 	void InitRenderResources();
 

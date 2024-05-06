@@ -20,16 +20,12 @@ float3	InitializeParticle_MeshScaleBias;
 float	InitializeParticle_RibbonWidthScale;
 float	InitializeParticle_RibbonWidthBias;
 	
-struct FStatelessModule_InitializeParticle
-{
-};
-
-void InitializeParticle_Initialize(inout FStatelessModule_InitializeParticle ModuleData, inout FStatelessParticle Particle)
+void InitializeParticle_Simulate(inout FStatelessParticle Particle)
 {  
 	const bool bUniformSpriteSize = (InitializeParticle_ModuleFlags & EInitializeParticleModuleFlag_UniformSpriteSize) != 0;
 	const bool bUniformMeshScale  = (InitializeParticle_ModuleFlags & EInitializeParticleModuleFlag_UniformMeshScale) != 0;
 
-	FStatelessDistributionFloat3 InitialPosition;
+	FStatelessDistributionSamplerFloat3 InitialPosition;
 	InitialPosition.Init(Particle, InitializeParticle_InitialPosition);
 		
 	Particle.UniqueID		= Particle.UniqueIndex;
@@ -45,8 +41,4 @@ void InitializeParticle_Initialize(inout FStatelessModule_InitializeParticle Mod
 	Particle.PreviousSpriteSize		= Particle.SpriteSize;
 	Particle.PreviousScale			= Particle.Scale;
 	Particle.PreviousSpriteRotation	= Particle.SpriteRotation;
-}
-
-void InitializeParticle_Simulate(in FStatelessModule_InitializeParticle ModuleData, inout FStatelessParticle Particle)
-{  
 }

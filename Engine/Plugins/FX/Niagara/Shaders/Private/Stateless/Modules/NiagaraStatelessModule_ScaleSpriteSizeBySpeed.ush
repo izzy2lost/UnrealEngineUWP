@@ -5,15 +5,7 @@
 uint2	ScaleSpriteSizeBySpeed_ScaleDistribution;
 float	ScaleSpriteSizeBySpeed_VelocityNorm;
 
-struct FStatelessModule_ScaleSpriteSizeBySpeed
-{
-};
-
-void ScaleSpriteSizeBySpeed_Initialize(inout FStatelessModule_ScaleSpriteSizeBySpeed ModuleData, inout FStatelessParticle Particle)
-{
-}
-	
-void ScaleSpriteSizeBySpeed_Simulate(in FStatelessModule_ScaleSpriteSizeBySpeed ModuleData, inout FStatelessParticle Particle)
+void ScaleSpriteSizeBySpeed_Simulate(inout FStatelessParticle Particle)
 {
 	if (ScaleSpriteSizeBySpeed_ScaleDistribution.y > 0)
 	{

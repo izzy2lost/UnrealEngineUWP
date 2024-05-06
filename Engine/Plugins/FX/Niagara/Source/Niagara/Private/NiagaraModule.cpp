@@ -524,6 +524,7 @@ void INiagaraModule::OnPostEngineInit()
 	);
 
 	FNiagaraComponentSettings::UpdateSettings();
+	NiagaraStatelessCommon::UpdateSettings();
 }
 
 void INiagaraModule::OnPreExit()
@@ -596,6 +597,7 @@ void INiagaraModule::OnPostGarbageCollect()
 void INiagaraModule::OnBeginFrame()
 {
 	FNiagaraComponentSettings::UpdateSettings();
+	NiagaraStatelessCommon::UpdateSettings();
 	FNiagaraPlatformSet::RefreshScalability();
 }
 

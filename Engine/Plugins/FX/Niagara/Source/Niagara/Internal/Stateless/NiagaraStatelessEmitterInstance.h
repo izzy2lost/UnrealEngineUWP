@@ -22,6 +22,7 @@ namespace NiagaraStateless
 
 		int32													RandomSeed = 0;
 		float													Age = 0.0f;
+		float													DeltaTime = 0.0f;		//-OPT: We should be able to pull this from the view which is important for zero tick path
 		ENiagaraExecutionState									ExecutionState = ENiagaraExecutionState::Active;
 		TArray<FNiagaraStatelessRuntimeSpawnInfo>				SpawnInfos;
 		TUniquePtr<NiagaraStateless::FCommonShaderParameters>	ShaderParameters;

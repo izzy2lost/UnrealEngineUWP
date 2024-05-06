@@ -122,6 +122,18 @@ float4 RandomScaleBiasFloat(inout FStatelessParticle Particle, float4 Scale, flo
 float2 RandomUnitFloat2(inout FStatelessParticle Particle) { return SafeNormalize(RandomFloat2(Particle) - 0.5f); }
 float3 RandomUnitFloat3(inout FStatelessParticle Particle) { return SafeNormalize(RandomFloat3(Particle) - 0.5f); }
 
+float4 RandomSeedOffsetFloat4(in FStatelessParticle Particle, uint SeedOffset)
+{
+	uint4 Seed = Particle.RandomSeed;
+	Seed.x += SeedOffset;
+		
+	uint4 V = Rand4DPCG32(Seed);
+	return float4((V >> 8) & 0x00ffffff) / 16777216.0; // 0x01000000 == 16777216
+}
+float  RandomSeedOffsetFloat(inout FStatelessParticle Particle, uint SeedOffset)  { return RandomSeedOffsetFloat4(Particle, SeedOffset).x; }
+float2 RandomSeedOffsetFloat2(inout FStatelessParticle Particle, uint SeedOffset) { return RandomSeedOffsetFloat4(Particle, SeedOffset).xy; }
+float3 RandomSeedOffsetFloat3(inout FStatelessParticle Particle, uint SeedOffset) { return RandomSeedOffsetFloat4(Particle, SeedOffset).xyz; }
+
 float  GetStaticFloat (int BaseOffset, int Element)	{ return Common_StaticFloatBuffer[BaseOffset + Element]; }
 float2 GetStaticFloat2(int BaseOffset, int Element)	{ return float2(Common_StaticFloatBuffer[BaseOffset + Element*2], Common_StaticFloatBuffer[BaseOffset + 1 + Element*2]); }
 float3 GetStaticFloat3(int BaseOffset, int Element)	{ return float3(Common_StaticFloatBuffer[BaseOffset + Element*3], Common_StaticFloatBuffer[BaseOffset + 1 + Element*3], Common_StaticFloatBuffer[BaseOffset + 2 + Element*3]); }

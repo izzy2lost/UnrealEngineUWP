@@ -4,6 +4,7 @@
 #include "Stateless/NiagaraStatelessEmitterData.h"
 #include "Stateless/NiagaraStatelessEmitterInstance.h"
 #include "Stateless/NiagaraStatelessSimulationShader.h"
+#include "Stateless/NiagaraStatelessParticleSimContext.h"
 
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraGPUInstanceCountManager.h"
@@ -15,11 +16,19 @@
 #include "RenderGraphUtils.h"
 #include "SceneView.h"
 
-bool GNiagaraStatelessComputeManager_UseCache = 1;
+bool GNiagaraStatelessComputeManager_UseCache = true;
 FAutoConsoleVariableRef CVarNiagaraStatelessComputeManager_UseCache(
 	TEXT("fx.NiagaraStateless.ComputeManager.UseCache"),
 	GNiagaraStatelessComputeManager_UseCache,
 	TEXT("When enabled we will attempt to reuse allocated buffers between frames."),
+	ECVF_Default
+);
+
+int32 GNiagaraStatelessComputeManager_CPUThreshold = 0;
+FAutoConsoleVariableRef CVarNiagaraStatelessComputeManager_CPUThreshold(
+	TEXT("fx.NiagaraStateless.ComputeManager.CPUThreshold"),
+	GNiagaraStatelessComputeManager_CPUThreshold,
+	TEXT("When lower than this particle count prefer to use the CPU over dispatching a compute shader."),
 	ECVF_Default
 );
 
@@ -36,6 +45,8 @@ FNiagaraStatelessComputeManager::~FNiagaraStatelessComputeManager()
 
 FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(uintptr_t EmitterKey, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance)
 {
+	using namespace NiagaraStateless;
+
 	if (TUniquePtr<FStatelessDataCache>* ExistingData = UsedData.Find(EmitterKey))
 	{
 		return (*ExistingData)->DataBuffer;
@@ -97,13 +108,40 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(uintptr_t Emi
 	CacheData->EmitterInstance = EmitterInstance;
 	CacheData->ActiveParticles = ActiveParticles;
 
-	CacheData->DataBuffer->AllocateGPU(FRHICommandListExecutor::GetImmediateCommandList(), CacheData->ActiveParticles, ComputeInterface->GetFeatureLevel(), TEXT("StatelessSimBuffer"));
-	CacheData->DataBuffer->SetNumInstances(CacheData->ActiveParticles);
+	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	CacheData->DataBuffer->AllocateGPU(RHICmdList, CacheData->ActiveParticles, ComputeInterface->GetFeatureLevel(), TEXT("StatelessSimBuffer"));
 
-	FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
-	const uint32 CountOffset = CountManager.AcquireOrAllocateEntry(FRHICommandListExecutor::GetImmediateCommandList());
-	CacheData->DataBuffer->SetGPUInstanceCountBufferOffset(CountOffset);
-	CountsToRelease.Add(CountOffset);
+	const bool bAllowGPUExec = EnumHasAnyFlags(EmitterData->FeatureMask, ENiagaraStatelessFeatureMask::ExecuteGPU);
+	const bool bUseCPUExec = EnumHasAnyFlags(EmitterData->FeatureMask, ENiagaraStatelessFeatureMask::ExecuteCPU) && (!bAllowGPUExec || (ActiveParticles <= uint32(GNiagaraStatelessComputeManager_CPUThreshold)));
+	if (bUseCPUExec)
+	{
+		FParticleSimulationContext ParticleSimulation(EmitterData, EmitterInstance->BindingBufferData.Get(TArray<uint8>()));
+		ParticleSimulation.SimulateGPU(RHICmdList, EmitterInstance->RandomSeed, EmitterInstance->Age, EmitterInstance->DeltaTime, EmitterInstance->SpawnInfos, CacheData->DataBuffer);
+		if (ParticleSimulation.GetNumInstances() == 0)
+		{
+			FreeData.Emplace(CacheData);
+			return nullptr;
+		}
+
+		//CacheData->DataBuffer->Dump(0, CacheData->DataBuffer->GetNumInstances(), TEXT("Stateless"));
+	}
+	else
+	{
+		if (!ensure(bAllowGPUExec))
+		{
+			FreeData.Emplace(CacheData);
+			return nullptr;
+		}
+
+		CacheData->DataBuffer->SetNumInstances(CacheData->ActiveParticles);
+
+		FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
+		const uint32 CountOffset = CountManager.AcquireOrAllocateEntry(RHICmdList);
+		CacheData->DataBuffer->SetGPUInstanceCountBufferOffset(CountOffset);
+		CountsToRelease.Add(CountOffset);
+
+		GPUDataToGenerate.Add(CacheData);
+	}
 
 	UsedData.Emplace(EmitterKey, CacheData);
 	return CacheData->DataBuffer;
@@ -112,7 +150,7 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(uintptr_t Emi
 void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 {
 	// Anything to process?
-	if (UsedData.Num() == 0)
+	if (GPUDataToGenerate.Num() == 0)
 	{
 		return;
 	}
@@ -123,12 +161,11 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 	AddPass(
 		GraphBuilder,
 		RDG_EVENT_NAME("FNiagaraStatelessComputeManager::OnPostPreRender"),
-		[this](FRHICommandListImmediate& RHICmdList)
+		[DataToGenerate=MoveTemp(GPUDataToGenerate), ComputeInterface=GetOwnerInterface()](FRHICommandListImmediate& RHICmdList)
 		{
-			const int32 NumJobs = UsedData.Num();
+			const int32 NumJobs = DataToGenerate.Num();
 
 			// Get Count Buffer
-			FNiagaraGpuComputeDispatchInterface* ComputeInterface = GetOwnerInterface();
 			FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
 			FRHIUnorderedAccessView* CountBufferUAV = CountManager.GetInstanceCountBuffer().UAV;
 
@@ -142,10 +179,8 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 				TransitionsBefore.Emplace(CountManager.GetInstanceCountBuffer().Buffer, FNiagaraGPUInstanceCountManager::kCountBufferDefaultState, ERHIAccess::UAVCompute);
 				TransitionsAfter.Emplace(CountManager.GetInstanceCountBuffer().Buffer, ERHIAccess::UAVCompute, FNiagaraGPUInstanceCountManager::kCountBufferDefaultState);
 
-				for (auto it = UsedData.CreateIterator(); it; ++it)
+				for (FStatelessDataCache* CacheData : DataToGenerate)
 				{
-					FStatelessDataCache* CacheData = it.Value().Get();
-
 					const FRWBuffer& FloatBuffer = CacheData->DataBuffer->GetGPUBufferFloat();
 					if (FloatBuffer.NumBytes > 0)
 					{
@@ -161,17 +196,15 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 				}
 			}
 
-			FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = GetOwnerInterface();
-			FNiagaraEmptyUAVPoolScopedAccess UAVPoolAccessScope(ComputeDispatchInterface->GetEmptyUAVPool());
-			FRHIUnorderedAccessView* EmptyIntBufferUAV = ComputeDispatchInterface->GetEmptyUAVFromPool(RHICmdList, PF_R32_SINT, ENiagaraEmptyUAVType::Buffer);
+			FNiagaraEmptyUAVPoolScopedAccess UAVPoolAccessScope(ComputeInterface->GetEmptyUAVPool());
+			FRHIUnorderedAccessView* EmptyIntBufferUAV = ComputeInterface->GetEmptyUAVFromPool(RHICmdList, PF_R32_SINT, ENiagaraEmptyUAVType::Buffer);
 
 			// Execute Simulations
 			RHICmdList.Transition(TransitionsBefore);
 
 			RHICmdList.BeginUAVOverlap(CountBufferUAV);
-			for (auto it = UsedData.CreateIterator(); it; ++it)
+			for (FStatelessDataCache* CacheData : DataToGenerate)
 			{
-				FStatelessDataCache* CacheData = it.Value().Get();
 				const NiagaraStateless::FEmitterInstance_RT* EmitterInstance = CacheData->EmitterInstance;
 				const FNiagaraStatelessEmitterData* EmitterData = CacheData->EmitterInstance->EmitterData.Get();
 
@@ -189,8 +222,8 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 				// Update parameters for this compute invocation
 				NiagaraStateless::FCommonShaderParameters* ShaderParameters = EmitterInstance->ShaderParameters.Get();
 				ShaderParameters->Common_SimulationTime			= EmitterInstance->Age;
-				ShaderParameters->Common_SimulationDeltaTime	= 1.0f / 60.0f;		//-TODO: Pull from view information, needs reworking of how we link to the dispatch
-				ShaderParameters->Common_SimulationInvDeltaTime	= 60.0f;
+				ShaderParameters->Common_SimulationDeltaTime	= EmitterInstance->DeltaTime;
+				ShaderParameters->Common_SimulationInvDeltaTime	= EmitterInstance->DeltaTime > 0.0f ? (1.0f / EmitterInstance->DeltaTime) : 0.0f;
 				ShaderParameters->Common_OutputBufferStride		= CacheData->DataBuffer->GetFloatStride() / sizeof(float);
 				ShaderParameters->Common_GPUCountBufferOffset	= CacheData->DataBuffer->GetGPUInstanceCountBufferOffset();
 				ShaderParameters->Common_FloatOutputBuffer		= CacheData->DataBuffer->GetGPUBufferFloat().UAV;
@@ -215,6 +248,7 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 			RHICmdList.Transition(TransitionsAfter);
 		}
 	);
+	GPUDataToGenerate.Empty();
 }
 
 void FNiagaraStatelessComputeManager::OnPostPostRender(FRDGBuilder& GraphBuilder)
@@ -233,17 +267,20 @@ void FNiagaraStatelessComputeManager::OnPostPostRender(FRDGBuilder& GraphBuilder
 		RDG_EVENT_NAME("FNiagaraStatelessComputeManager::OnPostPostRender"),
 		[this](FRHICommandListImmediate& RHICmdList)
 		{
-			FreeData.Empty();
+			FreeData.Empty(UsedData.Num());
 			for (auto it=UsedData.CreateIterator(); it; ++it)
 			{
 				FreeData.Emplace(it.Value().Release());
 			}
 			UsedData.Empty();
 
-			FNiagaraGpuComputeDispatchInterface* ComputeInterface = GetOwnerInterface();
-			FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
-			CountManager.FreeEntryArray(CountsToRelease);
-			CountsToRelease.Reset();
+			if (CountsToRelease.Num() > 0)
+			{
+				FNiagaraGpuComputeDispatchInterface* ComputeInterface = GetOwnerInterface();
+				FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
+				CountManager.FreeEntryArray(CountsToRelease);
+				CountsToRelease.Reset();
+			}
 		}
 	);
 }

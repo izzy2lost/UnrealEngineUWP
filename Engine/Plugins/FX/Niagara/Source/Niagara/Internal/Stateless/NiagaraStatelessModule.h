@@ -44,8 +44,7 @@ public:
 	template<typename T>
 	const T* ReadBuiltData() const
 	{
-		const int32 Align = BuiltDataOffset % alignof(T);
-		const int32 Offset = BuiltDataOffset + Align;
+		const int32 Offset = Align(BuiltDataOffset, alignof(T));
 		BuiltDataOffset = Offset + sizeof(T);
 		check(BuiltDataOffset <= BuiltData.Num());
 		return reinterpret_cast<const T*>(BuiltData.GetData() + Offset);
@@ -111,10 +110,11 @@ public:
 		static NIAGARA_API const FName bModuleEnabled;
 		static NIAGARA_API const FName bDebugDrawEnabled;
 	};
-
 #endif
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const {}
+	virtual ENiagaraStatelessFeatureMask GetFeatureMask() const { return ENiagaraStatelessFeatureMask::All; }
+
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const {}
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const { }
 
 #if WITH_EDITOR

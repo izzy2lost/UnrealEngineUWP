@@ -300,7 +300,7 @@ namespace NoiseHelper
 #undef MGradientScale 
 }
 
-void UNiagaraStatelessModule_CurlNoiseForce::BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const
+void UNiagaraStatelessModule_CurlNoiseForce::BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const
 {
 	if (!IsModuleEnabled())
 	{

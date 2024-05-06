@@ -30,6 +30,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	float InitialPhaseMax = 0.f;
 
+	//-TODO: Add support for GPU once we settle on a feature set for this module
+	virtual ENiagaraStatelessFeatureMask GetFeatureMask() const { return ENiagaraStatelessFeatureMask::ExecuteGPU; }
+
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
 	{
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();

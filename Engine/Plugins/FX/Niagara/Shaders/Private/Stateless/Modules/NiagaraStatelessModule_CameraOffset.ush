@@ -4,21 +4,13 @@
 
 uint3 CameraOffset_Distribution;
 
-struct FStatelessModule_CameraOffset
+void CameraOffset_Simulate(inout FStatelessParticle Particle)
 {
-	FStatelessDistributionFloat	CameraOffsetDistribution;
-};
-
-void CameraOffset_Initialize(inout FStatelessModule_CameraOffset ModuleData, inout FStatelessParticle Particle)
-{
-	ModuleData.CameraOffsetDistribution.Init(Particle, CameraOffset_Distribution);
-}
-	
-void CameraOffset_Simulate(in FStatelessModule_CameraOffset ModuleData, inout FStatelessParticle Particle)
-{
-	if (ModuleData.CameraOffsetDistribution.IsValid())
+	FStatelessDistributionSamplerFloat OffsetSampler;
+	OffsetSampler.Init(Particle, CameraOffset_Distribution);
+	if (OffsetSampler.IsValid())
 	{
-		Particle.CameraOffset			= ModuleData.CameraOffsetDistribution.GetValue(Particle.NormalizedAge);
-		Particle.PreviousCameraOffset	= ModuleData.CameraOffsetDistribution.GetValue(Particle.PreviousNormalizedAge);
+		Particle.CameraOffset			= OffsetSampler.GetValue(Particle.NormalizedAge);
+		Particle.PreviousCameraOffset	= OffsetSampler.GetValue(Particle.PreviousNormalizedAge);
 	}
 }

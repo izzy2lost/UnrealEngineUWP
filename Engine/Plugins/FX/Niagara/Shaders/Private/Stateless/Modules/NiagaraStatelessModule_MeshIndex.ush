@@ -6,15 +6,7 @@ int MeshIndex_Index;
 int MeshIndex_TableOffset;
 int MeshIndex_TableNumElements;	// -1 to avoid added instructions
 
-struct FStatelessModule_MeshIndex
-{
-};
-
-void MeshIndex_Initialize(inout FStatelessModule_MeshIndex ModuleData, inout FStatelessParticle Particle)
-{
-}
-	
-void MeshIndex_Simulate(in FStatelessModule_MeshIndex ModuleData, inout FStatelessParticle Particle)
+void MeshIndex_Simulate(inout FStatelessParticle Particle)
 {
 	const bool bIsParameter = (MeshIndex_Index & 0x80000000) != 0;
 	int MeshIndex = MeshIndex_Index & ~0x80000000u;

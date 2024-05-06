@@ -5,6 +5,7 @@
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModuleShaderParameters.h"
+#include "Stateless/NiagaraStatelessParticleSimContext.h"
 
 #include "NiagaraStatelessModule_InitialMeshOrientation.generated.h"
 
@@ -12,6 +13,14 @@ UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Initial Mesh Orientatio
 class UNiagaraStatelessModule_InitialMeshOrientation : public UNiagaraStatelessModule
 {
 	GENERATED_BODY()
+
+	struct FModuleBuiltData
+	{
+		FVector3f	Rotation = FVector3f::ZeroVector;
+		FVector3f	RandomRotationRange = FVector3f::ZeroVector;
+		int32		MeshOrientationVariableOffset = INDEX_NONE;
+		int32		PreviousMeshOrientationVariableOffset = INDEX_NONE;
+	};
 
 public:
 	using FParameters = NiagaraStateless::FInitialMeshOrientationModule_ShaderParameters;
@@ -22,18 +31,47 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	FVector3f	RandomRotationRange = FVector3f(360.0f, 360.0f, 360.0f);
 
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
+	{
+		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
+
+		const FNiagaraStatelessGlobals& StatelessGlobals	= FNiagaraStatelessGlobals::Get();
+		BuiltData->MeshOrientationVariableOffset			= BuildContext.FindParticleVariableIndex(StatelessGlobals.MeshOrientationVariable);
+		BuiltData->PreviousMeshOrientationVariableOffset	= BuildContext.FindParticleVariableIndex(StatelessGlobals.PreviousMeshOrientationVariable);
+
+		if (IsModuleEnabled())
+		{
+			BuiltData->Rotation				= Rotation / 360.0f;
+			BuiltData->RandomRotationRange	= RandomRotationRange / 360.0f;
+		}
+
+		if (BuiltData->MeshOrientationVariableOffset != INDEX_NONE || BuiltData->PreviousMeshOrientationVariableOffset != INDEX_NONE)
+		{
+			BuildContext.AddParticleSimulationExecSimulate(&UNiagaraStatelessModule_InitialMeshOrientation::ParticleSimulate);
+		}
+	}
+
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
 	{
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-		if (IsModuleEnabled())
+
+		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
+		Parameters->InitialMeshOrientation_Rotation			= ModuleBuiltData->Rotation;
+		Parameters->InitialMeshOrientation_RandomRangeScale	= ModuleBuiltData->RandomRotationRange;
+	}
+
+	static void ParticleSimulate(const NiagaraStateless::FParticleSimulationContext& ParticleSimulationContext)
+	{
+		using namespace NiagaraStateless;
+
+		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
+		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			Parameters->InitialMeshOrientation_Rotation			= Rotation / 360.0f;
-			Parameters->InitialMeshOrientation_RandomRangeScale	= RandomRotationRange / 360.0f;
-		}
-		else
-		{
-			Parameters->InitialMeshOrientation_Rotation			= FVector3f::ZeroVector;
-			Parameters->InitialMeshOrientation_RandomRangeScale	= FVector3f::ZeroVector;
+			const FVector3f	Rotation = ModuleBuiltData->Rotation + (ParticleSimulationContext.RandomFloat3(i) * ModuleBuiltData->RandomRotationRange);
+			const FQuat4f Quat = ParticleSimulationContext.RotatorToQuat(Rotation);
+
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->MeshOrientationVariableOffset, i, Quat);
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousMeshOrientationVariableOffset, i, Quat);
 		}
 	}
 

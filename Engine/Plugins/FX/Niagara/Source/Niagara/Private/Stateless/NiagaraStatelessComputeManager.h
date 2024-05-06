@@ -50,4 +50,6 @@ private:
 	TMap<uintptr_t, TUniquePtr<FStatelessDataCache>>	UsedData;
 	TArray<TUniquePtr<FStatelessDataCache>>				FreeData;
 	TArray<uint32>										CountsToRelease;
+
+	TArray<FStatelessDataCache*>						GPUDataToGenerate;
 };

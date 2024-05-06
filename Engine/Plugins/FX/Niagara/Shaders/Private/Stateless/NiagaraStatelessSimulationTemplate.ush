@@ -30,13 +30,6 @@
 #include "Modules/NiagaraStatelessModule_SpriteRotationRate.ush"
 #include "Modules/NiagaraStatelessModule_SubUVAnimation.ush"
 
-struct FStatelessParticleSimuation
-{
-	#define PARTICLE_MODULE(NAME) FStatelessModule_##NAME	NAME##Module;
-		PARTICLE_MODULES
-	#undef PARTICLE_MODULE
-};
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define NIAGARA_MAX_GPU_SPAWN_INFOS 4
@@ -114,20 +107,8 @@ void StatelessMain(uint DispatchThreadId : SV_DispatchThreadID)
 	
 	Particle.bAlive = true;
 	
-	// Run Particle Initialization
-	FStatelessParticleSimuation ParticleSimulation;
-
-	#define PARTICLE_MODULE(NAME) ##NAME##_Initialize(ParticleSimulation.##NAME##Module, Particle);
-		PARTICLE_MODULES
-	#undef PARTICLE_MODULE
-
-	if ( !Particle.bAlive )
-	{
-		return;
-	}
-
 	// Run Particle Simulate
-	#define PARTICLE_MODULE(NAME) ##NAME##_Simulate(ParticleSimulation.##NAME##Module, Particle);
+	#define PARTICLE_MODULE(NAME) ##NAME##_Simulate(Particle);
 		PARTICLE_MODULES
 	#undef PARTICLE_MODULE
 

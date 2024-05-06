@@ -5,6 +5,7 @@
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessDrawDebugContext.h"
+#include "Stateless/NiagaraStatelessParticleSimExecData.h"
 #include "Stateless/Modules/NiagaraStatelessModule_InitializeParticle.h"
 #include "NiagaraConstants.h"
 #include "NiagaraModule.h"
@@ -258,18 +259,46 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 	StatelessEmitterData->bCanEverExecute = NiagaraStatelessInternal::IsValid(*StatelessEmitterData);
 	StatelessEmitterData->bCanEverExecute &= Platforms.IsActive();
 
+	// Determine our supported feature set mask
+	// If we can not execute on any enabled units then the emitter is considered disabled
+	if (StatelessEmitterData->bCanEverExecute)
+	{
+		StatelessEmitterData->FeatureMask = FNiagaraStatelessGlobals::Get().FeatureMask;
+		for (const UNiagaraStatelessModule* Module : Modules)
+		{
+			if (Module->IsModuleEnabled())
+			{
+				StatelessEmitterData->FeatureMask &= Module->GetFeatureMask();
+			}
+		}
+
+		if (StatelessEmitterData->FeatureMask == ENiagaraStatelessFeatureMask::None)
+		{
+			StatelessEmitterData->bCanEverExecute = false;
+			UE_LOG(LogNiagara, Verbose, TEXT("Stateless Emitter (%s) can not execute on any available path and will be disabled."), *GetFullName());
+		}
+	}
+
 	// Build buffers that are shared across all instances
 	//-OPT: We should be able to build and serialize this data as part of the UNiagaraStatelessEmitter, potentially all of this data even since it's immutable and does not change at runtime
 	if (StatelessEmitterData->bCanEverExecute)
 	{
+		if (EnumHasAnyFlags(StatelessEmitterData->FeatureMask, ENiagaraStatelessFeatureMask::ExecuteCPU))
+		{
+			StatelessEmitterData->ParticleSimExecData = new NiagaraStateless::FParticleSimulationExecData(StatelessEmitterData->ParticleDataSetCompiledData);
+		}
+
 		FNiagaraStatelessEmitterDataBuildContext EmitterBuildContext(
+			StatelessEmitterData->ParticleDataSetCompiledData,
 			StatelessEmitterData->RendererBindings,
 			StatelessEmitterData->BuiltData,
-			StatelessEmitterData->StaticFloatData
+			StatelessEmitterData->StaticFloatData,
+			StatelessEmitterData->ParticleSimExecData
 		);
 
 		for (const UNiagaraStatelessModule* Module : Modules)
 		{
+			EmitterBuildContext.PreModuleBuild();
 			Module->BuildEmitterData(EmitterBuildContext);
 		}
 		StatelessEmitterData->bModulesHaveRendererBindings = StatelessEmitterData->RendererBindings.Num() > 0;

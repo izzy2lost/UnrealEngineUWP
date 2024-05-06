@@ -82,6 +82,7 @@ void FNiagaraStatelessEmitterInstance::Init(int32 InEmitterIndex)
 	RenderThreadDataPtr->EmitterData = EmitterData;
 	RenderThreadDataPtr->RandomSeed = RandomSeed;
 	RenderThreadDataPtr->Age = 0.0f;
+	RenderThreadDataPtr->DeltaTime = 0.0f;
 	RenderThreadDataPtr->ExecutionState = ENiagaraExecutionState::Active;
 	RenderThreadDataPtr->ShaderParameters.Reset(WeakStatelessEmitter->AllocateShaderParameters(RendererBindings));
 	RenderThreadDataPtr->ShaderParameters->Common_RandomSeed = RandomSeed;
@@ -137,6 +138,7 @@ void FNiagaraStatelessEmitterInstance::ResetSimulation(bool bKillExisting)
 			[RenderThreadData](FRHICommandListImmediate& RHICmdList)
 			{
 				RenderThreadData->Age = 0.0f;
+				RenderThreadData->DeltaTime = 0.0f;
 				RenderThreadData->ExecutionState = ENiagaraExecutionState::Active;
 			}
 		);
@@ -351,6 +353,7 @@ void FNiagaraStatelessEmitterInstance::SendRenderData()
 	ENQUEUE_RENDER_COMMAND(UpdateStatelessAge)(
 		[RenderThreadData, EmitterData=MoveTemp(DataForRenderThread)](FRHICommandListImmediate& RHICmdList) mutable
 		{
+			RenderThreadData->DeltaTime			= FMath::Max(EmitterData.Age - RenderThreadData->Age, 0.0f);
 			RenderThreadData->Age				= EmitterData.Age;
 			RenderThreadData->ExecutionState	= EmitterData.ExecutionState;
 

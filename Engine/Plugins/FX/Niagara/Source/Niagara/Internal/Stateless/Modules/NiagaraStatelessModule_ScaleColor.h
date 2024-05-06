@@ -5,6 +5,7 @@
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModuleShaderParameters.h"
+#include "Stateless/NiagaraStatelessParticleSimContext.h"
 
 #include "NiagaraStatelessModule_ScaleColor.generated.h"
 
@@ -16,6 +17,7 @@ class UNiagaraStatelessModule_ScaleColor : public UNiagaraStatelessModule
 	struct FModuleBuiltData
 	{
 		FUintVector3	DistributionParameters = FUintVector3::ZeroValue;
+		int32			ColorVariableOffset = INDEX_NONE;
 	};
 
 public:
@@ -24,10 +26,23 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Scale"))
 	FNiagaraDistributionColor ScaleDistribution = FNiagaraDistributionColor(FLinearColor::White);
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
-		BuiltData->DistributionParameters = BuildContext.AddDistribution(ScaleDistribution, IsModuleEnabled());
+		if (!IsModuleEnabled())
+		{
+			return;
+		}
+
+		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
+		BuiltData->ColorVariableOffset = BuildContext.FindParticleVariableIndex(StatelessGlobals.ColorVariable);
+
+		if (BuiltData->ColorVariableOffset != INDEX_NONE)
+		{
+			BuiltData->DistributionParameters = BuildContext.AddDistribution(ScaleDistribution);
+
+			BuildContext.AddParticleSimulationExecSimulate(&UNiagaraStatelessModule_ScaleColor::ParticleSimulate);
+		}
 	}
 
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
@@ -36,6 +51,25 @@ public:
 
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
 		Parameters->ScaleColor_Distribution = ModuleBuiltData->DistributionParameters;
+	}
+
+	static void ParticleSimulate(const NiagaraStateless::FParticleSimulationContext& ParticleSimulationContext)
+	{
+		using namespace NiagaraStateless;
+
+		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
+		const float* NormalizedAgeData = ParticleSimulationContext.GetParticleNormalizedAge();
+
+		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
+		{
+			FStatelessDistributionSampler<FLinearColor> ColorSampler(ParticleSimulationContext, ModuleBuiltData->DistributionParameters, i);
+
+			FLinearColor Color = ParticleSimulationContext.ReadParticleVariable(ModuleBuiltData->ColorVariableOffset, i, FLinearColor::White);
+
+			Color *= ColorSampler.GetValue(ParticleSimulationContext, NormalizedAgeData[i]);
+
+			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->ColorVariableOffset, i, Color);
+		}
 	}
 
 #if WITH_EDITOR

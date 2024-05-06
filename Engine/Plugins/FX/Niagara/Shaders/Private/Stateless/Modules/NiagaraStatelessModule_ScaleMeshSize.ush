@@ -6,23 +6,16 @@ uint3	ScaleMeshSize_Distribution;
 float3	ScaleMeshSize_CurveScale;
 int		ScaleMeshSize_CurveScaleOffset;
 	
-struct FStatelessModule_ScaleMeshSize
+void ScaleMeshSize_Simulate(inout FStatelessParticle Particle)
 {
-	FStatelessDistributionFloat3	MeshSizeDistribution;
-};
+	FStatelessDistributionSamplerFloat3 MeshSizeDistribution;
+	MeshSizeDistribution.Init(Particle, ScaleMeshSize_Distribution);
 
-void ScaleMeshSize_Initialize(inout FStatelessModule_ScaleMeshSize ModuleData, inout FStatelessParticle Particle)
-{
-	ModuleData.MeshSizeDistribution.Init(Particle, ScaleMeshSize_Distribution);
-}
-	
-void ScaleMeshSize_Simulate(in FStatelessModule_ScaleMeshSize ModuleData, inout FStatelessParticle Particle)
-{
-	if (ModuleData.MeshSizeDistribution.IsValid())
+	if (MeshSizeDistribution.IsValid())
 	{
 		const float3 ScaleFactor = GetParameterBufferFloat3(ScaleMeshSize_CurveScaleOffset, 0, ScaleMeshSize_CurveScale);
 			
-		Particle.Scale			*= ModuleData.MeshSizeDistribution.GetValue(Particle.NormalizedAge) * ScaleFactor;
-		Particle.PreviousScale	*= ModuleData.MeshSizeDistribution.GetValue(Particle.PreviousNormalizedAge) * ScaleFactor;
+		Particle.Scale			*= MeshSizeDistribution.GetValue(Particle.NormalizedAge) * ScaleFactor;
+		Particle.PreviousScale	*= MeshSizeDistribution.GetValue(Particle.PreviousNormalizedAge) * ScaleFactor;
 	}
 }

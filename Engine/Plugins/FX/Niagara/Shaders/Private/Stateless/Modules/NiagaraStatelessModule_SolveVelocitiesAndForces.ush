@@ -55,8 +55,10 @@ void SolveVelocitiesAndForces_IntegratePosition(in FStatelessModule_SolveVelocit
 	Position += (Age - LambdaAge) * (ModuleData.Acceleration / LambdaDragMass);
 }
 	
-void SolveVelocitiesAndForces_Initialize(inout FStatelessModule_SolveVelocitiesAndForces ModuleData, inout FStatelessParticle Particle)
+void SolveVelocitiesAndForces_Simulate(inout FStatelessParticle Particle)
 {
+	// Initialize shared parameters
+	FStatelessModule_SolveVelocitiesAndForces ModuleData;
 	ModuleData.Mass = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_MassScale, SolveVelocitiesAndForces_MassBias);
 	ModuleData.Drag = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_DragScale, SolveVelocitiesAndForces_DragBias);
 	ModuleData.Velocity = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_VelocityScale, SolveVelocitiesAndForces_VelocityBias);
@@ -86,8 +88,7 @@ void SolveVelocitiesAndForces_Initialize(inout FStatelessModule_SolveVelocitiesA
 	{
 		const float3 FallbackDir = RandomUnitFloat3(Particle);
 		const float3 Delta = Particle.Position - SolveVelocitiesAndForces_PointOrigin;
-		const float  DeltaL2 = length2(Delta);
-		const float3 Dir = DeltaL2 > UE_KINDA_SMALL_NUMBER ? Delta * rsqrt(DeltaL2) : FallbackDir;
+		const float3 Dir = SafeNormalize(Delta, FallbackDir);
 			
 		const float VelocityScale = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_PointVelocityScale, SolveVelocitiesAndForces_PointVelocityBias);
 			
@@ -156,10 +157,8 @@ void SolveVelocitiesAndForces_Initialize(inout FStatelessModule_SolveVelocitiesA
 
 		ModuleData.Velocity += NoiseValue.xyz * SolveVelocitiesAndForces_NoiseAmplitude;
 	}
-}
 	
-void SolveVelocitiesAndForces_Simulate(in FStatelessModule_SolveVelocitiesAndForces ModuleData, inout FStatelessParticle Particle)
-{
+	// Simulate
 	SolveVelocitiesAndForces_IntegratePosition(ModuleData, Particle.Age, Particle.Position);
 	SolveVelocitiesAndForces_IntegratePosition(ModuleData, Particle.PreviousAge, Particle.PreviousPosition);
 		

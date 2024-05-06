@@ -6,10 +6,6 @@ uint4	ShapeLocation_Mode;
 float4	ShapeLocation_Parameters0;
 float4	ShapeLocation_Parameters1;
 
-struct FStatelessModule_ShapeLocation
-{
-};
-
 float3 ShapeLocation_GetLocation(inout FStatelessParticle Particle)
 {
 	// ENSM_ShapePrimitive::Box | ENSM_ShapePrimitive::Plane
@@ -80,13 +76,9 @@ float3 ShapeLocation_GetLocation(inout FStatelessParticle Particle)
 	}
 }
 
-void ShapeLocation_Initialize(inout FStatelessModule_ShapeLocation ModuleData, inout FStatelessParticle Particle)
+void ShapeLocation_Simulate(inout FStatelessParticle Particle)
 {
 	float3 Location = ShapeLocation_GetLocation(Particle);
 	Particle.Position += Location;
 	Particle.PreviousPosition += Location;
-}
-	
-void ShapeLocation_Simulate(in FStatelessModule_ShapeLocation ModuleData, inout FStatelessParticle Particle)
-{
 }

@@ -2,6 +2,7 @@
 
 #include "Stateless/NiagaraStatelessEmitterData.h"
 #include "Stateless/NiagaraStatelessEmitterTemplate.h"
+#include "Stateless/NiagaraStatelessParticleSimExecData.h"
 #include "Stateless/NiagaraStatelessSimulationShader.h"
 
 void FNiagaraStatelessEmitterData::FDeleter::operator()(FNiagaraStatelessEmitterData* EmitterData) const
@@ -26,6 +27,12 @@ FNiagaraStatelessEmitterData::~FNiagaraStatelessEmitterData()
 {
 	check(IsInRenderingThread());
 	StaticFloatBuffer.Release();
+
+	if (ParticleSimExecData)
+	{
+		delete ParticleSimExecData;
+		ParticleSimExecData = nullptr;
+	}
 }
 
 void FNiagaraStatelessEmitterData::InitRenderResources()
