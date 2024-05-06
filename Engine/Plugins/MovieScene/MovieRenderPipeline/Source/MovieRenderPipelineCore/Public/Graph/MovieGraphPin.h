@@ -105,17 +105,31 @@ public:
 	bool BreakEdgeTo(UMovieGraphPin* InOtherPin);
 	bool BreakAllEdges();
 	FPinConnectionResponse CanCreateConnection_PinConnectionResponse(const UMovieGraphPin* InOtherPin) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool CanCreateConnection(const UMovieGraphPin* InOtherPin) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool IsConnected() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool IsInputPin() const;
+	
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool IsOutputPin() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	int32 EdgeCount() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool AllowsMultipleConnections() const;
 
 	/** Gets the first pin connected to this pin. Returns nullptr if no valid connection exists. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphPin* GetFirstConnectedPin() const;
 
 	/** Gets all connected pins. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	TArray<UMovieGraphPin*> GetAllConnectedPins() const;
 
 	/**
@@ -130,7 +144,10 @@ public:
 	 * Determines if the connection between this pin and OtherPin follows branch restriction rules. OutError is populated
 	 * with an error if the connection should be rejected and the function will return false.
 	 */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin, FText& OutError) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool IsPinDirectionCompatibleWith(const UMovieGraphPin* OtherPin) const;
 
 public:

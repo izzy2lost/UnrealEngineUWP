@@ -575,7 +575,7 @@ TArray<UMovieGraphPin*> UMovieGraphNode::EvaluatePinsToFollow(FMovieGraphEvaluat
 	// By default we provide all Input Pins to this node that are the Branch Type.
 	// You should override this in downstream nodes that need custom logic, such
 	// as branch or switch nodes.
-	for (const TObjectPtr<UMovieGraphPin>& InputPin : GetInputPins())
+	for (UMovieGraphPin* InputPin : GetInputPins())
 	{
 		if (InputPin->Properties.bIsBranch)
 		{

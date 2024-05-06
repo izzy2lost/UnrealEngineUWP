@@ -449,11 +449,11 @@ void UMoviePipelineEdGraphNodeBase::AutowireNewNode(UEdGraphPin* FromPin)
 	}
 
 	const bool bFromPinIsInput = FromPin->Direction == EEdGraphPinDirection::EGPD_Input;
-	const TArray<TObjectPtr<UMovieGraphPin>>& OtherPinsList = bFromPinIsInput ? RuntimeNode->GetOutputPins() : RuntimeNode->GetInputPins();
+	const TArray<UMovieGraphPin*>& OtherPinsList = bFromPinIsInput ? RuntimeNode->GetOutputPins() : RuntimeNode->GetInputPins();
 
 	// Try to connect to the first compatible pin
 	bool bDidAutoconnect = false;
-	for (const TObjectPtr<UMovieGraphPin>& OtherPin : OtherPinsList)
+	for (const UMovieGraphPin* OtherPin : OtherPinsList)
 	{
 		check(OtherPin);
 

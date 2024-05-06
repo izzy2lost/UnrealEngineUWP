@@ -86,6 +86,7 @@ struct FMovieGraphPropertyInfo
 };
 
 /** Describes a restriction on what kind of branch a node can be created in within the graph. */
+UENUM(BlueprintType)
 enum class EMovieGraphBranchRestriction : uint8
 {
 	Any,			///< The node can be created in any type of branch
@@ -113,14 +114,23 @@ public:
 	
 	UMovieGraphNode();
 
-	const TArray<TObjectPtr<UMovieGraphPin>>& GetInputPins() const { return InputPins; }
-	const TArray<TObjectPtr<UMovieGraphPin>>& GetOutputPins() const { return OutputPins; }
+	/** Gets all input pins on the node. Note that the returned array is const, so input pins cannot be added/removed from the node via this array. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	const TArray<UMovieGraphPin*>& GetInputPins() const { return InputPins; }
 	
+	/** Gets all output pins on the node. Note that the returned array is const, so output pins cannot be added/removed from the node via this array. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	const TArray<UMovieGraphPin*>& GetOutputPins() const { return OutputPins; }
+	
+	/** Gets the properties for all input pins. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphPinProperties> GetInputPinProperties() const
 	{
 		return TArray<FMovieGraphPinProperties>();
 	}
 	
+	/** Gets the properties for all output pins. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphPinProperties> GetOutputPinProperties() const
 	{
 		return TArray<FMovieGraphPinProperties>();
@@ -181,6 +191,7 @@ public:
 	void SetDynamicPropertyOverridden(const FName& InPropertyName, const bool bIsOverridden);
 
 	/** Gets the information about properties which can be exposed as a pin on the node. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphPropertyInfo> GetOverrideablePropertyInfo() const;
 
 	/** Gets the information about properties which are currently exposed as pins on the node. */
@@ -220,6 +231,7 @@ public:
 	 * Determines if this node type can be added to the graph interactively by a user or via the API when constructing a graph.
 	 * @return true if the object can be added via the API, false otherwise
 	 */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual bool CanBeAddedByUser() const { return true; }
 
 	/**
@@ -246,24 +258,30 @@ public:
 	UMovieGraphPin* GetOutputPin(const FName& InPinLabel) const;
 
 	/** Gets the first input pin on the node which has a connection, or nullptr if no pins are connected. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphPin* GetFirstConnectedInputPin() const;
 	
 	/** Gets the first output pin on the node which has a connection, or nullptr if no pins are connected. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphPin* GetFirstConnectedOutputPin() const;
 
 	/** Gets the GUID which uniquely identifies this node. */
 	const FGuid& GetGuid() const { return Guid; }
 	
 	/** Determines which types of branches the node can be created in. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const { return EMovieGraphBranchRestriction::Any; }
 
 	/** Determines if this node can be disabled. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual bool CanBeDisabled() const;
 
 	/** Set whether this node is currently disabled. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetDisabled(const bool bNewDisableState);
 
 	/** Determines if this node is currently disabled. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool IsDisabled() const;
 
 #if WITH_EDITOR
@@ -320,12 +338,15 @@ public:
 	 * Gets the node's title. Optionally gets a more descriptive, multi-line title for the node if bGetDescriptive is
 	 * set to true.
 	 */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const PURE_VIRTUAL(UMovieGraphNode::GetNodeTitle, return FText(););
 
 	/** Gets the category that the node belongs under. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual FText GetMenuCategory() const PURE_VIRTUAL(UMovieGraphNode::GetMenuCategory, return FText(); );
 
 	/** Gets the keywords (space-separated) that will be searched in the node creation context menu. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual FText GetKeywords() const { return FText(); }
 #endif
 

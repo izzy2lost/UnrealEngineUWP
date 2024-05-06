@@ -174,7 +174,7 @@ namespace UE::MovieGraph::Private::Tests
 	{
 		for (const TObjectPtr<UMovieGraphNode>& NodeFrom : NodesWithOutputs)
 		{
-			for (const TObjectPtr<UMovieGraphPin>& OutputPin : NodeFrom->GetOutputPins())
+			for (UMovieGraphPin* OutputPin : NodeFrom->GetOutputPins())
 			{
 				for (const TObjectPtr<UMovieGraphNode>& NodeTo : NodesWithInputs)
 				{
@@ -183,7 +183,7 @@ namespace UE::MovieGraph::Private::Tests
 						continue;
 					}
 					
-					for (const TObjectPtr<UMovieGraphPin>& InputPin : NodeTo->GetInputPins())
+					for (UMovieGraphPin* InputPin : NodeTo->GetInputPins())
 					{
 						if (OutputPin->CanCreateConnection(InputPin))
 						{

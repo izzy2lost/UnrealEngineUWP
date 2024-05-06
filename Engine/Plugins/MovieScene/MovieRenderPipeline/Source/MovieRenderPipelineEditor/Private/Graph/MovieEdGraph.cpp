@@ -123,7 +123,7 @@ void UMoviePipelineEdGraph::CreateLinks(UMoviePipelineEdGraphNodeBase* InGraphNo
 	const UMovieGraphNode* RuntimeNode = InGraphNode->GetRuntimeNode();
 	check(RuntimeNode);
 
-	auto CreateLinks = [&](const TArray<TObjectPtr<UMovieGraphPin>>& Pins, EEdGraphPinDirection PrimaryDirection)
+	auto CreateLinks = [&](const TArray<UMovieGraphPin*>& Pins, EEdGraphPinDirection PrimaryDirection)
 	{
 		for (const UMovieGraphPin* Pin : Pins)
 		{
