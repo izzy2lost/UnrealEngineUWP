@@ -6,6 +6,7 @@
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "Data/PCGPointData.h"
+#include "Helpers/PCGHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGRandomChoiceElement"
 
@@ -93,6 +94,7 @@ bool FPCGRandomChoiceElement::ExecuteInternal(FPCGContext* Context) const
 		}
 
 		const TArray<FPCGPoint>& InPoints = InputPointData->GetPoints();
+
 		int NumOfElementsToKeep = 0;
 
 		if (Settings->bFixedMode)
@@ -151,7 +153,14 @@ bool FPCGRandomChoiceElement::ExecuteInternal(FPCGContext* Context) const
 		// * Pick a number in [0, n[
 		// * Pick a number in[0, n - 1[, then for each previously selected number, if it's larger, add +1
 		// It's O(n) cpu + O(n) memory vs O(s^2) cpu + O(s) memory. (n = total number of points, s = number of points to keep)
-		FRandomStream RandStream(Context->GetSeed());
+		int32 Seed = Context->GetSeed();
+		if (ensure(!InPoints.IsEmpty()))
+		{
+			// Combine the seed with the first point so that multiple data produces different results.
+			Seed = PCGHelpers::ComputeSeed(Seed, InPoints[0].Seed);
+		}
+
+		FRandomStream RandStream(Seed);
 		TArray<int32> ShuffledIndexes;
 		ShuffledIndexes.Reserve(InPoints.Num());
 
