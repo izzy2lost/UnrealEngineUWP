@@ -140,7 +140,7 @@ namespace UnrealBuildTool
 			HashSet<Type> AllTestModules = Assembly.GetTypes()
 				.Where(t => t.IsAssignableTo(ModuleRulesType))
 				.ToHashSet();
-			foreach(var Type in AllTestModules)
+			foreach(Type Type in AllTestModules)
 			{
 				// Find root class that's not TestModuleRules, the while loop always stops because AllTestModules contains only types that inherit from TestModuleRules
 				Type? RootBaseType = Type.BaseType;
@@ -190,7 +190,7 @@ namespace UnrealBuildTool
 					TestModuleType.TypeInitializer.Invoke(null, null);
 					if (InheritedGroups.ContainsKey(TestModuleType))
 					{
-						foreach (var InheritedTestModuleType in InheritedGroups[TestModuleType])
+						foreach (Type InheritedTestModuleType in InheritedGroups[TestModuleType])
 						{
 							if (InheritedTestModuleType.TypeInitializer != null)
 							{
@@ -205,7 +205,7 @@ namespace UnrealBuildTool
 					if (UpdateBuildGraphMetadata != null && TestMetadataField != null)
 					{
 						TestModuleRules.Metadata MetadataValue = (TestModuleRules.Metadata)TestMetadataField.GetValue(null)!;
-						if (MetadataValue != null && !string.IsNullOrEmpty(MetadataValue.TestName))
+						if (MetadataValue != null && !String.IsNullOrEmpty(MetadataValue.TestName))
 						{
 							UpdateBuildGraphMetadata.Invoke(null,
                                 new object[] {

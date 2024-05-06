@@ -148,7 +148,7 @@ namespace UnrealBuildTool
 
 		class UBAArtifactCache : IArtifactCache
 		{
-			public ArtifactCacheState State { get => ArtifactCacheState.Available; }
+			public ArtifactCacheState State => ArtifactCacheState.Available;
 			public Task<ArtifactCacheState> WaitForReadyAsync() => Task.FromResult(ArtifactCacheState.Available);
 			public Task<ArtifactAction[]> QueryArtifactActionsAsync(IoHash[] partialKeys, CancellationToken cancellationToken) => Task.FromResult(Array.Empty<ArtifactAction>());
 			public Task<bool[]?> QueryArtifactOutputsAsync(ArtifactAction[] artifactActions, CancellationToken cancellationToken) => Task.FromResult<bool[]?>(null);
@@ -300,7 +300,7 @@ namespace UnrealBuildTool
 							int port = 1347;
 							if (nameAndPort.Length > 1)
 							{
-								port = int.Parse(nameAndPort[1]);
+								port = Int32.Parse(nameAndPort[1]);
 							}
 
 							if (_cacheClient.Connect(nameAndPort[0], port))

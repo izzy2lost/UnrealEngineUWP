@@ -257,7 +257,7 @@ namespace UnrealBuildTool
 					// Any manually edited elements to keep
 					List<XElement> KeepElements = XInitPlatformFile.Root!.Elements().Where(e => e.Attribute("Name").Value == $"{TestMetadata.TestName}AfterSteps").ToList();
 					XInitPlatformFile.Root!.Elements().Remove();
-					foreach (var Element in KeepElements)
+					foreach (XElement Element in KeepElements)
 					{
 						XInitPlatformFile.Root!.Add(Element);
 					}
@@ -287,7 +287,7 @@ namespace UnrealBuildTool
 				ExpandArguments.Add("TargetName", Convert.ToString(TestTargetName));
 				ExpandArguments.Add("BinaryRelativePath", Convert.ToString(TestBinariesPath));
 				ExpandArguments.Add("ReportType", Convert.ToString(TestMetadata.ReportType));
-				if (!string.IsNullOrEmpty(TestMetadata.GauntletArgs))
+				if (!String.IsNullOrEmpty(TestMetadata.GauntletArgs))
 				{
 					ExpandArguments.Add("GauntletArgs", Convert.ToString(TestMetadata.InitialExtraArgs) + Convert.ToString(TestMetadata.GauntletArgs));
 				}
@@ -295,7 +295,7 @@ namespace UnrealBuildTool
 				{
 					ExpandArguments.Add("PlatformGauntletArgs", TestMetadata.PlatformGauntletArgs[ValidPlatform]);
 				}
-				if (!string.IsNullOrEmpty(TestMetadata.ExtraArgs))
+				if (!String.IsNullOrEmpty(TestMetadata.ExtraArgs))
 				{
 					ExpandArguments.Add("ExtraArgs", Convert.ToString(TestMetadata.ExtraArgs));
 				}
@@ -308,14 +308,14 @@ namespace UnrealBuildTool
 					ExpandArguments.Add("UsesCatch2", Convert.ToString(TestMetadata.UsesCatch2));
 				}
 				string TagsValue = TestMetadata.PlatformTags.ContainsKey(ValidPlatform) ? TestMetadata.PlatformTags[ValidPlatform] : String.Empty;
-				if (!string.IsNullOrEmpty(TagsValue))
+				if (!String.IsNullOrEmpty(TagsValue))
 				{
 					ExpandArguments.Add("Tags", TagsValue);
 					
 				}
 
 				string ExtraCompilationArgsValue = TestMetadata.PlatformCompilationExtraArgs.ContainsKey(ValidPlatform) ? TestMetadata.PlatformCompilationExtraArgs[ValidPlatform] : String.Empty;
-				if (!string.IsNullOrEmpty (ExtraCompilationArgsValue))
+				if (!String.IsNullOrEmpty (ExtraCompilationArgsValue))
 				{
 					ExpandArguments.Add("ExtraCompilationArgs", ExtraCompilationArgsValue);
 				}

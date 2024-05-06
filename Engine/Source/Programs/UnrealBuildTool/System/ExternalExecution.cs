@@ -500,7 +500,7 @@ namespace UnrealBuildTool
 
 		static void CollectModulesOnlyIncluded(HashSet<UEBuildModuleCPP> HandledModules, List<UEBuildModule> IncludedModules, List<UEBuildModuleCPP> OutList)
 		{
-			foreach (var pi in IncludedModules)
+			foreach (UEBuildModule pi in IncludedModules)
 			{
 				if (pi is UEBuildModuleCPP IncludedModule)
 				{
@@ -527,12 +527,12 @@ namespace UnrealBuildTool
 		static void CollectModulesOnlyIncluded(IEnumerable<UEBuildModuleCPP> ModulesToGenerateHeadersFor, List<UEBuildModuleCPP> OutList)
 		{
 			HashSet<UEBuildModuleCPP> HandledModules = new();
-			foreach (var Module in ModulesToGenerateHeadersFor)
+			foreach (UEBuildModuleCPP Module in ModulesToGenerateHeadersFor)
 			{
 				HandledModules.Add(Module);
 			}
 
-			foreach (var Module in ModulesToGenerateHeadersFor)
+			foreach (UEBuildModuleCPP Module in ModulesToGenerateHeadersFor)
 			{
 				if (Module.PublicIncludePathModules != null)
 				{

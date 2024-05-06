@@ -325,12 +325,16 @@ namespace UnrealBuildTool
 		//////////////////////////////////////////
 		// Action Helpers
 
-		private ObjectIDGenerator objectIDGenerator = new ObjectIDGenerator();
+		private readonly Dictionary<LinkedAction, long>  _actionToId = new();
+		private long _actionIdIndex = 0;
 
 		private long GetActionID(LinkedAction Action)
 		{
-			bool bFirstTime = false;
-			return objectIDGenerator.GetId(Action, out bFirstTime);
+			if (!_actionToId.ContainsKey(Action))
+			{
+				_actionToId.Add(Action, ++_actionIdIndex);
+			}
+			return _actionToId[Action];
 		}
 
 		private string ActionToActionString(LinkedAction Action)
@@ -338,12 +342,12 @@ namespace UnrealBuildTool
 			return ActionToActionString(GetActionID(Action));
 		}
 
-		private string ActionToActionString(long UniqueId)
+		private static string ActionToActionString(long UniqueId)
 		{
 			return $"Action_{UniqueId}";
 		}
 
-		private string ActionToDependencyString(long UniqueId, string StatusDescription, string? CommandDescription = null, ActionType? ActionType = null)
+		private static string ActionToDependencyString(long UniqueId, string StatusDescription, string? CommandDescription = null, ActionType? ActionType = null)
 		{
 			string? ExtraInfoString = null;
 			if ((CommandDescription != null) && String.IsNullOrEmpty(CommandDescription))
