@@ -795,7 +795,10 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 				if (!BodyAnimData[BodyIndex].bIsSimulated)
 				{
 					// Custom kinematic targets are set subsequently, overriding these.
-					Bodies[BodyIndex]->SetKinematicTarget(PoseData.GetTM(BodyIndex).ToTransform());
+					if (ensure(PoseData.IsValidIndex(BodyIndex)))
+					{
+						Bodies[BodyIndex]->SetKinematicTarget(PoseData.GetTM(BodyIndex).ToTransform());
+					}
 				}
 			}
 

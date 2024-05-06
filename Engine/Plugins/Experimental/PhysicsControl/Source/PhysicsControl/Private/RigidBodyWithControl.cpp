@@ -568,14 +568,25 @@ static UE::PhysicsControl::FPosQuat CalculateTargetTM(
 	const int32                                   ParentBodyIndex, 
 	const int32                                   ChildBodyIndex)
 {
+	if (!ensure(PoseData.IsValidIndex(ChildBodyIndex)))
+	{
+		return UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]);
+	}
+	
 	const UE::PhysicsControl::FPosQuat ChildTargetTM =
-		PoseData.GetTM(ChildBodyIndex) * 
+		PoseData.GetTM(ChildBodyIndex) *
 		UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]);
+	
 	if (ParentBodyIndex >= 0)
 	{
+		if (!ensure(PoseData.IsValidIndex(ParentBodyIndex)))
+		{
+			return ChildTargetTM;
+		}
+
 		const UE::PhysicsControl::FPosQuat ParentTargetTM =
-			PoseData.GetTM(ParentBodyIndex) * 
-			UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]);
+		PoseData.GetTM(ParentBodyIndex) *
+		UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]);
 		return ParentTargetTM.Inverse() * ChildTargetTM;
 	}
 	return ChildTargetTM;
@@ -886,7 +897,7 @@ void FAnimNode_RigidBodyWithControl::ApplyKinematicTargets()
 				if (ActorHandle->GetIsKinematic() && BodyIndex != INDEX_NONE)
 				{
 					UE::PhysicsControl::FPosQuat TM(Target.TargetOrientation, Target.TargetPosition);
-					if (Target.bUseSkeletalAnimation)
+					if (Target.bUseSkeletalAnimation && ensure(PoseData.IsValidIndex(BodyIndex)))
 					{
 						TM = PoseData.GetTM(BodyIndex) * TM;
 					}
