@@ -1491,7 +1491,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 
 	// Collect shadow-casting volumes
 	TSet<FVolumetricMeshBatch> HeterogeneousVolumesMeshBatches;
-	FBoxSphereBounds WorldVolumeBounds;
+	FBoxSphereBounds WorldVolumeBounds(ForceInit);
 	CollectHeterogeneousVolumeMeshBatchesForLight(LightSceneInfo, VisibleLightInfo, View, HeterogeneousVolumesMeshBatches, WorldVolumeBounds);
 	if (HeterogeneousVolumesMeshBatches.IsEmpty())
 	{
