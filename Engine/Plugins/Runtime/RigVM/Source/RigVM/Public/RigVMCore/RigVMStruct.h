@@ -35,6 +35,7 @@ DECLARE_DELEGATE_RetVal_TwoParams(FName, FRigVMCreateExternalVariableDelegate, F
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FRigVMBindPinToExternalVariableDelegate, FString, FString)
 
 struct FRigVMStruct;
+class URigVMController;
 
 /** Context as of why the node was created */
 enum class ERigVMNodeCreatedReason : uint8
@@ -78,6 +79,10 @@ public:
 
 	/** Get the reason why this node was created */
 	ERigVMNodeCreatedReason GetReason() const { return Reason; }
+
+#if WITH_EDITOR
+	URigVMController* GetController() const { return Controller; }
+#endif
 
 	/** Get the name of this node */
 	FName GetNodeName() const { return NodeName; }
@@ -142,7 +147,10 @@ public:
 	FRigVMBindPinToExternalVariableDelegate& GetBindPinToExternalVariableDelegate() { return BindPinToExternalVariableDelegate; }
 
 private:
-	
+
+#if WITH_EDITOR
+	URigVMController* Controller;
+#endif
 	FName NodeName = NAME_None;
 	ERigVMNodeCreatedReason Reason = ERigVMNodeCreatedReason::Unknown;
 	FRigVMGetExternalVariablesDelegate AllExternalVariablesDelegate;

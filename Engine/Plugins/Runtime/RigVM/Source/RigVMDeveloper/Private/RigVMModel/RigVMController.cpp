@@ -16461,6 +16461,9 @@ void URigVMController::SetupDefaultUnitNodeDelegates(TDelegate<FName(FRigVMExter
 {
 	TWeakObjectPtr<URigVMController> WeakThis(this);
 
+#if WITH_EDITOR
+	UnitNodeCreatedContext.Controller = this;
+#endif
 	UnitNodeCreatedContext.GetAllExternalVariablesDelegate().BindLambda([WeakThis]() -> TArray<FRigVMExternalVariable> {
 		if (WeakThis.IsValid())
 		{
