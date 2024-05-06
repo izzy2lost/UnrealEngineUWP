@@ -35,6 +35,8 @@ void SWaterWavesEditorViewport::Construct(const FArguments& InArgs)
 	check(WaterBodyComponent);
 	WaterBodyComponent->SetWaterMeshOverride(GetDefault<UWaterEditorSettings>()->WaterBodyCustomDefaults.GetWaterMesh());
 	WaterBodyComponent->SetWaterMaterial(GetDefault<UWaterEditorSettings>()->WaterBodyCustomDefaults.GetWaterMaterial());
+	// Reduce the wave attenuation target depth otherwise we will show attenuated waves in the preview which is not representative of the actual wave parameters:
+	WaterBodyComponent->TargetWaveMaskDepth = 1.f;
 
 
 	UWaterSplineComponent* WaterSpline = CustomWaterBody->GetWaterSpline();
