@@ -10164,7 +10164,8 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 	TArray<FPackageData*> DanglingGenerationHelpers;
 	PackageDatas->LockAndEnumeratePackageDatas([&DanglingGenerationHelpers](FPackageData* PackageData)
 		{
-			if (PackageData->GetGenerationHelper())
+			TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
+			if (GenerationHelper && GenerationHelper->IsInitialized())
 			{
 				DanglingGenerationHelpers.Add(PackageData);
 			}
