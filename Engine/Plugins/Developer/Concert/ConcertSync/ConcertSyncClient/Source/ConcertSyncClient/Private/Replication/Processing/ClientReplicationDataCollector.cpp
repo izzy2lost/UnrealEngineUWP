@@ -158,7 +158,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const FConcertReplicatedObjectId&)> ProcessItemFunc) const
+	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const ConcertSyncCore::FPendingObjectReplicationInfo&)> ProcessItemFunc) const
 	{
 		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
 		{
@@ -182,7 +182,12 @@ namespace UE::ConcertSyncClient::Replication
 				const FSoftObjectPath ObjectPath = Object;
 				if (Object && ensureMsgf(ObjectPath == Object, TEXT("Sanity check: the bridge gave us an object with a different path!")))
 				{
-					ProcessItemFunc(ObjectId);
+					ConcertSyncCore::FPendingObjectReplicationInfo Info
+					{
+						FConcertReplicatedObjectId {FConcertObjectInStreamID{ ObjectInfo.StreamId, Object },ClientId },
+						ObjectInfo.ReplicationSequenceId
+					};
+					ProcessItemFunc(Info);
 				}
 			}
 		}
@@ -194,7 +199,7 @@ namespace UE::ConcertSyncClient::Replication
 		TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 		)
 	{
-		const TArray<FObjectInfo>* ObjectInfos = ObjectsToReplicate.Find(ObjectToProcess.Object);
+		TArray<FObjectInfo>* ObjectInfos = ObjectsToReplicate.Find(ObjectToProcess.Object);
 		// ExtractReplicationDataForObject is supposed to be called in response to ForEachPendingObject... so either the call was invalid or ForEachPendingObject lied
 		if (!ensure(ObjectInfos))
 		{
@@ -217,7 +222,7 @@ namespace UE::ConcertSyncClient::Replication
 			return false;
 		}
 
-		const FObjectInfo& ObjectInfo = (*ObjectInfos)[StreamIndex];
+		FObjectInfo& ObjectInfo = (*ObjectInfos)[StreamIndex];
 		ConcertSyncCore::FReplicationPropertyFilter Filter(ObjectInfo.SelectedProperties);
 		TOptional<FConcertSessionSerializedPayload> Payload = ReplicationFormat.CreateReplicationEvent(
 			*Object,
@@ -229,6 +234,7 @@ namespace UE::ConcertSyncClient::Replication
 		if (Payload)
 		{
 			ProcessMoveable(MoveTemp(*Payload));
+			++ObjectInfo.ReplicationSequenceId;
 		}
 		return true;
 	}

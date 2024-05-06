@@ -72,7 +72,7 @@ namespace UE::ConcertSyncClient::Replication
 		void AppendOwningStreamsForObject(const FSoftObjectPath& ObjectPath, TSet<FGuid>& Paths) const;
 
 		//~ Begin IReplicationDataSource Interface
-		virtual void ForEachPendingObject(TFunctionRef<void(const FConcertReplicatedObjectId&)> ProcessItemFunc) const override;
+		virtual void ForEachPendingObject(TFunctionRef<void(const ConcertSyncCore::FPendingObjectReplicationInfo&)> ProcessItemFunc) const override;
 		virtual int32 NumObjects() const override { return NumTrackedObjects; }
 		virtual bool ExtractReplicationDataForObject(const FConcertReplicatedObjectId& Object, TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable, TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable) override;
 		//~ End IReplicationDataSource Interface
@@ -99,6 +99,9 @@ namespace UE::ConcertSyncClient::Replication
 			FGuid StreamId;
 			/** The properties to replicate */
 			FConcertPropertySelection SelectedProperties;
+			
+			/** Incremented every time replication data is sent out. Used for performance tracing. */
+			ConcertSyncCore::FSequenceId ReplicationSequenceId = 0;
 		};
 		
 		/** The objects and their properties to replicate */

@@ -25,13 +25,14 @@ namespace UE::ConcertSyncCore
 	public:
 
 		//~ Begin IReplicationDataSource Interface
-		virtual void ForEachPendingObject(TFunctionRef<void(const FConcertReplicatedObjectId&)> ProcessItemFunc) const override;
+		virtual void ForEachPendingObject(TFunctionRef<void(const FPendingObjectReplicationInfo&)> ProcessItemFunc) const override;
 		virtual int32 NumObjects() const override;
 		virtual bool ExtractReplicationDataForObject(const FConcertReplicatedObjectId& Object, TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable, TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable) override;
 		//~ End IReplicationDataSource Interface
 		
 		//~ Begin IReplicationCacheUser Interface
-		virtual void OnDataCached(const FConcertReplicatedObjectId& Object, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data) override;
+		virtual void OnDataCached(const FConcertReplicatedObjectId& Object, FSequenceId SequenceId, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data) override;
+		virtual void OnCachedDataUpdated(const FConcertReplicatedObjectId& Object, FSequenceId SequenceId) override;
 		//~ End IReplicationCacheUser Interface
 
 	protected:
@@ -41,8 +42,16 @@ namespace UE::ConcertSyncCore
 		
 	private:
 
+		struct FPendingObjectData
+		{
+			/** Pointer to what OnDataCached passed to us. */
+			TSharedPtr<const FConcertReplication_ObjectReplicationEvent> DataToApply;
+			/** The latest SequenceId that the data contains. The data might contain data from multiple sequences. */
+			FSequenceId SequenceId;
+		};
+
 		/** Stores events as they are received. */
-		TMap<FConcertReplicatedObjectId, TSharedPtr<const FConcertReplication_ObjectReplicationEvent>> PendingEvents;
+		TMap<FConcertReplicatedObjectId, FPendingObjectData> PendingEvents;
 
 		/** Provides us with replication events and shares them effectively. */
 		FObjectReplicationCache* ReplicationCache = nullptr;

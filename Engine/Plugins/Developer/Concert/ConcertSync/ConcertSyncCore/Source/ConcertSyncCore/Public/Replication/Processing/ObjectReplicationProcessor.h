@@ -26,21 +26,6 @@ namespace UE::ConcertSyncCore
 		// TODO UE-190714: We should add a time budget.
 	};
 	
-	
-	class CONCERTSYNCCORE_API IObjectReplicationProcessor
-	{
-	public:
-		
-		/**
-		 * Processes all changed objects under the given time budget.
-		 * TODO UE-190714: A time budget should be added.
-		 */
-		virtual void ProcessObjects(const FProcessObjectsParams& Params) = 0;
-
-		virtual ~IObjectReplicationProcessor() = default;
-	};
-
-
 	/**
 	 * Responsible for prioritizing a list of objects and processing them.
 	 * 
@@ -68,11 +53,11 @@ namespace UE::ConcertSyncCore
 		struct FObjectProcessArgs
 		{
 			/** Info about the object to process */
-			FConcertReplicatedObjectId ObjectInfo;
+			FPendingObjectReplicationInfo ObjectInfo;
 		};
 
 		FORCEINLINE IReplicationDataSource& GetDataSource() const { return DataSource; }
-		
+
 		/** Processes the object. */
 		virtual void ProcessObject(const FObjectProcessArgs& Args) = 0;
 

@@ -21,6 +21,10 @@ struct FConcertReplication_ObjectReplicationEvent
 	UPROPERTY()
 	FSoftObjectPath ReplicatedObject;
 	
+	/** Incremented every time replication data is sent out. Used for performance tracing. */
+	UPROPERTY()
+	int32 ReplicationSequenceId = -1;
+	
 	/** Contains another struct as payload, such as FConcertFullObjectReplicationData. */
 	UPROPERTY()
 	FConcertSessionSerializedPayload SerializedPayload;

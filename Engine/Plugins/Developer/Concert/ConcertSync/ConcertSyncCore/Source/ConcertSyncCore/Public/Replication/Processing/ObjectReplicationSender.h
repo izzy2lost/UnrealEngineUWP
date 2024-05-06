@@ -4,6 +4,7 @@
 
 #include "ObjectReplicationProcessor.h"
 #include "Replication/Messages/ObjectReplication.h"
+#include "Trace/ConcertTraceConfig.h"
 
 class IConcertSession;
 
@@ -45,7 +46,15 @@ namespace UE::ConcertSyncCore
 		/** The session through which replication messages are sent. */
 		IConcertSession& Session;
 
+#if UE_CONCERT_TRACE_ENABLED
+		/** Set by ProcessObject. Used when we actually start sending the data. */
+		TMap<FConcertReplicatedObjectId, FSequenceId> ObjectsToTraceThisFrame;
+#endif
+
 		/** This event is filled in ProcessObjects and finally sent to TargetEndpointId. */
 		FConcertReplication_BatchReplicationEvent EventToSend;
+
+		void MarkObjectForTrace(const FConcertReplicatedObjectId& Object, FSequenceId Id);
+		void TraceStartSendingMarkedObjects();
 	};
 }
