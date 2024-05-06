@@ -328,7 +328,7 @@ void RasterizeBottomLevelOrthoGridCS(
 		}
 
 		float ExtinctionVariance = GSExtinctionVariance[0] * rcp(GSAllocatedVoxelCount - 1);
-		float StdRelError = sqrt(ExtinctionVariance * rcp(GSAllocatedVoxelCount)) * rcp(ExtinctionMean);
+		float StdRelError = sqrt(ExtinctionVariance * rcp(GSAllocatedVoxelCount)) * rcp(Luminance(ExtinctionMean));
 
 		// Declare low-variance to constitute a region of homogeneity
 		if (all(GroupThreadId == 0) && (StdRelError < HomogeneousThreshold) && (GSZeroCrossings[0] < 4))
@@ -540,7 +540,8 @@ void RasterizeBottomLevelFrustumGridCS(
 				InterlockedExchange(RWBottomLevelGridAllocatorBuffer[0], BottomLevelGridBufferSize, Dummy);
 
 				BottomLevelIndex = EMPTY_VOXEL_INDEX;
-				GSAllocatedVoxelCount = AllocatedVoxelResolution = 0;
+				GSAllocatedVoxelCount = 0; 
+				AllocatedVoxelResolution = 0;
 			}
 
 			// Update the index with the properly allocated index
@@ -551,7 +552,8 @@ void RasterizeBottomLevelFrustumGridCS(
 		}
 		else
 		{
-			GSAllocatedVoxelCount = AllocatedVoxelResolution = 0;
+			GSAllocatedVoxelCount = 0; 
+			AllocatedVoxelResolution = 0;
 		}
 	}
 

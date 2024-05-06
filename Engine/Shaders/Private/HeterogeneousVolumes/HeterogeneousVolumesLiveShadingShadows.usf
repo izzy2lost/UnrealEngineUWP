@@ -396,7 +396,7 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 			bool bFirstEntry = (ElementIndex == 0);
 			if (bFirstEntry && any(Extinction > 0.0))
 			{
-				FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Transmittance);
+				FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Luminance(Transmittance));
 				AddSample(SampleData, PixelIndex, PrevElementIndex, ElementIndex);
 
 				// Set expected values
@@ -411,7 +411,7 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 				float RelativeError = length((Transmittance - ExpectedTransmittance) / ExpectedTransmittance);
 				if ((AbsoluteError > AbsoluteErrorThreshold) && (RelativeError > RelativeErrorThreshold))
 				{
-					FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Transmittance);
+					FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Luminance(Transmittance));
 					AddOrReplaceSample(SampleData, PixelIndex, PrevElementIndex, ElementIndex);
 
 					// Reset expected values
