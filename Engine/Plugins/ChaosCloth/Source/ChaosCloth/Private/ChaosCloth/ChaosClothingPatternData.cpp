@@ -54,8 +54,6 @@ void FClothingPatternData::GenerateDerivedPatternData(
 {
 	if (Indices.Num() != PatternIndices.Num())
 	{
-		UE_LOG(LogChaosCloth, Warning, TEXT("Invalid pattern data. Num pattern indices %d != Num welded indices %d. Panel-based cloth is disabled for this LOD."), PatternIndices.Num(), Indices.Num());
-
 		// Reset all of the pattern data and return
 		Reset();
 		return;
