@@ -150,6 +150,8 @@ uint FSplitTask::Run()
 	float3 AvgNormal = 0;
 	float3 PointView[3];
 	float3 NormalLocal[3];
+
+	UNROLL
 	for( int i = 0; i < 3; i++ )
 	{
 		float3 PointPostDeform = 

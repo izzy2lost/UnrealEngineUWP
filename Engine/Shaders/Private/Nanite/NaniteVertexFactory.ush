@@ -547,6 +547,7 @@ FNaniteTransformedTri MakeTransformedNaniteTriangle(FNaniteTransformedVert Vert,
 {
 	FNaniteTransformedTri Tri;
 
+	UNROLL
 	for (uint Corner = 0; Corner < 3; ++Corner)
 	{
 		Tri.Verts[Corner] = WaveReadLaneAt(Vert, SrcLaneIndices[Corner]);
