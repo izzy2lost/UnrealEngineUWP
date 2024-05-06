@@ -329,11 +329,6 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			continue;
 		}
 
-		if (!EditRow.PropertyHandle.IsValid() && EditRow.DetailTreeNode)
-		{
-			EditRow.PropertyHandle = EditRow.DetailTreeNode->CreatePropertyHandle();
-		}
-
 		ECustomDetailsTreeInsertPosition Position = ECustomDetailsTreeInsertPosition::Child;
 
 		if (EditRow.PropertyHandle.IsValid())
@@ -397,6 +392,11 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 			Item->SetValueWidget(EditRow.ValueWidget.ToSharedRef());
 
+			if (EditRow.MaxWidth.IsSet())
+			{
+				Item->AsItem()->SetValueWidgetWidthOverride(EditRow.MaxWidth);
+			}
+
 			if (CategoryItem.IsValid())
 			{
 				DetailsView->ExtendTree(CategoryItem->GetItemId(), Position, Item->AsItem());
@@ -435,6 +435,11 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 		if (EditRow.ResetToDefaultOverride.IsSet())
 		{
 			Item->SetResetToDefaultOverride(EditRow.ResetToDefaultOverride.GetValue());
+		}
+
+		if (EditRow.MaxWidth.IsSet())
+		{
+			Item->SetValueWidgetWidthOverride(EditRow.MaxWidth);
 		}
 
 		if (CategoryItem.IsValid())
@@ -515,27 +520,9 @@ TSharedRef<SWidget> SDMComponentEdit::CreateExtensionButtons(const TSharedPtr<SW
 			.HeightOverride(18.f);
 	}
 
-	TSharedPtr<IPropertyHandle> PropertyHandle = nullptr;
-	TSharedPtr<IDetailTreeNode> DetailTreeNode = nullptr;
-	FString PropertyName = InPropertyName.ToString();
-
-	if (UDMTextureUV* TextureUV = Cast<UDMTextureUV>(InComponent))
-	{
-		PropertyHandle = TextureUV->GetPropertyHandle(InPropertyName);
-		DetailTreeNode = TextureUV->GetDetailTreeNode(InPropertyName);
-		PropertyName = FString("TextureUV->") + PropertyName;
-	}
-	else if (UDMMaterialValue* Value = Cast<UDMMaterialValue>(InComponent))
-	{
-		PropertyHandle = Value->GetPropertyHandle();
-		DetailTreeNode = Value->GetDetailTreeNode();
-	}
-	else
-	{
-		FDMPropertyHandle DMPropertyHandle = SDMEditor::GetPropertyHandle(InPropertyOwner.Get(), InComponent, InPropertyName);
-		PropertyHandle = DMPropertyHandle.PropertyHandle;
-		DetailTreeNode = DMPropertyHandle.DetailTreeNode;
-	}
+	FDMPropertyHandle DMPropertyHandle = SDMEditor::GetPropertyHandle(InPropertyOwner.Get(), InComponent, InPropertyName);
+	TSharedPtr<IPropertyHandle> PropertyHandle = DMPropertyHandle.PropertyHandle;
+	TSharedPtr<IDetailTreeNode> DetailTreeNode = DMPropertyHandle.DetailTreeNode;
 
 	if (PropertyHandle.IsValid())
 	{
@@ -545,7 +532,6 @@ TSharedRef<SWidget> SDMComponentEdit::CreateExtensionButtons(const TSharedPtr<SW
 	FOnGenerateGlobalRowExtensionArgs ExtensionRowArgs;
 	ExtensionRowArgs.OwnerObject = InComponent;
 	ExtensionRowArgs.Property = Property;
-	ExtensionRowArgs.PropertyPath = PropertyName;
 	ExtensionRowArgs.OwnerTreeNode = DetailTreeNode;
 	ExtensionRowArgs.PropertyHandle = PropertyHandle;
 
@@ -842,13 +828,10 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 	const FName MaterialTypeCategory = FName("Material Type");
 	auto AddVariable = [InEditorWidget, &InOutPropertyRows, &MaterialTypeCategory](UObject* InObject, FName InPropertyName)
 		{
-			if (IsValid(InObject))
-			{
-				FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
-					InObject, InPropertyName));
+			FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
+				InObject, InPropertyName));
 
-				ValueHandle.CategoryOverrideName = MaterialTypeCategory;
-			}
+			ValueHandle.CategoryOverrideName = MaterialTypeCategory;
 		};
 
 	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
@@ -862,38 +845,17 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 	}
 
 	const FName MaterialSettingsCategory = FName("Material Settings");
-	const FName UIMin = FName("UIMin");
-	const FName UIMax = FName("UIMax");
-	const FName ClampMin = FName("ClampMin");
-	const FName ClampMax = FName("ClampMax");
 
-	auto AddGlobalValue = [InEditorWidget, InMaterialModel, &InOutPropertyRows, &InOutProcessedObjects, &MaterialSettingsCategory , &UIMin, &UIMax, &ClampMin, &ClampMax]
+	auto AddGlobalValue = [InEditorWidget, &InOutPropertyRows, &InOutProcessedObjects, &MaterialSettingsCategory]
 		(UDMMaterialValue* InValue, const FText& InNameOverride)
 		{
-			if (IsValid(InValue))
-			{
-				if (!InOutProcessedObjects.Contains(InValue))
-				{
-					FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
-						InValue, UDMMaterialValue::ValueName));
+			FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
+				InValue, UDMMaterialValue::ValueName));
 
-					ValueHandle.CategoryOverrideName = MaterialSettingsCategory;
-					ValueHandle.NameOverride = InNameOverride;
+			ValueHandle.CategoryOverrideName = MaterialSettingsCategory;
+			ValueHandle.NameOverride = InNameOverride;
 
-					if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(InValue))
-					{
-						if (FloatValue->HasValueRange() && ValueHandle.PropertyHandle)
-						{
-							ValueHandle.PropertyHandle->SetInstanceMetaData(UIMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
-							ValueHandle.PropertyHandle->SetInstanceMetaData(ClampMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
-							ValueHandle.PropertyHandle->SetInstanceMetaData(UIMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
-							ValueHandle.PropertyHandle->SetInstanceMetaData(ClampMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
-						}
-					}
-
-					InOutProcessedObjects.Add(InValue);
-				}
-			}
+			InOutProcessedObjects.Add(InValue);
 		};
 
 	AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName), LOCTEXT("GlobalOffset", "Global Offset"));

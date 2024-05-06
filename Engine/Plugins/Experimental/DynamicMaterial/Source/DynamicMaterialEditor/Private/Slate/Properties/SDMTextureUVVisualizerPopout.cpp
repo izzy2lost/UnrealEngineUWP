@@ -277,13 +277,13 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 
 		ECustomDetailsTreeInsertPosition Position = ECustomDetailsTreeInsertPosition::Child;
 
-		if (EditRow.DetailTreeNode)
+		if (EditRow.PropertyHandle.IsValid())
 		{
-			if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("HighPriority"))
+			if (EditRow.PropertyHandle->HasMetaData("HighPriority"))
 			{
 				Position = ECustomDetailsTreeInsertPosition::FirstChild;
 			}
-			else if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("LowPriority"))
+			else if (EditRow.PropertyHandle->HasMetaData("LowPriority"))
 			{
 				Position = ECustomDetailsTreeInsertPosition::LastChild;
 			}
@@ -325,7 +325,7 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 			);
 		}
 
-		if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("NotKeyframeable"))
+		if (EditRow.PropertyHandle->HasMetaData("NotKeyframeable"))
 		{
 			Item->SetKeyframeEnabled(false);
 		}

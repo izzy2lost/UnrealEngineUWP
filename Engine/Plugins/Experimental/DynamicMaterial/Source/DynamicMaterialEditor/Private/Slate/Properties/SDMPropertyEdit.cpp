@@ -193,7 +193,7 @@ void SDMPropertyEdit::CreateKey(TWeakObjectPtr<UDMMaterialValue> InValueWeak)
 		return;
 	}
  
-	TSharedPtr<IPropertyHandle> PropertyHandle = InValueWeak->GetPropertyHandle();
+	TSharedPtr<IPropertyHandle> PropertyHandle = nullptr; // InValueWeak->GetPropertyHandle();
 	if (!PropertyHandle.IsValid())
 	{
 		return;

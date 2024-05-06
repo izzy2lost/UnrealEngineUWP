@@ -6,15 +6,12 @@
 #include "Model/DynamicMaterialModel.h"
 #include "Materials/Material.h"
 #include "UObject/Package.h"
-#include "Utils/DMDetailsViewUtils.h"
 
 #if WITH_EDITOR
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialModule.h"
 #include "Factories/MaterialFactoryNew.h"
-#include "IDetailTreeNode.h"
-#include "IPropertyRowGenerator.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
@@ -417,48 +414,6 @@ void UDMMaterialValue::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			return;
 		}
 	}
-}
- 
-void UDMMaterialValue::EnsureDetailObjects()
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (PropertyRowGenerator.IsValid() && DetailTreeNode.IsValid() && PropertyHandle.IsValid())
-	{
-		return;
-	}
- 
-	PropertyHandle.Reset();
-	DetailTreeNode.Reset();
-	PropertyRowGenerator.Reset();
- 
-	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
- 
-	FPropertyRowGeneratorArgs RowGeneratorArgs;
-	PropertyRowGenerator = PropertyEditor.CreatePropertyRowGenerator(RowGeneratorArgs);
-	PropertyRowGenerator->SetObjects({this});
-
-	DetailTreeNode = FDMDetailsViewUtils::SearchNodesForProperty(PropertyRowGenerator->GetRootTreeNodes(), ValueName);
-
-	if (DetailTreeNode.IsValid())
-	{
-		PropertyHandle = DetailTreeNode->CreatePropertyHandle();
-	}	 
-}
-
-TSharedPtr<IDetailTreeNode> UDMMaterialValue::GetDetailTreeNode()
-{
-	EnsureDetailObjects();
-	return DetailTreeNode;
-}
- 
-TSharedPtr<IPropertyHandle> UDMMaterialValue::GetPropertyHandle()
-{
-	EnsureDetailObjects();
-	return PropertyHandle;
 }
 #endif // WITH_EDITOR
 

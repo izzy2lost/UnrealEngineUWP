@@ -19,12 +19,6 @@ class UDMTextureUV;
 class UDynamicMaterialModel;
 class UMaterialInstanceDynamic;
 
-#if WITH_EDITOR
-class IDetailTreeNode;
-class IPropertyHandle;
-class IPropertyRowGenerator;
-#endif
-
 namespace UE::DynamicMaterial::ParamID
 {
 	// Individual parameters
@@ -134,9 +128,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void SetMirrorOnY(bool bInMirrorOnY);
-
-	TSharedPtr<IDetailTreeNode> GetDetailTreeNode(FName InProperty);
-	TSharedPtr<IPropertyHandle> GetPropertyHandle(FName InProperty);
 #endif
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
@@ -154,11 +145,6 @@ public:
 #endif
 
 	void SetMIDParameters(UMaterialInstanceDynamic* InMID);
-
-#if WITH_EDITOR
-	bool CanResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle) const;
-	void ResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle);
-#endif
 
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -200,7 +186,7 @@ protected:
 	float Rotation = 0.f;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetScale, Setter = SetScale, BlueprintSetter = SetScale, Category = "Material Designer|Texture UV",
-		meta = (AllowPrivateAccess = "true", AllowPreserveRatio, Delta = 0.001))
+		meta = (AllowPrivateAccess = "true", AllowPreserveRatio, VectorRatioMode = 3, Delta = 0.001))
 	FVector2D Scale = FVector2D(1.f, 1.f);
 
 #if WITH_EDITORONLY_DATA
@@ -222,14 +208,8 @@ protected:
 #if WITH_EDITOR
 	mutable TMap<int32, bool> MaterialNodesCreated;
 
-	TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
-	TMap<FName, TSharedPtr<IDetailTreeNode>> DetailTreeNodes;
-	TMap<FName, TSharedPtr<IPropertyHandle>> PropertyHandles;
-
 	bool bNeedsPostLoadValueUpdate = false;
 	bool bNeedsPostLoadStructureUpdate = false;
-
-	void EnsureDetailObjects();
 
 	void CreateParameterNames();
 	void RemoveParameterNames();

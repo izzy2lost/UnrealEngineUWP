@@ -129,6 +129,7 @@ struct FDMPropertyHandle
 	TSharedPtr<SWidget> ValueWidget;
 	FName ValueName = NAME_None;
 	FName CategoryOverrideName = NAME_None;
+	TOptional<float> MaxWidth;
 };
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))

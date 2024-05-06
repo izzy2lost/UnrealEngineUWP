@@ -47,6 +47,7 @@ public:
 	static TSharedRef<SWidget> GetEmptyContent();
 
 	static FDMPropertyHandle GetPropertyHandle(const SWidget* InOwningWidget, UObject* InObject, const FName& InPropertyName);
+
 	static void ClearPropertyHandles(const SWidget* InOwningWidget);
 
 	void Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMaterialModel> InModelWeak);

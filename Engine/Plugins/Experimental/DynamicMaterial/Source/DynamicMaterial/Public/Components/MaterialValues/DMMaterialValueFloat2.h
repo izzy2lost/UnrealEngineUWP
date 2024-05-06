@@ -45,7 +45,7 @@ public:
  
 protected: 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetValue, Setter = SetValue, BlueprintSetter = SetValue, Category = "Material Designer",
-		meta = (AllowPrivateAccess = "true", DisplayName = "Vector", AllowPreserveRatio))
+		meta = (AllowPrivateAccess = "true", DisplayName = "Vector", AllowPreserveRatio, Delta = 0.001))
 	FVector2D Value;
  
 #if WITH_EDITORONLY_DATA

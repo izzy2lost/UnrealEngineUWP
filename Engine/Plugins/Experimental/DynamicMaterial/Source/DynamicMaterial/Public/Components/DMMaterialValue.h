@@ -9,6 +9,7 @@
 #include "Utils/DMJsonUtils.h"
 #include "DMMaterialValue.generated.h"
 
+class IPropertyHandle;
 class UDMMaterialParameter;
 class UDynamicMaterialModel;
 class UMaterial;
@@ -16,15 +17,8 @@ class UMaterialExpressionParameter;
 class UMaterialInstanceDynamic;
 
 #if WITH_EDITOR
-class FAssetThumbnailPool;
-class IDetailTreeNode;
-class IPropertyHandle;
-class IPropertyRowGenerator;
-class SWidget;
 struct IDMMaterialBuildStateInterface;
 #endif
-
-class UDMMaterialValue;
 
 /**
  * A value used inside a material. Can be exported as a material parameter.
@@ -117,9 +111,6 @@ public:
 	 */
 	virtual int32 GetInnateMaskOutput(int32 OutputChannels) const;
 
-	TSharedPtr<IDetailTreeNode> GetDetailTreeNode();
-	TSharedPtr<IPropertyHandle> GetPropertyHandle();
-
 	virtual FName GetMainPropertyName() const { return NAME_None; }
 
 	/** Return true if, when setting the base stage, the same value should be applied to the mask stage. */
@@ -180,12 +171,6 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
 	TObjectPtr<UMaterial> PreviewMaterial;
 #endif
-
-#if WITH_EDITOR 
-	TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
-	TSharedPtr<IDetailTreeNode> DetailTreeNode;
-	TSharedPtr<IPropertyHandle> PropertyHandle;
-#endif
  
 	UDMMaterialValue(EDMValueType InType);
  
@@ -203,8 +188,6 @@ protected:
 	virtual void OnComponentAdded() override;
 	virtual void OnComponentRemoved() override;
 	//~ End UDMMaterialComponent
- 
-	void EnsureDetailObjects();
 #endif
 
 private:

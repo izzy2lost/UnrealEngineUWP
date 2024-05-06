@@ -297,6 +297,7 @@ FOnGenerateGlobalRowExtensionArgs SDMDetailsGrid::CreateExtensionArgs(UDMMateria
 {
 	FOnGenerateGlobalRowExtensionArgs ExtensionRowArgs;
 
+	/*
 	if (ensure(InValue))
 	{
 		FProperty* ValueProperty = InValue->GetClass()->FindPropertyByName("Value");
@@ -311,6 +312,7 @@ FOnGenerateGlobalRowExtensionArgs SDMDetailsGrid::CreateExtensionArgs(UDMMateria
 			ExtensionRowArgs.PropertyHandle = ValuePropertyHandle;
 		}
 	}
+	*/
 
 	return ExtensionRowArgs;
 }
@@ -350,6 +352,7 @@ void SDMDetailsGrid::CreateKey(UObject* InObject, TSharedPtr<IPropertyHandle> In
 
 void SDMDetailsGrid::CreateKey(UDMMaterialValue* InMaterialValue)
 {
+	/*
 	if (!IsValid(InMaterialValue))
 	{
 		return;
@@ -362,6 +365,7 @@ void SDMDetailsGrid::CreateKey(UDMMaterialValue* InMaterialValue)
 	}
 
 	CreateKey(InMaterialValue, PropertyHandle);
+	*/
 }
 
 #undef LOCTEXT_NAMESPACE

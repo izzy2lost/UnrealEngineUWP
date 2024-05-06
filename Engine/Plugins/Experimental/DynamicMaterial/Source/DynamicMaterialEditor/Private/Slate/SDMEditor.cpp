@@ -6,6 +6,7 @@
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
+#include "Components/MaterialValues/DMMaterialValueFloat.h"
 #include "Components/PrimitiveComponent.h"
 #include "DetailLayoutBuilder.h"
 #include "DMWorldSubsystem.h"
@@ -35,7 +36,6 @@
 #include "Styling/StyleColors.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Utils/DMBlueprintFunctionLibrary.h"
-#include "Utils/DMDetailsViewUtils.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -52,9 +52,44 @@
 
 namespace UE::DynamicMaterialEditor::Private
 {
+	TSharedPtr<IDetailTreeNode> SearchNodesForProperty(const TArray<TSharedRef<IDetailTreeNode>>& InNodes, FName InPropertyName)
+	{
+		for (const TSharedRef<IDetailTreeNode>& ChildNode : InNodes)
+		{
+			switch (ChildNode->GetNodeType())
+			{
+				case EDetailNodeType::Category:
+				{
+					TArray<TSharedRef<IDetailTreeNode>> CategoryChildNodes;
+					ChildNode->GetChildren(CategoryChildNodes);
+
+					if (TSharedPtr<IDetailTreeNode> FoundNode = SearchNodesForProperty(CategoryChildNodes, InPropertyName))
+					{
+						return FoundNode;
+					}
+
+					break;
+				}
+
+				case EDetailNodeType::Item:
+					if (ChildNode->GetNodeName() == InPropertyName)
+					{
+						return ChildNode;
+					}
+					break;
+
+				default:
+					// Do nothing
+					break;
+			}
+		}
+
+		return nullptr;
+	}
+
 	TSharedPtr<IDetailTreeNode> SearchGeneratorForNode(const TSharedRef<IPropertyRowGenerator>& InGenerator, FName InPropertyName)
 	{
-		return FDMDetailsViewUtils::SearchNodesForProperty(InGenerator->GetRootTreeNodes(), InPropertyName);
+		return SearchNodesForProperty(InGenerator->GetRootTreeNodes(), InPropertyName);
 	}
 
 	TSharedPtr<IPropertyRowGenerator> SearchForGenerator(const TArray<FDMPropertyHandle>& InPropertyHandles, UObject* InObject)
@@ -79,6 +114,77 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 
 		return nullptr;
+	}
+
+	void AddPropertyMetaData(UObject* InObject, FName InPropertyName, FDMPropertyHandle& InPropertyHandle)
+	{
+		FProperty* Property = nullptr;
+
+		if (InPropertyHandle.PropertyHandle.IsValid())
+		{
+			Property = InPropertyHandle.PropertyHandle->GetProperty();
+
+			if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(InObject))
+			{
+				if (FloatValue->HasValueRange())
+				{
+					const FName UIMin = FName("UIMin");
+					const FName UIMax = FName("UIMax");
+					const FName ClampMin = FName("ClampMin");
+					const FName ClampMax = FName("ClampMax");
+
+					InPropertyHandle.PropertyHandle->SetInstanceMetaData(UIMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+					InPropertyHandle.PropertyHandle->SetInstanceMetaData(ClampMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+					InPropertyHandle.PropertyHandle->SetInstanceMetaData(UIMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+					InPropertyHandle.PropertyHandle->SetInstanceMetaData(ClampMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+				}
+			}
+		}
+		else
+		{
+			Property = InObject->GetClass()->FindPropertyByName(InPropertyName);
+		}
+
+		if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+		{
+			uint8 ComponentCount = 1;
+
+			if (StructProperty->Struct == TBaseStructure<FVector2D>::Get()
+				|| StructProperty->Struct == TVariantStructure<FVector2f>::Get())
+			{
+				ComponentCount = 2;
+			}
+
+			if (StructProperty->Struct == TBaseStructure<FVector>::Get()
+				|| StructProperty->Struct == TVariantStructure<FVector3f>::Get()
+				|| StructProperty->Struct == TBaseStructure<FRotator>::Get())
+			{
+				ComponentCount = 3;
+			}
+
+			// FLinearColor doesn't need the extra space
+			if (StructProperty->Struct == TBaseStructure<FVector4>::Get()
+				|| StructProperty->Struct == TVariantStructure<FVector4f>::Get())
+			{
+				ComponentCount = 4;
+			}
+
+			switch (ComponentCount)
+			{
+				case 0:
+				case 1:
+					break;
+
+				case 2:
+					InPropertyHandle.MaxWidth = 200.f;
+					break;
+
+					// 3 and above
+				default:
+					InPropertyHandle.MaxWidth = 275.f;
+					break;
+			}
+		}
 	}
 }
 
@@ -211,15 +317,20 @@ FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwningWidget, UO
 		}
 	}
 
-	if (TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator = UE::DynamicMaterialEditor::Private::SearchForGenerator(PropertyHandles, InObject))
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	if (TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator = SearchForGenerator(PropertyHandles, InObject))
 	{
 		FDMPropertyHandle PropertyHandle;
 		PropertyHandle.PropertyRowGenerator = PropertyRowGenerator;
 
-		if (TSharedPtr<IDetailTreeNode> DetailTreeNode = UE::DynamicMaterialEditor::Private::SearchGeneratorForNode(PropertyRowGenerator.ToSharedRef(), InPropertyName))
+		if (TSharedPtr<IDetailTreeNode> DetailTreeNode = SearchGeneratorForNode(PropertyRowGenerator.ToSharedRef(), InPropertyName))
 		{
 			PropertyHandle.DetailTreeNode = DetailTreeNode;
 			PropertyHandle.PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+
+			AddPropertyMetaData(InObject, InPropertyName, PropertyHandle);
+
 			return PropertyHandle;
 		}
 
@@ -227,6 +338,14 @@ FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwningWidget, UO
 	}
 
 	FDMPropertyHandle NewHandle = CreatePropertyHandle(InOwningWidget, InObject, InPropertyName);
+
+	if (!NewHandle.PropertyHandle.IsValid() && NewHandle.DetailTreeNode.IsValid())
+	{
+		NewHandle.PropertyHandle = NewHandle.DetailTreeNode->CreatePropertyHandle();
+	}
+
+	AddPropertyMetaData(InObject, InPropertyName, NewHandle);
+
 	PropertyHandles.Add(NewHandle);
 
 	return NewHandle;

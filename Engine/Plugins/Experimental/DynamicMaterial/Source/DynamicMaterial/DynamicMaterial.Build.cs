@@ -33,7 +33,6 @@ public class DynamicMaterial : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
-				"PropertyEditor",
 				"UnrealEd"
 			});
 		}

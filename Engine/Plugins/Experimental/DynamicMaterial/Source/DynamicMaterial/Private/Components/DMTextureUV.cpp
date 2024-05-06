@@ -6,15 +6,9 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Serialization/CustomVersion.h"
-#include "Utils/DMDetailsViewUtils.h"
 
 #if WITH_EDITOR
-#include "IDetailTreeNode.h"
-#include "IPropertyRowGenerator.h"
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
-#include "Modules/ModuleManager.h"
-#include "PropertyEditorModule.h"
-#include "PropertyHandle.h"
 #endif
 
 namespace UE::DynamicMaterial::Private
@@ -205,20 +199,6 @@ void UDMTextureUV::SetMirrorOnY(bool bInMirrorOnY)
 
 	Update(EDMUpdateType::Structure);
 }
-
-TSharedPtr<IDetailTreeNode> UDMTextureUV::GetDetailTreeNode(FName InProperty)
-{
-	EnsureDetailObjects();
-
-	return DetailTreeNodes.FindChecked(InProperty);
-}
-
-TSharedPtr<IPropertyHandle> UDMTextureUV::GetPropertyHandle(FName InProperty)
-{
-	EnsureDetailObjects();
-
-	return PropertyHandles.FindChecked(InProperty);
-}
 #endif
 
 TArray<UDMMaterialParameter*> UDMTextureUV::GetParameters() const
@@ -379,72 +359,6 @@ void UDMTextureUV::SetMIDParameters(UMaterialInstanceDynamic* InMID)
 }
 
 #if WITH_EDITOR
-bool UDMTextureUV::CanResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle) const
-{
-	FProperty* Property = InPropertyHandle->GetProperty();
-
-	if (!Property)
-	{
-		return false;
-	}
-
-	FName PropertyName = Property->GetFName();
-
-	if (PropertyName == NAME_None)
-	{
-		return false;
-	}
-
-	UDMTextureUV* DefaultObject = Cast<UDMTextureUV>(GetClass()->GetDefaultObject());
-
-	if (!DefaultObject)
-	{
-		return false;
-	}
-
-	if (PropertyName == NAME_UVSource)
-	{
-		return DefaultObject->GetUVSource() != GetUVSource();
-	}
-
-	if (PropertyName == NAME_bMirrorOnX)
-	{
-		return DefaultObject->GetMirrorOnX() != GetMirrorOnX();
-	}
-
-	if (PropertyName == NAME_bMirrorOnY)
-	{
-		return DefaultObject->GetMirrorOnY() != GetMirrorOnY();
-	}
-
-	if (PropertyName == NAME_Offset)
-	{
-		return !DefaultObject->GetOffset().Equals(GetOffset());
-	}
-
-	if (PropertyName == NAME_Pivot)
-	{
-		return !DefaultObject->GetPivot().Equals(GetPivot());
-	}
-
-	if (PropertyName == NAME_Rotation)
-	{
-		return DefaultObject->GetRotation() != GetRotation();
-	}
-
-	if (PropertyName == NAME_Scale)
-	{
-		return !DefaultObject->GetScale().Equals(GetScale());
-	}
-
-	return false;
-}
-
-void UDMTextureUV::ResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
-{
-	InPropertyHandle->ResetToDefault();
-}
-
 bool UDMTextureUV::Modify(bool bInAlwaysMarkDirty)
 {
 	const bool bSaved = Super::Modify(bInAlwaysMarkDirty);
@@ -455,70 +369,6 @@ bool UDMTextureUV::Modify(bool bInAlwaysMarkDirty)
 	}
 
 	return bSaved;
-}
-
-void UDMTextureUV::EnsureDetailObjects()
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	bool bHasValidDetailObjects = true;
-
-	if (!PropertyRowGenerator.IsValid() || (DetailTreeNodes.Num() != TextureProperties.Num() && PropertyHandles.Num() != TextureProperties.Num()))
-	{
-		bHasValidDetailObjects = false;
-	}
-	else
-	{
-		for (const TPair<FName, TSharedPtr<IDetailTreeNode>>& DetailTreeNode : DetailTreeNodes)
-		{
-			if (DetailTreeNode.Value.IsValid() == false)
-			{
-				bHasValidDetailObjects = false;
-				break;
-			}
-		}
-
-		if (bHasValidDetailObjects)
-		{
-			for (const TPair<FName, TSharedPtr<IPropertyHandle>>& PropertyHandle : PropertyHandles)
-			{
-				if (PropertyHandle.Value.IsValid() == false)
-				{
-					bHasValidDetailObjects = false;
-					break;
-				}
-			}
-		}
-	}
-
-	if (bHasValidDetailObjects)
-	{
-		return;
-	}
-
-	PropertyHandles.Reset();
-	DetailTreeNodes.Reset();
-	PropertyRowGenerator.Reset();
-
-	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
-
-	FPropertyRowGeneratorArgs RowGeneratorArgs;
-	PropertyRowGenerator = PropertyEditor.CreatePropertyRowGenerator(RowGeneratorArgs);
-	PropertyRowGenerator->SetObjects({this});
-
-	const TArray<TSharedRef<IDetailTreeNode>>& CategoryNodes = PropertyRowGenerator->GetRootTreeNodes();
-
-	for (const TPair<FName, bool>& TextureProperty : TextureProperties)
-	{
-		if (TSharedPtr<IDetailTreeNode> DetailTreeNode = FDMDetailsViewUtils::SearchNodesForProperty(CategoryNodes, TextureProperty.Key))
-		{
-			DetailTreeNodes.Emplace(DetailTreeNode->GetNodeName(), DetailTreeNode);
-			PropertyHandles.Emplace(DetailTreeNode->GetNodeName(), DetailTreeNode->CreatePropertyHandle());
-		}
-	}
 }
 #endif
 
