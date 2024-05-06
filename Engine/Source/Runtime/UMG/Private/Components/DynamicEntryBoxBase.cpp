@@ -92,7 +92,7 @@ const FRadialBoxSettings& UDynamicEntryBoxBase::GetRadialBoxSettings() const
 	return RadialBoxSettings;
 }
 
-void UDynamicEntryBoxBase::RemoveEntryInternal(UUserWidget* EntryWidget)
+void UDynamicEntryBoxBase::RemoveEntryInternal(UUserWidget* EntryWidget, bool bReleaseSlate)
 {
 	if (EntryWidget)
 	{
@@ -120,7 +120,7 @@ void UDynamicEntryBoxBase::RemoveEntryInternal(UUserWidget* EntryWidget)
 				}
 			}
 		}
-		EntryWidgetPool.Release(EntryWidget);
+		EntryWidgetPool.Release(EntryWidget, bReleaseSlate);
 	}
 }
 
