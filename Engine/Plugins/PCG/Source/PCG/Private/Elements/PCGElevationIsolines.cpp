@@ -277,7 +277,7 @@ bool FPCGElevationIsolinesElement::ExecuteInternal(FPCGContext* InContext) const
 							FVector::ZeroVector,
 							Transform.GetRotation().Rotator(),
 							Transform.GetScale3D(),
-							Settings->bLinearSpline ? ESplinePointType::Linear : ESplinePointType::CurveCustomTangent);
+							Settings->bLinearSpline ? ESplinePointType::Linear : ESplinePointType::Curve);
 					}
 
 					UPCGSplineData* OutSplineData = NewObject<UPCGSplineData>();
