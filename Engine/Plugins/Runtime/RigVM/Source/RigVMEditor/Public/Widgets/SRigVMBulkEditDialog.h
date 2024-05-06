@@ -3,6 +3,8 @@
 #pragma once
 
 #include "SRigVMBulkEditWidget.h"
+
+#include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
 
 template<typename InWidgetType = SRigVMBulkEditWidget>
