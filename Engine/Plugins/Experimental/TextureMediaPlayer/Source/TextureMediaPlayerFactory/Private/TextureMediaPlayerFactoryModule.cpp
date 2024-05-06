@@ -27,6 +27,11 @@ public:
 
 	bool CanPlayUrl(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const override
 	{
+		return GetPlayabilityConfidenceScore(Url, Options, OutWarnings, OutErrors) > 0 ? true : false;
+	}
+
+	int32 GetPlayabilityConfidenceScore(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const override
+	{
 		FString Scheme;
 		FString Location;
 
@@ -38,7 +43,7 @@ public:
 				OutErrors->Add(LOCTEXT("NoSchemeFound", "No URI scheme found"));
 			}
 
-			return false;
+			return 0;
 		}
 
 		if (!SupportedUriSchemes.Contains(Scheme))
@@ -48,10 +53,10 @@ public:
 				OutErrors->Add(FText::Format(LOCTEXT("SchemeNotSupported", "The URI scheme '{0}' is not supported"), FText::FromString(Scheme)));
 			}
 
-			return false;
+			return 0;
 		}
 
-		return true;
+		return 100;
 	}
 
 	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CreatePlayer(IMediaEventSink& EventSink) override
@@ -99,7 +104,7 @@ public:
 		// supported platforms
 		auto MediaModule = FModuleManager::GetModulePtr<IMediaModule>("Media");
 		if (MediaModule != nullptr)
-		{		
+		{
 			AddSupportedPlatform(FGuid(0xd1d5f296, 0xff834a87, 0xb20faaa9, 0xd6b8e9a6));
 			AddSupportedPlatform(FGuid(0xb80decd6, 0x997a4b3f, 0x92063970, 0xe572c0db));
 			AddSupportedPlatform(FGuid(0x30ebce04, 0x2c8247bd, 0xaf873017, 0x5a27ed45));

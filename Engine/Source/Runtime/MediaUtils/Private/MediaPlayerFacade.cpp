@@ -1815,63 +1815,66 @@ IMediaPlayerFactory* FMediaPlayerFacade::GetPlayerFactoryForUrl(const FString& U
 		return Factory;
 	}
 
-
-
 	//
 	// Try to find a fitting player with no explicit name given
 	//
-
-
-	// Can any existing player play the URL?
-	if (Player.IsValid())
-	{
-		IMediaPlayerFactory* Factory = MediaModule->GetPlayerFactory(Player->GetPlayerPluginGUID());
-
-		if ((Factory != nullptr) && Factory->CanPlayUrl(Url, Options))
-		{
-			// Yes...
-			return Factory;
-		}
-	}
-
-	// Try to auto-select new player...
-	const FString RunningPlatformName(FPlatformProperties::IniPlatformName());
 	const TArray<IMediaPlayerFactory*>& PlayerFactories = MediaModule->GetPlayerFactories();
-
-	for (IMediaPlayerFactory* Factory : PlayerFactories)
+	if (PlayerFactories.Num() == 0)
 	{
-		if (!Factory->SupportsPlatform(RunningPlatformName) || !Factory->CanPlayUrl(Url, Options))
-		{
-			continue;
-		}
-
-		return Factory;
+		UE_LOG(LogMediaUtils, Error, TEXT("Cannot play %s: no media player plug-ins are installed and enabled in this project"), *Url);
+		return nullptr;
 	}
-
+	struct FCandidate
+	{
+		FName Name;
+		IMediaPlayerFactory* Factory = nullptr;
+		int32 ConfidenceScore = 0;
+	};
+	TArray<FCandidate> Candidates;
+	const FString RunningPlatformName(FPlatformProperties::IniPlatformName());
+	for(IMediaPlayerFactory* Factory : PlayerFactories)
+	{
+		if (Factory->SupportsPlatform(RunningPlatformName))
+		{
+			int32 ConfidenceScore = Factory->GetPlayabilityConfidenceScore(Url, Options, nullptr, nullptr);
+			if (ConfidenceScore > 0)
+			{
+				FCandidate& Candidate = Candidates.Emplace_GetRef();
+				Candidate.Name = Factory->GetPlayerName();
+				Candidate.Factory = Factory;
+				Candidate.ConfidenceScore = ConfidenceScore;
+			}
+		}
+	}
+	Candidates.Sort([](const FCandidate& c1, const FCandidate& c2)
+	{
+		// If both factories are equally confident, sort alphabetically by name.
+		if (c1.ConfidenceScore == c2.ConfidenceScore)
+		{
+			return c1.Name.ToString() < c2.Name.ToString();
+		}
+		// Sort by descending confidence score.
+		return c1.ConfidenceScore > c2.ConfidenceScore;
+	});
+	if (Candidates.Num())
+	{
+		return Candidates[0].Factory;
+	}
 	//
 	// No suitable player found!
 	//
-	if (PlayerFactories.Num() > 0)
+	UE_LOG(LogMediaUtils, Error, TEXT("Cannot play %s, because none of the enabled media player plug-ins support it:"), *Url);
+	for (IMediaPlayerFactory* Factory : PlayerFactories)
 	{
-		UE_LOG(LogMediaUtils, Error, TEXT("Cannot play %s, because none of the enabled media player plug-ins support it:"), *Url);
-
-		for (IMediaPlayerFactory* Factory : PlayerFactories)
+		if (Factory->SupportsPlatform(RunningPlatformName))
 		{
-			if (Factory->SupportsPlatform(RunningPlatformName))
-			{
-				UE_LOG(LogMediaUtils, Log, TEXT("| %s (URI scheme or file extension not supported)"), *Factory->GetPlayerName().ToString());
-			}
-			else
-			{
-				UE_LOG(LogMediaUtils, Log, TEXT("| %s (only available on %s, but not on %s)"), *Factory->GetPlayerName().ToString(), *FString::Join(Factory->GetSupportedPlatforms(), TEXT(", ")), *RunningPlatformName);
-			}
+			UE_LOG(LogMediaUtils, Log, TEXT("| %s (URI scheme or file extension not supported)"), *Factory->GetPlayerName().ToString());
+		}
+		else
+		{
+			UE_LOG(LogMediaUtils, Log, TEXT("| %s (only available on %s, but not on %s)"), *Factory->GetPlayerName().ToString(), *FString::Join(Factory->GetSupportedPlatforms(), TEXT(", ")), *RunningPlatformName);
 		}
 	}
-	else
-	{
-		UE_LOG(LogMediaUtils, Error, TEXT("Cannot play %s: no media player plug-ins are installed and enabled in this project"), *Url);
-	}
-
 	return nullptr;
 }
 

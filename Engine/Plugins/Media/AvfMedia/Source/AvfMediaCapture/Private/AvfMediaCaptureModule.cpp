@@ -90,7 +90,7 @@ public:
 			#elif PLATFORM_MAC
 				// AVCaptureDeviceTypeExternalUnknown is only available on macOS 10.15 - 14.0
 				// https://developer.apple.com/documentation/avfoundation/avcapturedevicetypeexternalunknown?language=objc
-				[DeviceTypes addObject: AVCaptureDeviceTypeExternalUnknown]; 
+				[DeviceTypes addObject: AVCaptureDeviceTypeExternalUnknown];
 			#endif
 		}
 
@@ -117,24 +117,24 @@ public:
 				}
 
 				FMediaCaptureDeviceInfo DeviceInfo;
-					
+
 				DeviceInfo.Type = TargetDeviceType;
 				DeviceInfo.DisplayName = FText::FromString(FString(AvailableDevice.localizedName));
 				DeviceInfo.Url = Scheme + FString(AvailableDevice.uniqueID);
 				DeviceInfo.Info = FString(AvailableDevice.manufacturer);
-					
+
 				OutDeviceInfos.Add(MoveTemp(DeviceInfo));
 			}
 		}
 	}
 
 	//~ IMediaCaptureSupport interface
-	
+
 	virtual void EnumerateAudioCaptureDevices(TArray<FMediaCaptureDeviceInfo>& OutDeviceInfos)
 	{
 		EnumerateCaptureDevices(OutDeviceInfos, EMediaCaptureDeviceType::Audio);
 	}
-	
+
 	virtual void EnumerateVideoCaptureDevices(TArray<FMediaCaptureDeviceInfo>& OutDeviceInfos)
 	{
 		EnumerateCaptureDevices(OutDeviceInfos, EMediaCaptureDeviceType::Video);
@@ -142,7 +142,12 @@ public:
 
 	//~ IMediaPlayerFactory interface
 
-	virtual bool CanPlayUrl(const FString& Url, const IMediaOptions* /*Options*/, TArray<FText>* /*OutWarnings*/, TArray<FText>* OutErrors) const override
+	virtual bool CanPlayUrl(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const override
+	{
+		return GetPlayabilityConfidenceScore(Url, Options, OutWarnings, OutErrors) > 0 ? true : false;
+	}
+
+	virtual int32 GetPlayabilityConfidenceScore(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const override
 	{
 		FString Scheme;
 		FString Location;
@@ -155,7 +160,7 @@ public:
 				OutErrors->Add(LOCTEXT("NoSchemeFound", "No URI scheme found"));
 			}
 
-			return false;
+			return 0;
 		}
 
 		if (!SupportedUriSchemes.Contains(Scheme))
@@ -165,10 +170,10 @@ public:
 				OutErrors->Add(FText::Format(LOCTEXT("SchemeNotSupported", "The URI scheme '{0}' is not supported"), FText::FromString(Scheme)));
 			}
 
-			return false;
+			return 0;
 		}
 
-		return true;
+		return 100;
 	}
 
 	virtual TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CreatePlayer(IMediaEventSink& EventSink) override
