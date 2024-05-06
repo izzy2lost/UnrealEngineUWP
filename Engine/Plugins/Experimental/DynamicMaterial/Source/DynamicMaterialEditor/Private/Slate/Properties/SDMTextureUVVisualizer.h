@@ -29,7 +29,7 @@ public:
 		None,
 		Offset,
 		Rotation,
-		Scale,
+		Tiling,
 		Pivot
 	};
 
@@ -87,7 +87,7 @@ protected:
 	FVector2f ScrubbingStartAbsoluteMouse;
 	EHandleAxis HandleAxis;
 	FVector2D ValueStart;
-	bool bInvertScale;
+	bool bInvertTiling;
 	TSharedPtr<FScopedTransaction> ScrubbingTransaction;
 
 	void OnStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
@@ -128,6 +128,6 @@ protected:
 	void UpdateScrub();
 	void UpdateScrub_Offset();
 	void UpdateScrub_Rotation();
-	void UpdateScrub_Scale();
+	void UpdateScrub_Tiling();
 	void UpdateScrub_Pivot();
 };

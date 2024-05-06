@@ -53,7 +53,7 @@ SDMTextureUVVisualizer::SDMTextureUVVisualizer()
 	, ScrubbingStartAbsoluteMouse(FVector2f::ZeroVector)
 	, HandleAxis(EHandleAxis::None)
 	, ValueStart(FVector2D::ZeroVector)
-	, bInvertScale(false)
+	, bInvertTiling(false)
 {
 	Brush.SetUVRegion(FBox2f(FVector2f(0, 0), FVector2f(1, 1)));
 }
@@ -339,7 +339,7 @@ int32 SDMTextureUVVisualizer::OnPaint(const FPaintArgs& InArgs, const FGeometry&
 
 	if (bPivotEditMode)
 	{
-		/** Scale Handles */
+		/** Tiling Handles */
 		float RadiusAtAngle[16];
 
 		for (int32 Direction = 0; Direction < 16; ++Direction)
@@ -350,28 +350,28 @@ int32 SDMTextureUVVisualizer::OnPaint(const FPaintArgs& InArgs, const FGeometry&
 		DrawRotatedBorderBox(
 			FVector2f(0.f, RadiusAtAngle[0]),
 			FVector2f(TextureUVVisualizerLargeRadius, TextureUVVisualizerLargeRadius),
-			(ScrubbingMode == EScrubbingMode::Scale && HandleAxis == EHandleAxis::Y) ? HighlightColor : NormalColor,
+			(ScrubbingMode == EScrubbingMode::Tiling && HandleAxis == EHandleAxis::Y) ? HighlightColor : NormalColor,
 			RotationRadians
 		);
 
 		DrawRotatedBorderBox(
 			FVector2f(RadiusAtAngle[4], 0.f),
 			FVector2f(TextureUVVisualizerLargeRadius, TextureUVVisualizerLargeRadius),
-			(ScrubbingMode == EScrubbingMode::Scale && HandleAxis == EHandleAxis::X) ? HighlightColor : NormalColor,
+			(ScrubbingMode == EScrubbingMode::Tiling && HandleAxis == EHandleAxis::X) ? HighlightColor : NormalColor,
 			RotationRadians
 		);
 
 		DrawRotatedBorderBox(
 			FVector2f(0.f, -RadiusAtAngle[8]),
 			FVector2f(TextureUVVisualizerLargeRadius, TextureUVVisualizerLargeRadius),
-			(ScrubbingMode == EScrubbingMode::Scale && HandleAxis == EHandleAxis::Y) ? HighlightColor : NormalColor,
+			(ScrubbingMode == EScrubbingMode::Tiling && HandleAxis == EHandleAxis::Y) ? HighlightColor : NormalColor,
 			RotationRadians
 		);
 
 		DrawRotatedBorderBox(
 			FVector2f(-RadiusAtAngle[12], 0.f),
 			FVector2f(TextureUVVisualizerLargeRadius, TextureUVVisualizerLargeRadius),
-			(ScrubbingMode == EScrubbingMode::Scale && HandleAxis == EHandleAxis::X) ? HighlightColor : NormalColor,
+			(ScrubbingMode == EScrubbingMode::Tiling && HandleAxis == EHandleAxis::X) ? HighlightColor : NormalColor,
 			RotationRadians
 		);
 
@@ -469,7 +469,7 @@ FVector2f SDMTextureUVVisualizer::ApplyTextureUVTransform(const FVector2f& InUV)
 	Offset.Y *= -1.f;
 
 	const float Rotation = TextureUV->GetRotation();
-	const FVector2f& Scale = static_cast<FVector2f>(TextureUV->GetScale());
+	const FVector2f& Tiling = static_cast<FVector2f>(TextureUV->GetTiling());
 	const FVector2f& Pivot = static_cast<FVector2f>(TextureUV->GetPivot());
 
 	FVector2f TransformedUV = InUV;
@@ -480,16 +480,16 @@ FVector2f SDMTextureUVVisualizer::ApplyTextureUVTransform(const FVector2f& InUV)
 		TransformedUV = TransformedUV.GetRotated(Rotation);
 	}
 
-	TransformedUV *= Scale;
+	TransformedUV /= Tiling;
 	TransformedUV += Pivot;
 
 	if (!FMath::IsNearlyZero(Rotation))
 	{
-		TransformedUV += (Offset * Scale).GetRotated(Rotation);
+		TransformedUV += (Offset / Tiling).GetRotated(Rotation);
 	}
 	else
 	{
-		TransformedUV += Offset * Scale;
+		TransformedUV += Offset / Tiling;
 	}
 
 	return TransformedUV;
@@ -544,20 +544,20 @@ float SDMTextureUVVisualizer::GetCircleHandleRadiusAtAngle(float InAngle) const
 		return BaseDistance;
 	}
 
-	const FVector2D& Scale2D = TextureUV->GetScale();
+	const FVector2D& Tiling = TextureUV->GetTiling();
 
-	if (FMath::IsNearlyEqual(Scale2D.X, Scale2D.Y))
+	if (FMath::IsNearlyEqual(Tiling.X, Tiling.Y))
 	{
-		return BaseDistance * Scale2D.X;
+		return BaseDistance / Tiling.X;
 	}
 
 	const float RadianAngle = FMath::DegreesToRadians(InAngle);
 
-	const FVector2f Scale = static_cast<FVector2f>(Scale2D);
+	const FVector2f TilingFloat = static_cast<FVector2f>(Tiling);
 
 	const FVector2f Offset = {
-		FMath::Sin(RadianAngle) * Scale.X,
-		FMath::Cos(RadianAngle) * Scale.Y
+		FMath::Sin(RadianAngle) / TilingFloat.X,
+		FMath::Cos(RadianAngle) / TilingFloat.Y
 	};
 
 	return BaseDistance * Offset.Size();
@@ -633,12 +633,12 @@ SDMTextureUVVisualizer::EHandleAxis SDMTextureUVVisualizer::GetCircleHandleAxis(
 
 	const FVector2f HandleOffset = InAbsolutePosition - GetAbsolutePivotLocation();
 	const float DistanceFromHandle = HandleOffset.Size();
-	const FVector2D& Scale2D = TextureUV->GetScale();
+	const FVector2D& Tiling2D = TextureUV->GetTiling();
 	// We manage angle clockwise from +Y axis. Atan2 handles it anti-clockwise from +X axis.
 	float Angle = 90.f - FMath::RadiansToDegrees(FMath::Atan2(HandleOffset.Y, HandleOffset.X)) + TextureUV->GetRotation();
 	float DistanceFromCircleHandle;
 
-	if (FMath::IsNearlyEqual(Scale2D.X, Scale2D.Y))
+	if (FMath::IsNearlyEqual(Tiling2D.X, Tiling2D.Y))
 	{
 		DistanceFromCircleHandle = FMath::Abs(DistanceFromHandle - GetCircleHandleBaseRadius());
 	}
@@ -796,7 +796,7 @@ bool SDMTextureUVVisualizer::TryClickCircleHandle(const FVector2f& InMousePositi
 	const FVector2f AbsolutePivotLocation = GetAbsolutePivotLocation();
 
 	// When the uv is rotated, do the opposite action
-	const bool bRegularInvertScale = Rotation <= 90.f || Rotation > 270.f;
+	const bool bRegularInvertTiling = Rotation <= 90.f || Rotation > 270.f;
 
 	// Work out if the mouse is over part of the circle handle.
 	EHandleAxis Axis = GetCircleHandleAxis(InMousePosition);
@@ -827,16 +827,16 @@ bool SDMTextureUVVisualizer::TryClickCircleHandle(const FVector2f& InMousePositi
 		{
 			if (!bInResetToDefault)
 			{
-				SetScrubbingMode(EScrubbingMode::Scale, Axis);
-				bInvertScale = (InMousePosition.X <= AbsolutePivotLocation.X) == bRegularInvertScale;
+				SetScrubbingMode(EScrubbingMode::Tiling, Axis);
+				bInvertTiling = (InMousePosition.X <= AbsolutePivotLocation.X) == bRegularInvertTiling;
 			}
 			else
 			{
-				FScopedTransaction Transaction(LOCTEXT("ResetScaleX", "Reset Scale X to Default."));
+				FScopedTransaction Transaction(LOCTEXT("ResetTilingeX", "Reset Tiling X to Default."));
 				TextureUV->Modify();
-				FVector2D NewScale = TextureUV->GetScale();
-				NewScale.X = 1.0;
-				TextureUV->SetScale(NewScale);
+				FVector2D NewTiling = TextureUV->GetTiling();
+				NewTiling.X = 1.0;
+				TextureUV->SetTiling(NewTiling);
 			}
 
 			break;
@@ -846,16 +846,16 @@ bool SDMTextureUVVisualizer::TryClickCircleHandle(const FVector2f& InMousePositi
 		{
 			if (!bInResetToDefault)
 			{
-				SetScrubbingMode(EScrubbingMode::Scale, Axis);
-				bInvertScale = (InMousePosition.Y <= AbsolutePivotLocation.Y) == bRegularInvertScale;
+				SetScrubbingMode(EScrubbingMode::Tiling, Axis);
+				bInvertTiling = (InMousePosition.Y <= AbsolutePivotLocation.Y) == bRegularInvertTiling;
 			}
 			else
 			{
-				FScopedTransaction Transaction(LOCTEXT("ResetScaleY", "Reset Scale Y to Default."));
+				FScopedTransaction Transaction(LOCTEXT("ResetTilingY", "Reset Tiling Y to Default."));
 				TextureUV->Modify();
-				FVector2D NewScale = TextureUV->GetScale();
-				NewScale.Y = 1.0;
-				TextureUV->SetScale(NewScale);
+				FVector2D NewTiling = TextureUV->GetTiling();
+				NewTiling.Y = 1.0;
+				TextureUV->SetTiling(NewTiling);
 			}
 
 			break;
@@ -932,10 +932,10 @@ void SDMTextureUVVisualizer::SetScrubbingMode(EScrubbingMode InMode, EHandleAxis
 			break;
 		}
 
-		case EScrubbingMode::Scale:
-			ValueStart = TextureUV->GetScale();
-			TextureProperty = UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Scale);
-			UE_LOG(LogDynamicMaterialEditor, Verbose, TEXT("Started Scale mode"));
+		case EScrubbingMode::Tiling:
+			ValueStart = TextureUV->GetTiling();
+			TextureProperty = UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Tiling);
+			UE_LOG(LogDynamicMaterialEditor, Verbose, TEXT("Started Tiling mode"));
 			break;
 
 		case EScrubbingMode::Pivot:
@@ -1004,8 +1004,8 @@ void SDMTextureUVVisualizer::UpdateScrub()
 			UpdateScrub_Rotation();
 			break;
 
-		case EScrubbingMode::Scale:
-			UpdateScrub_Scale();
+		case EScrubbingMode::Tiling:
+			UpdateScrub_Tiling();
 			break;
 
 		case EScrubbingMode::Pivot:
@@ -1045,7 +1045,7 @@ void SDMTextureUVVisualizer::UpdateScrub_Offset()
 		OffsetChange = OffsetChange.GetRotated(-Rotation);
 	}
 
-	OffsetChange /= TextureUV->GetScale();
+	OffsetChange *= TextureUV->GetTiling();
 
 	if (HandleAxis == EHandleAxis::X)
 	{
@@ -1097,7 +1097,7 @@ void SDMTextureUVVisualizer::UpdateScrub_Rotation()
 	TextureUV->PostEditChangeProperty(ChangedEvent);
 }
 
-void SDMTextureUVVisualizer::UpdateScrub_Scale()
+void SDMTextureUVVisualizer::UpdateScrub_Tiling()
 {
 	UDMTextureUV* TextureUV = TextureUVWeak.Get();
 
@@ -1109,66 +1109,66 @@ void SDMTextureUVVisualizer::UpdateScrub_Scale()
 	const FVector2f MouseOffset = FSlateApplication::Get().GetCursorPos() - ScrubbingStartAbsoluteMouse;
 	const FBox2d BrushUV = Brush.GetUVRegion();
 
-	FVector2D ScaleChange = static_cast<FVector2D>(MouseOffset / CurrentAbsoluteSize);
-	ScaleChange.X *= (BrushUV.Max.X - BrushUV.Min.X);
-	ScaleChange.Y *= (BrushUV.Max.Y - BrushUV.Min.Y);
-	ScaleChange /= TextureUV->GetScale();
+	FVector2D TilingChange = static_cast<FVector2D>(MouseOffset / CurrentAbsoluteSize);
+	TilingChange.X *= (BrushUV.Max.X - BrushUV.Min.X);
+	TilingChange.Y *= (BrushUV.Max.Y - BrushUV.Min.Y);
+	TilingChange /= TextureUV->GetTiling();
 
-	if (bInvertScale)
+	if (!bInvertTiling)
 	{
-		ScaleChange *= -1.f;
+		TilingChange *= -1.f;
 	}
 
 	const float Rotation = TextureUV->GetRotation();
 
 	if (!FMath::IsNearlyZero(Rotation))
 	{
-		ScaleChange = ScaleChange.GetRotated(-Rotation);
+		TilingChange = TilingChange.GetRotated(-Rotation);
 	}
 
 	if (HandleAxis == EHandleAxis::X)
 	{
-		ScaleChange.Y = 0;
+		TilingChange.Y = 0;
 	}
 	else
 	{
-		ScaleChange.Y *= -1.0;
+		TilingChange.Y *= -1.0;
 	}
 
 	if (HandleAxis == EHandleAxis::Y)
 	{
-		ScaleChange.X = 0;
+		TilingChange.X = 0;
 	}
 
-	FVector2D NewScale = ValueStart;
+	FVector2D NewTiling = ValueStart;
 
 	if (HandleAxis == EHandleAxis::X)
 	{
-		if (ScaleChange.X > 0)
+		if (TilingChange.X > 0)
 		{
-			NewScale.X = FMath::Max(0.001, NewScale.X * (1.f + ScaleChange.X));
+			NewTiling.X = FMath::Max(0.001, NewTiling.X * (1.f + TilingChange.X));
 		}
 		else
 		{
-			NewScale.X = FMath::Max(0.001, NewScale.X / (1.f - ScaleChange.X));
+			NewTiling.X = FMath::Max(0.001, NewTiling.X / (1.f - TilingChange.X));
 		}
 	}
 	else
 	{
-		if (ScaleChange.Y > 0)
+		if (TilingChange.Y > 0)
 		{
-			NewScale.Y = FMath::Max(0.001, NewScale.Y / (1.f + ScaleChange.Y));
+			NewTiling.Y = FMath::Max(0.001, NewTiling.Y / (1.f + TilingChange.Y));
 		}
 		else
 		{
-			NewScale.Y = FMath::Max(0.001, NewScale.Y * (1.f - ScaleChange.Y));
+			NewTiling.Y = FMath::Max(0.001, NewTiling.Y * (1.f - TilingChange.Y));
 		}
 	}
 
-	TextureUV->SetScale(NewScale);
+	TextureUV->SetTiling(NewTiling);
 
 	FPropertyChangedEvent ChangedEvent(
-		UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Scale),
+		UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Tiling),
 		EPropertyChangeType::Interactive,
 		{TextureUV}
 	);

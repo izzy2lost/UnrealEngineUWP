@@ -24,15 +24,15 @@ namespace UE::DynamicMaterial::ParamID
 	// Individual parameters
 	constexpr int32 PivotX = 0;
 	constexpr int32 PivotY = 1;
-	constexpr int32 ScaleX = 2;
-	constexpr int32 ScaleY = 3;
+	constexpr int32 TilingX = 2;
+	constexpr int32 TilingY = 3;
 	constexpr int32 Rotation = 4;
 	constexpr int32 OffsetX = 5;
 	constexpr int32 OffsetY = 6;
 
 	// Parameter groups
 	constexpr int32 Pivot = PivotX;
-	constexpr int32 Scale = ScaleX;
+	constexpr int32 Tiling = TilingX;
 	//constexpr int32 Rotation = 4; // No additional group value needed
 	constexpr int32 Offset = OffsetX;
 }
@@ -55,15 +55,15 @@ public:
 	static const FName NAME_Offset;
 	static const FName NAME_Pivot;
 	static const FName NAME_Rotation;
-	static const FName NAME_Scale;
+	static const FName NAME_Tiling;
 
 	static const FString OffsetXPathToken;
 	static const FString OffsetYPathToken;
 	static const FString PivotXPathToken;
 	static const FString PivotYPathToken;
 	static const FString RotationPathToken;
-	static const FString ScaleXPathToken;
-	static const FString ScaleYPathToken;
+	static const FString TilingXPathToken;
+	static const FString TilingYPathToken;
 	
 	static const FGuid GUID;
 
@@ -78,7 +78,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Material Designer")
-	bool bLinkScale = true;
+	bool bLinkTiling = true;
 #endif
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
@@ -111,10 +111,10 @@ public:
 	void SetRotation(float InRotation);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FVector2D& GetScale() const { return Scale; }
+	const FVector2D& GetTiling() const { return Tiling; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetScale(const FVector2D& InScale);
+	void SetTiling(const FVector2D& InTiling);
 
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
@@ -178,15 +178,19 @@ protected:
 	FVector2D Offset = FVector2D(0.f, 0.f);
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetPivot, Setter = SetPivot, BlueprintSetter = SetPivot, Category = "Material Designer|Texture UV",
-		meta = (AllowPrivateAccess = "true", ToolTip="Pivot for rotation and scale.", Delta = 0.001))
+		meta = (AllowPrivateAccess = "true", ToolTip="Pivot for rotation and tiling.", Delta = 0.001))
 	FVector2D Pivot = FVector2D(0.5, 0.5);
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetRotation, Setter = SetRotation, BlueprintSetter = SetRotation, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", Delta = 1.0))
 	float Rotation = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetScale, Setter = SetScale, BlueprintSetter = SetScale, Category = "Material Designer|Texture UV",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetTiling, Setter = SetTiling, BlueprintSetter = SetTiling, Category = "Material Designer|Texture UV",
 		meta = (AllowPrivateAccess = "true", AllowPreserveRatio, VectorRatioMode = 3, Delta = 0.001))
+	FVector2D Tiling = FVector2D(1.f, 1.f);
+
+	UE_DEPRECATED(5.5, "Changed to tiling.")
+	UPROPERTY()
 	FVector2D Scale = FVector2D(1.f, 1.f);
 
 #if WITH_EDITORONLY_DATA

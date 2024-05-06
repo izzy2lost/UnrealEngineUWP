@@ -16,8 +16,8 @@ namespace UE::DynamicMaterial::Private
 	TMap<int32, FName> BaseParameterNames = {
 		{ParamID::PivotX,   FName(TEXT("TextureUV_PivotX"))},
 		{ParamID::PivotY,   FName(TEXT("TextureUV_PivotY"))},
-		{ParamID::ScaleX,   FName(TEXT("TextureUV_ScaleX"))},
-		{ParamID::ScaleY,   FName(TEXT("TextureUV_ScaleY"))},
+		{ParamID::TilingX,   FName(TEXT("TextureUV_TilingX"))},
+		{ParamID::TilingY,   FName(TEXT("TextureUV_TilingY"))},
 		{ParamID::Rotation, FName(TEXT("TextureUV_Rotation"))},
 		{ParamID::OffsetX,  FName(TEXT("TextureUV_OffsetX"))},
 		{ParamID::OffsetY,  FName(TEXT("TextureUV_OffsetY"))},
@@ -28,7 +28,8 @@ enum class EDMTextureUVVersion : int32
 {
 	Initial_Pre_20221102 = 0,
 	Version_22021102 = 1,
-	LatestVersion = Version_22021102
+	ScaleToTiling = 2,
+	LatestVersion = ScaleToTiling
 };
 
 const FGuid UDMTextureUV::GUID(0xFCF57AFB, 0x50764284, 0xB9A9E659, 0xFFA02D33);
@@ -39,13 +40,13 @@ const FString UDMTextureUV::OffsetYPathToken  = FString(TEXT("OffsetY"));
 const FString UDMTextureUV::PivotXPathToken   = FString(TEXT("PivotX"));
 const FString UDMTextureUV::PivotYPathToken   = FString(TEXT("PivotY"));
 const FString UDMTextureUV::RotationPathToken = FString(TEXT("Rotation"));
-const FString UDMTextureUV::ScaleXPathToken   = FString(TEXT("ScaleX"));
-const FString UDMTextureUV::ScaleYPathToken   = FString(TEXT("ScaleY"));
+const FString UDMTextureUV::TilingXPathToken   = FString(TEXT("Tiling"));
+const FString UDMTextureUV::TilingYPathToken   = FString(TEXT("TilingY"));
 
 const FName UDMTextureUV::NAME_Offset     = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Offset);
 const FName UDMTextureUV::NAME_Pivot      = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Pivot);
 const FName UDMTextureUV::NAME_Rotation   = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Rotation);
-const FName UDMTextureUV::NAME_Scale      = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Scale);
+const FName UDMTextureUV::NAME_Tiling      = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Tiling);
 
 #if WITH_EDITOR
 const FName UDMTextureUV::NAME_UVSource = GET_MEMBER_NAME_CHECKED(UDMTextureUV, UVSource);
@@ -57,7 +58,7 @@ const TMap<FName, bool> UDMTextureUV::TextureProperties = {
 	{NAME_Offset,     true},
 	{NAME_Pivot,      true},
 	{NAME_Rotation,   true},
-	{NAME_Scale,      true},
+	{NAME_Tiling,      true},
 	{NAME_bMirrorOnX, false},
 	{NAME_bMirrorOnY, false}
 };
@@ -69,7 +70,7 @@ UDMTextureUV::UDMTextureUV()
 	EditableProperties.Add(NAME_Offset);
 	EditableProperties.Add(NAME_Pivot);
 	EditableProperties.Add(NAME_Rotation);
-	EditableProperties.Add(NAME_Scale);
+	EditableProperties.Add(NAME_Tiling);
 	EditableProperties.Add(NAME_bMirrorOnX);
 	EditableProperties.Add(NAME_bMirrorOnY);
 #endif
@@ -147,20 +148,20 @@ void UDMTextureUV::SetRotation(float InRotation)
 	Update(EDMUpdateType::Value);
 }
 
-void UDMTextureUV::SetScale(const FVector2D& InScale)
+void UDMTextureUV::SetTiling(const FVector2D& InTiling)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (FMath::IsNearlyEqual(Scale.X, InScale.X)
-		&& FMath::IsNearlyEqual(Scale.Y, InScale.Y))
+	if (FMath::IsNearlyEqual(Tiling.X, InTiling.X)
+		&& FMath::IsNearlyEqual(Tiling.Y, InTiling.Y))
 	{
 		return;
 	}
 
-	Scale = InScale;
+	Tiling = InTiling;
 
 	Update(EDMUpdateType::Value);
 }
@@ -255,16 +256,16 @@ UDMMaterialParameter* UDMTextureUV::GetMaterialParameter(FName InPropertyName, i
 				break;
 		}
 	}
-	else if (InPropertyName == NAME_Scale)
+	else if (InPropertyName == NAME_Tiling)
 	{
 		switch (InComponent)
 		{
 			case 0:
-				ParameterPtr = MaterialParameters.Find(ParamID::ScaleX);
+				ParameterPtr = MaterialParameters.Find(ParamID::TilingX);
 				break;
 
 			case 1:
-				ParameterPtr = MaterialParameters.Find(ParamID::ScaleY);
+				ParameterPtr = MaterialParameters.Find(ParamID::TilingY);
 				break;
 		}
 	}
@@ -351,8 +352,8 @@ void UDMTextureUV::SetMIDParameters(UMaterialInstanceDynamic* InMID)
 
 	UpdateMID(MaterialParameters[ParamID::PivotX]->GetParameterName(), GetPivot().X);
 	UpdateMID(MaterialParameters[ParamID::PivotY]->GetParameterName(), GetPivot().Y);
-	UpdateMID(MaterialParameters[ParamID::ScaleX]->GetParameterName(), GetScale().X);
-	UpdateMID(MaterialParameters[ParamID::ScaleY]->GetParameterName(), GetScale().Y);
+	UpdateMID(MaterialParameters[ParamID::TilingX]->GetParameterName(), GetTiling().X);
+	UpdateMID(MaterialParameters[ParamID::TilingY]->GetParameterName(), GetTiling().Y);
 	UpdateMID(MaterialParameters[ParamID::Rotation]->GetParameterName(), GetRotation());
 	UpdateMID(MaterialParameters[ParamID::OffsetX]->GetParameterName(), GetOffset().X);
 	UpdateMID(MaterialParameters[ParamID::OffsetY]->GetParameterName(), GetOffset().Y);
@@ -453,14 +454,14 @@ UDMMaterialComponent* UDMTextureUV::GetSubComponentByPath(FDMComponentPath& InPa
 		return GetParameter(ParamID::Rotation);
 	}
 
-	if (InPathSegment.GetToken() == ScaleXPathToken)
+	if (InPathSegment.GetToken() == TilingXPathToken)
 	{
-		return GetParameter(ParamID::ScaleX);
+		return GetParameter(ParamID::TilingX);
 	}
 
-	if (InPathSegment.GetToken() == ScaleYPathToken)
+	if (InPathSegment.GetToken() == TilingYPathToken)
 	{
-		return GetParameter(ParamID::ScaleY);
+		return GetParameter(ParamID::TilingY);
 	}
 
 	return Super::GetSubComponentByPath(InPath, InPathSegment);
@@ -512,8 +513,8 @@ void UDMTextureUV::CreateParameterNames()
 
 	CreateParam(ParamID::PivotX);
 	CreateParam(ParamID::PivotY);
-	CreateParam(ParamID::ScaleX);
-	CreateParam(ParamID::ScaleY);
+	CreateParam(ParamID::TilingX);
+	CreateParam(ParamID::TilingY);
 	CreateParam(ParamID::Rotation);
 	CreateParam(ParamID::OffsetX);
 	CreateParam(ParamID::OffsetY);
@@ -595,7 +596,7 @@ void UDMTextureUV::PostEditChangeProperty(struct FPropertyChangedEvent& Property
 	if (PropertyChangedEvent.MemberProperty->GetFName() == NAME_Offset
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Pivot
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Rotation
-		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Scale)
+		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Tiling)
 	{
 		Update(EDMUpdateType::Value);
 	}
@@ -722,11 +723,19 @@ void UDMTextureUV::Serialize(FArchive& Ar)
 			case static_cast<int32>(EDMTextureUVVersion::Initial_Pre_20221102):
 				Offset.X *= -1;
 				Rotation *= -360.f;
-				Scale = FVector2D(1.f, 1.f) / Scale;
-				TextureUVVersion = static_cast<int32>(EDMTextureUVVersion::LatestVersion);
+				Tiling = FVector2D(1.f, 1.f) / Tiling;
+				++TextureUVVersion;
 #if WITH_EDITORONLY_DATA
 				bNeedsPostLoadValueUpdate = true;
 #endif
+				break;
+
+			case static_cast<int32>(EDMTextureUVVersion::Version_22021102):
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				Tiling.X = (Scale.X != 0.f) ? (1.f / Scale.X) : 1.f;
+				Tiling.Y = (Scale.Y != 0.f) ? (1.f / Scale.Y) : 1.f;
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				++TextureUVVersion;
 				break;
 
 			case static_cast<int32>(EDMTextureUVVersion::LatestVersion):

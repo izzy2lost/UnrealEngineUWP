@@ -62,7 +62,7 @@ void FDMTextureUVPropertyRowGenerator::AddComponentProperties(const TSharedRef<S
 
 	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Offset, InOutPropertyRows);
 	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Rotation, InOutPropertyRows);
-	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Scale, InOutPropertyRows);
+	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Tiling, InOutPropertyRows);
 	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Pivot, InOutPropertyRows);
 	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnX, InOutPropertyRows);
 	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnY, InOutPropertyRows);
@@ -88,7 +88,7 @@ void FDMTextureUVPropertyRowGenerator::AddPopoutComponentProperties(const TShare
 
 	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Offset, InOutPropertyRows);
 	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Rotation, InOutPropertyRows);
-	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Scale, InOutPropertyRows);
+	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Tiling, InOutPropertyRows);
 	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Pivot, InOutPropertyRows);
 	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnX, InOutPropertyRows);
 	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnY, InOutPropertyRows);
@@ -133,7 +133,7 @@ void UE::DynamicMaterialEditor::Private::AddVisualizerRow(const TSharedRef<SWidg
 
 	FDMPropertyHandle VisualizerHandle;
 	VisualizerHandle.NameOverride = LOCTEXT("Visualizer", "UV Visualizer");
-	VisualizerHandle.NameToolTipOverride = LOCTEXT("VisualizerToolTip", "A graphical Texture UV editor.\n\n- Offset Mode: Change the Texture UV offset.\n- Pivot Mode: Change the Texture UV pivot, rotation and scale.\n\nControl+click to reset values to default.");
+	VisualizerHandle.NameToolTipOverride = LOCTEXT("VisualizerToolTip", "A graphical Texture UV editor.\n\n- Offset Mode: Change the Texture UV offset.\n- Pivot Mode: Change the Texture UV pivot, rotation and tiling.\n\nControl+click to reset values to default.");
 	VisualizerHandle.ValueName = FName(*InTextureUV->GetComponentPath());
 	VisualizerHandle.ValueWidget = SNew(SDMTextureUVVisualizerProperty, Stage, InTextureUV);
 	VisualizerHandle.CategoryOverrideName = TEXT("Texture UV");
@@ -209,9 +209,9 @@ bool UE::DynamicMaterialEditor::Private::CanResetTextureUVPropertyToDefault(TSha
 		return DefaultObject->GetRotation() != PropertyObject->GetRotation();
 	}
 
-	if (PropertyName == UDMTextureUV::NAME_Scale)
+	if (PropertyName == UDMTextureUV::NAME_Tiling)
 	{
-		return !DefaultObject->GetScale().Equals(PropertyObject->GetScale());
+		return !DefaultObject->GetTiling().Equals(PropertyObject->GetTiling());
 	}
 
 	return false;

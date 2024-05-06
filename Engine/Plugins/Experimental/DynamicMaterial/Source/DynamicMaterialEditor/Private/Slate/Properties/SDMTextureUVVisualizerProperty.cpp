@@ -100,7 +100,7 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 				.Padding(FVector2D(5.f, 3.f))
 				.IsChecked(this, &SDMTextureUVVisualizerProperty::GetModeCheckBoxState, /* Is Pivot */ true)
 				.OnCheckStateChanged(this, &SDMTextureUVVisualizerProperty::OnModeCheckBoxStateChanged, /* Is Pivot */ true)
-				.ToolTipText(LOCTEXT("VisualizerPivotToolTip", "Allows changing of the UV pivot, rotation and scale."))
+				.ToolTipText(LOCTEXT("VisualizerPivotToolTip", "Allows changing of the UV pivot, rotation and tiling."))
 				.Content()
 				[
 					SNew(STextBlock)

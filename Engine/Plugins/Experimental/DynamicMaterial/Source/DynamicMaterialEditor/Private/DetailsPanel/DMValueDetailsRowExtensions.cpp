@@ -221,7 +221,7 @@ void FDMValueDetailsRowExtensions::FillPropertyRightClickMenu_TextureUV(FToolMen
 
 	if (InPropertyName == UDMTextureUV::NAME_Offset 
 		|| InPropertyName == UDMTextureUV::NAME_Pivot
-		|| InPropertyName == UDMTextureUV::NAME_Scale)
+		|| InPropertyName == UDMTextureUV::NAME_Tiling)
 	{
 		CreateMenuEntry(ParameterNameMenuEntryX, ComponentX);
 		CreateMenuEntry(ParameterNameMenuEntryY, ComponentY);
