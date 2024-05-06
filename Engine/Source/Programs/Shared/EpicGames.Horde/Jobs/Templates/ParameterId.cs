@@ -19,7 +19,7 @@ namespace EpicGames.Horde.Jobs.Templates
 		{
 		}
 
-		/// <inheritdoc cref="StringId.Sanitize(string)"/>
+		/// <inheritdoc cref="StringId.Sanitize"/>
 		public static ParameterId Sanitize(string name)
 			=> new ParameterId(StringId.Sanitize(name));
 
