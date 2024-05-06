@@ -32,6 +32,12 @@ namespace UE::AbilitySystem::Private
 	FAutoConsoleVariableRef CVarDependentChainBehavior(TEXT("AbilitySystem.PredictionKey.DepChainBehavior"), CVarDependentChainBehaviorValue,
 		TEXT("How do we handle dependency key chains? Bitmask: 0 = Old Accept/Rejected Implies Newer Accepted/Rejected. 0x1 = Newer Accepted also implies Older Accepted. 0x2 = Old Accepted Does NOT imply Newer Accepted"));
 
+	// Prior to UE5.4.2, we used to allow Server Initiated Replication Keys to be sent to the client as 'acknowledged' but that hardly makes sense.
+	// Unfortunately, it also causes key hash collisions since there is limited space based on the key value.
+	int32 CVarReplicateServerKeysAsAcknowledgedValue = 0;
+	FAutoConsoleVariableRef CVarReplicateServerKeysAsAcknowledged(TEXT("AbilitySystem.PredictionKey.RepServerKeysAsAcknowledged"), CVarReplicateServerKeysAsAcknowledgedValue,
+		TEXT("Do we send server initiated keys as acknowledged to the client? Default false. Was true prior to UE5.4.2."));
+
 	/**
 	 * Given an FProperty Link (such as a UFunction's Properties, or a UStruct's Properties), find and return any linked FPredictionKeys.
 	 * This is useful for determining if we're sending FPredictionKeys via RPC.
@@ -214,18 +220,14 @@ FPredictionKey FPredictionKey::CreateNewServerInitiatedKey(const UAbilitySystemC
 	// Only valid on the server
 	if (OwningComponent->GetOwnerRole() == ROLE_Authority)
 	{
-		NewKey.GenerateNewPredictionKey();
-		NewKey.bIsServerInitiated = true;
-
-#if !UE_BUILD_SHIPPING
 		// Make sure the Server and Client aren't synchronized in terms of key generation or it can hide bugs.
-		const uint32 ServerDifferential = static_cast<uint32>(reinterpret_cast<intptr_t>(OwningComponent));
-		NewKey.Current = (NewKey.Current + ServerDifferential) % std::numeric_limits<FPredictionKey::KeyType>::max();
-		if (NewKey.Current < 1)
+		static KeyType GServerKey = 1;
+		NewKey.bIsServerInitiated = true;
+		NewKey.Current = GServerKey++;
+		if (GServerKey <= 0)
 		{
-			NewKey.Current = 1;
+			GServerKey = 1;
 		}
-#endif
 	}
 	return NewKey;
 }
@@ -359,6 +361,10 @@ void FPredictionKeyDelegates::AddDependency(FPredictionKey::KeyType ThisKey, FPr
 
 // -------------------------------------
 
+/** 
+ * This is the Server version of FScopedPredictionWindow constructor.
+ * This exists for legacy reasons and I'm not convinced this needs to exist.  Instead we should manually accept/reject the FPredictionKey (currently done in the destructor).
+ */
 FScopedPredictionWindow::FScopedPredictionWindow(UAbilitySystemComponent* AbilitySystemComponent, FPredictionKey InPredictionKey, bool InSetReplicatedPredictionKey /*=true*/)
 {
 	if (AbilitySystemComponent == nullptr)
@@ -445,7 +451,7 @@ FScopedPredictionWindow::FScopedPredictionWindow(UAbilitySystemComponent* InAbil
 					{
 						if (PassedInKey.Current == BaseKey || PassedInKey.Base == BaseKey)
 						{
-							UE_LOG(LogPredictionKey, Verbose, TEXT("Sent key %s to confirm BaseKey %d"), *PassedInKey.ToString(), BaseKey);
+							UE_LOG(LogPredictionKey, Verbose, TEXT("Sent key %s with %s to confirm BaseKey %d"), *PassedInKey.ToString(), *Function->GetName(), BaseKey);
 							DebugBaseKeyOfChain.Reset();
 							break;
 						}
@@ -465,7 +471,16 @@ FScopedPredictionWindow::~FScopedPredictionWindow()
 		if (DebugBaseKeyOfChain.IsSet())
 		{
 			const FPredictionKey::KeyType BaseKey = DebugBaseKeyOfChain.GetValue();
-			UE_CLOG(FPredictionKeyDelegates::Get().DelegateMap.Contains(BaseKey), LogPredictionKey, Warning, TEXT("No key based off PredictionKey %d was communicated to the server during ScopedPredictionWindow. This will likely leak a FPredictionKey with dangling CaughtUpTo/Rejected delegates."), BaseKey);
+			if (const FPredictionKeyDelegates::FDelegates* BoundDelegates = FPredictionKeyDelegates::Get().DelegateMap.Find(BaseKey))
+			{
+				const bool bIsBound = BoundDelegates->RejectedDelegates.Num() > 0 || BoundDelegates->CaughtUpDelegates.Num() > 0;
+
+				// If you get this log, you can set a breakpoint here and inspect the Delegates to see what it's bound to and therefore what code is at fault (the binding code, or the code that never sends the key to the server). 
+				UE_CLOG(bIsBound, LogPredictionKey, Warning, TEXT("No key based off PredictionKey %d was communicated to the server during ScopedPredictionWindow. The PredictionKey has bound callbacks that can never be called (leak)."), BaseKey);
+
+				// If you get this log, you can check the call stack to see where this FScopedPredictionWindow originated from, and why it would be creating an entry in the FPredictionKeyDelegates without any bindings to it.
+				UE_CLOG(!bIsBound, LogPredictionKey, Warning, TEXT("No key based off PredictionKey %d was communicated to the server during ScopedPredictionWindow. The PredictionKey is not bound, but has leaked an entry in FPredictionKeyDelegates."), BaseKey);
+			}
 		}
 		
 		NetDriver->SendRPCDel = DebugSavedOnSendRPC;
@@ -485,7 +500,18 @@ FScopedPredictionWindow::~FScopedPredictionWindow()
 			// (for example, predict w/ key 100 -> prediction key replication dropped -> predict w/ invalid key -> next rep of prediction key is 0).
 			if (OwnerPtr->ScopedPredictionKey.IsValidKey())
 			{
-				OwnerPtr->ReplicatedPredictionKeyMap.ReplicatePredictionKey(OwnerPtr->ScopedPredictionKey);
+				const bool bServerInitiatedKey = OwnerPtr->ScopedPredictionKey.IsServerInitiatedKey();
+				const bool bAllowAckServerInitiatedKey = UE::AbilitySystem::Private::CVarReplicateServerKeysAsAcknowledgedValue > 0;
+				if (!bServerInitiatedKey || bAllowAckServerInitiatedKey)
+				{
+					UE_CLOG(bServerInitiatedKey, LogAbilitySystem, Warning, TEXT("Replicating Server Initiated PredictionKey %s (this may stomp a client key leaving it unack'd). See CVarReplicateServerKeysAsAcknowledged"), *OwnerPtr->ScopedPredictionKey.ToString());
+					UE_VLOG_UELOG(OwnerPtr->GetOwnerActor(), LogPredictionKey, Verbose, TEXT("Server: ReplicatePredictionKey %s"), *OwnerPtr->ScopedPredictionKey.ToString());
+					OwnerPtr->ReplicatedPredictionKeyMap.ReplicatePredictionKey(OwnerPtr->ScopedPredictionKey);
+				}
+				else
+				{
+					UE_LOG(LogAbilitySystem, Verbose, TEXT("Server: NOT replicating PredictionKey %s due to being server initiated. See CVarReplicateServerKeysAsAcknowledged."), *OwnerPtr->ScopedPredictionKey.ToString());
+				}
 			}
 		}
 		if (ClearScopedPredictionKey)
@@ -512,6 +538,7 @@ void FReplicatedPredictionKeyItem::OnRep(const FReplicatedPredictionKeyMap& InAr
 	// initiates a key that matches a local value.  Then we catch-up to a local value, even though the server was not specifically acknowledging it.
 	if (PredictionKey.bIsServerInitiated)
 	{
+		UE_LOG(LogPredictionKey, Warning, TEXT("FReplicatedPredictionKeyItem::OnRep received Server Initiated Key %s (which likely stomped a local key due to keymap hash collisions). This shouldn't happen if CVarReplicateServerKeysAsAcknowledged is 0."), *PredictionKey.ToString());
 		return;
 	}
 
