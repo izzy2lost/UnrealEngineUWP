@@ -27,6 +27,7 @@ namespace PCGWorldRaycastElementConstants
 }
 
 UPCGWorldRaycastElementSettings::UPCGWorldRaycastElementSettings()
+	: WorldQueryParams()
 {
 	OriginInputAttribute.SetPointProperty(EPCGPointProperties::Position);
 	EndPointAttribute.SetPointProperty(EPCGPointProperties::Position);
@@ -108,6 +109,7 @@ bool FPCGWorldRaycastElement::PrepareDataInternal(FPCGContext* InContext) const
 
 		OutState.CollisionQueryParams.bTraceComplex = Settings->WorldQueryParams.bTraceComplex;
 		OutState.CollisionQueryParams.bReturnPhysicalMaterial = Settings->WorldQueryParams.bGetReferenceToPhysicalMaterial;
+		OutState.CollisionQueryParams.bReturnFaceIndex = Settings->WorldQueryParams.bGetFaceIndex || Settings->WorldQueryParams.bGetUVCoords;
 		OutState.CollisionObjectQueryParams = FCollisionObjectQueryParams(Settings->WorldQueryParams.CollisionChannel);
 
 		return EPCGTimeSliceInitResult::Success;
@@ -298,6 +300,13 @@ bool FPCGWorldRaycastElement::ExecuteInternal(FPCGContext* InContext) const
 
 		const FPCGWorldRaycastQueryParams& WorldQueryParams = Settings->WorldQueryParams;
 
+		if (!PCGWorldQueryHelpers::CreateRayHitAttributes(WorldQueryParams, OutMetadata))
+		{
+			PCGLog::LogWarningOnGraph(LOCTEXT("UnableToCreateAllAttributes", "One or more attributes were unable to be created."), Context);
+		}
+
+		bool bAttributeSuccess = true;
+
 		const int32 PointCount = FMath::Max(IterState.CachedRayOrigins.Num(), IterState.CachedRayVectors.Num());
 		for (int64 PointIndex = 0; PointIndex < PointCount; ++PointIndex)
 		{
@@ -337,6 +346,8 @@ bool FPCGWorldRaycastElement::ExecuteInternal(FPCGContext* InContext) const
 				OutPoint.Transform = PCGWorldQueryHelpers::GetOrthonormalImpactTransform(Hit);
 				OutPoint.Density = 1.f;
 				UPCGBlueprintHelpers::SetSeedFromPosition(OutPoint);
+
+				bAttributeSuccess &= PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, WorldQueryParams, OutputPoints.Last(), OutMetadata, World, /*bShouldCreateAttributes=*/false);
 			}
 			else if (Settings->bKeepOriginalPointOnMiss)
 			{
@@ -349,14 +360,14 @@ bool FPCGWorldRaycastElement::ExecuteInternal(FPCGContext* InContext) const
 				{
 					OutputPoints.Emplace(FTransform(Origin), /*InDensity=*/0.f, UPCGBlueprintHelpers::ComputeSeedFromPosition(Origin));
 				}
-			}
-			else
-			{
-				continue;
-			}
 
-			// TODO: Pre-create the attributes outside the loop once the helper exists in PCGWorldQueryHelpers
-			PCGWorldQueryHelpers::ApplyRayHitMetadata(HitResult, WorldQueryParams, OutputPoints.Last(), OutMetadata);
+				bAttributeSuccess &= PCGWorldQueryHelpers::ApplyRayMissMetadata(WorldQueryParams, OutputPoints.Last(), OutMetadata);
+			}
+		}
+
+		if (!bAttributeSuccess)
+		{
+			PCGLog::LogWarningOnGraph(LOCTEXT("UnableToApplyAllAttributes", "One or more attributes were unable to be applied."), Context);
 		}
 
 		return true;

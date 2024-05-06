@@ -223,6 +223,7 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 	FCollisionQueryParams Params; // TODO: apply properties from the settings when/if they exist
 	Params.bTraceComplex = QueryParams.bTraceComplex;
 	Params.bReturnPhysicalMaterial = QueryParams.bGetReferenceToPhysicalMaterial;
+	Params.bReturnFaceIndex = QueryParams.bGetFaceIndex || QueryParams.bGetUVCoords;
 
 	FVector RayOrigin = InTransform.GetLocation() - ((InTransform.GetLocation() - QueryParams.RayOrigin) | QueryParams.RayDirection) * QueryParams.RayDirection;
 	FVector RayEnd = RayOrigin + QueryParams.RayDirection * QueryParams.RayLength;
@@ -232,29 +233,12 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 	{
 		TOptional<FHitResult> HitResult = PCGWorldQueryHelpers::FilterRayHitResults(&QueryParams, OriginatingComponent, Hits);
 
-		// TODO: Pre-create attributes within caller or find a better solution than per point
-		PCGWorldQueryHelpers::ApplyRayHitMetadata(HitResult, QueryParams, OutPoint, OutMetadata);
-		const PCGMetadataEntryKey MetadataEntry = OutPoint.MetadataEntry;
-
 		if (HitResult.IsSet())
 		{
 			const FHitResult& Hit = HitResult.GetValue();
-
-			// Finally, fill in OutPoint - we're done
 			OutPoint = FPCGPoint(PCGWorldQueryHelpers::GetOrthonormalImpactTransform(Hit), 1.0f, UPCGBlueprintHelpers::ComputeSeedFromPosition(Hit.Location));
-			OutPoint.MetadataEntry = MetadataEntry;
-
-			const bool bApplyMetadataFromLandscape = QueryParams.bApplyMetadataFromLandscape && Hit.GetActor() && Hit.GetActor()->IsA<ALandscapeProxy>();
-
-			// TODO: generalize for other sources of metadata?
-			if (bApplyMetadataFromLandscape && OutMetadata && World->GetSubsystem<UPCGSubsystem>())
-			{
-				if (UPCGLandscapeCache* LandscapeCache = World->GetSubsystem<UPCGSubsystem>()->GetLandscapeCache())
-				{
-					LandscapeCache->SampleMetadataOnPoint(Cast<ALandscapeProxy>(Hit.Component->GetOwner()), OutPoint, OutMetadata);
-				}
-			}
-
+			// TODO: Pre-create attributes within caller or find a better solution than per point
+			PCGWorldQueryHelpers::ApplyRayHitMetadata(Hit, QueryParams, OutPoint, OutMetadata, World, /*bShouldCreateAttributes=*/true);
 			return true;
 		}
 	}

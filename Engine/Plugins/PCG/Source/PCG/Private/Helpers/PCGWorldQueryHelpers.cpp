@@ -3,8 +3,10 @@
 #include "Helpers/PCGWorldQueryHelpers.h"
 
 #include "PCGComponent.h"
+#include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGWorldData.h"
+#include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
 
 #include "LandscapeProxy.h"
@@ -12,7 +14,12 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/HitResult.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/StaticMesh.h"
+#include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/PhysicsSettings.h"
 #include "UObject/SoftObjectPath.h"
 
 namespace PCGWorldQueryHelpers
@@ -163,12 +170,73 @@ namespace PCGWorldQueryHelpers
 		return {};
 	}
 
+	bool CreateRayHitAttributes(const FPCGWorldRaycastQueryParams& QueryParams, UPCGMetadata* OutMetadata)
+	{
+		auto CreateAttribute = [OutMetadata]<typename Type>(FName AttributeName, bool bShouldCreate, const Type& DefaultValue)
+		{
+			if (!bShouldCreate)
+			{
+				return true;
+			}
+
+			if (!OutMetadata->HasAttribute(AttributeName))
+			{
+				if (OutMetadata->CreateAttribute<Type>(AttributeName, DefaultValue, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		};
+
+		bool bResult = true;
+		// Default T/F Impact to true, as most cases misses will be ignored completely
+		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactAttribute, QueryParams.bGetImpact, true);
+		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactPointAttribute, QueryParams.bGetImpactPoint, FVector::ZeroVector);
+		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactNormalAttribute, QueryParams.bGetImpactNormal, FVector::ZeroVector);
+		bResult &= CreateAttribute(PCGWorldQueryConstants::ImpactDistanceAttribute, QueryParams.bGetDistance, 0.0);
+		bResult &= CreateAttribute(PCGWorldQueryConstants::LocalImpactPointAttribute, QueryParams.bGetLocalImpactPoint, FVector::ZeroVector);
+		bResult &= CreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, QueryParams.bGetReferenceToActorHit, FSoftObjectPath());
+		bResult &= CreateAttribute(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, QueryParams.bGetReferenceToPhysicalMaterial, FSoftObjectPath());
+		bResult &= CreateAttribute(PCGWorldQueryConstants::RenderMaterialReferenceAttribute, QueryParams.bGetReferenceToRenderMaterial, FSoftObjectPath());
+		bResult &= CreateAttribute(PCGWorldQueryConstants::StaticMeshReferenceAttribute, QueryParams.bGetReferenceToStaticMesh, FSoftObjectPath());
+		bResult &= CreateAttribute(PCGWorldQueryConstants::ElementIndexAttribute, QueryParams.bGetElementIndex, int32{0});
+		bResult &= CreateAttribute(PCGWorldQueryConstants::UVCoordAttribute, QueryParams.bTraceComplex && QueryParams.bGetUVCoords, FVector2D::ZeroVector);
+		bResult &= CreateAttribute(PCGWorldQueryConstants::FaceIndexAttribute, QueryParams.bTraceComplex && QueryParams.bGetFaceIndex, int32{0});
+
+		return bResult;
+	}
+
+	bool ApplyRayMissMetadata(const FPCGWorldRaycastQueryParams& QueryParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata)
+	{
+		if (!QueryParams.bGetImpact)
+		{
+			return true;
+		}
+
+		if (!OutMetadata)
+		{
+			return false;
+		}
+
+		if (FPCGMetadataAttribute<bool>* Attribute = OutMetadata->FindOrCreateAttribute<bool>(PCGWorldQueryConstants::ImpactAttribute, true, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false))
+		{
+			OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+			Attribute->SetValue(OutPoint.MetadataEntry, false);
+			return true;
+		}
+
+		return false;
+	}
+
 	// TODO: Add an option to create and apply ranges
 	bool ApplyRayHitMetadata(
-		const TOptional<FHitResult>& HitResult,
+		const FHitResult& HitResult,
 		const FPCGWorldRaycastQueryParams& QueryParams,
 		FPCGPoint& OutPoint,
 		UPCGMetadata* OutMetadata,
+		TWeakObjectPtr<UWorld> World,
 		bool bShouldCreateAttributes)
 	{
 		if (!OutMetadata)
@@ -176,23 +244,9 @@ namespace PCGWorldQueryHelpers
 			return false;
 		}
 
-		// Check for the attributes are added, if not, then add them all in one go
-		auto CreateAttribute = [OutMetadata]<typename Type>(FName AttributeName, bool bShouldCreate, const Type& DefaultValue)
-		{
-			if (bShouldCreate && !OutMetadata->HasAttribute(AttributeName))
-			{
-				OutMetadata->CreateAttribute<Type>(AttributeName, DefaultValue, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false);
-			}
-		};
-
-		// TODO: Create a new helper to create attributes outside the point loops
 		if (bShouldCreateAttributes)
 		{
-			CreateAttribute(PCGWorldQueryConstants::ImpactAttribute, QueryParams.bGetImpact, false);
-			CreateAttribute(PCGWorldQueryConstants::DistanceAttribute, QueryParams.bGetDistance, 0.0);
-			CreateAttribute(PCGWorldQueryConstants::ImpactNormalAttribute, QueryParams.bGetImpactNormal, FVector());
-			CreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, QueryParams.bGetReferenceToActorHit, FSoftObjectPath());
-			CreateAttribute(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, QueryParams.bGetReferenceToPhysicalMaterial, FSoftObjectPath());
+			CreateRayHitAttributes(QueryParams, OutMetadata);
 		}
 
 		auto ApplyAttribute = [&OutPoint, OutMetadata]<typename Type>(FName AttributeName, const Type& Value, bool bShouldApply = true)
@@ -206,27 +260,82 @@ namespace PCGWorldQueryHelpers
 			{
 				OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
 				Attribute->SetValue(OutPoint.MetadataEntry, Value);
-
 				return true;
 			}
 
 			return false;
 		};
 
-		if (!HitResult.IsSet())
+		const FHitResult& Hit = HitResult;
+
+		bool bResult = true;
+		// Note: The T/F Impact attribute is true by default, so no need to set it directly.
+		bResult &= ApplyAttribute(PCGWorldQueryConstants::ImpactPointAttribute, FVector(Hit.ImpactPoint), QueryParams.bGetImpactPoint);
+		bResult &= ApplyAttribute(PCGWorldQueryConstants::ImpactNormalAttribute, FVector(Hit.ImpactNormal), QueryParams.bGetImpactNormal);
+		bResult &= ApplyAttribute(PCGWorldQueryConstants::ImpactDistanceAttribute, (Hit.ImpactPoint - Hit.TraceStart).Length(), QueryParams.bGetDistance);
+		bResult &= ApplyAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(Hit.GetActor()), QueryParams.bGetReferenceToActorHit);
+		bResult &= ApplyAttribute(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(Hit.PhysMaterial.Get()), QueryParams.bGetReferenceToPhysicalMaterial);
+		bResult &= ApplyAttribute(PCGWorldQueryConstants::ElementIndexAttribute, static_cast<int32>(Hit.ElementIndex), QueryParams.bGetElementIndex);
+
+		if (ALandscapeProxy* Landscape = Cast<ALandscapeProxy>(Hit.GetActor()))
 		{
-			ApplyAttribute(PCGWorldQueryConstants::ImpactAttribute, /*Value=*/false, QueryParams.bGetImpact);
-			return true;
+			if (const UMaterialInterface* RenderMaterial = Landscape->GetLandscapeMaterial())
+			{
+				bResult &= ApplyAttribute(PCGWorldQueryConstants::RenderMaterialReferenceAttribute, FSoftObjectPath(RenderMaterial), QueryParams.bGetReferenceToRenderMaterial);
+			}
+
+			if (QueryParams.bApplyMetadataFromLandscape && World.IsValid() && World->GetSubsystem<UPCGSubsystem>())
+			{
+				if (UPCGLandscapeCache* LandscapeCache = World->GetSubsystem<UPCGSubsystem>()->GetLandscapeCache())
+				{
+					// TODO: This is not ideal, but we won't have the Landscape until execution and the LandscapeCache intends on requiring it
+					const TArray<FName> Layers = LandscapeCache->GetLayerNames(Landscape);
+					for (const FName& Layer : Layers)
+					{
+						if (!OutMetadata->HasAttribute(Layer))
+						{
+							OutMetadata->CreateAttribute<float>(Layer, float(), /*bAllowInterpolation=*/true, /*bOverrideParent=*/true);
+						}
+					}
+
+					LandscapeCache->SampleMetadataOnPoint(Landscape, OutPoint, OutMetadata);
+				}
+			}
+		}
+		else if (UPrimitiveComponent* HitComponent = Hit.GetComponent())
+		{
+			if (const UMaterialInterface* RenderMaterial = HitComponent->GetMaterial(Hit.ElementIndex))
+			{
+				bResult &= ApplyAttribute(PCGWorldQueryConstants::RenderMaterialReferenceAttribute, FSoftObjectPath(RenderMaterial), QueryParams.bGetReferenceToRenderMaterial);
+			}
+
+			if (QueryParams.bGetLocalImpactPoint)
+			{
+				const FVector LocalHitLocation = HitComponent->GetComponentToWorld().InverseTransformPosition(Hit.ImpactPoint);
+				bResult &= ApplyAttribute(PCGWorldQueryConstants::LocalImpactPointAttribute, LocalHitLocation);
+			}
+
+			if (const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(HitComponent))
+			{
+				if (UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh())
+				{
+					bResult &= ApplyAttribute(PCGWorldQueryConstants::StaticMeshReferenceAttribute, FSoftObjectPath(StaticMesh), QueryParams.bGetReferenceToStaticMesh);
+				}
+
+				// Implementation note: FaceIndex will return -1 if complex queries are disabled
+				bResult &= ApplyAttribute(PCGWorldQueryConstants::FaceIndexAttribute, Hit.FaceIndex, QueryParams.bTraceComplex && QueryParams.bGetFaceIndex);
+
+				if (QueryParams.bTraceComplex && QueryParams.bGetUVCoords && UPhysicsSettings::Get()->bSupportUVFromHitResults)
+				{
+					FVector2D UVCoords;
+					if (UGameplayStatics::FindCollisionUV(Hit, QueryParams.UVChannel, UVCoords))
+					{
+						bResult &= ApplyAttribute(PCGWorldQueryConstants::UVCoordAttribute, UVCoords);
+					}
+				}
+			}
 		}
 
-		const FHitResult& Hit = HitResult.GetValue();
-
-		ApplyAttribute(PCGWorldQueryConstants::ImpactAttribute, /*Value=*/true, QueryParams.bGetImpact);
-		ApplyAttribute(PCGWorldQueryConstants::DistanceAttribute, Hit.Distance, QueryParams.bGetDistance);
-		ApplyAttribute(PCGWorldQueryConstants::ImpactNormalAttribute, FVector(Hit.ImpactNormal), QueryParams.bGetImpactNormal);
-		ApplyAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(Hit.GetActor()), QueryParams.bGetReferenceToActorHit);
-		ApplyAttribute(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(Hit.PhysMaterial.Get()), QueryParams.bGetReferenceToPhysicalMaterial);
-
-		return true;
+		return bResult;
 	}
 }

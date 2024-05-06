@@ -28,9 +28,16 @@ enum class EPCGWorldRaycastMode : uint8
 namespace PCGWorldQueryConstants
 {
 	const FName ImpactAttribute = TEXT("ImpactResult");
-	const FName DistanceAttribute = TEXT("ImpactDistance");
+	const FName ImpactPointAttribute = TEXT("ImpactPoint");
 	const FName ImpactNormalAttribute = TEXT("ImpactNormal");
+	const FName ImpactDistanceAttribute = TEXT("ImpactDistance");
+	const FName LocalImpactPointAttribute = TEXT("ImpactLocalPoint");
 	const FName PhysicalMaterialReferenceAttribute = TEXT("PhysicalMaterial");
+	const FName RenderMaterialReferenceAttribute = TEXT("ImpactRenderMaterial");
+	const FName StaticMeshReferenceAttribute = TEXT("ImpactStaticMesh");
+	const FName ElementIndexAttribute = TEXT("ImpactElementIndex");
+	const FName UVCoordAttribute = TEXT("ImpactUVCoords");
+	const FName FaceIndexAttribute = TEXT("ImpactFaceIndex");
 }
 
 namespace PCGWorldQueryHelpers
@@ -55,10 +62,17 @@ namespace PCGWorldQueryHelpers
 		TWeakObjectPtr<UPCGComponent> OriginatingComponent,
 		const TArray<FOverlapResult>& OverlapResults);
 
+	/** Creates hit result attributes based off query params. Can be called before ApplyRayHitMetadata. */
+	bool CreateRayHitAttributes(const FPCGWorldRaycastQueryParams& QueryParams, UPCGMetadata* OutMetadata);
+
+	/** Applies a 'miss' hit result to the metadata. To be called if the ray misses the target and the point should be kept. */
+	bool ApplyRayMissMetadata(const FPCGWorldRaycastQueryParams& QueryParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata);
+
 	/** Applies common world ray hit results to attributes. */
-	bool ApplyRayHitMetadata(const TOptional<FHitResult>& HitResult,
+	bool ApplyRayHitMetadata(const FHitResult& HitResult,
 		const FPCGWorldRaycastQueryParams& QueryParams,
 		FPCGPoint& OutPoint,
 		UPCGMetadata* OutMetadata,
+		TWeakObjectPtr<UWorld> World,
 		bool bShouldCreateAttributes = true);
 }
