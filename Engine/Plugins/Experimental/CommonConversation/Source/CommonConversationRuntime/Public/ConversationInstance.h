@@ -132,6 +132,7 @@ private:
 #endif //WITH_SERVER_CODE
 
 protected:
+	const FGameplayTagContainer& GetCurrentChoiceTags() const { return CurrentBranchPoint.ClientChoice.ChoiceTags; }
 
 	TArray<FClientConversationOptionEntry> CurrentUserChoices;
 
