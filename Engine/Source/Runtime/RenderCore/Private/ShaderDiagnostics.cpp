@@ -186,6 +186,7 @@ void FShaderDiagnosticInfo::AddAndProcessErrorsForJob(FShaderCommonCompileJob& J
 			{
 				// Job hard crashed
 				UniqueErrors.Add(FString::Printf(TEXT("Internal Error!\n\t%s"), *GetSingleJobCompilationDump(&Job)));
+				UniqueErrorPrefixes.Add(TEXT(""));
 			}
 
 			// If we filter all error messages because they are interpreted as warnings, we have to assume all error messages are in fact errors and not warnings.

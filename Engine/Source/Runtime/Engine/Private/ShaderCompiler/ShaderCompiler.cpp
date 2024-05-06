@@ -2812,6 +2812,8 @@ static void BuildErrorStringAndReport(const FShaderDiagnosticInfo& DiagInfo, FSt
 {
 	bool bReportedDebugInfo = false;
 
+	check(DiagInfo.UniqueErrors.Num() == DiagInfo.UniqueErrorPrefixes.Num());
+
 	for (int32 ErrorIndex = 0; ErrorIndex < DiagInfo.UniqueErrors.Num(); ErrorIndex++)
 	{
 		FString UniqueErrorString = DiagInfo.UniqueErrorPrefixes[ErrorIndex] + DiagInfo.UniqueErrors[ErrorIndex] + TEXT("\n");
