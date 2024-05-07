@@ -231,9 +231,7 @@ private:
 struct FChainFK
 {
 	TArray<FTransform> InitialGlobalTransforms;
-
 	TArray<FTransform> InitialLocalTransforms;
-
 	TArray<FTransform> CurrentGlobalTransforms;
 
 	TArray<float> Params;
@@ -271,7 +269,6 @@ protected:
 struct FChainEncoderFK : public FChainFK
 {
 	TArray<FTransform> CurrentLocalTransforms;
-
 	FTransform ChainParentCurrentGlobalTransform;
 	
 	void EncodePose(
