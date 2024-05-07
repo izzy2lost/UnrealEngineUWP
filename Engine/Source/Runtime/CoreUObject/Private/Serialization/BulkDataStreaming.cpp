@@ -1088,10 +1088,15 @@ FBulkDataBatchRequest::FBatchBuilder& FBulkDataBatchRequest::FBatchBuilder::Read
 	uint64 Offset,
 	uint64 Size,
 	EAsyncIOPriorityAndFlags Priority,
-	FIoBuffer& Dst, 
+	FIoBuffer& Dst,
 	FBulkDataBatchReadRequest* OutRequest)
 {
-	check(Size == MAX_uint64 || Size <= uint64(BulkData.GetBulkDataSize()));
+	ensureMsgf(Size == MAX_uint64 || (Offset + Size) <= uint64(BulkData.GetBulkDataSize()),
+		TEXT("%s: Trying to read past the end of the payload, Offset: %llu, ReadSize: %llu, Payload Size: %lld"),
+		*BulkData.GetDebugName(),
+		Size,
+		Offset,
+		BulkData.GetBulkDataSize());
 
 	const uint64 ReadOffset = BulkData.GetBulkDataOffsetInFile() + Offset;
 	const uint64 ReadSize	= FMath::Min(uint64(BulkData.GetBulkDataSize()), Size);
