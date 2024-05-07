@@ -846,11 +846,13 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 	
 				if (Context.bHitLightingSkylight)
 				{
+					#if RECURSIVE_REFLECTION_TRACES
 					// Blend between rough reflections approximation and a single reflection ray
 					if (ReflectionBounceIndex + 1 < Context.MaxReflectionBounces)
 					{
 						NextReflectionRayAlpha = LumenCombineReflectionsAlpha(ReflectionPathRoughness, /*bHasBackfaceDiffuse*/ false);
 					}
+					#endif
 
 					// Add diffuse part
 					Radiance += LumenMaterial.DiffuseColor * Payload.GetIndirectIrradiance();
@@ -910,11 +912,13 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 					}
 					else
 					{
+						#if RECURSIVE_REFLECTION_TRACES
 						// Blend between rough reflections approximation and a single reflection ray
 						if (ReflectionBounceIndex + 1 < Context.MaxReflectionBounces)
 						{
 							NextReflectionRayAlpha = LumenCombineReflectionsAlpha(ReflectionPathRoughness, /*bHasBackfaceDiffuse*/ false);
 						}
+						#endif
 
 						// Add diffuse part
 						Radiance += Diffuse_Lambert(LumenMaterial.DiffuseColor) * SurfaceCacheSample.IndirectLighting;
