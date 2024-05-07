@@ -88,6 +88,9 @@ namespace Private
 
 //////////////////////////////////////////////////////////////////////////
 
+FMemberBuilder::FMemberBuilder() {}
+FMemberBuilder::~FMemberBuilder() {}
+
 void FMemberBuilder::AddStruct(FMemberId Name, FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Struct)
 {
 	Members.Emplace(Name, Schema, MoveTemp(Struct));

@@ -76,10 +76,7 @@ struct FUsedIds
 	{
 		for (const PartialSchemaType& Schema : Schemas)
 		{
-			if (Schema.bUsed)
-			{
-				MarkUsed(Schema.Type);
-			}
+			MarkUsed(Schema.Type);
 
 			for (FNameId Name : GetUsedNames(Schema))
 			{
@@ -181,19 +178,19 @@ static void CopyUsedIds(TArray<T>& Out, const TBitArray<>& Used, C&& Ids)
 
 FWriteIds::FWriteIds(const FIdIndexerBase& Declared, const FBuiltSchemas& Schemas)
 {
-	Structs.Reserve(Schemas.Structs.Num());
-	Enums.Reserve(Schemas.Enums.Num());
+	Structs.Init(NoId, Declared.NumStructs());
+	Enums.Init(NoId, Declared.NumEnums());
 
 	// Generate new struct and enum schema indices
 	uint32 NewSchemaIdx = 0;
 	for (const FBuiltStructSchema& Struct : Schemas.Structs)
 	{
-		Structs.Add(Struct.bUsed ? ToOptional(FSchemaId{ NewSchemaIdx++ }) : NoId);
+		Structs[Struct.Id.Idx] = FSchemaId{NewSchemaIdx++};
 	}
 	NumKeptStructSchemas = NewSchemaIdx;
 	for (const FBuiltEnumSchema& Enum : Schemas.Enums)
 	{
-		Enums.Add(Enum.bUsed ? ToOptional(FSchemaId{ NewSchemaIdx++ }) : NoId);
+		Enums[Enum.Id.Idx] = FSchemaId{NewSchemaIdx++};
 	}
 	NumKeptSchemas = NewSchemaIdx;
 
@@ -434,9 +431,6 @@ void AppendBinary(TArray64<uint8>& Dst, const TArray<T>& Src)
 
 static void WriteSchemasImpl(TArray64<uint8>& Out, const FBuiltSchemas& Schemas, const FWriteIds& NewIds)
 {
-	check(NewIds.Structs.Num() == Schemas.Structs.Num());
-	check(NewIds.Enums.Num() == Schemas.Enums.Num());
-
 	// @see FReadSchemaBatch
 
 	WriteAlignmentPadding<uint32>(Out);
@@ -450,11 +444,8 @@ static void WriteSchemasImpl(TArray64<uint8>& Out, const FBuiltSchemas& Schemas,
 	{
 		for (auto& PartialSchema : PartialSchemas)
 		{
-			if (PartialSchema.bUsed)
-			{
-				SchemaOffsets.Add(IntCastChecked<uint32>(Out.Num() - HeaderPos));
-				WriteSchema(Out, PartialSchema, NewIds);
-			}
+			SchemaOffsets.Add(IntCastChecked<uint32>(Out.Num() - HeaderPos));
+			WriteSchema(Out, PartialSchema, NewIds);
 		}
 	};
 
@@ -568,7 +559,8 @@ public:
 
 	void WriteMembers(FStructSchemaId BuiltId, const FBuiltStruct& Struct)
 	{
-		const FBuiltStructSchema& Schema = Schemas.Structs[BuiltId.Idx];
+		FSchemaId WriteId = NewIds.RemapStruct(BuiltId);
+		const FBuiltStructSchema& Schema = Schemas.Structs[WriteId.Idx];
 		const TArray<FMemberId>& Order = Schema.MemberNames;
 		const int32 NumSuper = Schema.MemberSchemas.Num() - Schema.MemberNames.Num();
 		check(NumSuper == 0 || NumSuper == 1 && IsSuper(Schema.MemberSchemas[0]->Type));

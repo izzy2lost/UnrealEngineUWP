@@ -63,6 +63,8 @@ public:
 	const FParametricTypeIndexer&		GetParametricTypes() const							{ return ParametricTypes; }
 
 	virtual uint32						NumNames() const = 0;
+	uint32								NumEnums() const									{ return Enums.Num(); }
+	uint32								NumStructs() const									{ return Structs.Num(); }
 
 protected:
 	FNestedScopeIndexer					NestedScopes;

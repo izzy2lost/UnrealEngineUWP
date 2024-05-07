@@ -146,6 +146,9 @@ template<typename EnumType, typename SizeType>
 class FMemberBuilder
 {
 public:
+	FMemberBuilder();
+	~FMemberBuilder();
+
 	template<typename LeafType>
 	void Add(FMemberId Name, LeafType Value)
 	{

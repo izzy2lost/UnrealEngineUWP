@@ -129,11 +129,21 @@ FStructBindingOwner::~FStructBindingOwner()
 		FMemory::Free(Get().AsPtr());
 	}
 }
-	
+
 FStructBinding FStructBindingOwner::Get() const
 {
 	check(*this);
 	return FStructBinding(Handle);
+}
+
+void FStructBindingOwner::ResetOwned()
+{
+	check(*this);
+	if (Handle & FStructBinding::SchemaBit)
+	{
+		FMemory::Free(Get().AsPtr());
+	}
+	Handle = 0;
 }
 
 void FStructBindingOwner::TakeOwnership(FStructBinding Binding)
@@ -213,7 +223,10 @@ FStructBinding FStructBindings::Get(FStructSchemaId Id) const
 	return Bindings[Id.Idx].Get();
 }
 
-//void FStructBindings::DropStruct(FStructSchemaId Id);
+void FStructBindings::DropStruct(FStructSchemaId Id)
+{
+	Bindings[Id.Idx].ResetOwned();
+}
 
 
 //////////////////////////////////////////////////////////////////////////

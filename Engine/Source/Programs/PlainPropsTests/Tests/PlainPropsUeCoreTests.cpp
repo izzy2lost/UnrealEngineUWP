@@ -2,8 +2,6 @@
 
 #if WITH_TESTS
 
-#include "Tests/TestHarnessAdapter.h"
-#include "Containers/StringView.h"
 #include  "PlainPropsBuildSchema.h"
 #include  "PlainPropsCtti.h"
 #include  "PlainPropsIndex.h"
@@ -14,6 +12,9 @@
 #include  "PlainPropsSave.h"
 #include  "PlainPropsWrite.h"
 #include  "PlainPropsUeCoreBindings.h"
+#include "Tests/TestHarnessAdapter.h"
+#include "Containers/StringView.h"
+#include "Containers/Map.h"
 #include "Templates/UnrealTemplate.h"
 
 namespace PlainProps::UE::Test
@@ -65,7 +66,6 @@ struct FDefaultRuntime
 
 	static FDeclarations&			GetDeclarations()				{ return GTypes; }
 	static FStructBindings&			GetBindings()					{ return GBindings; }
-	static void						DropStruct(FStructSchemaId Id)	{} // todo
 };
 
 struct FDeltaRuntime : FDefaultRuntime
@@ -73,7 +73,6 @@ struct FDeltaRuntime : FDefaultRuntime
 	template<class T> using CustomBindings = TCustomDeltaBindings<T>;
 
 	static FStructBindings&			GetBindings()					{ return GDeltaBindings; }
-	static void						DropStruct(FStructSchemaId Id)	{} // todo,  drop from default too
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,7 +96,8 @@ struct TScopedStructBinding
 
 	~TScopedStructBinding()
 	{
-		Runtime::DropStruct(Id);
+		Runtime::GetBindings().DropStruct(Id);
+		Runtime::GetDeclarations().DropStruct(Id);
 	}
 
 	FStructSchemaId Id;
@@ -111,7 +111,7 @@ struct TScopedEnumBinding
 
 	FEnumSchemaId Id;
 	TScopedEnumBinding() : Id(DeclareNativeEnum<Ctti, Ids>(Runtime::GetDeclarations(), Mode)) {}
-	//~TScopedEnumBinding() { Runtime::GetDeclarations().DropEnum(Id)}
+	~TScopedEnumBinding() { Runtime::GetDeclarations().DropEnum(Id); }
 };
 
 //template<typename T, class Runtime>
@@ -429,6 +429,17 @@ struct FLeafArrays
 	bool operator==(const FLeafArrays& O) const { return Bits == O.Bits && Bobs == O.Bobs; }
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FLeafArrays, void, Bits, Bobs);
+
+struct FComplexArrays
+{
+	TArray<char> Str;
+	TArray<EFlat1> Enums;
+	TArray<FLeafArrays> Misc;
+	TArray<TArray<EFlat1>> Nested;
+
+	bool operator==(const FComplexArrays& O) const { return Str == O.Str && Enums == O.Enums && Misc == O.Misc && Nested == O.Nested; }
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FComplexArrays, void, Str, Enums, Misc, Nested);
 
 //////////////////////////////////////////////////////////////////////////
 

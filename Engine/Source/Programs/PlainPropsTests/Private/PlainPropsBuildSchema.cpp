@@ -5,6 +5,7 @@
 #include  "PlainPropsInternalFormat.h"
 #include "Algo/Compare.h"
 #include "Algo/Find.h"
+#include "Containers/Map.h"
 
 namespace PlainProps
 {
@@ -43,52 +44,102 @@ static FString PrintMemberSchema(FMemberSchema Schema)
 
 //////////////////////////////////////////////////////////////////////////
 
-static void MarkInheritanceChainUsed(TArrayView<FBuiltStructSchema> OutStructs)
+struct FStructSchemaBuilder
 {
-	for (const FBuiltStructSchema& Struct : OutStructs)
-	{
-		if (Struct.bUsed)
-		{
-			for (FOptionalStructSchemaId Super = Struct.Super; Super && !OutStructs[Super.Get().Idx].bUsed; Super = OutStructs[Super.Get().Idx].Super)
-			{
-				OutStructs[Super.Get().Idx].bUsed = true;
-			}
-		}
-	}
+	const FStructDeclaration&					Declaration;
+	FSchemasBuilder&							AllSchemas;
+	const FDebugIds&							Debug;
+	TMap<FOptionalMemberId, FMemberSchema>		NotedMembers;
+	bool										bMissingMemberNoted = false;
+
+	void										NoteMembersRecursively(const FBuiltStruct& Struct);
+	void										NoteRangeRecursively(ERangeSizeType NumType, TConstArrayView<FMemberType> Types, FSchemaId InnermostSchema, const FBuiltRange& Range);
+	FBuiltStructSchema							Build() const;
+};
+
+struct FEnumSchemaBuilder
+{
+	const FEnumDeclaration&						Declaration;
+	FEnumSchemaId								Id;
+	TSet<uint64>								NotedConstants;
+
+	void										NoteValue(uint64 Value);
+	FBuiltEnumSchema							Build() const;
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+FSchemasBuilder::FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug)
+: DeclaredStructs(InStructs)
+, DeclaredEnums(InEnums)
+, Debug(InDebug)
+{
+	StructIndices.Init(INDEX_NONE, InStructs.Num());
+	EnumIndices.Init(INDEX_NONE, InEnums.Num());
 }
 
-FSchemasBuilder::FSchemasBuilder(TConstArrayView<TUniquePtr<FStructDeclaration>> InStructs, TConstArrayView<TUniquePtr<FEnumDeclaration>> InEnums, const FDebugIds& InDebug)
-: Debug(InDebug)
+FSchemasBuilder::~FSchemasBuilder() {}
+
+template<class T, typename ...Ts>
+T& GetOrEmplace(int32& Index, TPagedArray<T, 4096>& Things, Ts&&... EmplaceArgs)
 {
-	Structs.Reserve(InStructs.Num());
-	Enums.Reserve(InEnums.Num());
-	for (const TUniquePtr<FStructDeclaration>& Declaration : InStructs)
+	if (Index == INDEX_NONE)
 	{
-		Structs.Emplace(*Declaration, *this, Debug);
+		Index = Things.Num();
+		Things.Emplace(Forward<Ts>(EmplaceArgs)...);
 	}
-	for (const TUniquePtr<FEnumDeclaration>& Declaration : InEnums)
-	{
-		Enums.Emplace(*Declaration);
-	}
+
+	return Things[Index];
 }
 
-FBuiltSchemas FSchemasBuilder::Build() const
+void FSchemasBuilder::NoteMembers(FStructSchemaId Id, const FBuiltStruct& Struct)
 {
+	checkf(!bBuilt, TEXT("Noted new members after building, built schema lack these members! Build() also returns pointers into NotedMembers which mustn't grow."));
+	FStructSchemaBuilder& Foo = GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this, Debug);
+	check(StructIndices[Id.Idx] != INDEX_NONE);
+	check(Foo.Declaration.Id == Id);
+	GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this, Debug).NoteMembersRecursively(Struct);
+}
+
+void FSchemasBuilder::NoteValue(FEnumSchemaId Id, uint64 Value)
+{
+	checkf(!bBuilt, TEXT("Noted new members after building, built schema lack these members! Build() also returns pointers into NotedMembers which mustn't grow."));
+	GetOrEmplace(EnumIndices[Id.Idx], Enums, *DeclaredEnums[Id.Idx], Id).NoteValue(Value);
+}
+
+FBuiltSchemas FSchemasBuilder::Build()
+{
+	checkf(!bBuilt, TEXT("Already built"));
+	bBuilt = true;
+
+	NoteInheritanceChains();
+
 	FBuiltSchemas Out;
 	Out.Structs.Reserve(Structs.Num());
-	for (const FStructSchemaBuilder& Struct : Structs)
-	{
-		Out.Structs.Add(Struct.Build());
-	}
 	Out.Enums.Reserve(Enums.Num());
-	for (const FEnumSchemaBuilder& Enum : Enums)
-	{
-		Out.Enums.Add(Enum.Build());
-	}
 
-	MarkInheritanceChainUsed(Out.Structs);
+	for (FStructSchemaBuilder& Struct : Structs)
+	{
+		Out.Structs.Emplace(Struct.Build());
+	}
+	for (FEnumSchemaBuilder& Enum : Enums)
+	{
+		Out.Enums.Emplace(Enum.Build());
+	}
 
 	return Out;
+}
+
+void FSchemasBuilder::NoteInheritanceChains()
+{
+	for (int Idx = 0, Num = Structs.Num(); Idx < Num; ++Idx)
+	{
+		for (FOptionalStructSchemaId Super = Structs[Idx].Declaration.Super; Super; Super = DeclaredStructs[Super.Get().Idx]->Super)
+		{
+			uint32 SuperIdx = Super.Get().Idx;
+			GetOrEmplace(StructIndices[SuperIdx], Structs, *DeclaredStructs[SuperIdx], *this, Debug);
+		}
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -122,7 +173,6 @@ static void SetIsDynamic(FMemberType& InOut)
 
 void FStructSchemaBuilder::NoteMembersRecursively(const FBuiltStruct& Struct)
 {
-	checkf(!bBuilt, TEXT("Noted new members after building, built schema lack these memebers! Build() also returns pointers into NotedMembers which mustn't grow."));
 	check(Declaration.Occupancy != EMemberPresence::RequireAll || Struct.NumMembers == Declaration.NumMembers);
 	bMissingMemberNoted |= Struct.NumMembers < static_cast<uint32>(Declaration.NumMembers + !!Declaration.Super);
 	
@@ -220,13 +270,11 @@ void FStructSchemaBuilder::NoteRangeRecursively(ERangeSizeType NumType, TConstAr
 
 FBuiltStructSchema FStructSchemaBuilder::Build() const
 {
-	FBuiltStructSchema Out = { Declaration.Type };
+	FBuiltStructSchema Out = { Declaration.Type, Declaration.Id, Declaration.Super };
 	Out.bDense = Declaration.Occupancy == EMemberPresence::RequireAll || !bMissingMemberNoted;
-	Out.Super = Declaration.Super;
 	
 	if (int32 Num = NotedMembers.Num())
 	{
-		Out.bUsed = true;
 		Out.MemberNames.Reserve(Num);
 		Out.MemberSchemas.Reserve(Num);
 
@@ -253,7 +301,6 @@ FBuiltStructSchema FStructSchemaBuilder::Build() const
 		}
 	}
 
-	bBuilt = true; 
 	check(NotedMembers.Num() == Out.MemberSchemas.Num());
 	return Out;
 }
@@ -262,13 +309,12 @@ FBuiltStructSchema FStructSchemaBuilder::Build() const
 
 FBuiltEnumSchema FEnumSchemaBuilder::Build() const
 {
-	FBuiltEnumSchema Out = { Declaration.Type };
+	FBuiltEnumSchema Out = { Declaration.Type, Id };
 	Out.Mode = Declaration.Mode;
 	Out.Width = Declaration.Width;
 
 	if (int32 Num = NotedConstants.Num())
 	{
-		Out.bUsed = true;
 		Out.Names.Reserve(Num);
 		Out.Constants.Reserve(Num);
 		for (FEnumerator Enumerator : Declaration.GetEnumerators())
@@ -281,7 +327,6 @@ FBuiltEnumSchema FEnumSchemaBuilder::Build() const
 		}
 	}
 	
-	bBuilt = true; 
 	check(	NotedConstants.Num() == Out.Constants.Num() || 
 			NotedConstants.Num() == Out.Constants.Num() + (Out.Mode == EEnumMode::Flag) );
 	return Out;

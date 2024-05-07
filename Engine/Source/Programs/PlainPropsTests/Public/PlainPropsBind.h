@@ -255,9 +255,12 @@ class FStructBindingOwner
 {
 	uint64 Handle = 0;
 public:
+	UE_NONCOPYABLE(FStructBindingOwner);
+	FStructBindingOwner() = default;
 	~FStructBindingOwner();
 	explicit					operator bool() const	{ return Handle != 0; }
 	FStructBinding				Get() const;
+	void						ResetOwned();
 	void						TakeOwnership(FStructBinding Binding);
 };
 
@@ -496,12 +499,13 @@ FStructSchemaId BindCustomStructOnce()
 		FBinding()
 		: Id(Runtime::GetTypes().DeclareStruct(Ids::IndexNativeType(Type::Name), NoId, CustomBinding::GetMemberIds(), CustomBinding::Occupancy))
 		{
-			Runtime::GetCustomBindings().BindStruct(Id, Instance);
+			Runtime::GetBindings().BindStruct(Id, Instance);
 		}
 
 		~FBinding()
 		{
-			Runtime::DropStruct(Id);
+			Runtime::GetBindings().DropStruct(Id);
+			Runtime::GetDeclarations().DropStruct(Id);
 		}
 
 		CustomBinding Instance;
