@@ -536,9 +536,9 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 
 	// Compute transforms
 #if (VF_USE_PRIMITIVE_SCENE_DATA == 1)
-	Intermediates.ParticleToWorld = DFFastToTileOffset(Intermediates.SceneData.InstanceData.LocalToWorld);
-	Intermediates.WorldToParticle = DFFastToTileOffset(Intermediates.SceneData.InstanceData.WorldToLocal);
-	Intermediates.PrevParticleToWorld = DFFastToTileOffset(Intermediates.SceneData.InstanceData.PrevLocalToWorld);
+	Intermediates.ParticleToWorld = DFToTileOffset(Intermediates.SceneData.InstanceData.LocalToWorld);
+	Intermediates.WorldToParticle = DFToTileOffset(Intermediates.SceneData.InstanceData.WorldToLocal);
+	Intermediates.PrevParticleToWorld = DFToTileOffset(Intermediates.SceneData.InstanceData.PrevLocalToWorld);
 
 	const float3 InstInvScale = Intermediates.SceneData.InstanceData.InvNonUniformScale;
 	Intermediates.ParticleToWorldNoScale = LWCToFloat3x3(Intermediates.ParticleToWorld);
@@ -584,9 +584,9 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	Params.PrevCameraOrigin 			= ResolvedView.TileOffset.PrevWorldCameraOrigin;
 	Params.PrevCameraForwardDir			= ResolvedView.PrevViewToTranslatedWorld[2].xyz;
 	Params.PrevCameraUpDir				= ResolvedView.PrevViewToTranslatedWorld[1].xyz;
-	Params.PrimitiveLocalToWorld		= DFFastToTileOffset(Intermediates.SceneData.Primitive.LocalToWorld);
-	Params.PrimitiveWorldToLocal 		= DFFastToTileOffset(Intermediates.SceneData.Primitive.WorldToLocal);
-	Params.PrimitivePrevLocalToWorld 	= DFFastToTileOffset(Intermediates.SceneData.Primitive.PreviousLocalToWorld);
+	Params.PrimitiveLocalToWorld		= DFToTileOffset(Intermediates.SceneData.Primitive.LocalToWorld);
+	Params.PrimitiveWorldToLocal 		= DFToTileOffset(Intermediates.SceneData.Primitive.WorldToLocal);
+	Params.PrimitivePrevLocalToWorld 	= DFToTileOffset(Intermediates.SceneData.Primitive.PreviousLocalToWorld);
 	Params.PrimitiveInvNonUniformScale	= Intermediates.SceneData.Primitive.InvNonUniformScale;
 
 	NiagaraMeshParticleTransforms Transforms = NiagaraCalculateMeshParticleTransforms(Params);

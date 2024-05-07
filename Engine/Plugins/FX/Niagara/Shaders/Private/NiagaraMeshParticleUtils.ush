@@ -329,8 +329,7 @@ float3 NiagaraCalculateCameraOffset(FLWCVector3 ParticleSimPosition, NiagaraMesh
 	const FLWCVector3 WorldPosition = NiagaraSimToWorldPos(ParticleSimPosition, Params);
 	const float Offset = NiagaraSafeGetFloat(Params.CameraOffsetDataOffset, Params.ParticleIndex, Params.DefaultCameraOffset);
 
-	//-Note: LWCNormalizeTile should not be required but a precision issue is causing PLAY-32984, this is a temporary workaround
-	const FLWCVector3 CameraVec = LWCNormalizeTile(LWCSubtract(Params.CameraOrigin, WorldPosition));
+	const FLWCVector3 CameraVec = LWCSubtract(Params.CameraOrigin, WorldPosition);
 	const float3 CameraDir = NiagaraWorldToSimVec(LWCNormalize(CameraVec), Params);
 		
 	return CameraDir * Offset;
