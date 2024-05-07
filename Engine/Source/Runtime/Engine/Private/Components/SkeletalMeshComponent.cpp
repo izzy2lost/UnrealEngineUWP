@@ -1696,62 +1696,68 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 	}
 #endif
 
-	if (ClothingSimulation)
+	if(!PrimaryComponentTick.bRunOnAnyThread)
 	{
-		ClothingSimulation->UpdateWorldForces(this);
-	}
+		if (ClothingSimulation)
+		{
+			ClothingSimulation->UpdateWorldForces(this);
+		}
 
-	UpdateEndPhysicsTickRegisteredState();
-	UpdateClothTickRegisteredState();
+		UpdateEndPhysicsTickRegisteredState();
+		UpdateClothTickRegisteredState();
 
-	// If we are suspended, we will not simulate clothing, but as clothing is simulated in local space
-	// relative to a root bone we need to extract simulation positions as this bone could be animated.
-	if((!CVarEnableClothPhysics.GetValueOnGameThread() || bClothingSimulationSuspended) && ClothingSimulation)
-	{
-		CSV_SCOPED_TIMING_STAT(Animation, Cloth);
+		// If we are suspended, we will not simulate clothing, but as clothing is simulated in local space
+		// relative to a root bone we need to extract simulation positions as this bone could be animated.
+		if((!CVarEnableClothPhysics.GetValueOnGameThread() || bClothingSimulationSuspended) && ClothingSimulation)
+		{
+			CSV_SCOPED_TIMING_STAT(Animation, Cloth);
 
-		// First update the simulation context, since the simulation isn't ticking
-		// and it is still required to get the correct simulation data and bounds.
-		constexpr bool bIsInitialization = false;
-		ClothingSimulation->FillContext(this, DeltaTime, ClothingSimulationContext, bIsInitialization);
+			// First update the simulation context, since the simulation isn't ticking
+			// and it is still required to get the correct simulation data and bounds.
+			constexpr bool bIsInitialization = false;
+			ClothingSimulation->FillContext(this, DeltaTime, ClothingSimulationContext, bIsInitialization);
 
-		ClothingSimulation->GetSimulationData(CurrentSimulationData, this, Cast<USkeletalMeshComponent>(LeaderPoseComponent.Get()));
+			ClothingSimulation->GetSimulationData(CurrentSimulationData, this, Cast<USkeletalMeshComponent>(LeaderPoseComponent.Get()));
+		}
 	}
 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	
-	PendingRadialForces.Reset();
 
-	// Update bOldForceRefPose
-	bOldForceRefPose = bForceRefpose;
-
-	/** Update the end group and tick priority */
-	const bool bDoLateEnd = CVarAnimationDelaysEndGroup.GetValueOnGameThread() > 0;
-	const bool bRequiresPhysics = EndPhysicsTickFunction.IsTickFunctionRegistered();
-	const ETickingGroup EndTickGroup = bDoLateEnd && !bRequiresPhysics ? TG_PostPhysics : TG_PrePhysics;
-	if (ThisTickFunction)
+	if(!PrimaryComponentTick.bRunOnAnyThread)
 	{
-		ThisTickFunction->EndTickGroup = EndTickGroup;
+		PendingRadialForces.Reset();
 
-		const bool bDoHiPri = CVarHiPriSkinnedMeshesTicks.GetValueOnGameThread() > 0;
-		check(PrimaryComponentTick.bHighPriority == bDoHiPri)
-	}
+		// Update bOldForceRefPose
+		bOldForceRefPose = bForceRefpose;
 
-	// If we are waiting for ParallelEval to complete or if we require Physics, 
-	// then FinalizeBoneTransform will be called and Anim events will be dispatched there. 
-	// We prefer doing it there so these events are triggered once we have a new updated pose.
-	// Note that it's possible that FinalizeBoneTransform has already been called here if not using ParallelUpdate.
-	// or it's possible that it hasn't been called at all if we're skipping Evaluate due to not being visible.
-	// ConditionallyDispatchQueuedAnimEvents will catch that and only Dispatch events if not already done.
-	if (!IsRunningParallelEvaluation() && !bRequiresPhysics)
-	{
-		/////////////////////////////////////////////////////////////////////////////
-		// Notify / Event Handling!
-		// This can do anything to our component (including destroy it) 
-		// Any code added after this point needs to take that into account
-		/////////////////////////////////////////////////////////////////////////////
+		/** Update the end group and tick priority */
+		const bool bDoLateEnd = CVarAnimationDelaysEndGroup.GetValueOnGameThread() > 0;
+		const bool bRequiresPhysics = EndPhysicsTickFunction.IsTickFunctionRegistered();
+		const ETickingGroup EndTickGroup = bDoLateEnd && !bRequiresPhysics ? TG_PostPhysics : TG_PrePhysics;
+		if (ThisTickFunction)
+		{
+			ThisTickFunction->EndTickGroup = EndTickGroup;
 
-		ConditionallyDispatchQueuedAnimEvents();
+			const bool bDoHiPri = CVarHiPriSkinnedMeshesTicks.GetValueOnGameThread() > 0;
+			check(PrimaryComponentTick.bHighPriority == bDoHiPri)
+		}
+
+		// If we are waiting for ParallelEval to complete or if we require Physics, 
+		// then FinalizeBoneTransform will be called and Anim events will be dispatched there. 
+		// We prefer doing it there so these events are triggered once we have a new updated pose.
+		// Note that it's possible that FinalizeBoneTransform has already been called here if not using ParallelUpdate.
+		// or it's possible that it hasn't been called at all if we're skipping Evaluate due to not being visible.
+		// ConditionallyDispatchQueuedAnimEvents will catch that and only Dispatch events if not already done.
+		if (!IsRunningParallelEvaluation() && !bRequiresPhysics)
+		{
+			/////////////////////////////////////////////////////////////////////////////
+			// Notify / Event Handling!
+			// This can do anything to our component (including destroy it) 
+			// Any code added after this point needs to take that into account
+			/////////////////////////////////////////////////////////////////////////////
+
+			ConditionallyDispatchQueuedAnimEvents();
+		}
 	}
 }
 

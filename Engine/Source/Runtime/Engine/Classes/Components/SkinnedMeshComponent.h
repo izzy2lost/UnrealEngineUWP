@@ -40,6 +40,11 @@ namespace Nanite
 	struct FResources;
 }
 
+namespace UE::Anim
+{
+	struct FSkinnedMeshComponentExtensions;
+}
+
 DECLARE_DELEGATE_OneParam(FOnAnimUpdateRateParamsCreated, FAnimUpdateRateParameters*)
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnTickPose, USkinnedMeshComponent* /*SkinnedMeshComponent*/, float /*DeltaTime*/, bool /*bNeedsValidRootMotion*/)
 
@@ -1988,6 +1993,7 @@ public:
 
 	friend class FRenderStateRecreator;
 	friend class FSkeletalMeshStreamOut;
+	friend struct UE::Anim::FSkinnedMeshComponentExtensions;
 
 	//
 	// Animation required bones

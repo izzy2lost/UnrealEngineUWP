@@ -1462,8 +1462,12 @@ void USkinnedMeshComponent::TickComponent(float DeltaTime, enum ELevelTick TickT
 	SCOPED_NAMED_EVENT(USkinnedMeshComponent_TickComponent, FColor::Yellow);
 	SCOPE_CYCLE_COUNTER(STAT_SkinnedMeshCompTick);
 
-	// Tick ActorComponent first.
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	// We cant run the blueprint events (ReceiveTick, latent actions) on worker threads, so skip them if we are running as such
+	if(!PrimaryComponentTick.bRunOnAnyThread)
+	{
+		// Tick ActorComponent first.
+		Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	}
 
 	// See if this mesh was rendered recently. This has to happen first because other data will rely on this
 	bRecentlyRendered = (GetLastRenderTime() > GetWorld()->TimeSeconds - 1.0f);
@@ -1472,41 +1476,45 @@ void USkinnedMeshComponent::TickComponent(float DeltaTime, enum ELevelTick TickT
 	// This must be done BEFORE animation Update and Evaluate (TickPose and RefreshBoneTransforms respectively)
 	const bool bLODHasChanged = UpdateLODStatus();
 
-	// Tick Pose first
-	if (ShouldTickPose())
+	// Skip the rest of the work if we are running on worker threads as none of it is safe
+	if(!PrimaryComponentTick.bRunOnAnyThread)
 	{
-		TickPose(DeltaTime, false);
-	}
-
-	// If we have been recently rendered, and bForceRefPose has been on for at least a frame, or the LOD changed, update bone matrices.
-	if( ShouldUpdateTransform(bLODHasChanged) )
-	{
-		// Do not update bones if we are taking bone transforms from another SkelMeshComp
-		if( LeaderPoseComponent.IsValid() )
+		// Tick Pose first
+		if (ShouldTickPose())
 		{
-			UpdateFollowerComponent();
+			TickPose(DeltaTime, false);
 		}
+
+		// If we have been recently rendered, and bForceRefPose has been on for at least a frame, or the LOD changed, update bone matrices.
+		if( ShouldUpdateTransform(bLODHasChanged) )
+		{
+			// Do not update bones if we are taking bone transforms from another SkelMeshComp
+			if( LeaderPoseComponent.IsValid() )
+			{
+				UpdateFollowerComponent();
+			}
+			else 
+			{
+				RefreshBoneTransforms(ThisTickFunction);
+			}
+		}
+		else if(VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::AlwaysTickPose)
+		{
+			// We are not refreshing bone transforms, but we do want to tick pose. We may need to kick off a parallel task
+			DispatchParallelTickPose(ThisTickFunction);
+		}
+#if WITH_EDITOR
 		else 
 		{
-			RefreshBoneTransforms(ThisTickFunction);
+			// only do this for level viewport actors
+			UWorld* World = GetWorld();
+			if (World && World->WorldType == EWorldType::Editor)
+			{
+				RefreshMorphTargets();
+			}
 		}
-	}
-	else if(VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::AlwaysTickPose)
-	{
-		// We are not refreshing bone transforms, but we do want to tick pose. We may need to kick off a parallel task
-		DispatchParallelTickPose(ThisTickFunction);
-	}
-#if WITH_EDITOR
-	else 
-	{
-		// only do this for level viewport actors
-		UWorld* World = GetWorld();
-		if (World && World->WorldType == EWorldType::Editor)
-		{
-			RefreshMorphTargets();
-		}
-	}
 #endif // WITH_EDITOR
+	}
 }
 
 UObject const* USkinnedMeshComponent::AdditionalStatObject() const
