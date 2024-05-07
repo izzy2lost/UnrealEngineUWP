@@ -281,6 +281,25 @@ HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view 
 	return HttpRequest(RemoteDesc, Method, RequestUrl, EHttpContentType::Unknown, /*Payload*/ {}, BearerToken);
 }
 
+static const char*
+ToString(EHttpMethod Method)
+{
+	switch (Method)
+	{
+		default:
+			UNSYNC_FATAL(L"Unexpected HTTP method %d", (int)Method);
+			return "INVALID";
+		case EHttpMethod::GET:
+			return "GET";
+		case EHttpMethod::HEAD:
+			return "HEAD";
+		case EHttpMethod::POST:
+			return "POST";
+		case EHttpMethod::PUT:
+			return "PUT";
+	}
+}
+
 bool
 HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 {
@@ -300,25 +319,8 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 
 	// TODO: use a string builder
 	std::string HttpHeader;
-	switch (Request.Method)
-	{
-		default:
-			UNSYNC_FATAL(L"Unexpected HTTP method %d", (int)Request.Method);
-			return false;
-		case EHttpMethod::GET:
-			HttpHeader = "GET ";
-			break;
-		case EHttpMethod::HEAD:
-			HttpHeader = "HEAD ";
-			break;
-		case EHttpMethod::POST:
-			HttpHeader = "POST ";
-			break;
-		case EHttpMethod::PUT:
-			HttpHeader = "PUT ";
-			break;
-	}
-
+	HttpHeader.append(ToString(Request.Method));
+	HttpHeader.append(" ");
 	HttpHeader.append(Request.Url);
 	HttpHeader.append(" HTTP/1.1\r\n");
 
@@ -418,6 +420,8 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 	int32 SentBytes = 0;
 
 	Connection.NumActiveRequests += 1;
+
+	UNSYNC_VERBOSE2(L"HTTP %hs %.*hs", ToString(Request.Method), int32(Request.Url.length()), Request.Url.data());
 
 	// TODO: detect and handle errors
 	SentBytes += SocketSend(Connection.GetSocket(), HttpHeader.c_str(), HttpHeader.length());

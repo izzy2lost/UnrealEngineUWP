@@ -589,7 +589,7 @@ ProxyQuery::FDirectoryListing::FromJson(const char* JsonString)
 }
 
 TResult<ProxyQuery::FDirectoryListing>
-ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path)
+ProxyQuery::ListDirectory(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path)
 {
 	std::string Url = fmt::format("/api/v1/list?{}", Path);
 
@@ -604,8 +604,6 @@ ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, 
 
 		BearerToken = std::move(AuthToken->Access);
 	}
-
-	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Remote);
 
 	FHttpRequest Request;
 	Request.Url			= Url;
@@ -625,18 +623,16 @@ ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, 
 }
 
 TResult<>
-ProxyQuery::DownloadFile(const FRemoteDesc&					 Remote,
+ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 						 const FAuthDesc*					 AuthDesc,
 						 const std::string&					 Path,
 						 ProxyQuery::FDownloadOutputCallback OutputCallback)
 {
-	auto CreateConnection = [Remote]
-	{
-		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
-		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, Remote.TlsRequirement, TlsSettings);
-	};
-
-	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
+	TObjectPool<FHttpConnection> ConnectionPool(
+		[&InConnection]
+		{
+			return new FHttpConnection(InConnection);  // Clone the connection
+		});
 
 	std::string Url = fmt::format("/api/v1/file?{}", Path);
 
@@ -710,7 +706,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc&					 Remote,
 	}
 
 	auto ProcessChunk =
-		[&Error, &Result, &Url, &Remote, &ConnectionPool, &DownloadSempahore, &DownloadProgress, &BearerToken](
+		[&Error, &Result, &Url, &ConnectionPool, &DownloadSempahore, &DownloadProgress, &BearerToken](
 			const FRange& Range)
 	{
 		FLogIndentScope	   IndentScope(DownloadProgress.ParentThreadIndent, true);
@@ -767,7 +763,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc&					 Remote,
 }
 
 TResult<FBuffer>
-ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path)
+ProxyQuery::DownloadFile(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path)
 {
 	FBuffer Result;
 
@@ -780,7 +776,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, c
 		return *ResultWriter;
 	};
 
-	TResult<> DownloadResult = DownloadFile(Remote, AuthDesc, Path, OutputCallback);
+	TResult<> DownloadResult = DownloadFile(Connection, AuthDesc, Path, OutputCallback);
 	if (DownloadResult.IsOk())
 	{
 		return ResultOk(std::move(Result));

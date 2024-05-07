@@ -474,7 +474,8 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 		return *ResultWriter;
 	};
 
-	TResult<> Response = ProxyQuery::DownloadFile(Options.Remote, &AuthDesc, Options.Args[0], OutputCallback);
+	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	TResult<> Response = ProxyQuery::DownloadFile(Connection, &AuthDesc, Options.Args[0], OutputCallback);
 
 	if (Response.IsOk())
 	{

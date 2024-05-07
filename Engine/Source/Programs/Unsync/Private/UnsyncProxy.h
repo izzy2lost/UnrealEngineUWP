@@ -234,12 +234,14 @@ struct FDirectoryListing
 	static TResult<FDirectoryListing> FromJson(const char* JsonString);
 };
 
-// TODO: add overloads with HTTP connection
-TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path);
-TResult<FBuffer>		   DownloadFile(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path);
+TResult<FDirectoryListing> ListDirectory(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path);
+TResult<FBuffer>		   DownloadFile(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path);
 
 using FDownloadOutputCallback = std::function<FIOWriter&(uint64 Size)>;
-TResult<> DownloadFile(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path, FDownloadOutputCallback OutputCallback);
+TResult<> DownloadFile(FHttpConnection&		   Connection,
+					   const FAuthDesc*		   AuthDesc,
+					   const std::string&	   Path,
+					   FDownloadOutputCallback OutputCallback);
 
 } 
 

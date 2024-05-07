@@ -14,6 +14,7 @@
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
 #include "UnsyncTarget.h"
+#include "UnsyncHttp.h"
 
 #include <condition_variable>
 #include <filesystem>
@@ -1849,7 +1850,7 @@ struct FPooledProxy
 };
 
 static bool
-DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FAuthDesc* AuthDesc, const FPath& Source, const FPath& Target, EFileMode TargetFileMode)
+DownloadFileIfNewer(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const FPath& Source, const FPath& Target, EFileMode TargetFileMode)
 {
 	using FDirectoryListing		 = ProxyQuery::FDirectoryListing;
 	using FDirectoryListingEntry = ProxyQuery::FDirectoryListingEntry;
@@ -1862,7 +1863,7 @@ DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FAuthDesc* AuthDesc, co
 	std::string SourceFileNameUtf8 = ConvertWideToUtf8(SourceFileName.wstring());
 
 	// TODO: could have a dedicated single file stat query
-	TResult<FDirectoryListing> DirectoryListingResult = ProxyQuery::ListDirectory(RemoteDesc, AuthDesc, SourceParentUtf8);
+	TResult<FDirectoryListing> DirectoryListingResult = ProxyQuery::ListDirectory(Connection, AuthDesc, SourceParentUtf8);
 	if (DirectoryListingResult.IsError())
 	{
 		LogError(DirectoryListingResult.GetError());
@@ -1890,7 +1891,7 @@ DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FAuthDesc* AuthDesc, co
 	if (SourceEntry->Size != TargetAttr.Size || SourceEntry->Mtime != TargetAttr.Mtime)
 	{
 		UNSYNC_VERBOSE(L"Downloading '%ls'", Source.wstring().c_str());
-		TResult<FBuffer> DownloadResult = ProxyQuery::DownloadFile(RemoteDesc, AuthDesc, SourceUtf8);
+		TResult<FBuffer> DownloadResult = ProxyQuery::DownloadFile(Connection, AuthDesc, SourceUtf8);
 		if (DownloadResult.IsError())
 		{
 			LogError(DownloadResult.GetError());
@@ -1967,7 +1968,10 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 	if (bDownloadManifestFromProxy)
 	{
 		UNSYNC_LOG_INDENT;
-		bool bDownloadedOk = DownloadFileIfNewer(ProxyPool.RemoteDesc,
+
+		FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(ProxyPool.RemoteDesc);
+
+		bool bDownloadedOk = DownloadFileIfNewer(Connection,
 												 ProxyPool.AuthDesc,
 												 SourceManifestPath,
 												 SourceManifestTempPath,
