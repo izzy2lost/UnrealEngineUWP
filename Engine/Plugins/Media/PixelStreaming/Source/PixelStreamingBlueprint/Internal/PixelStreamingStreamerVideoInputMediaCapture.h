@@ -10,4 +10,7 @@ UCLASS(NotBlueprintType, NotBlueprintable, Category = "PixelStreaming", META = (
 class PIXELSTREAMINGBLUEPRINT_API UPixelStreamingStreamerVideoInputMediaCapture : public UPixelStreamingStreamerVideoInput
 {
 	GENERATED_UCLASS_BODY()
+
+public:
+	virtual TSharedPtr<FPixelStreamingVideoInput> GetVideoInput() override;
 };
