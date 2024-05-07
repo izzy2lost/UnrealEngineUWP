@@ -25,5 +25,7 @@ public class MovieScene : ModuleRules
 			}
 		);
 		SetupIrisSupport(Target);
+
+		bAllowAutoRTFMInstrumentation = true;
 	}
 }
