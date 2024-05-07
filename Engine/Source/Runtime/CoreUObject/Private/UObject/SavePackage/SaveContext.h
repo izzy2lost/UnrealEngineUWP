@@ -107,7 +107,9 @@ enum class ESaveableStatus
 {
 	Success,
 	PendingKill,
-	Transient,
+	TransientFlag,
+	TransientOverride,
+	MarkedUnsaveable,
 	AbstractClass,
 	DeprecatedClass,
 	NewerVersionExistsClass,
@@ -115,6 +117,19 @@ enum class ESaveableStatus
 	ClassUnsaveable,
 	ExcludedByPlatform,
 	__Count,
+};
+
+enum class EIgnoreMarkUnsaveable
+{
+	No = 0,
+	Yes,
+};
+
+enum class EMarkedTransientReason
+{
+	Uninitialized = 0,
+	Unsaveable,
+	TransientOverride,
 };
 
 /** Hold the harvested exports and imports for a realm */
@@ -781,8 +796,10 @@ public:
 	void MarkUnsaveable(UObject* InObject);
 
 	bool IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning = true) const;
-	ESaveableStatus GetSaveableStatus(TObjectPtr<UObject> InObject, TObjectPtr<UObject>* OutCulprit = nullptr, ESaveableStatus* OutCulpritStatus = nullptr) const;
-	ESaveableStatus GetSaveableStatusNoOuter(TObjectPtr<UObject> InObject) const;
+	ESaveableStatus GetSaveableStatus(TObjectPtr<UObject> InObject, TObjectPtr<UObject>* OutCulprit = nullptr, ESaveableStatus* OutCulpritStatus = nullptr, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable = EIgnoreMarkUnsaveable::No) const;
+	ESaveableStatus GetSaveableStatusNoOuter(TObjectPtr<UObject> InObject, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable = EIgnoreMarkUnsaveable::No) const;
+
+	bool IsTransient(TObjectPtr<UObject> InObject, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable = EIgnoreMarkUnsaveable::No) const;
 
 	void RecordIllegalReference(UObject* InFrom, UObject* InTo, EIllegalRefReason InReason, FString&& InOptionalReasonText = FString())
 	{
@@ -1170,8 +1187,11 @@ private:
 	// Set of AssetDatas created for the Assets saved into the package
 	TArray<FAssetData> SavedAssets;
 
-	// Overrided properties for each export that should be treated as transient, and nulled out when serializing
+	// Overridden properties for each export that should be treated as transient, and nulled out when serializing
 	TMap<UObject*, TSet<FProperty*>> TransientPropertyOverrides;
+
+	// Overridden objects that should be treated as transient, and skipped when serializing
+	TMap<UObject*, EMarkedTransientReason> TransientAssignments;
 };
 
 const TCHAR* LexToString(ESaveableStatus Status);

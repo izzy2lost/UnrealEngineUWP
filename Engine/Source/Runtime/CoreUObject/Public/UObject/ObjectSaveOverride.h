@@ -21,4 +21,7 @@ struct FPropertySaveOverride
 struct FObjectSaveOverride
 {
 	TArray<FPropertySaveOverride> PropOverrides;
+
+	// Treats the object as RF_Transient for the duration of the save
+	bool bForceTransient = false;
 };

@@ -614,7 +614,7 @@ void FPackageHarvester::TryHarvestExportInternal(UObject* InObject)
 
 	// Check whether the object is unsaveable and skip adding it as an export to any realm if so
 	SaveContext.MarkUnsaveable(InObject);
-	if (InObject->HasAnyFlags(RF_Transient))
+	if (SaveContext.IsTransient(InObject))
 	{
 		return;
 	}
@@ -975,6 +975,10 @@ void FPackageHarvester::ResolveOverrides()
 		{
 			TransientPropertyOverrides.Add(PairObjectOverrides.Key, MoveTemp(Props));
 		}
+		if (!SaveContext.IsTransient(PairObjectOverrides.Key) && PairObjectOverrides.Value.bForceTransient)
+		{
+			SaveContext.TransientAssignments.Add(PairObjectOverrides.Key, EMarkedTransientReason::TransientOverride);
+		}
 	}
 }
 
@@ -1121,7 +1125,7 @@ ESaveableStatus FPackageHarvester::GetSaveableStatusForRealm(UObject* Obj, ESave
 	}
 
 	ESaveableStatus CulpritStatus;
-	ESaveableStatus Status = SaveContext.GetSaveableStatus(Obj, &OutCulprit, &CulpritStatus);
+	ESaveableStatus Status = SaveContext.GetSaveableStatus(Obj, &OutCulprit, &CulpritStatus, EIgnoreMarkUnsaveable::Yes);
 	if (Status != ESaveableStatus::Success)
 	{
 		if (Status == ESaveableStatus::OuterUnsaveable)

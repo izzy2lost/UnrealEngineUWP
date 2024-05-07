@@ -32,16 +32,18 @@ void FSaveContext::MarkUnsaveable(UObject* InObject)
 {
 	if (IsUnsaveable(InObject))
 	{
-		// TODO: We should not be modifying objects during the save. Besides interfering with the objects outside of the save,
-		// it also prevents us from gathering reasons about why an object was marked unsaveable.
-		InObject->SetFlags(RF_Transient);
+		EMarkedTransientReason& Reason = TransientAssignments.FindOrAdd(InObject);
+		if (Reason == EMarkedTransientReason::Uninitialized)
+		{
+			Reason = EMarkedTransientReason::Unsaveable;
+		}
 	}
 
 	// if this is the class default object, make sure it's not
 	// marked transient for any reason, as we need it to be saved
 	// to disk (unless it's associated with a transient generated class)
 #if WITH_EDITORONLY_DATA
-	ensureAlways(!InObject->HasAllFlags(RF_ClassDefaultObject | RF_Transient) || (InObject->GetClass()->ClassGeneratedBy != nullptr && InObject->GetClass()->HasAnyFlags(RF_Transient)));
+	ensureAlways(!InObject->HasAllFlags(RF_ClassDefaultObject) || !IsTransient(InObject) || (InObject->GetClass()->ClassGeneratedBy != nullptr && InObject->GetClass()->HasAnyFlags(RF_Transient)));
 #endif
 }
 
@@ -68,12 +70,12 @@ bool FSaveContext::IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning)
 	return true;
 }
 
-ESaveableStatus FSaveContext::GetSaveableStatus(TObjectPtr<UObject> InObject, TObjectPtr<UObject>* OutCulprit, ESaveableStatus* OutCulpritStatus) const
+ESaveableStatus FSaveContext::GetSaveableStatus(TObjectPtr<UObject> InObject, TObjectPtr<UObject>* OutCulprit, ESaveableStatus* OutCulpritStatus, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable) const
 {
 	TObjectPtr<UObject> Obj = InObject;
 	while (Obj)
 	{
-		ESaveableStatus Status = GetSaveableStatusNoOuter(Obj);
+		ESaveableStatus Status = GetSaveableStatusNoOuter(Obj, IgnoreMarkUnsaveable);
 		if (Status != ESaveableStatus::Success)
 		{
 			if (OutCulprit)
@@ -99,7 +101,7 @@ ESaveableStatus FSaveContext::GetSaveableStatus(TObjectPtr<UObject> InObject, TO
 	return ESaveableStatus::Success;
 }
 
-ESaveableStatus FSaveContext::GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj) const
+ESaveableStatus FSaveContext::GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable) const
 {
 	// pending kill object are unsaveable
 	if (Obj.IsResolved() && !IsValidChecked(Obj))
@@ -108,9 +110,25 @@ ESaveableStatus FSaveContext::GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj) 
 	}
 
 	// transient object are considered unsaveable if non native
-	if (Obj.IsResolved() && Obj->HasAnyFlags(RF_Transient) && !Obj->IsNative())
+	if (Obj.IsResolved() && IsTransient(Obj, IgnoreMarkUnsaveable) && !Obj->IsNative())
 	{
-		return ESaveableStatus::Transient;
+		if (Obj->HasAnyFlags(RF_Transient))
+		{
+			return ESaveableStatus::TransientFlag;
+		}
+
+		if (const EMarkedTransientReason* Reason = TransientAssignments.Find(Obj))
+		{
+			switch (*Reason)
+			{
+			case EMarkedTransientReason::TransientOverride:
+				return ESaveableStatus::TransientOverride;
+			case EMarkedTransientReason::Unsaveable:
+				return ESaveableStatus::MarkedUnsaveable;
+			default:
+				return ESaveableStatus::MarkedUnsaveable;
+			}
+		}
 	}
 
 	UClass* Class = Obj.GetClass();
@@ -127,6 +145,30 @@ ESaveableStatus FSaveContext::GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj) 
 	}
 
 	return ESaveableStatus::Success;
+}
+
+bool FSaveContext::IsTransient(const TObjectPtr<UObject> InObject, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable) const
+{
+	if (!InObject)
+	{
+		return false;
+	}
+
+	if (InObject->HasAnyFlags(RF_Transient))
+	{
+		return true;
+	}
+
+	if (const EMarkedTransientReason* Reason = TransientAssignments.Find(InObject))
+	{
+		if (*Reason == EMarkedTransientReason::Unsaveable && IgnoreMarkUnsaveable == EIgnoreMarkUnsaveable::Yes)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	return false;
 }
 
 FSavePackageResultStruct FSaveContext::GetFinalResult()
@@ -225,12 +267,14 @@ EObjectMark FSaveContext::GetExcludedObjectMarksForGameRealm(const ITargetPlatfo
 
 const TCHAR* LexToString(ESaveableStatus Status)
 {
-	static_assert(static_cast<int32>(ESaveableStatus::__Count) == 9);
+	static_assert(static_cast<int32>(ESaveableStatus::__Count) == 11);
 	switch (Status)
 	{
 	case ESaveableStatus::Success: return TEXT("is saveable");
 	case ESaveableStatus::PendingKill: return TEXT("is pendingkill");
-	case ESaveableStatus::Transient: return TEXT("is transient");
+	case ESaveableStatus::TransientFlag: return TEXT("is transient");
+	case ESaveableStatus::TransientOverride: return TEXT("is Overriden as transient");
+	case ESaveableStatus::MarkedUnsaveable: return TEXT("has been marked unsaveable");
 	case ESaveableStatus::AbstractClass: return TEXT("has a Class with CLASS_Abstract");
 	case ESaveableStatus::DeprecatedClass: return TEXT("has a Class with CLASS_Deprecated");
 	case ESaveableStatus::NewerVersionExistsClass: return TEXT("has a Class with CLASS_NewerVersionExists");

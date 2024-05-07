@@ -170,8 +170,7 @@ public:
 	bool IsFirstConcurrentSave() const { return Data.bOuterConcurrentSave; }
 
 	/**
-	 * Add a save override to specific object. (i.e. mark certain properties transient for this save)
-	 * @note only object property are supported at the moment
+	 * Add a save override to specific object. (i.e. mark certain objects or properties transient for this save)
 	 */
 	void AddSaveOverride(UObject* Target, FObjectSaveOverride InOverride)
 	{

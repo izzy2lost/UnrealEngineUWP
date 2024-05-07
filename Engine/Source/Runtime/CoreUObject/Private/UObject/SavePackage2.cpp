@@ -341,6 +341,13 @@ ESavePackageResult HarvestPackage(FSaveContext& SaveContext)
 
 	auto TryHarvestRootObject = [&Harvester, &SaveContext](UObject* InRoot)
 	{
+		// ForEachObjectWithPackage will filter out Transient objects but not objects with the bForceTransient Save Override
+		// Perform one more check to cover this case
+		if (SaveContext.IsTransient(InRoot))
+		{
+			return;
+		}
+
 		Harvester.TryHarvestExport(InRoot);
 		// if we are automatically generating an optional package output, re-harvest objects with that realm as the default
 		if (SaveContext.IsSaveAutoOptional())
@@ -862,7 +869,7 @@ ESavePackageResult ValidateImports(FSaveContext& SaveContext)
 			&& SaveContext.GetCurrentHarvestingRealm() != ESaveRealm::Optional;
 		if (bWrongImport)
 		{
-			if (!Import->HasAllFlags(RF_Transient) || !Import->IsNative())
+			if (!SaveContext.IsTransient(Import) || !Import->IsNative())
 			{
 				UE_LOG(LogSavePackage, Warning, TEXT("Bad Object=%s"), *Import->GetFullName());
 			}
@@ -872,10 +879,10 @@ ESavePackageResult ValidateImports(FSaveContext& SaveContext)
 				// a property of an intrinsic class.  Only properties of intrinsic classes will have
 				// an Outer that passes the check for "GetOuter()->IsInPackage(InOuter)" (thus ending up in this
 				// block of code).  Just verify that the Outer for this property is also marked RF_Transient and Native
-				check(Import->GetOuter()->HasAllFlags(RF_Transient) && Import->GetOuter()->IsNative());
+				check(SaveContext.IsTransient(Import->GetOuter()) && Import->GetOuter()->IsNative());
 			}
 		}
-		check(!bWrongImport || Import->HasAllFlags(RF_Transient) || Import->IsNative());
+		check(!bWrongImport || SaveContext.IsTransient(Import) || Import->IsNative());
 
 		// if this import shares a outer with top level object of this package then the reference is acceptable
 		if ((!SaveContext.IsCooking() || SaveContext.GetCurrentHarvestingRealm() == ESaveRealm::Optional) &&
@@ -1468,7 +1475,7 @@ void SavePreloadDependencies(FStructuredArchive::FRecord& StructuredArchiveRoot,
 			{
 				return;
 			}
-			if (!Index.IsNull() && (ToTest->HasAllFlags(RF_Transient) && !ToTest->IsNative()))
+			if (!Index.IsNull() && (SaveContext.IsTransient(ToTest) && !ToTest->IsNative()))
 			{
 				UE_LOG(LogSavePackage, Warning, TEXT("A dependency '%s' of '%s' is in the linker table, but is transient. We will keep the dependency anyway (%d)."), *ToTest.GetFullName(), *ForObj->GetFullName(), CallSite);
 			}
@@ -1547,7 +1554,7 @@ void SavePreloadDependencies(FStructuredArchive::FRecord& StructuredArchiveRoot,
 					// Only include subobject archetypes
 					if (SubObj->HasAnyFlags(RF_DefaultSubObject | RF_ArchetypeObject))
 					{
-						while (SubObj->HasAnyFlags(RF_Transient)) // transient components are stripped by the ICH, so find the one it will really use at runtime
+						while (SaveContext.IsTransient(SubObj)) // transient components are stripped by the ICH, so find the one it will really use at runtime
 						{
 							UObject* SubObjArch = SubObj->GetArchetype();
 							if (SubObjArch->GetClass()->HasAnyClassFlags(CLASS_Native | CLASS_Intrinsic))
@@ -1598,7 +1605,7 @@ void SavePreloadDependencies(FStructuredArchive::FRecord& StructuredArchiveRoot,
 							}
 
 							SubObj = SubObj->GetArchetype();
-							while (SubObj->HasAnyFlags(RF_Transient)) // transient components are stripped by the ICH, so find the one it will really use at runtime
+							while (SaveContext.IsTransient(SubObj)) // transient components are stripped by the ICH, so find the one it will really use at runtime
 							{
 								UObject* SubObjArch = SubObj->GetArchetype();
 								if (SubObjArch->GetClass()->HasAnyClassFlags(CLASS_Native | CLASS_Intrinsic))
