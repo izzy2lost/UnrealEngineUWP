@@ -837,6 +837,9 @@ void FD3D12DynamicRHI::TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3
 		FD3D12Adapter* Adapter = IterationDevice->GetParentAdapter();
 		LogMemoryStats(Adapter);
 	});
+
+	// Also log Windows memory stats.
+	FPlatformMemory::DumpStats(*GLog);
 	
 	UE_LOG(LogD3D12RHI, Fatal, TEXT("Out of video memory trying to allocate a rendering resource"));
 	if (!bGPUCrashOOM)
