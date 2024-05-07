@@ -5,10 +5,13 @@
 #include "CoreTypes.h"
 #include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
+#include "Iris/ReplicationSystem/Filtering/ObjectScopeHysteresisUpdater.h"
+#include "Iris/ReplicationSystem/Filtering/ReplicationFilteringConfig.h"
 #include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 #include "Containers/Array.h"
 #include "UObject/StrongObjectPtr.h"
 
+class UReplicationFilteringConfig;
 class UReplicationSystem;
 namespace UE::Net
 {
@@ -146,6 +149,8 @@ public:
 private:
 	struct FPerConnectionInfo
 	{
+		void Deinit();
+
 		// Objects filtered depending on owning connection or user set connection filtering
 		FNetBitArray ConnectionFilteredObjects;
 		// Objects filtered out due to one or more exclusion groups it belongs to is filtered out
@@ -156,12 +161,14 @@ private:
 		FNetBitArray GroupIncludedObjects;
 		// Objects in scope after all kinds of filtering, including dynamic filtering, has been applied
 		FNetBitArray ObjectsInScope;
-
-		// Which objects are filtered out after dynamic filters and inclusion groups have been processed.
+		// Which objects are filtered out after dynamic filters have been processed.
 		FNetBitArray DynamicFilteredOutObjects;
-
-		// List of objects currently filtered out after processing dynamic filter passes and inclusion groups
+		// List of objects currently filtered out after processing dynamic filter passes. This could be temporary allocations in UpdateDynamicFiltering() but does require one bitarray per connection.
 		FNetBitArray InProgressDynamicFilteredOutObjects;
+		// Which objects are filtered out after dynamic filters, inclusion groups and hysteresis have been processed.
+		FNetBitArray DynamicFilteredOutObjectsHysteresisAdjusted;
+		// Updater of hysteresis for objects being dynamically filtered out
+		FObjectScopeHysteresisUpdater HysteresisUpdater;
 	};
 
 	struct FPerObjectInfo
@@ -192,6 +199,7 @@ private:
 	static void StaticChecks();
 
 	void InitFilters();
+	void InitObjectScopeHysteresis();
 
 	void InitNewConnections();
 	void ResetRemovedConnections();
@@ -205,6 +213,10 @@ private:
 	void PreUpdateDynamicFiltering();
 	void UpdateDynamicFiltering();
 	void PostUpdateDynamicFiltering();
+
+	void PreUpdateObjectScopeHysteresis();
+	void PostUpdateObjectScopeHysteresis();
+	void ClearObjectsFromHysteresis();
 
 	/** Build the list of always relevant objects + objects that are currently relevant to at least one connection. */
 	void FilterNonRelevantObjects();
@@ -253,13 +265,45 @@ private:
 	/** Returns all the filtering infos. */
 	TArrayView<FNetObjectFilteringInfo> GetNetObjectFilteringInfos();
 
+	uint8 GetObjectScopeHysteresisFrameCount(FName Profile) const;
+
 private:
+	enum EHysteresisProcessingMode : uint32
+	{
+		Disabled,
+		Enabled,
+	};
+
+	// Scope hysteresis state. Hysteresis is applied to objects going out of scope for objects that so desire.
+	struct FObjectScopeHysteresisState
+	{
+	public:
+		void ClearFromHysteresis(FInternalNetRefIndex NetRefIndex);
+
+		// Processing mode
+		EHysteresisProcessingMode Mode = EHysteresisProcessingMode::Disabled;
+		// Which connection ID to start with for updating.
+		uint32 ConnectionStartId = 0;
+		// Stride for connection update throttling.
+		uint32 ConnectionIdStride = 1;
+
+		// Approximate number of objects that should be cleared from hysteresis.
+		uint32 ObjectsToClearCount = 0;
+
+		// Objects to clear from hysteresis due to being destroyed or removed from dynamic filtering.
+		FNetBitArray ObjectsToClear;
+	};
+
 	// Used for ObjectIndexToDynamicFilterIndex lookup
 	static constexpr uint8 InvalidDynamicFilterIndex = 255U;
+
+	// Config
+	TStrongObjectPtr<const UReplicationFilteringConfig> Config;
 
 	// General
 	TObjectPtr<UReplicationSystem> ReplicationSystem = nullptr;
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
+	uint32 FrameIndex = 0;
 
 	// Groups
 	FNetObjectGroups* Groups = nullptr;
@@ -296,6 +340,9 @@ private:
 	TArray<FPerGroupInfo> GroupInfos;
 	uint32 MaxGroupCount = 0;
 
+	// Hysteresis frame counts for dynamically filtered objects
+	TArray<uint8> ObjectScopeHysteresisFrameCounts;
+
 	/** NetObjectGroups used for filtering out objects. */
 	FNetBitArray ExclusionFilterGroups;
 
@@ -325,6 +372,9 @@ private:
 
 	FNetBitArray DynamicFilterEnabledObjects;
 	FNetBitArray ObjectsRequiringDynamicFilterUpdate;
+
+	// Object scope hystereris
+	FObjectScopeHysteresisState HysteresisState;
 
 	uint32 bHasNewConnection : 1;
 	uint32 bHasRemovedConnection : 1;

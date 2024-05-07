@@ -31,15 +31,19 @@ public:
 	void RemoveHysteresis(const FNetBitArrayView& ObjectsToRemove);
 
 	/** Removes all objects in the array from hysteresis. */
-	void RemoveHysteresis(const TArrayView<const uint32>& ObjectsToRemove);
+	void RemoveHysteresis(TArrayView<const uint32> ObjectsToRemove);
 
 	/** Adjusts the connection relevant objects based on hysteresis frame counts. */
 	void Update(uint8 FramesSinceLastUpdate, TArray<FInternalNetRefIndex>& OutObjectsToFilterOut);
 
+	/** Whether any objects are updated for hysteresis. If not there's no point in calling Update(). */
 	bool HasObjectsToUpdate() const;
 
 	/** Returns the bitarray of objects affected by hysteresis */
 	FNetBitArrayView GetUpdatedObjects() const;
+
+	/** Returns true if the object is currently updated. */
+	bool IsObjectUpdated(FInternalNetRefIndex NetRefIndex) const;
 
 private:
 	enum : unsigned
@@ -74,6 +78,11 @@ inline bool FObjectScopeHysteresisUpdater::HasObjectsToUpdate() const
 inline FNetBitArrayView FObjectScopeHysteresisUpdater::GetUpdatedObjects() const
 {
 	return MakeNetBitArrayView(ObjectsToUpdate);
+}
+
+inline bool FObjectScopeHysteresisUpdater::IsObjectUpdated(FInternalNetRefIndex ObjectIndex) const
+{
+	return ObjectsToUpdate.GetBit(ObjectIndex);
 }
 
 }

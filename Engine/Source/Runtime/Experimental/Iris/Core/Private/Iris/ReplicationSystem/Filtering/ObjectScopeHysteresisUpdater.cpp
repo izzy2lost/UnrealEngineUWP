@@ -2,7 +2,7 @@
 
 #include "Iris/ReplicationSystem/Filtering/ObjectScopeHysteresisUpdater.h"
 #include "Iris/Core/IrisProfiler.h"
-#include "Containers/Map.h"
+#include "Containers/ArrayView.h"
 
 namespace UE::Net::Private
 {
@@ -39,11 +39,30 @@ void FObjectScopeHysteresisUpdater::RemoveHysteresis(FInternalNetRefIndex NetRef
 void FObjectScopeHysteresisUpdater::RemoveHysteresis(const FNetBitArrayView& ObjectsToRemove)
 {
 	IRIS_PROFILER_SCOPE(FObjectScopeHysteresisUpdater_RemoveHysteresis);
+	if (NetRefIndexToLocalIndex.IsEmpty())
+	{
+		return;
+	}
+
 	FNetBitArrayView::ForAllSetBits(MakeNetBitArrayView(ObjectsToUpdate), ObjectsToRemove, FNetBitArrayView::AndOp, [this](uint32 NetRefIndex)
 		{
 			this->RemoveHysteresis(NetRefIndex);
 		}
 	);
+}
+
+void FObjectScopeHysteresisUpdater::RemoveHysteresis(TArrayView<const uint32> ObjectsToRemove)
+{
+	IRIS_PROFILER_SCOPE(FObjectScopeHysteresisUpdater_RemoveHysteresis);
+	if (NetRefIndexToLocalIndex.IsEmpty())
+	{
+		return;
+	}
+
+	for (const uint32 ObjectIndex : ObjectsToRemove)
+	{
+		this->RemoveHysteresis(ObjectIndex);
+	}
 }
 
 void FObjectScopeHysteresisUpdater::Update(uint8 FramesSinceLastUpdate, TArray<FInternalNetRefIndex>& OutObjectsToFilterOut)
