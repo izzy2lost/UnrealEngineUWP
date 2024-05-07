@@ -393,7 +393,7 @@ void StreamOutClusterCommon(FCluster Cluster, FCandidateCluster CandidateCluster
 #if NANITE_HIERARCHY_TRAVERSAL
 
 RWCoherentByteAddressBuffer NodesAndClusterBatches;
-RWCoherentByteAddressBuffer CandididateClusters;
+RWCoherentByteAddressBuffer CandidateClusters;
 
 struct FCountTrianglesClusterSegmentProcessor
 {
@@ -474,13 +474,13 @@ struct FNaniteTraversalStreamOutCallback
 		CandidateCluster.RequestIndex = CandidateNode.RequestIndex;
 		CandidateCluster.PageIndex = HierarchyNodeSlice.ChildStartReference >> NANITE_MAX_CLUSTERS_PER_PAGE_BITS;
 		CandidateCluster.ClusterIndex = ClusterIndex;
-		StoreCandidateClusterCoherentNoCheckRT(CandididateClusters, StoreIndex, CandidateCluster);	//TODO: NoCheck to fix issue compilation issue with FXC
+		StoreCandidateClusterCoherentNoCheckRT(CandidateClusters, StoreIndex, CandidateCluster);	//TODO: NoCheck to fix issue compilation issue with FXC
 	}
 
 	uint4 LoadPackedCluster(uint CandidateIndex)
 	{
 		checkSlow(CandidateIndex < MaxCandidateClusters);
-		return uint4(CandididateClusters.Load3(CandidateIndex * GetCandidateClusterSizeRT()), 0u);
+		return uint4(CandidateClusters.Load3(CandidateIndex * GetCandidateClusterSizeRT()), 0u);
 	}
 
 	bool IsNodeDataReady(uint4 RawData)

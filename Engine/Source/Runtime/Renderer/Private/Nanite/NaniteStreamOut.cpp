@@ -25,14 +25,14 @@ static FAutoConsoleVariableRef CVarNaniteStreamOutCacheTraversalData(
 	ECVF_RenderThreadSafe
 );
 
-static const uint32 CandididateClusterSizeInUints = 3;
+static const uint32 CandidateClusterSizeInUints = 3;
 
 namespace Nanite
 {
 	BEGIN_SHADER_PARAMETER_STRUCT(FQueueParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FQueuePassState>, QueueState)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, NodesAndClusterBatches)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, CandididateClusters)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, CandidateClusters)
 		SHADER_PARAMETER(uint32, MaxNodes)
 		SHADER_PARAMETER(uint32, MaxCandidateClusters)
 	END_SHADER_PARAMETER_STRUCT()
@@ -293,8 +293,8 @@ namespace Nanite
 		{
 			RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-			const uint32 CandididateNodeSizeInUints = 3;
-			FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxCullingBatches + MaxNodes * CandididateNodeSizeInUints);
+			const uint32 CandidateNodeSizeInUints = 3;
+			FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxCullingBatches + MaxNodes * CandidateNodeSizeInUints);
 			Desc.Usage = EBufferUsageFlags(Desc.Usage | BUF_ByteAddressBuffer);
 			NodesAndClusterBatchesBufferRDG = GraphBuilder.CreateBuffer(Desc, TEXT("NaniteStreamOut.NodesAndClusterBatchesBuffer"));
 			AddPassInitNodesAndClusterBatchesUAV(GraphBuilder, ShaderMap, GraphBuilder.CreateUAV(NodesAndClusterBatchesBufferRDG), MaxNodes, MaxCandidateClusters, MaxCullingBatches);
@@ -302,16 +302,16 @@ namespace Nanite
 		}
 
 		// Allocate candidate cluster buffer
-		FRDGBufferRef CandididateClustersBuffer = nullptr;
+		FRDGBufferRef CandidateClustersBuffer = nullptr;
 		{
-			FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxCandidateClusters * CandididateClusterSizeInUints);
+			FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxCandidateClusters * CandidateClusterSizeInUints);
 			Desc.Usage = EBufferUsageFlags(Desc.Usage | BUF_ByteAddressBuffer);
-			CandididateClustersBuffer = GraphBuilder.CreateBuffer(Desc, TEXT("NaniteStreamOut.CandididateClustersBuffer"));
+			CandidateClustersBuffer = GraphBuilder.CreateBuffer(Desc, TEXT("NaniteStreamOut.CandidateClustersBuffer"));
 		}
 
 		OutQueueParameters.QueueState = GraphBuilder.CreateUAV(QueueState);
 		OutQueueParameters.NodesAndClusterBatches = GraphBuilder.CreateUAV(NodesAndClusterBatchesBufferRDG);
-		OutQueueParameters.CandididateClusters = GraphBuilder.CreateUAV(CandididateClustersBuffer);
+		OutQueueParameters.CandidateClusters = GraphBuilder.CreateUAV(CandidateClustersBuffer);
 		OutQueueParameters.MaxNodes = MaxNodes;
 		OutQueueParameters.MaxCandidateClusters = MaxCandidateClusters;
 	}
@@ -345,7 +345,7 @@ namespace Nanite
 		// Allocate output cluster buffer
 		FRDGBufferRef OutputClustersBuffer = nullptr;
 		{
-			FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxCandidateClusters * CandididateClusterSizeInUints);
+			FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxCandidateClusters * CandidateClusterSizeInUints);
 			Desc.Usage = EBufferUsageFlags(Desc.Usage | BUF_ByteAddressBuffer);
 			OutputClustersBuffer = GraphBuilder.CreateBuffer(Desc, TEXT("NaniteStreamOut.OutputClustersBuffer"));
 		}

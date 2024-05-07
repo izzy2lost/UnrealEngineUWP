@@ -102,6 +102,7 @@ TRDGUniformBufferRef<FNaniteRasterUniformParameters> CreateDebugNaniteRasterUnif
 	UniformParameters->PageConstants.Y					= Nanite::GStreamingManager.GetMaxStreamingPages();
 	UniformParameters->MaxNodes							= Nanite::FGlobalResources::GetMaxNodes();
 	UniformParameters->MaxVisibleClusters				= Nanite::FGlobalResources::GetMaxVisibleClusters();
+	UniformParameters->MaxCandidatePatches				= Nanite::FGlobalResources::GetMaxCandidatePatches();
 	UniformParameters->MaxPatchesPerGroup				= 0u;
 	UniformParameters->MeshPass							= 0u;
 	UniformParameters->InvDiceRate						= 1.0f;

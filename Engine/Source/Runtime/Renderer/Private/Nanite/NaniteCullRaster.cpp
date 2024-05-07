@@ -899,7 +899,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNodeAndClusterCullSharedParameters,)
 
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< FQueueState >, QueueState)
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, MainAndPostNodesAndClusterBatches)
-	SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, MainAndPostCandididateClusters)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, MainAndPostCandidateClusters)
 
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutVisibleClustersSWHW)
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FStreamingRequest>, OutStreamingRequests)
@@ -1099,7 +1099,6 @@ IMPLEMENT_GLOBAL_SHADER(FCalculateSafeRasterizerArgs_CS, "/Engine/Private/Nanite
 BEGIN_SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters,)
 	SHADER_PARAMETER_RDG_BUFFER_UAV( RWByteAddressBuffer, DataBuffer )
 	SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< FWorkQueueState >, StateBuffer )
-	SHADER_PARAMETER( uint32, Size )
 END_SHADER_PARAMETER_STRUCT()
 
 class FInitVisiblePatchesArgsCS : public FNaniteGlobalShader
@@ -1265,6 +1264,8 @@ class FPatchSplitCS : public FNaniteGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
+
 		SHADER_PARAMETER_STRUCT( FGlobalWorkQueueParameters, SplitWorkQueue )
 		SHADER_PARAMETER_STRUCT( FGlobalWorkQueueParameters, OccludedPatches )
 
@@ -1275,7 +1276,6 @@ class FPatchSplitCS : public FNaniteGlobalShader
 
 		SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Offsets )
 		SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_VertsAndIndexes )
-		SHADER_PARAMETER( float,					InvDiceRate )
 
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 
@@ -1317,6 +1317,7 @@ class FPatchSplitCS : public FNaniteGlobalShader
 		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), 1);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_RASTER_UNIFORM_BUFFER"), 1);
 		OutEnvironment.SetDefine(TEXT("COHERENT_QUEUE"), 1);
 		OutEnvironment.SetDefine(TEXT("PATCHSPLIT_PASS"), 1);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
@@ -1332,6 +1333,7 @@ class InitClearSplitQueueArgsCS : public FNaniteGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(InitClearSplitQueueArgsCS, FNaniteGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
 		SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters, SplitWorkQueue)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer< uint >, OutClearQueueArgs)
 	END_SHADER_PARAMETER_STRUCT()
@@ -1360,6 +1362,7 @@ class ClearSplitQueueCS : public FNaniteGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(ClearSplitQueueCS, FNaniteGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
 		SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters, SplitWorkQueue)
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
@@ -2667,6 +2670,8 @@ private:
 		const FMaterialRenderProxy* FixedMaterialProxy = nullptr;
 		const FMaterialRenderProxy* HiddenMaterialProxy = nullptr;
 
+		TRDGUniformBufferRef<FNaniteRasterUniformParameters> RasterUniformBuffer = nullptr;
+
 		void Reserve(int32 BinCount)
 		{
 			RasterizerPasses.Reserve(BinCount);
@@ -3024,7 +3029,7 @@ private:
 
 						if (GRHISupportsShaderRootConstants)
 						{
-							RHICmdList.SetShaderRootConstants(Parameters.PassData);
+							RHICmdList.SetComputeShaderRootConstants(Parameters.PassData);
 						}
 
 						SetShaderParametersMixedCS(
@@ -3088,7 +3093,7 @@ private:
 	FRDGBufferRef	RasterBinMetaBuffer			= nullptr;
 
 	FRDGBufferRef	MainAndPostNodesAndClusterBatchesBuffer	= nullptr;
-	FRDGBufferRef	MainAndPostCandididateClustersBuffer	= nullptr;
+	FRDGBufferRef	MainAndPostCandidateClustersBuffer	= nullptr;
 
 	FCullingParameters			CullingParameters;
 	FVirtualTargetParameters	VirtualTargetParameters;
@@ -3637,7 +3642,7 @@ void FRenderer::AddPass_NodeAndClusterCull( uint32 CullingPass, bool bMultiView 
 
 	SharedParameters.QueueState = GraphBuilder.CreateUAV(QueueState);
 	SharedParameters.MainAndPostNodesAndClusterBatches = GraphBuilder.CreateUAV(MainAndPostNodesAndClusterBatchesBuffer);
-	SharedParameters.MainAndPostCandididateClusters = GraphBuilder.CreateUAV(MainAndPostCandididateClustersBuffer);
+	SharedParameters.MainAndPostCandidateClusters = GraphBuilder.CreateUAV(MainAndPostCandidateClustersBuffer);
 
 	if (CullingPass == CULLING_PASS_NO_OCCLUSION || CullingPass == CULLING_PASS_OCCLUSION_MAIN)
 	{
@@ -4199,7 +4204,7 @@ void FRenderer::PrepareRasterizerPasses(
 				SW: ThreadGroupCountZ
 				Padding
 			MS (2/2):
-				HW: ThreadGroupCountX
+				HW: ThreadGroupCountX (NumClustersHW)
 				HW: ThreadGroupCountY (1 unless wrapped platform)
 				HW: ThreadGroupCountZ (1 unless wrapped platform)
 				Padding
@@ -4805,20 +4810,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 	{
 		auto* RasterPassParameters = GraphBuilder.AllocParameters<FRasterizePassParameters>();
 
-		// NaniteRaster Uniform Buffer
-		{
-			FNaniteRasterUniformParameters* UniformParameters	= GraphBuilder.AllocParameters<FNaniteRasterUniformParameters>();
-			UniformParameters->PageConstants					= PageConstants;
-			UniformParameters->MaxNodes							= Nanite::FGlobalResources::GetMaxNodes();
-			UniformParameters->MaxVisibleClusters				= Nanite::FGlobalResources::GetMaxVisibleClusters();
-			UniformParameters->InvDiceRate						= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
-			UniformParameters->MaxPatchesPerGroup				= GetMaxPatchesPerGroup();
-			UniformParameters->MeshPass							= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
-			UniformParameters->RenderFlags						= RenderFlags;
-			UniformParameters->DebugFlags						= DebugFlags;
-			RasterPassParameters->NaniteRaster					= GraphBuilder.CreateUniformBuffer(UniformParameters);
-		}
-
+		RasterPassParameters->NaniteRaster				= DispatchContext.RasterUniformBuffer;
 		RasterPassParameters->ClusterPageData			= GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		RasterPassParameters->Scene						= SceneUniformBuffer;
 		RasterPassParameters->RasterParameters			= RasterParameters;
@@ -5054,6 +5046,7 @@ void FRenderer::AddPass_PatchSplit(
 		FPatchSplitCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FPatchSplitCS::FParameters >();
 
 		PassParameters->View						= SceneView.ViewUniformBuffer;
+		PassParameters->NaniteRaster				= DispatchContext.RasterUniformBuffer;
 		PassParameters->ClusterPageData				= GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		PassParameters->Scene						= SceneUniformBuffer;
 		PassParameters->CullingParameters			= CullingParameters;
@@ -5064,7 +5057,6 @@ void FRenderer::AddPass_PatchSplit(
 
 		PassParameters->TessellationTable_Offsets			= GTessellationTable.Offsets.SRV;
 		PassParameters->TessellationTable_VertsAndIndexes	= GTessellationTable.VertsAndIndexes.SRV;
-		PassParameters->InvDiceRate					= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
 
 		PassParameters->RWVisiblePatches			= GraphBuilder.CreateUAV( VisiblePatches );
 		PassParameters->RWVisiblePatchesArgs		= GraphBuilder.CreateUAV( VisiblePatchesArgs );
@@ -5138,6 +5130,7 @@ void FRenderer::AddPass_ClearSplitQueue(
 	FRDGBufferRef IndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(3), TEXT("Nanite.ClearQueueArgs"));
 	{
 		InitClearSplitQueueArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters< InitClearSplitQueueArgsCS::FParameters >();
+		PassParameters->NaniteRaster		= DispatchContext.RasterUniformBuffer;
 		PassParameters->SplitWorkQueue		= SplitWorkQueue;
 		PassParameters->OutClearQueueArgs	= GraphBuilder.CreateUAV( IndirectArgs );
 
@@ -5160,8 +5153,9 @@ void FRenderer::AddPass_ClearSplitQueue(
 
 	{
 		ClearSplitQueueCS::FParameters* PassParameters = GraphBuilder.AllocParameters< ClearSplitQueueCS::FParameters >();
-		PassParameters->SplitWorkQueue = SplitWorkQueue;
-		PassParameters->IndirectArgs = IndirectArgs;
+		PassParameters->NaniteRaster	= DispatchContext.RasterUniformBuffer;
+		PassParameters->SplitWorkQueue	= SplitWorkQueue;
+		PassParameters->IndirectArgs	= IndirectArgs;
 
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< ClearSplitQueueCS >();
 		ClearUnusedGraphResources(ComputeShader, PassParameters);
@@ -5720,7 +5714,7 @@ void FRenderer::DrawGeometry(
 	}
 
 	// Allocate candidate cluster buffer. Lifetime only duration of DrawGeometry
-	MainAndPostCandididateClustersBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(Nanite::FGlobalResources::GetMaxCandidateClusters() * 2 * 4), TEXT("Nanite.MainAndPostCandididateClustersBuffer"));
+	MainAndPostCandidateClustersBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(Nanite::FGlobalResources::GetMaxCandidateClusters() * 2 * 4), TEXT("Nanite.MainAndPostCandidateClustersBuffer"));
 
 	FGlobalWorkQueueParameters SplitWorkQueue;
 	FGlobalWorkQueueParameters OccludedPatches;
@@ -5742,11 +5736,9 @@ void FRenderer::DrawGeometry(
 
 		SplitWorkQueue.DataBuffer	= GraphBuilder.CreateUAV( SplitWorkQueue_DataBuffer );
 		SplitWorkQueue.StateBuffer	= GraphBuilder.CreateUAV( SplitWorkQueue_StateBuffer );
-		SplitWorkQueue.Size			= FGlobalResources::GetMaxCandidatePatches();
 
 		OccludedPatches.DataBuffer	= GraphBuilder.CreateUAV( OccludedPatches_DataBuffer );
 		OccludedPatches.StateBuffer	= GraphBuilder.CreateUAV( OccludedPatches_StateBuffer );
-		OccludedPatches.Size		= FGlobalResources::GetMaxCandidatePatches();
 
 		AddClearUAVPass( GraphBuilder, SplitWorkQueue.StateBuffer, 0 );
 		AddClearUAVPass( GraphBuilder, OccludedPatches.StateBuffer, 0 );
@@ -5775,6 +5767,21 @@ void FRenderer::DrawGeometry(
 		RasterContext.bCustomPass,
 		Configuration.bIsLumenCapture
 	);
+
+	// NaniteRaster Uniform Buffer
+	{
+		FNaniteRasterUniformParameters* UniformParameters	= GraphBuilder.AllocParameters<FNaniteRasterUniformParameters>();
+		UniformParameters->PageConstants					= PageConstants;
+		UniformParameters->MaxNodes							= Nanite::FGlobalResources::GetMaxNodes();
+		UniformParameters->MaxVisibleClusters				= Nanite::FGlobalResources::GetMaxVisibleClusters();
+		UniformParameters->MaxCandidatePatches				= Nanite::FGlobalResources::GetMaxCandidatePatches();
+		UniformParameters->InvDiceRate						= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
+		UniformParameters->MaxPatchesPerGroup				= GetMaxPatchesPerGroup();
+		UniformParameters->MeshPass							= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
+		UniformParameters->RenderFlags						= RenderFlags;
+		UniformParameters->DebugFlags						= DebugFlags;
+		DispatchContext.RasterUniformBuffer					= GraphBuilder.CreateUniformBuffer(UniformParameters);
+	}
 
 	// No Occlusion Pass / Occlusion Main Pass
 	{
@@ -5883,6 +5890,7 @@ void FRenderer::ExtractResults( FRasterResults& RasterResults )
 
 	RasterResults.PageConstants			= PageConstants;
 	RasterResults.MaxVisibleClusters	= Nanite::FGlobalResources::GetMaxVisibleClusters();
+	RasterResults.MaxCandidatePatches	= Nanite::FGlobalResources::GetMaxCandidatePatches();
 	RasterResults.MaxNodes				= Nanite::FGlobalResources::GetMaxNodes();
 	RasterResults.RenderFlags			= RenderFlags;
 	RasterResults.DebugFlags			= DebugFlags;

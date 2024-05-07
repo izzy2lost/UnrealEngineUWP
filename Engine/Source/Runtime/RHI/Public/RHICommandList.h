@@ -2742,6 +2742,16 @@ public:
 		ALLOC_COMMAND(FRHICommandSetShaderRootConstants)(Constants);
 	}
 
+	FORCEINLINE_DEBUGGABLE void SetComputeShaderRootConstants(const FUint32Vector4& Constants)
+	{
+		if (Bypass())
+		{
+			GetComputeContext().RHISetShaderRootConstants(Constants);
+			return;
+		}
+		ALLOC_COMMAND(FRHICommandSetShaderRootConstants)(Constants);
+	}
+
 	FORCEINLINE_DEBUGGABLE void DispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIBuffer* RecordArgBuffer,

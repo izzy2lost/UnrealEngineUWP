@@ -18,7 +18,7 @@
 
 // Update this GUID to bump and recompile all Nanite rasterization material shaders
 // Merge conflicts on this line should be resolved by generating a new GUID
-#pragma message("UESHADERMETADATA_VERSION C1298E00-C3DD-440A-B3BA-E342487BF154")
+#pragma message("UESHADERMETADATA_VERSION 18A998F4-5B91-49BD-B57E-C8F7AA6D3392")
 
 #if PIXELSHADER
 ALLOW_NO_PS_EXPORT

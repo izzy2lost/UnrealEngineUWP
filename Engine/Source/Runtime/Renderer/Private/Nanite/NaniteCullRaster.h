@@ -85,6 +85,7 @@ struct FRasterResults
 {
 	FIntVector4		PageConstants;
 	uint32			MaxVisibleClusters;
+	uint32			MaxCandidatePatches;
 	uint32			MaxNodes;
 	uint32			MaxPatchesPerGroup;
 	uint32			MeshPass;

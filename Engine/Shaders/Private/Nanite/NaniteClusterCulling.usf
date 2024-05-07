@@ -64,10 +64,10 @@ groupshared uint GroupOccludedBitmask[NANITE_MAX_BVH_NODES_PER_GROUP];
 
 #if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
 RWCoherentByteAddressBuffer	MainAndPostNodesAndClusterBatches;
-RWCoherentByteAddressBuffer	MainAndPostCandididateClusters;
+RWCoherentByteAddressBuffer	MainAndPostCandidateClusters;
 #else
 RWByteAddressBuffer	MainAndPostNodesAndClusterBatches;
-RWByteAddressBuffer	MainAndPostCandididateClusters;
+RWByteAddressBuffer	MainAndPostCandidateClusters;
 #endif
 
 Buffer<uint>							OffsetClustersArgsSWHW;
@@ -476,13 +476,13 @@ struct FNaniteTraversalClusterCullCallback
 		CandidateCluster.ClusterIndex = ClusterIndex;
 
 		uint4 PackedCluster = PackVisibleCluster(CandidateCluster, false);
-		MainAndPostCandididateClusters.Store2(GetCandidateClusterOffset() + StoreIndex * GetCandidateClusterSize(), PackedCluster.xy);
+		MainAndPostCandidateClusters.Store2(GetCandidateClusterOffset() + StoreIndex * GetCandidateClusterSize(), PackedCluster.xy);
 	}
 
 	uint4 LoadPackedCluster(uint CandidateIndex)
 	{
 		const uint LoadIndex = bIsPostPass ? (MaxCandidateClusters - 1 - CandidateIndex) : CandidateIndex;
-		return uint4(MainAndPostCandididateClusters.Load2(GetCandidateClusterOffset() + LoadIndex * GetCandidateClusterSize()), 0u, 0u);
+		return uint4(MainAndPostCandidateClusters.Load2(GetCandidateClusterOffset() + LoadIndex * GetCandidateClusterSize()), 0u, 0u);
 	}
 
 	bool IsNodeDataReady(uint4 RawData)
@@ -804,9 +804,9 @@ struct FNaniteTraversalClusterCullCallback
 					VisibleCluster.Flags |= (bUseHWRaster ? NANITE_CULLING_FLAG_USE_HW : 0u);
 
 #if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
-					StoreCandidateClusterCoherent(MainAndPostCandididateClusters, (MaxCandidateClusters - 1) - OccludedClusterOffset, VisibleCluster);
+					StoreCandidateClusterCoherent(MainAndPostCandidateClusters, (MaxCandidateClusters - 1) - OccludedClusterOffset, VisibleCluster);
 #else
-					StoreCandidateCluster(MainAndPostCandididateClusters, (MaxCandidateClusters - 1) - OccludedClusterOffset, VisibleCluster);
+					StoreCandidateCluster(MainAndPostCandidateClusters, (MaxCandidateClusters - 1) - OccludedClusterOffset, VisibleCluster);
 #endif
 
 #if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS

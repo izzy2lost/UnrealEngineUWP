@@ -926,6 +926,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 		UniformParameters->PageConstants = RasterResults.PageConstants;
 		UniformParameters->MaxNodes = RasterResults.MaxNodes;
 		UniformParameters->MaxVisibleClusters = RasterResults.MaxVisibleClusters;
+		UniformParameters->MaxCandidatePatches = RasterResults.MaxCandidatePatches;
 		UniformParameters->MaxPatchesPerGroup = RasterResults.MaxPatchesPerGroup;
 		UniformParameters->MeshPass = RasterResults.MeshPass;
 		UniformParameters->InvDiceRate = RasterResults.InvDiceRate;
@@ -2499,6 +2500,7 @@ void DispatchLumenMeshCapturePass(
 			UniformParameters->PageConstants				= RasterResults.PageConstants;
 			UniformParameters->MaxNodes						= Nanite::FGlobalResources::GetMaxNodes();
 			UniformParameters->MaxVisibleClusters			= Nanite::FGlobalResources::GetMaxVisibleClusters();
+			UniformParameters->MaxCandidatePatches			= Nanite::FGlobalResources::GetMaxCandidatePatches();
 			UniformParameters->MaxPatchesPerGroup			= RasterResults.MaxPatchesPerGroup;
 			UniformParameters->MeshPass						= RasterResults.MeshPass;
 			UniformParameters->InvDiceRate					= RasterResults.InvDiceRate;
