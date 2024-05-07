@@ -791,7 +791,7 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 
 		SlowTask_ReadAll.EnterProgressFrame(0.5f);
 		// Find "built-in" plugins.  That is, plugins situated right within the Engine directory.
-		TArray<FString> EnginePluginDirs = FPaths::GetExtensionDirs(FPaths::EngineDir(), TEXT("Plugins"), !GIsEditor);
+		TArray<FString> EnginePluginDirs = FPaths::GetExtensionDirs(FPaths::EngineDir(), TEXT("Plugins"));
 		if (OutPluginSources)
 		{
 			OptionalOutPluginRoots.Append(EnginePluginDirs);
@@ -811,7 +811,7 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 		// assume that the game plugin version is preferred.
 		if (Project != nullptr)
 		{
-			TArray<FString> ProjectPluginDirs = FPaths::GetExtensionDirs(FPaths::GetPath(FPaths::GetProjectFilePath()), TEXT("Plugins"), !GIsEditor);
+			TArray<FString> ProjectPluginDirs = FPaths::GetExtensionDirs(FPaths::GetPath(FPaths::GetProjectFilePath()), TEXT("Plugins"));
 			if (OutPluginSources)
 			{
 				OptionalOutPluginRoots.Append(ProjectPluginDirs);
@@ -1345,14 +1345,12 @@ bool FPluginManager::IntegratePluginsIntoConfig(FConfigCacheIni& ConfigSystem, c
 			{
 				FString BaseConfigFile = *FPaths::GetBaseFilename(ConfigFile);
 
-				// Use GetConfigFilename to find the proper config file to combine into, since it manages command line overrides and path sanitization
-				FString PluginConfigFilename = ConfigSystem.GetConfigFilename(*BaseConfigFile);
-				FConfigFile* FoundConfig = ConfigSystem.FindConfigFile(PluginConfigFilename);
-				if (FoundConfig != nullptr)
+				FConfigBranch* FoundBranch = ConfigSystem.FindBranch(*BaseConfigFile, TEXT(""));
+				if (FoundBranch != nullptr)
 				{
-					UE_LOG(LogPluginManager, Log, TEXT("Found config from plugin[%s] %s"), *Plugin.GetName(), *PluginConfigFilename);
+					UE_LOG(LogPluginManager, Log, TEXT("Found config from plugin[%s] %s"), *Plugin.GetName(), *BaseConfigFile);
 
-					FoundConfig->AddDynamicLayerToHierarchy(FPaths::Combine(PluginConfigDir, ConfigFile));
+					FoundBranch->AddDynamicLayerToHierarchy(FPaths::Combine(PluginConfigDir, ConfigFile));
 				}
 			}
 

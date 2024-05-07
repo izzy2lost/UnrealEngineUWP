@@ -926,6 +926,24 @@ FString UOnlineHotfixManager::BuildConfigCacheKey(const FString& IniName)
 	return GConfig->GetConfigFilename(*IniNameNoExtension);
 }
 
+FConfigBranch* UOnlineHotfixManager::GetBranch(const FString& IniName)
+{
+	const FString StrippedIniName(GetStrippedConfigFileName(IniName));
+	const FString StrippedIniNameNoExtension = FPaths::GetBaseFilename(StrippedIniName);
+
+	// find the branch by basename or full filename
+	FConfigBranch* Branch = GConfig->FindBranch(*StrippedIniName, IniName);
+	if (Branch == nullptr)
+	{
+		// does this really happen, seems pretty unexpected
+		UE_LOG(LogHotfixManager, Warning, TEXT("No config braanch found, creating new branch for hotfix %s"), *IniName);
+		
+		Branch = &GConfig->AddNewBranch(IniName);
+	}
+	
+	return Branch;
+}
+
 FConfigFile* UOnlineHotfixManager::GetConfigFile(const FString& IniName)
 {
 	const FString StrippedIniName(GetStrippedConfigFileName(IniName));
@@ -971,6 +989,20 @@ bool UOnlineHotfixManager::HotfixIniFile(const FString& FileName, const FString&
 {
 	// Flush async loading before modifying GConfig.
 	FlushAsyncLoading();
+	
+	static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+	if (bUseNewDynamicLayers)
+	{
+		FConfigBranch* Branch = GetBranch(FileName);
+		FConfigModificationTracker ChangeTracker;
+		
+		FName Tag = *BuildConfigCacheKey(FileName);
+		Branch->AddDynamicLayerStringToHierarchy(FileName, IniData, Tag, DynamicLayerPriority::Hotfix, &ChangeTracker);
+		
+		UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(ChangeTracker.ModifiedSections, FileName);
+
+		return true;
+	}
 
 	FConfigFile* ConfigFile = GetConfigFile(FileName);
 	// Store the original file so we can undo this later
@@ -1198,6 +1230,39 @@ UOnlineHotfixManager::FConfigFileBackup& UOnlineHotfixManager::BackupIniFile(con
 
 void UOnlineHotfixManager::RestoreBackupIniFiles()
 {
+	static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+	if (bUseNewDynamicLayers)
+	{
+		// @todo branch - would be nice to have a way to know nothing was backed up yet, with Branch mode, so we can skip the FlushAsyncLoading call when there's nothing to do
+		// Flush async loading before modifying GConfig.
+		FlushAsyncLoading();
+
+		FConfigModificationTracker ChangeTracker;
+		for (const FCloudFileHeader& FileHeader : ChangedHotfixFileList)
+		{
+			if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+			{
+				FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
+				FConfigCacheIni::RemoveTagFromAllBranches(Tag, &ChangeTracker);
+			}
+		}
+		for (const FCloudFileHeader& FileHeader : RemovedHotfixFileList)
+		{
+			if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+			{
+				FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
+				FConfigCacheIni::RemoveTagFromAllBranches(Tag, &ChangeTracker);
+			}
+		}
+		
+		// @todo: the last param is for passing to a delegate on "SectionsChanged" but we are doing all the files at once -
+		// we could move the delegate out of this function, or call it once per file - but if a class was modified and removed
+		// we will do extra work - and also, the old way wasn't even calling the delegate!
+		UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(ChangeTracker.ModifiedSections, FString());
+		
+		return;
+	}
+
 	if (IniBackups.Num() == 0)
 	{
 		return;

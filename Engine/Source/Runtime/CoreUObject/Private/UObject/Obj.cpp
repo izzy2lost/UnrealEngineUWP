@@ -2923,11 +2923,11 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 
 	if ( PropertyToLoad == NULL )
 	{
-		UE_LOG(LogConfig, Verbose, TEXT("(%s) '%s' loading configuration from %s"), *ConfigClass->GetName(), *GetName(), *Filename);
+		UE_LOG(LogConfig, VeryVerbose, TEXT("(%s) '%s' loading configuration from %s"), *ConfigClass->GetName(), *GetName(), *Filename);
 	}
 	else
 	{
-		UE_LOG(LogConfig, Verbose, TEXT("(%s) '%s' loading configuration for property %s from %s"), *ConfigClass->GetName(), *GetName(), *PropertyToLoad->GetName(), *Filename);
+		UE_LOG(LogConfig, VeryVerbose, TEXT("(%s) '%s' loading configuration for property %s from %s"), *ConfigClass->GetName(), *GetName(), *PropertyToLoad->GetName(), *Filename);
 	}
 
 	auto GetConfigValue = [&OverrideConfigFile, &bUseConfigOverride](const TCHAR* ClassSection, const TCHAR* Key, const TCHAR* ConfigName, FString& OutValue)
@@ -3019,7 +3019,7 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 		// Track if we loaded this config value using special handling (e.g. array or set)
 		bool bProcessedProperty = false;
 
-		UE_LOG(LogConfig, Verbose, TEXT("   Loading value for %s from [%s]"), *Key, *ClassSection);
+		UE_LOG(LogConfig, VeryVerbose, TEXT("   Loading value for %s from [%s]"), *Key, *ClassSection);
 
 		FArrayProperty* Array = CastField<FArrayProperty>(Property);
 		FSetProperty* SetProperty = CastField<FSetProperty>(Property);
@@ -3240,8 +3240,6 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 		return;
 	}
 
-	uint32 PropagationFlags = UE::LCPF_None;
-
 	const FString Filename
 	// if a filename was specified, always load from that file
 	=	InFilename
@@ -3293,13 +3291,7 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 			if (Property->PropertyFlags & CPF_GlobalConfig)
 			{
 				// call LoadConfig() on child classes if any of the properties were global config
-				PropagationFlags |= UE::LCPF_PropagateToChildDefaultObjects;
 				BaseClass = Property->GetOwnerClass();
-				if ( BaseClass != GetClass() )
-				{
-					// call LoadConfig() on parent classes only if the global config property was declared in a parent class
-					PropagationFlags |= UE::LCPF_ReadParentSections;
-				}
 			}
 
 			FString Key				= Property->GetName();
@@ -3345,7 +3337,7 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 				if (Sec)
 				{
 					// Delete the old value for the property in the ConfigCache before (conditionally) adding in the new value
-					Config->RemoveKeyFromSection(*Section, *CompleteKey, PropFileName);
+					Config->ResetKeyInSection(*Section, *CompleteKey, PropFileName);
 				}
 
 				if (!bPropDeprecated && (!bShouldCheckIfIdenticalBeforeAdding || !Property->Identical_InContainer(this, SuperClassDefaultObject)))
@@ -3408,7 +3400,7 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 					else
 					{
 						// If we are not writing it to config above, we should make sure that this property isn't stagnant in the cache.
-						Config->RemoveKey( *Section, *Key, PropFileName );
+						Config->ResetKeyInSection( *Section, *Key, PropFileName );
 					}
 				}
 			}
@@ -3426,7 +3418,7 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 	// only write out the config file if this is GConfig
 	if (Config == GConfig)
 	{
-		Config->Flush( 0, Filename );
+		Config->Flush(0, *Filename);
 	}
 }
 
@@ -5270,19 +5262,33 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 		// Determine the object/class name
 		if (FParse::Token(Str,ClassName,UE_ARRAY_COUNT(ClassName),1))
 		{
+			UObject* ObjectToReload = nullptr;
+			
 			// Try to find a corresponding class
 			UClass* ClassToReload = FindFirstObject<UClass>(ClassName, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("StaticExec RELOADCONFIG"));
 			if (ClassToReload)
 			{
-				ClassToReload->ReloadConfig();
+				ObjectToReload = ClassToReload->GetDefaultObject();
 			}
 			else
 			{
 				// If the class is missing, search for an object with that name
-				UObject* ObjectToReload = FindFirstObject<UObject>(ClassName, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("StaticExec RELOADCONFIG"));
-				if (ObjectToReload)
+				ObjectToReload = FindFirstObject<UObject>(ClassName, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("StaticExec RELOADCONFIG"));
+			}
+			if (ObjectToReload)
+			{
+				if (ObjectToReload->GetClass()->HasAnyClassFlags(EClassFlags::CLASS_Config))
 				{
+					// reload the object's config
+					FConfigContext Context = FConfigContext::ForceReloadIntoGConfig();
+					Context.Load(*ObjectToReload->GetClass()->GetConfigName());
+					
+					// now updates all the class properties now that the config was reloaded from disk
 					ObjectToReload->ReloadConfig();
+				}
+				else
+				{
+					Ar.Logf(TEXT("Class %s is not a config-enabled class."), *ObjectToReload->GetClass()->GetName());
 				}
 			}
 		}

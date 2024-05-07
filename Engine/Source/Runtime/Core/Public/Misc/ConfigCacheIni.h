@@ -49,6 +49,7 @@ CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogConfig, Log, All);
 
 // Server builds should be tweakable even in Shipping
 #define ALLOW_INI_OVERRIDE_FROM_COMMANDLINE			(UE_SERVER || !(UE_BUILD_SHIPPING))
+#define CONFIG_CAN_SAVE_COMMENTS (WITH_EDITOR)
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -371,6 +372,10 @@ public:
 	// Add, subtract, stc
 	EValueType ValueType;
 
+#if CONFIG_CAN_SAVE_COMMENTS
+	FString Comment;
+#endif
+
 	/** Gets the expanded value (GetValue) without marking it as having been accessed for e.g. writing out to a ConfigFile to disk */
 	const FString& GetValueForWriting() const
 	{
@@ -567,6 +572,9 @@ private:
 	// we can't track it just in that section. This is expected to be empty/small
 	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
 
+	// if this is set, then we track changes made to sections for saving or replaying later (currently unused)
+	FConfigCommandStream* ChangeTracker = nullptr;
+	
 #if UE_WITH_CONFIG_TRACKING
 	mutable TRefCountPtr<UE::ConfigAccessTracking::FFile> FileAccess;
 #endif
@@ -953,6 +961,7 @@ public:
 	FString SourceEngineConfigDir;
 	FString SourceProjectConfigDir;
 	
+	bool bIsSafeUnloaded;
 	bool bIsHierarchical;
 	EBranchReplayMethod ReplayMethod = EBranchReplayMethod::NoReplay;
 	
@@ -996,8 +1005,12 @@ public:
 	CORE_API bool RemoveDynamicLayerFromHierarchy(const FString& Filename, FConfigModificationTracker* ModificationTracker =nullptr);
 	CORE_API bool RemoveDynamicLayersFromHierarchy(const TArray<FString>& Filenames, FConfigModificationTracker* ModificationTracker =nullptr);
 	
-	
-	
+	/** 
+	 * Frees up the static layer memory, which can be useful if a branch is loaded from, cached, and never used again. However,
+	 * if something does try to access it, it will reload in-place (can hitch your game, so be aware)
+	 */
+	CORE_API bool SafeUnload();
+
 	CORE_API void Flush();
 	
 	CORE_API void Dump(FOutputDevice& Ar);
@@ -1005,7 +1018,7 @@ public:
 private:
 	void InitFiles();
 	
-	void RemovePluginFromHierarchy(FName PluginName, FConfigModificationTracker* ModificationTracker);
+	void RemoveTagFromHierarchy(FName Tag, FConfigModificationTracker* ModificationTracker);
 	
 	friend class FConfigCacheIni;
 };
@@ -1021,7 +1034,7 @@ public:
 	/** DO NOT USE. This constructor is for internal usage only for hot-reload purposes. */
 	CORE_API FConfigCacheIni();
 
-	CORE_API ~FConfigCacheIni();
+	CORE_API virtual ~FConfigCacheIni();
 
 	/**
 	* Disables any file IO by the config cache system
@@ -1521,6 +1534,11 @@ public:
 	 */
 	CORE_API bool ResetKeyInSection(const TCHAR* Section, FName Key, const FString& Filename);
 
+	/**
+	 * Clears out the memory of a branch, but can reload it on demand if needed
+	 */
+	CORE_API bool SafeUnloadBranch(const TCHAR* Filename);
+
 
 	// Static helper functions
 
@@ -1728,7 +1746,7 @@ public:
 	static CORE_API void RegisterPlugin(FName PluginName, const FString& PluginDir, const TArray<FString>& ChildPluginDirs, DynamicLayerPriority Priority, bool bIncludePluginNameInBranchName);
 
 	static CORE_API void AddPluginToAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker=nullptr);
-	static CORE_API void RemovePluginFromAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker=nullptr);
+	static CORE_API void RemoveTagFromAllBranches(FName Tag, FConfigModificationTracker* ModificationTracker=nullptr);
 
 private:
 #if WITH_EDITOR
@@ -1742,7 +1760,7 @@ private:
 	void DumpFile(FOutputDevice& Ar, const FString& Filename, const FConfigFile& File);
 
 	void AddPluginToBranches(FName PluginName, FConfigModificationTracker* ModificationTracker);
-	void RemovePluginFromBranches(FName PluginName, FConfigModificationTracker* ModificationTracker);
+	void RemoveTagFromBranches(FName Tag, FConfigModificationTracker* ModificationTracker);
 
 	/** true if file operations should not be performed */
 	bool bAreFileOperationsDisabled;

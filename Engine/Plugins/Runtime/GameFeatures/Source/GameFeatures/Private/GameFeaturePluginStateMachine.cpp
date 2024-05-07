@@ -37,6 +37,7 @@
 #include "Misc/PathViews.h"
 #include "Containers/Queue.h"
 #include "ShaderCodeLibrary.h"
+#include "DeviceProfiles/DeviceProfileManager.h"
 #include "Trace/Trace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameFeaturePluginStateMachine)
@@ -2970,6 +2971,25 @@ struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 		NumExpectedPausers = 0;
 		bInProcessOfDeactivating = false;
 		bHasUnloaded = false;
+
+		static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+		if (bUseNewDynamicLayers)
+		{
+			// we added the plugin in GameFeatureData.cpp, but we don't need to add any complexity into there, since we just unload by PluginName
+			FConfigModificationTracker ChangeTracker;
+			FConfigCacheIni::RemoveTagFromAllBranches(*StateProperties.PluginName, &ChangeTracker);
+
+			IConsoleManager::Get().UnsetAllConsoleVariablesWithTag(*StateProperties.PluginName);
+
+			// reload any modified uobjects
+			UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(ChangeTracker.ModifiedSections, StateProperties.PluginName);
+			
+			if (UDeviceProfileManager::Get().DoActiveProfilesReference(ChangeTracker.ModifiedSections))
+			{
+				UDeviceProfileManager& DeviceProfileManager = UDeviceProfileManager::Get();
+				DeviceProfileManager.ReapplyDeviceProfile();
+			}
+		}
 	}
 
 	void OnPauserCompleted(FStringView InPauserTag)

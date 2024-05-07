@@ -24,7 +24,6 @@ ConsoleManager.cpp: console command handling
 #include "HAL/PlatformProcess.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "HAL/FileManager.h"
-#include "Serialization/ArchiveCountMem.h"
 #include "Logging/MessageLog.h"
 
 #include <clocale>
@@ -371,6 +370,11 @@ public:
 	virtual class IConsoleVariable* AsVariable()
 	{
 		return this;
+	}
+	
+	virtual void LogHistory(FOutputDevice& Ar)
+	{
+	
 	}
 	
 	/** Legacy funciton to add old single delegates to the new multicast delegate. */
@@ -2329,9 +2333,7 @@ void FConsoleManager::LoadHistoryIfNeeded()
 	HistoryEntriesMap.Reset();
 
 	FConfigFile Ini;
-
-	const FString ConfigPath = FPaths::GeneratedConfigDir() + TEXT("ConsoleHistory.ini");
-	ProcessIniContents(*ConfigPath, *ConfigPath, &Ini, false, false);
+	FConfigContext::ReadSingleIntoLocalFile(Ini).Load(*(FPaths::GeneratedConfigDir() + TEXT("ConsoleHistory.ini")));
 
 	const FString SectionName = TEXT("ConsoleHistory");
 	const FName KeyName = TEXT("History");

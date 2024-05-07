@@ -110,6 +110,37 @@ public:
 	}
 
 	/**
+	  * Inserts plugin ini files into an existing Branch
+	 */
+	static FConfigContext ReadPluginIntoConfigSystem(FConfigCacheIni* ConfigSystem, FName PluginName, const FString& PluginRootDir, const TArray<FString>& ChildPluginsBaseDirs)
+	{
+		FConfigContext Context(ConfigSystem, true, FString());
+		Context.bIsForPlugin = true;
+		Context.PluginRootDir = PluginRootDir;
+		Context.ChildPluginBaseDirs = ChildPluginsBaseDirs;
+		Context.ConfigFileTag = PluginName;
+
+		return Context;
+	}
+
+	/**
+	  * Inserts plugin ini files into an existing Branch
+	 */
+	static FConfigContext ReadPluginToModifyConfigSystem(FConfigCacheIni* ConfigSystem, DynamicLayerPriority Priority, FName PluginName, const FString& PluginRootDir, const TArray<FString>& ChildPluginsBaseDirs, FConfigModificationTracker* ChangeTracker=nullptr)
+	{
+		FConfigContext Context(ConfigSystem, true, FString());
+		Context.bIsForPlugin = true;
+		Context.bIsForPluginModification = true;
+		Context.PluginRootDir = PluginRootDir;
+		Context.ChildPluginBaseDirs = ChildPluginsBaseDirs;
+		Context.ConfigFileTag = PluginName;
+		Context.ChangeTracker = ChangeTracker;
+		Context.PluginModificationPriority = Priority;
+
+		return Context;
+	}
+
+	/**
 	 * Create a context to read a hierarchy, but once it reaches the given filename (StartDeletingFilename), it will not read in anymore 
 	 * files at that point
 	 */

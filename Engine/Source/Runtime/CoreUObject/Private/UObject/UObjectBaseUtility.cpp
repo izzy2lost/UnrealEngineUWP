@@ -18,6 +18,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Containers/VersePath.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/DelayedAutoRegister.h"
 
 /***********************/
 /******** Names ********/
@@ -536,6 +537,8 @@ void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const TSet<FStr
 	// Reload configs so objects get the changes
 	for (const FString& SectionName : ModifiedSections)
 	{
+		UE_LOG(LogConfig, Verbose, TEXT("Found modified section: %s"), *SectionName);
+
 		// @todo: This entire overarching process is very similar in its goals as that of UOnlineHotfixManager::HotfixIniFile.
 		// Could consider a combined refactor of the hotfix manager, the base config cache system, etc. to expose an easier way to support this pattern
 
@@ -597,7 +600,7 @@ void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const TSet<FStr
 
 	auto ReloadObjectImpl = [&NumObjectsReloaded](UObject* ReloadObject)
 	{
-		UE_LOG(LogCore, Verbose, TEXT("Reloading %s"), *ReloadObject->GetPathName());
+		UE_LOG(LogConfig, Verbose, TEXT("Reloading %s"), *ReloadObject->GetPathName());
 		// Intentionally using LoadConfig instead of ReloadConfig, since we do not want to call modify/preeditchange/posteditchange on the objects changed when GIsEditor
 		ReloadObject->LoadConfig(nullptr, nullptr, UE::LCPF_ReloadingConfigData | UE::LCPF_ReadParentSections, nullptr);
 //		ReloadObject->ReloadConfig();
@@ -624,6 +627,10 @@ void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const TSet<FStr
 		*IniFilename, FPlatformTime::Seconds() - StartTime, NumObjectsReloaded);
 }
 
+static FDelayedAutoRegisterHelper GSetupReload(EDelayedRegisterRunPhase::ObjectSystemReady, []
+	{
+		FCoreDelegates::ReloadObjectsAfterDynamicConfigChange.AddStatic(&UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections);
+	});
 
 
 UClass* GetParentNativeClass(UClass* Class)

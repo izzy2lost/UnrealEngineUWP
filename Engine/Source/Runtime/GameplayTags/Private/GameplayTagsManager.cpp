@@ -386,20 +386,12 @@ void UGameplayTagsManager::AddTagsFromAdditionalLooseIniFiles(const TArray<FStri
 		{
 			FoundSource->SourceTagList->ConfigFileName = IniFilePath;
 
-			// Check deprecated locations
-			TArray<FString> Tags;
-			if (GConfig->GetArray(TEXT("UserTags"), TEXT("GameplayTags"), Tags, IniFilePath))
-			{
-				for (const FString& Tag : Tags)
-				{
-					FoundSource->SourceTagList->GameplayTagList.AddUnique(FGameplayTagTableRow(FName(*Tag)));
-				}
-			}
-			else
-			{
-				// Load from new ini
-				FoundSource->SourceTagList->LoadConfig(UGameplayTagsList::StaticClass(), *IniFilePath);
-			}
+			FoundSource->SourceTagList->LoadConfig(UGameplayTagsList::StaticClass(), *IniFilePath);
+
+			// we don't actually need this in GConfig because they aren't read from again, and they take a lot of memory,
+			// and aren't tagged with the plugin name, so can't be unloaded along with the plugin anyway, but
+			// since LoadConfig can't take an existing FConfigFile* to load from, we put it into GConfig, then remove it
+			GConfig->Remove(IniFilePath);
 
 #if WITH_EDITOR
 			if (GIsEditor || IsRunningCommandlet()) // Sort tags for UI Purposes but don't sort in -game scenario since this would break compat with noneditor cooked builds
@@ -483,24 +475,6 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 		{
 			SCOPE_LOG_GAMEPLAYTAGS(TEXT("UGameplayTagsManager::ConstructGameplayTagTree: ImportINI tags"));
 
-			// Copy from deprecated list in DefaultEngine.ini
-			TArray<FString> EngineConfigTags;
-			GConfig->GetArray(TEXT("/Script/GameplayTags.GameplayTagsSettings"), TEXT("+GameplayTags"), EngineConfigTags, GEngineIni);
-			
-			for (const FString& EngineConfigTag : EngineConfigTags)
-			{
-				MutableDefault->GameplayTagList.AddUnique(FGameplayTagTableRow(FName(*EngineConfigTag)));
-			}
-
-			// Copy from deprecated list in DefaultGamplayTags.ini
-			EngineConfigTags.Empty();
-			GConfig->GetArray(TEXT("/Script/GameplayTags.GameplayTagsSettings"), TEXT("+GameplayTags"), EngineConfigTags, MutableDefault->GetDefaultConfigFilename());
-
-			for (const FString& EngineConfigTag : EngineConfigTags)
-			{
-				MutableDefault->GameplayTagList.AddUnique(FGameplayTagTableRow(FName(*EngineConfigTag)));
-			}
-
 #if WITH_EDITOR
 			MutableDefault->SortTags();
 #endif
@@ -525,6 +499,11 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 					AddTagIniSearchPath(Pair.Key);
 				}
 			}
+		}
+
+		if (!GIsEditor)
+		{
+			GConfig->SafeUnloadBranch(*GGameplayTagsIni);
 		}
 
 #if WITH_EDITOR

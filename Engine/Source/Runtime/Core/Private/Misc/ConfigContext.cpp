@@ -188,6 +188,12 @@ bool FConfigContext::Load(const TCHAR* InBaseIniName, FString& OutFinalFilename)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FConfigContext::Load);
 
+	if (Branch != nullptr && Branch->bIsSafeUnloaded)
+	{
+		Branch->bIsSafeUnloaded = false;
+		return LoadIniFileHierarchy();
+	}
+
 	// set up a branch if needed
 	if (ExistingFile != nullptr)
 	{
@@ -273,6 +279,16 @@ bool FConfigContext::Load(const TCHAR* InBaseIniName, FString& OutFinalFilename)
 			// we need to copy the temporary branch's final result back into the output
 			*ExistingFile = TemporaryBranch->InMemoryFile;
 		}
+		// delete the branch if it is useless
+		if (!bSuccess && ConfigSystem != nullptr && ExistingFile == nullptr && TemporaryBranch == nullptr)
+		{
+			static bool bRemoveEmptyPlugins = FParse::Param(FCommandLine::Get(), TEXT("RemoveEmptyConfigs"));
+			if (bRemoveEmptyPlugins)
+			{
+				ConfigSystem->Remove(DestIniFilename);
+				Branch = nullptr;
+			}
+		}
 	}
 	return bSuccess;
 }
@@ -351,6 +367,7 @@ bool FConfigContext::PerformSingleFileLoad()
 		}
 		else
 		{
+			// @todo should we pass in a Name to AddNewBranch? could pass is BaseIniName
 			Branch = &ConfigSystem->AddNewBranch(DestIniFilename);
 			Branch->bIsHierarchical = false;
 		}
@@ -385,11 +402,11 @@ bool FConfigContext::PrepareForLoad(bool& bPerformLoad)
 
 	// assume we will load, unless some code below determines not to
 	bPerformLoad = true;
-	
+
 	// first, make sure the DestIniFilename is set, if needed
 	if (bWriteDestIni || bAllowGeneratedIniWhenCooked || FPlatformProperties::RequiresCookedData())
 	{
-		// delay filling out GeneratedConfigDir because some early configs can be read in that set -savedir, and
+		// delay filling out GeneratedConfigDir because some early configs can be read in that set -savedir, and 
 		// FPaths::GeneratedConfigDir() will permanently cache the value
 		if (GeneratedConfigDir.IsEmpty())
 		{
@@ -904,6 +921,8 @@ bool FConfigContext::LoadIniFileHierarchy()
 	
 	// LogVariables(*BaseIniName, Platform);
 
+	bool bReadAnyFile = false;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(LoadIniFileHierarchy);
 	// Traverse ini list back to front, merging along the way.
 	for (const TPair<int32, FString>& HierarchyIt : Branch->Hierarchy)
@@ -917,6 +936,11 @@ bool FConfigContext::LoadIniFileHierarchy()
 		if (IsUsingLocalIniFile(*IniFileName, nullptr) && !DoesConfigFileExistWrapper(*IniFileName, IniCacheSet))
 		{
 			continue;
+		}
+		
+		if (HierarchyIt.Key != 0)
+		{
+			bReadAnyFile = true;
 		}
 
 		UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("   Found!"));
@@ -960,9 +984,12 @@ bool FConfigContext::LoadIniFileHierarchy()
 	if (Branch->ReplayMethod != EBranchReplayMethod::NoReplay)
 	{
 		Branch->InMemoryFile = Branch->CombinedStaticLayers;
+		
+		// need to reset this since it just got blown away
+		Branch->InMemoryFile.ChangeTracker = &Branch->SavedLayer;
 	}
 	Branch->FinalCombinedLayers = Branch->InMemoryFile;
-	return true;
+	return bReadAnyFile;
 }
 
 /**
@@ -982,6 +1009,7 @@ bool FConfigContext::GenerateDestIniFile()
 	Branch->CommandLineOverrides.Empty();
 	Branch->StaticLayers.Empty();
 	Branch->DynamicLayers.Empty();
+	Branch->FinalCombinedLayers.Empty();
 
 	// read the static files into the branch
 	bool bResult = LoadIniFileHierarchy();
@@ -1098,8 +1126,6 @@ bool FConfigContext::GenerateDestIniFile()
 	// return true if we actually read anything in
 	return Branch->InMemoryFile.Num() > 0 || (ExistingFile != nullptr && ExistingFile->Num() > 0);
 }
-
-
 
 
 

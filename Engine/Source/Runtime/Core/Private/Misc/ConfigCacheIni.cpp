@@ -55,6 +55,26 @@ namespace
 DEFINE_LOG_CATEGORY(LogConfig);
 #define LOCTEXT_NAMESPACE "ConfigCache"
 
+
+static TAutoConsoleVariable<int32> CVarUseNewDynamicLayers(
+	TEXT("ini.UseNewDynamicLayers"),
+	0,
+	TEXT("If true, use the new dynamic layers that load/unload, with GameFeatures and Hotfixes"),
+	ECVF_Default);
+
+static int GUseNewSaveTracking = 0;
+static FAutoConsoleVariableRef CVarUseNewSaveTracking(
+	TEXT("ini.UseNewSaveTracking"),
+	GUseNewSaveTracking,
+	TEXT("If true, use the new method for tracking modifications to GConfig when saving"));
+
+#if WITH_EDITOR
+// editor wants full replay - and we can't put this in a cvar since we need way too early for cvar processing!
+static int GDefaultReplayMethod = 2;
+#else
+static int GDefaultReplayMethod = 1;
+#endif
+
 /*-----------------------------------------------------------------------------
 FConfigValue
 -----------------------------------------------------------------------------*/
@@ -789,6 +809,13 @@ static bool BuildOutputString(FString& String, const FileType& FileToWrite)
 		
 		for (const TPair<FName, FConfigValue>& Value : Section.Value)
 		{
+#if CONFIG_CAN_SAVE_COMMENTS
+			if (Value.Value.Comment.Len() > 0)
+			{
+				String.Append(Value.Value.Comment);
+				String.Append(LINE_TERMINATOR);
+			}
+#endif
 			if (Value.Value.ValueType != FConfigValue::EValueType::Set)
 			{
 				const TCHAR* Cmd = CommandLookup.FindKey(Value.Value.ValueType);
@@ -819,16 +846,32 @@ static bool AreWritesAllowedGlobally()
 
 static bool SaveBranch(FConfigBranch& Branch)
 {
-	FString Output;
-	Branch.InMemoryFile.WriteToString(Output, Branch.IniPath);
-
 	if (!Branch.InMemoryFile.Dirty || Branch.InMemoryFile.NoSave || !AreWritesAllowedGlobally())
 	{
 		return true;
 	}
 
-	if (Output.Len() > 0)
+	FString Output;
+	bool bBuiltString;
+	if (GUseNewSaveTracking == 1)
 	{
+		bBuiltString = BuildOutputString(Output, Branch.SavedLayer);
+	}
+	else if (GUseNewSaveTracking == 2)
+	{
+		bBuiltString = BuildDiffOutputString(Output, Branch.InMemoryFile, Branch.FinalCombinedLayers);
+	}
+	else
+	{
+		Branch.InMemoryFile.WriteToString(Output, Branch.IniPath);
+		bBuiltString = true;
+	}
+		
+	if (bBuiltString && Output.Len() > 0)
+	{
+		Output = FString(TEXT(";METADATA=(Diff=true, UseCommands=true)" LINE_TERMINATOR_ANSI)) + Output;
+		
+	
 		return SaveConfigFileWrapper(*Branch.IniPath, Output);
 	}
 
@@ -897,6 +940,7 @@ FConfigFile& FConfigFile::operator=(const FConfigFile& Other)
 	Tag = Other.Tag;
 	Branch = Other.Branch;
 
+	// @todo branch - remove this right?
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 	CommandlineOptions = Other.CommandlineOptions;
 #endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
@@ -941,6 +985,7 @@ FConfigFile& FConfigFile::operator=(FConfigFile&& Other)
 	Tag = MoveTemp(Other.Tag);
 	Branch = MoveTemp(Other.Branch);
 
+	// @todo branch - remove this right?
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 	CommandlineOptions = MoveTemp(Other.CommandlineOptions);
 #endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
@@ -1364,6 +1409,7 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 	TStringBuilder<128> TheLine;
 	FString ProcessedValue;
 	bool Done = false;
+	bool bHasHandledMetadata = false;
 	while( !Done && Ptr - Buffer.GetData() < Buffer.Len() )
 	{
 		// Advance past new line characters
@@ -1387,6 +1433,26 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 			Start[FCString::Strlen(Start)-1] = TEXT('\0');
 		}
 
+		// look for the ;METADATA line as the first line in the file, which can override passed in settings
+		if (!bHasHandledMetadata)
+		{
+			bHasHandledMetadata = true;
+			
+			if (FCString::Strnicmp(Start, TEXT(";METADATA="), 10) == 0)
+			{
+				FString MetadataStruct(Start + 10);
+				FString MetadataValue;
+				ExtractPropertyValue(MetadataStruct, TEXT("UseCommands="), MetadataValue);
+				if (MetadataValue.Len() > 0)
+				{
+					bHandleSymbolCommands = FCString::ToBool(*MetadataValue);
+				}
+				
+				// move on to the next line
+				continue;
+			}
+			
+		}
 		// If the first character in the line is [ and last char is ], this line indicates a section name
 		if( *Start=='[' && Start[FCString::Strlen(Start)-1]==']' )
 		{
@@ -1769,8 +1835,20 @@ void FConfigFile::OverrideFromCommandline(FConfigCommandStream* File, const FStr
 						Value = Value.Mid(1, Value.Len() - 2);
 					}
 
+					FConfigValue::EValueType ValueType = FConfigValue::EValueType::Set;
+					if (PropertyKey.StartsWith(TEXT("-")))
+					{
+						PropertyKey.RemoveFromStart(TEXT("-"));
+						ValueType = FConfigValue::EValueType::Remove;
+					}
+					else if (PropertyKey.StartsWith(TEXT("+")))
+					{
+						PropertyKey.RemoveFromStart(TEXT("+"));
+						ValueType = FConfigValue::EValueType::ArrayAdd;
+					}
+
 					FConfigCommandStreamSection* SectionToModify = File->FindOrAddSectionInternal(Section);
-					SectionToModify->Emplace(*PropertyKey, FConfigValue(MoveTemp(Value), FConfigValue::EValueType::Set));
+					SectionToModify->Emplace(*PropertyKey, FConfigValue(MoveTemp(Value), ValueType));
 				}
 			}
 		}
@@ -1781,6 +1859,14 @@ void FConfigFile::OverrideFromCommandline(FConfigCommandStream* File, const FStr
 void FConfigFile::OverrideFromCommandline(FConfigFile* File, const FString& Filename)
 {
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+
+	// this would already be handled with new dynamic layer stuff
+	static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+	if (bUseNewDynamicLayers)
+	{
+		return;
+	}
+
 	// look for this filename on the commandline in the format:
 	//		-ini:IniName:[Section1]:Key=Value
 	// for example:
@@ -1887,14 +1973,6 @@ void FConfigFile::OverrideFromCommandline(FConfigFile* File, const FString& File
 		}
 	}
 #endif
-}
-
-
-void FConfigFile::AddDynamicLayerToHierarchy(const FString& Filename)
-{
-	checkf(Branch != nullptr, TEXT("Unable to AddDynamicLayerToHierarchy on an FConfigFile that doesn't have an internal Branch. ConfigFile = %s"), *Name.ToString());
-	
-	Branch->AddDynamicLayerToHierarchy(Filename);
 }
 
 
@@ -2536,6 +2614,23 @@ void FConfigFile::SetArray(const TCHAR* SectionName, const TCHAR* Key, const TAr
 		Section->Add(Key, FConfigValue(Section, FName(Key), Value[i]));
 		Dirty = true;
 	}
+	
+	if (ChangeTracker)
+	{
+		// remove anything to do with this array in the tracker
+		FConfigCommandStreamSection* Sec = ChangeTracker->FindOrAddSectionInternal(SectionName);
+		
+		// if there were any entries to remove, then add a clear operation
+		if (Sec->Remove(Key) > 0)
+		{
+			Sec->Add(Key, FConfigValue(TEXT("__Clear__"), FConfigValue::EValueType::Clear));
+		}
+		// then add all entries
+		for (int32 i = 0; i < Value.Num(); i++)
+		{
+			Sec->Add(Key, FConfigValue(Value[i], FConfigValue::EValueType::ArrayAdd));
+		}
+	}
 }
 
 bool FConfigFile::AddToSection(const TCHAR* SectionName, FName Key, const FString& Value)
@@ -2543,6 +2638,13 @@ bool FConfigFile::AddToSection(const TCHAR* SectionName, FName Key, const FStrin
 	FConfigSection* Section = FindOrAddSectionInternal(SectionName);
 	Section->Add(Key, FConfigValue(Section, Key, Value));
 	Dirty = true;
+	
+	if (ChangeTracker != nullptr)
+	{
+		FConfigCommandStreamSection* Sec = ChangeTracker->FindOrAddSectionInternal(SectionName);
+		Sec->Add(Key, FConfigValue(Value, FConfigValue::EValueType::ArrayAdd));
+	}
+	
 	return true;
 }
 
@@ -2557,6 +2659,13 @@ bool FConfigFile::AddUniqueToSection(const TCHAR* SectionName, FName Key, const 
 	// just call Add since we already checked above if it exists (AddUnique can't return whether or not it existed)
 	Section->Add(Key, FConfigValue(Section, Key, Value));
 	Dirty = true;
+	
+	if (ChangeTracker != nullptr)
+	{
+		FConfigCommandStreamSection* Sec = ChangeTracker->FindOrAddSectionInternal(SectionName);
+		Sec->Add(Key, FConfigValue(Value, FConfigValue::EValueType::ArrayAddUnique));
+	}
+
 	return true;
 }
 
@@ -2571,6 +2680,15 @@ bool FConfigFile::RemoveKeyFromSection(const TCHAR* SectionName, FName Key)
 
 	Section->Remove(Key);
 	Dirty = true;
+	
+	if (ChangeTracker != nullptr)
+	{
+		FConfigCommandStreamSection* Sec = ChangeTracker->FindOrAddSectionInternal(SectionName);
+		// remove any tracked changes for this key as they are all blown away now
+		Sec->Remove(Key);
+		Sec->Add(Key, FConfigValue(TEXT("__Clear__"), FConfigValue::EValueType::Clear));
+	}
+
 	return true;
 }
 
@@ -2600,6 +2718,13 @@ bool FConfigFile::ResetKeyInSection(const TCHAR* SectionName, FName Key)
 
 	Section->Remove(Key);
 
+	if (ChangeTracker != nullptr)
+	{
+		// remove this key from being tracked, which is the difference between this and RemvoeKeyFromSection
+		FConfigCommandStreamSection* Sec = ChangeTracker->FindOrAddSectionInternal(SectionName);
+		Sec->Remove(Key);
+	}
+	
 	Dirty = true;
 	return true;
 }
@@ -2795,21 +2920,14 @@ void FConfigCommandStream::Shrink()
 -----------------------------------------------------------------------------*/
 
 FConfigBranch::FConfigBranch()
+	: bIsSafeUnloaded(false)
 {
 	static int DefaultReplayMethod = -1;
 	if (DefaultReplayMethod == -1)
 	{
 		if (!FParse::Value(FCommandLine::Get(), TEXT("ConfigReplayMethod="), DefaultReplayMethod))
 		{
-#if WITH_EDITOR
-			// editor wants full replay - and we can't put this in a cvar since we need way too early for cvar processing!
-			DefaultReplayMethod = 2;
-#else
-			// @todo We are defaulting to 0 (no replay) here because nothing is using the "unload" functionality yet until Phase 2 of the 
-			// changes, and this is using more memory. An mem saving solution will be needed before we can set the default to 1
-			// like it will need to be
-			DefaultReplayMethod = 0;
-#endif
+			DefaultReplayMethod = GDefaultReplayMethod;
 		}
 	}
 	
@@ -2828,7 +2946,8 @@ FConfigBranch::FConfigBranch()
 }
 
 FConfigBranch::FConfigBranch(const FConfigFile& ExistingFile)
-	: bIsHierarchical(false)
+	: bIsSafeUnloaded(false)
+	, bIsHierarchical(false)
 	, InMemoryFile(ExistingFile)
 {
 	ReplayMethod = EBranchReplayMethod::NoReplay;
@@ -2843,6 +2962,11 @@ void FConfigBranch::InitFiles()
 	FinalCombinedLayers.Branch = this;
 	CommandLineOverrides.Branch = this;
 	InMemoryFile.Branch = this;
+	
+	if (GUseNewSaveTracking)
+	{
+		InMemoryFile.ChangeTracker = &SavedLayer;
+	}
 }
 
 bool FConfigBranch::AddDynamicLayerToHierarchy(const FString& Filename, FConfigModificationTracker* ModificationTracker)
@@ -3106,14 +3230,15 @@ bool FConfigBranch::RemoveDynamicLayersFromHierarchy(const TArray<FString>& File
 
 }
 
-void FConfigBranch::RemovePluginFromHierarchy(FName PluginName, FConfigModificationTracker* ModificationTracker)
+void FConfigBranch::RemoveTagFromHierarchy(FName Tag, FConfigModificationTracker* ModificationTracker)
 {
 	// gather tagged layers
 	TArray<FString> LayersToRemove;
 	for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
 	{
-		if (Node->Tag == PluginName)
+		if (Node->Tag == Tag)
 		{
+			UE_LOG(LogConfig, Verbose, TEXT("Removing dynamic layer %s from branch %s with tag %s"), *Node->Filename, *IniName.ToString(), *Tag.ToString());
 			// @todo make a version that takes CommandStreams, not Filenames, for speed
 			LayersToRemove.Add(Node->Filename);
 		}
@@ -3125,6 +3250,22 @@ void FConfigBranch::RemovePluginFromHierarchy(FName PluginName, FConfigModificat
 		RemoveDynamicLayersFromHierarchy(LayersToRemove, ModificationTracker);
 	}
 }
+
+bool FConfigBranch::SafeUnload()
+{
+	bIsSafeUnloaded = true;
+
+	InMemoryFile.Cleanup();
+	CombinedStaticLayers.Cleanup();
+	SavedLayer.Empty();
+	CommandLineOverrides.Empty();
+	StaticLayers.Empty();
+	DynamicLayers.Empty();
+	FinalCombinedLayers.Empty();
+
+	return true;
+}
+
 
 void FConfigBranch::Flush()
 {
@@ -3222,38 +3363,22 @@ FConfigBranch* FConfigCacheIni::FindBranchWithNoReload(FName BaseIniName, const 
 
 	return Branch;
 }
-	
+
 FConfigBranch* FConfigCacheIni::FindBranch(FName BaseIniName, const FString& Filename)
 {
-	// look for a known file, if there's no ini extension
-	FConfigBranch* Branch = KnownFiles.GetBranch(BaseIniName);
+	FConfigBranch* Branch = FindBranchWithNoReload(BaseIniName, Filename);
 
-	if (Branch == nullptr)
+	if (Branch && Branch->bIsSafeUnloaded)
 	{
-		Branch = KnownFiles.GetBranch(*Filename);
-	}
-	if (Branch == nullptr)
-	{
-		Branch = OtherFiles.FindRef(Filename);
-		if (Branch == nullptr)
-		{
-			for (TPair<FString,FConfigBranch*>& CurrentFilePair : OtherFiles)
-			{
-				if (CurrentFilePair.Value->IniName == BaseIniName)
-				{
-					Branch = CurrentFilePair.Value;
-					break;
-				}
-			}
-		}
+		double StartTime = FPlatformTime::Seconds();
+		FConfigContext Context = FConfigContext::ReadIntoConfigSystem(this, PlatformName.ToString());
+		Context.Branch = Branch;
+		Context.DestIniFilename = Branch->IniPath;
+		Context.Load(*BaseIniName.ToString());
+
+		UE_LOG(LogConfig, Warning, TEXT("Branch '%s' had been unloaded. Reloading on-demand took %.2fms"), *Branch->IniName.ToString(), (FPlatformTime::Seconds() - StartTime) * 1000.0f);
 	}
 
-	// if Filename is a .ini and it doesn't match what the KnownFile has (if it has one yet), then we can't use it
-	if (Branch && Branch->IniPath.Len() > 0 && Filename.Len() > 0 && Filename.EndsWith(".ini") && Branch->IniPath != Filename)
-	{
-		Branch = nullptr;
-	}
-	
 	return Branch;
 }
 
@@ -3310,15 +3435,17 @@ FConfigFile* FConfigCacheIni::Find(const FString& Filename)
 		
 		if (!Result)
 		{
-			Result = &Add(UnrealFileName, FConfigFile());
-			UE_LOG(LogConfig, Verbose, TEXT("GConfig::Find is looking for file:  %s"), *UnrealFileName);
 			if (DoesConfigFileExistWrapper(*UnrealFileName))
 			{
-				Result->Read(UnrealFileName);
-				// Files added through Find are treated the same as ReadSingleIntoConfigSystem contexts,
-				// and do not use a hierarchy so they do not use a generatedini and should never be saved.
-				Result->NoSave = true;
-				UE_LOG(LogConfig, Verbose, TEXT("GConfig::Find has loaded file:  %s"), *UnrealFileName);
+				Result = &Add(UnrealFileName, FConfigFile());
+				UE_LOG(LogConfig, Verbose, TEXT("GConfig::Find is looking for file:  %s"), *UnrealFileName);
+				{
+					Result->Read(UnrealFileName);
+					// Files added through Find are treated the same as ReadSingleIntoConfigSystem contexts,
+					// and do not use a hierarchy so they do not use a generatedini and should never be saved.
+					Result->NoSave = true;
+					UE_LOG(LogConfig, Verbose, TEXT("GConfig::Find has loaded file:  %s"), *UnrealFileName);
+				}
 			}
 		}
 		else
@@ -3865,6 +3992,19 @@ bool FConfigCacheIni::RemoveKey( const TCHAR* Section, const TCHAR* Key, const F
 		}
 	return false;
 }
+
+bool FConfigCacheIni::SafeUnloadBranch(const TCHAR* BranchName)
+{
+	FConfigBranch* Branch = FindBranchWithNoReload(BranchName, BranchName);
+	if (Branch)
+	{
+		return Branch->SafeUnload();
+	}
+
+	return false;
+}
+
+
 
 bool FConfigCacheIni::EmptySection( const TCHAR* Section, const FString& Filename )
 {
@@ -4592,7 +4732,7 @@ void FConfigCacheIni::ShowMemoryUsage( FOutputDevice& Ar )
 	for (TPair<FString, FConfigBranch*>& Pair : OtherFiles)
 	{
 		FString Filename = Pair.Key;
-		FConfigFile& ConfigFile = Pair.Value->InMemoryFile;
+		FConfigBranch& ConfigBranch = *Pair.Value;
 
 		FArchiveCountConfigMem MemAr;
 
@@ -4600,7 +4740,7 @@ void FConfigCacheIni::ShowMemoryUsage( FOutputDevice& Ar )
 		MemAr << Filename;
 
 		// count the bytes used for storing the array of SectionName->Section pairs
-		MemAr << ConfigFile;
+		MemAr << ConfigBranch;
 		
 		ConfigCacheMemoryData.AddConfigFile(Filename, MemAr);
 	}
@@ -4925,6 +5065,28 @@ FArchive& operator<<(FArchive& Ar, FConfigBranch& ConfigBranch)
 {
 	Ar << ConfigBranch.bIsHierarchical;
 	Ar << ConfigBranch.InMemoryFile;
+
+	// needed to count full memory usage
+	if (!Ar.IsPersistent())
+	{
+		Ar << ConfigBranch.IniName;
+		Ar << ConfigBranch.IniPath;
+		Ar << ConfigBranch.Platform;
+		Ar << ConfigBranch.SourceEngineConfigDir;
+		Ar << ConfigBranch.SourceProjectConfigDir;
+		Ar << ConfigBranch.Hierarchy;
+		Ar << ConfigBranch.StaticLayers;
+		Ar << ConfigBranch.SavedLayer;
+		Ar << ConfigBranch.CombinedStaticLayers;
+		Ar << ConfigBranch.FinalCombinedLayers;
+		Ar << ConfigBranch.CommandLineOverrides;
+		Ar << ConfigBranch.RuntimeChanges;
+		for (FConfigBranch::DynamicLayerList::TIterator Node(ConfigBranch.DynamicLayers.GetHead()); Node; ++Node)
+		{
+			FConfigCommandStream& S = *Node.GetNode()->GetValue();
+			Ar << S;
+		}
+	}
 	return Ar;
 }
 
@@ -5709,15 +5871,15 @@ void FConfigCacheIni::AddPluginToAllBranches(FName PluginName, FConfigModificati
 #endif
 }
 
-void FConfigCacheIni::RemovePluginFromAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
+void FConfigCacheIni::RemoveTagFromAllBranches(FName Tag, FConfigModificationTracker* ModificationTracker)
 {
-	GConfig->RemovePluginFromBranches(PluginName, ModificationTracker);
+	GConfig->RemoveTagFromBranches(Tag, ModificationTracker);
 	
 #if ALLOW_OTHER_PLATFORM_CONFIG
 	// need to walk over the other platforms without calling ForPlatform because that could end up loading pending plugins
 	for (auto Pair : ConfigForPlatform)
 	{
-		Pair.Value->RemovePluginFromBranches(PluginName, ModificationTracker);
+		Pair.Value->RemoveTagFromBranches(Tag, ModificationTracker);
 	}
 #endif
 
@@ -5778,20 +5940,22 @@ void FConfigCacheIni::AddPluginToBranches(FName PluginName, FConfigModificationT
 			continue;
 		}
 		
+		UE_LOG(LogConfig, Verbose, TEXT("Modifying branch %s with plugin ini %s"), *BranchName.ToString(), *ConfigFilename);
+
 		Context.ConfigFileTag = PluginName;
 		Context.Load(*BranchName.ToString());
 	}
 }
 
-void FConfigCacheIni::RemovePluginFromBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
+void FConfigCacheIni::RemoveTagFromBranches(FName Tag, FConfigModificationTracker* ModificationTracker)
 {
 	for (uint8 KnownIndex = 0; KnownIndex < (uint8)EKnownIniFile::NumKnownFiles; KnownIndex++)
 	{
-		KnownFiles.Branches[KnownIndex].RemovePluginFromHierarchy(PluginName, ModificationTracker);
+		KnownFiles.Branches[KnownIndex].RemoveTagFromHierarchy(Tag, ModificationTracker);
 	}
 	for (auto& Pair : OtherFiles)
 	{
-		Pair.Value->RemovePluginFromHierarchy(PluginName, ModificationTracker);
+		Pair.Value->RemoveTagFromHierarchy(Tag, ModificationTracker);
 	}
 }
 
@@ -5915,9 +6079,6 @@ void FConfigCacheIni::RegisterPlugin(FName PluginName, const FString& PluginDir,
 
 
 
-
-
-
 double GPrepareForLoadTime = 0;
 double GPerformLoadTime = 0;
 
@@ -6011,30 +6172,45 @@ class FIniExec : public FSelfRegisteringExec
 				GConfig->Flush(false);
 			}
 		}
-		
+
+		if (FParse::Command(&Cmd, TEXT("Unload")))
+		{
+			TCHAR BranchName[256];
+			if (FParse::Token(Cmd, BranchName, UE_ARRAY_COUNT(BranchName), true))
+			{
+				GConfig->SafeUnloadBranch(BranchName);
+			}
+		}
+
 		if (FParse::Command(&Cmd, TEXT("AddHotFix")))
 		{
 			TCHAR FileName[256];
 			if (FParse::Token(Cmd, FileName, UE_ARRAY_COUNT(FileName), true))
 			{
 				FConfigModificationTracker ChangeTracker;
-				FConfigBranch* Branch = GConfig->FindBranch(*FPaths::GetBaseFilename(FileName), FileName);
+				FString FilenameBase = FPaths::GetBaseFilename(FileName);
+				FConfigBranch* Branch = GConfig->FindBranch(*FilenameBase, FilenameBase);
 				
 				if (Branch != nullptr)
 				{
 					Branch->AddDynamicLayersToHierarchy({ FileName }, "HotfixTest", DynamicLayerPriority::Hotfix, &ChangeTracker);
-					Ar.Logf(TEXT("HF Modified sections:"));
+					Ar.Logf(TEXT("HF Modified sections (reloading as needed):"));
 					for (const FString& Section : ChangeTracker.ModifiedSections)
 					{
 						Ar.Logf(TEXT("  %s"), *Section);
 					}
+
+					FCoreDelegates::ReloadObjectsAfterDynamicConfigChange.Broadcast(ChangeTracker.ModifiedSections, FileName);
 				}
 			}
 		}
 		
 		if (FParse::Command(&Cmd, TEXT("RemoveHotFixes")))
 		{
-			FConfigCacheIni::RemovePluginFromAllBranches("HotfixTest");
+			FConfigModificationTracker ChangeTracker;
+			FConfigCacheIni::RemoveTagFromAllBranches("HotfixTest", &ChangeTracker);
+
+			FCoreDelegates::ReloadObjectsAfterDynamicConfigChange.Broadcast(ChangeTracker.ModifiedSections, "");
 		}
 		
 		if (FParse::Command(&Cmd, TEXT("Timing")))

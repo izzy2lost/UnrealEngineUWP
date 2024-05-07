@@ -227,6 +227,7 @@ protected:
 
 	/** @return the config file entry for the ini file name in question */
 	FConfigFile* GetConfigFile(const FString& IniName);
+	FConfigBranch* GetBranch(const FString& IniName);
 
 	/** @return the config cache key used to associate ini file entries within the config cache */
 	FString BuildConfigCacheKey(const FString& IniName);
