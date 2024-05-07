@@ -85,12 +85,10 @@ void FTedsDebuggerModule::NavigateToRow(TypedElementDataStorage::RowHandle InRow
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 
-	if ((!Registry && Registry->AreDataStorageInterfacesSet()))
+	if (!Registry)
 	{
 		return;
 	}
-
-	const ITypedElementDataStorageInterface* DataStorage = Registry->GetDataStorage();
 	
 	// If the debugger isn't already open, open it
 	if(!TedsDebuggerInstance.IsValid())
