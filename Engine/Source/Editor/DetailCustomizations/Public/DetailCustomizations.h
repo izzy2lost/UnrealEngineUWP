@@ -31,6 +31,17 @@ public:
 		return true;
 	}
 
+	/**
+	 * Suppresses the DevelopmentStatus warnings for the given class or any derived versions of this class
+	 */
+	void DETAILCUSTOMIZATIONS_API RegisterDevelopmentStatusWarningSupression(FName ClassName);
+	/**
+	 * Removes suppression of DevelopmentStatus warnings for the given class or any derived versions of this class
+	 */
+	void DETAILCUSTOMIZATIONS_API UnregisterDevelopmentStatusWarningSupression(FName ClassName);
+
+	bool IsDevelopmentStatusWarningSupressed(const UClass* Class) const;
+
 private:
 	void RegisterPropertyTypeCustomizations();
 	void RegisterObjectCustomizations();
@@ -55,4 +66,5 @@ private:
 	/** List of registered class that we must unregister when the module shuts down */
 	TSet< FName > RegisteredClassNames;
 	TSet< FName > RegisteredPropertyTypes;
+	TSet< FName > SuppressedDevelopmentStatusWarnings;
 };

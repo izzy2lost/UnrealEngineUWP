@@ -214,6 +214,30 @@ void FDetailCustomizationsModule::ShutdownModule()
 	}
 }
 
+void FDetailCustomizationsModule::RegisterDevelopmentStatusWarningSupression(FName ClassName)
+{
+	SuppressedDevelopmentStatusWarnings.Add(ClassName);
+}
+
+void FDetailCustomizationsModule::UnregisterDevelopmentStatusWarningSupression(FName ClassName)
+{
+	SuppressedDevelopmentStatusWarnings.Remove(ClassName);
+}
+
+bool FDetailCustomizationsModule::IsDevelopmentStatusWarningSupressed(const UClass* Class) const
+{
+	const UClass* ClassCursor = Class;
+	while(ClassCursor)
+	{
+		if (SuppressedDevelopmentStatusWarnings.Contains(ClassCursor->GetFName()))
+		{
+			return true;
+		}
+		ClassCursor = ClassCursor->GetSuperClass();
+	}
+	return false;
+}
+
 /** Helper that will flag this struct name as supporting the UIMin and UIMax meta data types */
 #define REGISTER_UIMINMAX_CUSTOMIZATION( StructName, CallbackFunc ) \
 			RangeVisibilityUtils::StructsSupportingRangeVisibility.Add( StructName );		\

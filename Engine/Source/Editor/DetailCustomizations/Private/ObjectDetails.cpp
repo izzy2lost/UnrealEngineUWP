@@ -6,6 +6,7 @@
 #include "Containers/UnrealString.h"
 #include "Delegates/Delegate.h"
 #include "DetailCategoryBuilder.h"
+#include "DetailCustomizations.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "EdGraphSchema_K2.h"
@@ -61,6 +62,12 @@ void FObjectDetails::AddExperimentalWarningCategory(IDetailLayoutBuilder& Detail
 	bool bBaseClassIsEarlyAccess = false;
 	FString MostDerivedDevelopmentClassName;
 	FObjectEditorUtils::GetClassDevelopmentStatus(DetailBuilder.GetBaseClass(), bBaseClassIsExperimental, bBaseClassIsEarlyAccess, MostDerivedDevelopmentClassName);
+
+	FDetailCustomizationsModule& DetailCustomizationsModule = FModuleManager::Get().GetModuleChecked<FDetailCustomizationsModule>(TEXT("DetailCustomizations"));
+	if (DetailCustomizationsModule.IsDevelopmentStatusWarningSupressed(DetailBuilder.GetBaseClass()))
+	{
+		return;
+	}
 
 	if (bBaseClassIsExperimental || bBaseClassIsEarlyAccess)
 	{
