@@ -37,19 +37,21 @@ void FParameterCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 
 		if (UAnimNextGraph_EditorData* EditorData = Cast<UAnimNextGraph_EditorData>(Parameter->GetOuter()))
 		{
-			const FName ParameterName = Parameter->GetEntryName();
-			if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(ParameterName)) 
+			const FName EntryName = Parameter->GetEntryName();
+			if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(EntryName)) 
 			{
 				if (UAnimNextGraph* ReferencedGraph = UE::AnimNext::UncookedOnly::FUtils::GetGraph(EditorData))
 				{
 					FAddPropertyParams AddPropertyParams;
 					TArray<IDetailPropertyRow*> DetailPropertyRows;
 
-					if (const FPropertyBagPropertyDesc* PropertyDesc = ReferencedGraph->PropertyBag.FindPropertyDescByName(ParameterName))
+					if (const FPropertyBagPropertyDesc* PropertyDesc = ReferencedGraph->DefaultState.State.FindPropertyDescByName(Parameter->GetParamName()))
 					{
-						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedGraph->PropertyBag), ParameterName, EPropertyLocation::Default, AddPropertyParams);
+						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedGraph->DefaultState.State), Parameter->GetParamName(), EPropertyLocation::Default, AddPropertyParams);
 						if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
 						{
+							Handle->SetPropertyDisplayName(FText::FromName(EntryName));
+							
 							const TWeakObjectPtr<UAnimNextGraph> ReferencedGraphWeak = ReferencedGraph;
 
 							const auto OnPropertyValuePreChange = [ReferencedGraphWeak]()
@@ -65,9 +67,10 @@ void FParameterCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 									{
 										if (UAnimNextGraph_EditorData* EditorData = Cast<UAnimNextGraph_EditorData>(ReferencedGraphWeak->EditorData))
 										{
-											if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(InEvent.GetPropertyName()))
+											if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(UncookedOnly::FUtils::GetParameterNameFromQualifiedName(InEvent.GetPropertyName())))
 											{
 												AssetEntry->MarkPackageDirty();
+												AssetEntry->BroadcastModified();
 											}
 										}
 									}

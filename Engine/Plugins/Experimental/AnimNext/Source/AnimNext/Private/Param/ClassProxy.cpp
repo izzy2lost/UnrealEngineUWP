@@ -1,8 +1,8 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/ClassProxy.h"
 #include "Logging/StructuredLog.h"
-#include "Param/AnimNextClassExtensionLibrary.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "Param/ParamTypeHandle.h"
 #include "Param/ParamUtils.h"
 
@@ -17,38 +17,34 @@ FClassProxy::FClassProxy(const UClass* InClass)
 void FClassProxy::Refresh(const UClass* InClass)
 {
 	Class = InClass;
+	ParameterNameMap.Reset();
 
 	// Add any additional extension libraries that extend this class first
 	{
 		TArray<UClass*> Classes;
-		GetDerivedClasses(UAnimNextClassExtensionLibrary::StaticClass(), Classes);
+		GetDerivedClasses(UBlueprintFunctionLibrary::StaticClass(), Classes);
 		for(UClass* ProxyClass : Classes)
 		{
-			UAnimNextClassExtensionLibrary* CDO = ProxyClass->GetDefaultObject<UAnimNextClassExtensionLibrary>();
-			const UClass* ExtendedClass = CDO->GetSupportedClass();
-			if(InClass->IsChildOf(ExtendedClass))
+			for(TFieldIterator<UFunction> It(ProxyClass); It; ++It)
 			{
-				for(TFieldIterator<UFunction> It(ProxyClass); It; ++It)
+				UFunction* Function = *It;
+				if(FParamUtils::CanUseFunction(Function, InClass))
 				{
-					UFunction* Function = *It;
-					if(FParamUtils::CanUseFunction(Function))
+					const FProperty* ReturnProperty = Function->GetReturnProperty();
+					FParamTypeHandle TypeHandle = FParamTypeHandle::FromProperty(ReturnProperty);
+					if(TypeHandle.IsValid())
 					{
-						const FProperty* ReturnProperty = Function->GetReturnProperty();
-						FParamTypeHandle TypeHandle = FParamTypeHandle::FromProperty(ReturnProperty);
-						if(TypeHandle.IsValid())
-						{
-							FClassProxyParameter Parameter;
-							Parameter.AccessType = EClassProxyParameterAccessType::HoistedFunction;
-							Parameter.ParameterName = *Function->GetPathName();
-							Parameter.Function = Function;
-							Parameter.Type = TypeHandle.GetType();
+						FClassProxyParameter Parameter;
+						Parameter.AccessType = EClassProxyParameterAccessType::HoistedFunction;
+						Parameter.ParameterName = *Function->GetPathName();
+						Parameter.Function = Function;
+						Parameter.Type = TypeHandle.GetType();
 #if WITH_EDITOR
-							Parameter.DisplayName = Function->GetDisplayNameText();
-							Parameter.Tooltip = Function->GetToolTipText();
-							Parameter.bThreadSafe = Function->HasMetaData("BlueprintThreadSafe");
+						Parameter.DisplayName = Function->GetDisplayNameText();
+						Parameter.Tooltip = Function->GetToolTipText();
+						Parameter.bThreadSafe = Function->HasMetaData("BlueprintThreadSafe");
 #endif
-							ParameterNameMap.Add(Parameter.ParameterName, Parameters.Add(Parameter));
-						}
+						ParameterNameMap.Add(Parameter.ParameterName, Parameters.Add(Parameter));
 					}
 				}
 			}
@@ -59,7 +55,7 @@ void FClassProxy::Refresh(const UClass* InClass)
 	for(TFieldIterator<UFunction> It(InClass, EFieldIterationFlags::IncludeSuper | EFieldIterationFlags::IncludeInterfaces); It; ++It)
 	{
 		UFunction* Function = *It;
-		if(FParamUtils::CanUseFunction(Function))
+		if(FParamUtils::CanUseFunction(Function, InClass))
 		{
 			const FProperty* ReturnProperty = Function->GetReturnProperty();
 			FParamTypeHandle TypeHandle = FParamTypeHandle::FromProperty(ReturnProperty);

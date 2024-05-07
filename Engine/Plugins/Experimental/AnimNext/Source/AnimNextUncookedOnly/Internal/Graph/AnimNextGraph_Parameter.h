@@ -33,6 +33,8 @@ class UAnimNextGraph_Parameter : public UAnimNextRigVMAssetEntry, public IAnimNe
 	// IAnimNextRigVMExportInterface interface
 	virtual FAnimNextParamType GetExportType() const override;
 	virtual FName GetExportName() const override;
+	virtual EAnimNextExportAccessSpecifier GetExportAccessSpecifier() const override;
+	virtual void SetExportAccessSpecifier(EAnimNextExportAccessSpecifier InAccessSpecifier, bool bSetupUndoRedo = true) override;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override;
@@ -46,13 +48,17 @@ class UAnimNextGraph_Parameter : public UAnimNextRigVMAssetEntry, public IAnimNe
 	virtual FName GetParamName() const override;
 	virtual void SetParamName(FName InName, bool bSetupUndoRedo = true) override;
 	virtual FInstancedPropertyBag& GetPropertyBag() const override;
-	
+
+	/** Access specifier - whether the parameter is visible external to this asset */
+	UPROPERTY(EditAnywhere, Category = "Parameter")
+	EAnimNextExportAccessSpecifier Access = EAnimNextExportAccessSpecifier::Private;
+
 	/** Parameter name we reference */
 	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	FName ParameterName;
 
 	/** The parameter's type */
-	UPROPERTY(EditAnywhere, Category = "Parameter", AssetRegistrySearchable)
+	UPROPERTY(EditAnywhere, Category = "Parameter")
 	FAnimNextParamType Type = FAnimNextParamType::GetType<bool>();
 	
 	/** Comment to display in editor */

@@ -127,6 +127,28 @@ void UAnimNextGraph_EditorData::PostLoad()
 
 		RecompileVM();
 	}
+
+	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextGraphAccessSpecifiers)
+	{
+		// Must preload entries so their data is populated as we will be modifying them
+		for(UAnimNextRigVMAssetEntry* Entry : Entries) 
+		{
+			Entry->GetLinker()->Preload(Entry);
+		}
+
+		// Force older assets to all have public symbols so they work as-is. Newer assets need user intervention as entries default to private
+		for(UAnimNextRigVMAssetEntry* Entry : Entries)
+		{
+			if(UAnimNextGraph_AnimationGraph* AnimationGraphEntry = Cast<UAnimNextGraph_AnimationGraph>(Entry))
+			{
+				AnimationGraphEntry->Access = EAnimNextExportAccessSpecifier::Public;
+			}
+			else if(UAnimNextGraph_Parameter* ParameterEntry = Cast<UAnimNextGraph_Parameter>(Entry))
+			{
+				ParameterEntry->Access = EAnimNextExportAccessSpecifier::Public;
+			}
+		}
+	}
 }
 
 void UAnimNextGraph_EditorData::RecompileVM()

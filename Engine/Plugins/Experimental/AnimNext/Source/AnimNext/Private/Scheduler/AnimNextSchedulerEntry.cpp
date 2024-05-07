@@ -215,9 +215,9 @@ void FAnimNextSchedulerEntry::Initialize()
 		}
 		else
 		{
-			// In editor preview worlds (ideally just thumbnail scenes) we run a linearized 'initial tick' to ensure we
-			// generate an output pose, as these worlds never tick
-			if(World->WorldType == EWorldType::EditorPreview)
+			// In editor worlds we run a linearized 'initial tick' to ensure we generate an initial output pose, as these worlds dont always tick
+			if( World->WorldType == EWorldType::Editor ||
+				World->WorldType == EWorldType::EditorPreview)
 			{
 				FScheduleTickFunction::RunSchedule(*this);
 			}
@@ -343,14 +343,14 @@ void FAnimNextSchedulerEntry::OnScheduleCompiled()
 	using namespace UE::AnimNext;
 
 	// Store any user-defined scopes, as the instance data will be going away
-	TUniquePtr<IParameterSource> RootUserScope = MoveTemp(Context.InstanceData->RootUserScope);
+	TArray<TUniquePtr<IParameterSource>> RootUserScopes = MoveTemp(Context.InstanceData->RootUserScopes);
 	TMap<FName, FScheduleInstanceData::FUserScope> UserScopes = MoveTemp(Context.InstanceData->UserScopes);
 
 	ResetBindingsAndInstanceData();
 	Initialize();
 
 	// Restore any user scopes to the recreated instance data
-	Context.InstanceData->RootUserScope = MoveTemp(RootUserScope);
+	Context.InstanceData->RootUserScopes = MoveTemp(RootUserScopes);
 	Context.InstanceData->UserScopes = MoveTemp(UserScopes);
 }
 #endif

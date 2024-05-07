@@ -317,7 +317,7 @@ void FParamHelpers::Copy(const FParamTypeHandle& InTypeHandle, TConstArrayView<u
 		break;
 	case FParamTypeHandle::EParamType::Object:
 	case FParamTypeHandle::EParamType::CharacterMovementComponent:
-	case FParamTypeHandle::EParamType::AnimNextMeshComponent:
+	case FParamTypeHandle::EParamType::SkeletalMeshComponent:
 	case FParamTypeHandle::EParamType::AnimSequence:
 		SimpleCopy(sizeof(UObject*), alignof(UObject*));
 		break;
@@ -517,7 +517,7 @@ void FParamHelpers::Destroy(const FParamTypeHandle& InTypeHandle, TArrayView<uin
 	case FParamTypeHandle::EParamType::Transform:
 	case FParamTypeHandle::EParamType::Object:
 	case FParamTypeHandle::EParamType::CharacterMovementComponent:
-	case FParamTypeHandle::EParamType::AnimNextMeshComponent:
+	case FParamTypeHandle::EParamType::SkeletalMeshComponent:
 	case FParamTypeHandle::EParamType::AnimSequence:
 	case FParamTypeHandle::EParamType::AnimNextGraphLODPose:
 		break;

@@ -10,12 +10,44 @@
 #include "Engine/SkeletalMesh.h"
 #include "AnimNextStats.h"
 #include "Component/AnimNextComponent.h"
-#include "Component/AnimNextMeshComponent.h"
 #include "GameFramework/Character.h"
 #include "Scheduler/AnimNextScheduleGraphTask.h"
+#include "Param/AnimNextObjectCastLocatorFragment.h"
+#include "Param/AnimNextObjectFunctionLocatorFragment.h"
 #include "Param/AnimNextParamUniversalObjectLocator.h"
+#include "Component/SkinnedMeshComponentExtensions.h"
 
 DEFINE_STAT(STAT_AnimNext_Port_SkeletalMeshComponent);
+
+namespace UE::AnimNext
+{
+	// TODO: Currently we hard-code the ACharacter mesh component as the source of the reference pose and LOD index, but this should be a pin-input in the
+	// final schedule incarnation.
+	TInstancedStruct<FAnimNextParamUniversalObjectLocator> GetCharacterInstanceId()
+	{
+		TInstancedStruct<FAnimNextParamUniversalObjectLocator> Locator = TInstancedStruct<FAnimNextParamUniversalObjectLocator>::Make();
+		Locator.GetMutable().Locator.AddFragment<FAnimNextObjectFunctionLocatorFragment>(UAnimNextComponent::StaticClass()->FindFunctionByName("GetOwner"));
+		Locator.GetMutable().Locator.AddFragment<FAnimNextObjectCastLocatorFragment>(ACharacter::StaticClass());
+		return Locator;
+	};
+
+	FName GetCharacterInstanceIdName()
+	{
+		static FName Name(NAME_None);
+		if (Name.IsNone())
+		{
+			const TInstancedStruct<FAnimNextParamUniversalObjectLocator>& Locator = GetCharacterInstanceId();
+			Name = Locator.Get().ToName();
+		}
+		return Name;
+	};
+
+	FParamId GetMeshComponentParamId()
+	{
+		static const FParamId MeshComponentParamId("/Script/Engine.Character:Mesh", GetCharacterInstanceIdName());
+		return MeshComponentParamId;
+	}
+}
 
 void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FScheduleTermContext& InContext) const
 {
@@ -31,7 +63,7 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 		return;
 	}
 
-	TObjectPtr<UAnimNextMeshComponent> Component = Cast<UAnimNextMeshComponent>(*ComponentPtr);
+	TObjectPtr<USkeletalMeshComponent> Component = Cast<USkeletalMeshComponent>(*ComponentPtr);
 	if(Component == nullptr)
 	{
 		return;
@@ -47,14 +79,15 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 	{
 		return;
 	}
-	
+
 	USkeletalMesh* SkeletalMesh = Component->GetSkeletalMeshAsset();
 	if(SkeletalMesh == nullptr)
 	{
 		return;
 	}
 
-	const UE::AnimNext::FReferencePose& RefPose = Component->GetReferencePose().ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
+	UE::AnimNext::FDataHandle RefPoseHandle = UE::AnimNext::FDataRegistry::Get()->GetOrGenerateReferencePose(Component);
+	const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
 
 	FMemMark MemMark(FMemStack::Get());
 
@@ -65,7 +98,8 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 	FGenerationTools::RemapPose(InputPose->LODPose, LocalSpaceTransforms);
 
 	// Convert and dispatch to renderer
-	Component->CompleteAndDispatch(
+	UE::Anim::FSkinnedMeshComponentExtensions::CompleteAndDispatch(
+		Component,
 		RefPose.GetParentIndices(),
 		RefPose.GetLODBoneIndexToMeshBoneIndexMap(InputPose->LODPose.LODLevel),
 		LocalSpaceTransforms);
@@ -91,7 +125,7 @@ TConstArrayView<FAnimNextEditorParam> UAnimNextSchedulePort_AnimNextMeshComponen
 
 	if(RequiredParams.Num() == 0)
 	{
-		RequiredParams.Emplace(GetMeshComponentParamId().GetName(), FAnimNextParamType::GetType<TObjectPtr<UAnimNextMeshComponent>>(), GetCharacterInstanceId());
+		RequiredParams.Emplace(GetMeshComponentParamId().GetName(), FAnimNextParamType::GetType<TObjectPtr<USkeletalMeshComponent>>(), GetCharacterInstanceId());
 	}
 
 	return RequiredParams;

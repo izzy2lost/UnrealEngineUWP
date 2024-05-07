@@ -26,7 +26,9 @@ struct FParamUtils
 	static ANIMNEXT_API FParamCompatibility GetCompatibility(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS);
 
 	// Check whether the supplied function can be used to access/map parameters
-	static ANIMNEXT_API bool CanUseFunction(const UFunction* InFunction);
+	// @param	InFunction	The function to check
+	// @param	InClass		The expected class to check - used to determine if hoisted functions are valid in this context.
+	static ANIMNEXT_API bool CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass);
 
 	// Check whether the supplied property can be used to access/map parameters
 	static ANIMNEXT_API bool CanUseProperty(const FProperty* InProperty);

@@ -4,9 +4,10 @@
 
 #include "CoreMinimal.h"
 
+struct FInstancedPropertyBag;
+
 namespace UE::AnimNext
-{	
-	class IParameterSource;
+{
 	struct FScheduleContext;
 	enum class EParameterScopeOrdering : int32;
 	struct FScheduleBeginTickFunction;
@@ -21,7 +22,7 @@ struct FScheduleTaskContext
 {
 public:
 	// Apply the supplied parameter source to the specified scope, evicting any source that was there previously
-	ANIMNEXT_API void ApplyParametersToScope(FName InScope, EParameterScopeOrdering InOrdering, TUniquePtr<IParameterSource>&& InParameters) const;
+	ANIMNEXT_API void ApplyParametersToScope(FName InScope, EParameterScopeOrdering InOrdering, FName InInstanceId, FInstancedPropertyBag&& InPropertyBag) const;
 
 private:
 	FScheduleTaskContext(const FScheduleContext& InContext);

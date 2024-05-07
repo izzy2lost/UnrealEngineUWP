@@ -32,6 +32,7 @@
 #include "Editor/RigVMGraphDetailCustomization.h"
 #include "EditorUtils.h"
 #include "IUniversalObjectLocatorEditorModule.h"
+#include "Param/AnimNextComponentLocatorEditor.h"
 #include "Param/AnimNextParam.h"
 #include "Param/AnimNextLocatorContext.h"
 #include "Param/ObjectCastLocatorEditor.h"
@@ -40,466 +41,574 @@
 #include "Param/SAddParametersDialog.h"
 #include "AnimNextRigVMWorkspaceAssetUserData.h"
 #include "Graph/AnimNextGraph_OutlinerItemDetails.h"
+#include "Param/AnimNextActorLocatorEditor.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
 namespace UE::AnimNext::Editor
 {
 
-class FModule : public IModule
+void FModule::StartupModule()
 {
-	virtual void StartupModule() override
-	{
-		// Register settings for user editing
-		ISettingsModule& SettingsModule = FModuleManager::Get().LoadModuleChecked<ISettingsModule>("Settings");
-		SettingsModule.RegisterSettings("Editor", "General", "AnimNext",
-			LOCTEXT("SettingsName", "AnimNext"),
-			LOCTEXT("SettingsDescription", "Customize AnimNext Settings."),
-			GetMutableDefault<UAnimNextConfig>()
-		);
+	// Register settings for user editing
+	ISettingsModule& SettingsModule = FModuleManager::Get().LoadModuleChecked<ISettingsModule>("Settings");
+	SettingsModule.RegisterSettings("Editor", "General", "AnimNext",
+		LOCTEXT("SettingsName", "AnimNext"),
+		LOCTEXT("SettingsDescription", "Customize AnimNext Settings."),
+		GetMutableDefault<UAnimNextConfig>()
+	);
 
-		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
-		PropertyModule.RegisterCustomPropertyTypeLayout(
-			"AnimNextParamType",
-			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamTypePropertyTypeCustomization>(); }));
+	PropertyModule.RegisterCustomPropertyTypeLayout(
+		"AnimNextParamType",
+		FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamTypePropertyTypeCustomization>(); }));
 
-		PropertyModule.RegisterCustomPropertyTypeLayout(
-			"AnimNextParam",
-			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyCustomization>(); }));
+	PropertyModule.RegisterCustomPropertyTypeLayout(
+		"AnimNextParam",
+		FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyCustomization>(); }));
 
-		PropertyModule.RegisterCustomPropertyTypeLayout(
-			"AnimNextEditorParam",
-			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyCustomization>(); }));
-		
-		Identifier = MakeShared<FParamNamePropertyTypeIdentifier>();
-		PropertyModule.RegisterCustomPropertyTypeLayout(
-			FNameProperty::StaticClass()->GetFName(),
-			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamNamePropertyTypeCustomization>(); }),
-			Identifier);
+	PropertyModule.RegisterCustomPropertyTypeLayout(
+		"AnimNextEditorParam",
+		FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyCustomization>(); }));
+	
+	Identifier = MakeShared<FParamNamePropertyTypeIdentifier>();
+	PropertyModule.RegisterCustomPropertyTypeLayout(
+		FNameProperty::StaticClass()->GetFName(),
+		FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamNamePropertyTypeCustomization>(); }),
+		Identifier);
 
-		PropertyModule.RegisterCustomClassLayout("AnimNextGraph_Parameter", 
-			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterCustomization>(); }));
+	PropertyModule.RegisterCustomClassLayout("AnimNextGraph_Parameter", 
+		FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterCustomization>(); }));
 
-		PropertyModule.RegisterCustomClassLayout("AnimNextGraph_EdGraphNode",
-			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FAnimNextGraph_EdGraphNodeCustomization>(); }));
+	PropertyModule.RegisterCustomClassLayout("AnimNextGraph_EdGraphNode",
+		FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FAnimNextGraph_EdGraphNodeCustomization>(); }));
 
-		AnimNextGraphPanelNodeFactory = MakeShared<FAnimNextGraphPanelNodeFactory>();
-		FEdGraphUtilities::RegisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
+	AnimNextGraphPanelNodeFactory = MakeShared<FAnimNextGraphPanelNodeFactory>();
+	FEdGraphUtilities::RegisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
 
-		ParametersGraphPanelPinFactory = MakeShared<FParametersGraphPanelPinFactory>();
-		FEdGraphUtilities::RegisterVisualPinFactory(ParametersGraphPanelPinFactory);
+	ParametersGraphPanelPinFactory = MakeShared<FParametersGraphPanelPinFactory>();
+	FEdGraphUtilities::RegisterVisualPinFactory(ParametersGraphPanelPinFactory);
 
-		Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+	Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
 
-		RegisterWorkspaceDocumentTypes(WorkspaceEditorModule);
+	RegisterWorkspaceDocumentTypes(WorkspaceEditorModule);
 
-		WorkspaceEditorModule.OnRegisterWorkspaceDetailsCustomization().AddLambda([](TSharedPtr<IDetailsView>& InDetailsView)
-			{
-				TArray<UScriptStruct*> StructsToCustomize = {
-					TBaseStructure<FVector>::Get(),
-					TBaseStructure<FVector2D>::Get(),
-					TBaseStructure<FVector4>::Get(),
-					TBaseStructure<FRotator>::Get(),
-					TBaseStructure<FQuat>::Get(),
-					TBaseStructure<FTransform>::Get(),
-					TBaseStructure<FEulerTransform>::Get(),
-				};
-
-				for (UScriptStruct* StructToCustomize : StructsToCustomize)
-				{
-					InDetailsView->RegisterInstancedCustomPropertyTypeLayout(StructToCustomize->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([]()
-						{
-							return FRigVMGraphMathTypeDetailCustomization::MakeInstance();
-						}));
-				}
-			});
-
-		SRigVMAssetView::RegisterCategoryFactory("Parameters", [](UAnimNextRigVMAssetEditorData* InEditorData)
+	WorkspaceEditorModule.OnRegisterWorkspaceDetailsCustomization().AddLambda([](TSharedPtr<IDetailsView>& InDetailsView)
 		{
-			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
-			UAnimNextRigVMAsset* Asset = UncookedOnly::FUtils::GetAsset(InEditorData);
-			return SNew(SSimpleButton)
-				.Text(LOCTEXT("AddParameterButton", "Add Parameter"))
-				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-				.OnClicked_Lambda([EditorData, Asset]()
-				{
-					TSharedRef<SAddParametersDialog> AddParametersDialog =
-						SNew(SAddParametersDialog, FAssetData(EditorData));
+			TArray<UScriptStruct*> StructsToCustomize = {
+				TBaseStructure<FVector>::Get(),
+				TBaseStructure<FVector2D>::Get(),
+				TBaseStructure<FVector4>::Get(),
+				TBaseStructure<FRotator>::Get(),
+				TBaseStructure<FQuat>::Get(),
+				TBaseStructure<FTransform>::Get(),
+				TBaseStructure<FEulerTransform>::Get(),
+			};
 
-					TArray<FParameterToAdd> ParametersToAdd;
-					if(AddParametersDialog->ShowModal(ParametersToAdd))
+			for (UScriptStruct* StructToCustomize : StructsToCustomize)
+			{
+				InDetailsView->RegisterInstancedCustomPropertyTypeLayout(StructToCustomize->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([]()
 					{
-						if(ParametersToAdd.Num() > 0)
+						return FRigVMGraphMathTypeDetailCustomization::MakeInstance();
+					}));
+			}
+		});
+
+	SRigVMAssetView::RegisterCategoryFactory("Parameters", [](UAnimNextRigVMAssetEditorData* InEditorData)
+	{
+		UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
+		UAnimNextRigVMAsset* Asset = UncookedOnly::FUtils::GetAsset(InEditorData);
+		return SNew(SSimpleButton)
+			.Text(LOCTEXT("AddParameterButton", "Add Parameter"))
+			.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+			.OnClicked_Lambda([EditorData, Asset]()
+			{
+				TSharedRef<SAddParametersDialog> AddParametersDialog =
+					SNew(SAddParametersDialog, FAssetData(EditorData));
+
+				TArray<FParameterToAdd> ParametersToAdd;
+				if(AddParametersDialog->ShowModal(ParametersToAdd))
+				{
+					if(ParametersToAdd.Num() > 0)
+					{
+						FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
+						for (const FParameterToAdd& ParameterToAdd : ParametersToAdd)
 						{
-							FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
-							for (const FParameterToAdd& ParameterToAdd : ParametersToAdd)
-							{
-								check(EditorData->FindEntry(ParameterToAdd.Name) == nullptr);
-								EditorData->AddParameter(ParameterToAdd.Name, ParameterToAdd.Type);
-							}
+							check(EditorData->FindEntry(ParameterToAdd.Name) == nullptr);
+							EditorData->AddParameter(ParameterToAdd.Name, ParameterToAdd.Type);
 						}
 					}
-					return FReply::Handled();
-				});
-		});
+				}
+				return FReply::Handled();
+			});
+	});
 
-		SRigVMAssetView::RegisterCategoryFactory("Event Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
-		{
-			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
-			return SNew(SSimpleButton)
-				.Text(LOCTEXT("AddEventGraphButton", "Add Event Graph"))
-				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-				.OnClicked_Lambda([EditorData]()
-				{
-					FScopedTransaction Transaction(LOCTEXT("AddEventGraph", "Add Event Graph"));
+	SRigVMAssetView::RegisterCategoryFactory("Event Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
+	{
+		UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
+		return SNew(SSimpleButton)
+			.Text(LOCTEXT("AddEventGraphButton", "Add Event Graph"))
+			.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+			.OnClicked_Lambda([EditorData]()
+			{
+				FScopedTransaction Transaction(LOCTEXT("AddEventGraph", "Add Event Graph"));
 
-					// Create a new entry for the graph
-					EditorData->AddEventGraph(TEXT("NewGraph"));
+				// Create a new entry for the graph
+				EditorData->AddEventGraph(TEXT("NewGraph"));
 
-					return FReply::Handled();
-				});
-		});
+				return FReply::Handled();
+			});
+	});
 
-		SRigVMAssetView::RegisterCategoryFactory("Animation Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
-		{
-			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
-			return SNew(SSimpleButton)
-				.Text(LOCTEXT("AddGraphButton", "Add Animation Graph"))
-				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-				.OnClicked_Lambda([EditorData]()
-				{
-					FScopedTransaction Transaction(LOCTEXT("AddAnimationGraph", "Add Animation Graph"));
+	SRigVMAssetView::RegisterCategoryFactory("Animation Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
+	{
+		UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
+		return SNew(SSimpleButton)
+			.Text(LOCTEXT("AddGraphButton", "Add Animation Graph"))
+			.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+			.OnClicked_Lambda([EditorData]()
+			{
+				FScopedTransaction Transaction(LOCTEXT("AddAnimationGraph", "Add Animation Graph"));
 
-					// Create a new entry for the graph
-					EditorData->AddAnimationGraph(TEXT("NewGraph"));
+				// Create a new entry for the graph
+				EditorData->AddAnimationGraph(TEXT("NewGraph"));
 
-					return FReply::Handled();
-				});
-		});
+				return FReply::Handled();
+			});
+	});
 
-		UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule& UolEditorModule = FModuleManager::LoadModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
-		UolEditorModule.RegisterLocatorEditor("AnimNextObjectFunction", MakeShared<FObjectFunctionLocatorEditor>());
-		UolEditorModule.RegisterLocatorEditor("AnimNextObjectProperty", MakeShared<FObjectPropertyLocatorEditor>());
-		UolEditorModule.RegisterLocatorEditor("AnimNextObjectCast", MakeShared<FObjectCastLocatorEditor>());
+	UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule& UolEditorModule = FModuleManager::LoadModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
+	UolEditorModule.RegisterLocatorEditor("AnimNextObjectFunction", MakeShared<FObjectFunctionLocatorEditor>());
+	UolEditorModule.RegisterLocatorEditor("AnimNextObjectProperty", MakeShared<FObjectPropertyLocatorEditor>());
+	UolEditorModule.RegisterLocatorEditor("AnimNextObjectCast", MakeShared<FObjectCastLocatorEditor>());
+	UolEditorModule.RegisterLocatorEditor("AnimNextComponent", MakeShared<FComponentLocatorEditor>());
+	UolEditorModule.RegisterLocatorEditor("AnimNextActor", MakeShared<FActorLocatorEditor>());
 
-		UolEditorModule.RegisterEditorContext("AnimNextContext", MakeShared<FAnimNextLocatorContext>());
+	UolEditorModule.RegisterEditorContext("AnimNextContext", MakeShared<FLocatorContext>());
 
+	RegisterLocatorFragmentEditorType("Actor");
+	RegisterLocatorFragmentEditorType("Asset");
+	RegisterLocatorFragmentEditorType("AnimNextScope");
+	RegisterLocatorFragmentEditorType("AnimNextGraph");
+	RegisterLocatorFragmentEditorType("AnimNextObjectFunction");
+	RegisterLocatorFragmentEditorType("AnimNextObjectProperty");
+	RegisterLocatorFragmentEditorType("AnimNextObjectCast");
+	RegisterLocatorFragmentEditorType("AnimNextComponent");
+	RegisterLocatorFragmentEditorType("AnimNextActor");
+
+	Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+	const TSharedPtr<FAnimNextGraphItemDetails> GraphItemDetails = MakeShareable<FAnimNextGraphItemDetails>(new FAnimNextGraphItemDetails());
+	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()), StaticCastSharedPtr<UE::Workspace::IWorkspaceOutlinerItemDetails>(GraphItemDetails));
+	FAnimNextGraphItemDetails::RegisterToolMenuExtensions();	
+}
+
+void FModule::ShutdownModule()
+{
+	if(FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	{
+		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParamType");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParam");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextEditorParam");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("NameProperty");
+		PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_Parameter");
+		PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_EdGraphNode");
+	}
+
+	FEdGraphUtilities::UnregisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
+
+	FEdGraphUtilities::UnregisterVisualPinFactory(ParametersGraphPanelPinFactory);
+
+	UnregisterWorkspaceDocumentTypes();
+
+	SRigVMAssetView::UnregisterCategoryFactory("Parameters");
+	SRigVMAssetView::UnregisterCategoryFactory("Event Graphs");
+	SRigVMAssetView::UnregisterCategoryFactory("Animation Graphs");
+
+	if(FModuleManager::Get().IsModuleLoaded("UniversalObjectLocatorEditor"))
+	{
+		UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule& UolEditorModule = FModuleManager::GetModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
+		UolEditorModule.UnregisterLocatorEditor("AnimNextObjectCast");
+		UolEditorModule.UnregisterLocatorEditor("AnimNextObjectFunction");
+		UolEditorModule.UnregisterLocatorEditor("AnimNextObjectProperty");
+		UolEditorModule.UnregisterLocatorEditor("AnimNextComponent");
+		UolEditorModule.UnregisterLocatorEditor("AnimNextActor");
+
+		UolEditorModule.UnregisterEditorContext("AnimNextContext");
+	}
+	
+	if (UObjectInitialized())
+	{
 		Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
-		const TSharedPtr<FAnimNextGraphItemDetails> GraphItemDetails = MakeShareable<FAnimNextGraphItemDetails>(new FAnimNextGraphItemDetails());
-		WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()), StaticCastSharedPtr<UE::Workspace::IWorkspaceOutlinerItemDetails>(GraphItemDetails));
-		FAnimNextGraphItemDetails::RegisterToolMenuExtensions();
+		WorkspaceModule.UnregisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()));
+		FAnimNextGraphItemDetails::UnregisterToolMenuExtensions();
 	}
 
-	virtual void ShutdownModule() override
-	{
-		if(FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	UnregisterLocatorFragmentEditorType("Actor");
+	UnregisterLocatorFragmentEditorType("Asset");
+	UnregisterLocatorFragmentEditorType("AnimNextScope");
+	UnregisterLocatorFragmentEditorType("AnimNextGraph");
+	UnregisterLocatorFragmentEditorType("AnimNextObjectFunction");
+	UnregisterLocatorFragmentEditorType("AnimNextObjectProperty");
+	UnregisterLocatorFragmentEditorType("AnimNextObjectCast");
+	UnregisterLocatorFragmentEditorType("AnimNextComponent");
+	UnregisterLocatorFragmentEditorType("AnimNextActor");
+}
+
+TSharedRef<SWidget> FModule::CreateParameterPicker(const FParameterPickerArgs& InArgs)
+{
+	return SNew(SParameterPicker)
+		.Args(InArgs);
+}
+
+void FModule::RegisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName)
+{
+	LocatorFragmentEditorNames.Add(InLocatorFragmentEditorName);
+}
+
+void FModule::UnregisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName)
+{
+	LocatorFragmentEditorNames.Remove(InLocatorFragmentEditorName);
+}
+
+void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& WorkspaceEditorModule)
+{
+	// --- AnimNextSchedule ---
+	Workspace::FObjectDocumentArgs ScheduleDocumentArgs(
+		Workspace::FOnMakeDocumentWidget::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
 		{
-			FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParamType");
-			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParam");
-			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextEditorParam");
-			PropertyModule.UnregisterCustomPropertyTypeLayout("NameProperty");
-			PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_Parameter");
-			PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_EdGraphNode");
+			UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
+			FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>( "PropertyEditor" );
+			FDetailsViewArgs DetailsViewArgs;
+			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+			TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+			DetailsView->SetObject(Schedule);
+			return DetailsView;
 		}
-
-		FEdGraphUtilities::UnregisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
-
-		FEdGraphUtilities::UnregisterVisualPinFactory(ParametersGraphPanelPinFactory);
-
-		UnregisterWorkspaceDocumentTypes();
-
-		SRigVMAssetView::UnregisterCategoryFactory("Parameters");
-		SRigVMAssetView::UnregisterCategoryFactory("Event Graphs");
-		SRigVMAssetView::UnregisterCategoryFactory("Animation Graphs");
-
-		if(FModuleManager::Get().IsModuleLoaded("UniversalObjectLocatorEditor"))
-		{
-			UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule& UolEditorModule = FModuleManager::GetModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
-			UolEditorModule.UnregisterLocatorEditor("AnimNextObjectCast");
-			UolEditorModule.UnregisterLocatorEditor("AnimNextObjectFunction");
-			UolEditorModule.UnregisterLocatorEditor("AnimNextObjectProperty");
-
-			UolEditorModule.UnregisterEditorContext("AnimNextContext");
-		}
-
-		if (UObjectInitialized())
-		{
-			Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
-			WorkspaceModule.UnregisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()));
-			FAnimNextGraphItemDetails::UnregisterToolMenuExtensions();
-		}
-	}
-
-	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) override
+	), Workspace::WorkspaceTabs::MiddleDocumentArea);
+	ScheduleDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
 	{
-		return SNew(SParameterPicker)
-			.Args(InArgs);
-	}
+		const UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
+		return FText::FromName(Schedule->GetFName());
+	});
 
-	void RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& WorkspaceEditorModule)
+	ScheduleDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
 	{
-		// --- AnimNextSchedule ---
-		Workspace::FObjectDocumentArgs ScheduleDocumentArgs(
+		if (const UAnimNextSchedule* Schedule = Cast<UAnimNextSchedule>(InContext.Object))
+		{
+			const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+			GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([ScheduleName = Schedule->GetFName()]{ return FText::FromName(ScheduleName); });
+		}
+	});
+
+	ScheduleDocumentArgs.OnGetTabIcon = Workspace::FOnGetTabIcon::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+	{
+		return FAppStyle::GetBrush(TEXT("ClassIcon.Default"));
+	});
+
+	WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextSchedule")), ScheduleDocumentArgs);
+
+	// --- AnimNextGraph ---
+	Workspace::FObjectDocumentArgs AnimNextGraphDocumentArgs(
 			Workspace::FOnMakeDocumentWidget::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
 			{
-				UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
-				FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>( "PropertyEditor" );
-				FDetailsViewArgs DetailsViewArgs;
-				DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-				TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-				DetailsView->SetObject(Schedule);
-				return DetailsView;
-			}
-		), Workspace::WorkspaceTabs::MiddleDocumentArea);
-		ScheduleDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
-		{
-			const UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
-			return FText::FromName(Schedule->GetFName());
-		});
+				UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InContext.Object);
+				UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
 
-		ScheduleDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
-		{
-			if (const UAnimNextSchedule* Schedule = Cast<UAnimNextSchedule>(InContext.Object))
-			{
-				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
-				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([ScheduleName = Schedule->GetFName()]{ return FText::FromName(ScheduleName); });
-			}
-		});
+				TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
 
-		ScheduleDocumentArgs.OnGetTabIcon = Workspace::FOnGetTabIcon::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
-		{
-			return FAppStyle::GetBrush(TEXT("ClassIcon.Default"));
-		});
-
-		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextSchedule")), ScheduleDocumentArgs);
-
-		// --- AnimNextGraph ---
-		Workspace::FObjectDocumentArgs AnimNextGraphDocumentArgs(
-				Workspace::FOnMakeDocumentWidget::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+				EditorData->RigVMGraphModifiedEvent.RemoveAll(&InContext.WorkspaceEditor.Get());
+				EditorData->RigVMGraphModifiedEvent.AddSPLambda(&InContext.WorkspaceEditor.Get(), [WeakWorkspaceEditor](ERigVMGraphNotifType InType, URigVMGraph* InGraph, UObject* InSubject)
 				{
-					UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InContext.Object);
-					UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
+					if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
+					{
+						if (InType == ERigVMGraphNotifType::InteractionBracketClosed)
+						{
+							WorkspaceEditor->RefreshDetails();
+						}
+					}
+				});
 
-					TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
-
-					EditorData->RigVMGraphModifiedEvent.RemoveAll(&InContext.WorkspaceEditor.Get());
-					EditorData->RigVMGraphModifiedEvent.AddSPLambda(&InContext.WorkspaceEditor.Get(), [WeakWorkspaceEditor](ERigVMGraphNotifType InType, URigVMGraph* InGraph, UObject* InSubject)
+				return SNew(SRigVMAssetView, EditorData)
+					.OnSelectionChanged_Lambda([WeakWorkspaceEditor](const TArray<UObject*>& InEntries)
 					{
 						if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
 						{
-							if (InType == ERigVMGraphNotifType::InteractionBracketClosed)
+							WorkspaceEditor->SetDetailsObjects(InEntries);
+						}
+					})
+					.OnOpenGraph_Lambda([WeakWorkspaceEditor](URigVMGraph* InGraph)
+					{
+						if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
+						{
+							if(IRigVMClientHost* RigVMClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>())
 							{
-								WorkspaceEditor->RefreshDetails();
+								if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(InGraph))
+								{
+									WorkspaceEditor->OpenObjects({EditorObject});
+								}
+							}
+						}
+					})
+					.OnDeleteEntries_Lambda([WeakWorkspaceEditor](const TArray<UAnimNextRigVMAssetEntry*>& InEntries)
+					{
+						if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
+						{
+							if(InEntries.Num() > 0)
+							{
+								TArray<UObject*> EdGraphsToClose;
+								EdGraphsToClose.Reserve(InEntries.Num());
+								for(UAnimNextRigVMAssetEntry* Entry : InEntries)
+								{
+									if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
+									{
+										if(URigVMEdGraph* EdGraph = GraphInterface->GetEdGraph())
+										{
+											EdGraphsToClose.Add(EdGraph);
+										}
+									}
+								}
+
+								WorkspaceEditor->CloseObjects(EdGraphsToClose);
 							}
 						}
 					});
+			}),
+			Workspace::WorkspaceTabs::MiddleDocumentArea);
+	AnimNextGraphDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+	{
+		const UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InContext.Object);
+		return FText::FromName(Graph->GetFName());
+	});
 
-					return SNew(SRigVMAssetView, EditorData)
-						.OnSelectionChanged_Lambda([WeakWorkspaceEditor](const TArray<UObject*>& InEntries)
-						{
-							if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
-							{
-								WorkspaceEditor->SetDetailsObjects(InEntries);
-							}
-						})
-						.OnOpenGraph_Lambda([WeakWorkspaceEditor](URigVMGraph* InGraph)
-						{
-							if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
-							{
-								if(IRigVMClientHost* RigVMClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>())
-								{
-									if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(InGraph))
-									{
-										WorkspaceEditor->OpenObjects({EditorObject});
-									}
-								}
-							}
-						})
-						.OnDeleteEntries_Lambda([WeakWorkspaceEditor](const TArray<UAnimNextRigVMAssetEntry*>& InEntries)
-						{
-							if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
-							{
-								if(InEntries.Num() > 0)
-								{
-									TArray<UObject*> EdGraphsToClose;
-									EdGraphsToClose.Reserve(InEntries.Num());
-									for(UAnimNextRigVMAssetEntry* Entry : InEntries)
-									{
-										if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
-										{
-											if(URigVMEdGraph* EdGraph = GraphInterface->GetEdGraph())
-											{
-												EdGraphsToClose.Add(EdGraph);
-											}
-										}
-									}
-
-									WorkspaceEditor->CloseObjects(EdGraphsToClose);
-								}
-							}
-						});
-				}),
-				Workspace::WorkspaceTabs::MiddleDocumentArea);
-		AnimNextGraphDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+	AnimNextGraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
+	{
+		if (const UAnimNextGraph* Graph = Cast<UAnimNextGraph>(InContext.Object))
 		{
-			const UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InContext.Object);
-			return FText::FromName(Graph->GetFName());
-		});
+			const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+			GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = Graph->GetFName()]{ return FText::FromName(GraphName); });
+		}
+	});
 
-		AnimNextGraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
+	AnimNextGraphDocumentArgs.OnGetTabIcon = Workspace::FOnGetTabIcon::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
+	{
+		return FAppStyle::GetBrush(TEXT("ClassIcon.Default"));
+	});
+
+	WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextGraph")), AnimNextGraphDocumentArgs);
+
+	// --- AnimNextGraph_EdGraph ---
+	Workspace::FGraphDocumentWidgetArgs GraphArgs;
+	GraphArgs.SpawnLocation = Workspace::WorkspaceTabs::MiddleDocumentArea;
+	GraphArgs.OnCreateActionMenu = Workspace::FOnCreateActionMenu::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)
+	{
+		TSharedRef<SActionMenu> ActionMenu = SNew(SActionMenu, InGraph)
+			.AutoExpandActionMenu(bAutoExpand)
+			.NewNodePosition(InNodePosition)
+			.DraggedFromPins(InDraggedPins)
+			.OnClosedCallback(InOnMenuClosed);
+
+		TSharedPtr<SWidget> FilterTextBox = StaticCastSharedRef<SWidget>(ActionMenu->GetFilterTextBox());
+		return FActionMenuContent(StaticCastSharedRef<SWidget>(ActionMenu), FilterTextBox);
+	});
+	GraphArgs.OnNodeTextCommitted = Workspace::FOnNodeTextCommitted::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
+	{
+		URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(NodeBeingChanged->GetGraph());
+		if (RigVMEdGraph == nullptr)
 		{
-			if (const UAnimNextGraph* Graph = Cast<UAnimNextGraph>(InContext.Object))
+			return;
+		}
+
+		UEdGraphNode_Comment* CommentBeingChanged = Cast<UEdGraphNode_Comment>(NodeBeingChanged);
+		if (CommentBeingChanged == nullptr)
+		{
+			return;
+		}
+
+		RigVMEdGraph->GetController()->SetCommentTextByName(CommentBeingChanged->GetFName(), NewText.ToString(), CommentBeingChanged->FontSize, CommentBeingChanged->bCommentBubbleVisible, CommentBeingChanged->bColorCommentBubble, true, true);
+	});
+	GraphArgs.OnCanDeleteSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+	{
+		bool bCanUserDeleteNode = false;
+
+		if(InSelectedNodes.Num() > 0)
+		{
+			for(UObject* NodeObject : InSelectedNodes)
 			{
-				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
-				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = Graph->GetFName()]{ return FText::FromName(GraphName); });
-			}
-		});
-
-		AnimNextGraphDocumentArgs.OnGetTabIcon = Workspace::FOnGetTabIcon::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
-		{
-			return FAppStyle::GetBrush(TEXT("ClassIcon.Default"));
-		});
-
-		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextGraph")), AnimNextGraphDocumentArgs);
-
-		// --- AnimNextGraph_EdGraph ---
-		Workspace::FGraphDocumentWidgetArgs GraphArgs;
-		GraphArgs.SpawnLocation = Workspace::WorkspaceTabs::MiddleDocumentArea;
-		GraphArgs.OnCreateActionMenu = Workspace::FOnCreateActionMenu::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)
-		{
-			TSharedRef<SActionMenu> ActionMenu = SNew(SActionMenu, InGraph)
-				.AutoExpandActionMenu(bAutoExpand)
-				.NewNodePosition(InNodePosition)
-				.DraggedFromPins(InDraggedPins)
-				.OnClosedCallback(InOnMenuClosed);
-
-			TSharedPtr<SWidget> FilterTextBox = StaticCastSharedRef<SWidget>(ActionMenu->GetFilterTextBox());
-			return FActionMenuContent(StaticCastSharedRef<SWidget>(ActionMenu), FilterTextBox);
-		});
-		GraphArgs.OnNodeTextCommitted = Workspace::FOnNodeTextCommitted::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
-		{
-			URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(NodeBeingChanged->GetGraph());
-			if (RigVMEdGraph == nullptr)
-			{
-				return;
-			}
-
-			UEdGraphNode_Comment* CommentBeingChanged = Cast<UEdGraphNode_Comment>(NodeBeingChanged);
-			if (CommentBeingChanged == nullptr)
-			{
-				return;
-			}
-
-			RigVMEdGraph->GetController()->SetCommentTextByName(CommentBeingChanged->GetFName(), NewText.ToString(), CommentBeingChanged->FontSize, CommentBeingChanged->bCommentBubbleVisible, CommentBeingChanged->bColorCommentBubble, true, true);
-		});
-		GraphArgs.OnCanDeleteSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
-		{
-			bool bCanUserDeleteNode = false;
-
-			if(InSelectedNodes.Num() > 0)
-			{
-				for(UObject* NodeObject : InSelectedNodes)
+				// If any nodes allow deleting, then do not disable the delete option
+				const UEdGraphNode* Node = Cast<UEdGraphNode>(NodeObject);
+				if(Node && Node->CanUserDeleteNode())
 				{
-					// If any nodes allow deleting, then do not disable the delete option
-					const UEdGraphNode* Node = Cast<UEdGraphNode>(NodeObject);
-					if(Node && Node->CanUserDeleteNode())
+					bCanUserDeleteNode = true;
+					break;
+				}
+			}
+		}
+
+		return bCanUserDeleteNode;
+	});
+	GraphArgs.OnDeleteSelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+	{
+		if(InSelectedNodes.IsEmpty())
+		{
+			return;
+		}
+
+		URigVMController* Controller = nullptr;
+		
+		bool bRelinkPins = false;
+		TArray<URigVMNode*> NodesToRemove;
+
+		for (FGraphPanelSelectionSet::TConstIterator NodeIt(InSelectedNodes); NodeIt; ++NodeIt)
+		{
+			if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
+			{
+				URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(Node->GetGraph());
+				if (RigVMEdGraph == nullptr)
+				{
+					continue;
+				}
+				
+				if (Node->CanUserDeleteNode())
+				{
+					if (const URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(Node))
 					{
-						bCanUserDeleteNode = true;
-						break;
+						if(Controller == nullptr)
+						{
+							Controller = RigVMEdGraphNode->GetController();
+						}
+
+						bRelinkPins = bRelinkPins || FSlateApplication::Get().GetModifierKeys().IsShiftDown();
+
+						if(URigVMGraph* Model = RigVMEdGraph->GetModel())
+						{
+							if(URigVMNode* ModelNode = Model->FindNodeByName(*RigVMEdGraphNode->GetModelNodePath()))
+							{
+								NodesToRemove.Add(ModelNode);
+							}
+						}
+					}
+					else if (const UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(Node))
+					{
+						if(URigVMGraph* Model = RigVMEdGraph->GetModel())
+						{
+							if(URigVMNode* ModelNode = Model->FindNodeByName(CommentNode->GetFName()))
+							{
+								NodesToRemove.Add(ModelNode);
+							}
+						}
+					}
+					else
+					{
+						Node->GetGraph()->RemoveNode(Node);
 					}
 				}
 			}
+		}
 
-			return bCanUserDeleteNode;
-		});
-		GraphArgs.OnDeleteSelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+		if(NodesToRemove.IsEmpty() || Controller == nullptr)
 		{
-			if(InSelectedNodes.IsEmpty())
+			return;
+		}
+
+		Controller->OpenUndoBracket(TEXT("Delete selected nodes"));
+		if(bRelinkPins && NodesToRemove.Num() == 1)
+		{
+			Controller->RelinkSourceAndTargetPins(NodesToRemove[0], true);;
+		}
+		Controller->RemoveNodes(NodesToRemove, true);
+		Controller->CloseUndoBracket();
+	});
+	GraphArgs.OnCanCopySelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+	{
+		bool bCanUserCopyNode = false;
+
+		if(InSelectedNodes.Num() > 0)
+		{
+			bCanUserCopyNode = true;
+		}
+
+		return bCanUserCopyNode;
+	});
+	GraphArgs.OnCopySelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+	{
+		if(InSelectedNodes.IsEmpty())
+		{
+			return;
+		}
+
+		URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
+		if (RigVMEdGraph == nullptr)
+		{
+			return;
+		}
+
+		URigVMController* Controller = RigVMEdGraph->GetController();
+
+		FString ExportedText = Controller->ExportSelectedNodesToText();
+		FPlatformApplicationMisc::ClipboardCopy(*ExportedText);
+	});
+	GraphArgs.OnCanPasteNodes = Workspace::FOnCanPasteNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FString& InImportData)
+	{
+		bool bCanUserImportNodes = false;
+
+		if (!InImportData.IsEmpty())
+		{
+			bCanUserImportNodes = true;
+		}
+
+		return bCanUserImportNodes;
+	});
+	GraphArgs.OnPasteNodes = Workspace::FOnPasteNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FVector2D& InPasteLocation, const FString& InImportData)
+	{
+		if(InImportData.IsEmpty())
+		{
+			return;
+		}
+
+		URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
+		if (RigVMEdGraph == nullptr)
+		{
+			return;
+		}
+
+		if (IRigVMClientHost* RigVMClientHost = RigVMEdGraph->GetImplementingOuter<IRigVMClientHost>())
+		{
+			FString TextToImport;
+			FPlatformApplicationMisc::ClipboardPaste(TextToImport);
+			URigVMController* Controller = RigVMEdGraph->GetController();
+
+			Controller->OpenUndoBracket(TEXT("Pasted Nodes."));
+
+			if (UE::RigVM::Editor::Tools::PasteNodes(InPasteLocation, TextToImport, Controller, RigVMEdGraph->GetModel(), RigVMClientHost->GetLocalFunctionLibrary(), RigVMClientHost->GetRigVMGraphFunctionHost()))
 			{
-				return;
+				Controller->CloseUndoBracket();
 			}
-
-			URigVMController* Controller = nullptr;
-			
-			bool bRelinkPins = false;
-			TArray<URigVMNode*> NodesToRemove;
-
-			for (FGraphPanelSelectionSet::TConstIterator NodeIt(InSelectedNodes); NodeIt; ++NodeIt)
+			else
 			{
-				if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
-				{
-					URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(Node->GetGraph());
-					if (RigVMEdGraph == nullptr)
-					{
-						continue;
-					}
-					
-					if (Node->CanUserDeleteNode())
-					{
-						if (const URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(Node))
-						{
-							if(Controller == nullptr)
-							{
-								Controller = RigVMEdGraphNode->GetController();
-							}
-
-							bRelinkPins = bRelinkPins || FSlateApplication::Get().GetModifierKeys().IsShiftDown();
-
-							if(URigVMGraph* Model = RigVMEdGraph->GetModel())
-							{
-								if(URigVMNode* ModelNode = Model->FindNodeByName(*RigVMEdGraphNode->GetModelNodePath()))
-								{
-									NodesToRemove.Add(ModelNode);
-								}
-							}
-						}
-						else if (const UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(Node))
-						{
-							if(URigVMGraph* Model = RigVMEdGraph->GetModel())
-							{
-								if(URigVMNode* ModelNode = Model->FindNodeByName(CommentNode->GetFName()))
-								{
-									NodesToRemove.Add(ModelNode);
-								}
-							}
-						}
-						else
-						{
-							Node->GetGraph()->RemoveNode(Node);
-						}
-					}
-				}
+				Controller->CancelUndoBracket();
 			}
-
-			if(NodesToRemove.IsEmpty() || Controller == nullptr)
-			{
-				return;
-			}
-
-			Controller->OpenUndoBracket(TEXT("Delete selected nodes"));
-			if(bRelinkPins && NodesToRemove.Num() == 1)
-			{
-				Controller->RelinkSourceAndTargetPins(NodesToRemove[0], true);;
-			}
-			Controller->RemoveNodes(NodesToRemove, true);
-			Controller->CloseUndoBracket();
-		});
-		GraphArgs.OnCanCopySelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+		}
+	});
+	UE::Workspace::FOnCanPerformActionOnSelectedNodes& OnCanCopySelectedNodes = GraphArgs.OnCanCopySelectedNodes;
+	UE::Workspace::FOnCanPerformActionOnSelectedNodes& OnCanDeleteSelectedNodes = GraphArgs.OnCanDeleteSelectedNodes;
+	GraphArgs.OnCanCutSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([OnCanCopySelectedNodes, OnCanDeleteSelectedNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
 		{
 			bool bCanUserCopyNode = false;
 
-			if(InSelectedNodes.Num() > 0)
+			if (OnCanCopySelectedNodes.IsBound() && OnCanDeleteSelectedNodes.IsBound())
 			{
-				bCanUserCopyNode = true;
+				bCanUserCopyNode = OnCanCopySelectedNodes.Execute(InContext, InSelectedNodes) && OnCanDeleteSelectedNodes.Execute(InContext, InSelectedNodes);
 			}
 
 			return bCanUserCopyNode;
 		});
-		GraphArgs.OnCopySelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+	UE::Workspace::FOnPerformActionOnSelectedNodes& OnCopySelectedNodes = GraphArgs.OnCopySelectedNodes;
+	UE::Workspace::FOnPerformActionOnSelectedNodes& OnDeleteSelectedNodes = GraphArgs.OnDeleteSelectedNodes;
+	GraphArgs.OnCutSelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([OnCopySelectedNodes, OnDeleteSelectedNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
 		{
-			if(InSelectedNodes.IsEmpty())
+			if (InSelectedNodes.IsEmpty())
 			{
 				return;
 			}
@@ -510,224 +619,139 @@ class FModule : public IModule
 				return;
 			}
 
-			URigVMController* Controller = RigVMEdGraph->GetController();
 
-			FString ExportedText = Controller->ExportSelectedNodesToText();
-			FPlatformApplicationMisc::ClipboardCopy(*ExportedText);
+			if (OnCopySelectedNodes.IsBound() && OnDeleteSelectedNodes.IsBound())
+			{
+				URigVMController* Controller = RigVMEdGraph->GetController();
+
+				OnCopySelectedNodes.Execute(InContext, InSelectedNodes);
+
+				Controller->OpenUndoBracket(TEXT("Cut Nodes."));
+				OnDeleteSelectedNodes.Execute(InContext, InSelectedNodes);
+				Controller->CloseUndoBracket();
+			}
 		});
-		GraphArgs.OnCanPasteNodes = Workspace::FOnCanPasteNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FString& InImportData)
+	UE::Workspace::FOnCanPasteNodes& OnCanPasteNodes = GraphArgs.OnCanPasteNodes;
+	GraphArgs.OnCanDuplicateSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([OnCanCopySelectedNodes, OnCanPasteNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
 		{
-			bool bCanUserImportNodes = false;
+			bool bCanUserCopyNode = false;
 
-			if (!InImportData.IsEmpty())
-			{
-				bCanUserImportNodes = true;
-			}
-
-			return bCanUserImportNodes;
-		});
-		GraphArgs.OnPasteNodes = Workspace::FOnPasteNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FVector2D& InPasteLocation, const FString& InImportData)
-		{
-			if(InImportData.IsEmpty())
-			{
-				return;
-			}
-
-			URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
-			if (RigVMEdGraph == nullptr)
-			{
-				return;
-			}
-
-			if (IRigVMClientHost* RigVMClientHost = RigVMEdGraph->GetImplementingOuter<IRigVMClientHost>())
+			if (OnCanCopySelectedNodes.IsBound() && OnCanPasteNodes.IsBound())
 			{
 				FString TextToImport;
 				FPlatformApplicationMisc::ClipboardPaste(TextToImport);
-				URigVMController* Controller = RigVMEdGraph->GetController();
 
-				Controller->OpenUndoBracket(TEXT("Pasted Nodes."));
-
-				if (UE::RigVM::Editor::Tools::PasteNodes(InPasteLocation, TextToImport, Controller, RigVMEdGraph->GetModel(), RigVMClientHost->GetLocalFunctionLibrary(), RigVMClientHost->GetRigVMGraphFunctionHost()))
-				{
-					Controller->CloseUndoBracket();
-				}
-				else
-				{
-					Controller->CancelUndoBracket();
-				}
+				bCanUserCopyNode = OnCanCopySelectedNodes.Execute(InContext, InSelectedNodes) && OnCanPasteNodes.Execute(InContext, TextToImport);
 			}
+
+			return bCanUserCopyNode;
 		});
-		UE::Workspace::FOnCanPerformActionOnSelectedNodes& OnCanCopySelectedNodes = GraphArgs.OnCanCopySelectedNodes;
-		UE::Workspace::FOnCanPerformActionOnSelectedNodes& OnCanDeleteSelectedNodes = GraphArgs.OnCanDeleteSelectedNodes;
-		GraphArgs.OnCanCutSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([OnCanCopySelectedNodes, OnCanDeleteSelectedNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
-			{
-				bool bCanUserCopyNode = false;
-
-				if (OnCanCopySelectedNodes.IsBound() && OnCanDeleteSelectedNodes.IsBound())
-				{
-					bCanUserCopyNode = OnCanCopySelectedNodes.Execute(InContext, InSelectedNodes) && OnCanDeleteSelectedNodes.Execute(InContext, InSelectedNodes);
-				}
-
-				return bCanUserCopyNode;
-			});
-		UE::Workspace::FOnPerformActionOnSelectedNodes& OnCopySelectedNodes = GraphArgs.OnCopySelectedNodes;
-		UE::Workspace::FOnPerformActionOnSelectedNodes& OnDeleteSelectedNodes = GraphArgs.OnDeleteSelectedNodes;
-		GraphArgs.OnCutSelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([OnCopySelectedNodes, OnDeleteSelectedNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
-			{
-				if (InSelectedNodes.IsEmpty())
-				{
-					return;
-				}
-
-				URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
-				if (RigVMEdGraph == nullptr)
-				{
-					return;
-				}
-
-
-				if (OnCopySelectedNodes.IsBound() && OnDeleteSelectedNodes.IsBound())
-				{
-					URigVMController* Controller = RigVMEdGraph->GetController();
-
-					OnCopySelectedNodes.Execute(InContext, InSelectedNodes);
-
-					Controller->OpenUndoBracket(TEXT("Cut Nodes."));
-					OnDeleteSelectedNodes.Execute(InContext, InSelectedNodes);
-					Controller->CloseUndoBracket();
-				}
-			});
-		UE::Workspace::FOnCanPasteNodes& OnCanPasteNodes = GraphArgs.OnCanPasteNodes;
-		GraphArgs.OnCanDuplicateSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([OnCanCopySelectedNodes, OnCanPasteNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
-			{
-				bool bCanUserCopyNode = false;
-
-				if (OnCanCopySelectedNodes.IsBound() && OnCanPasteNodes.IsBound())
-				{
-					FString TextToImport;
-					FPlatformApplicationMisc::ClipboardPaste(TextToImport);
-
-					bCanUserCopyNode = OnCanCopySelectedNodes.Execute(InContext, InSelectedNodes) && OnCanPasteNodes.Execute(InContext, TextToImport);
-				}
-
-				return bCanUserCopyNode;
-			});
-		UE::Workspace::FOnPasteNodes& OnPasteNodes = GraphArgs.OnPasteNodes;
-		GraphArgs.OnDuplicateSelectedNodes = Workspace::FOnDuplicateSelectedNodes::CreateLambda([OnCopySelectedNodes, OnPasteNodes](const Workspace::FWorkspaceEditorContext& InContext, const FVector2D& InPasteLocation, const FGraphPanelSelectionSet& InSelectedNodes)
-			{
-				if (InSelectedNodes.IsEmpty())
-				{
-					return;
-				}
-
-				URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
-				if (RigVMEdGraph == nullptr)
-				{
-					return;
-				}
-
-				if (OnCopySelectedNodes.IsBound() && OnPasteNodes.IsBound())
-				{
-					OnCopySelectedNodes.Execute(InContext, InSelectedNodes);
-
-					FString TextToImport;
-					FPlatformApplicationMisc::ClipboardPaste(TextToImport);
-
-					URigVMController* Controller = RigVMEdGraph->GetController();
-
-					Controller->OpenUndoBracket(TEXT("Duplicate Nodes."));
-					OnPasteNodes.Execute(InContext, InPasteLocation, TextToImport);
-					Controller->CloseUndoBracket();
-				}
-			});
-		GraphArgs.OnGraphSelectionChanged = Workspace::FOnGraphSelectionChanged::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& NewSelection)
+	UE::Workspace::FOnPasteNodes& OnPasteNodes = GraphArgs.OnPasteNodes;
+	GraphArgs.OnDuplicateSelectedNodes = Workspace::FOnDuplicateSelectedNodes::CreateLambda([OnCopySelectedNodes, OnPasteNodes](const Workspace::FWorkspaceEditorContext& InContext, const FVector2D& InPasteLocation, const FGraphPanelSelectionSet& InSelectedNodes)
 		{
+			if (InSelectedNodes.IsEmpty())
+			{
+				return;
+			}
+
 			URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
 			if (RigVMEdGraph == nullptr)
 			{
 				return;
 			}
 
-			if (RigVMEdGraph->bIsSelecting || GIsTransacting)
+			if (OnCopySelectedNodes.IsBound() && OnPasteNodes.IsBound())
 			{
-				return;
+				OnCopySelectedNodes.Execute(InContext, InSelectedNodes);
+
+				FString TextToImport;
+				FPlatformApplicationMisc::ClipboardPaste(TextToImport);
+
+				URigVMController* Controller = RigVMEdGraph->GetController();
+
+				Controller->OpenUndoBracket(TEXT("Duplicate Nodes."));
+				OnPasteNodes.Execute(InContext, InPasteLocation, TextToImport);
+				Controller->CloseUndoBracket();
 			}
-
-			TGuardValue<bool> SelectGuard(RigVMEdGraph->bIsSelecting, true);
-
-			TArray<FName> NodeNamesToSelect;
-			for (UObject* Object : NewSelection)
-			{
-				if (URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(Object))
-				{
-					NodeNamesToSelect.Add(RigVMEdGraphNode->GetModelNodeName());
-				}
-				else if(UEdGraphNode* Node = Cast<UEdGraphNode>(Object))
-				{
-					NodeNamesToSelect.Add(Node->GetFName());
-				}
-			}
-			RigVMEdGraph->GetController()->SetNodeSelection(NodeNamesToSelect, true, true);
-
-			InContext.WorkspaceEditor->SetDetailsObjects(NewSelection.Array());
 		});
-
-		Workspace::FObjectDocumentArgs GraphDocumentArgs = WorkspaceEditorModule.CreateGraphDocumentArgs(GraphArgs);
-		GraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
+	GraphArgs.OnGraphSelectionChanged = Workspace::FOnGraphSelectionChanged::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& NewSelection)
+	{
+		URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
+		if (RigVMEdGraph == nullptr)
 		{
-			if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object))
-			{
-				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
-				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = RigVMEdGraph->GetFName()]{ return FText::FromName(GraphName); });
+			return;
+		}
 
-				if (const UAnimNextRigVMAssetEntry* OuterAssetEntry = CastChecked<UAnimNextRigVMAssetEntry>(RigVMEdGraph->GetOuter()))
+		if (RigVMEdGraph->bIsSelecting || GIsTransacting)
+		{
+			return;
+		}
+
+		TGuardValue<bool> SelectGuard(RigVMEdGraph->bIsSelecting, true);
+
+		TArray<FName> NodeNamesToSelect;
+		for (UObject* Object : NewSelection)
+		{
+			if (URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(Object))
+			{
+				NodeNamesToSelect.Add(RigVMEdGraphNode->GetModelNodeName());
+			}
+			else if(UEdGraphNode* Node = Cast<UEdGraphNode>(Object))
+			{
+				NodeNamesToSelect.Add(Node->GetFName());
+			}
+		}
+		RigVMEdGraph->GetController()->SetNodeSelection(NodeNamesToSelect, true, true);
+
+		InContext.WorkspaceEditor->SetDetailsObjects(NewSelection.Array());
+	});
+
+	Workspace::FObjectDocumentArgs GraphDocumentArgs = WorkspaceEditorModule.CreateGraphDocumentArgs(GraphArgs);
+	GraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
+	{
+		if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object))
+		{
+			const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+			GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = RigVMEdGraph->GetFName()]{ return FText::FromName(GraphName); });
+
+			if (const UAnimNextRigVMAssetEntry* OuterAssetEntry = CastChecked<UAnimNextRigVMAssetEntry>(RigVMEdGraph->GetOuter()))
+			{
+				if (UAnimNextGraph_EditorData* OuterEditorData = CastChecked<UAnimNextGraph_EditorData>(OuterAssetEntry->GetOuter()))
 				{
-					if (UAnimNextGraph_EditorData* OuterEditorData = CastChecked<UAnimNextGraph_EditorData>(OuterAssetEntry->GetOuter()))
+					if(UAnimNextGraph* OuterGraph = UncookedOnly::FUtils::GetGraph(OuterEditorData))
 					{
-						if(UAnimNextGraph* OuterGraph = UncookedOnly::FUtils::GetGraph(OuterEditorData))
-						{
-							const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& OuterGraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
-							TWeakObjectPtr<UAnimNextGraph> WeakOuterGraph = OuterGraph;
-							TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
-							OuterGraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = OuterGraph->GetFName()]{ return FText::FromName(GraphName); });
-							OuterGraphCrumb->OnClicked = Workspace::FWorkspaceBreadcrumb::FOnBreadcrumbClicked::CreateLambda(
-								[WeakOuterGraph, WeakWorkspaceEditor]
+						const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& OuterGraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+						TWeakObjectPtr<UAnimNextGraph> WeakOuterGraph = OuterGraph;
+						TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
+						OuterGraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = OuterGraph->GetFName()]{ return FText::FromName(GraphName); });
+						OuterGraphCrumb->OnClicked = Workspace::FWorkspaceBreadcrumb::FOnBreadcrumbClicked::CreateLambda(
+							[WeakOuterGraph, WeakWorkspaceEditor]
+							{
+								if (const TSharedPtr<Workspace::IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
 								{
-									if (const TSharedPtr<Workspace::IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
-									{
-										SharedWorkspaceEditor->OpenObjects({WeakOuterGraph.Get()});
-									}
+									SharedWorkspaceEditor->OpenObjects({WeakOuterGraph.Get()});
 								}
-							);
-						}
+							}
+						);
 					}
 				}
 			}
-		});
-
-		WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNextUncookedOnly.AnimNextGraph_EdGraph")), GraphDocumentArgs);
-	}
-
-	void UnregisterWorkspaceDocumentTypes()
-	{
-		if(FModuleManager::Get().IsModuleLoaded("WorkspaceEditor"))
-		{
-			Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<Workspace::IWorkspaceEditorModule>("PropertyEditor");
-			WorkspaceEditorModule.UnregisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextSchedule")));
-			WorkspaceEditorModule.UnregisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextGraph")));
-			WorkspaceEditorModule.UnregisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNextUncookedOnly.AnimNextGraph_EdGraph")));
 		}
-	}
-	
-	/** Node factory for the AnimNext graph */
-	TSharedPtr<FAnimNextGraphPanelNodeFactory> AnimNextGraphPanelNodeFactory;
-	
-	/** Pin factory for parameters */
-	TSharedPtr<FParametersGraphPanelPinFactory> ParametersGraphPanelPinFactory;
+	});
 
-	/** Type identifier for parameter names */
-	TSharedPtr<FParamNamePropertyTypeIdentifier> Identifier;
-};
+	WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNextUncookedOnly.AnimNextGraph_EdGraph")), GraphDocumentArgs);
+}
+
+void FModule::UnregisterWorkspaceDocumentTypes()
+{
+	if(FModuleManager::Get().IsModuleLoaded("WorkspaceEditor"))
+	{
+		Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<Workspace::IWorkspaceEditorModule>("PropertyEditor");
+		WorkspaceEditorModule.UnregisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextSchedule")));
+		WorkspaceEditorModule.UnregisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNext.AnimNextGraph")));
+		WorkspaceEditorModule.UnregisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNextUncookedOnly.AnimNextGraph_EdGraph")));
+	}
+}
 
 }
 

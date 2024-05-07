@@ -5,13 +5,11 @@
 #include "Scheduler/ScheduleHandle.h"
 #include "Scheduler/AnimNextSchedulerWorldSubsystem.h"
 #include "Scheduler/AnimNextSchedulerEntry.h"
-#include "Scheduler/AnimNextSchedulePort.h"
 #include "AnimNextStats.h"
-#include "IAnimNextModule.h"
+#include "AnimNextModule.h"
 #include "Modules/ModuleManager.h"
 #include "Param/IParameterSourceFactory.h"
 #include "Param/ParametersProxy.h"
-#include "Param/PropertyBagProxy.h"
 #include "Scheduler/AnimNextScheduleExternalParamTask.h"
 #include "Scheduler/ScheduleInitializationContext.h"
 
@@ -74,7 +72,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	}
 
 	// Set up external parameters
-	IAnimNextModule& AnimNextModule = FModuleManager::GetModuleChecked<IAnimNextModule>("AnimNext");
+	UE::AnimNext::FModule& AnimNextModule = FModuleManager::GetModuleChecked<UE::AnimNext::FModule>("AnimNext");
 
 	FParameterSourceContext ParameterSourceContext;
 	ParameterSourceContext.Object = Entry->WeakObject.Get();
@@ -115,13 +113,19 @@ void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	for (const TPair<FName, FUserScope>& ParamPair : UserScopes)
 	{
-		if(ParamPair.Value.AfterSource.IsValid())
+		for(const TPair<FName, TUniquePtr<IParameterSource>>& SourcePair : ParamPair.Value.BeforeSources)
 		{
-			ParamPair.Value.AfterSource->AddReferencedObjects(Collector);
+			if(SourcePair.Value.IsValid())
+			{
+				SourcePair.Value->AddReferencedObjects(Collector);
+			}
 		}
-		if(ParamPair.Value.BeforeSource.IsValid())
+		for(const TPair<FName, TUniquePtr<IParameterSource>>& SourcePair : ParamPair.Value.AfterSources)
 		{
-			ParamPair.Value.BeforeSource->AddReferencedObjects(Collector);
+			if(SourcePair.Value.IsValid())
+			{
+				SourcePair.Value->AddReferencedObjects(Collector);
+			}
 		}
 	}
 
@@ -160,7 +164,7 @@ void FScheduleInstanceData::ApplyParametersToScope(FName InScope, EParameterScop
 {
 	if (InScope == NAME_None)
 	{
-		RootUserScope = MoveTemp(InParameters);
+		RootUserScopes.Add(MoveTemp(InParameters));
 	}
 	else // apply to specified scope
 	{
@@ -169,10 +173,10 @@ void FScheduleInstanceData::ApplyParametersToScope(FName InScope, EParameterScop
 		{
 		default:
 		case EParameterScopeOrdering::Before:
-			ScopeSource.BeforeSource = MoveTemp(InParameters);
+			ScopeSource.BeforeSources.Add(InParameters->GetInstanceId(), MoveTemp(InParameters));
 			break;
 		case EParameterScopeOrdering::After:
-			ScopeSource.AfterSource = MoveTemp(InParameters);
+			ScopeSource.AfterSources.Add(InParameters->GetInstanceId(), MoveTemp(InParameters));
 			break;
 		}
 	}

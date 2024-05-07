@@ -1,13 +1,8 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextWorldLibrary.h"
 #include "Engine/World.h"
 #include "Scheduler/AnimNextTickFunctionBinding.h"
-
-UClass* UAnimNextWorldLibrary::GetSupportedClass() const
-{
-	return UWorld::StaticClass();
-}
 
 double UAnimNextWorldLibrary::GetTimeSeconds(UWorld* InWorld)
 {

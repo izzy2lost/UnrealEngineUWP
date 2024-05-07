@@ -4,6 +4,7 @@
 
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraphInstance.h"
+#include "Param/IParameterSource.h"
 
 FAnimNextGraphInstancePtr::FAnimNextGraphInstancePtr() = default;
 FAnimNextGraphInstancePtr::FAnimNextGraphInstancePtr(FAnimNextGraphInstancePtr&&) = default;
@@ -116,4 +117,16 @@ void FAnimNextGraphInstancePtr::Update()
 {
 	check(Impl);
 	Impl->Update();
+}
+
+UE::AnimNext::FParamStack::FPushedLayerHandle FAnimNextGraphInstancePtr::UpdateAndPushGraphState(float InDeltaTime) const
+{
+	check(Impl);
+	return Impl->UpdateAndPushGraphState(InDeltaTime);
+}
+
+void FAnimNextGraphInstancePtr::PopGraphState(UE::AnimNext::FParamStack::FPushedLayerHandle InHandle) const
+{
+	check(Impl);
+	Impl->PopGraphState(InHandle);
 }

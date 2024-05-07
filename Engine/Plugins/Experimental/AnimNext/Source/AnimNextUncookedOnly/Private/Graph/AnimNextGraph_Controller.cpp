@@ -166,9 +166,9 @@ bool UAnimNextGraph_Controller::SetAnimNextParameterNode(URigVMNode* ParameterNo
 			{
 				if(bSetupUndoRedo)
 				{
-					CancelUndoBracket();
+					CloseUndoBracket();
 				}
-				return false;
+				return true;
 			}
 		}
 
@@ -178,9 +178,9 @@ bool UAnimNextGraph_Controller::SetAnimNextParameterNode(URigVMNode* ParameterNo
 			{
 				if(bSetupUndoRedo)
 				{
-					CancelUndoBracket();
+					CloseUndoBracket();
 				}
-				return false;
+				return true;
 			}
 		}
 
@@ -191,9 +191,9 @@ bool UAnimNextGraph_Controller::SetAnimNextParameterNode(URigVMNode* ParameterNo
 			{
 				if(bSetupUndoRedo)
 				{
-					CancelUndoBracket();
+					CloseUndoBracket();
 				}
-				return false;
+				return true;
 			}
 		}
 	}

@@ -1,9 +1,9 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Param/AnimNextClassExtensionLibrary.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "AnimNextWorldLibrary.generated.h"
 
 class UWorld;
@@ -11,12 +11,9 @@ struct FAnimNextTickFunctionBinding;
 
 // Access to non-UProperty/UFunction data on UWorld
 UCLASS()
-class UAnimNextWorldLibrary : public UAnimNextClassExtensionLibrary
+class UAnimNextWorldLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
-
-	// UAnimNextClassProxy interface
-	virtual UClass* GetSupportedClass() const override;
 
 public:
 	// Returns time in seconds since world was brought up for play, IS stopped when game pauses, IS dilated/clamped

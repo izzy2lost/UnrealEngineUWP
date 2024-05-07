@@ -23,6 +23,23 @@ FName UAnimNextGraph_AnimationGraph::GetExportName() const
 	return GraphName;
 }
 
+EAnimNextExportAccessSpecifier UAnimNextGraph_AnimationGraph::GetExportAccessSpecifier() const
+{
+	return Access;
+}
+
+void UAnimNextGraph_AnimationGraph::SetExportAccessSpecifier(EAnimNextExportAccessSpecifier InAccessSpecifier, bool bSetupUndoRedo)
+{
+	if(bSetupUndoRedo)
+	{
+		Modify();
+	};
+
+	Access = InAccessSpecifier;
+
+	BroadcastModified();
+}
+
 FName UAnimNextGraph_AnimationGraph::GetEntryName() const
 {
 	return GraphName;

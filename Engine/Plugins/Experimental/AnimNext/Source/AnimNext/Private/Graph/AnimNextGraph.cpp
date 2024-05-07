@@ -19,6 +19,7 @@
 #include "Graph/AnimNextGraphEntryPoint.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
+#include "Param/ParametersProxy.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectResource.h"
 
@@ -67,6 +68,7 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 		InstanceImpl->Graph = this;
 		InstanceImpl->ParentGraphInstance = ParentGraphInstance;
 		InstanceImpl->EntryPoint = EntryPoint;
+		InstanceImpl->GraphState = MakeUnique<UE::AnimNext::FParametersProxy>(this);
 
 		// If we have a parent graph, use its root since we share the same root, otherwise if we have no parent, we are the root
 		InstanceImpl->RootGraphInstance = ParentGraphInstance != nullptr ? ParentGraphInstance->GetRootGraphInstance() : InstanceImpl.Get();
@@ -189,6 +191,18 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 	}
 }
 
+void UAnimNextGraph::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITORONLY_DATA
+	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextGraphAccessSpecifiers)
+	{
+		DefaultState.State = PropertyBag_DEPRECATED;
+	}
+#endif
+}
+
 #if WITH_EDITOR
 void UAnimNextGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -224,9 +238,11 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 	const FTraitReader::EErrorState ErrorState = TraitReader.ReadGraph(SharedDataBuffer);
 	if (ErrorState == FTraitReader::EErrorState::None)
 	{
-		for(FAnimNextGraphEntryPoint& EntryPoint : EntryPoints)
+		for(int32 EntryPointIndex = 0; EntryPointIndex < EntryPoints.Num(); ++EntryPointIndex)
 		{
+			const FAnimNextGraphEntryPoint& EntryPoint = EntryPoints[EntryPointIndex];
 			ResolvedRootTraitHandles.Add(EntryPoint.EntryPointName, TraitReader.ResolveEntryPointHandle(EntryPoint.RootTraitHandle));
+			ResolvedEntryPoints.Add(EntryPoint.EntryPointName, EntryPointIndex);
 		}
 
 		// Make sure our execute method is registered

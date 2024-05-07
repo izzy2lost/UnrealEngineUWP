@@ -1,16 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
+#include "AnimNextModule.h"
 #include "AnimNextConfig.h"
 #include "DataRegistry.h"
-#include "IAnimNextModule.h"
 #include "IUniversalObjectLocatorModule.h"
 #include "RigVMRuntimeDataRegistry.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendProfile.h"
+#include "Component/AnimNextComponent.h"
 #include "Curves/CurveFloat.h"
 #include "Graph/AnimNextGraph.h"
 #include "Modules/ModuleManager.h"
+#include "Param/AnimNextActorLocatorFragment.h"
+#include "Param/AnimNextComponentLocatorFragment.h"
 #include "Param/AnimNextEditorParam.h"
 #include "Param/AnimNextObjectCastLocatorFragment.h"
 #include "Param/AnimNextObjectFunctionLocatorFragment.h"
@@ -18,14 +20,12 @@
 #include "Param/AnimNextParam.h"
 #include "Param/AnimNextTag.h"
 #include "Param/ObjectProxyFactory.h"
+#include "Param/PropertyBagProxy.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "Scheduler/AnimNextTickFunctionBinding.h"
 #include "Scheduler/Scheduler.h"
 #include "TraitCore/NodeTemplateRegistry.h"
 #include "TraitCore/TraitRegistry.h"
-
-// Enable console commands only in development builds when logging is enabled
-#define WITH_ANIMNEXT_CONSOLE_COMMANDS (!UE_BUILD_SHIPPING && !NO_LOGGING)
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
 #include "HAL/IConsoleManager.h"
@@ -36,13 +36,12 @@
 #include "TraitCore/TraitTemplate.h"
 #endif
 
+#define LOCTEXT_NAMESPACE "AnimNextModule"
+
 namespace UE::AnimNext
 {
 
-class FModule : public IAnimNextModule
-{
-public:
-	virtual void StartupModule() override
+	void FModule::StartupModule()
 	{
 		GetMutableDefault<UAnimNextConfig>()->LoadConfig();
 
@@ -54,6 +53,7 @@ public:
 			{ UBlendProfile::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UCurveFloat::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UAnimNextGraph::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+			{ UAnimNextComponent::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 		};
 
 		RigVMRegistry.RegisterObjectTypes(AllowedObjectTypes);
@@ -82,19 +82,29 @@ public:
 			[&UolModule]
 			{
 				{
-					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjfunc", NSLOCTEXT("Engine", "AnimNextObjectFunctionFragment", "Function"));
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjfunc", LOCTEXT("AnimNextObjectFunctionFragment", "Function"));
 					FragmentTypeParams.PrimaryEditorType = "AnimNextObjectFunction";
 					FAnimNextObjectFunctionLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextObjectFunctionLocatorFragment>(FragmentTypeParams);
 				}
 				{
-					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjprop", NSLOCTEXT("Engine", "AnimNextObjectPropertyFragment", "Property"));
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjprop", LOCTEXT("AnimNextObjectPropertyFragment", "Property"));
 					FragmentTypeParams.PrimaryEditorType = "AnimNextObjectProperty";
 					FAnimNextObjectPropertyLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextObjectPropertyLocatorFragment>(FragmentTypeParams);
 				}
 				{
-					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjcast", NSLOCTEXT("Engine", "AnimNextCastFragment", "Cast"));
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjcast", LOCTEXT("AnimNextCastFragment", "Cast"));
 					FragmentTypeParams.PrimaryEditorType = "AnimNextObjectCast";
 					FAnimNextObjectCastLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextObjectCastLocatorFragment>(FragmentTypeParams);
+				}
+				{
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animcomp", LOCTEXT("AnimNextComponentFragment", "AnimNextComponent"));
+					FragmentTypeParams.PrimaryEditorType = "AnimNextComponent";
+					FAnimNextComponentLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextComponentLocatorFragment>(FragmentTypeParams);
+				}
+				{
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animactor", LOCTEXT("AnimNextActorFragment", "AnimNextActor"));
+					FragmentTypeParams.PrimaryEditorType = "AnimNextActor";
+					FAnimNextActorLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextActorLocatorFragment>(FragmentTypeParams);
 				}
 			});
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
@@ -116,7 +126,7 @@ public:
 #endif
 	}
 
-	virtual void ShutdownModule() override
+	void FModule::ShutdownModule()
 	{
 		FRigVMRuntimeDataRegistry::Destroy();
 		FScheduler::Destroy();
@@ -136,17 +146,17 @@ public:
 
 	const IAnimNextAnimGraph* AnimGraphImpl = nullptr;
 
-	virtual void RegisterAnimNextAnimGraph(const IAnimNextAnimGraph& InAnimGraphImpl) override
+	void FModule::RegisterAnimNextAnimGraph(const IAnimNextAnimGraph& InAnimGraphImpl)
 	{
 		AnimGraphImpl = &InAnimGraphImpl;
 	}
 
-	virtual void UnregisterAnimNextAnimGraph() override
+	void FModule::UnregisterAnimNextAnimGraph()
 	{
 		AnimGraphImpl = nullptr;
 	}
 
-	virtual void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime) override
+	void FModule::UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime)
 	{
 		if (AnimGraphImpl != nullptr)
 		{
@@ -154,7 +164,7 @@ public:
 		}
 	}
 
-	virtual void EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const override
+	void FModule::EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const
 	{
 		if (AnimGraphImpl != nullptr)
 		{
@@ -162,7 +172,7 @@ public:
 		}
 	}
 
-	virtual TUniquePtr<IParameterSource> CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters) const override
+	TUniquePtr<IParameterSource> FModule::CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters) const
 	{
 		for(const TPair<FName, TSharedRef<IParameterSourceFactory>>& FactoryPair : ParameterSourceFactories)
 		{
@@ -178,17 +188,17 @@ public:
 		return nullptr;
 	}
 
-	virtual void RegisterParameterSourceFactory(FName InName, TSharedRef<IParameterSourceFactory> InFactory) override
+	void FModule::RegisterParameterSourceFactory(FName InName, TSharedRef<IParameterSourceFactory> InFactory)
 	{
 		ParameterSourceFactories.Add(InName, InFactory);
 	}
 
-	virtual void UnregisterParameterSourceFactory(FName InName) override
+	void FModule::UnregisterParameterSourceFactory(FName InName)
 	{
 		ParameterSourceFactories.Remove(InName);
 	}
 
-	virtual TSharedPtr<IParameterSourceFactory> FindParameterSourceFactory(FName InName) override
+	TSharedPtr<IParameterSourceFactory> FModule::FindParameterSourceFactory(FName InName)
 	{
 		if(TSharedRef<IParameterSourceFactory>* FoundFactory = ParameterSourceFactories.Find(InName))
 		{
@@ -199,9 +209,7 @@ public:
 	}
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
-	TArray<IConsoleObject*> ConsoleCommands;
-
-	void ListNodeTemplates(const TArray<FString>& Args)
+	void FModule::ListNodeTemplates(const TArray<FString>& Args)
 	{
 		// Turn off log times to make diff-ing easier
 		TGuardValue<ELogTimes::Type> DisableLogTimes(GPrintLogTimes, ELogTimes::None);
@@ -256,7 +264,7 @@ public:
 		LogAnimation.SetVerbosity(OldVerbosity);
 	}
 
-	void ListAnimGraphs(const TArray<FString>& Args)
+	void FModule::ListAnimGraphs(const TArray<FString>& Args)
 	{
 		// Turn off log times to make diff-ing easier
 		TGuardValue<ELogTimes::Type> DisableLogTimes(GPrintLogTimes, ELogTimes::None);
@@ -361,16 +369,14 @@ public:
 		LogAnimation.SetVerbosity(OldVerbosity);
 	}
 #endif
-	
-	// All known factories
-	TMap<FName, TSharedRef<IParameterSourceFactory>> ParameterSourceFactories;
-};
 
-IAnimNextModule& IAnimNextModule::Get()
-{
-	return FModuleManager::LoadModuleChecked<IAnimNextModule>(TEXT("AnimNext"));
-}
+	IAnimNextModule& IAnimNextModule::Get()
+	{
+		return FModuleManager::LoadModuleChecked<IAnimNextModule>(TEXT("AnimNext"));
+	}
 
 }
+
+#undef LOCTEXT_NAMESPACE
 
 IMPLEMENT_MODULE(UE::AnimNext::FModule, AnimNext)

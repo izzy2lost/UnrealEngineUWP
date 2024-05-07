@@ -64,12 +64,14 @@ FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* 
 	UWorld* World = InObject->GetWorld();
 	if(World == nullptr)
 	{
+		UE_LOG(LogAnimation, Warning, TEXT("FScheduler::AcquireHandle: Invalid world"));
 		return FScheduleHandle();
 	}
 
 	UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
 	if(Subsystem == nullptr)
 	{
+		UE_LOG(LogAnimation, Warning, TEXT("FScheduler::AcquireHandle: Invalid world subsystem"));
 		return FScheduleHandle();
 	}
 

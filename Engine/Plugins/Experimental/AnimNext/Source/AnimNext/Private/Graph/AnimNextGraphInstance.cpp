@@ -8,8 +8,12 @@
 #include "Graph/GC_GraphInstanceComponent.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
 #include "Misc/ScopeRWLock.h"
+#include "Param/IParameterSource.h"
+#include "Param/ParametersProxy.h"
 
 DEFINE_STAT(STAT_AnimNext_Graph_RigVM);
+
+FAnimNextGraphInstance::FAnimNextGraphInstance() = default;
 
 FAnimNextGraphInstance::~FAnimNextGraphInstance()
 {
@@ -101,6 +105,11 @@ void FAnimNextGraphInstance::AddStructReferencedObjects(FReferenceCollector& Col
 	{
 		Component->AddReferencedObjects(Collector);
 	}
+
+	if(GraphState.IsValid())
+	{
+		GraphState->AddReferencedObjects(Collector);
+	}
 }
 
 UE::AnimNext::FGraphInstanceComponent* FAnimNextGraphInstance::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const
@@ -189,6 +198,7 @@ void FAnimNextGraphInstance::Freeze()
 	}
 
 	GraphInstancePtr.Reset();
+	GraphState.Reset();
 	ExtendedExecuteContext.Reset();
 	Components.Empty();
 	bHasUpdatedOnce = false;
@@ -198,6 +208,8 @@ void FAnimNextGraphInstance::Thaw()
 {
 	if (const UAnimNextGraph* GraphPtr = Graph)
 	{
+		GraphState = MakeUnique<UE::AnimNext::FParametersProxy>(Graph);
+
 		ExtendedExecuteContext.CopyMemoryStorage(GraphPtr->ExtendedExecuteContext);
 		GraphPtr->VM->InitializeInstance(ExtendedExecuteContext);
 
@@ -215,4 +227,19 @@ void FAnimNextGraphInstance::Thaw()
 			Release();
 		}
 	}
+}
+
+UE::AnimNext::FParamStack::FPushedLayerHandle FAnimNextGraphInstance::UpdateAndPushGraphState(float InDeltaTime) const
+{
+	if(GraphState.IsValid())
+	{
+		GraphState->Update(InDeltaTime);
+		return UE::AnimNext::FParamStack::Get().PushLayer(GraphState->GetLayerHandle());
+	}
+	return UE::AnimNext::FParamStack::FPushedLayerHandle();
+}
+
+void FAnimNextGraphInstance::PopGraphState(UE::AnimNext::FParamStack::FPushedLayerHandle InHandle) const
+{
+	UE::AnimNext::FParamStack::Get().PopLayer(InHandle);
 }

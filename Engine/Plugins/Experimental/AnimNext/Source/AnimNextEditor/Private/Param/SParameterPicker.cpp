@@ -2,6 +2,7 @@
 
 #include "SParameterPicker.h"
 
+#include "AssetDefinitionDefault.h"
 #include "UncookedOnlyUtils.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -27,7 +28,6 @@
 #include "Component/AnimNextComponent.h"
 #include "Editor/PropertyEditor/Private/SSingleProperty.h"
 #include "Graph/AnimNextGraph.h"
-#include "Param/AnimNextClassExtensionLibrary.h"
 #include "Param/AnimNextParam.h"
 #include "Param/IParameterSourceType.h"
 #include "Param/ParamUtils.h"
@@ -224,7 +224,7 @@ void SParameterPicker::RefreshEntries()
 					PropertyDescs.Reserve(ExportPair.Value.Parameters.Num());
 					for(const FAnimNextParameterAssetRegistryExportEntry& ParameterEntry : ExportPair.Value.Parameters)
 					{
-						if(EnumHasAnyFlags(ParameterEntry.GetFlags(), EAnimNextParameterFlags::Bound) && ParameterEntry.Name != NAME_None)
+						if(EnumHasAllFlags(ParameterEntry.GetFlags(), EAnimNextParameterFlags::Declared | EAnimNextParameterFlags::Public) && ParameterEntry.Name != NAME_None)
 						{
 							FParameterBindingReference ParameterBinding;
 							ParameterBinding.Type = ParameterEntry.Type;
@@ -256,6 +256,7 @@ void SParameterPicker::RefreshEntries()
 	}
 	else if(Struct != nullptr)
 	{
+		FieldIterator->CurrentStruct = Struct;
 		CachedContainers.Emplace_GetRef(Struct->GetDisplayNameText(), Struct->GetToolTipText(), Struct);
 		if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Struct))
 		{
@@ -264,32 +265,41 @@ void SParameterPicker::RefreshEntries()
 		}
 		else if(const UClass* Class = Cast<UClass>(Struct))
 		{
-			UE::PropertyViewer::SPropertyViewer::FHandle Handle = PropertyViewer->AddContainer(Class);
-			ContainerMap.Add(Handle, CachedContainers.Num() - 1);
-
-			// Find any UAnimNextClassExtensionLibrary classes to extend this class
-			for(TObjectIterator<UClass> It; It; ++It)
+			// Find any native UBlueprintFunctionLibrary classes to extend this class
+			TArray<UClass*> Classes;
+			GetDerivedClasses(UBlueprintFunctionLibrary::StaticClass(), Classes, true);
+			Classes.Add(const_cast<UClass*>(Class));
+			for (const UClass* LibraryClass : Classes)
 			{
-				UClass* LibraryClass = *It;
-				if(LibraryClass->HasAnyClassFlags(CLASS_Abstract) || !LibraryClass->HasAnyClassFlags(CLASS_Native) || !LibraryClass->IsChildOf(UAnimNextClassExtensionLibrary::StaticClass()))
+				if(LibraryClass->HasAnyClassFlags(CLASS_Abstract) || !LibraryClass->HasAnyClassFlags(CLASS_Native))
 				{
 					continue;
 				}
 
-				UClass* ExtendedClass = LibraryClass->GetDefaultObject<UAnimNextClassExtensionLibrary>()->GetSupportedClass();
-				if(ExtendedClass == nullptr)
+				auto PassesFilterChecks = [this](const FProperty* InProperty)
 				{
-					continue;
-				}
+					if(InProperty && Args.OnFilterParameterType.IsBound())
+					{
+						FAnimNextParamType Type = FParamTypeHandle::FromProperty(InProperty).GetType();
+						return Args.OnFilterParameterType.Execute(Type) == EFilterParameterResult::Include;
+					}
 
-				if(!Class->IsChildOf(ExtendedClass))
+					return false;
+				};
+
+				for (TFieldIterator<UFunction> FieldIt(LibraryClass); FieldIt; ++FieldIt)
 				{
-					continue;
+					if (FParamUtils::CanUseFunction(*FieldIt, Class))
+					{
+						if(PassesFilterChecks(FieldIt->GetReturnProperty()))
+						{
+							CachedContainers.Emplace_GetRef(LibraryClass->GetDisplayNameText(), LibraryClass->GetToolTipText(), LibraryClass);
+							UE::PropertyViewer::SPropertyViewer::FHandle Handle = PropertyViewer->AddContainer(LibraryClass);
+							ContainerMap.Add(Handle, CachedContainers.Num() - 1);
+							break;
+						}
+					}
 				}
-
-				CachedContainers.Emplace_GetRef(LibraryClass->GetDisplayNameText(), LibraryClass->GetToolTipText(), LibraryClass);
-				Handle = PropertyViewer->AddContainer(LibraryClass);
-				ContainerMap.Add(Handle, CachedContainers.Num() - 1);
 			}
 		}
 	}
@@ -470,7 +480,7 @@ TArray<FFieldVariant> SParameterPicker::FFieldIterator::GetFields(const UStruct*
 	for (TFieldIterator<UFunction> FunctionIt(InStruct, EFieldIteratorFlags::IncludeSuper); FunctionIt; ++FunctionIt)
 	{
 		UFunction* Function = *FunctionIt;
-		if (FParamUtils::CanUseFunction(Function))
+		if (FParamUtils::CanUseFunction(Function, CastChecked<UClass>(CurrentStruct)))
 		{
 			if(PassesFilterChecks(Function->GetReturnProperty()))
 			{

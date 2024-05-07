@@ -3,10 +3,9 @@
 #include "Param/ParamUtils.h"
 
 #include "UniversalObjectLocator.h"
-#include "Component/AnimNextMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimSequence.h"
-#include "Param/AnimNextClassExtensionLibrary.h"
 #include "Param/ParamType.h"
 #include "Param/ParamTypeHandle.h"
 #include "Param/ParamCompatibility.h"
@@ -215,15 +214,15 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 			}
 		}
 		break;
-	case FParamTypeHandle::EParamType::AnimNextMeshComponent:
+	case FParamTypeHandle::EParamType::SkeletalMeshComponent:
 		switch (InLHS.GetParameterType())
 		{
 		case FParamTypeHandle::EParamType::Object:
 			return EParamCompatibility::Compatible_Cast;
-		case FParamTypeHandle::EParamType::AnimNextMeshComponent:
+		case FParamTypeHandle::EParamType::SkeletalMeshComponent:
 			return EParamCompatibility::Compatible_Equal;
 		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCastToCustom(InLHS, UAnimNextMeshComponent::StaticClass()))
+			if(CheckClassCastToCustom(InLHS, USkeletalMeshComponent::StaticClass()))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
@@ -272,8 +271,8 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 				return EParamCompatibility::Compatible_Cast;
 			}
 			break;
-		case FParamTypeHandle::EParamType::AnimNextMeshComponent:
-			if(CheckClassCastFromCustom(UAnimNextMeshComponent::StaticClass(), InRHS))
+		case FParamTypeHandle::EParamType::SkeletalMeshComponent:
+			if(CheckClassCastFromCustom(USkeletalMeshComponent::StaticClass(), InRHS))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
@@ -409,14 +408,11 @@ FParamCompatibility FParamUtils::GetCompatibility(const FAnimNextParamType& InLH
 	return GetCompatibility(InLHS.GetHandle(), InRHS.GetHandle());
 }
 
-bool FParamUtils::CanUseFunction(const UFunction* InFunction)
+bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass)
 {
 	UClass* FunctionClass = InFunction->GetOuterUClass();
-	if(FunctionClass->IsChildOf(UAnimNextClassExtensionLibrary::StaticClass()))
+	if(FunctionClass->IsChildOf(UBlueprintFunctionLibrary::StaticClass()))
 	{
-		UAnimNextClassExtensionLibrary* CDO = FunctionClass->GetDefaultObject<UAnimNextClassExtensionLibrary>();
-		const UClass* ExtendedClass = CDO->GetSupportedClass();
-		
 		// Check 'hoisted' functions on BPFLs
 		if(!InFunction->HasAllFunctionFlags(FUNC_BlueprintCallable | FUNC_Static | FUNC_Native | FUNC_Public))
 		{
@@ -439,11 +435,28 @@ bool FParamUtils::CanUseFunction(const UFunction* InFunction)
 				{ 
 					return false;
 				}
-				
-				if(!ObjectProperty->PropertyClass->IsChildOf(ExtendedClass))
+
+				// TODO: Class checks have to be editor only right now until Verse moves to using UHT (and UHT can understand verse classes)
+				// For now we need to use metadata to distinguish types
+#if WITH_EDITORONLY_DATA
+				if(InExpectedClass != nullptr)
 				{
-					return false;
+					if(!InExpectedClass->IsChildOf(ObjectProperty->PropertyClass))
+					{
+						const FString& AllowedClassMeta = ObjectProperty->GetMetaData("AllowedClass");
+						if(AllowedClassMeta.Len() == 0)
+						{
+							return false;
+						}
+
+						const UClass* AllowedClass = FindObject<UClass>(nullptr, *AllowedClassMeta);
+						if(AllowedClass == nullptr || !AllowedClass->IsChildOf(InExpectedClass))
+						{
+							return false;
+						}
+					}
 				}
+#endif
 			}
 
 			// Check return value

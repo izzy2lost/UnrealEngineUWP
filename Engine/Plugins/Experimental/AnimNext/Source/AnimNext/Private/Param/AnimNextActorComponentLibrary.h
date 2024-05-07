@@ -1,22 +1,19 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Param/AnimNextClassExtensionLibrary.h"
 #include "Scheduler/AnimNextTickFunctionBinding.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "AnimNextActorComponentLibrary.generated.h"
 
 class UActorComponent;
 
 // Access to non-UProperty/UFunction data on UActorComponent
 UCLASS()
-class UAnimNextActorComponentLibrary : public UAnimNextClassExtensionLibrary
+class UAnimNextActorComponentLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
-
-	// UAnimNextClassProxy interface
-	virtual UClass* GetSupportedClass() const override;
 
 public:
 	// Returns the component's tick function

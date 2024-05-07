@@ -46,19 +46,19 @@ struct FScheduleInstanceData : public FGCObject
 	// Schedule entry that owns this instance
 	FAnimNextSchedulerEntry* Entry = nullptr;
 
-	// Scope for user parameters to be applied at the root of the schedule
-	TUniquePtr<IParameterSource> RootUserScope;
+	// Scopes for user parameters to be applied at the root of the schedule
+	TArray<TUniquePtr<IParameterSource>> RootUserScopes;
 
-	// Pushed layer for the root scope
-	FParamStack::FPushedLayerHandle PushedRootUserLayer;
+	// Pushed layers for the root scope
+	TArray<FParamStack::FPushedLayerHandle> PushedRootUserLayers;
 
 	struct FUserScope
 	{
-		// Layer that will be pushed before the scope, allowing the static scope to override the layer
-		TUniquePtr<IParameterSource> BeforeSource;
+		// Layers that will be pushed before the scope, allowing the static scope to override the layer
+		TMap<FName, TUniquePtr<IParameterSource>> BeforeSources;
 
-		// Layer that will be pushed after the scope, overriding the static scope
-		TUniquePtr<IParameterSource> AfterSource;
+		// Layers that will be pushed after the scope, overriding the static scope
+		TMap<FName, TUniquePtr<IParameterSource>> AfterSources;
 	};
 	
 	// Set of dynamic parameter scopes supplied by the user

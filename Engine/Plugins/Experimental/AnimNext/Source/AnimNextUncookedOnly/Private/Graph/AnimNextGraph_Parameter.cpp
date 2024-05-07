@@ -16,6 +16,23 @@ FName UAnimNextGraph_Parameter::GetExportName() const
 	return GetParamName();
 }
 
+EAnimNextExportAccessSpecifier UAnimNextGraph_Parameter::GetExportAccessSpecifier() const
+{
+	return Access;
+}
+
+void UAnimNextGraph_Parameter::SetExportAccessSpecifier(EAnimNextExportAccessSpecifier InAccessSpecifier, bool bSetupUndoRedo)
+{
+	if(bSetupUndoRedo)
+	{
+		Modify();
+	};
+
+	Access = InAccessSpecifier;
+
+	BroadcastModified();
+}
+
 FAnimNextParamType UAnimNextGraph_Parameter::GetParamType() const
 {
 	return Type;
@@ -59,7 +76,7 @@ FInstancedPropertyBag& UAnimNextGraph_Parameter::GetPropertyBag() const
 	// TODO: move property bag for defaults onto this entry!
 	UAnimNextGraph* Asset = GetTypedOuter<UAnimNextGraph>();
 	check(Asset);
-	return Asset->PropertyBag;
+	return Asset->DefaultState.State;
 }
 
 void UAnimNextGraph_Parameter::SetEntryName(FName InName, bool bSetupUndoRedo)

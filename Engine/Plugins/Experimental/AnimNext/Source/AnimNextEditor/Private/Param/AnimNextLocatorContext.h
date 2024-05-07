@@ -4,11 +4,13 @@
 
 #include "UniversalObjectLocatorEditorContext.h"
 #include "Component/AnimNextComponent.h"
+#include "Modules/ModuleManager.h"
+#include "AnimNextEditorModule.h"
 
-namespace UE::AnimNext
+namespace UE::AnimNext::Editor
 {
 
-class FAnimNextLocatorContext : public UE::UniversalObjectLocator::ILocatorFragmentEditorContext
+class FLocatorContext : public UE::UniversalObjectLocator::ILocatorFragmentEditorContext
 {
 	// ILocatorFragmentEditorContext interface
 	virtual UObject* GetContext(const IPropertyHandle& InPropertyHandle) const override
@@ -19,13 +21,8 @@ class FAnimNextLocatorContext : public UE::UniversalObjectLocator::ILocatorFragm
 
 	virtual bool IsFragmentAllowed(FName InFragmentName) const override
 	{
-		return (InFragmentName == "Actor" ||
-				InFragmentName == "Asset" ||
-				InFragmentName == "AnimNextScope" ||
-				InFragmentName == "AnimNextGraph" ||
-				InFragmentName == "AnimNextObjectFunction" ||
-				InFragmentName == "AnimNextObjectProperty" ||
-				InFragmentName == "AnimNextObjectCast");
+		FModule& EditorModule = FModuleManager::GetModuleChecked<FModule>("AnimNextEditor");
+		return EditorModule.LocatorFragmentEditorNames.Contains(InFragmentName);
 	}
 };
 

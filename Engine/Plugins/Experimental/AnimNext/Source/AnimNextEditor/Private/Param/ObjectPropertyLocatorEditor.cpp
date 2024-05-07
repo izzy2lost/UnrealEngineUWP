@@ -37,7 +37,7 @@ class SObjectPropertyLocatorEditor : public SCompoundWidget
 				for (TFieldIterator<FProperty> PropertyIt(InPropertyStruct, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
 				{
 					FProperty* Property = *PropertyIt;
-					if (Property && Property->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_EditConst))
+					if (Property && Property->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_Edit | CPF_EditConst))
 					{
 						if(FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 						{
@@ -57,7 +57,7 @@ class SObjectPropertyLocatorEditor : public SCompoundWidget
 			for (TFieldIterator<FProperty> PropertyIt(InStruct, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
 			{
 				FProperty* Property = *PropertyIt;
-				if (Property && Property->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_EditConst))
+				if (Property && Property->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_Edit | CPF_EditConst))
 				{
 					if(FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 					{

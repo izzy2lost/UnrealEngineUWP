@@ -1,32 +1,73 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/ParametersProxy.h"
+
+#include "ParamHelpers.h"
 #include "Graph/AnimNextGraph.h"
 #include "Param/ParamStack.h"
 
 namespace UE::AnimNext
 {
 
-FParametersProxy::FParametersProxy(UAnimNextGraph* InGraph)
+FParametersProxy::FParametersProxy(const UAnimNextGraph* InGraph)
 	: Graph(InGraph)
-	, PropertyBag(InGraph->PropertyBag)
+	, PropertyBag(InGraph->DefaultState.State)
 	, LayerHandle(FParamStack::MakeReferenceLayer(NAME_None, PropertyBag))
 {
 	check(Graph);
+	UpdateCachedExternalParamData();
 }
 
 void FParametersProxy::Update(float DeltaTime)
 {
 #if WITH_EDITOR	// Layout should only be changing in editor
 	const FInstancedPropertyBag* HandlePropertyBag = LayerHandle.As<FInstancedPropertyBag>();
-	if(HandlePropertyBag == nullptr || HandlePropertyBag->GetPropertyBagStruct() != Graph->PropertyBag.GetPropertyBagStruct())
+	if(HandlePropertyBag == nullptr || HandlePropertyBag->GetPropertyBagStruct() != Graph->DefaultState.State.GetPropertyBagStruct())
 	{
-		PropertyBag = Graph->PropertyBag;
+		PropertyBag = Graph->DefaultState.State;
 		LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
+		UpdateCachedExternalParamData();
 	}
 #endif
 
+	// First of all we update public state from external sources, if any.
+	// This is to ensure that when running user-defined layer update logic in UpdateLayer()
+	// that the visible state is consistent with the external source.
+	if(ExternalParamData.Num() > 0)
+	{
+		FParamStack& ParamStack = FParamStack::Get();
+		for(const FExternalParamData& ExternalParam : ExternalParamData)
+		{
+			TConstArrayView<uint8> Data;
+			if(ParamStack.GetParamData(ExternalParam.ParamId, ExternalParam.TypeHandle, Data).IsSuccessful())
+			{
+				FParamHelpers::Copy(ExternalParam.TypeHandle, Data, ExternalParam.InternalData);
+			}
+		}
+	}
+
+	// Next we update the layer
 	Graph->UpdateLayer(LayerHandle, DeltaTime);
+}
+
+void FParametersProxy::UpdateCachedExternalParamData()
+{
+	ExternalParamData.Reset();
+
+	if(Graph->DefaultState.PublicParameterStartIndex != INDEX_NONE)
+	{
+		TConstArrayView<FPropertyBagPropertyDesc> Descs = Graph->DefaultState.State.GetPropertyBagStruct()->GetPropertyDescs();
+		const int32 NumProperties = Descs.Num();
+		ExternalParamData.Reserve(NumProperties - Graph->DefaultState.PublicParameterStartIndex);
+		for(int32 PropertyIndex = Graph->DefaultState.PublicParameterStartIndex; PropertyIndex < NumProperties; ++PropertyIndex)
+		{
+			const FPropertyBagPropertyDesc& Desc = Descs[PropertyIndex];
+			check(Desc.CachedProperty);
+			uint8* ValuePtr = Desc.CachedProperty->ContainerPtrToValuePtr<uint8>(PropertyBag.GetMutableValue().GetMemory());
+			TArrayView<uint8> InternalData(ValuePtr, Desc.CachedProperty->GetSize());
+			ExternalParamData.Emplace(FParamId(Desc.Name), FAnimNextParamType(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), Desc.ValueTypeObject).GetHandle(), InternalData);
+		}
+	}
 }
 
 void FParametersProxy::AddReferencedObjects(FReferenceCollector& Collector)

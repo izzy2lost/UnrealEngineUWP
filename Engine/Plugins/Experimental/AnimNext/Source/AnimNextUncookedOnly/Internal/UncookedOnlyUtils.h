@@ -38,10 +38,10 @@ UENUM()
 enum class EAnimNextParameterFlags : uint32
 {
 	NoFlags = 0x0,
-	Private = 0x1,
+	Public = 0x1,
 	Read = 0x02,
 	Write = 0x04,
-	Bound = 0x08,
+	Declared = 0x08,
 	Max
 };
 
@@ -53,7 +53,7 @@ struct FAnimNextParameterAssetRegistryExportEntry
 	GENERATED_BODY()
 
 	FAnimNextParameterAssetRegistryExportEntry() = default;
-	
+
 	FAnimNextParameterAssetRegistryExportEntry(FName InName, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, const FAnimNextParamType& InType, EAnimNextParameterFlags InFlags = EAnimNextParameterFlags::NoFlags)
 		: Name(InName)
 		, InstanceId(InInstanceId)

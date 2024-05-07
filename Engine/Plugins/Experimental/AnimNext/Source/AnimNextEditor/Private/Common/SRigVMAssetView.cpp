@@ -11,6 +11,7 @@
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 #include "EditorUtils.h"
+#include "IAnimNextRigVMExportInterface.h"
 #include "IAnimNextRigVMParameterInterface.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
@@ -28,6 +29,7 @@
 #include "ISinglePropertyView.h"
 #include "ObjectEditorUtils.h"
 #include "Misc/NotifyHook.h"
+#include "Widgets/Input/SButton.h"
 
 #define LOCTEXT_NAMESPACE "SRigVMAssetView"
 
@@ -39,10 +41,10 @@ namespace RigVMAssetView
 
 static FName ContextMenuName(TEXT("AnimNext.RigVMAssetView.ContextMenu"));
 static FName Column_RevisionControl(TEXT("RevisionControl"));
-static FName Column_ModifiedStatus(TEXT("ModifiedStatus"));
 static FName Column_Name(TEXT("Name"));
 static FName Column_Type(TEXT("Type"));
 static FName Column_Value(TEXT("Value"));
+static FName Column_AccessSpecifier(TEXT("AccessSpecifier"));
 
 static const FName NAME_Category("Category");
 
@@ -264,6 +266,40 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 			.OnSelectionChanged(this, &SRigVMAssetView::HandleSelectionChanged)
 			.HeaderRow(
 				SNew(SHeaderRow)
+
+				+SHeaderRow::Column(Column_AccessSpecifier)
+				.DefaultLabel(FText::GetEmpty())
+				.FixedWidth(24.0f)
+				.HeaderContent()
+				[
+					SNew(SBox)
+					.WidthOverride(16.0f)
+					.HeightOverride(16.0f)
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image(FAppStyle::GetBrush("Level.VisibleIcon16x"))
+						.ToolTipText(LOCTEXT("AccessSpecifierTooltip", "Access level of this entry"))
+					]
+				]
+
+				+SHeaderRow::Column(Column_Name)
+				.DefaultLabel(LOCTEXT("NameColumnHeader", "Name"))
+				.ToolTipText(LOCTEXT("NameColumnHeaderTooltip", "The name of the entry"))
+				.FillWidth(20.0f)
+
+				+SHeaderRow::Column(Column_Type)
+				.DefaultLabel(LOCTEXT("TypeColumnHeader", "Type"))
+				.ToolTipText(LOCTEXT("TypeColumnHeaderTooltip", "The type of the entry"))
+				.ManualWidth(145.0f)
+
+				+SHeaderRow::Column(Column_Value)
+				.DefaultLabel(LOCTEXT("ValueColumnHeader", "Value"))
+				.ToolTipText(LOCTEXT("ValueColumnHeaderTooltip", "The value or binding to the entry"))
+				.FillWidth(10.0f)
+				
 				+SHeaderRow::Column(Column_RevisionControl)
 				.DefaultLabel(FText::GetEmpty())
 				.FixedWidth(24.0f)
@@ -278,42 +314,9 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 						SNew(SImage)
 						.ColorAndOpacity(FSlateColor::UseForeground())
 						.Image(FRevisionControlStyleManager::Get().GetBrush("RevisionControl.Icon"))
-						.ToolTipText(LOCTEXT("RevisionControlStatusTooltip", "Revision control status of this parameter"))
+						.ToolTipText(LOCTEXT("RevisionControlStatusTooltip", "Revision control status of this entry"))
 					]
 				]
-
-				+SHeaderRow::Column(Column_ModifiedStatus)
-				.DefaultLabel(FText::GetEmpty())
-				.FixedWidth(24.0f)
-				.HeaderContent()
-				[
-					SNew(SBox)
-					.WidthOverride(16.0f)
-					.HeightOverride(16.0f)
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Center)
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::GetBrush("ContentBrowser.ContentDirty"))
-						.ToolTipText(LOCTEXT("ModifiedStatusTooltip", "Modified status of this parameter"))
-					]
-				]
-
-				+SHeaderRow::Column(Column_Name)
-				.DefaultLabel(LOCTEXT("NameColumnHeader", "Name"))
-				.ToolTipText(LOCTEXT("NameColumnHeaderTooltip", "The name of the parameter"))
-				.FillWidth(20.0f)
-
-				+SHeaderRow::Column(Column_Type)
-				.DefaultLabel(LOCTEXT("TypeColumnHeader", "Type"))
-				.ToolTipText(LOCTEXT("TypeColumnHeaderTooltip", "The type of the parameter"))
-				.ManualWidth(145.0f)
-
-				+SHeaderRow::Column(Column_Value)
-				.DefaultLabel(LOCTEXT("ValueColumnHeader", "Value"))
-				.ToolTipText(LOCTEXT("ValueColumnHeaderTooltip", "The value or binding to the parameter"))
-				.FillWidth(10.0f)
 			)
 		]
 	];
@@ -397,11 +400,39 @@ static bool CompareGraphActionNode(TSharedRef<FRigVMAssetViewEntry> A, TSharedRe
 	return true;
 }
 
+void RestoreSelectionState(TSharedPtr<STreeView<TSharedRef<FRigVMAssetViewEntry>>> InTree, const TArray<TSharedRef<FRigVMAssetViewEntry>>& ItemSource, const TArray<TSharedRef<FRigVMAssetViewEntry>>& OldSelectionState)
+{
+	// Iterate over new tree items
+	TArray<TSharedRef<FRigVMAssetViewEntry>> NewSelection;
+	for (int32 ItemIdx = 0; ItemIdx < ItemSource.Num(); ItemIdx++)
+	{
+		const TSharedRef<FRigVMAssetViewEntry>& NewItem = ItemSource[ItemIdx];
+
+		// Look through old selection state
+		for (const TSharedRef<FRigVMAssetViewEntry>& OldSelection : OldSelectionState)
+		{
+			if( OldSelection->WeakEntry.IsValid() && NewItem->WeakEntry.IsValid() &&
+				OldSelection->WeakEntry->GetEntryName() == NewItem->WeakEntry->GetEntryName())
+			{
+				NewSelection.Add(NewItem);
+			}
+		}
+	}
+
+	if(NewSelection.Num() > 0)
+	{
+		InTree->SetItemSelection(NewSelection, true);
+	}
+}
+
 void SRigVMAssetView::RefreshEntries()
 {
 	// First, save off current expansion state
 	TSet< TSharedRef<FRigVMAssetViewEntry> > OldExpansionState;
 	EntriesList->GetExpandedItems(OldExpansionState);
+
+	TArray< TSharedRef<FRigVMAssetViewEntry> > OldSelectionState;
+	EntriesList->GetSelectedItems(OldSelectionState);
 
 	Entries.Reset();
 
@@ -428,13 +459,15 @@ void SRigVMAssetView::RefreshEntries()
 	}
 	RestoreExpansionState< TSharedRef<FRigVMAssetViewEntry> >(EntriesList, AllEntries, OldExpansionState, CompareGraphActionNode);
 
-	PendingSelection.Empty();
-
 	RefreshFilter();
 
 	if(EntriesToSelect.Num() > 0)
 	{
 		EntriesList->SetItemSelection(EntriesToSelect, true);
+	}
+	else
+	{
+		RestoreSelectionState(EntriesList, AllEntries, OldSelectionState);
 	}
 }
 
@@ -606,7 +639,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 		{
 			if (UAnimNextRigVMAssetEditorData* EditorData = View->EditorData)
 			{
-				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(PropertyAboutToChange->GetFName()))
+				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(UncookedOnly::FUtils::GetParameterNameFromQualifiedName(PropertyAboutToChange->GetFName())))
 				{
 					UAnimNextRigVMAsset* Asset = UE::AnimNext::UncookedOnly::FUtils::GetAsset(EditorData);
 
@@ -624,11 +657,14 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 		{
 			if (UAnimNextRigVMAssetEditorData* EditorData = View->EditorData)
 			{
-				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(PropertyChangedEvent.GetMemberPropertyName()))
+				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(UncookedOnly::FUtils::GetParameterNameFromQualifiedName(PropertyChangedEvent.GetMemberPropertyName())))
 				{
 					// Needed to show the changed sign a the table when we modify the PropertyBag
 					// TODO: remove this by moving defaults into entries
-					AssetEntry->MarkPackageDirty(); 
+					AssetEntry->MarkPackageDirty();
+
+					// Ensure that default values get picked up and forwarded to compiler
+					EditorData->BroadcastModified();
 				}
 			}
 		}
@@ -638,30 +674,84 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
 	{
 		using namespace RigVMAssetView;
-		
-		if(InColumnName == Column_RevisionControl)
+
+		if(InColumnName == Column_AccessSpecifier)
 		{
 			return
 				SNew(SBox)
+				.WidthOverride(16.0f)
+				.HeightOverride(16.0f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Center)
+				[
+					SNew(SButton)
+					.Visibility_Lambda([this]()
+					{
+						if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+						{
+							return Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public || IsHovered() ? EVisibility::Visible : EVisibility::Collapsed;
+						}
+						return EVisibility::Collapsed;
+					})
+					.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+					.OnClicked_Lambda([this]()
+					{
+						if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+						{
+							Export->SetExportAccessSpecifier(Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ? EAnimNextExportAccessSpecifier::Private : EAnimNextExportAccessSpecifier::Public);  
+						}
+						return FReply::Unhandled();	// Fall through so we dont deselect our item
+					})
+					.Content()
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image_Lambda([this]() -> const FSlateBrush*
+						{
+							if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+							{
+								return Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ? FAppStyle::GetBrush("Level.VisibleIcon16x") : FAppStyle::GetBrush("Level.NotVisibleHighlightIcon16x");
+							}
+							return nullptr;
+						})
+						.ToolTipText_Lambda([this]()
+						{
+							if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+							{
+								FText AccessSpecifier = Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ? LOCTEXT("PublicSpecifier", "public") : LOCTEXT("PrivateSpecifier", "private");
+								FText AccessSpecifierDesc = Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ?
+									LOCTEXT("PublicSpecifierDesc", "This means that the entry is usable from gameplay and from other AnimNext assets") :
+									LOCTEXT("PrivateSpecifierDesc", "This means that the entry is only usable inside this asset");
+								return FText::Format(LOCTEXT("AccessSpecifierTooltip", "This entry is {0}.\n{1}"), AccessSpecifier, AccessSpecifierDesc);
+							}
+							return FText::GetEmpty();
+						})
+					]
+				];
+		}
+		else if(InColumnName == Column_RevisionControl)
+		{
+			return
+				SNew(SBox)
+				.ToolTipText_Lambda([this]()
+				{
+					if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
+					{
+						ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+						UPackage* Package = AssetEntry->GetExternalPackage();
+						if(FSourceControlStatePtr State = SourceControlProvider.GetState(Package, EStateCacheUsage::Use))
+						{
+							return FText::Format(LOCTEXT("RevisionControlStatusFormat", "File: {0}\nStatus: {1}"), FText::FromName(Package->GetFName()),  State->GetDisplayTooltip());
+						}
+					}
+
+					return LOCTEXT("RevisionControlStatus", "Revision control status of this parameter");
+				})
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.HeightOverride(20.0f)
 				[
 					SNew(SImage)
-					.ToolTipText_Lambda([this]()
-					{
-						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
-						{
-							ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
-							UPackage* Package = AssetEntry->GetExternalPackage();
-							if(FSourceControlStatePtr State = SourceControlProvider.GetState(Package, EStateCacheUsage::Use))
-							{
-								return FText::Format(LOCTEXT("RevisionControlStatusFormat", "File: {0}\nStatus: {1}"), FText::FromName(Package->GetFName()),  State->GetDisplayTooltip());
-							}
-						}
-
-						return LOCTEXT("RevisionControlStatus", "Revision control status of this parameter");
-					})
 					.Image_Lambda([this]() -> const FSlateBrush*
 					{
 						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
@@ -671,51 +761,6 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 							{
 								return State->GetIcon().GetSmallIcon();
 							}
-						}
-						return nullptr;
-					})
-				];
-		}
-		else if(InColumnName == Column_ModifiedStatus)
-		{
-			return
-				SNew(SBox)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.HeightOverride(20.0f)
-				[
-					SNew(SImage)
-					.ToolTipText_Lambda([this]()
-					{
-						FTextBuilder TextBuilder;
-						TextBuilder.AppendLine(LOCTEXT("ModifiedTooltip", "Modified Status"));
-
-						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
-						{
-							const UPackage* ExternalPackage = AssetEntry->GetExternalPackage();
-							check(ExternalPackage);
-							if(ExternalPackage->IsDirty())
-							{
-								TextBuilder.AppendLine(FText::FromName(ExternalPackage->GetFName()));
-							}
-						}
-
-						return TextBuilder.ToText();
-					})
-					.Image_Lambda([this]() -> const FSlateBrush*
-					{
-						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
-						{
-							bool bIsDirty = false;
-							const UPackage* ExternalPackage = AssetEntry->GetExternalPackage();
-							check(ExternalPackage);
-							if(ExternalPackage->IsDirty())
-							{
-								bIsDirty = true;
-							}
-
-
-							return bIsDirty ? FAppStyle::GetBrush("ContentBrowser.ContentDirty") : nullptr;
 						}
 						return nullptr;
 					})
@@ -775,63 +820,109 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 				.VAlign(VAlign_Center)
 				.AutoWidth()
 				[
-					SAssignNew(Entry->NameWidget, SInlineEditableTextBlock)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.IsSelected(this, &SRigVMAssetViewRow::IsSelectedExclusively)
-					.IsReadOnly_Lambda([this]()
-					{
-						if (Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()) 
-							|| Cast<IAnimNextRigVMGraphInterface>(Entry->WeakEntry.Get()))
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SAssignNew(Entry->NameWidget, SInlineEditableTextBlock)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.IsSelected(this, &SRigVMAssetViewRow::IsSelectedExclusively)
+						.IsReadOnly_Lambda([this]()
 						{
-							return false;
-						}
-						return true;
-					})
-					.OnTextCommitted_Lambda([this](const FText& InNewText, ETextCommit::Type InCommitType)
-					{
-						if(InCommitType == ETextCommit::OnEnter)
+							if (Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()) 
+								|| Cast<IAnimNextRigVMGraphInterface>(Entry->WeakEntry.Get()))
+							{
+								return false;
+							}
+							return true;
+						})
+						.OnTextCommitted_Lambda([this](const FText& InNewText, ETextCommit::Type InCommitType)
+						{
+							if(InCommitType == ETextCommit::OnEnter)
+							{
+								if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
+								{
+									FScopedTransaction Transaction(LOCTEXT("SetParameterName", "Set Entry name"));
+									AssetEntry->SetEntryName(*InNewText.ToString());
+								}
+							}
+						})
+						.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
+						{
+							const FString NewString = InNewText.ToString();
+							if (!FUtils::IsValidParameterNameString(NewString, OutErrorText))
+							{
+								return false;
+							}
+
+							FName Name(*NewString);
+							if (TSharedPtr<SRigVMAssetView> View = WeakView.Pin())
+							{
+								if(UAnimNextRigVMAssetEntry* ExistingEntry = View->EditorData->FindEntry(Name))
+								{
+									OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in this asset");
+									return false;
+								}
+							}
+							return true;
+						})
+						.Text_Lambda([this]()
 						{
 							if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
 							{
-								FScopedTransaction Transaction(LOCTEXT("SetParameterName", "Set Entry name"));
-								AssetEntry->SetEntryName(*InNewText.ToString());
+								return FText::FromName(AssetEntry->GetEntryName());
 							}
-						}
-					})
-					.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
-					{
-						const FString NewString = InNewText.ToString();
-						if (!FUtils::IsValidParameterNameString(NewString, OutErrorText))
+							return FText::GetEmpty();
+						})
+						.ToolTipText_Lambda([this]()
 						{
-							return false;
+							if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
+							{
+								return AssetEntry->GetDisplayNameTooltip();
+							}
+							return FText::GetEmpty();
+						})
+					]
+				]
+				+SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.Padding(2.0f, 0.0f, 2.0f, 3.0f)
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.ToolTipText_Lambda([this]()
+					{
+						FTextBuilder TextBuilder;
+						TextBuilder.AppendLine(LOCTEXT("ModifiedTooltip", "Modified"));
+
+						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
+						{
+							const UPackage* ExternalPackage = AssetEntry->GetExternalPackage();
+							check(ExternalPackage);
+							if(ExternalPackage->IsDirty())
+							{
+								TextBuilder.AppendLine(FText::FromName(ExternalPackage->GetFName()));
+							}
 						}
 
-						FName Name(*NewString);
-						if (TSharedPtr<SRigVMAssetView> View = WeakView.Pin())
-						{
-							if(UAnimNextRigVMAssetEntry* ExistingEntry = View->EditorData->FindEntry(Name))
-							{
-								OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in this asset");
-								return false;
-							}
-						}
-						return true;
+						return TextBuilder.ToText();
 					})
-					.Text_Lambda([this]()
-					{
-						if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
-						{
-							return FText::FromName(AssetEntry->GetEntryName());
-						}
-						return FText::GetEmpty();
-					})
-					.ToolTipText_Lambda([this]()
+					.Image_Lambda([this]() -> const FSlateBrush*
 					{
 						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
 						{
-							return AssetEntry->GetDisplayNameTooltip();
+							bool bIsDirty = false;
+							const UPackage* ExternalPackage = AssetEntry->GetExternalPackage();
+							check(ExternalPackage);
+							if(ExternalPackage->IsDirty())
+							{
+								bIsDirty = true;
+							}
+
+							return bIsDirty ? FAppStyle::GetBrush("Icons.DirtyBadge") : nullptr;
 						}
-						return FText::GetEmpty();
+						return nullptr;
 					})
 				];
 		}

@@ -5,6 +5,7 @@
 #include "TraitInterfaces/IHierarchy.h"
 #include "Graph/GraphInstanceComponent.h"
 #include "AnimNextAnimGraphStats.h"
+#include "Param/ParamStack.h"
 
 DEFINE_STAT(STAT_AnimNext_UpdateGraph);
 
@@ -490,6 +491,9 @@ namespace UE::AnimNext
 			It.Value()->PreUpdate(TraversalContext);
 		}
 
+		// Push any parameters this graph owns
+		FParamStack::FPushedLayerHandle PushedLayerHandle = GraphInstance.UpdateAndPushGraphState(DeltaTime);
+
 		// Add the graph root to start the update process
 		Private::FUpdateEntry RootEntry(GraphInstance.GetGraphRootPtr(), RootState);
 		TraversalContext.PushUpdateEntry(&RootEntry);
@@ -602,6 +606,9 @@ namespace UE::AnimNext
 				TraversalContext.PushFreeEntry(Entry);
 			}
 		}
+
+		// Pop any parameters we pushed above
+		GraphInstance.PopGraphState(PushedLayerHandle);
 
 		// Clear our executing entry
 		TraversalContext.ExecutingEntry = nullptr;

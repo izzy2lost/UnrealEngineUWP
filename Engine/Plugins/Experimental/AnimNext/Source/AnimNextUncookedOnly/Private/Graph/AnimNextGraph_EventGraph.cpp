@@ -8,20 +8,6 @@
 #include "Param/AnimNextTag.h"
 #include "Param/ParamType.h"
 
-FAnimNextParamType UAnimNextGraph_EventGraph::GetExportType() const
-{
-	return FAnimNextParamType::GetType<FAnimNextEntryPoint>();
-}
-
-FName UAnimNextGraph_EventGraph::GetExportName() const
-{
-	if(UAnimNextRigVMAsset* OuterAsset = GetTypedOuter<UAnimNextRigVMAsset>())
-	{
-		return UE::AnimNext::UncookedOnly::FUtils::GetQualifiedName(OuterAsset, GraphName);
-	}
-	return GraphName;
-}
-
 FText UAnimNextGraph_EventGraph::GetDisplayName() const
 {
 	return FText::FromName(GraphName);

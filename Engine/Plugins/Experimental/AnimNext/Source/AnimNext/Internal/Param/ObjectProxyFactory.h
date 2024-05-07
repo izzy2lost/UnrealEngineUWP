@@ -32,6 +32,7 @@ class FObjectProxyFactory : public IParameterSourceFactory
 	friend class ::UAnimNextConfig;
 	friend class FModule;
 	friend class UE::AnimNext::UncookedOnly::FObjectProxyType;
+	friend struct FScheduleInitializationContext;
 
 public:
 	FObjectProxyFactory();

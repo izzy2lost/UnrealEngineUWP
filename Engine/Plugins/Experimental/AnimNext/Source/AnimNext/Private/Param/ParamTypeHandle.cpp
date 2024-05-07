@@ -6,7 +6,6 @@
 #include "UObject/Class.h"
 #include "UObject/TextProperty.h"
 #include "AnimNextStats.h"
-#include "Component/AnimNextMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimSequence.h"
@@ -234,9 +233,9 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 						Handle.SetParameterType(EParamType::CharacterMovementComponent);
 						break;
 					}
-					else if (Class == UAnimNextMeshComponent::StaticClass())
+					else if (Class == USkeletalMeshComponent::StaticClass())
 					{
-						Handle.SetParameterType(EParamType::AnimNextMeshComponent);
+						Handle.SetParameterType(EParamType::SkeletalMeshComponent);
 						break;
 					}
 					else if (Class == UAnimSequence::StaticClass())
@@ -405,9 +404,9 @@ FParamTypeHandle FParamTypeHandle::FromProperty(const FProperty* InProperty)
 		{
 			Handle.SetParameterType(EParamType::CharacterMovementComponent);
 		}
-		else if (Class == UAnimNextMeshComponent::StaticClass())
+		else if (Class == USkeletalMeshComponent::StaticClass())
 		{
-			Handle.SetParameterType(EParamType::AnimNextMeshComponent);
+			Handle.SetParameterType(EParamType::SkeletalMeshComponent);
 		}
 	}
 
@@ -576,9 +575,9 @@ FParamTypeHandle FParamTypeHandle::FromObject(const UObject* InObject)
 			{
 				Handle.SetParameterType(EParamType::CharacterMovementComponent);
 			}
-			else if (ObjectClass == UAnimNextMeshComponent::StaticClass())
+			else if (ObjectClass == USkeletalMeshComponent::StaticClass())
 			{
-				Handle.SetParameterType(EParamType::AnimNextMeshComponent);
+				Handle.SetParameterType(EParamType::SkeletalMeshComponent);
 			}
 			else
 			{
@@ -665,8 +664,8 @@ FAnimNextParamType FParamTypeHandle::GetType() const
 		ParameterType.ValueType = FAnimNextParamType::EValueType::Object;
 		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
 		break;
-	case EParamType::AnimNextMeshComponent:
-		ParameterType.ValueTypeObject = UAnimNextMeshComponent::StaticClass();
+	case EParamType::SkeletalMeshComponent:
+		ParameterType.ValueTypeObject = USkeletalMeshComponent::StaticClass();
 		ParameterType.ValueType = FAnimNextParamType::EValueType::Object;
 		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
 		break;
@@ -734,7 +733,7 @@ size_t FParamTypeHandle::GetSize() const
 		return sizeof(FTransform);
 	case EParamType::Object:
 	case EParamType::CharacterMovementComponent:
-	case EParamType::AnimNextMeshComponent:
+	case EParamType::SkeletalMeshComponent:
 	case EParamType::AnimSequence:
 		return sizeof(UObject*);
 	case EParamType::AnimNextGraphLODPose:
@@ -786,7 +785,7 @@ size_t FParamTypeHandle::GetAlignment() const
 		return alignof(FTransform);
 	case EParamType::Object:
 	case EParamType::CharacterMovementComponent:
-	case EParamType::AnimNextMeshComponent:
+	case EParamType::SkeletalMeshComponent:
 	case EParamType::AnimSequence:
 		return alignof(UObject*);
 	case EParamType::AnimNextGraphLODPose:

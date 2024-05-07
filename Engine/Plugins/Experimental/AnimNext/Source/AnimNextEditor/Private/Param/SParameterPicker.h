@@ -73,6 +73,7 @@ private:
 		virtual TArray<FFieldVariant> GetFields(const UStruct* InStruct) const override;
 
 		FOnFilterParameterType OnFilterParameterType;
+		const UStruct* CurrentStruct = nullptr;
 	};
 
 	struct FFieldExpander : UE::PropertyViewer::IFieldExpander

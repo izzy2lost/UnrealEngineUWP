@@ -29,6 +29,8 @@ class UAnimNextGraph_AnimationGraph : public UAnimNextRigVMAssetEntry, public IA
 	// IAnimNextRigVMExportInterface interface
 	virtual FAnimNextParamType GetExportType() const override;
 	virtual FName GetExportName() const override;
+	virtual EAnimNextExportAccessSpecifier GetExportAccessSpecifier() const override;
+	virtual void SetExportAccessSpecifier(EAnimNextExportAccessSpecifier InAccessSpecifier, bool bSetupUndoRedo = true) override;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override;
@@ -41,6 +43,10 @@ class UAnimNextGraph_AnimationGraph : public UAnimNextRigVMAssetEntry, public IA
 	virtual void SetEdGraph(URigVMEdGraph* InGraph) override;
 
 protected:
+	/** Access specifier - whether the graph's entry point is visible external to this asset */
+	UPROPERTY(EditAnywhere, Category = AnimationGraph)
+	EAnimNextExportAccessSpecifier Access = EAnimNextExportAccessSpecifier::Private;
+
 	/** The name of the graph */
 	UPROPERTY(VisibleAnywhere, Category = AnimationGraph)
 	FName GraphName;

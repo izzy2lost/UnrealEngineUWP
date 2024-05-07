@@ -9,45 +9,14 @@
 #include "Graph/AnimNext_LODPose.h"
 #include "AnimNextStats.h"
 #include "Component/AnimNextComponent.h"
-#include "Component/AnimNextMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
 #include "Logging/StructuredLog.h"
-#include "Param/AnimNextObjectCastLocatorFragment.h"
-#include "Param/AnimNextObjectFunctionLocatorFragment.h"
 #include "Param/AnimNextParam.h"
 #include "Param/AnimNextParamUniversalObjectLocator.h"
+#include "Param/ParametersProxy.h"
 
 DEFINE_STAT(STAT_AnimNext_Task_Graph);
-
-namespace UE::AnimNext
-{
-	// TODO: Currently we hard-code the ACharacter mesh component as the source of the reference pose and LOD index, but this should be a pin-input in the
-	// final schedule incarnation.
-	TInstancedStruct<FAnimNextParamUniversalObjectLocator> GetCharacterInstanceId()
-	{
-		TInstancedStruct<FAnimNextParamUniversalObjectLocator> Locator = TInstancedStruct<FAnimNextParamUniversalObjectLocator>::Make();
-		Locator.GetMutable().Locator.AddFragment<FAnimNextObjectFunctionLocatorFragment>(UAnimNextComponent::StaticClass()->FindFunctionByName("GetOwner"));
-		Locator.GetMutable().Locator.AddFragment<FAnimNextObjectCastLocatorFragment>(ACharacter::StaticClass());
-		return Locator;
-	};
-
-	FName GetCharacterInstanceIdName()
-	{
-		static FName Name(NAME_None);
-		if(Name.IsNone())
-		{
-			const TInstancedStruct<FAnimNextParamUniversalObjectLocator>& Locator = GetCharacterInstanceId();
-			Name = Locator.Get().ToName();
-		}
-		return Name;
-	};
-
-	FParamId GetMeshComponentParamId()
-	{
-		static const FParamId MeshComponentParamId("/Script/Engine.Character:Mesh", GetCharacterInstanceIdName());
-		return MeshComponentParamId;
-	}
-}
 
 UAnimNextGraph* FAnimNextScheduleGraphTask::GetGraphToRun(UE::AnimNext::FParamStack& ParamStack) const
 {
@@ -142,22 +111,17 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 		}
 	}
 
-	const TObjectPtr<USkeletalMeshComponent>* ComponentPtr = ParamStack.GetParamPtr<TObjectPtr<USkeletalMeshComponent>>(GetMeshComponentParamId());
-	if(ComponentPtr == nullptr)
+	const FAnimNextGraphReferencePose* GraphRefPosePtr = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(ReferencePose.GetParamId());
+	if (GraphRefPosePtr == nullptr || !GraphRefPosePtr->ReferencePose.IsValid())
 	{
 		return;
 	}
 
-	TObjectPtr<UAnimNextMeshComponent> Component = Cast<UAnimNextMeshComponent>(*ComponentPtr);
-	if(Component == nullptr)
+	int32 LODIndex = 0;
+	const int32* LODPtr = ParamStack.GetParamPtr<int32>(LOD.GetParamId());
+	if (LODPtr != nullptr)
 	{
-		return;
-	}
-	
-	const FAnimNextGraphReferencePose GraphReferencePose = Component->GetReferencePose();
-	if(!GraphReferencePose.ReferencePose.IsValid())
-	{
-		return;
+		LODIndex = *LODPtr;
 	}
 
 	// Check and allocate remapped term layer
@@ -184,10 +148,8 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	{
 		return;
 	}
-	
-	const UE::AnimNext::FReferencePose& RefPose = GraphReferencePose.ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
 
-	const int32 LODIndex = Component->GetPredictedLODLevel();
+	const UE::AnimNext::FReferencePose& RefPose = GraphRefPosePtr->ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
 
 	// Create or update our result pose
 	// TODO: Currently forcing additive flag to false here
@@ -209,19 +171,3 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	IAnimNextModule::Get().UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime());
 	IAnimNextModule::Get().EvaluateGraph(GraphCache.GraphInstanceData, RefPose, LODIndex, OutputPose->LODPose);
 }
-
-#if WITH_EDITORONLY_DATA 
-
-TArray<FAnimNextEditorParam> FAnimNextScheduleGraphTask::GetRequiredParametersInternal()
-{
-	using namespace UE::AnimNext;
-
-	const TArray<FAnimNextEditorParam> Params =
-	{
-		FAnimNextEditorParam(GetMeshComponentParamId().GetName(), FAnimNextParamType::GetType<TObjectPtr<UAnimNextMeshComponent>>(), GetCharacterInstanceId()),
-	};
-
-	return Params;
-}
-
-#endif

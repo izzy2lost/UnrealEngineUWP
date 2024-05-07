@@ -16,6 +16,17 @@ bool UAnimNextRigVMAssetEntry::IsAsset() const
 	return IsPackageExternal() && !GetPackage()->HasAnyFlags(RF_Transient) && !HasAnyFlags(RF_Transient | RF_ClassDefaultObject);
 }
 
+#if WITH_EDITOR
+
+void UAnimNextRigVMAssetEntry::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	BroadcastModified();
+}
+
+#endif
+
 void UAnimNextRigVMAssetEntry::BroadcastModified()
 {
 	if(UAnimNextRigVMAssetEditorData* EditorData = Cast<UAnimNextRigVMAssetEditorData>(GetOuter()))

@@ -538,6 +538,7 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	InGraph->VMRuntimeSettings = EditorData->VMRuntimeSettings;
 	InGraph->EntryPoints.Empty();
 	InGraph->ResolvedRootTraitHandles.Empty();
+	InGraph->ResolvedEntryPoints.Empty();
 	InGraph->ExecuteDefinition = FAnimNextGraphEvaluatorExecuteDefinition();
 	InGraph->SharedDataBuffer.Empty();
 	InGraph->GraphReferencedObjects.Empty();
@@ -697,8 +698,8 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 
 	for(FAnimNextParameterAssetRegistryExportEntry& Entry : Exports.Parameters)
 	{
-		// Required parameters are those that are read in this asset but not bound in this asset as state
-		if(EnumHasAnyFlags(Entry.GetFlags(), EAnimNextParameterFlags::Read) && !EnumHasAnyFlags(Entry.GetFlags(), EAnimNextParameterFlags::Bound))
+		// Required parameters are those that are read in this asset but not declared in this asset as state
+		if(EnumHasAllFlags(Entry.GetFlags(), EAnimNextParameterFlags::Read) && !EnumHasAnyFlags(Entry.GetFlags(), EAnimNextParameterFlags::Declared))
 		{
 			InGraph->RequiredParameters.Emplace(Entry.Name, Entry.Type, Entry.InstanceId);
 		}
@@ -851,30 +852,72 @@ void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 
 	TGuardValue<bool> CompilingGuard(EditorData->bIsCompiling, true);
 
-	TArray<FPropertyBagPropertyDesc> PropertyDescs;
-	PropertyDescs.Reserve(EditorData->Entries.Num());
-	
+	struct FStructEntryInfo
+	{
+		FName Name;
+		FAnimNextParamType Type;
+		EAnimNextExportAccessSpecifier AccessSpecifier;
+	};
+
+	TArray<FStructEntryInfo> StructEntryInfos;
+	StructEntryInfos.Reserve(EditorData->Entries.Num());
+
 	// Gather all parameters in this asset
 	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
 	{
-		if(const IAnimNextRigVMParameterInterface* Parameter = Cast<IAnimNextRigVMParameterInterface>(Entry))
+		const IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry);
+		const IAnimNextRigVMParameterInterface* Parameter = Cast<IAnimNextRigVMParameterInterface>(Entry);
+		if(Export && Parameter)
 		{
-			const FAnimNextParamType& Type = Parameter->GetParamType();
+			const FAnimNextParamType& Type = Export->GetExportType();
 			ensure(Type.IsValid());
-			const FName Name = Parameter->GetParamName();
+			const FName Name = Export->GetExportName();
+			const EAnimNextExportAccessSpecifier AccessSpecifier = Export->GetExportAccessSpecifier();
 
-			PropertyDescs.Emplace(Name, Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
+			StructEntryInfos.Add( { Name, FAnimNextParamType(Type.GetValueType(),  Type.GetContainerType(), Type.GetValueTypeObject()), AccessSpecifier } );
 		}
 	}
 
-	if(PropertyDescs.Num() > 0)
+	// Sort private entries first & then by size, largest first, for better packing
+	static_assert(EAnimNextExportAccessSpecifier::Private < EAnimNextExportAccessSpecifier::Public, "Private must be less than Public as parameters are sorted internally according to this assumption");
+	StructEntryInfos.Sort([](const FStructEntryInfo& InLHS, const FStructEntryInfo& InRHS)
 	{
-		// find any existing IDs for old properties with name-matching
+		if(InLHS.AccessSpecifier < InRHS.AccessSpecifier)
+		{
+			return true;
+		}
+		else
+		{
+			return InLHS.Type.GetSize() > InRHS.Type.GetSize();
+		}
+	});
+
+	if(StructEntryInfos.Num() > 0)
+	{
+		// Build PropertyDescs to batch-create the property bag
+		TArray<FPropertyBagPropertyDesc> PropertyDescs;
+		PropertyDescs.Reserve(StructEntryInfos.Num());
+
+		InGraph->DefaultState.PublicParameterStartIndex = INDEX_NONE;
+
+		for(int32 EntryIndex = 0; EntryIndex < StructEntryInfos.Num(); ++EntryIndex)
+		{
+			const FStructEntryInfo& StructEntryInfo = StructEntryInfos[EntryIndex];
+			// Find the first parameter that is public and record it
+			if(StructEntryInfo.AccessSpecifier == EAnimNextExportAccessSpecifier::Public)
+			{
+				InGraph->DefaultState.PublicParameterStartIndex = EntryIndex;
+			}
+			PropertyDescs.Emplace(StructEntryInfo.Name, StructEntryInfo.Type.ContainerType, StructEntryInfo.Type.ValueType, StructEntryInfo.Type.ValueTypeObject);
+		}
+
+		// Find any existing IDs for old properties with name-matching
+		// TODO: linear search - we could cache the name->GUID lookup in editor to accelerate this.
 		for(FPropertyBagPropertyDesc& NewDesc : PropertyDescs)
 		{
-			if(InGraph->PropertyBag.GetPropertyBagStruct())
+			if(InGraph->DefaultState.State.GetPropertyBagStruct())
 			{
-				for(const FPropertyBagPropertyDesc& ExistingDesc : InGraph->PropertyBag.GetPropertyBagStruct()->GetPropertyDescs())
+				for(const FPropertyBagPropertyDesc& ExistingDesc : InGraph->DefaultState.State.GetPropertyBagStruct()->GetPropertyDescs())
 				{
 					if(ExistingDesc.Name == NewDesc.Name)
 					{
@@ -887,11 +930,11 @@ void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 
 		// Create new property bag and migrate
 		const UPropertyBag* NewBagStruct = UPropertyBag::GetOrCreateFromDescs(PropertyDescs);
-		InGraph->PropertyBag.MigrateToNewBagStruct(NewBagStruct);
+		InGraph->DefaultState.State.MigrateToNewBagStruct(NewBagStruct);
 	}
 	else
 	{
-		InGraph->PropertyBag.Reset();
+		InGraph->DefaultState.Reset();
 	}
 }
 
@@ -909,7 +952,7 @@ UAnimNextRigVMAssetEditorData* FUtils::GetEditorData(UAnimNextRigVMAsset* InAsse
 
 FInstancedPropertyBag* FUtils::GetPropertyBag(UAnimNextGraph* InAnimNextGraph)
 {
-	FInstancedPropertyBag* InstancedPropertyBag = &InAnimNextGraph->PropertyBag;
+	FInstancedPropertyBag* InstancedPropertyBag = &InAnimNextGraph->DefaultState.State;
 
 	return InstancedPropertyBag;
 }
@@ -1364,9 +1407,13 @@ void FUtils::GetAssetParameters(const UAnimNextRigVMAssetEditorData* EditorData,
 	{
 		if(const IAnimNextRigVMExportInterface* ExportInterface = Cast<IAnimNextRigVMExportInterface>(Entry))
 		{
-			// TODO: Public/private symbols would influence whether this would be exposed to the asset registry here
-			FAnimNextParameterAssetRegistryExportEntry NewParam(ExportInterface->GetExportName(), TInstancedStruct<FAnimNextParamInstanceIdentifier>(), ExportInterface->GetExportType(), EAnimNextParameterFlags::Bound);
-			AddParamToSet(NewParam, OutExports);
+			EAnimNextParameterFlags Flags = EAnimNextParameterFlags::Declared;
+			if(ExportInterface->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public)
+			{
+				Flags |= EAnimNextParameterFlags::Public;
+				FAnimNextParameterAssetRegistryExportEntry NewParam(ExportInterface->GetExportName(), TInstancedStruct<FAnimNextParamInstanceIdentifier>(), ExportInterface->GetExportType(), Flags);
+				AddParamToSet(NewParam, OutExports);
+			}
 		}
 		if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 		{
@@ -1851,6 +1898,13 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					}
 				}
 
+				// We must have a reference pose
+				if (!GraphEntry->ReferencePose.IsValid())
+				{
+					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid reference pose supplied to graph task"));
+					bValid = false;
+				}
+
 				// Validate terms and check against priors
 				for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
 				{
@@ -1891,6 +1945,8 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					GraphTask.EntryPoint = FAnimNextParam(GraphEntry->EntryPoint);
 					GraphTask.Graph = GraphEntry->Graph;
 					GraphTask.DynamicGraph = FAnimNextParam(GraphEntry->DynamicGraph);
+					GraphTask.ReferencePose = FAnimNextParam(GraphEntry->ReferencePose);
+					GraphTask.LOD = FAnimNextParam(GraphEntry->LOD);
 					if(GraphEntry->Graph == nullptr && GraphEntry->DynamicGraph.IsValid())
 					{
 						Algo::Transform(GraphEntry->RequiredParameters, GraphTask.SuppliedParameters, [](const FAnimNextEditorParam& InParam){ return FAnimNextParam(InParam); });
@@ -2079,8 +2135,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 
 					TrackExternalParameters(GraphEntry->RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
 
-					// TODO: need to not require defaults here - use static graph params. In fact, these params should probably be defined at the schedule level.
-					TrackExternalParameters(FAnimNextScheduleGraphTask::GetRequiredParametersInternal(), InDistance, Entry, &InEntries, ArrayIndex, true);
+					TrackExternalParameters({ GraphEntry->DynamicGraph, GraphEntry->EntryPoint, GraphEntry->ReferencePose, GraphEntry->LOD }, InDistance, Entry, &InEntries, ArrayIndex, true);
 				}
 				else if (UAnimNextScheduleEntry_Port* PortEntry = Cast<UAnimNextScheduleEntry_Port>(Entry))
 				{

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ObjectFunctionLocatorEditor.h"
 
@@ -16,6 +16,7 @@
 #include "Modules/ModuleManager.h"
 #include "Framework/PropertyViewer/IFieldIterator.h"
 #include "Widgets/PropertyViewer/SPropertyViewer.h"
+#include "Param/ParamUtils.h"
 
 #define LOCTEXT_NAMESPACE "ObjectFunctionLocatorEditor"
 
@@ -94,6 +95,22 @@ class SObjectFunctionLocatorEditor : public SCompoundWidget
 		];
 
 		PropertyViewer->AddContainer(CurrentClass);
+
+		// Add any BP function libraries that can potentially hoist this class
+		TArray<UClass*> Classes;
+		GetDerivedClasses(UBlueprintFunctionLibrary::StaticClass(), Classes, true);
+		for (const UClass* Class : Classes)
+		{
+			for (TFieldIterator<UFunction> FieldIt(Class, EFieldIteratorFlags::IncludeSuper); FieldIt; ++FieldIt)
+			{
+				UFunction* Function = *FieldIt;
+				if (FParamUtils::CanUseFunction(Function, CurrentClass))
+				{
+					PropertyViewer->AddContainer(Class);
+					break;
+				}
+			}
+		}
 	}
 
 	void HandleClassPicked(UClass* InClass)

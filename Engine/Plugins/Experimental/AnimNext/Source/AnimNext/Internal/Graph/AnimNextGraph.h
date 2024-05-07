@@ -67,6 +67,7 @@ public:
 
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -148,6 +149,9 @@ protected:
 	// This is a resolved handle to the root trait in our graph, for each entry point 
 	TMap<FName, FAnimNextTraitHandle> ResolvedRootTraitHandles;
 
+	// This is an index into EntryPoints, for each entry point
+	TMap<FName, int32> ResolvedEntryPoints;
+
 	// This is the graph shared data used by the trait system, the output of FTraitReader
 	// We de-serialize manually into this buffer from the archive buffer, this is never saved on disk
 	TArray<uint8> SharedDataBuffer;
@@ -175,11 +179,14 @@ protected:
 	UPROPERTY()
 	TArray<FAnimNextParam> RequiredParameters;
 
-	// Property bag that holds state for this graph 
+	// Default state for this graph
 	UPROPERTY()
-	FInstancedPropertyBag PropertyBag;
+	FAnimNextGraphState DefaultState;
 
 #if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FInstancedPropertyBag PropertyBag_DEPRECATED;
+
 	// This buffer holds the output of the FTraitWriter post compilation
 	// We serialize it manually and it is discarded at runtime
 	TArray<uint8> SharedDataArchiveBuffer;

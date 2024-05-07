@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextObjectFunctionLocatorFragment.h"
 #include "UniversalObjectLocatorFragmentTypeHandle.h"
@@ -6,6 +6,7 @@
 #include "UniversalObjectLocatorStringParams.h"
 #include "UniversalObjectLocatorInitializeParams.h"
 #include "UniversalObjectLocatorInitializeResult.h"
+#include "Param/ParamUtils.h"
 
 UE::UniversalObjectLocator::TFragmentTypeHandle<FAnimNextObjectFunctionLocatorFragment> FAnimNextObjectFunctionLocatorFragment::FragmentType;
 
@@ -22,11 +23,23 @@ UE::UniversalObjectLocator::FResolveResult FAnimNextObjectFunctionLocatorFragmen
 
 	if(UFunction* Function = Cast<UFunction>(Path.ResolveObject()))
 	{
-		if(Params.Context && Function->NumParms == 1 && Params.Context->GetClass()->IsChildOf(Function->GetOuterUClass()))
+		if(Params.Context && UE::AnimNext::FParamUtils::CanUseFunction(Function, nullptr))
 		{
-			if(FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Function->GetReturnProperty()))
+			if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Function->GetReturnProperty()))
 			{
-				Params.Context->ProcessEvent(Function, &Result);
+				if (Function->NumParms == 1)
+				{
+					check(Params.Context->GetClass()->IsChildOf(Function->GetOuterUClass()));
+					FFrame Stack(Params.Context, Function, nullptr, nullptr, Function->ChildProperties);
+					Function->Invoke(Params.Context, Stack, &Result);
+				}
+				else if (Function->NumParms == 2)
+				{
+					UObject* CDO = Function->GetOuterUClass()->GetDefaultObject();
+					UObject* HoistedObject = Params.Context;
+					FFrame Stack(CDO, Function, &HoistedObject, nullptr, Function->ChildProperties);
+					Function->Invoke(CDO, Stack, &Result);
+				}
 			}
 		}
 	}
@@ -51,7 +64,7 @@ UE::UniversalObjectLocator::FInitializeResult FAnimNextObjectFunctionLocatorFrag
 
 	if(const UFunction* Function = Cast<UFunction>(InParams.Object))
 	{
-		if(Function->NumParms == 1)
+		if(UE::AnimNext::FParamUtils::CanUseFunction(Function, nullptr))
 		{
 			if(FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Function->GetReturnProperty()))
 			{

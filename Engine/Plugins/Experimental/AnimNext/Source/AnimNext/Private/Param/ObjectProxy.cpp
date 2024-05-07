@@ -7,6 +7,13 @@
 namespace UE::AnimNext
 {
 
+FObjectProxy::FObjectProxy(const UObject* InObject, const TSharedRef<FClassProxy>& InClassProxy)
+	: Object(InObject)
+	, ClassProxy(InClassProxy)
+	, RootParameterName(NAME_None)
+{
+}
+
 FObjectProxy::FObjectProxy(const UObject* InObject, FStringView InObjectLocatorPath, const TSharedRef<FClassProxy>& InClassProxy)
 	: Object(InObject)
 	, ClassProxy(InClassProxy)
@@ -17,13 +24,22 @@ FObjectProxy::FObjectProxy(const UObject* InObject, FStringView InObjectLocatorP
 	ParameterCache.SetValueObject(RootParameterName, InObject);
 }
 
+FName FObjectProxy::GetInstanceId() const
+{
+	return RootParameterName;
+}
+
 void FObjectProxy::Update(float DeltaTime)
 {
 	const UPropertyBag* PropertyBag = ParameterCache.GetPropertyBagStruct();
 	TConstArrayView<FPropertyBagPropertyDesc> PropertyDescs = PropertyBag->GetPropertyDescs();
 	uint8* StructData = ParameterCache.GetMutableValue().GetMemory();
 	UObject* NonConstObject = const_cast<UObject*>(Object.Get());
-	PropertyDescs[0].CachedProperty->SetValue_InContainer(StructData, &Object);
+	if(RootParameterName != NAME_None)
+	{
+		PropertyDescs[0].CachedProperty->SetValue_InContainer(StructData, &Object);
+	}
+
 	if(Object != nullptr)
 	{
 		for(int32 ParameterIndex = 0; ParameterIndex < ParametersToUpdate.Num(); ++ParameterIndex)
@@ -59,12 +75,7 @@ void FObjectProxy::Update(float DeltaTime)
 					UFunction* Function = ParameterToUpdate.GetFunction();
 					checkSlow(Function);
 
-					const FObjectProperty* ObjectProperty = CastFieldChecked<FObjectProperty>(PropertyDescs[0].CachedProperty);
-					check(Object->GetClass()->IsChildOf(ObjectProperty->PropertyClass));
-					UObject** ObjectBuffer = ObjectProperty->ContainerPtrToValuePtr<UObject*>(StructData);
-					*ObjectBuffer = NonConstObject;
-
-					FFrame Stack(NonConstObject, Function, ObjectBuffer, nullptr, Function->ChildProperties);
+					FFrame Stack(NonConstObject, Function, &NonConstObject, nullptr, Function->ChildProperties);
 					Function->Invoke(NonConstObject, Stack, ResultBuffer);
 					break;
 				}
@@ -101,6 +112,42 @@ void FObjectProxy::RequestParameterCache(TConstArrayView<FName> InParameterNames
 				int32 ValueParamIndex = PropertyDescsToAdd.Emplace(ParameterName, ClassProxyParameter.Type.GetContainerType(), ClassProxyParameter.Type.GetValueType(), ClassProxyParameter.Type.GetValueTypeObject());
 				NewParameterToUpdate.ValueParamIndex = NumExistingProperties + ValueParamIndex;
 				ParameterNameMap.Add(ParameterName, NewParameterToUpdate.ValueParamIndex);
+			}
+		}
+	}
+
+	// Update parameter bag struct
+	ParameterCache.AddProperties(PropertyDescsToAdd);
+
+	// Recreate layer handle as layout has changed
+	LayerHandle = FParamStack::MakeReferenceLayer(RootParameterName, ParameterCache);
+}
+
+void FObjectProxy::RequestParameterCacheAlias(TConstArrayView<TTuple<FName, FName>> InParameterNamePairs)
+{
+	using namespace UE::AnimNext;
+
+	const int32 NumExistingProperties = ParameterCache.GetNumPropertiesInBag();
+
+	TArray<FPropertyBagPropertyDesc> PropertyDescsToAdd;
+	PropertyDescsToAdd.Reserve(InParameterNamePairs.Num());
+
+	for(const TTuple<FName, FName>& ParameterNamePair : InParameterNamePairs)
+	{
+		if(!ParameterNameMap.Contains(ParameterNamePair.Get<0>()))
+		{
+			if(const int32* ParameterIndexPtr = ClassProxy->ParameterNameMap.Find(ParameterNamePair.Get<0>()))
+			{
+				const FClassProxyParameter& ClassProxyParameter = ClassProxy->Parameters[*ParameterIndexPtr];
+
+				FAnimNextObjectProxyParameter& NewParameterToUpdate = ParametersToUpdate.AddDefaulted_GetRef();
+				NewParameterToUpdate.AccessType = ClassProxyParameter.AccessType;
+				NewParameterToUpdate.Function = ClassProxyParameter.Function.Get();
+				NewParameterToUpdate.Property = ClassProxyParameter.Property.Get();
+
+				int32 ValueParamIndex = PropertyDescsToAdd.Emplace(ParameterNamePair.Get<1>(), ClassProxyParameter.Type.GetContainerType(), ClassProxyParameter.Type.GetValueType(), ClassProxyParameter.Type.GetValueTypeObject());
+				NewParameterToUpdate.ValueParamIndex = NumExistingProperties + ValueParamIndex;
+				ParameterNameMap.Add(ParameterNamePair.Get<0>(), NewParameterToUpdate.ValueParamIndex);
 			}
 		}
 	}

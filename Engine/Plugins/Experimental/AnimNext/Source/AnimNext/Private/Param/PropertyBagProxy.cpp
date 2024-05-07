@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/PropertyBagProxy.h"
 #include "Param/ParamStack.h"
@@ -6,9 +6,22 @@
 namespace UE::AnimNext
 {
 
-FPropertyBagProxy::FPropertyBagProxy()
+FPropertyBagProxy::FPropertyBagProxy(FName InInstanceId)
+	: InstanceId(InInstanceId)
 {
 	LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
+}
+
+FPropertyBagProxy::FPropertyBagProxy(FName InInstanceId, FInstancedPropertyBag&& InPropertyBag)
+	: PropertyBag(MoveTemp(InPropertyBag))
+	, InstanceId(InInstanceId)
+{
+	LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
+}
+
+FName FPropertyBagProxy::GetInstanceId() const
+{
+	return InstanceId;
 }
 
 void FPropertyBagProxy::AddReferencedObjects(FReferenceCollector& Collector)
@@ -16,33 +29,9 @@ void FPropertyBagProxy::AddReferencedObjects(FReferenceCollector& Collector)
 	PropertyBag.AddStructReferencedObjects(Collector);
 }
 
-void FPropertyBagProxy::AddPropertyAndValue(FName InName, const FProperty* InProperty, const void* InContainerPtr)
+void FPropertyBagProxy::ReplaceAllParameters(TConstArrayView<FPropertyBagPropertyDesc> InDescs, TConstArrayView<TConstArrayView<uint8>> InValues)
 {
-	PropertyBag.AddProperty(InName, InProperty);
-	PropertyBag.SetValue(InName, InProperty, InContainerPtr);
-
-	// Recreate the layer handle as the bag layout has changed
-	LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
-}
-
-void FPropertyBagProxy::AddPropertiesAndValues(TConstArrayView<FPropertyAndValue> InPropertiesAndValues)
-{
-	TArray<FPropertyBagPropertyDesc, TInlineAllocator<16>> NewDescs;
-	NewDescs.Reserve(InPropertiesAndValues.Num());
-
-	// Add all new properties
-	for(const FPropertyAndValue& PropertyAndValue : InPropertiesAndValues)
-	{
-		NewDescs.Emplace(PropertyAndValue.Name, PropertyAndValue.Property);
-	}
-
-	PropertyBag.AddProperties(NewDescs);
-
-	// Set each value - note that SetValue uses a linear search internally so this is quite slow
-	for(const FPropertyAndValue& PropertyAndValue : InPropertiesAndValues)
-	{
-		PropertyBag.SetValue(PropertyAndValue.Name, PropertyAndValue.Property, PropertyAndValue.ContainerPtr);
-	}
+	PropertyBag.ReplaceAllPropertiesAndValues(InDescs, InValues);
 
 	// Recreate the layer handle as the bag layout has changed
 	LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);

@@ -89,6 +89,14 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Graph", meta = (AllowedParamType = "FAnimNextEntryPoint"))
 	FAnimNextEditorParam EntryPoint;
 
+	// Reference pose to use
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (AllowedParamType = "FAnimNextGraphReferencePose"))
+	FAnimNextEditorParam ReferencePose;
+
+	// Pose LOD to generate to use
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (AllowedParamType = "int32"))
+	FAnimNextEditorParam LOD;
+
 	// All parameters that are required by this graph to run (only required if dynamic as static graph params can be discovered by the compiler)
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	TArray<FAnimNextEditorParam> RequiredParameters;

@@ -2,7 +2,6 @@
 
 #include "Param/ParamType.h"
 
-#include "Component/AnimNextMeshComponent.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "Param/ParamTypeHandle.h"
 #include "Misc/StringBuilder.h"
@@ -312,9 +311,9 @@ UE::AnimNext::FParamTypeHandle FAnimNextParamType::GetHandle() const
 					Handle.SetParameterType(FParamTypeHandle::EParamType::CharacterMovementComponent);
 					break;
 				}
-				else if (Class == UAnimNextMeshComponent::StaticClass())
+				else if (Class == USkeletalMeshComponent::StaticClass())
 				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimNextMeshComponent);
+					Handle.SetParameterType(FParamTypeHandle::EParamType::SkeletalMeshComponent);
 					break;
 				}
 				else if (Class == UAnimSequence::StaticClass())

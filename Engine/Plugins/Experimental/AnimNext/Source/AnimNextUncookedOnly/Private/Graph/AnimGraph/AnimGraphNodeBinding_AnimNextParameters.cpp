@@ -8,7 +8,7 @@
 #include "AnimBlueprintExtension_Base.h"
 
 #if WITH_EDITOR
-#include "AnimNextEditorModule.h"
+#include "IAnimNextEditorModule.h"
 #include "Param/ParameterPickerArgs.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBox.h"

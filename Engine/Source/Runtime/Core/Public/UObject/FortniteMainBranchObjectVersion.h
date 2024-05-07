@@ -468,6 +468,9 @@ struct FFortniteMainBranchObjectVersion
 		// PCGGridDescriptor
 		PCGGridDescriptor,
 
+		// AnimNext graphs now have public/private state
+		AnimNextGraphAccessSpecifiers,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

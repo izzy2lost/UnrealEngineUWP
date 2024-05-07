@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
+#include "Param/ParamStack.h"
 #include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitEventList.h"
 #include "TraitCore/TraitPtr.h"
@@ -19,6 +20,7 @@ class UAnimNextGraph;
 
 namespace UE::AnimNext
 {
+	class IParameterSource;
 	struct FExecutionContext;
 	struct FGraphInstanceComponent;
 	struct FLatentPropertyHandle;
@@ -36,7 +38,7 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	GENERATED_BODY()
 
 	// Creates an empty graph instance that doesn't reference anything
-	FAnimNextGraphInstance() = default;
+	FAnimNextGraphInstance();
 
 	// No copying, no moving
 	FAnimNextGraphInstance(const FAnimNextGraphInstance&) = delete;
@@ -129,6 +131,12 @@ private:
 	// During graph compilation, once compilation is done we thaw existing graph instances to reallocate their memory
 	void Thaw();
 
+	// Update and push any graph state that this graph has onto the parameter stack
+	UE::AnimNext::FParamStack::FPushedLayerHandle UpdateAndPushGraphState(float InDeltaTime) const;
+
+	// Pop any graph state that this graph has off the parameter stack
+	void PopGraphState(UE::AnimNext::FParamStack::FPushedLayerHandle InHandle) const;
+
 	// Hard reference to the graph used to create this instance to ensure we can release it safely
 	UPROPERTY()
 	TObjectPtr<const UAnimNextGraph> Graph;
@@ -144,6 +152,9 @@ private:
 
 	// The root graph instance that owns us and the components
 	FAnimNextGraphInstance* RootGraphInstance = nullptr;
+
+	// Graph state parameter source
+	TUniquePtr<UE::AnimNext::IParameterSource> GraphState;
 
 	// Extended execute context instance for this graph instance, we own it
 	UPROPERTY()

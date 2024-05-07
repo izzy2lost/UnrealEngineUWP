@@ -30,11 +30,14 @@ void FScheduleBeginTickFunction::Run(float DeltaTime)
 		Function.GetValue()(FScheduleTaskContext(Entry.Context));
 	}
 
-	// Push any user layer we have at the root
+	// Push any user layers we have at the root
 	FScheduleInstanceData& InstanceData = Entry.Context.GetInstanceData();
-	if(InstanceData.RootUserScope.IsValid())
+	for(const TUniquePtr<IParameterSource>& RootUserScope : InstanceData.RootUserScopes)
 	{
-		InstanceData.PushedRootUserLayer = InstanceData.RootParamStack->PushLayer(InstanceData.RootUserScope->GetLayerHandle());
+		if(RootUserScope.IsValid())
+		{
+			InstanceData.PushedRootUserLayers.Add(InstanceData.RootParamStack->PushLayer(RootUserScope->GetLayerHandle()));
+		}
 	}
 
 	Entry.ResolvedObject = Entry.WeakObject.Get();
@@ -53,10 +56,14 @@ void FScheduleEndTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType,
 
 void FScheduleEndTickFunction::Run()
 {
-	// Pop any user layer we have at the root
+	// Pop any user layers we have at the root
 	FScheduleInstanceData& InstanceData = Entry.Context.GetInstanceData();
-	InstanceData.RootParamStack->PopLayer(InstanceData.PushedRootUserLayer);
-
+	for (const FParamStack::FPushedLayerHandle& PushedRootUserLayer : ReverseIterate(InstanceData.PushedRootUserLayers))
+	{
+		InstanceData.RootParamStack->PopLayer(PushedRootUserLayer);
+	}
+	InstanceData.PushedRootUserLayers.Reset();
+	
 	auto RunTaskOnGameThread = [](TUniqueFunction<void(void)>&& InFunction)
 	{
 		if(IsInGameThread())

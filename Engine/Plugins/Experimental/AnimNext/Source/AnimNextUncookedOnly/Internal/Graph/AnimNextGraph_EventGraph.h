@@ -18,16 +18,12 @@ namespace UE::AnimNext::Tests
 }
 
 UCLASS(MinimalAPI, Category = "Event Graphs")
-class UAnimNextGraph_EventGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface, public IAnimNextRigVMExportInterface
+class UAnimNextGraph_EventGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextGraph_EditorData;
 	friend class UE::AnimNext::Tests::FEditor_Parameters;
-
-	// IAnimNextRigVMExportInterface interface
-	virtual FAnimNextParamType GetExportType() const override;
-	virtual FName GetExportName() const override;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override { return GraphName; }
@@ -42,7 +38,7 @@ class UAnimNextGraph_EventGraph : public UAnimNextRigVMAssetEntry, public IAnimN
 	virtual void SetEdGraph(URigVMEdGraph* InGraph) override;
 
 	/** The name of the graph */
-	UPROPERTY(VisibleAnywhere, Category = EventGraph)
+	UPROPERTY(VisibleAnywhere, Category = "Event Graph")
 	FName GraphName;
 
 	/** Graph */

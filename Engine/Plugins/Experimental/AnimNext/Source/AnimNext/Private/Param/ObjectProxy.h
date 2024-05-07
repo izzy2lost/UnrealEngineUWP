@@ -66,15 +66,21 @@ struct FObjectProxy : public IParameterSource
 {
 	FObjectProxy() = delete;
 
+	FObjectProxy(const UObject* InObject, const TSharedRef<FClassProxy>& InClassProxy);
+
 	FObjectProxy(const UObject* InObject, FStringView InObjectLocatorPath, const TSharedRef<FClassProxy>& InClassProxy);
 
 	// IParameterSource interface
+	virtual FName GetInstanceId() const override;
 	virtual void Update(float DeltaTime) override;
 	virtual const FParamStackLayerHandle& GetLayerHandle() const override { return LayerHandle; }
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	// Adds a set of parameters to cache each time the layer is updated
 	void RequestParameterCache(TConstArrayView<FName> InParameterNames);
+
+	// Adds a set of parameters, aliased to the named provided (tuple of ActualName -> AliasName) to cache each time the layer is updated
+	void RequestParameterCacheAlias(TConstArrayView<TTuple<FName, FName>> InParameterNamePairs);
 
 	// The object that this proxy wraps
 	TObjectPtr<const UObject> Object;

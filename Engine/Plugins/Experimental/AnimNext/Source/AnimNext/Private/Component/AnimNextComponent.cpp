@@ -8,16 +8,15 @@
 #include "Param/PropertyBagProxy.h"
 #include "Scheduler/ScheduleTaskContext.h"
 #include "Scheduler/ScheduleInitializationContext.h"
+#include "IAnimNextModule.h"
 
 namespace UE::AnimNext::Private
 {
 
 template<typename ContextType>
-static void SetValuesInScopeHelper(const ContextType& InContext, FName InScope, EAnimNextParameterScopeOrdering InOrdering, TConstArrayView<FPropertyBagProxy::FPropertyAndValue> InPropertiesAndValues)
+static void SetValuesInScopeHelper(const ContextType& InContext, FName InId, FName InScope, EAnimNextParameterScopeOrdering InOrdering, TConstArrayView<FPropertyBagPropertyDesc> InPropertyDescs, TConstArrayView<TConstArrayView<uint8>> InValues)
 {
-	TUniquePtr<FPropertyBagProxy> PropertyBagProxy = MakeUnique<FPropertyBagProxy>();
-	PropertyBagProxy->AddPropertiesAndValues(InPropertiesAndValues);
-	InContext.ApplyParametersToScope(InScope, (EParameterScopeOrdering)InOrdering, MoveTemp(PropertyBagProxy));
+	InContext.ApplyParametersToScope(InScope, (EParameterScopeOrdering)InOrdering, InId, InPropertyDescs, InValues);
 }
 
 }
@@ -46,17 +45,21 @@ void UAnimNextComponent::OnRegister()
 			// Now apply to each scope
 			for(const TPair<FName, TArray<UAnimNextComponentParameter*, TInlineAllocator<4>>>& ParamPair : ParamsByScope)
 			{
-				TArray<FPropertyBagProxy::FPropertyAndValue, TInlineAllocator<16>> PropertiesAndValues;
-				PropertiesAndValues.Reserve(ParamPair.Value.Num());
+				TArray<FPropertyBagPropertyDesc, TInlineAllocator<16>> PropertyDescs;
+				TArray<TConstArrayView<uint8>, TInlineAllocator<16>> Values;
+				PropertyDescs.Reserve(ParamPair.Value.Num());
+				Values.Reserve(ParamPair.Value.Num());
 				for(UAnimNextComponentParameter* Parameter : ParamPair.Value)
 				{
-					FPropertyBagProxy::FPropertyAndValue& PropertyAndValue = PropertiesAndValues.AddDefaulted_GetRef();
-					PropertyAndValue.ContainerPtr = Parameter;
-					Parameter->GetParamInfo(PropertyAndValue.Name, PropertyAndValue.Property);
+					FName Name;
+					const FProperty* Property;
+					Parameter->GetParamInfo(Name, Property);
+					PropertyDescs.Emplace(Name, Property);
+					Values.Emplace(Property->ContainerPtrToValuePtr<uint8>(Parameter), Property->GetSize());
 				}
 
 				// NOTE: Layer is always applied 'before' currently. If we have a use case for 'After' we can add it to UAnimNextComponentParameter
-				Private::SetValuesInScopeHelper(InContext, ParamPair.Key, EAnimNextParameterScopeOrdering::Before, PropertiesAndValues);
+				Private::SetValuesInScopeHelper(InContext, "ComponentParams", ParamPair.Key, EAnimNextParameterScopeOrdering::Before, PropertyDescs, Values);
 			}
 		};
 
@@ -121,19 +124,15 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 
 	P_NATIVE_BEGIN;
 
-	TUniquePtr<FInstancedPropertyBag> PropertyBag = MakeUnique<FInstancedPropertyBag>();
-	PropertyBag->AddProperty(Name, ValueProp);
-	const FProperty* NewProperty = PropertyBag->GetPropertyBagStruct()->GetPropertyDescs()[0].CachedProperty;
+	FInstancedPropertyBag PropertyBag;
+	PropertyBag.AddProperty(Name, ValueProp);
+	const FProperty* NewProperty = PropertyBag.GetPropertyBagStruct()->GetPropertyDescs()[0].CachedProperty;
 	const void* ValuePtr = ValueProp->ContainerPtrToValuePtr<void>(ContainerPtr);
-	NewProperty->SetValue_InContainer(PropertyBag->GetMutableValue().GetMemory(), ValuePtr);
+	NewProperty->SetValue_InContainer(PropertyBag.GetMutableValue().GetMemory(), ValuePtr);
 
-	FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, NewProperty, PropertyBag = MoveTemp(PropertyBag), Ordering](const FScheduleTaskContext& InContext) mutable
+	FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, PropertyBag = MoveTemp(PropertyBag), Ordering](const FScheduleTaskContext& InContext) mutable
 	{
-		FPropertyBagProxy::FPropertyAndValue PropertyAndValue;
-		PropertyAndValue.Name = Name;
-		PropertyAndValue.Property = NewProperty;
-		PropertyAndValue.ContainerPtr = PropertyBag->GetValue().GetMemory();
-		Private::SetValuesInScopeHelper(InContext, Scope, Ordering, { PropertyAndValue });
+		InContext.ApplyParametersToScope(Scope, (EParameterScopeOrdering)Ordering, Name, MoveTemp(PropertyBag));
 	});
 
 	P_NATIVE_END;

@@ -13,6 +13,7 @@ namespace UE::AnimNext::Editor
 {
 	class SRigVMAssetViewRow;
 	struct FRigVMAssetViewEntry;
+	class FParameterCustomization;
 }
 
 /** Base class that defines an entry in a graph, e.g. a parameter binding */
@@ -41,7 +42,12 @@ public:
 
 	// UObject interface
 	virtual bool IsAsset() const override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 protected:
-	void BroadcastModified();
+	ANIMNEXTUNCOOKEDONLY_API void BroadcastModified();
+
+	friend class UE::AnimNext::Editor::FParameterCustomization;
 };

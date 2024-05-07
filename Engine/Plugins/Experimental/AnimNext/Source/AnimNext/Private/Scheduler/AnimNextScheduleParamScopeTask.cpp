@@ -24,11 +24,17 @@ void FAnimNextScheduleParamScopeEntryTask::RunParamScopeEntry(const UE::AnimNext
 
 	// Update & push user params (before scope)
 	FScheduleInstanceData::FUserScope* FoundUserScope = InstanceData.UserScopes.Find(Scope.Name);
-	if (FoundUserScope && FoundUserScope->BeforeSource.IsValid())
+	if (FoundUserScope)
 	{
-		IParameterSource& UserParameterSource = *FoundUserScope->BeforeSource.Get();
-		UserParameterSource.Update(DeltaTime);
-		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
+		for(const TPair<FName, TUniquePtr<IParameterSource>>& SourcePair : FoundUserScope->BeforeSources)
+		{
+			if(SourcePair.Value.IsValid())
+			{
+				IParameterSource& UserParameterSource = *SourcePair.Value.Get();
+				UserParameterSource.Update(DeltaTime);
+				ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
+			}
+		}
 	}
 
 	// Update & push static params
@@ -41,11 +47,17 @@ void FAnimNextScheduleParamScopeEntryTask::RunParamScopeEntry(const UE::AnimNext
 	}
 
 	// Update & push user params (after scope)
-	if (FoundUserScope && FoundUserScope->AfterSource.IsValid())
+	if(FoundUserScope)
 	{
-		IParameterSource& UserParameterSource = *FoundUserScope->AfterSource.Get();
-		UserParameterSource.Update(DeltaTime);
-		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
+		for(const TPair<FName, TUniquePtr<IParameterSource>>& SourcePair : FoundUserScope->AfterSources)
+		{
+			if(SourcePair.Value.IsValid())
+			{
+				IParameterSource& UserParameterSource = *SourcePair.Value.Get();
+				UserParameterSource.Update(DeltaTime);
+				ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
+			}
+		}
 	}
 }
 

@@ -8,7 +8,7 @@
 
 class UAnimSequence;
 class UCharacterMovementComponent;
-class UAnimNextMeshComponent;
+class USkeletalMeshComponent;
 struct FAnimNextGraphLODPose;
 struct FAnimNextGraphReferencePose;
 
@@ -52,7 +52,7 @@ struct ANIMNEXT_API FParamTypeHandle
 		// Common object types
 		Object,
 		CharacterMovementComponent,
-		AnimNextMeshComponent,
+		SkeletalMeshComponent,
 		AnimSequence,
 
 		// Common struct types
@@ -309,9 +309,9 @@ public:
 		{
 			TypeHandle.SetParameterType(EParamType::CharacterMovementComponent);
 		}
-		else if constexpr (std::is_same_v<NonConstType, TObjectPtr<UAnimNextMeshComponent>> || std::is_same_v<NonConstType, UAnimNextMeshComponent*>)
+		else if constexpr (std::is_same_v<NonConstType, TObjectPtr<USkeletalMeshComponent>> || std::is_same_v<NonConstType, USkeletalMeshComponent*>)
 		{
-			TypeHandle.SetParameterType(EParamType::AnimNextMeshComponent);
+			TypeHandle.SetParameterType(EParamType::SkeletalMeshComponent);
 		}
 		else if constexpr (std::is_same_v<NonConstType, TObjectPtr<UAnimSequence>> || std::is_same_v<NonConstType, UAnimSequence*>)
 		{

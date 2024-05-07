@@ -26,13 +26,6 @@ namespace UE::AnimNext::UncookedOnly
 	struct FUtils;
 }
 
-namespace UE::AnimNext
-{
-	extern TInstancedStruct<FAnimNextParamUniversalObjectLocator> GetCharacterInstanceId();
-	extern FName GetCharacterInstanceIdName();
-	extern FParamId GetMeshComponentParamId();
-}
-
 USTRUCT()
 struct FAnimNextScheduleGraphTask
 {
@@ -53,10 +46,6 @@ private:
 	// Verify graph's required parameters are satisfied by this task's supplied parameters
 	void VerifyRequiredParameters(UAnimNextGraph* InGraphToRun) const;
 
-#if WITH_EDITORONLY_DATA 
-	// Get required parameters needed for internal operation
-	ANIMNEXT_API static TArray<FAnimNextEditorParam> GetRequiredParametersInternal();
-#endif
 private:
 	UPROPERTY()
 	uint32 TaskIndex = MAX_uint32;
@@ -75,6 +64,12 @@ private:
 
 	UPROPERTY()
 	FAnimNextParam DynamicGraph;
+
+	UPROPERTY()
+	FAnimNextParam ReferencePose;
+
+	UPROPERTY()
+	FAnimNextParam LOD;
 
 	// Index of each term in the schedule intermediates
 	UPROPERTY()

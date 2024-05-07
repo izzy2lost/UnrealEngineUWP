@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Param/ParamStack.h"
 #include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitPtr.h"
 
@@ -98,6 +99,12 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 
 	// Called each time the graph updates
 	void Update();
+
+	// Push any graph state that this graph has onto the parameter stack
+	UE::AnimNext::FParamStack::FPushedLayerHandle UpdateAndPushGraphState(float InDeltaTime) const;
+
+	// Pop any graph state that this graph has off the parameter stack
+	void PopGraphState(UE::AnimNext::FParamStack::FPushedLayerHandle InHandle) const;
 
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
