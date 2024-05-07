@@ -1110,8 +1110,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 			FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances = CreateRayTracingSceneWithGeometryInstances(
 				RayTracingGeometryInstances,
 				1,
-				RAY_TRACING_NUM_SHADER_SLOTS,
-				1);
+				ERayTracingAccelerationStructureFlags::FastTrace);
 
 			RayTracingScene = SceneWithGeometryInstances.Scene;
 
@@ -1162,6 +1161,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				FVector4f* TransformUploadData = (FVector4f*)RHICmdList.LockBuffer(TransformUploadBuffer, 0, TransformUploadBufferSize, RLM_WriteOnly);
 				FillRayTracingInstanceUploadBuffer(
 					RayTracingScene,
+					RAY_TRACING_NUM_SHADER_SLOTS,
 					View.ViewMatrices.GetPreViewTranslation(),
 					RayTracingGeometryInstances,
 					SceneWithGeometryInstances.InstanceGeometryIndices,
@@ -1272,6 +1272,14 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 
 			RayTracingPipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, PSOInitializer);
 
+			FRayTracingShaderBindingTableInitializer SBTInitializer;
+			SBTInitializer.NumGeometrySegments = SceneWithGeometryInstances.TotalNumSegments;
+			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+			SBTInitializer.NumMissShaderSlots = 1;
+			SBTInitializer.NumCallableShaderSlots = 0;
+
+			SBT = RHICreateShaderBindingTable(SBTInitializer);
+
 			const int32 HiddenMaterialIndex = FindRayTracingHitGroupIndex(RayTracingPipelineState, HiddenMaterialShader, true);
 
 			TUniquePtr<FRayTracingLocalShaderBindingWriter> BindingWriter = MakeUnique<FRayTracingLocalShaderBindingWriter>();
@@ -1360,6 +1368,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 
 					const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
 					RHICmdList.SetRayTracingHitGroups(
+						SBT,
 						RayTracingScene,
 						RayTracingPipelineState,
 						NumTotalBindings, MergedBindings,
@@ -1367,8 +1376,8 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				}
 
 				// there is only one miss shader, so it must be at index 0 by definition
-				RHICmdList.SetRayTracingMissShader(RayTracingScene, 0, RayTracingPipelineState, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-				RHICmdList.CommitRayTracingBindings(RayTracingScene);
+				RHICmdList.SetRayTracingMissShader(SBT, RayTracingScene, 0, RayTracingPipelineState, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+				RHICmdList.CommitShaderBindingTable(SBT);
 
 				// Move the ray tracing binding container ownership to the command list, so that memory will be
 				// released on the RHI thread timeline, after the commands that reference it are processed.
@@ -1387,13 +1396,13 @@ void FSceneRenderState::DestroyRayTracingScene()
 	ReferenceView.Reset();
 
 #if RHI_RAYTRACING
-	if (IsRayTracingEnabled() && RayTracingScene.IsValid())
+	if (IsRayTracingEnabled() && SBT.IsValid())
 	{
 		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 		SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
-		RHICmdList.ClearRayTracingBindings(RayTracingScene);
+		RHICmdList.ClearShaderBindingTable(SBT);
 
-		RayTracingScene.SafeRelease();
+		SBT.SafeRelease();
 	}
 #endif
 }
@@ -2449,14 +2458,14 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 										RDG_EVENT_NAME("LightmapPathTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 										PassParameters,
 										ERDGPassFlags::Compute,
-										[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, RayGenerationShader, RayTracingResolution, GPUIndex](FRHICommandList& RHICmdList)
+										[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution, GPUIndex](FRHICommandList& RHICmdList)
 									{
 										FRayTracingShaderBindingsWriter GlobalResources;
 										SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 										check(RHICmdList.GetGPUMask().HasSingleIndex());
 
-										RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), RayTracingScene, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+										RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), RayTracingScene, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 									});
 								}
 
@@ -2792,12 +2801,12 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 							RDG_EVENT_NAME("StationaryLightShadowTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 							PassParameters,
 							ERDGPassFlags::Compute,
-							[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
+							[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
 						{
 							FRayTracingShaderBindingsWriter GlobalResources;
 							SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
-							RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), RayTracingScene, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+							RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), RayTracingScene, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 						});
 					}
 #endif

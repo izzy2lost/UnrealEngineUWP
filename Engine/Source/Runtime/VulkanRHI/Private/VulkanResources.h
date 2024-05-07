@@ -1499,6 +1499,12 @@ static FORCEINLINE typename TVulkanResourceTraits<TRHIType>::TConcreteType* Reso
 	return static_cast<typename TVulkanResourceTraits<TRHIType>::TConcreteType*>(Resource);
 }
 
+template<typename TRHIType>
+static FORCEINLINE const typename TVulkanResourceTraits<TRHIType>::TConcreteType* ResourceCast(const TRHIType* Resource)
+{
+	return static_cast<const typename TVulkanResourceTraits<TRHIType>::TConcreteType*>(Resource);
+}
+
 static FORCEINLINE FVulkanTexture* ResourceCast(FRHITexture* Texture)
 {
 	return static_cast<FVulkanTexture*>(Texture->GetTextureBaseRHI());
@@ -1506,17 +1512,22 @@ static FORCEINLINE FVulkanTexture* ResourceCast(FRHITexture* Texture)
 
 class FVulkanRayTracingScene;
 class FVulkanRayTracingGeometry;
+class FVulkanRayTracingShaderTable;
 class FVulkanRayTracingPipelineState;
 template<>
 struct TVulkanResourceTraits<FRHIRayTracingScene>
 {
 	typedef FVulkanRayTracingScene TConcreteType;
 };
-class FVulkanRayTracingGeometry;
 template<>
 struct TVulkanResourceTraits<FRHIRayTracingGeometry>
 {
 	typedef FVulkanRayTracingGeometry TConcreteType;
+};
+template<>
+struct TVulkanResourceTraits<FRHIShaderBindingTable>
+{
+	typedef FVulkanRayTracingShaderTable TConcreteType;
 };
 template<>
 struct TVulkanResourceTraits<FRHIRayTracingPipelineState>

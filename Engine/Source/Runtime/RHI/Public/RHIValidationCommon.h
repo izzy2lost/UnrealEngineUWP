@@ -422,7 +422,7 @@ namespace RHIValidation
 	public:
 	};
 
-	class FRayTracingScene
+	class FRayTracingShaderBindingTable
 	{
 	public:
 		void SetCommitted(bool bInCommitted)

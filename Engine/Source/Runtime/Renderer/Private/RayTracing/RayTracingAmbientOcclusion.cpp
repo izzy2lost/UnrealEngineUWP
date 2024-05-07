@@ -143,6 +143,8 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingAmbientOcclusion);
 	RDG_EVENT_SCOPE(GraphBuilder, "Ray Tracing Ambient Occlusion");
 
+	const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
 	// Allocates denoiser inputs.
 	IScreenSpaceDenoiser::FAmbientOcclusionInputs DenoiserInputs;
 	{
@@ -164,7 +166,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 	PassParameters->MaxRayDistance = View.FinalPostProcessSettings.RayTracingAORadius;
 	PassParameters->Intensity = View.FinalPostProcessSettings.RayTracingAOIntensity;
 	PassParameters->MaxNormalBias = GetRaytracingMaxNormalBias();
-	PassParameters->TLAS = Scene->RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base);
+	PassParameters->TLAS = RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base);
 	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	PassParameters->RWAmbientOcclusionMaskUAV = GraphBuilder.CreateUAV(DenoiserInputs.Mask);
 	PassParameters->RWAmbientOcclusionHitDistanceUAV = GraphBuilder.CreateUAV(DenoiserInputs.RayHitDistance);
@@ -182,13 +184,14 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 		RDG_EVENT_NAME("AmbientOcclusionRayTracing(SamplePerPixels=%d) %dx%d", RayTracingConfig.RayCountPerPixel, RayTracingResolution.X, RayTracingResolution.Y),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, this, &View, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
+		[PassParameters, this, &View, RayGenerationShader, RayTracingResolution, &RayTracingScene](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 		// TODO: Provide material support for opacity mask
 		FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
+		FShaderBindingTableRHIRef SBT = View.RayTracingSBT;
 		if (CVarRayTracingAmbientOcclusionEnableMaterials.GetValueOnRenderThread() == 0)
 		{
 			// Declare default pipeline
@@ -206,12 +209,20 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 
 			Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 
-			RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-			RHICmdList.CommitRayTracingBindings(View.GetRayTracingSceneChecked());
+			FRayTracingShaderBindingTableInitializer SBTInitializer;
+			SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+			SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+			SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+
+			SBT = RHICreateShaderBindingTable(SBTInitializer);
+
+			RHICmdList.SetRayTracingMissShader(SBT, View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.CommitShaderBindingTable(SBT);
 		}
 
 		FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 	});
 
 	int32 DenoiserMode = CVarUseAODenoiser.GetValueOnRenderThread();

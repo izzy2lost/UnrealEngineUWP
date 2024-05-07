@@ -48,6 +48,7 @@ struct FRayTracingSceneWithGeometryInstances
 	FRayTracingSceneRHIRef Scene;
 	uint32 NumNativeGPUSceneInstances;
 	uint32 NumNativeCPUInstances;
+	uint32 TotalNumSegments;
 	// index of each instance geometry in FRayTracingSceneRHIRef ReferencedGeometries
 	TArray<uint32> InstanceGeometryIndices;
 	// base offset of each instance entries in the instance upload buffer
@@ -69,6 +70,7 @@ struct FRayTracingSceneWithGeometryInstances
 
 // Helper function to create FRayTracingSceneRHI using array of high level instances
 // Also outputs data required to build the instance buffer
+UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
 RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances(
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
 	uint8 NumLayers,
@@ -77,10 +79,16 @@ RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeom
 	uint32 NumCallableShaderSlots = 0,
 	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace);
 
+RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances(
+	TConstArrayView<FRayTracingGeometryInstance> Instances,
+	uint8 NumLayers,
+	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace);
+
 // Helper function to fill upload buffers required by BuildRayTracingInstanceBuffer with instance descriptors
 // Transforms of CPU instances are copied to OutTransformData
 RENDERER_API void FillRayTracingInstanceUploadBuffer(
 	FRayTracingSceneRHIRef RayTracingSceneRHI,
+	uint32 NumShaderSlotsPerGeometrySegment,
 	FVector PreViewTranslation,
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
 	TConstArrayView<uint32> InstanceGeometryIndices,
@@ -91,8 +99,8 @@ RENDERER_API void FillRayTracingInstanceUploadBuffer(
 	TArrayView<FRayTracingInstanceDescriptorInput> OutInstanceUploadData,
 	TArrayView<FVector4f> OutTransformData);
 
-UE_DEPRECATED(5.5, "Must specify BaseInstancePrefixSum.")
-inline void FillRayTracingInstanceUploadBuffer(
+UE_DEPRECATED(5.5, "Must specify BaseInstancePrefixSum and NumShaderSlotsPerGeometrySegment.")
+RENDERER_API void FillRayTracingInstanceUploadBuffer(
 	FRayTracingSceneRHIRef RayTracingSceneRHI,
 	FVector PreViewTranslation,
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
@@ -101,20 +109,7 @@ inline void FillRayTracingInstanceUploadBuffer(
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
 	TArrayView<FRayTracingInstanceDescriptorInput> OutInstanceUploadData,
-	TArrayView<FVector4f> OutTransformData)
-{
-	FillRayTracingInstanceUploadBuffer(
-		RayTracingSceneRHI,
-		PreViewTranslation,
-		Instances,
-		InstanceGeometryIndices,
-		BaseUploadBufferOffsets,
-		{},
-		NumNativeGPUSceneInstances,
-		NumNativeCPUInstances,
-		OutInstanceUploadData,
-		OutTransformData);
-}
+	TArrayView<FVector4f> OutTransformData);
 
 RENDERER_API void BuildRayTracingInstanceBuffer(
 	FRHICommandList& RHICmdList,

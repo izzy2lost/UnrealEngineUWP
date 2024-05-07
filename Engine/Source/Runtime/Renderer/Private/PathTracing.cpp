@@ -1640,7 +1640,9 @@ void FDeferredShadingSceneRenderer::SetupPathTracingDefaultMissShader(FRHIComman
 {
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, GetPathTracingDefaultMissShader(View.ShaderMap), true);
 
-	RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(),
+	RHICmdList.SetRayTracingMissShader(
+		View.RayTracingSBT,
+		View.GetRayTracingSceneChecked(),
 		RAY_TRACING_MISS_SHADER_SLOT_DEFAULT,
 		View.RayTracingMaterialPipeline,
 		MissShaderPipelineIndex,
@@ -1749,6 +1751,7 @@ static void BindLightFunction(
 )
 {
 	FRHIRayTracingScene* RTScene = View.GetRayTracingSceneChecked();
+	FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 	FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 	const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();
 
@@ -1763,7 +1766,7 @@ static void BindLightFunction(
 
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, Shader.GetRayTracingShader(), true);
 
-	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, RTScene, Pipeline, MissShaderPipelineIndex, Index);
+	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, SBT, RTScene, Pipeline, MissShaderPipelineIndex, Index);
 }
 
 void BindLightFunctionShadersPathTracing(
@@ -3025,11 +3028,13 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 
 				FRayTracingShaderBindingsWriter GlobalResources;
 				SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
-				
+
 				RHICmdList.RayTraceDispatch(
 					View.RayTracingMaterialPipeline,
 					RayGenShader.GetRayTracingShader(),
-					RayTracingSceneRHI, GlobalResources,
+					RayTracingSceneRHI,
+					View.RayTracingSBT,
+					GlobalResources,
 					1, 1
 				);
 			});
@@ -3585,10 +3590,11 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 									if (bUseIndirectDispatch && PassParameters->Bounce > 0)
 									{
 										PassParameters->PathTracingIndirectArgs->MarkResourceAsUsed();
+
 										RHICmdList.RayTraceDispatchIndirect(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
-											RayTracingSceneRHI, GlobalResources,
+											RayTracingSceneRHI, View.RayTracingSBT, GlobalResources,
 											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 0
 										);
 									}
@@ -3597,7 +3603,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 										RHICmdList.RayTraceDispatch(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
-											RayTracingSceneRHI, GlobalResources,
+											RayTracingSceneRHI, View.RayTracingSBT, GlobalResources,
 											DispatchSizeX, DispatchSizeYLocal
 										);
 									}

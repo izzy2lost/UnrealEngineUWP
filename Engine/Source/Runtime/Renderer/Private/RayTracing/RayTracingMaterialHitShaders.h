@@ -212,12 +212,12 @@ public:
 		return *AllocateInternal();
 	}
 
-	void Commit(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline, bool bCopyDataToInlineStorage) const
+	void Commit(FRHICommandList& RHICmdList, FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline, bool bCopyDataToInlineStorage) const
 	{
 		const FChunk* Chunk = FirstChunk;
 		while (Chunk)
 		{
-			RHICmdList.SetRayTracingHitGroups(Scene, Pipeline, Chunk->Num, Chunk->Bindings, bCopyDataToInlineStorage);
+			RHICmdList.SetRayTracingHitGroups(SBT, Scene, Pipeline, Chunk->Num, Chunk->Bindings, bCopyDataToInlineStorage);
 			Chunk = Chunk->Next;
 		}
 	}
@@ -246,7 +246,6 @@ private:
 	FMemStackBase ParameterMemory;
 
 	friend class FRHICommandList;
-	friend struct FRHICommandSetRayTracingBindings;
 
 	FRayTracingLocalShaderBindings* AllocateInternal()
 	{
@@ -278,6 +277,7 @@ private:
 void MergeAndSetRayTracingBindings(
 	FRHICommandList& RHICmdList,
 	FSceneRenderingBulkObjectAllocator& Allocator,
+	FRHIShaderBindingTable* SBT,
 	FRHIRayTracingScene* RayTracingScene,
 	FRayTracingPipelineState* Pipeline,
 	TConstArrayView<FRayTracingLocalShaderBindingWriter*> Bindings,

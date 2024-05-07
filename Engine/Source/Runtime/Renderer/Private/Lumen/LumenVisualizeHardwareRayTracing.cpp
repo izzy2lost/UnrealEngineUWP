@@ -881,7 +881,8 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 
 				FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
 				FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
-				RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, DispatchResolution.X, DispatchResolution.Y);
+				FRHIShaderBindingTable* SBT = View.RayTracingSBT;
+				RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, DispatchResolution.X, DispatchResolution.Y);
 			}
 		);
 	}

@@ -43,6 +43,7 @@ using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 class FD3D12RayTracingGeometry;
 class FD3D12RayTracingScene;
 class FD3D12RayTracingPipelineState;
+class FD3D12RayTracingShaderBindingTable;
 class FD3D12RayTracingShader;
 #endif // D3D12_RHI_RAYTRACING
 
@@ -1154,6 +1155,11 @@ template<>
 struct TD3D12ResourceTraits<FRHIRayTracingPipelineState>
 {
 	typedef FD3D12RayTracingPipelineState TConcreteType;
+};
+template<>
+struct TD3D12ResourceTraits<FRHIShaderBindingTable>
+{
+	typedef FD3D12RayTracingShaderBindingTable TConcreteType;
 };
 template<>
 struct TD3D12ResourceTraits<FRHIRayTracingShader>

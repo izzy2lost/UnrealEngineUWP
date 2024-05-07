@@ -9,7 +9,7 @@
 #include "RayTracingBuiltInResources.h"
 
 class FD3D12RayTracingPipelineState;
-class FD3D12RayTracingShaderTable;
+class FD3D12RayTracingShaderBindingTable;
 
 // Built-in local root parameters that are always bound to all hit shaders
 struct FHitGroupSystemParameters
@@ -95,11 +95,6 @@ class FD3D12RayTracingScene : public FRHIRayTracingScene, public FD3D12AdapterCh
 {
 public:
 
-	// Ray tracing shader bindings can be processed in parallel.
-	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
-	// Scaling beyond 5 total threads does not yield any speedup in practice.
-	static constexpr uint32 MaxBindingWorkers = 5; // RHI thread + 4 parallel workers.
-
 	FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracingSceneInitializer2 Initializer);
 	~FD3D12RayTracingScene();
 
@@ -137,18 +132,13 @@ public:
 
 	void UpdateResidency(FD3D12CommandContext& CommandContext) const;
 
-	uint32 GetHitRecordBaseIndex(uint32 InstanceIndex, uint32 SegmentIndex) const { return (Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex) * Initializer.ShaderSlotsPerGeometrySegment; }
-
-	// Array of hit group parameters per geometry segment across all scene instance geometries.
-	// Accessed as HitGroupSystemParametersCache[SegmentPrefixSum[InstanceIndex] + SegmentIndex].
-	// Only used for GPU 0 (secondary GPUs take the slow path).
-	TArray<FHitGroupSystemParameters> HitGroupSystemParametersCache;
+	uint32 GetSegmentIndex(uint32 InstanceIndex, uint32 SegmentIndex) const { return Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex; }
 
 	// #dxr_todo UE-68230: shader tables should be explicitly registered and unregistered with the scene
-	FD3D12RayTracingShaderTable* FindOrCreateShaderTable(const FD3D12RayTracingPipelineState* Pipeline, FD3D12Device* Device);
-	FD3D12RayTracingShaderTable* FindExistingShaderTable(const FD3D12RayTracingPipelineState* Pipeline, FD3D12Device* Device) const;
+	FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline) override;
+	FD3D12RayTracingShaderBindingTable* FindExistingShaderTable(const FD3D12RayTracingPipelineState* Pipeline) const;
 
-	TMap<const FD3D12RayTracingPipelineState*, FD3D12RayTracingShaderTable*> ShaderTables[MAX_NUM_GPUS];
+	TMap<const FD3D12RayTracingPipelineState*, TRefCountPtr<FD3D12RayTracingShaderBindingTable>> ShaderTables;
 
 	bool bBuilt = false;
 

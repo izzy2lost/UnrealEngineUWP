@@ -848,13 +848,14 @@ void FVolumetricLightmapRenderer::BackgroundTick()
 					RayGenShader,
 					RayTracingSceneRHI = Scene->RayTracingScene,
 					RayTracingPipelineState = Scene->RayTracingPipelineState,
+					SBT = Scene->SBT,
 					BricksToCalcThisFrame
 				](FRHICommandList& RHICmdList)
 				{
 					FRayTracingShaderBindingsWriter GlobalResources;
 					SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
-					RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources,
+					RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources,
 					                            BricksToCalcThisFrame * BrickSize * BrickSize * BrickSize, 1);
 				}
 			);

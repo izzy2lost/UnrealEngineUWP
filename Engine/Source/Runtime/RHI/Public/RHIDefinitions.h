@@ -953,6 +953,7 @@ enum ERHIResourceType : uint8
 	RRT_UnorderedAccessView,
 	RRT_ShaderResourceView,
 	RRT_RayTracingAccelerationStructure,
+	RRT_RayTracingShaderBindingTable,
 	RRT_StagingBuffer,
 	RRT_CustomPresent,
 	RRT_ShaderLibrary,

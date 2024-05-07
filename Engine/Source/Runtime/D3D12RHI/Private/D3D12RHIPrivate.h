@@ -272,6 +272,12 @@ public:
 	}
 
 	template<typename TRHIType, typename TReturnType = typename TD3D12ResourceTraits<TRHIType>::TConcreteType>
+	static FORCEINLINE const TReturnType* ResourceCast(const TRHIType* Resource)
+	{
+		return static_cast<const TReturnType*>(Resource);
+	}
+
+	template<typename TRHIType, typename TReturnType = typename TD3D12ResourceTraits<TRHIType>::TConcreteType>
 	static FORCEINLINE_DEBUGGABLE TReturnType* ResourceCast(TRHIType* Resource, uint32 GPUIndex)
 	{
 		TReturnType* Object = ResourceCast<TRHIType, TReturnType>(Resource);
@@ -463,6 +469,8 @@ public:
 	virtual FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer) final override;
 	virtual FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency) final override;
 	virtual FRayTracingPipelineStateRHIRef RHICreateRayTracingPipelineState(const FRayTracingPipelineStateInitializer& Initializer) final override;
+
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer) final override;
 #endif //D3D12_RHI_RAYTRACING
 
 	virtual FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo) override;

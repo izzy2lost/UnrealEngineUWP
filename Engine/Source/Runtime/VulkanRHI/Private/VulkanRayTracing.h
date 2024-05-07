@@ -57,13 +57,13 @@ struct FVkRtBLASBuildData
 	VkAccelerationStructureBuildSizesInfoKHR SizesInfo;
 };
 
-class FVulkanRayTracingShaderTable : VulkanRHI::FDeviceChild
+class FVulkanRayTracingShaderTable : public FRHIShaderBindingTable, VulkanRHI::FDeviceChild
 {
 public:
-	FVulkanRayTracingShaderTable(FVulkanDevice* Device);
+	FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer);
 	~FVulkanRayTracingShaderTable();
 
-	void Init(const FVulkanRayTracingScene* Scene, const FVulkanRayTracingPipelineState* Pipeline);
+	void Init(const FVulkanRayTracingPipelineState* Pipeline);
 
 	const VkStridedDeviceAddressRegionKHR* GetRegion(EShaderFrequency Frequency);
 
@@ -90,6 +90,11 @@ public:
 	{
 		return ReferencedUniformBuffers;
 	}
+
+	// Ray tracing shader bindings can be processed in parallel.
+	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
+	// Scaling beyond 5 total threads does not yield any speedup in practice (RHI thread + 4 parallel workers).
+	static constexpr uint32 MaxBindingWorkers = 1; // :todo-jn:
 
 private:
 
@@ -172,10 +177,6 @@ public:
 class FVulkanRayTracingScene : public FRHIRayTracingScene, public VulkanRHI::FDeviceChild
 {
 public:
-	// Ray tracing shader bindings can be processed in parallel.
-	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
-	// Scaling beyond 5 total threads does not yield any speedup in practice (RHI thread + 4 parallel workers).
-	static constexpr uint32 MaxBindingWorkers = 1; // :todo-jn:
 
 	FVulkanRayTracingScene(FRayTracingSceneInitializer2 Initializer, FVulkanDevice* InDevice);
 	~FVulkanRayTracingScene();
@@ -208,12 +209,9 @@ public:
 		return PerInstanceGeometryParameterSRV.GetReference();
 	}
 
-	FVulkanRayTracingShaderTable* FindOrCreateShaderTable(const FVulkanRayTracingPipelineState* Pipeline);
+	FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline);
 
-	inline uint32 GetHitRecordBaseIndex(uint32 InstanceIndex, uint32 SegmentIndex) const 
-	{
-		return (Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex) * Initializer.ShaderSlotsPerGeometrySegment;
-	}
+	uint32 GetSegmentIndex(uint32 InstanceIndex, uint32 SegmentIndex) const { return Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex; }
 
 	inline bool IsBuilt() const
 	{

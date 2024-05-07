@@ -686,18 +686,27 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 			// Create pipeline
 			FRayTracingPipelineState* RayTracingPipelineState = BuildRayTracingPipelineState(RHICmdList, View, RayGenerationShader.GetRayTracingShader());
 
+			FRayTracingShaderBindingTableInitializer SBTInitializer;
+			SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+			SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+			SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+
+			FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
+
 			// Set hit-group bindings
 			const uint32 NumBindings = 1;
 			FRayTracingLocalShaderBindings* Bindings = BuildRayTracingMaterialBindings(RHICmdList, View, PassParameters->SparseVoxelUniformBuffer->GetRHI());
-			RHICmdList.SetRayTracingHitGroups(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
-			RHICmdList.SetRayTracingMissShaders(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
-			RHICmdList.CommitRayTracingBindings(RayTracingScene.GetRHIRayTracingSceneChecked());
+			RHICmdList.SetRayTracingHitGroups(SBT, RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
+			RHICmdList.SetRayTracingMissShaders(SBT, RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
+			RHICmdList.CommitShaderBindingTable(SBT);
 
 			// Dispatch
 			RHICmdList.RayTraceDispatch(
 				RayTracingPipelineState,
 				RayGenerationShader.GetRayTracingShader(),
 				RayTracingScene.GetRHIRayTracingSceneChecked(),
+				SBT,
 				GlobalResources,
 				DispatchResolution.X, DispatchResolution.Y);
 		}
@@ -847,18 +856,27 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			// Create pipeline
 			FRayTracingPipelineState* RayTracingPipelineState = BuildRayTracingPipelineState(RHICmdList, View, RayGenerationShader.GetRayTracingShader());
 
+			FRayTracingShaderBindingTableInitializer SBTInitializer;
+			SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+			SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+			SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+
+			FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
+
 			// Set hit-group bindings
 			const uint32 NumBindings = 1;
 			FRayTracingLocalShaderBindings* Bindings = BuildRayTracingMaterialBindings(RHICmdList, View, PassParameters->SparseVoxelUniformBuffer->GetRHI());
-			RHICmdList.SetRayTracingHitGroups(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
-			RHICmdList.SetRayTracingMissShaders(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
-			RHICmdList.CommitRayTracingBindings(RayTracingScene.GetRHIRayTracingSceneChecked());
+			RHICmdList.SetRayTracingHitGroups(SBT, RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
+			RHICmdList.SetRayTracingMissShaders(SBT, RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
+			RHICmdList.CommitShaderBindingTable(SBT);
 
 			// Dispatch
 			RHICmdList.RayTraceDispatch(
 				RayTracingPipelineState,
 				RayGenerationShader.GetRayTracingShader(),
 				RayTracingScene.GetRHIRayTracingSceneChecked(),
+				SBT,
 				GlobalResources,
 				DispatchResolution.X, DispatchResolution.Y);
 		}

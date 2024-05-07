@@ -1246,6 +1246,11 @@ public:
 	{
 		return RHI->RHICalcRayTracingGeometrySize(Initializer);
 	}
+
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer) override final
+	{
+		return RHI->RHICreateShaderBindingTable(Initializer);
+	}
 #endif // RHI_RAYTRACING
 
 	virtual FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo) override final

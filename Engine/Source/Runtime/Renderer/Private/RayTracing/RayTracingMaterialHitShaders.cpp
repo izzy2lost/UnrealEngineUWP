@@ -947,8 +947,8 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 
 void FDeferredShadingSceneRenderer::BindRayTracingMaterialPipeline(FRHICommandList& RHICmdList, FViewInfo& View)
 {
-	MergeAndSetRayTracingBindings(RHICmdList, Allocator, View.GetRayTracingSceneChecked(), View.RayTracingMaterialPipeline, View.RayTracingMaterialBindings, ERayTracingBindingType::HitGroup);
-	MergeAndSetRayTracingBindings(RHICmdList, Allocator, View.GetRayTracingSceneChecked(), View.RayTracingMaterialPipeline, View.RayTracingCallableBindings, ERayTracingBindingType::CallableShader);
+	MergeAndSetRayTracingBindings(RHICmdList, Allocator, View.RayTracingSBT, View.GetRayTracingSceneChecked(), View.RayTracingMaterialPipeline, View.RayTracingMaterialBindings, ERayTracingBindingType::HitGroup);
+	MergeAndSetRayTracingBindings(RHICmdList, Allocator, View.RayTracingSBT, View.GetRayTracingSceneChecked(), View.RayTracingMaterialPipeline, View.RayTracingCallableBindings, ERayTracingBindingType::CallableShader);
 
 	// Move the ray tracing binding container ownership to the command list, so that memory will be
 	// released on the RHI thread timeline, after the commands that reference it are processed.
@@ -968,6 +968,7 @@ void FDeferredShadingSceneRenderer::BindRayTracingMaterialPipeline(FRHICommandLi
 void MergeAndSetRayTracingBindings(
 	FRHICommandList& RHICmdList,
 	FSceneRenderingBulkObjectAllocator& Allocator,
+	FRHIShaderBindingTable* SBT,
 	FRHIRayTracingScene* RayTracingScene,
 	FRayTracingPipelineState* Pipeline,
 	TConstArrayView<FRayTracingLocalShaderBindingWriter*> Bindings,
@@ -1014,7 +1015,8 @@ void MergeAndSetRayTracingBindings(
 	}
 
 	const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
-	RHICmdList.SetRayTracingBindings(
+	RHICmdList.SetBindingsOnShaderBindingTable(
+		SBT,
 		RayTracingScene,
 		Pipeline,
 		NumTotalBindings, MergedBindings,

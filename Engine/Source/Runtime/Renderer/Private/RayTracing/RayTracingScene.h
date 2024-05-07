@@ -108,6 +108,8 @@ public:
 
 	FRayTracingGeometryInstance& GetInstance(uint32 InstanceIndex) { return Instances[InstanceIndex]; }
 
+	uint32 GetTotalNumSegments() const { return TotalNumSegments; }
+
 	void InitPreViewTranslation(const FViewMatrices& ViewMatrices);
 
 public:
@@ -142,6 +144,7 @@ private:
 
 	// RHI object that abstracts mesh instances in this scene
 	FRayTracingSceneRHIRef RayTracingSceneRHI;
+	uint32 TotalNumSegments = -1;
 
 	// Persistently allocated buffer that holds the built TLAS
 	FBufferRHIRef RayTracingSceneBuffer;

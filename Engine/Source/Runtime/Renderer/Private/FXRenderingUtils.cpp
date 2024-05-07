@@ -11,6 +11,10 @@
 #include "ScenePrivate.h"
 #include "SystemTextures.h"
 
+#if RHI_RAYTRACING
+#include "RayTracingDefinitions.h"
+#endif
+
 TConstStridedView<FSceneView> UE::FXRenderingUtils::ConvertViewArray(TConstArrayView<FViewInfo> Views)
 {
 	return MakeStridedViewOfBase<const FSceneView>(Views);
@@ -267,6 +271,24 @@ FRHIShaderResourceView* UE::FXRenderingUtils::RayTracing::GetRayTracingSceneView
 	if (const FScene* Scene = InScene->GetRenderScene())
 	{
 		return Scene->RayTracingScene.CreateLayerViewRHI(RHICmdList, ERayTracingSceneLayer::Base);
+	}
+
+	return nullptr;
+}
+
+FShaderBindingTableRHIRef UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FSceneInterface* InScene)
+{
+	if (const FScene* Scene = InScene->GetRenderScene())
+	{
+		const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
+		FRayTracingShaderBindingTableInitializer SBTInitializer;
+		SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+		SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+		SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+		SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+
+		return RHICreateShaderBindingTable(SBTInitializer);
 	}
 
 	return nullptr;

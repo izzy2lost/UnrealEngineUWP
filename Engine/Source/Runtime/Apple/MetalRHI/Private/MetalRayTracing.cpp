@@ -806,6 +806,11 @@ void FMetalRHICommandContext::RHIClearRayTracingBindings(FRHIRayTracingScene* Sc
 	// TODO:
 }
 
+void FMetalRHICommandContext::RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT)
+{
+	// TODO:
+}
+
 void FMetalRHICommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
 	   FRHIRayTracingScene* SceneRHI,
 	   const FRayTracingShaderBindings& GlobalResourceBindings,
@@ -830,6 +835,14 @@ void FMetalRHICommandContext::RHISetRayTracingBindings(
 	checkNoEntry();
 }
 
+void FMetalRHICommandContext::RHISetBindingsOnShaderBindingTable(
+	FRHIShaderBindingTable* SBT, FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
+	uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
+	ERayTracingBindingType BindingType)
+{
+	checkNoEntry();
+}
+
 FRayTracingSceneRHIRef FMetalDynamicRHI::RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
@@ -843,6 +856,12 @@ FRayTracingGeometryRHIRef FMetalDynamicRHI::RHICreateRayTracingGeometry(FRHIComm
 }
 
 FRayTracingPipelineStateRHIRef FMetalDynamicRHI::RHICreateRayTracingPipelineState(const FRayTracingPipelineStateInitializer& Initializer)
+{
+	checkNoEntry();
+	return nullptr;
+}
+
+FShaderBindingTableRHIRef FMetalDynamicRHI::RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
 {
 	checkNoEntry();
 	return nullptr;

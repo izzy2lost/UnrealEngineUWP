@@ -1570,8 +1570,14 @@ public:
 	// Material shaders are only available when using this pipeline.
 	FRayTracingPipelineState* RayTracingMaterialPipeline = nullptr;
 
+	// Primary SBT object to be used with the ray tracing scene for this view.
+	FShaderBindingTableRHIRef RayTracingSBT = nullptr;
+
 	// Pipeline state object to be used with lumen hardware ray tracing
 	FRayTracingPipelineState* LumenHardwareRayTracingMaterialPipeline = nullptr;
+
+	// SBT object to be used with lumen hardware ray tracing
+	FShaderBindingTableRHIRef LumenHardwareRayTracingSBT = nullptr;
 
 	// Buffer that stores the hit group data for Lumen passes that use MinimalPayload and inline ray tracing.
 	FRDGBufferRef LumenHardwareRayTracingHitDataBuffer = nullptr;

@@ -110,7 +110,9 @@ DECLARE_MEMORY_STAT(TEXT("Total Used Video Memory"), STAT_D3D12RayTracingUsedVid
 DECLARE_CYCLE_STAT(TEXT("RTPSO Compile Shader"), STAT_RTPSO_CompileShader, STATGROUP_D3D12RayTracing);
 DECLARE_CYCLE_STAT(TEXT("RTPSO Create Pipeline"), STAT_RTPSO_CreatePipeline, STATGROUP_D3D12RayTracing);
 
-DECLARE_CYCLE_STAT(TEXT("SetRayTracingBindings"), STAT_D3D12SetRayTracingBindings, STATGROUP_D3D12RayTracing);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Allocated shader binding tables"), STAT_D3D12RayTracingAllocatedSBT, STATGROUP_D3D12RayTracing);
+
+DECLARE_CYCLE_STAT(TEXT("SetBindingsOnShaderBindingTable"), STAT_D3D12SetBindingsOnShaderBindingTable, STATGROUP_D3D12RayTracing);
 DECLARE_CYCLE_STAT(TEXT("CreateShaderTable"), STAT_D3D12CreateShaderTable, STATGROUP_D3D12RayTracing);
 DECLARE_CYCLE_STAT(TEXT("BuildTopLevel"), STAT_D3D12BuildTLAS, STATGROUP_D3D12RayTracing);
 DECLARE_CYCLE_STAT(TEXT("BuildBottomLevel"), STAT_D3D12BuildBLAS, STATGROUP_D3D12RayTracing);
@@ -851,20 +853,20 @@ void FD3D12RayTracingCompactionRequestHandler::Update(FD3D12CommandContext& Cont
 
 
 // Cache for ray tracing pipeline collection objects, containing single shaders that can be linked into full pipelines.
-class FD3D12RayTracingPipelineCache : FD3D12DeviceChild
+class FD3D12RayTracingPipelineCache : FD3D12AdapterChild
 {
 public:
 
 	UE_NONCOPYABLE(FD3D12RayTracingPipelineCache)
 
-	FD3D12RayTracingPipelineCache(FD3D12Device* Device)
-		: FD3D12DeviceChild(Device)
-		, DefaultLocalRootSignature(Device->GetParentAdapter())
+	FD3D12RayTracingPipelineCache(FD3D12Adapter* Adapter)
+		: FD3D12AdapterChild(Adapter)
+		, DefaultLocalRootSignature(Adapter)
 	{
 		// Default empty local root signature
 		LLM_SCOPE_BYNAME(TEXT("FD3D12RT/PipelineCache"));
 		D3D12_VERSIONED_ROOT_SIGNATURE_DESC LocalRootSignatureDesc = {};
-		if (Device->GetParentAdapter()->GetRootSignatureVersion() >= D3D_ROOT_SIGNATURE_VERSION_1_1)
+		if (GetParentAdapter()->GetRootSignatureVersion() >= D3D_ROOT_SIGNATURE_VERSION_1_1)
 		{
 			LocalRootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
 			LocalRootSignatureDesc.Desc_1_1.Flags |= D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
@@ -1060,7 +1062,7 @@ public:
 			}
 			else
 			{
-				checkf(CollectionType == ECollectionType::Miss || CollectionType == ECollectionType::RayGen || CollectionType == ECollectionType::Callable, TEXT("Unexpected RT sahder collection type"));
+				checkf(CollectionType == ECollectionType::Miss || CollectionType == ECollectionType::RayGen || CollectionType == ECollectionType::Callable, TEXT("Unexpected RT shader collection type"));
 
 				OriginalEntryPoints.Add(*(Shader->EntryPoint));
 				RenamedEntryPoints.Add(Entry.GetPrimaryExportNameChars());
@@ -1245,7 +1247,7 @@ public:
 
 	ID3D12RootSignature* GetGlobalRootSignature()
 	{
-		FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();
+		FD3D12Adapter* Adapter = GetParentAdapter();
 		const FD3D12RootSignature* RootSignature = Adapter->GetGlobalRayTracingRootSignature();
 		return RootSignature->GetRootSignature();
 	}
@@ -1257,7 +1259,8 @@ private:
 	FD3D12RootSignature DefaultLocalRootSignature; // Default empty root signature used for default hit shaders.
 };
 
-class FD3D12RayTracingShaderTable
+// Helper class used to manage SBT buffer for a specific GPU
+class FD3D12RayTracingShaderBindingTableInternal
 {
 private:
 	void WriteData(uint32 WriteOffset, const void* InData, uint32 InDataSize)
@@ -1283,41 +1286,24 @@ private:
 
 public:
 
-	UE_NONCOPYABLE(FD3D12RayTracingShaderTable)
+	UE_NONCOPYABLE(FD3D12RayTracingShaderBindingTableInternal)
 
-	static constexpr uint32 MaxBindingWorkers = FD3D12RayTracingScene::MaxBindingWorkers;
+	// Ray tracing shader bindings can be processed in parallel.
+	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
+	// Scaling beyond 5 total threads does not yield any speedup in practice.
+	static constexpr uint32 MaxBindingWorkers = 5; // RHI thread + 4 parallel workers.
 
 	struct FInitializer
 	{
 		uint32 NumRayGenShaders = 0;
-		uint32 NumMissShaders = 0;
 		uint32 NumMissRecords = 0;
 		uint32 NumHitRecords = 0;
 		uint32 NumCallableRecords = 0;
 		uint32 LocalRootDataSize = 0;
-		uint32 MaxViewDescriptorsPerRecord = 0;
 	};
 
-	FD3D12RayTracingShaderTable()
+	FD3D12RayTracingShaderBindingTableInternal(const FInitializer& Initializer, FD3D12Device* Device, const TArrayView<const FD3D12ShaderIdentifier>& RaygenIdentifiers, const FD3D12ShaderIdentifier& DefaultHitGroupIdentifier)
 		: UniqueId(NextUniqueId++)
-	{
-	}
-
-	~FD3D12RayTracingShaderTable()
-	{
-		delete DescriptorCache;
-	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-		for (FWorkerThreadData& ThisWorkerData : WorkerData)
-		{
-			for (FD3D12ConstantBufferView* CBV : ThisWorkerData.TransientCBVs)
-			{
-				delete CBV;
-			}
-		}
-	#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-	}
-
-	void Init(const FInitializer& Initializer, FD3D12Device* Device, const TArrayView<const FD3D12ShaderIdentifier>& RaygenIdentifiers, const FD3D12ShaderIdentifier& DefaultHitGroupIdentifier)
 	{
 		checkf(Initializer.LocalRootDataSize <= 4096, TEXT("The maximum size of a local root signature is 4KB.")); // as per section 4.22.1 of DXR spec v1.0
 		checkf(Initializer.NumRayGenShaders >= 1, TEXT("All shader tables must contain at least one raygen shader."));
@@ -1344,7 +1330,7 @@ public:
 			const uint32 NumViewDescriptors = FMath::Min(D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1, GD3D12ExplicitViewDescriptorHeapSize);
 			const uint32 NumSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 
-			DescriptorCache = new FD3D12ExplicitDescriptorCache(Device, FD3D12RayTracingScene::MaxBindingWorkers);
+			DescriptorCache = new FD3D12ExplicitDescriptorCache(Device, MaxBindingWorkers);
 			DescriptorCache->Init(NumViewDescriptors, NumSamplerDescriptors, ERHIBindlessConfiguration::RayTracingShaders);
 		}
 
@@ -1388,6 +1374,20 @@ public:
 		Data.SetAllowCPUAccess(true);
 	}
 
+	~FD3D12RayTracingShaderBindingTableInternal()
+	{
+		delete DescriptorCache;
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+		for (FWorkerThreadData& ThisWorkerData : WorkerData)
+		{
+			for (FD3D12ConstantBufferView* CBV : ThisWorkerData.TransientCBVs)
+			{
+				delete CBV;
+			}
+		}
+#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+	}
+
 	template <typename T>
 	void SetLocalShaderParameters(uint32 ShaderTableOffset, uint32 RecordIndex, uint32 InOffsetWithinRootSignature, const T& Parameters)
 	{
@@ -1412,11 +1412,11 @@ public:
 		const uint32 ShaderTableOffset = CallableShaderTableOffset;
 		WriteLocalShaderRecord(ShaderTableOffset, RecordIndex, ShaderIdentifierSize + InOffsetWithinRootSignature, &Parameters, sizeof(Parameters));
 	}
-	
+
 	void CopyLocalShaderParameters(uint32 InShaderTableOffset, uint32 InDestRecordIndex, uint32 InSourceRecordIndex, uint32 InOffsetWithinRootSignature)
 	{
 		const uint32 BaseOffset = InShaderTableOffset + ShaderIdentifierSize + InOffsetWithinRootSignature;
-		const uint32 DestOffset   = BaseOffset + LocalRecordStride * InDestRecordIndex;
+		const uint32 DestOffset = BaseOffset + LocalRecordStride * InDestRecordIndex;
 		const uint32 SourceOffset = BaseOffset + LocalRecordStride * InSourceRecordIndex;
 		const uint32 CopySize = LocalRecordStride - ShaderIdentifierSize - InOffsetWithinRootSignature;
 		checkSlow(CopySize <= LocalRecordStride);
@@ -1514,6 +1514,8 @@ public:
 		TRACE_CPUPROFILER_EVENT_SCOPE(ShaderTableCommit);
 
 		check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
+
+		checkf(bIsDirty, TEXT("bIsDirty should be checked before calling Commit()"));
 
 		checkf(Data.Num(), TEXT("Shader table is expected to be initialized before copying to GPU."));
 
@@ -1782,7 +1784,7 @@ private:
 	static std::atomic_uint64_t NextUniqueId;
 };
 
-std::atomic_uint64_t FD3D12RayTracingShaderTable::NextUniqueId = 0;
+std::atomic_uint64_t FD3D12RayTracingShaderBindingTableInternal::NextUniqueId = 0;
 
 struct FD3D12RayTracingShaderLibrary
 {
@@ -2326,7 +2328,6 @@ public:
 	// State objects with raygen shaders grouped by occupancy
 	TArray<TRefCountPtr<ID3D12StateObject>> SpecializedStateObjects;
 
-	static constexpr uint32 ShaderIdentifierSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	bool bAllowHitGroupIndexing = true;
 
 	uint32 MaxLocalRootSignatureSize = 0;
@@ -2348,11 +2349,96 @@ public:
 #endif // !NO_LOGGING
 };
 
+class FD3D12RayTracingShaderBindingTable : public FRHIShaderBindingTable, public FD3D12AdapterChild
+{
+public:
+
+	UE_NONCOPYABLE(FD3D12RayTracingShaderBindingTable)
+
+	FD3D12RayTracingShaderBindingTable(FD3D12Adapter* Adapter, const FRayTracingShaderBindingTableInitializer& InInitializer)
+		: FRHIShaderBindingTable(InInitializer), FD3D12AdapterChild(Adapter)
+	{
+		INC_DWORD_STAT(STAT_D3D12RayTracingAllocatedSBT);
+
+		checkf(Initializer.NumMissShaderSlots >= 1, TEXT("Need at least 1 miss shader slot."));
+	};
+
+	~FD3D12RayTracingShaderBindingTable()
+	{
+		for (auto& Table : ShaderTablesPerGPU)
+		{
+			delete Table;
+			Table = nullptr;
+		}
+
+		DEC_DWORD_STAT(STAT_D3D12RayTracingAllocatedSBT);
+	}
+
+	void SetRayTracingPipelineState(FD3D12RayTracingPipelineState* InPipeline)
+	{
+		checkf(RayTracingPipelineState == nullptr || RayTracingPipelineState == InPipeline, TEXT("FRHIShaderBindingTable can't currently be used with multiple different RTPSOs"));
+
+		RayTracingPipelineState = InPipeline;
+	}
+
+	FD3D12RayTracingShaderBindingTableInternal* GetTableForDevice(FD3D12Device* Device)
+	{
+		const uint32 GPUIndex = Device->GetGPUIndex();
+
+		if (ShaderTablesPerGPU[GPUIndex] == nullptr)
+		{
+			InitForDevice(Device);
+		}
+
+		return ShaderTablesPerGPU[GPUIndex];
+	}
+
+	void ReleaseForDevice(FD3D12Device* Device)
+	{
+		const uint32 GPUIndex = Device->GetGPUIndex();
+
+		delete ShaderTablesPerGPU[GPUIndex];
+		ShaderTablesPerGPU[GPUIndex] = nullptr;
+	}
+	
+	uint32 GetHitRecordBaseIndex(uint32 GlobalSegmentIndex) const { return GlobalSegmentIndex * Initializer.NumShaderSlotsPerGeometrySegment; }
+
+private:
+
+	void InitForDevice(FD3D12Device* Device)
+	{
+	 	TRACE_CPUPROFILER_EVENT_SCOPE(ShaderTableInit);
+	 	SCOPE_CYCLE_COUNTER(STAT_D3D12CreateShaderTable);
+
+		checkf(RayTracingPipelineState != nullptr, TEXT(""))
+
+		const uint32 GPUIndex = Device->GetGPUIndex();
+
+		check(ShaderTablesPerGPU[GPUIndex] == nullptr);
+
+		const uint32 NumHitGroupSlots = RayTracingPipelineState->bAllowHitGroupIndexing ? Initializer.NumGeometrySegments * Initializer.NumShaderSlotsPerGeometrySegment : 0;
+		checkf(RayTracingPipelineState->MaxLocalRootSignatureSize >= sizeof(FHitGroupSystemParameters), TEXT("All local root signatures are expected to contain ray tracing system root parameters (2x root buffers + 4x root DWORD)"));
+
+		FD3D12RayTracingShaderBindingTableInternal::FInitializer InternalInitializer;
+		InternalInitializer.NumRayGenShaders = RayTracingPipelineState->RayGenShaders.Identifiers.Num();
+		InternalInitializer.NumMissRecords = Initializer.NumMissShaderSlots;
+		InternalInitializer.NumHitRecords = NumHitGroupSlots;
+		InternalInitializer.NumCallableRecords = Initializer.NumCallableShaderSlots;
+		InternalInitializer.LocalRootDataSize = RayTracingPipelineState->MaxLocalRootSignatureSize;
+
+		ShaderTablesPerGPU[GPUIndex] = new FD3D12RayTracingShaderBindingTableInternal(InternalInitializer, Device, RayTracingPipelineState->RayGenShaders.Identifiers, RayTracingPipelineState->HitGroupShaders.Identifiers[0]);
+	}
+
+	TRefCountPtr<const FD3D12RayTracingPipelineState> RayTracingPipelineState; // TODO: Is holding reference necessary?
+	
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTablesPerGPU[MAX_NUM_GPUS] = {};
+};
+
 void FD3D12Device::InitRayTracing()
 {
 	LLM_SCOPE_BYNAME(TEXT("FD3D12RT"));
 	check(RayTracingPipelineCache == nullptr);
-	RayTracingPipelineCache = new FD3D12RayTracingPipelineCache(this);
+	RayTracingPipelineCache = new FD3D12RayTracingPipelineCache(GetParentAdapter());
 }
 
 void FD3D12Device::CleanupRayTracing()
@@ -2649,6 +2735,15 @@ FRayTracingSceneRHIRef FD3D12DynamicRHI::RHICreateRayTracingScene(FRayTracingSce
 	FD3D12Adapter& Adapter = GetAdapter();
 
 	return new FD3D12RayTracingScene(&Adapter, MoveTemp(Initializer));
+}
+
+FShaderBindingTableRHIRef FD3D12DynamicRHI::RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(CreateRayTracingScene);
+
+	FD3D12Adapter& Adapter = GetAdapter();
+
+	return new FD3D12RayTracingShaderBindingTable(&Adapter, Initializer);
 }
 
 FBufferRHIRef FD3D12RayTracingGeometry::NullTransformBuffer;
@@ -3359,7 +3454,9 @@ FD3D12RayTracingScene::FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracing
 {
 	INC_DWORD_STAT(STAT_D3D12RayTracingAllocatedTLAS);
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	checkf(Initializer.NumMissShaderSlots >= 1, TEXT("Need at least 1 miss shader slot."));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	checkf(Initializer.Lifetime == RTSL_SingleFrame, TEXT("Only single-frame ray tracing scenes are currently implemented."));
 
 	SizeInfo = {};
@@ -3394,14 +3491,6 @@ FD3D12RayTracingScene::FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracing
 
 FD3D12RayTracingScene::~FD3D12RayTracingScene()
 {
-	for (auto& Table : ShaderTables)
-	{
-		for (auto Item : Table)
-		{
-			delete Item.Value;
-		}
-	}
-
 	ReleaseBuffer();
 
 	DEC_DWORD_STAT(STAT_D3D12RayTracingAllocatedTLAS);
@@ -3519,7 +3608,6 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 
 	{
 		// - Set up acceleration structure pointers and make them resident.
-		// - Generate HitGroupSystemParametersCache.
 
 		CommandContext.UpdateResidency(InstanceBuffer->GetResource());
 
@@ -3576,22 +3664,6 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 				}
 			}
 		}
-
-		// make a copy of system parameters to they can optimized fetch during SBT building (only done for GPU0)
-		if (GPUIndex == 0)
-		{
-			HitGroupSystemParametersCache.Reserve(Initializer.NumTotalSegments);
-			HitGroupSystemParametersCache.Empty(Initializer.NumTotalSegments);
-
-			const int32 NumSceneInstances = Initializer.PerInstanceGeometries.Num();
-			for (int32 InstanceIndex = 0; InstanceIndex < NumSceneInstances; ++InstanceIndex)
-			{
-				FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Initializer.PerInstanceGeometries[InstanceIndex]);
-
-				check(Geometry->HitGroupSystemParameters[GPUIndex].Num() > 0);
-				HitGroupSystemParametersCache.Append(Geometry->HitGroupSystemParameters[GPUIndex]);
-			}
-		}
 	}
 	
 	// Build the actual acceleration structure
@@ -3625,7 +3697,10 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 			const FLayerData& Layer = Layers[LayerIndex];
 			TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(&CommandContext);
 			uint32 InstanceBufferStride = GRHIRayTracingInstanceDescriptorSize;
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			// TODO: Validation related to SBT needs to be done somewhere else since SBT is not known when in BuildAccelerationStructure
 			uint32 TotalHitGroupSlots = Initializer.NumTotalSegments * Initializer.ShaderSlotsPerGeometrySegment;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FRayTracingValidateSceneBuildParamsCS::Dispatch(RHICmdList,
 				TotalHitGroupSlots, Layer.BuildInputs.NumDescs,
 				InstanceBuffer, InstanceBufferOffset, InstanceBufferStride);
@@ -3715,11 +3790,9 @@ void FD3D12RayTracingScene::UpdateResidency(FD3D12CommandContext& CommandContext
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 }
 
-FD3D12RayTracingShaderTable* FD3D12RayTracingScene::FindExistingShaderTable(const FD3D12RayTracingPipelineState* Pipeline, FD3D12Device* Device) const
+FD3D12RayTracingShaderBindingTable* FD3D12RayTracingScene::FindExistingShaderTable(const FD3D12RayTracingPipelineState* Pipeline) const
 {
-	const uint32 GPUIndex = Device->GetGPUIndex();
-	FD3D12RayTracingShaderTable* const* FoundShaderTable = ShaderTables[GPUIndex].Find(Pipeline);
-	if (FoundShaderTable)
+	if (const TRefCountPtr<FD3D12RayTracingShaderBindingTable>* FoundShaderTable = ShaderTables.Find(Pipeline))
 	{
 		return *FoundShaderTable;
 	}
@@ -3729,39 +3802,28 @@ FD3D12RayTracingShaderTable* FD3D12RayTracingScene::FindExistingShaderTable(cons
 	}
 }
 
-FD3D12RayTracingShaderTable* FD3D12RayTracingScene::FindOrCreateShaderTable(const FD3D12RayTracingPipelineState* Pipeline, FD3D12Device* Device)
+FRHIShaderBindingTable* FD3D12RayTracingScene::FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* InPipeline)
 {
 	UE::TScopeLock Lock(Mutex);
 
-	FD3D12RayTracingShaderTable* FoundShaderTable = FindExistingShaderTable(Pipeline, Device);
-	if (FoundShaderTable)
+	const FD3D12RayTracingPipelineState* Pipeline = FD3D12DynamicRHI::ResourceCast(InPipeline);
+
+	if (FD3D12RayTracingShaderBindingTable* FoundShaderTable = FindExistingShaderTable(Pipeline))
 	{
 		return FoundShaderTable;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(FindOrCreateShaderTable);
-	SCOPE_CYCLE_COUNTER(STAT_D3D12CreateShaderTable);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRayTracingShaderBindingTableInitializer SBTInitializer;
+	SBTInitializer.NumGeometrySegments = Initializer.NumTotalSegments;
+	SBTInitializer.NumShaderSlotsPerGeometrySegment = Initializer.ShaderSlotsPerGeometrySegment;
+	SBTInitializer.NumCallableShaderSlots = Initializer.NumCallableShaderSlots;
+	SBTInitializer.NumMissShaderSlots = Initializer.NumMissShaderSlots;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	FD3D12RayTracingShaderTable* CreatedShaderTable = new FD3D12RayTracingShaderTable();
-	ID3D12Device5* RayTracingDevice = Device->GetDevice5();
-	const uint32 GPUIndex = Device->GetGPUIndex();
+	FD3D12RayTracingShaderBindingTable* CreatedShaderTable = new FD3D12RayTracingShaderBindingTable(GetParentAdapter(), MoveTemp(SBTInitializer));
 
-	const uint32 NumHitGroupSlots = Pipeline->bAllowHitGroupIndexing ? Initializer.NumTotalSegments * Initializer.ShaderSlotsPerGeometrySegment : 0;
-
-	checkf(Pipeline->MaxLocalRootSignatureSize >= sizeof(FHitGroupSystemParameters), TEXT("All local root signatures are expected to contain ray tracing system root parameters (2x root buffers + 4x root DWORD)"));
-
-	FD3D12RayTracingShaderTable::FInitializer SBTInitializer = {};
-	SBTInitializer.NumRayGenShaders = Pipeline->RayGenShaders.Identifiers.Num();
-	SBTInitializer.NumMissShaders = Pipeline->MissShaders.Identifiers.Num();
-	SBTInitializer.NumMissRecords = Initializer.NumMissShaderSlots;
-	SBTInitializer.NumHitRecords = NumHitGroupSlots;
-	SBTInitializer.NumCallableRecords = Initializer.NumCallableShaderSlots;
-	SBTInitializer.LocalRootDataSize = Pipeline->MaxLocalRootSignatureSize;
-	SBTInitializer.MaxViewDescriptorsPerRecord = Pipeline->MaxHitGroupViewDescriptors;
-
-	CreatedShaderTable->Init(SBTInitializer, Device, Pipeline->RayGenShaders.Identifiers, Pipeline->HitGroupShaders.Identifiers[0]);
-
-	ShaderTables[GPUIndex].Add(Pipeline, CreatedShaderTable);
+	ShaderTables.Add(Pipeline, CreatedShaderTable);
 
 	return CreatedShaderTable;
 }
@@ -3981,12 +4043,13 @@ void FD3D12CommandContext::RHICommitRayTracingBindings(FRHIRayTracingScene* InSc
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
 	check(Scene);
 
-	for (auto Item : Scene->ShaderTables[GetGPUIndex()])
+	for (auto Item : Scene->ShaderTables)
 	{
-		FD3D12RayTracingShaderTable* ShaderTable = Item.Value;
-		if (ShaderTable->bIsDirty)
+		FD3D12RayTracingShaderBindingTable* ShaderTable = Item.Value;
+		FD3D12RayTracingShaderBindingTableInternal* ShaderTableForDevice = ShaderTable->GetTableForDevice(GetParentDevice());
+		if (ShaderTableForDevice->bIsDirty)
 		{
-			ShaderTable->Commit(*this);
+			ShaderTableForDevice->Commit(*this);
 		}
 	}
 }
@@ -3996,12 +4059,30 @@ void FD3D12CommandContext::RHIClearRayTracingBindings(FRHIRayTracingScene* InSce
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
 	check(Scene);
 
-	auto& Table = Scene->ShaderTables[GetGPUIndex()];
-	for (auto Item : Table)
+	for (auto Table : Scene->ShaderTables)
 	{
-		delete Item.Value;
+		Table.Value->ReleaseForDevice(GetParentDevice());
 	}
-	Table.Reset();
+}
+
+void FD3D12CommandContext::RHICommitShaderBindingTable(FRHIShaderBindingTable* InSBT)
+{
+	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
+	check(SBT);
+
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTableForDevice = SBT->GetTableForDevice(GetParentDevice());
+	if (ShaderTableForDevice->bIsDirty)
+	{
+		ShaderTableForDevice->Commit(*this);
+	}
+}
+
+void FD3D12CommandContext::RHIClearShaderBindingTable(FRHIShaderBindingTable* InSBT)
+{
+	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
+	check(SBT);
+
+	SBT->ReleaseForDevice(GetParentDevice());
 }
 
 struct FD3D12RayTracingGlobalResourceBinder
@@ -4067,7 +4148,7 @@ struct FD3D12RayTracingGlobalResourceBinder
 
 struct FD3D12RayTracingLocalResourceBinder
 {
-	FD3D12RayTracingLocalResourceBinder(FD3D12Device& InDevice, FD3D12RayTracingShaderTable& InShaderTable, const FD3D12RootSignature& InRootSignature, uint32 InRecordIndex, uint32 InWorkerIndex, ERayTracingBindingType InBindingType)
+	FD3D12RayTracingLocalResourceBinder(FD3D12Device& InDevice, FD3D12RayTracingShaderBindingTableInternal& InShaderTable, const FD3D12RootSignature& InRootSignature, uint32 InRecordIndex, uint32 InWorkerIndex, ERayTracingBindingType InBindingType)
 		: Device(InDevice)
 		, ShaderTable(InShaderTable)
 		, DescriptorCache(*InShaderTable.DescriptorCache)
@@ -4172,14 +4253,14 @@ struct FD3D12RayTracingLocalResourceBinder
 #if ENABLE_RHI_VALIDATION
 	RHIValidation::FTracker* GetValidationTracker()
 	{
-		// We can't validate resource states in RHISetRayTracingBindings because there's no command context at that point, and because the states will
+		// We can't validate resource states in RHISetBindingsOnShaderBindingTable because there's no command context at that point, and because the states will
 		// change before the raytracing command is dispatched anyway.
 		return nullptr;
 	}
 #endif
 
 	FD3D12Device& Device;
-	FD3D12RayTracingShaderTable& ShaderTable;
+	FD3D12RayTracingShaderBindingTableInternal& ShaderTable;
 	FD3D12ExplicitDescriptorCache& DescriptorCache;
 	const FD3D12RootSignature& RootSignature;
 	uint32 ShaderTableOffset = 0;
@@ -4543,7 +4624,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	const FRayTracingShaderBindings& GlobalBindings,
 	const FD3D12RayTracingPipelineState* Pipeline,
 	uint32 RayGenShaderIndex,
-	FD3D12RayTracingShaderTable* OptShaderTable,
+	FD3D12RayTracingShaderBindingTableInternal* OptShaderTable,
 	const D3D12_DISPATCH_RAYS_DESC& DispatchDesc,
 	FD3D12Buffer* ArgumentBuffer = nullptr, uint32 ArgumentOffset = 0)
 {
@@ -4637,7 +4718,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	}
 	else
 	{
-		FD3D12ExplicitDescriptorCache TransientDescriptorCache(CommandContext.GetParentDevice(), FD3D12RayTracingScene::MaxBindingWorkers);
+		FD3D12ExplicitDescriptorCache TransientDescriptorCache(CommandContext.GetParentDevice(), FD3D12RayTracingShaderBindingTableInternal::MaxBindingWorkers);
 		TransientDescriptorCache.Init(MAX_SRVS + MAX_UAVS, MAX_SAMPLERS, ERHIBindlessConfiguration::RayTracingShaders);
 		CommandContext.SetExplicitDescriptorCache(TransientDescriptorCache);
 		FD3D12RayTracingGlobalResourceBinder ResourceBinder(CommandContext, TransientDescriptorCache);
@@ -4703,7 +4784,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 }
 
 void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRayTracingPipelineState, FRHIRayTracingShader* RayGenShaderRHI,
-	FRHIRayTracingScene* InScene,
+	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
 	const FRayTracingShaderBindings& GlobalResourceBindings,
 	uint32 Width, uint32 Height)
 {
@@ -4713,9 +4794,10 @@ void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRa
 
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
 	Scene->UpdateResidency(*this);
-	
-	FD3D12RayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline, GetParentDevice());
-	checkf(!ShaderTable->bIsDirty, TEXT("The shader table contains pending modifications. CommitRayTracingBindings must be called after SetRayTracingBindings"));
+
+	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTableForDevice = SBT->GetTableForDevice(GetParentDevice());
+	checkf(!ShaderTableForDevice->bIsDirty, TEXT("The shader table contains pending modifications. CommitRayTracingBindings must be called after SetRayTracingBindings"));
 
 	FD3D12RayTracingShader* RayGenShader = FD3D12DynamicRHI::ResourceCast(RayGenShaderRHI);
 	const int32 RayGenShaderIndex = Pipeline->RayGenShaders.Find(RayGenShader->GetHash());
@@ -4724,17 +4806,17 @@ void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRa
 		TEXT("All RayGen shaders must be declared when creating RTPSO."),
 			*(RayGenShader->EntryPoint));
 
-	D3D12_DISPATCH_RAYS_DESC DispatchDesc = ShaderTable->GetDispatchRaysDesc(RayGenShaderIndex, Pipeline->bAllowHitGroupIndexing);
+	D3D12_DISPATCH_RAYS_DESC DispatchDesc = ShaderTableForDevice->GetDispatchRaysDesc(RayGenShaderIndex, Pipeline->bAllowHitGroupIndexing);
 
 	DispatchDesc.Width = Width;
 	DispatchDesc.Height = Height;
 	DispatchDesc.Depth = 1;
 
-	DispatchRays(*this, GlobalResourceBindings, Pipeline, RayGenShaderIndex, ShaderTable, DispatchDesc);
+	DispatchRays(*this, GlobalResourceBindings, Pipeline, RayGenShaderIndex, ShaderTableForDevice, DispatchDesc);
 }
 
 void FD3D12CommandContext::RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* InRayTracingPipelineState, FRHIRayTracingShader* RayGenShaderRHI,
-	FRHIRayTracingScene* InScene,
+	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
 	const FRayTracingShaderBindings& GlobalResourceBindings,
 	FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
 {
@@ -4746,31 +4828,33 @@ void FD3D12CommandContext::RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineSta
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
 	Scene->UpdateResidency(*this);
 
-	FD3D12RayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline, GetParentDevice());
-	checkf(!ShaderTable->bIsDirty, TEXT("The shader table contains pending modifications. CommitRayTracingBindings must be called after SetRayTracingBindings"));
+	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTableForDevice = SBT->GetTableForDevice(GetParentDevice());
+	checkf(!ShaderTableForDevice->bIsDirty, TEXT("The shader table contains pending modifications. CommitRayTracingBindings must be called after SetRayTracingBindings"));
 
 	FD3D12RayTracingShader* RayGenShader = FD3D12DynamicRHI::ResourceCast(RayGenShaderRHI);
 	const int32 RayGenShaderIndex = Pipeline->RayGenShaders.Find(RayGenShader->GetHash());
 	checkf(RayGenShaderIndex != INDEX_NONE, TEXT("RayGen shader is not present in the given ray tracing pipeline. All RayGen shaders must be declared when creating RTPSO."));
 
-	D3D12_DISPATCH_RAYS_DESC DispatchDesc = ShaderTable->GetDispatchRaysDesc(RayGenShaderIndex, Pipeline->bAllowHitGroupIndexing);
-	DispatchRays(*this, GlobalResourceBindings, Pipeline, RayGenShaderIndex, ShaderTable, DispatchDesc, RetrieveObject<FD3D12Buffer>(ArgumentBuffer), ArgumentOffset);
+	D3D12_DISPATCH_RAYS_DESC DispatchDesc = ShaderTableForDevice->GetDispatchRaysDesc(RayGenShaderIndex, Pipeline->bAllowHitGroupIndexing);
+	DispatchRays(*this, GlobalResourceBindings, Pipeline, RayGenShaderIndex, ShaderTableForDevice, DispatchDesc, RetrieveObject<FD3D12Buffer>(ArgumentBuffer), ArgumentOffset);
 }
 
 static void SetRayTracingHitGroup(
 	FD3D12Device* Device,
-	FD3D12RayTracingShaderTable* ShaderTable,
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTable,
 	FD3D12RayTracingScene* Scene,
 	FD3D12RayTracingPipelineState* Pipeline,
 	uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot, uint32 HitGroupIndex,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 	uint32 LooseParameterDataSize, const void* LooseParameterData,
 	uint32 UserData,
+	uint32 NumShaderSlotsPerGeometrySegment,
 	uint32 WorkerIndex)
 {
-	checkf(ShaderSlot < Scene->Initializer.ShaderSlotsPerGeometrySegment, TEXT("Shader slot is invalid. Make sure that ShaderSlotsPerGeometrySegment is correct on FRayTracingSceneInitializer."));
+	checkf(ShaderSlot < NumShaderSlotsPerGeometrySegment, TEXT("Shader slot is invalid. Make sure that NumShaderSlotsPerGeometrySegment is correct on FRayTracingShaderBindingTableInitializer."));
 
-	const uint32 RecordIndex = Scene->GetHitRecordBaseIndex(InstanceIndex, SegmentIndex) + ShaderSlot;
+	const uint32 RecordIndex = Scene->GetSegmentIndex(InstanceIndex, SegmentIndex) * NumShaderSlotsPerGeometrySegment + ShaderSlot;
 	const uint32 GPUIndex = Device->GetGPUIndex();
 
 #if DO_CHECK
@@ -4786,12 +4870,6 @@ static void SetRayTracingHitGroup(
 #endif // DO_CHECK
 
 	FHitGroupSystemParameters SystemParameters;
-	if (GPUIndex == 0)
-	{
-		uint32 PrefixedSegmentIndex = Scene->Initializer.SegmentPrefixSum[InstanceIndex];
-		SystemParameters = Scene->HitGroupSystemParametersCache[PrefixedSegmentIndex + SegmentIndex];
-	}
-	else
 	{
 		const FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Scene->Initializer.PerInstanceGeometries[InstanceIndex]);
 		const TArray<FHitGroupSystemParameters>& HitGroupSystemParametersForThisGPU = Geometry->HitGroupSystemParameters[GPUIndex];
@@ -4804,7 +4882,7 @@ static void SetRayTracingHitGroup(
 
 	const FD3D12RayTracingShader* Shader = Pipeline->HitGroupShaders.Shaders[HitGroupIndex];
 
-	FD3D12RayTracingShaderTable::FShaderRecordCacheKey CacheKey;
+	FD3D12RayTracingShaderBindingTableInternal::FShaderRecordCacheKey CacheKey;
 
 	const bool bCanUseRecordCache = GRayTracingCacheShaderRecords
 		&& Scene->Initializer.Lifetime == RTSL_SingleFrame
@@ -4814,7 +4892,7 @@ static void SetRayTracingHitGroup(
 
 	if (bCanUseRecordCache)
 	{
-		CacheKey = FD3D12RayTracingShaderTable::FShaderRecordCacheKey(NumUniformBuffers, UniformBuffers, HitGroupIndex);
+		CacheKey = FD3D12RayTracingShaderBindingTableInternal::FShaderRecordCacheKey(NumUniformBuffers, UniformBuffers, HitGroupIndex);
 
 		uint32* ExistingRecordIndex = ShaderTable->WorkerData[WorkerIndex].ShaderRecordCache.Find(CacheKey);
 		if (ExistingRecordIndex)
@@ -4850,7 +4928,7 @@ static void SetRayTracingHitGroup(
 
 static void SetRayTracingCallableShader(
 	FD3D12Device* Device,
-	FD3D12RayTracingShaderTable* ShaderTable,
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTable,
 	FD3D12RayTracingScene* Scene,
 	FD3D12RayTracingPipelineState* Pipeline,
 	uint32 ShaderSlotInScene, uint32 ShaderIndexInPipeline,
@@ -4859,7 +4937,7 @@ static void SetRayTracingCallableShader(
 	uint32 UserData,
 	uint32 WorkerIndex)
 {
-	checkf(ShaderSlotInScene < Scene->Initializer.NumCallableShaderSlots, TEXT("Shader slot is invalid. Make sure that NumCallableShaderSlots is correct on FRayTracingSceneInitializer."));
+	checkf(ShaderSlotInScene < ShaderTable->NumCallableRecords, TEXT("Callable shader slot is invalid. Make sure that NumCallableShaderSlots is correct in FRayTracingShaderBindingTableInitializer."));
 
 	const uint32 RecordIndex = ShaderSlotInScene;
 
@@ -4893,7 +4971,7 @@ static void SetRayTracingCallableShader(
 
 static void SetRayTracingMissShader(
 	FD3D12Device* Device,
-	FD3D12RayTracingShaderTable* ShaderTable,
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTable,
 	FD3D12RayTracingScene* Scene,
 	FD3D12RayTracingPipelineState* Pipeline,
 	uint32 ShaderSlotInScene, uint32 ShaderIndexInPipeline,
@@ -4902,7 +4980,7 @@ static void SetRayTracingMissShader(
 	uint32 UserData,
 	uint32 WorkerIndex)
 {
-	checkf(ShaderSlotInScene < Scene->Initializer.NumMissShaderSlots, TEXT("Shader slot is invalid. Make sure that NumMissShaderSlots is correct on FRayTracingSceneInitializer."));
+	checkf(ShaderSlotInScene < ShaderTable->NumMissRecords, TEXT("Miss shader slot is invalid. Make sure that NumMissShaderSlots is correct in FRayTracingShaderBindingTableInitializer."));
 
 	const uint32 RecordIndex = ShaderSlotInScene;
 
@@ -4927,26 +5005,29 @@ static void SetRayTracingMissShader(
 		: FD3D12ShaderIdentifier::Null);
 }
 
-void FD3D12CommandContext::RHISetRayTracingBindings(
-	FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
+void FD3D12CommandContext::RHISetBindingsOnShaderBindingTable(
+	FRHIShaderBindingTable* InSBT, FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
 	uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 	ERayTracingBindingType BindingType)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(RHISetRayTracingBindings);
-	SCOPE_CYCLE_COUNTER(STAT_D3D12SetRayTracingBindings);
+	TRACE_CPUPROFILER_EVENT_SCOPE(RHISetBindingsOnShaderBindingTable);
+	SCOPE_CYCLE_COUNTER(STAT_D3D12SetBindingsOnShaderBindingTable);
 
+	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
 	FD3D12RayTracingPipelineState* Pipeline = FD3D12DynamicRHI::ResourceCast(InPipeline);
 
 	checkf(Scene->bBuilt, TEXT("Ray tracing scene must be built before any shaders can be bound to it. Make sure that RHIBuildAccelerationStructure() command has been executed."));
 
-	FD3D12RayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline, Device);
+	SBT->SetRayTracingPipelineState(Pipeline);
+
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTableForDevice = SBT->GetTableForDevice(GetParentDevice());
 
 	FGraphEventArray TaskList;
 
 	const uint32 NumWorkerThreads = FTaskGraphInterface::Get().GetNumWorkerThreads();
 	const uint32 MaxTasks = FApp::ShouldUseThreadingForPerformance() 
-		? FMath::Min<uint32>(NumWorkerThreads, FD3D12RayTracingScene::MaxBindingWorkers)
+		? FMath::Min<uint32>(NumWorkerThreads, FD3D12RayTracingShaderBindingTableInternal::MaxBindingWorkers)
 		: 1;
 
 	struct FTaskContext
@@ -4954,19 +5035,19 @@ void FD3D12CommandContext::RHISetRayTracingBindings(
 		uint32 WorkerIndex = 0;
 	};
 
-	TArray<FTaskContext, TInlineAllocator<FD3D12RayTracingScene::MaxBindingWorkers>> TaskContexts;
+	TArray<FTaskContext, TInlineAllocator<FD3D12RayTracingShaderBindingTableInternal::MaxBindingWorkers>> TaskContexts;
 	for (uint32 WorkerIndex = 0; WorkerIndex < MaxTasks; ++WorkerIndex)
 	{
 		TaskContexts.Add(FTaskContext{WorkerIndex});
 	}
 
-	auto BindingTask = [Bindings, Device = Device, ShaderTable, Scene, Pipeline, BindingType](const FTaskContext& Context, int32 CurrentIndex)
+	auto BindingTask = [Bindings, Device = Device, ShaderTableForDevice, Scene, Pipeline, BindingType, NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment](const FTaskContext& Context, int32 CurrentIndex)
 	{
 		const FRayTracingLocalShaderBindings& Binding = Bindings[CurrentIndex];
 
 		if (BindingType == ERayTracingBindingType::HitGroup)
 		{
-			SetRayTracingHitGroup(Device, ShaderTable, Scene, Pipeline,
+			SetRayTracingHitGroup(Device, ShaderTableForDevice, Scene, Pipeline,
 				Binding.InstanceIndex,
 				Binding.SegmentIndex,
 				Binding.ShaderSlot,
@@ -4976,11 +5057,12 @@ void FD3D12CommandContext::RHISetRayTracingBindings(
 				Binding.LooseParameterDataSize,
 				Binding.LooseParameterData,
 				Binding.UserData,
+				NumShaderSlotsPerGeometrySegment,
 				Context.WorkerIndex);
 		}
 		else if (BindingType == ERayTracingBindingType::CallableShader)
 		{
-			SetRayTracingCallableShader(Device, ShaderTable, Scene, Pipeline,
+			SetRayTracingCallableShader(Device, ShaderTableForDevice, Scene, Pipeline,
 				Binding.ShaderSlot,
 				Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers,
@@ -4992,7 +5074,7 @@ void FD3D12CommandContext::RHISetRayTracingBindings(
 		}
 		else if (BindingType == ERayTracingBindingType::MissShader)
 		{
-			SetRayTracingMissShader(Device, ShaderTable, Scene, Pipeline,
+			SetRayTracingMissShader(Device, ShaderTableForDevice, Scene, Pipeline,
 				Binding.ShaderSlot,
 				Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers,
@@ -5015,7 +5097,7 @@ void FD3D12CommandContext::RHISetRayTracingBindings(
 
 	ParallelForWithExistingTaskContext(TEXT("SetRayTracingBindings"), MakeArrayView(TaskContexts), NumBindings, ItemsPerTask, BindingTask);
 
-	ShaderTable->bIsDirty = true;
+	ShaderTableForDevice->bIsDirty = true;
 }
 
 #endif // D3D12_RHI_RAYTRACING

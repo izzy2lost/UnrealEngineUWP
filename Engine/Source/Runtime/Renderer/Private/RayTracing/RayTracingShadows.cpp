@@ -508,6 +508,8 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 		}
 		else
 		{
+			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
 			TShaderMapRef<FOcclusionRGS> RayGenerationShader(GetGlobalShaderMap(FeatureLevel), PermutationVector);
 
 			ClearUnusedGraphResources(RayGenerationShader, CommonPassParameters);
@@ -523,7 +525,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				RDG_EVENT_NAME("RayTracedShadow (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y),
 				CommonPassParameters,
 				ERDGPassFlags::Compute,
-				[this, &View, RayGenerationShader, CommonPassParameters, Resolution](FRHICommandList& RHICmdList)
+				[this, &View, RayGenerationShader, CommonPassParameters, Resolution, &RayTracingScene](FRHICommandList& RHICmdList)
 				{
 					FRayTracingShaderBindingsWriter GlobalResources;
 					SetShaderParameters(GlobalResources, RayGenerationShader, *CommonPassParameters);
@@ -532,7 +534,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 
 					if (GRayTracingShadowsEnableMaterials)
 					{
-						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
+						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, View.RayTracingSBT, GlobalResources, Resolution.X, Resolution.Y);
 					}
 					else
 					{
@@ -551,9 +553,18 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 						Initializer.SetMissShaderTable(MissGroupTable);
 
 						FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
-						RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-						RHICmdList.CommitRayTracingBindings(RayTracingSceneRHI);
-						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
+
+						FRayTracingShaderBindingTableInitializer SBTInitializer;
+						SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+						SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+						SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+						SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+
+						FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
+
+						RHICmdList.SetRayTracingMissShader(SBT, RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+						RHICmdList.CommitShaderBindingTable(SBT);
+						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, Resolution.X, Resolution.Y);
 					}
 				}
 			);

@@ -907,8 +907,9 @@ void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FVulkanComm
 }
 
 
-FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FVulkanDevice* Device)
-	: FDeviceChild(Device)
+FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer)
+	: FRHIShaderBindingTable(InInitializer)
+	, FDeviceChild(Device)
 	, HandleSize(Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleSize)
 	, HandleSizeAligned(Align(HandleSize, Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleAlignment))
 {
@@ -938,7 +939,7 @@ void FVulkanRayTracingShaderTable::ReleaseLocalBuffer(FVulkanDevice* Device, FVu
 	Alloc.Region.deviceAddress = 0;
 }
 
-void FVulkanRayTracingShaderTable::Init(const FVulkanRayTracingScene* Scene, const FVulkanRayTracingPipelineState* Pipeline)
+void FVulkanRayTracingShaderTable::Init(const FVulkanRayTracingPipelineState* Pipeline)
 {
 	auto InitAlloc = [Device = Device, HandleSize = HandleSize, HandleSizeAligned = HandleSizeAligned](FVulkanShaderTableAllocation& Alloc, uint32 InHandleCount, bool InUseLocalRecord) {
 
@@ -959,12 +960,10 @@ void FVulkanRayTracingShaderTable::Init(const FVulkanRayTracingScene* Scene, con
 		}
 	};
 
-	const FRayTracingSceneInitializer2& SceneInitializer = Scene->GetInitializer();
-
 	InitAlloc(Raygen, 1, false);
-	InitAlloc(Miss, SceneInitializer.NumMissShaderSlots, true);
-	InitAlloc(HitGroup, Pipeline->bAllowHitGroupIndexing ? SceneInitializer.NumTotalSegments * SceneInitializer.ShaderSlotsPerGeometrySegment : 1, true);
-	InitAlloc(Callable, SceneInitializer.NumCallableShaderSlots, true);
+	InitAlloc(Miss, Initializer.NumMissShaderSlots, true);
+	InitAlloc(HitGroup, Pipeline->bAllowHitGroupIndexing ? Initializer.NumGeometrySegments * Initializer.NumShaderSlotsPerGeometrySegment : 1, true);
+	InitAlloc(Callable, Initializer.NumCallableShaderSlots, true);
 
 	if (!Pipeline->bAllowHitGroupIndexing && Pipeline->GetShaderHandles(SF_RayHitGroup).Num())
 	{
@@ -1091,9 +1090,11 @@ void FVulkanRayTracingShaderTable::Commit(FVulkanCommandListContext& Context)
 	VulkanRHI::vkCmdPipelineBarrier(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 1, &BarrierAfter, 0, nullptr, 0, nullptr);
 }
 
-FVulkanRayTracingShaderTable* FVulkanRayTracingScene::FindOrCreateShaderTable(const FVulkanRayTracingPipelineState* Pipeline)
+FRHIShaderBindingTable* FVulkanRayTracingScene::FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* InPipeline)
 {
 	UE::TScopeLock Lock(Mutex);
+
+	const FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
 
 	// Find existing table
 	{
@@ -1104,10 +1105,20 @@ FVulkanRayTracingShaderTable* FVulkanRayTracingScene::FindOrCreateShaderTable(co
 		}
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRayTracingShaderBindingTableInitializer SBTInitializer;
+	SBTInitializer.NumGeometrySegments = Initializer.NumTotalSegments;
+	SBTInitializer.NumShaderSlotsPerGeometrySegment = Initializer.ShaderSlotsPerGeometrySegment;
+	SBTInitializer.NumCallableShaderSlots = Initializer.NumCallableShaderSlots;
+	SBTInitializer.NumMissShaderSlots = Initializer.NumMissShaderSlots;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	// Create new table
-	FVulkanRayTracingShaderTable* CreatedShaderTable = new FVulkanRayTracingShaderTable(Device);
-	CreatedShaderTable->Init(this, Pipeline);
+	FVulkanRayTracingShaderTable* CreatedShaderTable = new FVulkanRayTracingShaderTable(Device, MoveTemp(SBTInitializer));
+	CreatedShaderTable->Init(Pipeline);
+
 	ShaderTables.Add(Pipeline, CreatedShaderTable);
+
 	return CreatedShaderTable;
 }
 
@@ -1162,6 +1173,11 @@ FRayTracingPipelineStateRHIRef FVulkanDynamicRHI::RHICreateRayTracingPipelineSta
 	return new FVulkanRayTracingPipelineState(GetDevice(), Initializer);
 }
 
+FShaderBindingTableRHIRef FVulkanDynamicRHI::RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
+{
+	return new FVulkanRayTracingShaderTable(GetDevice(), Initializer);
+}
+
 void FVulkanCommandListContext::RHIClearRayTracingBindings(FRHIRayTracingScene* Scene)
 {
 	 // TODO
@@ -1171,6 +1187,17 @@ void FVulkanCommandListContext::RHICommitRayTracingBindings(FRHIRayTracingScene*
 {
 	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	Scene->CommitShaderTables(*this);
+}
+
+void FVulkanCommandListContext::RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT)
+{
+	// TODO
+}
+
+void FVulkanCommandListContext::RHICommitShaderBindingTable(FRHIShaderBindingTable* InSBT)
+{
+	FVulkanRayTracingShaderTable* SBT = ResourceCast(InSBT);
+	SBT->Commit(*this);
 }
 
 void FVulkanCommandListContext::RHIBindAccelerationStructureMemory(FRHIRayTracingScene* Scene, FRHIBuffer* Buffer, uint32 BufferOffset)
@@ -2038,14 +2065,14 @@ static FVulkanPipelineBarrier SetRayGenResources(FVulkanDevice* Device, FVulkanC
 void FVulkanCommandListContext::RHIRayTraceDispatch(
 	FRHIRayTracingPipelineState* InRayTracingPipelineState, 
 	FRHIRayTracingShader* InRayGenShader,
-	FRHIRayTracingScene* InScene,
+	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
 	const FRayTracingShaderBindings& InGlobalResourceBindings, // :todo-jn:
 	uint32 InWidth, uint32 InHeight)
 {
 	const FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InRayTracingPipelineState);
 	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingShader* RayGenShader = ResourceCast(InRayGenShader);
-	FVulkanRayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline);
+	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
 
 	FVulkanCmdBuffer* const CmdBuffer = GetCommandBufferManager()->GetActiveCmdBuffer();
 	VulkanRHI::vkCmdBindPipeline(CmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, Pipeline->GetPipeline());
@@ -2073,7 +2100,7 @@ void FVulkanCommandListContext::RHIRayTraceDispatch(
 void FVulkanCommandListContext::RHIRayTraceDispatchIndirect(
 	FRHIRayTracingPipelineState* InRayTracingPipelineState, 
 	FRHIRayTracingShader* InRayGenShader,
-	FRHIRayTracingScene* InScene,
+	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
 	const FRayTracingShaderBindings& InGlobalResourceBindings, // :todo-jn:
 	FRHIBuffer* InArgumentBuffer, uint32 InArgumentOffset)
 {
@@ -2082,7 +2109,7 @@ void FVulkanCommandListContext::RHIRayTraceDispatchIndirect(
 	const FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InRayTracingPipelineState);
 	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingShader* RayGenShader = ResourceCast(InRayGenShader);
-	FVulkanRayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline);
+	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
 
 	FVulkanCmdBuffer* const CmdBuffer = GetCommandBufferManager()->GetActiveCmdBuffer();
 	VulkanRHI::vkCmdBindPipeline(CmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, Pipeline->GetPipeline());
@@ -2152,13 +2179,14 @@ static void SetRayTracingHitGroup(
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 	uint32 LooseParameterDataSize, const void* LooseParameterData,
 	uint32 UserData,
+	uint32 NumShaderSlotsPerGeometrySegment,
 	uint32 WorkerIndex)
 {
 	const FRayTracingSceneInitializer2& SceneInitializer = Scene->GetInitializer();
 
-	checkf(ShaderSlot < SceneInitializer.ShaderSlotsPerGeometrySegment, TEXT("Shader slot is invalid. Make sure that ShaderSlotsPerGeometrySegment is correct on FRayTracingSceneInitializer."));
+	checkf(ShaderSlot < NumShaderSlotsPerGeometrySegment, TEXT("Shader slot is invalid. Make sure that NumShaderSlotsPerGeometrySegment is correct on FRayTracingShaderBindingTableInitializer."));
 
-	const uint32 RecordIndex = Scene->GetHitRecordBaseIndex(InstanceIndex, SegmentIndex) + ShaderSlot;
+	const uint32 RecordIndex = Scene->GetSegmentIndex(InstanceIndex, SegmentIndex) * NumShaderSlotsPerGeometrySegment + ShaderSlot;
 
 #if DO_CHECK
 	{
@@ -2187,6 +2215,7 @@ static void SetRayTracingHitGroup(
 
 
 static void SetGenericSystemParameters(
+	FVulkanRayTracingShaderTable* ShaderTable,
 	FRHIRayTracingScene* InScene, uint32 ShaderSlotInScene,
 	FRHIRayTracingPipelineState* InPipeline, uint32 ShaderIndexInPipeline,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
@@ -2194,8 +2223,6 @@ static void SetGenericSystemParameters(
 {
 	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
-	const uint32 WorkerIndex = 0;
-	FVulkanRayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline);
 	const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(ShaderFrequency, ShaderIndexInPipeline);
 
 	FVulkanHitGroupSystemParameters SystemParameters;
@@ -2208,34 +2235,34 @@ static void SetGenericSystemParameters(
 }
 
 
-void FVulkanCommandListContext::RHISetRayTracingBindings(
+void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* InSBT,
 	FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
 	uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 	ERayTracingBindingType BindingType)
 {
 	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
-	FVulkanRayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline);
+	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
 
 	checkf(Scene->IsBuilt(), TEXT("Ray tracing scene must be built before any shaders can be bound to it. Make sure that RHIBuildAccelerationStructure() command has been executed."));
 
 	FGraphEventArray TaskList;
 
 	const uint32 NumWorkerThreads = FTaskGraphInterface::Get().GetNumWorkerThreads();
-	const uint32 MaxTasks = FApp::ShouldUseThreadingForPerformance() ? FMath::Min<uint32>(NumWorkerThreads, FVulkanRayTracingScene::MaxBindingWorkers) : 1;
+	const uint32 MaxTasks = FApp::ShouldUseThreadingForPerformance() ? FMath::Min<uint32>(NumWorkerThreads, FVulkanRayTracingShaderTable::MaxBindingWorkers) : 1;
 
 	struct FTaskContext
 	{
 		uint32 WorkerIndex = 0;
 	};
 
-	TArray<FTaskContext, TInlineAllocator<FVulkanRayTracingScene::MaxBindingWorkers>> TaskContexts;
+	TArray<FTaskContext, TInlineAllocator<FVulkanRayTracingShaderTable::MaxBindingWorkers>> TaskContexts;
 	for (uint32 WorkerIndex = 0; WorkerIndex < MaxTasks; ++WorkerIndex)
 	{
 		TaskContexts.Add(FTaskContext{ WorkerIndex });
 	}
 
-	auto BindingTask = [this, Bindings, Device = Device, Scene, Pipeline, ShaderTable, BindingType](const FTaskContext& Context, int32 CurrentIndex)
+	auto BindingTask = [this, Bindings, Device = Device, Scene, Pipeline, ShaderTable, BindingType, NumShaderSlotsPerGeometrySegment = ShaderTable->GetInitializer().NumShaderSlotsPerGeometrySegment](const FTaskContext& Context, int32 CurrentIndex)
 	{
 		const FRayTracingLocalShaderBindings& Binding = Bindings[CurrentIndex];
 
@@ -2251,12 +2278,13 @@ void FVulkanCommandListContext::RHISetRayTracingBindings(
 				Binding.LooseParameterDataSize,
 				Binding.LooseParameterData,
 				Binding.UserData,
+				NumShaderSlotsPerGeometrySegment,
 				Context.WorkerIndex);
 		}
 		else if (BindingType == ERayTracingBindingType::CallableShader)
 		{
 			SetGenericSystemParameters(
-				Scene, Binding.ShaderSlot,
+				ShaderTable, Scene, Binding.ShaderSlot,
 				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers, Binding.UniformBuffers,
 				Binding.UserData,
@@ -2265,7 +2293,7 @@ void FVulkanCommandListContext::RHISetRayTracingBindings(
 		else if (BindingType == ERayTracingBindingType::MissShader)
 		{
 			SetGenericSystemParameters(
-				Scene, Binding.ShaderSlot,
+				ShaderTable, Scene, Binding.ShaderSlot,
 				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers, Binding.UniformBuffers,
 				Binding.UserData,
@@ -2278,7 +2306,7 @@ void FVulkanCommandListContext::RHISetRayTracingBindings(
 	};
 
 	// One helper worker task will be created at most per this many work items, plus one worker for current thread (unless running on a task thread),
-	// up to a hard maximum of FD3D12RayTracingScene::MaxBindingWorkers.
+	// up to a hard maximum of FVulkanRayTracingShaderTable::MaxBindingWorkers.
 	// Internally, parallel for tasks still subdivide the work into smaller chunks and perform fine-grained load-balancing.
 	const int32 ItemsPerTask = 1024;
 

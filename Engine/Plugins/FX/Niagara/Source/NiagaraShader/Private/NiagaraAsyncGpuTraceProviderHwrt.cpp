@@ -203,6 +203,7 @@ static FRayTracingPipelineState* CreateNiagaraRayTracingPipelineState(
 
 static void BindNiagaraRayTracingMeshCommands(
 	FRHICommandList& RHICmdList,
+	FRHIShaderBindingTable* SBT,
 	FRayTracingSceneRHIRef RayTracingScene,
 	FRHIUniformBuffer* ViewUniformBuffer,
 	TConstArrayView<FVisibleRayTracingMeshCommand> RayTracingMeshCommands,
@@ -251,13 +252,14 @@ static void BindNiagaraRayTracingMeshCommands(
 
 	const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
 	RHICmdList.SetRayTracingHitGroups(
+		SBT,
 		RayTracingScene,
 		Pipeline,
 		NumTotalBindings,
 		Bindings,
 		bCopyDataToInlineStorage);
-	RHICmdList.SetRayTracingMissShader(RayTracingScene, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-	RHICmdList.CommitRayTracingBindings(RayTracingScene);
+	RHICmdList.SetRayTracingMissShader(SBT, RayTracingScene, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+	RHICmdList.CommitShaderBindingTable(SBT);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,6 +330,8 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 			ClosestHitShader,
 			MissShader);
 
+		RayTracingSBT = UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(RHICmdList, Scene);
+
 		// some options for what we want with our per MeshCommand user data.  For now we'll ignore it, but possibly
 		// something we'd want to incorporate.  Some examples could be if the material is translucent, or possibly the physical material?
 		auto BakeTranslucent = [&](const FRayTracingMeshCommand& MeshCommand) {	return (MeshCommand.bIsTranslucent != 0) & 0x1;	};
@@ -335,6 +339,7 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 
 		BindNiagaraRayTracingMeshCommands(
 			RHICmdList,
+			RayTracingSBT,
 			RayTracingScene,
 			ViewUniformBuffer,
 			UE::FXRenderingUtils::RayTracing::GetVisibleRayTracingMeshCommands(ReferenceView),
@@ -395,6 +400,7 @@ void FNiagaraAsyncGpuTraceProviderHwrt::IssueTraces(FRHICommandList& RHICmdList,
 			RayTracingPipelineState,
 			RGShader.GetRayTracingShader(),
 			RayTracingScene,
+			RayTracingSBT,
 			GlobalResources,
 			Request.TraceCountsBuffer->Buffer,
 			Request.TraceCountsOffset * sizeof(uint32));
@@ -410,6 +416,7 @@ void FNiagaraAsyncGpuTraceProviderHwrt::IssueTraces(FRHICommandList& RHICmdList,
 			RayTracingPipelineState,
 			RGShader.GetRayTracingShader(),
 			RayTracingScene,
+			RayTracingSBT,
 			GlobalResources,
 			Request.MaxTraceCount,
 			1
@@ -420,6 +427,7 @@ void FNiagaraAsyncGpuTraceProviderHwrt::IssueTraces(FRHICommandList& RHICmdList,
 void FNiagaraAsyncGpuTraceProviderHwrt::Reset()
 {
 	RayTracingPipelineState = nullptr;
+	RayTracingSBT = nullptr;
 	RayTracingScene = nullptr;
 	RayTracingSceneView = nullptr;
 	ViewUniformBuffer = TUniformBufferRef<FViewUniformShaderParameters>();

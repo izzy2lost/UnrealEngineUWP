@@ -1152,14 +1152,24 @@ public:
 
 	void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene)
 	{
-		Scene->SetCommitted(false);
 		RHIContext->RHIClearRayTracingBindings(Scene);
 	}
 	
 	void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene)
 	{
-		Scene->SetCommitted(true);
 		RHIContext->RHICommitRayTracingBindings(Scene);
+	}
+
+	void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT)
+	{
+		SBT->SetCommitted(false);
+		RHIContext->RHIClearShaderBindingTable(SBT);
+	}
+
+	void RHICommitShaderBindingTable(FRHIShaderBindingTable* SBT)
+	{
+		SBT->SetCommitted(true);
+		RHIContext->RHICommitShaderBindingTable(SBT);
 	}
 
 	virtual void RHIBuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange) override final
@@ -1184,16 +1194,16 @@ public:
 	}
 
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
+		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height) override final
 	{
-		ensureMsgf(Scene->IsCommitted(), TEXT("RayTracing bindings have not been committed. You must call CommitRayTracingBindings first."));
-		RHIContext->RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader, Scene, GlobalResourceBindings, Width, Height);
+		ensureMsgf(SBT->IsCommitted(), TEXT("RayTracing bindings have not been committed. You must call CommitRayTracingBindings first."));
+		RHIContext->RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, Width, Height);
 	}
 
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
+		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) override final
 	{
@@ -1201,14 +1211,14 @@ public:
 		Tracker->Assert(ArgumentBuffer->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 		Tracker->Assert(ArgumentBuffer->GetWholeResourceIdentity(), ERHIAccess::SRVCompute);
 
-		ensureMsgf(Scene->IsCommitted(), TEXT("RayTracing bindings have not been committed. You must call CommitRayTracingBindings first."));
-		RHIContext->RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, Scene, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
+		ensureMsgf(SBT->IsCommitted(), TEXT("RayTracing bindings have not been committed. You must call CommitRayTracingBindings first."));
+		RHIContext->RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
 	}
 
-	virtual void RHISetRayTracingBindings(FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) override final
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) override final
 	{
-		Scene->SetCommitted(false);
-		RHIContext->RHISetRayTracingBindings(Scene, Pipeline, NumBindings, Bindings, BindingType);
+		SBT->SetCommitted(false);
+		RHIContext->RHISetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, NumBindings, Bindings, BindingType);
 	}
 
 	void SetupDrawing()

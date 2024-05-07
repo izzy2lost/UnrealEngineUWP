@@ -136,8 +136,10 @@ void RenderRayTracingBarycentricsCS(FRDGBuilder& GraphBuilder, const FScene& Sce
 	FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Barycentrics"), ComputeShader, PassParameters, GroupCount);
 }
 
-void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureRef SceneColor)
+void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Scene, const FViewInfo& View, FRDGTextureRef SceneColor)
 {
+	const FRayTracingScene& RayTracingScene = Scene.RayTracingScene;
+
 	auto RayGenShader = View.ShaderMap->GetShader<FRayTracingBarycentricsRGS>();
 	auto ClosestHitShader = View.ShaderMap->GetShader<FRayTracingBarycentricsCHS>();
 
@@ -155,6 +157,14 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FViewInfo&
 
 	FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
+	FRayTracingShaderBindingTableInitializer SBTInitializer;
+	SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+	SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+	SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+
+	FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
+
 	FRayTracingBarycentricsRGS::FParameters* RayGenParameters = GraphBuilder.AllocParameters<FRayTracingBarycentricsRGS::FParameters>();
 
 	RayGenParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
@@ -168,15 +178,15 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FViewInfo&
 		RDG_EVENT_NAME("Barycentrics"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[RayGenParameters, RayGenShader, &View, Pipeline, ViewRect](FRHICommandList& RHICmdList)
+		[RayGenParameters, RayGenShader, &View, SBT, Pipeline, ViewRect](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 		// Dispatch rays using default shader binding table
-		RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-		RHICmdList.CommitRayTracingBindings(View.GetRayTracingSceneChecked());
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
+		RHICmdList.SetRayTracingMissShader(SBT, View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+		RHICmdList.CommitShaderBindingTable(SBT);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), SBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
 	});
 }
 
@@ -191,7 +201,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingBarycentrics(FRDGBuilder& Gr
 	}
 	else if (bRayTracingPipeline)
 	{
-		RenderRayTracingBarycentricsRGS(GraphBuilder, View, SceneColor);
+		RenderRayTracingBarycentricsRGS(GraphBuilder, *Scene, View, SceneColor);
 	}
 }
 #endif

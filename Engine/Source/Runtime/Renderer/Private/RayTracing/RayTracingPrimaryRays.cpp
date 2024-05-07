@@ -183,13 +183,14 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 		ERDGPassFlags::Compute,
 		[PassParameters, this, &View, RayGenShader, RayTracingResolution](FRHICommandList& RHICmdList)
 	{
+		FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 		FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 		FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 	});
 }
 

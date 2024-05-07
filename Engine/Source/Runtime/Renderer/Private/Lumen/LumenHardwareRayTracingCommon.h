@@ -195,9 +195,16 @@ static void AddLumenRayTraceDispatchPass(
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
 			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-			FRayTracingPipelineState* Pipeline = bUseMinimalPayload ? View.LumenHardwareRayTracingMaterialPipeline : View.RayTracingMaterialPipeline;
+			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
+			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 
-			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources,
+			if (bUseMinimalPayload)
+			{
+				Pipeline = View.LumenHardwareRayTracingMaterialPipeline;
+				SBT = View.LumenHardwareRayTracingSBT;
+			}
+
+			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources,
 				Resolution.X, Resolution.Y);
 		}
 	);
@@ -228,9 +235,16 @@ static void AddLumenRayTraceDispatchIndirectPass(
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
 			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-			FRayTracingPipelineState* Pipeline = bUseMinimalPayload ? View.LumenHardwareRayTracingMaterialPipeline : View.RayTracingMaterialPipeline;
+			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
+			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 
-			RHICmdList.RayTraceDispatchIndirect(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources,
+			if (bUseMinimalPayload)
+			{
+				Pipeline = View.LumenHardwareRayTracingMaterialPipeline;
+				SBT = View.LumenHardwareRayTracingSBT;
+			}
+
+			RHICmdList.RayTraceDispatchIndirect(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources,
 				IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgsOffset);
 		}
 	);

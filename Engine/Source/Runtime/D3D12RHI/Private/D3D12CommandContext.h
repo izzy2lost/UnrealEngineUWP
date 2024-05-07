@@ -732,17 +732,20 @@ public:
 	virtual void RHIBuildAccelerationStructure(const FRayTracingSceneBuildParams& SceneBuildParams) final override;
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override;
 	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene) final override;
+	virtual void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT) final override;
+	virtual void RHICommitShaderBindingTable(FRHIShaderBindingTable* SBT) final override;
 
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
+		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* InSBT,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height) final override;
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
+		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* InSBT,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
-	virtual void RHISetRayTracingBindings(
-		FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
+
+	virtual void RHISetBindingsOnShaderBindingTable(
+		FRHIShaderBindingTable* InSBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override;
 #endif // D3D12_RHI_RAYTRACING
 
@@ -1083,29 +1086,34 @@ public:
 	}
 
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
+		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height) final override
 	{
-		ContextRedirect(RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader, Scene, GlobalResourceBindings, Width, Height));
+		ContextRedirect(RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, Width, Height));
 	}
 
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
+		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override
 	{
-		ContextRedirect(RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, Scene, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset));
+		ContextRedirect(RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset));
 	}
 
-	virtual void RHISetRayTracingBindings(FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override
 	{
-		ContextRedirect(RHISetRayTracingBindings(Scene, Pipeline, NumBindings, Bindings, BindingType));
+		ContextRedirect(RHISetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, NumBindings, Bindings, BindingType));
 	}
 
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override
 	{
 		ContextRedirect(RHIClearRayTracingBindings(Scene));
+	}
+
+	virtual void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT) final override
+	{
+		ContextRedirect(RHIClearShaderBindingTable(SBT));
 	}
 
 	virtual void RHIBindAccelerationStructureMemory(FRHIRayTracingScene* Scene, FRHIBuffer* Buffer, uint32 BufferOffset) final override

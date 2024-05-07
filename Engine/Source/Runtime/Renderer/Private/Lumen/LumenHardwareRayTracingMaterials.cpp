@@ -127,7 +127,7 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData);
 
 	const FRayTracingSceneInitializer2& SceneInitializer = Scene->RayTracingScene.GetRHIRayTracingSceneChecked()->GetInitializer();
-	const uint32 NumTotalSegments = FMath::Max(SceneInitializer.NumTotalSegments, 1u);
+	const uint32 NumTotalSegments = FMath::Max(Scene->RayTracingScene.GetTotalNumSegments(), 1u);
 
 	FRDGUploadData<Lumen::FHitGroupRootConstants> HitGroupData(GraphBuilder, NumTotalSegments);
 
@@ -354,7 +354,7 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 void FDeferredShadingSceneRenderer::BindLumenHardwareRayTracingMaterialPipeline(FRHICommandList& RHICmdList, FViewInfo& View)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BindLumenHardwareRayTracingMaterialPipeline);
-	MergeAndSetRayTracingBindings(RHICmdList, Allocator, View.GetRayTracingSceneChecked(), View.LumenHardwareRayTracingMaterialPipeline, View.LumenRayTracingMaterialBindings, ERayTracingBindingType::HitGroup);
+	MergeAndSetRayTracingBindings(RHICmdList, Allocator, View.LumenHardwareRayTracingSBT, View.GetRayTracingSceneChecked(), View.LumenHardwareRayTracingMaterialPipeline, View.LumenRayTracingMaterialBindings, ERayTracingBindingType::HitGroup);
 
 	// Move the ray tracing binding container ownership to the command list, so that memory will be
 	// released on the RHI thread timeline, after the commands that reference it are processed.

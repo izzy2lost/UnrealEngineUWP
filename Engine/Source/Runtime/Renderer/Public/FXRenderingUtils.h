@@ -75,6 +75,8 @@ namespace UE::FXRenderingUtils
 		RENDERER_API bool HasRayTracingScene(const FSceneInterface* Scene);
 		RENDERER_API FRHIRayTracingScene* GetRayTracingScene(const FSceneInterface* Scene);
 		RENDERER_API FRHIShaderResourceView* GetRayTracingSceneView(FRHICommandListBase& RHICmdList, const FSceneInterface* Scene);
+
+		RENDERER_API FShaderBindingTableRHIRef CreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FSceneInterface* Scene);
 		
 		UE_DEPRECATED(5.3, "GetRayTracingSceneView now requires a command list.")
 		RENDERER_API FRHIShaderResourceView* GetRayTracingSceneView(const FSceneInterface* Scene);

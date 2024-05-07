@@ -3233,6 +3233,27 @@ enum class ERayTracingAccelerationStructureFlags
 };
 ENUM_CLASS_FLAGS(ERayTracingAccelerationStructureFlags);
 
+struct FRayTracingShaderBindingTableInitializer
+{
+	uint32 NumGeometrySegments = 0;
+
+	// This value controls how many elements will be allocated in the shader binding table per geometry segment.
+	// Changing this value allows different hit shaders to be used for different effects.
+	// For example, setting this to 2 allows one hit shader for regular material evaluation and a different one for shadows.
+	// Desired hit shader can be selected by providing appropriate RayContributionToHitGroupIndex to TraceRay() function.
+	// Use ShaderSlot argument in SetRayTracingHitGroup() to assign shaders and resources for specific part of the shder binding table record.
+	uint32 NumShaderSlotsPerGeometrySegment = 1;
+
+	// At least one miss shader must be present in a ray tracing scene.
+	// Default miss shader is always in slot 0. Default shader must not use local resources.
+	// Custom miss shaders can be bound to other slots using SetRayTracingMissShader().
+	uint32 NumMissShaderSlots = 1;
+
+	// Defines how many different callable shaders with unique resource bindings can be bound to this scene.
+	// Shaders and resources are assigned to slots in the scene using SetRayTracingCallableShader().
+	uint32 NumCallableShaderSlots = 0;
+};
+
 struct FRayTracingSceneInitializer2
 {
 	// Unique list of geometries referenced by all instances in this scene.
@@ -3254,20 +3275,13 @@ struct FRayTracingSceneInitializer2
 
 	uint32 NumTotalSegments = 0;
 
-	// This value controls how many elements will be allocated in the shader binding table per geometry segment.
-	// Changing this value allows different hit shaders to be used for different effects.
-	// For example, setting this to 2 allows one hit shader for regular material evaluation and a different one for shadows.
-	// Desired hit shader can be selected by providing appropriate RayContributionToHitGroupIndex to TraceRay() function.
-	// Use ShaderSlot argument in SetRayTracingHitGroup() to assign shaders and resources for specific part of the shder binding table record.
+	UE_DEPRECATED(5.5, "Use FRayTracingShaderBindingTableInitializer instead.")
 	uint32 ShaderSlotsPerGeometrySegment = 1;
 
-	// Defines how many different callable shaders with unique resource bindings can be bound to this scene.
-	// Shaders and resources are assigned to slots in the scene using SetRayTracingCallableShader().
+	UE_DEPRECATED(5.5, "Use FRayTracingShaderBindingTableInitializer instead.")
 	uint32 NumCallableShaderSlots = 0;
 
-	// At least one miss shader must be present in a ray tracing scene.
-	// Default miss shader is always in slot 0. Default shader must not use local resources.
-	// Custom miss shaders can be bound to other slots using SetRayTracingMissShader().
+	UE_DEPRECATED(5.5, "Use FRayTracingShaderBindingTableInitializer instead.")
 	uint32 NumMissShaderSlots = 1;
 
 	// Defines whether data in this scene should persist between frames.
@@ -3342,9 +3356,6 @@ protected:
 /** Top level ray tracing acceleration structure (contains instances of meshes). */
 class FRHIRayTracingScene
 	: public FRHIRayTracingAccelerationStructure
-#if ENABLE_RHI_VALIDATION
-	, public RHIValidation::FRayTracingScene
-#endif
 {
 public:
 	virtual const FRayTracingSceneInitializer2& GetInitializer() const = 0;
@@ -3358,6 +3369,30 @@ public:
 	}
 
 	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const = 0;
+
+	UE_DEPRECATED(5.5, "Create standalone FRHIShaderBindingTable instead.")
+	virtual FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline) = 0;
+};
+
+class FRHIShaderBindingTable
+	: public FRHIResource
+#if ENABLE_RHI_VALIDATION
+	, public RHIValidation::FRayTracingShaderBindingTable
+#endif
+{
+public:
+	FRHIShaderBindingTable(const FRayTracingShaderBindingTableInitializer& InInitializer)
+		: FRHIResource(RRT_RayTracingShaderBindingTable)
+		, Initializer(InInitializer)
+	{}
+
+	const FRayTracingShaderBindingTableInitializer& GetInitializer() const
+	{
+		return Initializer;
+	}
+
+protected:
+	FRayTracingShaderBindingTableInitializer Initializer = {};
 };
 
 enum class ERHIShaderBundleMode : uint8

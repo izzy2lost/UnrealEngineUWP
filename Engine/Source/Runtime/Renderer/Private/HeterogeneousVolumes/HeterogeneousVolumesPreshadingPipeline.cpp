@@ -1405,18 +1405,6 @@ void RenderWithPreshadingHardwareRayTracing(
 			HeterogeneousVolumeRadiance
 		);
 	}
-
-	// Tear-down ray tracing scene
-	GraphBuilder.AddPostExecuteCallback(
-		[&RayTracingScene = Scene->HeterogeneousVolumesRayTracingScene, &RHICmdList = GraphBuilder.RHICmdList]
-		{
-			if (RayTracingScene.IsCreated())
-			{
-				RHICmdList.ClearRayTracingBindings(RayTracingScene.GetRHIRayTracingScene());
-			}
-		}
-	);
-
 #endif // RHI_RAYTRACING
 }
 

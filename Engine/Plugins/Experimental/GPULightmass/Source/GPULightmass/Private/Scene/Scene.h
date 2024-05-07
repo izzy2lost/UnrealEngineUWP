@@ -94,6 +94,8 @@ public:
 	FBufferRHIRef RayTracingSceneBuffer;
 	FBufferRHIRef RayTracingScratchBuffer;
 
+	FShaderBindingTableRHIRef SBT;
+
 	FRayTracingPipelineState* RayTracingPipelineState;
 	TSharedPtr<FViewInfo> ReferenceView;
 

@@ -53,8 +53,9 @@ struct FRHICommandTransitionTexturesPipeline;
 struct FRHICommandTransitionTexturesDepth;
 struct FRHICommandTransitionTexturesArray;
 struct FRHICommandClearRayTracingBindings;
+struct FRHICommandClearBindings;
 struct FRHICommandRayTraceDispatch;
-struct FRHICommandSetRayTracingBindings;
+struct FRHICommandSetBindings;
 
 template <typename TRHIShader> struct FRHICommandSetLocalUniformBuffer;
 
@@ -513,6 +514,18 @@ void FRHICommandClearRayTracingBindings::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(RHIClearRayTracingBindings)(Scene);
 }
 
+void FRHICommandCommitShaderBindingTable::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(CommitShaderBindingTable);
+	INTERNAL_DECORATOR(RHICommitShaderBindingTable)(SBT);
+}
+
+void FRHICommandClearShaderBindingTable::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(ClearShaderBindingTable);
+	INTERNAL_DECORATOR(RHIClearShaderBindingTable)(SBT);
+}
+
 void FRHICommandBuildAccelerationStructures::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(BuildAccelerationStructure);
@@ -523,20 +536,41 @@ void FRHICommandRayTraceDispatch::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(RayTraceDispatch);
 	extern RHI_API FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineState*);
+	
+	FRHIRayTracingPipelineState* RayTracingPipelineState = GetRHIRayTracingPipelineState(Pipeline);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (SBT == nullptr)
+	{
+		SBT = Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState);
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	if (ArgumentBuffer)
 	{
-		INTERNAL_DECORATOR(RHIRayTraceDispatchIndirect)(GetRHIRayTracingPipelineState(Pipeline), RayGenShader, Scene, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
+		INTERNAL_DECORATOR(RHIRayTraceDispatchIndirect)(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
 	}
 	else
 	{
-		INTERNAL_DECORATOR(RHIRayTraceDispatch)(GetRHIRayTracingPipelineState(Pipeline), RayGenShader, Scene, GlobalResourceBindings, Width, Height);
+		INTERNAL_DECORATOR(RHIRayTraceDispatch)(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, Width, Height);
 	}
 }
 
-void FRHICommandSetRayTracingBindings::Execute(FRHICommandListBase& CmdList)
+void FRHICommandSetBindingsOnShaderBindingTable::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetRayTracingHitGroup);
-	INTERNAL_DECORATOR(RHISetRayTracingBindings)(Scene, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
+	extern RHI_API FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineState*);
+	
+	FRHIRayTracingPipelineState* RayTracingPipelineState = GetRHIRayTracingPipelineState(Pipeline);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (SBT == nullptr)
+	{
+		SBT = Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState);
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
+	INTERNAL_DECORATOR(RHISetBindingsOnShaderBindingTable)(SBT, Scene, RayTracingPipelineState, NumBindings, Bindings, BindingType);
 }
 
 void FRHICommandBeginScene::Execute(FRHICommandListBase& CmdList)

@@ -672,6 +672,18 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		{
 			// Create RTPSO and kick off high-level material parameter binding tasks which will be consumed during RDG execution in BindRayTracingMaterialPipeline()
 			CreateRayTracingMaterialPipeline(GraphBuilder, ReferenceView, RayGenShaders);
+
+			{
+				const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
+				FRayTracingShaderBindingTableInitializer SBTInitializer;
+				SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+				SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+				SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+				SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+
+				ReferenceView.RayTracingSBT = RHICreateShaderBindingTable(SBTInitializer);
+			}
 		}
 	}
 
@@ -705,6 +717,18 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		if (LumenHardwareRayTracingRayGenShaders.Num())
 		{
 			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder, ReferenceView, LumenHardwareRayTracingRayGenShaders);
+
+			{
+				const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
+				FRayTracingShaderBindingTableInitializer SBTInitializer;
+				SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+				SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+				SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+				SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots; // TODO: Could be set to 0?
+
+				ReferenceView.LumenHardwareRayTracingSBT = RHICreateShaderBindingTable(MoveTemp(SBTInitializer));
+			}
 		}
 	}
 
@@ -720,6 +744,10 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		if (View->bHasAnyRayTracingPass && View != &ReferenceView)
 		{
 			View->RayTracingMaterialPipeline = ReferenceView.RayTracingMaterialPipeline;
+			View->RayTracingSBT = ReferenceView.RayTracingSBT;
+
+			View->LumenHardwareRayTracingMaterialPipeline = ReferenceView.LumenHardwareRayTracingMaterialPipeline;
+			View->LumenHardwareRayTracingSBT = ReferenceView.LumenHardwareRayTracingSBT;
 		}
 	}
 
@@ -873,12 +901,6 @@ static void ReleaseRaytracingResources(FRDGBuilder& GraphBuilder, FRayTracingSce
 	{
 		if (RayTracingScene.IsCreated())
 		{
-			// Clear ray tracing bindings only on the last renderer, where multiple view families are rendered
-			if (bIsLastRenderer)
-			{
-				SCOPED_GPU_MASK(RHICmdList, GRayTracingMultiGpuTLASMask ? RHICmdList.GetGPUMask() : FRHIGPUMask::All());
-				RHICmdList.ClearRayTracingBindings(RayTracingScene.GetRHIRayTracingScene());
-			}
 		}
 	});
 }
@@ -991,6 +1013,8 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 				BindLightFunctionShaders(RHICmdList, Scene, RayTracingLightFunctionMap, ReferenceView);
 			}
+
+			RHICmdList.CommitShaderBindingTable(ReferenceView.RayTracingSBT);
 		}
 
 		if (!bIsPathTracing)
@@ -999,13 +1023,13 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			{
 				if (ReferenceView.LumenHardwareRayTracingMaterialPipeline)
 				{
-					RHICmdList.SetRayTracingMissShader(ReferenceView.GetRayTracingSceneChecked(), RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
+					RHICmdList.SetRayTracingMissShader(ReferenceView.LumenHardwareRayTracingSBT, ReferenceView.GetRayTracingSceneChecked(), RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
 					BindLumenHardwareRayTracingMaterialPipeline(RHICmdList, ReferenceView);
+
+					RHICmdList.CommitShaderBindingTable(ReferenceView.LumenHardwareRayTracingSBT);
 				}
 			}
 		}
-
-		RHICmdList.CommitRayTracingBindings(ReferenceView.GetRayTracingSceneChecked());
 	});
 }
 

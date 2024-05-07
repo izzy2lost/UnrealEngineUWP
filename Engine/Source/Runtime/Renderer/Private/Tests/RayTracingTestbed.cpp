@@ -181,11 +181,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 	Instances[0].NumTransforms = NumTransforms;
 	Instances[0].Transforms = MakeArrayView(&FMatrix::Identity, 1);
 
-	FRayTracingSceneWithGeometryInstances RayTracingScene = CreateRayTracingSceneWithGeometryInstances(
-		Instances,
-		1,
-		RAY_TRACING_NUM_SHADER_SLOTS,
-		1);
+	FRayTracingSceneWithGeometryInstances RayTracingScene = CreateRayTracingSceneWithGeometryInstances(Instances, 1);
 
 	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingScene.Scene->GetInitializer();
 
@@ -232,6 +228,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 		FVector4f* TransformUploadData = (FVector4f*)RHICmdList.LockBuffer(TransformUploadBuffer, 0, TransformUploadBufferSize, RLM_WriteOnly);
 		FillRayTracingInstanceUploadBuffer(
 			RayTracingScene.Scene,
+			RAY_TRACING_NUM_SHADER_SLOTS,
 			FVector::ZeroVector,
 			Instances,
 			RayTracingScene.InstanceGeometryIndices,

@@ -230,6 +230,8 @@ public:
 	virtual FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency) final override;
 	virtual FRayTracingPipelineStateRHIRef RHICreateRayTracingPipelineState(const FRayTracingPipelineStateInitializer& Initializer) final override;
 
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer) final override;
+
 	// Historical number of times we've presented any and all viewports
 	uint32 TotalPresentCount = 0;
 
