@@ -36,7 +36,7 @@ public:
 	ENGINE_API void RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
 	ENGINE_API void UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
 
-	void RequestUpdateCachedRenderState(RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
+	ENGINE_API virtual void RequestUpdateCachedRenderState(RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle) override;
 
 	ENGINE_API void AddReferencedGeometry(const FRayTracingGeometry* Geometry);
 	ENGINE_API void AddReferencedGeometryGroups(const TSet<RayTracing::GeometryGroupHandle>& GeometryGroups);

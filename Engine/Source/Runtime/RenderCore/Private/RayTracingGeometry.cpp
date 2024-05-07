@@ -130,6 +130,11 @@ void FRayTracingGeometry::Evict()
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
 	EnumAddFlags(GeometryState, EGeometryStateFlags::Evicted);
+		
+	if (GroupHandle != INDEX_NONE)
+	{
+		GRayTracingGeometryManager->RequestUpdateCachedRenderState(GroupHandle);
+	}
 }
 
 void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)

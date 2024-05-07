@@ -316,11 +316,6 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 			if (Geometry->GetRHI() != nullptr)
 			{
 				Geometry->Evict();
-
-				if (Geometry->GroupHandle != INDEX_NONE)
-				{
-					RequestUpdateCachedRenderState(Geometry->GroupHandle);
-				}
 			}
 		}
 	}

@@ -51,6 +51,8 @@ public:
 	RENDERCORE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup(uint32 NumLODs) = 0;
 	RENDERCORE_API virtual void ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle) = 0;
 
+	RENDERCORE_API virtual void RequestUpdateCachedRenderState(RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle) = 0;
+
 	RENDERCORE_API virtual void PreRender() = 0;
 	RENDERCORE_API virtual void Tick(FRHICommandList& RHICmdList) = 0;
 };

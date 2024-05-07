@@ -2047,7 +2047,7 @@ void UStaticMesh::RequestUpdateCachedRenderState() const
 	if (IsRayTracingAllowed())
 	{
 		// TODO: this should only be necessary when a BLAS build was not requested (ie: non-compressed offline BLAS)
-		((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
+		GRayTracingGeometryManager->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
 	}
 #endif
 
