@@ -924,7 +924,12 @@ void FPrimitiveSceneInfo::RemoveCachedNaniteMaterialBins()
 void FScene::RefreshRayTracingMeshCommandCache()
 {
 	// Get rid of all existing cached commands
-	CachedRayTracingMeshCommands.Empty(CachedRayTracingMeshCommands.Num());
+	for (FPrimitiveSceneInfo* SceneInfo : Primitives)
+	{
+		SceneInfo->RemoveCachedRayTracingPrimitives();
+	}
+
+	check(CachedRayTracingMeshCommands.IsEmpty());
 
 	// Re-cache all current primitives
 	FPrimitiveSceneInfo::CacheRayTracingPrimitives(this, Primitives);
