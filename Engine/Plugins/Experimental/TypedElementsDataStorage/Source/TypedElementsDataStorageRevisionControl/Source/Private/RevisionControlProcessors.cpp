@@ -223,41 +223,30 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 	}
 }
 
-void UTypedElementRevisionControlFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementRevisionControlFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
 	
 	FSourceControlFileStatusMonitor& FileStatusMonitor = ISourceControlModule::Get().GetSourceControlFileStatusMonitor();
 
-	if (FetchUpdates == TypedElementInvalidQueryHandle)
+	if (FetchUpdates == TypedElementDataStorage::InvalidQueryHandle)
 	{
 		FetchUpdates = DataStorage.RegisterQuery(
 			Select(
 				TEXT("Gather source control statuses for objects with unresolved package paths"),
-				FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
-					.ForceToGameThread(true),
-				[this, &FileStatusMonitor](DSI::IQueryContext& Context, const FTypedElementPackageUnresolvedReference* InUnresolvedReferences)
+				FObserver::OnAdd<FTypedElementPackageUnresolvedReference>()
+				.ForceToGameThread(true),
+				[this, &FileStatusMonitor](DSI::IQueryContext& Context, const FTypedElementPackageUnresolvedReference& UnresolvedReference)
 				{
-					TConstArrayView<TypedElementDataStorage::RowHandle> RowHandles = Context.GetRowHandles();
-					TConstArrayView<FTypedElementPackageUnresolvedReference, int64> UnresolvedReferences { InUnresolvedReferences, Context.GetRowCount() };
-
-					for (int64 UnresolvedReferenceIndex = 0; UnresolvedReferenceIndex < UnresolvedReferences.Num(); ++UnresolvedReferenceIndex)
-					{
-						const FTypedElementPackageUnresolvedReference& UnresolvedReference = UnresolvedReferences[UnresolvedReferenceIndex];
-						if (UnresolvedReference.Index == 0)
-						{
-							Context.RemoveColumns<FTypedElementPackageUnresolvedReference>(RowHandles[UnresolvedReferenceIndex]);
-							return;
-						}
-						static FSourceControlFileStatusMonitor::FOnSourceControlFileStatus EmptyDelegate{};
-					
-						FileStatusMonitor.StartMonitoringFile(
-							reinterpret_cast<uintptr_t>(this),
-							UnresolvedReference.PathOnDisk,
-							EmptyDelegate
-						);
-					}
+					static FSourceControlFileStatusMonitor::FOnSourceControlFileStatus EmptyDelegate{};
+				
+					FileStatusMonitor.StartMonitoringFile(
+						reinterpret_cast<uintptr_t>(this),
+						UnresolvedReference.PathOnDisk,
+						EmptyDelegate
+						
+					);
 				}
 			)
 			.Compile()
@@ -265,7 +254,7 @@ void UTypedElementRevisionControlFactory::RegisterFetchUpdates(ITypedElementData
 	}
 }
 
-void UTypedElementRevisionControlFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementRevisionControlFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -357,7 +346,7 @@ void UTypedElementRevisionControlFactory::RegisterApplyOverlays(ITypedElementDat
 	}
 }
 
-void UTypedElementRevisionControlFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementRevisionControlFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;

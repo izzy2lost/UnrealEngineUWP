@@ -20,12 +20,12 @@ public:
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 
 private:
-	void RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage) const;
-	void RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage) const;
-	void RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage) const;
-	mutable TypedElementDataStorage::QueryHandle FetchUpdates = TypedElementDataStorage::InvalidQueryHandle;
-	mutable TypedElementDataStorage::QueryHandle ApplyNewOverlays = TypedElementDataStorage::InvalidQueryHandle;
-	mutable TypedElementDataStorage::QueryHandle ChangeOverlay = TypedElementDataStorage::InvalidQueryHandle;
-	mutable TypedElementDataStorage::QueryHandle ApplyOverlaysObjectToSCC = TypedElementDataStorage::InvalidQueryHandle;
-	mutable TypedElementDataStorage::QueryHandle RemoveOverlays = TypedElementDataStorage::InvalidQueryHandle;
+	void RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage);
+	TypedElementDataStorage::QueryHandle FetchUpdates = TypedElementDataStorage::InvalidQueryHandle;
+	TypedElementDataStorage::QueryHandle ApplyNewOverlays = TypedElementDataStorage::InvalidQueryHandle;
+	TypedElementDataStorage::QueryHandle ChangeOverlay = TypedElementDataStorage::InvalidQueryHandle;
+	TypedElementDataStorage::QueryHandle ApplyOverlaysObjectToSCC = TypedElementDataStorage::InvalidQueryHandle;
+	TypedElementDataStorage::QueryHandle RemoveOverlays = TypedElementDataStorage::InvalidQueryHandle;
 };
