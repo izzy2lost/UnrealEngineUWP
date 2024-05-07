@@ -5,6 +5,7 @@
 #include "InteractiveTool.h"
 #include "InteractiveGizmo.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "ScriptableToolBuilder.h"
 #include "ScriptableInteractiveTool.generated.h"
 
 class UWorld;
@@ -122,6 +123,16 @@ enum class EScriptableToolGizmoScale : uint8
 };
 ENUM_CLASS_FLAGS(EScriptableToolGizmoScale);
 
+UENUM(BlueprintType)
+enum class EScriptableToolStartupRequirements : uint8
+{
+	/** No startup requirements needed. Tool can run any time. */
+	None,
+	/** A custom tool builder blueprint class that is configured with tool target requirements to filter selected objects. */
+	ToolTarget,
+	/** A custom tool builder blueprint class is provided to determine if the tool can start. Caution: OnCanBuildTool is run every tick, and may slow down editor performance. */
+	Custom
+};
 
 /**
  * FScriptableToolGizmoOptions is a configuration struct passed to the CreateTRSGizmo function
@@ -318,6 +329,23 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Scriptable Tool Settings", meta=(DisplayName="Shutdown Type"))
 	EScriptableToolShutdownType ToolShutdownType = EScriptableToolShutdownType::Complete;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Scriptable Tool Settings", meta = (DisplayName = "Tool Startup Requirements"))
+	EScriptableToolStartupRequirements ToolStartupRequirements = EScriptableToolStartupRequirements::None;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Scriptable Tool Settings", meta = (DisplayName = "Tool Builder Class",
+		                                                                                       EditCondition = "ToolStartupRequirements==EScriptableToolStartupRequirements::Custom",
+																							   EditConditionHides,
+																					           MustImplement = "/Script/ScriptableToolsFramework.CustomScriptableToolBuilderBaseInterface"))
+	TSubclassOf<UCustomScriptableToolBuilder> CustomToolBuilderClass = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Scriptable Tool Settings", meta = (DisplayName = "Tool Builder Class",
+		                                                                                       EditCondition = "ToolStartupRequirements==EScriptableToolStartupRequirements::ToolTarget",
+		                                                                                       EditConditionHides,
+		                                                                                       MustImplement="/Script/ScriptableToolsFramework.CustomScriptableToolBuilderBaseInterface"))
+	TSubclassOf<UToolTargetScriptableToolBuilder> ToolTargetToolBuilderClass = nullptr;
+
+
+
 	/**
 	 * Implement OnScriptSetup to do initial setup/configuration of the Tool, such as adding
 	 * Property Sets, creating Gizmos, etc
@@ -385,7 +413,7 @@ protected:
 
 
 	// return instance of custom tool builder. Should only be called on CDO.
-	virtual UBaseScriptableToolBuilder* GetNewCustomToolBuilderInstance(UObject* Outer) { return nullptr; }
+	virtual UBaseScriptableToolBuilder* GetNewCustomToolBuilderInstance(UObject* Outer);
 	friend class UScriptableToolSet;
 
 
@@ -757,6 +785,23 @@ public:
 public:
 
 	// TODO: hotkey API
+
+
+
+public:
+
+	// Tool Targets API
+
+	void SetTargets(TArray<TObjectPtr<UToolTarget>> TargetsIn);
+
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|ToolTargets")
+	UPARAM(DisplayName = "Targets") TArray<UToolTarget*> GetToolTargets() const;
+
+protected:
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TArray<TObjectPtr<UToolTarget>> Targets;
+
 };
 
 

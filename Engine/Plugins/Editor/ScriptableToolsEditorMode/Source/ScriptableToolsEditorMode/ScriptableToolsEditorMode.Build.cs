@@ -48,6 +48,7 @@ public class ScriptableToolsEditorMode : ModuleRules
 				"EditorInteractiveToolsFramework",
 				"ScriptableToolsFramework",
 				"EditorScriptableToolsFramework",
+				"ModelingComponentsEditorOnly",
 
 				"ModelingComponents"
 			}

@@ -22,6 +22,11 @@
 #include "InteractiveToolQueryInterfaces.h" // IInteractiveToolExclusiveToolAPI
 #include "ToolContextInterfaces.h"
 
+#include "ToolTargetManager.h"
+#include "ToolTargets/StaticMeshComponentToolTarget.h"
+#include "ToolTargets/VolumeComponentToolTarget.h"
+#include "ToolTargets/DynamicMeshComponentToolTarget.h"
+#include "ToolTargets/SkeletalMeshComponentToolTarget.h"
 
 #define LOCTEXT_NAMESPACE "UScriptableToolsEditorMode"
 
@@ -131,6 +136,13 @@ void UScriptableToolsEditorMode::Enter()
 
 	// listen to post-build
 	GetToolManager()->OnToolPostBuild.AddUObject(this, &UScriptableToolsEditorMode::OnToolPostBuild);
+
+	// Register builders for tool targets that the mode uses.
+	// TODO: We're not actually suporting modeling mode tool targets on scriptable tools, but the infrastructure to test for selected
+	// objects uses the ToolTargetFactories, so we're including these here. We probably need a more generic way to accomplish this.
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UStaticMeshComponentToolTargetFactory>(GetToolManager()));
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UVolumeComponentToolTargetFactory>(GetToolManager()));
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UDynamicMeshComponentToolTargetFactory>(GetToolManager()));
 
 	//// forward shutdown requests
 	//GetToolManager()->OnToolShutdownRequest.BindLambda([this](UInteractiveToolManager*, UInteractiveTool* Tool, EToolShutdownType ShutdownType)

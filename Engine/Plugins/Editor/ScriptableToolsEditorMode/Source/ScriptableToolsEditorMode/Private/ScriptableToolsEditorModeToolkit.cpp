@@ -371,7 +371,6 @@ void FScriptableToolsEditorModeToolkit::BuildToolPalette(FName PaletteIndex, cla
 		FExecuteAction::CreateLambda([this, ToolClass, ToolIdentifier, ToolManager]()
 		{
 			UScriptableInteractiveTool* ToolCDO = Cast<UScriptableInteractiveTool>(ToolClass->GetDefaultObject());
-			//UE_LOG(LogTemp, Warning, TEXT("STARTING TOOL [%s] (Class/Identifier %s)"), *ToolCDO->ToolName.ToString(), *ToolIdentifier);
 			if (ToolManager->SelectActiveToolType(EToolSide::Mouse, ToolIdentifier))
 			{
 				if (ToolManager->CanActivateTool(EToolSide::Mouse, ToolIdentifier)) 
@@ -385,6 +384,19 @@ void FScriptableToolsEditorModeToolkit::BuildToolPalette(FName PaletteIndex, cla
 				UE_LOG(LogTemp, Warning, TEXT("FAILED TO SET ACTIVE TOOL TYPE!"));
 			}
 
+		}),
+		FCanExecuteAction::CreateLambda([this, ToolClass, ToolIdentifier, ToolManager]()
+		{
+			UScriptableInteractiveTool* ToolCDO = Cast<UScriptableInteractiveTool>(ToolClass->GetDefaultObject());
+			if (ToolManager->SelectActiveToolType(EToolSide::Mouse, ToolIdentifier))
+			{
+				return ToolManager->CanActivateTool(EToolSide::Mouse, ToolIdentifier);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("FAILED TO SET ACTIVE TOOL TYPE!"));
+				return false;
+			}
 		}));
 
 		ActionsHack.Add(NewAction);

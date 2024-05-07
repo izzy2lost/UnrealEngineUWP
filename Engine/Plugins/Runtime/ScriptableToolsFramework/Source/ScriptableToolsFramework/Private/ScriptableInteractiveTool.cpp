@@ -267,6 +267,45 @@ void UScriptableInteractiveTool::PostInitProperties()
 }
 
 
+UBaseScriptableToolBuilder* UScriptableInteractiveTool::GetNewCustomToolBuilderInstance(UObject* Outer)
+{
+	switch (ToolStartupRequirements)
+	{
+	case EScriptableToolStartupRequirements::None:
+		return NewObject<UBaseScriptableToolBuilder>(Outer);
+	case EScriptableToolStartupRequirements::ToolTarget:
+	{
+		if (!ToolTargetToolBuilderClass->IsValidLowLevelFast())
+		{
+			return NewObject<UBaseScriptableToolBuilder>(Outer);
+		}
+
+		TObjectPtr<UCustomScriptableToolBuilderContainer> BuilderWrapper = NewObject<UCustomScriptableToolBuilderContainer>(Outer);
+		TObjectPtr<UCustomScriptableToolBuilderComponentBase> InterfacePointer = NewObject<UCustomScriptableToolBuilderComponentBase>(Outer, ToolTargetToolBuilderClass.Get());
+		Cast<UToolTargetScriptableToolBuilder>(InterfacePointer)->Initialize();
+		BuilderWrapper->Initialize(InterfacePointer);
+
+		return BuilderWrapper;
+	}	
+	case EScriptableToolStartupRequirements::Custom:
+	{
+		if (!CustomToolBuilderClass->IsValidLowLevelFast())
+		{
+			return NewObject<UBaseScriptableToolBuilder>(Outer);
+		}
+
+		TObjectPtr<UCustomScriptableToolBuilderContainer> BuilderWrapper = NewObject<UCustomScriptableToolBuilderContainer>(Outer);
+		TObjectPtr<UCustomScriptableToolBuilderComponentBase> InterfacePointer = NewObject<UCustomScriptableToolBuilderComponentBase>(Outer, CustomToolBuilderClass.Get());
+		BuilderWrapper->Initialize(InterfacePointer);
+
+		return BuilderWrapper;
+	}
+	default:
+		ensure(false);
+		return NewObject<UBaseScriptableToolBuilder>(Outer);
+	}
+}
+
 
 void UScriptableInteractiveTool::SetTargetWorld(UWorld* World)
 {
@@ -1087,6 +1126,18 @@ void UScriptableInteractiveTool::ClearUserMessages(bool bNotifications, bool bWa
 		}
 	}
 }
+
+
+void UScriptableInteractiveTool::SetTargets(TArray<TObjectPtr<UToolTarget>> TargetsIn)
+{
+	Targets = TargetsIn;
+}
+
+TArray<UToolTarget*> UScriptableInteractiveTool::GetToolTargets() const
+{
+	return Targets;
+}
+
 
 
 
