@@ -2383,13 +2383,13 @@ private:
 
 	//When loading a legacy asset (saved before the skeletalmesh build refactor), we need to create the user sections data.
 	//This function should be call only in the PostLoad
-	ENGINE_API void CreateUserSectionsDataForLegacyAssets();
+	void CreateUserSectionsDataForLegacyAssets();
 
 
 	/*
 	 * This function will enforce the user section data is coherent with the sections.
 	 */
-	ENGINE_API void PostLoadValidateUserSectionData();
+	void PostLoadValidateUserSectionData();
 
 	/*
 	 * This function will ensure we have valid tangent in all LODs. If we found an invalid tangent axis, we will try to set it with the cross product of the two other axis.
@@ -2397,8 +2397,14 @@ private:
 	 * It will validate tangents only for assets that do not have source build data. (This means assets imported before the build refactor that was done in UE 4.24.)
 	 * @note - If it finds a bad normal, it will LOG a warning to let the user know they have to re-import their mesh.
 	 */
-	ENGINE_API void PostLoadVerifyAndFixBadTangent();
+	void PostLoadVerifyAndFixBadTangent();
 
+
+	/** After all loading is done and fixups completed, attempt to recover any LOD models into source model slots that
+	 *  are still empty.
+	 */
+	void PostLoadRecoverConvertLODModelsToMeshDescription();
+		
 public:
 	/*
 	 * This function will enforce valid material index in the sections and the LODMaterialMap of all LOD.
