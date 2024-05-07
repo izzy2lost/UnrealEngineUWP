@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Compute.Transports;
@@ -382,7 +383,8 @@ namespace Horde.Server.Compute
 
 			try
 			{
-				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
+				PoolId? poolId = arp.Requirements.Pool != null ? new PoolId(arp.Requirements.Pool) : null;
+				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(poolId, cancellationToken: cancellationToken);
 				foreach (IAgent agent in agents)
 				{
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
@@ -395,7 +397,7 @@ namespace Horde.Server.Compute
 						ComputeProtocol protocol = ComputeProtocol.Initial;
 						foreach (string value in agent.GetPropertyValues("ComputeProtocol"))
 						{
-							if (int.TryParse(value, out int versionInt))
+							if (Int32.TryParse(value, out int versionInt))
 							{
 								protocol = (ComputeProtocol)Math.Min((int)arp.Protocol, versionInt);
 								break;
