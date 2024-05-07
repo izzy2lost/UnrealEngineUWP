@@ -904,6 +904,11 @@ TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization
 	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(Vector3DistributionPropertyHandleToDistributionAdapter));
 }
 
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakePositionInstance()
+{
+	return MakeVector3Instance();
+}
+
 TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeColorInstance()
 {
 	FPropertyHandleToDistributionAdapter ColorDistributionPropertyHandleToDistributionAdapter = FPropertyHandleToDistributionAdapter::CreateLambda([](TSharedRef<IPropertyHandle> ColorDistributionPropertyHandle)

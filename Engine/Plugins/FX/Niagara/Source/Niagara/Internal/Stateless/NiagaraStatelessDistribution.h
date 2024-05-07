@@ -278,6 +278,20 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 };
 
 USTRUCT()
+struct FNiagaraDistributionPosition : public FNiagaraDistributionVector3
+{
+	GENERATED_BODY()
+
+	FNiagaraDistributionPosition() = default;
+	explicit FNiagaraDistributionPosition(const float ConstantValue) { InitConstant(ConstantValue); }
+	explicit FNiagaraDistributionPosition(const FVector3f& ConstantValue) { InitConstant(ConstantValue); }
+
+#if WITH_EDITORONLY_DATA
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetPositionDef(); }
+#endif
+};
+
+USTRUCT()
 struct FNiagaraDistributionColor : public FNiagaraDistributionBase
 {
 	GENERATED_BODY()

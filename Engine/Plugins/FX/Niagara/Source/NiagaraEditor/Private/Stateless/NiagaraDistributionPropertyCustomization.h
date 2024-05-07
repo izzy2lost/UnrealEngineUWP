@@ -13,6 +13,7 @@ public:
 	static TSharedRef<IPropertyTypeCustomization> MakeFloatInstance();
 	static TSharedRef<IPropertyTypeCustomization> MakeVector2Instance();
 	static TSharedRef<IPropertyTypeCustomization> MakeVector3Instance();
+	static TSharedRef<IPropertyTypeCustomization> MakePositionInstance();
 	static TSharedRef<IPropertyTypeCustomization> MakeColorInstance();
 
 	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
