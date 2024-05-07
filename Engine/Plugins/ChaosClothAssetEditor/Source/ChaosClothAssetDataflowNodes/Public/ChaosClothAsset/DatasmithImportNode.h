@@ -5,11 +5,6 @@
 #include "Dataflow/DataflowNode.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
-#include "DatasmithCloth.h"
-#include "Misc/SecureHash.h"
-#endif
-
 #include "DatasmithImportNode.generated.h"
 
 /** Deprecated. */

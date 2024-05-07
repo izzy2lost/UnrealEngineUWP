@@ -14,11 +14,6 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 			}
 		);
 
-		PrivateIncludePathModuleNames.AddRange(
-			new string[] {
-				"DatasmithCore",  // Deprecated in 5.5 (remove in 5.7), for DatasmithCloth.h
-		});
-
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
