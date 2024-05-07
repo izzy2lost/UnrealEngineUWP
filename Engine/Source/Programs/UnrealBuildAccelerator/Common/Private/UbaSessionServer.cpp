@@ -436,15 +436,6 @@ namespace uba
 					processes.push_back(pair.second);
 			}
 
-			#if PLATFORM_WINDOWS
-			if (m_processJobObject != NULL)
-			{
-				SCOPED_WRITE_LOCK(m_processJobObjectLock, lock);
-				CloseHandle(m_processJobObject);
-				m_processJobObject = NULL;
-			}
-			#endif
-
 			for (auto& process : processes)
 				process.WaitForExit(100000);
 		}
