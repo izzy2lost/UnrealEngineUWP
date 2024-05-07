@@ -572,6 +572,7 @@ UNiagaraCullProxyComponent* FNiagaraWorldManager::GetCullProxy(UNiagaraComponent
 void FNiagaraWorldManager::TickParameterCollections()
 {
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTickParamCollections);
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraTickParameterCollections);
 
 	//-TODO: Do we need to do this per tick group?
 	for (TPair<UNiagaraParameterCollection*, UNiagaraParameterCollectionInstance*> CollectionInstPair : ParameterCollections)
@@ -1031,6 +1032,7 @@ void FNiagaraWorldManager::TickStart(float DeltaSeconds)
 #if WITH_NIAGARA_LEAK_DETECTOR
 	if (ComponentLeakDetector.IsValid() && HasActiveWorld())
 	{
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraLeakDetector);
 		ComponentLeakDetector->Tick(World);
 	}
 #endif
@@ -1070,12 +1072,15 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 		}
 
 		// Update tick groups
-		for (int32 i = 0; i < SimulationsWithPostActorWork.Num(); ++i)
 		{
-			FNiagaraSystemSimulationRef& Simulation = SimulationsWithPostActorWork[i];
-			if (Simulation->IsValid())
+			CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraPostActorUpdateTickGroups);
+			for (int32 i = 0; i < SimulationsWithPostActorWork.Num(); ++i)
 			{
-				Simulation->UpdateTickGroups_GameThread();
+				FNiagaraSystemSimulationRef& Simulation = SimulationsWithPostActorWork[i];
+				if (Simulation->IsValid())
+				{
+					Simulation->UpdateTickGroups_GameThread();
+				}
 			}
 		}
 
@@ -1114,6 +1119,7 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 	if (NiagaraDebugHud != nullptr)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_NiagaraDebugHUD);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDebugHUD);
 		NiagaraDebugHud->GatherSystemInfo();
 	}
 #endif
@@ -1345,42 +1351,45 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 			return;
 		}
 
-		bool bUseWorldCachedViews = !World->GetPlayerControllerIterator();
+		{
+			CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraCacheViewInformation);
+			bool bUseWorldCachedViews = !World->GetPlayerControllerIterator();
 #if WITH_EDITOR
-		if (GCurrentLevelEditingViewportClient && (GCurrentLevelEditingViewportClient->GetWorld() == World))
-		{
-			bUseWorldCachedViews = true;
-		}
-#endif
-		// Cache player view info for all system instances to access
-		//-TODO: Do we need to do this per tick group?
-		if (bUseWorldCachedViews)
-		{
-			for (int32 i = 0; i < World->CachedViewInfoRenderedLastFrame.Num(); ++i)
+			if (GCurrentLevelEditingViewportClient && (GCurrentLevelEditingViewportClient->GetWorld() == World))
 			{
-				FWorldCachedViewInfo& WorldViewInfo = World->CachedViewInfoRenderedLastFrame[i];
-
-				FNiagaraCachedViewInfo& ViewInfo = CachedViewInfo.AddDefaulted_GetRef();
-				ViewInfo.Init(WorldViewInfo);
+				bUseWorldCachedViews = true;
 			}
-		}
-		else
-		{
-			for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+#endif
+			// Cache player view info for all system instances to access
+			//-TODO: Do we need to do this per tick group?
+			if (bUseWorldCachedViews)
 			{
-				APlayerController* PlayerController = Iterator->Get();
-				if (PlayerController && PlayerController->IsLocalPlayerController())
+				for (int32 i = 0; i < World->CachedViewInfoRenderedLastFrame.Num(); ++i)
 				{
+					FWorldCachedViewInfo& WorldViewInfo = World->CachedViewInfoRenderedLastFrame[i];
+
 					FNiagaraCachedViewInfo& ViewInfo = CachedViewInfo.AddDefaulted_GetRef();
-					
-					const bool bIsValid = PrepareCachedViewInfo(PlayerController, ViewInfo);
-					if (!bIsValid)
-					{
-						CachedViewInfo.RemoveAt(CachedViewInfo.Num() - 1);
-					}
+					ViewInfo.Init(WorldViewInfo);
 				}
 			}
-		}		
+			else
+			{
+				for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+				{
+					APlayerController* PlayerController = Iterator->Get();
+					if (PlayerController && PlayerController->IsLocalPlayerController())
+					{
+						FNiagaraCachedViewInfo& ViewInfo = CachedViewInfo.AddDefaulted_GetRef();
+					
+						const bool bIsValid = PrepareCachedViewInfo(PlayerController, ViewInfo);
+						if (!bIsValid)
+						{
+							CachedViewInfo.RemoveAt(CachedViewInfo.Num() - 1);
+						}
+					}
+				}
+			}		
+		}
 
 		UpdateScalabilityManagers(DeltaSeconds, false);
 
@@ -1394,9 +1403,12 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 	}
 
 	// Tick generated data
-	for (auto& GeneratedData : DIGeneratedData)
 	{
-		GeneratedData.Value->Tick(TickGroup, DeltaSeconds);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDIGeneratedData);
+		for (auto& GeneratedData : DIGeneratedData)
+		{
+			GeneratedData.Value->Tick(TickGroup, DeltaSeconds);
+		}
 	}
 
 	// Now tick all system instances. 
@@ -1545,6 +1557,7 @@ FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location)const
 void FNiagaraWorldManager::UpdateScalabilityManagers(float DeltaSeconds, bool bNewSpawnsOnly)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdateScalabilityManagers);
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraUpdateScalabilityManagers);
 
 	for (auto& Pair : ScalabilityManagers)
 	{

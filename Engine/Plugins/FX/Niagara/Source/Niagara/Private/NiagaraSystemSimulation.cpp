@@ -433,6 +433,9 @@ struct FNiagaraSystemInstanceFinalizeTask
 #if DO_CHECK
 		DebugCounter = 0;
 #endif
+#if WITH_PARTICLE_PERF_STATS
+		SystemPerfStatsContext = FParticlePerfStatsContext(InSystemSimulation->GetWorld(), InSystemSimulation->GetSystem());
+#endif
 		for ( int32 i=0; i < Batch.Num(); ++i )
 		{
 			FNiagaraSystemInstanceFinalizeRef FinalizeRef(&Batch[i]);
@@ -449,6 +452,9 @@ struct FNiagaraSystemInstanceFinalizeTask
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+#if WITH_PARTICLE_PERF_STATS
+		PARTICLE_PERF_STAT_CYCLES_GT(SystemPerfStatsContext, Finalize);
+#endif
 		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 		check(CurrentThread == ENamedThreads::GameThread);
 
@@ -509,6 +515,9 @@ struct FNiagaraSystemInstanceFinalizeTask
 	ENiagaraGPUTickHandlingMode TickHandlingMode = ENiagaraGPUTickHandlingMode::None;
 #if DO_CHECK
 	std::atomic<int> DebugCounter;
+#endif
+#if WITH_PARTICLE_PERF_STATS
+	FParticlePerfStatsContext SystemPerfStatsContext;
 #endif
 };
 
@@ -1115,7 +1124,6 @@ void FNiagaraSystemSimulation::Tick_GameThread_Internal(float DeltaSeconds, cons
 	LLM_SCOPE(ELLMTag::Niagara);
 	FScopeCycleCounterUObject AdditionalScope(GetSystem(), GET_STATID(STAT_NiagaraOverview_GT_CNC));
 
-
 #if STATS
 	FScopeCycleCounter SystemStatCounter(System->GetStatID(true, false));
 #endif
@@ -1324,7 +1332,6 @@ void FNiagaraSystemSimulation::UpdateTickGroups_GameThread()
 	check(IsInGameThread());
 	check(!bIsSolo);
 
-	SCOPE_CYCLE_COUNTER(STAT_NiagaraSystemSim_SpawnNewGT);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 	LLM_SCOPE(ELLMTag::Niagara);
@@ -1391,6 +1398,7 @@ void FNiagaraSystemSimulation::Spawn_GameThread(float DeltaSeconds, bool bPostAc
 	ConcurrentTickGraphEvent = nullptr;
 	AllWorkCompleteGraphEvent = nullptr;
 
+	PARTICLE_PERF_STAT_CYCLES_GT(FParticlePerfStatsContext(World, System), TickGameThread);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraSystemSim_SpawnNewGT);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);

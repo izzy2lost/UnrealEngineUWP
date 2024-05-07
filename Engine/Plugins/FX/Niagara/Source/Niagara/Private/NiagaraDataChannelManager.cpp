@@ -66,6 +66,8 @@ void FNiagaraDataChannelManager::BeginFrame(float DeltaSeconds)
 	{
 		check(IsInGameThread());
 		SCOPE_CYCLE_COUNTER(STAT_DataChannelManager_BeginFrame);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDataChannelManager);
+
 		//Tick all DataChannel channel handlers.
 		for (auto It = Channels.CreateIterator(); It; ++It)
 		{
@@ -87,6 +89,8 @@ void FNiagaraDataChannelManager::EndFrame(float DeltaSeconds)
 	{
 		check(IsInGameThread());
 		SCOPE_CYCLE_COUNTER(STAT_DataChannelManager_EndFrame);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDataChannelManager);
+
 		//Tick all DataChannel channel handlers.
 		for (auto& ChannelPair : Channels)
 		{
@@ -101,6 +105,8 @@ void FNiagaraDataChannelManager::Tick(float DeltaSeconds, ETickingGroup TickGrou
 	{
 		check(IsInGameThread());
 		SCOPE_CYCLE_COUNTER(STAT_DataChannelManager_Tick);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDataChannelManager);
+
 		//Tick all DataChannel channel handlers.
 		for (auto& ChannelPair : Channels)
 		{

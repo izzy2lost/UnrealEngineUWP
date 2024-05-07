@@ -2201,6 +2201,7 @@ void UNiagaraComponent::SendRenderDynamicData_Concurrent()
 {
 	LLM_SCOPE(ELLMTag::Niagara);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraSendRenderDynamicData);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraComponentSendRenderData);
 	PARTICLE_PERF_STAT_CYCLES_GT(FParticlePerfStatsContext(GetWorld(), GetAsset(), this), EndOfFrame);
 

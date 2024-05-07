@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "Particles/ParticlePerfStatsManager.h"
 
+CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, Particles, false);
 
 #if WITH_PARTICLE_PERF_STATS
 
@@ -1104,8 +1105,6 @@ bool FParticlePerfStatsListener_TimedTest::Tick()
 //////////////////////////////////////////////////////////////////////////
 
 #if WITH_PARTICLE_PERF_CSV_STATS
-
-CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, Particles, false);
 
 void OnDetailedCSVStatsEnabledChanged(IConsoleVariable* Variable);
 

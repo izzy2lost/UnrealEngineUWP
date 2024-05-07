@@ -705,7 +705,8 @@ void FParticleSystemWorldManager::Tick(ETickingGroup TickGroup, float DeltaTime,
 
 	SCOPE_CYCLE_COUNTER(STAT_PSCMan_Tick);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
-	
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_CascadeSystemWorldManager);
+
 	//Do some book keeping in the first tick group, PrePhysics.
 	int32 BuildListStart = ManagedPSCs.Num();
 	if (TickGroup == TG_PrePhysics)
