@@ -1272,8 +1272,11 @@ public:
 	 */
 	static UNREALED_API int32 FindLocalVariableIndex(const UBlueprint* Blueprint, UStruct* VariableScope, const FName& InVariableName);
 
-	/** Change the order of variables in the Blueprint */
+	/** Change the order of variables in the Blueprint by placing a variable before the target variable. */
 	static UNREALED_API bool MoveVariableBeforeVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile);
+
+	/** Change the order of variables in the Blueprint by placing a variable after the target variable. */
+	static UNREALED_API bool MoveVariableAfterVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile);
 
 	/**
 	 * Find the index of a timeline first declared in this blueprint. Returns INDEX_NONE if not found.
