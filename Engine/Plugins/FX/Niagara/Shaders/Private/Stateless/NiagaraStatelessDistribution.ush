@@ -14,7 +14,7 @@
 			RandomOffset = 0.0f; \
 			if ( (Parameters.x & StatelessDistributionFlag_Random) != 0) \
 			{ \
-				RandomOffset = RandomFloat(Particle); \
+				RandomOffset = Random##NAMETYPE##(Particle); \
 			} \
 		} \
 		\
@@ -30,7 +30,7 @@
 			{ \
 				const HLSLTYPE Value0 = GetStatic##NAMETYPE##(Parameters.y, 0); \
 				const HLSLTYPE Value1 = GetStatic##NAMETYPE##(Parameters.y, 1); \
-				return lerp(Value0, Value1, RandomOffset); \
+				return StatelessLerp(Value0, Value1, RandomOffset, (Parameters.x & StatelessDistributionFlag_Uniform) != 0); \
 			} \
 			else \
 			{ \
@@ -41,8 +41,8 @@
 			} \
 		} \
 		\
-		uint3	Parameters; \
-		float	RandomOffset; \
+		uint3		Parameters; \
+		HLSLTYPE	RandomOffset; \
 	}
 
 DefineStatelessDistributionSampler(float,  Float);

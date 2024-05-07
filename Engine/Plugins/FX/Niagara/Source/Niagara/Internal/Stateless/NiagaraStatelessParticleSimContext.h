@@ -114,6 +114,19 @@ public:
 		return FMath::Lerp(Value0, Value1, FMath::Fractional(Offset));
 	}
 
+	float			Lerp(const float& Lhs, const float& Rhs, const float& U, bool bUniform) const { return FMath::Lerp(Lhs, Rhs, U); }
+	FVector2f		Lerp(const FVector2f& Lhs, const FVector2f& Rhs, const FVector2f& U, bool bUniform) const { const FVector2f V = FMath::Lerp(Lhs, Rhs, U); return bUniform ? FVector2f(V.X, V.X) : V; }
+	FVector3f		Lerp(const FVector3f& Lhs, const FVector3f& Rhs, const FVector3f& U, bool bUniform) const { const FVector3f V = FMath::Lerp(Lhs, Rhs, U); return bUniform ? FVector3f(V.X, V.X, V.X) : V; }
+	FVector4f		Lerp(const FVector4f& Lhs, const FVector4f& Rhs, const FVector4f& U, bool bUniform) const { const FVector4f V = FMath::Lerp(Lhs, Rhs, U); return bUniform ? FVector4f(V.X, V.X, V.X, V.X) : V; }
+
+	template<typename TType>
+	TType					TRandomFloat(uint32 iInstance) const;
+	template<> float		TRandomFloat<float>(uint32 iInstance) const { return RandomFloat(iInstance); }
+	template<> FVector2f	TRandomFloat<FVector2f>(uint32 iInstance) const { return RandomFloat2(iInstance); }
+	template<> FVector3f	TRandomFloat<FVector3f>(uint32 iInstance) const { return RandomFloat3(iInstance); }
+	template<> FVector4f	TRandomFloat<FVector4f>(uint32 iInstance) const { return RandomFloat4(iInstance); }
+	template<> FLinearColor	TRandomFloat<FLinearColor>(uint32 iInstance) const { return FLinearColor(RandomFloat4(iInstance)); }
+
 	uint32			RandomUInt(uint32 iInstance) const;
 	FUintVector2	RandomUInt2(uint32 iInstance) const;
 	FUintVector3	RandomUInt3(uint32 iInstance) const;
@@ -213,7 +226,7 @@ struct FStatelessDistributionSampler
 	{
 		if ((Parameters.X & uint32(ENiagaraStatelessBuiltDistributionFlag::Random)) != 0)
 		{
-			RandomOffset = ParticleSimulationContext.RandomFloat(iInstance);
+			RandomOffset = ParticleSimulationContext.TRandomFloat<TType>(iInstance);
 		}
 	}
 
@@ -230,7 +243,7 @@ struct FStatelessDistributionSampler
 			//-OPT: Could move into constructor
 			const TType	Value0 = ParticleSimulationContext.GetStaticFloat<TType>(Parameters.Y, 0);
 			const TType	Value1 = ParticleSimulationContext.GetStaticFloat<TType>(Parameters.Y, 1);
-			return FMath::Lerp(Value0, Value1, RandomOffset);
+			return ParticleSimulationContext.Lerp(Value0, Value1, RandomOffset, (Parameters.X & uint32(ENiagaraStatelessBuiltDistributionFlag::Uniform)) != 0);
 		}
 		else
 		{
@@ -242,7 +255,7 @@ struct FStatelessDistributionSampler
 	}
 
 	const FUintVector3	Parameters;
-	float				RandomOffset = 0.0f;
+	TType				RandomOffset = {};
 };
 
 } //namespace NiagaraStateless

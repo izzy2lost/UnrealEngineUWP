@@ -176,6 +176,11 @@ float3 LerpStaticFloat3(uint2 Parameters, float U)
 	const float3 Value1 = GetStaticFloat3(Parameters.x, ceil(Offset));
 	return lerp(Value0, Value1, frac(Offset));
 }
+
+float  StatelessLerp(float  lhs, float  rhs, float  u, bool bUniform) { return lerp(lhs, rhs, u); }
+float2 StatelessLerp(float2 lhs, float2 rhs, float2 u, bool bUniform) { return bUniform ? lerp(lhs.x, rhs.x, u.x).xx   : lerp(lhs, rhs, u); }
+float3 StatelessLerp(float3 lhs, float3 rhs, float3 u, bool bUniform) { return bUniform ? lerp(lhs.x, rhs.x, u.x).xxx  : lerp(lhs, rhs, u); }
+float4 StatelessLerp(float4 lhs, float4 rhs, float4 u, bool bUniform) { return bUniform ? lerp(lhs.x, rhs.x, u.x).xxxx : lerp(lhs, rhs, u); }
 	
 uint GetComponentOffset(uint OutputIndex, int ComponentOffset)
 {

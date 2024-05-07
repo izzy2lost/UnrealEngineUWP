@@ -17,10 +17,6 @@ namespace NiagaraStateless
 
 class FNiagaraStatelessEmitterDataBuildContext
 {
-	static constexpr uint32 StatelessDistributionFlag_Random	= 0x00000001;
-	static constexpr uint32 StatelessDistributionFlag_Uniform	= 0x00000002;
-	static constexpr uint32 StatelessDistributionFlag_Binding	= 0x00000004;
-
 public:
 	UE_NONCOPYABLE(FNiagaraStatelessEmitterDataBuildContext);
 
@@ -72,12 +68,12 @@ public:
 
 	// Adds an distribution into the LUT if enabled
 	template<typename TType>
-	FUintVector3 AddDistribution(ENiagaraDistributionMode Mode, TConstArrayView<TType> Values, bool bEnabled) const
+	FUintVector3 AddDistribution(ENiagaraDistributionMode Mode, TConstArrayView<TType> Values) const
 	{
 		using namespace NiagaraStateless;
 
 		FUintVector3 Parameters = FUintVector3::ZeroValue;
-		if (bEnabled && Values.Num() > 0)
+		if (Values.Num() > 0)
 		{
 			switch (Mode)
 			{
@@ -99,25 +95,22 @@ public:
 
 	// Adds a distribution into the LUT if enabled and returns the packed information to send to the shader
 	template<typename TDistribution>
-	FUintVector3 AddDistribution(const TDistribution& Distribution, bool bEnabled = true) const
+	FUintVector3 AddDistribution(const TDistribution& Distribution) const
 	{
 		FUintVector3 Parameters = FUintVector3::ZeroValue;
-		if ( bEnabled )
+		if (Distribution.Mode == ENiagaraDistributionMode::Binding)
 		{
-			if (Distribution.Mode == ENiagaraDistributionMode::Binding)
+			const int32 ParameterOffset = AddRendererBinding(Distribution.ParameterBinding);
+			if (ParameterOffset >= 0)
 			{
-				const int32 ParameterOffset = AddRendererBinding(Distribution.ParameterBinding);
-				if (ParameterOffset >= 0)
-				{
-					Parameters.X = StatelessDistributionFlag_Binding;
-					Parameters.Y = ParameterOffset;
-					Parameters.Z = 1.0f;
-				}
+				Parameters.X = uint32(ENiagaraStatelessBuiltDistributionFlag::Binding);
+				Parameters.Y = ParameterOffset;
+				Parameters.Z = 1.0f;
 			}
-			else
-			{
-				Parameters = AddDistribution(Distribution.Mode, MakeArrayView(Distribution.Values), bEnabled);
-			}
+		}
+		else
+		{
+			Parameters = AddDistribution(Distribution.Mode, MakeArrayView(Distribution.Values));
 		}
 		return Parameters;
 	}
