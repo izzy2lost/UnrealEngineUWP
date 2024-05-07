@@ -45,6 +45,9 @@ struct RIGVM_API FRigVMObjectVersion
 		// Adding variant struct to function identifier
 		AddVariantToFunctionIdentifier,
 
+		// Adding variant to every RigVM asset
+		AddVariantToRigVMAssets,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -40,6 +40,7 @@
 #include "RigVMFunctions/Debug/RigVMFunction_VisualDebug.h"
 #include "ScopedTransaction.h"
 #include "Editor/RigVMEditorTools.h"
+#include "Editor/RigVMVariantDetailCustomization.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/SRigVMSwapFunctionsWidget.h"
 #include "Widgets/SRigVMBulkEditDialog.h"
@@ -133,6 +134,12 @@ void FRigVMEditorModule::StartupModuleCommon()
 
 	// Register to fixup newly created BPs
 	FKismetEditorUtilities::RegisterOnBlueprintCreatedCallback(this, URigVMHost::StaticClass(), FKismetEditorUtilities::FOnBlueprintCreated::CreateRaw(this, &FRigVMEditorModule::HandleNewBlueprintCreated));
+	
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+    PropertiesToUnregisterOnShutdown.Reset();
+
+	PropertiesToUnregisterOnShutdown.Add(FRigVMVariant::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FRigVMVariantDetailCustomization::MakeInstance));
 }
 
 void FRigVMEditorModule::ShutdownModule()

@@ -120,6 +120,9 @@ protected:
 
 private:
 
+	/** StaticStruct is not safe on shutdown, so we cache the name, and use this to unregister on shut down */
+	TArray<FName> PropertiesToUnregisterOnShutdown;
+
 	void HandleNewBlueprintCreated(UBlueprint* InBlueprint);
 
 	bool ShowWorkflowOptionsDialog(URigVMUserWorkflowOptions* InOptions) const;

@@ -203,8 +203,6 @@ URigVMBlueprint::URigVMBlueprint(const FObjectInitializer& ObjectInitializer)
 	CompileLog.SetSourcePath(GetPathName());
 #endif
 
-	AssetVariant.Guid = FRigVMVariant::GenerateGUID();
-
 	if(GetClass() == URigVMBlueprint::StaticClass())
 	{
 		CommonInitialization(ObjectInitializer);
@@ -783,6 +781,8 @@ IRigVMEditorModule* URigVMBlueprint::GetEditorModule() const
 
 void URigVMBlueprint::Serialize(FArchive& Ar)
 {
+	Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
+	
 	if(IsValid(this))
 	{
 		RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(URigVMBlueprint, RigVMClient));
@@ -830,6 +830,11 @@ void URigVMBlueprint::Serialize(FArchive& Ar)
 		for (UEdGraph* EdGraph : EdGraphs)
 		{
 			EdGraph->Schema = GetRigVMEdGraphSchemaClass();
+		}
+
+		if (Ar.CustomVer(FRigVMObjectVersion::GUID) < FRigVMObjectVersion::AddVariantToRigVMAssets)
+		{
+			AssetVariant.Guid = FRigVMVariant::GenerateGUID(GetPackage()->GetPathName());
 		}
 	}
 }
@@ -1093,7 +1098,7 @@ void URigVMBlueprint::PostLoad()
 
 	if (!AssetVariant.Guid.IsValid())
 	{
-		AssetVariant.Guid = FRigVMVariant::GenerateGUID(GetPackage()->GetPathName());
+		AssetVariant.Guid = FRigVMVariant::GenerateGUID();
 	}
 
 	if (UPackage* Package = GetOutermost())

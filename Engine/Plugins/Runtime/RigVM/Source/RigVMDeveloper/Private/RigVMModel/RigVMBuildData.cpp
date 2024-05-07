@@ -551,6 +551,37 @@ TArray<FRigVMVariantRef> URigVMBuildData::FindFunctionVariantRefs(const FGuid& I
 	return Result;
 }
 
+TArray<FRigVMVariantRef> URigVMBuildData::GatherAllAssetVariantRefs()
+{
+	TArray<FRigVMVariantRef> Result;
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	TArray<FAssetData> Assets;
+	FARFilter AssetFilter;
+	AssetFilter.ClassPaths.Add(URigVMBlueprint::StaticClass()->GetClassPathName());
+	AssetFilter.bRecursiveClasses = true;
+	AssetRegistryModule.Get().GetAssets(AssetFilter, Assets);
+
+	for (const FAssetData& Asset : Assets)
+	{
+		static const FName AssetVariantPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, AssetVariant);
+		const FProperty* AssetVariantProperty = CastField<FProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(AssetVariantPropertyName));
+		const FString VariantStr = Asset.GetTagValueRef<FString>(AssetVariantPropertyName);
+		FRigVMVariant AssetVariant;
+		AssetVariantProperty->ImportText_Direct(*VariantStr, &AssetVariant, nullptr, EPropertyPortFlags::PPF_None);
+		FRigVMVariantRef VariantRef(Asset.ToSoftObjectPath(), AssetVariant);
+		Result.Add(VariantRef);
+	}
+
+	return Result;
+}
+
+TArray<FRigVMVariantRef> URigVMBuildData::FindAssetVariantRefs(const FGuid& InGuid)
+{
+	TArray<FRigVMVariantRef> Result = GatherAllAssetVariantRefs();
+	Result = Result.FilterByPredicate([InGuid](const FRigVMVariantRef& VariantRef) { return VariantRef.Variant.Guid == InGuid; });
+	return Result;
+}
+
 #if WITH_EDITOR
 
 TArray<FRigVMGraphFunctionIdentifier> URigVMBuildData::GetAllFunctionIdentifiers(bool bOnlyPublic) const

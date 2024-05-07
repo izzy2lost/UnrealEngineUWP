@@ -505,7 +505,7 @@ protected:
 #if WITH_EDITORONLY_DATA
 
 	/** Variant information about this asset */
-	UPROPERTY(AssetRegistrySearchable)
+	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category = "Variant")
 	FRigVMVariant AssetVariant;
 
 	UPROPERTY(transient, DuplicateTransient)
@@ -826,6 +826,7 @@ private:
 	friend class URigVMEdGraphSchema;
 	friend struct FRigVMEdGraphSchemaAction_PromoteToVariable;
 	friend class URigVMBuildData;
+	friend class FRigVMVariantDetailCustomization;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope

@@ -128,6 +128,12 @@ public:
 	// Will find all the function variants matching the given variant guid
 	TArray<FRigVMVariantRef> FindFunctionVariantRefs(const FGuid& InGuid);
 
+	// Will find all asset variant refs
+	TArray<FRigVMVariantRef> GatherAllAssetVariantRefs();
+
+	// Will find all the asset variants matching the given variant guid
+	TArray<FRigVMVariantRef> FindAssetVariantRefs(const FGuid& InGuid);
+
 #if WITH_EDITOR
 	// Returns all known public function identifiers used in the project
 	TArray<FRigVMGraphFunctionIdentifier> GetAllFunctionIdentifiers(bool bOnlyPublic = true) const;
