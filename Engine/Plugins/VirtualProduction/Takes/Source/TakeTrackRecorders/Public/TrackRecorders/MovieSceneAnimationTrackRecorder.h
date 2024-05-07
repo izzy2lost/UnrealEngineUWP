@@ -59,7 +59,11 @@ protected:
 public:
 	bool RootWasRemoved() const { return bRootWasRemoved; }
 	void RemoveRootMotion();
+	UE_DEPRECATED(5.5, "Use the ProcessRecordedTimes method that takes a FProcessRecordedTimeParams struct.")
 	void ProcessRecordedTimes(const FString& HoursName, const FString& MinutesName, const FString& SecondsName, const FString& FramesName, const FString& SubFramesName, const FString& SlateName, const FString& Slate);
+
+	/** Apply time code data to the animation track. */
+	void ProcessRecordedTimes(const FProcessRecordedTimeParams& InParams);
 
 	UAnimSequence* GetAnimSequence() const { return AnimSequence.Get(); }
 	USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh.Get(); }

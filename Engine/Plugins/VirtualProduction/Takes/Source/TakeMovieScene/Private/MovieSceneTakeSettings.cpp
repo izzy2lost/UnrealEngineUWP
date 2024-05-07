@@ -12,6 +12,7 @@ UMovieSceneTakeSettings::UMovieSceneTakeSettings()
 	, SecondsName(TEXT("TCSecond"))
 	, FramesName(TEXT("TCFrame"))
 	, SubFramesName(TEXT("TCSubframe"))
+	, RateName(TEXT("TCRate"))
 	, SlateName(TEXT("TCSlate"))
 {
 }

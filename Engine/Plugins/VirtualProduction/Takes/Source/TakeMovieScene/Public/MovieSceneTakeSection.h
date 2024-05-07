@@ -58,6 +58,10 @@ public:
 	UPROPERTY()
 	FMovieSceneFloatChannel SubFramesCurve;
 
+	/** Timecode rate curve data */
+	UPROPERTY()
+	FMovieSceneFloatChannel RateCurve;
+
 	/** Slate data */
 	UPROPERTY()
 	FMovieSceneStringChannel Slate;

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TakeRecorderActorSource.h"
+#include "AnimationRecorder.h"
 #include "Styling/SlateIconFinder.h"
 #include "ClassIconFinder.h"
 #include "MovieScene.h"
@@ -707,6 +708,7 @@ void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
 		FFrameRate TickResolution = MovieScene->GetTickResolution();
 		FFrameRate DisplayRate = MovieScene->GetDisplayRate();
 
+		FFrameRate TCRate = TickResolution;
 		for (const TPair<FQualifiedFrameTime, FQualifiedFrameTime>& RecordedTimePair : RecordedTimes)
 		{
 			FFrameNumber FrameNumber = RecordedTimePair.Key.Time.FrameNumber;
@@ -716,7 +718,7 @@ void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
 			}
 
 			FTimecode Timecode = RecordedTimePair.Value.ToTimecode();
-		
+			TCRate = RecordedTimePair.Value.Rate;
 			Hours.Add(Timecode.Hours);
 			Minutes.Add(Timecode.Minutes);
 			Seconds.Add(Timecode.Seconds);
@@ -732,7 +734,7 @@ void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
 			else
 			{
 				FFrameTime FrameTime = FFrameRate::TransformTime(RecordedTimePair.Key.Time, TickResolution, DisplayRate);
-				FQualifiedFrameTime FrameTimeAsTimeCodeRate(FrameTime, RecordedTimePair.Value.Rate);
+				FQualifiedFrameTime FrameTimeAsTimeCodeRate(FrameTime, TCRate);
 
 				SubFrame.Value = FrameTimeAsTimeCodeRate.Time.GetSubFrame();
 			}
@@ -755,6 +757,7 @@ void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
 		TakeSection->SecondsCurve.Set(Times, Seconds);
 		TakeSection->FramesCurve.Set(Times, Frames);
 		TakeSection->SubFramesCurve.Set(Times, SubFrames);
+		TakeSection->RateCurve.SetDefault(TCRate.AsDecimal());
 	}
 
 	// Since the take section was created post recording here in this
@@ -876,23 +879,37 @@ void UTakeRecorderActorSource::FinalizeRecording()
 	ParentSource = nullptr;
 }
 
-void UTakeRecorderActorSource::PostProcessTrackRecorders(ULevelSequence* InSequence)
+namespace UE::TakeRecorderActorSource::Private
 {
-	FTakeRecorderParameters Parameters;
-	Parameters.User = GetDefault<UTakeRecorderUserSettings>()->Settings;
-	Parameters.Project = GetDefault<UTakeRecorderProjectSettings>()->Settings;
-
+FProcessRecordedTimeParams GetTimecodeRecordingParameters()
+{
 	FString HoursName = GetDefault<UMovieSceneTakeSettings>()->HoursName;
 	FString MinutesName = GetDefault<UMovieSceneTakeSettings>()->MinutesName;
 	FString SecondsName = GetDefault<UMovieSceneTakeSettings>()->SecondsName;
 	FString FramesName = GetDefault<UMovieSceneTakeSettings>()->FramesName;
 	FString SubFramesName = GetDefault<UMovieSceneTakeSettings>()->SubFramesName;
 	FString SlateName = GetDefault<UMovieSceneTakeSettings>()->SlateName;
-				
-	FString Slate;
+
+	return FProcessRecordedTimeParams {
+		.HoursName = HoursName,
+		.MinutesName = MinutesName,
+		.SecondsName = SecondsName,
+		.FramesName = FramesName,
+		.SubFramesName = SubFramesName,
+		.SlateName = SlateName
+	};
+}
+}
+void UTakeRecorderActorSource::PostProcessTrackRecorders(ULevelSequence* InSequence)
+{
+	FTakeRecorderParameters Parameters;
+	Parameters.User = GetDefault<UTakeRecorderUserSettings>()->Settings;
+	Parameters.Project = GetDefault<UTakeRecorderProjectSettings>()->Settings;
+
+	FProcessRecordedTimeParams RecordedTimeParams = UE::TakeRecorderActorSource::Private::GetTimecodeRecordingParameters();
 	if (UTakeMetaData* TakeMetaData = InSequence->FindMetaData<UTakeMetaData>())
 	{
-		Slate = FString::Printf(TEXT("%s_%d"), *TakeMetaData->GetSlate(), TakeMetaData->GetTakeNumber());
+		RecordedTimeParams.Slate = FString::Printf(TEXT("%s_%d"), *TakeMetaData->GetSlate(), TakeMetaData->GetTakeNumber());
 	}
 
 	// We want to look at all Animation Track recorders and remove root motion if the transform
@@ -943,7 +960,7 @@ void UTakeRecorderActorSource::PostProcessTrackRecorders(ULevelSequence* InSeque
 			
 			if (Parameters.Project.bRecordTimecode)
 			{
-				AnimationTrackRecorder->ProcessRecordedTimes(HoursName, MinutesName, SecondsName, FramesName, SubFramesName, SlateName, Slate);
+				AnimationTrackRecorder->ProcessRecordedTimes(RecordedTimeParams);
 			}
 		}
 	}
