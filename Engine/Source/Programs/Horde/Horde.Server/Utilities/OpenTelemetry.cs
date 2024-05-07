@@ -319,11 +319,10 @@ public static class OpenTelemetrySpanExtensions
 	{
 		_ = tracer;
 
-		string name = "mongodb." + spanName;
 		TelemetrySpan span = OpenTelemetryTracers.MongoDb
-			.StartActiveSpan(name, parentContext: Tracer.CurrentSpan.Context)
+			.StartActiveSpan(spanName, parentContext: Tracer.CurrentSpan.Context)
 			.SetAttribute("type", "db")
-			.SetAttribute("operation.name", name)
+			.SetAttribute("operation.name", spanName)
 			.SetAttribute("service.name", OpenTelemetryTracers.MongoDbName);
 
 		if (collection != null)

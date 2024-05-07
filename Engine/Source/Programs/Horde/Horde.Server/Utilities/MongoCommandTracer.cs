@@ -54,7 +54,7 @@ public class MongoCommandTracer(Tracer tracer, ILogger<MongoCommandTracer> logge
 				_ => (null, null)
 			};
 
-			string name = $"mongodb.{ev.CommandName}";
+			string name = ev.CommandName;
 			if (collectionName != null)
 			{
 				name = $"{collectionName}.{ev.CommandName}";
