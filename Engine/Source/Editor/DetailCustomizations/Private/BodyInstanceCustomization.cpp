@@ -814,8 +814,6 @@ void FBodyInstanceCustomization::OnCollisionProfileComboOpening()
 
 void FBodyInstanceCustomization::MarkAllBodiesDefaultCollision(bool bUseDefaultCollision)
 {
-	CollisionResponsesHandle->NotifyPreChange();
-
 	if(PrimComponents.Num() && UseDefaultCollisionHandle.IsValid())	//If we have prim components we might be coming from bp editor which needs to propagate all instances
 	{
 		for(UPrimitiveComponent* PrimComp : PrimComponents)
@@ -842,8 +840,6 @@ void FBodyInstanceCustomization::MarkAllBodiesDefaultCollision(bool bUseDefaultC
 			}
 		}
 	}
-
-	CollisionResponsesHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 }
 
 void FBodyInstanceCustomization::OnCollisionProfileChanged( TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo, IDetailGroup* CollisionGroup )
@@ -872,7 +868,9 @@ void FBodyInstanceCustomization::OnCollisionProfileChanged( TSharedPtr<FString> 
 		{
 			if(NewSelection == CollisionProfileComboList[GetDefaultIndex()])
 			{
+				CollisionResponsesHandle->NotifyPreChange();
 				MarkAllBodiesDefaultCollision(true);
+				CollisionResponsesHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 				return;
 			}
 		}
@@ -885,9 +883,8 @@ void FBodyInstanceCustomization::OnCollisionProfileChanged( TSharedPtr<FString> 
 
 		// if none of them found, clear it
 		FName Name=UCollisionProfile::CustomCollisionProfileName;
-		ensure ( CollisionProfileNameHandle->SetValue(Name) ==  FPropertyAccess::Result::Success );
-
 		MarkAllBodiesDefaultCollision(false);
+		ensure(CollisionProfileNameHandle->SetValue(Name) == FPropertyAccess::Result::Success);
 	}
 }
 
