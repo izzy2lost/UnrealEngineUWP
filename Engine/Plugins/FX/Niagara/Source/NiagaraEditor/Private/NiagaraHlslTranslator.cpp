@@ -1172,6 +1172,53 @@ static void ConvertFloatToHalf(const FNiagaraCompileOptions& InCompileOptions, T
 	}
 }
 
+// Collapses the set of attributes based on if they would overlap (i.e. attributes share the same name and either have
+// the same type or an equivalent type, like position and vector, (for now)).
+static void CollapseAttributes(const FNiagaraCompileOptions& InCompileOptions, TArray<FNiagaraVariable>& SortedAttributes)
+{
+	const FNiagaraTypeDefinition& Vec3Type = FNiagaraTypeDefinition::GetVec3Def();
+	const FNiagaraTypeDefinition& PosType = FNiagaraTypeDefinition::GetPositionDef();
+
+	auto CanCollapseAttributeTypes = [&](const FNiagaraTypeDefinition& Lhs, const FNiagaraTypeDefinition& Rhs) -> bool
+	{
+		if (Lhs == Rhs)
+		{
+			return true;
+		}
+
+		// for now we're only going to consider the implications of Vec3 vs Position types
+		if ((Lhs == Vec3Type && Rhs == PosType)
+			|| (Lhs == PosType && Rhs == Vec3Type))
+		{
+			return true;
+		}
+
+		return false;
+	};
+
+	for (int32 AttrIt = 0; AttrIt < SortedAttributes.Num(); ++AttrIt)
+	{
+		const FNiagaraVariable& CurrentVariable = SortedAttributes[AttrIt];
+		const FNiagaraTypeDefinition& CurrentVariableType = CurrentVariable.GetType();
+
+		// look at all attributes sharing the name and remove all that have the same or equivalent type
+		int32 NextAttrIt = AttrIt + 1;
+		while (SortedAttributes.IsValidIndex(NextAttrIt) && SortedAttributes[NextAttrIt].GetName() == CurrentVariable.GetName())
+		{
+			const FNiagaraVariable& NextVariable = SortedAttributes[NextAttrIt];
+
+			if (CanCollapseAttributeTypes(CurrentVariableType, NextVariable.GetType()))
+			{
+				SortedAttributes.RemoveAt(NextAttrIt, EAllowShrinking::No);
+			}
+			else
+			{
+				++NextAttrIt;
+			}
+		}
+	}
+}
+
 template<typename GraphBridge>
 FNiagaraTranslateResults TNiagaraHlslTranslator<GraphBridge>::Translate(const FNiagaraCompileOptions& InCompileOptions, const FHlslNiagaraTranslatorOptions& InTranslateOptions)
 {
@@ -2036,6 +2083,7 @@ FNiagaraTranslateResults TNiagaraHlslTranslator<GraphBridge>::Translate(const FN
 		});
 
 		ConvertFloatToHalf(CompileOptions, BasicAttributes);
+		CollapseAttributes(CompileOptions, BasicAttributes);
 
 		DataSetVariables[InstanceReadVarsIndex] = BasicAttributes;
 		DataSetVariables[InstanceWriteVarsIndex] = BasicAttributes;
