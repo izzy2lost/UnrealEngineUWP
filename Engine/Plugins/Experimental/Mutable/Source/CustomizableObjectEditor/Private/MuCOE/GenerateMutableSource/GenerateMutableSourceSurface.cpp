@@ -473,6 +473,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					mu::Ptr<mu::NodeImage> PassThroughImagePtr = GenerateMutableSourceImage(ConnectedPin, GenerationContext, 0);
 					SurfNode->SetImage(ImageIndex, PassThroughImagePtr);
 
+					check(Props.ImagePropertiesIndex != INDEX_NONE);
 					const FString SurfNodeImageName = FString::Printf(TEXT("%d"), Props.ImagePropertiesIndex);
 					SurfNode->SetImageName(ImageIndex, SurfNodeImageName);
 					SurfNode->SetImageLayoutIndex(ImageIndex, -1);
@@ -504,41 +505,40 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					{
 						// Get the reference texture
 						UTexture2D* ReferenceTexture = nullptr;
-
-						GenerationContext.CurrentMaterialTableParameter = ImageName;
-						GenerationContext.CurrentMaterialTableParameterId = ImageId.ToString();
-
-						if (GroupProjectionImg.get() && GroupProjectionReferenceTexture)
 						{
-							ReferenceTexture = GroupProjectionReferenceTexture;
-						}
-						else
-						{
-							ReferenceTexture = TypedNodeMat->GetImageReferenceTexture(ImageIndex);
+							GenerationContext.CurrentMaterialTableParameter = ImageName;
+							GenerationContext.CurrentMaterialTableParameterId = ImageId.ToString();
 
-							if (!ReferenceTexture && !GroupProjectionImg.get())
+							ReferenceTexture = GroupProjectionImg.get() ? GroupProjectionReferenceTexture : nullptr;
+						
+							if (!ReferenceTexture)
 							{
-								if (ImagePin)
+								ReferenceTexture = TypedNodeMat->GetImageReferenceTexture(ImageIndex);
+							}
+
+							// In case of group projector, don't follow the pin to find the reference texture.
+							if (!GroupProjectionImg.get() && !ReferenceTexture && ImagePin)
+							{
+								if (const UEdGraphPin* ConnectedPin = FollowInputPin(*ImagePin))
 								{
-									if (const UEdGraphPin* ConnectedPin = FollowInputPin(*ImagePin))
-									{
-										ReferenceTexture = FindReferenceImage(ConnectedPin, GenerationContext);
-									}
-								}
-								if (!ReferenceTexture && bTableMaterialPinLinked)
-								{
-									if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMaterialAssetPin()))
-									{
-										ReferenceTexture = FindReferenceImage(ConnectedPin, GenerationContext);
-									}
-								}
-								if (!ReferenceTexture)
-								{
-									ReferenceTexture = TypedNodeMat->GetImageValue(ImageIndex);
+									ReferenceTexture = FindReferenceImage(ConnectedPin, GenerationContext);
 								}
 							}
+
+							if (!ReferenceTexture && bTableMaterialPinLinked)
+							{
+								if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMaterialAssetPin()))
+								{
+									ReferenceTexture = FindReferenceImage(ConnectedPin, GenerationContext);
+								}
+							}	
+
+							if (!ReferenceTexture)
+							{
+								ReferenceTexture = TypedNodeMat->GetImageValue(ImageIndex);
+							}
 						}
-						
+
 						const FGeneratedImagePropertiesKey PropsKey(TypedNodeMat, ImageIndex);
 						const bool bNewImageProps = !GenerationContext.ImageProperties.Contains(PropsKey);
 
@@ -585,7 +585,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Info);
 								}
 							}
-							else if (!GroupProjectionImg.get())
+							else
 							{
 								// warning!
 								FString msg = FString::Printf(TEXT("The Reference texture for material image [%s] is not set and it couldn't be found automatically."), *ImageName);
@@ -831,6 +831,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 						SurfNode->SetImage(ImageIndex, ImageNode);
 
+						check(Props.ImagePropertiesIndex != INDEX_NONE);
 						const FString SurfNodeImageName = FString::Printf(TEXT("%d"), Props.ImagePropertiesIndex);
 
 						// Encoding material layer in mutable name

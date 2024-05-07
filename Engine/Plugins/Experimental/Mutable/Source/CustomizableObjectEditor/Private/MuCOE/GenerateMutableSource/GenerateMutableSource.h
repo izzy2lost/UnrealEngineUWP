@@ -57,7 +57,7 @@ struct FGeneratedImageProperties
 	FString TextureParameterName;
 
 	/** Name in the mu::Surface. */
-	int32 ImagePropertiesIndex;
+	int32 ImagePropertiesIndex = INDEX_NONE;
 
 	TEnumAsByte<TextureCompressionSettings> CompressionSettings = TC_Default;
 

@@ -548,7 +548,7 @@ public:
 	uint8 FirstLODAvailable = 0;
 	uint8 FirstResidentLOD = 0;
 
-	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;
+	TMap<mu::FResourceID, FTexturePlatformData*> ImageToPlatformDataMap;
 
 	EUpdateResult UpdateResult = EUpdateResult::Success;
 
@@ -594,7 +594,7 @@ public:
 /** Runtime data used during a mutable instance update */
 struct FMutableReleasePlatformOperationData
 {
-	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;
+	TMap<mu::FResourceID, FTexturePlatformData*> ImageToPlatformDataMap;
 };
 
 

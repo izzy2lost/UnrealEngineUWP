@@ -2732,8 +2732,8 @@ namespace impl
 
 		check(OperationData);
 		
-		TMap<uint32, FTexturePlatformData*>& ImageToPlatformDataMap = OperationData->ImageToPlatformDataMap;
-		for (const TPair<uint32, FTexturePlatformData*>& Pair : ImageToPlatformDataMap)
+		TMap<mu::FResourceID, FTexturePlatformData*>& ImageToPlatformDataMap = OperationData->ImageToPlatformDataMap;
+		for (const TPair<mu::FResourceID, FTexturePlatformData*>& Pair : ImageToPlatformDataMap)
 		{
 			delete Pair.Value; // If this is not null then it must mean it hasn't been used, otherwise they would have taken ownership and nulled it
 		}
@@ -2875,6 +2875,14 @@ namespace impl
 		{
 			TSharedPtr<FMutableReleasePlatformOperationData> ReleaseOperationData = MakeShared<FMutableReleasePlatformOperationData>();
 			check(ReleaseOperationData);
+			
+			static_assert(
+					std::is_same_v<
+						decltype(std::declval<FMutableReleasePlatformOperationData>().ImageToPlatformDataMap), 
+						decltype(std::declval<FUpdateContextPrivate>().ImageToPlatformDataMap)
+					>, 
+					"Cannot move FMutableReleasePlatformOperationData::ImageToPlatformDataMap to FUpdateContextPrivate::ImageToPlatformDataMap, types do not match.");
+
 			ReleaseOperationData->ImageToPlatformDataMap = MoveTemp(OperationData->ImageToPlatformDataMap);
 			CustomizableObjectSystemPrivateData->MutableTaskGraph.AddAnyThreadTask(
 				TEXT("Mutable_ReleasePlatformData"),
