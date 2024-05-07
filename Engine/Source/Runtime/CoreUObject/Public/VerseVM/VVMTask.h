@@ -141,6 +141,27 @@ private:
 	{
 	}
 };
+
+// A counting semaphore with room for a single waiting task. Used for structured concurrency.
+struct VSemaphore : VCell
+{
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	int32 Count{0};
+	TWriteBarrier<VTask> Await;
+
+	static VSemaphore& New(FAllocationContext Context)
+	{
+		return *new (Context.AllocateFastCell(sizeof(VSemaphore))) VSemaphore(Context);
+	}
+
+private:
+	VSemaphore(FAllocationContext Context)
+		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+	{
+	}
+};
 } // namespace Verse
 
 #endif

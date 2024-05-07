@@ -46,45 +46,51 @@ struct alignas(8) FOp
 
 struct FRegisterIndex
 {
+	static constexpr uint32 UNINITIALIZED = INT32_MAX;
+
+	// Unsigned, but must be less than INT32_MAX
 	uint32 Index;
 };
 
 struct FConstantIndex
 {
+	// Unsigned, but must be less than or equal to INT32_MAX
 	uint32 Index;
 };
 
 struct FValueOperand
 {
-	int32 Index = INT32_MIN;
+	static constexpr uint32 UNINITIALIZED = INT32_MAX;
+
+	uint32 Index{UNINITIALIZED};
 
 	FValueOperand() = default;
 
-	FValueOperand(FConstantIndex Constant)
-		: Index(-1 - Constant.Index)
-	{
-		check(Constant.Index <= INT32_MAX);
-		check(IsConstant());
-	}
 	FValueOperand(FRegisterIndex Register)
 		: Index(Register.Index)
 	{
-		check(Register.Index <= INT32_MAX);
-		check(!IsConstant());
+		check(Register.Index < UNINITIALIZED);
+		check(IsRegister());
+	}
+	FValueOperand(FConstantIndex Constant)
+		: Index{~Constant.Index}
+	{
+		check(Constant.Index <= UNINITIALIZED);
+		check(IsConstant());
 	}
 
-	bool IsConstant() const { return Index < 0; }
-	bool IsRegister() const { return Index >= 0; }
+	bool IsRegister() const { return Index < UNINITIALIZED; }
+	bool IsConstant() const { return UNINITIALIZED < Index; }
 
 	FRegisterIndex AsRegister() const
 	{
 		checkSlow(IsRegister());
-		return FRegisterIndex{static_cast<uint32>(Index)};
+		return FRegisterIndex{Index};
 	}
 	FConstantIndex AsConstant() const
 	{
 		checkSlow(IsConstant());
-		return FConstantIndex{static_cast<uint32>(-Index) - 1};
+		return FConstantIndex{~Index};
 	}
 };
 

@@ -160,7 +160,11 @@ private:
 
 	void PrintValueOperand(FValueOperand ValueOperand)
 	{
-		if (ValueOperand.IsConstant())
+		if (ValueOperand.IsRegister())
+		{
+			PrintRegister(ValueOperand.AsRegister());
+		}
+		else if (ValueOperand.IsConstant())
 		{
 			FConstantIndex ConstantIndex = ValueOperand.AsConstant();
 			String += FString::Printf(TEXT("c%u="), ConstantIndex.Index);
@@ -168,7 +172,7 @@ private:
 		}
 		else
 		{
-			PrintRegister(ValueOperand.AsRegister());
+			String += "Empty";
 		}
 	}
 

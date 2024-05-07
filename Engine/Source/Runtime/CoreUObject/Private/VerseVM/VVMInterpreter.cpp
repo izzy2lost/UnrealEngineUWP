@@ -269,14 +269,17 @@ class FInterpreter
 
 	VValue GetOperand(FValueOperand Operand)
 	{
-		if (Operand.IsConstant())
+		if (Operand.IsRegister())
 		{
-			VValue Result = State.Constants[Operand.AsConstant().Index].Get().Follow();
-			return Result;
+			return State.Frame->Registers[Operand.AsRegister().Index].Get(Context);
+		}
+		else if (Operand.IsConstant())
+		{
+			return State.Constants[Operand.AsConstant().Index].Get().Follow();
 		}
 		else
 		{
-			return State.Frame->Registers[Operand.AsRegister().Index].Get(Context);
+			return VValue();
 		}
 	}
 
@@ -350,13 +353,17 @@ class FInterpreter
 
 	void PrintOperandOrValue(FString& String, FValueOperand Operand)
 	{
-		if (Operand.IsConstant())
+		if (Operand.IsRegister())
+		{
+			String += ToString(Context, FDefaultCellFormatter(), State.Frame->Registers[Operand.AsRegister().Index]);
+		}
+		else if (Operand.IsConstant())
 		{
 			String += ToString(Context, FDefaultCellFormatter(), State.Constants[Operand.AsConstant().Index].Get());
 		}
 		else
 		{
-			String += ToString(Context, FDefaultCellFormatter(), State.Frame->Registers[Operand.AsRegister().Index]);
+			String += "Empty";
 		}
 	}
 
@@ -2257,7 +2264,7 @@ class FInterpreter
 
 					VValue Result;
 					VTask* Awaiter;
-					VTask* CancelingParent = nullptr;
+					VTask* SignaledTask = nullptr;
 					if (Task->Phase == VTask::EPhase::Active)
 					{
 						if (!Task->CancelChildren(Context))
@@ -2274,8 +2281,29 @@ class FInterpreter
 							YIELD();
 						}
 
-						Task->Result.Set(Context, GetOperand(Op.Value));
-						Result = Task->Result.Get();
+						Result = GetOperand(Op.Value);
+						Task->Result.Set(Context, Result);
+
+						// Communicate the result to the parent task, if there is one.
+						if (Op.Write.Index < FRegisterIndex::UNINITIALIZED)
+						{
+							if (State.Frame->Registers[Op.Write.Index].Get(Context).IsUninitialized())
+							{
+								State.Frame->Registers[Op.Write.Index].Set(Context, Result);
+							}
+						}
+						if (Op.Signal.IsRegister())
+						{
+							VSemaphore& Semaphore = GetOperand(Op.Signal).StaticCast<VSemaphore>();
+							Semaphore.Count += 1;
+
+							if (Semaphore.Count == 0)
+							{
+								V_DIE_UNLESS(Semaphore.Await.Get());
+								SignaledTask = Semaphore.Await.Get();
+								Semaphore.Await.Reset();
+							}
+						}
 
 						Awaiter = Task->LastAwait.Get();
 						Task->LastAwait.Reset();
@@ -2300,9 +2328,10 @@ class FInterpreter
 
 						if (VTask* Parent = Task->Parent.Get())
 						{
+							// A canceling parent is implicitly awaiting its last child.
 							if (Parent->Phase == VTask::EPhase::CancelStarted && Parent->LastChild.Get() == Task)
 							{
-								CancelingParent = Parent;
+								SignaledTask = Parent;
 							}
 						}
 					}
@@ -2333,9 +2362,9 @@ class FInterpreter
 
 					// Resume any awaiting (or cancelling) tasks in the order they arrived.
 					// The front of the list is the most recently-awaiting task, which should run last.
-					if (CancelingParent && !CancelingParent->bRunning)
+					if (SignaledTask && !SignaledTask->bRunning)
 					{
-						ResumeAwaiter(CancelingParent);
+						ResumeAwaiter(SignaledTask);
 					}
 					for (VTask* PrevTask; Awaiter != nullptr; Awaiter = PrevTask)
 					{
@@ -2366,6 +2395,27 @@ class FInterpreter
 						return;
 					}
 					NextPC = State.PC;
+				}
+				END_OP_CASE()
+
+				BEGIN_OP_CASE(NewSemaphore)
+				{
+					VSemaphore& Semaphore = VSemaphore::New(Context);
+					DEF(Op.Dest, Semaphore);
+				}
+				END_OP_CASE()
+
+				BEGIN_OP_CASE(WaitSemaphore)
+				{
+					VSemaphore& Semaphore = GetOperand(Op.Source).StaticCast<VSemaphore>();
+					Semaphore.Count -= Op.Count;
+
+					if (Semaphore.Count < 0)
+					{
+						V_DIE_IF(Semaphore.Await.Get());
+						Semaphore.Await.Set(Context, Task);
+						YIELD();
+					}
 				}
 				END_OP_CASE()
 

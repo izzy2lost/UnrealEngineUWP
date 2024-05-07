@@ -215,5 +215,14 @@ void VTask::VisitReferencesImpl(TVisitor& Visitor)
 	Visitor.Visit(NextTask, TEXT("NextTask"));
 }
 
+DEFINE_DERIVED_VCPPCLASSINFO(VSemaphore);
+TGlobalTrivialEmergentTypePtr<&VSemaphore::StaticCppClassInfo> VSemaphore::GlobalTrivialEmergentType;
+
+template <typename TVisitor>
+void VSemaphore::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.Visit(Await, TEXT("Await"));
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

@@ -16,6 +16,7 @@ namespace UnrealBuildTool
 			LabelOffset,
 			ClassKind,
 			Bool,
+			Int,
 		}
 
 		internal enum Role
@@ -29,6 +30,7 @@ namespace UnrealBuildTool
 		internal enum Arity
 		{
 			Fixed,
+			Optional,
 			Variadic,
 		}
 
@@ -78,6 +80,8 @@ namespace UnrealBuildTool
 						return "VClass::EKind";
 					case CppType.Bool:
 						return "bool";
+					case CppType.Int:
+						return "int32";
 				}
 				return "#error";
 			}
@@ -276,6 +280,7 @@ namespace UnrealBuildTool
 					switch (Arg.Arity)
 					{
 						case Arity.Fixed:
+						case Arity.Optional:
 							if (Arg.Role == Role.Immediate)
 							{
 								S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};\n");
@@ -304,6 +309,9 @@ namespace UnrealBuildTool
 						case Arity.Fixed:
 							S.Append($"    {Const.Type.ToCpp()} {Const.Name};\n");
 							break;
+						case Arity.Optional:
+							S.Append($"    TOptional<{Const.Type.ToCpp()}> {Const.Name};\n");
+							break;
 						case Arity.Variadic:
 							S.Append($"    TOperandRange<{Const.Type.ToCpp()}> {Const.Name};\n");
 							break;
@@ -315,22 +323,27 @@ namespace UnrealBuildTool
 				S.Append($"    static constexpr bool bHasJumps = {Inst._Jumps.ToCpp()};\n\n");
 
 				// Constructor
-				bool bWriteBarrier = Inst.Args.Any(Arg => Arg.Role == Role.Immediate && Arg.Arity == Arity.Fixed);
+				bool bWriteBarrier = Inst.Args.Any(Arg => Arg.Role == Role.Immediate && Arg.Arity != Arity.Variadic);
 				IEnumerable<string> Context = bWriteBarrier ? Extensions.Yield("FAccessContext Context") : Enumerable.Empty<string>();
 				IEnumerable<string> Operands = Inst.Args.Select(Arg =>
 				{
 					switch (Arg.Arity)
 					{
 						case Arity.Fixed:
+						case Arity.Optional:
 							if (Arg.Role == Role.Immediate)
 							{
 								if (Arg.CppTypeName == "VValue")
 								{
-									return $"{Arg.DefCppType()} {Arg.Name}";
+									return $"VValue {Arg.Name}";
+								}
+								else if (Arg.Arity == Arity.Fixed)
+								{
+									return $"{Arg.DefCppType()}& {Arg.Name}";
 								}
 								else
 								{
-									return $"{Arg.DefCppType()}& {Arg.Name}";
+									return $"{Arg.DefCppType()}* {Arg.Name}";
 								}
 							}
 							else
@@ -356,6 +369,8 @@ namespace UnrealBuildTool
 					{
 						case Arity.Fixed:
 							return $"{Const.Type.ToCpp()} {Const.Name}";
+						case Arity.Optional:
+							return $"TOptional<{Const.Type.ToCpp()}> {Const.Name}";
 						case Arity.Variadic:
 							return $"TOperandRange<{Const.Type.ToCpp()}> {Const.Name}";
 						default:
@@ -366,7 +381,7 @@ namespace UnrealBuildTool
 				S.Append("        : FOp(StaticOpcode)\n");
 				foreach (Argument Arg in Inst.Args)
 				{
-					string ContextString = (Arg.Role == Role.Immediate && Arg.Arity == Arity.Fixed) ? "Context, " : "";
+					string ContextString = (Arg.Role == Role.Immediate && Arg.Arity != Arity.Variadic) ? "Context, " : "";
 					S.Append($"        , {Arg.Name}({ContextString}{Arg.Name})\n");
 				}
 				foreach (Constant Const in Inst.Consts)
@@ -404,6 +419,7 @@ namespace UnrealBuildTool
 					switch (Arg.Arity)
 					{
 						case Arity.Fixed:
+						case Arity.Optional:
 							if (Arg.Role == Role.Immediate)
 							{
 								S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};\n");
@@ -440,6 +456,9 @@ namespace UnrealBuildTool
 						case Arity.Fixed:
 							S.Append($"    {Const.Type.ToCpp()} {Const.Name};\n");
 							break;
+						case Arity.Optional:
+							S.Append($"    TOptional<{Const.Type.ToCpp()}> {Const.Name};\n");
+							break;
 						case Arity.Variadic:
 							S.Append($"    TOperandRange<{Const.Type.ToCpp()}> {Const.Name};\n");
 							break;
@@ -455,15 +474,20 @@ namespace UnrealBuildTool
 						switch (Arg.Arity)
 						{
 							case Arity.Fixed:
+							case Arity.Optional:
 								if (Arg.Role == Role.Immediate)
 								{
 									if (Arg.CppTypeName == "VValue")
 									{
-										return $"{Arg.DefCppType()} {Arg.Name}";
+										return $"VValue {Arg.Name}";
+									}
+									else if (Arg.Arity == Arity.Fixed)
+									{
+										return $"{Arg.DefCppType()}& {Arg.Name}";
 									}
 									else
 									{
-										return $"{Arg.DefCppType()}& {Arg.Name}";
+										return $"{Arg.DefCppType()}* {Arg.Name}";
 									}
 								}
 								else
@@ -491,6 +515,8 @@ namespace UnrealBuildTool
 						{
 							case Arity.Fixed:
 								return $"{Const.Type.ToCpp()} {Const.Name}";
+							case Arity.Optional:
+								return $"TOptional<{Const.Type.ToCpp()}> {Const.Name}";
 							case Arity.Variadic:
 								return $"TOperandRange<{Const.Type.ToCpp()}> {Const.Name}";
 							default:
@@ -504,6 +530,7 @@ namespace UnrealBuildTool
 						switch (Arg.Arity)
 						{
 							case Arity.Fixed:
+							case Arity.Optional:
 								S.Append($"        {Prefix} {Arg.Name}(Context, {Arg.Name})\n");
 								break;
 							case Arity.Variadic:
@@ -540,6 +567,7 @@ namespace UnrealBuildTool
 						switch (Arg.Arity)
 						{
 							case Arity.Fixed:
+							case Arity.Optional:
 								S.Append($"        {Prefix} {Arg.Name}(Context, Other.{Arg.Name}.Get())\n");
 								break;
 							case Arity.Variadic:
@@ -642,6 +670,7 @@ namespace UnrealBuildTool
 					switch (Arg.Arity)
 					{
 						case Arity.Fixed:
+						case Arity.Optional:
 							if (Arg.Role == Role.Immediate)
 							{
 								if (Arg.CppTypeName == "VValue")
@@ -809,7 +838,15 @@ namespace UnrealBuildTool
 				.Const("bAttached", CppType.Bool)
 				.Jump("OnYield");
 			Inst("EndTask")
+				.Arg("Write", Role.ClobberDef, Arity.Optional)
+				.Arg("Signal", Role.Use, Arity.Optional)
 				.Arg("Value", Role.Use);
+
+			Inst("NewSemaphore")
+				.Arg("Dest", Role.UnifyDef);
+			Inst("WaitSemaphore")
+				.Arg("Source", Role.Use)
+				.Const("Count", CppType.Int);
 
 			Inst("Call")
 				.Arg("Dest", Role.UnifyDef)
@@ -930,7 +967,7 @@ namespace UnrealBuildTool
 				.Const("bNative", CppType.Bool)
 				.Arg("Inherited", Role.Use, Arity.Variadic)
 				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
-				.Arg("ImportClass", Role.Immediate, Arity.Fixed, "VValue")
+				.Arg("ImportClass", Role.Immediate, Arity.Optional, "VValue")
 				.Suspends();
 
 			Inst("NewObject")
