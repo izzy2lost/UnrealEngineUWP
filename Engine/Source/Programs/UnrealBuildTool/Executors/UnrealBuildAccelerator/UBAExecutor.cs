@@ -53,6 +53,10 @@ namespace UnrealBuildTool
 				_session?.Dispose();
 				_session = null;
 				_threadedLogger.Dispose();
+				_ubaLogger?.Dispose();
+				_ubaLogger = null;
+				_cacheClient?.Dispose();
+				_cacheClient = null;
 			}
 			base.Dispose(disposing);
 		}
@@ -158,10 +162,10 @@ namespace UnrealBuildTool
 
 		class UBAActionArtifactCache : IActionArtifactCache
 		{
-			UBAExecutor _executor;
-			UBAArtifactCache _cache = new UBAArtifactCache();
+			readonly UBAExecutor _executor;
+			readonly UBAArtifactCache _cache = new UBAArtifactCache();
 			public UBAActionArtifactCache(UBAExecutor executor) {  _executor = executor; }
-			public IArtifactCache ArtifactCache { get => _cache; }
+			public IArtifactCache ArtifactCache => _cache;
 			public bool EnableReads { get => true; set { } }
 			public bool EnableWrites { get => true; set { } }
 			public bool LogCacheMisses { get => true; set { } }
@@ -172,7 +176,7 @@ namespace UnrealBuildTool
 				return Task.Factory.StartNew(() =>
 				{
 					ProcessStartInfo startInfo = _executor.GetActionStartInfo(action, out FileItem? pchItem);
-					uint bucket = _executor.GetActionCacheBucket(action);
+					uint bucket = UBAExecutor.GetActionCacheBucket(action);
 					using (IRootPaths rootPaths = _executor.GetActionRootPaths(action))
 					{
 						return _executor._cacheClient!.FetchFromCache(rootPaths, bucket, startInfo);
@@ -205,6 +209,8 @@ namespace UnrealBuildTool
 			if (inputActions.Count() < NumParallelProcesses && !UBAConfig.bForceBuildAllRemote)
 			{
 				UBAConfig.bDisableRemote = true;
+				UBAConfig.bForceBuildAllRemote = false;
+				UBAConfig.Zone = "local";
 			}
 
 			PrintConfiguration();
@@ -309,7 +315,7 @@ namespace UnrealBuildTool
 							}
 							else
 							{
-								logger.LogInformation($"Timed out trying to connect to cache server on {nameAndPort[0]}:{port}. Cache will be disabled");
+								logger.LogInformation("Timed out trying to connect to cache server on {Name}:{Port}. Cache will be disabled", nameAndPort[0], port);
 							}
 						}
 
@@ -404,7 +410,6 @@ namespace UnrealBuildTool
 			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 			ImmediateActionQueueRunner remoteRunner = queue.CreateManualRunner(action => RunActionRemote(queue, action));
 			queue.CancellationToken.Register(onCancel);
-
 
 			// Start the queue
 			queue.Start();
@@ -547,7 +552,7 @@ namespace UnrealBuildTool
 			return startInfo;
 		}
 
-		uint GetActionCacheBucket(LinkedAction action)
+		static uint GetActionCacheBucket(LinkedAction action)
 		{
 			if (action.Target == null)
 			{

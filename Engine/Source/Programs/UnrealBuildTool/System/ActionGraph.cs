@@ -355,13 +355,13 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static ActionExecutor? GetRemoteExecutorByName(string Name, BuildConfiguration BuildConfiguration, int ActionCount, List<TargetDescriptor> TargetDescriptors, ILogger Logger)
+		private static ActionExecutor? GetRemoteExecutorByName(string Name, BuildConfiguration BuildConfiguration, int ActionCount, int MinActionsForRemote, List<TargetDescriptor> TargetDescriptors, ILogger Logger)
 		{
 			switch (Name)
 			{
 				case "XGE":
 					{
-						if (BuildConfiguration.bAllowXGE && XGE.IsAvailable(Logger) && ActionCount >= XGE.MinActions)
+						if (ActionCount >= MinActionsForRemote && BuildConfiguration.bAllowXGE && XGE.IsAvailable(Logger) && ActionCount >= XGE.MinActions)
 						{
 							return new XGE(Logger);
 						}
@@ -369,7 +369,7 @@ namespace UnrealBuildTool
 					}
 				case "SNDBS":
 					{
-						if (BuildConfiguration.bAllowSNDBS && SNDBS.IsAvailable(Logger))
+						if (ActionCount >= MinActionsForRemote && BuildConfiguration.bAllowSNDBS && SNDBS.IsAvailable(Logger))
 						{
 							return new SNDBS(TargetDescriptors, Logger);
 						}
@@ -377,7 +377,7 @@ namespace UnrealBuildTool
 					}
 				case "FASTBuild":
 					{
-						if (BuildConfiguration.bAllowFASTBuild && FASTBuild.IsAvailable(Logger))
+						if (ActionCount >= MinActionsForRemote && BuildConfiguration.bAllowFASTBuild && FASTBuild.IsAvailable(Logger))
 						{
 							return new FASTBuild(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
 						}
@@ -385,6 +385,7 @@ namespace UnrealBuildTool
 					}
 				case "UBA":
 					{
+						// Intentionally not checking MinActionsForRemote
 						if (BuildConfiguration.bAllowUBAExecutor && UBAExecutor.IsAvailable())
 						{
 							return new UBAExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
@@ -404,15 +405,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		private static ActionExecutor SelectExecutor(BuildConfiguration BuildConfiguration, int ActionCount, List<TargetDescriptor> TargetDescriptors, ILogger Logger)
 		{
-			if (ActionCount > ParallelExecutor.GetDefaultNumParallelProcesses(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, Logger))
+			int MinActionsForRemote = ParallelExecutor.GetDefaultNumParallelProcesses(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, Logger);
+			foreach (string Name in BuildConfiguration.RemoteExecutorPriority)
 			{
-				foreach (string Name in BuildConfiguration.RemoteExecutorPriority)
+				ActionExecutor? Executor = GetRemoteExecutorByName(Name, BuildConfiguration, ActionCount, MinActionsForRemote, TargetDescriptors, Logger);
+				if (Executor != null)
 				{
-					ActionExecutor? Executor = GetRemoteExecutorByName(Name, BuildConfiguration, ActionCount, TargetDescriptors, Logger);
-					if (Executor != null)
-					{
-						return Executor;
-					}
+					return Executor;
 				}
 			}
 
