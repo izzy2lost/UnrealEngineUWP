@@ -91,6 +91,12 @@ namespace NFORDenoise
 		TEXT("It takes effect only when r.NFOR.NumOfTile is set to -1. Minimal value = 100.\n"),
 		ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<int32> CVarNFORTileFeatureTileCountDownScale(
+		TEXT("r.NFOR.Tile.FeatureTileCount.DownScale"),
+		2,
+		TEXT("Reduce the number of tiles by this factor for feature filtering."),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<int32> CVarNFORTileDebug(
 		TEXT("r.NFOR.TileDebug"),
 		0,
@@ -176,6 +182,15 @@ namespace NFORDenoise
 		2048,
 		TEXT("<=0: Use the same size of the input tile.\n")
 		TEXT("	n: At least the max size of the input tile(2k as default). The larger, the less number of dispatch passes.\n"),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarNFORNonLocalMeanWeightLayout(
+		TEXT("r.NFOR.NonLocalMean.WeightLayout"),
+		2,
+		TEXT("The layout of the weight. It affects the performance and how weights are handled at each stage.\n")
+		TEXT(" 0: Do not use weight buffer.\n")
+		TEXT(" 1: NumOfWeightsPerPixel x Width x Height.\n")
+		TEXT(" 2: Width x Height x NumOfWeightsPerPixel.\n"),
 		ECVF_RenderThreadSafe);
 
 	TAutoConsoleVariable<int32> CVarNFORNonLocalMeanFeaturePatchSize(
@@ -330,6 +345,11 @@ namespace NFORDenoise
 		return FMath::Clamp(NumOfTile, 1, 32);
 	}
 
+	int32 GetFeatureTileSizeDownScale()
+	{
+		return FMath::Max(CVarNFORTileFeatureTileCountDownScale.GetValueOnRenderThread(), 1);
+	}
+
 	bool IsTileDebugEnabled()
 	{
 		return CVarNFORTileDebug.GetValueOnRenderThread() > 0;
@@ -477,6 +497,27 @@ namespace NFORDenoise
 			static_cast<uint32>(ENonLocalMeanAtlasType::MAX)-1
 			);
 		return static_cast<ENonLocalMeanAtlasType>(AtlasType);
+	}
+
+	ENonLocalMeanWeightLayout GetNonLocalMeanWeightLayout()
+	{
+		const uint32 LayoutType = FMath::Clamp(
+			CVarNFORNonLocalMeanWeightLayout.GetValueOnRenderThread(),
+			0,
+			static_cast<uint32>(ENonLocalMeanWeightLayout::MAX)-1
+		);
+		return static_cast<ENonLocalMeanWeightLayout>(LayoutType);
+	}
+
+	const TCHAR* GetNonLocalMeanWeightLayoutName(ENonLocalMeanWeightLayout WeightLayout)
+	{
+		static const TCHAR* const kEventNames[] = {
+				TEXT("Direct"),
+				TEXT("Buffer(WeightxWxH)"),
+				TEXT("Buffer(WxHxWeight)")
+		};
+		static_assert(UE_ARRAY_COUNT(kEventNames) == int32(ENonLocalMeanWeightLayout::MAX), "Fix me");
+		return kEventNames[int32(WeightLayout)];
 	}
 
 	bool IsBandwidthSelectionEnabled()
@@ -882,11 +923,15 @@ namespace NFORDenoise
 		const FNFORTextureDesc& Texture,
 		const FNFORTextureDesc& Variance,
 		EVarianceType VarianceType,
-		const FRDGTextureRef& FilteredTexture)
+		const FRDGTextureRef& FilteredTexture,
+		const FNonLocalMeanWeightDesc& WeightBufferDesc)
 	{
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 		FIntPoint TextureSize = Texture.Image->Desc.Extent;
 		const FRDGTextureRef VarianceTexture = Variance.Image ? Variance.Image : GSystemTextures.GetBlackDummy(GraphBuilder);
+		bool bUseWeightBuffer = WeightBufferDesc.WeightBuffer && WeightBufferDesc.WeightLayout != ENonLocalMeanWeightLayout::None;
+		ENonLocalMeanWeightLayout WeightLayout = bUseWeightBuffer ? WeightBufferDesc.WeightLayout : ENonLocalMeanWeightLayout::None;
+		FIntRect FilteringRegion = bUseWeightBuffer ? WeightBufferDesc.Region : FIntRect(FIntPoint::ZeroValue, TextureSize);
 
 		typedef FNonLocalMeanFilteringCS SHADER;
 
@@ -899,6 +944,12 @@ namespace NFORDenoise
 			PassParameters->VarianceChannelOffset = Variance.ChannelOffset;
 			PassParameters->DenoisingChannelCount = Texture.ChannelCount;
 			PassParameters->DenoisedImage = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(FilteredTexture));
+			PassParameters->FilteringRegion = FilteringRegion;
+
+			if (bUseWeightBuffer)
+			{
+				PassParameters->NonLocalMeanWeights = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(WeightBufferDesc.WeightBuffer, PF_R32_FLOAT));
+			}
 		}
 
 		SHADER::FPermutationDomain ComputeShaderPermutationVector;
@@ -907,41 +958,24 @@ namespace NFORDenoise
 			ComputeShaderPermutationVector.Set<SHADER::FDimensionUseGuide>(false);
 			ComputeShaderPermutationVector.Set<SHADER::FDimensionImageChannelCount>(Texture.NumOfChannel);
 			ComputeShaderPermutationVector.Set<SHADER::FDimPreAlbedoDivide>(GetPreAlbedoDivideRecoverPhase());
+			ComputeShaderPermutationVector.Set<SHADER::FDimWeightLayout>(WeightLayout);
 		}
 
 		TShaderMapRef<SHADER> ComputeShader(GlobalShaderMap, ComputeShaderPermutationVector);
 
+		FIntPoint FilteringSize = FilteringRegion.Size();
+
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("NFOR::FeatureFiltering(%s, Dim=%d,%d)", Texture.Image->Name, TextureSize.X, TextureSize.Y),
+			RDG_EVENT_NAME("NFOR::FeatureFiltering(%s, %s Dim=%d,%d)", 
+				Texture.Image->Name, 
+				GetNonLocalMeanWeightLayoutName(WeightLayout),
+				FilteringSize.X, 
+				FilteringSize.Y),
 			ERDGPassFlags::Compute,
 			ComputeShader,
 			PassParameters,
-			FComputeShaderUtils::GetGroupCount(TextureSize, NON_LOCAL_MEAN_THREAD_GROUP_SIZE));
-	}
-
-	void ApplyNonLocalMeanFilterIfRequired(
-		FRDGBuilder& GraphBuilder,
-		const FNonLocalMeanParameters& NonLocalMeanParameters,
-		const FNFORTextureDesc& Texture,
-		const FNFORTextureDesc& Variance,
-		EVarianceType VarianceType,
-		const FRDGTextureRef& FilteredTexture)
-	{
-		if (ShouldApplyFeatureFiltering())
-		{
-			ApplyNonLocalMeanFilter(
-				GraphBuilder,
-				NonLocalMeanParameters,
-				Texture,
-				Variance,
-				VarianceType,
-				FilteredTexture);
-		}
-		else
-		{
-			AddCopyTexturePass(GraphBuilder, Texture.Image, FilteredTexture);
-		}
+			FComputeShaderUtils::GetGroupCount(FilteringSize, NON_LOCAL_MEAN_THREAD_GROUP_SIZE));
 	}
 
 	void GetNLMWeigthsWithAtlas(
@@ -949,8 +983,7 @@ namespace NFORDenoise
 		const FSceneView& View,
 		const FRadianceDesc& SourceRadiance,
 		const FRadianceDesc& TargetRadiance,
-		const FRDGBufferRef& NonLocalMeanWeightsBuffer,
-		FIntRect Region,
+		const FNonLocalMeanWeightDesc& NonLocalMeanWeightDesc,
 		const FNonLocalMeanParameters& NonLocalMeanParameters)
 	{
 		const int32 SearchingPatchSize = (NonLocalMeanParameters.PatchDistance * 2 + 1);
@@ -958,9 +991,9 @@ namespace NFORDenoise
 		const FIntPoint TextureSize = SourceRadiance.Data.Image->Desc.Extent;
 		const bool bSeparateSourceTarget = (SourceRadiance.Data.Image != TargetRadiance.Data.Image);
 
-		const FIntRect SeparableFilteringRegion = Region.Inner(-(NonLocalMeanParameters.PatchDistance + NonLocalMeanParameters.PatchSize));
+		const FIntRect SeparableFilteringRegion = NonLocalMeanWeightDesc.Region.Inner(-(NonLocalMeanParameters.PatchDistance + NonLocalMeanParameters.PatchSize));
 		const FIntPoint SeparableFilteringExtent = SeparableFilteringRegion.Size();
-		const FIntPoint WeightQueryRegionExtent = Region.Inner(-(NonLocalMeanParameters.PatchDistance)).Size();
+		const FIntPoint WeightQueryRegionExtent = NonLocalMeanWeightDesc.Region.Inner(-(NonLocalMeanParameters.PatchDistance)).Size();
 		
 		// Estimate the number of dispatches required using the atlas
 		const FIntPoint NLMWeightAtlasExtent = GetNonLocalMeanAtlasSize(SeparableFilteringExtent);
@@ -977,7 +1010,7 @@ namespace NFORDenoise
 		const int32 NumOfDispatch = FMath::DivideAndRoundUp(HalfOffsetSearchCount, SingleDispatchOffsetSearchCount);
 
 		// Allocate the atlas where each pixel stores two symmetric distance/weights, and the temporal buffer.
-		FRDGTextureDesc NLMWeightAtlasDesc= SourceRadiance.Data.Image->Desc;
+		FRDGTextureDesc NLMWeightAtlasDesc = SourceRadiance.Data.Image->Desc;
 		int32 NonLocalMeanWeightsBytesPerElement = 0;
 		{
 			NLMWeightAtlasDesc.Extent = NLMWeightAtlasExtent;
@@ -1155,15 +1188,16 @@ namespace NFORDenoise
 			{
 				PassParameters->NLMParams = NonLocalMeanParameters;
 				PassParameters->SourceBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(NonLocalMeanWeights, PF_G32R32F));
-				PassParameters->RWTargetBuffer = GraphBuilder.CreateUAV(NonLocalMeanWeightsBuffer, PF_R32_FLOAT);
+				PassParameters->RWTargetBuffer = GraphBuilder.CreateUAV(NonLocalMeanWeightDesc.WeightBuffer, PF_R32_FLOAT);
 				PassParameters->SourceBufferDim = FIntVector4(NumSymmetricPairsPerPixel, WeightQueryRegionExtent.X, WeightQueryRegionExtent.Y, TotalNumTilesToFill);
-				PassParameters->TargetBufferDim = FIntVector(NumberOfWeightsPerPixel, Region.Size().X, Region.Size().Y);
+				PassParameters->TargetBufferDim = FIntVector(NumberOfWeightsPerPixel, NonLocalMeanWeightDesc.Region.Size().X, NonLocalMeanWeightDesc.Region.Size().Y);
 				PassParameters->HalfOffsetSearchCount = HalfOffsetSearchCount;
 			}
 
 			SHADER::FPermutationDomain ComputeShaderPermutationVector;
 			{
 				ComputeShaderPermutationVector.Set<SHADER::FDimensionSeparateSourceTarget>(bSeparateSourceTarget);
+				ComputeShaderPermutationVector.Set<SHADER::FDimensionTargetWeightLayout>(NonLocalMeanWeightDesc.WeightLayout);
 			}
 
 			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
@@ -1178,6 +1212,103 @@ namespace NFORDenoise
 				ComputeShader,
 				PassParameters,
 				FComputeShaderUtils::GetGroupCount(FIntVector(WeightQueryRegionExtent.X, WeightQueryRegionExtent.Y, HalfOffsetSearchCount), NON_LOCAL_MEAN_THREAD_GROUP_SIZE));
+		}
+	}
+
+	void ApplyNonLocalMeanFilterIfRequired(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& View,
+		const FNonLocalMeanParameters& NonLocalMeanParameters,
+		const FNFORTextureDesc& Texture,
+		const FNFORTextureDesc& Variance,
+		EVarianceType VarianceType,
+		const FRDGTextureRef& FilteredTexture,
+		int32 TileDownScale = 1)
+	{
+		RDG_EVENT_SCOPE(GraphBuilder, "NonLocalMeanFiltering (%s)", Texture.Image->Name);
+
+		if (ShouldApplyFeatureFiltering())
+		{
+			const FIntPoint TextureSize = Texture.Image->Desc.Extent;
+
+			ENonLocalMeanWeightLayout WeightLayout = GetNonLocalMeanWeightLayout();
+			FNonLocalMeanWeightDesc NonLocalMeanWeightDesc;
+			NonLocalMeanWeightDesc.WeightLayout = WeightLayout;
+
+			const bool bShouldApplyDirectFiltering = 
+				(WeightLayout == ENonLocalMeanWeightLayout::None)
+				|| !ShouldNonLocalMeanUseAtlas();
+
+			if (bShouldApplyDirectFiltering)
+			{
+				NonLocalMeanWeightDesc.Region = FIntRect(FIntPoint(0), TextureSize);
+
+				ApplyNonLocalMeanFilter(
+					GraphBuilder,
+					NonLocalMeanParameters,
+					Texture,
+					Variance,
+					VarianceType,
+					FilteredTexture,
+					NonLocalMeanWeightDesc);
+			}
+			else
+			{
+				/**
+				For each tile:
+					Query the weights.
+					Filter region with the weights.
+				*/
+				// TODO: refactor the tiling common code.
+
+				const int SearchingPatchSize = (NonLocalMeanParameters.PatchDistance * 2 + 1);
+				const int NumberOfWeightsPerPixel = SearchingPatchSize * SearchingPatchSize;
+
+				const int32 NumOfTilesOneSide = FMath::Max(GetNumOfTiles(TextureSize) / TileDownScale, 1);
+				FIntPoint NumOfTiles = FIntPoint(NumOfTilesOneSide, NumOfTilesOneSide);
+				const int32 TotalTileCount = NumOfTilesOneSide * NumOfTilesOneSide;
+
+				FIntPoint TileSize = FMath::DivideAndRoundUp(TextureSize, NumOfTiles);
+
+				const int32 NonLocalMeanSingleFrameWeightSize = TileSize.X * TileSize.Y * NumberOfWeightsPerPixel;
+				const int32 BytesPerElement = sizeof(float);
+				FRDGBufferDesc NonLocalMeanSingleFrameWeightsBufferDesc =
+					FRDGBufferDesc::CreateBufferDesc(BytesPerElement, NonLocalMeanSingleFrameWeightSize);
+				FRDGBufferRef NonLocalMeanSingleFrameWeightsBuffer = GraphBuilder.CreateBuffer(NonLocalMeanSingleFrameWeightsBufferDesc, TEXT("NFOR.NLMFeatureFilteringWeightsBuffer"));
+
+				FRadianceDesc ImageDesc(Texture, Variance, VarianceType);
+				NonLocalMeanWeightDesc.WeightBuffer = NonLocalMeanSingleFrameWeightsBuffer;
+
+				for (int i = 0; i < TotalTileCount; ++i)
+				{
+					int32 TileIndex = i;
+					FIntPoint TileStartPoint = FIntPoint(TileIndex % NumOfTiles.X, TileIndex / NumOfTiles.X) * TileSize;
+					FIntRect TileRegion = FIntRect(FIntPoint(0), TileSize) + TileStartPoint;
+
+					NonLocalMeanWeightDesc.Region = TileRegion;
+
+					GetNLMWeigthsWithAtlas(
+						GraphBuilder,
+						View,
+						ImageDesc,
+						ImageDesc,
+						NonLocalMeanWeightDesc,
+						NonLocalMeanParameters);
+
+					ApplyNonLocalMeanFilter(
+						GraphBuilder,
+						NonLocalMeanParameters,
+						Texture,
+						Variance,
+						VarianceType,
+						FilteredTexture,
+						NonLocalMeanWeightDesc);
+				}
+			}
+		}
+		else
+		{
+			AddCopyTexturePass(GraphBuilder, Texture.Image, FilteredTexture);
 		}
 	}
 
@@ -1198,10 +1329,15 @@ namespace NFORDenoise
 
 		RDG_EVENT_SCOPE(GraphBuilder, "NonLocalMeanGetWeights");
 
+		FNonLocalMeanWeightDesc NonLocalMeanWeightDesc;
+		NonLocalMeanWeightDesc.Region = Region;
+		NonLocalMeanWeightDesc.WeightBuffer = NonLocalMeanWeightsBuffer;
+		NonLocalMeanWeightDesc.WeightLayout = GetNonLocalMeanWeightLayout();
+
 		// Query the non-local mean weights for the radiance.
 		if (bShouldNonLocalMeanUseAtlas)
 		{
-			GetNLMWeigthsWithAtlas(GraphBuilder, View, SourceRadiance, TargetRadiance, NonLocalMeanWeightsBuffer, Region, NonLocalMeanParameters);
+			GetNLMWeigthsWithAtlas(GraphBuilder, View, SourceRadiance, TargetRadiance, NonLocalMeanWeightDesc, NonLocalMeanParameters);
 		}
 		else
 		{
@@ -1214,7 +1350,7 @@ namespace NFORDenoise
 				PassParameters->CommonParameters.TextureSize = TextureSize;
 				PassParameters->CommonParameters.VarianceChannelOffset = SourceRadiance.Variance.ChannelOffset;
 
-				PassParameters->NonLocalMeanWeights = GraphBuilder.CreateUAV(NonLocalMeanWeightsBuffer, PF_R32_FLOAT);
+				PassParameters->RWNonLocalMeanWeights = GraphBuilder.CreateUAV(NonLocalMeanWeightsBuffer, PF_R32_FLOAT);
 				PassParameters->Region = Region;
 
 				if (bSeparateSourceTarget)
@@ -1231,6 +1367,7 @@ namespace NFORDenoise
 				ComputeShaderPermutationVector.Set<SHADER::FDimensionImageChannelCount>(SourceRadiance.Data.NumOfChannel);
 				ComputeShaderPermutationVector.Set<SHADER::FDimensionSeparateSourceTarget>(bSeparateSourceTarget);
 				ComputeShaderPermutationVector.Set<SHADER::FDimPreAlbedoDivide>(GetPreAlbedoDivideRecoverPhase());
+				ComputeShaderPermutationVector.Set<SHADER::FDimTargetWeightLayout>(NonLocalMeanWeightDesc.WeightLayout);
 			}
 
 			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
@@ -1429,6 +1566,7 @@ namespace NFORDenoise
 				ComputeShaderPermutationVector.Set<SHADER::FDimOptimizeTargetMatrixMultiplication>(true);
 				ComputeShaderPermutationVector.Set<SHADER::FDimNumFeature>(BufferXDimWithConstant);
 				ComputeShaderPermutationVector.Set<SHADER::FDimUseSamplingStep>(SamplingStep > 1);
+				ComputeShaderPermutationVector.Set<SHADER::FDimensionWeightLayout>(GetNonLocalMeanWeightLayout());
 			}
 
 			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
@@ -1523,6 +1661,7 @@ namespace NFORDenoise
 				ComputeShaderPermutationVector.Set<SHADER::FDimReconstructionType>(ReconstructionType);
 				ComputeShaderPermutationVector.Set<SHADER::FDimPreAlbedoDivide>(GetPreAlbedoDivideRecoverPhase());
 				ComputeShaderPermutationVector.Set<SHADER::FDimNumFeature>(BDim.X);
+				ComputeShaderPermutationVector.Set<SHADER::FDimensionWeightLayout>(GetNonLocalMeanWeightLayout());
 			}
 
 			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
@@ -2318,11 +2457,13 @@ namespace NFORDenoise
 
 			ApplyNonLocalMeanFilterIfRequired(
 				GraphBuilder,
+				View,
 				FeatureNonLocalMeanParameters,
 				FeatureDesc.Feature,
 				FeatureDesc.Variance,
 				FeatureDesc.VarianceType,
-				FilterdFeature);
+				FilterdFeature,
+				GetFeatureTileSizeDownScale());
 
 			AddCopyTexturePass(GraphBuilder, FilterdFeature, Feature);
 		}
@@ -2441,6 +2582,7 @@ namespace NFORDenoise
 
 				ApplyNonLocalMeanFilterIfRequired(
 					GraphBuilder,
+					View,
 					MSENonLocalMeanParameters,
 					MSE,
 					SourceRadiance.Variance,
@@ -2491,6 +2633,7 @@ namespace NFORDenoise
 
 				ApplyNonLocalMeanFilterIfRequired(
 					GraphBuilder,
+					View,
 					SelectionMapNonLocalMeanParameters,
 					NFORSelectionMap,
 					SourceRadiance.Variance,

@@ -283,6 +283,27 @@ namespace NFORDenoise
 
 	FNonLocalMeanParameters GetNonLocalMeanParameters(int32 PatchSize, int32 PatchDistance, float Bandwidth);
 
+	enum class ENonLocalMeanWeightLayout : uint32
+	{
+		/**Weight buffer is not in use*/
+		None,
+		NumOfWeightsPerPixelxWxH,
+		WxHxNumOfWeightsPerPixel,
+		MAX
+	};
+
+	struct FNonLocalMeanWeightDesc
+	{
+		/** The region this weights is gathered for.*/
+		FIntRect Region;
+
+		/** The gathered weights*/
+		FRDGBufferRef WeightBuffer = nullptr;
+
+		/** The layout of the weight*/
+		ENonLocalMeanWeightLayout WeightLayout = ENonLocalMeanWeightLayout::None;
+	};
+
 	// Output the non-local mean filtered image (feature) based on variance
 	// Input: Image, variance, Guide(optional), NonLocalMean parameters
 	//		 Dim: WxHx?, WxHx?
@@ -302,6 +323,11 @@ namespace NFORDenoise
 			SHADER_PARAMETER(FIntPoint, TextureSize)
 			SHADER_PARAMETER(int32, VarianceChannelOffset)
 			SHADER_PARAMETER(int32, DenoisingChannelCount)
+			SHADER_PARAMETER(FIntRect, FilteringRegion)
+
+			//If using non-local mean weights for filtering acceleration
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, NonLocalMeanWeights)
+
 			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, DenoisedImage)
 			END_SHADER_PARAMETER_STRUCT()
 
@@ -316,7 +342,8 @@ namespace NFORDenoise
 		class FDimensionUseGuide : SHADER_PERMUTATION_BOOL("USE_GUIDE"); //TODO
 		class FDimensionImageChannelCount : SHADER_PERMUTATION_RANGE_INT("SOURCE_CHANNEL_COUNT", 1, static_cast<int>(EImageChannelCount::MAX));
 		class FDimPreAlbedoDivide : SHADER_PERMUTATION_ENUM_CLASS("PRE_ALBEDO_DIVIDE", EAlbedoDivideRecoverPhase);
-		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType, FDimensionUseGuide, FDimensionImageChannelCount, FDimPreAlbedoDivide>;
+		class FDimWeightLayout : SHADER_PERMUTATION_ENUM_CLASS("NLM_WEIGHTLAYOUT", ENonLocalMeanWeightLayout);
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType, FDimensionUseGuide, FDimensionImageChannelCount, FDimPreAlbedoDivide, FDimWeightLayout>;
 	};
 
 
@@ -336,7 +363,7 @@ namespace NFORDenoise
 			SHADER_PARAMETER(FIntRect, Region)
 			SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, TargetImage)
 			SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, TargetVariance)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, NonLocalMeanWeights)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, RWNonLocalMeanWeights)
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -350,7 +377,9 @@ namespace NFORDenoise
 		class FDimensionImageChannelCount : SHADER_PERMUTATION_RANGE_INT("SOURCE_CHANNEL_COUNT", 1, static_cast<int>(EImageChannelCount::MAX));
 		class FDimensionSeparateSourceTarget : SHADER_PERMUTATION_BOOL("NONLOCALMEAN_SEPARATE_SOURCE");
 		class FDimPreAlbedoDivide : SHADER_PERMUTATION_ENUM_CLASS("PRE_ALBEDO_DIVIDE", EAlbedoDivideRecoverPhase);
-		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType, FDimensionUseGuide, FDimensionImageChannelCount, FDimensionSeparateSourceTarget, FDimPreAlbedoDivide>;
+		class FDimTargetWeightLayout : SHADER_PERMUTATION_ENUM_CLASS("NLM_WEIGHTLAYOUT", ENonLocalMeanWeightLayout);
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType, FDimensionUseGuide, FDimensionImageChannelCount, FDimensionSeparateSourceTarget, 
+			FDimPreAlbedoDivide, FDimTargetWeightLayout>;
 	};
 
 	// Optimize the weights query.
@@ -438,7 +467,8 @@ namespace NFORDenoise
 		}
 
 		class FDimensionSeparateSourceTarget : SHADER_PERMUTATION_BOOL("NONLOCALMEAN_SEPARATE_SOURCE");
-		using FPermutationDomain = TShaderPermutationDomain<FDimensionSeparateSourceTarget>;
+		class FDimensionTargetWeightLayout : SHADER_PERMUTATION_ENUM_CLASS("NLM_WEIGHTLAYOUT", ENonLocalMeanWeightLayout);
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionSeparateSourceTarget, FDimensionTargetWeightLayout>;
 	};
 
 	//--------------------------------------------------------------------------------------------------------------------
@@ -588,7 +618,9 @@ namespace NFORDenoise
 			class FDimNumFeature : SHADER_PERMUTATION_RANGE_INT("NUM_FEATURE", 6, 3);
 			class FDimOptimizeTargetMatrixMultiplication : SHADER_PERMUTATION_BOOL("SMALL_MATRIX_OPTIMIZE");
 			class FDimUseSamplingStep : SHADER_PERMUTATION_BOOL("USE_SAMPLING_STEP");
-			using FPermutationDomain = TShaderPermutationDomain<FDimWeightedMultiplicationType, FDimAddConstantFeatureDim, FDimOptimizeTargetMatrixMultiplication, FDimNumFeature, FDimUseSamplingStep>;
+			class FDimensionWeightLayout : SHADER_PERMUTATION_ENUM_CLASS("NLM_WEIGHTLAYOUT", ENonLocalMeanWeightLayout);
+			using FPermutationDomain = TShaderPermutationDomain<FDimWeightedMultiplicationType, FDimAddConstantFeatureDim, FDimOptimizeTargetMatrixMultiplication, 
+				FDimNumFeature, FDimUseSamplingStep, FDimensionWeightLayout>;
 		};
 
 
@@ -750,7 +782,8 @@ namespace NFORDenoise
 			class FDimReconstructionType : SHADER_PERMUTATION_ENUM_CLASS("RECONSTRUCTION_TYPE", EReconstructionType);
 			class FDimPreAlbedoDivide : SHADER_PERMUTATION_ENUM_CLASS("PRE_ALBEDO_DIVIDE", EAlbedoDivideRecoverPhase);
 			class FDimNumFeature : SHADER_PERMUTATION_RANGE_INT("NUM_FEATURE", 6, 3);
-			using FPermutationDomain = TShaderPermutationDomain<FDimReconstructionType, FDimPreAlbedoDivide, FDimNumFeature>;
+			class FDimensionWeightLayout : SHADER_PERMUTATION_ENUM_CLASS("NLM_WEIGHTLAYOUT", ENonLocalMeanWeightLayout);
+			using FPermutationDomain = TShaderPermutationDomain<FDimReconstructionType, FDimPreAlbedoDivide, FDimNumFeature, FDimensionWeightLayout>;
 		};
 	}
 

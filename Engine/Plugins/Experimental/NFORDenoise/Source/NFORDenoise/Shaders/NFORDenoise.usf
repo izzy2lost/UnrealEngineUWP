@@ -71,6 +71,14 @@
 
 #define NONLOCALMEAN_ATLAS_SYMMETRIC_PAIR_COUNT (NONLOCALMEAN_ATLAS_TYPE+1)
 
+#define NLM_WEIGHTLAYOUT_NONE						  0
+#define NLM_WEIGHTLAYOUT_NUM_OF_WEIGHTS_PER_PIXELxWxH 1
+#define NLM_WEIGHTLAYOUT_WxHxNUM_OF_WEIGHTS_PER_PIXEL 2
+
+#ifndef NLM_WEIGHTLAYOUT
+#define NLM_WEIGHTLAYOUT NLM_WEIGHTLAYOUT_NONE
+#endif
+
 #ifndef NUM_FEATURE
 #define NUM_FEATURE 0
 #endif
@@ -507,18 +515,37 @@ float GetNonLocalMeanWeight(int2 P, int2 Q)
 }
 
 RWTexture2D<TPixelValue> DenoisedImage;
-RWBuffer<float> NonLocalMeanWeights;
+Buffer<float> NonLocalMeanWeights;
 int DenoisingChannelCount;
+int4 FilteringRegion;
+
+uint GetWeightBufferIndex(uint2 LocalPositionInRegion, uint WeightIndex, uint2 RegionSize)
+{
+#if (NLM_WEIGHTLAYOUT == NLM_WEIGHTLAYOUT_NONE) \
+	|| (NLM_WEIGHTLAYOUT == NLM_WEIGHTLAYOUT_NUM_OF_WEIGHTS_PER_PIXELxWxH)
+	const uint PatchWidth = PatchDistance * 2 + 1;
+	const uint NumOfWeightsPerPixel = Pow2(PatchWidth);
+	uint BufferIndex = WeightIndex + NumOfWeightsPerPixel * (LocalPositionInRegion.x + RegionSize.x * LocalPositionInRegion.y);
+#elif NLM_WEIGHTLAYOUT == NLM_WEIGHTLAYOUT_WxHxNUM_OF_WEIGHTS_PER_PIXEL
+	// Best if neighbour pixels query the same weight index.
+	uint BufferIndex = LocalPositionInRegion.x + RegionSize.x * (LocalPositionInRegion.y + RegionSize.y * WeightIndex);
+#else
+	#error not implemented
+#endif
+	return BufferIndex;
+}
 
 [numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
 void NonLocalMeanFilteringCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 {
-	if (any(DispatchThreadID.xy >= TextureSize))
+	int2 RegionSize = int2(FilteringRegion.z - FilteringRegion.x, FilteringRegion.w - FilteringRegion.y);
+	if (any(DispatchThreadID.xy >= RegionSize))
 	{
 		return;
 	}
-	
-	const uint2 Position = DispatchThreadID.xy;
+
+	const uint PatchWidth = PatchDistance * 2 + 1;
+	const uint2 Position = DispatchThreadID.xy + FilteringRegion.xy;
 	float TotalWeights = 0;
 	TPixelValue Result = 0;
 
@@ -527,8 +554,14 @@ void NonLocalMeanFilteringCS(in const uint3 DispatchThreadID : SV_DispatchThread
 		for (int x = -PatchDistance; x <= PatchDistance; ++x)
 		{
 			int2 Q = Position + int2(x, y);
+#if NLM_WEIGHTLAYOUT == NLM_WEIGHTLAYOUT_NONE
 			float Weight = GetNonLocalMeanWeight(Position, Q);
-
+#else
+			uint WeightIndex = (x + PatchDistance) + (y + PatchDistance) * PatchWidth;
+			uint BufferIndex = GetWeightBufferIndex(DispatchThreadID.xy, WeightIndex, RegionSize);
+			float Weight = NonLocalMeanWeights[BufferIndex];
+#endif
+			//TODO: Improve caching of weights or image value in LDS.
 			Result += Weight * GetImageValue(GetMirroredPosition(Q, TextureSize), TargetImage);
 			TotalWeights += Weight;
 		}
@@ -537,19 +570,20 @@ void NonLocalMeanFilteringCS(in const uint3 DispatchThreadID : SV_DispatchThread
 	Result = Result / max(1e-6f, TotalWeights);
 
 #if SOURCE_CHANNEL_COUNT == 1
-	DenoisedImage[DispatchThreadID.xy] = Result;
+	DenoisedImage[Position] = Result;
 #else
 	TPixelValue TargetValue = GetImageValue(GetMirroredPosition(Position, TextureSize), TargetImage);
 	for (int i = 0; i < DenoisingChannelCount; ++i)
 	{
 		TargetValue[i] = Result[i];
 	}
-	DenoisedImage[DispatchThreadID.xy] = TargetValue;
+	DenoisedImage[Position] = TargetValue;
 #endif
 }
 
 // Calculate the non-local mean weights for Region
 int4 Region;
+RWBuffer<float> RWNonLocalMeanWeights;
 
 [numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
 void NonLocalMeanWeightsCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
@@ -568,7 +602,12 @@ void NonLocalMeanWeightsCS(in const uint3 DispatchThreadID : SV_DispatchThreadID
 	{
 		int2 Offset = int2(i % PatchDiameter, i / PatchDiameter) - int2(PatchDistance, PatchDistance);
 		int2 Q = Position + Offset;
-		NonLocalMeanWeights[BufferOffset + i] = GetNonLocalMeanWeight(Position, Q);
+#if NLM_WEIGHTLAYOUT != NLM_WEIGHTLAYOUT_WxHxNUM_OF_WEIGHTS_PER_PIXEL
+		uint BufferIndex = BufferOffset + i;
+#else
+		uint BufferIndex = GetWeightBufferIndex(DispatchThreadID.xy, i, RegionSize);
+#endif
+		RWNonLocalMeanWeights[BufferIndex] = GetNonLocalMeanWeight(Position, Q);
 	}
 }
 
@@ -705,8 +744,13 @@ float2 GetInputFromBuffer(uint x, uint y, uint w)
 void WriteWeight(uint2 PixelPosition, uint2 WeightPosition, float Weight)
 {
 	const uint PatchDiemeter = 2 * PatchDistance + 1;
-	uint w = WeightPosition.x + WeightPosition.y * PatchDiemeter;
-	uint OutputIndex = w + PixelPosition.x * TargetBufferDim.x + PixelPosition.y * TargetBufferDim.x * TargetBufferDim.y;
+	uint WeightIndex = WeightPosition.x + WeightPosition.y * PatchDiemeter;
+
+#if NLM_WEIGHTLAYOUT != NLM_WEIGHTLAYOUT_WxHxNUM_OF_WEIGHTS_PER_PIXEL
+	uint OutputIndex = WeightIndex + PixelPosition.x * TargetBufferDim.x + PixelPosition.y * TargetBufferDim.x * TargetBufferDim.y;
+#else
+	uint OutputIndex = PixelPosition.x + TargetBufferDim.y * (PixelPosition.y + TargetBufferDim.z * WeightIndex);
+#endif
 	RWTargetBuffer[OutputIndex] = Weight;
 }
 
@@ -853,7 +897,7 @@ int2 YDim;
 // |F0 F1|F0 F1|F0 F1|
 //   T0     T1   T2
 // 
-// W stores one weight per pixel, when a frame stored, the next frame is stored
+// W stores one weight per pixel, when a frame stored, the next frame is stored 
 // P1 ... Pn | P1 ... Pn|
 // T0          T1        ...
 
@@ -888,7 +932,13 @@ float GetY(int2 Position, int f)
 float GetW(int2 Position, int WeightIndex, int FrameIndex)
 {
 	const int NumberOfPixels = TextureSize.x * TextureSize.y;
+
+#if NLM_WEIGHTLAYOUT != NLM_WEIGHTLAYOUT_WxHxNUM_OF_WEIGHTS_PER_PIXEL
 	const int Index = NumOfWeigthsPerPixelPerFrame *(NumberOfPixels * FrameIndex + (Position.y * TextureSize.x + Position.x)) + WeightIndex;
+#else
+	const int Index = NumOfWeigthsPerPixelPerFrame * NumberOfPixels * FrameIndex
+					  + Position.x + TextureSize.x * (Position.y + TextureSize.y * WeightIndex);
+#endif
 	return W[Index];
 }
 
