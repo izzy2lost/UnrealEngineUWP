@@ -1394,7 +1394,6 @@ void UPCGComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void UPCGComponent::OnUnregister()
 {
-	TeardownCallbacks();
 #if WITH_EDITOR
 	if (UPCGSubsystem* Subsystem = GetSubsystem())
 	{
@@ -1412,6 +1411,17 @@ void UPCGComponent::OnUnregister()
 
 void UPCGComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 {
+#if WITH_EDITOR
+	// BeginDestroy is not called immediately when a component is destroyed. Therefore callbacks are not cleaned
+	// until GC is ran, and can stack up with BP reconstruction scripts. Force the removal of callbacks here. If the component
+	// is dead, we don't want to react to callbacks anyway.
+	if (GraphInstance)
+	{
+		GraphInstance->OnGraphChangedDelegate.RemoveAll(this);
+		GraphInstance->TeardownCallbacks();
+	}
+#endif
+
 	// Bookkeeping local components that might be deleted by the user.
 	// Making sure that the corresponding partition actor doesn't keep a dangling references
 	if (APCGPartitionActor* PAOwner = Cast<APCGPartitionActor>(GetOwner()))
@@ -1545,7 +1555,7 @@ void UPCGComponent::PostLoad()
 		Graph_DEPRECATED = nullptr;
 	}
 
-	UpdateTrackingCache();
+	SetupCallbacksOnCreation();
 
 	// Always set the editing mode to Preview when we're in GenerateAtRuntime mode
 	CurrentEditingMode = IsManagedByRuntimeGenSystem() ? EPCGEditorDirtyMode::Preview : SerializedEditingMode;
@@ -1584,6 +1594,19 @@ void UPCGComponent::PostLoad()
 }
 
 #if WITH_EDITOR
+void UPCGComponent::SetupCallbacksOnCreation()
+{
+	UpdateTrackingCache();
+
+	if (GraphInstance)
+	{
+		// We might have already connected in PostInitProperties
+		// To be sure, remove it and re-add it.
+		GraphInstance->OnGraphChangedDelegate.RemoveAll(this);
+		GraphInstance->OnGraphChangedDelegate.AddUObject(this, &UPCGComponent::OnGraphChanged);
+	}
+}
+
 bool UPCGComponent::CanEditChange(const FProperty* InProperty) const
 {
 	// Can't change anything if the component is local
@@ -1594,6 +1617,11 @@ bool UPCGComponent::CanEditChange(const FProperty* InProperty) const
 void UPCGComponent::BeginDestroy()
 {
 #if WITH_EDITOR
+	if (GraphInstance)
+	{
+		GraphInstance->OnGraphChangedDelegate.RemoveAll(this);
+	}
+
 	// For the special case where a component is part of a reconstruction script (from a BP),
 	// but gets destroyed immediately, we need to force the unregistering. 
 	if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
@@ -1612,6 +1640,10 @@ bool UPCGComponent::IsEditorOnly() const
 
 void UPCGComponent::PostInitProperties()
 {
+#if WITH_EDITOR
+	GraphInstance->OnGraphChangedDelegate.AddUObject(this, &UPCGComponent::OnGraphChanged);
+#endif // WITH_EDITOR
+
 #if WITH_EDITOR
 	// Force bIsPartitioned at false for new objects
 	if (PCGHelpers::IsNewObjectAndNotDefault(this, /*bCheckHierarchy=*/true))
@@ -1650,32 +1682,12 @@ void UPCGComponent::OnRegister()
 		}
 	}
 #endif //WITH_EDITOR
-	SetupCallbacks();
 }
 
 TStructOnScope<FActorComponentInstanceData> UPCGComponent::GetComponentInstanceData() const
 {
 	TStructOnScope<FActorComponentInstanceData> InstanceData = MakeStructOnScope<FActorComponentInstanceData, FPCGComponentInstanceData>(this);
 	return InstanceData;
-}
-
-void UPCGComponent::SetupCallbacks()
-{
-#if WITH_EDITOR
-	if (!GraphInstance->OnGraphChangedDelegate.IsBoundToObject(this))
-	{
-		GraphInstance->OnGraphChangedDelegate.AddUObject(this, &UPCGComponent::OnGraphChanged);
-		GraphInstance->SetupCallbacks();
-	}
-#endif
-}
-
-void UPCGComponent::TeardownCallbacks()
-{
-#if WITH_EDITOR
-	GraphInstance->TeardownCallbacks();
-	GraphInstance->OnGraphChangedDelegate.RemoveAll(this);
-#endif
 }
 
 void UPCGComponent::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType)
@@ -1934,7 +1946,7 @@ void UPCGComponent::PostEditImport()
 {
 	Super::PostEditImport();
 
-	UpdateTrackingCache();
+	SetupCallbacksOnCreation();
 }
 
 void UPCGComponent::PreEditUndo()
@@ -3630,6 +3642,16 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 #endif
 		}
 
+#if WITH_EDITOR
+		// Reconnect callbacks
+		if (PCGComponent->GraphInstance)
+		{
+			PCGComponent->GraphInstance->SetupCallbacks();
+			PCGComponent->GraphInstance->OnGraphChangedDelegate.RemoveAll(PCGComponent);
+			PCGComponent->GraphInstance->OnGraphChangedDelegate.AddUObject(PCGComponent, &UPCGComponent::OnGraphChanged);
+		}
+#endif // WITH_EDITOR
+
 		bool bDoActorMapping = PCGComponent->bGenerated || PCGHelpers::IsRuntimeOrPIE();
 
 		// Also remap
@@ -3640,6 +3662,12 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 		}
 
 #if WITH_EDITOR
+		// Disconnect callbacks on source.
+		if (ConstructionSourceComponent && ConstructionSourceComponent->GraphInstance)
+		{
+			ConstructionSourceComponent->GraphInstance->TeardownCallbacks();
+		}
+
 		// Finally, start a delayed refresh task (if there is not one already), in editor only
 		// It is important to be delayed, because we cannot spawn Partition Actors within this scope,
 		// because we are in a construction script.

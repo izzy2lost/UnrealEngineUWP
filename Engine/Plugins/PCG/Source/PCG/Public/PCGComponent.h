@@ -518,15 +518,14 @@ private:
 	void RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
 	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
 
-	/** Sets up actor, tracking, landscape and graph callbacks */
-	void SetupCallbacks();
-	void TeardownCallbacks();
-
 #if WITH_EDITOR
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
+
+	/** Sets up actor, tracking, landscape and graph callbacks */
+	void SetupCallbacksOnCreation();
 
 	/** Returns true if something changed in the tracking. */
 	bool UpdateTrackingCache(TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
