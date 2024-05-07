@@ -642,6 +642,9 @@ public:
 	/** If true level streaming can reuse an unloaded level that wasn't GC'd yet. */
 	static ENGINE_API bool ShouldReuseUnloadedButStillAroundLevels(const ULevel* InLevel);
 
+	/** Whether incremental removal of a streaming level can be done while there's a pending visible streaming level being processed. */
+	static ENGINE_API bool AllowIncrementalRemovalWhilePendingVisibility();
+
 	/** 
 	 * Traverses all streaming level objects in the persistent world and in all inner worlds and calls appropriate delegate for streaming objects that refer specified level 
 	 *

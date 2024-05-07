@@ -88,6 +88,14 @@ namespace LevelStreamingCVars
 		TEXT("Whether level streaming will reuse the unloaded levels that aren't GC'd yet.\n")
 		TEXT("0: Disable, 1: Enable"),
 		ECVF_ReadOnly);
+
+	static bool bAllowIncrementalRemovalWhilePendingVisibility = true;
+	FAutoConsoleVariableRef CVarAllowIncrementalRemovalWhilePendingVisibility(
+		TEXT("LevelStreaming.AllowIncrementalRemovalWhilePendingVisibility"),
+		bAllowIncrementalRemovalWhilePendingVisibility,
+		TEXT("Whether incremental removal of a streaming level can be done while there's a pending visible streaming level being processed.\n")
+		TEXT("0: Disable, 1: Enable"),
+		ECVF_Default);
 }
 
 bool ULevelStreaming::DefaultAllowClientUseMakingInvisibleTransactionRequests()
@@ -127,6 +135,11 @@ bool ULevelStreaming::ShouldClientUseMakingVisibleTransactionRequest() const
 bool ULevelStreaming::ShouldServerUseMakingVisibleTransactionRequest()
 {
 	return LevelStreamingCVars::bShouldServerUseMakingVisibleTransactionRequest;
+}
+
+bool ULevelStreaming::AllowIncrementalRemovalWhilePendingVisibility()
+{
+	return LevelStreamingCVars::bAllowIncrementalRemovalWhilePendingVisibility;
 }
 
 bool ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(const ULevel* InLevel)

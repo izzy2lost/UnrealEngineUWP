@@ -3394,7 +3394,7 @@ void UWorld::AddToWorld( ULevel* Level, const FTransform& LevelTransform, bool b
 
 			bExecuteNextStep = Level->IsFinishedRouteActorInitialization() && (!bConsiderTimeLimit || !IsTimeLimitExceeded( TEXT("routing Initialize on actors"), StartTime, Level, TimeLimit ));
 		}
-
+		
 		// Sort the actor list; can't do this on save as the relevant properties for sorting might have been changed by code
 		if( bExecuteNextStep && !Level->bAlreadySortedActorList )
 		{
@@ -3567,9 +3567,12 @@ void UWorld::RemoveFromWorld( ULevel* Level, bool bAllowIncrementalRemoval, FNet
 		}
 	};
 
-	// To be removed from the world a world must be visible and not pending being made visible (this may be redundent, but for safety)
 	// If the level may be removed incrementally then there must also be no level pending visibility
-	if ( ((CurrentLevelPendingVisibility == nullptr) || (!bAllowIncrementalRemoval && (CurrentLevelPendingVisibility != Level))) && (Level->bIsVisible || Level->bIsBeingRemoved) )
+	// except if LevelStreaming.AllowIncrementalRemovalWhilePendingVisibility is true.
+	const bool bIsCandidateForRemoval = ULevelStreaming::AllowIncrementalRemovalWhilePendingVisibility() ? true : !bAllowIncrementalRemoval;
+	
+	// To be removed from the world a world must be visible and not pending being made visible (this may be redundent, but for safety)
+	if ( ((CurrentLevelPendingVisibility == nullptr) || (bIsCandidateForRemoval && (CurrentLevelPendingVisibility != Level))) && (Level->bIsVisible || Level->bIsBeingRemoved) )
 	{
 #if PERF_TRACK_DETAILED_ASYNC_STATS
 		// Keep track of timing.
@@ -3633,7 +3636,7 @@ void UWorld::RemoveFromWorld( ULevel* Level, bool bAllowIncrementalRemoval, FNet
 			BeginRemoval();
 		}
 
-		if ( bFinishRemovingLevel )
+		if (bFinishRemovingLevel)
 		{
 			for (int32 ActorIdx = 0; ActorIdx < Level->Actors.Num(); ActorIdx++)
 			{
@@ -3666,8 +3669,8 @@ void UWorld::RemoveFromWorld( ULevel* Level, bool bAllowIncrementalRemoval, FNet
 			Level->ReleaseRenderingResources();
 
 			// Remove from the world's level array and destroy actor components.
-			IStreamingManager::Get().RemoveLevel( Level );
-		
+			IStreamingManager::Get().RemoveLevel(Level);
+
 			Level->ClearLevelComponents();
 
 			if (bIsGameWorld && !Level->bClientOnlyVisible)
@@ -3703,7 +3706,7 @@ void UWorld::RemoveFromWorld( ULevel* Level, bool bAllowIncrementalRemoval, FNet
 				Levels.Remove(Level);
 				Level->OwningWorld = nullptr;
 			}
-				
+
 			// let the universe know we have removed a level
 			FWorldDelegates::LevelRemovedFromWorld.Broadcast(Level, this);
 			BroadcastLevelsChanged();
