@@ -194,12 +194,13 @@ public:
 	void OnAccessSpecifierSelected( TSharedPtr<FRigVMStringWithTag> SpecifierName, ESelectInfo::Type SelectInfo );
 	TSharedRef<ITableRow> HandleGenerateRowAccessSpecifier( TSharedPtr<FRigVMStringWithTag> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable );
 	bool IsFunctionVariant() const;
-	FText GetVariantGuidText() const;
-	//FReply OnSplitVariant();
-	//FReply OnMergeVariant();
-	void RefreshVariantLog();
+	FRigVMVariant GetVariant() const;
+	TArray<FRigVMVariantRef> GetVariantRefs() const;
 
 private:
+
+	void OnVariantChanged(const FRigVMVariant& InVariant);
+	void OnBrowseVariantRef(const FRigVMVariantRef& InVariantRef);
 
 	/** The Blueprint editor we are embedded in */
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
@@ -212,9 +213,6 @@ private:
 
 	/** The color block widget */
 	TSharedPtr<SColorBlock> ColorBlock;
-
-	/** The log widget used for function variants */
-	TSharedPtr<SRigVMLogWidget> VariantLog;
 
 	/** Set to true if the UI is currently picking a color */
 	bool bIsPickingColor;

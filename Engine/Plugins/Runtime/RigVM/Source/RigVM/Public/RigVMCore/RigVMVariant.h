@@ -77,7 +77,17 @@ struct RIGVM_API FRigVMVariantRef
 
 	FRigVMVariantRef(const FSoftObjectPath& InPath, const FRigVMVariant& InVariant)
 		: ObjectPath(InPath), Variant(InVariant) {}
-	
+
+	bool operator == (const FRigVMVariantRef& Other) const
+	{
+		return Variant.Guid == Other.Variant.Guid && ObjectPath == Other.ObjectPath; 
+	}
+
+	friend uint32 GetTypeHash(const FRigVMVariantRef& InVariantRef)
+	{
+		return HashCombine(GetTypeHash(InVariantRef.ObjectPath), GetTypeHash(InVariantRef.Variant.Guid));
+	}
+
 	FSoftObjectPath ObjectPath;
 	FRigVMVariant Variant;
 };
