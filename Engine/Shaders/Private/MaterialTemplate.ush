@@ -42,7 +42,7 @@
 
 // Update this GUID to force all material shaders to recompile
 // Merge conflicts on this line should be resolved by generating a new GUID
-#pragma message("UESHADERMETADATA_VERSION 5AE81BAA-6F06-4443-AEC8-98E87D189D36")
+#pragma message("UESHADERMETADATA_VERSION 25A8AD39-1BAE-4581-904F-FA19DE92F37E")
 
 #if USES_SPEEDTREE
 	#include "/Engine/Private/SpeedTreeCommon.ush"
@@ -4352,6 +4352,10 @@ half3x3 AssembleTangentToWorld( half3 TangentToWorld0, half4 TangentToWorld2 )
 	#define OPTIONAL_OutDepth
 #endif
 
+// Must match EPixelDepthOffsetMode from EngineTypes.h
+#define PODM_LEGACY			0
+#define PODM_CAMERAVECTOR	1
+
 float ApplyPixelDepthOffsetToMaterialParameters(inout FMaterialPixelParameters MaterialParameters, FPixelMaterialInputs PixelMaterialInputs, out float OutDepth)
 {
 	float PixelDepthOffset = GetMaterialPixelDepthOffset(PixelMaterialInputs);
@@ -4380,9 +4384,33 @@ float ApplyPixelDepthOffsetToMaterialParameters(inout FMaterialPixelParameters M
 
 		DeviceDepth = ConvertToDeviceZ(DeviceDepth);
 		PixelDepthOffset = MaterialParameters.SvPosition.z - OriginalDeviceZ;
+
+		// In this Ortho case, CameraVector is always ViewForward.
+		MaterialParameters.LWCData.AbsoluteWorldPosition = WSAdd(MaterialParameters.LWCData.AbsoluteWorldPosition, -MaterialParameters.CameraVector * PixelDepthOffset);
 	}
 	else
 	{
+		// We clamp PixelDepthOffset to 0 in order to not move the pixel towards the camera.
+		const float3 CameraPixelForwardVector = -MaterialParameters.CameraVector;
+
+	#if PIXEL_DEPTH_OFFSET_MODE == PODM_LEGACY
+
+		// The legacy behavior applying a world space offset independently from the perspective projection.
+		const float3 AbsoluteWorldOffsetVector = CameraPixelForwardVector * max(0.0, PixelDepthOffset);
+
+	#elif PIXEL_DEPTH_OFFSET_MODE == PODM_CAMERAVECTOR
+
+		// The change of depth will be less at the edge of the screen due to the perspective.
+		const float PixelDepthOffetForPerspective = PixelDepthOffset * dot(CameraPixelForwardVector, ResolvedView.ViewForward);
+		// This is the world space vector to offset the pixel world space position by according to the perspsective.
+		// It clamps the offset to 0 in order to only push the pixel foward and match the depth clamping math below.
+		const float3 AbsoluteWorldOffsetVector = CameraPixelForwardVector * max(0.0, PixelDepthOffetForPerspective);
+		// Update the new pixel depth offset accounting for perspective projection.
+		PixelDepthOffset = PixelDepthOffetForPerspective;
+
+	#endif
+
+		// Compute the new DeviceDepth accounting for the PixelDepthOffset.
 		DeviceDepth = min(MaterialParameters.ScreenPosition.z / (MaterialParameters.ScreenPosition.w + PixelDepthOffset), MaterialParameters.SvPosition.z);
 
 		// Once we've computed our (clamped) device depth, recompute PixelDepthOffset again to take the potential clamp into account
@@ -4391,9 +4419,10 @@ float ApplyPixelDepthOffsetToMaterialParameters(inout FMaterialPixelParameters M
 		// Update positions used for shading
 		MaterialParameters.ScreenPosition.w += PixelDepthOffset;
 		MaterialParameters.SvPosition.w = MaterialParameters.ScreenPosition.w;
+
+		MaterialParameters.LWCData.AbsoluteWorldPosition = WSAdd(MaterialParameters.LWCData.AbsoluteWorldPosition, AbsoluteWorldOffsetVector);
 	}
 
-	MaterialParameters.LWCData.AbsoluteWorldPosition = WSAdd(MaterialParameters.LWCData.AbsoluteWorldPosition, -MaterialParameters.CameraVector * PixelDepthOffset);
 	MaterialParameters.AbsoluteWorldPosition = WSToDF(MaterialParameters.LWCData.AbsoluteWorldPosition);
 
 	OutDepth = INVARIANT(DeviceDepth);

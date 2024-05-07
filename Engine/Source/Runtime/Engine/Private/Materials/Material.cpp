@@ -1034,6 +1034,7 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 
 	RefractionMethod = RM_None;
 	RefractionCoverageMode = RCM_CoverageAccountedFor;
+	PixelDepthOffsetMode = PDOM_AlongCameraVector;
 
 	bAllowVariableRateShading = true;
 
@@ -2909,6 +2910,12 @@ void UMaterial::Serialize(FArchive& Ar)
 		{
 			TranslucencyPass = MTP_BeforeDOF;
 		}
+	}
+
+	if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::MaterialPixelDepthOffsetMode)
+	{
+		// All previous material must use the legacy pixel depth offset mode. New material will use the new mode.
+		PixelDepthOffsetMode = PDOM_Legacy;
 	}
 }
 

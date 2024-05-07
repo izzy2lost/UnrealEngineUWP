@@ -224,7 +224,7 @@ UE::DerivedData::FValueId EnvironmentDefinesId = UE::DerivedData::FValueId::From
 
 /** Data structure used to cache a part of material translation results. It contains all the generated
  *  defines that will be declared during the compilation of the generated material shader.
- *  Note: if you make a change to this structure, remember to FDevSystemGuids::MaterialTranslationDDCVersion.
+ *  Note: if you make a change to this structure, remember to bump FDevSystemGuids::MaterialTranslationDDCVersion.
  */
 struct FHLSLMaterialTranslator::FEnvironmentDefines
 {
@@ -279,6 +279,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 	bool bMaterialFullyRough;
 	bool bMaterialUsesAnisotropy;
 	uint8 MaterialDecalReadMask;
+	int8 PixelDepthOffsetMode;
 	bool bMaterialUsesDecalLookup;
 	uint8 MaterialPathTracingBufferRead;
 	bool MaterialNeuralPostProcess;
@@ -372,6 +373,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 		Ar << bMaterialFullyRough;
 		Ar << bMaterialUsesAnisotropy;
 		Ar << MaterialDecalReadMask;
+		Ar << PixelDepthOffsetMode;
 		Ar << bMaterialUsesDecalLookup;
 		Ar << MaterialPathTracingBufferRead;
 		Ar << MaterialNeuralPostProcess;
@@ -2581,6 +2583,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 	OutEnvironment.SetDefine(TEXT("NEEDS_PER_INSTANCE_RANDOM_PS"), EnvironmentDefines->bUsesPerInstanceRandomPS);
 	OutEnvironment.SetDefine(TEXT("USES_TRANSFORM_VECTOR"), EnvironmentDefines->bUsesTransformVector);
 	OutEnvironment.SetDefine(TEXT("WANT_PIXEL_DEPTH_OFFSET"), EnvironmentDefines->bUsesPixelDepthOffset);
+	OutEnvironment.SetDefine(TEXT("PIXEL_DEPTH_OFFSET_MODE"), EnvironmentDefines->PixelDepthOffsetMode);
 
 	// we want USES_WORLD_POSITION_OFFSET to be readable as a bool compile argument, hence the != 0 comparison 
 	// (bUsesWorldPositionOffset is actually a 1-bit uint32 bitfield member)
@@ -14842,6 +14845,7 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 	EnvironmentDefines->bMaterialUsesDecalLookup = MaterialCompilationOutput.bUsesDBufferTextureLookup;
 	EnvironmentDefines->MaterialPathTracingBufferRead = MaterialCompilationOutput.UsedPathTracingBufferTextures;
 	EnvironmentDefines->MaterialNeuralPostProcess = (MaterialCompilationOutput.bUsedWithNeuralNetworks || Material->IsUsedWithNeuralNetworks()) && Material->IsPostProcessMaterial();
+	EnvironmentDefines->PixelDepthOffsetMode = Material->GetPixelDepthOffsetMode();
 
 	// Count the number of VTStacks (each stack will allocate a feedback slot)
 	EnvironmentDefines->NumVirtualTextureSamples = VTStacks.Num();

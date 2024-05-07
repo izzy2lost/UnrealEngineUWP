@@ -202,7 +202,7 @@ void UMaterialGraphNode_Root::CreateInputPins()
 	
 		FName MaterialInputName = *MaterialInput.GetName().ToString();
 		FName PinSubCategory;
-		FString RefractionMethodStr;
+		FString TempStr;
 		switch (Property)
 		{
 			case MP_Metallic:
@@ -214,10 +214,25 @@ void UMaterialGraphNode_Root::CreateInputPins()
 			case MP_CustomData0:
 			case MP_CustomData1:
 			case MP_AmbientOcclusion:
-			case MP_PixelDepthOffset:
 			case MP_Displacement:
 			case MP_SurfaceThickness:
 				PinSubCategory = UMaterialGraphSchema::PSC_Red;
+				break;
+
+			case MP_PixelDepthOffset:
+				PinSubCategory = UMaterialGraphSchema::PSC_Red;
+				switch (MaterialGraph->Material->PixelDepthOffsetMode)
+				{
+				case EPixelDepthOffsetMode::PDOM_Legacy:
+					TempStr = TEXT("Legacy");
+					break;
+				case EPixelDepthOffsetMode::PDOM_AlongCameraVector:
+					TempStr = TEXT("Camera Vector");
+					break;
+				default:
+					TempStr = TEXT("UNKNOWN EPixelDepthOffsetMode");
+				}
+				MaterialInputName = *FString::Printf(TEXT("%s (%s)"), *MaterialInputName.ToString(), *TempStr);
 				break;
 				
 			case MP_Refraction:
@@ -225,22 +240,21 @@ void UMaterialGraphNode_Root::CreateInputPins()
 				switch (MaterialGraph->Material->RefractionMethod)
 				{
 				case ERefractionMode::RM_None:
-					RefractionMethodStr = TEXT("Disabled");
+					TempStr = TEXT("Disabled");
 					break;
 				case ERefractionMode::RM_IndexOfRefraction:
-					RefractionMethodStr = TEXT("Index Of Refraction");
+					TempStr = TEXT("Index Of Refraction");
 					break;
 				case ERefractionMode::RM_PixelNormalOffset:
-					RefractionMethodStr = TEXT("Pixel Normal Offset");
+					TempStr = TEXT("Pixel Normal Offset");
 					break;
 				case ERefractionMode::RM_2DOffset:
-					RefractionMethodStr = TEXT("2D Offset");
+					TempStr = TEXT("2D Offset");
 					break;
 				default:
-					RefractionMethodStr = TEXT("UNKNOWN ERefractionMode");
+					TempStr = TEXT("UNKNOWN ERefractionMode");
 				}
-				
-				MaterialInputName = *FString::Printf(TEXT("%s (%s)"), *MaterialInput.GetName().ToString(), *RefractionMethodStr);
+				MaterialInputName = *FString::Printf(TEXT("%s (%s)"), *MaterialInputName.ToString(), *TempStr);
 				break;
 				
 			case MP_Normal:

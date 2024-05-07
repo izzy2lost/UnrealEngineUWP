@@ -471,6 +471,9 @@ struct FFortniteMainBranchObjectVersion
 		// AnimNext graphs now have public/private state
 		AnimNextGraphAccessSpecifiers,
 
+		// Added a more stable pixel depth offset mode.
+		MaterialPixelDepthOffsetMode,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

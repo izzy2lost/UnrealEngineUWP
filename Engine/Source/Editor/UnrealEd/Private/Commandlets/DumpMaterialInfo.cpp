@@ -294,6 +294,7 @@ TArray<MaterialInfo::FPropertySet> GetMaterialInfoProperties()
 		FPropertySet::FromAccessor<bool, &FMaterialResource::GetCastDynamicShadowAsMasked>(TEXT("GetCastDynamicShadowAsMasked")),
 		FPropertySet::FromAccessor<bool, &FMaterialResource::IsDistorted>(TEXT("IsDistorted")),
 		FPropertySet::FromEnumAccessor<ERefractionCoverageMode, &FMaterialResource::GetRefractionCoverageMode>(TEXT("GetRefractionCoverageMode")),
+		FPropertySet::FromEnumAccessor<EPixelDepthOffsetMode, &FMaterialResource::GetPixelDepthOffsetMode>(TEXT("GetPixelDepthOffsetMode")),
 		FPropertySet::FromAccessor<float, &FMaterialResource::GetTranslucencyDirectionalLightingIntensity>(TEXT("GetTranslucencyDirectionalLightingIntensity")),
 		FPropertySet::FromAccessor<float, &FMaterialResource::GetTranslucentShadowDensityScale>(TEXT("GetTranslucentShadowDensityScale")),
 		FPropertySet::FromAccessor<float, &FMaterialResource::GetTranslucentSelfShadowDensityScale>(TEXT("GetTranslucentSelfShadowDensityScale")),

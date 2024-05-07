@@ -401,6 +401,21 @@ enum ERefractionCoverageMode : int
 	RCM_CoverageAccountedFor UMETA(DisplayName = "Coverage Accounted For"),
 };
 
+/** Determines how the pixel depth offset is evaluated and applied. Must match PODM_LEGACY in MaterialTemplace.ush.*/
+UENUM()
+enum EPixelDepthOffsetMode : int
+{
+	/**
+	 * This is the legacy mode where PDO is applied differently for Depth (along View Forward) and world position (along Camera Vector).
+	 */
+	PDOM_Legacy UMETA(DisplayName = "Legacy"),
+
+	/**
+	 * PDO is applied along the Camera Vector for Depth and World Position altogether.
+	 */
+	PDOM_AlongCameraVector UMETA(DisplayName = "Along Camera Vector"),
+};
+
 /**
  * Enumerates available options for the translucency sort policy.
  */
