@@ -146,9 +146,13 @@ struct FPCGWorldRaycastQueryParams : public FPCGWorldCommonQueryParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable, EditCondition = "SelectLandscapeHits != EPCGWorldQuerySelectLandscapeHits::Exclude"))
 	uint8 bApplyMetadataFromLandscape : 1;
 
+	/** The index of the render material when it is queried from the hit. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable, EditCondition = "bGetReferenceToRenderMaterial", EditConditionHides, DisplayAfter = "bGetReferenceToRenderMaterial"))
+	int32 RenderMaterialIndex = 0;
+
 	/** This UV Channel will be selected when retrieving UV Coordinates from a raycast query. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable, EditCondition = "bTraceComplex && bGetUVCoords", EditConditionHides, DisplayAfter = "bGetUVCoords"))
-	int32 UVChannel = INDEX_NONE;
+	int32 UVChannel = 0;
 };
 
 template<>

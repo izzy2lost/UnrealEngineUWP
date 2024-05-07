@@ -304,9 +304,10 @@ namespace PCGWorldQueryHelpers
 		}
 		else if (UPrimitiveComponent* HitComponent = Hit.GetComponent())
 		{
-			if (const UMaterialInterface* RenderMaterial = HitComponent->GetMaterial(Hit.ElementIndex))
+			if (QueryParams.bGetReferenceToRenderMaterial)
 			{
-				bResult &= ApplyAttribute(PCGWorldQueryConstants::RenderMaterialReferenceAttribute, FSoftObjectPath(RenderMaterial), QueryParams.bGetReferenceToRenderMaterial);
+				const UMaterialInterface* RenderMaterial = HitComponent->GetMaterial(QueryParams.RenderMaterialIndex);
+				bResult &= RenderMaterial && ApplyAttribute(PCGWorldQueryConstants::RenderMaterialReferenceAttribute, FSoftObjectPath(RenderMaterial));
 			}
 
 			if (QueryParams.bGetLocalImpactPoint)
