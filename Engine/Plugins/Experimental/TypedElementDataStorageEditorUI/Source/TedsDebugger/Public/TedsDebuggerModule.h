@@ -10,6 +10,7 @@
 class SDockTab;
 class SWidget;
 class FSpawnTabArgs;
+class ISceneOutliner;
 
 /**
  * Implements the Scene Outliner module.
@@ -25,6 +26,9 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
+	// Open the TEDS Debugger if not already open, and navigate to the given row. Optionally disabling all filters if the given row doesn't pass them
+	void NavigateToRow(TypedElementDataStorage::RowHandle InRow);
+
 private:
 	void RegisterTabSpawners();
 	void UnregisterTabSpawners();
@@ -35,5 +39,6 @@ private:
 	FDelegateHandle LevelEditorTabManagerChangedHandle;
 	FName TedsDebuggerTabName;
 	TypedElementDataStorage::QueryHandle InitialColumnQuery;
+	TWeakPtr<ISceneOutliner> TedsDebuggerInstance;
 
 };

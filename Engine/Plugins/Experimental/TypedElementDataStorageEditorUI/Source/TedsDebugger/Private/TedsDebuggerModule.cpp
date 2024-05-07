@@ -81,6 +81,57 @@ TSharedRef<SDockTab> FTedsDebuggerModule::OpenTedsDebuggerTab(const FSpawnTabArg
 		];
 }
 
+void FTedsDebuggerModule::NavigateToRow(TypedElementDataStorage::RowHandle InRow)
+{
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+
+	if ((!Registry && Registry->AreDataStorageInterfacesSet()))
+	{
+		return;
+	}
+
+	const ITypedElementDataStorageInterface* DataStorage = Registry->GetDataStorage();
+	
+	// If the debugger isn't already open, open it
+	if(!TedsDebuggerInstance.IsValid())
+	{
+		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+
+		TSharedPtr<FTabManager> LevelEditorTabManager = LevelEditorModule.GetLevelEditorTabManager();
+		
+		LevelEditorTabManager->TryInvokeTab(TedsDebuggerTabName);
+	}
+
+	TSharedPtr<ISceneOutliner> TedsDebuggerPinned = TedsDebuggerInstance.Pin();
+	if(!TedsDebuggerPinned)
+	{
+		return;
+	}
+
+	// If the item isn't currently present in the debugger, try disabling all filters to make it show up
+	if(!TedsDebuggerPinned->GetTreeItem(InRow))
+	{
+		TedsDebuggerPinned->DisableAllFilterBarFilters(/** bRemove */ false);
+	}
+
+	// Defer the actual navigation by one tick to give the outliner a chance to update its items in case any filters were disabled
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([TedsDebuggerPinned, InRow](float DeltaTime)
+	{
+		// Find the item for this row, select it and scroll to view it
+		if(FSceneOutlinerTreeItemPtr TreeItem = TedsDebuggerPinned->GetTreeItem(InRow))
+		{
+			TedsDebuggerPinned->SetSelection([TreeItem](ISceneOutlinerTreeItem& Item)
+			{
+				return Item.GetID() == TreeItem->GetID();
+			});
+			
+			TedsDebuggerPinned->FrameSelectedItems();
+		}
+		
+		return false;
+	}));
+}
+
 TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
@@ -122,7 +173,12 @@ TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
 	
-	return TedsOutlinerModule.CreateTedsOutliner(InitOptions, Params, InitialColumnQuery);
+	TSharedRef<ISceneOutliner> TedsOutliner = TedsOutlinerModule.CreateTedsOutliner(InitOptions, Params, InitialColumnQuery);
+
+	// Store an instance of the global Teds Debugger
+	TedsDebuggerInstance = TedsOutliner;
+	
+	return TedsOutliner;
 }
 
 IMPLEMENT_MODULE(FTedsDebuggerModule, TedsDebugger);

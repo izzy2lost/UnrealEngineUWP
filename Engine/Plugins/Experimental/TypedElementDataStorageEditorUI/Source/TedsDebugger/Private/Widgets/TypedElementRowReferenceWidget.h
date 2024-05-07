@@ -21,6 +21,8 @@ public:
 
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	
+	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 };
 
 USTRUCT()
@@ -35,5 +37,5 @@ public:
 protected:
 	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
+		TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 };

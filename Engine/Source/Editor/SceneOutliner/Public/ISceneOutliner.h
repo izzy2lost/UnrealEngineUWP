@@ -62,6 +62,12 @@ public:
 	virtual void AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutliner::FilterBarType>>& InFilter) = 0;
 
 	/** 
+	 * Disable all filters currently active in the filter bar
+	 * @param bRemove if true, the filter will also be unpinned and removed from the filter bar
+	 */
+	virtual void DisableAllFilterBarFilters(bool bRemove) = 0;
+
+	/** 
 	 * Remove a filter from the scene outliner
 	 * @param Filter The Filter to remove
 	 * @return True if the filter was removed.

@@ -22,6 +22,7 @@
 #include "SceneOutlinerPublicTypes.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
 #include "TypedElementOutlinerItem.h"
+#include "Columns/TedsOutlinerColumns.h"
 #include "Columns/UIPropertiesColumns.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
@@ -124,7 +125,7 @@ public:
 		TSharedPtr<FTypedElementWidgetConstructor> InHeaderWidgetConstructor,
 		TSharedPtr<FTypedElementWidgetConstructor> InCellWidgetConstructor,
 		FName InFallbackColumnName,
-		ISceneOutliner& InOwningOutliner,
+		TWeakPtr<ISceneOutliner> InOwningOutliner,
 		const FTreeItemIDDealiaser& InDealiaser)
 		: ColumnTypes(MoveTemp(InColumnTypes))
 		, HeaderWidgetConstructor(MoveTemp(InHeaderWidgetConstructor))
@@ -142,7 +143,7 @@ public:
 
 		// Try to find a fallback column from the regular item, for handling cases like folders which are not in TEDS but want to use TEDS columns
 		FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
-		FallbackColumn = SceneOutlinerModule.FactoryColumn(InFallbackColumnName, OwningOutliner);
+		FallbackColumn = SceneOutlinerModule.FactoryColumn(InFallbackColumnName, *OwningOutliner.Pin());
 
 		RegisterQueries();
 	};
@@ -248,15 +249,22 @@ public:
 
 	bool IsRowVisible(const TypedElementDataStorage::RowHandle InRowHandle) const
 	{
+		TSharedPtr<ISceneOutliner> OutlinerPinned = OwningOutliner.Pin();
+
+		if(!OutlinerPinned)
+		{
+			return false;
+		}
+		
 		// Try to grab the TEDS Outliner item from the row handle
-		FSceneOutlinerTreeItemPtr Item = OwningOutliner.GetTreeItem(InRowHandle);
+		FSceneOutlinerTreeItemPtr Item = OutlinerPinned->GetTreeItem(InRowHandle);
 
 		// If it doesn't exist, this could be a legacy item that uses something other than the row id as the ID, so check if we have a dealiaser
 		if(!Item)
 		{
 			if(Dealiaser.IsBound())
 			{
-				Item = OwningOutliner.GetTreeItem(Dealiaser.Execute(InRowHandle));
+				Item = OutlinerPinned->GetTreeItem(Dealiaser.Execute(InRowHandle));
 			}
 		}
 
@@ -266,7 +274,7 @@ public:
 		}
 
 		// Check if the item is visible in the tree
-		return OwningOutliner.GetTree().IsItemVisible(Item);
+		return OutlinerPinned->GetTree().IsItemVisible(Item);
 	}
 
 	void UpdateWidgets()
@@ -417,9 +425,16 @@ public:
 
 	void SetHighlightText(SWidget& Widget)
 	{
+		TSharedPtr<ISceneOutliner> OutlinerPinned = OwningOutliner.Pin();
+
+		if(!OutlinerPinned)
+		{
+			return;
+		}
+
 		if (TSharedPtr<ITypedElementUiTextCapability> TextCapability = Widget.GetMetaData<ITypedElementUiTextCapability>())
 		{
-			TextCapability->SetHighlightText(OwningOutliner.GetFilterHighlightText());
+			TextCapability->SetHighlightText(OutlinerPinned->GetFilterHighlightText());
 		}
 	
 		if (FChildren* ChildWidgets = Widget.GetChildren())
@@ -469,9 +484,12 @@ public:
 			{
 				RowReference->Row = RowHandle;
 			}
-		
+
+			Storage.AddColumn(UiRowHandle, FTableViewerColumn{.Outliner = OwningOutliner});
+			
 			RowWidget = StorageUi.ConstructWidget(UiRowHandle, *CellWidgetConstructor, 
 							FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
+			
 		}
 
 		if(RowWidget)
@@ -503,7 +521,7 @@ public:
 	TypedElementDataStorage::FMetaData MetaData;
 	FName NameId;
 	TSharedPtr<ISceneOutlinerColumn> FallbackColumn;
-	ISceneOutliner& OwningOutliner;
+	TWeakPtr<ISceneOutliner> OwningOutliner;
 	FTreeItemIDDealiaser Dealiaser;
 	
 	TArray<TypedElementDataStorage::QueryHandle> InternalObserverQueries;
@@ -790,7 +808,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId,
 										TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnTypes.GetData(), ColumnTypes.Num()), 
-										MoveTemp(HeaderConstructor), CellConstructor, FallbackColumn, *OutlinerPinned.Get(), Dealiaser);
+										MoveTemp(HeaderConstructor), CellConstructor, FallbackColumn, OutlinerPinned, Dealiaser);
 
 								})
 						)
@@ -824,7 +842,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 										CreateHeaderWidgetConstructor(*Storage, *StorageUi, Query, { ColumnType });
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId, MoveTemp(ColumnTypesStored),
-										HeaderConstructor, CellConstructor, FallbackColumn, *OutlinerPinned.Get(), Dealiaser);
+										HeaderConstructor, CellConstructor, FallbackColumn, OutlinerPinned, Dealiaser);
 
 								})
 						)

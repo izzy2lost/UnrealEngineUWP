@@ -1176,6 +1176,14 @@ void SSceneOutliner::AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutl
 	
 }
 
+void SSceneOutliner::DisableAllFilterBarFilters(bool bRemove)
+{
+	if(FilterBar)
+	{
+		bRemove ? FilterBar->RemoveAllFilters() : FilterBar->DisableAllFilters();
+	}
+}
+
 bool SSceneOutliner::RemoveFilter(const TSharedRef<FSceneOutlinerFilter>& Filter)
 {
 	return  Filters->Remove(Filter) > 0;

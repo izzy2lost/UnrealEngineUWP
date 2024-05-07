@@ -367,12 +367,18 @@ void FTypedElementOutlinerMode::AppendQuery(TypedElementDataStorage::FQueryDescr
 	for(int32 i = 0; i < Query2.ConditionOperators.Num(); ++i)
 	{
 		// Make sure we don't add duplicate conditions
-		TypedElementDataStorage::FQueryDescription::FOperator* Found = Query1.ConditionOperators.FindByPredicate([&Query2, i](const TypedElementDataStorage::FQueryDescription::FOperator& Op)
+		TypedElementDataStorage::FQueryDescription::FOperator* FoundCondition = Query1.ConditionOperators.FindByPredicate([&Query2, i](const TypedElementDataStorage::FQueryDescription::FOperator& Op)
 		{
 			return Op.Type == Query2.ConditionOperators[i].Type;
 		});
-		
-		if(!Found)
+
+		// We also can't have a duplicate selection type and condition
+		TWeakObjectPtr<const UScriptStruct>* FoundSelection = Query1.SelectionTypes.FindByPredicate([&Query2, i](const TWeakObjectPtr<const UScriptStruct>& Selection)
+		{
+			return Selection == Query2.ConditionOperators[i].Type;
+		});
+
+		if(!FoundCondition && !FoundSelection)
 		{
 			Query1.ConditionOperators.Add(Query2.ConditionOperators[i]);
 			Query1.ConditionTypes.Add(Query2.ConditionTypes[i]);
