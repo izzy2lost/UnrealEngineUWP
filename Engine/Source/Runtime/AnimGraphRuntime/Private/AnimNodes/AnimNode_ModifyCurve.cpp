@@ -173,6 +173,16 @@ void FAnimNode_ModifyCurve::Update_AnyThread(const FAnimationUpdateContext& Cont
 	GetEvaluateGraphExposedInputs().Execute(Context);
 }
 
+void FAnimNode_ModifyCurve::GatherDebugData(FNodeDebugData& DebugData)
+{
+	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(GatherDebugData)
+	FString DebugLine = DebugData.GetNodeName(this);
+	DebugLine += FString::Printf(TEXT("(Alpha: %.2f)"), Alpha);
+	DebugData.AddDebugItem(DebugLine);
+
+	SourcePose.GatherDebugData(DebugData);
+}
+
 #if WITH_EDITOR
 
 void FAnimNode_ModifyCurve::AddCurve(const FName& InName, float InValue)
