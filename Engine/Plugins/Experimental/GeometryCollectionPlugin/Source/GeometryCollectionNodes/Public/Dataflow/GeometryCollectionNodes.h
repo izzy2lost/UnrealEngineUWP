@@ -1336,32 +1336,36 @@ public:
 	FString AttrName = FString("");
 
 	/** Bool type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Bool Array"));
 	TArray<bool> BoolAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Float Array"));
 	TArray<float> FloatAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Double Array"));
 	TArray<double> DoubleAttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Int32 Array"));
 	TArray<int32> Int32AttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "String Array"));
 	TArray<FString> StringAttributeData;
 
 	/** Vector3f type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Vector3f Array"));
 	TArray<FVector3f> Vector3fAttributeData;
 
 	/** Vector3d type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Vector3d Array"));
 	TArray<FVector3d> Vector3dAttributeData;
+
+	/** Vector3d type attribute data */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Linear Color Array"));
+	TArray<FLinearColor> LinearColorAttributeData;
 
 	FGetCollectionAttributeDataTypedDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
@@ -1375,6 +1379,7 @@ public:
 		RegisterOutputConnection(&StringAttributeData);
 		RegisterOutputConnection(&Vector3fAttributeData);
 		RegisterOutputConnection(&Vector3dAttributeData);
+		RegisterOutputConnection(&LinearColorAttributeData);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -1398,6 +1403,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
+	/** Input to drive the Attribute and Group name */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "AttributeKey"))
+	FCollectionAttributeKey AttributeKey;
+
 	/** Standard group names */
 	UPROPERTY(EditAnywhere, Category = "Attribute", meta = (DisplayName = "Group"))
 	EStandardGroupNameEnum GroupName = EStandardGroupNameEnum::Dataflow_EStandardGroupNameEnum_Transform;
@@ -1411,37 +1420,42 @@ public:
 	FString AttrName = FString("");
 
 	/** Bool type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Bool Array"));
 	TArray<bool> BoolAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Float Array"));
 	TArray<float> FloatAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Double Array"));
 	TArray<double> DoubleAttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Int32 Array"));
 	TArray<int32> Int32AttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "String Array"));
 	TArray<FString> StringAttributeData;
 
 	/** Vector3f type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Vector3f Array"));
 	TArray<FVector3f> Vector3fAttributeData;
 
 	/** Vector3d type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Vector3d Array"));
 	TArray<FVector3d> Vector3dAttributeData;
+
+	/** LinearColor type attribute data */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Linear Color Array"));
+	TArray<FLinearColor> LinearColorAttributeData;
 
 	FSetCollectionAttributeDataTypedDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&AttributeKey);
 		RegisterInputConnection(&BoolAttributeData);
 		RegisterInputConnection(&FloatAttributeData);
 		RegisterInputConnection(&DoubleAttributeData);
@@ -1449,47 +1463,7 @@ public:
 		RegisterInputConnection(&StringAttributeData);
 		RegisterInputConnection(&Vector3fAttributeData);
 		RegisterInputConnection(&Vector3dAttributeData);
-		RegisterOutputConnection(&Collection, &Collection);
-	}
-
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-
-};
-
-
-/**
- *
- * 
- *
- */
-USTRUCT()
-struct FSetVertexColorInCollectionFromVertexSelectionDataflowNode : public FDataflowNode
-{
-	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FSetVertexColorInCollectionFromVertexSelectionDataflowNode, "SetVertexColorInCollectionFromVertexSelection", "Collection|Utilities", "")
-
-public:
-	/** Collection */
-	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
-	FManagedArrayCollection Collection;
-
-	/**  */
-	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelection", DataflowIntrinsic))
-	FDataflowVertexSelection VertexSelection;
-
-	/**  */
-	UPROPERTY(EditAnywhere, Category = "Color")
-	FLinearColor SelectedColor = FLinearColor(FColor::Yellow);
-
-	/**  */
-	UPROPERTY(EditAnywhere, Category = "Color", meta = (DisplayName = "NonSelected Color"))
-	FLinearColor NonSelectedColor = FLinearColor(FColor::Blue);
-
-	FSetVertexColorInCollectionFromVertexSelectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
-		: FDataflowNode(InParam, InGuid)
-	{
-		RegisterInputConnection(&Collection);
-		RegisterInputConnection(&VertexSelection);
+		RegisterInputConnection(&LinearColorAttributeData);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
@@ -1529,43 +1503,6 @@ public:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
-
-/**
- *
- *
- *
- */
-USTRUCT()
-struct FSetVertexColorInCollectionFromFloatArrayDataflowNode : public FDataflowNode
-{
-	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FSetVertexColorInCollectionFromFloatArrayDataflowNode, "SetVertexColorInCollectionFromFloatArray", "Collection|Utilities", "")
-
-public:
-	/** Collection */
-	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
-	FManagedArrayCollection Collection;
-
-	/**  */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
-	TArray<float> FloatArray;
-
-	/**  */
-	UPROPERTY(EditAnywhere, Category = "Color")
-	float Scale = 1.f;
-
-	FSetVertexColorInCollectionFromFloatArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
-		: FDataflowNode(InParam, InGuid)
-	{
-		RegisterInputConnection(&Collection);
-		RegisterInputConnection(&FloatArray);
-		RegisterOutputConnection(&Collection, &Collection);
-	}
-
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-
-};
-
 
 /**
  *

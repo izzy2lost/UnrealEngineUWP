@@ -34,6 +34,11 @@
 			"Name": "GeometryCollectionNodes",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "GeometryCollectionDeprecatedNodes",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [

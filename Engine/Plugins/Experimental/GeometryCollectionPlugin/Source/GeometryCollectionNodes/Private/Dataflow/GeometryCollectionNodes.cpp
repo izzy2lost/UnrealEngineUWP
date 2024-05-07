@@ -77,8 +77,6 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGetNumElementsInCollectionGroupDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGetCollectionAttributeDataTypedDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetCollectionAttributeDataTypedDataflowNode);
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetVertexColorInCollectionFromVertexSelectionDataflowNode);
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetVertexColorInCollectionFromFloatArrayDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMultiplyTransformDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FInvertTransformDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSelectionToVertexListDataflowNode);
@@ -953,39 +951,60 @@ void FGetCollectionAttributeDataTypedDataflowNode::Evaluate(Dataflow::FContext& 
 
 					if (TypeStr == FString("Bool"))
 					{
-						const TManagedArray<bool>& AttributeArr = InCollection.GetAttribute<bool>(AttributeNameVal, GroupNameVal);
-						TArray<bool> BoolArray = AttributeArr.GetAsBoolArray();
-						SetValue(Context, MoveTemp(BoolArray), &BoolAttributeData);
+						if (const TManagedArray<bool>* AttributeArr = InCollection.FindAttribute<bool>(AttributeNameVal, GroupNameVal))
+						{
+							TArray<bool> BoolArray = AttributeArr->GetAsBoolArray();
+							SetValue(Context, MoveTemp(BoolArray), &BoolAttributeData);
+						}
 					}
 					else if (TypeStr == FString("Float"))
 					{
-						const TManagedArray<float>& AttributeArr = InCollection.GetAttribute<float>(AttributeNameVal, GroupNameVal);
-						SetValue(Context, AttributeArr.GetConstArray(), &FloatAttributeData);
+						if (const TManagedArray<float>* AttributeArr = InCollection.FindAttribute<float>(AttributeNameVal, GroupNameVal))
+						{
+							SetValue(Context, AttributeArr->GetConstArray(), &FloatAttributeData);
+						}
 					}
 					else if (TypeStr == FString("Double"))
 					{
-						const TManagedArray<double>& AttributeArr = InCollection.GetAttribute<double>(AttributeNameVal, GroupNameVal);
-						SetValue(Context, AttributeArr.GetConstArray(), &DoubleAttributeData);
+						if (const TManagedArray<double>* AttributeArr = InCollection.FindAttribute<double>(AttributeNameVal, GroupNameVal))
+						{
+							SetValue(Context, AttributeArr->GetConstArray(), &DoubleAttributeData);
+						}
 					}
 					else if (TypeStr == FString("Int32"))
 					{
-						const TManagedArray<int32>& AttributeArr = InCollection.GetAttribute<int32>(AttributeNameVal, GroupNameVal);
-						SetValue(Context, AttributeArr.GetConstArray(), &Int32AttributeData);
+						if (const TManagedArray<int32>* AttributeArr = InCollection.FindAttribute<int32>(AttributeNameVal, GroupNameVal))
+						{
+							SetValue(Context, AttributeArr->GetConstArray(), &Int32AttributeData);
+						}
 					}
 					else if (TypeStr == FString("String"))
 					{
-						const TManagedArray<FString>& AttributeArr = InCollection.GetAttribute<FString>(AttributeNameVal, GroupNameVal);
-						SetValue(Context, AttributeArr.GetConstArray(), &StringAttributeData);
+						if (const TManagedArray<FString>* AttributeArr = InCollection.FindAttribute<FString>(AttributeNameVal, GroupNameVal))
+						{
+							SetValue(Context, AttributeArr->GetConstArray(), &StringAttributeData);
+						}
 					}
 					else if (TypeStr == FString("Vector"))
 					{
-						const TManagedArray<FVector3f>& AttributeArr = InCollection.GetAttribute<FVector3f>(AttributeNameVal, GroupNameVal);
-						SetValue(Context, AttributeArr.GetConstArray(), &Vector3fAttributeData);
+						if (const TManagedArray<FVector3f>* AttributeArr = InCollection.FindAttribute<FVector3f>(AttributeNameVal, GroupNameVal))
+						{
+							SetValue(Context, AttributeArr->GetConstArray(), &Vector3fAttributeData);
+						}
 					}
 					else if (TypeStr == FString("Vector3d"))
 					{
-						const TManagedArray<FVector3d>& AttributeArr = InCollection.GetAttribute<FVector3d>(AttributeNameVal, GroupNameVal);
-						SetValue(Context, AttributeArr.GetConstArray(), &Vector3dAttributeData);
+						if (const TManagedArray<FVector3d>* AttributeArr = InCollection.FindAttribute<FVector3d>(AttributeNameVal, GroupNameVal))
+						{
+							SetValue(Context, AttributeArr->GetConstArray(), &Vector3dAttributeData);
+						}
+					}
+					else if (TypeStr == FString("LinearColor"))
+					{
+						if (const TManagedArray<FLinearColor>* AttributeArr = InCollection.FindAttribute<FLinearColor>(AttributeNameVal, GroupNameVal))
+						{
+							SetValue(Context, AttributeArr->GetConstArray(), &LinearColorAttributeData);
+						}
 					}
 				}
 			}
@@ -998,14 +1017,17 @@ static void SetAttributeData(const FDataflowNode* DataflowNode, Dataflow::FConte
 {
 	if (DataflowNode && DataflowNode->IsConnected<TArray<T>>(&Property))
 	{
-		TArray<T> AttributeData = DataflowNode->GetValue<TArray<T>>(Context, &Property);
-		TManagedArray<T>& AttributeArray = InCollection.ModifyAttribute<T>(AttributeName, GroupName);
-
-		if (AttributeData.Num() == AttributeArray.Num())
+		const TArray<T> & AttributeData = DataflowNode->GetValue<TArray<T>>(Context, &Property);
+		if (InCollection.FindAttributeTyped<T>(AttributeName, GroupName))
 		{
-			for (int32 Idx = 0; Idx < AttributeArray.Num(); ++Idx)
+			TManagedArray<T>& AttributeArray = InCollection.ModifyAttribute<T>(AttributeName, GroupName);
+
+			if (AttributeData.Num() == AttributeArray.Num())
 			{
-				AttributeArray[Idx] = AttributeData[Idx];
+				for (int32 Idx = 0; Idx < AttributeArray.Num(); ++Idx)
+				{
+					AttributeArray[Idx] = AttributeData[Idx];
+				}
 			}
 		}
 	}
@@ -1017,87 +1039,60 @@ void FSetCollectionAttributeDataTypedDataflowNode::Evaluate(Dataflow::FContext& 
 	{
 		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 
-		FName GroupNameToUse;
+		FName InputGroupName;
 		if (GroupName != EStandardGroupNameEnum::Dataflow_EStandardGroupNameEnum_Custom)
 		{
-			GroupNameToUse = GetGroupName(GroupName);
+			InputGroupName = GetGroupName(GroupName);
 		}
 		else
 		{
-			GroupNameToUse = FName(*CustomGroupName);
+			InputGroupName = FName(*CustomGroupName);
 		}
 
-		if (GroupNameToUse.GetStringLength() > 0 && AttrName.Len() > 0)
+		FCollectionAttributeKey DefaultAttributeKey(AttrName, InputGroupName.ToString());
+		FCollectionAttributeKey AttributeKeyVal = GetValue(Context, &AttributeKey, DefaultAttributeKey);
+		FName GroupNameVal = FName(AttributeKeyVal.Group);
+		FName AttributeNameVal = FName(AttributeKeyVal.Attribute);
+
+		if (GroupNameVal.GetStringLength() && AttributeNameVal.GetStringLength() )
 		{
-			if (InCollection.HasGroup(GroupNameToUse))
+			if (InCollection.HasGroup(GroupNameVal))
 			{
-				if (InCollection.HasAttribute(FName(*AttrName), GroupNameToUse))
+				if (InCollection.HasAttribute(AttributeNameVal, GroupNameVal))
 				{
-					FName AttributeName = FName(*AttrName);
-					FString TypeStr = GetArrayTypeString(InCollection.GetAttributeType(AttributeName, GroupNameToUse)).ToString();
+					FString TypeStr = GetArrayTypeString(InCollection.GetAttributeType(AttributeNameVal, GroupNameVal)).ToString();
 					
 					if (TypeStr == FString("Bool"))
 					{
-						SetAttributeData<bool>(this, Context, InCollection, BoolAttributeData, AttributeName, GroupNameToUse);
+						SetAttributeData<bool>(this, Context, InCollection, BoolAttributeData, AttributeNameVal, GroupNameVal);
 					}
 					else if (TypeStr == FString("Float"))
 					{
-						SetAttributeData<float>(this, Context, InCollection, FloatAttributeData, AttributeName, GroupNameToUse);
+						SetAttributeData<float>(this, Context, InCollection, FloatAttributeData, AttributeNameVal, GroupNameVal);
 					}
 					else if (TypeStr == FString("Double"))
 					{
-						SetAttributeData<double>(this, Context, InCollection, DoubleAttributeData, AttributeName, GroupNameToUse);
+						SetAttributeData<double>(this, Context, InCollection, DoubleAttributeData, AttributeNameVal, GroupNameVal);
 					}
 					else if (TypeStr == FString("Int32"))
 					{
-						SetAttributeData<int32>(this, Context, InCollection, Int32AttributeData, AttributeName, GroupNameToUse);
+						SetAttributeData<int32>(this, Context, InCollection, Int32AttributeData, AttributeNameVal, GroupNameVal);
 					}
 					else if (TypeStr == FString("String"))
 					{
-						SetAttributeData<FString>(this, Context, InCollection, StringAttributeData, AttributeName, GroupNameToUse);
+						SetAttributeData<FString>(this, Context, InCollection, StringAttributeData, AttributeNameVal, GroupNameVal);
 					}
 					else if (TypeStr == FString("Vector"))
 					{
-						SetAttributeData<FVector3f>(this, Context, InCollection, Vector3fAttributeData, AttributeName, GroupNameToUse);
+						SetAttributeData<FVector3f>(this, Context, InCollection, Vector3fAttributeData, AttributeNameVal, GroupNameVal);
 					}
 					else if (TypeStr == FString("Vector3d"))
 					{
-						SetAttributeData<FVector3d>(this, Context, InCollection, Vector3dAttributeData, AttributeName, GroupNameToUse);
+						SetAttributeData<FVector3d>(this, Context, InCollection, Vector3dAttributeData, AttributeNameVal, GroupNameVal);
 					}
-				}
-			}
-		}
-
-		SetValue(Context, MoveTemp(InCollection), &Collection);
-	}
-}
-
-
-
-
-void FSetVertexColorInCollectionFromVertexSelectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
-{
-	if (Out->IsA<FManagedArrayCollection>(&Collection))
-	{
-		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		const FDataflowVertexSelection& InVertexSelection = GetValue<FDataflowVertexSelection>(Context, &VertexSelection);
-
-		if (InCollection.NumElements(FGeometryCollection::VerticesGroup) == InVertexSelection.Num())
-		{
-			const int32 NumVertices = InCollection.NumElements(FGeometryCollection::VerticesGroup);
-
-//			TManagedArray<FLinearColor>& VertexColors = InCollection.ModifyAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
-			if (TManagedArray<FLinearColor>* VertexColors = InCollection.FindAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup))
-			{
-				for (int32 Idx = 0; Idx < NumVertices; ++Idx)
-				{
-					if (InVertexSelection.IsSelected(Idx))
+					else if (TypeStr == FString("LinearColor"))
 					{
-						(*VertexColors)[Idx] = SelectedColor;
-					}
-					else
-					{
-						(*VertexColors)[Idx] = NonSelectedColor;
+						SetAttributeData<FLinearColor>(this, Context, InCollection, LinearColorAttributeData, AttributeNameVal, GroupNameVal);
 					}
 				}
 			}
@@ -1112,32 +1107,6 @@ void FSelectionToVertexListDataflowNode::Evaluate(Dataflow::FContext& Context, c
 	const FDataflowVertexSelection& InVertexSelection = GetValue<FDataflowVertexSelection>(Context, &VertexSelection);
 	SetValue(Context, InVertexSelection.AsArray(), &VertexList);
 }
-
-void FSetVertexColorInCollectionFromFloatArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
-{
-	if (Out->IsA<FManagedArrayCollection>(&Collection))
-	{
-		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		const TArray<float>& InFloatArray = GetValue<TArray<float>>(Context, &FloatArray);
-
-		const int32 NumVertices = InCollection.NumElements(FGeometryCollection::VerticesGroup);
-
-		if (InFloatArray.Num() == NumVertices)
-		{
-			if (TManagedArray<FLinearColor>* VertexColors = InCollection.FindAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup))
-			{
-				for (int32 Idx = 0; Idx < NumVertices; ++Idx)
-				{
-					(*VertexColors)[Idx] = FLinearColor(Scale * InFloatArray[Idx], Scale * InFloatArray[Idx], Scale * InFloatArray[Idx]);
-				}
-			}
-		}
-
-		SetValue(Context, MoveTemp(InCollection), &Collection);
-	}
-}
-
-
 
 void FMultiplyTransformDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
