@@ -13,6 +13,7 @@
 #include "Online/OnlineIdEOS.h"
 #include "Online/OnlineServicesEOS.h"
 #include "Online/OnlineUtils.h"
+#include "Online/OnlineUtilsCommon.h"
 
 #include "eos_auth.h"
 #include "eos_connect.h"

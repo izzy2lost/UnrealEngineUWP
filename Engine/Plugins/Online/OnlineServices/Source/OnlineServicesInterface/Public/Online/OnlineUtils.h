@@ -2,11 +2,14 @@
 
 #pragma once
 
-// HEADER_UNIT_SKIP - Bad includes
-
-#include "Online/OnlineAsyncOp.h"
 #include "Online/OnlineMeta.h"
+#include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "Internationalization/Text.h"
+#include "Misc/TVariant.h"
+#include "Templates/SharedPointer.h"
+
+struct FDateTime;
 
 namespace UE::Online {
 
@@ -22,7 +25,6 @@ template <typename T, ESPMode Mode> FString ToLogString(const TSharedRef<T, Mode
 inline FString ToLogString(const FString& String);
 inline FString ToLogString(const FName& Name);
 inline FString ToLogString(const FText& Text);
-inline FString ToLogString(const FDateTime& Time);
 inline FString ToLogString(uint8 Value);
 inline FString ToLogString(int8 Value);
 inline FString ToLogString(uint16 Value);
@@ -36,6 +38,8 @@ inline FString ToLogString(float Value);
 inline FString ToLogString(double Value);
 template <typename T> std::enable_if_t<!TModels_V<Meta::COnlineMetadataAvailable, T>, FString> ToLogString(const T& Value);
 template <typename T> std::enable_if_t<TModels_V<Meta::COnlineMetadataAvailable, T>, FString> ToLogString(const T& Value);
+ONLINESERVICESINTERFACE_API FString ToLogString(const FDateTime& Time);
+ONLINESERVICESINTERFACE_API void LexFromString(FDateTime& Result, const TCHAR* Input);
 
 template <typename T>
 FString ToLogString(const TArray<T>& Array)
@@ -116,12 +120,6 @@ inline FString ToLogString(const FText& Text)
 {
 	return Text.ToString();
 }
-
-inline FString ToLogString(const FDateTime& Time)
-{
-	return Time.ToString();
-}
-
 
 inline FString ToLogString(uint8 Value)
 {
@@ -212,14 +210,6 @@ std::enable_if_t<TModels_V<Meta::COnlineMetadataAvailable, T>, FString> ToLogStr
 	LogString += TEXT(" }");
 
 	return LogString;
-}
-
-template <typename DataType, typename OpType>
-const DataType& GetOpDataChecked(const TOnlineAsyncOp<OpType>& Op, const FString& Key)
-{
-	const DataType* Data = Op.Data.template Get<DataType>(Key);
-	check(Data);
-	return *Data;
 }
 
 /* UE::Online */ }

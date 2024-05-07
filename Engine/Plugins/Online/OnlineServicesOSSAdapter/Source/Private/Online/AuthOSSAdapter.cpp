@@ -10,6 +10,7 @@
 #include "Online/DelegateAdapter.h"
 
 #include "Online/OnlineUtils.h"
+#include "Online/OnlineUtilsCommon.h"
 #include "OnlineSubsystem.h"
 #include "Interfaces/OnlineIdentityInterface.h"
 

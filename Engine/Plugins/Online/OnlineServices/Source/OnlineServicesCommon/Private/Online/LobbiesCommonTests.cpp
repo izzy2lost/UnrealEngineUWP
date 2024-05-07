@@ -5,6 +5,7 @@
 #include "Misc/AutomationTest.h"
 #include "Online/LobbiesCommon.h"
 #include "Online/OnlineUtils.h"
+#include "Online/OnlineUtilsCommon.h"
 
 namespace UE::Online {
 

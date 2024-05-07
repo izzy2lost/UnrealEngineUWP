@@ -12,6 +12,7 @@
 #include "Online/OnlineIdEOSGS.h"
 #include "Online/OnlineServicesEOSGS.h"
 #include "Online/OnlineUtils.h"
+#include "Online/OnlineUtilsCommon.h"
 
 #if __has_include(COMPILED_PLATFORM_HEADER(EOSAuthLoginOptions.h))
 #include COMPILED_PLATFORM_HEADER(EOSAuthLoginOptions.h)
