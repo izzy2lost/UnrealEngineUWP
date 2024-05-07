@@ -56,6 +56,8 @@ public:
 	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) override { return false; }
 	
 	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
+
+	virtual bool IsSelectable() const override { return false; }
 #endif // WITH_EDITOR
 private:
 	void InitializeAsyncAux(UBuoyancyComponent* Component);
