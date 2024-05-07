@@ -55,20 +55,25 @@ namespace UE::Navigation::Private
 			return Path->GetFilter();
 		}
 
-		if (RequestData.GetNavigationFilter() != nullptr)
+		if (MyNavData)
 		{
-			return UNavigationQueryFilter::GetQueryFilter(*MyNavData, Owner, RequestData.GetNavigationFilter());
-		}
-
-		if (const AAIController* AIOwner = Cast<AAIController>(Owner))
-		{
-			if (AIOwner->GetDefaultNavigationFilterClass() != nullptr)
+			if (RequestData.GetNavigationFilter() != nullptr)
 			{
-				return UNavigationQueryFilter::GetQueryFilter(*MyNavData, AIOwner->GetDefaultNavigationFilterClass());
+				return UNavigationQueryFilter::GetQueryFilter(*MyNavData, Owner, RequestData.GetNavigationFilter());
 			}
+
+			if (const AAIController* AIOwner = Cast<AAIController>(Owner))
+			{
+				if (AIOwner->GetDefaultNavigationFilterClass() != nullptr)
+				{
+					return UNavigationQueryFilter::GetQueryFilter(*MyNavData, AIOwner->GetDefaultNavigationFilterClass());
+				}
+			}
+
+			return MyNavData->GetDefaultQueryFilter();
 		}
 
-		return MyNavData->GetDefaultQueryFilter();
+		return FSharedConstNavQueryFilter();
 	}
 }
 
