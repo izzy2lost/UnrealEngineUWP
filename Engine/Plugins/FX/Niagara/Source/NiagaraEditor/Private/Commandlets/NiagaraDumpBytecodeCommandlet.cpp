@@ -2,6 +2,7 @@
 
 #include "Commandlets/NiagaraDumpBytecodeCommandlet.h"
 
+#include "AssetCompilingManager.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -9,6 +10,7 @@
 #include "CollectionManagerTypes.h"
 #include "HAL/FileManager.h"
 #include "ICollectionManager.h"
+#include "Misc/FileHelper.h"
 #include "Misc/OutputDeviceArchiveWrapper.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
@@ -61,6 +63,11 @@ int32 UNiagaraDumpByteCodeCommandlet::Main(const FString& Params)
 		PackagePaths.Add(FName(TEXT("/Game")));
 	}
 
+	if (Switches.Contains("IncludeDev"))
+	{
+		IncludeDeveloperFolder = true;
+	}
+
 	if (Switches.Contains("COOKED"))
 	{
 		ForceBakedRapidIteration = true;
@@ -77,9 +84,141 @@ int32 UNiagaraDumpByteCodeCommandlet::Main(const FString& Params)
 		ForceAttributeTrimming = true;
 	}
 
+	if (Switches.Contains("HLSL"))
+	{
+		DumpTranslatedHlsl = true;
+	}
+
 	ProcessNiagaraScripts();
 
 	return 0;
+}
+
+void UNiagaraDumpByteCodeCommandlet::ProcessBatch(TArray<FAssetData>& BatchAssets)
+{
+	const UEnum* UsageEnum = StaticEnum<ENiagaraScriptUsage>();
+	const int32 BatchSize = BatchAssets.Num();
+
+	TArray<TObjectPtr<UNiagaraSystem>> LoadedSystems;
+	TArray<TObjectPtr<UNiagaraSystem>> PendingSystems;
+	TArray<TObjectPtr<UNiagaraSystem>> CompiledSystems;
+	TArray<TObjectPtr<UNiagaraSystem>> CompletedSystems;
+
+	LoadedSystems.Reserve(BatchSize);
+	PendingSystems.Reserve(BatchSize);
+	CompiledSystems.Reserve(BatchSize);
+	CompletedSystems.Reserve(BatchSize);
+
+	// FullyLoad all the packages
+	for (const FAssetData& AssetIt : BatchAssets)
+	{
+		const FString SystemName = AssetIt.GetObjectPathString();
+		FNameBuilder PackageNameBuilder(AssetIt.PackageName);
+
+		if (UPackage* Package = ::LoadPackage(nullptr, *PackageNameBuilder, LOAD_None))
+		{
+			FNameBuilder ShortSystemNameBuilder(AssetIt.AssetName);
+
+			Package->FullyLoad();
+
+			if (UNiagaraSystem* NiagaraSystem = FindObject<UNiagaraSystem>(Package, *ShortSystemNameBuilder))
+			{
+				LoadedSystems.Emplace(NiagaraSystem);
+			}
+		}
+		else
+		{
+			UE_LOG(LogNiagaraDumpBytecodeCommandlet, Warning, TEXT("Failed to load package %s processing %s"), *PackageNameBuilder, *SystemName);
+			continue;
+		}
+	}
+
+	bool bProcessing = true;
+
+	auto AdvanceSystems = [](TArray<TObjectPtr<UNiagaraSystem>>& InSystems, TArray<TObjectPtr<UNiagaraSystem>>& OutSystems, TFunction<bool(UNiagaraSystem*)> Op) -> void
+	{
+		while (!InSystems.IsEmpty())
+		{
+			for (int32 InIt = 0; InIt < InSystems.Num(); ++InIt)
+			{
+				UNiagaraSystem* InSystem = InSystems[InIt];
+				if (Op(InSystem))
+				{
+					InSystems.RemoveAt(InIt, EAllowShrinking::No);
+					OutSystems.Add(InSystem);
+				}
+			}
+
+			FAssetCompilingManager::Get().ProcessAsyncTasks(true);
+		}
+	};
+
+	AdvanceSystems(LoadedSystems, PendingSystems, [](UNiagaraSystem* System) -> bool
+	{
+		return !System->HasActiveCompilations() || System->PollForCompilationComplete();
+	});
+
+	AdvanceSystems(PendingSystems, CompiledSystems, [this](UNiagaraSystem* System) -> bool
+	{
+		if (ForceBakedRapidIteration || ForceAttributeTrimming)
+		{
+			if (ForceBakedRapidIteration)
+			{
+				System->SetBakeOutRapidIterationOnCook(true);
+			}
+			if (ForceAttributeTrimming)
+			{
+				System->SetTrimAttributesOnCook(true);
+			}
+
+			System->RequestCompile(true);
+		}
+
+		return true;
+	});
+
+	AdvanceSystems(CompiledSystems, CompletedSystems, [](UNiagaraSystem* System) -> bool
+	{
+		return System->PollForCompilationComplete();
+	});
+
+	for (UNiagaraSystem* NiagaraSystem : CompletedSystems)
+	{
+		const FString SystemPathName = NiagaraSystem->GetPathName();
+		const FString HashedPathName = FString::Printf(TEXT("%08x"), GetTypeHash(SystemPathName));
+
+		IFileManager::Get().MakeDirectory(*(AuditOutputFolder / HashedPathName));
+		DumpByteCode(NiagaraSystem->GetSystemSpawnScript(), SystemPathName, HashedPathName, TEXT("SystemSpawnScript"));
+		DumpByteCode(NiagaraSystem->GetSystemUpdateScript(), SystemPathName, HashedPathName, TEXT("SystemUpdateScript"));
+
+		for (const auto& EmitterHandle : NiagaraSystem->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+
+			if (FVersionedNiagaraEmitterData* Emitter = EmitterHandle.GetEmitterData())
+			{
+				if (Emitter->SimTarget == ENiagaraSimTarget::CPUSim)
+				{
+					const FString EmitterName = EmitterHandle.GetUniqueInstanceName();
+
+					TArray<UNiagaraScript*> EmitterScripts;
+					Emitter->GetScripts(EmitterScripts);
+
+					IFileManager::Get().MakeDirectory(*(HashedPathName / EmitterName));
+
+					for (const auto* EmitterScript : EmitterScripts)
+					{
+						DumpByteCode(EmitterScript, SystemPathName, HashedPathName, EmitterName / UsageEnum->GetNameStringByValue(static_cast<int64>(EmitterScript->GetUsage())));
+					}
+				}
+			}
+		}
+	}
+
+	::CollectGarbage(RF_NoFlags);
 }
 
 void UNiagaraDumpByteCodeCommandlet::ProcessNiagaraScripts()
@@ -102,103 +241,32 @@ void UNiagaraDumpByteCodeCommandlet::ProcessNiagaraScripts()
 	TArray<FAssetData> AssetList;
 	AssetRegistry.GetAssets(Filter, AssetList);
 
-	const static UEnum* UsageEnum = StaticEnum<ENiagaraScriptUsage>();
-
 	const double StartProcessNiagaraSystemsTime = FPlatformTime::Seconds();
+	constexpr uint32 BatchPackageCount = 256;
+
+	TArray<FAssetData> BatchAssets;
 
 	//  Iterate over all scripts
 	const FString DevelopersFolder = FPackageName::FilenameToLongPackageName(FPaths::GameDevelopersDir().LeftChop(1));
-	FString LastPackageName = TEXT("");
-	UPackage* CurrentPackage = nullptr;
 	for (const FAssetData& AssetIt : AssetList)
 	{
-		const FString SystemName = AssetIt.GetObjectPathString();
-		const FString PackageName = AssetIt.PackageName.ToString();
-
-		if (PackageName.StartsWith(DevelopersFolder))
+		if (!IncludeDeveloperFolder && AssetIt.PackageName.ToString().StartsWith(DevelopersFolder))
 		{
 			// Skip developer folders
 			continue;
 		}
 
-		if (PackageName != LastPackageName)
+		if (BatchAssets.Num() == BatchPackageCount)
 		{
-			UPackage* Package = ::LoadPackage(nullptr, *PackageName, LOAD_None);
-			if (Package != nullptr)
-			{
-				LastPackageName = PackageName;
-				Package->FullyLoad();
-				CurrentPackage = Package;
-			}
-			else
-			{
-				UE_LOG(LogNiagaraDumpBytecodeCommandlet, Warning, TEXT("Failed to load package %s processing %s"), *PackageName, *SystemName);
-				CurrentPackage = nullptr;
-			}
+			ProcessBatch(BatchAssets);
 		}
 
-		const FString ShorterSystemName = AssetIt.AssetName.ToString();
-		UNiagaraSystem* NiagaraSystem = FindObject<UNiagaraSystem>(CurrentPackage, *ShorterSystemName);
-		if (NiagaraSystem == nullptr)
-		{
-			UE_LOG(LogNiagaraDumpBytecodeCommandlet, Warning, TEXT("Failed to load Niagara system %s"), *SystemName);
-			continue;
-		}
+		BatchAssets.Add(AssetIt);
+	}
 
-		NiagaraSystem->WaitForCompilationComplete();
-
-		if (ForceBakedRapidIteration || ForceAttributeTrimming)
-		{
-			if (ForceBakedRapidIteration)
-			{
-				NiagaraSystem->SetBakeOutRapidIterationOnCook(true);
-			}
-			if (ForceAttributeTrimming)
-			{
-				NiagaraSystem->SetTrimAttributesOnCook(true);
-			}
-
-			NiagaraSystem->RequestCompile(true);
-			NiagaraSystem->WaitForCompilationComplete(true);
-		}
-
-		if (!NiagaraSystem->IsValid())
-		{
-			UE_LOG(LogNiagaraDumpBytecodeCommandlet, Warning, TEXT("Loaded system was Invalid! %s"), *SystemName);
-		}
-
-		const FString SystemPathName = NiagaraSystem->GetPathName();
-		const FString HashedPathName = FString::Printf(TEXT("%08x"), GetTypeHash(SystemPathName));
-
-		IFileManager::Get().MakeDirectory(*(AuditOutputFolder / HashedPathName));
-		DumpByteCode(NiagaraSystem->GetSystemSpawnScript(), SystemPathName, HashedPathName, TEXT("SystemSpawnScript.txt"));
-		DumpByteCode(NiagaraSystem->GetSystemUpdateScript(), SystemPathName, HashedPathName, TEXT("SystemUpdateScript.txt"));
-		
-		for (const auto& EmitterHandle : NiagaraSystem->GetEmitterHandles())
-		{
-			if (!EmitterHandle.GetIsEnabled())
-			{
-				continue;
-			}
-
-			if (FVersionedNiagaraEmitterData* Emitter = EmitterHandle.GetEmitterData())
-			{
-				if (Emitter->SimTarget == ENiagaraSimTarget::CPUSim)
-				{
-					const FString EmitterName = EmitterHandle.GetUniqueInstanceName();
-
-					TArray<UNiagaraScript*> EmitterScripts;
-					Emitter->GetScripts(EmitterScripts);
-
-					IFileManager::Get().MakeDirectory(*(HashedPathName / EmitterName));
-
-					for (const auto* EmitterScript : EmitterScripts)
-					{
-						DumpByteCode(EmitterScript, SystemPathName, HashedPathName, EmitterName / UsageEnum->GetNameStringByValue(static_cast<int64>(EmitterScript->GetUsage())) + TEXT(".txt"));
-					}
-				}
-			}
-		}
+	if (!BatchAssets.IsEmpty())
+	{
+		ProcessBatch(BatchAssets);
 	}
 
 	// sort the data alphabetically (based on MetaData.FullName
@@ -278,11 +346,9 @@ void UNiagaraDumpByteCodeCommandlet::DumpByteCode(const UNiagaraScript* Script, 
 		MetaData.AttributeCount += Var.GetType().GetSize() / 4;
 	}
 
-	//const static UEnum* VmOpEnum = StaticEnum<EVectorVMOp>();
-
 	if (Script)
 	{
-		const FString FullFilePath = AuditOutputFolder / HashName / FilePath;
+		const FString FullFilePath = AuditOutputFolder / HashName / FilePath + TEXT(".vm");
 
 		TUniquePtr<FArchive> FileArchive(IFileManager::Get().CreateDebugFileWriter(*FullFilePath));
 		if (!FileArchive)
@@ -324,5 +390,12 @@ void UNiagaraDumpByteCodeCommandlet::DumpByteCode(const UNiagaraScript* Script, 
 			}
 			OutputStream->Log(CurrentLine);
 		}
+	}
+
+	if (Script && DumpTranslatedHlsl)
+	{
+		const FString FullFilePath = AuditOutputFolder / HashName / FilePath + TEXT(".usf");
+
+		FFileHelper::SaveStringToFile(Script->GetVMExecutableData().LastHlslTranslation, *FullFilePath);
 	}
 }

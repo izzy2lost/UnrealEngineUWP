@@ -421,6 +421,9 @@ public:
 	/** Invalidates any active compilation requests which will ignore their results. */
 	NIAGARA_API void InvalidateActiveCompiles();
 
+	/** Returns true if there are any active compilations. */
+	NIAGARA_API bool HasActiveCompilations() const;
+
 	/** Delegate called when the system's dependencies have all been compiled.*/
 	NIAGARA_API FOnSystemCompiled& OnSystemCompiled();
 

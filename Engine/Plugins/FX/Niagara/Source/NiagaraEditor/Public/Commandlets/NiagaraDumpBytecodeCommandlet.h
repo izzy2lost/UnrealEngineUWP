@@ -31,8 +31,15 @@ class UNiagaraDumpByteCodeCommandlet : public UCommandlet
 	/** Whether to force attributes to be trimmed to their minimal set */
 	bool ForceAttributeTrimming = false;
 
+	/** Whether the translated hlsl should also be dumped */
+	bool DumpTranslatedHlsl = false;
+
+	/** */
+	bool IncludeDeveloperFolder = false;
+
 private:
 	void ProcessNiagaraScripts();
+	void ProcessBatch(TArray<FAssetData>& BatchAssets);
 	void DumpByteCode(const UNiagaraScript* Script, const FString& PathName, const FString& HashName, const FString& FilePath);
 
 	struct FScriptMetaData

@@ -2850,6 +2850,11 @@ void UNiagaraSystem::InvalidateActiveCompiles()
 	}
 }
 
+bool UNiagaraSystem::HasActiveCompilations() const
+{
+	return !ActiveCompilations.IsEmpty();
+}
+
 bool UNiagaraSystem::PollForCompilationComplete(bool bFlushRequestCompile)
 {
 	if (bNeedsRequestCompile && bFlushRequestCompile)
