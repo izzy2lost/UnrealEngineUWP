@@ -12,6 +12,7 @@
 #include "Replication/PropertyChainUtils.h"
 
 #include "Internationalization/Internationalization.h"
+#include "Replication/PropertyResolutionCache.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -19,6 +20,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Styling/AppStyle.h"
+#include "Trace/ConcertTrace.h"
 
 #define LOCTEXT_NAMESPACE "ReplicationObjectColumns"
 
@@ -49,12 +51,12 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
 				const FReplicatedObjectData& ObjectData = InArgs.RowItem.RowData;
-				const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
+				const TSoftObjectPtr<>& Object = ObjectData.GetObjectPtr();
 				
 				const FText Text = GetDisplayText(ObjectData);
-				const FSlateIcon ClassIcon = GetObjectClassDelegate.IsBound() ? DisplayUtils::GetObjectIcon(GetObjectClassDelegate.Execute(ObjectPath)) : FSlateIcon{};
+				const FSlateIcon ClassIcon = GetObjectClassDelegate.IsBound() ? DisplayUtils::GetObjectIcon(GetObjectClassDelegate.Execute(Object)) : FSlateIcon{};
 				return SNew(SHorizontalBox)
-					.ToolTipText(FText::FromString(ObjectPath.ToString()))
+					.ToolTipText(FText::FromString(Object.ToString()))
 					
 					+SHorizontalBox::Slot()
 					.AutoWidth()
@@ -79,7 +81,9 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			virtual void PopulateSearchString(const FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
 				const FReplicatedObjectData& ObjectData = InItem.RowData;
-				InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath(), OptionalNameModel).ToString());
+				InOutSearchStrings.Add(
+					DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPtr(), OptionalNameModel).ToString()
+					);
 			}
 			
 			virtual bool CanBeSorted() const override { return true; } 
@@ -95,8 +99,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			
 			FText GetDisplayText(const FReplicatedObjectData& ObjectData) const
 			{
-				const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
-				return DisplayUtils::GetObjectDisplayText(ObjectPath, OptionalNameModel);
+				return DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPtr(), OptionalNameModel);
 			}
 		};
 
@@ -129,7 +132,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
-				const FSoftClassPath Class = GetClass(InArgs.RowItem.RowData.GetObjectPath());
+				const FSoftClassPath Class = GetClass(InArgs.RowItem.RowData.GetObjectPtr());
 				return SNew(SBox)
 					.Padding(8, 0, 0, 0) // So the type name text is aligned with the header column text
 					[
@@ -142,15 +145,15 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			
 			virtual void PopulateSearchString(const FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
-				const FSoftClassPath Class = GetClass(InItem.RowData.GetObjectPath());
+				const FSoftClassPath Class = GetClass(InItem.RowData.GetObjectPtr());
 				InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Class).ToString());
 			}
 			
 			virtual bool CanBeSorted() const override { return true; } 
 			virtual bool IsLessThan(const FObjectTreeRowContext& Left, const FObjectTreeRowContext& Right) const override
 			{
-				const FSoftClassPath LeftClass = GetClass(Left.RowData.GetObjectPath());
-				const FSoftClassPath RightClass = GetClass(Right.RowData.GetObjectPath());
+				const FSoftClassPath LeftClass = GetClass(Left.RowData.GetObjectPtr());
+				const FSoftClassPath RightClass = GetClass(Right.RowData.GetObjectPtr());
 				return DisplayUtils::GetObjectTypeText(LeftClass).ToString()
 					< DisplayUtils::GetObjectTypeText(RightClass).ToString();
 			}
@@ -159,7 +162,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			
 			const FGetObjectClass GetObjectClassDelegate;
 
-			FSoftClassPath GetClass(const FSoftObjectPath& Path) const { return GetObjectClassDelegate.Execute(Path); }
+			FSoftClassPath GetClass(const TSoftObjectPtr<>& Object) const { return GetObjectClassDelegate.Execute(Object); }
 		};
 
 		check(GetObjectClassDelegate.IsBound());
@@ -290,34 +293,40 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 				return SNew(STextBlock)
 					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 					.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
-					.Text(DisplayUtils::GetPropertyDisplayText(PropertyData.GetProperty(), ResolveOrLoadClass(PropertyData)));
+					.Text(DisplayUtils::GetPropertyDisplayText(PropertyCache, PropertyData.GetProperty(), ResolveOrLoadClass(PropertyData)));
 			}
 			
 			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
 				const FPropertyData& PropertyData = InItem.RowData;
-				FString DisplayString = DisplayUtils::GetPropertyDisplayString(InItem.RowData.GetProperty(), ResolveOrLoadClass(PropertyData));
+				FString DisplayString = DisplayUtils::GetPropertyDisplayString(PropertyCache, InItem.RowData.GetProperty(), ResolveOrLoadClass(PropertyData));
 				InOutSearchStrings.Emplace(MoveTemp(DisplayString));
 			}
 			
 			virtual bool CanBeSorted() const override { return true; } 
 			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
 			{
-				return DisplayUtils::GetPropertyDisplayString(Left.RowData.GetProperty(), ResolveOrLoadClass(Left.RowData))
-					< DisplayUtils::GetPropertyDisplayString(Right.RowData.GetProperty(), ResolveOrLoadClass(Right.RowData));
+				SCOPED_CONCERT_TRACE(IsLess_ReplicationLabel)
+				return DisplayUtils::GetPropertyDisplayString(PropertyCache, Left.RowData.GetProperty(), ResolveOrLoadClass(Left.RowData))
+					< DisplayUtils::GetPropertyDisplayString(PropertyCache, Right.RowData.GetProperty(), ResolveOrLoadClass(Right.RowData));
 			}
 
 		private:
 
+			/**
+			 * Maps FConcertPropertyChain to FProperty.
+			 *
+			 * This improves GetPropertyDisplayString performance.
+			 * This reduced time spent by ~75% when doing a full tree refresh.
+			 *
+			 * Mutable because the cache may be mutated but it does not inheritently change the state of this object.
+			 */
+			mutable ConcertSyncCore::PropertyChain::FPropertyResolutionCache PropertyCache;
+
 			static UClass* ResolveOrLoadClass(const FPropertyData& PropertyData)
 			{
-#if WITH_EDITOR
-				// On editor there may be Blueprints that need loading...
-				return PropertyData.GetOwningClass().TryLoadClass<UObject>();
-#else
-				// ... but on the server everything should be native C++ and hence already loaded
-				return PropertyData.GetOwningClass().ResolveClass();
-#endif
+				SCOPED_CONCERT_TRACE(ResolveOrLoadClass);
+				return PropertyData.GetOwningClassPtr().LoadSynchronous();
 			}
 		};
 		
@@ -366,6 +375,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			virtual bool CanBeSorted() const override { return true; } 
 			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
 			{
+				SCOPED_CONCERT_TRACE(IsLess_ReplicationType)
 				return GetDisplayText(Left.RowData).ToString() < GetDisplayText(Right.RowData).ToString();
 			}
 
@@ -373,7 +383,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			
 			static FText GetDisplayText(const FPropertyData& Args)
 			{
-				UClass* Class = Args.GetOwningClass().TryLoadClass<UObject>();
+				UClass* Class = Args.GetOwningClassPtr().LoadSynchronous();
 				const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args.GetProperty()) : nullptr;
 				return Property ? FText::FromString(Property->GetCPPType()) : LOCTEXT("Unknown", "Unknown");	
 			}

@@ -188,6 +188,6 @@ namespace UE::ConcertSharedSlate
 		/** Whether the view options allow this type of relationship to be shown. */
 		bool ShouldDisplayObjectRelation(EChildRelationship Relationship) const;
 		
-		FSoftClassPath GetObjectClass(const FSoftObjectPath& ObjectPath) const;
+		FSoftClassPath GetObjectClass(const TSoftObjectPtr<>& Object) const;
 	};
 }

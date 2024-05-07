@@ -11,7 +11,7 @@ namespace UE::ConcertClientSharedSlate
 {
 	bool FPropertyFilter_ByPropertyType::MatchesFilteredForProperty(const ConcertSharedSlate::FPropertyData& InItem) const
 	{
-		UClass* Class = InItem.GetOwningClass().TryLoadClass<UObject>();
+		UClass* Class = InItem.GetOwningClassPtr().LoadSynchronous();
 		if (!Class)
 		{
 			return false;

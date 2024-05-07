@@ -17,6 +17,7 @@
 #include "Widgets/Views/STreeView.h"
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
+#include "Trace/ConcertTrace.h"
 
 #define LOCTEXT_NAMESPACE "SReplicationListView"
 
@@ -408,6 +409,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 	{
+		SCOPED_CONCERT_TRACE(TickReplicationTree);
+		
 		if (bFilterChanged)
 		{
 			ReapplyFilters();
@@ -630,6 +633,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::ReapplyFilters()
 	{
+		SCOPED_CONCERT_TRACE(ReapplyFilters);
+		
 		// Try preserving the selected activity.
 		TArray<TSharedPtr<TItemType>> SelectedItems = TreeView->GetSelectedItems();
 
@@ -753,6 +758,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::Resort()
 	{
+		SCOPED_CONCERT_TRACE(Resort);
+		
 		Sort(FilteredRootItems);
 		// GetRowChildren will be called again, which will do the resort the children.
 		TreeView->RequestListRefresh();
@@ -761,6 +768,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::Sort(TArray<TSharedPtr<TItemType>>& Items)
 	{
+		SCOPED_CONCERT_TRACE(SortReplicationTree);
+		
 		const auto IsLessThan = [this](const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right, const FName& ColumnName, EColumnSortMode::Type SortMode)
 		{
 			const TSharedPtr<IReplicationTreeColumn<TItemType>> Column = FindColumnByName(ColumnName);

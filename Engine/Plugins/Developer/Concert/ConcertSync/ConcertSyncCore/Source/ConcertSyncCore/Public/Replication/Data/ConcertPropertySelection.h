@@ -50,7 +50,7 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	bool MatchesExactly(const FArchiveSerializedPropertyChain* OptionalChain, const FProperty& LeafProperty) const;
 
 	/** @return Attempts to resolve this property given the class */
-	FProperty* ResolveProperty(UStruct& Class, bool bLogOnFail = true) const;
+	FProperty* ResolveProperty(const UStruct& Class, bool bLogOnFail = true) const;
 
 	FConcertPropertyChain GetParent() const;
 	const TArray<FName>& GetPathToProperty() const { return PathToProperty; }

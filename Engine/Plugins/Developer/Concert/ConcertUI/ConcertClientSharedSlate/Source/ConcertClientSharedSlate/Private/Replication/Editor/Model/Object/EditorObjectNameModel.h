@@ -12,7 +12,7 @@ namespace UE::ConcertClientSharedSlate
 	public:
 
 		//~ Begin IObjectNameModel Interface
-		virtual FText GetObjectDisplayName(const FSoftObjectPath& ObjectPath) const override;
+		virtual FText GetObjectDisplayName(const TSoftObjectPtr<>& ObjectPath) const override;
 		//~ End IObjectNameModel Interface
 	};
 }

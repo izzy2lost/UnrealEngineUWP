@@ -11,6 +11,7 @@
 #include "Replication/Editor/View/Property/SPropertyTreeView.h"
 #include "Replication/Utils/ObjectUtils.h"
 #include "SReplicatedPropertyView.h"
+#include "Trace/ConcertTrace.h"
 
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSplitter.h"
@@ -64,6 +65,8 @@ namespace UE::ConcertSharedSlate
 
 	void SReplicationStreamViewer::SelectObjects(TConstArrayView<FSoftObjectPath> Objects, bool bAtEndOfTick)
 	{
+		SCOPED_CONCERT_TRACE(SelectObjects);
+		
 		if (bHasRequestedObjectRefresh || bAtEndOfTick)
 		{
 			PendingToSelect = Objects;
@@ -85,6 +88,8 @@ namespace UE::ConcertSharedSlate
 
 	void SReplicationStreamViewer::ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive, bool bAtEndOfTick)
 	{
+		SCOPED_CONCERT_TRACE(ExpandObjects);
+		
 		if (Objects.IsEmpty())
 		{
 			return;
@@ -153,6 +158,8 @@ namespace UE::ConcertSharedSlate
 
 	void SReplicationStreamViewer::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 	{
+		SCOPED_CONCERT_TRACE(TickReplicationStreamViewer);
+		
 		if (bHasRequestedObjectRefresh)
 		{
 			bHasRequestedObjectRefresh = false;
@@ -295,6 +302,8 @@ namespace UE::ConcertSharedSlate
 	
 	void SReplicationStreamViewer::RefreshObjectData()
 	{
+		SCOPED_CONCERT_TRACE(RefreshObjectData);
+		
 		// Re-using existing instances is tricky: we cannot update the object path in an item because the list view will no detect this change;
 		// list view only looks at the shared ptr address. So the UI will not be refreshed. Since the number of items will be small, just reallocate... 
 		AllObjectRowData.Empty();
@@ -490,9 +499,9 @@ namespace UE::ConcertSharedSlate
 		return !bSkipSubobject;
 	}
 
-	FSoftClassPath SReplicationStreamViewer::GetObjectClass(const FSoftObjectPath& ObjectPath) const
+	FSoftClassPath SReplicationStreamViewer::GetObjectClass(const TSoftObjectPtr<>& Object) const
 	{
-		const FSoftClassPath ResolvedClass = PropertiesModel->GetObjectClass(ObjectPath);
+		const FSoftClassPath ResolvedClass = PropertiesModel->GetObjectClass(Object.GetUniqueID());
 		if (ResolvedClass.IsValid())
 		{
 			return ResolvedClass;
@@ -501,7 +510,7 @@ namespace UE::ConcertSharedSlate
 #if WITH_EDITOR
 		// In the editor, we display the entire hierarchy (see BuildObjectHierarchyIfNeeded) so some items may not be in PropertiesModel.
 		// Example: Add an actor with many components and assign nothing - all of those components will take this path.
-		const UObject* LoadedObject = ObjectPath.ResolveObject();
+		const UObject* LoadedObject = Object.Get();
 		return LoadedObject ? LoadedObject->GetClass() : FSoftClassPath{};
 #else
 		// For non-editor, we should probably consider getting the class information through a delegate.

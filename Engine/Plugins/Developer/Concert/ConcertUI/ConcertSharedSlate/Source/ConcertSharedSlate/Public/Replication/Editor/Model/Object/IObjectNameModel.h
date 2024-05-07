@@ -4,6 +4,9 @@
 
 #include "Delegates/Delegate.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/SoftObjectPtr.h"
+
+class FText;
 
 namespace UE::ConcertSharedSlate
 {
@@ -18,7 +21,7 @@ namespace UE::ConcertSharedSlate
 	public:
 
 		/** @return Gets the display name for an object */
-		virtual FText GetObjectDisplayName(const FSoftObjectPath& ObjectPath) const = 0;
+		virtual FText GetObjectDisplayName(const TSoftObjectPtr<>& ObjectPath) const = 0;
 
 		// In the future, we could add an event here for when an object's display name changes.
 

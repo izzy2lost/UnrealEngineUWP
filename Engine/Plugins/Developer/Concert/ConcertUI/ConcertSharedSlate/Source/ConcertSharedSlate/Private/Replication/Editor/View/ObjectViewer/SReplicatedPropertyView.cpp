@@ -4,6 +4,7 @@
 
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
+#include "Trace/ConcertTrace.h"
 
 #include "Algo/AllOf.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
@@ -30,6 +31,7 @@ namespace UE::ConcertSharedSlate
 	
 	void SReplicatedPropertyView::RefreshPropertyData()
 	{
+		SCOPED_CONCERT_TRACE(RefreshPropertyData);
 		TSet<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
 		if (SelectedObjects.IsEmpty())
 		{
@@ -95,7 +97,7 @@ namespace UE::ConcertSharedSlate
 		FSoftClassPath SharedClass;
 		const bool bAllHaveSameClass = Algo::AllOf(Objects, [this, &SharedClass](const FSoftObjectPath& Object)
 		{
-			const FSoftClassPath ObjectClass = GetObjectClass(Object);
+			const FSoftClassPath ObjectClass = GetObjectClass(TSoftObjectPtr<>{ Object });
 			SharedClass = SharedClass.IsValid() ? SharedClass : ObjectClass;
 			return ObjectClass == SharedClass;
 		});

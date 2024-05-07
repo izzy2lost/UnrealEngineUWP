@@ -163,7 +163,7 @@ bool FConcertPropertyChain::MatchesExactly(const FArchiveSerializedPropertyChain
     return bArePathsEqual && bVisitedEveryProperty;
 }
 
-FProperty* FConcertPropertyChain::ResolveProperty(UStruct& Class, bool bLogOnFail) const
+FProperty* FConcertPropertyChain::ResolveProperty(const UStruct& Class, bool bLogOnFail) const
 {
     // FConcertPropertyChain::ResolveProperty exists only for visibility to developers since
     // the class is the first place one would look and not in the utils namespace.

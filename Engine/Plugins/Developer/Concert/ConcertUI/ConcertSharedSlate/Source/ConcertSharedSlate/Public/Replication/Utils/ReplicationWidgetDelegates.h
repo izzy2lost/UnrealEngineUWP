@@ -6,6 +6,7 @@
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Templates/Function.h"
+#include "UObject/SoftObjectPtr.h"
 
 class FMenuBuilder;
 enum class EBreakBehavior : uint8;
@@ -26,7 +27,7 @@ namespace UE::ConcertSharedSlate
 	DECLARE_DELEGATE_TwoParams(FExtendObjectMenu, FMenuBuilder&, TConstArrayView<FSoftObjectPath> ContextObjects);
 
 	/** Delegate for getting an object's class. */
-	DECLARE_DELEGATE_RetVal_OneParam(FSoftClassPath, FGetObjectClass, const FSoftObjectPath&);
+	DECLARE_DELEGATE_RetVal_OneParam(FSoftClassPath, FGetObjectClass, const TSoftObjectPtr<>&);
 
 	/** Delegate for deciding whether an object should be displayed. */
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldDisplayObject, const FSoftObjectPath& ObjectPath);

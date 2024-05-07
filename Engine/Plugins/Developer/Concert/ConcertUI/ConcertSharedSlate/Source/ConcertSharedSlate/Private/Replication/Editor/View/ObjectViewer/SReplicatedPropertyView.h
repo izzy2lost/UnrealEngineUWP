@@ -76,7 +76,7 @@ namespace UE::ConcertSharedSlate
 		/** Sets how to display this widget */
 		void SetPropertyContent(EReplicatedPropertyContent Content) const;
 
-		FSoftClassPath GetObjectClass(const FSoftObjectPath& ObjectPath) const { return GetObjectClassDelegate.Execute(ObjectPath); };
+		FSoftClassPath GetObjectClass(const TSoftObjectPtr<>& Object) const { return GetObjectClassDelegate.Execute(Object); }
 	};
 }
 

@@ -32,9 +32,9 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 	
-	FText FEditorObjectNameModel::GetObjectDisplayName(const FSoftObjectPath& ObjectPath) const
+	FText FEditorObjectNameModel::GetObjectDisplayName(const TSoftObjectPtr<>& ObjectPath) const
 	{
-		if (UObject* ResolvedObject = ObjectPath.ResolveObject())
+		if (UObject* ResolvedObject = ObjectPath.Get())
 		{
 			// Display actor just like the outliner does
 			if (const AActor* AsActor = Cast<AActor>(ResolvedObject))
@@ -53,6 +53,6 @@ namespace UE::ConcertClientSharedSlate
 			return FText::FromString(ResolvedObject->GetName());
 		}
 		
-		return FText::FromString(ConcertSharedSlate::ObjectUtils::ExtractObjectDisplayStringFromPath(ObjectPath));
+		return FText::FromString(ConcertSharedSlate::ObjectUtils::ExtractObjectDisplayStringFromPath(ObjectPath.GetUniqueID()));
 	}
 }

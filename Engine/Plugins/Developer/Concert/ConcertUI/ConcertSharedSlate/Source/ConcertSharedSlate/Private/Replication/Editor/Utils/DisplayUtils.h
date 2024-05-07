@@ -4,6 +4,7 @@
 
 #include "Internationalization/Text.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/SoftObjectPtr.h"
 
 class FString;
 class UObject;
@@ -19,12 +20,13 @@ namespace UE::ConcertSharedSlate
 	class IObjectNameModel;
 	class IReplicationStreamModel;
 }
+namespace UE::ConcertSyncCore::PropertyChain { class FPropertyResolutionCache; }
 
 namespace UE::ConcertSharedSlate::DisplayUtils
 {
 	/** Unified version that reads from IObjectNameModel or defaults to extracting the name from the path. */
-	FText GetObjectDisplayText(const FSoftObjectPath& Object, IObjectNameModel* Model = nullptr);
-	inline FText GetObjectDisplayText(const FSoftObjectPath& Object, const TSharedPtr<IObjectNameModel>& Model = nullptr) { return GetObjectDisplayText(Object, Model.Get()); }
+	FText GetObjectDisplayText(const TSoftObjectPtr<>& Object, IObjectNameModel* Model = nullptr);
+	inline FText GetObjectDisplayText(const TSoftObjectPtr<>& Object, const TSharedPtr<IObjectNameModel>& Model = nullptr) { return GetObjectDisplayText(Object, Model.Get()); }
 	
 	/** @return The text to use for displaying this object's name */
 	FText ExtractObjectDisplayTextFromPath(const FSoftObjectPath& Object);
@@ -41,7 +43,7 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 	FSlateIcon GetObjectIcon(UObject& Object);
 
 	/** @return The text to use for displaying this property's name. Uses Class to determine class name if available. */
-	FText GetPropertyDisplayText(const FConcertPropertyChain& Property, UStruct* Class = nullptr);
+	FText GetPropertyDisplayText(ConcertSyncCore::PropertyChain::FPropertyResolutionCache& Cache, const FConcertPropertyChain& Property, UStruct* Class = nullptr);
 	/** @return More lightweight version of GetPropertyDisplayString which does not construct any FText. Uses Class to determine class name if available. */
-	FString GetPropertyDisplayString(const FConcertPropertyChain& Property, UStruct* Class = nullptr);
+	FString GetPropertyDisplayString(ConcertSyncCore::PropertyChain::FPropertyResolutionCache& Cache, const FConcertPropertyChain& Property, UStruct* Class = nullptr);
 }

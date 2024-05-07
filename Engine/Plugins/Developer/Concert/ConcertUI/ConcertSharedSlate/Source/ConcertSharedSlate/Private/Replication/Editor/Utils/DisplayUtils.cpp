@@ -3,11 +3,13 @@
 #include "Replication/Editor/Utils/DisplayUtils.h"
 
 #include "ConcertLogGlobal.h"
+#include "Replication/PropertyResolutionCache.h"
 #include "Replication/Utils/ObjectUtils.h"
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/IObjectNameModel.h"
 
 #include "Styling/SlateIconFinder.h"
+#include "UObject/SoftObjectPtr.h"
 
 #if WITH_EDITOR
 #include "AssetRegistry/AssetData.h"
@@ -22,22 +24,20 @@
 
 namespace UE::ConcertSharedSlate::DisplayUtils
 {
-	FText GetObjectDisplayText(const FSoftObjectPath& Object, IObjectNameModel* Model)
+	FText GetObjectDisplayText(const TSoftObjectPtr<>& Object, IObjectNameModel* Model)
 	{
 		if (Model)
 		{
 			return Model->GetObjectDisplayName(Object);
 		}
 		
-#if WITH_EDITOR
 		// Important! The object may not be loaded, yet. So only resolve, do not TryLoad. This could be if the asset is using a level that was not opened.
-		if (const UObject* LoadedObject = Object.ResolveObject())
+		if (const UObject* LoadedObject = Object.Get())
 		{
 			return FText::FromString(GetObjectDisplayString(*LoadedObject));
 		}
-#endif
 
-		return ExtractObjectDisplayTextFromPath(Object);
+		return ExtractObjectDisplayTextFromPath(Object.GetUniqueID());
 	}
 	
 	FText ExtractObjectDisplayTextFromPath(const FSoftObjectPath& Object)
@@ -112,25 +112,27 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 		return FSlateIconFinder::FindIconForClass(Object.GetClass());
 	}
 	
-	FText GetPropertyDisplayText(const FConcertPropertyChain& Property, UStruct* Class /*=nullptr*/)
+	FText GetPropertyDisplayText(ConcertSyncCore::PropertyChain::FPropertyResolutionCache& Cache, const FConcertPropertyChain& Property, UStruct* Class /*=nullptr*/)
 	{
 #if WITH_EDITORONLY_DATA
 		// Class will (likely) be valid on editor builds but null on server
-		const FProperty* ResolvedProperty = Class ? Property.ResolveProperty(*Class) : nullptr;
+		const FProperty* ResolvedProperty = Class ? Cache.ResolveAndCache(*Class, Property) : nullptr;
 		return ResolvedProperty
 			? ResolvedProperty->GetDisplayNameText()
 			:
 #else
 		return 
 #endif
-		FText::FromString(GetPropertyDisplayString(Property, Class));
+		FText::FromString(GetPropertyDisplayString(Cache, Property, Class));
     }
 	
-	FString GetPropertyDisplayString(const FConcertPropertyChain& Property, UStruct* Class /*=nullptr*/)
+	FString GetPropertyDisplayString(ConcertSyncCore::PropertyChain::FPropertyResolutionCache& Cache, const FConcertPropertyChain& Property, UStruct* Class /*=nullptr*/)
 	{
+		SCOPED_CONCERT_TRACE(GetPropertyDisplayString);
+		
 #if WITH_EDITORONLY_DATA
 		// Class will (likely) be valid on editor builds but null on server
-		const FProperty* ResolvedProperty = Class ? Property.ResolveProperty(*Class) : nullptr;
+		const FProperty* ResolvedProperty = Class ? Cache.ResolveAndCache(*Class, Property) : nullptr;
 		return ResolvedProperty
 			? ResolvedProperty->GetDisplayNameText().ToString()
 			:

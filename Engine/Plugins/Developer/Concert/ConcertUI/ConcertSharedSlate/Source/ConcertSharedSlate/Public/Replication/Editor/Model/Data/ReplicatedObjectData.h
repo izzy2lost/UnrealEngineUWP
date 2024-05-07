@@ -12,14 +12,21 @@ namespace UE::ConcertSharedSlate
 	public:
 
 		FReplicatedObjectData(FSoftObjectPath ObjectPath)
-			: ObjectPath(MoveTemp(ObjectPath))
+			: ObjectPtr(MoveTemp(ObjectPath))
 		{}
 		
-		const FSoftObjectPath& GetObjectPath() const { return ObjectPath; }
+		const FSoftObjectPath& GetObjectPath() const { return ObjectPtr.GetUniqueID(); }
+		const TSoftObjectPtr<>& GetObjectPtr() const { return ObjectPtr; }
 
 	private:
 
-		/** The replicated object */
-		FSoftObjectPath ObjectPath;
+		/**
+		 * The replicated object.
+		 *
+		 * On the servers, this will usually not resolve to anything.
+		 * This was promoted to be TSoftObjectPtr so that any UI that resolves this object path automatically caches it.
+		 * In certain operations this can improve performance: e.g. when fully rebuilding the property tree, this saved 35% performance.
+		 */
+		TSoftObjectPtr<> ObjectPtr;
 	};
 }
