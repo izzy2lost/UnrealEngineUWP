@@ -764,6 +764,7 @@ void UWidget::ForceLayoutPrepass()
 	TSharedPtr<SWidget> SafeWidget = GetCachedWidget();
 	if (SafeWidget.IsValid())
 	{
+		SafeWidget->MarkPrepassAsDirty();
 		SafeWidget->SlatePrepass(SafeWidget->GetTickSpaceGeometry().Scale);
 	}
 }
