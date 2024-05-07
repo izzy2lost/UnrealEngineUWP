@@ -334,4 +334,7 @@ private:
 	
 	/** The display name of the currently active tool */
 	FText ActiveToolDisplayName = FText::GetEmpty();
+
+	/** The array of Command names, in the correct display order */
+	TArray<FName> LoadCommandArray;
 };

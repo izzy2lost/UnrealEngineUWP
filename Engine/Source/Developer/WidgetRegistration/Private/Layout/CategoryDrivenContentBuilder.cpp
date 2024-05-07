@@ -242,18 +242,19 @@ void FCategoryDrivenContentBuilder::SetShowNoCategorySelection(bool bInShowNoCat
 	}
 }
 
-void FCategoryDrivenContentBuilder::SetCommands(TArray<TSharedPtr<FUICommandInfo>> InContentLoaderCommands)
+void FCategoryDrivenContentBuilder::InitializeCategoryButtons(TArray<UE::DisplayBuilders::FBuilderInput> InBuilderInputArray)
 {
-	// TODO delete method
+	BuilderInputArray = InBuilderInputArray;
+	InitializeCategoryButtons();
 }
 
-void FCategoryDrivenContentBuilder::InitializeCategoryButtons(TArray<UE::DisplayBuilders::FBuilderInput> InBuilderInputArray)
+void FCategoryDrivenContentBuilder::InitializeCategoryButtons()
 {
 	CategoryNameToBuilderInputMap.Empty();
 	
-	for ( int32 Index = 0; Index < InBuilderInputArray.Num(); Index++ )
+	for ( int32 Index = 0; Index < BuilderInputArray.Num(); Index++ )
 	{
-		UE::DisplayBuilders::FBuilderInput& BuilderInput = InBuilderInputArray[Index];
+		UE::DisplayBuilders::FBuilderInput& BuilderInput = BuilderInputArray[Index];
 		BuilderInput.Index = Index;
 		
 		if ( BuilderInput.Name == FavoritesCategoryName && GetDecoratedButtonDelegate.IsBound() )
@@ -268,7 +269,9 @@ void FCategoryDrivenContentBuilder::InitializeCategoryButtons(TArray<UE::Display
 	
 	LoadToolPaletteCommandList = MakeShared<FUICommandList>();
 	LoadPaletteToolBarBuilder = MakeShared<FVerticalToolBarBuilder>(LoadToolPaletteCommandList, FMultiBoxCustomization::None, TSharedPtr<FExtender>(), bForceSmallIcons);
-	LoadPaletteToolBarBuilder->SetStyle(&FAppStyle::Get(), "FCategoryDrivenContentBuilderToolbar");
+	
+	const FName StyleName = GetCategoryToolBarStyleName(); 
+	LoadPaletteToolBarBuilder->SetStyle(&FAppStyle::Get(), StyleName );
 	LoadPaletteToolBarBuilder->SetLabelVisibility( CategoryButtonLabelVisibility );
 	MainContentVerticalBox = SNew(SVerticalBox);
 	InitializeCategoryToolbar();

@@ -22,6 +22,7 @@ void SClippingVerticalBox::OnArrangeChildren( const FGeometry& AllottedGeometry,
 	// been called and this method isn't going to behave properly
 	check(WrapButton.IsValid());
 
+	const FToolBarStyle& ToolBarStyle = StyleSet->GetWidgetStyle<FToolBarStyle>(StyleName);
 	LastClippedIdx = ClippedIdx;
 
 	NumClippedChildren = 0;
@@ -31,8 +32,9 @@ void SClippingVerticalBox::OnArrangeChildren( const FGeometry& AllottedGeometry,
 	const int32 NumChildren = ArrangedChildren.Num();
 	const int32 OverflowButtonIndex = NumChildren - 1;
 	LastToolBarButtonIndex = OverflowButtonIndex - 1;
+	const bool bHasLabel = ToolBarStyle.bShowLabels;
 	
-	constexpr int32 OverflowButtonSize = 48;
+	const int32 OverflowButtonSize =  ToolBarStyle.ButtonContentMaxWidth;
 	
 	for (int32 ChildIdx = LastToolBarButtonIndex; ChildIdx >= 0; --ChildIdx)
 	{
@@ -165,7 +167,7 @@ void SClippingVerticalBox::InitializeWrapButton( TSharedPtr<SComboButton>& Butto
 		[
 		SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
-				.Padding(0)
+				.Padding(  ToolBarStyle.bShowLabels ? ToolBarStyle.IconPaddingWithVisibleLabel : ToolBarStyle.IconPadding )
 				.AutoHeight()
 				.HAlign(HAlign_Center)	// Center the icon horizontally, so that large labels don't stretch out the artwork
 				[
@@ -176,6 +178,7 @@ void SClippingVerticalBox::InitializeWrapButton( TSharedPtr<SComboButton>& Butto
 				.HAlign(HAlign_Center)
 				[
 					SNew(STextBlock)
+					.Visibility( ToolBarStyle.bShowLabels ? EVisibility::Visible : EVisibility::Collapsed )
 					.Text( LOCTEXT("ClippingVerticalBox.Icon.More", "More") )
 					.TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("SmallText"))
 				]

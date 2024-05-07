@@ -1737,10 +1737,11 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		FVerticalToolBarStyle.SetBackgroundPadding(   FMargin(6.0f, 4.0f));
 		FVerticalToolBarStyle.ButtonStyle.SetNormalPadding(FMargin(12.0f, 6.0f));
 		FVerticalToolBarStyle.ButtonStyle.SetPressedPadding(FMargin(12.0f, 6.0f));
-		FVerticalToolBarStyle.SetExpandBrush(CORE_IMAGE_BRUSH_SVG("Starship/Common/ellipsis-horizontal-narrow", FVector2D(16, 16)));
+		FVerticalToolBarStyle.SetExpandBrush(IMAGE_BRUSH("Icons/toolbar_expand_16x", Icon8x8));
 		FVerticalToolBarStyle.SetIconPadding(FMargin(8.0f, 8.0f));
 		FVerticalToolBarStyle.SetIconPaddingWithVisibleLabel(FMargin(8.0f, 8.0f, 8.0f, 2.0f));
  
+		FVerticalToolBarStyle.SetExpandBrush(CORE_IMAGE_BRUSH_SVG("Starship/Common/ellipsis-horizontal-narrow", FVector2D(16, 16)));
 		FCheckBoxStyle CheckBoxStyle = FCheckBoxStyle(FVerticalToolBarStyle.ToggleButton)
 			.SetCheckedImage(FSlateRoundedBoxBrush(FStyleColors::Primary, 4.f, FLinearColor(0, 0, 0, .8), 0.5))
 			.SetCheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.f, FLinearColor(0, 0, 0, .8), 0.5))
@@ -1762,10 +1763,24 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 
 	{
 		// FCategoryDrivenContentBuilder vertical toolbar style
-		FToolBarStyle CategoryDrivenContentBuilderToolBarStyle = GetWidgetStyle<FToolBarStyle>("FVerticalToolBar");
-		CategoryDrivenContentBuilderToolBarStyle.SetIconPaddingWithVisibleLabel(FMargin(8.0f, 12.0f, 8.0f, 8.0f));
+		FToolBarStyle CategoryDrivenContentBuilderToolBarStyle =  GetWidgetStyle<FToolBarStyle>("FVerticalToolBar");
+		CategoryDrivenContentBuilderToolBarStyle.SetIconPadding( FMargin(0, 9, 0, 4 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetBackgroundPadding( FMargin( 4 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetIconPaddingWithVisibleLabel( FMargin(0, 9, 0, 0 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetLabelPadding( FMargin(4, 5, 4, 9) );
 		CategoryDrivenContentBuilderToolBarStyle.SetButtonContentMaxWidth( 56.0f );
-		Set("FCategoryDrivenContentBuilderToolbar", CategoryDrivenContentBuilderToolBarStyle);
+		FTextBlockStyle LabelTextStyle = FTextBlockStyle(NormalText)
+		                                 .SetOverflowPolicy(ETextOverflowPolicy::Ellipsis)
+		                                 .SetFont(DEFAULT_FONT("roboto", FCoreStyle::SmallTextSize));
+		CategoryDrivenContentBuilderToolBarStyle.SetLabelStyle( LabelTextStyle );
+		CategoryDrivenContentBuilderToolBarStyle.SetButtonPadding( FMargin( 0, 2, 0, 2 ));
+		CategoryDrivenContentBuilderToolBarStyle.SetShowLabels( true );
+		Set("CategoryDrivenContentBuilderToolbarWithLabels", CategoryDrivenContentBuilderToolBarStyle);
+
+		CategoryDrivenContentBuilderToolBarStyle.SetIconPadding( FMargin(8, 8, 8, 8 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetShowLabels( false );
+		CategoryDrivenContentBuilderToolBarStyle.SetButtonContentMaxWidth( 36.0f );
+		Set("CategoryDrivenContentBuilderToolbarWithoutLabels", CategoryDrivenContentBuilderToolBarStyle);
 	}
 	
 	// Vertical ToolPalette 
@@ -4526,9 +4541,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 
 		Set( "PlacementBrowser.Asset.Name", FTextBlockStyle( NormalText )
 			.SetFont( DEFAULT_FONT( "Regular", 10 ) )
-			.SetColorAndOpacity( FLinearColor( 1.0f, 1.0f, 1.0f, 0.9f ) )
-			.SetShadowOffset( FVector2D( 1, 1 ) )
-			.SetShadowColorAndOpacity( FLinearColor( 0, 0, 0, 0.9f ) ) );
+			.SetColorAndOpacity( FLinearColor( 1.0f, 1.0f, 1.0f, 0.9f ) ) );
 
 		Set( "PlacementBrowser.Asset.Type", FTextBlockStyle( NormalText )
 			.SetFont( DEFAULT_FONT( "Regular", 8 ) )
@@ -4595,15 +4608,15 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 			.SetLastControlStyle(PlacementSegmentedBox)
 		);
 
-		Set("PlacementBrowser.Icons.Recent",        new CORE_IMAGE_BRUSH_SVG("Starship/Common/Recent",    Icon16x16));
-		Set("PlacementBrowser.Icons.Basic",         new IMAGE_BRUSH_SVG("Starship/Common/Basic",          Icon16x16));
-		Set("PlacementBrowser.Icons.Lights",        new IMAGE_BRUSH_SVG("Starship/Common/LightBulb",      Icon16x16));
-		Set("PlacementBrowser.Icons.Cinematics",    new IMAGE_BRUSH_SVG("Starship/Common/Cinematics",     Icon16x16));
-		Set("PlacementBrowser.Icons.VisualEffects", new IMAGE_BRUSH_SVG("Starship/Common/VisualEffects",  Icon16x16));
-		Set("PlacementBrowser.Icons.BSP",           new IMAGE_BRUSH_SVG("Starship/Common/Geometry",       Icon16x16));
-		Set("PlacementBrowser.Icons.Volumes",       new IMAGE_BRUSH_SVG("Starship/Common/Volumes",        Icon16x16));
-		Set("PlacementBrowser.Icons.All",           new IMAGE_BRUSH_SVG("Starship/Common/AllClasses",     Icon16x16));
-		Set("PlacementBrowser.Icons.Testing",       new CORE_IMAGE_BRUSH_SVG("Starship/Common/Test",           Icon16x16));
+		Set("PlacementBrowser.Icons.Recent",        new CORE_IMAGE_BRUSH_SVG("Starship/Common/Recent",    Icon20x20));
+		Set("PlacementBrowser.Icons.Basic",         new IMAGE_BRUSH_SVG("Starship/Common/Basic",          Icon20x20));
+		Set("PlacementBrowser.Icons.Lights",        new IMAGE_BRUSH_SVG("Starship/Common/LightBulb",      Icon20x20));
+		Set("PlacementBrowser.Icons.Cinematics",    new IMAGE_BRUSH_SVG("Starship/Common/Cinematics",     Icon20x20));
+		Set("PlacementBrowser.Icons.VisualEffects", new IMAGE_BRUSH_SVG("Starship/Common/VisualEffects",  Icon20x20));
+		Set("PlacementBrowser.Icons.BSP",           new IMAGE_BRUSH_SVG("Starship/Common/Geometry",       Icon20x20));
+		Set("PlacementBrowser.Icons.Volumes",       new IMAGE_BRUSH_SVG("Starship/Common/Volumes",        Icon20x20));
+		Set("PlacementBrowser.Icons.All",           new IMAGE_BRUSH_SVG("Starship/Common/AllClasses",     Icon20x20));
+		Set("PlacementBrowser.Icons.Testing",       new CORE_IMAGE_BRUSH_SVG("Starship/Common/Test",           Icon20x20));
 
 		Set( "ContentPalette.ShowAllPlaceables", new IMAGE_BRUSH( "Icons/icon_Placement_FilterAll_20px", Icon20x20 ) );
 		Set( "ContentPalette.ShowAllPlaceables.Small", new IMAGE_BRUSH( "Icons/icon_Placement_FilterAll_20px", Icon20x20 ) );

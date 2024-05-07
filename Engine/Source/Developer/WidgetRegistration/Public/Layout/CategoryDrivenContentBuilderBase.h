@@ -85,7 +85,7 @@ public:
 	/**
 	 * refreshes the UI display of the category toolbar
 	 */
-    	WIDGETREGISTRATION_API void RefreshCategoryToolbarWidget();
+	WIDGETREGISTRATION_API void RefreshCategoryToolbarWidget( bool bShouldReinitialize = false );
 
 	/** Implements the generation of the TSharedPtr<SWidget> */
 	WIDGETREGISTRATION_API virtual TSharedPtr<SWidget> GenerateWidget() override;
@@ -110,11 +110,7 @@ private:
 	/* The SWidget that is the whole Toolkit */
 	TSharedPtr<SWidget> ToolkitWidget;
 
-    	/**
-    	 * Creates the SWidget
-    	 */
-    	void CreateWidget();
-     
+
 	/** The SVerticalBox which contains the category toolbar */
 	TSharedPtr<SVerticalBox> CategoryToolbarVBox;
 
@@ -122,6 +118,14 @@ private:
 	TSharedPtr<SVerticalBox> ToolkitWidgetContainerVBox;
 
 protected:
+
+	/**
+	 * Creates the SWidget
+	 */
+	void CreateWidget();
+
+	FName GetCategoryToolBarStyleName() const;
+	
 	virtual void UpdateContentForCategory( FName ActiveCategoryName = NAME_None, FText InActiveCategoryText = FText::GetEmpty() ) = 0;
 	
 	/** The SVerticalBox which holds the main content ~ -all but the Category chooser */

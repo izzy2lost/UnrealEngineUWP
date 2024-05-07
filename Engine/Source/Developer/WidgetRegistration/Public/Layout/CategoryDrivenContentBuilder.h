@@ -84,15 +84,18 @@ public:
 	 */
 	WIDGETREGISTRATION_API void SetShowNoCategorySelection( bool bInShowNoCategorySelection );
 	
-	WIDGETREGISTRATION_API void SetCommands(TArray<TSharedPtr<FUICommandInfo>> InContentLoaderCommands);
-
 	/*
 	 * Initializes the category buttons with the given FBuilderInputs
 	 *
 	 * @param InBuilderInputArray the array of FBuilderInput instances that will initialize the Category buttons
 	 */
 	WIDGETREGISTRATION_API void InitializeCategoryButtons(TArray<UE::DisplayBuilders::FBuilderInput> InBuilderInputArray);
-	
+
+	/*
+	 * Initializes the category buttons with the given FBuilderInputs
+	 */
+	WIDGETREGISTRATION_API void InitializeCategoryButtons();
+
 	/**
 	 * Converts the SWidget Widget to a FSlateBuilder and adds it to the main content for the currently selected category
 	 *
@@ -149,6 +152,9 @@ private:
 	void ToggleFavorite( FName InFavoriteCommandName );
 
 private:
+
+	/** The array of BuilderInputs, in the correct display order */
+	TArray<UE::DisplayBuilders::FBuilderInput> BuilderInputArray;
 
 	/** The array of FSlateBuilders that will build the content for the currently selected category */
 	TArray<TSharedRef<FSlateBuilder>> ChildBuilderArray;

@@ -169,7 +169,9 @@ void FToolkitBuilder::AddPalette(TSharedPtr<FToolPalette> Palette)
 		PaletteCommandNameToButtonArgsMap.Add(Button->Command->GetCommandName().ToString(), Button);
 		PaletteCommandInfos.Add(Button->Command->GetCommandName().ToString(), Button->Command);
 	}
-	LoadCommandNameToToolPaletteMap.Add(Palette->LoadToolPaletteAction->GetCommandName().ToString(), Palette);
+	const FName CommandName = Palette->LoadToolPaletteAction->GetCommandName();
+	LoadCommandNameToToolPaletteMap.Add(CommandName.ToString(), Palette);
+	LoadCommandArray.Add( CommandName ); 
 
 	LoadToolPaletteCommandList->MapAction(
 				Palette->LoadToolPaletteAction,
@@ -259,7 +261,11 @@ void FToolkitBuilder::InitializeCategoryToolbar(bool bInitLoadToolPaletteMap)
 	Style = FToolkitStyle::Get().GetWidgetStyle<FToolkitWidgetStyle>("FToolkitWidgetStyle");
 	LoadToolPaletteCommandList = MakeShareable(new FUICommandList);
 	LoadPaletteToolBarBuilder = MakeShared<FVerticalToolBarBuilder>(LoadToolPaletteCommandList, FMultiBoxCustomization::None, TSharedPtr<FExtender>(), bForceSmallIcons);
+
 	LoadPaletteToolBarBuilder->SetLabelVisibility( CategoryButtonLabelVisibility );
+	const FName StyleName = GetCategoryToolBarStyleName(); 
+	LoadPaletteToolBarBuilder->SetStyle(&FAppStyle::Get(), StyleName );
+	
 	EditablePalettesArray.Reset();
 
 	if (bInitLoadToolPaletteMap)
@@ -356,6 +362,7 @@ void FToolkitBuilder::CreatePalette(TSharedPtr<FToolPalette> Palette)
 		PaletteToolbarBuilder->AddToolBarButton(PaletteButton.Get());
 	}
 	CreatePaletteWidget(*Palette.Get(), *Element.Get());
+	LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( LoadCommandArray.IndexOfByKey(Palette->LoadToolPaletteAction->GetCommandName()) );
 }
 
 void FToolkitBuilder::CreatePaletteWidget(FToolPalette& Palette, FToolElement& Element)

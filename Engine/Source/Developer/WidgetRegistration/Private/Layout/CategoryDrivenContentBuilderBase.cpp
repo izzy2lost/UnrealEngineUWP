@@ -14,6 +14,9 @@
 namespace UE::CategoryDrivenContentBuilderBase::Private
 {
 	const FName StyleName = TEXT("Name");
+	const float LabelledButtonToolbarButtonWidth = 64;
+	const float UnlabelledButtonToolbarButtonWidth = 44;
+	
 }
 
 FToolElementRegistry FCategoryDrivenContentBuilderBase::ToolRegistry = FToolElementRegistry::Get();
@@ -58,14 +61,26 @@ void FCategoryDrivenContentBuilderBase::InitCategoryToolbarContainerWidget()
 	{
 		CategoryToolbarVBox->ClearChildren();
 	}
+
+	float ToolbarBoxWidth = UE::CategoryDrivenContentBuilderBase::Private::UnlabelledButtonToolbarButtonWidth;
+
+	if ( CategoryButtonLabelVisibility.IsVisible() )
+	{
+		ToolbarBoxWidth = UE::CategoryDrivenContentBuilderBase::Private::LabelledButtonToolbarButtonWidth;
+	}
+	
 	CategoryToolbarVBox->AddSlot()
 	.Padding(0.f)
 	[
-		CreateToolbarWidget()
+		SNew(SBox)
+		.WidthOverride( ToolbarBoxWidth )
+		[
+			CreateToolbarWidget()
+		]
 	];
 }
 
-void FCategoryDrivenContentBuilderBase::RefreshCategoryToolbarWidget()
+void FCategoryDrivenContentBuilderBase::RefreshCategoryToolbarWidget(bool bShouldReinitialize)
 {
 	if ( !LoadPaletteToolBarBuilder.IsValid() )
 	{
@@ -73,10 +88,17 @@ void FCategoryDrivenContentBuilderBase::RefreshCategoryToolbarWidget()
 	}
 	FToolElementRegistrationKey ElementKey = FToolElementRegistrationKey(BuilderName, EToolElement::Toolbar);
 	VerticalToolbarElement = ToolRegistry.GetToolElementSP(ElementKey);
+	LoadPaletteToolBarBuilder->SetLabelVisibility( CategoryButtonLabelVisibility );
 	const TSharedRef<FToolbarRegistrationArgs> VerticalToolbarRegistrationArgs = MakeShareable<FToolbarRegistrationArgs>(
 		new FToolbarRegistrationArgs(LoadPaletteToolBarBuilder.ToSharedRef()));
 	
-	if (!VerticalToolbarElement.IsValid())
+	if (VerticalToolbarElement.IsValid() && bShouldReinitialize)
+	{
+		ToolRegistry.UnregisterElement(VerticalToolbarElement.ToSharedRef());
+		VerticalToolbarElement = nullptr;
+	}
+	
+	if (!VerticalToolbarElement.IsValid() || bShouldReinitialize)
 	{
 		VerticalToolbarElement = MakeShareable(new FToolElement
 			(BuilderName,
@@ -166,4 +188,12 @@ void FCategoryDrivenContentBuilderBase::SetCategoryButtonLabelVisibility(bool bI
 TSharedRef<SWidget> FCategoryDrivenContentBuilderBase::CreateToolbarWidget() const
 {
 	return ToolRegistry.GenerateWidget(VerticalToolbarElement.ToSharedRef());
+}
+
+
+FName FCategoryDrivenContentBuilderBase::GetCategoryToolBarStyleName() const
+{
+	return CategoryButtonLabelVisibility.IsVisible() ?
+		"CategoryDrivenContentBuilderToolbarWithLabels" :
+		"CategoryDrivenContentBuilderToolbarWithoutLabels";
 }

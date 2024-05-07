@@ -21,6 +21,7 @@ public:
 	SLATE_BEGIN_ARGS(SClippingVerticalBox) 
 		: _StyleSet(&FCoreStyle::Get())
 		, _StyleName(NAME_None)
+		, _LabelVisibility(EVisibility::Visible)
 		, _IsFocusable(true)
 		, _SelectedIndex(INDEX_NONE )
 		{ }
@@ -28,6 +29,7 @@ public:
 		SLATE_ARGUMENT(FOnGetContent, OnWrapButtonClicked)
 		SLATE_ARGUMENT(const ISlateStyle*, StyleSet)
 		SLATE_ARGUMENT(FName, StyleName)
+		SLATE_ATTRIBUTE( EVisibility, LabelVisibility)
 		SLATE_ARGUMENT(bool, IsFocusable)
 		SLATE_ATTRIBUTE( int32, SelectedIndex )
 	SLATE_END_ARGS()

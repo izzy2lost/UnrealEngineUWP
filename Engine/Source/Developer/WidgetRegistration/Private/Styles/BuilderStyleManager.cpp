@@ -7,10 +7,14 @@
 #include "Misc/Paths.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
+#include "Styling/ToolBarStyle.h"
+#include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
+#include "Styling/StyleColors.h"
 
 void FBuilderStyleManager::RegisterSlateIcon( FBuilderIconKey Key )
 {
-	Set( Key.FileNameWithoutExtension, new IMAGE_BRUSH_SVG( Key.RelativePathToFileWithoutExtension, Key.SizeKey.Size ));
+	Set( Key.FileNameWithoutExtension, new CORE_IMAGE_BRUSH_SVG( Key.RelativePathToFileWithoutExtension, Key.SizeKey.Size ));
 	Key.InitializeIcon();
 }
 
@@ -21,8 +25,6 @@ FBuilderStyleManager::FBuilderStyleManager()
 	SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate/Builders"));
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
-	FText Text = FText::GetEmpty();
-	
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
 

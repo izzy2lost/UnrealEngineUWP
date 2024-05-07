@@ -22,6 +22,19 @@ public:
 	TArray<FName> ArrayOfNamesToPersist;
 };
 
+/**
+ * Manages a Bool to persist
+ */
+USTRUCT()
+struct WIDGETREGISTRATION_API FPersistedBool
+{
+	GENERATED_BODY()
+public:
+	
+	UPROPERTY()
+	bool PersistedBool = false;
+};
+
 
 /**
  * The Builder Persistence Manager handles persistence for Builders through use of FBuilderKeys
@@ -85,9 +98,44 @@ public:
 private:
 
 	UPROPERTY(meta=(EditorConfig))
-	TMap<FString, FPersistedNameArray> PersistenceSettings;
+	TMap<FString, FPersistedNameArray> SavedNameToPersistedFNameArrayMap;
 
-	static FName FavoritesSuffix;
+	UPROPERTY(meta=(EditorConfig))
+	TMap<FString, FPersistedBool> SavedNameToPersistedBoolMap;
 	
 	static TObjectPtr<UBuilderPersistenceManager> Instance;
+
+private:
+	/**
+	 * Sets the default button label EVisisbility for the Builder with FBuilderKey Key
+	 * 
+	 * @param Key the FBuilderKey to retrieve the button label Bool for
+	 * @param Bool the bool for the button labels to persist
+	 */
+	void SetPersistedButtonLabelBool( const UE::DisplayBuilders::FBuilderKey& Key, bool Bool );
+	
+	/**
+	 * @return the bool or the buttons labels for the Builder with FBuilderKey Key, if one exists, else an empty array is returned
+	 * 
+	 * @param Key the FBuilderKey to retrieve the button label bool
+	 * @param PersistedBoolIfNoneFound the Bool to set as the new persistence value, if one is not found
+	 */
+	bool GetPersistedButtonLabelBool( const UE::DisplayBuilders::FBuilderKey& Key, bool PersistedBoolIfNoneFound  );
+
+	/**
+	 * Returns the bool for the Builder with FBuilderKey Key and the suffix that the array was persisted with, if one exists, else an empty array is returned
+	 * 
+	 * @param Key the FBuilderKey to retrieve the bool
+	 * @param PersistenceKeySuffix the suffix to add to the FBuilderKey to get the bool with
+	 * @param PersistedBoolIfNoneFound the Bool to set as the new persistence value, if one is not found
+	 */
+	bool GetPersistedBool( const UE::DisplayBuilders::FBuilderKey& Key, FName PersistenceKeySuffix, bool PersistedBoolIfNoneFound );
+	
+	/**
+	 * Persists the Bool the Builder with FBuilderKey Key and suffix PersistenceKeySuffix
+	 * 
+	 * @param Key the FBuilderKey to retrieve the favorites for
+	 * @param PersistenceKeySuffix the suffix added to the FBuilderKey to persist the Bool with
+	 */
+	void PersistBool( const UE::DisplayBuilders::FBuilderKey& Key, FName PersistenceKeySuffix, bool InPersistedBool );
 };

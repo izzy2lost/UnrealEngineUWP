@@ -4,7 +4,11 @@
 
 TObjectPtr<UBuilderPersistenceManager> UBuilderPersistenceManager::Instance = nullptr;
 
-FName UBuilderPersistenceManager::FavoritesSuffix = "BuilderFavorites";
+namespace UE::DisplayBuilders::BuilderPersistenceManager
+{
+	FName FavoritesSuffix = "BuilderFavorites";
+	FName ShowButtonLabelsSuffix = "ShowButtonLabels";
+}
 
 void UBuilderPersistenceManager::Initialize()
 {
@@ -12,7 +16,6 @@ void UBuilderPersistenceManager::Initialize()
 	{
 		Instance = NewObject<UBuilderPersistenceManager>(); 
 		Instance->AddToRoot();
-		Instance->LoadEditorConfig();
 	}
 }
 
@@ -27,19 +30,20 @@ void UBuilderPersistenceManager::ShutDown()
 
 TArray<FName> UBuilderPersistenceManager::GetPersistedFavoritesNamesArray(const UE::DisplayBuilders::FBuilderKey& Key)
 {
-	return GetPersistedArrayOfNames(Key, FavoritesSuffix);
+	return GetPersistedArrayOfNames( Key, UE::DisplayBuilders::BuilderPersistenceManager::FavoritesSuffix );
 }
 
 void UBuilderPersistenceManager::SetPersistedFavoritesNamesArray(const UE::DisplayBuilders::FBuilderKey& Key, TArray<FName>& Favorites)
 {
-	return PersistArrayOfNames(Key, FavoritesSuffix, Favorites);
+	return PersistArrayOfNames(Key, UE::DisplayBuilders::BuilderPersistenceManager::FavoritesSuffix, Favorites);
 }
 
 TArray<FName> UBuilderPersistenceManager::GetPersistedArrayOfNames( const UE::DisplayBuilders::FBuilderKey& Key, FName PersistenceKeySuffix )
 {
+	LoadEditorConfig();
 	if ( !Key.IsNone()  && !PersistenceKeySuffix.IsNone() )
 	{
-		if ( const FPersistedNameArray* Settings =  PersistenceSettings.Find( Key.GetKeyWithSuffix( PersistenceKeySuffix ) ) )
+		if ( const FPersistedNameArray* Settings =  SavedNameToPersistedFNameArrayMap.Find( Key.GetKeyWithSuffix( PersistenceKeySuffix ) ) )
 		{
 			return Settings->ArrayOfNamesToPersist;
 		}
@@ -55,8 +59,48 @@ void UBuilderPersistenceManager::PersistArrayOfNames( const UE::DisplayBuilders:
 		return;
 	}
 
-	FPersistedNameArray& Settings =  PersistenceSettings.Add( Key.GetKeyWithSuffix( PersistenceKeySuffix ) );
+	FPersistedNameArray& Settings =  SavedNameToPersistedFNameArrayMap.Add( Key.GetKeyWithSuffix( PersistenceKeySuffix ) );
 
 	Settings.ArrayOfNamesToPersist = ArrayOfNamesToPersist;;
+	SaveEditorConfig();
+}
+
+bool UBuilderPersistenceManager::GetPersistedBool( const UE::DisplayBuilders::FBuilderKey& Key, FName PersistenceKeySuffix, bool PersistedBoolIfNoneFound )
+{
+	LoadEditorConfig();
+	if ( !Key.IsNone()  && !PersistenceKeySuffix.IsNone() )
+	{
+		if ( const FPersistedBool* BoolSettings =  SavedNameToPersistedBoolMap.Find( Key.GetKeyWithSuffix( PersistenceKeySuffix ) ) )
+		{
+			return BoolSettings->PersistedBool;
+		}
+		else
+		{
+			PersistBool( Key, PersistenceKeySuffix, PersistedBoolIfNoneFound );
+		}
+	}
+
+	return PersistedBoolIfNoneFound;
+}
+
+void UBuilderPersistenceManager::SetPersistedButtonLabelBool( const UE::DisplayBuilders::FBuilderKey& Key, bool InPersistedBool )
+{
+	return PersistBool( Key, UE::DisplayBuilders::BuilderPersistenceManager::ShowButtonLabelsSuffix, InPersistedBool );
+}
+
+bool UBuilderPersistenceManager::GetPersistedButtonLabelBool( const UE::DisplayBuilders::FBuilderKey& Key, bool PersistedBoolIfNoneFound )
+{
+	return GetPersistedBool( Key, UE::DisplayBuilders::BuilderPersistenceManager::ShowButtonLabelsSuffix, PersistedBoolIfNoneFound );
+}
+
+void UBuilderPersistenceManager::PersistBool( const UE::DisplayBuilders::FBuilderKey& Key, FName PersistenceKeySuffix, bool InPersistedBool )
+{
+	if (PersistenceKeySuffix.IsNone())
+	{
+		return;
+	}
+
+	FPersistedBool& Settings =  SavedNameToPersistedBoolMap.Add( Key.GetKeyWithSuffix( PersistenceKeySuffix ) );
+	Settings.PersistedBool = InPersistedBool;;
 	SaveEditorConfig();
 }
