@@ -122,3 +122,5 @@ void SRigVMVariantWidget::RebuildVariantRefList()
 		];
 	}
 }
+
+#undef LOCTEXT_NAMESPACE // SRigVMVariantWidget
