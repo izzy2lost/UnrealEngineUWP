@@ -168,6 +168,10 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 	})
 	.then([InTextureGraph, &TargetExportSettings]()
 	{
+		InTextureGraph->InvalidateAll();
+	})
+	.then([InTextureGraph, &TargetExportSettings]()
+	{
 		// Add analytics tag
 		if (FEngineAnalytics::IsAvailable())
 		{
