@@ -23,7 +23,7 @@ public:
 	virtual uint32 Run() override;
 	
 	/** Aborts the main loop as soon as possible */
-	virtual void Stop() override { bForceStop = true; };
+	virtual void Stop() override;
 	
 	/** Creates the threads and starts the main loop */
 	void StartThread();

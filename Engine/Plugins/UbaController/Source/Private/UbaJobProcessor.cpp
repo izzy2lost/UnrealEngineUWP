@@ -483,11 +483,18 @@ uint32 FUbaJobProcessor::Run()
 		FPlatformProcess::Sleep(UbaJobProcessorOptions::SleepTimeBetweenActions);
 	}
 
+	FScopeLock lock(&bShouldProcessJobsLock);
+
 	ShutDownUba();
 
 	bIsWorkDone = true;
 	return 0;
 }
+
+void FUbaJobProcessor::Stop()
+{
+	bForceStop = true;
+};
 
 void FUbaJobProcessor::StartThread()
 {
