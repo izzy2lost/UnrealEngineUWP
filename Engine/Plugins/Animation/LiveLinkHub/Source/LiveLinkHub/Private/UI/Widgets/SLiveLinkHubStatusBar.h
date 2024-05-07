@@ -36,6 +36,9 @@ private:
 	 * @param StatusBarId The unique status bar id to assign.
 	 */
 	TSharedRef<SWidgetDrawer> MakeWidgetDrawer(FName StatusBarId);
+
+	/** The loaded configuration text to display. */
+	FText GetLoadedConfigText() const;
 	
 private:
 	/** The widget drawer for this status bar. */

@@ -134,7 +134,7 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 			[
 				SNew(SBorder)
             	.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-            	.Padding(5.0f, 0.0f, 5.0f, 7.0f)
+            	.Padding(5.0f, 0.0f, 5.0f, 0.0f)
             	[
 					SNew(SLiveLinkHubStatusBar, StatusBarId)
             	]

@@ -26,7 +26,7 @@ public:
 	/** Delegate called when a UE client is removed from the current session, returning it to the list of discovered clients. */
 	virtual FOnClientRemovedFromSession& OnClientRemovedFromSession() = 0;
 
-	/** Delegate called wehen the active session changes, which will change the list of sources, subjects and clients. */
+	/** Delegate called when the active session changes, which will change the list of sources, subjects and clients. */
 	virtual FOnActiveSessionChanged& OnActiveSessionChanged() = 0;
 
 	/** Get the current session, which holds information about which sources, subjects and clients that should be enabled in the hub at the moment. */
@@ -46,6 +46,9 @@ public:
 
 	/** Returns whether the current session has as already been saved to disk before. */
 	virtual bool CanSaveCurrentSession() const = 0;
+
+	/** Returns the last used config path. */
+	virtual const FString& GetLastConfigPath() const = 0;
 };
 
 class FLiveLinkHubSessionManager : public ILiveLinkHubSessionManager
@@ -204,6 +207,12 @@ public:
 	{
 		return !LastConfigPath.IsEmpty();
 	}
+
+	virtual const FString& GetLastConfigPath() const override
+	{
+		return LastConfigPath;
+	}
+	
 	//~ End LiveLinkHubSessionManager
 
 private:
