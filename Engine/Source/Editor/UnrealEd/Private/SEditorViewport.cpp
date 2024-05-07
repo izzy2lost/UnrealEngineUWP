@@ -933,7 +933,7 @@ TSharedRef<SWidget> SEditorViewport::BuildFeatureLevelWidget() const
 
 EVisibility SEditorViewport::GetCurrentFeatureLevelPreviewTextVisibility() const
 {
-	if (Client->GetWorld())
+	if (Client->GetWorld() && !GLevelEditorModeTools().IsViewportUIHidden())
 	{
 		return (GEditor && GEditor->IsFeatureLevelPreviewActive()) ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
 	}
