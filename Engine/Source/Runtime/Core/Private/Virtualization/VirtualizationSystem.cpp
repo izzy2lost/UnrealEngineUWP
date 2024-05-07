@@ -19,6 +19,8 @@
 // the virtualization system to be a lazy initialization.
 #ifndef UE_VIRTUALIZATION_SYSTEM_LAZY_INIT
 	#define UE_VIRTUALIZATION_SYSTEM_LAZY_INIT 0
+#else
+	#pragma message("WARNING: Use of UE_VIRTUALIZATION_SYSTEM_LAZY_INIT is deprecated as of UE 5.5, consider replacing with 'ini:Engine:[Core.VirtualizationModule]:LazyInitConnections=true'")
 #endif //UE_VIRTUALIZATION_SYSTEM_LAZY_INIT
 
 // When enabled we will log if FNullVirtualizationSystem tries to push or pull payloads
@@ -297,6 +299,7 @@ void Initialize(const FInitParams& InitParams, EInitializationFlags Flags)
 	{
 		if (ShouldLazyInitializeSystem(InitParams.ConfigFile))
 		{
+			UE_LOG(LogVirtualization, Warning, TEXT("The 'LazyInit' feature is deprecated as of UE 5.5, consider replacing with 'ini:Engine:[Core.VirtualizationModule]:LazyInitConnections=true'"));
 			return;
 		}
 	}
