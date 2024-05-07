@@ -280,3 +280,35 @@ namespace Metasound
 		static constexpr T DefaultValue = D;
 	};
 }
+
+// Helper macros: for defining/declaring a new Enum to be used in Metasounds.
+// * Declares/defines a typedef FEnum<YourEnum> wrapper around the enum that you pass it
+// * Declares/defines a specialization of TEnumStringHelper which is used to validate and convert between values/names.
+
+// These helps generate a couple of boiler plate functions:
+//  - GetNamespace() which will return the name of the Enum "EMyEnum" etc. 
+//  - GetAllEntries() which returns all posible entries in the enum. 
+
+// Definition macros are in MetasoundEnumRegistrationMacro.h
+
+/** DECLARE_METASOUND_ENUM
+ * @param ENUMNAME - The typename of your EnumType you want to use for Metasounds. e.g. MyEnum
+ * @param DEFAULT - A fully qualified default Enum value. e.g. EMyEnum::One
+ * @param API - The module API this is declared inside e.g. METASOUNDSTANDARDNODES_API
+ * @param ENUMTYPEDEF - The name of the TEnum<YourType> wrapper type
+ * @param TYPEINFO - The name of the TypeInfo type you want to define e.g. FMyEnumTypeInfo
+ * @param READREF - The name of the Read Reference type you want to define. e.g FMyEnumReadRef
+ * @param WRITEREF -The name of the Write Reference type you want to define e.g. FMyEnumWriteRef
+ */
+#define DECLARE_METASOUND_ENUM(ENUMNAME, DEFAULT, API, ENUMTYPEDEF, TYPEINFO, READREF, WRITEREF)\
+	using ENUMTYPEDEF = Metasound::TEnum<ENUMNAME, DEFAULT>; \
+	DECLARE_METASOUND_DATA_REFERENCE_TYPES(ENUMTYPEDEF, API, TYPEINFO, READREF, WRITEREF);\
+	template<> struct API Metasound::TEnumStringHelper<ENUMNAME> : Metasound::TEnumStringHelperBase<Metasound::TEnumStringHelper<ENUMNAME>, ENUMNAME>\
+	{\
+		static FName GetNamespace()\
+		{\
+			static const FName ThisName { TEXT(#ENUMNAME) };\
+			return ThisName;\
+		}\
+		static TArrayView<const Metasound::TEnumEntry<ENUMNAME>> GetAllEntries();\
+	};

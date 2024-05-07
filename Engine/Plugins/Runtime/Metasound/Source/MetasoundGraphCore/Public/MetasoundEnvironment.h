@@ -252,6 +252,26 @@ namespace Metasound
 			Variables.Add(InVariableName, MakeUnique<TMetasoundEnvironmentVariable<VarType>>(InVariableName, InValue));
 		}
 
+		/** Sets the environment variable data from a given environment variable
+		 * 
+		 * @param InValue - Environment variable to set.
+		 */
+		void SetValue(TUniquePtr<IMetasoundEnvironmentVariable> InValue)
+		{
+			Variables.Add(InValue->GetName(), MoveTemp(InValue));
+		}
+
+		using FRangedForConstIteratorType = TSortedMap<FName, TUniquePtr<IMetasoundEnvironmentVariable>, FDefaultAllocator, FNameFastLess>::RangedForConstIteratorType;
+		FRangedForConstIteratorType begin() const
+		{
+			return Variables.begin();
+		}
+
+		FRangedForConstIteratorType end() const
+		{
+			return Variables.end();
+		}
+
 	private:
 		TSortedMap<FName, TUniquePtr<IMetasoundEnvironmentVariable>, FDefaultAllocator, FNameFastLess> Variables;
 	};
@@ -272,4 +292,4 @@ DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, float);
 DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, double);
 DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, FString);
 DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, FName);
-
+DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, TArray<FGuid>);

@@ -26,7 +26,7 @@ namespace Metasound
 	namespace MetasoundArrayNodesPrivate
 	{
 		// Convenience function for make FNodeClassMetadata of array nodes.
-		METASOUNDFRONTEND_API FNodeClassMetadata CreateArrayNodeClassMetadata(const FName& InDataTypeName, const FName& InOperatorName, const FText& InDisplayName, const FText& InDescription, const FVertexInterface& InDefaultInterface);
+		METASOUNDFRONTEND_API FNodeClassMetadata CreateArrayNodeClassMetadata(const FName& InDataTypeName, const FName& InOperatorName, const FText& InDisplayName, const FText& InDescription, const FVertexInterface& InDefaultInterface, int32 MajorVersion=1, int32 MinorVersion=0, bool bIsDeprecated=false);
 
 		// Retrieve the ElementType from an ArrayType
 		template<typename ArrayType>

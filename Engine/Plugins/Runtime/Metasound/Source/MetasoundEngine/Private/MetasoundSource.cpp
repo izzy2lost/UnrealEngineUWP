@@ -1027,6 +1027,9 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 				TArray<FAudioParameter> MergedParameters;
 				MergePresetOverridesAndSuppliedDefaults(InDefaultParameters, MergedParameters);
 
+				// Update Graph Hierarchy with the asset unique ID (the hierarchy was collapsed by only using the base graph)
+				Environment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, TArray<FGuid>({ AssetClassID }));
+
 				// Create generator.
 				FMetasoundGeneratorInitParams InitParams
 				{

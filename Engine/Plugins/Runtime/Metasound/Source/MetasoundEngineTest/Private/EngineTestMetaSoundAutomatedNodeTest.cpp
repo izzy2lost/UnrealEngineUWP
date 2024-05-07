@@ -16,6 +16,7 @@
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundLog.h"
+#include "MetasoundOperatorBuilder.h"
 #include "MetasoundPrimitives.h"
 #include "MetasoundVariableNodes.h"
 #include "MetasoundVertex.h"
@@ -53,6 +54,7 @@ namespace Metasound::EngineTest{
 		Environment.SetValue<bool>(SourceInterface::Environment::IsPreview, false);
 		Environment.SetValue<uint64>(SourceInterface::Environment::TransmitterID, 0);
 		Environment.SetValue<FString>(SourceInterface::Environment::GraphName, TEXT("ENGINE_TEST_REGISTERED_NODES"));
+		Environment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, TArray<FGuid>({ FGuid() }));
 
 		if (Audio::FMixerDevice* MixerDevice = GetAudioMixerDevice())
 		{

@@ -8,13 +8,13 @@ namespace Metasound
 {
 	namespace MetasoundArrayNodesPrivate
 	{
-		FNodeClassMetadata CreateArrayNodeClassMetadata(const FName& InDataTypeName, const FName& InOperatorName, const FText& InDisplayName, const FText& InDescription, const FVertexInterface& InDefaultInterface)
+		FNodeClassMetadata CreateArrayNodeClassMetadata(const FName& InDataTypeName, const FName& InOperatorName, const FText& InDisplayName, const FText& InDescription, const FVertexInterface& InDefaultInterface, int32 MajorVersion, int32 MinorVersion, bool bIsDeprecated)
 		{
 			FNodeClassMetadata Metadata
 			{
 				FNodeClassName{FName("Array"), InOperatorName, InDataTypeName},
-				1, // Major Version
-				0, // Minor Version
+				MajorVersion, 
+				MinorVersion,
 				InDisplayName, 
 				InDescription,
 				PluginAuthor,
@@ -22,7 +22,8 @@ namespace Metasound
 				InDefaultInterface,
 				{ METASOUND_LOCTEXT("ArrayCategory", "Array") },
 				{ METASOUND_LOCTEXT("MetasoundArrayKeyword", "Array") },
-				FNodeDisplayStyle{}
+				FNodeDisplayStyle{}, 
+				bIsDeprecated
 			};
 
 			return Metadata;

@@ -25,6 +25,11 @@ namespace Metasound
 {
 	namespace OperatorBuilder
 	{
+		namespace Environment
+		{
+			const FName GraphHierarchy = "GraphHierarchy";
+		}
+
 		// Shared context used in the builder to maintain state of current build.
 		struct FBuildContext
 		{
@@ -202,7 +207,41 @@ namespace Metasound
 			return false;
 		}
 
-		OperatorBuilder::FBuildContext BuildContext(InParams.Graph, *AlgoAdapter, InParams.OperatorSettings, InParams.Environment, OutGraphOperatorData, OutResults);
+		// Update environment with current graph hierarchy
+		FMetasoundEnvironment NewEnvironment;
+		if (!InParams.Environment.Contains<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy))
+		{
+			// Copy old environment and add new environment variable
+			NewEnvironment = InParams.Environment;
+			TArray<FGuid> GraphHierarchy;
+			GraphHierarchy.Emplace(InParams.Graph.GetInstanceID());
+			NewEnvironment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, GraphHierarchy);
+		}
+		else
+		{
+			// Copy and append to existing environment variable (environment variables aren't modifiable in place)
+			for (const auto& Iter : InParams.Environment)
+			{
+				if (Iter.Key == OperatorBuilder::Environment::GraphHierarchy)
+				{
+					TArray<FGuid> GraphHierarchy;
+					for (const FGuid Id : InParams.Environment.GetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy))
+					{
+						GraphHierarchy.Emplace(Id);
+					}
+					GraphHierarchy.Emplace(InParams.Graph.GetInstanceID());
+
+					NewEnvironment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, GraphHierarchy);
+				}
+				else
+				{
+					// Copy other environment variables
+					NewEnvironment.SetValue(Iter.Value->Clone());
+				}
+			}
+		}
+
+		OperatorBuilder::FBuildContext BuildContext(InParams.Graph, *AlgoAdapter, InParams.OperatorSettings, NewEnvironment, OutGraphOperatorData, OutResults);
 
 		// Sort the nodes in a valid execution order
 		BuildStatus |= DepthFirstTopologicalSort(BuildContext, OutNodeOrder);
