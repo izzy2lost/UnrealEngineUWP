@@ -96,6 +96,12 @@ private:
 
 	/** Gets the text to be displayed for warning/status updates */
 	FText GetStatusText() const;
+	
+	/** Gets the text to be displayed at the center of the graph */
+    FText GetCenteredStatusText() const;
+
+	/** Gets the visibility for the text which can be displayed at the center of the graph */
+	EVisibility GetCenteredStatusVisibility() const;
 
 	/** Called when the path is being edited */
 	void OnAddressBarTextChanged(const FText& NewText);

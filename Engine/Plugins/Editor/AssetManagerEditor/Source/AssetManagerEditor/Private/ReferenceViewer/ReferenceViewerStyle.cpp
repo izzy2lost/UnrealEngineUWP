@@ -89,6 +89,20 @@ FReferenceViewerStyle::FReferenceViewerStyle()
 	Set("Icons.Filters", new CORE_IMAGE_BRUSH_SVG("Starship/Common/filter", IconSize));
 	Set("Icons.Duplicate",      new IMAGE_BRUSH_SVG("/GraphNode_Duplicate_8px", IconSize, FStyleColors::White));
 
+	// Centered Status Text
+	{
+		static constexpr FLinearColor CenteredStatusColor = FLinearColor(1, 1, 1, 0.3f);
+		static constexpr float OutlineWidth = 2.0f;
+
+		Set("Graph.CenteredStatusText", FTextBlockStyle(NormalText)
+			.SetFont( DEFAULT_FONT( "BoldCondensed", 16 ) )
+			.SetColorAndOpacity(CenteredStatusColor)
+		);
+
+		// A rounded box brush, showing only its border
+		Set( "Graph.CenteredStatusBrush", new FSlateRoundedBoxBrush(FLinearColor::Transparent, BodyRadius, CenteredStatusColor, OutlineWidth));
+	}
+
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
 

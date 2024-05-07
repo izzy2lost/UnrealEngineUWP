@@ -572,6 +572,30 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 				SNew(STextBlock)
 				.Text(this, &SReferenceViewer::GetStatusText)
 			]
+
+			+SOverlay::Slot()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0, 0, 0, 16))
+			[
+				SNew(SBox)
+				.MinDesiredWidth(325.0f)
+				.MinDesiredHeight(50.0f)
+				[
+					// Show text within a rounded border
+					SNew(SBorder)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.BorderImage(FReferenceViewerStyle::Get().GetBrush("Graph.CenteredStatusBrush"))
+					.Visibility(this, &SReferenceViewer::GetCenteredStatusVisibility)
+					[
+						SNew(STextBlock)
+						.Justification(ETextJustify::Center)
+						.TextStyle(FReferenceViewerStyle::Get(), "Graph.CenteredStatusText")
+						.Text(this, &SReferenceViewer::GetCenteredStatusText)
+					]
+				]
+			]
 		]
 	];
 
@@ -833,6 +857,10 @@ FText SReferenceViewer::GetAddressBarText() const
 			{
 				return FText::Format(LOCTEXT("AddressBarMultiplePackagesText", "{0} and {1} others"), FText::FromString(CurrentGraphRootPackageNames[0].ToString()), FText::AsNumber(CurrentGraphRootPackageNames.Num()));
 			}
+			else
+			{
+				return LOCTEXT("NoAssetFoundText", "No Assets Found");
+			}
 		}
 		else
 		{
@@ -878,6 +906,26 @@ FText SReferenceViewer::GetStatusText() const
 	}
 
 	return FText();
+}
+
+FText SReferenceViewer::GetCenteredStatusText() const
+{
+	if (GraphObj && GraphObj->Nodes.IsEmpty())
+	{
+		return LOCTEXT("NoAssets", "No Assets Found");
+	}
+
+	return FText();
+}
+
+EVisibility SReferenceViewer::GetCenteredStatusVisibility() const
+{
+	if (GraphObj && GraphObj->Nodes.IsEmpty())
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
 }
 
 void SReferenceViewer::OnAddressBarTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo)
