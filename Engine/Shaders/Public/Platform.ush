@@ -285,6 +285,33 @@
 #define COMPILER_NEEDS_DETERMINANT 0
 #endif
 
+#if COMPILER_DXC == 1
+
+#define SHADER_PUSH_WARNINGS_STATE  _Pragma("dxc diagnostic push")
+#define SHADER_POP_WARNINGS_STATE   _Pragma("dxc diagnostic pop")
+
+// DXC requires several pragmas because there isn't a warning group that covers all cases
+#define SHADER_DISABLE_WARNINGS 								\
+	_Pragma("dxc diagnostic ignored \"-Wall\"") 				\
+	_Pragma("dxc diagnostic ignored \"-Wconversion\"") 			\
+	_Pragma("dxc diagnostic ignored \"-Wfor-redefinition\"") 	\
+	_Pragma("dxc diagnostic ignored \"-Winline-asm\"")
+
+#endif
+
+// If the shader compiler does not suport disabling warnings locally, these macros will be empty
+#ifndef SHADER_DISABLE_WARNINGS
+#define SHADER_DISABLE_WARNINGS
+#endif
+
+#ifndef SHADER_PUSH_WARNINGS_STATE
+#define SHADER_PUSH_WARNINGS_STATE
+#endif
+
+#ifndef SHADER_POP_WARNINGS_STATE
+#define SHADER_POP_WARNINGS_STATE
+#endif
+
 // ---------------------------------------------------- Alternative floating point types
 
 #ifndef FORCE_FLOATS

@@ -308,11 +308,16 @@ float4 GetDynamicParameter(FMaterialParticleParameters Parameters, float4 Defaul
 
 }
 
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
+
 /** Material declarations */
 %{material_declarations}
 
 /** FMaterialAttributes utilities */
 %{material_attributes_utilities}
+
+SHADER_POP_WARNINGS_STATE
 
 /** 
  * Parameters calculated from the pixel material inputs.
@@ -3300,7 +3305,12 @@ float4 NeuralBufferOutput(FMaterialPixelParameters Parameters, float4 BufferIndi
 #define SwizzleDeriv4(_V, _MASK) ConstructFloatDeriv4(_V.Value._MASK, _V.Ddx._MASK, _V.Ddy._MASK)
 
 // Uniform material expressions.
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
+
 %{uniform_material_expressions}
+
+SHADER_POP_WARNINGS_STATE
 
 #if USE_ANALYTIC_DERIVATIVES && TEXTURE_SAMPLE_DEBUG
 MaterialFloat4 DebugTextureCommon(const int Mode, float2 UV, MaterialFloat2 DDX, MaterialFloat2 DDY, MaterialFloat Scale)
@@ -3423,7 +3433,10 @@ half3 GetMaterialEmissive(FPixelMaterialInputs PixelMaterialInputs)
 
 half3 GetMaterialEmissiveForCS(FMaterialPixelParameters Parameters)
 {
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
 %{get_material_emissive_for_cs};
+SHADER_POP_WARNINGS_STATE
 }
 
 // Shading Model is an uint and represents a SHADINGMODELID_* in ShadingCommon.ush 
@@ -3494,6 +3507,9 @@ half GetMaterialAnisotropy(FPixelMaterialInputs PixelMaterialInputs)
 	return clamp(GetMaterialAnisotropyRaw(PixelMaterialInputs), -1.0f, 1.0f);
 }
 
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
+
 half GetMaterialTranslucencyDirectionalLightingIntensity()
 {
 %{get_material_translucency_directional_lighting_intensity};
@@ -3535,6 +3551,9 @@ half GetMaterialOpacityMaskClipValue()
 {
 %{get_material_opacity_mask_clip_value};
 }
+
+SHADER_POP_WARNINGS_STATE
+
 
 #if USES_DISPLACEMENT && IS_NANITE_PASS
 
@@ -3611,7 +3630,10 @@ float3 ClampWorldPositionOffset(FMaterialVertexParameters Parameters, float3 InO
 
 float3 GetMaterialWorldPositionOffsetRaw(FMaterialVertexParameters Parameters)
 {
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
 %{get_material_world_position_offset_raw};
+SHADER_POP_WARNINGS_STATE
 }
 
 float3 GetMaterialWorldPositionOffset(FMaterialVertexParameters Parameters)
@@ -3626,7 +3648,10 @@ float3 GetMaterialWorldPositionOffset(FMaterialVertexParameters Parameters)
 
 float3 GetMaterialPreviousWorldPositionOffsetRaw(FMaterialVertexParameters Parameters)
 {
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
 %{get_material_previous_world_position_offset_raw};
+SHADER_POP_WARNINGS_STATE
 }
 
 float3 GetMaterialPreviousWorldPositionOffset(FMaterialVertexParameters Parameters)
@@ -3652,6 +3677,9 @@ half4 GetMaterialSubsurfaceData(FPixelMaterialInputs PixelMaterialInputs)
 	return OutSubsurface;
 }
 
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
+
 half GetMaterialCustomData0(in out FMaterialPixelParameters Parameters)
 {
 %{get_material_custom_data0};
@@ -3661,6 +3689,8 @@ half GetMaterialCustomData1(in out FMaterialPixelParameters Parameters)
 {
 %{get_material_custom_data1};
 }
+
+SHADER_POP_WARNINGS_STATE
 
 half GetMaterialAmbientOcclusionRaw(FPixelMaterialInputs PixelMaterialInputs)
 {
@@ -3714,6 +3744,9 @@ FMaterialRefractionData GetMaterialRefraction(FPixelMaterialInputs PixelMaterial
 }
 
 #if NUM_TEX_COORD_INTERPOLATORS
+
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
 void GetMaterialCustomizedUVs(FMaterialVertexParameters Parameters, inout float2 OutTexCoords[NUM_TEX_COORD_INTERPOLATORS])
 {
 %{get_material_customized_u_vs}
@@ -3723,6 +3756,8 @@ void GetCustomInterpolators(FMaterialVertexParameters Parameters, inout float2 O
 {
 %{get_custom_interpolators}
 }
+SHADER_POP_WARNINGS_STATE
+
 #endif
 
 float GetMaterialPixelDepthOffset(FPixelMaterialInputs PixelMaterialInputs)
@@ -3802,8 +3837,13 @@ float GetRoughnessFromNormalCurvature(FMaterialPixelParameters InMaterialParamet
 #endif
 }
 
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
+
 // EvaluateMaterialAttributes
 %{evaluate_material_attributes}
+
+SHADER_POP_WARNINGS_STATE
 
 // We must to flip the normal of two sided SLW material with normal specified in world space.
 #define TWO_SIDED_WORLD_SPACE_SINGLELAYERWATER_NORMAL (MATERIAL_SHADINGMODEL_SINGLELAYERWATER && !MATERIAL_TANGENTSPACENORMAL && MATERIAL_TWOSIDED)
@@ -3813,10 +3853,13 @@ float GetRoughnessFromNormalCurvature(FMaterialPixelParameters InMaterialParamet
 // derivatives. If you change anything, make sure that both functions stay identical. 
 void CalcPixelMaterialInputs(in out FMaterialPixelParameters Parameters, in out FPixelMaterialInputs PixelMaterialInputs)
 {
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
 	// Initial calculations (required for Normal)
 %{calc_pixel_material_inputs_initial_calculations}
 	// The Normal is a special case as it might have its own expressions and also be used to calculate other inputs, so perform the assignment here
 %{calc_pixel_material_inputs_normal}
+SHADER_POP_WARNINGS_STATE
 
 #if TEMPLATE_USES_SUBSTRATE
 	Parameters.SubstratePixelFootprint = SubstrateGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
@@ -3859,8 +3902,11 @@ void CalcPixelMaterialInputs(in out FMaterialPixelParameters Parameters, in out 
 	Parameters.Particle.MotionBlurFade = 1.0f;
 #endif // !PARTICLE_SPRITE_FACTORY
 
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
 	// Now the rest of the inputs
 %{calc_pixel_material_inputs_other_inputs}
+SHADER_POP_WARNINGS_STATE
 
 #if MATERIAL_USES_ANISOTROPY
 	Parameters.WorldTangent = CalculateAnisotropyTangent(Parameters, PixelMaterialInputs);
@@ -3875,10 +3921,13 @@ void CalcPixelMaterialInputs(in out FMaterialPixelParameters Parameters, in out 
 #define DERIV_BASE_VALUE(_X) _X.Value
 void CalcPixelMaterialInputsAnalyticDerivatives(in out FMaterialPixelParameters Parameters, in out FPixelMaterialInputs PixelMaterialInputs)
 {
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
 	// Initial calculations (required for Normal)
 %{calc_pixel_material_inputs_analytic_derivatives_initial}
 	// The Normal is a special case as it might have its own expressions and also be used to calculate other inputs, so perform the assignment here
 %{calc_pixel_material_inputs_analytic_derivatives_normal}
+SHADER_POP_WARNINGS_STATE
 
 #if TEMPLATE_USES_SUBSTRATE
 	Parameters.SubstratePixelFootprint = SubstrateGetPixelFootprint(Parameters.WorldPosition_CamRelative, GetRoughnessFromNormalCurvature(Parameters));
@@ -3921,8 +3970,13 @@ void CalcPixelMaterialInputsAnalyticDerivatives(in out FMaterialPixelParameters 
 	Parameters.Particle.MotionBlurFade = 1.0f;
 #endif // !PARTICLE_SPRITE_FACTORY
 
+SHADER_PUSH_WARNINGS_STATE
+SHADER_DISABLE_WARNINGS
+
 	// Now the rest of the inputs
 %{calc_pixel_material_inputs_analytic_derivatives_other_inputs}
+
+SHADER_POP_WARNINGS_STATE
 
 #if MATERIAL_USES_ANISOTROPY
 	Parameters.WorldTangent = CalculateAnisotropyTangent(Parameters, PixelMaterialInputs);
