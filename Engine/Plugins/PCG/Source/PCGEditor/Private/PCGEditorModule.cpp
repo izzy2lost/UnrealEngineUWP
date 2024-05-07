@@ -279,7 +279,7 @@ void FPCGEditorModule::RegisterMenuExtensions()
 					FUIAction(
 						FExecuteAction::CreateLambda([]()
 						{
-							const bool bWasPaused = PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread();
+							const bool bWasPaused = PCGSystemSwitches::CVarPausePCGExecution.GetValueOnAnyThread();
 
 							if (bWasPaused)
 							{
@@ -307,17 +307,17 @@ void FPCGEditorModule::RegisterMenuExtensions()
 								}
 							}
 
-							PCGComponent::CVarPausePCGExecution->Set(!bWasPaused);
+							PCGSystemSwitches::CVarPausePCGExecution->Set(!bWasPaused);
 						}),
 						FIsActionButtonVisible::CreateLambda([](){ return true; }),
 						FIsActionChecked::CreateLambda([]()
 						{
-							return PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread();
+							return PCGSystemSwitches::CVarPausePCGExecution.GetValueOnAnyThread();
 						})
 					),
 					TAttribute<FText>::CreateLambda([]()
 					{
-						if(PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread())
+						if(PCGSystemSwitches::CVarPausePCGExecution.GetValueOnAnyThread())
 						{
 							return LOCTEXT("PCGPauseButton_Off", "Paused");
 						}

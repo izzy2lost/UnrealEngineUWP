@@ -26,6 +26,21 @@ namespace PCGFeatureSwitches
 	};
 }
 
+namespace PCGSystemSwitches
+{
+#if WITH_EDITOR
+	TAutoConsoleVariable<bool> CVarPausePCGExecution(
+		TEXT("pcg.PauseExecution"),
+		false,
+		TEXT("Pauses all execution of PCG but does not cancel tasks."));
+
+	TAutoConsoleVariable<bool> CVarGlobalDisableRefresh(
+			TEXT("pcg.GlobalDisableRefresh"),
+			false,
+			TEXT("Disable refresh for all PCG Components."));
+#endif
+}
+
 namespace PCGHiGenGrid
 {
 	bool IsValidGridSize(uint32 InGridSize)

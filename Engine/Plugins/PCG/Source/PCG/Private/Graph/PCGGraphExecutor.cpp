@@ -601,7 +601,7 @@ void FPCGGraphExecutor::Execute()
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::Execute);
 
 #if WITH_EDITOR
-	if (PCGComponent::CVarPausePCGExecution.GetValueOnAnyThread())
+	if (PCGSystemSwitches::CVarPausePCGExecution.GetValueOnAnyThread())
 	{
 		return;
 	}

@@ -64,18 +64,6 @@
 
 namespace PCGComponent
 {
-	static TAutoConsoleVariable<bool> CVarGlobalDisableRefresh(
-		TEXT("pcg.GlobalDisableRefresh"),
-		false,
-		TEXT("Disable refresh for all PCG Components."));
-
-#if WITH_EDITOR
-	TAutoConsoleVariable<bool> CVarPausePCGExecution(
-		TEXT("pcg.PauseExecution"),
-		false,
-		TEXT("Pauses all execution of PCG but does not cancel tasks."));
-#endif
-
 	template <typename DelegateType>
 	static void BroadcastDynamicDelegate(const DelegateType& Delegate, UPCGComponent* PCGComponent)
 	{
@@ -2353,7 +2341,7 @@ void UPCGComponent::Refresh(EPCGChangeType ChangeType, bool bCancelExistingRefre
 	}
 
 	// If refresh is disabled, just exit
-	if (PCGComponent::CVarGlobalDisableRefresh.GetValueOnAnyThread() || IsRunningCommandlet())
+	if (PCGSystemSwitches::CVarGlobalDisableRefresh.GetValueOnAnyThread() || IsRunningCommandlet())
 	{
 		return;
 	}

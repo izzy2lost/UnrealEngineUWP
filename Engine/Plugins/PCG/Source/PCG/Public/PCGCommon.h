@@ -186,6 +186,14 @@ namespace PCGFeatureSwitches
 	extern PCG_API TAutoConsoleVariable<float> CVarSamplerMemoryThreshold;
 }
 
+namespace PCGSystemSwitches
+{
+#if WITH_EDITOR
+	extern PCG_API TAutoConsoleVariable<bool> CVarPausePCGExecution;
+	extern TAutoConsoleVariable<bool> CVarGlobalDisableRefresh;
+#endif
+}
+
 /** Describes space referential for operations that create data */
 UENUM(BlueprintType)
 enum class EPCGCoordinateSpace : uint8
