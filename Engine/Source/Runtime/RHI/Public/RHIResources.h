@@ -1059,6 +1059,8 @@ public:
 	inline void SetSortKey(uint64 InSortKey) { SortKey = InSortKey; }
 	inline uint64 GetSortKey() const { return SortKey; }
 
+	virtual FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const = 0;
+
 private:
 	uint64 SortKey = 0;
 
@@ -4425,6 +4427,19 @@ public:
 	FRHIGraphicsPipelineStateFallBack(const FGraphicsPipelineStateInitializer& Init)
 		: Initializer(Init)
 	{
+	}
+
+	FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const override
+	{
+		switch (Frequency)
+		{
+		case SF_Vertex: return Initializer.BoundShaderState.GetVertexShader();
+		case SF_Mesh: return Initializer.BoundShaderState.GetMeshShader();
+		case SF_Amplification: return Initializer.BoundShaderState.GetAmplificationShader();
+		case SF_Pixel: return Initializer.BoundShaderState.GetPixelShader();
+		case SF_Geometry: return Initializer.BoundShaderState.GetGeometryShader();
+		default: return nullptr;
+		}
 	}
 
 	FGraphicsPipelineStateInitializer Initializer;

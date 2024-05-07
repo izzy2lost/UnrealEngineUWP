@@ -196,7 +196,7 @@ public:
 
 	const FVulkanShader* GetCurrentShader(EShaderFrequency Frequency) const
 	{
-		return (CurrentPipeline ? CurrentPipeline->GetShader(Frequency) : nullptr);
+		return (CurrentPipeline ? CurrentPipeline->GetVulkanShader(Frequency) : nullptr);
 	}
 
 	void SetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ)

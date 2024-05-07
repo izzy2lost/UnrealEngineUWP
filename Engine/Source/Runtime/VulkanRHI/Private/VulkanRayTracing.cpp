@@ -1681,7 +1681,7 @@ int32 FVulkanRayTracingPipelineState::GetShaderIndex(const FVulkanRayTracingShad
 	return INDEX_NONE;
 }
 
-const FVulkanRayTracingShader* FVulkanRayTracingPipelineState::GetShader(EShaderFrequency Frequency, int32 ShaderIndex) const
+const FVulkanRayTracingShader* FVulkanRayTracingPipelineState::GetVulkanShader(EShaderFrequency Frequency, int32 ShaderIndex) const
 {
 	return GetShaderData(Frequency).Shaders[ShaderIndex].GetReference();
 }
@@ -2173,7 +2173,7 @@ static void SetRayTracingHitGroup(
 #endif // DO_CHECK
 
 	const uint32 PrefixedSegmentIndex = SceneInitializer.SegmentPrefixSum[InstanceIndex];
-	const FVulkanRayTracingShader* Shader = Pipeline->GetShader(SF_RayHitGroup, HitGroupIndex);
+	const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(SF_RayHitGroup, HitGroupIndex);
 
 	const FVulkanRayTracingGeometry* Geometry = ResourceCast(SceneInitializer.PerInstanceGeometries[InstanceIndex]);
 	FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[SegmentIndex];
@@ -2196,7 +2196,7 @@ static void SetGenericSystemParameters(
 	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
 	const uint32 WorkerIndex = 0;
 	FVulkanRayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline);
-	const FVulkanRayTracingShader* Shader = Pipeline->GetShader(ShaderFrequency, ShaderIndexInPipeline);
+	const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(ShaderFrequency, ShaderIndexInPipeline);
 
 	FVulkanHitGroupSystemParameters SystemParameters;
 	FMemory::Memzero(SystemParameters);

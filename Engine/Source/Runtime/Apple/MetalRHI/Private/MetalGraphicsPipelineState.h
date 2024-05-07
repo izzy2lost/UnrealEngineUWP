@@ -21,6 +21,38 @@ class FMetalGraphicsPipelineState : public FRHIGraphicsPipelineState
 public:
 	virtual ~FMetalGraphicsPipelineState();
 
+	FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const override
+	{
+		switch (Frequency)
+		{
+		case SF_Vertex: return VertexShader;
+		case SF_Pixel: return PixelShader;
+
+		case SF_Geometry:
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+			return GeometryShader;
+#else
+			return nullptr;
+#endif
+
+		case SF_Mesh:
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+			return MeshShader;
+#else
+			return nullptr;
+#endif
+
+		case SF_Amplification:
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+			return AmplificationShader;
+#else
+			return nullptr;
+#endif
+
+		default: return nullptr;
+		}
+	}
+
 	FMetalShaderPipelinePtr GetPipeline();
 
 	/** Cached vertex structure */

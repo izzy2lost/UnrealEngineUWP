@@ -271,7 +271,7 @@ public:
 	}
 
 	int32 GetShaderIndex(const FVulkanRayTracingShader* Shader) const;
-	const FVulkanRayTracingShader* GetShader(EShaderFrequency Frequency, int32 ShaderIndex) const;
+	const FVulkanRayTracingShader* GetVulkanShader(EShaderFrequency Frequency, int32 ShaderIndex) const;
 	const TArray<uint8>& GetShaderHandles(EShaderFrequency Frequency) const;
 
 private:

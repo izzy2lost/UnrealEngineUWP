@@ -725,7 +725,7 @@ public:
 		return ShaderKeys[Stage];
 	}
 
-	inline const FVulkanShader* GetShader(EShaderFrequency Frequency) const
+	inline const FVulkanShader* GetVulkanShader(EShaderFrequency Frequency) const
 	{
 		ShaderStage::EStage Stage = ShaderStage::GetStageForFrequency(Frequency);
 		return VulkanShaders[Stage];
@@ -734,6 +734,19 @@ public:
 	inline VkPipeline GetVulkanPipeline() const
 	{
 		return VulkanPipeline;
+	}
+
+	FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const override
+	{
+		switch (Frequency)
+		{
+		case SF_Vertex: return static_cast<FVulkanVertexShader*>(VulkanShaders[ShaderStage::Vertex]);
+		case SF_Pixel: return static_cast<FVulkanPixelShader*>(VulkanShaders[ShaderStage::Pixel]);
+#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
+		case SF_Geometry: return static_cast<FVulkanGeometryShader*>(VulkanShaders[ShaderStage::Geometry]);
+#endif
+		default: return nullptr;
+		}
 	}
 
 	void DeleteVkPipeline(bool bImmediate);

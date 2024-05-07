@@ -384,6 +384,19 @@ struct FD3D12GraphicsPipelineState : public FRHIGraphicsPipelineState, FD3D12Pip
 	FORCEINLINE FD3D12AmplificationShader* GetAmplificationShader() const { return (FD3D12AmplificationShader*)PipelineStateInitializer.BoundShaderState.GetAmplificationShader(); }
 	FORCEINLINE FD3D12GeometryShader*      GetGeometryShader() const      { return (FD3D12GeometryShader*)PipelineStateInitializer.BoundShaderState.GetGeometryShader(); }
 
+	FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const override
+	{
+		switch (Frequency)
+		{
+		case SF_Vertex: return PipelineStateInitializer.BoundShaderState.GetVertexShader();
+		case SF_Mesh: return PipelineStateInitializer.BoundShaderState.GetMeshShader();
+		case SF_Amplification: return PipelineStateInitializer.BoundShaderState.GetAmplificationShader();
+		case SF_Pixel: return PipelineStateInitializer.BoundShaderState.GetPixelShader();
+		case SF_Geometry: return PipelineStateInitializer.BoundShaderState.GetGeometryShader();
+		default: return nullptr;
+		}
+	}
+
 	FGraphicsPipelineStateInitializer PipelineStateInitializer;
 	TStaticArray<uint16, MaxVertexElementCount> StreamStrides;
 	bool bShaderNeedsGlobalConstantBuffer[SF_NumStandardFrequencies];
