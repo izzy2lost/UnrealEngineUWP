@@ -73,6 +73,11 @@ struct RIGVM_API FRigVMVariantRef
 {
 	GENERATED_BODY()
 	
+	FRigVMVariantRef(){}
+
+	FRigVMVariantRef(const FSoftObjectPath& InPath, const FRigVMVariant& InVariant)
+		: ObjectPath(InPath), Variant(InVariant) {}
+	
 	FSoftObjectPath ObjectPath;
 	FRigVMVariant Variant;
 };
