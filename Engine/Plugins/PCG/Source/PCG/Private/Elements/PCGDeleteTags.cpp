@@ -7,6 +7,8 @@
 #include "PCGData.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "Algo/AnyOf.h"
+
 #define LOCTEXT_NAMESPACE "PCGDeleteTagsElement"
 
 #if WITH_EDITOR
@@ -103,7 +105,9 @@ bool FPCGDeleteTagsElement::ExecuteInternal(FPCGContext* Context) const
 
 		for (const FString& Tag : Input.Tags)
 		{
-			if (TagsToFilter.Contains(Tag) == bKeepInFilter)
+			if ((Settings->Operator == EPCGStringMatchingOperator::Equal && TagsToFilter.Contains(Tag) == bKeepInFilter) ||
+				(Settings->Operator == EPCGStringMatchingOperator::Substring && Algo::AnyOf(TagsToFilter, [&Tag](const FString& TagToFilter) { return Tag.Contains(TagToFilter); }) == bKeepInFilter) ||
+				(Settings->Operator == EPCGStringMatchingOperator::Matches && Algo::AnyOf(TagsToFilter, [&Tag](const FString& TagToFilter) { return Tag.MatchesWildcard(TagToFilter); }) == bKeepInFilter))
 			{
 				Output.Tags.Add(Tag);
 			}

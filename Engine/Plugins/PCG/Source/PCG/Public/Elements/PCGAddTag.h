@@ -32,9 +32,17 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	/** Comma-separated list of tags to apply to the node */
+	/** Comma-separated list of tags to apply to the node. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
 	FString TagsToAdd;
+
+	/** Common prefix to add to all tags, can be left empty. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	FString Prefix;
+
+	/** Common suffix to add to all tags, can be left empty. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	FString Suffix;
 
 	/** Enables deprecated behavior using spaces as separators. Disable to update the node to current behavior. */
 	UE_DEPRECATED(5.5, "bTokenizeOnWhiteSpace has been deprecated.")

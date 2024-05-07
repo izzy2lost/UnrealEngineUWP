@@ -203,6 +203,14 @@ enum class EPCGCoordinateSpace : uint8
 	LocalComponent
 };
 
+UENUM(BlueprintType)
+enum class EPCGStringMatchingOperator : uint8
+{
+	Equal,
+	Substring,
+	Matches
+};
+
 /** Describes one or more target execution grids. */
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EPCGHiGenGrid : uint32

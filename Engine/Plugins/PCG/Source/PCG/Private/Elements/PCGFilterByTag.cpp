@@ -5,6 +5,8 @@
 #include "PCGCustomVersion.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "Algo/AnyOf.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGFilterByTag)
 
 #define LOCTEXT_NAMESPACE "PCGFilterByTag"
@@ -94,7 +96,9 @@ bool FPCGFilterByTagElement::ExecuteInternal(FPCGContext* Context) const
 
 		for (const FString& Tag : Tags)
 		{
-			if (Input.Tags.Contains(Tag))
+			if((Settings->Operator == EPCGStringMatchingOperator::Equal && Input.Tags.Contains(Tag)) ||
+				(Settings->Operator == EPCGStringMatchingOperator::Substring && Algo::AnyOf(Input.Tags, [&Tag](const FString& InputTag) { return InputTag.Contains(Tag); })) ||
+				(Settings->Operator == EPCGStringMatchingOperator::Matches && Algo::AnyOf(Input.Tags, [&Tag](const FString& InputTag) { return InputTag.MatchesWildcard(Tag); })))
 			{
 				bHasCommonTags = true;
 				break;

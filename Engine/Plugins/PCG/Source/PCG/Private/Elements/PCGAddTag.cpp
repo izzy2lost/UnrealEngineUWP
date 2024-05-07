@@ -55,9 +55,11 @@ bool FPCGAddTagElement::ExecuteInternal(FPCGContext* Context) const
 
 	for (const FString& Tag : TagsArray)
 	{
+		const FString TagToAdd = Settings->Prefix + Tag + Settings->Suffix;
+
 		for (FPCGTaggedData& OutputTaggedData : Context->OutputData.TaggedData)
 		{
-				OutputTaggedData.Tags.Add(Tag);
+			OutputTaggedData.Tags.Add(TagToAdd);
 		}
 	}
 	
