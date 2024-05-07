@@ -8,6 +8,7 @@
 #include "ChaosVDRuntimeModule.h"
 #endif
 
+#include "ChaosDebugDraw/ChaosDDScene.h"
 #include "ClothCollisionSource.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/SkeletalMesh.h"
@@ -19,10 +20,11 @@
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/SkeletalBodySetup.h"
 #include "GameFramework/PawnMovementComponent.h"
-#include "Physics/PhysicsInterfaceCore.h"
+#include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsActorHandle.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsSimulation.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsStats.h"
+#include "Physics/PhysicsInterfaceCore.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "Logging/MessageLog.h"
@@ -1073,6 +1075,14 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 #if WITH_CHAOS_VISUAL_DEBUGGER
 		PhysicsSimulation->GetChaosVDContextData().Id = FChaosVDRuntimeModule::Get().GenerateUniqueID();
 		PhysicsSimulation->GetChaosVDContextData().Type = static_cast<int32>(EChaosVDContextType::Solver);
+#endif
+
+#if CHAOS_DEBUG_DRAW
+		if ((SkeletalMeshComp->GetWorld() != nullptr) && (SkeletalMeshComp->GetWorld()->GetPhysicsScene() != nullptr))
+		{
+			const FString DDName = FString::Format(TEXT("RBAN {0}"), { SkeletalMeshComp->GetName()});
+			PhysicsSimulation->SetDebugDrawScene(DDName, SkeletalMeshComp->GetWorld()->GetPhysicsScene()->GetDebugDrawScene());
+		}
 #endif
 
 		const int32 NumBodies = UsePhysicsAsset->SkeletalBodySetups.Num();

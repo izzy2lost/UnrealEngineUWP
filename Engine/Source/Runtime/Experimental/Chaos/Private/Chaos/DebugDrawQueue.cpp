@@ -7,6 +7,9 @@
 
 namespace Chaos
 {
+	bool bChaosDebugDraw_UseNewQueue = true;
+	FAutoConsoleVariableRef CVarChaos_DebugDraw_UseNewQueue(TEXT("p.Chaos.DebugDraw.UseNewQueue"), bChaosDebugDraw_UseNewQueue, TEXT(""));
+
 	bool bChaosDebugDraw_UseLegacyQueue = false;
 	FAutoConsoleVariableRef CVarChaos_DebugDraw_UseLegacyQueue(TEXT("p.Chaos.DebugDraw.UseLegacyQueue"), bChaosDebugDraw_UseLegacyQueue, TEXT(""));
 

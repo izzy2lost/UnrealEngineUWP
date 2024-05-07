@@ -1715,6 +1715,11 @@ public:
 	FKinematicGeometryParticleHandle* CastToKinematicParticle() { return MHandle->CastToKinematicParticle(); }
 	const FPBDRigidParticleHandle* CastToRigidParticle() const { return MHandle->CastToRigidParticle(); }
 	FPBDRigidParticleHandle* CastToRigidParticle() { return MHandle->CastToRigidParticle(); }
+	const TPBDGeometryCollectionParticleHandleImp<FReal, 3, true>* CastToGeometryCollection() const { return MHandle->CastToGeometryCollection(); }
+	TPBDGeometryCollectionParticleHandleImp<FReal, 3, true>* CastToGeometryCollection() { return MHandle->CastToGeometryCollection(); }
+	const TPBDRigidClusteredParticleHandleImp<FReal, 3, true>* CastToClustered() const { return MHandle->CastToClustered(); }
+	TPBDRigidClusteredParticleHandleImp<FReal, 3, true>* CastToClustered() { return MHandle->CastToClustered(); }
+
 	const FGeometryParticleHandle* GeometryParticleHandle() const { return MHandle; }
 	FGeometryParticleHandle* GeometryParticleHandle() { return MHandle; }
 	//Needed for templated code to be the same

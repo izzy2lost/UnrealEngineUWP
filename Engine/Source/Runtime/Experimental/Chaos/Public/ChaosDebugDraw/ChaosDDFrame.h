@@ -15,7 +15,18 @@
 namespace ChaosDD::Private
 {
 	//
+	// A frame is a sequence of debug draw commands.
+	// A command is just a functor that uses a DD Renderer and can be a simple as drawing
+	// a line, or as complex as drawing a set of rigid bodies, constraints, etc.
+	// 
+	// E.g., See FChaosDDLine, FChaosDDSphere, FChaosDDParticle
+	//
+	using FChaosDDCommand = TFunction<void(const IChaosDDRenderer&)>;
+
+	//
 	// A single frame of debug draw data
+	//
+	// @todo(chaos): move commands to a per-thread buffer and eliminate write locks
 	//
 	class CHAOS_API FChaosDDFrame : public TSharedFromThis<FChaosDDFrame>
 	{
@@ -31,11 +42,11 @@ namespace ChaosDD::Private
 		{
 			if (InCommandQueueLength > 0)
 			{
-				Commands.Reserve(InCommandQueueLength);
+				LatentCommands.Reserve(InCommandQueueLength);
 			}
 		}
 
-		~FChaosDDFrame()
+		virtual ~FChaosDDFrame()
 		{
 		}
 
@@ -59,7 +70,12 @@ namespace ChaosDD::Private
 			return Dt;
 		}
 
-		bool IsInDrawRegion(const FVector& InPos)
+		void SetDrawRegion(const FSphere3d& InRegion)
+		{
+			DrawRegion = InRegion;
+		}
+
+		bool IsInDrawRegion(const FVector& InPos) const
 		{
 			if (DrawRegion.W > 0.0)
 			{
@@ -68,7 +84,7 @@ namespace ChaosDD::Private
 			return true;
 		}
 
-		bool IsInDrawRegion(const FSphere3d& InSphere)
+		bool IsInDrawRegion(const FSphere3d& InSphere) const
 		{
 			if (DrawRegion.W > 0.0)
 			{
@@ -77,64 +93,271 @@ namespace ChaosDD::Private
 			return true;
 		}
 
-		bool IsInDrawRegion(const FBox3d& InBox)
+		bool IsInDrawRegion(const FBox3d& InBox) const
 		{
 			if (DrawRegion.W > 0.0)
 			{
-				const FBox3d DrawRegionBox = FBox3d(DrawRegion.Center - FVector(DrawRegion.W), DrawRegion.Center + FVector(DrawRegion.W));
-				return DrawRegionBox.Intersect(InBox);
+				const double BoxDistanceSq = InBox.ComputeSquaredDistanceToPoint(DrawRegion.Center);
+				return BoxDistanceSq < FMath::Square(DrawRegion.W);
 			}
 			return true;
+		}
+
+		void SetCommandBudget(int32 InCommandBudget)
+		{
+			CommandBudget = InCommandBudget;
 		}
 
 		bool AddToCost(int32 InCost)
 		{
 			FScopeLock Lock(&CommandsCS);
 
-			CommandCost += InCost;
-
 			// A budget of zero means infinite
-			return ((CommandBudget == 0) || (CommandCost <= CommandBudget));
+			if ((CommandCost + InCost <= CommandBudget) || (CommandBudget == 0))
+			{
+				CommandCost += InCost;
+				return true;
+			}
+
+			return false;
 		}
 
-		void EnqueueCommand(const Chaos::FLatentDrawCommand& InCommand)
+		void EnqueueCommand(FChaosDDCommand&& InCommand)
 		{
 			FScopeLock Lock(&CommandsCS);
 
-			Commands.Add(InCommand);
+			Commands.Emplace(MoveTemp(InCommand));
+		}
+
+		void EnqueueLatentCommand(const Chaos::FLatentDrawCommand& InCommand)
+		{
+			FScopeLock Lock(&CommandsCS);
+
+			LatentCommands.Add(InCommand);
 		}
 
 		int32 GetNumCommands() const
 		{
 			FScopeLock Lock(&CommandsCS);
 
-			return Commands.Num();
+			return LatentCommands.Num();
 		}
 
+
+		// VisitorType = void(const FChaosDDCommand& Command)
 		template<typename VisitorType>
 		void VisitCommands(const VisitorType& Visitor)
 		{
 			FScopeLock Lock(&CommandsCS);
 
-			for (const Chaos::FLatentDrawCommand& Command : Commands)
+			for (const FChaosDDCommand& Command : Commands)
 			{
 				Visitor(Command);
 			}
 		}
 
-	private:
+		// VisitorType = void(const Chaos::FLatentDrawCommand& Command)
+		template<typename VisitorType>
+		void VisitLatentCommands(const VisitorType& Visitor)
+		{
+			FScopeLock Lock(&CommandsCS);
+
+			for (const Chaos::FLatentDrawCommand& Command : LatentCommands)
+			{
+				Visitor(Command);
+			}
+		}
+
+		// Used by the global frame to prevent render while queuing commands
+		virtual void BeginWrite()
+		{
+		}
+
+		// Used by the global frame to prevent render while queuing commands
+		virtual void EndWrite()
+		{
+		}
+
+		// Used by the global frame to extract all debug draw commands so far into a new frame for rendering
+		virtual FChaosDDFramePtr ExtractFrame()
+		{
+			const int32 CommandQueueLength = Commands.Max();
+			const int32 LatentCommandQueueLength = LatentCommands.Max();
+
+			FChaosDDFrame* ExtractedFrame = new FChaosDDFrame(MoveTemp(*this));
+
+			Commands.Reset(CommandQueueLength);
+			LatentCommands.Reset(LatentCommandQueueLength);
+			CommandCost = 0;
+
+			return FChaosDDFramePtr(ExtractedFrame);
+		}
+
+	protected:
+		friend class FChaosDDGlobalFrame;
+
+		FChaosDDFrame(FChaosDDFrame&& Other)
+			: Timeline(Other.Timeline)
+			, FrameIndex(Other.FrameIndex)
+			, Time(Other.Time)
+			, Dt(Other.Dt)
+			, DrawRegion(Other.DrawRegion)
+			, CommandBudget(Other.CommandBudget)
+			, CommandCost(Other.CommandCost)
+			, Commands(MoveTemp(Other.Commands))
+			, LatentCommands(MoveTemp(Other.LatentCommands))
+		{
+		}
+
 		FChaosDDTimelineWeakPtr Timeline;
 		int64 FrameIndex;
 		double Time;
 		double Dt;
-		const FSphere3d& DrawRegion;
+		FSphere3d DrawRegion;
 		int32 CommandBudget;
 		int32 CommandCost;
 
-		// Legacy debug draw commands in a lock-protected queue
-		// @todo(chaos): we could move these to the per-thread buffer
-		TArray<Chaos::FLatentDrawCommand> Commands;
+		// Debug draw commands
+		TArray<FChaosDDCommand> Commands;
+
+		// Legacy debug draw commands (see FDebugDrawQueue)
+		TArray<Chaos::FLatentDrawCommand> LatentCommands;
+
 		mutable FCriticalSection CommandsCS;
+	};
+
+	//
+	// A special frame used for out-of-frame debug draw. All debug draw commands from a thread that does not
+	// have a context set up will use the global frame. This global frame suffers will be flickery because
+	// the render may occur while enqueueing a set of related debug draw commands.
+	// 
+	// @todo(chaos): eventually all threads that want debug draw should have a valid frame and this will be redundant.
+	//
+	class CHAOS_API FChaosDDGlobalFrame : public FChaosDDFrame
+	{
+	public:
+
+		FChaosDDGlobalFrame(int32 InCommandBudget)
+			: FChaosDDFrame(FChaosDDTimelinePtr(), 0, 0.0f, 0.0f, FSphere3d(FVector::Zero(), 0.0), InCommandBudget, 0)
+		{
+		}
+
+		virtual void BeginWrite() override
+		{
+			FrameWriteCS.Lock();
+		}
+
+		virtual void EndWrite() override
+		{
+			FrameWriteCS.Unlock();
+		}
+
+		// Create a new frame containing the accumulated commands and reset this frame
+		virtual FChaosDDFramePtr ExtractFrame() override
+		{
+			FScopeLock Lock(&FrameWriteCS);
+
+			return FChaosDDFrame::ExtractFrame();
+		}
+
+	protected:
+
+		mutable FCriticalSection FrameWriteCS;
+	};
+
+	//
+	// Used to write to a debug draw frame.
+	// Currently this writes to the Frame's draw buffer and holds a lock
+	// preventing the frame from being Ended. Eventually this will be a
+	// per-thread buffer to avoid the need for locks.
+	//
+	class CHAOS_API FChaosDDFrameWriter
+	{
+	public:
+		FChaosDDFrameWriter(const FChaosDDFramePtr& InFrame)
+			: Frame(InFrame)
+		{
+			if (Frame.IsValid())
+			{
+				Frame->BeginWrite();
+			}
+		}
+
+		~FChaosDDFrameWriter()
+		{
+			if (Frame.IsValid())
+			{
+				Frame->EndWrite();
+			}
+		}
+
+		bool IsInDrawRegion(const FVector& InPos) const
+		{
+			if (Frame.IsValid())
+			{
+				return Frame->IsInDrawRegion(InPos);
+			}
+			return false;
+		}
+
+		bool IsInDrawRegion(const FSphere3d& InSphere) const
+		{
+			if (Frame.IsValid())
+			{
+				return Frame->IsInDrawRegion(InSphere);
+			}
+			return false;
+		}
+
+		bool IsInDrawRegion(const FBox3d& InBox) const
+		{
+			if (Frame.IsValid())
+			{
+				return Frame->IsInDrawRegion(InBox);
+			}
+			return false;
+		}
+
+		bool AddToCost(int32 InCost)
+		{
+			if (Frame.IsValid())
+			{
+				return Frame->AddToCost(InCost);
+			}
+			return false;
+		}
+
+		bool TryEnqueueCommand(int32 InCost, const FBox3d& InBox, FChaosDDCommand&& InCommand)
+		{
+			if (Frame.IsValid())
+			{
+				if (Frame->IsInDrawRegion(InBox) && Frame->AddToCost(InCost))
+				{
+					Frame->EnqueueCommand(MoveTemp(InCommand));
+					return true;
+				}
+			}
+			return false;
+		}
+
+		void EnqueueCommand(FChaosDDCommand&& InCommand)
+		{
+			if (Frame.IsValid())
+			{
+				Frame->EnqueueCommand(MoveTemp(InCommand));
+			}
+		}
+
+		void EnqueueLatentCommand(const Chaos::FLatentDrawCommand& InCommand)
+		{
+			if (Frame.IsValid())
+			{
+				Frame->EnqueueLatentCommand(InCommand);
+			}
+		}
+
+	private:
+		FChaosDDFramePtr Frame;
 	};
 }
 

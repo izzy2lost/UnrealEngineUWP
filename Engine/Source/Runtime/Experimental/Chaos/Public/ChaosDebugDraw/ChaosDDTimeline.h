@@ -7,6 +7,7 @@
 #include "Containers/Map.h"
 #include "HAL/CriticalSection.h"
 #include "Math/Sphere.h"
+#include "Misc/ScopeLock.h"
 
 #if CHAOS_DEBUG_DRAW
 
@@ -38,11 +39,15 @@ namespace ChaosDD::Private
 
 		void SetDrawRegion(const FSphere3d& InDrawRegion)
 		{
+			FScopeLock Lock(&FramesCS);
+
 			DrawRegion = InDrawRegion;
 		}
 
 		void SetCommandBudget(int32 InCommandBudget)
 		{
+			FScopeLock Lock(&FramesCS);
+
 			CommandBudget = InCommandBudget;
 		}
 

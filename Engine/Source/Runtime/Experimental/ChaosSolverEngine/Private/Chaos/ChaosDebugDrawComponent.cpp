@@ -228,7 +228,22 @@ public:
 		bIsPaused = false;
 	}
 
-	virtual void DrawCommand(const Chaos::FLatentDrawCommand& Command) const override final
+	virtual bool IsServer() const override final
+	{
+		return World->GetNetMode() == ENetMode::NM_DedicatedServer;
+	}
+
+	virtual void RenderLine(const FVector3d& A, const FVector3d& B, const FColor& Color, float LineThickness, float Lifetime) const override final
+	{
+		DrawDebugLine(World, A, B, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
+	}
+
+	virtual void RenderBox(const FVector3d& Position, const FQuat4d& Rotation, const FVector3d& Size, const FColor& Color, float LineThickness, float Lifetime) const override final
+	{
+		DrawDebugBox(World, Position, Size, Rotation, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
+	}
+
+	virtual void RenderLatentCommand(const Chaos::FLatentDrawCommand& Command) const override final
 	{
 		const bool bDrawUe = bChaosDebugDraw_DrawMode != 1;
 		if (bDrawUe)
@@ -402,7 +417,8 @@ void UChaosDebugDrawComponent::TickComponent(float DeltaTime, enum ELevelTick Ti
 				if (!bIsPaused)
 				{
 					FChaosDDRenderer CDDRenderer = FChaosDDRenderer(World, GetOwner());
-					CDDScene->RenderLatestFrames(CDDRenderer);
+					constexpr bool bRenderGlobalFrame = true;
+					CDDScene->RenderLatestFrames(CDDRenderer, bRenderGlobalFrame);
 				}
 			}
 		}

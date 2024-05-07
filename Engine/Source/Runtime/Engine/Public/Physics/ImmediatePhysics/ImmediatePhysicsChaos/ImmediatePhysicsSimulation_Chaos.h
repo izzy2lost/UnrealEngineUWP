@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ChaosDebugDraw/ChaosDDTypes.h"
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsChaos/ImmediatePhysicsCore_Chaos.h"
 
@@ -156,6 +157,15 @@ namespace ImmediatePhysics_Chaos
 			return CVDContextData;
 		};
 #endif
+
+#if CHAOS_DEBUG_DRAW
+	public:
+		ENGINE_API void SetDebugDrawScene(const FString& SceneName, const ChaosDD::Private::FChaosDDScenePtr& InScene);
+
+	private:
+		ChaosDD::Private::FChaosDDTimelinePtr DDSimulationTimeline;
+#endif
+
 	};
 
 }

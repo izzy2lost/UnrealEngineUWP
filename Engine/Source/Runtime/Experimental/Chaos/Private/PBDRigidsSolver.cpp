@@ -1302,7 +1302,7 @@ namespace Chaos
 		const FReal StartSimTime = GetSolverTime();
 
 #if CHAOS_DEBUG_DRAW
-		ChaosDD::Private::FChaosDDContext::BeginFrame(CDDFrameTimeline, StartSimTime, GetLastDt());
+		ChaosDD::Private::FChaosDDScopeTimelineContext DDContext(CDDFrameTimeline, StartSimTime, GetLastDt());
 #endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -1328,20 +1328,11 @@ namespace Chaos
 			//final step so we can destroy proxies
 			DestroyPendingProxies_Internal();
 		}
-
-#if CHAOS_DEBUG_DRAW
-		ChaosDD::Private::FChaosDDContext::EndFrame();
-#endif
 	}
 
 #if CHAOS_DEBUG_DRAW
 	void FPBDRigidsSolver::SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene)
 	{
-		if (CDDScene.IsValid() && CDDFrameTimeline.IsValid())
-		{
-			CDDScene->ReleaseTimeline(CDDFrameTimeline);
-		}
-
 		CDDScene = InCDDScene;
 		CDDFrameTimeline.Reset();
 

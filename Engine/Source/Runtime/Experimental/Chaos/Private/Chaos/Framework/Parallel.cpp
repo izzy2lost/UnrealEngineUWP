@@ -3,6 +3,7 @@
 #include "Chaos/Framework/Parallel.h"
 #include "Async/ParallelFor.h"
 #include "Framework/Threading.h"
+#include "ChaosDebugDraw/ChaosDDContext.h"
 
 namespace Chaos
 {
@@ -65,12 +66,22 @@ void Chaos::PhysicsParallelFor(int32 InNum, TFunctionRef<void(int32)> InCallable
 	const bool bIsInGameThreadContext = false;
 #endif
 
-	auto PassThrough = [InCallable, bIsInPhysicsSimContext, bIsInGameThreadContext](int32 Idx)
+#if CHAOS_DEBUG_DRAW
+	const ChaosDD::Private::FChaosDDContext& ParentDDContext = ChaosDD::Private::FChaosDDContext::Get();
+#else
+	int32 ParentDDContext = 0;
+#endif
+
+	auto PassThrough = [InCallable, bIsInPhysicsSimContext, bIsInGameThreadContext, &ParentDDContext](int32 Idx)
 	{
 #if PHYSICS_THREAD_CONTEXT
 		FPhysicsThreadContextScope PTScope(bIsInPhysicsSimContext);
 		FGameThreadContextScope GTScope(bIsInGameThreadContext);
 #endif
+#if CHAOS_DEBUG_DRAW
+		ChaosDD::Private::FChaosDDScopeTaskContext DDTaskContext(ParentDDContext);
+#endif
+
 		InCallable(Idx);
 	};
 

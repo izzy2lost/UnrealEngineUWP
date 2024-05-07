@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "ChaosDebugDraw/ChaosDDFrame.h"
 #include "ChaosDebugDraw/ChaosDDTypes.h"
+#include "HAL/CriticalSection.h"
 #include "HAL/ThreadSingleton.h"
+#include "Misc/ScopeLock.h"
 
 #if CHAOS_DEBUG_DRAW
 
@@ -17,31 +20,74 @@ namespace ChaosDD::Private
 	public:
 		FChaosDDContext();
 
-		// The frame we should be drawing into on this thread
+		static FChaosDDFrameWriter GetWriter()
+		{
+			return FChaosDDFrameWriter(Get().GetFrame());
+		}
+
+	private:
+		friend class FChaosDDScene;
+		friend class FChaosDDScopeTimelineContext;
+		friend class FChaosDDScopeTaskContext;
+
 		const FChaosDDFramePtr& GetFrame() const
-		{ 
+		{
+			// The frame we should be drawing into on this thread
+			if (!Frame.IsValid())
+			{
+				// If there is no Context set up on this thread we fall back to a global frame that 
+				// is tied to the game thread. If debug draw commands are queued while the game thread
+				// is rendering the DDScene, the commands will be split across frames resulting in flicker
+				// @todo(chaos): ideally we don't have a global frame - try to get rid of it
+				return GetGlobalFrame();
+			}
+
 			return Frame;
 		}
 
-		// The timeline that holds the frames from this thread
-		const FChaosDDTimelinePtr& GetTimeline() const
-		{
-			// NOTE: TimelineStack has null as its first element so that we can always return a shared pointer by ref
-			return TimelineStack.Top();
-		}
+		// Global frame management
+		static const FChaosDDFramePtr& GetGlobalFrame();
+		static void CreateGlobalFrame();
+		static FChaosDDFramePtr ExtractGlobalFrame();
+		static void SetGlobalDrawRegion(const FSphere3d& InDrawRegion);
+		static void SetGlobalCommandBudget(int32 InCommandBudget);
 
-		// Allocate a new frame for the timeline and set up the context
-		static void BeginFrame(const FChaosDDTimelinePtr& InTimeline, double Time, double Dt);
+		// The frame to draw to on this thread (or null)
+		FChaosDDFramePtr Frame;
 
-		// Signal that the frame is complete and can be rendered
-		static void EndFrame();
+		// Global frame: fallback for out-of-context debug draw
+		static FCriticalSection GlobalFrameCS;
+		static FChaosDDFramePtr GlobalFrame;
+		static int32 GlobalCommandBudget;
+	};
+
+	//
+	// A scoped Debug Draw Context for use on the thread that owns the timeline
+	//
+	class CHAOS_API FChaosDDScopeTimelineContext
+	{
+	public:
+		FChaosDDScopeTimelineContext(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt);
+		~FChaosDDScopeTimelineContext();
 
 	private:
-		void UpdateCachedFramePtr();
+		FChaosDDTimelinePtr Timeline;
+		FChaosDDFramePtr ParentFrame;
+	};
 
-		// We need a stack of timelines to handle nested BeginFrame calls. E.g., for sub-steps in the solver.
-		TArray<FChaosDDTimelinePtr> TimelineStack;
-		FChaosDDFramePtr Frame;
+	//
+	// A scoped Debug Draw Context for use in tasks and parallel-for etc.
+	// Assumes that the task is kicked off from a thread that has an active debug draw context,
+	// which should be passed into this context.
+	//
+	class CHAOS_API FChaosDDScopeTaskContext
+	{
+	public:
+		FChaosDDScopeTaskContext(const FChaosDDContext& InParentDDContext);
+		~FChaosDDScopeTaskContext();
+
+	private:
+		FChaosDDFramePtr ParentFrame;
 	};
 }
 

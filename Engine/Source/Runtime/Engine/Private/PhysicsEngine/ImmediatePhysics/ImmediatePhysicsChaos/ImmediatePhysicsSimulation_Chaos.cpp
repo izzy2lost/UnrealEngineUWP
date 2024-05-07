@@ -16,6 +16,8 @@
 #include "Chaos/Joint/ChaosJointLog.h"
 #include "Chaos/MassConditioning.h"
 #include "Chaos/PBDJointConstraints.h"
+#include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDTimeline.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "Stats/StatsTrace.h"
 
@@ -828,6 +830,10 @@ namespace ImmediatePhysics_Chaos
 
 	void FSimulation::DebugDraw()
 	{
+#if CHAOS_DEBUG_DRAW
+		ChaosDD::Private::FChaosDDScopeTimelineContext DDContext(DDSimulationTimeline, 0.0, 0.0);
+#endif
+
 		DebugDrawStaticParticles();
 		DebugDrawKinematicParticles();
 		DebugDrawDynamicParticles();
@@ -1152,4 +1158,14 @@ namespace ImmediatePhysics_Chaos
 		}
 #endif
 	}
+
+#if CHAOS_DEBUG_DRAW
+	void FSimulation::SetDebugDrawScene(const FString& SceneName, const ChaosDD::Private::FChaosDDScenePtr& InScene)
+	{
+		if (InScene.IsValid() && !DDSimulationTimeline.IsValid())
+		{
+			DDSimulationTimeline = InScene->CreateTimeline(SceneName);
+		}
+	}
+#endif
 }

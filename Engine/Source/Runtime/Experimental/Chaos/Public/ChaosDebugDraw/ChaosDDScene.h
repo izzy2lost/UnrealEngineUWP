@@ -17,7 +17,7 @@ namespace ChaosDD::Private
 	// Debug draw system for a world. In PIE there will be one of these for the server and each client.
 	//
 	// @todo(chaos): enable retention of debug draw frames and debug draw from a specific time
-	class CHAOS_API FChaosDDScene
+	class CHAOS_API FChaosDDScene : public TSharedFromThis<FChaosDDScene>
 	{
 	public:
 		FChaosDDScene(const FString& InName);
@@ -35,20 +35,19 @@ namespace ChaosDD::Private
 		void SetCommandBudget(int32 InCommandBudget);
 
 		// Create a new timeline. E.g., PT, GT, RBAN
+		// The caller must hold a shared pointer to the timeline to keep it alive.
 		FChaosDDTimelinePtr CreateTimeline(const FString& Name);
-		
-		// Release a timeline
-		void ReleaseTimeline(const FChaosDDTimelinePtr& Scene);
 
 		// Render the most recent frame from each timeline
-		void RenderLatestFrames(IChaosDDRenderer& Renderer);
+		void RenderLatestFrames(IChaosDDRenderer& Renderer, bool bIncludeGlobalFrame);
 
 	private:
 		TArray<FChaosDDFramePtr> GetFrames();
+		void PruneTimelines();
 
 		FString Name;
 		FCriticalSection TimelinesCS;
-		TArray<FChaosDDTimelinePtr> Timelines;
+		TArray<FChaosDDTimelineWeakPtr> Timelines;
 		FSphere3d DrawRegion;
 		int32 CommandBudget;
 	};

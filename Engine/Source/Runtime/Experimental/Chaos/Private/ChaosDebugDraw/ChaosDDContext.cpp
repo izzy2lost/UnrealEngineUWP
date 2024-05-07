@@ -3,8 +3,9 @@
 #include "ChaosDebugDraw/ChaosDDLog.h"
 #include "ChaosDebugDraw/ChaosDDFrame.h"
 #include "ChaosDebugDraw/ChaosDDTimeline.h"
-
 #include "ChaosLog.h"
+#include "HAL/IConsoleManager.h"
+
 
 DEFINE_LOG_CATEGORY(LogChaosDD);
 
@@ -12,52 +13,138 @@ DEFINE_LOG_CATEGORY(LogChaosDD);
 
 namespace ChaosDD::Private
 {
-	FChaosDDContext::FChaosDDContext()
-	{
-		TimelineStack.Push(FChaosDDTimelinePtr());
-	}
+	bool bChaosDebugDraw_EnableGlobalQueue = true;
+	FAutoConsoleVariableRef CVarChaos_DebugDraw_EnableGlobalQueue(TEXT("p.Chaos.DebugDraw.EnableGlobalQueue"), bChaosDebugDraw_EnableGlobalQueue, TEXT(""));
 
-	void FChaosDDContext::BeginFrame(const FChaosDDTimelinePtr& InTimeline, double Time, double Dt)
-	{
-		FChaosDDContext& Context = Get();
+	FCriticalSection FChaosDDContext::GlobalFrameCS;
+	FChaosDDFramePtr FChaosDDContext::GlobalFrame;
+	int32 FChaosDDContext::GlobalCommandBudget = 20000;
 
+	//
+	//
+	//
+	//
+
+	FChaosDDScopeTimelineContext::FChaosDDScopeTimelineContext(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
+	{
 		if (InTimeline.IsValid())
 		{
-			Context.TimelineStack.Push(InTimeline);
+			Timeline = InTimeline;
+			Timeline->BeginFrame(InTime, InDt);
 
-			Context.GetTimeline()->BeginFrame(Time, Dt);
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			ParentFrame = Context.Frame;
+			Context.Frame = Timeline->GetActiveFrame();
 		}
-
-		Context.UpdateCachedFramePtr();
-
 	}
 
-	void FChaosDDContext::EndFrame()
+	FChaosDDScopeTimelineContext::~FChaosDDScopeTimelineContext()
 	{
-		FChaosDDContext& Context = Get();
-
-		if (Context.GetTimeline().IsValid())
+		if (Timeline.IsValid())
 		{
-			Context.GetTimeline()->EndFrame();
+			Timeline->EndFrame();
+			Timeline.Reset();
 
-			Context.TimelineStack.Pop();
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			Context.Frame = ParentFrame;
+			ParentFrame.Reset();
 		}
-
-		Context.UpdateCachedFramePtr();
 	}
 
-	void FChaosDDContext::UpdateCachedFramePtr()
+	//
+	//
+	//
+	//
+
+	FChaosDDScopeTaskContext::FChaosDDScopeTaskContext(const FChaosDDContext& InParentDDContext)
 	{
-		if (GetTimeline().IsValid())
+		if (InParentDDContext.Frame.IsValid())
 		{
-			Frame = GetTimeline()->GetActiveFrame();
-		}
-		else
-		{
-			Frame.Reset();
+			FChaosDDContext& Context = FChaosDDContext::Get();
+
+			ParentFrame = Context.Frame;
+			Context.Frame = InParentDDContext.Frame;
 		}
 	}
 
+	FChaosDDScopeTaskContext::~FChaosDDScopeTaskContext()
+	{
+		FChaosDDContext& Context = FChaosDDContext::Get();
+
+		Context.Frame = ParentFrame;
+		ParentFrame.Reset();
+	}
+
+	//
+	//
+	//
+	//
+
+	FChaosDDContext::FChaosDDContext()
+	{
+	}
+
+	const FChaosDDFramePtr& FChaosDDContext::GetGlobalFrame()
+	{
+		FScopeLock Lock(&GlobalFrameCS);
+
+		if (!GlobalFrame.IsValid())
+		{
+			CreateGlobalFrame();
+		}
+
+		return GlobalFrame;
+	}
+
+	void FChaosDDContext::CreateGlobalFrame()
+	{
+		if (bChaosDebugDraw_EnableGlobalQueue)
+		{
+			FScopeLock Lock(&GlobalFrameCS);
+
+			GlobalFrame = MakeShared<FChaosDDGlobalFrame>(GlobalCommandBudget);
+		}
+	}
+
+	FChaosDDFramePtr FChaosDDContext::ExtractGlobalFrame()
+	{
+		FScopeLock Lock(&GlobalFrameCS);
+
+		// Handle toggling the cvar in the runtime
+		if (!bChaosDebugDraw_EnableGlobalQueue && GlobalFrame.IsValid())
+		{
+			GlobalFrame.Reset();
+		}
+
+		if (GlobalFrame.IsValid())
+		{
+			return GlobalFrame->ExtractFrame();
+		}
+
+		return {};
+	}
+
+	void FChaosDDContext::SetGlobalDrawRegion(const FSphere3d& InDrawRegion)
+	{
+		FScopeLock Lock(&GlobalFrameCS);
+
+		if (GlobalFrame.IsValid())
+		{
+			GlobalFrame->SetDrawRegion(InDrawRegion);
+		}
+	}
+
+	void FChaosDDContext::SetGlobalCommandBudget(int32 InCommandBudget)
+	{
+		FScopeLock Lock(&GlobalFrameCS);
+
+		GlobalCommandBudget = InCommandBudget;
+
+		if (GlobalFrame.IsValid())
+		{
+			GlobalFrame->SetCommandBudget(InCommandBudget);
+		}
+	}
 }
 
 #endif

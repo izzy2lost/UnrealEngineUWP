@@ -22,7 +22,15 @@ namespace ChaosDD::Private
 		IChaosDDRenderer() {}
 		virtual ~IChaosDDRenderer() {}
 
-		virtual void DrawCommand(const Chaos::FLatentDrawCommand& Command) const = 0;
+		// Are we rendering a Server scene?
+		virtual bool IsServer() const = 0;
+
+		// Utility functions for use by Debug Draw commands (e.g., FChaosDDLine)
+		virtual void RenderLine(const FVector3d& A, const FVector3d& B, const FColor& Color, float LineThickness, float Lifetime) const = 0;
+		virtual void RenderBox(const FVector3d& Position, const FQuat4d& Rotation, const FVector3d& Size, const FColor& Color, float LineThickness, float Lifetime) const = 0;
+
+		// Render legacy debug draw command (See FChaosDDScene::RenderLatestFrames)
+		virtual void RenderLatentCommand(const Chaos::FLatentDrawCommand& Command) const = 0;
 	};
 }
 

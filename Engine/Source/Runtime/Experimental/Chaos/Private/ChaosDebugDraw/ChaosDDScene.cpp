@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDContext.h"
 #include "ChaosDebugDraw/ChaosDDFrame.h"
 #include "ChaosDebugDraw/ChaosDDLog.h"
 #include "ChaosDebugDraw/ChaosDDRenderer.h"
@@ -9,6 +10,18 @@
 
 namespace ChaosDD::Private
 {
+	template<typename LambdaType>
+	void VisitTimelines(const TArray<FChaosDDTimelineWeakPtr>& Timelines, const LambdaType& Visitor)
+	{
+		for (const FChaosDDTimelineWeakPtr& TimelineWeak : Timelines)
+		{
+			if (const FChaosDDTimelinePtr& Timeline = TimelineWeak.Pin())
+			{
+				Visitor(Timeline);
+			}
+		}
+	}
+
 	FChaosDDScene::FChaosDDScene(const FString& InName)
 		: Name(InName)
 		, DrawRegion(FVector::Zero(), 0.0)
@@ -26,10 +39,15 @@ namespace ChaosDD::Private
 
 		DrawRegion = InDrawRegion;
 
-		for (const FChaosDDTimelinePtr& Timeline : Timelines)
-		{
-			Timeline->SetDrawRegion(InDrawRegion);
-		}
+		VisitTimelines(Timelines,
+			[&InDrawRegion](const FChaosDDTimelinePtr& Timeline)
+			{
+				Timeline->SetDrawRegion(InDrawRegion);
+			});
+
+		// The global timeline doesn't use a draw region because it could be shared
+		// among multiple viewports and they probably don't want the same region
+		//FChaosDDContext::SetGlobalDrawRegion(InDrawRegion);
 	}
 
 	void FChaosDDScene::SetCommandBudget(int32 InCommandBudget)
@@ -38,10 +56,13 @@ namespace ChaosDD::Private
 
 		CommandBudget = InCommandBudget;
 
-		for (const FChaosDDTimelinePtr& Timeline : Timelines)
-		{
-			Timeline->SetCommandBudget(InCommandBudget);
-		}
+		VisitTimelines(Timelines,
+			[InCommandBudget](const FChaosDDTimelinePtr& Timeline)
+			{
+				Timeline->SetCommandBudget(InCommandBudget);
+			});
+
+		FChaosDDContext::SetGlobalCommandBudget(InCommandBudget);
 	}
 
 	FChaosDDTimelinePtr FChaosDDScene::CreateTimeline(const FString& InName)
@@ -50,37 +71,40 @@ namespace ChaosDD::Private
 
 		FChaosDDTimelinePtr Timeline = MakeShared<FChaosDDTimeline>(InName, CommandBudget);
 
-		Timelines.Add(Timeline);
+		Timelines.Add(Timeline.ToWeakPtr());
 
 		return Timeline;
 	}
 
-	void FChaosDDScene::ReleaseTimeline(const FChaosDDTimelinePtr& InTimeline)
-	{
-		FScopeLock Lock(&TimelinesCS);
-
-		for (int32 TimelineIndex = 0; TimelineIndex < Timelines.Num(); ++TimelineIndex)
-		{
-			if (Timelines[TimelineIndex].Get() == InTimeline.Get())
-			{
-				Timelines.RemoveAt(TimelineIndex, 1, EAllowShrinking::No);
-			}
-		}
-	}
-
-	void FChaosDDScene::RenderLatestFrames(IChaosDDRenderer& Renderer)
+	void FChaosDDScene::RenderLatestFrames(IChaosDDRenderer& Renderer, bool bIncludeGlobalFrame)
 	{
 		TArray<FChaosDDFramePtr> Frames = GetFrames();
+
+		if (bIncludeGlobalFrame)
+		{
+			Frames.Add(FChaosDDContext::ExtractGlobalFrame());
+		}
+
 		for (const FChaosDDFramePtr& Frame : Frames)
 		{
-			UE_LOG(LogChaosDD, VeryVerbose, TEXT("Render %s %d %d Commands"), *Frame->GetTimeline()->GetName(), Frame->GetFrameIndex(), Frame->GetNumCommands());
+			if (Frame.IsValid())
+			{
+				UE_LOG(LogChaosDD, VeryVerbose, TEXT("Render %s %d %d Commands"), *Frame->GetTimeline()->GetName(), Frame->GetFrameIndex(), Frame->GetNumCommands());
 
-			// Render the legacy commands
-			Frame->VisitCommands(
-				[&Renderer](const Chaos::FLatentDrawCommand& Command)
-				{
-					Renderer.DrawCommand(Command);
-				});
+				// Render the legacy commands
+				Frame->VisitLatentCommands(
+					[&Renderer](const Chaos::FLatentDrawCommand& Command)
+					{
+						Renderer.RenderLatentCommand(Command);
+					});
+
+				// Render the commands
+				Frame->VisitCommands(
+					[&Renderer](const FChaosDDCommand& Command)
+					{
+						Command(Renderer);
+					});
+			}
 		}
 	}
 
@@ -89,11 +113,26 @@ namespace ChaosDD::Private
 		FScopeLock Lock(&TimelinesCS);
 
 		TArray<FChaosDDFramePtr> Frames;
-		for (const FChaosDDTimelinePtr& Timeline : Timelines)
-		{
-			Timeline->GetFrames(Frames);
-		}
+
+		VisitTimelines(Timelines,
+			[&Frames](const FChaosDDTimelinePtr& Timeline)
+			{
+				Timeline->GetFrames(Frames);
+			});
+
 		return Frames;
+	}
+
+	void FChaosDDScene::PruneTimelines()
+	{
+		FScopeLock Lock(&TimelinesCS);
+
+		// Remove all timelines that have been deleted
+		Timelines.RemoveAll(
+			[](const FChaosDDTimelineWeakPtr& Timeline)
+			{
+				return !Timeline.IsValid();
+			});
 	}
 }
 

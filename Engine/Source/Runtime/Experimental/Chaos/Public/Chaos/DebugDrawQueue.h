@@ -21,6 +21,7 @@ class AActor;
 #if CHAOS_DEBUG_DRAW
 namespace Chaos
 {
+extern CHAOS_API bool bChaosDebugDraw_UseNewQueue;
 extern CHAOS_API bool bChaosDebugDraw_UseLegacyQueue;
 
 /** Thread-safe single-linked list (lock-free). (Taken from Light Mass, should probably just move into core) */
@@ -295,43 +296,47 @@ private:
 
 	bool AcceptCommand(int Cost, const FVec3& Position)
 	{
-		if (!bChaosDebugDraw_UseLegacyQueue)
+		if (bChaosDebugDraw_UseNewQueue)
 		{
-			const ChaosDD::Private::FChaosDDFramePtr& DDFrame = ChaosDD::Private::FChaosDDContext::Get().GetFrame();
-			if (DDFrame.IsValid())
+			ChaosDD::Private::FChaosDDFrameWriter DDWriter = ChaosDD::Private::FChaosDDContext::Get().GetWriter();
+			if (DDWriter.IsInDrawRegion(Position))
 			{
-				if (DDFrame->IsInDrawRegion(Position))
-				{
-					return DDFrame->AddToCost(Cost);
-				}
-				return false;
+				return DDWriter.AddToCost(Cost);
+			}
+			return false;
+		}
+
+		// If we get here...
+		// This thread has not been set up for the new debug draw system so default back to the old
+		// way that has issues with timing in async mode.
+		if (bChaosDebugDraw_UseLegacyQueue)
+		{
+			if (IsInRegionOfInterest(Position))
+			{
+				RequestedCommandCost += Cost;
+				return IsInBudget();
 			}
 		}
 
-		if (IsInRegionOfInterest(Position))
-		{
-			RequestedCommandCost += Cost;
-			return IsInBudget();
-		}
 		return false;
 	}
 
 	void AddCommand(const FLatentDrawCommand& Command)
 	{
 		// Try to add to the new debug draw system which queues commands per World and ticking thread
-		if (!bChaosDebugDraw_UseLegacyQueue)
+		if (bChaosDebugDraw_UseNewQueue)
 		{
-			const ChaosDD::Private::FChaosDDFramePtr& DDFrame = ChaosDD::Private::FChaosDDContext::Get().GetFrame();
-			if (DDFrame.IsValid())
-			{
-				DDFrame->EnqueueCommand(Command);
-				return;
-			}
+			ChaosDD::Private::FChaosDDContext::GetWriter().EnqueueLatentCommand(Command);
+			return;
 		}
 
+		// If we get here...
 		// This thread has not been set up for the new debug draw system so default back to the old
 		// way that has issues with timing in async mode.
-		CommandQueue.Add(Command);
+		if (bChaosDebugDraw_UseLegacyQueue)
+		{
+			CommandQueue.Add(Command);
+		}
 	}
 
 	bool IsInBudget() const
