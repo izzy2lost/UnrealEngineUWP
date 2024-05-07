@@ -32,9 +32,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		WidgetStyle = UE::Slate::Private::FDefaultStyleCache::GetEditor().GetButtonStyle();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		// The CDO isn't an editor widget and thus won't use the editor style, call post edit change to mark difference from CDO
-		PostEditChange();
 	}
 #endif // WITH_EDITOR
 

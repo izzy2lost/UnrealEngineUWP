@@ -22,9 +22,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (IsEditorWidget())
 	{
 		WidgetStyle = UE::Slate::Private::FDefaultStyleCache::GetEditor().GetProgressBarStyle();
-
-		// The CDO isn't an editor widget and thus won't use the editor style, call post edit change to mark difference from CDO
-		PostEditChange();
 	}
 #endif // WITH_EDITOR
 

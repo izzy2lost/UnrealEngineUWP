@@ -27,12 +27,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ItemStyle = IsEditorWidget() ? UE::Slate::Private::FDefaultStyleCache::GetEditor().GetTableRowStyle() : UE::Slate::Private::FDefaultStyleCache::GetRuntime().GetTableRowStyle();
 		ScrollBarStyle = IsEditorWidget() ? UE::Slate::Private::FDefaultStyleCache::GetEditor().GetScrollBarStyle() : UE::Slate::Private::FDefaultStyleCache::GetRuntime().GetScrollBarStyle();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		if (IsEditorWidget())
-		{
-			// The CDO isn't an editor widget and thus won't use the editor style, call post edit change to mark difference from CDO
-			PostEditChange();
-		}
 #else
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		WidgetStyle = UE::Slate::Private::FDefaultStyleCache::GetRuntime().GetComboBoxStyle();

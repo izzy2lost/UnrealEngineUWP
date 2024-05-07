@@ -30,9 +30,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (IsEditorWidget())
 	{
 		Image = UE::Slate::Private::FDefaultStyleCache::GetEditor().GetThrobberBrush();
-
-		// The CDO isn't an editor widget and thus won't use the editor style, call post edit change to mark difference from CDO
-		PostEditChange();
 	}
 #endif // WITH_EDITOR
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
