@@ -697,11 +697,18 @@ void FUnrealMutableImageProvider::CacheRuntimeReferencedImages(const TSharedRef<
 	ModelImages.SourceTextures.Reset();
 	for (const TSoftObjectPtr<UTexture2D>& RuntimeReferencedTexture : RuntimeReferencedTextures)
 	{
+		const bool bNotLoaded = !RuntimeReferencedTexture.IsValid();
+		
 		UTexture2D* Texture = RuntimeReferencedTexture.LoadSynchronous();
 		if (!Texture)
 		{
 			UE_LOG(LogMutable, Warning, TEXT("Failed to load texture [%s]."), *RuntimeReferencedTexture->GetPathName());
 			continue;
+		}
+		
+		if (bNotLoaded)
+		{
+			Texture->MarkAsGarbage();
 		}
 
 		ModelImages.SourceTextures.Emplace(*Texture);
