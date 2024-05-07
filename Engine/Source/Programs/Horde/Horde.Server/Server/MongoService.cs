@@ -270,7 +270,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public MongoService(IOptions<ServerSettings> settingsSnapshot, RedisService redisService, Tracer tracer, ILogger<MongoService> logger, ILoggerFactory loggerFactory)
+		public MongoService(IOptions<ServerSettings> settingsSnapshot, RedisService redisService, MongoCommandTracer mongoTracer, Tracer tracer, ILogger<MongoService> logger, ILoggerFactory loggerFactory)
 		{
 			if (s_existingInstance != null)
 			{
@@ -332,6 +332,11 @@ namespace Horde.Server.Server
 					if (_logger.IsEnabled(LogLevel.Trace))
 					{
 						clusterBuilder.Subscribe<CommandStartedEvent>(ev => TraceMongoCommand(ev.Command));
+					}
+
+					if (settingsSnapshot.Value.OpenTelemetry.Enabled)
+					{
+						mongoTracer.Register(clusterBuilder);
 					}
 				};
 
