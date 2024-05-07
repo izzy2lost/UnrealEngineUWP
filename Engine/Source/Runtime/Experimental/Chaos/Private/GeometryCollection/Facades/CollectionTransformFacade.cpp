@@ -356,7 +356,7 @@ namespace GeometryCollection::Facades
 	}
 
 
-	CHAOS_API void FCollectionTransformFacade::EnforceSingleRoot(FString RootName)
+	CHAOS_API void FCollectionTransformFacade::EnforceSingleRoot(const FString & RootName)
 	{
 		TArray<int32> Roots = GetRootIndices();
 		if (Roots.Num() > 1)
@@ -367,7 +367,7 @@ namespace GeometryCollection::Facades
 			{
 				const TManagedArray<FString>& BoneName = BoneNameAttribute.Get();
 
-				auto MakeUnique = [&BoneName](FString& NewName)
+				auto MakeUnique = [&BoneName](FString NewName)
 				{
 					int32 CurrentIndex = 1;
 					FString TestName = NewName;
