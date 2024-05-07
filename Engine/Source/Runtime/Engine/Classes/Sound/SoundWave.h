@@ -1751,8 +1751,14 @@ public:
 	ENGINE_API const uint8* GetResourceData() const;
 
 	ENGINE_API const FSoundWavePtr GetSoundWaveData();
-
+	
+	friend FORCEINLINE uint32 GetTypeHash(const FSoundWaveProxy& InProxy)
+	{
+		return InProxy.TypeHash;
+	}
+	
 private:
 	TSharedPtr<FSoundWaveData, ESPMode::ThreadSafe> SoundWaveDataPtr;
+	uint32 TypeHash = INDEX_NONE;
 };
 

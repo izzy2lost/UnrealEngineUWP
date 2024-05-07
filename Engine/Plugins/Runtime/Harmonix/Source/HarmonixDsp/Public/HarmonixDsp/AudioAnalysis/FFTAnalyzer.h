@@ -44,6 +44,11 @@ struct HARMONIXDSP_API FHarmonixFFTAnalyzerResults
 	
 	UPROPERTY(BlueprintReadOnly, Category="Results")
 	TArray<float> Spectrum;
+	
+	friend FORCEINLINE uint32 GetTypeHash(const FHarmonixFFTAnalyzerResults& InAnalyzerResults)
+	{
+		return GetTypeHash(InAnalyzerResults.Spectrum);
+	}
 };
 
 namespace Harmonix::Dsp::AudioAnalysis

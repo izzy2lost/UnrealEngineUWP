@@ -50,6 +50,11 @@ namespace Metasound
 		{
 			return SoundWaveProxy.Get();
 		}
+
+		friend FORCEINLINE uint32 GetTypeHash(const Metasound::FWaveAsset& InWaveAsset)
+		{
+			return GetTypeHash(*InWaveAsset.GetSoundWaveProxy());
+		}
 	};
 
 	DECLARE_METASOUND_DATA_REFERENCE_TYPES(FWaveAsset, METASOUNDENGINE_API, FWaveAssetTypeInfo, FWaveAssetReadRef, FWaveAssetWriteRef)

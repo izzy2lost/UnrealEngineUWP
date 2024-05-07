@@ -58,6 +58,11 @@ public:
 		return Bar < Other.Bar ||
 			(Bar == Other.Bar && Beat < Other.Beat);
 	}
+	
+	friend FORCEINLINE uint32 GetTypeHash(const FMusicTimestamp& InTimestamp)
+	{
+		return HashCombineFast(GetTypeHash(InTimestamp.Bar), GetTypeHash(InTimestamp.Beat));
+	}
 };
 
 /** A simple container for a musical time signature (numerator and denominator.) */
@@ -90,6 +95,11 @@ public:
 	int16 Numerator;
 	UPROPERTY()
 	int16 Denominator;
+
+	friend FORCEINLINE uint32 GetTypeHash(const FTimeSignature& InTimeSignature)
+	{
+		return HashCombineFast(GetTypeHash(InTimeSignature.Numerator), GetTypeHash(InTimeSignature.Denominator));
+	}
 };
 
 /** A time signature associated with a specific tick in a midi file. */

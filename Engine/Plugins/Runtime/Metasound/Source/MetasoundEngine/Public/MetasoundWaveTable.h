@@ -76,6 +76,11 @@ namespace Metasound
 		{
 			return Proxy.Get();
 		}
+		
+		friend FORCEINLINE uint32 GetTypeHash(const Metasound::FWaveTableBankAsset& InWaveTableBankAsset)
+		{
+			return GetTypeHash(*InWaveTableBankAsset.GetProxy());
+		}
 	};
 
 	// Disable arrays of WaveTables (as of addition, not supported by UX). Must be defined prior to DataType declaration macro below.

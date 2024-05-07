@@ -30,6 +30,11 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = "MusicTransport", meta = (EditCondition = "Type == ESeekPointType::Millisecond", EditConditionHides))
 	float Ms = 0.0f;
+	
+	friend FORCEINLINE uint32 GetTypeHash(const FMusicSeekTarget& InSeekTarget)
+	{
+		return HashCombineFast(HashCombineFast(GetTypeHash(InSeekTarget.Ms), GetTypeHash(InSeekTarget.BarBeat)), GetTypeHash(InSeekTarget.Type));
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -61,6 +66,11 @@ public:
 	{
 		EmmediateIfPastFromPoint = false;
 		FromPoint  = ToPoint  = FMusicTimestamp();
+	}
+	
+	friend FORCEINLINE uint32 GetTypeHash(const FMusicSeekRequest& InSeekRequest)
+	{
+		return HashCombineFast(HashCombineFast(GetTypeHash(InSeekRequest.FromPoint), GetTypeHash(InSeekRequest.ToPoint)), InSeekRequest.EmmediateIfPastFromPoint);
 	}
 };
 

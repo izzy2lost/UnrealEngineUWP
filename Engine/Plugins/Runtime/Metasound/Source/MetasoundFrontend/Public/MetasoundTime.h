@@ -358,7 +358,12 @@ namespace Metasound
 				static_assert(TIsArithmetic<ArithmeticType>::Value, "Must be arithmetic type.");
 				return FTime(static_cast<TimeType>(InMicroseconds * 1e-6));
 			}
-
+			
+			friend FORCEINLINE uint32 GetTypeHash(const FTime& InTime)
+			{
+				return ::GetTypeHash(InTime.Time);
+			}
+			
 			friend FSampleCounter;
 	};
 

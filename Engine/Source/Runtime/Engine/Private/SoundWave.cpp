@@ -4668,6 +4668,7 @@ FSoundWaveProxy::FSoundWaveProxy(USoundWave* InWave)
 	{
 		UE_LOG(LogAudio, Warning, TEXT("FSoundWaveProxy doesn't have audio data! bIsStreaming = %d, bHasResourceData = %d, Sound = %s"), bIsStreaming, bHasResourceData, *InWave->GetName());
 	}
+	TypeHash = ::GetTypeHash(InWave);
 }
 
 FSoundWaveProxy::~FSoundWaveProxy()

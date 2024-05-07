@@ -1396,6 +1396,7 @@ void UMediaPlayer::OpenSourceLatent(const UObject* WorldContextObject, FLatentAc
 FMediaPlayerProxy::FMediaPlayerProxy(UMediaPlayer* Player)
 {
 	PlayerFacade = Player->GetPlayerFacade();
+	TypeHash = GetTypeHash(Player);
 }
 
 FMediaPlayerProxy::~FMediaPlayerProxy()

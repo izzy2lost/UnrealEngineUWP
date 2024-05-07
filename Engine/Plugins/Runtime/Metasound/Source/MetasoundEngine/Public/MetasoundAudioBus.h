@@ -29,7 +29,11 @@ namespace Metasound
 		{
 			return AudioBusProxy;
 		}
-		
+
+		friend FORCEINLINE uint32 GetTypeHash(const Metasound::FAudioBusAsset& InAudioBusAsset)
+		{
+			return GetTypeHash(*InAudioBusAsset.GetAudioBusProxy());
+		}
 	};
 
 	DECLARE_METASOUND_DATA_REFERENCE_TYPES(FAudioBusAsset, METASOUNDENGINE_API, FAudioBusAssetTypeInfo, FAudioBusAssetReadRef, FAudioBusAssetWriteRef)

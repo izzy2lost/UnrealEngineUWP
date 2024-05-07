@@ -153,8 +153,14 @@ public:
 		return(PlayerFacade.Pin());
 	}
 
+	friend FORCEINLINE uint32 GetTypeHash(const FMediaPlayerProxy& InProxy)
+	{
+		return InProxy.TypeHash;
+	}
+
 private:
 	TWeakPtr<FMediaPlayerFacade, ESPMode::ThreadSafe> PlayerFacade;
+	uint32 TypeHash = INDEX_NONE;
 };
 using FMediaPlayerProxyPtr = TSharedPtr<FMediaPlayerProxy, ESPMode::ThreadSafe>;
 

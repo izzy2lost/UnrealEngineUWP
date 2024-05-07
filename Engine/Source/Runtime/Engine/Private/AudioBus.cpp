@@ -14,6 +14,7 @@ FAudioBusProxy::FAudioBusProxy(UAudioBus* InAudioBus)
 	{
 		AudioBusId = InAudioBus->GetUniqueID();
 		NumChannels = InAudioBus->GetNumChannels();
+		TypeHash = ::GetTypeHash(InAudioBus);
 	}
 }
 

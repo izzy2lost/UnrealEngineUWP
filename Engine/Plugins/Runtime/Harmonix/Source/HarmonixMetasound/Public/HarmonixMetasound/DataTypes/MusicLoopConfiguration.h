@@ -35,6 +35,11 @@ public:
 		, RegionStart(InRegionStart)
 		, RegionEnd(InRegionEnd)
 	{}
+	
+	friend FORCEINLINE uint32 GetTypeHash(const FMusicLoopConfiguration& InConfiguration)
+	{
+		return HashCombineFast(HashCombineFast(GetTypeHash(InConfiguration.RegionStart), GetTypeHash(InConfiguration.RegionEnd)), InConfiguration.Enabled);
+	}
 };
 
 // NOTE: Since there is no corresponding cpp file, the corresponding REGISTER_METASOUND_DATATYPE is in MidiClock.cpp

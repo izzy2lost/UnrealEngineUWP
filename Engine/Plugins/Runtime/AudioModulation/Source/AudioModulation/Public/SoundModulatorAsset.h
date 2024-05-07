@@ -69,6 +69,11 @@ namespace AudioModulation
 		{
 			return Proxy.Get();
 		}
+				
+		friend FORCEINLINE uint32 GetTypeHash(const AudioModulation::FSoundModulatorAsset& InModulatorAsset)
+		{
+			return InModulatorAsset->GetModulatorId();
+		}
 	};
 
 	class AUDIOMODULATION_API FSoundModulationParameterAsset
@@ -102,6 +107,11 @@ namespace AudioModulation
 		FSoundModulationParameterAssetProxy* operator->()
 		{
 			return Proxy.Get();
+		}
+
+		friend FORCEINLINE uint32 GetTypeHash(const AudioModulation::FSoundModulationParameterAsset& InModulationParameterAsset)
+		{
+			return GetTypeHash(InModulationParameterAsset->GetParameter());
 		}
 	};
 } // namespace AudioModulation

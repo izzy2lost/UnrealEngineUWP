@@ -123,6 +123,13 @@ public:
 		return Type == Other.Type && Status == Other.Status && Data1 == Other.Data1 && Data2 == Other.Data2;
 	}
 
+	friend FORCEINLINE uint32 GetTypeHash(const FMidiMsg& InMidiMsg)
+	{
+		return HashCombineFast(
+			HashCombineFast(GetTypeHash(InMidiMsg.Type), GetTypeHash(InMidiMsg.Status)),
+			HashCombineFast(GetTypeHash(InMidiMsg.Data1), GetTypeHash(InMidiMsg.Data2)));
+	}
+
 	EType Type;
 	// Use a union instead of subclassing MidiMsg so that MidiMsg is 
 	// constant size and therefore you can have a vector<MidiMsg>.
