@@ -564,11 +564,14 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 
 			// Sources View
 			+ SSplitter::Slot()
-			.Value(0.15f)
+			.Resizable(true)
+			.SizeRule(SSplitter::SizeToContent)
+			.OnSlotResized(this, &SContentBrowser::OnPathViewBoxColumnResized)
 			[
 				SNew(SBox)
 				.Padding(FMargin(4.f))
 				.Visibility(this, &SContentBrowser::GetSourcesViewVisibility)
+				.WidthOverride(this, &SContentBrowser::GetPathViewBoxWidthOverride)
 				[
 					SNew(SBorder)
 					.Padding(FMargin(0))
@@ -1542,6 +1545,16 @@ SSplitter::ESizeRule SContentBrowser::GetCollectionsAreaSizeRule() const
 {
 	// Make sure the area is expanded and visible 
 	return CollectionArea->IsExpanded() && GetDockedCollectionsVisibility() == EVisibility::Visible ? SSplitter::ESizeRule::FractionOfParent : SSplitter::ESizeRule::SizeToContent;
+}
+
+void SContentBrowser::OnPathViewBoxColumnResized(float InSize)
+{
+	PathViewBoxWidth = InSize;
+}
+
+FOptionalSize SContentBrowser::GetPathViewBoxWidthOverride() const
+{
+	return FOptionalSize(PathViewBoxWidth);
 }
 
 float SContentBrowser::GetFavoritesAreaMinSize() const

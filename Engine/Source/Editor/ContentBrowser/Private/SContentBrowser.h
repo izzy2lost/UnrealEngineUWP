@@ -612,6 +612,12 @@ private:
 	SSplitter::ESizeRule GetPathAreaSizeRule() const;
 	SSplitter::ESizeRule GetCollectionsAreaSizeRule() const;
 
+	/** Called when the Splitter containing the PathVew Box gets resized */
+	void OnPathViewBoxColumnResized(float InSize);
+
+	/** Returns the PathView Box width */
+	FOptionalSize GetPathViewBoxWidthOverride() const;
+
 	/** Gets the min size for various areas. When areas are not visible the min size is 0, otherwise there is a minimum size to prevent overlap */
 	float GetFavoritesAreaMinSize() const;
 	float GetCollectionsAreaMinSize() const;
@@ -722,6 +728,9 @@ private:
 
 	/** True if source should not be changed from an outside source */
 	bool bIsLocked = false;
+
+	/** Starting width of the PathView Box */
+	float PathViewBoxWidth = 150.f;
 
 	/** Cached result of CanWriteToPath to avoid recalculating it every frame */
 	mutable bool bCachedCanWriteToCurrentPath = false;
