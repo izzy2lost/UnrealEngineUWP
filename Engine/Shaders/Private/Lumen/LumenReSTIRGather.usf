@@ -266,6 +266,9 @@ Texture2D<UNORM float3> DownsampledNormalHistory;
 #include "LumenHardwareRayTracingCommon.ush"
 
 RaytracingAccelerationStructure TLAS;
+float MaxRayIntensity;
+float MaxTraceDistance;
+int ApplySkyLight;
 
 RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 {
@@ -378,10 +381,7 @@ RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledWorldNormal;
 
-float MaxTraceDistance;
 float PullbackBias;
-int ApplySkyLight;
-float MaxRayIntensity;
 
 RAY_TRACING_ENTRY_RAYGEN(LumenInitialSamplingRGS)
 {
