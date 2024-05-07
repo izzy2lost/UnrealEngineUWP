@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
 #include "MovementMode.h"
+#include "InstantMovementEffect.h"
 #include "MovementModeStateMachine.generated.h"
 
 struct FProposedMove;
@@ -59,6 +60,8 @@ public:
 	const UBaseMovementMode* FindMovementMode(FName ModeName) const;
 
 	void QueueLayeredMove(TSharedPtr<FLayeredMoveBase> Move);
+	
+ 	void QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect> Effect);
 
 protected:
 
@@ -76,10 +79,14 @@ protected:
 	/** Moves that are queued to be added to the simulation at the start of the next sim subtick */
 	TArray<TSharedPtr<FLayeredMoveBase>> QueuedLayeredMoves;
 
+ 	/** Effects that are queued to be applied to the simulation at the start of the next sim subtick or at the end of this tick */
+ 	TArray<TSharedPtr<FInstantMovementEffect>> QueuedInstantEffects;
+ 	
 private:
 	void ConstructDefaultModes();
 	void AdvanceToNextMode();
 	void FlushQueuedMovesToGroup(FLayeredMoveGroup& Group);
+ 	bool ApplyInstantEffects(FApplyMovementEffectParams& ApplyEffectParams, FMoverSyncState& OutputState);
 	AActor* GetOwnerActor() const;
 };
 

@@ -18,6 +18,7 @@
 #include "MoverComponent.generated.h"
 
 struct FMoverTimeStep;
+struct FInstantMovementEffect;
 class UMovementModeStateMachine;
 class UMovementMixer;
 
@@ -144,6 +145,17 @@ public:
 
 	// Queue a layered move to start during the next simulation frame
 	void QueueLayeredMove(TSharedPtr<FLayeredMoveBase> Move);
+	
+	/**
+	 * Queue a Instant Movement Effect to start at the end of this frame or start of the next subtick - whichever happens first. This will clone whatever move you pass in, so you'll need to fully set it up before queuing.
+	 * @param InstantMovementEffect			The effect to queue, which must be a FInstantMovementEffect sub-type. 
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = Mover, meta = (CustomStructureParam = "EffectAsRawData", AllowAbstract = "false", DisplayName = "Queue Instant Movement Effect"))
+	void K2_QueueInstantMovementEffect(UPARAM(DisplayName="Instant Movement Effect") const int32& EffectAsRawData);
+	DECLARE_FUNCTION(execK2_QueueInstantMovementEffect);
+
+	// Queue a Instant Movement Effect to take place at the end of this frame or start of the next subtick - whichever happens first
+	void QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect> Move);
 	
 	// Queue a movement mode change to occur during the next simulation frame. If bShouldReenter is true, then a mode change will occur even if already in that mode.
 	UFUNCTION(BlueprintCallable, Category = Mover)

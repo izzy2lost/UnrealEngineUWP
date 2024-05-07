@@ -11,6 +11,7 @@
 #include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoverLog.h"
+#include "InstantMovementEffect.h"
 #include "Backends/MoverNetworkPredictionLiaison.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -866,6 +867,43 @@ DEFINE_FUNCTION(UMoverComponent::execK2_QueueLayeredMove)
 void UMoverComponent::QueueLayeredMove(TSharedPtr<FLayeredMoveBase> LayeredMove)
 {	
 	ModeFSM->QueueLayeredMove(LayeredMove);
+}
+
+void UMoverComponent::K2_QueueInstantMovementEffect(const int32& EffectAsRawData)
+{
+	// This will never be called, the exec version below will be hit instead
+	checkNoEntry();
+}
+
+DEFINE_FUNCTION(UMoverComponent::execK2_QueueInstantMovementEffect)
+{
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+	void* EffectPtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+
+	const bool bHasValidStructProp = StructProp && StructProp->Struct && StructProp->Struct->IsChildOf(FInstantMovementEffect::StaticStruct());
+
+	if (ensureMsgf((bHasValidStructProp && EffectPtr), TEXT("An invalid type (%s) was sent to a QueueInstantMovementEffect node. A struct derived from FInstantMovementEffect is required. No Movement Effect will be queued."),
+		StructProp ? *GetNameSafe(StructProp->Struct) : *Stack.MostRecentProperty->GetClass()->GetName()))
+	{
+		// Could we steal this instead of cloning? (move semantics)
+		FInstantMovementEffect* EffectAsBasePtr = reinterpret_cast<FInstantMovementEffect*>(EffectPtr);
+		FInstantMovementEffect* ClonedMove = EffectAsBasePtr->Clone();
+
+		P_THIS->QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect>(ClonedMove));
+	}
+
+	P_NATIVE_END;
+}
+
+
+void UMoverComponent::QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect> InstantMovementEffect)
+{	
+	ModeFSM->QueueInstantMovementEffect(InstantMovementEffect);
 }
 
 void UMoverComponent::K2_FindActiveLayeredMove(bool& DidSucceed, int32& TargetAsRawBytes) const

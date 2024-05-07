@@ -198,6 +198,11 @@ void FMoverDataCollection::ToString(FAnsiStringBuilderBase& Out) const
 	}
 }
 
+TArray<TSharedPtr<FMoverDataStructBase>>::TConstIterator FMoverDataCollection::GetCollectionDataIterator() const
+{
+	return DataArray.CreateConstIterator();
+}
+
 struct FMoverDataDeleter
 {
 	FORCEINLINE void operator()(FMoverDataStructBase* Object) const

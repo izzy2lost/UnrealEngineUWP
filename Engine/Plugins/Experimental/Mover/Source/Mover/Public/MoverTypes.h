@@ -165,6 +165,9 @@ struct MOVER_API FMoverDataCollection
 	/** Get string representation of all elements in this collection */
 	void ToString(FAnsiStringBuilderBase& Out) const;
 
+	/** Const access to data array of collections */
+	TArray<TSharedPtr<FMoverDataStructBase>>::TConstIterator GetCollectionDataIterator() const;
+	
 	/** Find data of a specific type in the collection (mutable version). If not found, null will be returned. */
 	template <typename T>
 	T* FindMutableDataByType() const
