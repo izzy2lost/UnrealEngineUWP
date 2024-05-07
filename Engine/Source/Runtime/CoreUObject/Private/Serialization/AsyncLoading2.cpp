@@ -418,7 +418,7 @@ static FAutoConsoleVariableRef CVarGOnlyProcessRequiredPackagesWhenSyncLoading(
 	ECVF_Default
 );
 
-static float GStallDetectorTimeout = 30.0f;
+static float GStallDetectorTimeout = 120.0f;
 static FAutoConsoleVariableRef CVarGStallDetectorTimeout(
 	TEXT("s.StallDetectorTimeout"),
 	GStallDetectorTimeout,
