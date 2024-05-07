@@ -25,7 +25,7 @@ namespace mu
 
 		Ptr<NodeColour> m_pColour;
 		int32 m_sizeX, m_sizeY;
-		EImageFormat Format = EImageFormat::IF_RGB_UBYTE;
+		EImageFormat Format = EImageFormat::IF_RGBA_UBYTE;
 
 	};
 
