@@ -49,6 +49,9 @@ UCEClonerComponent::UCEClonerComponent()
 #if WITH_EDITOR
 	// Do not show bounding box around cloner for better visibility
 	SetIsVisualizationComponent(true);
+
+	// Disable use of bounds to focus to avoid de-zoom
+	SetIgnoreBoundsForEditorFocus(true);
 #endif
 
 	bIsEditorOnly = false;
@@ -438,6 +441,11 @@ void UCEClonerComponent::OnActorPropertyChanged(UObject* InObject, FPropertyChan
 
 void UCEClonerComponent::OnMaterialChanged(UObject* InObject)
 {
+	if (!IsValid(InObject))
+	{
+		return;
+	}
+
 	const AActor* ClonerActor = GetOwner();
 
 	if (!ClonerActor)
@@ -445,109 +453,118 @@ void UCEClonerComponent::OnMaterialChanged(UObject* InObject)
 		return;
 	}
 
-	if (AActor* ActorChanged = Cast<AActor>(InObject))
+	AActor* ActorChanged = Cast<AActor>(InObject);
+	ActorChanged = ActorChanged ? ActorChanged : InObject->GetTypedOuter<AActor>();
+
+	if (!ActorChanged)
 	{
-		if (FCEClonerAttachmentItem* Item = ClonerTree.ItemAttachmentMap.Find(ActorChanged))
+		return;
+	}
+
+	FCEClonerAttachmentItem* AttachmentItem = ClonerTree.ItemAttachmentMap.Find(ActorChanged);
+
+	if (!AttachmentItem)
+	{
+		return;
+	}
+
+	int32 MatIdx = 0;
+	TArray<TWeakObjectPtr<UMaterialInterface>> NewMaterials;
+	bool bMaterialChanged = false;
+
+	TArray<UDynamicMeshComponent*> DynamicMeshComponents;
+	ActorChanged->GetComponents(DynamicMeshComponents, false);
+	for (const UDynamicMeshComponent* DynamicMeshComponent : DynamicMeshComponents)
+	{
+		for (UMaterialInterface* Material : DynamicMeshComponent->GetMaterials())
 		{
-			int32 MatIdx = 0;
-			TArray<TWeakObjectPtr<UMaterialInterface>> NewMaterials;
-			bool bMaterialChanged = false;
-
-			TArray<UDynamicMeshComponent*> DynamicMeshComponents;
-			ActorChanged->GetComponents(DynamicMeshComponents, false);
-			for (const UDynamicMeshComponent* DynamicMeshComponent : DynamicMeshComponents)
+			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
 			{
-				for (UMaterialInterface* Material : DynamicMeshComponent->GetMaterials())
-				{
-					if (!Item->BakedMaterials.IsValidIndex(MatIdx) || Item->BakedMaterials[MatIdx] != Material)
-					{
-						bMaterialChanged = true;
-					}
-					NewMaterials.Add(Material);
-					MatIdx++;
-				}
+				bMaterialChanged = true;
 			}
-
-			TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
-			ActorChanged->GetComponents(SkeletalMeshComponents, false);
-			for (const USkeletalMeshComponent* SkeletalMeshComponent : SkeletalMeshComponents)
-			{
-				for (UMaterialInterface* Material : SkeletalMeshComponent->GetMaterials())
-				{
-					if (!Item->BakedMaterials.IsValidIndex(MatIdx) || Item->BakedMaterials[MatIdx] != Material)
-					{
-						bMaterialChanged = true;
-					}
-					NewMaterials.Add(Material);
-					MatIdx++;
-				}
-			}
-
-			TArray<UBrushComponent*> BrushComponents;
-			ActorChanged->GetComponents(BrushComponents, false);
-			for (const UBrushComponent* BrushComponent : BrushComponents)
-			{
-				for (int32 Idx = 0; Idx < BrushComponent->GetNumMaterials(); Idx++)
-				{
-					if (!Item->BakedMaterials.IsValidIndex(MatIdx) || Item->BakedMaterials[MatIdx] != BrushComponent->GetMaterial(Idx))
-					{
-						bMaterialChanged = true;
-					}
-					NewMaterials.Add(BrushComponent->GetMaterial(Idx));
-					MatIdx++;
-				}
-			}
-
-			TArray<UProceduralMeshComponent*> ProceduralMeshComponents;
-			ActorChanged->GetComponents(ProceduralMeshComponents, false);
-			for (const UProceduralMeshComponent* ProceduralMeshComponent : ProceduralMeshComponents)
-			{
-				if (ProceduralMeshComponent->GetNumSections() == 0)
-				{
-					continue;
-				}
-				for (UMaterialInterface* Material : ProceduralMeshComponent->GetMaterials())
-				{
-					if (!Item->BakedMaterials.IsValidIndex(MatIdx) || Item->BakedMaterials[MatIdx] != Material)
-					{
-						bMaterialChanged = true;
-					}
-					NewMaterials.Add(Material);
-					MatIdx++;
-				}
-			}
-
-			TArray<UStaticMeshComponent*> StaticMeshComponents;
-			ActorChanged->GetComponents(StaticMeshComponents, false);
-			for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
-			{
-				for (UMaterialInterface* Material : StaticMeshComponent->GetMaterials())
-				{
-					if (!Item->BakedMaterials.IsValidIndex(MatIdx) || Item->BakedMaterials[MatIdx] != Material)
-					{
-						bMaterialChanged = true;
-					}
-					NewMaterials.Add(Material);
-					MatIdx++;
-				}
-			}
-
-			if (bMaterialChanged)
-			{
-				UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Detected material change for %s"), *ClonerActor->GetActorNameOrLabel(), *ActorChanged->GetActorNameOrLabel());
-
-				if (NewMaterials.Num() == Item->BakedMaterials.Num())
-				{
-					Item->BakedMaterials = NewMaterials;
-				}
-				else
-				{
-					Item->MeshStatus = ECEClonerAttachmentStatus::Outdated;
-				}
-
-				InvalidateBakedStaticMesh(ActorChanged);
-			}
+			NewMaterials.Add(Material);
+			MatIdx++;
 		}
+	}
+
+	TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
+	ActorChanged->GetComponents(SkeletalMeshComponents, false);
+	for (const USkeletalMeshComponent* SkeletalMeshComponent : SkeletalMeshComponents)
+	{
+		for (UMaterialInterface* Material : SkeletalMeshComponent->GetMaterials())
+		{
+			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
+			{
+				bMaterialChanged = true;
+			}
+			NewMaterials.Add(Material);
+			MatIdx++;
+		}
+	}
+
+	TArray<UBrushComponent*> BrushComponents;
+	ActorChanged->GetComponents(BrushComponents, false);
+	for (const UBrushComponent* BrushComponent : BrushComponents)
+	{
+		for (int32 Idx = 0; Idx < BrushComponent->GetNumMaterials(); Idx++)
+		{
+			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != BrushComponent->GetMaterial(Idx))
+			{
+				bMaterialChanged = true;
+			}
+			NewMaterials.Add(BrushComponent->GetMaterial(Idx));
+			MatIdx++;
+		}
+	}
+
+	TArray<UProceduralMeshComponent*> ProceduralMeshComponents;
+	ActorChanged->GetComponents(ProceduralMeshComponents, false);
+	for (const UProceduralMeshComponent* ProceduralMeshComponent : ProceduralMeshComponents)
+	{
+		if (ProceduralMeshComponent->GetNumSections() == 0)
+		{
+			continue;
+		}
+		for (UMaterialInterface* Material : ProceduralMeshComponent->GetMaterials())
+		{
+			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
+			{
+				bMaterialChanged = true;
+			}
+			NewMaterials.Add(Material);
+			MatIdx++;
+		}
+	}
+
+	TArray<UStaticMeshComponent*> StaticMeshComponents;
+	ActorChanged->GetComponents(StaticMeshComponents, false);
+	for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
+	{
+		for (UMaterialInterface* Material : StaticMeshComponent->GetMaterials())
+		{
+			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
+			{
+				bMaterialChanged = true;
+			}
+			NewMaterials.Add(Material);
+			MatIdx++;
+		}
+	}
+
+	if (bMaterialChanged)
+	{
+		UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Detected material change for %s"), *ClonerActor->GetActorNameOrLabel(), *ActorChanged->GetActorNameOrLabel());
+
+		if (NewMaterials.Num() == AttachmentItem->BakedMaterials.Num())
+		{
+			AttachmentItem->BakedMaterials = NewMaterials;
+		}
+		else
+		{
+			AttachmentItem->MeshStatus = ECEClonerAttachmentStatus::Outdated;
+		}
+
+		InvalidateBakedStaticMesh(ActorChanged);
 	}
 }
 
