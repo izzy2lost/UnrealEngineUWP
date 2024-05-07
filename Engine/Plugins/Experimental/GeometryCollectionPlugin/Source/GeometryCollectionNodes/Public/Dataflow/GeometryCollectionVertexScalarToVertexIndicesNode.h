@@ -30,8 +30,8 @@ public:
 	float SelectionThreshold = 0.f;
 
 	/** Output list of indices */
-	UPROPERTY(Meta = (DataflowOutput))
-	TArray<int32> Indices = {};
+	UPROPERTY(Meta = (DataflowOutput, DisplayName = "VertexIndices"))
+	TArray<int32> VertexIndices = {};
 
 	FGeometryCollectionVertexScalarToVertexIndicesNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 

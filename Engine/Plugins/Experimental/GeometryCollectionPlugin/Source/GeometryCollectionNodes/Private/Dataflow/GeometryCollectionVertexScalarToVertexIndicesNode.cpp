@@ -12,12 +12,12 @@ FGeometryCollectionVertexScalarToVertexIndicesNode::FGeometryCollectionVertexSca
 {
 	RegisterInputConnection(&Collection);
 	RegisterInputConnection(&AttributeKey);
-	RegisterOutputConnection(&Indices);
+	RegisterOutputConnection(&VertexIndices);
 }
 
 void FGeometryCollectionVertexScalarToVertexIndicesNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	if (Out->IsA< TArray<int32> >(&Indices))
+	if (Out->IsA< TArray<int32> >(&VertexIndices))
 	{
 		TArray<int32> IndicesOut;
 
@@ -34,7 +34,7 @@ void FGeometryCollectionVertexScalarToVertexIndicesNode::Evaluate(Dataflow::FCon
 				}
 			}
 		}
-		SetValue< TArray<int32> >(Context, MoveTemp(IndicesOut), &Indices);
+		SetValue< TArray<int32> >(Context, MoveTemp(IndicesOut), &VertexIndices);
 	}
 }
 

@@ -33,7 +33,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "SkeletalMesh"))
 	TObjectPtr<USkeletalMesh> SkeletalMeshIn;
 		
-	UPROPERTY(meta = (DataflowInput, DisplayName = "SelectionSet"))
+	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexIndices"))
 	TArray<int32> VertexIndicesIn;
 
 	UPROPERTY(meta = (DataflowInput, DisplayName = "BoneIndex"))
