@@ -301,3 +301,5 @@ namespace Metasound
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE // MetasoundFrontend
