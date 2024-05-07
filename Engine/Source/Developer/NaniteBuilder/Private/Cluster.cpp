@@ -2,6 +2,7 @@
 
 #include "Cluster.h"
 #include "GraphPartitioner.h"
+#include "Rasterizer.h"
 
 namespace Nanite
 {
@@ -49,7 +50,10 @@ FCluster::FCluster(
 	const TConstArrayView< const uint32 >& InIndexes,
 	const TConstArrayView< const int32 >& InMaterialIndexes,
 	FBuilderSettings& InSettings,
-	uint32 TriBegin, uint32 TriEnd, const FGraphPartitioner& Partitioner, const FAdjacency& Adjacency )
+	uint32 TriBegin, uint32 TriEnd,
+	const TConstArrayView< const uint32 >& TriIndexes,
+	const TConstArrayView< const uint32 >& SortedTo,
+	const FAdjacency& Adjacency )
 	: Settings( InSettings )
 {
 	GUID = (uint64(TriBegin) << 32) | TriEnd;
@@ -70,7 +74,7 @@ FCluster::FCluster(
 
 	for( uint32 i = TriBegin; i < TriEnd; i++ )
 	{
-		uint32 TriIndex = Partitioner.Indexes[i];
+		uint32 TriIndex = TriIndexes[i];
 
 		for( uint32 k = 0; k < 3; k++ )
 		{
@@ -127,9 +131,9 @@ FCluster::FCluster(
 			int32 AdjCount = 0;
 			
 			Adjacency.ForAll( EdgeIndex,
-				[ &AdjCount, TriBegin, TriEnd, &Partitioner ]( int32 EdgeIndex, int32 AdjIndex )
+				[ &AdjCount, TriBegin, TriEnd, &SortedTo ]( int32 EdgeIndex, int32 AdjIndex )
 				{
-					uint32 AdjTri = Partitioner.SortedTo[ AdjIndex / 3 ];
+					uint32 AdjTri = SortedTo[ AdjIndex / 3 ];
 					if( AdjTri < TriBegin || AdjTri >= TriEnd )
 						AdjCount++;
 				} );
@@ -155,14 +159,21 @@ FCluster::FCluster(
 }
 
 // Split
-FCluster::FCluster( FCluster& SrcCluster, uint32 TriBegin, uint32 TriEnd, const FGraphPartitioner& Partitioner, const FAdjacency& Adjacency )
+FCluster::FCluster(
+	FCluster& SrcCluster,
+	uint32 TriBegin, uint32 TriEnd,
+	const TConstArrayView< const uint32 >& TriIndexes,
+	const TConstArrayView< const uint32 >& SortedTo,
+	const FAdjacency& Adjacency )
 	: Settings( SrcCluster.Settings )
 	, MipLevel( SrcCluster.MipLevel )
 {
-	GUID = MurmurFinalize64(SrcCluster.GUID) ^ ((uint64(TriBegin) << 32) | TriEnd);
-	
-	NumTris = TriEnd - TriBegin;
+	const uint32 VertSize = GetVertSize();
 
+	GUID = Murmur64( { SrcCluster.GUID, (uint64)TriBegin, (uint64)TriEnd } );
+
+	NumTris = TriEnd - TriBegin;
+	
 	Verts.Reserve( NumTris * GetVertSize() );
 	Indexes.Reserve( 3 * NumTris );
 	MaterialIndexes.Reserve( NumTris );
@@ -174,7 +185,7 @@ FCluster::FCluster( FCluster& SrcCluster, uint32 TriBegin, uint32 TriEnd, const 
 
 	for( uint32 i = TriBegin; i < TriEnd; i++ )
 	{
-		uint32 TriIndex = Partitioner.Indexes[i];
+		uint32 TriIndex = TriIndexes[i];
 
 		for( uint32 k = 0; k < 3; k++ )
 		{
@@ -184,11 +195,11 @@ FCluster::FCluster( FCluster& SrcCluster, uint32 TriBegin, uint32 TriEnd, const 
 
 			if( NewIndex == ~0u )
 			{
-				Verts.AddUninitialized( GetVertSize() );
+				Verts.AddUninitialized( VertSize );
 				NewIndex = NumVerts++;
 				OldToNewIndex.Add( OldIndex, NewIndex );
 
-				FMemory::Memcpy( &GetPosition( NewIndex ), &SrcCluster.GetPosition( OldIndex ), GetVertSize() * sizeof( float ) );
+				FMemory::Memcpy( &GetPosition( NewIndex ), &SrcCluster.GetPosition( OldIndex ), VertSize * sizeof( float ) );
 			}
 
 			Indexes.Add( NewIndex );
@@ -197,9 +208,9 @@ FCluster::FCluster( FCluster& SrcCluster, uint32 TriBegin, uint32 TriEnd, const 
 			int32 AdjCount = SrcCluster.ExternalEdges[ EdgeIndex ];
 			
 			Adjacency.ForAll( EdgeIndex,
-				[ &AdjCount, TriBegin, TriEnd, &Partitioner ]( int32 EdgeIndex, int32 AdjIndex )
+				[ &AdjCount, TriBegin, TriEnd, &SortedTo ]( int32 EdgeIndex, int32 AdjIndex )
 				{
-					uint32 AdjTri = Partitioner.SortedTo[ AdjIndex / 3 ];
+					uint32 AdjTri = SortedTo[ AdjIndex / 3 ];
 					if( AdjTri < TriBegin || AdjTri >= TriEnd )
 						AdjCount++;
 				} );
@@ -215,20 +226,20 @@ FCluster::FCluster( FCluster& SrcCluster, uint32 TriBegin, uint32 TriEnd, const 
 }
 
 // Merge
-FCluster::FCluster( const TArray< const FCluster*, TInlineAllocator<32> >& MergeList )
-	: Settings( MergeList[0]->Settings )
+FCluster::FCluster( TArrayView< const FCluster* > Children )
+	: Settings( Children[0]->Settings )
 {
-	const uint32 NumTrisGuess = ClusterSize * MergeList.Num();
+	const uint32 VertSize = GetVertSize();
+	const uint32 NumTrisGuess = ClusterSize * Children.Num();
 
-	Verts.Reserve( NumTrisGuess * GetVertSize() );
+	Verts.Reserve( NumTrisGuess * VertSize );
 	Indexes.Reserve( 3 * NumTrisGuess );
 	MaterialIndexes.Reserve( NumTrisGuess );
 	ExternalEdges.Reserve( 3 * NumTrisGuess );
-	NumExternalEdges = 0;
 
 	FHashTable VertHashTable( 1 << FMath::FloorLog2( NumTrisGuess ), NumTrisGuess );
 
-	for( const FCluster* Child : MergeList )
+	for( const FCluster* Child : Children )
 	{
 		NumTris			+= Child->NumTris;
 		Bounds			+= Child->Bounds;
@@ -241,7 +252,7 @@ FCluster::FCluster( const TArray< const FCluster*, TInlineAllocator<32> >& Merge
 
 		for( int32 i = 0; i < Child->Indexes.Num(); i++ )
 		{
-			uint32 NewIndex = AddVert( &Child->Verts[ Child->Indexes[i] * GetVertSize() ], VertHashTable );
+			uint32 NewIndex = AddVert( &Child->Verts[ Child->Indexes[i] * VertSize ], VertHashTable );
 
 			Indexes.Add( NewIndex );
 		}
@@ -249,14 +260,14 @@ FCluster::FCluster( const TArray< const FCluster*, TInlineAllocator<32> >& Merge
 		ExternalEdges.Append( Child->ExternalEdges );
 		MaterialIndexes.Append( Child->MaterialIndexes );
 
-		GUID = MurmurFinalize64(GUID) ^ Child->GUID;
+		GUID = Murmur64( { GUID, Child->GUID } );
 	}
 
 	FAdjacency Adjacency = BuildAdjacency();
 
 	int32 ChildIndex = 0;
 	int32 MinIndex = 0;
-	int32 MaxIndex = MergeList[0]->ExternalEdges.Num();
+	int32 MaxIndex = Children[0]->ExternalEdges.Num();
 
 	for( int32 EdgeIndex = 0; EdgeIndex < ExternalEdges.Num(); EdgeIndex++ )
 	{
@@ -264,7 +275,7 @@ FCluster::FCluster( const TArray< const FCluster*, TInlineAllocator<32> >& Merge
 		{
 			ChildIndex++;
 			MinIndex = MaxIndex;
-			MaxIndex += MergeList[ ChildIndex ]->ExternalEdges.Num();
+			MaxIndex += Children[ ChildIndex ]->ExternalEdges.Num();
 		}
 
 		int32 AdjCount = ExternalEdges[ EdgeIndex ];
@@ -609,7 +620,7 @@ void FCluster::Split( FGraphPartitioner& Partitioner, const FAdjacency& Adjacenc
 	}
 	Graph->AdjacencyOffset[ NumTris ] = Graph->Adjacency.Num();
 
-	Partitioner.PartitionStrict( Graph, ClusterSize - 4, ClusterSize, false );
+	Partitioner.PartitionStrict( Graph, false );
 }
 
 FAdjacency FCluster::BuildAdjacency() const
@@ -703,6 +714,192 @@ void FCluster::Bound()
 	EdgeLength = FMath::Sqrt( MaxEdgeLength2 );
 }
 
+void FCluster::Voxelize( float VoxelSize )
+{
+	const uint32 VertSize = GetVertSize();
+
+	TArray< float > NewVerts;
+	TArray< int32 > NewMaterialIndexes;
+
+	TMap< FIntVector3, uint32 > Voxels;
+
+	if( NumTris )
+	{
+		const float Scale = 1.0f / VoxelSize;
+		FVector3f Bias(
+			-FMath::Floor( Scale * Bounds.Min.X ),
+			-FMath::Floor( Scale * Bounds.Min.Y ),
+			-FMath::Floor( Scale * Bounds.Min.Z ) );
+
+		for( uint32 TriIndex = 0; TriIndex < NumTris; TriIndex++ )
+		{
+			FVector3f Triangle[3];
+			for( int k = 0; k < 3; k++ )
+				Triangle[k] = GetPosition( Indexes[ TriIndex * 3 + k ] ) * Scale + Bias;
+	
+			float* Attributes0 = GetAttributes( Indexes[ TriIndex * 3 + 0 ] );
+			float* Attributes1 = GetAttributes( Indexes[ TriIndex * 3 + 1 ] );
+			float* Attributes2 = GetAttributes( Indexes[ TriIndex * 3 + 2 ] );
+
+			VoxelizeTri( Triangle, FIntVector3( MIN_int32 ), FIntVector3( MAX_int32 ),
+				[&]( int32 x, int32 y, int32 z, const FVector3f& Barycentrics )
+				{
+					FIntVector3 Voxel(x,y,z);
+
+					uint32& NewIndex = Voxels.FindOrAdd( Voxel, ~0u );
+					if( NewIndex == ~0u )
+					{
+						NewIndex = Voxels.Num() - 1;
+	
+						NewVerts.AddUninitialized( VertSize );
+						NewMaterialIndexes.Add( MaterialIndexes[ TriIndex ] );
+	
+						FVector3f& NewPosition = *reinterpret_cast< FVector3f* >( &NewVerts[ NewIndex * VertSize ] );
+						NewPosition = ( FVector3f( Voxel ) - Bias ) * VoxelSize;
+			
+						float* NewAttributes = &NewVerts[ NewIndex * VertSize + 3 ];
+						uint32 AttrSize = VertSize - 3;
+						for( uint32 i = 0; i < AttrSize; i++ )
+						{
+							NewAttributes[i] =
+								Attributes0[i] * Barycentrics[0] +
+								Attributes1[i] * Barycentrics[1] +
+								Attributes2[i] * Barycentrics[2];
+						}
+						CorrectAttributesFunctions[Settings.bHasTangents][Settings.bHasColors](NewAttributes);
+					}
+				} );
+		}
+
+		Indexes.Empty();
+		ExternalEdges.Empty();
+		NumExternalEdges = 0;
+
+		NumVerts = Voxels.Num();
+		NumTris = 0;
+	}
+	else
+	{
+		for( uint32 VertIndex = 0; VertIndex < NumVerts; VertIndex++ )
+		{
+			FVector3f Position = GetPosition( VertIndex );
+
+			FIntVector3 Voxel;
+			Voxel.X = FMath::FloorToInt32( Position.X / VoxelSize );
+			Voxel.Y = FMath::FloorToInt32( Position.Y / VoxelSize );
+			Voxel.Z = FMath::FloorToInt32( Position.Z / VoxelSize );
+	
+			uint32& NewIndex = Voxels.FindOrAdd( Voxel, ~0u );
+			if( NewIndex == ~0u )
+			{
+				NewIndex = Voxels.Num() - 1;
+	
+				NewVerts.AddUninitialized( VertSize );
+				NewMaterialIndexes.Add( MaterialIndexes[ VertIndex ] );
+	
+				FVector3f& NewPosition = *reinterpret_cast< FVector3f* >( &NewVerts[ NewIndex * VertSize ] );
+				NewPosition = FVector3f( Voxel ) * VoxelSize;
+	
+				float* NewAttributes = &NewVerts[ NewIndex * VertSize + 3 ];
+				uint32 AttrSize = VertSize - 3;
+				FMemory::Memcpy( NewAttributes, GetAttributes( VertIndex ), AttrSize * sizeof( float ) );
+			}
+		}
+
+		NumVerts = Voxels.Num();
+		NumTris = 0;
+	}
+
+	Swap( Verts,			NewVerts );
+	Swap( MaterialIndexes,	NewMaterialIndexes );
+
+	check( MaterialIndexes.Num() > 0 );
+}
+
+void FCluster::BuildMaterialRanges()
+{
+	check( MaterialRanges.Num() == 0 );
+	check( NumTris * 3 == Indexes.Num() );
+
+	TArray< int32, TInlineAllocator<128> > MaterialElements;
+	TArray< int32, TInlineAllocator<64> > MaterialCounts;
+
+	MaterialElements.AddUninitialized( MaterialIndexes.Num() );
+	MaterialCounts.AddZeroed( NANITE_MAX_CLUSTER_MATERIALS );
+
+	// Tally up number per material index
+	for( int32 i = 0; i < MaterialIndexes.Num(); i++ )
+	{
+		MaterialElements[i] = i;
+		MaterialCounts[ MaterialIndexes[i] ]++;
+	}
+
+	// Sort by range count descending, and material index ascending.
+	// This groups the material ranges from largest to smallest, which is
+	// more efficient for evaluating the sequences on the GPU, and also makes
+	// the minus one encoding work (the first range must have more than 1 tri).
+	MaterialElements.Sort(
+		[&]( int32 A, int32 B )
+		{
+			int32 IndexA = MaterialIndexes[A];
+			int32 IndexB = MaterialIndexes[B];
+			int32 CountA = MaterialCounts[ IndexA ];
+			int32 CountB = MaterialCounts[ IndexB ];
+
+			if( CountA != CountB )
+				return CountA > CountB;
+
+			return IndexA < IndexB;
+		} );
+
+	FMaterialRange CurrentRange;
+	CurrentRange.RangeStart = 0;
+	CurrentRange.RangeLength = 0;
+	CurrentRange.MaterialIndex = MaterialElements.Num() > 0 ? MaterialIndexes[ MaterialElements[0] ] : 0;
+
+	for( int32 i = 0; i < MaterialElements.Num(); i++ )
+	{
+		int32 MaterialIndex = MaterialIndexes[ MaterialElements[i] ];
+
+		// Material changed, so add current range and reset
+		if (CurrentRange.RangeLength > 0 && MaterialIndex != CurrentRange.MaterialIndex)
+		{
+			MaterialRanges.Add(CurrentRange);
+
+			CurrentRange.RangeStart = i;
+			CurrentRange.RangeLength = 1;
+			CurrentRange.MaterialIndex = MaterialIndex;
+		}
+		else
+		{
+			++CurrentRange.RangeLength;
+		}
+	}
+
+	// Add last triangle to range
+	if (CurrentRange.RangeLength > 0)
+	{
+		MaterialRanges.Add(CurrentRange);
+	}
+
+	TArray< uint32 >	NewIndexes;
+	TArray< int32 >		NewMaterialIndexes;
+	
+	NewIndexes.AddUninitialized( Indexes.Num() );
+	NewMaterialIndexes.AddUninitialized( MaterialIndexes.Num() );
+	
+	for( uint32 NewIndex = 0; NewIndex < NumTris; NewIndex++ )
+	{
+		uint32 OldIndex = MaterialElements[ NewIndex ];
+		NewIndexes[ NewIndex * 3 + 0 ] = Indexes[ OldIndex * 3 + 0 ];
+		NewIndexes[ NewIndex * 3 + 1 ] = Indexes[ OldIndex * 3 + 1 ];
+		NewIndexes[ NewIndex * 3 + 2 ] = Indexes[ OldIndex * 3 + 2 ];
+		NewMaterialIndexes[ NewIndex ] = MaterialIndexes[ OldIndex ];
+	}
+	Swap( Indexes,			NewIndexes );
+	Swap( MaterialIndexes,	NewMaterialIndexes );
+}
+
 static void SanitizeFloat( float& X, float MinValue, float MaxValue, float DefaultValue )
 {
 	if( X >= MinValue && X <= MaxValue )
@@ -760,8 +957,8 @@ void FCluster::SanitizeVertexData()
 		FVector2f* UVs = GetUVs( VertexIndex );
 		for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
 		{
-			SanitizeFloat( UVs[UVIndex].X, -FltThreshold, FltThreshold, 0.0f );
-			SanitizeFloat( UVs[UVIndex].Y, -FltThreshold, FltThreshold, 0.0f );
+			SanitizeFloat( UVs[ UVIndex ].X, -FltThreshold, FltThreshold, 0.0f );
+			SanitizeFloat( UVs[ UVIndex ].Y, -FltThreshold, FltThreshold, 0.0f );
 		}
 
 		if (Settings.NumBoneInfluences > 0)

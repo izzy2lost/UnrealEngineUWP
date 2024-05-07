@@ -7,6 +7,7 @@
 #include "Rendering/NaniteResources.h"
 #include "Hash/CityHash.h"
 #include "GraphPartitioner.h"
+#include "BVHCluster.h"
 #include "Cluster.h"
 #include "ClusterDAG.h"
 #include "MeshSimplify.h"
@@ -194,7 +195,7 @@ void CalcTangents(
 
 static float BuildCoarseRepresentation(
 	const TArray<FClusterGroup>& Groups,
-	const TArray<FCluster>& Clusters,
+	TArray<FCluster>& Clusters,
 	FMeshBuildVertexData& Verts,
 	TArray<uint32>& Indexes,
 	TArray<FStaticMeshSection, TInlineAllocator<1>>& Sections,
@@ -258,24 +259,17 @@ static float BuildCoarseRepresentation(
 		}
 	}
 
-	TArray<FMaterialTriangle, TInlineAllocator<128>> CoarseMaterialTris;
-	TArray<FMaterialRange, TInlineAllocator<4>> CoarseMaterialRanges;
-
 	// Compute material ranges for coarse representation.
-	BuildMaterialRanges(
-		CoarseRepresentation.Indexes,
-		CoarseRepresentation.MaterialIndexes,
-		CoarseMaterialTris,
-		CoarseMaterialRanges);
-	check(CoarseMaterialRanges.Num() <= OldSections.Num());
+	CoarseRepresentation.BuildMaterialRanges();
+	check(CoarseRepresentation.MaterialRanges.Num() <= OldSections.Num());
 
 	// Rebuild section data.
-	Sections.Reset(CoarseMaterialRanges.Num());
+	Sections.Reset( CoarseRepresentation.MaterialRanges.Num() );
 	for (const FStaticMeshSection& OldSection : OldSections)
 	{
 		// Add new sections based on the computed material ranges
 		// Enforce the same material order as OldSections
-		const FMaterialRange* FoundRange = CoarseMaterialRanges.FindByPredicate([&OldSection](const FMaterialRange& Range) { return Range.MaterialIndex == OldSection.MaterialIndex; });
+		const FMaterialRange* FoundRange = CoarseRepresentation.MaterialRanges.FindByPredicate([&OldSection](const FMaterialRange& Range) { return Range.MaterialIndex == OldSection.MaterialIndex; });
 
 		// Sections can actually be removed from the coarse mesh if their source data doesn't contain enough triangles
 		if (FoundRange)
@@ -289,33 +283,19 @@ static float BuildCoarseRepresentation(
 			Section.MinVertexIndex = TNumericLimits<uint32>::Max();
 			Section.MaxVertexIndex = TNumericLimits<uint32>::Min();
 
-			for (uint32 TriangleIndex = 0; TriangleIndex < (FoundRange->RangeStart + FoundRange->RangeLength); ++TriangleIndex)
+			for( uint32 TriIndex = FoundRange->RangeStart; TriIndex < FoundRange->RangeStart + FoundRange->RangeLength; TriIndex++ )
 			{
-				const FMaterialTriangle& Triangle = CoarseMaterialTris[TriangleIndex];
-
-				// Update min vertex index
-				Section.MinVertexIndex = FMath::Min(Section.MinVertexIndex, Triangle.Index0);
-				Section.MinVertexIndex = FMath::Min(Section.MinVertexIndex, Triangle.Index1);
-				Section.MinVertexIndex = FMath::Min(Section.MinVertexIndex, Triangle.Index2);
-
-				// Update max vertex index
-				Section.MaxVertexIndex = FMath::Max(Section.MaxVertexIndex, Triangle.Index0);
-				Section.MaxVertexIndex = FMath::Max(Section.MaxVertexIndex, Triangle.Index1);
-				Section.MaxVertexIndex = FMath::Max(Section.MaxVertexIndex, Triangle.Index2);
+				for( int k = 0; k < 3; k++ )
+				{
+					Section.MinVertexIndex = FMath::Min( Section.MinVertexIndex, CoarseRepresentation.Indexes[ TriIndex * 3 + k ] );
+					Section.MaxVertexIndex = FMath::Max( Section.MaxVertexIndex, CoarseRepresentation.Indexes[ TriIndex * 3 + k ] );
+				}
 			}
 
 			Sections.Add(Section);
 		}
 	}
-
-	// Rebuild index data.
-	Indexes.Reset();
-	for (const FMaterialTriangle& Triangle : CoarseMaterialTris)
-	{
-		Indexes.Add(Triangle.Index0);
-		Indexes.Add(Triangle.Index1);
-		Indexes.Add(Triangle.Index2);
-	}
+	Swap( Indexes, CoarseRepresentation.Indexes );
 
 	FMeshBuildVertexView VertexView = MakeMeshBuildVertexView(Verts);
 	CalcTangents(VertexView, Indexes);
@@ -412,7 +392,27 @@ static void ClusterTriangles(
 		Settings.bHasTangents ? TEXT(", Tangents") : TEXT(""),
 		Settings.bHasColors ? TEXT(", Color") : TEXT("") );
 
-	FGraphPartitioner Partitioner( NumTriangles );
+#if 0
+	FBVHCluster Partitioner( NumTriangles, FCluster::ClusterSize - 4, FCluster::ClusterSize );
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::PartitionGraph);
+
+		Partitioner.Build(
+			[ &Verts, &Indexes ]( uint32 TriIndex )
+			{
+				FBounds3f Bounds;
+				Bounds  = Verts.Position[ Indexes[ TriIndex * 3 + 0 ] ];
+				Bounds += Verts.Position[ Indexes[ TriIndex * 3 + 1 ] ];
+				Bounds += Verts.Position[ Indexes[ TriIndex * 3 + 2 ] ];
+				return Bounds;
+			} );
+
+		check( Partitioner.Ranges.Num() );
+
+		LOG_CRC( Partitioner.Ranges );
+	}
+#else
+	FGraphPartitioner Partitioner( NumTriangles, FCluster::ClusterSize - 4, FCluster::ClusterSize );
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::PartitionGraph);
@@ -450,11 +450,12 @@ static void ClusterTriangles(
 
 		bool bSingleThreaded = NumTriangles < 5000;
 
-		Partitioner.PartitionStrict( Graph, FCluster::ClusterSize - 4, FCluster::ClusterSize, !bSingleThreaded );
+		Partitioner.PartitionStrict( Graph, !bSingleThreaded );
 		check( Partitioner.Ranges.Num() );
 
 		LOG_CRC( Partitioner.Ranges );
 	}
+#endif
 
 	const uint32 OptimalNumClusters = FMath::DivideAndRoundUp< int32 >( Indexes.Num(), FCluster::ClusterSize * 3 );
 
@@ -476,7 +477,8 @@ static void ClusterTriangles(
 					Indexes,
 					MaterialIndexes,
 					Settings,
-					Range.Begin, Range.End, Partitioner, Adjacency );
+					Range.Begin, Range.End,
+					Partitioner.Indexes, Partitioner.SortedTo, Adjacency );
 
 				// Negative notes it's a leaf
 				Clusters[ BaseCluster + Index ].EdgeLength *= -1.0f;
@@ -533,6 +535,8 @@ bool FBuilderModule::Build(
 		uint32 Time1 = FPlatformTime::Cycles();
 		UE_LOG( LogStaticMesh, Log, TEXT("Adaptive tessellate [%.2fs], tris: %i"), FPlatformTime::ToMilliseconds( Time1 - Time0 ) / 1000.0f, InputMeshData.TriangleCounts[0] );
 	}
+
+	uint32 Time0 = FPlatformTime::Cycles();
 	
 	const uint32 NumInputTriangles = InputMeshData.TriangleIndices.Num() / 3;
 	if (NumInputTriangles == 0)
@@ -614,9 +618,9 @@ bool FBuilderModule::Build(
 	// This is especially important when building multiple huge Nanite meshes in parallel.
 	OnFreeInputMeshData.ExecuteIfBound(bFallbackIsReduced);
 
-	uint32 Time0 = FPlatformTime::Cycles();
+	uint32 ReduceTime0 = FPlatformTime::Cycles();
 
-	FBounds3f MeshBounds;	
+	FBounds3f MeshBounds;
 	TArray<FClusterGroup> Groups;
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::DAG.Reduce);
@@ -661,8 +665,8 @@ bool FBuilderModule::Build(
 		UE_LOG( LogStaticMesh, Log, TEXT("Trimmed to %u tris"), NumTris );
 	}
 
-	uint32 ReduceTime = FPlatformTime::Cycles();
-	UE_LOG(LogStaticMesh, Log, TEXT("Reduce [%.2fs]"), FPlatformTime::ToMilliseconds(ReduceTime - Time0) / 1000.0f);
+	uint32 ReduceTime1 = FPlatformTime::Cycles();
+	UE_LOG( LogStaticMesh, Log, TEXT("Reduce [%.2fs]"), FPlatformTime::ToMilliseconds( ReduceTime1 - ReduceTime0 ) / 1000.0f );
 
 	for (int32 FallbackLODIndex = 0; FallbackLODIndex < OutputLODMeshData.Num(); ++FallbackLODIndex)
 	{

@@ -39,6 +39,7 @@ struct FPageSections
 	uint32 MaterialTable		= 0;
 	uint32 VertReuseBatchInfo	= 0;
 	uint32 BoneData				= 0;
+	uint32 ExtendedData			= 0;
 	uint32 DecodeInfo			= 0;
 	uint32 Index				= 0;
 	uint32 Position				= 0;
@@ -47,13 +48,15 @@ struct FPageSections
 	uint32 GetMaterialTableSize() const			{ return Align(MaterialTable, 16); }
 	uint32 GetVertReuseBatchInfoSize() const	{ return Align(VertReuseBatchInfo, 16); }
 	uint32 GetBoneDataSize() const				{ return Align(BoneData, 16); }		//TODO: Nanite-Skinning: Just put in copy block for now
+	uint32 GetExtendedDataSize() const			{ return Align(ExtendedData, 16); }
 	uint32 GetDecodeInfoSize() const			{ return Align(DecodeInfo, 16); }
 
 	uint32 GetClusterOffset() const				{ return NANITE_GPU_PAGE_HEADER_SIZE; }
 	uint32 GetMaterialTableOffset() const		{ return GetClusterOffset() + Cluster; }
 	uint32 GetVertReuseBatchInfoOffset() const	{ return GetMaterialTableOffset() + GetMaterialTableSize(); }
 	uint32 GetBoneDataOffset() const			{ return GetVertReuseBatchInfoOffset() + GetVertReuseBatchInfoSize(); }
-	uint32 GetDecodeInfoOffset() const			{ return GetBoneDataOffset() + GetBoneDataSize(); } 
+	uint32 GetExtendedDataOffset() const		{ return GetBoneDataOffset() + GetBoneDataSize(); }
+	uint32 GetDecodeInfoOffset() const			{ return GetExtendedDataOffset() + GetExtendedDataSize(); } 
 	uint32 GetIndexOffset() const				{ return GetDecodeInfoOffset() + GetDecodeInfoSize(); }
 	uint32 GetPositionOffset() const			{ return GetIndexOffset() + Index; }
 	uint32 GetAttributeOffset() const			{ return GetPositionOffset() + Position; }
@@ -67,6 +70,7 @@ struct FPageSections
 			GetMaterialTableOffset(),
 			GetVertReuseBatchInfoOffset(),
 			GetBoneDataOffset(),
+			GetExtendedDataOffset(),
 			GetDecodeInfoOffset(),
 			GetIndexOffset(),
 			GetPositionOffset(),
@@ -80,6 +84,7 @@ struct FPageSections
 		MaterialTable		+=	Other.MaterialTable;
 		VertReuseBatchInfo	+=	Other.VertReuseBatchInfo;
 		BoneData			+=	Other.BoneData;
+		ExtendedData		+=	Other.ExtendedData;
 		DecodeInfo			+=	Other.DecodeInfo;
 		Index				+=	Other.Index;
 		Position			+=	Other.Position;
@@ -666,7 +671,7 @@ static void PackVertReuseBatchInfo(const TArrayView<const FMaterialRange>& Mater
 	}
 }
 
-static uint32 PackMaterialInfo(const Nanite::FCluster& InCluster, TArray<uint32>& OutMaterialTable, TArray<uint32>& OutVertReuseBatchInfo, uint32 MaterialTableStartOffset)
+static uint32 PackMaterialInfo(const Nanite::FCluster& InCluster, TArray<uint32>& OutMaterialTable, uint32 MaterialTableStartOffset)
 {
 	// Encode material ranges
 	uint32 NumMaterialTriangles = 0;
@@ -679,7 +684,7 @@ static uint32 PackMaterialInfo(const Nanite::FCluster& InCluster, TArray<uint32>
 	}
 
 	// All triangles accounted for in material ranges?
-	check(NumMaterialTriangles == InCluster.NumTris);
+	check(NumMaterialTriangles == InCluster.MaterialIndexes.Num());
 
 	uint32 PackedMaterialInfo = 0x00000000;
 
@@ -712,7 +717,7 @@ static uint32 PackMaterialInfo(const Nanite::FCluster& InCluster, TArray<uint32>
 		{
 			const FMaterialRange& Material2 = InCluster.MaterialRanges[2];
 			check(Material2.RangeStart == Material0Length + Material1Length);
-			check(Material2.RangeLength == InCluster.NumTris - Material0Length - Material1Length);
+			check(Material2.RangeLength == InCluster.MaterialIndexes.Num() - Material0Length - Material1Length);
 			Material2Index = Material2.MaterialIndex;
 		}
 
@@ -733,8 +738,6 @@ static uint32 PackMaterialInfo(const Nanite::FCluster& InCluster, TArray<uint32>
 
 		PackedMaterialInfo = PackMaterialSlowPath(MaterialTableOffset, MaterialTableLength);
 	}
-
-	PackVertReuseBatchInfo(MakeArrayView(InCluster.MaterialRanges), OutVertReuseBatchInfo);
 
 	return PackedMaterialInfo;
 }
@@ -1232,6 +1235,7 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 		GpuSizes.BoneData		= (NumClusterVerts * NumBones * (Info.BitsPerBoneIndex + Info.BitsPerBoneWeight) + 31) / 32 * 4;
 	}
 	
+	GpuSizes.ExtendedData = Cluster.ExtendedData.Num() * sizeof(uint32);
 
 	const uint32 PositionBitsPerVertex = Cluster.QuantizedPosBits.X + Cluster.QuantizedPosBits.Y + Cluster.QuantizedPosBits.Z;
 	GpuSizes.Position = (NumClusterVerts * PositionBitsPerVertex + 31) / 32 * 4;
@@ -2193,13 +2197,14 @@ static void WritePages(	FResources& Resources,
 		TArray<uint16>				CombinedVertexRefData;
 		TArray<uint8>				CombinedIndexData;
 		TArray<uint8>				CombinedAttributeData;
+		TArray<uint8>				BoneData;
+		TArray<uint32>				ExtendedData;
 		TArray<uint32>				MaterialRangeData;
 		TArray<uint32>				VertReuseBatchInfo;
 		TArray<uint16>				CodedVerticesPerCluster;
 		TArray<uint32>				NumPageClusterPairsPerCluster;
 		TArray<FPackedCluster>		PackedClusters;
 
-		TArray<uint8>				BoneData;
 		TArray<uint8>				LowByteStream;
 		TArray<uint8>				MidByteStream;
 		TArray<uint8>				HighByteStream;
@@ -2237,8 +2242,6 @@ static void WritePages(	FResources& Resources,
 				FPackedCluster& PackedCluster = PackedClusters[LocalClusterIndex];
 				PackCluster(PackedCluster, Cluster, EncodingInfos[ClusterIndex], bHasTangents, NumTexCoords);
 
-				TArray<uint32> LocalVertReuseBatchInfo;
-				PackedCluster.PackedMaterialInfo = PackMaterialInfo(Cluster, MaterialRangeData, LocalVertReuseBatchInfo, MaterialTableStartOffsetInDwords);
 				check((GpuSectionOffsets.Index & 3) == 0);
 				check((GpuSectionOffsets.Position & 3) == 0);
 				check((GpuSectionOffsets.Attribute & 3) == 0);
@@ -2249,10 +2252,25 @@ static void WritePages(	FResources& Resources,
 				PackedCluster.SetDecodeInfoOffset(GpuSectionOffsets.DecodeInfo);
 				PackedCluster.SetBoneDataOffset(GpuSectionOffsets.BoneData);
 
-				PackedCluster.SetVertResourceBatchInfo(LocalVertReuseBatchInfo, GpuSectionOffsets.VertReuseBatchInfo, Cluster.MaterialRanges.Num());
-				if (Cluster.MaterialRanges.Num() > 3)
+				if( Cluster.ExtendedData.Num() )
 				{
-					VertReuseBatchInfo.Append(MoveTemp(LocalVertReuseBatchInfo));
+					// No effect if unused
+					SetBits(PackedCluster.ExtendedDataOffset_Num, GpuSectionOffsets.ExtendedData, 22, 0);
+					SetBits(PackedCluster.ExtendedDataOffset_Num, Cluster.ExtendedData.Num(), 10, 22);
+					ExtendedData.Append( Cluster.ExtendedData );
+				}
+
+				PackedCluster.PackedMaterialInfo = PackMaterialInfo(Cluster, MaterialRangeData, MaterialTableStartOffsetInDwords);
+				
+				{
+					TArray<uint32> LocalVertReuseBatchInfo;
+					PackVertReuseBatchInfo(MakeArrayView(Cluster.MaterialRanges), LocalVertReuseBatchInfo);
+	
+					PackedCluster.SetVertResourceBatchInfo(LocalVertReuseBatchInfo, GpuSectionOffsets.VertReuseBatchInfo, Cluster.MaterialRanges.Num());
+					if (Cluster.MaterialRanges.Num() > 3)
+					{
+						VertReuseBatchInfo.Append(MoveTemp(LocalVertReuseBatchInfo));
+					}
 				}
 				
 				GpuSectionOffsets += EncodingInfo.GpuSizes;
@@ -2285,7 +2303,8 @@ static void WritePages(	FResources& Resources,
 		check(GpuSectionOffsets.Cluster							== Page.GpuSizes.GetMaterialTableOffset());
 		check(Align(GpuSectionOffsets.MaterialTable, 16)		== Page.GpuSizes.GetVertReuseBatchInfoOffset());
 		check(Align(GpuSectionOffsets.VertReuseBatchInfo, 16)	== Page.GpuSizes.GetBoneDataOffset());
-		check(Align(GpuSectionOffsets.BoneData, 16)				== Page.GpuSizes.GetDecodeInfoOffset());
+		check(Align(GpuSectionOffsets.BoneData, 16)				== Page.GpuSizes.GetExtendedDataOffset());
+		check(Align(GpuSectionOffsets.ExtendedData, 16)			== Page.GpuSizes.GetDecodeInfoOffset());
 		check(Align(GpuSectionOffsets.DecodeInfo, 16)			== Page.GpuSizes.GetIndexOffset());
 		check(GpuSectionOffsets.Index							== Page.GpuSizes.GetPositionOffset());
 		check(GpuSectionOffsets.Position						== Page.GpuSizes.GetAttributeOffset());
@@ -2358,6 +2377,7 @@ static void WritePages(	FResources& Resources,
 		MaterialRangeData.SetNum(Align(MaterialRangeData.Num(), 4));
 		VertReuseBatchInfo.SetNum(Align(VertReuseBatchInfo.Num(), 4));
 		BoneData.SetNum(Align(BoneData.Num(), 16));
+		ExtendedData.SetNum(Align(ExtendedData.Num(), 4));
 
 		static_assert(sizeof(FPageGPUHeader) % 16 == 0, "sizeof(FGPUPageHeader) must be a multiple of 16");
 		static_assert(sizeof(FPackedCluster) % 16 == 0, "sizeof(FPackedCluster) must be a multiple of 16");
@@ -2411,6 +2431,14 @@ static void WritePages(	FResources& Resources,
 			uint8* BoneDataPtr = PageWriter.Append_Ptr<uint8>(BoneDataSize);
 			FMemory::Memcpy(BoneDataPtr, BoneData.GetData(), BoneDataSize);
 			check(BoneDataSize == Page.GpuSizes.GetBoneDataSize());
+		}
+
+		{
+			// Extended data
+			uint32 ExtendedDataSize = ExtendedData.Num() * ExtendedData.GetTypeSize();
+			uint8* ExtendedDataPtr = PageWriter.Append_Ptr<uint8>(ExtendedDataSize);
+			FMemory::Memcpy(ExtendedDataPtr, ExtendedData.GetData(), ExtendedDataSize);
+			check(ExtendedDataSize == Page.GpuSizes.GetExtendedDataSize());
 		}
 
 		// Decode information
@@ -3041,121 +3069,13 @@ static void BuildHierarchies(FResources& Resources, TArray<FPage>& Pages, const 
 	}
 }
 
-void BuildMaterialRanges(
-	const TArray<uint32>& TriangleIndices,
-	const TArray<int32>& MaterialIndices,
-	TArray<FMaterialTriangle, TInlineAllocator<128>>& MaterialTris,
-	TArray<FMaterialRange, TInlineAllocator<4>>& MaterialRanges)
-{
-	check(MaterialTris.Num() == 0);
-	check(MaterialRanges.Num() == 0);
-	check(MaterialIndices.Num() * 3 == TriangleIndices.Num());
-
-	const uint32 TriangleCount = MaterialIndices.Num();
-
-	TArray<uint32, TInlineAllocator<64>> MaterialCounts;
-	MaterialCounts.AddZeroed(64);
-
-	// Tally up number tris per material index
-	for (uint32 i = 0; i < TriangleCount; i++)
-	{
-		const uint32 MaterialIndex = MaterialIndices[i];
-		++MaterialCounts[MaterialIndex];
-	}
-
-	for (uint32 i = 0; i < TriangleCount; i++)
-	{
-		FMaterialTriangle MaterialTri;
-		MaterialTri.Index0 = TriangleIndices[(i * 3) + 0];
-		MaterialTri.Index1 = TriangleIndices[(i * 3) + 1];
-		MaterialTri.Index2 = TriangleIndices[(i * 3) + 2];
-		MaterialTri.MaterialIndex = MaterialIndices[i];
-		MaterialTri.RangeCount = MaterialCounts[MaterialTri.MaterialIndex];
-		check(MaterialTri.RangeCount > 0);
-		MaterialTris.Add(MaterialTri);
-	}
-
-	// Sort by triangle range count descending, and material index ascending.
-	// This groups the material ranges from largest to smallest, which is
-	// more efficient for evaluating the sequences on the GPU, and also makes
-	// the minus one encoding work (the first range must have more than 1 tri).
-	MaterialTris.Sort(
-		[](const FMaterialTriangle& A, const FMaterialTriangle& B)
-		{
-			if (A.RangeCount != B.RangeCount)
-			{
-				return (A.RangeCount > B.RangeCount);
-			}
-
-			return (A.MaterialIndex < B.MaterialIndex);
-		} );
-
-	FMaterialRange CurrentRange;
-	CurrentRange.RangeStart = 0;
-	CurrentRange.RangeLength = 0;
-	CurrentRange.MaterialIndex = MaterialTris.Num() > 0 ? MaterialTris[0].MaterialIndex : 0;
-
-	for (int32 TriIndex = 0; TriIndex < MaterialTris.Num(); ++TriIndex)
-	{
-		const FMaterialTriangle& Triangle = MaterialTris[TriIndex];
-
-		// Material changed, so add current range and reset
-		if (CurrentRange.RangeLength > 0 && Triangle.MaterialIndex != CurrentRange.MaterialIndex)
-		{
-			MaterialRanges.Add(CurrentRange);
-
-			CurrentRange.RangeStart = TriIndex;
-			CurrentRange.RangeLength = 1;
-			CurrentRange.MaterialIndex = Triangle.MaterialIndex;
-		}
-		else
-		{
-			++CurrentRange.RangeLength;
-		}
-	}
-
-	// Add last triangle to range
-	if (CurrentRange.RangeLength > 0)
-	{
-		MaterialRanges.Add(CurrentRange);
-	}
-
-	check(MaterialTris.Num() == TriangleCount);
-}
-
-static void BuildMaterialRanges(FCluster& Cluster)
-{
-	check(Cluster.MaterialRanges.Num() == 0);
-	check(Cluster.NumTris <= NANITE_MAX_CLUSTER_TRIANGLES);
-	check(Cluster.NumTris * 3 == Cluster.Indexes.Num());
-
-	TArray<FMaterialTriangle, TInlineAllocator<128>> MaterialTris;
-	
-	BuildMaterialRanges(
-		Cluster.Indexes,
-		Cluster.MaterialIndexes,
-		MaterialTris,
-		Cluster.MaterialRanges);
-
-	// Write indices back to clusters
-	for (uint32 Triangle = 0; Triangle < Cluster.NumTris; ++Triangle)
-	{
-		Cluster.Indexes[Triangle * 3 + 0] = MaterialTris[Triangle].Index0;
-		Cluster.Indexes[Triangle * 3 + 1] = MaterialTris[Triangle].Index1;
-		Cluster.Indexes[Triangle * 3 + 2] = MaterialTris[Triangle].Index2;
-		Cluster.MaterialIndexes[Triangle] = MaterialTris[Triangle].MaterialIndex;
-	}
-}
-
 // Sort cluster triangles into material ranges. Add Material ranges to clusters.
 static void BuildMaterialRanges( TArray<FCluster>& Clusters )
 {
-	//const uint32 NumClusters = Clusters.Num();
-	//for( uint32 ClusterIndex = 0; ClusterIndex < NumClusters; ClusterIndex++ )
 	ParallelFor(TEXT("NaniteEncode.BuildMaterialRanges.PF"), Clusters.Num(), 256,
 		[&]( uint32 ClusterIndex )
 		{
-			BuildMaterialRanges( Clusters[ ClusterIndex ] );
+			Clusters[ ClusterIndex ].BuildMaterialRanges();
 		} );
 }
 
@@ -4193,7 +4113,7 @@ static void BuildClusterFromClusterTriangleRange( const FCluster& InCluster, FCl
 	OutCluster.NumTris = NumTriangles;
 
 	// Rebuild material range and reconstrain 
-	BuildMaterialRanges( OutCluster );
+	OutCluster.BuildMaterialRanges();
 #if NANITE_USE_STRIP_INDICES
 	FStripifier Stripifier;
 	Stripifier.ConstrainAndStripifyCluster(OutCluster);

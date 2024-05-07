@@ -432,7 +432,7 @@ void StableSort(T** First, const int32 Num)
  * Use a smaller CountType for smaller histograms.
  */
 template< typename ValueType, typename CountType, class SortKeyClass >
-void RadixSort32( ValueType* RESTRICT Dst, ValueType* RESTRICT Src, CountType Num, SortKeyClass SortKey )
+void RadixSort32( ValueType* RESTRICT Dst, ValueType* RESTRICT Src, CountType Num, const SortKeyClass& SortKey )
 {
 	CountType Histograms[ 1024 + 2048 + 2048 ];
 	CountType* RESTRICT Histogram0 = Histograms + 0;

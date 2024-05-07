@@ -2706,7 +2706,8 @@ namespace UE {
 namespace Math {
 
 template <>
-FORCEINLINE TIntVector3<int32>::TIntVector3(FVector InVector)
+template<typename T>
+FORCEINLINE TIntVector3<int32>::TIntVector3(TVector<T> InVector)
 	: X(FMath::TruncToInt32(InVector.X))
 	, Y(FMath::TruncToInt32(InVector.Y))
 	, Z(FMath::TruncToInt32(InVector.Z))
@@ -2714,7 +2715,8 @@ FORCEINLINE TIntVector3<int32>::TIntVector3(FVector InVector)
 }
 
 template <>
-FORCEINLINE TIntVector3<uint32>::TIntVector3(FVector InVector)
+template<typename T>
+FORCEINLINE TIntVector3<uint32>::TIntVector3(TVector<T> InVector)
 	: X(IntCastChecked<uint32, int64>(FMath::TruncToInt64(InVector.X)))
 	, Y(IntCastChecked<uint32, int64>(FMath::TruncToInt64(InVector.Y)))
 	, Z(IntCastChecked<uint32, int64>(FMath::TruncToInt64(InVector.Z)))

@@ -82,7 +82,8 @@ struct TIntVector3
 	 *
 	 * @param InVector float vector converted to int
 	 */
-	explicit TIntVector3(FVector InVector);
+	template <typename FloatType>
+	explicit TIntVector3(TVector<FloatType> InVector);
 
 	/**
 	 * Constructor

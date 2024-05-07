@@ -56,7 +56,24 @@ static FORCEINLINE uint32 Murmur32( std::initializer_list< uint32 > InitList )
 		Hash = Hash * 5 + 0xe6546b64;
 	}
 
-	return MurmurFinalize32(Hash);
+	return MurmurFinalize32( Hash );
+}
+
+static FORCEINLINE uint64 Murmur64( std::initializer_list< uint64 > InitList )
+{
+	uint64 Hash = 0;
+	for( auto Element : InitList )
+	{
+		Element *= 0x87c37b91114253d5ull;
+		Element = ( Element << 31 ) | ( Element >> (64 - 31) );
+		Element *= 0x4cf5ad432745937full;
+
+		Hash ^= Element;
+		Hash = ( Hash << 27 ) | ( Hash >> (64 - 27) );
+		Hash = Hash * 5 + 0x52dce729;
+	}
+
+	return MurmurFinalize64( Hash );
 }
 
 /*-----------------------------------------------------------------------------

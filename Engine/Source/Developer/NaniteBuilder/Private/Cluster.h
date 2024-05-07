@@ -44,15 +44,6 @@ struct FBuilderSettings
 	}
 };
 
-struct FMaterialTriangle
-{
-	uint32 Index0;
-	uint32 Index1;
-	uint32 Index2;
-	uint32 MaterialIndex;
-	uint32 RangeCount;
-};
-
 struct FMaterialRange
 {
 	uint32 RangeStart;
@@ -82,16 +73,27 @@ public:
 		const TConstArrayView< const uint32 >& InIndexes,
 		const TConstArrayView< const int32 >& InMaterialIndexes,
 		FBuilderSettings& InSettings,
-		uint32 TriBegin, uint32 TriEnd, const FGraphPartitioner& Partitioner, const FAdjacency& Adjacency );
+		uint32 TriBegin, uint32 TriEnd,
+		const TConstArrayView< const uint32 >& TriIndexes,
+		const TConstArrayView< const uint32 >& SortedTo,
+		const FAdjacency& Adjacency );
 
-	FCluster( FCluster& SrcCluster, uint32 TriBegin, uint32 TriEnd, const FGraphPartitioner& Partitioner, const FAdjacency& Adjacency );
-	FCluster( const TArray< const FCluster*, TInlineAllocator<32> >& MergeList );
+	FCluster(
+		FCluster& SrcCluster,
+		uint32 TriBegin, uint32 TriEnd,
+		const TConstArrayView< const uint32 >& TriIndexes,
+		const TConstArrayView< const uint32 >& SortedTo,
+		const FAdjacency& Adjacency );
+
+	FCluster( TArrayView< const FCluster* > Children );
 
 	float		Simplify( uint32 TargetNumTris, float TargetError = 0.0f, uint32 LimitNumTris = 0 );
 	float		SimplifyFallback( uint32 TargetNumTris, float TargetError = 0.0f, uint32 LimitNumTris = 0 );
 	FAdjacency	BuildAdjacency() const;
 	void		Split( FGraphPartitioner& Partitioner, const FAdjacency& Adjacency ) const;
 	void		Bound();
+	void		Voxelize( float VoxelSize );
+	void		BuildMaterialRanges();
 
 private:
 	uint32		AddVert( const float* Vert, FHashTable& HashTable );
@@ -130,7 +132,9 @@ public:
 	TArray< uint32 >	Indexes;
 	TArray< int32 >		MaterialIndexes;
 	TArray< int8 >		ExternalEdges;
-	uint32				NumExternalEdges;
+	uint32				NumExternalEdges = 0;
+
+	TArray< uint32 >	ExtendedData;
 
 	TMap< uint32, uint32 >	AdjacentClusters;
 

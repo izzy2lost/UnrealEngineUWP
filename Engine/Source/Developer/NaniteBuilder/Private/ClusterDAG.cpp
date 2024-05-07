@@ -4,6 +4,7 @@
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
 #include "GraphPartitioner.h"
+#include "BVHCluster.h"
 #include "MeshSimplify.h"
 
 namespace Nanite
@@ -12,7 +13,7 @@ namespace Nanite
 static const uint32 MinGroupSize = 8;
 static const uint32 MaxGroupSize = 32;
 
-static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, TAtomic< uint32 >& NumClusters, TArrayView< uint32 > Children, int32 GroupIndex, uint32 MeshIndex );
+static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, TAtomic< uint32 >& NumClusters, TArrayView< uint32 > Children, uint32 MaxParents, int32 GroupIndex, uint32 MeshIndex );
 
 void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, uint32 ClusterRangeStart, uint32 ClusterRangeNum, uint32 MeshIndex, FBounds3f& MeshBounds )
 {
@@ -60,18 +61,21 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 		{
 			TArray< uint32, TInlineAllocator< MaxGroupSize > > Children;
 
-			uint32 MaxParents = 0;
+			uint32 NumGroupElements = 0;
 			for( FCluster& Cluster : LevelClusters )
 			{
-				MaxParents += FMath::DivideAndRoundUp< uint32 >( Cluster.Indexes.Num(), FCluster::ClusterSize * 6 );
+				NumGroupElements  += Cluster.MaterialIndexes.Num();
 				Children.Add( LevelOffset++ );
 			}
+			uint32 MaxParents = FMath::DivideAndRoundUp( NumGroupElements, FCluster::ClusterSize * 2 );
 
 			LevelOffset = Clusters.Num();
 			Clusters.AddDefaulted( MaxParents );
 			Groups.AddDefaulted( 1 );
 
-			DAGReduce( Groups, Clusters, NumClusters, Children, Groups.Num() - 1, MeshIndex );
+			DAGReduce( Groups, Clusters, NumClusters, Children, MaxParents, Groups.Num() - 1, MeshIndex );
+
+			check( LevelOffset < NumClusters );
 
 			// Correct num to atomic count
 			Clusters.SetNum( NumClusters, EAllowShrinking::No );
@@ -198,7 +202,7 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 			}
 		}
 
-		FGraphPartitioner Partitioner( LevelClusters.Num() );
+		FGraphPartitioner Partitioner( LevelClusters.Num(), MinGroupSize, MaxGroupSize );
 
 		// Sort to force deterministic order
 		Partitioner.Indexes.Sort(
@@ -245,26 +249,25 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 		
 		bool bSingleThreaded = LevelClusters.Num() <= 32;
 
-		Partitioner.PartitionStrict( Graph, MinGroupSize, MaxGroupSize, !bSingleThreaded );
+		Partitioner.PartitionStrict( Graph, !bSingleThreaded );
 
 		LOG_CRC( Partitioner.Ranges );
 
 		uint32 MaxParents = 0;
 		for( auto& Range : Partitioner.Ranges )
 		{
-			uint32 NumParentIndexes = 0;
+			uint32 NumGroupElements = 0;
 			for( uint32 i = Range.Begin; i < Range.End; i++ )
 			{
 				// Global indexing is needed in Reduce()
 				Partitioner.Indexes[i] += LevelOffset;
-				NumParentIndexes += Clusters[ Partitioner.Indexes[i] ].Indexes.Num();
+				NumGroupElements += Clusters[ Partitioner.Indexes[i] ].MaterialIndexes.Num();
 			}
-			MaxParents += FMath::DivideAndRoundUp( NumParentIndexes, FCluster::ClusterSize * 6 );
+			MaxParents += FMath::DivideAndRoundUp( NumGroupElements, FCluster::ClusterSize * 2 );
 		}
 
 		LevelOffset = Clusters.Num();
 
-		const uint32 ParentsStartOffset = Clusters.Num();
 		Clusters.AddDefaulted( MaxParents );
 		Groups.AddDefaulted( Partitioner.Ranges.Num() );
 
@@ -275,17 +278,19 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 
 				TArrayView< uint32 > Children( &Partitioner.Indexes[ Range.Begin ], Range.End - Range.Begin );
 
-				// Force a deterministic order
-				Children.Sort(
-					[&]( uint32 A, uint32 B )
-					{
-						return Clusters[A].GUID < Clusters[B].GUID;
-					} );
+				uint32 NumGroupElements = 0;
+				for( uint32 i = Range.Begin; i < Range.End; i++ )
+				{
+					NumGroupElements += Clusters[ Partitioner.Indexes[i] ].MaterialIndexes.Num();
+				}
+				uint32 MaxParents = FMath::DivideAndRoundUp( NumGroupElements, FCluster::ClusterSize * 2 );
 
 				uint32 ClusterGroupIndex = PartitionIndex + Groups.Num() - Partitioner.Ranges.Num();
 
-				DAGReduce( Groups, Clusters, NumClusters, Children, ClusterGroupIndex, MeshIndex );
+				DAGReduce( Groups, Clusters, NumClusters, Children, MaxParents, ClusterGroupIndex, MeshIndex );
 			} );
+
+		check( LevelOffset < NumClusters );
 
 		// Correct num to atomic count
 		Clusters.SetNum( NumClusters, EAllowShrinking::No );
@@ -299,7 +304,7 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 			// conservative ranges and then doing a compaction pass at the end would be a more efficient solution that doesn't involve sorting.
 			
 			//uint32 StartTime = FPlatformTime::Cycles();
-			TArrayView< FCluster > Parents( Clusters.GetData() + ParentsStartOffset, NumClusters - ParentsStartOffset );
+			TArrayView< FCluster > Parents( &Clusters[ LevelOffset ], Clusters.Num() - LevelOffset );
 			Parents.Sort(
 				[&]( const FCluster& A, const FCluster& B )
 				{
@@ -325,12 +330,12 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 	Groups.Add( RootClusterGroup );
 }
 
-static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, TAtomic< uint32 >& NumClusters, TArrayView< uint32 > Children, int32 GroupIndex, uint32 MeshIndex )
+static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, TAtomic< uint32 >& NumClusters, TArrayView< uint32 > Children, uint32 NumParents, int32 GroupIndex, uint32 MeshIndex )
 {
 	check( GroupIndex >= 0 );
 
 	// Merge
-	TArray< const FCluster*, TInlineAllocator<32> > MergeList;
+	TArray< const FCluster*, TInlineAllocator< MaxGroupSize > > MergeList;
 	for( int32 Child : Children )
 	{
 		MergeList.Add( &Clusters[ Child ] );
@@ -345,9 +350,8 @@ static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clus
 
 	FCluster Merged( MergeList );
 
-	int32 NumParents = FMath::DivideAndRoundUp< int32 >( Merged.Indexes.Num(), FCluster::ClusterSize * 6 );
-	int32 ParentStart = 0;
-	int32 ParentEnd = 0;
+	uint32 ParentStart = 0;
+	uint32 ParentEnd = 0;
 
 	float ParentMaxLODError = 0.0f;
 
@@ -359,23 +363,48 @@ static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clus
 		ParentMaxLODError = Merged.Simplify( TargetNumTris );
 
 		// Split
-		if( NumParents == 1 )
+		if( Merged.MaterialIndexes.Num() <= FCluster::ClusterSize )
 		{
-			ParentEnd = ( NumClusters += NumParents );
-			ParentStart = ParentEnd - NumParents;
+			ParentEnd = ( NumClusters += 1 );
+			ParentStart = ParentEnd - 1;
 
 			Clusters[ ParentStart ] = Merged;
 			Clusters[ ParentStart ].Bound();
 			break;
 		}
-		else
+		else if( NumParents > 1 )
 		{
 			FAdjacency Adjacency = Merged.BuildAdjacency();
-
-			FGraphPartitioner Partitioner( Merged.Indexes.Num() / 3 );
+#if 0
+			FBVHCluster Partitioner( Merged.MaterialIndexes.Num(), FCluster::ClusterSize - 4, FCluster::ClusterSize );
+			if( Merged.NumTris )
+			{
+				Partitioner.Build(
+					[ &Merged ]( uint32 TriIndex )
+					{
+						FBounds3f Bounds;
+						Bounds  = Merged.GetPosition( Merged.Indexes[ TriIndex * 3 + 0 ] );
+						Bounds += Merged.GetPosition( Merged.Indexes[ TriIndex * 3 + 1 ] );
+						Bounds += Merged.GetPosition( Merged.Indexes[ TriIndex * 3 + 2 ] );
+						return Bounds;
+					} );
+			}
+			else
+			{
+				Partitioner.Build(
+					[ &Merged ]( uint32 VertIndex )
+					{
+						FBounds3f Bounds;
+						Bounds = Merged.GetPosition( VertIndex );
+						return Bounds;
+					} );
+			}
+#else
+			FGraphPartitioner Partitioner( Merged.MaterialIndexes.Num(), FCluster::ClusterSize - 4, FCluster::ClusterSize );
 			Merged.Split( Partitioner, Adjacency );
+#endif
 
-			if( Partitioner.Ranges.Num() <= NumParents )
+			if( Partitioner.Ranges.Num() <= (int32)NumParents )
 			{
 				NumParents = Partitioner.Ranges.Num();
 				ParentEnd = ( NumClusters += NumParents );
@@ -384,7 +413,7 @@ static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clus
 				int32 Parent = ParentStart;
 				for( auto& Range : Partitioner.Ranges )
 				{
-					Clusters[ Parent ] = FCluster( Merged, Range.Begin, Range.End, Partitioner, Adjacency );
+					Clusters[ Parent ] = FCluster( Merged, Range.Begin, Range.End, Partitioner.Indexes, Partitioner.SortedTo, Adjacency );
 					Parent++;
 				}
 
@@ -396,12 +425,12 @@ static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clus
 		Merged = FCluster( MergeList );
 	}
 
-	TArray< FSphere3f, TInlineAllocator<32> > Children_LODBounds;
-	TArray< FSphere3f, TInlineAllocator<32> > Children_SphereBounds;
+	TArray< FSphere3f, TInlineAllocator< MaxGroupSize > > Children_LODBounds;
+	TArray< FSphere3f, TInlineAllocator< MaxGroupSize > > Children_SphereBounds;
 					
 	// Force monotonic nesting.
 	float ChildMinLODError = MAX_flt;
-	for( int32 Child : Children )
+	for( uint32 Child : Children )
 	{
 		bool bLeaf = Clusters[ Child ].EdgeLength < 0.0f;
 		float LODError = Clusters[ Child ].LODError;
@@ -420,7 +449,7 @@ static void DAGReduce( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clus
 	FSphere3f ParentBounds( Children_SphereBounds.GetData(), Children_SphereBounds.Num() );
 
 	// Force parents to have same LOD data. They are all dependent.
-	for( int32 Parent = ParentStart; Parent < ParentEnd; Parent++ )
+	for( uint32 Parent = ParentStart; Parent < ParentEnd; Parent++ )
 	{
 		Clusters[ Parent ].LODBounds			= ParentLODBounds;
 		Clusters[ Parent ].LODError				= ParentMaxLODError;

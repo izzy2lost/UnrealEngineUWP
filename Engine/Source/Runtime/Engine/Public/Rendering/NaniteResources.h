@@ -112,10 +112,11 @@ struct FPackedCluster
 	uint32		PackedMaterialInfo;
 
 	// TODO: Nanite-Skinning: Bloating even non-skinning clusters by 16 bytes is not ideal - optimize this. Put Bone header in optional decode info section instead?
+	// Extended data is not necessary. It is convenient for developement while we have padding anyways.
 	uint32		BoneDataOffset_NumBones;						// BoneDataOffset: 22, NumBones: 10
 	uint32		BoneIndexBits_BoneWeightBits;					// BoneIndexBits: 6, BoneIndexBits: 6
+	uint32		ExtendedDataOffset_Num;							// ExtendedDataOffset: 22, Num: 10
 	uint32		Dummy0;
-	uint32		Dummy1;
 
 	uint32		VertReuseBatchInfo[4];
 

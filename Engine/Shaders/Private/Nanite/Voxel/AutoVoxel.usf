@@ -4,6 +4,7 @@
 #include "../../SceneTexturesCommon.ush"
 #include "../../HashTable.ush"
 #include "../../WaveOpUtil.ush"
+#include "../../ShaderPrint.ush"
 #include "Voxel.ush"
 #include "Brick.ush"
 
@@ -12,11 +13,10 @@ RWStructuredBuffer< uint >		RWIndexBuffer;
 
 RWByteAddressBuffer				RWBlockBuffer;
 
-int4 DepthToVoxel( uint2 PixelPos )
+int4 DepthToVoxel( uint2 PixelPos, float Depth )
 {
-	float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load( int3( PixelPos, 0 ) ).r;
-	DeviceZ = max( DeviceZ, 1e-4 );
-	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld( float4( PixelPos + 0.5, DeviceZ, 1 ) );
+	//Depth = max( Depth, 1e-4 );
+	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld( float4( PixelPos + 0.5, Depth, 1 ) );
 	
 	float3 VoxelPos = TranslatedWorldPosition / VoxelSize;
 	float Distance = length( TranslatedWorldPosition - View.TranslatedWorldCameraOrigin );
@@ -51,7 +51,9 @@ void VisibleBricksHash(
 	BRANCH
 	if( bInsideViewport )
 	{
-		int4 Voxel = DepthToVoxel( PixelPos );
+		float Depth = SceneTexturesStruct.SceneDepthTexture.Load( int3( PixelPos, 0 ) ).r;
+
+		int4 Voxel = DepthToVoxel( PixelPos, Depth );
 		uint3 BrickKey = EncodeBrickKey( Voxel.xyz >> uint( BrickSizeLog2 ), Voxel.w );
 		
 		//uint3 Hash = Rand3DPCG32( BrickKey );
@@ -99,6 +101,15 @@ void FillArgs( uint GroupIndex : SV_GroupIndex )
 #if 1
 		//uint NumBricks = RWBrickBuffer.IncrementCounter();
 		uint NumBricks = RWDispatchIndirectArgs[3];
+		NumBricks = min( NumBricks, 1u << 25 );
+
+		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.65, 0.05));
+
+		Print(Context, TEXT("Voxel"), FontOrange);
+		Newline(Context);
+
+		Print(Context, TEXT("NumBricks:  "));
+		Print(Context, NumBricks);
 
 		RWDispatchIndirectArgs[0] = ( NumBricks + 63 ) / 64;
 		RWDispatchIndirectArgs[1] = 1;
@@ -124,6 +135,7 @@ void AllocBlocks(
 	uint GroupIndex : SV_GroupIndex ) 
 {
 	uint NumBricks = GetNumBricks();
+	NumBricks = min( NumBricks, 1u << 25 );
 
 	uint BlockOffset = 0;
 	uint NumBlocks = 0;
@@ -159,7 +171,9 @@ void FillBlocks( uint2 PixelPos : SV_DispatchThreadID )
 	BRANCH
 	if( bInsideViewport )
 	{
-		int4 Voxel = DepthToVoxel( PixelPos );
+		float Depth = SceneTexturesStruct.SceneDepthTexture.Load( int3( PixelPos, 0 ) ).r;
+
+		int4 Voxel = DepthToVoxel( PixelPos, Depth );
 
 		uint3 BrickKey = EncodeBrickKey( Voxel.xyz >> uint( BrickSizeLog2 ), Voxel.w );
 

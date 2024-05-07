@@ -113,7 +113,7 @@ void StepDDA( inout FDDA DDA, const uint Dimension )
 {
 	DDA.Time[0] = NextTime( DDA );
 
-#if 1
+#if 0
 #if 0
 	bool3 bLeast = DDA.Next.xyz <= min( DDA.Next.yzx, DDA.Next.zxy );
 	//float3 Mask = float3( (DDA.Next.xyz < DDA.Next.yzx) & (DDA.Next.xyz <= DDA.Next.zxy) );
@@ -126,7 +126,7 @@ void StepDDA( inout FDDA DDA, const uint Dimension )
 #else
 	float3 Mask = 0;
 	FLATTEN
-	if( DDA.Next.x < DDA.Next.y && DDA.Next.x < DDA.Next.z )
+	if( DDA.Next.x < min( DDA.Next.y, DDA.Next.z ) )
 		Mask.x = Dimension;
 	else if( DDA.Next.y < DDA.Next.z )
 		Mask.y = Dimension;
@@ -138,7 +138,7 @@ void StepDDA( inout FDDA DDA, const uint Dimension )
 	DDA.VoxelIndex	+= dot( Mask, DDA.Step );
 #else
 	FLATTEN
-	if( DDA.Next.x < DDA.Next.y && DDA.Next.x < DDA.Next.z )
+	if( DDA.Next.x < min( DDA.Next.y, DDA.Next.z ) )
 	{
 		DDA.Next.x += abs( DDA.InvDir.x );
 		DDA.VoxelIndex += DDA.Step.x;
@@ -156,13 +156,19 @@ void StepDDA( inout FDDA DDA, const uint Dimension )
 #endif
 }
 
-uint PrefixSum64( uint2 Occupency, uint Index, uint2 Mask )
+uint PrefixSum64( uint2 Occupency, uint Index, uint Mask )
 {
 	uint Offset;
 	Mask -= 1;
-	Offset  = countbits( Occupency.x & ( Index < 32 ? Mask.x : ~0u ) );
-	Offset += countbits( Occupency.y & ( Index < 32 ? 0 : Mask.y ) );
+	Offset  = countbits( Occupency.x & ( Index < 32 ? Mask : ~0u ) );
+	Offset += countbits( Occupency.y & ( Index < 32 ? 0 : Mask ) );
 	return Offset;
+}
+
+uint PrefixSum64( uint2 Occupency, uint Index )
+{
+	uint Mask = 1u << ( Index & 31 );
+	return PrefixSum64( Occupency, Index, Mask );
 }
 
 float2 RayUnitBox( FRay Ray )
@@ -170,18 +176,33 @@ float2 RayUnitBox( FRay Ray )
 #if 0
 	float3 Origin = Ray.Direction >= 0 ? -Ray.Origin : Ray.Origin;
 	float3 InvDir = rcp( abs( Ray.Direction ) );
-	float3 MinIntersection = ( Origin - 0.5 ) * InvDir;
-	float3 MaxIntersection = ( Origin + 0.5 ) * InvDir;
+	float3 MinIntersection = ( Origin - 1 ) * InvDir;
+	float3 MaxIntersection = ( Origin + 1 ) * InvDir;
 #else
 	float3 InvDir = rcp( Ray.Direction );
 	float3 Center = -Ray.Origin * InvDir;
-	float3 Extent = 0.5 * abs( InvDir );
+	float3 Extent = abs( InvDir );
 	float3 MinIntersection = Center - Extent;
 	float3 MaxIntersection = Center + Extent;
 #endif
 	Ray.Time[0] = max( Ray.Time[0], max3( MinIntersection.x, MinIntersection.y, MinIntersection.z ) );
 	Ray.Time[1] = min( Ray.Time[1], min3( MaxIntersection.x, MaxIntersection.y, MaxIntersection.z ) );
 	return Ray.Time;
+}
+
+float2 Intersect( FRay Ray, float3 BoundsCenter, float3 BoundsExtent )
+{
+	Ray.Origin -= BoundsCenter;
+
+	float3 InvDir = rcp( Ray.Direction );
+	float3 Center = -Ray.Origin * InvDir;
+	float3 Extent = abs( InvDir ) * BoundsExtent;
+	float3 MinIntersection = Center - Extent;
+	float3 MaxIntersection = Center + Extent;
+
+	return float2(
+		max3( MinIntersection.x, MinIntersection.y, MinIntersection.z ),
+		min3( MaxIntersection.x, MaxIntersection.y, MaxIntersection.z ) );
 }
 
 float2 Intersect( FRay Ray, float3 Bounds[2] )
@@ -296,6 +317,77 @@ float RayCastBrick_L1( FRay Ray, uint BrickOffset, inout FRayCastCounters Counte
 			}
 		}
 #endif
+	}
+
+	return Ray.Time[1] + 1.0;
+}
+
+// Assumes Ray in local 0-1 space
+float RayCastBrick_L1_YZ( FRay Ray, uint BrickOffset, inout FRayCastCounters Counters )
+{
+	const float Epsilon = 1e-4;
+
+	uint2 NodeBlock = BlockBuffer.Load2( 8 * BrickOffset );
+
+	Ray.Time += float2( Epsilon, -Epsilon );
+
+	Ray.Origin *= 4;
+	Ray.Direction *= 4;
+
+	FDDA DDA = InitDDA( Ray );
+	//StartDDA( DDA, 1, Ray );
+
+	float3 Position = Ray.Origin + Ray.Direction * DDA.Time[0];
+	float3 Voxel = floor( Position );
+
+	DDA.VoxelIndex = uint( Voxel.y + Voxel.z * 4 ) << 2;
+	DDA.Next = DDA.Time[0] + ( ( Voxel + DDA.IsPositive ) - Position ) * DDA.InvDir;
+
+	while( DDA.Time[0] < DDA.Time[1] && Counters.Tests <= 4*3 )
+	{
+		Counters.Tests++;
+
+		float ColumnTime0 = DDA.Time[0];
+		float ColumnTime1 = min( DDA.Next.y, DDA.Next.z );
+
+		float ColumnX0 = Ray.Origin.x + Ray.Direction.x * ColumnTime0;
+		float ColumnX1 = Ray.Origin.x + Ray.Direction.x * ColumnTime1;
+
+		uint x0 = uint( clamp( floor( ColumnX0 ), 0, 4 ) );
+		uint x1 = uint( clamp(  ceil( ColumnX1 ), 0, 4 ) );
+		uint Mask0 = ( 0b1111 << x0 ) & 0b1111;
+		uint Mask1 = ( 0b1111 << x1 ) & 0b1111;
+		uint LineMask = Mask0 & ~Mask1;
+
+		uint RayMask = LineMask << ( DDA.VoxelIndex & 31 );
+		uint HitMask = ( DDA.VoxelIndex < 32 ? NodeBlock.x : NodeBlock.y ) & RayMask;
+		if( HitMask )
+		{
+			if( DDA.IsPositive.x )
+				HitMask ^= HitMask - 1;
+			uint HitIndex = firstbithigh( HitMask );
+
+			return DDA.Time[0];
+		}
+		
+		Counters.Steps++;
+
+		{
+			//DDA.Time[0] = NextTime( DDA );
+			DDA.Time[0] = min( DDA.Next.y, DDA.Next.z );
+
+			FLATTEN
+			if( DDA.Next.y < DDA.Next.z )
+			{
+				DDA.Next.y += abs( DDA.InvDir.y );
+				DDA.VoxelIndex += DDA.Step.y;
+			}
+			else
+			{
+				DDA.Next.z += abs( DDA.InvDir.z );
+				DDA.VoxelIndex += DDA.Step.z;
+			}
+		}
 	}
 
 	return Ray.Time[1] + 1.0;
@@ -506,7 +598,7 @@ float RayCastBrick_L2( FRay Ray, uint BrickOffset, inout FRayCastCounters Counte
 			NodeBlock = RootBlock;
 			DDA.Time[1] = Ray.Time[1];
 #if 0
-			StartDDA( DDA, (1 << RootShift), Ray );
+			StartDDA( DDA, (1u << RootShift), Ray );
 #else
 			DDA.InvDir = rcp( Ray.Direction );
 			DDA.VoxelIndex	= RootDDA.VoxelIndex;
@@ -533,7 +625,7 @@ void StartDDA2( inout FDDA DDA, const float Scale, const FRay Ray )
 void StepDDA2( inout FDDA DDA, const float Scale )
 {
 	FLATTEN
-	if( DDA.Next.x < DDA.Next.y && DDA.Next.x < DDA.Next.z )
+	if( DDA.Next.x < min( DDA.Next.y, DDA.Next.z ) )
 	{
 		DDA.Next.x += abs( DDA.InvDir.x ) * Scale;
 		DDA.VoxelIndex += DDA.Step.x;
@@ -708,13 +800,9 @@ float RayCastBrick_L2_WhileIf( FRay Ray, uint BrickOffset, inout FRayCastCounter
 
 			VoxelIndex = DDA.VoxelIndex;
 			//VoxelIndex = uint( DDA.Voxel.x + DDA.Voxel.y * 4 + DDA.Voxel.z * 16 );
-			VoxelMask = uint2(
-				1u << VoxelIndex,
-				1u << (VoxelIndex - 32) );
+			VoxelMask = 1u << ( DDA.VoxelIndex & 31u );
 
-			bVoxelExists = VoxelIndex < 32 ?
-				NodeBlock.x & VoxelMask.x :
-				NodeBlock.y & VoxelMask.y;
+			bVoxelExists = ( VoxelIndex < 32 ? NodeBlock.x : NodeBlock.y ) & VoxelMask;
 
 			if( bVoxelExists )
 				break;

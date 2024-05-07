@@ -19,18 +19,27 @@ static TAutoConsoleVariable<int32> CVarVoxel(
 	);
 
 static TAutoConsoleVariable<int32> CVarVoxelMethod(
-	TEXT("r.VoxelMethod"),
+	TEXT("r.Voxel.Method"),
 	0,
 	TEXT(""),
 	ECVF_RenderThreadSafe
 	);
 
 static TAutoConsoleVariable<int32> CVarVoxelLevel2(
-	TEXT("r.VoxelLevel2"),
+	TEXT("r.Voxel.Level2"),
 	1,
 	TEXT(""),
 	ECVF_RenderThreadSafe
 	);
+
+static TAutoConsoleVariable<int32> CVarVoxelTileSize(
+	TEXT("r.Voxel.TileSize"),
+	8,
+	TEXT(""),
+	ECVF_RenderThreadSafe
+	);
+
+DECLARE_GPU_STAT_NAMED(NaniteVoxel, TEXT("Nanite Voxel"));
 
 namespace Nanite
 {
@@ -77,6 +86,8 @@ BEGIN_SHADER_PARAMETER_STRUCT( FBuildBricksParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_UAV( RWByteAddressBuffer,			RWBlockBuffer )
 	SHADER_PARAMETER_RDG_BUFFER_UAV( RWBuffer< uint >,				RWDispatchIndirectArgs )
 	SHADER_PARAMETER_RDG_BUFFER_UAV( RWBuffer< uint >,				RWDrawIndirectArgs )
+
+	SHADER_PARAMETER_STRUCT_INCLUDE( ShaderPrint::FShaderParameters, ShaderPrintStruct )
 
 	RDG_BUFFER_ACCESS( IndirectArgs, ERHIAccess::IndirectArgs )
 END_SHADER_PARAMETER_STRUCT()
@@ -235,6 +246,8 @@ void DrawVisibleBricks(
 		PassParameters->RWDispatchIndirectArgs	= GraphBuilder.CreateUAV( DispatchIndirectArgs );
 		PassParameters->RWDrawIndirectArgs		= GraphBuilder.CreateUAV( DrawIndirectArgs );
 
+		ShaderPrint::SetParameters( GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintStruct );
+
 		auto ComputeShader = View.ShaderMap->GetShader< FFillArgsCS >();
 
 		FComputeShaderUtils::AddPass(
@@ -300,6 +313,8 @@ void DrawVisibleBricks(
 
 		BlockBuffer = BlockBufferL2;
 	}
+
+	RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVoxel);
 
 	int32 VoxelMethod = CVarVoxelMethod.GetValueOnRenderThread();
 
@@ -372,7 +387,7 @@ void DrawVisibleBricks(
 
 	case 1:		// Tiled
 		{
-			uint32 TileSize = 8;
+			uint32 TileSize = CVarVoxelTileSize.GetValueOnRenderThread();
 			uint32 TilesX = FMath::DivideAndRoundUp< uint32 >( View.ViewRect.Size().X, TileSize );
 			uint32 TilesY = FMath::DivideAndRoundUp< uint32 >( View.ViewRect.Size().Y, TileSize );
 			
@@ -428,7 +443,7 @@ void DrawVisibleBricks(
 				);
 			}
 
-			if(0)
+			if(1)
 			{
 				FTileBricksParameters* PassParameters = GraphBuilder.AllocParameters< FTileBricksParameters >();
 
@@ -460,7 +475,7 @@ void DrawVisibleBricks(
 				PassParameters->BrickBuffer			= GraphBuilder.CreateSRV( BrickBuffer );
 				PassParameters->BlockBuffer			= GraphBuilder.CreateSRV( BlockBuffer );
 				PassParameters->TileListBuffer		= GraphBuilder.CreateSRV( TileListBuffer );
-				//PassParameters->TileArrayBuffer		= GraphBuilder.CreateSRV( TileArrayBuffer );
+				PassParameters->TileArrayBuffer		= GraphBuilder.CreateSRV( TileArrayBuffer );
 				PassParameters->TileHead			= TileHead;
 				PassParameters->TileCount			= TileCount;
 				PassParameters->TileOffset			= TileOffset;

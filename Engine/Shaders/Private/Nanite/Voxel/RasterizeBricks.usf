@@ -5,12 +5,13 @@
 #include "Voxel.ush"
 
 void DrawBricksVS(
-	uint VertexID			: SV_VertexID,
-	uint InstanceID			: SV_InstanceID,
-	out nointerpolation uint   OutBrickOffset	: TEXCOORD0,
-	out nointerpolation float4 OutCubePos		: TEXCOORD1,
-	out nointerpolation uint   OutBounds		: TEXCOORD2,
-	out float4 OutPosition	: SV_POSITION
+	uint		VertexID		: SV_VertexID,
+	uint		InstanceID		: SV_InstanceID,
+	out uint	OutBrickOffset	: TEXCOORD0,
+	out uint	OutBounds		: TEXCOORD1,
+	out float3	RayOrigin		: TEXCOORD2,
+	out float3	RayDirection	: TEXCOORD3,
+	out float4	OutPosition		: SV_POSITION
 	)
 {
 	uint LocalBrickID = VertexID / VertsPerBrick;
@@ -24,8 +25,9 @@ void DrawBricksVS(
 	{
 		OutPosition = float4(0,0,0,1);
 		OutBrickOffset = 0u;
-		OutCubePos = float4(0,0,0,1);
 		OutBounds = 0u;
+		RayOrigin = 0;
+		RayDirection = 0;
 		return;
 	}
 
@@ -68,7 +70,6 @@ void DrawBricksVS(
 		WorldMax = NewWorldMax;
 	}
 
-	OutCubePos = float4( BrickPos, rcp(CubeSize) );
 	OutBrickOffset = Brick.BlockOffset;
 
 #if DRAW_RECTS
@@ -113,19 +114,38 @@ void DrawBricksVS(
 
 	OutPosition = mul( float4( Position, 1 ), View.TranslatedWorldToClip );
 #endif
+
+	FRay Ray;
+	Ray.Origin = View.TranslatedWorldCameraOrigin;
+	Ray.Direction = mul( float4( OutPosition.xy, 0, 1 ), View.ClipToTranslatedWorld ).xyz;
+
+	// Transform to local space
+	RayOrigin    = Ray.Origin    / CubeSize - BrickPos;
+	RayDirection = Ray.Direction / CubeSize;
+
+	//OutPosition.z = 1.0 - InstanceID / 1000000.0;
 }
 
 
 ENABLE_RE_Z
 void DrawBricksPS(
-	in uint   BrickOffset	: TEXCOORD0,
-	in float4 CubePos		: TEXCOORD1,
-	in uint   BrickBounds	: TEXCOORD2,
-	in float4 SvPosition	: SV_Position,
-	out float4 OutColor		: SV_Target0
-	)
+	in nointerpolation uint	BrickOffset		: TEXCOORD0,
+	in nointerpolation uint	BrickBounds		: TEXCOORD1,
+	in noperspective float3	RayOrigin		: TEXCOORD2,
+	in noperspective float3	RayDirection	: TEXCOORD3,
+	in centroid float4		SvPosition		: SV_Position,
+	out float4				OutColor		: SV_Target0,
+	out float				OutDepth		: SV_DepthLessEqual )
 {
-	FRay Ray = GetViewRay( SvPosition.xy );
+	FRay Ray;
+	Ray.Origin		= RayOrigin;
+	Ray.Direction	= RayDirection;
+	Ray.Time[0] = 0;
+	Ray.Time[1] = 1e24;
+
+	const float Epsilon = 1e-8;
+	float3 Replacement = select( Ray.Direction > 0, Epsilon, -Epsilon );
+	Ray.Direction = select( abs( Ray.Direction ) < Epsilon, Replacement, Ray.Direction );
 
 #if 0
 	OutColor = 0.1;
@@ -154,10 +174,6 @@ void DrawBricksPS(
 	if( Ray.Time[0] > Ray.Time[1] )
 		discard;
 #elif 0
-	// Transform to local space
-	Ray.Origin    = Ray.Origin    * CubePos.w - CubePos.xyz;
-	Ray.Direction = Ray.Direction * CubePos.w;
-
 	float3 Bounds[2] = { float3(0,0,0), float3(1,1,1) };
 
 	// Ray intersect with box
@@ -175,9 +191,6 @@ void DrawBricksPS(
 	if( Ray.Time[0] > Ray.Time[1] )
 		discard;
 #else
-	// Transform to local space
-	Ray.Origin    = Ray.Origin    * CubePos.w - CubePos.xyz;
-	Ray.Direction = Ray.Direction * CubePos.w;
 
 	float3 Bounds[2] = { float3(0,0,0), float3(1,1,1) };
 
@@ -218,6 +231,8 @@ void DrawBricksPS(
 
 		//OutColor.rgb = frac( Ray.Time[1] / 1000 );
 	}
+
+	OutDepth = View.ViewToClip[3][2] / Ray.Time[0] + View.ViewToClip[2][2];
 	
 	if( Ray.Time[0] >= Ray.Time[1] )
 		discard;

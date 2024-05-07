@@ -93,8 +93,8 @@ void FImposterAtlas::Rasterize( const FIntPoint& TilePos, const FCluster& Cluste
 		Verts[1] = Positions[ Cluster.Indexes[ TriIndex * 3 + 1 ] ];
 		Verts[2] = Positions[ Cluster.Indexes[ TriIndex * 3 + 2 ] ];
 
-		RasterizeTri( Verts, Scissor, 0,
-			[&]( int32 x, int32 y, float z )
+		RasterizeTri( Verts, Scissor, 0, true,
+			[&]( int32 x, int32 y, float z, const FVector3f& Barycentrics )
 			{
 				uint32 Depth = FMath::RoundToInt( FMath::Clamp( z, 1.0f, 255.0f ) );
 				uint16 PixelValue = uint16(( Depth << 8 ) | ( ClusterIndex << 7 ) | TriIndex);
