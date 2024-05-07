@@ -415,12 +415,12 @@ void FControlRigEditor::CreatePersonaToolKitIfRequired()
 	}
 	PersonaToolkit = PersonaModule.CreatePersonaToolkit(ControlRigBlueprint, PersonaToolkitArgs, Skeleton);
 
-	// Set a default preview mesh, if any
-	PersonaToolkit->SetPreviewMesh(ControlRigBlueprint->GetPreviewMesh(), false);
-
 	// set delegate prior to setting mesh
 	// otherwise, you don't get delegate
 	PersonaToolkit->GetPreviewScene()->RegisterOnPreviewMeshChanged(FOnPreviewMeshChanged::CreateSP(this, &FControlRigEditor::HandlePreviewMeshChanged));
+	
+	// Set a default preview mesh, if any
+	PersonaToolkit->SetPreviewMesh(ControlRigBlueprint->GetPreviewMesh(), false);
 }
 
 const FName FControlRigEditor::GetEditorAppName() const
