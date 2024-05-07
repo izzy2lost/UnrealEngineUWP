@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UObject/SoftObjectPath.h"
+#include "UObject/SoftObjectPtr.h"
 
 namespace UE::ConcertSharedSlate
 {

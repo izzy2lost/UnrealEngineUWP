@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/Data/ConcertPropertySelection.h"
+#include "UObject/SoftObjectPtr.h"
 
 namespace UE::ConcertSharedSlate
 {
