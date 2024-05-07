@@ -2,7 +2,7 @@
 
 #include "InstanceDataObjectUtilsTest.h"
 
-#if WITH_TESTS
+#if WITH_TESTS && (PLATFORM_WINDOWS || PLATFORM_LINUX || PLATFORM_MAC)
 
 #include "Tests/TestHarnessAdapter.h"
 #include "UObject/InstanceDataObjectUtils.h"

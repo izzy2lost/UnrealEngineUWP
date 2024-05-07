@@ -107,6 +107,8 @@ namespace Gauntlet
 
 		protected Dictionary<EIntendedBaseCopyDirectory, string> LocalDirectoryMappings;
 
+		private string NoPlayProtectSetting = null;
+
 		public TargetDeviceAndroid(string InDeviceName = "", AndroidDeviceData DeviceData = null, string InCachePath = null)
 		{
 			AdbCredentialCache.AddInstance(DeviceData);
@@ -220,6 +222,12 @@ namespace Gauntlet
 			{
 				try
 				{
+					if (!string.IsNullOrEmpty(NoPlayProtectSetting))
+					{
+						Log.Verbose("Restoring play protect for this session...");
+						RunAdbDeviceCommand($"shell settings put global package_verifier_user_consent {NoPlayProtectSetting}");
+					}
+
 					if (!IsExistingDevice)
 					{
 						// disconnect
@@ -1218,6 +1226,17 @@ namespace Gauntlet
 					if (LocalFileExists && LocalFileNewer)
 					{
 						ApkPath = LocalAPK;
+					}
+				}
+
+				bool NoPlayProtect = Globals.Params.ParseParam("no-play-protect");
+				if (NoPlayProtect)
+				{
+					NoPlayProtectSetting = RunAdbDeviceCommandAndGetOutput("shell settings get global package_verifier_user_consent");
+					if (NoPlayProtectSetting != "-1")
+					{
+						Log.Verbose("Removing play protect for this session...");
+						RunAdbDeviceCommand("shell settings put global package_verifier_user_consent -1");
 					}
 				}
 

@@ -167,6 +167,9 @@ namespace LowLevelTests
 
 		public bool VerifyLogin;
 
+		// Android specific
+		public bool NoPlayProtect;
+
 		[AutoParam(false)]
 		public bool SkipStage;
 
@@ -237,6 +240,7 @@ namespace LowLevelTests
 			Tags = Params.ParseValue("tags=", null);
 			AttachToDebugger = Params.ParseParam("attachtodebugger");
 			VerifyLogin = Params.ParseParam("verifylogin");
+			NoPlayProtect = Params.ParseParam("no-play-protect");
 
 			TestExtraArgs = Params.ParseValue("extra-args=", null);
 
