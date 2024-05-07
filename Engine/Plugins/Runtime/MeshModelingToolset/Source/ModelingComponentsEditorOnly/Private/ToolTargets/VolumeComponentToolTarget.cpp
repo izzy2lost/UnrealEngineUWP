@@ -8,6 +8,7 @@
 #include "DynamicMeshToMeshDescription.h"
 #include "GameFramework/Volume.h"
 #include "MeshDescriptionToDynamicMesh.h"
+#include "ModelingToolTargetUtil.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "StaticMeshAttributes.h"
 #include "ToolSetupUtil.h"
@@ -102,7 +103,8 @@ void UVolumeComponentToolTarget::CommitDynamicMesh(const UE::Geometry::FDynamicM
 	UE::Conversion::DynamicMeshToVolume(Mesh, Volume, ConversionOptions);
 
 	Volume->SetActorTransform(Transform);
-	Volume->PostEditChange();
+	
+	UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(Volume);
 }
 
 const FMeshDescription* UVolumeComponentToolTarget::GetMeshDescription(const FGetMeshParameters& GetMeshParams)

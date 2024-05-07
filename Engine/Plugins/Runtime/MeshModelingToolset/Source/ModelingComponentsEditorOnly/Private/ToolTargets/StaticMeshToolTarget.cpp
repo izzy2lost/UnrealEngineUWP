@@ -9,6 +9,7 @@
 #include "Engine/StaticMesh.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
+#include "ModelingToolTargetUtil.h"
 #include "RenderingThread.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -255,8 +256,7 @@ bool UStaticMeshToolTarget::CommitMaterialSetUpdate(UStaticMesh* StaticMeshIn,
 		}
 	}
 
-	StaticMeshIn->PostEditChange();
-
+	UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(StaticMeshIn);
 	return true;
 }
 
@@ -482,7 +482,7 @@ void UStaticMeshToolTarget::CommitMeshDescription(UStaticMesh* StaticMeshIn, con
 		ThisSourceModel.ResetReductionSetting();
 	}
 
-	StaticMeshIn->PostEditChange();
+	UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(StaticMeshIn);
 }
 
 FDynamicMesh3 UStaticMeshToolTarget::GetDynamicMesh()

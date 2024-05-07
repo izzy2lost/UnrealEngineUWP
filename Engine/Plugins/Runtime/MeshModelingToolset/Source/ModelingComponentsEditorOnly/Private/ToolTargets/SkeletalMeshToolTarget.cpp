@@ -9,6 +9,7 @@
 #include "Rendering/SkeletalMeshModel.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "ModelingToolTargetUtil.h"
 #include "SkeletalMeshAttributes.h"
 #include "Misc/SlowTask.h"
 #include "UObject/Package.h"
@@ -151,7 +152,7 @@ bool USkeletalMeshReadOnlyToolTarget::CommitMaterialSetUpdate(USkeletalMesh* Ske
 		}
 	}
 
-	SkeletalMeshIn->PostEditChange();
+	UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(SkeletalMeshIn);
 
 	return true;
 }
@@ -276,7 +277,7 @@ void USkeletalMeshToolTarget::CommitMeshDescription(USkeletalMesh* SkeletalMesh,
 	FLODUtilities::UpdateLODInfoVertexAttributes(SkeletalMesh, LODIndex, LODIndex, false);
 	
 	// This call will invoke the skeletal mesh render data rebuild machinery.
-	SkeletalMesh->PostEditChange();
+	UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(SkeletalMesh);
 }
 
 void USkeletalMeshToolTarget::CommitDynamicMesh(const FDynamicMesh3& Mesh, const FDynamicMeshCommitInfo& CommitInfo)

@@ -253,6 +253,23 @@ namespace Internal
 	MODELINGCOMPONENTS_API void CommitDynamicMeshViaIPersistentDynamicMeshSource(
 		IPersistentDynamicMeshSource& DynamicMeshSource,
 		const UE::Geometry::FDynamicMesh3& UpdatedMesh, bool bHaveModifiedTopology);
+
+#if WITH_EDITOR
+	/**
+	 * Internal path for use by tool targets to invoke PostEditChange with conditional capture for undo
+	 * transactions. This capture is controlled by the CVar 'modeling.CapturePostEditChangeInTransactions'.
+	 *
+	 * PostEditChange can include arbitrary user code which can lead to a tool transaction capturing data
+	 * beyond the modifications the tool has made, opening up the risk of various side effects. It is
+	 * recommended that PostEditChange is not included in a transaction scope since PostEditUndo will
+	 * reinvoke PostEditChange and provide the user code the opportunity to reapply its changes in response
+	 * to the data modifications being made.
+	 *
+	 * That said, not all user code in PostEditChange is well behaved and deterministic so we provide the CVar
+	 * to toggle this behavior.
+	 */
+	MODELINGCOMPONENTS_API void PostEditChangeWithConditionalUndo(UObject* Object);
+#endif
 }
 
 /**

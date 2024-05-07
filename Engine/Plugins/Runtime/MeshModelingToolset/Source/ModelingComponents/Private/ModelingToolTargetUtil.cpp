@@ -26,12 +26,24 @@
 #include "MeshDescriptionToDynamicMesh.h"
 #include "DynamicMeshToMeshDescription.h"
 #include "StaticMeshAttributes.h"
+#if WITH_EDITOR
+#include "StaticMeshCompiler.h"
+#include "SkinnedAssetCompiler.h"
+#endif
 
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 
 #define LOCTEXT_NAMESPACE "ModelingToolTargetUtil"
 
 using namespace UE::Geometry;
+
+namespace UE::ToolTarget::Internal
+{
+	static TAutoConsoleVariable<bool> CVarCapturePostEditChangeInTransactions(
+	TEXT("modeling.CapturePostEditChangeInTransactions"),
+	true,
+	TEXT("When true, PostEditChange will be included in tool-target based tool transactions."));
+}
 
 AActor* UE::ToolTarget::GetTargetActor(UToolTarget* Target)
 {
@@ -609,6 +621,33 @@ USkeletalMesh* UE::ToolTarget::GetSkeletalMeshFromTargetIfAvailable(UToolTarget*
 	return TargetSkeletalMesh;
 }
 
+#if WITH_EDITOR
+void UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(UObject* Object)
+{
+	if (CVarCapturePostEditChangeInTransactions->GetBool())
+	{
+		Object->PostEditChange();
+	}
+	else
+	{
+		TGuardValue<ITransaction*> SuppressTransaction(GUndo, nullptr);
+		Object->PostEditChange();
+
+		// For StaticMesh & SkeletalMesh, we additionally block on the StaticMesh/SkeletalMesh build
+		// to ensure it completes while transactions are disabled. This is necessary because
+		// closing out the transaction scope will force the compile to complete outside of this scope
+		// where transactions are still captured.
+		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(Object))
+		{
+			FStaticMeshCompilingManager::Get().FinishCompilation({StaticMesh});
+		}
+		else if (USkinnedAsset* SkinnedAsset = Cast<USkinnedAsset>(Object))
+		{
+			FSkinnedAssetCompilingManager::Get().FinishCompilation({SkinnedAsset});
+		}
+	}
+}
+#endif
 
 
 #undef LOCTEXT_NAMESPACE
