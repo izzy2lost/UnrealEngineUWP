@@ -342,9 +342,9 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMat
 		}
 	}
 	
-	LandscapeEdMode->GetLandscape()->GetLandscapeInfo()->UpdateLayerInfoMap();
 	if (LandscapeEdMode)
 	{
+		LandscapeEdMode->GetLandscape()->GetLandscapeInfo()->UpdateLayerInfoMap();
 		LandscapeEdMode->UpdateTargetList();
 	}
 
