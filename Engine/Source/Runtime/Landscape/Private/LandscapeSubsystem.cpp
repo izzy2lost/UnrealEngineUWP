@@ -689,7 +689,7 @@ TArray<TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>> ULandscapeSu
 
 void ULandscapeSubsystem::BuildNanite(TArrayView<ALandscapeProxy*> InProxiesToBuild, bool bForceRebuild)
 {
-	TRACE_BOOKMARK(TEXT("ULandscapeSubsystem::BuildNanite"));
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::BuildNanite);
 
 	UWorld* World = GetWorld();
 	if (!World || World->IsGameWorld())
