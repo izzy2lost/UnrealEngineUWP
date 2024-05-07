@@ -23,10 +23,8 @@
 
 #include "symslib.h"
 
-/////////////////////////////////////////////////////////////////////
 namespace TraceServices {
 
-/////////////////////////////////////////////////////////////////////
 class FSymslibResolver
 {
 public:
@@ -35,7 +33,7 @@ public:
 	FSymslibResolver(IAnalysisSession& InSession, IResolvedSymbolFilter& InSymbolFilter);
 	~FSymslibResolver();
 	void QueueModuleLoad(const uint8* ImageId, uint32 ImageIdSize, FModule* Module);
-	void QueueModuleReload(const FModule* Module, const TCHAR* Path, TFunction<void(SymbolArray&)> ResolveOnSuccess);
+	void QueueModuleReload(FModule* Module, const TCHAR* Path, TFunction<void(SymbolArray&)> ResolveOnSuccess);
 	void QueueSymbolResolve(uint64 Address, FResolvedSymbol* Symbol);
 	void OnAnalysisComplete();
 	void GetStats(IModuleProvider::FStats* OutStats) const;
@@ -67,22 +65,15 @@ private:
 
 	struct FModuleEntry
 	{
-		FSymsInstance Instance;
-		TArray<uint8> ImageId;
 		FModule* Module;
+		TArray<uint8> ImageId;
+		FSymsInstance Instance;
 	};
 
 	struct FQueuedAddress
 	{
 		uint64 Address;
 		FResolvedSymbol* Target;
-	};
-
-	struct FQueuedModule
-	{
-		uint64 Base;
-		uint64 Size;
-		const TCHAR* ImagePath;
 	};
 
 	enum : uint32 {
@@ -101,13 +92,15 @@ private:
 	 */
 	void DispatchQueuedAddresses();
 	void ResolveSymbols(TArrayView<FQueuedAddress>& QueuedWork);
-	FModuleEntry* GetModuleForAddress(uint64 Address);
+	FModuleEntry* GetModuleEntry(FModule* Module) const;
+	FModuleEntry* GetModuleForAddress(uint64 Address) const;
 	static void UpdateResolvedSymbol(FResolvedSymbol& Symbol, ESymbolQueryResult Result, const TCHAR* Module, const TCHAR* Name, const TCHAR* File, uint16 Line);
 	void LoadModuleTracked(FModuleEntry* Entry, FStringView OverrideSearchPath);
 	EModuleStatus LoadModule(FModuleEntry* Entry, FStringView SearchPathView, FStringBuilderBase& OutStatusMessage) const;
 	void ResolveSymbolTracked(uint64 Address, FResolvedSymbol& Target, class FSymbolStringAllocator& StringAllocator);
 	bool ResolveSymbol(uint64 Address, FResolvedSymbol& Target, FSymbolStringAllocator& StringAllocator, FModuleEntry* Entry) const;
 	void WaitForTasks();
+	void UpdateSessionInfo() const;
 
 	mutable FRWLock ModulesLock;
 	TPagedArray<FModuleEntry> Modules;
@@ -119,8 +112,13 @@ private:
 	FGraphEventRef CleanupTask;
 	FGraphEventRef ModuleReloadTask;
 	std::atomic<bool> CancelTasks;
-	mutable FRWLock SymbolSearchPathsLock;
-	TArray<FString> SymbolSearchPaths;
+
+	mutable FRWLock CustomSymbolSearchPathsLock;
+	TArray<FString> CustomSymbolSearchPaths; // search paths added by user from UI in the current session
+	TArray<FString> ConfigSymbolSearchPaths; // search paths specified in environment variables and config files
+
+	mutable FString Platform;
+	mutable FString AppName;
 
 	std::atomic<uint32> ModulesDiscovered;
 	std::atomic<uint32> ModulesFailed;
@@ -130,11 +128,7 @@ private:
 
 	IAnalysisSession& Session;
 	IResolvedSymbolFilter& SymbolFilter;
-	FString Platform;
-	FString AppName;
 };
-
-/////////////////////////////////////////////////////////////////////
 
 } // namespace TraceServices
 

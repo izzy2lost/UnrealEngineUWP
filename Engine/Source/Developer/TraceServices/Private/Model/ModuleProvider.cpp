@@ -205,7 +205,15 @@ template <typename SymbolResolverType>
 FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPath(uint64 Base, const TCHAR* Path)
 {
 	FReadScopeLock _(ModulesLock);
-	const FModule* Module = Algo::FindBy(Modules, Base, &FModule::Base);
+	FModule* Module = nullptr;
+	for (uint32 ModuleIndex = 0; ModuleIndex < Modules.Num(); ++ModuleIndex)
+	{
+		if (Modules[ModuleIndex].Base == Base)
+		{
+			Module = &Modules[ModuleIndex];
+			break;
+		}
+	}
 	if (Module)
 	{
 		const FString FullPath = FPaths::ConvertRelativePathToFull(Path);
@@ -215,7 +223,7 @@ FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPat
 			// re-resolve any cached symbols
 			LoadSymbolsTask = FFunctionGraphTask::CreateAndDispatchWhenReady([this, Module, FullPath]()
 			{
-				auto ReloadModuleFn = [this] (const FModule* InModule, const TCHAR* InPath)
+				auto ReloadModuleFn = [this] (FModule* InModule, const TCHAR* InPath)
 				{
 					const uint32 DiscoveredSymbols = InModule->Stats.Discovered.load();
 					const uint64 ModuleBegin = InModule->Base;
@@ -240,15 +248,16 @@ FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPat
 					Resolver->QueueModuleReload(InModule, InPath, ReresolveOnSuccess);
 
 					// Wait for the resolver to do it's work
-					while (InModule->Status.load() == EModuleStatus::Pending)
+					do
 					{
 						FPlatformProcess::Sleep(0.1f);
 					}
+					while (InModule->Status.load() == EModuleStatus::Pending);
 
 					return InModule->Status.load();
 				};
 
-				UE_LOG(LogTraceServices, Display, TEXT("Queing symbol loading using path %s."), *FullPath);
+				UE_LOG(LogTraceServices, Display, TEXT("Queuing symbol loading using path %s."), *FullPath);
 
 				// Load the requested module
 				const EModuleStatus Result = ReloadModuleFn(Module, *FullPath);
@@ -258,21 +267,34 @@ FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPat
 					// Queue up any other failed module using the directory.
 					IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
 					const FString Directory = PlatformFile->DirectoryExists(*FullPath) ? FullPath : FPaths::GetPath(FullPath);
-					for (auto& OtherModule : Modules)
+
+					TArray<FModule*> OtherModules;
+					{
+						FReadScopeLock _(ModulesLock);
+						for (uint32 ModuleIndex = 0; ModuleIndex < Modules.Num(); ++ModuleIndex)
+						{
+							FModule* OtherModule = &Modules[ModuleIndex];
+							if (OtherModule != Module)
+							{
+								const EModuleStatus ModuleStatus = OtherModule->Status.load();
+								if (ModuleStatus >= EModuleStatus::FailedStatusStart)
+								{
+									OtherModules.Add(OtherModule);
+								}
+							}
+						}
+					}
+					for (FModule* OtherModule : OtherModules)
 					{
 						if (LoadSymbolsAbort)
 						{
 							return;
 						}
-						const EModuleStatus ModuleStatus = OtherModule.Status.load();
-						if (&OtherModule != Module && ModuleStatus >= EModuleStatus::FailedStatusStart)
-						{
-							ReloadModuleFn(&OtherModule, *Directory);
-						}
+						ReloadModuleFn(OtherModule, *Directory);
 					}
 				}
 
-				UE_LOG(LogTraceServices, Display, TEXT("Loading symbols for path %s complete."), *FullPath);
+				UE_LOG(LogTraceServices, Display, TEXT("Completed loading symbols for path %s."), *FullPath);
 			});
 
 			return LoadSymbolsTask;
