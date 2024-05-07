@@ -630,7 +630,8 @@ void FMeshDrawShaderBindings::Initialize(const FMeshProcessorShaders& Shaders)
 		(Shaders.VertexShader.IsValid() ? 1 : 0) +
 		(Shaders.PixelShader.IsValid() ? 1 : 0) +
 		(Shaders.GeometryShader.IsValid() ? 1 : 0) +
-		(Shaders.ComputeShader.IsValid() ? 1 : 0)
+		(Shaders.ComputeShader.IsValid() ? 1 : 0) +
+		(Shaders.WorkGraphShader.IsValid() ? 1 : 0)
 #if RHI_RAYTRACING
 		+ (Shaders.RayTracingShader.IsValid() ? 1 : 0)
 #endif
@@ -669,6 +670,14 @@ void FMeshDrawShaderBindings::Initialize(const FMeshProcessorShaders& Shaders)
 		ShaderBindingDataSize += ShaderLayouts.Last().GetDataSizeBytes();
 		check(ShaderFrequencyBits < (1 << SF_Compute));
 		ShaderFrequencyBits |= (1 << SF_Compute);
+	}
+
+	if (Shaders.WorkGraphShader.IsValid())
+	{
+		ShaderLayouts.Add(FMeshDrawShaderBindingsLayout(Shaders.WorkGraphShader));
+		ShaderBindingDataSize += ShaderLayouts.Last().GetDataSizeBytes();
+		check(ShaderFrequencyBits < (1 << SF_WorkGraphComputeNode));
+		ShaderFrequencyBits |= (1 << SF_WorkGraphComputeNode);
 	}
 
 #if RHI_RAYTRACING

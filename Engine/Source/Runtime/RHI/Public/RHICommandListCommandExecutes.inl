@@ -247,7 +247,7 @@ void FRHICommandDispatchComputeShaderBundle::Execute(FRHICommandListBase& CmdLis
 	for (int32 DispatchIndex = 0; DispatchIndex < Dispatches.Num(); ++DispatchIndex)
 	{
 		FRHIShaderBundleComputeDispatch& Dispatch = Dispatches[DispatchIndex];
-		if (Dispatch.RecordIndex != ~uint32(0u))
+		if (Dispatch.RecordIndex != ~uint32(0u) && Dispatch.PipelineState)
 		{
 			Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
 		}

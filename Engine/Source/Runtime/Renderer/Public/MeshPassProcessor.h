@@ -687,6 +687,7 @@ struct FMeshProcessorShaders
 	TShaderRef<FShader> PixelShader;
 	TShaderRef<FShader> GeometryShader;
 	TShaderRef<FShader> ComputeShader;
+	TShaderRef<FShader> WorkGraphShader;
 #if RHI_RAYTRACING
 	TShaderRef<FShader> RayTracingShader;
 #endif
@@ -708,6 +709,10 @@ struct FMeshProcessorShaders
 		if (Frequency == SF_Compute)
 		{
 			return ComputeShader;
+		}
+		if (Frequency == SF_WorkGraphComputeNode)
+		{
+			return WorkGraphShader;
 		}
 #if RHI_RAYTRACING
 		if (Frequency == SF_RayHitGroup || Frequency == SF_RayCallable || Frequency == SF_RayMiss)
