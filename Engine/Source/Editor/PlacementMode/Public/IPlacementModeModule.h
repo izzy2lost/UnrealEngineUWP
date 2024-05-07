@@ -17,6 +17,7 @@
 
 class FNamePermissionList;
 class FBuilderInput;
+struct FPlaceableItem;
 
 /**
  * Struct that defines an identifier for a particular placeable item in this module.
@@ -76,6 +77,11 @@ struct FPlacementCategoryInfo
 
 	/** Whether the items in this category are automatically sortable by name. False if the items are already sorted. */
 	bool bSortable;
+
+	/**
+	 * FPlaceableItems with custom drag handling, populated only if the category handles making
+	 * its own draggable items */
+	TArray< TSharedRef<FPlaceableItem>>  CustomDraggableItems;
 };
 
 /**
@@ -83,6 +89,24 @@ struct FPlacementCategoryInfo
  */
 struct FPlaceableItem
 {
+	/**
+	* An object which provides handling for Drags.
+	*/
+	struct FDragHandler : public TSharedFromThis<FDragHandler>
+	{
+	public:
+		DECLARE_DELEGATE_RetVal(TSharedRef<FDragDropOperation>, FGetContentToDrag  );
+
+		/** a delegate thart returns the FDragDropOperation for the  the draggable */
+		FGetContentToDrag GetContentToDrag;
+
+		/** the tooltip for the draggable */
+		TSharedPtr<IToolTip> ToolTip;
+		
+		/** the const FSlateBrush* that provides the icon for the draggable */
+		const FSlateBrush* IconBrush;
+	};
+	
 	/** Default constructor */
 	FPlaceableItem()
 		: Factory(nullptr)
@@ -152,6 +176,19 @@ struct FPlaceableItem
 		{
 			DisplayName = InDisplayName.GetValue();
 		}
+	}
+
+	FPlaceableItem(
+		TSharedPtr<FPlaceableItem::FDragHandler> InDragHandler
+		, TOptional<int32> InSortOrder
+		, FText InLabel
+		, FString InName ):
+		NativeName( InName )
+		, DisplayName( InLabel )
+		, bAlwaysUseGenericThumbnail(false)
+		, SortOrder(InSortOrder)
+		, DragHandler(InDragHandler)
+	{
 	}
 
 	/** Constructor for any placeable actor class with associated asset data, brush and display name overrides */
@@ -241,6 +278,9 @@ public:
 
 	/** Optional sort order (lowest first). Overrides default class name sorting. */
 	TOptional<int32> SortOrder;
+
+	/** If provided, handles the drag for the item. This should be provided for objects which are not actors or assets, which have built in handling */
+	TSharedPtr<FDragHandler> DragHandler;
 
 private:
 

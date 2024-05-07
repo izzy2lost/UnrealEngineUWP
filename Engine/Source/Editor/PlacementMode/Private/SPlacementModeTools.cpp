@@ -105,6 +105,7 @@ public:
 		, _Height( 32 )
 		, _AlwaysUseGenericThumbnail( false )
 		, _AssetTypeColorOverride()
+		, _CustomIconBrush( nullptr )
 	{}
 
 	SLATE_ARGUMENT( uint32, Width )
@@ -116,8 +117,10 @@ public:
 	SLATE_ARGUMENT( bool, AlwaysUseGenericThumbnail )
 
 	SLATE_ARGUMENT( TOptional<FLinearColor>, AssetTypeColorOverride )
-	SLATE_END_ARGS()
+	
+	SLATE_ARGUMENT( const FSlateBrush*, CustomIconBrush )
 
+	SLATE_END_ARGS()
 
 	void Construct( const FArguments& InArgs, const FAssetData& InAsset)
 	{
@@ -138,6 +141,11 @@ public:
 			const FSlateBrush* ThumbnailBrush = !InArgs._ClassThumbnailBrushOverride.IsNone() ?
 				FClassIconFinder::FindThumbnailForClass( nullptr,  InArgs._ClassThumbnailBrushOverride ) :
 				FClassIconFinder::FindThumbnailForClass( ThumbnailClass.Get(), DefaultThumbnail );
+
+			if ( InArgs._CustomIconBrush )
+			{
+				ThumbnailBrush = InArgs._CustomIconBrush;
+			}
 
 			ChildSlot[ SAssignNew( ThumbnailImage, SImage ).Image( ThumbnailBrush ) ];
 		}
@@ -247,6 +255,12 @@ void SPlacementAssetEntry::Construct(const FArguments& InArgs, const TSharedPtr<
 		ThumbnailBoxWidth = 20;
 	}
 	
+	const FSlateBrush* CustomIconBrush = nullptr;
+	if ( !bIsClassicView && Item->DragHandler.IsValid() && Item->DragHandler->IconBrush )
+	{
+		CustomIconBrush = Item->DragHandler->IconBrush;
+	}
+	
 	ChildSlot
 	.Padding( WholeAssetPadding )
 	[
@@ -278,6 +292,7 @@ void SPlacementAssetEntry::Construct(const FArguments& InArgs, const TSharedPtr<
 						.ClassThumbnailBrushOverride( Item->ClassThumbnailBrushOverride )
 						.AlwaysUseGenericThumbnail( Item->bAlwaysUseGenericThumbnail )
 						.AssetTypeColorOverride( FLinearColor::Transparent )
+						.CustomIconBrush( CustomIconBrush )
 					]
 				]
 
@@ -372,6 +387,11 @@ FReply SPlacementAssetEntry::OnDragDetected(const FGeometry& MyGeometry, const F
 
 	if( MouseEvent.IsMouseButtonDown( EKeys::LeftMouseButton ) )
 	{
+		if ( Item->DragHandler.IsValid()  && Item->DragHandler->GetContentToDrag.IsBound())
+		{
+			return FReply::Handled().BeginDragDrop( Item->DragHandler->GetContentToDrag.Execute() );
+		}
+		
 		return FReply::Handled().BeginDragDrop(FAssetDragDropOp::New(Item->AssetData, Item->AssetFactory));
 	}
 	else
@@ -832,6 +852,7 @@ void SPlacementModeTools::SetActiveTab(FName TabName)
 void SPlacementModeTools::UpdateShownItems()
 {
 	bUpdateShownItems = false;
+	bool bIsCategoryContentChooserView = CVarEnableCategoryContentChooserView->GetBool();
 
 	IPlacementModeModule& PlacementModeModule = IPlacementModeModule::Get();
 
@@ -840,7 +861,7 @@ void SPlacementModeTools::UpdateShownItems()
 	{
 		return;
 	}
-	else if (Category->CustomGenerator)
+	else if (Category->CustomGenerator && (Category->CustomDraggableItems.IsEmpty() || !bIsCategoryContentChooserView))
 	{
 		CategoryContentBuilder->FillWithBuilder( Category->CustomGenerator() );
 		CustomContent->SetContent(Category->CustomGenerator());
@@ -871,7 +892,17 @@ void SPlacementModeTools::UpdateShownItems()
 		}
 		else
 		{
-			PlacementModeModule.GetItemsForCategory(Category->UniqueHandle, FilteredItems);
+			if ( !Category->CustomDraggableItems.IsEmpty() )
+			{
+				for (TSharedRef<FPlaceableItem> Item : Category->CustomDraggableItems)
+				{
+					FilteredItems.Add( Item.ToSharedPtr() );
+				}
+			}
+			else
+			{
+				PlacementModeModule.GetItemsForCategory(Category->UniqueHandle, FilteredItems);
+			}
 
 			if (Category->bSortable)
 			{
@@ -954,7 +985,7 @@ void SPlacementModeTools::UpdateContentForCategory( FName CategoryName, FText Ca
 		UpdateShownItems();
 
 		const FPlacementCategoryInfo* Category = IPlacementModeModule::Get().GetRegisteredPlacementCategory( CategoryName );
-		if ( Category && Category->CustomGenerator )
+		if ( Category && Category->CustomGenerator && Category->CustomDraggableItems.IsEmpty() )
 		{
 			CategoryContentBuilder->FillWithBuilder( Category->CustomGenerator() );
 			return;

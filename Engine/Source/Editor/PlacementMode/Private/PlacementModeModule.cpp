@@ -570,14 +570,21 @@ TOptional<FPlacementModeID> FPlacementModeModule::RegisterPlaceableItem(FName Ca
 	using namespace PlacementModeModuleLocals;
 
 	FPlacementCategory* Category = Categories.Find(CategoryName);
-	if (Category && !Category->CustomGenerator)
+	if (Category )
 	{
-		FPlacementModeID ID = CreateID(CategoryName);
-		Category->Items.Add(ID.UniqueID, InItem);
+		if ( InItem->DragHandler.IsValid() )
+		{
+			Category->CustomDraggableItems.Add( InItem );
+		}
+		if (!Category->CustomGenerator)
+		{
+			FPlacementModeID ID = CreateID(CategoryName);
+			Category->Items.Add(ID.UniqueID, InItem);
 
-		ManuallyCreatedPlaceableItems.Add(MakePlacementInfo(*InItem), InItem);
+			ManuallyCreatedPlaceableItems.Add(MakePlacementInfo(*InItem), InItem);
 
-		return ID;
+			return ID;
+		}
 	}
 	return TOptional<FPlacementModeID>();
 }
@@ -593,6 +600,7 @@ void FPlacementModeModule::UnregisterPlaceableItem(FPlacementModeID ID)
 		Category->Items.RemoveAndCopyValue(ID.UniqueID, Item);
 		if (Item)
 		{
+			Category->CustomDraggableItems.Remove(Item.ToSharedRef());
 			ManuallyCreatedPlaceableItems.Remove(MakePlacementInfo(*Item));
 		}
 	}
@@ -796,6 +804,15 @@ void FPlacementModeModule::RefreshAllPlaceableClasses()
 	}
 
 	Category->Items.Reset();
+
+
+	for ( TTuple<FName, FPlacementCategory>& Pair : Categories )
+	{
+		for ( const TSharedRef<FPlaceableItem>& Draggable : Pair.Value.CustomDraggableItems  )
+		{
+			Category->Items.Add( CreateID(), Draggable.ToSharedPtr() );
+		}
+	}
 
 	// Manually add some special cases that aren't added below
 	Category->Items.Add(CreateID(), MakeShareable(new FPlaceableItem(*UActorFactoryEmptyActor::StaticClass())));
