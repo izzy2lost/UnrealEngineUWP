@@ -88,6 +88,7 @@ namespace Chaos::Softs
 		FManagedArrayCollection Dynamic;
 		FIntVector2 SolverParticleRange = FIntVector2(0, 0);
 		ChaosDeformableSimSpace SimSpace = ChaosDeformableSimSpace::World;
+		bool bIsCached = false;
 
 	public:
 
@@ -124,6 +125,9 @@ namespace Chaos::Softs
 		{
 			return SimSpace == ChaosDeformableSimSpace::Bone;
 		}
+
+		void SetIsCached(bool bInIsCached) { bIsCached = bInIsCached; }
+		bool GetIsCached() const { return bIsCached; }
 
 		//! Update the component and bone transforms with current data from the scene.
 		void UpdateSimSpace(const FTransform& InWorldToComponentXf, const FTransform& InComponentToBoneXf)

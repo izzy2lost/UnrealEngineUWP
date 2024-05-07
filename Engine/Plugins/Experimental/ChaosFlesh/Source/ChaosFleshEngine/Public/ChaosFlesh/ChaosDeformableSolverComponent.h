@@ -128,6 +128,11 @@ struct FCollisionSpringGroup
 	*/
 	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
 	bool bAllowSliding = true;
+	/**
+	* Do self collision with kinematic triangles as well
+	*/
+	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	bool bCollideWithFullmesh = true;
 };
 
 USTRUCT(BlueprintType)

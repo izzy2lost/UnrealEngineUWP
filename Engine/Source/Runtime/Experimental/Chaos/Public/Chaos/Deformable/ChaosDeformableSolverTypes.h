@@ -43,7 +43,8 @@ namespace Chaos::Softs
 			FSolverReal InCollisionSearchRadius = (FSolverReal)0,
 			FSolverReal InCollisionSpringStiffness = (FSolverReal)500.,
 			bool InbAllowSliding = true,
-			bool InbDoMuscleActivation = false)
+			bool InbDoMuscleActivation = false,
+			bool InbCollideWithFullMesh = false)
 			: NumSolverSubSteps(InNumSolverSubSteps)
 			, NumSolverIterations(InNumSolverIterations)
 			, FixTimeStep(InFixTimeStep)
@@ -72,6 +73,7 @@ namespace Chaos::Softs
 			, CollisionSpringStiffness(InCollisionSpringStiffness)
 			, bAllowSliding(InbAllowSliding)
 			, bDoMuscleActivation(InbDoMuscleActivation)
+			, bCollideWithFullMesh(InbCollideWithFullMesh)
 		{}
 
 		int32 NumSolverSubSteps = 5;
@@ -102,6 +104,7 @@ namespace Chaos::Softs
 		FSolverReal CollisionSpringStiffness = (FSolverReal)500.;
 		bool bAllowSliding = true;
 		bool bDoMuscleActivation = false;
+		bool bCollideWithFullMesh = false;
 	};
 
 

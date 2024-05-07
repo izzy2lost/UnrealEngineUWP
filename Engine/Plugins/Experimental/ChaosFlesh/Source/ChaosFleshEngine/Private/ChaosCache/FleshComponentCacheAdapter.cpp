@@ -210,53 +210,65 @@ namespace Chaos
 					const int32 NumParticles = Particles.Size();
 					Softs::FSolverVec3* ParticleXs = &Particles.X(0);
 					Softs::FSolverVec3* ParticleVs = &Particles.V(0);
+					Softs::FSolverReal* ParticleInvMs = &Particles.InvM(0);
+					Softs::FPAndInvM* ParticlePAndInvMs = &Particles.PAndInvM(0);
 
-					int32 NumCachedParticles = static_cast<int32>(Points0.size());
-					if (NumCachedParticles > NumParticles)
+					if (UFleshComponent* FleshComp = CastChecked<UFleshComponent>(InComponent))
 					{
-						// Cached particles doesn't match solver particles.  Truncate.
-						NumCachedParticles = NumParticles;
-					}
-
-					// < time range start, > time range end, or exact hit
-					if (FMath::IsNearlyEqual(Prev, Next))
-					{
-						// Directly set the result of the cache into the solver particles
-						for (int32 CachedIndex = 0; CachedIndex < NumCachedParticles; ++CachedIndex)
+						if (Chaos::Softs::FFleshThreadingProxy* FleshProxy = FleshComp->GetPhysicsProxy()->As<Chaos::Softs::FFleshThreadingProxy>())
 						{
-							// Note that VtArray::operator[] is non-const access and will cause trigger 
-							// the copy-on-write memcopy!  VtArray::cdata() avoids that.
-							const pxr::GfVec3f& P0 = Points0.cdata()[CachedIndex];
-							const pxr::GfVec3f& V0 = Vels0.cdata()[CachedIndex];
-							ParticleXs[CachedIndex].Set(P0[0], P0[1], P0[2]);
-							ParticleVs[CachedIndex].Set(V0[0], V0[1], V0[2]);
-						}
-						return;
-					}
+							FIntVector2 ParticleRange = FleshProxy->GetSolverParticleRange();
 
-					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, Next, Points1, Vels1) ||
-						Points1.size() != Vels1.size() ||
-						Points0.size() != Points1.size())
-					{
-						UE_LOG(LogChaosFleshCache, Error,
-							TEXT("Failed to read points '%s' at time %g from file: '%s'"),
-							*PrimPath, Next, *MonolithStage.GetRootLayer().GetDisplayName());
-						return;
-					}
-					double Duration = Next - Prev;
-					double Alpha = Duration > UE_SMALL_NUMBER ? (TargetTime - Prev) / Duration : 0.5;
-					for (int32 CachedIndex = 0; CachedIndex < NumCachedParticles; ++CachedIndex)
-					{
-						// Note that VtArray::operator[] is non-const access and will cause trigger 
-						// the copy-on-write memcopy!  VtArray::cdata() avoids that.
-						const pxr::GfVec3f& P0 = Points0.cdata()[CachedIndex];
-						const pxr::GfVec3f& P1 = Points1.cdata()[CachedIndex];
-						const pxr::GfVec3f& V0 = Vels0.cdata()[CachedIndex];
-						const pxr::GfVec3f& V1 = Vels1.cdata()[CachedIndex];
-						pxr::GfVec3f Pos = (1.0 - Alpha) * P0 + Alpha * P1;
-						pxr::GfVec3f Vel = (1.0 - Alpha) * V0 + Alpha * V1;
-						ParticleXs[CachedIndex].Set(Pos[0], Pos[1], Pos[2]);
-						ParticleVs[CachedIndex].Set(Vel[0], Vel[1], Vel[2]);
+							int32 NumCachedParticles = static_cast<int32>(Points0.size());
+							if (NumCachedParticles > ParticleRange[1])
+							{
+								// Cached particles doesn't match solver particles.  Truncate.
+								NumCachedParticles = ParticleRange[1];
+							}
+							// < time range start, > time range end, or exact hit
+							if (FMath::IsNearlyEqual(Prev, Next))
+							{
+								// Directly set the result of the cache into the solver particles
+								for (int32 CachedIndex = ParticleRange[0]; CachedIndex < ParticleRange[0] + ParticleRange[1]; ++CachedIndex)
+								{
+									// Note that VtArray::operator[] is non-const access and will cause trigger 
+									// the copy-on-write memcopy!  VtArray::cdata() avoids that.
+									const pxr::GfVec3f& P0 = Points0.cdata()[CachedIndex - ParticleRange[0]];
+									const pxr::GfVec3f& V0 = Vels0.cdata()[CachedIndex - ParticleRange[0]];
+									ParticleXs[CachedIndex].Set(P0[0], P0[1], P0[2]);
+									ParticleVs[CachedIndex].Set(V0[0], V0[1], V0[2]);
+									ParticleInvMs[CachedIndex] = Softs::FSolverReal(0);
+									ParticlePAndInvMs[CachedIndex].InvM = Softs::FSolverReal(0);
+									ParticlePAndInvMs[CachedIndex].P = ParticleXs[CachedIndex];
+								}
+								return;
+							}
+
+							if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, Next, Points1, Vels1) ||
+								Points1.size() != Vels1.size() ||
+								Points0.size() != Points1.size())
+							{
+								UE_LOG(LogChaosFleshCache, Error,
+									TEXT("Failed to read points '%s' at time %g from file: '%s'"),
+									*PrimPath, Next, *MonolithStage.GetRootLayer().GetDisplayName());
+								return;
+							}
+							double Duration = Next - Prev;
+							double Alpha = Duration > UE_SMALL_NUMBER ? (TargetTime - Prev) / Duration : 0.5;
+							for (int32 CachedIndex = ParticleRange[0]; CachedIndex < ParticleRange[0] + ParticleRange[1]; ++CachedIndex)
+							{
+								// Note that VtArray::operator[] is non-const access and will cause trigger 
+								// the copy-on-write memcopy!  VtArray::cdata() avoids that.
+								const pxr::GfVec3f& P0 = Points0.cdata()[CachedIndex - ParticleRange[0]];
+								const pxr::GfVec3f& P1 = Points1.cdata()[CachedIndex - ParticleRange[0]];
+								const pxr::GfVec3f& V0 = Vels0.cdata()[CachedIndex - ParticleRange[0]];
+								const pxr::GfVec3f& V1 = Vels1.cdata()[CachedIndex - ParticleRange[0]];
+								pxr::GfVec3f Pos = (1.0 - Alpha) * P0 + Alpha * P1;
+								pxr::GfVec3f Vel = (1.0 - Alpha) * V0 + Alpha * V1;
+								ParticleXs[CachedIndex].Set(Pos[0], Pos[1], Pos[2]);
+								ParticleVs[CachedIndex].Set(Vel[0], Vel[1], Vel[2]);
+							}
+						}
 					}
 				}
 #else // USE_USD_SDK && DO_USD_CACHING
@@ -660,11 +672,14 @@ namespace Chaos
 		if (FDeformableSolver* Solver = GetDeformableSolver(InComponent))
 		{
 			FDeformableSolver::FGameThreadAccess GameThreadAccess(Solver, Softs::FGameThreadAccessor());
-			GameThreadAccess.SetEnableSolver(false);
 			if (UDeformableTetrahedralComponent* FleshComp = CastChecked<UDeformableTetrahedralComponent>(InComponent))
 			{
 				FleshComp->ResetDynamicCollection();
 
+				if (FleshComp->GetPhysicsProxy()->As<Chaos::Softs::FFleshThreadingProxy>())
+				{
+					FleshComp->GetPhysicsProxy()->As<Chaos::Softs::FFleshThreadingProxy>()->SetIsCached(true);
+				}
 #if USE_USD_SDK && DO_USD_CACHING
 				//
 				// USD caching

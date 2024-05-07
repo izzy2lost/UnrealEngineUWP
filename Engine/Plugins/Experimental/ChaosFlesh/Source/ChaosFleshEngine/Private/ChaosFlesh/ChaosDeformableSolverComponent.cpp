@@ -223,6 +223,7 @@ void UDeformableSolverComponent::Reset()
 			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.CollisionSpringStiffness
 			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bAllowSliding
 			, SolverMuscleActivation.bDoMuscleActivation
+			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bCollideWithFullmesh
 		}));
 
 		for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)

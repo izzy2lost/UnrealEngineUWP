@@ -367,6 +367,15 @@ public:
 	CHAOS_API void Init(const SolverParticlesOrRange& Particles, const FPBDFlatWeightMap& ThicknessMap);
 
 	template<typename SolverParticlesOrRange>
+	void InitFlesh(const SolverParticlesOrRange& Particles, const FSolverReal MinProximityQueryRadius = (FSolverReal)0., const bool bUseFullMesh = false)
+	{
+		InitFlesh(Particles, FPBDFlatWeightMap(FSolverVec2(MinProximityQueryRadius * (FSolverReal).5f)), bUseFullMesh);
+	}
+
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void InitFlesh(const SolverParticlesOrRange& Particles, const FPBDFlatWeightMap& ThicknessMap, const bool bUseFullMesh = false);
+
+	template<typename SolverParticlesOrRange>
 	CHAOS_API void PostStepInit(const SolverParticlesOrRange& Particles);
 
 	void SetGlobalIntersectionAnalysis(bool bInGlobalIntersectionAnalysis) { bGlobalIntersectionAnalysis = bInGlobalIntersectionAnalysis; }
