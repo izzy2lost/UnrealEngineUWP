@@ -248,6 +248,16 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	}
 	if (!Header.Variant.Guid.IsValid())
 	{
+		if (URigVMFunctionLibrary* Library = GetLibrary())
+		{
+			if (const FRigVMVariant* Variant = Library->GetFunctionVariant(GetFName()))
+			{
+				Header.Variant = *Variant;
+			}
+		}
+	}
+	if (!Header.Variant.Guid.IsValid())
+	{
 		Header.Variant.Guid = FRigVMVariant::GenerateGUID();
 	}
 
