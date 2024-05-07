@@ -113,6 +113,11 @@ bool UAvaFontManagerSubsystem::IsSupportedFontFile(const FString& InFontFilePath
 
 void UAvaFontManagerSubsystem::OnAssetsAdded(const FAssetData& InAssetData)
 {
+	if (InAssetData.AssetClassPath != UFont::StaticClass()->GetClassPathName())
+	{
+		return;
+	}
+
 	if (UFont* CurrFont = Cast<UFont>(InAssetData.GetAsset()))
 	{
 		CreateProjectFont(CurrFont);
