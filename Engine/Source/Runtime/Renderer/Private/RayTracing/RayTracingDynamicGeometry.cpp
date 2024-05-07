@@ -499,7 +499,7 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandList& RHIC
 					SetUAVParameter(BatchedParameters, Shader->RWVertexPositions, Cmd.TargetBuffer->UAV);
 				}
 
-				Cmd.ShaderBindings.SetParameters(BatchedParameters, ComputeShader, &ShaderBindingState);
+				Cmd.ShaderBindings.SetParameters(BatchedParameters, &ShaderBindingState);
 				RHICmdList.SetBatchedShaderParameters(CurrentShader, BatchedParameters);
 
 				RHICmdList.DispatchComputeShader(FMath::DivideAndRoundUp<uint32>(Cmd.NumMaxVertices, 64), 1, 1);

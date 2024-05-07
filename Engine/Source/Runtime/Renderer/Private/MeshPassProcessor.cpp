@@ -1132,11 +1132,10 @@ void FMeshDrawShaderBindings::SetOnCommandList(FRHICommandList& RHICmdList, cons
 	}
 }
 
-void FMeshDrawShaderBindings::SetParameters(FRHIBatchedShaderParameters& BatchedParameters, FRHIComputeShader* Shader, class FShaderBindingState* StateCacheShaderBindings) const
+void FMeshDrawShaderBindings::SetParameters(FRHIBatchedShaderParameters& BatchedParameters, class FShaderBindingState* StateCacheShaderBindings) const
 {
 	check(ShaderLayouts.Num() == 1);
 	FReadOnlyMeshDrawSingleShaderBindings SingleShaderBindings(ShaderLayouts[0], GetData());
-	check(ShaderFrequencyBits & (1 << SF_Compute));
 
 	if (StateCacheShaderBindings != nullptr)
 	{
@@ -1151,7 +1150,7 @@ void FMeshDrawShaderBindings::SetParameters(FRHIBatchedShaderParameters& Batched
 void FMeshDrawShaderBindings::SetOnCommandList(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* Shader, FShaderBindingState* StateCacheShaderBindings) const
 {
 	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, Shader, StateCacheShaderBindings);
+	SetParameters(BatchedParameters, StateCacheShaderBindings);
 	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
 }
 

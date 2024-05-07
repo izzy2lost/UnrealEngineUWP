@@ -707,7 +707,7 @@ inline void RecordShadingParameters(
 	ShadingCommand.PassData.Z = DataByteOffset;
 	ShadingCommand.PassData.W = 0; // Unused
 
-	ShadingCommand.Pipeline->ShaderBindings->SetParameters(BatchedParameters, ComputeShaderRHI);
+	ShadingCommand.Pipeline->ShaderBindings->SetParameters(BatchedParameters);
 
 	if (ComputeShaderRHI)
 	{

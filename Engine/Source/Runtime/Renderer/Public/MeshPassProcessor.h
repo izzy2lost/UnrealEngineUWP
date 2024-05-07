@@ -931,8 +931,14 @@ public:
 	/** Set shader bindings on the commandlist, filtered by state cache. */
 	RENDERER_API void SetOnCommandList(FRHICommandList& RHICmdList, const FBoundShaderStateInput& Shaders, class FShaderBindingState* StateCacheShaderBindings) const;
 
-	RENDERER_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, FRHIComputeShader* Shader, class FShaderBindingState* StateCacheShaderBindings = nullptr) const;
+	RENDERER_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, class FShaderBindingState* StateCacheShaderBindings = nullptr) const;
 	RENDERER_API void SetOnCommandList(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* Shader, class FShaderBindingState* StateCacheShaderBindings = nullptr) const;
+
+	UE_DEPRECATED(5.5, "Use the version of SetParameters that doesn't take an FRHIComputeShader.")
+	RENDERER_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, FRHIComputeShader* Shader, class FShaderBindingState* StateCacheShaderBindings = nullptr) const
+	{
+		SetParameters(BatchedParameters, StateCacheShaderBindings);
+	}
 
 #if RHI_RAYTRACING
 	RENDERER_API FRayTracingLocalShaderBindings* SetRayTracingShaderBindingsForHitGroup(FRayTracingLocalShaderBindingWriter* BindingWriter, uint32 InstanceIndex, uint32 SegmentIndex, uint32 HitGroupIndexInPipeline, uint32 ShaderSlot) const;

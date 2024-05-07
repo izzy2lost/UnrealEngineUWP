@@ -212,7 +212,7 @@ void RecordLumenCardParameters(
 	ShadingCommand.PassData.Z = uint32(ENaniteMeshPass::LumenCardCapture);
 	ShadingCommand.PassData.W = 0; // Unused
 
-	ShadingCommand.Pipeline->ShaderBindings->SetParameters(ShaderParameters, ComputeShaderRHI);
+	ShadingCommand.Pipeline->ShaderBindings->SetParameters(ShaderParameters);
 
 	if (ComputeShaderRHI)
 	{

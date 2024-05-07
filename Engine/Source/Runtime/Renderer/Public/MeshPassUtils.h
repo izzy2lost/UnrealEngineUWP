@@ -19,7 +19,7 @@ namespace UE::MeshPassUtils
 			FRHIComputeShader* ShaderRHI = ComputeShader.GetComputeShader();
 
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-			ShaderBindings.SetParameters(BatchedParameters, ShaderRHI);
+			ShaderBindings.SetParameters(BatchedParameters);
 			SetShaderParameters(BatchedParameters, ComputeShader, PassParameters);
 
 			SetComputePipelineState(RHICmdList, ShaderRHI);
