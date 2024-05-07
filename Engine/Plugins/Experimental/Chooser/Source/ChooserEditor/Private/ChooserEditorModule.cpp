@@ -18,6 +18,7 @@
 #include "IAssetTools.h"
 #include "MultiEnumColumnEditor.h"
 #include "ObjectColumnEditor.h"
+#include "ObjectClassColumnEditor.h"
 #include "OutputFloatColumnEditor.h"
 #include "OutputObjectColumnEditor.h"
 #include "OutputStructColumnEditor.h"
@@ -46,6 +47,7 @@ void FModule::StartupModule()
 	RegisterEnumWidgets();
 	RegisterMultiEnumWidgets();
 	RegisterObjectWidgets();
+	RegisterObjectClassWidgets();
 	RegisterOutputObjectWidgets();
 	RegisterStructWidgets();
 	RegisterRandomizeWidgets();

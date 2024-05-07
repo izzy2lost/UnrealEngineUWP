@@ -34,7 +34,7 @@ bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, FSoftO
 	return false;
 }
 
-bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, UObject* OutResult) const
+bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, UObject*& OutResult) const
 {
 	UE::Chooser::FResolvedPropertyChainResult Result;
 	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Result))

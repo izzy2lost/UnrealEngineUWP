@@ -7,72 +7,52 @@
 #include "IChooserParameterObject.h"
 #include "InstancedStruct.h"
 #include "Serialization/MemoryReader.h"
-#include "ObjectColumn.generated.h"
-
-struct FBindingChainElement;
-
-USTRUCT(DisplayName = "Object Property Binding")
-struct CHOOSER_API FObjectContextProperty : public FChooserParameterObjectBase
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, Meta = (BindingType = "object", BindingColor = "ObjectPinTypeColor"), Category = "Binding")
-	FChooserObjectPropertyBinding Binding;
-
-	virtual bool GetValue(FChooserEvaluationContext& Context, FSoftObjectPath& OutResult) const override;
-	virtual bool GetValue(FChooserEvaluationContext& Context, UObject*& OutResult) const override;
-	virtual bool SetValue(FChooserEvaluationContext& Context, UObject* InValue) const override;
-
-	CHOOSER_PARAMETER_BOILERPLATE();
-
-#if WITH_EDITOR
-	virtual UClass* GetAllowedClass() const override { return Binding.AllowedClass; }
-#endif
-};
+#include "ObjectColumn.h"
+#include "ObjectClassColumn.generated.h"
 
 UENUM()
-enum class EObjectColumnCellValueComparison
+enum class EObjectClassColumnCellValueComparison
 {
-	MatchEqual,
-	MatchNotEqual,
-	MatchAny,
-
-	Modulus // used for cycling through the other values
+	Equal,
+	NotEqual,
+	SubClassOf,
+	NotSubClassOf,
+	Any,
 };
 
 USTRUCT()
-struct FChooserObjectRowData
+struct FChooserObjectClassRowData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = Runtime, Meta = (ValidEnumValues = "MatchEqual, MatchNotEqual, MatchAny"))
-	EObjectColumnCellValueComparison Comparison = EObjectColumnCellValueComparison::MatchEqual;
+	UPROPERTY(EditAnywhere, Category = Runtime)
+	EObjectClassColumnCellValueComparison Comparison = EObjectClassColumnCellValueComparison::SubClassOf;
 
 	UPROPERTY(EditAnywhere, Category = "Runtime")
-	TSoftObjectPtr<UObject> Value;
+	TObjectPtr<UClass> Value;
 
-	bool Evaluate(const FSoftObjectPath& LeftHandSide) const;
+	bool Evaluate(const UObject* LeftHandSide) const;
 };
 
 USTRUCT()
-struct CHOOSER_API FObjectColumn : public FChooserColumnBase
+struct CHOOSER_API FObjectClassColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()
 
-	FObjectColumn();
+	FObjectClassColumn();
 
 	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterObjectBase"), Category = "Data")
 	FInstancedStruct InputValue;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Data")
-	FChooserObjectRowData DefaultRowValue;
+	FChooserObjectClassRowData DefaultRowValue;
 #endif
 
 	UPROPERTY(EditAnywhere, Category = "Data")
 	// array of results (cells for this column for each row in the table)
 	// should match the length of the Results array
-	TArray<FChooserObjectRowData> RowValues;
+	TArray<FChooserObjectClassRowData> RowValues;
 
 	virtual void Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const override;
 
@@ -80,8 +60,16 @@ struct CHOOSER_API FObjectColumn : public FChooserColumnBase
 	mutable FSoftObjectPath TestValue;
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{
-		return RowValues.IsValidIndex(RowIndex) && RowValues[RowIndex].Evaluate(TestValue);
+		if (RowValues.IsValidIndex(RowIndex))
+		{
+			if (UObject* Object = TestValue.ResolveObject())
+			{
+				return RowValues[RowIndex].Evaluate(Object);
+			}
+		}
+		return false;
 	}
+	
 	virtual void SetTestValue(TArrayView<const uint8> Value) override
 	{
 		FMemoryReaderView Reader(Value);
