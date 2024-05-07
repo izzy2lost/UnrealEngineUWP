@@ -125,6 +125,7 @@
 #include "ReplaySubsystem.h"
 #include "Net/NetPing.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "ProfilingDebugging/CountersTrace.h"
 
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
@@ -139,10 +140,13 @@ DEFINE_LOG_CATEGORY_STATIC(LogWorld, Log, All);
 DEFINE_LOG_CATEGORY(LogSpawn);
 
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, Basic);
+CSV_DEFINE_CATEGORY(LevelStreamingProfiling, true);
 CSV_DEFINE_CATEGORY(LevelStreamingAdaptive, true);
 CSV_DEFINE_CATEGORY(LevelStreamingAdaptiveDetail, false);
 CSV_DEFINE_CATEGORY(LevelStreamingDetail, false);
 CSV_DEFINE_CATEGORY(LevelStreamingPendingPurge, (!UE_BUILD_SHIPPING));
+
+TRACE_DECLARE_INT_COUNTER(NumStreamingLevelsToConsider, TEXT("LevelStreamingProfiling/NumStreamingLevelsToConsider"));
 
 #define LOCTEXT_NAMESPACE "World"
 
@@ -4376,8 +4380,10 @@ void UWorld::UpdateLevelStreaming()
 
 	{
 		UE::Private::World::FStreamingLevelsToConsiderIterationScope Scope(StreamingLevelsToConsider);
-
-		for (int32 Index = StreamingLevelsToConsider.GetStreamingLevels().Num() - 1; Index >= 0; --Index)
+		const int32 NumStreamingLevelsToConsider = StreamingLevelsToConsider.GetStreamingLevels().Num();
+		TRACE_COUNTER_SET(NumStreamingLevelsToConsider, NumStreamingLevelsToConsider);
+		CSV_CUSTOM_STAT(LevelStreamingProfiling, NumStreamingLevelsToConsider, NumStreamingLevelsToConsider, ECsvCustomStatOp::Set);
+		for (int32 Index = NumStreamingLevelsToConsider - 1; Index >= 0; --Index)
 		{
 			// Call the blocking tick on the movie player periodically.
 			if ((Index & 0x7) == 7)
