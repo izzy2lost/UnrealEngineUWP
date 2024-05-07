@@ -422,6 +422,8 @@ void FRewindDebugger::StartRecording()
 	{
 		return;
 	}
+
+	ClearTrace();
 	
 	// Clear caches
 #if OBJECT_TRACE_ENABLED
@@ -510,6 +512,8 @@ void FRewindDebugger::ClearTrace()
 	CurrentTraceRange.SetUpperBoundValue(0);
 	RecordingDuration.Set(0.0);
 	SetCurrentScrubTime(0.0);
+
+	ComponentSelectionChanged(nullptr);
 	
 	// update extensions
 	IterateExtensions([this](IRewindDebuggerExtension* Extension)
