@@ -322,7 +322,12 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		
 		FVector TargetVelocity = StartingSyncState->GetVelocity_WorldSpace();
 		FVector TargetPosition = StartingSyncState->GetLocation_WorldSpace();
-		if (FloorResult.bWalkableFloor)
+		if (bHandleVerticalLandingSeparately && FVector::Parallel(StartingSyncState->GetVelocity_WorldSpace().GetSafeNormal(), UpDir))
+		{
+			TargetVelocity = FMath::Lerp(StartingSyncState->GetVelocity_WorldSpace(), ProposedMove.LinearVelocity.ProjectOnToNormal(UpDir), FractionalVelocityToTarget);
+			TargetPosition = StartingSyncState->GetLocation_WorldSpace() - UpDir * (FloorResult.FloorDist - TargetHeight);
+		}
+		else
 		{
 			const FVector ProposedMovePlaneVelocity = ProposedMove.LinearVelocity - ProposedMove.LinearVelocity.ProjectOnToNormal(PrevGroundNormal);
 			const FVector StartingMovePlaneVelocity = StartingSyncState->GetVelocity_WorldSpace() - StartingSyncState->GetVelocity_WorldSpace().ProjectOnToNormal(PrevGroundNormal);

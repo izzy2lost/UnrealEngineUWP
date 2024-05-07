@@ -76,6 +76,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Physics Mover", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "s"))
 	float MaxUnsupportedTimeBeforeFalling = 0.06f;
 
+	// This setting is relevant for pawns landing on sloped surfaces. When enabled, no sliding occurs
+	// for vertical landing velocities. When disabled, the sliding is governed by the friction forces.
+	UPROPERTY(EditAnywhere, Category = "Physics Mover")
+	bool bHandleVerticalLandingSeparately = true;
+
 protected:
 	void SwitchToState(const FName& StateName, const FSimulationTickParams& Params, FMoverTickEndData& OutputState);
 
