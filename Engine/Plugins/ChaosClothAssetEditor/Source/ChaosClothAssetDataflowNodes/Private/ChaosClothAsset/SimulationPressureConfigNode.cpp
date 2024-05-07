@@ -9,7 +9,11 @@ FChaosClothAssetSimulationPressureConfigNode::FChaosClothAssetSimulationPressure
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&Pressure.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&Pressure.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationPressureConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

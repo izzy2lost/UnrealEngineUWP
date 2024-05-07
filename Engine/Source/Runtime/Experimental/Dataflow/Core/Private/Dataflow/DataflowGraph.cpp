@@ -176,6 +176,8 @@ namespace Dataflow
 
 					bool bIsAnytype = Output->IsAnyType();
 					Ar << bIsAnytype;
+					bool bIsHidden = Output->GetPinIsHidden();
+					Ar << bIsHidden;
 				}
 
 				int32 ArNumInputs = Node->GetInputs().Num();
@@ -189,6 +191,8 @@ namespace Dataflow
 
 					bool bIsAnytype = Input->IsAnyType();
 					Ar << bIsAnytype;
+					bool bIsHidden = Input->GetPinIsHidden();
+					Ar << bIsHidden;
 				}
 			}
 			DATAFLOW_OPTIONAL_BLOCK_WRITE_END();
@@ -239,6 +243,8 @@ namespace Dataflow
 			{
 				ensure(!NodeGuidMap.Contains(ArGuid));
 				NodeGuidMap.Add(ArGuid, Node);
+
+				const bool bDataflowHideablePinSupport = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowHideablePins);
 
 				if (!bDataflowSeparateInputOutputSerialization)
 				{
@@ -302,6 +308,7 @@ namespace Dataflow
 					Node->SerializeInternal(Ar);
 
 					bool bIsAnyType = false;
+					bool bIsHidden = true;
 					// Outputs deserialization
 					{
 						int32 ArNumOutputs;
@@ -314,6 +321,10 @@ namespace Dataflow
 							{
 								Ar << bIsAnyType;
 							}
+							if (bDataflowHideablePinSupport)
+							{
+								Ar << bIsHidden;
+							}
 
 							if (FDataflowOutput* Output = Node->FindOutput(ArName))
 							{
@@ -325,6 +336,7 @@ namespace Dataflow
 								{
 									check(Output->GetType() == ArType || bIsAnyType);
 								}
+								Output->SetPinIsHidden(bIsHidden);
 								Output->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Output);
@@ -351,6 +363,10 @@ namespace Dataflow
 							{
 								Ar << bIsAnyType;
 							}
+							if (bDataflowHideablePinSupport)
+							{
+								Ar << bIsHidden;
+							}
 
 							if (FDataflowInput* Input = Node->FindInput(ArName))
 							{
@@ -362,6 +378,7 @@ namespace Dataflow
 								{
 									check(Input->GetType() == ArType || bIsAnyType);
 								}
+								Input->SetPinIsHidden(bIsHidden);
 								Input->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Input);

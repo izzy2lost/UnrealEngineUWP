@@ -115,9 +115,12 @@ struct FDataflowNode
 	DATAFLOWCORE_API virtual void AddInput(FDataflowInput* InPtr);
 	DATAFLOWCORE_API TArray< FDataflowInput* > GetInputs() const;
 	DATAFLOWCORE_API void ClearInputs();
+	DATAFLOWCORE_API bool HasHideableInputs() const;
+	DATAFLOWCORE_API bool HasHiddenInputs() const;
 
 	DATAFLOWCORE_API FDataflowInput* FindInput(FName Name);
 	DATAFLOWCORE_API FDataflowInput* FindInput(void* Reference);
+	DATAFLOWCORE_API const FDataflowInput* FindInput(FName Name) const;
 	DATAFLOWCORE_API const FDataflowInput* FindInput(const void* Reference) const;
 	DATAFLOWCORE_API const FDataflowInput* FindInput(const FGuid& InGuid) const;
 
@@ -125,6 +128,8 @@ struct FDataflowNode
 	DATAFLOWCORE_API int NumOutputs() const;
 	DATAFLOWCORE_API TArray< FDataflowOutput* > GetOutputs() const;
 	DATAFLOWCORE_API void ClearOutputs();
+	DATAFLOWCORE_API bool HasHideableOutputs() const;
+	DATAFLOWCORE_API bool HasHiddenOutputs() const;
 
 	DATAFLOWCORE_API FDataflowOutput* FindOutput(FName Name);
 	DATAFLOWCORE_API FDataflowOutput* FindOutput(uint32 GuidHash);
@@ -162,8 +167,8 @@ struct FDataflowNode
 	virtual const UScriptStruct* TypedScriptStruct() const { return nullptr; }
 
 	/** Register the Input and Outputs after the creation in the factory. Use PropertyName to disambiguate a struct name from its first property. */
-	DATAFLOWCORE_API void RegisterInputConnection(const void* Property, const FName& PropertyName = NAME_None);
-	DATAFLOWCORE_API void RegisterOutputConnection(
+	DATAFLOWCORE_API FDataflowInput* RegisterInputConnection(const void* Property, const FName& PropertyName = NAME_None);
+	DATAFLOWCORE_API FDataflowOutput* RegisterOutputConnection(
 		const void* Property,
 		const void* Passthrough = nullptr,
 		const FName& PropertyName = NAME_None,

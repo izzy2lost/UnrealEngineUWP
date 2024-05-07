@@ -30,9 +30,9 @@ void FDataflowNode::AddInput(FDataflowInput* InPtr)
 {
 	if (InPtr)
 	{
-		for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+		for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
 		{
-			FDataflowInput* In = Elem.Value;
+			const FDataflowInput* const In = Elem.Value;
 			ensureMsgf(!In->GetName().IsEqual(InPtr->GetName()), TEXT("Add Input Failed: Existing Node input already defined with name (%s)"), *InPtr->GetName().ToString());
 		}
 
@@ -50,9 +50,9 @@ void FDataflowNode::AddInput(FDataflowInput* InPtr)
 
 FDataflowInput* FDataflowNode::FindInput(FName InName)
 {
-	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+	for (TPair<int32, FDataflowInput*>& Elem : Inputs)
 	{
-		FDataflowInput* Con = Elem.Value;
+		FDataflowInput* const Con = Elem.Value;
 		if (Con->GetName().IsEqual(InName))
 		{
 			return Con;
@@ -62,11 +62,24 @@ FDataflowInput* FDataflowNode::FindInput(FName InName)
 }
 
 
+const FDataflowInput* FDataflowNode::FindInput(FName InName) const
+{
+	for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
+	{
+		const FDataflowInput* const Con = Elem.Value;
+		if (Con->GetName().IsEqual(InName))
+		{
+			return Con;
+		}
+	}
+	return nullptr;
+}
+
 const FDataflowInput* FDataflowNode::FindInput(const void* Reference) const
 {
-	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+	for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
 	{
-		FDataflowInput* Con = Elem.Value;
+		const FDataflowInput* const Con = Elem.Value;
 		if (Con->RealAddress() == Reference)
 		{
 			return Con;
@@ -77,9 +90,9 @@ const FDataflowInput* FDataflowNode::FindInput(const void* Reference) const
 
 FDataflowInput* FDataflowNode::FindInput(void* Reference)
 {
-	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+	for (TPair<int32, FDataflowInput*>& Elem : Inputs)
 	{
-		FDataflowInput* Con = Elem.Value;
+		FDataflowInput* const Con = Elem.Value;
 		if (Con->RealAddress() == Reference)
 		{
 			return Con;
@@ -90,9 +103,9 @@ FDataflowInput* FDataflowNode::FindInput(void* Reference)
 
 const FDataflowInput* FDataflowNode::FindInput(const FGuid& InGuid) const
 {
-	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+	for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
 	{
-		FDataflowInput* Con = Elem.Value;
+		const FDataflowInput* const Con = Elem.Value;
 		if (Con->GetGuid() == InGuid)
 		{
 			return Con;
@@ -110,14 +123,39 @@ TArray< FDataflowInput* > FDataflowNode::GetInputs() const
 
 void FDataflowNode::ClearInputs()
 {
-	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+	for (TPair<int32, FDataflowInput*>& Elem : Inputs)
 	{
-		FDataflowInput* Con = Elem.Value;
+		FDataflowInput* const Con = Elem.Value;
 		delete Con;
 	}
 	Inputs.Reset();
 }
 
+bool FDataflowNode::HasHideableInputs() const
+{
+	for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
+	{
+		const FDataflowInput* const Con = Elem.Value;
+		if (Con->GetCanHidePin())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FDataflowNode::HasHiddenInputs() const
+{
+	for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
+	{
+		const FDataflowInput* const Con = Elem.Value;
+		if (Con->GetPinIsHidden())
+		{
+			return true;
+		}
+	}
+	return false;
+}
 
 //
 // Outputs
@@ -128,9 +166,9 @@ void FDataflowNode::AddOutput(FDataflowOutput* InPtr)
 {
 	if (InPtr)
 	{
-		for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+		for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
 		{
-			FDataflowOutput* Out = Elem.Value;
+			const FDataflowOutput* const Out = Elem.Value;
 			ensureMsgf(!Out->GetName().IsEqual(InPtr->GetName()), TEXT("Add Output Failed: Existing Node output already defined with name (%s)"), *InPtr->GetName().ToString());
 		}
 
@@ -148,12 +186,12 @@ void FDataflowNode::AddOutput(FDataflowOutput* InPtr)
 
 FDataflowOutput* FDataflowNode::FindOutput(uint32 InGuidHash)
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		FDataflowOutput* const Con = Elem.Value;
 		if (GetTypeHash(Con->GetGuid()) == InGuidHash)
 		{
-			return (FDataflowOutput*)Con;
+			return Con;
 		}
 	}
 	return nullptr;
@@ -162,12 +200,12 @@ FDataflowOutput* FDataflowNode::FindOutput(uint32 InGuidHash)
 
 FDataflowOutput* FDataflowNode::FindOutput(FName InName)
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		FDataflowOutput* const Con = Elem.Value;
 		if (Con->GetName().IsEqual(InName))
 		{
-			return (FDataflowOutput*)Con;
+			return Con;
 		}
 	}
 	return nullptr;
@@ -175,12 +213,12 @@ FDataflowOutput* FDataflowNode::FindOutput(FName InName)
 
 const FDataflowOutput* FDataflowNode::FindOutput(FName InName) const
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		const FDataflowOutput* const Con = Elem.Value;
 		if (Con->GetName().IsEqual(InName))
 		{
-			return (FDataflowOutput*)Con;
+			return Con;
 		}
 	}
 	return nullptr;
@@ -188,12 +226,12 @@ const FDataflowOutput* FDataflowNode::FindOutput(FName InName) const
 
 const FDataflowOutput* FDataflowNode::FindOutput(uint32 InGuidHash) const
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		const FDataflowOutput* const Con = Elem.Value;
 		if (GetTypeHash(Con->GetGuid()) == InGuidHash)
 		{
-			return (FDataflowOutput*)Con;
+			return Con;
 		}
 	}
 	return nullptr;
@@ -201,12 +239,12 @@ const FDataflowOutput* FDataflowNode::FindOutput(uint32 InGuidHash) const
 
 const FDataflowOutput* FDataflowNode::FindOutput(const void* Reference) const
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		const FDataflowOutput* const Con = Elem.Value;
 		if (Con->RealAddress() == Reference)
 		{
-			return (FDataflowOutput*)Con;
+			return Con;
 		}
 	}
 	return nullptr;
@@ -214,12 +252,12 @@ const FDataflowOutput* FDataflowNode::FindOutput(const void* Reference) const
 
 FDataflowOutput* FDataflowNode::FindOutput(void* Reference)
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		FDataflowOutput* const Con = Elem.Value;
 		if (Con->RealAddress() == Reference)
 		{
-			return (FDataflowOutput*)Con;
+			return Con;
 		}
 	}
 	return nullptr;
@@ -227,9 +265,9 @@ FDataflowOutput* FDataflowNode::FindOutput(void* Reference)
 
 const FDataflowOutput* FDataflowNode::FindOutput(const FGuid& InGuid) const
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		const FDataflowOutput* const Con = Elem.Value;
 		if (Con->GetGuid() == InGuid)
 		{
 			return Con;
@@ -254,27 +292,52 @@ TArray< FDataflowOutput* > FDataflowNode::GetOutputs() const
 
 void FDataflowNode::ClearOutputs()
 {
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
+		FDataflowOutput* const Con = Elem.Value;
 		delete Con;
 	}
 	Outputs.Reset();
 }
 
+bool FDataflowNode::HasHideableOutputs() const
+{
+	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
+	{
+		const FDataflowOutput* const Con = Elem.Value;
+		if (Con->GetCanHidePin())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FDataflowNode::HasHiddenOutputs() const
+{
+	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
+	{
+		const FDataflowOutput* const Con = Elem.Value;
+		if (Con->GetPinIsHidden())
+		{
+			return true;
+		}
+	}
+	return false;
+}
 
 TArray<Dataflow::FPin> FDataflowNode::GetPins() const
 {
 	TArray<Dataflow::FPin> RetVal;
-	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
+	for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
 	{
-		FDataflowInput* Con = Elem.Value;
-		RetVal.Add({ Dataflow::FPin::EDirection::INPUT,Con->GetType(), Con->GetName() });
+		const FDataflowInput* const Con = Elem.Value;
+		RetVal.Add({ Dataflow::FPin::EDirection::INPUT,Con->GetType(), Con->GetName(), Con->GetPinIsHidden()});
 	}
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
 	{
-		FDataflowOutput* Con = Elem.Value;
-		RetVal.Add({ Dataflow::FPin::EDirection::OUTPUT,Con->GetType(), Con->GetName() });
+		const FDataflowOutput* const Con = Elem.Value;
+		RetVal.Add({ Dataflow::FPin::EDirection::OUTPUT,Con->GetType(), Con->GetName(), Con->GetPinIsHidden() });
 	}
 	return RetVal;
 }
@@ -341,9 +404,9 @@ void FDataflowNode::Invalidate(const Dataflow::FTimestamp& InModifiedTimestamp)
 	{
 		LastModifiedTimestamp = InModifiedTimestamp;
 
-		for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+		for (TPair<int32, FDataflowOutput*>& Elem : Outputs)
 		{
-			FDataflowOutput* Con = Elem.Value;
+			FDataflowOutput* const Con = Elem.Value;
 			Con->Invalidate(InModifiedTimestamp);
 		}
 
@@ -453,7 +516,7 @@ FText FDataflowNode::GetPropertyDisplayNameText(const TArray<const FProperty*>& 
 #endif
 }
 
-void FDataflowNode::RegisterInputConnection(const void* InProperty, const FName& PropertyName)
+FDataflowInput* FDataflowNode::RegisterInputConnection(const void* InProperty, const FName& PropertyName)
 {
 	if (TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
 	{
@@ -467,10 +530,13 @@ void FDataflowNode::RegisterInputConnection(const void* InProperty, const FName&
 				FString ExtendedType;
 				const FString CPPType = Property->GetCPPType(&ExtendedType);
 				const FName PropType(CPPType + ExtendedType);
-				AddInput(new FDataflowInput({ PropType, PropName, this, Property }));
+				FDataflowInput* const Input = new FDataflowInput({ PropType, PropName, this, Property });
+				AddInput(Input);
+				return Input;
 			}
 		}
 	}
+	return nullptr;
 }
 
 void FDataflowNode::UnregisterInputConnection(const void* InProperty, const FName& PropertyName)
@@ -498,7 +564,7 @@ void FDataflowNode::UnregisterInputConnection(const void* InProperty, const FNam
 	}
 }
 
-void FDataflowNode::RegisterOutputConnection(const void* InProperty, const void* Passthrough, const FName& PropertyName, const FName& PassthroughName)
+FDataflowOutput* FDataflowNode::RegisterOutputConnection(const void* InProperty, const void* Passthrough, const FName& PropertyName, const FName& PassthroughName)
 {
 	if (TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
 	{
@@ -524,8 +590,10 @@ void FDataflowNode::RegisterOutputConnection(const void* InProperty, const void*
 				}
 				AddOutput(OutputConnection);
 			}
+			return OutputConnection;
 		}
 	}
+	return nullptr;
 }
 
 

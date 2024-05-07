@@ -12,8 +12,16 @@ FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNo
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&UniformMassWeighted.WeightMap);
-	RegisterInputConnection(&DensityWeighted.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&UniformMassWeighted.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&DensityWeighted.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

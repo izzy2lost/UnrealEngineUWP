@@ -10,8 +10,16 @@ FChaosClothAssetSimulationAerodynamicsConfigNode::FChaosClothAssetSimulationAero
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&Drag.WeightMap);
-	RegisterInputConnection(&Lift.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&Drag.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&Lift.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

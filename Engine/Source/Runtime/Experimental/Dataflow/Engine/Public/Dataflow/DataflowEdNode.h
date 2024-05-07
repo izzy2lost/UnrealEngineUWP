@@ -76,6 +76,15 @@ public:
 	/** Remove an option pin if the underlying Dataflow node RemovePin member is overriden. */
 	DATAFLOWENGINE_API void RemoveOptionPin();
 
+#if WITH_EDITOR
+	// Pin hiding
+	DATAFLOWENGINE_API void HideAllInputPins();
+	DATAFLOWENGINE_API void ShowAllInputPins();
+	DATAFLOWENGINE_API void ToggleHideInputPin(FName PinName);
+	DATAFLOWENGINE_API bool CanToggleHideInputPin(FName PinName) const;
+	DATAFLOWENGINE_API bool IsInputPinShown(FName PinName) const;
+#endif
+
 	//
 	// Node Rendering
 	//

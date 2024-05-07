@@ -9,15 +9,51 @@ FChaosClothAssetSimulationStretchConfigNode::FChaosClothAssetSimulationStretchCo
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&StretchStiffness.WeightMap);
-	RegisterInputConnection(&StretchStiffnessWarp.WeightMap);
-	RegisterInputConnection(&StretchStiffnessWeft.WeightMap);
-	RegisterInputConnection(&StretchStiffnessBias.WeightMap);
-	RegisterInputConnection(&StretchDamping.WeightMap);
-	RegisterInputConnection(&StretchAnisoDamping.WeightMap);
-	RegisterInputConnection(&StretchWarpScale.WeightMap);
-	RegisterInputConnection(&StretchWeftScale.WeightMap);
-	RegisterInputConnection(&AreaStiffness.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchStiffness.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchStiffnessWarp.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchStiffnessWeft.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchStiffnessBias.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchDamping.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchAnisoDamping.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchWarpScale.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&StretchWeftScale.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&AreaStiffness.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationStretchConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

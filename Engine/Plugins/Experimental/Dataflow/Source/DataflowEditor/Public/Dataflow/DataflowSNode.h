@@ -47,7 +47,18 @@ public:
 	}
 	//~ End FGCObject interface
 
+
 private:
+	// SGraphNode interface
+	/** Override this to create a button to add pins on the input side of the node */
+	virtual void CreateInputSideAddButton(TSharedPtr<SVerticalBox> InputBox) override;
+	/** Callback function executed when Add pin button is clicked */
+	virtual FReply OnAddPin() override;
+	/** Checks whether Add pin button should currently be visible */
+	virtual EVisibility IsAddPinButtonVisible() const;
+
+	
+
 	TObjectPtr<UDataflowEdNode> DataflowGraphNode = nullptr;	
 
 	FCheckBoxStyle CheckBoxStyle;

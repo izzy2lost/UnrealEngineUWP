@@ -229,8 +229,16 @@ FChaosClothAssetSelectionNode::FChaosClothAssetSelectionNode(const Dataflow::FNo
 	: FDataflowTerminalNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
-	RegisterInputConnection(&InputName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
-	RegisterInputConnection(&TransferCollection);
+	if (FDataflowInput* const Input = RegisterInputConnection(&InputName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue)))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&TransferCollection))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 	RegisterOutputConnection(&Collection, &Collection);
 	RegisterOutputConnection(&Name);
 }

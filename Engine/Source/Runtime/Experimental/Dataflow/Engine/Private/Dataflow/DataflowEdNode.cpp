@@ -17,6 +17,8 @@
 #if WITH_EDITOR
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraph/EdGraphSchema.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/Commands/UIAction.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "DataflowEdNode"
@@ -84,11 +86,13 @@ void UDataflowEdNode::AllocateDefaultPins()
 				{
 					if (Pin.Direction == Dataflow::FPin::EDirection::INPUT)
 					{
-						CreatePin(EEdGraphPinDirection::EGPD_Input, Pin.Type, Pin.Name);
+						UEdGraphPin* const EdPin = CreatePin(EEdGraphPinDirection::EGPD_Input, Pin.Type, Pin.Name);
+						EdPin->bHidden = Pin.bHidden;
 					}					
 					if (Pin.Direction == Dataflow::FPin::EDirection::OUTPUT)
 					{
-						CreatePin(EEdGraphPinDirection::EGPD_Output, Pin.Type, Pin.Name);
+						UEdGraphPin* const EdPin = CreatePin(EEdGraphPinDirection::EGPD_Output, Pin.Type, Pin.Name);
+						EdPin->bHidden = Pin.bHidden;
 					}
 				}
 			}
@@ -161,17 +165,21 @@ void UDataflowEdNode::UpdatePinsFromDataflowNode()
 				{
 					if (Pin.Direction == Dataflow::FPin::EDirection::INPUT)
 					{
-						if (!FindPin(Pin.Name, EEdGraphPinDirection::EGPD_Input))
+						UEdGraphPin* EdPin = FindPin(Pin.Name, EEdGraphPinDirection::EGPD_Input);
+						if(!EdPin)
 						{
-							CreatePin(EEdGraphPinDirection::EGPD_Input, Pin.Type, Pin.Name);
+							EdPin = CreatePin(EEdGraphPinDirection::EGPD_Input, Pin.Type, Pin.Name);
 						}
+						EdPin->bHidden = Pin.bHidden;
 					}
 					if (Pin.Direction == Dataflow::FPin::EDirection::OUTPUT)
 					{
-						if (!FindPin(Pin.Name, EEdGraphPinDirection::EGPD_Output))
+						UEdGraphPin* EdPin = FindPin(Pin.Name, EEdGraphPinDirection::EGPD_Output);
+						if(!EdPin)
 						{
-							CreatePin(EEdGraphPinDirection::EGPD_Output, Pin.Type, Pin.Name);
+							EdPin = CreatePin(EEdGraphPinDirection::EGPD_Output, Pin.Type, Pin.Name);
 						}
+						EdPin->bHidden = Pin.bHidden;
 					}
 				}
 			}
@@ -624,6 +632,113 @@ bool UDataflowEdNode::ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, 
 	return false;
 }
 
+void UDataflowEdNode::HideAllInputPins()
+{
+	bool bAnyHidden = false;
+	if (TSharedPtr<FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		TArray<FDataflowInput*> Inputs = DataflowNode->GetInputs();
+		for (FDataflowInput* const Input : Inputs)
+		{
+			if (Input->GetCanHidePin() && !Input->GetPinIsHidden())
+			{
+				Input->SetPinIsHidden(true);
+				if (!bAnyHidden)
+				{
+					Modify();
+					bAnyHidden = true;
+				}
+				UEdGraphPin* const EdPin = FindPin(Input->GetName(), EEdGraphPinDirection::EGPD_Input);
+				check(EdPin);
+				EdPin->Modify();
+				EdPin->bHidden = true;
+			}
+		}
+	}
+
+	if (bAnyHidden)
+	{
+		GetGraph()->NotifyGraphChanged();
+	}
+}
+
+void UDataflowEdNode::ShowAllInputPins()
+{
+	bool bAnyUnhidden = false;
+	if (TSharedPtr<FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		TArray<FDataflowInput*> Inputs = DataflowNode->GetInputs();
+		for (FDataflowInput* const Input : Inputs)
+		{
+			if (Input->GetCanHidePin() && Input->GetPinIsHidden())
+			{
+				Input->SetPinIsHidden(false);
+				if (!bAnyUnhidden)
+				{
+					Modify();
+					bAnyUnhidden = true;
+				}
+				UEdGraphPin* const EdPin = FindPin(Input->GetName(), EEdGraphPinDirection::EGPD_Input);
+				check(EdPin);
+				EdPin->Modify();
+				EdPin->bHidden = false;
+			}
+		}
+	}
+
+	if (bAnyUnhidden)
+	{
+		GetGraph()->NotifyGraphChanged();
+	}
+}
+
+void UDataflowEdNode::ToggleHideInputPin(FName PinName)
+{
+	if (TSharedPtr<FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		if (FDataflowInput* const Input = DataflowNode->FindInput(PinName))
+		{
+			if (ensure(Input->GetCanHidePin()))
+			{
+				const bool bWasHidden = Input->GetPinIsHidden();
+				Input->SetPinIsHidden(!bWasHidden);
+				Modify();
+				UEdGraphPin* const EdPin = FindPin(Input->GetName(), EEdGraphPinDirection::EGPD_Input);
+				check(EdPin);
+				EdPin->Modify();
+				EdPin->bHidden = !bWasHidden;
+				GetGraph()->NotifyGraphChanged();
+			}
+		}
+	}
+}
+
+bool UDataflowEdNode::CanToggleHideInputPin(FName PinName) const
+{
+	if (TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		if (const FDataflowInput* const Input = DataflowNode->FindInput(PinName))
+		{
+			if (Input->GetCanHidePin() && !Input->HasAnyConnections())
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool UDataflowEdNode::IsInputPinShown(FName PinName) const
+{
+	if (TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		if (const FDataflowInput* const Input = DataflowNode->FindInput(PinName))
+		{
+			return !Input->GetPinIsHidden();
+		}
+	}
+	return false;
+}
 #endif //WITH_EDITOR
 
 

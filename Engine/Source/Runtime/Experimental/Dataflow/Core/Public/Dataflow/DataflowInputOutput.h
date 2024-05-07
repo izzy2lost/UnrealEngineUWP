@@ -55,6 +55,7 @@ public:
 
 	FDataflowOutput* GetConnection() { return Connection; }
 	const FDataflowOutput* GetConnection() const { return Connection; }
+	bool HasAnyConnections() const { return Connection != nullptr; }
 
 	virtual TArray< FDataflowOutput* > GetConnectedOutputs();
 	virtual const TArray< const FDataflowOutput* > GetConnectedOutputs() const;
@@ -121,6 +122,7 @@ public:
 
 	DATAFLOWCORE_API TArray<FDataflowInput*>& GetConnections();
 	DATAFLOWCORE_API const TArray<FDataflowInput*>& GetConnections() const;
+	bool HasAnyConnections() const { return !Connections.IsEmpty(); }
 
 	DATAFLOWCORE_API virtual TArray<FDataflowInput*> GetConnectedInputs();
 	DATAFLOWCORE_API virtual const TArray<const FDataflowInput*> GetConnectedInputs() const;

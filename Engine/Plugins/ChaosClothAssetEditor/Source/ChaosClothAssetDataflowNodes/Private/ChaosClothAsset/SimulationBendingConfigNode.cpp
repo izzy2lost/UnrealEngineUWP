@@ -9,20 +9,76 @@ FChaosClothAssetSimulationBendingConfigNode::FChaosClothAssetSimulationBendingCo
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&FlatnessRatio.WeightMap);
-	RegisterInputConnection(&RestAngle.WeightMap);
-	RegisterInputConnection(&BendingStiffness.WeightMap);
-	RegisterInputConnection(&BendingStiffnessWarp.WeightMap);
-	RegisterInputConnection(&BendingStiffnessWeft.WeightMap);
-	RegisterInputConnection(&BendingStiffnessBias.WeightMap);
-	RegisterInputConnection(&BendingDamping.WeightMap);
-	RegisterInputConnection(&BendingAnisoDamping.WeightMap);
-	RegisterInputConnection(&AnisoBucklingRatio.WeightMap);
-	RegisterInputConnection(&BucklingStiffness.WeightMap);
-	RegisterInputConnection(&BucklingStiffnessWarp.WeightMap);
-	RegisterInputConnection(&BucklingStiffnessWeft.WeightMap);
-	RegisterInputConnection(&BucklingStiffnessBias.WeightMap);
-	RegisterInputConnection(&BucklingRatioWeighted.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&FlatnessRatio.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&RestAngle.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BendingStiffness.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BendingStiffnessWarp.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BendingStiffnessWeft.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BendingStiffnessBias.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BendingDamping.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BendingAnisoDamping.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&AnisoBucklingRatio.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BucklingStiffness.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BucklingStiffnessWarp.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BucklingStiffnessWeft.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BucklingStiffnessBias.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&BucklingRatioWeighted.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

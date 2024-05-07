@@ -32,6 +32,7 @@ namespace Dataflow
 		EDirection Direction;
 		FName Type;
 		FName Name;
+		bool bHidden = false;
 	};
 
 	class FGraph;
@@ -53,6 +54,8 @@ protected:
 	const FProperty* Property = nullptr;
 	FGuid  Guid;
 	bool bIsAnyType = false;
+	bool bCanHidePin = false;
+	bool bPinIsHidden = false;
 
 	friend struct FDataflowNode;
 	friend class Dataflow::FGraph;
@@ -109,4 +112,9 @@ public:
 	}
 
 	virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) {};
+
+	bool GetCanHidePin() const { return bCanHidePin; }
+	bool GetPinIsHidden() const { return bCanHidePin && bPinIsHidden; }
+	void SetCanHidePin(bool bInCanHidePin) { bCanHidePin = bInCanHidePin; }
+	void SetPinIsHidden(bool bInPinIsHidden) { bPinIsHidden = bInPinIsHidden; }
 };

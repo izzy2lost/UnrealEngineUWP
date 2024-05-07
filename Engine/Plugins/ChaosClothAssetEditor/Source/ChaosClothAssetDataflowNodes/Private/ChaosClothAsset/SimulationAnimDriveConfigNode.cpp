@@ -9,8 +9,16 @@ FChaosClothAssetSimulationAnimDriveConfigNode::FChaosClothAssetSimulationAnimDri
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&AnimDriveStiffness.WeightMap);
-	RegisterInputConnection(&AnimDriveDamping.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&AnimDriveStiffness.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&AnimDriveDamping.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationAnimDriveConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

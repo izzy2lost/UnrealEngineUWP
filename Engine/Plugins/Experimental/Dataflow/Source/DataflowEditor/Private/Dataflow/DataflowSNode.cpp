@@ -8,6 +8,7 @@
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowObject.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Logging/LogMacros.h"
 #include "SourceCodeNavigation.h"
 #include "Styling/SlateTypes.h"
@@ -15,7 +16,9 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/SBoxPanel.h"
 #include "Editor/Transactor.h"
+#include "GraphEditorSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSNode)
 
@@ -183,6 +186,91 @@ void SDataflowEdNode::AddReferencedObjects(FReferenceCollector& Collector)
 			Collector.AddPropertyReferences(DataflowNode->TypedScriptStruct(), DataflowNode.Get());
 		}
 	}
+}
+
+void SDataflowEdNode::CreateInputSideAddButton(TSharedPtr<SVerticalBox> InputBox)
+{
+	TSharedRef<SWidget> AddPinButton = AddPinButtonContent(
+		LOCTEXT("AddPinInputButton", "Show/Hide Inputs"),
+		LOCTEXT("AddPinInputButton_Tooltip", "Show/Hide input pins."),
+		false
+	);
+
+	FMargin AddPinPadding = Settings->GetOutputPinPadding();
+	AddPinPadding.Top += 6.0f;
+
+	InputBox->AddSlot()
+		.AutoHeight()
+		.VAlign(VAlign_Center)
+		.Padding(AddPinPadding)
+		[
+			AddPinButton
+		];
+}
+
+FReply SDataflowEdNode::OnAddPin()
+{
+	if (DataflowGraphNode)
+	{
+		FMenuBuilder MenuBuilder(false, nullptr);
+		if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
+		{
+			if (DataflowNode->HasHideableInputs())
+			{
+				MenuBuilder.AddMenuEntry(LOCTEXT("HideAllInputs", "Hide all"), LOCTEXT("HideAllInputsTooltip", "Hide all hideable input pins"), FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::HideAllInputPins)));
+				MenuBuilder.AddMenuEntry(LOCTEXT("UnhideAllInputs", "Unhide all"), LOCTEXT("UnhideAllInputsTooltip", "Unhide all hideable input pins"), FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::ShowAllInputPins)));
+
+
+				TArray<FDataflowInput*> Inputs = DataflowNode->GetInputs();
+				for (FDataflowInput* Input : Inputs)
+				{
+					if (Input->GetCanHidePin())
+					{
+						MenuBuilder.AddMenuEntry(FText::FromName(Input->GetName()), LOCTEXT("UnhidePinTooltip", "Show/Hide pin"), FSlateIcon(),
+							FUIAction(
+								FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::ToggleHideInputPin, Input->GetName()),
+								FCanExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::CanToggleHideInputPin, Input->GetName()),
+								FIsActionChecked::CreateUObject(DataflowGraphNode, &UDataflowEdNode::IsInputPinShown, Input->GetName())),
+							NAME_None, EUserInterfaceActionType::ToggleButton);
+					}
+				}
+			}
+		}
+		FSlateApplication::Get().PushMenu(AsShared(),
+			FWidgetPath(),
+			MenuBuilder.MakeWidget(),
+			FSlateApplication::Get().GetCursorPos(),
+			FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu)
+		);
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
+}
+
+EVisibility SDataflowEdNode::IsAddPinButtonVisible() const
+{
+	EVisibility Visibility = Super::IsAddPinButtonVisible();
+	if (Visibility == EVisibility::Collapsed)
+	{
+		return Visibility;
+	}
+
+	if (DataflowGraphNode)
+	{
+		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
+		{
+			if (DataflowNode->HasHideableInputs())
+			{
+				return Visibility;
+			}
+		}
+	}
+
+	return EVisibility::Collapsed;
 }
 
 //

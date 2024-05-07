@@ -474,6 +474,9 @@ struct FFortniteMainBranchObjectVersion
 		// Added a more stable pixel depth offset mode.
 		MaterialPixelDepthOffsetMode,
 
+		// Added hideable pins to dataflow
+		DataflowHideablePins,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

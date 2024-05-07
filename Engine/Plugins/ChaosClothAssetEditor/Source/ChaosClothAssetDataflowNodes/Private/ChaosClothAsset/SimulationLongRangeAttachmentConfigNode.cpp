@@ -12,8 +12,16 @@ FChaosClothAssetSimulationLongRangeAttachmentConfigNode::FChaosClothAssetSimulat
 {
 	RegisterCollectionConnections();
 	RegisterInputConnection(&FixedEndWeightMap);
-	RegisterInputConnection(&TetherStiffness.WeightMap);
-	RegisterInputConnection(&TetherScale.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&TetherStiffness.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
+	if (FDataflowInput* const Input = RegisterInputConnection(&TetherScale.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

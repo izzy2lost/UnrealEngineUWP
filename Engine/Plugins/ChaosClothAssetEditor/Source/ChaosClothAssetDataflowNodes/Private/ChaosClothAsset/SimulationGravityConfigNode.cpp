@@ -11,7 +11,11 @@ FChaosClothAssetSimulationGravityConfigNode::FChaosClothAssetSimulationGravityCo
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&GravityScaleWeighted.WeightMap);
+	if (FDataflowInput* const Input = RegisterInputConnection(&GravityScaleWeighted.WeightMap))
+	{
+		Input->SetCanHidePin(true);
+		Input->SetPinIsHidden(true);
+	}
 }
 
 void FChaosClothAssetSimulationGravityConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
