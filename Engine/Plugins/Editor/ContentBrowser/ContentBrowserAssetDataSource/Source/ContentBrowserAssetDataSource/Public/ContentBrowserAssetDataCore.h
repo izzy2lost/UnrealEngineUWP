@@ -17,7 +17,7 @@ class UObject;
 class UToolMenu;
 class UContentBrowserDataSource;
 
-DECLARE_LOG_CATEGORY_EXTERN(LogContentBrowserAssetDataSource, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogContentBrowserAssetDataSource, Log, Log);
 
 namespace ContentBrowserAssetData
 {
