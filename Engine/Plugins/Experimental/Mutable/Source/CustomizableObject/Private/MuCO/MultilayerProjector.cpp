@@ -24,7 +24,7 @@ void FMultilayerProjectorLayer::Read(const FCustomizableObjectInstanceDescriptor
 	}
 	
 	{
-		const int32 ProjectorParamIndex = Descriptor.FindProjectorParameterNameIndex(ParamName);
+		const int32 ProjectorParamIndex = Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
 		const FCustomizableObjectProjector& Projector = Descriptor.GetProjectorParameters()[ProjectorParamIndex].RangeValues[Index];
 		Position = static_cast<FVector3d>(Projector.Position);
 		Direction = static_cast<FVector3d>(Projector.Direction);
@@ -34,12 +34,12 @@ void FMultilayerProjectorLayer::Read(const FCustomizableObjectInstanceDescriptor
 	}
 
 	{
-		const int32 ImageParamIndex = Descriptor.FindIntParameterNameIndex(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX);
+		const int32 ImageParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
 		Image = Descriptor.GetIntParameters()[ImageParamIndex].ParameterRangeValueNames[Index];
 	}
 
 	{
-		const int32 OpacityParamIndex = Descriptor.FindFloatParameterNameIndex(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX);
+		const int32 OpacityParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
 		Opacity = Descriptor.GetFloatParameters()[OpacityParamIndex].ParameterRangeValues[Index];
 	}
 }
@@ -58,7 +58,7 @@ void FMultilayerProjectorLayer::Write(FCustomizableObjectInstanceDescriptor& Des
 	}
 
 	{
-		const int32 ProjectorParamIndex = Descriptor.FindProjectorParameterNameIndex(ParamName);
+		const int32 ProjectorParamIndex = Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
 		FCustomizableObjectProjector& Projector = Descriptor.GetProjectorParameters()[ProjectorParamIndex].RangeValues[Index];
 		Projector.Position = static_cast<FVector3f>(Position);
 		Projector.Direction = static_cast<FVector3f>(Direction);
@@ -68,12 +68,12 @@ void FMultilayerProjectorLayer::Write(FCustomizableObjectInstanceDescriptor& Des
 	}
 
 	{
-		const int32 ImageParamIndex = Descriptor.FindIntParameterNameIndex(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX);
+		const int32 ImageParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
 		Descriptor.GetIntParameters()[ImageParamIndex].ParameterRangeValueNames[Index] = Image;
 	}
 
 	{
-		const int32 OpacityParamIndex = Descriptor.FindFloatParameterNameIndex(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX);
+		const int32 OpacityParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
 		Descriptor.GetFloatParameters()[OpacityParamIndex].ParameterRangeValues[Index] = Opacity;
 	}
 }
@@ -115,7 +115,7 @@ int32 FMultilayerProjector::NumLayers(const FCustomizableObjectInstanceDescripto
 {
 	const FString NumLayersParamName = ParamName.ToString() + NUM_LAYERS_PARAMETER_POSTFIX;
 	
-	const int32 FloatParameterIndex = Descriptor.FindFloatParameterNameIndex(NumLayersParamName);
+	const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
 	check(FloatParameterIndex != -1); // Parameter not found.
 
 	return Descriptor.GetFloatParameters()[FloatParameterIndex].ParameterValue;
@@ -140,14 +140,14 @@ void FMultilayerProjector::CreateLayer(FCustomizableObjectInstanceDescriptor& De
 	// Num Layers.
 	{
         const FString NumLayersParamName = ParamNameString + NUM_LAYERS_PARAMETER_POSTFIX;
-		const int32 FloatParameterIndex = Descriptor.FindFloatParameterNameIndex(NumLayersParamName);
+		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
 
         Descriptor.GetFloatParameters()[FloatParameterIndex].ParameterValue += 1;
     }
 	
 	// Projector Range.
 	{
-		const int32 ProjectorParameterIndex = Descriptor.FindProjectorParameterNameIndex(ParamNameString);
+		const int32 ProjectorParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString, EMutableParameterType::Projector);
 		
 		FCustomizableObjectProjectorParameterValue& ProjectorParameter = Descriptor.GetProjectorParameters()[ProjectorParameterIndex];
 		const FCustomizableObjectProjector Projector = Descriptor.GetCustomizableObject()->GetProjectorParameterDefaultValue(ParamNameString);
@@ -156,7 +156,7 @@ void FMultilayerProjector::CreateLayer(FCustomizableObjectInstanceDescriptor& De
 	
 	// Selected Image Range.
 	{
-		const int32 IntParameterIndex = Descriptor.FindIntParameterNameIndex(ParamNameString + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX);
+		const int32 IntParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
 
 		FCustomizableObjectIntParameterValue& IntParameter = Descriptor.GetIntParameters()[IntParameterIndex];
 		const int32 ParamIndexInObject = Object->FindParameter(IntParameter.ParameterName);
@@ -167,7 +167,7 @@ void FMultilayerProjector::CreateLayer(FCustomizableObjectInstanceDescriptor& De
 	
 	// Opacity Range.
 	{
-		const int32 FloatParameterIndex = Descriptor.FindFloatParameterNameIndex(ParamNameString + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX);
+		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
 
 		FCustomizableObjectFloatParameterValue& FloatParameter = Descriptor.GetFloatParameters()[FloatParameterIndex];
 		FloatParameter.ParameterRangeValues.Insert(0.5, Index); // TODO: Define the default float in the editor instead of [0.5f], like it's currently defined for GetProjectorDefaultValue()
@@ -190,14 +190,14 @@ void FMultilayerProjector::RemoveLayerAt(FCustomizableObjectInstanceDescriptor& 
 	// Num Layers.
 	{
 		const FString NumLayersParamName = ParamNameString + NUM_LAYERS_PARAMETER_POSTFIX;
-        const int32 FloatParameterIndex = Descriptor.FindFloatParameterNameIndex(NumLayersParamName);
+        const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
 		
     	Descriptor.GetFloatParameters()[FloatParameterIndex].ParameterValue -= 1;
     }
     
 	// Projector Range.
 	{
-		const int32 ProjectorParameterIndex = Descriptor.FindProjectorParameterNameIndex(ParamNameString);
+		const int32 ProjectorParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString, EMutableParameterType::Projector);
 		
 		FCustomizableObjectProjectorParameterValue& ProjectorParameter = Descriptor.GetProjectorParameters()[ProjectorParameterIndex];
 		ProjectorParameter.RangeValues.RemoveAt(Index);
@@ -205,7 +205,7 @@ void FMultilayerProjector::RemoveLayerAt(FCustomizableObjectInstanceDescriptor& 
 	
 	// Selected Image Range.
 	{
-		const int32 IntParameterIndex = Descriptor.FindIntParameterNameIndex(ParamNameString + IMAGE_PARAMETER_POSTFIX);
+		const int32 IntParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
 		
 		FCustomizableObjectIntParameterValue& IntParameter = Descriptor.GetIntParameters()[IntParameterIndex];
 		IntParameter.ParameterRangeValueNames.RemoveAt(Index);
@@ -213,7 +213,7 @@ void FMultilayerProjector::RemoveLayerAt(FCustomizableObjectInstanceDescriptor& 
 	
 	// Opacity Range.
 	{
-		const int32 FloatParameterIndex = Descriptor.FindFloatParameterNameIndex(ParamNameString + OPACITY_PARAMETER_POSTFIX);
+		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
 		
 		FCustomizableObjectFloatParameterValue& FloatParameter = Descriptor.GetFloatParameters()[FloatParameterIndex];
 		FloatParameter.ParameterRangeValues.RemoveAt(Index);
@@ -468,7 +468,7 @@ bool FMultilayerProjector::AreDescriptorParametersValid(const FCustomizableObjec
 	// Num layers.
 	{
 		const FString NumLayersParamName = ParamName + NUM_LAYERS_PARAMETER_POSTFIX;
-		const int32 FloatParameterIndex = Descriptor.FindFloatParameterNameIndex(NumLayersParamName);
+		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
 		if (FloatParameterIndex != INDEX_NONE)
 		{
 			return false;
@@ -476,21 +476,21 @@ bool FMultilayerProjector::AreDescriptorParametersValid(const FCustomizableObjec
 	}
     
 	// Projector.
-	if (const int32 ProjectorParameterIndex = Descriptor.FindProjectorParameterNameIndex(ParamName);
+	if (const int32 ProjectorParameterIndex = Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
 		ProjectorParameterIndex != INDEX_NONE)
 	{
 		return false;
 	}
 	
 	// Selected Image.
-	if (const int32 IntParameterIndex = Descriptor.FindIntParameterNameIndex(ParamName + IMAGE_PARAMETER_POSTFIX);
+	if (const int32 IntParameterIndex = Descriptor.FindTypedParameterIndex(ParamName + IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
 		IntParameterIndex != INDEX_NONE)
 	{
 		return false;
 	}
 		
 	// Opacity.	
-	if (const int32 FloatParameterIndex = Descriptor.FindFloatParameterNameIndex(ParamName + OPACITY_PARAMETER_POSTFIX);
+	if (const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(ParamName + OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
 		FloatParameterIndex != INDEX_NONE)
 	{
 		return false;

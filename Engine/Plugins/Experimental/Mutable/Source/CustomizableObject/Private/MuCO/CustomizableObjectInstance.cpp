@@ -2652,31 +2652,31 @@ FCustomizableObjectProjector UCustomizableObjectInstance::GetProjector(const FSt
 
 int32 UCustomizableObjectInstance::FindIntParameterNameIndex(const FString& ParamName) const
 {
-	return Descriptor.FindIntParameterNameIndex(ParamName);
+	return Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
 }
 
 
 int32 UCustomizableObjectInstance::FindFloatParameterNameIndex(const FString& ParamName) const
 {
-	return Descriptor.FindFloatParameterNameIndex(ParamName);
+	return Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Float);
 }
 
 
 int32 UCustomizableObjectInstance::FindBoolParameterNameIndex(const FString& ParamName) const
 {
-	return Descriptor.FindBoolParameterNameIndex(ParamName);
+	return Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Bool);
 }
 
 
 int32 UCustomizableObjectInstance::FindVectorParameterNameIndex(const FString& ParamName) const
 {
-	return Descriptor.FindVectorParameterNameIndex(ParamName);
+	return Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Color);
 }
 
 
 int32 UCustomizableObjectInstance::FindProjectorParameterNameIndex(const FString& ParamName) const
 {
-	return Descriptor.FindProjectorParameterNameIndex(ParamName);
+	return Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
 }
 
 void UCustomizableObjectInstance::SetRandomValues()

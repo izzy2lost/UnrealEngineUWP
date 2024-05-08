@@ -1302,9 +1302,7 @@ EMutableParameterType UCustomizableObjectPrivate::GetParameterType(int32 ParamIn
 
 EMutableParameterType UCustomizableObject::GetParameterTypeByName(const FString& Name) const
 {
-	const int* IndexPtr = GetPrivate()->ParameterPropertiesLookupTable.Find(Name);
-	int Index = IndexPtr ? *IndexPtr : INDEX_NONE;
-
+	const int32 Index = FindParameter(Name); 
 	if (GetPrivate()->ParameterProperties.IsValidIndex(Index))
 	{
 		return GetPrivate()->ParameterProperties[Index].Type;
@@ -1348,19 +1346,22 @@ void UCustomizableObjectPrivate::UpdateParameterPropertiesFromModel(const TShare
 	if (Model)
 	{
 		mu::ParametersPtr MutableParameters = mu::Model::NewParameters(Model);
-		int paramCount = MutableParameters->GetCount();
+		const int32 NumParameters = MutableParameters->GetCount();
 
-		ParameterProperties.Reset(paramCount);
-		ParameterPropertiesLookupTable.Empty(paramCount);
-		for (int paramIndex = 0; paramIndex<paramCount; ++paramIndex)
+		TArray<int32> TypedParametersCount;
+		TypedParametersCount.SetNum(static_cast<int32>(mu::PARAMETER_TYPE::T_COUNT));
+
+		ParameterProperties.Reset(NumParameters);
+		ParameterPropertiesLookupTable.Empty(NumParameters);
+		for (int32 Index = 0; Index < NumParameters; ++Index)
 		{
 			FMutableModelParameterProperties Data;
 
-			Data.Name = MutableParameters->GetName(paramIndex);
+			Data.Name = MutableParameters->GetName(Index);
 			Data.Type = EMutableParameterType::None;
 
-			mu::PARAMETER_TYPE mutableType = MutableParameters->GetType(paramIndex);
-			switch (mutableType)
+			mu::PARAMETER_TYPE ParameterType = MutableParameters->GetType(Index);
+			switch (ParameterType)
 			{
 			case mu::PARAMETER_TYPE::T_BOOL:
 			{
@@ -1372,13 +1373,13 @@ void UCustomizableObjectPrivate::UpdateParameterPropertiesFromModel(const TShare
 			{
 				Data.Type = EMutableParameterType::Int;
 
-				int ValueCount = MutableParameters->GetIntPossibleValueCount(paramIndex);
-				for (int i = 0; i<ValueCount; ++i)
+				const int32 ValueCount = MutableParameters->GetIntPossibleValueCount(Index);
+				Data.PossibleValues.Reserve(ValueCount);
+				for (int32 ValueIndex = 0; ValueIndex < ValueCount; ++ValueIndex)
 				{
-					FMutableModelParameterValue ValueData;
-					ValueData.Name = MutableParameters->GetIntPossibleValueName(paramIndex,i);
-					ValueData.Value = MutableParameters->GetIntPossibleValue(paramIndex,i);
-					Data.PossibleValues.Add(ValueData);
+					FMutableModelParameterValue& ValueData = Data.PossibleValues.AddDefaulted_GetRef();
+					ValueData.Name = MutableParameters->GetIntPossibleValueName(Index, ValueIndex);
+					ValueData.Value = MutableParameters->GetIntPossibleValue(Index, ValueIndex);
 				}
 				break;
 			}
@@ -1414,7 +1415,7 @@ void UCustomizableObjectPrivate::UpdateParameterPropertiesFromModel(const TShare
 			}
 
 			ParameterProperties.Add(Data);
-			ParameterPropertiesLookupTable.Add(Data.Name, paramIndex);
+			ParameterPropertiesLookupTable.Add(Data.Name, FMutableParameterIndex(Index, TypedParametersCount[static_cast<int32>(ParameterType)]++));
 		}
 	}
 	else
@@ -1476,12 +1477,26 @@ int32 UCustomizableObject::FindParameter(const FString& Name) const
 
 int32 UCustomizableObjectPrivate::FindParameter(const FString& Name) const
 {
-	const int32 * Found = ParameterPropertiesLookupTable.Find(Name);
-	if (Found == nullptr)
+	if (const FMutableParameterIndex* Found = ParameterPropertiesLookupTable.Find(Name))
 	{
-		return INDEX_NONE;
+		return Found->Index;
 	}
-	return *Found;
+
+	return INDEX_NONE;
+}
+
+
+int32 UCustomizableObjectPrivate::FindParameterTyped(const FString& Name, EMutableParameterType Type) const
+{
+	if (const FMutableParameterIndex* Found = ParameterPropertiesLookupTable.Find(Name))
+	{
+		if (ParameterProperties[Found->Index].Type == Type)
+		{
+			return Found->TypedIndex;
+		}
+	}
+
+	return INDEX_NONE;
 }
 
 

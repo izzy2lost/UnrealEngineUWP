@@ -557,6 +557,12 @@ static_assert(sizeof(FMorphTargetVertexData) == sizeof(FVector3f)*2 + sizeof(uin
 template<> struct TCanBulkSerialize<FMorphTargetVertexData> { enum { Value = true }; };
 
 
+struct FMutableParameterIndex
+{
+	int32 Index = INDEX_NONE;
+	int32 TypedIndex = INDEX_NONE;
+};
+
 USTRUCT()
 struct CUSTOMIZABLEOBJECT_API FIntegerParameterUIData
 {
@@ -800,6 +806,7 @@ public:
 	void ApplyStateForcedValuesToParameters(int32 State, mu::Parameters* Parameters);
 
 	int32 FindParameter(const FString& Name) const;
+	int32 FindParameterTyped(const FString& Name, EMutableParameterType Type) const;
 
 	EMutableParameterType GetParameterType(int32 ParamIndex) const;
 
@@ -962,7 +969,7 @@ public:
 
 	// Map of name to index of ParameterProperties.
 	// use this to lookup fast by Name
-	TMap<FString, int32> ParameterPropertiesLookupTable;
+	TMap<FString, FMutableParameterIndex> ParameterPropertiesLookupTable;
 
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.

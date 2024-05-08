@@ -202,23 +202,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	/** Get the current projector for the parameter with the given name. */
 	FCustomizableObjectProjector GetProjector(const FString& ParamName, int32 RangeIndex) const;
 	
-	/** Finds in IntParameters a parameter with name ParamName, returns the index if found, -1 otherwise. */
-	int32 FindIntParameterNameIndex(const FString& ParamName) const;
-
-	/** Finds in FloatParameters a parameter with name ParamName, returns the index if found, -1 otherwise. */
-	int32 FindFloatParameterNameIndex(const FString& ParamName) const;
-
-	/** Finds in TextureParameters a parameter with name ParamName, returns the index if found, -1 otherwise. */
-	int32 FindTextureParameterNameIndex(const FString& ParamName) const;
-
-	/** Finds in BoolParameters a parameter with name ParamName, returns the index if found, -1 otherwise. */
-	int32 FindBoolParameterNameIndex(const FString& ParamName) const;
-
-	/** Finds in VectorParameters a parameter with name ParamName, returns the index if found, -1 otherwise. */
-	int32 FindVectorParameterNameIndex(const FString& ParamName) const;
-
-	/** Finds in ProjectorParameters a parameter with name ParamName, returns the index if found, -1 otherwise. */
-	int32 FindProjectorParameterNameIndex(const FString& ParamName) const;
+	/** Finds the parameter with name ParamName in the array of its type, returns the index if found, INDEX_NONE otherwise. */
+	int32 FindTypedParameterIndex(const FString& ParamName, EMutableParameterType Type) const;
 
 	// Parameter Ranges
 
@@ -388,15 +373,10 @@ private:
 
 	/** Array of RequestedLODs per component to generate, they MUST NOT be used in an update (Mutable thread). */
 	TArray<uint16> RequestedLODLevels;
-
-	/** Lookup of UCustomizableObjectDescriptor::IntParameters. */
-	TMap<FString, int32> IntParametersLookupTable;
 	
 	/** Multilayer Projector helpers. See FMultilayerProjector.*/
 	UPROPERTY()
 	TMap<FName, FMultilayerProjector> MultilayerProjectors;
-
-	void CreateParametersLookupTable();
 	
 	// Friends
 	friend FDescriptorHash;
