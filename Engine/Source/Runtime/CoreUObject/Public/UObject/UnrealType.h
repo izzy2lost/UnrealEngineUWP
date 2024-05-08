@@ -784,7 +784,7 @@ public:
 		return Offset_Internal + GetSize() <= ContainerSize;
 	}
 	/** See if the offset of this property is below the supplied container size */
-	FORCEINLINE bool IsInContainer(UStruct* ContainerClass) const
+	FORCEINLINE bool IsInContainer(const UStruct* ContainerClass) const
 	{
 		return Offset_Internal + GetSize() <= (ContainerClass ? ContainerClass->GetPropertiesSize() : MAX_int32);
 	}
