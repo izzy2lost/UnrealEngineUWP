@@ -2708,7 +2708,14 @@ namespace Metasound
 				{
 					if (TSharedPtr<SGraphEditor> GraphEditor = GetGraphEditor())
 					{
-						GraphEditor->JumpToNode(Node, /*bRequestRename=*/true);
+						if (GraphEditor->IsNodeTitleVisible(Node, /*bRequestRename=*/ false))
+						{
+							GraphEditor->IsNodeTitleVisible(Node, /*bRequestRename=*/ true);
+						}
+						else
+						{
+							GraphEditor->JumpToNode(Node, /*bRequestRename=*/true);
+						}
 						return;
 					}
 				}
