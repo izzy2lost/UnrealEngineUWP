@@ -986,7 +986,11 @@ public:
 		DeterminisiticMeshVertexIds,
 
 		NumRuntimeReferencedTextures,
+		
+		DeterminisiticLayoutBlockIds,
 
+		BackoutDeterminisiticLayoutBlockIds,
+		
 		LastCustomizableObjectVersion
 	};
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;
