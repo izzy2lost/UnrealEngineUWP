@@ -26,14 +26,32 @@ namespace Metasound
 	struct FMetaSoundEngineAssetHelper
 	{
 #if WITH_EDITOR
+		static void PostDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, EDuplicateMode::Type InDuplicateMode, FGuid& OutAssetClassID)
+		{
+			using namespace Metasound::Frontend;
+
+			if (InDuplicateMode == EDuplicateMode::Normal)
+			{
+				// Uses a bespoke builder instead of a registered one to avoid class name collision
+				// that can result in accessing the wrong pre-existing builder for the pre-existing
+				// MetaSound the provided MetaSound was duplicated from. Being that this is a new
+				// MetaSound, it is perfectly safe and should not result in multiple builders existing
+				// for the given asset.
+				FMetaSoundFrontendDocumentBuilder DuplicateBuilder(MetaSound);
+				const FMetasoundFrontendClassName NewName = DuplicateBuilder.GenerateNewClassName();
+				ensureAlwaysMsgf(IMetaSoundAssetManager::GetChecked().TryGetAssetIDFromClassName(NewName, OutAssetClassID), TEXT("Failed to retrieve newly duplicated MetaSoundClassName AssetID"));
+			}
+		}
+
 		template <typename TMetaSoundObject>
 		static void PostEditUndo(TMetaSoundObject& InMetaSound)
 		{
 			InMetaSound.GetModifyContext().SetForceRefreshViews();
 
-			const FMetasoundFrontendDocument& Document = InMetaSound.GetConstDocumentChecked();
-			const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
-			UMetaSoundBuilderSubsystem::GetChecked().PostBuilderAssetTransaction(ClassName);
+			if (UMetaSoundBuilderBase* Builder = UMetaSoundBuilderSubsystem::GetChecked().FindBuilderOfDocument(&InMetaSound))
+			{
+				Builder->Reload();
+			}
 
 			if (UMetasoundEditorGraphBase* Graph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
 			{
@@ -100,8 +118,6 @@ namespace Metasound
 #if WITH_EDITORONLY_DATA
 			using namespace Frontend;
 
-			// Do not call asset manager on CDO objects which may be loaded before asset
-			// manager is set.
 			if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 			{
 				AssetManager->WaitUntilAsyncLoadReferencedAssetsComplete(InMetaSound);
@@ -155,14 +171,7 @@ namespace Metasound
 			{
 				if (InMetaSound.GetAsyncReferencedAssetClassPaths().Num() > 0)
 				{
-					if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
-					{
-						AssetManager->RequestAsyncLoadReferencedAssets(InMetaSound);
-					}
-					else
-					{
-						UE_LOG(LogMetaSound, Warning, TEXT("Request for to load async references ignored from asset %s. Likely due loading before the MetaSoundEngine module."), *InMetaSound.GetPathName());
-					}
+					IMetaSoundAssetManager::GetChecked().RequestAsyncLoadReferencedAssets(InMetaSound);
 				}
 			}
 		}

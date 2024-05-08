@@ -16,6 +16,7 @@
 #include "MetasoundAssetManager.h"
 #include "MetasoundAudioFormats.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundDocumentInterface.h"
 #include "MetasoundDynamicOperatorTransactor.h"
 #include "MetasoundEngineAsset.h"
@@ -343,6 +344,11 @@ const UClass& UMetaSoundSource::GetBaseMetaSoundUClass() const
 	return *UMetaSoundSource::StaticClass();
 }
 
+const UClass& UMetaSoundSource::GetBuilderUClass() const
+{
+	return *UMetaSoundSourceBuilder::StaticClass();
+}
+
 const FMetasoundFrontendDocument& UMetaSoundSource::GetConstDocument() const
 {
 	return RootMetasoundDocument;
@@ -358,14 +364,7 @@ void UMetaSoundSource::PostEditUndo()
 void UMetaSoundSource::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
-
-	// Guid is reset as asset may share implementation from
-	// asset duplicated from but should not be registered as such.
-	if (InDuplicateMode == EDuplicateMode::Normal)
-	{
-		AssetClassID = FGuid::NewGuid();
-		Metasound::Frontend::FRenameRootGraphClass::Generate(GetDocumentHandle(), AssetClassID);
-	}
+	Metasound::FMetaSoundEngineAssetHelper::PostDuplicate(this, InDuplicateMode, AssetClassID);
 }
 
 void UMetaSoundSource::PostEditChangeProperty(FPropertyChangedEvent& InEvent)
@@ -421,16 +420,11 @@ bool UMetaSoundSource::CanEditChange(const FProperty* InProperty) const
 
 void UMetaSoundSource::PostEditChangeOutputFormat()
 {
-	using namespace Metasound::Frontend;
+	using namespace Metasound::Engine;
 
 	EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-	{
-		const UMetaSoundBuilderSubsystem& BuilderSubsystem = UMetaSoundBuilderSubsystem::GetConstChecked();
-
-		UMetaSoundSourceBuilder* SourceBuilder = BuilderSubsystem.AttachSourceBuilderToAsset(this);
-		check(SourceBuilder);
-		SourceBuilder->SetFormat(OutputFormat, Result);
-	}
+	UMetaSoundSourceBuilder& SourceBuilder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding<UMetaSoundSourceBuilder>(*this);
+	SourceBuilder.SetFormat(OutputFormat, Result);
 
 	if (Result == EMetaSoundBuilderResult::Succeeded)
 	{
@@ -499,10 +493,6 @@ FTopLevelAssetPath UMetaSoundSource::GetAssetPathChecked() const
 
 void UMetaSoundSource::BeginDestroy()
 {
-#if WITH_SERVER_CODE
-	Metasound::Frontend::IMetaSoundAssetManager::OnManagerSet.RemoveAll(this);
-#endif //WITH_SERVER_CODE
-
 	OnNotifyBeginDestroy();
 	Super::BeginDestroy();
 }
@@ -646,23 +636,12 @@ void UMetaSoundSource::MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& Out
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-UEdGraph* UMetaSoundSource::GetGraph()
+UEdGraph* UMetaSoundSource::GetGraph() const
 {
 	return EditorGraph;
 }
 
-const UEdGraph* UMetaSoundSource::GetGraph() const
-{
-	return EditorGraph;
-}
-
-UEdGraph& UMetaSoundSource::GetGraphChecked()
-{
-	check(EditorGraph);
-	return *EditorGraph;
-}
-
-const UEdGraph& UMetaSoundSource::GetGraphChecked() const
+UEdGraph& UMetaSoundSource::GetGraphChecked() const
 {
 	check(EditorGraph);
 	return *EditorGraph;
@@ -828,20 +807,7 @@ void UMetaSoundSource::InitResources()
 
 	if (IsInGameThread())
 	{
-#if WITH_SERVER_CODE
-		
-		if (IMetaSoundAssetManager::Get())
-		{
-			RegisterGraphWithFrontend(GetInitRegistrationOptions());
-		}
-		else
-		{
-			//to allow the server to preload UMetaSoundSource objects before the manager has been set up
-			IMetaSoundAssetManager::OnManagerSet.AddUObject(this, &UMetaSoundSource::InitResources);
-		}
-#else
 		RegisterGraphWithFrontend(GetInitRegistrationOptions());
-#endif //WITH_SERVER_CODE
 	}
 	else
 	{
@@ -897,12 +863,13 @@ Metasound::Frontend::FDocumentAccessPtr UMetaSoundSource::GetDocumentAccessPtr()
 	using namespace Metasound::Frontend;
 
 	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
-	// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
-	// documents using both systems at the same time as it can corrupt a builder document's cache.
+	// the builder registry, so the document cache is invalidated here.
 	if (UMetaSoundBuilderSubsystem* BuilderSubsystem = UMetaSoundBuilderSubsystem::Get())
 	{
-		const FMetasoundFrontendClassName& Name = RootMetasoundDocument.RootGraph.Metadata.GetClassName();
-		BuilderSubsystem->InvalidateDocumentCache(Name);
+		if (UMetaSoundBuilderBase* Builder = BuilderSubsystem->FindBuilderOfDocument(this))
+		{
+			Builder->Reload();
+		}
 	}
 
 	// Return document using FAccessPoint to inform the TAccessPtr when the 
@@ -1633,7 +1600,7 @@ void UMetaSoundSource::OnFinishActiveBuilder()
 	bIsBuilderActive = false;
 }
 
-TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource::SetDynamicGeneratorEnabled(const FTopLevelAssetPath& InAssetPath, bool bInIsEnabled)
+TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource::SetDynamicGeneratorEnabled(bool bInIsEnabled)
 {
 	using namespace Metasound;
 	using namespace Metasound::DynamicGraph;

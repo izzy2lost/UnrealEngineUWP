@@ -28,14 +28,6 @@ namespace Metasound::Frontend
 
 			virtual void TransformInternal(FMetasoundFrontendDocument& OutDocument) const
 			{
-				// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
-				// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
-				// documents using both systems at the same time as it can corrupt a builder document's cache.
-				if (IDocumentBuilderRegistry* DocRegistry = IDocumentBuilderRegistry::Get())
-				{
-					const FMetasoundFrontendClassName& Name = OutDocument.RootGraph.Metadata.GetClassName();
-					DocRegistry->InvalidateDocumentCache(Name);
-				}
 				FDocumentAccessPtr DocAccessPtr = MakeAccessPtr<FDocumentAccessPtr>(OutDocument.AccessPoint, OutDocument);
 				return TransformInternal(FDocumentController::CreateDocumentHandle(DocAccessPtr));
 			}
@@ -63,8 +55,7 @@ namespace Metasound::Frontend
 
 			bool Transform(FMetaSoundFrontendDocumentBuilder& OutDocumentBuilder) const
 			{
-				const FMetaSoundFrontendDocumentBuilder& ConstBuilder = OutDocumentBuilder;
-				const FMetasoundFrontendDocumentMetadata& Metadata = ConstBuilder.GetDocument().Metadata;
+				const FMetasoundFrontendDocumentMetadata& Metadata = OutDocumentBuilder.GetConstDocument().Metadata;
 
 				const FMetasoundFrontendVersionNumber TargetVersion = GetTargetVersion();
 				if (Metadata.Version.Number < TargetVersion)
@@ -325,7 +316,8 @@ namespace Metasound::Frontend
 		void TransformInternal(FDocumentHandle InDocument) const override
 		{
 			const FGuid NewAssetClassID = FGuid::NewGuid();
-			FRenameRootGraphClass::Generate(InDocument, NewAssetClassID);
+			FMetasoundFrontendGraphClass Class = InDocument->GetRootGraphClass();
+			Class.Metadata.SetClassName(FMetasoundFrontendClassName({ }, FName(*NewAssetClassID.ToString()), { }));
 		}
 	};
 

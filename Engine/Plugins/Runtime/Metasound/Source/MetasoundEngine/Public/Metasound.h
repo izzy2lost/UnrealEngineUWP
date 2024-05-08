@@ -70,6 +70,8 @@ class METASOUNDENGINE_API UMetaSoundPatch : public UObject, public FMetasoundAss
 	GENERATED_BODY()
 
 	friend struct Metasound::FMetaSoundEngineAssetHelper;
+	friend class UMetaSoundPatchBuilder;
+
 protected:
 	UPROPERTY(EditAnywhere, Category = CustomView)
 	FMetasoundFrontendDocument RootMetaSoundDocument;
@@ -129,10 +131,8 @@ public:
 	// Returns the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @return Editor graph associated with UMetaSoundSource.
-	virtual UEdGraph* GetGraph() override;
-	virtual const UEdGraph* GetGraph() const override;
-	virtual UEdGraph& GetGraphChecked() override;
-	virtual const UEdGraph& GetGraphChecked() const override;
+	virtual UEdGraph* GetGraph() const override;
+	virtual UEdGraph& GetGraphChecked() const override;
 	virtual void MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder) override;
 
 	// Sets the graph associated with this Metasound. Graph is required to be referenced on
@@ -146,6 +146,7 @@ public:
 
 	virtual FTopLevelAssetPath GetAssetPathChecked() const override;
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
+	virtual const UClass& GetBuilderUClass() const final override;
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 
 #if WITH_EDITOR

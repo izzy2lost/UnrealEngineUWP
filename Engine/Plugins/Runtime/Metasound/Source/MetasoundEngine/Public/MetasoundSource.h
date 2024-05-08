@@ -140,7 +140,7 @@ public:
 	FPerPlatformInt SampleRateOverride = 0;
 	
 #endif //WITH_EDITOR_DATA
-	
+
 	UPROPERTY(AssetRegistrySearchable)
 	FGuid AssetClassID;
 
@@ -176,10 +176,8 @@ public:
 	// Returns the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @return Editor graph associated with UMetaSoundSource.
-	virtual UEdGraph* GetGraph() override;
-	virtual const UEdGraph* GetGraph() const override;
-	virtual UEdGraph& GetGraphChecked() override;
-	virtual const UEdGraph& GetGraphChecked() const override;
+	virtual UEdGraph* GetGraph() const override;
+	virtual UEdGraph& GetGraphChecked() const override;
 	virtual void MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder) override;
 
 	// Sets the graph associated with this Metasound. Graph is required to be referenced on
@@ -275,11 +273,12 @@ public:
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 	virtual bool IsActivelyBuilding() const override;
 
+	virtual const UClass& GetBaseMetaSoundUClass() const final override;
+	virtual const UClass& GetBuilderUClass() const final override;
+
 protected:
 	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override;
 	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override;
-
-	virtual const UClass& GetBaseMetaSoundUClass() const final override;
 
 	/** Gets all the default parameters for this Asset.  */
 	virtual bool GetAllDefaultParameters(TArray<FAudioParameter>& OutParameters) const override;
@@ -333,7 +332,7 @@ private:
 	 * Note: Disabling the dynamic generator will sever the communication between any active generators
 	 * even if the dynamic generator is re-enabled during the lifetime of the active generators
 	 */
-	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> SetDynamicGeneratorEnabled(const FTopLevelAssetPath& InAssetPath, bool bInIsEnabled);
+	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> SetDynamicGeneratorEnabled(bool bInIsEnabled);
 
 	/** Get dynamic transactor
 	 *

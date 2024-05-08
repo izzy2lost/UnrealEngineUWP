@@ -15,7 +15,7 @@
 #include "Metasound.h"
 #include "MetasoundAssetBase.h"
 #include "MetasoundAudioBuffer.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphCommentNode.h"
@@ -286,12 +286,9 @@ namespace Metasound
 					bool bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 					if (!bIsClassNative)
 					{
-						if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+						if (const FTopLevelAssetPath* Path = IMetaSoundAssetManager::GetChecked().FindAssetPath(RegistryKey))
 						{
-							if (const FSoftObjectPath* Path = AssetManager->FindObjectPathFromKey(RegistryKey))
-							{
-								DisplayName = FText::FromString(Path->GetAssetName());
-							}
+							DisplayName = FText::FromName(Path->GetAssetName());
 						}
 					}
 				}
@@ -1658,11 +1655,12 @@ namespace Metasound
 
 		bool FGraphBuilder::DeleteNode(UEdGraphNode& InNode, bool bRemoveUnusedDependencies)
 		{
+			using namespace Engine;
 			using namespace Frontend;
 
 			UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(InNode.GetGraph());
 			UObject& MetaSound = Graph->GetMetasoundChecked();
-			UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(MetaSound);
+			UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound);
 
 			if (UMetasoundEditorGraphCommentNode* Node = Cast<UMetasoundEditorGraphCommentNode>(&InNode))
 			{
@@ -1747,17 +1745,20 @@ namespace Metasound
 			TArray<FMetasoundAssetBase*> EditedReferencingMetaSounds;
 			if (GEditor)
 			{
-				TArray<UObject*> EditedAssets = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->GetAllEditedAssets();
-				for (UObject* Asset : EditedAssets)
+				if (UAssetEditorSubsystem* AssetSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
 				{
-					if (Asset != &InMetaSound)
+					TArray<UObject*> EditedAssets = AssetSubsystem->GetAllEditedAssets();
+					for (UObject* Asset : EditedAssets)
 					{
-						if (FMetasoundAssetBase* EditedMetaSound = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Asset))
+						if (Asset != &InMetaSound)
 						{
-							EditedMetaSound->RebuildReferencedAssetClasses();
-							if (EditedMetaSound->IsReferencedAsset(*MetaSoundAsset))
+							if (FMetasoundAssetBase* EditedMetaSound = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Asset))
 							{
-								EditedReferencingMetaSounds.Add(EditedMetaSound);
+								EditedMetaSound->RebuildReferencedAssetClasses();
+								if (EditedMetaSound->IsReferencedAsset(*MetaSoundAsset))
+								{
+									EditedReferencingMetaSounds.Add(EditedMetaSound);
+								}
 							}
 						}
 					}
@@ -1767,9 +1768,6 @@ namespace Metasound
 			FMetaSoundAssetRegistrationOptions RegOptions;
 			RegOptions.bForceReregister = true;
 			RegOptions.bForceViewSynchronization = bInForceViewSynchronization;
-			// Protect against race conditions by utilizing a copy of the graph. Race conditions can happen
-			// if registration is performed asynchronously while the editor is still modifying the graph.
-			RegOptions.bRegisterCopyIfAsync = true; 
 			
 			// if EditedReferencingMetaSounds is empty, then no MetaSounds are open
 			// that reference this MetaSound, so just register this asset. Otherwise,
@@ -2634,16 +2632,16 @@ namespace Metasound
 
 			bool bEditorGraphModified = false;
 
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+			const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
 			check(MetaSoundAsset);
 			UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
-			FGraphHandle GraphHandle = MetaSoundAsset->GetRootGraphHandle();
+			FConstGraphHandle GraphHandle = MetaSoundAsset->GetRootGraphHandle();
 
 			TSet<UMetasoundEditorGraphInput*> Inputs;
 			TSet<UMetasoundEditorGraphOutput*> Outputs;
 
 			// Collect all editor graph inputs with corresponding frontend inputs. 
-			GraphHandle->IterateNodes([&](FNodeHandle NodeHandle)
+			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
 				if (UMetasoundEditorGraphInput* Input = Graph->FindInput(NodeHandle->GetID()))
 				{
@@ -2681,7 +2679,7 @@ namespace Metasound
 			}
 
 			// Collect all editor graph outputs with corresponding frontend outputs. 
-			GraphHandle->IterateNodes([&](FNodeHandle NodeHandle)
+			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
 				if (UMetasoundEditorGraphOutput* Output = Graph->FindOutput(NodeHandle->GetID()))
 				{
@@ -2749,7 +2747,7 @@ namespace Metasound
 			};
 
 			// Synchronize data types & default values for input nodes.
-			GraphHandle->IterateNodes([&](FNodeHandle NodeHandle)
+			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
 				if (UMetasoundEditorGraphInput* Input = Graph->FindInput(NodeHandle->GetID()))
 				{
@@ -2778,7 +2776,7 @@ namespace Metasound
 			}, EMetasoundFrontendClassType::Input);
 
 			// Synchronize data types of output nodes.
-			GraphHandle->IterateNodes([&](FNodeHandle NodeHandle)
+			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
 				if (UMetasoundEditorGraphOutput* Output = Graph->FindOutput(NodeHandle->GetID()))
 				{
@@ -2795,8 +2793,8 @@ namespace Metasound
 			// Enforce all variables exists in the edgraph
 			TSet<FGuid> VariableIDs;
 			Algo::Transform(Graph->Variables, VariableIDs, [](const TObjectPtr<UMetasoundEditorGraphVariable>& Variable) { return Variable->GetVariableID(); });
-			TArray<FVariableHandle> FrontendVariables = GraphHandle->GetVariables();
-			for (const FVariableHandle& VariableHandle : FrontendVariables)
+			TArray<FConstVariableHandle> FrontendVariables = GraphHandle->GetVariables();
+			for (const FConstVariableHandle& VariableHandle : FrontendVariables)
 			{
 				const FGuid VariableID = VariableHandle->GetID();
 				if (VariableIDs.Remove(VariableID) == 0)

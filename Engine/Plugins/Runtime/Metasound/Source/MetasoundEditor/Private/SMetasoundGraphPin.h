@@ -8,7 +8,7 @@
 #include "KismetPins/SGraphPinInteger.h"
 #include "KismetPins/SGraphPinObject.h"
 #include "KismetPins/SGraphPinString.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphMemberDefaults.h"
@@ -280,21 +280,25 @@ namespace Metasound
 
 			UMetaSoundBuilderBase& GetBuilderChecked() const
 			{
+				using namespace Metasound::Engine;
+
 				const UMetasoundEditorGraphNode* Node = GetOwningMetaSoundNode();
 				check(Node);
 				UObject* Outermost = Node->GetOutermostObject();
 				check(Outermost);
-				return UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
+				return FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*Outermost);
 			}
 
 			const FMetasoundFrontendNode* GetFrontendNode() const
 			{
+				using namespace Metasound::Engine;
+
 				if (const UMetasoundEditorGraphNode* Node = GetOwningMetaSoundNode())
 				{
-					if (UObject* Outermost = Node->GetOutermostObject())
+					if (UObject* MetaSound = Node->GetMetasound())
 					{
 						const FGuid NodeID = Node->GetNodeID();
-						const UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
+						const UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*MetaSound);
 						return Builder.GetConstBuilder().FindNode(NodeID);
 					}
 				}
@@ -304,15 +308,7 @@ namespace Metasound
 
 			const FMetasoundFrontendNode& GetFrontendNodeChecked() const
 			{
-				const UMetasoundEditorGraphNode* Node = GetOwningMetaSoundNode();
-				check(Node);
-				UObject* Outermost = Node->GetOutermostObject();
-				check(Outermost);
-
-				const FGuid NodeID = Node->GetNodeID();
-				const UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
-
-				const FMetasoundFrontendNode* FrontendNode = Builder.GetConstBuilder().FindNode(NodeID);
+				const FMetasoundFrontendNode* FrontendNode = GetFrontendNode();
 				check(FrontendNode);
 				return *FrontendNode;
 			}

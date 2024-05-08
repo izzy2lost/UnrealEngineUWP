@@ -5,7 +5,7 @@
 #include "Algo/Transform.h"
 #include "EdGraphUtilities.h"
 #include "Logging/TokenizedMessage.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "ScopedTransaction.h"
 
@@ -229,9 +229,9 @@ namespace Metasound::Editor
 			const FNodeRegistryKey PastedRegistryKey(LookupMetadata);
 			UObject& MetaSound = *OutAsset.GetOwningAsset();
 
-			if (const FSoftObjectPath* AssetPath = IMetaSoundAssetManager::GetChecked().FindObjectPathFromKey(PastedRegistryKey))
+			if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(PastedRegistryKey))
 			{
-				if (OutAsset.AddingReferenceCausesLoop(*AssetPath))
+				if (OutAsset.AddingReferenceCausesLoop(*Asset))
 				{
 					FMetasoundFrontendClass MetaSoundClass;
 					FMetasoundFrontendRegistryContainer::Get()->FindFrontendClassFromRegistered(PastedRegistryKey, MetaSoundClass);
@@ -295,10 +295,11 @@ namespace Metasound::Editor
 
 	void FDocumentClipboardUtils::ProcessPastedCommentNodes(FMetasoundAssetBase& OutAsset, const TArrayView<UMetasoundEditorGraphCommentNode*> CommentNodes)
 	{
+		using namespace Engine;
 		using namespace Frontend;
 
 		UMetasoundEditorGraph& Graph = *CastChecked<UMetasoundEditorGraph>(&OutAsset.GetGraphChecked());
-		UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*OutAsset.GetOwningAsset());
+		UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*OutAsset.GetOwningAsset());
 		for (UMetasoundEditorGraphCommentNode* CommentNode : CommentNodes)
 		{
 			CommentNode->CreateNewGuid();

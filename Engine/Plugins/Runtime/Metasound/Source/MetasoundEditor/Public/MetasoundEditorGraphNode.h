@@ -131,8 +131,8 @@ public:
 	// data if re-associated should the associated document data/node becomes unlinked.
 	virtual void CacheBreadcrumb() { }
 
-	UObject& GetMetasoundChecked();
-	const UObject& GetMetasoundChecked() const;
+	UObject* GetMetasound() const;
+	UObject& GetMetasoundChecked() const;
 
 	virtual bool RemoveFromDocument() const;
 

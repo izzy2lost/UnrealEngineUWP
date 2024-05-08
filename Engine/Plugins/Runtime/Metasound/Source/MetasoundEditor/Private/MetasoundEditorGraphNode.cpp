@@ -11,7 +11,7 @@
 #include "Logging/TokenizedMessage.h"
 #include "Metasound.h"
 #include "MetasoundAssetManager.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditorCommands.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
@@ -200,16 +200,20 @@ int32 UMetasoundEditorGraphNode::EstimateNodeWidth() const
 
 UMetaSoundBuilderBase& UMetasoundEditorGraphNode::GetBuilderChecked() const
 {
+	using namespace Metasound::Engine;
+
 	UMetasoundEditorGraph* EdGraph = CastChecked<UMetasoundEditorGraph>(GetGraph());
-	return UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(EdGraph->GetMetasoundChecked());
+	return FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(EdGraph->GetMetasoundChecked());
 }
 
 const FMetasoundFrontendNode* UMetasoundEditorGraphNode::GetFrontendNode() const
 {
+	using namespace Metasound::Engine;
+
 	if (UObject* Outermost = GetOutermostObject())
 	{
 		const FGuid NodeID = GetNodeID();
-		const UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
+		const UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*Outermost);
 		return Builder.GetConstBuilder().FindNode(NodeID);
 	}
 
@@ -218,11 +222,13 @@ const FMetasoundFrontendNode* UMetasoundEditorGraphNode::GetFrontendNode() const
 
 const FMetasoundFrontendNode& UMetasoundEditorGraphNode::GetFrontendNodeChecked() const
 {
+	using namespace Metasound::Engine;
+
 	UObject* Outermost = GetOutermostObject();
 	check(Outermost);
 
 	const FGuid NodeID = GetNodeID();
-	const UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
+	const UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*Outermost);
 
 	const FMetasoundFrontendNode* FrontendNode = Builder.GetConstBuilder().FindNode(NodeID);
 	check(FrontendNode);
@@ -235,13 +241,17 @@ const FMetasoundEditorGraphNodeBreadcrumb& UMetasoundEditorGraphNode::GetBreadcr
 	return StubCrumb;
 }
 
-UObject& UMetasoundEditorGraphNode::GetMetasoundChecked()
+UObject* UMetasoundEditorGraphNode::GetMetasound() const
 {
-	UMetasoundEditorGraph* EdGraph = CastChecked<UMetasoundEditorGraph>(GetGraph());
-	return EdGraph->GetMetasoundChecked();
+	if (UMetasoundEditorGraph* EdGraph = CastChecked<UMetasoundEditorGraph>(GetGraph()))
+	{
+		return EdGraph->GetMetasound();
+	}
+
+	return nullptr;
 }
 
-const UObject& UMetasoundEditorGraphNode::GetMetasoundChecked() const
+UObject& UMetasoundEditorGraphNode::GetMetasoundChecked() const
 {
 	UMetasoundEditorGraph* EdGraph = CastChecked<UMetasoundEditorGraph>(GetGraph());
 	return EdGraph->GetMetasoundChecked();
@@ -1053,16 +1063,15 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 	FConstNodeHandle NodeHandle = GetNodeHandle();
 	const FMetasoundFrontendClassMetadata& Metadata = NodeHandle->GetClassMetadata();
 
-	// 1. Validate referenced graph recursively if defined as asset node class
-	const FNodeRegistryKey RegistryKey = FNodeRegistryKey(Metadata);
-	if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+	// 1. Validate external referenced graph or template node
+	switch(Metadata.GetType())
 	{
-		if (const FSoftObjectPath* Path = AssetManager->FindObjectPathFromKey(RegistryKey))
+		case EMetasoundFrontendClassType::External:
+		case EMetasoundFrontendClassType::Graph:
 		{
-			if (UObject* AssetObject = Path->ResolveObject())
+			const FAssetKey AssetKey(Metadata);
+			if (FMetasoundAssetBase* MetaSoundAsset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(AssetKey))
 			{
-				FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(AssetObject);
-				check(MetaSoundAsset);
 				const UMetasoundEditorGraph* NodeGraph = CastChecked<UMetasoundEditorGraph>(&MetaSoundAsset->GetGraphChecked());
 				const EMessageSeverity::Type MaxGraphMsg = static_cast<EMessageSeverity::Type>(NodeGraph->GetHighestMessageSeverity());
 				switch (MaxGraphMsg)
@@ -1087,38 +1096,45 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 					break;
 				}
 			}
+			break;
 		}
-	}
 
-	// 2. Validate template nodes
-	if (Metadata.GetType() == EMetasoundFrontendClassType::Template)
-	{
-		const FNodeRegistryKey Key = FNodeRegistryKey(Metadata);
-		if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key))
+		case EMetasoundFrontendClassType::Template:
 		{
-			const bool bIsValidInterface = Template->IsValidNodeInterface(NodeHandle->GetNodeInterface());
-			if (!bIsValidInterface)
+			const FNodeRegistryKey Key = FNodeRegistryKey(Metadata);
+			if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key))
 			{
-				OutResult.SetMessage(EMessageSeverity::Error, FString::Format(TEXT("Cannot implement template interface for node class '{0}"), { *Metadata.GetClassName().ToString() }));
+				const bool bIsValidInterface = Template->IsValidNodeInterface(NodeHandle->GetNodeInterface());
+				if (!bIsValidInterface)
+				{
+					OutResult.SetMessage(EMessageSeverity::Error, FString::Format(TEXT("Cannot implement template interface for node class '{0}"), { *Metadata.GetClassName().ToString() }));
+				}
+				else
+				{
+#if WITH_EDITOR
+					FString Message;
+					if (!Template->HasRequiredConnections(GetBuilderChecked().GetConstBuilder(), GetNodeID(), &Message))
+					{
+						OutResult.SetMessage(EMessageSeverity::Warning, Message);
+					}
+#endif // WITH_EDITOR
+				}
 			}
 			else
 			{
-#if WITH_EDITOR
-				FString Message;
-				if (!Template->HasRequiredConnections(GetBuilderChecked().GetConstBuilder(), GetNodeID(), &Message))
-				{
-					OutResult.SetMessage(EMessageSeverity::Warning, Message);
-				}
-#endif // WITH_EDITOR
+				OutResult.SetMessage(EMessageSeverity::Error, FString::Format(TEXT("Template node interface missing for node class '{0}'"), { *Metadata.GetClassName().ToString() }));
 			}
+			break;
 		}
-		else
+
+		default:
 		{
-			OutResult.SetMessage(EMessageSeverity::Error, FString::Format(TEXT("Template node interface missing for node class '{0}'"), { *Metadata.GetClassName().ToString()}));
+			static_assert(static_cast<int32>(EMetasoundFrontendClassType::Invalid) == 10, "Possible missing EMetasoundFrontendClassType case coverage");
 		}
+		break;
 	}
 
-	// 3. Check if node is invalid, version is missing and cache if interface changes exist between the document's records and the registry
+	// 2. Check if node is invalid, version is missing and cache if interface changes exist between the document's records and the registry
 	FClassInterfaceUpdates InterfaceUpdates;
 	if (!NodeHandle->DiffAgainstRegistryInterface(InterfaceUpdates, false /* bUseHighestMinorVersion */))
 	{
@@ -1164,6 +1180,7 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 	}
 
 	// 4. Report if node was nativized
+	const FNodeRegistryKey RegistryKey(Metadata);
 	bool bNewIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 	if (bIsClassNative != bNewIsClassNative)
 	{

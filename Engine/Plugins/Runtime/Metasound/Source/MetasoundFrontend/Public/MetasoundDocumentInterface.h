@@ -13,6 +13,10 @@
 // Forward Declarations
 struct FMetaSoundFrontendDocumentBuilder;
 
+namespace Metasound::Frontend
+{
+	struct FAssetKey;
+}
 
 // UInterface for all MetaSound UClasses that implement a MetaSound document
 // as a means for accessing data via code, scripting, execution, or node
@@ -45,6 +49,9 @@ public:
 	// Returns the parent class registered with the MetaSound UObject registry.
 	virtual const UClass& GetBaseMetaSoundUClass() const = 0;
 
+	// Returns the builder class used to modify the given document.
+	virtual const UClass& GetBuilderUClass() const = 0;
+
 	// Conforms UProperty data outside the Frontend Document Model to the document's data.
 	// Returns whether or not object data was modified.
 	virtual bool ConformObjectToDocument() = 0;
@@ -69,23 +76,42 @@ namespace Metasound::Frontend
 	class METASOUNDFRONTEND_API IDocumentBuilderRegistry
 	{
 	public:
-		// Invalidates the cache of a given document's builder should one be registered, causing it to be rebuilt.  Not recommended
-		// for general use, and is only available in case the document is modified by a system other than an active, registered builder
-		// (ex. via the soft deprecated controller/handle API).
-		virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const = 0;
+		virtual ~IDocumentBuilderRegistry() = default;
+
+		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) const = 0;
+		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(const FMetasoundFrontendClassName& ClassName) const = 0;
+
+#if WITH_EDITORONLY_DATA
+		// Find the existing builder for the given MetaSound, or optionally begin building by attaching a new builder.  Only available
+		// in builds with editor only data as building serialized assets (which may have template nodes, cooked builds do not) is only
+		// supported when editor data is loaded. Creating transient builders can simply be done by passing a new MetaSound asset to
+		// a FMetaSoundFrontendDocumentBuilder constructor, or this registry's implementation may supply its own create call for tracking
+		// and reuse purposes.
+		virtual FMetaSoundFrontendDocumentBuilder& FindOrBeginBuilding(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) = 0;
+#endif // WITH_EDITORONLY_DATA
+
+		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName) const = 0;
+
+		UE_DEPRECATED(5.5, "Document cache can now be invalidated by retrieving an asset builder and calling 'Reload'")
+		virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const { }
 
 		static IDocumentBuilderRegistry* Get();
 		static IDocumentBuilderRegistry& GetChecked();
+		static void Deinitialize();
+		static void Initialize(TUniquePtr<IDocumentBuilderRegistry>&& InBuilderRegistry);
 
 	protected:
-		static void Set(TUniqueFunction<IDocumentBuilderRegistry&()>&& InGetInstance);
+		UE_DEPRECATED(5.5, "Use 'Initialize' instead")
+		static void Set(TUniqueFunction<IDocumentBuilderRegistry&()>&& InGetInstance) { checkNoEntry(); }
 	};
 
 	class METASOUNDFRONTEND_API IMetaSoundDocumentBuilderRegistry : public IDocumentBuilderRegistry
 	{
 	public:
+		virtual ~IMetaSoundDocumentBuilderRegistry() = default;
+
 		UE_DEPRECATED(5.4, "Public exposition of modify delegates no longer available to discourage unsafe manipulation of builder document cache")
-		virtual const FDocumentModifyDelegates* FindModifyDelegates(const FMetasoundFrontendClassName& InClassName) const = 0;
+		virtual const FDocumentModifyDelegates* FindModifyDelegates(const FMetasoundFrontendClassName& InClassName) const { return nullptr; }
 
 		UE_DEPRECATED(5.4, "Use 'IDocumentBuilderRegistry' instead")
 		static IMetaSoundDocumentBuilderRegistry& GetChecked();

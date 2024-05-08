@@ -63,10 +63,8 @@ public:
 	// Returns the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @return Editor graph associated with this metasound uobject.
-	virtual UEdGraph* GetGraph() = 0;
-	virtual const UEdGraph* GetGraph() const = 0;
-	virtual UEdGraph& GetGraphChecked() = 0;
-	virtual const UEdGraph& GetGraphChecked() const = 0;
+	virtual UEdGraph* GetGraph() const = 0;
+	virtual UEdGraph& GetGraphChecked() const = 0;
 	virtual void MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder) = 0;
 
 	// Sets the graph associated with this Metasound. Graph is required to be referenced on
@@ -116,8 +114,11 @@ public:
 	// Called when async assets have finished loading.
 	virtual void OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAssetBase*>& InAsyncReferences) = 0;
 
+	bool AddingReferenceCausesLoop(const FMetasoundAssetBase& InMetaSound) const;
 
+	UE_DEPRECATED(5.5, "Use overload that is provided an AssetBase")
 	bool AddingReferenceCausesLoop(const FSoftObjectPath& InReferencePath) const;
+
 	bool IsReferencedAsset(const FMetasoundAssetBase& InAssetToCheck) const;
 
 	bool IsRegistered() const;

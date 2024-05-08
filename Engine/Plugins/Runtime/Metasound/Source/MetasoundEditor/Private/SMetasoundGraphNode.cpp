@@ -459,9 +459,11 @@ namespace Metasound
 
 		void SMetaSoundGraphNode::OnCommentBubbleToggled(bool bInCommentBubbleVisible)
 		{
+			using namespace Metasound::Engine;
+
 			UMetasoundEditorGraphNode& EdNode = GetMetaSoundNode();
 			UObject& MetaSound = EdNode.GetMetasoundChecked();
-			UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(MetaSound);
+			UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound);
 			if (const FMetasoundFrontendNode* Node = Builder.GetConstBuilder().FindNode(EdNode.GetNodeID()))
 			{
 				if (bInCommentBubbleVisible != Node->Style.Display.bCommentVisible)
@@ -477,10 +479,12 @@ namespace Metasound
 
 		void SMetaSoundGraphNode::OnCommentTextCommitted(const FText& NewComment, ETextCommit::Type CommitInfo)
 		{
+			using namespace Metasound::Engine;
+
 			FString NewCommentString = NewComment.ToString();
 			UMetasoundEditorGraphNode& EdNode = GetMetaSoundNode();
 			UObject& MetaSound = EdNode.GetMetasoundChecked();
-			UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(MetaSound);
+			UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound);
 			if (const FMetasoundFrontendNode* Node = Builder.GetConstBuilder().FindNode(EdNode.GetNodeID()))
 			{
 				if (!Node->Style.Display.Comment.Equals(NewCommentString))

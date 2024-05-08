@@ -67,13 +67,9 @@ namespace Metasound::EngineTest{
 
 	FString GetPrettyName(const Frontend::FNodeRegistryKey& InRegistryKey)
 	{
-		Frontend::IMetaSoundAssetManager* AssetManager = Frontend::IMetaSoundAssetManager::Get();
-		if (ensure(AssetManager))
+		if (const FTopLevelAssetPath* ObjectPath = Frontend::IMetaSoundAssetManager::GetChecked().FindAssetPath(InRegistryKey))
 		{
-			if (const FSoftObjectPath* ObjectPath = AssetManager->FindObjectPathFromKey(InRegistryKey))
-			{
-				return ObjectPath->ToString();
-			}
+			return ObjectPath->ToString();
 		}
 
 		FMetasoundFrontendRegistryContainer* NodeRegistry = FMetasoundFrontendRegistryContainer::Get();

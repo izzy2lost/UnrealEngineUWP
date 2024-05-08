@@ -89,13 +89,15 @@ namespace Metasound::Frontend
 } // namespace Metasound::Frontend
 
 
+// Builder Document UObject, which is only used for registration purposes when attempting
+// async registration whereby the original document is serialized and must not be mutated.
 UCLASS()
 class METASOUNDFRONTEND_API UMetaSoundBuilderDocument : public UObject, public IMetaSoundDocumentInterface
 {
 	GENERATED_BODY()
 
 public:
-	// Create and return a valid builder document with the provided class
+	UE_DEPRECATED(5.5, "Use overload supplying MetaSound to copy (builder documents no longer supported for cases outside of cloned document registration.")
 	static UMetaSoundBuilderDocument& Create(const UClass& InBuilderClass);
 
 	// Create and return a valid builder document which copies the provided interface's document & class
@@ -109,8 +111,11 @@ public:
 	// Returns temp path of builder document
 	virtual FTopLevelAssetPath GetAssetPathChecked() const override;
 
-	// Base MetaSoundClass that document is published to.
+	// Returns the base class registered with the MetaSound UObject registry.
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
+
+	// Returns the builder class used to modify the given document.
+	virtual const UClass& GetBuilderUClass() const final override;
 
 	// Returns if the document is being actively built (always true as builder documents are always being actively built)
 	virtual bool IsActivelyBuilding() const final override;
@@ -126,6 +131,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UClass> MetaSoundUClass = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UClass> BuilderUClass = nullptr;
 };
 
 // Builder used to support dynamically generating MetaSound documents at runtime. Builder contains caches that speed up
@@ -213,22 +221,25 @@ public:
 	TArray<const FMetasoundFrontendVertex*> FindNodeOutputs(const FGuid& InNodeID, FName TypeName = FName()) const;
 	const FMetasoundFrontendVertex* FindNodeOutputConnectedToNodeInput(const FGuid& InInputNodeID, const FGuid& InInputVertexID, const FMetasoundFrontendNode** ConnectedOutputNode = nullptr) const;
 
+	const FMetasoundFrontendDocument& GetConstDocument() const;
 	const FString GetDebugName() const;
+
+	UE_DEPRECATED(5.5, "Use GetConstDocument() instead")
 	const FMetasoundFrontendDocument& GetDocument() const;
 
 	template<typename TObjectType>
-	const TObjectType& CastDocumentObjectChecked() const
-	{
-		const UObject* Owner = DocumentInterface.GetObject();
-		return *CastChecked<TObjectType>(Owner);
-	}
-
-	template<typename TObjectType>
-	TObjectType& CastDocumentObjectChecked()
+	TObjectType& CastDocumentObjectChecked() const
 	{
 		UObject* Owner = DocumentInterface.GetObject();
 		return *CastChecked<TObjectType>(Owner);
 	}
+
+	// Generates and returns new class name for the given builder's document. Should ONLY be called on new assets
+	// using transient frontend builder, as using a persistent builder registered with the DocumentBuilderRegistry
+	// may result in corrupt records keyed off of undefined class name being potentially generated over.  In addition,
+	// this can potentially leave existing node references in an abandoned state to this class causing MetaSound generator
+	// build errors.
+	FMetasoundFrontendClassName GenerateNewClassName();
 
 	const Metasound::Frontend::FDocumentModifyDelegates& GetDocumentDelegates() const;
 	const IMetaSoundDocumentInterface& GetDocumentInterface() const;
@@ -303,6 +314,8 @@ public:
 
 	bool RemoveNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID);
 	bool RemoveUnusedDependencies();
+
+	UE_DEPRECATED(5.5, "Use GenerateNewClassName instead")
 	bool RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
 #if WITH_EDITOR
@@ -318,6 +331,8 @@ public:
 	bool SetGraphOutputDataType(FName OutputName, FName DataType);
 
 #if WITH_EDITOR
+	void SetDisplayName(const FText& InDisplayName);
+
 	void SetMemberMetadata(UMetaSoundFrontendMemberMetadata& NewMetadata);
 
 	// Sets the editor-only comment to the provided value.
@@ -342,9 +357,11 @@ public:
 	bool SwapGraphOutput(const FMetasoundFrontendClassVertex& InExistingOutputVertex, const FMetasoundFrontendClassVertex& NewOutputVertex);
 	bool UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
 
+#if WITH_EDITORONLY_DATA
 	// Transforms template nodes within the given builder's document, which can include swapping associated edges and/or
 	// replacing nodes with other, registry-defined concrete node class instances. Returns true if any template nodes were processed.
 	bool TransformTemplateNodes();
+#endif // WITH_EDITORONLY_DATA
 
 private:
 	using FFinalizeNodeFunctionRef = TFunctionRef<void(FMetasoundFrontendNode&, const Metasound::Frontend::FNodeRegistryKey&)>;

@@ -67,22 +67,13 @@ namespace Metasound
 
 		FDocumentHandle IDocumentController::CreateDocumentHandle(FMetasoundFrontendDocument& InDocument)
 		{
-			// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
-			// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
-			// documents using both systems at the same time as it can corrupt a builder document's cache.
-			if (IDocumentBuilderRegistry* DocRegistry = IDocumentBuilderRegistry::Get())
-			{
-				const FMetasoundFrontendClassName& Name = InDocument.RootGraph.Metadata.GetClassName();
-				DocRegistry->InvalidateDocumentCache(Name);
-			}
-
 			return CreateDocumentHandle(MakeAccessPtr<FDocumentAccessPtr>(InDocument.AccessPoint, InDocument));
 		}
 
 		FConstDocumentHandle IDocumentController::CreateDocumentHandle(FConstDocumentAccessPtr InDocument)
 		{
 			// Create using standard document controller. 
-			return FDocumentController::CreateDocumentHandle(ConstCastAccessPtr<FDocumentAccessPtr>(InDocument));
+			return FDocumentController::CreateDocumentHandle(InDocument);
 		}
 
 		FConstDocumentHandle IDocumentController::CreateDocumentHandle(const FMetasoundFrontendDocument& InDocument)

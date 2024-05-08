@@ -378,10 +378,8 @@ public:
 	virtual void PreSave(FObjectPreSaveContext InSaveContext) override;
 
 	UMetaSoundBuilderBase& GetBuilderChecked();
-	UObject* GetMetasound();
-	const UObject* GetMetasound() const;
-	UObject& GetMetasoundChecked();
-	const UObject& GetMetasoundChecked() const;
+	UObject* GetMetasound() const;
+	UObject& GetMetasoundChecked() const;
 
 	void IterateInputs(TFunctionRef<void(UMetasoundEditorGraphInput&)> InFunction) const;
 	void IterateOutputs(TFunctionRef<void(UMetasoundEditorGraphOutput&)> InFunction) const;

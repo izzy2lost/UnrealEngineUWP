@@ -1630,15 +1630,17 @@ namespace Metasound
 					FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Emplace_GetRef(*NodeClass);
 
 					// Cache the asset name on the node if it node is reference to asset-defined graph.
-					if (NodeClass->Metadata.GetType() == EMetasoundFrontendClassType::External)
+					// AssetManager may not exist if this is called from a build that does not load the
+					// engine module (ex. unit test builds which only load frontend and core), or any build
+					// where the AssetManager more generally has not been implemented.
+					if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 					{
-						if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+						if (NodeClass->Metadata.GetType() == EMetasoundFrontendClassType::External)
 						{
 							const FNodeRegistryKey RegistryKey = FNodeRegistryKey(NodeClass->Metadata);
-							if (const FSoftObjectPath* Path = AssetManager->FindObjectPathFromKey(RegistryKey))
+							if (const FTopLevelAssetPath* Path = AssetManager->FindAssetPath(RegistryKey))
 							{
-								const FString& AssetName = Path->GetAssetName();
-								Node.Name = *AssetName;
+								Node.Name = Path->GetAssetName();
 							}
 						}
 					}

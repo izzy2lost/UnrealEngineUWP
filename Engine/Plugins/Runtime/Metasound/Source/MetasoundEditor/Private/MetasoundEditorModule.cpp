@@ -18,6 +18,7 @@
 #include "MetasoundAudioBuffer.h"
 #include "MetasoundBuilderSubsystem.h"
 #include "MetasoundDetailCustomization.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphConnectionDrawingPolicy.h"
@@ -267,7 +268,7 @@ namespace Metasound
 						return;
 					}
 
-					if (AssetPrimeStatus == EAssetPrimeStatus::NotRequested)
+					if (AssetPrimeStatus == EAssetPrimeStatus::NotRequested || AssetPrimeStatus == EAssetPrimeStatus::Canceled)
 					{
 						return;
 					}
@@ -277,6 +278,11 @@ namespace Metasound
 					FSoftObjectPath AssetPath = InAssetData.ToSoftObjectPath();
 					auto LoadAndRegister = [this, ObjectPath = AssetPath, RegOptions](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
 					{
+						if (AssetPrimeStatus == EAssetPrimeStatus::Canceled)
+						{
+							return;
+						}
+
 						if (Result == EAsyncLoadingResult::Succeeded)
 						{
 							UObject* MetaSoundObj = ObjectPath.ResolveObject();
@@ -310,13 +316,9 @@ namespace Metasound
 					const bool bIsRegisteredClass = IMetasoundUObjectRegistry::Get().IsRegisteredClass(*AssetClass);
 					if (bIsRegisteredClass)
 					{
-						check(GEngine);
-						UMetaSoundAssetSubsystem* AssetSubsystem = GEngine->GetEngineSubsystem<UMetaSoundAssetSubsystem>();
-						check(AssetSubsystem);
+						const FNodeRegistryKey RegistryKey = IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(InAssetData);
 
-						const FNodeRegistryKey RegistryKey = AssetSubsystem->AddOrUpdateAsset(InAssetData);
-
-						// Can be invalid if being called for the first time on an asset before FRenameRootGraphClass is called
+						// Can be invalid if being called for the first time on an asset before its class name is generated
 						if (RegistryKey.IsValid())
 						{
 							const bool bPrimeRequested = AssetPrimeStatus > EAssetPrimeStatus::NotRequested;
@@ -342,11 +344,7 @@ namespace Metasound
 					const bool bIsRegisteredClass = IMetasoundUObjectRegistry::Get().IsRegisteredClass(*AssetClass);
 					if (bIsRegisteredClass)
 					{
-						check(GEngine);
-						UMetaSoundAssetSubsystem* AssetSubsystem = GEngine->GetEngineSubsystem<UMetaSoundAssetSubsystem>();
-						check(AssetSubsystem);
-
-						const FNodeRegistryKey RegistryKey = AssetSubsystem->AddOrUpdateAsset(InAssetData);
+						const FNodeRegistryKey RegistryKey = IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(InAssetData);
 						const bool bPrimeRequested = AssetPrimeStatus > EAssetPrimeStatus::NotRequested;
 						const bool bIsRegistered = FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey);
 
@@ -383,7 +381,7 @@ namespace Metasound
 						return IMetasoundUObjectRegistry::Get().IsRegisteredClass(*AssetClass);
 					}
 					
-					return false;	
+					return false;
 				};
 
 				for (const TPair<UObject*, UObject*>& Pair : InPackageReloadedEvent->GetRepointedObjects())
@@ -392,12 +390,9 @@ namespace Metasound
 					{
 						if (IsAssetMetaSound(Obj))
 						{
-							check(GEngine);
-							UMetaSoundAssetSubsystem* AssetSubsystem = GEngine->GetEngineSubsystem<UMetaSoundAssetSubsystem>();
-							check(AssetSubsystem);
+							IMetaSoundAssetManager::GetChecked().RemoveAsset(*Pair.Key);
 
 							// Use the editor version of UnregisterWithFrontend so it refreshes any open MetaSound editors
-							AssetSubsystem->RemoveAsset(*Pair.Key);
 							FGraphBuilder::UnregisterGraphWithFrontend(*Pair.Key);
 						}
 					}
@@ -406,11 +401,9 @@ namespace Metasound
 					{
 						if (IsAssetMetaSound(Obj))
 						{
-							check(GEngine);
-							UMetaSoundAssetSubsystem* AssetSubsystem = GEngine->GetEngineSubsystem<UMetaSoundAssetSubsystem>();
-							check(AssetSubsystem);
+							IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*Pair.Value);
+
 							// Use the editor version of RegisterWithFrontend so it refreshes any open MetaSound editors
-							AssetSubsystem->AddOrUpdateAsset(*Pair.Value);
 							FGraphBuilder::RegisterGraphWithFrontend(*Pair.Value);
 						}
 					}
@@ -439,17 +432,14 @@ namespace Metasound
 
 			void RemoveAssetFromClassRegistry(const FAssetData& InAssetData)
 			{
+				using namespace Frontend;
 				if (const UClass* AssetClass = InAssetData.GetClass())
 				{
 					const bool bIsRegisteredClass = IMetasoundUObjectRegistry::Get().IsRegisteredClass(*AssetClass);
 					if (bIsRegisteredClass)
 					{
-						check(GEngine);
-						UMetaSoundAssetSubsystem* AssetSubsystem = GEngine->GetEngineSubsystem<UMetaSoundAssetSubsystem>();
-						check(AssetSubsystem);
-
 						// Use the editor version of UnregisterWithFrontend so it refreshes any open MetaSound editors
-						AssetSubsystem->RemoveAsset(InAssetData);
+						IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
 						if (UObject* AssetObject = InAssetData.GetAsset())
 						{
 							FGraphBuilder::UnregisterGraphWithFrontend(*AssetObject);
@@ -460,20 +450,18 @@ namespace Metasound
 
 			void RenameAssetInClassRegistry(const FAssetData& InAssetData, const FString& InOldObjectPath)
 			{
+				using namespace Frontend;
+
 				if (const UClass* AssetClass = InAssetData.GetClass())
 				{
 					const bool bIsRegisteredClass = IMetasoundUObjectRegistry::Get().IsRegisteredClass(*AssetClass);
 					if (bIsRegisteredClass)
 					{
-						check(GEngine);
-						UMetaSoundAssetSubsystem* AssetSubsystem = GEngine->GetEngineSubsystem<UMetaSoundAssetSubsystem>();
-						check(AssetSubsystem);
+						constexpr bool bReregisterWithFrontend = false;
+						IMetaSoundAssetManager::GetChecked().RenameAsset(InAssetData, bReregisterWithFrontend);
 
 						// Use the FGraphBuilder Register call instead of registering via the
 						// MetaSoundAssetSubsystem so as to properly refresh respective open editors.
-						constexpr bool bReregisterWithFrontend = false;
-						AssetSubsystem->RenameAsset(InAssetData, bReregisterWithFrontend);
-
 						constexpr bool bForceViewSynchronization = true;
 						UObject* AssetObject = InAssetData.GetAsset();
 						FGraphBuilder::RegisterGraphWithFrontend(*AssetObject, bForceViewSynchronization);
@@ -894,6 +882,11 @@ namespace Metasound
 			{
 				METASOUND_LLM_SCOPE;
 
+				if (AssetPrimeStatus != EAssetPrimeStatus::NotRequested && AssetPrimeStatus != EAssetPrimeStatus::Complete)
+				{
+					AssetPrimeStatus = EAssetPrimeStatus::Canceled;
+				}
+
 				if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 				{
 					SettingsModule->UnregisterSettings("Editor", "Audio", "MetaSound Editor");
@@ -934,6 +927,8 @@ namespace Metasound
 
 			void OnPackageMigration(UE::AssetTools::FPackageMigrationContext& MigrationContext)
 			{
+				using namespace Metasound::Frontend;
+
 				// Migration can create temporary new packages that use the same name 
 				// (and therefore node registry key) as the asset migrated. 
 				// So generate new class names to avoid registry key collisions. 
@@ -941,8 +936,7 @@ namespace Metasound
 				{
 					// Gather the new MetaSound assets
 					TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName> OldToNewReferencedClassNames;
-					TArray<UMetaSoundBuilderBase*> NewMetaSoundAssetBuilders;
-					TArray<FMetasoundAssetBase*> NewMetaSoundAssets;
+					TArray<FMetaSoundFrontendDocumentBuilder> NewMetaSoundAssetBuilders;
 					for (const UE::AssetTools::FPackageMigrationContext::FMigrationPackageData& MigrationPackageData : MigrationContext.GetMigrationPackagesData())
 					{
 						UPackage* Package = MigrationPackageData.GetInstancedPackage();
@@ -952,35 +946,27 @@ namespace Metasound
 							// Only apply to MetaSound assets 
 							if (IMetasoundUObjectRegistry::Get().IsRegisteredClass(MainAsset))
 							{
-								FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MainAsset);
-								if (MetaSoundAsset)
-								{
-									UMetaSoundBuilderBase& MetaSoundBuilder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*MainAsset);
-									NewMetaSoundAssetBuilders.Add(&MetaSoundBuilder);
-									NewMetaSoundAssets.Add(MetaSoundAsset);
-								}
+								NewMetaSoundAssetBuilders.Add(FMetaSoundFrontendDocumentBuilder(MainAsset));
 							}
 						}
 					}
 
 					// Assign new class names and cache mapping with old one
-					for (UMetaSoundBuilderBase* MetaSoundBuilder : NewMetaSoundAssetBuilders)
+					IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
+					for (FMetaSoundFrontendDocumentBuilder& MetaSoundBuilder : NewMetaSoundAssetBuilders)
 					{
-						const FMetasoundFrontendClassName NewReferencedClassName = FMetasoundFrontendClassName(/*Namespace=*/{}, FName(FGuid::NewGuid().ToString()), /*Variant=*/{});
-						const FMetasoundFrontendClassName OldReferencedClassName = MetaSoundBuilder->GetRootGraphClassName();
-
-						MetaSoundBuilder->RenameRootGraphClass(NewReferencedClassName);
+						const FMetasoundFrontendClassName OldReferencedClassName = MetaSoundBuilder.GetConstDocument().RootGraph.Metadata.GetClassName();
+						const FMetasoundFrontendClassName NewReferencedClassName = MetaSoundBuilder.GenerateNewClassName();
 						OldToNewReferencedClassNames.FindOrAdd(OldReferencedClassName) = NewReferencedClassName;
+
+						UObject& MetaSoundObject = MetaSoundBuilder.CastDocumentObjectChecked<UObject>();
+						AssetManager.AddOrUpdateAsset(MetaSoundObject);
 					}
 
-					// Fix up dependencies 
-					for (UMetaSoundBuilderBase* MetaSoundBuilder : NewMetaSoundAssetBuilders)
+					// Fix up dependencies
+					for (FMetaSoundFrontendDocumentBuilder& MetaSoundBuilder : NewMetaSoundAssetBuilders)
 					{
-						MetaSoundBuilder->UpdateDependencyClassNames(OldToNewReferencedClassNames);
-					}
-					for (FMetasoundAssetBase* MetaSoundAsset : NewMetaSoundAssets)
-					{
-						MetaSoundAsset->RebuildReferencedAssetClasses();
+						MetaSoundBuilder.UpdateDependencyClassNames(OldToNewReferencedClassNames);
 					}
 				}
 			}

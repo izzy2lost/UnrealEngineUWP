@@ -280,7 +280,6 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 		}
 	}
 
-
 #if WITH_EDITOR
 	if (InRegistrationOptions.bRebuildReferencedAssetClasses)
 	{
@@ -292,7 +291,14 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	{
 		RegisterAssetDependencies(InRegistrationOptions);
 	}
-	IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*GetOwningAsset());
+
+	// This should not be necessary as it should be added on asset load,
+	// but currently registration is required to be called prior to adding
+	// an object-defined graph class to the registry so it was placed here.
+	if (UObject* OwningObject = GetOwningAsset())
+	{
+		IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*OwningObject);
+	}
 
 	// Auto update must be done after all referenced asset classes are registered
 	if (InRegistrationOptions.bAutoUpdate)
@@ -374,13 +380,15 @@ void FMetasoundAssetBase::CookMetaSound()
 	check(Owner);
 
 	{
-		// Performs document transforms on local copy, which reduces document footprint & renders transforming unnecessary unless altered at runtime when registering
-		FMetaSoundFrontendDocumentBuilder& DocBuilder = IMetaSoundAssetManager::GetChecked().AttachDocumentBuilderChecked(*Owner);
+#if WITH_EDITORONLY_DATA
+		// Performs document transforms on local copy, which reduces document footprint & renders transforming unnecessary at runtime
+		FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
 		const bool bContainsTemplateDependency = DocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
 		if (bContainsTemplateDependency)
 		{
 			DocBuilder.TransformTemplateNodes();
 		}
+#endif // WITH_EDITORONLY_DATA
 
 		if (GraphRegistryKey.IsValid())
 		{
@@ -431,6 +439,19 @@ void FMetasoundAssetBase::OnNotifyBeginDestroy()
 	}
 	else
 	{
+		// The editor module removal and addition of assets with the MetaSoundAssetManager directly,
+		// so it can update open editors and load possible assets to reference at will, as opposed
+		// to managing by direct load requests and associated asset references.
+		// (Owning "asset" is a misnomer as we support dynamically generated MetaSounds at runtime now.)
+#if WITH_EDITOR
+		UObject* OwningAsset = GetOwningAsset();
+		check(OwningAsset);
+		if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+		{
+			AssetManager->RemoveAsset(*OwningAsset);
+		}
+#endif // !WITH_EDITOR
+
 		UnregisterGraphWithFrontend();
 	}
 }
@@ -529,7 +550,6 @@ bool FMetasoundAssetBase::VersionAsset()
 			for (const FMetasoundFrontendVersion& Version : Versions)
 			{
 				FUpdateRootGraphInterface UpdateTransform(Version, GetOwningAssetName());
-				FConstDocumentHandle ConstDoc = GetDocumentHandle();
 				bPassUpdated = TryUpdateInterfaceFromVersion(Version);
 			}
 
@@ -709,19 +729,13 @@ bool FMetasoundAssetBase::IsReferencedAsset(const FMetasoundAssetBase& InAsset) 
 	return bIsReferenced;
 }
 
-bool FMetasoundAssetBase::AddingReferenceCausesLoop(const FSoftObjectPath& InReferencePath) const
+bool FMetasoundAssetBase::AddingReferenceCausesLoop(const FMetasoundAssetBase& InMetaSound) const
 {
 	using namespace Metasound::Frontend;
 
-	const FMetasoundAssetBase* ReferenceAsset = IMetaSoundAssetManager::GetChecked().TryLoadAsset(InReferencePath);
-	if (!ensureAlways(ReferenceAsset))
-	{
-		return false;
-	}
-
 	bool bCausesLoop = false;
 	const FMetasoundAssetBase* Parent = this;
-	AssetBasePrivate::DepthFirstTraversal(*ReferenceAsset, [&](const FMetasoundAssetBase& ChildAsset)
+	AssetBasePrivate::DepthFirstTraversal(InMetaSound, [&](const FMetasoundAssetBase& ChildAsset)
 	{
 		TSet<const FMetasoundAssetBase*> Children;
 		if (Parent == &ChildAsset)
@@ -732,11 +746,24 @@ bool FMetasoundAssetBase::AddingReferenceCausesLoop(const FSoftObjectPath& InRef
 
 		TArray<FMetasoundAssetBase*> ChildRefs;
 		ensureAlways(IMetaSoundAssetManager::GetChecked().TryLoadReferencedAssets(ChildAsset, ChildRefs));
-		Algo::Transform(ChildRefs, Children, [] (FMetasoundAssetBase* Child) { return Child; });
+		Algo::Transform(ChildRefs, Children, [](FMetasoundAssetBase* Child) { return Child; });
 		return Children;
 	});
 
 	return bCausesLoop;
+}
+
+bool FMetasoundAssetBase::AddingReferenceCausesLoop(const FSoftObjectPath& InReferencePath) const
+{
+	using namespace Metasound::Frontend;
+
+	const FMetasoundAssetBase* ReferenceAsset = IMetaSoundAssetManager::GetChecked().TryLoadAsset(InReferencePath);
+	if (!ensureAlways(ReferenceAsset))
+	{
+		return false;
+	}
+
+	return AddingReferenceCausesLoop(*ReferenceAsset);
 }
 
 TArray<FMetasoundAssetBase::FSendInfoAndVertexName> FMetasoundAssetBase::GetSendInfos(uint64 InInstanceID) const
@@ -876,7 +903,6 @@ void FMetasoundAssetBase::RebuildReferencedAssetClasses()
 	using namespace Metasound::Frontend;
 
 	IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
-
 	AssetManager.AddAssetReferences(*this);
 	TSet<IMetaSoundAssetManager::FAssetInfo> ReferencedAssetClasses = AssetManager.GetReferencedAssetClasses(*this);
 	SetReferencedAssetClasses(MoveTemp(ReferencedAssetClasses));
@@ -934,11 +960,12 @@ void FMetasoundAssetBase::UpdateAssetRegistry()
 
 	UObject* Owner = GetOwningAsset();
 	check(Owner);
+	const FMetasoundFrontendGraphClass& DocumentClassGraph = GetDocumentChecked().RootGraph;
+
 	TScriptInterface<IMetaSoundDocumentInterface> DocInterface(Owner);
-	FNodeClassInfo AssetClassInfo(GetDocumentChecked().RootGraph, DocInterface->GetAssetPathChecked());
+	FNodeClassInfo AssetClassInfo(DocumentClassGraph, DocInterface->GetAssetPathChecked());
 
 	// Refresh Asset Registry Info if successfully registered with Frontend
-	const FMetasoundFrontendGraphClass& DocumentClassGraph = GetDocumentHandle()->GetRootGraphClass();
 	const FMetasoundFrontendClassMetadata& DocumentClassMetadata = DocumentClassGraph.Metadata;
 	AssetClassInfo.AssetClassID = FGuid(DocumentClassMetadata.GetClassName().Name.ToString());
 	FNodeClassName ClassName = DocumentClassMetadata.GetClassName().ToNodeClassName();

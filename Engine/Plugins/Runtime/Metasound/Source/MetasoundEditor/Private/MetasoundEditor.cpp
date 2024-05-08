@@ -36,6 +36,7 @@
 #include "Metasound.h"
 #include "MetasoundAssetSubsystem.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundDocumentInterface.h"
 #include "MetasoundEditorCommands.h"
 #include "MetasoundEditorDocumentClipboardUtils.h"
@@ -850,7 +851,7 @@ namespace Metasound
 				}
 			}
 
-			Builder.Reset(&UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*ObjectToEdit));
+			Builder.Reset(&Engine::FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*ObjectToEdit));
 
 			GEditor->RegisterForUndo(this);
 
@@ -1957,9 +1958,9 @@ namespace Metasound
 				FConstNodeHandle NodeHandle = ExternalNode->GetConstNodeHandle();
 				const FNodeRegistryKey Key(NodeHandle->GetClassMetadata());
 
-				if (const FSoftObjectPath* AssetObject = UMetaSoundAssetSubsystem::GetChecked().FindObjectPathFromKey(Key))
+				if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(Key))
 				{
-					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(*AssetObject);
+					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Asset->GetOwningAsset());
 				}
 			}
 		}
@@ -3095,23 +3096,18 @@ namespace Metasound
 		void FEditor::DeleteAllUnusedInSection()
 		{
 			TArray<TSharedPtr<FMetasoundGraphMemberSchemaAction>> ActionsToDelete;
-			TArray<TSharedPtr<FEdGraphSchemaAction>> Actions;		
+			TArray<TSharedPtr<FEdGraphSchemaAction>> Actions;
 			GraphMembersMenu->GetSelectedCategorySubActions(Actions);
 
 			for (TSharedPtr<FEdGraphSchemaAction> Action : Actions)
-			{				
+			{
 				const TSharedPtr<FMetasoundGraphMemberSchemaAction> MetasoundAction = StaticCastSharedPtr<FMetasoundGraphMemberSchemaAction>(Action);
 				if (MetasoundAction.IsValid())
 				{
 					if (const UMetasoundEditorGraphMember* GraphMember = MetasoundAction->GetGraphMember())
 					{
 						const TArray<UMetasoundEditorGraphMemberNode*> Nodes = GraphMember->GetNodes();
-
-						if (Nodes.Num() > 0)
-						{
-							continue;
-						}
-						else
+						if (Nodes.IsEmpty())
 						{
 							const FMetasoundFrontendVersion* InterfaceVersion = nullptr;
 							if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GraphMember))
@@ -3123,10 +3119,10 @@ namespace Metasound
 							const bool bIsInterfaceMember = InterfaceVersion && InterfaceVersion->IsValid();
 							if (!bIsInterfaceMember)
 							{
-								ActionsToDelete.Add(MetasoundAction);														
+								ActionsToDelete.Add(MetasoundAction);
 							}
 						}
-					}					
+					}
 				}
 			}
 

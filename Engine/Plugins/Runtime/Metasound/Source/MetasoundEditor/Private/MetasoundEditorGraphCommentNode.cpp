@@ -5,7 +5,7 @@
 #include "Internationalization/Internationalization.h"
 #include "Kismet2/Kismet2NameValidators.h"
 #include "Layout/SlateRect.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Styling/AppStyle.h"
@@ -72,11 +72,13 @@ void UMetasoundEditorGraphCommentNode::PostEditChangeProperty(FPropertyChangedEv
 
 void UMetasoundEditorGraphCommentNode::ResizeNode(const FVector2D& NewSize)
 {
+	using namespace Metasound::Engine;
+
 	Super::ResizeNode(NewSize);
 	if (bCanResizeNode) 
 	{
 		UMetasoundEditorGraph& Graph = *CastChecked<UMetasoundEditorGraph>(GetGraph());
-		UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(Graph.GetMetasoundChecked());
+		UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Graph.GetMetasoundChecked());
 		Builder.FindOrAddGraphComment(CommentID).Size = FVector2D(NodeWidth, NodeHeight);
 	}
 }

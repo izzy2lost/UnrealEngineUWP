@@ -3,7 +3,7 @@
 
 #include "IAssetTools.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphSchema.h"
@@ -29,6 +29,7 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 )
 {
 	using namespace Metasound;
+	using namespace Metasound::Engine;
 	using namespace Metasound::Frontend;
 
 	OutResult = EMetaSoundBuilderResult::Failed;
@@ -44,9 +45,10 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 		}
 
 		constexpr UFactory* Factory = nullptr;
+
 		// Not about to follow this lack of const correctness down a multidecade in the works rabbit hole.
-		UClass& BuilderUClass = const_cast<UClass&>(InBuilder->GetBuilderUClass());
-		if (UObject* NewMetaSound = IAssetTools::Get().CreateAsset(AssetName, PackagePath, &BuilderUClass, Factory))
+		UClass& MetaSoundUClass = const_cast<UClass&>(InBuilder->GetBaseMetaSoundUClass());
+		if (UObject* NewMetaSound = IAssetTools::Get().CreateAsset(AssetName, PackagePath, &MetaSoundUClass, Factory))
 		{
 			InBuilder->InitNodeLocations();
 			InBuilder->SetAuthor(Author);
@@ -62,7 +64,7 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 
 			// Apply template SoundWave settings
 			{
-				const bool bIsSource = &BuilderUClass == UMetaSoundSource::StaticClass();
+				const bool bIsSource = &MetaSoundUClass == UMetaSoundSource::StaticClass();
 				if (InBuilder->IsPreset())
 				{
 					// Only use referenced UObject's SoundWave settings for sources if not overridden 
@@ -82,7 +84,7 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 				}
 			}
 
-			UMetaSoundBuilderBase& NewDocBuilder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*NewMetaSound);
+			UMetaSoundBuilderBase& NewDocBuilder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*NewMetaSound);
 
 			EMetaSoundBuilderResult InjectResult = EMetaSoundBuilderResult::Failed;
 			constexpr bool bForceNodeCreation = true;
@@ -138,6 +140,20 @@ bool UMetaSoundEditorSubsystem::BindMemberMetadata(
 
 	checkNoEntry();
 	return false;
+}
+
+UMetaSoundBuilderBase* UMetaSoundEditorSubsystem::FindOrBeginBuilding(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, EMetaSoundBuilderResult& OutResult) const
+{
+	using namespace Metasound::Engine;
+
+	if (UObject* Object = MetaSound.GetObject(); Object && Object->IsAsset())
+	{
+		OutResult = EMetaSoundBuilderResult::Succeeded;
+		return &FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*Object);
+	}
+
+	OutResult = EMetaSoundBuilderResult::Failed;
+	return nullptr;
 }
 
 UMetaSoundEditorSubsystem& UMetaSoundEditorSubsystem::GetChecked()

@@ -7,6 +7,7 @@
 #include "MetasoundAssetBase.h"
 #include "MetasoundAudioFormats.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundEngineAsset.h"
 #include "MetasoundEngineEnvironment.h"
 #include "MetasoundEnvironment.h"
@@ -33,6 +34,7 @@
 #if WITH_EDITORONLY_DATA
 #include "EdGraph/EdGraph.h"
 #endif // WITH_EDITORONLY_DATA
+#include "../../MetasoundFrontend/Public/MetasoundAssetManager.h"
 
 #define LOCTEXT_NAMESPACE "MetaSound"
 
@@ -64,14 +66,14 @@ Metasound::Frontend::FDocumentAccessPtr UMetaSoundPatch::GetDocumentAccessPtr()
 	using namespace Metasound::Frontend;
 
 	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
-	// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
-	// documents using both systems at the same time as it can corrupt a builder document's cache.
+	// the builder registry, so the document cache is invalidated here.
 	if (UMetaSoundBuilderSubsystem* BuilderSubsystem = UMetaSoundBuilderSubsystem::Get())
 	{
-		const FMetasoundFrontendClassName& Name = RootMetaSoundDocument.RootGraph.Metadata.GetClassName();
-		BuilderSubsystem->InvalidateDocumentCache(Name);
+		if (UMetaSoundBuilderBase* Builder = BuilderSubsystem->FindBuilderOfDocument(this))
+		{
+			Builder->Reload();
+		}
 	}
-
 	// Return document using FAccessPoint to inform the TAccessPtr when the 
 	// object is no longer valid.
 	return MakeAccessPtr<FDocumentAccessPtr>(RootMetaSoundDocument.AccessPoint, RootMetaSoundDocument);
@@ -90,6 +92,11 @@ const UClass& UMetaSoundPatch::GetBaseMetaSoundUClass() const
 	return *UMetaSoundPatch::StaticClass();
 }
 
+const UClass& UMetaSoundPatch::GetBuilderUClass() const
+{
+	return *UMetaSoundPatchBuilder::StaticClass();
+}
+
 const FMetasoundFrontendDocument& UMetaSoundPatch::GetConstDocument() const
 {
 	return RootMetaSoundDocument;
@@ -99,14 +106,7 @@ const FMetasoundFrontendDocument& UMetaSoundPatch::GetConstDocument() const
 void UMetaSoundPatch::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
-
-	// Guid is reset as asset may share implementation from
-	// asset duplicated from but should not be registered as such.
-	if (InDuplicateMode == EDuplicateMode::Normal)
-	{
-		AssetClassID = FGuid::NewGuid();
-		Metasound::Frontend::FRenameRootGraphClass::Generate(GetDocumentHandle(), AssetClassID);
-	}
+	Metasound::FMetaSoundEngineAssetHelper::PostDuplicate(this, InDuplicateMode, AssetClassID);
 }
 
 void UMetaSoundPatch::PostEditUndo()
@@ -146,23 +146,12 @@ void UMetaSoundPatch::MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutB
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-UEdGraph* UMetaSoundPatch::GetGraph()
+UEdGraph* UMetaSoundPatch::GetGraph() const
 {
 	return EditorGraph;
 }
 
-const UEdGraph* UMetaSoundPatch::GetGraph() const
-{
-	return EditorGraph;
-}
-
-UEdGraph& UMetaSoundPatch::GetGraphChecked()
-{
-	check(EditorGraph);
-	return *EditorGraph;
-}
-
-const UEdGraph& UMetaSoundPatch::GetGraphChecked() const
+UEdGraph& UMetaSoundPatch::GetGraphChecked() const
 {
 	check(EditorGraph);
 	return *EditorGraph;

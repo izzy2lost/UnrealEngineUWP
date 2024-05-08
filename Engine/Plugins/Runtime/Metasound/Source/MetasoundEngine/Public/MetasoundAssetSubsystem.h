@@ -5,6 +5,7 @@
 #include "Engine/StreamableManager.h"
 #include "MetasoundAssetBase.h"
 #include "MetasoundAssetManager.h"
+#include "MetasoundBuilderBase.h"
 #include "Subsystems/EngineSubsystem.h"
 #include "UObject/Object.h"
 
@@ -47,9 +48,15 @@ struct FMetaSoundAsyncAssetDependencies
 	TSharedPtr<FStreamableHandle> StreamableHandle;
 };
 
-/** The subsystem in charge of the MetaSound asset registry */
+namespace Metasound::Engine
+{
+	void DeinitializeAssetManager();
+	void InitializeAssetManager();
+} // namespace Metasound::Engine
+
+/** DEPRECATED: Subsystem in charge of the MetaSound asset registry */
 UCLASS()
-class METASOUNDENGINE_API UMetaSoundAssetSubsystem : public UEngineSubsystem, public Metasound::Frontend::IMetaSoundAssetManager
+class METASOUNDENGINE_API UMetaSoundAssetSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()
 
@@ -58,33 +65,65 @@ public:
 
 	virtual void Initialize(FSubsystemCollectionBase& InCollection) override;
 
-	Metasound::Frontend::FNodeRegistryKey AddOrUpdateAsset(const FAssetData& InAssetData);
-	void RemoveAsset(const UObject& InObject);
-	void RemoveAsset(const FAssetData& InAssetData);
-	void RenameAsset(const FAssetData& InAssetData, bool bInReregisterWithFrontend = true);
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual void RemoveAsset(const UObject& InObject);
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual void RemoveAsset(const FAssetData& InAssetData);
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual void RenameAsset(const FAssetData& InAssetData, bool bInReregisterWithFrontend = true);
 
 #if WITH_EDITORONLY_DATA
-	virtual void AddAssetReferences(FMetasoundAssetBase& InAssetBase) override;
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual void AddAssetReferences(FMetasoundAssetBase& InAssetBase);
 #endif
-	virtual Metasound::Frontend::FNodeRegistryKey AddOrUpdateAsset(const UObject& InObject) override;
-	virtual FMetaSoundFrontendDocumentBuilder& AttachDocumentBuilderChecked(UObject& InObject) const override;
 
-	virtual bool CanAutoUpdate(const FMetasoundFrontendClassName& InClassName) const override;
-	virtual bool ContainsKey(const Metasound::Frontend::FNodeRegistryKey& InRegistryKey) const override;
-	virtual const FSoftObjectPath* FindObjectPathFromKey(const Metasound::Frontend::FNodeRegistryKey& RegistryKey) const override;
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	Metasound::Frontend::FNodeRegistryKey AddOrUpdateAsset(const FAssetData& InAssetData);
 
-	virtual FMetasoundAssetBase* GetAsAsset(UObject& InObject) const override;
-	virtual const FMetasoundAssetBase* GetAsAsset(const UObject& InObject) const override;
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual Metasound::Frontend::FNodeRegistryKey AddOrUpdateAsset(const UObject& InObject);
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual bool CanAutoUpdate(const FMetasoundFrontendClassName& InClassName) const;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual bool ContainsKey(const Metasound::Frontend::FNodeRegistryKey& InRegistryKey) const;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual const FSoftObjectPath* FindObjectPathFromKey(const Metasound::Frontend::FNodeRegistryKey& RegistryKey) const;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual FMetasoundAssetBase* GetAsAsset(UObject& InObject) const;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual const FMetasoundAssetBase* GetAsAsset(const UObject& InObject) const;
+
+	UE_DEPRECATED(5.5, "Implementation of MetaSound asset management has been moved to raw c++ implementation for more reliable, monolithic "
+		"lifetime management. This subsystem continues to exist only for Blueprint-related asset functionality. "
+		"Use IMetaSoundAssetManager::GetChecked() instead")
+	static UMetaSoundAssetSubsystem& GetChecked();
 
 #if WITH_EDITOR
-	virtual TSet<FAssetInfo> GetReferencedAssetClasses(const FMetasoundAssetBase& InAssetBase) const override;
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual TSet<FAssetInfo> GetReferencedAssetClasses(const FMetasoundAssetBase& InAssetBase) const;
 #endif
-	virtual void RescanAutoUpdateDenyList() override;
-	virtual FMetasoundAssetBase* TryLoadAsset(const FSoftObjectPath& InObjectPath) const override;
-	virtual FMetasoundAssetBase* TryLoadAssetFromKey(const Metasound::Frontend::FNodeRegistryKey& RegistryKey) const override;
-	virtual bool TryLoadReferencedAssets(const FMetasoundAssetBase& InAssetBase, TArray<FMetasoundAssetBase*>& OutReferencedAssets) const override;
-	virtual void RequestAsyncLoadReferencedAssets(FMetasoundAssetBase& InAssetBase) override;
-	virtual void WaitUntilAsyncLoadReferencedAssetsComplete(FMetasoundAssetBase& InAssetBase) override;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual FMetasoundAssetBase* TryLoadAsset(const FSoftObjectPath& InObjectPath) const;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual FMetasoundAssetBase* TryLoadAssetFromKey(const Metasound::Frontend::FNodeRegistryKey& RegistryKey) const;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual bool TryLoadReferencedAssets(const FMetasoundAssetBase& InAssetBase, TArray<FMetasoundAssetBase*>& OutReferencedAssets) const;
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual void RequestAsyncLoadReferencedAssets(FMetasoundAssetBase& InAssetBase) { }
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	virtual void WaitUntilAsyncLoadReferencedAssetsComplete(FMetasoundAssetBase& InAssetBase) { }
 
 	UFUNCTION(BlueprintCallable, Category = "MetaSounds|Registration")
 	void RegisterAssetClassesInDirectories(const TArray<FMetaSoundAssetDirectory>& Directories);
@@ -93,27 +132,22 @@ public:
 	void UnregisterAssetClassesInDirectories(const TArray<FMetaSoundAssetDirectory>& Directories);
 
 protected:
+	UE_DEPRECATED(5.5, "Moved to private implementation")
+	void PostEngineInit() { }
 
-	void PostEngineInit();
-	void PostInitAssetScan();
-	void RebuildDenyListCache(const UAssetManager& InAssetManager);
-	void ResetAssetClassDisplayName(const FAssetData& InAssetData);
-	void SearchAndIterateDirectoryAssets(const TArray<FDirectoryPath>& InDirectories, TFunctionRef<void(const FAssetData&)> InFunction);
+	UE_DEPRECATED(5.5, "Moved to private implementation")
+	void PostInitAssetScan() { }
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	void RebuildDenyListCache(const UAssetManager& InAssetManager) { }
+
+	UE_DEPRECATED(5.5, "Use FMetaSoundDocumentBuilder::SetDisplayName instead (call now only available with editor compiled)")
+	void ResetAssetClassDisplayName(const FAssetData& InAssetData) { }
+
+	UE_DEPRECATED(5.5, "Moved to internal implementation, use IMetaSoundAssetManager::GetChecked() and analogous call")
+	void SearchAndIterateDirectoryAssets(const TArray<FDirectoryPath>& InDirectories, TFunctionRef<void(const FAssetData&)> InFunction) { }
 
 private:
-
-	UPROPERTY(Transient)
-	TArray<FMetaSoundAsyncAssetDependencies> LoadingDependencies;
-
-	FMetaSoundAsyncAssetDependencies* FindLoadingDependencies(const UObject* InParentAsset);
-	FMetaSoundAsyncAssetDependencies* FindLoadingDependencies(int32 InLoadID);
-	void RemoveLoadingDependencies(int32 InLoadID);
-	void OnAssetsLoaded(int32 InLoadID);
-
-	FStreamableManager StreamableManager;
-	int32 AsyncLoadIDCounter = 0;
-	int32 AutoUpdateDenyListChangeID = INDEX_NONE;
-	TSet<FName> AutoUpdateDenyListCache;
-	TMap<Metasound::Frontend::FNodeRegistryKey, FSoftObjectPath> PathMap;
-	std::atomic<bool> bIsInitialAssetScanComplete = false;
+	void PostEngineInitInternal();
+	void PostInitAssetScanInternal();
 };

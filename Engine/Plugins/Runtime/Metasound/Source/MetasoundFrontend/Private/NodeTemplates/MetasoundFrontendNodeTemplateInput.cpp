@@ -206,7 +206,7 @@ namespace Metasound::Frontend
 		bool bInjectedNodes = false;
 
 		const FMetaSoundFrontendDocumentBuilder& ConstBuilder = static_cast<const FMetaSoundFrontendDocumentBuilder&>(InOutBuilder);
-		const TArray<FMetasoundFrontendClassInput>& Inputs = ConstBuilder.GetDocument().RootGraph.Interface.Inputs;
+		const TArray<FMetasoundFrontendClassInput>& Inputs = ConstBuilder.GetConstDocument().RootGraph.Interface.Inputs;
 		for (const FMetasoundFrontendClassInput& Input : Inputs)
 		{
 			// Potentially not used input, which is perfectly valid so early out

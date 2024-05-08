@@ -1014,12 +1014,9 @@ namespace Metasound
 			OutInterfaceUpdates = { };
 
 			const FMetasoundFrontendClassMetadata& NodeClassMetadata = GetClassMetadata();
-			if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+			if (!IMetaSoundAssetManager::GetChecked().CanAutoUpdate(NodeClassMetadata.GetClassName()))
 			{
-				if (!AssetManager->CanAutoUpdate(NodeClassMetadata.GetClassName()))
-				{
-					return false;
-				}
+				return false;
 			}
 
 			FMetasoundFrontendClass RegistryClass;

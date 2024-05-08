@@ -1,11 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "MetasoundEngineModule.h"
 
 #include "Metasound.h"
+#include "MetasoundAssetSubsystem.h"
 #include "MetasoundAudioBus.h"
+#include "MetasoundBuilderSubsystem.h"
 #include "MetasoundDataReference.h"
 #include "MetasoundDataTypeRegistrationMacro.h"
+#include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendDocumentBuilder.h"
+#include "MetasoundLog.h"
 #include "MetasoundOutputSubsystem.h"
 #include "MetasoundSource.h"
 #include "MetasoundTrace.h"
@@ -25,7 +29,6 @@
 #include "Modules/ModuleManager.h"
 #include "Sound/AudioSettings.h"
 
-DEFINE_LOG_CATEGORY(LogMetasoundEngine);
 
 namespace Metasound
 {
@@ -44,122 +47,131 @@ REGISTER_METASOUND_DATATYPE(WaveTable::FWaveTable, "WaveTable", Metasound::ELite
 REGISTER_METASOUND_DATATYPE(Metasound::FWaveTableBankAsset, "WaveTableBankAsset", Metasound::ELiteralType::UObjectProxy, UWaveTableBank);
 
 
-class FMetasoundEngineModule : public IMetasoundEngineModule
+namespace Metasound::Engine
 {
-	// Supplies GC referencing in the MetaSound Frontend node registry for doing
-	// async work on UObjets
-	class FObjectReferencer 
-		: public FMetasoundFrontendRegistryContainer::IObjectReferencer
-		, public FGCObject
+	class FModule : public IModuleInterface
 	{
+		// Supplies GC referencing in the MetaSound Frontend node registry for doing
+		// async work on UObjets
+		class FObjectReferencer 
+			: public FMetasoundFrontendRegistryContainer::IObjectReferencer
+			, public FGCObject
+		{
+		public:
+			virtual void AddObject(UObject* InObject) override
+			{
+				FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
+				ObjectArray.Add(InObject);
+			}
+
+			virtual void RemoveObject(UObject* InObject) override
+			{
+				FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
+				ObjectArray.Remove(InObject);
+			}
+
+			virtual void AddReferencedObjects(FReferenceCollector& Collector) override
+			{
+				FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
+				Collector.AddReferencedObjects(ObjectArray);
+			}
+
+			virtual FString GetReferencerName() const override
+			{
+				return TEXT("FMetasoundEngineModule::FObjectReferencer");
+			}
+
+		private:
+			mutable FCriticalSection ObjectArrayCriticalSection;
+			TArray<TObjectPtr<UObject>> ObjectArray;
+		};
+
 	public:
-		virtual void AddObject(UObject* InObject) override
+		virtual void StartupModule() override
 		{
-			FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
-			ObjectArray.Add(InObject);
-		}
+			using namespace Frontend;
 
-		virtual void RemoveObject(UObject* InObject) override
-		{
-			FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
-			ObjectArray.Remove(InObject);
-		}
-
-		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
-		{
-			FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
-			Collector.AddReferencedObjects(ObjectArray);
-		}
-
-		virtual FString GetReferencerName() const override
-		{
-			return TEXT("FMetasoundEngineModule::FObjectReferencer");
-		}
-
-	private:
-		mutable FCriticalSection ObjectArrayCriticalSection;
-		TArray<TObjectPtr<UObject>> ObjectArray;
-	};
-
-public:
-
-	virtual void StartupModule() override
-	{
-		using namespace Metasound;
-		using namespace Metasound::Engine;
-
-		METASOUND_LLM_SCOPE;
-		FModuleManager::Get().LoadModuleChecked("MetasoundGraphCore");
-		FModuleManager::Get().LoadModuleChecked("MetasoundFrontend");
-		FModuleManager::Get().LoadModuleChecked("MetasoundStandardNodes");
-		FModuleManager::Get().LoadModuleChecked("MetasoundGenerator");
-		FModuleManager::Get().LoadModuleChecked("WaveTable");
+			METASOUND_LLM_SCOPE;
+			FModuleManager::Get().LoadModuleChecked("MetasoundGraphCore");
+			FModuleManager::Get().LoadModuleChecked("MetasoundFrontend");
+			FModuleManager::Get().LoadModuleChecked("MetasoundStandardNodes");
+			FModuleManager::Get().LoadModuleChecked("MetasoundGenerator");
+			FModuleManager::Get().LoadModuleChecked("WaveTable");
 		
-		// Set GCObject referencer for metasound frontend node registry. The MetaSound
-		// frontend does not have access to Engine GC tools and must have them 
-		// supplied externally.
-		FMetasoundFrontendRegistryContainer::Get()->SetObjectReferencer(MakeUnique<FObjectReferencer>());
+			InitializeAssetManager();
+			IDocumentBuilderRegistry::Initialize(MakeUnique<FDocumentBuilderRegistry>());
 
-		// Register engine-level parameter interfaces if not done already.
-		// (Potentially not already called if plugin is loaded while cooking.)
-		UAudioSettings* AudioSettings = GetMutableDefault<UAudioSettings>();
-		check(AudioSettings);
-		AudioSettings->RegisterParameterInterfaces();
+			// Set GCObject referencer for metasound frontend node registry. The MetaSound
+			// frontend does not have access to Engine GC tools and must have them 
+			// supplied externally.
+			FMetasoundFrontendRegistryContainer::Get()->SetObjectReferencer(MakeUnique<FObjectReferencer>());
 
-		IMetasoundUObjectRegistry::Get().RegisterUClass(MakeUnique<TMetasoundUObjectRegistryEntry<UMetaSoundBuilderDocument>>());
-		IMetasoundUObjectRegistry::Get().RegisterUClass(MakeUnique<TMetasoundUObjectRegistryEntry<UMetaSoundPatch>>());
-		IMetasoundUObjectRegistry::Get().RegisterUClass(MakeUnique<TMetasoundUObjectRegistryEntry<UMetaSoundSource>>());
+			// Register engine-level parameter interfaces if not done already.
+			// (Potentially not already called if plugin is loaded while cooking.)
+			UAudioSettings* AudioSettings = GetMutableDefault<UAudioSettings>();
+			check(AudioSettings);
+			AudioSettings->RegisterParameterInterfaces();
 
-		Engine::RegisterDeprecatedInterfaces();
-		Engine::RegisterInterfaces();
-		Engine::RegisterInternalInterfaceBindings();
+			IMetasoundUObjectRegistry::Get().RegisterUClass(MakeUnique<TMetasoundUObjectRegistryEntry<UMetaSoundBuilderDocument>>());
+			IMetasoundUObjectRegistry::Get().RegisterUClass(MakeUnique<TMetasoundUObjectRegistryEntry<UMetaSoundPatch>>());
+			IMetasoundUObjectRegistry::Get().RegisterUClass(MakeUnique<TMetasoundUObjectRegistryEntry<UMetaSoundSource>>());
 
-		// Flush node registration queue
-		FMetasoundFrontendRegistryContainer::Get()->RegisterPendingNodes();
+			RegisterDeprecatedInterfaces();
+			RegisterInterfaces();
+			RegisterInternalInterfaceBindings();
 
-		// Register Analyzers
+			// Flush node registration queue
+			FMetasoundFrontendRegistryContainer::Get()->RegisterPendingNodes();
 
-		// TODO: Determine if we can move this registration to Frontend where it likely belongs
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerAudioBuffer)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerEnvelopeFollower)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardBool)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardFloat)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardInt)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardTime)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardString)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerTriggerDensity)
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerTriggerToTime)
+			// Register Analyzers
+			// TODO: Determine if we can move this registration to Frontend where it likely belongs
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerAudioBuffer)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerEnvelopeFollower)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardBool)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardFloat)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardInt)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardTime)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardString)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerTriggerDensity)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerTriggerToTime)
+			METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Engine::FVertexAnalyzerAudioBusWriter)
 
-		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Engine::FVertexAnalyzerAudioBusWriter)
+			// Register passthrough output analyzers
+			UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
+				GetMetasoundDataTypeName<float>(),
+				Frontend::FVertexAnalyzerForwardFloat::GetAnalyzerName(),
+				Frontend::FVertexAnalyzerForwardFloat::FOutputs::GetValue().Name);
+			UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
+				GetMetasoundDataTypeName<int32>(),
+				Frontend::FVertexAnalyzerForwardInt::GetAnalyzerName(),
+				Frontend::FVertexAnalyzerForwardInt::FOutputs::GetValue().Name);
+			UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
+				GetMetasoundDataTypeName<bool>(),
+				Frontend::FVertexAnalyzerForwardBool::GetAnalyzerName(),
+				Frontend::FVertexAnalyzerForwardBool::FOutputs::GetValue().Name);
+			UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
+				GetMetasoundDataTypeName<FString>(),
+				Frontend::FVertexAnalyzerForwardString::GetAnalyzerName(),
+				Frontend::FVertexAnalyzerForwardString::FOutputs::GetValue().Name);
+			UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
+				GetMetasoundDataTypeName<FTime>(),
+				Frontend::FVertexAnalyzerForwardTime::GetAnalyzerName(),
+				Frontend::FVertexAnalyzerForwardTime::FOutputs::GetValue().Name);
+			UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
+				GetMetasoundDataTypeName<FTrigger>(),
+				Frontend::FVertexAnalyzerTriggerToTime::GetAnalyzerName(),
+				Frontend::FVertexAnalyzerTriggerToTime::FOutputs::GetValue().Name);
 
-		// Register passthrough output analyzers
-		UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
-			GetMetasoundDataTypeName<float>(),
-			Frontend::FVertexAnalyzerForwardFloat::GetAnalyzerName(),
-			Frontend::FVertexAnalyzerForwardFloat::FOutputs::GetValue().Name);
-		UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
-			GetMetasoundDataTypeName<int32>(),
-			Frontend::FVertexAnalyzerForwardInt::GetAnalyzerName(),
-			Frontend::FVertexAnalyzerForwardInt::FOutputs::GetValue().Name);
-		UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
-			GetMetasoundDataTypeName<bool>(),
-			Frontend::FVertexAnalyzerForwardBool::GetAnalyzerName(),
-			Frontend::FVertexAnalyzerForwardBool::FOutputs::GetValue().Name);
-		UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
-			GetMetasoundDataTypeName<FString>(),
-			Frontend::FVertexAnalyzerForwardString::GetAnalyzerName(),
-			Frontend::FVertexAnalyzerForwardString::FOutputs::GetValue().Name);
-		UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
-			GetMetasoundDataTypeName<FTime>(),
-			Frontend::FVertexAnalyzerForwardTime::GetAnalyzerName(),
-			Frontend::FVertexAnalyzerForwardTime::FOutputs::GetValue().Name);
-		UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
-			GetMetasoundDataTypeName<FTrigger>(),
-			Frontend::FVertexAnalyzerTriggerToTime::GetAnalyzerName(),
-			Frontend::FVertexAnalyzerTriggerToTime::FOutputs::GetValue().Name);
 
-		UE_LOG(LogMetasoundEngine, Log, TEXT("MetaSound Engine Initialized"));
-	}
-};
+			UE_LOG(LogMetaSound, Log, TEXT("MetaSound Engine Initialized"));
+		}
 
-IMPLEMENT_MODULE(FMetasoundEngineModule, MetasoundEngine);
+		virtual void ShutdownModule() override
+		{
+			DeinitializeAssetManager();
+			Frontend::IDocumentBuilderRegistry::Deinitialize();
+		}
+	};
+} // namespace Metasound::Engine
+
+IMPLEMENT_MODULE(Metasound::Engine::FModule, MetaSoundEngine);

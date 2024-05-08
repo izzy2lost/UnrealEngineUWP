@@ -210,28 +210,28 @@ namespace Metasound::Frontend
 		const FMetasoundFrontendClassName NewClassName;
 
 	public:
-		/* Generates and assigns the document's root graph class a unique name using the provided guid as the name field and
-		 * (optionally) namespace and variant.
-		 * Returns true if transform succeeded, false if not.
-		*/
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		static bool Generate(FDocumentHandle InDocument, const FGuid& InGuid, const FName Namespace = { }, const FName Variant = { })
 		{
-			const FMetasoundFrontendClassName GeneratedClassName = { Namespace, *InGuid.ToString(), Variant };
-			return FRenameRootGraphClass(GeneratedClassName).Transform(InDocument);
+			return false;
 		}
 
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		static bool Generate(FMetasoundFrontendDocument& InDocument, const FGuid& InGuid, const FName Namespace = { }, const FName Variant = { })
 		{
-			const FMetasoundFrontendClassName GeneratedClassName = { Namespace, *InGuid.ToString(), Variant };
-			return FRenameRootGraphClass(GeneratedClassName).Transform(InDocument);
+			return false;
 		}
 
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		FRenameRootGraphClass(const FMetasoundFrontendClassName InClassName)
 			: NewClassName(InClassName)
 		{
 		}
 
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		bool Transform(FDocumentHandle InDocument) const override;
+
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		bool Transform(FMetasoundFrontendDocument& InOutDocument) const override;
 	};
 } // Metasound::Frontend

@@ -10,6 +10,9 @@
 
 namespace Metasound::Frontend
 {
+	// Forward Declarations
+	struct FAssetKey;
+
 	/** FNodeClassInfo contains a minimal set of information needed to find and query node classes. */
 	struct METASOUNDFRONTEND_API FNodeClassInfo
 	{
@@ -69,6 +72,7 @@ namespace Metasound::Frontend
 		FNodeRegistryKey(const FMetasoundFrontendClassMetadata& InNodeMetadata);
 		FNodeRegistryKey(const FMetasoundFrontendGraphClass& InGraphClass);
 		FNodeRegistryKey(const FNodeClassInfo& InClassInfo);
+		FNodeRegistryKey(const FAssetKey& AssetKey);
 
 		UE_DEPRECATED(5.4, "Implicit String ctor is no longer supported.")
 		FNodeRegistryKey(const FString& InKeyString);

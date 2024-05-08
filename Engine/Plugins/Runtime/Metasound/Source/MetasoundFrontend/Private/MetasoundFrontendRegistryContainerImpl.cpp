@@ -32,12 +32,6 @@
 #include "MetasoundRouter.h"
 #include "MetasoundTrace.h"
 
-bool bBusyWaitOnAsyncRegistrationTasks = true;
-static FAutoConsoleVariableRef CVarAsyncRegistrationTasksBusyWait(
-	TEXT("au.MetaSound.BusyWaitOnAsyncRegistrationTasks"),
-	bBusyWaitOnAsyncRegistrationTasks,
-	TEXT("Use TaskGraph BusyWait instead of simple Wait. Required to avoid hangs on platforms with low number of cores."),
-	ECVF_Default);
 
 namespace Metasound::Frontend
 {
@@ -62,6 +56,7 @@ namespace Metasound::Frontend
 
 			UObject* DocObject = DocumentInterface.GetObject();
 			check(DocObject);
+			const FMetasoundFrontendDocument& Document = DocumentInterface->GetConstDocument();
 
 #if WITH_EDITOR
 			// Only assets require template node processing
@@ -74,33 +69,37 @@ namespace Metasound::Frontend
 
 			return DocumentInterface;
 #else
+			const bool bIsBuilding = DocumentInterface->IsActivelyBuilding();
+			const bool bForceCopy = bIsBuilding && bAsync;
+
 	#if !NO_LOGGING
+		// Force a copy if async registration is enabled and we need to protect against race conditions from external modifications.
+
+		#if WITH_EDITORONLY_DATA
 			// Only assets require template node processing and support document attachment
-			if (DocObject->IsAsset()) 
+			if (DocObject->IsAsset())
 			{
-				if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+				const FMetaSoundFrontendDocumentBuilder& OriginalDocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(DocumentInterface);
+				const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
+				if (bContainsTemplateDependency)
 				{
-					// Hack to ensure the builder is available prior to testing validity of cooked build
-					// in order to report if cooked asset is properly processed. This will be replaced with
-					// actual accessor directly from registry and AssetManager::AttachDocumentBuilderChecked
-					// will be deprecated.
-					if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
-					{
-						const FMetaSoundFrontendDocumentBuilder& OriginalDocBuilder = AssetManager->AttachDocumentBuilderChecked(*DocObject);
-						const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
-						if (bContainsTemplateDependency)
-						{
-							UE_LOG(LogMetaSound, Error,
-								TEXT("Template node processing disabled but provided asset class at '%s' to register contains template nodes. Runtime graph will fail to build."),
-								*OriginalDocBuilder.GetDebugName());
-						}
-					}
+					UE_LOG(LogMetaSound, Error,
+						TEXT("Template node processing disabled but provided asset class at '%s' to register contains template nodes. Runtime graph will fail to build."),
+						*OriginalDocBuilder.GetDebugName());
+				}
+
+				// Destroy builder if one didn't exist before running template check to ensure
+				// that builder existence doesn't inadvertently cause potential future re-registration
+				// calls to perform unnecessary document copy below.
+				if (!bIsBuilding)
+				{
+					const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
+					IDocumentBuilderRegistry::GetChecked().FinishBuilding(ClassName);
 				}
 			}
+		#endif // WITH_EDITORONLY_DATA
 	#endif // !NO_LOGGING
 
-			// Force a copy if async registration is enabled and we need to protect against race conditions from external modifications.
-			const bool bForceCopy = DocumentInterface->IsActivelyBuilding() && bAsync;
 			if (bForceCopy)
 			{
 				return &UMetaSoundBuilderDocument::Create(*DocumentInterface.GetInterface());
@@ -474,12 +473,10 @@ namespace Metasound::Frontend
 
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FRegistryContainerImpl::RegisterGraph key:%s, asset %s"), *RegistryKey.ToString(), *AssetPath.ToString()));
 
-		// Wait for any async tasks that are in flight which correspond to the same graph prior to building as building, if force copy is false, may mutate the serialized document
+		// Wait for any async tasks that are in flight which correspond to the same graph prior to building, even if this is a synchronous call.
+		WaitForAsyncGraphRegistration(RegistryKey);
+
 		const bool bAsync = !ConsoleVariables::bDisableAsyncGraphRegistration;
-		if (bAsync)
-		{
-			WaitForAsyncGraphRegistration(RegistryKey);
-		}
 
 		// Use the asset path of the provided document interface object for identification, *NOT* the
 		// built version as the build process may in fact create a new object with a transient path.
@@ -488,8 +485,6 @@ namespace Metasound::Frontend
 		UObject* OwningObject = RegistryDocInterface.GetObject();
 		check(OwningObject);
 
-		FNodeClassInfo NodeClassInfo(Document.RootGraph, AssetPath);
-
 		// Proxies are created synchronously to avoid creating proxies in async tasks. Proxies
 		// are created from UObjects which need to be protected from GC and non-GT access.
 		FProxyDataCache ProxyDataCache;
@@ -497,6 +492,7 @@ namespace Metasound::Frontend
 
 		// Store update to newly registered node in history so nodes
 		// can be queried by transaction ID
+		FNodeClassInfo NodeClassInfo(Document.RootGraph, AssetPath);
 		{
 			FNodeRegistryTransaction::FTimeType Timestamp = FPlatformTime::Cycles64();
 			TransactionBuffer->AddTransaction(FNodeRegistryTransaction(FNodeRegistryTransaction::ETransactionType::NodeRegistration, NodeClassInfo, Timestamp));
@@ -1224,15 +1220,8 @@ namespace Metasound::Frontend
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FRegistryContainerImpl::WaitForRegistrationTaskToComplete);
 			if (Task.IsValid())
 			{
-				if (bBusyWaitOnAsyncRegistrationTasks)
-				{
-					Task.BusyWait();
-				}
-				else
-				{
-					Task.Wait();
-				}
-			}	
+				Task.BusyWait();
+			}
 		}
 	}
 } // namespace Metasound::Frontend

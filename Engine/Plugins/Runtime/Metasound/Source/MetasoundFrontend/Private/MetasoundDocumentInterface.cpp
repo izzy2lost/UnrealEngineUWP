@@ -5,39 +5,31 @@
 
 namespace Metasound::Frontend
 {
-	namespace DocumentBuilderRegistryPrivate
+	namespace DocumentInterfacePrivate
 	{
-		static bool bInitialized = false;
-		TUniqueFunction<IDocumentBuilderRegistry&()> GetInstance;
-	} // namespace DocumentBuilderRegistryPrivate
+		TUniquePtr<IDocumentBuilderRegistry> Instance;
+	}
 
 	IDocumentBuilderRegistry* IDocumentBuilderRegistry::Get()
 	{
-		using namespace DocumentBuilderRegistryPrivate;
-
-		if (!DocumentBuilderRegistryPrivate::bInitialized)
-		{
-			return nullptr;
-		}
-		
-		return &GetInstance();
+		return DocumentInterfacePrivate::Instance.Get();
 	}
 
 	IDocumentBuilderRegistry& IDocumentBuilderRegistry::GetChecked()
 	{
-		using namespace DocumentBuilderRegistryPrivate;
-
-		checkf(GetInstance, TEXT("Failed to return MetaSoundDocumentBuilderRegistry instance: Registry has not been initialized"));
-		return GetInstance();
+		return *DocumentInterfacePrivate::Instance.Get();
 	}
 
-	void IDocumentBuilderRegistry::Set(TUniqueFunction<IDocumentBuilderRegistry&()>&& InGetInstance)
+	void IDocumentBuilderRegistry::Deinitialize()
 	{
-		using namespace DocumentBuilderRegistryPrivate;
+		check(DocumentInterfacePrivate::Instance.IsValid());
+		DocumentInterfacePrivate::Instance.Reset();
+	}
 
-		checkf(!GetInstance, TEXT("Failed to initialize MetaSoundDocumentBuilderRegistry getter: Cannot reinitialize once initialized."))
-		GetInstance = MoveTemp(InGetInstance);
-		DocumentBuilderRegistryPrivate::bInitialized = true;
+	void IDocumentBuilderRegistry::Initialize(TUniquePtr<IDocumentBuilderRegistry>&& InInstance)
+	{
+		check(!DocumentInterfacePrivate::Instance.IsValid());
+		DocumentInterfacePrivate::Instance = MoveTemp(InInstance);
 	}
 
 	IMetaSoundDocumentBuilderRegistry& IMetaSoundDocumentBuilderRegistry::GetChecked()

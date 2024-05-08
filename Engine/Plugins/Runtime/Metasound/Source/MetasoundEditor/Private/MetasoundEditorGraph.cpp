@@ -8,7 +8,7 @@
 #include "EdGraph/EdGraphNode.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "MetasoundAssetBase.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditorGraphCommentNode.h"
 #include "MetasoundEditorGraphInputNode.h"
 #include "MetasoundEditorGraphMemberDefaults.h"
@@ -18,6 +18,7 @@
 #include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
+#include "MetasoundLog.h"
 #include "MetasoundUObjectRegistry.h"
 #include "MetasoundVariableNodes.h"
 #include "MetasoundVertex.h"
@@ -137,7 +138,7 @@ void UMetasoundEditorGraphMember::InitializeLiteral()
 		UMetasoundEditorGraph* Graph = GetOwningGraph();
 		check(Graph);
 		UObject& MetaSound = Graph->GetMetasoundChecked();
-		FMetaSoundFrontendDocumentBuilder& Builder = IMetaSoundAssetManager::GetChecked().AttachDocumentBuilderChecked(MetaSound);
+		FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&MetaSound);
 		const bool bIsNew = UMetaSoundEditorSubsystem::GetChecked().BindMemberMetadata(Builder, *this, LiteralClass);
 		if (bIsNew)
 		{
@@ -1513,29 +1514,18 @@ void UMetasoundEditorGraph::PreSave(FObjectPreSaveContext InSaveContext)
 
 UMetaSoundBuilderBase& UMetasoundEditorGraph::GetBuilderChecked()
 {
-	return UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*GetOutermostObject());
+	using namespace Metasound::Engine;
+	return FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*GetOutermostObject());
 }
 
-UObject* UMetasoundEditorGraph::GetMetasound()
+UObject* UMetasoundEditorGraph::GetMetasound() const
 {
 	return GetOutermostObject();
 }
 
-const UObject* UMetasoundEditorGraph::GetMetasound() const
-{
-	return GetOutermostObject();
-}
-
-UObject& UMetasoundEditorGraph::GetMetasoundChecked()
+UObject& UMetasoundEditorGraph::GetMetasoundChecked() const
 {
 	UObject* ParentMetasound = GetMetasound();
-	check(ParentMetasound);
-	return *ParentMetasound;
-}
-
-const UObject& UMetasoundEditorGraph::GetMetasoundChecked() const
-{
-	const UObject* ParentMetasound = GetMetasound();
 	check(ParentMetasound);
 	return *ParentMetasound;
 }
@@ -1958,8 +1948,13 @@ void UMetasoundEditorGraph::MigrateEditorDocumentData(FMetaSoundFrontendDocument
 	// 5. Remove input locations and ensure that all other nodes only have at most one
 	// location represented in the style/editor graph (0 is acceptable as some member
 	// node types (eg. variables) may not contain locations and that's ok).
-	const FMetasoundFrontendDocument& Document = static_cast<const FMetaSoundFrontendDocumentBuilder&>(OutBuilder).GetDocument();
+	const FMetasoundFrontendDocument& Document = OutBuilder.GetConstDocument();
 	const TArray<FMetasoundFrontendNode>& GraphNodes = Document.RootGraph.Graph.Nodes;
+	TMap<FGuid, const UMetasoundEditorGraphNode*> EdNodeMap;
+	Algo::Transform(AllMetaSoundNodes, EdNodeMap, [](const UEdGraphNode* Node)
+	{
+		return TTuple<FGuid, const UMetasoundEditorGraphNode*>(Node->NodeGuid, Cast<const UMetasoundEditorGraphNode>(Node));
+	});
 	for (const FMetasoundFrontendNode& Node : GraphNodes)
 	{
 		if (const FMetasoundFrontendClass* Class = OutBuilder.FindDependency(Node.ClassID))
@@ -1978,7 +1973,13 @@ void UMetasoundEditorGraph::MigrateEditorDocumentData(FMetaSoundFrontendDocument
 					for (const TPair<FGuid, FVector2D>& Pair : Locations)
 					{
 						DefaultLocation = Pair;
-						break;
+						if (const UMetasoundEditorGraphNode* MetaSoundNode = EdNodeMap.FindRef(Pair.Key))
+						{
+							if (MetaSoundNode->GetNodeID() == Node.GetID())
+							{
+								break;
+							}
+						}
 					}
 
 					// Remove first in case there are multiple locations and the editor guid may be different

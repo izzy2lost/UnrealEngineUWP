@@ -48,7 +48,8 @@ namespace Metasound
 			NotRequested = 0,
 			Requested = 1,
 			InProgress = 2,
-			Complete = 3
+			Complete = 3,
+			Canceled = 4
 		};
 
 		struct FGraphPinParams
