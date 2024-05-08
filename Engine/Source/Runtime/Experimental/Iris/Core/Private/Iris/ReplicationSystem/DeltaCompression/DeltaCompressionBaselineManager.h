@@ -60,6 +60,7 @@ public:
 	~FDeltaCompressionBaselineManager();
 
 	void Init(FDeltaCompressionBaselineManagerInitParams& InitParams);
+	void Deinit();
 
 	void PreSendUpdate(FDeltaCompressionBaselineManagerPreSendUpdateParams& UpdateParams);
 	void PostSendUpdate(FDeltaCompressionBaselineManagerPostSendUpdateParams& UpdateParams);
@@ -163,8 +164,6 @@ private:
 		TArray<DeltaCompressionBaselineStateInfoIndexType> ObjectInfoIndexToBaselineInfoIndex;
 		uint32 CreatedBaselineCount = 0;
 	};
-
-	void Deinit();
 
 	void UpdateScope();
 	void UpdateDirtyStateMasks(const FChangeMaskCache* ChangeMaskCache);

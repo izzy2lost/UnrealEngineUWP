@@ -273,6 +273,7 @@ public:
 			ReplicationSystemInternal.SetIrisObjectReferencePackageMap(static_cast<UIrisObjectReferencePackageMap*>(nullptr));
 		}
 
+		ReplicationSystemInternal.GetDeltaCompressionBaselineManager().Deinit();
 		ReplicationSystemInternal.GetNetRefHandleManager().Deinit();
 	}
 

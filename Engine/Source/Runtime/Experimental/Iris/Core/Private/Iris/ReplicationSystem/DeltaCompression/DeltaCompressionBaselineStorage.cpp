@@ -22,7 +22,6 @@ FDeltaCompressionBaselineStorage::FDeltaCompressionBaselineStorage()
 
 FDeltaCompressionBaselineStorage::~FDeltaCompressionBaselineStorage()
 {
-	Deinit();
 }
 
 void FDeltaCompressionBaselineStorage::Init(FDeltaCompressionBaselineStorageInitParams& InitParams)

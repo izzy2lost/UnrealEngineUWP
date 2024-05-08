@@ -347,6 +347,34 @@ void UReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 
 void UReplicationBridge::Deinitialize()
 {
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	// Detach all replicated instances that have not yet been destroyed as part of shutting down the rest of the game.
+	NetRefHandleManager->GetAssignedInternalIndices().ForAllSetBits([this](uint32 InternalObjectIndex) 
+	{
+		if (InternalObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
+		{
+			return;
+		}
+
+		FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalObjectIndex);
+		if (ObjectData.InstanceProtocol)
+		{
+			const FNetRefHandle RefHandle = ObjectData.RefHandle;
+
+			// Clear out, tracking data or not?, currently we only have a single replication-system so it should not be a big issue if we do.
+			// Note: Currently we opted to leave it as is.
+			// -- This only applies to server. If it is a restart of ReplicationSystem, the same actors will be re-registered and global handle will be destroyed later, otherwise it does not matter what we do.
+			// DestroyGlobalNetHandle(InternalObjectIndex);
+			// ClearNetPushIds(InternalObjectIndex);
+
+			// Detach and destroy instance protocol
+			ObjectData.bPendingEndReplication = 1U;
+			InternalDetachInstanceFromNetRefHandle(ObjectData.RefHandle);
+		}
+	});
+
 	// Just set the protocol to null, it will be destroyed with the protocolmanager
 	DestructionInfoProtocol = nullptr;
 

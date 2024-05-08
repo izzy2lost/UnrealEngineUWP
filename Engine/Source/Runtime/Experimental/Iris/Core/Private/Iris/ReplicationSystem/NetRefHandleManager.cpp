@@ -82,7 +82,11 @@ void FNetRefHandleManager::Init(const FInitParams& InitParams)
 
 void FNetRefHandleManager::Deinit()
 {
-
+	// We can clear out the reserved index for invalid handles now.
+	AssignedInternalIndices.ClearBit(0);
+	AssignedInternalIndices.ForAllSetBits([this](uint32 InternalIndex) { 
+		this->InternalDestroyNetObject(InternalIndex); 
+	});
 }
 
 void FNetRefHandleManager::InitNetBitArray(FNetBitArray* NetBitArray)

@@ -60,7 +60,6 @@ FDeltaCompressionBaselineManager::FDeltaCompressionBaselineManager()
 
 FDeltaCompressionBaselineManager::~FDeltaCompressionBaselineManager()
 {
-	Deinit();
 }
 
 void FDeltaCompressionBaselineManager::Init(FDeltaCompressionBaselineManagerInitParams& InitParams)
@@ -102,6 +101,7 @@ void FDeltaCompressionBaselineManager::Deinit()
 {
 	// The BaselineStateManager will release all baselines in its destructor.
 	FreeAllPerObjectInfos();
+	BaselineStorage.Deinit();
 }
 
 void FDeltaCompressionBaselineManager::PreSendUpdate(FDeltaCompressionBaselineManagerPreSendUpdateParams& UpdateParams)
