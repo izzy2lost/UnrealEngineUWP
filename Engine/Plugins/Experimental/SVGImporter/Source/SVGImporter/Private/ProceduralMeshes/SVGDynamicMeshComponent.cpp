@@ -179,22 +179,41 @@ void USVGDynamicMeshComponent::InitializeFromSVGDynamicMesh(const USVGDynamicMes
 	MaterialType = InOtherSVGDynamicMeshComponent->MaterialType;
 
 	// We will apply the scale where needed, and set it to 1.0f
-	const float SourceScale = InOtherSVGDynamicMeshComponent->Scale;
-	Extrude = InOtherSVGDynamicMeshComponent->Extrude * SourceScale;
-	MinExtrudeValue = InOtherSVGDynamicMeshComponent->MinExtrudeValue * SourceScale;
-	Scale = 1.0f;
+	Scale = InOtherSVGDynamicMeshComponent->Scale;
+	Extrude = InOtherSVGDynamicMeshComponent->Extrude * Scale;
+	MinExtrudeValue = InOtherSVGDynamicMeshComponent->MinExtrudeValue * Scale;
+	InternalCenter = InOtherSVGDynamicMeshComponent->InternalCenter * Scale;
 
 	CreateSVGMaterialInstance();
 
-	InOtherSVGDynamicMeshComponent->ProcessMesh([&](const FDynamicMesh3& SourceEditMesh)
+	if (InOtherSVGDynamicMeshComponent->SVGStoredMesh && !InOtherSVGDynamicMeshComponent->SVGStoredMesh->IsEmpty())
 	{
-		EditMesh([&](FDynamicMesh3& EditMesh)
+		InOtherSVGDynamicMeshComponent->SVGStoredMesh->ProcessMesh([&](const FDynamicMesh3& SourceEditMesh)
 		{
-			EditMesh = SourceEditMesh;
+			SVGStoredMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+			{
+				EditMesh = SourceEditMesh;
+			});
 		});
-	});
 
-	StoreCurrentMesh();
+		LoadStoredMesh();
+	}
+	else
+	{
+		InOtherSVGDynamicMeshComponent->ProcessMesh([&](const FDynamicMesh3& SourceEditMesh)
+		{
+			EditMesh([&](FDynamicMesh3& EditMesh)
+			{
+				EditMesh = SourceEditMesh;
+			});
+		});
+
+		StoreCurrentMesh();
+	}
+
+	ApplyScale();
+
+	Scale = 1.f;
 }
 
 void USVGDynamicMeshComponent::LoadResources()
@@ -372,7 +391,12 @@ void USVGDynamicMeshComponent::PostLoad()
 
 	SetMeshEditMode(ESVGEditMode::ValueSet);
 	LoadStoredMesh();
-	ApplyScale();
+
+	if (USVGDynamicMeshComponent::StaticClass() != GetClass())
+	{
+		ApplyScale();
+	}
+
 	RefreshMaterial();
 	RegisterDelegates();
 }
