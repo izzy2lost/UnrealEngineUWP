@@ -228,6 +228,7 @@ void ALevelSequenceActor::PostInitializeComponents()
 	// Initialize this player for tick as soon as possible to ensure that a persistent
 	// reference to the tick manager is maintained
 	GetSequencePlayer()->InitializeForTick(this);
+	GetSequencePlayer()->SetPlaybackSettings(PlaybackSettings);
 
 	InitializePlayer();
 }
@@ -365,7 +366,6 @@ void ALevelSequenceActor::InitializePlayer()
 		// Level sequence is already loaded. Initialize the player if it's not already initialized with this sequence
 		if (LevelSequenceAsset != GetSequencePlayer()->GetSequence() || GetSequencePlayer()->GetEvaluationTemplate().GetRunner() == nullptr)
 		{
-			GetSequencePlayer()->SetPlaybackSettings(PlaybackSettings);
 			GetSequencePlayer()->Initialize(LevelSequenceAsset, GetLevel(), CameraSettings);
 		}
 	}
