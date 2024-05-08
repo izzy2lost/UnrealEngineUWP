@@ -4,7 +4,6 @@
 
 #include "Components/MeshComponent.h"
 #include "WaterQuadTree.h"
-#include "WaterQuadTreeBuilder.h"
 #include "WaterMeshComponent.generated.h"
 
 struct FPSOPrecacheParams;
@@ -50,8 +49,6 @@ public:
 	/** Use this instead of GetMaterialRelevance, since this one will go over all materials from all tiles */
 	FMaterialRelevance GetWaterMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const;
 
-	bool ShouldBuildQuadTreeInSceneProxy() const;
-	const FWaterQuadTreeBuilder& GetWaterQuadTreeBuilder() const { return WaterQuadTreeBuilder; }
 	const FWaterQuadTree& GetWaterQuadTree() const { return WaterQuadTree; }
 
 	const TSet<TObjectPtr<UMaterialInterface>>& GetUsedMaterialsSet() const { return UsedMaterials; }
@@ -108,8 +105,6 @@ private:
 
 	/** The current center of the dynamic water mesh. Updated by the water view extension whenever the view location crosses the update bounds. */
 	FVector2D DynamicWaterMeshCenter = FVector2D::ZeroVector;
-
-	FWaterQuadTreeBuilder WaterQuadTreeBuilder;
 
 	/** Tiles containing water, stored in a quad tree */
 	FWaterQuadTree WaterQuadTree;
