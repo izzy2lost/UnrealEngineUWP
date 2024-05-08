@@ -298,7 +298,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Per-second logging of cpu utilization
 		/// </summary>
-		private List<float> _cpuUtilization = new();
+		private readonly List<float> _cpuUtilization = new();
 
 		/// <summary>
 		/// Collection of all actions remaining to be logged
@@ -319,6 +319,16 @@ namespace UnrealBuildTool
 		/// Tracks the number of completed actions.
 		/// </summary>
 		private int _completedActions = 0;
+
+		/// <summary>
+		/// Tracks the number of completed actions from cache hits.
+		/// </summary>
+		private int _cacheHitActions = 0;
+
+		/// <summary>
+		/// Tracks the number of unsuccessful actions from cache misses.
+		/// </summary>
+		private int _cacheMissActions = 0;
 
 		/// <summary>
 		/// Flags used to track how StartManyActions should run
@@ -363,9 +373,9 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// If set, artifact cache used to retrieve previously compiled results and save new results
 		/// </summary>
-		private IActionArtifactCache? _actionArtifactCache;
+		private readonly IActionArtifactCache? _actionArtifactCache;
 
-		static ExecuteResults s_copiedFromCacheResults = new(new List<string>(), 0, TimeSpan.Zero, TimeSpan.Zero, "[Cache]");
+		static readonly ExecuteResults s_copiedFromCacheResults = new(new List<string>(), 0, TimeSpan.Zero, TimeSpan.Zero, "[Cache]");
 
 		/// <summary>
 		/// Construct a new instance of the action queue
@@ -409,22 +419,24 @@ namespace UnrealBuildTool
 
 			if (readArtifacts)
 			{
-				Func<LinkedAction, Func<Task>> runAction = (LinkedAction action) =>
+				Func<Task> runAction(LinkedAction action)
 				{
 					return new Func<Task>(async () =>
 					{
 						bool success = await _actionArtifactCache!.CompleteActionFromCacheAsync(action, CancellationToken);
 						if (success)
 						{
+							Interlocked.Increment(ref _cacheHitActions);
 							OnArtifactsRead?.Invoke(action);
 							OnActionCompleted(action, success, s_copiedFromCacheResults);
 						}
 						else
 						{
+							Interlocked.Increment(ref _cacheMissActions);
 							RequeueAction(action);
 						}
 					});
-				};
+				}
 
 				_runners.Add(new(ImmediateActionQueueRunnerType.Automatic, ActionPhase.ArtifactCheck, runAction, false, maxActionArtifactCacheTasks, 0));
 			}
@@ -526,7 +538,6 @@ namespace UnrealBuildTool
 							}
 						}
 					}
-
 				}, null, 1000, 1000);
 			}
 
@@ -550,11 +561,15 @@ namespace UnrealBuildTool
 		/// <param name="totalActions">Out parameter, the total number of actions</param>
 		/// <param name="succeededActions">Out parameter, the number of successful actions</param>
 		/// <param name="failedActions">Out parameter, the number of failed actions</param>
-		public void GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions)
+		/// <param name="cacheHitActions">Out parameter, the number of cache hit actions</param>
+		/// <param name="cacheMissActions">Out parameter, the number of cache miss actions</param>
+		public void GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions)
 		{
 			totalActions = Actions.Length;
 			succeededActions = Actions.Where(x => x.Results?.ExitCode == 0).Count();
 			failedActions = Actions.Where(x => x.Results != null && x.Results.ExitCode != 0).Count();
+			cacheHitActions = _cacheHitActions;
+			cacheMissActions = _cacheMissActions;
 		}
 
 		/// <summary>
@@ -1165,7 +1180,7 @@ namespace UnrealBuildTool
 					foreach (string Line in logLines.Skip(action.bShouldOutputStatusDescription ? 0 : 1))
 					{
 						// suppress library creation messages when writing compact output
-						if (CompactOutput && Line.StartsWith("   Creating library ") && Line.EndsWith(".exp"))
+						if (CompactOutput && Line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && Line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase))
 						{
 							continue;
 						}

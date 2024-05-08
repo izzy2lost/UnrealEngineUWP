@@ -501,7 +501,7 @@ namespace UnrealBuildTool
 				}
 
 				bool result = ExecuteBffFile(FASTBuildFilePath, Logger);
-				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, Actions.Count(), -1, -1, DateTime.UtcNow);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, Actions.Count(), -1, -1, 0, 0, DateTime.UtcNow);
 			}
 
 			return await LocalExecutor.ExecuteActionsAsync(Actions, Logger, actionArtifactCache);

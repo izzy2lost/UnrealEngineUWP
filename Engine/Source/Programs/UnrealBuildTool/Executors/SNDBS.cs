@@ -382,7 +382,7 @@ namespace UnrealBuildTool
 					LocalProcess.WaitForExit();
 					bool result = LocalProcess.ExitCode == 0;
 
-					telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, NumActions, -1, -1, DateTime.UtcNow);
+					telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, NumActions, -1, -1, 0, 0, DateTime.UtcNow);
 					return result;
 				}
 				catch (Exception Ex)

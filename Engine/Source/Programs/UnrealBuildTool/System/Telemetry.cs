@@ -119,13 +119,16 @@ namespace UnrealBuildTool
 		public int TotalActions { get; }
 		public int SucceededActions { get; }
 		public int FailedActions { get; }
-		public int SkippedActions { get; }
-
+		public int SkippedActions => TotalActions - SucceededActions - FailedActions;
+		public int CacheCheckActions => CacheHitActions + CacheMissActions;
+		public int CacheHitActions { get; }
+		public int CacheMissActions { get; }
 		public double SuccessRate => SucceededActions / (double)TotalActions;
 		public double FailureRate => FailedActions / (double)TotalActions;
 		public double SkipRate => SkippedActions / (double)TotalActions;
+		public double CacheRate => CacheHitActions + CacheMissActions > 0 ? CacheHitActions / (double)CacheCheckActions : 0.0;
 
-		public TelemetryExecutorEvent(string executor, DateTime startUTC, bool result, int totalActions, int succeededActions, int failedActions, DateTime timestamp)
+		public TelemetryExecutorEvent(string executor, DateTime startUTC, bool result, int totalActions, int succeededActions, int failedActions, int cacheHitActions, int cacheMissActions, DateTime timestamp)
 			: base(timestamp)
 		{
 			Executor = executor;
@@ -135,7 +138,8 @@ namespace UnrealBuildTool
 			TotalActions = totalActions;
 			SucceededActions = succeededActions;
 			FailedActions = failedActions;
-			SkippedActions = TotalActions - SucceededActions - FailedActions;
+			CacheHitActions = cacheHitActions;
+			CacheMissActions = cacheMissActions;
 		}
 	}
 
@@ -153,8 +157,8 @@ namespace UnrealBuildTool
 		public double LocalUsage => LocalActions / (double)(TotalActions + RetriedLocalActions + RetriedDisabledActions - SkippedActions);
 		public double RemoteUsage => RemoteActions / (double)(TotalActions + RetriedLocalActions + RetriedDisabledActions - SkippedActions);
 
-		public TelemetryExecutorUBAEvent(string executor, DateTime startUTC, bool result, int totalActions, int succeededActions, int failedActions, int localActions, int remoteActions, int retriedLocalActions, int retriedDisabledActions, DateTime timestamp)
-			: base(executor, startUTC, result, totalActions, succeededActions, failedActions, timestamp)
+		public TelemetryExecutorUBAEvent(string executor, DateTime startUTC, bool result, int totalActions, int succeededActions, int failedActions, int cacheHitActions, int cacheMissActions, int localActions, int remoteActions, int retriedLocalActions, int retriedDisabledActions, DateTime timestamp)
+			: base(executor, startUTC, result, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions, timestamp)
 		{
 			LocalActions = localActions;
 			RemoteActions = remoteActions;

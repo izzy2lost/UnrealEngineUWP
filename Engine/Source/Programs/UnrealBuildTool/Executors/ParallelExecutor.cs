@@ -202,8 +202,8 @@ namespace UnrealBuildTool
 				queue.StartManyActions();
 				result = await queue.RunTillDone();
 
-				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions);
-				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, DateTime.UtcNow);
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions, DateTime.UtcNow);
 			}
 			else
 			{
@@ -215,8 +215,8 @@ namespace UnrealBuildTool
 				queue.StartManyActions();
 				result = await queue.RunTillDone();
 
-				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions);
-				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, DateTime.UtcNow);
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions, DateTime.UtcNow);
 			}
 
 			return result;

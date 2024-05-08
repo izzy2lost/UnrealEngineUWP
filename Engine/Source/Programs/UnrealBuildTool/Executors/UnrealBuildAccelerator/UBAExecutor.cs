@@ -164,7 +164,7 @@ namespace UnrealBuildTool
 		{
 			readonly UBAExecutor _executor;
 			readonly UBAArtifactCache _cache = new UBAArtifactCache();
-			public UBAActionArtifactCache(UBAExecutor executor) {  _executor = executor; }
+			public UBAActionArtifactCache(UBAExecutor executor) { _executor = executor; }
 			public IArtifactCache ArtifactCache => _cache;
 			public bool EnableReads { get => true; set { } }
 			public bool EnableWrites { get => true; set { } }
@@ -459,8 +459,8 @@ namespace UnrealBuildTool
 
 				bool res = queue.RunTillDone().Result; // Using inline wait to avoid possible thread switch
 
-				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions);
-				telemetryEvent = new TelemetryExecutorUBAEvent(Name, startTimeUTC, res, totalActions, succeededActions, failedActions,
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions);
+				telemetryEvent = new TelemetryExecutorUBAEvent(Name, startTimeUTC, res, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions,
 					_localProcessedActions, _remoteProcessedActions, _localRetryActions.Count, _forcedRetryActions.Count, DateTime.UtcNow);
 
 				return res;
@@ -609,7 +609,7 @@ namespace UnrealBuildTool
 					{
 						continue;
 					}
-					
+
 					writer.Write(f.FullName);
 				}
 
@@ -681,7 +681,7 @@ namespace UnrealBuildTool
 					TimeSpan processorTime = process.TotalProcessorTime;
 					TimeSpan executionTime = process.TotalWallTime;
 					List<string> logLines = process.LogLines;
-					logLines.RemoveAll((line) => line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase) || line.EndsWith("file(s) copied.", StringComparison.OrdinalIgnoreCase));
+					logLines.RemoveAll((line) => (line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase)) || line.EndsWith("file(s) copied.", StringComparison.OrdinalIgnoreCase));
 
 					string? additionalDescription = !enableDetour ? "(UBA disabled)" : null;
 					ActionFinished(queue, new ExecuteResults(logLines, process.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, process);
