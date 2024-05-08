@@ -142,7 +142,7 @@ UPCGGetSplineSettings::UPCGGetSplineSettings()
 TArray<FPCGPinProperties> UPCGGetSplineSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Spline);
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::PolyLine);
 
 	return PinProperties;
 }

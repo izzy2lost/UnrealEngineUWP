@@ -5,10 +5,12 @@
 #include "PCGComponent.h"
 #include "PCGManagedResource.h"
 #include "PCGModule.h"
+#include "Elements/PCGSplineMeshParams.h"
 #include "Helpers/PCGHelpers.h"
 
 #include "EngineUtils.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/SplineMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 
@@ -143,6 +145,116 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 		Resource->SetRootLocation(InTargetActor->GetRootComponent()->GetComponentLocation());
 	}
 	
+	Resource->SetSettingsUID(SettingsUID);
+	InSourceComponent->AddToManagedResources(Resource);
+
+	return Resource;
+}
+
+USplineMeshComponent* UPCGActorHelpers::GetOrCreateSplineMeshComponent(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGSplineMeshComponentBuilderParameters& InParams)
+{
+	UPCGManagedSplineMeshComponent* ManagedComponent = GetOrCreateManagedSplineMeshComponent(InTargetActor, InSourceComponent, SettingsUID, InParams);
+	if (ManagedComponent)
+	{
+		return ManagedComponent->GetComponent();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+UPCGManagedSplineMeshComponent* UPCGActorHelpers::GetOrCreateManagedSplineMeshComponent(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGSplineMeshComponentBuilderParameters& InParams)
+{
+	check(InTargetActor && InSourceComponent);
+
+	const UStaticMesh* StaticMesh = InParams.Descriptor.StaticMesh;
+
+	if (!StaticMesh)
+	{
+		return nullptr;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedSplineMeshComponent);
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedSplineMeshComponent::FindMatchingManagedSplineMeshComponent);
+
+		UPCGManagedSplineMeshComponent* MatchingResource = nullptr;
+		InSourceComponent->ForEachManagedResource([&MatchingResource, &InParams, &InTargetActor, SettingsUID](UPCGManagedResource* InResource)
+		{
+			// Early out if already found a match
+			if (MatchingResource)
+			{
+				return;
+			}
+
+			if (UPCGManagedSplineMeshComponent* Resource = Cast<UPCGManagedSplineMeshComponent>(InResource))
+			{
+				if (Resource->GetSettingsUID() != SettingsUID || !Resource->CanBeUsed())
+				{
+					return;
+				}
+
+				if (USplineMeshComponent* SplineMeshComponent = Resource->GetComponent())
+				{
+					if (IsValid(SplineMeshComponent)
+						&& SplineMeshComponent->GetOwner() == InTargetActor
+						&& Resource->GetDescriptor() == InParams.Descriptor
+						&& Resource->GetSplineMeshParams() == InParams.SplineMeshParams)
+					{
+						MatchingResource = Resource;
+					}
+				}
+			}
+		});
+
+		if (MatchingResource)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedSplineMeshComponent::MarkAsUsed);
+			MatchingResource->MarkAsUsed();
+
+			return MatchingResource;
+		}
+	}
+
+	// No matching component found, let's create a new one.
+	InTargetActor->Modify(!InSourceComponent->IsInPreviewMode());
+
+	FString ComponentName = TEXT("PCGSplineMeshComponent_") + StaticMesh->GetName();
+	const EObjectFlags ObjectFlags = (InSourceComponent->IsInPreviewMode() ? RF_Transient : RF_NoFlags);
+	USplineMeshComponent* SplineMeshComponent = NewObject<USplineMeshComponent>(InTargetActor, MakeUniqueObjectName(InTargetActor, USplineMeshComponent::StaticClass(), FName(ComponentName)), ObjectFlags);
+
+	// Init Component
+	{
+		InParams.Descriptor.InitComponent(SplineMeshComponent);
+
+		const FPCGSplineMeshParams& SplineMeshParams = InParams.SplineMeshParams;
+		SplineMeshComponent->SetStartAndEnd(SplineMeshParams.StartPosition, SplineMeshParams.StartTangent, SplineMeshParams.EndPosition, SplineMeshParams.EndTangent);
+		SplineMeshComponent->SetStartRollDegrees(SplineMeshParams.StartRollDegrees);
+		SplineMeshComponent->SetEndRollDegrees(SplineMeshParams.EndRollDegrees);
+		SplineMeshComponent->SetStartScale(SplineMeshParams.StartScale);
+		SplineMeshComponent->SetEndScale(SplineMeshParams.EndScale);
+		SplineMeshComponent->SetForwardAxis((ESplineMeshAxis::Type)SplineMeshParams.ForwardAxis);
+		SplineMeshComponent->SetSplineUpDir(SplineMeshParams.SplineUpDir);
+		SplineMeshComponent->SplineParams.NaniteClusterBoundsScale = SplineMeshParams.NaniteClusterBoundsScale;
+		SplineMeshComponent->SplineBoundaryMin = SplineMeshParams.SplineBoundaryMin;
+		SplineMeshComponent->SplineBoundaryMax = SplineMeshParams.SplineBoundaryMax;
+		SplineMeshComponent->bSmoothInterpRollScale = SplineMeshParams.bSmoothInterpRollScale;
+	}
+
+	SplineMeshComponent->RegisterComponent();
+	InTargetActor->AddInstanceComponent(SplineMeshComponent);
+
+	SplineMeshComponent->AttachToComponent(InTargetActor->GetRootComponent(), FAttachmentTransformRules(EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
+	SplineMeshComponent->ComponentTags.Add(InSourceComponent->GetFName());
+	SplineMeshComponent->ComponentTags.Add(PCGHelpers::DefaultPCGTag);
+
+	// Create managed resource on source component
+	UPCGManagedSplineMeshComponent* Resource = NewObject<UPCGManagedSplineMeshComponent>(InSourceComponent);
+	Resource->SetComponent(SplineMeshComponent);
+	Resource->SetDescriptor(InParams.Descriptor);
+	Resource->SetSplineMeshParams(InParams.SplineMeshParams);
 	Resource->SetSettingsUID(SettingsUID);
 	InSourceComponent->AddToManagedResources(Resource);
 

@@ -2,7 +2,10 @@
 
 #pragma once
 
+#include "Elements/PCGSplineMeshParams.h"
+
 #include "Engine/EngineTypes.h"
+#include "Engine/SplineMeshComponentDescriptor.h"
 #include "Engine/World.h"
 #include "ISMPartition/ISMComponentDescriptor.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -15,8 +18,10 @@ class UActorComponent;
 class UInstancedStaticMeshComponent;
 class ULevel;
 class UMaterialInterface;
+class USplineMeshComponent;
 class UPCGComponent;
 class UPCGManagedISMComponent;
+class UPCGManagedSplineMeshComponent;
 class UStaticMesh;
 class UWorld;
 
@@ -33,6 +38,19 @@ struct FPCGISMCBuilderParameters
 	inline bool operator==(const FPCGISMCBuilderParameters& Other) const { return Descriptor == Other.Descriptor && NumCustomDataFloats == Other.NumCustomDataFloats; }
 };
 
+struct FPCGSplineMeshComponentBuilderParameters
+{
+	FSplineMeshComponentDescriptor Descriptor;
+	FPCGSplineMeshParams SplineMeshParams;
+
+	friend inline uint32 GetTypeHash(const FPCGSplineMeshComponentBuilderParameters& Key)
+	{
+		return HashCombine(GetTypeHash(Key.Descriptor), GetTypeHash(Key.SplineMeshParams));
+	}
+
+	inline bool operator==(const FPCGSplineMeshComponentBuilderParameters& Other) const { return Descriptor == Other.Descriptor && SplineMeshParams == Other.SplineMeshParams; }
+};
+
 UCLASS(BlueprintType)
 class PCG_API UPCGActorHelpers : public UBlueprintFunctionLibrary
 {
@@ -41,6 +59,8 @@ class PCG_API UPCGActorHelpers : public UBlueprintFunctionLibrary
 public:
 	static UInstancedStaticMeshComponent* GetOrCreateISMC(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& Params);
 	static UPCGManagedISMComponent* GetOrCreateManagedISMC(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& Params);
+	static USplineMeshComponent* GetOrCreateSplineMeshComponent(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGSplineMeshComponentBuilderParameters& Params);
+	static UPCGManagedSplineMeshComponent* GetOrCreateManagedSplineMeshComponent(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGSplineMeshComponentBuilderParameters& Params);
 	static bool DeleteActors(UWorld* World, const TArray<TSoftObjectPtr<AActor>>& ActorsToDelete);
 
 	template <typename T, typename = typename std::enable_if_t<std::is_base_of_v<AActor, T>>>

@@ -4,13 +4,16 @@
 
 #include "PCGCommon.h"
 #include "PCGCrc.h"
+#include "Elements/PCGSplineMeshParams.h"
 
+#include "Engine/SplineMeshComponentDescriptor.h"
 #include "ISMPartition/ISMComponentDescriptor.h"
 
 #include "PCGManagedResource.generated.h"
 
 class UActorComponent;
 class UInstancedStaticMeshComponent;
+class USplineMeshComponent;
 
 /** 
 * This class is used to hold resources and their mechanism to delete them on demand.
@@ -193,6 +196,44 @@ protected:
 
 	// Cached raw pointer to ISM component
 	mutable UInstancedStaticMeshComponent* CachedRawComponentPtr = nullptr;
+};
+
+UCLASS(BlueprintType)
+class PCG_API UPCGManagedSplineMeshComponent : public UPCGManagedComponent
+{
+	GENERATED_BODY()
+
+public:
+	//~Begin UPCGManagedComponents interface
+	virtual void ResetComponent() override { /* Does nothing, but implementation is required to support reuse. */ }
+	virtual bool SupportsComponentReset() const override { return true; }
+	virtual void ForgetComponent() override;
+	//~End UPCGManagedComponents interface
+
+	USplineMeshComponent* GetComponent() const;
+	void SetComponent(USplineMeshComponent* InComponent);
+
+	void SetDescriptor(const FSplineMeshComponentDescriptor& InDescriptor) { Descriptor = InDescriptor; }
+	const FSplineMeshComponentDescriptor& GetDescriptor() const { return Descriptor; }
+
+	void SetSplineMeshParams(const FPCGSplineMeshParams& InSplineMeshParams) { SplineMeshParams = InSplineMeshParams; }
+	const FPCGSplineMeshParams& GetSplineMeshParams() const { return SplineMeshParams; }
+
+	uint64 GetSettingsUID() const { return SettingsUID; }
+	void SetSettingsUID(uint64 InSettingsUID) { SettingsUID = InSettingsUID; }
+
+protected:
+	UPROPERTY()
+	FSplineMeshComponentDescriptor Descriptor;
+
+	UPROPERTY()
+	FPCGSplineMeshParams SplineMeshParams;
+
+	UPROPERTY(Transient)
+	uint64 SettingsUID = -1; // purposefully a value that will never happen in data
+
+	// Cached raw pointer to USplineMeshComponent
+	mutable USplineMeshComponent* CachedRawComponentPtr = nullptr;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

@@ -21,15 +21,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGCreateSpline"
 
-UPCGCreateSplineSettings::UPCGCreateSplineSettings(const FObjectInitializer& ObjectInitializer)
-	: UPCGSettings(ObjectInitializer)
-{
-	if (PCGHelpers::IsNewObjectAndNotDefault(this))
-	{
-		AttachOptions = EPCGAttachOptions::InFolder;
-	}
-}
-
 #if WITH_EDITOR
 FText UPCGCreateSplineSettings::GetNodeTooltipText() const
 {
@@ -50,12 +41,6 @@ FPCGElementPtr UPCGCreateSplineSettings::CreateElement() const
 	return MakeShared<FPCGCreateSplineElement>();
 }
 
-bool FPCGCreateSplineElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const
-{
-	const UPCGCreateSplineSettings* Settings = Context->GetInputSettings<UPCGCreateSplineSettings>();
-	return Settings && Settings->Mode == EPCGCreateSplineMode::CreateNewActor;
-}
-
 bool FPCGCreateSplineElement::IsCacheable(const UPCGSettings* InSettings) const
 {
 	const UPCGCreateSplineSettings* Settings = Cast<const UPCGCreateSplineSettings>(InSettings);
@@ -73,15 +58,6 @@ bool FPCGCreateSplineElement::ExecuteInternal(FPCGContext* Context) const
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	EPCGCreateSplineMode Mode = Settings->Mode;
-
-	if (Mode == EPCGCreateSplineMode::CreateNewActor)
-	{
-		const bool bHasAuthority = !Context->SourceComponent.IsValid() || (Context->SourceComponent->GetOwner() && Context->SourceComponent->GetOwner()->HasAuthority());
-		if (!bHasAuthority)
-		{
-			Mode = EPCGCreateSplineMode::CreateDataOnly;
-		}
-	}
 
 	for (const FPCGTaggedData& Input : Inputs)
 	{
@@ -141,36 +117,6 @@ bool FPCGCreateSplineElement::ExecuteInternal(FPCGContext* Context) const
 
 		UPCGSplineData* SplineData = NewObject<UPCGSplineData>();
 		AActor* SplineActor = TargetActor;
-
-		if (Settings->Mode == EPCGCreateSplineMode::CreateDataOnly)
-		{
-			// Nothing
-		}
-		else if(Settings->Mode == EPCGCreateSplineMode::CreateNewActor)
-		{
-			// TODO: check ownership of target actor like in the spawn actor?
-			// TODO: allow template?
-			FActorSpawnParameters ActorSpawnParams;
-			SplineActor = UPCGActorHelpers::SpawnDefaultActor(TargetActor->GetWorld(), TargetActor->GetLevel(), AActor::StaticClass(), TargetActor->GetTransform(), ActorSpawnParams);
-
-			if (!SplineActor)
-			{
-				PCGE_LOG(Error, GraphAndLog, LOCTEXT("FailedToCreateActor", "Failed to create actor to hold the spline"));
-				continue;
-			}
-
-			UPCGManagedActors* ManagedActors = NewObject<UPCGManagedActors>(Context->SourceComponent.Get());
-
-			FTransform Transform = TargetActor->GetTransform();
-
-			SplineActor->Tags = TargetActor->Tags;
-			SplineActor->Tags.AddUnique(PCGHelpers::DefaultPCGActorTag);
-			PCGHelpers::AttachToParent(SplineActor, TargetActor, Settings->AttachOptions);
-			SplineData->TargetActor = SplineActor;
-
-			ManagedActors->GeneratedActors.Add(SplineActor);
-			Context->SourceComponent->AddToManagedResources(ManagedActors);
-		}
 
 		const TArray<FPCGPoint>& Points = PointData->GetPoints();
 		TArray<FSplinePoint> SplinePoints;

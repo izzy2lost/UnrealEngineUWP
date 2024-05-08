@@ -7,6 +7,7 @@
 #include "Helpers/PCGHelpers.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SplineMeshComponent.h"
 #include "Engine/Level.h"
 #include "UObject/Package.h"
 #include "Utils/PCGGeneratedResourcesLogging.h"
@@ -661,6 +662,37 @@ UInstancedStaticMeshComponent* UPCGManagedISMComponent::GetComponent() const
 }
 
 void UPCGManagedISMComponent::SetComponent(UInstancedStaticMeshComponent* InComponent)
+{
+	GeneratedComponent = InComponent;
+	CachedRawComponentPtr = InComponent;
+}
+
+void UPCGManagedSplineMeshComponent::ForgetComponent()
+{
+	Super::ForgetComponent();
+	CachedRawComponentPtr = nullptr;
+}
+
+USplineMeshComponent* UPCGManagedSplineMeshComponent::GetComponent() const
+{
+	if (!CachedRawComponentPtr)
+	{
+		USplineMeshComponent* GeneratedComponentPtr = Cast<USplineMeshComponent>(GeneratedComponent.Get());
+
+		// Implementation note:
+		// There is no surefire way to make sure that we can use the raw pointer UNLESS it is from the same owner
+		if (GeneratedComponentPtr && Cast<UPCGComponent>(GetOuter()) && GeneratedComponentPtr->GetOwner() == Cast<UPCGComponent>(GetOuter())->GetOwner())
+		{
+			CachedRawComponentPtr = GeneratedComponentPtr;
+		}
+
+		return GeneratedComponentPtr;
+	}
+
+	return CachedRawComponentPtr;
+}
+
+void UPCGManagedSplineMeshComponent::SetComponent(USplineMeshComponent* InComponent)
 {
 	GeneratedComponent = InComponent;
 	CachedRawComponentPtr = InComponent;
