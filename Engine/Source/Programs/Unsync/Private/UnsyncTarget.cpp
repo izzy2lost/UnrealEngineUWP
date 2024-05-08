@@ -9,6 +9,7 @@
 #include "UnsyncProxy.h"
 #include "UnsyncScavenger.h"
 #include "UnsyncThread.h"
+#include "UnsyncScheduler.h"
 
 namespace unsync {
 
@@ -85,7 +86,7 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 
 		for (FDownloadBatch Batch : Batches)
 		{
-			ProxyPool.ParallelDownloadSemaphore.Acquire();
+			GScheduler.DownloadSempahore.Acquire();
 			DownloadTasks.run(
 				[NeedBlocks,
 				 Batch,
@@ -100,7 +101,7 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 				{
 					if (bGotError)
 					{
-						ProxyPool.ParallelDownloadSemaphore.Release();
+						GScheduler.DownloadSempahore.Release();
 						return;
 					}
 
@@ -136,7 +137,7 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 							ProxyPool.Invalidate();
 						}
 					}
-					ProxyPool.ParallelDownloadSemaphore.Release();
+					GScheduler.DownloadSempahore.Release();
 				});
 		}
 
@@ -195,7 +196,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 	};
 	FStats Stats;
 
-	FSemaphore WriteSemaphore(MAX_ACTIVE_READERS);	// throttle writing tasks to avoid memory bloat
 	FTaskGroup WriteTasks;
 
 	// Remember if parent thread has verbose logging and indentation
@@ -233,7 +233,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 	}
 
 	auto ProcessNeedList =
-		[bAllowVerboseLog, LogIndent, &Output, &Error, &WriteSemaphore, &WriteTasks, &bWaitingForBaseData, &Stats, &Params, SizeInfo](
+		[bAllowVerboseLog, LogIndent, &Output, &Error, &WriteTasks, &bWaitingForBaseData, &Stats, &Params, SizeInfo](
 			FIOReader&					   DataProvider,
 			const std::vector<FNeedBlock>& NeedBlocks,
 			uint64						   TotalCopySize,
@@ -326,14 +326,14 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 
 			uint64 ReadBytes = 0;
 
-			auto ReadCallback = [&ReadBytes, &Output, &WriteTasks, &Error, &WriteSemaphore, &Stats, Block, ListType](FIOBuffer CmdBuffer,
+			auto ReadCallback = [&ReadBytes, &Output, &WriteTasks, &Error, &Stats, Block, ListType](FIOBuffer CmdBuffer,
 																													 uint64	   CmdOffset,
 																													 uint64	   CmdReadSize,
 																													 uint64	   CmdUserData)
 			{
-				WriteSemaphore.Acquire();
+				GScheduler.FilesystemSemaphore.Acquire();
 				WriteTasks.run(
-					[Buffer = MakeShared(std::move(CmdBuffer)), CmdReadSize, Block, &Output, &Error, &WriteSemaphore, &Stats, ListType]()
+					[Buffer = MakeShared(std::move(CmdBuffer)), CmdReadSize, Block, &Output, &Error, &Stats, ListType]()
 					{
 						const uint64 WrittenBytes = Output.Write(Buffer->GetData(), Block.TargetOffset, CmdReadSize);
 
@@ -350,7 +350,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 							UNSYNC_FATAL(L"Unexpected block list type");
 						}
 
-						WriteSemaphore.Release();
+						GScheduler.FilesystemSemaphore.Release();
 
 						if (WrittenBytes != CmdReadSize)
 						{

@@ -135,8 +135,6 @@ private:
 	std::atomic<bool>		bShutdown;
 };
 
-extern FThreadPool GThreadPool;
-
 #if UNSYNC_USE_CONCRT
 
 // Cooperative semaphore implementation.

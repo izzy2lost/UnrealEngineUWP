@@ -7,6 +7,7 @@
 #include "UnsyncPool.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
+#include "UnsyncScheduler.h"
 
 #include <fmt/format.h>
 #if __has_include(<fmt/xchar.h>)
@@ -323,8 +324,6 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 		ConnectionPool.Release(std::move(Connection));
 	}
 
-	FSemaphore ManifestUploadSemaphore(2);	// up to 2 concurrent connections
-
 	FTaskGroup ManifestUploadTasks;
 
 	struct ManifestPutTask
@@ -335,7 +334,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 
 	for (uint64 ManifestChunkIndex = 0; ManifestChunkIndex < ChunkedRefManifestCb.size(); ++ManifestChunkIndex)
 	{
-		ManifestUploadSemaphore.Acquire();	// must be acquired before task is spawned
+		GScheduler.UploadSempahore.Acquire();	 // must be acquired before task is spawned
 
 		ManifestPutTask&	 Context	   = TaskContexts[ManifestChunkIndex];
 		const FMiniCbWriter& RefManifestCb = ChunkedRefManifestCb[ManifestChunkIndex];
@@ -354,8 +353,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 						&RefManifestCb,
 						&ConnectionPool,
 						&Result,
-						&ResultMutex,
-						&ManifestUploadSemaphore]() {
+						&ResultMutex]() {
 			std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
 			FHash160	RefManifestHash	 = HashBlake3Bytes<FHash160>(RefManifestCb.Data(), RefManifestCb.Size());
@@ -388,7 +386,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 			}
 
 			ConnectionPool.Release(std::move(Connection));
-			ManifestUploadSemaphore.Release();
+			GScheduler.UploadSempahore.Release();
 
 			if (Response.Success())
 			{

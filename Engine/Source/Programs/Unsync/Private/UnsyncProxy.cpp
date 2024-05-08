@@ -7,6 +7,7 @@
 #include "UnsyncJupiter.h"
 #include "UnsyncPool.h"
 #include "UnsyncProgress.h"
+#include "UnsyncScheduler.h"
 
 #include <fmt/format.h>
 #include <atomic>
@@ -689,7 +690,6 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 	}
 
 	FAtomicError Error;
-	FSemaphore	 DownloadSempahore(8);	// limit concurrent connections
 
 	FLogProgressScope DownloadProgress(FileSize, ELogProgressUnits::MB);
 
@@ -706,7 +706,7 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 	}
 
 	auto ProcessChunk =
-		[&Error, &Result, &Url, &ConnectionPool, &DownloadSempahore, &DownloadProgress, &BearerToken](
+		[&Error, &Result, &Url, &ConnectionPool, &DownloadProgress, &BearerToken](
 			const FRange& Range)
 	{
 		FLogIndentScope	   IndentScope(DownloadProgress.ParentThreadIndent, true);
@@ -717,7 +717,7 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 			return;
 		}
 
-		DownloadSempahore.Acquire();
+		GScheduler.DownloadSempahore.Acquire();
 
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
@@ -747,7 +747,7 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 
 		ConnectionPool.Release(std::move(Connection));
 
-		DownloadSempahore.Release();
+		GScheduler.DownloadSempahore.Release();
 	};
 
 	ParallelForEach(Chunks, ProcessChunk);
@@ -949,8 +949,7 @@ FProxyPool::FProxyPool() : FProxyPool(FRemoteDesc(), nullptr)
 }
 
 FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthDesc)
-: ParallelDownloadSemaphore(InRemoteDesc.MaxConnections)
-, RemoteDesc(InRemoteDesc)
+: RemoteDesc(InRemoteDesc)
 , AuthDesc(InAuthDesc)
 , bValid(InRemoteDesc.IsValid())
 {

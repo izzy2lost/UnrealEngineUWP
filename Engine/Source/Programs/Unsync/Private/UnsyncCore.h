@@ -22,8 +22,6 @@ namespace unsync {
 
 extern bool GDryRun;
 
-static constexpr uint32 MAX_ACTIVE_READERS = 64;
-
 class FProxy;
 class FProxyPool;
 class FBlockCache;

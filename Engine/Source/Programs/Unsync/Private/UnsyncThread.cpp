@@ -9,8 +9,6 @@ namespace unsync {
 
 uint32 GMaxThreads = std::min<uint32>(UNSYNC_MAX_TOTAL_THREADS, std::thread::hardware_concurrency());
 
-FThreadPool GThreadPool;
-
 void
 FThreadPool::StartWorkers(uint32 NumWorkers)
 {

@@ -90,6 +90,8 @@ set(src
 	Private/UnsyncScan.h
 	Private/UnsyncScavenger.cpp
 	Private/UnsyncScavenger.h
+	Private/UnsyncScheduler.cpp
+	Private/UnsyncScheduler.h
 	Private/UnsyncSerialization.cpp
 	Private/UnsyncSerialization.h
 	Private/UnsyncSocket.cpp

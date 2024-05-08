@@ -15,6 +15,7 @@
 #include "UnsyncUtil.h"
 #include "UnsyncTarget.h"
 #include "UnsyncHttp.h"
+#include "UnsyncScheduler.h"
 
 #include <condition_variable>
 #include <filesystem>
@@ -62,7 +63,6 @@ BlockingReadLarge(FIOReader& Reader, uint64 Offset, uint64 Size, uint8* OutputBu
 	}
 
 	FTaskGroup CopyTasks;
-	FSemaphore IoSemaphore(MAX_ACTIVE_READERS);
 
 	uint64 NumReads = DivUp(ClampedSize, BytesPerRead);
 	for (uint64 ReadIndex = 0; ReadIndex < NumReads; ++ReadIndex)
@@ -71,19 +71,19 @@ BlockingReadLarge(FIOReader& Reader, uint64 Offset, uint64 Size, uint8* OutputBu
 		const uint64 OutputOffset	= BytesPerRead * ReadIndex;
 		const uint64 ThisReadOffset = Offset + OutputOffset;
 
-		IoSemaphore.Acquire();
+		GScheduler.FilesystemSemaphore.Acquire();
 
-		auto ReadCallback = [OutputBuffer, OutputBufferSize, &TotalReadSize, &CopyTasks, &IoSemaphore](FIOBuffer CmdBuffer,
+		auto ReadCallback = [OutputBuffer, OutputBufferSize, &TotalReadSize, &CopyTasks](FIOBuffer CmdBuffer,
 																									   uint64	 CmdSourceOffset,
 																									   uint64	 CmdReadSize,
 																									   uint64	 OutputOffset) {
 			UNSYNC_ASSERT(OutputOffset + CmdReadSize <= OutputBufferSize);
 
 			CopyTasks.run(
-				[OutputBuffer, OutputOffset, CmdReadSize, CmdBuffer = MakeShared(std::move(CmdBuffer)), &TotalReadSize, &IoSemaphore]() {
+				[OutputBuffer, OutputOffset, CmdReadSize, CmdBuffer = MakeShared(std::move(CmdBuffer)), &TotalReadSize]() {
 					memcpy(OutputBuffer + OutputOffset, CmdBuffer->GetData(), CmdReadSize);
 					TotalReadSize += CmdReadSize;
-					IoSemaphore.Release();
+					GScheduler.FilesystemSemaphore.Release();
 				});
 		};
 
@@ -151,15 +151,13 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 	std::vector<FTask> Tasks;
 	Tasks.resize(NumTasks);
 
-	FSemaphore IoSemaphore(MAX_ACTIVE_READERS);
-
 	FTaskGroup TaskGroup;
 
 	FBufferPool BufferPool(BytesPerTask);
 
 	for (uint64 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
 	{
-		IoSemaphore.Acquire();
+		GScheduler.FilesystemSemaphore.Acquire();
 
 		const uint64 ThisTaskOffset = BytesPerTask * TaskIndex;
 		const uint64 ThisTaskSize	= CalcChunkSize(TaskIndex, BytesPerTask, InputSize);
@@ -177,7 +175,6 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 		}
 
 		auto ScanTask = [&Tasks,
-						 &IoSemaphore,
 						 &BufferPool,
 						 &Params,
 						 MinimumBlockSize,
@@ -290,7 +287,7 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 			HashScan<WeakHasher>(DataBegin, ThisTaskSize, MinimumBlockSize, ScanFn);
 
 			BufferPool.Release(ScanTaskBuffer);
-			IoSemaphore.Release();
+			GScheduler.FilesystemSemaphore.Release();
 		};
 
 		TaskGroup.run(ScanTask);
@@ -467,7 +464,6 @@ ComputeBlocksFixedT(FIOReader& Reader, const FComputeBlocksParams& Params)
 	std::atomic<uint64> NumBlocksCompleted = {};
 
 	{
-		FSemaphore IoSemaphore(MAX_ACTIVE_READERS);
 		FTaskGroup TaskGroup;
 
 		for (uint64 I = 0; I < NumReads; ++I)
@@ -475,9 +471,9 @@ ComputeBlocksFixedT(FIOReader& Reader, const FComputeBlocksParams& Params)
 			uint64 ThisReadSize = CalcChunkSize(I, ReadSize, Reader.GetSize());
 			uint64 Offset		= I * ReadSize;
 
-			IoSemaphore.Acquire();
+			GScheduler.FilesystemSemaphore.Acquire();
 
-			auto ReadCallback = [&NumReadsCompleted, &TaskGroup, &NumBlocksCompleted, &Blocks, &IoSemaphore, &Params, BlockSize](
+			auto ReadCallback = [&NumReadsCompleted, &TaskGroup, &NumBlocksCompleted, &Blocks, &Params, BlockSize](
 									FIOBuffer CmdBuffer,
 									uint64	  CmdOffset,
 									uint64	  CmdReadSize,
@@ -487,7 +483,6 @@ ComputeBlocksFixedT(FIOReader& Reader, const FComputeBlocksParams& Params)
 				TaskGroup.run([&NumReadsCompleted,
 							   &NumBlocksCompleted,
 							   &Blocks,
-							   &IoSemaphore,
 							   &Params,
 							   BlockSize,
 							   CmdBuffer  = MakeShared(std::move(CmdBuffer)),
@@ -521,7 +516,7 @@ ComputeBlocksFixedT(FIOReader& Reader, const FComputeBlocksParams& Params)
 
 					++NumReadsCompleted;
 
-					IoSemaphore.Release();
+					GScheduler.FilesystemSemaphore.Release();
 				});
 			};
 
@@ -814,7 +809,6 @@ DiffBlocksParallelT(FIOReader&				  BaseDataReader,
 	const uint64	   NumTasks = DivUp(BaseDataSize, BytesPerTask);
 	Tasks.resize(NumTasks);
 
-	FSemaphore IoSemaphore(MAX_ACTIVE_READERS);
 	FTaskGroup TaskGroup;
 
 	for (uint64 I = 0; I < NumTasks; ++I)
@@ -826,10 +820,10 @@ DiffBlocksParallelT(FIOReader&				  BaseDataReader,
 		Task.Offset = TaskBegin;
 		Task.Size	= TaskEnd - TaskBegin;
 
-		IoSemaphore.Acquire();
+		GScheduler.FilesystemSemaphore.Acquire();
 
 		auto ReadCallback =
-			[&SourceStrongHashSet, &SourceWeakHashSet, &Tasks, &TaskGroup, &IoSemaphore, BaseDataSize, StrongHasher, BlockSize](
+			[&SourceStrongHashSet, &SourceWeakHashSet, &Tasks, &TaskGroup, BaseDataSize, StrongHasher, BlockSize](
 				FIOBuffer CmdBuffer,
 				uint64	  CmdOffset,
 				uint64	  CmdReadSize,
@@ -837,7 +831,6 @@ DiffBlocksParallelT(FIOReader&				  BaseDataReader,
 				TaskGroup.run([&SourceStrongHashSet,
 							   &SourceWeakHashSet,
 							   &Tasks,
-							   &IoSemaphore,
 							   CmdBuffer = std::make_shared<FIOBuffer>(std::move(CmdBuffer)),
 							   CmdReadSize,
 							   CmdUserData,
@@ -904,7 +897,7 @@ DiffBlocksParallelT(FIOReader&				  BaseDataReader,
 
 					HashScan<WeakHasher>(TaskBuffer, Task.Size, BlockSize, ScanFn);
 
-					IoSemaphore.Release();
+					GScheduler.FilesystemSemaphore.Release();
 				});
 			};
 
@@ -1135,8 +1128,6 @@ ValidateTarget(FIOReader& Reader, const FNeedList& NeedList, EStrongHashAlgorith
 		return A.Offset < B.Offset;
 	});
 
-	FSemaphore IoSemaphore(MAX_ACTIVE_READERS);
-
 	const uint64		TotalStreamBytes = Reader.GetSize();
 	std::atomic<uint64> NumInvalidBlocks = {};
 	FTaskGroup			TaskGroup;
@@ -1176,7 +1167,7 @@ ValidateTarget(FIOReader& Reader, const FNeedList& NeedList, EStrongHashAlgorith
 
 		UNSYNC_ASSERT(BatchSizeBytes <= MaxBatchSizeBytes || BatchBegin == BlockIndex);
 
-		IoSemaphore.Acquire();
+		GScheduler.FilesystemSemaphore.Acquire();
 
 		const uint64 ReadOffset = ValidationBlocks[BatchBegin].Offset;
 		UNSYNC_ASSERT(BlockIndex + 1 == ValidationBlocks.size() ||
@@ -1190,7 +1181,6 @@ ValidateTarget(FIOReader& Reader, const FNeedList& NeedList, EStrongHashAlgorith
 							 BatchSizeBytes,
 							 &NumInvalidBlocks,
 							 &TaskGroup,
-							 &IoSemaphore,
 							 &ValidationProgressLogger,
 							 &ValidationBlocks](FIOBuffer CmdBuffer, uint64 CmdSourceOffset, uint64 CmdReadSize, uint64 CmdUserData) {
 			if (CmdReadSize != BatchSizeBytes)
@@ -1207,7 +1197,6 @@ ValidateTarget(FIOReader& Reader, const FNeedList& NeedList, EStrongHashAlgorith
 						   bLogVerbose,
 						   LogIndent,
 						   &NumInvalidBlocks,
-						   &IoSemaphore,
 						   &ValidationProgressLogger,
 						   &ValidationBlocks]() {
 				FLogIndentScope	   IndentScope(LogIndent, true);
@@ -1229,7 +1218,7 @@ ValidateTarget(FIOReader& Reader, const FNeedList& NeedList, EStrongHashAlgorith
 					ValidationProgressLogger.Add(Block.Size);
 				}
 
-				IoSemaphore.Release();
+				GScheduler.FilesystemSemaphore.Release();
 			});
 		};
 
@@ -2092,7 +2081,7 @@ struct FFileSyncTaskBatch
 
 		Result->BlockMap.reserve(UniqueNeedBlocks.size());
 
-		ProxyPool.ParallelDownloadSemaphore.Acquire();
+		GScheduler.DownloadSempahore.Acquire();
 		std::unique_ptr<FProxy> Proxy = ProxyPool.Alloc();
 
 		if (Proxy)
@@ -2138,7 +2127,7 @@ struct FFileSyncTaskBatch
 			UNSYNC_UNUSED(DownloadResult);
 		}
 
-		ProxyPool.ParallelDownloadSemaphore.Release();
+		GScheduler.DownloadSempahore.Release();
 
 		return Result;
 	}

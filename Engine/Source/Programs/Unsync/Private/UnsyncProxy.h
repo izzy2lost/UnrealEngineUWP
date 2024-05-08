@@ -166,8 +166,6 @@ public:
 	void Invalidate();
 	bool IsValid() const;
 
-	FSemaphore ParallelDownloadSemaphore;
-
 	const FRemoteDesc RemoteDesc;
 	const FAuthDesc* AuthDesc = nullptr; // optional reference to externally-owned auth parameters
 
