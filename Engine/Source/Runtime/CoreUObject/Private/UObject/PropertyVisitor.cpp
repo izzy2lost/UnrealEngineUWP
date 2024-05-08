@@ -4,6 +4,7 @@
 #include "Containers/UnrealString.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealType.h"
+#include "Serialization/ArchiveSerializedPropertyChain.h"
 
 FString FPropertyVisitorPath::ToString(const TCHAR* Separator /*= TEXT(".")*/) const
 {
@@ -134,4 +135,14 @@ void* FPropertyVisitorPath::GetPropertyDataPtr(UObject* Object) const
 	});
 
 	return DataPtr;
+}
+
+FArchiveSerializedPropertyChain FPropertyVisitorPath::ToSerializedPropertyChain() const
+{
+	FArchiveSerializedPropertyChain Chain;
+	for (const FPropertyVisitorInfo& Info : Path)
+	{
+		Chain.PushProperty(const_cast<FProperty*>(Info.Property), Info.Property->IsEditorOnlyProperty());
+	}
+	return Chain;
 }
