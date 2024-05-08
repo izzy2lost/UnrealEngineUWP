@@ -160,10 +160,11 @@ public:
 	* 
 	* @param NodeToRemove		The node to remove from this graph
 	* @param bBreakAllLinks		If true, all links will be broken on the given node. Editor only. Useful for moving nodes to a different graph.
+	* @param bAlwaysMarkDirty	(Optional) If true, marks graph as dirtied upon removal.
 	* 
 	* @return True if the node has been removed from the graph
 	*/
-	ENGINE_API bool RemoveNode( UEdGraphNode* NodeToRemove, bool bBreakAllLinks = true, bool bMarkDirty = true );
+	ENGINE_API bool RemoveNode( UEdGraphNode* NodeToRemove, bool bBreakAllLinks = true, bool bAlwaysMarkDirty = true );
 
 	/** Signal to listeners that the graph has changed - prefer to use NotifyNodeChanged when updating a single node */
 	ENGINE_API virtual void NotifyGraphChanged();

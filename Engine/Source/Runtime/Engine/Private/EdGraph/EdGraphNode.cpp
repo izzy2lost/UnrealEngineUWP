@@ -431,7 +431,7 @@ bool UEdGraphNode::RemovePin(UEdGraphPin* Pin)
 	return false;
 }
 
-void UEdGraphNode::BreakAllNodeLinks()
+void UEdGraphNode::BreakAllNodeLinks(bool bAlwaysMarkDirty)
 {
 	TSet<UEdGraphNode*> NodeList;
 
@@ -451,7 +451,8 @@ void UEdGraphNode::BreakAllNodeLinks()
 				}
 			}
 
-			Pin->BreakAllPinLinks();
+			constexpr bool bNotifyNodes = false;
+			Pin->BreakAllPinLinks(bNotifyNodes, bAlwaysMarkDirty);
 		}
 	}
 

@@ -257,15 +257,15 @@ void UEdGraph::SelectNodeSet(TSet<const UEdGraphNode*> NodeSelection, bool bFrom
 	NotifyGraphChanged(SelectionAction);
 }
 
-bool UEdGraph::RemoveNode( UEdGraphNode* NodeToRemove, bool bBreakAllLinks, bool bMarkDirty )
+bool UEdGraph::RemoveNode( UEdGraphNode* NodeToRemove, bool bBreakAllLinks, bool bAlwaysMarkDirty )
 {
-	Modify(bMarkDirty);
+	Modify(bAlwaysMarkDirty);
 
 	int32 NumTimesNodeRemoved = Nodes.Remove(NodeToRemove);
 #if WITH_EDITOR
 	if (bBreakAllLinks)
 	{
-		NodeToRemove->BreakAllNodeLinks();
+		NodeToRemove->BreakAllNodeLinks(bAlwaysMarkDirty);
 	}
 #endif	//#if WITH_EDITOR
 
