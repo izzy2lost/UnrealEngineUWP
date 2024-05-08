@@ -78,7 +78,7 @@ UMaterialInstanceDynamic* UMaterialInstanceDynamic::Create(UMaterialInterface* P
 
 	if (Name == NAME_None && ParentMaterial)
 	{
-		Name = FName(FString("MID_") + ParentMaterial->GetName());
+		Name = MakeUniqueObjectName(InOuter, UMaterialInstanceDynamic::StaticClass(), FName(FString("MID_") + ParentMaterial->GetName()));
 	}
 
 	if (Name != NAME_None)
