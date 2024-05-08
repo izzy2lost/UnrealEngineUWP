@@ -12,8 +12,6 @@
 #include "Misc/AES.h"
 #include "Misc/EnumClassFlags.h"
 
-#include <atomic>
-
 namespace UE::IoStore
 {
 
@@ -150,8 +148,8 @@ private:
 	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags);
 	void					TryEnterTickLoop();
 	void					TickLoop();
-	void					Tick();
-	FIoStatus				ProcessMountRequest(FMountRequest& MountRequest);
+	bool					Tick();
+	FIoStatus				TickMountRequest(FMountRequest& MountRequest);
 	void					ConditionallyStartTicking();
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
 	static void				CreateContainersFromToc(
@@ -174,7 +172,8 @@ private:
 	FMountRequestMap					MountRequests;
 	UE::FMutex							MountRequestMutex;
 
-	std::atomic_bool					bTicking{false};
+	bool								bTicking = false;
+	bool								bTickRequested = false;
 	TFuture<void>						TickFuture;
 };
 

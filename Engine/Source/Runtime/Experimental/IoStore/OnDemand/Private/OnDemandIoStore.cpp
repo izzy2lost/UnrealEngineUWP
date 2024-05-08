@@ -374,17 +374,29 @@ FOnDemandChunkInfo FOnDemandIoStore::GetChunkInfo(const FIoChunkId& ChunkId, EOn
 
 void FOnDemandIoStore::TryEnterTickLoop()
 {
-	bool bExpected = false;
-	if (bTicking.compare_exchange_strong(bExpected, true))
+	bool bEnterTickLoop = false;
 	{
-		if (FPlatformProcess::SupportsMultithreading() && GIOThreadPool != nullptr)
+		UE::TUniqueLock Lock(MountRequestMutex);
+		bTickRequested = true;
+		if (bTicking == false)
 		{
-			TickFuture = AsyncPool(*GIOThreadPool, [this] { TickLoop(); }, nullptr, EQueuedWorkPriority::Low);
+			bTicking = bEnterTickLoop = true;
 		}
-		else
-		{
-			TickLoop();
-		}
+	}
+
+	if (bEnterTickLoop == false)
+	{
+		UE_LOG(LogIoStoreOnDemand, Verbose, TEXT("I/O store already ticking"));
+		return;
+	}
+
+	if (FPlatformProcess::SupportsMultithreading() && GIOThreadPool != nullptr)
+	{
+		TickFuture = AsyncPool(*GIOThreadPool, [this] { TickLoop(); }, nullptr, EQueuedWorkPriority::Low);
+	}
+	else
+	{
+		TickLoop();
 	}
 }
 
@@ -395,20 +407,21 @@ void FOnDemandIoStore::TickLoop()
 	UE_LOG(LogIoStoreOnDemand, Verbose, TEXT("Entering I/O store tick loop"));
 	for (;;)
 	{
+		const bool bTicked = Tick();
+		if (bTicked == false)
 		{
 			UE::TUniqueLock Lock(MountRequestMutex);
-			if (MountRequests.IsEmpty())
+			if (bTickRequested == false)
 			{
 				bTicking = false;
 				break;
 			}
+			bTickRequested = false;
 		}
-
-		Tick();
 	}
 }
 
-void FOnDemandIoStore::Tick()
+bool FOnDemandIoStore::Tick()
 {
 	TArray<FSharedMountRequest> Requests;
 	{
@@ -421,12 +434,12 @@ void FOnDemandIoStore::Tick()
 
 	if (Requests.IsEmpty())
 	{
-		return;
+		return false;
 	}
 
 	for (FSharedMountRequest& Request : Requests)
 	{
-		FIoStatus Status = ProcessMountRequest(*Request);
+		FIoStatus Status = TickMountRequest(*Request);
 
 		{
 			UE::TUniqueLock Lock(MountRequestMutex);
@@ -490,11 +503,13 @@ void FOnDemandIoStore::Tick()
 		FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
 		OnCompleted(MountStatus);
 	}
+
+	return true;
 }
 
-FIoStatus FOnDemandIoStore::ProcessMountRequest(FMountRequest& MountRequest)
+FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 {
-	UE_LOG(LogIoStoreOnDemand, Verbose, TEXT("Processing mount request, MountId='%s'"), *MountRequest.MountArgs.MountId);
+	UE_LOG(LogIoStoreOnDemand, Verbose, TEXT("Ticking mount request, MountId='%s'"), *MountRequest.MountArgs.MountId);
 
 	FOnDemandMountArgs& Args = MountRequest.MountArgs;
 	FStringView Host, TocRelUrl;
