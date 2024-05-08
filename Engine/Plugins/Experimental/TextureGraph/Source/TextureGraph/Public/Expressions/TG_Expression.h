@@ -52,7 +52,7 @@ public:
 	virtual FTG_Name GetDefaultName() const;
 	virtual FName GetCategory() const { return TG_Category::Default; }
 	virtual FTG_SignaturePtr GetSignature() const { return nullptr; }
-	virtual FText GetTooltipText() const { return FText::FromString(TEXT("Texture Scripting Node")); } 
+	virtual FText GetTooltipText() const { return FText::FromString(TEXT("Texture Graph Node")); } 
 
 	virtual void SetTitleName(FName NewName) {}
 	virtual FName GetTitleName() const { return GetDefaultName(); }

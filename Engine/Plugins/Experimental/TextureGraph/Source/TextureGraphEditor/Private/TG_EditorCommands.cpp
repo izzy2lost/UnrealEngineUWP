@@ -11,7 +11,7 @@
 FTG_EditorCommands::FTG_EditorCommands()
 	: TCommands<FTG_EditorCommands>(
 		"TG_Editor",
-		NSLOCTEXT("Contexts", "TG_Editor", "Texture Scripting Editor"),
+		NSLOCTEXT("Contexts", "TG_Editor", "Texture Graph Editor"),
 		NAME_None,
 
 		FTG_Style::Get().GetStyleSetName())

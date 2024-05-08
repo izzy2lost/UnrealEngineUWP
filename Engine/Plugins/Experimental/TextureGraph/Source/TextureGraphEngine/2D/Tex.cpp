@@ -261,7 +261,12 @@ void Tex::FreeRT(UTextureRenderTarget2D** RT)
 void Tex::Free()
 {
 	check(IsInGameThread());
-	/// IMPORTANT: Do not free the _image in this function
+
+#if WITH_EDITOR
+	/// Make it insensitive to the order of mixer engine destruction
+	if (TextureGraphEngine::IsDestroying())
+		return;
+#endif 
 	FreeTexture(ToRawPtr(MutableView(Texture)));
 	FreeRT(ToRawPtr(MutableView(RT)));
 }

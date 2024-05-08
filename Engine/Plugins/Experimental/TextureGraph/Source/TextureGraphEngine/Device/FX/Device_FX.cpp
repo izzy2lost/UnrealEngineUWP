@@ -113,10 +113,10 @@ void Device_FX::FreeCacheInternal(RenderTargetCache& TargetRTCache)
 
 void Device_FX::FreeRTList(RTList& RTList)
 {
-	for (UTextureRenderTarget2D* RT : RTList)
-	{
-		check(RT);
-	}
+	//for (UTextureRenderTarget2D* RT : RTList)
+	//{
+	//	check(RT);
+	//}
 
 	RTList.clear();
 }

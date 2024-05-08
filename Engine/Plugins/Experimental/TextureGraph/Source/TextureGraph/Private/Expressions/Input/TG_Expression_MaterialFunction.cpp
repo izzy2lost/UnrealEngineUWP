@@ -272,7 +272,7 @@ UMaterialInterface* UTG_Expression_MaterialFunction::CreateMaterialReference()
 	MaterialFunction->GetInputsAndOutputs(FunctionInputs, FunctionOutputs);
 	UE_LOG(LogTextureGraph, Log, TEXT("Function <%s>\n"), *MaterialFunction->GetName());
 
-	// For all the inputs of the function, create a matching material parameter that can be exposed as an input pin of the texture script 
+	// For all the inputs of the function, create a matching material parameter that can be exposed as an input pin of the texture graph 
 	for (int i = 0; i < FunctionInputs.Num(); ++i)
 	{
 		bool SupportedInput = true;

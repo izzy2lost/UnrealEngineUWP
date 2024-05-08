@@ -27,7 +27,7 @@ public:
 	UPROPERTY(meta = (TGType = "TG_Input"))
 	FTG_Texture Input;
 
-	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Applies a blur filter with a given strength.")); }
+	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Detects edges (areas of sharp color change) from the input.")); }
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
 };
 

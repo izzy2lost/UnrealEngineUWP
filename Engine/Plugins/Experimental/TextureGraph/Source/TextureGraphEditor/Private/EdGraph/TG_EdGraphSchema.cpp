@@ -472,7 +472,7 @@ void UTG_EdGraphSchema::GetAssetsGraphHoverMessage(const TArray<FAssetData>& Ass
 		{
 			OutOkIcon = true;
 		}
-		else if(UTextureGraph* TextureScript = Cast<UTextureGraph>(Asset); TextureScript != nullptr)
+		else if(UTextureGraph* TextureGraph = Cast<UTextureGraph>(Asset); TextureGraph != nullptr)
 		{
 			OutOkIcon = true;
 		}
