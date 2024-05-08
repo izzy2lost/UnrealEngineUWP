@@ -180,7 +180,11 @@ namespace uba
 			return dirTableOffset;
 
 		const tchar* lastPathSeparator = TStrrchr(entryName, PathSeparator);
-		UBA_ASSERTF(lastPathSeparator, TC("No path separator found in %s"), TStrlen(entryName) > 0 ? entryName : TC("(NULL)"));
+		if (!lastPathSeparator)
+		{
+			UBA_ASSERTF(lastPathSeparator, TC("No path separator found in %s"), TStrlen(entryName) > 0 ? entryName : TC("(NULL)"));
+			return ~u32(0);
+		}
 
 		#if PLATFORM_WINDOWS
 		UBA_ASSERT(wcsncmp(entryName, g_systemTemp.data, g_systemTemp.count) != 0);
