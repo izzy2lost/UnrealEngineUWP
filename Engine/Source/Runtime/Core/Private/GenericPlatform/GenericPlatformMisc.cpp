@@ -42,6 +42,7 @@
 #include "Internationalization/Culture.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Misc/CoreDelegates.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #if UE_ENABLE_ICU
 	THIRD_PARTY_INCLUDES_START
@@ -1725,6 +1726,7 @@ namespace GenericPlatformMisc
 	bool GEnsureSettingsEverUpdated = false;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 bool FGenericPlatformMisc::IsEnsureAllowed()
 {
 	// not all targets call FEngineLoop::Tick() or we might be here early

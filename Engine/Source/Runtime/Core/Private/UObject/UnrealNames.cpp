@@ -2015,9 +2015,15 @@ static FNamePool& GetNamePool()
 		return *(FNamePool*)NamePoolData;
 	}
 
-	FNamePool* Singleton = new (NamePoolData) FNamePool;
-	bNamePoolInitialized = true;
-	LLM(FLowLevelMemTracker::Get().FinishInitialise());
+	FNamePool* Singleton = nullptr;
+	
+	UE_AUTORTFM_OPEN(
+	{
+		Singleton = new (NamePoolData) FNamePool;
+		bNamePoolInitialized = true;
+		LLM(FLowLevelMemTracker::Get().FinishInitialise());
+	});
+	
 	return *Singleton;
 }
 

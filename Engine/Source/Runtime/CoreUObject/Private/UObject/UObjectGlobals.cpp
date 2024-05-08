@@ -2863,37 +2863,40 @@ FName MakeUniqueObjectName(UObject* Parent, const UClass* Class, FName InBaseNam
 			else
 			{
 				int32 NameNumber = 0;
-				if (Parent && (Parent != ANY_PACKAGE_DEPRECATED) && !(Options & EUniqueObjectNameOptions::GloballyUnique))
+				UE_AUTORTFM_OPEN(
 				{
-					if (!FPlatformProperties::HasEditorOnlyData() && GFastPathUniqueNameGeneration)
+					if (Parent && (Parent != ANY_PACKAGE_DEPRECATED) && !(Options & EUniqueObjectNameOptions::GloballyUnique))
 					{
-						/*   Fast Path Name Generation
-						* A significant fraction of object creation time goes into verifying that the a chosen unique name is really unique.
-						* The idea here is to generate unique names using very high numbers and only in situations where collisions are
-						* impossible for other reasons.
-						*
-						* Rationale for uniqueness as used here.
-						* - Consoles do not save objects in general, and certainly not animation trees. So we could never load an object that would later clash.
-						* - We assume that we never load or create any object with a "name number" as large as, say, MAX_int32 / 2, other than via
-						*   HACK_FastPathUniqueNameGeneration.
-						* - After using one of these large "name numbers", we decrement the static UniqueIndex, this no two names generated this way, during the
-						*   same run, could ever clash.
-						* - We assume that we could never create anywhere near MAX_int32/2 total objects at runtime, within a single run.
-						* - We require an outer for these items, thus outers must themselves be unique. Therefore items with unique names created on the fast path
-						*   could never clash with anything with a different outer. For animation trees, these outers are never saved or loaded, thus clashes are
-						*   impossible.
-						*/
-						NameNumber = --NameNumberUniqueIndex;
+						if (!FPlatformProperties::HasEditorOnlyData() && GFastPathUniqueNameGeneration)
+						{
+							/*   Fast Path Name Generation
+							* A significant fraction of object creation time goes into verifying that the a chosen unique name is really unique.
+							* The idea here is to generate unique names using very high numbers and only in situations where collisions are
+							* impossible for other reasons.
+							*
+							* Rationale for uniqueness as used here.
+							* - Consoles do not save objects in general, and certainly not animation trees. So we could never load an object that would later clash.
+							* - We assume that we never load or create any object with a "name number" as large as, say, MAX_int32 / 2, other than via
+							*   HACK_FastPathUniqueNameGeneration.
+							* - After using one of these large "name numbers", we decrement the static UniqueIndex, this no two names generated this way, during the
+							*   same run, could ever clash.
+							* - We assume that we could never create anywhere near MAX_int32/2 total objects at runtime, within a single run.
+							* - We require an outer for these items, thus outers must themselves be unique. Therefore items with unique names created on the fast path
+							*   could never clash with anything with a different outer. For animation trees, these outers are never saved or loaded, thus clashes are
+							*   impossible.
+							*/
+							NameNumber = --NameNumberUniqueIndex;
+						}
+						else
+						{
+							NameNumber = UpdateSuffixForNextNewObject(Parent, Class, [](int32& Index) { ++Index; });
+						}
 					}
 					else
 					{
-						NameNumber = UpdateSuffixForNextNewObject(Parent, Class, [](int32& Index) { ++Index; });
+						NameNumber = ++Class->ClassUnique;
 					}
-				}
-				else
-				{
-					NameNumber = ++Class->ClassUnique;
-				}
+				});
 				TestName = FName(BaseName, NameNumber);
 			}
 
@@ -3387,7 +3390,7 @@ static thread_local FRestoreForUObjectOverwrite* ObjectRestoreAfterInitProps = n
 extern const FName NAME_UniqueObjectNameForCooking(TEXT("UniqueObjectNameForCooking"));
 COREUOBJECT_API bool GOutputCookingWarnings = false;
 
-
+UE_AUTORTFM_ASSUME_SAFE
 UObject* StaticAllocateObject
 (
 	const UClass*	InClass,
@@ -3897,6 +3900,7 @@ FObjectInitializer::~FObjectInitializer()
 	}
 }
 
+UE_AUTORTFM_ASSUME_SAFE
 void FObjectInitializer::PostConstructInit()
 {
 	// we clear the Obj pointer at the end of this function, so if it is null 

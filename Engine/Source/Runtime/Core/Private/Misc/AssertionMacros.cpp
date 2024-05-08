@@ -728,11 +728,13 @@ FORCENOINLINE void UE_DEBUG_SECTION VARARGS LowLevelFatalErrorHandler(const ANSI
 	FDebug::ProcessFatalError(PLATFORM_RETURN_ADDRESS());
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void FDebug::DumpStackTraceToLog(const ELogVerbosity::Type LogVerbosity)
 {
 	DumpStackTraceToLog(TEXT("=== FDebug::DumpStackTrace(): ==="), LogVerbosity);
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 FORCENOINLINE void FDebug::DumpStackTraceToLog(const TCHAR* Heading, const ELogVerbosity::Type LogVerbosity)
 {
 #if !NO_LOGGING

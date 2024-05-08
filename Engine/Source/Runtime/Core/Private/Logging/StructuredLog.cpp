@@ -23,6 +23,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryValue.h"
 #include "Serialization/VarInt.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 void VARARGS StaticFailDebug (const TCHAR* Error, const ANSICHAR* Expression, const ANSICHAR* File, int32 Line, bool bIsEnsure, void* ProgramCounter, const TCHAR* DescriptionFormat, ...);
 void         StaticFailDebugV(const TCHAR* Error, const ANSICHAR* Expression, const ANSICHAR* File, int32 Line, bool bIsEnsure, void* ProgramCounter, const TCHAR* DescriptionFormat, va_list DescriptionArgs);
@@ -1023,6 +1024,7 @@ FORCENOINLINE static FCbObject SerializeBasicLogMessage(const FStaticBasicLogRec
 	return Writer.Save().AsObject();
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void BasicLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord* Log, ...)
 {
 #if !NO_LOGGING
@@ -1077,6 +1079,7 @@ void BasicLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord* Log
 #endif
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void BasicFatalLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord* Log, ...)
 {
 #if !NO_LOGGING

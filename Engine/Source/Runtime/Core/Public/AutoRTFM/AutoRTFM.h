@@ -24,6 +24,10 @@
 #define UE_AUTOSTM 0
 #endif
 
+#if !defined(UE_AUTORTFM_STATIC_VERIFIER)
+#define UE_AUTORTFM_STATIC_VERIFIER 0
+#endif
+
 #if UE_AUTORTFM
 #define UE_AUTORTFM_AUTORTFM(F) [[clang::autortfm(F), clang::noinline]]
 #define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
@@ -32,6 +36,14 @@
 #define UE_AUTORTFM_AUTORTFM(F)
 #define UE_AUTORTFM_NOAUTORTFM
 #define UE_AUTORTFM_ALWAYS_OPEN
+#endif
+
+#if UE_AUTORTFM && UE_AUTORTFM_STATIC_VERIFIER
+#define UE_AUTORTFM_ENSURE_SAFE [[clang::autortfm_ensure_safe]]
+#define UE_AUTORTFM_ASSUME_SAFE [[clang::autortfm_assume_safe]]
+#else
+#define UE_AUTORTFM_ENSURE_SAFE
+#define UE_AUTORTFM_ASSUME_SAFE
 #endif
 
 #if defined(UE_AUTORTFM_STANDALONE)

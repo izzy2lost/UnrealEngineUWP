@@ -31,6 +31,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "Traits/IsCharEncodingCompatibleWith.h"
 #include "UObject/NameTypes.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Async/TaskGraphInterfaces.h"
@@ -538,12 +539,14 @@ public:
 		: StatName(InStatName)
 		, CategoryIndex(InCategoryIndex)
 	{
-		FCsvProfiler::BeginStat(StatName, CategoryIndex, InNamedEventName);
+		UE_AUTORTFM_OPEN({ FCsvProfiler::BeginStat(StatName, CategoryIndex, InNamedEventName); });
+		AutoRTFM::PushOnAbortHandler(this, [SN = StatName, CI = CategoryIndex](){ FCsvProfiler::EndStat(SN, CI); });
 	}
 
 	~FScopedCsvStat()
 	{
-		FCsvProfiler::EndStat(StatName, CategoryIndex);
+		AutoRTFM::PopOnAbortHandler(this);
+		UE_AUTORTFM_OPEN({ FCsvProfiler::EndStat(StatName, CategoryIndex); });
 	}
 	const char * StatName;
 	uint32 CategoryIndex;
@@ -555,12 +558,14 @@ public:
 	FScopedCsvStatExclusive(const char * InStatName, const char* InNamedEventName = nullptr)
 		: StatName(InStatName)
 	{
-		FCsvProfiler::BeginExclusiveStat(StatName, InNamedEventName);
+		UE_AUTORTFM_OPEN({ FCsvProfiler::BeginExclusiveStat(StatName, InNamedEventName); });
+		AutoRTFM::PushOnAbortHandler(this, [SN = StatName](){ FCsvProfiler::EndExclusiveStat(SN); });
 	}
 
 	~FScopedCsvStatExclusive()
 	{
-		FCsvProfiler::EndExclusiveStat(StatName);
+		AutoRTFM::PopOnAbortHandler(this);
+		UE_AUTORTFM_OPEN({ FCsvProfiler::EndExclusiveStat(StatName); });
 	}
 	const char * StatName;
 };
