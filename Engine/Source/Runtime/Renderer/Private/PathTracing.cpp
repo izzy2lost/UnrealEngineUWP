@@ -3970,7 +3970,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	TShaderMapRef<FPathTracingCompositorPS> PixelShader(View.ShaderMap);
 	TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
 	FRHIBlendState* BlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
-	FRHIDepthStencilState* DepthStencilState = DepthStencilState = TStaticDepthStencilState<true /* bEnableDepthWrite */, CF_Always>::GetRHI();
+	FRHIDepthStencilState* DepthStencilState = TStaticDepthStencilState<true /* bEnableDepthWrite */, CF_Always>::GetRHI();
 
 	AddDrawScreenPass(
 		GraphBuilder,
