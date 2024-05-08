@@ -11,6 +11,7 @@ template <class T> class TAutoConsoleVariable;
 class ACharacter;
 class UAnimSequenceBase;
 class UCharacterMovementComponent;
+class UMotionWarpingBaseAdapter;
 class UMotionWarpingComponent;
 class UAnimNotifyState_MotionWarping;
 struct FCompactPose;
@@ -42,6 +43,7 @@ struct FMotionWarpingWindowData
 	float EndTime = 0.f;
 };
 
+
 UCLASS()
 class MOTIONWARPING_API UMotionWarpingUtilities : public UBlueprintFunctionLibrary
 {
@@ -72,10 +74,13 @@ public:
 
 	/** @return root transform relative to the warp point bone at the supplied time */
 	static FTransform CalculateRootTransformRelativeToWarpPointAtTime(const ACharacter& Character, const UAnimSequenceBase* Animation, float Time, const FName& WarpPointBoneName);
+	static FTransform CalculateRootTransformRelativeToWarpPointAtTime(const UMotionWarpingBaseAdapter& WarpingAdapter, const UAnimSequenceBase* Animation, float Time, const FName& WarpPointBoneName);
 
 	/** @return root transform relative to the warp point transform at the supplied time */
 	static FTransform CalculateRootTransformRelativeToWarpPointAtTime(const ACharacter& Character, const UAnimSequenceBase* Animation, float Time, const FTransform& WarpPointTransform);
+	static FTransform CalculateRootTransformRelativeToWarpPointAtTime(const UMotionWarpingBaseAdapter& WarpingAdapter, const UAnimSequenceBase* Animation, float Time, const FTransform& WarpPointTransform);
 };
+
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMotionWarpingPreUpdate, class UMotionWarpingComponent*, MotionWarpingComp);
 
@@ -99,8 +104,22 @@ public:
 	virtual void InitializeComponent() override;
 	virtual void GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const;
 
-	/** Gets the character this component belongs to */
-	FORCEINLINE ACharacter* GetCharacterOwner() const { return CharacterOwner.Get(); }
+	/** Set a new adapter of a particular type */
+	UMotionWarpingBaseAdapter* CreateOwnerAdapter(TSubclassOf<UMotionWarpingBaseAdapter> AdapterClass);
+
+	template <class T>
+	T* CreateOwnerAdapter()
+	{
+		static_assert(TPointerIsConvertibleFromTo<T, const UMotionWarpingBaseAdapter>::Value, "'T' template parameter to CreateOwnerAdapter must be derived from UMotionWarpingBaseAdapter");
+		return CastChecked<T>(CreateOwnerAdapter(T::StaticClass()));
+	}
+
+	/** Get the current adapter to the owner */
+	UMotionWarpingBaseAdapter* GetOwnerAdapter() const { return OwnerAdapter; }
+
+	/** Gets the Character this component belongs to. Returns null if not owned by a Character actor. */
+	UE_DEPRECATED(5.5, "Motion Warping is no longer limited to Character actors. Use GetOwnerAdapter()->GetActor() instead.")
+	ACharacter* GetCharacterOwner() const;
 
 	/** Returns the list of root motion modifiers */
 	FORCEINLINE const TArray<URootMotionModifier*>& GetModifiers() const { return Modifiers; }
@@ -180,10 +199,10 @@ public:
 
 protected:
 
-	/** Character this component belongs to */
+	/** Adapter that connects motion warping to an owner */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<ACharacter> CharacterOwner;
-
+	TObjectPtr<UMotionWarpingBaseAdapter> OwnerAdapter;
+	
 	/** List of root motion modifiers */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<URootMotionModifier>> Modifiers;
@@ -196,11 +215,11 @@ protected:
 	TOptional<FVector> WarpedRootMotionAccum;
 #endif
 
-	void Update(float DeltaSeconds);
+	void UpdateWithContext(const FMotionWarpingUpdateContext& Context, float DeltaSeconds);
 
 	bool FindAndUpdateWarpTarget(const FMotionWarpingTarget& WarpTarget);
 
-	FTransform ProcessRootMotionPreConvertToWorld(const FTransform& InRootMotion, class UCharacterMovementComponent* CharacterMovementComponent, float DeltaSeconds);
+	FTransform ProcessRootMotionPreConvertToWorld(const FTransform& InRootMotion, float DeltaSeconds, const FMotionWarpingUpdateContext* InContext=nullptr); // callback with optional context
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

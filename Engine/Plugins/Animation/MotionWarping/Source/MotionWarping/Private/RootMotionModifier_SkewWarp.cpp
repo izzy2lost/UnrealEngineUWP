@@ -5,6 +5,7 @@
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
 #include "MotionWarpingComponent.h"
+#include "MotionWarpingAdapter.h"
 #if WITH_EDITOR
 #include "Animation/AnimInstance.h"
 #include "Animation/DebugSkelMeshComponent.h"
@@ -131,8 +132,15 @@ FVector URootMotionModifier_SkewWarp::WarpTranslation(const FTransform& CurrentT
 
 FTransform URootMotionModifier_SkewWarp::ProcessRootMotion(const FTransform& InRootMotion, float DeltaSeconds)
 {
-	const ACharacter* CharacterOwner = GetCharacterOwner();
-	if(CharacterOwner == nullptr)
+	const UMotionWarpingBaseAdapter* OwnerAdapter = GetOwnerAdapter();
+	const AActor* OwnerAsActor = nullptr;
+
+	if (OwnerAdapter)
+	{
+		OwnerAsActor = OwnerAdapter->GetActor();
+	}
+
+	if (!OwnerAdapter || !OwnerAsActor)
 	{
 		return InRootMotion;
 	}
@@ -150,9 +158,10 @@ FTransform URootMotionModifier_SkewWarp::ProcessRootMotion(const FTransform& InR
 
 	if (bWarpTranslation)
 	{
-		const float CapsuleHalfHeight = CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		const FQuat CurrentRotation = CharacterOwner->GetActorQuat();
-		const FVector CurrentLocation = (CharacterOwner->GetActorLocation() - CurrentRotation.GetUpVector() * CapsuleHalfHeight);
+		const FVector CurrentLocation       = OwnerAdapter->GetVisualRootLocation();
+		const FQuat CurrentRotation         = OwnerAdapter->GetActor()->GetActorQuat();
+		const FVector MeshTranslationOffset = OwnerAdapter->GetBaseVisualTranslationOffset();
+		const FQuat MeshRotationOffset      = OwnerAdapter->GetBaseVisualRotationOffset();
 
 		const FVector DeltaTranslation = RootMotionDelta.GetLocation();
 		const FVector TotalTranslation = RootMotionTotal.GetLocation();
@@ -168,7 +177,7 @@ FTransform URootMotionModifier_SkewWarp::ProcessRootMotion(const FTransform& InR
 		{
 			if (!DeltaTranslation.IsNearlyZero())
 			{
-				const FTransform MeshTransform = FTransform(CharacterOwner->GetBaseRotationOffset(), CharacterOwner->GetBaseTranslationOffset()) * CharacterOwner->GetActorTransform();
+				const FTransform MeshTransform = FTransform(MeshRotationOffset, MeshTranslationOffset) * OwnerAsActor->GetActorTransform();
 				TargetLocation = MeshTransform.InverseTransformPositionNoScale(TargetLocation);
 
 				const FVector WarpedTranslation = WarpTranslation(FTransform::Identity, DeltaTranslation, TotalTranslation, TargetLocation) + ExtraRootMotion.GetLocation();
@@ -191,7 +200,7 @@ FTransform URootMotionModifier_SkewWarp::ProcessRootMotion(const FTransform& InR
 				const FVector NextLocation = FMath::Lerp<FVector, float>(StartTransform.GetLocation(), TargetLocation, Alpha);
 				FVector FinalDeltaTranslation = (NextLocation - CurrentLocation);
 				FinalDeltaTranslation = (CurrentRotation.Inverse() * DeltaToTarget.ToOrientationQuat()).GetForwardVector() * FinalDeltaTranslation.Size();
-				FinalDeltaTranslation = CharacterOwner->GetBaseRotationOffset().UnrotateVector(FinalDeltaTranslation);
+				FinalDeltaTranslation = MeshRotationOffset.UnrotateVector(FinalDeltaTranslation);
 
 				FinalRootMotion.SetTranslation(FinalDeltaTranslation + ExtraRootMotion.GetLocation());
 			}
@@ -215,7 +224,7 @@ FTransform URootMotionModifier_SkewWarp::ProcessRootMotion(const FTransform& InR
 	if (DebugLevel == 2 || DebugLevel == 3)
 	{
 		const float DrawDebugDuration = FMotionWarpingCVars::CVarMotionWarpingDrawDebugDuration.GetValueOnGameThread();
-		DrawDebugCoordinateSystem(CharacterOwner->GetWorld(), GetTargetLocation(), GetTargetRotator(), 50.f, false, DrawDebugDuration, 0, 1.f);
+		DrawDebugCoordinateSystem(OwnerAsActor->GetWorld(), GetTargetLocation(), GetTargetRotator(), 50.f, false, DrawDebugDuration, 0, 1.f);
 	}
 #endif
 

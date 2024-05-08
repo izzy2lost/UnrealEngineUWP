@@ -9,6 +9,7 @@
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Character.h"
 #include "MotionWarpingComponent.h"
+#include "MotionWarpingAdapter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RootMotionModifier_AdjustmentBlendWarp)
 
@@ -54,8 +55,12 @@ void URootMotionModifier_AdjustmentBlendWarp::ExtractBoneTransformAtFrame(FTrans
 
 void URootMotionModifier_AdjustmentBlendWarp::OnTargetTransformChanged()
 {
-	const ACharacter* CharacterOwner = GetCharacterOwner();
-	const USkeletalMeshComponent* SkelMeshComp = CharacterOwner ? CharacterOwner->GetMesh() : nullptr;
+	const USkeletalMeshComponent* SkelMeshComp = nullptr;
+
+	if (UMotionWarpingBaseAdapter* OwnerAdapter = GetOwnerAdapter())
+	{
+		SkelMeshComp = OwnerAdapter->GetMesh();
+	}
 
 	if (SkelMeshComp)
 	{
@@ -104,13 +109,19 @@ void URootMotionModifier_AdjustmentBlendWarp::PrecomputeWarpedTracks()
 
 	// First, extract pose at the end of the window for the bones we are going to warp
 
-	const ACharacter* CharacterOwner = GetCharacterOwner();
-	if (CharacterOwner == nullptr)
+	const USkeletalMeshComponent* SkelMesh = nullptr;
+
+	if (const UMotionWarpingBaseAdapter* OwnerAdapter = GetOwnerAdapter())
+	{
+		SkelMesh = OwnerAdapter->GetMesh();
+	}
+
+	if (!SkelMesh)
 	{
 		return;
 	}
 
-	const FBoneContainer& BoneContainer = CharacterOwner->GetMesh()->GetAnimInstance()->GetRequiredBones();
+	const FBoneContainer& BoneContainer = SkelMesh->GetAnimInstance()->GetRequiredBones();
 
 	// Init FBoneContainer with only the bones that we are interested in
 	TArray<FBoneIndexType> RequiredBoneIndexArray;
@@ -353,8 +364,15 @@ FTransform URootMotionModifier_AdjustmentBlendWarp::ExtractWarpedRootMotion() co
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 void URootMotionModifier_AdjustmentBlendWarp::DrawDebugWarpedTracks(float DrawDuration) const
 {
-	const ACharacter* CharacterOwner = GetCharacterOwner();
-	const UWorld* World = CharacterOwner ? CharacterOwner->GetWorld() : nullptr;
+	const UWorld* World = nullptr;
+	const USkeletalMeshComponent* SkelMesh = nullptr;
+
+	if (const UMotionWarpingBaseAdapter* OwnerAdapter = GetOwnerAdapter())
+	{
+		World = OwnerAdapter->GetActor()->GetWorld();
+		SkelMesh = OwnerAdapter->GetMesh();
+	}
+
 	if (World && Result.GetNum() > 0 && PreviousPosition <= EndTime)
 	{
 		FTransform RootStartTransform;
@@ -380,7 +398,7 @@ void URootMotionModifier_AdjustmentBlendWarp::DrawDebugWarpedTracks(float DrawDu
 			}
 		}
 
-		const FTransform& MeshTransform = CharacterOwner->GetMesh()->GetComponentTransform();
+		const FTransform& MeshTransform = SkelMesh->GetComponentTransform();
 		DrawDebugCoordinateSystem(World, CachedMeshTransform.GetLocation(), CachedMeshTransform.Rotator(), 20.f, false, DrawDuration, 0, 1.f);
 		DrawDebugCoordinateSystem(World, MeshTransform.GetLocation(), MeshTransform.Rotator(), 20.f, false, DrawDuration, 0, 1.f);
 		DrawDebugCoordinateSystem(World, GetTargetLocation(), GetTargetRotator(), 50.f, false, DrawDuration, 0, 1.f);

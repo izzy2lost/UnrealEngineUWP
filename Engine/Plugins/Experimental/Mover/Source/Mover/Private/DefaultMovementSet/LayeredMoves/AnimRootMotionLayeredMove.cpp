@@ -27,6 +27,8 @@ bool FLayeredMove_AnimRootMotion::GenerateMove(const FMoverTickStartData& SimSta
 
 	const AActor* MoverActor = MoverComp->GetOwner();
 
+	const FMoverDefaultSyncState* SyncState = SimState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
+
 	// First pass simply samples based on the duration. For long animations, this has the potential to diverge.
 	// Future improvements could include:
 	//     - speeding up or slowing down slightly to match the associated montage instance
@@ -42,22 +44,17 @@ bool FLayeredMove_AnimRootMotion::GenerateMove(const FMoverTickStartData& SimSta
 	// Read the local transform directly from the montage
 	const FTransform LocalRootMotion = UMotionWarpingUtilities::ExtractRootMotionFromAnimation(Montage, ExtractionStartPosition, ExtractionEndPosition);
 
-	FTransform WorldSpaceRootMotion;
-	
-	if (USkeletalMeshComponent* SkeletalMesh = MoverActor->FindComponentByClass<USkeletalMeshComponent>())
-	{
-		WorldSpaceRootMotion = SkeletalMesh->ConvertLocalRootMotionToWorld(LocalRootMotion);
-	}
-	else
-	{
-		const FTransform ActorToWorldTransform = MoverActor->GetTransform();
-		const FVector DeltaWorldTranslation = LocalRootMotion.GetTranslation() - ActorToWorldTransform.GetTranslation();
+	FMotionWarpingUpdateContext WarpingContext;
+	WarpingContext.Animation = Montage;
+	WarpingContext.CurrentPosition = ExtractionEndPosition;
+	WarpingContext.PreviousPosition = ExtractionStartPosition;
+	WarpingContext.PlayRate = PlayRate;
+	WarpingContext.Weight = 1.f;
 
-		const FQuat NewWorldRotation = ActorToWorldTransform.GetRotation() * LocalRootMotion.GetRotation();
-		const FQuat DeltaWorldRotation = NewWorldRotation * ActorToWorldTransform.GetRotation().Inverse();
-
-		WorldSpaceRootMotion.SetComponents(DeltaWorldRotation, DeltaWorldTranslation, FVector::OneVector);
-	}
+	// Note that we're forcing the use of the sync state's actor transform data. This is necessary when the movement simulation 
+	// is running ahead of the actor's visual representation and may be rotated differently, such as in an async physics sim.
+	const FTransform SimActorTransform = FTransform(SyncState->GetOrientation_WorldSpace().Quaternion(), SyncState->GetLocation_WorldSpace());
+	const FTransform WorldSpaceRootMotion = MoverComp->ConvertLocalRootMotionToWorld(LocalRootMotion, DeltaSeconds, &SimActorTransform, &WarpingContext);
 	
 	OutProposedMove = FProposedMove();
 	OutProposedMove.MixMode = MixMode;
