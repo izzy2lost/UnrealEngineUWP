@@ -27,7 +27,6 @@
 #include "MetasoundTrace.h"
 #include "MetasoundVariableNodes.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
-#include "../Public/MetasoundDocumentInterface.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundFrontendDocumentBuilder)
 
