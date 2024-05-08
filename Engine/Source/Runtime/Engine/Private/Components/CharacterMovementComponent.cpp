@@ -2291,6 +2291,14 @@ void UCharacterMovementComponent::SetBase( UPrimitiveComponent* NewBase, FName B
 
 	if (CharacterOwner && !bIsNavWalkingOnServer)
 	{
+		if (bBaseOnAttachmentRoot && NewBase != nullptr && BoneName == NAME_None)
+		{
+			// The attachment root might not be a PrimitiveComponent so check first
+			if (UPrimitiveComponent* NewRootBase = Cast<UPrimitiveComponent>(NewBase->GetAttachmentRoot()))
+			{
+				NewBase = NewRootBase;
+			}
+		}
 		CharacterOwner->SetBase(NewBase, NewBase ? BoneName : NAME_None, bNotifyActor);
 	}
 }

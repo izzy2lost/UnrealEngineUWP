@@ -1383,6 +1383,10 @@ public:
 	UPROPERTY(Category = "Character Movement (General Settings)", EditAnywhere, BlueprintReadWrite)
 	bool bBasedMovementIgnorePhysicsBase = false;
 
+	/** Property to set if characters should stay based on objects attachment root instead of the traced object */
+	UPROPERTY(Category = "Character Movement (General Settings)", EditAnywhere, BlueprintReadWrite)
+	bool bBaseOnAttachmentRoot = false;
+
 	/** Property to set if characters should stay based on objects while jumping */
 	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite)
 	bool bStayBasedInAir = false;
