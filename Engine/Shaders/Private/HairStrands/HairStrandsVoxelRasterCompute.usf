@@ -1168,6 +1168,7 @@ groupshared uint g_Density4[64][GROUP_SIZE_Z];
 groupshared uint g_Density2[8][GROUP_SIZE_Z];
 #endif
 
+// GroupSize is [64u,1u,16u]
 [numthreads(GROUP_SIZE_X, 1, GROUP_SIZE_Z)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint3 GroupThreadId : SV_GroupThreadID)
 {
@@ -1175,6 +1176,14 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint3 GroupThreadId : 
 	const uint3 PageCoord = IndexToCoord(PageIndex, PageCountResolution);
 	const bool bValid = PageIndex < AllocatedPageCountBuffer[0];
 	
+	// Dummy initialization for pleasing compiler
+	#if PERMUTATION_MIP_AGGREGATE && COMPILER_FXC
+	if (GroupThreadId.x < 8 && GroupThreadId.z < GROUP_SIZE_Z)
+	{
+		g_Density2[GroupThreadId.x][GroupThreadId.z] = 0;
+	}
+	#endif
+
 	uint Total = 0;
 	if (bValid)
 	{

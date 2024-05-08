@@ -163,7 +163,8 @@ float4 PerSample(int2 PixelPos, int SampleID, FPixelInfo CenterPixelInfo, float3
 	bool bInnerBorder = BorderMinMax.y == 4;
 
 	// moving diagonal lines
-	float PatternMask = ((PixelPos.x/2 + PixelPos.y/2) % 2) * 0.6f;
+	const uint2 uHalfResPixelPos = uint2(PixelPos)>>1u;
+	float PatternMask = ((uHalfResPixelPos.x + uHalfResPixelPos.y) % 2) * 0.6f;
 
 	// the contants express the two opacity values we see when the primitive is hidden
 	float LowContrastPatternMask = lerp(0.2, 1.0f, PatternMask);
@@ -270,7 +271,12 @@ void MainPS(
 #if COMPILER_GLSL && FEATURE_LEVEL >= FEATURE_LEVEL_SM4
 	UNROLL
 #endif
-		for(int SampleID = 0; SampleID < MSAA_SAMPLE_COUNT; ++SampleID)
+		int SampleID = 0;
+		// Workaround for platform preview with MSAA & FXC
+		#if !(COMPILER_FXC && MOBILE_EMULATION)
+		[unroll(MSAA_SAMPLE_COUNT)]
+		for(SampleID = 0; SampleID < MSAA_SAMPLE_COUNT; ++SampleID)
+		#endif
 		{
 			Sum += PerSample(ColorPixelPos, SampleID, CenterPixelInfo, DeviceZPlane, DeviceZMinMax);
 		}
@@ -297,7 +303,8 @@ void MainPS(
 #else
 		OutColor.rgb = sRGBToLinear(OutColor.rgb);
 #endif
-		float PatternMask = ((ColorPixelPos.x/2 + ColorPixelPos.y/2) % 2) * 0.6f;
+		const uint2 uHalfResPixelPos = uint2(ColorPixelPos)>>1;
+		float PatternMask = ((uHalfResPixelPos.x + uHalfResPixelPos.y) % 2) * 0.6f;
 		float VisibleMask = lerp(PatternMask, 1.0f, CenterPixelInfo.fVisible);
 		OutColor.rgb = lerp(OutColor.rgb, OverlayColor.rgb, OverlayColor.a * VisibleMask);
 		OutColor.rgb = lerp(OutColor.rgb, SelectionEffect.rgb, SelectionEffect.a);
