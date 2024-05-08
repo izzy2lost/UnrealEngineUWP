@@ -36,7 +36,7 @@ public class nghttp2 : ModuleRules
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "Mac", "Release", "libnghttp2.a"));
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win64)
+		else if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "Win64", "Release", "nghttp2.lib"));
 			PublicDefinitions.Add("NGHTTP2_STATICLIB=1");
