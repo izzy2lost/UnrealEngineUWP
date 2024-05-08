@@ -114,14 +114,8 @@ int32 GSceneCaptureDepthPrepassOptimization = 0;
 static FAutoConsoleVariableRef CVarSceneCaptureDepthPrepassOptimization(
 	TEXT("r.SceneCapture.DepthPrepassOptimization"),
 	GSceneCaptureDepthPrepassOptimization,
-	TEXT("Whether to apply optimized render path when capturing depth prepass for scene capture 2D. Experimental!\n"),
-	ECVF_RenderThreadSafe | ECVF_Scalability);
-
-int32 GSceneCaptureBasePassOptimization = 0;
-static FAutoConsoleVariableRef CVarSceneCaptureBasePassOptimization(
-	TEXT("r.SceneCapture.BasePassOptimization"),
-	GSceneCaptureBasePassOptimization,
-	TEXT("Whether to apply optimized render path when capturing base pass or normals for scene capture 2D. Experimental!\n"),
+	TEXT("Whether to apply optimized render path when capturing depth prepass for scene capture 2D. Experimental!\n")
+	TEXT("Warning: turning it on means rendering after depth pre-pass (e.g. SingleLayerWater) is ignored, hence result is different from when CVar is off.\n"),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
 static int32 GAsyncCreateLightPrimitiveInteractions = 1;
@@ -2612,31 +2606,9 @@ FViewFamilyInfo::FViewFamilyInfo(const FSceneViewFamily& InViewFamily)
 :	FSceneViewFamily(InViewFamily)
 {
 	bIsViewFamilyInfo = true;
-
-	SceneTextures = new FSceneTextures;
-	SceneTextures->Owner = this;
-}
-
-// Constructor that shares scene textures with a MainViewFamily.  Used to create a separate FViewFamilyInfo for custom render passes, so
-// they can have distinct EngineShowFlags from the view family they are rendering with.
-FViewFamilyInfo::FViewFamilyInfo(const FSceneViewFamily::ConstructionValues& CVS, const FViewFamilyInfo& MainViewFamily)
-:	FSceneViewFamily(CVS)
-{
-	bIsViewFamilyInfo = true;
-
-	SceneTextures = MainViewFamily.SceneTextures;
 }
 
 FViewFamilyInfo::~FViewFamilyInfo()
-{
-	if (SceneTextures && SceneTextures->Owner == this)
-	{
-		delete SceneTextures;
-	}
-}
-
-FSceneRenderer::FCustomRenderPassInfo::FCustomRenderPassInfo(const FSceneViewFamily::ConstructionValues& CVS, const FViewFamilyInfo& MainViewFamily)
-	: ViewFamily(CVS, MainViewFamily)
 {
 }
 
@@ -2904,6 +2876,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 
 	// Prepare custom render passes and their views:
 	CustomRenderPassInfos.Empty(Scene->CustomRenderPassRendererInputs.Num());
+	CustomRenderPassInfos.AddDefaulted(Scene->CustomRenderPassRendererInputs.Num());
 
 	int32 NumAdditionalViews = 0;
 	for (int32 i = 0; i < Scene->CustomRenderPassRendererInputs.Num(); i++)
@@ -2911,19 +2884,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		const FScene::FCustomRenderPassRendererInput& PassInput = Scene->CustomRenderPassRendererInputs[i];
 		FCustomRenderPassBase* CustomRenderPass = PassInput.CustomRenderPass;
 		check(CustomRenderPass);
-
-		// We construct from scratch, rather than copying, as we don't want to copy interfaces attached to the view family
-		// (ScreenPercentageInterface, TemporalUpscalerInterface, etc), which can assert or double free if copied.  Those aren't
-		// relevant for custom render passes anyway.
-		FSceneViewFamily::ConstructionValues FamilyCVS(ViewFamily.RenderTarget, Scene, PassInput.bUseMainViewFamilyShowFlags ? ViewFamily.EngineShowFlags : PassInput.EngineShowFlags);
-
-		// Disable sky rendering, which is gated by the Atmosphere flag (unnecessary perf cost during base pass rendering)
-		FamilyCVS.EngineShowFlags.Atmosphere = false;
-
-		FCustomRenderPassInfo& CustomRenderPassInfo = CustomRenderPassInfos.Emplace_GetRef(FamilyCVS, ViewFamily);
-		CustomRenderPassInfo.CustomRenderPass = CustomRenderPass;
-		CustomRenderPassInfo.ViewFamily.Time = ViewFamily.Time;
-		CustomRenderPassInfo.ViewFamily.SetSceneRenderer(this);
+		CustomRenderPassInfos[i].CustomRenderPass = CustomRenderPass;
 
 		FSceneViewInitOptions ViewInitOptions;
 		ViewInitOptions.SceneViewStateInterface = PassInput.ViewStateInterface;
@@ -2932,15 +2893,13 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		ViewInitOptions.ViewRotationMatrix = PassInput.ViewRotationMatrix;
 		ViewInitOptions.ProjectionMatrix = PassInput.ProjectionMatrix;
 		ViewInitOptions.bIsSceneCapture = PassInput.bIsSceneCapture;
-		ViewInitOptions.ViewFamily = &CustomRenderPassInfo.ViewFamily;
+		ViewInitOptions.ViewFamily = &ViewFamily;
 		ViewInitOptions.ViewActor = PassInput.ViewActor;
 		ViewInitOptions.ShowOnlyPrimitives = PassInput.ShowOnlyPrimitives;
 		ViewInitOptions.HiddenPrimitives = PassInput.HiddenPrimitives;
 
 		FSceneView NewView(ViewInitOptions);
-		FViewInfo* ViewInfo = &CustomRenderPassInfo.Views.Emplace_GetRef(&NewView);
-		CustomRenderPassInfo.ViewFamily.Views.Add(ViewInfo);
-		CustomRenderPassInfo.ViewFamily.AllViews.Add(ViewInfo);
+		FViewInfo* ViewInfo = &CustomRenderPassInfos[i].Views.Emplace_GetRef(&NewView);
 		// Must initialize to have a GPUScene connected to be able to collect dynamic primitives.
 		ViewInfo->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(&GPUSceneDynamicContext);
 		ViewInfo->bDisableQuerySubmissions = true;
@@ -3119,30 +3078,8 @@ FIntPoint FSceneRenderer::GetDesiredInternalBufferSize(const FSceneViewFamily& V
 
 FSceneRenderer::ERendererOutput FSceneRenderer::GetRendererOutput() const
 {
-	if (!Views[0].bIsSceneCapture)
-	{
-		return ERendererOutput::FinalSceneColor;
-	}
-	if (ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_SceneDepth || ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_DeviceDepth)
-	{
-		if (GSceneCaptureDepthPrepassOptimization)
-		{
-			return ERendererOutput::DepthPrepassOnly;
-		}
-	}
-	if (ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_BaseColor || ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_Normal)
-	{
-		// Forward shading in the deferred renderer requires shadows to run (skipped by BasePass optimization)
-		// HasRayTracedOverlay requires ray tracing to run -- appears to be used by path tracer, and ray tracing debug modes (ditto)
-		//
-		// TODO:  Could there be additional features that should disable the BasePass optimization?  We can add more cases if we run into bugs.
-		//        The above were just obvious from looking at the code.  Also, should some features disable DepthPrepassOnly above?
-		if (GSceneCaptureBasePassOptimization && !IsForwardShadingEnabled(Scene->GetShaderPlatform()) && !HasRayTracedOverlay(ViewFamily))
-		{
-			return ERendererOutput::BasePass;
-		}
-	}
-	return ERendererOutput::FinalSceneColor;
+	const bool bSceneCaptureDepthPrepass = Views[0].bIsSceneCapture && (ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_SceneDepth || ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_DeviceDepth);
+	return bSceneCaptureDepthPrepass && GSceneCaptureDepthPrepassOptimization ? ERendererOutput::DepthPrepassOnly : ERendererOutput::FinalSceneColor;
 }
 
 void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHICmdList)
@@ -3742,13 +3679,6 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 		InitializeSceneTexturesConfig(ViewFamily.SceneTexturesConfig, ViewFamily);
 		FSceneTexturesConfig& SceneTexturesConfig = GetActiveSceneTexturesConfig();
 		FSceneTexturesConfig::Set(SceneTexturesConfig);
-
-		// Custom render passes have their own view family structure, so they can have separate EngineShowFlags, so the SceneTexturesConfig
-		// needs to be copied.  The FSceneTextures structure itself is pointer shared, and doesn't need to be copied.
-		for (FCustomRenderPassInfo& CustomRenderPass : CustomRenderPassInfos)
-		{
-			CustomRenderPass.ViewFamily.SceneTexturesConfig = ViewFamily.SceneTexturesConfig;
-		}
 	
 		PrepareViewStateForVisibility(SceneTexturesConfig);
 	
@@ -3769,11 +3699,7 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 			}
 		}
 	
-		// Lighting is skipped when running ERendererOutput::DepthPrepassOnly or ERendererOutput::BasePass
-		if (GetRendererOutput() == ERendererOutput::FinalSceneColor)
-		{
-			LightFunctionAtlas::OnRenderBegin(LightFunctionAtlas, *Scene, Views, ViewFamily);
-		}
+		LightFunctionAtlas::OnRenderBegin(LightFunctionAtlas, *Scene, Views, ViewFamily);
 	
 		GraphBuilder.RHICmdList.BeginScene();
 

@@ -74,7 +74,6 @@
 #include "SceneCaptureRendering.h"
 #include "WaterInfoTextureRendering.h"
 #include "Rendering/CustomRenderPass.h"
-#include "GenerateMips.h"
 
 uint32 GetShadowQuality();
 
@@ -276,7 +275,7 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 	, bGammaSpace(!IsMobileHDR())
 	, bDeferredShading(IsMobileDeferredShadingEnabled(ShaderPlatform))
 	, bRequiresDBufferDecals(bDeferredShading ? false : IsUsingDBuffers(ShaderPlatform))
-	, bUseVirtualTexturing(UseVirtualTexturing(ShaderPlatform) && GetRendererOutput() != FSceneRenderer::ERendererOutput::DepthPrepassOnly)
+	, bUseVirtualTexturing(UseVirtualTexturing(ShaderPlatform) && GetRendererOutput() == FSceneRenderer::ERendererOutput::FinalSceneColor)
 {
 	bRenderToSceneColor = false;
 	bRequiresMultiPass = false;
@@ -306,7 +305,7 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 
 	NumMSAASamples = GetDefaultMSAACount(ERHIFeatureLevel::ES3_1);
 	// As of UE 5.4 only vulkan supports inline (single pass) tonemap
-	bTonemapSubpass = IsMobileTonemapSubpassEnabled(ShaderPlatform) && ViewFamily.bResolveScene && GetRendererOutput() != FSceneRenderer::ERendererOutput::DepthPrepassOnly;
+	bTonemapSubpass = IsMobileTonemapSubpassEnabled(ShaderPlatform) && ViewFamily.bResolveScene && GetRendererOutput() == FSceneRenderer::ERendererOutput::FinalSceneColor;
 	bTonemapSubpassInline = bTonemapSubpass && IsVulkanPlatform(ShaderPlatform) && (GRHISupportsMSAAShaderResolve || NumMSAASamples == 1);
 	bRequiresSceneDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform) && !bTonemapSubpass;
 }
@@ -433,7 +432,7 @@ void FMobileSceneRenderer::InitViews(
 
 	check(Scene);
 
-	const bool bRendererOutputFinalSceneColor = (GetRendererOutput() != ERendererOutput::DepthPrepassOnly);
+	const bool bRendererOutputFinalSceneColor = (GetRendererOutput() == ERendererOutput::FinalSceneColor);
 
 	PreVisibilityFrameSetup(GraphBuilder);
 
@@ -901,7 +900,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 
 	const ERendererOutput RendererOutput = GetRendererOutput();
-	const bool bRendererOutputFinalSceneColor = (RendererOutput != ERendererOutput::DepthPrepassOnly);
+	const bool bRendererOutputFinalSceneColor = (RendererOutput == ERendererOutput::FinalSceneColor);
 
 	RDG_RHI_EVENT_SCOPE(GraphBuilder, MobileSceneRender);
 	RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, MobileSceneRender);
@@ -1099,7 +1098,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		// Hair update
-		if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && RendererOutput != ERendererOutput::DepthPrepassOnly)
+		if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && RendererOutput == ERendererOutput::FinalSceneColor)
 		{
 			FHairStrandsBookmarkParameters& HairStrandsBookmarkParameters = *GraphBuilder.AllocObject<FHairStrandsBookmarkParameters>();
 			CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, HairStrandsBookmarkParameters);
@@ -1175,11 +1174,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPasses");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, CustomRenderPasses);
 
-		// We want to reset the scene texture uniform buffer to its original state after custom render passes,
-		// so they can't affect downstream rendering.
-		EMobileSceneTextureSetupMode OriginalSceneTextureSetupMode = SceneTextures.MobileSetupMode;
-		TRDGUniformBufferRef<FMobileSceneTextureUniformParameters> OriginalSceneTextureUniformBuffer = SceneTextures.MobileUniformBuffer;
-
 		for (int32 i = 0; i < CustomRenderPassInfos.Num(); ++i)
 		{
 			FCustomRenderPassBase* CustomRenderPass = CustomRenderPassInfos[i].CustomRenderPass;
@@ -1218,23 +1212,9 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, CustomRenderPass->GetRenderTargetTexture(), ViewFamily, CustomRenderPassViews);
 
 				CustomRenderPass->PostRender(GraphBuilder);
-
-				// Mips are normally generated in UpdateSceneCaptureContentMobile_RenderThread, but that doesn't run when the
-				// scene capture runs as a custom render pass.  The function does nothing if the render target doesn't have mips.
-				if (CustomRenderPassViews[0].bIsSceneCapture)
-				{
-					FGenerateMips::Execute(GraphBuilder, FeatureLevel, CustomRenderPass->GetRenderTargetTexture(), FGenerateMipsParams());
-				}
-
-				// Materials in the main view renderer will be using this render target, so we need RDG to transition it back to SRV now,
-				// rather than at the end of graph execution.
-				GraphBuilder.UseExternalAccessMode(CustomRenderPass->GetRenderTargetTexture(), ERHIAccess::SRVMask);
 			}
 
 			CustomRenderPass->EndPass(GraphBuilder);
-
-			SceneTextures.MobileSetupMode = OriginalSceneTextureSetupMode;
-			SceneTextures.MobileUniformBuffer = OriginalSceneTextureUniformBuffer;
 		}
 	}
 

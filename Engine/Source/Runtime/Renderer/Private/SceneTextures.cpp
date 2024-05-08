@@ -434,10 +434,8 @@ void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneVie
 
 void FMinimalSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily)
 {
-	checkf(ViewFamily.SceneTextures->Owner == &ViewFamily, TEXT("Scene Textures should only be initialized by their owning view family -- possible duplicate initialization"));
-
 	const FSceneTexturesConfig& Config = ViewFamily.SceneTexturesConfig;
-	FSceneTextures& SceneTextures = *ViewFamily.SceneTextures;
+	FSceneTextures& SceneTextures = ViewFamily.SceneTextures;
 
 	checkf(Config.IsValid(), TEXT("Attempted to create scene textures with an empty config."));
 
@@ -497,7 +495,7 @@ void FMinimalSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FVie
 	// Custom Depth
 	SceneTextures.CustomDepth = FCustomDepthTextures::Create(GraphBuilder, Config.Extent, Config.ShaderPlatform);
 
-	SceneTextures.bIsSceneTexturesInitialized = true;
+	ViewFamily.bIsSceneTexturesInitialized = true;
 }
 
 FSceneTextureShaderParameters FMinimalSceneTextures::GetSceneTextureShaderParameters(ERHIFeatureLevel::Type FeatureLevel) const
@@ -517,7 +515,7 @@ FSceneTextureShaderParameters FMinimalSceneTextures::GetSceneTextureShaderParame
 void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily, FIntPoint FamilySize)
 {
 	const FSceneTexturesConfig& Config = ViewFamily.SceneTexturesConfig;
-	FSceneTextures& SceneTextures = *ViewFamily.SceneTextures;
+	FSceneTextures& SceneTextures = ViewFamily.SceneTextures;
 
 	FMinimalSceneTextures::InitializeViewFamily(GraphBuilder, ViewFamily);
 
