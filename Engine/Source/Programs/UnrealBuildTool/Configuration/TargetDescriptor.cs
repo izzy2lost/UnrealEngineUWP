@@ -579,6 +579,13 @@ namespace UnrealBuildTool
 						// make a temp target for hybrid content-as-code projects
 						if (TargetProjectFile != null)
 						{
+							// cannot create temp targets for hybrid content only template projects
+							if (NativeProjects.IsHybridContentOnlyProject(TargetProjectFile, Logger) && 
+								TargetProjectFile.ContainsName("Templates", 0))
+							{
+								throw new BuildException("Cannot create target for project in Templates folder {0}. Please copy or move the project out of Templates.", TargetProjectFile.Directory.ToString());
+							}
+
 							NativeProjects.ConditionalMakeTempTargetForHybridProject(TargetProjectFile, new List<UnrealTargetPlatform>(1) { Platform }, Logger);
 						}
 
