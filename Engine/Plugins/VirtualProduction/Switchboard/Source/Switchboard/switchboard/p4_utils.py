@@ -362,6 +362,11 @@ def p4_print(
     return results
 
 
+ALL_CODE_EXTS = [
+    '.c', '.cc', '.cpp', '.inl', '.m', '.mm', '.rc', '.cs', '.csproj',
+    '.h', '.hpp', '.usf', '.ush', '.uproject', '.uplugin', '.sln']
+
+
 def p4_latest_code_change(
     paths: list[str],
     *,
@@ -374,11 +379,6 @@ def p4_latest_code_change(
     Code CL determination compatible with UGS/precompiled binaries.
     See `WorkspaceUpdate.ExecuteAsync` in `WorkspaceUpdate.cs`
     '''
-
-    ALL_CODE_EXTS = [
-        '.c', '.cc', '.cpp', '.inl', '.m', '.mm', '.rc', '.cs', '.csproj',
-        '.h', '.hpp', '.usf', '.ush', '.uproject', '.uplugin', '.sln']
-
     if exts is None:
         exts = ALL_CODE_EXTS
 

@@ -275,7 +275,7 @@ def run(
         logging.info('Restoring previous UnrealGameSync state.')
         if _set_active_ugs_context(ugs_bin_path,
                                    ugs_state_to_restore, cwd=cwd) != 0:
-            logging.warn("Failed to restore UnrealGameSync's state.")
+            logging.warning("Failed to restore UnrealGameSync's state.")
 
     return ugs_proc.returncode
 
@@ -507,8 +507,8 @@ def parse_depot_ugs_configs(
             if (b'clientFile' in record) and (b'action' in record):
                 # If the client file exists and is modified, use local ver
                 client_path = pathlib.Path(record[b'clientFile'].decode())
-                if client_path.exists and action == b'edit':
-                    local_contents = client_path.read_text()
+                if client_path.exists() and action == b'edit':
+                    local_contents = client_path.read_text(encoding='utf-8')
                     config_contents_map[str(client_path)] = local_contents
                     continue
                 elif action == b'delete':
@@ -577,8 +577,8 @@ class SyncFilters:
         skipinitialspace = True
 
     class Category:
-        def __init__(self, id: uuid.UUID, name: str, paths: list[str]):
-            self.id = id
+        def __init__(self, catid: uuid.UUID, name: str, paths: list[str]):
+            self.catid = catid
             self.name = name
             self.paths = paths
 
@@ -603,16 +603,16 @@ class SyncFilters:
             sfile = io.StringIO(categories_raw)
             self._read(sfile)
 
-    def exclude_category(self, category_id: uuid.UUID):
+    def exclude_category(self, catid: uuid.UUID):
         if not P4PYTHON_AVAILABLE:
             raise RuntimeError('This method currently requires P4PYTHON')
 
-        if category_id in self.excluded_categories:
+        if catid in self.excluded_categories:
             return  # already excluded
 
-        category = self.categories.get(category_id)
+        category = self.categories.get(catid)
         if category is None:
-            logging.warning(f'exclude_category: no such category {category_id}')
+            logging.warning(f'exclude_category: no such category {catid}')
             return
 
         self._map_exclusion(category)
@@ -633,7 +633,7 @@ class SyncFilters:
                 value = value.strip('"')
                 category_dict[key] = value
 
-            id = uuid.UUID(hex=category_dict['UniqueId'])
+            catid = uuid.UUID(hex=category_dict['UniqueId'])
             name = category_dict['Name']
             paths = category_dict['Paths'].split(';')
             paths = [path.lstrip() for path in paths]
@@ -642,23 +642,23 @@ class SyncFilters:
             requires = category_dict.get('Requires')
             requires = uuid.UUID(requires) if requires else None
 
-            if id not in self.categories:
-                category = self.create_category(id, name, paths)
+            if catid not in self.categories:
+                category = self.create_category(catid, name, paths)
                 category.hidden = hidden
                 category.requires = requires
             else:
                 # This seems weird, but... some configs need it
-                self.categories[id].paths.extend(paths)
+                self.categories[catid].paths.extend(paths)
 
-    def create_category(self, id: uuid.UUID, name: str, paths: list[str]):
-        category = SyncFilters.Category(id, name, paths)
-        self.categories[id] = category
+    def create_category(self, catid: uuid.UUID, name: str, paths: list[str]):
+        category = SyncFilters.Category(catid, name, paths)
+        self.categories[catid] = category
         return category
 
     DIR_REGEX = re.compile(r'(\.\.\.|/|\\)')
 
     def _map_exclusion(self, category: Category):
-        self.excluded_categories.add(category.id)
+        self.excluded_categories.add(category.catid)
         for path in category.paths:
             self.map.insert(f'-{path}')
 

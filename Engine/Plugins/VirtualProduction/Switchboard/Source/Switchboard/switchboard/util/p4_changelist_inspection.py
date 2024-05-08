@@ -5,7 +5,8 @@ import typing
 from enum import IntFlag
 
 from ..config import CONFIG
-from ..p4_utils import run, valueForMarshalledKey, hasValueForMarshalledKey
+from ..p4_utils import (run, valueForMarshalledKey, hasValueForMarshalledKey,
+                        ALL_CODE_EXTS)
 from ..switchboard_utils import get_hidden_sp_startupinfo
 
 
@@ -59,11 +60,9 @@ class EChangelistFileFlags(IntFlag):
     
     
 def determine_changelist_type(changelist: int) -> EChangelistFileFlags:
-    compiled_ue_source_extensions = ["c", "cs", "cpp", "h", "hpp"]
-    
     changes: dict = run(f"describe {changelist}")
     _raise_exception_on_error(changes)
-    
+
     has_source_changes = False
     has_content_changes = False
     for change in changes:
@@ -71,17 +70,19 @@ def determine_changelist_type(changelist: int) -> EChangelistFileFlags:
         # Each changed file path name will have an entry depotFilex
         while hasValueForMarshalledKey(change, f"depotFile{file_index}"):
             file_path_name: str = valueForMarshalledKey(change, f"depotFile{file_index}")
-            
-            has_source_changes = any([file_path_name.endswith(extension) for extension in compiled_ue_source_extensions])
+
+            has_source_changes = any(
+                [file_path_name.endswith(ext) for ext in ALL_CODE_EXTS])
+
             # If it's not a source file, treat it as a content file
             has_content_changes = not has_source_changes
-            
+
             # All flags fulfilled - no need to inspect more files
             if has_source_changes and has_content_changes:
                 break
-            
+
             file_index += 1
-    
+
     result = 0
     if has_source_changes:
         result |= EChangelistFileFlags.Code

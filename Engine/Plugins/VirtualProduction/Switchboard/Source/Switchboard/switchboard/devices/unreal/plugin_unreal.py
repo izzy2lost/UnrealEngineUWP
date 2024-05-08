@@ -788,7 +788,7 @@ class DeviceUnreal(Device):
         include_setting = DeviceUnreal.csettings['included_sync_categories']
         include_setting.possible_values.clear()
         for category in sync_filters.categories.values():
-            option = SyncCategoryOption(category.id, category.name)
+            option = SyncCategoryOption(category.catid, category.name)
             include_setting.possible_values.append(option)
 
     @classmethod
