@@ -36,6 +36,13 @@ DEFINE_LOG_CATEGORY(LogContentBrowserAssetDataSource);
 namespace ContentBrowserAssetData
 {
 
+// Used to allow missing property metadata for non-native classes, as we're more lenient about those classes not being loaded & their data cached
+bool IsNonNativeClass(FTopLevelAssetPath ClassPath)
+{
+	FNameBuilder PackageName(ClassPath.GetPackageName());
+	return !FPackageName::IsScriptPackage(PackageName.ToView());	
+}
+
 FContentBrowserItemData CreateAssetFolderItem(
 	UContentBrowserDataSource* InOwnerDataSource,
 	const FName InVirtualPath,
@@ -1792,7 +1799,8 @@ bool GetAssetDataAttribute(const FAssetData& InAssetData, const bool InIncludeMe
 		FAssetDataTagMapSharedView::FFindTagResult FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
 		if (!FoundValue.IsSet())
 		{
-			if (ensureMsgf(ClassPropertyTagCache, TEXT("FAssetPropertyTagCache not populated for type %s"), *WriteToString<256>(InAssetData.AssetClassPath)))
+			ensureMsgf(ClassPropertyTagCache || IsNonNativeClass(InAssetData.AssetClassPath), TEXT("FAssetPropertyTagCache not populated for type %s when looking for attribute %s"), *WriteToString<256>(InAssetData.AssetClassPath), *WriteToString<256>(InAttributeKey));
+			if (ClassPropertyTagCache)
 			{
 				// Check to see if the key we were given resolves as an alias
 				FoundAttributeKey = ClassPropertyTagCache->GetTagNameFromAlias(FoundAttributeKey);
@@ -1889,6 +1897,9 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 				}
 			}
 		}
+
+		ensureMsgf(!InIncludeMetaData || ClassPropertyTagCache || IsNonNativeClass(InAssetData.AssetClassPath), TEXT("FAssetPropertyTagCache not populated for type %s when fetching all attributes"), 
+			*WriteToString<256>(InAssetData.AssetClassPath));
 
 		OutAttributeValues.Reserve(OutAttributeValues.Num() + InAssetData.TagsAndValues.Num());
 		for (const auto& TagAndValue : InAssetData.TagsAndValues)

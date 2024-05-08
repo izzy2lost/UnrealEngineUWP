@@ -3190,6 +3190,7 @@ void UContentBrowserAssetDataSource::OnAssetUpdated(const FAssetData& InAssetDat
 {
 	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
 	{
+		FAssetPropertyTagCache::Get().TryCacheClass(InAssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(InAssetData)));
 	}
 }
@@ -3198,6 +3199,7 @@ void UContentBrowserAssetDataSource::OnAssetUpdatedOnDisk(const FAssetData& InAs
 {
 	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
 	{
+		FAssetPropertyTagCache::Get().TryCacheClass(InAssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(InAssetData)));
 	}
 }
@@ -3207,6 +3209,7 @@ void UContentBrowserAssetDataSource::OnObjectPropertyChanged(UObject* InObject, 
 	if (InObject && InObject->IsAsset() && ContentBrowserAssetData::IsPrimaryAsset(InObject))
 	{
 		FAssetData AssetData(InObject);
+		FAssetPropertyTagCache::Get().TryCacheClass(AssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(AssetData)));
 	}
 }
@@ -3216,6 +3219,7 @@ void UContentBrowserAssetDataSource::OnObjectPreSave(UObject* InObject, FObjectP
 	if (InObject && InObject->IsAsset() && ContentBrowserAssetData::IsPrimaryAsset(InObject))
 	{
 		FAssetData AssetData(InObject);
+		FAssetPropertyTagCache::Get().TryCacheClass(AssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(AssetData)));
 	}
 }

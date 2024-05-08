@@ -139,4 +139,8 @@ void FAssetPropertyTagCache::TryCacheClass(FTopLevelAssetPath InClassName)
 			ClassToCacheMap.Add(InClassName, ClassCache);
 		}
 	}
+	else 
+	{
+		// Do not populate the cache with something empty and do not report any errors as assets may have non-loaded types e.g. blueprinted data assets
+	}
 }
