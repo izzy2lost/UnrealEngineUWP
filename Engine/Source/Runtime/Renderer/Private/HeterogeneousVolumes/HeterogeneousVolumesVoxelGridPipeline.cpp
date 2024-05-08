@@ -207,7 +207,7 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowResolution(
 	TEXT("r.HeterogeneousVolumes.Shadows.Resolution"),
 	512,
 	TEXT("Resolution when building volumetric shadow map (Default = 512)\n"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<float> CVarHeterogeneousVolumesStepSizeForShadows(
@@ -2885,9 +2885,7 @@ void RenderTransmittanceWithVoxelGrid(
 	FRDGTextureRef& HeterogeneousVolumeRadiance
 )
 {
-	uint32 GroupCountX = FMath::DivideAndRoundUp(View.ViewRect.Size().X, FRenderTransmittanceWithVoxelGridCS::GetThreadGroupSize2D());
-	uint32 GroupCountY = FMath::DivideAndRoundUp(View.ViewRect.Size().Y, FRenderTransmittanceWithVoxelGridCS::GetThreadGroupSize2D());
-	FIntVector GroupCount = FIntVector(GroupCountX, GroupCountY, 1);
+	FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(HeterogeneousVolumes::GetScaledViewRect(View.ViewRect), FRenderTransmittanceWithVoxelGridCS::GetThreadGroupSize2D());
 
 	int32 BufferSize = View.ViewRect.Width() * View.ViewRect.Height();
 	FRDGBufferRef DebugBuffer = GraphBuilder.CreateBuffer(

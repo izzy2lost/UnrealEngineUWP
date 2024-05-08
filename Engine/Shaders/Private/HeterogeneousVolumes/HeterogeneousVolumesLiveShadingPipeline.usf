@@ -72,6 +72,7 @@ int bJitter;
 
 // Dispatch data
 int3 GroupCount;
+int DownsampleFactor;
 
 // Output
 RWTexture2D<float4> RWLightingTexture;
@@ -298,6 +299,11 @@ void RenderLightingCacheWithLiveShadingCS(
 #endif // DIM_LIGHTING_CACHE_MODE
 }
 
+float2 GetDispatchSize()
+{
+	return View.ViewSizeAndInvSize.xy / DownsampleFactor;
+}
+
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
 void RenderSingleScatteringWithLiveShadingCS(
 	uint2 GroupThreadId : SV_GroupThreadID,
@@ -307,19 +313,20 @@ void RenderSingleScatteringWithLiveShadingCS(
 	FDebugOutput DebugOutput = (FDebugOutput)0;
 
 	// Create screen ray
-	if (any(DispatchThreadId.xy >= View.ViewSizeAndInvSize.xy))
+	if (any(DispatchThreadId.xy >= GetDispatchSize()))
 	{
 		return;
 	}
 	uint LinearIndex = DispatchThreadId.y * GroupCount.x * THREADGROUP_SIZE_2D + DispatchThreadId.x;
-	uint2 PixelCoord = DispatchThreadId.xy + View.ViewRectMin.xy;
+	uint2 PixelCoord = DispatchThreadId.xy + View.ViewRectMin.xy / DownsampleFactor;
+	uint2 ViewPixelCoord = PixelCoord * DownsampleFactor + View.ViewRectMin.xy;
 
 	float3 Radiance = 0.0;
 	float3 Transmittance = RWLightingTexture[PixelCoord].a;
 	float PrevOpacity = Luminance(1.0 - Transmittance);
 
 	// Extract depth
-	float DeviceZ = SceneDepthTexture.Load(int3(PixelCoord, 0)).r;
+	float DeviceZ = SceneDepthTexture.Load(int3(ViewPixelCoord, 0)).r;
 #if HAS_INVERTED_Z_BUFFER
 	DeviceZ = max(0.000000000001, DeviceZ);
 #endif // HAS_INVERTED_Z_BUFFER
@@ -328,12 +335,12 @@ void RenderSingleScatteringWithLiveShadingCS(
 	float SceneDepth = min(ConvertFromDeviceZ(DeviceZ), GetMaxTraceDistance());
 	DeviceZ = ConvertToDeviceZ(SceneDepth);
 
-	float Jitter = bJitter ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
+	float Jitter = bJitter ? BlueNoiseScalar(ViewPixelCoord, View.StateFrameIndexMod8) : 0.0;
 
 	// Intersect ray with bounding volume
 	// TODO: LWC integration..
-	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(GetTranslatedWorldCameraPosFromView(PixelCoord + View.TemporalAAJitter.xy), PrimaryView.PreViewTranslation));
-	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(PixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1)));
+	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord + View.TemporalAAJitter.xy), PrimaryView.PreViewTranslation));
+	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(ViewPixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1)));
 	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
 	float WorldRayLength = length(WorldRayDirection);
 	WorldRayDirection /= WorldRayLength;

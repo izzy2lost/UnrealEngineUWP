@@ -4,6 +4,7 @@
 
 Texture2D<float4> HeterogeneousVolumeRadiance;
 RWTexture2D<float4> RWColorTexture;
+int DownsampleFactor;
 
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
 void HeterogeneousVolumesCompositeCS(
@@ -15,12 +16,13 @@ void HeterogeneousVolumesCompositeCS(
 	{
 		return;
 	}
-	uint2 PixelCoord = DispatchThreadId.xy + View.ViewRectMin.xy;
+	uint2 ViewPixelCoord = DispatchThreadId.xy + View.ViewRectMin.xy;
+	uint2 PixelCoord = ViewPixelCoord / DownsampleFactor;
 
 	float4 Result;
 	float HeterogeneousVolumeTransmittance = HeterogeneousVolumeRadiance[PixelCoord].a;
-	Result.rgb = HeterogeneousVolumeRadiance[PixelCoord].rgb + RWColorTexture[PixelCoord].rgb * HeterogeneousVolumeTransmittance;
-	Result.a = RWColorTexture[PixelCoord].a * HeterogeneousVolumeTransmittance;
+	Result.rgb = HeterogeneousVolumeRadiance[PixelCoord].rgb + RWColorTexture[ViewPixelCoord].rgb * HeterogeneousVolumeTransmittance;
+	Result.a = RWColorTexture[ViewPixelCoord].a * HeterogeneousVolumeTransmittance;
 
-	RWColorTexture[PixelCoord] = Result;
+	RWColorTexture[ViewPixelCoord] = Result;
 }

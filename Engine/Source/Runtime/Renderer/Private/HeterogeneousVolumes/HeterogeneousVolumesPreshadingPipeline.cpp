@@ -43,6 +43,7 @@ class FGenerateRayMarchingTiles : public FGlobalShader
 
 		// Dispatch data
 		SHADER_PARAMETER(FIntVector, GroupCount)
+		SHADER_PARAMETER(int32, DownsampleFactor)
 
 		// Debug Output
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<Volumes::FRayMarchingDebug>, RWRayMarchingDebugBuffer)
@@ -118,10 +119,8 @@ void GenerateRayMarchingTiles(
 	FRDGBufferRef& VoxelsPerTileBuffer
 )
 {
-	uint32 GroupCountX = FMath::DivideAndRoundUp(View.ViewRect.Size().X, FGenerateRayMarchingTiles::GetThreadGroupSize2D());
-	uint32 GroupCountY = FMath::DivideAndRoundUp(View.ViewRect.Size().Y, FGenerateRayMarchingTiles::GetThreadGroupSize2D());
-	FIntVector GroupCount = FIntVector(GroupCountX, GroupCountY, 1);
-	uint32 NumTiles = GroupCountX * GroupCountY;
+	FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(HeterogeneousVolumes::GetScaledViewRect(View.ViewRect), FGenerateRayMarchingTiles::GetThreadGroupSize2D());
+	uint32 NumTiles = GroupCount.X * GroupCount.Y;
 
 	NumRayMarchingTilesBuffer = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1),
@@ -177,6 +176,7 @@ void GenerateRayMarchingTiles(
 
 		// Dispatch data
 		PassParameters->GroupCount = GroupCount;
+		PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
 
 		// Debug
 		PassParameters->RWRayMarchingDebugBuffer = GraphBuilder.CreateUAV(RayMarchingDebugBuffer);
@@ -341,6 +341,7 @@ class FRenderSingleScatteringWithPreshadingCS : public FGlobalShader
 
 		// Indirect args
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER(int32, DownsampleFactor)
 
 		// Output
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWLightingTexture)
@@ -660,6 +661,7 @@ void RenderSingleScatteringWithPreshadingCompute(
 
 		// Dispatch data
 		PassParameters->IndirectArgs = NumRayMarchingTilesBuffer;
+		PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
 
 		// Output
 		PassParameters->RWLightingTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeTexture);

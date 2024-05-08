@@ -61,6 +61,8 @@ namespace HeterogeneousVolumes
 	FIntVector GetVolumeResolution(const IHeterogeneousVolumeInterface*);
 	FIntVector GetLightingCacheResolution(const IHeterogeneousVolumeInterface*, float LODFactor);
 
+	int32 GetDownsampleFactor();
+	FIntPoint GetScaledViewRect(FIntRect ViewRect);
 	float GetShadowStepSize();
 	float GetMaxTraceDistance();
 	float GetMaxShadowTraceDistance();

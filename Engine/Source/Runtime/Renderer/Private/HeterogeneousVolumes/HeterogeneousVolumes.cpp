@@ -32,6 +32,13 @@ static TAutoConsoleVariable<int32> CVarTranslucencyHeterogeneousVolumes(
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
+static TAutoConsoleVariable<float> CVarHeterogeneousVolumesDownsampleFactor(
+	TEXT("r.HeterogeneousVolumes.DownsampleFactor"),
+	1.0,
+	TEXT("Downsamples the rendered viewport (Default = 1.0)"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesComposition(
 	TEXT("r.HeterogeneousVolumes.Composition"),
 	0,
@@ -82,7 +89,7 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesMaxStepCount(
 	TEXT("r.HeterogeneousVolumes.MaxStepCount"),
 	512,
 	TEXT("The maximum ray-marching step count (Default = 512)"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<float> CVarHeterogeneousVolumesMaxTraceDistance(
@@ -367,6 +374,16 @@ bool ShouldRenderMeshBatchWithHeterogeneousVolumes(
 namespace HeterogeneousVolumes
 {
 	// CVars
+	int32 GetDownsampleFactor()
+	{
+		return FMath::Clamp(CVarHeterogeneousVolumesDownsampleFactor.GetValueOnRenderThread(), 1, 8);
+	}
+
+	FIntPoint GetScaledViewRect(FIntRect ViewRect)
+	{
+		return FIntPoint::DivideAndRoundUp(ViewRect.Size(), GetDownsampleFactor());
+	}
+
 	FIntVector GetVolumeResolution(const IHeterogeneousVolumeInterface* Interface)
 	{
 		FIntVector VolumeResolution = Interface->GetVoxelResolution();
@@ -947,6 +964,7 @@ class FHeterogeneousVolumesCompositeCS : public FGlobalShader
 
 		// Dispatch data
 		SHADER_PARAMETER(FIntVector, GroupCount)
+		SHADER_PARAMETER(int32, DownsampleFactor)
 
 		// Output
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWColorTexture)
@@ -995,9 +1013,7 @@ void FDeferredShadingSceneRenderer::CompositeHeterogeneousVolumes(
 
 		if (ShouldRenderHeterogeneousVolumesForView(View))
 		{
-			uint32 GroupCountX = FMath::DivideAndRoundUp(View.ViewRect.Size().X, FHeterogeneousVolumesCompositeCS::GetThreadGroupSize2D());
-			uint32 GroupCountY = FMath::DivideAndRoundUp(View.ViewRect.Size().Y, FHeterogeneousVolumesCompositeCS::GetThreadGroupSize2D());
-			FIntVector GroupCount = FIntVector(GroupCountX, GroupCountY, 1);
+			FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FHeterogeneousVolumesCompositeCS::GetThreadGroupSize2D());
 
 			FHeterogeneousVolumesCompositeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHeterogeneousVolumesCompositeCS::FParameters>();
 			{
@@ -1007,6 +1023,7 @@ void FDeferredShadingSceneRenderer::CompositeHeterogeneousVolumes(
 				PassParameters->HeterogeneousVolumeRadiance = View.HeterogeneousVolumeRadiance;
 				// Dispatch data
 				PassParameters->GroupCount = GroupCount;
+				PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
 				// Output
 				PassParameters->RWColorTexture = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 			}
