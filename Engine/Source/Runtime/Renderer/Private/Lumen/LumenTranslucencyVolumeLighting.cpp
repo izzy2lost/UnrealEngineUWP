@@ -328,6 +328,11 @@ FRDGTextureRef OrDefault2dTextureIfNull(FRDGBuilder& GraphBuilder, FRDGTextureRe
 	return Texture ? Texture : GSystemTextures.GetBlackDummy(GraphBuilder);
 }
 
+FRDGTextureRef OrDefault2dArrayTextureIfNull(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
+{
+    return Texture ? Texture : GSystemTextures.GetBlackArrayDummy(GraphBuilder);
+}
+
 FRDGTextureRef OrDefault3dTextureIfNull(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
 {
 	return Texture ? Texture : GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
@@ -368,7 +373,7 @@ FLumenTranslucencyLightingParameters GetLumenTranslucencyLightingParameters(
 
 	Parameters.FrontLayerTranslucencyReflectionParameters.Enabled = LumenFrontLayerTranslucency.bEnabled ? 1 : 0;
 	Parameters.FrontLayerTranslucencyReflectionParameters.RelativeDepthThreshold = LumenFrontLayerTranslucency.RelativeDepthThreshold;
-	Parameters.FrontLayerTranslucencyReflectionParameters.Radiance = OrDefault2dTextureIfNull(GraphBuilder, LumenFrontLayerTranslucency.Radiance);
+	Parameters.FrontLayerTranslucencyReflectionParameters.Radiance = OrDefault2dArrayTextureIfNull(GraphBuilder, LumenFrontLayerTranslucency.Radiance);
 	Parameters.FrontLayerTranslucencyReflectionParameters.Normal = OrDefault2dTextureIfNull(GraphBuilder, LumenFrontLayerTranslucency.Normal);
 	Parameters.FrontLayerTranslucencyReflectionParameters.SceneDepth = OrDefault2dTextureIfNull(GraphBuilder, LumenFrontLayerTranslucency.SceneDepth);
 	Parameters.FrontLayerTranslucencyReflectionParameters.SpecularScale = GetLumenReflectionSpecularScale();
