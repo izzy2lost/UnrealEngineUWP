@@ -36,9 +36,9 @@ public class libcurl : ModuleRules
 			PublicAdditionalLibraries.Add(Path.Combine(LibCurlPath, "lib", "Mac", "Release", "libcurl.a"));
 			PublicFrameworks.Add("SystemConfiguration");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win64 && !Target.WindowsPlatform.bUseXCurl)
+		else if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && !Target.WindowsPlatform.bUseXCurl)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(LibCurlPath, "lib", Target.Platform.ToString(), "Release", "libcurl.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibCurlPath, "lib", "Win64", "Release", "libcurl.lib"));
 		}
 
 		// Our build requires nghttp2, OpenSSL and zlib, so ensure they're linked in
