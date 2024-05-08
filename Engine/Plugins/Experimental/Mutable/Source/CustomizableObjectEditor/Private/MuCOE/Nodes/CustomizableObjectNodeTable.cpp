@@ -380,6 +380,14 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 	DefaultDataArray.SetNumZeroed(TableStruct->GetStructureSize());
 	TableStruct->InitializeStruct(DefaultDataArray.GetData());
 
+	static TArray<TObjectPtr<UClass>> SupportedSoftObjectTypes = {
+		USkeletalMesh::StaticClass(),
+		UStaticMesh::StaticClass(),
+		UTexture2D::StaticClass(),
+		UTexture::StaticClass(),
+		UMaterialInstance::StaticClass()
+	};
+
 	TArray<UEdGraphPin*> OldPins(Pins);
 	
 	for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
@@ -401,82 +409,91 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 
 		if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(ColumnProperty))
 		{
-			UObject* Object = nullptr;
-
-			// Getting default UObject
-			uint8* CellData = SoftObjectProperty->ContainerPtrToValuePtr<uint8>(DefaultDataArray.GetData());
-
-			if (CellData)
-			{
-				Object = SoftObjectProperty->GetPropertyValue(CellData).LoadSynchronous();
-			}
-
-			if (Object)
-			{
-				if (Object->IsA(USkeletalMesh::StaticClass()) || Object->IsA(UStaticMesh::StaticClass()))
+			// Only process object properties that might have pointers to objects of any of the "SupportedSoftObjectTypes"
+			// Object properties for unrelated types do not reference anything we would make pins from, so there is no need to load them or make sure they are non-null
+			const bool bPotentiallySupportedObject = SoftObjectProperty->PropertyClass && SupportedSoftObjectTypes.ContainsByPredicate([SoftObjectProperty](const TObjectPtr<UClass>& Type)
 				{
-					GenerateMeshPins(Object, ColumnName, ColumnPropertyId);
+					return SoftObjectProperty->PropertyClass->IsChildOf(Type) || Type->IsChildOf(SoftObjectProperty->PropertyClass);
+				});
+			if (bPotentiallySupportedObject)
+			{
+				UObject* Object = nullptr;
 
-					if (FTableNodeColumnData* ColumnData = AuxOldColumnData.Find(ColumnPropertyId))
-					{
-						ColumnDataMap.Add(ColumnPropertyId, *ColumnData);
-					}
+				// Getting default UObject
+				uint8* CellData = SoftObjectProperty->ContainerPtrToValuePtr<uint8>(DefaultDataArray.GetData());
+
+				if (CellData)
+				{
+					Object = SoftObjectProperty->GetPropertyValue(CellData).LoadSynchronous();
 				}
 
-				else if (Object->IsA(UTexture2D::StaticClass()))
+				if (Object)
 				{
-					UCustomizableObjectNodeTableImagePinData* PinData = NewObject<UCustomizableObjectNodeTableImagePinData>(this);
-					PinData->ColumnName = ColumnName;
-					PinData->StructColumnId = ColumnPropertyId;
-					PinData->SetIsNotTexture2D(false);
-
-					FName PinCategory = DefaultImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? Schema->PC_PassThroughImage : Schema->PC_Image;
-
-					for (UEdGraphPin* Pin : OldPins)
+					if (Object->IsA(USkeletalMesh::StaticClass()) || Object->IsA(UStaticMesh::StaticClass()))
 					{
-						// Checking if this column already exist
-						if (UCustomizableObjectNodeTableImagePinData* OldPinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
+						GenerateMeshPins(Object, ColumnName, ColumnPropertyId);
+
+						if (FTableNodeColumnData* ColumnData = AuxOldColumnData.Find(ColumnPropertyId))
 						{
-							if (OldPinData->ColumnName == ColumnName)
-							{
-								PinCategory = OldPinData->ImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? Schema->PC_PassThroughImage : Schema->PC_Image;
-								break;
-							}
+							ColumnDataMap.Add(ColumnPropertyId, *ColumnData);
 						}
 					}
 
-					OutPin = CustomCreatePin(EGPD_Output, PinCategory, FName(*PinName), PinData);
-				}
+					else if (Object->IsA(UTexture2D::StaticClass()))
+					{
+						UCustomizableObjectNodeTableImagePinData* PinData = NewObject<UCustomizableObjectNodeTableImagePinData>(this);
+						PinData->ColumnName = ColumnName;
+						PinData->StructColumnId = ColumnPropertyId;
+						PinData->SetIsNotTexture2D(false);
 
-				else if (Object->IsA(UTexture::StaticClass()))
+						FName PinCategory = DefaultImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? Schema->PC_PassThroughImage : Schema->PC_Image;
+
+						for (UEdGraphPin* Pin : OldPins)
+						{
+							// Checking if this column already exist
+							if (UCustomizableObjectNodeTableImagePinData* OldPinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
+							{
+								if (OldPinData->ColumnName == ColumnName)
+								{
+									PinCategory = OldPinData->ImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? Schema->PC_PassThroughImage : Schema->PC_Image;
+									break;
+								}
+							}
+						}
+
+						OutPin = CustomCreatePin(EGPD_Output, PinCategory, FName(*PinName), PinData);
+					}
+
+					else if (Object->IsA(UTexture::StaticClass()))
+					{
+						UCustomizableObjectNodeTableImagePinData* PinData = NewObject<UCustomizableObjectNodeTableImagePinData>(this);
+						PinData->ColumnName = ColumnName;
+						PinData->StructColumnId = ColumnPropertyId;
+						PinData->ImageMode = ETableTextureType::PASSTHROUGH_TEXTURE;
+						PinData->SetIsNotTexture2D(true);
+
+						OutPin = CustomCreatePin(EGPD_Output, Schema->PC_PassThroughImage, FName(*PinName), PinData);
+					}
+
+					else if (Object->IsA(UMaterialInstance::StaticClass()))
+					{
+						UCustomizableObjectNodeTableObjectPinData* PinData = NewObject<UCustomizableObjectNodeTableObjectPinData>(this);
+						PinData->ColumnName = ColumnName;
+						PinData->StructColumnId = ColumnPropertyId;
+
+						OutPin = CustomCreatePin(EGPD_Output, Schema->PC_MaterialAsset, FName(*PinName), PinData);
+					}
+				}
+				else
 				{
-					UCustomizableObjectNodeTableImagePinData* PinData = NewObject<UCustomizableObjectNodeTableImagePinData>(this);
-					PinData->ColumnName = ColumnName;
-					PinData->StructColumnId = ColumnPropertyId;
-					PinData->ImageMode = ETableTextureType::PASSTHROUGH_TEXTURE;
-					PinData->SetIsNotTexture2D(true);
+					const FText Text = FText::FromString(FString::Printf(TEXT("Could not find a Default Value in Structure member [%s]"), *ColumnName));
 
-					OutPin = CustomCreatePin(EGPD_Output, Schema->PC_PassThroughImage, FName(*PinName), PinData);
+					FCustomizableObjectEditorLogger::CreateLog(Text)
+						.Category(ELoggerCategory::General)
+						.Severity(EMessageSeverity::Warning)
+						.Context(*this)
+						.Log();
 				}
-
-				else if (Object->IsA(UMaterialInstance::StaticClass()))
-				{
-					UCustomizableObjectNodeTableObjectPinData* PinData = NewObject<UCustomizableObjectNodeTableObjectPinData>(this);
-					PinData->ColumnName = ColumnName;
-					PinData->StructColumnId = ColumnPropertyId;
-
-					OutPin = CustomCreatePin(EGPD_Output, Schema->PC_MaterialAsset, FName(*PinName), PinData);
-				}
-			}
-			else
-			{
-				const FText Text = FText::FromString(FString::Printf(TEXT("Could not find a Default Value in Structure member [%s]"),*ColumnName));
-
-				FCustomizableObjectEditorLogger::CreateLog(Text)
-					.Category(ELoggerCategory::General)
-					.Severity(EMessageSeverity::Warning)
-					.Context(*this)
-					.Log();
 			}
 		}
 
