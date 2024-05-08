@@ -1376,6 +1376,11 @@ void FChaosClothAssetEditorToolkit::OnClothAssetChanged()
 		}
 	}
 
+	if (ClothEditorSimulationVisualization)
+	{
+		ClothEditorSimulationVisualization->RefreshMenusForClothComponent(ClothPreviewScene->GetClothComponent());
+	}
+
 	if (bWasSimulationSuspended)
 	{
 		ClothMode->SuspendSimulation();
