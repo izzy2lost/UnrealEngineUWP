@@ -38,7 +38,7 @@ namespace UE::EaseCurveTool::Private
 	static const FVector2D KeyHitSize = FVector2D(8.f);
 	static const FVector2D TangentHitSize = FVector2D(20.f);
 	static const FVector2D TangentDrawSize = FVector2D(16.f);
-	static const FVector2D CurveHitSize = FVector2D(6.f);
+	static const FVector2D CurveHitSize = FVector2D(8.f);
 
 	static const FVector2D HalfKeyHitSize = KeyHitSize * 0.5f;
 	static const FVector2D HalfTangentHitSize = TangentHitSize * 0.5f;
@@ -90,6 +90,7 @@ void SAvaEaseCurveEditor::Construct(const FArguments& InArgs, const TObjectPtr<U
 	CurveColor = InArgs._CurveColor;
 	Operation = InArgs._Operation;
 	ShowEqualValueKeyError = InArgs._ShowEqualValueKeyError;
+	IsEaseCurveSelection = InArgs._IsEaseCurveSelection;
 
 	StartText = InArgs._StartText;
 	StartTooltipText = InArgs._StartTooltipText;
@@ -179,7 +180,28 @@ int32 SAvaEaseCurveEditor::OnPaint(const FPaintArgs& InArgs, const FGeometry& In
 			WhiteBrush, DrawEffects, NormalAreaColor);
 	}
 
+	auto PaintCenteredText = [&InAllottedGeometry, &OutDrawElements, &InLayerId, DrawEffects, &ScaleInfo](const FText& InText)
+	{
+		const FSlateFontInfo FontInfo = FAvaEaseCurveStyle::Get().GetFontStyle(TEXT("Editor.ErrorFont"));
+
+		const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		const FVector2D TextSize = FontMeasure->Measure(InText, FontInfo);
+
+		const float HalfInputX = ScaleInfo.InputToLocalX(0.5f);
+		const float HalfOutputY = ScaleInfo.OutputToLocalY(0.5f);
+
+		const FVector2D ActualOffset(HalfInputX - (TextSize.X * 0.5f), HalfOutputY - (TextSize.Y * 0.5f));
+
+		FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
+			, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
+			, InText, FontInfo, DrawEffects, FStyleColors::Foreground.GetSpecifiedColor());
+	};
+
 	if (ShowEqualValueKeyError.Get(false))
+	{
+		PaintCenteredText(LOCTEXT("EqualValueKeys", "No different key values!"));
+	}
+	else
 	{
 		InLayerId = PaintGrid(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects);
 
@@ -218,6 +240,11 @@ int32 SAvaEaseCurveEditor::OnPaint(const FPaintArgs& InArgs, const FGeometry& In
 
 		InLayerId = PaintKeys(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
 
+		if (!IsEaseCurveSelection.Get(false))
+		{
+			PaintCenteredText(LOCTEXT("NoEaseCurve", "No weighted, broken, cubic tangents!"));
+		}
+
 		if (DragState == EDragState::MarqueeSelect)
 		{
 			const FVector2D MarqueTopLeft(FMath::Min(MouseDownLocation.X, MouseMoveLocation.X), FMath::Min(MouseDownLocation.Y, MouseMoveLocation.Y));
@@ -227,23 +254,6 @@ int32 SAvaEaseCurveEditor::OnPaint(const FPaintArgs& InArgs, const FGeometry& In
 				, InAllottedGeometry.ToPaintGeometry(MarqueBottomRight - MarqueTopLeft, FSlateLayoutTransform(MarqueTopLeft))
 				, FAppStyle::GetBrush(TEXT("MarqueeSelection")));
 		}
-	}
-	else
-	{
-		const FSlateFontInfo FontInfo = FAvaEaseCurveStyle::Get().GetFontStyle(TEXT("Editor.ErrorFont"));
-		const FText Text = LOCTEXT("EqualValueKeys", "No different key values to create ease curve!");
-
-		const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-		const FVector2D TextSize = FontMeasure->Measure(Text, FontInfo);
-
-		const float HalfInputX = ScaleInfo.InputToLocalX(0.5f);
-		const float HalfOutputY = ScaleInfo.OutputToLocalY(0.5f);
-
-		const FVector2D ActualOffset(HalfInputX - (TextSize.X * 0.5f), HalfOutputY - (TextSize.Y * 0.5f));
-
-		FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
-			, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
-			, Text, FontInfo, DrawEffects, FStyleColors::Foreground.GetSpecifiedColor());
 	}
 
 	return InLayerId;
@@ -381,9 +391,8 @@ void SAvaEaseCurveEditor::PaintCurve(const FTrackScaleInfo& InScaleInfo, const F
 	{
 		return;
 	}
-	
-	TArray<FVector2D> LinePoints;
-	TArray<FLinearColor> LineColors;
+
+	// Gather key handles and time/value pairs
 	TArray<FKeyHandle> KeyHandles;
 	TArray<TPair<float, float>> Key_TimeValuePairs;
 	
@@ -398,46 +407,64 @@ void SAvaEaseCurveEditor::PaintCurve(const FTrackScaleInfo& InScaleInfo, const F
 		Key_TimeValuePairs.Emplace(EaseCurve->FloatCurve.GetKeyTimeValuePair(KeyHandle));
 	}
 
-	// Add enclosed segments
+	// Draw curve lines
+	TArray<FVector2D> LinePoints;
+	TArray<FLinearColor> LineColors;
+
 	for (int32 Index = 0; Index < NumKeys - 1; ++Index)
 	{
-		CreateLinesForSegment(EaseCurve->FloatCurve.GetKeyInterpMode(KeyHandles[Index])
+		CreateLinesForSegment(EaseCurve->FloatCurve.GetKeyInterpMode(KeyHandles[Index]), EaseCurve->FloatCurve.GetKeyTangentMode(KeyHandles[Index])
 			, Key_TimeValuePairs[Index], Key_TimeValuePairs[Index + 1], LinePoints, LineColors, InScaleInfo);
 
 		FSlateDrawElement::MakeLines(OutDrawElements, LayerId, InAllottedGeometry.ToPaintGeometry()
 			, LinePoints, LineColors, DrawEffects, FLinearColor::White/*Color*/, true, CurveThickness * InAllottedGeometry.Scale);
 
-		LinePoints.Empty();
-		LineColors.Empty();
+		LinePoints.Reset();
+		LineColors.Reset();
 	}
 }
 
 void SAvaEaseCurveEditor::CreateLinesForSegment(const ERichCurveInterpMode InInterpMode
+	, const ERichCurveTangentMode InTangentMode
 	, const TPair<float, float>& InStartKeyTimeValue, const TPair<float, float>& InEndKeyTimeValue
 	, TArray<FVector2D>& OutLinePoints, TArray<FLinearColor>& OutLineColors
 	, const FTrackScaleInfo& InScaleInfo) const
 {
+	static constexpr FLinearColor DisabledFadeFactor(0.03f, 0.03f, 0.03f, 1.f);
+
+	const bool bIsEaseCurve = IsEaseCurveSelection.Get(false);
+
 	FLinearColor FadedCurveColor = CurveColor;
 	FadedCurveColor.A = 0.05f;
+
+	auto AddSegment = [this, &OutLinePoints, &OutLineColors, &bIsEaseCurve](const FVector2D& InPoint, FLinearColor InColor)
+	{
+		OutLinePoints.Add(InPoint);
+		OutLineColors.Add(bIsEaseCurve ? MoveTemp(InColor) : (CurveColor * DisabledFadeFactor));
+	};
 
 	switch (InInterpMode)
 	{
 	case RCIM_Constant:
 	{
 		//@todo: should really only need 3 points here but something about the line rendering isn't quite behaving as I'd expect, so need extras
-		OutLinePoints.Add(FVector2D(InStartKeyTimeValue.Key, InStartKeyTimeValue.Value));
-		OutLinePoints.Add(FVector2D(InEndKeyTimeValue.Key, InStartKeyTimeValue.Value));
-		OutLinePoints.Add(FVector2D(InEndKeyTimeValue.Key, InStartKeyTimeValue.Value));
-		OutLinePoints.Add(FVector2D(InEndKeyTimeValue.Key, InEndKeyTimeValue.Value));
-		OutLinePoints.Add(FVector2D(InEndKeyTimeValue.Key, InStartKeyTimeValue.Value));
+		AddSegment(FVector2D(InStartKeyTimeValue.Key, InStartKeyTimeValue.Value), CurveColor);
+		AddSegment(FVector2D(InEndKeyTimeValue.Key, InStartKeyTimeValue.Value), CurveColor);
+		AddSegment(FVector2D(InEndKeyTimeValue.Key, InStartKeyTimeValue.Value), CurveColor);
+		AddSegment(FVector2D(InEndKeyTimeValue.Key, InEndKeyTimeValue.Value), CurveColor);
+		AddSegment(FVector2D(InEndKeyTimeValue.Key, InStartKeyTimeValue.Value), CurveColor);
+
 		break;
 	}
+
 	case RCIM_Linear:
 	{
-		OutLinePoints.Add(FVector2D(InStartKeyTimeValue.Key, InStartKeyTimeValue.Value));
-		OutLinePoints.Add(FVector2D(InEndKeyTimeValue.Key, InEndKeyTimeValue.Value));
+		AddSegment(FVector2D(InStartKeyTimeValue.Key, InStartKeyTimeValue.Value), CurveColor);
+		AddSegment(FVector2D(InEndKeyTimeValue.Key, InEndKeyTimeValue.Value), CurveColor);
+
 		break;
 	}
+
 	case RCIM_Cubic:
 	{
 		// Clamp to screen to avoid massive slowdown when zoomed in
@@ -449,35 +476,38 @@ void SAvaEaseCurveEditor::CreateLinesForSegment(const ERichCurveInterpMode InInt
 
 		for (float CurrentX = StartX; CurrentX < EndX; CurrentX += StepSize)
 		{
-			// Add line point
-			const float CurveIn = InScaleInfo.LocalXToInput(FMath::Min(CurrentX, EndX));
-			const float CurveOut = EaseCurve->FloatCurve.Eval(CurveIn);
-			OutLinePoints.Add(FVector2D(CurveIn, CurveOut));
-			
+			// Get color
+			FLinearColor Color = CurveColor;
 			switch (Operation.Get(EAvaEaseCurveToolOperation::InOut))
 			{
 			case EAvaEaseCurveToolOperation::Out:
-			{
-				const float Alpha = CurrentX / CurveLengthX;
-				OutLineColors.Add(FLinearColor::LerpUsingHSV(FadedCurveColor, CurveColor,  1.f - Alpha));
-				break;
-			}
+				{
+					const float Alpha = CurrentX / CurveLengthX;
+					Color = FLinearColor::LerpUsingHSV(FadedCurveColor, CurveColor,  1.f - Alpha);
+					break;
+				}
 			case EAvaEaseCurveToolOperation::In:
-			{
-				const float Alpha = CurrentX / CurveLengthX;
-				OutLineColors.Add(FLinearColor::LerpUsingHSV(FadedCurveColor, CurveColor, Alpha));
-				break;
-			}
+				{
+					const float Alpha = CurrentX / CurveLengthX;
+					Color = FLinearColor::LerpUsingHSV(FadedCurveColor, CurveColor, Alpha);
+					break;
+				}
 			case EAvaEaseCurveToolOperation::InOut:
 			default:
-			{
-				OutLineColors.Add(CurveColor);
-				break;
+				{
+					Color = CurveColor;
+					break;
+				}
 			}
-			}
+			
+			// Add segment
+			const float CurveIn = InScaleInfo.LocalXToInput(FMath::Min(CurrentX, EndX));
+			const float CurveOut = EaseCurve->FloatCurve.Eval(CurveIn);
+			AddSegment(FVector2D(CurveIn, CurveOut), Color);
 		}
-		OutLinePoints.Add(FVector2D(InEndKeyTimeValue.Key, InEndKeyTimeValue.Value));
-		OutLineColors.Add(CurveColor);
+
+		AddSegment(FVector2D(InEndKeyTimeValue.Key, InEndKeyTimeValue.Value), CurveColor);
+
 		break;
 	}
 	default:

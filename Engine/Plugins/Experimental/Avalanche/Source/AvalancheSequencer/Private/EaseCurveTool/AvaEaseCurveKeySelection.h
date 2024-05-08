@@ -6,10 +6,11 @@
 #include "Channels/MovieSceneChannelHandle.h"
 #include "MVVM/Selection/Selection.h"
 
-struct FAvaEaseCurveTangents;
+class FAvaSequencer;
 class UMovieSceneSection;
-struct FKeyHandle;
+struct FAvaEaseCurveTangents;
 enum class EAvaEaseCurveToolOperation : uint8;
+struct FKeyHandle;
 
 namespace UE::Sequencer
 {
@@ -18,6 +19,7 @@ namespace UE::Sequencer
 
 struct FAvaEaseCurveKeySelection
 {
+public:
 	struct FChannelData
 	{
 		TSharedPtr<UE::Sequencer::FChannelModel> ChannelModel;
@@ -27,7 +29,7 @@ struct FAvaEaseCurveKeySelection
 	};
 
 	FAvaEaseCurveKeySelection() {}
-	FAvaEaseCurveKeySelection(const TWeakPtr<UE::Sequencer::FSequencerSelection>& InSequencerSelectionWeak);
+	FAvaEaseCurveKeySelection(const TSharedPtr<FAvaSequencer>& InSequencer);
 
 	void ForEachEaseableKey(const bool bInIncludeEqualValueKeys
 		, const TFunctionRef<bool(const FKeyHandle& /*InKeyHandle*/, const FKeyHandle& /*InNextKeyHandle*/, const FChannelData&)>& InCallable);
@@ -100,15 +102,34 @@ struct FAvaEaseCurveKeySelection
 		, const FFrameRate& InTickResolution
 		, const bool bInAutoFlipTangents);
 
-	TWeakPtr<UE::Sequencer::FSequencerSelection> SequencerSelectionWeak;
+	const TMap<FName, FChannelData>& GetChannelKeyData() const
+	{
+		return ChannelKeyData;
+	}
 
+	int32 GetTotalSelectedKeys() const
+	{
+		return TotalSelectedKeys;
+	}
+
+	/** @return True if there is only one selected key and it is the last key of the channel. */
+	bool IsLastOnlySelectedKey() const
+	{
+		return bIsLastOnlySelectedKey;
+	}
+
+	/** @return True if all selected keys are detected to be ease curves (broken, weighted, cubic tangents). */
+	bool AreAllEaseCurves() const
+	{
+		return bAreAllEaseCurves;
+	}
+
+protected:
 	TMap<FName, FChannelData> ChannelKeyData;
 
 	int32 TotalSelectedKeys = 0;
 
-	/** Indicates only one selected key on each of the selected channels. */
-	bool bAllChannelSingleKeySelections = true;
-
-	/** Indicates only one key selected and it is the last key of the channel. */
 	bool bIsLastOnlySelectedKey = false;
+
+	bool bAreAllEaseCurves = true;
 };

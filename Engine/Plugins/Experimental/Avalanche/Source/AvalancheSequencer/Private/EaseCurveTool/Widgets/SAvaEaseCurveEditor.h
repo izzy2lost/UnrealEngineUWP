@@ -46,6 +46,8 @@ public:
 		, _ExtendedGridColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.5f))
 		, _CurveThickness(2.5f)
 		, _CurveColor(FLinearColor::White)
+		, _ShowEqualValueKeyError(false)
+		, _IsEaseCurveSelection(true)
 	{
 		_Clipping = EWidgetClipping::ClipToBounds;
 	}
@@ -68,6 +70,7 @@ public:
 		SLATE_ARGUMENT(FLinearColor, CurveColor)
 		SLATE_ATTRIBUTE(EAvaEaseCurveToolOperation, Operation)
 		SLATE_ATTRIBUTE(bool, ShowEqualValueKeyError)
+		SLATE_ATTRIBUTE(bool, IsEaseCurveSelection)
 
 		SLATE_ATTRIBUTE(FText, StartText)
 		SLATE_ATTRIBUTE(FText, StartTooltipText)
@@ -200,6 +203,7 @@ protected:
 
 	/* Generates the line(s) for rendering between KeyIndex and the following key. */
 	void CreateLinesForSegment(const ERichCurveInterpMode InInterpMode
+		, const ERichCurveTangentMode InTangentMode
 		, const TPair<float, float>& InStartKeyTimeValue, const TPair<float, float>& InEndKeyTimeValue
 		, TArray<FVector2D>& OutLinePoints, TArray<FLinearColor>& OutLineColors
 		, const FTrackScaleInfo& InScaleInfo) const;
@@ -248,6 +252,7 @@ protected:
 	FLinearColor CurveColor;
 	TAttribute<EAvaEaseCurveToolOperation> Operation;
 	TAttribute<bool> ShowEqualValueKeyError;
+	TAttribute<bool> IsEaseCurveSelection;
 
 	TAttribute<FText> StartText;
 	TAttribute<FText> StartTooltipText;

@@ -311,4 +311,25 @@ double FAvaEaseCurveTangents::CalculateCurveLength(const int32 SampleCount) cons
 	return Length;
 }
 
+bool FAvaEaseCurveTangents::IsEaseCurveKey(const FRichCurveKey& InKey)
+{
+	return InKey.TangentMode == RCTM_Break
+		&& InKey.TangentWeightMode == RCTWM_WeightedBoth
+		&& InKey.InterpMode == RCIM_Cubic;
+}
+
+bool FAvaEaseCurveTangents::IsEaseCurveKey(const FMovieSceneDoubleValue& InValue)
+{
+	return InValue.TangentMode == RCTM_Break
+		&& InValue.Tangent.TangentWeightMode == RCTWM_WeightedBoth
+		&& InValue.InterpMode == RCIM_Cubic;
+}
+
+bool FAvaEaseCurveTangents::IsEaseCurveKey(const FMovieSceneFloatValue& InValue)
+{
+	return InValue.TangentMode == RCTM_Break
+		&& InValue.Tangent.TangentWeightMode == RCTWM_WeightedBoth
+		&& InValue.InterpMode == RCIM_Cubic;
+}
+
 #undef LOCTEXT_NAMESPACE

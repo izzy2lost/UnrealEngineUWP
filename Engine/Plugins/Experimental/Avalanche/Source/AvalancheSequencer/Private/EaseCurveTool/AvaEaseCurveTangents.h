@@ -26,6 +26,10 @@ public:
 
 	static FAvaEaseCurveTangents Average(const TArray<FAvaEaseCurveTangents>& InTangentArray);
 
+	static bool IsEaseCurveKey(const FRichCurveKey& InKey);
+	static bool IsEaseCurveKey(const FMovieSceneDoubleValue& InValue);
+	static bool IsEaseCurveKey(const FMovieSceneFloatValue& InValue);
+
 	FAvaEaseCurveTangents() {}
 	FAvaEaseCurveTangents(const double InStart, const double InStartWeight, const double InEnd, const double InEndWeight)
 		: Start(InStart), StartWeight(InStartWeight)

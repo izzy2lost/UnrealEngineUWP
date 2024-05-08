@@ -119,9 +119,15 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructCurveEditorPanel()
 					{
 						return FVector2D(CurrentGraphSize);
 					})
-				.ShowEqualValueKeyError_Lambda([this]() -> bool
+				// These two are lambda because the functions aren't const and the functions aren't const
+				// because there is no const ForEachEaseableKey implementation
+				.ShowEqualValueKeyError_Lambda([this]()
 					{
-						return EaseCurveTool->HasCachedKeysToEase();
+						return !EaseCurveTool->HasCachedKeysToEase();
+					})
+				.IsEaseCurveSelection_Lambda([this]()
+					{
+						return EaseCurveTool->AreAllEaseCurves();
 					})
 				.OnTangentsChanged(this, &SAvaEaseCurveTool::HandleEditorTangentsChanged)
 				.GridSnap_UObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGridSnap)

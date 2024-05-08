@@ -8,6 +8,7 @@
 #include "EaseCurveTool/AvaEaseCurveKeySelection.h"
 #include "EaseCurveTool/AvaEaseCurveToolSettings.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurveTool.h"
+#include "Editor.h"
 #include "EngineAnalytics.h"
 #include "Factories/CurveFactory.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -15,7 +16,6 @@
 #include "ISequencer.h"
 #include "ISettingsModule.h"
 #include "Math/UnrealMathUtility.h"
-#include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Settings/AvaSequencerSettings.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -28,16 +28,9 @@ FAvaEaseCurveTool::FAvaEaseCurveTool(const TSharedRef<FAvaSequencer>& InSequence
 {
 	EaseCurve = NewObject<UAvaEaseCurve>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
 
-	const TSharedRef<ISequencer> Sequencer = InSequencer->GetSequencer();
-
-	if (const TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = Sequencer->GetViewModel())
-	{
-		SequencerSelectionWeak = SequencerViewModel->GetSelection();
-	}
-
-	Sequencer->GetSelectionChangedObjectGuids().AddRaw(this, &FAvaEaseCurveTool::OnSequencerSelectionChanged);
-
 	UpdateEaseCurveFromSequencerKeySelections();
+
+	InSequencer->GetSequencer()->GetSelectionChangedObjectGuids().AddRaw(this, &FAvaEaseCurveTool::OnSequencerSelectionChanged);
 }
 
 FAvaEaseCurveTool::~FAvaEaseCurveTool()
@@ -80,7 +73,7 @@ TSharedRef<SWidget> FAvaEaseCurveTool::GenerateWidget()
 
 EVisibility FAvaEaseCurveTool::GetVisibility() const
 {
-	return (KeyCache.TotalSelectedKeys > 0 && !KeyCache.bIsLastOnlySelectedKey) ? EVisibility::Visible : EVisibility::Collapsed;
+	return (KeyCache.GetTotalSelectedKeys() > 0 && !KeyCache.IsLastOnlySelectedKey()) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 TObjectPtr<UAvaEaseCurve> FAvaEaseCurveTool::GetToolCurve() const
@@ -252,13 +245,13 @@ void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EAvaEaseCur
 
 void FAvaEaseCurveTool::SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation)
 {
-	KeyCache = FAvaEaseCurveKeySelection(SequencerSelectionWeak);
+	KeyCache = FAvaEaseCurveKeySelection(AvaSequencerWeak.Pin());
 
-	if (KeyCache.TotalSelectedKeys == 0)
+	if (KeyCache.GetTotalSelectedKeys() == 0)
 	{
 		return;
 	}
-	
+
 	const UAvaEaseCurveToolSettings* const EaseCurveToolSettings = GetDefault<UAvaEaseCurveToolSettings>();
 	check(EaseCurveToolSettings);
 	const bool bAutoFlipTangents = EaseCurveToolSettings->GetAutoFlipTangents();
@@ -268,12 +261,12 @@ void FAvaEaseCurveTool::SetSequencerKeySelectionTangents(const FAvaEaseCurveTang
 
 void FAvaEaseCurveTool::UpdateEaseCurveFromSequencerKeySelections()
 {
-	KeyCache = FAvaEaseCurveKeySelection(SequencerSelectionWeak);
-	
+	KeyCache = FAvaEaseCurveKeySelection(AvaSequencerWeak.Pin());
+
 	const UAvaEaseCurveToolSettings* const EaseCurveToolSettings = GetDefault<UAvaEaseCurveToolSettings>();
 	check(EaseCurveToolSettings);
 	const bool bAutoFlipTangents = EaseCurveToolSettings->GetAutoFlipTangents();
-	
+
 	const FAvaEaseCurveTangents AverageTangents = KeyCache.AverageTangents(GetDisplayRate(), GetTickResolution(), bAutoFlipTangents);
 
 	SetEaseCurveTangents(AverageTangents, EAvaEaseCurveToolOperation::InOut, /*bInBroadcastUpdate=*/true, false);
@@ -520,6 +513,11 @@ bool FAvaEaseCurveTool::HasCachedKeysToEase()
 		});
 
 	return bEaseableKeys;
+}
+
+bool FAvaEaseCurveTool::AreAllEaseCurves()
+{
+	return KeyCache.AreAllEaseCurves();
 }
 
 #undef LOCTEXT_NAMESPACE

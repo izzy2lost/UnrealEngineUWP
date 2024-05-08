@@ -122,6 +122,8 @@ public:
 
 	bool HasCachedKeysToEase();
 
+	bool AreAllEaseCurves();
+
 	//~ Begin FGCObject
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;
@@ -140,7 +142,6 @@ protected:
 	void SetEaseCurveTangents_Internal(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation, const bool bInBroadcastUpdate) const;
 
 	TWeakPtr<FAvaSequencer> AvaSequencerWeak;
-	TWeakPtr<UE::Sequencer::FSequencerSelection> SequencerSelectionWeak;
 
 	TObjectPtr<UAvaEaseCurve> EaseCurve;
 
@@ -148,7 +149,7 @@ protected:
 	EAvaEaseCurveToolOperation OperationMode = EAvaEaseCurveToolOperation::InOut;
 
 	TSharedPtr<SAvaEaseCurveTool> ToolWidget;
-	
+
 	/** Cached data set when a new sequencer selection is made. */
 	FAvaEaseCurveKeySelection KeyCache;
 
