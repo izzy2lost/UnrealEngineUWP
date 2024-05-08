@@ -388,6 +388,15 @@ void URendererSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 			CheckForMissingShaderModels();
 		}
 
+		if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bSupportHardwareVariableRateShading))
+		{
+			if (!bSupportHardwareVariableRateShading)
+			{
+				FoveationLevel = EFixedFoveationLevels::Disabled;
+				UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, FoveationLevel));
+			}
+		}
+
 		FixAntiAliasingOnShadingPathChange(PropertyChangedEvent);
 	}
 }

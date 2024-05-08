@@ -633,11 +633,13 @@ class URendererSettings : public UDeveloperSettings
 	uint32 bLocalFogVolumeApplyOnTranslucent:1;
 
 	UPROPERTY(config, EditAnywhere, Category = VR, meta = (
+		EditCondition = "bSupportHardwareVariableRateShading",
 		ConsoleVariable = "xr.VRS.FoveationLevel", DisplayName = "Stereo Foveation Level (Experimental)",
 		ToolTip = "Set the level of foveation to apply when generating the Variable Rate Shading attachment. This feature is currently experimental.\nThis can yield some fairly significant performance benefits on GPUs that support Tier 2 VRS.\nLower settings will result in almost no discernible artifacting on most HMDs; higher settings will show some artifacts towards the edges of the view."))
 	TEnumAsByte<EFixedFoveationLevels::Type> FoveationLevel;
 
 	UPROPERTY(config, EditAnywhere, Category = VR, meta = (
+		EditCondition = "bSupportHardwareVariableRateShading && FoveationLevel != EFixedFoveationLevels::Disabled",
 		ConsoleVariable = "xr.VRS.DynamicFoveation", DisplayName = "Dynamic Foveation (Experimental)",
 		ToolTip = "Allows foveation level to adjust dynamically based on GPU utilization.\nLevel will range between none at the minimum, and the currently selected foveation level at the maximum."))
 	uint32 bDynamicFoveation:1;
@@ -1153,6 +1155,15 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Cannot be disabled while Ray Tracing is enabled as it is then required.",
 		ConfigRestartRequired = true))
 	uint32 bSupportSkinCacheShaders : 1;
+
+	/**
+	"Support hardware variable rate shading.
+	*/
+	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
+		ConsoleVariable = "r.VRS.Support", DisplayName = "Support Hardware Variable Rate Shading",
+		ToolTip = "Allows selectively shading certain portions of the image at lower rates, using one pixel shader invocation to shade multiple pixels. Rates are selected per-material, or in screenspace by enabling a shading rate image generator (such as Contrast Adaptive Shading or Stereo Foveation). Changing this setting requires restarting the editor.",
+		ConfigRestartRequired = true))
+	uint32 bSupportHardwareVariableRateShading : 1;
 
 	/**
 	"When enabled this will skip compiling GPU skin vertex factory shader variants with the assumption that all skinning work will be done via the skin cache."

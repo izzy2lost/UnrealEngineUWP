@@ -2048,3 +2048,14 @@ bool ForwardShadingForcesSkyLightCubemapBlending(const FStaticShaderPlatform Pla
 	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"));
 	return CVar.Get(Platform) > 0;
 }
+
+bool HardwareVariableRateShadingSupportedByPlatform(EShaderPlatform ShaderPlatform)
+{
+	const static auto SupportVRSCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VRS.Support"));
+	if (SupportVRSCVar && SupportVRSCVar->GetValueOnAnyThread() != 0)
+	{
+		return FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(ShaderPlatform);
+	}
+
+	return false;
+}

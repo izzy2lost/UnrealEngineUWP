@@ -727,7 +727,7 @@ public:
 			PipelineState.Graphics.DrawShadingRate = ShadingRate;
 			PipelineState.Graphics.Combiners[ED3D12VRSCombinerStages::PerPrimitive] = PerPrimitiveCombiner;
 			PipelineState.Graphics.Combiners[ED3D12VRSCombinerStages::ScreenSpace] = ScreenSpaceCombiner;
-			bNeedSetShadingRate = GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled;
+			bNeedSetShadingRate = GRHISupportsPipelineVariableRateShading;
 		}
 	}	
 
@@ -736,7 +736,7 @@ public:
 		if (PipelineState.Graphics.ShadingRateImage != ShadingRateImage)
 		{
 			PipelineState.Graphics.ShadingRateImage = ShadingRateImage;
-			bNeedSetShadingRateImage = GRHISupportsAttachmentVariableRateShading && GRHIAttachmentVariableRateShadingEnabled;
+			bNeedSetShadingRateImage = GRHISupportsAttachmentVariableRateShading;
 		}
 	}
 

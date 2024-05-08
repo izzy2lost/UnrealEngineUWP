@@ -2185,6 +2185,9 @@ protected:
 		const FMeshBatch& RESTRICT MeshBatch,
 		const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy
 	) const;
+
+	RENDERER_API bool PipelineVariableRateShadingEnabled() const;
+	RENDERER_API bool HardwareVariableRateShadingSupportedByScene() const;
 };
 
 #if PSO_PRECACHING_VALIDATE

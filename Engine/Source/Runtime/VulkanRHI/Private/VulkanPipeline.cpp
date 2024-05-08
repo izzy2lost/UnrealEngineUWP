@@ -1350,8 +1350,10 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 
 	PipelineInfo.pDynamicState = &DynamicState;
 
+	const bool bUsingVariableRateShading = PSO->Desc.ShadingRate != EVRSShadingRate::VRSSR_1x1 || PSO->RenderPass->Layout.bHasFragmentDensityAttachment;
+
 	VkPipelineFragmentShadingRateStateCreateInfoKHR PipelineFragmentShadingRate;
-	if (GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled && GRHIVariableRateShadingImageDataType == VRSImage_Palette)
+	if (GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingImageDataType == VRSImage_Palette && bUsingVariableRateShading)
 	{
 		const VkExtent2D FragmentSize = Device->GetBestMatchedFragmentSize(PSO->Desc.ShadingRate);
 		VkFragmentShadingRateCombinerOpKHR PipelineToPrimitiveCombinerOperation = FragmentCombinerOpMap[(uint8)PSO->Desc.Combiner];
@@ -1921,7 +1923,7 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 	OutGfxEntry->RenderTargets.ReadFrom(RTLayout);
 
 	// Shading rate:
-	OutGfxEntry->ShadingRate = PSOInitializer.ShadingRate;
+	OutGfxEntry->ShadingRate = PSOInitializer.bAllowVariableRateShading ? PSOInitializer.ShadingRate : EVRSShadingRate::VRSSR_1x1;
 	OutGfxEntry->Combiner = EVRSRateCombiner::VRSRB_Max;		// @todo: This needs to be specified twice; from pipeline-to-primitive, and from primitive-to-attachment. 
 																// We don't have per-primitive VRS so that should just be hard-coded to "passthrough" until this is supported; but we should expose 
 																// this setting in the material properies, especially since there's some materials that don't play nicely with 

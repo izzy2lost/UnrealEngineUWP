@@ -503,9 +503,11 @@ struct FRHIGlobals
 	struct FVariableRateShading
 	{
 		/** Whether VRS (in all flavors) is currently enabled (separate from whether it's supported/available). */
+		UE_DEPRECATED(5.5, "GRHIGlobals.VariableRateShading.Enabled has been deprecated - please use GRHIGlobals.VariableRateShading.SupportsPipeline or GVRSImageManager.IsPipelineVRSEnabled() instead.")
 		bool Enabled = true;
 
 		/** Whether attachment (image-based) VRS is currently enabled (separate from whether it's supported/available). */
+		UE_DEPRECATED(5.5, "GRHIGlobals.VariableRateShading.AttachmentEnabled has been deprecated - please use GRHIGlobals.VariableRateShading.SupportsAttachment or GVRSImageManager.IsAttachmentVRSEnabled() instead.")
 		bool AttachmentEnabled = true;
 
 		/** Whether or not the RHI can support per-draw Variable Rate Shading. */
@@ -791,8 +793,8 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHIIsHDREnabled                                       GRHIGlobals.IsHDREnabled
 #define GRHISupportsHDROutput                                  GRHIGlobals.SupportsHDROutput
 #define GRHIMaxDispatchThreadGroupsPerDimension                GRHIGlobals.MaxDispatchThreadGroupsPerDimension
-#define GRHIVariableRateShadingEnabled                         GRHIGlobals.VariableRateShading.Enabled
-#define GRHIAttachmentVariableRateShadingEnabled               GRHIGlobals.VariableRateShading.AttachmentEnabled
+#define GRHIVariableRateShadingEnabled                         GRHIGlobals.VariableRateShading.Enabled UE_DEPRECATED_MACRO(5.5, "GRHIVariableRateShadingEnabled has been deprecated - please use GRHISupportsPipelineVariableRateShading or GVRSImageManager.IsPipelineVRSEnabled() instead.")
+#define GRHIAttachmentVariableRateShadingEnabled               GRHIGlobals.VariableRateShading.AttachmentEnabled UE_DEPRECATED_MACRO(5.5, "GRHIAttachmentVariableRateShadingEnabled has been deprecated - please use GRHISupportsAttachmentVariableRateShading or GVRSImageManager.IsAttachmentVRSEnabled() instead.")
 #define GRHISupportsPipelineVariableRateShading                GRHIGlobals.VariableRateShading.SupportsPipeline
 #define GRHISupportsLargerVariableRateShadingSizes             GRHIGlobals.VariableRateShading.SupportsLargerSizes
 #define GRHISupportsAttachmentVariableRateShading              GRHIGlobals.VariableRateShading.SupportsAttachment

@@ -96,6 +96,7 @@
 
 #include "VirtualShadowMaps/VirtualShadowMapCacheManager.h"
 #include "Shadows/ShadowScene.h"
+#include "VariableRateShadingImageManager.h"
 
 #if WITH_EDITOR
 #include "Rendering/StaticLightingSystemInterface.h"
@@ -6542,7 +6543,6 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 	{
 		SCOPED_NAMED_EVENT(UpdateStaticMeshes, FColor::Emerald);
-		
 		const bool bLastFrameShouldRenderSkylightInBasePass = bCachedShouldRenderSkylightInBasePass;
 		bCachedShouldRenderSkylightInBasePass = ShouldRenderSkylightInBasePass(false);
 
@@ -6554,6 +6554,9 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 			bScenesPrimitivesNeedStaticMeshElementUpdate = true;
 		}
 
+
+		bool bVariableRateShadingToggled = GVRSImageManager.GetNeedStaticMeshUpdate();
+
 		if (bScenesPrimitivesNeedStaticMeshElementUpdate || CachedDefaultBasePassDepthStencilAccess != DefaultBasePassDepthStencilAccess)
 		{
 			// Mark all primitives as needing an update
@@ -6561,6 +6564,26 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 			bScenesPrimitivesNeedStaticMeshElementUpdate = false;
 			CachedDefaultBasePassDepthStencilAccess = DefaultBasePassDepthStencilAccess;
+		}
+		else if (bVariableRateShadingToggled)
+		{
+			// If VRS was just toggled, mark all primitives using non-1x1 per-material shading rates as needing an update
+			for (FPrimitiveSceneInfo* PrimitiveSceneInfo : Primitives)
+			{
+				for (FMeshBatch& MeshBatch : PrimitiveSceneInfo->StaticMeshes)
+				{
+					if (MeshBatch.MaterialRenderProxy->GetMaterialNoFallback(FeatureLevel)->GetShadingRate() != EMaterialShadingRate::MSR_1x1)
+					{
+						PrimitivesNeedingStaticMeshUpdate[PrimitiveSceneInfo->PackedIndex] = true;
+						break;
+					}
+				}
+			}
+		}
+
+		if (bVariableRateShadingToggled)
+		{
+			GVRSImageManager.SetNeedStaticMeshUpdate(false);
 		}
 
 		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfosWithStaticDrawListUpdate)

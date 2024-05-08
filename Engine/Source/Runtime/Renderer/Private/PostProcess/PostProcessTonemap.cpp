@@ -186,6 +186,8 @@ FDesktopDomain RemapPermutation(FDesktopDomain PermutationVector, ERHIFeatureLev
 		PermutationVector.Set<FTonemapperColorFringeDim>(true);
 	}
 
+	// Luminance output is only used for Contrast Adaptive Shading.
+	// Even if HW VRS support is disabled, we may still need CAS for Nanite SW VRS.
 	if (!FVariableRateShadingImageManager::IsVRSCompatibleWithOutputType(PermutationVector.Get<FTonemapperOutputDeviceDim>()))
 	{
 		PermutationVector.Set<FTonemapperOutputLuminance>(false);

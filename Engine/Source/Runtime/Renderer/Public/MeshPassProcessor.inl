@@ -12,34 +12,36 @@ MeshPassProcessor.inl:
 #include "RHIStaticStates.h"
 #include "RenderGraphBuilder.h"
 #include "PSOPrecacheValidation.h"
+#include "VariableRateShadingImageManager.h"
+
 
 static EVRSShadingRate GetShadingRateFromMaterial(EMaterialShadingRate MaterialShadingRate)
 {
-	if (GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled)
+	switch (MaterialShadingRate)
+	{
+	case MSR_1x1:
+		return EVRSShadingRate::VRSSR_1x1;
+	case MSR_1x2:
+		return EVRSShadingRate::VRSSR_1x2;
+	case MSR_2x1:
+		return EVRSShadingRate::VRSSR_2x1;
+	case MSR_2x2:
+		return EVRSShadingRate::VRSSR_2x2;
+	}
+
+	if (GRHISupportsLargerVariableRateShadingSizes)
 	{
 		switch (MaterialShadingRate)
 		{
-		case MSR_1x2:
-			return EVRSShadingRate::VRSSR_1x2;
-		case MSR_2x1:
-			return EVRSShadingRate::VRSSR_2x1;
-		case MSR_2x2:
-			return EVRSShadingRate::VRSSR_2x2;
-		}
-
-		if (GRHISupportsLargerVariableRateShadingSizes)
-		{
-			switch (MaterialShadingRate)
-			{
-			case MSR_4x2:
-				return EVRSShadingRate::VRSSR_4x2;
-			case MSR_2x4:
-				return EVRSShadingRate::VRSSR_2x4;
-			case MSR_4x4:
-				return EVRSShadingRate::VRSSR_4x4;
-			}
+		case MSR_4x2:
+			return EVRSShadingRate::VRSSR_4x2;
+		case MSR_2x4:
+			return EVRSShadingRate::VRSSR_2x4;
+		case MSR_4x4:
+			return EVRSShadingRate::VRSSR_4x4;
 		}
 	}
+
 	return EVRSShadingRate::VRSSR_1x1;
 }
 
@@ -102,8 +104,8 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 
 	PipelineState.BlendState = DrawRenderState.GetBlendState();
 	PipelineState.DepthStencilState = DrawRenderState.GetDepthStencilState();
-	PipelineState.DrawShadingRate = GetShadingRateFromMaterial(MaterialResource.GetShadingRate());
-	PipelineState.bAllowVariableRateShading = MaterialResource.IsVariableRateShadingAllowed();
+	PipelineState.DrawShadingRate = PipelineVariableRateShadingEnabled() ? GetShadingRateFromMaterial(MaterialResource.GetShadingRate()) : VRSSR_1x1;
+	PipelineState.bAllowVariableRateShading = MaterialResource.IsVariableRateShadingAllowed() && HardwareVariableRateShadingSupportedByScene();
 
 	// PSO Precache hash only needed when PSO precaching is enabled
 	if (PipelineStateCache::IsPSOPrecachingEnabled())

@@ -458,9 +458,7 @@ public:
 		uint32 MultiviewMask = (0b1 << RTLayout.GetMultiViewCount()) - 1;
 
 		const bool bDeferredShadingSubpass = RTLayout.GetSubpassHint() == ESubpassHint::DeferredShadingSubpass;
-		const bool bApplyFragmentShadingRate =  GRHISupportsAttachmentVariableRateShading 
-												&& GRHIVariableRateShadingEnabled 
-												&& GRHIAttachmentVariableRateShadingEnabled 
+		const bool bApplyFragmentShadingRate =  GRHISupportsAttachmentVariableRateShading
 												&& RTLayout.GetFragmentDensityAttachmentReference() != nullptr
 												&& Device.GetOptionalExtensions().HasKHRFragmentShadingRate 
 												&& Device.GetOptionalExtensionProperties().FragmentShadingRateFeatures.attachmentFragmentShadingRate == VK_TRUE;

@@ -1134,19 +1134,6 @@ static TAutoConsoleVariable<int32> CVarGPUCrashOnOutOfMemory(
 	ECVF_ReadOnly
 );
 
-static FAutoConsoleVariableRef CVarEnableVariableRateShading(
-	TEXT("r.VRS.Enable"),
-	GRHIVariableRateShadingEnabled,
-	TEXT("Toggle to enable Variable Rate Shading."),
-	ECVF_RenderThreadSafe);
-
-static FAutoConsoleVariableRef CVarEnableAttachmentVariableRateShading(
-	TEXT("r.VRS.EnableImage"),
-	GRHIAttachmentVariableRateShadingEnabled,
-	TEXT("Toggle to enable image-based Variable Rate Shading."),
-	ECVF_RenderThreadSafe);
-
-
 FString GRHIBindlessResourceConfiguration = TEXT("Disabled");
 static FAutoConsoleVariableRef CVarEnableBindlessResources(
 	TEXT("rhi.Bindless.Resources"),

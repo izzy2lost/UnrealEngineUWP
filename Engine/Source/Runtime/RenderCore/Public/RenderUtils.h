@@ -619,3 +619,6 @@ FORCEINLINE float Log2ToEV100(float LuminanceMax, float Log2)
 {
 	return Log2 - FMath::Log2(LuminanceMax);
 }
+
+// Whether or not VRS is supported via r.VRS.Support and the current platform's DDPI
+RENDERCORE_API bool HardwareVariableRateShadingSupportedByPlatform(EShaderPlatform ShaderPlatform);

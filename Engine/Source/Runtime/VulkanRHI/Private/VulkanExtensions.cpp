@@ -502,9 +502,10 @@ public:
 	FVulkanKHRFragmentShadingRateExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
-		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
-		bEnabledInCode = bEnabledInCode && GRHIVariableRateShadingEnabled;
+		bEnabledInCode &= HardwareVariableRateShadingSupportedByPlatform(GMaxRHIShaderPlatform);
+
 		// FSR should be enabled even if FDM is preferred because it could be not available.
+		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
 		bEnabledInCode &= (VRSFormatPreference <= (uint8) EVulkanVariableRateShadingPreference::RequireFSR || VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::PreferFDM);
 	}
 
@@ -586,9 +587,10 @@ public:
 	FVulkanEXTFragmentDensityMapExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_EXT_FRAGMENT_DENSITY_MAP_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
-		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
-		bEnabledInCode = bEnabledInCode && GRHIVariableRateShadingEnabled;
+		bEnabledInCode &= HardwareVariableRateShadingSupportedByPlatform(GMaxRHIShaderPlatform);
+
 		// FDM should be enabled even if the preferred choice is FSR because that might not be available.
+		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
 		bEnabledInCode &= (VRSFormatPreference >= (uint8) EVulkanVariableRateShadingPreference::PreferFDM || VRSFormatPreference == (uint8) EVulkanVariableRateShadingPreference::PreferFSR);
 	}
 
@@ -660,7 +662,7 @@ public:
 	FVulkanEXTFragmentDensityMap2Extension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_EXT_FRAGMENT_DENSITY_MAP_2_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
-		bEnabledInCode = bEnabledInCode && GRHIVariableRateShadingEnabled;
+		bEnabledInCode &= HardwareVariableRateShadingSupportedByPlatform(GMaxRHIShaderPlatform);
 	}
 
 	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final

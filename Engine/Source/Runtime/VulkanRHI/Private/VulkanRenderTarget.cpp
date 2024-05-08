@@ -939,7 +939,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		}
 	}
 
-	if (GRHISupportsAttachmentVariableRateShading && GRHIVariableRateShadingEnabled && GRHIAttachmentVariableRateShadingEnabled && RTInfo.ShadingRateTexture)
+	if (GRHISupportsAttachmentVariableRateShading && RTInfo.ShadingRateTexture)
 	{
 		FVulkanTexture* Texture = ResourceCast(RTInfo.ShadingRateTexture);
 		check(Texture->GetFormat() == GRHIVariableRateShadingImageFormat);
@@ -1194,7 +1194,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		Extent.Extent3D.depth = 1;
 	}
 
-	if (GRHISupportsAttachmentVariableRateShading && GRHIVariableRateShadingEnabled && GRHIAttachmentVariableRateShadingEnabled && RPInfo.ShadingRateTexture)
+	if (GRHISupportsAttachmentVariableRateShading && RPInfo.ShadingRateTexture)
 	{
 		FVulkanTexture* Texture = ResourceCast(RPInfo.ShadingRateTexture);
 		check(Texture->GetFormat() == GRHIVariableRateShadingImageFormat);
@@ -1364,7 +1364,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 		bHasDepthStencil = true;
 	}
 
-	if (Initializer.bHasFragmentDensityAttachment)
+	if (Initializer.bHasFragmentDensityAttachment && Initializer.bAllowVariableRateShading)
 	{
 		VkAttachmentDescription& CurrDesc = Desc[NumAttachmentDescriptions];
 		FMemory::Memzero(CurrDesc);

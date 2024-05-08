@@ -21,6 +21,7 @@
 #include "UnrealEngine.h"
 #include "SceneUniformBuffer.h"
 #include "MeshDrawCommandStats.h"
+#include "VariableRateShadingImageManager.h"
 
 FRWLock FGraphicsMinimalPipelineStateId::PersistentIdTableLock;
 FGraphicsMinimalPipelineStateId::PersistentTableType FGraphicsMinimalPipelineStateId::PersistentIdTable;
@@ -2056,6 +2057,28 @@ bool FMeshPassProcessor::ShouldSkipMeshDrawCommand(const FMeshBatch& RESTRICT Me
 #endif
 
 	return bSkipMeshDrawCommand;
+}
+
+bool FMeshPassProcessor::PipelineVariableRateShadingEnabled() const
+{
+	return GVRSImageManager.IsPipelineVRSEnabled();
+}
+
+bool FMeshPassProcessor::HardwareVariableRateShadingSupportedByScene() const
+{
+	if (Scene)
+	{
+		return HardwareVariableRateShadingSupportedByPlatform(Scene->GetShaderPlatform());
+	}
+	else if (ViewIfDynamicMeshCommand)
+	{
+		// When applying changes to a material in the editor, we take this pathway
+		return HardwareVariableRateShadingSupportedByPlatform(ViewIfDynamicMeshCommand->GetShaderPlatform());
+	}
+	else
+	{
+		return false;
+	}
 }
 
 FCachedPassMeshDrawListContext::FCachedPassMeshDrawListContext(FScene& InScene)

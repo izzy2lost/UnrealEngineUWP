@@ -89,15 +89,6 @@ static FAutoConsoleVariableRef GCVarEnableTransientResourceAllocator(
 	ECVF_ReadOnly
 );
 
-int32 GVulkanAllowVariableRateShading = 1;
-static FAutoConsoleVariableRef CVarVulkanVariableRateShading(
-	TEXT("r.Vulkan.AllowVariableRateShading"),
-	GVulkanAllowVariableRateShading,
-	TEXT("0 to disable variable rate shading")
-	TEXT("1 to allow use of variable rate shading if available (default)"),
-	ECVF_ReadOnly
-);
-
 static TAutoConsoleVariable<bool> CVarAllowVulkanPSOPrecache(
 	TEXT("r.Vulkan.AllowPSOPrecaching"),
 	false,
@@ -519,7 +510,6 @@ FVulkanDynamicRHI::FVulkanDynamicRHI()
 	GRHISupportsMultithreading = true;
 	GRHISupportsMultithreadedResources = true;
 	GRHISupportsPipelineFileCache = true;
-	GRHIVariableRateShadingEnabled &= (GVulkanAllowVariableRateShading != 0); // before extensions setup
 	GRHITransitionPrivateData_SizeInBytes = sizeof(FVulkanPipelineBarrier);
 	GRHITransitionPrivateData_AlignInBytes = alignof(FVulkanPipelineBarrier);
 	GConfig->GetInt(TEXT("TextureStreaming"), TEXT("PoolSizeVRAMPercentage"), GPoolSizeVRAMPercentage, GEngineIni);
@@ -2075,7 +2065,8 @@ uint64 FVulkanDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipeline
 		uint32 PrimitiveType : 8;
 		uint32 bDepthBounds : 1;
 		uint32 bHasFragmentDensityAttachment : 1;
-		uint32 Unused : 6;
+		uint32 bAllowVariableRateShading : 1;
+		uint32 Unused : 5;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FHashKey));
@@ -2114,6 +2105,7 @@ uint64 FVulkanDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipeline
 	HashKey.PrimitiveType = Initializer.PrimitiveType;
 	HashKey.bDepthBounds = Initializer.bDepthBounds;
 	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
+	HashKey.bAllowVariableRateShading = Initializer.bAllowVariableRateShading;
 
 	uint64 PrecachePSOHash = CityHash64((const char*)&HashKey, sizeof(FHashKey));
 
@@ -2152,6 +2144,7 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 		EVRSShadingRate					ShadingRate;
 		bool							bDepthBounds;
 		bool							bHasFragmentDensityAttachment;
+		bool							bAllowVariableRateShading;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FNonStateHashKey));
@@ -2172,6 +2165,7 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 	HashKey.ShadingRate = Initializer.ShadingRate;
 	HashKey.bDepthBounds = Initializer.bDepthBounds;
 	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
+	HashKey.bAllowVariableRateShading = Initializer.bAllowVariableRateShading;
 
 	// TODO: check if any RT flags actually affect PSO in VK
 	for (ETextureCreateFlags& Flags : HashKey.RenderTargetFlags)
@@ -2192,6 +2186,7 @@ bool FVulkanDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineS
 		LHS.MultiViewCount != RHS.MultiViewCount ||
 		LHS.ShadingRate != RHS.ShadingRate ||
 		LHS.bHasFragmentDensityAttachment != RHS.bHasFragmentDensityAttachment ||
+		LHS.bAllowVariableRateShading != RHS.bAllowVariableRateShading ||
 		LHS.RenderTargetsEnabled != RHS.RenderTargetsEnabled ||
 		LHS.RenderTargetFormats != RHS.RenderTargetFormats ||
 		!FGraphicsPipelineStateInitializer::RelevantRenderTargetFlagsEqual(LHS.RenderTargetFlags, RHS.RenderTargetFlags) ||

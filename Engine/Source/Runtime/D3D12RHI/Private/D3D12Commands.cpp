@@ -792,7 +792,7 @@ void FD3D12CommandContext::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState
 		StateCache.SetDepthBounds(0.0f, 1.0f);
 	}
 
-	if (GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled)
+	if (GRHISupportsPipelineVariableRateShading)
 	{
 		if (GraphicsPipelineState->PipelineStateInitializer.bAllowVariableRateShading)
 		{
@@ -800,6 +800,7 @@ void FD3D12CommandContext::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState
 		}
 		else
 		{
+			// Also forces shading rate image attachment to be ignored
 			StateCache.SetShadingRate(EVRSShadingRate::VRSSR_1x1, VRSRB_Passthrough, VRSRB_Passthrough);
 		}
 	}
@@ -1371,26 +1372,19 @@ void FD3D12CommandContext::SetRenderTargetsAndClear(const FRHISetRenderTargetsIn
 	}
 
 #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
-	if (GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled)
+	if (GRHISupportsAttachmentVariableRateShading)
 	{
-		if (GRHISupportsAttachmentVariableRateShading && GRHIAttachmentVariableRateShadingEnabled)
+		if (RenderTargetsInfo.ShadingRateTexture != nullptr)
 		{
-			if (RenderTargetsInfo.ShadingRateTexture != nullptr)
-			{
-				FD3D12Resource* Resource = RetrieveTexture(RenderTargetsInfo.ShadingRateTexture)->GetResource();
+			FD3D12Resource* Resource = RetrieveTexture(RenderTargetsInfo.ShadingRateTexture)->GetResource();
 
-				TransitionResource(
-					Resource,
-					D3D12_RESOURCE_STATE_TBD,
-					D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE,
-					D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+			TransitionResource(
+				Resource,
+				D3D12_RESOURCE_STATE_TBD,
+				D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE,
+				D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 
-				StateCache.SetShadingRateImage(Resource);
-			}
-			else
-			{
-				StateCache.SetShadingRateImage(nullptr);
-			}
+			StateCache.SetShadingRateImage(Resource);
 		}
 		else
 		{
@@ -1930,14 +1924,17 @@ void FD3D12CommandContext::RHISetShadingRate(EVRSShadingRate ShadingRate, EVRSRa
 {
 #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
 	// Note - this will override per-material VRS opt-out, but FRHICommandSetShadingRate isn't called from anywhere
-	StateCache.SetShadingRate(ShadingRate, Combiner, VRSRB_Max);
+	if (GRHISupportsPipelineVariableRateShading)
+	{
+		StateCache.SetShadingRate(ShadingRate, Combiner, VRSRB_Max);
+	}
 #endif
 }
 
 void FD3D12CommandContext::SetShadingRate(EVRSShadingRate ShadingRate, const TStaticArray<EVRSRateCombiner, ED3D12VRSCombinerStages::Num>& Combiners)
 {
  #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
- 	if (GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled && GraphicsCommandList5())
+ 	if (GRHISupportsPipelineVariableRateShading && GraphicsCommandList5())
  	{
 		for (int32 CombinerIndex = 0; CombinerIndex < Combiners.Num(); ++CombinerIndex)
 		{
@@ -1960,7 +1957,7 @@ void FD3D12CommandContext::SetShadingRate(EVRSShadingRate ShadingRate, const TSt
 void FD3D12CommandContext::SetShadingRateImage(FD3D12Resource* RateImageTexture)
 {
 #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
-	if (GRHISupportsAttachmentVariableRateShading && GRHIAttachmentVariableRateShadingEnabled && GraphicsCommandList5())
+	if (GRHISupportsAttachmentVariableRateShading && GraphicsCommandList5())
 	{
 		if (RateImageTexture)
 		{
