@@ -514,7 +514,14 @@ struct FInternalOptionalPinManager : public FOptionalPinManager
 						{
 							NewPin->DefaultValue = EnumProperty->GetEnum()->GetNameStringByIndex(0);
 						}
-						
+						else if (FByteProperty* ByteProperty = CastField<FByteProperty>(OuterProperty))
+						{
+							if (ByteProperty->IsEnum())
+							{
+								NewPin->DefaultValue = ByteProperty->GetIntPropertyEnum()->GetNameStringByIndex(0);
+							}							
+						}
+
 						Schema->ConstructBasicPinTooltip(*NewPin, PropertyEntry.PropertyTooltip, NewPin->PinToolTip);
 					}
 				}
