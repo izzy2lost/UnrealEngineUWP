@@ -414,6 +414,19 @@ TArray<MaterialInfo::FPropertySet> GetMaterialInfoProperties()
 #endif
 }
 
+static void DumpMaterials(
+	FDiagnosticTableWriterCSV& CsvWriter,
+	TArrayView<FAssetData> MaterialInterfaceAssets,
+	TArray<MaterialInfo::FPropertySet>& MaterialInfoProperties,
+	TSet<FString>& Columns,
+	ITargetPlatform* Platform,
+	EShaderPlatform ShaderPlatform,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EMaterialQualityLevel::Type MaterialQualityLevel,
+	bool bMatchAllMaterials,
+	const FRegexPattern& RequestedMaterialPattern
+);
+
 int32 UDumpMaterialInfoCommandlet::Main(const FString& Params)
 {
 	TArray<FString> Tokens;
@@ -426,7 +439,7 @@ int32 UDumpMaterialInfoCommandlet::Main(const FString& Params)
 	{
 		UE_LOG(LogDumpMaterialInfo, Log, TEXT("DumpMaterialInfo"));
 		UE_LOG(LogDumpMaterialInfo, Log, TEXT("This commandlet will dump information about materials."));
-		UE_LOG(LogDumpMaterialInfo, Log, TEXT("A typical way to invoke it is: <YourProject> -run=DumpMaterialInfo -targetplatform=Windows -unattended -sm6 -allowcommandletrendering -nomaterialshaderddc."));
+		UE_LOG(LogDumpMaterialInfo, Log, TEXT("A typical way to invoke it is: <YourProject> -run=DumpMaterialInfo -targetplatform=Windows -unattended -sm6 -allowcommandletrendering -nomaterialshaderddc -csv=C:/output.csv"));
 		UE_LOG(LogDumpMaterialInfo, Log, TEXT(""));
 		UE_LOG(LogDumpMaterialInfo, Log, TEXT("Options:"));
 		UE_LOG(LogDumpMaterialInfo, Log, TEXT(" -help           Print this message"));
@@ -526,96 +539,118 @@ int32 UDumpMaterialInfoCommandlet::Main(const FString& Params)
 		UE_LOG(LogDumpMaterialInfo, Error, TEXT("Failed to open output file %s"), **CsvPath);
 		return 1;
 	}
+
+
 	FDiagnosticTableWriterCSV CsvWriter(CsvFileWriter);
+
+	// CSV header
+	{
+		for (const MaterialInfo::FPropertySet& Property : MaterialInfoProperties)
+		{
+			for (const FString& PropertyName : Property.PropertyNames)
+			{
+				if (Columns.IsEmpty() || Columns.Contains(PropertyName))
+				{
+					CsvWriter.AddColumn(TEXT("%s"), *PropertyName);
+				}
+			}
+		}
+		CsvWriter.CycleRow();
+		CsvFileWriter->Flush();
+	}
 
 	for (ITargetPlatform* Platform : Platforms)
 	{
 		UE_LOG(LogDumpMaterialInfo, Display, TEXT("Compiling shaders for %s..."), *Platform->PlatformName());
 
-		TSet<UMaterialInterface*> MaterialsToCompile;
-		for (const FAssetData& AssetData : MaterialInterfaceAssets)
+		const int MaxBatchSize = 1000;
+		int NumBatches = FMath::DivideAndRoundUp(MaterialInterfaceAssets.Num(), MaxBatchSize);
+		for (int BatchIndex = 0; BatchIndex < NumBatches; BatchIndex++)
 		{
-			bool bInclude = (bMatchAllMaterials || FRegexMatcher(RequestedMaterialPattern, AssetData.GetFullName()).FindNext());
-			if (!bInclude)
+			UE_LOG(LogDumpMaterialInfo, Display, TEXT("Dumping batch %d of %d"), BatchIndex, NumBatches);
+			DumpMaterials(
+				CsvWriter,
+				TArrayView<FAssetData>(MaterialInterfaceAssets).Mid(BatchIndex * MaxBatchSize, MaxBatchSize),
+				MaterialInfoProperties,
+				Columns,
+				Platform,
+				ShaderPlatform,
+				FeatureLevel,
+				MaterialQualityLevel,
+				bMatchAllMaterials,
+				RequestedMaterialPattern);
+		}
+
+		CsvFileWriter->Flush();
+	} // Platforms
+
+	return 0;
+}
+
+static void DumpMaterials(
+	FDiagnosticTableWriterCSV& CsvWriter,
+	TArrayView<FAssetData> MaterialInterfaceAssets,
+	TArray<MaterialInfo::FPropertySet>& MaterialInfoProperties,
+	TSet<FString>& Columns,
+	ITargetPlatform* Platform,
+	EShaderPlatform ShaderPlatform,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EMaterialQualityLevel::Type MaterialQualityLevel,
+	bool bMatchAllMaterials,
+	const FRegexPattern& RequestedMaterialPattern
+)
+{
+	TSet<UMaterialInterface*> MaterialsToCompile;
+	for (const FAssetData& AssetData : MaterialInterfaceAssets)
+	{
+		bool bInclude = (bMatchAllMaterials || FRegexMatcher(RequestedMaterialPattern, AssetData.GetFullName()).FindNext());
+		if (!bInclude)
+		{
+			continue;
+		}
+		if (UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(AssetData.GetAsset()))
+		{
+			UMaterial* Material = MaterialInterface->GetMaterial();
+			if (Material)
 			{
-				continue;
-			}
-			if (UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(AssetData.GetAsset()))
-			{
-				UMaterial* Material = MaterialInterface->GetMaterial();
-				if (Material)
+				UE_LOG(LogDumpMaterialInfo, Display, TEXT("BeginCache for %s"), *MaterialInterface->GetFullName());
+				MaterialInterface->BeginCacheForCookedPlatformData(Platform);
+				// need to call this once for all objects before any calls to ProcessAsyncResults as otherwise we'll potentially upload
+				// incremental/incomplete shadermaps to DDC (as this function actually triggers compilation, some compiles for a particular
+				// material may finish before we've even started others - if we call ProcessAsyncResults in that case the associated shader
+				// maps will think they are "finished" due to having no outstanding dependencies).
+				if (!MaterialInterface->IsCachedCookedPlatformDataLoaded(Platform))
 				{
-					UE_LOG(LogDumpMaterialInfo, Display, TEXT("BeginCache for %s"), *MaterialInterface->GetFullName());
-					MaterialInterface->BeginCacheForCookedPlatformData(Platform);
-					// need to call this once for all objects before any calls to ProcessAsyncResults as otherwise we'll potentially upload
-					// incremental/incomplete shadermaps to DDC (as this function actually triggers compilation, some compiles for a particular
-					// material may finish before we've even started others - if we call ProcessAsyncResults in that case the associated shader
-					// maps will think they are "finished" due to having no outstanding dependencies).
-					if (!MaterialInterface->IsCachedCookedPlatformDataLoaded(Platform))
-					{
-						MaterialsToCompile.Add(MaterialInterface);
-					}
+					MaterialsToCompile.Add(MaterialInterface);
 				}
 			}
 		}
-		TSet<UMaterialInterface*> MaterialsToAnalyse = MaterialsToCompile;
+	}
+	TSet<UMaterialInterface*> MaterialsToAnalyse = MaterialsToCompile;
 
-		UE_LOG(LogDumpMaterialInfo, Log, TEXT("Found %d materials to compile."), MaterialsToCompile.Num());
+	UE_LOG(LogDumpMaterialInfo, Log, TEXT("Found %d materials to compile."), MaterialsToCompile.Num());
 
-		static constexpr bool bLimitExecutationTime = false;
-		int32 PreviousOutstandingJobs = 0;
-		constexpr int32 MaxOutstandingJobs = 20000; // Having a max is a way to try to reduce memory usage.. otherwise outstanding jobs can reach 100k+ and use up 300gb committed memory
-		// Submit all the jobs.
+	static constexpr bool bLimitExecutationTime = false;
+	int32 PreviousOutstandingJobs = 0;
+	constexpr int32 MaxOutstandingJobs = 20000; // Having a max is a way to try to reduce memory usage.. otherwise outstanding jobs can reach 100k+ and use up 300gb committed memory
+	// Submit all the jobs.
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SubmitJobs);
+
+		UE_LOG(LogDumpMaterialInfo, Display, TEXT("Submit Jobs"));
+
+		while (MaterialsToCompile.Num())
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(SubmitJobs);
-
-			UE_LOG(LogDumpMaterialInfo, Display, TEXT("Submit Jobs"));
-
-			while (MaterialsToCompile.Num())
+			for (auto It = MaterialsToCompile.CreateIterator(); It; ++It)
 			{
-				for (auto It = MaterialsToCompile.CreateIterator(); It; ++It)
+				UMaterialInterface* MaterialInterface = *It;
+				if (MaterialInterface->IsCachedCookedPlatformDataLoaded(Platform))
 				{
-					UMaterialInterface* MaterialInterface = *It;
-					if (MaterialInterface->IsCachedCookedPlatformDataLoaded(Platform))
-					{
-						It.RemoveCurrent();
-						UE_LOG(LogDumpMaterialInfo, Display, TEXT("Finished cache for %s."), *MaterialInterface->GetFullName());
-						UE_LOG(LogDumpMaterialInfo, Display, TEXT("Materials remaining: %d"), MaterialsToCompile.Num());
-					}
-
-					GShaderCompilingManager->ProcessAsyncResults(bLimitExecutationTime, false /* bBlockOnGlobalShaderCompilation */);
-
-					while (true)
-					{
-						const int32 CurrentOutstandingJobs = GShaderCompilingManager->GetNumOutstandingJobs();
-						if (CurrentOutstandingJobs != PreviousOutstandingJobs)
-						{
-							UE_LOG(LogDumpMaterialInfo, Display, TEXT("Outstanding Jobs: %d"), CurrentOutstandingJobs);
-							PreviousOutstandingJobs = CurrentOutstandingJobs;
-						}
-
-						// Flush rendering commands to release any RHI resources (shaders and shader maps).
-						// Delete any FPendingCleanupObjects (shader maps).
-						FlushRenderingCommands();
-
-						if (CurrentOutstandingJobs < MaxOutstandingJobs)
-						{
-							break;
-						}
-						FPlatformProcess::Sleep(1);
-					}
+					It.RemoveCurrent();
+					UE_LOG(LogDumpMaterialInfo, Display, TEXT("Finished cache for %s."), *MaterialInterface->GetFullName());
+					UE_LOG(LogDumpMaterialInfo, Display, TEXT("Materials remaining: %d"), MaterialsToCompile.Num());
 				}
-			}
-		}
 
-		// Process the shader maps and save to the DDC.
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(ProcessShaderCompileResults);
-
-			UE_LOG(LogDumpMaterialInfo, Log, TEXT("ProcessAsyncResults"));
-
-			while (GShaderCompilingManager->IsCompiling())
-			{
 				GShaderCompilingManager->ProcessAsyncResults(bLimitExecutationTime, false /* bBlockOnGlobalShaderCompilation */);
 
 				while (true)
@@ -639,117 +674,132 @@ int32 UDumpMaterialInfoCommandlet::Main(const FString& Params)
 				}
 			}
 		}
+	}
 
-		// CSV header
+	// Process the shader maps and save to the DDC.
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ProcessShaderCompileResults);
+
+		UE_LOG(LogDumpMaterialInfo, Log, TEXT("ProcessAsyncResults"));
+
+		while (GShaderCompilingManager->IsCompiling())
 		{
-			for (const MaterialInfo::FPropertySet& Property : MaterialInfoProperties)
+			GShaderCompilingManager->ProcessAsyncResults(bLimitExecutationTime, false /* bBlockOnGlobalShaderCompilation */);
+
+			while (true)
 			{
-				for (const FString& PropertyName : Property.PropertyNames)
+				const int32 CurrentOutstandingJobs = GShaderCompilingManager->GetNumOutstandingJobs();
+				if (CurrentOutstandingJobs != PreviousOutstandingJobs)
 				{
-					if (Columns.IsEmpty() || Columns.Contains(PropertyName))
+					UE_LOG(LogDumpMaterialInfo, Display, TEXT("Outstanding Jobs: %d"), CurrentOutstandingJobs);
+					PreviousOutstandingJobs = CurrentOutstandingJobs;
+				}
+
+				// Flush rendering commands to release any RHI resources (shaders and shader maps).
+				// Delete any FPendingCleanupObjects (shader maps).
+				FlushRenderingCommands();
+
+				if (CurrentOutstandingJobs < MaxOutstandingJobs)
+				{
+					break;
+				}
+				FPlatformProcess::Sleep(1);
+			}
+		}
+	}
+
+	// Look up compilation result for the materials
+	TArray<const FVertexFactoryType*> VFTypes;
+	TArray<const FShaderPipelineType*> PipelineTypes;
+	TArray<const FShaderType*> ShaderTypes;
+	for (UMaterialInterface* MaterialInterface : MaterialsToAnalyse)
+	{
+		VFTypes.Empty();
+		PipelineTypes.Empty();
+		ShaderTypes.Empty();
+
+		UMaterial* Material = MaterialInterface->GetMaterial();
+		if (Material)
+		{
+			TArray<FMaterialResource*> ResourcesToCache;
+
+			FMaterialResource* CurrentResource = FindOrCreateMaterialResource(ResourcesToCache, Material, nullptr, FeatureLevel, MaterialQualityLevel);
+			check(CurrentResource);
+
+			TMap<FName, TArray<FMaterialStatsUtils::FRepresentativeShaderInfo>> ShaderTypeNamesAndDescriptions;
+			FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(ShaderTypeNamesAndDescriptions, CurrentResource);
+
+			for (auto& DescriptionPair : ShaderTypeNamesAndDescriptions)
+			{
+				const FVertexFactoryType* VFType = FindVertexFactoryType(DescriptionPair.Key);
+				check(VFType);
+
+				auto& DescriptionArray = DescriptionPair.Value;
+				for (const FMaterialStatsUtils::FRepresentativeShaderInfo& ShaderInfo : DescriptionArray)
+				{
+					const FShaderType* ShaderType = FindShaderTypeByName(ShaderInfo.ShaderName);
+
+					if (ShaderType && VFType)
 					{
-						CsvWriter.AddColumn(TEXT("%s"), *PropertyName);
+						VFTypes.Add(VFType);
+						ShaderTypes.Add(ShaderType);
+						PipelineTypes.Add(nullptr);
 					}
 				}
 			}
-			CsvWriter.CycleRow();
-		}
 
-		// Look up compilation result for the materials
-		TArray<const FVertexFactoryType*> VFTypes;
-		TArray<const FShaderPipelineType*> PipelineTypes;
-		TArray<const FShaderType*> ShaderTypes;
-		for(UMaterialInterface* MaterialInterface : MaterialsToAnalyse)
-		{
-			VFTypes.Empty();
-			PipelineTypes.Empty();
-			ShaderTypes.Empty();
+			// Prepare the resource for compilation, but don't compile the completed shader map.
+			const bool bSuccess = CurrentResource->CacheShaders(ShaderPlatform, EMaterialShaderPrecompileMode::None);
 
-			UMaterial* Material = MaterialInterface->GetMaterial();
-			if (Material)
+			if (bSuccess)
 			{
-				TArray<FMaterialResource*> ResourcesToCache;
+				// Compile just the types we want.
+				CurrentResource->CacheGivenTypes(ShaderPlatform, VFTypes, PipelineTypes, ShaderTypes);
+			}
 
-				FMaterialResource* CurrentResource = FindOrCreateMaterialResource(ResourcesToCache, Material, nullptr, FeatureLevel, MaterialQualityLevel);
-				check(CurrentResource);
+			if (!CurrentResource->IsGameThreadShaderMapComplete()) { UE_LOG(LogDumpMaterialInfo, Warning, TEXT("Missing shader map data")); }
 
-				TMap<FName, TArray<FMaterialStatsUtils::FRepresentativeShaderInfo>> ShaderTypeNamesAndDescriptions;
-				FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(ShaderTypeNamesAndDescriptions, CurrentResource);
+			FMaterialRelevance MaterialRelevance = CurrentResource->GetMaterialInterface()->GetRelevance(FeatureLevel);
 
-				for (auto& DescriptionPair : ShaderTypeNamesAndDescriptions)
+			// CSV line
+			{
+				MaterialInfo::FOutput Output;
+				for (const MaterialInfo::FPropertySet& Property : MaterialInfoProperties)
 				{
-					const FVertexFactoryType* VFType = FindVertexFactoryType(DescriptionPair.Key);
-					check(VFType);
-
-					auto& DescriptionArray = DescriptionPair.Value;
-					for (const FMaterialStatsUtils::FRepresentativeShaderInfo& ShaderInfo : DescriptionArray)
+					MaterialInfo::FPropertyDumpInput Input;
+					Input.Material = Material;
+					Input.MaterialResource = CurrentResource;
+					Input.MaterialRelevance = MaterialRelevance;
+					Input.ShaderTypes = &ShaderTypes;
+					Output.DumpPropertySet(Property, Input);
+					for (const MaterialInfo::FPropertyValue& Value : Output.GetValues())
 					{
-						const FShaderType* ShaderType = FindShaderTypeByName(ShaderInfo.ShaderName);
-
-						if (ShaderType && VFType)
+						if (Columns.IsEmpty() || Columns.Contains(Value.Name))
 						{
-							VFTypes.Add(VFType);
-							ShaderTypes.Add(ShaderType);
-							PipelineTypes.Add(nullptr);
+							CsvWriter.AddColumn(TEXT("%s"), *FString(Value.Value));
 						}
 					}
+					Output.Reset();
 				}
-
-				// Prepare the resource for compilation, but don't compile the completed shader map.
-				const bool bSuccess = CurrentResource->CacheShaders(ShaderPlatform, EMaterialShaderPrecompileMode::None);
-
-				if (bSuccess)
-				{
-					// Compile just the types we want.
-					CurrentResource->CacheGivenTypes(ShaderPlatform, VFTypes, PipelineTypes, ShaderTypes);
-				}
-				
-				if(!CurrentResource->IsGameThreadShaderMapComplete()) { UE_LOG(LogDumpMaterialInfo, Warning, TEXT("Missing shader map data")); }
-
-				FMaterialRelevance MaterialRelevance = CurrentResource->GetMaterialInterface()->GetRelevance(FeatureLevel);
-
-				// CSV line
-				{
-					MaterialInfo::FOutput Output;
-					for (const MaterialInfo::FPropertySet& Property : MaterialInfoProperties)
-					{
-						MaterialInfo::FPropertyDumpInput Input;
-						Input.Material = Material;
-						Input.MaterialResource = CurrentResource;
-						Input.MaterialRelevance = MaterialRelevance;
-						Input.ShaderTypes = &ShaderTypes;
-						Output.DumpPropertySet(Property, Input);
-						for (const MaterialInfo::FPropertyValue& Value : Output.GetValues())
-						{
-							if (Columns.IsEmpty() || Columns.Contains(Value.Name))
-							{
-								CsvWriter.AddColumn(TEXT("%s"), *FString(Value.Value));
-							}
-						}
-						Output.Reset();
-					}
-					CsvWriter.CycleRow();
-				}
-
-				FMaterial::DeferredDeleteArray(ResourcesToCache);
+				CsvWriter.CycleRow();
 			}
-		}
 
-		// Perform cleanup and clear cached data for cooking.
+			FMaterial::DeferredDeleteArray(ResourcesToCache);
+		}
+	}
+
+	// Perform cleanup and clear cached data for cooking.
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ClearCachedCookedPlatformData);
+
+		UE_LOG(LogDumpMaterialInfo, Display, TEXT("Clear Cached Cooked Platform Data"));
+
+		for (const FAssetData& AssetData : MaterialInterfaceAssets)
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(ClearCachedCookedPlatformData);
-
-			UE_LOG(LogDumpMaterialInfo, Display, TEXT("Clear Cached Cooked Platform Data"));
-
-			for (const FAssetData& AssetData : MaterialInterfaceAssets)
+			if (UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(AssetData.GetAsset()))
 			{
-				if (UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(AssetData.GetAsset()))
-				{
-					MaterialInterface->ClearAllCachedCookedPlatformData();
-				}
+				MaterialInterface->ClearAllCachedCookedPlatformData();
 			}
 		}
-	} // Platforms
-
-	return 0;
+	}
 }
