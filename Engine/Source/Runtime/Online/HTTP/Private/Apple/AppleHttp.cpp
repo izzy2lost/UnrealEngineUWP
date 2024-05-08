@@ -158,7 +158,6 @@ static bool ShouldReadHeadersWhenComplete(const FString& Url)
 {
 	if (TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin())
 	{
-		AppleHTTPRequestInternal::UpdateConfigFromCVar();
 		if (!AppleHTTPRequestInternal::ShouldReadHeadersWhenComplete(Request->GetURL()))
 		{
 			if (Request->GetDelegateThreadPolicy() == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
@@ -723,6 +722,8 @@ bool FAppleHttpRequest::ProcessRequest()
 	{
 		return false;
 	}
+	
+	AppleHTTPRequestInternal::UpdateConfigFromCVar();
 
 	return true;
 }
