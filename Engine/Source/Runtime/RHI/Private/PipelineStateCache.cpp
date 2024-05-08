@@ -20,6 +20,14 @@ PipelineStateCache.cpp: Pipeline state cache implementation.
 #include "Stats/StatsTrace.h"
 #include "Templates/TypeHash.h"
 
+// 5.4.2 local change to avoid modifying public headers
+namespace PipelineStateCache
+{
+	// Waits for any pending tasks to complete.
+	extern RHI_API void WaitForAllTasks();
+
+}
+
 // perform cache eviction each frame, used to stress the system and flush out bugs
 #define PSO_DO_CACHE_EVICT_EACH_FRAME 0
 

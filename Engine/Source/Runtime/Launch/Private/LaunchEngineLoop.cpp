@@ -4935,6 +4935,14 @@ int32 FEngineLoop::Init()
 }
 
 
+// 5.4.2 local change to avoid modifying public headers
+namespace PipelineStateCache
+{
+	// Waits for any pending tasks to complete.
+	extern RHI_API void WaitForAllTasks();
+
+}
+
 void FEngineLoop::Exit()
 {
 	STAT_ADD_CUSTOMMESSAGE_NAME( STAT_NamedMarker, TEXT( "EngineLoop.Exit" ) );
@@ -5062,6 +5070,8 @@ void FEngineLoop::Exit()
 	// Reset any in progress PSO compile requests, reduces pipelinestatecache task wait time.
 	ClearMaterialPSORequests();
 #endif
+
+	// Wait for any pending tasks to complete.
 	PipelineStateCache::WaitForAllTasks();
 
 	AppPreExit();
