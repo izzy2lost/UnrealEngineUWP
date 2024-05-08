@@ -64,6 +64,7 @@ public:
 	~FVulkanRayTracingShaderTable();
 
 	void Init(const FVulkanRayTracingPipelineState* Pipeline);
+	void ReleaseLocalBuffers();
 
 	const VkStridedDeviceAddressRegionKHR* GetRegion(EShaderFrequency Frequency);
 
@@ -90,6 +91,8 @@ public:
 	{
 		return ReferencedUniformBuffers;
 	}
+
+	void SetRayTracingPipelineState(const FVulkanRayTracingPipelineState* InPipeline);
 
 	// Ray tracing shader bindings can be processed in parallel.
 	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
@@ -129,6 +132,8 @@ private:
 	FVulkanShaderTableAllocation Callable;
 
 	TArray<TRefCountPtr<FRHIUniformBuffer>> ReferencedUniformBuffers;
+
+	TRefCountPtr<const FVulkanRayTracingPipelineState> RayTracingPipelineState; // TODO: Is holding reference necessary?
 
 	// Convenience
 	const uint32 HandleSize;
@@ -176,8 +181,9 @@ public:
 
 class FVulkanRayTracingScene : public FRHIRayTracingScene, public VulkanRHI::FDeviceChild
 {
-public:
+	friend FVulkanCommandListContext;
 
+public:
 	FVulkanRayTracingScene(FRayTracingSceneInitializer2 Initializer, FVulkanDevice* InDevice);
 	~FVulkanRayTracingScene();
 
@@ -246,7 +252,7 @@ private:
 	TRefCountPtr<FVulkanResourceMultiBuffer> PerInstanceGeometryParameterBuffer;
 	FShaderResourceViewRHIRef PerInstanceGeometryParameterSRV;
 	
-	TMap<const FVulkanRayTracingPipelineState*, FVulkanRayTracingShaderTable*> ShaderTables;
+	TMap<const FVulkanRayTracingPipelineState*, TRefCountPtr<FVulkanRayTracingShaderTable>> ShaderTables;
 
 	void BuildPerInstanceGeometryParameterBuffer(FVulkanCommandListContext& CommandContext);
 

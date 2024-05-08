@@ -917,6 +917,11 @@ FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FVulkanDevice* Device
 
 FVulkanRayTracingShaderTable::~FVulkanRayTracingShaderTable()
 {
+	ReleaseLocalBuffers();
+}
+
+void FVulkanRayTracingShaderTable::ReleaseLocalBuffers()
+{
 	ReleaseLocalBuffer(Device, Raygen);
 	ReleaseLocalBuffer(Device, Miss);
 	ReleaseLocalBuffer(Device, HitGroup);
@@ -969,6 +974,17 @@ void FVulkanRayTracingShaderTable::Init(const FVulkanRayTracingPipelineState* Pi
 	{
 		SetSlot(SF_RayHitGroup, 0, 0, Pipeline->GetShaderHandles(SF_RayHitGroup));
 	}
+}
+
+void FVulkanRayTracingShaderTable::SetRayTracingPipelineState(const FVulkanRayTracingPipelineState* InPipeline)
+{
+	checkf(RayTracingPipelineState == nullptr || RayTracingPipelineState == InPipeline, TEXT("FRHIShaderBindingTable can't currently be used with multiple different RTPSOs"));
+
+	if (RayTracingPipelineState == nullptr)
+	{
+		Init(InPipeline);
+	}
+	RayTracingPipelineState = InPipeline;
 }
 
 FVulkanRayTracingShaderTable::FVulkanShaderTableAllocation& FVulkanRayTracingShaderTable::GetAlloc(EShaderFrequency Frequency)
@@ -1098,10 +1114,10 @@ FRHIShaderBindingTable* FVulkanRayTracingScene::FindOrCreateShaderBindingTable(c
 
 	// Find existing table
 	{
-		FVulkanRayTracingShaderTable* const* FoundShaderTable = ShaderTables.Find(Pipeline);
+		TRefCountPtr<FVulkanRayTracingShaderTable>* FoundShaderTable = ShaderTables.Find(Pipeline);
 		if (FoundShaderTable)
 		{
-			return *FoundShaderTable;
+			return FoundShaderTable->GetReference();
 		}
 	}
 
@@ -1115,7 +1131,7 @@ FRHIShaderBindingTable* FVulkanRayTracingScene::FindOrCreateShaderBindingTable(c
 
 	// Create new table
 	FVulkanRayTracingShaderTable* CreatedShaderTable = new FVulkanRayTracingShaderTable(Device, MoveTemp(SBTInitializer));
-	CreatedShaderTable->Init(Pipeline);
+	CreatedShaderTable->SetRayTracingPipelineState(Pipeline);
 
 	ShaderTables.Add(Pipeline, CreatedShaderTable);
 
@@ -1178,9 +1194,15 @@ FShaderBindingTableRHIRef FVulkanDynamicRHI::RHICreateShaderBindingTable(const F
 	return new FVulkanRayTracingShaderTable(GetDevice(), Initializer);
 }
 
-void FVulkanCommandListContext::RHIClearRayTracingBindings(FRHIRayTracingScene* Scene)
+void FVulkanCommandListContext::RHIClearRayTracingBindings(FRHIRayTracingScene* InScene)
 {
-	 // TODO
+	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
+	check(Scene);
+
+	for (auto& Table : Scene->ShaderTables)
+	{
+		Table.Value->ReleaseLocalBuffers();
+	}
 }
 
 void FVulkanCommandListContext::RHICommitRayTracingBindings(FRHIRayTracingScene* InScene)
@@ -1189,9 +1211,10 @@ void FVulkanCommandListContext::RHICommitRayTracingBindings(FRHIRayTracingScene*
 	Scene->CommitShaderTables(*this);
 }
 
-void FVulkanCommandListContext::RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT)
+void FVulkanCommandListContext::RHIClearShaderBindingTable(FRHIShaderBindingTable* InSBT)
 {
-	// TODO
+	FVulkanRayTracingShaderTable* SBT = ResourceCast(InSBT);
+	SBT->ReleaseLocalBuffers();
 }
 
 void FVulkanCommandListContext::RHICommitShaderBindingTable(FRHIShaderBindingTable* InSBT)
@@ -2245,6 +2268,8 @@ void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBin
 	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
 
 	checkf(Scene->IsBuilt(), TEXT("Ray tracing scene must be built before any shaders can be bound to it. Make sure that RHIBuildAccelerationStructure() command has been executed."));
+
+	ShaderTable->SetRayTracingPipelineState(Pipeline);
 
 	FGraphEventArray TaskList;
 
