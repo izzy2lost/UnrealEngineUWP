@@ -446,13 +446,13 @@ private:
 		template<typename PayloadType>
 		void ClearEvents(const EEventType& EventType, TFunction<void(PayloadType & EventData)> InFunction)
 		{
-			ContainerLock.ReadLock();
+			ContainerLock.WriteLock();
 
 			if (TEventContainer<PayloadType>* EventContainer = StaticCast<TEventContainer<PayloadType>*>(EventContainers[FEventID(EventType)]))
 			{
 				EventContainer->DestroyStaleEvents(InFunction);
 			}
-			ContainerLock.ReadUnlock();
+			ContainerLock.WriteUnlock();
 		}
 
 		/**

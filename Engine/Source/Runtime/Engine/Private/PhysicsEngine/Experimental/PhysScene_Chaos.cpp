@@ -1024,7 +1024,7 @@ void FPhysScene_Chaos::HandleCollisionEvents(const Chaos::FCollisionEventData& E
 		// Iterate through the smallest between events registration and physics proxies
 		if (PhysicsProxyToCollisionIndicesMap.Num() <= CollisionEventRegistrations.Num())
 		{
-			for (TPair<IPhysicsProxyBase*, TArray<int32>> Pair : PhysicsProxyToCollisionIndicesMap)
+			for (const TPair<IPhysicsProxyBase*, TArray<int32>>& Pair : PhysicsProxyToCollisionIndicesMap)
 			{
 				IPhysicsProxyBase*  PhysicsProxy0 = Pair.Key;
 				const TArray<int32>& CollisionIndices = Pair.Value;
