@@ -85,31 +85,36 @@ private:
 
 static uint16 CountEnums(const FStructSchema& Schema)
 {
-	uint16 Num = 0;
-	for (FMemberType Member : MakeArrayView(Schema.Footer, Schema.NumMembers))
+	if (Schema.NumInnerSchemas == 0)
 	{
-		Num += IsEnum(Member);
+		return 0;
 	}
-	return Num;
-}
-
-static uint16 CountEnums(const FStructSchemaBinding& Schema)
-{
+	
 	uint16 Num = 0;
-	for (FMemberBindType Member : MakeArrayView(Schema.Members, Schema.NumMembers))
+	TConstArrayView<FMemberType> RangeTypes = Schema.GetRangeTypes(); 
+	if (RangeTypes.IsEmpty())
 	{
-		Num += (Member.IsLeaf() && Member.AsLeaf().Bind.Type == ELeafBindType::Enum);
+		for (FMemberType Member : Schema.GetMemberTypes())
+		{
+			Num += IsEnum(Member);
+		}
+		return Num;
 	}
-	return Num;
-}
-
-static uint16 CountStaticStructs(const FStructSchemaBinding& Schema)
-{
-	uint16 Num = 0;
-	for (FMemberBindType Member : MakeArrayView(Schema.Members, Schema.NumMembers))
+	
+	uint16 RangeTypeIdx = 0;
+	for (FMemberType Member : Schema.GetMemberTypes())
 	{
-		Num += (Member.IsStruct() && !Member.AsStruct().IsDynamic);
+		if (Member.IsRange())
+		{
+			FMemberType InnermostType = GrabInnerRangeTypes(RangeTypes, /* in-out */ RangeTypeIdx).Last();
+			Num += IsEnum(InnermostType);
+		}
+		else
+		{
+			Num += IsEnum(Member);
+		}
 	}
+	check(RangeTypeIdx == Schema.NumRangeTypes);
 	return Num;
 }
 
@@ -142,37 +147,46 @@ struct FLoadBatch
 
 using SubsetByteArray = TArray<uint8, TInlineAllocator<1024>>;
 
-static void CopyMemberBinding(FLeafMemberBinding From, FMemberBinder& To)
+static void CopyMemberBinding(FLeafMemberBinding Binding, /* in-out */ const FSchemaId*& InnerSchemaIt, FMemberBinder& Out)
 {
-	// Skip enum schema
-	To.AddMember(From.Leaf.Pack(), static_cast<uint32>(From.Offset));
+	InnerSchemaIt += (Binding.Leaf.Type == ELeafBindType::Enum); // Skip enum schema
+	Out.AddMember(Binding.Leaf.Pack(), static_cast<uint32>(Binding.Offset));
 }
 
-static void CopyMemberBinding(FStructMemberBinding From, FMemberBinder& To)
+static void CopyMemberBinding(FStructMemberBinding Binding, /* in-out */ const FSchemaId*& InnerSchemaIt,FMemberBinder& Out)
 {
-	To.AddMember(FMemberBindType(From.Type), static_cast<uint32>(From.Offset));
-	To.AddInnerSchema(From.Id);
+	Out.AddMember(FMemberBindType(Binding.Type), static_cast<uint32>(Binding.Offset));
+	Out.AddInnerSchema(*InnerSchemaIt);
+	++InnerSchemaIt;
 }
 
-static void CopyMemberBinding(FRangeMemberBinding From, FMemberBinder& To)
+static void CopyMemberBinding(FRangeMemberBinding Binding, /* in-out */ const FSchemaId*& InnerSchemaIt, FMemberBinder& Out)
 {
-	FMemberBindType InnermostType = From.InnerTypes[From.NumRanges - 1];
-	To.AddRange(MakeArrayView(From.RangeBindings, From.NumRanges), InnermostType, static_cast<uint32>(From.Offset));
-	To.AddOptionalInnerSchema(From.InnermostSchema);
-}
-
-static void CopyMemberBinding(/* in-out */ FMemberVisitor& From, FMemberBinder& To)
-{
-	switch (From.PeekKind())
+	FMemberBindType InnermostType = Binding.InnerTypes[Binding.NumRanges - 1];
+	Out.AddRange(MakeArrayView(Binding.RangeBindings, Binding.NumRanges), InnermostType, static_cast<uint32>(Binding.Offset));
+	if (InnermostType.IsStruct())
 	{
-		case EMemberKind::Leaf:		CopyMemberBinding(From.GrabLeaf(), To);		break;
-		case EMemberKind::Range:	CopyMemberBinding(From.GrabRange(), To);	break;
-		case EMemberKind::Struct:	CopyMemberBinding(From.GrabStruct(), To);	break;
-		default:					check(false);								break;
+		Out.AddInnerSchema(*InnerSchemaIt);
+		++InnerSchemaIt;
+	}
+	else
+	{
+		InnerSchemaIt += (InnermostType.AsLeaf().Bind.Type == ELeafBindType::Enum); // Skip enum schema
 	}
 }
 
-static void CreateSubsetLoadSchema(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToNames,  uint16 NumEnums, SubsetByteArray& Out)
+static void CopyMemberBinding(/* in-out */ FMemberVisitor& BindIt, /* in-out */ const FSchemaId*& InnerSchemaIt, FMemberBinder& Out)
+{
+	switch (BindIt.PeekKind())
+	{
+		case EMemberKind::Leaf:		CopyMemberBinding(BindIt.GrabLeaf(), InnerSchemaIt, Out);	break;
+		case EMemberKind::Range:	CopyMemberBinding(BindIt.GrabRange(), InnerSchemaIt, Out);	break;
+		case EMemberKind::Struct:	CopyMemberBinding(BindIt.GrabStruct(), InnerSchemaIt, Out);	break;
+		default:					check(false);											break;
+	}
+}
+
+static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToNames,  uint16 NumEnums, SubsetByteArray& Out)
 {
 	check(To.NumMembers == ToNames.Num());
 	check(To.NumMembers >= From.NumMembers);
@@ -184,6 +198,7 @@ static void CreateSubsetLoadSchema(const FStructSchema& From, const FStructSchem
 	
 	FMemberVisitor ToIt(To);
 	FMemberBinder Footer(*Schema);
+	const FSchemaId* InnerSchemaIt = From.GetInnerSchemas();
 	for (FMemberId FromName : From.GetMemberNames())
 	{
 		while (FromName != ToNames[ToIt.GetIndex()])
@@ -191,8 +206,17 @@ static void CreateSubsetLoadSchema(const FStructSchema& From, const FStructSchem
 			ToIt.SkipMember();
 		}
 
-		CopyMemberBinding(/* in-out */ ToIt, /* out */ Footer);	
+		CopyMemberBinding(/* in-out */ ToIt, /* in-out */ InnerSchemaIt, /* out */ Footer);	
 	}
+	check(InnerSchemaIt == From.GetInnerSchemas() + From.NumInnerSchemas);
+}
+
+static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FStructSchemaBinding& To, SubsetByteArray& Out)
+{
+	int32 OutPos = Out.Num();
+	Out.AddUninitialized(To.CalculateSize());
+	FStructSchemaBinding* Schema = new (&Out[OutPos]) FStructSchemaBinding {To};
+	FMemory::Memcpy(const_cast<FSchemaId*>(Schema->GetInnerSchemas()), FromIds, To.NumInnerSchemas * sizeof(FSchemaId));
 }
 
 [[nodiscard]] static FLoadStructPlan MakeSchemaLoadPlan(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
@@ -200,13 +224,19 @@ static void CreateSubsetLoadSchema(const FStructSchema& From, const FStructSchem
 	uint16 NumEnums = CountEnums(From);
 	if (From.NumMembers < To.NumMembers || NumEnums || HasDifferentSupers(From, To, ToStructIds))
 	{
-		CreateSubsetLoadSchema(From, To, ToMemberIds, NumEnums, /* out */ OutSubsetSchemas);
+		CreateSubsetBindingWithoutEnumIds(From, To, ToMemberIds, NumEnums, OutSubsetSchemas);
 	}
-	else // Reuse To bindings
+	else
 	{
 		check(From.NumMembers == To.NumMembers);
 		check(From.NumInnerSchemas == To.NumInnerSchemas);
 		check(From.NumRangeTypes == To.NumInnerRanges);
+
+		if (From.NumInnerSchemas > 0)
+		{
+			CloneBindingWithReplacedStructIds(From.GetInnerSchemas(), To, OutSubsetSchemas);
+		}
+		// else reuse existing bindings
 	}
 
 	// Pointer to created subset load schema will be remapped later
@@ -334,13 +364,6 @@ static FMemberBindType ToBindType(FMemberType Member)
 class FRangeLoader
 {
 public:
-	static void LoadNestedRange(uint8* Member, FMemoryView Values, const FLoadBatch& Batch, const FLoadRangePlan& Range)
-	{
-		FByteReader ByteIt(Values);
-		FBitCacheReader BitIt;
-		LoadRange(Member, ByteIt, BitIt, Batch, Range);
-	}
-
 	static void LoadRangeView(uint8* Member, FRangeView Src, ERangeSizeType MaxSize, TConstArrayView<FRangeBinding> Bindings, const FLoadBatch& Batch)
 	{
 		TArray<FMemberBindType, TFixedAllocator<16>> InnerTypes;
@@ -358,6 +381,7 @@ public:
 		FByteReader ByteIt(Src.Values);
 		FBitCacheReader BitIt;
 		LoadRange(Member, ByteIt, BitIt, Batch, Plan);
+		ByteIt.CheckEmpty();
 	}
 
 	static void LoadRange(uint8* Member, FByteReader& ByteIt, FBitCacheReader& BitIt, const FLoadBatch& Batch, const FLoadRangePlan& Range)
@@ -384,21 +408,37 @@ public:
 	template<class SchemaType>
 	static void LoadRangeValues(uint8* Member, uint64 Num, const IRangeBinding& Binding, FByteReader& ByteIt, const FLoadBatch& Batch, SchemaType&& Schema)
 	{
+		FByteReader ValueIt(GrabRangeValues(ByteIt, Num, Schema));
+		FBitCacheReader BitIt; // Only used by ranges of ERangeSizeType::Uni ranges
 		FLoadRangeContext Ctx{.Request = {Member, Num}};
 		
 		while (Ctx.Request.Index < Num)
 		{
 			(Binding.MakeItems)(Ctx);
-			CopyRangeValues(Ctx.Items, ByteIt, Batch, Schema);
+			CopyRangeValues(Ctx.Items, ValueIt, BitIt, Batch, Schema);
 			Ctx.Request.Index += Ctx.Items.Num;
 		}
-		
+		ValueIt.CheckEmpty();
+
 		if (Ctx.Items.bNeedFinalize)
 		{
 			(Binding.MakeItems)(Ctx);
 		}
 	}
-	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, const FLoadBatch& Batch, FLeafBindType Leaf)
+
+	static FMemoryView GrabRangeValues(FByteReader& ByteIt, uint64 Num, FLeafBindType Schema)
+	{
+		check(Num > 0);
+		return ByteIt.GrabSlice(GetLeafRangeSize(Num, ToLeafType(Schema)));
+	}
+
+	template<class SchemaType>
+	static FMemoryView GrabRangeValues(FByteReader& ByteIt, uint64, SchemaType&&)
+	{
+		return ByteIt.GrabSkippableSlice();
+	}
+		
+	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, FBitCacheReader&, const FLoadBatch& Batch, FLeafBindType Leaf)
 	{
 		switch (Leaf.Bind.Type)
 		{
@@ -422,7 +462,7 @@ public:
 		}
 	}
 	
-	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, const FLoadBatch& Batch, FStructSchemaId Id)
+	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, FBitCacheReader&, const FLoadBatch& Batch, FStructSchemaId Id)
 	{
 		uint64 ItemSize = Items.Size;
 		for (uint8* It = Items.Data, *End = It + Items.NumBytes(); It != End; It += ItemSize)
@@ -431,12 +471,12 @@ public:
 		}
 	}
 	
-	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, const FLoadBatch& Batch, const FLoadRangePlan& Plan)
+	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, FBitCacheReader& BitIt, const FLoadBatch& Batch, const FLoadRangePlan& Plan)
 	{
 		uint64 ItemSize = Items.Size;
 		for (uint8* It = Items.Data, *End = It + Items.NumBytes(); It != End; It += ItemSize)
 		{
-			LoadNestedRange(It, ByteIt.GrabSkippableSlice(), Batch, Plan);	
+			LoadRange(It, ByteIt, BitIt, Batch, Plan);	
 		}
 	}
 };
@@ -455,10 +495,7 @@ public:
 	, RangeBindings(Schema.GetRangeBindings())
 	, Batch(InBatch)
 	, ByteIt(Values)
-	{
-		checkf(CountStaticStructs(Schema) == Schema.NumInnerSchemas, TEXT("Expects Schema stripped from load-irrelevant enum schema ids, see CreateSubsetLoadSchema(). "
-			"# schemas/structs/enums: %d/%d/%d"), Schema.NumInnerSchemas, CountStaticStructs(Schema), CountEnums(Schema));
-	}
+	{}
 
 	void Load(uint8* Struct)
 	{

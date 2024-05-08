@@ -201,7 +201,10 @@ void FStructBindings::BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBind
 			Footer.AddRange(Ranges, Member.InnermostType, IntCastChecked<uint32>(Member.Offset));
 		}
 
-		Footer.AddOptionalInnerSchema(Member.InnermostSchema);
+		if (Member.InnermostSchema)
+		{
+			Footer.AddInnerSchema(Member.InnermostSchema.Get());
+		}
 	}
 
 	// Register

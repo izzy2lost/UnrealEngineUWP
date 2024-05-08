@@ -53,7 +53,7 @@ struct FStructSchemaBuilder
 	bool										bMissingMemberNoted = false;
 
 	void										NoteMembersRecursively(const FBuiltStruct& Struct);
-	void										NoteRangeRecursively(ERangeSizeType NumType, TConstArrayView<FMemberType> Types, FSchemaId InnermostSchema, const FBuiltRange& Range);
+	void										NoteRangeRecursively(ERangeSizeType NumType, TConstArrayView<FMemberType> Types, void* InnermostSchemaBuilder, const FBuiltRange& Range);
 	FBuiltStructSchema							Build() const;
 };
 
@@ -91,20 +91,24 @@ T& GetOrEmplace(int32& Index, TPagedArray<T, 4096>& Things, Ts&&... EmplaceArgs)
 
 	return Things[Index];
 }
-
-void FSchemasBuilder::NoteMembers(FStructSchemaId Id, const FBuiltStruct& Struct)
+	
+FEnumSchemaBuilder&	FSchemasBuilder::NoteEnum(FEnumSchemaId Id)
 {
-	checkf(!bBuilt, TEXT("Noted new members after building, built schema lack these members! Build() also returns pointers into NotedMembers which mustn't grow."));
-	FStructSchemaBuilder& Foo = GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this, Debug);
-	check(StructIndices[Id.Idx] != INDEX_NONE);
-	check(Foo.Declaration.Id == Id);
-	GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this, Debug).NoteMembersRecursively(Struct);
+	checkf(!bBuilt, TEXT("Noted new members after building"));
+	checkf(DeclaredEnums[Id.Idx], TEXT("Undeclared enum '%s' noted"), *Debug.Print(Id));
+	return GetOrEmplace(EnumIndices[Id.Idx], Enums, *DeclaredEnums[Id.Idx], Id);
 }
 
-void FSchemasBuilder::NoteValue(FEnumSchemaId Id, uint64 Value)
+FStructSchemaBuilder& FSchemasBuilder::NoteStruct(FStructSchemaId Id)
 {
-	checkf(!bBuilt, TEXT("Noted new members after building, built schema lack these members! Build() also returns pointers into NotedMembers which mustn't grow."));
-	GetOrEmplace(EnumIndices[Id.Idx], Enums, *DeclaredEnums[Id.Idx], Id).NoteValue(Value);
+	checkf(!bBuilt, TEXT("Noted new members after building"));
+	checkf(DeclaredStructs[Id.Idx], TEXT("Undeclared struct '%s' noted"), *Debug.Print(Id));
+	return GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this, Debug);
+}
+
+void FSchemasBuilder::NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct)
+{
+	NoteStruct(Id).NoteMembersRecursively(Struct);
 }
 
 FBuiltSchemas FSchemasBuilder::Build()
@@ -161,7 +165,6 @@ static bool RequiresDynamicStructSchema(const FMemberSchema& A, const FMemberSch
 	}
 
 	return false;
-		
 }
 
 static void SetIsDynamic(FMemberType& InOut)
@@ -169,6 +172,11 @@ static void SetIsDynamic(FMemberType& InOut)
 	FStructType Type = InOut.AsStruct();
 	Type.IsDynamic = true;
 	InOut = FMemberType(Type);
+}
+
+static void* NoteStructOrEnum(FSchemasBuilder& AllSchemas, bool bStruct, FSchemaId Id)
+{
+	return bStruct ? static_cast<void*>(&AllSchemas.NoteStruct(static_cast<FStructSchemaId>(Id))) : &AllSchemas.NoteEnum(static_cast<FEnumSchemaId>(Id));
 }
 
 void FStructSchemaBuilder::NoteMembersRecursively(const FBuiltStruct& Struct)
@@ -201,16 +209,25 @@ void FStructSchemaBuilder::NoteMembersRecursively(const FBuiltStruct& Struct)
 		{
 			if (ELeafType::Enum == Schema.Type.AsLeaf().Type)
 			{
-				AllSchemas.NoteValue(static_cast<FEnumSchemaId>(Schema.InnerSchema.Get()), Member.Value.Leaf);
+				AllSchemas.NoteEnum(static_cast<FEnumSchemaId>(Schema.InnerSchema.Get())).NoteValue(Member.Value.Leaf);
 			}
 		}
 		else if (Kind == EMemberKind::Struct)
 		{
-			AllSchemas.NoteMembers(static_cast<FStructSchemaId>(Schema.InnerSchema.Get()), *Member.Value.Struct);
+			AllSchemas.NoteStruct(static_cast<FStructSchemaId>(Schema.InnerSchema.Get())).NoteMembersRecursively(*Member.Value.Struct);
 		}
-		else if (Member.Value.Range && IsStructOrEnum(MakeArrayView(Schema.InnerRangeTypes).Last()))
+		else 
 		{
-			NoteRangeRecursively(Schema.Type.AsRange().MaxSize, Schema.InnerRangeTypes, Schema.InnerSchema.Get(), *Member.Value.Range);
+			check(IsStructOrEnum(Schema.InnerRangeTypes.Last()) == !!Schema.InnerSchema);
+
+			if (Schema.InnerSchema)
+			{
+				void* InnerSchemaBuilder = NoteStructOrEnum(AllSchemas, Schema.InnerRangeTypes.Last().IsStruct(), Schema.InnerSchema.Get());
+				if (Member.Value.Range)
+				{
+					NoteRangeRecursively(Schema.Type.AsRange().MaxSize, Schema.InnerRangeTypes, InnerSchemaBuilder, *Member.Value.Range);			
+				}
+			}
 		}
 	}
 }
@@ -222,27 +239,27 @@ TConstArrayView64<T> MakeArrayView(const T* Data, uint64 Num)
 }
 
 template<typename IntType>
-void NoteEnumValues(FSchemasBuilder& AllSchemas, FEnumSchemaId Enum, const IntType* Values, uint64 Num)
+void NoteEnumValues(FEnumSchemaBuilder& Schema, const IntType* Values, uint64 Num)
 {
 	for (IntType Value : TConstArrayView64<IntType>(Values, Num))
 	{
-		AllSchemas.NoteValue(Enum, Value);
+		Schema.NoteValue(Value);
 	}
 }
 
-static void NoteEnumRange(FSchemasBuilder& Out, FLeafType Leaf, FEnumSchemaId Enum, const FBuiltRange& Range)
+static void NoteEnumRange(FEnumSchemaBuilder& Out, FLeafType Leaf, const FBuiltRange& Range)
 {
 	check(Leaf.Type == ELeafType::Enum);
 	switch (Leaf.Width)
 	{
-	case ELeafWidth::B8:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint8* >(Range.Data), Range.Num); break;
-	case ELeafWidth::B16:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint16*>(Range.Data), Range.Num); break;
-	case ELeafWidth::B32:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint32*>(Range.Data), Range.Num); break;
-	case ELeafWidth::B64:	NoteEnumValues(Out, Enum, reinterpret_cast<const uint64*>(Range.Data), Range.Num); break;
+	case ELeafWidth::B8:	NoteEnumValues(Out, reinterpret_cast<const uint8* >(Range.Data), Range.Num); break;
+	case ELeafWidth::B16:	NoteEnumValues(Out, reinterpret_cast<const uint16*>(Range.Data), Range.Num); break;
+	case ELeafWidth::B32:	NoteEnumValues(Out, reinterpret_cast<const uint32*>(Range.Data), Range.Num); break;
+	case ELeafWidth::B64:	NoteEnumValues(Out, reinterpret_cast<const uint64*>(Range.Data), Range.Num); break;
 	}
 }
 
-void FStructSchemaBuilder::NoteRangeRecursively(ERangeSizeType NumType, TConstArrayView<FMemberType> Types, FSchemaId InnermostSchema, const FBuiltRange& Range)
+void FStructSchemaBuilder::NoteRangeRecursively(ERangeSizeType NumType, TConstArrayView<FMemberType> Types, void* InnermostSchema, const FBuiltRange& Range)
 {
 	FMemberType Type = Types[0];
 	switch (Type.GetKind())
@@ -250,7 +267,7 @@ void FStructSchemaBuilder::NoteRangeRecursively(ERangeSizeType NumType, TConstAr
 	case EMemberKind::Struct:
 		for (const TUniquePtr<const FBuiltStruct>& Struct : Range.AsStructs())
 		{
-			AllSchemas.NoteMembers(static_cast<FStructSchemaId>(InnermostSchema), *Struct);
+			static_cast<FStructSchemaBuilder*>(InnermostSchema)->NoteMembersRecursively(*Struct);
 		}
 		break;
 	case EMemberKind::Range:
@@ -263,7 +280,7 @@ void FStructSchemaBuilder::NoteRangeRecursively(ERangeSizeType NumType, TConstAr
 		}
 		break;
 	case EMemberKind::Leaf:
-		NoteEnumRange(/* out */ AllSchemas, Type.AsLeaf(), static_cast<FEnumSchemaId>(InnermostSchema), Range);
+		NoteEnumRange(/* out */ *static_cast<FEnumSchemaBuilder*>(InnermostSchema), Type.AsLeaf(), Range);
 		break;
 	}
 }

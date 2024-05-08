@@ -49,8 +49,9 @@ public:
 	FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug);
 	~FSchemasBuilder();
 
-	void										NoteMembers(FStructSchemaId Id, const FBuiltStruct& Struct);
-	void										NoteValue(FEnumSchemaId Id, uint64 Value);
+	FEnumSchemaBuilder&							NoteEnum(FEnumSchemaId Id);
+	FStructSchemaBuilder&						NoteStruct(FStructSchemaId Id);
+	void										NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct);
 	FBuiltSchemas								Build();
 
 private:

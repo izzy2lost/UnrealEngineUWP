@@ -556,23 +556,17 @@ constexpr uint32 CountRangeBindings()
 	}
 }
 
-template<typename InnerBinding, typename InnerType>
-struct TGetInnermostImpl
+template<typename RangeBinding, uint32 NestLevel>
+struct TInnerType
 {
-	using Type = typename TGetInnermostImpl<RangeBind<InnerType>, InnerType>::Type;
-};
-
-template<typename InnerType>
-struct TGetInnermostImpl<void, InnerType>
-{
-	using Type = InnerType;
+	using InnerType = typename RangeBinding::ItemType;
+	using Type = TInnerType<RangeBind<InnerType>, NestLevel - 1>::Type;
 };
 
 template<typename RangeBinding>
-struct TGetInnermost
+struct TInnerType<RangeBinding, 1>
 {
-	using InnerType = typename RangeBinding::ItemType;
-	using Type = TGetInnermostImpl<RangeBind<InnerType>, InnerType>::Type;
+	using Type = typename RangeBinding::ItemType;
 };
 
 template<typename RangeBinding, uint32 N>
@@ -614,7 +608,6 @@ TConstArrayView<FRangeBinding> GetRangeBindings()
 	}
 }
 
-
 template<class Var, class Runtime>
 FMemberBinding BindMember()
 {
@@ -635,7 +628,7 @@ FMemberBinding BindMember()
 
 		if constexpr (std::is_void_v<CustomBinding> && NumRangeBindings)
 		{
-			using InnermostType = typename TGetInnermost<RangeBinding>::Type;
+			using InnermostType = typename TInnerType<RangeBinding, NumRangeBindings>::Type;
 			Out.RangeBindings = GetRangeBindings<RangeBinding, NumRangeBindings>();
 			Out.InnermostType = BindType<InnermostType, Ids>(Out.InnermostSchema);
 		}
@@ -762,14 +755,6 @@ struct FMemberBinder
 	void AddInnerSchema(FSchemaId InnermostSchema)
 	{
 		*InnerSchemaIt++ = InnermostSchema;
-	}
-
-	void AddOptionalInnerSchema(FOptionalSchemaId InnermostSchema)
-	{
-		if (InnermostSchema)
-		{
-			AddInnerSchema(InnermostSchema.Get());
-		}
 	}
 
 	FStructSchemaBinding& Schema;

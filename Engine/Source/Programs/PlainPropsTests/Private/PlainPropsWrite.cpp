@@ -808,6 +808,16 @@ void FDebugIds::AppendDebugString(FString& Out, FTypeId Type) const
 	AppendDebugString(Out, Type.Name);
 }
 
+void FDebugIds::AppendDebugString(FString& Out, FEnumSchemaId Name) const
+{
+	AppendDebugString(Out, Resolve(Name));
+}
+
+void FDebugIds::AppendDebugString(FString& Out, FStructSchemaId Name) const
+{
+	AppendDebugString(Out, Resolve(Name));
+}
+
 FString FDebugIds::Print(FNameId Name) const
 {
 	FString Out;
@@ -831,6 +841,20 @@ FString FDebugIds::Print(FTypeId Type) const
 {
 	FString Out;
 	AppendDebugString(Out, Type);
+	return Out;
+}
+
+FString FDebugIds::Print(FEnumSchemaId Name) const
+{
+	FString Out;
+	AppendDebugString(Out, Name);
+	return Out;
+}
+
+FString FDebugIds::Print(FStructSchemaId Name) const
+{
+	FString Out;
+	AppendDebugString(Out, Name);
 	return Out;
 }
 

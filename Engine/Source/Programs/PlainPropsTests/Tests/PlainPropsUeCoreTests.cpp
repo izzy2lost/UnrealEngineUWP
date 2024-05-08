@@ -47,16 +47,6 @@ struct TCustomBindings
 	using Type = void;
 };
 
-template<class T>
-struct TCustomDeltaBindings : TCustomBindings<T>
-{};
-
-template<typename T>
-struct TCustomDeltaBindings<TSet<T>>
-{
-	using Type = PlainProps::UE::TSetDeltaBinding<FIds, T>;
-};
-
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct FDefaultRuntime
@@ -68,30 +58,18 @@ struct FDefaultRuntime
 	static FStructBindings&			GetBindings()					{ return GBindings; }
 };
 
-struct FDeltaRuntime : FDefaultRuntime
-{
-	template<class T> using CustomBindings = TCustomDeltaBindings<T>;
-
-	static FStructBindings&			GetBindings()					{ return GDeltaBindings; }
-};
-
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<class T, class Runtime>
+template<class T, class Runtime = FDefaultRuntime>
 struct TScopedStructBinding
 {
 	using Ids = typename Runtime::Ids;
 	using Ctti = CttiOf<T>;
-	//constexpr bool bDeltaBindMembers = NumCustomMembers<Ctti, FDeltaRuntime::CustomBindings>() > NumCustomMembers<Ctti, FDefaultRuntime::CustomBindings>();
 
 	TScopedStructBinding(EMemberPresence Occupancy = EMemberPresence::AllowSparse)
 	: Id(DeclareNativeStruct<Ctti, Ids>(Runtime::GetDeclarations(), Occupancy))
 	{
 		BindNativeStruct<Ctti, Runtime>(Runtime::GetBindings(), Id);
-		//if constexpr (bDeltaBindMembers)
-		//{
-		//	BindNativeStruct<Ctti, FDeltaRuntime>(Runtime::GetBindings());	
-		//}
 	}
 
 	~TScopedStructBinding()
@@ -103,7 +81,7 @@ struct TScopedStructBinding
 	FStructSchemaId Id;
 };
 
-template<typename Enum, EEnumMode Mode, class Runtime>
+template<typename Enum, EEnumMode Mode, class Runtime = FDefaultRuntime>
 struct TScopedEnumBinding
 {
 	using Ids = typename Runtime::Ids;
@@ -114,26 +92,6 @@ struct TScopedEnumBinding
 	~TScopedEnumBinding() { Runtime::GetDeclarations().DropEnum(Id); }
 };
 
-//template<typename T, class Runtime>
-//struct TScopedBinding : std::conditional_t<std::is_enum_v<T>, TScopedEnumBinding<T, Runtime>, TScopedStructBinding<T, Runtime>>
-//{
-//	
-//};
-
-//template<class T>
-//struct TScopedStructDeclaration
-//{
-//	FStructSchemaId Id;
-//
-//	TScopedStructDeclaration(EMemberPresence Occupancy)
-//	: Id(DeclareNativeStruct<CttiOf<T>>(FDefaultRuntime::GetDeclarations()), Occupancy)
-//	{}
-//
-//	~TScopedStructDeclaration()
-//	{
-//		FDeltaRuntime::DropStruct(Id);
-//	}
-//};
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 inline constexpr uint32 Magics[] = { 0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887766, 0xF0F1F2F3 };
@@ -180,7 +138,7 @@ TArray64<uint8> FBatchSaver::Write() const
 	FSchemasBuilder SchemaBuilders(GTypes.GetStructs(), GTypes.GetEnums(), /* debug */ GNames);
 	for (const IdBuiltStructPair& Object : SavedObjects)
 	{
-		SchemaBuilders.NoteMembers(Object.Key, *Object.Value);
+		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
 	}
 	FBuiltSchemas Schemas = SchemaBuilders.Build(); 
 
@@ -306,43 +264,14 @@ static void SaveAndLoad(const FStructBindings& Bindings, void (*Save)(FBatchSave
 	Load(Batch);
 }
 
-template<class Runtime>
+template<class Runtime = FDefaultRuntime>
 static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
 {
 	SaveAndLoad(Runtime::GetBindings(), Save, Load);
 }
 
+//////////////////////////////////////////////////////////////////////////
 
-
-//// Tests that everything was visited
-//struct FTestMemberVisitor : public FMemberVisitor
-//{
-//	using FMemberVisitor::FMemberVisitor;
-//	
-//	~FMemberVisitor()
-//	{
-//		CHECK(MemberIdx == NumMembers); // Must read all members
-//		CHECK(RangeTypeIdx == NumRangeTypes); // Must read all ranges
-//#if DO_CHECK
-//		CHECK(InnerSchemaIdx == NumInnerSchemas); // Must read all schema ids
-//#endif
-//	}
-//};
-//
-//template<typename OutType, typename InType>
-//TArray<OutType> MakeArray(const InType& Items)
-//{
-//	TArray<OutType> Out;
-//	Out.Reserve(IntCastChecked<int32>(Items.Num()));
-//	for (const auto& Item : Items)
-//	{
-//		Out.Emplace(Item);
-//	}
-//	return Out;
-//}
-//
-//
-//
 //struct FNestedStructs
 //{
 //	FPt Point;
@@ -379,11 +308,8 @@ static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoade
 //	TArray<FSub> Subs;
 //};
 
-
 struct FInt { int32 X; };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FInt, void, X);
-
-//////////////////////////////////////////////////////////////////////////
 
 enum class EFlat1 : uint8 { A = 1, B = 3 };
 enum class EFlat2 : uint8 { A, B };
@@ -404,22 +330,6 @@ struct FEnums
 	bool operator==(FEnums O) const { return Flat1 == O.Flat1 && Flat2 == O.Flat2 && Flag1 == O.Flag1 && Flag2 == O.Flag2; }
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FEnums, void, Flat1, Flat2, Flag1, Flag2);
-
-//////////////////////////////////////////////////////////////////////////
-
-//struct FLeaves
-//{
-//	uint16 U16 = 0;
-//	int64 I64 = 0;
-//	bool Bool = false;
-//	char AsciiChar = 0;
-////	uint8 BitfieldBool : 1;
-//	uint32 StaticU32s[3] = {};
-//	double Double = 0.0;
-//};
-//PP_REFLECT_STRUCT(PlainProps::UE::Test, FLeaves, void, U16, I64, Bool, AsciiChar, StaticU32s, Double);
-
-//////////////////////////////////////////////////////////////////////////
 
 struct FLeafArrays
 {
@@ -447,8 +357,8 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 {
 	SECTION("Basic")
 	{
-		TScopedStructBinding<FInt, FDefaultRuntime> Int;
-		TestSaveAndLoad<FDefaultRuntime>(
+		TScopedStructBinding<FInt> Int;
+		TestSaveAndLoad(
 			[](FBatchSaver& Batch)
 			{
 				Batch.Save(FInt{1234});
@@ -461,12 +371,12 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	
 	SECTION("Enum")
 	{
-		TScopedEnumBinding<EFlat1, EEnumMode::Flat, FDefaultRuntime> Flat1;
-		TScopedEnumBinding<EFlat2, EEnumMode::Flat, FDefaultRuntime> Flat2;
-		TScopedEnumBinding<EFlag1, EEnumMode::Flag, FDefaultRuntime> Flag1;
-		TScopedEnumBinding<EFlag2, EEnumMode::Flag, FDefaultRuntime> Flag2;
-		TScopedStructBinding<FEnums, FDefaultRuntime> Int;
-		TestSaveAndLoad<FDefaultRuntime>(
+		TScopedEnumBinding<EFlat1, EEnumMode::Flat> Flat1;
+		TScopedEnumBinding<EFlat2, EEnumMode::Flat> Flat2;
+		TScopedEnumBinding<EFlag1, EEnumMode::Flag> Flag1;
+		TScopedEnumBinding<EFlag2, EEnumMode::Flag> Flag2;
+		TScopedStructBinding<FEnums> Int;
+		TestSaveAndLoad(
 			[](FBatchSaver& Batch)
 			{
 				Batch.Save(FEnums{EFlat1::A, EFlat2::A, EFlag1::A, EFlag2::A});
@@ -487,24 +397,41 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 
 	SECTION("TArrayBasic")
 	{
-		TScopedStructBinding<FLeafArrays, FDefaultRuntime> LeafArrays;
-		TestSaveAndLoad<FDefaultRuntime>(
+		TScopedStructBinding<FLeafArrays> LeafArrays;
+		TestSaveAndLoad(
 			[](FBatchSaver& Batch)
 			{
 				Batch.Save(FLeafArrays{{}, {}});
 				Batch.Save(FLeafArrays{{false}, {1, 2}});
 				Batch.Save(FLeafArrays{{true, false}, {3, 4, 5}});
+				Batch.Save(FLeafArrays{{true,true,true,true,true,true,true,true,false,true}});
 			}, 
 			[](FBatchLoader& Batch)
 			{
 				CHECK(Batch.Load<FLeafArrays>() == FLeafArrays{{}, {}});
 				CHECK(Batch.Load<FLeafArrays>() == FLeafArrays{{false}, {1, 2}});
 				CHECK(Batch.Load<FLeafArrays>() == FLeafArrays{{true, false}, {3, 4, 5}});
+				CHECK(Batch.Load<FLeafArrays>() == FLeafArrays{{true,true,true,true,true,true,true,true,false,true}});
 			});
 	}
 
 	SECTION("TArrayComplex")
-	{}
+	{
+		TScopedEnumBinding<EFlat1, EEnumMode::Flat> Flat1;
+		TScopedStructBinding<FLeafArrays> LeafArrays;
+		TScopedStructBinding<FComplexArrays> ComplexArrays;
+		TestSaveAndLoad(
+			[](FBatchSaver& Batch)
+			{
+				Batch.Save(FComplexArrays{});
+				Batch.Save(FComplexArrays{{'a', 'b'}, {EFlat1::A}, {{}, {{true}, {2}}}, {{EFlat1::B}, {}} });
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FComplexArrays>() == FComplexArrays{});
+				CHECK(Batch.Load<FComplexArrays>() == FComplexArrays{{'a', 'b'}, {EFlat1::A}, {{}, {{true}, {2}}}, {{EFlat1::B}, {}} });
+			});
+	}
 
 	SECTION("FString")
 	{}

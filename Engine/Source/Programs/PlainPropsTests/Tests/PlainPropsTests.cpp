@@ -182,7 +182,7 @@ TArray64<uint8> FTestBatchBuilder::Write()
 	FSchemasBuilder SchemaBuilders(DeclaredStructs, DeclaredEnums, *this);
 	for (const TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>& Object : Objects)
 	{
-		SchemaBuilders.NoteMembers(Object.Key, *Object.Value);
+		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
 	}
 	FBuiltSchemas Schemas = SchemaBuilders.Build(); 
 

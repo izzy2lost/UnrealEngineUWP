@@ -58,6 +58,8 @@ public:
 	
 	virtual FNestedScope				Resolve(FNestedScopeId Id) const override final		{ return NestedScopes.Resolve(Id); }
 	virtual FParametricTypeView			Resolve(FParametricTypeId Id) const override final	{ return ParametricTypes.Resolve(Id); }
+	virtual FTypeId						Resolve(FEnumSchemaId Id) const override final		{ return Enums.Get(FSetElementId::FromInteger(Id.Idx)); }
+	virtual FTypeId						Resolve(FStructSchemaId Id) const override final	{ return Structs.Get(FSetElementId::FromInteger(Id.Idx)); }
 	
 	const FNestedScopeIndexer&			GetNestedScopes() const								{ return NestedScopes; }
 	const FParametricTypeIndexer&		GetParametricTypes() const							{ return ParametricTypes; }

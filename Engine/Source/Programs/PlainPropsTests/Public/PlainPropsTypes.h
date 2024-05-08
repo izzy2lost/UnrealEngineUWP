@@ -343,6 +343,7 @@ template<> inline constexpr FUnpackedLeafType ReflectLeaf<uint32>	= { ELeafType:
 template<> inline constexpr FUnpackedLeafType ReflectLeaf<uint64>	= { ELeafType::IntU,	ELeafWidth::B64 };
 template<> inline constexpr FUnpackedLeafType ReflectLeaf<float>	= { ELeafType::Float,	ELeafWidth::B32 };
 template<> inline constexpr FUnpackedLeafType ReflectLeaf<double>	= { ELeafType::Float,	ELeafWidth::B64 };
+template<> inline constexpr FUnpackedLeafType ReflectLeaf<char>		= { ELeafType::Unicode,	ELeafWidth::B8 };
 template<> inline constexpr FUnpackedLeafType ReflectLeaf<char8_t>	= { ELeafType::Unicode,	ELeafWidth::B8 };
 template<> inline constexpr FUnpackedLeafType ReflectLeaf<char16_t>	= { ELeafType::Unicode,	ELeafWidth::B16 };
 template<> inline constexpr FUnpackedLeafType ReflectLeaf<char32_t>	= { ELeafType::Unicode,	ELeafWidth::B32 };
@@ -364,16 +365,22 @@ public:
 
 	virtual FParametricTypeView			Resolve(FParametricTypeId Id) const = 0;
 	virtual FNestedScope				Resolve(FNestedScopeId Id) const = 0;
-	virtual void						AppendDebugString(FString& Out, FNameId Name) const = 0;
+	virtual FTypeId						Resolve(FEnumSchemaId Id) const = 0;
+	virtual FTypeId						Resolve(FStructSchemaId Id) const = 0;
 
+	virtual void						AppendDebugString(FString& Out, FNameId Name) const = 0;
 	virtual void						AppendDebugString(FString& Out, FScopeId Scope) const;
 	virtual void						AppendDebugString(FString& Out, FTypenameId Typename) const;
 	virtual void						AppendDebugString(FString& Out, FTypeId Type) const;
+	virtual void						AppendDebugString(FString& Out, FEnumSchemaId Name) const;
+	virtual void						AppendDebugString(FString& Out, FStructSchemaId Name) const;
 
-	PP_API FString					Print(FNameId Name) const;
-	PP_API FString					Print(FMemberId Name) const;
-	PP_API FString					Print(FOptionalMemberId Name) const;
-	PP_API FString					Print(FTypeId Type) const;
+	PP_API FString						Print(FNameId Name) const;
+	PP_API FString						Print(FMemberId Name) const;
+	PP_API FString						Print(FOptionalMemberId Name) const;
+	PP_API FString						Print(FTypeId Type) const;
+	PP_API FString						Print(FEnumSchemaId Name) const;
+	PP_API FString						Print(FStructSchemaId Name) const;
 };
 
 } // namespace PlainProps
