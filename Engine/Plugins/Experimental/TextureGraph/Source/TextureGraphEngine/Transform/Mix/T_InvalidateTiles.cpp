@@ -3,7 +3,6 @@
 #include "Device/FX/Device_FX.h"
 #include "TextureGraphEngine.h"
 #include "Job/JobBatch.h"
-#include "Profiling/RenderDoc/RenderDocManager.h"
 
 T_InvalidateTiles::T_InvalidateTiles() : BlobTransform(TEXT("T_InvalidateTiles"))
 {
@@ -23,9 +22,6 @@ AsyncTransformResultPtr T_InvalidateTiles::Exec(const TransformArgs& args)
 	/// Device::Use should have ensured that we we're in the rendering thread
 	/// by the time we get to this point!
 	check(IsInRenderingThread());
-
-	if (args.Cycle->GetBatch()->IsCaptureRenderDoc())
-		TextureGraphEngine::GetRenderDocManager()->BeginCapture();
 
 	/// We don't need a target, so it shouldn't be there. The job needs to 
 	/// handle this correctly

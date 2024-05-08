@@ -102,6 +102,9 @@ protected:
 
 	bool							bBindNeighborTiles = false;			/// Bind the tile and the rign of neighbors in order to be able to go fetch border information OUT of the current tile bound
 
+	bool							bBindArrayOfTiles = false;			/// Bind ALL the tiles contained in this arg, filling the array of UTextures before execution of the job.
+
+
 	TiledBlobPtr					GetRootBlob(JobArgBindInfo JobBindInfo) const;
 
 public:
@@ -111,6 +114,8 @@ public:
 	virtual							~JobArg_Blob() override;
 	virtual void					SetHandleTiles(bool bInCanHandleTiles);
 	virtual bool					CanHandleTiles() const override;
+	JobArg_Blob&					WithNotHandleTiles(); // equivalent to call  SetHandleTiles(false)
+
 
 	virtual void					SetForceNonTiledTransform(bool bInForceNonTiledTransform);
 	virtual bool					ForceNonTiledTransform() const override;
@@ -120,6 +125,9 @@ public:
 
 	JobArg_Blob&					WithNeighborTiles();
 	bool							IsNeighborTiles() const;
+
+	JobArg_Blob&					WithArrayOfTiles();
+	bool							IsArrayOfTiles() const;
 
 	virtual AsyncJobArgResultPtr	Bind(JobArgBindInfo JobBindInfo) override;
 	virtual AsyncJobArgResultPtr	Unbind(JobArgBindInfo JobBindInfo) override;
@@ -386,6 +394,7 @@ public:
 //All tiles of blob combined in a single blob (through SRV in shader)
 //Blob can be fetched in HLSL using GetFullBlob(inout float 4) method. See AdjustUVGeneric.usf and TiledFetch_Combined.ush for help
 #define ARG_COMBINEDBLOB(v, n)				std::make_shared<JobArg_Blob_Combined>(v, n)	//With Custom SRV
+
 
 FORCEINLINE JobArgPtr				WithIgnoreHash(JobArgPtr Arg, bool bIgnoreHash = true)
 {

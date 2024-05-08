@@ -79,6 +79,12 @@ bool JobArg_Blob::CanHandleTiles() const
 	return bCanHandleTiles;
 }
 
+JobArg_Blob& JobArg_Blob::WithNotHandleTiles()
+{
+	bCanHandleTiles = false;
+	return (*this);
+}
+
 void JobArg_Blob::SetForceNonTiledTransform(bool bInForceNonTiledTransform)
 {
 	bForceNonTiledTransform = bInForceNonTiledTransform;
@@ -109,6 +115,17 @@ JobArg_Blob& JobArg_Blob::WithNeighborTiles()
 bool JobArg_Blob::IsNeighborTiles() const 
 {
 	return bBindNeighborTiles;
+}
+
+JobArg_Blob& JobArg_Blob::WithArrayOfTiles()
+{
+	bBindArrayOfTiles = true;
+	return (*this);
+}
+
+bool JobArg_Blob::IsArrayOfTiles() const
+{
+	return bBindArrayOfTiles;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -228,6 +245,43 @@ AsyncJobArgResultPtr JobArg_Blob::Bind(JobArgBindInfo JobBindInfo)
 
 				return cti::make_ready_continuable(std::make_shared<JobArgResult>());
 			});
+	}
+	else if (IsArrayOfTiles())
+	{
+		return RootBlob->TransferTo(BindInfo.Dev)
+			.then([RootBlob, BindInfo, JobBindInfo](auto)
+				{
+					// Collect the individual tile textures from the root tiled BlobObj in an array
+					std::vector<TexPtr> Textures;
+					int NumX = RootBlob->Cols();
+					int NumY = RootBlob->Rows();
+
+					for (int Y = 0; Y < NumY; ++Y)
+					{
+						for (int X = 0; X < NumX; ++X)
+						{
+							if (RootBlob->IsValidTileIndex(X, Y))
+							{
+								auto Tile = RootBlob->GetTile(X, Y);
+								auto TileBuffer = std::static_pointer_cast<DeviceBuffer_FX>(Tile->GetBufferRef().GetPtr());
+								Textures.push_back(TileBuffer->GetTexture());
+							}
+							else
+							{
+								auto Black = TextureHelper::GetBlack()->GetTile(0, 0);
+								auto BlackBuffer = std::static_pointer_cast<DeviceBuffer_FX> (Black->GetBufferRef().GetPtr());
+								Textures.push_back(BlackBuffer->GetTexture());
+							}
+						}
+					}
+
+					// True binding of the array of textures to the Material
+					const RenderMaterial* Material = static_cast<const RenderMaterial*>(JobBindInfo.Transform.get());
+					check(Material);
+					Material->SetArrayTexture(*BindInfo.Target, Textures);
+
+					return cti::make_ready_continuable(std::make_shared<JobArgResult>());
+				});
 	}
 	else
 	{

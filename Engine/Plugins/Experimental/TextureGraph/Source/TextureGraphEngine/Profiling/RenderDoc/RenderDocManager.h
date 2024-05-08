@@ -20,6 +20,8 @@ namespace TextureGraphEditor
 		void												CapturePreviousBatch();
 		void												BeginCapture();
 		void												EndCapture();
+		void												CaptureNextBatchHistogram();
+
 };
 	typedef std::unique_ptr<RenderDocManager>				RenderDocManagerPtr;
 }

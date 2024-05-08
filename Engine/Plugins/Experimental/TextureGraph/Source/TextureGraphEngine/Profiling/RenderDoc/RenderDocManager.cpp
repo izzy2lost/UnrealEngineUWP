@@ -37,6 +37,12 @@ namespace TextureGraphEditor
 			TEXT("Captures the previous Job Batch and launches RenderDoc"),
 			FConsoleCommandDelegate::CreateRaw(this, &RenderDocManager::CapturePreviousBatch)
 		);
+
+		static FAutoConsoleCommand CCmdRenderDocCaptureHistogram = FAutoConsoleCommand(
+			TEXT("renderdoc.TextureGraph_CaptureNextBatchHistogram"),
+			TEXT("Captures the next Job Batch producing histogram and launches RenderDoc"),
+			FConsoleCommandDelegate::CreateRaw(this, &RenderDocManager::CaptureNextBatchHistogram)
+		);
 #endif 
 	}
 
@@ -56,6 +62,17 @@ namespace TextureGraphEditor
 	{
 #if TEXTUREGRAPH_RENDERDOC_ENABLED
 		TextureGraphEngine::GetScheduler()->CaptureRenderDocLastRunBatch();
+#endif 
+	}
+
+	void RenderDocManager::CaptureNextBatchHistogram()
+	{
+#if TEXTUREGRAPH_RENDERDOC_ENABLED
+		HistogramServicePtr HistoService = TextureGraphEngine::GetScheduler()->GetHistogramService().lock();
+		if (HistoService)
+		{
+			HistoService->CaptureNextBatch();
+		}
 #endif 
 	}
 

@@ -16,6 +16,7 @@ class TEXTUREGRAPHENGINE_API HistogramService : public IdleService
 {
 private:
 	JobBatchPtr Batch;
+	bool bCaptureNextBatch = false;
 
 public:
 	HistogramService();
@@ -26,6 +27,8 @@ public:
 
 	void AddHistogramJob(MixUpdateCyclePtr Cycle,JobUPtr JobToAdd, int32 TargetID, UMixInterface* Mix);
 	JobBatchPtr GetOrCreateNewBatch(UMixInterface* mix);
+
+	void CaptureNextBatch();
 };
 
 typedef std::shared_ptr<HistogramService>	HistogramServicePtr;
