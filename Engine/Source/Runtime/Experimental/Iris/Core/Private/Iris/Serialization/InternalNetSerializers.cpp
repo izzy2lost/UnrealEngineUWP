@@ -3,5 +3,10 @@
 #include "Iris/Serialization/InternalNetSerializers.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptor.h"
 
-FArrayPropertyNetSerializerConfig::FArrayPropertyNetSerializerConfig() = default;
+FArrayPropertyNetSerializerConfig::FArrayPropertyNetSerializerConfig()
+: FNetSerializerConfig()
+{
+	ConfigTraits = ENetSerializerConfigTraits::NeedDestruction;
+}
+
 FArrayPropertyNetSerializerConfig::~FArrayPropertyNetSerializerConfig() = default;
