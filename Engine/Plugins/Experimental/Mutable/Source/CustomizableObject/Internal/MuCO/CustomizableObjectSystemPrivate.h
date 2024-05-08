@@ -320,6 +320,7 @@ struct FInstanceUpdateData
 		TWeakObjectPtr<UTexture2D> Cached;
 
 		bool bIsPassThrough = false;
+		bool bIsNonProgressive = false;
 	};
 
 	struct FVector

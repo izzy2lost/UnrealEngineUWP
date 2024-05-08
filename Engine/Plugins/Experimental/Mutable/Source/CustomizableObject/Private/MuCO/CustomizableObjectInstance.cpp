@@ -3012,15 +3012,13 @@ void SetTexturePropertiesFromMutableImageProps(UTexture2D* Texture, const FMutab
 	Texture->Filter = Props.Filter;
 	Texture->LODBias = Props.LODBias;
 
-	// TODO: MTBL-1957
-	//if (Props.MipGenSettings == TextureMipGenSettings::TMGS_NoMipmaps)
-	//{
-		//Texture->NeverStream = true;
-	//}
+	if (Props.MipGenSettings == TextureMipGenSettings::TMGS_NoMipmaps)
+	{
+		Texture->NeverStream = true;
+	}
 
 #if WITH_EDITORONLY_DATA
-	// TODO: MTBL-1957
-	//Texture->MipGenSettings = Props.MipGenSettings;
+	Texture->MipGenSettings = Props.MipGenSettings;
 
 	Texture->bFlipGreenChannel = Props.FlipGreenChannel;
 #endif

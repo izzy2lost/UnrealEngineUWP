@@ -2260,6 +2260,8 @@ namespace impl
 							{
 								const FMutableModelImageProperties& Props = ModelResources.ImageProperties[ImageKey];
 
+								Image.bIsNonProgressive = Props.MipGenSettings == TMGS_NoMipmaps;
+
 								if (Props.IsPassThrough)
 								{
 									Image.bIsPassThrough = true;
@@ -2591,7 +2593,7 @@ namespace impl
 		const int32 MaxMipsToSkip = FullLODCount - MinMipsInImage;
 		int32 MipsToSkip = FMath::Min(MaxMipsToSkip, OperationData->MipsToSkip);
 
-		if (!FMath::IsPowerOfTwo(Image.FullImageSizeX) || !FMath::IsPowerOfTwo(Image.FullImageSizeY))
+		if (Image.bIsNonProgressive || !FMath::IsPowerOfTwo(Image.FullImageSizeX) || !FMath::IsPowerOfTwo(Image.FullImageSizeY))
 		{
 			// It doesn't make sense to skip mips as non-power-of-two size textures cannot be streamed anyway
 			MipsToSkip = 0;

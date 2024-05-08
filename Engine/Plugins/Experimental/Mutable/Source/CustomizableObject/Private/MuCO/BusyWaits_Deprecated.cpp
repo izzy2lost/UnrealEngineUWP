@@ -69,8 +69,9 @@ namespace CustomizableObjectSystem::ImplDeprecated
 				const int32 MinMipsInImage = FMath::Min(FullLODCount, UTexture::GetStaticMinTextureResidentMipCount());
 				const int32 MaxMipsToSkip = FullLODCount - MinMipsInImage;
 				int32 MipsToSkip = FMath::Min(MaxMipsToSkip, OperationData->MipsToSkip);
-
-				if (!FMath::IsPowerOfTwo(Image.FullImageSizeX) || !FMath::IsPowerOfTwo(Image.FullImageSizeY))
+				
+				// This has beed replicated to the non deperecated code path.
+				if (Image.bIsNonProgressive || !FMath::IsPowerOfTwo(Image.FullImageSizeX) || !FMath::IsPowerOfTwo(Image.FullImageSizeY))
 				{
 					// It doesn't make sense to skip mips as non-power-of-two size textures cannot be streamed anyway
 					MipsToSkip = 0;
@@ -307,6 +308,9 @@ namespace CustomizableObjectSystem::ImplDeprecated
 							if (ImageKey >= 0 && ImageKey < ModelResources.ImageProperties.Num())
 							{
 								const FMutableModelImageProperties& Props = ModelResources.ImageProperties[ImageKey];
+								
+								// This has beed replicated to the non deperecated code path.
+								Image.bIsNonProgressive = Props.MipGenSettings == TMGS_NoMipmaps;
 
 								if (Props.IsPassThrough)
 								{
