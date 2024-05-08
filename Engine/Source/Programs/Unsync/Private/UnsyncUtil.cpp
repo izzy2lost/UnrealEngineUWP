@@ -416,14 +416,14 @@ NormalizeFilenameUtf8(const std::string& InFilename)
 
 	FPath FilenameAsPath = ConvertUtf8ToWide(Filename);
 
-	FPath NormalPath = FilenameAsPath.lexically_normal();
 	FPath AbsoluteNormalPath;
 	if (Filename.starts_with("\\\\") || Filename.starts_with("//"))
 	{
-		AbsoluteNormalPath = NormalPath;  // Assume network paths are absolute
+		AbsoluteNormalPath = FilenameAsPath; // Assume network paths are absolute
 	}
 	else
 	{
+		FPath NormalPath	= FilenameAsPath.lexically_normal();
 		FPath CanonicalPath = std::filesystem::weakly_canonical(NormalPath);
 		AbsoluteNormalPath	= std::filesystem::absolute(CanonicalPath);
 	}

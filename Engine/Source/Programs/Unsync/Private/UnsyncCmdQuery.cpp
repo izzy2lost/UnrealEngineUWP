@@ -201,6 +201,12 @@ CmdQueryList(const FCmdQueryOptions& Options)
 	Request.BearerToken	   = AuthToken->Access;
 	FHttpResponse Response = HttpRequest(Connection, Request);
 
+	if (!Response.Success())
+	{
+		LogError(HttpError(Response.Code));
+		return -1;
+	}
+
 	Response.Buffer.PushBack(0);
 
 	std::string	 JsonErrorString;
@@ -337,7 +343,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 
 		if (!Response.Success())
 		{
-			// TODO: report warning
+			LogError(HttpError(Response.Code));
 			return;
 		}
 
@@ -346,7 +352,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 		TResult<FDirectoryListing> DirectoryListingResult = FDirectoryListing::FromJson((const char*)Response.Buffer.Data());
 		if (DirectoryListingResult.IsError())
 		{
-			// TODO: report warning
+			LogError(DirectoryListingResult.GetError());
 			return;
 		}
 

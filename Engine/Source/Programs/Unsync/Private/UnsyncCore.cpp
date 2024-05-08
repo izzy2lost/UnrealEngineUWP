@@ -1904,7 +1904,7 @@ FindRemoteUnsyncManifest(FHttpConnection& Connection, const FAuthDesc* AuthDesc,
 			{
 				FRemoteManifestInfo Result;
 				Result.Path	 = UnsyncDirectory / Entry.Name;
-				Result.Entry = FoundUnsyncManifestDotfile.value();
+				Result.Entry = Entry;
 				return ResultOk(Result);
 			}
 		}
