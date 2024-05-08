@@ -82,6 +82,7 @@ void IPerforceSourceControlWorker::RegisterWorkers()
 	WorkersMap.Add("DeleteWorkspace", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceDeleteWorkspaceWorker>));
 	WorkersMap.Add("GetFileList", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceGetFileListWorker>));
 	WorkersMap.Add("GetFile", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceGetFileWorker>));
+	WorkersMap.Add("Where", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceWhereWorker>));
 }
 
 TSharedPtr<class IPerforceSourceControlWorker, ESPMode::ThreadSafe> IPerforceSourceControlWorker::CreateWorker(const FName& OperationName, FPerforceSourceControlProvider& SCCProvider)
@@ -3630,6 +3631,59 @@ bool FPerforceGetFileWorker::Execute(FPerforceSourceControlCommand& InCommand)
 }
 
 bool FPerforceGetFileWorker::UpdateStates() const
+{
+	return false;
+}
+
+FName FPerforceWhereWorker::GetName() const
+{
+	return "Where";
+}
+
+bool FPerforceWhereWorker::Execute(FPerforceSourceControlCommand& InCommand)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceWhereWorker::Execute);
+
+	FScopedPerforceConnection ScopedConnection(InCommand);
+
+	if (!InCommand.IsCanceled() && ScopedConnection.IsValid())
+	{
+		FPerforceConnection& Connection = ScopedConnection.GetConnection();
+		TSharedRef<FWhere, ESPMode::ThreadSafe> Operation = StaticCastSharedRef<FWhere>(InCommand.Operation);
+
+		TArray<FString> Parameters;
+		Parameters.Append(InCommand.Files);
+
+		FP4RecordSet Records;
+		InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("where"), Parameters, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
+
+		if (InCommand.bCommandSuccessful)
+		{
+			TArray<FWhere::FileInfo> Files;
+			Files.Reserve(Records.Num());
+
+			for (FP4Record& P4Record : Records)
+			{
+				const FString* LocalPath = P4Record.Find("path");
+				const FString* RemotePath = P4Record.Find("depotFile");
+
+				if (ensure(LocalPath) && ensure(RemotePath))
+				{
+					FWhere::FileInfo FileInfo;
+					FileInfo.LocalPath = FPaths::CreateStandardFilename(*LocalPath);
+					FileInfo.RemotePath = *RemotePath;
+					Files.Emplace(MoveTemp(FileInfo));
+				}
+			}
+
+			Operation->SetFiles(MoveTemp(Files));
+		}
+	}
+
+	return InCommand.bCommandSuccessful;
+}
+
+bool FPerforceWhereWorker::UpdateStates() const
 {
 	return false;
 }

@@ -1412,4 +1412,35 @@ private:
 	FString OutPackageFilename;
 };
 
+/**
+* This operation will get info about the location of a file within a source control provider. The input can be a local or remote path
+* and the result contain both local and remote paths
+*/
+class FWhere : public FSourceControlOperationBase
+{
+public:
+	struct FileInfo
+	{
+		FString LocalPath;
+		FString RemotePath;
+	};
+
+	// ISourceControlOperation interface
+	virtual FName GetName() const override
+	{
+		return "Where";
+	}
+
+	virtual FText GetInProgressString() const override
+	{
+		return LOCTEXT("SourceControl_Where", "Locating file(s) in Revision Control...");
+	}
+
+	void SetFiles(TArray<FileInfo>&& InFiles) { Files = MoveTemp(InFiles); }
+	const TArray<FileInfo>& GetFiles() const { return Files; }
+
+private:
+	TArray<FileInfo> Files;
+};
+
 #undef LOCTEXT_NAMESPACE
