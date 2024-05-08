@@ -678,9 +678,8 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 
 	const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
 	FRHIResourceCreateInfo ParameterBufferCreateInfo(TEXT("RayTracingSceneMetadata"));
-	PerInstanceGeometryParameterBuffer = new FVulkanResourceMultiBuffer(Device,
-		FRHIBufferDesc(ParameterBufferSize, sizeof(FVulkanRayTracingGeometryParameters), BUF_StructuredBuffer | BUF_ShaderResource),
-		ParameterBufferCreateInfo);
+	// Use FRHICommandListExecutor::GetImmediateCommandList as a temporary patch for 5.4 to avoid issues with RHI Validation
+	PerInstanceGeometryParameterBuffer = ResourceCast(FRHICommandListExecutor::GetImmediateCommandList().CreateBuffer(ParameterBufferSize, BUF_StructuredBuffer | BUF_ShaderResource, sizeof(FVulkanRayTracingGeometryParameters), ERHIAccess::SRVMask, ParameterBufferCreateInfo).GetReference());
 }
 
 FVulkanRayTracingScene::~FVulkanRayTracingScene()
