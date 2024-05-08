@@ -56,13 +56,8 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category=VirtualTextures, meta = (
 		DisplayName = "Auto Virtual Texturing Size",
-		ToolTip = "Automatically enable the 'Virtual Texture Streaming' texture setting for textures larger than or equal to this size. Zero to disable.  This setting will not affect existing textures in the project."))
+		ToolTip = "Automatically enable the 'Virtual Texture Streaming' texture setting for textures larger than or equal to this size. This setting will not affect existing textures in the project."))
 	int32 AutoVTSize = 4096;
-
-	UPROPERTY(config, EditAnywhere, Category=VirtualTextures, meta = (
-		DisplayName = "Auto resize large textures",
-		ToolTip = "If not zero, textures over this size that are not VT will be resized to be equal to or less than this.  Treated as pixel count limit for cubes and volumes.  Must equal AutoVTSize if both are non-zero.  This setting will not affect existing textures in the project."))
-	int32 AutoLimitDimension = 0;
 	
 	UPROPERTY(config, EditAnywhere, Category=ImportSettings, meta = (
 		DisplayName = "Turn on NormalizeNormals for normal maps",
@@ -90,13 +85,6 @@ public:
 	
 	// Get the PNGInfill setting, with Default mapped to a concrete choice
 	TEXTUREUTILITIESCOMMON_API ETextureImportPNGInfill GetPNGInfillMapDefault() const;
-
-	// get AutoLimitDimension as a pixel count (squared), and with sanity checks applied
-	//	zero means do not limit
-	TEXTUREUTILITIESCOMMON_API int64 GetAutoLimitPixelCount() const;
-	
-	// IsImportAutoVTEnabled checks not just this config but also the project VT settings
-	TEXTUREUTILITIESCOMMON_API bool IsImportAutoVTEnabled() const;
 
 #if WITH_EDITOR
 	TEXTUREUTILITIESCOMMON_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
