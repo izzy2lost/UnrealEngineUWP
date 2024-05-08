@@ -23,6 +23,11 @@
 			"Name": "DynamicMesh",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "MeshFileUtils",
+			"Type": "DeveloperTool",
+			"LoadingPhase": "Default"
 		}
 	],
 	"SupportedPrograms": ["ChaosVisualDebugger"]
