@@ -44,7 +44,7 @@ FString UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "AddModuleTransaction", "Add Module"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "AddModuleTransaction", "Add Module"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -254,7 +254,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConnectModuleToElementTransaction", "Connect to Element"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConnectModuleToElementTransaction", "Connect to Element"), !GIsTransacting);
 		Blueprint->Modify();
 	}
 #endif 
@@ -364,7 +364,7 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConnectModuleToElementTransaction", "Connect to Element"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConnectModuleToElementTransaction", "Connect to Element"), !GIsTransacting);
 		Blueprint->Modify();
 	}
 #endif 
@@ -530,7 +530,7 @@ bool UModularRigController::AutoConnectSecondaryConnectors(const TArray<FRigElem
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "AutoResolveSecondaryConnectors", "Auto-Resolve Connectors"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "AutoResolveSecondaryConnectors", "Auto-Resolve Connectors"), !GIsTransacting);
 	}
 
 	Blueprint->Modify();
@@ -730,7 +730,7 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConfigureModuleValueTransaction", "Configure Module Value"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConfigureModuleValueTransaction", "Configure Module Value"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -937,7 +937,7 @@ bool UModularRigController::BindModuleVariable(const FString& InModulePath, cons
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -976,7 +976,7 @@ bool UModularRigController::UnBindModuleVariable(const FString& InModulePath, co
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -1008,7 +1008,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "DeleteModuleTransaction", "Delete Module"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "DeleteModuleTransaction", "Delete Module"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -1107,7 +1107,7 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -1222,7 +1222,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ReparentModuleTransaction", "Reparent Module"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ReparentModuleTransaction", "Reparent Module"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -1301,6 +1301,10 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	(void)DisconnectCyclicConnectors(bSetupUndo);
 
 	Notify(EModularRigNotification::ModuleReparented, Module);
+	
+#if WITH_EDITOR
+ 	TransactionPtr.Reset();
+#endif
 	
 	return NewPath;
 }
@@ -1466,7 +1470,7 @@ bool UModularRigController::SetModuleShortName(const FString& InModulePath, cons
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "SetModuleShortNameTransaction", "Set Module Display Name"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "SetModuleShortNameTransaction", "Set Module Display Name"), !GIsTransacting);
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
