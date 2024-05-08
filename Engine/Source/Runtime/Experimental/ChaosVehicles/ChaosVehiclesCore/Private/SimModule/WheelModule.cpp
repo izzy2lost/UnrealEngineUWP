@@ -10,7 +10,6 @@ UE_DISABLE_OPTIMIZATION_SHIP
 
 namespace Chaos
 {
-
 	FWheelSimModule::FWheelSimModule(const FWheelSettings& Settings)
 		: TSimModuleSettings<FWheelSettings>(Settings)
 		, BrakeTorque(0.0f)
@@ -32,9 +31,9 @@ namespace Chaos
 		float TorqueScaling = 1.0f;
 		float TractionControlAndABSScaling = 0.98f;	// how close to perfection is the system working
 
-		float HandbrakeTorque = Setup().HandbrakeEnabled ? Inputs.ControlInputs.Handbrake * Setup().HandbrakeTorque : 0.0f;
-		SteerAngleDegrees = Setup().SteeringEnabled ? Inputs.ControlInputs.Steering * Setup().MaxSteeringAngle : 0.0f;
-		BrakeTorque = Inputs.ControlInputs.Brake * Setup().MaxBrakeTorque + HandbrakeTorque;
+		float HandbrakeTorque = Setup().HandbrakeEnabled ? Inputs.GetControls().GetMagnitude(HandbrakeControlName) * Setup().HandbrakeTorque : 0.0f;
+		SteerAngleDegrees = Setup().SteeringEnabled ? Inputs.GetControls().GetMagnitude(SteeringControlName) * Setup().MaxSteeringAngle : 0.0f;
+		BrakeTorque = Inputs.GetControls().GetMagnitude(BrakeControlName) * Setup().MaxBrakeTorque + HandbrakeTorque;
 		LoadTorque = 0.0f;
 		ForceFromFriction = FVector::ZeroVector;
 		float TorqueFromGroundInteraction = 0.0f;
@@ -42,7 +41,7 @@ namespace Chaos
 
 		// TODO: think about doing this properly, stops vehicles rolling around on their own too much
 		// i.e. an auto handbrake feature
-		if (Setup().AutoHandbrakeEnabled && LocalLinearVelocity.X < Setup().AutoHandbrakeVelocityThreshold && (Inputs.ControlInputs.Brake < SMALL_NUMBER && Inputs.ControlInputs.Throttle < SMALL_NUMBER))
+		if (Setup().AutoHandbrakeEnabled && LocalLinearVelocity.X < Setup().AutoHandbrakeVelocityThreshold && (Inputs.GetControls().GetMagnitude(BrakeControlName) < SMALL_NUMBER && Inputs.GetControls().GetMagnitude(ThrottleControlName) < SMALL_NUMBER))
 		{
 			BrakeTorque = Setup().HandbrakeTorque;
 		}

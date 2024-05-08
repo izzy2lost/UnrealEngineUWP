@@ -10,7 +10,6 @@ UE_DISABLE_OPTIMIZATION_SHIP
 
 namespace Chaos
 {
-
 	FAerofoilSimModule::FAerofoilSimModule(const FAerofoilSettings& Settings) : TSimModuleSettings<FAerofoilSettings>(Settings)
 		, CurrentAirDensity(RealWorldConsts::AirDensity())
 		, AngleOfAttack(0.f)
@@ -27,15 +26,15 @@ namespace Chaos
 		switch (Setup().Type)
 		{
 			case EAerofoil::Elevator:
-				ControlSurfaceAngle = Inputs.ControlInputs.Pitch * Setup().MaxControlAngle;
+				ControlSurfaceAngle = Inputs.GetControls().GetMagnitude(PitchControlName) * Setup().MaxControlAngle;
 				break;
 
 			case EAerofoil::Rudder:
-				ControlSurfaceAngle = Inputs.ControlInputs.Yaw * Setup().MaxControlAngle;
+				ControlSurfaceAngle = Inputs.GetControls().GetMagnitude(YawControlName) * Setup().MaxControlAngle;
 				break;
 
 			case EAerofoil::Wing:
-				ControlSurfaceAngle = Inputs.ControlInputs.Roll * Setup().MaxControlAngle;
+				ControlSurfaceAngle = Inputs.GetControls().GetMagnitude(RollControlName) * Setup().MaxControlAngle;
 			break;
 		}
 

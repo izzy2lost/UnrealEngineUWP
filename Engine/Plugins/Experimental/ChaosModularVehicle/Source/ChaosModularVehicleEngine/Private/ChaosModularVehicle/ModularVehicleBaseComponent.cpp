@@ -23,6 +23,7 @@
 
 DEFINE_LOG_CATEGORY(LogModularBase);
 
+
 bool bModularVehicle_SuspensionConstraint_Enabled = true;
 FAutoConsoleVariableRef CVarModularVehicleSuspensionConstraintEnabled(TEXT("p.ModularVehicle.SuspensionConstraint.Enabled"), bModularVehicle_SuspensionConstraint_Enabled, TEXT("Enable/Disable suspension constraint falling back to simple forces when constraint disabled (requires restart)."));
 
@@ -110,6 +111,38 @@ bool UModularVehicleBaseComponent::IsLocallyControlled() const
 	return false;
 }
 
+void UModularVehicleBaseComponent::GenerateInputModifiers(const TArray<FModuleInputSetup>& CombinedInputConfiguration)
+{
+	for (const FModuleInputSetup& InputSetup : CombinedInputConfiguration)
+	{
+		if (InputSetup.InputModifierClass != nullptr)
+		{
+			UDefaultModularVehicleInputModifier* NewPtr = NewObject<UDefaultModularVehicleInputModifier>(this, InputSetup.InputModifierClass);
+			InputModifiers.Add(NewPtr);
+		}
+		else
+		{
+			InputModifiers.Add(nullptr);
+		}
+	}
+}
+
+void UModularVehicleBaseComponent::ApplyInputModifiers(float DeltaTime, const FModuleInputContainer& RawValue)
+{
+	check(InputModifiers.Num() == InputsContainer.GetNumInputs());
+	for (int I = 0; I < InputsContainer.GetNumInputs(); I++)
+	{
+		if (InputModifiers[I] != nullptr)
+		{
+			InputsContainer.SetValueAtIndex(I, InputModifiers[I]->InterpInputValue(DeltaTime, InputsContainer.GetValueAtIndex(I), RawValue.GetValueAtIndex(I)));
+		}
+		else
+		{
+			InputsContainer.SetValueAtIndex(I, RawValue.GetValueAtIndex(I));
+		}
+	}
+}
+
 
 void UModularVehicleBaseComponent::OnCreatePhysicsState()
 {
@@ -140,6 +173,7 @@ void UModularVehicleBaseComponent::OnCreatePhysicsState()
 		{
 			// register interface to handle network prediction callbacks
 			// #Note: in our case we don't yet know what the replication data will be since the modules are built after this point at runtime
+			FScopedModuleInputInitializer SetSetup(InputConfig);
 			NetworkPhysicsComponent->CreateDataHistory<FPhysicsModularVehicleTraits>(this);
 
 			if (bIsLocallyControlled)
@@ -333,6 +367,21 @@ void UModularVehicleBaseComponent::BeginPlay()
 			AddGeometryCollectionsFromOwnedActor();
 		}
 	}
+
+	// control input setup - unfortunately can't do this in OnCreatePhysics since RootComponent->GetChildrenComponents will not work 
+	// at that time and AssimilateComponentInputs will not find any controls in the component hierarchy
+	TArray<FModuleInputSetup> CombinedInputConfiguration;
+	AssimilateComponentInputs(CombinedInputConfiguration);
+	RawInputsContainer.Initialize(CombinedInputConfiguration, InputNameMap);
+	InputsContainer = RawInputsContainer;
+	if (!bUsingNetworkPhysicsPrediction)
+	{
+		ReplicatedState.Container = InputsContainer;
+	}
+	GenerateInputModifiers(CombinedInputConfiguration);
+
+	VehicleSimulationPT->SetInputMappings(InputNameMap);
+
 }
 
 void UModularVehicleBaseComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -513,22 +562,12 @@ void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 	// Should we remove input instead of relying on replicated state in that case?
 	if (bProcessLocally && PVehicleOutput)
 	{
-		// Apply Inputs locally
-		SteeringInput = SteeringInputRate.InterpInputValue(DeltaTime, SteeringInput, RawSteeringInput);
-		ThrottleInput = ThrottleInputRate.InterpInputValue(DeltaTime, ThrottleInput, RawThrottleInput);
-		BrakeInput = BrakeInputRate.InterpInputValue(DeltaTime, BrakeInput, RawBrakeInput);
-		HandbrakeInput = HandbrakeInputRate.InterpInputValue(DeltaTime, HandbrakeInput, RawHandbrakeInput);
-		PitchInput = PitchInputRate.InterpInputValue(DeltaTime, PitchInput, RawPitchInput);
-		RollInput = RollInputRate.InterpInputValue(DeltaTime, RollInput, RawRollInput);
-		YawInput = YawInputRate.InterpInputValue(DeltaTime, YawInput, RawYawInput);
-		BoostInput = BoostInputRate.InterpInputValue(DeltaTime, BoostInput, RawBoostInput);
-		DriftInput = DriftInputRate.InterpInputValue(DeltaTime, DriftInput, RawDriftInput);
-		ReverseInput = RawReverseInput;
+		ApplyInputModifiers(DeltaTime, RawInputsContainer);
 
 		if (!bUsingNetworkPhysicsPrediction)
 		{
 			// and send to server - (ServerUpdateState_Implementation below)
-			ServerUpdateState(SteeringInput, ThrottleInput, BrakeInput, HandbrakeInput, -1, RollInput, PitchInput, YawInput, BoostInput, DriftInput, ReverseInput);
+			ServerUpdateState(InputsContainer, ReverseInput, bKeepVehicleAwake);
 		}
 
 		if (PawnOwner && PawnOwner->IsNetMode(NM_Client))
@@ -539,49 +578,23 @@ void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 	else if (!bUsingNetworkPhysicsPrediction)
 	{
 		// use replicated values for remote pawns
-		ThrottleInput = ReplicatedState.Throttle;
-		SteeringInput = ReplicatedState.Steering;
-		BrakeInput = ReplicatedState.Brake;
-		HandbrakeInput = ReplicatedState.Handbrake;
-		PitchInput = ReplicatedState.Pitch;
-		RollInput = ReplicatedState.Roll;
-		YawInput = ReplicatedState.Yaw;
-		BoostInput = ReplicatedState.Boost;
-		DriftInput = ReplicatedState.Drift;
+		InputsContainer = ReplicatedState.Container;
 		ReverseInput = ReplicatedState.Reverse;
+		bKeepVehicleAwake = ReplicatedState.KeepAwake;
 	}
 }
 
-bool UModularVehicleBaseComponent::ServerUpdateState_Validate(float InSteeringInput, float InThrottleInput, float InBrakeInput, float InHandbrakeInput, int32 InCurrentGear, float InRollInput, float InPitchInput, float InYawInput, float InBoostInput, float InDriftInput, bool InReverseInput)
+bool UModularVehicleBaseComponent::ServerUpdateState_Validate(const FModuleInputContainer& InputsIn, bool Reverse, bool KeepAwake)
 {
 	return true;
 }
 
-void UModularVehicleBaseComponent::ServerUpdateState_Implementation(float InSteeringInput, float InThrottleInput, float InBrakeInput
-	, float InHandbrakeInput, int32 InCurrentGear, float InRollInput, float InPitchInput, float InYawInput, float InBoostInput, float InDriftInput, bool InReverseInput)
+void UModularVehicleBaseComponent::ServerUpdateState_Implementation(const FModuleInputContainer& InputsIn, bool Reverse, bool KeepAwake)
 {
-	SteeringInput = InSteeringInput;
-	ThrottleInput = InThrottleInput;
-	BrakeInput = InBrakeInput;
-	HandbrakeInput = InHandbrakeInput;
-	RollInput = InRollInput;
-	PitchInput = InPitchInput;
-	YawInput = InYawInput;
-	BoostInput = InBoostInput;
-	DriftInput = InDriftInput;
-	ReverseInput = InReverseInput;
-
 	// update state of inputs
-	ReplicatedState.Steering = InSteeringInput;
-	ReplicatedState.Throttle = InThrottleInput;
-	ReplicatedState.Brake = InBrakeInput;
-	ReplicatedState.Handbrake = InHandbrakeInput;
-	ReplicatedState.Roll = InRollInput;
-	ReplicatedState.Pitch = InPitchInput;
-	ReplicatedState.Yaw = InYawInput;
-	ReplicatedState.Boost = InBoostInput;
-	ReplicatedState.Drift = InDriftInput;
-	ReplicatedState.Reverse = InReverseInput;
+	ReplicatedState.Reverse = Reverse;
+	ReplicatedState.KeepAwake = KeepAwake;
+	ReplicatedState.Container = InputsIn;
 }
 
 
@@ -771,17 +784,11 @@ void UModularVehicleBaseComponent::Update(float DeltaTime)
 
 		FModularVehicleAsyncInput* AsyncInput = static_cast<FModularVehicleAsyncInput*>(CurAsyncInput);
 
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Throttle = ThrottleInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Boost = BoostInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Drift = DriftInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Brake = BrakeInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Steering = SteeringInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Handbrake = HandbrakeInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Roll = RollInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Pitch = PitchInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Yaw = YawInput;
 		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Reverse = ReverseInput;
 		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.KeepAwake = bKeepVehicleAwake;
+
+		// All control inputs
+		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Container = InputsContainer;
 
 		FCollisionQueryParams TraceParams(NAME_None, FCollisionQueryParams::GetUnknownStatId(), false, nullptr);
 		TraceParams.bReturnPhysicalMaterial = true;	// we need this to get the surface friction coefficient
@@ -1005,6 +1012,37 @@ void UModularVehicleBaseComponent::SetLocallyControlled(bool bLocallyControlledI
 
 }
 
+void UModularVehicleBaseComponent::AssimilateComponentInputs(TArray<FModuleInputSetup>& OutCombinedInputs)
+{
+	// copy the input setup from this class
+	OutCombinedInputs = InputConfig;
+
+	// append the input setup from all module sim components attached to same actor
+	if (APawn* Pawn = Cast<APawn>(GetOwner()))
+	{
+		if (USceneComponent* RootComponent = Pawn->GetRootComponent())
+		{
+			TArray<USceneComponent*> ChildComponents;
+			RootComponent->GetChildrenComponents(true, ChildComponents);
+
+			for (USceneComponent* Component : ChildComponents)
+			{
+				if (UVehicleSimBaseComponent* GCComponent = Cast<UVehicleSimBaseComponent>(Component))
+				{
+					// don't add duplicates, i.e. 4 wheels could be looking for a single steering input
+					for (FModuleInputSetup& Config : GCComponent->InputConfig)
+					{
+						if (OutCombinedInputs.Find(Config) == INDEX_NONE)
+						{
+							OutCombinedInputs.Append(GCComponent->InputConfig);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 void UModularVehicleBaseComponent::CreateVehicleSim()
 {
 	UWorld* World = GetWorld();
@@ -1119,59 +1157,52 @@ void UModularVehicleBaseComponent::AddGeometryCollectionsFromOwnedActor()
 	}
 }
 
-void UModularVehicleBaseComponent::SetThrottleInput(float Throttle)
+void UModularVehicleBaseComponent::SetInputBool(const FName Name, const bool Value)
 {
-	RawThrottleInput = FMath::Clamp(Throttle, -1.0f, 1.0f);
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
-void UModularVehicleBaseComponent::SetBoostInput(float Boost)
+void UModularVehicleBaseComponent::SetInputAxis1D(const FName Name, const double Value)
 {
-	RawBoostInput = FMath::Clamp(Boost, -1.0f, 1.0f);
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
-void UModularVehicleBaseComponent::SetDriftInput(float Drift)
+void UModularVehicleBaseComponent::SetInputAxis2D(const FName Name, const FVector2D Value)
 {
-	RawDriftInput = FMath::Clamp(Drift, -1.0f, 1.0f);
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
-void UModularVehicleBaseComponent::IncreaseThrottleInput(float ThrottleDelta)
+void UModularVehicleBaseComponent::SetInputAxis3D(const FName Name, const FVector Value)
 {
-	RawThrottleInput = FMath::Clamp(RawThrottleInput + ThrottleDelta, 0.f, 1.0f);
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
-void UModularVehicleBaseComponent::DecreaseThrottleInput(float ThrottleDelta)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const bool Value)
 {
-	RawThrottleInput = FMath::Clamp(RawThrottleInput - ThrottleDelta, 0.f, 1.0f);
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
-void UModularVehicleBaseComponent::SetBrakeInput(float Brake)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const double Value)
 {
-	RawBrakeInput = FMath::Clamp(Brake, -1.0f, 1.0f);
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
-void UModularVehicleBaseComponent::SetSteeringInput(float Steering)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const FVector2D& Value)
 {
-	RawSteeringInput = FMath::Clamp(Steering, -1.0f, 1.0f);
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
-void UModularVehicleBaseComponent::SetPitchInput(float Pitch)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const FVector& Value)
 {
-	RawPitchInput = FMath::Clamp(Pitch, -1.0f, 1.0f);
-}
-
-void UModularVehicleBaseComponent::SetRollInput(float Roll)
-{
-	RawRollInput = FMath::Clamp(Roll, -1.0f, 1.0f);
-}
-
-void UModularVehicleBaseComponent::SetYawInput(float Yaw)
-{
-	RawYawInput = FMath::Clamp(Yaw, -1.0f, 1.0f);
-}
-
-void UModularVehicleBaseComponent::SetHandbrakeInput(float Handbrake)
-{
-	RawHandbrakeInput = Handbrake;
+	FInputInterface Inputs(InputNameMap, RawInputsContainer);
+	Inputs.SetValue(Name, Value);
 }
 
 void UModularVehicleBaseComponent::SetReverseInput(bool Reverse)
@@ -1179,12 +1210,10 @@ void UModularVehicleBaseComponent::SetReverseInput(bool Reverse)
 	RawReverseInput = Reverse;
 }
 
-
 void UModularVehicleBaseComponent::SetGearInput(int32 Gear)
 {
 	RawGearInput = Gear;
 }
-
 
 int32 UModularVehicleBaseComponent::GetCurrentGear()
 {
@@ -1214,16 +1243,14 @@ void UModularVehicleBaseComponent::ShowDebugInfo(AHUD* HUD, UCanvas* Canvas, con
 
 	// draw input values
 	Canvas->SetDrawColor(FColor::White);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Throttle Raw  (%3.2f) %3.2f"), RawThrottleInput, ThrottleInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Boost Raw     (%3.2f) %3.2f"), RawBoostInput, BoostInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Drift Raw     (%3.2f) %3.2f"), RawDriftInput, DriftInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Brake Raw     (%3.2f) %3.2f"), RawBrakeInput, BrakeInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Steering Raw  (%3.2f) %3.2f"), RawSteeringInput, SteeringInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Handbrake Raw (%3.2f) %3.2f"), RawHandbrakeInput, HandbrakeInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Roll Raw      (%3.2f) %3.2f"), RawRollInput, RollInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Pitch Raw     (%3.2f) %3.2f"), RawPitchInput, PitchInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Yaw Raw       (%3.2f) %3.2f"), RawYawInput, YawInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Reverse Raw   (%3.2f) %3.2f"), RawReverseInput, ReverseInput), 4, YPos);
+
+	for (int I = 0; I < RawInputsContainer.GetNumInputs(); I++)
+	{
+		float Raw = RawInputsContainer.GetValueAtIndex(I).GetMagnitude();
+		float Interpolated = InputsContainer.GetValueAtIndex(I).GetMagnitude();
+
+		YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("%s Raw  (%3.2f) %3.2f"), *InputConfig[I].Name.ToString(), Raw, Interpolated), 4, YPos);
+	}
 
 	YPos += 10;
 
@@ -1234,4 +1261,16 @@ void UModularVehicleBaseComponent::ShowDebugInfo(AHUD* HUD, UCanvas* Canvas, con
 	}
 #endif
 
+}
+
+void UModularVehicleBaseComponent::LogInputSetup()
+{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	const FModuleInputContainer::FInputNameMap& NameMap = InputNameMap;
+
+	for (auto& NamePair : NameMap)
+	{ 
+		UE_LOG(LogTemp, Warning, TEXT("Input: %s %d"), *NamePair.Key.ToString(), NamePair.Value);
+	}
+#endif //!(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 }

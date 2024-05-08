@@ -22,12 +22,12 @@ namespace Chaos
 		SteerAngleDegrees = 0.0f;
 		if (Setup().SteeringEnabled)
 		{
-			SteerAngleDegrees = Setup().SteeringEnabled ? Inputs.ControlInputs.Steering * Setup().MaxSteeringAngle : 0.0f;
+			SteerAngleDegrees = Setup().SteeringEnabled ? Inputs.GetControls().GetMagnitude(TEXT("Steering")) * Setup().MaxSteeringAngle : 0.0f;
 		}
 
 		// applies continuous force
-		float BoostEffect = Inputs.ControlInputs.Boost * Setup().BoostMultiplier;
-		FVector Force = Setup().ForceAxis * Setup().MaxThrustForce * Inputs.ControlInputs.Throttle * (1.0f + BoostEffect);
+		float BoostEffect = Inputs.GetControls().GetMagnitude(BoostControlName) * Setup().BoostMultiplier;
+		FVector Force = Setup().ForceAxis * Setup().MaxThrustForce * Inputs.GetControls().GetMagnitude(ThrottleControlName) * (1.0f + BoostEffect);
 		FQuat Steer = FQuat(Setup().SteeringAxis, FMath::DegreesToRadians(SteerAngleDegrees) * Setup().SteeringForceEffect);
 		AddLocalForceAtPosition(Steer.RotateVector(Force), Setup().ForceOffset, true, false, false, FColor::Magenta);
 	}

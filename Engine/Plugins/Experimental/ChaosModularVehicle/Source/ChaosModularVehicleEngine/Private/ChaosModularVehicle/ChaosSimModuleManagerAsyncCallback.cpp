@@ -12,7 +12,6 @@
 
 FSimModuleDebugParams GSimModuleDebugParams;
 
-
 DECLARE_CYCLE_STAT(TEXT("AsyncCallback:OnPreSimulate_Internal"), STAT_AsyncCallback_OnPreSimulate, STATGROUP_ChaosSimModuleManager);
 
 FName FChaosSimModuleManagerAsyncCallback::GetFNameForStatId() const
@@ -188,24 +187,16 @@ void FModularVehicleAsyncInput::ProcessInputs()
 	{
 		PhysicsInputs.NetworkInputs.VehicleInputs = VehicleSim->VehicleInputs;
 	}
-
 }
 
 bool FNetworkModularVehicleInputs::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
 	FNetworkPhysicsData::SerializeFrames(Ar);
 
-	Ar << VehicleInputs.Steering;
-	Ar << VehicleInputs.Throttle;
-	Ar << VehicleInputs.Brake;
-	Ar << VehicleInputs.Handbrake;
-	Ar << VehicleInputs.Pitch;
-	Ar << VehicleInputs.Roll;
-	Ar << VehicleInputs.Yaw;
-	Ar << VehicleInputs.Boost;
-	Ar << VehicleInputs.Drift;
 	Ar << VehicleInputs.Reverse;
 	Ar << VehicleInputs.KeepAwake;
+
+	VehicleInputs.Container.Serialize(Ar, Map, bOutSuccess);
 
 	bOutSuccess = true;
 	return bOutSuccess;
@@ -240,17 +231,15 @@ void FNetworkModularVehicleInputs::InterpolateData(const FNetworkPhysicsData& Mi
 
 	const float LerpFactor = (LocalFrame - MinInput.LocalFrame) / (MaxInput.LocalFrame - MinInput.LocalFrame);
 
-	VehicleInputs.Steering = FMath::Lerp(MinInput.VehicleInputs.Steering, MaxInput.VehicleInputs.Steering, LerpFactor);
-	VehicleInputs.Throttle = FMath::Lerp(MinInput.VehicleInputs.Throttle, MaxInput.VehicleInputs.Throttle, LerpFactor);
-	VehicleInputs.Brake = FMath::Lerp(MinInput.VehicleInputs.Brake, MaxInput.VehicleInputs.Brake, LerpFactor);
-	VehicleInputs.Handbrake = FMath::Lerp(MinInput.VehicleInputs.Handbrake, MaxInput.VehicleInputs.Handbrake, LerpFactor);
-	VehicleInputs.Pitch = FMath::Lerp(MinInput.VehicleInputs.Pitch, MaxInput.VehicleInputs.Pitch, LerpFactor);
-	VehicleInputs.Roll = FMath::Lerp(MinInput.VehicleInputs.Roll, MaxInput.VehicleInputs.Roll, LerpFactor);
-	VehicleInputs.Yaw = FMath::Lerp(MinInput.VehicleInputs.Yaw, MaxInput.VehicleInputs.Yaw, LerpFactor);
-	VehicleInputs.Boost = FMath::Lerp(MinInput.VehicleInputs.Boost, MaxInput.VehicleInputs.Boost, LerpFactor);
-	VehicleInputs.Drift = FMath::Lerp(MinInput.VehicleInputs.Drift, MaxInput.VehicleInputs.Drift, LerpFactor);
 	VehicleInputs.Reverse = MinInput.VehicleInputs.Reverse;
 	VehicleInputs.KeepAwake = MinInput.VehicleInputs.KeepAwake;
+	VehicleInputs.Container.Lerp(MinInput.VehicleInputs.Container, MaxInput.VehicleInputs.Container, LerpFactor);
+}
+
+void FNetworkModularVehicleInputs::MergeData(const FNetworkPhysicsData& FromData)
+{
+	const FNetworkModularVehicleInputs& FromInput = static_cast<const FNetworkModularVehicleInputs&>(FromData);
+	VehicleInputs.Container.Merge(FromInput.VehicleInputs.Container);
 }
 
 bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
@@ -279,10 +268,6 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 					{
 						Data->Serialize(Ar);
 						ModuleData.Emplace(Data);
-					}
-					else
-					{
-						ensureMsgf(false, TEXT("Module net data factory has not been registered, use FModuleFactoryRegister::Get().RegisterFactory()"));
 					}
 
 				}

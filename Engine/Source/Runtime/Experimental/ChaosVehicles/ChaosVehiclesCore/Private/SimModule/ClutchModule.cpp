@@ -10,7 +10,6 @@ UE_DISABLE_OPTIMIZATION_SHIP
 
 namespace Chaos
 {
-
 	FClutchSimModule::FClutchSimModule(const FClutchSettings& Settings) : TSimModuleSettings<FClutchSettings>(Settings)
 		, ClutchValue(0.f)
 	{
@@ -33,7 +32,7 @@ namespace Chaos
 		//float AngularVelocityDifference = EngineSpeed - TransmissionSpeed;
 
 		// Inputs.Clutch 0 is engaged/locked, 1 is depressed/open
-		ClutchValue = (1.0f - Inputs.ControlInputs.Clutch) * Setup().ClutchStrength;
+		ClutchValue = (1.0f - Inputs.GetControls().GetMagnitude(ClutchControlName)) * Setup().ClutchStrength;
 
 		FTorqueSimModule* Parent = static_cast<FTorqueSimModule*>(GetParent());
 		FTorqueSimModule* Child = static_cast<FTorqueSimModule*>(GetFirstChild());

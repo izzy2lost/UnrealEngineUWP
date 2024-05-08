@@ -30,7 +30,7 @@ namespace Chaos
 
 		if (Setup().AutoReverse)
 		{
-			if (Inputs.ControlInputs.IsReversing)
+			if (Inputs.bIsReversing)
 			{
 				// if reversing change to reverse gear if currently in a forwards gear
 				if (TargetGear > 0)
@@ -87,18 +87,18 @@ namespace Chaos
 		}
 		else
 		{
-			if (Inputs.ControlInputs.ChangeUp)
+			if (Inputs.GetControls().GetMagnitude(ChangeUpControlName))
 			{
 				ChangeUp();
 			}
-			else if (Inputs.ControlInputs.ChangeDown)
+			else if (Inputs.GetControls().GetMagnitude(ChangeDownControlName))
 			{
 				ChangeDown();
 			}
-			else if (Inputs.ControlInputs.GearNumber)
-			{
-				TargetGear = Inputs.ControlInputs.GearNumber;
-			}
+			//else if (Inputs.ControlInputs.GearNumber) #TODO: this was never used
+			//{
+			//	TargetGear = Inputs.ControlInputs.GearNumber;
+			//}
 		}
 
 		if (CurrentGear != TargetGear)

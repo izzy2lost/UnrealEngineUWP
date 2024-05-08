@@ -10,7 +10,6 @@ UE_DISABLE_OPTIMIZATION_SHIP
 
 namespace Chaos
 {
-
 	FEngineSimModule::FEngineSimModule(const FEngineSettings& Settings) : TSimModuleSettings<FEngineSettings>(Settings)
 		, EngineIdleSpeed(RPMToOmega(Setup().IdleRPM))
 		, MaxEngineSpeed(RPMToOmega(Setup().MaxRPM))
@@ -32,7 +31,7 @@ namespace Chaos
 		}
 
 		// TODO: Engine braking effect
-		DriveTorque = GetEngineTorque(Inputs.ControlInputs.Throttle, GetRPM());
+		DriveTorque = GetEngineTorque(Inputs.GetControls().GetMagnitude(ThrottleControlName), GetRPM());
 
 		if (DriveTorque < SMALL_NUMBER)
 		{

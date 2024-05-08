@@ -4,6 +4,7 @@
 
 #include "SimModule/DeferredForcesModular.h"
 #include "SimModule/SimulationModuleBase.h"
+#include "SimModule/ModuleInput.h"
 
 
 DECLARE_STATS_GROUP(TEXT("ModularVehicle.SimTree"), STATGROUP_ModularVehicleSimTree, STATGROUP_Advanced);
@@ -158,10 +159,6 @@ namespace Chaos
 		void SetSimulationEnabled(bool bInEnabled) { bSimulationEnabled = bInEnabled; }
 		bool IsSimulationEnabled() { return bSimulationEnabled; }
 
-		FControlInputs& GetControlInputs()
-		{
-			return AllInputs.ControlInputs;
-		}
 
 		const FVehicleState& GetVehicleState() const
 		{

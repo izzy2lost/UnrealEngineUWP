@@ -6,6 +6,7 @@
 #include "UObject/ObjectPtr.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
+#include "SimModule/ModuleInput.h"
 
 #include "VehicleSimBaseComponent.generated.h"
 
@@ -57,6 +58,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ModularVehicle)
 	bool bAnimationEnabled;
+
+	UPROPERTY(EditAnywhere, Category = VehicleInput)
+	TArray<FModuleInputSetup> InputConfig;
 
 	int AnimationSetupIndex;
 	int TreeIndex; // helper - since Component->GetAttachChildren doesn't contain any data

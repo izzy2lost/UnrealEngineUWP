@@ -2,6 +2,8 @@
 
 #include "ChaosModularVehicle/ModularVehicleSimulationCU.h"
 #include "ChaosModularVehicle/ModularVehicleDefaultAsyncInput.h"
+#include "SimModule/SimModulesInclude.h"
+#include "SimModule/ModuleInput.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
@@ -28,7 +30,6 @@ FAutoConsoleVariableRef CVarChaosModularVehiclesDisableAnim(TEXT("p.ModularVehic
 void FModularVehicleSimulationCU::Initialize(TUniquePtr<Chaos::FSimModuleTree>& InSimModuleTree)
 {
 	SimModuleTree = MoveTemp(InSimModuleTree);
-	InputInterpolation.Init(FModularVehicleInputRate(), EModularVehicleInputType::Max);
 }
 
 void FModularVehicleSimulationCU::Terminate()
@@ -88,6 +89,7 @@ void FModularVehicleSimulationCU::Simulate(UWorld* InWorld, float DeltaSeconds, 
 	Simulate_ClusterUnion(InWorld, DeltaSeconds, InputData, OutputData, static_cast<Chaos::FClusterUnionPhysicsProxy*>(Proxy));
 }
 
+
 void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float DeltaSeconds, const FModularVehicleAsyncInput& InputData, FModularVehicleAsyncOutput& OutputData, Chaos::FClusterUnionPhysicsProxy* Proxy)
 {
 	Chaos::EnsureIsInPhysicsThreadContext();
@@ -105,19 +107,14 @@ void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float D
 		//		, *Proxy->GetParticle_Internal()->W().ToString()));
 		//}
 
-		//InterpolateInputs(DeltaSeconds, ExternalInputs, InterpolatedInputs);
+		FReadScopeLock InputConfigLock(InputConfigurationLock);
 
-		SimInputData.ControlInputs.Throttle = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Throttle;
-		SimInputData.ControlInputs.Steering = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Steering;
-		SimInputData.ControlInputs.Brake = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Brake;
-		SimInputData.ControlInputs.Handbrake = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Handbrake;
-		SimInputData.ControlInputs.Roll = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Roll;
-		SimInputData.ControlInputs.Pitch = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Pitch;
-		SimInputData.ControlInputs.Yaw = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Yaw;
-		SimInputData.ControlInputs.Boost = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Boost;
-		SimInputData.ControlInputs.Drift = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Drift;
-		SimInputData.ControlInputs.IsReversing = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Reverse;
+		FModuleInputContainer Container = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Container;
+		FInputInterface InputInterface(InputNameMap, Container);
+
+		SimInputData.ControlInputs = &InputInterface;
 		SimInputData.bKeepVehicleAwake = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.KeepAwake;
+		SimInputData.bIsReversing = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Reverse;
 
 		PerformAdditionalSimWork(InWorld, InputData, Proxy, SimInputData);
 
@@ -126,19 +123,6 @@ void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float D
 	}
 
 }
-
-//void FModularVehicleSimulationCU::InterpolateInputs(float DeltaSeconds, const Chaos::FControlInputs& ExternalInputIn, Chaos::FControlInputs& InterpolatedInputsInOut)
-//{
-//	InterpolatedInputsInOut.Steering = InputInterpolation[EModularVehicleInputType::Steering].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Steering, ExternalInputIn.Steering);
-//	InterpolatedInputsInOut.Throttle = InputInterpolation[EModularVehicleInputType::Throttle].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Throttle, ExternalInputIn.Throttle);
-//	InterpolatedInputsInOut.Brake = InputInterpolation[EModularVehicleInputType::Brake].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Brake, ExternalInputIn.Brake);
-//	InterpolatedInputsInOut.Handbrake = InputInterpolation[EModularVehicleInputType::Handbrake].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Handbrake, ExternalInputIn.Handbrake);
-//	InterpolatedInputsInOut.Pitch = InputInterpolation[EModularVehicleInputType::Pitch].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Pitch, ExternalInputIn.Pitch);
-//	InterpolatedInputsInOut.Roll = InputInterpolation[EModularVehicleInputType::Roll].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Roll, ExternalInputIn.Roll);
-//	InterpolatedInputsInOut.Yaw = InputInterpolation[EModularVehicleInputType::Yaw].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Yaw, ExternalInputIn.Yaw);
-//	InterpolatedInputsInOut.GearNumber = ExternalInputIn.GearNumber;
-//	InterpolatedInputsInOut.InputDebugIndex = ExternalInputIn.InputDebugIndex;
-//}
 
 
 void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, const FModularVehicleAsyncInput& InputData, Chaos::FClusterUnionPhysicsProxy* Proxy, Chaos::FAllInputs& AllInputs)
@@ -446,8 +430,3 @@ void FModularVehicleSimulationCU::FillOutputState(FModularVehicleAsyncOutput& Ou
 	}
 }
 
-Chaos::FControlInputs& FModularVehicleSimulationCU::AccessControlInputs()
-{
-	Chaos::EnsureIsInPhysicsThreadContext();
-	return SimModuleTree->GetControlInputs();
-}

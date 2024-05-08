@@ -230,7 +230,7 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnion
 		{
 			UpdateVehicleState(PhysicsProxy);
 
-			UpdateModuleVelocites(PhysicsProxy, Inputs.ControlInputs.InputNonZero() || Inputs.bKeepVehicleAwake);
+			UpdateModuleVelocites(PhysicsProxy, Inputs.GetControls().InputsNonZero() || Inputs.bKeepVehicleAwake);
 		}
 
 		TArray<int> RootNodes;

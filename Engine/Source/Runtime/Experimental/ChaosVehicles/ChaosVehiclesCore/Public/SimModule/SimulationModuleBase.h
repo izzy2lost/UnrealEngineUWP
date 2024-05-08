@@ -7,6 +7,7 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "Chaos/GeometryParticlesfwd.h"
 #include "SimModule/ModuleFactoryRegister.h"
+#include "SimModule/ModuleInput.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSimulationModule, Warning, All);
 
@@ -26,58 +27,17 @@ namespace Chaos
 	struct FSimOutputData;
 	class FClusterUnionPhysicsProxy;
 
-	struct CHAOSVEHICLESCORE_API FControlInputs
-	{
-
-		FControlInputs()
-			: IsValid(false)
-			, IsReversing(false)
-			, Throttle(0)
-			, Brake(0)
-			, Steering(0)
-			, Clutch(0)
-			, Handbrake(0)
-			, Roll(0)
-			, Pitch(0)
-			, Yaw(0)
-			, Boost(0)
-			, Drift(0)
-			, ChangeUp(false)
-			, ChangeDown(false)
-			, GearNumber(0)
-			, InputDebugIndex(0)
-		{
-		}
-
-		bool InputNonZero()
-		{
-			return FMath::Abs(Throttle) > SMALL_NUMBER
-				|| FMath::Abs(Brake) > SMALL_NUMBER
-				|| FMath::Abs(Steering) > SMALL_NUMBER
-				|| FMath::Abs(Roll) > SMALL_NUMBER
-				|| FMath::Abs(Pitch) > SMALL_NUMBER
-				|| FMath::Abs(Yaw) > SMALL_NUMBER
-				|| FMath::Abs(Boost) > SMALL_NUMBER
-				|| FMath::Abs(Drift) > SMALL_NUMBER;
-		}
-
-		bool IsValid;
-		bool IsReversing;
-		float Throttle;
-		float Brake;
-		float Steering;
-		float Clutch;
-		float Handbrake;
-		float Roll;
-		float Pitch;
-		float Yaw;
-		float Boost;
-		float Drift;
-		bool ChangeUp;
-		bool ChangeDown;
-		int GearNumber;
-		int InputDebugIndex;
-	};
+	const FName HandbrakeControlName("Handbrake");
+	const FName ThrottleControlName("Throttle");
+	const FName SteeringControlName("Steering");
+	const FName BrakeControlName("Brake");
+	const FName ClutchControlName("Clutch");
+	const FName BoostControlName("Boost");
+	const FName ChangeUpControlName("ChangeUp");
+	const FName ChangeDownControlName("ChangeDown");
+	const FName PitchControlName("Pitch");
+	const FName RollControlName("Roll");
+	const FName YawControlName("Yaw");
 
 	struct CHAOSVEHICLESCORE_API FModuleHitResults
 	{
@@ -89,10 +49,13 @@ namespace Chaos
 
 	struct CHAOSVEHICLESCORE_API FAllInputs
 	{
+		FInputInterface& GetControls() const { check(ControlInputs); return *ControlInputs; }
+
 		FTransform VehicleWorldTransform;
 		TMap<int32, FModuleHitResults> HitResults;
-		FControlInputs ControlInputs;
-		bool bKeepVehicleAwake;
+		FInputInterface* ControlInputs = nullptr;
+		bool bIsReversing = false;
+		bool bKeepVehicleAwake = false;
 	};
 
 	/**
