@@ -544,6 +544,7 @@ namespace uba
 		SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 		#else
 		signal(SIGINT, ConsoleHandler);
+		signal(SIGTERM, ConsoleHandler);
 		#endif
 
 		NetworkBackendTcp networkBackend(logWriter);
