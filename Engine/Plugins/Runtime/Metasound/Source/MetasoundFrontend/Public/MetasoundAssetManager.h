@@ -132,7 +132,7 @@ namespace Metasound::Frontend
 
 		struct FAssetInfo
 		{
-			const FNodeRegistryKey RegistryKey;
+			FNodeRegistryKey RegistryKey;
 			FSoftObjectPath AssetPath;
 
 			FORCEINLINE friend bool operator==(const FAssetInfo& InLHS, const FAssetInfo& InRHS)

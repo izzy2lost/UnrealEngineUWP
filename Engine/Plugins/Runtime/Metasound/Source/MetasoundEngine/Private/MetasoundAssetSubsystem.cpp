@@ -473,7 +473,7 @@ namespace Metasound::Engine
 			const FAssetKey AssetKey(Class.Metadata);
 			if (const FTopLevelAssetPath* ObjectPath = PathMap.Find(AssetKey))
 			{
-				FAssetInfo AssetInfo(FNodeRegistryKey(Class.Metadata), FSoftObjectPath(*ObjectPath));
+				FAssetInfo AssetInfo { FNodeRegistryKey(Class.Metadata), FSoftObjectPath(*ObjectPath) };
 				OutAssetInfos.Add(MoveTemp(AssetInfo));
 			}
 			else
