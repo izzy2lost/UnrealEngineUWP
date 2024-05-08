@@ -655,7 +655,6 @@ void BindRayTracingDebugHitStatsCHSMaterialBindings(FRHICommandList& RHICmdList,
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UniformBuffers = HelperBinding.UniformBufferArray;
 		Binding.NumUniformBuffers = HelperBinding.NumUniformBuffers;
-		Binding.UserData = VisibleMeshCommand.InstanceIndex;
 
 		Bindings[BindingIndex] = Binding;
 		BindingIndex++;
@@ -990,11 +989,18 @@ static void PrintTopKMostHitMessage(FRDGBuilder& GraphBuilder, const FScene* Sce
 		for (int32 HitStatsID = 0; HitStatsID < NumPrimitives; ++HitStatsID)
 		{
 			const uint32 PrimitiveID = HitStatsArray[HitStatsID].PrimitiveID;
-			if (PrimitiveID >= (uint32)Scene->Primitives.Num())
+
+			FPersistentPrimitiveIndex PersistentPrimitiveIndex;
+			PersistentPrimitiveIndex.Index = PrimitiveID;
+
+			FPrimitiveSceneInfo* SceneInfo = Scene->GetPrimitiveSceneInfo(PersistentPrimitiveIndex);
+
+			if (SceneInfo == nullptr)
 			{
 				continue;
 			}
-			const FString OwnerName = Scene->Primitives[PrimitiveID]->GetFullnameForDebuggingOnly();
+
+			const FString OwnerName = SceneInfo->GetFullnameForDebuggingOnly();
 			const uint32 NameOffset = SelectedNames.Num();
 			const uint32 NameLength = OwnerName.Len();
 			for (TCHAR C : OwnerName)
@@ -1089,9 +1095,8 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 
 	FShaderBindingTableRHIRef HitStatsSBT = RHICreateShaderBindingTable(SBTInitializer);
 
-	const uint32 NumPrimitives = FMath::Max<uint32>(Scene->Primitives.Num(),
-		(uint32)CVarRayTracingDebugHitCountTopKHits.GetValueOnRenderThread());
-	FRDGBufferDesc HitStatsPerPrimitiveBufferDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FRayTracingHitStatsEntry), NumPrimitives);
+	const uint32 NumInstancesInTLAS = FMath::Max(RayTracingScene.GetRHIRayTracingSceneChecked()->GetInitializer().NumNativeInstancesPerLayer[uint32(ERayTracingSceneLayer::Base)], (uint32)CVarRayTracingDebugHitCountTopKHits.GetValueOnRenderThread());
+	FRDGBufferDesc HitStatsPerPrimitiveBufferDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FRayTracingHitStatsEntry), NumInstancesInTLAS);
 	HitStatsPerPrimitiveBufferDesc.Usage = EBufferUsageFlags(HitStatsPerPrimitiveBufferDesc.Usage | BUF_SourceCopy);
 	FRDGBufferRef HitStatsBuffer = GraphBuilder.CreateBuffer(HitStatsPerPrimitiveBufferDesc, TEXT("RayTracingDebug.HitStatsBuffer"));
 	
@@ -1107,7 +1112,7 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 	RayGenParameters->SceneUniformBuffer = GetSceneUniformBufferRef(GraphBuilder, View); // TODO: use a separate params structure
 	RayGenParameters->RayTracingDebugHitStatsUniformBuffer = DebugHitStatsUniformBuffer;
 
-	AddClearUAVPass(GraphBuilder, DebugHitStatsUniformBufferParameters->HitStatsOutput, 0, ERDGPassFlags::Compute);
+	AddClearUAVPass(GraphBuilder, DebugHitStatsUniformBufferParameters->HitStatsOutput, 0);
 
 	FIntRect ViewRect = View.ViewRect;
 	GraphBuilder.AddPass(
