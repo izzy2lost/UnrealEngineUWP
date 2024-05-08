@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "MetasoundBuilderBase.h"
 
 #include "Algo/Find.h"
