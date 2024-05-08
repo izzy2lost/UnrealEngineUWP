@@ -991,7 +991,8 @@ inline bool RHISupportsGeometryShaders(const FStaticShaderPlatform Platform)
 	return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5)
 		&& !IsMetalPlatform(Platform)
 		&& !IsVulkanMobilePlatform(Platform)
-		&& !IsVulkanMobileSM5Platform(Platform);
+		&& !IsVulkanMobileSM5Platform(Platform)
+		&& !(FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform) && FDataDrivenShaderPlatformInfo::GetIsSPIRV(Platform));
 }
 
 inline bool RHIHasTiledGPU(const FStaticShaderPlatform Platform)
