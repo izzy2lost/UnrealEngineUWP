@@ -45,7 +45,7 @@ namespace EpicGames.OIDC
 
 		public WindowsTokenStore()
 		{
-			ReadStoreFromDisk();
+			_providerToRefreshToken = ReadStoreFromDisk();
 		}
 
 		[ActivatorUtilitiesConstructor]
