@@ -2018,9 +2018,21 @@ bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Supported"));
 	const bool bLumenSupported = CVar->GetInt() != 0;
 
+	EShaderPlatform ParentPreviewPlatform = SP_NumPlatforms;
+	#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform))
+		{
+			ParentPreviewPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(Platform);
+		}
+	}
+	#endif // WITH_EDITOR
+
+	const bool bMetalSM5 = Platform == SP_METAL_SM5 || ParentPreviewPlatform == SP_METAL_SM5;
 	return (bSkipProjectCheck || bLumenSupported)
 		&& FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Platform)
-		&& (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM6) || Platform == SP_VULKAN_SM5 || Platform == SP_METAL_SM5) // Android and Mac can't rely on SM6 yet, but want to run Lumen
+		&& (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM6) || Platform == SP_VULKAN_SM5 || bMetalSM5) // Android and Mac can't rely on SM6 yet, but want to run Lumen
 		&& !IsForwardShadingEnabled(Platform);
 }
 

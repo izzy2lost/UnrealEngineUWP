@@ -349,6 +349,44 @@ FThreeBandSHVector GetBRDF_PDF(uint ProbeIndex)
 	return BRDF;
 }
 
+void SubdivideTraceTileTreeOneStep(
+	uint ThreadIndex,
+	uint BaseTraceTileResolution,
+	uint Level,
+	uint NumLevels,
+	uint ProbeTraceIndex,
+	FThreeBandSHVector BRDF,
+	inout uint PendingTraceListStartIndex)
+{
+	uint TraceTileResolution = BaseTraceTileResolution << Level;
+	uint NumPendingTraceTiles = SharedNumPendingTraceTiles;
+
+	for (uint PendingTraceTileIndex = PendingTraceListStartIndex + ThreadIndex; PendingTraceTileIndex < NumPendingTraceTiles; PendingTraceTileIndex += THREADGROUP_SIZE * THREADGROUP_SIZE)
+	{
+		uint2 TraceTileCoord = UnpackTraceTileInfo(PendingTraceTileList[PendingTraceTileIndex]);
+
+		if (Level < (NumLevels - 1) && ShouldRefineTraceTile(TraceTileCoord, TraceTileResolution, SupersampleTileBRDFThreshold, BRDF))
+		{
+			uint TileBaseIndex;
+			InterlockedAdd(SharedNumPendingTraceTiles, 4, TileBaseIndex);
+			PendingTraceTileList[TileBaseIndex + 0] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(0, 0), Level + 1, ProbeTraceIndex);
+			PendingTraceTileList[TileBaseIndex + 1] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(1, 0), Level + 1, ProbeTraceIndex);
+			PendingTraceTileList[TileBaseIndex + 2] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(0, 1), Level + 1, ProbeTraceIndex);
+			PendingTraceTileList[TileBaseIndex + 3] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(1, 1), Level + 1, ProbeTraceIndex);
+		}
+		else
+		{
+			uint TileIndex;
+			InterlockedAdd(SharedNumCompletedTraceTiles, 1, TileIndex);
+			CompletedTraceTileList[TileIndex] = PackTraceTileInfo(TraceTileCoord, Level, ProbeTraceIndex);
+		}
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	PendingTraceListStartIndex = NumPendingTraceTiles;
+}
+
 void SubdivideTraceTileTree(
 	uint ThreadIndex,
 	uint BaseTraceTileResolution,
@@ -359,38 +397,16 @@ void SubdivideTraceTileTree(
 	uint PendingTraceListStartIndex = 0;
 
 	// NumLevels must be a literal to allow the loop to unroll, otherwise we get this incorrect compile error from the DXC compiler:
-	// error X3663: thread sync operation found in varying flow control, consider reformulating your algorithm so all threads will hit the sync simultaneously
-
-	UNROLL
-	for (uint Level = 1; Level < NumLevels; Level++)
+	// error X3663: thread sync operation found in varying flow control, consider reformulating your algorithm so all threads will hit the sync simultaneously	
+	// Manual unrolling to avoid error X3663 with FXC compiler on certain platforms preview
+	if (NumLevels == 3)
 	{
-		uint TraceTileResolution = BaseTraceTileResolution << Level;
-		uint NumPendingTraceTiles = SharedNumPendingTraceTiles;
-
-		for (uint PendingTraceTileIndex = PendingTraceListStartIndex + ThreadIndex; PendingTraceTileIndex < NumPendingTraceTiles; PendingTraceTileIndex += THREADGROUP_SIZE * THREADGROUP_SIZE)
-		{
-			uint2 TraceTileCoord = UnpackTraceTileInfo(PendingTraceTileList[PendingTraceTileIndex]);
-
-			if (Level < (NumLevels - 1) && ShouldRefineTraceTile(TraceTileCoord, TraceTileResolution, SupersampleTileBRDFThreshold, BRDF))
-			{
-				uint TileBaseIndex;
-				InterlockedAdd(SharedNumPendingTraceTiles, 4, TileBaseIndex);
-				PendingTraceTileList[TileBaseIndex + 0] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(0, 0), Level + 1, ProbeTraceIndex);
-				PendingTraceTileList[TileBaseIndex + 1] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(1, 0), Level + 1, ProbeTraceIndex);
-				PendingTraceTileList[TileBaseIndex + 2] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(0, 1), Level + 1, ProbeTraceIndex);
-				PendingTraceTileList[TileBaseIndex + 3] = PackTraceTileInfo(TraceTileCoord * 2 + uint2(1, 1), Level + 1, ProbeTraceIndex);
-			}
-			else
-			{
-				uint TileIndex;
-				InterlockedAdd(SharedNumCompletedTraceTiles, 1, TileIndex);
-				CompletedTraceTileList[TileIndex] = PackTraceTileInfo(TraceTileCoord, Level, ProbeTraceIndex);
-			}
-		}
-
-		GroupMemoryBarrierWithGroupSync();
-
-		PendingTraceListStartIndex = NumPendingTraceTiles;
+		SubdivideTraceTileTreeOneStep(ThreadIndex, BaseTraceTileResolution, 1, 3, ProbeTraceIndex, BRDF, PendingTraceListStartIndex);
+		SubdivideTraceTileTreeOneStep(ThreadIndex, BaseTraceTileResolution, 2, 3, ProbeTraceIndex, BRDF, PendingTraceListStartIndex);
+	}
+	else if (NumLevels == 2)
+	{
+		SubdivideTraceTileTreeOneStep(ThreadIndex, BaseTraceTileResolution, 1, 2, ProbeTraceIndex, BRDF, PendingTraceListStartIndex);
 	}
 }
 
@@ -511,14 +527,7 @@ void GenerateProbeTraceTilesCS(
 	uint ThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
 
 	// Queue trace tiles for remaining levels
-	if (NumLevels == 3)
-	{
-		SubdivideTraceTileTree(ThreadIndex, BaseTraceTileResolution, 3, ProbeTraceIndex, BRDF);
-	}
-	else if (NumLevels == 2)
-	{
-		SubdivideTraceTileTree(ThreadIndex, BaseTraceTileResolution, 2, ProbeTraceIndex, BRDF);
-	}
+	SubdivideTraceTileTree(ThreadIndex, BaseTraceTileResolution, NumLevels, ProbeTraceIndex, BRDF);
 
 	if (ThreadIndex == 0)
 	{
