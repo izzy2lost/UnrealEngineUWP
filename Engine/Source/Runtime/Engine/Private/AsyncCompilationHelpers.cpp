@@ -94,7 +94,6 @@ namespace AsyncCompilationHelpers
 		TFunctionRef<void(ICompilable*)> PostCompileSingle
 	)
 	{
-		SCOPE_STALL_REPORTER(AsyncCompilationHelpers::FinishCompilation, 10.0);
 		if (Num <= 0)
 		{
 			return;

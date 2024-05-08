@@ -493,8 +493,6 @@ bool UAssetEditorSubsystem::IsAssetEditable(const UObject* Asset)
 
 bool UAssetEditorSubsystem::OpenEditorForAsset(UObject* Asset, const EToolkitMode::Type ToolkitMode, TSharedPtr< IToolkitHost > OpenedFromLevelEditor, const bool bShowProgressWindow, const EAssetTypeActivationOpenedMethod OpenedMethod)
 {
-	SCOPE_STALL_REPORTER(UAssetEditorSubsystem::OpenEditorForAsset, 2.0);
-
 	FText ErrorMessage;
 	if(!CanOpenEditorForAsset(Asset, OpenedMethod, &ErrorMessage))
 	{
