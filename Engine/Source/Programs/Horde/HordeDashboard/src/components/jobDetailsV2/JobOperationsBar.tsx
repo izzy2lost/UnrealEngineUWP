@@ -44,10 +44,7 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
    // show new build version 2 if we have new parameters store
    const hasJobParameters = !!(Object.keys(jobDetails?.jobData?.parameters ?? {}).length)
-   if (hasJobParameters) {
-      newBuildVersion = "2";
-   }
-
+   newBuildVersion = "2";
 
    // subscribe
    if (dashboard.updated) { }
@@ -61,7 +58,7 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
    }
 
    const abortDisabled = jobData.state === JobState.Complete;
-   const runAgainDisabled = newBuildVersion === "2" && !hasJobParameters;
+   const runAgainDisabled = !hasJobParameters;
 
    const failedSteps = jobDetails.getSteps().filter(s => {
 
