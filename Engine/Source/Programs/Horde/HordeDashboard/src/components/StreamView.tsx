@@ -356,10 +356,7 @@ const StreamViewInner: React.FC = observer(() => {
    const stream = projectStore.streamById(streamId);
    const project = stream?.project;
 
-   let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion") : "1";
-   if (getSiteConfig().environment === "dev") {
-      newBuildVersion = "2";
-   }
+   let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion") : "2";
 
    if (!stream || !project) {
       console.error("Bad stream or project id in StreamView");
