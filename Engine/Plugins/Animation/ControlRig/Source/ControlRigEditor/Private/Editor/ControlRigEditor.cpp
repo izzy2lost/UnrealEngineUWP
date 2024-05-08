@@ -420,6 +420,7 @@ void FControlRigEditor::CreatePersonaToolKitIfRequired()
 	PersonaToolkit->GetPreviewScene()->RegisterOnPreviewMeshChanged(FOnPreviewMeshChanged::CreateSP(this, &FControlRigEditor::HandlePreviewMeshChanged));
 	
 	// Set a default preview mesh, if any
+	TGuardValue<bool> AutoResolveGuard(ControlRigBlueprint->ModularRigSettings.bAutoResolve, false);
 	PersonaToolkit->SetPreviewMesh(ControlRigBlueprint->GetPreviewMesh(), false);
 }
 
@@ -2884,11 +2885,13 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 						
 						// try to reestablish the connections.
 						UModularRigController* ModularRigController = ControlRigBP->GetModularRigController();
+						const bool bAutoResolve = ControlRigBP->ModularRigSettings.bAutoResolve;
 						Model->ForEachModule(
-							[Model, Hierarchy, ModularRigController, PreviousConnections]
+							[Model, Hierarchy, ModularRigController, PreviousConnections, bAutoResolve]
 							(const FRigModuleReference* Module) -> bool
 							{
 								bool bContinueResolval;
+								TArray<uint32> AttemptedTargets;
 								do
 								{
 									bContinueResolval = false;
@@ -2933,7 +2936,7 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 											}
 
 											// try to auto resolve it
-											if(!bContinueResolval && bIsSecondary)
+											if(!bContinueResolval && bIsSecondary && bAutoResolve)
 											{
 												if(ModularRigController->AutoConnectSecondaryConnectors({ConnectorKey}, true, true))
 												{
@@ -2943,6 +2946,26 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 
 											// only do one connector at a time
 											break;
+										}
+									}
+
+									// Avoid looping forever
+									if (bContinueResolval)
+									{
+										uint32 Attempt = 0;
+										for(const FRigElementKey& ConnectorKey : ConnectorKeys)
+										{
+											const FString ConnectionStr = FString::Printf(TEXT("%s -> %s"), *ConnectorKey.ToString(), *Model->Connections.FindTargetFromConnector(ConnectorKey).ToString());
+											const uint32 ConnectionHash = HashCombine(GetTypeHash(ConnectorKey), GetTypeHash(Model->Connections.FindTargetFromConnector(ConnectorKey)));
+											Attempt = HashCombine(Attempt, ConnectionHash);
+										}
+										if (AttemptedTargets.Contains(Attempt))
+										{
+										   bContinueResolval = false;
+										}
+										else
+										{
+										   AttemptedTargets.Add(Attempt);
 										}
 									}
 								}

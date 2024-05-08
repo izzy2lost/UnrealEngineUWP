@@ -587,7 +587,7 @@ bool UModularRigController::AutoConnectSecondaryConnectors(const TArray<FRigElem
 		const UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();
 		const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(Module->GetPath());
 		
-		if (!Model->Connections.HasConnection(ConnectorKey) || bReplaceExistingConnections)
+		if (bReplaceExistingConnections || !Model->Connections.HasConnection(ConnectorKey))
 		{
 			if (const FRigConnectorElement* OtherConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
 			{
