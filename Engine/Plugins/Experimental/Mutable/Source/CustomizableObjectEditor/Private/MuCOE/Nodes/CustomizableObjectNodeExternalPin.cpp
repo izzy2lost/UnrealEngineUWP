@@ -46,7 +46,7 @@ void UCustomizableObjectNodeExternalPin::PostBackwardsCompatibleFixup()
 	}
 
 	// Reconstruct the node since the NodeExposePin pin name may have changed while not loaded.
-	ReconstructNode();
+	Super::ReconstructNode();
 }
 
 
@@ -66,7 +66,7 @@ void UCustomizableObjectNodeExternalPin::SetExternalObjectNodeId(FGuid Guid)
 		DestroyNodeDelegateHandle = NodeExposePin->DestroyNodeDelegate.AddUObject(this, &Super::ReconstructNode);
 	}
 
-	ReconstructNode();
+	Super::ReconstructNode();
 }
 
 
@@ -135,6 +135,18 @@ bool UCustomizableObjectNodeExternalPin::CanConnect(const UEdGraphPin* InOwnedIn
 	bOutIsOtherNodeBlocklisted = Cast<UCustomizableObjectNodeExposePin>(InOutputPin->GetOwningNode()) != nullptr;
 
 	return bOutArePinsCompatible && !bOutIsOtherNodeBlocklisted;
+}
+
+
+void UCustomizableObjectNodeExternalPin::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
+{
+	Super::ReconstructNode(RemapPinsMode);
+
+	if (!ExternalObject)
+	{
+		ExternalObject = Cast<UCustomizableObject>(GetOutermostObject());
+		ExternalObjectNodeId = FGuid();
+	}
 }
 
 

@@ -38,6 +38,8 @@ public:
 	UCustomizableObjectNodeRemapPins* CreateRemapPinsDefault() const override;
 	void BeginPostDuplicate(bool bDuplicateForPIE) override;
 	virtual bool CanConnect(const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const override;
+	
+	virtual void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode) override;
 
 	void UpdateReferencedNodeId(const FGuid& NewGuid) override;
 	
