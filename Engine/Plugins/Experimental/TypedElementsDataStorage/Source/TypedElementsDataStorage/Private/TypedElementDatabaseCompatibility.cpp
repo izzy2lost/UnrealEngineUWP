@@ -17,6 +17,7 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Memento/TypedElementMementoRowTypes.h"
 #include "TypedElementDatabase.h"
+#include "TypedElementDatabaseEnvironment.h"
 #include "TypedElementDataStorageProfilingMacros.h"
 
 void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InStorage)
