@@ -100,6 +100,11 @@ namespace TypedElementDataStorage
 		 * in avoiding duplicated work.
 		 */
 		virtual uint64 GetUpdateCycleId() const = 0;
+		
+		/** Checks whether or not a row is in use. This is true even if the row has only been reserved. */
+		virtual bool IsRowAvailable(RowHandle Row) const = 0;
+		/** Checks whether or not a row has been reserved but not yet assigned to a table. */
+		virtual bool HasRowBeenAssigned(RowHandle Row) const = 0;
 
 		/**
 		 * Triggers all queries registered under the activation name to run for one update cycle. The activatable queries will be activated at
@@ -107,6 +112,22 @@ namespace TypedElementDataStorage
 		 * if there are not columns to match against.
 		 */
 		virtual void ActivateQueries(FName ActivationName) = 0;
+
+		/**
+		 * Adds a row to the given table.
+		 */
+		virtual RowHandle AddRow(TableHandle Table) = 0;
+		
+		/**
+		 * Removes the row with the provided row handle. The removal will not be immediately done but delayed until the end of the tick
+		 * group.
+		 */
+		virtual void RemoveRow(RowHandle Row) = 0;
+		/**
+		 * Removes rows with the provided row handles. The removal will not be immediately done but delayed until the end of the tick
+		 * group.
+		 */
+		virtual void RemoveRows(TConstArrayView<RowHandle> Rows) = 0;
 
 		/**
 		 * Adds the provided column to the requested row.
@@ -215,21 +236,6 @@ namespace TypedElementDataStorage
 		 */
 		virtual void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> DependencyTypes,
 			TConstArrayView<EQueryAccessType> AccessTypes) = 0;
-
-		/** Checks whether or not a row is in use. This is true even if the row has only been reserved. */
-		virtual bool IsRowAvailable(RowHandle Row) const = 0;
-		/** Checks whether or not a row has been reserved but not yet assigned to a table. */
-		virtual bool HasRowBeenAssigned(RowHandle Row) const = 0;
-		/**
-		 * Removes the row with the provided row handle. The removal will not be immediately done but delayed until the end of the tick
-		 * group.
-		 */
-		virtual void RemoveRow(RowHandle Row) = 0;
-		/**
-		 * Removes rows with the provided row handles. The removal will not be immediately done but delayed until the end of the tick
-		 * group.
-		 */
-		virtual void RemoveRows(TConstArrayView<RowHandle> Rows) = 0;
 
 		/** Retrieves the row for an indexed object. Returns an invalid row handle if the hash wasn't found. */
 		virtual RowHandle FindIndexedRow(IndexHash Index) const = 0;

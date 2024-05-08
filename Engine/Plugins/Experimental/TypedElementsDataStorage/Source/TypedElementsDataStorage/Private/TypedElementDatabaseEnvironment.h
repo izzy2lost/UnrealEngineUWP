@@ -10,10 +10,12 @@
 #include "Memento/TypedElementMementoSystem.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
 
+class UTypedElementDatabase;
+
 class FTypedElementDatabaseEnvironment final
 {
 public:
-	FTypedElementDatabaseEnvironment(ITypedElementDataStorageInterface& DataStorage, 
+	FTypedElementDatabaseEnvironment(UTypedElementDatabase& InDataStorage, 
 		FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager);
 
 	FTypedElementDatabaseCommandBuffer& GetDirectDeferredCommands();
@@ -33,6 +35,8 @@ public:
 
 	FMassEntityManager& GetMassEntityManager();
 	const FMassEntityManager& GetMassEntityManager() const;
+
+	FMassArchetypeHandle LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const;
 	
 	FMassProcessingPhaseManager& GetMassPhaseManager();
 	const FMassProcessingPhaseManager& GetMassPhaseManager() const;
@@ -41,6 +45,7 @@ public:
 	uint64 GetUpdateCycleId() const;
 
 private:
+	UTypedElementDatabase& DataStorage;
 	FTypedElementDatabaseCommandBuffer DirectDeferredCommands;
 	FTypedElementDatabaseIndexTable IndexTable;
 	FTypedElementDatabaseScratchBuffer ScratchBuffer;

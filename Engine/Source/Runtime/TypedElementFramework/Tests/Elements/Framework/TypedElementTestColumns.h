@@ -72,3 +72,32 @@ struct FTestTagColumnD final : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };
+
+USTRUCT(meta = (DisplayName = "TestReferenceColumn"))
+struct FTEDSProcessorTestsReferenceColumn final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+
+	// UPROPERTY()
+	TypedElementDataStorage::RowHandle Reference = TypedElementDataStorage::InvalidRowHandle;
+
+	bool IsReferenced = false;
+};
+
+USTRUCT(meta = (DisplayName = "TEDSProcessorTests_PrimaryTag"))
+struct FTEDSProcessorTests_PrimaryTag final : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};
+
+USTRUCT(meta = (DisplayName = "TEDSProcessorTestsSecondaryTag"))
+struct FTEDSProcessorTests_SecondaryTag final : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};
+
+USTRUCT(meta = (DisplayName = "TEDSProcessorTests_Linked"))
+struct FTEDSProcessorTests_Linked final : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};

@@ -11,17 +11,20 @@
 #include "TypedElementDatabase.h"
 #include "TypedElementDatabaseEnvironment.h"
 
-template<typename T>
-struct FMassContextCommon : public T
+struct FMassContextCommon
 {
-	~FMassContextCommon() override = default;
-
-	uint32 GetRowCount() const override
+	FMassExecutionContext& Context;
+	
+	explicit FMassContextCommon(FMassExecutionContext& InContext)
+		: Context(InContext)
+	{}
+	
+	uint32 GetRowCount() const
 	{
 		return Context.GetNumEntities();
 	}
 
-	TConstArrayView<TypedElementRowHandle> GetRowHandles() const override
+	TConstArrayView<TypedElementRowHandle> GetRowHandles() const
 	{
 		static_assert(
 			sizeof(TypedElementRowHandle) == sizeof(FMassEntityHandle) && alignof(TypedElementRowHandle) == alignof(FMassEntityHandle),
@@ -30,18 +33,19 @@ struct FMassContextCommon : public T
 		return TConstArrayView<TypedElementRowHandle>(reinterpret_cast<const TypedElementRowHandle*>(Entities.GetData()), Entities.Num());
 	}
 	
-	const void* GetColumn(const UScriptStruct* ColumnType) const override
+	const void* GetColumn(const UScriptStruct* ColumnType) const
 	{
 		return Context.GetFragmentView(ColumnType).GetData();
 	}
 
-	void* GetMutableColumn(const UScriptStruct* ColumnType) override
+	void* GetMutableColumn(const UScriptStruct* ColumnType)
 	{
 		return Context.GetMutableFragmentView(ColumnType).GetData();
 	}
 
-	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-		TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override
+	void GetColumns(TArrayView<char*> RetrievedAddresses,
+		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
+		TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes)
 	{
 		checkf(RetrievedAddresses.Num() == ColumnTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
 			"doesn't match the number of requested column."));
@@ -51,8 +55,11 @@ struct FMassContextCommon : public T
 		GetColumnsUnguarded(ColumnTypes.Num(), RetrievedAddresses.GetData(), ColumnTypes.GetData(), AccessTypes.GetData());
 	}
 	
-	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
-		const TypedElementDataStorage::EQueryAccessType* AccessTypes) override
+	void GetColumnsUnguarded(
+		int32 TypeCount,
+		char** RetrievedAddresses,
+		const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
+		const TypedElementDataStorage::EQueryAccessType* AccessTypes)
 	{
 		for (int32 Index = 0; Index < TypeCount; ++Index)
 		{
@@ -67,7 +74,7 @@ struct FMassContextCommon : public T
 		}
 	}
 
-	bool HasColumn(const UScriptStruct* ColumnType) const override
+	bool HasColumn(const UScriptStruct* ColumnType) const
 	{
 		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
 		{
@@ -82,7 +89,7 @@ struct FMassContextCommon : public T
 		return false;
 	}
 
-	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override
+	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const
 	{
 		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 		FMassEntityManager& Manager = Context.GetEntityManagerChecked();
@@ -101,19 +108,11 @@ struct FMassContextCommon : public T
 		checkf(bIsTagOrFragment, TEXT("Attempting to check for a column type that is not a column or tag."));
 		return false;
 	}
-
-protected:
-	explicit FMassContextCommon(FMassExecutionContext& InContext)
-		: Context(InContext)
-	{}
-
-	FMassExecutionContext& Context;
 };
 
-template<typename T>
-struct FMassWithEnvironmentContextCommon : public FMassContextCommon<T>
+struct FMassWithEnvironmentContextCommon : public FMassContextCommon
 {
-	using Parent = FMassContextCommon<T>;
+	using Parent = FMassContextCommon;
 protected:
 	void TedsColumnsToMassDescriptorIfActiveTable(
 		FMassArchetypeCompositionDescriptor& Descriptor,
@@ -161,18 +160,28 @@ protected:
 	}
 
 public:
+	using ObjectCopyOrMove = void (*)(const UScriptStruct& TypeInfo, void* Destination, void* Source);
+	
 	FMassWithEnvironmentContextCommon(FMassExecutionContext& InContext, FTypedElementDatabaseEnvironment& InEnvironment)
-		: FMassContextCommon<T>(InContext)
+		: FMassContextCommon(InContext)
 		, Environment(InEnvironment)
 	{}
 
-	~FMassWithEnvironmentContextCommon() override = default;
-
-	uint64 GetUpdateCycleId() const override
+	uint64 GetUpdateCycleId() const 
 	{
 		return Environment.GetUpdateCycleId();
 	}
 
+	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const
+	{
+		return Environment.GetMassEntityManager().IsEntityValid(FMassEntityHandle::FromNumber(Row));
+	}
+
+	bool HasRowBeenAssigned(TypedElementDataStorage::RowHandle Row) const
+	{
+		return Environment.GetMassEntityManager().IsEntityActive(FMassEntityHandle::FromNumber(Row));
+	}
+	
 	void ActivateQueries(FName ActivationName)
 	{
 		this->Context.Defer().template PushCommand<FMassDeferredCommand<EMassCommandOperationType::None>>(
@@ -182,7 +191,7 @@ public:
 			});
 	}
 
-	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) 
 	{
 		return AddColumnUninitialized(Row, ObjectType,
 			[](const UScriptStruct& TypeInfo, void* Destination, void* Source)
@@ -191,19 +200,19 @@ public:
 			});
 	}
 
-	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, typename Parent::ObjectCopyOrMove Relocator) override
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator)
 	{
 		checkf(ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] can not be a tag"), *ObjectType->GetName());
 		
 		struct FAddValueColumn
 		{
-			typename Parent::ObjectCopyOrMove Relocator;
+			ObjectCopyOrMove Relocator;
 			const UScriptStruct* FragmentType;
 			FMassEntityHandle Entity;
 			void* Object;
 
 			FAddValueColumn() = default;
-			FAddValueColumn(typename Parent::ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
+			FAddValueColumn(ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
 				: Relocator(InRelocator)
 				, FragmentType(InFragmentType)
 				, Entity(InEntity)
@@ -251,7 +260,7 @@ public:
 		return ColumnData;
 	}
 
-	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 	{
 		struct FAddedColumns
 		{
@@ -273,7 +282,7 @@ public:
 			});
 	}
 
-	void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 	{
 		struct FAddedColumns
 		{
@@ -310,7 +319,7 @@ public:
 			});
 	}
 
-	void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 	{
 		struct FRemovedColumns
 		{
@@ -335,7 +344,7 @@ public:
 		}
 	}
 
-	void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 	{
 		struct FRemovedColumns
 		{
@@ -371,53 +380,140 @@ public:
 				}
 			});
 	}
+	
+	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) 
+	{
+		FMassEntityHandle EntityHandle = Environment.GetMassEntityManager().ReserveEntity();
+		FMassArchetypeHandle ArchetypeHandle = Environment.LookupMassArchetype(Table);
+
+		if (!ArchetypeHandle.IsValid())
+		{
+			return TypedElementDataStorage::InvalidRowHandle;
+		}
+		
+		struct CommandInfo
+		{
+			FMassEntityHandle Entity;
+			FMassArchetypeHandle Archetype;
+		};
+
+		CommandInfo CommandDataTmp{
+			.Entity = EntityHandle,
+			.Archetype = MoveTemp(ArchetypeHandle)
+		};
+
+		this->Context.Defer().template PushCommand<FMassDeferredCreateCommand>(
+			[CommandData = MoveTemp(CommandDataTmp)](FMassEntityManager& System)
+			{
+				const FMassArchetypeSharedFragmentValues SharedFragmentValues;
+				System.BuildEntity(CommandData.Entity, CommandData.Archetype, SharedFragmentValues);
+			});
+		
+		const TypedElementDataStorage::RowHandle TedsRowHandle = EntityHandle.AsNumber();
+		return TedsRowHandle;
+	}
+
+	void RemoveRow(TypedElementRowHandle Row) 
+	{
+		this->Context.Defer().DestroyEntity(FMassEntityHandle::FromNumber(Row));
+	}
+
+	void RemoveRows(TConstArrayView<TypedElementRowHandle> Rows) 
+	{
+		// Row handles and entities map 1:1 for data, so a reintpret_cast can be safely done to avoid
+		// having to allocate memory and iterating over the rows.
+
+		static_assert(sizeof(FMassEntityHandle) == sizeof(TypedElementRowHandle), 
+			"Sizes of mass entity and data storage row have gone out of sync.");
+		static_assert(alignof(FMassEntityHandle) == alignof(TypedElementRowHandle),
+			"Alignment of mass entity and data storage row have gone out of sync.");
+
+		this->Context.Defer().DestroyEntities(
+			TConstArrayView<FMassEntityHandle>(reinterpret_cast<const FMassEntityHandle*>(Rows.begin()), Rows.Num()));
+	}
 
 protected:
 	FTypedElementDatabaseEnvironment& Environment;
 };
 
-struct FMassDirectContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IDirectQueryContext>
+struct FMassDirectContextForwarder final : public ITypedElementDataStorageInterface::IDirectQueryContext
 {
 	explicit FMassDirectContextForwarder(FMassExecutionContext& InContext)
-		: FMassContextCommon(InContext)
+		: Implementation(InContext)
 	{}
+	
+	uint32 GetRowCount() const override { return Implementation.GetRowCount(); }
+	TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
+	const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
+	void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
+	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
+	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
+	bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
+	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 
-	~FMassDirectContextForwarder() override = default;
+	FMassContextCommon Implementation;
 };
 
-struct FMassSubqueryContextForwarder final : public FMassWithEnvironmentContextCommon<ITypedElementDataStorageInterface::ISubqueryContext>
+struct FMassSubqueryContextForwarder  : public ITypedElementDataStorageInterface::ISubqueryContext
 {
 	FMassSubqueryContextForwarder(FMassExecutionContext& InContext, FTypedElementDatabaseEnvironment& InEnvironment)
-		: FMassWithEnvironmentContextCommon(InContext, InEnvironment)
+		: Implementation(InContext, InEnvironment)
 	{}
 
 	~FMassSubqueryContextForwarder() override = default;
+	uint32 GetRowCount() const override { return Implementation.GetRowCount(); }
+	TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
+	const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
+	void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
+	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
+	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
+	bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
+	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
+	uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
+	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
+	bool HasRowBeenAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.HasRowBeenAssigned(Row); }
+	void ActivateQueries(FName ActivationName) override  { return Implementation.ActivateQueries(ActivationName); }
+	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override  { return Implementation.AddRow(Table); }
+	void RemoveRow(TypedElementDataStorage::RowHandle Row) override { return Implementation.RemoveRow(Row); }
+	void RemoveRows(TConstArrayView<TypedElementDataStorage::RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
+	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
+	void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
+	void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
+	void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
+
+	FMassWithEnvironmentContextCommon Implementation;
 };
 
-struct FMassContextForwarder final : public FMassWithEnvironmentContextCommon<ITypedElementDataStorageInterface::IQueryContext>
+struct FMassQueryContextImplementation final : FMassWithEnvironmentContextCommon
 {
-public:
-	FMassContextForwarder(ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription, FMassExecutionContext& InContext, 
-		FTypedElementExtendedQueryStore& InQueryStore, FTypedElementDatabaseEnvironment& InEnvironment)
+	FMassQueryContextImplementation(
+		ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription,
+		FMassExecutionContext& InContext, 
+		FTypedElementExtendedQueryStore& InQueryStore,
+		FTypedElementDatabaseEnvironment& InEnvironment)
 		: FMassWithEnvironmentContextCommon(InContext, InEnvironment)
 		, QueryDescription(InQueryDescription)
 		, QueryStore(InQueryStore)
-	{}
+	{
+		
+	}
 
-	~FMassContextForwarder() override = default;
+	~FMassQueryContextImplementation() = default;
 
-	UObject* GetMutableDependency(const UClass* DependencyClass) override
+	UObject* GetMutableDependency(const UClass* DependencyClass)
 	{
 		return Context.GetMutableSubsystem<USubsystem>(const_cast<UClass*>(DependencyClass));
 	}
 
-	const UObject* GetDependency(const UClass* DependencyClass) override
+	const UObject* GetDependency(const UClass* DependencyClass)
 	{
 		return Context.GetSubsystem<USubsystem>(const_cast<UClass*>(DependencyClass));
 	}
-
+	
 	void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> SubsystemTypes,
-		TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes) override
+		TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes)
 	{
 		checkf(RetrievedAddresses.Num() == SubsystemTypes.Num(), TEXT("Unable to retrieve a batch of subsystem as the number of addresses "
 			"doesn't match the number of requested subsystem types."));
@@ -440,56 +536,27 @@ public:
 			++AccessTypes;
 		}
 	}
-
-	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override
-	{
-		return Environment.GetMassEntityManager().IsEntityValid(FMassEntityHandle::FromNumber(Row));
-	}
-
-	bool HasRowBeenAssigned(TypedElementDataStorage::RowHandle Row) const override
-	{
-		return Environment.GetMassEntityManager().IsEntityActive(FMassEntityHandle::FromNumber(Row));
-	}
-
-	void RemoveRow(TypedElementRowHandle Row) override
-	{
-		Context.Defer().DestroyEntity(FMassEntityHandle::FromNumber(Row));
-	}
-
-	void RemoveRows(TConstArrayView<TypedElementRowHandle> Rows) override
-	{
-		// Row handles and entities map 1:1 for data, so a reintpret_cast can be safely done to avoid
-		// having to allocate memory and iterating over the rows.
-
-		static_assert(sizeof(FMassEntityHandle) == sizeof(TypedElementRowHandle), 
-			"Sizes of mass entity and data storage row have gone out of sync.");
-		static_assert(alignof(FMassEntityHandle) == alignof(TypedElementRowHandle),
-			"Alignment of mass entity and data storage row have gone out of sync.");
-
-		Context.Defer().DestroyEntities(
-			TConstArrayView<FMassEntityHandle>(reinterpret_cast<const FMassEntityHandle*>(Rows.begin()), Rows.Num()));
-	}
-
-	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override
+	
+	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
 	{
 		return Environment.GetIndexTable().FindIndexedRow(Index);
 	}
 
-	TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query) override
+	TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query)
 	{
 		const FTypedElementExtendedQueryStore::Handle Handle(Query);
 		// This can be safely called because there's not callback, which means no columns are accessed, even for select queries.
 		return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Handle);
 	}
 
-	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex)
 	{
 		return SubqueryIndex < QueryDescription.Subqueries.Num() ?
 			RunQuery(QueryDescription.Subqueries[SubqueryIndex]) :
 			TypedElementDataStorage::FQueryResult{};
 	}
 
-	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback)
 	{
 		if (SubqueryIndex < QueryDescription.Subqueries.Num())
 		{
@@ -504,7 +571,7 @@ public:
 	}
 
 	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::RowHandle Row,
-		TypedElementDataStorage::SubqueryCallbackRef Callback) override
+		TypedElementDataStorage::SubqueryCallbackRef Callback)
 	{
 		if (SubqueryIndex < QueryDescription.Subqueries.Num())
 		{
@@ -517,14 +584,54 @@ public:
 			return TypedElementDataStorage::FQueryResult{};
 		}
 	}
-
+	
 	ITypedElementDataStorageInterface::FQueryDescription& QueryDescription;
 	FTypedElementExtendedQueryStore& QueryStore;
 };
 
-
-
-
+struct FMassContextForwarder final : public ITypedElementDataStorageInterface::IQueryContext
+{
+	FMassContextForwarder(
+		ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription,
+		FMassExecutionContext& InContext, 
+		FTypedElementExtendedQueryStore& InQueryStore,
+		FTypedElementDatabaseEnvironment& InEnvironment)
+			: Implementation(InQueryDescription, InContext, InQueryStore, InEnvironment)
+	{}
+	
+	uint32 GetRowCount() const override { return Implementation.GetRowCount(); }
+	TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
+	const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
+	void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
+	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
+	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
+	bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
+	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
+	uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
+	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
+	bool HasRowBeenAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.HasRowBeenAssigned(Row); }
+	void ActivateQueries(FName ActivationName) override  { return Implementation.ActivateQueries(ActivationName); }
+	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override  { return Implementation.AddRow(Table); }
+	void RemoveRow(TypedElementDataStorage::RowHandle Row) override { return Implementation.RemoveRow(Row); }
+	void RemoveRows(TConstArrayView<TypedElementDataStorage::RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
+	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
+	void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
+	void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
+	void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
+	
+	const UObject* GetDependency(const UClass* DependencyClass) override { return Implementation.GetDependency(DependencyClass); }
+	UObject* GetMutableDependency(const UClass* DependencyClass) override { return Implementation.GetMutableDependency(DependencyClass); }
+	void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> DependencyTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetDependencies(RetrievedAddresses, DependencyTypes, AccessTypes); }
+	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override { return Implementation.FindIndexedRow(Index); }
+	TypedElementDataStorage::FQueryResult RunQuery(TypedElementDataStorage::QueryHandle Query) override { return Implementation.RunQuery(Query); }
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override { return Implementation.RunSubquery(SubqueryIndex); }
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Callback); }
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
+	
+	FMassQueryContextImplementation Implementation;
+};
 
 /**
  * FPhasePreOrPostAmbleExecutor

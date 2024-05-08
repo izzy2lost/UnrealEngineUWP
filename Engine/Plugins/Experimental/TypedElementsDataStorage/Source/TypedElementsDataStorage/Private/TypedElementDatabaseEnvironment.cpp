@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TypedElementDatabaseEnvironment.h"
+#include "TypedElementDatabase.h"
 
-FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(ITypedElementDataStorageInterface& DataStorage,
+FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(UTypedElementDatabase& InDataStorage,
 	FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
-	: DirectDeferredCommands(*this)
-	, MementoSystem(DataStorage)
+	: DataStorage(InDataStorage)
+	, DirectDeferredCommands(*this)
+	, MementoSystem(InDataStorage)
 	, MassEntityManager(InMassEntityManager)
 	, MassPhaseManager(InMassPhaseManager)
 {
@@ -69,6 +71,11 @@ FMassEntityManager& FTypedElementDatabaseEnvironment::GetMassEntityManager()
 const FMassEntityManager& FTypedElementDatabaseEnvironment::GetMassEntityManager() const
 {
 	return MassEntityManager;
+}
+
+FMassArchetypeHandle FTypedElementDatabaseEnvironment::LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const
+{
+	return DataStorage.LookupArchetype(TableHandle);
 }
 
 FMassProcessingPhaseManager& FTypedElementDatabaseEnvironment::GetMassPhaseManager()

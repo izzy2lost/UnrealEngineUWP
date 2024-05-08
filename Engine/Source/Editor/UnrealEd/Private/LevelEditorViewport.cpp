@@ -4219,7 +4219,7 @@ bool FLevelEditorViewportClient::HaveSelectedObjectsBeenChanged() const
 }
 
 FTypedElementListConstRef FLevelEditorViewportClient::GetElementsToManipulate(const bool bForceRefresh)
-{
+{ 
 	CacheElementsToManipulate(bForceRefresh);
 	return CachedElementsToManipulate;
 }

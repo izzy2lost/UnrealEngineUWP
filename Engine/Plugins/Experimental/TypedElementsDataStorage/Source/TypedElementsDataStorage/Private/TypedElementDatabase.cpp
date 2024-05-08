@@ -16,6 +16,7 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Stats/Stats2.h"
 #include "TickTaskManagerInterface.h"
+#include "TypedElementDatabaseEnvironment.h"
 #include "UObject/UObjectIterator.h"
 
 const FName UTypedElementDatabase::TickGroupName_Default(TEXT("Default"));
@@ -969,6 +970,16 @@ TSharedPtr<FTypedElementDatabaseEnvironment> UTypedElementDatabase::GetEnvironme
 TSharedPtr<const FTypedElementDatabaseEnvironment> UTypedElementDatabase::GetEnvironment() const
 {
 	return Environment;
+}
+
+FMassArchetypeHandle UTypedElementDatabase::LookupArchetype(TypedElementDataStorage::TableHandle InTableHandle) const
+{
+	const uint32 TableIndex = InTableHandle;
+	if (Tables.IsValidIndex(TableIndex))
+	{
+		return Tables[TableIndex];
+	}
+	return FMassArchetypeHandle();
 }
 
 void UTypedElementDatabase::DebugPrintQueryCallbacks(FOutputDevice& Output)

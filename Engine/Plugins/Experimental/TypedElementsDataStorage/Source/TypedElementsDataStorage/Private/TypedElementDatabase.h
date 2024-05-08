@@ -8,7 +8,6 @@
 #include "Misc/TVariant.h"
 #include "Templates/SharedPointer.h"
 #include "TypedElementDatabaseCommandBuffer.h"
-#include "TypedElementDatabaseEnvironment.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -16,9 +15,11 @@
 
 struct FMassEntityManager;
 struct FMassProcessingPhaseManager;
+class FTypedElementDatabaseEnvironment;
 class UTypedElementDataStorageFactory;
 class FOutputDevice;
 class UWorld;
+
 
 UCLASS()
 class TYPEDELEMENTSDATASTORAGE_API UTypedElementDatabase 
@@ -138,6 +139,8 @@ public:
 	
 	TSharedPtr<FTypedElementDatabaseEnvironment> GetEnvironment();
 	TSharedPtr<const FTypedElementDatabaseEnvironment> GetEnvironment() const;
+
+	FMassArchetypeHandle LookupArchetype(TypedElementDataStorage::TableHandle InTableHandle) const;
 
 	void DebugPrintQueryCallbacks(FOutputDevice& Output);
 
