@@ -14,23 +14,23 @@ int MaxRaymarchSteps;
 
 
 // Given an input ray, figure out where the provided volume intersects it
-FVolumeIntersectionList VolumeIntersect(float3 Origin, float3 Direction, float TMin, float TMax, float PathRoughness)
+FVolumeIntersectionList VolumeIntersect(float3 Origin, float3 Direction, float TMin, float TMax, float PathRoughness, uint VolumeMask)
 {
 	// NOTE: only this call needs to be guarded by enable flags at the moment since the others can't be reached if this returns nothing
 	FVolumeIntersectionList Result = CreateEmptyVolumeIntersectionList();
-	if (VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE)
+	if (VolumeMask & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE)
 	{
 		Result.Add(VOLUMEID_ATMOSPHERE, AtmosphereIntersect(Origin, Direction, TMin, TMax));
 	}
-	if (VolumeFlags & PATH_TRACER_VOLUME_ENABLE_CLOUDS)
+	if (VolumeMask & PATH_TRACER_VOLUME_ENABLE_CLOUDS)
 	{
 		Result.Add(VOLUMEID_CLOUDS, CloudsIntersect(Origin, Direction, TMin, TMax, PathRoughness));
 	}
-	if (VolumeFlags & PATH_TRACER_VOLUME_ENABLE_FOG)
+	if (VolumeMask & PATH_TRACER_VOLUME_ENABLE_FOG)
 	{
 		Result.Add(VOLUMEID_FOG, FogIntersect(Origin, Direction, TMin, TMax));
 	}
-	if (VolumeFlags & PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES)
+	if (VolumeMask & PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES)
 	{
 		Result.Add(VOLUMEID_HETEROGENEOUS_VOLUMES, HeterogeneousVolumesIntersect(Origin, Direction, TMin, TMax));
 	}

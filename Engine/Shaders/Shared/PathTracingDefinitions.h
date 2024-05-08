@@ -19,7 +19,8 @@
 #define PATHTRACING_LIGHT_RECT								(4 << 6)
 #define PATHTRACER_FLAG_CAST_SHADOW_MASK 					(1 << 9)
 #define PATHTRACER_FLAG_CAST_VOL_SHADOW_MASK 				(1 << 10)
-#define PATHTRACER_FLAG_HAS_RECT_TEXTURE_MASK				(1 << 11)
+#define PATHTRACER_FLAG_CAST_CLOUD_SHADOW_MASK              (1 << 11)
+#define PATHTRACER_FLAG_HAS_RECT_TEXTURE_MASK				(1 << 12)
 
 #define PATHTRACER_MASK_CAMERA								0x01			// opaque and alpha tested meshes and particles as a whole (primary ray) excluding hairs
 #define PATHTRACER_MASK_HAIR_CAMERA							0x02			// For primary ray tracing against hair

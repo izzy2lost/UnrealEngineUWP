@@ -203,21 +203,9 @@ FVolumeShadedResult CloudsGetDensity(float3 TranslatedWorldPos)
 	}
 
 	uint4 Data = 0;
-#if PLATFORM_SUPPORTS_CALLABLE_SHADERS
-	const bool bUseCloudMap = (VolumeFlags & PATH_TRACER_VOLUME_USE_CLOUD_MAP) != 0;
-	if (bUseCloudMap)
-#endif
+#if PATH_TRACER_USE_CLOUD_SHADER
 	{
-		// Main path -- via baked cloud map
-		const float3 P = mul(GetCloudClipBasis(), TranslatedWorldPos * CM_TO_SKY_UNIT); // WorldToTangent
-		const float3 UVW = GetUVWFromCloudClipPos(P + float3(0, 0, CloudClipRadiusKm));
-		const int3 GridCoord = int3(floor(float3(CloudMapResolution) * UVW));
-		Data = CloudMap.Load(int4(GridCoord, 0));
-	}
-#if PLATFORM_SUPPORTS_CALLABLE_SHADERS
-	else
-	{
-		// Main path -- invoke the actual callable shader
+		// Reference path -- invoke the actual callable shader
 		FPackedPathTracingPayload Payload = (FPackedPathTracingPayload)0;
 		Payload.SetVolumetricCallableShaderInput(
 			DFFastSubtract(TranslatedWorldPos, PrimaryView.PreViewTranslation),
@@ -225,6 +213,14 @@ FVolumeShadedResult CloudsGetDensity(float3 TranslatedWorldPos)
 		);
 		CallShader(CloudCallableShaderId, Payload);
 		Data = Payload.GetVolumetricCallableShaderOutput();
+	}
+#else
+	{
+		// Main path -- via baked cloud map
+		const float3 P = mul(GetCloudClipBasis(), TranslatedWorldPos * CM_TO_SKY_UNIT); // WorldToTangent
+		const float3 UVW = GetUVWFromCloudClipPos(P + float3(0, 0, CloudClipRadiusKm));
+		const int3 GridCoord = int3(floor(float3(CloudMapResolution) * UVW));
+		Data = CloudMap.Load(int4(GridCoord, 0));
 	}
 #endif
 	const FSampleCloudMaterialResult CloudResult = DecodeCloudResult(Data);
