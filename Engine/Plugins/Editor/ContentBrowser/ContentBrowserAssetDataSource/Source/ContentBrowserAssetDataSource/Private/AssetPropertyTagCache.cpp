@@ -39,6 +39,20 @@ const FAssetPropertyTagCache::FClassPropertyTagCache& FAssetPropertyTagCache::Ge
 	return *ClassCache;
 }
 
+void FAssetPropertyTagCache::CachePendingClasses()
+{
+	TSet<FTopLevelAssetPath> PendingCopy;
+	{ 
+		FWriteScopeLock WriteScope(Lock);
+		PendingCopy = PendingClasses;
+	}
+
+	for (FTopLevelAssetPath Path : PendingCopy)
+	{
+		TryCacheClass(Path);
+	}
+}
+
 void FAssetPropertyTagCache::TryCacheClass(FTopLevelAssetPath InClassName)
 {
 	TSharedPtr<FClassPropertyTagCache> ClassCache;
@@ -52,9 +66,6 @@ void FAssetPropertyTagCache::TryCacheClass(FTopLevelAssetPath InClassName)
 	{
 		return;
 	}
-	
-	// On a miss, race with other potential creations rather than hold the lock against queries for another class
-	UE_LOG(LogContentBrowserAssetDataSource, Verbose, TEXT("Creating asset property tag cache for %s"), *WriteToString<256>(InClassName));
 
 	auto GetAssetClass = [&InClassName]()
 	{
@@ -75,6 +86,9 @@ void FAssetPropertyTagCache::TryCacheClass(FTopLevelAssetPath InClassName)
 
 	if (UClass* AssetClass = GetAssetClass())
 	{
+		// On a miss, race with other potential creations rather than hold the lock against queries for another class
+		UE_LOG(LogContentBrowserAssetDataSource, Verbose, TEXT("Creating asset property tag cache for %s"), *WriteToString<256>(InClassName));
+
 		ClassCache = MakeShared<FClassPropertyTagCache>();
 		FTopLevelAssetPath ActualClassPath(AssetClass);
 
@@ -134,13 +148,17 @@ void FAssetPropertyTagCache::TryCacheClass(FTopLevelAssetPath InClassName)
 
 		FWriteScopeLock WriteScope(Lock);
 		ClassToCacheMap.Add(ActualClassPath, ClassCache);
+		PendingClasses.Remove(ActualClassPath);
 		if (InClassName != ActualClassPath)
 		{
 			ClassToCacheMap.Add(InClassName, ClassCache);
+			PendingClasses.Remove(InClassName);
 		}
 	}
 	else 
 	{
-		// Do not populate the cache with something empty and do not report any errors as assets may have non-loaded types e.g. blueprinted data assets
+		// Some assets may be scanned before their modules are initialized
+		FWriteScopeLock WriteScope(Lock);
+		PendingClasses.Add(InClassName);
 	}
 }

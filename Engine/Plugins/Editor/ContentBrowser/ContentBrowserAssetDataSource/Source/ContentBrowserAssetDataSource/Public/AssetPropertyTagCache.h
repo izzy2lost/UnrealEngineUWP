@@ -61,6 +61,9 @@ public:
 	/** Try and populate the cache for the given class if it is loaded */
 	void TryCacheClass(FTopLevelAssetPath InClassName);
 
+	/** Try and populate the cache with classes which were not reigstered when TryCacheClass was called. */
+	void CachePendingClasses();
+
 	/** Get (or populate) the cache for the given asset class */
 	const FClassPropertyTagCache& GetCacheForClass(FTopLevelAssetPath InClassName);
 
@@ -75,6 +78,9 @@ private:
 	 * Values are not modified after construction, so they can safely be returned after releasing the lock. 
 	 */
 	TMap<FTopLevelAssetPath, TSharedPtr<FClassPropertyTagCache>> ClassToCacheMap;
+
+	/** Classes we'd like to register but were not loaded when an asset of that type was last scanned */
+	TSet<FTopLevelAssetPath> PendingClasses;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

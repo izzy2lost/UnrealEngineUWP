@@ -170,6 +170,19 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 	// Listen for when assets are saved, listerns are notified in time despite presave because we queue updates for later processing 
 	FCoreUObjectDelegates::OnObjectPreSave.AddUObject(this, &UContentBrowserAssetDataSource::OnObjectPreSave);
 
+	// Listen for module initialization to update FAssetPropertyTagCache
+	FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.AddWeakLambda(this, [](FName, ECompiledInUObjectsRegisteredStatus){
+		FAssetPropertyTagCache::Get().CachePendingClasses();
+	});
+
+	// Listen for classes being loaded 
+	FCoreUObjectDelegates::OnAssetLoaded.AddWeakLambda(this, [](UObject* Object){
+		if (UClass* Class = Cast<UClass>(Object))
+		{
+			FAssetPropertyTagCache::Get().TryCacheClass(FTopLevelAssetPath(Class));
+		}
+	});
+
 	// Listen for new mount roots
 	FPackageName::OnContentPathMounted().AddUObject(this, &UContentBrowserAssetDataSource::OnContentPathMounted);
 	FPackageName::OnContentPathDismounted().AddUObject(this, &UContentBrowserAssetDataSource::OnContentPathDismounted);
