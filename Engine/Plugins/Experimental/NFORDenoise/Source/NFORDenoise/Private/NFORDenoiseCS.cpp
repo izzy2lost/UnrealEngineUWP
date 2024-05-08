@@ -86,7 +86,7 @@ namespace NFORDenoise
 
 	TAutoConsoleVariable<int32> CVarNFORTileSize(
 		TEXT("r.NFOR.Tile.Size"),
-		192,
+		213,
 		TEXT("The size of the max length of a tile. The default is selected for best performance based on experiment.\n")
 		TEXT("It takes effect only when r.NFOR.NumOfTile is set to -1. Minimal value = 100.\n"),
 		ECVF_RenderThreadSafe);
