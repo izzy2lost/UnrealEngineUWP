@@ -4,6 +4,25 @@
 #include "Brick.ush"
 #include "Voxel.ush"
 
+// *** The following SV_DepthLessEqual support is based on MaterialTemplate.ush implementation: ***
+// Whether to use the hidden d3d11 feature that supports depth writes with ZCull by only pushing into the screen
+//@todo - use for other SM5 platforms
+#define SUPPORTS_CONSERVATIVE_DEPTH_WRITES ((COMPILER_HLSL && FEATURE_LEVEL >= FEATURE_LEVEL_SM5) || COMPILER_PSSL || (COMPILER_METAL && FEATURE_LEVEL >= FEATURE_LEVEL_SM5) || SWITCH_PROFILE || SWITCH_PROFILE_FORWARD)
+
+#if SUPPORTS_CONSERVATIVE_DEPTH_WRITES
+
+#if COMPILER_HLSL || COMPILER_METAL_SHADER_CONVERTER || COMPILER_METAL || SWITCH_PROFILE || SWITCH_PROFILE_FORWARD
+	#define DEPTH_LE_OUTPUT SV_DepthLessEqual
+#elif COMPILER_PSSL
+	#define DEPTH_LE_OUTPUT S_DEPTH_LE_OUTPUT
+#else
+	#error SUPPORTS_CONSERVATIVE_DEPTH_WRITES enabled for unsupported platform
+#endif
+
+#else
+	#define DEPTH_LE_OUTPUT SV_DEPTH
+#endif
+
 void DrawBricksVS(
 	uint		VertexID		: SV_VertexID,
 	uint		InstanceID		: SV_InstanceID,
@@ -135,7 +154,7 @@ void DrawBricksPS(
 	in noperspective float3	RayDirection	: TEXCOORD3,
 	in centroid float4		SvPosition		: SV_Position,
 	out float4				OutColor		: SV_Target0,
-	out float				OutDepth		: SV_DepthLessEqual )
+	out float				OutDepth		: DEPTH_LE_OUTPUT )
 {
 	FRay Ray;
 	Ray.Origin		= RayOrigin;
