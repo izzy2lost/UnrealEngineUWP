@@ -158,7 +158,6 @@ public:
 			.VAlign( VAlign_Fill )
 			[
 				SAssignNew( MessagesView, SListView<TSharedPtr<FMessageData>> )
-				.ItemHeight(32)
 				.ListItemsSource( &Messages )
 				.OnGenerateRow( this, &SMessagesWidget::OnGenerateRow )
 				.SelectionMode(ESelectionMode::Multi)
