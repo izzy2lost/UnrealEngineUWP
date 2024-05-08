@@ -17,15 +17,15 @@ public class NNERuntimeORT : ModuleRules
 			"NNEOnnxruntime",
 			"Projects",
 			"RenderCore",
-			"DeveloperSettings"
+			"DeveloperSettings",
+			"RHI"
 		});
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
-				"D3D12RHI",
-				"RHI"
+				"D3D12RHI"
 			});
 
 			AddEngineThirdPartyPrivateStaticDependencies(Target, new string[]

@@ -38,7 +38,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 	}
 
 	FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
-	if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(InputModel, ENNEInferenceFormat::ORT))
+	if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(Environment.ToSharedRef(), InputModel, ENNEInferenceFormat::ORT))
 	{
 		return {};
 	}
@@ -149,7 +149,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const F
 	}
 
 	FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
-	if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(InputModel, ENNEInferenceFormat::ONNX))
+	if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(Environment.ToSharedRef(), InputModel, ENNEInferenceFormat::ONNX))
 	{
 		return {};
 	}

@@ -25,6 +25,8 @@ public:
 
 	const Ort::Env& GetOrtEnv() const;
 
+	FConfig GetConfig() const { return Config; }
+
 private:
 	FConfig Config{};
 	Ort::Env OrtEnvironment{nullptr};

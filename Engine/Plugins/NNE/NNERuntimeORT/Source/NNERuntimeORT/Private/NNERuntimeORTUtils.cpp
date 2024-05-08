@@ -6,6 +6,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "NNE.h"
+#include "NNERuntimeORTEnv.h"
 
 namespace UE::NNERuntimeORT::Private
 {
@@ -37,8 +38,10 @@ TArray<uint32> GetShape(const Ort::Value& OrtTensor)
 	return Result;
 }
 
-bool OptimizeModel(FNNEModelRaw& Model, ENNEInferenceFormat TargetFormat)
+bool OptimizeModel(TSharedRef<FEnvironment> InEnvironment, FNNEModelRaw& Model, ENNEInferenceFormat TargetFormat)
 {
+	SCOPED_NAMED_EVENT_TEXT("OrtHelper::OptimizeModel", FColor::Magenta);
+
 	if (Model.Format != ENNEInferenceFormat::ONNX)
 	{
 		UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORT: ONNX Runtime Model Optimizer is expecting a model in ONNX format but received %u."), Model.Format);
@@ -54,24 +57,31 @@ bool OptimizeModel(FNNEModelRaw& Model, ENNEInferenceFormat TargetFormat)
 	//We only enable all the optimization when going to ORT format itself for the CPU provider
 	GraphOptimizationLevel OptimizationLevel = TargetFormat == ENNEInferenceFormat::ONNX ? ORT_ENABLE_BASIC : ORT_ENABLE_ALL;
 
-	double ONNXModelOptimisationStartTime = FPlatformTime::Seconds();
-	
 	FFileHelper::SaveArrayToFile(Model.Data, *ModelToOptimizePath);
 
 #if WITH_EDITOR
 	try
 #endif // WITH_EDITOR
 	{
-		Ort::Env Env(ORT_LOGGING_LEVEL_INFO);
-		Ort::SessionOptions SessOptions;
-
-		SessOptions.SetGraphOptimizationLevel(OptimizationLevel);
+		Ort::SessionOptions SessionOptions;
+		if (ensureMsgf(InEnvironment->GetConfig().bUseGlobalThreadPool, TEXT("For Model Optimizer use ONNX Runtime global threadpool to improve performance!")))
+		{
+			SessionOptions.DisablePerSessionThreads();
+		}
+		else
+		{
+			SessionOptions.SetIntraOpNumThreads(InEnvironment->GetConfig().IntraOpNumThreads);
+			SessionOptions.SetInterOpNumThreads(InEnvironment->GetConfig().InterOpNumThreads);
+		}
+		SessionOptions.SetGraphOptimizationLevel(OptimizationLevel);
 #if PLATFORM_WINDOWS
-		SessOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
-		Ort::Session Session(Env, *ModelToOptimizePath, SessOptions);
+		SessionOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
+
+		Ort::Session Session(InEnvironment->GetOrtEnv(), *ModelToOptimizePath, SessionOptions);
 #else
-		SessOptions.SetOptimizedModelFilePath(TCHAR_TO_ANSI(*ModelOptimizedPath));
-		Ort::Session Session(Env, TCHAR_TO_ANSI(*ModelToOptimizePath), SessOptions);
+		SessionOptions.SetOptimizedModelFilePath(TCHAR_TO_ANSI(*ModelOptimizedPath));
+		
+		Ort::Session Session(InEnvironment->GetOrtEnv(), TCHAR_TO_ANSI(*ModelToOptimizePath), SessionOptions);
 #endif
 	}
 #if WITH_EDITOR
@@ -91,11 +101,6 @@ bool OptimizeModel(FNNEModelRaw& Model, ENNEInferenceFormat TargetFormat)
 
 	IFileManager::Get().Delete(*ModelToOptimizePath);
 	IFileManager::Get().Delete(*ModelOptimizedPath);
-
-	double ONNXModelOptimisationEndTime = FPlatformTime::Seconds();
-	float ONNXModelOptimisationTime = static_cast<float>(ONNXModelOptimisationEndTime - ONNXModelOptimisationStartTime);
-
-	UE_LOG(LogNNE, Display, TEXT("NNERuntimeORT: ONNX Runtime Model Optimizer runned in %0.1f seconds."), ONNXModelOptimisationTime);
 
 	Model.Format = TargetFormat;
 

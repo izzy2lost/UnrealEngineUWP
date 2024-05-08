@@ -55,7 +55,7 @@ public:
 
 	/** Threading options in Editor targets */
 	UPROPERTY(Config, EditAnywhere, Category = "ONNX Runtime", meta = (DisplayName = "Editor threading options", ToolTip = "Threading options in Editor targets", ConfigRestartRequired = true))
-	FThreadingOptions EditorThreadingOptions{false, 0, 0, EExecutionMode::SEQUENTIAL};
+	FThreadingOptions EditorThreadingOptions{true, 0, 0, EExecutionMode::SEQUENTIAL};
 
 	/** Threading options in Non-Editor (Game, Program, ...) targets */
 	UPROPERTY(Config, EditAnywhere, Category = "ONNX Runtime", meta = (DisplayName = "Game threading options", ToolTip = "Threading options in Non-Editor (Game, Program, ...) targets", ConfigRestartRequired = true))

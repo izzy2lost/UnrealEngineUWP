@@ -9,11 +9,14 @@
 
 namespace UE::NNERuntimeORT::Private
 {
+
+	class FEnvironment;
+
 	namespace OrtHelper
 	{
 		TArray<uint32> GetShape(const Ort::Value& OrtTensor);
 
-		bool OptimizeModel(FNNEModelRaw& Model, ENNEInferenceFormat OutFormat);
+		bool OptimizeModel(TSharedRef<FEnvironment> InEnvironment, FNNEModelRaw& Model, ENNEInferenceFormat OutFormat);
 	}
 
 	struct TypeInfoORT

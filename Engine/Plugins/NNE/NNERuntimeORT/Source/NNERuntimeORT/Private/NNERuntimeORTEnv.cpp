@@ -13,11 +13,11 @@ void FEnvironment::CreateOrtEnv(const FConfig& InConfig)
 #endif // WITH_EDITOR
 	checkf(OrtEnvironment == Ort::Env(nullptr), TEXT("Ort::Env already created!"));
 
-	if (Config.bUseGlobalThreadPool)
+	if (InConfig.bUseGlobalThreadPool)
 	{
 		Ort::ThreadingOptions ThreadingOptions;
-		ThreadingOptions.SetGlobalIntraOpNumThreads(Config.IntraOpNumThreads);
-		ThreadingOptions.SetGlobalInterOpNumThreads(Config.InterOpNumThreads);
+		ThreadingOptions.SetGlobalIntraOpNumThreads(InConfig.IntraOpNumThreads);
+		ThreadingOptions.SetGlobalInterOpNumThreads(InConfig.InterOpNumThreads);
 
 		// Calls OrtApi::CreateEnvWithGlobalThreadPools(), needs to be called in conjunction
 		// with OrtApi::DisablePerSessionThreads or else the session will use its own thread pools.

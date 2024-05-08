@@ -35,6 +35,8 @@ static TAutoConsoleVariable<bool> CVarNNERuntimeORTEnableProfiling(
 	TEXT("More information can be found at https://onnxruntime.ai/docs/performance/tune-performance/profiling-tools.html\n"),
 	ECVF_Default);
 
+DECLARE_GPU_STAT_NAMED(FNNERuntimeORTDmlRDG, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG"));
+
 namespace UE::NNERuntimeORT::Private
 {
 
@@ -520,8 +522,9 @@ bool FModelInstanceORTCpu::InitializedAndConfigureMembers()
 #if PLATFORM_WINDOWS
 TSharedPtr<NNE::IModelInstanceGPU> FModelORTDmlGPU::CreateModelInstanceGPU()
 {
-	const FRuntimeConf Conf = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
-	FModelInstanceORTDmlGPU* ModelInstance = new FModelInstanceORTDmlGPU(Conf, Environment);
+	const FRuntimeConf RuntimeConfig = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
+
+	FModelInstanceORTDmlGPU* ModelInstance = new FModelInstanceORTDmlGPU(RuntimeConfig, Environment);
 
 	check(ModelData.IsValid());
 	if (!ModelInstance->Init(ModelData->GetView()))
@@ -562,7 +565,9 @@ FModelORTDmlRDG::FModelORTDmlRDG(TSharedRef<FEnvironment> InEnvironment, TShared
 
 TSharedPtr<NNE::IModelInstanceRDG> FModelORTDmlRDG::CreateModelInstanceRDG()
 {
-	TSharedPtr<FModelInstanceORTDmlRDG> ModelInstance = MakeShared<FModelInstanceORTDmlRDG>(ModelData, FRuntimeConf{}, Environment);
+	const FRuntimeConf RuntimeConfig = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
+
+	TSharedPtr<FModelInstanceORTDmlRDG> ModelInstance = MakeShared<FModelInstanceORTDmlRDG>(ModelData, RuntimeConfig, Environment);
 	if (!ModelInstance->Init())
 	{
 		return {};
@@ -642,6 +647,8 @@ bool FModelInstanceORTDmlRDG::ConfigureTensors(const Ort::Session& ActiveSession
 
 bool FModelInstanceORTDmlRDG::ConfigureTensors(const Ort::Session& ActiveSession, bool bAreTensorInputs)
 {
+	SCOPED_NAMED_EVENT_TEXT("FModelInstanceORTDmlRDG::ConfigureTensors", FColor::Magenta);
+
 	const uint32 NumberTensors							= bAreTensorInputs ? ActiveSession.GetInputCount() : ActiveSession.GetOutputCount();
 	TArray<NNE::FTensorDesc>& SymbolicTensorDescs		= bAreTensorInputs ? InputSymbolicTensors   : OutputSymbolicTensors;
 	TArray<ONNXTensorElementDataType>& TensorsORTType	= bAreTensorInputs ? InputTensorsORTType	: OutputTensorsORTType;
@@ -702,6 +709,8 @@ bool FModelInstanceORTDmlRDG::ConfigureTensors(const Ort::Session& ActiveSession
 
 FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 {
+	SCOPED_NAMED_EVENT_TEXT("FModelInstanceORTDmlRDG::SetInputTensorShapes", FColor::Magenta);
+
 	InputTensors.Reset();
 	OutputTensors.Reset();
 	OutputTensorShapes.Reset();
@@ -929,6 +938,9 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 			ValidOutputs.Add(i);
 		}
 	}
+
+	RDG_EVENT_SCOPE(GraphBuilder, "FModelInstanceORTDmlRDG::EnqueueRDG");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNERuntimeORTDmlRDG);
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("FModelInstanceORTDmlRDG::EnqueueRDG.AddPass"), PassParameters, ERDGPassFlags::Readback,
 	[this, ValidOutputsCopy = ValidOutputs, PassParameters](FRHICommandListImmediate& RHICmdList)

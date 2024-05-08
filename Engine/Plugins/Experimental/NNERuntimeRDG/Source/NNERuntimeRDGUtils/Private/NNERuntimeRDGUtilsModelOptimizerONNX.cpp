@@ -49,31 +49,31 @@ public:
 		//We only enable all the optimization when going to ORT format itself for the CPU provider
 		GraphOptimizationLevel OptimizationLevel = TargetFormat == ENNEInferenceFormat::ONNX ? ORT_ENABLE_BASIC : ORT_ENABLE_ALL;
 
-		double ONNXModelOptimisationStartTime = FPlatformTime::Seconds();
-		
 		FFileHelper::SaveArrayToFile(Model.Data, *ModelToOptimizePath);
 		{
-			Ort::Env Env(ORT_LOGGING_LEVEL_INFO);
-			Ort::SessionOptions SessOptions;
+			Ort::ThreadingOptions ThreadingOptions;
+			ThreadingOptions.SetGlobalIntraOpNumThreads(1);
+			ThreadingOptions.SetGlobalInterOpNumThreads(1);
 
-			SessOptions.SetGraphOptimizationLevel(OptimizationLevel);
+			Ort::Env Env(ThreadingOptions);
+
+			Ort::SessionOptions SessionOptions;
+			SessionOptions.DisablePerSessionThreads();
+			SessionOptions.SetGraphOptimizationLevel(OptimizationLevel);
 			#if PLATFORM_WINDOWS
-				SessOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
-				Ort::Session Session(Env, *ModelToOptimizePath, SessOptions);
+				SessionOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
+
+				Ort::Session Session(Env, *ModelToOptimizePath, SessionOptions);
 			#else
-				SessOptions.SetOptimizedModelFilePath(TCHAR_TO_ANSI(*ModelOptimizedPath));
-				Ort::Session Session(Env, TCHAR_TO_ANSI(*ModelToOptimizePath), SessOptions);
+				SessionOptions.SetOptimizedModelFilePath(TCHAR_TO_ANSI(*ModelOptimizedPath));
+
+				Ort::Session Session(Env, TCHAR_TO_ANSI(*ModelToOptimizePath), SessionOptions);
 			#endif
 		}
 		FFileHelper::LoadFileToArray(Model.Data, *ModelOptimizedPath);
 
 		IFileManager::Get().Delete(*ModelToOptimizePath);
 		IFileManager::Get().Delete(*ModelOptimizedPath);
-
-		double ONNXModelOptimisationEndTime = FPlatformTime::Seconds();
-		float ONNXModelOptimisationTime = static_cast<float>(ONNXModelOptimisationEndTime - ONNXModelOptimisationStartTime);
-
-		UE_LOG(LogNNE, Display, TEXT("OnnxRuntimeModelOptimizerPass runned in %0.1f seconds."), ONNXModelOptimisationTime);
 
 		Model.Format = TargetFormat;
 
