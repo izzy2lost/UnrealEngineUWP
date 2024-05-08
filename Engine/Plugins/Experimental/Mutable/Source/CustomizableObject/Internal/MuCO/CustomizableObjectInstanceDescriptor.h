@@ -60,7 +60,7 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 
 	UCustomizableObject* GetCustomizableObject() const;
 
-	void SetCustomizableObject(UCustomizableObject& InCustomizableObject);
+	void SetCustomizableObject(UCustomizableObject* InCustomizableObject);
 	
 	bool GetBuildParameterRelevancy() const;
 	

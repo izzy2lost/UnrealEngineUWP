@@ -650,7 +650,7 @@ void UCustomizableObjectInstance::SetObject(UCustomizableObject* InObject)
 	PrivateData->BindObjectDelegates(GetCustomizableObject(), InObject);
 #endif
 
-	Descriptor.SetCustomizableObject(*InObject);
+	Descriptor.SetCustomizableObject(InObject);
 	PrivateData->InitCustomizableObjectData(InObject);
 }
 

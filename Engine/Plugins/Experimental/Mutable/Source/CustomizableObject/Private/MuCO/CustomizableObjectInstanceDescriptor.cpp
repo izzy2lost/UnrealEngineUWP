@@ -36,9 +36,9 @@ FString GetAvailableOptionsString(const UCustomizableObject& CustomizableObject,
 }
 
 
-FCustomizableObjectInstanceDescriptor::FCustomizableObjectInstanceDescriptor(UCustomizableObject &Object)
+FCustomizableObjectInstanceDescriptor::FCustomizableObjectInstanceDescriptor(UCustomizableObject& Object)
 {
-	SetCustomizableObject(Object);
+	SetCustomizableObject(&Object);
 }
 
 
@@ -423,9 +423,9 @@ UCustomizableObject* FCustomizableObjectInstanceDescriptor::GetCustomizableObjec
 }
 
 
-void FCustomizableObjectInstanceDescriptor::SetCustomizableObject(UCustomizableObject& InCustomizableObject)
+void FCustomizableObjectInstanceDescriptor::SetCustomizableObject(UCustomizableObject* InCustomizableObject)
 {
-	CustomizableObject = &InCustomizableObject;
+	CustomizableObject = InCustomizableObject;
 	ReloadParameters();
 }
 

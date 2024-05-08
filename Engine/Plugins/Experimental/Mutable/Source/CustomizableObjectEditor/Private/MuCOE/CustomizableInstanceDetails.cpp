@@ -1978,6 +1978,8 @@ FReply FCustomizableInstanceDetails::OnPasteAllParameters()
 	FCustomizableObjectInstanceDescriptor& Descriptor = CustomInstance->GetPrivate()->GetDescriptor();
 	const UScriptStruct* Struct = Descriptor.StaticStruct();
 
+	UCustomizableObject* CustomizableObject = Descriptor.GetCustomizableObject();
+	
 	const int32 MinLOD = Descriptor.GetMinLod();
 	const TArray<uint16> RequestedLODLevels = Descriptor.GetRequestedLODLevels();
 	
@@ -1986,6 +1988,8 @@ FReply FCustomizableInstanceDetails::OnPasteAllParameters()
 
 	if (Struct->ImportText(*ClipText, &Descriptor, nullptr, 0, GLog, GetPathNameSafe(Struct)))
 	{
+		Descriptor.SetCustomizableObject(CustomizableObject);
+		
 		// Keep current LOD
 		Descriptor.SetMinLod(MinLOD);
 		Descriptor.SetRequestedLODLevels(RequestedLODLevels);
