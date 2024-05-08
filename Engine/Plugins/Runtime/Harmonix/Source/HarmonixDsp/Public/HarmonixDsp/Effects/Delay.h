@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/AudioBuffer.h"
+#include "Algo/ForEach.h"
+#include "DSP/MultichannelBuffer.h"
 #include "HarmonixDsp/Ramper.h"
 #include "HarmonixDsp/TimeSyncOption.h"
 #include "HarmonixDsp/Effects/Settings/DelaySettings.h"
@@ -40,7 +41,12 @@ namespace Harmonix::Dsp::Effects
 
 		void Clear()
 		{
-			DelayLineInterleaved.ZeroData();
+			// zero the delay line
+			if (DelayLineInterleaved.Num() > 0)
+			{
+				FMemory::Memzero(DelayLineInterleaved.GetData(), DelayLineInterleaved.Num() * sizeof(float));
+			}
+			
 			DelayPos = 0;
 			CanSlamParams = true;
 		}
@@ -77,7 +83,7 @@ namespace Harmonix::Dsp::Effects
 
 		*/
 
-		void Process(TAudioBuffer<float>& InOutData);
+		void Process(Audio::FMultichannelBufferView& InOutBuffer);
 
 		float CalculateSecsToIdle();
 
@@ -171,8 +177,8 @@ namespace Harmonix::Dsp::Effects
 		uint32 MaxBlockSize = 0;
 
 		uint32 Length = 0;
-		TAudioBuffer<float> DelayLineInterleaved;
-		TAudioBuffer<float> WetChannelInterleaved;
+		Audio::FAlignedFloatBuffer DelayLineInterleaved;
+		Audio::FAlignedFloatBuffer WetChannelInterleaved;
 		uint32 DelayPos = 0;
 		uint32 PosMask;
 

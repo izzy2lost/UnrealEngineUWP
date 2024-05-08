@@ -325,8 +325,6 @@ namespace HarmonixMetasound::DelayNode
 			Delay.Prepare(Params.OperatorSettings.GetSampleRate(), Constants::NumChannels, Constants::MaxDelayTime);
 			LastTempo = -1;
 			LastSpeed = -1;
-			ScratchBuffer.Initialize();
-			ScratchBuffer.Configure(Constants::NumChannels, Params.OperatorSettings.GetNumFramesPerBlock(), EAudioBufferCleanupMode::DontDelete);
 			Outputs.AudioLeft->Zero();
 			Outputs.AudioRight->Zero();
 		}
@@ -416,26 +414,17 @@ namespace HarmonixMetasound::DelayNode
 				return;
 			}
 
-			// copy the input audio to the output, then alias and process in place
-			const float* InputAudio[Constants::NumChannels];
-			InputAudio[0] = Inputs.AudioLeft->GetData() + StartSample;
-			InputAudio[1] = Inputs.AudioRight->GetData() + StartSample;
-			float* OutputAudio[Constants::NumChannels];
-			OutputAudio[0] = Outputs.AudioLeft->GetData() + StartSample;
-			OutputAudio[1] = Outputs.AudioRight->GetData() + StartSample;
-			for (int32 i = 0; i < Constants::NumChannels; ++i)
-			{
-				FMemory::Memcpy(OutputAudio[i], InputAudio[i], NumSamples * sizeof(float));
-			}
-			const FAudioBufferConfig Config{ Constants::NumChannels, NumSamples, Delay.GetSampleRate() };
-			ScratchBuffer.AliasChannelDataPointers(Config, OutputAudio);
-
-			// process
-			Delay.Process(ScratchBuffer);
+			// copy the input audio to the output, then process in place
+			FMemory::Memcpy(Outputs.AudioLeft->GetData() + StartSample, Inputs.AudioLeft->GetData() + StartSample, NumSamples * sizeof(float));
+			FMemory::Memcpy(Outputs.AudioRight->GetData() + StartSample, Inputs.AudioRight->GetData() + StartSample, NumSamples * sizeof(float));
+			BufferView.Reset();
+			BufferView.Emplace(Outputs.AudioLeft->GetData() + StartSample, NumSamples);
+			BufferView.Emplace(Outputs.AudioRight->GetData() + StartSample, NumSamples);
+			Delay.Process(BufferView);
 		}
 		
 		Harmonix::Dsp::Effects::FDelay Delay;
-		TAudioBuffer<float> ScratchBuffer;
+		Audio::FMultichannelBufferView BufferView;
 		float LastTempo{ -1 };
 		float LastSpeed{ -1 };
 		FInputs Inputs;

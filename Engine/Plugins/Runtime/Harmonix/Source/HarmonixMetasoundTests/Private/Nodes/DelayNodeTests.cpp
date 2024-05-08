@@ -23,17 +23,10 @@ namespace HarmonixMetasoundTests::DelayNode
 		FTestFixture(float InSampleRate, int32 NumSamplesPerBlock, FAutomationTestBase& InTest, bool WithClock)
 			: SampleRate(InSampleRate)
 			, Test(InTest)
-			, ComparisonBuffer(HarmonixMetasound::DelayNode::Constants::NumChannels, NumSamplesPerBlock, EAudioBufferCleanupMode::Delete)
 		{
-			{
-				const FAudioBufferConfig BufferConfig{
-					HarmonixMetasound::DelayNode::Constants::NumChannels,
-					NumSamplesPerBlock,
-					SampleRate,
-					true
-				};
-				GeneratorBufferInterleaved.Configure(BufferConfig, EAudioBufferCleanupMode::Delete);
-			}
+			constexpr int32 NumChannels = HarmonixMetasound::DelayNode::Constants::NumChannels;
+			Audio::SetMultichannelBufferSize(NumChannels, NumSamplesPerBlock, ComparisonBuffer);
+			GeneratorBufferInterleaved.SetNumZeroed(NumChannels * NumSamplesPerBlock);
 			
 			DelayForComparison.Prepare(
 				InSampleRate,
@@ -96,7 +89,11 @@ namespace HarmonixMetasoundTests::DelayNode
 			using namespace Metasound;
 
 			// zero the input buffers
-			ComparisonBuffer.ZeroData();
+			Algo::ForEach(ComparisonBuffer, [](Audio::FAlignedFloatBuffer& Channel)
+			{
+				check(Channel.Num() > 0);
+				FMemory::Memzero(Channel.GetData(), Channel.Num() * sizeof(float));
+			});
 			TOptional<TDataWriteReference<FAudioBuffer>> InputAudioLeft =
 				Generator->GetInputWriteReference<FAudioBuffer>(HarmonixMetasound::DelayNode::Inputs::AudioLeftName);
 			TOptional<TDataWriteReference<FAudioBuffer>> InputAudioRight =
@@ -120,23 +117,28 @@ namespace HarmonixMetasoundTests::DelayNode
 			}
 
 			// render
-			GeneratorBufferInterleaved.ZeroData();
-			Generator->OnGenerateAudio(GeneratorBufferInterleaved.GetRawChannelData(0), GeneratorBufferInterleaved.GetNumTotalValidSamples());
-			DelayForComparison.Process(ComparisonBuffer);
+			check(GeneratorBufferInterleaved.Num() > 0);
+			FMemory::Memzero(GeneratorBufferInterleaved.GetData(), GeneratorBufferInterleaved.Num() * sizeof(float));
+			Generator->OnGenerateAudio(GeneratorBufferInterleaved.GetData(), GeneratorBufferInterleaved.Num());
+			Audio::FMultichannelBufferView ComparisonBufferView = Audio::MakeMultichannelBufferView(ComparisonBuffer);
+			DelayForComparison.Process(ComparisonBufferView);
 			
 			// check that the output buffers are equal
-			for (int32 ChannelIdx = 0; ChannelIdx < HarmonixMetasound::DelayNode::Constants::NumChannels; ++ChannelIdx)
 			{
-				TDynamicStridePtr<float> GeneratorPtr = GeneratorBufferInterleaved.GetStridingChannelDataPointer(ChannelIdx);
-				TDynamicStridePtr<float> ComparisonPtr = ComparisonBuffer.GetStridingChannelDataPointer(ChannelIdx);
-				for (int32 SampleIdx = 0; SampleIdx < ComparisonBuffer.GetNumValidFrames(); ++SampleIdx)
+				constexpr int32 NumChannels = HarmonixMetasound::DelayNode::Constants::NumChannels;
+				const int32 NumFrames = Generator->OperatorSettings.GetNumFramesPerBlock();
+				
+				for (int32 ChannelIdx = 0; ChannelIdx < NumChannels; ++ChannelIdx)
 				{
-					if (!Test.TestEqual(
-						FString::Printf(TEXT("Channel %i samples match at idx %i"), ChannelIdx, SampleIdx),
-						GeneratorPtr[SampleIdx],
-						ComparisonPtr[SampleIdx]))
+					for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
 					{
-						return false;
+						if (!Test.TestEqual(
+							FString::Printf(TEXT("Channel %i samples match at idx %i"), ChannelIdx, FrameIdx),
+							GeneratorBufferInterleaved[FrameIdx * NumChannels + ChannelIdx],
+							ComparisonBuffer[ChannelIdx][FrameIdx]))
+						{
+							return false;
+						}
 					}
 				}
 			}
@@ -278,7 +280,7 @@ namespace HarmonixMetasoundTests::DelayNode
 			{
 				return false;
 			}
-			const int32 NumSamples = ComparisonBuffer.GetNumValidFrames();
+			const int32 NumSamples = Audio::GetMultichannelBufferNumFrames(ComparisonBuffer);
 			SampleRemainder += NumSamples;
 			constexpr int32 MidiGranularity = 128;
 			while (SampleRemainder >= MidiGranularity)
@@ -295,9 +297,9 @@ namespace HarmonixMetasoundTests::DelayNode
 		float SampleRate;
 		FAutomationTestBase& Test;
 		Harmonix::Dsp::Effects::FDelay DelayForComparison;
-		TAudioBuffer<float> ComparisonBuffer;
+		Audio::FMultichannelBuffer ComparisonBuffer;
 		TUniquePtr<FMetasoundGenerator> Generator;
-		TAudioBuffer<float> GeneratorBufferInterleaved;
+		Audio::FAlignedFloatBuffer GeneratorBufferInterleaved;
 		Metasound::FSampleCount SampleCount = 0;
 		Metasound::FSampleCount SampleRemainder = 0;
 	};
