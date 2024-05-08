@@ -235,6 +235,8 @@ public:
 		DestroyPipelineCache();
 		vkDestroyDevice(Device, nullptr);
 		vkDestroyInstance(Instance, nullptr);
+		Device = VK_NULL_HANDLE;
+		Instance = VK_NULL_HANDLE;
 	}
 
 	struct GraphicsPipelineCreateInfo
