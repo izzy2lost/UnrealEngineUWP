@@ -8,7 +8,6 @@
 #include "Containers/Array.h"
 #include "Misc/AssertionMacros.h"
 #include "Math/IntVector.h"
-#include "Math/NumericLimits.h"
 
 namespace mu
 {
@@ -45,10 +44,6 @@ namespace mu
 	{
 	public:
 
-		static constexpr uint64 InvalidBlockId = TNumericLimits<uint64>::Max();
-
-	public:
-
 		//-----------------------------------------------------------------------------------------
 		// Life cycle
 		//-----------------------------------------------------------------------------------------
@@ -56,11 +51,11 @@ namespace mu
 		Layout();
 
 		//! Deep clone this layout.
-		Ptr<Layout> Clone() const;
+		LayoutPtr Clone() const;
 
 		//! Serialisation
 		static void Serialise( const Layout* p, OutputArchive& arch );
-		static Ptr<Layout> StaticUnserialise( InputArchive& arch );
+		static LayoutPtr StaticUnserialise( InputArchive& arch );
 
 		//! Full compare
 		bool operator==( const Layout& other ) const;
@@ -79,18 +74,18 @@ namespace mu
 		//! on each axis.
 		//! \param sizeX width of the grid.
 		//! \param sizeY height of the grid.
-		void SetGridSize( int32 SizeX, int32 SizeY );
+		void SetGridSize( int sizeX, int sizeY );
 
 		//! Get the maximum resolution of the grid where the blocks are defined.
 		//! \param[out] pSizeX The integer pointed by this will be set to the width of the grid.
 		//! \param[out] pSizeY The integer pointed by this will be set to the height of the grid.
-		void GetMaxGridSize(int32* SizeX, int32* SizeY) const;
+		void GetMaxGridSize(int* pSizeX, int* pSizeY) const;
 
 		//! Get the maximum resolution of the grid where the blocks are defined. It must be bigger than 0
 		//! on each axis.
 		//! \param sizeX width of the grid.
 		//! \param sizeY height of the grid.
-		void SetMaxGridSize(int32 SizeX, int32 SizeY);
+		void SetMaxGridSize(int sizeX, int sizeY);
 
 		//! Return the number of blocks in this layout.
 		int32 GetBlockCount() const;
@@ -108,14 +103,14 @@ namespace mu
 		//! (from 0 to the Y size of the grid minus one )
 		//! \param[out] pSizeX will be set to the x size of the block
 		//! \param[out] pSizeY will be set to the y size of the block
-		void GetBlock( int32 Index, uint16* MinX, uint16* MinY, uint16* SizeX, uint16* SizeY ) const;
+		void GetBlock( int index, uint16* pMinX, uint16* pMinY, uint16* pSizeX, uint16* pSizeY ) const;
 
 		//! Returns the reduction priority of a block.
 		//! \param index Block to get priority.
 		//! \param[out] priority reduction priority of the block
 		//! \param[out] bReduceBothAxes reduction method of the block
 		//! \param[out] bReduceByTwo reduction method of the block
-		void GetBlockOptions(int32 Index, int32& Priority, bool& bReduceBothAxes, bool& bReduceByTwo) const;
+		void GetBlockOptions(int index, int& priority, bool& bReduceBothAxes, bool& bReduceByTwo) const;
 
 		//! Set a block of the layout.
 		//! "Position" here means the lower-left corner of the block.
@@ -126,18 +121,18 @@ namespace mu
 		//! (from 0 to the Y size of the grid minus one )
 		//! \param sizeX will be set to the x size of the block
 		//! \param sizeY will be set to the y size of the block
-        void SetBlock( int32 Index, int32 MinX, int32 MinY, int32 SizeX, int32 SizeY );
+        void SetBlock( int index, int minX, int minY, int sizeX, int sizeY );
 
 		//! Set the reduction options of a block
 		//! \param index Block to set the options
 		//! \param priority will be set to the reduction priority of the block. The blocks with the highest values will be the last to be reduced
 		//! \param bReduceBothAxes will be set to reduce the block in both axis at the same time.
 		//! \param bReduceByTwo will reduce by two blocks on a unitary reduction.
-		void SetBlockOptions(int32 Index, int32 Priority, bool bReduceBothAxes, bool bReduceByTwo);
+		void SetBlockOptions(int index, int priority, bool bReduceBothAxes, bool bReduceByTwo);
 
 		//! Set the texture layout packing strategy
 		//! By default the texture layout packing strategy is set to resizable layout
-		void SetLayoutPackingStrategy(EPackStrategy);
+		void SetLayoutPackingStrategy(EPackStrategy _strategy);
 
 		//! Set the texture layout packing strategy
 		EPackStrategy GetLayoutPackingStrategy() const;
@@ -165,24 +160,24 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		struct FBlock
 		{
-			FBlock(UE::Math::TIntVector2<uint16> InMin = UE::Math::TIntVector2<uint16>(), UE::Math::TIntVector2<uint16> InSize = UE::Math::TIntVector2<uint16>())
+			FBlock(UE::Math::TIntVector2<uint16> min = UE::Math::TIntVector2<uint16>(), UE::Math::TIntVector2<uint16> size = UE::Math::TIntVector2<uint16>())
 			{
-				Min = InMin;
-				Size = InSize;
-				Id = Layout::InvalidBlockId;
-				Priority = 0;
+				m_min = min;
+				m_size = size;
+				m_id = -1;
+				m_priority = 0;
 				bReduceBothAxes = false;
 				bReduceByTwo = false;
 			}
 
-			UE::Math::TIntVector2<uint16> Min = UE::Math::TIntVector2<uint16>(0,0);
-			UE::Math::TIntVector2<uint16> Size = UE::Math::TIntVector2<uint16>(0, 0);
+			UE::Math::TIntVector2<uint16> m_min = UE::Math::TIntVector2<uint16>(0,0);
+			UE::Math::TIntVector2<uint16> m_size = UE::Math::TIntVector2<uint16>(0, 0);
 
 			//! Absolute id used to control merging of various layouts
-			uint64 Id;
+			int32 m_id;
 
 			//! Priority value to control the shrink texture layout strategy
-			int32 Priority;
+			int32 m_priority;
 
 			//! Value to control the method to reduce the block
 			bool bReduceBothAxes;
@@ -200,10 +195,10 @@ namespace mu
 			//!
 			inline bool operator==(const FBlock& o) const
 			{
-				return (Min == o.Min) &&
-					(Size == o.Size) &&
-					(Id == o.Id) &&
-					(Priority == o.Priority) &&
+				return (m_min == o.m_min) &&
+					(m_size == o.m_size) &&
+					(m_id == o.m_id) &&
+					(m_priority == o.m_priority) &&
 					(bReduceBothAxes == o.bReduceBothAxes) &&
 					(bReduceByTwo == o.bReduceByTwo);
 			}
@@ -211,25 +206,28 @@ namespace mu
 			inline bool IsSimilar(const FBlock& o) const
 			{
 				// All but ids
-				return (Min == o.Min) &&
-					(Size == o.Size) &&
-					(Priority == o.Priority) &&
+				return (m_min == o.m_min) &&
+					(m_size == o.m_size) &&
+					(m_priority == o.m_priority) &&
 					(bReduceBothAxes == o.bReduceBothAxes) &&
 					(bReduceByTwo == o.bReduceByTwo);
 			}
+
+			//!
+			void UnserialiseOldVersion(InputArchive& Archive, const int32 Version);
 		};
 
 
 		//!
-		UE::Math::TIntVector2<uint16> Size = UE::Math::TIntVector2<uint16>(0, 0);
+		UE::Math::TIntVector2<uint16> m_size = UE::Math::TIntVector2<uint16>(0, 0);
 
-		UE::Math::TIntVector2<uint16> MaxSize = UE::Math::TIntVector2<uint16>(0, 0);
+		UE::Math::TIntVector2<uint16> m_maxsize = UE::Math::TIntVector2<uint16>(0, 0);
 
 		//!
-		TArray<FBlock> Blocks;
+		TArray<FBlock> m_blocks;
 
 		//! Packing strategy
-		EPackStrategy Strategy = EPackStrategy::RESIZABLE_LAYOUT;
+		EPackStrategy m_strategy = EPackStrategy::RESIZABLE_LAYOUT;
 		 
 		int32 FirstLODToIgnoreWarnings = 0;
 
@@ -245,8 +243,9 @@ namespace mu
 		//!
 		bool IsSimilar(const Layout& o) const;
 
-		/** Find a block by id. This converts the "absolute" id to a relative index to the layout blocks. Return -1 if not found. */
-		int32 FindBlock(uint64 Id) const;
+		//! Find a block by id. This converts the "absolute" id to a relative index to the layout
+		//! blocks. Return -1 if not found.
+		int32 FindBlock(int32 id) const;
 
 		//! Return true if the layout is a single block filling all area.
 		bool IsSingleBlockAndFull() const;

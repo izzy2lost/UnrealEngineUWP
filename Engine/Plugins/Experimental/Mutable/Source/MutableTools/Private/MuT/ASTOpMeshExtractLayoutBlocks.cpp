@@ -87,9 +87,9 @@ namespace mu
 			AppendCode(program.m_byteCode, (uint16)Layout);
 			AppendCode(program.m_byteCode, (uint16)Blocks.Num());
 
-			for (uint64 Id : Blocks)
+			for (auto b : Blocks)
 			{
-				AppendCode(program.m_byteCode, Id);
+				AppendCode(program.m_byteCode, (uint32)b);
 			}
 		}
 	}

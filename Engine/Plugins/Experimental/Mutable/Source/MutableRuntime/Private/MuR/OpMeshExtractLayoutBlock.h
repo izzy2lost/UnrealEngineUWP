@@ -35,7 +35,7 @@ namespace mu
 
 		// If the vertices are explicit or relative, the above operation will already handle them correctly
 		// Otherwise, create a relative vertex ID buffer if necessary
-		Result->MeshIDPrefix = Source->MeshIDPrefix;
+		Result->VertexIDPrefix = Source->VertexIDPrefix;
 		if (Source->AreVertexIdsImplicit() 
 			&& 
 			// If we extract everything, we can keep the ids implicit.
@@ -116,39 +116,38 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-    inline void MeshExtractLayoutBlock(Mesh* Result, const Mesh* Source,
-                                           uint32 LayoutIndex,
-                                           uint16 BlockCount,
-                                           const uint64* BlockIds, bool& bOutSuccess)
+    inline void MeshExtractLayoutBlock(Mesh* Result, const Mesh* pSource,
+                                           uint32 layout,
+                                           uint16 blockCount,
+                                           const uint32* pExtractBlocks, bool& bOutSuccess)
 	{
-		check(Source);
+		check(pSource);
 		bOutSuccess = true;
 		
 		// TODO: Optimise
-		Result->CopyFrom(*Source);
+		Result->CopyFrom(*pSource);
 
-		UntypedMeshBufferIteratorConst itBlocks(Source->GetVertexBuffers(), MBS_LAYOUTBLOCK, LayoutIndex);
+		UntypedMeshBufferIteratorConst itBlocks( pSource->GetVertexBuffers(), MBS_LAYOUTBLOCK, layout );
 
         if (itBlocks.GetFormat()!=MBF_NONE)
         {
-            int32 ResultVertices = 0;
+            int resultVertices = 0;
 			TArray<int32> oldToNew;
-			oldToNew.Init(-1,Source->GetVertexCount());
+			oldToNew.Init(-1,pSource->GetVertexCount());
 			TArray<int32> newToOld;
-            newToOld.Reserve( Source->GetVertexCount() );
+            newToOld.Reserve( pSource->GetVertexCount() );
 
             if ( itBlocks.GetFormat()==MBF_UINT16 )
             {
                 const uint16* pBlocks = reinterpret_cast<const uint16*>( itBlocks.ptr() );
-                for ( int32 i=0; i<Source->GetVertexCount(); ++i )
+                for ( int i=0; i<pSource->GetVertexCount(); ++i )
                 {
-                    uint64 VertexBlockRelative = pBlocks[i];
-					uint64 VertexBlockId = (uint64(Source->MeshIDPrefix) << 32) | VertexBlockRelative;
+                    uint32_t vertexBlock = pBlocks[i];
 
                     bool found = false;
-                    for ( int32 j=0; j< BlockCount; ++j)
+                    for ( int j=0; j<blockCount; ++j)
                     {
-                        if (VertexBlockId == BlockIds[j])
+                        if (vertexBlock==pExtractBlocks[j])
                         {
                             found = true;
                             break;
@@ -157,42 +156,17 @@ namespace mu
 
                     if ( found )
                     {
-                        oldToNew[i] = ResultVertices++;
+                        oldToNew[i] = resultVertices++;
                         newToOld.Add( i );
                     }
                 }
             }
-            else if (itBlocks.GetFormat() == MBF_UINT64)
-			{
-				const uint64* pBlocks = reinterpret_cast<const uint64*>(itBlocks.ptr());
-				for (int32 i = 0; i < Source->GetVertexCount(); ++i)
-				{
-					uint64 VertexBlockId = pBlocks[i];
-
-					bool found = false;
-					for (int j = 0; j < BlockCount; ++j)
-					{
-						if (VertexBlockId == BlockIds[j])
-						{
-							found = true;
-							break;
-						}
-					}
-
-					if (found)
-					{
-						oldToNew[i] = ResultVertices++;
-						newToOld.Add(i);
-					}
-				}
-			}
-			else
-
+            else
             {
                 check( false );
             }
 
-            MeshExtractFromVertices(Source, Result, oldToNew, newToOld);
+            MeshExtractFromVertices(pSource, Result, oldToNew, newToOld);
         }
 
         Result->Surfaces.Empty();

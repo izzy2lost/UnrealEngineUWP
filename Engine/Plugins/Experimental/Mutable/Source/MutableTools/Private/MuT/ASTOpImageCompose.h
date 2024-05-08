@@ -21,7 +21,7 @@ namespace mu
 		ASTChild Base;
 		ASTChild BlockImage;
 		ASTChild Mask;
-		uint64 BlockId=0;
+		uint32 BlockIndex=0;
 
 	public:
 
@@ -38,8 +38,8 @@ namespace mu
 		//TODO: Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions& options, FOptimizeSinkContext& context) const override;
 		Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const;
 		FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext* context) const override;
-		void GetLayoutBlockSize(int32* OutBlockX, int32* OutBlockY) override;
-		bool IsImagePlainConstant(FVector4f& OutColor) const override;
+		void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
+		bool IsImagePlainConstant(FVector4f& colour) const override;
 		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
 
 	};

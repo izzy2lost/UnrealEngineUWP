@@ -97,7 +97,7 @@ namespace mu
 	}
 
 
-	void ASTOpLayoutFromMesh::GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache)
+	void ASTOpLayoutFromMesh::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache* cache)
 	{
 		// This shouldn't happen for this operation because it is always in a branch of layout operations that is not the main one.
 		check(false);

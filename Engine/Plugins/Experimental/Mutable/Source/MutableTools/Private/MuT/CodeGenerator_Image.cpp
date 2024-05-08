@@ -1389,9 +1389,9 @@ namespace mu
 		int32 LayoutBlockIndex = -1;
 		if (Options.LayoutToApply)
 		{
-			LayoutBlockIndex = Options.LayoutToApply->Blocks.IndexOfByPredicate([&](const Layout::FBlock& Block) { return Block.Id == Options.LayoutBlockId; });
+			LayoutBlockIndex = Options.LayoutToApply->m_blocks.IndexOfByPredicate([&](const Layout::FBlock& Block) { return Block.m_id == Options.LayoutBlockId; });
 		}
-		uint64 GeneratedLayoutBlockId = Layout::InvalidBlockId;
+		int32 GeneratedLayoutBlockId = -1;
 
         // Mesh
         if ( node.m_pMesh )
@@ -1407,16 +1407,18 @@ namespace mu
 			FMeshGenerationResult MeshResult;
 			GenerateMesh( MeshOptions, MeshResult, node.m_pMesh );
 
-			// Match the block id of the block we are generating with the id that resulted in the generated mesh			
+			// Match the block id of the block we are generating with the id that resulted in the generated mesh
+			GeneratedLayoutBlockId = -1;
+			
 			Ptr<const Layout> Layout = MeshResult.GeneratedLayouts.IsValidIndex(node.m_layout) ? MeshResult.GeneratedLayouts[node.m_layout] : nullptr;
-			if (Layout && Layout->Blocks.IsValidIndex(LayoutBlockIndex))
+			if (Layout && Layout->m_blocks.IsValidIndex(LayoutBlockIndex))
 			{
-				GeneratedLayoutBlockId = Layout->Blocks[LayoutBlockIndex].Id;
+				GeneratedLayoutBlockId = Layout->m_blocks[LayoutBlockIndex].m_id;
 			}
-			else if (Layout && Layout->Blocks.Num() == 1)
+			else if (Layout && Layout->m_blocks.Num() == 1)
 			{
 				// Layout management disabled, use the only block available
-				GeneratedLayoutBlockId = Layout->Blocks[0].Id;
+				GeneratedLayoutBlockId = Layout->m_blocks[0].m_id;
 			}
 			else
 			{
@@ -1448,7 +1450,7 @@ namespace mu
             else
             {
                 // Extract the mesh layout block
-                if ( GeneratedLayoutBlockId!= Layout::InvalidBlockId)
+                if ( GeneratedLayoutBlockId>=0 )
                 {
                     Ptr<ASTOpMeshExtractLayoutBlocks> eop = new ASTOpMeshExtractLayoutBlocks();
                     eop->Source = CurrentMeshToProjectOp;
@@ -1541,7 +1543,7 @@ namespace mu
 			FImageGenerationOptions NewOptions = Options;
 			NewOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
 			NewOptions.LayoutToApply = nullptr;
-			NewOptions.LayoutBlockId = Layout::InvalidBlockId;
+			NewOptions.LayoutBlockId = -1;
 			NewOptions.RectSize = { 0,0 };
 
 			FImageGenerationResult ImageResult;

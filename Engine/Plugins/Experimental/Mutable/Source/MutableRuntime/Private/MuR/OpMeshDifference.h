@@ -162,7 +162,15 @@ namespace mu
 			BufferIndex = 1;
 			Result->GetVertexBuffers().SetBuffer(BufferIndex, ElementSize, semantic.Num(), semantic.GetData(), semanticIndex.GetData(), format.GetData(), components.GetData(), offsets.GetData());
 
-			Result->MeshIDPrefix = pBase->MeshIDPrefix;
+
+			if (bGenerateRelativeIds)
+			{
+				Result->VertexIDPrefix = pBase->VertexIDPrefix;
+			}
+			else
+			{
+				Result->VertexIDPrefix = 0;
+			}
 
 			// Source vertex index channel
 			MeshVertexIdIteratorConst IdIterator( pBase );

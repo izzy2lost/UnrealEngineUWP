@@ -26,7 +26,7 @@ namespace mu
 		, mask(this)
 		, projector(this)
 	{
-		BlockId = Layout::InvalidBlockId;
+		BlockId = -1;
 		LayoutIndex = -1;
 		SizeX = SizeY = 0;
 		SourceSizeX = SourceSizeY = 0;
@@ -139,7 +139,7 @@ namespace mu
 			OP::ImageRasterMeshArgs args;
 			FMemory::Memzero(&args, sizeof(args));
 
-			args.BlockId = BlockId;
+			args.blockId = BlockId;
 			args.LayoutIndex = LayoutIndex;
 			args.sizeX = SizeX;
 			args.sizeY = SizeY;

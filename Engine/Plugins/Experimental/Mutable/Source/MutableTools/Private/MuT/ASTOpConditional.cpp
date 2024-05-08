@@ -194,7 +194,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpConditional::GetLayoutBlockSize(int32* pBlockX, int32* pBlockY)
+	void ASTOpConditional::GetLayoutBlockSize(int* pBlockX, int* pBlockY)
 	{
 		if (type == OP_TYPE::IM_CONDITIONAL)
 		{
@@ -213,15 +213,16 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpConditional::GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache)
+	void ASTOpConditional::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY,
+		FBlockLayoutSizeCache* cache)
 	{
 		if (type == OP_TYPE::LA_CONDITIONAL)
 		{
-			yes->GetBlockLayoutSizeCached(BlockId, pBlockX, pBlockY, cache);
+			yes->GetBlockLayoutSizeCached(blockIndex, pBlockX, pBlockY, cache);
 
 			if (*pBlockX == 0)
 			{
-				no->GetBlockLayoutSizeCached(BlockId, pBlockX, pBlockY, cache);
+				no->GetBlockLayoutSizeCached(blockIndex, pBlockX, pBlockY, cache);
 			}
 		}
 		else

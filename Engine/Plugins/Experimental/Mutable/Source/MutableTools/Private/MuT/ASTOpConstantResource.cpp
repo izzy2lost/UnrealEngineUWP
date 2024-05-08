@@ -413,7 +413,7 @@ namespace mu
 	}
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpConstantResource::GetBlockLayoutSize(uint64 BlockId, int32* BlockX, int32* BlockY, FBlockLayoutSizeCache*)
+	void ASTOpConstantResource::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache*)
 	{
 		switch (Type)
 		{
@@ -424,16 +424,16 @@ namespace mu
 
 			if (pLayout)
 			{
-				int relId = pLayout->FindBlock(BlockId);
+				int relId = pLayout->FindBlock(blockIndex);
 				if (relId >= 0)
 				{
-					*BlockX = pLayout->Blocks[relId].Size[0];
-					*BlockY = pLayout->Blocks[relId].Size[1];
+					*pBlockX = pLayout->m_blocks[relId].m_size[0];
+					*pBlockY = pLayout->m_blocks[relId].m_size[1];
 				}
 				else
 				{
-					*BlockX = 0;
-					*BlockY = 0;
+					*pBlockX = 0;
+					*pBlockY = 0;
 				}
 			}
 
@@ -446,7 +446,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpConstantResource::GetLayoutBlockSize(int32* pBlockX, int32* pBlockY)
+	void ASTOpConstantResource::GetLayoutBlockSize(int* pBlockX, int* pBlockY)
 	{
 		switch (Type)
 		{

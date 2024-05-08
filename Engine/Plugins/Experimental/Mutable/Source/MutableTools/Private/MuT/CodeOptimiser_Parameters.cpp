@@ -403,7 +403,9 @@ namespace mu
                         {
 						const ASTOpImageCompose* typedYes = static_cast<const ASTOpImageCompose*>(typedAt->yes.child().get());
 						const ASTOpImageCompose* typedNo = static_cast<const ASTOpImageCompose*>(typedAt->no.child().get());
-                        if ( typedYes->BlockId == typedNo->BlockId
+                        if ( typedYes->BlockIndex
+                             ==
+                             typedNo->BlockIndex
                              &&
                              (
                                  (typedYes->Mask.child().get() != nullptr)

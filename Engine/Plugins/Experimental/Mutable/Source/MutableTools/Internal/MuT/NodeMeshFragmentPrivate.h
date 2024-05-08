@@ -17,20 +17,20 @@ namespace mu
 
 		Private()
 		{
-            LayoutOrGroup = -1;
+            m_layoutOrGroup = -1;
 		}
 
 		static FNodeType s_type;
 
-		Ptr<NodeMesh> m_pMesh;
-        int32 LayoutOrGroup;
-		TArray<uint64> Blocks;
+		NodeMeshPtr m_pMesh;
+        int m_layoutOrGroup;
+		TArray<int> m_blocks;
 
         FRAGMENT_TYPE m_fragmentType;
 
 
 		// NodeMesh::Private interface
-        Ptr<NodeLayout> GetLayout( int32 index ) const override;
+        NodeLayoutPtr GetLayout( int index ) const override;
 	};
 
 

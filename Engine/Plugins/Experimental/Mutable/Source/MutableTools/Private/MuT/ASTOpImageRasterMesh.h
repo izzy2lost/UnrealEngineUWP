@@ -24,7 +24,7 @@ namespace mu
 		ASTChild projector;
 
 		/** If layouts are used, this can indicate a single layout block that we want to raster. */
-		uint64 BlockId;
+		int32 BlockId;
 		int8 LayoutIndex;
 
 		/** Size of the image to generate by rasterization of the mesh. */

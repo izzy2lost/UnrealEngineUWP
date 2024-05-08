@@ -1900,7 +1900,7 @@ namespace mu
 
 		Ptr<const Image> Base = Runner->LoadImage({ Args.base, Op.ExecutionIndex, Op.ExecutionOptions });
 
-		int32 RelBlockIndex = Layout->FindBlock(Args.BlockId);
+		int32 RelBlockIndex = Layout->FindBlock(Args.blockIndex);
 
 		// Shortcuts
 		if (RelBlockIndex < 0)
