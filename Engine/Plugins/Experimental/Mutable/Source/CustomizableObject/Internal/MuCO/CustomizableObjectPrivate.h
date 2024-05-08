@@ -981,6 +981,8 @@ public:
 
 		NumRuntimeReferencedTextures,
 
+		DeterminisiticLayoutBlockIds,
+
 		LastCustomizableObjectVersion
 	};
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;

@@ -273,7 +273,7 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 	const FText VerticesCountTitle = LOCTEXT("VerticesCountTitle", "Vertex count : ");
 	const FText FacesCountTitle = LOCTEXT("FacesCountTitle", "Face count : ");
 	const FText BonesCountTitle = LOCTEXT("BonesCountTitle", "Bone count : ");
-	const FText VertexIdPrefixTitle = LOCTEXT("VertexIdPrefixTitle", "Vertex ID prefix : ");
+	const FText MeshIdPrefixTitle = LOCTEXT("MeshIdPrefixTitle", "Mesh ID prefix : ");
 	const FText BuffersTitle = LOCTEXT("BuffersTitle", "Buffers");
 	
 	return SNew(SScrollBox)
@@ -377,14 +377,14 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 						.AutoWidth()
 						[
 							SNew(STextBlock).
-								Text(VertexIdPrefixTitle)
+								Text(MeshIdPrefixTitle)
 						]
 
 						+ SHorizontalBox::Slot()
 						.AutoWidth()
 						[
 							SNew(STextBlock).
-								Text(this, &SMutableMeshViewer::GetVertexIdPrefix)
+								Text(this, &SMutableMeshViewer::GetMeshIdPrefix)
 						]
 				]
 			]
@@ -689,9 +689,9 @@ FText SMutableMeshViewer::GetBoneCount() const
 	return FText::AsNumber(MutableMesh && MutableMesh->GetSkeleton() ? MutableMesh->GetSkeleton()->GetBoneCount() : 0);
 }
 
-FText SMutableMeshViewer::GetVertexIdPrefix() const
+FText SMutableMeshViewer::GetMeshIdPrefix() const
 {
-	return FText::AsNumber(MutableMesh ? MutableMesh->VertexIDPrefix : 0);
+	return FText::AsNumber(MutableMesh ? MutableMesh->MeshIDPrefix : 0);
 }
 
 

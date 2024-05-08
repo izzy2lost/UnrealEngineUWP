@@ -67,22 +67,41 @@ namespace mu
 
         check( layoutBuffer>=0 && layoutChannel>=0 );
         check( pApplied->GetVertexBuffers().m_buffers[layoutBuffer].m_channels.Num()==1 );
-        check( pApplied->GetVertexBuffers().m_buffers[layoutBuffer].m_channels[layoutChannel].m_format==MBF_UINT16 );
         check( pApplied->GetVertexBuffers().m_buffers[layoutBuffer].m_channels[layoutChannel].m_componentCount==1 );
 
         const uint16* pLayoutData = reinterpret_cast<const uint16*>( pApplied->GetVertexBuffers().GetBufferData( layoutBuffer ) );
+		UntypedMeshBufferIterator ItLayoutData(pApplied->GetVertexBuffers(), MBS_LAYOUTBLOCK, texCoordsSet);
 
-		// In some corner case involcing automatic LODs and remove meshes behaving differently among them we may need to remove vertices that don't 
+		// In some corner case involving automatic LODs and remove meshes behaving differently among them we may need to remove vertices that don't 
 		// have any block in the current layout. Track them here.
 		TArray<int32> VerticesToRemove;
 
         uint8* pVertices = pData;
 		for ( int32 v=0; v<pApplied->GetVertexBuffers().GetElementCount(); ++v )
 		{
-			int32 blockId = pLayoutData[v];
+			uint64 BlockId = 0;
+			if (ItLayoutData.GetFormat() == MBF_UINT16)
+			{
+				// Relative blocks.
+				const uint16* SourceIds = reinterpret_cast<const uint16*>(ItLayoutData.ptr());
+				BlockId = *SourceIds;
+				BlockId = BlockId | (uint64(pApplied->MeshIDPrefix) << 32);
+			}
+			else if (ItLayoutData.GetFormat() == MBF_UINT64)
+			{
+				// Absolute blocks.
+				const uint64* SourceIds = reinterpret_cast<const uint64*>(ItLayoutData.ptr());
+				BlockId = *SourceIds;
+			}
+			else
+			{
+				// Format not supported
+				check(false);
+			}
+			++ItLayoutData;
 
 			// TODO: This could be optimised
-			int32 relBlock = pLayout->FindBlock( blockId );
+			int32 relBlock = pLayout->FindBlock(BlockId);
 
 			// This may still happen with lower LOD and "remove meshes" in a corner case:
 			// Auto LODs with "Remove Meshes" that behave differently across LODs, and leave geometry in a block that has been removed in the higher LOD.

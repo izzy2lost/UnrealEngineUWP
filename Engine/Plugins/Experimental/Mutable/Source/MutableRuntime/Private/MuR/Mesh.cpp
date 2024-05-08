@@ -54,7 +54,7 @@ MeshPtr Mesh::Clone() const
 	pResult->PhysicsBody = PhysicsBody;
 	pResult->Tags = Tags;
 	pResult->StreamedResources = StreamedResources;
-	pResult->VertexIDPrefix = VertexIDPrefix;
+	pResult->MeshIDPrefix = MeshIDPrefix;
 
     // Clone the main buffers
     pResult->VertexBuffers = VertexBuffers;
@@ -178,7 +178,7 @@ void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags Flags)
 
     InternalId = From.InternalId;
 	StaticFormatFlags = From.StaticFormatFlags;
-	VertexIDPrefix = From.VertexIDPrefix;
+	MeshIDPrefix = From.MeshIDPrefix;
 
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithSurfaces))
 	{
@@ -282,26 +282,6 @@ const FMeshBufferSet& Mesh::GetVertexBuffers() const
 }
 
 
-bool Mesh::HasVertexIds() const
-{
-	if (VertexIDPrefix != 0) return true;
-
-	// If there is no prefix, there must be a buffer with full indices
-	int32 BufferIndex = -1;
-	int32 ChannelIndex = -1;
-	VertexBuffers.FindChannel(MBS_VERTEXINDEX, 0, &BufferIndex, &ChannelIndex);
-	if (BufferIndex >= 0 && ChannelIndex >= 0)
-	{
-		if (VertexBuffers.m_buffers[BufferIndex].m_channels[ChannelIndex].m_format == MBF_UINT64)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
 bool Mesh::AreVertexIdsImplicit() const
 {
 	// Is there a buffer for vertex ids?
@@ -309,7 +289,7 @@ bool Mesh::AreVertexIdsImplicit() const
 	int32 ChannelIndex = -1;
 	VertexBuffers.FindChannel(MBS_VERTEXINDEX, 0, &BufferIndex, &ChannelIndex);
 
-	return (VertexIDPrefix != 0) && (BufferIndex < 0) && (ChannelIndex < 0);
+	return (MeshIDPrefix != 0) && (BufferIndex < 0) && (ChannelIndex < 0);
 }
 
 
@@ -323,13 +303,13 @@ bool Mesh::AreVertexIdsExplicit() const
 	bool bExplicit = (BufferIndex >= 0) && (ChannelIndex >= 0) && (VertexBuffers.m_buffers[BufferIndex].m_channels[ChannelIndex].m_format == MBF_UINT64);
 	if (bExplicit)
 	{
-		check(VertexIDPrefix == 0);
+		check(MeshIDPrefix == 0);
 	}
 	return bExplicit;
 }
 
 
-void Mesh::MakeVertexIndicesRelative()
+void Mesh::MakeVertexIdsRelative()
 {
 	check(AreVertexIdsImplicit());
 
@@ -351,11 +331,11 @@ void Mesh::MakeVertexIndicesRelative()
 }
 
 
-void Mesh::MakeVertexIndicesExplicit()
+void Mesh::MakeIdsExplicit()
 {
 	MUTABLE_CPUPROFILER_SCOPE(Mesh_MakeVertexIndicesExplicit);
 
-	if (!VertexIDPrefix)
+	if (!MeshIDPrefix)
 	{
 		// We already have explicit vertex IDs, or we don't have any.
 		return;
@@ -363,72 +343,121 @@ void Mesh::MakeVertexIndicesExplicit()
 
 	int32 VertexCount = GetVertexCount();
 
-	bool bHasRelativeVertexIndices = false;
-
-	int32 OldBuf = -1;
-	int32 OldChan = -1;
-	VertexBuffers.FindChannel(MBS_VERTEXINDEX, 0, &OldBuf, &OldChan);
-	bool bHasVertexIndices = (OldBuf >= 0 && OldChan >= 0);
-	if (bHasVertexIndices)
+	// Vertex IDs
 	{
-		check(OldChan == 0 && VertexBuffers.m_buffers[OldBuf].m_channels.Num() == 1);
+		MUTABLE_CPUPROFILER_SCOPE(VertexIDs);
 
-		bool bHasExplicitVertexIndices = VertexBuffers.m_buffers[OldBuf].m_channels[0].m_format == MBF_UINT64;
-		if (bHasExplicitVertexIndices)
+		bool bHasRelativeVertexIndices = false;
+
+		int32 OldBuf = -1;
+		int32 OldChan = -1;
+		VertexBuffers.FindChannel(MBS_VERTEXINDEX, 0, &OldBuf, &OldChan);
+		bool bHasVertexIndices = (OldBuf >= 0 && OldChan >= 0);
+		if (bHasVertexIndices)
 		{
-			// nothing to do
-			return;
+			check(OldChan == 0 && VertexBuffers.m_buffers[OldBuf].m_channels.Num() == 1);
+
+			FMeshBufferChannel& Channel = VertexBuffers.m_buffers[OldBuf].m_channels[0];
+
+			bool bHasExplicitVertexIndices = Channel.m_format == MBF_UINT64;
+			if (bHasExplicitVertexIndices)
+			{
+				// nothing to do
+				return;
+			}
+
+			// The mesh has relative vertex IDs.
+			bHasRelativeVertexIndices = true;
+
+			check(Channel.m_format==MBF_UINT32);
+			const uint32* OldIdData = reinterpret_cast<const uint32*>(VertexBuffers.GetBufferData(OldBuf));
+
+			TMemoryTrackedArray<uint8> NewIds;
+			NewIds.SetNumUninitialized(VertexCount * sizeof(uint64));
+			uint64* NewIdData = reinterpret_cast<uint64*>(NewIds.GetData());
+
+			for (int32 i = 0; i < VertexCount; ++i)
+			{
+				uint32 OldId = *OldIdData++;
+				uint64 Id = (uint64(MeshIDPrefix) << 32) | uint64(OldId);
+				(*NewIdData++) = Id;
+			}
+
+			// 
+			FMeshBuffer& Buffer = VertexBuffers.m_buffers[OldBuf];
+			Swap(Buffer.m_data, NewIds);
+			Buffer.m_channels[0].m_format = MBF_UINT64;
+			Buffer.m_elementSize = sizeof(uint64);
 		}
-				
-		// The mesh has relative vertex IDs.
-		bHasRelativeVertexIndices = true;
 
-		const uint32* OldIdData = reinterpret_cast<const uint32*>(VertexBuffers.GetBufferData(OldBuf));
-
-		// Create a new buffer with explicit ids and remove the old buffer with relative ids
-		int32 NewBuffer = VertexBuffers.GetBufferCount();
-		VertexBuffers.SetBufferCount(NewBuffer + 1);
-		EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
-		int32 SemanticIndex = 0;
-		EMeshBufferFormat Format = MBF_UINT64;
-		int32 Components = 1;
-		int32 Offset = 0;
-		VertexBuffers.SetBuffer(NewBuffer, sizeof(uint64), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offset);
-		uint64* IdData = reinterpret_cast<uint64*>(VertexBuffers.GetBufferData(NewBuffer));
-
-		for (int32 i = 0; i < VertexCount; ++i)
+		if (!bHasRelativeVertexIndices)
 		{
-			uint32 OldId = *OldIdData++;
-			uint64 Id = (uint64(VertexIDPrefix) << 32) | uint64(OldId);
-			(*IdData++) = Id;
-		}
+			// The mesh has implicit Ids
+			// Create a new buffer with explicit ids
+			int32 NewBuffer = VertexBuffers.GetBufferCount();
+			VertexBuffers.SetBufferCount(NewBuffer + 1);
+			EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
+			int32 SemanticIndex = 0;
+			EMeshBufferFormat Format = MBF_UINT64;
+			int32 Components = 1;
+			int32 Offset = 0;
+			VertexBuffers.SetBuffer(NewBuffer, sizeof(uint64), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offset);
+			uint64* IdData = reinterpret_cast<uint64*>(VertexBuffers.GetBufferData(NewBuffer));
 
-		// TODO: Optimize by overwritting the existing buffer.
-		VertexBuffers.RemoveBuffer(OldBuf);
+			for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+			{
+				uint64 Id = (uint64(MeshIDPrefix) << 32) | uint64(VertexIndex);
+				(*IdData++) = Id;
+			}
+		}
 	}
 
-	if (!bHasRelativeVertexIndices)
+	// Layout block IDs
 	{
-		// The mesh has implicit Ids
-		// Create a new buffer with explicit ids
-		int32 NewBuffer = VertexBuffers.GetBufferCount();
-		VertexBuffers.SetBufferCount(NewBuffer + 1);
-		EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
-		int32 SemanticIndex = 0;
-		EMeshBufferFormat Format = MBF_UINT64;
-		int32 Components = 1;
-		int32 Offset = 0;
-		VertexBuffers.SetBuffer(NewBuffer, sizeof(uint64), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offset);
-		uint64* IdData = reinterpret_cast<uint64*>(VertexBuffers.GetBufferData(NewBuffer));
+		MUTABLE_CPUPROFILER_SCOPE(LayoutBlockIDs);
 
-		for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+		for (FMeshBuffer& Buffer: VertexBuffers.m_buffers)
 		{
-			uint64 Id = (uint64(VertexIDPrefix) << 32) | uint64(VertexIndex);
-			(*IdData++) = Id;
+			for (FMeshBufferChannel& Channel : Buffer.m_channels)
+			{
+				if (Channel.m_semantic != MBS_LAYOUTBLOCK)
+				{
+					continue;
+				}
+
+				if (Channel.m_format == MBF_UINT64)
+				{
+					continue;
+				}
+
+				check(Buffer.m_channels.Num() == 1);
+				check(Buffer.m_channels[0].m_offset == 0);
+				check(Buffer.m_elementSize == sizeof(uint16));
+
+				check(Channel.m_format == MBF_UINT16);
+				const uint16* OldIdData = reinterpret_cast<const uint16*>(Buffer.m_data.GetData());
+
+				TMemoryTrackedArray<uint8> NewIds;
+				NewIds.SetNumUninitialized(VertexCount *sizeof(uint64));
+				uint64* NewIdData = reinterpret_cast<uint64*>(NewIds.GetData());
+
+				for (int32 i = 0; i < VertexCount; ++i)
+				{
+					uint16 OldId = *OldIdData++;
+					uint64 Id = (uint64(MeshIDPrefix) << 32) | uint64(OldId);
+					(*NewIdData++) = Id;
+				}
+
+				// 
+				Swap(Buffer.m_data, NewIds);
+				Buffer.m_channels[0].m_format = MBF_UINT64;
+				Buffer.m_elementSize = sizeof(uint64);
+			}
 		}
 	}
 
-	VertexIDPrefix = 0;
+	// Final cleanup
+	MeshIDPrefix = 0;
 }
 
 
@@ -1103,7 +1132,7 @@ void Mesh::Serialise(OutputArchive& arch) const
 
 	arch << AdditionalPhysicsBodies;
 
-	arch << VertexIDPrefix;
+	arch << MeshIDPrefix;
 }
 
 
@@ -1235,7 +1264,7 @@ void Mesh::Unserialise(InputArchive& arch)
 
 	if (ver >= 19)
 	{
-		arch >> VertexIDPrefix;
+		arch >> MeshIDPrefix;
 	}
 }
 
@@ -1327,11 +1356,11 @@ void Mesh::CheckIntegrity() const
 			EMeshBufferFormat IdFormat = VertexBuffers.m_buffers[BufferIndex].m_channels[ChannelIndex].m_format;
 			if (IdFormat == MBF_UINT64)
 			{
-				check(VertexIDPrefix==0);
+				check(MeshIDPrefix==0);
 			}
 			else if (IdFormat == MBF_UINT32)
 			{
-				check(VertexIDPrefix != 0);
+				check(MeshIDPrefix != 0);
 			}
 			else
 			{

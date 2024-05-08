@@ -23,7 +23,7 @@ namespace mu
     {
 		MeshVertexIdIteratorConst itVI( pSource );
 		FIdInterval current;
-		current.idStart = TNumericLimits<uint64>::Max();
+		current.idStart = Mesh::InvalidVertexId;
 		current.idPosition = 0;
 		current.size = 0;
 		for ( int32 sv=0; sv<pSource->GetVertexBuffers().GetElementCount(); ++sv )
@@ -31,7 +31,7 @@ namespace mu
             uint64 id = itVI.Get();
             ++itVI;
 
-            if (current.idStart==TNumericLimits<uint64>::Max())
+            if (current.idStart== Mesh::InvalidVertexId)
             {
                 current.idStart = id;
                 current.idPosition = sv;
@@ -53,7 +53,7 @@ namespace mu
             }
         }
 
-        if (current.idStart!=TNumericLimits<uint64>::Max())
+        if (current.idStart!= Mesh::InvalidVertexId)
         {
             intervals.Add(current);
         }
@@ -202,7 +202,7 @@ namespace mu
 		// If we had implicit indices, make them explicit or relative to keep them valid
 		if (RemovedIndices && Result->AreVertexIdsImplicit())
 		{
-			Result->MakeVertexIndicesRelative();
+			Result->MakeVertexIdsRelative();
 		}
 
 		// The temp array is necessary because if the vertex buffer is not sorted according to the index buffer we cannot do it in-place

@@ -14,13 +14,7 @@ namespace mu
 
     // Forward definitions
     class NodeImage;
-    typedef Ptr<NodeImage> NodeImagePtr;
-    typedef Ptr<const NodeImage> NodeImagePtrConst;
-
-    class NodePatchImage;
-    typedef Ptr<NodePatchImage> NodePatchImagePtr;
-    typedef Ptr<const NodePatchImage> NodePatchImagePtrConst;
-
+ 
 
     //! Node that allows to modify an image from an object by blending other images on specific
     //! layout blocks.
@@ -43,32 +37,31 @@ namespace mu
         //-----------------------------------------------------------------------------------------
 
         //! Set the image that will be blended on the destination.
-        void SetImage( NodeImagePtr );
+        void SetImage(Ptr<NodeImage>);
 
         //! Get the image that will be blended on the destination.
-        NodeImagePtr GetImage() const;
+		Ptr<NodeImage> GetImage() const;
 
         //! Set the blending mask image.
-        void SetMask( NodeImagePtr );
+        void SetMask(Ptr<NodeImage>);
 
         //! Get the blending mask image.
-        NodeImagePtr GetMask() const;
+		Ptr<NodeImage> GetMask() const;
 
         //! Set the number of blocks in the layout that will be patched
-        void SetBlockCount( int );
+        void SetBlockCount( int32 );
 
         //! Get the number of blocks in the layout that will be patched
-        int GetBlockCount() const;
+        int32 GetBlockCount() const;
 
         //! Set a block of the layout that will be patched.
         //! \param index is the index in the patching list, from 0 to GetBlockCount()-1
-        //! \param block is the block index in the layout of the image were this patch operation
-        //! will be applied.
-        void SetBlock( int index, int block );
+        //! \param LayoutBlockIndex is the block index in the layout of the image were this patch operation will be applied.
+        void SetBlock( int32 index, int32 LayoutBlockIndex);
 
-        //! Get a block of the layout that will be patched.
+        //! Get a block index of the layout that will be patched.
         //! \param index is the index in the patching list, from 0 to GetBlockCount()-1
-        int GetBlock( int index ) const;
+        int32 GetBlock( int32 index ) const;
 
         //! Set the blending operation to use to combine the pixels
         EBlendType GetBlendType() const;

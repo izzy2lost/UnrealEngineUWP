@@ -794,15 +794,15 @@ namespace mu
         virtual FImageDesc GetImageDesc( bool returnBestOption=false, FGetImageDescContext* context=nullptr ) const;
 
         //! Optional cache struct to use int he method below.
-        using FBlockLayoutSizeCache=TMap< const TPair<ASTOp*,int>, TPair<int,int>>;
+        using FBlockLayoutSizeCache=TMap< const TPair<ASTOp*,int32>, TPair<int32,int32>>;
 
         //! Return the size in layout blocks of a particular block given by absolute index
-        virtual void GetBlockLayoutSize( int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache* cache );
-        void GetBlockLayoutSizeCached( int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache* cache );
+        virtual void GetBlockLayoutSize( uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache );
+        void GetBlockLayoutSizeCached(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache );
 
 
         //! Return the size in pixels of the layout grid block for the image operation
-        virtual void GetLayoutBlockSize( int* pBlockX, int* pBlockY );
+        virtual void GetLayoutBlockSize( int32* pBlockX, int32* pBlockY );
 
         virtual bool IsImagePlainConstant(FVector4f& colour ) const;
         virtual bool IsColourConstant(FVector4f& colour ) const;

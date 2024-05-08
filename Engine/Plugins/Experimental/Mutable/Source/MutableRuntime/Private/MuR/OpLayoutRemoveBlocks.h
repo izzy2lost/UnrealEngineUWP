@@ -19,24 +19,86 @@ namespace mu
 		}
 
 		const Layout* Source = InMesh->GetLayout(InLayoutIndex);
-
-		// Create the list of blocks in the mesh
-		TArray<bool> blocksFound;
-		blocksFound.SetNumZeroed(1024);
+		Ptr<Layout> pResult;
 
 		UntypedMeshBufferIteratorConst itBlocks(InMesh->GetVertexBuffers(), MBS_LAYOUTBLOCK, InLayoutIndex);
 		if (itBlocks.GetFormat() == MBF_UINT16)
 		{
+			// Relative blocks.
+
 			const uint16* pBlocks = reinterpret_cast<const uint16*>(itBlocks.ptr());
+
+			uint16 MaxId = 0;
 			for (int32 i = 0; i < InMesh->GetVertexCount(); ++i)
 			{
-				if (pBlocks[i] >= blocksFound.Num())
-				{
-					blocksFound.SetNumZeroed(pBlocks[i] + 1024);
-				}
-
-				blocksFound[pBlocks[i]] = true;
+				uint16 RelativeId = pBlocks[i];
+				check(RelativeId != 0xffff);
+				MaxId = FMath::Max(MaxId, RelativeId);
 			}
+
+
+			// Create the list of blocks in the mesh.
+			// Array that stores a flag for every ID, possibly wasting space.
+			TBitArray BlocksFound;
+			BlocksFound.Init(false,MaxId+1);
+			for (int32 i = 0; i < InMesh->GetVertexCount(); ++i)
+			{
+				BlocksFound[pBlocks[i]] = true;
+			}
+
+			// Remove blocks that are not in the mesh
+			pResult = Source->Clone();
+			int32 DestBlockIndex = 0;
+			for (int32 BlockIndex = 0; BlockIndex < pResult->Blocks.Num(); ++BlockIndex)
+			{
+				uint64 BlockId = pResult->Blocks[BlockIndex].Id;
+				uint32 BlockIdPrefix = uint32(BlockId >> 32);
+				uint32 RelativeBlockId = uint32(BlockId & 0xffffffff);
+
+				bool bBlockMatchesPrefix = BlockIdPrefix == InMesh->MeshIDPrefix;
+
+				if (bBlockMatchesPrefix && RelativeBlockId < uint32(BlocksFound.Num()) && BlocksFound[RelativeBlockId] )
+				{
+					// keep this block
+					pResult->Blocks[DestBlockIndex] = pResult->Blocks[BlockIndex];
+					++DestBlockIndex;
+				}
+			}
+			pResult->SetBlockCount(DestBlockIndex);
+
+		}
+		else if (itBlocks.GetFormat() == MBF_UINT64)
+		{
+			// Absolute blocks.
+
+			// Create the list of blocks in the mesh.
+			// TODO: SparseIndexSet? like in the 16-bit case, but per-prefix?
+			TSet<uint64> BlocksFound;
+			BlocksFound.Reserve(64);
+
+			const uint64* BlockIdsPerVertex = reinterpret_cast<const uint64*>(itBlocks.ptr());
+			for (int32 i = 0; i < InMesh->GetVertexCount(); ++i)
+			{
+				BlocksFound.FindOrAdd(BlockIdsPerVertex[i]);
+			}
+
+			// Remove blocks that are not in the mesh
+			pResult = Source->Clone();
+			int32 DestBlockIndex = 0;
+			for (int32 BlockIndex = 0; BlockIndex < pResult->Blocks.Num(); ++BlockIndex)
+			{
+				uint64 BlockId = pResult->Blocks[BlockIndex].Id;
+				bool bBlockFound = BlocksFound.Contains(BlockId);
+
+				if (bBlockFound)
+				{
+					// keep this block
+					pResult->Blocks[DestBlockIndex] = pResult->Blocks[BlockIndex];
+					++DestBlockIndex;
+				}
+			}
+			pResult->SetBlockCount(DestBlockIndex);
+
 		}
 		else if (itBlocks.GetFormat() == MBF_NONE)
 		{
@@ -50,20 +112,6 @@ namespace mu
 			check(false);
 		}
 
-		// Remove blocks that are not in the mesh
-		Ptr<Layout> pResult = Source->Clone();
-		int32 dest = 0;
-		for (int32 b = 0; b < pResult->m_blocks.Num(); ++b)
-		{
-			int blockIndex = pResult->m_blocks[b].m_id;
-			if (blockIndex < (int)blocksFound.Num() && blocksFound[blockIndex])
-			{
-				// keep
-				pResult->m_blocks[dest] = pResult->m_blocks[b];
-				++dest;
-			}
-		}
-		pResult->SetBlockCount(dest);
 
 		return pResult;
 	}
@@ -72,37 +120,21 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	inline Ptr<Layout> LayoutRemoveBlocks(const Layout* Source, const Layout* ReferenceLayout)
 	{
-		// Create the list of blocks in the mesh
-		TArray<bool,TInlineAllocator<1024>> BlocksFound;
-		BlocksFound.SetNumZeroed(1024);
-
-		if (ReferenceLayout)
-		{
-			for (const Layout::FBlock& Block: ReferenceLayout->m_blocks)
-			{
-				if (Block.m_id >= BlocksFound.Num())
-				{
-					BlocksFound.SetNumZeroed(Block.m_id + 1024);
-				}
-
-				BlocksFound[Block.m_id] = true;
-			}
-		}
-
 		// Remove blocks that are not in the mesh
 		Ptr<Layout> pResult = Source->Clone();
-		int dest = 0;
-		for (int32 b = 0; b < pResult->m_blocks.Num(); ++b)
+		int32 DestBlockIndex = 0;
+		for (int32 BlockIndexInSource = 0; BlockIndexInSource < pResult->Blocks.Num(); ++BlockIndexInSource)
 		{
-			int blockIndex = pResult->m_blocks[b].m_id;
-			if (blockIndex < (int)BlocksFound.Num() && BlocksFound[blockIndex])
+			uint64 BlockId = pResult->Blocks[BlockIndexInSource].Id;
+			int32 BlockIndexInReference = ReferenceLayout->FindBlock(BlockId);
+			if (BlockIndexInReference >=0 )
 			{
 				// keep
-				pResult->m_blocks[dest] = pResult->m_blocks[b];
-				++dest;
+				pResult->Blocks[DestBlockIndex] = pResult->Blocks[BlockIndexInSource];
+				++DestBlockIndex;
 			}
 		}
-		pResult->SetBlockCount(dest);
+		pResult->SetBlockCount(DestBlockIndex);
 
 		return pResult;
 	}
@@ -113,20 +145,11 @@ namespace mu
 	{
 		Ptr<Layout> pResult = pA->Clone();
 
-		// This is faster but fails in the rare case of a block being in both layouts, which may 
-		// happen if we merge a mesh with itself.
-		//pResult->GetPrivate()->m_blocks.insert
-		//(
-		//	pResult->GetPrivate()->m_blocks.end(),
-		//	pB->GetPrivate()->m_blocks.begin(),
-		//	pB->GetPrivate()->m_blocks.end()
-		//);
-
-		for ( const Layout::FBlock& block: pB->m_blocks )
+		for ( const Layout::FBlock& block: pB->Blocks )
 		{
-			if ( pResult->FindBlock(block.m_id)<0 )
+			if ( pResult->FindBlock(block.Id)<0 )
 			{
-				pResult->m_blocks.Add(block);
+				pResult->Blocks.Add(block);
 			}
 		}
 

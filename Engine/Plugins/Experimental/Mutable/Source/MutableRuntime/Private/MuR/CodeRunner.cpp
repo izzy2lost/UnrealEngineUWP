@@ -1894,9 +1894,9 @@ namespace mu
                 Ptr<const Mesh> Source = LoadMesh(FCacheAddress(source, item));
 
                 // Access with memcpy necessary for unaligned arm issues.
-                uint32 blocks[1024];
-				check(blockCount<1024);
-				FMemory::Memcpy(blocks, data, sizeof(uint32)*FMath::Min(1024,int32(blockCount)));
+                uint64 blocks[512];
+				check(blockCount< 512);
+				FMemory::Memcpy(blocks, data, sizeof(uint64)*FMath::Min(512,int32(blockCount)));
 
 				if (Source)
 				{
@@ -3719,7 +3719,7 @@ namespace mu
 					Data.Resource = const_cast<Layout*>(ComposeLayout.get());
 					int32 DataPos = m_heapData.Add(Data);
 
-					int32 RelBlockIndex = ComposeLayout->FindBlock(Args.blockIndex);
+					int32 RelBlockIndex = ComposeLayout->FindBlock(Args.BlockId);
 
 					if (RelBlockIndex >= 0)
 					{
@@ -3767,7 +3767,7 @@ namespace mu
 					Data.Resource = const_cast<Layout*>(ComposeLayout.get());
 					int32 DataPos = m_heapData.Add(Data);
 
-					int32 RelBlockIndex = ComposeLayout->FindBlock(Args.blockIndex);
+					int32 RelBlockIndex = ComposeLayout->FindBlock(Args.BlockId);
 					if (RelBlockIndex >= 0)
 					{
 						AddOp(FScheduledOp(item.At, item, 2, DataPos),
@@ -4485,7 +4485,7 @@ namespace mu
 					Ptr<Image> ResultImage = CreateImage(SizeX, SizeY, 1, EImageFormat::IF_L_UBYTE, EInitializationType::Black);
 					if (pMesh)
 					{
-						ImageRasterMesh(pMesh.get(), ResultImage.get(), args.LayoutIndex, args.blockId, CropMin, UncroppedSize);
+						ImageRasterMesh(pMesh.get(), ResultImage.get(), args.LayoutIndex, args.BlockId, CropMin, UncroppedSize);
 						Release(pMesh);
 					}
 
@@ -4687,7 +4687,7 @@ namespace mu
 							args.bIsRGBFadingEnabled, args.bIsAlphaFadingEnabled,
 							SamplingMethod,
 							FadeStartRad, FadeEndRad, FMath::Frac(Data.RasterMesh.MipValue),
-							args.LayoutIndex, args.blockId,
+							args.LayoutIndex, args.BlockId,
 							CropMin, UncroppedSize,
 							&Scratch, bUseProjectionVectorImpl);
 						break;
@@ -4698,7 +4698,7 @@ namespace mu
 							args.bIsRGBFadingEnabled, args.bIsAlphaFadingEnabled,
 							SamplingMethod,
 							FadeStartRad, FadeEndRad, FMath::Frac(Data.RasterMesh.MipValue),
-							args.LayoutIndex, args.blockId,
+							args.LayoutIndex, args.BlockId,
 							CropMin, UncroppedSize,
 							&Scratch, bUseProjectionVectorImpl);
 						break;

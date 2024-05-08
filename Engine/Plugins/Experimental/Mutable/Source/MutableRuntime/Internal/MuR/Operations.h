@@ -666,7 +666,7 @@ namespace mu
         {
             ADDRESS layout, base, blockImage;
             ADDRESS mask;
-            uint32 blockIndex;
+            uint64 BlockId;
         };
 
         struct ImageInterpolateArgs
@@ -754,7 +754,9 @@ namespace mu
 
         struct ImageRasterMeshArgs
         {
-            ADDRESS mesh;
+			uint64 BlockId;
+			
+			ADDRESS mesh;
 
 			//! These are used in case of projected mesh raster.
 			ADDRESS image;
@@ -767,7 +769,6 @@ namespace mu
 			//! like cylindrical projections.
 			ADDRESS projector;
 			
-			int32 blockId;
 			uint16 sizeX, sizeY;
 			uint16 SourceSizeX, SourceSizeY;
 			uint16 CropMinX, CropMinY;

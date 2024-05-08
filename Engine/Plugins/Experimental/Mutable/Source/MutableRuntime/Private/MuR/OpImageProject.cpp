@@ -902,7 +902,7 @@ void ImageRasterProjectedPlanar(const Mesh* pMesh, Image* pImage,
 	bool bIsRGBFadingEnabled, bool bIsAlphaFadingEnabled,
 	ESamplingMethod SamplingMethod,
 	float FadeStart, float FadeEnd, float MipInterpolationFactor,
-	int32 Layout, int32 Block,
+	int32 Layout, uint64 BlockId,
 	UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize,
 	FScratchImageProject* Scratch, bool bUseVectorImplementation)
 {
@@ -958,7 +958,7 @@ void ImageRasterProjectedPlanar(const Mesh* pMesh, Image* pImage,
 			bIsRGBFadingEnabled, bIsAlphaFadingEnabled,
 			SamplingMethod,
 			FadeStart, FadeEnd,  UnusedProjectionAngle, MipInterpolationFactor, 
-			Layout, Block, CropMin, UncroppedSize, Scratch
+			Layout, BlockId, CropMin, UncroppedSize, Scratch
 		};
 
 		using EPPF = EPixelProcessorFeatures;
@@ -1116,7 +1116,7 @@ void ImageRasterProjectedWrapping( const Mesh* pMesh, Image* pImage,
 	bool bIsRGBFadingEnabled, bool bIsAlphaFadingEnabled,
 	ESamplingMethod SamplingMethod,
 	float FadeStart, float FadeEnd, float MipInterpolationFactor,
-	int32 Layout, int32 Block,
+	int32 Layout, uint64 BlockId,
 	UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize,
 	FScratchImageProject* Scratch, bool bUseVectorImplementation)
 {
@@ -1173,7 +1173,7 @@ void ImageRasterProjectedWrapping( const Mesh* pMesh, Image* pImage,
 			bIsRGBFadingEnabled, bIsAlphaFadingEnabled,
 			SamplingMethod,
 			FadeStart, FadeEnd, UnusedProjectionAngle, MipInterpolationFactor,
-			Layout, Block, CropMin, UncroppedSize, Scratch
+			Layout, BlockId, CropMin, UncroppedSize, Scratch
 		};
 
 		using EPPF = EPixelProcessorFeatures;

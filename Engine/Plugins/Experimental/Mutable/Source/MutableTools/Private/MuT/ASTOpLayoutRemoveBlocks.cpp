@@ -93,11 +93,11 @@ namespace mu
 	}
 
 
-	void ASTOpLayoutRemoveBlocks::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache* cache)
+	void ASTOpLayoutRemoveBlocks::GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache)
 	{
 		if (Source)
 		{
-			Source->GetBlockLayoutSize(blockIndex, pBlockX, pBlockY, cache);
+			Source->GetBlockLayoutSize(BlockId, pBlockX, pBlockY, cache);
 		}
 	}
 

@@ -443,7 +443,7 @@ namespace mu
 		Ptr<const Mesh> Source = PureSource;
 
 		Result->CopyFrom(*Format);
-		Result->VertexIDPrefix = Source->VertexIDPrefix;
+		Result->MeshIDPrefix = Source->MeshIDPrefix;
 
 		// Make sure that the bone indices will fit in this format, or extend it.
 		if (formatVertices)

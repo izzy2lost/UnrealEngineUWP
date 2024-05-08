@@ -572,7 +572,7 @@ namespace mu { namespace
 
 		Result->GetVertexBuffers().SetElementCount(MaskVertexCount);
 		Result->GetVertexBuffers().SetBufferCount(1);
-		Result->VertexIDPrefix = Base->VertexIDPrefix;
+		Result->MeshIDPrefix = Base->MeshIDPrefix;
 
 		EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
 		int32 SemanticIndex = 0;
