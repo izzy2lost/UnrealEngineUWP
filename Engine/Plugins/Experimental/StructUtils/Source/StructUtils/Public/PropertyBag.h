@@ -496,7 +496,7 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 	TValueOrError<FSoftObjectPath, EPropertyBagResult> GetValueSoftPath(const FName Name) const;
 
 	/** @return string-based serialized representation of the value. */
-	TValueOrError<FString, EPropertyBagResult> GetValueSerializedString(const FName Name);
+	TValueOrError<FString, EPropertyBagResult> GetValueSerializedString(const FName Name) const;
 
 	/** @return enum value of specified type. */
 	template <typename T>

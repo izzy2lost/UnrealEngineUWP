@@ -1992,7 +1992,7 @@ TValueOrError<FSoftObjectPath, EPropertyBagResult> FInstancedPropertyBag::GetVal
 	return MakeValue(std::move(ReturnValue));
 }
 
-TValueOrError<FString, EPropertyBagResult> FInstancedPropertyBag::GetValueSerializedString(const FName Name)
+TValueOrError<FString, EPropertyBagResult> FInstancedPropertyBag::GetValueSerializedString(const FName Name) const
 {
 	const FPropertyBagPropertyDesc* Desc = FindPropertyDescByName(Name);
 	if (Desc == nullptr)
