@@ -39,9 +39,6 @@ export const PreflightRedirector: React.FC = () => {
    // whether a template is specified
    const templateId = !query.get("templateId") ? "" : query.get("templateId")!;
 
-   // explicit version otherwise keys off there being parameters
-   let version = !query.get("version") ? "" : query.get("version")!;
-
    const parameters: string[] = [];
 
    query.forEach((value, key) => {
@@ -50,9 +47,7 @@ export const PreflightRedirector: React.FC = () => {
       }
    })
 
-   if (parameters.length) {
-      version = "2";
-   }
+   const version = "2";
 
    if (!change) {
       setError("No preflight change specified");
