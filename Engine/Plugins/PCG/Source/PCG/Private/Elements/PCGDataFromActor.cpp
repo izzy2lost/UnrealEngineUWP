@@ -424,11 +424,14 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 #if WITH_EDITOR
 		// Remove ignored change origins now that we've completed the wait tasks.
 		UPCGComponent* OriginalComponent = Context->SourceComponent->GetOriginalComponent();
-		for (TObjectKey<UObject>& IgnoredChangeOriginKey : Context->IgnoredChangeOrigins)
+		if (ensure(OriginalComponent))
 		{
-			if (UObject* IgnoredChangeOrigin = IgnoredChangeOriginKey.ResolveObjectPtr())
+			for (TObjectKey<UObject>& IgnoredChangeOriginKey : Context->IgnoredChangeOrigins)
 			{
-				OriginalComponent->StopIgnoringChangeOriginDuringGeneration(IgnoredChangeOrigin);
+				if (UObject* IgnoredChangeOrigin = IgnoredChangeOriginKey.ResolveObjectPtr())
+				{
+					OriginalComponent->StopIgnoringChangeOriginDuringGeneration(IgnoredChangeOrigin);
+				}
 			}
 		}
 #endif
@@ -453,7 +456,7 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 	check(Settings);
 
 	UPCGComponent* SourceComponent = Context->SourceComponent.IsValid() ? Context->SourceComponent.Get() : nullptr;
-	const UPCGComponent* SourceOriginalComponent = SourceComponent ? SourceComponent->GetOriginalComponent() : nullptr;
+	UPCGComponent* SourceOriginalComponent = SourceComponent ? SourceComponent->GetOriginalComponent() : nullptr;
 
 	if (!SourceOriginalComponent)
 	{
@@ -492,7 +495,7 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 			// Signal that any change notifications from generating upstream component should not trigger re-executions of this component.
 			// Such change notifications can cancel the current execution.
 			// Note: Uses owner because FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned reports change on owner.
-			SourceComponent->GetOriginalComponent()->StartIgnoringChangeOriginDuringGeneration(Component->GetOwner());
+			SourceOriginalComponent->StartIgnoringChangeOriginDuringGeneration(Component->GetOwner());
 			Context->IgnoredChangeOrigins.Add(Component->GetOwner());
 #endif
 
