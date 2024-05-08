@@ -458,6 +458,7 @@ public:
 	ENGINE_API bool CanStream() const;
 	ENGINE_API bool IsServer() const;
 	ENGINE_API bool IsServerStreamingEnabled() const;
+	ENGINE_API bool IsContentBundleEnabled() const { return !bDisableContentBundles; }
 	ENGINE_API bool IsServerStreamingOutEnabled() const;
 	ENGINE_API bool UseMakingVisibleTransactionRequests() const;
 	ENGINE_API bool UseMakingInvisibleTransactionRequests() const;
@@ -572,6 +573,10 @@ private:
 	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay, meta = (EditConditionHides, EditCondition = "bEnableStreaming", HideEditConditionToggle))
 	uint8 bAllowShowingHLODsInEditor : 1;
 #endif
+
+	/** if set to true, this removes any content bundles from this world and also removes content bundle editing */
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay)
+	uint8 bDisableContentBundles : 1;
 
 	TObjectPtr<UWorld> World;
 

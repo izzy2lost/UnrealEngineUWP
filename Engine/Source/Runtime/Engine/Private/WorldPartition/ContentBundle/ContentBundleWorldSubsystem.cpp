@@ -204,6 +204,11 @@ void UContentBundleManager::OnWorldPartitionInitialized(UWorldPartition* InWorld
 		return;
 	}
 
+	if (!InWorldPartition->IsContentBundleEnabled())
+	{
+		return;
+	}
+
 	check(GetContentBundleContainer(InWorldPartition->GetTypedOuter<UWorld>()) == nullptr);
 	TUniquePtr<FContentBundleContainer>& ContentBundleContainer = ContentBundleContainers.Emplace_GetRef(MakeUnique<FContentBundleContainer>(InWorldPartition->GetTypedOuter<UWorld>()));
 	ContentBundleContainer->Initialize();
@@ -217,7 +222,12 @@ void UContentBundleManager::OnWorldPartitionUninitialized(UWorldPartition* InWor
 	}
 
 	uint32 ContainerIndex = GetContentBundleContainerIndex(InWorldPartition->GetTypedOuter<UWorld>());
-	check(ContainerIndex != INDEX_NONE);
+	if (ContainerIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	check(ContentBundleContainers.IsValidIndex(ContainerIndex));
 	ContentBundleContainers[ContainerIndex]->Deinitialize();
 	ContentBundleContainers.RemoveAtSwap(ContainerIndex);
 }

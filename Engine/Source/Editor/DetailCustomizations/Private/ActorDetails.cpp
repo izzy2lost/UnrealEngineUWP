@@ -55,6 +55,7 @@
 #include "Misc/MessageDialog.h"
 #include "ScopedTransaction.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+#include "WorldPartition/WorldPartition.h"
 #include "Algo/AnyOf.h"
 
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -638,22 +639,26 @@ void FActorDetails::AddActorCategory( IDetailLayoutBuilder& DetailBuilder, const
 
 			if (Actor->GetContentBundleGuid().IsValid())
 			{
-				const FText ActorContentBundleGuidText = FText::FromString(Actor->GetContentBundleGuid().ToString());
-				ActorCategory.AddCustomRow( LOCTEXT("ContentBundleGuid", "ContentBundleGuid") )
-					.NameContent()
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("ContentBundleGuid2", "Content Bundle Guid"))
-						.ToolTipText(LOCTEXT("ActorContentBundleGuid_ToolTip", "Actor Content BundleGuid"))
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-					.ValueContent()
-					[
-						SNew(STextBlock)
-							.Text(ActorContentBundleGuidText)
+				UWorldPartition* WorldPartition = Actor->GetWorld() ? Actor->GetWorld()->GetWorldPartition() : nullptr;
+				if (WorldPartition && WorldPartition->IsContentBundleEnabled())
+				{
+					const FText ActorContentBundleGuidText = FText::FromString(Actor->GetContentBundleGuid().ToString());
+					ActorCategory.AddCustomRow( LOCTEXT("ContentBundleGuid", "ContentBundleGuid") )
+						.NameContent()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("ContentBundleGuid2", "Content Bundle Guid"))
+							.ToolTipText(LOCTEXT("ActorContentBundleGuid_ToolTip", "Actor Content BundleGuid"))
 							.Font(IDetailLayoutBuilder::GetDetailFont())
-							.IsEnabled(false)
-					];
+						]
+						.ValueContent()
+						[
+							SNew(STextBlock)
+								.Text(ActorContentBundleGuidText)
+								.Font(IDetailLayoutBuilder::GetDetailFont())
+								.IsEnabled(false)
+						];
+				}
 			}
 		}
 	};

@@ -339,6 +339,7 @@ UWorldPartition::UWorldPartition(const FObjectInitializer& ObjectInitializer)
 	, Replay(nullptr)
 {
 	bEnableStreaming = true;
+	bDisableContentBundles = false;
 	ServerStreamingMode = EWorldPartitionServerStreamingMode::ProjectDefault;
 	ServerStreamingOutMode = EWorldPartitionServerStreamingOutMode::ProjectDefault;
 	DataLayersLogicOperator = EWorldPartitionDataLayersLogicOperator::Or;
