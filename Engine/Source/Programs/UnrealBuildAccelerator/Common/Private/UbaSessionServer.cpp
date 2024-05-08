@@ -1369,6 +1369,27 @@ namespace uba
 				writer.WriteByte(255);
 				return true;
 			}
+			case SessionMessageType_SHGetKnownFolderPath:
+			{
+#if PLATFORM_WINDOWS
+				GUID kfid;
+				reader.ReadBytes(&kfid, sizeof(GUID));
+				u32 flags = reader.ReadU32();
+				PWSTR str;
+
+				static HMODULE moduleHandle = LoadLibrary(L"Shell32.dll");
+				using SHGetKnownFolderPathFunc = HRESULT(const GUID& rfid, DWORD dwFlags, HANDLE hToken, PWSTR* ppszPath);
+				static SHGetKnownFolderPathFunc* SHGetKnownFolderPath = (SHGetKnownFolderPathFunc*)GetProcAddress(moduleHandle, "SHGetKnownFolderPath");;
+				HRESULT res = SHGetKnownFolderPath(kfid, flags, NULL, &str);
+				writer.WriteU32(res);
+				if (res == S_OK)
+				{
+					writer.WriteString(str);
+					CoTaskMemFree(str);
+				}
+#endif
+				return true;
+			}
 		}
 
 		UBA_ASSERT(false);

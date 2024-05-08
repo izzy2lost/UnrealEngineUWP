@@ -2256,6 +2256,12 @@ namespace uba
 		return true;
 	}
 
+	bool Session::SHGetKnownFolderPath(Process& process, BinaryReader& reader, BinaryWriter& writer)
+	{
+		UBA_ASSERT(false); // Should only be called on UbaSessionClient
+		return false;
+	}
+
 	void Session::FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size)
 	{
 	}

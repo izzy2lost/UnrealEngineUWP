@@ -470,6 +470,7 @@ thread_local const wchar_t* t_createFileFileName;
 #include "UbaDetoursFunctionsUcrtBase.inl"
 #include "UbaDetoursFunctionsImagehlp.inl"
 #include "UbaDetoursFunctionsDbgHelp.inl"
+#include "UbaDetoursFunctionsShell32.inl"
 
 extern u32 g_consoleStringIndex;
 
@@ -596,10 +597,8 @@ int DetourAttachFunctions(bool runningRemote)
 
 void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name)
 {
-	UBA_ASSERT(g_isRunningWine);
-
 	// SymLoadModuleExW do something bad that cause remote wine to fail everything after this call.. TODO: Revisit
-	if (!True_SymLoadModuleExW && Contains(name, L"dbghelp.dll"))
+	if (g_isRunningWine && !True_SymLoadModuleExW && Contains(name, L"dbghelp.dll"))
 	{
 		True_SymLoadModuleExW = (SymLoadModuleExWFunc*)GetProcAddress(moduleHandle, "SymLoadModuleExW");
 		UBA_ASSERT(True_SymLoadModuleExW);
@@ -611,13 +610,25 @@ void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name)
 	}
 
 	// ImageGetDigestStream is buggy in wine so we have to detour it for ShaderCompileWorker
-	if (!True_ImageGetDigestStream && Contains(name, L"imagehlp.dll"))
+	if (g_isRunningWine && !True_ImageGetDigestStream && Contains(name, L"imagehlp.dll"))
 	{
 		True_ImageGetDigestStream = (ImageGetDigestStreamFunc*)GetProcAddress(moduleHandle, "ImageGetDigestStream");
 		UBA_ASSERT(True_ImageGetDigestStream);
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
 		DetourAttachFunction((PVOID*)&True_ImageGetDigestStream, Detoured_ImageGetDigestStream, "ImageGetDigestStream");
+		LONG error = DetourTransactionCommit(); (void)error;
+		UBA_ASSERT(!error);
+	}
+
+	// SHGetKnownFolderPath is used by Metal.exe and must always execute on host
+	if (!True_SHGetKnownFolderPath && Contains(name, L"shell32.dll"))
+	{
+		True_SHGetKnownFolderPath = (SHGetKnownFolderPathFunc*)GetProcAddress(moduleHandle, "SHGetKnownFolderPath");
+		UBA_ASSERT(True_SHGetKnownFolderPath);
+		DetourTransactionBegin();
+		DetourUpdateThread(GetCurrentThread());
+		DetourAttachFunction((PVOID*)&True_SHGetKnownFolderPath, Detoured_SHGetKnownFolderPath, "SHGetKnownFolderPath");
 		LONG error = DetourTransactionCommit(); (void)error;
 		UBA_ASSERT(!error);
 	}

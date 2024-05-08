@@ -46,7 +46,7 @@ DWORD Detoured_GetCurrentDirectoryW(DWORD nBufferLength, LPWSTR lpBuffer)
 	SetLastError(ERROR_SUCCESS);
 	if (lpBuffer == nullptr || nBufferLength < length + 1)
 	{
-		DEBUG_LOG_DETOURED(L"GetCurrentDirectoryW", L"(buffer too small: %u)", nBufferLength);
+		DEBUG_LOG_DETOURED(L"GetCurrentDirectoryW", L"(buffer too small: %u) -> %llu", nBufferLength, length + 1);
 		return DWORD(length + 1);
 	}
 	memcpy(lpBuffer, g_virtualWorkingDir.data, length * 2);
@@ -218,6 +218,7 @@ BOOL Detoured_RemoveDirectoryW(LPCWSTR lpPathName)
 	else
 	{
 		UBA_ASSERTF(!g_runningRemote, L"RemoveDirectory is not implemented for remote (removing %s)", lpPathName);
+		SetLastError(ERROR_PATH_NOT_FOUND);
 		res = false;
 	}
 	DEBUG_LOG_TRUE(L"RemoveDirectoryW", L"%ls -> %ls", lpPathName, ToString(res));
@@ -1284,6 +1285,12 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 		return TRUE;
 	}
 
+	if (fixedName.StartsWith(g_systemTemp.data))
+	{
+		DEBUG_LOG_TRUE(L"DeleteFileW", L"(%ls)", original);
+		return True_DeleteFileW(original);
+	}
+
 	StringKey fileNameKey = ToStringKey(fixedNameLower);
 
 	u32 directoryTableSize;
@@ -1317,8 +1324,12 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dwFlags)
 {
 	DETOURED_CALL(MoveFileExW);
+
 	StringBuffer<> source;
 	FixPath(source, lpExistingFileName);
+
+	StringBuffer<> dest;
+	FixPath(dest, lpNewFileName);
 
 	StringKey sourceKey = ToStringKeyLower(source);
 
@@ -1329,9 +1340,6 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		UBA_ASSERTF(it != g_mappedFileTable.m_lookup.end(), L"Can't find %ls", source.data);
 		FileInfo& sourceInfo = it->second;
 		lock.Leave();
-
-		StringBuffer<> dest;
-		FixPath(dest, lpNewFileName);
 
 		if (IsOutputFile(dest.data, dest.count, true))
 		{
@@ -1370,8 +1378,6 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		return written == toWrite;
 	}
 
-	StringBuffer<> dest;
-	FixPath(dest, lpNewFileName);
 	StringKey destKey = ToStringKeyLower(dest);
 
 	u32 directoryTableSize;
@@ -1493,16 +1499,14 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 
 	StringBuffer<> lowerName;
 	FixPath(lowerName, lpFileName);
-	lowerName.MakeLower();
-	const wchar_t* buf = lowerName.data;
 
-	if (wcsncmp(buf, L"\\\\?\\", 4) == 0)
-		buf += 4;
-
-	if (wcsncmp(buf, g_systemTemp.data, g_systemTemp.count) == 0 || wcsncmp(buf, g_systemRoot.data, g_systemRoot.count) == 0)
+	if (lowerName.StartsWith(g_systemTemp.data) || lowerName.StartsWith(g_systemRoot.data))
 		return Local_FindFirstFileExW(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags, funcName);
 
-	wchar_t* fileName = const_cast<wchar_t*>(buf); // Not beautiful but We know this is a different buffer.
+	lowerName.MakeLower();
+	wchar_t* buf = lowerName.data;
+
+	wchar_t* fileName = lowerName.data;
 	wchar_t* lastBackslash = wcsrchr(fileName, '\\');
 	if (lastBackslash)
 		fileName = lastBackslash + 1;
@@ -1558,6 +1562,9 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 
 	if (!exists)
 	{
+		if (g_systemTemp.StartsWith(lowerName.data)) // TODO: This is a big hack. We should make sure the uba system temp folder is virtualized and is always some root path that never can collide with the host file system
+			return Local_FindFirstFileExW(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags, funcName);
+
 		DEBUG_LOG_DETOURED(funcName, L"(%ls) -> NotFound", lpFileName);
 		SetLastError(ERROR_FILE_NOT_FOUND);
 		return INVALID_HANDLE_VALUE;
@@ -1598,8 +1605,10 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 	{
 		if (!Shared_GetNextFile(data, *listHandle))
 		{
-			DEBUG_LOG_DETOURED(funcName, L"(%ls) -> NotFound", lpFileName);
 			delete listHandle;
+			if (g_systemTemp.StartsWith(lowerName.data)) // TODO: This is a big hack. We should make sure the uba system temp folder is virtualized and is always some root path that never can collide with the host file system
+				return Local_FindFirstFileExW(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags, funcName);
+			DEBUG_LOG_DETOURED(funcName, L"(%ls) -> NotFound(2)", lpFileName);
 			return INVALID_HANDLE_VALUE;
 		}
 		if (listHandle->wildcard.empty() || PathMatchSpecW(data.cFileName, listHandle->wildcard.c_str()))
@@ -2389,8 +2398,7 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 			SCOPED_WRITE_LOCK(g_loadedModulesLock, lock);
 			g_loadedModules[res] = originalName;
 		}
-		if (g_isRunningWine)
-			OnModuleLoaded(res, lpLibFileName);
+		OnModuleLoaded(res, lpLibFileName);
 	}
 	return res;
 }

@@ -84,6 +84,7 @@ namespace uba
 		UBA_SESSION_MESSAGE(UpdateEnvironment) \
 		UBA_SESSION_MESSAGE(Summary) \
 		UBA_SESSION_MESSAGE(Command) \
+		UBA_SESSION_MESSAGE(SHGetKnownFolderPath) \
 
 	enum SessionMessageType : u8 
 	{

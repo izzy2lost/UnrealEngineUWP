@@ -737,6 +737,7 @@ namespace uba
 						entryLock.Leave();
 						CasEntryAccessed(casEntry);
 						writer.WriteU16(u16(~0));
+						writer.WriteBool(m_traceStore);
 						return true;
 					}
 				}

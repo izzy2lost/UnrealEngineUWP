@@ -600,8 +600,6 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		}
 		else if (createFileName)
 		{
-			if (StartsWith(createFileName, L"\\\\?\\"))
-				createFileName += 4;
 			if (!FixPath(fileName, createFileName))
 				UBA_ASSERTF(false, L"FixPath failed for string '%ls'", createFileName);
 			if (fileName.StartsWith(L"\\\\.\\pipe"))
@@ -708,10 +706,12 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	{
 		ObjectAttributes->RootDirectory = rootDir;
 		NTSTATUS res = Local_NtCreateFile(IsCreateFunc, hFileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
-		DEBUG_LOG_TRUE(funcName, L"(NODETOUR)%ls %llu (%.*ls) -> %ls", isWriteStr, uintptr_t(*hFileHandle), ObjectAttributes->ObjectName->Length / 2, ObjectAttributes->ObjectName->Buffer, ToString(res));
-
+		if (NT_ERROR(res))
+			*hFileHandle = INVALID_HANDLE_VALUE;
+		DEBUG_LOG_TRUE(funcName, L"(NODETOUR)%ls %llu (%.*ls) -> %ls (%u)", isWriteStr, uintptr_t(*hFileHandle), ObjectAttributes->ObjectName->Length / 2, ObjectAttributes->ObjectName->Buffer, ToString(res), res);
 		if (NT_ERROR(res))
 			return res;
+
 		if (!isSystemOrTempFile && !isWrite && !t_disallowDetour && fileName[fileName.count-1] != ':')
 			TrackInput(fileName.data);
 		else

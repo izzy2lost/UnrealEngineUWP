@@ -60,7 +60,7 @@ namespace uba
 				hasDotDot = true;
 			if (c == '\\')
 			{
-				if (lastChar == '?' && lastLastChar == '?') // We want to get rid of \\??\  .
+				if (lastChar == '?' && (lastLastChar == '?' || lastLastChar == '\\')) // We want to get rid of \\??\ and \\?\ .
 				{
 					write = buffer;
 					continue;

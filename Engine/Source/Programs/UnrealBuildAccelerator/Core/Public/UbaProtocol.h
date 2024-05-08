@@ -32,6 +32,7 @@ namespace uba
 		UBA_PROCESS_MESSAGE(UpdateEnvironment) \
 		UBA_PROCESS_MESSAGE(GetNextProcess) \
 		UBA_PROCESS_MESSAGE(Custom) \
+		UBA_PROCESS_MESSAGE(SHGetKnownFolderPath) \
 
 	enum MessageType : u8
 	{

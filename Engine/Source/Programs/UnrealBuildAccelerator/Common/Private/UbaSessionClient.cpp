@@ -9,6 +9,10 @@
 #include "UbaProtocol.h"
 #include "UbaStorage.h"
 
+#if PLATFORM_WINDOWS
+#include <winerror.h>
+#endif
+
 namespace uba
 {
 	SessionClient::SessionClient(const SessionClientCreateInfo& info)
@@ -166,7 +170,8 @@ namespace uba
 				return false;
 
 			rec.key = reader.ReadCasKey();
-			rec.serverTime = reader.ReadU64();
+			if (rec.key != CasKeyZero)
+				rec.serverTime = reader.ReadU64();
 		}
 		out = rec.key;
 		return true;
@@ -713,7 +718,7 @@ namespace uba
 			if (findIt != writtenFiles.end())
 			{
 				auto insres = writtenFiles.try_emplace(toName);
-				UBA_ASSERTF(insres.second, TC("Moving written file to other written file."));
+				UBA_ASSERTF(insres.second, TC("Moving written file %s to other written file %s."), fromName, toName);
 				insres.first->second = findIt->second;
 				insres.first->second.owner = &msg.process;
 				writtenFiles.erase(findIt);
@@ -727,7 +732,7 @@ namespace uba
 			if (findIt != m_outputFiles.end())
 			{
 				auto insres = m_outputFiles.try_emplace(toName);
-				UBA_ASSERTF(insres.second, TC("Failed to add move destination file %s as output file because it is already added."), toName);
+				UBA_ASSERTF(insres.second, TC("Failed to add move destination file %s as output file because it is already added. (Moved from %s)"), toName, fromName);
 				insres.first->second = findIt->second;
 				m_outputFiles.erase(findIt);
 				sendMove = false;
@@ -1396,6 +1401,8 @@ namespace uba
 		dest.Append(TC("<log>")).Append(logFile);
 		f.key = ToStringKeyLower(dest);
 		SendFile(f, dest.data, pi.GetId(), false);
+		for (auto& child : pi.m_childProcesses)
+			SendLogFileToServer(*(ProcessImpl*)child.m_process);
 	}
 
 	void SessionClient::GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments)
@@ -1847,32 +1854,16 @@ namespace uba
 			if (m_processFinished)
 				m_processFinished(&process);
 
-			pi.m_exitCode = ~0u;
-			pi.m_processStats = {};
-			pi.m_sessionStats = {};
-			pi.m_storageStats = {};
-			pi.m_systemStats = {};
-
 			outNextProcess.arguments = reader.ReadString();
 			outNextProcess.workingDir = reader.ReadString();
 			outNextProcess.description = reader.ReadString();
 			outNextProcess.logFile = reader.ReadString();
-
 			if (m_logToFile)
 			{
 				StringBuffer<512> logFile;
 				GetLogFileName(logFile, outNextProcess.logFile.c_str(), outNextProcess.arguments.c_str());
 				outNextProcess.logFile = logFile.data;
 			}
-
-			// TODO: Probably need to fill up with more stuff.. this is fine for current usecase
-			pi.m_arguments = outNextProcess.arguments;
-			pi.m_description = outNextProcess.description;
-			pi.m_logFile = outNextProcess.logFile;
-
-			pi.m_startInfo.arguments = pi.m_arguments.c_str();
-			pi.m_startInfo.description = pi.m_description.c_str();
-			pi.m_startInfo.logFile = pi.m_logFile.c_str();
 		}
 
 		reader.Reset();
@@ -1898,18 +1889,35 @@ namespace uba
 		return true;
 	}
 
+	bool SessionClient::SHGetKnownFolderPath(Process& process, BinaryReader& reader, BinaryWriter& writer)
+	{
+#if PLATFORM_WINDOWS
+		StackBinaryWriter<SendMaxSize> msgWriter;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_SHGetKnownFolderPath, msgWriter);
+		msgWriter.WriteBytes(reader.GetPositionData(), reader.GetLeft());
+		BinaryReader msgReader(writer.GetData(), 0);
+		if (!msg.Send(msgReader, m_stats.customMsg))
+		{
+			writer.WriteU32(u32(E_FAIL));
+			return false;
+		}
+		writer.AllocWrite(msgReader.GetPosition());
+#endif
+		return true;
+	}
+
 	bool SessionClient::FlushWrittenFiles(ProcessImpl& process)
 	{
 		SCOPED_WRITE_LOCK(process.m_writtenFilesLock, lock);
-		if (!SendFiles(process, process.m_processStats.sendFiles))
-			return false;
+		bool success = SendFiles(process, process.m_processStats.sendFiles);
 		{
 			SCOPED_WRITE_LOCK(m_outputFilesLock, lock2);
 			for (auto& kv : process.m_writtenFiles)
 				m_outputFiles.erase(kv.first);
 		}
 		process.m_writtenFiles.clear();
-		return true;
+
+		return success;
 	}
 
 	bool SessionClient::UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats)

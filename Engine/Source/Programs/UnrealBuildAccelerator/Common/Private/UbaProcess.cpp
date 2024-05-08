@@ -1088,11 +1088,27 @@ namespace uba
 		if (!newProcess)
 			return true;
 
-		m_startTime = GetTime();
+		m_arguments = nextProcess.arguments;
+		m_description = nextProcess.description;
+		m_logFile = nextProcess.logFile;
+
+		m_startInfo.arguments = m_arguments.c_str();
+		m_startInfo.description = m_description.c_str();
+		m_startInfo.logFile = m_logFile.c_str();
+
+		m_childProcesses.clear();
+		m_logLines.clear();
+		m_trackedInputs.clear();
+		m_trackedOutputs.clear();
+		
+		ClearTempFiles();
+		
 		m_processStats = {};
 		m_sessionStats = {};
 		m_storageStats = {};
 		m_systemStats = {};
+
+		m_startTime = GetTime();
 
 		writer.WriteString(nextProcess.arguments);
 		writer.WriteString(nextProcess.workingDir);
@@ -1104,6 +1120,12 @@ namespace uba
 	bool ProcessImpl::HandleCustom(BinaryReader& reader, BinaryWriter& writer)
 	{
 		m_session.CustomMessage(*this, reader, writer);
+		return true;
+	}
+
+	bool ProcessImpl::HandleSHGetKnownFolderPath(BinaryReader& reader, BinaryWriter& writer)
+	{
+		m_session.SHGetKnownFolderPath(*this, reader, writer);
 		return true;
 	}
 
