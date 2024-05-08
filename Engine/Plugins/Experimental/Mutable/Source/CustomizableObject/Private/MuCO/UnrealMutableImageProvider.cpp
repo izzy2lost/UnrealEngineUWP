@@ -353,7 +353,7 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetRefe
 		// We just show a warning and move on. This cannot happen during cooks, so it is fine.
 		UE_LOG(LogMutable, Warning, TEXT("Failed to load image [%i]."), Id);
 
-		ResultCallback(Image);
+		ResultCallback(CreateDummy());
 		return Invoke(TrivialReturn);
 	}
 
