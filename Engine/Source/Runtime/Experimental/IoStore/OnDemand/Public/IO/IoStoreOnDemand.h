@@ -182,11 +182,13 @@ struct FOnDemandToc
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandToc& Toc);
 
 	static FGuid VersionGuid;
+
+	static TIoStatusOr<FOnDemandToc> LoadFromFile(const FString& FilePath, bool bValidate);
+	static TIoStatusOr<FOnDemandToc> LoadFromUrl(FAnsiStringView Url, uint32 RetryCount = 0, bool bFollowRedirects = false);
+	static TIoStatusOr<FOnDemandToc> LoadFromUrl(FStringView Url, uint32 RetryCount = 0, bool bFollowRedirects = false);
 };
 
 UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc);
-
-TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FString& TocPath, int32 RetryCount);
 
 #if (IS_PROGRAM || WITH_EDITOR)
 

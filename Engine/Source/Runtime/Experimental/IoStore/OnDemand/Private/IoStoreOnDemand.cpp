@@ -3,6 +3,7 @@
 #include "IO/IoStoreOnDemand.h"
 
 #include "HAL/FileManager.h"
+#include "HAL/FileManagerGeneric.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
@@ -318,6 +319,30 @@ static bool SaveArrayToFile(TArrayView64<uint8> Data, const TCHAR* Filename, uin
 	Ar->Close();
 
 	return !Ar->IsError() && !Ar->IsCriticalError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/**
+ * Utility to create a FArchive capable of reading from disk using the exact same pathing
+ * rules as FPlatformMisc::LoadTextFileFromPlatformPackage but without forcing the entire
+ * file to be loaded at once.
+ */
+static TUniquePtr<FArchive> CreateReaderFromPlatformPackage(const FString& RelPath)
+{
+	const FString AbsPath = FPaths::Combine(FGenericPlatformMisc::RootDir(), RelPath);
+	if (TUniquePtr<IFileHandle> File(IPlatformFile::GetPlatformPhysical().OpenRead(*AbsPath)); File.IsValid())
+	{
+#if PLATFORM_ANDROID
+		// This is a handle to an asset so we need to call Seek(0) to move the internal
+		// offset to the start of the asset file.
+		File->Seek(0);
+#endif //PLATFORM_ANDROID
+		const uint32 ReadBufferSize = 256 * 1024;
+		const int64 FileSize = File->Size();
+		return MakeUnique<FArchiveFileReaderGeneric>(File.Release(), *AbsPath, FileSize, ReadBufferSize);
+	}
+
+	return TUniquePtr<FArchive>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -736,58 +761,90 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc)
 	return false;
 }
 
-TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceUrl, const FString& TocPath, int32 RetryCount)
+////////////////////////////////////////////////////////////////////////////////
+TIoStatusOr<FOnDemandToc> FOnDemandToc::LoadFromFile(const FString& FilePath, bool bValidate)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(LoadTocFromUrl);
-
-	FString ErrorMsg;
-
-	for (int32 Attempt = 0; Attempt <= RetryCount; ++Attempt)
+	TUniquePtr<FArchive> Ar;
+	if (FPlatformMisc::FileExistsInPlatformPackage(FilePath))
 	{
-		TUniquePtr<FHttpClient> HttpClient = FHttpClient::Create(ServiceUrl);
-		TAnsiStringBuilder<256> Url;
-
-		Url << "/" << TocPath;
-
-		UE_LOG(LogIas, Log, TEXT("Fetching TOC '%s/%s' (#%d/%d)"), *ServiceUrl, *TocPath, Attempt + 1, RetryCount);
-
-		TIoStatusOr<FOnDemandToc> Toc;
-		HttpClient->Get(Url.ToView(), [&Toc, &ErrorMsg](TIoStatusOr<FIoBuffer> Response, uint64 DurationMs)
-			{
-				if (Response.IsOk())
-				{
-					TRACE_CPUPROFILER_EVENT_SCOPE(LoadTocFromEndpoint);
-					FIoBuffer Buffer = Response.ConsumeValueOrDie();
-					FOnDemandToc NewToc;
-
-					FMemoryReaderView Ar(Buffer.GetView());
-					Ar << NewToc;
-					if (!Ar.IsError())
-					{
-						Toc = TIoStatusOr<FOnDemandToc>(MoveTemp(NewToc));
-					}
-					else
-					{
-						ErrorMsg = TEXT("Failed loading on demand TOC from compact binary");
-					}
-				}
-				else
-				{
-					ErrorMsg = FString::Printf(TEXT("Failed fetching TOC, reason '%s'"), *Response.Status().ToString());
-				}
-			});
-
-		while (HttpClient->Tick());
-
-		if (Toc.IsOk())
-		{
-			return Toc;
-		}
+		Ar = CreateReaderFromPlatformPackage(FilePath);
+	}
+	else
+	{
+		Ar.Reset(IFileManager::Get().CreateFileReader(*FilePath));
 	}
 
-	UE_LOG(LogIas, Error, TEXT("%s"), *ErrorMsg);
+	if (Ar.IsValid() == false)
+	{
+		FIoStatus Status = FIoStatusBuilder(EIoErrorCode::FileNotOpen) << TEXT("Failed to open '") << FilePath << TEXT("'");
+		return Status;
+	}
 
-	return TIoStatusOr<FOnDemandToc>(FIoStatus(EIoErrorCode::NotFound));
+	if (bValidate)
+	{
+		const int64 SentinelPos = Ar->TotalSize() - FOnDemandTocSentinel::SentinelSize;
+
+		if (SentinelPos < 0)
+		{
+			FIoStatus Status = FIoStatusBuilder(EIoErrorCode::CorruptToc) << TEXT("Unexpected file size");
+			return Status;
+		}
+
+		Ar->Seek(SentinelPos);
+
+		FOnDemandTocSentinel Sentinel;
+		*Ar << Sentinel;
+
+		if (!Sentinel.IsValid())
+		{
+			return FIoStatus(EIoErrorCode::CorruptToc);
+		}
+
+		Ar->Seek(0);
+	}
+
+	FOnDemandToc Toc;
+	*Ar << Toc;
+
+	if (Ar->IsError() || Ar->IsCriticalError())
+	{
+		FIoStatus Status = FIoStatusBuilder(EIoErrorCode::FileNotOpen) << TEXT("Failed to serialize TOC file");
+		return Status;
+	}
+
+	return Toc; 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TIoStatusOr<FOnDemandToc> FOnDemandToc::LoadFromUrl(FAnsiStringView Url, uint32 RetryCount, bool bFollowRedirects)
+{
+	const EHttpRedirects Redirects = bFollowRedirects ? EHttpRedirects::Follow : EHttpRedirects::Disabled;
+	TIoStatusOr<FIoBuffer> Response = FHttpClient::Get(Url, RetryCount, Redirects); 
+
+	if (!Response.IsOk())
+	{
+		FIoStatus Status = FIoStatusBuilder(EIoErrorCode::ReadError) << TEXT("Failed to fetch TOC from URL");
+		return Status;
+	}
+
+	FMemoryReaderView Ar(Response.ValueOrDie().GetView());
+	FOnDemandToc Toc;
+	Ar << Toc;
+
+	if (Ar.IsError() || Ar.IsCriticalError())
+	{
+		FIoStatus Status = FIoStatusBuilder(EIoErrorCode::ReadError) << TEXT("Failed to serialize TOC from HTTP response");
+		return Status;
+	}
+
+	return Toc; 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TIoStatusOr<FOnDemandToc> FOnDemandToc::LoadFromUrl(FStringView Url, uint32 RetryCount, bool bFollowRedirects)
+{
+	auto AnsiUrl = StringCast<ANSICHAR>(Url.GetData(), Url.Len());
+	return LoadFromUrl(AnsiUrl, RetryCount, bFollowRedirects);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

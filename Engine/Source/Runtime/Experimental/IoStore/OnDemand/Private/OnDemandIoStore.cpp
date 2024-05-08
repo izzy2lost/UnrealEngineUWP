@@ -12,7 +12,6 @@
 #include "Async/UniqueLock.h"
 #include "Containers/StringConv.h"
 #include "HAL/FileManager.h"
-#include "HAL/FileManagerGeneric.h"
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformTime.h"
@@ -64,34 +63,6 @@ static void SplitHostUrl(const FStringView& Url, FStringView& OutHost, FStringVi
 	}
 
 	OutRemainder = Url.RightChop(OutHost.Len());
-}
-
-/**
- * Utility to create a FArchive capable of reading from disk using the exact same pathing
- * rules as FPlatformMisc::LoadTextFileFromPlatformPackage but without forcing the entire
- * file to be loaded at once.
- */
-static TUniquePtr<FArchive> CreateReaderFromPlatformPackage(const FString& RelPath)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::CreateReaderFromPlatformPackage);
-
-	const FString AbsPath = FPaths::Combine(FGenericPlatformMisc::RootDir(), RelPath);
-
-	IFileHandle* File = IPlatformFile::GetPlatformPhysical().OpenRead(*AbsPath);
-	if (File)
-	{
-#if PLATFORM_ANDROID
-		// This is a handle to an asset so we need to call Seek(0) to move the internal
-		// offset to the start of the asset file.
-		File->Seek(0);
-#endif //PLATFORM_ANDROID
-		const uint32 ReadBufferSize = 256 * 1024;
-		return MakeUnique<FArchiveFileReaderGeneric>(File, *AbsPath, File->Size(), ReadBufferSize);
-	}
-	else
-	{
-		return TUniquePtr<FArchive>();
-	}	
 }
 
 } // namespace UE::IoStore::Private
@@ -524,85 +495,31 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 	{
 		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Loading TOC from file '%s'"), *Args.FilePath);
 
-		TUniquePtr<FArchive> Ar;
-		if (FPlatformMisc::FileExistsInPlatformPackage(Args.FilePath))
+		// TODO: Enable validation when the sentinal is included in all serialization paths
+		const bool bValidate = false;
+		TIoStatusOr<FOnDemandToc> TocStatus = FOnDemandToc::LoadFromFile(Args.FilePath, bValidate);
+		if (!TocStatus.IsOk())
 		{
-			Ar = Private::CreateReaderFromPlatformPackage(Args.FilePath);
-		}
-		else
-		{
-			Ar.Reset(IFileManager::Get().CreateFileReader(*Args.FilePath));
+			return TocStatus.Status();
 		}
 
-		if (Ar.IsValid() == false)
-		{
-			return FIoStatusBuilder(EIoErrorCode::FileNotOpen)
-				<< TEXT("Failed to open '")
-				<< Args.FilePath
-				<< TEXT("'");
-		}
-
-		// TODO: Enable validation when the sentinal is included in all serialization paths 
-		//const bool bIncludeDot = true;	
-		const bool bValidate = false; //FPathViews::GetExtension(Args.FilePath, bIncludeDot) == GIasOnDemandTocExt;
-		if (bValidate)
-		{
-			const int64 SentinelPos = Ar->TotalSize() - FOnDemandTocSentinel::SentinelSize;
-
-			if (SentinelPos < 0)
-			{
-				UE_LOG(LogIoStoreOnDemand, Error, TEXT("The file '%s' is smaller than expected and quite possible corrupted"), *Args.FilePath);
-				return EIoErrorCode::CorruptToc;
-			}
-
-			Ar->Seek(SentinelPos);
-
-			FOnDemandTocSentinel Sentinel;
-			(*Ar) << Sentinel;
-
-			if (!Sentinel.IsValid())
-			{
-				UE_LOG(LogIas, Error, TEXT("File corruption detected when serializing '%s'"), *Args.FilePath);
-				return EIoErrorCode::CorruptToc;
-			}
-
-			Ar->Seek(0);
-		}
-
-		FOnDemandToc Toc;
-		*Ar << Toc;
-
-		if (Ar->IsError() || Ar->IsCriticalError())
-		{
-			return FIoStatusBuilder(EIoErrorCode::FileNotOpen) << TEXT("Failed to serialize TOC file");
-		}
-
+		FOnDemandToc Toc = TocStatus.ConsumeValueOrDie();
 		CreateContainersFromToc(Args.MountId, TocPath, Toc, MountRequest.Containers);
 	}
 	else if (Args.Url.IsEmpty() == false)
 	{
 		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Loading TOC from URL '%s'"), *Args.Url);
 
-		if (Host.IsEmpty())
+		const uint32 RetryCount				= 2;
+		const bool bFollowRedirects			= true;
+		TIoStatusOr<FOnDemandToc> TocStatus	= FOnDemandToc::LoadFromUrl(Args.Url, 2, bFollowRedirects);
+
+		if (!TocStatus.IsOk())
 		{
-			return FIoStatusBuilder(EIoErrorCode::InvalidParameter) << TEXT("No valid host URL");
+			return TocStatus.Status();
 		}
 
-		TIoStatusOr<FIoBuffer> Response = FHttpClient::Get(Args.Url, 2, EHttpRedirects::Follow);
-		if (Response.IsOk() == false)
-		{
-			return FIoStatusBuilder(EIoErrorCode::InvalidCode) << TEXT("Failed to fetch TOC from URL");
-		}
-
-		FOnDemandToc Toc;
-		FMemoryReaderView Ar(Response.ValueOrDie().GetView());
-		Ar << Toc;
-
-		if (Ar.IsError() || Ar.IsCriticalError())
-		{
-			return FIoStatusBuilder(EIoErrorCode::FileNotOpen) << TEXT("Failed to serialize TOC from HTTP response");
-		}
-
+		FOnDemandToc Toc = TocStatus.ConsumeValueOrDie();
 		CreateContainersFromToc(Args.MountId, TocPath, Toc, MountRequest.Containers);
 	}
 
