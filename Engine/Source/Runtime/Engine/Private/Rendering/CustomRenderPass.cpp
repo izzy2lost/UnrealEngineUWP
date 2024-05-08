@@ -67,6 +67,10 @@ ESceneCaptureSource FCustomRenderPassBase::GetSceneCaptureSource() const
 		return SCS_SceneColorHDR;
 	else if (RenderOutput == ERenderOutput::SceneColorNoAlpha)
 		return SCS_SceneColorHDRNoAlpha;
+	else if (RenderOutput == ERenderOutput::BaseColor)
+		return SCS_BaseColor;
+	else if (RenderOutput == ERenderOutput::Normal)
+		return SCS_Normal;
 	else
 		return SCS_MAX;
 }

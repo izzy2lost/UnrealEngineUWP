@@ -1963,6 +1963,7 @@ class FViewFamilyInfo : public FSceneViewFamily
 {
 public:
 	explicit FViewFamilyInfo(const FSceneViewFamily& InViewFamily);
+	explicit FViewFamilyInfo(const FSceneViewFamily::ConstructionValues& CVS, const FViewFamilyInfo& MainViewFamily);
 	virtual ~FViewFamilyInfo();
 
 	FSceneTexturesConfig SceneTexturesConfig;
@@ -1970,31 +1971,34 @@ public:
 	/** Get scene textures associated with this view family -- asserts or checks that they have been initialized */
 	inline FSceneTextures& GetSceneTextures()
 	{
-		checkf(bIsSceneTexturesInitialized, TEXT("FSceneTextures was not initialized. Call FSceneTextures::InitializeViewFamily() first."));
-		return SceneTextures;
+		checkf(SceneTextures->bIsSceneTexturesInitialized, TEXT("FSceneTextures was not initialized. Call FSceneTextures::InitializeViewFamily() first."));
+		return *SceneTextures;
 	}
 
 	inline const FSceneTextures& GetSceneTextures() const
 	{
-		checkf(bIsSceneTexturesInitialized, TEXT("FSceneTextures was not initialized. Call FSceneTextures::InitializeViewFamily() first."));
-		return SceneTextures;
+		checkf(SceneTextures->bIsSceneTexturesInitialized, TEXT("FSceneTextures was not initialized. Call FSceneTextures::InitializeViewFamily() first."));
+		return *SceneTextures;
 	}
 
 	inline FSceneTextures* GetSceneTexturesChecked()
 	{
-		return bIsSceneTexturesInitialized ? &SceneTextures : nullptr;
+		return SceneTextures->bIsSceneTexturesInitialized ? SceneTextures : nullptr;
 	}
 
 	inline const FSceneTextures* GetSceneTexturesChecked() const
 	{
-		return bIsSceneTexturesInitialized ? &SceneTextures : nullptr;
+		return SceneTextures->bIsSceneTexturesInitialized ? SceneTextures : nullptr;
 	}
 
 private:
 	friend struct FMinimalSceneTextures;
 	friend struct FSceneTextures;
 
-	FSceneTextures SceneTextures;
+	// Structure may be pointed to by multiple FViewFamilyInfo during scene rendering, through CustomRenderPasses.  The Owner
+	// (pointed to by FSceneTextures) handles deleting the structure when the scene renderer is destroyed.  TRefCountPtr doesn't
+	// work, because the structure is also copied by value, and the copy constructor is disabled for reference counted structures.
+	FSceneTextures* SceneTextures;
 };
 
 struct FComputeLightGridOutput
@@ -2052,8 +2056,12 @@ public:
 	/** Information of a custom render pass that renders as part of the main renderer. */
 	struct FCustomRenderPassInfo
 	{
+		FCustomRenderPassInfo(const FSceneViewFamily::ConstructionValues& CVS, const FViewFamilyInfo& MainViewFamily);
+
 		/** Custom render pass that render as part of the main renderer. */
 		FCustomRenderPassBase* CustomRenderPass;
+		/** View family used by custom render pass.  NOT added to AllFamilies.  Required to allow different EngineShowFlags from main renderer ViewFamily. */
+		FViewFamilyInfo ViewFamily;
 		/** Views used to render the custom render pass. */
 		TArray<FViewInfo> Views;
 		FNaniteShadingCommands NaniteBasePassShadingCommands;
@@ -2333,6 +2341,7 @@ protected:
 	enum class ERendererOutput
 	{
 		DepthPrepassOnly,	// Only render depth prepass and its related code paths
+		BasePass,			// Render base pass (deferred renderer only, for mobile renderer equivalent to FinalSceneColor)
 		FinalSceneColor		// Render the whole pipeline
 	};
 

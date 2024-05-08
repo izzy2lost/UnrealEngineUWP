@@ -70,6 +70,8 @@ public:
 		SceneColorAndDepth,
 		SceneColorAndAlpha, // The alpha is inverted opacity (throughput).
 		SceneColorNoAlpha,
+		BaseColor,
+		Normal
 	};
 
 	enum class ERenderCaptureType

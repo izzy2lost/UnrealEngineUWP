@@ -21,6 +21,12 @@ struct FMinimalSceneTextures
 	// Initializes the minimal scene textures structure in the FViewFamilyInfo
 	static RENDERER_API void InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily);
 
+	// Structure may be pointed to by multiple FViewFamilyInfo during scene rendering, through CustomRenderPasses.  The Owner
+	// handles deleting the structure when the scene renderer is destroyed.  TRefCountPtr doesn't work, because the structure
+	// is also copied by value, and the copy constructor is disabled for reference counted structures.
+	const FViewFamilyInfo* Owner = nullptr;
+	bool bIsSceneTexturesInitialized = false;
+
 	// Immutable copy of the config used to create scene textures.
 	FSceneTexturesConfig Config;
 
