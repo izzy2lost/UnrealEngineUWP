@@ -246,7 +246,8 @@ namespace UsdUtils
 		FName SanitizedName,
 		TextureGroup Group = TEXTUREGROUP_World,
 		EObjectFlags Flags = RF_Public | RF_Standalone | RF_Transactional,
-		UObject* Outer = GetTransientPackage()
+		UObject* Outer = GetTransientPackage(),
+		bool bForceLinear = false
 	);
 
 	/** Checks if this texture needs virtual textures and emits a warning if it is disabled for the project */
