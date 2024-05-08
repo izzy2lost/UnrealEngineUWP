@@ -78,8 +78,8 @@ void SEnvironmentLightingViewer::Construct(const FArguments& InArgs)
 					.Text(LOCTEXT("CreateSkyLight", "Create Sky Light"));
 	ButtonCreateAtmosphericLight0 = SNew(SButton)
 					.HAlign(HAlign_Center)
-					.OnClicked(this, &SEnvironmentLightingViewer::OnButtonCreateAtmosphericLight, Zero)
-					.Text(LOCTEXT("CreateAtmosphericLight0", "Create Atmospheric Light"));
+					.OnClicked(this, &SEnvironmentLightingViewer::OnButtonCreateDirectionalLight, Zero)
+					.Text(LOCTEXT("CreateAtmosphericLight0", "Create Directional Light"));
 	ButtonCreateSkyAtmosphere = SNew(SButton)
 					.HAlign(HAlign_Center)
 					.OnClicked(this, &SEnvironmentLightingViewer::OnButtonCreateSkyAtmosphere)
@@ -376,7 +376,7 @@ FReply SEnvironmentLightingViewer::OnButtonCreateSkyLight()
 	return FReply::Handled();
 }
 
-FReply SEnvironmentLightingViewer::OnButtonCreateAtmosphericLight(uint32 Index)
+FReply SEnvironmentLightingViewer::OnButtonCreateDirectionalLight(uint32 Index)
 {
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	if (!World)

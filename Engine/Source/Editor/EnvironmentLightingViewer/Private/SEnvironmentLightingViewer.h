@@ -70,7 +70,7 @@ private:
 	TSharedPtr<class SButton> ButtonCreateHeightFog;
 
 	FReply OnButtonCreateSkyLight();
-	FReply OnButtonCreateAtmosphericLight(uint32 Index);
+	FReply OnButtonCreateDirectionalLight(uint32 Index);
 	FReply OnButtonCreateSkyAtmosphere();
 	FReply OnButtonCreateVolumetricCloud();
 	FReply OnButtonCreateHeightFog();
