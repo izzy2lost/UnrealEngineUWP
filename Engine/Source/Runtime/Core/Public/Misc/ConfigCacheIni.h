@@ -525,6 +525,7 @@ public:
 	FName Tag;
 	
 	uint8 Dirty;
+	uint8 bPythonConfigParserMode = false;
 
 	// used to determine if existing settings should be removed from a FConfigFile before applying this stream - used for compatibility with
 	// how Saved config files are stored (replace the static layers values fully if at least one key exists)
@@ -543,6 +544,7 @@ public:
 	bool Dirty : 1; // = false;
 	bool NoSave : 1; // = false;
 	bool bHasPlatformName : 1; // = false;
+	bool bPythonConfigParserMode : 1; // = false;
 
 	// by default, we allow saving - this is going to be applied to config files that are not loaded from disk
 	// (when loading, this will get set to false, and then the ini sections will be checked)
