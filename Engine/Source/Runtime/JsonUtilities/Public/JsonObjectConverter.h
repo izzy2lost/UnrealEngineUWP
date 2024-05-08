@@ -59,7 +59,14 @@ public: // UStruct -> JSON
 	 * If this returns a valid value it will be inserted into the export chain.
 	 * If this returns nullptr or is not bound, it will try generic type-specific export behavior before falling back to outputting ExportText as a string.
 	 */
-	DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<FJsonValue>, CustomExportCallback, FProperty* /* Property */, const void* /* Value */);
+	using CustomExportCallback = TDelegate<TSharedPtr<FJsonValue>(FProperty* Property, const void* Value)>;
+
+	/**
+	 * Optional callback that will be run when importing a single property from Json.
+	 * If this returns true, it should have successfully turned the Json value into the property value.
+	 * If this returns false or is not bound, it will try generic type-specific import behavior before failing.
+	 */
+	using CustomImportCallback = TDelegate<bool(const TSharedPtr<FJsonValue>& JsonValue, FProperty* Property, const void* Value)>;
 
 	static JSONUTILITIES_API const CustomExportCallback ExportCallback_WriteISO8601Dates;
 
@@ -207,10 +214,11 @@ public: // JSON -> UStruct
 	 * @param SkipFlags Skip properties that match any of these flags
 	 * @param bStrictMode Whether to strictly check the json attributes
 	 * @param OutFailReason Reason of the failure if any
+	 * @param ImportCb Optional callback to override import behaviour, if this returns false it will fallback to the default
 	 *
 	 * @return False if any properties matched but failed to deserialize
 	 */
-	static JSONUTILITIES_API bool JsonObjectToUStruct(const TSharedRef<FJsonObject>& JsonObject, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr);
+	static JSONUTILITIES_API bool JsonObjectToUStruct(const TSharedRef<FJsonObject>& JsonObject, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr, const CustomImportCallback* ImportCb = nullptr);
 
 	/**
 	 * Templated version of JsonObjectToUStruct
@@ -221,19 +229,20 @@ public: // JSON -> UStruct
 	 * @param SkipFlags Skip properties that match any of these flags
 	 * @param bStrictMode Whether to strictly check the json attributes
 	 * @param OutFailReason Reason of the failure if any
+	 * @param ImportCb Optional callback to override import behaviour, if this returns false it will fallback to the default
 	 *
 	 * @return False if any properties matched but failed to deserialize
 	 */
 	template<typename OutStructType>
-	static bool JsonObjectToUStruct(const TSharedRef<FJsonObject>& JsonObject, OutStructType* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr)
+	static bool JsonObjectToUStruct(const TSharedRef<FJsonObject>& JsonObject, OutStructType* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr, const CustomImportCallback* ImportCb = nullptr)
 	{
 		if constexpr (TModels<CStaticClassProvider, OutStructType>::Value)
 		{
-			return JsonObjectToUStruct(JsonObject, OutStructType::StaticClass(), OutStruct, CheckFlags, SkipFlags, bStrictMode, OutFailReason);
+			return JsonObjectToUStruct(JsonObject, OutStructType::StaticClass(), OutStruct, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb);
 		}
 		else
 		{
-			return JsonObjectToUStruct(JsonObject, OutStructType::StaticStruct(), OutStruct, CheckFlags, SkipFlags, bStrictMode, OutFailReason);
+			return JsonObjectToUStruct(JsonObject, OutStructType::StaticStruct(), OutStruct, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb);
 		}
 	}
 
@@ -247,10 +256,11 @@ public: // JSON -> UStruct
 	 * @param SkipFlags Skip properties that match any of these flags
 	 * @param bStrictMode Whether to strictly check the json attributes
 	 * @param OutFailReason Reason of the failure if any
+	 * @param ImportCb Optional callback to override import behaviour, if this returns false it will fallback to the default
 	 *
 	 * @return False if any properties matched but failed to deserialize
 	 */
-	static JSONUTILITIES_API bool JsonAttributesToUStruct(const TMap< FString, TSharedPtr<FJsonValue> >& JsonAttributes, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr);
+	static JSONUTILITIES_API bool JsonAttributesToUStruct(const TMap< FString, TSharedPtr<FJsonValue> >& JsonAttributes, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr, const CustomImportCallback* ImportCb = nullptr);
 
 	/**
 	 * Converts a single JsonValue to the corresponding FProperty (this may recurse if the property is a UStruct for instance).
@@ -262,10 +272,11 @@ public: // JSON -> UStruct
 	 * @param SkipFlags Skip sub-properties that match any of these flags
 	 * @param bStrictMode Whether to strictly check the json attributes
 	 * @param OutFailReason Reason of the failure if any
+	 * @param ImportCb Optional callback to override import behaviour, if this returns false it will fallback to the default
 	 *
 	 * @return False if the property failed to serialize
 	 */
-	static JSONUTILITIES_API bool JsonValueToUProperty(const TSharedPtr<FJsonValue>& JsonValue, FProperty* Property, void* OutValue, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr);
+	static JSONUTILITIES_API bool JsonValueToUProperty(const TSharedPtr<FJsonValue>& JsonValue, FProperty* Property, void* OutValue, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr, const CustomImportCallback* ImportCb = nullptr);
 
 	/**
 	 * Converts from a json string containing an object to a UStruct
@@ -276,11 +287,12 @@ public: // JSON -> UStruct
 	 * @param SkipFlags Skip properties that match any of these flags
 	 * @param bStrictMode Whether to strictly check the json attributes
 	 * @param OutFailReason Reason of the failure if any
+	 * @param ImportCb Optional callback to override import behaviour, if this returns false it will fallback to the default
 	 *
 	 * @return False if any properties matched but failed to deserialize
 	 */
 	template<typename OutStructType>
-	static bool JsonObjectStringToUStruct(const FString& JsonString, OutStructType* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr)
+	static bool JsonObjectStringToUStruct(const FString& JsonString, OutStructType* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr, const CustomImportCallback* ImportCb = nullptr)
 	{
 		TSharedPtr<FJsonObject> JsonObject;
 		TSharedRef<TJsonReader<> > JsonReader = TJsonReaderFactory<>::Create(JsonString);
@@ -293,7 +305,7 @@ public: // JSON -> UStruct
 			}
 			return false;
 		}
-		if (!FJsonObjectConverter::JsonObjectToUStruct(JsonObject.ToSharedRef(), OutStruct, CheckFlags, SkipFlags, bStrictMode, OutFailReason))
+		if (!FJsonObjectConverter::JsonObjectToUStruct(JsonObject.ToSharedRef(), OutStruct, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb))
 		{
 			UE_LOG(LogJson, Warning, TEXT("JsonObjectStringToUStruct - Unable to deserialize. json=[%s]"), *JsonString);
 			if (OutFailReason)
@@ -314,11 +326,12 @@ public: // JSON -> UStruct
 	 * @param SkipFlags Skip properties that match any of these flags.
 	 * @param bStrictMode Whether to strictly check the json attributes
 	 * @param OutFailReason Reason of the failure if any
+	 * @param ImportCb Optional callback to override import behaviour, if this returns false it will fallback to the default
 	 *
 	 * @return False if any properties matched but failed to deserialize.
 	 */
 	template<typename OutStructType>
-	static bool JsonArrayStringToUStruct(const FString& JsonString, TArray<OutStructType>* OutStructArray, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr)
+	static bool JsonArrayStringToUStruct(const FString& JsonString, TArray<OutStructType>* OutStructArray, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr, const CustomImportCallback* ImportCb = nullptr)
 	{
 		TArray<TSharedPtr<FJsonValue> > JsonArray;
 		TSharedRef<TJsonReader<> > JsonReader = TJsonReaderFactory<>::Create(JsonString);
@@ -331,7 +344,7 @@ public: // JSON -> UStruct
 			}
 			return false;
 		}
-		if (!JsonArrayToUStruct(JsonArray, OutStructArray, CheckFlags, SkipFlags, bStrictMode, OutFailReason))
+		if (!JsonArrayToUStruct(JsonArray, OutStructArray, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb))
 		{
 			UE_LOG(LogJson, Warning, TEXT("JsonArrayStringToUStruct - Error parsing one of the elements. json=[%s]"), *JsonString);
 			if (OutFailReason)
@@ -352,11 +365,12 @@ public: // JSON -> UStruct
 	 * @param SkipFlags Skip properties that match any of these flags.
 	 * @param bStrictMode Whether to strictly check the json attributes
 	 * @param OutFailReason Reason of the failure if any
+	 * @param ImportCb Optional callback to override import behaviour, if this returns false it will fallback to the default
 	 *
 	 * @return False if any of the matching elements are not an object, or if one of the matching elements could not be converted to the specified UStruct type.
 	 */
 	template<typename OutStructType>
-	static bool JsonArrayToUStruct(const TArray<TSharedPtr<FJsonValue>>& JsonArray, TArray<OutStructType>* OutStructArray, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr)
+	static bool JsonArrayToUStruct(const TArray<TSharedPtr<FJsonValue>>& JsonArray, TArray<OutStructType>* OutStructArray, int64 CheckFlags = 0, int64 SkipFlags = 0, const bool bStrictMode = false, FText* OutFailReason = nullptr, const CustomImportCallback* ImportCb = nullptr)
 	{
 		OutStructArray->SetNum(JsonArray.Num());
 		for (int32 i = 0; i < JsonArray.Num(); ++i)
@@ -371,7 +385,7 @@ public: // JSON -> UStruct
 				}
 				return false;
 			}
-			if (!FJsonObjectConverter::JsonObjectToUStruct(Value->AsObject().ToSharedRef(), OutStructType::StaticStruct(), &(*OutStructArray)[i], CheckFlags, SkipFlags, bStrictMode, OutFailReason))
+			if (!FJsonObjectConverter::JsonObjectToUStruct(Value->AsObject().ToSharedRef(), OutStructType::StaticStruct(), &(*OutStructArray)[i], CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb))
 			{
 				UE_LOG(LogJson, Warning, TEXT("JsonArrayToUStruct - Unable to convert element [%i]."), i);
 				if (OutFailReason)
