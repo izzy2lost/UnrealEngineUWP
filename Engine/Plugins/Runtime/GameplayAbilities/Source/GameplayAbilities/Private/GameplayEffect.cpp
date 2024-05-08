@@ -3505,7 +3505,12 @@ bool FActiveGameplayEffectsContainer::ShouldUseMinimalReplication()
 	return IsNetAuthority() && (Owner->ReplicationMode == EGameplayEffectReplicationMode::Minimal || Owner->ReplicationMode == EGameplayEffectReplicationMode::Mixed);
 }
 
-void FActiveGameplayEffectsContainer::SetBaseAttributeValueFromReplication(const FGameplayAttribute& Attribute, float ServerBaseValue, float OldBaseValue)
+void FActiveGameplayEffectsContainer::SetBaseAttributeValueFromReplication(const FGameplayAttribute& Attribute, float NewBaseValue, float OldBaseValue)
+{
+	SetBaseAttributeValueFromReplication(Attribute, FGameplayAttributeData(NewBaseValue), FGameplayAttributeData(OldBaseValue));
+}
+
+void FActiveGameplayEffectsContainer::SetBaseAttributeValueFromReplication(const FGameplayAttribute& Attribute, const FGameplayAttributeData& NewValue, const FGameplayAttributeData& OldValue)
 {
 	FAggregatorRef* RefPtr = AttributeAggregatorMap.Find(Attribute);
 	if (RefPtr && RefPtr->Get())
@@ -3513,6 +3518,9 @@ void FActiveGameplayEffectsContainer::SetBaseAttributeValueFromReplication(const
 		FAggregator* Aggregator = RefPtr->Get();
 		if (FGameplayAttribute::IsGameplayAttributeDataProperty(Attribute.GetUProperty()))
 		{
+			const float ServerBaseValue = NewValue.GetBaseValue();
+			const float OldBaseValue = OldValue.GetBaseValue();
+			
 			// Reset to the server's old value
 			constexpr bool bDoNotExecuteCallbacksValue = false;
 			Aggregator->SetBaseValue(OldBaseValue, bDoNotExecuteCallbacksValue);
@@ -3538,7 +3546,7 @@ void FActiveGameplayEffectsContainer::SetBaseAttributeValueFromReplication(const
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (FOnGameplayAttributeChange* LegacyDelegate = AttributeChangeDelegates.Find(Attribute))
 		{
-			LegacyDelegate->Broadcast(ServerBaseValue, nullptr);
+			LegacyDelegate->Broadcast(NewValue.GetCurrentValue(), nullptr);
 		}
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -3546,8 +3554,8 @@ void FActiveGameplayEffectsContainer::SetBaseAttributeValueFromReplication(const
 		{
 			FOnAttributeChangeData CallbackData;
 			CallbackData.Attribute = Attribute;
-			CallbackData.NewValue = ServerBaseValue;
-			CallbackData.OldValue = OldBaseValue;
+			CallbackData.NewValue = NewValue.GetCurrentValue();
+			CallbackData.OldValue = OldValue.GetCurrentValue();
 			CallbackData.GEModData = nullptr;
 
 			Delegate->Broadcast(CallbackData);
