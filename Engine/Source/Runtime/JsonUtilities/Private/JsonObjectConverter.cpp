@@ -208,34 +208,6 @@ TSharedPtr<FJsonValue> ConvertScalarFPropertyToJsonValue(FProperty* Property, co
 }
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
-TSharedPtr<FJsonValue> FJsonObjectConverter::ObjectJsonCallback(FProperty* Property, const void* Value)
-{
-	if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
-	{
-		if (!ObjectProperty->HasAnyFlags(RF_Transient)) // We are taking Transient to mean we don't want to serialize to JSON either (could make a new flag if necessary)
-		{
-			TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
-
-			CustomExportCallback CustomCB;
-			CustomCB.BindStatic(FJsonObjectConverter::ObjectJsonCallback);
-
-			void** PtrToValuePtr = (void**)Value;
-
-			if (FJsonObjectConverter::UStructToJsonObject(ObjectProperty->PropertyClass, (*PtrToValuePtr), Out, 0, 0, &CustomCB)) //-V549
-			{
-				return MakeShared<FJsonValueObject>(Out);
-			}
-		}
-	}
-
-	// invalid
-	return TSharedPtr<FJsonValue>();
-}
-
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 TSharedPtr<FJsonValue> FJsonObjectConverter::UPropertyToJsonValue(FProperty* Property, const void* Value, int64 CheckFlags, int64 SkipFlags, const CustomExportCallback* ExportCb, FProperty* OuterProperty, EJsonObjectConversionFlags ConversionFlags)
 {
 	if (Property->ArrayDim == 1)
