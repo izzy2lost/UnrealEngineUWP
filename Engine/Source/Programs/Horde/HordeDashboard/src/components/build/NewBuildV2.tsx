@@ -1264,7 +1264,7 @@ const AdvancedPanel: React.FC = observer(() => {
    let farguments = "";
    let fargumentsHeight = 0;
 
-   if (a.length > 0) {
+   if (options.readOnly && a.length > 0) {
       farguments = (JSON.stringify(a, null, 2));
       const flines = (farguments.match(/\n/g) || '').length + 1
       fargumentsHeight = Math.min(flines * 18, 240)
@@ -1274,7 +1274,7 @@ const AdvancedPanel: React.FC = observer(() => {
    let fparameters = "";
    let fparametersHeight = 0;
 
-   if ((Object.keys(b).length)) {
+   if (options.readOnly &&  (Object.keys(b).length)) {
       fparameters = (JSON.stringify(b, null, 2));
       const plines = (fparameters.match(/\n/g) || '').length + 1
       debugger;
