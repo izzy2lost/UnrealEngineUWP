@@ -266,6 +266,7 @@ namespace UE::ConcertSharedSlate
 				]
 			]
 			.NoItemsContent() [ SNew(STextBlock).Text(NoObjectsAttribute) ]
+			.GetHoveredRowContent(InArgs._GetHoveredRowContent)
 			.RowStyle(FAppStyle::Get(), "TableView.AlternatingRow");
 	}
 

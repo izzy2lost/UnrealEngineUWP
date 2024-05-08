@@ -29,6 +29,8 @@ namespace UE::ConcertSharedSlate
 	class SReplicationStreamViewer;
 	
 	enum class EReplicatedObjectChangeReason : uint8;
+
+	struct FHoverRowContent;
 	struct FSelectableObjectInfo;
 	
 	/**
@@ -128,6 +130,9 @@ namespace UE::ConcertSharedSlate
 		 */
 		bool bIsAddingFromSelection = false;
 
+		/** Generates a widget when an object row is hovered. Adds a bin and reset button. */
+		FHoverRowContent MakeHoveredRowContent(const TSharedPtr<FReplicatedObjectData>& Data) const;
+
 		bool IsEditingDisabled() const;
 		FText GetEditingDisabledText() const;
 		
@@ -145,6 +150,6 @@ namespace UE::ConcertSharedSlate
 		void AddObjectSourceContextMenuOptions(FMenuBuilder& MenuBuilder);
 		
 		// Utils for building item source widgets
-		ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs MakeObjectSourceBuilderArgs();
+		FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs MakeObjectSourceBuilderArgs();
 	};
 }

@@ -46,12 +46,12 @@ namespace UE::ConcertSharedSlate
 	public:
 
 		using TOverrideColumnWidget = typename TReplicationTreeData<TItemType>::FOverrideColumnWidget;
+		using FGetHoveredRowContent = typename TReplicationTreeData<TItemType>::FGetHoveredRowContent;
 
 		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
 		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
 		DECLARE_DELEGATE(FOnSelectionChanged);
 
-		/** @return Whether the item passes the filter, i.e. should be shown. */
 		DECLARE_DELEGATE_RetVal_OneParam(EItemFilterResult, FCustomFilter, const TItemType& Item);
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsSearchableItem, const TSharedPtr<TItemType>& Item);
 
@@ -91,6 +91,9 @@ namespace UE::ConcertSharedSlate
 			SLATE_EVENT(TOverrideColumnWidget, OverrideColumnWidget)
 			/** Optional callback for determining whether this item can be searched. */
 			SLATE_EVENT(FIsSearchableItem, IsSearchableItem)
+		
+			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
+			SLATE_EVENT(FGetHoveredRowContent, GetHoveredRowContent)
 			
 			/** The columns this list should have */
 			SLATE_ARGUMENT(TArray<TReplicationColumnEntry<TItemType>>, Columns)
@@ -130,6 +133,7 @@ namespace UE::ConcertSharedSlate
 			CustomFilterDelegate = InArgs._FilterItem;
 			OverrideColumnWidget = InArgs._OverrideColumnWidget;
 			IsSearchableItemDelegate = InArgs._IsSearchableItem;
+			GetHoveredRowContentDelegate = InArgs._GetHoveredRowContent;
 			ExpandableColumnId = InArgs._ExpandableColumnLabel;
 			RowStyle = InArgs._RowStyle;
 			
@@ -351,6 +355,8 @@ namespace UE::ConcertSharedSlate
 		TOverrideColumnWidget OverrideColumnWidget;
 		/** Optional callback for determining whether this item can be filtered. If false, it will not be shown when searched. */
 		FIsSearchableItem IsSearchableItemDelegate;
+		/** Optional. The content to overlay on hovered rows; it covers the entire row. */
+		FGetHoveredRowContent GetHoveredRowContentDelegate;
 
 		/** Style to use for rows */
 		const FTableRowStyle* RowStyle = nullptr;
@@ -515,6 +521,7 @@ namespace UE::ConcertSharedSlate
 			{
 				ColumnGetter,
 				OverrideColumnWidget,
+				GetHoveredRowContentDelegate,
 				SearchText,
 				ExpandableColumnId,
 				RowStyle

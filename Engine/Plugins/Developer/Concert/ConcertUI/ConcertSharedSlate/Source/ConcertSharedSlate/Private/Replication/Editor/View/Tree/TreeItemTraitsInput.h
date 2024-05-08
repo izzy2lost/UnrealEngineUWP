@@ -4,6 +4,7 @@
 
 #include "Delegates/Delegate.h"
 #include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
 
 class FName;
 class SWidget;
@@ -15,6 +16,12 @@ namespace UE::ConcertSharedSlate
 	template<typename TTreeItemType>
 	class IReplicationTreeColumn;
 
+	struct FHoverRowContent
+	{
+		TSharedRef<SWidget> Widget;
+		EHorizontalAlignment Alignment = HAlign_Right;
+	};
+	
 	/** Holds type definitions that server as input to TReplicationTreeItemTraits (and thus should not be template specialized).  */
 	template<typename TItemType>
 	class TReplicationTreeData
@@ -23,6 +30,7 @@ namespace UE::ConcertSharedSlate
 		
 		DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<IReplicationTreeColumn<TItemType>>, FGetColumn, const FName& ColumnId);
 		DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FOverrideColumnWidget, const FName& ColumnName, const TItemType& RowData);
+		DECLARE_DELEGATE_RetVal_OneParam(FHoverRowContent, FGetHoveredRowContent, const TSharedPtr<TItemType>& Item);
 		
 		struct FGenerateRowArgs
 		{
@@ -30,6 +38,9 @@ namespace UE::ConcertSharedSlate
 			FGetColumn GetColumnDelegate;
 			/** Overrides a column's content widget. */
 			FOverrideColumnWidget OverrideColumnWidgetDelegate;
+			
+			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
+			FGetHoveredRowContent GetHoveredRowContent;
 
 			/** The text to highlight - equal to search text. */
 			TSharedPtr<FText> HighlightText;

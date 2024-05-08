@@ -17,6 +17,7 @@ namespace UE::ConcertSharedSlate
 			.HighlightText(AdditionalArgs.HighlightText)
 			.ColumnGetter(AdditionalArgs.GetColumnDelegate)
 			.OverrideColumnWidget(AdditionalArgs.OverrideColumnWidgetDelegate)
+			.GetHoveredRowContent(AdditionalArgs.GetHoveredRowContent)
 			.RowData(Item)
 			.ExpandableColumnLabel(AdditionalArgs.ExpandableColumnId)
 			.Style(AdditionalArgs.RowStyle);

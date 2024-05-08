@@ -3,16 +3,20 @@
 #include "SBaseReplicationStreamEditor.h"
 
 #include "Model/Item/SourceModelBuilders.h"
-#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
 #include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
-#include "Replication/Editor/Model/ObjectSource/IObjectSelectionSourceModel.h"
 #include "Replication/Editor/Utils/DisplayUtils.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
+#include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
+#include "Replication/Editor/Model/ObjectSource/IObjectSelectionSourceModel.h"
 #include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
 
 #include "Algo/AnyOf.h"
-#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
+#include "Replication/Utils/ObjectUtils.h"
+#include "Styling/AppStyle.h"
 #include "UObject/Class.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
 
 #define LOCTEXT_NAMESPACE "SBaseReplicationStreamEditor"
@@ -63,6 +67,7 @@ namespace UE::ConcertSharedSlate
 						InArgs._LeftOfObjectSearchBar.Widget
 					]
 				]
+				.GetHoveredRowContent(this, &SBaseReplicationStreamEditor::MakeHoveredRowContent)
 				.NoOutlinerObjects(LOCTEXT("NoObjects", "Add objects to replicate"))
 		];
 	}
@@ -91,6 +96,33 @@ namespace UE::ConcertSharedSlate
 	TSet<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
 	{
 		return ReplicationViewer->GetObjectsBeingPropertyEdited();
+	}
+
+	FHoverRowContent SBaseReplicationStreamEditor::MakeHoveredRowContent(const TSharedPtr<FReplicatedObjectData>& Data) const
+	{
+		const FSoftObjectPath Object = Data->GetObjectPath();
+		
+		if (ObjectUtils::IsActor(Object))
+		{
+			const TSharedRef<SWidget> Content =
+				SNew(SButton)
+				.ButtonStyle( FAppStyle::Get(), "SimpleButton")
+				.OnClicked_Lambda([this, WeakData = Data.ToWeakPtr()]()
+				{
+					if (const TSharedPtr<FReplicatedObjectData> DataPin = WeakData.Pin())
+					{
+						OnDeleteObjects({ DataPin });
+					}
+					return FReply::Handled();
+				})
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.Delete"))
+				];
+			return { Content, HAlign_Right };
+		}
+		
+		return { SNullWidget::NullWidget };
 	}
 
 	bool SBaseReplicationStreamEditor::IsEditingDisabled() const

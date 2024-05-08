@@ -73,9 +73,13 @@ namespace UE::ConcertSharedSlate
 			/** Called to generate the context menu for objects. */
 			SLATE_EVENT(FOnContextMenuOpening, OnObjectsContextMenuOpening)
 			
+		
 			/** Optional. Whether a given object should be displayed. If this returns false on an object, none of its children will be shown either. */
 			SLATE_EVENT(FShouldDisplayObject, ShouldDisplayObject)
 		
+			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
+			SLATE_EVENT(SReplicationTreeView<FReplicatedObjectData>::FGetHoveredRowContent, GetHoveredRowContent)
+			
 			/** Optional widget to add to the left of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
 			/** Optional widget to add to the right of the object list search bar. */

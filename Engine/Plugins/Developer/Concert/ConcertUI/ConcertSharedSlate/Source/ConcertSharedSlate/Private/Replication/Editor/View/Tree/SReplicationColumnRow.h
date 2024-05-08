@@ -8,6 +8,7 @@
 #include "Delegates/DelegateCombinations.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Views/SExpanderArrow.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
@@ -22,10 +23,12 @@ namespace UE::ConcertSharedSlate
 	template<typename TListItemType>
 	class SReplicationColumnRow : public SMultiColumnTableRow<TSharedPtr<TListItemType>>
 	{
+		using Super = SMultiColumnTableRow<TSharedPtr<TListItemType>>;
 	public:
 
 		using FGetColumn = typename TReplicationTreeData<TListItemType>::FGetColumn;
 		using FOverrideColumnWidget = typename TReplicationTreeData<TListItemType>::FOverrideColumnWidget;
+		using FGetHoveredRowContent = typename TReplicationTreeData<TListItemType>::FGetHoveredRowContent;
 		
 		SLATE_BEGIN_ARGS(SReplicationColumnRow)
 			: _Style(&FCoreStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row"))
@@ -41,6 +44,9 @@ namespace UE::ConcertSharedSlate
 			 * This is useful, e.g. if you want to generate a separator widget between items.
 			 */
 			SLATE_EVENT(FOverrideColumnWidget, OverrideColumnWidget)
+		
+			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
+			SLATE_EVENT(FGetHoveredRowContent, GetHoveredRowContent)
 
 			/** The data to pass to TReplicationColumn::BuildColumnWidget. */
 			SLATE_ARGUMENT(TSharedPtr<TListItemType>, RowData)
@@ -50,7 +56,6 @@ namespace UE::ConcertSharedSlate
 
 			/** Style to use for rows, e.g. for making them alternate in grey */
 			SLATE_STYLE_ARGUMENT(FTableRowStyle, Style)
-		
 		SLATE_END_ARGS()
 
 		void Construct(
@@ -59,6 +64,7 @@ namespace UE::ConcertSharedSlate
 		{
 			ColumnGetterDelegate = InArgs._ColumnGetter;
 			OverrideColumnWidgetDelegate = InArgs._OverrideColumnWidget;
+			GetHoveredRowContent = InArgs._GetHoveredRowContent;
 			HighlightText = InArgs._HighlightText;
 			RowData = InArgs._RowData;
 			ExpandableColumnLabel = InArgs._ExpandableColumnLabel;
@@ -69,6 +75,43 @@ namespace UE::ConcertSharedSlate
 				.Style(InArgs._Style),
 				InOwner
 				);
+		}
+		
+		virtual void ConstructChildren(ETableViewMode::Type InOwnerTableMode, const TAttribute<FMargin>& InPadding, const TSharedRef<SWidget>& InContent) override
+		{
+			Super::ConstructChildren(InOwnerTableMode, InPadding, InContent);
+
+			if (GetHoveredRowContent.IsBound())
+			{
+				const auto[HoverContent, HAlign] = GetHoveredRowContent.Execute(RowData);
+				this->ChildSlot
+				[
+					SNew(SOverlay)
+
+					// Generated columns
+					+SOverlay::Slot()
+					[
+						this->ChildSlot.GetWidget()
+					]
+
+					// Hovered overlay
+					+SOverlay::Slot()
+					[
+						SNew(SHorizontalBox)
+						
+						+SHorizontalBox::Slot() 
+						.Padding(InPadding)
+						.HAlign(HAlign)
+						[
+							SNew(SBox)
+							.Visibility_Lambda([this](){ return this->IsHovered() ? EVisibility::Visible : EVisibility::Collapsed; })
+							[
+								HoverContent
+							]
+						]
+					]
+				];
+			}
 		}
 
 		/** Generates the widget representing this row. */
@@ -122,13 +165,13 @@ namespace UE::ConcertSharedSlate
 						ColumnWidget
 					]
 				];
-	
 		}
 
 	private:
 		
 		FGetColumn ColumnGetterDelegate;
 		FOverrideColumnWidget OverrideColumnWidgetDelegate;
+		FGetHoveredRowContent GetHoveredRowContent;
 		TSharedPtr<FText> HighlightText;
 		TSharedPtr<TListItemType> RowData;
 		FName ExpandableColumnLabel;
