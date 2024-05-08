@@ -1677,7 +1677,9 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 				continue;
 			}
 
-			if (PCGComponent->GetOriginalComponent()->IsIgnoringChangeOrigin(InObject))
+			UPCGComponent* OriginalComponent = PCGComponent->GetOriginalComponent();
+
+			if (ensure(OriginalComponent) && OriginalComponent->IsIgnoringChangeOrigin(InObject))
 			{
 				PCGGraphExecutionLogging::LogChangeOriginIgnoredForComponent(InObject, PCGComponent);
 				continue;
@@ -1725,7 +1727,9 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 				return;
 			}
 
-			if (ComponentRef.Component->GetOriginalComponent()->IsIgnoringChangeOrigin(InObject))
+			UPCGComponent* OriginalComponent = ComponentRef.Component->GetOriginalComponent();
+
+			if (ensure(OriginalComponent) && OriginalComponent->IsIgnoringChangeOrigin(InObject))
 			{
 				PCGGraphExecutionLogging::LogChangeOriginIgnoredForComponent(InObject, ComponentRef.Component);
 				return;
@@ -1758,7 +1762,9 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 				return;
 			}
 
-			if (ComponentRef.Component->GetOriginalComponent()->IsIgnoringChangeOrigin(InObject))
+			UPCGComponent* OriginalComponent = ComponentRef.Component->GetOriginalComponent();
+
+			if (ensure(OriginalComponent) && OriginalComponent->IsIgnoringChangeOrigin(InObject))
 			{
 				PCGGraphExecutionLogging::LogChangeOriginIgnoredForComponent(InObject, ComponentRef.Component);
 				return;

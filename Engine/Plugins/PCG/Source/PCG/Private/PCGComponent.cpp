@@ -455,8 +455,6 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 			// We don't have the info on the original component here, so forward for all
 			// components.
 			Context->OutputData = Context->InputData;
-
-			CallPostGenerateFunctions(Context);
 		}
 
 #if WITH_EDITOR
@@ -469,7 +467,16 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 		UpdateDynamicTracking();
 #endif // WITH_EDITOR
 
-		PCGComponent::BroadcastDynamicDelegate(OnPCGGraphGeneratedExternal, this);
+		if (IsValid(this) && Context)
+		{
+			CallPostGenerateFunctions(Context);
+		}
+
+		// If Generate function made the component invalid for whatever reason, we re-check if this is valid.
+		if (IsValid(this))
+		{
+			PCGComponent::BroadcastDynamicDelegate(OnPCGGraphGeneratedExternal, this);
+		}
 	}
 
 	// Trigger notification - will be used by other tracking mechanisms
@@ -3023,17 +3030,20 @@ void UPCGComponent::UpdateDynamicTracking()
 		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::UpdateDynamicTracking::LocalComponent);
 
 		UPCGComponent* OriginalComponent = GetOriginalComponent();
-		FScopeLock Lock(&OriginalComponent->CurrentExecutionDynamicTrackingLock);
-		for (auto& It : CurrentExecutionDynamicTracking)
+		if (ensure(OriginalComponent))
 		{
-			TArray<FPCGSettingsAndCulling>& OriginalSettingsAndCulling = OriginalComponent->CurrentExecutionDynamicTracking.FindOrAdd(It.Key);
-			for (FPCGSettingsAndCulling& SettingsAndCulling : It.Value)
+			FScopeLock Lock(&OriginalComponent->CurrentExecutionDynamicTrackingLock);
+			for (auto& It : CurrentExecutionDynamicTracking)
 			{
-				OriginalSettingsAndCulling.AddUnique(std::move(SettingsAndCulling));
+				TArray<FPCGSettingsAndCulling>& OriginalSettingsAndCulling = OriginalComponent->CurrentExecutionDynamicTracking.FindOrAdd(It.Key);
+				for (FPCGSettingsAndCulling& SettingsAndCulling : It.Value)
+				{
+					OriginalSettingsAndCulling.AddUnique(std::move(SettingsAndCulling));
+				}
 			}
-		}
 
-		OriginalComponent->CurrentExecutionDynamicTrackingSettings.Append(CurrentExecutionDynamicTrackingSettings);
+			OriginalComponent->CurrentExecutionDynamicTrackingSettings.Append(CurrentExecutionDynamicTrackingSettings);
+		}
 
 		CurrentExecutionDynamicTracking.Empty();
 		CurrentExecutionDynamicTrackingSettings.Empty();
