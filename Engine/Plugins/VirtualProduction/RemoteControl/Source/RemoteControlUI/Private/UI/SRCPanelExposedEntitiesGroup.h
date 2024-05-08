@@ -8,7 +8,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 /** Grouping type available */
-enum class EFieldGroupType
+enum class EFieldGroupType : uint8
 {
 	/** No Grouping. Will be shown as a flat list */
 	None,
