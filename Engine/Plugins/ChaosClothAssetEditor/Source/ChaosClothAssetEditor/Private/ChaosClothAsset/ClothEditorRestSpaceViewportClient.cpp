@@ -38,7 +38,6 @@ FChaosClothEditorRestSpaceViewportClient::FChaosClothEditorRestSpaceViewportClie
 	ScrollBehavior->Initialize(ScrollBehaviorTarget.Get());
 	ScrollBehavior->SetDefaultPriority(ViewportBehaviorPriority);
 	ScrollBehavior->SetUseRightMouseButton();
-	BehaviorSet->Add(ScrollBehavior);
 	BehaviorsFor2DMode.Add(ScrollBehavior);
 
 	ZoomBehaviorTarget = MakeUnique<FEditor2DMouseWheelZoomBehaviorTarget>(this);
@@ -50,8 +49,25 @@ FChaosClothEditorRestSpaceViewportClient::FChaosClothEditorRestSpaceViewportClie
 	UMouseWheelInputBehavior* const ZoomBehavior = NewObject<UMouseWheelInputBehavior>();
 	ZoomBehavior->Initialize(ZoomBehaviorTarget.Get());
 	ZoomBehavior->SetDefaultPriority(ViewportBehaviorPriority);
-	BehaviorSet->Add(ZoomBehavior);
 	BehaviorsFor2DMode.Add(ZoomBehavior);
+
+
+	const TObjectPtr<ULocalClickDragInputBehavior> ClickDrag3DBehavior = NewObject<ULocalClickDragInputBehavior>();
+	ClickDrag3DBehavior->Initialize();
+	ClickDrag3DBehavior->SetDefaultPriority(ViewportBehaviorPriority);
+
+	ClickDrag3DBehavior->ModifierCheckFunc = [this](const FInputDeviceState& InputState) {
+		return !FInputDeviceState::IsAltKeyDown(InputState);
+	};
+
+	ClickDrag3DBehavior->CanBeginClickDragFunc = [](const FInputDeviceRay& InputDeviceRay)
+	{
+		return FInputRayHit(TNumericLimits<float>::Max()); // bHit is true. Depth is max to lose the standard tiebreaker.
+	};
+
+	BehaviorsFor3DMode.Add(ClickDrag3DBehavior);
+
+	UpdateBehaviorsForCurrentViewMode();
 
 	EngineShowFlags.SetSelectionOutline(false);
 	ModeTools->GetInteractiveToolsContext()->InputRouter->RegisterSource(this);
@@ -62,9 +78,6 @@ FChaosClothEditorRestSpaceViewportClient::FChaosClothEditorRestSpaceViewportClie
 	CameraPointLight->SetIntensity(3.0f);
 	CameraPointLight->SetCastShadows(false);
 	PreviewScene->AddComponent(CameraPointLight, FTransform());
-
-	// Disable the non-alt-key camera controls
-	bLockFlightCamera = true;
 }
 
 void FChaosClothEditorRestSpaceViewportClient::SetConstructionViewMode(EClothPatternVertexType InViewMode)
@@ -77,15 +90,8 @@ void FChaosClothEditorRestSpaceViewportClient::SetConstructionViewMode(EClothPat
 
 	ConstructionViewMode = InViewMode;
 
-	BehaviorSet->RemoveAll();
-
 	if (ConstructionViewMode == EClothPatternVertexType::Sim2D)
 	{
-		for (UInputBehavior* const Behavior : BehaviorsFor2DMode)
-		{
-			BehaviorSet->Add(Behavior);
-		}
-
 		const double AbsZ = FMath::Abs(ViewTransformPerspective.GetLocation().Z);
 		constexpr double CameraFarPlaneWorldZ = -10.0;
 		constexpr double CameraNearPlaneProportionZ = 0.8;
@@ -98,10 +104,31 @@ void FChaosClothEditorRestSpaceViewportClient::SetConstructionViewMode(EClothPat
 		OverrideNearClipPlane(UE_KINDA_SMALL_NUMBER);
 	}
 
+	UpdateBehaviorsForCurrentViewMode();
+
 	ModeTools->GetInteractiveToolsContext()->InputRouter->DeregisterSource(this);
 	ModeTools->GetInteractiveToolsContext()->InputRouter->RegisterSource(this);
 }
 
+void FChaosClothEditorRestSpaceViewportClient::UpdateBehaviorsForCurrentViewMode()
+{
+	BehaviorSet->RemoveAll();
+
+	if (ConstructionViewMode == EClothPatternVertexType::Sim2D)
+	{
+		for (UInputBehavior* const Behavior : BehaviorsFor2DMode)
+		{
+			BehaviorSet->Add(Behavior);
+		}
+	}
+	else
+	{
+		for (UInputBehavior* const Behavior : BehaviorsFor3DMode)
+		{
+			BehaviorSet->Add(Behavior);
+		}
+	}
+}
 
 EClothPatternVertexType FChaosClothEditorRestSpaceViewportClient::GetConstructionViewMode() const
 {
@@ -119,6 +146,7 @@ void FChaosClothEditorRestSpaceViewportClient::AddReferencedObjects(FReferenceCo
 	FEditorViewportClient::AddReferencedObjects(Collector);
 	Collector.AddReferencedObject(BehaviorSet);
 	Collector.AddReferencedObjects(BehaviorsFor2DMode);
+	Collector.AddReferencedObjects(BehaviorsFor3DMode);
 }
 
 bool FChaosClothEditorRestSpaceViewportClient::ShouldOrbitCamera() const

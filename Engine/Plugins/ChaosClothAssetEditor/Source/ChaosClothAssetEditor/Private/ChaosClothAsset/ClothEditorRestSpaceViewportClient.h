@@ -46,6 +46,8 @@ private:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	void UpdateBehaviorsForCurrentViewMode();
+
 	TObjectPtr<UPointLightComponent> CameraPointLight;
 
 	EClothPatternVertexType ConstructionViewMode = EClothPatternVertexType::Sim2D;
@@ -53,6 +55,7 @@ private:
 	TObjectPtr<UInputBehaviorSet> BehaviorSet;
 
 	TArray<TObjectPtr<UInputBehavior>> BehaviorsFor2DMode;
+	TArray<TObjectPtr<UInputBehavior>> BehaviorsFor3DMode;
 
 	TUniquePtr<FEditor2DScrollBehaviorTarget> ScrollBehaviorTarget;
 	TUniquePtr<FEditor2DMouseWheelZoomBehaviorTarget> ZoomBehaviorTarget;

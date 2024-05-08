@@ -20,6 +20,8 @@
 #include "AssetViewerSettings.h"
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "Transforms/TransformGizmoDataBinder.h"
+#include "BaseBehaviors/ClickDragBehavior.h"
+#include "BaseBehaviors/SingleClickOrDragBehavior.h"
 
 namespace UE::Chaos::ClothAsset
 {
@@ -63,8 +65,19 @@ FChaosClothAssetEditor3DViewportClient::FChaosClothAssetEditor3DViewportClient(F
 	// Set correct flags according to current profile settings
 	SetAdvancedShowFlagsForScene(UAssetViewerSettings::Get()->Profiles[GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex].bPostProcessingEnabled);
 
-	// Disable the non-alt-key camera controls
-	bLockFlightCamera = true;
+	//
+	// Input behaviors
+	//
+
+	InputBehaviorSet = NewObject<UInputBehaviorSet>();
+
+	// Our ClickOrDrag behavior is used to intercept non-alt left-mouse-button drag inputs, but still allow single-click for select/deselect operation
+	const TObjectPtr<USingleClickOrDragInputBehavior> ClickOrDragBehavior = NewObject<USingleClickOrDragInputBehavior>();
+	ClickOrDragBehavior->Initialize(this, this);
+	
+	InputBehaviorSet->Add(ClickOrDragBehavior);
+
+	InteractiveToolsContext->InputRouter->RegisterSource(this);
 }
 
 void FChaosClothAssetEditor3DViewportClient::RegisterDelegates()
@@ -111,6 +124,7 @@ void FChaosClothAssetEditor3DViewportClient::AddReferencedObjects(FReferenceColl
 
 	Collector.AddReferencedObject(TransformProxy);
 	Collector.AddReferencedObject(Gizmo);
+	Collector.AddReferencedObject(InputBehaviorSet);
 }
 
 void FChaosClothAssetEditor3DViewportClient::Tick(float DeltaSeconds)
@@ -302,6 +316,38 @@ void FChaosClothAssetEditor3DViewportClient::DrawCanvas(FViewport& InViewport, F
 	}
 }
 
+const UInputBehaviorSet* FChaosClothAssetEditor3DViewportClient::GetInputBehaviors() const
+{
+	return InputBehaviorSet;
+}
+
+
+// IClickBehaviorTarget
+FInputRayHit FChaosClothAssetEditor3DViewportClient::IsHitByClick(const FInputDeviceRay& ClickPos)
+{
+	// Here we are responding that we do want to handle click events, but we are only doing this so that we can also get drag events
+	// TODO: Find out if there's a way we can just intercept mouse drag events and not single-click events
+	return FInputRayHit(TNumericLimits<float>::Max());
+}
+
+void FChaosClothAssetEditor3DViewportClient::OnClicked(const FInputDeviceRay& ClickPos)
+{
+	// On a single click with no drag, respond as we would in ProcessClick()
+	if (ClickPos.bHas2D)
+	{
+		HHitProxy* const HitProxy = Viewport->GetHitProxy(ClickPos.ScreenPosition[0], ClickPos.ScreenPosition[1]);
+		UpdateSelection(HitProxy);
+	}
+}
+
+// IClickDragBehaviorTarget
+FInputRayHit FChaosClothAssetEditor3DViewportClient::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
+{
+	// We do want to handle drag events
+	return FInputRayHit(TNumericLimits<float>::Max());
+}
+
+
 FBox FChaosClothAssetEditor3DViewportClient::PreviewBoundingBox() const
 {
 	if (ClothEdMode)
@@ -340,10 +386,9 @@ const UChaosClothComponent* FChaosClothAssetEditor3DViewportClient::GetPreviewCl
 	return nullptr;
 }
 
-void FChaosClothAssetEditor3DViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
-{
-	FEditorViewportClient::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
 
+void FChaosClothAssetEditor3DViewportClient::UpdateSelection(HHitProxy* HitProxy)
+{
 	const bool bIsShiftKeyDown = Viewport->KeyState(EKeys::LeftShift) || Viewport->KeyState(EKeys::RightShift);
 	const bool bIsCtrlKeyDown = Viewport->KeyState(EKeys::LeftControl) || Viewport->KeyState(EKeys::RightControl);
 
@@ -378,6 +423,12 @@ void FChaosClothAssetEditor3DViewportClient::ProcessClick(FSceneView& View, HHit
 	{
 		Component->PushSelectionToProxy();
 	}
+}
+
+void FChaosClothAssetEditor3DViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
+{
+	FEditorViewportClient::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
+	UpdateSelection(HitProxy);
 }
 
 
