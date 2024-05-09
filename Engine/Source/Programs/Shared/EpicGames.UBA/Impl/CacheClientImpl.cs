@@ -89,6 +89,9 @@ namespace EpicGames.UBA
 		static extern bool CacheClient_FetchFromCache(IntPtr cacheClient, IntPtr rootPaths, uint bucket, IntPtr info);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void CacheClient_RequestServerShutdown(IntPtr cacheClient, string reason);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void CacheClient_Destroy(IntPtr cacheClient);
 		#endregion
 
@@ -136,6 +139,11 @@ namespace EpicGames.UBA
 			bool result = CacheClient_FetchFromCache(_handle, rootPaths.GetHandle(), bucket, si);
 			ProcessStartInfo_Destroy(si);
 			return result;
+		}
+
+		public void RequestServerShutdown(string reason)
+		{
+			CacheClient_RequestServerShutdown(_handle, reason);
 		}
 
 		public IntPtr GetHandle() => _handle;

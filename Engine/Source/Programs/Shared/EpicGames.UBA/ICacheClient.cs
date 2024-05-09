@@ -62,6 +62,12 @@ namespace EpicGames.UBA
 		public abstract bool FetchFromCache(IRootPaths rootPaths, uint bucket, ProcessStartInfo info);
 
 		/// <summary>
+		/// Request the connected server to shutdown
+		/// </summary>
+		/// <param name="reason">Reason for shutdown</param>
+		public abstract void RequestServerShutdown(string reason);
+
+		/// <summary>
 		/// Create a ICacheClient object
 		/// </summary>
 		/// <param name="session">The session</param>

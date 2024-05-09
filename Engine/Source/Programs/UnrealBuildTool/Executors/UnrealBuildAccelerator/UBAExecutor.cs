@@ -328,6 +328,8 @@ namespace UnrealBuildTool
 
 						bool success = ExecuteActionsInternal(inputActions, _session, logger, actionArtifactCache, () => ActionQueueCanceled(ubaStorage));
 
+						//_cacheClient.RequestServerShutdown("");
+
 						if (!UBAConfig.bDisableRemote)
 						{
 							Server.StopServer();
