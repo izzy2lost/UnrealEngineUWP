@@ -926,6 +926,12 @@ bool FDepthPassMeshProcessor::ShouldRender(const FMaterial& Material, bool bMate
 	bUseDefaultMaterial = false;
 	bPositionOnly = false;
 
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1 && EarlyZPassMode == DDM_None)
+	{
+		// Do not cache MDC and do not pre-cache PSOs for a depth pass if it's never going to be used on mobile platforms
+		return false;
+	}
+
 	if (IsOpaqueBlendMode(Material)
 		&& EarlyZPassMode != DDM_MaskedOnly
 		&& bSupportPositionOnlyStream
