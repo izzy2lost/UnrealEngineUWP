@@ -76,12 +76,17 @@ namespace Gauntlet
 	public interface ITestEvent
 	{
 		/// <summary>
-		/// Level of severity that descrives this event
+		/// Level of severity that describes this event
 		/// </summary>
 		EventSeverity Severity { get; }
 
 		/// <summary>
-		/// High level single-line summary of what occurred. Should neber be null
+		/// Time at which the event was fired
+		/// </summary>
+		DateTime Time { get; }
+
+		/// <summary>
+		/// High level single-line summary of what occurred. Should never be null
 		/// </summary>
 		string Summary { get; }
 
