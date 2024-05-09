@@ -2,9 +2,9 @@
 
 namespace UnrealBuildTool.Rules
 {
-	public class GeometryCollectionDeprecatedNodes : ModuleRules
+	public class GeometryCollectionDepNodes : ModuleRules
 	{
-        public GeometryCollectionDeprecatedNodes(ReadOnlyTargetRules Target) : base(Target)
+        public GeometryCollectionDepNodes(ReadOnlyTargetRules Target) : base(Target)
 		{
 			PublicDependencyModuleNames.AddRange(
 				new string[]

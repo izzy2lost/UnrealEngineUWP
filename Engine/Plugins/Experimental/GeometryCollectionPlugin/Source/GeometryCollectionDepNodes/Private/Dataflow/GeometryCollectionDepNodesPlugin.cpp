@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/GeometryCollectionDeprecatedNodesPlugin.h"
+#include "Dataflow/GeometryCollectionDepNodesPlugin.h"
 
 #include "CoreMinimal.h"
 
@@ -13,18 +13,18 @@
 #define LOCTEXT_NAMESPACE "DataflowNodes"
 
 
-void IGeometryCollectionDeprecatedNodesPlugin::StartupModule()
+void IGeometryCollectionDepNodesPlugin::StartupModule()
 {
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetVertexColorInCollectionFromVertexSelectionDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetVertexColorInCollectionFromFloatArrayDataflowNode);
 }
 
-void IGeometryCollectionDeprecatedNodesPlugin::ShutdownModule()
+void IGeometryCollectionDepNodesPlugin::ShutdownModule()
 {
 }
 
 
-IMPLEMENT_MODULE(IGeometryCollectionDeprecatedNodesPlugin, GeometryCollectionDeprecatedNodes)
+IMPLEMENT_MODULE(IGeometryCollectionDepNodesPlugin, GeometryCollectionDepNodes)
 
 
 #undef LOCTEXT_NAMESPACE

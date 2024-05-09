@@ -9,7 +9,7 @@
 /**
  * The public interface to this module
  */
-class IGeometryCollectionDeprecatedNodesPlugin : public IModuleInterface
+class IGeometryCollectionDepNodesPlugin : public IModuleInterface
 {
 public:
 	virtual void StartupModule();

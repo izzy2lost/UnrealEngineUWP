@@ -36,7 +36,7 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "GeometryCollectionDeprecatedNodes",
+			"Name": "GeometryCollectionDepNodes",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}
