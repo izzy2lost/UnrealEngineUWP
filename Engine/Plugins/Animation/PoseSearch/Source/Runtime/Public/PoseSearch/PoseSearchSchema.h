@@ -150,7 +150,7 @@ public:
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	const UE::PoseSearch::FRole GetDefaultRole() const;
 #endif // WITH_EDITOR
-	const TArray<FPoseSearchRoledSkeleton>& GetRoledSkeletons() const;
+	const TArray<FPoseSearchRoledSkeleton>& GetRoledSkeletons() const { return Skeletons; }
 
 	TConstArrayView<float> BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const;
 
