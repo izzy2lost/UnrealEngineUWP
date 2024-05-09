@@ -260,7 +260,10 @@ bool FOnlineSubsystemEOS::Init()
 	// Determine if we are the default and if we're the platform OSS
 	FString DefaultOSS;
 	GConfig->GetString(TEXT("OnlineSubsystem"), TEXT("DefaultPlatformService"), DefaultOSS, GEngineIni);
+	FString PlatformOSS;
+	GConfig->GetString(TEXT("OnlineSubsystem"), TEXT("NativePlatformService"), PlatformOSS, GEngineIni);
 	bIsDefaultOSS = DefaultOSS == TEXT("EOS");
+	bIsPlatformOSS = PlatformOSS == TEXT("EOS");
 	bWasLaunchedByEGS = FParse::Param(FCommandLine::Get(), TEXT("EpicPortal"));
 
 	bool bUnused;
@@ -600,6 +603,7 @@ FOnlineSubsystemEOS::FOnlineSubsystemEOS(FName InInstanceName) :
 	, UserCloudInterfacePtr(nullptr)
 	, bWasLaunchedByEGS(false)
 	, bIsDefaultOSS(false)
+	, bIsPlatformOSS(false)
 {
 	StopTicker();
 }

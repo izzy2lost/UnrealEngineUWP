@@ -40,13 +40,6 @@ public:
 
 void FOnlineSubsystemEOSPlusModule::StartupModule()
 {
-	bool bDisableDeprecationWarning = false;
-	GConfig->GetBool(TEXT("OnlineSubsystemEOSPlus"), TEXT("bDisableDeprecationWarning"), bDisableDeprecationWarning, GEngineIni);
-	if (!bDisableDeprecationWarning)
-	{
-		UE_LOG_ONLINE(Warning, TEXT("[%hs] OnlineSubsystemEOSPlus is deprecated, please use OnlineSubsystemEOS for EOSSDK functionality."), __FUNCTION__);
-	}
-
 	if (IsRunningCommandlet())
 	{
 		return;

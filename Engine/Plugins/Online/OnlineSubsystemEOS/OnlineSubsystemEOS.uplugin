@@ -26,7 +26,7 @@
 		{
 			"Name": "OnlineSubsystemEOSPlus",
 			"Type": "Runtime",
-			"LoadingPhase": "None",
+			"LoadingPhase": "Default",
 			"PlatformAllowList": [
 				"Win64",
 				"Mac",

@@ -150,6 +150,7 @@ public:
 
 	bool bWasLaunchedByEGS;
 	bool bIsDefaultOSS;
+	bool bIsPlatformOSS;
 
 	TSharedPtr<FSocketSubsystemEOS, ESPMode::ThreadSafe> SocketSubsystem;
 
