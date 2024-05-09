@@ -679,6 +679,9 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY(EditAnywhere, Category = "Perf Overview")
 	ENiagaraDebugHUDPerfUnits PerfUnits = ENiagaraDebugHUDPerfUnits::Microseconds;
 
+	UPROPERTY(EditAnywhere, Category = "Perf Overview", meta = (EditConditionHides, EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::Performance"))
+	bool bShowPerfColumGameThreadOnly = false;
+
 	/** Time range of the Y Axis of the perf graph */
 	UPROPERTY(EditAnywhere, Category = "Perf Overview")
 	ENiagaraDebugHUDPerfGraphMode PerfGraphMode = ENiagaraDebugHUDPerfGraphMode::GameThread;
@@ -893,6 +896,7 @@ enum class ENiagaraDebugMessageType : uint8
 	Warning,
 	Error
 };
+
 struct FNiagaraDebugMessage
 {
 	ENiagaraDebugMessageType Type;

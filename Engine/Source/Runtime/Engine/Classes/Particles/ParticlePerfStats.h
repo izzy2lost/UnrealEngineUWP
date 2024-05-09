@@ -109,9 +109,12 @@ struct FParticlePerfStats_GT
 		ActivationCycles = 0;
 		WaitCycles = 0;
 	}
-	FORCEINLINE uint64 GetTotalCycles_GTOnly()const { return TickGameThreadCycles + FinalizeCycles + ActivationCycles + WaitCycles; }
-	FORCEINLINE uint64 GetTotalCycles()const { return GetTotalCycles_GTOnly() + TickConcurrentCycles + EndOfFrameCycles; }
-	FORCEINLINE uint64 GetPerInstanceAvgCycles()const { return NumInstances > 0 ? GetTotalCycles() / NumInstances : 0; }
+
+	FORCEINLINE uint64 GetTotalCycles_GTOnly() const { return TickGameThreadCycles + FinalizeCycles + ActivationCycles + WaitCycles; }
+	FORCEINLINE uint64 GetPerInstanceAvgCycles_GTOnly() const { return NumInstances > 0 ? GetTotalCycles_GTOnly() / NumInstances : 0; }
+
+	FORCEINLINE uint64 GetTotalCycles() const { return GetTotalCycles_GTOnly() + TickConcurrentCycles + EndOfFrameCycles; }
+	FORCEINLINE uint64 GetPerInstanceAvgCycles() const { return NumInstances > 0 ? GetTotalCycles() / NumInstances : 0; }
 };
 
 /** Stats gathered on the render thread. */

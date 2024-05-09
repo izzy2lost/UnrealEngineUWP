@@ -29,14 +29,17 @@ struct FAccumulatedParticlePerfStats_GT
 
 	/** Returns the total cycles used by all GameThread stats. */
 	FORCEINLINE uint64 GetTotalCycles() const { return AccumulatedStats.GetTotalCycles(); }
+	FORCEINLINE uint64 GetTotalCycles_GTOnly() const { return AccumulatedStats.GetTotalCycles_GTOnly(); }
 
 	/** Returns the average cycles per frame by all GameThread stats. */
 	FORCEINLINE uint64 GetPerFrameAvgCycles() const { return NumFrames > 0 ? AccumulatedStats.GetTotalCycles() / NumFrames : 0; }
+	FORCEINLINE uint64 GetPerFrameAvgCycles_GTOnly() const { return NumFrames > 0 ? AccumulatedStats.GetTotalCycles_GTOnly() / NumFrames : 0; }
 	/** Returns the max cycles per frame by all GameThread stats. */
 	FORCEINLINE uint64 GetPerFrameMaxCycles(int32 Index = 0) const { return MaxPerFrameTotalCycles[Index]; }
 
 	/** Returns the average time in µs per frame by all GameThread stats. */
 	FORCEINLINE float GetPerFrameAvg() const { return float(FPlatformTime::ToMilliseconds64(GetPerFrameAvgCycles()) * 1000.0); }
+	FORCEINLINE float GetPerFrameAvg_GTOnly() const { return float(FPlatformTime::ToMilliseconds64(GetPerFrameAvgCycles_GTOnly()) * 1000.0); }
 	/** Returns the max time in µs per frame by all GameThread stats. */
 	FORCEINLINE float GetPerFrameMax(int32 Index = 0) const { return float(FPlatformTime::ToMilliseconds64(GetPerFrameMaxCycles(Index)) * 1000.0); }
 
@@ -47,6 +50,7 @@ struct FAccumulatedParticlePerfStats_GT
 
 	/** Returns the average time in µs per instance by all GameThread stats. */
 	FORCEINLINE float GetPerInstanceAvg() const { return float(FPlatformTime::ToMilliseconds64(GetPerInstanceAvgCycles()) * 1000.0); }
+	FORCEINLINE float GetPerInstanceAvg_GTOnly() const { return float(FPlatformTime::ToMilliseconds64(AccumulatedStats.GetPerInstanceAvgCycles_GTOnly()) * 1000.0); }
 	/** Returns the max time in µs per instance by all GameThread stats. */
 	FORCEINLINE float GetPerInstanceMax(int32 Index = 0) const { return float(FPlatformTime::ToMilliseconds64(GetPerInstanceMaxCycles(Index)) * 1000.0); }
 };

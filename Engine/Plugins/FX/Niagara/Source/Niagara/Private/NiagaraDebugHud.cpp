@@ -831,6 +831,8 @@ FNiagaraDebugHud::FNiagaraDebugHud(UWorld* World)
 
 	WeakWorld = World;
 
+	LongestSystemName = TEXT("NS_SomeBigLongNiagaraSystemName");
+
 	if ( !GDebugDrawHandle.IsValid() )
 	{
 		GDebugDrawHandle = UDebugDrawService::Register(TEXT("Particles"), FDebugDrawDelegate::CreateStatic(&FNiagaraDebugHud::DebugDrawCallback));
@@ -1003,6 +1005,7 @@ void FNiagaraDebugHud::GatherSystemInfo()
 	}
 
 #if WITH_PARTICLE_PERF_STATS
+	//-TODO: Enable based one perf warnings
 	bool bUpdateStats = false;
 	if (Settings.bOverviewEnabled && (Settings.OverviewMode == ENiagaraDebugHUDOverviewMode::Performance || Settings.OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph))
 	{
@@ -1070,6 +1073,13 @@ void FNiagaraDebugHud::GatherSystemInfo()
 		if (SystemDebugInfo.SystemName.IsEmpty())
 		{
 			SystemDebugInfo.SystemName = GetNameSafe(FXComponent->GetFXSystemAsset());
+
+			static const FString SystemNamePostFix = TEXT(" (Fast Path) ");
+			if (SystemDebugInfo.SystemName.Len() + SystemNamePostFix.Len() > LongestSystemName.Len())
+			{
+				LongestSystemName = SystemDebugInfo.SystemName;
+				LongestSystemName.Append(SystemNamePostFix);
+			}
 		}
 	#if WITH_EDITORONLY_DATA
 		SystemDebugInfo.bCompileForEdit = NiagaraComponent ? NiagaraComponent->GetAsset()->GetCompileForEdit() : false;
@@ -1659,7 +1669,7 @@ void FNiagaraDebugHud::DrawOverview(class FNiagaraWorldManager* WorldManager, FC
 
 	if (Settings.bOverviewEnabled)
 	{
-		OverviewColumns.Emplace(TEXT(""), TEXT(""), TEXT("System Name"), ColumnOffset, Font, TEXT("NS_SomeBigLongNiagaraSystemName"),
+		OverviewColumns.Emplace(TEXT(""), TEXT(""), TEXT("System Name"), ColumnOffset, Font, *LongestSystemName,
 			[&DetailColor, &DetailHighlightColor, &fAdvanceHeight](FCanvas* Canvas, UFont* Font, float X, float Y, FOverviewColumn& Col, const FSystemDebugInfo& SystemInfo)
 			{
 				FLinearColor RowBGColor = SystemInfo.UniqueColor;
@@ -1846,6 +1856,19 @@ void FNiagaraDebugHud::DrawOverview(class FNiagaraWorldManager* WorldManager, FC
 					const FLinearColor RowColor = SystemInfo.bShowInWorld ? DetailHighlightColor : DetailColor;
 					Canvas->DrawShadowedString(X, Y, *FormatPerfValue(SystemInfo.PerfStats ? SystemInfo.PerfStats->Avg.Time_GT : 0.0), Font, RowColor);
 				});
+
+			if (Settings.bShowPerfColumGameThreadOnly)
+			{
+				OverviewColumns.Emplace(TEXT("Game Thread Only Avg:"), FormatPerfValue(GlobalPerfStats.Avg.Time_GTOnly), GlobalDataStringSize, FormatPerfString(TEXT("GT Only Avg")), ColumnOffset, Font, SystemStringSize,
+					[&DetailColor, &DetailHighlightColor, &fAdvanceHeight](FCanvas* Canvas, UFont* Font, float X, float Y, FOverviewColumn& Col, const FSystemDebugInfo& SystemInfo)
+					{
+						FLinearColor RowBGColor = SystemInfo.UniqueColor;
+						RowBGColor.A = Settings.SystemColorTableOpacity;
+						Canvas->DrawTile(X, Y, Col.MaxWidth, fAdvanceHeight, 0, 0, 0, 0, RowBGColor);
+						const FLinearColor RowColor = SystemInfo.bShowInWorld ? DetailHighlightColor : DetailColor;
+						Canvas->DrawShadowedString(X, Y, *FormatPerfValue(SystemInfo.PerfStats ? SystemInfo.PerfStats->Avg.Time_GTOnly : 0.0), Font, RowColor);
+					});
+			}
 
 			OverviewColumns.Emplace(TEXT("Game Thread Max:"), FormatPerfValue(GlobalPerfStats.Max.Time_GT), GlobalDataStringSize, FormatPerfString(TEXT("GT Max")), ColumnOffset, Font, SystemStringSize,
 				[&DetailColor, &DetailHighlightColor, &fAdvanceHeight](FCanvas* Canvas, UFont* Font, float X, float Y, FOverviewColumn& Col, const FSystemDebugInfo& SystemInfo)
@@ -3462,16 +3485,19 @@ bool FNiagaraDebugHUDStatsListener::Tick()
 
 		if (FAccumulatedParticlePerfStats* Stats = GetStats(System))
 		{
-			double SysAvg;
-			double SysMax;
+			double SysAvg = 0.0;
+			double SysAvgGTOnly = 0.0;
+			double SysMax = 0.0;
 			if (Settings.PerfSampleMode == ENiagaraDebugHUDPerfSampleMode::FrameTotal)
 			{
 				SysAvg = Stats->GetGameThreadStats().GetPerFrameAvg();
+				SysAvgGTOnly = Stats->GetGameThreadStats().GetPerFrameAvg_GTOnly();
 				SysMax = Stats->GetGameThreadStats().GetPerFrameMax();
 			}
 			else
 			{
 				SysAvg = Stats->GetGameThreadStats().GetPerInstanceAvg();
+				SysAvgGTOnly = Stats->GetGameThreadStats().GetPerInstanceAvg_GTOnly();
 				SysMax = Stats->GetGameThreadStats().GetPerInstanceMax();
 			}
 
@@ -3480,6 +3506,7 @@ bool FNiagaraDebugHUDStatsListener::Tick()
 			if (bPushStats)
 			{
 				HUDStats->Avg.Time_GT = SysAvg;
+				HUDStats->Avg.Time_GTOnly = SysAvgGTOnly;
 				HUDStats->Max.Time_GT = SysMax;
 			}
 

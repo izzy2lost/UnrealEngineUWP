@@ -23,6 +23,7 @@ class FNiagaraDebugHud;
 struct FNiagaraDebugHudFrameStat
 {
 	double Time_GT = 0.0;
+	double Time_GTOnly = 0.0;
 	double Time_RT = 0.0;
 	double Time_GPU = 0.0;
 };
@@ -266,6 +267,7 @@ private:
 
 	int32 GlobalTotalPlayerSystems = 0;
 
+	FString LongestSystemName;
 	TMap<FName, FSystemDebugInfo>	PerSystemDebugInfo;
 
 	TArray<TWeakObjectPtr<class UFXSystemComponent>>	InWorldComponents;
