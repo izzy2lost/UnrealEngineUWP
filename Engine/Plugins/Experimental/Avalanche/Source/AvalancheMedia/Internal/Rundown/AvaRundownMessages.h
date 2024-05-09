@@ -154,6 +154,7 @@ public:
  * The rundown asset must have been loaded, either by an edit command
  * or playback, prior to this command.
  * Unloaded assets will not be loaded by this command.
+ * This command is not supported in game builds.
  */
 USTRUCT()
 struct FAvaRundownSaveRundown : public FAvaRundownMsgBase
@@ -167,7 +168,6 @@ public:
 	UPROPERTY()
 	bool bOnlyIfIsDirty = false;
 };
-
 
 /**
  * Request the list of pages from the given rundown.
@@ -665,7 +665,10 @@ public:
 	UPROPERTY()
 	FString Name;
 
-	/** Name of the server this class was seen on. */
+	/**
+	 * Name of the playback server this class was seen on.
+	 * The name will be empty for the "local process" device.
+	 */
 	UPROPERTY()
 	FString Server;
 
@@ -807,15 +810,28 @@ public:
 	FString NewChannelName;
 };
 
+/**
+ * Request a list of devices from the rundown server.
+ * The server will reply with FAvaRundownDevicesList containing
+ * the devices that can be enumerated from the local host and all connected hosts
+ * through the motion design playback service.
+ */
 USTRUCT()
 struct FAvaRundownGetDevices : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
+	/**
+	 * If true, listing all media output classes on the server, even if they don't have a device provider.
+	 */
 	UPROPERTY()
 	bool bShowAllMediaOutputClasses = false;
 };
 
+/**
+ * Add an enumerated device to the given channel.
+ * This command will fail if the channel is live.
+ */
 USTRUCT()
 struct FAvaRundownAddChannelDevice : public FAvaRundownMsgBase
 {
@@ -824,10 +840,21 @@ public:
 	UPROPERTY()
 	FString ChannelName;
 
+	/**
+	 * The specified name is one of the enumerated device from FAvaRundownDevicesList,
+	 * FAvaRundownOutputDeviceItem::Name.
+	 */
 	UPROPERTY()
 	FString MediaOutputName;
+
+	UPROPERTY()
+	bool bSaveBroadcast = true;
 };
 
+/**
+ * Modify an existing device in the given channel.
+ * This command will fail if the channel is live.
+ */
 USTRUCT()
 struct FAvaRundownEditChannelDevice : public FAvaRundownMsgBase
 {
@@ -836,13 +863,26 @@ public:
 	UPROPERTY()
 	FString ChannelName;
 
+	/**
+	 * The specified name is one of the enumerated device from FAvaRundownChannel::Devices,
+	 * FAvaRundownOutputDeviceItem::Name field.
+	 * Must be the instanced devices from either FAvaRundownChannels, FAvaRundownChannelResponse
+	 * or FAvaRundownChannelListChanged. These names are not the same as when adding a device.
+	 */
 	UPROPERTY()
 	FString MediaOutputName;
 
 	UPROPERTY()
 	FString Data;
+
+	UPROPERTY()
+	bool bSaveBroadcast = true;
 };
 
+/**
+ * Remove an existing device from the given channel.
+ * This command will fail if the channel is live.
+ */
 USTRUCT()
 struct FAvaRundownRemoveChannelDevice : public FAvaRundownMsgBase
 {
@@ -851,21 +891,17 @@ public:
 	UPROPERTY()
 	FString ChannelName;
 
+	/**
+	 * The specified name is one of the enumerated device from FAvaRundownChannel::Devices,
+	 * FAvaRundownOutputDeviceItem::Name field.
+	 * Must be the instanced devices from either FAvaRundownChannels, FAvaRundownChannelResponse
+	 * or FAvaRundownChannelListChanged. These names are not the same as when adding a device.
+	 */
 	UPROPERTY()
 	FString MediaOutputName;
-};
-
-/* No difference from FAvaRundownOutputDeviceItem except this is meant to return a single device response. */
-USTRUCT()
-struct FAvaRundownOutputDeviceItemResponse : public FAvaRundownMsgBase
-{
-	GENERATED_BODY()
-public:
-	UPROPERTY()
-	FString Name;
 
 	UPROPERTY()
-	FString Data;
+	bool bSaveBroadcast = true;
 };
 
 USTRUCT()
@@ -925,4 +961,11 @@ public:
 	/** Advanced viewport client engine features indexed by FEngineShowFlags names. */
 	UPROPERTY()
 	TArray<FAvaViewportQualitySettingsFeature> Features;
+};
+
+/** Save current broadcast configuration to file on the server. */
+USTRUCT()
+struct FAvaRundownSaveBroadcast : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
 };

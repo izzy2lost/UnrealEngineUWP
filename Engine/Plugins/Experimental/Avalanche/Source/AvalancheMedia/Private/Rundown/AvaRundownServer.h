@@ -84,6 +84,7 @@ public:
 	void HandleGetChannelImage(const FAvaRundownGetChannelImage& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleGetChannelQualitySettings(const FAvaRundownGetChannelQualitySettings& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleSetChannelQualitySettings(const FAvaRundownSetChannelQualitySettings& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandleSaveBroadcast(const FAvaRundownSaveBroadcast& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	
 	void HandleGetDevices(const FAvaRundownGetDevices& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	
@@ -223,8 +224,8 @@ private:
 		/**
 		 * Checks if previous RCP was registered.
 		 * If so, save modified values to corresponding page.
- 		 * This may result in the Rundown to be modified.
- 		 * Will also unregister RCP from RC Module if requested.
+		 * This may result in the Rundown to be modified.
+		 * Will also unregister RCP from RC Module if requested.
 		 */
 		void SaveCurrentRemoteControlPresetToPage(bool bInUnregister);
 	};

@@ -271,6 +271,7 @@ void FAvaRundownServer::Init(const FString& InAssignedHostName)
 	.Handling<FAvaRundownGetChannelImage>(this, &FAvaRundownServer::HandleGetChannelImage)
 	.Handling<FAvaRundownGetChannelQualitySettings>(this, &FAvaRundownServer::HandleGetChannelQualitySettings)
 	.Handling<FAvaRundownSetChannelQualitySettings>(this, &FAvaRundownServer::HandleSetChannelQualitySettings)
+	.Handling<FAvaRundownSaveBroadcast>(this, &FAvaRundownServer::HandleSaveBroadcast)
 	.NotificationHandling(FOnBusNotification::CreateRaw(this, &FAvaRundownServer::OnMessageBusNotification));
 	
 	if (MessageEndpoint.IsValid())
@@ -1310,6 +1311,12 @@ void FAvaRundownServer::HandleAddChannelDevice(const FAvaRundownAddChannelDevice
 		return;    
 	}
 
+	if (OutputChannel.GetState() == EAvaBroadcastChannelState::Live)
+	{
+		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("\"AddChannelDevice\" Failed. Reason: Channel is Live."), *InMessage.ChannelName);
+		return;    
+	}
+
 	/*
 		We're essentially replicating the UI editor here. The editor:
 		1. Builds an output tree
@@ -1336,7 +1343,11 @@ void FAvaRundownServer::HandleAddChannelDevice(const FAvaRundownAddChannelDevice
 
 	const FAvaBroadcastMediaOutputInfo OutputInfo;
 	const UMediaOutput* OutputDevice = TreeItem->AddMediaOutputToChannel(OutputChannel.GetChannelName(), OutputInfo);
-	Broadcast.SaveBroadcast();
+
+	if (InMessage.bSaveBroadcast)
+	{
+		Broadcast.SaveBroadcast();
+	}
 
 	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"AddChannelDevice\" successfully added device \"%s\""), *OutputDevice->GetFName().ToString());
 }
@@ -1359,6 +1370,12 @@ void FAvaRundownServer::HandleEditChannelDevice(const FAvaRundownEditChannelDevi
 		return;    
 	}
 
+	if (OutputChannel.GetState() == EAvaBroadcastChannelState::Live)
+	{
+		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("\"EditChannelDevice\" Failed. Reason: Channel is Live."), *InMessage.ChannelName);
+		return;    
+	}
+
 	UMediaOutput* MediaOutput = UE::AvaRundownServer::Private::FindChannelMediaOutput(OutputChannel, InMessage.MediaOutputName);
 	
 	if (!MediaOutput)
@@ -1369,7 +1386,10 @@ void FAvaRundownServer::HandleEditChannelDevice(const FAvaRundownEditChannelDevi
 
 	FAvaRundownServerMediaOutputUtils::EditMediaOutput(MediaOutput, InMessage.Data);
 	
-	Broadcast.SaveBroadcast();
+	if (InMessage.bSaveBroadcast)
+	{
+		Broadcast.SaveBroadcast();
+	}
 	
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"EditChannelDevice\". Successfully edited device \"%s\" on \"%s\""), *InMessage.MediaOutputName, *InMessage.ChannelName); 
 }
@@ -1388,6 +1408,12 @@ void FAvaRundownServer::HandleRemoveChannelDevice(const FAvaRundownRemoveChannel
 	if (!OutputChannel.IsValidChannel())
 	{
 		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("\"RemoveChannelDevice\" Failed. Reason: Invalid Channel \"%s\"."), *InMessage.ChannelName);
+		return;    
+	}
+
+	if (OutputChannel.GetState() == EAvaBroadcastChannelState::Live)
+	{
+		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("\"RemoveChannelDevice\" Failed. Reason: Channel is Live."), *InMessage.ChannelName);
 		return;    
 	}
 
@@ -1414,8 +1440,11 @@ void FAvaRundownServer::HandleRemoveChannelDevice(const FAvaRundownRemoveChannel
 		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("\"RemoveChannelDevice\" Didn't remove device."));
 		return;
 	}
-
-	Broadcast.SaveBroadcast();
+	
+	if (InMessage.bSaveBroadcast)
+	{
+		Broadcast.SaveBroadcast();
+	}
 	
 	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"RemoveChannelDevice\" Removed Device \"%s\""), *InMessage.MediaOutputName);
 }
@@ -1449,6 +1478,13 @@ void FAvaRundownServer::HandleSetChannelQualitySettings(const FAvaRundownSetChan
 
 	Channel.SetViewportQualitySettings(FAvaViewportQualitySettings(InMessage.Features));
 	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"SetChannelQualitySettings\" Channel \"%s\" success."), *InMessage.ChannelName);
+}
+
+void FAvaRundownServer::HandleSaveBroadcast(const FAvaRundownSaveBroadcast& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
+	Broadcast.SaveBroadcast();
+	LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"SaveBroadcast\" success."));
 }
 
 void FAvaRundownServer::HandleGetDevices(const FAvaRundownGetDevices& InMessage,
