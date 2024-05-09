@@ -1027,7 +1027,7 @@ void FGenerationHelper::FinishGeneratorPlatformSave(FPackageData& PackageData, b
 	for (FCookGenerationInfo& GeneratedInfo : GetPackagesToGenerate())
 	{
 		FAssetDependency& Dependency = OutPackageDependencies.Emplace_GetRef();
-		Dependency.AssetId = FAssetIdentifier(PackageData.GetPackageName());
+		Dependency.AssetId = FAssetIdentifier(GeneratedInfo.PackageData->GetPackageName());
 		Dependency.Category = UE::AssetRegistry::EDependencyCategory::Package;
 		Dependency.Properties = UE::AssetRegistry::EDependencyProperty::Game;
 	}
