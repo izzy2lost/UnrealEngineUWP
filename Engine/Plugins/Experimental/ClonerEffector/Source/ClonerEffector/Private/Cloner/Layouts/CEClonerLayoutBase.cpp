@@ -4,9 +4,11 @@
 
 #include "Cloner/CEClonerActor.h"
 #include "Cloner/CEClonerComponent.h"
+#include "Misc/PackageName.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraSystem.h"
+#include "Subsystems/CEClonerSubsystem.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -20,10 +22,10 @@ bool UCEClonerLayoutBase::IsLayoutValid() const
 	}
 
 	// Get the template niagara asset
-	const UNiagaraSystem* TemplateNiagaraSystem = LoadSystemPath(LayoutAssetPath);
+	const UNiagaraSystem* TemplateNiagaraSystem = LoadObject<UNiagaraSystem>(nullptr, *LayoutAssetPath);
 
 	// Get the base niagara asset
-	const UNiagaraSystem* BaseNiagaraSystem = LoadSystemPath(LayoutBaseAssetPath);
+	const UNiagaraSystem* BaseNiagaraSystem = LoadObject<UNiagaraSystem>(nullptr, LayoutBaseAssetPath);
 
 	if (!TemplateNiagaraSystem || !BaseNiagaraSystem)
 	{
@@ -65,64 +67,54 @@ bool UCEClonerLayoutBase::IsLayoutLoaded() const
 	return !IsTemplate() && NiagaraSystem && MeshRenderer && DataInterfaces.IsValid();
 }
 
-bool UCEClonerLayoutBase::LoadLayout()
+void UCEClonerLayoutBase::LoadLayout()
 {
 	if (IsLayoutLoaded())
 	{
-		return true;
+		return;
+	}
+
+	// Already being loaded
+	if (LoadRequestIdentifier != INDEX_NONE)
+	{
+		return;
 	}
 
 	if (LayoutAssetPath.IsEmpty())
 	{
-		return false;
+		return;
 	}
 
-	// Get the template niagara asset
-	const UNiagaraSystem* TemplateNiagaraSystem = FindObject<UNiagaraSystem>(nullptr, *LayoutAssetPath);
-	if (!TemplateNiagaraSystem)
+	UCEClonerComponent* ClonerComponent = GetClonerComponent();
+
+	if (!IsValid(ClonerComponent))
 	{
-		TemplateNiagaraSystem = LoadObject<UNiagaraSystem>(nullptr, *LayoutAssetPath);
+		return;
 	}
 
-	if (!TemplateNiagaraSystem)
+	// Extract package path
+	FString PackagePath = LayoutAssetPath;
+
+	int32 FirstQuoteIndex;
+	PackagePath.FindChar('\'', FirstQuoteIndex);
+
+	int32 LastQuoteIndex;
+	PackagePath.FindLastChar('\'', LastQuoteIndex);
+
+	if (FirstQuoteIndex != LastQuoteIndex)
 	{
-		return false;
+		PackagePath = PackagePath.Mid(FirstQuoteIndex + 1, LastQuoteIndex - FirstQuoteIndex - 1);
 	}
 
-	// Copy template asset since we will modify it, and we do not want other cloner instances to have the new modified asset
-	FObjectDuplicationParameters Parameters = InitStaticDuplicateObjectParams(TemplateNiagaraSystem, GetTransientPackage(), NAME_None, RF_Transient, nullptr, EDuplicateMode::Normal);
-	NiagaraSystem = Cast<UNiagaraSystem>(StaticDuplicateObjectEx(Parameters));
+	PackagePath = FPackageName::ObjectPathToPackageName(PackagePath);
 
-	if (!NiagaraSystem)
-	{
-		return false;
-	}
+	FLoadPackageAsyncOptionalParams Params;
+	Params.CustomPackageName = FName(TEXT("/") + FString::FromInt(ClonerComponent->GetUniqueID()) + TEXT("_") + GetLayoutName().ToString());
+	Params.CompletionDelegate = MakeUnique<FLoadPackageAsyncDelegate>(FLoadPackageAsyncDelegate::CreateUObject(this, &UCEClonerLayoutBase::OnSystemPackageLoaded));
 
-	for (FNiagaraEmitterHandle& SystemEmitterHandle : NiagaraSystem->GetEmitterHandles())
-	{
-		if (const FVersionedNiagaraEmitterData* EmitterData = SystemEmitterHandle.GetEmitterData())
-		{
-			for (UNiagaraRendererProperties* EmitterRenderer : EmitterData->GetRenderers())
-			{
-				if (UNiagaraMeshRendererProperties* EmitterMeshRenderer = Cast<UNiagaraMeshRendererProperties>(EmitterRenderer))
-				{
-					EmitterMeshRenderer->Meshes.Empty();
-#if WITH_EDITORONLY_DATA
-					EmitterMeshRenderer->OnMeshChanged();
-#endif
+	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("Cloner layout %s : Template system (%s) loading package (%s) async..."), *LayoutName.ToString(), *LayoutAssetPath, *Params.CustomPackageName.ToString())
 
-					MeshRenderer = EmitterMeshRenderer;
-					DataInterfaces = FCEClonerEffectorDataInterfaces(NiagaraSystem);
-
-					OnLayoutLoaded();
-
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
+	LoadRequestIdentifier = LoadPackageAsync(PackagePath, MoveTemp(Params));
 }
 
 bool UCEClonerLayoutBase::UnloadLayout()
@@ -230,33 +222,79 @@ bool UCEClonerLayoutBase::CopyTo(UCEClonerLayoutBase* InOtherLayout) const
 	return true;
 }
 
+TSet<FName> UCEClonerLayoutBase::GetSupportedExtensions() const
+{
+	TSet<FName> ModuleSupported;
+
+	if (UCEClonerSubsystem* ClonerSubsystem = UCEClonerSubsystem::Get())
+	{
+		ModuleSupported.Append(ClonerSubsystem->GetExtensionNames());
+	}
+
+	return ModuleSupported;
+}
+
 void UCEClonerLayoutBase::OnLayoutPropertyChanged()
 {
 	UpdateLayoutParameters();
 }
 
-UNiagaraSystem* UCEClonerLayoutBase::LoadSystemPath(const FString& InPath) const
+void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult)
 {
-	UNiagaraSystem* LoadedNiagaraSystem = FindObject<UNiagaraSystem>(nullptr, *InPath);
+	NiagaraSystem = InPackage ? Cast<UNiagaraSystem>(InPackage->FindAssetInPackage()) : nullptr;
+	LoadRequestIdentifier = INDEX_NONE;
 
-	if (!LoadedNiagaraSystem)
+	if (NiagaraSystem)
 	{
-		LoadedNiagaraSystem = LoadObject<UNiagaraSystem>(nullptr, *InPath);
+		// Change outer to avoid GC leak
+		InPackage->SetFlags(RF_Transient);
+		NiagaraSystem->RemoveFromRoot();
+		NiagaraSystem->Rename(NULL, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+		InPackage->MarkAsGarbage();
+
+		for (FNiagaraEmitterHandle& SystemEmitterHandle : NiagaraSystem->GetEmitterHandles())
+		{
+			if (const FVersionedNiagaraEmitterData* EmitterData = SystemEmitterHandle.GetEmitterData())
+			{
+				for (UNiagaraRendererProperties* EmitterRenderer : EmitterData->GetRenderers())
+				{
+					if (UNiagaraMeshRendererProperties* EmitterMeshRenderer = Cast<UNiagaraMeshRendererProperties>(EmitterRenderer))
+					{
+						EmitterMeshRenderer->Meshes.Empty();
+#if WITH_EDITORONLY_DATA
+						EmitterMeshRenderer->OnMeshChanged();
+#endif
+
+						MeshRenderer = EmitterMeshRenderer;
+						DataInterfaces = FCEClonerEffectorDataInterfaces(NiagaraSystem);
+
+						UE_LOG(LogCEClonerLayoutBase, Log, TEXT("Cloner layout %s : Template system (%s) package (%s) loaded"), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
+
+						OnLayoutLoaded();
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("Cloner layout %s : Template system (%s) package (%s) could not be async loaded"), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
 	}
 
-	return LoadedNiagaraSystem;
-}
-
-ACEClonerActor* UCEClonerLayoutBase::GetClonerActor() const
-{
-	return GetTypedOuter<ACEClonerActor>();
+	OnClonerLayoutLoadedDelegate.Broadcast(this, IsLayoutLoaded());
+	OnClonerLayoutLoadedDelegate.Clear();
 }
 
 UCEClonerComponent* UCEClonerLayoutBase::GetClonerComponent() const
 {
-	if (const ACEClonerActor* Cloner = GetClonerActor())
+	return GetTypedOuter<UCEClonerComponent>();
+}
+
+AActor* UCEClonerLayoutBase::GetClonerActor() const
+{
+	if (UCEClonerComponent* ClonerComponent = GetClonerComponent())
 	{
-		return Cloner->GetClonerComponent();
+		return ClonerComponent->GetOwner();
 	}
 
 	return nullptr;
@@ -282,8 +320,8 @@ void UCEClonerLayoutBase::UpdateLayoutParameters(bool bInUpdateCloner, bool bInI
 
 void UCEClonerLayoutBase::RequestClonerUpdate(bool bInImmediate) const
 {
-	if (ACEClonerActor* Cloner = GetClonerActor())
+	if (UCEClonerComponent* ClonerComponent = GetClonerComponent())
 	{
-		Cloner->RequestClonerUpdate(bInImmediate);
+		ClonerComponent->RequestClonerUpdate(bInImmediate);
 	}
 }

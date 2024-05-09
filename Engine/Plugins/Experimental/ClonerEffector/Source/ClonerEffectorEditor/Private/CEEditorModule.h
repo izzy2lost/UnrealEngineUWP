@@ -7,7 +7,7 @@
 class FCEEditorModule : public IModuleInterface
 {
 public:
-	static inline constexpr TCHAR PropertyEditorName[] = TEXT("PropertyEditor");
+	static constexpr TCHAR PropertyEditorName[] = TEXT("PropertyEditor");
 
 	//~ Begin IModuleInterface
     virtual void StartupModule() override;

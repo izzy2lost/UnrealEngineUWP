@@ -14,28 +14,21 @@ struct FLinearColor;
 struct FSlateBrush;
 struct FSlateColor;
 
-/* Used to customize effector actor properties in details panel */
-class FCEEditorEffectorDetailCustomization : public IDetailCustomization
+/** Used to customize effector type properties in details panel */
+class FCEEditorEffectorTypeDetailCustomization : public IDetailCustomization
 {
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance()
 	{
-		return MakeShared<FCEEditorEffectorDetailCustomization>();
-	}
-
-	explicit FCEEditorEffectorDetailCustomization()
-	{
-		RegisterCustomSections();
+		return MakeShared<FCEEditorEffectorTypeDetailCustomization>();
 	}
 
 	//~ Begin IDetailCustomization
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+	virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder) override;
 	//~ End IDetailCustomization
 
 protected:
 	static FSlateColor GetImageColorAndOpacity(const TSharedPtr<SWidget> InWidget);
-
-	void RegisterCustomSections() const;
 
 	void PopulateEasingInfos();
 	FName GetCurrentEasingName() const;
@@ -45,7 +38,7 @@ protected:
 	TSharedRef<SWidget> OnGenerateEasingEntry(FName InName) const;
 	void OnSelectionChanged(FName InSelection, ESelectInfo::Type InSelectInfo) const;
 
-	TWeakObjectPtr<UEnum> EasingEnum;
 	TArray<FName> EasingNames;
+	TWeakObjectPtr<UEnum> EasingEnumWeak;
 	TSharedPtr<IPropertyHandle> EasingPropertyHandle;
 };

@@ -3,57 +3,98 @@
 #pragma once
 
 #include "Engine/World.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "Subsystems/EngineSubsystem.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "CEEffectorSubsystem.generated.h"
 
-class ACEEffectorActor;
+class UCEEffectorComponent;
+class UCEEffectorExtensionBase;
 class UNiagaraDataChannelAsset;
 
 UCLASS()
-class UCEEffectorSubsystem : public UTickableWorldSubsystem
+class UCEEffectorSubsystem : public UEngineSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
 
 public:
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSubsystemInitialized, const UWorld*)
-	static FOnSubsystemInitialized OnSubsystemInitializedDelegate;
+	static TMulticastDelegateRegistration<void()>& OnSubsystemInitialized()
+	{
+		return OnSubsystemInitializedDelegate;
+	}
 
-	/** Broadcast when this effector identifier changed to update linked cloners */
-	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorIdentifierChanged, ACEEffectorActor* /** InEffectorActor */, int32 /** OldIdentifier */, int32 /** NewIdentifier */)
-	static FOnEffectorIdentifierChanged OnEffectorIdentifierChangedDelegate;
-
-	static inline constexpr TCHAR DataChannelAssetPath[] = TEXT("/Script/Niagara.NiagaraDataChannelAsset'/ClonerEffector/Channels/NDC_Effector.NDC_Effector'");
+	static TMulticastDelegateRegistration<void(UCEEffectorComponent*, int32, int32)>& OnEffectorIdentifierChanged()
+	{
+		return OnEffectorIdentifierChangedDelegate;
+	}
 
 	/** Get this subsystem instance */
-	static UCEEffectorSubsystem* Get(const UWorld* InWorld = GWorld);
+	static UCEEffectorSubsystem* Get();
+
+	/** Registers an effector actor to use it within a effector channel */
+	bool RegisterChannelEffector(UCEEffectorComponent* InEffector);
+
+	/** Unregister an effector actor used within a effector channel */
+	bool UnregisterChannelEffector(UCEEffectorComponent* InEffector);
+
+	/** Get the effector using this channel identifier */
+	UCEEffectorComponent* GetEffectorByChannelIdentifier(int32 InIdentifier) const;
+
+	bool RegisterExtensionClass(UClass* InClass);
+
+	bool UnregisterExtensionClass(UClass* InClass);
+
+	bool IsExtensionClassRegistered(UClass* InClass) const;
+
+	template<typename InExtensionClass>
+	TArray<FName> GetExtensionNames() const
+	{
+		return GetExtensionNames(InExtensionClass::StaticClass());
+	}
+
+	TArray<FName> GetExtensionNames(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const;
+
+	/** Based on a extension class, find extension name */
+	FName FindExtensionName(TSubclassOf<UCEEffectorExtensionBase> InClass) const;
+
+	/** Creates a new extension instance for an effector */
+	UCEEffectorExtensionBase* CreateNewExtension(FName InExtensionName, UCEEffectorComponent* InEffector);
+
+protected:
+	static constexpr TCHAR DataChannelAssetPath[] = TEXT("/Script/Niagara.NiagaraDataChannelAsset'/ClonerEffector/Channels/NDC_Effector.NDC_Effector'");
+
+	/** Broadcasted when this subsystem is initialized */
+	DECLARE_MULTICAST_DELEGATE(FOnSubsystemInitialized)
+	static FOnSubsystemInitialized OnSubsystemInitializedDelegate;
+
+	/** Broadcasted when this effector identifier changed to update linked cloners */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorIdentifierChanged, UCEEffectorComponent* /** InEffector */, int32 /** OldIdentifier */, int32 /** NewIdentifier */)
+	static FOnEffectorIdentifierChanged OnEffectorIdentifierChangedDelegate;
 
 	//~ Begin USubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void PostInitialize() override;
 	//~ End USubsystem
 
-	/** Registers an effector actor to use it within a effector channel */
-	bool RegisterChannelEffector(ACEEffectorActor* InEffector);
-
-	/** Unregister an effector actor used within a effector channel */
-	bool UnregisterChannelEffector(ACEEffectorActor* InEffector);
-
-	ACEEffectorActor* GetEffectorByChannelIdentifier(int32 InIdentifier) const;
-
-protected:
-	//~ Begin FTickableGameObject interface
-	virtual bool IsTickableInEditor() const override;
+	//~ Begin FTickableGameObject
 	virtual TStatId GetStatId() const override;
-	virtual void Tick(float InDeltaTime) override;
-	//~ End FTickableGameObject interface
+	virtual void Tick(float InDeltaSeconds) override;
+	virtual bool IsTickable() const override;
+	virtual bool IsTickableInEditor() const override { return true; }
+	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Conditional; }
+	//~ End FTickableGameObject
 
 	/** Updates all registered effectors */
-	void UpdateEffectorChannel();
+	void UpdateEffectorChannel(const UWorld* InWorld);
+
+	/** Scan classes and registers them */
+	void ScanForRegistrableClasses();
+
+	/** Linking name to the extension class */
+	UPROPERTY()
+	TMap<FName, TSubclassOf<UCEEffectorExtensionBase>> ExtensionClasses;
 
 	/** Ordered effectors included in this channel */
 	UPROPERTY()
-	TArray<TWeakObjectPtr<ACEEffectorActor>> EffectorsWeak;
+	TArray<TWeakObjectPtr<UCEEffectorComponent>> EffectorsWeak;
 
 	/** This represents the data channel structure for effector */
 	UPROPERTY()

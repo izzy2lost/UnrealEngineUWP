@@ -6,8 +6,8 @@
 #include "UObject/Object.h"
 #include "CEClonerLayoutBase.generated.h"
 
-class ACEClonerActor;
 class UCEClonerComponent;
+class UCEClonerExtensionBase;
 class UNiagaraMeshRendererProperties;
 class UNiagaraSystem;
 
@@ -19,13 +19,13 @@ class UNiagaraSystem;
  * 3. Expose all new system specific parameters in the layout extended class and update them when required
  * Your new layout is ready and will be available in the cloner in the layout dropdown
  */
-UCLASS(MinimalAPI, Abstract, BlueprintType, Within=CEClonerActor, AutoExpandCategories=("Layout"))
+UCLASS(MinimalAPI, Abstract, BlueprintType, AutoExpandCategories=("Layout"))
 class UCEClonerLayoutBase : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	static inline constexpr TCHAR LayoutBaseAssetPath[] = TEXT("/Script/Niagara.NiagaraSystem'/ClonerEffector/Systems/NS_ClonerBase.NS_ClonerBase'");
+	static constexpr TCHAR LayoutBaseAssetPath[] = TEXT("/Script/Niagara.NiagaraSystem'/ClonerEffector/Systems/NS_ClonerBase.NS_ClonerBase'");
 
 	UCEClonerLayoutBase()
 		: UCEClonerLayoutBase(NAME_None, FString())
@@ -62,12 +62,16 @@ public:
 		return DataInterfaces;
 	}
 
-	/** Get the cloner actor using this layout */
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
-	CLONEREFFECTOR_API ACEClonerActor* GetClonerActor() const;
+	TMulticastDelegateRegistration<void(UCEClonerLayoutBase*, bool)>& OnLayoutLoadedDelegate()
+	{
+		return OnClonerLayoutLoadedDelegate;
+	}
 
 	/** Get the cloner component using this layout */
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
 	UCEClonerComponent* GetClonerComponent() const;
+
+	AActor* GetClonerActor() const;
 
 	/** Request refresh layout next tick */
 	void UpdateLayoutParameters(bool bInUpdateCloner = true, bool bInImmediate = false);
@@ -83,7 +87,7 @@ public:
 	CLONEREFFECTOR_API bool IsLayoutLoaded() const;
 
 	/** Load this layout system if not already loaded */
-	bool LoadLayout();
+	void LoadLayout();
 
 	/** Free the loaded system and return to idle state */
 	bool UnloadLayout();
@@ -100,6 +104,9 @@ public:
 
 	/** Copies this layout data interfaces to other layout */
 	bool CopyTo(UCEClonerLayoutBase* InOtherLayout) const;
+
+	/** Gets the cloner extensions supported by this layout */
+	virtual TSet<FName> GetSupportedExtensions() const;
 
 protected:
 	/** Called once after layout is loaded */
@@ -120,7 +127,10 @@ protected:
 	void OnLayoutPropertyChanged();
 
 private:
-	UNiagaraSystem* LoadSystemPath(const FString& InPath) const;
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerLayoutBase* /** InLayout */, bool /** bInSuccess */)
+	FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
+
+	void OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult);
 
 	/** Layout name to display in layout options */
 	UPROPERTY(Transient)
@@ -141,4 +151,6 @@ private:
 	/** Data interfaces used by the effectors */
 	UPROPERTY(Transient)
 	FCEClonerEffectorDataInterfaces DataInterfaces;
+
+	int32 LoadRequestIdentifier = INDEX_NONE;
 };

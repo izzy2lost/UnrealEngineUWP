@@ -2,10 +2,12 @@
 
 #include "CEEditorModule.h"
 
-#include "Cloner/CEClonerActor.h"
-#include "Cloner/CEEditorClonerDetailCustomization.h"
-#include "Effector/CEEditorEffectorDetailCustomization.h"
-#include "Effector/CEEffectorActor.h"
+#include "Cloner/CEEditorClonerComponentDetailCustomization.h"
+#include "Cloner/CEClonerComponent.h"
+#include "Effector/CEEditorEffectorComponentDetailCustomization.h"
+#include "Effector/CEEditorEffectorTypeDetailCustomization.h"
+#include "Effector/CEEffectorComponent.h"
+#include "Effector/Types/CEEffectorBoundType.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "Styles/CEEditorStyle.h"
@@ -18,8 +20,9 @@ void FCEEditorModule::StartupModule()
 	FCEEditorStyle::Get();
 
 	// Cloner/effector customization
-	PropertyModule.RegisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorDetailCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout(UCEClonerComponent::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerComponentDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout(UCEEffectorComponent::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorComponentDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout(UCEEffectorBoundType::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorTypeDetailCustomization::MakeInstance));
 }
 
 void FCEEditorModule::ShutdownModule()
@@ -29,8 +32,9 @@ void FCEEditorModule::ShutdownModule()
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorName);
 
 		// Cloner/effector
-		PropertyModule.UnregisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName());
-		PropertyModule.UnregisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName());
+		PropertyModule.UnregisterCustomClassLayout(UCEClonerComponent::StaticClass()->GetFName());
+		PropertyModule.UnregisterCustomClassLayout(UCEEffectorComponent::StaticClass()->GetFName());
+		PropertyModule.UnregisterCustomClassLayout(UCEEffectorBoundType::StaticClass()->GetFName());
 	}
 }
 

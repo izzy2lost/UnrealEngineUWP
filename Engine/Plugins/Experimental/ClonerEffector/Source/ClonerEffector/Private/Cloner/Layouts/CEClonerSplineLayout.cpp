@@ -2,7 +2,6 @@
 
 #include "Cloner/Layouts/CEClonerSplineLayout.h"
 
-#include "Cloner/CEClonerActor.h"
 #include "Cloner/CEClonerComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -54,14 +53,19 @@ void UCEClonerSplineLayout::SetOrientMesh(bool bInOrientMesh)
 #if WITH_EDITOR
 void UCEClonerSplineLayout::SpawnLinkedSplineActor()
 {
-	const ACEClonerActor* ClonerActor = GetClonerActor();
+	const UCEClonerComponent* ClonerComponent = GetClonerComponent();
 
-	if (!ClonerActor)
+	if (!IsValid(ClonerComponent))
 	{
 		return;
 	}
 
-	UWorld* ClonerWorld = ClonerActor->GetWorld();
+	UWorld* ClonerWorld = ClonerComponent->GetWorld();
+
+	if (!IsValid(ClonerWorld))
+	{
+		return;
+	}
 
 	FActorSpawnParameters Params;
 	Params.bTemporaryEditorActor = false;
@@ -89,8 +93,8 @@ void UCEClonerSplineLayout::SpawnLinkedSplineActor()
 	// Rerun construction scripts
 	SpawnedSplineActor->RerunConstructionScripts();
 
-	SpawnedSplineActor->SetActorLocation(ClonerActor->GetActorLocation());
-	SpawnedSplineActor->SetActorRotation(ClonerActor->GetActorRotation());
+	SpawnedSplineActor->SetActorLocation(ClonerComponent->GetComponentLocation());
+	SpawnedSplineActor->SetActorRotation(ClonerComponent->GetComponentRotation());
 
 	SetSplineActorWeak(SpawnedSplineActor);
 	FActorLabelUtilities::RenameExistingActor(SpawnedSplineActor, TEXT("SplineActor"), true);
@@ -160,7 +164,7 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 			USceneComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
 			USceneComponent::MarkRenderStateDirtyEvent.AddUObject(this, &UCEClonerSplineLayout::OnSampleSplineRenderStateUpdated);
 
-			if (ACEClonerActor* ClonerActor = GetClonerActor())
+			if (AActor* ClonerActor = GetClonerActor())
 			{
 				ClonerActor->SetActorTransform(SplineActor->GetActorTransform());
 			}

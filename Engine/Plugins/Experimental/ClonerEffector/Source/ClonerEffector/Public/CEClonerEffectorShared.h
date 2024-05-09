@@ -324,11 +324,15 @@ struct FCEClonerAttachmentTree
 	UPROPERTY()
 	ECEClonerAttachmentStatus Status = ECEClonerAttachmentStatus::Updated;
 
+	/** Attachment items that are dirty and need an update */
+	TSet<FCEClonerAttachmentItem*> DirtyItemAttachments;
+
 	void Reset()
 	{
 		ItemAttachmentMap.Empty();
 		RootActors.Empty();
 		MergedBakedMeshes.Empty();
+		DirtyItemAttachments.Empty();
 		Status = ECEClonerAttachmentStatus::Updated;
 	}
 };

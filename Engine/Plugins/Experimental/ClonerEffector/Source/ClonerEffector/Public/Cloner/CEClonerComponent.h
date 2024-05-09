@@ -3,28 +3,30 @@
 #pragma once
 
 #include "CEClonerEffectorShared.h"
+#include "CEClonerMeshBuilder.h"
+#include "CEPropertyChangeDispatcher.h"
 #include "Layouts/CEClonerLayoutBase.h"
 #include "NiagaraComponent.h"
 #include "CEClonerComponent.generated.h"
 
+class UCEClonerExtensionBase;
 class UCEClonerLayoutBase;
 class UMaterialInterface;
 struct FNiagaraMeshMaterialOverride;
 
-UCLASS(MinimalAPI, Within=CEClonerActor, HideCategories=(Niagara))
+UCLASS(MinimalAPI
+	, BlueprintType
+	, DisplayName = "Motion Design Cloner Component"
+	, AutoExpandCategories=(Cloner, Layout)
+	, HideCategories=(Niagara, Activation, Lighting, Attachment, Randomness, Parameters, Warmup, Compilation, Navigation, Tags, LOD, TextureStreaming, Mobile, RayTracing, AssetUserData, Cooking, HLOD, Rendering))
 class UCEClonerComponent : public UNiagaraComponent
 {
 	GENERATED_BODY()
 
+	friend class ACEClonerActor;
+	friend class FCEEditorClonerComponentDetailCustomization;
+
 public:
-	/** Called when meshes have been updated */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerMeshUpdated, UCEClonerComponent* /** ClonerComponent */)
-	static FOnClonerMeshUpdated OnClonerMeshUpdated;
-
-	/** Called when cloner layout system is loaded */
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerSystemLoaded, UCEClonerComponent* /** ClonerComponent */, UCEClonerLayoutBase* /** InLayout */)
-	static FOnClonerSystemLoaded OnClonerSystemLoaded;
-
 	/** Only materials transient or part of the content folder can be dirtied, engine or plugins cannot */
 	static bool IsMaterialDirtyable(const UMaterialInterface* InMaterial);
 
@@ -36,7 +38,117 @@ public:
 	static void ShowMaterialWarning(int32 InMaterialCount);
 #endif
 
+	TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerMeshUpdated()
+	{
+		return OnClonerMeshUpdatedDelegate;
+	}
+
+	TMulticastDelegateRegistration<void(UCEClonerComponent*, UCEClonerLayoutBase*)>& OnClonerLayoutLoaded()
+	{
+		return OnClonerLayoutLoadedDelegate;
+	}
+
+	TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerInitialized()
+	{
+		return OnClonerInitializedDelegate;
+	}
+
 	UCEClonerComponent();
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetEnabled(bool bInEnable);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	bool GetEnabled() const
+	{
+		return bEnabled;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetTreeUpdateInterval(float InInterval);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	float GetTreeUpdateInterval() const
+	{
+		return TreeUpdateInterval;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetSeed(int32 InSeed);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	int32 GetSeed() const
+	{
+		return Seed;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetLayoutName(FName InLayoutName);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	FName GetLayoutName() const
+	{
+		return LayoutName;
+	}
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	UCEClonerLayoutBase* GetActiveLayout() const
+	{
+		return ActiveLayout;
+	}
+
+	template<
+		typename InLayoutClass
+		UE_REQUIRES(TIsDerivedFrom<InLayoutClass, UCEClonerLayoutBase>::Value)>
+	bool IsActiveLayout() const
+	{
+		if (const UCEClonerLayoutBase* CurrentLayout = GetActiveLayout())
+		{
+			return CurrentLayout->GetClass() == InLayoutClass::StaticClass();
+		}
+
+		return false;
+	}
+
+	template<
+		typename InLayoutClass
+		UE_REQUIRES(TIsDerivedFrom<InLayoutClass, UCEClonerLayoutBase>::Value)>
+	InLayoutClass* GetActiveLayout() const
+	{
+		return Cast<InLayoutClass>(GetActiveLayout());
+	}
+
+#if WITH_EDITOR
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetVisualizerSpriteVisible(bool bInVisible);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	bool GetVisualizerSpriteVisible() const
+	{
+		return bVisualizerSpriteVisible;
+	}
+#endif
+
+	/** Returns the number of meshes this cloner currently handles */
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	CLONEREFFECTOR_API int32 GetMeshCount() const;
+
+	/** Returns the number of root attachment currently on this cloner */
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	int32 GetAttachmentCount() const;
+
+#if WITH_EDITOR
+	/** This will force an update of the cloner attachment tree */
+	UFUNCTION(CallInEditor, Category="Cloner")
+	void ForceUpdateCloner();
+
+	/** This will create a new default actor attached to this cloner */
+	UFUNCTION(CallInEditor, Category="Cloner")
+	void CreateDefaultActorAttached();
+#endif
+
+	/** Will force a system update to refresh user parameters */
+	void RequestClonerUpdate(bool bInImmediate = false);
 
 	/**
 	 * Triggers an update of the attachment tree to detect updated items
@@ -44,11 +156,8 @@ public:
 	 */
 	void UpdateClonerAttachmentTree(bool bInReset = false);
 
-	/** Called to trigger an update of cloner rendering state if tree */
+	/** Called to trigger an update of cloner rendering state tree */
 	void UpdateClonerRenderState();
-
-	/** Sets the layout to use for this cloner simulation */
-	bool SetClonerActiveLayout(UCEClonerLayoutBase* InLayout);
 
 	UCEClonerLayoutBase* GetClonerActiveLayout() const
 	{
@@ -58,16 +167,51 @@ public:
 	/** Forces a refresh of the active system parameters in niagara store */
 	void RefreshUserParameters() const;
 
-	void SetUseOverrideMeshesMaterial(bool bInOverride);
+	/** Forces a refresh of the meshes used */
+	void RefreshClonerMeshes();
 
-	void SetOverrideMeshesMaterial(UMaterialInterface* InMaterial);
+	template<
+		typename InExtensionClass>
+	InExtensionClass* GetExtension() const
+	{
+		return Cast<InExtensionClass>(GetExtension(InExtensionClass::StaticClass()));
+	}
+
+	UCEClonerExtensionBase* GetExtension(TSubclassOf<UCEClonerExtensionBase> InExtensionClass) const;
+
+	UCEClonerExtensionBase* GetExtension(FName InExtensionName) const;
+
+	TConstArrayView<TObjectPtr<UCEClonerExtensionBase>> GetActiveExtensions() const
+	{
+		return ActiveExtensions;
+	}
 
 protected:
-	//~ Begin UObject
-	virtual void PostLoad() override;
-	//~ End UObject
+	/** Called when meshes have been updated */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerMeshUpdated, UCEClonerComponent* /** ClonerComponent */)
+	FOnClonerMeshUpdated OnClonerMeshUpdatedDelegate;
 
-	void OnRenderStateDirty(UActorComponent& InComponent);
+	/** Called when new cloner layout is loaded */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerComponent* /** ClonerComponent */, UCEClonerLayoutBase* /** InLayout */)
+	FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
+
+	/** Called when cloner is initialized */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerInitialized, UCEClonerComponent* /** ClonerComponent */)
+	FOnClonerInitialized OnClonerInitializedDelegate;
+
+	//~ Begin UActorComponent
+	/** Tick needed to keep the attachment tree updated */
+	virtual void TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction) override;
+	//~ End UActorComponent
+
+	//~ Begin UObject
+	virtual void PostInitProperties() override;
+	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditUndo() override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+	//~ End UObject
 
 	void UpdateAttachmentTree();
 	void UpdateActorAttachment(AActor* InActor, AActor* InParent);
@@ -118,32 +262,123 @@ protected:
 	/** Checks that all root static meshes are valid */
 	bool IsAllMergedMeshesValid() const;
 
-	/** Called when material override properties are changed */
-	void OnOverrideMeshesMaterialChanged();
+	/** Sets the layout to use for this cloner simulation */
+	void SetClonerActiveLayout(UCEClonerLayoutBase* InLayout);
 
-	/** Get the niagara materials override if enabled */
-	TArray<FNiagaraMeshMaterialOverride> GetOverrideMeshesMaterials() const;
+	void OnActiveLayoutLoaded(UCEClonerLayoutBase* InLayout, bool bInSuccess);
+
+	void ActivateLayout(UCEClonerLayoutBase* InLayout);
+
+	void OnActiveLayoutChanged();
+
+	/** Is this cloner enabled/disabled */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetEnabled", Getter="GetEnabled", Category="Cloner")
+	bool bEnabled = true;
+
+	/** Interval to update the attachment tree and update the cloner meshes, 0 means each tick */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Cloner", AdvancedDisplay, meta=(ClampMin="0"))
+	float TreeUpdateInterval = 0.2f;
+
+	/** Cloner instance seed for random deterministic patterns */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Cloner")
+	int32 Seed = 0;
+
+	/** Name of the layout to use */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(GetOptions="GetClonerLayoutNames"))
+	FName LayoutName = NAME_None;
+
+	/** Active layout used */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Transient, DuplicateTransient, NonTransactional, Category="Layout", meta=(DisplayAfter="LayoutName"))
+	TObjectPtr<UCEClonerLayoutBase> ActiveLayout;
+
+	/** Active Extensions on this layout */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Transient, DuplicateTransient, NonTransactional, Category="Layout")
+	TArray<TObjectPtr<UCEClonerExtensionBase>> ActiveExtensions;
+
+	/** Layout instances cached */
+	UPROPERTY()
+	TArray<TObjectPtr<UCEClonerLayoutBase>> LayoutInstances;
+
+	/** Layout extensions instances cached */
+	UPROPERTY()
+	TArray<TObjectPtr<UCEClonerExtensionBase>> ExtensionInstances;
+
+#if WITH_EDITORONLY_DATA
+	/** Toggle the sprite to visualize and click on this cloner */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess="true"))
+	bool bVisualizerSpriteVisible = true;
+#endif
+
+private:
+	static constexpr TCHAR SpriteTexturePath[] = TEXT("/Script/Engine.Texture2D'/ClonerEffector/Textures/T_ClonerIcon.T_ClonerIcon'");
+
+	/** Initiate and perform operation */
+	void InitializeCloner();
+	void TickCloner(float InDelta);
+
+	void OnEnabledChanged();
+	void OnClonerEnabled();
+	void OnClonerDisabled();
+	void OnSeedChanged();
+	void OnLayoutNameChanged();
+
+#if WITH_EDITOR
+	void OnVisualizerSpriteVisibleChanged();
+#endif
+
+	template<
+		typename InLayoutClass
+		UE_REQUIRES(TIsDerivedFrom<InLayoutClass, UCEClonerLayoutBase>::Value)>
+	InLayoutClass* FindOrAddLayout()
+	{
+		return Cast<InLayoutClass>(FindOrAddLayout(InLayoutClass::StaticClass()));
+	}
+
+	/** Find or add a layout by its class */
+	UCEClonerLayoutBase* FindOrAddLayout(TSubclassOf<UCEClonerLayoutBase> InClass);
+
+	/** Find or add a layout by its name */
+	UCEClonerLayoutBase* FindOrAddLayout(FName InLayoutName);
+
+	template<
+		typename InExtensionClass
+		UE_REQUIRES(TIsDerivedFrom<InExtensionClass, UCEClonerExtensionBase>::Value)>
+	InExtensionClass* FindOrAddExtension()
+	{
+		return Cast<InExtensionClass>(FindOrAddExtension(InExtensionClass::StaticClass()));
+	}
+
+	/** Find or add an extension by its class */
+	UCEClonerExtensionBase* FindOrAddExtension(TSubclassOf<UCEClonerExtensionBase> InClass);
+
+	/** Find or add an extension by its name */
+	UCEClonerExtensionBase* FindOrAddExtension(FName InExtensionName);
+
+	/** Gets all layout names available */
+	UFUNCTION()
+	TArray<FString> GetClonerLayoutNames() const;
 
 	/** Attachment tree view */
 	UPROPERTY(Transient, NonTransactional)
 	FCEClonerAttachmentTree ClonerTree;
 
-	/** Current active layout */
 	UPROPERTY(Transient, NonTransactional)
-	TObjectPtr<UCEClonerLayoutBase> ActiveLayout;
-
-	/** Attachment items that are dirty and need an update */
-	TSet<FCEClonerAttachmentItem*> DirtyItemAttachments;
-
-	/** Override meshes material */
-	TWeakObjectPtr<UMaterialInterface> ClonerMeshesOverrideMaterial;
-
-	/** Use override meshes material */
-	bool bUseClonerMeshesOverrideMaterial = false;
+	FCEClonerMeshBuilder MeshBuilder;
 
 	/** Asset meshes needs update */
 	bool bClonerMeshesDirty = true;
 
 	/** State of the baked dynamic and static mesh creation */
-	bool bClonerMeshesUpdating = false;
+	std::atomic<bool> bClonerMeshesUpdating = false;
+
+	float TreeUpdateDeltaTime = 0.f;
+
+	bool bNeedsRefresh = false;
+
+	bool bClonerInitialized = false;
+
+#if WITH_EDITOR
+	/** Used for PECP */
+	static const TCEPropertyChangeDispatcher<UCEClonerComponent> PropertyChangeDispatcher;
+#endif
 };

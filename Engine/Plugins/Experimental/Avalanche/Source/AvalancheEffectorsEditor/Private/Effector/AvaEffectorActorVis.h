@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include "Effector/CEEffectorActor.h"
+#include "Effector/CEEffectorComponent.h"
 #include "AvaVisBase.h"
-
-class UCEEffectorComponent;
 
 struct HAvaEffectorActorZoneHitProxy : HAvaHitProxy
 {
@@ -45,14 +43,14 @@ public:
 	virtual void DrawVisualizationNotEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex) override;
 	//~ End FAvaVisualizerBase
 
-	ACEEffectorActor* GetEffectorActor() const
+	UCEEffectorComponent* GetEffectorComponent() const
 	{
-		return EffectorActorWeak.Get();
+		return EffectorComponentWeak.Get();
 	}
 
 protected:
-	FVector GetHandleZoneLocation(const ACEEffectorActor* InEffectorActor, int32 InHandleType) const;
-	void DrawZoneButton(const ACEEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, int32 InHandleType, FLinearColor InColor) const;
+	FVector GetHandleZoneLocation(const UCEEffectorComponent* InEffectorComponent, int32 InHandleType) const;
+	void DrawZoneButton(const UCEEffectorComponent* InEffectorComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, int32 InHandleType, FLinearColor InColor) const;
 
 	FProperty* InnerRadiusProperty;
 	FProperty* OuterRadiusProperty;
@@ -70,7 +68,7 @@ protected:
 	FProperty* TorusInnerRadiusProperty;
 	FProperty* TorusOuterRadiusProperty;
 
-	TWeakObjectPtr<ACEEffectorActor> EffectorActorWeak = nullptr;
+	TWeakObjectPtr<UCEEffectorComponent> EffectorComponentWeak = nullptr;
 
 	float InitialInnerRadius = 0.f;
 	float InitialOuterRadius = 0.f;

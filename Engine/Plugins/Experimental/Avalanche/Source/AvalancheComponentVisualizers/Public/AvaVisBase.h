@@ -129,6 +129,7 @@ protected:
 
 	// Last used viewport client
 	FEditorViewportClient* LastUsedViewportClient = nullptr;
+	bool bCVarAutoSelectComponent = true;
 
 	// Delta sums
 	bool bHasInitialWidgetLocation;
@@ -191,4 +192,5 @@ protected:
 	virtual void TrackingStoppedInternal(FEditorViewportClient* InViewportClient);
 
 	void ModifyProperty(UObject* InObject, FProperty* InProperty, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction);
+	void ModifyProperty(UObject* InObject, FName InPropertyName, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction);
 };

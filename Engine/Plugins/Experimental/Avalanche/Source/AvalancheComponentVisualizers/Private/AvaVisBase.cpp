@@ -5,7 +5,7 @@
 #include "AvaComponentVisualizersEdMode.h"
 #include "AvaComponentVisualizersSettings.h"
 #include "AvaViewportUtils.h"
-#include "Components/DynamicMeshComponent.h"
+#include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "Interaction/AvaSnapOperation.h"
 #include "Math/Box.h"
@@ -15,6 +15,8 @@
 #include "Templates/SharedPointer.h"
 #include "UnrealClient.h"
 #include "ViewportClient/IAvaViewportClient.h"
+
+#define LOCTEXT_NAMESPACE "AvaVisualizerBase"
 
 IMPLEMENT_HIT_PROXY(HAvaHitProxy, HComponentVisProxy);
 IMPLEMENT_HIT_PROXY(HAvaDirectHitProxy, HAvaHitProxy);
@@ -110,20 +112,20 @@ bool FAvaVisualizerBase::HandleModifiedClick(FEditorViewportClient* InViewportCl
 
 void FAvaVisualizerBase::StartTransaction()
 {
-	if (!GetEditedComponent())
+	UActorComponent* EditedComponent = GetEditedComponent();
+
+	if (!EditedComponent)
 	{
 		return;
 	}
 
-	GetEditedComponent()->SetFlags(RF_Transactional);
+	EditedComponent->SetFlags(RF_Transactional);
 
-	TransactionIdx = GEngine->BeginTransaction(
-			TEXT("Motion Design Component Visualizer"),
-			NSLOCTEXT("AvaComponentVisualizerBase", "VisualizerChange", "Visualizer Change"),
-			GetEditedComponent()
-		);
+	const FString OwnerLabel = EditedComponent->GetOwner() ? EditedComponent->GetOwner()->GetActorNameOrLabel() : TEXT("");
+	TransactionIdx = GEditor->BeginTransaction(FText::Format(LOCTEXT("VisualizerChange", "Edit {0} Visualizer Change"), FText::FromString(OwnerLabel)));
 
-	GetEditedComponent()->Modify();
+	EditedComponent->Modify();
+
 	bHasBeenModified = false;
 }
 
@@ -133,11 +135,11 @@ void FAvaVisualizerBase::EndTransaction()
 	{
 		if (bHasBeenModified)
 		{
-			GEngine->EndTransaction();
+			GEditor->EndTransaction();
 		}
 		else
 		{
-			GEngine->CancelTransaction(TransactionIdx);
+			GEditor->CancelTransaction(TransactionIdx);
 		}
 		TransactionIdx = INDEX_NONE;
 	}
@@ -156,6 +158,14 @@ void FAvaVisualizerBase::StoreInitialValues()
 void FAvaVisualizerBase::StartEditing(FEditorViewportClient* InViewportClient, UActorComponent* InEditedComponent)
 {
 	LastUsedViewportClient = InViewportClient;
+
+	// Disable AutoSelectComponent to keep active actor selected
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.ComponentVisualizer.AutoSelectComponent")))
+	{
+		bCVarAutoSelectComponent = CVar->GetBool();
+		CVar->Set(false);
+	}
+
 	UAvaComponentVisualizersEdMode::OnVisualizerActivated(SharedThis(this));
 }
 
@@ -165,7 +175,14 @@ void FAvaVisualizerBase::EndEditing()
 
 	EndTransaction();
 	UAvaComponentVisualizersEdMode::OnVisualizerDeactivated(SharedThis(this));
+
 	LastUsedViewportClient = nullptr;
+
+	// Restore AutoSelectComponent state
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.ComponentVisualizer.AutoSelectComponent")))
+	{
+		CVar->Set(bCVarAutoSelectComponent);
+	}
 }
 
 void FAvaVisualizerBase::TrackingStarted(FEditorViewportClient* InViewportClient)
@@ -523,9 +540,31 @@ void FAvaVisualizerBase::TrackingStoppedInternal(FEditorViewportClient* InViewpo
 
 void FAvaVisualizerBase::ModifyProperty(UObject* InObject, FProperty* InProperty, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction)
 {
+	if (!InObject)
+	{
+		return;
+	}
+
+	InObject->SetFlags(RF_Transactional);
+
 	bHasBeenModified = InObject->Modify();
+
 	InFunction();
-	NotifyPropertyModified(InObject, InProperty, InPropertyChangeType);
+
+	if (InPropertyChangeType != EPropertyChangeType::Interactive)
+	{
+		NotifyPropertyModified(InObject, InProperty, InPropertyChangeType);
+	}
+}
+
+void FAvaVisualizerBase::ModifyProperty(UObject* InObject, FName InPropertyName, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction)
+{
+	if (!InObject)
+	{
+		return;
+	}
+
+	ModifyProperty(InObject, FindFProperty<FProperty>(InObject->GetClass(), InPropertyName), InPropertyChangeType, InFunction);
 }
 
 void FAvaVisualizerBase::NotifyPropertyModified(UObject* InObject, FProperty* InProperty,
@@ -610,3 +649,5 @@ void FAvaVisualizerBase::NotifyPropertyChainModified(UObject* InObject, FPropert
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

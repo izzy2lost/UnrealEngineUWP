@@ -2,21 +2,33 @@
 
 #include "Subsystems/CEEffectorSubsystem.h"
 
-#include "Effector/CEEffectorActor.h"
+#include "Engine/Engine.h"
 #include "NiagaraDataChannel.h"
 #include "NiagaraDataChannelAccessor.h"
 #include "NiagaraDataChannelPublic.h"
+#include "Effector/CEEffectorComponent.h"
+#include "Effector/CEEffectorExtensionBase.h"
+#include "Effector/Modes/CEEffectorNoiseMode.h"
+#include "Effector/Modes/CEEffectorOffsetMode.h"
+#include "Effector/Modes/CEEffectorPushMode.h"
+#include "Effector/Modes/CEEffectorTargetMode.h"
+#include "Effector/Types/CEEffectorBoxType.h"
+#include "Effector/Types/CEEffectorPlaneType.h"
+#include "Effector/Types/CEEffectorRadialType.h"
+#include "Effector/Types/CEEffectorSphereType.h"
+#include "Effector/Types/CEEffectorTorusType.h"
+#include "Effector/Types/CEEffectorUnboundType.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogACEEffectorSubsystem, Log, All);
 
 UCEEffectorSubsystem::FOnSubsystemInitialized UCEEffectorSubsystem::OnSubsystemInitializedDelegate;
 UCEEffectorSubsystem::FOnEffectorIdentifierChanged UCEEffectorSubsystem::OnEffectorIdentifierChangedDelegate;
 
-UCEEffectorSubsystem* UCEEffectorSubsystem::Get(const UWorld* InWorld)
+UCEEffectorSubsystem* UCEEffectorSubsystem::Get()
 {
-	if (InWorld)
+	if (GEngine)
 	{
-		return InWorld->GetSubsystem<UCEEffectorSubsystem>();
+		return GEngine->GetEngineSubsystem<UCEEffectorSubsystem>();
 	}
 
 	return nullptr;
@@ -30,21 +42,29 @@ void UCEEffectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	EffectorDataChannelAsset = LoadObject<UNiagaraDataChannelAsset>(nullptr, DataChannelAssetPath);
 
 	check(EffectorDataChannelAsset->Get());
+
+	// Register types
+	RegisterExtensionClass(UCEEffectorSphereType::StaticClass());
+	RegisterExtensionClass(UCEEffectorPlaneType::StaticClass());
+	RegisterExtensionClass(UCEEffectorBoxType::StaticClass());
+	RegisterExtensionClass(UCEEffectorUnboundType::StaticClass());
+	RegisterExtensionClass(UCEEffectorRadialType::StaticClass());
+	RegisterExtensionClass(UCEEffectorTorusType::StaticClass());
+
+	// Register modes
+	RegisterExtensionClass(UCEEffectorOffsetMode::StaticClass());
+	RegisterExtensionClass(UCEEffectorTargetMode::StaticClass());
+	RegisterExtensionClass(UCEEffectorNoiseMode::StaticClass());
+	RegisterExtensionClass(UCEEffectorPushMode::StaticClass());
+
+	ScanForRegistrableClasses();
+
+	OnSubsystemInitializedDelegate.Broadcast();
 }
 
-void UCEEffectorSubsystem::PostInitialize()
+bool UCEEffectorSubsystem::RegisterChannelEffector(UCEEffectorComponent* InEffector)
 {
-	Super::PostInitialize();
-
-	if (const UWorld* World = GetWorld())
-	{
-		OnSubsystemInitializedDelegate.Broadcast(World);
-	}
-}
-
-bool UCEEffectorSubsystem::RegisterChannelEffector(ACEEffectorActor* InEffector)
-{
-	if (!IsValid(InEffector))
+	if (!IsValid(InEffector) || !InEffector->GetOwner())
 	{
 		return false;
 	}
@@ -54,22 +74,22 @@ bool UCEEffectorSubsystem::RegisterChannelEffector(ACEEffectorActor* InEffector)
 	if (EffectorIndex == INDEX_NONE)
 	{
 		EffectorIndex = EffectorsWeak.Add(InEffector);
-		UE_LOG(LogACEEffectorSubsystem, Log, TEXT("%s effector registered in channel %i"), *InEffector->GetActorNameOrLabel(), EffectorIndex);
+		UE_LOG(LogACEEffectorSubsystem, Log, TEXT("%s effector registered in channel %i"), *InEffector->GetOwner()->GetActorNameOrLabel(), EffectorIndex);
 	}
 
-	if (InEffector->ChannelData.Identifier != EffectorIndex)
+	if (InEffector->GetChannelData().Identifier != EffectorIndex)
 	{
-		const int32 OldIdentifier = InEffector->ChannelData.Identifier;
-		InEffector->ChannelData.Identifier = EffectorIndex;
+		const int32 OldIdentifier = InEffector->GetChannelData().Identifier;
+		InEffector->GetChannelData().Identifier = EffectorIndex;
 		OnEffectorIdentifierChangedDelegate.Broadcast(InEffector, OldIdentifier, EffectorIndex);
 	}
 
 	return true;
 }
 
-bool UCEEffectorSubsystem::UnregisterChannelEffector(ACEEffectorActor* InEffector)
+bool UCEEffectorSubsystem::UnregisterChannelEffector(UCEEffectorComponent* InEffector)
 {
-	if (!InEffector)
+	if (!InEffector || !InEffector->GetOwner())
 	{
 		return false;
 	}
@@ -78,21 +98,21 @@ bool UCEEffectorSubsystem::UnregisterChannelEffector(ACEEffectorActor* InEffecto
 
 	if (bUnregistered)
 	{
-		UE_LOG(LogACEEffectorSubsystem, Log, TEXT("%s effector unregistered from channel"), *InEffector->GetActorNameOrLabel());
+		UE_LOG(LogACEEffectorSubsystem, Log, TEXT("%s effector unregistered from channel"), *InEffector->GetOwner()->GetActorNameOrLabel());
 
-		const int32 OldIdentifier = InEffector->ChannelData.Identifier;
-		InEffector->ChannelData.Identifier = INDEX_NONE;
-		OnEffectorIdentifierChangedDelegate.Broadcast(InEffector, OldIdentifier, InEffector->ChannelData.Identifier);
+		const int32 OldIdentifier = InEffector->GetChannelData().Identifier;
+		InEffector->GetChannelData().Identifier = INDEX_NONE;
+		OnEffectorIdentifierChangedDelegate.Broadcast(InEffector, OldIdentifier, InEffector->GetChannelData().Identifier);
 	}
 
 	return bUnregistered;
 }
 
-ACEEffectorActor* UCEEffectorSubsystem::GetEffectorByChannelIdentifier(int32 InIdentifier) const
+UCEEffectorComponent* UCEEffectorSubsystem::GetEffectorByChannelIdentifier(int32 InIdentifier) const
 {
 	if (EffectorsWeak.IsValidIndex(InIdentifier))
 	{
-		if (ACEEffectorActor* Effector = EffectorsWeak[InIdentifier].Get())
+		if (UCEEffectorComponent* Effector = EffectorsWeak[InIdentifier].Get())
 		{
 			if (Effector->GetChannelIdentifier() == InIdentifier)
 			{
@@ -104,11 +124,121 @@ ACEEffectorActor* UCEEffectorSubsystem::GetEffectorByChannelIdentifier(int32 InI
 	return nullptr;
 }
 
-void UCEEffectorSubsystem::UpdateEffectorChannel()
+bool UCEEffectorSubsystem::RegisterExtensionClass(UClass* InClass)
 {
-	const UWorld* World = GetWorld();
+	if (!IsValid(InClass))
+	{
+		return false;
+	}
 
-	if (!IsValid(World))
+	if (!InClass->IsChildOf(UCEEffectorExtensionBase::StaticClass())
+		|| InClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	{
+		return false;
+	}
+
+	if (IsExtensionClassRegistered(InClass))
+	{
+		return false;
+	}
+
+	const UCEEffectorExtensionBase* CDO = InClass->GetDefaultObject<UCEEffectorExtensionBase>();
+
+	if (!CDO)
+	{
+		return false;
+	}
+
+	const FName ExtensionName = CDO->GetExtensionName();
+
+	if (ExtensionName.IsNone() || ExtensionClasses.Contains(ExtensionName))
+	{
+		return false;
+	}
+
+	ExtensionClasses.Add(ExtensionName, CDO->GetClass());
+
+	return true;
+}
+
+bool UCEEffectorSubsystem::UnregisterExtensionClass(UClass* InClass)
+{
+	if (!IsValid(InClass))
+	{
+		return false;
+	}
+
+	TSubclassOf<UCEEffectorExtensionBase> ExtensionClass(InClass);
+
+	if (const FName* ExtensionName = ExtensionClasses.FindKey(ExtensionClass))
+	{
+		ExtensionClasses.Remove(*ExtensionName);
+		return true;
+	}
+
+	return false;
+}
+
+bool UCEEffectorSubsystem::IsExtensionClassRegistered(UClass* InClass) const
+{
+	TSubclassOf<UCEEffectorExtensionBase> ExtensionClass(InClass);
+	return !!ExtensionClasses.FindKey(ExtensionClass);
+}
+
+TArray<FName> UCEEffectorSubsystem::GetExtensionNames(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const
+{
+	TArray<FName> ExtensionNames;
+
+	const FName ExtensionName = FindExtensionName(InExtensionClass);
+
+	if (!ExtensionName.IsNone())
+	{
+		ExtensionNames.Add(ExtensionName);
+	}
+	else
+	{
+		for (const TPair<FName, TSubclassOf<UCEEffectorExtensionBase>>& ExtensionPair : ExtensionClasses)
+		{
+			if (ExtensionPair.Value && ExtensionPair.Value->IsChildOf(InExtensionClass))
+			{
+				ExtensionNames.Add(ExtensionPair.Key);
+			}
+		}
+	}
+
+	return ExtensionNames;
+}
+
+FName UCEEffectorSubsystem::FindExtensionName(TSubclassOf<UCEEffectorExtensionBase> InClass) const
+{
+	if (const FName* ExtensionName = ExtensionClasses.FindKey(InClass))
+	{
+		return *ExtensionName;
+	}
+
+	return NAME_None;
+}
+
+UCEEffectorExtensionBase* UCEEffectorSubsystem::CreateNewExtension(FName InExtensionName, UCEEffectorComponent* InEffector)
+{
+	if (!IsValid(InEffector))
+	{
+		return nullptr;
+	}
+
+	TSubclassOf<UCEEffectorExtensionBase> const* ExtensionClass = ExtensionClasses.Find(InExtensionName);
+
+	if (!ExtensionClass)
+	{
+		return nullptr;
+	}
+
+	return NewObject<UCEEffectorExtensionBase>(InEffector, ExtensionClass->Get(), NAME_None, RF_Transactional);
+}
+
+void UCEEffectorSubsystem::UpdateEffectorChannel(const UWorld* InWorld)
+{
+	if (!IsValid(InWorld))
 	{
 		return;
 	}
@@ -120,7 +250,7 @@ void UCEEffectorSubsystem::UpdateEffectorChannel()
 
 	// Reserve space in channel for each effectors
 	static const FNiagaraDataChannelSearchParameters SearchParameters;
-	UNiagaraDataChannelWriter* ChannelWriter = UNiagaraDataChannelLibrary::WriteToNiagaraDataChannel(World, EffectorDataChannelAsset.Get(), SearchParameters, EffectorsWeak.Num(), true, true, true, UCEEffectorSubsystem::StaticClass()->GetName());
+	UNiagaraDataChannelWriter* ChannelWriter = UNiagaraDataChannelLibrary::WriteToNiagaraDataChannel(InWorld, EffectorDataChannelAsset.Get(), SearchParameters, EffectorsWeak.Num(), true, true, true, UCEEffectorSubsystem::StaticClass()->GetName());
 
 	if (!ChannelWriter)
 	{
@@ -130,13 +260,18 @@ void UCEEffectorSubsystem::UpdateEffectorChannel()
 
 	// Remove invalid effectors and push updates to effector assigned channel indexes
 	int32 EffectorIndex = 0;
-	for (TArray<TWeakObjectPtr<ACEEffectorActor>>::TIterator It(EffectorsWeak); It; ++It)
+	for (TArray<TWeakObjectPtr<UCEEffectorComponent>>::TIterator It(EffectorsWeak); It; ++It)
 	{
-		ACEEffectorActor* Effector = It->Get();
+		UCEEffectorComponent* Effector = It->Get();
 
 		if (!IsValid(Effector))
 		{
 			It.RemoveCurrent();
+			continue;
+		}
+
+		if (Effector->GetWorld() != InWorld)
+		{
 			continue;
 		}
 
@@ -159,9 +294,15 @@ void UCEEffectorSubsystem::UpdateEffectorChannel()
 	}
 }
 
-bool UCEEffectorSubsystem::IsTickableInEditor() const
+void UCEEffectorSubsystem::ScanForRegistrableClasses()
 {
-	return true;
+	TArray<UClass*> DerivedExtensionClasses;
+	GetDerivedClasses(UCEEffectorExtensionBase::StaticClass(), DerivedExtensionClasses, true);
+
+	for (UClass* ExtensionClass : DerivedExtensionClasses)
+	{
+		RegisterExtensionClass(ExtensionClass);
+	}
 }
 
 TStatId UCEEffectorSubsystem::GetStatId() const
@@ -171,5 +312,25 @@ TStatId UCEEffectorSubsystem::GetStatId() const
 
 void UCEEffectorSubsystem::Tick(float InDeltaTime)
 {
-	UpdateEffectorChannel();
+	TSet<UWorld*> Worlds;
+
+	for (const TWeakObjectPtr<UCEEffectorComponent>& EffectorWeak : EffectorsWeak)
+	{
+		UCEEffectorComponent* Effector = EffectorWeak.Get();
+
+		if (Effector && Effector->GetWorld())
+		{
+			Worlds.Add(Effector->GetWorld());
+		}
+	}
+
+	for (UWorld* World : Worlds)
+	{
+		UpdateEffectorChannel(World);
+	}
+}
+
+bool UCEEffectorSubsystem::IsTickable() const
+{
+	return !EffectorsWeak.IsEmpty();
 }
