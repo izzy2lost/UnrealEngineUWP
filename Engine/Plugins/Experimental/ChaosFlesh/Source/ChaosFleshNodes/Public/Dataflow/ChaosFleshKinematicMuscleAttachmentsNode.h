@@ -22,10 +22,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "Collection", DataflowPassthrough = "Collection"))
 		FManagedArrayCollection Collection;
 
-	UPROPERTY(meta = (DataflowInput, DisplayName = "OriginSelectionSet"))
+	UPROPERTY(meta = (DataflowInput, DisplayName = "OriginVertexIndices"))
 		TArray<int32> OriginVertexIndicesIn;
 
-	UPROPERTY(meta = (DataflowInput, DisplayName = "InsertionSelectionSet"))
+	UPROPERTY(meta = (DataflowInput, DisplayName = "InsertionVertexIndices"))
 		TArray<int32> InsertionVertexIndicesIn;
 
 	UPROPERTY(meta = (DataflowInput, DisplayName = "SkeletalMesh"))

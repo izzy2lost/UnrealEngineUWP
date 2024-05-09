@@ -49,8 +49,8 @@ public:
 	FSetFleshBonePositionTargetBindingDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
-		RegisterInputConnection(&SkeletalMeshIn);
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&SkeletalMeshIn);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 

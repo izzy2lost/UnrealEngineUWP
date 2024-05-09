@@ -465,6 +465,7 @@ ComputeFiberField(
 	const TArray<int32>& Origins,
 	const TArray<int32>& Insertions,
 	TArray<TV>& Directions,
+	TArray<T>& ScalarField,
 	const int32 MaxIt=100,
 	const T Tol=T(1e-7))
 {
@@ -473,12 +474,12 @@ ComputeFiberField(
 	{
 		if (zero_non_boundary)
 			Fill(minus_u_bc, T(0));
-		// origin points have bc = 0
+		// origin points have bc = scale
 		for (int32 i = 0; i < Origins.Num(); i++)
-			minus_u_bc[Origins[i]] = T(0);
-		// insertion points have bc = scale
+			minus_u_bc[Origins[i]] = scale;
+		// insertion points have bc = 2*scale
 		for (int32 i = 0; i < Insertions.Num(); i++)
-			minus_u_bc[Insertions[i]] = scale;
+			minus_u_bc[Insertions[i]] = 2*scale;
 	};
 
 	// Origin and insertion points are fixed
@@ -520,6 +521,7 @@ ComputeFiberField(
 	//compute directions from scalar gradient
 	Directions.SetNumUninitialized(Mesh.Num());
 	Fill(Directions, TV(0));
+	ScalarField = u;
 
 	TArray<TV> grad_Nie_hat; grad_Nie_hat.SetNumUninitialized(d + 1);
 	grad_Nie_hat[0] = { T(-1),T(-1),T(-1) };
@@ -530,8 +532,7 @@ ComputeFiberField(
 	TV pseudo_direction = Vertices[Insertions[0]] - Vertices[Origins[0]];
 	pseudo_direction.Normalize();
 
-	//PhysicsParallelFor(Mesh.Num(), [&](const int32 e)
-	for(int32 e=0; e < Mesh.Num(); e++)
+	PhysicsParallelFor(Mesh.Num(), [&](const int32 e)
 	{
 		T Deinv[d * d]{
 			De_inverse[d * d * e + 0],
@@ -560,12 +561,15 @@ ComputeFiberField(
 		{
 			Directions[e] = gradient * T(1) / Len;
 		}
-		else 
+		else if (u[Mesh[e][0]] > 0)
 		{
-			std::cout << "zero fiber gradient" << std::endl;
 			Directions[e] = pseudo_direction;
 		}
-	}//);
+		else
+		{
+			Directions[e] = gradient;
+		}
+	});
 }
 
 // 9 point laplacian with dirichlet boundaries

@@ -62,11 +62,13 @@ public:
 
 	TArray<int32> GetNonZeroIndices(const TArray<uint8>& Map) const;
 
-	TArray<FVector3f> ComputeFiberField(
+	void ComputeFiberField(
 		const TManagedArray<FIntVector4>& Elements,
 		const TManagedArray<FVector3f>& Vertex,
 		const TManagedArray<TArray<int32>>& IncidentElements,
 		const TManagedArray<TArray<int32>>& IncidentElementsLocalIndex,
 		const TArray<int32>& Origin,
-		const TArray<int32>& Insertion) const;
+		const TArray<int32>& Insertion,
+		TArray<FVector3f>& Directions,
+		TArray<float>& ScalarField) const;
 };

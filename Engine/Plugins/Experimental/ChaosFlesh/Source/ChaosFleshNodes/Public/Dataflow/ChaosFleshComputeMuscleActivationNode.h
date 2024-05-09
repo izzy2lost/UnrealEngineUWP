@@ -22,10 +22,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "Collection", DataflowPassthrough = "Collection"))
 	FManagedArrayCollection Collection;
 
-	UPROPERTY(meta = (DataflowInput, DisplayName = "OriginIndicesIn"))
+	UPROPERTY(meta = (DataflowInput, DisplayName = "OriginVertexIndices"))
 		TArray<int32> OriginIndicesIn;
 
-	UPROPERTY(meta = (DataflowInput, DisplayName = "InsertionIndicesIn"))
+	UPROPERTY(meta = (DataflowInput, DisplayName = "InsertionVertexIndices"))
 		TArray<int32> InsertionIndicesIn;
 
 	FComputeMuscleActivationDataNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())

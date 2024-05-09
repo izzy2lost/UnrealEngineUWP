@@ -127,10 +127,11 @@ void FComputeFiberFieldNode::Evaluate(Dataflow::FContext& Context, const FDatafl
 		// Do the thing
 		//
 
-		TArray<FVector3f> FiberDirs =
-			ComputeFiberField(*Elements, *Vertex, *IncidentElements, *IncidentElementsLocalIndex, 
+		TArray<FVector3f> FiberDirs;
+		TArray<float> MuscleAttachmentScalarFieldTArray; //continuous field where origin = 1, insertion = 2, othernodes = 0
+		ComputeFiberField(*Elements, *Vertex, *IncidentElements, *IncidentElementsLocalIndex, 
 				Origin ? Origin->GetConstArray() : InOriginIndices,
-				Insertion ? Insertion->GetConstArray() : InInsertionIndices);
+				Insertion ? Insertion->GetConstArray() : InInsertionIndices, FiberDirs, MuscleAttachmentScalarFieldTArray);
 
 		//
 		// Set output(s)
@@ -145,6 +146,21 @@ void FComputeFiberFieldNode::Evaluate(Dataflow::FContext& Context, const FDatafl
 		}
 		(*FiberDirections) = MoveTemp(FiberDirs);
 
+		TManagedArray<FLinearColor>* Color =
+			InCollection.FindAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+		if (!Color)
+		{
+			Color =
+				&InCollection.AddAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+		}
+		for (int32 i = 0; i < Color->Num(); ++i)
+		{
+			float s = MuscleAttachmentScalarFieldTArray[i];
+			if (s > 0) // 1 <= s <= 2 if muscle
+			{
+				(*Color)[i] = FLinearColor(FVector(s-1, 0, 2 - s));
+			}
+		}
 		Out->SetValue(MoveTemp(InCollection), Context);
 	}
 }
@@ -164,16 +180,16 @@ FComputeFiberFieldNode::GetNonZeroIndices(const TArray<uint8>& Map) const
 	return Indices;
 }
 
-TArray<FVector3f>
-FComputeFiberFieldNode::ComputeFiberField(
+void FComputeFiberFieldNode::ComputeFiberField(
 	const TManagedArray<FIntVector4>& Elements,
 	const TManagedArray<FVector3f>& Vertex,
 	const TManagedArray<TArray<int32>>& IncidentElements,
 	const TManagedArray<TArray<int32>>& IncidentElementsLocalIndex,
 	const TArray<int32>& Origin,
-	const TArray<int32>& Insertion) const
+	const TArray<int32>& Insertion,
+	TArray<FVector3f>& Directions,
+	TArray<float>& ScalarField) const
 {
-	TArray<FVector3f> Directions;
 	Chaos::ComputeFiberField<float>(
 		Elements.GetConstArray(),
 		Vertex.GetConstArray(),
@@ -182,7 +198,7 @@ FComputeFiberFieldNode::ComputeFiberField(
 		Origin,
 		Insertion,
 		Directions,
+		ScalarField,
 		MaxIterations,
 		Tolerance);
-	return Directions;
 }

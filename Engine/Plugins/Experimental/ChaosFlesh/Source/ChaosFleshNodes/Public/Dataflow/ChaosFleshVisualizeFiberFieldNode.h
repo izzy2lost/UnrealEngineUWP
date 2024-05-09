@@ -38,3 +38,30 @@ public:
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
+
+/**
+* Visualizes position target vectors from GeometryCollection.
+*/
+USTRUCT(meta = (DataflowFlesh))
+struct FVisualizePositionTargetsNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FVisualizePositionTargetsNode, "VisualizePositionTargets", "Flesh", "")
+		DATAFLOW_NODE_RENDER_TYPE(FFieldCollection::StaticType(), "VectorField")
+
+public:
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Collection"))
+	FManagedArrayCollection Collection;
+
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "VectorField"))
+	FFieldCollection VectorField;
+
+	FVisualizePositionTargetsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterOutputConnection(&VectorField);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
