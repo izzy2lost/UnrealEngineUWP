@@ -2,10 +2,6 @@
 
 /**
  * MaterialTemplate.usf: Filled in by FHLSLMaterialTranslator::GetMaterialShaderCode for each material being compiled.
- 
-  $TemplateVersion{1}
-	Bump this number up when you make a change to this file that requires the material
-	translation DDC cache to be invalidated, forcing all materials to re-translate.
  */
 
 #ifndef ENABLE_NEW_HLSL_GENERATOR

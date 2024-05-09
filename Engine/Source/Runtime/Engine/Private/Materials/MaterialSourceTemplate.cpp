@@ -93,17 +93,8 @@ bool FMaterialSourceTemplate::Preload(EShaderPlatform ShaderPlatform)
 		return false;
 	}
 
-	// Extract the material template string TemplateVersion parameter
+	// Calculate a template hash based on the parameter contained (regardless of order)
 	FSHA1 TemplateHash = {};
-	const TStringView TemplateVersionKeyword = TEXT("$TemplateVersion{");
-	int Begin = MaterialTemplateString.Find(TemplateVersionKeyword.GetData());
-	int End = MaterialTemplateString.Find(TEXT("}"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Begin + TemplateVersionKeyword.Len());
-	if (Begin > 0 && End > 0)
-	{
-		Begin += TemplateVersionKeyword.Len();
-		TemplateHash.UpdateWithString(*MaterialTemplateString + Begin, End - Begin);
-	}
-
 	TArray<FStringView> Parameters;
 	Templates[ShaderPlatform].GetParameters(Parameters);
 	Parameters.Sort();
