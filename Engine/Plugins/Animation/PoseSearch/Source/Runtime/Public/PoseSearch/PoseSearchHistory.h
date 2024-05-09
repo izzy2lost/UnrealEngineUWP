@@ -206,11 +206,16 @@ private:
 	TArray<FPoseHistoryEntry, TInlineAllocator<4, TMemStackAllocator<>>> FutureEntries;
 };
 
-class IPoseHistoryProvider : public UE::Anim::IGraphMessage
+class POSESEARCH_API FPoseHistoryProvider : public UE::Anim::IGraphMessage
 {
-	DECLARE_ANIMGRAPH_MESSAGE(IPoseHistoryProvider);
+	DECLARE_ANIMGRAPH_MESSAGE(FPoseHistoryProvider);
+
 public:
-	virtual const IPoseHistory& GetPoseHistory() const = 0;
+	FPoseHistoryProvider(const IPoseHistory& InPoseHistory) : PoseHistory(InPoseHistory) { }
+	const IPoseHistory& GetPoseHistory() const { return PoseHistory; }
+
+private:
+	const IPoseHistory& PoseHistory;
 };
 
 struct FHistoricalPoseIndex

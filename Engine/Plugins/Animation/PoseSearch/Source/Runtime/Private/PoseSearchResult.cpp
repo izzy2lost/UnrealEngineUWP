@@ -47,11 +47,6 @@ void FSearchResult::Update(float NewAssetTime)
 	}
 }
 
-bool FSearchResult::IsValid() const
-{
-	return PoseIdx != INDEX_NONE && Database != nullptr;
-}
-
 void FSearchResult::Reset()
 {
 	PoseIdx = INDEX_NONE;

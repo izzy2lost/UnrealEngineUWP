@@ -18,6 +18,9 @@ namespace UE::PoseSearch
 	struct FSearchContext;
 } // namespace UE::PoseSearch
 
+struct FAnimationUpdateContext;
+struct FAnimNode_PoseSearchHistoryCollector_Base;
+
 UENUM()
 enum class EPoseSearchInterruptMode : uint8
 {
@@ -38,8 +41,6 @@ enum class EPoseSearchInterruptMode : uint8
 	// and continuing pose will be invalidated (forcing the schema to use pose history to build the query)
 	ForceInterruptAndInvalidateContinuingPose,
 };
-
-struct FAnimationUpdateContext;
 
 struct FMotionMatchingState
 {
@@ -247,5 +248,9 @@ public:
 		const FPoseSearchContinuingProperties& ContinuingProperties,
 		const int32 DebugSessionUniqueIdentifier,
 		float DesiredPermutationTimeOffset = 0.f);
+
+	static const FAnimNode_PoseSearchHistoryCollector_Base* FindPoseHistoryNode(
+		const FName PoseHistoryName,
+		const UAnimInstance* AnimInstance);
 };
 

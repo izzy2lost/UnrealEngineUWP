@@ -99,11 +99,13 @@ public:
 
 	const UE::PoseSearch::FPoseHistory& GetPoseHistory() const { return PoseHistory; }
 	UE::PoseSearch::FPoseHistory& GetPoseHistory() { return PoseHistory; }
+	void GenerateTrajectory(const UAnimInstance* InAnimInstance);
 
 protected:
 	TArray<FBoneIndexType> GetRequiredBones(const FAnimInstanceProxy* AnimInstanceProxy) const;
 
 	UE::PoseSearch::FPoseHistory PoseHistory;
+	bool bIsTrajectoryGeneratedBeforePreUpdate = false;
 };
 
 USTRUCT(BlueprintInternalUseOnly)

@@ -32,11 +32,11 @@ struct FSearchResult
 	// state back to the default state.
 	void Update(float NewAssetTime);
 
-	bool IsValid() const;
+	bool IsValid() const { return PoseIdx != INDEX_NONE && Database != nullptr; }
 
 	void Reset();
 
-	const FSearchIndexAsset* GetSearchIndexAsset(bool bMandatory = false) const;
+	POSESEARCH_API const FSearchIndexAsset* GetSearchIndexAsset(bool bMandatory = false) const;
 	
 	bool CanAdvance(float DeltaTime) const;
 };

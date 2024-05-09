@@ -36,6 +36,63 @@ TAutoConsoleVariable<bool> CVarAnimMotionMatchDrawMatchEnable(TEXT("a.MotionMatc
 
 namespace UE::PoseSearch
 {
+	// budgeting some stack allocations for simple use cases. bigger requests of AnimationAssets containing UAnimNotifyState_PoseSearchBranchIn 
+	// referencing multiple databases will default to a slower TMemStackAllocator (that hides heap allocations)
+	enum { MAX_STACK_ALLOCATED_ANIMATIONS = 16 };
+	enum { MAX_STACK_ALLOCATED_SETS = 2 };
+	typedef	TArray<const UObject*, TInlineAllocator<MAX_STACK_ALLOCATED_ANIMATIONS, TMemStackAllocator<>>> TAssetsToSearch;
+	// an empty TAssetsToSearch associated to Database means we need to search ALL the assets
+	typedef TMap<const UPoseSearchDatabase*, TAssetsToSearch, TInlineSetAllocator<MAX_STACK_ALLOCATED_SETS, TMemStackSetAllocator<>>> TAssetsToSearchPerDatabaseMap;
+	typedef TPair<const UPoseSearchDatabase*, TAssetsToSearch> TAssetsToSearchPerDatabasePair;
+
+	static void AddToSearchForDatabase(TAssetsToSearchPerDatabaseMap& AssetsToSearchPerDatabaseMap, const UObject* AssetToSearch, const UPoseSearchDatabase* Database)
+	{
+		if (TAssetsToSearch* AssetsToSearch = AssetsToSearchPerDatabaseMap.Find(Database))
+		{
+			// an empty TAssetsToSearch associated to Database means we need to search ALL the assets, so we don't need to add this AssetToSearch
+			if (!AssetsToSearch->IsEmpty())
+			{
+				AssetsToSearch->AddUnique(AssetToSearch);
+			}
+		}
+		else
+		{
+			AssetsToSearchPerDatabaseMap.Add(Database).AddUnique(AssetToSearch);
+		}
+	}
+
+	static void AddToSearch(TAssetsToSearchPerDatabaseMap& AssetsToSearchPerDatabaseMap, const UObject* AssetToSearch)
+	{
+		if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(AssetToSearch))
+		{
+			for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
+			{
+				if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+				{
+					if (!PoseSearchBranchIn->Database)
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("improperly setup UAnimNotifyState_PoseSearchBranchIn with null Database in %s"), *SequenceBase->GetName());
+						continue;
+					}
+#if WITH_EDITOR
+					if (!PoseSearchBranchIn->Database->Contains(SequenceBase))
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("improperly setup UAnimSequenceBase. Database %s doesn't contain UAnimSequenceBase %s"), *PoseSearchBranchIn->Database->GetName(), *SequenceBase->GetName());
+						continue;
+					}
+#endif // WITH_EDITOR
+					
+					AddToSearchForDatabase(AssetsToSearchPerDatabaseMap, SequenceBase, PoseSearchBranchIn->Database);
+				}
+			}
+		}
+		else if (const UPoseSearchDatabase* Database = Cast<UPoseSearchDatabase>(AssetToSearch))
+		{
+			// an empty TAssetsToSearch associated to Database means we need to search ALL the assets
+			AssetsToSearchPerDatabaseMap.FindOrAdd(Database).Reset();
+		}
+	}
+
 	static bool IsForceInterrupt(EPoseSearchInterruptMode InterruptMode, const UPoseSearchDatabase* CurrentResultDatabase, const TArray<TObjectPtr<const UPoseSearchDatabase>>& Databases)
 	{
 		switch (InterruptMode)
@@ -106,47 +163,6 @@ namespace UE::PoseSearch
 		}
 
 		return false;
-	}
-
-	static const FAnimNode_PoseSearchHistoryCollector_Base* FindPoseHistoryNode(const FName PoseHistoryName, const UAnimInstance* AnimInstance)
-	{
-		if (AnimInstance)
-		{
-			TSet<const UAnimInstance*, DefaultKeyFuncs<const UAnimInstance*>, TInlineSetAllocator<128>> AlreadyVisited;
-			TArray<const UAnimInstance*, TInlineAllocator<128>> ToVisit;
-
-			ToVisit.Add(AnimInstance);
-			AlreadyVisited.Add(AnimInstance);
-
-			while (!ToVisit.IsEmpty())
-			{
-				const UAnimInstance* Visiting = ToVisit.Pop();
-
-				if (IAnimClassInterface* AnimBlueprintClass = IAnimClassInterface::GetFromClass(Visiting->GetClass()))
-				{
-					if (const FAnimSubsystem_Tag* TagSubsystem = AnimBlueprintClass->FindSubsystem<FAnimSubsystem_Tag>())
-					{
-						if (const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector = TagSubsystem->FindNodeByTag<FAnimNode_PoseSearchHistoryCollector_Base>(PoseHistoryName, Visiting))
-						{
-							return HistoryCollector;
-						}
-					}
-				}
-
-				const USkeletalMeshComponent* SkeletalMeshComponent = Visiting->GetSkelMeshComponent();
-				const TArray<UAnimInstance*>& LinkedAnimInstances = SkeletalMeshComponent->GetLinkedAnimInstances();
-				for (const UAnimInstance* LinkedAnimInstance : LinkedAnimInstances)
-				{
-					bool bIsAlreadyInSet = false;
-					AlreadyVisited.Add(LinkedAnimInstance, &bIsAlreadyInSet);
-					if (!bIsAlreadyInSet)
-					{
-						ToVisit.Add(LinkedAnimInstance);
-					}
-				}
-			}
-		}
-		return nullptr;
 	}
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -416,9 +432,8 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 
 	InOutMotionMatchingState.bJumpedToPose = false;
 
-	// used when YawFromAnimationBlendRate is greater than zero, by setting a future (YawFromAnimationTrajectoryBlendTime seconds ahead) root bone to the skeleton default
 	const IPoseHistory* PoseHistory = nullptr;
-	if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
+	if (FPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<FPoseHistoryProvider>())
 	{
 		PoseHistory = &PoseHistoryProvider->GetPoseHistory();
 	}
@@ -728,7 +743,7 @@ void UPoseSearchLibrary::MotionMatch(
 		}
 	}
 }
-	
+
 UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	const TArrayView<UAnimInstance*> AnimInstances,
 	const TArrayView<const UE::PoseSearch::FRole> Roles,
@@ -824,63 +839,11 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 		SearchContext.AddRole(Roles[RoleIndex], AnimInstances[RoleIndex], InternalPoseHistories[RoleIndex]);
 	}
 
-	// budgeting some stack allocations for simple use cases. bigger requests of AnimationAssets contining 
-	// UAnimNotifyState_PoseSearchBranchIn referencing multiple datbases will default to slower heap allocations
-	enum { MAX_STACK_ALLOCATED_ANIMATIONS = 16 };
-	enum { MAX_STACK_ALLOCATED_SETS = 2 };
-	typedef	TArray<const UObject*, TInlineAllocator<MAX_STACK_ALLOCATED_ANIMATIONS, TMemStackAllocator<>>> TAssetsToSearch;
-	// an empty TAssetsToSearch associated to Database means we need to search ALL the assets
-	typedef TMap<const UPoseSearchDatabase*, TAssetsToSearch, TInlineSetAllocator<MAX_STACK_ALLOCATED_SETS, TMemStackSetAllocator<>>> TAssetsToSearchPerDatabaseMap;
-	typedef TPair<const UPoseSearchDatabase*, TAssetsToSearch> TAssetsToSearchPerDatabasePair;
 	TAssetsToSearchPerDatabaseMap AssetsToSearchPerDatabaseMap;
 	
-	auto AddToSearch = [](TAssetsToSearchPerDatabaseMap& AssetsToSearchPerDatabaseMap, const UObject* AssetToSearch)
-	{
-		if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(AssetToSearch))
-		{
-			for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
-			{
-				if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
-				{
-					if (PoseSearchBranchIn->Database)
-					{
-#if WITH_EDITOR
-						if (!PoseSearchBranchIn->Database->Contains(SequenceBase))
-						{
-							UE_LOG(LogPoseSearch, Error, TEXT("improperly setup UAnimSequenceBase. Database %s doesn't contain UAnimSequenceBase %s"), *PoseSearchBranchIn->Database->GetName(), *SequenceBase->GetName());
-						}
-						else 
-#endif // WITH_EDITOR
-						if (TAssetsToSearch* AssetsToSearch = AssetsToSearchPerDatabaseMap.Find(PoseSearchBranchIn->Database))
-						{
-							// an empty TAssetsToSearch associated to Database means we need to search ALL the assets, so we don't need to add this SequenceBase
-							if (!AssetsToSearch->IsEmpty())
-							{
-								AssetsToSearch->AddUnique(SequenceBase);
-							}
-						}
-						else
-						{
-							AssetsToSearchPerDatabaseMap.Add(PoseSearchBranchIn->Database).AddUnique(SequenceBase);
-						}
-					}
-					else
-					{
-						UE_LOG(LogPoseSearch, Error, TEXT("improperly setup UAnimNotifyState_PoseSearchBranchIn with null Database in %s"), *SequenceBase->GetName());
-					}
-				}
-			}
-		}
-		else if (const UPoseSearchDatabase* Database = Cast<UPoseSearchDatabase>(AssetToSearch))
-		{
-			// an empty TAssetsToSearch associated to Database means we need to search ALL the assets
-			AssetsToSearchPerDatabaseMap.FindOrAdd(Database).Reset();
-		}
-	};
-
 	// collecting all the possible continuing pose search (it could be multiple searches, but most likely only one)
 	const float DeltaSeconds = AnimInstances[0]->GetDeltaSeconds();
-	if (const UAnimationAsset* PlayingAnimationAsset = Cast<UAnimationAsset>(ContinuingProperties.PlayingAsset))
+	if (const UObject* PlayingAnimationAsset = ContinuingProperties.PlayingAsset.Get())
 	{
 		AddToSearch(AssetsToSearchPerDatabaseMap, PlayingAnimationAsset);
 		
@@ -890,7 +853,11 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 			{
 				if (Database->Contains(PlayingAnimationAsset))
 				{
-					AddToSearch(AssetsToSearchPerDatabaseMap, AssetToSearch);
+					// checking just in case later on we add support for databases containing other databases
+					check(Cast<const UPoseSearchDatabase>(PlayingAnimationAsset) == nullptr);
+
+					// since it cannot be a database we can directly add it to AssetsToSearchPerDatabaseMap
+					AddToSearchForDatabase(AssetsToSearchPerDatabaseMap, AssetToSearch, Database);
 				}
 			}
 		}
@@ -1024,7 +991,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	using namespace UE::PoseSearch;
 
 	const IPoseHistory* PoseHistory = nullptr;
-	if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
+	if (FPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<FPoseHistoryProvider>())
 	{
 		PoseHistory = &PoseHistoryProvider->GetPoseHistory();
 	}
@@ -1048,4 +1015,47 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	return MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, FPoseSearchFutureProperties(), DebugSessionUniqueIdentifier);
 }
 	
+const FAnimNode_PoseSearchHistoryCollector_Base* UPoseSearchLibrary::FindPoseHistoryNode(
+	const FName PoseHistoryName,
+	const UAnimInstance* AnimInstance)
+{
+	if (AnimInstance)
+	{
+		TSet<const UAnimInstance*, DefaultKeyFuncs<const UAnimInstance*>, TInlineSetAllocator<128>> AlreadyVisited;
+		TArray<const UAnimInstance*, TInlineAllocator<128>> ToVisit;
+
+		ToVisit.Add(AnimInstance);
+		AlreadyVisited.Add(AnimInstance);
+
+		while (!ToVisit.IsEmpty())
+		{
+			const UAnimInstance* Visiting = ToVisit.Pop();
+
+			if (IAnimClassInterface* AnimBlueprintClass = IAnimClassInterface::GetFromClass(Visiting->GetClass()))
+			{
+				if (const FAnimSubsystem_Tag* TagSubsystem = AnimBlueprintClass->FindSubsystem<FAnimSubsystem_Tag>())
+				{
+					if (const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector = TagSubsystem->FindNodeByTag<FAnimNode_PoseSearchHistoryCollector_Base>(PoseHistoryName, Visiting))
+					{
+						return HistoryCollector;
+					}
+				}
+			}
+
+			const USkeletalMeshComponent* SkeletalMeshComponent = Visiting->GetSkelMeshComponent();
+			const TArray<UAnimInstance*>& LinkedAnimInstances = SkeletalMeshComponent->GetLinkedAnimInstances();
+			for (const UAnimInstance* LinkedAnimInstance : LinkedAnimInstances)
+			{
+				bool bIsAlreadyInSet = false;
+				AlreadyVisited.Add(LinkedAnimInstance, &bIsAlreadyInSet);
+				if (!bIsAlreadyInSet)
+				{
+					ToVisit.Add(LinkedAnimInstance);
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
 #undef LOCTEXT_NAMESPACE

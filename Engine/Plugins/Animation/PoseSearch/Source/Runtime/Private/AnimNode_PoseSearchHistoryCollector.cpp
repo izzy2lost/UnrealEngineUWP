@@ -10,30 +10,6 @@
 
 #define LOCTEXT_NAMESPACE "AnimNode_PoseSearchHistoryCollector"
 
-namespace UE::PoseSearch::Private
-{
-
-class FPoseHistoryProvider : public IPoseHistoryProvider
-{
-public:
-	FPoseHistoryProvider(const IPoseHistory& InPoseHistory)
-		: PoseHistory(InPoseHistory)
-	{
-	}
-
-	// IPoseHistoryProvider interface
-	virtual const IPoseHistory& GetPoseHistory() const override
-	{
-		return PoseHistory;
-	}
-
-private:
-	const IPoseHistory& PoseHistory;
-};
-
-} // namespace UE::PoseSearch::Private
-
-
 /////////////////////////////////////////////////////
 // FAnimNode_PoseSearchHistoryCollector_Base
 
@@ -109,6 +85,18 @@ void FAnimNode_PoseSearchHistoryCollector_Base::PreUpdate(const UAnimInstance* I
 	
 	if (bGenerateTrajectory)
 	{
+		GenerateTrajectory(InAnimInstance);
+	}
+
+	PoseHistory.PreUpdate();
+
+	bIsTrajectoryGeneratedBeforePreUpdate = false;
+}
+
+void FAnimNode_PoseSearchHistoryCollector_Base::GenerateTrajectory(const UAnimInstance* InAnimInstance)
+{
+	if (!bIsTrajectoryGeneratedBeforePreUpdate)
+	{
 		FPoseSearchTrajectoryData::FSampling TrajectoryDataSampling;
 		TrajectoryDataSampling.NumHistorySamples = FMath::Max(PoseCount, TrajectoryHistoryCount);
 		TrajectoryDataSampling.SecondsPerHistorySample = SamplingInterval;
@@ -116,11 +104,10 @@ void FAnimNode_PoseSearchHistoryCollector_Base::PreUpdate(const UAnimInstance* I
 		TrajectoryDataSampling.SecondsPerPredictionSample = PredictionSamplingInterval;
 
 		PoseHistory.GenerateTrajectory(InAnimInstance, InAnimInstance->GetDeltaSeconds(), TrajectoryData, TrajectoryDataSampling);
+
+		bIsTrajectoryGeneratedBeforePreUpdate = true;
 	}
-
-	PoseHistory.PreUpdate();
 }
-
 /////////////////////////////////////////////////////
 // FAnimNode_PoseSearchHistoryCollector
 
@@ -179,7 +166,7 @@ void FAnimNode_PoseSearchHistoryCollector::Update_AnyThread(const FAnimationUpda
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Update_AnyThread);
 	Super::Update_AnyThread(Context);
-	UE::Anim::TScopedGraphMessage<UE::PoseSearch::Private::FPoseHistoryProvider> ScopedMessage(Context, PoseHistory);
+	UE::Anim::TScopedGraphMessage<UE::PoseSearch::FPoseHistoryProvider> ScopedMessage(Context, PoseHistory);
 	Source.Update(Context);
 }
 
@@ -244,7 +231,7 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::Update_AnyThread(const 
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Update_AnyThread);
 	Super::Update_AnyThread(Context);
-	UE::Anim::TScopedGraphMessage<UE::PoseSearch::Private::FPoseHistoryProvider> ScopedMessage(Context, PoseHistory);
+	UE::Anim::TScopedGraphMessage<UE::PoseSearch::FPoseHistoryProvider> ScopedMessage(Context, PoseHistory);
 	Source.Update(Context);
 }
 

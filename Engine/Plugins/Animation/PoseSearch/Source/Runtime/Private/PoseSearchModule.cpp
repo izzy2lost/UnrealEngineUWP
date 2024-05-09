@@ -41,7 +41,7 @@ public:
 		Future.IntervalTime = FutureAsset.IntervalTime;
 
 		const IPoseHistory* PoseHistory = nullptr;
-		if (IPoseHistoryProvider* PoseHistoryProvider = GraphContext.GetMessage<IPoseHistoryProvider>())
+		if (FPoseHistoryProvider* PoseHistoryProvider = GraphContext.GetMessage<FPoseHistoryProvider>())
 		{
 			PoseHistory = &PoseHistoryProvider->GetPoseHistory();
 		}
