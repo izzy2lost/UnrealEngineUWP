@@ -280,10 +280,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "VirtualProductionUtilities",
-			"Enabled": true
-		},
-		{
 			"Name": "MovieRenderPipeline",
 			"Enabled": true
 		},
