@@ -33,6 +33,7 @@ class FArchive;
 	virtual void DestructTraitInstance(const UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FTraitBinding& Binding) const override; \
 	virtual const UE::AnimNext::ITraitInterface* GetTraitInterface(UE::AnimNext::FTraitInterfaceUID InterfaceUID) const override; \
 	virtual TConstArrayView<FTraitInterfaceUID> GetTraitInterfaces() const override; \
+	virtual TConstArrayView<FTraitInterfaceUID> GetTraitRequiredInterfaces() const override; \
 	virtual UE::AnimNext::ETraitStackPropagation OnTraitEvent(UE::AnimNext::FExecutionContext& Context, UE::AnimNext::FTraitBinding& Binding, FAnimNextTraitEvent& Event) const override; \
 	virtual TConstArrayView<FTraitEventUID> GetTraitEvents() const override; \
 	virtual uint32 GetNumLatentTraitProperties() const override { return -FSharedData::GetLatentPropertyIndex(~(size_t)0); } \
@@ -117,6 +118,19 @@ class FArchive;
 		return CachedInterfaceList; \
 	}
 
+// Implements GetTraitRequiredInterfaces()
+#define ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_REQUIRED_INTERFACES(TraitName, InterfaceEnumeratorMacro) \
+	TConstArrayView<UE::AnimNext::FTraitInterfaceUID> TraitName::GetTraitRequiredInterfaces() const \
+	{ \
+		/* Thread safe cache initialization */ \
+		static TArray<UE::AnimNext::FTraitInterfaceUID> CachedInterfaceList = FTrait::BuildTraitInterfaceList( \
+			TraitSuper::GetTraitInterfaces(), \
+			{ \
+				InterfaceEnumeratorMacro(ANIM_NEXT_IMPL_GET_INTERFACES_IMPL_FOR_INTERFACE) \
+			}); \
+		return CachedInterfaceList; \
+	}
+
 namespace UE::AnimNext::Private
 {
 	// Helper to grab the event type from an event handler function signature
@@ -191,10 +205,11 @@ namespace UE::AnimNext::Private
 /**
   * This macro defines the necessary boilerplate for implementing FTrait. See above for usage example.
   */
-#define GENERATE_ANIM_TRAIT_IMPLEMENTATION(TraitName, InterfaceEnumeratorMacro, EventEnumeratorMacro) \
+#define GENERATE_ANIM_TRAIT_IMPLEMENTATION(TraitName, InterfaceEnumeratorMacro, RequiredInterfaceEnumeratorMacro, EventEnumeratorMacro) \
 	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT(TraitName) \
 	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_INTERFACE(TraitName, InterfaceEnumeratorMacro) \
 	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_INTERFACES(TraitName, InterfaceEnumeratorMacro) \
+	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_REQUIRED_INTERFACES(TraitName, RequiredInterfaceEnumeratorMacro) \
 	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_ON_TRAIT_EVENT(TraitName, EventEnumeratorMacro) \
 	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_TRAIT_EVENTS(TraitName, EventEnumeratorMacro)
 
@@ -343,6 +358,9 @@ namespace UE::AnimNext
 
 		// Returns a list of interfaces that this trait supports
 		virtual TConstArrayView<FTraitInterfaceUID> GetTraitInterfaces() const { return TConstArrayView<FTraitInterfaceUID>(); }
+
+		// Returns a list of interfaces that this trait reqquires
+		virtual TConstArrayView<FTraitInterfaceUID> GetTraitRequiredInterfaces() const { return TConstArrayView<FTraitInterfaceUID>(); }
 
 		// Called when an event reaches an instance of this trait
 		virtual ETraitStackPropagation OnTraitEvent(FExecutionContext& Context, FTraitBinding& Binding, FAnimNextTraitEvent& Event) const { return ETraitStackPropagation::Continue; }

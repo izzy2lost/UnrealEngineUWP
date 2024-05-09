@@ -12,7 +12,7 @@
 
 class UBlendProfile;
 
-USTRUCT(meta = (DisplayName = "Blend Inertializer"))
+USTRUCT(meta = (DisplayName = "Blend Inertializer", Category = "Default"))
 struct FAnimNextBlendInertializerTraitSharedData : public FAnimNextTraitSharedData
 {
 	GENERATED_BODY()

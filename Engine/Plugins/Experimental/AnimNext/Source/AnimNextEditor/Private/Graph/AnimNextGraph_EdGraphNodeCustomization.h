@@ -11,16 +11,28 @@ class URigVMPin;
 class IDetailCategoryBuilder;
 class UAnimNextGraph_EdGraphNode;
 
+namespace UE::Workspace
+{
+	class IWorkspaceEditor;
+}
+
 namespace UE::AnimNext::Editor
 {
 
 class FAnimNextGraph_EdGraphNodeCustomization : public IDetailCustomization
 {
+public:
+	FAnimNextGraph_EdGraphNodeCustomization() = default;
+	explicit FAnimNextGraph_EdGraphNodeCustomization(const TWeakPtr<UE::Workspace::IWorkspaceEditor>& InWorkspaceEditorWeak);
+
 protected:
 
 	// --- IDetailCustomization Begin ---
 	/** Called when details should be customized */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+	/** Called when no longer used and will be deleted */
+	virtual void PendingDelete() override;
+
 	// --- IDetailCustomization End ---
 
 	struct FCategoryDetailsData
@@ -91,6 +103,7 @@ protected:
 
 	static void GenerateMemoryStorage(const TArray<TWeakObjectPtr<URigVMPin>> & ModelPinsToDisplay, FRigVMMemoryStorageStruct& MemoryStorage);
 
+	TWeakPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditorWeak;
 	TArray<TSharedPtr<FCategoryDetailsData>> CategoryDetailsData;
 };
 

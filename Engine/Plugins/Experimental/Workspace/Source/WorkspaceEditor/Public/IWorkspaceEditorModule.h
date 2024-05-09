@@ -13,10 +13,14 @@
 class SWidget;
 class UEdGraph;
 class IDetailsView;
+class FTabManager;
+class FWorkflowAllowedTabSet;
+class IDetailCustomization;
 
 struct FSlateBrush;
 struct FTopLevelAssetPath;
 struct FWorkspaceDocumentState;
+struct FRegisterCustomClassLayoutParams;
 
 namespace UE::Workspace
 {
@@ -116,6 +120,9 @@ using FOnPasteNodes = TDelegate<void(const FWorkspaceEditorContext&, const FVect
 
 using FOnDuplicateSelectedNodes = TDelegate<void(const FWorkspaceEditorContext&, const FVector2D&, const FGraphPanelSelectionSet&)>;
 
+using FOnGetWorkspaceDetailCustomizationInstance = TDelegate<TSharedRef<IDetailCustomization>(TWeakPtr<IWorkspaceEditor>)>;
+
+
 // Arguments used to make document widgets for graphs
 struct FGraphDocumentWidgetArgs
 {
@@ -175,11 +182,15 @@ public:
 	virtual FObjectDocumentArgs CreateGraphDocumentArgs(const FGraphDocumentWidgetArgs& InArgs) = 0;
 
 	// Event to allow registering details customizations
-	DECLARE_EVENT_OneParam(IWorkspaceEditorModule, FOnRegisterDetailCustomizations, TSharedPtr<IDetailsView>&);
+	DECLARE_EVENT_TwoParams(IWorkspaceEditorModule, FOnRegisterDetailCustomizations, const TWeakPtr<IWorkspaceEditor>&, TSharedPtr<IDetailsView>&);
 	virtual FOnRegisterDetailCustomizations& OnRegisterWorkspaceDetailsCustomization() = 0;
 
 	virtual void RegisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails> InDetails) = 0;
 	virtual void UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InDetailsId) = 0;
+
+	// Event to allow registering tabs to other elements
+	DECLARE_EVENT_ThreeParams(IWorkspaceEditorModule, FOnRegisterTabs, FWorkflowAllowedTabSet& TabFactories, const TSharedRef<FTabManager>&, TSharedPtr<IWorkspaceEditor>);
+	virtual FOnRegisterTabs& OnRegisterTabsForEditor() = 0;
 };
 
 }

@@ -20,7 +20,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API IHierarchy : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IHierarchy, 0x846d8a37)
+		DECLARE_ANIM_TRAIT_INTERFACE(IHierarchy, HIE, 0x846d8a37)
 
 		// Returns the number of children of the trait implementation (not the whole stack)
 		// Includes inactive children

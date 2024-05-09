@@ -17,6 +17,9 @@
 #include "Graph/AnimNextGraphPanelNodeFactory.h"
 #include "Graph/AnimNextGraph_EdGraphNodeCustomization.h"
 #include "Graph/AnimNextGraph_EditorData.h"
+#include "Graph/AnimNextGraph_EdGraphNode.h"
+#include "Graph/TraitEditorTabSummoner.h"
+#include "Graph/AnimNextCompilerResultsTabSummoner.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Param/ParameterCustomization.h"
 #include "Param/ParameterPickerArgs.h"
@@ -42,6 +45,7 @@
 #include "AnimNextRigVMWorkspaceAssetUserData.h"
 #include "Graph/AnimNextGraph_OutlinerItemDetails.h"
 #include "Param/AnimNextActorLocatorEditor.h"
+#include "IWorkspaceEditor.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -81,9 +85,6 @@ void FModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout("AnimNextGraph_Parameter", 
 		FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterCustomization>(); }));
 
-	PropertyModule.RegisterCustomClassLayout("AnimNextGraph_EdGraphNode",
-		FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FAnimNextGraph_EdGraphNodeCustomization>(); }));
-
 	AnimNextGraphPanelNodeFactory = MakeShared<FAnimNextGraphPanelNodeFactory>();
 	FEdGraphUtilities::RegisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
 
@@ -92,10 +93,27 @@ void FModule::StartupModule()
 
 	Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
 
+	WorkspaceEditorModule.OnRegisterTabsForEditor().AddLambda([](FWorkflowAllowedTabSet& TabFactories, const TSharedRef<FTabManager>& InTabManager, TSharedPtr<UE::Workspace::IWorkspaceEditor> EditorPtr)
+		{
+			TabFactories.RegisterFactory(MakeShared<UE::AnimNext::Editor::FTraitEditorTabSummoner>(EditorPtr));
+
+			TabFactories.RegisterFactory(MakeShared<UE::AnimNext::Editor::FAnimNextCompilerResultsTabSummoner>(EditorPtr));
+
+			for (auto FactoryIt = TabFactories.CreateIterator(); FactoryIt; ++FactoryIt)
+			{
+				FactoryIt.Value()->RegisterTabSpawner(InTabManager, nullptr);
+			}
+		});
+
 	RegisterWorkspaceDocumentTypes(WorkspaceEditorModule);
 
-	WorkspaceEditorModule.OnRegisterWorkspaceDetailsCustomization().AddLambda([](TSharedPtr<IDetailsView>& InDetailsView)
+	WorkspaceEditorModule.OnRegisterWorkspaceDetailsCustomization().AddLambda([](const TWeakPtr<Workspace::IWorkspaceEditor>& InWorkspaceEditor, TSharedPtr<IDetailsView>& InDetailsView)
 		{
+			InDetailsView->RegisterInstancedCustomPropertyLayout(UAnimNextGraph_EdGraphNode::StaticClass(), FOnGetDetailCustomizationInstance::CreateLambda([InWorkspaceEditor]()
+				{
+					return MakeShared<FAnimNextGraph_EdGraphNodeCustomization>(InWorkspaceEditor);
+				}));
+
 			TArray<UScriptStruct*> StructsToCustomize = {
 				TBaseStructure<FVector>::Get(),
 				TBaseStructure<FVector2D>::Get(),
@@ -105,7 +123,6 @@ void FModule::StartupModule()
 				TBaseStructure<FTransform>::Get(),
 				TBaseStructure<FEulerTransform>::Get(),
 			};
-
 			for (UScriptStruct* StructToCustomize : StructsToCustomize)
 			{
 				InDetailsView->RegisterInstancedCustomPropertyTypeLayout(StructToCustomize->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([]()
@@ -317,18 +334,6 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 				UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
 
 				TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
-
-				EditorData->RigVMGraphModifiedEvent.RemoveAll(&InContext.WorkspaceEditor.Get());
-				EditorData->RigVMGraphModifiedEvent.AddSPLambda(&InContext.WorkspaceEditor.Get(), [WeakWorkspaceEditor](ERigVMGraphNotifType InType, URigVMGraph* InGraph, UObject* InSubject)
-				{
-					if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
-					{
-						if (InType == ERigVMGraphNotifType::InteractionBracketClosed)
-						{
-							WorkspaceEditor->RefreshDetails();
-						}
-					}
-				});
 
 				return SNew(SRigVMAssetView, EditorData)
 					.OnSelectionChanged_Lambda([WeakWorkspaceEditor](const TArray<UObject*>& InEntries)
@@ -707,6 +712,34 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 	});
 
 	Workspace::FObjectDocumentArgs GraphDocumentArgs = WorkspaceEditorModule.CreateGraphDocumentArgs(GraphArgs);
+	Workspace::FOnMakeDocumentWidget WorkspaceMakeDocumentWidgetDelegate = GraphDocumentArgs.OnMakeDocumentWidget;
+	GraphDocumentArgs.OnMakeDocumentWidget = Workspace::FOnMakeDocumentWidget::CreateLambda([WorkspaceMakeDocumentWidgetDelegate](const Workspace::FWorkspaceEditorContext& InContext)
+	{
+		TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
+
+		if (UAnimNextGraph_EdGraph* EdGraph = Cast<UAnimNextGraph_EdGraph>(InContext.Object))
+		{
+			UAnimNextRigVMAssetEditorData* EditorData = EdGraph->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
+			check(EditorData);
+
+			EditorData->InteractionBracketFinished.RemoveAll(&InContext.WorkspaceEditor.Get());
+			EditorData->InteractionBracketFinished.AddSPLambda(&InContext.WorkspaceEditor.Get(), [WeakWorkspaceEditor](UAnimNextRigVMAssetEditorData* InEditorData)
+				{
+					if (TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
+					{
+						WorkspaceEditor->RefreshDetails();
+					}
+				});
+		}
+
+		if (WorkspaceMakeDocumentWidgetDelegate.IsBound())
+		{
+			return WorkspaceMakeDocumentWidgetDelegate.Execute(InContext);
+		}
+
+		return SNullWidget::NullWidget;
+	});
+
 	GraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
 	{
 		if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object))

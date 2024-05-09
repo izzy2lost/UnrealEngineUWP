@@ -14,6 +14,6 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API IScopedTraitInterface : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IScopedTraitInterface, 0x621b01eb)
+		DECLARE_ANIM_TRAIT_INTERFACE(IScopedTraitInterface, STI, 0x621b01eb)
 	};
 }

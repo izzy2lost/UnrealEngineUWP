@@ -14,6 +14,11 @@ namespace UE::AnimNext
 	enum class ETraitMode
 	{
 		/**
+		 * Invalid value is used for default variable initialization
+		 */
+		Invalid = 0,
+
+		/**
 		 * Base traits can live on their own in an animation node and have no 'Super'.
 		 * As a result, calls to GetInterface() do not forward to other traits below
 		 * them on the node stack. Multiple base traits can exist in a single animation
@@ -28,5 +33,10 @@ namespace UE::AnimNext
 		 * until a base trait is found.
 		 */
 		Additive,
+
+		/**
+		 * Max value is used for iteration / static checks
+		 */
+		Num = Additive
 	};
 }

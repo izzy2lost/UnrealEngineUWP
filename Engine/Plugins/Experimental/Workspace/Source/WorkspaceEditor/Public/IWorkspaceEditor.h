@@ -1,10 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Tools/BaseAssetToolkit.h"
 
 class UWorkspaceAssetEditor;
+class UWorkspaceSchema;
 
 namespace UE::Workspace
 {
@@ -28,6 +29,9 @@ public:
 
 	// Refresh the workspace editor details panel
 	virtual void RefreshDetails() = 0;
+
+	// Exposes the editor WorkspaceSchema
+	virtual UWorkspaceSchema* GetSchema() const = 0;
 };
 
 }

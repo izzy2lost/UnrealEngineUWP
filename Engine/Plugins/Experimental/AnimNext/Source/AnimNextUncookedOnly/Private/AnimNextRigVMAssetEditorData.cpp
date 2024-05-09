@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextRigVMAssetEditorData.h"
 
@@ -602,6 +602,11 @@ void UAnimNextRigVMAssetEditorData::DecrementVMRecompileBracket()
 			RecompileVMIfRequired();
 		}
 		VMRecompilationBracket = 0;
+
+		if (InteractionBracketFinished.IsBound())
+		{
+			InteractionBracketFinished.Broadcast(this);
+		}
 	}
 	else if (VMRecompilationBracket > 0)
 	{

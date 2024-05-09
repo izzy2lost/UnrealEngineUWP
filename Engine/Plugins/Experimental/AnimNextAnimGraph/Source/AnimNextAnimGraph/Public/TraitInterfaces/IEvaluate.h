@@ -49,7 +49,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IEvaluate : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IEvaluate, 0xa303e9e7)
+		DECLARE_ANIM_TRAIT_INTERFACE(IEvaluate, EVA, 0xa303e9e7)
 
 		// Called before a traits children are evaluated
 		virtual void PreEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const;

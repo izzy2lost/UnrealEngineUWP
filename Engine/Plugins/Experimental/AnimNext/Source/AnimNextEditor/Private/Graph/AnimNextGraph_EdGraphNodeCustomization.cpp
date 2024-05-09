@@ -6,14 +6,39 @@
 #include "DetailCategoryBuilder.h"
 #include "Graph/AnimNextGraph_EdGraphNode.h"
 #include "Graph/RigDecorator_AnimNextCppTrait.h"
+#include "Graph/TraitEditorTabSummoner.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "RigVMModel/RigVMController.h"
+#include "IWorkspaceEditor.h"
+#include "STraitEditorView.h"
+#include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "EdGraphNodeCustomization"
 
 namespace UE::AnimNext::Editor
 {
+
+FAnimNextGraph_EdGraphNodeCustomization::FAnimNextGraph_EdGraphNodeCustomization(const TWeakPtr<UE::Workspace::IWorkspaceEditor>& InWorkspaceEditorWeak)
+	: WorkspaceEditorWeak(InWorkspaceEditorWeak)
+{
+}
+
+void FAnimNextGraph_EdGraphNodeCustomization::PendingDelete()
+{
+	CategoryDetailsData.Reset();
+
+	if (TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = WorkspaceEditorWeak.Pin())
+	{
+		if (TSharedPtr<SDockTab> DockTab = WorkspaceEditor->GetTabManager()->FindExistingLiveTab(UE::AnimNext::Editor::TraitEditorTabName))
+		{
+			if (TSharedPtr<STraitEditorView> TraitEditorView = StaticCastSharedPtr<STraitEditorView>(DockTab->GetContent().ToSharedPtr()))
+			{
+				TraitEditorView->SetTraitData(FTraitStackData(nullptr));
+			}
+		}
+	}
+}
 
 void FAnimNextGraph_EdGraphNodeCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
@@ -35,18 +60,13 @@ void FAnimNextGraph_EdGraphNodeCustomization::CustomizeObjects(IDetailLayoutBuil
 	{
 		if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(Objects[i].Get()))
 		{
-			if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
+			if (EdGraphNode->IsTraitStack())
 			{
-				// If there are any traits in the node, treat it as a trait stack
-				const TArray<URigVMPin*> TraitPins = ModelNode->GetDecoratorPins();
-				if (TraitPins.Num() > 0)
-				{
-					GenerateTraitData(EdGraphNode, CategoryDetailsData);
-				}
-				else
-				{
-					GenerateRigVMData(EdGraphNode, CategoryDetailsData);
-				}
+				GenerateTraitData(EdGraphNode, CategoryDetailsData);
+			}
+			else
+			{
+				GenerateRigVMData(EdGraphNode, CategoryDetailsData);
 			}
 		}
 	}
@@ -55,13 +75,31 @@ void FAnimNextGraph_EdGraphNodeCustomization::CustomizeObjects(IDetailLayoutBuil
 	{
 		PopulateCategory(DetailBuilder, DetailsData);
 	}
+
+	// Pass the TraitStack EdGraphNode to the TraitEditor (or nullptr if we select other node type, like RigVM)
+	if (Objects.Num() == 1)
+	{
+		if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(Objects[0].Get()))
+		{
+			if (TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = WorkspaceEditorWeak.Pin())
+			{
+				if (TSharedPtr<SDockTab> DockTab = WorkspaceEditor->GetTabManager()->FindExistingLiveTab(UE::AnimNext::Editor::TraitEditorTabName))
+				{
+					if (TSharedPtr<STraitEditorView> TraitEditorView = StaticCastSharedPtr<STraitEditorView>(DockTab->GetContent().ToSharedPtr()))
+					{
+						TraitEditorView->SetTraitData(EdGraphNode->IsTraitStack() ? FTraitStackData(EdGraphNode) : FTraitStackData(nullptr));
+					}
+				}
+			}
+		}
+	}
 }
 
 void FAnimNextGraph_EdGraphNodeCustomization::GenerateTraitData(UAnimNextGraph_EdGraphNode* EdGraphNode, TArray<TSharedPtr<FCategoryDetailsData>>& CategoryDetailsData)
 {
 	if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
 	{
-		// If there are any traits in the node, treat it as a trait stack
+		// Obtain the pins from the stack
 		const TArray<URigVMPin*> TraitPins = ModelNode->GetDecoratorPins();
 		if (TraitPins.Num() > 0)
 		{

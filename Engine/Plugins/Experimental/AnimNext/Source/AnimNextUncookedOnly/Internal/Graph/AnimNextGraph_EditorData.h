@@ -63,7 +63,8 @@ class UAnimNextGraph_EditorData : public UAnimNextRigVMAssetEditorData
 	friend class UE::AnimNext::Editor::SAnimNextGraphView;
 	friend struct FAnimNextGraphSchemaAction_RigUnit;
 	friend struct FAnimNextGraphSchemaAction_DispatchFactory;
-	friend class FAnimationAnimNextRuntimeTest_GraphAddTrait;
+	friend class FAnimationAnimNextEditorTest_GraphAddTrait;
+	friend class FAnimationAnimNextEditorTest_GraphTraitOperations;
 	friend class FAnimationAnimNextRuntimeTest_GraphExecute;
 	friend class FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
 	

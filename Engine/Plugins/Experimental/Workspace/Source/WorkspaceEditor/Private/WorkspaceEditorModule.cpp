@@ -256,11 +256,11 @@ IWorkspaceEditorModule::FOnRegisterDetailCustomizations& FWorkspaceEditorModule:
 	return OnRegisterDetailCustomizations;
 }
 
-void FWorkspaceEditorModule::ApplyWorkspaceDetailsCustomization(TSharedPtr<IDetailsView>& DetailsView) const
+void FWorkspaceEditorModule::ApplyWorkspaceDetailsCustomization(const TWeakPtr<IWorkspaceEditor>& InWorkspaceEditor, TSharedPtr<IDetailsView>& DetailsView) const
 {
 	if (OnRegisterDetailCustomizations.IsBound())
 	{
-		OnRegisterDetailCustomizations.Broadcast(DetailsView);
+		OnRegisterDetailCustomizations.Broadcast(InWorkspaceEditor, DetailsView);
 	}
 }
 

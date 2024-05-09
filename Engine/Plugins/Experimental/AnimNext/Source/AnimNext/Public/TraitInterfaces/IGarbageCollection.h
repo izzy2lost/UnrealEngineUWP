@@ -17,7 +17,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API IGarbageCollection : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IGarbageCollection, 0x231a2017)
+		DECLARE_ANIM_TRAIT_INTERFACE(IGarbageCollection, GC, 0x231a2017)
 
 		// Registers the provided binding for GC callback
 		// Once registered, AddReferencedObjects is called during GC to collect references

@@ -120,7 +120,7 @@ namespace UE::AnimNext
 
 		const FTraitUID TraitUID = Trait->GetTraitUID();
 
-		if (ensure(!TraitUIDToEntryMap.Contains(TraitUID.GetUID())))
+		if (ensure(!TraitUIDToEntryMap.Contains(TraitUID.GetUID())) && ensure(!TraitNameToUIDMap.Contains(*Trait->GetTraitName())))
 		{
 			// This is a new trait, we'll keep it
 			if (!bFitsInStaticBuffer)
@@ -143,6 +143,7 @@ namespace UE::AnimNext
 			}
 
 			TraitUIDToEntryMap.Add(TraitUID.GetUID(), FRegistryEntry{ Trait, TraitConstructor, TraitHandle });
+			TraitNameToUIDMap.Add(*Trait->GetTraitName(), TraitUID.GetUID());
 		}
 		else
 		{
@@ -174,6 +175,9 @@ namespace UE::AnimNext
 			{
 				check(Entry.TraitHandle.IsValid());
 
+				// Remove name from map before we destroy the Trait
+				TraitNameToUIDMap.Remove(*Entry.Trait->GetTraitName());
+
 				// Destroy and release our trait
 				// We always own auto-registered trait instances
 				Entry.Trait->~FTrait();
@@ -200,6 +204,7 @@ namespace UE::AnimNext
 				}
 
 				TraitUIDToEntryMap.Remove(It.Key());
+				
 
 				break;
 			}
@@ -266,6 +271,25 @@ namespace UE::AnimNext
 		return nullptr;
 	}
 
+	const FTrait* FTraitRegistry::Find(FName TraitTypeName) const
+	{
+		if (TraitTypeName == NAME_None)
+		{
+			return nullptr;
+		}
+
+		const FTraitUIDRaw* TraitGUID = TraitNameToUIDMap.Find(TraitTypeName);
+		if (TraitGUID != nullptr && FTraitUID(*TraitGUID).IsValid())
+		{
+			if (const FRegistryEntry* Entry = TraitUIDToEntryMap.Find(*TraitGUID))
+			{
+				return Entry->Trait;
+			}
+		}
+
+		return nullptr;
+	}
+
 	void FTraitRegistry::Register(FTrait* Trait)
 	{
 		if (Trait == nullptr)
@@ -275,7 +299,7 @@ namespace UE::AnimNext
 
 		const FTraitUID TraitUID = Trait->GetTraitUID();
 
-		if (ensure(!TraitUIDToEntryMap.Contains(TraitUID.GetUID())))
+		if (ensure(!TraitUIDToEntryMap.Contains(TraitUID.GetUID())) && ensure(!TraitNameToUIDMap.Contains(*Trait->GetTraitName())))
 		{
 			// This is a new trait, we'll keep it
 			// Find our dynamic trait index
@@ -297,6 +321,7 @@ namespace UE::AnimNext
 			FTraitRegistryHandle TraitHandle = FTraitRegistryHandle::MakeDynamic(TraitIndex);
 
 			TraitUIDToEntryMap.Add(TraitUID.GetUID(), FRegistryEntry{ Trait, nullptr, TraitHandle });
+			TraitNameToUIDMap.Add(*Trait->GetTraitName(), TraitUID.GetUID());
 		}
 	}
 

@@ -11,6 +11,14 @@
 
 struct FAnimNextParamType;
 
+
+namespace UE::AnimNext
+{
+	struct FTrait;
+	struct FTraitUID;
+}
+
+
 /**
   * Implements AnimNext RigVM controller extensions
   */
@@ -20,6 +28,26 @@ class UAnimNextGraph_Controller : public URigVMController
 	GENERATED_BODY()
 
 public:
+	// Adds a new Trait to the Stack, with default struct values
+	// Returns Trait Instance Name (or NAME_None on failure)
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	ANIMNEXTUNCOOKEDONLY_API FName AddTrait(FName InNodeName, FName InNewTraitTypeName, int32 InPinIndex, const FString& InNewTraitDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Removes a Trait from the Stack, using Trait Instance Name
+	// Returns operation success (true) or failure (false)
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	ANIMNEXTUNCOOKEDONLY_API bool RemoveTrait(FName InNodeName, FName InTraitInstanceName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Swap a Trait from the Stack with a new one, using existing Trait Instance Name and new Trait Type Name
+	// Returns Trait Instance Name (or NAME_None on failure)
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	ANIMNEXTUNCOOKEDONLY_API FName SwapTrait(FName InNodeName, FName InTraitInstanceName, int32 InCurrentTraitPinIndex, FName InNewTraitTypeName, const FString& InNewTraitDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Move a Trait from its current PinIndex to the specified one (moving it visually in the stack)
+	// Returns operation success (true) or failure (false)
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	ANIMNEXTUNCOOKEDONLY_API bool SetTraitPinIndex(FName InNodeName, FName InTraitInstanceName, int32 InNewPinIndex, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
 	// Adds a unit node with a dynamic number of pins
 	URigVMUnitNode* AddUnitNodeWithPins(UScriptStruct* InScriptStruct, const FRigVMPinInfoArray& PinArray, const FName& InMethodName = TEXT("Execute"), const FVector2D& InPosition = FVector2D::ZeroVector, const FString& InNodeName = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
@@ -45,4 +73,5 @@ public:
 
 private:
 	URigVMNode* AddGetAnimNextParameterNodeInternal(UScriptStruct* NodeStruct, const FVector2D& Position, FName ParameterName, const FAnimNextParamType& Type, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InstanceId, bool bSetupUndoRedo, bool bPrintPythonCommand);
+
 };

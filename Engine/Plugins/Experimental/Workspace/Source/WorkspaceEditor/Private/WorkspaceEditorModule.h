@@ -5,6 +5,7 @@
 #include "IWorkspaceEditorModule.h"
 #include "UObject/TopLevelAssetPath.h"
 #include "IWorkspaceOutlinerItemDetails.h"
+#include "WorkflowOrientedApp/WorkflowTabManager.h"
 
 struct FWorkspaceAssetRegistryExports;
 class SWorkspaceTabWrapper;
@@ -30,6 +31,7 @@ private:
 	virtual FOnRegisterDetailCustomizations& OnRegisterWorkspaceDetailsCustomization() override;
 	virtual void RegisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails> InItemDetails) override;	
 	virtual void UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetails) override;
+	virtual FOnRegisterTabs& OnRegisterTabsForEditor() override { return RegisterTabsForEditor; }
 
 	// Find an existing registered object document type
 	const FObjectDocumentArgs* FindObjectDocumentType(const FTopLevelAssetPath& InClassPath) const;
@@ -41,7 +43,7 @@ private:
 	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FWorkspaceAssetRegistryExports& OutExports);
 
 	// Applies any previously registered details-view customizations
-	void ApplyWorkspaceDetailsCustomization(TSharedPtr<IDetailsView>& DetailsView) const;
+	void ApplyWorkspaceDetailsCustomization(const TWeakPtr<IWorkspaceEditor>& Editor, TSharedPtr<IDetailsView>& DetailsView) const;
 
 	TMap<FTopLevelAssetPath, FObjectDocumentArgs> ObjectDocumentArgs;
 
@@ -52,6 +54,9 @@ private:
 
 	/** Event called to allow external clients to register details customizations */
 	FOnRegisterDetailCustomizations OnRegisterDetailCustomizations;
+
+	/** Event called to allow external clients to register additional tabs for the specified editor */
+	FOnRegisterTabs RegisterTabsForEditor;
 
 	friend struct FAssetDocumentSummoner;
 	friend struct FWorkspaceOutlinerTreeItem;

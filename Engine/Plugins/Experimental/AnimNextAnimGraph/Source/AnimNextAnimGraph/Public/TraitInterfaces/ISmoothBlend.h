@@ -15,7 +15,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API ISmoothBlend : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(ISmoothBlend, 0x1c2c1739)
+		DECLARE_ANIM_TRAIT_INTERFACE(ISmoothBlend, SMB, 0x1c2c1739)
 
 		// Returns the desired blend time for the specified child
 		virtual float GetBlendTime(const FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const;

@@ -16,7 +16,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IGroupSynchronization : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IGroupSynchronization, 0xf607d0fd)
+		DECLARE_ANIM_TRAIT_INTERFACE(IGroupSynchronization, GRS, 0xf607d0fd)
 
 		// Returns the group name used for synchronization
 		virtual FName GetGroupName(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const;

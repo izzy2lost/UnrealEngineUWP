@@ -15,7 +15,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IContinuousBlend : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IContinuousBlend, 0xe7d79186)
+		DECLARE_ANIM_TRAIT_INTERFACE(IContinuousBlend, CNB, 0xe7d79186)
 
 		// Returns the blend weight for the specified child
 		// Multiple children can have non-zero weight but their sum must be 1.0

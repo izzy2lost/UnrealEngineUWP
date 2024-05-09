@@ -1,0 +1,81 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Graph/AnimNextCompilerResultsTabSummoner.h"
+#include "IWorkspaceEditor.h"
+#include "MessageLogModule.h"
+
+#define LOCTEXT_NAMESPACE "WorkspaceTabSummoner"
+
+namespace UE::AnimNext::Editor
+{
+
+const FName CompilerResultsTabName("CompilerResultsTab");
+
+// ***************************************************************************
+
+void SAnimNextCompilerResultsWidget::Construct(const FArguments& InArgs, const TWeakPtr<UE::Workspace::IWorkspaceEditor>& InWorkspaceEditorWeak)
+{
+	CreateMessageLog(InWorkspaceEditorWeak);
+
+	ChildSlot
+	[
+		SNew(SVerticalBox)
+
+		+SVerticalBox::Slot()
+		.FillHeight(1.0)
+		.Padding(10.f, 10.f, 10.f, 10.f)
+		[
+			CompilerResults.ToSharedRef()
+		]
+	];
+}
+
+void SAnimNextCompilerResultsWidget::CreateMessageLog(const TWeakPtr<UE::Workspace::IWorkspaceEditor>& InWorkspaceEditorWeak)
+{
+	if (const TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditorShared = InWorkspaceEditorWeak.Pin())
+	{
+		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+		const FName LogName = *FString::Printf(TEXT("%s_CompilerResultsLog"), WorkspaceEditorShared.IsValid() ? *WorkspaceEditorShared->GetEditorName().ToString() : TEXT("TraitEditor"));
+		// Reuse any existing log, or create a new one (that is not held onto bey the message log system)
+		if (MessageLogModule.IsRegisteredLogListing(LogName))
+		{
+			CompilerResultsListing = MessageLogModule.GetLogListing(LogName);
+		}
+		else
+		{
+			FMessageLogInitializationOptions LogInitOptions;
+			LogInitOptions.bShowInLogWindow = false;
+			CompilerResultsListing = MessageLogModule.CreateLogListing(LogName, LogInitOptions);
+		}
+
+		CompilerResults = MessageLogModule.CreateLogListingWidget(CompilerResultsListing.ToSharedRef());
+	}
+}
+
+// ***************************************************************************
+
+FAnimNextCompilerResultsTabSummoner::FAnimNextCompilerResultsTabSummoner(TSharedPtr<UE::Workspace::IWorkspaceEditor> InHostingApp)
+	: FWorkflowTabFactory(CompilerResultsTabName, StaticCastSharedPtr<FAssetEditorToolkit>(InHostingApp))
+{
+	TabLabel = LOCTEXT("AnimNExtCompilerResultsTabLabel", "Compiler Results");
+	TabIcon = FSlateIcon("EditorStyle", "LevelEditor.Tabs.Outliner");
+	ViewMenuDescription = LOCTEXT("AnimNExtCompilerResultsTabMenuDescription", "Compiler Results");
+	ViewMenuTooltip = LOCTEXT("AnimNExtCompilerResultsTabToolTip", "Shows the Compiler Results tab.");
+	bIsSingleton = true;
+
+	AnimNextCompilerResultsWidget = SNew(SAnimNextCompilerResultsWidget, InHostingApp.ToWeakPtr());
+}
+
+TSharedRef<SWidget> FAnimNextCompilerResultsTabSummoner::CreateTabBody(const FWorkflowTabSpawnInfo& Info) const
+{
+	return AnimNextCompilerResultsWidget.ToSharedRef();
+}
+
+FText FAnimNextCompilerResultsTabSummoner::GetTabToolTipText(const FWorkflowTabSpawnInfo& Info) const
+{
+	return ViewMenuTooltip;
+}
+
+} // end namespace UE::AnimNext::Editor
+
+#undef LOCTEXT_NAMESPACE

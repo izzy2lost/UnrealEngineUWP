@@ -6,9 +6,9 @@
 #include "TraitCore/TraitInterfaceUID.h"
 
 // Helper macros
-#define DECLARE_ANIM_TRAIT_INTERFACE(InterfaceName, InterfaceNameHash) \
+#define DECLARE_ANIM_TRAIT_INTERFACE(InterfaceName, InterfaceShortName, InterfaceNameHash) \
 	/* Globally unique UID for this interface */ \
-	static constexpr UE::AnimNext::FTraitInterfaceUID InterfaceUID = UE::AnimNext::FTraitInterfaceUID(InterfaceNameHash, TEXT(#InterfaceName)); \
+	static constexpr UE::AnimNext::FTraitInterfaceUID InterfaceUID = UE::AnimNext::FTraitInterfaceUID(InterfaceNameHash, TEXT(#InterfaceName), TEXT(#InterfaceShortName)); \
 	virtual UE::AnimNext::FTraitInterfaceUID GetInterfaceUID() const override { return InterfaceUID; }
 
 namespace UE::AnimNext

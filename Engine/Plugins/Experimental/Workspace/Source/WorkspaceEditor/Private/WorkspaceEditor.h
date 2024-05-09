@@ -88,6 +88,7 @@ private:
 	virtual void CloseObjects(TConstArrayView<UObject*> InObjects) override;
 	virtual void SetDetailsObjects(const TArray<UObject*>& InObjects) override;
 	virtual void RefreshDetails() override;
+	virtual UWorkspaceSchema* GetSchema() const override;
 
 	void BindCommands();
 
@@ -117,6 +118,9 @@ private:
 	TSharedPtr<FDocumentTracker> DocumentManager;
 
 	TSharedPtr<SWorkspaceView> WorkspaceView;
+
+	/** Tabs to be registered into the Workspace */
+	FWorkflowAllowedTabSet TabFactories;
 
 	bool bSavingWorkspaceOnly = false;
 	bool bClosingDown = false;

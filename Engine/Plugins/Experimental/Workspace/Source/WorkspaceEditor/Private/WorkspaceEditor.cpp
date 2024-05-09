@@ -30,9 +30,11 @@ namespace WorkspaceTabs
 {
 	const FName Details("DetailsTab");
 	const FName WorkspaceView("WorkspaceView");
+	const FName TopDocumentArea("TopDocumentArea");
 	const FName LeftDocumentArea("LeftDocumentArea");
 	const FName MiddleDocumentArea("MiddleDocumentArea");
 	const FName RightDocumentArea("RightDocumentArea");
+	const FName BottomDocumentArea("BottomDocumentArea");
 }
 
 const FName WorkspaceAppIdentifier("WorkspaceEditor");
@@ -66,7 +68,7 @@ void FWorkspaceEditor::CreateWidgets()
 	DocumentManager->RegisterDocumentFactory(RightAssetDocumentSummoner);
 	
 	check(DetailsView.IsValid());
-	WorkspaceEditorModule.ApplyWorkspaceDetailsCustomization(DetailsView);
+	WorkspaceEditorModule.ApplyWorkspaceDetailsCustomization(StaticCastWeakPtr<IWorkspaceEditor>(this->AsWeak()), DetailsView);
 
 	StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_WorkspaceEditor_Layout_v1.1")
 	->AddArea
@@ -75,8 +77,15 @@ void FWorkspaceEditor::CreateWidgets()
 		->SetOrientation(Orient_Vertical)
 		->Split
 		(
+			FTabManager::NewStack()
+			->SetSizeCoefficient(0.15f)
+			->SetHideTabWell(false)
+			->AddTab(WorkspaceTabs::TopDocumentArea, ETabState::ClosedTab)
+		)
+		->Split
+		(
 			FTabManager::NewSplitter()
-			->SetSizeCoefficient(1.0f)
+			->SetSizeCoefficient(0.6f)
 			->SetOrientation(Orient_Horizontal)
 			->Split
 			(
@@ -101,6 +110,13 @@ void FWorkspaceEditor::CreateWidgets()
 				->AddTab(WorkspaceTabs::RightDocumentArea, ETabState::ClosedTab)
 				->AddTab(FBaseAssetToolkit::DetailsTabID, ETabState::OpenedTab)
 			)
+		)
+		->Split
+		(
+			FTabManager::NewStack()
+			->SetSizeCoefficient(0.15f)
+			->SetHideTabWell(false)
+			->AddTab(WorkspaceTabs::BottomDocumentArea, ETabState::ClosedTab)
 		)
 	);
 
@@ -207,7 +223,7 @@ void FWorkspaceEditor::CloseObjects(TConstArrayView<UObject*> InObjects)
 
 void FWorkspaceEditor::SetDetailsObjects(const TArray<UObject*>& InObjects)
 {
-	if(DetailsView.IsValid())
+ 	if(DetailsView.IsValid())
 	{
 		DetailsView->SetObjects(InObjects);
 	}
@@ -219,6 +235,11 @@ void FWorkspaceEditor::RefreshDetails()
 	{
 		DetailsView->ForceRefresh();
 	}
+}
+
+UWorkspaceSchema* FWorkspaceEditor::GetSchema() const
+{
+	return Workspace.Get() != nullptr ? Workspace->GetSchema() : nullptr;
 }
 
 void FWorkspaceEditor::BindCommands()
@@ -268,6 +289,12 @@ void FWorkspaceEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabM
 	.SetTooltipText(LOCTEXT("WorkspaceTabToolTip", "Shows the workspace outliner tab."));
 
 	DocumentManager->SetTabManager(InTabManager);
+
+	Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+	if (WorkspaceEditorModule.OnRegisterTabsForEditor().IsBound())
+	{
+		WorkspaceEditorModule.OnRegisterTabsForEditor().Broadcast(TabFactories, InTabManager, StaticCastSharedPtr<IWorkspaceEditor>(this->AsShared().ToSharedPtr()));
+	}
 }
 
 void FWorkspaceEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)

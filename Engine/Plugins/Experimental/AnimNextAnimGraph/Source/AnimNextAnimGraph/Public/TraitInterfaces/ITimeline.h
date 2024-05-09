@@ -15,7 +15,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API ITimeline : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(ITimeline, 0x53760727)
+		DECLARE_ANIM_TRAIT_INTERFACE(ITimeline, TIM, 0x53760727)
 
 		// Returns the play rate of this timeline
 		virtual float GetPlayRate(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const;

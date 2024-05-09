@@ -25,14 +25,16 @@ namespace UE::AnimNext
 			: UID(INVALID_UID)
 #if !UE_BUILD_SHIPPING
 			, InterfaceName(TEXT("<Invalid Interface UID>"))
+			, InterfaceShortName(TEXT("???"))
 #endif
 		{}
 
 		// Constructs an interface UID
-		explicit constexpr FTraitInterfaceUID(FTraitInterfaceUIDRaw InUID, const TCHAR* InInterfaceName = TEXT("<Unknown Trait Interface Name>"))
+		explicit constexpr FTraitInterfaceUID(FTraitInterfaceUIDRaw InUID, const TCHAR* InInterfaceName = TEXT("<Unknown Trait Interface Name>"), const TCHAR* InInterfaceShortName = TEXT("???"))
 			: UID(InUID)
 #if !UE_BUILD_SHIPPING
 			, InterfaceName(InInterfaceName)
+			, InterfaceShortName(InInterfaceShortName)
 #endif
 		{
 		}
@@ -40,6 +42,7 @@ namespace UE::AnimNext
 #if !UE_BUILD_SHIPPING
 		// Returns a literal string to the interface name
 		constexpr const TCHAR* GetInterfaceName() const { return InterfaceName; }
+		constexpr const TCHAR* GetInterfaceShortName() const { return InterfaceShortName; }
 #endif
 
 		// Returns the interface global UID
@@ -54,7 +57,8 @@ namespace UE::AnimNext
 		FTraitInterfaceUIDRaw		UID;
 
 #if !UE_BUILD_SHIPPING
-		const TCHAR*				InterfaceName;
+		const TCHAR*				InterfaceName = nullptr;
+		const TCHAR*				InterfaceShortName = nullptr;
 #endif
 	};
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -42,6 +42,9 @@ namespace UE::AnimNext::UncookedOnly
 {
 	// A delegate for subscribing / reacting to editor data modifications.
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEditorDataModified, UAnimNextRigVMAssetEditorData* /* InEditorData */);
+
+	// An interaction bracket count reached 0
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnInteractionBracketFinished, UAnimNextRigVMAssetEditorData* /* InEditorData */);
 }
 
 // Script-callable editor API hoisted onto UAnimNextRigVMAsset
@@ -270,6 +273,9 @@ protected:
 
 	// Delegate to subscribe to modifications to this editor data
 	UE::AnimNext::UncookedOnly::FOnEditorDataModified ModifiedDelegate;
+
+	// Delegate to get notified when an interaction bracket reaches 0
+	UE::AnimNext::UncookedOnly::FOnInteractionBracketFinished InteractionBracketFinished;
 
 	// Cached exports, generated lazily or on compilation
 	mutable TOptional<FAnimNextParameterProviderAssetRegistryExports> CachedExports;

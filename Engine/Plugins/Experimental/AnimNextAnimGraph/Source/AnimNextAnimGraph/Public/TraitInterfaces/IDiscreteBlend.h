@@ -17,7 +17,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IDiscreteBlend : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IDiscreteBlend, 0x2d395d56)
+		DECLARE_ANIM_TRAIT_INTERFACE(IDiscreteBlend, DSB, 0x2d395d56)
 
 		// Returns the blend weight for the specified child
 		// Multiple children can have non-zero weight but their sum must be 1.0
