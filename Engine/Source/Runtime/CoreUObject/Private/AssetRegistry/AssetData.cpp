@@ -892,6 +892,27 @@ bool FAssetRegistryVersion::SerializeVersion(FArchive& Ar, FAssetRegistryVersion
 	return !Ar.IsError();
 }
 
+namespace UE::AssetRegistry
+{
+
+FCbWriter& FPackageCustomVersion::Write(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << Key << Version;
+	Writer.EndArray();
+	return Writer;
+}
+
+bool FPackageCustomVersion::TryRead(const FCbFieldView& Field)
+{
+	FCbFieldViewIterator Iter = Field.CreateViewIterator();
+	bool bOk = LoadFromCompactBinary(*Iter++, Key);
+	bOk = LoadFromCompactBinary(*Iter++, Version) & bOk;
+	return bOk;
+}
+
+}
+
 void FAssetPackageData::SerializeForCacheInternal(FArchive& Ar, FAssetPackageData& PackageData, FAssetRegistryVersion::Type Version)
 {
 	Ar << PackageData.DiskSize;
@@ -980,6 +1001,92 @@ void FAssetPackageData::SetPackageSavedHash(const FIoHash& InHash)
 	FMemory::Memcpy(&PackageGuid, &InHash.GetBytes(),
 		FMath::Min(sizeof(PackageGuid), sizeof(decltype(InHash.GetBytes()))));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+inline FCbWriter& operator<<(FCbWriter& Writer, const TPair<FIoChunkId, FIoHash>& Value)
+{
+	Writer.BeginArray();
+	Writer << Value.Key << Value.Value;
+	Writer.EndArray();
+	return Writer;
+}
+
+inline bool LoadFromCompactBinary(FCbFieldView Field, TPair<FIoChunkId, FIoHash>& Value)
+{
+	FCbFieldViewIterator Iter = Field.CreateViewIterator();
+	bool bOk = LoadFromCompactBinary(*Iter++, Value.Key);
+	bOk = LoadFromCompactBinary(*Iter++, Value.Value) & bOk;
+	return bOk;
+}
+
+void FAssetPackageData::NetworkWrite(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	bool bCookedHash = CookedHash.IsValid();
+	Writer << bCookedHash;
+	if (bCookedHash)
+	{
+		Writer << CookedHash;
+	}
+	Writer << ChunkHashes.Array();
+	Writer << ImportedClasses;
+	Writer << DiskSize;
+	Writer << FileVersionUE;
+	Writer << FileVersionLicenseeUE;
+	TArray<UE::AssetRegistry::FPackageCustomVersion> LocalCustomVersions;
+	LocalCustomVersions.Append(GetCustomVersions());
+	Writer << LocalCustomVersions;
+	Writer << Flags;
+	Writer << static_cast<uint8>(Extension);
+	Writer.EndArray();
+}
+
+bool FAssetPackageData::TryNetworkRead(FCbFieldView Field)
+{
+	FCbFieldViewIterator Iter = Field.CreateViewIterator();
+	bool bCookedHash = false;
+	bool bOk = LoadFromCompactBinary(*Iter++, bCookedHash);
+	if (bCookedHash)
+	{
+		bOk = LoadFromCompactBinary(*Iter++, CookedHash) & bOk;
+	}
+	else
+	{
+		CookedHash = FMD5Hash();
+	}
+	TArray<TPair<FIoChunkId, FIoHash>> ChunkHashesArray;
+	if (LoadFromCompactBinary(*Iter++, ChunkHashesArray))
+	{
+		ChunkHashes.Empty(ChunkHashesArray.Num());
+		for (TPair<FIoChunkId, FIoHash>& Pair : ChunkHashesArray)
+		{
+			ChunkHashes.Add(Pair.Key, Pair.Value);
+		}
+	}
+	else
+	{
+		bOk = false;
+	}
+	bOk = LoadFromCompactBinary(*Iter++, ImportedClasses) & bOk;
+	bOk = LoadFromCompactBinary(*Iter++, DiskSize) & bOk;
+	bOk = LoadFromCompactBinary(*Iter++, FileVersionUE) & bOk;
+	bOk = LoadFromCompactBinary(*Iter++, FileVersionLicenseeUE) & bOk;
+	TArray<UE::AssetRegistry::FPackageCustomVersion> LocalCustomVersions;
+	if (LoadFromCompactBinary(*Iter++, LocalCustomVersions))
+	{
+		SetCustomVersions(LocalCustomVersions);
+	}
+	bOk = LoadFromCompactBinary(*Iter++, Flags) & bOk;
+	uint8 ExtensionInt = 0;
+	if (LoadFromCompactBinary(*Iter++, ExtensionInt) && ExtensionInt < static_cast<uint8>(EPackageExtension::Count))
+	{
+		Extension = static_cast<EPackageExtension>(ExtensionInt);
+	}
+	else
+	{
+		bOk = false;
+	}
+	return bOk;
 }
 
 void FARFilter::PostSerialize(const FArchive& Ar)

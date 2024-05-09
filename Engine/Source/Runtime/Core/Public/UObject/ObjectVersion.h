@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 
 class FArchive;
+class FCbFieldView;
 class FCbObject;
 class FCbWriter;
 
@@ -833,8 +834,19 @@ struct FPackageFileVersion
 
 	/** Serialization members */
 	CORE_API friend FArchive& operator<<(FArchive& Ar, FPackageFileVersion& Version);
-	CORE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FPackageFileVersion& Version);
-	CORE_API static FPackageFileVersion FromCbObject(const FCbObject& Obj);
+	/** Serialization members implemented as hidden friends*/
+private:
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FPackageFileVersion& Version)
+	{
+		return Version.Write(Writer);
+	}
+	CORE_API FCbWriter& Write(FCbWriter& Writer) const;
+	friend bool LoadFromCompactBinary(const FCbFieldView& FieldView, FPackageFileVersion& Version)
+	{
+		return Version.TryRead(FieldView);
+	}
+	CORE_API bool TryRead(const FCbFieldView& FieldView);
+public:
 
 	/* UE4 file version*/
 	int32		FileVersionUE4 = 0;
