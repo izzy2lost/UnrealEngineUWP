@@ -38,6 +38,9 @@ public:
 		// Don't trigger serialization of compilable assets
 		SetShouldSkipCompilingAssets(true);
 
+		// We are a collector and don't modify the objects we visit
+		SetIsSaving(true);
+
 		ArIgnoreOuterRef = true;
 		ArIsObjectReferenceCollector = true;
 		ArShouldSkipBulkData = true;
