@@ -12,6 +12,7 @@
 #include "EngineStats.h"
 #include "RenderingThread.h"
 #include "Materials/MaterialParameterCollectionInstance.h"
+#include "ProfilingDebugging/LevelStreamingProfilingSubsystem.h"
 #include "AI/NavigationSystemBase.h"
 #include "GameFramework/PlayerController.h"
 #include "ParticleHelper.h"
@@ -19,6 +20,7 @@
 #include "Engine/NetConnection.h"
 #include "SceneInterface.h"
 #include "UnrealEngine.h"
+#include "Engine/LevelStreamingGCHelper.h"
 #include "Engine/LevelStreamingVolume.h"
 #include "IXRTrackingSystem.h"
 #include "Camera/CameraPhotography.h"
@@ -1721,6 +1723,27 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 
 #if (CSV_PROFILER && !UE_BUILD_SHIPPING)
 	RecordWorldCountsToCSV(this, bDoingActorTicks);
+
+	if (IsGameWorld() && FCsvProfiler::Get()->IsCapturing())
+	{
+		for (ULevelStreaming* LevelStreaming : StreamingLevels)
+		{
+			switch (LevelStreaming->GetLevelStreamingStatus())
+			{
+			case LEVEL_Loading:
+				CSV_CUSTOM_STAT(LevelStreaming, NumLevelsLoading, 1, ECsvCustomStatOp::Accumulate);
+				break;
+			case LEVEL_MakingVisible:
+				CSV_CUSTOM_STAT(LevelStreaming, NumLevelsMakingVisible, 1, ECsvCustomStatOp::Accumulate);
+				break;
+			case LEVEL_MakingInvisible:
+				CSV_CUSTOM_STAT(LevelStreaming, NumLevelsMakingInvisible, 1, ECsvCustomStatOp::Accumulate);
+				break;
+			}
+		}
+
+		CSV_CUSTOM_STAT(LevelStreaming, NumLevelsPendingPurge, FLevelStreamingGCHelper::GetNumLevelsPendingPurge(), ECsvCustomStatOp::Set);
+	}
 #endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

@@ -144,7 +144,6 @@ CSV_DEFINE_CATEGORY(LevelStreamingProfiling, true);
 CSV_DEFINE_CATEGORY(LevelStreamingAdaptive, true);
 CSV_DEFINE_CATEGORY(LevelStreamingAdaptiveDetail, false);
 CSV_DEFINE_CATEGORY(LevelStreamingDetail, false);
-CSV_DEFINE_CATEGORY(LevelStreamingPendingPurge, (!UE_BUILD_SHIPPING));
 
 TRACE_DECLARE_INT_COUNTER(NumStreamingLevelsToConsider, TEXT("LevelStreamingProfiling/NumStreamingLevelsToConsider"));
 
@@ -4433,8 +4432,6 @@ void UWorld::UpdateLevelStreaming()
 	const int32 CurrentNumLevelsPendingPurge = FLevelStreamingGCHelper::GetNumLevelsPendingPurge();
 	const int32 LevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge = GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeOverride ? 1 : GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge;
 	const bool bShouldPurgeLevels = LevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge && CurrentNumLevelsPendingPurge >= LevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge;
-
-	CSV_CUSTOM_STAT(LevelStreamingPendingPurge, NumlevelsPendingPurge, CurrentNumLevelsPendingPurge, ECsvCustomStatOp::Set);
 
 	// Are we currently in a low memory situation and number of pending levels to purge meets or exceeds our threshold?
 	const bool bShouldDoLowMemoryGC = GIsLowMemory && CurrentNumLevelsPendingPurge >= GLevelStreamingLowMemoryPendingPurgeCount;
