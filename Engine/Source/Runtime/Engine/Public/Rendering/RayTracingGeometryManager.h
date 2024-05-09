@@ -69,6 +69,10 @@ private:
 	TArray<FBuildRequest> SortedRequests;
 	TArray<FRayTracingGeometryBuildParams> BuildParams;
 
+	// Operations such as registering geometry/groups can be done from different render command pipes (eg: SkeletalMesh)
+	// so need to use critical section in relevant functions
+	FCriticalSection MainCS;
+
 	struct FRayTracingGeometryGroup
 	{
 		TArray<FRayTracingGeometry*> Geometries;
