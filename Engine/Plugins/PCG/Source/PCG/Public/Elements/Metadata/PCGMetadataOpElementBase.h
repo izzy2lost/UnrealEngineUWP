@@ -18,15 +18,11 @@
 class FPCGMetadataAttributeBase;
 
 // FIXME: To be removed when we are confident Metadata is stable in MT.
-static inline TAutoConsoleVariable<bool> CVarMetadataOperationInMT(
-	TEXT("pcg.MetadataOperationInMT"),
-	true,
-	TEXT("Metadata operations are now multithreaded."));
-
-static inline TAutoConsoleVariable<int> CVarMetadataOperationChunkSize(
-	TEXT("pcg.MetadataOperationChunkSize"),
-	256,
-	TEXT("Metadata operations chunk size."));
+namespace PCGMetadataBase
+{
+	extern TAutoConsoleVariable<bool> CVarMetadataOperationInMT;
+	extern TAutoConsoleVariable<int> CVarMetadataOperationChunkSize;
+}
 
 namespace PCGMetadataSettingsBaseConstants
 {
@@ -450,9 +446,9 @@ inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& In
 	Options.SetFlags = Flags;
 	Options.bUseDefaultKey = false;
 
-	const int32 ChunkSize = CVarMetadataOperationChunkSize.GetValueOnAnyThread();
+	const int32 ChunkSize = PCGMetadataBase::CVarMetadataOperationChunkSize.GetValueOnAnyThread();
 
-	if (CVarMetadataOperationInMT.GetValueOnAnyThread())
+	if (PCGMetadataBase::CVarMetadataOperationInMT.GetValueOnAnyThread())
 	{
 		return FPCGAsync::AsyncProcessingOneToOneRangeEx(&InOperationData.Context->AsyncState, InOperationData.NumberOfElementsToProcess, []() {},
 			[&InOperationData, &InCallbacks, &Options](int32 StartReadIndex, int32 StartWriteIndex, int32 Count)

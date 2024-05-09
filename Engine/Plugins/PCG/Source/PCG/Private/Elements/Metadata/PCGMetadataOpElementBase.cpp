@@ -14,6 +14,19 @@
 
 #define LOCTEXT_NAMESPACE "PCGMetadataElementBaseElement"
 
+namespace PCGMetadataBase
+{
+	TAutoConsoleVariable<bool> CVarMetadataOperationInMT(
+		TEXT("pcg.MetadataOperationInMT"),
+		true,
+		TEXT("Metadata operations are now multithreaded."));
+
+	TAutoConsoleVariable<int> CVarMetadataOperationChunkSize(
+		TEXT("pcg.MetadataOperationChunkSize"),
+		256,
+		TEXT("Metadata operations chunk size."));
+}
+
 void UPCGMetadataSettingsBase::PostLoad()
 {
 	Super::PostLoad();
