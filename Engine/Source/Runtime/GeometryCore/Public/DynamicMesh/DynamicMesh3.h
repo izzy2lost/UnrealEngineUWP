@@ -704,6 +704,16 @@ public:
 		return TriangleEdges[TriangleID][j];
 	}
 
+	/**  Applies a given function to both TriEdgeIDs which each EdgeID in a given Triangle is associated with */
+	void EnumerateTriEdgeIDsFromTriID(const int TriID, const TFunctionRef<void(FMeshTriEdgeID TriEdgeID)>& TriEdgeFunc) const
+	{
+		FIndex3i TriEdges = GetTriEdges(TriID);
+		for (int TriEdgesIndex = 0 ; TriEdgesIndex <=2; TriEdgesIndex++)
+		{
+			EnumerateTriEdgeIDsFromEdgeID(TriEdges[TriEdgesIndex], TriEdgeFunc);
+		}
+	}
+
 	/** Find the neighbour triangles of a triangle (any of them might be InvalidID) */
 	GEOMETRYCORE_API FIndex3i GetTriNeighbourTris(int TriangleID) const;
 
@@ -779,6 +789,30 @@ public:
 		}
 		{ 
 			return FMeshTriEdgeID(TriIndex, ( TriEdges.B == EdgeID ) ? 1 : 2 );
+		}
+	}
+
+	/** Applies a given function to both TriEdgeIDs which a given EdgeID is associated with*/
+	void EnumerateTriEdgeIDsFromEdgeID(const int32 EdgeID, const TFunctionRef<void(FMeshTriEdgeID TriEdgeID)>& TriEdgeFunc) const
+	{
+		const FMeshTriEdgeID FirstTriEdgeID = GetTriEdgeIDFromEdgeID(EdgeID); // function gets MeshTriEdgeID for edge included in EdgeTri.A only
+		TriEdgeFunc(FirstTriEdgeID);
+
+		// have to get MeshTriEdgeID for edge included in EdgeTri.B
+		const int OtherTriID = GetEdgeT(EdgeID).B;
+		if (OtherTriID != IndexConstants::InvalidID)
+		{
+			FMeshTriEdgeID SecondTriEdgeID;
+			const FIndex3i SecondTriEdges = GetTriEdges(OtherTriID);
+			if (SecondTriEdges.A == EdgeID)
+			{
+				SecondTriEdgeID = FMeshTriEdgeID(OtherTriID, 0);
+			}
+			else
+			{
+				SecondTriEdgeID = FMeshTriEdgeID(OtherTriID, ( SecondTriEdges.B == EdgeID ) ? 1 : 2 );
+			}
+			TriEdgeFunc(SecondTriEdgeID);
 		}
 	}
 

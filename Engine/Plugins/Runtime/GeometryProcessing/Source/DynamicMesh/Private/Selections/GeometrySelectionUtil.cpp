@@ -1379,10 +1379,11 @@ bool UE::Geometry::InitializeSelectionFromPolyGroups(
 				}
 				else if (SelectionOut.ElementType == EGeometryElementType::Edge)
 				{
-					FIndex3i TriEdges = Mesh.GetTriEdges(TID);
-					SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(Mesh.GetTriEdgeIDFromEdgeID(TriEdges.A)).Encoded());
-					SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(Mesh.GetTriEdgeIDFromEdgeID(TriEdges.B)).Encoded());
-					SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(Mesh.GetTriEdgeIDFromEdgeID(TriEdges.C)).Encoded());
+					Mesh.EnumerateTriEdgeIDsFromTriID(TID,
+						[&SelectionOut](const FMeshTriEdgeID TriEdgeID)
+						{
+							SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(TriEdgeID).Encoded());
+						});
 				}
 				else if (SelectionOut.ElementType == EGeometryElementType::Vertex)
 				{
@@ -1472,14 +1473,15 @@ bool UE::Geometry::InitializeSelectionFromTriangles(
 		}
 		else if (SelectionOut.ElementType == EGeometryElementType::Edge)
 		{
-			for (int32 tid : Triangles)
+			for (const int32 TID : Triangles)
 			{
-				if (Mesh.IsTriangle(tid))
+				if (Mesh.IsTriangle(TID))
 				{
-					FIndex3i TriEdges = Mesh.GetTriEdges(tid);
-					SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(Mesh.GetTriEdgeIDFromEdgeID(TriEdges.A)).Encoded());
-					SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(Mesh.GetTriEdgeIDFromEdgeID(TriEdges.B)).Encoded());
-					SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(Mesh.GetTriEdgeIDFromEdgeID(TriEdges.C)).Encoded());
+					Mesh.EnumerateTriEdgeIDsFromTriID(TID,
+						[&SelectionOut](const FMeshTriEdgeID TriEdgeID)
+						{
+							SelectionOut.Selection.Add(FGeoSelectionID::MeshEdge(TriEdgeID).Encoded());
+						});
 				}
 			}
 		}
