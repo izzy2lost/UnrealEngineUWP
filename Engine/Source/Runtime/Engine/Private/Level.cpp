@@ -395,8 +395,8 @@ const FName ULevel::DontLoadExternalFoldersTag(TEXT("DontLoadExternalFoldersTag"
 ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
 	:	UObject( ObjectInitializer )
 	,	Actors()
-	,	OwningWorld(NULL)
-	,	TickTaskLevel(FTickTaskManagerInterface::Get().AllocateTickTaskLevel())
+	,	OwningWorld(nullptr)
+	,	TickTaskLevel(nullptr)
 	,	PrecomputedLightVolume(new FPrecomputedLightVolume())
 	,	PrecomputedVolumetricLightmap(new FPrecomputedVolumetricLightmap())
 	,	RouteActorInitializationState(ERouteActorInitializationState::Preinitialize)
@@ -431,8 +431,11 @@ void ULevel::Initialize(const FURL& InURL)
 
 ULevel::~ULevel()
 {
-	FTickTaskManagerInterface::Get().FreeTickTaskLevel(TickTaskLevel);
-	TickTaskLevel = NULL;
+	if (TickTaskLevel)
+	{
+		FTickTaskManagerInterface::Get().FreeTickTaskLevel(TickTaskLevel);
+		TickTaskLevel = nullptr;
+	}
 }
 
 void ULevel::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)

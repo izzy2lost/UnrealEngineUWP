@@ -1459,6 +1459,7 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 
 	// If only the DynamicLevel collection has entries, we can skip the validation and tick all levels.
 	bool bValidateLevelList = false;
+	bool bHasTickedACollection = false;
 
 	for (const FLevelCollection& LevelCollection : LevelCollections)
 	{
@@ -1487,12 +1488,17 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 			}
 		}
 
+		if (LevelsToTick.Num() == 0)
+		{
+			// Nothing to do, early out before creating the slow scope
+			continue;
+		}
+
 		// Set up context on the world for this level collection
 		FScopedLevelCollectionContextSwitch LevelContext(i, this);
 
 		// If caller wants time update only, or we are paused, skip the rest.
-		const bool bShouldSkipTick = (LevelsToTick.Num() == 0);
-		if (bDoingActorTicks && !bShouldSkipTick)
+		if (bDoingActorTicks)
 		{
 			// Actually tick actors now that context is set up
 			SetupPhysicsTickFunctions(DeltaSeconds);
@@ -1542,9 +1548,11 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 			FTickTaskManagerInterface::Get().RunPauseFrame(this, DeltaSeconds, LEVELTICK_PauseTick, LevelsToTick);
 		}
 		
-		// We only want to run the following once, so only run it for the source level collection.
-		if (LevelCollections[i].GetType() == ELevelCollectionType::DynamicSourceLevels)
+		// Run this on the first collection with levels, which will be DynamicSourceLevels by default
+		if (!bHasTickedACollection)
 		{
+			bHasTickedACollection = true;
+
 			// Process any remaining latent actions
 			if( !bIsPaused )
 			{
@@ -1609,7 +1617,7 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 			}
 		}
 
-		if (bDoingActorTicks && !bShouldSkipTick)
+		if (bDoingActorTicks)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_TickTime);
 			{

@@ -1633,8 +1633,8 @@ public:
 	/** Return true if this tick function is in the primary list **/
 	bool HasTickFunction(ULevel* InLevel, FTickFunction* TickFunction)
 	{
-		FTickTaskLevel* Level = TickTaskLevelForLevel(InLevel);
-		return Level->HasTickFunction(TickFunction);
+		FTickTaskLevel* Level = TickTaskLevelForLevel(InLevel, false);
+		return Level && Level->HasTickFunction(TickFunction);
 	}
 	/** Add the tick function to the primary list **/
 	void AddTickFunction(ULevel* InLevel, FTickFunction* TickFunction)
@@ -1662,30 +1662,30 @@ private:
 		IConsoleManager::Get().RegisterConsoleCommand(TEXT("dumpticks"), TEXT("Dumps all tick functions registered with FTickTaskManager to log."));
 	}
 
-	/** Fill the level list **/
+	/** Fill the level list, only with levels that can actually tick */
 	void FillLevelList(const TArray<ULevel*>& Levels)
 	{
 		check(!LevelList.Num());
-		if (!Context.World->GetActiveLevelCollection() || Context.World->GetActiveLevelCollection()->GetType() == ELevelCollectionType::DynamicSourceLevels)
-		{
-			check(Context.World->TickTaskLevel);
-			LevelList.Add(Context.World->TickTaskLevel);
-		}
 		for( int32 LevelIndex = 0; LevelIndex < Levels.Num(); LevelIndex++ )
 		{
 			ULevel* Level = Levels[LevelIndex];
-			if (Level && Level->bIsVisible)
+			if (Level && Level->bIsVisible && Level->TickTaskLevel)
 			{
-				check(Level->TickTaskLevel);
 				LevelList.Add(Level->TickTaskLevel);
 			}
 		}
 	}
 
 	/** Find the tick level for this actor **/
-	FTickTaskLevel* TickTaskLevelForLevel(ULevel* Level)
+	FTickTaskLevel* TickTaskLevelForLevel(ULevel* Level, bool bCreateIfNeeded = true)
 	{
 		check(Level);
+
+		if (bCreateIfNeeded && Level->TickTaskLevel == nullptr)
+		{
+			Level->TickTaskLevel = AllocateTickTaskLevel();
+		}
+
 		check(Level->TickTaskLevel);
 		return Level->TickTaskLevel;
 	}
@@ -1701,7 +1701,6 @@ private:
 		Ar.Logf(TEXT("============================ Tick Functions (%s) ============================"), bGrouped ? TEXT("GROUPED") : ((bEnabled && bDisabled) ? TEXT("All") : (bEnabled ? TEXT("Enabled") : TEXT("Disabled"))));
 
 		check(InWorld);
-		check(InWorld->TickTaskLevel);
 
 		if (bGrouped)
 		{
@@ -1739,13 +1738,11 @@ private:
 		}
 		else
 		{
-			InWorld->TickTaskLevel->DumpAllTickFunctions(Ar, EnabledCount, DisabledCount, bEnabled, bDisabled);
 			for (int32 LevelIndex = 0; LevelIndex < InWorld->GetNumLevels(); LevelIndex++)
 			{
 				ULevel* Level = InWorld->GetLevel(LevelIndex);
-				if (Level->bIsVisible)
+				if (Level->bIsVisible && Level->TickTaskLevel)
 				{
-					check(Level->TickTaskLevel);
 					Level->TickTaskLevel->DumpAllTickFunctions(Ar, EnabledCount, DisabledCount, bEnabled, bDisabled);
 				}
 			}
@@ -1760,7 +1757,6 @@ private:
 	virtual void GetEnabledTickFunctionCounts(UWorld* InWorld, TSortedMap<FName, int32, FDefaultAllocator, FNameFastLess>& TickContextToCountMap, int32& EnabledCount, bool bDetailed, bool bFilterCoolingDown=false)
 	{
 		check(InWorld);
-		check(InWorld->TickTaskLevel);
 
 		if (bFilterCoolingDown && InWorld->TickGroup >= 0 && InWorld->TickGroup < TG_NewlySpawned)
 		{
@@ -1770,14 +1766,12 @@ private:
 		const float WorldTimeSeconds = InWorld->GetTimeSeconds();
 		const float WorldUnpausedTimeSeconds = InWorld->GetUnpausedTimeSeconds();
 
-		InWorld->TickTaskLevel->AddTickFunctionsToMap(TickContextToCountMap, EnabledCount, bDetailed, bFilterCoolingDown, WorldTimeSeconds, WorldUnpausedTimeSeconds);
 
 		for (int32 LevelIndex = 0; LevelIndex < InWorld->GetNumLevels(); LevelIndex++)
 		{
 			ULevel* Level = InWorld->GetLevel(LevelIndex);
-			if (Level->bIsVisible)
+			if (Level->bIsVisible && Level->TickTaskLevel)
 			{
-				check(Level->TickTaskLevel);
 				Level->TickTaskLevel->AddTickFunctionsToMap(TickContextToCountMap, EnabledCount, bDetailed, bFilterCoolingDown, WorldTimeSeconds, WorldUnpausedTimeSeconds);
 			}
 		}

@@ -155,6 +155,11 @@ FAutoConsoleVariableRef CVarDisableRemapScriptActors(TEXT("net.DisableRemapScrip
 static bool bDisableInGamePerfTrackersForUninitializedWorlds = true;
 FAutoConsoleVariableRef CVarDisableInGamePerfTrackersForUninitializedWorlds(TEXT("s.World.SkipPerfTrackerForUninitializedWorlds"), bDisableInGamePerfTrackersForUninitializedWorlds, TEXT("When set, disables allocation of InGamePerformanceTrackers for Worlds that aren't initialized."));
 
+static bool bCreateStaticLevelCollection = false;
+FAutoConsoleVariableRef CVarCreateStaticLevelCollection(TEXT("s.World.CreateStaticLevelCollection"), bCreateStaticLevelCollection,
+	TEXT("When set, create a separate level collection for static streaming levels that will not be duplicated by DuplicateRequestedLevels.\n")
+	TEXT("If this is 0, static streaming levels will be part of the main DynamicSourceLevels collection."));
+
 // Now that it's possible for subclasses of ULevelStreaming to indicate which async loads are necessary for loading,
 // it's possible existing subclasses haven't added their required loads to their StreamingLevel->GetAsyncRequestIDs() array. As a fallback,
 // allow users to force flushing of all async loads during level streaming, as was done in UE 5.4 and lower.
@@ -641,7 +646,6 @@ UWorld::UWorld( const FObjectInitializer& ObjectInitializer )
 #endif
 , URL(FURL(NULL))
 ,	FXSystem(NULL)
-,	TickTaskLevel(FTickTaskManagerInterface::Get().AllocateTickTaskLevel())
 ,	FlushLevelStreamingType(EFlushLevelStreamingType::None)
 ,	NextTravelType(TRAVEL_Relative)
 ,	CleanupWorldTag(0)
@@ -1338,8 +1342,6 @@ void UWorld::FinishDestroy()
 	{
 		GWorld = NULL;
 	}
-	FTickTaskManagerInterface::Get().FreeTickTaskLevel(TickTaskLevel);
-	TickTaskLevel = NULL;
 
 	if (TimerManager)
 	{
@@ -2304,7 +2306,18 @@ const FName UWorld::KeepInitializedDuringLoadTag(TEXT("KeepInitializedDuringLoad
 
 void UWorld::ConditionallyCreateDefaultLevelCollections()
 {
-	LevelCollections.Reserve((int32)ELevelCollectionType::MAX);
+	if (WorldType == EWorldType::Inactive)
+	{
+		return;
+	}
+	else if (bCreateStaticLevelCollection)
+	{
+		LevelCollections.Reserve((int32)ELevelCollectionType::MAX);
+	}
+	else
+	{
+		LevelCollections.Reserve(1);
+	}
 
 	// Create main level collection. The persistent level will always be considered dynamic.
 	if (!FindCollectionByType(ELevelCollectionType::DynamicSourceLevels))
@@ -2322,7 +2335,7 @@ void UWorld::ConditionallyCreateDefaultLevelCollections()
 		}
 	}
 
-	if (!FindCollectionByType(ELevelCollectionType::StaticLevels))
+	if (bCreateStaticLevelCollection && !FindCollectionByType(ELevelCollectionType::StaticLevels))
 	{
 		FLevelCollection& StaticCollection = FindOrAddCollectionByType(ELevelCollectionType::StaticLevels);
 		StaticCollection.SetPersistentLevel(PersistentLevel);
@@ -8694,8 +8707,10 @@ void UWorld::SetGameState(AGameStateBase* NewGameState)
 		        // For now the static levels use the same GameState as the source dynamic levels.
 		        if (FoundCollection->GetType() == ELevelCollectionType::DynamicSourceLevels)
 		        {
-			        FLevelCollection& StaticLevels = FindOrAddCollectionByType(ELevelCollectionType::StaticLevels);
-			        StaticLevels.SetGameState(NewGameState);
+					if (FLevelCollection* StaticLevels = FindCollectionByType(ELevelCollectionType::StaticLevels))
+					{
+						StaticLevels->SetGameState(NewGameState);
+					}
 		        }
 	        }
 		}
@@ -8818,21 +8833,20 @@ void UWorld::CreateFXSystem()
 	}
 }
 
+FLevelCollection& UWorld::FindOrAddCollectionForLevelStreaming(const ULevelStreaming* Level)
+{
+	ELevelCollectionType Type = ELevelCollectionType::DynamicSourceLevels;
+	if (bCreateStaticLevelCollection && Level->bIsStatic)
+	{
+		Type = ELevelCollectionType::StaticLevels;
+	}
+	
+	return FindOrAddCollectionByType(Type);
+}
+
 FLevelCollection& UWorld::FindOrAddCollectionByType(const ELevelCollectionType InType)
 {
-	for (FLevelCollection& LC : LevelCollections)
-	{
-		if (LC.GetType() == InType)
-		{
-			return LC;
-		}
-	}
-
-	// Not found, add a new one.
-	FLevelCollection NewLC;
-	NewLC.SetType(InType);
-	LevelCollections.Add(MoveTemp(NewLC));
-	return LevelCollections.Last();
+	return LevelCollections[FindOrAddCollectionByType_Index(InType)];
 }
 
 int32 UWorld::FindOrAddCollectionByType_Index(const ELevelCollectionType InType)
@@ -8844,6 +8858,9 @@ int32 UWorld::FindOrAddCollectionByType_Index(const ELevelCollectionType InType)
 		return FoundIndex;
 	}
 
+	// Static collections should not be created if that is disabled
+	ensure(InType != ELevelCollectionType::StaticLevels || bCreateStaticLevelCollection);
+
 	// Not found, add a new one.
 	FLevelCollection NewLC;
 	NewLC.SetType(InType);
@@ -8852,15 +8869,7 @@ int32 UWorld::FindOrAddCollectionByType_Index(const ELevelCollectionType InType)
 
 FLevelCollection* UWorld::FindCollectionByType(const ELevelCollectionType InType)
 {
-	for (FLevelCollection& LC : LevelCollections)
-	{
-		if (LC.GetType() == InType)
-		{
-			return &LC;
-		}
-	}
-
-	return nullptr;
+	return const_cast<FLevelCollection*>(const_cast<const UWorld*>(this)->FindCollectionByType(InType));
 }
 
 const FLevelCollection* UWorld::FindCollectionByType(const ELevelCollectionType InType) const
@@ -8896,6 +8905,12 @@ const FLevelCollection* UWorld::GetActiveLevelCollection() const
 
 void UWorld::SetActiveLevelCollection(int32 LevelCollectionIndex)
 {
+	// Only check if collection actually changes
+	if (LevelCollectionIndex == ActiveLevelCollectionIndex)
+	{
+		return;
+	}
+
 	ActiveLevelCollectionIndex = LevelCollectionIndex;
 	const FLevelCollection* const ActiveLevelCollection = GetActiveLevelCollection();
 
@@ -8915,7 +8930,7 @@ void UWorld::SetActiveLevelCollection(int32 LevelCollectionIndex)
 	NetDriver = ActiveLevelCollection->GetNetDriver();
 	DemoNetDriver = ActiveLevelCollection->GetDemoNetDriver();
 
-	// TODO: START TEMP FIX FOR UE-42508
+	// Our net drivers may have been destroyed during the scope
 	if (NetDriver && NetDriver->NetDriverName != NAME_None)
 	{
 		UNetDriver* TempNetDriver = GEngine->FindNamedNetDriver(this, NetDriver->NetDriverName);
@@ -8935,7 +8950,6 @@ void UWorld::SetActiveLevelCollection(int32 LevelCollectionIndex)
 			DemoNetDriver = TempDemoNetDriver;
 		}
 	}
-	// TODO: END TEMP FIX FOR UE-42508
 }
 
 static ULevel* DuplicateLevelWithPrefix(ULevel* InLevel, int32 InstanceID )

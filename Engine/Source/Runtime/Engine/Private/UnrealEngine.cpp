@@ -15816,8 +15816,10 @@ void UEngine::MovePendingLevel(FWorldContext &Context)
 		FLevelCollection& SourceLevels = Context.World()->FindOrAddCollectionByType(ELevelCollectionType::DynamicSourceLevels);
 		SourceLevels.SetNetDriver(NetDriver);
 
-		FLevelCollection& StaticLevels = Context.World()->FindOrAddCollectionByType(ELevelCollectionType::StaticLevels);
-		StaticLevels.SetNetDriver(NetDriver);
+		if (FLevelCollection* StaticLevels = Context.World()->FindCollectionByType(ELevelCollectionType::StaticLevels))
+		{
+			StaticLevels->SetNetDriver(NetDriver);
+		}
 	}
 
 	// Attach the DemoNetDriver to the world if there is one

@@ -1287,8 +1287,7 @@ void ULevelStreaming::AddLevelToCollectionAfterReload()
 			LoadedLevel->GetCachedLevelCollection()->RemoveLevel(LoadedLevel);
 		}
 		// Add this level to the correct collection
-		const ELevelCollectionType CollectionType = bIsStatic ? ELevelCollectionType::StaticLevels : ELevelCollectionType::DynamicSourceLevels;
-		FLevelCollection& LC = GetWorld()->FindOrAddCollectionByType(CollectionType);
+		FLevelCollection& LC = GetWorld()->FindOrAddCollectionForLevelStreaming(this);
 		LC.AddLevel(LoadedLevel);
 	}
 }
@@ -1329,11 +1328,8 @@ void ULevelStreaming::SetLoadedLevel(ULevel* Level)
 	FLevelStreamingGCHelper::CancelUnloadRequest(LoadedLevel);
 
 	// Add this level to the correct collection
-	const ELevelCollectionType CollectionType =	bIsStatic ? ELevelCollectionType::StaticLevels : ELevelCollectionType::DynamicSourceLevels;
-
 	UWorld* World = GetWorld();
-
-	FLevelCollection& LC = World->FindOrAddCollectionByType(CollectionType);
+	FLevelCollection& LC = World->FindOrAddCollectionForLevelStreaming(this);
 	LC.RemoveLevel(PendingUnloadLevel);
 
 	if (PendingUnloadLevel)
@@ -2246,17 +2242,15 @@ void ULevelStreaming::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		}
 		else if (PropertyName == GET_MEMBER_NAME_CHECKED(ULevelStreaming, bIsStatic))
 		{
-			if (LoadedLevel)
+			UWorld* World = GetWorld();
+			if (LoadedLevel && World)
 			{
-				const ELevelCollectionType NewCollectionType = bIsStatic ? ELevelCollectionType::StaticLevels : ELevelCollectionType::DynamicSourceLevels;
 				FLevelCollection* PreviousCollection = LoadedLevel->GetCachedLevelCollection();
+				FLevelCollection& LC = World->FindOrAddCollectionForLevelStreaming(this);
 
-				if (PreviousCollection && PreviousCollection->GetType() != NewCollectionType)
+				if (PreviousCollection && PreviousCollection != &LC)
 				{
 					PreviousCollection->RemoveLevel(LoadedLevel);
-
-					UWorld* World = GetWorld();
-					FLevelCollection& LC = World->FindOrAddCollectionByType(NewCollectionType);
 					LC.AddLevel(LoadedLevel);
 				}
 			}

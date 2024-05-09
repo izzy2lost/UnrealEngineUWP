@@ -4024,16 +4024,21 @@ enum class ELevelCollectionType : uint8
 	/**
 	 * The dynamic levels that are used for normal gameplay and the source for any duplicated collections.
 	 * Will contain a world's persistent level and any streaming levels that contain dynamic or replicated gameplay actors.
+	 * This collection will always exist for gameplay and editor worlds.
 	 */
 	DynamicSourceLevels,
 
-	/** Gameplay relevant levels that have been duplicated from DynamicSourceLevels if requested by the game. */
+	/** 
+	 * Gameplay relevant levels that have been duplicated from DynamicSourceLevels if requested by the game.
+	 * This collection only exists if levels have actually been duplicated.
+	 */
 	DynamicDuplicatedLevels,
 
 	/**
 	 * These levels are shared between the source levels and the duplicated levels, and should contain
 	 * only static geometry and other visuals that are not replicated or affected by gameplay.
 	 * These will not be duplicated in order to save memory.
+	 * If s.World.CreateStaticLevelCollection is 0, this will not be created and static levels will be treated as dynamic.
 	 */
 	StaticLevels,
 

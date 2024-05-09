@@ -2963,6 +2963,7 @@ public:
 	 *	If this function returns true, the DynamicSourceLevels collection will be duplicated for the given map.
 	 *	This is necessary to do outside of the editor when we don't have the original editor world, and it's 
 	 *	not safe to copy the dynamic levels once they've been fully initialized, so we pre-duplicate them when the original levels are first created.
+	 *	If you implement this, enable s.World.CreateStaticLevelCollection to stop it from duplicating static streaming levels.
 	 */
 	virtual bool Experimental_ShouldPreDuplicateMap(const FName MapName) const { return false; }
 

@@ -771,9 +771,9 @@ FTimerData::FTimerData()
 	, bMaxOncePerFrame(false)
 	, bRequiresDelegate(false)
 	, Status(ETimerStatus::Active)
+	, LevelCollection(ELevelCollectionType::DynamicSourceLevels)
 	, Rate(0)
 	, ExpireTime(0)
-	, LevelCollection(ELevelCollectionType::DynamicSourceLevels)
 {}
 
 // ---------------------------------
@@ -835,7 +835,6 @@ void FTimerManager::Tick(float DeltaTime)
 	InternalTime += DeltaTime;
 
 	UWorld* const OwningWorld = OwningGameInstance ? OwningGameInstance->GetWorld() : nullptr;
-	UWorld* const LevelCollectionWorld = OwningWorld;
 
 #if UE_ENABLE_DUMPALLTIMERLOGSTHRESHOLD
 	// Dump timer info to logs if we have way too many timers active.
@@ -900,7 +899,7 @@ void FTimerManager::Tick(float DeltaTime)
 			// Set the relevant level context for this timer
 			const int32 LevelCollectionIndex = OwningWorld ? OwningWorld->FindCollectionIndexByType(Top->LevelCollection) : INDEX_NONE;
 			
-			FScopedLevelCollectionContextSwitch LevelContext(LevelCollectionIndex, LevelCollectionWorld);
+			FScopedLevelCollectionContextSwitch LevelContext(LevelCollectionIndex, OwningWorld);
 
 			// Remove it from the heap and store it while we're executing
 			ActiveTimerHeap.HeapPop(CurrentlyExecutingTimer, FTimerHeapOrder(Timers), EAllowShrinking::No);

@@ -118,6 +118,9 @@ struct FTimerData
 
 	/** Timer Status */
 	ETimerStatus Status;
+
+	/** The level collection that was active when this timer was created. Used to set the correct context before executing the timer's delegate. */
+	ELevelCollectionType LevelCollection;
 	
 	/** Time between set and fire, or repeat frequency if looping. */
 	float Rate;
@@ -137,9 +140,6 @@ struct FTimerData
 
 	/** This is the key to the TimerIndicesByObject map - this is kept so that we can look up even if the referenced object is expired */
 	const void* TimerIndicesByObjectKey = nullptr;
-
-	/** The level collection that was active when this timer was created. Used to set the correct context before executing the timer's delegate. */
-	ELevelCollectionType LevelCollection;
 
 	ENGINE_API FTimerData();
 

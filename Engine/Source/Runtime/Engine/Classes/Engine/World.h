@@ -1629,9 +1629,6 @@ public:
 	/** Interface to the FX system managing particles and related effects for this world.										*/
 	class FFXSystemInterface*					FXSystem;
 
-	/** Data structures for holding the tick functions that are associated with the world (line batcher, etc) **/
-	class FTickTaskLevel*						TickTaskLevel;
-
 	/** Tick function for starting physics																						*/
 	FStartPhysicsTickFunction StartPhysicsTickFunction;
 	/** Tick function for ending physics																						*/
@@ -3205,6 +3202,9 @@ public:
 	 * Remove a level from the level list.
 	 */
 	bool RemoveLevel( ULevel* InLevel );
+
+	/** Returns the FLevelCollection for the passed in streaming level, which could depend on configuration */
+	FLevelCollection& FindOrAddCollectionForLevelStreaming(const ULevelStreaming* Level);
 
 	/** Returns the FLevelCollection for the given InType. If one does not exist, it is created. */
 	FLevelCollection& FindOrAddCollectionByType(const ELevelCollectionType InType);
