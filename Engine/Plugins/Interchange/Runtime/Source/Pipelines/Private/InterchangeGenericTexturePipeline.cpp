@@ -401,7 +401,12 @@ void UInterchangeGenericTexturePipeline::PostImportTextureAssetImport(UObject* C
 	// (Note - as part of the standard interchange import this is called during the object
 	// import iteration, _before_ the iteration to call to PostEditChange which is what starts the texture build via UpdateResource,
 	// so altering properties here should be safe!)
-	check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture));
+
+	if (Texture->IsCompiling())
+	{
+		ensure(!bIsAReimport);
+		FTextureCompilingManager::Get().FinishCompilation(MakeArrayView(&Texture, 1));
+	}
 
 	if(bFlipNormalMapGreenChannel && Texture->IsNormalMap())
 	{
