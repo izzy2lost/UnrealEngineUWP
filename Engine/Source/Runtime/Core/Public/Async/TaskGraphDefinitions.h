@@ -2,6 +2,6 @@
 #pragma once
 
 #if !defined(TASKGRAPH_NEW_FRONTEND)
-#define TASKGRAPH_NEW_FRONTEND 0
+#define TASKGRAPH_NEW_FRONTEND 1
 #endif
 
