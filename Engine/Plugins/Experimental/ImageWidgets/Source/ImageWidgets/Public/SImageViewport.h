@@ -114,7 +114,8 @@ namespace UE::ImageWidgets
 		DECLARE_DELEGATE(FOnLeftMouseButtonPressed);
 		DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
 
-		SLATE_BEGIN_ARGS(SImageViewport)
+		SLATE_BEGIN_ARGS(SImageViewport) :
+			_MouseCaptureMode(EMouseCaptureMode::CapturePermanently)
 			{
 			}
 
