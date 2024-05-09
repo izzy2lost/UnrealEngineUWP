@@ -15,6 +15,7 @@
 #include "Toolkits/AssetEditorToolkitMenuContext.h"
 #include "WorkspaceEditorCommands.h"
 #include "SWorkspaceTabWrapper.h"
+#include "Framework/Docking/LayoutExtender.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceEditor"
 
@@ -30,11 +31,12 @@ namespace WorkspaceTabs
 {
 	const FName Details("DetailsTab");
 	const FName WorkspaceView("WorkspaceView");
-	const FName TopDocumentArea("TopDocumentArea");
-	const FName LeftDocumentArea("LeftDocumentArea");
-	const FName MiddleDocumentArea("MiddleDocumentArea");
-	const FName RightDocumentArea("RightDocumentArea");
-	const FName BottomDocumentArea("BottomDocumentArea");
+	const FName TopLeftDocumentArea("TopLeftDocumentArea");
+	const FName BottomLeftDocumentArea("BottomLeftDocumentArea");
+	const FName TopMiddleDocumentArea("TopMiddleDocumentArea");
+	const FName BottomMiddleDocumentArea("BottomMiddleDocumentArea");
+	const FName TopRightDocumentArea("TopRightDocumentArea");
+	const FName BottomRightDocumentArea("BottomRightDocumentArea");
 }
 
 const FName WorkspaceAppIdentifier("WorkspaceEditor");
@@ -48,77 +50,116 @@ void FWorkspaceEditor::CreateWidgets()
 {
 	DocumentManager = MakeShared<FDocumentTracker>(NAME_None);
 	DocumentManager->Initialize(SharedThis(this));
-	
+
 	FBaseAssetToolkit::CreateWidgets();
 
-	const FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
+	FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
 
 	// Build document summoners for each workspace layout area
-	const TSharedRef<FAssetDocumentSummoner> LeftAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::LeftDocumentArea, SharedThis(this));
-	LeftAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::LeftDocumentArea));
-	DocumentManager->RegisterDocumentFactory(LeftAssetDocumentSummoner);
+	const TSharedRef<FAssetDocumentSummoner> TopLeftAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::TopLeftDocumentArea, SharedThis(this));
+	TopLeftAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::TopLeftDocumentArea));
+	DocumentManager->RegisterDocumentFactory(TopLeftAssetDocumentSummoner);
+
+	const TSharedRef<FAssetDocumentSummoner> BottomLeftAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::BottomLeftDocumentArea, SharedThis(this));
+	BottomLeftAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::BottomLeftDocumentArea));
+	DocumentManager->RegisterDocumentFactory(BottomLeftAssetDocumentSummoner);
 
 	constexpr bool bAllowUnsupportedClasses = true;
-	const TSharedRef<FAssetDocumentSummoner> MiddleAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::MiddleDocumentArea, SharedThis(this), bAllowUnsupportedClasses);
-	MiddleAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::MiddleDocumentArea));
-	DocumentManager->RegisterDocumentFactory(MiddleAssetDocumentSummoner);
+	const TSharedRef<FAssetDocumentSummoner> TopMiddleAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::TopMiddleDocumentArea, SharedThis(this), bAllowUnsupportedClasses);
+	TopMiddleAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::TopMiddleDocumentArea));
+	DocumentManager->RegisterDocumentFactory(TopMiddleAssetDocumentSummoner);
 
-	const TSharedRef<FAssetDocumentSummoner> RightAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::RightDocumentArea, SharedThis(this));
-	RightAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::RightDocumentArea));
-	DocumentManager->RegisterDocumentFactory(RightAssetDocumentSummoner);
-	
+	const TSharedRef<FAssetDocumentSummoner> BottomMiddleAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::BottomMiddleDocumentArea, SharedThis(this));
+	BottomMiddleAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::BottomMiddleDocumentArea));
+	DocumentManager->RegisterDocumentFactory(BottomMiddleAssetDocumentSummoner);
+
+	const TSharedRef<FAssetDocumentSummoner> TopRightAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::TopRightDocumentArea, SharedThis(this));
+	TopRightAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::TopRightDocumentArea));
+	DocumentManager->RegisterDocumentFactory(TopRightAssetDocumentSummoner);
+
+	const TSharedRef<FAssetDocumentSummoner> BottomRightAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::BottomRightDocumentArea, SharedThis(this));
+	BottomRightAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::BottomRightDocumentArea));
+	DocumentManager->RegisterDocumentFactory(BottomRightAssetDocumentSummoner);
+
 	check(DetailsView.IsValid());
 	WorkspaceEditorModule.ApplyWorkspaceDetailsCustomization(StaticCastWeakPtr<IWorkspaceEditor>(this->AsWeak()), DetailsView);
 
-	StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_WorkspaceEditor_Layout_v1.1")
+	StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_WorkspaceEditor_Layout_v1.2")
 	->AddArea
 	(
 		FTabManager::NewPrimaryArea()
 		->SetOrientation(Orient_Vertical)
 		->Split
 		(
-			FTabManager::NewStack()
-			->SetSizeCoefficient(0.15f)
-			->SetHideTabWell(false)
-			->AddTab(WorkspaceTabs::TopDocumentArea, ETabState::ClosedTab)
-		)
-		->Split
-		(
 			FTabManager::NewSplitter()
-			->SetSizeCoefficient(0.6f)
 			->SetOrientation(Orient_Horizontal)
 			->Split
 			(
-				FTabManager::NewStack()
+				FTabManager::NewSplitter()
 				->SetSizeCoefficient(0.25f)
-				->SetHideTabWell(false)
-				->AddTab(WorkspaceTabs::WorkspaceView, ETabState::OpenedTab)
-				->AddTab(WorkspaceTabs::LeftDocumentArea, ETabState::ClosedTab)
+				->SetOrientation(Orient_Vertical)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.5f)
+					->SetHideTabWell(false)
+					->AddTab(WorkspaceTabs::WorkspaceView, ETabState::OpenedTab)
+					->AddTab(WorkspaceTabs::TopLeftDocumentArea, ETabState::ClosedTab)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.5f)
+					->SetHideTabWell(false)
+					->AddTab(WorkspaceTabs::BottomLeftDocumentArea, ETabState::ClosedTab)
+				)
 			)
 			->Split
 			(
-				FTabManager::NewStack()
+				FTabManager::NewSplitter()
 				->SetSizeCoefficient(0.5f)
-				->SetHideTabWell(false)
-				->AddTab(WorkspaceTabs::MiddleDocumentArea, ETabState::ClosedTab)
+				->SetOrientation(Orient_Vertical)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.75f)
+					->SetHideTabWell(false)
+					->AddTab(WorkspaceTabs::TopMiddleDocumentArea, ETabState::ClosedTab)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.25f)
+					->SetHideTabWell(false)
+					->AddTab(WorkspaceTabs::BottomMiddleDocumentArea, ETabState::ClosedTab)
+				)
 			)
 			->Split
 			(
-				FTabManager::NewStack()
+				FTabManager::NewSplitter()
 				->SetSizeCoefficient(0.25f)
-				->SetHideTabWell(false)
-				->AddTab(WorkspaceTabs::RightDocumentArea, ETabState::ClosedTab)
-				->AddTab(FBaseAssetToolkit::DetailsTabID, ETabState::OpenedTab)
+				->SetOrientation(Orient_Vertical)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.5f)
+					->SetHideTabWell(false)
+					->AddTab(WorkspaceTabs::TopRightDocumentArea, ETabState::ClosedTab)
+					->AddTab(FBaseAssetToolkit::DetailsTabID, ETabState::OpenedTab)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.5f)
+					->SetHideTabWell(false)
+					->AddTab(WorkspaceTabs::BottomRightDocumentArea, ETabState::ClosedTab)
+				)
 			)
-		)
-		->Split
-		(
-			FTabManager::NewStack()
-			->SetSizeCoefficient(0.15f)
-			->SetHideTabWell(false)
-			->AddTab(WorkspaceTabs::BottomDocumentArea, ETabState::ClosedTab)
 		)
 	);
+
+	WorkspaceEditorModule.OnExtendTabs().Broadcast(*LayoutExtender.Get(), StaticCastSharedRef<UE::Workspace::IWorkspaceEditor>(AsShared()));
+	StandaloneDefaultLayout->ProcessExtensions(*LayoutExtender.Get());
 
 	WorkspaceView = SNew(SWorkspaceView, Workspace, StaticCastSharedRef<UE::Workspace::IWorkspaceEditor>(AsShared()));
 	BindCommands();

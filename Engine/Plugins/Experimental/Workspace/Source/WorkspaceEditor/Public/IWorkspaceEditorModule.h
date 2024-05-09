@@ -16,6 +16,7 @@ class IDetailsView;
 class FTabManager;
 class FWorkflowAllowedTabSet;
 class IDetailCustomization;
+class FLayoutExtender;
 
 struct FSlateBrush;
 struct FTopLevelAssetPath;
@@ -32,9 +33,12 @@ namespace UE::Workspace
 
 namespace WorkspaceTabs
 {
-	WORKSPACEEDITOR_API extern const FName LeftDocumentArea;
-	WORKSPACEEDITOR_API extern const FName MiddleDocumentArea;
-	WORKSPACEEDITOR_API extern const FName RightDocumentArea;
+	WORKSPACEEDITOR_API extern const FName TopLeftDocumentArea;
+	WORKSPACEEDITOR_API extern const FName BottomLeftDocumentArea;
+	WORKSPACEEDITOR_API extern const FName TopMiddleDocumentArea;
+	WORKSPACEEDITOR_API extern const FName BottomMiddleDocumentArea;
+	WORKSPACEEDITOR_API extern const FName TopRightDocumentArea;
+	WORKSPACEEDITOR_API extern const FName BottomRightDocumentArea;
 }
 
 // Context passed to workspace editor delegates
@@ -78,7 +82,7 @@ struct FObjectDocumentArgs
 {
 	FObjectDocumentArgs() = default;
 
-	FObjectDocumentArgs(FOnMakeDocumentWidget InOnMakeDocumentWidget, FName InSpawnLocation = WorkspaceTabs::MiddleDocumentArea)
+	FObjectDocumentArgs(FOnMakeDocumentWidget InOnMakeDocumentWidget, FName InSpawnLocation = WorkspaceTabs::TopMiddleDocumentArea)
 		: OnMakeDocumentWidget(InOnMakeDocumentWidget)
 		, SpawnLocation(InSpawnLocation)
 	{}
@@ -99,7 +103,7 @@ struct FObjectDocumentArgs
 	FOnGetTabName OnGetTabName;
 
 	// Where to spawn the widget in the workspace layout - e.g. one of WorkspaceTabs
-	FName SpawnLocation = WorkspaceTabs::MiddleDocumentArea;
+	FName SpawnLocation = WorkspaceTabs::TopMiddleDocumentArea;
 
 	// Delegate called to get the bread crumb trail for this document tab
 	FOnGetDocumentBreadcrumbTrail OnGetDocumentBreadcrumbTrail;
@@ -127,7 +131,7 @@ using FOnGetWorkspaceDetailCustomizationInstance = TDelegate<TSharedRef<IDetailC
 struct FGraphDocumentWidgetArgs
 {
 	// Where to spawn the widget in the workspace layout - e.g. one of WorkspaceTabs
-	FName SpawnLocation = WorkspaceTabs::MiddleDocumentArea;
+	FName SpawnLocation = WorkspaceTabs::TopMiddleDocumentArea;
 
 	FOnCreateActionMenu OnCreateActionMenu;
 
@@ -191,6 +195,10 @@ public:
 	// Event to allow registering tabs to other elements
 	DECLARE_EVENT_ThreeParams(IWorkspaceEditorModule, FOnRegisterTabs, FWorkflowAllowedTabSet& TabFactories, const TSharedRef<FTabManager>&, TSharedPtr<IWorkspaceEditor>);
 	virtual FOnRegisterTabs& OnRegisterTabsForEditor() = 0;
+
+	// Event to allow extending the layout
+	DECLARE_EVENT_TwoParams(IWorkspaceEditorModule, FOnExtendTabs, FLayoutExtender&, TSharedPtr<IWorkspaceEditor>);
+	virtual FOnExtendTabs& OnExtendTabs() = 0;
 };
 
 }

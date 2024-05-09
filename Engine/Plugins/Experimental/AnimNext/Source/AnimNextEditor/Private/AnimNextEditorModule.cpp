@@ -46,6 +46,7 @@
 #include "Graph/AnimNextGraph_OutlinerItemDetails.h"
 #include "Param/AnimNextActorLocatorEditor.h"
 #include "IWorkspaceEditor.h"
+#include "Framework/Docking/LayoutExtender.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -93,17 +94,25 @@ void FModule::StartupModule()
 
 	Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
 
-	WorkspaceEditorModule.OnRegisterTabsForEditor().AddLambda([](FWorkflowAllowedTabSet& TabFactories, const TSharedRef<FTabManager>& InTabManager, TSharedPtr<UE::Workspace::IWorkspaceEditor> EditorPtr)
+	WorkspaceEditorModule.OnRegisterTabsForEditor().AddLambda([](FWorkflowAllowedTabSet& TabFactories, const TSharedRef<FTabManager>& InTabManager, TSharedPtr<UE::Workspace::IWorkspaceEditor> InEditorPtr)
 		{
-			TabFactories.RegisterFactory(MakeShared<UE::AnimNext::Editor::FTraitEditorTabSummoner>(EditorPtr));
+			TSharedRef<FTraitEditorTabSummoner> TraitEditorTabSummoner = MakeShared<FTraitEditorTabSummoner>(InEditorPtr);
+			TabFactories.RegisterFactory(TraitEditorTabSummoner);
+			TraitEditorTabSummoner->RegisterTabSpawner(InTabManager, nullptr);
 
-			TabFactories.RegisterFactory(MakeShared<UE::AnimNext::Editor::FAnimNextCompilerResultsTabSummoner>(EditorPtr));
-
-			for (auto FactoryIt = TabFactories.CreateIterator(); FactoryIt; ++FactoryIt)
-			{
-				FactoryIt.Value()->RegisterTabSpawner(InTabManager, nullptr);
-			}
+			TSharedRef<FAnimNextCompilerResultsTabSummoner> CompilerResultsTabSummoner = MakeShared<FAnimNextCompilerResultsTabSummoner>(InEditorPtr);
+			TabFactories.RegisterFactory(CompilerResultsTabSummoner);
+			CompilerResultsTabSummoner->RegisterTabSpawner(InTabManager, nullptr);
 		});
+
+	WorkspaceEditorModule.OnExtendTabs().AddLambda([](FLayoutExtender& InLayoutExtender, TSharedPtr<UE::Workspace::IWorkspaceEditor> InEditorPtr)
+	{
+		FTabManager::FTab TraitEditorTab(FTabId(TraitEditorTabName), ETabState::ClosedTab);
+		InLayoutExtender.ExtendLayout(FTabId(Workspace::WorkspaceTabs::TopRightDocumentArea), ELayoutExtensionPosition::After, TraitEditorTab);
+
+		FTabManager::FTab CompilerResultsTab(FTabId(CompilerResultsTabName), ETabState::ClosedTab);
+		InLayoutExtender.ExtendLayout(FTabId(Workspace::WorkspaceTabs::BottomMiddleDocumentArea), ELayoutExtensionPosition::After, CompilerResultsTab);
+	});
 
 	RegisterWorkspaceDocumentTypes(WorkspaceEditorModule);
 
@@ -303,7 +312,7 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 			DetailsView->SetObject(Schedule);
 			return DetailsView;
 		}
-	), Workspace::WorkspaceTabs::MiddleDocumentArea);
+	), Workspace::WorkspaceTabs::TopMiddleDocumentArea);
 	ScheduleDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
 	{
 		const UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InContext.Object);
@@ -380,7 +389,7 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 						}
 					});
 			}),
-			Workspace::WorkspaceTabs::MiddleDocumentArea);
+			Workspace::WorkspaceTabs::TopMiddleDocumentArea);
 	AnimNextGraphDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)
 	{
 		const UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InContext.Object);
@@ -405,7 +414,7 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 
 	// --- AnimNextGraph_EdGraph ---
 	Workspace::FGraphDocumentWidgetArgs GraphArgs;
-	GraphArgs.SpawnLocation = Workspace::WorkspaceTabs::MiddleDocumentArea;
+	GraphArgs.SpawnLocation = Workspace::WorkspaceTabs::TopMiddleDocumentArea;
 	GraphArgs.OnCreateActionMenu = Workspace::FOnCreateActionMenu::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)
 	{
 		TSharedRef<SActionMenu> ActionMenu = SNew(SActionMenu, InGraph)

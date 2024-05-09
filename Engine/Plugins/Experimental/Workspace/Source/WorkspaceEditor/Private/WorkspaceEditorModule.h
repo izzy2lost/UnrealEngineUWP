@@ -32,6 +32,7 @@ private:
 	virtual void RegisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails> InItemDetails) override;	
 	virtual void UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetails) override;
 	virtual FOnRegisterTabs& OnRegisterTabsForEditor() override { return RegisterTabsForEditor; }
+	virtual FOnExtendTabs& OnExtendTabs() override { return ExtendTabsForEditor; }
 
 	// Find an existing registered object document type
 	const FObjectDocumentArgs* FindObjectDocumentType(const FTopLevelAssetPath& InClassPath) const;
@@ -57,6 +58,9 @@ private:
 
 	/** Event called to allow external clients to register additional tabs for the specified editor */
 	FOnRegisterTabs RegisterTabsForEditor;
+	
+	/** Event called to allow external clients to extend the tab layout for the specified editor */
+	FOnExtendTabs ExtendTabsForEditor;
 
 	friend struct FAssetDocumentSummoner;
 	friend struct FWorkspaceOutlinerTreeItem;
