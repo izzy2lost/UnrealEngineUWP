@@ -907,11 +907,7 @@ int32 UCustomizableObjectNodeMaterial::GetNumParameters(const EMaterialParameter
 {
 	if (Material)
 	{
-#if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION>=1
 		return Material->GetCachedExpressionData().GetParameterTypeEntry(Type).ParameterInfoSet.Num();
-#else
-		return Material->GetCachedExpressionData().Parameters.GetNumParameters(Type);
-#endif
 	}
 	else
 	{
@@ -924,7 +920,6 @@ FGuid UCustomizableObjectNodeMaterial::GetParameterId(const EMaterialParameterTy
 {
 	const FMaterialCachedExpressionData& Data = Material->GetCachedExpressionData();
 
-#if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION>=1
 	if (Data.EditorOnlyData)
 	{
 		if (Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo.Num() != 0)
@@ -932,10 +927,6 @@ FGuid UCustomizableObjectNodeMaterial::GetParameterId(const EMaterialParameterTy
 			return Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo[ParameterIndex].ExpressionGuid;
 		}
 	}
-#else
-	const FMaterialCachedParameterEntry& Entry = Data.Parameters.GetParameterTypeEntry(Type);
-	return Entry.EditorInfo[ParameterIndex].ExpressionGuid;
-#endif
 	
 	return FGuid();
 }
@@ -947,8 +938,6 @@ FName UCustomizableObjectNodeMaterial::GetParameterName(const EMaterialParameter
 	{
 		return FName();
 	}
-
-#if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION>=1
 
 	const FMaterialCachedParameterEntry& Entry = Material->GetCachedExpressionData().GetParameterTypeEntry(Type);
 
@@ -965,16 +954,6 @@ FName UCustomizableObjectNodeMaterial::GetParameterName(const EMaterialParameter
 	// The parameter should exist
 	check(false);
 
-#else
-
-	TArray<FGuid> ParameterIds;
-	TArray<FMaterialParameterInfo> ParameterInfo;
-	Material->GetAllParameterInfoOfType(Type, ParameterInfo, ParameterIds);
-
-	return ParameterInfo.IsValidIndex(ParameterIndex) ? ParameterInfo[ParameterIndex].Name : FName();
-
-#endif
-
 	return FName();
 }
 
@@ -985,8 +964,6 @@ int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const EMaterialPar
 	{
 		return -1;
 	}
-
-#if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION>=1
 
 	const FMaterialCachedParameterEntry& Entry = Material->GetCachedExpressionData().GetParameterTypeEntry(Type);
 
@@ -1002,16 +979,6 @@ int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const EMaterialPar
 
 	// The parameter should exist
 	check(false);
-
-#else
-
-	TArray<FGuid> ParameterIds;
-	TArray<FMaterialParameterInfo> ParameterInfo;
-	Material->GetAllParameterInfoOfType(Type, ParameterInfo, ParameterIds);
-
-	return ParameterInfo.IsValidIndex(ParameterIndex) ? ParameterInfo[ParameterIndex].Index : -1;
-
-#endif
 
 	return -1;
 }
@@ -1030,27 +997,17 @@ FText UCustomizableObjectNodeMaterial::GetParameterLayerName(const EMaterialPara
 	FMaterialLayersFunctions LayersValue;
 	Material->GetMaterialLayers(LayersValue);
 
-#if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION>=1
 
 	return LayersValue.EditorOnly.LayerNames.IsValidIndex(LayerIndex) ? LayersValue.EditorOnly.LayerNames[LayerIndex] : FText();
-
-#else
-
-	return LayersValue.LayerNames.IsValidIndex(LayerIndex) ? LayersValue.LayerNames[LayerIndex] : FText();
-
-#endif
 }
 
 
 bool UCustomizableObjectNodeMaterial::HasParameter(const FGuid& ParameterId) const
 {
-	ensure(Material);
 	if (!Material)
 	{
 		return false;
 	}
-
-#if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION>=1
 
 	for (const EMaterialParameterType Type : ParameterTypes)
 	{
@@ -1073,32 +1030,6 @@ bool UCustomizableObjectNodeMaterial::HasParameter(const FGuid& ParameterId) con
 			}
 		}
 	}
-
-#else
-
-	const FMaterialCachedExpressionData& Data = Material->GetCachedExpressionData();
-	for (const FMaterialCachedParameterEntry& Entry : Data.Parameters.RuntimeEntries)
-	{
-		for (const FMaterialCachedParameterEditorInfo& Info : Entry.EditorInfo)
-		{
-			if (Info.ExpressionGuid == ParameterId)
-			{
-				return true;
-			}
-		}
-	}
-	for (const FMaterialCachedParameterEntry& Entry : Data.Parameters.EditorOnlyEntries)
-	{
-		for (const FMaterialCachedParameterEditorInfo& Info : Entry.EditorInfo)
-		{
-			if (Info.ExpressionGuid == ParameterId)
-			{
-				return true;
-			}
-		}
-	}
-
-#endif
 
 	return false;
 }
