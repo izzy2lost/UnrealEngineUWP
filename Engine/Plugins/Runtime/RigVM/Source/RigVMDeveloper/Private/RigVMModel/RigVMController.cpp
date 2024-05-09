@@ -4212,6 +4212,15 @@ TArray<FName> URigVMController::ImportNodesFromText(const FString& InText, bool 
 		Swap(Factory.CreatedNodes, FilteredNodes);
 	}
 
+	// Some nodes inside these graphs might have been deleted, we need to clean up the graph
+	for (URigVMGraph* CreatedGraph : Factory.CreatedGraphs)
+	{
+		CreatedGraph->Nodes = CreatedGraph->Nodes.FilterByPredicate([](const URigVMNode* Node)
+		{
+			return IsValid(Node);
+		});
+	}
+
 	// the links may already be in the graph's links property
 	// due to the serialization - remove them since we need.
 	// but we also want to maintain the order of the links as they

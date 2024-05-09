@@ -2761,7 +2761,10 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs)
 	{
 		for (URigVMNode* LocalNode : Graph->GetNodes())
 		{
-			LocalNodeProxies.Add(FRigVMASTProxy::MakeFromUObject(LocalNode));
+			if (IsValid(LocalNode))
+			{
+				LocalNodeProxies.Add(FRigVMASTProxy::MakeFromUObject(LocalNode));
+			}
 		}
 	}
 	Inline(InGraphs, LocalNodeProxies);
