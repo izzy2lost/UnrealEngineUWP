@@ -1884,7 +1884,7 @@ void FStaticMeshRenderData::Serialize(FArchive& Ar, UStaticMesh* Owner, bool bCo
 			check(OwnerStaticMesh);
 
 			FTriMeshCollisionData CollisionData;
-			if (OwnerStaticMesh->GetBodySetup() && OwnerStaticMesh->GetBodySetup()->GetCollisionTraceFlag() != CTF_UseComplexAsSimple && OwnerStaticMesh->ContainsPhysicsTriMeshData(true))
+			if (OwnerStaticMesh->ContainsPhysicsTriMeshData(true))
 			{
 				OwnerStaticMesh->GetPhysicsTriMeshData(&CollisionData, true);
 			}
