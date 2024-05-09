@@ -64,24 +64,10 @@ struct FLatentActionManager
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Map of UUID->Action(s). */
-	typedef TMultiMap<int32, class FPendingLatentAction*> FActionList;
-
-	struct FObjectActions
-	{
-		/** Map of UUID->Action(s). */
-		FActionList ActionList;
-		bool bProcessedThisFrame = false;
-	};
-	
-	/** Map to convert from object to FActionList. */
-	typedef TMap< TWeakObjectPtr<UObject>, TSharedPtr<FObjectActions> > FObjectToActionListMap;
-	FObjectToActionListMap ObjectToActionListMap;
-
+public: 
 	/** @return A delegate that will be broadcast when a latent action is added or removed from the manager */
 	static FOnLatentActionsChanged& OnLatentActionsChanged() { return LatentActionsChangedDelegate; }
 
-public:
 	/** 
 	 * Advance pending latent actions by DeltaTime.
  	 * If no object is specified it will process any outstanding actions for objects that have not been processed for this frame.
@@ -180,6 +166,20 @@ public:
 	ENGINE_API ~FLatentActionManager();
 
 protected:
+	/** Map of UUID->Action(s). */
+	typedef TMultiMap<int32, class FPendingLatentAction*> FActionList;
+
+	struct FObjectActions
+	{
+		/** Map of UUID->Action(s). */
+		FActionList ActionList;
+		bool bProcessedThisFrame = false;
+	};
+
+	/** Map to convert from object to FActionList. */
+	typedef TMap< TWeakObjectPtr<UObject>, TSharedPtr<FObjectActions>, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<TWeakObjectPtr<UObject>, TSharedPtr<FObjectActions> > > FObjectToActionListMap;
+	FObjectToActionListMap ObjectToActionListMap;
+
 	/** 
 	 * Finds the action instance for the supplied object will return NULL if one does not exist.
 	 *

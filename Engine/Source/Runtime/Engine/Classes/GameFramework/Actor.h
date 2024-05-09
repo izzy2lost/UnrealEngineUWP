@@ -4643,11 +4643,11 @@ private:
 };
 #endif
 
-/** Helper function for executing tick functions based on the normal conditions previous found in UActorComponent::ConditionalTick */
+/** Helper function for executing component tick functions using the same conditions as FActorTickFunction */
 template <typename ExecuteTickLambda>
 void FActorComponentTickFunction::ExecuteTickHelper(UActorComponent* Target, bool bTickInEditor, float DeltaTime, ELevelTick TickType, const ExecuteTickLambda& ExecuteTickFunc)
 {
-	if (Target && IsValidChecked(Target) && !Target->IsUnreachable())
+	if (IsValid(Target))
 	{
 		FScopeCycleCounterUObject ComponentScope(Target);
 		FScopeCycleCounterUObject AdditionalScope(Target->AdditionalStatObject());
@@ -4655,11 +4655,8 @@ void FActorComponentTickFunction::ExecuteTickHelper(UActorComponent* Target, boo
 		if (Target->bRegistered)
 		{
 			AActor* MyOwner = Target->GetOwner();
-			//@optimization, I imagine this is all unnecessary in a shipping game with no editor
-			if (TickType != LEVELTICK_ViewportsOnly ||
-				(bTickInEditor && TickType == LEVELTICK_ViewportsOnly) ||
-				(MyOwner && MyOwner->ShouldTickIfViewportsOnly())
-				)
+			if (TickType != LEVELTICK_ViewportsOnly || bTickInEditor ||
+				(MyOwner && MyOwner->ShouldTickIfViewportsOnly()))
 			{
 				const float TimeDilation = (MyOwner ? MyOwner->CustomTimeDilation : 1.f);
 				ExecuteTickFunc(DeltaTime * TimeDilation);

@@ -250,7 +250,7 @@ void AActor::InitializeDefaults()
 
 void FActorTickFunction::ExecuteTick(float DeltaTime, enum ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
-	if (Target && IsValidChecked(Target) && !Target->IsUnreachable())
+	if (IsValid(Target))
 	{
 		if (TickType != LEVELTICK_ViewportsOnly || Target->ShouldTickIfViewportsOnly())
 		{
@@ -1507,11 +1507,8 @@ bool AActor::DestroyNetworkActorHandled()
 
 void AActor::TickActor( float DeltaSeconds, ELevelTick TickType, FActorTickFunction& ThisTickFunction )
 {
-	//root of tick hierarchy
-
-	// Non-player update.
-	// If an Actor has been Destroyed or its level has been unloaded don't execute any queued ticks
-	if (IsValidChecked(this) && GetWorld())
+	// Actor validity was checked before this
+	if (GetWorld())
 	{
 		Tick(DeltaSeconds);	// perform any tick functions unique to an actor subclass
 	}
@@ -1521,16 +1518,13 @@ void AActor::Tick( float DeltaSeconds )
 {
 	if (GetClass()->HasAnyClassFlags(CLASS_CompiledFromBlueprint) || !GetClass()->HasAnyClassFlags(CLASS_Native))
 	{
-		// Blueprint code outside of the construction script should not run in the editor
 		// Allow tick if we are not a dedicated server, or we allow this tick on dedicated servers
-		if (GetWorldSettings() != nullptr && (bAllowReceiveTickEventOnDedicatedServer || !IsRunningDedicatedServer()))
+		if (bAllowReceiveTickEventOnDedicatedServer || !IsRunningDedicatedServer())
 		{
 			ReceiveTick(DeltaSeconds);
 		}
 
-
 		// Update any latent actions we have for this actor
-
 		// If this tick is skipped on a frame because we've got a TickInterval, our latent actions will be ticked
 		// anyway by UWorld::Tick(). Given that, our latent actions don't need to be passed a larger
 		// DeltaSeconds to make up the frames that they missed (because they wouldn't have missed any).
@@ -1543,7 +1537,6 @@ void AActor::Tick( float DeltaSeconds )
 		}
 	}
 }
-
 
 /** If true, actor is ticked even if TickType==LEVELTICK_ViewportsOnly */
 bool AActor::ShouldTickIfViewportsOnly() const
