@@ -107,6 +107,10 @@
 			"Name": "DiscoveryBeaconReceiver",
 			"Enabled": true,
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+		},
+		{
+			"Name": "MultiUserClient",
+			"Enabled": true
 		}
 	]
 }
