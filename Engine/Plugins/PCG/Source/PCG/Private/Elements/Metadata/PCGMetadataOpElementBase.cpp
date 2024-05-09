@@ -422,6 +422,8 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 		const uint32 NumberOfResults = Settings->GetResultNum();
 
+		OutState.Context = Context;
+
 		// Gathering all the inputs metadata
 		TArray<const UPCGMetadata*> SourceMetadata;
 		TArray<const FPCGMetadataAttributeBase*> SourceAttribute;
@@ -587,60 +589,46 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 		// Use implicit capture, since we capture a lot
 		auto CreateAttribute = [&]<typename AttributeType>(uint32 OutputIndex, AttributeType DummyOutValue) -> bool
 		{
-			FPCGTaggedData& OutputData = Outputs.Add_GetRef(InputTaggedData[PrimaryPinIndex]);
-			OutputData.Pin = Settings->GetOutputPinLabel(OutputIndex);
+			FPCGTaggedData& OutputTaggedData = Outputs.Add_GetRef(InputTaggedData[PrimaryPinIndex]);
+			OutputTaggedData.Pin = Settings->GetOutputPinLabel(OutputIndex);
 
-			UPCGMetadata* OutMetadata = nullptr;
+			// In case of property or attribute with extra accessor, we need to validate that the property/attribute can accept the output type.
+			// Verify this before duplicating, because an extra allocation is certainly less costly than duplicating the data.
+			// Do it with a const accessor, since OutputTaggedData.Data is still pointing on the const input data.
 
-			const FName OutputName = OutputTarget.GetName();
-			const FText OutputTargetText = OutputTarget.GetDisplayText();
-
-			if (OutputTarget.GetSelection() == EPCGAttributePropertySelection::Attribute && OutputTarget.GetExtraNames().IsEmpty())
+			if (!OutputTarget.IsBasicAttribute())
 			{
-				// In case of an attribute, we check if we have extra selectors. If not, we can just delete the attribute
-				// and create a new one of the right type.
-				// But if we have extra selectors, we need to handle it the same way as properties.
-				// There is no point of failure before duplicating. So duplicate, create the attribute and then the accessor.
-				PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[PrimaryPinIndex], OutputData, OutMetadata);
-				FPCGMetadataAttributeBase* OutputAttribute = PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(OutMetadata, OutputName);
+				const TUniquePtr<const IPCGAttributeAccessor> TempConstAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutputTaggedData.Data.Get(), OutputTarget);
+
+				const bool bIsValid = TempConstAccessor.IsValid() && PCG::Private::IsBroadcastable(PCG::Private::MetadataTypes<AttributeType>::Id, TempConstAccessor->GetUnderlyingType());
+
+				if (!bIsValid)
+				{
+					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeTypeBroadcastFailed_Updated", "Attribute/Property '{0}' ({1}) is not compatible with operation output type ({2})."),
+						OutputTarget.GetDisplayText(),
+						PCG::Private::GetTypeNameText(TempConstAccessor->GetUnderlyingType()),
+						PCG::Private::GetTypeNameText<AttributeType>()));
+					return false;
+				}
+			}
+
+			check(InputTaggedData[PrimaryPinIndex].Data);
+			UPCGData* OutputData = InputTaggedData[PrimaryPinIndex].Data->DuplicateData();
+			check(OutputData);
+			OutputTaggedData.Data = OutputData;
+
+			if (OutputTarget.IsBasicAttribute())
+			{
+				const FName OutputName = OutputTarget.GetName();
+
+				FPCGMetadataAttributeBase* OutputAttribute = PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(OutputData->MutableMetadata(), OutputName);
 				if (!OutputAttribute)
 				{
 					return false;
 				}
-
-				// And copy the mapping from the original attribute, if it is not points
-				if (!InputTaggedData[PrimaryPinIndex].Data->IsA<UPCGPointData>() && SourceMetadata[PrimaryPinIndex] && SourceAttribute[PrimaryPinIndex])
-				{
-					PCGMetadataElementCommon::CopyEntryToValueKeyMap(SourceMetadata[PrimaryPinIndex], SourceAttribute[PrimaryPinIndex], OutputAttribute);
-				}
-
-				OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
 			}
-			else
-			{
-				// In case of property or attribute with extra accessor, we need to validate that the property/attribute can accept the output type.
-				// Verify this before duplicating, because an extra allocation is certainly less costly than duplicating the data.
-				// Do it with a const accessor, since OutputData.Data is still pointing on the const input data.
-				const TUniquePtr<const IPCGAttributeAccessor> TempConstAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutputData.Data.Get(), OutputTarget);
 
-				if (TempConstAccessor.IsValid())
-				{
-					// We matched an attribute/property, check if the output type is valid.
-					if (!PCG::Private::IsBroadcastable(PCG::Private::MetadataTypes<AttributeType>::Id, TempConstAccessor->GetUnderlyingType()))
-					{
-						PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeTypeBroadcastFailed_Updated", "Attribute/Property '{0}' ({1}) is not compatible with operation output type ({2})."),
-							OutputTargetText,
-							PCG::Private::GetTypeNameText(TempConstAccessor->GetUnderlyingType()),
-							PCG::Private::GetTypeNameText<AttributeType>()));
-						return false;
-					}
-
-					PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[PrimaryPinIndex], OutputData, OutMetadata);
-
-					// Re-create the accessor to point to the right data (since we just duplicated the data)
-					OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
-				}
-			}
+			OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(OutputData, OutputTarget);
 
 			if (!OperationData.OutputAccessors[OutputIndex].IsValid())
 			{
@@ -649,11 +637,11 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 
 			if (OperationData.OutputAccessors[OutputIndex]->IsReadOnly())
 			{
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("OutputAccessorIsReadOnly", "Attribute/Property '{0}' is read only."), OutputTargetText));
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("OutputAccessorIsReadOnly", "Attribute/Property '{0}' is read only."), OutputTarget.GetDisplayText()));
 				return false;
 			}
 
-			OperationData.OutputKeys[OutputIndex] = PCGAttributeAccessorHelpers::CreateKeys(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
+			OperationData.OutputKeys[OutputIndex] = PCGAttributeAccessorHelpers::CreateKeys(OutputData, OutputTarget);
 
 			return OperationData.OutputKeys[OutputIndex].IsValid();
 		};
@@ -729,13 +717,7 @@ bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
 			return true;
 		}
 
-		// TODO: Add range-based async evaluation to the DoOperation function in the future
-		if (!DoOperation(IterState))
-		{
-			PCGE_LOG(Error, GraphAndLog, LOCTEXT("ErrorOccurred", "Error while performing the metadata operation, check logs for more information"));
-		}
-
-		return true;
+		return DoOperation(IterState);
 	});
 }
 

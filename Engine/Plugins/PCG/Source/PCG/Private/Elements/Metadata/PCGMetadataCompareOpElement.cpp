@@ -168,10 +168,8 @@ bool FPCGMetadataCompareElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 
 	const UPCGMetadataCompareSettings* Settings = CastChecked<UPCGMetadataCompareSettings>(OperationData.Settings);
 
-	auto CompareFunc = [this, Operation = Settings->Operation, Tolerance = Settings->Tolerance, &OperationData](auto DummyValue) -> bool
+	auto CompareFunc = [this, Operation = Settings->Operation, Tolerance = Settings->Tolerance, &OperationData]<typename AttributeType>(AttributeType) -> bool
 	{
-		using AttributeType = decltype(DummyValue);
-
 		return DoBinaryOp<AttributeType, AttributeType>(OperationData, 
 			[Operation, Tolerance](const AttributeType& Value1, const AttributeType& Value2) -> bool { 
 				return PCGMetadataCompareSettings::ApplyCompare(Value1, Value2, Operation, Tolerance); 

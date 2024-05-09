@@ -153,7 +153,7 @@ bool FPCGAttributeRemapElement::DoOperation(PCGMetadataOps::FOperationData& Oper
 		Params.Intercept = OutRangeTrueMin;
 	}
 
-	auto RemapFunc = [this, &Params, &OperationData]<typename AttributeType>(AttributeType DummyValue) -> bool
+	auto RemapFunc = [this, &Params, &OperationData]<typename AttributeType>(AttributeType) -> bool
 	{
 		using FinalType = std::conditional_t<std::is_same_v<AttributeType, FQuat>, FRotator, AttributeType>;
 		return DoUnaryOp<FinalType>(OperationData, [&Params](const FinalType& Value) -> FinalType 

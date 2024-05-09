@@ -4,6 +4,8 @@
 
 #include "PCGSettings.h"
 
+#include "Data/PCGPointData.h"
+#include "Helpers/PCGAsync.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
@@ -14,6 +16,17 @@
 #include "PCGMetadataOpElementBase.generated.h"
 
 class FPCGMetadataAttributeBase;
+
+// FIXME: To be removed when we are confident Metadata is stable in MT.
+static inline TAutoConsoleVariable<bool> CVarMetadataOperationInMT(
+	TEXT("pcg.MetadataOperationInMT"),
+	true,
+	TEXT("Metadata operations are now multithreaded."));
+
+static inline TAutoConsoleVariable<int> CVarMetadataOperationChunkSize(
+	TEXT("pcg.MetadataOperationChunkSize"),
+	256,
+	TEXT("Metadata operations chunk size."));
 
 namespace PCGMetadataSettingsBaseConstants
 {
@@ -173,6 +186,8 @@ namespace PCGMetadataOps
 		uint16 MostComplexInputType = static_cast<uint16>(EPCGMetadataTypes::Unknown);
 		uint16 OutputType;
 		const UPCGMetadataSettingsBase* Settings = nullptr;
+
+		FPCGContext* Context;
 
 		TArray<FPCGAttributePropertyInputSelector> InputSources;
 
@@ -424,24 +439,40 @@ inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& In
 
 	EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::AllowBroadcast;
 
-	// First set the default value
+	// First set the default value (only on first pass)
 	PCG::Private::NAryOperation::Options Options{ Flags, Flags | EPCGAttributeAccessorFlags::AllowSetDefaultValue, true };
-	PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, /*StartIndex=*/0, /*Range=*/1, Options, InCallbacks);
+	if (!InOperationData.Context->AsyncState.bStarted)
+	{
+		PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, /*StartIndex=*/0, /*Range=*/1, Options, InCallbacks);
+	}
 
 	// Then iterate over all the values
 	Options.SetFlags = Flags;
 	Options.bUseDefaultKey = false;
 
-	const int32 NumberOfIterations = (InOperationData.NumberOfElementsToProcess + PCG::Private::NAryOperation::DefaultChunkSize - 1) / PCG::Private::NAryOperation::DefaultChunkSize;
+	const int32 ChunkSize = CVarMetadataOperationChunkSize.GetValueOnAnyThread();
 
-	for (int32 i = 0; i < NumberOfIterations; ++i)
+	if (CVarMetadataOperationInMT.GetValueOnAnyThread())
 	{
-		int32 StartIndex = i * PCG::Private::NAryOperation::DefaultChunkSize;
-		int32 Range = FMath::Min(InOperationData.NumberOfElementsToProcess - StartIndex, PCG::Private::NAryOperation::DefaultChunkSize);
-		PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, StartIndex, Range, Options, InCallbacks);
+		return FPCGAsync::AsyncProcessingOneToOneRangeEx(&InOperationData.Context->AsyncState, InOperationData.NumberOfElementsToProcess, []() {},
+			[&InOperationData, &InCallbacks, &Options](int32 StartReadIndex, int32 StartWriteIndex, int32 Count)
+		{
+			PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, StartReadIndex, Count, Options, InCallbacks);
+			return Count;
+		}, /*bEnableTimeSlicing=*/true, ChunkSize);
 	}
+	else
+	{
+		const int32 NumberOfIterations = (InOperationData.NumberOfElementsToProcess + PCG::Private::NAryOperation::DefaultChunkSize - 1) / PCG::Private::NAryOperation::DefaultChunkSize;
+		for (int32 i = 0; i < NumberOfIterations; ++i)
+		{
+			int32 StartIndex = i * PCG::Private::NAryOperation::DefaultChunkSize;
+			int32 Range = FMath::Min(InOperationData.NumberOfElementsToProcess - StartIndex, PCG::Private::NAryOperation::DefaultChunkSize);
+			PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, StartIndex, Range, Options, InCallbacks);
+		}
 
-	return true;
+		return true;
+	}
 }
 
 template <typename InType, typename... Callbacks>

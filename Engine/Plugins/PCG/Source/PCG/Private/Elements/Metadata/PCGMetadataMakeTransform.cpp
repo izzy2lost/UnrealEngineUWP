@@ -193,10 +193,8 @@ bool FPCGMetadataMakeTransformElement::DoOperation(PCGMetadataOps::FOperationDat
 
 	const UPCGMetadataMakeTransformSettings* Settings = CastChecked<UPCGMetadataMakeTransformSettings>(OperationData.Settings);
 
-	auto TransformFunc = [this, &OperationData](auto DummyValue) -> bool
+	auto TransformFunc = [this, &OperationData]<typename AttributeType>(AttributeType) -> bool
 	{
-		using AttributeType = decltype(DummyValue);
-
 		if constexpr (PCG::Private::IsOfTypes<AttributeType, FVector2D, FVector, FVector4>())
 		{
 			return DoTernaryOp<AttributeType, FQuat, AttributeType>(OperationData, PCGMetadataMakeTransformSettings::MakeTransform<AttributeType>);
@@ -207,7 +205,8 @@ bool FPCGMetadataMakeTransformElement::DoOperation(PCGMetadataOps::FOperationDat
 		}
 		else
 		{
-			return false;
+			ensure(false);
+			return true;
 		}
 	};
 

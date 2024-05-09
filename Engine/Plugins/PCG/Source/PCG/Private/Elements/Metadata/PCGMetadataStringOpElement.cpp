@@ -127,15 +127,18 @@ bool FPCGMetadataStringOpElement::DoOperation(PCGMetadataOps::FOperationData& Op
 
 	if (Settings->Operation == EPCGMetadataStringOperation::Append)
 	{
-		DoBinaryOp<FString, FString>(OperationData, [](const FString& Value1, const FString& Value2) -> FString { return Value1 + Value2; });
+		return DoBinaryOp<FString, FString>(OperationData, [](const FString& Value1, const FString& Value2) -> FString { return Value1 + Value2; });
 	}
 	else if (Settings->Operation == EPCGMetadataStringOperation::Replace)
 	{
-		DoTernaryOp<FString, FString, FString>(OperationData, [](const FString& InValue, const FString& InSearch, const FString& InReplace)
+		return DoTernaryOp<FString, FString, FString>(OperationData, [](const FString& InValue, const FString& InSearch, const FString& InReplace)
 		{
 			return InValue.Replace(*InSearch, *InReplace);
 		});
 	}
-
-	return true;
+	else
+	{
+		ensure(false);
+		return true;
+	}
 }

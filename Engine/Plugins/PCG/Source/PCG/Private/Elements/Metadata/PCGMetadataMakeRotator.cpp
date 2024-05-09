@@ -187,9 +187,10 @@ bool FPCGMetadataMakeRotatorElement::DoOperation(PCGMetadataOps::FOperationData&
 		{
 			return FRotator{ Pitch, Yaw, Roll };
 		});
+	default:
+		ensure(false);
+		return true;
 	}
-
-	return true;
 }
 
 #undef LOCTEXT_NAMESPACE
