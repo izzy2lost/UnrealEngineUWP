@@ -36,11 +36,12 @@ void UMetaSoundBuilderBase::BeginDestroy()
 {
 	using namespace Metasound::Engine;
 
-	// Need to finish building before destroying UPROPERTYs (Super::BeginDestroy)
-	// as the Builder often holds a TScriptInterface<IMetaSoundDocumentInterface>
-	// of a UPROPERTY that lives on this or derived objects. 
-	constexpr bool bForceUnregister = true;
-	FDocumentBuilderRegistry::GetChecked().FinishBuilding(ClassName, bForceUnregister);
+	FDocumentBuilderRegistry::GetChecked().FinishBuilding(ClassName);
+
+	// Need to detach before destroying UPROPERTYs as the Builder 
+	// often holds a TScriptInterface<IMetaSoundDocumentInterface> of
+	// a UPROPERTY that lives on this or derived objects. 
+	Builder.FinishBuilding();
 	Super::BeginDestroy();
 }
 

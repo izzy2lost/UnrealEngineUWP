@@ -74,24 +74,14 @@ const UClass& UMetaSoundPatchBuilder::GetBaseMetaSoundUClass() const
 
 void UMetaSoundPatchBuilder::OnAssetReferenceAdded(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
 {
-	using namespace Metasound::Frontend;
-
 	check(DocInterface.GetObject());
-	UMetaSoundPatch& Patch = Builder.CastDocumentObjectChecked<UMetaSoundPatch>();
-	FNodeRegistryKey RegistryKey(Patch.GetConstDocument().RootGraph.Metadata);
-	Patch.ReferencedAssetClassObjects.Add(DocInterface.GetObject());
-	Patch.ReferencedAssetClassKeys.Add(RegistryKey.ToString());
+	Builder.CastDocumentObjectChecked<UMetaSoundPatch>().ReferencedAssetClassObjects.Add(DocInterface.GetObject());
 }
 
 void UMetaSoundPatchBuilder::OnRemovingAssetReference(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
 {
-	using namespace Metasound::Frontend;
-
 	check(DocInterface.GetObject());
-	UMetaSoundPatch& Patch = Builder.CastDocumentObjectChecked<UMetaSoundPatch>();
-	FNodeRegistryKey RegistryKey(Patch.GetConstDocument().RootGraph.Metadata);
-	Patch.ReferencedAssetClassObjects.Remove(DocInterface.GetObject());
-	Patch.ReferencedAssetClassKeys.Remove(RegistryKey.ToString());
+	Builder.CastDocumentObjectChecked<UMetaSoundPatch>().ReferencedAssetClassObjects.Remove(DocInterface.GetObject());
 }
 
 UMetaSoundBuilderBase& UMetaSoundBuilderSubsystem::AttachBuilderToAssetChecked(UObject& InObject) const
@@ -272,13 +262,8 @@ void UMetaSoundSourceBuilder::InitDelegates(Metasound::Frontend::FDocumentModify
 
 void UMetaSoundSourceBuilder::OnAssetReferenceAdded(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
 {
-	using namespace Metasound::Frontend;
-
 	check(DocInterface.GetObject());
-	UMetaSoundSource& Source = GetMetaSoundSource();
-	FNodeRegistryKey RegistryKey(Source.GetConstDocument().RootGraph.Metadata);
-	Source.ReferencedAssetClassObjects.Add(DocInterface.GetObject());
-	Source.ReferencedAssetClassKeys.Add(RegistryKey.ToString());
+	GetMetaSoundSource().ReferencedAssetClassObjects.Add(DocInterface.GetObject());
 }
 
 void UMetaSoundSourceBuilder::OnEdgeAdded(int32 EdgeIndex) const
@@ -544,13 +529,8 @@ void UMetaSoundSourceBuilder::OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIn
 
 void UMetaSoundSourceBuilder::OnRemovingAssetReference(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
 {
-	using namespace Metasound::Frontend;
-
 	check(DocInterface.GetObject());
-	UMetaSoundSource& Source = GetMetaSoundSource();
-	FNodeRegistryKey RegistryKey(Source.GetConstDocument().RootGraph.Metadata);
-	Source.ReferencedAssetClassObjects.Remove(DocInterface.GetObject());
-	Source.ReferencedAssetClassKeys.Remove(RegistryKey.ToString());
+	GetMetaSoundSource().ReferencedAssetClassObjects.Remove(DocInterface.GetObject());
 }
 
 void UMetaSoundSourceBuilder::OnRemovingInput(int32 InputIndex)
