@@ -2117,10 +2117,11 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 			if (Alloc)
 			{
 				const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->AllocCallstack : Alloc->FreeCallstack;
+
 				if (!Callstack)
 				{
 					OutData << QuotationMarkBegin;
-					OutData << GetCallstackNotAvailableString();
+					OutData << GetCallstackNotAvailableString().ToString();
 					OutData << QuotationMarkEnd;
 					return;
 				}
@@ -2128,14 +2129,21 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 				if (Callstack->Num() == 0)
 				{
 					OutData << QuotationMarkBegin;
-					OutData << GetEmptyCallstackString();
+					if (Callstack->GetEmptyId() == 0)
+					{
+						OutData << GetNoCallstackString().ToString();
+					}
+					else
+					{
+						OutData << GetEmptyCallstackString().ToString();
+					}
 					OutData << QuotationMarkEnd;
 					return;
 				}
 
-				const uint32 NumCallstackFrames = Callstack->Num();
-				check(NumCallstackFrames <= 256);
 				OutData << QuotationMarkBegin;
+				const uint32 NumCallstackFrames = Callstack->Num();
+				check(NumCallstackFrames <= 256); // see Callstack->Frame(uint8)
 				for (uint32 Index = 0; Index < NumCallstackFrames; ++Index)
 				{
 					if (Index != 0)

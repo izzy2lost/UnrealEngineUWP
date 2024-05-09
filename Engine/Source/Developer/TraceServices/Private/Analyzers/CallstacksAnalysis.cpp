@@ -33,14 +33,15 @@ bool FCallstacksAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventCo
 	{
 		case RouteId_Callstack:
 			const TArrayReader<uint64>& Frames = Context.EventData.GetArray<uint64>("Frames");
+			uint8 NumFrames = (uint8)FMath::Min(255u, Frames.Num());
 			if (const uint32 Id = Context.EventData.GetValue<uint32>("CallstackId"))
 			{
-				Provider->AddCallstack(Id, Frames.GetData(), uint8(Frames.Num()));
+				Provider->AddCallstack(Id, Frames.GetData(), NumFrames);
 			}
 			// Backward compatibility with legacy memory trace format (5.0-EA).
 			else if (const uint64 Hash = Context.EventData.GetValue<uint64>("Id"))
 			{
-				Provider->AddCallstackWithHash(Hash, Frames.GetData(), uint8(Frames.Num()));
+				Provider->AddCallstackWithHash(Hash, Frames.GetData(), NumFrames);
 			}
 			break;
 	}

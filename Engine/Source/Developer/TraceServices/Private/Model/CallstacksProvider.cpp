@@ -16,9 +16,7 @@ namespace TraceServices
 
 static const FResolvedSymbol GNeverResolveSymbol(ESymbolQueryResult::NotLoaded, nullptr, nullptr, nullptr, 0, EResolvedSymbolFilterStatus::NotFiltered);
 static const FResolvedSymbol GNotFoundSymbol(ESymbolQueryResult::NotFound, TEXT("Unknown"), nullptr, nullptr, 0, EResolvedSymbolFilterStatus::NotFiltered);
-static const FResolvedSymbol GNoSymbol(ESymbolQueryResult::NotFound, TEXT("No callstack recorded"), nullptr, nullptr, 0, EResolvedSymbolFilterStatus::NotFiltered);
 static constexpr FStackFrame GNotFoundStackFrame = { 0, &GNotFoundSymbol };
-static constexpr FStackFrame GNoStackFrame = { 0, &GNoSymbol };
 static const FCallstack GNotFoundCallstack(&GNotFoundStackFrame, 1);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -40,9 +38,8 @@ FCallstacksProvider::FCallstacksProvider(IAnalysisSession& InSession)
 	, Callstacks(InSession.GetLinearAllocator(), CallstacksPerPage)
 	, Frames(InSession.GetLinearAllocator(), FramesPerPage)
 {
-	// Let the first callstack to be an empty/undefined callstack.
+	// Let the first callstack to be the default empty callstack (i.e. CallstackId == 0, "callstack not recorded").
 	FCallstack& FirstCallstack = Callstacks.PushBack();
-	FirstCallstack.Init(&GNoStackFrame, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,24 +75,23 @@ void FCallstacksProvider::AddCallstack(uint32 InCallstackId, const uint64* InFra
 			uint64 EntriesToAdd = PageHeadroom + 1; // Fill page and allocate one on next
 			do { Frames.PushBack(); } while (--EntriesToAdd);
 		}
-	}
 
-	// Append the incoming frames.
-	const uint64 FirstFrame = Frames.Num();
-	for (uint32 FrameIdx = 0; FrameIdx < InFrameCount; ++FrameIdx)
-	{
-		FStackFrame& F = Frames.PushBack();
-		F.Addr = InFrames[FrameIdx];
+		// Append the incoming frames.
+		for (uint32 FrameIdx = 0; FrameIdx < InFrameCount; ++FrameIdx)
+		{
+			FStackFrame& F = Frames.PushBack();
+			F.Addr = InFrames[FrameIdx];
 
-		if (ModuleProvider)
-		{
-			// This will return immediately. The result will be empty if the symbol
-			// has not been encountered before, and resolution has been queued up.
-			F.Symbol = ModuleProvider->GetSymbol(InFrames[FrameIdx]);
-		}
-		else
-		{
-			F.Symbol = &GNeverResolveSymbol;
+			if (ModuleProvider)
+			{
+				// This will return immediately. The result will be empty if the symbol
+				// has not been encountered before, and resolution has been queued up.
+				F.Symbol = ModuleProvider->GetSymbol(InFrames[FrameIdx]);
+			}
+			else
+			{
+				F.Symbol = &GNeverResolveSymbol;
+			}
 		}
 	}
 
@@ -111,11 +107,16 @@ void FCallstacksProvider::AddCallstack(uint32 InCallstackId, const uint64* InFra
 			while (InCallstackId >= Callstacks.Num())
 			{
 				Callstack = &Callstacks.PushBack();
-				Callstack->Init(&GNoStackFrame, 1);
+				Callstack->InitEmpty(Callstacks.Num() - 1);
 			}
 		}
-		check(Callstack && (Callstack->Num() == 0 || Callstack->Frame(0) == &GNoStackFrame)); // adding same callstack id twice?
-		Callstack->Init(&Frames[FirstFrame], InFrameCount);
+		check(Callstack);
+		check(Callstack->IsEmpty() && Callstack->GetEmptyId() == uint64(InCallstackId)); // adding same callstack id twice?
+		if (InFrameCount > 0)
+		{
+			check(InFrameCount <= Frames.Num());
+			Callstack->Init(&Frames[Frames.Num() - InFrameCount], InFrameCount);
+		}
 	}
 }
 
