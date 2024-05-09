@@ -7,25 +7,29 @@
 #include "Layouts/Controllers/DMXControlConsoleControllerBase.h"
 
 
-void UDMXControlConsoleCueStack::AddNewCue(const TArray<UDMXControlConsoleFaderBase*>& Faders, const FString CueLabel, const FLinearColor CueColor)
+FDMXControlConsoleCue* UDMXControlConsoleCueStack::AddNewCue(const TArray<UDMXControlConsoleFaderBase*>& Faders, const FString CueLabel, const FLinearColor CueColor)
 {
 	if (Faders.IsEmpty())
 	{
-		return;
+		return nullptr;
 	}
 
 	FDMXControlConsoleCue NewCue;
 	NewCue.CueLabel = GenerateUniqueCueLabel(CueLabel);
-	NewCue.CueColor = CueColor;
+	NewCue.CueColor = CueColor == FLinearColor::Transparent ? FLinearColor::MakeRandomColor() : CueColor;
 
 	CuesArray.Add(NewCue);
 	
 	UpdateCueData(NewCue.CueID, Faders);
+
+	return &CuesArray.Last();
 }
 
 void UDMXControlConsoleCueStack::RemoveCue(const FDMXControlConsoleCue& Cue)
 {
 	CuesArray.Remove(Cue);
+
+	OnCueStackChanged.Broadcast();
 }
 
 FDMXControlConsoleCue* UDMXControlConsoleCueStack::FindCue(const FGuid CueID)
@@ -56,6 +60,8 @@ void UDMXControlConsoleCueStack::UpdateCueData(const FGuid CueID, const TArray<U
 		}
 	}
 
+	OnCueStackChanged.Broadcast();
+
 #if WITH_EDITOR
 	bCanStore = false;
 #endif // WITH_EDITOR 
@@ -75,6 +81,8 @@ void UDMXControlConsoleCueStack::MoveCueToIndex(const FDMXControlConsoleCue& Cue
 
 	CuesArray.Remove(Cue);
 	CuesArray.Insert(Cue, NewIndex);
+
+	OnCueStackChanged.Broadcast();
 }
 
 void UDMXControlConsoleCueStack::Recall(const FDMXControlConsoleCue& Cue)
@@ -96,6 +104,8 @@ void UDMXControlConsoleCueStack::Recall(const FDMXControlConsoleCue& Cue)
 		}
 	}
 
+	OnCueStackChanged.Broadcast();
+
 #if WITH_EDITOR
 	bCanStore = false;
 #endif // WITH_EDITOR 
@@ -104,6 +114,8 @@ void UDMXControlConsoleCueStack::Recall(const FDMXControlConsoleCue& Cue)
 void UDMXControlConsoleCueStack::Clear()
 {
 	CuesArray.Reset();
+
+	OnCueStackChanged.Broadcast();
 }
 
 #if WITH_EDITOR

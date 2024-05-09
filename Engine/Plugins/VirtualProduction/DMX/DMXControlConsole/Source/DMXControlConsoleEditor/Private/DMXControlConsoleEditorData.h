@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXControlConsoleCueStack.h"
 #include "DMXControlConsoleEditorDataBase.h"
 #include "Widgets/SDMXReadOnlyFixturePatchList.h"
 
@@ -169,6 +170,10 @@ public:
 	/** Fixture Patch List default descriptor */
 	UPROPERTY()
 	FDMXReadOnlyFixturePatchListDescriptor FixturePatchListDescriptor;
+
+	/** The current loaded control console cue */
+	UPROPERTY()
+	FDMXControlConsoleCue LoadedCue;
 
 private:
 	/** Called when the list of User Filters has changed */

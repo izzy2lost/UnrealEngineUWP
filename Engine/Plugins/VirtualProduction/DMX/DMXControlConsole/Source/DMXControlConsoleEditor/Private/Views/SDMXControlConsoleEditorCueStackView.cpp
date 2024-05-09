@@ -5,7 +5,10 @@
 #include "Algo/AnyOf.h"
 #include "DMXControlConsoleCueStack.h"
 #include "DMXControlConsoleData.h"
+#include "DMXControlConsoleEditorData.h"
+#include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "ScopedTransaction.h"
@@ -122,7 +125,7 @@ namespace UE::DMX::Private
 				[
 					GenerateCueListToolbarButtonContent
 					(
-						LOCTEXT("AddNewCueButton_Label", "Add New Cue"),
+						LOCTEXT("AddNewCueButton_Label", "Add New"),
 						LOCTEXT("AddNewCueButton_ToolTip", "Add a new cue based on the current state of the  control console."),
 						FAppStyle::Get().GetBrush("Icons.Plus"),
 						FStyleColors::AccentGreen
@@ -154,6 +157,30 @@ namespace UE::DMX::Private
 				]
 			]
 
+			// Recall Cue button section
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(2.f)
+			[
+				SNew(SButton)
+				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
+				.ForegroundColor(FSlateColor::UseStyle())
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked(this, &SDMXControlConsoleEditorCueStackView::OnRecallCueClicked)
+				.IsEnabled(this, &SDMXControlConsoleEditorCueStackView::IsRecallCueButtonEnabled)
+				.ContentPadding(FMargin(0.f, 4.f))
+				[
+					GenerateCueListToolbarButtonContent
+					(
+						LOCTEXT("RecallCueButton_Label", "Recall"),
+						LOCTEXT("RecallCueButton_ToolTip", "Recalls the selected cue loding its data to the console."),
+						FAppStyle::Get().GetBrush("Icons.SortUp"),
+						FStyleColors::White
+					)
+				]
+			]
+
 			// Clear Stack button section
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
@@ -170,7 +197,7 @@ namespace UE::DMX::Private
 				[
 					GenerateCueListToolbarButtonContent
 					(
-						LOCTEXT("ClearAllCuesButton_Label", "Clear All"),
+						LOCTEXT("ClearAllCuesButton_Label", "Clear"),
 						LOCTEXT("ClearAllCuesButton_ToolTip", "Clear all the cues in the stack."),
 						FAppStyle::Get().GetBrush("Icons.Delete"),
 						FStyleColors::White
@@ -219,11 +246,31 @@ namespace UE::DMX::Private
 
 	bool SDMXControlConsoleEditorCueStackView::IsStoreCueButtonEnabled() const
 	{
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
 		const UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		
-		const bool bIsAnyCueSelected = CueList.IsValid() && !CueList->GetSelectedCueItems().IsEmpty();
-		return ControlConsoleCueStack && ControlConsoleCueStack->CanStore() && bIsAnyCueSelected;
+		if (!ControlConsoleEditorData || !ControlConsoleCueStack || !CueList.IsValid())
+		{
+			return false;
+		}
+
+		const TSharedPtr<FDMXControlConsoleEditorCueListItem> SelectedCueItem = !CueList->GetSelectedCueItems().IsEmpty() ? CueList->GetSelectedCueItems()[0] : nullptr;
+		if(!SelectedCueItem.IsValid())
+		{
+			return false;
+		}
+
+		if (SelectedCueItem->GetCue() == ControlConsoleEditorData->LoadedCue)
+		{
+			return ControlConsoleCueStack->CanStore();
+		}
+
+		return true;
+	}
+
+	bool SDMXControlConsoleEditorCueStackView::IsRecallCueButtonEnabled() const
+	{
+		return CueList.IsValid() && !CueList->GetSelectedCueItems().IsEmpty();
 	}
 
 	bool SDMXControlConsoleEditorCueStackView::IsClearAllCuesButtonEnabled() const
@@ -235,9 +282,10 @@ namespace UE::DMX::Private
 
 	FReply SDMXControlConsoleEditorCueStackView::OnAddNewCueClicked()
 	{
+		UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
 		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack)
+		if (!ControlConsoleEditorData || !ControlConsoleCueStack)
 		{
 			return FReply::Unhandled();
 		}
@@ -258,13 +306,18 @@ namespace UE::DMX::Private
 		}
 
 		const FScopedTransaction AddNewCueTransaction(LOCTEXT("AddNewCueTransaction", "Add Cue"));
+
+		// Add a new cue with faders data
 		ControlConsoleCueStack->PreEditChange(nullptr);
-		ControlConsoleCueStack->AddNewCue(FadersToCue);
+		const FDMXControlConsoleCue* NewCue = ControlConsoleCueStack->AddNewCue(FadersToCue);
 		ControlConsoleCueStack->PostEditChange();
 
-		if (CueList.IsValid())
+		// Update the loaded cue
+		if (ensureMsgf(NewCue, TEXT("Invalid newly created cue. Can't load the cue correctly")))
 		{
-			CueList->RequestRefresh();
+			ControlConsoleEditorData->PreEditChange(nullptr);
+			ControlConsoleEditorData->LoadedCue = *NewCue;
+			ControlConsoleEditorData->PostEditChange();
 		}
 
 		return FReply::Handled();
@@ -303,10 +356,75 @@ namespace UE::DMX::Private
 		}
 
 		ControlConsoleCueStack->UpdateCueData(SelectedCue.CueID, FadersToCue);
-		if (CueList.IsValid())
+
+		return FReply::Handled();
+	}
+
+	FReply SDMXControlConsoleEditorCueStackView::OnRecallCueClicked()
+	{
+		UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		if (!ControlConsoleEditorData || !ControlConsoleCueStack)
 		{
-			CueList->RequestRefresh();
+			return FReply::Unhandled();
 		}
+
+		const TArray<TSharedPtr<FDMXControlConsoleEditorCueListItem>> SelectedItems = CueList->GetSelectedCueItems();
+		if (SelectedItems.IsEmpty())
+		{
+			return FReply::Unhandled();
+		}
+
+		const TSharedPtr<FDMXControlConsoleEditorCueListItem> SelectedItem = SelectedItems[0];
+		if (!SelectedItem.IsValid())
+		{
+			return FReply::Unhandled();
+		}
+
+		const FScopedTransaction RecallCueClickedTransaction(LOCTEXT("RecallCueClickedTransaction", "Recall Cue"));
+		const FDMXControlConsoleCue& SelectedCue = SelectedItem->GetCue();
+
+		// Update the loaded cue
+		ControlConsoleEditorData->PreEditChange(nullptr);
+		ControlConsoleEditorData->LoadedCue = SelectedCue;
+		ControlConsoleEditorData->PostEditChange();
+
+		// Synch controllers to the new fader values
+		const TMap<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValueMap = SelectedCue.FaderToValueMap;
+		for (const TTuple<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValue : FaderToValueMap)
+		{
+			const UDMXControlConsoleFaderBase* Fader = FaderToValue.Key.Get();
+			if (!Fader)
+			{
+				continue;
+			}
+
+			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
+			if (!ElementController)
+			{
+				continue;
+			}
+
+			const uint32 Value = FaderToValue.Value;
+			const bool bHasSingleElement = ElementController->GetElements().Num() == 1;
+			if (bHasSingleElement)
+			{
+				const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
+				const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
+				const float NormalizedValue = static_cast<float>(Value) / ValueRange;
+
+				ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetValuePropertyName()));
+				constexpr bool bSynchElements = false;
+				ElementController->SetValue(NormalizedValue, bSynchElements);
+				ElementController->PostEditChange();
+			}
+		}
+
+		// Recall the selected cue
+		ControlConsoleCueStack->PreEditChange(nullptr);
+		ControlConsoleCueStack->Recall(SelectedCue);
+		ControlConsoleCueStack->PostEditChange();
 
 		return FReply::Handled();
 	}
@@ -324,11 +442,6 @@ namespace UE::DMX::Private
 		ControlConsoleCueStack->PreEditChange(nullptr);
 		ControlConsoleCueStack->Clear();
 		ControlConsoleCueStack->PostEditChange();
-
-		if (CueList.IsValid())
-		{
-			CueList->RequestRefresh();
-		}
 
 		return FReply::Handled();
 	}

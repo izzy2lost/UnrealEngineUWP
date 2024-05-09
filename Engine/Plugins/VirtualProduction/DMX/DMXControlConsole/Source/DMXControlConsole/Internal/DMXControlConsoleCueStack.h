@@ -26,7 +26,7 @@ struct FDMXControlConsoleCue
 
 	/** The color of this cue */
 	UPROPERTY()
-	FLinearColor CueColor = FLinearColor::White;
+	FLinearColor CueColor = FLinearColor::Transparent;
 
 	/** A fader object to value map */
 	UPROPERTY()
@@ -46,8 +46,16 @@ class DMXCONTROLCONSOLE_API UDMXControlConsoleCueStack
 	GENERATED_BODY()
 
 public:
-	/** Adds a new cue to this stack by using the given faders array */
-	void AddNewCue(const TArray<UDMXControlConsoleFaderBase*>& Faders, const FString CueLabel = TEXT(""), const FLinearColor CueColor = FLinearColor::White);
+	/**
+	* Adds a new cue to this stack by using the given faders array
+	*
+	* @param Faders the array of faders to provide ad cue data.
+	* @param CueLabel (optional) the label name of the new cue.
+	* @param CueColor (optional) the color used for highlight the cue in the editor.
+	* 
+	* @return Returns a pointer to the newly created cue, or nullptr if no cue could be created.
+	*/
+	FDMXControlConsoleCue* AddNewCue(const TArray<UDMXControlConsoleFaderBase*>& Faders, const FString CueLabel = TEXT(""), const FLinearColor CueColor = FLinearColor::Transparent);
 
 	/** Removes the given cue from the stack, if valid */
 	void RemoveCue(const FDMXControlConsoleCue& Cue);
@@ -81,6 +89,9 @@ public:
 	void OnFadersPropertiesChanged(FPropertyChangedEvent& PropertyChangedEvent);
 #endif // WITH_EDITOR 
 
+	/** Called when the cue stack has been changed */
+	FSimpleMulticastDelegate& GetOnCueStackChanged() { return OnCueStackChanged; }
+
 	//~ Begin UObject interface
 	virtual void PostInitProperties() override;
 	//~ End UObject interface
@@ -88,6 +99,9 @@ public:
 private:
 	/** Generates a unique label name for a cue */
 	FString GenerateUniqueCueLabel(const FString& CueLabel);
+
+	/** Executed when the cue stack has been changed */
+	FSimpleMulticastDelegate OnCueStackChanged;
 
 	/** The array of cues */
 	UPROPERTY()

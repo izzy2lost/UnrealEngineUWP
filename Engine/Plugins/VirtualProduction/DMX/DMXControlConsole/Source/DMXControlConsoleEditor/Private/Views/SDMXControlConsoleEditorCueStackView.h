@@ -49,6 +49,9 @@ namespace UE::DMX::Private
 		/** True if there's at least one selected cue item */
 		bool IsStoreCueButtonEnabled() const;
 
+		/** True if there's at least one selected cue item */
+		bool IsRecallCueButtonEnabled() const;
+
 		/** True if at least one cue exists in the current cue stack */
 		bool IsClearAllCuesButtonEnabled() const;
 
@@ -57,6 +60,9 @@ namespace UE::DMX::Private
 
 		/** Called when the store cue button is clicked */
 		FReply OnStoreCueClicked();
+
+		/** Called when the recall cue button is clicked */
+		FReply OnRecallCueClicked();
 
 		/** Called when the clear stack button is clicked */
 		FReply OnClearStackClicked();

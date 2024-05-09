@@ -3,8 +3,10 @@
 #pragma once
 
 #include "DMXControlConsoleCueStack.h"
+#include "DragAndDrop/DecoratedDragDropOp.h"
 #include "Widgets/SCompoundWidget.h"
 
+enum class EItemDropZone;
 struct FDMXControlConsoleCue;
 class FDMXControlConsoleEditorCueListItem;
 class ITableRow;
@@ -20,15 +22,9 @@ namespace UE::DMX::Private
 	struct FDMXControlConsoleEditorCueListColumnIDs
 	{
 		static const FName Color;
+		static const FName State;
 		static const FName Name;
 		static const FName Options;
-	};
-
-	/** Enum class to specify the move direction of a cue list item */
-	enum class EListItemMoveDirection
-	{
-		Previous,
-		Next
 	};
 
 	/** An item in the Control Console cue list */
@@ -57,6 +53,23 @@ namespace UE::DMX::Private
 	private:
 		/** The cue this item is based on */
 		FDMXControlConsoleCue Cue;
+	};
+
+	/** This drag drop operation allows cues from the cue stack to be rearranged */
+	class FDMXControlConsoleEditorCueListDragDropOp : public FDecoratedDragDropOp
+	{
+	public:
+		DRAG_DROP_OPERATOR_TYPE(FDMXControlConsoleEditorCueListDragDropOp, FDecoratedDragDropOp)
+
+		/** Constructs the drag drop operation. */
+		static TSharedRef<FDMXControlConsoleEditorCueListDragDropOp> New(TWeakPtr<FDMXControlConsoleEditorCueListItem> InItem);
+
+		//~ Begin FDecoratedDragDropOp interface
+		virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
+		//~ End FDecoratedDragDropOp interface
+
+		/** The item dragged by this operation */
+		TWeakPtr<FDMXControlConsoleEditorCueListItem> CueItem;
 	};
 
 	/** List of Cues in a DMX Control Console */
@@ -91,6 +104,18 @@ namespace UE::DMX::Private
 		/** Called when selection in the list changed */
 		void OnSelectionChanged(const TSharedPtr<FDMXControlConsoleEditorCueListItem> NewSelection, ESelectInfo::Type SelectInfo);
 
+		/** Called when a row was double clicked */
+		void OnRowDoubleClicked(const TSharedPtr<FDMXControlConsoleEditorCueListItem> ItemClicked);
+
+		/** Called when a row in the list was dragged */
+		FReply OnRowDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+
+		/** Called when the row drop operation needs to be accepted */
+		TOptional<EItemDropZone> OnRowCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FDMXControlConsoleEditorCueListItem> TargetItem);
+		
+		/** Called when the row drop operation is accepted */
+		FReply OnRowAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FDMXControlConsoleEditorCueListItem> TargetItem);
+
 		/** Called when the color of an item in the list is changed */
 		void OnEditCueItemColor(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem);
 
@@ -98,7 +123,7 @@ namespace UE::DMX::Private
 		void OnRenameCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem);
 
 		/** Called when an item in the list is deleted */
-		void OnMoveCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem, EListItemMoveDirection MoveDirection);
+		void OnMoveCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem, EItemDropZone DropZone);
 
 		/** Called when an item in the list is deleted */
 		void OnDeleteCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem);
@@ -108,6 +133,9 @@ namespace UE::DMX::Private
 
 		/** The array of Cue List Items this list is based on */
 		TArray<TSharedPtr<FDMXControlConsoleEditorCueListItem>> CueListItems;
+
+		/** The last selected control console cue */
+		FDMXControlConsoleCue LastSelectedCue;
 
 		/** Weak reference to the Control Console editor model */
 		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;

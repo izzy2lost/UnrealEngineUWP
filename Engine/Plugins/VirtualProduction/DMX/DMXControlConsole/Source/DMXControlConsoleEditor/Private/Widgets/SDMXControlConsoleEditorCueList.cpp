@@ -3,6 +3,7 @@
 #include "SDMXControlConsoleEditorCueList.h"
 
 #include "DMXControlConsoleData.h"
+#include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Models/DMXControlConsoleEditorModel.h"
@@ -16,6 +17,7 @@
 namespace UE::DMX::Private
 {
 	const FName FDMXControlConsoleEditorCueListColumnIDs::Color = "Color";
+	const FName FDMXControlConsoleEditorCueListColumnIDs::State = "State";
 	const FName FDMXControlConsoleEditorCueListColumnIDs::Name = "Name";
 	const FName FDMXControlConsoleEditorCueListColumnIDs::Options = "Options";
 
@@ -43,6 +45,30 @@ namespace UE::DMX::Private
 		Cue.CueColor = CueColor;
 	}
 
+	TSharedRef<FDMXControlConsoleEditorCueListDragDropOp> FDMXControlConsoleEditorCueListDragDropOp::New(TWeakPtr<FDMXControlConsoleEditorCueListItem> InItem)
+	{
+		TSharedRef<FDMXControlConsoleEditorCueListDragDropOp> Operation = MakeShared<FDMXControlConsoleEditorCueListDragDropOp>();
+		Operation->CueItem = InItem;
+		Operation->Construct();
+		return Operation;
+	}
+
+	TSharedPtr<SWidget> FDMXControlConsoleEditorCueListDragDropOp::GetDefaultDecorator() const
+	{
+		const TSharedPtr<FDMXControlConsoleEditorCueListItem> CueItemPtr = CueItem.Pin();
+		if (!CueItemPtr.IsValid())
+		{
+			return FDecoratedDragDropOp::GetDefaultDecorator();
+		}
+
+		return SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+			[
+				SNew(STextBlock)
+				.Text(CueItemPtr->GetCueNameText())
+			];
+	}
+
 	void SDMXControlConsoleEditorCueList::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
 	{
 		if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct cue list correctly.")))
@@ -52,6 +78,19 @@ namespace UE::DMX::Private
 
 		WeakEditorModel = InEditorModel;
 
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel->GetControlConsoleEditorData();
+		if (ControlConsoleEditorData)
+		{
+			LastSelectedCue = ControlConsoleEditorData->LoadedCue;
+		}
+
+		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel->GetControlConsoleData();
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		if (ControlConsoleCueStack)
+		{
+			ControlConsoleCueStack->GetOnCueStackChanged().AddSP(this, &SDMXControlConsoleEditorCueList::UpdateCueListItems);
+		}
+
 		ChildSlot
 			[
 				SAssignNew(CueListView, SListView<TSharedPtr<FDMXControlConsoleEditorCueListItem>>)
@@ -60,6 +99,7 @@ namespace UE::DMX::Private
 				.SelectionMode(ESelectionMode::Single)
 				.OnGenerateRow(this, &SDMXControlConsoleEditorCueList::OnGenerateRow)
 				.OnSelectionChanged(this, &SDMXControlConsoleEditorCueList::OnSelectionChanged)
+				.OnMouseButtonDoubleClick(this, &SDMXControlConsoleEditorCueList::OnRowDoubleClicked)
 			];
 
 		UpdateCueListItems();
@@ -85,23 +125,31 @@ namespace UE::DMX::Private
 	{
 		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
 		const UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack)
+		if (!ControlConsoleCueStack || !CueListView.IsValid())
 		{
 			return;
 		}
 
 		CueListItems.Reset();
 
+		TSharedPtr< FDMXControlConsoleEditorCueListItem> LastLoadedCueListItem;
 		const TArray<FDMXControlConsoleCue>& CuesArray = ControlConsoleCueStack->GetCuesArray();
 		for (const FDMXControlConsoleCue& Cue : CuesArray)
 		{
 			const TSharedRef<FDMXControlConsoleEditorCueListItem> CueListItem = MakeShared<FDMXControlConsoleEditorCueListItem>(Cue);
+			if (Cue == LastSelectedCue)
+			{
+				LastLoadedCueListItem = CueListItem;
+			}
+
 			CueListItems.Add(CueListItem);
 		}
 
-		if (CueListView.IsValid())
+		CueListView->RebuildList();
+		if (LastLoadedCueListItem.IsValid())
 		{
-			CueListView->RebuildList();
+			constexpr bool bSelectItem = true;
+			CueListView->SetItemSelection(LastLoadedCueListItem, bSelectItem);
 		}
 	}
 
@@ -114,6 +162,14 @@ namespace UE::DMX::Private
 			SHeaderRow::FColumn::FArguments()
 			.ColumnId(FDMXControlConsoleEditorCueListColumnIDs::Color)
 			.DefaultLabel(LOCTEXT("EditorColorColumnLabel", ""))
+			.FixedWidth(16.f)
+		);
+
+		HeaderRow->AddColumn
+		(
+			SHeaderRow::FColumn::FArguments()
+			.ColumnId(FDMXControlConsoleEditorCueListColumnIDs::State)
+			.DefaultLabel(LOCTEXT("StateColumnLabel", ""))
 			.FixedWidth(16.f)
 		);
 
@@ -136,7 +192,7 @@ namespace UE::DMX::Private
 			SHeaderRow::FColumn::FArguments()
 			.ColumnId(FDMXControlConsoleEditorCueListColumnIDs::Options)
 			.DefaultLabel(LOCTEXT("OptionsColumnLabel", ""))
-			.FixedWidth(78.f)
+			.FixedWidth(102.f)
 		);
 
 		return HeaderRow;
@@ -144,26 +200,45 @@ namespace UE::DMX::Private
 
 	TSharedRef<ITableRow> SDMXControlConsoleEditorCueList::OnGenerateRow(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 	{
-		return SNew(SDMXControlConsoleEditorCueListRow, OwnerTable, InItem.ToSharedRef())
+		return SNew(SDMXControlConsoleEditorCueListRow, OwnerTable, InItem.ToSharedRef(), WeakEditorModel.Get())
 			.OnEditCueItemColor(this, &SDMXControlConsoleEditorCueList::OnEditCueItemColor)
 			.OnRenameCueItem(this, &SDMXControlConsoleEditorCueList::OnRenameCueItem)
 			.OnMoveCueItem(this, &SDMXControlConsoleEditorCueList::OnMoveCueItem)
-			.OnDeleteCueItem(this, &SDMXControlConsoleEditorCueList::OnDeleteCueItem);
+			.OnDeleteCueItem(this, &SDMXControlConsoleEditorCueList::OnDeleteCueItem)
+			.OnDragDetected(this, &SDMXControlConsoleEditorCueList::OnRowDragDetected)
+			.OnCanAcceptDrop(this, &SDMXControlConsoleEditorCueList::OnRowCanAcceptDrop)
+			.OnAcceptDrop(this, &SDMXControlConsoleEditorCueList::OnRowAcceptDrop);
 	}
 
 	void SDMXControlConsoleEditorCueList::OnSelectionChanged(const TSharedPtr<FDMXControlConsoleEditorCueListItem> NewSelection, ESelectInfo::Type SelectInfo)
 	{
+		if (NewSelection.IsValid())
+		{
+			LastSelectedCue = NewSelection->GetCue();
+		}
+
+		if (SelectInfo != ESelectInfo::OnNavigation || !NewSelection.IsValid())
+		{
+			return;
+		}
+
+		UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
 		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
 		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack || !NewSelection.IsValid())
+		if (!ControlConsoleEditorData || !ControlConsoleCueStack)
 		{
 			return;
 		}
 
 		const FScopedTransaction RecallCueTransaction(LOCTEXT("RecallCueTransaction", "Recall Cue"));
+		const FDMXControlConsoleCue& SelectedCue = NewSelection->GetCue();
+
+		// Update the loaded cue
+		ControlConsoleEditorData->PreEditChange(nullptr);
+		ControlConsoleEditorData->LoadedCue = SelectedCue;
+		ControlConsoleEditorData->PostEditChange();
 
 		// Synch controllers to the new fader values
-		const FDMXControlConsoleCue& SelectedCue = NewSelection->GetCue();
 		const TMap<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValueMap = SelectedCue.FaderToValueMap;
 		for (const TTuple<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValue : FaderToValueMap)
 		{
@@ -198,6 +273,94 @@ namespace UE::DMX::Private
 		ControlConsoleCueStack->PreEditChange(nullptr);
 		ControlConsoleCueStack->Recall(SelectedCue);
 		ControlConsoleCueStack->PostEditChange();
+	}
+
+	void SDMXControlConsoleEditorCueList::OnRowDoubleClicked(const TSharedPtr<FDMXControlConsoleEditorCueListItem> ItemClicked)
+	{
+		if (ItemClicked.IsValid())
+		{
+			OnSelectionChanged(ItemClicked, ESelectInfo::OnNavigation);
+		}
+	}
+
+	FReply SDMXControlConsoleEditorCueList::OnRowDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+	{
+		if (!CueListView.IsValid())
+		{
+			return FReply::Unhandled();
+		}
+
+		const TArray<TSharedPtr<FDMXControlConsoleEditorCueListItem>> SelectedCueItems = CueListView->GetSelectedItems();
+		if (SelectedCueItems.Num() != 1)
+		{
+			return FReply::Unhandled();
+		}
+
+		if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+		{
+			const TSharedPtr<FDMXControlConsoleEditorCueListItem> DraggedItem = SelectedCueItems[0];
+			const TSharedRef<FDMXControlConsoleEditorCueListDragDropOp> DragDropOp = FDMXControlConsoleEditorCueListDragDropOp::New(DraggedItem);
+			return FReply::Handled().BeginDragDrop(DragDropOp);
+		}
+
+		return FReply::Unhandled();
+	}
+
+	TOptional<EItemDropZone> SDMXControlConsoleEditorCueList::OnRowCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FDMXControlConsoleEditorCueListItem> TargetItem)
+	{
+		TOptional<EItemDropZone> ItemDropZone;
+
+		const TSharedPtr<FDMXControlConsoleEditorCueListDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FDMXControlConsoleEditorCueListDragDropOp>();
+		if (DragDropOp.IsValid())
+		{
+			ItemDropZone = DropZone == EItemDropZone::BelowItem ? DropZone : EItemDropZone::AboveItem;
+		}
+
+		return ItemDropZone;
+	}
+
+	FReply SDMXControlConsoleEditorCueList::OnRowAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FDMXControlConsoleEditorCueListItem> TargetItem)
+	{
+		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		if (!ControlConsoleCueStack || !TargetItem.IsValid() || DropZone == EItemDropZone::OntoItem)
+		{
+			return FReply::Unhandled();
+		}
+
+		const TSharedPtr<FDMXControlConsoleEditorCueListDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FDMXControlConsoleEditorCueListDragDropOp>();
+		if (!DragDropOp.IsValid())
+		{
+			return FReply::Unhandled();
+		}
+
+		const TSharedPtr<FDMXControlConsoleEditorCueListItem> DraggedItem = DragDropOp->CueItem.Pin();
+		if (!DraggedItem.IsValid())
+		{
+			return FReply::Unhandled();
+		}
+
+		const FDMXControlConsoleCue& DraggedCue = DraggedItem->GetCue();
+		const FDMXControlConsoleCue& TargetCue = TargetItem->GetCue();
+
+		const int32 DraggedCueIndex = ControlConsoleCueStack->GetCuesArray().IndexOfByKey(DraggedCue);
+		const int32 TargetCueIndex = ControlConsoleCueStack->GetCuesArray().IndexOfByKey(TargetCue);
+		int32 NewDraggedCueIndex = TargetCueIndex;
+		if (DraggedCueIndex > TargetCueIndex && DropZone == EItemDropZone::BelowItem)
+		{
+			NewDraggedCueIndex++;
+		}
+		else if (DraggedCueIndex < TargetCueIndex && DropZone == EItemDropZone::AboveItem)
+		{
+			NewDraggedCueIndex--;
+		}
+
+		const FScopedTransaction AcceptCueDropTransaction(LOCTEXT("AcceptCueDropTransaction", "Move Cue"));
+		ControlConsoleCueStack->PreEditChange(nullptr);
+		ControlConsoleCueStack->MoveCueToIndex(DraggedCue, NewDraggedCueIndex);
+		ControlConsoleCueStack->PostEditChange();
+
+		return FReply::Handled();
 	}
 
 	void SDMXControlConsoleEditorCueList::OnEditCueItemColor(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem)
@@ -250,7 +413,7 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void SDMXControlConsoleEditorCueList::OnMoveCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem, EListItemMoveDirection MoveDirection)
+	void SDMXControlConsoleEditorCueList::OnMoveCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem, EItemDropZone DropZone)
 	{
 		if (!InItem.IsValid() || !WeakEditorModel.IsValid())
 		{
@@ -267,11 +430,11 @@ namespace UE::DMX::Private
 		const FDMXControlConsoleCue& Cue = InItem->GetCue();
 		const int32 CueIndex = ControlConsoleCueStack->GetCuesArray().IndexOfByKey(Cue);
 		int32 NewCueIndex = CueIndex;
-		if (MoveDirection == EListItemMoveDirection::Previous)
+		if (DropZone == EItemDropZone::AboveItem)
 		{
 			NewCueIndex--;
 		}
-		else if (MoveDirection == EListItemMoveDirection::Next)
+		else if (DropZone == EItemDropZone::BelowItem)
 		{
 			NewCueIndex++;
 		}
@@ -284,8 +447,6 @@ namespace UE::DMX::Private
 		ControlConsoleCueStack->PreEditChange(nullptr);
 		ControlConsoleCueStack->MoveCueToIndex(Cue, NewCueIndex);
 		ControlConsoleCueStack->PostEditChange();
-
-		UpdateCueListItems();
 	}
 
 	void SDMXControlConsoleEditorCueList::OnDeleteCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem)
@@ -308,8 +469,6 @@ namespace UE::DMX::Private
 		ControlConsoleCueStack->PreEditChange(nullptr);
 		ControlConsoleCueStack->RemoveCue(CueToDelete);
 		ControlConsoleCueStack->PostEditChange();
-
-		UpdateCueListItems();
 	}
 }
 

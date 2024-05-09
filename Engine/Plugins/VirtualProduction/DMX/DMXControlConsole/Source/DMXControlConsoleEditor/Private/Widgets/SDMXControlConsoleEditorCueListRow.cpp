@@ -2,15 +2,20 @@
 
 #include "SDMXControlConsoleEditorCueListRow.h"
 
+#include "DMXControlConsoleEditorData.h"
 #include "DMXEditorStyle.h"
+#include "Editor.h"
 #include "Engine/Engine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Layout/WidgetPath.h"
+#include "Models/DMXControlConsoleEditorModel.h"
+#include "Style/DMXControlConsoleEditorStyle.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Colors/SColorPicker.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 
 
@@ -18,8 +23,14 @@
 
 namespace UE::DMX::Private
 { 
-	void SDMXControlConsoleEditorCueListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXControlConsoleEditorCueListItem>& InItem)
+	void SDMXControlConsoleEditorCueListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXControlConsoleEditorCueListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
 	{
+		if (!InWeakEditorModel.IsValid())
+		{
+			return;
+		}
+
+		WeakEditorModel = InWeakEditorModel;
 		Item = InItem;
 
 		OnEditCueItemColorDelegate = InArgs._OnEditCueItemColor;
@@ -29,6 +40,9 @@ namespace UE::DMX::Private
 
 		SMultiColumnTableRow<TSharedPtr<FDMXControlConsoleEditorCueListItem>>::Construct(
 			FSuperRowType::FArguments()
+			.OnDragDetected(InArgs._OnDragDetected)
+			.OnCanAcceptDrop(InArgs._OnCanAcceptDrop)
+			.OnAcceptDrop(InArgs._OnAcceptDrop)
 			.IsEnabled(InArgs._IsEnabled)
 			.Style(&FDMXEditorStyle::Get().GetWidgetStyle<FTableRowStyle>("FixturePatchList.Row")),
 			InOwnerTable);
@@ -40,6 +54,10 @@ namespace UE::DMX::Private
 		{
 			return GenerateCueColorRow();
 		}
+		else if (ColumnName == FDMXControlConsoleEditorCueListColumnIDs::State)
+		{
+			return GenerateCueStateRow();
+		}
 		else if (ColumnName == FDMXControlConsoleEditorCueListColumnIDs::Name)
 		{
 			return GenerateCueNameRow();
@@ -50,16 +68,6 @@ namespace UE::DMX::Private
 		}
 
 		return SNullWidget::NullWidget;
-	}
-
-	FReply SDMXControlConsoleEditorCueListRow::OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-	{
-		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && CueLabelEditableTextBlock.IsValid())
-		{
-			CueLabelEditableTextBlock->EnterEditingMode();
-		}
-
-		return FReply::Unhandled();
 	}
 
 	TSharedRef<SWidget> SDMXControlConsoleEditorCueListRow::GenerateCueColorRow()
@@ -77,6 +85,26 @@ namespace UE::DMX::Private
 			];
 	}
 
+	TSharedRef<SWidget> SDMXControlConsoleEditorCueListRow::GenerateCueStateRow()
+	{
+		return
+			SNew(SBorder)
+			.HAlign(HAlign_Fill)
+			.Padding(5.f, 2.f)
+			.BorderImage(FAppStyle::GetBrush("NoBorder"))
+			[
+				SNew(SBox)
+				.Visibility(this, &SDMXControlConsoleEditorCueListRow::GetRecalledCueTagVisibility)
+				.WidthOverride(2.f)
+				.Padding(0.f, 10.f)
+				[
+					SNew(SImage)
+					.Image(FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.WhiteBrush"))
+					.ColorAndOpacity(FLinearColor::White)
+				]
+			];
+	}
+
 	TSharedRef<SWidget> SDMXControlConsoleEditorCueListRow::GenerateCueNameRow()
 	{
 		return
@@ -88,7 +116,7 @@ namespace UE::DMX::Private
 			[
 				SAssignNew(CueLabelEditableTextBlock, SInlineEditableTextBlock)
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.Text(Item.Get(), &FDMXControlConsoleEditorCueListItem::GetCueNameText)
+				.Text(this, &SDMXControlConsoleEditorCueListRow::GetCueNameAsText)
 				.ColorAndOpacity(FLinearColor::White)
 				.OnTextCommitted(this, &SDMXControlConsoleEditorCueListRow::OnCueNameTextCommitted)
 			];
@@ -108,64 +136,62 @@ namespace UE::DMX::Private
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				[
-					SNew(SBox)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.WidthOverride(22.0f)
-					.HeightOverride(22.0f)
-					[
-						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-						.OnClicked(this, &SDMXControlConsoleEditorCueListRow::OnMoveItemClicked, EListItemMoveDirection::Previous)
-						.ContentPadding(0.0f)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::Get().GetBrush("Icons.ChevronUp"))
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
-					]
+					GenerateRowOptionButtonWidget
+					(
+						FAppStyle::Get().GetBrush("Icons.Edit"),
+						FOnClicked::CreateSP(this, &SDMXControlConsoleEditorCueListRow::OnRenameItemClicked)
+					)
 				]
 
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				[
-					SNew(SBox)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.WidthOverride(22.0f)
-					.HeightOverride(22.0f)
-					[
-						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-						.OnClicked(this, &SDMXControlConsoleEditorCueListRow::OnMoveItemClicked, EListItemMoveDirection::Next)
-						.ContentPadding(0.0f)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::Get().GetBrush("Icons.ChevronDown"))
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
-					]
+					GenerateRowOptionButtonWidget
+					(
+						FAppStyle::Get().GetBrush("Icons.ChevronUp"),
+						FOnClicked::CreateSP(this, &SDMXControlConsoleEditorCueListRow::OnMoveItemClicked, EItemDropZone::AboveItem)
+					)
 				]
 
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				[
-					SNew(SBox)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.WidthOverride(22.0f)
-					.HeightOverride(22.0f)
-					[
-						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-						.OnClicked(this, &SDMXControlConsoleEditorCueListRow::OnDeleteItemClicked)
-						.ContentPadding(0.0f)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::Get().GetBrush("Icons.X"))
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
-					]
+					GenerateRowOptionButtonWidget
+					(
+						FAppStyle::Get().GetBrush("Icons.ChevronDown"),
+						FOnClicked::CreateSP(this, &SDMXControlConsoleEditorCueListRow::OnMoveItemClicked, EItemDropZone::BelowItem)
+					)
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					GenerateRowOptionButtonWidget
+					(
+						FAppStyle::Get().GetBrush("Icons.X"),
+						FOnClicked::CreateSP(this, &SDMXControlConsoleEditorCueListRow::OnDeleteItemClicked)
+					)
+				]
+			];
+	}
+
+	TSharedRef<SWidget> SDMXControlConsoleEditorCueListRow::GenerateRowOptionButtonWidget(const FSlateBrush* IconBrush, FOnClicked OnClicked)
+	{
+		return 
+			SNew(SBox)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.WidthOverride(22.f)
+			.HeightOverride(22.f)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.OnClicked(OnClicked)
+				.ContentPadding(0.f)
+				[
+					SNew(SImage)
+					.Image(IconBrush)
+					.ColorAndOpacity(FSlateColor::UseForeground())
 				]
 			];
 	}
@@ -207,6 +233,29 @@ namespace UE::DMX::Private
 			OnEditCueItemColorDelegate.ExecuteIfBound(Item);
 		}
 	}
+
+	FText SDMXControlConsoleEditorCueListRow::GetCueNameAsText() const
+	{
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
+		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
+		const UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		if (!ControlConsoleEditorData || !ControlConsoleCueStack || !Item.IsValid())
+		{
+			return FText::GetEmpty();
+		}
+
+		const FDMXControlConsoleCue& Cue = Item->GetCue();
+		FString CueName = Item->GetCueNameText().ToString();
+
+		// Add 'edited' tag if this is the loaded cue and the control console data are not synched to it
+		if (ControlConsoleCueStack->CanStore() && ControlConsoleEditorData->LoadedCue == Cue)
+		{
+			CueName += TEXT("  [edited]");
+		}
+
+		return FText::FromString(CueName);
+	}
+
 	void SDMXControlConsoleEditorCueListRow::OnCueNameTextCommitted(const FText& NewName, ETextCommit::Type InCommit)
 	{
 		if (Item.IsValid())
@@ -216,11 +265,31 @@ namespace UE::DMX::Private
 		}
 	}
 
-	FReply SDMXControlConsoleEditorCueListRow::OnMoveItemClicked(EListItemMoveDirection MoveDirection)
+	void SDMXControlConsoleEditorCueListRow::OnEnterCueLabelTextBlockEditMode()
+	{
+		EnterCueLabelTextBlockEditModeTimerHandle.Invalidate();
+
+		if (CueLabelEditableTextBlock.IsValid())
+		{
+			CueLabelEditableTextBlock->EnterEditingMode();
+		}
+	}
+
+	FReply SDMXControlConsoleEditorCueListRow::OnRenameItemClicked()
+	{
+		if (!EnterCueLabelTextBlockEditModeTimerHandle.IsValid())
+		{
+			EnterCueLabelTextBlockEditModeTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXControlConsoleEditorCueListRow::OnEnterCueLabelTextBlockEditMode));
+		}
+
+		return FReply::Handled();
+	}
+
+	FReply SDMXControlConsoleEditorCueListRow::OnMoveItemClicked(EItemDropZone DropZone)
 	{
 		if (Item.IsValid())
 		{
-			OnMoveCueItemDelegate.ExecuteIfBound(Item, MoveDirection);
+			OnMoveCueItemDelegate.ExecuteIfBound(Item, DropZone);
 		}
 
 		return FReply::Handled();
@@ -234,6 +303,18 @@ namespace UE::DMX::Private
 		}
 
 		return FReply::Handled();
+	}
+
+	EVisibility SDMXControlConsoleEditorCueListRow::GetRecalledCueTagVisibility() const
+	{
+		bool bIsVisible = false;
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
+		if (ControlConsoleEditorData && Item.IsValid())
+		{
+			bIsVisible = ControlConsoleEditorData->LoadedCue == Item->GetCue();
+		}
+
+		return bIsVisible ? EVisibility::Visible : EVisibility::Hidden;
 	}
 }
 
