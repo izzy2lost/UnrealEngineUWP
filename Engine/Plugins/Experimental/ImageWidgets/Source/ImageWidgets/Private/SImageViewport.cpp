@@ -198,7 +198,8 @@ namespace UE::ImageWidgets
 			FGetDPIScaleFactor::CreateLambda(GetDPIScaleFactor),
 			FOnLeftMouseButtonPressed::CreateLambda(HandleOnLeftMouseButtonPressed),
 			FOnLeftMouseButtonReleased::CreateLambda(HandleOnLeftMouseButtonReleased),
-			InArgs._ControllerSettings.DefaultZoomMode)
+			InArgs._ControllerSettings.DefaultZoomMode,
+			InArgs._MouseCaptureMode)
 			);
 
 		SEditorViewport::Construct(SEditorViewport::FArguments());

@@ -136,6 +136,9 @@ namespace UE::ImageWidgets
 			/** Left mouse button released event bubbled up from the viewport */
 			SLATE_EVENT(FOnLeftMouseButtonReleased, OnLeftMouseButtonReleased)
 
+			/** Settings for handling the mouse capture */
+			SLATE_ARGUMENT(EMouseCaptureMode, MouseCaptureMode)
+
 		SLATE_END_ARGS()
 
 		IMAGEWIDGETS_API SImageViewport();

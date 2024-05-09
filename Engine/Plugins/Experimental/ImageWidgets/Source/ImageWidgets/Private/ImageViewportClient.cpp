@@ -99,7 +99,9 @@ void DestroyCheckerTexture(TStrongObjectPtr<UTexture2D>& CheckerTexture)
 
 FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEditorViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
                                            FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
-                                           FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode)
+                                           FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased,
+                                           SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode,
+                                           EMouseCaptureMode InMouseCaptureMode /*= EMouseCaptureMode::CapturePermanently*/)
 	: FEditorViewportClient(nullptr, nullptr, InEditorViewport)
 	, GetImageSize(MoveTemp(InGetImageSize))
 	, DrawImage(MoveTemp(InDrawImage))
@@ -108,6 +110,7 @@ FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEd
 	, OnLeftMouseButtonPressed(MoveTemp(InOnLeftMouseButtonPressed))
 	, OnLeftMouseButtonReleased(MoveTemp(InOnLeftMouseButtonReleased))
 	, Controller(static_cast<FImageViewportController::EZoomMode>(DefaultZoomMode))
+	, MouseCaptureMode(InMouseCaptureMode)
 {
 	check(GetImageSize.IsBound());
 	check(DrawImage.IsBound());
@@ -402,6 +405,11 @@ FVector2d FImageViewportClient::GetViewportSizeWithDPIScaling() const
 	const float DPIScaleFactor = GetDPIScaleFactor.Execute();
 
 	return FVector2d(ViewportSize) / DPIScaleFactor;
+}
+
+EMouseCaptureMode FImageViewportClient::GetMouseCaptureMode() const
+{
+	return MouseCaptureMode;
 }
 }
 

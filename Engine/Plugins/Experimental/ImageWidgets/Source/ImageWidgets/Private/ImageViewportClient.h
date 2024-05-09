@@ -26,7 +26,8 @@ namespace UE::ImageWidgets
 	public:
 		FImageViewportClient(const TWeakPtr<SEditorViewport>& InViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
 		                     FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
-		                     FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode);
+		                     FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased,
+		                     SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode, EMouseCaptureMode InMouseCaptureMode = EMouseCaptureMode::CapturePermanently);
 		virtual ~FImageViewportClient() override;
 
 		virtual void Draw(FViewport* InViewport, FCanvas* Canvas) override;
@@ -36,6 +37,7 @@ namespace UE::ImageWidgets
 		virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 		virtual void TrackingStarted(const FInputEventState& InputState, bool bIsDraggingWidget, bool bNudge) override;
 		virtual void TrackingStopped() override;
+		virtual EMouseCaptureMode GetMouseCaptureMode() const override;
 		// SEditorViewport overrides - end
 
 		int32 GetMipLevel() const;
@@ -86,5 +88,7 @@ namespace UE::ImageWidgets
 
 		TStrongObjectPtr<UTexture2D> CheckerTexture;
 		FCheckerTextureSettings CachedCheckerTextureSettings;
+
+		EMouseCaptureMode MouseCaptureMode;
 	};
 }
