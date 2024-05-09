@@ -812,7 +812,8 @@ void UCEClonerComponent::UpdateActorBakedDynamicMesh(AActor* InActor)
 	AttachmentItem->BakedMaterials = MoveTemp(MeshMaterials);
 
 	// Was the mesh invalidated during the update process ?
-	AttachmentItem->MeshStatus = AttachmentItem->MeshStatus == ECEClonerAttachmentStatus::Outdated ? ECEClonerAttachmentStatus::Outdated : ECEClonerAttachmentStatus::Updated;
+	AttachmentItem->MeshStatus = AttachmentItem->MeshStatus == ECEClonerAttachmentStatus::Outdated ? ECEClonerAttachmentStatus::Outdated : ECEClonerAttachmentStatus::Updated; //-V547
+
 	InvalidateBakedStaticMesh(AttachmentItem->ItemActor.Get());
 }
 

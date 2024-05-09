@@ -6,6 +6,7 @@
 #include "Cloner/Extensions/CEClonerEffectorExtension.h"
 #include "Components/BillboardComponent.h"
 #include "Components/DynamicMeshComponent.h"
+#include "Containers/Ticker.h"
 #include "Effector/CEEffectorExtensionBase.h"
 #include "Effector/Modes/CEEffectorModeBase.h"
 #include "Effector/Types/CEEffectorTypeBase.h"
