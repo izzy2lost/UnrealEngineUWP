@@ -45,7 +45,12 @@ void UCustomizableObjectInstanceThumbnailRenderer::Draw(UObject* Object, int32 X
 	
 	if (CustomizableObjectInstance)
 	{
-		UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject(); 
+		UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+
+		if (!CustomizableObject)
+		{
+			return;
+		}
 
 		if ( ThumbnailScene == nullptr )
 		{

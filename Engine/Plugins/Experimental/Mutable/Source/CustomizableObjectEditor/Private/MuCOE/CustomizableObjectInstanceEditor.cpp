@@ -718,9 +718,12 @@ void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCusto
 	case FCustomizableObjectStatus::EState::NoModel:
 		{
 			UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-			check(CustomizableObject)
-		
-			CustomizableObject->ConditionalAutoCompile();	
+			
+			if (CustomizableObject)
+			{
+				CustomizableObject->ConditionalAutoCompile();
+			}
+
 			break;			
 		}
 
@@ -1004,7 +1007,11 @@ void FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter(const TShare
 void FCustomizableObjectInstanceEditor::CreatePreviewComponents()
 {
 	const UCustomizableObject* Object = CustomizableObjectInstance->GetCustomizableObject();
-	check(Object);
+	
+	if (!Object)
+	{
+		return;
+	}
 	
 	for (const TObjectPtr<UCustomizableSkeletalComponent>& Component : PreviewCustomizableSkeletalComponents)
 	{

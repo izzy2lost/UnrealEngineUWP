@@ -1637,7 +1637,12 @@ void FCustomizableObjectEditorViewportClient::OnInstanceForBakingUpdate(const FU
 	}
 	
 	const UCustomizableObject* CO = BakeTempInstance->GetCustomizableObject();
-	check (CO);
+
+	if (!CO)
+	{
+		UE_LOG(LogMutable, Error, TEXT("The Customizable Object instance provided for the baking does not have a Customizable Object."));
+		return;
+	}
 	
 	// Let the user set some configurations at the editor level
 	const FText DefaultFileName = FText::Format(LOCTEXT("DefaultFileNameForBakeInstance", "{0}"), FText::AsCultureInvariant(CO->GetName()));

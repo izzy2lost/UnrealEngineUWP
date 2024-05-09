@@ -58,6 +58,7 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	 * Multilayer Projectors not supported */
 	void LoadDescriptor(FArchive &Ar);
 
+	// Could return nullptr in some rare situations, so check first
 	UCustomizableObject* GetCustomizableObject() const;
 
 	void SetCustomizableObject(UCustomizableObject* InCustomizableObject);

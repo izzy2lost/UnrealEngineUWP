@@ -714,8 +714,15 @@ bool UCustomizableObjectInstance::IsParameterRelevant(int32 ParameterIndex) cons
 
 bool UCustomizableObjectInstance::IsParameterRelevant(const FString& ParamName) const
 {
+	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return false;
+	}
+
 	// This should have been precalculated in the last update if the appropriate flag in the instance was set.
-	int32 ParameterIndexInObject = GetCustomizableObject()->FindParameter(ParamName);
+	int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	return GetPrivate()->RelevantParameters.Contains(ParameterIndexInObject);
 }
 
@@ -1860,7 +1867,11 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::DoComponentsNeedUpdate);
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
-	check(CustomizableObject);
+	
+	if (!CustomizableObject)
+	{
+		return false;
+	}
 
 	const int32 NumComponents = CustomizableObject->GetComponentCount();
 
@@ -1963,13 +1974,24 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 	bool bUpdateMeshes = DoComponentsNeedUpdate(Public, OperationData, bHasInvalidMesh);
 
+	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		UE_LOG(LogMutable, Warning, TEXT("Failed to generate SkeletalMesh for CO Instance %s. It does not have a CO."), *Public->GetName());
+		
+		InvalidateGeneratedData();
+		OperationData->UpdateResult = EUpdateResult::Error;
+
+		return false;
+	}
+
 	// We can not handle empty meshes, clear any generated mesh and return
 	if (bHasInvalidMesh)
 	{
-		UE_LOG(LogMutable, Warning, TEXT("Failed to generate SkeletalMesh for CO Instance %s. CO [%s]"), *Public->GetName(), *GetNameSafe(Public->GetCustomizableObject()));
+		UE_LOG(LogMutable, Warning, TEXT("Failed to generate SkeletalMesh for CO Instance %s. CO [%s]"), *Public->GetName(), *GetNameSafe(CustomizableObject));
 
 		InvalidateGeneratedData();
-
 		OperationData->UpdateResult = EUpdateResult::Error;
 
 		return false;
@@ -1986,9 +2008,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	TArray<TObjectPtr<USkeletalMesh>> OldSkeletalMeshes = SkeletalMeshes;
 
 	bool bSuccess = true;
-
-	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
-	check(CustomizableObject);
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
@@ -2056,7 +2075,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 		if (OperationData->bStreamMeshLODs)
 		{
-			SkeletalMeshes[Component.Id] = UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(OperationData, *Public, Component.Id);
+			SkeletalMeshes[Component.Id] = UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(OperationData, *Public, *CustomizableObject, Component.Id);
 		}
 		else
 		{
@@ -3857,13 +3876,11 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyClothingData);
 
-	if (!SkeletalMesh)
-	{
-		return;
-	}
+	UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+	// It must be not null as it's checked in the calling function
+	check(CustomizableObject);
 
-
-	const FModelResources& ModelResources = CustomizableObjectInstance->GetCustomizableObject()->GetPrivate()->GetModelResources();
+	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 	const TArray<FCustomizableObjectClothingAssetData>& ClothingAssetsData = ModelResources.ClothingAssetsData;
 	const TArray<FCustomizableObjectClothConfigData>& ClothSharedConfigsData = ModelResources.ClothSharedConfigsData;
 
@@ -4827,7 +4844,10 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 	check(RenderData);
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
+
+	// It must be not null as it's checked in the calling function
 	check(CustomizableObject);
+
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
 	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
@@ -6665,8 +6685,15 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 , const
 		return;
 	}
 
+	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return;
+	}
+
 	if (CVarPreserveUserLODsOnFirstGeneration.GetValueOnGameThread() &&
-		GetCustomizableObject()->bPreserveUserLODsOnFirstGeneration &&
+		CustomizableObject->bPreserveUserLODsOnFirstGeneration &&
 		GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
 	{
 		return;
@@ -6683,7 +6710,7 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 , const
 	FMutableUpdateCandidate MutableUpdateCandidate(this);
 
 	// Clamp Min LOD
-	const int32 MinLODIdx = GetCustomizableObject()->GetPrivate()->GetMinLODIndex();
+	const int32 MinLODIdx = CustomizableObject->GetPrivate()->GetMinLODIndex();
 	const int32 MaxLODIdx = PrivateData->NumLODsAvailable - 1;
 	InMinLOD = FMath::Clamp(InMinLOD, MinLODIdx, MaxLODIdx);
 

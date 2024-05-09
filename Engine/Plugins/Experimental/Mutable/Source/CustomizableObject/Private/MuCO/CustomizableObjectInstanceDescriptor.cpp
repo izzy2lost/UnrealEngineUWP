@@ -17,6 +17,12 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectInstanceDescriptor)
 
 
+void CustomizableObjectNullErrorMessage()
+{
+	UE_LOG(LogMutable, Error,
+		TEXT("Tried to perform actions on a CustomizableObjectInstance with no CustomizableObject set. Please set the CustomizableObject of the Instance before doing anything with it."));
+}
+
 FString GetAvailableOptionsString(const UCustomizableObject& CustomizableObject, const int32 ParameterIndexInObject)
 {
 	FString OptionsString;
@@ -44,7 +50,11 @@ FCustomizableObjectInstanceDescriptor::FCustomizableObjectInstanceDescriptor(UCu
 
 void FCustomizableObjectInstanceDescriptor::SaveDescriptor(FArchive& Ar, bool bUseCompactDescriptor)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
 
 	Ar << bUseCompactDescriptor;
 
@@ -226,7 +236,11 @@ void FCustomizableObjectInstanceDescriptor::SaveDescriptor(FArchive& Ar, bool bU
 
 void FCustomizableObjectInstanceDescriptor::LoadDescriptor(FArchive& Ar)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
 
 	bool bUseCompactDescriptor;
 	Ar << bUseCompactDescriptor;
@@ -450,6 +464,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 {
 	if (!CustomizableObject)
 	{
+		CustomizableObjectNullErrorMessage();
 		return nullptr;
 	}
 
@@ -673,7 +688,13 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 		return;
 	}
 
-	if (!CustomizableObject || !CustomizableObject->IsCompiled())
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
+	if (!CustomizableObject->IsCompiled())
 	{
 		return;
 	}
@@ -1215,7 +1236,11 @@ void LogParameterNotFoundWarning(const FString& ParameterName, const int32 Objec
 
 const FString& FCustomizableObjectInstanceDescriptor::GetIntParameterSelectedOption(const FString& ParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FCustomizableObjectBoolParameterValue::DEFAULT_PARAMETER_VALUE_NAME;
+	}
 	
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
@@ -1246,7 +1271,12 @@ const FString& FCustomizableObjectInstanceDescriptor::GetIntParameterSelectedOpt
 
 void FCustomizableObjectInstanceDescriptor::SetIntParameterSelectedOption(const int32 ParameterIndexInInstance, const FString& SelectedOption, const int32 RangeIndex)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	const int32 ParameterIndexInObject = IntParameters.IsValidIndex(ParameterIndexInInstance) ? CustomizableObject->FindParameter(IntParameters[ParameterIndexInInstance].ParameterName) : INDEX_NONE; //-V781
@@ -1300,7 +1330,12 @@ void FCustomizableObjectInstanceDescriptor::SetIntParameterSelectedOption(const 
 
 void FCustomizableObjectInstanceDescriptor::SetIntParameterSelectedOption(const FString& ParamName, const FString& SelectedOptionName, const int32 RangeIndex)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	const int32 ParamIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
@@ -1317,7 +1352,11 @@ void FCustomizableObjectInstanceDescriptor::SetIntParameterSelectedOption(const 
 
 float FCustomizableObjectInstanceDescriptor::GetFloatParameterSelectedOption(const FString& FloatParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FCustomizableObjectFloatParameterValue::DEFAULT_PARAMETER_VALUE;
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(FloatParamName);
 	const int32 FloatParamIndex = FindTypedParameterIndex(FloatParamName, EMutableParameterType::Float);
@@ -1342,13 +1381,18 @@ float FCustomizableObjectInstanceDescriptor::GetFloatParameterSelectedOption(con
 
 	LogParameterNotFoundWarning(FloatParamName, ParameterIndexInObject, FloatParamIndex, CustomizableObject, __FUNCTION__);
 	
-	return 	FCustomizableObjectFloatParameterValue::DEFAULT_PARAMETER_VALUE; 
+	return FCustomizableObjectFloatParameterValue::DEFAULT_PARAMETER_VALUE; 
 }
 
 
 void FCustomizableObjectInstanceDescriptor::SetFloatParameterSelectedOption(const FString& FloatParamName, const float FloatValue, const int32 RangeIndex)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(FloatParamName);
@@ -1386,7 +1430,11 @@ void FCustomizableObjectInstanceDescriptor::SetFloatParameterSelectedOption(cons
 
 FName FCustomizableObjectInstanceDescriptor::GetTextureParameterSelectedOption(const FString& TextureParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FName();
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(TextureParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(TextureParamName, EMutableParameterType::Texture);
@@ -1417,7 +1465,12 @@ FName FCustomizableObjectInstanceDescriptor::GetTextureParameterSelectedOption(c
 
 void FCustomizableObjectInstanceDescriptor::SetTextureParameterSelectedOption(const FString& TextureParamName, const FString& TextureValue, const int32 RangeIndex)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(TextureParamName);
@@ -1454,7 +1507,11 @@ void FCustomizableObjectInstanceDescriptor::SetTextureParameterSelectedOption(co
 
 FLinearColor FCustomizableObjectInstanceDescriptor::GetColorParameterSelectedOption(const FString& ColorParamName) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FCustomizableObjectVectorParameterValue::DEFAULT_PARAMETER_VALUE;
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ColorParamName);
 	const int32 ColorParamIndex = FindTypedParameterIndex(ColorParamName, EMutableParameterType::Color);
@@ -1471,7 +1528,12 @@ FLinearColor FCustomizableObjectInstanceDescriptor::GetColorParameterSelectedOpt
 
 void FCustomizableObjectInstanceDescriptor::SetColorParameterSelectedOption(const FString& ColorParamName, const FLinearColor& ColorValue)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	SetVectorParameterSelectedOption(ColorParamName, ColorValue);
@@ -1480,7 +1542,11 @@ void FCustomizableObjectInstanceDescriptor::SetColorParameterSelectedOption(cons
 
 bool FCustomizableObjectInstanceDescriptor::GetBoolParameterSelectedOption(const FString& BoolParamName) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FCustomizableObjectBoolParameterValue::DEFAULT_PARAMETER_VALUE;
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(BoolParamName);
 	const int32 BoolParamIndex = FindTypedParameterIndex(BoolParamName, EMutableParameterType::Bool);
@@ -1497,7 +1563,12 @@ bool FCustomizableObjectInstanceDescriptor::GetBoolParameterSelectedOption(const
 
 void FCustomizableObjectInstanceDescriptor::SetBoolParameterSelectedOption(const FString& BoolParamName, const bool BoolValue)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(BoolParamName);
@@ -1516,7 +1587,12 @@ void FCustomizableObjectInstanceDescriptor::SetBoolParameterSelectedOption(const
 
 void FCustomizableObjectInstanceDescriptor::SetVectorParameterSelectedOption(const FString& VectorParamName, const FLinearColor& VectorValue)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(VectorParamName);
@@ -1538,7 +1614,12 @@ void FCustomizableObjectInstanceDescriptor::SetProjectorValue(const FString& Pro
 	const float Angle,
 	const int32 RangeIndex)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Projector parameter "))
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ProjectorParamName);
@@ -1660,7 +1741,11 @@ void FCustomizableObjectInstanceDescriptor::GetProjectorValueF(const FString& Pr
 	float& OutAngle, ECustomizableObjectProjectorType& OutType,
 	const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ProjectorParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ProjectorParamName, EMutableParameterType::Projector);
@@ -1703,7 +1788,11 @@ void FCustomizableObjectInstanceDescriptor::GetProjectorValueF(const FString& Pr
 
 FVector FCustomizableObjectInstanceDescriptor::GetProjectorPosition(const FString& ParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FVector(-0.0, -0.0, -0.0);
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
@@ -1728,7 +1817,11 @@ FVector FCustomizableObjectInstanceDescriptor::GetProjectorPosition(const FStrin
 
 FVector FCustomizableObjectInstanceDescriptor::GetProjectorDirection(const FString& ParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FVector(-0.0, -0.0, -0.0);
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
@@ -1753,7 +1846,11 @@ FVector FCustomizableObjectInstanceDescriptor::GetProjectorDirection(const FStri
 
 FVector FCustomizableObjectInstanceDescriptor::GetProjectorUp(const FString& ParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FVector(-0.0, -0.0, -0.0);
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
@@ -1778,7 +1875,11 @@ FVector FCustomizableObjectInstanceDescriptor::GetProjectorUp(const FString& Par
 
 FVector FCustomizableObjectInstanceDescriptor::GetProjectorScale(const FString& ParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FVector(-0.0, -0.0, -0.0);
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
@@ -1803,7 +1904,11 @@ FVector FCustomizableObjectInstanceDescriptor::GetProjectorScale(const FString& 
 
 float FCustomizableObjectInstanceDescriptor::GetProjectorAngle(const FString& ParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return 0.0;
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
@@ -1828,7 +1933,11 @@ float FCustomizableObjectInstanceDescriptor::GetProjectorAngle(const FString& Pa
 
 ECustomizableObjectProjectorType FCustomizableObjectInstanceDescriptor::GetProjectorParameterType(const FString& ParamName, const int32 RangeIndex) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return ECustomizableObjectProjectorType::Planar;
+	}
 
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
@@ -1881,7 +1990,11 @@ int32 FCustomizableObjectInstanceDescriptor::FindTypedParameterIndex(const FStri
 
 int32 FCustomizableObjectInstanceDescriptor::GetProjectorValueRange(const FString& ParamName) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return -1;
+	}
 
 	const int32 ProjectorParamIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
 	if (ProjectorParamIndex < 0)
@@ -1894,7 +2007,11 @@ int32 FCustomizableObjectInstanceDescriptor::GetProjectorValueRange(const FStrin
 
 int32 FCustomizableObjectInstanceDescriptor::GetIntValueRange(const FString& ParamName) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return -1;
+	}
 
 	const int32 IntParamIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
 	if (IntParamIndex < 0)
@@ -1908,7 +2025,11 @@ int32 FCustomizableObjectInstanceDescriptor::GetIntValueRange(const FString& Par
 
 int32 FCustomizableObjectInstanceDescriptor::GetFloatValueRange(const FString& ParamName) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return -1;
+	}
 
 	const int32 FloatParamIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Float);
 	if (FloatParamIndex < 0)
@@ -1922,7 +2043,11 @@ int32 FCustomizableObjectInstanceDescriptor::GetFloatValueRange(const FString& P
 
 int32 FCustomizableObjectInstanceDescriptor::GetTextureValueRange(const FString& ParamName) const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return -1;
+	}
 
 	const int32 TextureParamIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Texture);
 	if (TextureParamIndex < 0)
@@ -1936,7 +2061,11 @@ int32 FCustomizableObjectInstanceDescriptor::GetTextureValueRange(const FString&
 
 int32 FCustomizableObjectInstanceDescriptor::AddValueToIntRange(const FString& ParamName)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return -1;
+	}
 
 	const int32 IntParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
 	if (IntParameterIndex != INDEX_NONE)
@@ -1979,7 +2108,11 @@ int32 FCustomizableObjectInstanceDescriptor::AddValueToTextureRange(const FStrin
 
 int32 FCustomizableObjectInstanceDescriptor::AddValueToProjectorRange(const FString& ParamName)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return -1;
+	}
 
 	const int32 ProjectorParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
 	if (ProjectorParameterIndex != INDEX_NONE)
@@ -2129,7 +2262,11 @@ int32 FCustomizableObjectInstanceDescriptor::GetState() const
 
 FString FCustomizableObjectInstanceDescriptor::GetCurrentState() const
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return FString();
+	}
 
 	return CustomizableObject->GetStateName(GetState());
 }
@@ -2143,7 +2280,12 @@ void FCustomizableObjectInstanceDescriptor::SetState(const int32 InState)
 
 void FCustomizableObjectInstanceDescriptor::SetCurrentState(const FString& StateName)
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
 	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set state"))
 
 	const int32 Result = CustomizableObject->FindState(StateName);
@@ -2172,10 +2314,9 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValues()
 
 void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRandomStream& InStream)
 {
-	check(CustomizableObject);
-
 	if (!CustomizableObject)
 	{
+		CustomizableObjectNullErrorMessage();
 		return;
 	}
 	
@@ -2256,7 +2397,11 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRan
 
 void FCustomizableObjectInstanceDescriptor::SetDefaultValues()
 {
-	check(CustomizableObject);
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
 
 	for (FCustomizableObjectBoolParameterValue& Value : BoolParameters)
 	{	

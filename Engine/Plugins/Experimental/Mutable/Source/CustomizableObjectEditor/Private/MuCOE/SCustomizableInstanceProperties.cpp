@@ -516,6 +516,12 @@ void SCustomizableInstanceProperties::ResetParamBox()
 void SCustomizableInstanceProperties::RecursivelyAddParamAndChildren(int32 ParamIndexInObject)
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return;
+	}
+
 	const FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 
 	AddParameter(ParamIndexInObject);
@@ -534,6 +540,12 @@ void SCustomizableInstanceProperties::RecursivelyAddParamAndChildren(int32 Param
 void SCustomizableInstanceProperties::FillChildrenMap(int32 ParamIndexInObject)
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return;
+	}
+
 	const FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 	FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
 
@@ -548,7 +560,11 @@ void SCustomizableInstanceProperties::FillChildrenMap(int32 ParamIndexInObject)
 void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 {
 	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	check(CustomizableObject);
+	
+	if (!CustomizableObject)
+	{
+		return;
+	}
 
 	TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 	
@@ -741,7 +757,7 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 	case EMutableParameterType::Int:
 	{
 		int numValues = CustomizableObject->GetIntParameterNumOptions(ParamIndexInObject);
-		bool bIsParamMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional((ParamIndexInObject));
+		bool bIsParamMultidimensional = CustomizableObject->IsParameterMultidimensional((ParamIndexInObject));
 
 		if (!bIsParamMultidimensional && numValues)
 		{
@@ -915,7 +931,7 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 
 	case EMutableParameterType::Projector:
 	{
-		bool bIsParamMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional(ParamIndexInObject);
+		bool bIsParamMultidimensional = CustomizableObject->IsParameterMultidimensional(ParamIndexInObject);
 
 		if (!bIsParamMultidimensional)
 		{
@@ -1451,6 +1467,12 @@ FReply SCustomizableInstanceProperties::OnResetAllParameters()
 	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters();
 	
 	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomObject)
+	{
+		return FReply::Handled();
+	}
+
 	const int32 NumObjectParameter = CustomObject->GetParameterCount();
 
 	for (int32 ParameterIndex = 0; ParameterIndex < NumObjectParameter; ++ParameterIndex)
@@ -1600,6 +1622,12 @@ void SCustomizableInstanceProperties::OnIntParameterComboBoxChanged(TSharedPtr<F
 	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters();
 	
 	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomObject)
+	{
+		return;
+	}
+
 	for (int32 i = 0; i < IntParameters.Num(); ++i)
 	{
 		if (IntParameters[i].ParameterName == ParamName)
@@ -1813,6 +1841,12 @@ void SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged
 	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters();
 
 	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomObject)
+	{
+		return;
+	}
+
 	for (int32 i = 0; i < IntParameters.Num(); ++i)
 	{
 		if (IntParameters[i].ParameterName == ParamName)
@@ -1882,6 +1916,13 @@ void SCustomizableInstanceProperties::OnProjectorFloatParameterSliderEnd(float V
 
 FReply SCustomizableInstanceProperties::OnProjectorCopyTransform(const FString ParamName, const int32 RangeIndex) const
 {
+	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		FReply::Handled();
+	}
+
 	const int32 ParameterIndexInObject = CustomInstance->GetCustomizableObject()->FindParameter(ParamName);
 	const int32 ProjectorParamIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
 
@@ -1946,8 +1987,15 @@ FReply SCustomizableInstanceProperties::OnProjectorResetTransform(const FString 
 {
 	FScopedTransaction Transaction(LOCTEXT("ResetTransform", "Reset Transform"));
 	CustomInstance->Modify();
+
+	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return  FReply::Handled();;
+	}
 	
-	const FCustomizableObjectProjector DefaultValue = CustomInstance->GetCustomizableObject()->GetProjectorParameterDefaultValue(ParamName);
+	const FCustomizableObjectProjector DefaultValue = CustomizableObject->GetProjectorParameterDefaultValue(ParamName);
 
 	CustomInstance->SetProjectorValue(ParamName,
 		static_cast<FVector>(DefaultValue.Position),
@@ -2044,7 +2092,12 @@ FReply SCustomizableInstanceProperties::CreateParameterProfileWindow()
 
 FReply SCustomizableInstanceProperties::RemoveParameterProfile()
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject(); 
+	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return FReply::Handled();
+	}
 
 	const int32 ProfileIdx = CustomInstance->GetPrivate()->SelectedProfileIndex;
 	if (ProfileIdx == INDEX_NONE)
@@ -2090,7 +2143,14 @@ void SCustomizableInstanceProperties::OnProfileSelectedChanged(TSharedPtr<FStrin
 	}	
 
 	//Set selected profile
-	TArray<FProfileParameterDat>& Profiles = CustomInstance->GetCustomizableObject()->GetPrivate()->GetInstancePropertiesProfiles();
+	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return;
+	}
+
+	TArray<FProfileParameterDat>& Profiles = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles();
 	for (int32 Idx = 0; Idx < Profiles.Num(); ++Idx)
 	{
 		if (Profiles[Idx].ProfileName == *Selection)
@@ -2122,7 +2182,14 @@ void SCustomizableInstanceProperties::SetParameterProfileNamesOnEditor()
 {
 	ParameterProfileNames.Empty();
 
-	for (FProfileParameterDat& Profile : CustomInstance->GetCustomizableObject()->GetPrivate()->GetInstancePropertiesProfiles())
+	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return;
+	}
+
+	for (FProfileParameterDat& Profile : CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles())
 	{
 		ParameterProfileNames.Emplace(MakeShared<FString>(Profile.ProfileName));
 	}
@@ -2141,6 +2208,12 @@ bool SCustomizableInstanceProperties::HasAnyParameters() const
 bool SCustomizableInstanceProperties::SetParameterValueToDefault(int32 ParameterIndex)
 {
 	UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
+
+	if (!CustomObject)
+	{
+		return false;
+	}
+
 	FString ParameterName = CustomObject->GetParameterName(ParameterIndex);
 	EMutableParameterType ParameterType = CustomObject->GetParameterType(ParameterIndex);
 
@@ -2365,6 +2438,12 @@ FReply SCreateProfileParameters::OnButtonClick(EAppReturnType::Type ButtonID)
 		RequestDestroyWindow();
 
 		UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject(); 
+
+		if (!CustomizableObject)
+		{
+			return  FReply::Handled();;
+		}
+
 		CustomizableObject->GetPrivate()->AddNewParameterProfile(GetFileName(), *CustomInstance.Get());
 
 		if (CustomInstance->GetPrivate()->bSelectedProfileDirty && CustomInstance->GetPrivate()->SelectedProfileIndex != INDEX_NONE)

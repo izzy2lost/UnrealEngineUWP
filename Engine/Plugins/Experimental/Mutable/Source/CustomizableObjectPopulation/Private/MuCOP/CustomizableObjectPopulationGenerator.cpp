@@ -22,7 +22,12 @@ void FCustomizableObjectPopulationClassGenerator::GenerateParameters(
 
 		if (ConstraintSampler.IsValidSampler())
 		{
-			UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject(); 
+			UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
+
+			if (!CustomizableObject)
+			{
+				return;
+			}
 
 			const FConstraintIndex& SamplerIndex = ConstraintSampler.GetSamplerID(ConstraintSampler.Sample(Rand));
 			switch (SamplerIndex.SamplerType)

@@ -195,6 +195,11 @@ TSharedRef<SWidget> SCustomizableObjectEditorTagExplorer::OnGetTagsMenuContent()
 
 	UCustomizableObject* CustomizableObject = CustomizableObjectEditorPtr->GetCustomizableObject();
 
+	if (!CustomizableObject)
+	{
+		return SNullWidget::NullWidget;
+	}
+
 	UCustomizableObjectNodeObject* Root = GetRootNode(CustomizableObject, bMultipleBaseObjectsFound);
 	TArray<UCustomizableObject*> CustomizableObjectFamily;
 	TArray<FString> Tags;

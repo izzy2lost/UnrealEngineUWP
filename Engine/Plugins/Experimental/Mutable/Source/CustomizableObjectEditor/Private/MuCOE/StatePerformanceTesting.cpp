@@ -325,6 +325,11 @@ void FRuntimeTest::LoadStateData(int32 StateIndex)
 {
 	UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject(); 
 
+	if (!CustomizableObject)
+	{
+		return;
+	}
+
 	StateWholeInformation StateData;
 	StateData.State = StateIndex;
 	StateData.StateName = CustomizableObject->GetStateName(StateIndex);
@@ -498,6 +503,13 @@ void FRuntimeTest::InitTest()
 	MapStateEnterData.Empty();
 	MapStateUpdateData.Empty();
 	MapStateRuntimeData.Empty();
+
+	UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
+
+	if (!CustomizableObject)
+	{
+		return;
+	}
 
 	// Build a batch of changes for each state
 	const int32 NumStates = Instance->GetCustomizableObject()->GetStateCount();

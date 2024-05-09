@@ -19,21 +19,19 @@ FName GenerateUniqueNameFromCOInstance(const UCustomizableObjectInstance& Instan
 }
 
 
-UCustomizableObjectSkeletalMesh* UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, const UCustomizableObjectInstance& Instance, const int32 InComponentIndex)
+UCustomizableObjectSkeletalMesh* UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, 
+	const UCustomizableObjectInstance& Instance, const UCustomizableObject& CustomizableObject, const int32 InComponentIndex)
 {
-	UCustomizableObject* CustomizableObject = Instance.GetCustomizableObject();
-	check(CustomizableObject);
-
 	FName SkeletalMeshName = GenerateUniqueNameFromCOInstance(Instance);
 	UCustomizableObjectSkeletalMesh* OutSkeletalMesh = NewObject<UCustomizableObjectSkeletalMesh>(GetTransientPackage(), SkeletalMeshName, RF_Transient);
 	
 	// Debug info
-	OutSkeletalMesh->CustomizableObjectPathName = GetNameSafe(CustomizableObject);
+	OutSkeletalMesh->CustomizableObjectPathName = GetNameSafe(&CustomizableObject);
 	OutSkeletalMesh->InstancePathName = Instance.GetName();
 
 
 	// Init properties
-	OutSkeletalMesh->Model = CustomizableObject->GetPrivate()->GetModel();
+	OutSkeletalMesh->Model = CustomizableObject.GetPrivate()->GetModel();
 
 	OutSkeletalMesh->Parameters = OperationData->Parameters;
 	OutSkeletalMesh->State = OperationData->GetCapturedDescriptor().GetState();

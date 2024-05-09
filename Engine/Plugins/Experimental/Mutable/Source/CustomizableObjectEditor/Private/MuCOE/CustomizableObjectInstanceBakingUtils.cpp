@@ -373,7 +373,6 @@ bool BakeCustomizableObjectInstance(
 	
 	// Ensure that the state of the COI provided is valid --------------------------------------------------------------------------------------------
 	UCustomizableObject* InstanceCO = InInstance.GetCustomizableObject();
-	check (InstanceCO);
 
 	// Ensure the CO of the COI is accessible 
 	if (!InstanceCO || InstanceCO->GetPrivate()->IsLocked())

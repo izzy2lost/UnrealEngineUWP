@@ -135,7 +135,11 @@ void FMultilayerProjector::CreateLayer(FCustomizableObjectInstanceDescriptor& De
 	}
 
 	const UCustomizableObject* Object = Descriptor.GetCustomizableObject(); 
-	check(Object);
+	
+	if (!Object)
+	{
+		return;
+	}
 	
 	// Num Layers.
 	{
