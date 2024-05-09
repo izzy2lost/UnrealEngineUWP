@@ -122,6 +122,14 @@ public:
 	static FPlayerMappableKeySlot& GetFourthPlayerMappableKeySlot() { return FPlayerMappableKeySlot::FourthKeySlot; };
 	
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	/**
+	 * Flushes the player controller's pressed keys
+	 * 
+	 * @see APlayerController::FlushPressedKeys
+	 */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	static void FlushPlayerInput(APlayerController* PlayerController);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
