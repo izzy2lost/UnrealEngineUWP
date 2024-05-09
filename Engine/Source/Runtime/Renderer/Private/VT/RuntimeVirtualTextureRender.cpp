@@ -1336,7 +1336,7 @@ namespace RuntimeVirtualTexture
 	END_SHADER_PARAMETER_STRUCT()
 
 	/** Set up the copy to final output physical texture. */
-	void AddCopyToOutputPass(FRDGBuilder& GraphBuilder, FRDGTextureRef InputTexture, FRHITexture* OutputTexture, FBox2D const& DestBox)
+	void AddCopyToOutputPass(FRDGBuilder& GraphBuilder, FRDGTextureRef InputTexture, FRHITexture* OutputTexture, ERHIAccess OutputTextureAccessBefore, ERHIAccess OutputTextureAccessAfter, FBox2D const& DestBox)
 	{
 		FRHICopyTextureInfo CopyInfo;
 		CopyInfo.Size = InputTexture->Desc.GetSize();
@@ -1349,11 +1349,11 @@ namespace RuntimeVirtualTexture
 			RDG_EVENT_NAME("VirtualTextureCopyToOutput"),
 			Parameters,
 			ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-			[InputTexture, OutputTexture, CopyInfo](FRHICommandList& RHICmdList)
+			[InputTexture, OutputTexture, OutputTextureAccessBefore, OutputTextureAccessAfter, CopyInfo](FRHICommandList& RHICmdList)
 			{
-				RHICmdList.Transition(FRHITransitionInfo(OutputTexture, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
+				RHICmdList.Transition(FRHITransitionInfo(OutputTexture, OutputTextureAccessBefore, ERHIAccess::CopyDest));
 				RHICmdList.CopyTexture(InputTexture->GetRHI(), OutputTexture, CopyInfo);
-				RHICmdList.Transition(FRHITransitionInfo(OutputTexture, ERHIAccess::CopyDest, ERHIAccess::SRVMask));
+				RHICmdList.Transition(FRHITransitionInfo(OutputTexture, ERHIAccess::CopyDest, OutputTextureAccessAfter));
 			});
 	}
 
@@ -1382,12 +1382,18 @@ namespace RuntimeVirtualTexture
 		bool bIsThumbnails,
 		bool bAllowCachedMeshDrawCommands,
 		FRHITexture* OutputTexture0,		// todo[vt]: Only use IPooledRenderTarget or FRDGTextureRef, not raw RHI textures.
+		ERHIAccess OutputTextureAccessBefore0, 
+		ERHIAccess OutputTextureAccessAfter0, 
 		IPooledRenderTarget* OutputTarget0,
 		FBox2D const& DestBox0,
 		FRHITexture* OutputTexture1,
+		ERHIAccess OutputTextureAccessBefore1, 
+		ERHIAccess OutputTextureAccessAfter1,
 		IPooledRenderTarget* OutputTarget1,
 		FBox2D const& DestBox1,
 		FRHITexture* OutputTexture2, 
+		ERHIAccess OutputTextureAccessBefore2, 
+		ERHIAccess OutputTextureAccessAfter2, 
 		IPooledRenderTarget* OutputTarget2,
 		FBox2D const& DestBox2,
 		FTransform const& UVToWorld,
@@ -1538,15 +1544,15 @@ namespace RuntimeVirtualTexture
 		// Copy to Output for each output texture
 		if (GraphSetup.OutputAlias0 != nullptr && OutputTexture0 != nullptr)
 		{
-			AddCopyToOutputPass(GraphBuilder, GraphSetup.OutputAlias0, OutputTexture0, DestBox0);
+			AddCopyToOutputPass(GraphBuilder, GraphSetup.OutputAlias0, OutputTexture0, OutputTextureAccessBefore0, OutputTextureAccessAfter0, DestBox0);
 		}
 		if (GraphSetup.OutputAlias1 != nullptr && OutputTexture1 != nullptr)
 		{
-			AddCopyToOutputPass(GraphBuilder, GraphSetup.OutputAlias1, OutputTexture1, DestBox1);
+			AddCopyToOutputPass(GraphBuilder, GraphSetup.OutputAlias1, OutputTexture1, OutputTextureAccessBefore1, OutputTextureAccessAfter1, DestBox1);
 		}
 		if (GraphSetup.OutputAlias2 != nullptr && OutputTexture2 != nullptr)
 		{
-			AddCopyToOutputPass(GraphBuilder, GraphSetup.OutputAlias2, OutputTexture2, DestBox2);
+			AddCopyToOutputPass(GraphBuilder, GraphSetup.OutputAlias2, OutputTexture2, OutputTextureAccessBefore2, OutputTextureAccessAfter2, DestBox2);
 		}
 	}
 
@@ -1572,9 +1578,9 @@ namespace RuntimeVirtualTexture
 					InDesc.bClearTextures,
 					InDesc.bIsThumbnails,
 					bAllowCachedMeshDrawCommands,
-					InDesc.Targets[0].Texture, InDesc.Targets[0].PooledRenderTarget, PageDesc.DestBox[0],
-					InDesc.Targets[1].Texture, InDesc.Targets[1].PooledRenderTarget, PageDesc.DestBox[1],
-					InDesc.Targets[2].Texture, InDesc.Targets[2].PooledRenderTarget, PageDesc.DestBox[2],
+					InDesc.Targets[0].Texture, InDesc.Targets[0].TextureAccessBefore, InDesc.Targets[0].TextureAccessAfter, InDesc.Targets[0].PooledRenderTarget, PageDesc.DestBox[0],
+					InDesc.Targets[1].Texture, InDesc.Targets[1].TextureAccessBefore, InDesc.Targets[1].TextureAccessAfter, InDesc.Targets[1].PooledRenderTarget, PageDesc.DestBox[1],
+					InDesc.Targets[2].Texture, InDesc.Targets[2].TextureAccessBefore, InDesc.Targets[2].TextureAccessAfter, InDesc.Targets[2].PooledRenderTarget, PageDesc.DestBox[2],
 					InDesc.UVToWorld,
 					InDesc.WorldBounds,
 					PageDesc.UVRange,

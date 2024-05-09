@@ -54,6 +54,8 @@ namespace
 				RenderTargets[Layer] = RHICreateTexture(Desc);
 
 				Desc.SetFlags(ETextureCreateFlags::CPUReadback);
+				// The staging texture will only ever be in CopyDest state so set it right away : 
+				Desc.SetInitialState(ERHIAccess::CopyDest); 
 				StagingTextures[Layer] = RHICreateTexture(Desc);
 			}
 
@@ -216,6 +218,7 @@ namespace RuntimeVirtualTexture
 		FinalPixels.SetNumUninitialized(RenderTileResourcesBytes);
 
 		UE::RenderCommandPipe::FSyncScope SyncScope;
+		ERHIAccess RenderTargetsCurrentState = ERHIAccess::RTV;
 
 		// Iterate over all tiles and render/store each one to the final image
 		for (int32 TileY = 0; TileY < NumTilesY && !Task.ShouldCancel(); TileY++)
@@ -245,16 +248,10 @@ namespace RuntimeVirtualTexture
 					TileX, TileY,
 					TileSize, ImageSizeX, ImageSizeY, 
 					&FinalPixels,
-					FixedColor](FRHICommandListImmediate& RHICmdList)
+					FixedColor, &RenderTargetsCurrentState](FRHICommandListImmediate& RHICmdList)
 				{
 					const FBox2D TileBox(FVector2D(0, 0), FVector2D(TileSize, TileSize));
 					const FIntRect TileRect(0, 0, TileSize, TileSize);
-
-					// Transition render targets for writing
-					for (int32 Layer = 0; Layer < NumLayers; Layer++)
-					{
-						RHICmdList.Transition(FRHITransitionInfo(RenderTileResources.GetRenderTarget(Layer), ERHIAccess::Unknown, ERHIAccess::RTV));
-					}
 
 					{
 						FRDGBuilder GraphBuilder(RHICmdList);
@@ -270,12 +267,14 @@ namespace RuntimeVirtualTexture
 						Desc.bIsThumbnails = false;
 						Desc.FixedColor = FixedColor;
 						Desc.NumPageDescs = 1;
-						Desc.Targets[0].Texture = RenderTileResources.GetRenderTarget(0);
-						Desc.Targets[1].Texture = RenderTileResources.GetRenderTarget(1);
-						Desc.Targets[2].Texture = RenderTileResources.GetRenderTarget(2);
-						Desc.PageDescs[0].DestBox[0] = TileBox;
-						Desc.PageDescs[0].DestBox[1] = TileBox;
-						Desc.PageDescs[0].DestBox[2] = TileBox;
+						for (int32 Layer = 0; Layer < NumLayers; Layer++)
+						{
+							Desc.Targets[Layer].Texture = RenderTileResources.GetRenderTarget(Layer);
+							Desc.Targets[Layer].TextureAccessBefore = RenderTargetsCurrentState;
+							// Leave the render targets in CopySrc state since we'll read from them right after, to avoid a useless transition :
+							Desc.Targets[Layer].TextureAccessAfter = ERHIAccess::CopySrc;
+							Desc.PageDescs[0].DestBox[Layer] = TileBox;
+						}
 						Desc.PageDescs[0].UVRange = UVRange;
 						Desc.PageDescs[0].vLevel = IntCastChecked<uint8>(RenderLevel);
 
@@ -287,9 +286,9 @@ namespace RuntimeVirtualTexture
 					// Copy to staging
 					for (int32 Layer = 0; Layer < NumLayers; Layer++)
 					{
-						RHICmdList.Transition(FRHITransitionInfo(RenderTileResources.GetRenderTarget(Layer), ERHIAccess::RTV, ERHIAccess::CopySrc));
 						RHICmdList.CopyTexture(RenderTileResources.GetRenderTarget(Layer), RenderTileResources.GetStagingTexture(Layer), FRHICopyTextureInfo());
 					}
+					RenderTargetsCurrentState = ERHIAccess::CopySrc;
 
 					RenderTileResources.GetFence()->Clear();
 					RHICmdList.WriteGPUFence(RenderTileResources.GetFence());
