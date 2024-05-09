@@ -15,6 +15,7 @@
 #include "HAL/ThreadHeartBeat.h"
 #include "HAL/ThreadManager.h"
 #include "Internationalization/Internationalization.h"
+#include "GenericPlatform/GenericPlatformCrashContextEx.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
@@ -581,7 +582,7 @@ int32 ReportCrashForMonitor(
 	HANDLE CrashingThreadHandle,
 	DWORD CrashingThreadId,
 	FProcHandle& CrashMonitorHandle,
-	FSharedCrashContext* SharedContext,
+	FSharedCrashContextEx* SharedContext,
 	void* WritePipe,
 	void* ReadPipe,
 	EErrorReportUI ReportUI)
@@ -590,6 +591,7 @@ int32 ReportCrashForMonitor(
 	FScopeLock ScopedMonitorLock(&GMonitorLock);
 
 	FGenericCrashContext::CopySharedCrashContext(*SharedContext);
+	CopyGPUBreadcrumbsToSharedCrashContext(*SharedContext);
 
 	// Set the platform specific crash context, so that we can stack walk and minidump from
 	// the crash reporter client.
@@ -762,7 +764,7 @@ int32 ReportCrashForMonitor(
 	// Write the shared context to the pipe
 	bool bPipeWriteSucceeded = true;
 	const uint8* DataIt = (const uint8*)SharedContext;
-	const uint8* DataEndIt = DataIt + sizeof(FSharedCrashContext);
+	const uint8* DataEndIt = DataIt + sizeof(FSharedCrashContextEx);
 	while (DataIt != DataEndIt && bPipeWriteSucceeded)
 	{
 		int32 OutDataWritten = 0;
@@ -1129,7 +1131,7 @@ private:
 	/** The crash report client process ID. */
 	uint32 CrashMonitorPid;
 	/** Memory allocated for crash context. */
-	FSharedCrashContext SharedContext;
+	FSharedCrashContextEx SharedContext;
 	
 
 	/** Thread main proc */

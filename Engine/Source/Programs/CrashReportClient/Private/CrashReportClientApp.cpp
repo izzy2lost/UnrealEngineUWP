@@ -16,6 +16,7 @@
 #include "Misc/FileHelper.h"
 #include "CrashReportCoreConfig.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
+#include "GenericPlatform/GenericPlatformCrashContextEx.h"
 #include "CrashDescription.h"
 #include "CrashReportAnalytics.h"
 #include "Modules/ModuleManager.h"
@@ -470,7 +471,7 @@ SubmitCrashReportResult RunUnattended(FPlatformErrorReport ErrorReport, bool bIm
 	return FPrimaryCrashProperties::Get()->bIsEnsure ? SuccessContinue : SuccessClosed;
 }
 
-FPlatformErrorReport CollectErrorReport(FRecoveryService* RecoveryService, uint32 Pid, const FSharedCrashContext& SharedCrashContext, void* WritePipe, bool& bOutCrashPortableCallstackAvailable)
+FPlatformErrorReport CollectErrorReport(FRecoveryService* RecoveryService, uint32 Pid, const FSharedCrashContextEx& SharedCrashContext, void* WritePipe, bool& bOutCrashPortableCallstackAvailable)
 {
 	bOutCrashPortableCallstackAvailable = false;
 
@@ -490,11 +491,12 @@ FPlatformErrorReport CollectErrorReport(FRecoveryService* RecoveryService, uint3
 	}
 
 	// First init the static crash context state
-	FPlatformCrashContext::InitializeFromContext(
+	InitializeFromCrashContextEx(
 		SharedCrashContext.SessionContext,
 		SharedCrashContext.EnabledPluginsNum > 0 ? &SharedCrashContext.DynamicData[SharedCrashContext.EnabledPluginsOffset] : nullptr,
 		SharedCrashContext.EngineDataNum > 0 ? &SharedCrashContext.DynamicData[SharedCrashContext.EngineDataOffset] : nullptr,
-		SharedCrashContext.GameDataNum > 0 ? &SharedCrashContext.DynamicData[SharedCrashContext.GameDataOffset] : nullptr
+		SharedCrashContext.GameDataNum > 0 ? &SharedCrashContext.DynamicData[SharedCrashContext.GameDataOffset] : nullptr,
+		&SharedCrashContext.GPUBreadcrumbs
 	);
 	// Next create a crash context for the crashed process.
 	FPlatformCrashContext CrashContext(SharedCrashContext.CrashType, SharedCrashContext.ErrorMessage);
@@ -727,7 +729,7 @@ SubmitCrashReportResult SendErrorReport(FPlatformErrorReport& ErrorReport,
 	return Failed;
 }
 
-bool IsCrashReportAvailable(uint32 WatchedProcess, FSharedCrashContext& CrashContext, void* ReadPipe)
+bool IsCrashReportAvailable(uint32 WatchedProcess, FSharedCrashContextEx& CrashContext, void* ReadPipe)
 {
 	TArray<uint8> Buffer;
 
@@ -736,7 +738,7 @@ bool IsCrashReportAvailable(uint32 WatchedProcess, FSharedCrashContext& CrashCon
 	{
 		FCrashReportAnalyticsSessionSummary::Get().LogEvent(TEXT("Pipe/Read"));
 
-		// This is to ensure the FSharedCrashContext compiled in the monitored process and this process has the same size.
+		// This is to ensure the FSharedCrashContextEx compiled in the monitored process and this process has the same size.
 		int32 TotalRead = Buffer.Num();
 
 		// Utility function to copy bytes from a source to a destination buffer.
@@ -749,7 +751,7 @@ bool IsCrashReportAvailable(uint32 WatchedProcess, FSharedCrashContext& CrashCon
 
 		// Iterators to defines the boundaries of the destination buffer in memory.
 		uint8* SharedCtxIt = reinterpret_cast<uint8*>(&CrashContext);
-		uint8* SharedCtxEndIt = SharedCtxIt + sizeof(FSharedCrashContext);
+		uint8* SharedCtxEndIt = SharedCtxIt + sizeof(FSharedCrashContextEx);
 
 		// Copy the data already read and update the destination iterator.
 		SharedCtxIt = CopyFn(Buffer, SharedCtxIt, SharedCtxEndIt);
@@ -769,16 +771,24 @@ bool IsCrashReportAvailable(uint32 WatchedProcess, FSharedCrashContext& CrashCon
 			}
 		}
 
-		if (TotalRead < sizeof(FSharedCrashContext))
+		// The process may send the old structure instead of the Ex version.
+		if (TotalRead < sizeof(FSharedCrashContextEx) && TotalRead != sizeof(FSharedCrashContext))
 		{
 			FCrashReportAnalyticsSessionSummary::Get().LogEvent(TEXT("Pipe/NotEnoughData"));
 		}
-		else if (TotalRead > sizeof(FSharedCrashContext))
+		else if (TotalRead > sizeof(FSharedCrashContextEx))
 		{
 			FCrashReportAnalyticsSessionSummary::Get().LogEvent(TEXT("Pipe/TooMuchData"));
 		}
 		else
 		{
+			// If the process sent the old structure instead of the Ex version, make sure to zero out
+			// the fields from the latter.
+			if (TotalRead == sizeof(FSharedCrashContext))
+			{
+				FMemory::Memzero(CrashContext.GPUBreadcrumbs);
+			}
+
 			// Record the history of events sent by the Editor to help diagnose abnormal terminations.
 			switch (CrashContext.CrashType)
 			{
@@ -874,7 +884,7 @@ bool FindAndCopyValue(const TMap<FString, FString>& Map, const FString& Key, TCH
 	return false;
 }
 
-static bool LoadTempCrashContextFromFile(FSharedCrashContext& CrashContext, uint64 ProcessID)
+static bool LoadTempCrashContextFromFile(FSharedCrashContextEx& CrashContext, uint64 ProcessID)
 {
 	const FString TempContextFilePath = FGenericCrashContext::GetTempSessionContextFilePath(ProcessID);
 
@@ -987,7 +997,7 @@ FString FormatExitCode(int32 ExitCode)
 	return LexToString(ExitCode);
 }
 
-static void HandleAbnormalShutdown(FSharedCrashContext& CrashContext, uint64 ProcessID, void* WritePipe, const TSharedPtr<FRecoveryService>& RecoveryService, const TOptional<int32>& ExitCode)
+static void HandleAbnormalShutdown(FSharedCrashContextEx& CrashContext, uint64 ProcessID, void* WritePipe, const TSharedPtr<FRecoveryService>& RecoveryService, const TOptional<int32>& ExitCode)
 {
 	CrashContext.CrashType = ECrashContextType::AbnormalShutdown;
 	if (ExitCode.IsSet())
@@ -1152,7 +1162,7 @@ void RunCrashReportClient(const TCHAR* CommandLine)
 			{
 				// Check if the monitored process signaled a crash or an ensure, read the pipe data to avoid blocking the writer, but process the data only if CRC wasn't requested to exit.
 				// This purposedly ignores any ensure that could be piped out just after a crash. (The way concurrent crash/ensures are handled/reported make this unlikely, but possible).
-				FSharedCrashContext CrashContext;
+				FSharedCrashContextEx CrashContext;
 				if (IsCrashReportAvailable(MonitorPid, CrashContext, MonitorReadPipe) && !IsEngineExitRequested())
 				{
 					FCrashReportAnalyticsSessionSummary::Get().OnCrashReportStarted(CrashContext.CrashType, CrashContext.ErrorMessage);
@@ -1237,7 +1247,7 @@ void RunCrashReportClient(const TCHAR* CommandLine)
 #if CRASH_REPORT_WITH_MTBF
 		{
 			// Load the temporary crash context file.
-			FSharedCrashContext TempCrashContext;
+			FSharedCrashContextEx TempCrashContext;
 			FMemory::Memzero(TempCrashContext);
 			if (LoadTempCrashContextFromFile(TempCrashContext, MonitorPid) && TempCrashContext.UserSettings.bSendUsageData)
 			{
