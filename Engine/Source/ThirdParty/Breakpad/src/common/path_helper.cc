@@ -1,5 +1,4 @@
-// Copyright 2017, Google Inc.
-// All rights reserved.
+// Copyright 2017 Google LLC
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -11,7 +10,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google Inc. nor the names of its
+//     * Neither the name of Google LLC nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -27,6 +26,10 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>  // Must come first
+#endif
+
 #include "common/path_helper.h"
 
 #include <assert.h>
@@ -35,6 +38,9 @@
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <libgen.h>
 #endif
+
+#include <stdlib.h>
+#include <string.h>
 
 namespace google_breakpad {
 
