@@ -10,6 +10,8 @@ class UMotionWarpingComponent;
 class UAnimNotifyState_MotionWarping;
 class URootMotionModifier;
 class USceneComponent;
+class ACharacter;
+class UMotionWarpingBaseAdapter;
 
 /** 
  * Context passed to any active root motion modifier during the update phase. 
@@ -130,8 +132,15 @@ public:
 	/** Returns a pointer to the component that owns this modifier */
 	UMotionWarpingComponent* GetOwnerComponent() const;
 
-	/** Returns a pointer to the character that owns the component that owns this modifier */
-	class ACharacter* GetCharacterOwner() const;
+	/** Returns a pointer to the adapter to the object being warped */
+	UMotionWarpingBaseAdapter* GetOwnerAdapter() const;
+
+	/** Returns a pointer to the actor that owns the component that owns this modifier */
+	AActor* GetActorOwner() const;
+	
+	/** Returns a pointer to the Character that owns the component using this modifier. Returns null if not owned by a Character actor. */
+	UE_DEPRECATED(5.5, "Motion Warping is no longer limited to Character actors. Use GetActorOwner instead.")
+	ACharacter* GetCharacterOwner() const;
 
 	virtual void Update(const FMotionWarpingUpdateContext& Context);
 	virtual FTransform ProcessRootMotion(const FTransform& InRootMotion, float DeltaSeconds) { return FTransform::Identity; }

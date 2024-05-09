@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Components/ActorComponent.h"
+#include "MotionWarpingAdapter.h"
 #include "MovementMode.h"
 #include "MoverTypes.h"
 #include "LayeredMove.h"
@@ -186,10 +187,34 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
 	FVector GetUpDirection() const;
 
+public:
+
+	/**
+	 *  Converts a local root motion transform to worldspace. 
+	 * @param AlternateActorToWorld   allows specification of a different actor root transform, for cases when root motion isn't directly being applied to this actor (async simulations)
+	 * @param OptionalWarpingContext   allows specification of a warping context, for use with root motion that is asynchronous from the actor (async simulations)
+	 */
+	virtual FTransform ConvertLocalRootMotionToWorld(const FTransform& LocalRootMotionTransform, float DeltaSeconds, const FTransform* AlternateActorToWorld=nullptr, const FMotionWarpingUpdateContext* OptionalWarpingContext=nullptr) const;
+
+	/** delegates used when converting local root motion to worldspace, allowing external systems to influence it (such as motion warping) */
+	FOnWarpLocalspaceRootMotionWithContext ProcessLocalRootMotionDelegate;
+	FOnWarpWorldspaceRootMotionWithContext ProcessWorldRootMotionDelegate;
+
 public:	// Queries
 
 	// Get the transform of the root component that our Mover simulation is moving
 	FTransform GetUpdatedComponentTransform() const;
+
+	// Access the root component of the actor that our Mover simulation is moving
+	USceneComponent* GetUpdatedComponent() const;
+
+	// Typed accessor to root moving component
+	template<class T>
+	T* GetUpdatedComponent() const
+	{
+		static_assert(TPointerIsConvertibleFromTo<T, const USceneComponent>::Value, "'T' template parameter to GetUpdatedComponent must be derived from USceneComponent");
+		return Cast<T>(GetUpdatedComponent());
+	}
 
 	// Access the primary visual component of the actor
 	USceneComponent* GetPrimaryVisualComponent() const;

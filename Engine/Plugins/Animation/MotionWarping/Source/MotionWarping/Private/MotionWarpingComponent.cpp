@@ -13,6 +13,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AnimNotifyState_MotionWarping.h"
+#include "MotionWarpingCharacterAdapter.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
 
@@ -163,6 +164,7 @@ void UMotionWarpingUtilities::GetMotionWarpingWindowsForWarpTargetFromAnimation(
 	}
 }
 
+
 FTransform UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(const ACharacter& Character, const UAnimSequenceBase* Animation, float Time, const FName& WarpPointBoneName)
 {
 	if (const USkeletalMeshComponent* Mesh = Character.GetMesh())
@@ -194,6 +196,39 @@ FTransform UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtT
 	return FTransform::Identity;
 }
 
+
+FTransform UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(const UMotionWarpingBaseAdapter& WarpingAdapter, const UAnimSequenceBase* Animation, float Time, const FName& WarpPointBoneName)
+{
+	if (const USkeletalMeshComponent* Mesh = WarpingAdapter.GetMesh())
+	{
+		if (const UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
+		{
+			const FBoneContainer& FullBoneContainer = AnimInstance->GetRequiredBones();
+			const int32 BoneIndex = FullBoneContainer.GetPoseBoneIndexForBoneName(WarpPointBoneName);
+			if (BoneIndex != INDEX_NONE)
+			{
+				TArray<FBoneIndexType> RequiredBoneIndexArray = { 0, (FBoneIndexType)BoneIndex };
+				FullBoneContainer.GetReferenceSkeleton().EnsureParentsExistAndSort(RequiredBoneIndexArray);
+
+				FBoneContainer LimitedBoneContainer(RequiredBoneIndexArray, UE::Anim::FCurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll), *FullBoneContainer.GetAsset());
+
+				FCSPose<FCompactPose> Pose;
+				UMotionWarpingUtilities::ExtractComponentSpacePose(Animation, LimitedBoneContainer, Time, false, Pose);
+
+				// Inverse of mesh's relative rotation. Used to convert root and warp point in the animation from Y forward to X forward
+				const FTransform MeshCompRelativeRotInverse = FTransform(WarpingAdapter.GetBaseVisualRotationOffset().Inverse());
+
+				const FTransform RootTransform = MeshCompRelativeRotInverse * Pose.GetComponentSpaceTransform(FCompactPoseBoneIndex(0));
+				const FTransform WarpPointTransform = MeshCompRelativeRotInverse * Pose.GetComponentSpaceTransform(FCompactPoseBoneIndex(1));
+				return RootTransform.GetRelativeTransform(WarpPointTransform);
+			}
+		}
+	}
+
+	return FTransform::Identity;
+}
+
+
 FTransform UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(const ACharacter& Character, const UAnimSequenceBase* Animation, float Time, const FTransform& WarpPointTransform)
 {
 	// Inverse of mesh's relative rotation. Used to convert root and warp point in the animation from Y forward to X forward
@@ -201,6 +236,16 @@ FTransform UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtT
 	const FTransform RootTransform = MeshCompRelativeRotInverse * UMotionWarpingUtilities::ExtractRootTransformFromAnimation(Animation, Time);
 	return RootTransform.GetRelativeTransform((MeshCompRelativeRotInverse * WarpPointTransform));
 }
+
+
+FTransform UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(const UMotionWarpingBaseAdapter& WarpingAdapter, const UAnimSequenceBase* Animation, float Time, const FTransform& WarpPointTransform)
+{
+	// Inverse of mesh's relative rotation. Used to convert root and warp point in the animation from Y forward to X forward
+	const FTransform MeshCompRelativeRotInverse = FTransform(WarpingAdapter.GetBaseVisualRotationOffset().Inverse());
+	const FTransform RootTransform = MeshCompRelativeRotInverse * UMotionWarpingUtilities::ExtractRootTransformFromAnimation(Animation, Time);
+	return RootTransform.GetRelativeTransform((MeshCompRelativeRotInverse * WarpPointTransform));
+}
+
 
 // UMotionWarpingComponent
 ///////////////////////////////////////////////////////////////////////
@@ -226,13 +271,34 @@ void UMotionWarpingComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
 
-	CharacterOwner = Cast<ACharacter>(GetOwner());
-
-	UCharacterMovementComponent* CharacterMovementComp = CharacterOwner.IsValid() ? CharacterOwner->GetCharacterMovement() : nullptr;
-	if (CharacterMovementComp)
+	// Implicitly support Characters if no other adapter has already been setup
+	if (GetOwnerAdapter() == nullptr)
 	{
- 		CharacterMovementComp->ProcessRootMotionPreConvertToWorld.BindUObject(this, &UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld);
+		if (ACharacter* CharacterOwner = Cast<ACharacter>(GetOwner()))
+		{
+			UMotionWarpingCharacterAdapter* CharacterAdapter = CreateOwnerAdapter<UMotionWarpingCharacterAdapter>();
+			CharacterAdapter->SetCharacter(CharacterOwner);
+		}
 	}
+}
+
+UMotionWarpingBaseAdapter* UMotionWarpingComponent::CreateOwnerAdapter(TSubclassOf<UMotionWarpingBaseAdapter> AdapterClass)
+{
+	check(AdapterClass);	
+	OwnerAdapter = NewObject<UMotionWarpingBaseAdapter>(this, AdapterClass);
+	OwnerAdapter->WarpLocalRootMotionDelegate.BindUObject(this, &UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld);
+
+	return OwnerAdapter;
+}
+
+ACharacter* UMotionWarpingComponent::GetCharacterOwner() const
+{ 
+	if (OwnerAdapter)
+	{
+		return Cast<ACharacter>(OwnerAdapter->GetActor());
+	}
+
+	return nullptr; 
 }
 
 bool UMotionWarpingComponent::ContainsModifier(const UAnimSequenceBase* Animation, float StartTime, float EndTime) const
@@ -248,8 +314,8 @@ int32 UMotionWarpingComponent::AddModifier(URootMotionModifier* Modifier)
 	if (ensureAlways(Modifier))
 	{
 		UE_LOG(LogMotionWarping, Verbose, TEXT("MotionWarping: RootMotionModifier added. NetMode: %d WorldTime: %f Char: %s Animation: %s [%f %f] [%f %f] Loc: %s Rot: %s"),
-			GetWorld()->GetNetMode(), GetWorld()->GetTimeSeconds(), *GetNameSafe(GetCharacterOwner()), *GetNameSafe(Modifier->Animation.Get()), Modifier->StartTime, Modifier->EndTime, Modifier->PreviousPosition, Modifier->CurrentPosition,
-			*GetCharacterOwner()->GetActorLocation().ToString(), *GetCharacterOwner()->GetActorRotation().ToCompactString());
+			GetWorld()->GetNetMode(), GetWorld()->GetTimeSeconds(), *GetNameSafe(GetOwner()), *GetNameSafe(Modifier->Animation.Get()), Modifier->StartTime, Modifier->EndTime, Modifier->PreviousPosition, Modifier->CurrentPosition,
+			*GetOwner()->GetActorLocation().ToString(), *GetOwner()->GetActorRotation().ToCompactString());
 
 		return Modifiers.Add(Modifier);
 	}
@@ -268,46 +334,8 @@ void UMotionWarpingComponent::DisableAllRootMotionModifiers()
 	}
 }
 
-void UMotionWarpingComponent::Update(float DeltaSeconds)
+void UMotionWarpingComponent::UpdateWithContext(const FMotionWarpingUpdateContext& Context, float DeltaSeconds)
 {
-	const ACharacter* Character = GetCharacterOwner();
-	check(Character);
-
-	FMotionWarpingUpdateContext Context;
-	Context.DeltaSeconds = DeltaSeconds;
-
-	// When replaying saved moves we need to look at the contributor to root motion back then.
-	if (Character->bClientUpdating)
-	{
-		const UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement();
-		check(MoveComp);
-
-		const FSavedMove_Character* SavedMove = MoveComp->GetCurrentReplayedSavedMove();
-		check(SavedMove);
-
-		if(SavedMove->RootMotionMontage.IsValid())
-		{
-			Context.Animation = SavedMove->RootMotionMontage.Get();
-			Context.CurrentPosition = SavedMove->RootMotionTrackPosition;
-			Context.PreviousPosition = SavedMove->RootMotionPreviousTrackPosition;
-			Context.PlayRate = SavedMove->RootMotionPlayRateWithScale;
-		}
-	}
-	else // If we are not replaying a move, just use the current root motion montage
-	{
-		if(const FAnimMontageInstance* RootMotionMontageInstance = Character->GetRootMotionAnimMontageInstance())
-		{
-			const UAnimMontage* Montage = RootMotionMontageInstance->Montage;
-			check(Montage);
-
-			Context.Animation = Montage;
-			Context.CurrentPosition = RootMotionMontageInstance->GetPosition();
-			Context.PreviousPosition = RootMotionMontageInstance->GetPreviousPosition();
-			Context.Weight = RootMotionMontageInstance->GetWeight();
-			Context.PlayRate = RootMotionMontageInstance->Montage->RateScale * RootMotionMontageInstance->GetPlayRate();
-		}
-	}
-
 	if (Context.Animation.IsValid())
 	{
 		const UAnimSequenceBase* Animation = Context.Animation.Get();
@@ -402,8 +430,8 @@ void UMotionWarpingComponent::Update(float DeltaSeconds)
 			if (Modifier->GetState() == ERootMotionModifierState::MarkedForRemoval)
 			{
 				UE_LOG(LogMotionWarping, Verbose, TEXT("MotionWarping: RootMotionModifier removed. NetMode: %d WorldTime: %f Char: %s Animation: %s [%f %f] [%f %f] Loc: %s Rot: %s"),
-					GetWorld()->GetNetMode(), GetWorld()->GetTimeSeconds(), *GetNameSafe(GetCharacterOwner()), *GetNameSafe(Modifier->Animation.Get()), Modifier->StartTime, Modifier->EndTime, Modifier->PreviousPosition, Modifier->CurrentPosition,
-					*GetCharacterOwner()->GetActorLocation().ToString(), *GetCharacterOwner()->GetActorRotation().ToCompactString());
+					GetWorld()->GetNetMode(), GetWorld()->GetTimeSeconds(), *GetNameSafe(GetOwner()), *GetNameSafe(Modifier->Animation.Get()), Modifier->StartTime, Modifier->EndTime, Modifier->PreviousPosition, Modifier->CurrentPosition,
+					*GetOwner()->GetActorLocation().ToString(), *GetOwner()->GetActorRotation().ToCompactString());
 
 				return true;
 			}
@@ -413,7 +441,7 @@ void UMotionWarpingComponent::Update(float DeltaSeconds)
 	}
 }
 
-FTransform UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld(const FTransform& InRootMotion, UCharacterMovementComponent* CharacterMovementComponent, float DeltaSeconds)
+FTransform UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld(const FTransform& InRootMotion, float DeltaSeconds, const FMotionWarpingUpdateContext* InContext)
 {
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	if (FMotionWarpingCVars::CVarMotionWarpingDisable.GetValueOnGameThread() > 0)
@@ -421,9 +449,13 @@ FTransform UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld(const FTr
 		return InRootMotion;
 	}
 #endif
+	if (!InContext)
+	{
+		return InRootMotion;
+	}
 
 	// Check for warping windows and update modifier states
-	Update(DeltaSeconds);
+	UpdateWithContext(*InContext, DeltaSeconds);
 
 	FTransform FinalRootMotion = InRootMotion;
 
@@ -438,11 +470,11 @@ FTransform UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld(const FTr
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	const int32 DebugLevel = FMotionWarpingCVars::CVarMotionWarpingDebug.GetValueOnGameThread();
-	if (DebugLevel >= 2)
+	if (DebugLevel >= 2 && OwnerAdapter)
 	{
 		const float DrawDebugDuration = FMotionWarpingCVars::CVarMotionWarpingDrawDebugDuration.GetValueOnGameThread();
 		const float PointSize = 7.f;
-		const FVector ActorFeetLocation = CharacterMovementComponent->GetActorFeetLocation();
+		const FVector ActorFeetLocation = OwnerAdapter->GetVisualRootLocation();
 		if (Modifiers.Num() > 0)
 		{
 			if (!OriginalRootMotionAccum.IsSet())
@@ -450,9 +482,9 @@ FTransform UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld(const FTr
 				OriginalRootMotionAccum = ActorFeetLocation;
 				WarpedRootMotionAccum = ActorFeetLocation;
 			}
-
-			OriginalRootMotionAccum = OriginalRootMotionAccum.GetValue() + (CharacterOwner->GetMesh()->ConvertLocalRootMotionToWorld(FTransform(InRootMotion.GetLocation()))).GetLocation();
-			WarpedRootMotionAccum = WarpedRootMotionAccum.GetValue() + (CharacterOwner->GetMesh()->ConvertLocalRootMotionToWorld(FTransform(FinalRootMotion.GetLocation()))).GetLocation();
+			
+			OriginalRootMotionAccum = OriginalRootMotionAccum.GetValue() + (OwnerAdapter->GetMesh()->ConvertLocalRootMotionToWorld(FTransform(InRootMotion.GetLocation()))).GetLocation();
+			WarpedRootMotionAccum = WarpedRootMotionAccum.GetValue() + (OwnerAdapter->GetMesh()->ConvertLocalRootMotionToWorld(FTransform(FinalRootMotion.GetLocation()))).GetLocation();
 
 			DrawDebugPoint(GetWorld(), OriginalRootMotionAccum.GetValue(), PointSize, FColor::Red, false, DrawDebugDuration, 0);
 			DrawDebugPoint(GetWorld(), WarpedRootMotionAccum.GetValue(), PointSize, FColor::Green, false, DrawDebugDuration, 0);
@@ -469,6 +501,7 @@ FTransform UMotionWarpingComponent::ProcessRootMotionPreConvertToWorld(const FTr
 
 	return FinalRootMotion;
 }
+
 
 bool UMotionWarpingComponent::FindAndUpdateWarpTarget(const FMotionWarpingTarget& WarpTarget)
 {
