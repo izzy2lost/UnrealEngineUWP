@@ -275,6 +275,7 @@ struct FNiagaraSystemSimulationAllWorkCompleteTask
 	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 		for (FGraphEventRef& Event : EventsToWaitFor)
 		{
 			MyCompletionGraphEvent->DontCompleteUntil(Event);
