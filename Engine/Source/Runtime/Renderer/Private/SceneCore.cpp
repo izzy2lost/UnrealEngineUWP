@@ -158,11 +158,11 @@ extern bool ShouldCreateObjectShadowForStationaryLight(const FLightSceneInfo* Li
 
 static bool MobileRequiresStaticMeshUpdateOnLocalLightChange(const FStaticShaderPlatform Platform)
 {
-	extern bool MobileLocalLightsUseSinglePermutation();
+	extern bool MobileLocalLightsUseSinglePermutation(EShaderPlatform);
 	
 	if (!IsMobileDeferredShadingEnabled(Platform))
 	{
-		return MobileForwardEnableLocalLights(Platform) && !MobileLocalLightsUseSinglePermutation();
+		return MobileForwardEnableLocalLights(Platform) && !MobileLocalLightsUseSinglePermutation(Platform);
 	}
 	return false;
 }

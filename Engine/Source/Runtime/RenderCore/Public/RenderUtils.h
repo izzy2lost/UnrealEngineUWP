@@ -291,6 +291,11 @@ inline bool MobileForwardEnableLocalLights(const FStaticShaderPlatform Platform)
 	return FReadOnlyCVARCache::MobileForwardLocalLights(Platform) > 0;
 }
 
+inline bool MobileForwardEnableParticleLights(const FStaticShaderPlatform Platform)
+{
+	return MobileForwardEnableLocalLights(Platform) && FReadOnlyCVARCache::MobileForwardParticleLights(Platform);
+}
+
 RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform);

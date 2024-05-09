@@ -277,6 +277,7 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 	, bDeferredShading(IsMobileDeferredShadingEnabled(ShaderPlatform))
 	, bRequiresDBufferDecals(bDeferredShading ? false : IsUsingDBuffers(ShaderPlatform))
 	, bUseVirtualTexturing(UseVirtualTexturing(ShaderPlatform) && GetRendererOutput() != FSceneRenderer::ERendererOutput::DepthPrepassOnly)
+	, bSupportsSimpleLights(bDeferredShading || MobileForwardEnableParticleLights(ShaderPlatform))
 {
 	bRenderToSceneColor = false;
 	bRequiresMultiPass = false;
@@ -2336,5 +2337,5 @@ void FMobileSceneRenderer::RenderHZB(FRDGBuilder& GraphBuilder, FRDGTextureRef S
 
 bool FMobileSceneRenderer::AllowSimpleLights() const
 {
-	return FSceneRenderer::AllowSimpleLights() && bDeferredShading;
+	return FSceneRenderer::AllowSimpleLights() && bSupportsSimpleLights;
 }

@@ -38,9 +38,9 @@ FAutoConsoleVariableRef CVarMobileForwardLocalLightsSinglePermutation(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-bool MobileLocalLightsUseSinglePermutation()
+bool MobileLocalLightsUseSinglePermutation(EShaderPlatform ShaderPlatform)
 { 
-	return GMobileForwardLocalLightsSinglePermutation != 0;
+	return GMobileForwardLocalLightsSinglePermutation != 0 || MobileForwardEnableParticleLights(ShaderPlatform);
 }
 
 EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform)
@@ -921,7 +921,7 @@ bool FMobileBasePassMeshProcessor::Process(
 		if (!bPassUsesDeferredShading &&
 			// we can choose to use a single permutation regarless of local light state
 			// this is to avoid re-caching MDC on light state changes
-			(MobileLocalLightsUseSinglePermutation() || PrimitiveSceneProxy->GetPrimitiveSceneInfo()->NumMobileDynamicLocalLights > 0))
+			(MobileLocalLightsUseSinglePermutation(Scene->GetShaderPlatform()) || PrimitiveSceneProxy->GetPrimitiveSceneInfo()->NumMobileDynamicLocalLights > 0))
 		{
 			LocalLightSetting = GetMobileForwardLocalLightSetting(Scene->GetShaderPlatform());
 		}

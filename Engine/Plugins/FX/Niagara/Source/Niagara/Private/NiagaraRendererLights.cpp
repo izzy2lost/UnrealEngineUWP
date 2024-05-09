@@ -62,10 +62,17 @@ FPrimitiveViewRelevance FNiagaraRendererLights::GetViewRelevance(const FSceneVie
 FNiagaraDynamicDataBase* FNiagaraRendererLights::GenerateDynamicData(const FNiagaraSceneProxy* Proxy, const UNiagaraRendererProperties* InProperties, const FNiagaraEmitterInstance* Emitter) const
 {
 	// particle (simple) lights are only supported with deferred shading
-	
-	if (!bHasLights || (Proxy->GetScene().GetShadingPath() != EShadingPath::Deferred && !IsMobileDeferredShadingEnabled(Proxy->GetScene().GetShaderPlatform())))
+	if (!bHasLights)
 	{
 		return nullptr;
+	}
+	if (Proxy->GetScene().GetShadingPath() != EShadingPath::Deferred)
+	{
+		const EShaderPlatform ShaderPlatform = Proxy->GetScene().GetShaderPlatform();
+		if (!IsMobileDeferredShadingEnabled(ShaderPlatform) && !MobileForwardEnableParticleLights(ShaderPlatform))
+		{
+			return nullptr;
+		}
 	}
 
 	if (!IsRendererEnabled(InProperties, Emitter))

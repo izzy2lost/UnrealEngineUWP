@@ -3772,6 +3772,13 @@ static TAutoConsoleVariable<int32> CVarMobileForwardEnableLocalLights(
 		"2: Local Lights Buffer Enabled\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMobileForwardEnableParticleLights(
+	TEXT("r.Mobile.Forward.EnableParticleLights"),
+	0,
+	TEXT("0: Particle Lights Disabled (default)\n"
+		 "1: Particle Lights Enabled (requires local lights)\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarMobileForwardEnableClusteredReflections(
 	TEXT("r.Mobile.Forward.EnableClusteredReflections"),
 	0,

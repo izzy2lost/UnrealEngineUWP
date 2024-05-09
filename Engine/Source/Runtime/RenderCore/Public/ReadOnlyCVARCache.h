@@ -111,6 +111,17 @@ struct FReadOnlyCVARCache
 			return MobileForwardLocalLightsValue;
 		#endif
 	}
+
+	static inline int32 MobileForwardParticleLights(EShaderPlatform Platform)
+	{
+		#if WITH_EDITOR
+				return MobileForwardParticleLightsIniValue(Platform);
+		#elif defined PROJECT_CVAR_MOBILE_FORWARD_PARTICLELIGHTS
+				return PROJECT_CVAR_MOBILE_FORWARD_PARTICLELIGHTS;
+		#else
+				return bMobileForwardParticleLights;
+		#endif
+	}
 	
 	static inline bool MobileDeferredShading(EShaderPlatform Platform)
 	{
@@ -151,6 +162,7 @@ private:
 	RENDERCORE_API static int32 MobileSkyLightPermutationValue;
 	RENDERCORE_API static int32 MobileEarlyZPassValue;
 	RENDERCORE_API static int32 MobileForwardLocalLightsValue;
+	RENDERCORE_API static bool bMobileForwardParticleLights;
 	RENDERCORE_API static bool bMobileEnableNoPrecomputedLightingCSMShader;
 	RENDERCORE_API static bool bMobileDeferredShadingValue;
 	RENDERCORE_API static bool bMobileEnableMovableSpotlightsShadowValue;
@@ -158,6 +170,7 @@ private:
 private:
 	RENDERCORE_API static int32 MobileEarlyZPassIniValue(EShaderPlatform Platform);
 	RENDERCORE_API static int32 MobileForwardLocalLightsIniValue(EShaderPlatform Platform);
+	RENDERCORE_API static bool MobileForwardParticleLightsIniValue(EShaderPlatform Platform);
 	RENDERCORE_API static bool MobileDeferredShadingIniValue(EShaderPlatform Platform);
 	RENDERCORE_API static bool MobileEnableMovableSpotlightsShadowIniValue(EShaderPlatform Platform);
 };
