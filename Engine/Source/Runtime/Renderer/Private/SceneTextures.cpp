@@ -99,27 +99,6 @@ EPixelFormat FSceneTextures::GetGBufferFFormatAndCreateFlags(ETextureCreateFlags
 	return NormalGBufferFormat;
 }
 
-inline EPixelFormat GetMobileSceneDepthAuxPixelFormat(EShaderPlatform ShaderPlatform, bool bPreciseFormat)
-{
-	if (IsMobileDeferredShadingEnabled(ShaderPlatform) || bPreciseFormat)
-	{
-		return PF_R32_FLOAT;
-	}
-
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SceneDepthAux"));
-	EPixelFormat Format = PF_R16F;
-	switch (CVar->GetValueOnAnyThread())
-	{
-	case 1:
-		Format =  PF_R16F;
-		break;
-	case 2:
-		Format = PF_R32_FLOAT;
-		break;
-	}
-	return Format;
-}
-
 static IStereoRenderTargetManager* FindStereoRenderTargetManager()
 {
 	if (!GEngine->StereoRenderingDevice.IsValid() || !GEngine->StereoRenderingDevice->IsStereoEnabled())
@@ -615,7 +594,7 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 		#endif
 		}
 
-		EPixelFormat DepthAuxFormat = GetMobileSceneDepthAuxPixelFormat(Config.ShaderPlatform, Config.bPreciseDepthAux);
+		EPixelFormat DepthAuxFormat = Config.bPreciseDepthAux ? PF_R32_FLOAT : PF_R16F;
 		FRDGTextureDesc Desc = Config.bRequireMultiView ? 
 			FRDGTextureDesc::Create2DArray(Config.Extent, DepthAuxFormat, FClearValueBinding(FarDepthColor), TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead | MemorylessFlag, 2) :
 			FRDGTextureDesc::Create2D(Config.Extent, DepthAuxFormat, FClearValueBinding(FarDepthColor), TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead| MemorylessFlag);

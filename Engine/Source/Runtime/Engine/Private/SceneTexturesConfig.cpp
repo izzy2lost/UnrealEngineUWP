@@ -256,6 +256,16 @@ static void SetupMobileGBufferFlags(FGBufferBindings GBufferBindings[GBL_Num], b
 	}
 }
 
+static bool MobileRequiresPreciseSceneDepthAux(EShaderPlatform ShaderPlatform)
+{
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SceneDepthAux"));
+	if (IsMobileDeferredShadingEnabled(ShaderPlatform) || CVar->GetValueOnAnyThread() == 2)
+	{
+		return true;
+	}
+	return false;
+}
+
 void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSettings)
 {
 	FeatureLevel			= InitSettings.FeatureLevel;
@@ -327,6 +337,7 @@ void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSett
 	if (ShadingPath == EShadingPath::Mobile)
 	{
 		bRequiresDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform);
+		bPreciseDepthAux = bPreciseDepthAux || MobileRequiresPreciseSceneDepthAux(ShaderPlatform);
 	}
 }
 
