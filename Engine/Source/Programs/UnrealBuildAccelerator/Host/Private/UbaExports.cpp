@@ -505,7 +505,7 @@ extern "C"
 		scheduler->GetStats(outQueued, outActiveLocal, outActiveRemote, outFinished);
 	}
 
-	uba::CacheClient* CacheClient_Create(uba::SessionServer* session)
+	uba::CacheClient* CacheClient_Create(uba::SessionServer* session, bool reportMissReason)
 	{
 		using namespace uba;
 		LogWriter& writer = session->GetLogWriter();
@@ -520,7 +520,7 @@ extern "C"
 		if (!ctorSuccess)
 			return nullptr;
 		CacheClientCreateInfo info{writer, storage, *networkClient, *session};
-		//info.reportMissReason = true;
+		info.reportMissReason = reportMissReason;
 		return new CacheClient(info);
 	}
 
