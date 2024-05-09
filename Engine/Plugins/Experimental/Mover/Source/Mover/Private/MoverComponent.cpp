@@ -4,7 +4,6 @@
 #include "MoverComponent.h"
 #include "MoverSimulationTypes.h"
 #include "MovementModeStateMachine.h"
-#include "MotionWarpingMoverAdapter.h"
 #include "DefaultMovementSet/Modes/WalkingMode.h"
 #include "DefaultMovementSet/Modes/FallingMode.h"
 #include "DefaultMovementSet/Modes/FlyingMode.h"
@@ -23,9 +22,6 @@
 #include "Misc/TransactionObjectEvent.h"
 #include "Blueprint/BlueprintExceptionInfo.h"
 #include "UObject/ObjectSaveContext.h"
-#include "Components/SkeletalMeshComponent.h"
-#include "MotionWarpingComponent.h"
-
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -142,6 +138,12 @@ void UMoverComponent::OnRegister()
 		}
 
 		SetUpdatedComponent(NewUpdatedComponent);
+
+		// If no primary visual component is already set, fall back to searching for any kind of mesh
+		if (!PrimaryVisualComponent && MyActor)
+		{
+			PrimaryVisualComponent = MyActor->FindComponentByClass<UMeshComponent>();
+		}
 	}
 }
 
@@ -190,22 +192,6 @@ void UMoverComponent::PostLoad()
 void UMoverComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (const AActor* MyActor = GetOwner())
-	{
-		// If no primary visual component is already set, fall back to searching for any kind of mesh
-		if (!PrimaryVisualComponent)
-		{
-			PrimaryVisualComponent = MyActor->FindComponentByClass<UMeshComponent>();
-		}
-
-		// Optional motion warping support
-		if (UMotionWarpingComponent* WarpingComp = MyActor->FindComponentByClass<UMotionWarpingComponent>())
-		{
-			UMotionWarpingMoverAdapter* WarpingAdapter = WarpingComp->CreateOwnerAdapter<UMotionWarpingMoverAdapter>();
-			WarpingAdapter->SetMoverComp(this);
-		}
-	}
 
 	// If an InputProducer isn't already set, check the actor and its components for one
 	if (!InputProducer)
@@ -1083,47 +1069,6 @@ bool UMoverComponent::RemoveMovementMode(FName ModeName)
 }
 
 
-FTransform UMoverComponent::ConvertLocalRootMotionToWorld(const FTransform& LocalRootMotionTransform, float DeltaSeconds, const FTransform* AlternateActorToWorld, const FMotionWarpingUpdateContext* OptionalWarpingContext) const
-{
-	// Optionally process/warp localspace root motion
-	const FTransform ProcessedLocalRootMotion = ProcessLocalRootMotionDelegate.IsBound()
-		? ProcessLocalRootMotionDelegate.Execute(LocalRootMotionTransform, DeltaSeconds, OptionalWarpingContext)
-		: LocalRootMotionTransform;
-
-	// Convert processed localspace root motion to worldspace
-	FTransform WorldSpaceRootMotion;
-
-	if (USkeletalMeshComponent* SkeletalMesh = GetPrimaryVisualComponent<USkeletalMeshComponent>())
-	{
-		 WorldSpaceRootMotion = SkeletalMesh->ConvertLocalRootMotionToWorld(ProcessedLocalRootMotion);
-	}
-	else
-	{
-		const FTransform PresentationActorToWorldTransform = GetOwner()->GetTransform();
-		const FVector DeltaWorldTranslation = ProcessedLocalRootMotion.GetTranslation() - PresentationActorToWorldTransform.GetTranslation();
-
-		const FQuat NewWorldRotation = PresentationActorToWorldTransform.GetRotation() * ProcessedLocalRootMotion.GetRotation();
-		const FQuat DeltaWorldRotation = NewWorldRotation * PresentationActorToWorldTransform.GetRotation().Inverse();
-
-		WorldSpaceRootMotion.SetComponents(DeltaWorldRotation, DeltaWorldTranslation, FVector::OneVector);
-	}
-
-	// Optionally convert this to be relative to a different space
-	if (AlternateActorToWorld)
-	{
-		const FTransform WorldToActor = GetOwner()->GetTransform().Inverse();
-		const FTransform ActorSpaceRootMotion = WorldSpaceRootMotion * WorldToActor;
-		WorldSpaceRootMotion = ActorSpaceRootMotion * *AlternateActorToWorld;
-	}
-
-	
-	// Optionally process/warp worldspace root motion
-	return ProcessWorldRootMotionDelegate.IsBound()
-		? ProcessWorldRootMotionDelegate.Execute(WorldSpaceRootMotion, DeltaSeconds, OptionalWarpingContext)
-		: WorldSpaceRootMotion;
-}
-
-
 FTransform UMoverComponent::GetUpdatedComponentTransform() const
 {
 	if (ensure(UpdatedComponent))
@@ -1131,12 +1076,6 @@ FTransform UMoverComponent::GetUpdatedComponentTransform() const
 		return UpdatedComponent->GetComponentTransform();
 	}
 	return FTransform::Identity;
-}
-
-
-USceneComponent* UMoverComponent::GetUpdatedComponent() const
-{
-	return UpdatedComponent.Get();
 }
 
 
