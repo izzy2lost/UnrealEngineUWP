@@ -49,6 +49,23 @@ namespace RHIValidation
 		void ValidateSetShaderUniformBuffer(FRHIUniformBuffer* UniformBuffer);
 	};
 
+	struct FStageBoundUniformBuffers
+	{
+		FStageBoundUniformBuffers();
+		void Reset();
+		void Bind(uint32 Index, FRHIUniformBuffer* UniformBuffer);
+
+		TArray<FRHIUniformBuffer*> Buffers;
+	};
+
+	struct FBoundUniformBuffers
+	{
+		void Reset();
+		FStageBoundUniformBuffers& Get(EShaderFrequency Stage) { return StageBindings[Stage]; }
+
+		FStageBoundUniformBuffers StageBindings[SF_NumFrequencies];
+	};
+
 	class  FTracker;
 	class  FResource;
 	class  FTextureResource;

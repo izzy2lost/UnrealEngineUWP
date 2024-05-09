@@ -862,6 +862,59 @@ void FValidationRHI::ReportValidationFailure(const TCHAR* InMessage)
 	}
 }
 
+static void ValidateBoundUniformBuffers(FRHIShader* Shader, const RHIValidation::FStaticUniformBuffers& StaticUniformBuffers, const RHIValidation::FStageBoundUniformBuffers& BoundUniformBuffers)
+{
+	const TCHAR* FreqName = GetShaderFrequencyString(Shader->GetFrequency(), false);
+	const TArray<uint32>& LayoutHashes = Shader->GetShaderResourceTable().ResourceTableLayoutHashes;
+
+	const TArray<FUniformBufferStaticSlot>& StaticSlots = Shader->GetStaticSlots();
+	if (LayoutHashes.Num() != StaticSlots.Num())
+	{
+		RHI_VALIDATION_CHECK(false, *FString::Printf(TEXT("Shader %s(%s): The number of layout hashes (%d) is different from the number of static slots (%d)."), Shader->GetShaderName(), FreqName, LayoutHashes.Num(), StaticSlots.Num()));
+		return;
+	}
+
+	for (int32 BindIndex = 0; BindIndex < LayoutHashes.Num(); ++BindIndex)
+	{
+		uint32 ExpectedLayoutHash = LayoutHashes[BindIndex];
+		if (ExpectedLayoutHash == 0)
+		{
+			continue;
+		}
+
+		FRHIUniformBuffer* BoundBuffer = nullptr;
+		bool bIsStatic = false;
+
+		const FUniformBufferStaticSlot StaticSlot = StaticSlots[BindIndex];
+		if (IsUniformBufferStaticSlotValid(StaticSlot) && StaticSlot < StaticUniformBuffers.Bindings.Num())
+		{
+			BoundBuffer = StaticUniformBuffers.Bindings[StaticSlot];
+			if (BoundBuffer)
+			{
+				bIsStatic = true;
+			}
+		}
+
+		if (BoundBuffer == nullptr && BindIndex < BoundUniformBuffers.Buffers.Num())
+		{
+			BoundBuffer = BoundUniformBuffers.Buffers[BindIndex];
+		}
+
+		if (BoundBuffer != nullptr)
+		{
+			const FRHIUniformBufferLayout& Layout = BoundBuffer->GetLayout();
+			uint32 UniformBufferHash = Layout.GetHash();
+			RHI_VALIDATION_CHECK(UniformBufferHash == ExpectedLayoutHash, *FString::Printf(TEXT("Shader %s(%s): Invalid layout hash %u for uniform buffer \"%s\" at bind index %d (static: %s). Expecting a buffer called \"%s\", hash %u.)"),
+				Shader->GetShaderName(), FreqName, UniformBufferHash, *Layout.GetDebugName(), BindIndex, bIsStatic ? TEXT("yes") : TEXT("no"), *Shader->GetUniformBufferName(BindIndex), ExpectedLayoutHash));
+		}
+		else
+		{
+			RHI_VALIDATION_CHECK(false, *FString::Printf(TEXT("Shader %s(%s): missing uniform buffer \"%s\" at index %d."),
+				Shader->GetShaderName(), FreqName , *Shader->GetUniformBufferName(BindIndex), BindIndex));
+		}
+	}
+}
+
 FValidationComputeContext::FValidationComputeContext(EType InType)
 	: Type(InType)
 {
@@ -869,12 +922,24 @@ FValidationComputeContext::FValidationComputeContext(EType InType)
 	Tracker = &State.TrackerInstance;
 }
 
+void FValidationComputeContext::ValidateDispatch()
+{
+	if (State.BoundShader == nullptr)
+	{
+		RHI_VALIDATION_CHECK(false, TEXT("A compute PSO has to be set before dispatching a compute shader."));
+		return;
+	}
+
+	ValidateBoundUniformBuffers(State.BoundShader, State.StaticUniformBuffers, State.BoundUniformBuffers);
+}
+
 void FValidationComputeContext::FState::Reset()
 {
 	ComputePassName.Reset();
-	bComputePSOSet = false;
+	BoundShader = nullptr;
 	TrackerInstance.ResetAllUAVState();
 	StaticUniformBuffers.Reset();
+	BoundUniformBuffers.Reset();
 }
 
 FValidationContext::FValidationContext(EType InType)
@@ -948,6 +1013,35 @@ void FValidationComputeContext::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferR
 	RHIContext->RHICopyToStagingBuffer(SourceBufferRHI, DestinationStagingBufferRHI, InOffset, InNumBytes);
 }
 
+void FValidationContext::ValidateDispatch()
+{
+	if (State.BoundShaders[SF_Compute] == nullptr)
+	{
+		RHI_VALIDATION_CHECK(false, TEXT("A compute PSO has to be set before dispatching a compute shader."));
+		return;
+	}
+
+	ValidateBoundUniformBuffers(State.BoundShaders[SF_Compute], State.StaticUniformBuffers, State.BoundUniformBuffers.Get(SF_Compute));
+}
+
+void FValidationContext::ValidateDrawing()
+{
+	if (!State.bGfxPSOSet)
+	{
+		RHI_VALIDATION_CHECK(false, TEXT("A graphics PSO has to be set in order to be able to draw!"));
+		return;
+	}
+
+	for (int32 FrequencyIndex = 0; FrequencyIndex < SF_NumFrequencies; ++FrequencyIndex)
+	{
+		EShaderFrequency Frequency = (EShaderFrequency)FrequencyIndex;
+		if (IsValidGraphicsFrequency(Frequency) && State.BoundShaders[Frequency])
+		{
+			ValidateBoundUniformBuffers(State.BoundShaders[Frequency], State.StaticUniformBuffers, State.BoundUniformBuffers.Get(Frequency));
+		}
+	}
+}
+
 void FValidationContext::FState::Reset()
 {
 	bInsideBeginRenderPass = false;
@@ -955,9 +1049,10 @@ void FValidationContext::FState::Reset()
 	RenderPassName.Reset();
 	PreviousRenderPassName.Reset();
 	ComputePassName.Reset();
-	bComputePSOSet = false;
+	FMemory::Memset(BoundShaders, 0);
 	TrackerInstance.ResetAllUAVState();
 	StaticUniformBuffers.Reset();
+	BoundUniformBuffers.Reset();
 }
 
 namespace RHIValidation
@@ -990,6 +1085,34 @@ namespace RHIValidation
 			ensureMsgf(Bindings[Layout.StaticSlot] == nullptr,
 				TEXT("Uniform buffer '%s' was bound statically and is now being bound on a specific RHI shader. Only one binding model should be used at a time."),
 				*Layout.GetDebugName());
+		}
+	}
+
+	FStageBoundUniformBuffers::FStageBoundUniformBuffers()
+	{
+		Buffers.Reserve(32);
+	}
+
+	void FStageBoundUniformBuffers::Reset()
+	{
+		Buffers.SetNum(0);
+	}
+
+	void FStageBoundUniformBuffers::Bind(uint32 Index, FRHIUniformBuffer* UniformBuffer)
+	{
+		if (Index >= (uint32)Buffers.Num())
+		{
+			Buffers.AddZeroed(Index + 1 - Buffers.Num());
+		}
+
+		Buffers[Index] = UniformBuffer;
+	}
+
+	void FBoundUniformBuffers::Reset()
+	{
+		for (FStageBoundUniformBuffers& Stage : StageBindings)
+		{
+			Stage.Reset();
 		}
 	}
 
@@ -2549,8 +2672,30 @@ namespace RHIValidation
 	/** Validates that the Uniform conforms to what the shader expects */
 	void ValidateUniformBuffer(const FRHIShader* RHIShaderBase, uint32 BindIndex, FRHIUniformBuffer* UB)
 	{
+		if (!UB)
+		{
+			return;
+		}
+
+		const FRHIUniformBufferLayout& Layout = UB->GetLayout();
+
+		const TArray<uint32>& LayoutHashes = RHIShaderBase->GetShaderResourceTable().ResourceTableLayoutHashes;
+		if (BindIndex >= (uint32)LayoutHashes.Num())
+		{
+			FString ErrorMessage = FString::Printf(TEXT("Shader %s: Invalid bind index %u for uniform buffer \"%s\" (UB table size: %d)"), RHIShaderBase->GetShaderName(), BindIndex, *Layout.GetDebugName(), LayoutHashes.Num());
+			RHI_VALIDATION_CHECK(false, *ErrorMessage);
+			return;
+		}
+
+		uint32 ShaderTableHash = LayoutHashes[BindIndex];
+		uint32 UniformBufferHash = Layout.GetHash();
+		if (ShaderTableHash != 0 && UniformBufferHash != ShaderTableHash)
+		{
+			FString ErrorMessage = FString::Printf(TEXT("Shader %s: Invalid layout hash %u for uniform buffer \"%s\" at bind index %u, expecting %u"), RHIShaderBase->GetShaderName(), UniformBufferHash, *Layout.GetDebugName(), BindIndex, ShaderTableHash);
+			RHI_VALIDATION_CHECK(false, *ErrorMessage);
+		}
+
 #if RHI_INCLUDE_SHADER_DEBUG_DATA
-		if (UB)
 		{
 			// Validate Type
 			static const auto ShaderCodeValidationUBSizePredicate = [](const FShaderCodeValidationUBSize& lhs, const FShaderCodeValidationUBSize& rhs) -> bool { return lhs.BindPoint < rhs.BindPoint; };
@@ -2563,8 +2708,6 @@ namespace RHIValidation
 
 				if(Size > 0 && Size > UB->GetSize())
 				{
-					const FRHIUniformBufferLayout& Layout = UB->GetLayout();
-
 					FString ErrorMessage = FString::Printf(TEXT("Shader %s: Uniform buffer \"%s\" has unexpected size"), RHIShaderBase->GetShaderName(), *Layout.GetDebugName());
 					ErrorMessage += FString::Printf(TEXT("\nBind point: %d, HLSL size: %d, Actual size: %d"), BindIndex, Size, UB->GetSize());
 					RHI_VALIDATION_CHECK(false, *ErrorMessage);
@@ -2708,6 +2851,95 @@ void FValidationTransientResourceAllocator::Release(FRHICommandListImmediate& RH
 	RHIAllocator->Release(RHICmdList);
 	RHIAllocator = nullptr;
 	delete this;
+}
+
+void ValidateShaderParameters(FRHIShader* RHIShader, RHIValidation::FTracker* Tracker, RHIValidation::FStaticUniformBuffers& StaticUniformBuffers, RHIValidation::FStageBoundUniformBuffers& BoundUniformBuffers, TConstArrayView<FRHIShaderParameterResource> InParameters, ERHIAccess InRequiredAccess, RHIValidation::EUAVMode InRequiredUAVMode)
+{
+	for (const FRHIShaderParameterResource& Parameter : InParameters)
+	{
+		switch (Parameter.Type)
+		{
+		case FRHIShaderParameterResource::EType::Texture:
+			if (FRHITexture* Texture = static_cast<FRHITexture*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.Index, Texture);
+				}
+				Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
+			}
+			break;
+		case FRHIShaderParameterResource::EType::ResourceView:
+			if (FRHIShaderResourceView* SRV = static_cast<FRHIShaderResourceView*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.Index, SRV);
+				}
+				Tracker->Assert(SRV->GetViewIdentity(), InRequiredAccess);
+			}
+			break;
+		case FRHIShaderParameterResource::EType::UnorderedAccessView:
+			if (FRHIUnorderedAccessView* UAV = static_cast<FRHIUnorderedAccessView*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateUnorderedAccessView(RHIShader, Parameter.Index, UAV);
+				}
+				Tracker->AssertUAV(static_cast<FRHIUnorderedAccessView*>(Parameter.Resource), InRequiredUAVMode, Parameter.Index);
+			}
+			break;
+		case FRHIShaderParameterResource::EType::Sampler:
+			// No validation
+			break;
+		case FRHIShaderParameterResource::EType::UniformBuffer:
+			if (FRHIUniformBuffer* UniformBuffer = static_cast<FRHIUniformBuffer*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateUniformBuffer(RHIShader, Parameter.Index, UniformBuffer);
+				}
+
+				BoundUniformBuffers.Bind(Parameter.Index, UniformBuffer);
+				StaticUniformBuffers.ValidateSetShaderUniformBuffer(UniformBuffer);
+			}
+			break;
+		case FRHIShaderParameterResource::EType::ResourceCollection:
+			if (const FRHIResourceCollection* ResourceCollection = static_cast<const FRHIResourceCollection*>(Parameter.Resource))
+			{
+				for (const FRHIResourceCollectionMember& Member : ResourceCollection->Members)
+				{
+					switch (Member.Type)
+					{
+					case FRHIResourceCollectionMember::EType::Texture:
+						if (FRHITexture* Texture = static_cast<FRHITexture*>(Member.Resource))
+						{
+							Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
+						}
+						break;
+					case FRHIResourceCollectionMember::EType::TextureReference:
+						if (FRHITextureReference* Texture = static_cast<FRHITextureReference*>(Member.Resource))
+						{
+							Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
+						}
+						break;
+					case FRHIResourceCollectionMember::EType::ShaderResourceView:
+						if (FRHIShaderResourceView* SRV = static_cast<FRHIShaderResourceView*>(Parameter.Resource))
+						{
+							Tracker->Assert(SRV->GetViewIdentity(), InRequiredAccess);
+						}
+						break;
+					default:
+						break;
+					}
+				}
+			}
+			break;
+		default:
+			checkf(false, TEXT("Unhandled resource type?"));
+			break;
+		}
+	}
 }
 
 #endif	// ENABLE_RHI_VALIDATION
