@@ -270,7 +270,7 @@ void FDetailsDiff::DiffAgainst(const FDetailsDiff& Newer, TArray< FSingleObjectD
 
 		TArray<FPropertySoftPath> DifferingSubProperties;
 
-		if (!DiffUtils::Identical(OldProperty, NewProperty, OldPackage, NewPackage, CommonProperty, DifferingSubProperties))
+		if (!DiffUtils::Identical(OldProperty, NewProperty, OldPackage, NewPackage, DiffUtils::FDiffParameters(CommonProperty), DifferingSubProperties))
 		{
 			for (const FPropertySoftPath& DifferingSubProperty : DifferingSubProperties)
 			{

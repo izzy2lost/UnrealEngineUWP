@@ -306,22 +306,46 @@ void UEdGraphNode::DiffProperties(UStruct* StructA, UStruct* StructB, uint8* Dat
 			continue;
 		}
 
+		auto ShouldSkipProperty = [](const FProperty& Prop)
+			{
+				return !Prop.HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible) ||
+					Prop.HasAnyPropertyFlags(CPF_Transient) ||
+					Prop.HasAnyPropertyFlags(CPF_DisableEditOnInstance) ||
+					Prop.IsA(FDelegateProperty::StaticClass()) ||
+					Prop.IsA(FMulticastDelegateProperty::StaticClass());
+			};
+
 		// skip properties we cant see
-		if (!Prop->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible) ||
-			Prop->HasAnyPropertyFlags(CPF_Transient) ||
-			Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance) ||
-			Prop->IsA(FDelegateProperty::StaticClass()) ||
-			Prop->IsA(FMulticastDelegateProperty::StaticClass()))
+		if (ShouldSkipProperty(*Prop))
 		{
 			continue;
 		}
 
-		if (!DiffUtils::Identical(FResolvedProperty(DataA, Prop), FResolvedProperty(DataB, PropB), StructA, StructB))
+		DiffUtils::FDiffParameters ComparisonParameters;
+		ComparisonParameters.ShouldIgnorePropertyPredicate = ShouldSkipProperty;
+		TArray<FPropertySoftPath> DifferingSubProperties;
+
+		if (!DiffUtils::Identical(FResolvedProperty(DataA, Prop), FResolvedProperty(DataB, PropB), StructA, StructB, ComparisonParameters, DifferingSubProperties))
 		{
 			// Only bother setting up the display data if we're storing the result
 			if (Results.CanStoreResults())
 			{
-				Diff.DisplayString = FText::Format(LOCTEXT("DIF_NodePropertyFmt", "Property Changed: {0} "), FText::FromString(Prop->GetName()));
+				FStringBuilderBase StringBuilder;
+				for (int DifferingIndex = 0; DifferingIndex < DifferingSubProperties.Num(); DifferingIndex++)
+				{
+					StringBuilder += DifferingSubProperties[DifferingIndex].ToDisplayName();
+				}
+
+				if (StringBuilder.Len() > 0)
+				{
+					Diff.DisplayString = FText::Format(LOCTEXT("DIF_NodePropertyFmt", "Property Changed: {0} - {1}"),
+						FText::FromString(Prop->GetName()),
+						FText::FromString(StringBuilder.ToString()));
+				}
+				else
+				{
+					Diff.DisplayString = FText::Format(LOCTEXT("DIF_NodePropertyFmt", "Property Changed: {0}"), FText::FromString(Prop->GetName()));
+				}
 			}
 			Results.Add(Diff);
 		}

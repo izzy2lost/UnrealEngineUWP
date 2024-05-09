@@ -255,7 +255,6 @@ TSharedRef<SWidget> SBehaviorTreeDiff::GenerateDiffListWidget()
 		TSharedRef<SHorizontalBox> Result =	SNew(SHorizontalBox)
 		+SHorizontalBox::Slot()
 		.FillWidth(1.f)
-		.MaxWidth(350.f)
 		[
 			SNew(SVerticalBox)
 			+SVerticalBox::Slot()
