@@ -289,6 +289,7 @@ namespace NFORDenoise
 		None,
 		NumOfWeightsPerPixelxWxH,
 		WxHxNumOfWeightsPerPixel,
+		Float4xWxHxNumOfWeightsPerPixelByFloat4,
 		MAX
 	};
 
@@ -441,7 +442,8 @@ namespace NFORDenoise
 		class FDimensionSeperablePassType : SHADER_PERMUTATION_ENUM_CLASS("NONLOCALMEAN_SEPRERABLE_PASS", ESeperablePassType);
 		class FDimPreAlbedoDivide : SHADER_PERMUTATION_ENUM_CLASS("PRE_ALBEDO_DIVIDE", EAlbedoDivideRecoverPhase);
 		class FDimAtlasType : SHADER_PERMUTATION_ENUM_CLASS("NONLOCALMEAN_ATLAS_TYPE", ENonLocalMeanAtlasType);
-		using FPermutationDomain = TShaderPermutationDomain<FDimensionSeperablePassType, FDimPreAlbedoDivide, FDimAtlasType>;
+		class FDimBufferPassThrough : SHADER_PERMUTATION_BOOL("BUFFER_PASS_THROUGH");
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionSeperablePassType, FDimPreAlbedoDivide, FDimAtlasType, FDimBufferPassThrough>;
 	};
 
 	// Reshape the layout of the buffer to target
@@ -578,7 +580,7 @@ namespace NFORDenoise
 
 			BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, X)
-				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, W)
+				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer       , W)
 				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, Y)
 				SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, Result)
 
@@ -732,7 +734,7 @@ namespace NFORDenoise
 		public:
 			BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, X)
-				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, W)
+				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer       , W)
 				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, B)
 				SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWReconstruction)
 				SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint4>, RWReconstructBuffer)
