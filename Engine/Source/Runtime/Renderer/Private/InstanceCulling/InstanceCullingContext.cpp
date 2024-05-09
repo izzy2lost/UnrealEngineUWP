@@ -1476,6 +1476,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 	}
 
 	int32 CurrentStateBucketId = -1;
+	EMeshDrawCommandCullingPayloadFlags CurrentCullingPayloadFlags = EMeshDrawCommandCullingPayloadFlags::Default;
 	MaxInstances = 1;
 	// Only used to supply stats
 	uint32 CurrentAutoInstanceCount = 1;
@@ -1507,7 +1508,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 		// UniformBufferView path does not support merging ISM draws atm
 		const bool bCompactIdenticalCommands = bInCompactIdenticalCommands && (bUsesUniformBufferView ? (CurrentAutoInstanceCount < MaxPrimitiveBatchSize && !bUseIndirectDraw) : true);
 
-		if (bCompactIdenticalCommands && CurrentStateBucketId != -1 && VisibleMeshDrawCommand.StateBucketId == CurrentStateBucketId)
+		if (bCompactIdenticalCommands && CurrentStateBucketId != -1 && VisibleMeshDrawCommand.StateBucketId == CurrentStateBucketId && VisibleMeshDrawCommand.CullingPayloadFlags == CurrentCullingPayloadFlags)
 		{
 			// Drop since previous covers for this
 
@@ -1568,6 +1569,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 			
 			// Record the last bucket ID (may be -1)
 			CurrentStateBucketId = VisibleMeshDrawCommand.StateBucketId;
+			CurrentCullingPayloadFlags = VisibleMeshDrawCommand.CullingPayloadFlags;
 
 			// If we have dropped any we need to move up to maintain 1:1
 			if (DrawCommandIndex > NumDrawCommandsOut)
