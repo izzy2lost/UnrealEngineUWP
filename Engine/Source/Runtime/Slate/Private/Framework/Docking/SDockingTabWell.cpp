@@ -322,6 +322,10 @@ FReply SDockingTabWell::StartDraggingTab( TSharedRef<SDockTab> TabToStartDraggin
 
 	if (bCanLeaveTabWell)
 	{
+		// Clear any pending layout save so that it doesn't occur during the drag operation.
+		// A new save will be requested in FTabManager::OnTabRelocated when the drag ends.
+		TabManager->ClearPendingLayoutSave();
+
 		// We just removed the foreground tab.
 		ForegroundTabIndex = INDEX_NONE;
 		ParentTabStackPtr.Pin()->OnTabRemoved(TabToStartDragging->GetLayoutIdentifier());
