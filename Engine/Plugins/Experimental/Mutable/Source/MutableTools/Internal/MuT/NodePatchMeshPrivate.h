@@ -9,15 +9,14 @@
 namespace mu
 {
 
-
 	class NodePatchMesh::Private : public Node::Private
 	{
 	public:
 
 		static FNodeType s_type;
 
-		NodeMeshPtr m_pRemove;
-		NodeMeshPtr m_pAdd;
+		Ptr<NodeMesh> m_pRemove;
+		Ptr<NodeMesh> m_pAdd;
 
 	};
 

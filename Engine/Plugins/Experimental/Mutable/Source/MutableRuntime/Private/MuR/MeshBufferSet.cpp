@@ -662,6 +662,26 @@ namespace mu
 			m_buffers[b].m_elementSize = offset;
 	}
 
+
+	bool FMeshBufferSet::HasAnySemanticWithDifferentFormat(EMeshBufferSemantic Semantic, EMeshBufferFormat ExpectedFormat) const
+	{
+		for (const FMeshBuffer& Buffer : m_buffers)
+		{
+			for (int32 ChannelIndex = 0; ChannelIndex < Buffer.m_channels.Num(); ++ChannelIndex)
+			{
+				if (Buffer.m_channels[ChannelIndex].m_semantic == Semantic)
+				{
+					if (Buffer.m_channels[ChannelIndex].m_format != ExpectedFormat)
+					{
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
 	
 	//-----------------------------------------------------------------------------------------
 	void FMeshBuffer::Serialise(OutputArchive& arch) const

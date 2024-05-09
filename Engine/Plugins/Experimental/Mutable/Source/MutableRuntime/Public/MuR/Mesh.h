@@ -140,7 +140,11 @@ namespace mu
     //! \ingroup runtime
     class MUTABLERUNTIME_API Mesh : public Resource
     {
-    public:
+	public:
+
+		static constexpr uint64 InvalidVertexId = TNumericLimits<uint64>::Max();
+
+	public:
 
         //-----------------------------------------------------------------------------------------
         // Life cycle
@@ -202,9 +206,6 @@ namespace mu
 
         //! \}
 
-		/** Return true if the mesh has unique IDs for its vertices. */
-		bool HasVertexIds() const;
-
 		/** Return true if the mesh has unique vertex IDs and they stored in an implicit way. 
 		* This is relevant for some mesh operations that will need to make them explicit so that the result is still correct.
 		*/
@@ -212,8 +213,8 @@ namespace mu
 		bool AreVertexIdsExplicit() const;
 
 		/** Create an explicit vertex buffer for vertex IDs if they are implicit. */
-		void MakeVertexIndicesRelative();
-		void MakeVertexIndicesExplicit();
+		void MakeVertexIdsRelative();
+		void MakeIdsExplicit();
 
         //! \name Texture layouts
         //! \{
@@ -335,10 +336,10 @@ namespace mu
 		//! It should be reset after any operation that modifies the format.
 		mutable uint32 StaticFormatFlags = 0;
 
-		/** Prefix for the unique vertex IDs, if the mesh has them in an implicit, or relative way. 
+		/** Prefix for the unique IDs related to this mesh (vertices and layout blocks). Useful if the mesh stores them in an implicit, or relative way. 
 		* See MeshVertexIdIterator for details.
 		*/
-		uint32 VertexIDPrefix = 0;
+		uint32 MeshIDPrefix = 0;
 
 		//!
 		FMeshBufferSet VertexBuffers;
@@ -406,54 +407,56 @@ namespace mu
         //!
 		inline bool operator==(const Mesh& o) const
 		{
-			bool equal = (IndexBuffers == o.IndexBuffers);
-			if (equal) equal = (VertexBuffers == o.VertexBuffers);
-			if (equal) equal = (Layouts.Num() == o.Layouts.Num());
-			if (equal) equal = (BonePoses.Num() == o.BonePoses.Num());
-			if (equal) equal = (BoneMap.Num() == o.BoneMap.Num());
-			if (equal && Skeleton != o.Skeleton)
+			bool bEqual = true;
+
+			if (bEqual) bEqual = (MeshIDPrefix == o.MeshIDPrefix);
+			if (bEqual) bEqual = (IndexBuffers == o.IndexBuffers);
+			if (bEqual) bEqual = (VertexBuffers == o.VertexBuffers);
+			if (bEqual) bEqual = (Layouts.Num() == o.Layouts.Num());
+			if (bEqual) bEqual = (BonePoses.Num() == o.BonePoses.Num());
+			if (bEqual) bEqual = (BoneMap.Num() == o.BoneMap.Num());
+			if (bEqual && Skeleton != o.Skeleton)
 			{
 				if (Skeleton && o.Skeleton)
 				{
-					equal = (*Skeleton == *o.Skeleton);
+					bEqual = (*Skeleton == *o.Skeleton);
 				}
 				else
 				{
-					equal = false;
+					bEqual = false;
 				}
 			}
-			if (equal) equal = (StreamedResources == o.StreamedResources);
-			if (equal) equal = (Surfaces == o.Surfaces);
-			if (equal) equal = (Tags == o.Tags);
-			if (equal) equal = (SkeletonIDs == o.SkeletonIDs);
-			if (equal) equal = (VertexIDPrefix == o.VertexIDPrefix);
+			if (bEqual) bEqual = (StreamedResources == o.StreamedResources);
+			if (bEqual) bEqual = (Surfaces == o.Surfaces);
+			if (bEqual) bEqual = (Tags == o.Tags);
+			if (bEqual) bEqual = (SkeletonIDs == o.SkeletonIDs);
 
-			for (int32 i = 0; equal && i < Layouts.Num(); ++i)
+			for (int32 i = 0; bEqual && i < Layouts.Num(); ++i)
 			{
-				equal &= (*Layouts[i]) == (*o.Layouts[i]);
+				bEqual &= (*Layouts[i]) == (*o.Layouts[i]);
 			}
 
-			equal &= AdditionalBuffers.Num() == o.AdditionalBuffers.Num();
-			for (int32 i = 0; equal && i < AdditionalBuffers.Num(); ++i)
+			bEqual &= AdditionalBuffers.Num() == o.AdditionalBuffers.Num();
+			for (int32 i = 0; bEqual && i < AdditionalBuffers.Num(); ++i)
 			{
-				equal &= AdditionalBuffers[i] == o.AdditionalBuffers[i];
+				bEqual &= AdditionalBuffers[i] == o.AdditionalBuffers[i];
 			}
 
-			equal &= BonePoses.Num() == o.BonePoses.Num();
-			for (int32 i = 0; equal && i < BonePoses.Num(); ++i)
+			bEqual &= BonePoses.Num() == o.BonePoses.Num();
+			for (int32 i = 0; bEqual && i < BonePoses.Num(); ++i)
 			{
-				equal &= BonePoses[i] == o.BonePoses[i];
+				bEqual &= BonePoses[i] == o.BonePoses[i];
 			}
 
-			if (equal) equal = BoneMap == o.BoneMap;
+			if (bEqual) bEqual = BoneMap == o.BoneMap;
 
-			equal &= AdditionalPhysicsBodies.Num() == o.AdditionalPhysicsBodies.Num();
-			for (int32 i = 0; equal && i < AdditionalPhysicsBodies.Num(); ++i)
+			bEqual &= AdditionalPhysicsBodies.Num() == o.AdditionalPhysicsBodies.Num();
+			for (int32 i = 0; bEqual && i < AdditionalPhysicsBodies.Num(); ++i)
 			{
-				equal &= *AdditionalPhysicsBodies[i] == *o.AdditionalPhysicsBodies[i];
+				bEqual &= *AdditionalPhysicsBodies[i] == *o.AdditionalPhysicsBodies[i];
 			}
 
-			return equal;
+			return bEqual;
 		}
 
 		//! Compare the mesh with another one, but ignore internal data like generated vertex

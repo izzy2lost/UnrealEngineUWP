@@ -990,7 +990,9 @@ public:
 		DeterminisiticLayoutBlockIds,
 
 		BackoutDeterminisiticLayoutBlockIds,
-		
+
+		FixWrappingProjectorLayoutBlockId,
+
 		LastCustomizableObjectVersion
 	};
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;

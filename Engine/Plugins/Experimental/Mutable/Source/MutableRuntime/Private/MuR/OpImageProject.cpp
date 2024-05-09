@@ -46,19 +46,6 @@ struct FOptimizedVertex
 static_assert(sizeof(FOptimizedVertex)==32, "UNEXPECTED_STRUCT_SIZE" );
 
 
-//-------------------------------------------------------------------------------------------------
-//! This format is the one we assumee the meshes optimised for wrapping projection will have.
-//! See CreateMeshOptimisedForWrappingProjection
-struct FOptimizedVertexWrapping
-{
-	FVector2f Uv;
-	FVector3f Position;
-	FVector3f Normal;
-	uint32 LayoutBlock;
-};
-
-static_assert(sizeof(FOptimizedVertexWrapping)==36, "UNEXPECTED_STRUCT_SIZE");
-
 
 namespace Private
 {
@@ -76,7 +63,7 @@ namespace Private
 		float ProjectionAngle;
 		float MipInterpolationFactor;
 		int32 Layout;
-		int32 Block;
+		uint64 BlockId;
 		UE::Math::TIntVector2<uint16> CropMin;
 		UE::Math::TIntVector2<uint16> UncroppedSize;
 		FScratchImageProject* Scratch;
@@ -652,8 +639,7 @@ namespace Private
 		check((int32)Scratch->CulledVertex.Num() == VertexCount);
 
 		check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertex));
-		const FOptimizedVertex* pVertices = 
-				reinterpret_cast<const FOptimizedVertex*>(pMesh->GetVertexBuffers().GetBufferData(0));
+		const FOptimizedVertex* pVertices =  reinterpret_cast<const FOptimizedVertex*>(pMesh->GetVertexBuffers().GetBufferData(0));
 
 		float FadeEndCos = FMath::Cos(FadeEnd);
 		for (int32 V = 0; V < VertexCount; ++V)
@@ -749,7 +735,7 @@ namespace Private
 	FORCENOINLINE void ImageRasterProjected_OptimisedWrapping(const Mesh* pMesh, Image* pImage, 
 		TTriangleRasterPixelProcRefType<4> PixelProc, 
 		float FadeEnd,
-		int32 Block,
+		uint64 BlockId,
 		UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize,
 		FScratchImageProject* Scratch)
 	{
@@ -769,14 +755,52 @@ namespace Private
 		// Get the vertices
 		int32 VertexCount = pMesh->GetVertexCount();
 
-		check( (int32)Scratch->Vertices.Num() == VertexCount );
-		check( (int32)Scratch->CulledVertex.Num() == VertexCount );
+		check( Scratch->Vertices.Num() == VertexCount );
+		check( Scratch->CulledVertex.Num() == VertexCount );
 
-		check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertexWrapping));
-		const FOptimizedVertexWrapping* pVertices = 
-			reinterpret_cast<const FOptimizedVertexWrapping*>(pMesh->GetVertexBuffers().GetBufferData(0));
+		check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertex));
+		const FOptimizedVertex* pVertices = reinterpret_cast<const FOptimizedVertex*>(pMesh->GetVertexBuffers().GetBufferData(0));
 
 		float FadeEndCos = FMath::Cos(FadeEnd);
+
+		// Calculate the culled flag
+		EMeshBufferFormat LayoutBlockType = pMesh->VertexBuffers.m_buffers[1].m_channels[0].m_format;
+		switch (LayoutBlockType)
+		{
+		case MBF_UINT64:
+		{
+			const uint64* LayoutBlockIds = reinterpret_cast<const uint64*>(pMesh->GetVertexBuffers().GetBufferData(1));
+			for (int32 V = 0; V < VertexCount; ++V)
+			{
+				Scratch->CulledVertex[V] = pVertices[V].Normal[0] < FadeEndCos;
+				if (LayoutBlockIds[V] != BlockId)
+				{
+					Scratch->CulledVertex[V] = true;
+				}
+			}
+			break;
+		}
+
+		case MBF_UINT16:
+		{
+			const uint16* LayoutBlockIds = reinterpret_cast<const uint16*>(pMesh->GetVertexBuffers().GetBufferData(1));
+			for (int32 V = 0; V < VertexCount; ++V)
+			{
+				Scratch->CulledVertex[V] = pVertices[V].Normal[0] < FadeEndCos;
+				if (LayoutBlockIds[V] != BlockId)
+				{
+					Scratch->CulledVertex[V] = true;
+				}
+			}
+			break;
+		}
+
+		default:
+			// Not implemented?
+			check(false);
+			break;
+		}
+
 		for (int32 V = 0; V < VertexCount; ++V)
 		{
 			bool bUseCropping = UncroppedSize[0] > 0;
@@ -796,13 +820,6 @@ namespace Private
 			Scratch->Vertices[V].interpolators[1] = pVertices[V].Position[1];
 			Scratch->Vertices[V].interpolators[2] = pVertices[V].Position[2];
 			Scratch->Vertices[V].interpolators[3] = pVertices[V].Normal[0];
-			Scratch->CulledVertex[V] = pVertices[V].Normal[0] < FadeEndCos;
-
-			// Cull vertices that don't belong to the current layout block.
-			if (pVertices[V].LayoutBlock != uint32(Block))
-			{
-				Scratch->CulledVertex[V] = true;
-			}
 		}
 
 		// Get the indices
@@ -889,7 +906,7 @@ namespace Private
 			Private::TProjectedPixelProcessor<Features>::ProcessPixel(Context, Buffer, Varying);
 		};
 
-		ImageRasterProjected_OptimisedWrapping(Args.MeshPtr, Args.ImagePtr, PixelProc, Args.FadeEnd, Args.Block, Args.CropMin, Args.UncroppedSize, Args.Scratch);
+		ImageRasterProjected_OptimisedWrapping(Args.MeshPtr, Args.ImagePtr, PixelProc, Args.FadeEnd, Args.BlockId, Args.CropMin, Args.UncroppedSize, Args.Scratch);
 	}
 } // namespace Private
 
@@ -902,7 +919,7 @@ void ImageRasterProjectedPlanar(const Mesh* pMesh, Image* pImage,
 	bool bIsRGBFadingEnabled, bool bIsAlphaFadingEnabled,
 	ESamplingMethod SamplingMethod,
 	float FadeStart, float FadeEnd, float MipInterpolationFactor,
-	int32 Layout, int32 Block,
+	int32 Layout, uint64 BlockId,
 	UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize,
 	FScratchImageProject* Scratch, bool bUseVectorImplementation)
 {
@@ -958,7 +975,7 @@ void ImageRasterProjectedPlanar(const Mesh* pMesh, Image* pImage,
 			bIsRGBFadingEnabled, bIsAlphaFadingEnabled,
 			SamplingMethod,
 			FadeStart, FadeEnd,  UnusedProjectionAngle, MipInterpolationFactor, 
-			Layout, Block, CropMin, UncroppedSize, Scratch
+			Layout, BlockId, CropMin, UncroppedSize, Scratch
 		};
 
 		using EPPF = EPixelProcessorFeatures;
@@ -1116,7 +1133,7 @@ void ImageRasterProjectedWrapping( const Mesh* pMesh, Image* pImage,
 	bool bIsRGBFadingEnabled, bool bIsAlphaFadingEnabled,
 	ESamplingMethod SamplingMethod,
 	float FadeStart, float FadeEnd, float MipInterpolationFactor,
-	int32 Layout, int32 Block,
+	int32 Layout, uint64 BlockId,
 	UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize,
 	FScratchImageProject* Scratch, bool bUseVectorImplementation)
 {
@@ -1173,7 +1190,7 @@ void ImageRasterProjectedWrapping( const Mesh* pMesh, Image* pImage,
 			bIsRGBFadingEnabled, bIsAlphaFadingEnabled,
 			SamplingMethod,
 			FadeStart, FadeEnd, UnusedProjectionAngle, MipInterpolationFactor,
-			Layout, Block, CropMin, UncroppedSize, Scratch
+			Layout, BlockId, CropMin, UncroppedSize, Scratch
 		};
 
 		using EPPF = EPixelProcessorFeatures;
@@ -1625,16 +1642,15 @@ float ComputeProjectedFootprintBestMip(
 	}
 	else if (bIsWrappingProjection)
 	{
-		check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertexWrapping));
-		const FOptimizedVertexWrapping* VerticesPtr = 
-			reinterpret_cast<const FOptimizedVertexWrapping*>(pMesh->GetVertexBuffers().GetBufferData(0));
+		check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertex));
+		const FOptimizedVertex* VerticesPtr =  reinterpret_cast<const FOptimizedVertex*>(pMesh->GetVertexBuffers().GetBufferData(0));
 
 		check(NumIndices % 3 == 0);
 		for (uint32 I = 0; I < NumIndices; I += 3)
 		{
-			const FOptimizedVertexWrapping& A = VerticesPtr[IndicesPtr[I + 0]];
-			const FOptimizedVertexWrapping& B = VerticesPtr[IndicesPtr[I + 1]];
-			const FOptimizedVertexWrapping& C = VerticesPtr[IndicesPtr[I + 2]];
+			const FOptimizedVertex& A = VerticesPtr[IndicesPtr[I + 0]];
+			const FOptimizedVertex& B = VerticesPtr[IndicesPtr[I + 1]];
+			const FOptimizedVertex& C = VerticesPtr[IndicesPtr[I + 2]];
 
 			TargetArea += ComputeTriangleArea(A.Uv, B.Uv, C.Uv);
 		}
@@ -1875,7 +1891,7 @@ struct NeighborFace
 
 
 void getEdgeHorizontalLength( int edgeVert0, int edgeVert1, int opposedVert,
-                              const FOptimizedVertexWrapping* pVertices,
+                              const FOptimizedVertex* pVertices,
                               float &out_uvSpaceLen, float &out_objSpaceLen,
                               float& out_midEdgePointFraction)
 {
@@ -2135,16 +2151,18 @@ void MeshProject_Optimised_Wrapping(const Mesh* pMesh,
                                     const FVector3f& projectorPosition, const FVector3f& projectorDirection,
                                     const FVector3f& projectorSide, const FVector3f& projectorUp,
                                     const FVector3f& projectorScale,
-                                    FOptimizedVertexWrapping* pResultVertices, int& currentVertex,
+                                    FOptimizedVertex* pResultVertices, uint64* pResultLayoutBlockIds, int32& currentVertex,
                                     uint32* pResultIndices, int& currentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(MeshProject_Optimised_Wrapping)
     
 		// Get the vertices
     int vertexCount = pMesh->GetVertexCount();
-    check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertexWrapping));
-	const FOptimizedVertexWrapping* pVertices = 
-		reinterpret_cast<const FOptimizedVertexWrapping*>(pMesh->GetVertexBuffers().GetBufferData(0));
+	check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertex));
+	check(pMesh->GetVertexBuffers().m_buffers.Num() == 2);
+	const FOptimizedVertex* pVertices = reinterpret_cast<const FOptimizedVertex*>(pMesh->GetVertexBuffers().GetBufferData(0));
+
+	EMeshBufferFormat LayoutBlockType = pMesh->VertexBuffers.m_buffers[1].m_channels[0].m_format;
 
     // Get the indices
     check(pMesh->GetIndexBuffers().GetElementSize(0) == 4);
@@ -2840,7 +2858,33 @@ void MeshProject_Optimised_Wrapping(const Mesh* pMesh,
 #endif
                 if (oldToNewVertex[i] < 0)
                 {
-                    pResultVertices[currentVertex] = pVertices[i];
+					pResultVertices[currentVertex] = pVertices[i];
+
+					// \TOOD: Optimize
+					{
+						switch (LayoutBlockType)
+						{
+						case MBF_UINT64:
+						{
+							const uint64* LayoutBlockIds = reinterpret_cast<const uint64*>(pMesh->GetVertexBuffers().GetBufferData(1));
+							pResultLayoutBlockIds[currentVertex] = LayoutBlockIds[i];
+							break;
+						}
+
+						case MBF_UINT16:
+						{
+							const uint16* LayoutBlockIds = reinterpret_cast<const uint16*>(pMesh->GetVertexBuffers().GetBufferData(1));
+							uint64 BlockId = (uint64(pMesh->MeshIDPrefix) << 32) | uint64(LayoutBlockIds[i]);
+							pResultLayoutBlockIds[currentVertex] = BlockId;
+							break;
+						}
+
+						default:
+							// Not implemented?
+							check(false);
+							break;
+						}
+					}
 
                     pResultVertices[currentVertex].Position[0] = projectedPositions[i].pos0;
                     pResultVertices[currentVertex].Position[1] = projectedPositions[i].pos1;
@@ -2984,16 +3028,21 @@ void MeshProject_Optimised(Mesh* Result, const Mesh* pMesh, const FProjector& pr
     case PROJECTOR_TYPE::WRAPPING:
 	{
         CreateMeshOptimisedForWrappingProjection(Result, layout);
+
+		// Wrapping-projection also needs the layout block IDs
         Result->GetVertexBuffers().SetElementCount(vertexCount);
         Result->GetIndexBuffers().SetElementCount(indexCount);
 		uint32* pResultIndices = reinterpret_cast<uint32*>(Result->GetIndexBuffers().GetBufferData(0));
-		FOptimizedVertexWrapping* pResultVertices = reinterpret_cast<FOptimizedVertexWrapping*>(Result->GetVertexBuffers().GetBufferData(0));
+		FOptimizedVertex* pResultVertices = reinterpret_cast<FOptimizedVertex*>(Result->GetVertexBuffers().GetBufferData(0));
+
+		// \TODO: be more flexible with the block id formats?
+		uint64* pResultLayoutBlockIds = reinterpret_cast<uint64*>(Result->GetVertexBuffers().GetBufferData(1));
 
         MeshProject_Optimised_Wrapping(pMesh,
                                        projectorPosition, projectorDirection,
                                        projectorSide, projectorUp,
                                        projectorScale,
-                                       pResultVertices, currentVertex,
+                                       pResultVertices, pResultLayoutBlockIds, currentVertex,
                                        pResultIndices, currentIndex);
 
         break;
@@ -3049,16 +3098,16 @@ void MeshProject(Mesh* Result, const Mesh* pMesh, const FProjector& projector, b
 
 
 //-------------------------------------------------------------------------------------------------
-void CreateMeshOptimisedForProjection(Mesh* Result, int layout)
+void CreateMeshOptimisedForProjection(Mesh* Result, int32 layout)
 {
     Result->GetVertexBuffers().SetBufferCount( 1 );
     Result->GetIndexBuffers().SetBufferCount( 1 );
 
     EMeshBufferSemantic semantics[3] =	{ MBS_TEXCOORDS,	MBS_POSITION,	MBS_NORMAL };
-    int semanticIndices[3] =			{ 0,				0,				0 };
+    int32 semanticIndices[3] =			{ 0,				0,				0 };
     EMeshBufferFormat formats[3] =		{ MBF_FLOAT32,		MBF_FLOAT32,	MBF_FLOAT32 };
-    int componentCounts[3] =			{ 2,				3,				3 };
-    int offsets[3] =					{ 0,				8,				20 };
+    int32 componentCounts[3] =			{ 2,				3,				3 };
+    int32 offsets[3] =					{ 0,				8,				20 };
     semanticIndices[0] = layout;
     Result->GetVertexBuffers().SetBuffer
             ( 0, 32, 3,
@@ -3067,10 +3116,10 @@ void CreateMeshOptimisedForProjection(Mesh* Result, int layout)
               offsets );
 
     EMeshBufferSemantic isemantics[1] =	{ MBS_VERTEXINDEX };
-    int isemanticIndices[1] =				{ 0 };
+    int32 isemanticIndices[1] =			{ 0 };
     EMeshBufferFormat iformats[1] =		{ MBF_UINT32 };
-    int icomponentCounts[1] =				{ 1 };
-    int ioffsets[1] =						{ 0 };
+    int32 icomponentCounts[1] =			{ 1 };
+    int32 ioffsets[1] =					{ 0 };
     Result->GetIndexBuffers().SetBuffer
             ( 0, 4, 1,
               isemantics, isemanticIndices,
@@ -3080,34 +3129,33 @@ void CreateMeshOptimisedForProjection(Mesh* Result, int layout)
 
 
 //-------------------------------------------------------------------------------------------------
-void CreateMeshOptimisedForWrappingProjection(Mesh* Result, int layout)
+void CreateMeshOptimisedForWrappingProjection(Mesh* Result, int32 LayoutIndex)
 {
-    Result->GetVertexBuffers().SetBufferCount( 1 );
+    Result->GetVertexBuffers().SetBufferCount( 2 );
     Result->GetIndexBuffers().SetBufferCount( 1 );
 
-    EMeshBufferSemantic semantics[4] =	{ MBS_TEXCOORDS,	MBS_POSITION,	MBS_NORMAL,     MBS_LAYOUTBLOCK };
-    int semanticIndices[4] =			{ 0,				0,				0,              0 };
-    EMeshBufferFormat formats[4] =		{ MBF_FLOAT32,		MBF_FLOAT32,	MBF_FLOAT32,    MBF_UINT32 };
-    int componentCounts[4] =			{ 2,				3,				3,              1 };
-    int offsets[4] =					{ 0,				8,				20,             32 };
-    semanticIndices[0] = layout;
-    semanticIndices[3] = layout;
-    Result->GetVertexBuffers().SetBuffer
-            ( 0, 36, 4,
-              semantics, semanticIndices,
-              formats, componentCounts,
-              offsets );
+    EMeshBufferSemantic semantics[3] =	{ MBS_TEXCOORDS,	MBS_POSITION,	MBS_NORMAL };
+    int32 semanticIndices[3] =			{ 0,				0,				0 };
+    EMeshBufferFormat formats[3] =		{ MBF_FLOAT32,		MBF_FLOAT32,	MBF_FLOAT32 };
+    int32 componentCounts[3] =			{ 2,				3,				3 };
+    int32 offsets[3] =					{ 0,				8,				20 };
+    semanticIndices[0] = LayoutIndex;
+    Result->GetVertexBuffers().SetBuffer( 0, 32, 3, semantics, semanticIndices, formats, componentCounts, offsets );
+
+	EMeshBufferSemantic LayoutSemantics[1] = { MBS_LAYOUTBLOCK };
+	int32 LayoutSemanticIndices[1] = { 0 };
+	EMeshBufferFormat LayoutFormats[1] = { MBF_UINT64 };
+	int32 LayoutComponentCounts[1] = { 1 };
+	int32 LayoutOffsets[1] = { 0 };
+	LayoutSemanticIndices[0] = LayoutIndex;
+	Result->GetVertexBuffers().SetBuffer(1, sizeof(uint64), 1, LayoutSemantics, LayoutSemanticIndices, LayoutFormats, LayoutComponentCounts, LayoutOffsets);
 
     EMeshBufferSemantic isemantics[1] =	{ MBS_VERTEXINDEX };
-    int isemanticIndices[1] =				{ 0 };
+    int32 isemanticIndices[1] =			{ 0 };
     EMeshBufferFormat iformats[1] =		{ MBF_UINT32 };
-    int icomponentCounts[1] =				{ 1 };
-    int ioffsets[1] =						{ 0 };
-    Result->GetIndexBuffers().SetBuffer
-            ( 0, 4, 1,
-              isemantics, isemanticIndices,
-              iformats, icomponentCounts,
-              ioffsets );
+    int32 icomponentCounts[1] =			{ 1 };
+    int32 ioffsets[1] =					{ 0 };
+    Result->GetIndexBuffers().SetBuffer( 0, 4, 1, isemantics, isemanticIndices, iformats, icomponentCounts, ioffsets );
 }
 
 }

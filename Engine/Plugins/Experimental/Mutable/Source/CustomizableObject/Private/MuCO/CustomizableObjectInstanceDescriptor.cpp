@@ -1220,7 +1220,7 @@ const FString& FCustomizableObjectInstanceDescriptor::GetIntParameterSelectedOpt
 	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ParamName);
 	const int32 ParameterIndexInInstance = FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
 
-	if (ParameterIndexInObject >= 0 && ParameterIndexInInstance >= 0)
+	if (ParameterIndexInObject >= 0 && IntParameters.IsValidIndex(ParameterIndexInInstance))
 	{
 		if (RangeIndex == -1)
 		{

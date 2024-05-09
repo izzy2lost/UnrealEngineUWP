@@ -717,8 +717,6 @@ namespace mu
 			return 
 				Mesh 
 				&&
-				Mesh->HasVertexIds()
-				&&
 				(CurrentIdIndex < Mesh->GetVertexCount())
 				;
 		}
@@ -728,11 +726,13 @@ namespace mu
 			check(Mesh);
 			check(CurrentIdIndex < Mesh->GetVertexCount());
 
+			uint64 Id=Mesh::InvalidVertexId;
+
 			// Is it implicit?
-			if (Mesh->VertexIDPrefix && !BufferIterator.ptr())
+			if (!BufferIterator.ptr())
 			{
 				// The id is just prefix and index
-				return (uint64(Mesh->VertexIDPrefix) << 32) | uint64(CurrentIdIndex);
+				Id = (uint64(Mesh->MeshIDPrefix) << 32) | uint64(CurrentIdIndex);
 			}
 
 			// Is it relative?
@@ -740,19 +740,20 @@ namespace mu
 			{
 				// There is a buffer storing IDs without prefix because it is the same for all vertices.
 				uint32 RelativeId = BufferIterator.GetAsUINT32();
-				return (uint64(Mesh->VertexIDPrefix) << 32) | uint64(RelativeId);
+				Id = (uint64(Mesh->MeshIDPrefix) << 32) | uint64(RelativeId);
 			}
 
 			// Is it explicit?
 			else if (BufferIterator.GetFormat() == MBF_UINT64)
 			{
-				check( Mesh->VertexIDPrefix==0 );
-				uint64 Id = BufferIterator.GetAsUINT64();
-				return Id;
+				Id = BufferIterator.GetAsUINT64();
+			}
+			else
+			{
+				check(false);
 			}
 
-			check(false);
-			return 0;
+			return Id;
 		}
 
 	};
