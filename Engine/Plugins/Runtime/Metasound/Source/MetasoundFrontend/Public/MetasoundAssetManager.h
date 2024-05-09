@@ -206,7 +206,7 @@ namespace Metasound::Frontend
 		virtual void RemoveAsset(const FAssetData& InAssetData) = 0;
 
 		// Updates the given MetaSound's asset record with the new name and optionally reregisters it with the Frontend Node Class Registry.
-		virtual void RenameAsset(const FAssetData& InAssetData, bool bInReregisterWithFrontend = true) = 0;
+		virtual void RenameAsset(const FAssetData& InAssetData, const FString& InOldObjectPath) = 0;
 
 		// Waits until all async load requests related to this asset are complete.
  		virtual void WaitUntilAsyncLoadReferencedAssetsComplete(FMetasoundAssetBase& InAssetBase) = 0;
