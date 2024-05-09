@@ -49,7 +49,7 @@ public:
 	bool bShowAnimatedPropertiesOption = true;
 
 	/** The default column width */
-	UPROPERTY(EditAnywhere, Category = "View")
+	UPROPERTY(EditAnywhere, Category = "View", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float ColumnWidth = 0.65f;
 
 	/** If false, the details panel's scrollbar will always be hidden. Useful when embedding details panels in widgets that either grow to accommodate them, or with scrollbars of their own. */
