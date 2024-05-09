@@ -567,6 +567,11 @@ void UDisplayClusterNetDriver::PostListUpdate(ConsiderListUpdateParams const& Up
 
 		for (int j = 0; j < ClusterReplicationState.FinalSortedCount; j++)
 		{
+			if (ClusterReplicationState.PriorityList[j].ActorInfo == nullptr)
+			{
+				continue;
+			}
+
 			ClusterReplicationState.PriorityList[j].Channel = DisplayClusterConnection->FindActorChannelRef(ClusterReplicationState.PriorityList[j].ActorInfo->WeakActor);
 		}
 
@@ -632,6 +637,11 @@ void UDisplayClusterNetDriver::ListUpdate(ConsiderListUpdateParams const& Update
 		// Update channels for each actor
 		for (int j = 0; j < ClusterReplicationState.FinalSortedCount; j++)
 		{
+			if (ClusterReplicationState.PriorityList[j].ActorInfo == nullptr)
+			{
+				continue;
+			}
+
 			ClusterReplicationState.PriorityList[j].Channel = Connection->FindActorChannelRef(ClusterReplicationState.PriorityList[j].ActorInfo->WeakActor);
 		}
 
