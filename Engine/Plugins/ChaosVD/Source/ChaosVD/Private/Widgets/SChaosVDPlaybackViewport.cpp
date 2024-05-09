@@ -260,12 +260,12 @@ void SChaosVDPlaybackViewport::HandlePostSelectionChange(const UTypedElementSele
 
 void SChaosVDPlaybackViewport::OnPlaybackSceneUpdated()
 {
-	PlaybackViewportClient->bNeedsRedraw = true;
+	PlaybackViewportClient->HandleCVDSceneUpdated();
 }
 
 void SChaosVDPlaybackViewport::OnSolverVisibilityUpdated(int32 SolverID, bool bNewVisibility)
 {
-	PlaybackViewportClient->bNeedsRedraw = true;	
+	PlaybackViewportClient->HandleCVDSceneUpdated();	
 }
 
 void SChaosVDPlaybackViewport::BindToSceneUpdateEvents()

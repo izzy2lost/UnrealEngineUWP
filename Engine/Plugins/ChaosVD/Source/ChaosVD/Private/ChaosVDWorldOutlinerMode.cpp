@@ -5,6 +5,7 @@
 #include "ActorTreeItem.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
+#include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 
@@ -89,6 +90,22 @@ void FChaosVDActorTreeItem::OnVisibilityChanged(const bool bNewVisibility)
 	}
 }
 
+void FChaosVDActorTreeItem::UpdateDisplayString()
+{
+	if (AChaosVDParticleActor* CVDActor = Cast<AChaosVDParticleActor>(Actor.Get()))
+	{
+		if (const FChaosVDParticleDataWrapper* ParticleData = CVDActor->GetParticleData())
+		{
+			const bool bHasDebugName = !ParticleData->DebugName.IsEmpty();
+			DisplayString = bHasDebugName ? ParticleData->DebugName : TEXT("Unnamed Particle - ID : ") + FString::FromInt(ParticleData->ParticleIndex);
+		}
+	}
+	else
+	{
+		FActorTreeItem::UpdateDisplayString();
+	}
+}
+
 TUniquePtr<FChaosVDOutlinerHierarchy> FChaosVDOutlinerHierarchy::Create(ISceneOutlinerMode* Mode, const TWeakObjectPtr<UWorld>& World)
 {
 	FChaosVDOutlinerHierarchy* Hierarchy = new FChaosVDOutlinerHierarchy(Mode, World);
@@ -104,9 +121,10 @@ FSceneOutlinerTreeItemPtr FChaosVDOutlinerHierarchy::CreateItemForActor(AActor* 
 	return Mode->CreateItemFor<FChaosVDActorTreeItem>(InActor, bForce);
 }
 
-FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene)
+FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController)
 	: FActorMode(InModeParams),
-	CVDScene(InScene)
+	CVDScene(InScene),
+	PlaybackController(InPlaybackController)
 {
 	TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin();
 	if (!ensure(ScenePtr.IsValid()))
@@ -115,19 +133,17 @@ FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InM
 	}
 
 	ScenePtr->OnActorActiveStateChanged().AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorActiveStateChanged);
+	ScenePtr->OnActorLabelChanged().AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorLabelChanged);
 
 	RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
-
-	ActorLabelChangedDelegateHandle = FCoreDelegates::OnActorLabelChanged.AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorLabelChanged);
 }
 
 FChaosVDWorldOutlinerMode::~FChaosVDWorldOutlinerMode()
 {
-	FCoreDelegates::OnActorLabelChanged.Remove(ActorLabelChangedDelegateHandle);
-
 	if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 	{
 		ScenePtr->OnActorActiveStateChanged().RemoveAll(this);
+		ScenePtr->OnActorLabelChanged().RemoveAll(this);
 	}
 }
 
@@ -177,12 +193,28 @@ void FChaosVDWorldOutlinerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item
 
 void FChaosVDWorldOutlinerMode::ProcessPendingHierarchyEvents()
 {
-	for (const TPair<FSceneOutlinerTreeItemID, FSceneOutlinerHierarchyChangedData>& PendingEvent : PendingOutlinerEventsMap)
-	{
-		Hierarchy->OnHierarchyChanged().Broadcast(PendingEvent.Value);
-	}
+	const double StartTimeSeconds = FPlatformTime::Seconds();
+	double CurrentTimeSpentSeconds = 0.0;
+	int32 CurrentEventProcessedNum = 0;
 
-	PendingOutlinerEventsMap.Reset();
+	constexpr double MaxUpdateBudgetSeconds = 0.001;
+
+	for (TMap<FSceneOutlinerTreeItemID, FSceneOutlinerHierarchyChangedData>::TIterator RemoveIterator = PendingOutlinerEventsMap.CreateIterator(); RemoveIterator; ++RemoveIterator)
+	{
+		if (CurrentTimeSpentSeconds > MaxUpdateBudgetSeconds)
+		{
+			return;
+		}
+
+		// Only check the budget every 5 tasks as Getting the current time is a syscall and it is not free
+		if (CurrentEventProcessedNum % 5 == 0)
+		{
+			CurrentTimeSpentSeconds += FPlatformTime::Seconds() - StartTimeSeconds;
+		}
+
+		Hierarchy->OnHierarchyChanged().Broadcast(RemoveIterator.Value());
+		RemoveIterator.RemoveCurrent();
+	}
 }
 
 bool FChaosVDWorldOutlinerMode::Tick(float DeltaTime)
@@ -212,6 +244,17 @@ bool FChaosVDWorldOutlinerMode::CanInteract(const ISceneOutlinerTreeItem& Item) 
 	return true;
 }
 
+bool FChaosVDWorldOutlinerMode::CanPopulate() const
+{
+	if (TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
+	{
+		// Updating the scene outliner during playback it is very expensive and can tank framerate,
+		// as it need to re-build the hierarchy when things are added in ad removed. So if we are playing we want to pause any updates to the outliner
+		return !PlaybackControllerPtr->IsPlaying();
+	}
+	return true;
+}
+
 void FChaosVDWorldOutlinerMode::EnqueueAndCombineHierarchyEvent(const FSceneOutlinerTreeItemID& ItemID, const FSceneOutlinerHierarchyChangedData& EnventToProcess)
 {
 	if (FSceneOutlinerHierarchyChangedData* EventData = PendingOutlinerEventsMap.Find(ItemID))
@@ -223,7 +266,7 @@ void FChaosVDWorldOutlinerMode::EnqueueAndCombineHierarchyEvent(const FSceneOutl
 		PendingOutlinerEventsMap.Add(ItemID, EnventToProcess);
 	}	
 }
-void FChaosVDWorldOutlinerMode::HandleActorLabelChanged(AActor* ChangedActor)
+void FChaosVDWorldOutlinerMode::HandleActorLabelChanged(AChaosVDParticleActor* ChangedActor)
 {
 	if (!ensure(ChangedActor))
 	{

@@ -374,6 +374,7 @@ public:
 	virtual void SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshDataInstanceHandle>& InMeshInstanceToSelect) PURE_VIRTUAL(IChaosVDGeometryOwnerInterface::SetSelectedMeshInstance);
 	virtual TWeakPtr<FChaosVDMeshDataInstanceHandle> GetSelectedMeshInstance() const PURE_VIRTUAL(IChaosVDGeometryOwnerInterface::GetSelectedMeshInstance, return nullptr;);
 	virtual TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshInstances() const PURE_VIRTUAL(IChaosVDGeometryOwnerInterface::GetMeshInstances, return TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>>(););
+	virtual void HandleNewGeometryLoaded(uint32 GeometryID, const Chaos::FConstImplicitObjectPtr& InGeometryData) PURE_VIRTUAL(IChaosVDGeometryOwnerInterface::HandleGeometryUpdated);
 };
 
 namespace Chaos::VisualDebugger

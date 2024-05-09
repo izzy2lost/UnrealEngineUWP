@@ -69,8 +69,6 @@ public:
 
 	void UpdateGeometry(uint32 NewGeometryHash, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
 
-	virtual void SetScene(TWeakPtr<FChaosVDScene> InScene) override;
-
 	virtual void Destroyed() override;
 
 	virtual const FChaosVDParticleDataWrapper* GetParticleData() override { return ParticleDataPtr.Get(); }
@@ -127,12 +125,15 @@ public:
 	virtual TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshInstances() const override { return MeshDataHandles; }
 	virtual void SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshDataInstanceHandle>& GeometryInstanceToSelect) override;
 	virtual TWeakPtr<FChaosVDMeshDataInstanceHandle> GetSelectedMeshInstance() const override { return CurrentSelectedGeometryInstance; }
+	virtual void HandleNewGeometryLoaded(uint32 GeometryID, const Chaos::FConstImplicitObjectPtr& InGeometryData) override;
 	// END IChaosVDGeometryOwner Interface
 	
 	// BEGIN IChaosVDSelectableObject Interface
 	virtual void HandleSelected() override;
 	virtual void HandleDeSelected() override;
 	// END IChaosVDSelectableObject Interface
+
+	virtual bool Modify(bool bAlwaysMarkDirty) override;
 
 protected:
 

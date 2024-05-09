@@ -134,6 +134,8 @@ void UChaosVDInstancedStaticMeshComponent::Reset()
 	ComponentEmptyDelegate = FChaosVDMeshComponentEmptyDelegate();
 	CurrentMaterial = nullptr;
 
+	EmptyOverrideMaterials();
+
 	CurrentInstanceHandles.Reset();
 	CurrentGeometryKey = 0;
 }

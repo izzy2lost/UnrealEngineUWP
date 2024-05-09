@@ -27,8 +27,6 @@ public:
 	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual void DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas) override;
 
-	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
-
 	void ToggleObjectTrackingIfSelected();
 	bool IsAutoTrackingSelectedObject() const { return bAutoTrackSelectedObject; };
 	void SetAutoTrackingViewDistance(float NewDistance);
@@ -36,9 +34,13 @@ public:
 
 	void GoToLocation(const FVector& InLocation);
 
-private:
-
 	void TrackSelectedObject();
+	
+	virtual void UpdateMouseDelta() override;
+
+	void HandleCVDSceneUpdated();
+
+private:
 
 	void HandleObjectFocused(UObject* FocusedObject);
 	void HandleActorMoving(AActor* MovedActor) const;

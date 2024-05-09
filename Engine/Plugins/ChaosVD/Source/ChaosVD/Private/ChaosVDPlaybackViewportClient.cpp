@@ -178,23 +178,26 @@ void FChaosVDPlaybackViewportClient::TrackSelectedObject()
 		USelection* CurrentSelection = ModeTools->GetSelectedActors();
 
 		//TODO: Update this if we add multi selection support
-		if (const AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
+		if (AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
 		{
-			const FBox ActorBounds = SelectedActor->GetComponentsBoundingBox(false);
-			FocusViewportOnBox(ActorBounds.ExpandBy(TrackingViewDistance), true);		
+			FBox BoxToTrack = SelectedActor->GetComponentsBoundingBox(false);
+			FocusViewportOnBox(BoxToTrack.ExpandBy(TrackingViewDistance), true);
 		}
 	}
 }
 
-bool FChaosVDPlaybackViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
+void FChaosVDPlaybackViewportClient::UpdateMouseDelta()
 {
-	// Each time we requested a re-draw means we move something in the scene, so we need to re-create the cached hit proxy map.
-	if (bNeedsRedraw)
-	{
-		RequestInvalidateHitProxy(Viewport);
-	}
-	
-	return FEditorViewportClient::InputKey(EventArgs);
+	// Make sure we get the camera in the correct position before a mouse drag is handled
+	TrackSelectedObject();
+
+	FEditorViewportClient::UpdateMouseDelta();
+}
+
+void FChaosVDPlaybackViewportClient::HandleCVDSceneUpdated()
+{
+	TrackSelectedObject();
+	Invalidate();
 }
 
 void FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected()
@@ -224,8 +227,6 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 		// A proper fix would be have a way to override this per viewport, which could be done by adding a new method to FViewElementDrawer
 		const_cast<FSceneView*>(View)->bAllowTranslucentPrimitivesInHitProxy = true;
 	}
-
-	TrackSelectedObject();
 
 	const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = ModeTools.IsValid() ? StaticCastSharedPtr<SChaosVDMainTab>(ModeTools->GetToolkitHost()) : nullptr;
 	if (!MainTabToolkitHost.IsValid())

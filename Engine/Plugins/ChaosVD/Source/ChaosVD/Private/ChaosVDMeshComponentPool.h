@@ -26,8 +26,8 @@ public:
 
 private:
 
-	template <typename TDesiredMeshComponent, typename TPooledComponent>
-	TDesiredMeshComponent* GetMeshComponentFromPool_Internal(TArray<TObjectPtr<TPooledComponent>>& InMeshComponentPool, UObject* Outer, FName Name);
+	template <typename DesiredMeshComponent, typename PooledComponent>
+	DesiredMeshComponent* GetMeshComponentFromPool_Internal(TArray<TObjectPtr<PooledComponent>>& InMeshComponentPool, UObject* Outer, FName Name);
 
 	void ResetMeshComponent(UMeshComponent* MeshComponent);
 
@@ -60,17 +60,17 @@ TMeshComponent* FChaosVDMeshComponentPool::AcquireMeshComponent(UObject* Outer, 
 	}
 }
 
-template <typename TDesiredMeshComponent, typename TPooledComponent>
-TDesiredMeshComponent* FChaosVDMeshComponentPool::GetMeshComponentFromPool_Internal(TArray<TObjectPtr<TPooledComponent>>& InMeshComponentPool, UObject* Outer,  FName Name)
+template <typename DesiredMeshComponent, typename PooledComponent>
+DesiredMeshComponent* FChaosVDMeshComponentPool::GetMeshComponentFromPool_Internal(TArray<TObjectPtr<PooledComponent>>& InMeshComponentPool, UObject* Outer,  FName Name)
 {
-	static_assert(std::is_base_of_v<UStaticMeshComponent, TDesiredMeshComponent> || std::is_base_of_v<UInstancedStaticMeshComponent, TDesiredMeshComponent> || std::is_base_of_v<TDesiredMeshComponent, UDynamicMeshComponent>, "GetMeshComponentInternal Only supports DynamicMeshComponent, Static MeshComponent and Instanced Static Mesh Component");
+	static_assert(std::is_base_of_v<UStaticMeshComponent, DesiredMeshComponent> || std::is_base_of_v<UInstancedStaticMeshComponent, DesiredMeshComponent> || std::is_base_of_v<DesiredMeshComponent, UDynamicMeshComponent>, "GetMeshComponentInternal Only supports DynamicMeshComponent, Static MeshComponent and Instanced Static Mesh Component");
 
 	// We need to ensure unique names
 	const FString NewName = Name.ToString() + FGuid::NewGuid().ToString();
 	
 	if (bUseComponentsPool &&  InMeshComponentPool.Num() > 0)
 	{
-		if (TDesiredMeshComponent* Component = Cast<TDesiredMeshComponent>(InMeshComponentPool.Pop()))
+		if (DesiredMeshComponent* Component = Cast<DesiredMeshComponent>(InMeshComponentPool.Pop()))
 		{
 			Component->Rename(*NewName , Outer, REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_SkipGeneratedClasses | REN_DontCreateRedirectors);
 			return Component;
@@ -81,5 +81,8 @@ TDesiredMeshComponent* FChaosVDMeshComponentPool::GetMeshComponentFromPool_Inter
 		}
 	}
 
-	return NewObject<TDesiredMeshComponent>(Outer, *NewName);
+	DesiredMeshComponent* NewMeshComponent = NewObject<DesiredMeshComponent>(Outer, *NewName);
+	NewMeshComponent->EmptyOverrideMaterials();
+
+	return NewMeshComponent;
 }

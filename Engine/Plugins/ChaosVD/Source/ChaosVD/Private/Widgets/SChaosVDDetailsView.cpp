@@ -45,7 +45,7 @@ TSharedPtr<IDetailsView> SChaosVDDetailsView::CreateObjectDetailsView()
 	DetailsViewArgs.bUpdatesFromSelection = false;
 	DetailsViewArgs.bLockable = true;
 	DetailsViewArgs.bAllowFavoriteSystem = false;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::ObjectsUseNameArea | FDetailsViewArgs::ComponentsAndActorsUseNameArea;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsViewArgs.bCustomFilterAreaLocation = false;
 	DetailsViewArgs.bShowSectionSelector = false;
 	DetailsViewArgs.bShowScrollBar = false;

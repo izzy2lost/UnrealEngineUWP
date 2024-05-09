@@ -252,9 +252,22 @@ void FChaosVDScene::UpdateJointConstraintsData(const FChaosVDStepData& InRecorde
 	}
 }
 
-void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& GeometryData, const uint32 GeometryID) const
+void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& GeometryData, const uint32 GeometryID)
 {
-	NewGeometryAvailableDelegate.Broadcast(GeometryData, GeometryID);
+	if (TArray<IChaosVDGeometryOwnerInterface*>* ObjectsWaitingPtr = ObjectsWaitingForGeometry.Find(GeometryID))
+	{
+		TArray<IChaosVDGeometryOwnerInterface*>& ObjectsWaitingRef = *ObjectsWaitingPtr;
+		for (IChaosVDGeometryOwnerInterface* ObjectWaiting : ObjectsWaitingRef)
+		{
+			if (ObjectWaiting)
+			{
+				ObjectWaiting->HandleNewGeometryLoaded(GeometryID, GeometryData);
+			}
+		}
+
+		// Keep the array allocated in case another particle needs to go to the waiting list
+		ObjectsWaitingRef.Reset();
+	}
 }
 
 void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
@@ -386,6 +399,16 @@ Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryI
 	return nullptr;
 }
 
+void FChaosVDScene::AddObjectWaitingForGeometry(uint32 GeometryID, IChaosVDGeometryOwnerInterface* ObjectWaitingForGeometry)
+{
+	if (!ObjectWaitingForGeometry)
+	{
+		return;
+	}
+
+	ObjectsWaitingForGeometry.FindOrAdd(GeometryID).Add(ObjectWaitingForGeometry);
+}
+
 AChaosVDParticleActor* FChaosVDScene::GetParticleActor(int32 SolverID, int32 ParticleID)
 {
 	if (AChaosVDSolverInfoActor** SolverDataInfo = SolverDataContainerBySolverID.Find(SolverID))
@@ -438,8 +461,9 @@ AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const TShare
 		NewActor->SetIsServerParticle(IsSolverForServer(InParticleData->SolverID));
 		NewActor->UpdateFromRecordedParticleData(InParticleData, InFrameData.SimulationTransform);
 
-		const bool bHasDebugName = !InParticleData->DebugName.IsEmpty();
-		NewActor->SetActorLabel(bHasDebugName ? InParticleData->DebugName : TEXT("Unnamed Particle - ID : ") + FString::FromInt(InParticleData->ParticleIndex));
+		// CVD's Outliner mode will update the label based on the particle data without needing to go trough all the code that Set Actor lable goes trough
+		// which can take +0.1 sec per actor
+		ParticleLabelUpdateDelegate.Broadcast(NewActor);
 
 		return NewActor;
 	}

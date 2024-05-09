@@ -133,6 +133,11 @@ void AChaosVDParticleActor::SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshD
 	}
 }
 
+void AChaosVDParticleActor::HandleNewGeometryLoaded(uint32 GeometryID, const Chaos::FConstImplicitObjectPtr& InGeometryData)
+{
+	UpdateGeometry(InGeometryData, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
+}
+
 void AChaosVDParticleActor::HandleSelected()
 {
 	PushSelectionToProxies();
@@ -142,6 +147,12 @@ void AChaosVDParticleActor::HandleDeSelected()
 {
 	CurrentSelectedGeometryInstance = nullptr;
 	PushSelectionToProxies();
+}
+
+bool AChaosVDParticleActor::Modify(bool bAlwaysMarkDirty)
+{
+	//CVD Actors are transient. Skipping super call to recude the cost of spawning them
+	return false;
 }
 
 void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutExtractedGeometryDataHandles)
@@ -183,7 +194,6 @@ void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FC
 		}		
 	}
 }
-
 
 void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
 {
@@ -314,29 +324,8 @@ void AChaosVDParticleActor::UpdateGeometry(uint32 NewGeometryHash, EChaosVDActor
 	}
 }
 
-void AChaosVDParticleActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
-{
-	FChaosVDSceneObjectBase::SetScene(InScene);
-
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
-	{
-		GeometryUpdatedDelegate = ScenePtr->OnNewGeometryAvailable().AddWeakLambda(this, [this](const Chaos::FConstImplicitObjectPtr& ImplicitObject, const uint32 ID)
-		{
-			if (ParticleDataPtr && ParticleDataPtr->GeometryHash == ID)
-			{
-				UpdateGeometry(ImplicitObject, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
-			}
-		});
-	}
-}
-
 void AChaosVDParticleActor::Destroyed()
 {
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
-	{
-		ScenePtr->OnNewGeometryAvailable().Remove(GeometryUpdatedDelegate);
-	}
-
 	VisitGeometryInstances([](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
 		if (IChaosVDGeometryComponent* AsGeometryComponent = Cast<IChaosVDGeometryComponent>(MeshDataHandle->GetMeshComponent()))
@@ -397,8 +386,15 @@ FBox AChaosVDParticleActor::GetComponentsBoundingBox(bool bNonColliding, bool bI
 			}
 		}
 
-		const FBoxSphereBounds SphereBounds= BoundsBuilder;
-		BoundingBox = SphereBounds.GetBox();
+		// Geometry might not be generated yet, so we need a placeholder box so the Focus on object feature works
+		if (!BoundsBuilder.IsValid())
+		{
+			return BoundingBox.ExpandBy(10.0f).MoveTo(ParticleDataPtr->ParticlePositionRotation.MX);
+		}
+		else
+		{
+			BoundingBox = FBoxSphereBounds(BoundsBuilder).GetBox();
+		}
 	}
 
 	return BoundingBox;

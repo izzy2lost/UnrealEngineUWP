@@ -11,6 +11,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 
+class IChaosVDGeometryOwnerInterface;
 class FChaosVDSelectionCustomization;
 class ITypedElementSelectionInterface;
 struct FTypedElementSelectionOptions;
@@ -33,7 +34,7 @@ struct FTypedElementHandle;
 typedef TMap<int32, AChaosVDSolverInfoActor*> FChaosVDSolverInfoByIDMap;
 
 DECLARE_MULTICAST_DELEGATE(FChaosVDSceneUpdatedDelegate)
-DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDActorActiveStateUpdateDelegate, AChaosVDParticleActor*)
+DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDActorUpdatedDelegate, AChaosVDParticleActor*)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDOnObjectSelectedDelegate, UObject*)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSolverInfoActorCreatedDelegate, AChaosVDSolverInfoActor*)
 
@@ -65,7 +66,7 @@ public:
 	void UpdateJointConstraintsData(const FChaosVDStepData& InRecordedStepData, int32 SolverID);
 
 	// No need to deprecate the old version since it is not a public API nor inline 
-	void HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& Geometry, const uint32 GeometryID) const;
+	void HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& Geometry, const uint32 GeometryID);
 
 	void HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32, TInlineAllocator<16>>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData, TArray<int32, TInlineAllocator<16>>& OutRemovedSolversIds);
 	void HandleEnterNewSolverFrame(int32 FrameNumber, const FChaosVDSolverFrameData& InFrameData);
@@ -80,10 +81,10 @@ public:
 
 	const TSharedPtr<FChaosVDGeometryBuilder>& GetGeometryGenerator() { return  GeometryGenerator; }
 
-	FChaosVDGeometryDataLoaded& OnNewGeometryAvailable(){ return NewGeometryAvailableDelegate; }
-
 	// No need to deprecate the old version since it is not a public API nor inline 
 	Chaos::FConstImplicitObjectPtr GetUpdatedGeometry(int32 GeometryID) const;
+
+	void AddObjectWaitingForGeometry(uint32 GeometryID, IChaosVDGeometryOwnerInterface* ObjectWaitingForGeometry);
 	
 	/** Adds an object to the selection set if it was not selected already, making it selected in practice */
 	void SetSelectedObject(UObject* SelectedObject);
@@ -119,7 +120,8 @@ public:
 
 	UChaosVDSceneQueryDataComponent* GetSceneQueryDataContainerComponent() const;
 
-	FChaosVDActorActiveStateUpdateDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
+	FChaosVDActorUpdatedDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
+	FChaosVDActorUpdatedDelegate& OnActorLabelChanged() { return ParticleLabelUpdateDelegate; }
 
 	FChaosVDSolverInfoActorCreatedDelegate& OnSolverInfoActorCreated() { return SolverInfoActorCreatedDelegate; }
 
@@ -197,13 +199,16 @@ private:
 
 	bool bIsInitialized = false;
 
-	FChaosVDActorActiveStateUpdateDelegate ParticleActorUpdateDelegate;
+	FChaosVDActorUpdatedDelegate ParticleActorUpdateDelegate;
+	FChaosVDActorUpdatedDelegate ParticleLabelUpdateDelegate;
 
 	FDelegateHandle ActorDestroyedHandle;
 
 	FChaosVDSolverInfoActorCreatedDelegate SolverInfoActorCreatedDelegate;
 
 	FChaosVDSolverVisibilityChangedDelegate SolverVisibilityChangedDelegate;
+
+	TMap<uint32, TArray<IChaosVDGeometryOwnerInterface*>> ObjectsWaitingForGeometry;
 
 	friend FChaosVDSelectionCustomization;
 };

@@ -10,6 +10,7 @@
 #include "Containers/Map.h"
 #include "Templates/SharedPointer.h"
 
+class FChaosVDPlaybackController;
 class FChaosVDScene;
 
 /** Outliner Gutter used to override the behaviour of the visibility widget in the Scene outliner  */
@@ -35,12 +36,13 @@ public:
 	
 	FChaosVDActorTreeItem(AActor* InActor) : FActorTreeItem(InActor)
 	{
-		
-	};
+		UpdateDisplayString();
+	}
 
 	FChaosVDActorTreeItem(const FSceneOutlinerTreeItemType& TypeIn, AActor* InActor)
 		: FActorTreeItem(TypeIn, InActor)
 	{
+		UpdateDisplayString();
 	}
 
 	virtual bool GetVisibility() const override;
@@ -48,6 +50,8 @@ public:
 	virtual void OnVisibilityChanged(const bool bNewVisibility) override;
 
 	static const FSceneOutlinerTreeItemType Type;
+
+	virtual void UpdateDisplayString() override;
 };
 
 /** Actor Hierarchy used to override the what Tree items will be used for actors in CVD's Scene outliner  */
@@ -75,7 +79,7 @@ class FChaosVDWorldOutlinerMode : public FActorMode, public FChaosVDSceneSelecti
 {
 public:
 
-	FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene);
+	FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController);
 
 	virtual ~FChaosVDWorldOutlinerMode() override;
 
@@ -95,20 +99,19 @@ public:
 
 	virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;
 
-	bool CanInteract(const ISceneOutlinerTreeItem& Item) const override;
+	virtual bool CanInteract(const ISceneOutlinerTreeItem& Item) const override;
+	virtual bool CanPopulate() const override;
 
 private:
 
 	void EnqueueAndCombineHierarchyEvent(const FSceneOutlinerTreeItemID& ItemID, const FSceneOutlinerHierarchyChangedData& EnventToProcess);
-	void HandleActorLabelChanged(AActor* ChangedActor);
+	void HandleActorLabelChanged(AChaosVDParticleActor* ChangedActor);
 	void HandleActorActiveStateChanged(AChaosVDParticleActor* ChangedActor);
 
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangesSelectionSet) override;
 
-private:
-	FDelegateHandle ActorLabelChangedDelegateHandle;
-
 	TWeakPtr<FChaosVDScene> CVDScene;
+	TWeakPtr<FChaosVDPlaybackController> PlaybackController;
 
 	TMap<FSceneOutlinerTreeItemID, FSceneOutlinerHierarchyChangedData> PendingOutlinerEventsMap;
 };

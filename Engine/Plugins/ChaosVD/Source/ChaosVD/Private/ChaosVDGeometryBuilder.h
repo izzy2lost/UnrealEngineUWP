@@ -26,6 +26,7 @@
 #include "UObject/GCObject.h"
 #include "UObject/UObjectGlobals.h"
 
+class FGeometryGenerationTask;
 class UChaosVDStaticMeshComponent;
 class AActor;
 class UDynamicMesh;
@@ -67,15 +68,6 @@ public:
 			{
 				StaticMeshByKey.Value->ClearFlags(RF_Standalone);
 				StaticMeshByKey.Value->MarkAsGarbage();
-			}
-		}
-
-		for (const TPair<uint32, TObjectPtr<UDynamicMesh>>& DynamicMeshByKey : DynamicMeshCacheMap)
-		{
-			if (DynamicMeshByKey.Value)
-			{
-				DynamicMeshByKey.Value->ClearFlags(RF_Standalone);
-				DynamicMeshByKey.Value->MarkAsGarbage();
 			}
 		}
 	}
@@ -134,15 +126,9 @@ public:
 	/** Returns an already mesh for the provided implicit object if exists, otherwise returns null
 	 * @param GeometryCacheKey Key to be used to find this geometry in the cache
 	 */
-	template<typename MeshType>
-	MeshType* GetCachedMeshForImplicit(const uint32 GeometryCacheKey);
+	UStaticMesh* GetCachedMeshForImplicit(const uint32 GeometryCacheKey);
 
 private:
-	/** Creates a Dynamic Mesh for the provided Implicit object and generator, and then caches it to be reused later
-	 * @param GeometryCacheKey Key to be used to find this geometry in the cache
-	 * @param MeshGenerator Generator class with the data and rules to create the mesh
-	 */
-	UDynamicMesh* CreateAndCacheDynamicMesh(const uint32 GeometryCacheKey, UE::Geometry::FMeshShapeGenerator& MeshGenerator);
 
 	/** Creates a Dynamic Mesh for the provided Implicit object and generator, and then caches it to be reused later
 	 * @param GeometryCacheKey Key to be used to find this geometry in the cache
@@ -158,8 +144,7 @@ private:
 	template <class ComponentType>
     bool InitializeMeshComponent(AActor* Owner, ComponentType* MeshComponent);
 
-	template <class ComponentType>
-	void SetMeshComponentMaterial(EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, ComponentType* MeshComponent);
+	void SetMeshComponentMaterial(EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, UMeshComponent* MeshComponent);
 
 public:
 	/**
@@ -226,7 +211,7 @@ private:
 	bool ApplyMeshToComponentFromKey(TWeakObjectPtr<UMeshComponent> MeshComponent, const uint32 GeometryKey);
 
 public:
-	/** Creates a mesh generator for the provided Implicit object which will be used to create a Static Mesh or Dynamic Mesh
+	/** Creates a mesh generator for the provided Implicit object which will be used to create a Static Mesh
 	 * @param InImplicit ImplicitObject used a data source for the mesh generator
 	 * @param SimpleShapesComplexityFactor Factor used to reduce or increase the complexity (number of triangles generated) of simple shapes (Sphere/Capsule)
 	 */
@@ -291,9 +276,6 @@ private:
 	/** Handles any changes to the indexes of created instanced mesh components we are managing, making corrections/updates as needed */
 	void HandleStaticMeshComponentInstanceIndexUpdated(UInstancedStaticMeshComponent* InComponent, TArrayView<const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData> InIndexUpdates);
 
-	/** Map containing already generated dynamic mesh for any given implicit object */
-	TMap<uint32, TObjectPtr<UDynamicMesh>> DynamicMeshCacheMap;
-
 	/** Map containing already generated static mesh for any given implicit object */
 	TMap<uint32, TObjectPtr<UStaticMesh>> StaticMeshCacheMap;
 
@@ -309,8 +291,9 @@ private:
 	/** Object containing all the meshes component waiting for geometry, by geometry key*/
 	TUniquePtr<FObjectsWaitingGeometryList<FMeshComponentWeakPtr>> MeshComponentsWaitingForGeometry;
 
-	/** Object containing all the meshes component waiting for geometry, by geometry key*/
-	TUniquePtr<FObjectsWaitingGeometryList<FExtractedGeometryHandle>> HandlesWaitingForGeometry;
+	TUniquePtr<FObjectsWaitingProcessingQueue<FMeshComponentWeakPtr>> MeshComponentsWaitingForMaterial;
+
+	TUniquePtr<FObjectsWaitingProcessingQueue<TSharedPtr<FGeometryGenerationTask>>> GeometryTasksPendingLaunch;
 
 	/** Map containing already initialized Instanced static mesh components for any given geometry key */
 	TMap<uint32, UChaosVDInstancedStaticMeshComponent*> InstancedMeshComponentByGeometryKey;
@@ -351,7 +334,6 @@ public:
 	{
 	}
 
-	template <typename MeshType>
 	void GenerateGeometry();
 
 private:
@@ -450,27 +432,6 @@ void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FIm
 	}
 }
 
-template <typename MeshType>
-MeshType* FChaosVDGeometryBuilder::GetCachedMeshForImplicit(const uint32 GeometryCacheKey)
-{
-	if constexpr (std::is_same_v<MeshType, UDynamicMesh>)
-	{
-		if (const TObjectPtr<UDynamicMesh>* MeshPtrPtr = DynamicMeshCacheMap.Find(GeometryCacheKey))
-		{
-			return MeshPtrPtr->Get();
-		}
-	}
-	else if constexpr (std::is_same_v<MeshType, UStaticMesh>)
-	{
-		if (const TObjectPtr<UStaticMesh>* MeshPtrPtr = StaticMeshCacheMap.Find(GeometryCacheKey))
-		{
-			return MeshPtrPtr->Get();
-		}
-	}
-
-	return nullptr;
-}
-
 template <typename ComponentType>
 bool FChaosVDGeometryBuilder::InitializeMeshComponent(AActor* Owner, ComponentType* MeshComponent)
 {
@@ -483,7 +444,6 @@ bool FChaosVDGeometryBuilder::InitializeMeshComponent(AActor* Owner, ComponentTy
 	if (Owner)
 	{
 		Owner->AddOwnedComponent(MeshComponent);
-		Owner->AddInstanceComponent(MeshComponent);
 		MeshComponent->RegisterComponent();
 		MeshComponent->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
 
@@ -497,19 +457,6 @@ bool FChaosVDGeometryBuilder::InitializeMeshComponent(AActor* Owner, ComponentTy
 
 	return true;
 }
-
-template <typename ComponentType>
-void FChaosVDGeometryBuilder::SetMeshComponentMaterial(EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, ComponentType* MeshComponent)
-{
-	UMaterialInstanceDynamic* Material = nullptr;
-
-	Material = FChaosVDGeometryComponentUtils::CreateMaterialInstance(FChaosVDGeometryComponentUtils::GetMaterialTypeForComponent<ComponentType>(MeshComponentAttributeFlags));
-
-	ensure(Material);
-
-	MeshComponent->SetMaterial(0, Material);
-}
-
 
 template <typename ComponentType>
 ComponentType* FChaosVDGeometryBuilder::GetAvailableInstancedStaticMeshComponent(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InExtractedGeometryDataHandle, AActor* MeshComponentsContainerActor, EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, bool& bOutIsNewComponent)
@@ -536,7 +483,10 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableInstancedStaticMeshComponent
 		if (UChaosVDInstancedStaticMeshComponent* AsInstancedMeshComponent = Component)
 		{
 			AsInstancedMeshComponent->bReverseCulling = EnumHasAnyFlags(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::MirroredGeometry);
-			SetMeshComponentMaterial<ComponentType>(MeshComponentAttributeFlags, AsInstancedMeshComponent);
+			if (!AsInstancedMeshComponent->HasOverrideMaterials())
+			{
+				MeshComponentsWaitingForMaterial->EnqueueObject(AsInstancedMeshComponent);
+			}	
 		}
 
 		bOutIsNewComponent = true;
@@ -563,7 +513,10 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableMeshComponent(const TSharedP
 			return nullptr;
 		}
 
-		SetMeshComponentMaterial(MeshComponentAttributeFlags, MeshComponent);
+		if (!MeshComponent->HasOverrideMaterials())
+		{
+			MeshComponentsWaitingForMaterial->EnqueueObject(MeshComponent);
+		}
 
 		bOutIsNewComponent = true;
 	}
@@ -659,6 +612,8 @@ ComponentType* FChaosVDGeometryBuilder::GetMeshComponentForNewInstance(const TSh
 
 	if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(Component))
 	{
+		CVDGeometryComponent->SetMeshComponentAttributeFlags(MeshAttributes);
+
 		if (!CVDGeometryComponent->IsMeshReady())
 		{
 			AddMeshComponentWaitingForGeometry(GeometryDataHandle->GetGeometryKey(), Component);
@@ -667,7 +622,6 @@ ComponentType* FChaosVDGeometryBuilder::GetMeshComponentForNewInstance(const TSh
 		if (bIsNew)
 		{
 			CVDGeometryComponent->OnComponentEmpty()->AddRaw(this, &FChaosVDGeometryBuilder::DestroyMeshComponent);			
-			CVDGeometryComponent->SetMeshComponentAttributeFlags(MeshAttributes);
 		}	
 	}
 
@@ -688,11 +642,7 @@ void FChaosVDGeometryBuilder::DispatchCreateAndCacheMeshForImplicitAsync(const u
 	}
 	
 	TSharedPtr<FGeometryGenerationTask> GenerationTask = MakeShared<FGeometryGenerationTask>(AsWeak(), MeshGenerator, GeometryKey, LODsToGenerateNum);
-	UE::Tasks::Launch(TEXT("GeometryGeneration"),
-		[GenerationTask]()
-		{
-			GenerationTask->GenerateGeometry<MeshType>();
-		});
+	GeometryTasksPendingLaunch->EnqueueObject(GenerationTask);
 }
 
 template <bool bIsInstanced, typename GeometryType>
@@ -737,27 +687,5 @@ const GeometryType* FChaosVDGeometryBuilder::GetGeometryBasedOnPackedType(const 
 	else
 	{
 		return GetGeometry<false, GeometryType>(InImplicitObject, bIsScaled, Transform);
-	}
-}
-
-template <typename MeshType>
-void FGeometryGenerationTask::GenerateGeometry()
-{
-	if (const TSharedPtr<FChaosVDGeometryBuilder> BuilderPtr = Builder.Pin())
-	{
-		if constexpr (std::is_same_v<MeshType, UDynamicMesh>)
-		{
-			ensureMsgf(LODsToGenerateNum == 0, TEXT("LOD Generation is only suppoted with static meshes | [%d] LODs were requested for a dynamic mesh when 0 is expected"), LODsToGenerateNum);
-			BuilderPtr->CreateAndCacheDynamicMesh(GeometryKey, *MeshGenerator.Get());
-		}
-		else if constexpr (std::is_same_v<MeshType, UStaticMesh>)
-		{
-			BuilderPtr->CreateAndCacheStaticMesh(GeometryKey, *MeshGenerator.Get(), LODsToGenerateNum);
-		}
-
-		{
-			FWriteScopeLock WriteLock(BuilderPtr->GeometryCacheRWLock);
-			BuilderPtr->GeometryBeingGeneratedByKey.Remove(GeometryKey);
-		}
 	}
 }

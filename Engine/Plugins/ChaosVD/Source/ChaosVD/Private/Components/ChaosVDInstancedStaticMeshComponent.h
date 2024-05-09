@@ -15,6 +15,7 @@ class UChaosVDInstancedStaticMeshComponent : public UInstancedStaticMeshComponen
 	UChaosVDInstancedStaticMeshComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	{
+		SetRemoveSwap();
 		SetCanEverAffectNavigation(false);
 		bHasPerInstanceHitProxies = true;
 	}
