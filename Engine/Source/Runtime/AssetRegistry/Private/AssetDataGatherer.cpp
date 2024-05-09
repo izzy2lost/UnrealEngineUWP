@@ -3691,10 +3691,10 @@ void FAssetDataGatherer::StartAsync()
 {
 	if (bAsyncEnabled && !Thread)
 	{
+		bSynchronousTick = false;
 		Thread = FRunnableThread::Create(this, TEXT("FAssetDataGatherer"), 0, TPri_BelowNormal);
 		checkf(Thread, TEXT("Failed to create asset data gatherer thread"));
 		Discovery->StartAsync();
-		bSynchronousTick = false;
 	}
 }
 
