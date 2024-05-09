@@ -24,6 +24,7 @@
 class FSocket;
 class ITargetPlatform;
 struct FProcHandle;
+namespace UE { class FLogTemplate; }
 namespace UE::CompactBinaryTCP { struct FMarshalledMessage; }
 namespace UE::Cook { class FCookDirector; }
 namespace UE::Cook { struct FDiscoveredPackageReplication; }
@@ -473,12 +474,16 @@ public:
 /** Stores the data passed into FOutputDevice::Serialize, for replication to the CookDirector. */
 struct FReplicatedLogData
 {
-	FString Message;
-	FName Category;
-	ELogVerbosity::Type Verbosity;
+	struct FUnstructuredLogData
+	{
+		FString Message;
+		FName Category;
+		ELogVerbosity::Type Verbosity;
+	};
+	TVariant<FUnstructuredLogData, FCbObject> LogDataVariant;
 };
-FCbWriter& operator<<(FCbWriter& Writer, const FReplicatedLogData& Package);
-bool LoadFromCompactBinary(FCbFieldView Field, FReplicatedLogData& OutPackage);
+FCbWriter& operator<<(FCbWriter& Writer, const FReplicatedLogData& LogData);
+bool LoadFromCompactBinary(FCbFieldView Field, FReplicatedLogData& OutLogData);
 
 /**
  * Send log messages from CookWorkers to the CookDirector, which marks them up with the CookWorkerId and
@@ -500,10 +505,32 @@ public:
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category) override;
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category,
 		const double Time) override;
+	virtual void SerializeRecord(const FLogRecord& Record) override;
 	virtual bool CanBeUsedOnAnyThread() const override { return true; }
 	virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
 
 private:
+	class FLogRecordSerializationContext
+	{
+	public:
+		~FLogRecordSerializationContext()
+		{
+			Flush();
+		}
+
+		static FCbWriter& Serialize(FCbWriter& Writer, const FLogRecord& LogRecord);
+		bool Deserialize(FCbFieldView Field, FLogRecord& OutLogRecord, int32 ProfileId);
+
+		void ConditionalFlush(int32 TableSize);
+		void Flush();
+	private:
+		TArray<FString> StringTable;
+		TArray<FAnsiString> AnsiStringTable;
+		TArray<FLogTemplate*> TemplateTable;
+	};
+
+	FLogRecordSerializationContext LogRecordSerializationContext;
+
 	FCriticalSection QueueLock;
 	TArray<FReplicatedLogData> QueuedLogs;
 	TArray<FReplicatedLogData> QueuedLogsBackBuffer;

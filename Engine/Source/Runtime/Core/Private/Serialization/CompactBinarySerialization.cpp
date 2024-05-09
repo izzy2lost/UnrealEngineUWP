@@ -325,6 +325,18 @@ bool LoadFromCompactBinary(FCbFieldView Field, FGuid& OutValue, const FGuid& Def
 	return !Field.HasError();
 }
 
+bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue)
+{
+	OutValue = Field.AsDateTime();
+	return !Field.HasError();
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue, FDateTime Default)
+{
+	OutValue = Field.AsDateTime(Default);
+	return !Field.HasError();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename CharType>

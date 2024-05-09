@@ -135,6 +135,7 @@ class FLogTime
 {
 public:
 	UE_API static FLogTime Now();
+	UE_API static FLogTime FromUtcTime(const FDateTime& UtcTime);
 
 	constexpr FLogTime() = default;
 

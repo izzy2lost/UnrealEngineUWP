@@ -14,6 +14,7 @@
 
 class FArchive;
 class FName;
+struct FDateTime;
 struct FGuid;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -181,6 +182,9 @@ inline bool LoadFromCompactBinary(FCbFieldView Field, FIoHash& OutValue, const F
 
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FGuid& OutValue);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FGuid& OutValue, const FGuid& Default);
+
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue);
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue, FDateTime Default);
 
 inline bool LoadFromCompactBinary(FCbFieldView Field, FCbObjectId& OutValue, const FCbObjectId& Default = FCbObjectId())
 {

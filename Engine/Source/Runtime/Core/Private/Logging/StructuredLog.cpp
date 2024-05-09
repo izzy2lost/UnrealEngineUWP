@@ -588,6 +588,13 @@ FLogTime FLogTime::Now()
 	return Time;
 }
 
+FLogTime FLogTime::FromUtcTime(const FDateTime& UtcTime)
+{
+	FLogTime Time;
+	Time.UtcTicks = UtcTime.GetTicks();
+	return Time;
+}
+
 FDateTime FLogTime::GetUtcTime() const
 {
 	return FDateTime(UtcTicks);
