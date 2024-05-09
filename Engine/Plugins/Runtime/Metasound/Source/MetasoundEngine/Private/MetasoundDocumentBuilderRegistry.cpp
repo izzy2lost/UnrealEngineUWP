@@ -80,7 +80,7 @@ namespace Metasound::Engine
 		return Builders.FindRef(ClassName).Get();
 	}
 
-	bool FDocumentBuilderRegistry::FinishBuilding(const FMetasoundFrontendClassName& InClassName) const
+	bool FDocumentBuilderRegistry::FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregister) const
 	{
 		using namespace Metasound;
 		using namespace Metasound::Engine;
@@ -91,17 +91,24 @@ namespace Metasound::Engine
 			// If the builder has applied transactions to its document object that are not mirrored in the frontend registry,
 			// unregister version in registry. This will ensure that future requests for the builder's associated asset will
 			// register a fresh version from the object as the transaction history is intrinsically lost once this builder
-			// is destroyed.
-			if (Builder->GetLastTransactionRegistered() != Builder->GetConstBuilder().GetTransactionCount())
+			// is destroyed. It is also possible that the DocBuilder's underlying object can be invalid if object was force
+			// deleted, so validity check is necessary.
+			FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+			if (DocBuilder.IsValid())
 			{
-				UObject& MetaSound = Builder->GetConstBuilder().CastDocumentObjectChecked<UObject>();
-				if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound))
+				const int32 TransactionCount = DocBuilder.GetTransactionCount();
+				const int32 LastTransactionRegistered = Builder->GetLastTransactionRegistered();
+				if (bForceUnregister || LastTransactionRegistered != TransactionCount)
 				{
-					MetaSoundAsset->UnregisterGraphWithFrontend();
+					UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
+					if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound))
+					{
+						MetaSoundAsset->UnregisterGraphWithFrontend();
+					}
 				}
 			}
 
-			Builder->GetBuilder().FinishBuilding();
+			DocBuilder.FinishBuilding();
 			ensureAlways(Builders.Remove(InClassName));
 			return true;
 		}
