@@ -231,7 +231,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TSharedPtr<FGameplayEventData> GameplayEventData = nullptr;
 
 	/** Activation state of this ability. This is not replicated since it needs to be overwritten locally on clients during prediction. */
-	UE_DEPRECATED(5.5, "ActivationInfo on the Spec only applies to NonInstanced abilities (which are now deprecated; instanced abilities have their own per-instance CurrentActivationInfo)")
 	UPROPERTY(NotReplicated)
 	FGameplayAbilityActivationInfo	ActivationInfo;
 

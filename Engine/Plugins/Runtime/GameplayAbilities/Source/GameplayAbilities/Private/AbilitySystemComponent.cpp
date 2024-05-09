@@ -2822,10 +2822,8 @@ void UAbilitySystemComponent::Debug_Internal(FAbilitySystemComponentDebugInfo& I
 				}
 			}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			FString InputPressedStr = AbilitySpec.InputPressed ? TEXT("(InputPressed)") : TEXT("");
 			FString ActivationModeStr = AbilitySpec.IsActive() ? UEnum::GetValueAsString(TEXT("GameplayAbilities.EGameplayAbilityActivationMode"), AbilitySpec.ActivationInfo.ActivationMode) : TEXT("");
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			if (Info.Canvas)
 			{

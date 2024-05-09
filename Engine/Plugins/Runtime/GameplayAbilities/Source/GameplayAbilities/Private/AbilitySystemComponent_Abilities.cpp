@@ -687,7 +687,6 @@ void UAbilitySystemComponent::OnRemoveAbility(FGameplayAbilitySpec& Spec)
 					return;
 				}
 			}
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			else if (ensureMsgf(Spec.Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::NonInstanced, TEXT("We should never have an instanced Gameplay Ability that is still active by this point. All instances should have EndAbility called just before here.")))
 			{
 				// Seems like it should be cancelled, but we're just following the existing pattern (could be due to functionality from OnRep)
@@ -695,7 +694,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				constexpr bool bWasCancelled = false;
 				Spec.Ability->EndAbility(Spec.Handle, AbilityActorInfo.Get(), Spec.ActivationInfo, bReplicateEndAbility, bWasCancelled);
 			}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		Spec.Ability->OnRemoveAbility(AbilityActorInfo.Get(), Spec);
@@ -1326,7 +1324,7 @@ void UAbilitySystemComponent::CancelAbilitySpec(FGameplayAbilitySpec& Spec, UGam
 		{
 			if (InstanceAbility && Ignore != InstanceAbility)
 			{
-				InstanceAbility->CancelAbility(Spec.Handle, ActorInfo, InstanceAbility->GetCurrentActivationInfoRef(), true);
+				InstanceAbility->CancelAbility(Spec.Handle, ActorInfo, InstanceAbility->GetCurrentActivationInfo(), true);
 			}
 		}
 	}
@@ -1474,12 +1472,9 @@ void UAbilitySystemComponent::OnRep_ActivateAbilities()
 
 	CheckForClearedAbilities();
 
-	// Make a copy in case a pending ability alters the array while iterating
-	TArray<FPendingAbilityInfo> PendingCopy = PendingServerActivatedAbilities;
-	PendingServerActivatedAbilities.Empty();
-
 	// Try to run any pending activations that couldn't run before. If they don't work now, kill them
-	for (const FPendingAbilityInfo& PendingAbilityInfo : PendingCopy)
+
+	for (const FPendingAbilityInfo& PendingAbilityInfo : PendingServerActivatedAbilities)
 	{
 		if (PendingAbilityInfo.bPartiallyActivated)
 		{
@@ -1490,8 +1485,8 @@ void UAbilitySystemComponent::OnRep_ActivateAbilities()
 			ClientTryActivateAbility(PendingAbilityInfo.Handle);
 		}
 	}
-	ensureMsgf(PendingServerActivatedAbilities.IsEmpty(), TEXT("Execution of Pending Abilities caused %d more Pending Abilities (ignoring them)"), PendingServerActivatedAbilities.Num());
 	PendingServerActivatedAbilities.Empty();
+
 }
 
 void UAbilitySystemComponent::GetActivatableGameplayAbilitySpecsByAllMatchingTags(const FGameplayTagContainer& GameplayTagContainer, TArray < struct FGameplayAbilitySpec* >& MatchingGameplayAbilities, bool bOnlyAbilitiesThatSatisfyTagRequirements) const
@@ -1789,10 +1784,9 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 				UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: Ending %s prematurely to retrigger."), *GetNameSafe(GetOwner()), *Ability->GetName());
 				UE_VLOG(GetOwner(), VLogAbilitySystem, Verbose, TEXT("Ending %s prematurely to retrigger."), *Ability->GetName());
 
-				constexpr bool bReplicateEndAbility = true;
-				constexpr bool bWasCancelled = false;
-				const FGameplayAbilityActivationInfo& ActivationInfo = InstancedAbility->GetCurrentActivationInfoRef();
-				InstancedAbility->EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+				bool bReplicateEndAbility = true;
+				bool bWasCancelled = false;
+				InstancedAbility->EndAbility(Handle, ActorInfo, Spec->ActivationInfo, bReplicateEndAbility, bWasCancelled);
 			}
 			else
 			{
@@ -1809,15 +1803,9 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 		return false;
 	}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	// We have deprecated NonInstanced and Spec.ActivationInfo but keep backwards compatibility
-	const bool bNonInstanced = Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::NonInstanced;
-	FGameplayAbilityActivationInfo NewActivationInfo;
-	FGameplayAbilityActivationInfo& ActivationInfo = bNonInstanced ? Spec->ActivationInfo : NewActivationInfo;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	// Setup a fresh ActivationInfo (possibly overwriting the Spec's ActivationInfo if non-instanced)
-	ActivationInfo = FGameplayAbilityActivationInfo(ActorInfo->OwnerActor.Get());
+	// Setup a fresh ActivationInfo for this AbilitySpec.
+	Spec->ActivationInfo = FGameplayAbilityActivationInfo(ActorInfo->OwnerActor.Get());
+	FGameplayAbilityActivationInfo &ActivationInfo = Spec->ActivationInfo;
 
 	// If we are the server or this is local only
 	if (Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::LocalOnly || (NetMode == ROLE_Authority))
@@ -2253,13 +2241,11 @@ void UAbilitySystemComponent::ClientActivateAbilityFailed_Implementation(FGamepl
 	}
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// The ability should be either confirmed or rejected by the time we get here
 	if (Spec->ActivationInfo.GetActivationPredictionKey().Current == PredictionKey)
 	{
 		Spec->ActivationInfo.SetActivationRejected();
 	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TArray<UGameplayAbility*> Instances = Spec->GetAbilityInstances();
 	for (UGameplayAbility* Ability : Instances)
@@ -2277,24 +2263,11 @@ void UAbilitySystemComponent::OnClientActivateAbilityCaughtUp(FGameplayAbilitySp
 	FGameplayAbilitySpec* Spec = FindAbilitySpecFromHandle(Handle);
 	if (Spec && Spec->IsActive())
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		const FGameplayAbilityActivationInfo* ActivationInfo = (Spec->ActivationInfo.GetActivationPredictionKey().Current == PredictionKey) ? &Spec->ActivationInfo : nullptr;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		for (const UGameplayAbility* Ability : Spec->GetAbilityInstances())
-		{
-			if (Ability->CurrentActivationInfo.GetActivationPredictionKey().Current == PredictionKey)
-			{
-				ActivationInfo = &Ability->CurrentActivationInfo;
-				break;
-			}
-		}
-
 		// The ability should be either confirmed or rejected by the time we get here
-		if (ActivationInfo && ActivationInfo->ActivationMode == EGameplayAbilityActivationMode::Predicting)
+		if (Spec->ActivationInfo.ActivationMode == EGameplayAbilityActivationMode::Predicting && Spec->ActivationInfo.GetActivationPredictionKey().Current == PredictionKey)
 		{
 			// It is possible to have this happen under bad network conditions. (Reliable Confirm/Reject RPC is lost, but separate property bunch makes it through before the reliable resend happens)
-			ABILITY_LOG(Display, TEXT("%hs. Ability %s caught up to PredictionKey %d but instance is still active and in predicting state."), __func__, *GetNameSafe(Spec->Ability), PredictionKey);
+			ABILITY_LOG(Display, TEXT("UAbilitySystemComponent::OnClientActivateAbilityCaughtUp. Ability %s caught up to PredictionKey %d but instance is still active and in predicting state."), *GetNameSafe(Spec->Ability), PredictionKey);
 		}
 	}
 }
@@ -2326,24 +2299,18 @@ void UAbilitySystemComponent::ClientActivateAbilitySucceedWithEventData_Implemen
 	check(AbilityToActivate);
 	ensure(AbilityActorInfo.IsValid());
 
+	Spec->ActivationInfo.SetActivationConfirmed();
+
 	UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: Server Confirmed [%s] %s. PredictionKey: %s"), *GetNameSafe(GetOwner()), *Handle.ToString(), *GetNameSafe(AbilityToActivate), *PredictionKey.ToString());
 	UE_VLOG(GetOwner(), VLogAbilitySystem, Verbose, TEXT("Server Confirmed [%s] %s. PredictionKey: %s"), *Handle.ToString(), *GetNameSafe(AbilityToActivate), *PredictionKey.ToString());
 
 	// Fixme: We need a better way to link up/reconcile predictive replicated abilities. It would be ideal if we could predictively spawn an
 	// ability and then replace/link it with the server spawned one once the server has confirmed it.
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const bool bNonInstanced = AbilityToActivate->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::NonInstanced;
-	FGameplayAbilityActivationInfo NewActivationInfo{ AbilityActorInfo->OwnerActor.Get() };
-	FGameplayAbilityActivationInfo& ActivationInfo = bNonInstanced ? Spec->ActivationInfo : NewActivationInfo;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	const bool bLocallyPredicted = AbilityToActivate->NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-	if (bLocallyPredicted)
+	if (AbilityToActivate->NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::LocalPredicted)
 	{
-		if (bNonInstanced)
+		if (AbilityToActivate->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::NonInstanced)
 		{
-			ActivationInfo.SetActivationConfirmed();
 			// AbilityToActivate->ConfirmActivateSucceed(); // This doesn't do anything for non instanced
 		}
 		else
@@ -2363,25 +2330,25 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			if (!found)
 			{
-				ABILITY_LOG(Verbose, TEXT("Ability %s was confirmed by server but no longer exists on client (replication key: %s)"), *AbilityToActivate->GetName(), *PredictionKey.ToString());
+				ABILITY_LOG(Verbose, TEXT("Ability %s was confirmed by server but no longer exists on client (replication key: %d"), *AbilityToActivate->GetName(), PredictionKey.Current);
 			}
 		}
 	}
 	else
 	{
-
 		// We haven't already executed this ability at all, so kick it off.
+
 		if (PredictionKey.bIsServerInitiated)
 		{
 			// We have an active server key, set our key equal to it
-			ActivationInfo.ServerSetActivationPredictionKey(PredictionKey);
+			Spec->ActivationInfo.ServerSetActivationPredictionKey(PredictionKey);
 		}
 		
 		if (AbilityToActivate->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::InstancedPerExecution)
 		{
 			// Need to instantiate this in order to execute
 			UGameplayAbility* InstancedAbility = CreateNewInstanceOfAbility(*Spec, AbilityToActivate);
-			InstancedAbility->CallActivateAbility(Handle, AbilityActorInfo.Get(), ActivationInfo, nullptr, TriggerEventData.EventTag.IsValid() ?  &TriggerEventData : nullptr);
+			InstancedAbility->CallActivateAbility(Handle, AbilityActorInfo.Get(), Spec->ActivationInfo, nullptr, TriggerEventData.EventTag.IsValid() ?  &TriggerEventData : nullptr);
 		}
 		else if (AbilityToActivate->GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::NonInstanced)
 		{
@@ -2392,11 +2359,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				ABILITY_LOG(Warning, TEXT("Ability %s cannot be activated on the client because it's missing a primary instance!"), *AbilityToActivate->GetName());
 				return;
 			}
-			InstancedAbility->CallActivateAbility(Handle, AbilityActorInfo.Get(), ActivationInfo, nullptr, TriggerEventData.EventTag.IsValid() ? &TriggerEventData : nullptr);
+			InstancedAbility->CallActivateAbility(Handle, AbilityActorInfo.Get(), Spec->ActivationInfo, nullptr, TriggerEventData.EventTag.IsValid() ? &TriggerEventData : nullptr);
 		}
 		else
 		{
-			AbilityToActivate->CallActivateAbility(Handle, AbilityActorInfo.Get(), ActivationInfo, nullptr, TriggerEventData.EventTag.IsValid() ? &TriggerEventData : nullptr);
+			AbilityToActivate->CallActivateAbility(Handle, AbilityActorInfo.Get(), Spec->ActivationInfo, nullptr, TriggerEventData.EventTag.IsValid() ? &TriggerEventData : nullptr);
 		}
 	}
 }
@@ -2754,12 +2721,8 @@ void UAbilitySystemComponent::AbilityLocalInputPressed(int32 InputID)
 
 					AbilitySpecInputPressed(Spec);
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					// Fixing this up to use the instance activation, but this function should be deprecated as it cannot work with InstancedPerExecution
-					const FGameplayAbilityActivationInfo& ActivationInfo = Spec.GetPrimaryInstance() ? Spec.GetPrimaryInstance()->GetCurrentActivationInfoRef() : Spec.ActivationInfo;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					// Invoke the InputPressed event. This is not replicated here. If someone is listening, they may replicate the InputPressed event to the server.
-					InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, ActivationInfo.GetActivationPredictionKey());					
+					InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, Spec.ActivationInfo.GetActivationPredictionKey());					
 				}
 				else
 				{
@@ -2787,12 +2750,8 @@ void UAbilitySystemComponent::AbilityLocalInputReleased(int32 InputID)
 				}
 
 				AbilitySpecInputReleased(Spec);
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				// Fixing this up to use the instance activation, but this function should be deprecated as it cannot work with InstancedPerExecution
-				const FGameplayAbilityActivationInfo& ActivationInfo = Spec.GetPrimaryInstance() ? Spec.GetPrimaryInstance()->GetCurrentActivationInfoRef() : Spec.ActivationInfo;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-				InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, ActivationInfo.GetActivationPredictionKey());
+				
+				InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, Spec.ActivationInfo.GetActivationPredictionKey());
 			}
 		}
 	}
@@ -2845,16 +2804,14 @@ void UAbilitySystemComponent::AbilitySpecInputPressed(FGameplayAbilitySpec& Spec
 		// The ability is active, so just pipe the input event to it
 		if (Spec.Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::NonInstanced)
 		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			Spec.Ability->InputPressed(Spec.Handle, AbilityActorInfo.Get(), Spec.ActivationInfo);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else
 		{
 			TArray<UGameplayAbility*> Instances = Spec.GetAbilityInstances();
 			for (UGameplayAbility* Instance : Instances)
 			{
-				Instance->InputPressed(Spec.Handle, AbilityActorInfo.Get(), Instance->CurrentActivationInfo);
+				Instance->InputPressed(Spec.Handle, AbilityActorInfo.Get(), Spec.ActivationInfo);
 			}
 		}
 	}
@@ -2868,16 +2825,14 @@ void UAbilitySystemComponent::AbilitySpecInputReleased(FGameplayAbilitySpec& Spe
 		// The ability is active, so just pipe the input event to it
 		if (Spec.Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::NonInstanced)
 		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			Spec.Ability->InputReleased(Spec.Handle, AbilityActorInfo.Get(), Spec.ActivationInfo);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else
 		{
 			TArray<UGameplayAbility*> Instances = Spec.GetAbilityInstances();
 			for (UGameplayAbility* Instance : Instances)
 			{
-				Instance->InputReleased(Spec.Handle, AbilityActorInfo.Get(), Instance->CurrentActivationInfo);
+				Instance->InputReleased(Spec.Handle, AbilityActorInfo.Get(), Spec.ActivationInfo);
 			}
 		}
 	}
