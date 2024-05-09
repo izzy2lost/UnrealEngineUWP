@@ -550,6 +550,11 @@ extern "C"
 		return cacheClient->FetchFromCache(*rootPaths, bucket, info);
 	}
 
+	void CacheClient_RequestServerShutdown(uba::CacheClient* cacheClient, const uba::tchar* reason)
+	{
+		cacheClient->RequestServerShutdown(reason);
+	}
+
 	void CacheClient_Destroy(uba::CacheClient* cacheClient)
 	{
 		using namespace uba;

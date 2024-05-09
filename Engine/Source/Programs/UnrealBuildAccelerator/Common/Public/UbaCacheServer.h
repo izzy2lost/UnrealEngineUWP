@@ -24,6 +24,8 @@ namespace uba
 
 		bool RunMaintenance(bool force, const Function<bool()>& shouldExit);
 
+		bool ShouldShutdown();
+
 	private:
 		bool SaveNoLock();
 		void OnDisconnected(u32 clientId);
@@ -58,6 +60,8 @@ namespace uba
 
 		ReaderWriterLock m_connectionsLock;
 		Map<u32, Connection> m_connections;
+
+		Atomic<bool> m_shutdownRequested = false;
 
 		CacheServer(const CacheServer&) = delete;
 		CacheServer& operator=(const CacheServer&) = delete;

@@ -496,6 +496,17 @@ namespace uba
 		return false;
 	}
 
+	bool CacheClient::RequestServerShutdown(const tchar* reason)
+	{
+		StackBinaryWriter<1024> writer;
+		NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_RequestShutdown, writer);
+		writer.WriteString(reason);
+		StackBinaryReader<512> reader;
+		if (!msg.Send(reader))
+			return false;
+		return reader.ReadBool();
+	}
+
 	bool CacheClient::WriteCacheSummary(const tchar* destinationFile, const tchar* filterString)
 	{
 		StackBinaryWriter<1024> writer;

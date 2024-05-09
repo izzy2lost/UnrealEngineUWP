@@ -111,6 +111,7 @@ namespace uba
 		UBA_CACHE_MESSAGE(FetchCasTable) \
 		UBA_CACHE_MESSAGE(FetchEntries) \
 		UBA_CACHE_MESSAGE(CreateStatusFile) \
+		UBA_CACHE_MESSAGE(RequestShutdown) \
 
 	enum CacheMessageType : u8
 	{

@@ -36,6 +36,7 @@ namespace uba
 
 		bool WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info, const u8* inputs, u64 inputsSize, const u8* outputs, u64 outputsSize);
 		bool FetchFromCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info);
+		bool RequestServerShutdown(const tchar* reason);
 
 		bool WriteCacheSummary(const tchar* destinationFile, const tchar* filterString = nullptr);
 

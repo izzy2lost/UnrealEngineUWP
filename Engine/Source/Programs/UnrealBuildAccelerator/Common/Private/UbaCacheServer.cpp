@@ -633,6 +633,17 @@ namespace uba
 		return true;
 	}
 
+	bool CacheServer::ShouldShutdown()
+	{
+		if (!m_shutdownRequested)
+			return false;
+		SCOPED_WRITE_LOCK(m_maintenanceLock, lock);
+		SCOPED_READ_LOCK(m_connectionsLock, lock2);
+		if (!m_connections.empty() || m_addsSinceMaintenance)
+			return false;
+		return true;
+	}
+
 	void CacheServer::OnDisconnected(u32 clientId)
 	{
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
@@ -722,6 +733,15 @@ namespace uba
 
 		case CacheMessageType_CreateStatusFile:
 			return HandleCreateStatusFile(reader, writer);
+
+		case CacheMessageType_RequestShutdown:
+		{
+			TString reason = reader.ReadString();
+			m_logger.Info(TC("Shutdown requested. Reason: %s"), reason.empty() ? TC("Unknown") : reason.c_str());
+			m_shutdownRequested = true;
+			writer.WriteBool(true);
+			return true;
+		}
 
 		default:
 			return false;

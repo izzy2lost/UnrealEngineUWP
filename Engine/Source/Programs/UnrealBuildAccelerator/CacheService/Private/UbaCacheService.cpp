@@ -242,7 +242,7 @@ namespace uba
 			if (!networkServer.StartListen(networkBackend, port, listenIp.data))
 				return -1;
 
-			while (!ShouldExit())
+			while (!ShouldExit() && !cacheServer.ShouldShutdown())
 			{
 				Sleep(1000);
 				if (!cacheServer.RunMaintenance(false, ShouldExit))
