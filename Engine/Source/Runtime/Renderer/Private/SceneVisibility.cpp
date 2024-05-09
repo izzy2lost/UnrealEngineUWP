@@ -56,7 +56,7 @@
 #include "DecalRenderingCommon.h"
 #include "CompositionLighting/PostProcessDeferredDecals.h"
 
-bool GDistanceCullToSphereEdge = false;
+bool GDistanceCullToSphereEdge = true;
 static FAutoConsoleVariableRef CVarDistanceCullToSphereEdge(
 	TEXT("r.DistanceCullToSphereEdge"),
 	GDistanceCullToSphereEdge,
