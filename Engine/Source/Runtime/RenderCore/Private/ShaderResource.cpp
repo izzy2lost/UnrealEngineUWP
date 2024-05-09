@@ -675,3 +675,18 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	RHIShader->AddRef();
 	return RHIShader;
 }
+
+uint32 FShaderMapResource_InlineCode::GetSizeBytes() const
+{
+	uint32 TotalSize = 0;
+
+	if (Code)
+	{
+		TotalSize += Code->GetSizeBytes();
+	}
+
+	TotalSize += sizeof(FShaderMapResource_InlineCode);
+	TotalSize += GetAllocatedSize();
+
+	return TotalSize;
+}

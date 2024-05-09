@@ -549,7 +549,7 @@ public:
 	// FShaderMapResource interface
 	RENDERCORE_API virtual FSHAHash GetShaderHash(int32 ShaderIndex) override;
 	RENDERCORE_API virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired) override;
-	virtual uint32 GetSizeBytes() const override { return sizeof(*this) + GetAllocatedSize(); }
+	virtual uint32 GetSizeBytes() const override;
 
 	TRefCountPtr<FShaderMapResourceCode> Code;
 };

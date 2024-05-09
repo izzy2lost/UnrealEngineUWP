@@ -2404,8 +2404,6 @@ void FMaterialResource::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSiz
 			{
 				CumulativeResourceSize.AddDedicatedSystemMemoryBytes(Resource->GetSizeBytes());
 			}
-
-			// TODO - account for shader code size somehow, either inline or shared code
 		}
 	}
 }
