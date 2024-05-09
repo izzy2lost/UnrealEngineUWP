@@ -3,12 +3,14 @@
 #include "Dataflow/GeometryCollectionTransferVertexScalarAttributeNode.h"
 
 #include "Chaos/Triangle.h"
+#include "Chaos/TriangleMesh.h"
+#include "Chaos/HierarchicalSpatialHash.h"
+#include "Chaos/TriangleCollisionPoint.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "GeometryCollection/TransformCollection.h"
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/ManagedArrayAccessor.h"
-
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionTransferVertexScalarAttributeNode)
 #define LOCTEXT_NAMESPACE "FGeometryCollectionTransferVertexScalarAttributeNode"
@@ -154,11 +156,51 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfe
 {
 	if (const TManagedArray<float>* FloatArray = Sample.GetFloatArray(Key.Attribute, Key.Group))
 	{
+		Chaos::FReal SphereFullRadius;
+
+		if (SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Asset_Edge || SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Asset_Bound)
+		{
+			// Build component space vertices for TargetCollection
+			TArray<FVector> ComponentSpaceFullTargetVertices; // size of num vertices of the geometry entry. 
+			BuildComponentSpaceVertices(&Target.Transform.Get(), &Target.Parent.Get(), &Target.BoneMap.Get(), &Target.Vertex.Get(),
+				0, Target.Vertex.Num(), ComponentSpaceFullTargetVertices);
+
+			// Build component space vertices for TargetCollection
+			TArray<FVector> ComponentSpaceFullVertices; // size of num vertices of the geometry entry
+			BuildComponentSpaceVertices(&Sample.Transform.Get(), &Sample.Parent.Get(), &Sample.BoneMap.Get(), &Sample.Vertex.Get(),
+				0, Sample.Vertex.Num(), ComponentSpaceFullVertices);
+			if (SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Asset_Edge)
+			{
+				SphereFullRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
+					MaxEdgeLength(ComponentSpaceFullTargetVertices, Target.Indices.Get(), 0, 0, Target.Indices.Num()),
+					MaxEdgeLength(ComponentSpaceFullVertices, Sample.Indices.Get(), 0, 0, Sample.Indices.Num())));
+			}
+			else if (SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Asset_Bound)
+			{
+				Chaos::TVec3<float> CoordMaxs(-FLT_MAX);
+				Chaos::TVec3<float> CoordMins(FLT_MAX);
+				for (int32 i = 0; i < ComponentSpaceFullVertices.Num(); i++)
+				{
+					for (int32 j = 0; j < 3; j++)
+					{
+						if (ComponentSpaceFullVertices[i][j] > CoordMaxs[j])
+						{
+							CoordMaxs[j] = ComponentSpaceFullVertices[i][j];
+						}
+						if (ComponentSpaceFullVertices[i][j] < CoordMins[j])
+						{
+							CoordMins[j] = ComponentSpaceFullVertices[i][j];
+						}
+					}
+				}
+				Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * BoundMultiplier;
+				SphereFullRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
+			}
+		}
 		ParallelFor(PairedGeometry.Num(), [&](int32 Pdx)
 		{
 			int32 AttributeGeometryIndex = PairedGeometry[Pdx][0];
 			int32 TargetGeometryIndex = PairedGeometry[Pdx][1];
-
 			if (ensure(0 <= AttributeGeometryIndex && AttributeGeometryIndex < Sample.VertexStart.Num()))
 			{
 				if (ensure(0 <= TargetGeometryIndex && TargetGeometryIndex < Target.VertexStart.Num()))
@@ -168,54 +210,110 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfe
 					BuildComponentSpaceVertices(&Target.Transform.Get(), &Target.Parent.Get(), &Target.BoneMap.Get(), &Target.Vertex.Get(),
 						Target.VertexStart[TargetGeometryIndex], Target.VertexCount[TargetGeometryIndex], ComponentSpaceTargetVertices);
 
-					// Build component space vertices for TargetCollection
+					// Build component space vertices for SampleCollection
 					TArray<FVector> ComponentSpaceVertices; // size of num vertices of the geometry entry
 					BuildComponentSpaceVertices(&Sample.Transform.Get(), &Sample.Parent.Get(), &Sample.BoneMap.Get(), &Sample.Vertex.Get(),
 						Sample.VertexStart[AttributeGeometryIndex], Sample.VertexCount[AttributeGeometryIndex], ComponentSpaceVertices);
 
 					// build Sphere based BVH
-					Chaos::FReal SphereRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
-						MaxEdgeLength(ComponentSpaceTargetVertices, Target.Indices.Get(), Target.VertexStart[TargetGeometryIndex], Target.FaceStart[TargetGeometryIndex], Target.FaceCount[TargetGeometryIndex]),
-						MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), Sample.VertexStart[AttributeGeometryIndex], Sample.FaceStart[AttributeGeometryIndex], Sample.FaceCount[AttributeGeometryIndex])));
-
-					TUniquePtr<UE::Private::BVH> VertexBVH(BuildParticleSphereBVH(ComponentSpaceTargetVertices, SphereRadius));
+					Chaos::FReal SphereRadius = SphereFullRadius;
+					if (SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Component_Edge)
+					{
+						SphereRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
+							MaxEdgeLength(ComponentSpaceTargetVertices, Target.Indices.Get(), Target.VertexStart[TargetGeometryIndex], Target.FaceStart[TargetGeometryIndex], Target.FaceCount[TargetGeometryIndex]),
+							MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), Sample.VertexStart[AttributeGeometryIndex], Sample.FaceStart[AttributeGeometryIndex], Sample.FaceCount[AttributeGeometryIndex])));
+					}
 
 					int32 TargetVertexStartVal = Target.VertexStart[TargetGeometryIndex];
 					int32 TargetVertexCountVal = Target.VertexCount[TargetGeometryIndex];
 					int32 VertexStartVal = Sample.VertexStart[AttributeGeometryIndex];
 					int32 FaceStartVal = Sample.FaceStart[AttributeGeometryIndex];
 					int32 FaceCountVal = Sample.FaceCount[AttributeGeometryIndex];
-					for (int32 i = 0; i < FaceCountVal; i++)
+
+					if (BoundingVolumeType == EDataflowTransferNodeBoundingVolume::Dataflow_Transfer_Triangle)
 					{
-						FIntVector3 ComponentTriangle = Sample.Indices[FaceStartVal + i] - FIntVector3(VertexStartVal);
-						if (TriangleHasWeightsToTransfer(Sample.Indices[FaceStartVal + i], *FloatArray))
+						TArray<Chaos::TVec3<Chaos::FReal>> ComponentSpaceVerticesTVec3;
+						ComponentSpaceVerticesTVec3.SetNum(ComponentSpaceVertices.Num());
+						for (int32 SourceIndex = 0; SourceIndex < ComponentSpaceVerticesTVec3.Num(); SourceIndex++)
 						{
-							TArray<int32> TargetVertexIntersection({});
-							TriangleToVertexIntersections(*VertexBVH, ComponentSpaceVertices, ComponentTriangle, TargetVertexIntersection);
-
-							for (int32 j = 0; j < TargetVertexIntersection.Num(); j++)
+							ComponentSpaceVerticesTVec3[SourceIndex] = Chaos::TVec3<Chaos::FReal>(ComponentSpaceVertices[SourceIndex]);
+						}
+						TConstArrayView<Chaos::TVec3<Chaos::FReal>> ConstComponentSpaceVertices(ComponentSpaceVerticesTVec3);
+						Chaos::FTriangleMesh TriangleMesh;
+						TArray<Chaos::TVec3<int32>> SourceElements;
+						SourceElements.SetNum(FaceCountVal);
+						for (int32 ElementIndex = 0; ElementIndex < FaceCountVal; ++ElementIndex)
+						{
+							FIntVector3 Element = Sample.Indices[FaceStartVal + ElementIndex];
+							SourceElements[ElementIndex] = Chaos::TVec3<int32>(Element[0]-VertexStartVal, Element[1]-VertexStartVal, Element[2]-VertexStartVal);
+						}
+						TriangleMesh.Init(SourceElements);
+						Chaos::FTriangleMesh::TSpatialHashType<Chaos::FReal> SpatialHash;
+						TriangleMesh.BuildSpatialHash(ConstComponentSpaceVertices, SpatialHash, SphereRadius);
+						for (int32 TargetIndex = 0; TargetIndex < TargetVertexCountVal; TargetIndex++)
+						{
+							TArray<Chaos::TTriangleCollisionPoint<Chaos::FReal>> Result;
+							if (TriangleMesh.PointClosestTriangleQuery(SpatialHash, ConstComponentSpaceVertices,
+								TargetIndex, Chaos::TVec3<Chaos::FReal>(ComponentSpaceTargetVertices[TargetIndex]), SphereRadius / 2.f, SphereRadius / 2.f,
+								[](const int32 PointIndex, const int32 TriangleIndex)->bool {return true; }, Result))
 							{
-								Chaos::TVector<float, 3> Bary,
-									TriPos0(ComponentSpaceVertices[ComponentTriangle[0]]),
-									TriPos1(ComponentSpaceVertices[ComponentTriangle[1]]),
-									TriPos2(ComponentSpaceVertices[ComponentTriangle[2]]),
-									ParticlePos(ComponentSpaceTargetVertices[TargetVertexIntersection[j]]);
-
-								Chaos::TVector<Chaos::FRealSingle, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
-								Chaos::FRealSingle CurrentDistance = (ParticlePos - ClosestPoint).Size();
-								float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), 0, i, 1);
-								float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
-								if (!FMath::IsNearlyZero(FalloffScale))
+								for (const Chaos::TTriangleCollisionPoint<Chaos::FReal>& CollisionPoint : Result)
 								{
-									int32 TargetIndex = TargetVertexIntersection[j] + TargetVertexStartVal;
-									if (ensure(0 <= TargetIndex && TargetIndex < TargetFloatArray->Num()))
+									Chaos::FRealSingle CurrentDistance = abs(CollisionPoint.Phi);
+									float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), VertexStartVal, FaceStartVal+CollisionPoint.Indices[1], 1);
+									float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
+									if (!FMath::IsNearlyZero(FalloffScale))
 									{
-										float Value = 0.f;
-										for (int32 k = 0; k < 3; k++)
+										int32 TargetCandidateIndex = CollisionPoint.Indices[0]+ TargetVertexStartVal;
+										if (ensure(0 <= TargetCandidateIndex && TargetCandidateIndex < TargetFloatArray->Num()))
 										{
-											Value += FalloffScale * (Bary[k] * (*FloatArray)[ComponentTriangle[k] + VertexStartVal]);
+											float Value = 0.f;
+											for (int32 k = 0; k < 3; k++)
+											{
+												Value += FalloffScale * (CollisionPoint.Bary[k] * (*FloatArray)[Sample.Indices[FaceStartVal+CollisionPoint.Indices[1]][k]]);
+											}
+											(*TargetFloatArray)[TargetCandidateIndex] = FMath::Max((*TargetFloatArray)[TargetCandidateIndex], Value);
 										}
-										(*TargetFloatArray)[TargetIndex] = FMath::Max((*TargetFloatArray)[TargetIndex], Value);
+									}
+								}
+							}
+						}
+					}
+					else if (BoundingVolumeType == EDataflowTransferNodeBoundingVolume::Dataflow_Transfer_Vertex)
+					{
+						TUniquePtr<UE::Private::BVH> VertexBVH(BuildParticleSphereBVH(ComponentSpaceTargetVertices, SphereRadius));
+						for (int32 i = 0; i < FaceCountVal; i++)
+						{
+							FIntVector3 ComponentTriangle = Sample.Indices[FaceStartVal + i] - FIntVector3(VertexStartVal);
+							if (TriangleHasWeightsToTransfer(Sample.Indices[FaceStartVal + i], *FloatArray))
+							{
+								TArray<int32> TargetVertexIntersection({});
+								TriangleToVertexIntersections(*VertexBVH, ComponentSpaceVertices, ComponentTriangle, TargetVertexIntersection);
+
+								for (int32 j = 0; j < TargetVertexIntersection.Num(); j++)
+								{
+									Chaos::TVector<float, 3> Bary,
+										TriPos0(ComponentSpaceVertices[ComponentTriangle[0]]),
+										TriPos1(ComponentSpaceVertices[ComponentTriangle[1]]),
+										TriPos2(ComponentSpaceVertices[ComponentTriangle[2]]),
+										ParticlePos(ComponentSpaceTargetVertices[TargetVertexIntersection[j]]);
+
+									Chaos::TVector<Chaos::FRealSingle, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
+									Chaos::FRealSingle CurrentDistance = (ParticlePos - ClosestPoint).Size();
+									float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), VertexStartVal, FaceStartVal+i, 1);
+									float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
+									if (!FMath::IsNearlyZero(FalloffScale))
+									{
+										int32 TargetIndex = TargetVertexIntersection[j] + TargetVertexStartVal;
+										if (ensure(0 <= TargetIndex && TargetIndex < TargetFloatArray->Num()))
+										{
+											float Value = 0.f;
+											for (int32 k = 0; k < 3; k++)
+											{
+												Value += FalloffScale * (Bary[k] * (*FloatArray)[ComponentTriangle[k] + VertexStartVal]);
+											}
+											(*TargetFloatArray)[TargetIndex] = FMath::Max((*TargetFloatArray)[TargetIndex], Value);
+										}
 									}
 								}
 							}
@@ -285,28 +383,28 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::NearestVertexTransfer
 }
 
 
-float FGeometryCollectionTransferVertexScalarAttributeNode::MaxEdgeLength(TArray<FVector>& Vert, const TManagedArray<FIntVector3>& Tri, int VertexOFfset, int TriStart, int TriCount)
+float FGeometryCollectionTransferVertexScalarAttributeNode::MaxEdgeLength(TArray<FVector>& Vert, const TManagedArray<FIntVector3>& Tri, int VertexOffset, int TriStart, int TriCount)
 {
 	auto TriInRange = [](const FIntVector3& T, int Max) {
 		for (int k = 0; k < 3; k++)
 		{
-			if (ensure(T[k] < 0 || Max <= T[k]))
+			if (ensure(0 <= T[k] && T[k] < Max))
 			{
-				return false;
+				return true;
 			}
 		}
-		return true;
+		return false;
 	};
 
 	float Max = 0;
 	int TriStop = TriStart + TriCount;
 	for (int i = TriStart; i < TriStop; i++)
 	{
-		if (TriInRange(Tri[i] - FIntVector3(VertexOFfset), Vert.Num()))
+		if (TriInRange(Tri[i] - FIntVector3(VertexOffset), Vert.Num()))
 		{
-			Max = FMath::Max(Max, FVector3f(Vert[Tri[i][0] - VertexOFfset] - Vert[Tri[i][1] - VertexOFfset]).SquaredLength());
-			Max = FMath::Max(Max, FVector3f(Vert[Tri[i][0] - VertexOFfset] - Vert[Tri[i][2] - VertexOFfset]).SquaredLength());
-			Max = FMath::Max(Max, FVector3f(Vert[Tri[i][1] - VertexOFfset] - Vert[Tri[i][2] - VertexOFfset]).SquaredLength());
+			Max = FMath::Max(Max, FVector3f(Vert[Tri[i][0] - VertexOffset] - Vert[Tri[i][1] - VertexOffset]).SquaredLength());
+			Max = FMath::Max(Max, FVector3f(Vert[Tri[i][0] - VertexOffset] - Vert[Tri[i][2] - VertexOffset]).SquaredLength());
+			Max = FMath::Max(Max, FVector3f(Vert[Tri[i][1] - VertexOffset] - Vert[Tri[i][2] - VertexOffset]).SquaredLength());
 		}
 	}
 	return FMath::Sqrt(Max);
@@ -381,19 +479,19 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::TriangleToVertexInter
 
 float FGeometryCollectionTransferVertexScalarAttributeNode::CalculateFalloffScale(EDataflowTransferNodeFalloff FalloffSetting, float Threshold, float Distance)
 {
-	float Demonator = 1.0;
+	float Denominator = 1.0;
 	if (Distance > Threshold && !FMath::IsNearlyZero(Threshold))
 	{
-		Demonator = Distance / Threshold;
+		Denominator = Distance / Threshold;
 	}
 	switch (FalloffSetting)
 	{
 	case EDataflowTransferNodeFalloff::Dataflow_Transfer_Linear:
-		return 1. / Demonator;
+		return 1. / Denominator;
 	case EDataflowTransferNodeFalloff::Dataflow_Transfer_Squared:
-		return 1. / FMath::Square(Demonator);
+		return 1. / FMath::Square(Denominator);
 	}
-	return Demonator;
+	return 1.0;
 }
 
 

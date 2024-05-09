@@ -34,6 +34,36 @@ enum class EDataflowTransferNodeFalloff : uint8
 	Dataflow_Transfer_Dataflow_Max UMETA(Hidden)
 };
 
+UENUM(BlueprintType)
+enum class EDataflowTransferNodeSampleScale : uint8
+{
+	/** Bounding volume hierarchy cell size based on max edge length of each geometry group*/
+	Dataflow_Transfer_Component_Edge  UMETA(DisplayName = "Component Max Edge"),
+
+	/** Bounding volume hierarchy cell size based on max edge length of the whole asset*/
+	Dataflow_Transfer_Asset_Edge UMETA(DisplayName = "Asset Max Edge"),
+
+	/** Bounding volume hierarchy cell size based on max length of the bounding box of the whole asset*/
+	Dataflow_Transfer_Asset_Bound UMETA(DisplayName = "Asset Max Bound"),
+
+	//~~~
+	//256th entry
+	Dataflow_Transfer_Dataflow_Max UMETA(Hidden)
+};
+
+UENUM(BlueprintType)
+enum class EDataflowTransferNodeBoundingVolume : uint8
+{
+	/** Bounding volume on vertices of the source triangle mesh*/
+	Dataflow_Transfer_Vertex  UMETA(DisplayName = "Vertex"),
+
+	/** Bounding volume on triangles of the source triangle mesh*/
+	Dataflow_Transfer_Triangle UMETA(DisplayName = "Triangle"),
+
+	//~~~
+	//256th entry
+	Dataflow_Transfer_Dataflow_Max UMETA(Hidden)
+};
 
 /**
  * Transfer float properties from a sample collection to a target collection. 
@@ -58,18 +88,31 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow", Meta = (DataflowInput, DataflowOutput, DisplayName = "AttributeKey", DataflowPassthrough = "AttributeKey"))
 	FCollectionAttributeKey AttributeKey;
 
+	/* Bounding volume type for source assets[default: Triangle] */
+	UPROPERTY(EditAnywhere, Category = "Thresholds")
+	EDataflowTransferNodeBoundingVolume BoundingVolumeType = EDataflowTransferNodeBoundingVolume::Dataflow_Transfer_Triangle;
+
+	/* Bounding volume hierarchy cell size for neighboring vertices to transfer into[default: Asset] */
+	UPROPERTY(EditAnywhere, Category = "Thresholds")
+	EDataflowTransferNodeSampleScale SampleScale = EDataflowTransferNodeSampleScale::Dataflow_Transfer_Asset_Bound;
+
 	/* Falloff of sample value based on distance from sample triangle[default: Squared] */
 	UPROPERTY(EditAnywhere, Category = "Thresholds")
 	EDataflowTransferNodeFalloff Falloff = EDataflowTransferNodeFalloff::Dataflow_Transfer_Squared;
 
-	/* Threshold based on distance from sample triangle.Values sampled past the threshold will falloff.[Defualts to 1 percent of triangle size(0.01)] */
+	/* Threshold based on distance from sample triangle.Values sampled past the threshold will falloff.[Defaults to 1 percent of triangle size(0.01)] */
 	UPROPERTY(EditAnywhere, Category = "Thresholds")
-	float  FalloffThreshold = 0.01f;
+	float FalloffThreshold = 0.01f;
 
-	/* Scalar for the Bounding Volume Hierarchy(BVH) target's particle search radius. */
-	UPROPERTY(EditAnywhere, Category = "Thresholds")
-	float  EdgeMultiplier = 1.0f;
+	/* Edge multiplier for the Bounding Volume Hierarchy(BVH) target's particle search radius. */
+	UPROPERTY(EditAnywhere, Category = "Thresholds", meta = (EditCondition = "SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Asset_Edge || SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Component_Edge", EditConditionHides))
+	float EdgeMultiplier = 0.5f;
 
+	/* Max bound multiplier for the Bounding Volume Hierarchy(BVH) target's particle search radius. */
+	UPROPERTY(EditAnywhere, Category = "Thresholds", meta = (
+		EditCondition = "SampleScale == EDataflowTransferNodeSampleScale::Dataflow_Transfer_Asset_Bound", 
+		EditConditionHides))
+	float BoundMultiplier = 0.01f;
 
 	FGeometryCollectionTransferVertexScalarAttributeNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)

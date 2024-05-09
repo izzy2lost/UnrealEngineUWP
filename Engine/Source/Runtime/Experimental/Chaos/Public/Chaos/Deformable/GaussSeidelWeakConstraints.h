@@ -495,35 +495,30 @@ namespace Chaos::Softs
 					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
 						[this, &ComponentIndex, &Elements](const int32 PointIndex, const int32 TriangleIndex)->bool
 						{
-							if (ComponentIndex[PointIndex] == ComponentIndex[Elements[TriangleIndex][0]])
-							{
-								return false;
-							}
-							return true;
+							return ComponentIndex[PointIndex] != ComponentIndex[Elements[TriangleIndex][0]];
 						},
 						Result))
 					{
 						for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)
 						{
-							const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
-							// // NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
-							// const TTriangle<FSolverReal> Triangle(Particles.GetX(Elem[0]), Particles.GetX(Elem[1]), Particles.GetX(Elem[2]));
-							// if ((Particles.GetX(Index) - CollisionPoint.Location).Dot(-Triangle.GetNormal()) < 0) //Is point inside boundary? Normal should point outwards
-							// {
-							const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
-							Indices[IndexToWrite] = { Elem[0], Elem[1] ,Elem[2] };
-							SecondIndices[IndexToWrite] = { Index };
-							Weights[IndexToWrite] = { CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
-							SecondWeights[IndexToWrite] = { 1.f };
-							float SpringStiffness = 0.f;
-							for (int32 k = 0; k < 3; k++)
+							if (CollisionPoint.Phi < 0)
 							{
-								SpringStiffness += Weights[IndexToWrite][k] * PositionTargetStiffness * Particles.M(Elem[k]);
+								const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
+								const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
+								Indices[IndexToWrite] = { Elem[0], Elem[1] ,Elem[2] };
+								SecondIndices[IndexToWrite] = { Index };
+								Weights[IndexToWrite] = { CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
+								SecondWeights[IndexToWrite] = { 1.f };
+								float SpringStiffness = 0.f;
+								for (int32 k = 0; k < 3; k++)
+								{
+									SpringStiffness += Weights[IndexToWrite][k] * PositionTargetStiffness * Particles.M(Elem[k]);
+								}
+								SpringStiffness += PositionTargetStiffness * Particles.M(Index);
+								Stiffness[IndexToWrite] = SpringStiffness;
+								IsAnisotropic[IndexToWrite] = UseAnisotropicSpring;
+								Normals[IndexToWrite] = CollisionPoint.Normal;
 							}
-							SpringStiffness += PositionTargetStiffness * Particles.M(Index);
-							Stiffness[IndexToWrite] = SpringStiffness;
-							IsAnisotropic[IndexToWrite] = UseAnisotropicSpring;
-							Normals[IndexToWrite] = CollisionPoint.Normal;						
 						}
 					}
 				}
@@ -550,35 +545,30 @@ namespace Chaos::Softs
 					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
 						[this, &Elements, &ExcludeMap](const int32 PointIndex, const int32 TriangleIndex)->bool
 						{	
-							if (ExcludeMap.Find(PointIndex) && ExcludeMap[PointIndex].Contains(TriangleIndex))
-							{
-								return false;
-							}
-							return true;
+							return  !(ExcludeMap.Find(PointIndex) && ExcludeMap[PointIndex].Contains(TriangleIndex));
 						},
 						Result))
 					{
 						for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)
 						{
-							const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
-							// // NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
-							// const TTriangle<FSolverReal> Triangle(Particles.GetX(Elem[0]), Particles.GetX(Elem[1]), Particles.GetX(Elem[2]));
-							// if ((Particles.GetX(Index) - CollisionPoint.Location).Dot(-Triangle.GetNormal()) < 0) //Is point inside boundary? Normal should point outwards
-							// {
-							const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
-							Indices[IndexToWrite] = { Elem[0], Elem[1] ,Elem[2] };
-							SecondIndices[IndexToWrite] = { Index };
-							Weights[IndexToWrite] = { CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
-							SecondWeights[IndexToWrite] = { 1.f };
-							float SpringStiffness = 0.f;
-							for (int32 k = 0; k < 3; k++)
+							if (CollisionPoint.Phi < 0)
 							{
-								SpringStiffness += Weights[IndexToWrite][k] * PositionTargetStiffness * Particles.M(Elem[k]);
+								const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
+								const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
+								Indices[IndexToWrite] = { Elem[0], Elem[1] ,Elem[2] };
+								SecondIndices[IndexToWrite] = { Index };
+								Weights[IndexToWrite] = { CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
+								SecondWeights[IndexToWrite] = { 1.f };
+								float SpringStiffness = 0.f;
+								for (int32 k = 0; k < 3; k++)
+								{
+									SpringStiffness += Weights[IndexToWrite][k] * PositionTargetStiffness * Particles.M(Elem[k]);
+								}
+								SpringStiffness += PositionTargetStiffness * Particles.M(Index);
+								Stiffness[IndexToWrite] = SpringStiffness;
+								IsAnisotropic[IndexToWrite] = UseAnisotropicSpring;
+								Normals[IndexToWrite] = CollisionPoint.Normal;
 							}
-							SpringStiffness += PositionTargetStiffness * Particles.M(Index);
-							Stiffness[IndexToWrite] = SpringStiffness;
-							IsAnisotropic[IndexToWrite] = UseAnisotropicSpring;
-							Normals[IndexToWrite] = CollisionPoint.Normal;						
 						}
 					}
 				}
