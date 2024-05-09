@@ -8,6 +8,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Templates/SubclassOf.h"
 #include "EngineDefines.h"
+#include "LinkGenerationConfig.h"
 #include "AI/Navigation/NavigationTypes.h"
 #include "AI/Navigation/NavigationDataResolution.h"
 #include "NavigationSystemTypes.h"
@@ -720,10 +721,12 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Display)
 	uint32 bDrawLabelsOnPathNodes:1;
 
+	/** Draw valid links (both ends are valid). */
 	UPROPERTY(EditAnywhere, Category=Display)
 	uint32 bDrawNavLinks:1;
 
-	UPROPERTY(EditAnywhere, Category=Display)
+	/** Draw failed links and valid links. */
+	UPROPERTY(EditAnywhere, Category=Display, Meta = (DisplayName = "Draw Failed and Valid NavLinks"))
 	uint32 bDrawFailedNavLinks:1;
 	
 	/** Draw navmesh's clusters and cluster links. (Requires WITH_NAVMESH_CLUSTER_LINKS=1) */
@@ -968,6 +971,14 @@ protected:
 	UPROPERTY() 
 	uint32 bAllowWorldPartitionedNavMesh : 1;
 #endif // WITH_EDITORONLY_DATA
+
+	/** Experimental: paramters for building jump down links.  */
+	UPROPERTY(EditAnywhere, Category=Generation, config)
+	FNavLinkGenerationJumpDownConfig NavLinkJumpDownConfig;
+
+	/** Experimental: paramters for building jump over links.  */
+	UPROPERTY(EditAnywhere, Category=Generation, config)
+	FNavLinkGenerationJumpOverConfig NavLinkJumpOverConfig;
 	
 private:
 	/** Cache rasterized voxels instead of just collision vertices/indices in navigation octree */

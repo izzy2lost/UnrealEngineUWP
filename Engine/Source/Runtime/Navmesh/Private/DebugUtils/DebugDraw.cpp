@@ -76,7 +76,7 @@ unsigned int duColor::brown			= duRGBA(0x6d4c41ff);
 unsigned int duColor::white			= duRGBA(0xffffffff);
 unsigned int duColor::lightGrey		= duRGBA(0xe0e0e0ff);
 unsigned int duColor::grey			= duRGBA(0x9e9e9eff);
-unsigned int duColor::drakGrey		= duRGBA(0x616161ff);
+unsigned int duColor::darkGrey		= duRGBA(0x616161ff);
 unsigned int duColor::black			= duRGBA(0x000000ff);
 //@UE END
 

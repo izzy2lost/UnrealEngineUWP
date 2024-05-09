@@ -106,8 +106,8 @@ namespace UE::Detour::Private
 
 	void drawTrajectorySlice(duDebugDraw* dd, const dtReal* pa, const dtReal* pb, const dtNavLinkBuilder::Trajectory2D* trajectory, const unsigned int color)
 	{
-		unsigned int colt = duTransCol(color, 255);
-		unsigned int colb = duTransCol(duLerpCol(color,duColor::black,96), 255);
+		unsigned int colt = duTransCol(color, 50);
+		unsigned int colb = duTransCol(duLerpCol(color,duColor::black,96), 50);
 		
 		dd->begin(DU_DRAW_QUADS);
 		dtReal p0[3], p1[3], p2[3], p3[3];
@@ -448,12 +448,12 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 						dtVlerp(spt, es->start.p, es->start.q, u);
 						dtVlerp(ept, es->start.p, es->start.q, u);
 						
-						unsigned int col = duRGBA(48,16,16,255);
+						unsigned int col = duColor::darkGrey;
 						dtReal off = 1;
 						if ((s->flags & dtNavLinkBuilder::HAS_GROUND) == 0)
 						{
 							off = 0;
-							col = duRGBA(220,32,32,255);
+							col = duColor::orangeRed;
 						}
 						
 						spt[1] = s->height + off;
@@ -475,7 +475,7 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 							off = 1.f;
 						}
 						spt[1] = s->height + off;
-						dd->vertex(spt, duColor::white);
+						dd->vertex(spt, duColor::green);
 					}
 					dd->end();
 					
@@ -492,12 +492,12 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 						dtVlerp(spt, es->end.p, es->end.q, u);
 						dtVlerp(ept, es->end.p, es->end.q, u);
 						
-						unsigned int col = duRGBA(48,16,16,255);
+						unsigned int col = duColor::darkGrey;
 						float off = 1.f;
 						if ((s->flags & dtNavLinkBuilder::HAS_GROUND) == 0)
 						{
 							off = 0;
-							col = duRGBA(220,32,32,255);
+							col = duColor::orangeRed;
 						}
 						
 						spt[1] = s->height + off;
@@ -520,7 +520,7 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 							off = 1.f;
 						}
 						spt[1] = s->height + off;
-						dd->vertex(spt, duColor::white);
+						dd->vertex(spt, duColor::green);
 					}
 					dd->end();
 				}
@@ -548,9 +548,9 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 						ept[1] = esmp->height;
 						
 						if (ssmp->flags & dtNavLinkBuilder::UNRESTRICTED)
-							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, duRGBA(32,255,96,255));
+							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, duColor::green);
 						else
-							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, duRGBA(255,32,32,255));
+							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, duColor::orangeRed);
 					}
 					dd->depthMask(true);
 				}

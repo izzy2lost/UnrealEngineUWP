@@ -4,6 +4,7 @@
 #include "CoreTypes.h"
 #include "DetourAlloc.h"
 #include "Detour/DetourLargeWorldCoordinates.h"
+#include "Detour/DetourNavLinkBuilderConfig.h"
 
 //@UE BEGIN
 enum dtNavLinkAction
@@ -15,6 +16,9 @@ enum dtNavLinkAction
 
 struct dtLinkBuilderConfig
 {
+	dtNavLinkBuilderJumpDownConfig jumpDownConfig;
+	dtNavLinkBuilderJumpOverConfig jumpOverConfig;
+	
 	dtReal agentRadius = 0;
 	dtReal agentHeight = 0;
 	dtReal agentClimb = 0;
@@ -28,8 +32,6 @@ struct rcCompactHeightfield;
 struct NAVMESH_API dtLinkBuilderData
 {
 	bool generatingLinks = false;
-	rcHeightfield* solidHF = nullptr;
-	rcCompactHeightfield* compactHF = nullptr;
 };
 
 class rcContext;
@@ -40,8 +42,8 @@ class dtNavLinkBuilder
 	dtLinkBuilderConfig m_linkBuilderConfig;
 
 	dtReal m_cs = 0;
-	rcHeightfield* m_solid;
-	rcCompactHeightfield* m_chf;
+	const rcHeightfield* m_solid;
+	const rcCompactHeightfield* m_chf;
 
 	struct Edge
 	{
@@ -149,7 +151,8 @@ public:
 
 	// Loops through contours to store edge points in world coordinates.
 	NAVMESH_API bool findEdges(rcContext& ctx, const rcConfig& cfg, const dtLinkBuilderConfig& builderConfig,
-							   const struct dtTileCacheContourSet& lcset, const dtReal* orig, const dtLinkBuilderData& linkBuilderData);
+							   const struct dtTileCacheContourSet& lcset, const dtReal* orig,
+							   const rcHeightfield* solidHF, const rcCompactHeightfield* compactHF);
 
 	// For all edges, sample edges (sampleEdge) and add links to m_links
 	NAVMESH_API void buildForAllEdges(const dtLinkBuilderConfig& acfg, dtNavLinkAction action);
@@ -182,8 +185,8 @@ private:
 	
 	void filterJumpOverLinks() const;
 
-	bool sampleEdge(dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* sampler) const;
+	bool sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* sampler) const;
 	JumpLink* addLink();
-	void addEdgeLinks(const dtLinkBuilderConfig& acfg, const EdgeSampler* es);
+	void addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es);
 };
 //@UE END

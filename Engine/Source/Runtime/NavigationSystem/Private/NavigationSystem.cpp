@@ -118,6 +118,8 @@ DEFINE_STAT(STAT_Navigation_RecastBuildContours);
 DEFINE_STAT(STAT_Navigation_RecastBuildNavigation);
 DEFINE_STAT(STAT_Navigation_GenerateNavigationDataLayer);
 DEFINE_STAT(STAT_Navigation_RecastBuildLinks);
+DEFINE_STAT(STAT_Navigation_RecastBuildLinks_FindEdges);
+DEFINE_STAT(STAT_Navigation_RecastBuildLinks_Sample);
 DEFINE_STAT(STAT_Navigation_RecastBuildRegions);
 DEFINE_STAT(STAT_Navigation_UpdateNavOctree);
 DEFINE_STAT(STAT_Navigation_CollisionTreeMemory);

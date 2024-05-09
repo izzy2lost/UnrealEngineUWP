@@ -238,7 +238,7 @@ struct duColor
 	static unsigned int white;
 	static unsigned int lightGrey;
 	static unsigned int grey;
-	static unsigned int drakGrey;
+	static unsigned int darkGrey;
 	static unsigned int black;
 };
 //@UE END

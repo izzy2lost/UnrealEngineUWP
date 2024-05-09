@@ -298,6 +298,7 @@ FRecastGeometryCache::FRecastGeometryCache(const uint8* Memory)
 
 namespace RecastGeometryExport {
 
+#if SHOW_NAV_EXPORT_PREVIEW
 static UWorld* FindEditorWorld()
 {
 	if (GEngine)
@@ -313,6 +314,7 @@ static UWorld* FindEditorWorld()
 
 	return NULL;
 }
+#endif //SHOW_NAV_EXPORT_PREVIEW
 
 static void StoreCollisionCache(FRecastGeometryExport& GeomExport)
 {
@@ -1665,10 +1667,16 @@ FRecastTileGenerator::FRecastTileGenerator(FRecastNavMeshGenerator& ParentGenera
 
 	check(ParentGenerator.GetOwner());
 	TileTimeSliceSettings.FilterLedgeSpansMaxYProcess = ParentGenerator.GetOwner()->TimeSliceFilterLedgeSpansMaxYProcess;
+
+	SolidHF = nullptr;
+	CompactHF = nullptr;
 }
 
 FRecastTileGenerator::~FRecastTileGenerator()
 {
+	rcFreeHeightField(SolidHF);
+	rcFreeCompactHeightfield(CompactHF);
+
 	GenNavDataTimeSlicedGenerationContext.Reset();
 	GenNavDataTimeSlicedAllocator.Reset();
 	GenCompressedlayersTimeSlicedRasterContext.Reset();
@@ -1734,7 +1742,7 @@ void FRecastTileGenerator::Setup(const FRecastNavMeshGenerator& ParentGenerator,
 	}
 
 	// We have to regenerate layers data in case geometry is changed or tile cache is missing
-	bRegenerateCompressedLayers = (bGeometryChanged || CompressedLayers.Num() == 0);
+	bRegenerateCompressedLayers = (bGeometryChanged || TileConfig.bGenerateLinks || CompressedLayers.Num() == 0);
 	
 	// Gather geometry for tile if it's inside navigable bounds
 	if (InclusionBounds.Num())
@@ -2035,7 +2043,7 @@ void FRecastTileGenerator::GatherGeometry(const FRecastNavMeshGenerator& ParentG
 	const FBox NewBounds = ParentGenerator.GrowBoundingBox(TileBB, /*bIncludeAgentHeight*/ false);
 	
 	NavigationOctree->FindElementsWithBoundsTest(NewBounds,
-		[&RelevantDataArray, &OwnerNavDataConfig, &ParentGenerator, this, NavSys, bGeometryChanged, bUseVirtualGeometryFilteringAndDirtying](const FNavigationOctreeElement& Element)
+		[&RelevantDataArray, &OwnerNavDataConfig, &ParentGenerator, this, bUseVirtualGeometryFilteringAndDirtying](const FNavigationOctreeElement& Element)
 	{
 		const bool bShouldUse = bUseVirtualGeometryFilteringAndDirtying ?
 			ParentGenerator.ShouldGenerateGeometryForOctreeElement(Element, OwnerNavDataConfig) :
@@ -2172,6 +2180,36 @@ void FRecastTileGenerator::GatherNavigationDataGeometry(const TSharedRef<FNaviga
 	}
 }
 
+// Deprecated
+bool FRecastTileGenerator::CreateHeightField(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+{
+	return CreateHeightField(BuildContext);
+}
+
+// Deprecated
+void FRecastTileGenerator::GenerateRecastFilter(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+{
+	GenerateRecastFilter(BuildContext);
+}
+
+// Deprecated
+ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+{
+	return GenerateRecastFilterTimeSliced(BuildContext);
+}
+
+// Deprecated
+bool FRecastTileGenerator::BuildCompactHeightField(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+{
+	return BuildCompactHeightField(BuildContext);
+}
+
+// Deprecated
+bool FRecastTileGenerator::RecastErodeWalkable(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+{
+	return RecastErodeWalkable(BuildContext);
+}
+
 void FRecastTileGenerator::ApplyVoxelFilter(rcHeightfield* HF, FVector::FReal WalkableRadius)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_TileVoxelFilteringAsync);
@@ -2281,9 +2319,9 @@ void FRecastTileGenerator::ApplyVoxelFilter(rcHeightfield* HF, FVector::FReal Wa
 	}
 }
 
-void FRecastTileGenerator::InitRasterizationMaskArray(const rcHeightfield* SolidHF, TInlineMaskArray& OutRasterizationMasks)
+void FRecastTileGenerator::InitRasterizationMaskArray(const rcHeightfield* InSolidHF, TInlineMaskArray& OutRasterizationMasks)
 {
-	const int CellCount = SolidHF->width * SolidHF->height;
+	const int CellCount = InSolidHF->width * InSolidHF->height;
 	OutRasterizationMasks.SetNumUninitialized(CellCount);
 	const uint8 AllowAllFlags = 0xFF;
 	FMemory::Memset(OutRasterizationMasks.GetData(), AllowAllFlags, CellCount*sizeof(TInlineMaskArray::ElementType));
@@ -2478,9 +2516,8 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateTileTimeSliced()
 	FNavMeshBuildContext BuildContext(*this);
 	ETimeSliceWorkResult WorkResult = ETimeSliceWorkResult::Succeeded;
 
-	UE_CLOG(TileConfig.bGenerateLinks, LogNavigation, Warning, TEXT("Generating links in time slice mode is currently not supported so it's been disabled. Turn off bGenerateNavLinks to avoid the warning."));
-	dtLinkBuilderData LinkBuiderData;
-	LinkBuiderData.generatingLinks = false; // Make sure it's disable for now.
+	dtLinkBuilderData linkBuiderData;
+	linkBuiderData.generatingLinks = TileConfig.bGenerateLinks;
 	
 	check(TimeSliceManager);
 
@@ -2522,7 +2559,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateTileTimeSliced()
 	} //fall through to next state
 	case EGenerateTileTimeSlicedState::GenerateNavigationData:
 	{
-		WorkResult = GenerateNavigationDataTimeSliced(BuildContext, LinkBuiderData);
+		WorkResult = GenerateNavigationDataTimeSliced(BuildContext, linkBuiderData);
 
 		if (WorkResult != ETimeSliceWorkResult::CallAgainNextTimeSlice)
 		{
@@ -2559,9 +2596,6 @@ bool FRecastTileGenerator::GenerateTile()
 	if (bRegenerateCompressedLayers)
 	{
 		CompressedLayers.Reset();
-
-		// CompactHF is part of FTileRasterizationContext RasterContext that gets deleted after the GenerateCompressedLayers
-		// so if we are generating links, keep the chf.
 		bSuccess = GenerateCompressedLayers(BuildContext, LinkBuiderData);
 
 #if RECAST_INTERNAL_DEBUG_DATA
@@ -2579,9 +2613,6 @@ bool FRecastTileGenerator::GenerateTile()
 	{
 		bSuccess = GenerateNavigationData(BuildContext, LinkBuiderData);
 	}
-
-	rcFreeHeightField(LinkBuiderData.solidHF);
-	rcFreeCompactHeightfield(LinkBuiderData.compactHF);
 	
 #if RECAST_INTERNAL_DEBUG_DATA	
 	const double EndStamp = FPlatformTime::Seconds();
@@ -2597,23 +2628,19 @@ bool FRecastTileGenerator::GenerateTile()
 
 struct FTileRasterizationContext
 {
-	FTileRasterizationContext() : SolidHF(0), LayerSet(0), CompactHF(0), RasterizationFlags(rcRasterizationFlags(0))
+	FTileRasterizationContext() : LayerSet(nullptr), RasterizationFlags(rcRasterizationFlags(0))
 	{
 	}
 
 	~FTileRasterizationContext()
 	{
-		rcFreeHeightField(SolidHF);
 		rcFreeHeightfieldLayerSet(LayerSet);
-		rcFreeCompactHeightfield(CompactHF);
 	}
 
 	rcRasterizationFlags GetRasterizationFlags() const { return RasterizationFlags; }
 	void SetRasterizationFlags(rcRasterizationFlags Value) { RasterizationFlags = Value; }
 
-	struct rcHeightfield* SolidHF;
 	struct rcHeightfieldLayerSet* LayerSet;
-	struct rcCompactHeightfield* CompactHF;
 	TArray<FNavMeshTileData> Layers;
 	FRecastTileGenerator::TInlineMaskArray RasterizationMasks;
 
@@ -2621,7 +2648,7 @@ private:
 	rcRasterizationFlags RasterizationFlags;
 };
 
-bool FRecastTileGenerator::CreateHeightField(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+bool FRecastTileGenerator::CreateHeightField(FNavMeshBuildContext& BuildContext)
 {
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (!IsTileDebugAllowingGeneration())
@@ -2649,13 +2676,13 @@ bool FRecastTileGenerator::CreateHeightField(FNavMeshBuildContext& BuildContext,
 	// Allocate voxel heightfield where we rasterize our input data to.
 	if (bHasGeometry)
 	{
-		RasterContext.SolidHF = rcAllocHeightfield();
-		if (RasterContext.SolidHF == nullptr)
+		SolidHF = rcAllocHeightfield();
+		if (SolidHF == nullptr)
 		{
 			BuildContext.log(RC_LOG_ERROR, "CreateHeightField: Out of memory 'SolidHF'.");
 			return false;
 		}
-		if (!rcCreateHeightfield(&BuildContext, *RasterContext.SolidHF, TileConfig.width, TileConfig.height, TileConfig.bmin, TileConfig.bmax, TileConfig.cs, TileConfig.ch))
+		if (!rcCreateHeightfield(&BuildContext, *SolidHF, TileConfig.width, TileConfig.height, TileConfig.bmin, TileConfig.bmax, TileConfig.cs, TileConfig.ch))
 		{
 			BuildContext.log(RC_LOG_ERROR, "CreateHeightField: Could not create solid heightfield.");
 			return false;
@@ -2704,7 +2731,7 @@ ETimeSliceWorkResult FRecastTileGenerator::RasterizeGeometryRecastTimeSliced(FNa
 		rcRasterizeTriangles(&BuildContext,
 			Coords.GetData(), NumVerts,
 			Indices.GetData(), RasterizeGeomRecastTriAreas.GetData(), NumFaces,
-			*RasterContext.SolidHF, TileConfig.walkableClimb, RasterizationFlags, MaskArray);
+			*SolidHF, TileConfig.walkableClimb, RasterizationFlags, MaskArray);
 
 #if RECAST_INTERNAL_DEBUG_DATA	
 		BuildContext.InternalDebugData.TriangleCount += NumFaces;
@@ -2753,7 +2780,7 @@ void FRecastTileGenerator::RasterizeGeometryRecast(FNavMeshBuildContext& BuildCo
 		rcRasterizeTriangles(&BuildContext,
 			Coords.GetData(), NumVerts,
 			Indices.GetData(), RasterizeGeomRecastTriAreas.GetData(), NumFaces,
-			*RasterContext.SolidHF, TileConfig.walkableClimb, RasterizationFlags, MaskArray);
+			*SolidHF, TileConfig.walkableClimb, RasterizationFlags, MaskArray);
 	}
 
 #if RECAST_INTERNAL_DEBUG_DATA
@@ -2960,7 +2987,7 @@ void FRecastTileGenerator::RasterizeTriangles(FNavMeshBuildContext& BuildContext
 	}
 }
 
-void FRecastTileGenerator::GenerateRecastFilter(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+void FRecastTileGenerator::GenerateRecastFilter(FNavMeshBuildContext& BuildContext)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastFilter)
 
@@ -2971,17 +2998,17 @@ void FRecastTileGenerator::GenerateRecastFilter(FNavMeshBuildContext& BuildConte
 	// remove unwanted overhangs caused by the conservative rasterization
 	// as well as filter spans where the character cannot possibly stand.
 	{
-		rcFilterLowHangingWalkableObstacles(&BuildContext, TileConfig.walkableClimb, *RasterContext.SolidHF);
+		rcFilterLowHangingWalkableObstacles(&BuildContext, TileConfig.walkableClimb, *SolidHF);
 	}
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Navigation_FilterLedgeSpans)
 		
 		rcFilterLedgeSpans(&BuildContext, TileConfig.walkableHeight, TileConfig.walkableClimb,
-			(rcNeighborSlopeFilterMode)TileConfig.LedgeSlopeFilterMode, TileConfig.maxStepFromWalkableSlope, TileConfig.ch, *RasterContext.SolidHF);
+			(rcNeighborSlopeFilterMode)TileConfig.LedgeSlopeFilterMode, TileConfig.maxStepFromWalkableSlope, TileConfig.ch, *SolidHF);
 	}
 	if (!TileConfig.bMarkLowHeightAreas)
 	{
-		rcFilterWalkableLowHeightSpans(&BuildContext, TileConfig.walkableHeight, *RasterContext.SolidHF);
+		rcFilterWalkableLowHeightSpans(&BuildContext, TileConfig.walkableHeight, *SolidHF);
 	}
 	else if (TileConfig.bFilterLowSpanFromTileCache)
 	{
@@ -2990,16 +3017,16 @@ void FRecastTileGenerator::GenerateRecastFilter(FNavMeshBuildContext& BuildConte
 
 		if (TileConfig.bFilterLowSpanSequences && bHasLowAreaModifiers)
 		{
-			rcFilterWalkableLowHeightSpansSequences(&BuildContext, FilterWalkableHeight, *RasterContext.SolidHF);
+			rcFilterWalkableLowHeightSpansSequences(&BuildContext, FilterWalkableHeight, *SolidHF);
 		}
 		else
 		{
-			rcFilterWalkableLowHeightSpans(&BuildContext, FilterWalkableHeight, *RasterContext.SolidHF);
+			rcFilterWalkableLowHeightSpans(&BuildContext, FilterWalkableHeight, *SolidHF);
 		}
 	}
 }
 
-ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMeshBuildContext& BuildContext)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastFilter)
 
@@ -3014,7 +3041,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMe
 		// Once all geometry is rasterized, we do initial pass of filtering to
 		// remove unwanted overhangs caused by the conservative rasterization
 		// as well as filter spans where the character cannot possibly stand.
-		rcFilterLowHangingWalkableObstacles(&BuildContext, TileConfig.walkableClimb, *RasterContext.SolidHF);
+		rcFilterLowHangingWalkableObstacles(&BuildContext, TileConfig.walkableClimb, *SolidHF);
 		GenerateRecastFilterState = EGenerateRecastFilterTimeSlicedState::FilterLedgeSpans;
 	}// fall through to next state
 	case EGenerateRecastFilterTimeSlicedState::FilterLedgeSpans:
@@ -3027,11 +3054,11 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMe
 		{
 			rcFilterLedgeSpans(&BuildContext, TileConfig.walkableHeight, TileConfig.walkableClimb,
 				(rcNeighborSlopeFilterMode)TileConfig.LedgeSlopeFilterMode, TileConfig.maxStepFromWalkableSlope, TileConfig.ch, 
-				GenRecastFilterLedgeSpansYStart, TileTimeSliceSettings.FilterLedgeSpansMaxYProcess, *RasterContext.SolidHF);
+				GenRecastFilterLedgeSpansYStart, TileTimeSliceSettings.FilterLedgeSpansMaxYProcess, *SolidHF);
 
 			GenRecastFilterLedgeSpansYStart += TileTimeSliceSettings.FilterLedgeSpansMaxYProcess;
 
-			if (GenRecastFilterLedgeSpansYStart >= RasterContext.SolidHF->height)
+			if (GenRecastFilterLedgeSpansYStart >= SolidHF->height)
 			{
 				GenRecastFilterLedgeSpansYStart = 0;
 				DoIter = false;
@@ -3054,7 +3081,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMe
 
 		if (!TileConfig.bMarkLowHeightAreas)
 		{
-			rcFilterWalkableLowHeightSpans(&BuildContext, TileConfig.walkableHeight, *RasterContext.SolidHF);
+			rcFilterWalkableLowHeightSpans(&BuildContext, TileConfig.walkableHeight, *SolidHF);
 		}
 		else if (TileConfig.bFilterLowSpanFromTileCache)
 		{
@@ -3062,11 +3089,11 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMe
 			// for now, switch on presence of those modifiers, will save memory as long as they are sparse (should be)
 			if (TileConfig.bFilterLowSpanSequences && bHasLowAreaModifiers)
 			{
-				rcFilterWalkableLowHeightSpansSequences(&BuildContext, FilterWalkableHeight, *RasterContext.SolidHF);
+				rcFilterWalkableLowHeightSpansSequences(&BuildContext, FilterWalkableHeight, *SolidHF);
 			}
 			else
 			{
-				rcFilterWalkableLowHeightSpans(&BuildContext, FilterWalkableHeight, *RasterContext.SolidHF);
+				rcFilterWalkableLowHeightSpans(&BuildContext, FilterWalkableHeight, *SolidHF);
 			}
 		}
 		GenerateRecastFilterState = EGenerateRecastFilterTimeSlicedState::FilterLowHangingWalkableObstacles;
@@ -3082,22 +3109,22 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMe
 	return ETimeSliceWorkResult::Succeeded;
 }
 
-bool FRecastTileGenerator::BuildCompactHeightField(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+bool FRecastTileGenerator::BuildCompactHeightField(FNavMeshBuildContext& BuildContext)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildCompactHeightField);
 
 	// Compact the heightfield so that it is faster to handle from now on.
 	// This will result more cache coherent data as well as the neighbors
 	// between walkable cells will be calculated.
-	RasterContext.CompactHF = rcAllocCompactHeightfield();
-	if (RasterContext.CompactHF == nullptr)
+	CompactHF = rcAllocCompactHeightfield();
+	if (CompactHF == nullptr)
 	{
 		BuildContext.log(RC_LOG_ERROR, "BuildCompactHeightField: Out of memory 'CompactHF'.");
 		return false;
 	}
-	if (!rcBuildCompactHeightfield(&BuildContext, TileConfig.walkableHeight, TileConfig.walkableClimb, *RasterContext.SolidHF, *RasterContext.CompactHF))
+	if (!rcBuildCompactHeightfield(&BuildContext, TileConfig.walkableHeight, TileConfig.walkableClimb, *SolidHF, *CompactHF))
 	{
-		const int SpanCount = rcGetHeightFieldSpanCount(&BuildContext, *RasterContext.SolidHF);
+		const int SpanCount = rcGetHeightFieldSpanCount(&BuildContext, *SolidHF);
 		if (SpanCount > 0)
 		{
 			BuildContext.log(RC_LOG_ERROR, "BuildCompactHeightField: Could not build compact data.");
@@ -3112,7 +3139,7 @@ bool FRecastTileGenerator::BuildCompactHeightField(FNavMeshBuildContext& BuildCo
 	return true;
 }
 
-bool FRecastTileGenerator::RecastErodeWalkable(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext)
+bool FRecastTileGenerator::RecastErodeWalkable(FNavMeshBuildContext& BuildContext)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastErodeWalkable);
 
@@ -3128,8 +3155,8 @@ bool FRecastTileGenerator::RecastErodeWalkable(FNavMeshBuildContext& BuildContex
 		}
 
 		const bool bEroded = TileConfig.bMarkLowHeightAreas ?
-			rcErodeWalkableAndLowAreas(&BuildContext, TileConfig.walkableRadius, FilterWalkableHeight, RECAST_LOW_AREA, FilterFlags, *RasterContext.CompactHF) :
-			rcErodeWalkableArea(&BuildContext, TileConfig.walkableRadius, *RasterContext.CompactHF);
+			rcErodeWalkableAndLowAreas(&BuildContext, TileConfig.walkableRadius, FilterWalkableHeight, RECAST_LOW_AREA, FilterFlags, *CompactHF) :
+			rcErodeWalkableArea(&BuildContext, TileConfig.walkableRadius, *CompactHF);
 
 		if (!bEroded)
 		{
@@ -3140,7 +3167,7 @@ bool FRecastTileGenerator::RecastErodeWalkable(FNavMeshBuildContext& BuildContex
 	}
 	else if (TileConfig.bMarkLowHeightAreas)
 	{
-		rcMarkLowAreas(&BuildContext, FilterWalkableHeight, RECAST_LOW_AREA, *RasterContext.CompactHF);
+		rcMarkLowAreas(&BuildContext, FilterWalkableHeight, RECAST_LOW_AREA, *CompactHF);
 	}
 
 	return true;
@@ -3159,7 +3186,7 @@ bool FRecastTileGenerator::RecastBuildLayers(FNavMeshBuildContext& BuildContext,
 
 	if (TileConfig.regionPartitioning == RC_REGION_MONOTONE)
 	{
-		if (!rcBuildHeightfieldLayersMonotone(&BuildContext, *RasterContext.CompactHF, TileConfig.borderSize, TileConfig.walkableHeight, *RasterContext.LayerSet))
+		if (!rcBuildHeightfieldLayersMonotone(&BuildContext, *CompactHF, TileConfig.borderSize, TileConfig.walkableHeight, *RasterContext.LayerSet))
 		{
 			BuildContext.log(RC_LOG_ERROR, "RecastBuildLayers: Could not build heightfield layers.");
 			return false;
@@ -3168,13 +3195,13 @@ bool FRecastTileGenerator::RecastBuildLayers(FNavMeshBuildContext& BuildContext,
 	}
 	else if (TileConfig.regionPartitioning == RC_REGION_WATERSHED)
 	{
-		if (!rcBuildDistanceField(&BuildContext, *RasterContext.CompactHF))
+		if (!rcBuildDistanceField(&BuildContext, *CompactHF))
 		{
 			BuildContext.log(RC_LOG_ERROR, "RecastBuildLayers: Could not build distance field.");
 			return false;
 		}
 
-		if (!rcBuildHeightfieldLayers(&BuildContext, *RasterContext.CompactHF, TileConfig.borderSize, TileConfig.walkableHeight, *RasterContext.LayerSet))
+		if (!rcBuildHeightfieldLayers(&BuildContext, *CompactHF, TileConfig.borderSize, TileConfig.walkableHeight, *RasterContext.LayerSet))
 		{
 			BuildContext.log(RC_LOG_ERROR, "RecastBuildLayers: Could not build heightfield layers.");
 			return false;
@@ -3182,7 +3209,7 @@ bool FRecastTileGenerator::RecastBuildLayers(FNavMeshBuildContext& BuildContext,
 	}
 	else
 	{
-		if (!rcBuildHeightfieldLayersChunky(&BuildContext, *RasterContext.CompactHF, TileConfig.borderSize, TileConfig.walkableHeight, TileConfig.regionChunkSize, *RasterContext.LayerSet))
+		if (!rcBuildHeightfieldLayersChunky(&BuildContext, *CompactHF, TileConfig.borderSize, TileConfig.walkableHeight, TileConfig.regionChunkSize, *RasterContext.LayerSet))
 		{
 			BuildContext.log(RC_LOG_ERROR, "RecastBuildLayers: Could not build heightfield layers.");
 			return false;
@@ -3308,7 +3335,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateCompressedLayersTimeSliced(FN
 	} // fall through to next state
 	case EGenerateCompressedLayersTimeSliced::CreateHeightField:
 	{
-		if (!CreateHeightField(BuildContext, *RasterContext))
+		if (!CreateHeightField(BuildContext))
 		{
 			GenCompressedLayersTimeSlicedState = EGenerateCompressedLayersTimeSliced::Invalid;
 			//no need to check time slice as not much work done
@@ -3341,7 +3368,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateCompressedLayersTimeSliced(FN
 	} // fall through to next state
 	case EGenerateCompressedLayersTimeSliced::EmptyLayers:
 	{
-		if (!RasterContext->SolidHF || RasterContext->SolidHF->pools == 0)
+		if (!SolidHF || SolidHF->pools == 0)
 		{
 			BuildContext.log(RC_LOG_WARNING, "GenerateCompressedLayersTimeSliced: empty tile - aborting");
 
@@ -3359,7 +3386,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateCompressedLayersTimeSliced(FN
 		// Reject voxels outside generation boundaries
 		if (TileConfig.bPerformVoxelFiltering && !bFullyEncapsulatedByInclusionBounds)
 		{
-			ApplyVoxelFilter(RasterContext->SolidHF, TileConfig.walkableRadius);
+			ApplyVoxelFilter(SolidHF, TileConfig.walkableRadius);
 
 			MARK_TIMESLICE_SECTION_DEBUG(TimeSliceManager->GetTimeSlicer(), VoxelFilter);
 
@@ -3371,7 +3398,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateCompressedLayersTimeSliced(FN
 	}// fall through to next state
 	case EGenerateCompressedLayersTimeSliced::RecastFilter:
 	{
-		const ETimeSliceWorkResult WorkResult = GenerateRecastFilterTimeSliced(BuildContext, *RasterContext);
+		const ETimeSliceWorkResult WorkResult = GenerateRecastFilterTimeSliced(BuildContext);
 
 		// Non timesliced code this is based on did not care about success or failure here.
 		if (WorkResult != ETimeSliceWorkResult::CallAgainNextTimeSlice)
@@ -3386,7 +3413,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateCompressedLayersTimeSliced(FN
 	}// fall through to next state
 	case EGenerateCompressedLayersTimeSliced::CompactHeightField:
 	{
-		if (!BuildCompactHeightField(BuildContext, *RasterContext))
+		if (!BuildCompactHeightField(BuildContext))
 		{
 			//no need to check time slice as not much work done
 			GenCompressedLayersTimeSlicedState = EGenerateCompressedLayersTimeSliced::Invalid;
@@ -3405,7 +3432,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateCompressedLayersTimeSliced(FN
 	}// fall through to next state
 	case EGenerateCompressedLayersTimeSliced::ErodeWalkable:
 	{
-		if (!RecastErodeWalkable(BuildContext, *RasterContext))
+		if (!RecastErodeWalkable(BuildContext))
 		{
 			//no need to check time slice as not much work done
 			GenCompressedLayersTimeSlicedState = EGenerateCompressedLayersTimeSliced::Invalid;
@@ -3518,14 +3545,14 @@ namespace UE::NavMesh::Private
 #endif //RECAST_INTERNAL_DEBUG_DATA
 };
 
-bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& OutLinkBuilderData)
+bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildContext, const dtLinkBuilderData& InLinkBuilderData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildCompressedLayers);
 
 	FTileRasterizationContext RasterContext;
 	CompressedLayers.Reset();
 
-	if (!CreateHeightField(BuildContext, RasterContext))
+	if (!CreateHeightField(BuildContext))
 	{
 		return false;
 	}
@@ -3533,7 +3560,7 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 	ComputeRasterizationMasks(BuildContext, RasterContext);
 
 	RasterizeTriangles(BuildContext, RasterContext);
-	if (!RasterContext.SolidHF || RasterContext.SolidHF->pools == 0)
+	if (!SolidHF || SolidHF->pools == 0)
 	{
 		BuildContext.log(RC_LOG_WARNING, "GenerateCompressedLayers: empty tile - aborting");
 		return true;
@@ -3544,11 +3571,11 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 	{
 		if (TileDebugSettings.bHeightfieldFromRasterization)
 		{
-			UE::NavMesh::Private::DrawHeightfield(TileDebugSettings.HeightFieldRenderMode, &BuildContext.InternalDebugData, *RasterContext.SolidHF);
+			UE::NavMesh::Private::DrawHeightfield(TileDebugSettings.HeightFieldRenderMode, &BuildContext.InternalDebugData, *SolidHF);
 		}
 		if (TileDebugSettings.bHeightfieldBounds)
 		{
-			duDebugDrawHeightfieldBounds(&BuildContext.InternalDebugData, *RasterContext.SolidHF);
+			duDebugDrawHeightfieldBounds(&BuildContext.InternalDebugData, *SolidHF);
 		}
 	}
 #endif
@@ -3556,26 +3583,26 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 	// Reject voxels outside generation boundaries
 	if (TileConfig.bPerformVoxelFiltering && !bFullyEncapsulatedByInclusionBounds)
 	{
-		ApplyVoxelFilter(RasterContext.SolidHF, TileConfig.walkableRadius);
+		ApplyVoxelFilter(SolidHF, TileConfig.walkableRadius);
 	}
 
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (IsTileDebugActive() && TileDebugSettings.bHeightfieldPostInclusionBoundsFiltering)
 	{
-		UE::NavMesh::Private::DrawHeightfield(TileDebugSettings.HeightFieldRenderMode, &BuildContext.InternalDebugData, *RasterContext.SolidHF);
+		UE::NavMesh::Private::DrawHeightfield(TileDebugSettings.HeightFieldRenderMode, &BuildContext.InternalDebugData, *SolidHF);
 	}
 #endif
 
-	GenerateRecastFilter(BuildContext, RasterContext);
+	GenerateRecastFilter(BuildContext);
 
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (IsTileDebugActive() && TileDebugSettings.bHeightfieldPostHeightFiltering)
 	{
-		UE::NavMesh::Private::DrawHeightfield(TileDebugSettings.HeightFieldRenderMode, &BuildContext.InternalDebugData, *RasterContext.SolidHF);
+		UE::NavMesh::Private::DrawHeightfield(TileDebugSettings.HeightFieldRenderMode, &BuildContext.InternalDebugData, *SolidHF);
 	}
 #endif
 
-	if (!BuildCompactHeightField(BuildContext, RasterContext))
+	if (!BuildCompactHeightField(BuildContext))
 	{
 		return false;
 	}
@@ -3583,11 +3610,11 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (IsTileDebugActive() && TileDebugSettings.bCompactHeightfield)
 	{
-		duDebugDrawCompactHeightfieldSolid(&BuildContext.InternalDebugData, *RasterContext.CompactHF);
+		duDebugDrawCompactHeightfieldSolid(&BuildContext.InternalDebugData, *CompactHF);
 	}
 #endif
 
-	if (!RecastErodeWalkable(BuildContext, RasterContext))
+	if (!RecastErodeWalkable(BuildContext))
 	{
 		return false;
 	}
@@ -3595,7 +3622,7 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (IsTileDebugActive() && TileDebugSettings.bCompactHeightfieldEroded)
 	{
-		duDebugDrawCompactHeightfieldSolid(&BuildContext.InternalDebugData, *RasterContext.CompactHF);
+		duDebugDrawCompactHeightfieldSolid(&BuildContext.InternalDebugData, *CompactHF);
 	}
 #endif
 
@@ -3609,26 +3636,15 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 	{
 		if (TileDebugSettings.bCompactHeightfieldRegions)
 		{
-			duDebugDrawCompactHeightfieldRegions(&BuildContext.InternalDebugData, *RasterContext.CompactHF);	
+			duDebugDrawCompactHeightfieldRegions(&BuildContext.InternalDebugData, *CompactHF);	
 		}
 
 		if (TileDebugSettings.bCompactHeightfieldDistances)
 		{
-			duDebugDrawCompactHeightfieldDistance(&BuildContext.InternalDebugData, *RasterContext.CompactHF);	
+			duDebugDrawCompactHeightfieldDistance(&BuildContext.InternalDebugData, *CompactHF);	
 		}
 	}
 #endif
-
-	if (OutLinkBuilderData.generatingLinks)
-	{
-		OutLinkBuilderData.solidHF = RasterContext.SolidHF;
-		OutLinkBuilderData.compactHF = RasterContext.CompactHF;
-
-		// When generating links, set SolidHF and CompactHF to null to prevent free 
-		// on the destruction of RasterContext since we will need those later.
-		RasterContext.SolidHF = nullptr;
-		RasterContext.CompactHF = nullptr;
-	}
 	
 	return RecastBuildTileCache(BuildContext, RasterContext);
 }
@@ -3677,7 +3693,7 @@ struct FTileGenerationContext
 };
 
 dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildContext, dtTileCacheAlloc* alloc, const dtTileCacheLayer& layer,
-	const dtTileCacheContourSet& lcset, const dtLinkBuilderData& linkBuilderData, TArray<FNavigationLink>& OutGeneratedLinks) const
+	const dtTileCacheContourSet& lcset, TArray<FNavigationLink>& OutGeneratedLinks) const
 {
 	duDebugDraw* dd = nullptr;
 	int32 DebugEdge = -1;
@@ -3693,13 +3709,15 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 
 	dtAssert(alloc);
 
-	if (!linkBuilderData.solidHF || !linkBuilderData.compactHF)
+	if (!SolidHF || !CompactHF)
 	{
 		return DT_FAILURE;
 	}
 
 	const dtReal* orig = layer.header->bmin;
 	dtLinkBuilderConfig linkBuilderConfig;
+	linkBuilderConfig.jumpDownConfig = TileConfig.JumpDownConfig;
+	linkBuilderConfig.jumpOverConfig = TileConfig.JumpOverConfig;
 	linkBuilderConfig.agentRadius = TileConfig.walkableRadius * TileConfig.cs;
 	linkBuilderConfig.agentHeight = TileConfig.walkableHeight * TileConfig.ch;
 	linkBuilderConfig.agentClimb = TileConfig.walkableClimb * TileConfig.ch;
@@ -3707,15 +3725,22 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 	linkBuilderConfig.cellHeight = TileConfig.ch;
 
 	dtNavLinkBuilder linkBuilder;
-	if (!linkBuilder.findEdges(BuildContext, TileConfig, linkBuilderConfig, lcset, orig, linkBuilderData))
 	{
-		return DT_FAILURE;
+		SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildLinks_FindEdges);
+
+		if (!linkBuilder.findEdges(BuildContext, TileConfig, linkBuilderConfig, lcset, orig, SolidHF, CompactHF))
+		{
+			return DT_FAILURE;
+		}
 	}
 
 	if (DebugEdge == -1)
 	{
-		linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN);
-		linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER);
+		{
+			SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildLinks_Sample);
+			linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN);
+			linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER);
+		}
 
 #if RECAST_INTERNAL_DEBUG_DATA
 		duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, nullptr);
@@ -3752,7 +3777,7 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 }
 
 bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor,
-	FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, dtLinkBuilderData& InOutLinkBuilderData, int32 LayerIdx)
+	FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, const dtLinkBuilderData& InLinkBuilderData, int32 LayerIdx)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_GenerateNavigationDataLayer)
 		
@@ -3949,11 +3974,14 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 
 	// Build Links
 	TArray<FNavigationLink> GeneratedLinks;
-	if (InOutLinkBuilderData.generatingLinks)
+	if (InLinkBuilderData.generatingLinks)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildLinks);
 
-		status = BuildTileCacheLinks(BuildContext, &GenNavAllocator, *GenerationContext.Layer, *GenerationContext.ContourSet, InOutLinkBuilderData, GeneratedLinks);
+		if (SolidHF && CompactHF)
+		{
+			status = BuildTileCacheLinks(BuildContext, &GenNavAllocator, *GenerationContext.Layer, *GenerationContext.ContourSet, GeneratedLinks);	
+		}
 
 		if (dtStatusFailed(status))
 		{
@@ -4066,15 +4094,12 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 	return true;
 }
 
-ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& InOutLinkBuilderData)
+ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext, const dtLinkBuilderData& InLinkBuilderData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildNavigation);
 
 	check(TimeSliceManager);
-
-	FTileCacheCompressor TileCompressor;
 	ETimeSliceWorkResult WorkResult = ETimeSliceWorkResult::Succeeded;
-	dtStatus status = DT_SUCCESS;
 
 	switch (GenerateNavDataTimeSlicedState)
 	{
@@ -4108,7 +4133,9 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNav
 				break;
 			}
 
-			const bool bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, *GenNavDataTimeSlicedAllocator, *GenNavDataTimeSlicedGenerationContext, InOutLinkBuilderData, GenNavDataLayerTimeSlicedIdx);
+			FTileCacheCompressor TileCompressor;
+			const bool bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, *GenNavDataTimeSlicedAllocator,
+				*GenNavDataTimeSlicedGenerationContext, InLinkBuilderData, GenNavDataLayerTimeSlicedIdx);
 
 			MARK_TIMESLICE_SECTION_DEBUG(TimeSliceManager->GetTimeSlicer(), GenerateLayers);
 
@@ -4146,7 +4173,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateNavigationDataTimeSliced(FNav
 	return WorkResult;
 }
 
-bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildContext, dtLinkBuilderData& LinkBuilderData)
+bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildContext, const dtLinkBuilderData& InLinkBuilderData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildNavigation);
 
@@ -4165,7 +4192,7 @@ bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildCon
 			continue;
 		}
 
-		bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, GenNavAllocator, GenerationContext, LinkBuilderData, LayerIdx);
+		bGenDataLayer = GenerateNavigationDataLayer(BuildContext, TileCompressor, GenNavAllocator, GenerationContext, InLinkBuilderData, LayerIdx);
 
 		if (!bGenDataLayer)
 		{
@@ -4196,7 +4223,7 @@ void FRecastTileGenerator::ComputeRasterizationMasks(FNavMeshBuildContext& Build
 	{
 		if (ModifierElement.bMaskFillCollisionUnderneathForNavmesh)
 		{
-			if (RasterContext.SolidHF == nullptr)
+			if (SolidHF == nullptr)
 			{
 				return;
 			}
@@ -4206,12 +4233,12 @@ void FRecastTileGenerator::ComputeRasterizationMasks(FNavMeshBuildContext& Build
 			{
 				for (const FTransform& LocalToWorld : ModifierElement.PerInstanceTransform)
 				{
-					MarkRasterizationMask(&BuildContext, RasterContext.SolidHF, ModifierArea, LocalToWorld, Mask, RasterContext.RasterizationMasks);
+					MarkRasterizationMask(&BuildContext, SolidHF, ModifierArea, LocalToWorld, Mask, RasterContext.RasterizationMasks);
 				}
 
 				if (ModifierElement.PerInstanceTransform.Num() == 0)
 				{
-					MarkRasterizationMask(&BuildContext, RasterContext.SolidHF, ModifierArea, FTransform::Identity, Mask, RasterContext.RasterizationMasks);
+					MarkRasterizationMask(&BuildContext, SolidHF, ModifierArea, FTransform::Identity, Mask, RasterContext.RasterizationMasks);
 				}
 			}
 		}
@@ -4415,7 +4442,7 @@ void MarkConvexMask(const int mask, const FVector::FReal* verts, const int nv, r
 	}
 }
 
-void FRecastTileGenerator::MarkRasterizationMask(rcContext* /*BuildContext*/, rcHeightfield* SolidHF,
+void FRecastTileGenerator::MarkRasterizationMask(rcContext* /*BuildContext*/, rcHeightfield* InSolidHF,
 	const FAreaNavModifier& Modifier, const FTransform& LocalToWorld, const int32 Mask, TInlineMaskArray& OutMaskArray)
 {
 	FBox ModifierBounds = Modifier.GetBounds().TransformBy(LocalToWorld);
@@ -4427,7 +4454,7 @@ void FRecastTileGenerator::MarkRasterizationMask(rcContext* /*BuildContext*/, rc
 	// Init on first use
 	if (OutMaskArray.Num() == 0)
 	{
-		InitRasterizationMaskArray(SolidHF, OutMaskArray);
+		InitRasterizationMaskArray(InSolidHF, OutMaskArray);
 	}
 
 	switch (Modifier.GetShapeType())
@@ -4441,8 +4468,8 @@ void FRecastTileGenerator::MarkRasterizationMask(rcContext* /*BuildContext*/, rc
 		FVector RecastPos;
 		FVector RecastExtent;
 		RecastBox.GetCenterAndExtents(RecastPos, RecastExtent);
-		check(OutMaskArray.Num() == SolidHF->width*SolidHF->height);
-		MarkBoxMask(&(RecastPos.X), &(RecastExtent.X), Mask, *SolidHF, OutMaskArray.GetData());
+		check(OutMaskArray.Num() == InSolidHF->width*InSolidHF->height);
+		MarkBoxMask(&(RecastPos.X), &(RecastExtent.X), Mask, *InSolidHF, OutMaskArray.GetData());
 	}
 	break;
 
@@ -4469,7 +4496,7 @@ void FRecastTileGenerator::MarkRasterizationMask(rcContext* /*BuildContext*/, rc
 				*ItCoord = RecastV.Z; ItCoord++;
 			}
 
-			MarkConvexMask(Mask, ConvexCoords.GetData(), ConvexVerts.Num(), *SolidHF, OutMaskArray.GetData());
+			MarkConvexMask(Mask, ConvexCoords.GetData(), ConvexVerts.Num(), *InSolidHF, OutMaskArray.GetData());
 		}
 	}
 	break;
@@ -4794,7 +4821,16 @@ void FRecastNavMeshGenerator::SetupTileConfig(const ENavigationDataResolution Ti
 	OutConfig.walkableRadius = FMath::CeilToInt(DestNavMesh->AgentRadius / CellSize);
 	OutConfig.maxStepFromWalkableSlope = OutConfig.cs * FMath::Tan(FMath::DegreesToRadians(OutConfig.walkableSlopeAngle));
 
-	OutConfig.borderSize = OutConfig.walkableRadius + 3; // +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
+	int MaxLinkDistanceVx = 0;
+	if (DestNavMesh->bGenerateNavLinks)
+	{
+		MaxLinkDistanceVx = FMath::CeilToInt(OutConfig.LinkSpillDistance / CellSize);
+	}
+
+	// +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
+	const int BorderForAgentVx = OutConfig.walkableRadius + 3;
+	OutConfig.borderSize = BorderForAgentVx + MaxLinkDistanceVx; 
+
 	OutConfig.maxEdgeLen = (int32)(1200.0f / CellSize);
 
 	OutConfig.minRegionArea = (int32)rcSqr(DestNavMesh->MinRegionArea / CellSize);
@@ -4862,13 +4898,29 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 				*UEnum::GetDisplayValueAsText(Resolution).ToString(), AgentMaxSlope, static_cast<float>(RequiredClimbVx-1)*TempCellHeight);
 		}
 	}
+
+	int MaxLinkDistanceVx = 0;
+	if (DestNavMesh->bGenerateNavLinks)
+	{
+		// NavLink builder configuration
+		const FNavLinkGenerationJumpDownConfig& JumpDown = DestNavMesh->NavLinkJumpDownConfig;
+		const FNavLinkGenerationJumpOverConfig& JumpOver = DestNavMesh->NavLinkJumpOverConfig;
+		JumpDown.CopyToDetourConfig(OutConfig.JumpDownConfig);
+		JumpOver.CopyToDetourConfig(OutConfig.JumpOverConfig);
+
+		OutConfig.LinkSpillDistance = FMath::Max((JumpDown.JumpLength-JumpDown.JumpDistanceFromEdge), (JumpOver.JumpLength-JumpOver.JumpDistanceFromEdge));
+		MaxLinkDistanceVx = FMath::CeilToInt(OutConfig.LinkSpillDistance / CellSize);
+	}
 	
 	// store original sizes
 	OutConfig.AgentHeight = AgentHeight;
 	OutConfig.AgentMaxClimb = AgentMaxClimb;
 	OutConfig.AgentRadius = AgentRadius;
 
-	OutConfig.borderSize = OutConfig.walkableRadius + 3; // +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
+	// +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
+	const int BorderForAgentVx = OutConfig.walkableRadius + 3;
+	OutConfig.borderSize = BorderForAgentVx + MaxLinkDistanceVx; 
+
 	OutConfig.maxEdgeLen = (int32)(1200.0f / CellSize);
 
 	// hardcoded, but can be overridden by RecastNavMesh params later

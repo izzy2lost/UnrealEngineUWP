@@ -242,14 +242,15 @@ void dtNavLinkBuilder::cleanup()
 }
 
 bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLinkBuilderConfig& builderConfig,
-                                 const dtTileCacheContourSet& lcset, const dtReal* orig, const dtLinkBuilderData& linkBuilderData)
+                                 const dtTileCacheContourSet& lcset, const dtReal* orig,
+                                 const rcHeightfield* solidHF, const rcCompactHeightfield* compactHF)
 {
 	cleanup();
 	m_linkBuilderConfig = builderConfig;
 
 	m_cs = cfg.cs;
-	m_solid = linkBuilderData.solidHF;
-	m_chf = linkBuilderData.compactHF;
+	m_solid = solidHF;
+	m_chf = compactHF;
 
 	// Build edges.
 	m_nedges = 0;
@@ -286,9 +287,6 @@ bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLi
 		{
 			const unsigned short* va = &c.verts[k*4];
 			const unsigned short* vb = &c.verts[j*4];
-			
-			if ((va[3] & 0xf) != 0xf)	// A direction is set, so it's a portal edge.
-				continue;
 			
 			// Check k-j for matching contour
 			bool matchFound = false;
@@ -360,7 +358,7 @@ dtNavLinkBuilder::JumpLink* dtNavLinkBuilder::addLink()
 	return link;
 }
 
-void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& acfg, const EdgeSampler* es)
+void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es)
 {
 	using namespace UE::Detour::NavLink::Private;
 	
@@ -390,7 +388,7 @@ void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& acfg, const EdgeS
 		nflags[i] = kernel[(nkernel+1)/2];
 	}
 
-	const int agentRadiusVx = acfg.agentRadius / acfg.cellSize;
+	const int agentRadiusVx = builderConfig.agentRadius / builderConfig.cellSize;
 	
 	// Build segments
 	int start = -1;
@@ -519,7 +517,7 @@ void dtNavLinkBuilder::buildForAllEdges(const dtLinkBuilderConfig& builderConfig
 	for (int i = 0; i < m_nedges; ++i)
 	{
 		EdgeSampler sampler;
-		const bool success = sampleEdge(action, m_edges[i].sp, m_edges[i].sq, &sampler);
+		const bool success = sampleEdge(builderConfig, action, m_edges[i].sp, m_edges[i].sq, &sampler);
 		if (success)
 		{
 			addEdgeLinks(builderConfig, &sampler);
@@ -538,7 +536,7 @@ void dtNavLinkBuilder::debugBuildEdge(const dtLinkBuilderConfig& builderConfig, 
 	
 	m_debugSelectedEdge = edgeIndex;
 
-	const bool success = sampleEdge(action, m_edges[edgeIndex].sp, m_edges[edgeIndex].sq, &sampler);
+	const bool success = sampleEdge(builderConfig, action, m_edges[edgeIndex].sp, m_edges[edgeIndex].sq, &sampler);
 	if (success)
 	{
 		addEdgeLinks(builderConfig, &sampler);
@@ -737,7 +735,8 @@ void dtNavLinkBuilder::initTrajectory(Trajectory2D* tra) const
 
 		const float y = dtLerp(pa[1], pb[1], u);
 		
-		s->ymin = dtMin(y0,y1) + m_linkBuilderConfig.agentClimb - y;
+		// Todo: revisit starting height and trajectory heights to handle ledge corner when jumping down.
+		s->ymin = dtMin(y0,y1) + (2*m_linkBuilderConfig.agentClimb) - y;	
 		s->ymax = dtMax(y0,y1) + m_linkBuilderConfig.agentHeight - y; 
 	}
 }
@@ -966,27 +965,28 @@ void dtNavLinkBuilder::initJumpOverRig(EdgeSampler* es, const dtReal* sp, const 
 	es->groundRange = groundRange;
 }
 
-bool dtNavLinkBuilder::sampleEdge(dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* es) const
+bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* es) const
 {
 	using namespace UE::Detour::NavLink::Private;
-
-	constexpr float toUU = 100.f;
 	
 	if (desiredAction == DT_LINK_ACTION_JUMP_DOWN)
 	{
-		constexpr float jumpStartDist = -0.25f * toUU;
-		constexpr float jumpEndDist = 2.f * toUU;
-		constexpr float jumpDownDist = -2.f * toUU;
-		constexpr float groundRange = 1.f * toUU;
-		initJumpDownRig(es, sp, sq, jumpStartDist, jumpEndDist, jumpDownDist, groundRange);
+		const dtNavLinkBuilderJumpDownConfig& config = builderConfig.jumpDownConfig;
+		const float jumpStartDist = config.jumpDistanceFromEdge;
+		const float jumpEndDist = config.jumpLength;
+		const float jumpDownDist = config.jumpMaxDepth;
+		const float groundRange = config.jumpEndsHeightTolerance;
+		initJumpDownRig(es, sp, sq, -jumpStartDist, jumpEndDist, -jumpDownDist, groundRange);
 	}
 	else if (desiredAction == DT_LINK_ACTION_JUMP_OVER)
 	{
-		constexpr float jumpDist = 2.5f * toUU;
-		constexpr float heightRange = 1.f * toUU;
+		const dtNavLinkBuilderJumpOverConfig& config = builderConfig.jumpOverConfig;
+		const float jumpDist = config.jumpLength;
+		const float heightRange = config.jumpHeightTolerance;
 		static constexpr int NSEGS = 8;
 		dtReal segs[NSEGS*6];
 		int nsegs = findPotentialJumpOverEdges(sp, sq, jumpDist, heightRange, segs, NSEGS);
+
 		int ibest = -1;
 		float dbest = 0;
 		for (int i = 0; i < nsegs; ++i)
@@ -1004,9 +1004,10 @@ bool dtNavLinkBuilder::sampleEdge(dtNavLinkAction desiredAction, const dtReal* s
 			return false;
 		}
 
-		constexpr float jumpHeight = 1.f * toUU;
-		constexpr float groundRange = 0.5f * toUU;
-		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], -jumpDist*0.5f, jumpDist*0.5f, jumpHeight, groundRange);
+		const float jumpStartDist = config.jumpDistanceFromEdge; 
+		const float jumpHeight = config.jumpHeight;
+		const float groundRange = config.jumpEndsHeightTolerance;
+		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], -jumpStartDist, jumpStartDist, jumpHeight, groundRange);
 	}
 	
 	initTrajectory(&es->trajectory);
