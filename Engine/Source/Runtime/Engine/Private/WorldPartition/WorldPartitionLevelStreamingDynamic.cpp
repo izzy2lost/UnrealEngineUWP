@@ -175,8 +175,8 @@ void UWorldPartitionLevelStreamingDynamic::CreateRuntimeLevel()
 	RuntimeLevel = FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(StreamingCell.Get(), World, GetWorldAsset().ToString());
 	check(RuntimeLevel);
 
-	// Force world partition level/actor packages not to be reused
-	RuntimeLevel->SetForceCantReuseUnloadedButStillAround(true);
+	// Force world partition level/actor packages to be trashed at cleanup
+	FWorldPartitionLevelHelper::SetForcePackageTrashingAtCleanup(RuntimeLevel, true);
 
 	// Make sure Actor Folders is disabled on generated runtime levels to avoid any problems with duplicate folders that
 	// can be caused by level instances injecting their actors, which can cause duplicate folders (which only happens during PIE).

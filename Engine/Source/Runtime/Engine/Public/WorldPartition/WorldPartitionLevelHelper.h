@@ -117,6 +117,8 @@ private:
 
 	TSet<TWeakObjectPtr<UPackage>> PreGCPackagesToUnload;
 
+	static void SetForcePackageTrashingAtCleanup(ULevel* Level, bool bForcePackageTrashingAtCleanup);
+
 	friend class UWorldPartitionLevelStreamingDynamic;
 	friend class UWorldPartitionSubsystem;
 	friend class UWorldPartitionRuntimeLevelStreamingCell;

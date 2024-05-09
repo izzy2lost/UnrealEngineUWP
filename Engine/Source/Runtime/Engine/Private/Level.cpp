@@ -414,6 +414,7 @@ ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
 	bPromptWhenAddingToLevelOutsideBounds = true;
 	bUseActorFolders = false;
 	bFixupActorFoldersAtLoad = IsActorFolderObjectsFeatureAvailable();
+	bForcePackageTrashingAtCleanup = false;
 	bForceCantReuseUnloadedButStillAround = false;
 #endif	
 	bActorClusterCreated = false;
@@ -464,7 +465,14 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 		}
 	}
 
-	const bool bTrashPackage = !ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(this);
+	bool bTrashPackage = !ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(this);
+#if WITH_EDITOR
+	if (bForcePackageTrashingAtCleanup)
+	{
+		bTrashPackage = true;
+	}
+#endif
+
 	TSet<UPackage*> ProcessedPackages;
 	auto ProcessPackage = [&ProcessedPackages, bTrashPackage](UPackage* InPackage, bool bInClearStandaloneFlag = false)
 	{

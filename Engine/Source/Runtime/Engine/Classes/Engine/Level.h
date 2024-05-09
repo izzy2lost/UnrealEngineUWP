@@ -591,6 +591,9 @@ public:
 private:
 	/** Whether the level is set not to be reusable after unload (editor-only) */
 	uint8										bForceCantReuseUnloadedButStillAround:1;
+
+	/** Whether the level will force trash its packages in CleanupLevel (including object packages of objects outered to the level) (editor-only) */
+	uint8										bForcePackageTrashingAtCleanup:1;
 #endif
 	
 public:

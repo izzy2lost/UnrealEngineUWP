@@ -883,4 +883,9 @@ bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams
 	return (LoadProgress->NumPendingLoadRequests == 0);
 }
 
+void FWorldPartitionLevelHelper::SetForcePackageTrashingAtCleanup(ULevel* Level, bool bForcePackageTrashingAtCleanup)
+{
+	Level->bForcePackageTrashingAtCleanup = bForcePackageTrashingAtCleanup;
+}
+
 #endif
