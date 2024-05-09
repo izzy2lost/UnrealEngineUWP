@@ -7160,6 +7160,7 @@ FPrimitiveViewRelevance FSkeletalMeshSceneProxy::GetViewRelevance(const FSceneVi
 #if WITH_EDITORONLY_DATA
 			|| MeshObject->SelectedEditorMaterial != -1
 			|| MeshObject->SelectedEditorSection != -1
+			|| (PoseWatchDynamicData && !PoseWatchDynamicData->PoseWatches.IsEmpty())
 #endif
 			;
 #else
