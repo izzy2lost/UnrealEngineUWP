@@ -306,7 +306,6 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	// Cook on the fly server interface adapter
 	class FCookOnTheFlyServerInterface;
-	friend class FCookOnTheFlyServerInterface;
 	TUniquePtr<FCookOnTheFlyServerInterface> CookOnTheFlyServerInterface;
 
 	/** Current cook mode the cook on the fly server is running in */
@@ -1329,7 +1328,6 @@ private:
 	void SaveCookedPackage(UE::Cook::FSaveCookedPackageContext& Context);
 	/** Helper for package saves using ExternalActors: record ExternalActors for iterative builds. */
 	void RecordExternalActorDependencies(TConstArrayView<FName> ExternalActorDependencies);
-	friend class UE::Cook::FSaveCookedPackageContext;
 
 	/**
 	 * Save the global shader map
@@ -1623,6 +1621,7 @@ private:
 	friend UE::Cook::FPendingCookedPlatformData;
 	friend UE::Cook::FPlatformManager;
 	friend UE::Cook::FRequestCluster;
+	friend UE::Cook::FSaveCookedPackageContext;
 	friend UE::Cook::FWorkerRequestsLocal;
 	friend UE::Cook::FWorkerRequestsRemote;
 };

@@ -4427,7 +4427,11 @@ private: // Used only by UCookOnTheFlyServer, which has private access
 	// private helper functions
 	void CalculatePlatformAgnosticRuntimeDependencies();
 	void CalculatePlatformRuntimeDependencies();
+	TArray<FName> GetPlatformRuntimeDependencies() const;
+	TArray<IPackageWriter::FCommitAttachmentInfo> GetCommitAttachments();
+	IPackageWriter::EWriteOptions GetCommitWriteOptions() const;
 	static void AddDependency(TMap<FPackageData*, EInstigator>& InDependencies, FPackageData* PackageData, bool bHard);
+	static IPackageWriter::ECommitStatus PackageResultToCommitStatus(FSavePackageResultStruct& Result);
 
 	// General Package Data
 	UCookOnTheFlyServer& COTFS;
@@ -6342,50 +6346,44 @@ void FSaveCookedPackageContext::FinishPlatform()
 	bool bSuccessful = SavePackageResult.IsSuccessful();
 	ECookResult CookResult = bSuccessful ? ECookResult::Succeeded : ECookResult::Failed;
 
+	// Calculate up-to-date assetregistry data for Generator and Generated packages
+	TOptional<TArray<FAssetDependency>> OverridePackageDependencies;
+	TOptional<FAssetPackageData> AssetPackageDataBuffer;
+	TOptional<FAssetPackageData> OverrideAssetPackageData;
+	const FAssetPackageData* AssetPackageData = nullptr;
+	if (TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData.GetGenerationHelper();
+		GenerationHelper)
+	{
+		OverridePackageDependencies.Emplace();
+		GenerationHelper->FinishGeneratorPlatformSave(PackageData, PlatformIndex == 0, *OverridePackageDependencies);
+	}
+	else if (TRefCountPtr<FGenerationHelper> ParentGenerationHelper = PackageData.GetParentGenerationHelper();
+		ParentGenerationHelper)
+	{
+		OverridePackageDependencies.Emplace();
+		OverrideAssetPackageData.Emplace();
+		ParentGenerationHelper->FinishGeneratedPlatformSave(PackageData, *OverridePackageDependencies, *OverrideAssetPackageData);
+		AssetPackageData = OverrideAssetPackageData.GetPtrOrNull();
+	}
+	if (!AssetPackageData)
+	{
+		AssetPackageDataBuffer = COTFS.AssetRegistry->GetAssetPackageDataCopy(Package->GetFName());
+		AssetPackageData = AssetPackageDataBuffer.GetPtrOrNull();
+	}
+
+	// Commit the saved bytes and the iterative cook data to the PackageWriter
 	if (bPlatformSetupSuccessful)
 	{
 		CalculatePlatformAgnosticRuntimeDependencies();
 		CalculatePlatformRuntimeDependencies();
 
-		TOptional<FAssetPackageData> AssetPackageData = COTFS.AssetRegistry->GetAssetPackageDataCopy(Package->GetFName());
-
 		ICookedPackageWriter::FCommitPackageInfo Info;
-		if (COTFS.bHybridIterativeEnabled)
-		{
-			TArray<FName> PlatformDependencyNames;
-			PlatformDependencyNames.Reserve(PlatformDependencies[PlatformIndex].Num());
-			for (const TPair<FPackageData*, EInstigator>& DependencyPair : PlatformDependencies[PlatformIndex])
-			{
-				PlatformDependencyNames.Add(DependencyPair.Key->GetPackageName());
-			}
-			UE_SCOPED_HIERARCHICAL_COOKTIMER(TargetDomainDependencies);
-			UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, &SavePackageResult,
-				MoveTemp(PlatformDependencyNames), Info.Attachments);
-		}
-		if (bSuccessful)
-		{
-			Info.Status = IPackageWriter::ECommitStatus::Success;
-		}
-		else if (SavePackageResult.Result == ESavePackageResult::Timeout)
-		{
-			Info.Status = IPackageWriter::ECommitStatus::Canceled;
-		}
-		else
-		{
-			Info.Status = IPackageWriter::ECommitStatus::Error;
-		}
+		// Note GetCommitAttachments mutates the SaveResult; it moves CookDependencies out of it
+		Info.Attachments = GetCommitAttachments();
+		Info.Status = PackageResultToCommitStatus(SavePackageResult);
 		Info.PackageName = Package->GetFName();
 		Info.PackageHash = AssetPackageData ? AssetPackageData->GetPackageSavedHash() : FIoHash();
-		Info.WriteOptions = IPackageWriter::EWriteOptions::None;
-		if (!COTFS.bSkipSave)
-		{
-			Info.WriteOptions |= IPackageWriter::EWriteOptions::Write;
-
-			if (COTFS.IsDirectorCookByTheBook())
-			{
-				Info.WriteOptions |= IPackageWriter::EWriteOptions::ComputeHash;
-			}
-		}
+		Info.WriteOptions = GetCommitWriteOptions();
 
 		PackageWriter->CommitPackage(MoveTemp(Info));
 	}
@@ -6394,77 +6392,8 @@ void FSaveCookedPackageContext::FinishPlatform()
 	if (COTFS.IsDirectorCookByTheBook())
 	{
 		IAssetRegistryReporter& Reporter = *(COTFS.PlatformManager->GetPlatformData(TargetPlatform)->RegistryReporter);
-
-		// Calculate up-to-date dependencies for Generator and Generated packages
-		// For generated packages, additionally calculate FAssetPackageData; that struct is calculated
-		// during user saves for non-generated packages.
-		TOptional<TArray<FAssetDependency>> OverridePackageDependencies;
-		TOptional<FAssetPackageData> OverrideAssetPackageData;
-		FGenerationHelper* GenerationHelper;
-		if (GenerationHelper = PackageData.GetGenerationHelper(); GenerationHelper)
-		{
-			OverridePackageDependencies.Emplace();
-
-			// Set override dependencies equal to the global AssetRegistry dependencies plus a dependency on
-			// each generated package.
-			COTFS.AssetRegistry->GetDependencies(Package->GetFName(), *OverridePackageDependencies,
-				UE::AssetRegistry::EDependencyCategory::Package);
-			OverridePackageDependencies->Reserve(GenerationHelper->GetPackagesToGenerate().Num());
-			for (FCookGenerationInfo& GeneratedInfo : GenerationHelper->GetPackagesToGenerate())
-			{
-				FAssetDependency& Dependency = OverridePackageDependencies->Emplace_GetRef();
-				Dependency.AssetId = FAssetIdentifier(GeneratedInfo.PackageData->GetPackageName());
-				Dependency.Category = UE::AssetRegistry::EDependencyCategory::Package;
-				Dependency.Properties = UE::AssetRegistry::EDependencyProperty::Game;
-			}
-
-			if (PlatformIndex == 0)
-			{
-				GenerationHelper->FetchExternalActorDependencies();
-				COTFS.RecordExternalActorDependencies(GenerationHelper->GetExternalActorDependencies());
-			}
-		}
-		else if (GenerationHelper = PackageData.GetParentGenerationHelper(); GenerationHelper)
-		{
-			FCookGenerationInfo* GeneratedInfo = GenerationHelper->FindInfo(PackageData);
-			if (!GeneratedInfo)
-			{
-				UE_LOG(LogCook, Error, TEXT("GeneratedInfo missing for package %s."), *PackageData.GetPackageName().ToString());
-			}
-			else
-			{
-				// There should be no package dependencies present for the package from the global assetregistry
-				// because it is newly created. Add on the dependencies declared for it from the CookPackageSplitter.
-				OverridePackageDependencies.Emplace(GeneratedInfo->PackageDependencies);
-
-				// Update the AssetPackageData for each requested platform with Guid and ImportedClasses
-				TSet<UClass*> PackageClasses;
-				ForEachObjectWithPackage(Package, [&PackageClasses, this](UObject* Object)
-					{
-						UClass* Class = Object->GetClass();
-						if (!Class->IsInPackage(Package)) // Imported classes list does not include classes in the package
-						{
-							PackageClasses.Add(Object->GetClass());
-						}
-						return true;
-					});
-				TArray<FName> ImportedClasses;
-				ImportedClasses.Reserve(PackageClasses.Num());
-				for (UClass* Class : PackageClasses)
-				{
-					TStringBuilder<256> ClassPath;
-					Class->GetPathName(nullptr, ClassPath);
-					ImportedClasses.Add(FName(ClassPath));
-				}
-				ImportedClasses.Sort(FNameLexicalLess());
-
-				OverrideAssetPackageData.Emplace();
-				OverrideAssetPackageData->SetPackageSavedHash(GeneratedInfo->PackageHash);
-				OverrideAssetPackageData->ImportedClasses = ImportedClasses;
-			}
-		}
 		TOptional<TArray<FAssetData>> AssetDatasFromSave;
-		if (SavePackageResult.IsSuccessful())
+		if (bSuccessful)
 		{
 			AssetDatasFromSave.Emplace(MoveTemp(SavePackageResult.SavedAssets));
 		}
@@ -6694,6 +6623,44 @@ void FSaveCookedPackageContext::CalculatePlatformRuntimeDependencies()
 	}
 }
 
+TArray<FName> FSaveCookedPackageContext::GetPlatformRuntimeDependencies() const
+{
+	TArray<FName> PlatformDependencyNames;
+	PlatformDependencyNames.Reserve(PlatformDependencies[PlatformIndex].Num());
+	for (const TPair<FPackageData*, EInstigator>& DependencyPair : PlatformDependencies[PlatformIndex])
+	{
+		PlatformDependencyNames.Add(DependencyPair.Key->GetPackageName());
+	}
+	return PlatformDependencyNames;
+}
+
+TArray<IPackageWriter::FCommitAttachmentInfo> FSaveCookedPackageContext::GetCommitAttachments()
+{
+	TArray<IPackageWriter::FCommitAttachmentInfo> Result;
+	if (COTFS.bHybridIterativeEnabled)
+	{
+		UE_SCOPED_HIERARCHICAL_COOKTIMER(TargetDomainDependencies);
+		UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, &SavePackageResult,
+			GetPlatformRuntimeDependencies(), Result);
+	}
+	return Result;
+}
+
+IPackageWriter::EWriteOptions FSaveCookedPackageContext::GetCommitWriteOptions() const
+{
+	IPackageWriter::EWriteOptions Result = IPackageWriter::EWriteOptions::None;
+	if (!COTFS.bSkipSave)
+	{
+		Result |= IPackageWriter::EWriteOptions::Write;
+
+		if (COTFS.IsDirectorCookByTheBook())
+		{
+			Result |= IPackageWriter::EWriteOptions::ComputeHash;
+		}
+	}
+	return Result;
+}
+
 void FSaveCookedPackageContext::AddDependency(TMap<FPackageData*, EInstigator>& InDependencies,
 	FPackageData* PackageData, bool bHard)
 {
@@ -6705,6 +6672,23 @@ void FSaveCookedPackageContext::AddDependency(TMap<FPackageData*, EInstigator>& 
 	else if (Existing == EInstigator::Unspecified)
 	{
 		Existing = EInstigator::SoftDependency;
+	}
+}
+
+IPackageWriter::ECommitStatus FSaveCookedPackageContext::PackageResultToCommitStatus(
+	FSavePackageResultStruct& Result)
+{
+	if (Result.IsSuccessful())
+	{
+		return IPackageWriter::ECommitStatus::Success;
+	}
+	else if (Result.Result == ESavePackageResult::Timeout)
+	{
+		return IPackageWriter::ECommitStatus::Canceled;
+	}
+	else
+	{
+		return IPackageWriter::ECommitStatus::Error;
 	}
 }
 

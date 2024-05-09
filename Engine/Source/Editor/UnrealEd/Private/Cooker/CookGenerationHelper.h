@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
@@ -306,6 +307,20 @@ public:
 	/** Call CreatePackage and set package header data; or empty it and normalize it if it already exists. */
 	UPackage* TryCreateGeneratedPackage(FCookGenerationInfo& GenerationInfo, bool bResetToEmpty);
 	/**
+	 * Called when a generator package is in FSaveCookedPackageContext::FinishPlatformSave.
+	 * Calculates AssetRegistryData.
+	 */
+	void FinishGeneratorPlatformSave(FPackageData& PackageData, bool bFirstPlatform,
+		TArray<FAssetDependency>& OutPackageDependencies);
+	/**
+	 * Called when a generated package is in FSaveCookedPackageContext::FinishPlatformSave.
+	 * Calculates AssetRegistryData.
+	 */
+	void FinishGeneratedPlatformSave(FPackageData& PackageData,
+		TArray<FAssetDependency>& OutPackageDependencies,
+		FAssetPackageData& OutAssetPackageData);
+
+	/**
 	 * Clear any data that should only be held when an FPackageData is in the save state, for the given Info. The given
 	 * Info might specify the generator package or one of the generated packages.
 	 */
@@ -415,6 +430,7 @@ private:
 
 private:
 	void ConditionalInitialize() const;
+	FCookGenerationInfo* FindInfoNoInitialize(const FPackageData& PackageData);
 	void NotifyCompletion(ICookPackageSplitter::ETeardown Status);
 	void PreGarbageCollectGCLifetimeData();
 	void PostGarbageCollectGCLifetimeData();

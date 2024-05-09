@@ -169,8 +169,14 @@ public:
 
 	// FTickableEditorObject interface
 	virtual void Tick(float DeltaTime) override;
-	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
-	virtual TStatId GetStatId() const override { return TStatId(); }
+	virtual ETickableTickType GetTickableTickType() const override
+	{
+		return ETickableTickType::Always;
+	}
+	virtual TStatId GetStatId() const override
+	{
+		return TStatId();
+	}
 
 	// IPackageDigestCache interface
 	virtual UE::EditorDomain::FPackageDigest GetPackageDigest(FName PackageDigest) override;
@@ -178,8 +184,8 @@ public:
 	// EditorDomain interface
 	/** Fetch data from game-thread sources that is required to calculate the PackageDigest of the given PackageName. */
 	void PrecachePackageDigest(FName PackageName);
-	bool IsReadingPackages() const { return bEditorDomainReadEnabled; }
-	bool IsWritingPackages() const { return bEditorDomainWriteEnabled; }
+	bool IsReadingPackages() const;
+	bool IsWritingPackages() const;
 
 	/** Request the download of the given packages from the upstream DDC server. */
 	void BatchDownload(TArrayView<FName> PackageNames);
@@ -288,3 +294,18 @@ private:
 	friend class FEditorDomainReadArchive;
 	friend class FEditorDomainAsyncReadFileHandle;
 };
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+inline bool FEditorDomain::IsReadingPackages() const
+{
+	return bEditorDomainReadEnabled;
+}
+
+inline bool FEditorDomain::IsWritingPackages() const
+{
+	return bEditorDomainWriteEnabled;
+}

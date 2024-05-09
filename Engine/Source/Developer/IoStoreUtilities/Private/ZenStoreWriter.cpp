@@ -1226,6 +1226,11 @@ void FZenStoreWriter::UpdatePackageModificationStatus(FName PackageName, bool bI
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FZenStoreWriter::UpdatePackageModificationStatus);
 
+	if (!bIterativelyUnmodified)
+	{
+		return;
+	}
+
 	IPackageStoreWriter::FMarkUpToDateEventArgs MarkUpToDateEventArgs;
 
 	{

@@ -464,7 +464,11 @@ void FGenerationHelper::ClearSelfReferences()
 FCookGenerationInfo* FGenerationHelper::FindInfo(const FPackageData& PackageData)
 {
 	ConditionalInitialize();
+	return FindInfoNoInitialize(PackageData);
+}
 
+FCookGenerationInfo* FGenerationHelper::FindInfoNoInitialize(const FPackageData& PackageData)
+{
 	if (&PackageData == &GetOwner())
 	{
 		return &OwnerInfo;
@@ -878,7 +882,7 @@ void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 			}
 		}
 
-		if (NumIterativePrevious > 0 && !bHybridIterativeEnabled)
+		if (!bHybridIterativeEnabled)
 		{
 			UE_LOG(LogCook, Display, TEXT("Found %d cooked package(s) in package store for generator package %s."),
 				NumIterativePrevious, *WriteToString<256>(GetOwner().GetPackageName()));
@@ -1005,6 +1009,80 @@ UPackage* FGenerationHelper::TryCreateGeneratedPackage(FCookGenerationInfo& Gene
 	GeneratedInfo.SetHasCreatedPackage(true);
 
 	return GeneratedPackage;
+}
+
+void FGenerationHelper::FinishGeneratorPlatformSave(FPackageData& PackageData, bool bFirstPlatform,
+	TArray<FAssetDependency>& OutPackageDependencies)
+{
+	ConditionalInitialize();
+
+	FCookGenerationInfo* Info = &GetOwnerInfo();
+	UCookOnTheFlyServer& COTFS = Info->PackageData->GetPackageDatas().GetCookOnTheFlyServer();
+
+	// Set dependencies equal to the global AssetRegistry dependencies plus a dependency on
+	// each generated package.
+	COTFS.AssetRegistry->GetDependencies(PackageData.GetPackageName(), OutPackageDependencies,
+		UE::AssetRegistry::EDependencyCategory::Package);
+	OutPackageDependencies.Reserve(PackagesToGenerate.Num());
+	for (FCookGenerationInfo& GeneratedInfo : GetPackagesToGenerate())
+	{
+		FAssetDependency& Dependency = OutPackageDependencies.Emplace_GetRef();
+		Dependency.AssetId = FAssetIdentifier(PackageData.GetPackageName());
+		Dependency.Category = UE::AssetRegistry::EDependencyCategory::Package;
+		Dependency.Properties = UE::AssetRegistry::EDependencyProperty::Game;
+	}
+
+	if (bFirstPlatform)
+	{
+		FetchExternalActorDependencies();
+		COTFS.RecordExternalActorDependencies(GetExternalActorDependencies());
+	}
+}
+
+void FGenerationHelper::FinishGeneratedPlatformSave(FPackageData& PackageData,
+	TArray<FAssetDependency>& OutPackageDependencies,
+	FAssetPackageData& OutAssetPackageData)
+{
+	ConditionalInitialize();
+
+	FCookGenerationInfo* Info = FindInfo(PackageData);
+	if (!Info)
+	{
+		UE_LOG(LogCook, Error, TEXT("GeneratedInfo missing for package %s."),
+			*PackageData.GetPackageName().ToString());
+		return;
+	}
+	UCookOnTheFlyServer& COTFS = Info->PackageData->GetPackageDatas().GetCookOnTheFlyServer();
+
+	// There should be no package dependencies present for the package from the global assetregistry
+	// because it is newly created. Add on the dependencies declared for it from the CookPackageSplitter.
+	OutPackageDependencies = Info->PackageDependencies;
+
+	// Update the AssetPackageData for each requested platform with Guid and ImportedClasses
+	TSet<UClass*> PackageClasses;
+	UPackage* Package = PackageData.GetPackage();
+	check(Package);
+	ForEachObjectWithPackage(Package, [&PackageClasses, Package](UObject* Object)
+		{
+			UClass* Class = Object->GetClass();
+			if (!Class->IsInPackage(Package)) // Imported classes list does not include classes in the package
+			{
+				PackageClasses.Add(Object->GetClass());
+			}
+			return true;
+		});
+	TArray<FName> ImportedClasses;
+	ImportedClasses.Reserve(PackageClasses.Num());
+	for (UClass* Class : PackageClasses)
+	{
+		TStringBuilder<256> ClassPath;
+		Class->GetPathName(nullptr, ClassPath);
+		ImportedClasses.Add(FName(ClassPath));
+	}
+	ImportedClasses.Sort(FNameLexicalLess());
+
+	OutAssetPackageData.SetPackageSavedHash(Info->PackageHash);
+	OutAssetPackageData.ImportedClasses = MoveTemp(ImportedClasses);
 }
 
 void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package,
@@ -1330,7 +1408,7 @@ void FGenerationHelper::TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer&
 	}
 	else
 	{
-		if (!FindInfo(PackageData))
+		if (!FindInfoNoInitialize(PackageData))
 		{
 			bool bGenerator = false; // Cannot be the generator, if it were we would have found it
 			PackagesToGenerate.Emplace(PackageData, bGenerator);
@@ -1341,7 +1419,7 @@ void FGenerationHelper::TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer&
 void FGenerationHelper::MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
 	FWorkerId SourceWorkerId)
 {
-	FCookGenerationInfo* Info = FindInfo(PackageData);
+	FCookGenerationInfo* Info = FindInfoNoInitialize(PackageData);
 	if (Info)
 	{
 		Info->SetHasSaved(*this, true, SourceWorkerId);

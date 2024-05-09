@@ -5,6 +5,7 @@
 #include "Async/Future.h"
 #include "CompactBinaryTCP.h"
 #include "Containers/Array.h"
+#include "Containers/ArrayView.h"
 #include "Cooker/CookTypes.h"
 #include "Cooker/MPCollector.h"
 #include "HAL/CriticalSection.h"
@@ -30,14 +31,14 @@ public:
 	struct FPlatformResult
 	{
 	public:
-		const ITargetPlatform* GetPlatform() const { return Platform; }
-		void SetPlatform(const ITargetPlatform* InPlatform) { Platform = InPlatform; }
+		const ITargetPlatform* GetPlatform() const;
+		void SetPlatform(const ITargetPlatform* InPlatform);
 
-		TConstArrayView<UE::CompactBinaryTCP::FMarshalledMessage> GetMessages() const { return Messages; }
+		TConstArrayView<UE::CompactBinaryTCP::FMarshalledMessage> GetMessages() const;
 		TArray<UE::CompactBinaryTCP::FMarshalledMessage> ReleaseMessages();
 
-		ECookResult GetCookResults() const { return CookResults; }
-		void SetCookResults(ECookResult Value) { CookResults = Value; }
+		ECookResult GetCookResults() const;
+		void SetCookResults(ECookResult Value);
 
 	private:
 		TArray<UE::CompactBinaryTCP::FMarshalledMessage> Messages;
@@ -54,14 +55,14 @@ public:
 	FPackageRemoteResult& operator=(FPackageRemoteResult&&) = default;
 	FPackageRemoteResult& operator=(const FPackageRemoteResult&) = delete;
 
-	FName GetPackageName() const { return PackageName; }
-	void SetPackageName(FName InPackageName) { PackageName = InPackageName; }
+	FName GetPackageName() const;
+	void SetPackageName(FName InPackageName);
 
-	ESuppressCookReason GetSuppressCookReason() const { return SuppressCookReason; }
-	void SetSuppressCookReason(ESuppressCookReason InSuppressCookReason) { SuppressCookReason = InSuppressCookReason; }
+	ESuppressCookReason GetSuppressCookReason() const;
+	void SetSuppressCookReason(ESuppressCookReason InSuppressCookReason);
 
-	bool IsReferencedOnlyByEditorOnlyData() const { return bReferencedOnlyByEditorOnlyData; }
-	void SetReferencedOnlyByEditorOnlyData(bool bInReferencedOnlyByEditorOnlyData) { bReferencedOnlyByEditorOnlyData = bInReferencedOnlyByEditorOnlyData; }
+	bool IsReferencedOnlyByEditorOnlyData() const;
+	void SetReferencedOnlyByEditorOnlyData(bool bInReferencedOnlyByEditorOnlyData);
 
 	void AddPackageMessage(const FGuid& MessageType, FCbObject&& Object);
 	void AddAsyncPackageMessage(const FGuid& MessageType, TFuture<FCbObject>&& ObjectFuture);
@@ -69,23 +70,23 @@ public:
 	void AddAsyncPlatformMessage(const ITargetPlatform* TargetPlatform, const FGuid& MessageType, TFuture<FCbObject>&& ObjectFuture);
 
 	// GetMessages and ReleaseMessages are not thread-safe until IsComplete returns true or GetCompletionFuture().Get()/.Next().
-	TConstArrayView<UE::CompactBinaryTCP::FMarshalledMessage> GetMessages() const { return Messages; }
+	TConstArrayView<UE::CompactBinaryTCP::FMarshalledMessage> GetMessages() const;
 	TArray<UE::CompactBinaryTCP::FMarshalledMessage> ReleaseMessages();
 
 	bool IsComplete();
 	TFuture<int> GetCompletionFuture();
 
-	TArray<FPlatformResult, TInlineAllocator<1>>& GetPlatforms() { return Platforms; }
+	TArray<FPlatformResult, TInlineAllocator<1>>& GetPlatforms();
 	void SetPlatforms(TConstArrayView<ITargetPlatform*> OrderedSessionPlatforms);
 
-	void SetExternalActorDependencies(TArray<FName>&& InExternalActorDependencies) { ExternalActorDependencies = MoveTemp(InExternalActorDependencies); }
-	TConstArrayView<FName> GetExternalActorDependencies() const { return ExternalActorDependencies; }
+	void SetExternalActorDependencies(TArray<FName>&& InExternalActorDependencies);
+	TConstArrayView<FName> GetExternalActorDependencies() const;
 
 	/**
 	 * A non-atomic RefCount that can be used for storage of a refcount by the user (e.g. CookWorkerClient)
 	 * If used from multiple threads, the user must access it only within the user's external critical section.
 	 */
-	int32& GetUserRefCount() { return UserRefCount; }
+	int32& GetUserRefCount();
 
 private:
 	/** A TFuture and status data that was received from an asynchronous IMPCollector. */
@@ -147,8 +148,11 @@ struct FPackageResultsMessage : public IMPCollectorMessage
 public:
 	virtual void Write(FCbWriter& Writer) const override;
 	virtual bool TryRead(FCbObjectView Object) override;
-	virtual FGuid GetMessageType() const override { return MessageType; }
-	virtual const TCHAR* GetDebugName() const override { return TEXT("PackageResultsMessage"); }
+	virtual FGuid GetMessageType() const override;
+	virtual const TCHAR* GetDebugName() const override
+	{
+		return TEXT("PackageResultsMessage");
+	}
 
 public:
 	TArray<FPackageRemoteResult> Results;
@@ -161,5 +165,96 @@ private:
 	static bool TryReadMessagesArray(FCbObjectView ObjectWithMessageField,
 		TArray<UE::CompactBinaryTCP::FMarshalledMessage>& InMessages);
 };
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+inline const ITargetPlatform* FPackageRemoteResult::FPlatformResult::GetPlatform() const
+{
+	return Platform;
+}
+
+inline void FPackageRemoteResult::FPlatformResult::SetPlatform(const ITargetPlatform* InPlatform)
+{
+	Platform = InPlatform;
+}
+
+inline TConstArrayView<UE::CompactBinaryTCP::FMarshalledMessage>
+FPackageRemoteResult::FPlatformResult::GetMessages() const
+{
+	return Messages;
+}
+
+inline ECookResult FPackageRemoteResult::FPlatformResult::GetCookResults() const
+{
+	return CookResults;
+}
+
+inline void FPackageRemoteResult::FPlatformResult::SetCookResults(ECookResult Value)
+{
+	CookResults = Value;
+}
+
+inline FName FPackageRemoteResult::GetPackageName() const
+{
+	return PackageName;
+}
+
+inline void FPackageRemoteResult::SetPackageName(FName InPackageName)
+{
+	PackageName = InPackageName;
+}
+
+inline ESuppressCookReason FPackageRemoteResult::GetSuppressCookReason() const
+{
+	return SuppressCookReason;
+}
+
+inline void FPackageRemoteResult::SetSuppressCookReason(ESuppressCookReason InSuppressCookReason)
+{
+	SuppressCookReason = InSuppressCookReason;
+}
+
+inline bool FPackageRemoteResult::IsReferencedOnlyByEditorOnlyData() const
+{
+	return bReferencedOnlyByEditorOnlyData;
+}
+
+inline void FPackageRemoteResult::SetReferencedOnlyByEditorOnlyData(bool bInReferencedOnlyByEditorOnlyData)
+{
+	bReferencedOnlyByEditorOnlyData = bInReferencedOnlyByEditorOnlyData;
+}
+
+inline TConstArrayView<UE::CompactBinaryTCP::FMarshalledMessage> FPackageRemoteResult::GetMessages() const
+{
+	return Messages;
+}
+
+inline TArray<FPackageRemoteResult::FPlatformResult, TInlineAllocator<1>>& FPackageRemoteResult::GetPlatforms()
+{
+	return Platforms;
+}
+
+inline void FPackageRemoteResult::SetExternalActorDependencies(TArray<FName>&& InExternalActorDependencies)
+{
+	ExternalActorDependencies = MoveTemp(InExternalActorDependencies);
+}
+
+inline TConstArrayView<FName> FPackageRemoteResult::GetExternalActorDependencies() const
+{
+	return ExternalActorDependencies;
+}
+
+inline int32& FPackageRemoteResult::GetUserRefCount()
+{
+	return UserRefCount;
+}
+
+inline FGuid FPackageResultsMessage::GetMessageType() const
+{
+	return MessageType;
+}
 
 }
