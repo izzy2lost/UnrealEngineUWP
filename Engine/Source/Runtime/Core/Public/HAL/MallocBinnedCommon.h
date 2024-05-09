@@ -89,6 +89,8 @@ public:
 	uint32 NextAllocBit(uint32 StartIndex) const;
 	void FreeBit(uint32 Index);
 	uint32 CountOnes(uint32 UpTo) const;
+
+	uint32 Slow_NextAllocBits(uint32 NumBits, uint64 StartIndex); // Warning, slow! NumBits must be a power of two or a multiple of 64.
 };
 
 struct FSizeTableEntry
