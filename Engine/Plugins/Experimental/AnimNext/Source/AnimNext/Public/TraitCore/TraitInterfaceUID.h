@@ -39,7 +39,7 @@ namespace UE::AnimNext
 		{
 		}
 
-#if !UE_BUILD_SHIPPING
+#if !UE_BUILD_SHIPPING || WITH_EDITOR
 		// Returns a literal string to the interface name
 		constexpr const TCHAR* GetInterfaceName() const { return InterfaceName; }
 		constexpr const TCHAR* GetInterfaceShortName() const { return InterfaceShortName; }
@@ -56,7 +56,7 @@ namespace UE::AnimNext
 
 		FTraitInterfaceUIDRaw		UID;
 
-#if !UE_BUILD_SHIPPING
+#if !UE_BUILD_SHIPPING || WITH_EDITOR
 		const TCHAR*				InterfaceName = nullptr;
 		const TCHAR*				InterfaceShortName = nullptr;
 #endif

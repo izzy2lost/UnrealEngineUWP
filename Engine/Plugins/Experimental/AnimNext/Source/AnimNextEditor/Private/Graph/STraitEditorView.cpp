@@ -610,7 +610,8 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 									{
 										if (!FTraitEditorUtils::IsInternalTraitInteface(TraitInterface))
 										{
-											if (int32 Index = StackUsedInterfaces.Find(TraitInterface) != INDEX_NONE)
+											int32 Index = StackUsedInterfaces.Find(TraitInterface);
+											if (Index != INDEX_NONE)
 											{
 												StackUsedInterfacesNumHits[Index]++;
 											}
@@ -626,7 +627,8 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 									{
 										if (!FTraitEditorUtils::IsInternalTraitInteface(TraitInterface))
 										{
-											if (int32 Index = StackUsedInterfaces.Find(TraitInterface) != INDEX_NONE)
+											int32 Index = StackUsedInterfaces.Find(TraitInterface);
+											if (Index != INDEX_NONE)
 											{
 												StackUsedInterfacesNumHits[Index]++;
 											}

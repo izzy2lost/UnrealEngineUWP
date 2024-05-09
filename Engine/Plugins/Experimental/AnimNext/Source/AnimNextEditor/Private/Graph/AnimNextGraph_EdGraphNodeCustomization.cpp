@@ -34,7 +34,7 @@ void FAnimNextGraph_EdGraphNodeCustomization::PendingDelete()
 		{
 			if (TSharedPtr<STraitEditorView> TraitEditorView = StaticCastSharedPtr<STraitEditorView>(DockTab->GetContent().ToSharedPtr()))
 			{
-				TraitEditorView->SetTraitData(FTraitStackData(nullptr));
+				TraitEditorView->SetTraitData(FTraitStackData());
 			}
 		}
 	}
@@ -87,7 +87,7 @@ void FAnimNextGraph_EdGraphNodeCustomization::CustomizeObjects(IDetailLayoutBuil
 				{
 					if (TSharedPtr<STraitEditorView> TraitEditorView = StaticCastSharedPtr<STraitEditorView>(DockTab->GetContent().ToSharedPtr()))
 					{
-						TraitEditorView->SetTraitData(EdGraphNode->IsTraitStack() ? FTraitStackData(EdGraphNode) : FTraitStackData(nullptr));
+						TraitEditorView->SetTraitData(EdGraphNode->IsTraitStack() ? FTraitStackData(EdGraphNode) : FTraitStackData());
 					}
 				}
 			}

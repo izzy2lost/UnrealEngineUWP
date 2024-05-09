@@ -36,6 +36,11 @@ namespace UE::AnimNext::Editor
 
 struct FTraitStackData
 {
+	FTraitStackData() = default;
+	explicit FTraitStackData(const TWeakObjectPtr<UAnimNextGraph_EdGraphNode>& InEdGraphNodeWeak)
+		: EdGraphNodeWeak(InEdGraphNodeWeak)
+	{}
+
 	TWeakObjectPtr<UAnimNextGraph_EdGraphNode> EdGraphNodeWeak = nullptr;
 };
 
