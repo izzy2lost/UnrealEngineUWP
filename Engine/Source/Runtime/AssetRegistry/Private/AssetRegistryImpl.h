@@ -663,6 +663,7 @@ struct FEventContext
 	bool bFileLoadedEventBroadcast = false;
 	bool bScanStartedEventBroadcast = false;
 	bool bScanEndedEventBroadcast = false;
+	bool bHasSentFileLoadedEventBroadcast = false;
 
 	/** Remove all stored events */
 	void Clear();
