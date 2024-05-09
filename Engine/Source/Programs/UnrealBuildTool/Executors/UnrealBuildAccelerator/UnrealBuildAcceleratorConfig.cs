@@ -248,5 +248,12 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "CacheMaxWorkers")]
 		[CommandLine("-UBACacheMaxWorkers")]
 		public int CacheMaxWorkers { get; set; } = 32;
+
+		/// <summary>
+		/// Report reason a cache miss happened. Useful when searching for determinism/portability issues
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "ReportCacheMissReason")]
+		[CommandLine("-UBAReportCacheMissReason")]
+		public bool bReportCacheMissReason { get; set; }
 	}
 }

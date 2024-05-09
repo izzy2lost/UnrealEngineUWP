@@ -65,10 +65,11 @@ namespace EpicGames.UBA
 		/// Create a ICacheClient object
 		/// </summary>
 		/// <param name="session">The session</param>
+		/// <param name="reportMissReason">Output reason for cache miss to log.</param>
 		/// <returns>The ICacheClient</returns>
-		public static ICacheClient CreateCacheClient(ISessionServer session)
+		public static ICacheClient CreateCacheClient(ISessionServer session, bool reportMissReason)
 		{
-			return new CacheClientImpl(session);
+			return new CacheClientImpl(session, reportMissReason);
 		}
 	}
 }
