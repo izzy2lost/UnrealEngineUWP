@@ -432,15 +432,15 @@ UDMMaterialLayerObject* UDMMaterialSlot::AddDefaultLayer(EDMMaterialPropertyType
 	UDMMaterialLayerObject* NewLayer = UDMMaterialLayerObject::CreateLayer(this, InMaterialProperty, {});
 	LayerObjects.Add(NewLayer);
 
+	if (IsComponentAdded())
+	{
+		NewLayer->SetComponentState(EDMComponentLifetimeState::Added);
+	}
+
 	{
 		const FDMUpdateGuard Guard;
 		Property->AddDefaultBaseStage(NewLayer);
 		Property->AddDefaultMaskStage(NewLayer);
-	}	
-
-	if (IsComponentAdded())
-	{
-		NewLayer->SetComponentState(EDMComponentLifetimeState::Added);
 	}
 
 	UpdateOutputConnectorTypes();
@@ -477,14 +477,14 @@ UDMMaterialLayerObject* UDMMaterialSlot::AddLayer(EDMMaterialPropertyType InMate
 	UDMMaterialLayerObject* NewLayer = UDMMaterialLayerObject::CreateLayer(this, InMaterialProperty, {InNewBase});
 	LayerObjects.Add(NewLayer);
 
-	{
-		const FDMUpdateGuard Guard;
-		Property->AddDefaultMaskStage(NewLayer);
-	}
-
 	if (IsComponentAdded())
 	{
 		NewLayer->SetComponentState(EDMComponentLifetimeState::Added);
+	}
+
+	{
+		const FDMUpdateGuard Guard;
+		Property->AddDefaultMaskStage(NewLayer);
 	}
 
 	UpdateOutputConnectorTypes();
