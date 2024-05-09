@@ -161,8 +161,9 @@ namespace Metasound
 		/**
 		 * Update any watched outputs
 		 */
-		void UpdateOutputWatchers();
-
+		UE_DEPRECATED(5.5, "Directly calling UpdateOutputWatchers() is no longer necessary.")
+		void UpdateOutputWatchers() const {}
+		
 		/**
 		 * Map a type name to a passthrough analyzer name to use as a default for UMetasoundOutputSubsystem::WatchOutput()
 		 *
@@ -220,6 +221,8 @@ namespace Metasound
 			const FWatchOutputUnifiedDelegate& OnOutputValueChanged,
 			FName AnalyzerName = NAME_None,
 			FName AnalyzerOutputName = NAME_None);
+
+		void UpdateOutputWatchersInternal();
 
 		bool TryCreateAnalyzerAddress(
 			const FName OutputName,
@@ -395,6 +398,8 @@ namespace Metasound
 		std::atomic<int32> ChangedOutputsQueueCount{ 0 };
 		std::atomic<bool> ChangedOutputsQueueShouldLogIfFull{ true };
 
+		std::atomic_flag OutputWatcherUpdateScheduled = ATOMIC_FLAG_INIT;
+
 		bool bRuntimeRenderTimingShouldBeEnabled{ false };
 	};
 }
@@ -499,6 +504,7 @@ public:
 	/**
 	 * Update any watched outputs
 	 */
+	UE_DEPRECATED(5.5, "Directly calling UpdateWatchers() is no longer necessary.")
 	UFUNCTION(BlueprintCallable, Category="MetaSoundOutput")
 	void UpdateWatchers() const;
 

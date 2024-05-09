@@ -2,12 +2,13 @@
 
 #include "MetasoundOutputSubsystem.h"
 
-#include "MetasoundGenerator.h"
-#include "MetasoundGeneratorHandle.h"
-#include "MetasoundSource.h"
 #include "MetasoundTrace.h"
 #include "Components/AudioComponent.h"
-#include "ProfilingDebugging/CpuProfilerTrace.h"
+
+bool HandleIsValid(const TSharedPtr<Metasound::FMetasoundGeneratorHandle>& Handle)
+{
+	return Handle.IsValid() && Handle->IsValid();
+}
 
 bool UMetaSoundOutputSubsystem::WatchOutput(
 	UAudioComponent* AudioComponent,
@@ -18,9 +19,9 @@ bool UMetaSoundOutputSubsystem::WatchOutput(
 {
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundOutputSubsystem::WatchOutput_Dynamic);
 
-	UMetasoundGeneratorHandle* Handle = GetOrCreateGeneratorHandle(AudioComponent);
+	const TSharedPtr<Metasound::FMetasoundGeneratorHandle> Handle = GetOrCreateGeneratorHandle(AudioComponent);
 
-	if (nullptr == Handle)
+	if (!HandleIsValid(Handle))
 	{
 		return false;
 	}
@@ -37,9 +38,9 @@ bool UMetaSoundOutputSubsystem::WatchOutput(
 {
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundOutputSubsystem::WatchOutput_Native);
 
-	UMetasoundGeneratorHandle* Handle = GetOrCreateGeneratorHandle(AudioComponent);
+	const TSharedPtr<Metasound::FMetasoundGeneratorHandle> Handle = GetOrCreateGeneratorHandle(AudioComponent);
 
-	if (nullptr == Handle)
+	if (!HandleIsValid(Handle))
 	{
 		return false;
 	}
@@ -47,62 +48,51 @@ bool UMetaSoundOutputSubsystem::WatchOutput(
 	return Handle->WatchOutput(OutputName, OnOutputValueChanged, AnalyzerName, AnalyzerOutputName);
 }
 
-bool UMetaSoundOutputSubsystem::IsTickable() const
+TSharedPtr<Metasound::FMetasoundGeneratorHandle> UMetaSoundOutputSubsystem::GetOrCreateGeneratorHandle(UAudioComponent* AudioComponent)
 {
-	return TrackedGenerators.Num() > 0;
-}
-
-void UMetaSoundOutputSubsystem::Tick(float DeltaTime)
-{
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundOutputSubsystem::Tick);
-
-	for (auto It = TrackedGenerators.CreateIterator(); It; ++It)
-	{
-		if (!(*It)->IsValid())
-		{
-			It.RemoveCurrent();
-		}
-		else
-		{
-			(*It)->UpdateWatchers();
-		}
-	}
-}
-
-TStatId UMetaSoundOutputSubsystem::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(UMetasoundGeneratorAccessSubsystem, STATGROUP_Tickables);
-}
-
-UMetasoundGeneratorHandle* UMetaSoundOutputSubsystem::GetOrCreateGeneratorHandle(UAudioComponent* AudioComponent)
-{
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundOutputSubsystem::GetOrCreateGeneratorHandle);
+	
+	check(IsInGameThread());
+	
+	CleanUpInvalidGeneratorHandles();
+	
 	if (nullptr == AudioComponent)
 	{
 		return nullptr;
 	}
 
-	UMetasoundGeneratorHandle* Handle = nullptr;
-
 	// Try to find an existing handle
 	const uint64 AudioComponentId = AudioComponent->GetAudioComponentID();
-	if (const TObjectPtr<UMetasoundGeneratorHandle>* FoundHandle = TrackedGenerators.FindByPredicate(
-		[AudioComponentId](const TObjectPtr<UMetasoundGeneratorHandle> ExistingHandle)
+	
+	if (const TSharedPtr<Metasound::FMetasoundGeneratorHandle>* FoundHandle = TrackedGenerators.FindByPredicate(
+		[AudioComponentId](const TSharedPtr<Metasound::FMetasoundGeneratorHandle>& ExistingHandle)
 		{
-			return ExistingHandle->IsValid() && ExistingHandle->GetAudioComponentId() == AudioComponentId;
+			return HandleIsValid(ExistingHandle) && ExistingHandle->GetAudioComponentId() == AudioComponentId;
 		}))
 	{
-		Handle = *FoundHandle;
+		return *FoundHandle;
 	}
+	
 	// Create a new one
-	else
 	{
-		Handle = UMetasoundGeneratorHandle::CreateMetaSoundGeneratorHandle(AudioComponent);
+		const TSharedPtr<Metasound::FMetasoundGeneratorHandle> Handle = Metasound::FMetasoundGeneratorHandle::Create(AudioComponent);
 
-		if (nullptr != Handle && Handle->IsValid())
+		if (HandleIsValid(Handle))
 		{
 			TrackedGenerators.Add(Handle);
+			return Handle;
 		}
 	}
 
-	return Handle;
+	return nullptr;
+}
+
+void UMetaSoundOutputSubsystem::CleanUpInvalidGeneratorHandles()
+{
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundOutputSubsystem::CleanUpInvalidGeneratorHandles);
+
+	TrackedGenerators.RemoveAll([](const TSharedPtr<Metasound::FMetasoundGeneratorHandle>& Handle)
+	{
+		return !HandleIsValid(Handle);
+	});
 }

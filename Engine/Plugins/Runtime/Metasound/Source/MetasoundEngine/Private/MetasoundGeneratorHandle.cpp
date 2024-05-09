@@ -177,35 +177,6 @@ namespace Metasound
 		return UnwatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
 	}
 
-	void FMetasoundGeneratorHandle::UpdateOutputWatchers()
-	{
-		METASOUND_LLM_SCOPE;
-		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::UpdateOutputWatchers);
-
-		check(IsInGameThread());
-
-		int32 NumDequeued = 0;
-
-		while (TOptional<FOutputPayload> ChangedOutput = ChangedOutputs.Dequeue())
-		{
-			const FOutputWatcherKey WatcherKey
-			{
-				ChangedOutput->OutputName,
-				ChangedOutput->AnalyzerName,
-				ChangedOutput->OutputValue.Name
-			};
-
-			if (const FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
-			{
-				Watcher->OnOutputValueChanged.Broadcast(ChangedOutput->OutputName, ChangedOutput->OutputValue);
-			}
-
-			++NumDequeued;
-		}
-
-		ChangedOutputsQueueCount.store(FMath::Max(0, ChangedOutputsQueueCount.load() - NumDequeued));
-	}
-
 	void FMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
 		const FName TypeName,
 		const FName AnalyzerName,
@@ -421,6 +392,38 @@ namespace Metasound
 		FixUpOutputWatchers();
 
 		return true;
+	}
+
+	void FMetasoundGeneratorHandle::UpdateOutputWatchersInternal()
+	{
+		METASOUND_LLM_SCOPE;
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::UpdateOutputWatchersInternal);
+
+		check(IsInGameThread());
+
+		// Clear the flag *before* we drain the queue, so we don't leave any output updates behind.
+		OutputWatcherUpdateScheduled.clear();
+
+		int32 NumDequeued = 0;
+
+		while (TOptional<FOutputPayload> ChangedOutput = ChangedOutputs.Dequeue())
+		{
+			const FOutputWatcherKey WatcherKey
+			{
+				ChangedOutput->OutputName,
+				ChangedOutput->AnalyzerName,
+				ChangedOutput->OutputValue.Name
+			};
+
+			if (const FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
+			{
+				Watcher->OnOutputValueChanged.Broadcast(ChangedOutput->OutputName, ChangedOutput->OutputValue);
+			}
+
+			++NumDequeued;
+		}
+
+		ChangedOutputsQueueCount.store(FMath::Max(0, ChangedOutputsQueueCount.load() - NumDequeued));
 	}
 
 	bool FMetasoundGeneratorHandle::TryCreateAnalyzerAddress(
@@ -690,6 +693,19 @@ namespace Metasound
 		
 		ChangedOutputs.Enqueue(AnalyzerName, OutputName, AnalyzerOutputName, OutputData);
 		ChangedOutputsQueueCount.fetch_add(1);
+
+		// Drain the queue on the game thread, but don't bother if it's already been scheduled
+		if (!OutputWatcherUpdateScheduled.test_and_set())
+		{
+			// Defer to the game thread. We grab a weak pointer in case this gets destroyed while we wait.
+			AsyncTask(ENamedThreads::GameThread, [WeakThis = AsWeak()]()
+			{
+				if (const TSharedPtr<FMetasoundGeneratorHandle> PinnedThis = WeakThis.Pin())
+				{
+					PinnedThis->UpdateOutputWatchersInternal();
+				}
+			});
+		}
 	}
 }
 
@@ -802,13 +818,7 @@ void UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
 
 void UMetasoundGeneratorHandle::UpdateWatchers() const
 {
-	METASOUND_LLM_SCOPE;
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundGeneratorHandle::UpdateWatchers);
-
-	if (IsValid())
-	{
-		GeneratorHandle->UpdateOutputWatchers();
-	}
+	// Do nothing. No longer necessary.
 }
 
 void UMetasoundGeneratorHandle::EnableRuntimeRenderTiming(const bool Enable) const
