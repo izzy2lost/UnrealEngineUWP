@@ -81,12 +81,12 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 
 		UNSYNC_VERBOSE2(L"Download batches: %lld", Batches.size());
 
-		FTaskGroup DownloadTasks;
+		FTaskGroup DownloadTasks = GScheduler->CreateTaskGroup();
 		std::mutex DownloadedBlocksMutex;
 
 		for (FDownloadBatch Batch : Batches)
 		{
-			GScheduler.DownloadSempahore.Acquire();
+			GScheduler->NetworkSempahore.Acquire();
 			DownloadTasks.run(
 				[NeedBlocks,
 				 Batch,
@@ -101,7 +101,7 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 				{
 					if (bGotError)
 					{
-						GScheduler.DownloadSempahore.Release();
+						GScheduler->NetworkSempahore.Release();
 						return;
 					}
 
@@ -137,7 +137,7 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 							ProxyPool.Invalidate();
 						}
 					}
-					GScheduler.DownloadSempahore.Release();
+					GScheduler->NetworkSempahore.Release();
 				});
 		}
 
@@ -196,7 +196,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 	};
 	FStats Stats;
 
-	FTaskGroup WriteTasks;
+	FTaskGroup WriteTasks = GScheduler->CreateTaskGroup();
 
 	// Remember if parent thread has verbose logging and indentation
 	const bool	 bAllowVerboseLog = GLogVerbose;
@@ -331,7 +331,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 																													 uint64	   CmdReadSize,
 																													 uint64	   CmdUserData)
 			{
-				GScheduler.FilesystemSemaphore.Acquire();
+				GScheduler->FilesystemSemaphore.Acquire();
 				WriteTasks.run(
 					[Buffer = MakeShared(std::move(CmdBuffer)), CmdReadSize, Block, &Output, &Error, &Stats, ListType]()
 					{
@@ -350,7 +350,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 							UNSYNC_FATAL(L"Unexpected block list type");
 						}
 
-						GScheduler.FilesystemSemaphore.Release();
+						GScheduler->FilesystemSemaphore.Release();
 
 						if (WrittenBytes != CmdReadSize)
 						{
@@ -394,7 +394,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 		bCompletionFlag = true;
 	};
 
-	FTaskGroup BackgroundTasks;
+	FTaskGroup BackgroundTasks = GScheduler->CreateTaskGroup();
 	BackgroundTasks.run(
 		[SizeInfo, ProcessNeedList, &NeedList, &Base, &bBaseDataCopyTaskDone]()
 		{
@@ -477,13 +477,13 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 			}
 		}
 
-		FTaskGroup DecompressTasks;
+		FTaskGroup DecompressTasks = GScheduler->CreateTaskGroup();
 
 		FLogProgressScope DownloadProgressLogger(EstimatedDownloadSize, ELogProgressUnits::MB);
 
 		// limit how many decompression tasks can be queued up to avoid memory bloat
 		const uint64 MaxConcurrentDecompressionTasks = 64;
-		FSemaphore	 DecompressionSemaphore(MaxConcurrentDecompressionTasks);
+		FSchedulerSemaphore	 DecompressionSemaphore(*GScheduler, MaxConcurrentDecompressionTasks);
 
 		const bool			bParentThreadVerbose = GLogVerbose;
 		const uint32		ParentThreadIndent	 = GLogIndent;

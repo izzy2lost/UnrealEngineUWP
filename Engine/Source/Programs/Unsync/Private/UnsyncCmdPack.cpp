@@ -8,6 +8,7 @@
 #include "UnsyncThread.h"
 #include "UnsyncError.h"
 #include "UnsyncProgress.h"
+#include "UnsyncScheduler.h"
 
 #include <stdio.h>
 #include <stdlib.h>

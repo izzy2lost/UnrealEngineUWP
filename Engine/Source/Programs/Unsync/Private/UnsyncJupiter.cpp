@@ -324,7 +324,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 		ConnectionPool.Release(std::move(Connection));
 	}
 
-	FTaskGroup ManifestUploadTasks;
+	FTaskGroup ManifestUploadTasks = GScheduler->CreateTaskGroup();
 
 	struct ManifestPutTask
 	{
@@ -334,7 +334,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 
 	for (uint64 ManifestChunkIndex = 0; ManifestChunkIndex < ChunkedRefManifestCb.size(); ++ManifestChunkIndex)
 	{
-		GScheduler.UploadSempahore.Acquire();	 // must be acquired before task is spawned
+		GScheduler->NetworkSempahore.Acquire();	 // must be acquired before task is spawned
 
 		ManifestPutTask&	 Context	   = TaskContexts[ManifestChunkIndex];
 		const FMiniCbWriter& RefManifestCb = ChunkedRefManifestCb[ManifestChunkIndex];
@@ -346,14 +346,8 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 
 		UNSYNC_LOG_INDENT;
 
-		auto PutTask = [JupiterNamespace,
-						JupiterBucket,
-						HttpHeaders,
-						&Context,
-						&RefManifestCb,
-						&ConnectionPool,
-						&Result,
-						&ResultMutex]() {
+		auto PutTask = [JupiterNamespace, JupiterBucket, HttpHeaders, &Context, &RefManifestCb, &ConnectionPool, &Result, &ResultMutex]()
+		{
 			std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
 			FHash160	RefManifestHash	 = HashBlake3Bytes<FHash160>(RefManifestCb.Data(), RefManifestCb.Size());
@@ -386,7 +380,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 			}
 
 			ConnectionPool.Release(std::move(Connection));
-			GScheduler.UploadSempahore.Release();
+			GScheduler->NetworkSempahore.Release();
 
 			if (Response.Success())
 			{
@@ -464,11 +458,9 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 TResult<uint64>
 JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, const FTlsClientSettings& TlsSettings)
 {
-	auto CreateConnection = [RemoteDesc, TlsSettings] {
-		return new FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings);
-	};
+	auto CreateConnection = [RemoteDesc, TlsSettings]
+	{ return new FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings); };
 
-	FSemaphore					 ChunkUploadSemaphore(8);  // up to 8 concurrent connections
 	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
 
 	{
@@ -489,7 +481,8 @@ JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, c
 		ConnectionPool.Release(std::move(Connection));
 	}
 
-	auto JupiterManifestUploadResult = [&RemoteDesc, &Manifest, &ConnectionPool] {
+	auto JupiterManifestUploadResult = [&RemoteDesc, &Manifest, &ConnectionPool]
+	{
 		UNSYNC_VERBOSE(L"Sending block references to Jupiter");
 		UNSYNC_LOG_INDENT;
 		const bool bIncludeManifestFile = true;
@@ -524,8 +517,8 @@ JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, c
 
 	std::atomic<int32>	NumUploadedBlocks = {};
 	std::atomic<uint64> ProcessedBytes	  = {};
-	FTaskGroup			UploadTasks;
-	std::atomic<bool>	bGotError = false;
+	FTaskGroup			UploadTasks		  = GScheduler->CreateTaskGroup(EWorkloadType::Upload);
+	std::atomic<bool>	bGotError		  = false;
 
 	for (const auto& It : Manifest.Files)
 	{
@@ -556,52 +549,52 @@ JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, c
 			}
 
 			auto ReadCallback =
-				[Block, &UploadTasks, &ProcessedBytes, &ConnectionPool, &ChunkUploadSemaphore, &bGotError, &RemoteDesc, &NumUploadedBlocks](
-					FIOBuffer ReadBuffer,
-					uint64	  ReadOffset,
-					uint64	  ReadReadSize,
-					uint64	  ReadUserData) {
-					// TODO: compress blocks usign Oodle
-					// Buffer compressed_buffer = compress(read_buffer.GetData(), read_buffer.GetSize());
-					// jupiter_put_compressed_blob(connection, compressed_blob_base_url, compressed_buffer, block.HashStrong);
+				[Block, &UploadTasks, &ProcessedBytes, &ConnectionPool, &bGotError, &RemoteDesc, &NumUploadedBlocks](FIOBuffer ReadBuffer,
+																													 uint64	   ReadOffset,
+																													 uint64	   ReadReadSize,
+																													 uint64	   ReadUserData)
+			{
+				// TODO: compress blocks usign Oodle
+				// Buffer compressed_buffer = compress(read_buffer.GetData(), read_buffer.GetSize());
+				// jupiter_put_compressed_blob(connection, compressed_blob_base_url, compressed_buffer, block.HashStrong);
 
-					ChunkUploadSemaphore.Acquire();	 // must be acquired before task is spawned
-					auto Task = [Block,
-								 &ProcessedBytes,
-								 &ConnectionPool,
-								 &ChunkUploadSemaphore,
-								 &bGotError,
-								 &NumUploadedBlocks,
-								 &RemoteDesc,
-								 ReadBuffer = MakeShared(std::move(ReadBuffer))] {
-						std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
+				GScheduler->NetworkSempahore.Acquire();	 // must be acquired before task is spawned
+				auto Task = [Block,
+							 &ProcessedBytes,
+							 &ConnectionPool,
+							 &bGotError,
+							 &NumUploadedBlocks,
+							 &RemoteDesc,
+							 ReadBuffer = MakeShared(std::move(ReadBuffer))]
+				{
+					std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
-						bool		 bPutSucceeded = false;
-						const uint32 MaxAttempts   = 5;
-						for (uint32 AttemptIndex = 0; AttemptIndex <= MaxAttempts && !bGotError; ++AttemptIndex)
+					bool		 bPutSucceeded = false;
+					const uint32 MaxAttempts   = 5;
+					for (uint32 AttemptIndex = 0; AttemptIndex <= MaxAttempts && !bGotError; ++AttemptIndex)
+					{
+						if (AttemptIndex != 0)
 						{
-							if (AttemptIndex != 0)
-							{
-								UNSYNC_WARNING(L"Retry attempt %d of %d", AttemptIndex, MaxAttempts);
-								SchedulerSleep(1000);
-							}
-
-							// TODO: pipeline PUT commands
-							UNSYNC_ASSERT(Block.HashStrong.Type == EHashType::Blake3_160);
-							if (jupiter_put_raw_blob(*Connection,
-													 RemoteDesc.StorageNamespace,
-													 RemoteDesc.HttpHeaders,
-													 ReadBuffer->GetBufferView(),
-													 Block.HashStrong.ToHash160())
-									.IsOk())
-							{
-								bPutSucceeded = true;
-								break;
-							}
+							UNSYNC_WARNING(L"Retry attempt %d of %d", AttemptIndex, MaxAttempts);
+							SchedulerSleep(1000);
 						}
 
-						ConnectionPool.Release(std::move(Connection));
-						ChunkUploadSemaphore.Release();
+						// TODO: pipeline PUT commands
+						UNSYNC_ASSERT(Block.HashStrong.Type == EHashType::Blake3_160);
+						if (jupiter_put_raw_blob(*Connection,
+												 RemoteDesc.StorageNamespace,
+												 RemoteDesc.HttpHeaders,
+												 ReadBuffer->GetBufferView(),
+												 Block.HashStrong.ToHash160())
+								.IsOk())
+						{
+							bPutSucceeded = true;
+							break;
+						}
+					}
+
+					ConnectionPool.Release(std::move(Connection));
+					GScheduler->NetworkSempahore.Release();
 
 						if (bPutSucceeded)
 						{

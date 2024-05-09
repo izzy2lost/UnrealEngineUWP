@@ -6,6 +6,7 @@
 #include "UnsyncProgress.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
+#include "UnsyncScheduler.h"
 
 namespace unsync {
 

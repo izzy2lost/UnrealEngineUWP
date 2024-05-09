@@ -62,7 +62,7 @@ FThreadPool::PopTask(bool bWaitForSignal)
 void
 FThreadPool::PushTask(FTaskFunction&& Fun)
 {
-	if (Threads.empty())
+	if (Threads.empty() || NumRunningTasks.load() == NumWorkerThreads())
 	{
 		Fun();
 	}
@@ -81,7 +81,12 @@ FThreadPool::DoWorkInternal(bool bWaitForSignal)
 
 	if (Task)
 	{
+		NumRunningTasks++;
+
 		Task();
+
+		NumRunningTasks--;
+
 		return true;
 	}
 	else

@@ -44,6 +44,8 @@ static constexpr uint32 UNSYNC_MAX_TOTAL_THREADS = 64;
 
 extern uint32 GMaxThreads;
 
+class FScheduler;
+
 class FConcurrencyPolicyScope
 {
 public:
@@ -120,6 +122,8 @@ public:
 	// Returns false if queue is empty, which may happen if worker threads have picked up the tasks already.
 	bool TryExecuteTask() { return DoWorkInternal(false); }
 
+	uint32 NumWorkerThreads() const { return uint32(Threads.size()); }
+
 private:
 
 	// Try to execute a task and return whether there may be more tasks to run
@@ -133,6 +137,7 @@ private:
 	std::mutex				Mutex;
 	std::condition_variable WorkerWakeupCondition;
 	std::atomic<bool>		bShutdown;
+	std::atomic<uint64>		NumRunningTasks;
 };
 
 #if UNSYNC_USE_CONCRT
@@ -140,14 +145,14 @@ private:
 // Cooperative semaphore implementation.
 // Using this is necessary to avoid deadlocks on low-core machines.
 // https://docs.microsoft.com/en-us/cpp/parallel/concrt/how-to-use-the-context-class-to-implement-a-cooperative-semaphore?view=msvc-160
-class FSemaphore
+class FNativeSemaphore
 {
 public:
-	UNSYNC_DISALLOW_COPY_ASSIGN(FSemaphore)
+	UNSYNC_DISALLOW_COPY_ASSIGN(FNativeSemaphore)
 
-	explicit FSemaphore(uint32 MaxCount) : Counter(MaxCount) {}
+	explicit FNativeSemaphore(uint32 MaxCount) : Counter(MaxCount) {}
 
-	~FSemaphore() {}
+	~FNativeSemaphore() {}
 
 	void Acquire()
 	{
@@ -176,31 +181,22 @@ private:
 	concurrency::concurrent_queue<concurrency::Context*> WaitingQueue;
 };
 
-using FTaskGroup = concurrency::task_group;
-
-template<typename IT, typename FT>
-inline void
-ParallelForEach(IT ItBegin, IT ItEnd, FT F)
-{
-	concurrency::parallel_for_each(ItBegin, ItEnd, F);
-}
-
 #else  // UNSYNC_USE_CONCRT
 
 #if UNSYNC_USE_MACH_SEMAPHORE
 
-class FSemaphore
+class FNativeSemaphore
 {
 public:
-	UNSYNC_DISALLOW_COPY_ASSIGN(FSemaphore)
+	UNSYNC_DISALLOW_COPY_ASSIGN(FNativeSemaphore)
 
-	explicit FSemaphore(uint32 MaxCount)
+	explicit FNativeSemaphore(uint32 MaxCount)
 	{
 		kern_return_t InitResult = semaphore_create(mach_task_self(), &Native, SYNC_POLICY_FIFO, MaxCount);
 		UNSYNC_ASSERTF(InitResult == KERN_SUCCESS, L"Failed to create a semaphore, error code: %d %hs", InitResult, mach_error_string(InitResult));
 	}
 
-	~FSemaphore()
+	~FNativeSemaphore()
 	{
 		kern_return_t DestroyResult = semaphore_destroy(mach_task_self(), Native);
 		UNSYNC_ASSERTF(DestroyResult == KERN_SUCCESS, L"Failed to destroy a semaphore, error code: %d %hs", DestroyResult, mach_error_string(DestroyResult));
@@ -223,14 +219,14 @@ public:
 
 #else // UNSYNC_USE_MACH_SEMAPHORE
 
-class FSemaphore
+class FNativeSemaphore
 {
 public:
-	UNSYNC_DISALLOW_COPY_ASSIGN(FSemaphore)
+	UNSYNC_DISALLOW_COPY_ASSIGN(FNativeSemaphore)
 
-	explicit FSemaphore(uint32 MaxCount) : Native(MaxCount) {}
+	explicit FNativeSemaphore(uint32 MaxCount) : Native(MaxCount) {}
 
-	~FSemaphore() {}
+	~FNativeSemaphore() {}
 
 	void Acquire() { Native.acquire(); }
 
@@ -243,34 +239,6 @@ private:
 
 #endif // UNSYNC_USE_MACH_SEMAPHORE
 
-// Single-threaded task group implementation
-struct FTaskGroup
-{
-	template<typename F>
-	void run(F f)
-	{
-		f();
-	}
-	void wait() {}
-};
-
-template<typename IT, typename FT>
-inline void
-ParallelForEach(IT ItBegin, IT ItEnd, FT F)
-{
-	for (; ItBegin != ItEnd; ++ItBegin)
-	{
-		F(*ItBegin);
-	}
-}
-
 #endif	// UNSYNC_USE_CONCRT
-
-template<typename T, typename FT>
-inline void
-ParallelForEach(T& Container, FT F)
-{
-	ParallelForEach(std::begin(Container), std::end(Container), F);
-}
 
 }  // namespace unsync

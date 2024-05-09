@@ -7,6 +7,7 @@
 #include "UnsyncHashTable.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
+#include "UnsyncScheduler.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <blake3.h>
@@ -177,10 +178,7 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 
 	uint32 NumProcessedFiles = 0;
 
-	FTaskGroup TaskGroup;
-
-	const uint32 MaxConcurrentFiles = 8;  // quickly diminishing returns past 8 concurrent files
-	FSemaphore	 Semaphore(MaxConcurrentFiles);
+	FTaskGroup TaskGroup = GScheduler->CreateTaskGroup();
 
 	uint64 NumSkippedBlocks = 0;
 	uint64 NumSkippedBytes	= 0;
@@ -202,10 +200,10 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 
 		FPath FilePath = Root / It.first;
 
-		Semaphore.Acquire();
+		GScheduler->NetworkSempahore.Acquire();
 
 		UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), SizeMb(It.second.Size));
-		auto BlockTask = [&FileManifest, &Semaphore, &Params, FilePath = std::move(FilePath)]()
+		auto BlockTask = [&FileManifest, &Params, FilePath = std::move(FilePath)]()
 		{
 			FNativeFile File(FilePath, EFileMode::ReadOnlyUnbuffered);
 			if (File.IsValid())
@@ -222,7 +220,8 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 							 FilePath.wstring().c_str(),
 							 FormatSystemErrorMessage(File.GetError()).c_str());
 			}
-			Semaphore.Release();
+
+			GScheduler->NetworkSempahore.Release();
 		};
 
 		if (Params.bAllowThreading)
@@ -287,9 +286,11 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 
 	FTimePoint TimeBegin = TimePointNow();
 
-	FTaskGroup	 TaskGroup;
+	FTaskGroup TaskGroup = GScheduler->CreateTaskGroup();
+
 	const uint32 MaxConcurrentFiles = 8;  // quickly diminishing returns past 8 concurrent files
-	FSemaphore	 Semaphore(MaxConcurrentFiles);
+
+	FSchedulerSemaphore Semaphore(*GScheduler, MaxConcurrentFiles);
 
 	std::mutex ResultMutex;
 	FPath	   UnsyncDirName = ".unsync";

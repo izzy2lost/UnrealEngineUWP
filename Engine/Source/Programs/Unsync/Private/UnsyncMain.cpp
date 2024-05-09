@@ -17,6 +17,7 @@
 #include "UnsyncTest.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
+#include "UnsyncScheduler.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #if UNSYNC_PLATFORM_WINDOWS
@@ -614,7 +615,16 @@ InnerMain(int Argc, char** Argv)
 	}
 
 	GMaxThreads = std::max(1u, GMaxThreads);
-	UNSYNC_VERBOSE2(L"Using threads: %d", GMaxThreads);
+	UNSYNC_VERBOSE(L"Using threads: %d", GMaxThreads);
+
+	// Don't count the main thread when starting the thread pool
+	const uint32 NumWorkerThreads = GMaxThreads - 1;
+
+	static FScheduler MainScheduler(NumWorkerThreads);
+
+	UNSYNC_ASSERT(GScheduler == nullptr);
+	GScheduler = &MainScheduler;
+
 	FConcurrencyPolicyScope ConcurrencyLimitScope(GMaxThreads);
 
 	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubPack))
@@ -1145,4 +1155,4 @@ main(int argc, char** argv)
 	}
 
 	return 1;
-}
+ }

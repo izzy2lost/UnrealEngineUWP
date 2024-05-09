@@ -8,6 +8,7 @@
 #include "UnsyncUtil.h"
 #include "UnsyncAuth.h"
 #include "UnsyncPool.h"
+#include "UnsyncScheduler.h"
 
 #include <float.h>
 #include <algorithm>
@@ -306,13 +307,12 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	struct FTaskContext
 	{
 		std::mutex				  Mutex;
-		FSemaphore				  ConnectionSemaphore = FSemaphore(8);
 		std::vector<FResultEntry> FoundEntries;
 		bool					  bParentThreadVerbose = false;
 		int32					  ParentThreadIndent   = 0;
 	};
 
-	FTaskGroup Tasks;
+	FTaskGroup	 Tasks = GScheduler->CreateTaskGroup();
 	FTaskContext Context;
 
 	Context.bParentThreadVerbose = GLogVerbose;
@@ -333,13 +333,13 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 		Request.Method		= EHttpMethod::GET;
 		Request.BearerToken = BearerToken;
 
-		Context.ConnectionSemaphore.Acquire();
+		GScheduler->NetworkSempahore.Acquire();
 
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 		FHttpResponse					 Response	= HttpRequest(*Connection, Request);
 		ConnectionPool.Release(std::move(Connection));
 
-		Context.ConnectionSemaphore.Release();
+		GScheduler->NetworkSempahore.Release();
 
 		if (!Response.Success())
 		{
