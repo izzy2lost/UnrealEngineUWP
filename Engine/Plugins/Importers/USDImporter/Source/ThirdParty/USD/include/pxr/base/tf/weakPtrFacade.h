@@ -137,7 +137,20 @@ public:
 
     template <class T>
     friend bool operator == (const TfRefPtr<T>& p1, Derived const &p2) {
-        return p2 == p1;
+        // XXX(Epic Games):
+        // Instead of redirecting to the other operator== implementation
+        // for this class, implement the comparison directly.
+        //
+        // This because when compiling with C++20 the compiler can synthesize
+        // and use another version of operator== with the two parameters
+        // reversed, so deferring to p2 == p1 could potentially just call back
+        // to this same function in an infinite loop (this happens on MSVC
+        // 14.35.32217 for example, but is fixed on later versions like
+        // 14.37.32825)
+        // return p2 == p1;
+        if (!p2.GetUniqueIdentifier())
+            return !p1;
+        return get_pointer(p1) == get_pointer(p2);
     }
 
     template <class T>

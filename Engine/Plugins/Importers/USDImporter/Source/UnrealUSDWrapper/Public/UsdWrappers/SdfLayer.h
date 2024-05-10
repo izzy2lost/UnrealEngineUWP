@@ -97,13 +97,6 @@ namespace UE
 		template<typename OtherPtrType>
 		bool operator!=(const FSdfLayerBase<OtherPtrType>& Other) const;
 
-#if USE_USD_SDK
-		// This is for the UE-210206 workaround. For more details see the comment
-		// at the bottom of UnrealUSDWrapper.h
-		bool operator==(const pxr::SdfLayerWeakPtr& Other) const;
-		bool operator!=(const pxr::SdfLayerWeakPtr& Other) const;
-#endif	  // #if USE_USD_SDK
-
 		explicit operator bool() const;
 
 		friend UNREALUSDWRAPPER_API uint32 GetTypeHash(const FSdfLayerWeak& Layer);
