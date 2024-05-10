@@ -1045,7 +1045,8 @@ bool UAbilitySystemComponent::RemoveActiveGameplayEffect(FActiveGameplayEffectHa
 	{
 		if (!IsOwnerActorAuthoritative())
 		{
-			UE_LOG(LogAbilitySystem, Warning, TEXT("%hs called without Authority. Fix-up code, or temporarily patch using AbilitySystem.Fix.AllowPredictiveGEFlags"), __func__);
+			const UGameplayEffect* GEDef = GetGameplayEffectDefForHandle(Handle);
+			UE_LOG(LogAbilitySystem, Warning, TEXT("%hs called without Authority when attempting to remove %s. Fix-up code, or temporarily patch using AbilitySystem.Fix.AllowPredictiveGEFlags"), __func__, *GetNameSafe(GEDef));
 			return false;
 		}
 	}
