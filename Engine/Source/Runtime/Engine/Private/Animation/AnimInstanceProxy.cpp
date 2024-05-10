@@ -1232,6 +1232,15 @@ void FAnimInstanceProxy::UpdateAnimation_WithRoot(const FAnimationUpdateContext&
 	ANIM_MT_SCOPE_CYCLE_COUNTER(ProxyUpdateAnimation, !IsInGameThread());
 	FScopeCycleCounterUObject AnimScope(bUpdatingRoot ? nullptr : GetAnimInstanceObject());
 
+
+#if DO_CHECK
+	ensureMsgf(CastChecked<UAnimInstance>(GetAnimInstanceObject())->IsUpdateAnimationEnabled(), TEXT("Updating AnimInstance with UpdateAnimation disabled: %s"), *CastChecked<UAnimInstance>(GetAnimInstanceObject())->GetName());
+#endif
+	if (!CastChecked<UAnimInstance>(GetAnimInstanceObject())->IsUpdateAnimationEnabled())
+	{
+		return;
+	}
+
 	if(InRootNode == RootNode)
 	{
 		if(bInitializeSubsystems && AnimClassInterface)
