@@ -140,7 +140,7 @@ void STG_PaletteTileItem::Construct(const FArguments& InArgs, FCreateWidgetForAc
 
 	const FSlateBrush* IconBrush = GetIconBrush();
 	FText IconToolTip = GraphAction->GetTooltipDescription();
-	bool bIsReadOnly = false;
+	bool bIsReadOnly = true;
 
 	IconWidget = SNew(SImage)
 		.ToolTipText(IconToolTip)
