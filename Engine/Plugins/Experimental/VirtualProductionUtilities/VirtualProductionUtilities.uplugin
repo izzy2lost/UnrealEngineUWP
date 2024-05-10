@@ -42,7 +42,7 @@
 	],
 	"Plugins": [
 		{
-			"Name": "ConcertMain",
+			"Name": "MultiUserClient",
 			"Enabled": true
 		},
 		{
