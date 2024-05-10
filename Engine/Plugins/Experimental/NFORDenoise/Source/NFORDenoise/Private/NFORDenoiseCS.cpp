@@ -219,6 +219,12 @@ namespace NFORDenoise
 		TEXT("The patch distance for bandwidth selection dependents on this parameters for MSE and selection filtering."),
 		ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<bool> CVarNFORDenoiseAlpha(
+		TEXT("r.NFOR.Denoise.Alpha"),
+		true,
+		TEXT("Indicate if the alpha channel of radiance will be denoised (Default on)."),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<bool> CVarNFORBandwidthSelection(
 		TEXT("r.NFOR.BandwidthSelection"),
 		true,
@@ -539,6 +545,11 @@ namespace NFORDenoise
 		return NonLocalMeanAtlasType;
 	}
 
+	bool ShouldDenoiseAlpha()
+	{
+		return CVarNFORDenoiseAlpha.GetValueOnRenderThread();
+	}
+
 	bool IsBandwidthSelectionEnabled()
 	{
 		return CVarNFORBandwidthSelection.GetValueOnRenderThread();
@@ -584,6 +595,7 @@ namespace NFORDenoise
 	IMPLEMENT_GLOBAL_SHADER(FTextureAccumulateConstantCS, "/NFORDenoise/NFORDenoise.usf", "TextureOperationCS", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(FTextureAccumulateCS, "/NFORDenoise/NFORDenoise.usf", "TextureOperationCS", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(FCopyTexturePS, "/NFORDenoise/NFORDenoise.usf", "CopyTexturePS", SF_Pixel);
+	IMPLEMENT_GLOBAL_SHADER(FCopyTextureSingleChannelCS, "/NFORDenoise/NFORDenoise.usf", "CopyTextureSingleChannelCS", SF_Compute);
 
 	//--------------------------------------------------------------------------------------------------------------------
 	// Feature range adjustment and radiance normalization
@@ -814,6 +826,50 @@ namespace NFORDenoise
 			ViewRect,
 			BlendState
 		);
+	}
+
+	void AddCopyMirroredTexturePass(FRDGBuilder& GraphBuilder, const FRDGTextureRef& SourceTexture, const FRDGTextureRef& TargetTexture, int32 Channel, ETextureCopyType CopyType,
+		FIntPoint SourcePosition, FIntPoint TargetPosition, FIntPoint Size)
+	{
+		const FIntPoint CopySize = Size == FIntPoint::ZeroValue ? TargetTexture->Desc.Extent : Size;
+
+		FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+
+		typedef FCopyTextureSingleChannelCS SHADER;
+		SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+		{
+			PassParameters->CopySource = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(SourceTexture));
+			PassParameters->RWCopyTarget = GraphBuilder.CreateUAV(TargetTexture);
+			PassParameters->SourceOffset = SourcePosition;
+			PassParameters->TargetOffset = TargetPosition;
+			PassParameters->CopySize = CopySize;
+			PassParameters->Channel = Channel;
+			PassParameters->TextureSize = SourceTexture->Desc.Extent;
+		}
+
+		SHADER::FPermutationDomain PermutationDomainVector;
+		{
+			PermutationDomainVector.Set<SHADER::FDimTextureCopyType>(CopyType);
+		}
+
+		TShaderMapRef<SHADER> ComputeShader(ShaderMap, PermutationDomainVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("CopyTextureCS (%s [%d,%d] -> %s [%d,%d], size:%dx%d, c=%d)",
+				SourceTexture->Name,
+				SourcePosition.X,
+				SourcePosition.Y,
+				TargetTexture->Name,
+				TargetPosition.X,
+				TargetPosition.Y,
+				CopySize.X,
+				CopySize.Y,
+				Channel),
+			ERDGPassFlags::Compute,
+			ComputeShader,
+			PassParameters,
+			FComputeShaderUtils::GetGroupCount(CopySize, NON_LOCAL_MEAN_THREAD_GROUP_SIZE));
 	}
 
 	void AddNormalizeRadianceVariancePass(FRDGBuilder& GraphBuilder, const FRDGTextureRef& Albedo, const FRDGTextureRef& RadianceVariance)
@@ -2423,10 +2479,6 @@ namespace NFORDenoise
 		// Normalize the image by weights stored in alpha channel.
 		AddNormalizeTexturePass(GraphBuilder, FilteredRadiance);
 
-		// TODO: denoise the alpha channel of the original radiance.
-		// Pass through alpha channel from the source index.
-		AddCopyMirroredTexturePass(GraphBuilder, Radiances[SourceIndex].Data.Image, FilteredRadiance, FIntPoint::ZeroValue, FIntPoint::ZeroValue, FIntPoint::ZeroValue,true/*bAlphaOnly*/);
-
 		return FilteredRadiance;
 	}
 
@@ -2712,6 +2764,51 @@ namespace NFORDenoise
 		else
 		{
 			AddCopyTexturePass(GraphBuilder, FilteredImages[0], DenoisedRadiance);
+		}
+
+		{
+			RDG_EVENT_SCOPE(GraphBuilder, "Postprocessing");
+
+			// Alpha denoising
+			{
+				FRDGTextureRef RadianceAlpha = Radiances[SourceRadianceIndex].Data.Image;
+				if (ShouldDenoiseAlpha())
+				{
+					// Apply non-local mean filter to alpha only. 
+					FRDGTextureRef RadianceAlphaVariance = Radiances[SourceRadianceIndex].Variance.Image;
+					EVarianceType VarianceType = Radiances[SourceRadianceIndex].VarianceType;
+					FRDGTextureDesc AlphaTextureDesc = RadianceAlpha->Desc;
+					AlphaTextureDesc.Format = PF_R32_FLOAT;
+					FRDGTextureRef RawAlphaTexture = GraphBuilder.CreateTexture(AlphaTextureDesc, TEXT("NFOR.RawAlphaTexture"));
+					FRDGTextureRef FilteredAlphaTexture = GraphBuilder.CreateTexture(AlphaTextureDesc, TEXT("NFOR.DenoisedAlphaTexture"));
+
+					// Assume alpha is the a component of Radiance texture, the alpha variance is the a component of the corresponding variance texture.
+					const int32 AlphaChannelIndex = 3;
+
+					AddCopyMirroredTexturePass(GraphBuilder, RadianceAlpha, RawAlphaTexture, AlphaChannelIndex, ETextureCopyType::TargetSingleChannel);
+
+					FNFORTextureDesc AlphaTexture = FNFORTextureDesc(RawAlphaTexture, 0, 1, 1);
+					FNonLocalMeanParameters AlphaNLMParams = GetFeatureNonLocalMeanParameters(0.5f);
+					FNFORTextureDesc AlphaVariance = FNFORTextureDesc(RadianceAlphaVariance, AlphaChannelIndex, 1, 4);
+
+					ApplyNonLocalMeanFilterIfRequired(
+						GraphBuilder,
+						View,
+						AlphaNLMParams,
+						AlphaTexture,
+						AlphaVariance,
+						VarianceType,
+						FilteredAlphaTexture,
+						GetFeatureTileSizeDownScale());
+
+					AddCopyMirroredTexturePass(GraphBuilder, FilteredAlphaTexture, DenoisedRadiance, AlphaChannelIndex, ETextureCopyType::SourceSingleChannel);
+				}
+				else
+				{
+					// Pass through alpha channel.
+					AddCopyMirroredTexturePass(GraphBuilder, RadianceAlpha, DenoisedRadiance, FIntPoint::ZeroValue, FIntPoint::ZeroValue, FIntPoint::ZeroValue, true/*bAlphaOnly*/);
+				}
+			}
 		}
 
 		return true;

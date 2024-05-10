@@ -814,6 +814,9 @@ float4 GetMeanFromTextures(int2 Position)
 	{
 		Value.z = 1.0f;
 	}
+	
+	// Alpha channel needs denoising as well.
+	Value.w = InputTexture[Position].a;
 #else
 	#error "Not implemented" 
 #endif
@@ -835,7 +838,6 @@ void TemporalPrepassCS(uint3 DT_ID : SV_DispatchThreadID)
 
 		FPixelMaterialLightingFingerprint VarianceInfo = (FPixelMaterialLightingFingerprint)0;
 		VarianceInfo.Mean = Mean;
-		VarianceInfo.Mean.w = 0;
 		RWVarianceMap[index] = VarianceInfo;
 
 #elif PREPASS_PHASE == PREPASS_PHASE_UPDATE
@@ -846,7 +848,6 @@ void TemporalPrepassCS(uint3 DT_ID : SV_DispatchThreadID)
 		float4 CurrentValue = (Mean - PreviousMean) * Iteration + Mean;
 		
 		VarianceInfo.Mean = Mean;
-		VarianceInfo.Mean.w = Iteration;
 		VarianceInfo.Var += (CurrentValue - VarianceInfo.Mean)*(CurrentValue - PreviousMean);
 
 		RWVarianceMap[index] = VarianceInfo;
@@ -860,6 +861,7 @@ void TemporalPrepassCS(uint3 DT_ID : SV_DispatchThreadID)
 #if PREPASS_GENERATE_TEXTURE
 RWTexture2D<float4> OutputTexture;
 StructuredBuffer<FPixelMaterialLightingFingerprint> VarianceMap;
+int Iteration;
 
 [numthreads(THREAD_SIZE_X, THREAD_SIZE_Y, 1)]
 void PrepassGenerateTextureCS(uint3 DT_ID : SV_DispatchThreadID)
@@ -873,9 +875,9 @@ void PrepassGenerateTextureCS(uint3 DT_ID : SV_DispatchThreadID)
 
 		// VarianceInfo.Var = sigma^2 * n.
 		// Std of mean = sqrt(sigma^2/n) = sqrt(VarianceInfo.Var/n^2)
-		float4 StandDerivation= sqrt(VarianceInfo.Var) / (VarianceInfo.Mean.w + 1);
+		float4 StandDerivation= sqrt(VarianceInfo.Var) / Iteration;
 
-		OutputTexture[Position] = float4(StandDerivation.xyz, 1.0f);
+		OutputTexture[Position] = StandDerivation;
 	}
 }
 #endif // PREPASS_GENERATE_TEXTURE

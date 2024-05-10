@@ -164,6 +164,38 @@ namespace NFORDenoise
 		END_SHADER_PARAMETER_STRUCT()
 	};
 
+	enum class ETextureCopyType :uint32
+	{
+		TargetSingleChannel,
+		SourceSingleChannel,
+		MAX
+	};
+
+	class FCopyTextureSingleChannelCS : public FGlobalShader
+	{
+		DECLARE_GLOBAL_SHADER(FCopyTextureSingleChannelCS)
+		SHADER_USE_PARAMETER_STRUCT(FCopyTextureSingleChannelCS, FGlobalShader)
+	public:
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, CopySource)
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWCopyTarget)
+			SHADER_PARAMETER(FIntPoint, SourceOffset)
+			SHADER_PARAMETER(FIntPoint, TargetOffset)
+			SHADER_PARAMETER(FIntPoint, CopySize)
+			SHADER_PARAMETER(FIntPoint, TextureSize)
+			SHADER_PARAMETER(int32, Channel)
+		END_SHADER_PARAMETER_STRUCT()
+
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+		}
+
+		class FDimTextureCopyType : SHADER_PERMUTATION_ENUM_CLASS("TEXTURE_COPY_TYPE", ETextureCopyType);
+		using FPermutationDomain = TShaderPermutationDomain<FDimTextureCopyType>;
+	};
+
 	// TargetTexture.rgb = TargetTexture.rgb * lerp (1.0f,SourceTexture.rgb, (SourceTexture.rgb != 0 || bForceMultiply));
 	void AddMultiplyTextureRegionPass(FRDGBuilder& GraphBuilder, const FRDGTextureRef& SourceTexture, const FRDGTextureRef& TargetTexture,
 		bool bForceMultiply = true, FIntPoint SourcePosition = FIntPoint::ZeroValue, FIntPoint TargetPosition = FIntPoint::ZeroValue, FIntPoint Size = FIntPoint::ZeroValue);
@@ -184,6 +216,9 @@ namespace NFORDenoise
 	void AddCopyMirroredTexturePass(FRDGBuilder& GraphBuilder, const FRDGTextureRef& SourceTexture, const FRDGTextureRef& TargetTexture,
 		FIntPoint SourcePosition = FIntPoint::ZeroValue, FIntPoint TargetPosition = FIntPoint::ZeroValue, FIntPoint Size = FIntPoint::ZeroValue, bool bAlphaOnly = false);
 	
+	// Copy a channel from the source image to the target image where ETextureCopyType indicates which image is single channel;
+	void AddCopyMirroredTexturePass(FRDGBuilder& GraphBuilder, const FRDGTextureRef& SourceTexture, const FRDGTextureRef& TargetTexture, int32 Channel, ETextureCopyType CopyType,
+		FIntPoint SourcePosition = FIntPoint::ZeroValue, FIntPoint TargetPosition = FIntPoint::ZeroValue, FIntPoint Size = FIntPoint::ZeroValue);
 
 	//--------------------------------------------------------------------------------------------------------------------
 	// Feature range adjustment, and radiance normalization by albedo

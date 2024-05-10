@@ -156,6 +156,13 @@
 #define TEXTURE_OPS TEXTURE_OPS_MULTIPLY
 #endif
 
+#define TEXTURE_COPY_TARGET_SINGLE_CHANNEL	0
+#define TEXTURE_COPY_SOURCE_SINGLE_CHANNEL	1
+
+#ifndef TEXTURE_COPY_TYPE
+#define TEXTURE_COPY_TYPE TEXTURE_COPY_TARGET_SINGLE_CHANNEL
+#endif
+
 #ifndef ACCUMULATE_BY_MASK
 #define ACCUMULATE_BY_MASK 0
 #endif
@@ -247,10 +254,43 @@ void TextureOperationCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 }
 
 int2 SourceOffset;
+int2 TargetOffset;
+int Channel;
+int2 CopySize;
+
 float4 CopyTexturePS(float4 SvPosition : SV_POSITION) : SV_Target0
 {
 	uint2 Position = (uint2)SvPosition.xy + SourceOffset;
 	return Source.Load(uint3(GetMirroredPosition(Position, TextureSize), 0));
+}
+
+#if TEXTURE_COPY_TYPE == TEXTURE_COPY_TARGET_SINGLE_CHANNEL
+Texture2D<float4> CopySource;
+RWTexture2D<float> RWCopyTarget;
+#elif TEXTURE_COPY_TYPE == TEXTURE_COPY_SOURCE_SINGLE_CHANNEL
+Texture2D<float> CopySource;
+RWTexture2D<float4> RWCopyTarget;
+#endif
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void CopyTextureSingleChannelCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= (uint2)CopySize))
+	{
+		return;
+	}
+
+	uint2 ResolvedSourcePosition = DispatchThreadID.xy + SourceOffset;
+	uint2 ResolvedTargetPosition = DispatchThreadID.xy + TargetOffset;
+
+	if (all(ResolvedTargetPosition >= 0))
+	{
+#if TEXTURE_COPY_TYPE == TEXTURE_COPY_TARGET_SINGLE_CHANNEL
+		RWCopyTarget[ResolvedTargetPosition] = CopySource.Load(uint3(GetMirroredPosition(ResolvedSourcePosition, TextureSize), 0))[Channel];
+#elif TEXTURE_COPY_TYPE == TEXTURE_COPY_SOURCE_SINGLE_CHANNEL
+		RWCopyTarget[ResolvedTargetPosition][Channel] = CopySource.Load(uint3(GetMirroredPosition(ResolvedSourcePosition, TextureSize), 0));
+#endif
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
