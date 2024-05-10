@@ -76,16 +76,6 @@ struct FExportMaterialCompiler : public FProxyMaterialCompiler
 		return Compiler->VertexNormal();
 	}
 
-	virtual int32 DisplacementCenter() override
-	{		
-		return Compiler->DisplacementCenter();
-	}
-
-	virtual int32 DisplacementMagnitude() override
-	{		
-		return Compiler->DisplacementMagnitude();
-	}
-
 	virtual int32 ParticleRandom() override
 	{
 		return Compiler->Constant(0.0f);

@@ -1162,9 +1162,6 @@ protected:
 	virtual int32 VertexTangent() override;
 	virtual int32 PixelNormalWS() override;
 
-	virtual int32 DisplacementCenter() override;
-	virtual int32 DisplacementMagnitude() override;
-
 	virtual int32 DDX(int32 A) override;
 	virtual int32 DDY(int32 A) override;
 
