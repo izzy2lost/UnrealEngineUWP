@@ -8,6 +8,7 @@
 #include "NiagaraParameterCollection.generated.h"
 
 class UMaterialParameterCollection;
+class UMaterialParameterCollectionInstance;
 class UNiagaraParameterCollection;
 
 UCLASS(MinimalAPI)
@@ -61,6 +62,9 @@ private:
 
 	UPROPERTY()
 	FNiagaraParameterStore ParameterStorage;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialParameterCollectionInstance> SourceMaterialCollectionInstance;
 
 	FRWLock DirtyParameterLock;
 	TArray<TPair<FName, float>> DirtyScalarParameters;
