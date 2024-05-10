@@ -7,10 +7,9 @@
 
 	"PreferredClangVersions": [
 		// Clang 17: https://github.com/llvm/llvm-project/issues/71976 should not be used as a preferred version until this issue is resolved and the max affected version is added to ClangWarnings.cs
-		"16.0.0-16.999",
-		"15.0.0-15.999"
+		"16.0.0-16.999"
 	],
-	"MinimumClangVersion": "15.0.0",
+	"MinimumClangVersion": "16.0.0",
 
 	// this is a strange format, but instead of a version range, this mapping min clang version for each MSVC version
 	"MinimumRequiredClangVersion": [
@@ -43,7 +42,7 @@
 		"Microsoft.VisualStudio.Component.VC.14.38.17.8.x86.x64", // Only LTSC versions of MSVC should be suggested
 		"Microsoft.VisualStudio.Component.VC.14.38.17.8.ATL", // Match version of MSVC
 		"Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-		"Microsoft.VisualStudio.Component.Windows10SDK.22621",
+		"Microsoft.VisualStudio.Component.Windows11SDK.22621",
 		"Microsoft.VisualStudio.Workload.CoreEditor",
 		"Microsoft.VisualStudio.Workload.ManagedDesktop",
 		"Microsoft.VisualStudio.Workload.NativeDesktop",
