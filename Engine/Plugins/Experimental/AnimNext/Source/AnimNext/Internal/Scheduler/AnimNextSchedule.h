@@ -37,6 +37,11 @@ namespace UE::AnimNext::UncookedOnly
 	struct FUtils;
 }
 
+namespace UE::AnimNext::Editor
+{
+	class FModule;
+}
+
 USTRUCT()
 struct FAnimNextScheduleEntryTerm
 {
@@ -243,6 +248,7 @@ private:
 	friend struct FAnimNextSchedulerEntry;
 	friend class UAnimNextComponent;
 	friend class UAnimNextSchedulerWorldSubsystem;
+	friend class UE::AnimNext::Editor::FModule;
 	friend class UE::AnimNext::UncookedOnly::FModule;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
@@ -268,7 +274,10 @@ private:
 
 	// Function hook used to expose to asset registry
 	static TUniqueFunction<void(const UAnimNextSchedule*, FAssetRegistryTagsContext)> GetAssetRegistryTagsFunction;
-	
+
+	// Delegate fired when compiled
+	FSimpleMulticastDelegate CompiledEvent;
+
 	// Editor only
 	// TODO: move this into an editor only subobject
 	// TODO: this is currently only a linear list, we want it to be a graph

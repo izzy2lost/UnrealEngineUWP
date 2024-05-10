@@ -17,6 +17,7 @@
 #include "IMessageLogListing.h"
 #include "Graph/AnimNextGraph_Controller.h"
 #include "Graph/AnimNextCompilerResultsTabSummoner.h"
+#include "Logging/MessageLog.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -264,6 +265,9 @@ void STraitEditorView::RefreshTraitStackTraitsStatus()
 
 			TArray<TSharedPtr<FTraitDataEditorDef>>& CurrentTraitsData = *(TraitEditorSharedData->CurrentTraitsDataShared.Get());
 
+			FMessageLog Log("AnimNextCompilerResults");
+			Log.NewPage(LOCTEXT("TraitStackCompileResults", "Trait Stack Compilation"));
+
 			const int32 NumTraits = CurrentTraitsData.Num();
 			for (int32 i = NumTraits - 1; i >= 0; i--)
 			{
@@ -283,16 +287,17 @@ void STraitEditorView::RefreshTraitStackTraitsStatus()
 				{
 					TraitEditorSharedData->bStackContainsErrors = true;
 
-					if (TSharedPtr<IMessageLogListing> CompilerResultsListing = GetMessageLogListing().Pin())
+					for (const FTraitStackTraitStatus::FStatusMessage& StatusMessage : TraitData->StackStatus.StatusMessages)
 					{
-						for (const FTraitStackTraitStatus::FStatusMessage& StatusMessage : TraitData->StackStatus.StatusMessages)
-						{
-							const EMessageSeverity::Type Severity = (StatusMessage.Status == FTraitStackTraitStatus::EStackStatus::Warning) ? EMessageSeverity::Warning : EMessageSeverity::Error;
-							const FText& MessageText = StatusMessage.MessageText;
+						const EMessageSeverity::Type Severity = (StatusMessage.Status == FTraitStackTraitStatus::EStackStatus::Warning) ? EMessageSeverity::Warning : EMessageSeverity::Error;
+						const FText& MessageText = StatusMessage.MessageText;
+						Log.AddMessage(FTokenizedMessage::Create(Severity, FText::Format(LOCTEXT("TraitEditorLogTraitNameErrorFormat", "{0}: {1}"), TraitData->TraitDisplayName, MessageText)));
+					}
 
-							TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(Severity, FText::Format(LOCTEXT("TraitEditorLogTraitNameErrorFormat", "{0} : {1}"), TraitData->TraitDisplayName, MessageText));
-							CompilerResultsListing->AddMessage(Message, false);
-						}
+					// Open tab to display errors
+					if (TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = WorkspaceEditorWeak.Pin())
+					{
+						WorkspaceEditor->GetTabManager()->TryInvokeTab(CompilerResultsTabName);
 					}
 				}
 			}
@@ -472,31 +477,6 @@ TSharedRef<SWidget> STraitEditorView::GetOptionsMenuWidget()
 				FilterImage.ToSharedRef()
 			]
 		];
-}
-
-TWeakPtr<IMessageLogListing>& STraitEditorView::GetMessageLogListing()
-{
-	if (!CompilerResultsListingWeak.IsValid())
-	{
-		if (TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = WorkspaceEditorWeak.Pin())
-		{
-			TSharedPtr<SDockTab> DockTab = WorkspaceEditor->GetTabManager()->FindExistingLiveTab(UE::AnimNext::Editor::CompilerResultsTabName);
-			if (!DockTab.IsValid())
-			{
-				DockTab = WorkspaceEditor->GetTabManager()->TryInvokeTab(UE::AnimNext::Editor::CompilerResultsTabName);
-			}
-
-			if (DockTab.IsValid())
-			{
-				if (TSharedPtr<SAnimNextCompilerResultsWidget> AnimNextCompilerResultsWidget = StaticCastSharedPtr<SAnimNextCompilerResultsWidget>(DockTab->GetContent().ToSharedPtr()))
-				{
-					CompilerResultsListingWeak = AnimNextCompilerResultsWidget->GetCompilerResultsListing();
-				}
-			}
-		}
-	}
-
-	return CompilerResultsListingWeak;
 }
 
 int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNode, const TSharedPtr<FTraitDataEditorDef>& InTraitData, int32 InTraitIndex)

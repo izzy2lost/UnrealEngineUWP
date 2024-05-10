@@ -226,7 +226,7 @@ void FModule::StartupModule()
 	Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
 	const TSharedPtr<FAnimNextGraphItemDetails> GraphItemDetails = MakeShareable<FAnimNextGraphItemDetails>(new FAnimNextGraphItemDetails());
 	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()), StaticCastSharedPtr<UE::Workspace::IWorkspaceOutlinerItemDetails>(GraphItemDetails));
-	FAnimNextGraphItemDetails::RegisterToolMenuExtensions();	
+	FAnimNextGraphItemDetails::RegisterToolMenuExtensions();
 }
 
 void FModule::ShutdownModule()
@@ -310,6 +310,21 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 			TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 			DetailsView->SetObject(Schedule);
+
+			TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
+			Schedule->CompiledEvent.RemoveAll(&InContext.WorkspaceEditor.Get());
+			Schedule->CompiledEvent.AddSPLambda(&InContext.WorkspaceEditor.Get(), [WeakWorkspaceEditor]()
+				{
+					if (TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
+					{
+						int32 NumEntries = FMessageLog("AnimNextCompilerResults").NumMessages(EMessageSeverity::Warning);
+						if(NumEntries > 0)
+						{
+							WorkspaceEditor->GetTabManager()->TryInvokeTab(CompilerResultsTabName);
+						}
+					}
+				});
+			
 			return DetailsView;
 		}
 	), Workspace::WorkspaceTabs::TopMiddleDocumentArea);
@@ -737,6 +752,19 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 					if (TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
 					{
 						WorkspaceEditor->RefreshDetails();
+					}
+				});
+
+			EditorData->RigVMCompiledEvent.RemoveAll(&InContext.WorkspaceEditor.Get());
+			EditorData->RigVMCompiledEvent.AddSPLambda(&InContext.WorkspaceEditor.Get(), [WeakWorkspaceEditor](UObject*, URigVM*, FRigVMExtendedExecuteContext&)
+				{
+					if (TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
+					{
+						int32 NumEntries = FMessageLog("AnimNextCompilerResults").NumMessages(EMessageSeverity::Warning);
+						if(NumEntries > 0)
+						{
+							WorkspaceEditor->GetTabManager()->TryInvokeTab(CompilerResultsTabName);
+						}
 					}
 				});
 		}

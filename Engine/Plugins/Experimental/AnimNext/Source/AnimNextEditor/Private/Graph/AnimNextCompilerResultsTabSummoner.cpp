@@ -35,19 +35,9 @@ void SAnimNextCompilerResultsWidget::CreateMessageLog(const TWeakPtr<UE::Workspa
 	if (const TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditorShared = InWorkspaceEditorWeak.Pin())
 	{
 		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-		const FName LogName = *FString::Printf(TEXT("%s_CompilerResultsLog"), WorkspaceEditorShared.IsValid() ? *WorkspaceEditorShared->GetEditorName().ToString() : TEXT("TraitEditor"));
-		// Reuse any existing log, or create a new one (that is not held onto bey the message log system)
-		if (MessageLogModule.IsRegisteredLogListing(LogName))
-		{
-			CompilerResultsListing = MessageLogModule.GetLogListing(LogName);
-		}
-		else
-		{
-			FMessageLogInitializationOptions LogInitOptions;
-			LogInitOptions.bShowInLogWindow = false;
-			CompilerResultsListing = MessageLogModule.CreateLogListing(LogName, LogInitOptions);
-		}
-
+		const FName LogName("AnimNextCompilerResults");
+		check(MessageLogModule.IsRegisteredLogListing(LogName));
+		CompilerResultsListing = MessageLogModule.GetLogListing(LogName);
 		CompilerResults = MessageLogModule.CreateLogListingWidget(CompilerResultsListing.ToSharedRef());
 	}
 }

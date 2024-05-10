@@ -504,6 +504,8 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 {
 	check(InGraph);
 
+	FMessageLog("AnimNextCompilerResults").NewPage(FText::FromName(InGraph->GetFName()));
+
 	CompileStruct(InGraph);
 	CompileVM(InGraph);
 }
@@ -544,9 +546,6 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	InGraph->GraphReferencedObjects.Empty();
 	InGraph->RequiredParametersHash = 0;
 	InGraph->RequiredParameters.Empty();
-
-	EditorData->CompileLog.Messages.Reset();
-	EditorData->CompileLog.NumErrors = EditorData->CompileLog.NumWarnings = 0;
 
 	FRigVMClient* VMClient = EditorData->GetRigVMClient();
 	URigVMGraph* VMRootGraph = VMClient->GetDefaultModel();
@@ -661,7 +660,12 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
-	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
+	FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
+	Settings.ASTSettings.ReportDelegate.BindLambda([InGraph](EMessageSeverity::Type InType, UObject* InObject, const FString& InString)
+	{
+		FMessageLog("AnimNextCompilerResults").Message(InType, FText::FromString(InString));
+	});
+
 	Compiler->Compile(Settings, TempGraphs, TempController, InGraph->VM, InGraph->ExtendedExecuteContext, TArray<FRigVMExternalVariable>(), & EditorData->PinToOperandMap);
 
 	// Initialize right away, in packaged builds we initialize during PostLoad
@@ -1695,6 +1699,9 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 {
 	using namespace UE::AnimNext;
 
+	FMessageLog Log("AnimNextCompilerResults");
+	Log.NewPage(FText::FromName(InSchedule->GetFName()));
+
 	InSchedule->Instructions.Empty();
 	InSchedule->GraphTasks.Empty();
 	InSchedule->Ports.Empty();
@@ -1757,19 +1764,19 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 	TFunction<void(TArrayView<TObjectPtr<UAnimNextScheduleEntry>>)> EmitEntries;
 
 	// Iterate over all entries, recursing into scopes
-	EmitEntries = [InSchedule, &EmitEntries, &Emit, &EmitPrerequisite, &ParentScopeIndex, &IntermediateTerms, &IntermediateMap](TArrayView<TObjectPtr<UAnimNextScheduleEntry>> InEntries)
+	EmitEntries = [InSchedule, &EmitEntries, &Emit, &EmitPrerequisite, &ParentScopeIndex, &IntermediateTerms, &IntermediateMap, &Log](TArrayView<TObjectPtr<UAnimNextScheduleEntry>> InEntries)
 	{
 		for (int32 EntryIndex = 0; EntryIndex < InEntries.Num(); ++EntryIndex)
 		{
 			UAnimNextScheduleEntry* Entry = InEntries[EntryIndex];
 
-			auto CheckTermDirectionCompatibility = [](FName InName, EScheduleTermDirection InExistingDirection, EScheduleTermDirection InNewDirection)
+			auto CheckTermDirectionCompatibility = [&Log](FName InName, EScheduleTermDirection InExistingDirection, EScheduleTermDirection InNewDirection)
 			{
 				switch(InExistingDirection)
 				{
 				case EScheduleTermDirection::Input:
 					// Input before output: error
-					UE_LOG(LogAnimation, Error, TEXT("Term '%s' was used as an input before it was output"), *InName.ToString());
+					Log.Error(FText::Format(LOCTEXT("TermInputError", "Term '{0}' was used as an input before it was output"), FText::FromName(InName)));
 					return false;
 				case EScheduleTermDirection::Output:
 					return true;
@@ -1784,7 +1791,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 
 				if(PortEntry->Port == nullptr)
 				{
-					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid port class found"));
+					Log.Error(LOCTEXT("InvalidPortError", "Invalid port class found"));
 					bValid = false;
 				}
 				else
@@ -1795,7 +1802,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					TConstArrayView<FScheduleTerm> Terms = CDO->GetTerms();
 					if(PortEntry->Terms.Num() != Terms.Num())
 					{
-						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Incorrect term count for port: %d"), PortEntry->Terms.Num());
+						Log.Error(FText::Format(LOCTEXT("PortIncorrectTermCountError", "Incorrect term count for port: {0}"), FText::AsNumber(PortEntry->Terms.Num())));
 						bValid = false;
 					}
 
@@ -1804,7 +1811,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 						FName TermName = PortEntry->Terms[TermIndex].Name;
 						if(!PortEntry->Terms[TermIndex].Type.IsValid())
 						{
-							UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid type when processing port term, ignored: '%s'"), *TermName.ToString());
+							Log.Error(FText::Format(LOCTEXT("PortIncorrectTermTypeError", "Invalid type when processing port term, ignored: '{0}'"), FText::FromName(TermName)));
 							bValid = false;
 						}
 						else
@@ -1815,7 +1822,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 								const FAnimNextScheduleEntryTerm& IntermediateTerm = IntermediateTerms[*ExistingIntermediateIndexPtr];
 								if(IntermediateTerm.Type != Terms[TermIndex].GetType())
 								{
-									UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing port term, ignored: '%s'"), *TermName.ToString());
+									Log.Error(FText::Format(LOCTEXT("PortMismatchedTermTypeError", "Mismatched types when processing port term, ignored: '{0}'"), FText::FromName(TermName)));
 									bValid = false;
 								}
 
@@ -1866,7 +1873,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 
 				if(GraphEntry->Graph == nullptr && !GraphEntry->DynamicGraph.IsValid())
 				{
-					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid graph or invalid parameter supplied"));
+					Log.Error(LOCTEXT("InvalidGraphOrParameterError", "Invalid graph or invalid parameter supplied in graph task"));
 					bValid = false;
 				}
 				else if(GraphEntry->Graph != nullptr)
@@ -1874,7 +1881,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Graph->GetTerms();
 					if(GraphEntry->Terms.Num() != Terms.Num())
 					{
-						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Incorrect term count for graph: %d"), GraphEntry->Terms.Num());
+						Log.Error(FText::Format(LOCTEXT("GraphIncorrectTermCountError", "Incorrect term count for graph: {0}"), FText::AsNumber(GraphEntry->Terms.Num())));
 						bValid = false;
 					}
 					else
@@ -1885,13 +1892,13 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 							FName TermName = GraphEntry->Terms[TermIndex].Name;
 							if(Terms[TermIndex].Direction != GraphEntry->Terms[TermIndex].Direction)
 							{
-								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched direction when processing graph term, ignored: '%s'"), *TermName.ToString());
+								Log.Error(FText::Format(LOCTEXT("MismatchedDirectionInGraphTermError", "Mismatched direction when processing graph term, ignored: '{0}'"), FText::FromName(TermName)));
 								bValid = false;
 							}
 							
 							if(Terms[TermIndex].GetType() != GraphEntry->Terms[TermIndex].Type)
 							{
-								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *TermName.ToString());
+								Log.Error(FText::Format(LOCTEXT("MismatchedTypesInGraphTermError", "Mismatched types when processing graph term, ignored: '{0}'"), FText::FromName(TermName)));
 								bValid = false;
 							}
 						}
@@ -1901,7 +1908,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 				// We must have a reference pose
 				if (!GraphEntry->ReferencePose.IsValid())
 				{
-					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid reference pose supplied to graph task"));
+					Log.Error(LOCTEXT("InvalidRefPoseError", "Invalid reference pose supplied to graph task"));
 					bValid = false;
 				}
 
@@ -1911,7 +1918,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					FName TermName = GraphEntry->Terms[TermIndex].Name;
 					if(!GraphEntry->Terms[TermIndex].Type.IsValid())
 					{
-						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid type when processing graph term, ignored: '%s'"), *TermName.ToString());
+						Log.Error(FText::Format(LOCTEXT("InvalidTypeInGraphTermError", "Invalid type when processing graph term, ignored: '{0}'"), FText::FromName(TermName)));
 						bValid = false;
 					}
 					else
@@ -1922,7 +1929,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 							const FAnimNextScheduleEntryTerm& IntermediateTerm = IntermediateTerms[*ExistingIntermediateIndexPtr];
 							if(IntermediateTerm.Type != GraphEntry->Terms[TermIndex].Type)
 							{
-								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *TermName.ToString());
+								Log.Error(FText::Format(LOCTEXT("MismatchedTypeInGraphTermError", "Mismatched types when processing graph term, ignored: '{0}'"), FText::FromName(TermName)));
 								bValid = false;
 							}
 
@@ -2268,6 +2275,8 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 	}
 
 	FScheduler::OnScheduleCompiled(InSchedule);
+
+	InSchedule->CompiledEvent.Broadcast();
 }
 
 uint64 FUtils::SortAndHashParameters(TArray<FAnimNextParam>& InParameters)

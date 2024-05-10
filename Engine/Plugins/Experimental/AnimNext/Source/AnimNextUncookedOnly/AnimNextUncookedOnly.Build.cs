@@ -34,7 +34,8 @@ namespace UnrealBuildTool.Rules
 					"ToolMenus",
 					"UniversalObjectLocator", 
 					"UniversalObjectLocatorEditor",
-					"WorkspaceEditor"
+					"WorkspaceEditor",
+					"MessageLog"
 				}
 			);
 

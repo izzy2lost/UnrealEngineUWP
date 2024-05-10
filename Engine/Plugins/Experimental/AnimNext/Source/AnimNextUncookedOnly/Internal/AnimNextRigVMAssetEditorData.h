@@ -265,8 +265,6 @@ protected:
 	UPROPERTY(transient, DuplicateTransient)
 	bool bIsCompiling = false;
 
-	FCompilerResultsLog CompileLog;
-
 	FOnRigVMCompiledEvent RigVMCompiledEvent;
 
 	FRigVMGraphModifiedEvent RigVMGraphModifiedEvent;

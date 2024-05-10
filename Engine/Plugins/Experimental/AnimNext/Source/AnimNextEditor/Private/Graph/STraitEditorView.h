@@ -75,8 +75,6 @@ private:
 
 	TSharedRef<SWidget> GetOptionsMenuWidget();
 
-	TWeakPtr<IMessageLogListing>& GetMessageLogListing();
-
 	int32 GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNode, const TSharedPtr<FTraitDataEditorDef>& InTraitData, int32 TraitIndex = INDEX_NONE);
 
 	static void GenerateTraitStackData(const TWeakObjectPtr<UAnimNextGraph_EdGraphNode>& EdGraphNodeWeak, TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedData);

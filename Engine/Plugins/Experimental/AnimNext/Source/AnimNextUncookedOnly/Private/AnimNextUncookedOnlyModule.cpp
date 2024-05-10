@@ -11,6 +11,9 @@
 #include "Param/ObjectProxyType.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "UObject/AssetRegistryTagsContext.h"
+#include "MessageLogModule.h"
+
+#define LOCTEXT_NAMESPACE "AnimNextUncookedOnlyModule"
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -69,10 +72,22 @@ void FModule::StartupModule()
 	});
 
 	RegisterParameterSourceType(FAnimNextParamUniversalObjectLocator::StaticStruct(), MakeShared<FObjectProxyType>());
+
+	// Register the compilation log (hidden from the main log set, it is displayed in the workspace editor)
+	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+	FMessageLogInitializationOptions LogInitOptions;
+	LogInitOptions.bShowInLogWindow = false;
+	LogInitOptions.MaxPageCount = 10;
+	MessageLogModule.RegisterLogListing("AnimNextCompilerResults", LOCTEXT("CompilerResults", "AnimNext Compiler Results"), LogInitOptions);
 }
 
 void FModule::ShutdownModule()
 {
+	if(FMessageLogModule* MessageLogModule = FModuleManager::GetModulePtr<FMessageLogModule>("MessageLog"))
+	{
+		MessageLogModule->UnregisterLogListing("AnimNextCompilerResults");
+	}
+
 	UnregisterParameterSourceType(FAnimNextParamUniversalObjectLocator::StaticStruct());
 
 	UAnimNextSchedule::GetAssetRegistryTagsFunction = nullptr;
@@ -97,5 +112,7 @@ TSharedPtr<IParameterSourceType> FModule::FindParameterSourceType(const UScriptS
 }
 
 }
+
+#undef LOCTEXT_NAMESPACE 
 
 IMPLEMENT_MODULE(UE::AnimNext::UncookedOnly::FModule, AnimNextUncookedOnly);
