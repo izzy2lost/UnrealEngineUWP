@@ -53,7 +53,11 @@ namespace Metasound
 
 		friend FORCEINLINE uint32 GetTypeHash(const Metasound::FWaveAsset& InWaveAsset)
 		{
-			return GetTypeHash(*InWaveAsset.GetSoundWaveProxy());
+			if (InWaveAsset.IsSoundWaveValid())
+			{
+				return GetTypeHash(*InWaveAsset.GetSoundWaveProxy());
+			}
+			return INDEX_NONE;
 		}
 	};
 

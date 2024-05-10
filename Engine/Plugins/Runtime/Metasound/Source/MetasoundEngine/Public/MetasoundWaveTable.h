@@ -79,7 +79,11 @@ namespace Metasound
 		
 		friend FORCEINLINE uint32 GetTypeHash(const Metasound::FWaveTableBankAsset& InWaveTableBankAsset)
 		{
-			return GetTypeHash(*InWaveTableBankAsset.GetProxy());
+			if (InWaveTableBankAsset.IsValid())
+			{
+				return GetTypeHash(*InWaveTableBankAsset.GetProxy());
+			}
+			return INDEX_NONE;
 		}
 	};
 

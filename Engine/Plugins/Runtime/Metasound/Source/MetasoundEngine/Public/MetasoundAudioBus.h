@@ -32,7 +32,12 @@ namespace Metasound
 
 		friend FORCEINLINE uint32 GetTypeHash(const Metasound::FAudioBusAsset& InAudioBusAsset)
 		{
-			return GetTypeHash(*InAudioBusAsset.GetAudioBusProxy());
+			const FAudioBusProxyPtr& Proxy = InAudioBusAsset.GetAudioBusProxy();
+			if (Proxy.IsValid())
+			{
+				return GetTypeHash(*Proxy);
+			}
+			return INDEX_NONE;
 		}
 	};
 
