@@ -277,6 +277,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	 * that asset is generated, and the asset is shared by the components generated for both prims.
 	 * If false, we will always generate a dedicated asset for each prim.
 	 */
+	bool bShareAssetsForIdenticalPrims = true;
+
+	UE_DEPRECATED(5.5, "This property has been renamed to 'Share Assets for Identical Prims'")
 	bool bReuseIdenticalAssets = true;
 
 	/**

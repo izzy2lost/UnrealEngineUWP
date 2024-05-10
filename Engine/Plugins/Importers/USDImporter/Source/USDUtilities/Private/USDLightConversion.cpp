@@ -248,7 +248,7 @@ bool UsdToUnreal::ConvertDomeLight(
 	const pxr::UsdPrim& Prim,
 	USkyLightComponent& LightComponent,
 	UUsdAssetCache2* TexturesCache,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	FScopedUsdAllocs UsdAllocs;

@@ -171,7 +171,7 @@ namespace UE::MeshTranslationImplInternal::Private
 		UUsdAssetCache3* AssetCache,
 		FUsdInfoCache* InfoCache,
 		const FString& MaterialHashPrefix,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
 		UUsdMaterialAssetUserData* MaterialAssetUserData = Material.GetAssetUserData<UUsdMaterialAssetUserData>();
@@ -441,7 +441,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 	UUsdAssetCache3& AssetCache,
 	FUsdInfoCache& InfoCache,
 	EObjectFlags Flags,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	FScopedUnrealAllocs Allocs;
@@ -506,7 +506,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 						SHA1.GetHash(&Hash.Hash[0]);
 						DisplayColorHash = Hash.ToString();
 					}
-					const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + DisplayColorHash;
+					const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bShareAssetsForIdenticalPrims) + DisplayColorHash;
 
 					FString DisplayColorName = FString::Printf(
 						TEXT("DisplayColor%s%s"),
@@ -599,7 +599,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 					}
 
 					FString PrefixedMaterialHash = Material ? AssetCache.GetHashForAsset(Material) : FString{};
-					FString HashPrefix = UsdUtils::GetAssetHashPrefix(UsdPrim.GetStage()->GetPrimAtPath(MaterialPrimPath), bReuseIdenticalAssets);
+					FString HashPrefix = UsdUtils::GetAssetHashPrefix(UsdPrim.GetStage()->GetPrimAtPath(MaterialPrimPath), bShareAssetsForIdenticalPrims);
 
 					// Need to create a two-sided material on-demand, *before* we make it compatible:
 					// This because at runtime we can't just set the base property overrides, and just instead create a new
@@ -697,7 +697,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 									&AssetCache,
 									&InfoCache,
 									HashPrefix,
-									bReuseIdenticalAssets
+									bShareAssetsForIdenticalPrims
 								);
 
 							if (CompatibleMaterial)
@@ -775,7 +775,7 @@ void MeshTranslationImpl::SetMaterialOverrides(
 	bool bInterpretLODs,
 	const FName& RenderContext,
 	const FName& MaterialPurpose,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	FScopedUsdAllocs Allocs;
@@ -915,7 +915,7 @@ void MeshTranslationImpl::SetMaterialOverrides(
 			AssetCache,
 			InfoCache,
 			Flags,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		);
 	}
 

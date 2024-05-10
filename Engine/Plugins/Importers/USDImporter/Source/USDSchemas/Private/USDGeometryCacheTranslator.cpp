@@ -86,7 +86,7 @@ namespace UsdGeometryCacheTranslatorImpl
 		FUsdInfoCache* InfoCache,
 		float Time,
 		EObjectFlags Flags,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
 		TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> ResolvedMaterials = MeshTranslationImpl::ResolveMaterialAssignmentInfo(
@@ -95,7 +95,7 @@ namespace UsdGeometryCacheTranslatorImpl
 			AssetCache,
 			*InfoCache,
 			Flags,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		);
 
 		uint32 SlotIndex = 0;
@@ -441,7 +441,7 @@ namespace UsdGeometryCacheTranslatorImpl
 
 		FSHAHash GeoCacheHash;
 		SHA1.GetHash(&GeoCacheHash.Hash[0]);
-		const FString PrefixedGeoCacheHash = UsdUtils::GetAssetHashPrefix(RootPrim, Context->bReuseIdenticalAssets) + GeoCacheHash.ToString();
+		const FString PrefixedGeoCacheHash = UsdUtils::GetAssetHashPrefix(RootPrim, Context->bShareAssetsForIdenticalPrims) + GeoCacheHash.ToString();
 
 		const FString DesiredName = FPaths::GetBaseFilename(RootPrimPath);
 
@@ -926,7 +926,7 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 						Context->InfoCache.Get(),
 						Context->Time,
 						Context->ObjectFlags,
-						Context->bReuseIdenticalAssets
+						Context->bShareAssetsForIdenticalPrims
 					);
 				}
 
@@ -1050,7 +1050,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 					bAllowInterpretingLODs,
 					Context->RenderContext,
 					Context->MaterialPurpose,
-					Context->bReuseIdenticalAssets
+					Context->bShareAssetsForIdenticalPrims
 				);
 
 				// Check if the prim has the GroomBinding schema and setup the component and assets necessary to bind the groom to the GeometryCache
@@ -1061,7 +1061,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 						*Context->UsdAssetCache,
 						*Context->InfoCache,
 						Context->ObjectFlags,
-						Context->bReuseIdenticalAssets
+						Context->bShareAssetsForIdenticalPrims
 					);
 
 					// For the groom binding to work, the GroomComponent must be a child of the SceneComponent

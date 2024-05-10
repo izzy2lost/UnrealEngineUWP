@@ -88,6 +88,10 @@ public:
 	 * If false, we will always generate a dedicated asset for each prim.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	bool bShareAssetsForIdenticalPrims;
+
+	UE_DEPRECATED(5.5, "This property has been renamed to 'Share Assets for Identical Prims'")
+	UPROPERTY()
 	bool bReuseIdenticalAssets;
 
 	/**
@@ -176,6 +180,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetMergeIdenticalMaterialSlots(bool bMerge);
 
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetShareAssetsForIdenticalPrims(bool bShare);
+
+	UE_DEPRECATED(5.5, "Use 'SetShareAssetsForIdenticalPrims' instead.")
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetReuseIdenticalAssets(bool bReuse);
 

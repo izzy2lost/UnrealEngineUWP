@@ -328,7 +328,7 @@ void FUsdStageViewModel::ImportStage(const TCHAR* TargetContentFolder, UUsdStage
 		ImportContext.ImportOptions->MetadataOptions = StageActor->MetadataOptions;
 		ImportContext.ImportOptions->KindsToCollapse = StageActor->KindsToCollapse;
 		ImportContext.ImportOptions->bMergeIdenticalMaterialSlots = StageActor->bMergeIdenticalMaterialSlots;
-		ImportContext.ImportOptions->bReuseIdenticalAssets = StageActor->bReuseIdenticalAssets;
+		ImportContext.ImportOptions->bShareAssetsForIdenticalPrims = StageActor->bShareAssetsForIdenticalPrims;
 
 		ImportContext.bReadFromStageCache = true;	 // So that we import whatever the user has open right now, even if the file has changes
 

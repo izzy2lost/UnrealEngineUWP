@@ -153,24 +153,28 @@ public:
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options", meta = (EditCondition = bImportAtSpecificTimeCode))
 	float ImportTimeCode;
 
-	/** Groom group interpolation settings */
-	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Groom")
-	TArray<FHairGroupsInterpolation> GroomInterpolationSettings;
-
-	/** What should happen when imported actors and components try to overwrite existing actors and components */
-	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision", meta = (EditCondition = bImportActors))
-	EReplaceActorPolicy ExistingActorPolicy;
-
-	/** What should happen when imported assets try to overwrite existing assets */
-	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision")
-	EReplaceAssetPolicy ExistingAssetPolicy;
-
 	/**
 	 * If true, whenever two prims would have generated identical UAssets (like identical StaticMeshes or materials) then only one instance of
 	 * that asset is generated, and the asset is shared by the components generated for both prims.
 	 * If false, we will always generate a dedicated asset for each prim.
 	 */
-	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision")
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options")
+	bool bShareAssetsForIdenticalPrims;
+
+	/** Groom group interpolation settings */
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Groom")
+	TArray<FHairGroupsInterpolation> GroomInterpolationSettings;
+
+	/** What should happen when imported actors and components try to overwrite existing actors and components */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Conflicts with Existing Objects", meta = (EditCondition = bImportActors))
+	EReplaceActorPolicy ExistingActorPolicy;
+
+	/** What should happen when imported assets try to overwrite existing assets */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Conflicts with Existing Objects")
+	EReplaceAssetPolicy ExistingAssetPolicy;
+
+	UE_DEPRECATED(5.5, "This property has been renamed to 'Share Assets for Identical Prims'")
+	UPROPERTY()
 	bool bReuseIdenticalAssets;
 
 	/**

@@ -960,7 +960,7 @@ void FUsdVolVolumeTranslator::CreateAssets()
 	}
 	pxr::UsdStageRefPtr Stage = VolumePrim.GetStage();
 
-	FString VolumePrimHashPrefix = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets);
+	FString VolumePrimHashPrefix = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bShareAssetsForIdenticalPrims);
 
 	// Create the info structs from the requested files
 	TMap<FString, FSparseVolumeTextureInfo> FilePathHashToTextureInfo = CollectSparseVolumeTextureInfoByFilePath(Volume);

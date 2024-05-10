@@ -76,7 +76,7 @@ void FUsdLuxLightTranslator::CreateAssets()
 		return;
 	}
 
-	const FString PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(Prim, Context->bReuseIdenticalAssets)
+	const FString PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(Prim, Context->bShareAssetsForIdenticalPrims)
 										+ LexToString(FMD5Hash::HashFile(*ResolvedDomeTexturePath));
 
 	const FString& DesiredTextureName = FPaths::GetBaseFilename(ResolvedDomeTexturePath);

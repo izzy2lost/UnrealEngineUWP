@@ -75,7 +75,7 @@ namespace UsdSkelRootTranslatorImpl
 		float Time,
 		EObjectFlags Flags,
 		bool bSkeletalMeshHasMorphTargets,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UsdSkelRootTranslatorImpl::ProcessMaterials);
@@ -105,7 +105,7 @@ namespace UsdSkelRootTranslatorImpl
 			AssetCache,
 			InfoCache,
 			Flags,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		);
 
 		bool bMaterialsHaveChanged = false;
@@ -665,7 +665,7 @@ namespace UsdSkelRootTranslatorImpl
 		bool bInterpretLODs,
 		const FName& RenderContext,
 		const FName& MaterialPurpose,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
 		FScopedUsdAllocs Allocs;
@@ -812,7 +812,7 @@ namespace UsdSkelRootTranslatorImpl
 			AssetCache,
 			InfoCache,
 			Flags,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		);
 
 		// Compare resolved materials with existing assignments, and create overrides if we need to
@@ -983,7 +983,7 @@ namespace UsdSkelRootTranslatorImpl
 			SHA1.UpdateWithString(*PrimPath, PrimPath.Len());
 			SHA1.Final();
 			SHA1.GetHash(&Hash.Hash[0]);
-			const FString PrefixedAnimBPHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bReuseIdenticalAssets) + Hash.ToString();
+			const FString PrefixedAnimBPHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bShareAssetsForIdenticalPrims) + Hash.ToString();
 
 			// Check if we can find an AnimBP for this prim in the asset cache (useful when doing Action->Import)
 			bool bReusedAnimBP = false;
@@ -1358,7 +1358,7 @@ namespace UsdSkelRootTranslatorImpl
 
 				FString SkelRootPath = PrimPath.GetString();
 				FSHAHash SkeletalMeshHash = UsdSkelRootTranslatorImpl::ComputeSHAHash(LODIndexToSkeletalMeshImportData, SkeletonBones, BlendShapes);
-				PrefixedSkelMeshHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + SkeletalMeshHash.ToString();
+				PrefixedSkelMeshHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bShareAssetsForIdenticalPrims) + SkeletalMeshHash.ToString();
 
 				USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Context->UsdAssetCache->GetCachedAsset(PrefixedSkelMeshHash));
 
@@ -1402,7 +1402,7 @@ namespace UsdSkelRootTranslatorImpl
 							Context->Time,
 							Context->ObjectFlags,
 							NewBlendShapes.Num() > 0,
-							Context->bReuseIdenticalAssets
+							Context->bShareAssetsForIdenticalPrims
 						);
 
 						if (bMaterialsHaveChanged)
@@ -1585,7 +1585,7 @@ namespace UsdSkelRootTranslatorImpl
 														  : pxr::UsdPrim{};
 
 						FSHAHash Hash = UsdSkelRootTranslatorImpl::ComputeSHAHash(SkelQuery, RootMotionPrim, PrefixedSkelMeshHash);
-						FString PrefixedSkelAnimHash = UsdUtils::GetAssetHashPrefix(SkelAnimationPrim, Context->bReuseIdenticalAssets)
+						FString PrefixedSkelAnimHash = UsdUtils::GetAssetHashPrefix(SkelAnimationPrim, Context->bShareAssetsForIdenticalPrims)
 													   + Hash.ToString();
 						UAnimSequence* AnimSequence = Cast<UAnimSequence>(Context->UsdAssetCache->GetCachedAsset(PrefixedSkelAnimHash));
 
@@ -1705,7 +1705,7 @@ USceneComponent* FUsdSkelRootTranslator::CreateComponents()
 			*Context->UsdAssetCache,
 			*Context->InfoCache,
 			Context->ObjectFlags,
-			Context->bReuseIdenticalAssets
+			Context->bShareAssetsForIdenticalPrims
 		);
 
 		// For the groom binding to work, the GroomComponent must be a child of the SceneComponent
@@ -1806,7 +1806,7 @@ void FUsdSkelRootTranslator::UpdateComponents(USceneComponent* SceneComponent)
 				Context->bAllowInterpretingLODs,
 				Context->RenderContext,
 				Context->MaterialPurpose,
-				Context->bReuseIdenticalAssets
+				Context->bShareAssetsForIdenticalPrims
 			);
 		}
 	}

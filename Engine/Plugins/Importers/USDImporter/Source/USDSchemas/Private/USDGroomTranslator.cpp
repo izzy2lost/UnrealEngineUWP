@@ -191,7 +191,8 @@ protected:
 
 				FSHAHash SHAHash = UE::UsdGroomTranslator::Private::ComputeHairDescriptionHash(HairDescription, ImportOptions->InterpolationSettings);
 
-				const FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + SHAHash.ToString();
+				const FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bShareAssetsForIdenticalPrims)
+												  + SHAHash.ToString();
 
 				const FString PrimPathString = PrimPath.GetString();
 				const FString DesiredName = FPaths::GetBaseFilename(PrimPathString);
@@ -281,7 +282,7 @@ protected:
 				FSHAHash Hash;
 				SHA1.GetHash(Hash.Hash);
 
-				PrefixedGroomCacheHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + Hash.ToString();
+				PrefixedGroomCacheHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bShareAssetsForIdenticalPrims) + Hash.ToString();
 				return true;
 			}
 		);

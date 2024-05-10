@@ -1078,9 +1078,9 @@ void SUsdStage::FillOptionsMenu(FMenuBuilder& MenuBuilder)
 		);
 
 		MenuBuilder.AddSubMenu(
-			LOCTEXT("AssetReuse", "Asset reuse"),
-			LOCTEXT("AssetReuse_ToolTip", "How to behave when generating identical assets from different prims"),
-			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillAssetReuseSubMenu)
+			LOCTEXT("AssetReuse", "Asset sharing"),
+			LOCTEXT("AssetReuse_ToolTip", "How to behave when generating assets from identical prims"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillShareAssetsSubMenu)
 		);
 
 		MenuBuilder.AddSubMenu(
@@ -1917,12 +1917,12 @@ void SUsdStage::FillCollapsingSubMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.EndSection();
 }
 
-void SUsdStage::FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder)
+void SUsdStage::FillShareAssetsSubMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ReuseIdenticalAssets", "Reuse identical assets"),
+		LOCTEXT("ShareAssetsForIdenticalPrims_Text", "Share Assets for Identical Prims"),
 		LOCTEXT(
-			"ReuseIdenticalAssets_ToolTip",
+			"bShareAssetsForIdenticalPrims_ToolTip",
 			"If true, whenever two prims would have generated identical UAssets (like identical StaticMeshes or materials) then only one instance of "
 			"that asset is generated, and the asset is shared by the components generated for both prims. If false, we will generate a dedicated "
 			"asset for each prim."
@@ -1935,14 +1935,14 @@ void SUsdStage::FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder)
 					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 					{
 						FScopedTransaction Transaction(FText::Format(
-							LOCTEXT("ReuseIdenticalAssetsTransaction", "Toggle bReuseIdenticalAssets on USD stage actor '{0}'"),
+							LOCTEXT("ShareAssetsForIdenticalPrims_Transaction", "Toggle bShareAssetsForIdenticalPrims on USD stage actor '{0}'"),
 							FText::FromString(StageActor->GetActorLabel())
 						));
 
 						// c.f. comment within AddKindToCollapseEntry just below
 						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-						StageActor->SetReuseIdenticalAssets(!StageActor->bReuseIdenticalAssets);
+						StageActor->SetShareAssetsForIdenticalPrims(!StageActor->bShareAssetsForIdenticalPrims);
 						if (StageActor->IsTemplate())
 						{
 							StageActor->SaveConfig();
@@ -1956,7 +1956,7 @@ void SUsdStage::FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder)
 				{
 					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 					{
-						return StageActor->bReuseIdenticalAssets;
+						return StageActor->bShareAssetsForIdenticalPrims;
 					}
 					return false;
 				}

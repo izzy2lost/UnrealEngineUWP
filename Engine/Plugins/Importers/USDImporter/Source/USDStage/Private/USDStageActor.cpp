@@ -155,7 +155,7 @@ struct FUsdStageActorImpl
 
 		TranslationContext->KindsToCollapse = (EUsdDefaultKind)StageActor->KindsToCollapse;
 		TranslationContext->bMergeIdenticalMaterialSlots = StageActor->bMergeIdenticalMaterialSlots;
-		TranslationContext->bReuseIdenticalAssets = StageActor->bReuseIdenticalAssets;
+		TranslationContext->bShareAssetsForIdenticalPrims = StageActor->bShareAssetsForIdenticalPrims;
 
 		UE::FSdfPath UsdPrimPath(*PrimPath);
 		UUsdPrimTwin* ParentUsdPrimTwin = StageActor->GetRootPrimTwin()->Find(UsdPrimPath.GetParentPath().GetString());
@@ -553,7 +553,7 @@ struct FUsdStageActorImpl
 			EventAttributes.Emplace(TEXT("InterpolationType"), LexToString((uint8)StageActor->InterpolationType));
 			EventAttributes.Emplace(TEXT("KindsToCollapse"), LexToString(StageActor->KindsToCollapse));
 			EventAttributes.Emplace(TEXT("MergeIdenticalMaterialSlots"), LexToString(StageActor->bMergeIdenticalMaterialSlots));
-			EventAttributes.Emplace(TEXT("ReuseIdenticalAssets"), LexToString(StageActor->bReuseIdenticalAssets));
+			EventAttributes.Emplace(TEXT("bShareAssetsForIdenticalPrims"), StageActor->bShareAssetsForIdenticalPrims);
 			EventAttributes.Emplace(TEXT("PurposesToLoad"), LexToString(StageActor->PurposesToLoad));
 			EventAttributes.Emplace(TEXT("NaniteTriangleThreshold"), LexToString(StageActor->NaniteTriangleThreshold));
 			EventAttributes.Emplace(TEXT("RenderContext"), StageActor->RenderContext.ToString());
@@ -1058,7 +1058,7 @@ AUsdStageActor::AUsdStageActor()
 	, InterpolationType(EUsdInterpolationType::Linear)
 	, KindsToCollapse((int32)(EUsdDefaultKind::Component | EUsdDefaultKind::Subcomponent))
 	, bMergeIdenticalMaterialSlots(true)
-	, bReuseIdenticalAssets(true)
+	, bShareAssetsForIdenticalPrims(true)
 	, PurposesToLoad((int32)EUsdPurpose::Proxy)
 	, NaniteTriangleThreshold((uint64)1000000)
 	, MaterialPurpose(*UnrealIdentifiers::MaterialPreviewPurpose)
@@ -2697,6 +2697,21 @@ void AUsdStageActor::SetMergeIdenticalMaterialSlots(bool bMerge)
 	LoadUsdStage();
 }
 
+void AUsdStageActor::SetShareAssetsForIdenticalPrims(bool bShare)
+{
+	if (bShare == bShareAssetsForIdenticalPrims)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	bShareAssetsForIdenticalPrims = bShare;
+	LoadUsdStage();
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void AUsdStageActor::SetReuseIdenticalAssets(bool bReuse)
 {
 	if (bReuse == bReuseIdenticalAssets)
@@ -2710,6 +2725,7 @@ void AUsdStageActor::SetReuseIdenticalAssets(bool bReuse)
 	bReuseIdenticalAssets = bReuse;
 	LoadUsdStage();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void AUsdStageActor::SetCollapseTopLevelPointInstancers(bool bCollapse)
 {
@@ -4768,11 +4784,11 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 		bMergeIdenticalMaterialSlots = !bMergeIdenticalMaterialSlots;
 		SetMergeIdenticalMaterialSlots(bCorrectMergeMaterialSlots);
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, bReuseIdenticalAssets))
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, bShareAssetsForIdenticalPrims))
 	{
-		const bool bCorrectReuse = bReuseIdenticalAssets;
-		bReuseIdenticalAssets = !bReuseIdenticalAssets;
-		SetReuseIdenticalAssets(bCorrectReuse);
+		const bool bCorrectShare = bShareAssetsForIdenticalPrims;
+		bShareAssetsForIdenticalPrims = !bShareAssetsForIdenticalPrims;
+		SetShareAssetsForIdenticalPrims(bCorrectShare);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, PurposesToLoad))
 	{

@@ -345,7 +345,7 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 		SHA1.GetHash(&OutHash.Hash[0]);
 		MaterialHash = OutHash.ToString();
 	}
-	const FString PrefixedMaterialHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + MaterialHash;
+	const FString PrefixedMaterialHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bShareAssetsForIdenticalPrims) + MaterialHash;
 
 	const FString PrimPathString = PrimPath.GetString();
 	const FString DesiredName = FPaths::GetBaseFilename(PrimPathString);
@@ -373,7 +373,7 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 				*MIC,
 				Context->UsdAssetCache.Get(),
 				*Context->RenderContext.ToString(),
-				Context->bReuseIdenticalAssets
+				Context->bShareAssetsForIdenticalPrims
 			);
 			if (!bSuccess)
 			{
@@ -477,7 +477,7 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 				*MI,
 				Context->UsdAssetCache.Get(),
 				*Context->RenderContext.ToString(),
-				Context->bReuseIdenticalAssets
+				Context->bShareAssetsForIdenticalPrims
 			);
 			if (!bSuccess)
 			{

@@ -258,7 +258,7 @@ namespace UsdGeomMeshTranslatorImpl
 		FUsdInfoCache* InfoCache,
 		float Time,
 		EObjectFlags Flags,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
 		if (!InfoCache)
@@ -280,7 +280,7 @@ namespace UsdGeomMeshTranslatorImpl
 			AssetCache,
 			*InfoCache,
 			Flags,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		);
 
 		uint32 StaticMeshSlotIndex = 0;
@@ -709,7 +709,7 @@ namespace UsdGeomMeshTranslatorImpl
 			SHA1.GetHash(&AllLODHash.Hash[0]);
 		}
 
-		FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bReuseIdenticalAssets) + AllLODHash.ToString();
+		FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bShareAssetsForIdenticalPrims) + AllLODHash.ToString();
 
 		FString DesiredName = FPaths::GetBaseFilename(MeshName);
 
@@ -1755,7 +1755,7 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 					   Context->InfoCache.Get(),
 					   Context->Time,
 					   Context->ObjectFlags,
-					   Context->bReuseIdenticalAssets
+					   Context->bShareAssetsForIdenticalPrims
 				   );
 
 #if WITH_EDITOR

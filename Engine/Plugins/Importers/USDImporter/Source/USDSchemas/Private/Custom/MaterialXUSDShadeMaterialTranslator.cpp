@@ -168,7 +168,7 @@ namespace UE::USDMaterialXTranslator::Private
 		const pxr::UsdPrim& MaterialXReferencerPrim,
 		UUsdAssetCache3& AssetCache,
 		EObjectFlags ObjectFlags,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
 		if (!FPaths::FileExists(MaterialXFilePath))
@@ -184,7 +184,7 @@ namespace UE::USDMaterialXTranslator::Private
 		FImportAssetParameters InterchangeParameters;
 		InterchangeParameters.bIsAutomated = true;
 
-		const FString HashPrefix = UsdUtils::GetAssetHashPrefix(MaterialXReferencerPrim, bReuseIdenticalAssets);
+		const FString HashPrefix = UsdUtils::GetAssetHashPrefix(MaterialXReferencerPrim, bShareAssetsForIdenticalPrims);
 
 		// Annoyingly we have to make a new target folder for the interchange import, and then rename all the assets over.
 		// This because for direct imports we'll be dealing with an asset cache that is pointing at the transient package.
@@ -463,7 +463,7 @@ void FMaterialXUsdShadeMaterialTranslator::CreateAssets()
 	}
 
 	FString TargetHashSuffix = TEXT("/") + UsdToUnreal::ConvertString(Prim.GetName());
-	FString TargetHashPrefix = UsdUtils::GetAssetHashPrefix(Prim, Context->bReuseIdenticalAssets);
+	FString TargetHashPrefix = UsdUtils::GetAssetHashPrefix(Prim, Context->bShareAssetsForIdenticalPrims);
 
 	FString FoundMaterialAssetHash;
 	UMaterialInterface* ParsedMaterial = nullptr;
@@ -503,7 +503,7 @@ void FMaterialXUsdShadeMaterialTranslator::CreateAssets()
 				MaterialXReferencerPrim,
 				*Context->UsdAssetCache,
 				Context->ObjectFlags,
-				Context->bReuseIdenticalAssets
+				Context->bShareAssetsForIdenticalPrims
 			);
 
 			if (!bSuccess)

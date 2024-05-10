@@ -148,7 +148,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 
 		const FString MdlFullName = MdlModuleName + TEXT("::") + MdlDefinitionName;
 		const FString MdlFullInstanceName = MdlFullName + TEXT("_Instance");
-		const FString HashPrefix = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets);
+		const FString HashPrefix = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bShareAssetsForIdenticalPrims);
 		const FString MaterialHash = HashPrefix + MdlFullName;
 		const FString MdlSearchPath = FPaths::GetPath(Context->Stage.GetRootLayer().GetRealPath());
 
@@ -241,7 +241,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 				*MdlMaterialInstance,
 				Context->UsdAssetCache.Get(),
 				*Context->RenderContext.ToString(),
-				Context->bReuseIdenticalAssets
+				Context->bShareAssetsForIdenticalPrims
 			);
 
 			// We can't blindly recreate all component render states when a level is being added, because we may end up first creating

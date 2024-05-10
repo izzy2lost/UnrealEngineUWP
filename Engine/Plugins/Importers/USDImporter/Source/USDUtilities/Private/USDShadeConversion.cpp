@@ -559,7 +559,7 @@ namespace UE
 				FParameterValue& OutValue,
 				const UMaterialInterface* Material,
 				UUsdAssetCache3* TexturesCache,
-				bool bReuseIdenticalAssets
+				bool bShareAssetsForIdenticalPrims
 			)
 			{
 				FScopedUsdAllocs UsdAllocs;
@@ -704,7 +704,7 @@ namespace UE
 							}
 
 							const FString
-								PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(ShadeInput.GetPrim(), bReuseIdenticalAssets)
+								PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(ShadeInput.GetPrim(), bShareAssetsForIdenticalPrims)
 													  + UsdUtils::GetTextureHash(TexturePath, bSRGB, CompressionSettings, AddressX, AddressY);
 
 							pxr::UsdAttribute FileInputAttr = FileInput.GetAttr();
@@ -831,7 +831,7 @@ namespace UE
 				FParameterValue& OutValue,
 				const UMaterialInterface* Material,
 				UUsdAssetCache3* TexturesCache,
-				bool bReuseIdenticalAssets
+				bool bShareAssetsForIdenticalPrims
 			)
 			{
 				FScopedUsdAllocs Allocs;
@@ -848,7 +848,7 @@ namespace UE
 				pxr::UsdShadeAttributeType AttributeType;
 				if (pxr::UsdShadeConnectableAPI::GetConnectedSource(Input.GetAttr(), &Source, &SourceName, &AttributeType))
 				{
-					if (!GetTextureParameterValue(Input, TEXTUREGROUP_WorldSpecular, OutValue, Material, TexturesCache, bReuseIdenticalAssets))
+					if (!GetTextureParameterValue(Input, TEXTUREGROUP_WorldSpecular, OutValue, Material, TexturesCache, bShareAssetsForIdenticalPrims))
 					{
 						// Check if we have a fallback input that we can use instead, since we don't have a valid texture value
 						if (const pxr::UsdShadeInput FallbackInput = Source.GetInput(UnrealIdentifiers::Fallback))
@@ -863,7 +863,7 @@ namespace UE
 
 						// Recurse because the attribute may just be pointing at some other attribute that has the data
 						// (e.g. when shader input is just "hoisted" and connected to the parent material input)
-						return GetFloatParameterValue(Source, SourceName, DefaultValue, OutValue, Material, TexturesCache, bReuseIdenticalAssets);
+						return GetFloatParameterValue(Source, SourceName, DefaultValue, OutValue, Material, TexturesCache, bShareAssetsForIdenticalPrims);
 					}
 				}
 				// No other node connected, so we must have some value
@@ -963,7 +963,7 @@ namespace UE
 				bool bIsNormalMap,
 				const UMaterialInterface* Material,
 				UUsdAssetCache3* TexturesCache,
-				bool bReuseIdenticalAssets
+				bool bShareAssetsForIdenticalPrims
 			)
 			{
 				FScopedUsdAllocs Allocs;
@@ -986,7 +986,7 @@ namespace UE
 							OutValue,
 							Material,
 							TexturesCache,
-							bReuseIdenticalAssets
+							bShareAssetsForIdenticalPrims
 						))
 					{
 						// Check whether this input receives its value through a connection to a
@@ -1037,7 +1037,7 @@ namespace UE
 							bIsNormalMap,
 							Material,
 							TexturesCache,
-							bReuseIdenticalAssets
+							bShareAssetsForIdenticalPrims
 						);
 					}
 				}
@@ -2156,7 +2156,7 @@ bool UsdToUnreal::ConvertMaterial(
 	UMaterialInstance& Material,
 	UUsdAssetCache3* TexturesCache,
 	const TCHAR* RenderContext,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	FScopedUsdAllocs UsdAllocs;
@@ -2192,7 +2192,7 @@ bool UsdToUnreal::ConvertMaterial(
 			!bIsNormalMap,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("BaseColor"), ParameterValue);
@@ -2207,7 +2207,7 @@ bool UsdToUnreal::ConvertMaterial(
 			!bIsNormalMap,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("EmissiveColor"), ParameterValue);
@@ -2221,7 +2221,7 @@ bool UsdToUnreal::ConvertMaterial(
 			ParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("Metallic"), ParameterValue);
@@ -2235,7 +2235,7 @@ bool UsdToUnreal::ConvertMaterial(
 			ParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("Roughness"), ParameterValue);
@@ -2249,7 +2249,7 @@ bool UsdToUnreal::ConvertMaterial(
 			ParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("Opacity"), ParameterValue);
@@ -2264,7 +2264,7 @@ bool UsdToUnreal::ConvertMaterial(
 			bIsNormalMap,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("Normal"), ParameterValue);
@@ -2278,7 +2278,7 @@ bool UsdToUnreal::ConvertMaterial(
 			ParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("Refraction"), ParameterValue);
@@ -2292,7 +2292,7 @@ bool UsdToUnreal::ConvertMaterial(
 			ParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MaterialParameters.Add(TEXT("AmbientOcclusion"), ParameterValue);
@@ -2359,7 +2359,7 @@ bool UsdToUnreal::ConvertMaterial(
 	UMaterial& Material,
 	UUsdAssetCache3* TexturesCache,
 	const TCHAR* RenderContext,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 #if WITH_EDITOR
@@ -2405,7 +2405,7 @@ bool UsdToUnreal::ConvertMaterial(
 			!bIsNormalMap,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		BaseColorParameter = TempParameterValue;
@@ -2420,7 +2420,7 @@ bool UsdToUnreal::ConvertMaterial(
 			!bIsNormalMap,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		EmissiveParameter = TempParameterValue;
@@ -2434,7 +2434,7 @@ bool UsdToUnreal::ConvertMaterial(
 			TempParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		MetallicParameter = TempParameterValue;
@@ -2448,7 +2448,7 @@ bool UsdToUnreal::ConvertMaterial(
 			TempParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		RoughnessParameter = TempParameterValue;
@@ -2462,7 +2462,7 @@ bool UsdToUnreal::ConvertMaterial(
 			TempParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		OpacityParameter = TempParameterValue;
@@ -2477,7 +2477,7 @@ bool UsdToUnreal::ConvertMaterial(
 			bIsNormalMap,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		NormalParameter = TempParameterValue;
@@ -2491,7 +2491,7 @@ bool UsdToUnreal::ConvertMaterial(
 		TempParameterValue,
 		&Material,
 		TexturesCache,
-		bReuseIdenticalAssets
+		bShareAssetsForIdenticalPrims
 	);
 	if (bHasRefractionValue || Material.BlendMode == BLEND_Translucent)	   // Force a 1.5 IOR if USD didn't specify a value, as it's USD's fallback
 																		   // value
@@ -2507,7 +2507,7 @@ bool UsdToUnreal::ConvertMaterial(
 			TempParameterValue,
 			&Material,
 			TexturesCache,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		))
 	{
 		AmbientOcclusionParameter = TempParameterValue;
@@ -2678,7 +2678,7 @@ bool UsdToUnreal::ConvertShadeInputsToParameters(
 	UMaterialInstance& MaterialInstance,
 	UUsdAssetCache3* TexturesCache,
 	const TCHAR* RenderContext,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	FScopedUsdAllocs UsdAllocs;
@@ -2760,7 +2760,7 @@ bool UsdToUnreal::ConvertShadeInputsToParameters(
 					ParameterValue,
 					&MaterialInstance,
 					TexturesCache,
-					bReuseIdenticalAssets
+					bShareAssetsForIdenticalPrims
 				))
 			{
 				UsdShadeConversionImpl::SetParameterValue(MaterialInstance, *DisplayName, ParameterValue, bForUsdPreviewSurface, Unused);
@@ -2775,7 +2775,7 @@ bool UsdToUnreal::ConvertShadeInputsToParameters(
 					 bIsNormalMap,
 					 &MaterialInstance,
 					 TexturesCache,
-					 bReuseIdenticalAssets
+					 bShareAssetsForIdenticalPrims
 				 ))
 		{
 			UsdShadeConversionImpl::SetParameterValue(MaterialInstance, *DisplayName, ParameterValue, bForUsdPreviewSurface, Unused);
@@ -2792,11 +2792,11 @@ bool UsdToUnreal::ConvertMaterial(
 	UMaterialInstance& Material,
 	UUsdAssetCache2* TexturesCache,
 	const TCHAR* RenderContext,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	UUsdAssetCache3* NewCache = nullptr;
-	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material, NewCache, RenderContext, bReuseIdenticalAssets);
+	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material, NewCache, RenderContext, bShareAssetsForIdenticalPrims);
 }
 
 bool UsdToUnreal::ConvertMaterial(
@@ -2804,11 +2804,11 @@ bool UsdToUnreal::ConvertMaterial(
 	UMaterial& Material,
 	UUsdAssetCache2* TexturesCache,
 	const TCHAR* RenderContext,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	UUsdAssetCache3* NewCache = nullptr;
-	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material, NewCache, RenderContext, bReuseIdenticalAssets);
+	return UsdToUnreal::ConvertMaterial(UsdShadeMaterial, Material, NewCache, RenderContext, bShareAssetsForIdenticalPrims);
 }
 
 bool UsdToUnreal::ConvertShadeInputsToParameters(
@@ -2816,11 +2816,11 @@ bool UsdToUnreal::ConvertShadeInputsToParameters(
 	UMaterialInstance& MaterialInstance,
 	UUsdAssetCache2* TexturesCache,
 	const TCHAR* RenderContext,
-	bool bReuseIdenticalAssets
+	bool bShareAssetsForIdenticalPrims
 )
 {
 	UUsdAssetCache3* NewCache = nullptr;
-	return UsdToUnreal::ConvertShadeInputsToParameters(UsdShadeMaterial, MaterialInstance, NewCache, RenderContext, bReuseIdenticalAssets);
+	return UsdToUnreal::ConvertShadeInputsToParameters(UsdShadeMaterial, MaterialInstance, NewCache, RenderContext, bShareAssetsForIdenticalPrims);
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -3478,7 +3478,7 @@ bool UsdUtils::IsMaterialTranslucent(const pxr::UsdShadeMaterial& UsdShadeMateri
 
 	const UMaterialInterface* Material = nullptr;
 	UUsdAssetCache3* TexturesCache = nullptr;
-	const bool bReuseIdenticalAssets = true;
+	const bool bShareAssetsForIdenticalPrims = true;
 	UsdShadeConversionImpl::FParameterValue ParameterValue;
 	bool bHasOpacityConnection = UsdShadeConversionImpl::GetFloatParameterValue(
 		Connectable,
@@ -3487,7 +3487,7 @@ bool UsdUtils::IsMaterialTranslucent(const pxr::UsdShadeMaterial& UsdShadeMateri
 		ParameterValue,
 		Material,
 		TexturesCache,
-		bReuseIdenticalAssets
+		bShareAssetsForIdenticalPrims
 	);
 
 	// Don't check if the texture is nullptr here as we won't actually parse it yet. If the variant has this type we know it's meant to be bound to a

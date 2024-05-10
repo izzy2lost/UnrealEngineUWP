@@ -1864,9 +1864,9 @@ bool UsdUtils::SetAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserDat
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if USE_USD_SDK
-FString UsdUtils::GetAssetHashPrefix(const pxr::UsdPrim& PrimForAsset, bool bReuseIdenticalAssets)
+FString UsdUtils::GetAssetHashPrefix(const pxr::UsdPrim& PrimForAsset, bool bShareAssetsForIdenticalPrims)
 {
-	if (!PrimForAsset || bReuseIdenticalAssets)
+	if (!PrimForAsset || bShareAssetsForIdenticalPrims)
 	{
 		return FString{};
 	}

@@ -171,7 +171,7 @@ USceneComponent* FUsdGeomPrimitiveTranslator::CreateComponents()
 					Context->bAllowInterpretingLODs,
 					Context->RenderContext,
 					Context->MaterialPurpose,
-					Context->bReuseIdenticalAssets
+					Context->bShareAssetsForIdenticalPrims
 				);
 			}
 		}

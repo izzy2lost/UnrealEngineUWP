@@ -32,7 +32,7 @@ namespace UsdGroomTranslatorUtils
 		UUsdAssetCache3& AssetCache,
 		FUsdInfoCache& InfoCache,
 		EObjectFlags ObjectFlags,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	);
 
 	// Set the groom asset targeted by the given prim with GroomBindingAPI on the SceneComponent (with a GroomComponent as a direct child)

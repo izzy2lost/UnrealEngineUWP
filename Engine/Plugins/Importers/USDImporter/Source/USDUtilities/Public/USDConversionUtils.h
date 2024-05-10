@@ -361,11 +361,11 @@ namespace UsdUtils
 #if USE_USD_SDK
 	/**
 	 * Simple utility that generates a prefix that should be added to the hash when using it to cache/query an UsdAssetCache2 object.
-	 * The idea is to use this prefix alongside the hash whenever bReuseIdenticalAssets is false, so as to generate a new hash for each prim.
-	 * Whenever bReuseIdenticalAssets is true, the prefix will be the empty string.
-	 * Whenever bReuseIdenticalAssets is false, the prefix will be a SHA1 hash of the prim path and its stage identifier.
+	 * The idea is to use this prefix alongside the hash whenever bShareAssetsForIdenticalPrims is false, so as to generate a new hash for each prim.
+	 * Whenever bShareAssetsForIdenticalPrims is true, the prefix will be the empty string.
+	 * Whenever bShareAssetsForIdenticalPrims is false, the prefix will be a SHA1 hash of the prim path and its stage identifier.
 	 */
-	USDUTILITIES_API FString GetAssetHashPrefix(const pxr::UsdPrim& PrimForAsset, bool bReuseIdenticalAssets);
+	USDUTILITIES_API FString GetAssetHashPrefix(const pxr::UsdPrim& PrimForAsset, bool bShareAssetsForIdenticalPrims);
 #endif	  // #if USE_USD_SDK
 
 	/** Adds a reference on Prim to the layer at AbsoluteFilePath */

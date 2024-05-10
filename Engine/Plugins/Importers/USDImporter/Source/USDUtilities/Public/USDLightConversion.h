@@ -94,7 +94,7 @@ namespace UsdToUnreal
 		const pxr::UsdPrim& Prim,
 		USkyLightComponent& LightComponent,
 		UUsdAssetCache2* TexturesCache,
-		bool bReuseIdenticalAssets = true
+		bool bShareAssetsForIdenticalPrims = true
 	);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

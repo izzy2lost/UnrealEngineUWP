@@ -63,14 +63,14 @@ namespace UsdToUnreal
 		UMaterialInstance& Material,
 		UUsdAssetCache3* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
-		bool bReuseIdenticalAssets = true
+		bool bShareAssetsForIdenticalPrims = true
 	);
 	USDUTILITIES_API bool ConvertMaterial(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
 		UMaterial& Material,
 		UUsdAssetCache3* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
-		bool bReuseIdenticalAssets = true
+		bool bShareAssetsForIdenticalPrims = true
 	);
 
 	/**
@@ -89,7 +89,7 @@ namespace UsdToUnreal
 		UMaterialInstance& MaterialInstance,
 		UUsdAssetCache3* TexturesCache,
 		const TCHAR* RenderContext = nullptr,
-		bool bReuseIdenticalAssets = true
+		bool bShareAssetsForIdenticalPrims = true
 	);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -99,7 +99,7 @@ namespace UsdToUnreal
 		UMaterialInstance& Material,
 		UUsdAssetCache2* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
-		bool bReuseIdenticalAssets = true
+		bool bShareAssetsForIdenticalPrims = true
 	);
 	UE_DEPRECATED(5.5, "Use the other overload that receives an UUsdAssetCache3 object instead")
 	USDUTILITIES_API bool ConvertMaterial(
@@ -107,7 +107,7 @@ namespace UsdToUnreal
 		UMaterial& Material,
 		UUsdAssetCache2* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
-		bool bReuseIdenticalAssets = true
+		bool bShareAssetsForIdenticalPrims = true
 	);
 	UE_DEPRECATED(5.5, "Use the other overload that receives an UUsdAssetCache3 object instead")
 	USDUTILITIES_API bool ConvertShadeInputsToParameters(
@@ -115,7 +115,7 @@ namespace UsdToUnreal
 		UMaterialInstance& MaterialInstance,
 		UUsdAssetCache2* TexturesCache,
 		const TCHAR* RenderContext = nullptr,
-		bool bReuseIdenticalAssets = true
+		bool bShareAssetsForIdenticalPrims = true
 	);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }

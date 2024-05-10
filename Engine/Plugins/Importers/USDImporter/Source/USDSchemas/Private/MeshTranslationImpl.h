@@ -36,7 +36,7 @@ namespace MeshTranslationImpl
 		UUsdAssetCache3& AssetCache,
 		FUsdInfoCache& InfoCache,
 		EObjectFlags Flags,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	);
 
 	/**
@@ -54,7 +54,7 @@ namespace MeshTranslationImpl
 		bool bInterpretLODs,
 		const FName& RenderContext,
 		const FName& MaterialPurpose,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	);
 
 	void RecordSourcePrimsForMaterialSlots(
