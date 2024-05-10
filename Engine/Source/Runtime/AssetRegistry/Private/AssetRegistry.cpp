@@ -4938,11 +4938,6 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 					bCanCompleteInitialSearch = false;
 				}
 			}
-			if (bCanCompleteInitialSearch)
-			{
-				RecordTimer(); // OnInitialSearchComplete reads data set by RecordTimer
-				OnInitialSearchCompleted(EventContext);
-			}
 			else
 			{
 				if (bLocalIsInGameThread)
@@ -4955,6 +4950,11 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 				}
 
 				OutStatus = EGatherStatus::UnableToProgress;
+			}
+			if (bCanCompleteInitialSearch)
+			{
+				RecordTimer(); // OnInitialSearchComplete reads data set by RecordTimer
+				OnInitialSearchCompleted(EventContext);
 			}
 		}
 	}
