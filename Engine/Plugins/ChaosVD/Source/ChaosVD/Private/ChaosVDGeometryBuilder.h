@@ -513,11 +513,6 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableMeshComponent(const TSharedP
 			return nullptr;
 		}
 
-		if (!MeshComponent->HasOverrideMaterials())
-		{
-			MeshComponentsWaitingForMaterial->EnqueueObject(MeshComponent);
-		}
-
 		bOutIsNewComponent = true;
 	}
 
