@@ -259,10 +259,10 @@ void LogMoreInfoOnIsActorValidFailure(const FActorRepListType& In)
 	{
 		LastTimeLoggedMoreInfo = CurrentTime;
 
-		if (DoesActorPointerLookValid(In))
+		AActor* Actor = In;
+		if (Actor)
 		{
-			// Actor pointer is valid, but some of its properties may be not 
-			AActor* Actor = In;
+			// Actor pointer is valid, but some of its properties may not be.
 			UE_LOG(LogReplicationGraph, Error, TEXT("Actor not valid for replication (BeingDestroyed:%d) (IsValid:%d) (Unreachable:%d) (TearOff:%d)! Actor = %s"),
 				Actor->IsActorBeingDestroyed(), IsValid(Actor), Actor->IsUnreachable(), Actor->GetTearOff(),
 				*Actor->GetFullName());
@@ -276,11 +276,11 @@ void LogMoreInfoOnIsActorValidFailure(const FActorRepListType& In)
 		else
 		{
 #if UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
-			UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor pointer detected during replication: Ptr = %p, Name='%s', Owner='%s', OuterPackage='%s'"),
-				In.GetActor(), *In.ActorName.ToString(), *In.OwnerName.ToString(), *In.OuterPackageName.ToString()
+			UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor pointer detected during replication: Name='%s', Owner='%s', OuterPackage='%s'"),
+				*In.ActorName.ToString(), *In.OwnerName.ToString(), *In.OuterPackageName.ToString()
 				);
 #else
-			UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor pointer detected during replication: Ptr = %p"), static_cast<AActor*>(In));
+			UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor pointer detected during replication"));
 #endif
 		}
 
