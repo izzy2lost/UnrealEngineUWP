@@ -477,6 +477,9 @@ struct FFortniteMainBranchObjectVersion
 		// Added hideable pins to dataflow
 		DataflowHideablePins,
 
+		// Added multiple section import to the cloth asset skeletal mesh import node
+		ClothAssetSkeletalMeshMultiSectionImport,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

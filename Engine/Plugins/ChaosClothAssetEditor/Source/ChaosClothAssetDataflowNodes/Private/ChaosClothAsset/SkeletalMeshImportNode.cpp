@@ -50,35 +50,38 @@ void FChaosClothAssetSkeletalMeshImportNode::Evaluate(Dataflow::FContext& Contex
 			}
 
 			const FSkeletalMeshLODModel &LODModel = ImportedModel->LODModels[LODIndex];
-			const bool bIsValidSection = LODModel.Sections.IsValidIndex(SectionIndex);;
-			if (!bIsValidSection)
-			{
-				FClothDataflowTools::LogAndToastWarning(*this, LOCTEXT("InvalidSectionHeadline", "Invalid section."),
-					FText::Format(
-						LOCTEXT("InvalidSectionDetails", "No valid section {0} found for skeletal mesh {1}."),
-						SectionIndex,
-						FText::FromString(SkeletalMesh->GetName())));
+			const int32 FirstSection = bImportSingleSection ? SectionIndex : 0;
+			const int32 LastSection = bImportSingleSection ? SectionIndex : LODModel.Sections.Num() - 1;
 
-				SetValue(Context, MoveTemp(*ClothCollection), &Collection);
-				return;
+			for (int32 Section = FirstSection; Section <= LastSection; ++Section)
+			{
+				const bool bIsValidSection = LODModel.Sections.IsValidIndex(Section);;
+				if (!bIsValidSection)
+				{
+					FClothDataflowTools::LogAndToastWarning(*this, LOCTEXT("InvalidSectionHeadline", "Invalid section."),
+						FText::Format(
+							LOCTEXT("InvalidSectionDetails", "No valid section {0} found for skeletal mesh {1}."),
+							Section,
+							FText::FromString(SkeletalMesh->GetName())));
+
+					continue;
+				}
+
+				if (bImportSimMesh)
+				{
+					FClothDataflowTools::AddSimPatternsFromSkeletalMeshSection(ClothCollection, LODModel, Section, UVChannel, UVScale);
+				}
+
+				if (bImportRenderMesh)
+				{
+					const TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
+					check(Section < Materials.Num());
+					const FString RenderMaterialPathName = Materials[Section].MaterialInterface ? Materials[Section].MaterialInterface->GetPathName() : "";
+					FClothDataflowTools::AddRenderPatternFromSkeletalMeshSection(ClothCollection, LODModel, Section, RenderMaterialPathName);
+				}
 			}
 
-			const FSkelMeshSection &Section = LODModel.Sections[SectionIndex];
-
-			if (bImportSimMesh)
-			{
-				FClothDataflowTools::AddSimPatternsFromSkeletalMeshSection(ClothCollection, LODModel, SectionIndex, UVChannel, UVScale);
-			}
-
-			if (bImportRenderMesh)
-			{
-				const TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
-				check(SectionIndex < Materials.Num());
-				const FString RenderMaterialPathName = Materials[SectionIndex].MaterialInterface ? Materials[SectionIndex].MaterialInterface->GetPathName() : "";
-				FClothDataflowTools::AddRenderPatternFromSkeletalMeshSection(ClothCollection, LODModel, SectionIndex, RenderMaterialPathName);
-			}
-
-			if (const UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset())
+			if (const UPhysicsAsset* PhysicsAsset = bSetPhysicsAsset ? SkeletalMesh->GetPhysicsAsset() : nullptr)
 			{
 				ClothFacade.SetPhysicsAssetPathName(PhysicsAsset->GetPathName());
 			}
@@ -86,6 +89,16 @@ void FChaosClothAssetSkeletalMeshImportNode::Evaluate(Dataflow::FContext& Contex
 			ClothFacade.SetSkeletalMeshPathName(SkeletalMesh->GetPathName());
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+	}
+}
+
+void FChaosClothAssetSkeletalMeshImportNode::Serialize(FArchive& Ar)
+{
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	if (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FFortniteMainBranchObjectVersion::ClothAssetSkeletalMeshMultiSectionImport)
+	{
+		bImportSingleSection = true;
+		bSetPhysicsAsset = true;
 	}
 }
 

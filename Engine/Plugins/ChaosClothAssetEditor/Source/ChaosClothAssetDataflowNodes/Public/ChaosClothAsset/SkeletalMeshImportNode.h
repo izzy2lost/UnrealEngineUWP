@@ -27,8 +27,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import", Meta = (ClampMin = "0", DisplayName = "LOD Index"))
 	int32 LODIndex = 0;
 
-	/** The skeletal mesh LOD section to import. */
-	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import", Meta = (ClampMin = "0"))
+	/** Enable single import section mode. */
+	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import")
+	bool bImportSingleSection = false;
+
+	/** The skeletal mesh LOD section to import. If not enabled, then all sections will be imported. */
+	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import", Meta = (ClampMin = "0", EditCondition = "bImportSingleSection"))
 	int32 SectionIndex = 0;
 
 	/** Whether to import the simulation mesh from the specified skeletal mesh. */
@@ -41,7 +45,7 @@ public:
 
 	/**
 	 * UV channel of the skeletal mesh to import the 2D simulation mesh patterns from.
-	 * If set to -1, then the import will unwrap the 3D simulation mesh into 2D simulation mesh patterns.
+	 * If set to -1, or the specified UVChannel doesn't exist then the import will unwrap the 3D simulation mesh into 2D simulation mesh patterns.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import", Meta = (ClampMin = "-1", EditCondition = "bImportSimMesh"))
 	int32 UVChannel = 0;
@@ -50,8 +54,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import", Meta = (AllowPreserveRatio, EditCondition = "bImportSimMesh && UVChannel != INDEX_NONE"))
 	FVector2f UVScale = { 1.f, 1.f };
 
+	/** Set the same physics asset as the one used by the imported skeletal mesh. */
+	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import")
+	bool bSetPhysicsAsset = false;
+
 	FChaosClothAssetSkeletalMeshImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Serialize(FArchive& Ar) override;
 };
