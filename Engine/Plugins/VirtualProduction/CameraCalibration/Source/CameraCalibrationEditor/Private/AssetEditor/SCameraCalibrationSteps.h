@@ -26,6 +26,15 @@ struct FArguments;
  */
 class SCameraCalibrationSteps : public SCompoundWidget, public FGCObject
 {
+	/** Type indicating the kind of media source the user can pick from */
+	enum class EMediaSourceType : uint8
+	{
+		MediaSource,
+		MediaTexture,
+		MediaProfile,
+		None
+	};
+	
 	SLATE_BEGIN_ARGS(SCameraCalibrationSteps) {}
 	SLATE_END_ARGS()
 
@@ -49,9 +58,21 @@ private:
 	/** Builds the UI for the simulcam wiper */
 	TSharedRef<SWidget> BuildSimulcamWiperWidget();
 
+	/** Builds the media source type picker */
+	TSharedRef<SWidget> BuildMediaSourceTypeWidget();
+	
 	/** Builds the UI for the media source picker */
 	TSharedRef<SWidget> BuildMediaSourceWidget();
 
+	/** Builds an asset picker for media source assets */
+	TSharedRef<SWidget> BuildMediaSourceAssetPicker();
+
+	/** Builds an asset picker for media texture assets */
+	TSharedRef<SWidget> BuildMediaTextureAssetPicker();
+
+	/** Builds a combo box that displays the media source in the current media profile */
+	TSharedRef<SWidget> BuildMediaProfileSourcePicker();
+	
 	/** Builds the UI for the overlay picker */
 	TSharedRef<SWidget> BuildOverlayWidget();
 
@@ -60,9 +81,6 @@ private:
 
 	/** Updates the material parameter widget to display the parameters for the currently selected overlay */
 	void UpdateOverlayMaterialParameterWidget();
-
-	/** Refreshes the list of available media sources shown in the MediaSourcesComboBox */
-	void UpdateMediaSourcesOptions();
 
 	/** Expected to be called when user selects a new step via the UI */
 	void SelectStep(const FName& StepName);
@@ -74,12 +92,15 @@ private:
 
 	/** The controller object */
 	TWeakPtr<class FCameraCalibrationStepsController> CalibrationStepsController;
+
+	/** The currently selected media source type */
+	EMediaSourceType MediaSourceType = EMediaSourceType::MediaProfile;
 	
 	/** Options source for the MediaSourcesComboBox. Lists the currently available media sources */
-	TArray<TSharedPtr<FString>> CurrentMediaSources;
+	TArray<TWeakObjectPtr<UMediaSource>> MediaProfileSources;
 
 	/** The combobox that presents the available media sources */
-	TSharedPtr<SComboBox<TSharedPtr<FString>>> MediaSourcesComboBox;
+	TSharedPtr<SComboBox<TWeakObjectPtr<UMediaSource>>> MediaProfileSourcesComboBox;
 
 	/** The combox that presents the available overlays */
 	TSharedPtr<SComboBox<TSharedPtr<FName>>> OverlayComboBox;
