@@ -2940,7 +2940,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		FSceneView NewView(ViewInitOptions);
 		FViewInfo* ViewInfo = &CustomRenderPassInfo.Views.Emplace_GetRef(&NewView);
 		CustomRenderPassInfo.ViewFamily.Views.Add(ViewInfo);
-		CustomRenderPassInfo.ViewFamily.AllViews.Add(ViewInfo);
+
 		// Must initialize to have a GPUScene connected to be able to collect dynamic primitives.
 		ViewInfo->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(&GPUSceneDynamicContext);
 		ViewInfo->bDisableQuerySubmissions = true;
@@ -3013,6 +3013,12 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 
 	check(!ViewFamily.AllViews.Num());
 	ViewFamily.AllViews.Append(AllViews);
+
+	// Mirror AllViews across CustomRenderPass view families
+	for (FCustomRenderPassInfo& PassInfo : CustomRenderPassInfos)
+	{
+		PassInfo.ViewFamily.AllViews = ViewFamily.AllViews;
+	}
 
 	Scene->CustomRenderPassRendererInputs.Reset();
 
