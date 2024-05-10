@@ -919,12 +919,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			if (!Params.bIncludeRedirectors)
 			{
-				// Add redirectors to the class paths to exclude unless it's already in the class paths to explicitly include
-				FTopLevelAssetPath RedirectorClassPath(UObjectRedirector::StaticClass());
-				if (!CompiledInclusiveFilter.ClassPaths.Contains(RedirectorClassPath))
-				{
-					ExclusiveFilter.ClassPaths.Add(RedirectorClassPath);
-				}
+				ExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(UObjectRedirector::StaticClass()));
 			}
 
 			Params.AssetRegistry->CompileFilter(ExclusiveFilter, CompiledExclusiveFilter);
