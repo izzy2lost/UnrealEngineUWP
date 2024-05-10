@@ -2192,9 +2192,19 @@ void USkinWeightsPaintTool::ToggleEditingMode()
 	SetFocusInViewport();
 }
 
-TObjectPtr<UPolygonSelectionMechanic> USkinWeightsPaintTool::GetSelectionMechanic()
+void USkinWeightsPaintTool::GrowSelection() const
 {
-	return PolygonSelectionMechanic;
+	PolygonSelectionMechanic->GrowSelection();
+}
+
+void USkinWeightsPaintTool::ShrinkSelection() const
+{
+	PolygonSelectionMechanic->ShrinkSelection();
+}
+
+void USkinWeightsPaintTool::FloodSelection() const
+{
+	PolygonSelectionMechanic->FloodSelection();
 }
 
 void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices) const

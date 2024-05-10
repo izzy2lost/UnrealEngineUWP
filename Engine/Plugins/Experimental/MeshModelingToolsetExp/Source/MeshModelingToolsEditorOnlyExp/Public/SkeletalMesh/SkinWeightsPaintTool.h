@@ -384,7 +384,9 @@ public:
 	void ToggleEditingMode();
 
 	// edit selection
-	TObjectPtr<UPolygonSelectionMechanic> GetSelectionMechanic();
+	void GrowSelection() const;
+	void ShrinkSelection() const;
+	void FloodSelection() const;
 
 	// get a list of currently selected vertices
 	void GetSelectedVertices(TArray<int32>& OutVertexIndices) const;

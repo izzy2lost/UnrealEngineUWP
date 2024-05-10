@@ -323,7 +323,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					"Grow the current selection by adding connected neighbors to current selection.\n"))
 			.OnClicked_Lambda([this]()
 			{
-				SkinToolSettings->WeightTool->GetSelectionMechanic()->GrowSelection();
+				SkinToolSettings->WeightTool->GrowSelection();
 				return FReply::Handled();
 			})
 		]
@@ -339,7 +339,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					"Shrink the current selection by removing vertices on the border of the current selection.\n"))
 			.OnClicked_Lambda([this]()
 			{
-				SkinToolSettings->WeightTool->GetSelectionMechanic()->ShrinkSelection();
+				SkinToolSettings->WeightTool->ShrinkSelection();
 				return FReply::Handled();
 			})
 		]
@@ -355,7 +355,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					"Flood the current selection by adding all connected vertices to the current selection.\n"))
 			.OnClicked_Lambda([this]()
 			{
-				SkinToolSettings->WeightTool->GetSelectionMechanic()->FloodSelection();
+				SkinToolSettings->WeightTool->FloodSelection();
 				return FReply::Handled();
 			})
 		]
