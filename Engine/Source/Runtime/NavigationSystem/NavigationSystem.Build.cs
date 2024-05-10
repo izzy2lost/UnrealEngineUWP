@@ -76,6 +76,8 @@ namespace UnrealBuildTool.Rules
                 PublicDependencyModuleNames.Add("UnrealEd");
                 CircularlyReferencedDependentModules.Add("UnrealEd");
             }
+
+			bAllowAutoRTFMInstrumentation = true;
         }
     }
 }
