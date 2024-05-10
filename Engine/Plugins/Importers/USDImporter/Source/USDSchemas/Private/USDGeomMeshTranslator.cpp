@@ -631,7 +631,7 @@ namespace UsdGeomMeshTranslatorImpl
 			Options |= EComputeNTBsFlags::Normals;
 			UE_LOG(
 				LogUsd,
-				Log,
+				Verbose,
 				TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is at or above the threshold of '%f%%' (configurable via "
 					 "the cvar '%s'), so normals will be discarded and fully recomputed. Note that when the cvar "
 					 "'USD.Subdiv.IgnoreNormalsWhenSubdividing' is true it is expected for subdivision meshes to have their normals discarded."),
@@ -645,7 +645,7 @@ namespace UsdGeomMeshTranslatorImpl
 		{
 			UE_LOG(
 				LogUsd,
-				Log,
+				Verbose,
 				TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is below the threshold of '%f%%' (configurable via the "
 					 "cvar '%s'), so the invalid normals will be repaired."),
 				InvalidNormalFraction * 100.0f,
