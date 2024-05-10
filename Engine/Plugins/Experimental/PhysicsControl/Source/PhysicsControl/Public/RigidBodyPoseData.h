@@ -44,9 +44,12 @@ public:
 		const FBoneReference&          BaseBoneRef,
 		const FGraphTraversalCounter&  InUpdateCounter);
 
-	UE::PhysicsControl::FPosQuat GetTM(int32 Index) const { return BoneTMs[Index]; }
+	UE::PhysicsControl::FPosQuat GetTM(int32 Index) const { 
+		check(IsValidIndex(Index)); check(!BoneTMs[Index].ContainsNaN()); return BoneTMs[Index]; }
 	bool IsValidIndex(const int32 Index) const { return BoneTMs.IsValidIndex(Index); }
 	bool IsEmpty() const { return BoneTMs.IsEmpty(); }
+
+	void SetSize(const int32 NumBones) { BoneTMs.SetNum(NumBones); }
 
 	/**
 	 * The cached skeletal data, updated at the start of each tick

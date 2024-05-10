@@ -26,28 +26,14 @@ void FRigidBodyPoseData::Update(
 	const FTransform BaseBoneTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(
 		BaseBoneRef.GetCompactPoseIndex(BoneContainer));
 
-	if (BoneTMs.Num() == OutputBoneData.Num())
+	for (const FOutputBoneData& OutputData : OutputBoneData)
 	{
-		for (const FOutputBoneData& OutputData : OutputBoneData)
+		const int32 BodyIndex = OutputData.BodyIndex;
+		if (ensure(BoneTMs.IsValidIndex(BodyIndex)))
 		{
-			const int32 BodyIndex = OutputData.BodyIndex;
-			if (ensure(BoneTMs.IsValidIndex(BodyIndex)))
-			{
-				const FTransform& ComponentSpaceTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
-				const FTransform BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
-				BoneTMs[BodyIndex] = BodyTM;
-			}
-		}
-	}
-	else
-	{
-		BoneTMs.Empty(OutputBoneData.Num());
-		for (const FOutputBoneData& OutputData : OutputBoneData)
-		{
-			const int32 BodyIndex = OutputData.BodyIndex;
 			const FTransform& ComponentSpaceTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
 			const FTransform BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
-			BoneTMs.Emplace(BodyTM);
+			BoneTMs[BodyIndex] = BodyTM;
 		}
 	}
 }

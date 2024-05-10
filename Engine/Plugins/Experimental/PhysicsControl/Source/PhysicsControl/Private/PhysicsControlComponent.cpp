@@ -25,8 +25,6 @@
 DECLARE_CYCLE_STAT(TEXT("PhysicsControl UpdateTargetCaches"), STAT_PhysicsControl_UpdateTargetCaches, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("PhysicsControl UpdateControls"), STAT_PhysicsControl_UpdateControls, STATGROUP_Anim);
 
-//UE_DISABLE_OPTIMIZATION;
-
 //======================================================================================================================
 // This file contains the public member functions of UPhysicsControlComponent
 //======================================================================================================================

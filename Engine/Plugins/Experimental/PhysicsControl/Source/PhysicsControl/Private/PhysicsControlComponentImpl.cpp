@@ -15,8 +15,6 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 
-//UE_DISABLE_OPTIMIZATION;
-
 //======================================================================================================================
 // This file contains the non-public member functions of UPhysicsControlComponent
 //======================================================================================================================

@@ -36,8 +36,6 @@ LLM_DEFINE_TAG(Animation_RigidBodyWithControl);
 /////////////////////////////////////////////////////
 // FAnimNode_RigidBodyWithControl
 
-//UE_DISABLE_OPTIMIZATION
-
 #define LOCTEXT_NAMESPACE "ImmediatePhysicsWithControl"
 
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_InitPhysics"), STAT_RigidBodyWithControlInitPhysicsTime, STATGROUP_Anim);
@@ -857,16 +855,19 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 			const int32 BodyIndex = OutputData.BodyIndex;
 			// Note that we always read back, whether kinematic or simulated
 			FTransform BodyTM = Bodies[BodyIndex]->GetWorldTransform();
-			FTransform ComponentSpaceTM;
-			switch(SimulationSpace)
+			if (ensure(!BodyTM.ContainsNaN()))
 			{
-				case ESimulationSpace::ComponentSpace: ComponentSpaceTM = BodyTM; break;
-				case ESimulationSpace::WorldSpace: ComponentSpaceTM = BodyTM.GetRelativeTransform(SimulationWorldSpaceTM); break;
-				case ESimulationSpace::BaseBoneSpace: ComponentSpaceTM = BodyTM * BaseBoneTM; break;
-				default: ensureMsgf(false, TEXT("Unsupported Simulation Space")); ComponentSpaceTM = BodyTM;
-			}
+				FTransform ComponentSpaceTM;
+				switch(SimulationSpace)
+				{
+					case ESimulationSpace::ComponentSpace: ComponentSpaceTM = BodyTM; break;
+					case ESimulationSpace::WorldSpace: ComponentSpaceTM = BodyTM.GetRelativeTransform(SimulationWorldSpaceTM); break;
+					case ESimulationSpace::BaseBoneSpace: ComponentSpaceTM = BodyTM * BaseBoneTM; break;
+					default: ensureMsgf(false, TEXT("Unsupported Simulation Space")); ComponentSpaceTM = BodyTM;
+				}
 					
-			OutBoneTransforms.Add(FBoneTransform(OutputData.CompactPoseBoneIndex, ComponentSpaceTM));
+				OutBoneTransforms.Add(FBoneTransform(OutputData.CompactPoseBoneIndex, ComponentSpaceTM));
+			}
 		}
 
 		// Deferred task must be started after we read actor poses to avoid a race
@@ -1845,6 +1846,7 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 	const FReferenceSkeleton& RefSkeleton = RequiredBones.GetReferenceSkeleton();
 
 	OutputBoneData.Empty(NumBodies);
+	int32 OutputBoneDataMaxBodyIndex = -1;
 
 	int32 NumSimulatedBodies = 0;
 	TArray<int32> SimulatedBodyIndices;
@@ -1885,10 +1887,10 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 		if (BodyIndex != INDEX_NONE)
 		{
 			//If we have a body we need to save it for later
-			UE::PhysicsControl::FOutputBoneData* OutputData = 
-				new (OutputBoneData) UE::PhysicsControl::FOutputBoneData();
-			OutputData->BodyIndex = BodyIndex;
-			OutputData->CompactPoseBoneIndex = CompactPoseBoneIndex;
+			UE::PhysicsControl::FOutputBoneData& OutputData = OutputBoneData.AddDefaulted_GetRef();
+			OutputData.BodyIndex = BodyIndex;
+			OutputBoneDataMaxBodyIndex = FMath::Max(OutputBoneDataMaxBodyIndex, BodyIndex);
+			OutputData.CompactPoseBoneIndex = CompactPoseBoneIndex;
 
 			if (BodyAnimData[BodyIndex].bIsSimulated)
 			{
@@ -1896,12 +1898,12 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 				SimulatedBodyIndices.AddUnique(BodyIndex);
 			}
 
-			OutputData->BoneIndicesToParentBody.Add(CompactPoseBoneIndex);
+			OutputData.BoneIndicesToParentBody.Add(CompactPoseBoneIndex);
 
 			// Walk up parent chain until we find parent body.
-			OutputData->ParentBodyIndex = INDEX_NONE;
+			OutputData.ParentBodyIndex = INDEX_NONE;
 			FCompactPoseBoneIndex CompactParentIndex = RequiredBones.GetParentBoneIndex(CompactPoseBoneIndex);
-			OutputData->CompactPoseParentBoneIndex = CompactParentIndex;
+			OutputData.CompactPoseParentBoneIndex = CompactParentIndex;
 			while (CompactParentIndex != INDEX_NONE)
 			{
 				const FBoneIndexType SkeletonParentBoneIndex = (FBoneIndexType ) RequiredBones.GetSkeletonIndex(CompactParentIndex);
@@ -1913,14 +1915,14 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 					break;
 				}
 
-				OutputData->ParentBodyIndex = SkeletonBoneIndexToBodyIndex[SkeletonParentBoneIndex];
-				OutputData->CompactPoseParentBoneIndex = CompactParentIndex;
-				if (OutputData->ParentBodyIndex != INDEX_NONE)
+				OutputData.ParentBodyIndex = SkeletonBoneIndexToBodyIndex[SkeletonParentBoneIndex];
+				OutputData.CompactPoseParentBoneIndex = CompactParentIndex;
+				if (OutputData.ParentBodyIndex != INDEX_NONE)
 				{
 					break;
 				}
 
-				OutputData->BoneIndicesToParentBody.Add(CompactParentIndex);
+				OutputData.BoneIndicesToParentBody.Add(CompactParentIndex);
 				CompactParentIndex = RequiredBones.GetParentBoneIndex(CompactParentIndex);
 			}
 
@@ -1940,6 +1942,9 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 	}
 	else
 	{
+		// The Pose data cache will only be indexed using the body indices from OutputBoneData
+		PoseData.SetSize(OutputBoneDataMaxBodyIndex + 1);
+
 		// New bodies potentially introduced with new LOD
 		// We'll have to initialize their transform.
 		bCheckForBodyTransformInit = true;

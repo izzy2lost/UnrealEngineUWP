@@ -60,6 +60,11 @@ struct FPosQuat
 		return FPosQuat(OutRotation * -Translation, OutRotation);
 	}
 
+	FORCEINLINE bool ContainsNaN() const
+	{
+		return Translation.ContainsNaN() || Rotation.ContainsNaN();
+	}
+
 	FVector Translation;
 	FQuat Rotation;
 };
