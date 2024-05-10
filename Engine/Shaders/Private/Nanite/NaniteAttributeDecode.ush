@@ -380,6 +380,7 @@ uint RemapRasterBin(uint InBinIndex, uint InRenderFlags, FNaniteMaterialFlags Ma
 		RemappedBin  = NANITE_FIXED_FUNCTION_BIN;
 		RemappedBin |= select(MaterialFlags.bTwoSided, NANITE_FIXED_FUNCTION_BIN_TWOSIDED, 0x0u);
 		RemappedBin |= select(MaterialFlags.bSplineMesh, NANITE_FIXED_FUNCTION_BIN_SPLINE, 0x0u);
+		RemappedBin |= select(MaterialFlags.bSkinnedMesh, NANITE_FIXED_FUNCTION_BIN_SKINNED, 0x0u);
 	}
 
 	return RemappedBin;
