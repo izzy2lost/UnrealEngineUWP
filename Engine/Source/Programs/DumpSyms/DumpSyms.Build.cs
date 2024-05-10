@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.IO;
+using UnrealBuildBase;
 using UnrealBuildTool;
 
 public class DumpSyms : ModuleRules
@@ -31,13 +32,18 @@ public class DumpSyms : ModuleRules
 			new string[]
 			{
 				Path.Combine(EngineDirectory, "Source", "ThirdParty", "Breakpad", "src"),
+				Path.Combine(EngineDirectory, "Source", "ThirdParty", "Breakpad", "src", "third_party", "llvm"),
 			});
+
+		PrivateDefinitions.Add("_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS");
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"mimalloc"
 			}
 		);
+
+		PrivateDependencyModuleNames.Add("zlib");
 
 		bUseRTTI = true;
 	}

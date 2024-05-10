@@ -1,5 +1,4 @@
-// Copyright (c) 2006, Google Inc.
-// All rights reserved.
+// Copyright 2006 Google LLC
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -11,7 +10,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google Inc. nor the names of its
+//     * Neither the name of Google LLC nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -81,9 +80,8 @@ void breakpad_swap_segment_command_64(struct segment_command_64 *sg);
 void breakpad_swap_fat_header(struct fat_header *fh);
 
 void breakpad_swap_fat_arch(struct fat_arch *fa, uint32_t narchs);
-#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+
 void breakpad_swap_fat_arch_64(struct fat_arch_64 *fa, uint32_t narchs);
-#endif
 
 void breakpad_swap_mach_header(struct mach_header *mh);
 
