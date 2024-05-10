@@ -1322,6 +1322,11 @@ static bool StartFromCommandlineArguments(const TCHAR* CommandLine, bool& bOutSt
 		Type = FTraceAuxiliary::EConnectionType::Network;
 		Target = *Parameter;
 	}
+	else if (FParse::Value(CommandLine, TEXT("-tracehost"), Parameter))
+	{
+		Type = FTraceAuxiliary::EConnectionType::Network;
+		Target = TEXT("localhost");
+	}
 	else if (FParse::Value(CommandLine, TEXT("-tracefile="), Parameter))
 	{
 		Type = FTraceAuxiliary::EConnectionType::File;
