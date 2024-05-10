@@ -173,7 +173,8 @@ public:
 		Options.positional_help("<cmd>");
 
 		Options.add_options()
-			("h,help", "Prints help message for each command");
+			("h,help", "Prints help message for each command")
+			("d,detach", "Detach from console when started.");
 
 		// Fork and daemon options
 		Options.add_options("settings")
@@ -273,6 +274,11 @@ public:
 			return true;
 		}
 		return false;
+	}
+
+	bool GetDetach() const
+	{
+		return Parsed["detach"].count() > 0;
 	}
 
 	void PrintHelp() const
@@ -759,7 +765,7 @@ static int MainFork(int ArgC, char** ArgV, const FOptions& Options)
 #if TS_USING(TS_DAEMON_THREAD)
 	std::thread DaemonThread([=] () { MainDaemon(ArgC, ArgV, Options); });
 #else
-	std::wstring CommandLine = L"UnrealTraceServer.exe daemon";
+	std::wstring CommandLine = L"UnrealTraceServer.exe daemon -d ";
 
 	auto ContainsSpace = [](LPCWSTR Arg) -> bool {
 		for (uint32 c = 0, Len = (uint32)wcslen(Arg); c < Len; ++c)
@@ -903,6 +909,12 @@ static int MainDaemon(int ArgC, char** ArgV, const FOptions& Options)
 	// Fire up the store
 	FStoreService* StoreService = FStoreService::Create(Settings, InstanceInfo);
 	OnScopeExit([StoreService]() { delete StoreService; });
+
+	if (Options.GetDetach())
+	{
+		TS_LOG("Detaching from console now.");
+		FreeConsole();
+	}
 
 	// Let every one know we've started.
 	{
