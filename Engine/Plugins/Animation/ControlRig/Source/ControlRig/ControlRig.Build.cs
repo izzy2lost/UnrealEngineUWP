@@ -63,6 +63,8 @@ namespace UnrealBuildTool.Rules
                 PrivateIncludePathModuleNames.Add("ControlRigEditor");
                 DynamicallyLoadedModuleNames.Add("ControlRigEditor");
             }
+
+			bAllowAutoRTFMInstrumentation = true;
         }
     }
 }
