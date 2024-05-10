@@ -438,7 +438,7 @@ class FStructBindings
 {
 public:
 	UE_NONCOPYABLE(FStructBindings);
-	FStructBindings() = default;
+	explicit FStructBindings(const FDebugIds& In) : Debug(In) {}
 	~FStructBindings();
 
 	void							BindStruct(FStructSchemaId Id, const ICustomStructBinding& Custom);
@@ -448,6 +448,7 @@ public:
 
 private:
 	TArray<FStructBindingOwner>		Bindings;
+	const FDebugIds&				Debug;
 
 	void							Bind(FStructSchemaId Id, FStructBinding Binding);
 };

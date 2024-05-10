@@ -77,4 +77,16 @@ void FDeclarations::DeclareEnum(FEnumSchemaId Id, FTypeId Type, EEnumMode Mode, 
 	ValidateDeclaration(*Ptr);
 }
 
+#if DO_CHECK
+void FDeclarations::Check(FEnumSchemaId Id) const
+{
+	checkf(Id.Idx < (uint32)DeclaredEnums.Num() && DeclaredEnums[Id.Idx], TEXT("'%s' is undeclared"), *Debug.Print(Id));
+}
+
+void FDeclarations::Check(FStructSchemaId Id) const
+{
+	checkf(Id.Idx < (uint32)DeclaredStructs.Num() && DeclaredStructs[Id.Idx], TEXT("'%s' is undeclared"), *Debug.Print(Id));
+}
+#endif
+
 } // namespace PlainProps

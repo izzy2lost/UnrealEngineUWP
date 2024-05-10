@@ -213,9 +213,10 @@ static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const F
 
 static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FStructSchemaBinding& To, SubsetByteArray& Out)
 {
-	int32 OutPos = Out.Num();
-	Out.AddUninitialized(To.CalculateSize());
-	FStructSchemaBinding* Schema = new (&Out[OutPos]) FStructSchemaBinding {To};
+	uint32 Size = To.CalculateSize();
+	Out.AddUninitialized(Size);
+	FStructSchemaBinding* Schema = reinterpret_cast<FStructSchemaBinding*>(&Out[Out.Num() - Size]);
+	FMemory::Memcpy(Schema, &To, Size);
 	FMemory::Memcpy(const_cast<FSchemaId*>(Schema->GetInnerSchemas()), FromIds, To.NumInnerSchemas * sizeof(FSchemaId));
 }
 

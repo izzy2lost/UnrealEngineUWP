@@ -12,18 +12,18 @@
 #include  "PlainPropsSave.h"
 #include  "PlainPropsWrite.h"
 #include  "PlainPropsUeCoreBindings.h"
-#include "Tests/TestHarnessAdapter.h"
+#include "Algo/Compare.h"
 #include "Containers/StringView.h"
 #include "Containers/Map.h"
 #include "Templates/UnrealTemplate.h"
+#include "Tests/TestHarnessAdapter.h"
 
 namespace PlainProps::UE::Test
 {
 
 static TIdIndexer<FName>	GNames;
-static FDeclarations		GTypes;
-static FStructBindings		GBindings;
-static FStructBindings		GDeltaBindings;
+static FDeclarations		GTypes(/* debug */ GNames);
+static FStructBindings		GBindings(/* debug */ GNames);
 
 struct FIds
 {
@@ -310,6 +310,7 @@ static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoade
 
 struct FInt { int32 X; };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FInt, void, X);
+static bool operator==(FInt A, FInt B) { return A.X == B.X; }
 
 enum class EFlat1 : uint8 { A = 1, B = 3 };
 enum class EFlat2 : uint8 { A, B };
@@ -326,19 +327,17 @@ struct FEnums
 	EFlat2 Flat2;
 	EFlag1 Flag1;
 	EFlag2 Flag2;
-
-	bool operator==(FEnums O) const { return Flat1 == O.Flat1 && Flat2 == O.Flat2 && Flag1 == O.Flag1 && Flag2 == O.Flag2; }
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FEnums, void, Flat1, Flat2, Flag1, Flag2);
+static bool operator==(FEnums A, FEnums B) { return A.Flat1 == B.Flat1 && A.Flat2 == B.Flat2 && A.Flag1 == B.Flag1 && A.Flag2 == B.Flag2; }
 
 struct FLeafArrays
 {
 	TArray<bool> Bits;
 	TArray<int>	Bobs;
-
-	bool operator==(const FLeafArrays& O) const { return Bits == O.Bits && Bobs == O.Bobs; }
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FLeafArrays, void, Bits, Bobs);
+static bool operator==(const FLeafArrays& A, const FLeafArrays& B) { return A.Bits == B.Bits && A.Bobs == B.Bobs; }
 
 struct FComplexArrays
 {
@@ -346,10 +345,47 @@ struct FComplexArrays
 	TArray<EFlat1> Enums;
 	TArray<FLeafArrays> Misc;
 	TArray<TArray<EFlat1>> Nested;
-
-	bool operator==(const FComplexArrays& O) const { return Str == O.Str && Enums == O.Enums && Misc == O.Misc && Nested == O.Nested; }
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FComplexArrays, void, Str, Enums, Misc, Nested);
+static bool operator==(const FComplexArrays& A, const FComplexArrays& B) { return A.Str == B.Str && A.Enums == B.Enums && A.Misc == B.Misc && A.Nested == B.Nested; }
+
+struct FUniquePtrs
+{
+	TUniquePtr<bool> Bit;
+	TUniquePtr<FInt> Struct;
+	TUniquePtr<TUniquePtr<int>> IntPtr;
+	TArray<TUniquePtr<double>> Doubles;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FUniquePtrs, void, Bit, Struct, IntPtr, Doubles);
+
+template<typename T>
+bool SameValue(const TUniquePtr<T>& A, const TUniquePtr<T>& B)
+{
+	return !A == !B && (!A || *A == *B); 
+}
+
+static bool operator==(const FUniquePtrs& A, const FUniquePtrs& B) 
+{ 
+	return	SameValue(A.Bit, B.Bit) &&
+			SameValue(A.Struct, B.Struct) &&
+			!A.IntPtr == !B.IntPtr && (!A.IntPtr || SameValue(*A.IntPtr, *B.IntPtr)) && 
+			Algo::Compare(A.Doubles, B.Doubles, [](auto& X, auto& Y) { return SameValue(X, Y); });
+}
+
+template<typename T>
+TUniquePtr<T> MakeOne(T&& Value)
+{
+	return MakeUnique<T>(MoveTemp(Value));
+}
+
+template<typename T>
+TArray<TUniquePtr<T>> MakeTwo(T&& A, T&& B)
+{
+	TArray<TUniquePtr<T>> Out;
+	Out.Add(MakeOne(MoveTemp(A)));
+	Out.Add(MakeOne(MoveTemp(B)));
+	return Out;
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -433,19 +469,33 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			});
 	}
 
-	SECTION("FString")
+	SECTION("TUniquePtr")
+	{
+		TScopedStructBinding<FInt> Int;
+		TScopedStructBinding<FUniquePtrs> UniquePtrs;
+		TestSaveAndLoad(
+			[](FBatchSaver& Batch)
+			{
+				Batch.Save(FUniquePtrs{});
+				Batch.Save(FUniquePtrs{MakeOne(true), MakeOne(FInt{3}), MakeOne(MakeOne(2)), MakeTwo(1.0, 2.0)});
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FUniquePtrs>() == FUniquePtrs{});
+				CHECK(Batch.Load<FUniquePtrs>() == FUniquePtrs{MakeOne(true), MakeOne(FInt{3}), MakeOne(MakeOne(2)), MakeTwo(1.0, 2.0)});
+			});
+	}
+
+	SECTION("FakeReference")
 	{}
 
-	SECTION("TUniquePtr")
+	SECTION("FString")
 	{}
 		
 	SECTION("TSet")
 	{}
 	
 	SECTION("FName")
-	{}
-
-	SECTION("FakeReference")
 	{}
 
 	SECTION("NestedContainer")

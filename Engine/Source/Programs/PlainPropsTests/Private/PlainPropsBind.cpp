@@ -223,11 +223,13 @@ void FStructBindings::Bind(FStructSchemaId Id, FStructBinding Binding)
 
 FStructBinding FStructBindings::Get(FStructSchemaId Id) const
 {
+	checkf(Id.Idx < (uint32)Bindings.Num() && Bindings[Id.Idx], TEXT("'%s' is unbound"), *Debug.Print(Id));
 	return Bindings[Id.Idx].Get();
 }
 
 void FStructBindings::DropStruct(FStructSchemaId Id)
 {
+	checkf(Id.Idx < (uint32)Bindings.Num() && Bindings[Id.Idx], TEXT("'%s' is unbound"), *Debug.Print(Id));
 	Bindings[Id.Idx].ResetOwned();
 }
 

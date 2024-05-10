@@ -131,9 +131,52 @@ struct TArrayBinding : public IRangeBinding
 //////////////////////////////////////////////////////////////////////////
 
 template <typename T>
+struct TUniquePtrBinding : public IRangeBinding
+{
+	using SizeType = bool;
+	using ItemType = T;
+
+	virtual void MakeItems(FLoadRangeContext& Ctx) const override
+	{
+		TUniquePtr<T>& Ptr = Ctx.Request.GetRange<TUniquePtr<T>>();
+		
+		if (Ctx.Request.NumTotal() == 0)
+		{
+			Ptr.Reset();
+			return;
+		}
+		
+		if (!Ptr)
+		{
+			if constexpr (std::is_default_constructible_v<T>)
+			{
+				Ptr.Reset(new T);
+			}
+			else
+			{
+				Ptr.Reset(reinterpret_cast<T*>(FMemory::Malloc(sizeof(T), alignof(T))));
+				Ctx.Items.SetUnconstructed();
+			}
+		}
+		
+		Ctx.Items.Set(Ptr.Get(), 1);
+	}
+
+	virtual void ReadItems(FSaveRangeContext& Ctx) const override
+	{
+		const TUniquePtr<T>& Ptr = Ctx.Request.GetRange<TUniquePtr<T>>();
+		Ctx.Items.SetAll(Ptr.Get(), Ptr ? 1 : 0);
+	}
+
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+template <typename T>
 struct TSetBinding : public IRangeBinding
 {
 	using SizeType = int32;
+	using ItemType = T;
 
 	virtual void MakeItems(FLoadRangeContext& Ctx) const override
 	{
@@ -434,6 +477,12 @@ namespace PlainProps
 	struct TRangeBind<TArray<T>>
 	{
 		using Type = UE::TArrayBinding<T>;
+	};
+
+	template<typename T>
+	struct TRangeBind<TUniquePtr<T>>
+	{
+		using Type = UE::TUniquePtrBinding<T>;
 	};
 
 	template<typename T>

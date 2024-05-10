@@ -104,13 +104,18 @@ TEST_CASE_NAMED(FPlainPropsIndexTest, "System::Core::Serialization::PlainProps::
 
 inline constexpr uint32 TestMagics[] = {0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887766, 0xF0F1F2F3 };
 
-class FTestBatchBuilder : public TIdIndexer<FAnsiString>, public FDeclarations
+class FTestBatchBuilder : public TIdIndexer<FAnsiString>
 {
 public:
+	FTestBatchBuilder() : Declarations(*this) {}
+
 	FEnumSchemaId				DeclareEnum(FTypeId Type, EEnumMode Mode, ELeafWidth Width, std::initializer_list<const char*> Names, std::initializer_list<uint64> Constants);
 	FEnumSchemaId				DeclareEnum(const char* Scope, const char* Name, EEnumMode Mode, ELeafWidth Width, std::initializer_list<const char*> Names, std::initializer_list<uint64> Constants);
 	FStructSchemaId				DeclareStruct(FTypeId Type, std::initializer_list<const char*> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super = {});
 	FStructSchemaId				DeclareStruct(const char* Scope, const char* Name, std::initializer_list<const char*> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super = {});
+	
+	const FEnumDeclaration&		Get(FEnumSchemaId Id) { return Declarations.Get(Id); }
+	const FStructDeclaration&	Get(FStructSchemaId Id) { return Declarations.Get(Id); }
 
 	void						AddObject(FStructSchemaId Schema, FMemberBuilder&& Members);
 	void						AddObjects(FStructSchemaId Schema, std::initializer_list<FMemberBuilder&&> Objects);
@@ -119,6 +124,7 @@ public:
 
 private:
 	TArray<TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>>	Objects;
+	FDeclarations												Declarations;
 
 	TArray<FMemberId> NameMembers(std::initializer_list<const char*> Members)
 	{
@@ -149,7 +155,7 @@ private:
 FStructSchemaId FTestBatchBuilder::DeclareStruct(FTypeId Type, std::initializer_list<const char*> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super)
 {
 	FStructSchemaId Id = IndexStruct(Type);
-	FDeclarations::DeclareStruct(Id, Type, NameMembers(MemberOrder), Occupancy, Super);
+	Declarations.DeclareStruct(Id, Type, NameMembers(MemberOrder), Occupancy, Super);
 	return Id;
 }
 
@@ -161,7 +167,7 @@ FStructSchemaId FTestBatchBuilder::DeclareStruct(const char* Scope, const char* 
 FEnumSchemaId FTestBatchBuilder::DeclareEnum(FTypeId Type, EEnumMode Mode, ELeafWidth Width, std::initializer_list<const char*> InNames, std::initializer_list<uint64> Constants)
 {
 	FEnumSchemaId Id = IndexEnum(Type);
-	FDeclarations::DeclareEnum(Id, Type, Mode, Width, MakeEnumerators(InNames, Constants));
+	Declarations.DeclareEnum(Id, Type, Mode, Width, MakeEnumerators(InNames, Constants));
 	return Id;
 }
 
@@ -172,14 +178,13 @@ FEnumSchemaId FTestBatchBuilder::DeclareEnum(const char* Scope, const char* Name
 
 void FTestBatchBuilder::AddObject(FStructSchemaId Schema, FMemberBuilder&& Members)
 {
-	const FStructDeclaration& Declaration = *DeclaredStructs[Schema.Idx];
-	Objects.Emplace(Schema, Members.BuildAndReset(Declaration, *this));
+	Objects.Emplace(Schema, Members.BuildAndReset(Declarations.Get(Schema), *this));
 }
 
 TArray64<uint8> FTestBatchBuilder::Write()
 {
 	// Build partial schemas
-	FSchemasBuilder SchemaBuilders(DeclaredStructs, DeclaredEnums, *this);
+	FSchemasBuilder SchemaBuilders(Declarations.GetStructs(), Declarations.GetEnums(), *this);
 	for (const TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>& Object : Objects)
 	{
 		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
