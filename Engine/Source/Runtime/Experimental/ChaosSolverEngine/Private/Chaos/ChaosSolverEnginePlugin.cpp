@@ -7,6 +7,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Chaos/ChaosDebugDrawComponent.h"
+#include "Chaos/ChaosDebugDrawSubsystem.h"
 #include "Chaos/ChaosSolverActor.h"
 #include "ChaosSolversModule.h"
 #include "ChaosVDRecordingStateScreenMessageHandler.h"
@@ -28,6 +29,10 @@ void FChaosSolverEnginePlugin::StartupModule()
 
 	UChaosDebugDrawComponent::BindWorldDelegates();
 
+#if CHAOS_DEBUG_DRAW
+	UChaosDebugDrawSubsystem::Startup();
+#endif
+
 #if WITH_CHAOS_VISUAL_DEBUGGER
 	FChaosVDRecordingStateScreenMessageHandler::Get().Initialize();
 #endif
@@ -36,6 +41,9 @@ void FChaosSolverEnginePlugin::StartupModule()
 
 void FChaosSolverEnginePlugin::ShutdownModule()
 {
+#if CHAOS_DEBUG_DRAW
+	UChaosDebugDrawSubsystem::Shutdown();
+#endif
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 	FChaosVDRecordingStateScreenMessageHandler::Get().TearDown();
