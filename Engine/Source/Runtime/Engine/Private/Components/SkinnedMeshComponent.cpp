@@ -2501,7 +2501,7 @@ void USkinnedMeshComponent::SetMeshDeformer(bool bInSetMeshDeformer, UMeshDeform
 
 	CreateMeshDeformerInstances(ActiveDeformers);
 
-	MarkRenderDynamicDataDirty();
+	MarkRenderStateDirty();
 }
 
 void USkinnedMeshComponent::SetMeshDeformer(UMeshDeformer* InMeshDeformer)
