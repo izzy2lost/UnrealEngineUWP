@@ -910,7 +910,7 @@ namespace mu
         {
             const uint8_t* data = program.GetOpArgsPointer(at);
             mu::OP::ADDRESS source;
-			FMemory::Memcpy( &source, data, sizeof(OP::ADDRESS) );
+            memcpy( &source, data, sizeof(OP::ADDRESS) );
             f(source);
             break;
         }

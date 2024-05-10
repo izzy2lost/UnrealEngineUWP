@@ -93,16 +93,16 @@ namespace mu
 	}
 
 
-	void ASTOpLayoutMerge::GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache)
+	void ASTOpLayoutMerge::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache* cache)
 	{
 		if (Base)
 		{
-			Base->GetBlockLayoutSize(BlockId, pBlockX, pBlockY, cache);
+			Base->GetBlockLayoutSize(blockIndex, pBlockX, pBlockY, cache);
 		}
 
 		if (!*pBlockX && Added)
 		{
-			Added->GetBlockLayoutSize(BlockId, pBlockX, pBlockY, cache);
+			Added->GetBlockLayoutSize(blockIndex, pBlockX, pBlockY, cache);
 		}
 	}
 

@@ -61,8 +61,9 @@ namespace mu
 		uint64 Hash() const override;
 		void Link(FProgram& program, FLinkerOptions*) override;
 		FImageDesc GetImageDesc(bool, class FGetImageDescContext*) const override;
-		void GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache) override;
-		void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
+		void GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY,
+			FBlockLayoutSizeCache* cache) override;
+		void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
 		bool GetNonBlackRect(FImageRect& maskUsage) const override;
 		bool IsImagePlainConstant(FVector4f& colour) const override;
 		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;

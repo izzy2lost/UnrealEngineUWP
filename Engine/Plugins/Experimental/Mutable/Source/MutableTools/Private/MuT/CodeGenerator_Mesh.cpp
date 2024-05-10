@@ -269,8 +269,7 @@ namespace mu
 		Ptr<Mesh> currentLayoutMesh,
 		int32 currentLayoutChannel,
 		const void* errorContext,
-		const FMeshGenerationOptions& MeshOptions,
-		bool bUseAbsoluteBlockIds
+		const FMeshGenerationOptions& MeshOptions
 		)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(LayoutUV_PrepareForLayout);
@@ -281,22 +280,46 @@ namespace mu
 		}
 
 		// The layout must have block ids.
-		check(GeneratedLayout->Blocks.IsEmpty() || GeneratedLayout->Blocks[0].Id != Layout::InvalidBlockId);
+		check(GeneratedLayout->m_blocks.IsEmpty() || GeneratedLayout->m_blocks[0].m_id != -1);
+
 
 		// 
 		Ptr<const Layout> Layout = GeneratedLayout;
 		currentLayoutMesh->AddLayout(Layout);
 
+		// Create the layout block vertex buffer
+		uint16* LayoutData = nullptr;
+		{
+			const int32 LayoutBufferIndex = currentLayoutMesh->GetVertexBuffers().GetBufferCount();
+			currentLayoutMesh->GetVertexBuffers().SetBufferCount(LayoutBufferIndex + 1);
+
+			// TODO
+			check(Layout->GetBlockCount() < MAX_uint16);
+			const EMeshBufferSemantic semantic = MBS_LAYOUTBLOCK;
+			const int32 semanticIndex = int32(currentLayoutChannel);
+			const EMeshBufferFormat format = MBF_UINT16;
+			const int32 components = 1;
+			const int32 offset = 0;
+			currentLayoutMesh->GetVertexBuffers().SetBuffer
+			(
+				LayoutBufferIndex,
+				sizeof(uint16),
+				1,
+				&semantic, &semanticIndex,
+				&format, &components,
+				&offset
+			);
+			LayoutData = (uint16*)currentLayoutMesh->GetVertexBuffers().GetBufferData(LayoutBufferIndex);
+		}
+
 		const int32 NumVertices = currentLayoutMesh->GetVertexCount();
 		const int32 NumBlocks = Layout->GetBlockCount();
 
 		// Clear block data
-		TArray<uint16> LayoutData;
-		LayoutData.SetNumUninitialized(NumVertices);
-		constexpr uint16 NullBlockId = MAX_uint16 - 1;
+		const uint16 NullBlockId = MAX_uint16 - 1;
 		for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 		{
-			LayoutData[VertexIndex] = NullBlockId;
+			*(LayoutData + VertexIndex) = NullBlockId;
 		}
 
 		// Find block ids for each block in the grid
@@ -305,7 +328,7 @@ namespace mu
 		GridBlockBlockId.Init(MAX_uint16, Grid.X * Grid.Y);
 
 		// 
-		TArray<uint64> BlockIds;
+		TArray<uint16> BlockIds;
 		TArray<box<FVector2f>> BlockRects;
 
 		BlockIds.SetNumUninitialized(NumBlocks);
@@ -316,7 +339,7 @@ namespace mu
 		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 		{
 			// Get the block id
-			BlockIds[BlockIndex] = Layout->Blocks[BlockIndex].Id;
+			BlockIds[BlockIndex] = Layout->m_blocks[BlockIndex].m_id;
 
 			// Get the block rect
 			uint16 MinX, MinY, SizeX, SizeY;
@@ -462,7 +485,7 @@ namespace mu
 
 			uint16 X, Y;
 
-			uint16& BlockIndexV0 = LayoutData[Index0];
+			uint16& BlockIndexV0 = *(LayoutData + Index0);
 			if (BlockIndexV0 == NullBlockId)
 			{
 				X = (uint16)FMath::Min<uint32>(MaxGridX, FMath::Max<uint32>(0, (uint32)(Grid.X * TempUVs[Index0][0])));
@@ -470,7 +493,7 @@ namespace mu
 				BlockIndexV0 = (X < Grid.X && Y < Grid.Y) ? GridBlockBlockId[Y * Grid.X + X] : 0;
 			}
 
-			uint16& BlockIndexV1 = LayoutData[Index1];
+			uint16& BlockIndexV1 = *(LayoutData + Index1);
 			if (BlockIndexV1 == NullBlockId)
 			{
 				X = (uint16)FMath::Min<uint32>(MaxGridX, FMath::Max<uint32>(0, (uint32)(Grid.X * TempUVs[Index1][0])));
@@ -478,7 +501,7 @@ namespace mu
 				BlockIndexV1 = (X < Grid.X && Y < Grid.Y) ? GridBlockBlockId[Y * Grid.X + X] : 0;
 			}
 
-			uint16& BlockIndexV2 = LayoutData[Index2];
+			uint16& BlockIndexV2 = *(LayoutData + Index2);
 			if (BlockIndexV2 == NullBlockId)
 			{
 				X = (uint16)FMath::Min<uint32>(MaxGridX, FMath::Max<uint32>(0, (uint32)(Grid.X * TempUVs[Index2][0])));
@@ -557,13 +580,13 @@ namespace mu
 			}
 
 			// Get the limits of the predominant block rect
-			const Layout::FBlock& LayoutBlock = Layout->Blocks[BlockIndex];
+			const Layout::FBlock& LayoutBlock = Layout->m_blocks[BlockIndex];
 
 			const float SmallNumber = 0.000001;
-			const float MinX = ((float)LayoutBlock.Min.X) / (float)Grid.X + SmallNumber;
-			const float MinY = ((float)LayoutBlock.Min.Y) / (float)Grid.Y + SmallNumber;
-			const float MaxX = (((float)LayoutBlock.Size.X + LayoutBlock.Min.X) / (float)Grid.X) - 2 * SmallNumber;
-			const float MaxY = (((float)LayoutBlock.Size.Y + LayoutBlock.Min.Y) / (float)Grid.Y) - 2 * SmallNumber;
+			const float MinX = ((float)LayoutBlock.m_min.X) / (float)Grid.X + SmallNumber;
+			const float MinY = ((float)LayoutBlock.m_min.Y) / (float)Grid.Y + SmallNumber;
+			const float MaxX = (((float)LayoutBlock.m_size.X + LayoutBlock.m_min.X) / (float)Grid.X) - 2 * SmallNumber;
+			const float MaxY = (((float)LayoutBlock.m_size.Y + LayoutBlock.m_min.Y) / (float)Grid.Y) - 2 * SmallNumber;
 
 			// Iterate triangles and clamp the UVs
 			FVector2f* TempUVsData = TempUVs.GetData();
@@ -585,7 +608,7 @@ namespace mu
 					FVector2f& UV = TempUVs[UVIndex];
 					UV[0] = FMath::Clamp(UV[0], MinX, MaxX);
 					UV[1] = FMath::Clamp(UV[1], MinY, MaxY);
-					LayoutData[UVIndex] = BlockIndex;
+					*(LayoutData + UVIndex) = BlockIndex;
 				}
 
 				OtherTriangle.bUVsFixed = true;
@@ -620,32 +643,6 @@ namespace mu
 			}
 		}
 
-		// Create the layout block vertex buffer
-		uint8* LayoutBufferPtr = nullptr;
-		{
-			const int32 LayoutBufferIndex = currentLayoutMesh->GetVertexBuffers().GetBufferCount();
-			currentLayoutMesh->GetVertexBuffers().SetBufferCount(LayoutBufferIndex + 1);
-
-			// TODO
-			check(Layout->GetBlockCount() < MAX_uint16);
-			const EMeshBufferSemantic LayoutSemantic = MBS_LAYOUTBLOCK;
-			const int32 LayoutSemanticIndex = int32(currentLayoutChannel);
-			const EMeshBufferFormat LayoutFormat = bUseAbsoluteBlockIds ? MBF_UINT64 : MBF_UINT16;
-			const int32 LayoutComponents = 1;
-			const int32 LayoutOffset = 0;
-			int32 ElementSize = bUseAbsoluteBlockIds ? sizeof(uint64) : sizeof(uint16);
-			currentLayoutMesh->GetVertexBuffers().SetBuffer
-			(
-				LayoutBufferIndex,
-				ElementSize,
-				1,
-				&LayoutSemantic, &LayoutSemanticIndex,
-				&LayoutFormat, &LayoutComponents,
-				&LayoutOffset
-			);
-			LayoutBufferPtr = currentLayoutMesh->GetVertexBuffers().GetBufferData(LayoutBufferIndex);
-		}
-
 		// Format and copy UVs
 		{
 			uint8* pVertices = pData;
@@ -655,38 +652,19 @@ namespace mu
 			{
 				FVector2f* UV = &TempUVs[VertexIndex];
 
-				uint16 LayoutBlockIndex = LayoutData[VertexIndex];
-
-				// Replace block index by the actual id of the block
-				if (bUseAbsoluteBlockIds)
+				uint16& LayoutBlockIndex = LayoutData[VertexIndex];
+				if (BlockIds.IsValidIndex(LayoutBlockIndex))
 				{
-					uint64* Ptr = reinterpret_cast<uint64*>(LayoutBufferPtr) + VertexIndex;
+					// Homogenize UVs
+					*UV = BlockRects[LayoutBlockIndex].Homogenize(*UV);
 
-					if (BlockIds.IsValidIndex(LayoutBlockIndex))
-					{
-						*UV = BlockRects[LayoutBlockIndex].Homogenize(*UV);
-						*Ptr = BlockIds[LayoutBlockIndex];
-					}
-					else
-					{
-						// Map vertices without block to the first block.
-						*Ptr = 0;
-					}
+					// Replace block index by the actual id of the block
+					LayoutBlockIndex = BlockIds[LayoutBlockIndex];
 				}
 				else
 				{
-					uint16* Ptr = reinterpret_cast<uint16*>(LayoutBufferPtr) + VertexIndex;
-
-					if (BlockIds.IsValidIndex(LayoutBlockIndex))
-					{
-						*UV = BlockRects[LayoutBlockIndex].Homogenize(*UV);
-						*Ptr = uint16(BlockIds[LayoutBlockIndex] & 0xffff);
-					}
-					else
-					{
-						// Map vertices without block to the first block.
-						*Ptr = 0;
-					}
+					// Map vertices without block to the first block.
+					LayoutBlockIndex = 0;
 				}
 
 				// Copy UVs
@@ -939,16 +917,16 @@ namespace mu
 
                 op->Source = BaseResult.meshOp;
 
-                if (BaseResult.GeneratedLayouts.Num()>node.LayoutOrGroup )
+                if (BaseResult.GeneratedLayouts.Num()>node.m_layoutOrGroup )
                 {
-                    const Layout* pLayout = BaseResult.GeneratedLayouts[node.LayoutOrGroup].get();
-                    op->Layout = (uint16)node.LayoutOrGroup;
+                    const Layout* pLayout = BaseResult.GeneratedLayouts[node.m_layoutOrGroup].get();
+                    op->Layout = (uint16)node.m_layoutOrGroup;
 
-                    for ( int32 i=0; i<node.Blocks.Num(); ++i )
+                    for ( int32 i=0; i<node.m_blocks.Num(); ++i )
                     {
-                        if (node.Blocks[i]>=0 && node.Blocks[i]<pLayout->Blocks.Num() )
+                        if (node.m_blocks[i]>=0 && node.m_blocks[i]<pLayout->m_blocks.Num() )
                         {
-                            uint64 bid = pLayout->Blocks[ node.Blocks[i] ].Id;
+                            int bid = pLayout->m_blocks[ node.m_blocks[i] ].m_id;
                             op->Blocks.Add(bid);
                         }
                         else
@@ -1286,7 +1264,7 @@ namespace mu
 			// This data is required
 			MeshPtr EmptyMesh = new Mesh();
 			ConstantOp->SetValue(EmptyMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
-			EmptyMesh->MeshIDPrefix = ConstantOp->GetValueHash();
+			EmptyMesh->VertexIDPrefix = ConstantOp->GetValueHash();
 
 			FGeneratedConstantMesh MeshEntry;
 			MeshEntry.Mesh = EmptyMesh;
@@ -1385,22 +1363,22 @@ namespace mu
 			ConstantOp->SetValue(Cloned, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
 			// Add the unique vertex ID prefix in all cases, since it is free memory-wise
-			uint32 MeshIDPrefix = uint32(ConstantOp->GetValueHash());
+			uint32 VertexIDPrefix = uint32(ConstantOp->GetValueHash());
 			{
 				// Ensure the ID group is unique
 				bool bValid = false;
 				do
 				{
 					bool bAlreadyPresent = false;
-					UniqueVertexIDGroups.FindOrAdd(MeshIDPrefix, &bAlreadyPresent);
-					bValid = !bAlreadyPresent && MeshIDPrefix != 0;
+					UniqueVertexIDGroups.FindOrAdd(VertexIDPrefix, &bAlreadyPresent);
+					bValid = !bAlreadyPresent && VertexIDPrefix != 0;
 					if (!bValid)
 					{
-						++MeshIDPrefix;
+						++VertexIDPrefix;
 					}
 				} while (bValid);
 
-				Cloned->MeshIDPrefix = MeshIDPrefix;
+				Cloned->VertexIDPrefix = VertexIDPrefix;
 			}
 
 			// Add the constant data
@@ -1427,11 +1405,9 @@ namespace mu
 						const NodeLayoutBlocks* TypedNode = static_cast<const NodeLayoutBlocks*>(pLayoutNode.get());
 
 						Ptr<const Layout> SourceLayout = TypedNode->GetPrivate()->m_pLayout;
-						Ptr<const Layout> GeneratedLayout = AddLayout(SourceLayout, MeshIDPrefix);
+						Ptr<const Layout> GeneratedLayout = AddLayout( SourceLayout );
 						const void* Context = InOptions.OverrideContext.Get(Node.m_errorContext);
-
-						bool bUseAbsoluteBlockIds = false;
-						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions, bUseAbsoluteBlockIds);
+						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions);
 
 						OutResult.GeneratedLayouts.Add(GeneratedLayout);
 					}
@@ -1443,11 +1419,7 @@ namespace mu
 					{
 						Ptr<const Layout> GeneratedLayout = InOptions.OverrideLayouts[LayoutIndex];
 						const void* Context = InOptions.OverrideContext.Get(Node.m_errorContext);
-
-						// In this case we need the layout block ids to use the ids in the parent layout, and not be prefixed with
-						// the current mesh id prefix. For this reason we need them to be absolute.
-						bool bUseAbsoluteBlockIds = true;
-						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions, bUseAbsoluteBlockIds);
+						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions);
 
 						OutResult.GeneratedLayouts.Add(GeneratedLayout);
 					}

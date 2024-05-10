@@ -24,7 +24,7 @@ namespace mu
 		bool bIsRGBFadingEnabled, bool bIsAlphaFadingEnabled,
 		ESamplingMethod SamplingMethod,
 		float FadeStart, float FadeEnd, float MipInterpolationFactor,
-		int Layout, uint64 BlockId,
+		int Layout, int32 Block,
 		UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize,
 		FScratchImageProject* scratch, bool bUseVectorImplementation = false);
 
@@ -43,7 +43,7 @@ namespace mu
 		bool bIsRGBFadingEnabled, bool bIsAlphaFadingEnabled,
 		ESamplingMethod SamplingMethod,
 		float FadeStart, float FadeEnd, float MipInterpolationFactor,
-		int32 Layout, uint64 BlockId,
+		int32 Layout, int32 Block,
 		UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize,
 		FScratchImageProject* Scratch, bool bUseVectorImplementation = false);
 
@@ -52,7 +52,7 @@ namespace mu
 
     extern void MeshProject(Mesh* Result, const Mesh* pMesh, const FProjector& Projector, bool& bOutSuccess);
 
-	MUTABLERUNTIME_API extern void CreateMeshOptimisedForProjection(Mesh* Result, int32 LayoutIndex);
-	MUTABLERUNTIME_API extern void CreateMeshOptimisedForWrappingProjection(Mesh* Result, int32 LayoutIndex);
+	MUTABLERUNTIME_API extern void CreateMeshOptimisedForProjection(Mesh* Result, int32 Layout);
+	MUTABLERUNTIME_API extern void CreateMeshOptimisedForWrappingProjection(Mesh* Result, int32 Layout);
 
 }

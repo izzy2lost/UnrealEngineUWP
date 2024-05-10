@@ -39,10 +39,10 @@ namespace mu {
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 		LayoutPtr pResult = new Layout();		
-		pResult->Size = Size;
-		pResult->MaxSize = MaxSize;
-		pResult->Blocks = Blocks;
-		pResult->Strategy = Strategy;
+		pResult->m_size = m_size;
+		pResult->m_maxsize = m_maxsize;
+		pResult->m_blocks = m_blocks;
+		pResult->m_strategy = m_strategy;
 		pResult->FirstLODToIgnoreWarnings = FirstLODToIgnoreWarnings;
 		pResult->ReductionMethod = ReductionMethod;
 		return pResult;
@@ -52,10 +52,10 @@ namespace mu {
 	//---------------------------------------------------------------------------------------------
 	bool Layout::operator==( const Layout& o ) const
 	{
-		return (Size == o.Size) &&
-			(MaxSize == o.MaxSize) &&
-			(Blocks == o.Blocks) &&
-			(Strategy == o.Strategy) &&
+		return  (m_size == o.m_size) &&
+			(m_maxsize == o.m_maxsize) &&
+			(m_blocks == o.m_blocks) &&
+			(m_strategy == o.m_strategy) &&
 			// maybe this is not needed
 			(FirstLODToIgnoreWarnings == o.FirstLODToIgnoreWarnings) &&
 			(ReductionMethod==o.ReductionMethod);
@@ -65,52 +65,52 @@ namespace mu {
 	//---------------------------------------------------------------------------------------------
 	int32 Layout::GetDataSize() const
 	{
-		return sizeof(Layout) + Blocks.GetAllocatedSize();
+		return sizeof(Layout) + m_blocks.GetAllocatedSize();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	FIntPoint Layout::GetGridSize() const
 	{
-		return FIntPoint(Size[0], Size[1]);
+		return FIntPoint(m_size[0], m_size[1]);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void Layout::SetGridSize( int32 sizeX, int32 sizeY )
+	void Layout::SetGridSize( int sizeX, int sizeY )
 	{
 		check( sizeX>=0 && sizeY>=0 );
-		Size[0] = (uint16)sizeX;
-		Size[1] = (uint16)sizeY;
+		m_size[0] = (uint16)sizeX;
+		m_size[1] = (uint16)sizeY;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void Layout::GetMaxGridSize(int32* SizeX, int32* SizeY) const
+	void Layout::GetMaxGridSize(int* pSizeX, int* pSizeY) const
 	{
-		check(SizeX && SizeY);
+		check(pSizeX && pSizeY);
 
-		if (SizeX && SizeY)
+		if (pSizeX && pSizeY)
 		{
-			*SizeX = MaxSize[0];
-			*SizeY = MaxSize[1];
+			*pSizeX = m_maxsize[0];
+			*pSizeY = m_maxsize[1];
 		}
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void Layout::SetMaxGridSize(int32 sizeX, int32 sizeY)
+	void Layout::SetMaxGridSize(int sizeX, int sizeY)
 	{
 		check(sizeX >= 0 && sizeY >= 0);
-		MaxSize[0] = (uint16)sizeX;
-		MaxSize[1] = (uint16)sizeY;
+		m_maxsize[0] = (uint16)sizeX;
+		m_maxsize[1] = (uint16)sizeY;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	int32 Layout::GetBlockCount() const
 	{
-		return Blocks.Num();
+		return m_blocks.Num();
 	}
 
 
@@ -119,22 +119,22 @@ namespace mu {
 	{
 		check( n>=0 );
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-		Blocks.SetNum( n );
+		m_blocks.SetNum( n );
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void Layout::GetBlock( int32 index, uint16* pMinX, uint16* pMinY, uint16* pSizeX, uint16* pSizeY ) const
+	void Layout::GetBlock( int index, uint16* pMinX, uint16* pMinY, uint16* pSizeX, uint16* pSizeY ) const
 	{
-		check( index >=0 && index < Blocks.Num() );
+		check( index >=0 && index < m_blocks.Num() );
 		check( pMinX && pMinY && pSizeX && pSizeY );
 
 		if (pMinX && pMinY && pSizeX && pSizeY)
 		{
-			*pMinX = Blocks[index].Min[0];
-			*pMinY = Blocks[index].Min[1];
-			*pSizeX = Blocks[index].Size[0];
-			*pSizeY = Blocks[index].Size[1];
+			*pMinX = m_blocks[index].m_min[0];
+			*pMinY = m_blocks[index].m_min[1];
+			*pSizeX = m_blocks[index].m_size[0];
+			*pSizeY = m_blocks[index].m_size[1];
 		}
 	}
 
@@ -142,61 +142,61 @@ namespace mu {
 	//---------------------------------------------------------------------------------------------
 	void Layout::GetBlockOptions(int index, int& pPriority, bool& bReduceBothAxes, bool& bReduceByTwo) const
 	{
-		check(index >= 0 && index < Blocks.Num());
+		check(index >= 0 && index < m_blocks.Num());
 
-		pPriority = Blocks[index].Priority;
-		bReduceBothAxes = Blocks[index].bReduceBothAxes;
-		bReduceByTwo = Blocks[index].bReduceByTwo;
+		pPriority = m_blocks[index].m_priority;
+		bReduceBothAxes = m_blocks[index].bReduceBothAxes;
+		bReduceByTwo = m_blocks[index].bReduceByTwo;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
     void Layout::SetBlock( int index, int minx, int miny, int sizex, int sizey )
 	{
-		check( index >=0 && index < Blocks.Num() );
+		check( index >=0 && index < m_blocks.Num() );
 
 		// Keeps the id
-		Blocks[index].Min = UE::Math::TIntVector2<uint16>((uint16)minx, (uint16)miny);
-		Blocks[index].Size = UE::Math::TIntVector2<uint16>((uint16)sizex, (uint16)sizey);
+		m_blocks[index].m_min = UE::Math::TIntVector2<uint16>((uint16)minx, (uint16)miny);
+		m_blocks[index].m_size = UE::Math::TIntVector2<uint16>((uint16)sizex, (uint16)sizey);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void Layout::SetBlockOptions(int index, int priority, bool bReduceBothAxes, bool bReduceByTwo)
 	{
-		check(index >= 0 && index < Blocks.Num());
+		check(index >= 0 && index < m_blocks.Num());
 
-		Blocks[index].Priority = priority;
-		Blocks[index].bReduceBothAxes = bReduceBothAxes;
-		Blocks[index].bReduceByTwo = bReduceByTwo;
+		m_blocks[index].m_priority = priority;
+		m_blocks[index].bReduceBothAxes = bReduceBothAxes;
+		m_blocks[index].bReduceByTwo = bReduceByTwo;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void Layout::SetLayoutPackingStrategy(EPackStrategy _strategy)
 	{
-		Strategy = _strategy;
+		m_strategy = _strategy;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	EPackStrategy Layout::GetLayoutPackingStrategy() const
 	{
-		return Strategy;
+		return m_strategy;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void Layout::Serialise(OutputArchive& arch) const
 	{
-		uint32 ver = 7;
+		uint32 ver = 6;
 		arch << ver;
 
-		arch << Size;
-		arch << Blocks;
+		arch << m_size;
+		arch << m_blocks;
 
-		arch << MaxSize;
-		arch << uint32(Strategy);
+		arch << m_maxsize;
+		arch << uint32(m_strategy);
 		arch << FirstLODToIgnoreWarnings;
 		arch << uint32(ReductionMethod);
 	}
@@ -207,33 +207,56 @@ namespace mu {
 	{
 		uint32 ver;
 		arch >> ver;
-		check(ver <= 7);
+		check(ver <= 6);
 
-		arch >> Size;
-		arch >> Blocks;
-		arch >> MaxSize;
+		arch >> m_size;
+
+		if (ver < 6)
+		{
+			uint32_t Size = 0;
+			arch >> Size;
+			m_blocks.SetNum(Size);
+
+			for (uint32_t BlockIndex = 0; BlockIndex < Size; ++BlockIndex)
+			{
+				// Unserialise taking into account the Layout version
+				m_blocks[BlockIndex].UnserialiseOldVersion(arch, ver);
+			}
+		}
+		else
+		{
+			arch >> m_blocks;
+		}
+
+		arch >> m_maxsize;
 
 		uint32 temp;
 		arch >> temp;
-		Strategy = EPackStrategy(temp);
+		m_strategy = EPackStrategy(temp);
 
-		arch >> FirstLODToIgnoreWarnings;
+		if (ver >= 4)
+		{
+			arch >> FirstLODToIgnoreWarnings;
+		}
 
-		arch >> temp;
-		ReductionMethod = EReductionMethod(temp);
+		if (ver >= 5)
+		{
+			arch >> temp;
+			ReductionMethod = EReductionMethod(temp);
+		}
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	bool Layout::IsSimilar(const Layout& o) const
 	{
-		if (Size != o.Size || MaxSize != o.MaxSize ||
-			Blocks.Num() != o.Blocks.Num() || Strategy != o.Strategy)
+		if (m_size != o.m_size || m_maxsize != o.m_maxsize ||
+			m_blocks.Num() != o.m_blocks.Num() || m_strategy != o.m_strategy)
 			return false;
 
-		for (int32 i = 0; i < Blocks.Num(); ++i)
+		for (int32 i = 0; i < m_blocks.Num(); ++i)
 		{
-			if (!Blocks[i].IsSimilar(o.Blocks[i])) return false;
+			if (!m_blocks[i].IsSimilar(o.m_blocks[i])) return false;
 		}
 
 		return true;
@@ -242,26 +265,28 @@ namespace mu {
 
 
 	//---------------------------------------------------------------------------------------------
-	int32 Layout::FindBlock(uint64 Id) const
+	int32 Layout::FindBlock(int32_t id) const
 	{
-		for (int32 i = 0; i < Blocks.Num(); ++i)
+		check(id >= 0);
+		int res = -1;
+		for (int32 i = 0; res < 0 && i < m_blocks.Num(); ++i)
 		{
-			if (Blocks[i].Id == Id)
+			if (m_blocks[i].m_id == id)
 			{
-				return i;
+				res = i;
 			}
 		}
 
-		return -1;
+		return res;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	bool Layout::IsSingleBlockAndFull() const
 	{
-		if (Blocks.Num() == 1
-			&& Blocks[0].Min == UE::Math::TIntVector2<uint16>(0, 0)
-			&& Blocks[0].Size == Size)
+		if (m_blocks.Num() == 1
+			&& m_blocks[0].m_min == UE::Math::TIntVector2<uint16>(0, 0)
+			&& m_blocks[0].m_size == m_size)
 		{
 			return true;
 		}
@@ -300,10 +325,10 @@ namespace mu {
 	//---------------------------------------------------------------------------------------------
 	void Layout::FBlock::Serialise(OutputArchive& arch) const
 	{
-		arch << Min;
-		arch << Size;
-		arch << Id;
-		arch << Priority;
+		arch << m_min;
+		arch << m_size;
+		arch << m_id;
+		arch << m_priority;
 		arch << bReduceBothAxes;
 		arch << bReduceByTwo;
 	}
@@ -312,13 +337,27 @@ namespace mu {
 	//---------------------------------------------------------------------------------------------
 	void Layout::FBlock::Unserialise(InputArchive& arch)
 	{
-		arch >> Min;
-		arch >> Size;
-		arch >> Id;
-		arch >> Priority;
+		arch >> m_min;
+		arch >> m_size;
+		arch >> m_id;
+		arch >> m_priority;
 		arch >> bReduceBothAxes;
 		arch >> bReduceByTwo;
 	}
 
+	
+	//---------------------------------------------------------------------------------------------
+	void Layout::FBlock::UnserialiseOldVersion(InputArchive& Archive, const int32 Version)
+	{
+		Archive >> m_min;
+		Archive >> m_size;
+		Archive >> m_id;
+		Archive >> m_priority;
+
+		if (Version >= 5)
+		{
+			Archive >> bReduceBothAxes;
+		}
+	}
 }
 

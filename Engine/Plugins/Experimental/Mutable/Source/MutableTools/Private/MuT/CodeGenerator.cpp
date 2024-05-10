@@ -385,10 +385,10 @@ namespace mu
 	}
 
 
-	Ptr<const Layout> CodeGenerator::AddLayout(Ptr<const Layout> SourceLayout, uint32 MeshIDPrefix)
+	Ptr<const Layout> CodeGenerator::AddLayout(Ptr<const Layout> SourceLayout)
 	{
 		// The layout we are adding must be a source layout, without block ids yet.
-		check(SourceLayout->Blocks.IsEmpty() || SourceLayout->Blocks[0].Id == Layout::InvalidBlockId);
+		check(SourceLayout->m_blocks.IsEmpty() || SourceLayout->m_blocks[0].m_id == -1);
 
 		Ptr<const Layout>* it = GeneratedLayouts.Find(SourceLayout.get());
 
@@ -399,13 +399,14 @@ namespace mu
 
 		// Assign unique ids to each layout block
 		Ptr<Layout> ClonedLayout = SourceLayout->Clone();
-		for (int32 b = 0; b < ClonedLayout->Blocks.Num(); ++b)
+		for (int32 b = 0; b < ClonedLayout->m_blocks.Num(); ++b)
 		{
-			uint64 Id = uint64(MeshIDPrefix) << 32 | uint64(b);
-			ClonedLayout->Blocks[b].Id = Id;
+			// This is a hard limit due to layout block index data being stored in 16 bit.
+			check(m_absoluteLayoutIndex < 65536);
+			ClonedLayout->m_blocks[b].m_id = m_absoluteLayoutIndex++;
 		}
-		check(SourceLayout->Blocks.Num() == ClonedLayout->Blocks.Num());
-		check(ClonedLayout->Blocks.IsEmpty() || ClonedLayout->Blocks[0].Id != Layout::InvalidBlockId);
+		check(SourceLayout->m_blocks.Num() == ClonedLayout->m_blocks.Num());
+		check(ClonedLayout->m_blocks.IsEmpty() || ClonedLayout->m_blocks[0].m_id != -1);
 		GeneratedLayouts.Add(SourceLayout.get(), ClonedLayout);
 
 		return ClonedLayout;
@@ -1316,7 +1317,7 @@ namespace mu
 								ImageOptions.RectSize = { 0,0 };
 								ImageOptions.ActiveTags = node.m_tags;
 								ImageOptions.LayoutToApply = pLayout;
-								ImageOptions.LayoutBlockId = pLayout->Blocks[BlockIndex].Id;
+								ImageOptions.LayoutBlockId = pLayout->m_blocks[BlockIndex].m_id;
 								FImageGenerationResult Result;
 								GenerateImage(ImageOptions, Result, pImageNode);
 								Ptr<ASTOp> blockAd = Result.op;
@@ -1356,7 +1357,7 @@ namespace mu
 										if (const NodePatchImage* pPatch = e.node->m_textures[t].m_pPatch.get())
 										{
 											// Is the current block to be patched?
-											if (pPatch->GetPrivate()->BlockIndices.Contains(BlockIndex))
+											if (pPatch->GetPrivate()->m_blocks.Contains(BlockIndex))
 											{
 												blockAd = GenerateImageBlockPatch(blockAd, pPatch, e.condition, ImageOptions);
 											}
@@ -1381,8 +1382,8 @@ namespace mu
 								composeOp->BlockImage = blockAd;
 
 								// Set the absolute block index.
-								check(pLayout->Blocks[BlockIndex].Id != Layout::InvalidBlockId);
-								composeOp->BlockId = pLayout->Blocks[BlockIndex].Id;
+								check(pLayout->m_blocks[BlockIndex].m_id >= 0);
+								composeOp->BlockIndex = pLayout->m_blocks[BlockIndex].m_id;
 
 								imageAd = composeOp;
 							}
@@ -1425,7 +1426,7 @@ namespace mu
 												ImageOptions.ActiveTags = node.m_tags;
 												ImageOptions.RectSize = { 0,0 };
 												ImageOptions.LayoutToApply = pExtendLayout;
-												ImageOptions.LayoutBlockId = pExtendLayout->Blocks[b].Id;
+												ImageOptions.LayoutBlockId = pExtendLayout->m_blocks[b].m_id;
 												FImageGenerationResult ExtendResult;
 												GenerateImage(ImageOptions, ExtendResult, pExtend);
 												Ptr<ASTOp> fragmentAd = ExtendResult.op;
@@ -1463,8 +1464,8 @@ namespace mu
 												composeOp->BlockImage = fragmentAd;
 
 												// Set the absolute block index.
-												check(pExtendLayout->Blocks[b].Id != Layout::InvalidBlockId);
-												composeOp->BlockId = pExtendLayout->Blocks[b].Id;
+												check(pExtendLayout->m_blocks[b].m_id >= 0);
+												composeOp->BlockIndex = pExtendLayout->m_blocks[b].m_id;
 
 												lastBase = composeOp;
 											}
@@ -2176,7 +2177,7 @@ namespace mu
 				// Parameters
 				FImageGenerationOptions ClipOptions;
 				ClipOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
-				ClipOptions.LayoutBlockId = Layout::InvalidBlockId;
+				ClipOptions.LayoutBlockId = -1;
 				ClipOptions.State = Options.State;
 
 				FImageGenerationResult ClipMaskResult;

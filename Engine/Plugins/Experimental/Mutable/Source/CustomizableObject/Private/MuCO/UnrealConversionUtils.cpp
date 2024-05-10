@@ -108,7 +108,7 @@ namespace UnrealConversionUtils
 				void* Data = VertexBuffer->GetWeightData();
 				FMemory::Memcpy(Data, InMutableData, OutVertexWeightBufferSize);
 			}
-			else if (NumBones>0)
+			else
 			{
 				// We need to expand it with blank data interleaved
 				uint32 MutableVertexDataSize = MutableDataSize / NumVertices;

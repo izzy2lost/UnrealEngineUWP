@@ -28,60 +28,60 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     // Own Interface
     //---------------------------------------------------------------------------------------------
-    void NodePatchImage::SetImage( Ptr<NodeImage> pImage )
+    void NodePatchImage::SetImage( NodeImagePtr pImage )
     {
         m_pD->m_pImage = pImage;
     }
 
 
     //---------------------------------------------------------------------------------------------
-	Ptr<NodeImage> NodePatchImage::GetImage() const
+    NodeImagePtr NodePatchImage::GetImage() const
     {
         return m_pD->m_pImage.get();
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void NodePatchImage::SetMask(Ptr<NodeImage> pMask )
+    void NodePatchImage::SetMask( NodeImagePtr pMask )
     {
         m_pD->m_pMask = pMask;
     }
 
 
     //---------------------------------------------------------------------------------------------
-	Ptr<NodeImage> NodePatchImage::GetMask() const
+    NodeImagePtr NodePatchImage::GetMask() const
     {
         return m_pD->m_pMask.get();
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void NodePatchImage::SetBlockCount( int32 c )
+    void NodePatchImage::SetBlockCount( int c )
     {
-        m_pD->BlockIndices.SetNum( c );
+        m_pD->m_blocks.SetNum( c );
     }
 
 
     //---------------------------------------------------------------------------------------------
-    int32 NodePatchImage::GetBlockCount() const
+    int NodePatchImage::GetBlockCount() const
     {
-        return (int32)m_pD->BlockIndices.Num();
+        return (int)m_pD->m_blocks.Num();
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void NodePatchImage::SetBlock( int32 index, int32 LayoutBlockIndex )
+    void NodePatchImage::SetBlock( int index, int block )
     {
-        check( index>=0 && index<m_pD->BlockIndices.Num() );
-        m_pD->BlockIndices[ index ] = LayoutBlockIndex;
+        check( index>=0 && index<(int)m_pD->m_blocks.Num() );
+        m_pD->m_blocks[ index ] = block;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    int32 NodePatchImage::GetBlock( int32 index ) const
+    int NodePatchImage::GetBlock( int index ) const
     {
-        check( index>=0 && index<m_pD->BlockIndices.Num() );
-        return m_pD->BlockIndices[ index ];
+        check( index>=0 && index<(int)m_pD->m_blocks.Num() );
+        return m_pD->m_blocks[ index ];
     }
 
 
@@ -93,9 +93,9 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void NodePatchImage::SetBlendType(EBlendType InType)
+    void NodePatchImage::SetBlendType(EBlendType t)
     {
-        m_pD->m_blendType = InType;
+        m_pD->m_blendType = t;
     }
 
 

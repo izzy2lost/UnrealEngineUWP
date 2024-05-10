@@ -881,25 +881,26 @@ bool ASTOp::IsColourConstant(FVector4f&) const
 }
 
 
-void ASTOp::GetBlockLayoutSize( uint64, int32*, int32*, FBlockLayoutSizeCache* )
+void ASTOp::GetBlockLayoutSize( int, int*, int*, FBlockLayoutSizeCache* )
 {
     check(false);
 }
 
-void ASTOp::GetBlockLayoutSizeCached(uint64 blockIndex, int32* BlockX, int32* BlockY, FBlockLayoutSizeCache* cache)
+void ASTOp::GetBlockLayoutSizeCached( int blockIndex, int* pBlockX, int* pBlockY,
+                               FBlockLayoutSizeCache* cache )
 {
 	FBlockLayoutSizeCache::KeyType key(this,blockIndex);
 	FBlockLayoutSizeCache::ValueType* ValuePtr = cache->Find( key );
     if (ValuePtr)
     {
-        *BlockX = ValuePtr->Key;
-        *BlockY = ValuePtr->Value;
+        *pBlockX = ValuePtr->Key;
+        *pBlockY = ValuePtr->Value;
         return;
     }
 
-    GetBlockLayoutSize( blockIndex, BlockX, BlockY, cache );
+    GetBlockLayoutSize( blockIndex, pBlockX, pBlockY, cache );
 
-	cache->Add(key, FBlockLayoutSizeCache::ValueType( *BlockX, *BlockY) );
+	cache->Add(key, FBlockLayoutSizeCache::ValueType( *pBlockX, *pBlockY) );
 }
 
 
