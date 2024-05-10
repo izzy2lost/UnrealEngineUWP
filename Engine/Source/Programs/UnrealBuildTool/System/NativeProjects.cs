@@ -255,6 +255,12 @@ namespace UnrealBuildTool
 			// no reason by default
 			Reason = null;
 
+			// never create temp targets for the Template projects
+			if (UProjectFile.ContainsName("Templates", 0))
+			{
+				return false;
+			}
+
 			bool bHasCode = ProjectHasCode(UProjectFile, bCheckForTempTargets: false);
 			foreach (UnrealTargetPlatform Platform in Platforms)
 			{
