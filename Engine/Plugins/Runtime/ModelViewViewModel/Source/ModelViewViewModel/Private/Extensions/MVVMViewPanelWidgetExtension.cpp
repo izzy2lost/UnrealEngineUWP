@@ -168,7 +168,7 @@ void UMVVMViewPanelWidgetClassExtension::Initialize(UMVVMViewPanelWidgetClassExt
 	WidgetPath = InArgs.WidgetPath;
 	EntryViewModelName = InArgs.EntryViewModelName;
 	EntryWidgetClass = InArgs.EntryWidgetClass;
-	SlotTemplate = InArgs.SlotTemplate;
+	SlotTemplate = DuplicateObject(InArgs.SlotTemplate, this);
 	PanelPropertyName = InArgs.PanelPropertyName;
 	EntryViewModelClass = InArgs.EntryViewModelClass;
 }
