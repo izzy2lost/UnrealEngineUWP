@@ -129,6 +129,49 @@ public:
 	}
 };
 
+// Conditional version of FScopedNamedEventStatic
+class FScopedNamedEventConditionalStatic
+{
+public:
+
+	FScopedNamedEventConditionalStatic(const struct FColor& Color, const TCHAR* Text, bool bCondition)
+		: bStarted(bCondition)
+	{
+		if (bCondition)
+		{
+#if PLATFORM_IMPLEMENTS_BeginNamedEventStatic
+			FPlatformMisc::BeginNamedEventStatic(Color, Text);
+#else
+			FPlatformMisc::BeginNamedEvent(Color, Text);
+#endif
+		}
+	}
+
+	FScopedNamedEventConditionalStatic(const struct FColor& Color, const ANSICHAR* Text, bool bCondition)
+		: bStarted(bCondition)
+	{
+		if (bCondition)
+		{
+#if PLATFORM_IMPLEMENTS_BeginNamedEventStatic
+			FPlatformMisc::BeginNamedEventStatic(Color, Text);
+#else
+			FPlatformMisc::BeginNamedEvent(Color, Text);
+#endif
+		}
+	}
+
+	~FScopedNamedEventConditionalStatic()
+	{
+		if (bStarted)
+		{
+			FPlatformMisc::EndNamedEvent();
+		}
+	}
+
+private:
+	bool bStarted;
+};
+
 
 // Lightweight scoped named event separate from stats system.  Will be available in test builds.  
 // Events cost profiling overhead so use them judiciously in final code.

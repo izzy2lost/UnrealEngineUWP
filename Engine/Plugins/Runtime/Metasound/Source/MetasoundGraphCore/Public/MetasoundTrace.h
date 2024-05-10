@@ -19,15 +19,16 @@
 // Copied from SCOPED_NAMED_EVENT but modified
 // to accommodate event names containing ::
 #define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Name)\
-	FScopedNamedEventStatic PREPROCESSOR_JOIN(MetaSound_NamedEvent_,__LINE__)(FColor::Green, NAMED_EVENT_STR(#Name));\
+	FScopedNamedEventConditionalStatic PREPROCESSOR_JOIN(MetaSound_NamedEvent_,__LINE__)(FColor::Green, NAMED_EVENT_STR(#Name), GCycleStatsShouldEmitNamedEvents > 0);\
 	TRACE_CPUPROFILER_EVENT_SCOPE(Name);
 
 #define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(Name) \
-    SCOPED_NAMED_EVENT_TCHAR(Name, FColor::Green)
+	FScopedNamedEventConditional ANONYMOUS_VARIABLE(NamedEvent_)(FColor::Green, Name, GCycleStatsShouldEmitNamedEvents > 0);\
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(Name);
 
 // Uses cached Insights SpecId to avoid string lookup
 #define METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_FAST(TraceSpecId, Name) \
-	FScopedNamedEvent ANONYMOUS_VARIABLE(NamedEvent_)(FColor::Green, Name);\
+	FScopedNamedEventConditional ANONYMOUS_VARIABLE(NamedEvent_)(FColor::Green, Name, GCycleStatsShouldEmitNamedEvents > 0);\
 	TRACE_CPUPROFILER_EVENT_SCOPE_USE(TraceSpecId, Name, PREPROCESSOR_JOIN(MetaSound_NamedEventScope_, __LINE__), true)
 
 #else
