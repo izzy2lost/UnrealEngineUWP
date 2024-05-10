@@ -53,7 +53,8 @@ void UMetaSoundBuilderBase::BeginDestroy()
 			{
 				UE_LOG(LogMetaSound, Error, TEXT("Failed to destroy MetaSound builder of asset with class name '%s'. \n"
 					"Registry is likely corrupt (i.e. a different builder instance was registered with the same ClassName). \n"
-					"Duplicate assets with the same ClassName/Guid should be removed"));
+					"Duplicate assets with the same ClassName/Guid should be removed"),
+					*MetaSoundClassName.ToString());
 				Builder.FinishBuilding();
 			}
 		}
