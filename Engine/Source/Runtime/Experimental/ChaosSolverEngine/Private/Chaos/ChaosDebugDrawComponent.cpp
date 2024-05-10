@@ -2,6 +2,8 @@
 
 #include "Chaos/ChaosDebugDrawComponent.h"
 #include "Chaos/DebugDrawQueue.h"
+#include "ChaosDebugDraw/ChaosDDRenderer.h"
+#include "ChaosDebugDraw/ChaosDDScene.h"
 #include "ChaosLog.h"
 #include "Debug/DebugDrawService.h"
 #include "DrawDebugHelpers.h"
@@ -213,6 +215,58 @@ void DebugDrawChaos(const AActor* DebugDrawActor, const TArray<Chaos::FLatentDra
 }
 #endif
 
+#if CHAOS_DEBUG_DRAW
+
+class FChaosDDRenderer : public ChaosDD::Private::IChaosDDRenderer
+{
+public:
+	FChaosDDRenderer(UWorld* InWorld, AActor* InDebugDrawActor)
+		: World(InWorld)
+		, DebugDrawActor(InDebugDrawActor)
+	{
+		DepthPriority = 10;
+		bIsPaused = false;
+	}
+
+	virtual bool IsServer() const override final
+	{
+		return World->GetNetMode() == ENetMode::NM_DedicatedServer;
+	}
+
+	virtual void RenderLine(const FVector3d& A, const FVector3d& B, const FColor& Color, float LineThickness, float Lifetime) const override final
+	{
+		DrawDebugLine(World, A, B, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
+	}
+
+	virtual void RenderBox(const FVector3d& Position, const FQuat4d& Rotation, const FVector3d& Size, const FColor& Color, float LineThickness, float Lifetime) const override final
+	{
+		DrawDebugBox(World, Position, Size, Rotation, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
+	}
+
+	virtual void RenderLatentCommand(const Chaos::FLatentDrawCommand& Command) const override final
+	{
+		const bool bDrawUe = bChaosDebugDraw_DrawMode != 1;
+		if (bDrawUe)
+		{
+			DebugDrawChaosCommand(World, Command);
+		}
+
+		const bool bDrawVisLog = bChaosDebugDraw_DrawMode != 0;
+		if (bDrawVisLog)
+		{
+			const AActor* Actor = (Command.TestBaseActor) ? Command.TestBaseActor : DebugDrawActor;
+			VisLogChaosCommand(Actor, Command);
+		}
+	}
+
+private:
+	UWorld* World;
+	AActor* DebugDrawActor;
+	int8 DepthPriority;
+	bool bIsPaused;
+};
+
+#endif
 
 
 UChaosDebugDrawComponent::UChaosDebugDrawComponent()
@@ -350,6 +404,23 @@ void UChaosDebugDrawComponent::TickComponent(float DeltaTime, enum ELevelTick Ti
 			FDebugDrawQueue::GetInstance().ExtractAllElements(DrawCommands);
 
 			DebugDrawChaos(GetOwner(), DrawCommands, World->IsPaused());
+		}
+
+		if (World->GetPhysicsScene() != nullptr)
+		{
+			const ChaosDD::Private::FChaosDDScenePtr& CDDScene = World->GetPhysicsScene()->GetDebugDrawScene();
+			if (CDDScene.IsValid())
+			{
+				CDDScene->SetDrawRegion(FSphere3d(RegionOfInterestOrigin, RegionOfInterestRadius));
+				CDDScene->SetCommandBudget(ChaosDebugDraw_MaxElements);
+
+				if (!bIsPaused)
+				{
+					FChaosDDRenderer CDDRenderer = FChaosDDRenderer(World, GetOwner());
+					constexpr bool bRenderGlobalFrame = true;
+					CDDScene->RenderLatestFrames(CDDRenderer, bRenderGlobalFrame);
+				}
+			}
 		}
 	}
 #endif

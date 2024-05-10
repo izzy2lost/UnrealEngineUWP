@@ -21,7 +21,7 @@ namespace ChaosDD::Private
 	// 
 	// E.g., See FChaosDDLine, FChaosDDSphere, FChaosDDParticle
 	//
-	using FChaosDDCommand = TFunction<void(IChaosDDRenderer&)>;
+	using FChaosDDCommand = TFunction<void(const IChaosDDRenderer&)>;
 
 	//
 	// A single frame of debug draw data
@@ -42,7 +42,6 @@ namespace ChaosDD::Private
 		{
 			if (InCommandQueueLength > 0)
 			{
-				Commands.Reserve(InCommandQueueLength);
 				LatentCommands.Reserve(InCommandQueueLength);
 			}
 		}
@@ -74,11 +73,6 @@ namespace ChaosDD::Private
 		void SetDrawRegion(const FSphere3d& InRegion)
 		{
 			DrawRegion = InRegion;
-		}
-
-		const FSphere3d& GetDrawRegion() const
-		{
-			return DrawRegion;
 		}
 
 		bool IsInDrawRegion(const FVector& InPos) const
@@ -114,30 +108,14 @@ namespace ChaosDD::Private
 			CommandBudget = InCommandBudget;
 		}
 
-		int32 GetCommandBudget() const
-		{
-			return CommandBudget;
-		}
-
-		int32 GetCommandCost() const
-		{
-			return CommandCost;
-		}
-
-		bool WasCommandBudgetExceeded() const
-		{
-			return CommandCost > CommandBudget;
-		}
-
 		bool AddToCost(int32 InCost)
 		{
 			FScopeLock Lock(&CommandsCS);
 
-			CommandCost += InCost;
-
 			// A budget of zero means infinite
-			if ((CommandCost <= CommandBudget) || (CommandBudget == 0))
+			if ((CommandCost + InCost <= CommandBudget) || (CommandBudget == 0))
 			{
+				CommandCost += InCost;
 				return true;
 			}
 
@@ -162,15 +140,9 @@ namespace ChaosDD::Private
 		{
 			FScopeLock Lock(&CommandsCS);
 
-			return Commands.Num();
-		}
-
-		int32 GetNumLatentCommands() const
-		{
-			FScopeLock Lock(&CommandsCS);
-
 			return LatentCommands.Num();
 		}
+
 
 		// VisitorType = void(const FChaosDDCommand& Command)
 		template<typename VisitorType>
@@ -317,15 +289,6 @@ namespace ChaosDD::Private
 			{
 				Frame->EndWrite();
 			}
-		}
-
-		FSphere3d GetDrawRegion() const
-		{
-			if (Frame.IsValid())
-			{
-				return Frame->GetDrawRegion();
-			}
-			return FSphere3d(FVector3d(0), 0);
 		}
 
 		bool IsInDrawRegion(const FVector& InPos) const

@@ -82,6 +82,11 @@ FChaosScene::FChaosScene(
 	SceneSolver->GetChaosVDContextData().Type = static_cast<int32>(EChaosVDContextType::Solver);
 #endif
 
+#if CHAOS_DEBUG_DRAW
+	CDDScene = MakeShared<ChaosDD::Private::FChaosDDScene>(DebugName.ToString());
+	SceneSolver->SetDebugDrawScene(CDDScene);
+#endif
+
 	SceneSolver->PhysSceneHack = this;
 	SimCallback = SceneSolver->CreateAndRegisterSimCallbackObject_External<FChaosSceneSimCallback>();
 
@@ -576,16 +581,3 @@ FGraphEventArray FChaosScene::GetCompletionEvents()
 {
 	return CompletionEvents;
 }
-
-#if CHAOS_DEBUG_DRAW
-void FChaosScene::SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene)
-{
-	CDDScene = InCDDScene;
-
-	SceneSolver->EnqueueCommandImmediate(
-		[this]()
-		{
-			SceneSolver->SetDebugDrawScene(CDDScene);
-		});
-}
-#endif

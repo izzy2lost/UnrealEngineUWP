@@ -25,12 +25,10 @@ namespace ChaosDD::Private
 			return FChaosDDFrameWriter(Get().GetFrame());
 		}
 
-		static FChaosDDFramePtr ExtractGlobalFrame();
-
 	private:
 		friend class FChaosDDScene;
-		friend class FChaosDDTimelineContext;
-		friend class FChaosDDTaskContext;
+		friend class FChaosDDScopeTimelineContext;
+		friend class FChaosDDScopeTaskContext;
 
 		const FChaosDDFramePtr& GetFrame() const
 		{
@@ -50,6 +48,7 @@ namespace ChaosDD::Private
 		// Global frame management
 		static const FChaosDDFramePtr& GetGlobalFrame();
 		static void CreateGlobalFrame();
+		static FChaosDDFramePtr ExtractGlobalFrame();
 		static void SetGlobalDrawRegion(const FSphere3d& InDrawRegion);
 		static void SetGlobalCommandBudget(int32 InCommandBudget);
 
@@ -63,21 +62,7 @@ namespace ChaosDD::Private
 	};
 
 	//
-	// Initializes the FChaosDDContext for a thread that owns a timeline
-	//
-	class CHAOS_API FChaosDDTimelineContext
-	{
-	public:
-		void BeginFrame(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt);
-		void EndFrame();
-
-	private:
-		FChaosDDTimelinePtr Timeline;
-		FChaosDDFramePtr ParentFrame;
-	};
-
-	//
-	// A scoped wrapper for FChaosDDTimelineContext
+	// A scoped Debug Draw Context for use on the thread that owns the timeline
 	//
 	class CHAOS_API FChaosDDScopeTimelineContext
 	{
@@ -86,27 +71,14 @@ namespace ChaosDD::Private
 		~FChaosDDScopeTimelineContext();
 
 	private:
-		FChaosDDTimelineContext Context;
-	};
-
-	//
-	// Initializes the FChaosDDContext for a task.
-	// Assumes that the task is kicked off from a thread that has an active debug draw context,
-	// which should be passed into this context. Any debug draws from the task will go to the 
-	// same frame as the parent context.
-	//
-	class CHAOS_API FChaosDDTaskContext
-	{
-	public:
-		void BeginThread(const FChaosDDContext& InParentDDContext);
-		void EndThread();
-
-	private:
+		FChaosDDTimelinePtr Timeline;
 		FChaosDDFramePtr ParentFrame;
 	};
 
 	//
-	// A scoped wrapper for FChaosDDTaskContext
+	// A scoped Debug Draw Context for use in tasks and parallel-for etc.
+	// Assumes that the task is kicked off from a thread that has an active debug draw context,
+	// which should be passed into this context.
 	//
 	class CHAOS_API FChaosDDScopeTaskContext
 	{
@@ -115,7 +87,7 @@ namespace ChaosDD::Private
 		~FChaosDDScopeTaskContext();
 
 	private:
-		FChaosDDTaskContext Context;
+		FChaosDDFramePtr ParentFrame;
 	};
 }
 

@@ -1338,7 +1338,7 @@ namespace Chaos
 
 		if (CDDScene.IsValid())
 		{
-			CDDFrameTimeline = CDDScene->CreateTimeline(FString::Format(TEXT("{0} {1}"), { CDDScene->GetName(), "Physics Frame" }));
+			CDDFrameTimeline = CDDScene->CreateTimeline(FString::Format(TEXT("{0} {1}"), { CDDScene->GetName(), "Frame" }));
 		}
 
 		GetEvolution()->SetDebugDrawScene(InCDDScene);
@@ -2466,13 +2466,6 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 	{
 #if CHAOS_DEBUG_DRAW
 		QUICK_SCOPE_CYCLE_COUNTER(SolverDebugDraw);
-
-		if (CDDScene.IsValid())
-		{
-			// @todo(chaos): this logic should be in UChaosDebugDrawSubsystem but the CVars are here. Move them and this...
-			const bool bRenderEnabled = (CDDScene->IsServer() && ChaosSolverDebugDrawShowServer) || (!CDDScene->IsServer() && ChaosSolverDebugDrawShowClient);
-			CDDScene->SetRenderEnabled(bRenderEnabled);
-		}
 
 		const bool bIsServer = GetDebugName().ToString().StartsWith(TEXT("Server"));
 		if (bIsServer && !ChaosSolverDebugDrawShowServer)

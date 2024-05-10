@@ -22,91 +22,61 @@ namespace ChaosDD::Private
 
 	//
 	//
-	// Timeline Context
 	//
 	//
 
-	void FChaosDDTimelineContext::BeginFrame(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
+	FChaosDDScopeTimelineContext::FChaosDDScopeTimelineContext(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
 	{
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		ParentFrame = Context.Frame;
-
 		if (InTimeline.IsValid())
 		{
 			Timeline = InTimeline;
 			Timeline->BeginFrame(InTime, InDt);
+
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			ParentFrame = Context.Frame;
 			Context.Frame = Timeline->GetActiveFrame();
-		}
-		else
-		{
-			Context.Frame.Reset();
 		}
 	}
 
-	void FChaosDDTimelineContext::EndFrame()
+	FChaosDDScopeTimelineContext::~FChaosDDScopeTimelineContext()
 	{
 		if (Timeline.IsValid())
 		{
 			Timeline->EndFrame();
 			Timeline.Reset();
-		}
 
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		Context.Frame = ParentFrame;
-		ParentFrame.Reset();
-	}
-
-	FChaosDDScopeTimelineContext::FChaosDDScopeTimelineContext(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
-	{
-		Context.BeginFrame(InTimeline, InTime, InDt);
-	}
-
-	FChaosDDScopeTimelineContext::~FChaosDDScopeTimelineContext()
-	{
-		Context.EndFrame();
-	}
-
-	//
-	//
-	// Task Context
-	//
-	//
-
-	void FChaosDDTaskContext::BeginThread(const FChaosDDContext& InParentDDContext)
-	{
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		ParentFrame = Context.Frame;
-
-		if (InParentDDContext.Frame.IsValid())
-		{
-			Context.Frame = InParentDDContext.Frame;
-		}
-		else
-		{
-			Context.Frame.Reset();
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			Context.Frame = ParentFrame;
+			ParentFrame.Reset();
 		}
 	}
 
-	void FChaosDDTaskContext::EndThread()
-	{
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		Context.Frame = ParentFrame;
-		ParentFrame.Reset();
-	}
+	//
+	//
+	//
+	//
 
 	FChaosDDScopeTaskContext::FChaosDDScopeTaskContext(const FChaosDDContext& InParentDDContext)
 	{
-		Context.BeginThread(InParentDDContext);
+		if (InParentDDContext.Frame.IsValid())
+		{
+			FChaosDDContext& Context = FChaosDDContext::Get();
+
+			ParentFrame = Context.Frame;
+			Context.Frame = InParentDDContext.Frame;
+		}
 	}
 
 	FChaosDDScopeTaskContext::~FChaosDDScopeTaskContext()
 	{
-		Context.EndThread();
+		FChaosDDContext& Context = FChaosDDContext::Get();
+
+		Context.Frame = ParentFrame;
+		ParentFrame.Reset();
 	}
 
 	//
 	//
-	// Thread Local Context
 	//
 	//
 

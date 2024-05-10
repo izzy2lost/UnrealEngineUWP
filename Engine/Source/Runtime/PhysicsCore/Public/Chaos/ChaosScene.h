@@ -213,8 +213,6 @@ public:
 		return CDDScene;
 	}
 
-	PHYSICSCORE_API void SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& CDDScene);
-
 private:
 	ChaosDD::Private::FChaosDDScenePtr CDDScene;
 #endif
