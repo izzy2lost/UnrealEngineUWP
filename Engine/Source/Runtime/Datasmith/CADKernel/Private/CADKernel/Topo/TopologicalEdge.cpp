@@ -417,6 +417,11 @@ void FTopologicalEdge::ComputeCrossingPointCoordinates()
 	Sampler.Sample();
 
 	Presampling.SwapCoordinates(CrossingPointUs);
+	// #cadkernel_check: To investigate - It looks like the sampler does not start and end the sample data with the boundary values???
+	if (!FMath::IsNearlyEqual(CrossingPointUs.Last(), Boundary.GetMax(), UE_DOUBLE_SMALL_NUMBER))
+	{
+		CrossingPointUs.Add(Boundary.GetMax());
+	}
 
 	// Check sampling:
 	// the main idea is to avoid very small delta U between two or more points.
