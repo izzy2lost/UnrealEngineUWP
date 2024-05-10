@@ -329,7 +329,7 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IAgent>> FindAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, AgentStatus? status, bool? enabled, bool includeDeleted, int? index, int? count, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IAgent>> FindAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, AgentStatus? status, bool? enabled, bool includeDeleted, int? index, int? count, bool consistentRead, CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<AgentDocument> filterBuilder = new FilterDefinitionBuilder<AgentDocument>();
 
@@ -364,7 +364,8 @@ namespace Horde.Server.Agents
 				filter &= filterBuilder.Eq(x => x.Enabled, enabled.Value);
 			}
 
-			IFindFluent<AgentDocument, AgentDocument> search = _agents.Find(filter);
+			IMongoCollection<AgentDocument> collection = consistentRead ? _agents : _agents.WithReadPreference(ReadPreference.SecondaryPreferred);
+			IFindFluent<AgentDocument, AgentDocument> search = collection.Find(filter);
 			if (index != null)
 			{
 				search = search.Skip(index.Value);
