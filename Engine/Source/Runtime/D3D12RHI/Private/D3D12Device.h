@@ -7,6 +7,7 @@ D3D12Device.h: D3D12 Device Interfaces
 #pragma once
 
 #include "RHIBreadcrumbs.h"
+#include "RHIDiagnosticBuffer.h"
 
 #include "D3D12BindlessDescriptors.h"
 #include "D3D12CommandContext.h"
@@ -30,38 +31,9 @@ struct FD3D12RayTracingPipelineInfo;
 // Diagnostic buffer, backed by a virtual heap. Stays accessible after a GPU crash to allow readback of diagnostic messages.
 // Also used to track the progress of the GPU via breadcrumb markers.
 //
-class FD3D12DiagnosticBuffer
+class FD3D12DiagnosticBuffer : public FRHIDiagnosticBuffer
 {
 private:
-	// Counterpart to UEDiagnosticBuffer in D3DCommon.ush
-	struct FLane
-	{
-		uint32 Counter;
-		uint32 MessageID;
-		union
-		{
-			int32  AsInt[4];
-			uint32 AsUint[4];
-			float  AsFloat[4];
-		} Payload;
-	};
-
-	static_assert(sizeof(FLane) == 6 * sizeof(uint32), "Remember to change UEDiagnosticBuffer layout in the shaders when changing FLane");
-
-	struct FQueue
-	{
-		// Counterpart to UEDiagnosticMaxLanes in D3DCommon.ush
-		static constexpr uint32 MaxLanes = 64;
-		FLane Lanes[MaxLanes];
-
-#if WITH_RHI_BREADCRUMBS
-		// GPU breadcrumb markers
-		uint32 MarkerIn;
-		uint32 MarkerOut;
-#endif
-	} *Data = nullptr;
-
-	static constexpr uint32 SizeInBytes = sizeof(FQueue);
 
 	TRefCountPtr<FD3D12Heap> Heap;
 	TRefCountPtr<FD3D12Resource> Resource;
@@ -87,8 +59,6 @@ public:
 #endif
 
 	bool IsValid() const { return Resource.IsValid(); }
-
-	FString LogShaderAsserts(uint32 DeviceIndex, uint32 QueueIndex);
 };
 
 // Encapsulates the state required for tracking GPU queue performance across a frame.

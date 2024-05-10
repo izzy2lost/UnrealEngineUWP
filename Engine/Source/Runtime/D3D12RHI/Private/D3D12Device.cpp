@@ -386,13 +386,11 @@ void FD3D12Device::SetupAfterDeviceCreation()
 	check(!ImmediateCommandContext);
 	ImmediateCommandContext = FD3D12DynamicRHI::GetD3DRHI()->CreateCommandContext(this, ED3D12QueueType::Direct, true);
 
-	// setup the bread crumb data to track GPU progress on this command queue when GPU crash debugging is enabled
-	if (UE::RHI::UseGPUCrashBreadcrumbs())
+	// Setup diagnostic buffer that contains GPU messages as well as breadcrumb data to to track GPU progress on this command queue (when GPU crash debugging is enabled).
+	// The buffer is always allocated and bound to shaders that require it, but breadcrumbs are controlled by UE::RHI::UseGPUCrashBreadcrumbs() and WITH_RHI_BREADCRUMBS.
+	for (FD3D12Queue& Queue : Queues)
 	{
-		for (FD3D12Queue& Queue : Queues)
-		{
-			Queue.DiagnosticBuffer = MakeUnique<FD3D12DiagnosticBuffer>(Queue);
-		}
+		Queue.DiagnosticBuffer = MakeUnique<FD3D12DiagnosticBuffer>(Queue);
 	}
 }
 
