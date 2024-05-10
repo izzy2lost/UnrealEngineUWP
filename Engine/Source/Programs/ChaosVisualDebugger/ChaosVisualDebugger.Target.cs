@@ -3,7 +3,7 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-[SupportedPlatforms(UnrealPlatformClass.Desktop)]
+[SupportedPlatforms("Win64")]
 public class ChaosVisualDebuggerTarget : TargetRules
 {
 	public ChaosVisualDebuggerTarget(TargetInfo Target) : base(Target)
