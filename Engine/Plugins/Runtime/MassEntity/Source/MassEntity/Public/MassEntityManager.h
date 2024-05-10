@@ -109,9 +109,23 @@ public:
 	 * A special, relaxed but slower version of CreateArchetype functions that allows FragmentAngTagsList to contain
 	 * both fragments and tags. This version takes an original archetype and copies it layout, then appends any fragments and tags from the
 	 * provided list if they're not already in the original archetype.
+	 * 
+	 * @param SourceArchetype The archetype where the composition will be copied from.
+	 * @param FragmentsAndTagsList The list of fragments and tags to add to the copied composition.
 	 */
-	FMassArchetypeHandle CreateArchetype(FMassArchetypeHandle SourceArchetype, 
-		TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
+	FMassArchetypeHandle CreateArchetype(FMassArchetypeHandle SourceArchetype, TConstArrayView<const UScriptStruct*> FragmentsAndTagsList);
+	
+	/**
+	 * A special, relaxed but slower version of CreateArchetype functions that allows FragmentAngTagsList to contain
+	 * both fragments and tags. This version takes an original archetype and copies it layout, then appends any fragments and tags from the
+	 * provided list if they're not already in the original archetype.
+	 * 
+	 * @param SourceArchetype The archetype where the composition will be copied from.
+	 * @param FragmentsAndTagsList The list of fragments and tags to add to the copied composition.
+	 * @param CreationParams Additional arguments used to create the new archetype.
+	 */
+	FMassArchetypeHandle CreateArchetype(FMassArchetypeHandle SourceArchetype, TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, 
+		const FMassArchetypeCreationParams& CreationParams);
 
 	/**
 	 * CreateArchetype from a composition descriptor and initial values
@@ -122,6 +136,18 @@ public:
 	 */
 	FMassArchetypeHandle CreateArchetype(const FMassArchetypeCompositionDescriptor& Composition, const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
 
+	/**
+	 *  Creates an archetype like SourceArchetype + InFragments.
+	 *  @param SourceArchetype the archetype used to initially populate the list of fragments of the archetype being created.
+	 *  @param InFragments list of unique fragments to add to fragments fetched from SourceArchetype. Note that
+	 *   adding an empty list is not supported and doing so will result in failing a `check`
+	 *  @return a handle of a new archetype
+	 *  @note it's caller's responsibility to ensure that NewFragmentList is not empty and contains only fragment
+	 *   types that SourceArchetype doesn't already have. If the caller cannot guarantee it use of AddFragment functions
+	 *   family is recommended.
+	 */
+	FMassArchetypeHandle CreateArchetype(const TSharedPtr<FMassArchetypeData>& SourceArchetype, const FMassFragmentBitSet& InFragments);
+	
 	/** 
 	 *  Creates an archetype like SourceArchetype + InFragments. 
 	 *  @param SourceArchetype the archetype used to initially populate the list of fragments of the archetype being created. 
@@ -133,8 +159,8 @@ public:
 	 *   types that SourceArchetype doesn't already have. If the caller cannot guarantee it use of AddFragment functions
 	 *   family is recommended.
 	 */
-	FMassArchetypeHandle CreateArchetype(const TSharedPtr<FMassArchetypeData>& SourceArchetype, const FMassFragmentBitSet& InFragments
-		, const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
+	FMassArchetypeHandle CreateArchetype(const TSharedPtr<FMassArchetypeData>& SourceArchetype, const FMassFragmentBitSet& InFragments, 
+		const FMassArchetypeCreationParams& CreationParams);
 
 	/** 
 	 * A helper function to be used when creating entities with shared fragments provided, or when adding shared fragments

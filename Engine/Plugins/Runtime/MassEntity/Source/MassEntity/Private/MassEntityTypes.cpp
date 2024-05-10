@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MassEntityTypes.h"
+
+#include "MassArchetypeData.h"
 #include "StructUtilsTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MassEntityTypes)
@@ -287,4 +289,12 @@ void FMassGenericPayloadView::SwapElementsToEnd(const int32 StartIndex, int32 Nu
 		FMemory::Memmove(ViewData + MovedStartOffset, ViewData + MovedStartOffset + MovedSize, MoveOffset);
 		FMemory::Memcpy(ViewData + MovedStartOffset + MoveOffset, MovedElements.GetData(), MovedSize);
 	}
+}
+
+//-----------------------------------------------------------------------------
+// FMassArchetypeCreationParams
+//-----------------------------------------------------------------------------
+FMassArchetypeCreationParams::FMassArchetypeCreationParams(const FMassArchetypeData& Archetype)
+	: ChunkMemorySize(static_cast<int32>(Archetype.GetChunkAllocSize()))
+{
 }
