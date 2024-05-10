@@ -784,7 +784,10 @@ struct FNiagaraResolvedUserDataInterfaceBinding
 {
 	GENERATED_BODY()
 
+	UPROPERTY()
 	int32 UserParameterStoreDataInterfaceIndex;
+
+	UPROPERTY()
 	int32 ScriptParameterStoreDataInterfaceIndex;
 
 	FNiagaraResolvedUserDataInterfaceBinding()
