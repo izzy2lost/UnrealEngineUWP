@@ -522,8 +522,7 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PopOnAbortHandler(const void* Key)
 {
 	FContext* Context = FContext::Get();
     ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
-    const bool bResult = Context->GetCurrentTransaction()->PopDeferUntilAbortHandler(Key);
-	ASSERT(bResult);
+    Context->GetCurrentTransaction()->PopDeferUntilAbortHandler(Key);
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_commit(void (*Work)(void*), void* Arg)
