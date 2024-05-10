@@ -2235,6 +2235,18 @@ TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FStri
 		FStringView SrcPackageName = FPathViews::GetBaseFilename(SrcNameString);
 		FStringView DstPackageName = FPathViews::GetBaseFilename(DstNameString);
 
+		// If the Source Package has a '_[0-9]+' tail, we need a rule to match it without that tail
+		// as the number is not stored in the string in the FName table.
+		{
+			FName SrcName(SrcPackageName);										// vk_0
+			int32 SrcNameLen = (int32)SrcName.GetPlainNameString(SrcNameBuffer);
+			FStringView SrcNameView{ SrcNameBuffer, SrcNameLen };				// vk
+			if (SrcNameLen != SrcPackageName.Len())
+			{
+				Result.Add({ FString(SrcNameView), FString(DstPackageName) });	// vk		=> Dest
+			}
+		}
+
 		// Inject Path.ObjectName
 		// NOTE: this would be better to use a string builder.
 		Result.Add({ SrcNameString + TCHAR('.') + SrcPackageName, DstNameString + TCHAR('.') + DstPackageName });
