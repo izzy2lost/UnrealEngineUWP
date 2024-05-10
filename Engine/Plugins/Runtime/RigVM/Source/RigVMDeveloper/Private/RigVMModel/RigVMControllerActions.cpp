@@ -2091,6 +2091,94 @@ bool FRigVMCreateFunctionVariantAction::Redo()
 	return false;
 }
 
+FRigVMAddFunctionVariantTagAction::FRigVMAddFunctionVariantTagAction()
+: FRigVMBaseAction(nullptr)
+, FunctionName(NAME_None)
+{
+	
+}
+
+FRigVMAddFunctionVariantTagAction::FRigVMAddFunctionVariantTagAction(URigVMController* InController, const FName& InFunctionName, const FRigVMTag& InTag)
+: FRigVMBaseAction(InController)
+, FunctionName(InFunctionName)
+, FunctionTag(InTag)
+{
+}
+
+bool FRigVMAddFunctionVariantTagAction::Undo()
+{
+	if (!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->RemoveTagFromFunctionVariant(FunctionName, FunctionTag.Name, false);
+}
+
+bool FRigVMAddFunctionVariantTagAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+#if WITH_EDITOR
+	if (GetController()->AddTagToFunctionVariant(FunctionName, FunctionTag, false))
+	{
+		return FRigVMBaseAction::Redo();
+	}
+#endif
+	return false;
+}
+
+FRigVMRemoveFunctionVariantTagAction::FRigVMRemoveFunctionVariantTagAction()
+: FRigVMBaseAction(nullptr)
+, FunctionName(NAME_None)
+{
+	
+}
+
+FRigVMRemoveFunctionVariantTagAction::FRigVMRemoveFunctionVariantTagAction(URigVMController* InController, const FName& InFunctionName, const FName& InTagName)
+: FRigVMBaseAction(InController)
+, FunctionName(InFunctionName)
+{
+	if (URigVMFunctionLibrary* Library = Cast<URigVMFunctionLibrary>(InController->GetGraph()))
+	{
+		if (const FRigVMVariant* Variant = Library->GetFunctionVariant(InFunctionName))
+		{
+			if (const FRigVMTag* Tag = Variant->Tags.FindByPredicate([InTagName](const FRigVMTag& InTag)
+			{
+				return InTag.Name == InTagName;
+			}))
+			{
+				FunctionTag = *Tag;
+			}
+		}
+	}
+}
+
+bool FRigVMRemoveFunctionVariantTagAction::Undo()
+{
+	if (!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->AddTagToFunctionVariant(FunctionName, FunctionTag, false);
+}
+
+bool FRigVMRemoveFunctionVariantTagAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+#if WITH_EDITOR
+	if (GetController()->RemoveTagFromFunctionVariant(FunctionName, FunctionTag.Name, false))
+	{
+		return FRigVMBaseAction::Redo();
+	}
+#endif
+	return false;
+}
+
 FRigVMImportFromTextAction::FRigVMImportFromTextAction()
 : FRigVMBaseAction(nullptr)
 {

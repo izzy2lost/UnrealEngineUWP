@@ -967,6 +967,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	URigVMLibraryNode* CreateFunctionVariant(const FName& InFunctionName, const FName& InVariantName = NAME_None, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
+	// Adds a default tag to a function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool AddDefaultTagToFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	
+	// Adds a tag to a function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool AddTagToFunctionVariant(const FName& InFunctionName, const FRigVMTag& InTag, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+
+	// Adds a tag to a function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool RemoveTagFromFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
 	// Returns all variant refs related to the given function
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	TArray<FRigVMVariantRef> FindVariantsOfFunction(const FName& InFunctionName);

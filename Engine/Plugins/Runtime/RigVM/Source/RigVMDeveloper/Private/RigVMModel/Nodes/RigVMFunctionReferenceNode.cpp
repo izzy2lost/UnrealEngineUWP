@@ -184,6 +184,15 @@ const FRigVMGraphFunctionData* URigVMFunctionReferenceNode::GetReferencedFunctio
 	return nullptr;
 }
 
+TArray<FRigVMTag> URigVMFunctionReferenceNode::GetVariantTags() const
+{
+	if (const FRigVMGraphFunctionData* Data = GetReferencedFunctionData(false))
+	{
+		return Data->Header.Variant.Tags;
+	}
+	return GetReferencedFunctionHeader().Variant.Tags;
+}
+
 FString URigVMFunctionReferenceNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const
 {
 	if(InRootPin->CanProvideDefaultValue())

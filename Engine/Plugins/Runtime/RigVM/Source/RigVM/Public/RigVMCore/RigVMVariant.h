@@ -7,21 +7,51 @@
 
 struct FRigVMVariantRef;
 
+// User applied tag
 USTRUCT(BlueprintType)
 struct RIGVM_API FRigVMTag
 {
 	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Variant)
+	FName Name;
 	
-	// User applied tag
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category=Variant)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Variant)
 	FString Label;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Variant)
+	FText ToolTip;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Variant)
+	FLinearColor Color;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Variant)
+	bool bShowInUserInterface = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Variant)
+	bool bMarksSubjectAsInvalid = false;
 	
 	friend FArchive& operator<<(FArchive& Ar, FRigVMTag& Data)
 	{
 		Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
-		
+
+		Ar << Data.Name;
 		Ar << Data.Label;
+		Ar << Data.ToolTip;
+		Ar << Data.Color;
+		Ar << Data.bShowInUserInterface;
+		Ar << Data.bMarksSubjectAsInvalid;
 		return Ar;
+	}
+
+	friend bool operator==(const FRigVMTag& A, const FRigVMTag& B)
+	{
+		return A.Name == B.Name &&
+			A.Label == B.Label &&
+			A.ToolTip.EqualTo(B.ToolTip) &&
+			A.Color == B.Color &&
+			A.bShowInUserInterface == B.bShowInUserInterface &&
+			A.bMarksSubjectAsInvalid == B.bMarksSubjectAsInvalid;
 	}
 };
 

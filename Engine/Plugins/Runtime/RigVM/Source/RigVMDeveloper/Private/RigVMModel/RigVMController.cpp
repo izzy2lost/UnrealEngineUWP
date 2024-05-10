@@ -11981,6 +11981,13 @@ URigVMLibraryNode* URigVMController::AddFunctionToLibrary(const FName& InFunctio
 		}
 	}
 
+	if (URigVMFunctionLibrary* Library = Cast<URigVMFunctionLibrary>(Graph))
+	{
+		FRigVMVariant Variant;
+		Variant.Guid = FRigVMVariant::GenerateGUID();
+		Library->FunctionToVariant.Add(CollapseNode->GetFName(), Variant);
+	}
+
 	if (bSetupUndoRedo)
 	{
 		FRigVMImportFromTextAction Action(this, CollapseNode);
@@ -12301,6 +12308,191 @@ URigVMLibraryNode* URigVMController::CreateFunctionVariant(const FName& InFuncti
 	}
 
 	return Result;
+}
+
+bool URigVMController::AddDefaultTagToFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	URigVMEditorSettings* Settings = GetMutableDefault<URigVMEditorSettings>(URigVMEditorSettings::StaticClass());
+	if (!Settings)
+	{
+		return false;
+	}
+
+	const FRigVMTag* Tag = Settings->VariantTags.FindByPredicate([InTagName](const FRigVMTag& Tag)
+	{
+		return InTagName == Tag.Name;
+	});
+	if (!Tag)
+	{
+		ReportErrorf(TEXT("Could not find default tag with name %s."), *InTagName.ToString());
+		return false;
+	}
+
+	if (AddTagToFunctionVariant(InFunctionName, *Tag, bSetupUndoRedo, false))
+	{
+		if (bPrintPythonCommand)
+		{
+			const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+			RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').add_default_tag_to_function_variant('%s', %s)"),
+				*GraphName,
+				*InFunctionName.ToString(),
+				*InTagName.ToString()));
+		}
+		return true;
+	}
+	return false;
+}
+
+bool URigVMController::AddTagToFunctionVariant(const FName& InFunctionName, const FRigVMTag& InTag, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	URigVMFunctionLibrary* FunctionLibrary = Cast<URigVMFunctionLibrary>(Graph);
+	if (!FunctionLibrary)
+	{
+		ReportError(TEXT("Can only add tag to variant in library graphs."));
+		return false;
+	}
+
+	URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionLibrary->FindFunction(InFunctionName));
+	if (!LibraryNode)
+	{
+		ReportErrorf(TEXT("Could not find library node for function %s."), *InFunctionName.ToString());
+		return false;
+	}
+
+	FRigVMVariant* Variant = FunctionLibrary->FunctionToVariant.Find(InFunctionName);
+	if (!Variant)
+	{
+		ReportErrorf(TEXT("Could not find function variant for function %s."), *InFunctionName.ToString());
+		return false;
+	}
+
+	FRigVMBaseAction Action(this);
+	if (bSetupUndoRedo)
+	{
+		Action.SetTitle(FString::Printf(TEXT("Add tag to function variant")));
+		GetActionStack()->BeginAction(Action);
+		GetActionStack()->AddAction(FRigVMAddFunctionVariantTagAction(this, InFunctionName, InTag));
+	}
+
+	Variant->Tags.Add(InTag);
+
+	Notify(ERigVMGraphNotifType::VariantTagsChanged, LibraryNode);
+
+	if (bSetupUndoRedo)
+	{
+		GetActionStack()->EndAction(Action);
+	}
+
+	if (bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+	
+		const FString TagPythonString = FString::Printf(TEXT("unreal.RigVMTag(name=\"%s\", label=\"%s\", tool_tip=\"%s\", color=unreal.LinearColor(r=%f, g=%f, b=%f, a=%f), show_in_user_interface=%s, marks_subject_as_invalid=%s)"),
+			*InTag.Name.ToString(),
+			*InTag.Label,
+			*InTag.ToolTip.ToString(),
+			InTag.Color.R, InTag.Color.G, InTag.Color.B, InTag.Color.A,
+			(InTag.bShowInUserInterface) ? TEXT("True") : TEXT("False"),
+			(InTag.bMarksSubjectAsInvalid) ? TEXT("True") : TEXT("False"));
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').add_tag_to_function_variant('%s', %s)"),
+				*GraphName,
+				*InFunctionName.ToString(),
+				*TagPythonString));
+	}
+
+	return true;
+}
+
+bool URigVMController::RemoveTagFromFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	URigVMFunctionLibrary* FunctionLibrary = Cast<URigVMFunctionLibrary>(Graph);
+	if (!FunctionLibrary)
+	{
+		ReportError(TEXT("Can only add tag to variant in library graphs."));
+		return false;
+	}
+
+	URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionLibrary->FindFunction(InFunctionName));
+	if (!LibraryNode)
+	{
+		ReportErrorf(TEXT("Could not find library node for function %s."), *InFunctionName.ToString());
+		return false;
+	}
+
+	FRigVMVariant* Variant = FunctionLibrary->FunctionToVariant.Find(InFunctionName);
+	if (!Variant)
+	{
+		ReportErrorf(TEXT("Could not find function variant for function %s."), *InFunctionName.ToString());
+		return false;
+	}
+
+	const int32 Index = Variant->Tags.IndexOfByPredicate([InTagName](const FRigVMTag& InTag)
+	{
+		return InTag.Name == InTagName;
+	});
+	if (Index == INDEX_NONE)
+	{
+		ReportErrorf(TEXT("Could not find tag %s for function %s."), *InTagName.ToString(), *InFunctionName.ToString());
+		return false;
+	}
+	
+	FRigVMBaseAction Action(this);
+	if (bSetupUndoRedo)
+	{
+		Action.SetTitle(FString::Printf(TEXT("Remove tag from function variant")));
+		GetActionStack()->BeginAction(Action);
+		GetActionStack()->AddAction(FRigVMRemoveFunctionVariantTagAction(this, InFunctionName, InTagName));
+	}
+
+	Variant->Tags.RemoveAt(Index);
+
+	Notify(ERigVMGraphNotifType::VariantTagsChanged, LibraryNode);
+
+	if (bSetupUndoRedo)
+	{
+		GetActionStack()->EndAction(Action);
+	}
+
+	if (bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+	
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').remove_tag_from_function_variant('%s', '%s')"),
+				*GraphName,
+				*InFunctionName.ToString(),
+				*InTagName.ToString()));
+	}
+
+	return true;
 }
 
 TArray<FRigVMVariantRef> URigVMController::FindVariantsOfFunction(const FName& InFunctionName)

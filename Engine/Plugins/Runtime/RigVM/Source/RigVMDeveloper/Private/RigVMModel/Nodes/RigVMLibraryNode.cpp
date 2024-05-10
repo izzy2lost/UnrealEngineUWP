@@ -237,25 +237,27 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	    Header.LibraryPointer.HostObject = Cast<UObject>(InHostObject);
 	}
 
+	if (URigVMFunctionLibrary* Library = GetLibrary())
+	{
+		if (const FRigVMVariant* Variant = Library->GetFunctionVariant(GetFName()))
+		{
+			Header.Variant = *Variant;
+		}
+	}
+
 	UObject* HostPtr = Cast<UObject>(Header.LibraryPointer.HostObject.ResolveObject());
 	if (IRigVMGraphFunctionHost* Host = Cast<IRigVMGraphFunctionHost>(HostPtr))
 	{
 		if (FRigVMGraphFunctionData* Data = Host->GetRigVMGraphFunctionStore()->FindFunction(Header.LibraryPointer))
 		{
-			Header.Variant = Data->Header.Variant;
+			if (!Header.Variant.Guid.IsValid())
+			{
+				Header.Variant = Data->Header.Variant;
+			}
 			Header.NodeTitle = Data->Header.NodeTitle;
 		}
 	}
-	if (!Header.Variant.Guid.IsValid())
-	{
-		if (URigVMFunctionLibrary* Library = GetLibrary())
-		{
-			if (const FRigVMVariant* Variant = Library->GetFunctionVariant(GetFName()))
-			{
-				Header.Variant = *Variant;
-			}
-		}
-	}
+
 	if (!Header.Variant.Guid.IsValid())
 	{
 		Header.Variant.Guid = FRigVMVariant::GenerateGUID();

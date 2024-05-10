@@ -57,6 +57,8 @@ public:
 
 	const FRigVMGraphFunctionData* GetReferencedFunctionData(bool bLoadIfNecessary = true) const;
 
+	TArray<FRigVMTag> GetVariantTags() const;
+
 protected:
 
 	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const override;

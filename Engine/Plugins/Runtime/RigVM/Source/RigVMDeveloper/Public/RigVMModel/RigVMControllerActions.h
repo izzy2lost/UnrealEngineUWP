@@ -1456,6 +1456,54 @@ public:
 };
 
 /**
+ * An action adding a tag to a function variant
+ */
+USTRUCT()
+struct FRigVMAddFunctionVariantTagAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMAddFunctionVariantTagAction();
+	FRigVMAddFunctionVariantTagAction(URigVMController* InController, const FName& InFunctionName, const FRigVMTag& InTag);
+	virtual ~FRigVMAddFunctionVariantTagAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMCreateFunctionVariantAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FName FunctionName;
+
+	UPROPERTY()
+	FRigVMTag FunctionTag;
+};
+
+/**
+ * An action removing a tag from a function variant
+ */
+USTRUCT()
+struct FRigVMRemoveFunctionVariantTagAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMRemoveFunctionVariantTagAction();
+	FRigVMRemoveFunctionVariantTagAction(URigVMController* InController, const FName& InFunctionName, const FName& InTagName);
+	virtual ~FRigVMRemoveFunctionVariantTagAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMCreateFunctionVariantAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FName FunctionName;
+
+	UPROPERTY()
+	FRigVMTag FunctionTag;
+};
+
+/**
  * An action importing nodes and links from text
  */
 USTRUCT()

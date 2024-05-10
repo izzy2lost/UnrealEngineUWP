@@ -8,6 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "RigVMCore/RigVMVariant.h"
 
 #include "RigVMSettings.generated.h"
 
@@ -31,6 +32,9 @@ public:
 	// will be hooked up automatically.
 	UPROPERTY(EditAnywhere, config, Category = Interaction)
 	bool bAutoLinkMutableNodes;
+
+	UPROPERTY(EditAnywhere, config, Category = Variants)
+	TArray<FRigVMTag> VariantTags;
 
 #endif
 };
