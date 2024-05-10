@@ -112,6 +112,7 @@ struct FPCGSettingsOverridableParam
 
 #if WITH_EDITOR
 	FString GetDisplayPropertyPath() const;
+	PCG_API FText GetDisplayPropertyPathText() const;
 #endif // WITH_EDITOR
 };
 

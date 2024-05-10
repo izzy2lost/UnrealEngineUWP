@@ -1188,7 +1188,26 @@ void UPCGEditorGraphNodeBase::CreatePins(const TArray<UPCGPin*>& InInputPins, co
 FText UPCGEditorGraphNodeBase::GetPinFriendlyName(const UPCGPin* InPin) const
 {
 	check(InPin);
-	return FText::FromString(FName::NameToDisplayString(InPin->Properties.Label.ToString(), false));
+
+	// For overridable params, use the display name of properties (for localized version or overridden display name in metadata).
+	if (InPin->Properties.IsAdvancedPin() && InPin->Properties.AllowedTypes == EPCGDataType::Param)
+	{
+		const UPCGSettings* Settings = InPin->Node ? InPin->Node->GetSettings() : nullptr;
+		if (Settings)
+		{
+			const FPCGSettingsOverridableParam* Param = Settings->OverridableParams().FindByPredicate([Label = InPin->Properties.Label](const FPCGSettingsOverridableParam& ParamToCheck)
+			{
+				return ParamToCheck.Label == Label;
+			});
+
+			if (Param)
+			{
+				return Param->GetDisplayPropertyPathText();
+			}
+		}
+	}
+
+	return FText::FromString(FName::NameToDisplayString(InPin->Properties.Label.ToString(), /*bIsBool=*/false));
 }
 
 #undef LOCTEXT_NAMESPACE
