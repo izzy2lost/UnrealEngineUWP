@@ -19,7 +19,7 @@ class WATERADVANCED_API UShallowWaterRiverComponent : public UPrimitiveComponent
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (DisplayName = "Niagara River Simulation"))
-	UNiagaraSystem *NiagaraRiverSimulation;
+	TObjectPtr <class UNiagaraSystem> NiagaraRiverSimulation;
 
 	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (DisplayName = "Resolution Max Axis"))
 	int ResolutionMaxAxis;
@@ -42,6 +42,8 @@ public:
 	virtual void PostLoad() override;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	virtual void OnUnregister() override;
 
 #if WITH_EDITOR
 	void Rebuild();

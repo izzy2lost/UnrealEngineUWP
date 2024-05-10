@@ -21,6 +21,10 @@ UShallowWaterRiverComponent::UShallowWaterRiverComponent(const FObjectInitialize
 
 	bIsInitialized = false;
 	bTickInitialize = false;
+
+	ResolutionMaxAxis = 512;
+	SourceSize = 1000;
+	NiagaraRiverSimulation = LoadObject<UNiagaraSystem>(nullptr, TEXT("/WaterAdvanced/Niagara/Systems/Grid2D_SW_River.Grid2D_SW_River"));
 }
 
 void UShallowWaterRiverComponent::PostLoad()
@@ -46,6 +50,18 @@ void UShallowWaterRiverComponent::TickComponent(float DeltaTime, ELevelTick Tick
 	}
 
 #endif
+}
+
+void UShallowWaterRiverComponent::OnUnregister()
+{
+	Super::OnUnregister();
+
+	//if (RiverSimSystem && !RiverSimSystem->IsBeingDestroyed())
+	//{
+	//	RiverSimSystem->SetActive(false);
+	//	RiverSimSystem->DestroyComponent();
+	//	RiverSimSystem = nullptr;
+	//}
 }
 
 #if WITH_EDITOR
@@ -180,10 +196,30 @@ void UShallowWaterRiverComponent::Rebuild()
 	}
 	*/	
 
-	// spawn niagara system
-	FVector SystemPos = CombinedBounds.Origin - FVector(0, 0, CombinedBounds.BoxExtent.Z);	
-	RiverSimSystem = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), NiagaraRiverSimulation, SystemPos,
-		FRotator::ZeroRotator, FVector::OneVector, false, true, ENCPoolMethod::None, false);
+
+	FVector SystemPos = CombinedBounds.Origin - FVector(0, 0, CombinedBounds.BoxExtent.Z);
+	
+	RiverSimSystem = NewObject<UNiagaraComponent>(this, NAME_None, RF_Transient);
+	RiverSimSystem->bUseAttachParentBound = false;
+	RiverSimSystem->SetWorldLocation(SystemPos);
+
+	if (GetWorld() && GetWorld()->bIsWorldInitialized)
+	{
+		if (!RiverSimSystem->IsRegistered())
+		{
+			RiverSimSystem->RegisterComponentWithWorld(GetWorld());
+		}
+
+		RiverSimSystem->SetVisibleFlag(true);
+		RiverSimSystem->SetAsset(NiagaraRiverSimulation);
+		RiverSimSystem->ReinitializeSystem();
+	}
+	else
+	{
+		UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterRiverComponent::Rebuild() - World not initialized"));
+		return;
+	}
+	
 
 	if (RiverSimSystem == nullptr)
 	{
