@@ -1,4 +1,5 @@
-// Copyright 2007 Google LLC
+// Copyright (c) 2007, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -36,7 +37,6 @@
 #include <limits.h>
 
 namespace google_breakpad {
-namespace elf {
 
 class FileID {
  public:
@@ -61,7 +61,6 @@ class FileID {
   char path_[PATH_MAX];
 };
 
-}  // elf
 }  // namespace google_breakpad
 
 #endif  // COMMON_SOLARIS_FILE_ID_H__

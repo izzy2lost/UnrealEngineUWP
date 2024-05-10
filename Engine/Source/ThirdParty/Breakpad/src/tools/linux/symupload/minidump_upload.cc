@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -33,10 +34,6 @@
 //  ver: the product version
 //  symbol_file: the breakpad format symbol file
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -44,7 +41,6 @@
 #include <string>
 
 #include "common/linux/http_upload.h"
-#include "common/path_helper.h"
 #include "common/using_std_string.h"
 
 using google_breakpad::HTTPUpload;
@@ -95,10 +91,8 @@ static void Start(Options *options) {
 static void
 Usage(int argc, const char *argv[]) {
   fprintf(stderr, "Submit minidump information.\n");
-  fprintf(stderr,
-          "Usage: %s [options...] -p <product> -v <version> <minidump> "
-          "<upload-URL>\n",
-          google_breakpad::BaseName(argv[0]).c_str());
+  fprintf(stderr, "Usage: %s [options...] -p <product> -v <version> <minidump> "
+          "<upload-URL>\n", argv[0]);
   fprintf(stderr, "Options:\n");
   fprintf(stderr, "<minidump> should be a minidump.\n");
   fprintf(stderr, "<upload-URL> is the destination for the upload\n");
@@ -117,7 +111,7 @@ SetupOptions(int argc, const char *argv[], Options *options) {
   extern int optind;
   int ch;
 
-  while ((ch = getopt(argc, (char * const*)argv, "p:u:v:x:h?")) != -1) {
+  while ((ch = getopt(argc, (char * const *)argv, "p:u:v:x:h?")) != -1) {
     switch (ch) {
       case 'p':
         options->product = optarg;

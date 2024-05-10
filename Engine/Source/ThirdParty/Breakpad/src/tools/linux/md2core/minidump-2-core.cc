@@ -1,4 +1,5 @@
-// Copyright 2009 Google LLC
+// Copyright (c) 2009, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -30,13 +31,8 @@
 // Large parts lifted from the userspace core dumper:
 //   http://code.google.com/p/google-coredumper/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <elf.h>
 #include <errno.h>
-#include <limits.h>
 #include <link.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,7 +54,7 @@
 #include "third_party/lss/linux_syscall_support.h"
 #include "tools/linux/md2core/minidump_memory_range.h"
 
-#if ULONG_MAX == 0xffffffffffffffff
+#if __WORDSIZE == 64
   #define ELF_CLASS ELFCLASS64
 #else
   #define ELF_CLASS ELFCLASS32
@@ -80,8 +76,6 @@
   #define ELF_ARCH  EM_MIPS
 #elif defined(__aarch64__)
   #define ELF_ARCH  EM_AARCH64
-#elif defined(__riscv)
-  #define ELF_ARCH  EM_RISCV
 #endif
 
 #if defined(__arm__)
@@ -89,7 +83,7 @@
 // containing core registers, while they use 'user_regs_struct' on other
 // architectures. This file-local typedef simplifies the source code.
 typedef user_regs user_regs_struct;
-#elif defined (__mips__) || defined(__riscv)
+#elif defined (__mips__)
 // This file-local typedef simplifies the source code.
 typedef gregset_t user_regs_struct;
 #endif
@@ -154,14 +148,16 @@ SetupOptions(int argc, const char* argv[], Options* options) {
   options->use_filename = false;
   options->inc_guid = false;
 
-  while ((ch = getopt(argc, (char * const*)argv, "fhio:S:v")) != -1) {
+  while ((ch = getopt(argc, (char * const *)argv, "fhio:S:v")) != -1) {
     switch (ch) {
       case 'h':
         Usage(argc, argv);
         exit(0);
+        break;
       case '?':
         Usage(argc, argv);
         exit(1);
+        break;
 
       case 'f':
         options->use_filename = true;
@@ -227,7 +223,7 @@ writea(int fd, const void* idata, size_t length) {
  */
 static inline int sex() {
   int probe = 1;
-  return !*(char*)&probe;
+  return !*(char *)&probe;
 }
 
 typedef struct elf_timeval {    /* Time value with microsecond resolution    */
@@ -264,7 +260,7 @@ typedef struct prpsinfo {       /* Information about process                 */
   unsigned char  pr_zomb;       /* Zombie                                    */
   signed char    pr_nice;       /* Nice val                                  */
   unsigned long  pr_flag;       /* Flags                                     */
-#if defined(__x86_64__) || defined(__mips__) || defined(__riscv)
+#if defined(__x86_64__) || defined(__mips__)
   uint32_t       pr_uid;        /* User ID                                   */
   uint32_t       pr_gid;        /* Group ID                                  */
 #else
@@ -282,7 +278,7 @@ typedef struct prpsinfo {       /* Information about process                 */
 // We parse the minidump file and keep the parsed information in this structure
 struct CrashedProcess {
   CrashedProcess()
-      : exception{-1},
+      : crashing_tid(-1),
         auxv(NULL),
         auxv_length(0) {
     memset(&prps, 0, sizeof(prps));
@@ -306,11 +302,12 @@ struct CrashedProcess {
   };
   std::map<uint64_t, Mapping> mappings;
 
+  pid_t crashing_tid;
   int fatal_signal;
 
   struct Thread {
     pid_t tid;
-#if defined(__mips__) || defined(__riscv)
+#if defined(__mips__)
     mcontext_t mcontext;
 #else
     user_regs_struct regs;
@@ -329,7 +326,6 @@ struct CrashedProcess {
     size_t stack_length;
   };
   std::vector<Thread> threads;
-  Thread exception;
 
   const uint8_t* auxv;
   size_t auxv_length;
@@ -484,28 +480,17 @@ ParseThreadRegisters(CrashedProcess::Thread* thread,
 static void
 ParseThreadRegisters(CrashedProcess::Thread* thread,
                      const MinidumpMemoryRange& range) {
-#define COPY_REGS(rawregs)                                          \
-  do {                                                              \
-    for (int i = 0; i < 31; ++i)                                    \
-      thread->regs.regs[i] = rawregs->iregs[i];                     \
-    thread->regs.sp = rawregs->iregs[MD_CONTEXT_ARM64_REG_SP];      \
-    thread->regs.pc = rawregs->iregs[MD_CONTEXT_ARM64_REG_PC];      \
-    thread->regs.pstate = rawregs->cpsr;                            \
-                                                                    \
-    memcpy(thread->fpregs.vregs, rawregs->float_save.regs, 8 * 32); \
-    thread->fpregs.fpsr = rawregs->float_save.fpsr;                 \
-    thread->fpregs.fpcr = rawregs->float_save.fpcr;                 \
-  } while (false)
+  const MDRawContextARM64* rawregs = range.GetData<MDRawContextARM64>(0);
 
-  if (range.length() == sizeof(MDRawContextARM64_Old)) {
-    const MDRawContextARM64_Old* rawregs =
-        range.GetData<MDRawContextARM64_Old>(0);
-    COPY_REGS(rawregs);
-  } else {
-    const MDRawContextARM64* rawregs = range.GetData<MDRawContextARM64>(0);
-    COPY_REGS(rawregs);
-  }
-#undef COPY_REGS
+  for (int i = 0; i < 31; ++i)
+    thread->regs.regs[i] = rawregs->iregs[i];
+  thread->regs.sp = rawregs->iregs[MD_CONTEXT_ARM64_REG_SP];
+  thread->regs.pc = rawregs->iregs[MD_CONTEXT_ARM64_REG_PC];
+  thread->regs.pstate = rawregs->cpsr;
+
+  memcpy(thread->fpregs.vregs, rawregs->float_save.regs, 8 * 32);
+  thread->fpregs.fpsr = rawregs->float_save.fpsr;
+  thread->fpregs.fpcr = rawregs->float_save.fpcr;
 }
 #elif defined(__mips__)
 static void
@@ -536,67 +521,6 @@ ParseThreadRegisters(CrashedProcess::Thread* thread,
   thread->mcontext.fpc_csr = rawregs->float_save.fpcsr;
 #if _MIPS_SIM == _ABIO32
   thread->mcontext.fpc_eir = rawregs->float_save.fir;
-#endif
-}
-#elif defined(__riscv)
-static void
-ParseThreadRegisters(CrashedProcess::Thread* thread,
-                    const MinidumpMemoryRange& range) {
-# if __riscv_xlen == 32
-  const MDRawContextRISCV* rawregs = range.GetData<MDRawContextRISCV>(0);
-# elif __riscv_xlen == 64
-  const MDRawContextRISCV64* rawregs = range.GetData<MDRawContextRISCV64>(0);
-# else
-#  error "Unexpected __riscv_xlen"
-# endif
-
-  thread->mcontext.__gregs[0]  = rawregs->pc;
-  thread->mcontext.__gregs[1]  = rawregs->ra;
-  thread->mcontext.__gregs[2]  = rawregs->sp;
-  thread->mcontext.__gregs[3]  = rawregs->gp;
-  thread->mcontext.__gregs[4]  = rawregs->tp;
-  thread->mcontext.__gregs[5]  = rawregs->t0;
-  thread->mcontext.__gregs[6]  = rawregs->t1;
-  thread->mcontext.__gregs[7]  = rawregs->t2;
-  thread->mcontext.__gregs[8]  = rawregs->s0;
-  thread->mcontext.__gregs[9]  = rawregs->s1;
-  thread->mcontext.__gregs[10] = rawregs->a0;
-  thread->mcontext.__gregs[11] = rawregs->a1;
-  thread->mcontext.__gregs[12] = rawregs->a2;
-  thread->mcontext.__gregs[13] = rawregs->a3;
-  thread->mcontext.__gregs[14] = rawregs->a4;
-  thread->mcontext.__gregs[15] = rawregs->a5;
-  thread->mcontext.__gregs[16] = rawregs->a6;
-  thread->mcontext.__gregs[17] = rawregs->a7;
-  thread->mcontext.__gregs[18] = rawregs->s2;
-  thread->mcontext.__gregs[19] = rawregs->s3;
-  thread->mcontext.__gregs[20] = rawregs->s4;
-  thread->mcontext.__gregs[21] = rawregs->s5;
-  thread->mcontext.__gregs[22] = rawregs->s6;
-  thread->mcontext.__gregs[23] = rawregs->s7;
-  thread->mcontext.__gregs[24] = rawregs->s8;
-  thread->mcontext.__gregs[25] = rawregs->s9;
-  thread->mcontext.__gregs[26] = rawregs->s10;
-  thread->mcontext.__gregs[27] = rawregs->s11;
-  thread->mcontext.__gregs[28] = rawregs->t3;
-  thread->mcontext.__gregs[29] = rawregs->t4;
-  thread->mcontext.__gregs[30] = rawregs->t5;
-  thread->mcontext.__gregs[31] = rawregs->t6;
-
-  // Breakpad only supports RISCV32 with 32 bit floating point.
-  // Breakpad only supports RISCV64 with 64 bit floating point.
-#if __riscv_xlen == 32
-  for (int i = 0; i < MD_CONTEXT_RISCV_FPR_COUNT; ++i) {
-    thread->mcontext.__fpregs.__f.__f[i] = rawregs->fpregs[i];
-  }
-  thread->mcontext.__fpregs.__f.__fcsr = rawregs->fcsr;
-#elif __riscv_xlen == 64
-  for (int i = 0; i < MD_CONTEXT_RISCV_FPR_COUNT; ++i) {
-    thread->mcontext.__fpregs.__d.__f[i] = rawregs->fpregs[i];
-  }
-  thread->mcontext.__fpregs.__d.__fcsr = rawregs->fcsr;
-#else
-#error "Unexpected __riscv_xlen"
 #endif
 }
 #else
@@ -666,8 +590,7 @@ ParseSystemInfo(const Options& options, CrashedProcess* crashinfo,
     exit(1);
   }
 #elif defined(__aarch64__)
-  if (sysinfo->processor_architecture != MD_CPU_ARCHITECTURE_ARM64_OLD &&
-      sysinfo->processor_architecture != MD_CPU_ARCHITECTURE_ARM64) {
+  if (sysinfo->processor_architecture != MD_CPU_ARCHITECTURE_ARM64) {
     fprintf(stderr,
             "This version of minidump-2-core only supports ARM (64bit).\n");
     exit(1);
@@ -688,26 +611,11 @@ ParseSystemInfo(const Options& options, CrashedProcess* crashinfo,
 # else
 #  error "This mips ABI is currently not supported (n32)"
 # endif
-#elif defined(__riscv)
-# if __riscv_xlen == 32
-  if (sysinfo->processor_architecture != MD_CPU_ARCHITECTURE_RISCV) {
-    fprintf(stderr,
-            "This version of minidump-2-core only supports RISCV.\n");
-    exit(1);
-  }
-# elif __riscv_xlen == 64
-  if (sysinfo->processor_architecture != MD_CPU_ARCHITECTURE_RISCV64) {
-    fprintf(stderr,
-            "This version of minidump-2-core only supports RISCV64.\n");
-    exit(1);
-  }
-# else
-#  error "Unexpected __riscv_xlen"
-# endif
 #else
 #error "This code has not been ported to your platform yet"
 #endif
-  if (sysinfo->platform_id != MD_OS_LINUX &&
+  if (!strstr(full_file.GetAsciiMDString(sysinfo->csd_version_rva).c_str(),
+              "Linux") &&
       sysinfo->platform_id != MD_OS_NACL) {
     fprintf(stderr, "This minidump was not generated by Linux or NaCl.\n");
     exit(1);
@@ -731,10 +639,6 @@ ParseSystemInfo(const Options& options, CrashedProcess* crashinfo,
             ? "MIPS"
             : sysinfo->processor_architecture == MD_CPU_ARCHITECTURE_MIPS64
             ? "MIPS64"
-            : sysinfo->processor_architecture == MD_CPU_ARCHITECTURE_RISCV
-            ? "RISCV"
-            : sysinfo->processor_architecture == MD_CPU_ARCHITECTURE_RISCV64
-            ? "RISCV64"
             : "???",
             sysinfo->number_of_processors,
             sysinfo->processor_level,
@@ -744,10 +648,10 @@ ParseSystemInfo(const Options& options, CrashedProcess* crashinfo,
         sysinfo->processor_architecture == MD_CPU_ARCHITECTURE_AMD64) {
       fputs("Vendor id: ", stderr);
       const char *nul =
-        (const char*)memchr(sysinfo->cpu.x86_cpu_info.vendor_id, 0,
+        (const char *)memchr(sysinfo->cpu.x86_cpu_info.vendor_id, 0,
                              sizeof(sysinfo->cpu.x86_cpu_info.vendor_id));
       fwrite(sysinfo->cpu.x86_cpu_info.vendor_id,
-             nul ? nul - (const char*)&sysinfo->cpu.x86_cpu_info.vendor_id[0]
+             nul ? nul - (const char *)&sysinfo->cpu.x86_cpu_info.vendor_id[0]
              : sizeof(sysinfo->cpu.x86_cpu_info.vendor_id), 1, stderr);
       fputs("\n", stderr);
     }
@@ -843,7 +747,7 @@ ParseEnvironment(const Options& options, CrashedProcess* crashinfo,
     memcpy(env, range.data(), range.length());
     int nul_count = 0;
     for (char *ptr = env;;) {
-      ptr = (char*)memchr(ptr, '\000', range.length() - (ptr - env));
+      ptr = (char *)memchr(ptr, '\000', range.length() - (ptr - env));
       if (!ptr) {
         break;
       }
@@ -995,25 +899,10 @@ ParseDSODebugInfo(const Options& options, CrashedProcess* crashinfo,
 
 static void
 ParseExceptionStream(const Options& options, CrashedProcess* crashinfo,
-                     const MinidumpMemoryRange& range,
-                     const MinidumpMemoryRange& full_file) {
+                     const MinidumpMemoryRange& range) {
   const MDRawExceptionStream* exp = range.GetData<MDRawExceptionStream>(0);
-  if (!exp) {
-    return;
-  }
-  if (options.verbose) {
-    fprintf(stderr,
-            "MD_EXCEPTION_STREAM:\n"
-            "Found exception thread %" PRIu32 " \n"
-            "\n\n",
-            exp->thread_id);
-  }
+  crashinfo->crashing_tid = exp->thread_id;
   crashinfo->fatal_signal = (int) exp->exception_record.exception_code;
-  crashinfo->exception = {};
-  crashinfo->exception.tid = exp->thread_id;
-  // crashinfo->threads[].tid == crashinfo->exception.tid provides the stack.
-  ParseThreadRegisters(&crashinfo->exception,
-                       full_file.Subrange(exp->thread_context));
 }
 
 static bool
@@ -1027,8 +916,6 @@ WriteThread(const Options& options, const CrashedProcess::Thread& thread,
   pr.pr_pid = thread.tid;
 #if defined(__mips__)
   memcpy(&pr.pr_reg, &thread.mcontext.gregs, sizeof(user_regs_struct));
-#elif defined(__riscv)
-  memcpy(&pr.pr_reg, &thread.mcontext.__gregs, sizeof(user_regs_struct));
 #else
   memcpy(&pr.pr_reg, &thread.regs, sizeof(user_regs_struct));
 #endif
@@ -1177,7 +1064,7 @@ AugmentMappings(const Options& options, CrashedProcess* crashinfo,
   for (unsigned i = 0; i < crashinfo->threads.size(); ++i) {
     const CrashedProcess::Thread& thread = crashinfo->threads[i];
     AddDataToMapping(crashinfo,
-                     string((char*)thread.stack, thread.stack_length),
+                     string((char *)thread.stack, thread.stack_length),
                      thread.stack_addr);
   }
 
@@ -1376,7 +1263,7 @@ main(int argc, const char* argv[]) {
         break;
       case MD_EXCEPTION_STREAM:
         ParseExceptionStream(options, &crashinfo,
-                             dump.Subrange(dirent->location), dump);
+                             dump.Subrange(dirent->location));
         break;
       case MD_MODULE_LIST_STREAM:
         ParseModuleStream(options, &crashinfo, dump.Subrange(dirent->location),
@@ -1492,21 +1379,16 @@ main(int argc, const char* argv[]) {
     return 1;
   }
 
-  for (const auto& current_thread : crashinfo.threads) {
-    if (current_thread.tid == crashinfo.exception.tid) {
-      // Use the exception record's context for the crashed thread instead of
-      // the thread's own context. For the crashed thread the thread's own
-      // context is the state inside the exception handler. Using it would not
-      // result in the expected stack trace from the time of the crash.
-      // The stack memory has already been provided by current_thread.
-      WriteThread(options, crashinfo.exception, crashinfo.fatal_signal);
+  for (unsigned i = 0; i < crashinfo.threads.size(); ++i) {
+    if (crashinfo.threads[i].tid == crashinfo.crashing_tid) {
+      WriteThread(options, crashinfo.threads[i], crashinfo.fatal_signal);
       break;
     }
   }
 
-  for (const auto& current_thread : crashinfo.threads) {
-    if (current_thread.tid != crashinfo.exception.tid)
-      WriteThread(options, current_thread, 0);
+  for (unsigned i = 0; i < crashinfo.threads.size(); ++i) {
+    if (crashinfo.threads[i].tid != crashinfo.crashing_tid)
+      WriteThread(options, crashinfo.threads[i], 0);
   }
 
   if (note_align) {

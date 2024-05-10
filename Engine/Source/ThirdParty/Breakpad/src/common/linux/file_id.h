@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -40,7 +41,6 @@
 #include "common/using_std_string.h"
 
 namespace google_breakpad {
-namespace elf {
 
 // GNU binutils' ld defaults to 'sha1', which is 160 bits == 20 bytes,
 // so this is enough to fit that, which most binaries will use.
@@ -83,7 +83,6 @@ class FileID {
   string path_;
 };
 
-}  // namespace elf
 }  // namespace google_breakpad
 
 #endif  // COMMON_LINUX_FILE_ID_H__

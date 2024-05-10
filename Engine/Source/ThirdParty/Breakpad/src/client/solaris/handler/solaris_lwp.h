@@ -1,4 +1,5 @@
-// Copyright 2007 Google LLC
+// Copyright (c) 2007, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -69,17 +70,17 @@ struct ModuleInfo {
 // A callback to run when getting a lwp in the process.
 // Return true will go on to the next lwp while return false will stop the
 // iteration.
-typedef bool (*LwpCallback)(lwpstatus_t* lsp, void* context);
+typedef bool (*LwpCallback)(lwpstatus_t* lsp, void *context); 
 
 // A callback to run when a new module is found in the process.
 // Return true will go on to the next module while return false will stop the
 // iteration.
-typedef bool (*ModuleCallback)(const ModuleInfo& module_info, void* context);
+typedef bool (*ModuleCallback)(const ModuleInfo &module_info, void *context);
 
 // A callback to run when getting a lwpid in the process.
 // Return true will go on to the next lwp while return false will stop the
 // iteration.
-typedef bool (*LwpidCallback)(int lwpid, void* context);
+typedef bool (*LwpidCallback)(int lwpid, void *context);
 
 // Holding the callback information.
 template<class CallbackFunc>
@@ -87,12 +88,12 @@ struct CallbackParam {
   // Callback function address.
   CallbackFunc call_back;
   // Callback context;
-  void* context;
+  void *context;
 
   CallbackParam() : call_back(NULL), context(NULL) {
   }
 
-  CallbackParam(CallbackFunc func, void* func_context) :
+  CallbackParam(CallbackFunc func, void *func_context) :
     call_back(func), context(func_context) {
   }
 };
@@ -128,7 +129,7 @@ class SolarisLwp {
   // Whenever there is a lwp found, the callback will be invoked to process
   // the information.
   // Return the callback return value or -1 on error.
-  int Lwp_iter_all(int pid, CallbackParam<LwpCallback>* callback_param) const;
+  int Lwp_iter_all(int pid, CallbackParam<LwpCallback> *callback_param) const;
 
   // Get the module count of the current process.
   int GetModuleCount() const;
@@ -137,13 +138,13 @@ class SolarisLwp {
   // Whenever a module is found, the callback will be invoked to process the
   // information.
   // Return how may modules are found.
-  int ListModules(CallbackParam<ModuleCallback>* callback_param) const;
+  int ListModules(CallbackParam<ModuleCallback> *callback_param) const;
 
   // Get the bottom of the stack from esp.
   uintptr_t GetLwpStackBottom(uintptr_t current_esp) const;
 
   // Finds a signal context on the stack given the ebp of our signal handler.
-  bool FindSigContext(uintptr_t sighandler_ebp, ucontext_t** sig_ctx);
+  bool FindSigContext(uintptr_t sighandler_ebp, ucontext_t **sig_ctx);
 
  private:
   // Check if the address is a valid virtual address.

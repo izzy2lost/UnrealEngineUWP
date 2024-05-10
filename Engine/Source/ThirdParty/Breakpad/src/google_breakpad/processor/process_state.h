@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -39,7 +40,6 @@
 #include "common/using_std_string.h"
 #include "google_breakpad/common/breakpad_types.h"
 #include "google_breakpad/processor/code_modules.h"
-#include "google_breakpad/processor/exception_record.h"
 #include "google_breakpad/processor/minidump.h"
 #include "google_breakpad/processor/system_info.h"
 #include "processor/linked_ptr.h"
@@ -105,12 +105,10 @@ class ProcessState {
   uint64_t crash_address() const { return crash_address_; }
   string assertion() const { return assertion_; }
   int requesting_thread() const { return requesting_thread_; }
-  const ExceptionRecord* exception_record() const { return &exception_record_; }
   const vector<CallStack*>* threads() const { return &threads_; }
   const vector<MemoryRegion*>* thread_memory_regions() const {
     return &thread_memory_regions_;
   }
-  const vector<string>* thread_names() const { return &thread_names_; }
   const SystemInfo* system_info() const { return &system_info_; }
   const CodeModules* modules() const { return modules_; }
   const CodeModules* unloaded_modules() const { return unloaded_modules_; }
@@ -168,19 +166,10 @@ class ProcessState {
   // indicating that the dump thread is not available.
   int requesting_thread_;
 
-  // Exception record details: code, flags, address, parameters.
-  ExceptionRecord exception_record_;
-
   // Stacks for each thread (except possibly the exception handler
   // thread) at the time of the crash.
   vector<CallStack*> threads_;
   vector<MemoryRegion*> thread_memory_regions_;
-
-  // Names of each thread at the time of the crash, one for each entry in
-  // threads_. Note that a thread's name might be empty if there was no
-  // corresponding ThreadNamesStream in the minidump, or if a particular thread
-  // ID was not present in the THREAD_NAME_LIST.
-  vector<string> thread_names_;
 
   // OS and CPU information.
   SystemInfo system_info_;

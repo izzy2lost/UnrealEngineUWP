@@ -1,4 +1,5 @@
-// Copyright 2015 Google LLC
+// Copyright (c) 2015, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -56,7 +57,7 @@ class SuperFatArch {
       align(0) {
   }
 
-  explicit SuperFatArch(const struct fat_arch& arch) :
+  explicit SuperFatArch(const struct fat_arch &arch) :
       cputype(arch.cputype),
       cpusubtype(arch.cpusubtype),
       offset(arch.offset),
@@ -64,13 +65,15 @@ class SuperFatArch {
       align(arch.align) {
   }
 
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
   explicit SuperFatArch(const struct fat_arch_64 &arch) :
       cputype(arch.cputype),
       cpusubtype(arch.cpusubtype),
       offset(arch.offset),
       size(arch.size),
       align(arch.align) {
-  }
+    }
+#endif
 
   // Returns false if the conversion cannot be made.
   // If the conversion succeeds, the result is placed in |output_arch|.

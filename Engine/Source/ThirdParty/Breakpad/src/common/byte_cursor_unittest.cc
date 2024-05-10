@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -30,10 +31,6 @@
 
 // byte_cursor_unittest.cc: Unit tests for google_breakpad::ByteBuffer
 // and google_breakpad::ByteCursor.
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include <string>
 
@@ -596,7 +593,7 @@ TEST(Extractor, Signed4) {
   int32_t a;
   // For some reason, G++ 4.4.1 complains:
   //   warning: array subscript is above array bounds
-  // in ByteCursor::Read(size_t, bool, T*) as it inlines this call, but
+  // in ByteCursor::Read(size_t, bool, T *) as it inlines this call, but
   // I'm not able to see how such a reference would occur.
   EXPECT_TRUE(cursor >> a);
   EXPECT_EQ(-380377902, a);
@@ -630,7 +627,7 @@ TEST(Extractor, Unsigned4) {
   uint32_t a;
   // For some reason, G++ 4.4.1 complains:
   //   warning: array subscript is above array bounds
-  // in ByteCursor::Read(size_t, bool, T*) as it inlines this call, but
+  // in ByteCursor::Read(size_t, bool, T *) as it inlines this call, but
   // I'm not able to see how such a reference would occur.
   EXPECT_TRUE(cursor >> a);
   EXPECT_EQ(0xe953e4d2, a);
@@ -721,10 +718,10 @@ TEST(Strings, PointTo) {
   ByteBuffer buffer(data, sizeof(data));
   ByteCursor cursor(&buffer);
 
-  const uint8_t* received1;
-  const uint8_t* received2;
-  const uint8_t* received3;
-  const uint8_t* received4;
+  const uint8_t *received1;
+  const uint8_t *received2;
+  const uint8_t *received3;
+  const uint8_t *received4;
   EXPECT_FALSE(cursor
                .PointTo(&received1, 3)
                .PointTo(&received2, 3)

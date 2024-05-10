@@ -1,6 +1,7 @@
 // -*- mode: C++ -*-
 
-// Copyright 2012 Google LLC
+// Copyright (c) 2012, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -12,7 +13,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -54,7 +55,6 @@
 #ifdef HAS_GLOBAL_STRING
   typedef ::string google_breakpad_string;
 #else
-#include <string>
   using std::string;
   typedef std::string google_breakpad_string;
 #endif

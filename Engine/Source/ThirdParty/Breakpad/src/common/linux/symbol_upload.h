@@ -1,6 +1,7 @@
 // -*- mode: c++ -*-
 
-// Copyright 2011 Google LLC
+// Copyright (c) 2011 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -12,7 +13,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -40,31 +41,14 @@
 namespace google_breakpad {
 namespace sym_upload {
 
-enum class UploadProtocol {
-  SYM_UPLOAD_V1,
-  SYM_UPLOAD_V2,
-};
-
-constexpr char kBreakpadSymbolType[] = "BREAKPAD";
-
-struct Options {
-  Options() : upload_protocol(UploadProtocol::SYM_UPLOAD_V1), force(false) {}
-
+typedef struct {
   string symbolsPath;
   string uploadURLStr;
   string proxy;
   string proxy_user_pwd;
   string version;
   bool success;
-  UploadProtocol upload_protocol;
-  bool force;
-  string api_key;
-
-  // These only need to be set for native symbol uploads.
-  string code_file;
-  string debug_id;
-  string type;
-};
+} Options;
 
 // Starts upload to symbol server with options.
 void Start(Options* options);

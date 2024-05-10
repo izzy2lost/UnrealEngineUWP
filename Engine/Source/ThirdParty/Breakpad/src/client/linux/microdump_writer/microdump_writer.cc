@@ -1,4 +1,5 @@
-// Copyright 2014 Google LLC
+// Copyright (c) 2014, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -28,10 +29,6 @@
 
 // This translation unit generates microdumps into the console (logcat on
 // Android). See crbug.com/410294 for more info and design docs.
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include "client/linux/microdump_writer/microdump_writer.h"
 
@@ -52,8 +49,8 @@
 namespace {
 
 using google_breakpad::auto_wasteful_vector;
-using google_breakpad::elf::kDefaultBuildIdSize;
 using google_breakpad::ExceptionHandler;
+using google_breakpad::kDefaultBuildIdSize;
 using google_breakpad::LinuxDumper;
 using google_breakpad::LinuxPtraceDumper;
 using google_breakpad::MappingInfo;
@@ -141,7 +138,7 @@ class MicrodumpWriter {
                   const MicrodumpExtraInfo& microdump_extra_info,
                   LinuxDumper* dumper)
       : ucontext_(context ? &context->context : NULL),
-#if GOOGLE_BREAKPAD_CRASH_CONTEXT_HAS_FLOAT_STATE
+#if !defined(__ARM_EABI__) && !defined(__mips__)
         float_state_(context ? &context->float_state : NULL),
 #endif
         dumper_(dumper),
@@ -339,17 +336,9 @@ class MicrodumpWriter {
     const char kArch[] = "mips64";
 # else
 #  error "This mips ABI is currently not supported (n32)"
-# endif
-#elif defined(__riscv)
-# if __riscv_xlen == 32
-    const char kArch[] = "riscv32";
-# elif __riscv_xlen == 64
-    const char kArch[] = "riscv64";
-# else
-#  error "Unexpected __riscv_xlen"
-# endif
+#endif
 #else
-# error "This code has not been ported to your platform yet"
+#error "This code has not been ported to your platform yet"
 #endif
 
     LogAppend("O ");
@@ -420,7 +409,7 @@ class MicrodumpWriter {
   void DumpCPUState() {
     RawContextCPU cpu;
     my_memset(&cpu, 0, sizeof(RawContextCPU));
-#if GOOGLE_BREAKPAD_CRASH_CONTEXT_HAS_FLOAT_STATE
+#if !defined(__ARM_EABI__) && !defined(__mips__)
     UContextReader::FillCPUContext(&cpu, ucontext_, float_state_);
 #else
     UContextReader::FillCPUContext(&cpu, ucontext_);
@@ -616,7 +605,7 @@ class MicrodumpWriter {
   void* Alloc(unsigned bytes) { return dumper_->allocator()->Alloc(bytes); }
 
   const ucontext_t* const ucontext_;
-#if GOOGLE_BREAKPAD_CRASH_CONTEXT_HAS_FLOAT_STATE
+#if !defined(__ARM_EABI__) && !defined(__mips__)
   const google_breakpad::fpstate_t* const float_state_;
 #endif
   LinuxDumper* dumper_;
@@ -659,7 +648,9 @@ bool WriteMicrodump(pid_t crashing_process,
     if (blob_size != sizeof(ExceptionHandler::CrashContext))
       return false;
     context = reinterpret_cast<const ExceptionHandler::CrashContext*>(blob);
-    dumper.SetCrashInfoFromSigInfo(context->siginfo);
+    dumper.set_crash_address(
+        reinterpret_cast<uintptr_t>(context->siginfo.si_addr));
+    dumper.set_crash_signal(context->siginfo.si_signo);
     dumper.set_crash_thread(context->tid);
   }
   MicrodumpWriter writer(context, mappings,

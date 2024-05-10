@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -28,10 +29,6 @@
 //
 // crash_generation_server_test.cc
 // Unit tests for CrashGenerationServer
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include <dirent.h>
 #include <glob.h>
@@ -150,8 +147,8 @@ TEST_F(CrashGenerationServerTest, testRequestDumpNoDump) {
     globfree(&dirContents);
 }
 
-void dumpCallback(void* context, const ClientInfo& client_info,
-                  const std::string& file_path) {
+void dumpCallback(void *context, const ClientInfo &client_info,
+                  const std::string &file_path) {
   if (context) {
     CrashGenerationServerTest* self =
         reinterpret_cast<CrashGenerationServerTest*>(context);
@@ -161,7 +158,7 @@ void dumpCallback(void* context, const ClientInfo& client_info,
   }
 }
 
-void* RequestDump(void* context) {
+void *RequestDump(void *context) {
   CrashGenerationClient client((const char*)context);
   bool result = client.RequestDump();
   return (void*)(result ? 0 : 1);
@@ -209,7 +206,7 @@ TEST_F(CrashGenerationServerTest, testRequestDump) {
 }
 
 static void Crasher() {
-  int* a = (int*)0x42;
+  int *a = (int*)0x42;
 
   fprintf(stdout, "Going to crash...\n");
   fprintf(stdout, "A = %d", *a);

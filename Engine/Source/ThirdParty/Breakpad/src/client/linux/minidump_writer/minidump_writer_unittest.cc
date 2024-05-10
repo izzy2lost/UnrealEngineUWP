@@ -1,4 +1,5 @@
-// Copyright 2011 Google LLC
+// Copyright (c) 2011 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -26,12 +27,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <fcntl.h>
-#include <poll.h>
+#include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -45,7 +42,6 @@
 #include "client/linux/minidump_writer/linux_dumper.h"
 #include "client/linux/minidump_writer/minidump_writer.h"
 #include "client/linux/minidump_writer/minidump_writer_unittest_utils.h"
-#include "common/linux/breakpad_getcontext.h"
 #include "common/linux/eintr_wrapper.h"
 #include "common/linux/file_id.h"
 #include "common/linux/ignore_ret.h"
@@ -57,8 +53,6 @@
 #include "google_breakpad/processor/minidump.h"
 
 using namespace google_breakpad;
-using google_breakpad::elf::FileID;
-using google_breakpad::elf::kDefaultBuildIdSize;
 
 namespace {
 
@@ -304,19 +298,15 @@ TEST(MinidumpWriterTest, MinidumpStacksSkippedIfRequested) {
   Minidump minidump(templ);
   ASSERT_TRUE(minidump.Read());
 
-  MinidumpThreadList* threads = minidump.GetThreadList();
+  MinidumpThreadList *threads = minidump.GetThreadList();
   int threads_with_stacks = 0;
   for (unsigned int i = 0; i < threads->thread_count(); ++i) {
-    MinidumpThread* thread = threads->GetThreadAtIndex(i);
+    MinidumpThread *thread = threads->GetThreadAtIndex(i);
     if (thread->GetMemory()) {
       ++threads_with_stacks;
     }
   }
-#if defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER)
-  ASSERT_GE(threads_with_stacks, 1);
-#else
-  ASSERT_EQ(threads_with_stacks, 1);
-#endif
+  ASSERT_EQ(1, threads_with_stacks);
   close(fds[1]);
   IGNORE_EINTR(waitpid(child, nullptr, 0));
 }
@@ -358,13 +348,13 @@ TEST(MinidumpWriterTest, StacksAreSanitizedIfRequested) {
 #else
       0x0defaced;
 #endif
-  MinidumpThreadList* threads = minidump.GetThreadList();
+  MinidumpThreadList *threads = minidump.GetThreadList();
   for (unsigned int i = 0; i < threads->thread_count(); ++i) {
-    MinidumpThread* thread = threads->GetThreadAtIndex(i);
-    MinidumpMemoryRegion* mem = thread->GetMemory();
+    MinidumpThread *thread = threads->GetThreadAtIndex(i);
+    MinidumpMemoryRegion *mem = thread->GetMemory();
     ASSERT_TRUE(mem != nullptr);
     uint32_t sz = mem->GetSize();
-    const uint8_t* data = mem->GetMemory();
+    const uint8_t *data = mem->GetMemory();
     ASSERT_TRUE(memmem(data, sz, &defaced, sizeof(defaced)) != nullptr);
   }
   close(fds[1]);
@@ -526,7 +516,7 @@ TEST(MinidumpWriterTest, DeletedBinary) {
   // Copy binary to a temp file.
   AutoTempDir temp_dir;
   string binpath = temp_dir.path() + "/linux-dumper-unittest-helper";
-  ASSERT_TRUE(CopyFile(helper_path, binpath))
+  ASSERT_TRUE(CopyFile(helper_path.c_str(), binpath.c_str()))
       << "Failed to copy " << helper_path << " to " << binpath;
   ASSERT_EQ(0, chmod(binpath.c_str(), 0755));
 
@@ -719,9 +709,6 @@ TEST(MinidumpWriterTest, InvalidStackPointer) {
   context.context.uc_mcontext.sp = invalid_stack_pointer;
 #elif defined(__mips__)
   context.context.uc_mcontext.gregs[MD_CONTEXT_MIPS_REG_SP] =
-      invalid_stack_pointer;
-#elif defined(__riscv)
-  context.context.uc_mcontext.__gregs[MD_CONTEXT_RISCV_REG_SP] =
       invalid_stack_pointer;
 #else
 # error "This code has not been ported to your platform yet."

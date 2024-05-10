@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -29,10 +30,6 @@
 // static_address_map_unittest.cc: Unit tests for StaticAddressMap.
 //
 // Author: Siyang Xie (lambxsy@google.com)
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include <climits>
 #include <cstdlib>
@@ -98,7 +95,7 @@ class TestStaticAddressMap : public ::testing::Test {
     int address_test;
     string entry;
     string entry_test;
-    const char* entry_cstring = NULL;
+    const char *entry_cstring = NULL;
     bool found;
     bool found_test;
 
@@ -124,7 +121,7 @@ class TestStaticAddressMap : public ::testing::Test {
 
     srand(time(0));
     for (int data_item = 0; data_item < testsize[testcase]; ++data_item) {
-      // Retrieve (aka, search) for target address and compare results from
+      // Retrive (aka, search) for target address and compare results from
       // AddressMap and StaticAddressMap.
 
       // First, assign the search target to be one of original testdata that is
@@ -146,11 +143,11 @@ class TestStaticAddressMap : public ::testing::Test {
   // Test data sets:
   static const int kNumberTestCases = 4;
   static const int testsize[];
-  int* testdata[kNumberTestCases];
+  int *testdata[kNumberTestCases];
 
   AddrMap addr_map[kNumberTestCases];
   TestMap test_map[kNumberTestCases];
-  char* map_data[kNumberTestCases];
+  char *map_data[kNumberTestCases];
   google_breakpad::AddressMapSerializer<int, string> serializer;
 };
 
@@ -232,7 +229,7 @@ TEST_F(TestStaticAddressMap, Test1000RandomElementsMap) {
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
 
   return RUN_ALL_TESTS();

@@ -1,6 +1,7 @@
 // -*- mode: c++ -*-
 
-// Copyright 2010 Google LLC
+// Copyright (c) 2010 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -12,7 +13,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -41,25 +42,36 @@
 #include <stdint.h>
 
 #include <string>
-#include <vector>
 
 #include "common/language.h"
 #include "common/module.h"
+#include "common/dwarf/bytereader.h"
 #include "common/dwarf/dwarf2diehandler.h"
 #include "common/dwarf/dwarf2reader.h"
 #include "common/scoped_ptr.h"
 #include "common/using_std_string.h"
 
+/* EG BEGIN */
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+#include "common/unordered.h"
+#endif /* DUMP_SYMS_WITH_EPIC_EXTENSIONS */
+/* EG END */
+
 namespace google_breakpad {
+
+using dwarf2reader::DwarfAttribute;
+using dwarf2reader::DwarfForm;
+using dwarf2reader::DwarfLanguage;
+using dwarf2reader::DwarfTag;
 
 // Populate a google_breakpad::Module with DWARF debugging information.
 //
 // An instance of this class can be provided as a handler to a
-// DIEDispatcher, which can in turn be a handler for a
-// CompilationUnit DWARF parser. The handler uses the results
+// dwarf2reader::DIEDispatcher, which can in turn be a handler for a
+// dwarf2reader::CompilationUnit DWARF parser. The handler uses the results
 // of parsing to populate a google_breakpad::Module with source file,
 // function, and source line information.
-class DwarfCUToModule: public RootDIEHandler {
+class DwarfCUToModule: public dwarf2reader::RootDIEHandler {
   struct FilePrivate;
  public:
   // Information global to the DWARF-bearing file we are processing,
@@ -73,24 +85,20 @@ class DwarfCUToModule: public RootDIEHandler {
   // to true to handle debugging symbols with DW_FORM_ref_addr entries.
   class FileContext {
    public:
-    FileContext(const string& filename,
-                Module* module,
+    FileContext(const string &filename,
+                Module *module,
                 bool handle_inter_cu_refs);
     ~FileContext();
 
     // Add CONTENTS of size LENGTH to the section map as NAME.
     void AddSectionToSectionMap(const string& name,
-                                const uint8_t* contents,
-                                uint64_t length);
-
-    void AddManagedSectionToSectionMap(const string& name,
-                                uint8_t* contents,
-                                uint64_t length);
+                                const uint8_t *contents,
+                                uint64 length);
 
     // Clear the section map for testing.
     void ClearSectionMapForTest();
 
-    const SectionMap& section_map() const;
+    const dwarf2reader::SectionMap& section_map() const;
 
    private:
     friend class DwarfCUToModule;
@@ -101,45 +109,41 @@ class DwarfCUToModule: public RootDIEHandler {
     // Given an OFFSET and a CU that starts at COMPILATION_UNIT_START, returns
     // true if this is an inter-compilation unit reference that is not being
     // handled.
-    bool IsUnhandledInterCUReference(uint64_t offset,
-                                     uint64_t compilation_unit_start) const;
+    bool IsUnhandledInterCUReference(uint64 offset,
+                                     uint64 compilation_unit_start) const;
 
     // The name of this file, for use in error messages.
     const string filename_;
 
     // A map of this file's sections, used for finding other DWARF
     // sections that the .debug_info section may refer to.
-    SectionMap section_map_;
+    dwarf2reader::SectionMap section_map_;
 
     // The Module to which we're contributing definitions.
-    Module* module_;
+    Module *module_;
 
     // True if we are handling references between compilation units.
     const bool handle_inter_cu_refs_;
 
     // Inter-compilation unit data used internally by the handlers.
     scoped_ptr<FilePrivate> file_private_;
-    std::vector<uint8_t *> uncompressed_sections_;
   };
 
-  // An abstract base class for handlers that handle DWARF range lists for
-  // DwarfCUToModule.
-  class RangesHandler {
-   public:
-    RangesHandler() { }
-    virtual ~RangesHandler() { }
-
-    // Called when finishing a function to populate the function's ranges.
-    // The entries are read according to the form and data.
-    virtual bool ReadRanges(
-        enum DwarfForm form, uint64_t data,
-        RangeListReader::CURangesInfo* cu_info,
-        vector<Module::Range>* ranges) = 0;
+/* EG BEGIN */
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+  struct InlineEntry
+  {
+    uint64 low_pc;
+    uint64 high_pc;
+    uint64 call_file;
+    uint64 call_line;
   };
+#endif /* DUMP_SYMS_WITH_EPIC_EXTENSIONS */
+/* EG END */
 
   // An abstract base class for handlers that handle DWARF line data
   // for DwarfCUToModule. DwarfCUToModule could certainly just use
-  // LineInfo itself directly, but decoupling things
+  // dwarf2reader::LineInfo itself directly, but decoupling things
   // this way makes unit testing a little easier.
   class LineToModuleHandler {
    public:
@@ -156,13 +160,14 @@ class DwarfCUToModule: public RootDIEHandler {
     // mappings, given a pointer to some DWARF line number data
     // PROGRAM, and an overestimate of its size. Add no zero-length
     // lines to LINES.
-    virtual void ReadProgram(const uint8_t* program, uint64_t length,
-                             const uint8_t* string_section,
-                             uint64_t string_section_length,
-                             const uint8_t* line_string_section,
-                             uint64_t line_string_length,
-                             Module* module, vector<Module::Line>* lines,
-                             map<uint32_t, Module::File*>* files) = 0;
+    virtual void ReadProgram(const uint8_t *program, uint64 length,
+/* EG BEGIN */
+#ifndef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+                             Module *module, vector<Module::Line> *lines) = 0;
+#else
+                             Module *module, vector<Module::Line> *lines, map<uint64, InlineEntry> *inline_entires) = 0;
+#endif /* DUMP_SYMS_WITH_EPIC_EXTENSIONS */
+/* EG END */
   };
 
   // The interface DwarfCUToModule uses to report warnings. The member
@@ -173,14 +178,14 @@ class DwarfCUToModule: public RootDIEHandler {
    public:
     // Warn about problems in the DWARF file FILENAME, in the
     // compilation unit at OFFSET.
-    WarningReporter(const string& filename, uint64_t cu_offset)
+    WarningReporter(const string &filename, uint64 cu_offset)
         : filename_(filename), cu_offset_(cu_offset), printed_cu_header_(false),
           printed_unpaired_header_(false),
           uncovered_warnings_enabled_(false) { }
     virtual ~WarningReporter() { }
 
     // Set the name of the compilation unit we're processing to NAME.
-    virtual void SetCUName(const string& name) { cu_name_ = name; }
+    virtual void SetCUName(const string &name) { cu_name_ = name; }
 
     // Accessor and setter for uncovered_warnings_enabled_.
     // UncoveredFunction and UncoveredLine only report a problem if that is
@@ -196,52 +201,44 @@ class DwarfCUToModule: public RootDIEHandler {
     // A DW_AT_specification in the DIE at OFFSET refers to a DIE we
     // haven't processed yet, or that wasn't marked as a declaration,
     // at TARGET.
-    virtual void UnknownSpecification(uint64_t offset, uint64_t target);
+    virtual void UnknownSpecification(uint64 offset, uint64 target);
 
     // A DW_AT_abstract_origin in the DIE at OFFSET refers to a DIE we
     // haven't processed yet, or that wasn't marked as inline, at TARGET.
-    virtual void UnknownAbstractOrigin(uint64_t offset, uint64_t target);
+    virtual void UnknownAbstractOrigin(uint64 offset, uint64 target);
 
     // We were unable to find the DWARF section named SECTION_NAME.
-    virtual void MissingSection(const string& section_name);
+    virtual void MissingSection(const string &section_name);
 
     // The CU's DW_AT_stmt_list offset OFFSET is bogus.
-    virtual void BadLineInfoOffset(uint64_t offset);
+    virtual void BadLineInfoOffset(uint64 offset);
 
     // FUNCTION includes code covered by no line number data.
-    virtual void UncoveredFunction(const Module::Function& function);
+    virtual void UncoveredFunction(const Module::Function &function);
 
     // Line number NUMBER in LINE_FILE, of length LENGTH, includes code
     // covered by no function.
-    virtual void UncoveredLine(const Module::Line& line);
+    virtual void UncoveredLine(const Module::Line &line);
 
     // The DW_TAG_subprogram DIE at OFFSET has no name specified directly
     // in the DIE, nor via a DW_AT_specification or DW_AT_abstract_origin
     // link.
-    virtual void UnnamedFunction(uint64_t offset);
+    virtual void UnnamedFunction(uint64 offset);
 
     // __cxa_demangle() failed to demangle INPUT.
-    virtual void DemangleError(const string& input);
+    virtual void DemangleError(const string &input);
 
     // The DW_FORM_ref_addr at OFFSET to TARGET was not handled because
     // FilePrivate did not retain the inter-CU specification data.
-    virtual void UnhandledInterCUReference(uint64_t offset, uint64_t target);
+    virtual void UnhandledInterCUReference(uint64 offset, uint64 target);
 
-    // The DW_AT_ranges at offset is malformed (truncated or outside of the
-    // .debug_ranges section's bound).
-    virtual void MalformedRangeList(uint64_t offset);
-
-    // A DW_AT_ranges attribute was encountered but the no .debug_ranges
-    // section was found.
-    virtual void MissingRanges();
-
-    uint64_t cu_offset() const {
+    uint64 cu_offset() const {
       return cu_offset_;
     }
 
    protected:
     const string filename_;
-    const uint64_t cu_offset_;
+    const uint64 cu_offset_;
     string cu_name_;
     bool printed_cu_header_;
     bool printed_unpaired_header_;
@@ -254,100 +251,37 @@ class DwarfCUToModule: public RootDIEHandler {
     void UncoveredHeading();
   };
 
-  class NullWarningReporter : public WarningReporter {
-   public:
-    NullWarningReporter(const string& filename, uint64_t cu_offset)
-        : WarningReporter(filename, cu_offset) {}
-
-    // Set the name of the compilation unit we're processing to NAME.
-    void SetCUName(const string& name) {}
-
-    // Accessor and setter for uncovered_warnings_enabled_.
-    // UncoveredFunction and UncoveredLine only report a problem if that is
-    // true. By default, these warnings are disabled, because those
-    // conditions occur occasionally in healthy code.
-    void set_uncovered_warnings_enabled(bool value) {}
-
-    // A DW_AT_specification in the DIE at OFFSET refers to a DIE we
-    // haven't processed yet, or that wasn't marked as a declaration,
-    // at TARGET.
-    void UnknownSpecification(uint64_t offset, uint64_t target) {}
-
-    // A DW_AT_abstract_origin in the DIE at OFFSET refers to a DIE we
-    // haven't processed yet, or that wasn't marked as inline, at TARGET.
-    void UnknownAbstractOrigin(uint64_t offset, uint64_t target) {}
-
-    // We were unable to find the DWARF section named SECTION_NAME.
-    void MissingSection(const string& section_name) {}
-
-    // The CU's DW_AT_stmt_list offset OFFSET is bogus.
-    void BadLineInfoOffset(uint64_t offset) {}
-
-    // FUNCTION includes code covered by no line number data.
-    void UncoveredFunction(const Module::Function& function) {}
-
-    // Line number NUMBER in LINE_FILE, of length LENGTH, includes code
-    // covered by no function.
-    void UncoveredLine(const Module::Line& line) {}
-
-    // The DW_TAG_subprogram DIE at OFFSET has no name specified directly
-    // in the DIE, nor via a DW_AT_specification or DW_AT_abstract_origin
-    // link.
-    void UnnamedFunction(uint64_t offset) {}
-
-    // __cxa_demangle() failed to demangle INPUT.
-    void DemangleError(const string& input) {}
-
-    // The DW_FORM_ref_addr at OFFSET to TARGET was not handled because
-    // FilePrivate did not retain the inter-CU specification data.
-    void UnhandledInterCUReference(uint64_t offset, uint64_t target) {}
-
-    // The DW_AT_ranges at offset is malformed (truncated or outside of the
-    // .debug_ranges section's bound).
-    void MalformedRangeList(uint64_t offset) {}
-
-    // A DW_AT_ranges attribute was encountered but the no .debug_ranges
-    // section was found.
-    void MissingRanges() {}
-  };
-
   // Create a DWARF debugging info handler for a compilation unit
   // within FILE_CONTEXT. This uses information received from the
-  // CompilationUnit DWARF parser to populate
+  // dwarf2reader::CompilationUnit DWARF parser to populate
   // FILE_CONTEXT->module. Use LINE_READER to handle the compilation
   // unit's line number data. Use REPORTER to report problems with the
   // data we find.
-  DwarfCUToModule(FileContext* file_context,
-                  LineToModuleHandler* line_reader,
-                  RangesHandler* ranges_handler,
-                  WarningReporter* reporter,
-                  bool handle_inline = false,
-                  uint64_t low_pc = 0,
-                  uint64_t addr_base = 0,
-                  bool has_source_line_info = false,
-                  uint64_t source_line_offset = 0);
+  DwarfCUToModule(FileContext *file_context,
+                  LineToModuleHandler *line_reader,
+                  WarningReporter *reporter);
   ~DwarfCUToModule();
 
   void ProcessAttributeSigned(enum DwarfAttribute attr,
                               enum DwarfForm form,
-                              int64_t data);
+                              int64 data);
   void ProcessAttributeUnsigned(enum DwarfAttribute attr,
                                 enum DwarfForm form,
-                                uint64_t data);
+                                uint64 data);
   void ProcessAttributeString(enum DwarfAttribute attr,
                               enum DwarfForm form,
-                              const string& data);
+                              const string &data);
   bool EndAttributes();
-  DIEHandler* FindChildHandler(uint64_t offset, enum DwarfTag tag);
+  DIEHandler *FindChildHandler(uint64 offset, enum DwarfTag tag);
 
   // Assign all our source Lines to the Functions that cover their
   // addresses, and then add them to module_.
   void Finish();
 
-  bool StartCompilationUnit(uint64_t offset, uint8_t address_size,
-                            uint8_t offset_size, uint64_t cu_length,
-                            uint8_t dwarf_version);
-  bool StartRootDIE(uint64_t offset, enum DwarfTag tag);
+  bool StartCompilationUnit(uint64 offset, uint8 address_size,
+                            uint8 offset_size, uint64 cu_length,
+                            uint8 dwarf_version);
+  bool StartRootDIE(uint64 offset, enum DwarfTag tag);
 
  private:
   // Used internally by the handler. Full definitions are in
@@ -357,12 +291,22 @@ class DwarfCUToModule: public RootDIEHandler {
   struct Specification;
   class GenericDIEHandler;
   class FuncHandler;
-  class LexicalBlockHandler;
-  class InlineHandler;
   class NamedScopeHandler;
+/* EG BEGIN */
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+  class InlineFuncHandler;
+  class SubprogramChildHandler;
+#endif /* DUMP_SYMS_WITH_EPIC_EXTENSIONS */
+/* EG END */
 
   // A map from section offsets to specifications.
-  typedef map<uint64_t, Specification> SpecificationByOffset;
+/* EG BEGIN */
+#ifndef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+  typedef map<uint64, Specification> SpecificationByOffset;
+#else
+  typedef vector<Specification> SpecificationByOffset;
+#endif /* DUMP_SYMS_WITH_EPIC_EXTENSIONS */
+/* EG END */
 
   // Set this compilation unit's source language to LANGUAGE.
   void SetLanguage(DwarfLanguage language);
@@ -371,17 +315,13 @@ class DwarfCUToModule: public RootDIEHandler {
   // section.  Record source files in module_, but record source lines
   // in lines_; we apportion them to functions in
   // AssignLinesToFunctions.
-  void ReadSourceLines(uint64_t offset);
+  void ReadSourceLines(uint64 offset);
 
   // Assign the lines in lines_ to the individual line lists of the
   // functions in functions_.  (DWARF line information maps an entire
   // compilation unit at a time, and gives no indication of which
   // lines belong to which functions, beyond their addresses.)
   void AssignLinesToFunctions();
-
-  void AssignFilesToInlines();
-
-  void ForwardInlineFilesToLines();
 
   // The only reason cu_context_ and child_context_ are pointers is
   // that we want to keep their definitions private to
@@ -390,7 +330,7 @@ class DwarfCUToModule: public RootDIEHandler {
   // destructor deletes them.
 
   // The handler to use to handle line number data.
-  LineToModuleHandler* line_reader_;
+  LineToModuleHandler *line_reader_;
 
   // This compilation unit's context.
   scoped_ptr<CUContext> cu_context_;
@@ -403,15 +343,12 @@ class DwarfCUToModule: public RootDIEHandler {
 
   // The offset of this compilation unit's line number information in
   // the .debug_line section.
-  uint64_t source_line_offset_;
+  uint64 source_line_offset_;
 
   // The line numbers we have seen thus far.  We accumulate these here
   // during parsing.  Then, in Finish, we call AssignLinesToFunctions
   // to dole them out to the appropriate functions.
   vector<Module::Line> lines_;
-
-  // The map from file index to File* in this CU.
-  std::map<uint32_t, Module::File*> files_;
 };
 
 }  // namespace google_breakpad

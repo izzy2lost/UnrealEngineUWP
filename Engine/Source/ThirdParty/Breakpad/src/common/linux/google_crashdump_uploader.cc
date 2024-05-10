@@ -1,4 +1,5 @@
-// Copyright 2009 Google LLC
+// Copyright (c) 2009, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -27,10 +28,6 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include "common/linux/google_crashdump_uploader.h"
 
 #include <sys/types.h>
@@ -38,7 +35,6 @@
 #include <unistd.h>
 
 #include <iostream>
-#include <utility>
 
 #include "common/using_std_string.h"
 
@@ -55,7 +51,7 @@ GoogleCrashdumpUploader::GoogleCrashdumpUploader(const string& product,
                                                  const string& crash_server,
                                                  const string& proxy_host,
                                                  const string& proxy_userpassword) {
-  std::unique_ptr<LibcurlWrapper> http_layer{new LibcurlWrapper()};
+  LibcurlWrapper* http_layer = new LibcurlWrapper();
   Init(product,
        version,
        guid,
@@ -67,22 +63,21 @@ GoogleCrashdumpUploader::GoogleCrashdumpUploader(const string& product,
        crash_server,
        proxy_host,
        proxy_userpassword,
-       std::move(http_layer));
+       http_layer);
 }
 
-GoogleCrashdumpUploader::GoogleCrashdumpUploader(
-    const string& product,
-    const string& version,
-    const string& guid,
-    const string& ptime,
-    const string& ctime,
-    const string& email,
-    const string& comments,
-    const string& minidump_pathname,
-    const string& crash_server,
-    const string& proxy_host,
-    const string& proxy_userpassword,
-    std::unique_ptr<LibcurlWrapper> http_layer) {
+GoogleCrashdumpUploader::GoogleCrashdumpUploader(const string& product,
+                                                 const string& version,
+                                                 const string& guid,
+                                                 const string& ptime,
+                                                 const string& ctime,
+                                                 const string& email,
+                                                 const string& comments,
+                                                 const string& minidump_pathname,
+                                                 const string& crash_server,
+                                                 const string& proxy_host,
+                                                 const string& proxy_userpassword,
+                                                 LibcurlWrapper* http_layer) {
   Init(product,
        version,
        guid,
@@ -94,7 +89,7 @@ GoogleCrashdumpUploader::GoogleCrashdumpUploader(
        crash_server,
        proxy_host,
        proxy_userpassword,
-       std::move(http_layer));
+       http_layer);
 }
 
 void GoogleCrashdumpUploader::Init(const string& product,
@@ -108,7 +103,7 @@ void GoogleCrashdumpUploader::Init(const string& product,
                                    const string& crash_server,
                                    const string& proxy_host,
                                    const string& proxy_userpassword,
-                                   std::unique_ptr<LibcurlWrapper> http_layer) {
+                                   LibcurlWrapper* http_layer) {
   product_ = product;
   version_ = version;
   guid_ = guid;
@@ -116,7 +111,7 @@ void GoogleCrashdumpUploader::Init(const string& product,
   ctime_ = ctime;
   email_ = email;
   comments_ = comments;
-  http_layer_ = std::move(http_layer);
+  http_layer_.reset(http_layer);
 
   crash_server_ = crash_server;
   proxy_host_ = proxy_host;
@@ -198,15 +193,10 @@ bool GoogleCrashdumpUploader::Upload(int* http_status_code,
     return false;
   }
   std::cout << "Sending request to " << crash_server_;
-  long status_code;
-  bool success = http_layer_->SendRequest(crash_server_,
-                                          parameters_,
-                                          &status_code,
-                                          http_response_header,
-                                          http_response_body);
-  if (http_status_code) {
-    *http_status_code = status_code;
-  }
-  return success;
+  return http_layer_->SendRequest(crash_server_,
+                                  parameters_,
+                                  http_status_code,
+                                  http_response_header,
+                                  http_response_body);
 }
 }

@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -45,14 +46,14 @@ class ModuleFactory {
  public:
   virtual ~ModuleFactory() { };
   virtual SourceLineResolverBase::Module* CreateModule(
-      const string& name) const = 0;
+      const string &name) const = 0;
 };
 
 class BasicModuleFactory : public ModuleFactory {
  public:
   virtual ~BasicModuleFactory() { }
   virtual BasicSourceLineResolver::Module* CreateModule(
-      const string& name) const {
+      const string &name) const {
     return new BasicSourceLineResolver::Module(name);
   }
 };
@@ -61,7 +62,7 @@ class FastModuleFactory : public ModuleFactory {
  public:
   virtual ~FastModuleFactory() { }
   virtual FastSourceLineResolver::Module* CreateModule(
-      const string& name) const {
+      const string &name) const {
     return new FastSourceLineResolver::Module(name);
   }
 };

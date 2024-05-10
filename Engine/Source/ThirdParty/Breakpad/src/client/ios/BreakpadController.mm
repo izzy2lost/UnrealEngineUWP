@@ -1,4 +1,5 @@
-// Copyright 2012 Google LLC
+// Copyright (c) 2012, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -155,19 +156,15 @@ NSString* GetPlatform() {
   });
 }
 
-- (BOOL)isStarted {
-  return started_;
-}
-
 // This method must be called from the breakpad queue.
 - (void)threadUnsafeSendReportWithConfiguration:(NSDictionary*)configuration
                                 withBreakpadRef:(BreakpadRef)ref {
   NSAssert(started_, @"The controller must be started before "
                      "threadUnsafeSendReportWithConfiguration is called");
   if (breakpadRef_) {
-    BreakpadUploadReportWithParametersAndConfiguration(
-        breakpadRef_, uploadTimeParameters_, configuration,
-        uploadCompleteCallback_);
+    BreakpadUploadReportWithParametersAndConfiguration(breakpadRef_,
+                                                       uploadTimeParameters_,
+                                                       configuration);
   }
 }
 
@@ -194,7 +191,7 @@ NSString* GetPlatform() {
   NSAssert(!started_,
       @"The controller must not be started when updateConfiguration is called");
   [configuration_ addEntriesFromDictionary:configuration];
-  NSString *uploadInterval =
+  NSString* uploadInterval =
       [configuration_ valueForKey:@BREAKPAD_REPORT_INTERVAL];
   if (uploadInterval)
     [self setUploadInterval:[uploadInterval intValue]];
@@ -205,7 +202,7 @@ NSString* GetPlatform() {
       @"The controller must not be started when resetConfiguration is called");
   [configuration_ autorelease];
   configuration_ = [[[NSBundle mainBundle] infoDictionary] mutableCopy];
-  NSString *uploadInterval =
+  NSString* uploadInterval =
       [configuration_ valueForKey:@BREAKPAD_REPORT_INTERVAL];
   [self setUploadInterval:[uploadInterval intValue]];
   [self setParametersToAddAtUploadTime:nil];
@@ -239,15 +236,6 @@ NSString* GetPlatform() {
   dispatch_async(queue_, ^{
       if (breakpadRef_)
         BreakpadAddUploadParameter(breakpadRef_, key, value);
-  });
-}
-
-- (void)setUploadCallback:(BreakpadUploadCompletionCallback)callback {
-  NSAssert(started_,
-           @"The controller must not be started before setUploadCallback is "
-            "called");
-  dispatch_async(queue_, ^{
-    uploadCompleteCallback_ = callback;
   });
 }
 
@@ -301,18 +289,6 @@ NSString* GetPlatform() {
   });
 }
 
-- (void)getDateOfMostRecentCrashReport:(void(^)(NSDate *))callback {
-  NSAssert(started_, @"The controller must be started before "
-           "getDateOfMostRecentCrashReport is called");
-  dispatch_async(queue_, ^{
-    if (!breakpadRef_) {
-      callback(nil);
-      return;
-    }
-    callback(BreakpadGetDateOfMostRecentCrashReport(breakpadRef_));
-  });
-}
-
 #pragma mark -
 
 - (int)sendDelay {
@@ -353,8 +329,8 @@ NSString* GetPlatform() {
   // A report can be sent now.
   if (timeToWait == 0) {
     [self reportWillBeSent];
-    BreakpadUploadNextReportWithParameters(breakpadRef_, uploadTimeParameters_,
-                                           uploadCompleteCallback_);
+    BreakpadUploadNextReportWithParameters(breakpadRef_,
+                                           uploadTimeParameters_);
 
     // If more reports must be sent, make sure this method is called again.
     if (BreakpadGetCrashReportCount(breakpadRef_) > 0)

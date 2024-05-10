@@ -2,9 +2,6 @@
 #include "ia32_reg.h"
 #include "x86_imm.h"
 
-#include <stdint.h>
-#include <string.h>
-
 /* NOTE: when decoding ModR/M and SIB, we have to add 1 to all register
  * values obtained from decoding the ModR/M or SIB byte, since they
  * are encoded with eAX = 0 and the tables in ia32_reg.c use eAX = 1.
@@ -75,18 +72,16 @@ static unsigned int imm32_signsized( unsigned char *buf, size_t buf_len,
 		return 0;
 	}
 
-	int16_t local_short;
 	switch (size) {
 		case 1:
 			*dest = *((signed char *) buf);
 			break;
 		case 2:
-			memcpy(&local_short, buf, 2);
-			*dest = local_short;
+			*dest = *((signed short *) buf);
 			break;
 		case 4:
 		default:
-			memcpy(dest, buf, 4);
+			*dest = *((signed int *) buf);
 			break;
 	}
 

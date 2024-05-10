@@ -1,4 +1,5 @@
-// Copyright 2011 Google LLC
+// Copyright (c) 2011, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -26,10 +27,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <paths.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -40,44 +37,88 @@
 #include <vector>
 #include <fstream>
 
+#include <jemalloc.h>
+
 #include "common/linux/dump_symbols.h"
-#include "common/path_helper.h"
 
 using google_breakpad::WriteSymbolFile;
 using google_breakpad::WriteSymbolFileHeader;
 
+/* EG BEGIN */
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+
+// Only supports Linux atm
+#if defined(__linux__)
+// We are using je_malloc so we'll override these functions to our own definitions
+// https://www.gnu.org/software/libc/manual/html_node/Replacing-malloc.html
+void* malloc(size_t size)
+{
+  return je_malloc(size);
+}
+
+void free(void* ptr)
+{
+  je_free(ptr);
+}
+
+void* calloc(size_t nmemb, size_t size)
+{
+  return je_calloc(nmemb, size);
+}
+
+void* realloc(void* ptr, size_t size)
+{
+  return je_realloc(ptr, size);
+}
+
+void* aligned_alloc(size_t alignment, size_t size)
+{
+  return je_aligned_alloc(alignment, size);
+}
+
+size_t malloc_usable_size(void* ptr)
+{
+  return je_malloc_usable_size(ptr);
+}
+
+void* memalign(size_t alignment, size_t size)
+{
+  return je_memalign(alignment, size);
+}
+
+int posix_memalign(void** memptr, size_t alignment, size_t size)
+{
+  return je_posix_memalign(memptr, alignment, size);
+}
+
+void* valloc(size_t size)
+{
+  return je_valloc(size);
+}
+#endif /* defined (__linux__) */
+#endif /* DUMP_SYMS_WITH_EPIC_EXTENSIONS */
+/* EG END */
+
 int usage(const char* self) {
-  fprintf(stderr,
-          "Usage: %s [OPTION] <binary-with-debugging-info> "
-          "[directories-for-debug-file]\n\n",
-          google_breakpad::BaseName(self).c_str());
+  fprintf(stderr, "Usage: %s [OPTION] <binary-with-debugging-info> "
+          "[directories-for-debug-file]\n\n", self);
   fprintf(stderr, "Options:\n");
-  fprintf(stderr, "  -i:         Output module header information only.\n");
-  fprintf(stderr, "  -c          Do not generate CFI section\n");
-  fprintf(stderr, "  -d          Generate INLINE/INLINE_ORIGIN records\n");
-  fprintf(stderr, "  -r          Do not handle inter-compilation "
-                                 "unit references\n");
-  fprintf(stderr, "  -v          Print all warnings to stderr\n");
-  fprintf(stderr, "  -n <name>   Use specified name for name of the object\n");
-  fprintf(stderr, "  -o <os>     Use specified name for the "
-                                 "operating system\n");
-  fprintf(stderr, "  -m          Enable writing the optional 'm' field on FUNC "
-                                 "and PUBLIC, denoting multiple symbols for "
-                                 "the address.\n");
+  fprintf(stderr, "  -i:   Output module header information only.\n");
+  fprintf(stderr, "  -c    Do not generate CFI section\n");
+  fprintf(stderr, "  -r    Do not handle inter-compilation unit references\n");
+  fprintf(stderr, "  -m    Keep the C++ Mangled names\n");
+  fprintf(stderr, "  -o    File output path\n");
+  fprintf(stderr, "  -v    Print all warnings to stderr\n");
   return 1;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   if (argc < 2)
     return usage(argv[0]);
   bool header_only = false;
   bool cfi = true;
-  bool handle_inlines = false;
   bool handle_inter_cu_refs = true;
   bool log_to_stderr = false;
-  bool enable_multiple_field = false;
-  std::string obj_name;
-  const char* obj_os = "Linux";
   int arg_index = 1;
   std::streambuf* os = std::cout.rdbuf();
   std::ofstream ofs;
@@ -88,28 +129,22 @@ int main(int argc, char** argv) {
       header_only = true;
     } else if (strcmp("-c", argv[arg_index]) == 0) {
       cfi = false;
-    } else if (strcmp("-d", argv[arg_index]) == 0) {
-      handle_inlines = true;
     } else if (strcmp("-r", argv[arg_index]) == 0) {
       handle_inter_cu_refs = false;
     } else if (strcmp("-v", argv[arg_index]) == 0) {
       log_to_stderr = true;
-    } else if (strcmp("-n", argv[arg_index]) == 0) {
-      if (arg_index + 1 >= argc) {
-        fprintf(stderr, "Missing argument to -n\n");
-        return usage(argv[0]);
-      }
-      obj_name = argv[arg_index + 1];
-      ++arg_index;
-    } else if (strcmp("-o", argv[arg_index]) == 0) {
-      if (arg_index + 1 >= argc) {
-        fprintf(stderr, "Missing argument to -o\n");
-        return usage(argv[0]);
-      }
-      obj_os = argv[arg_index + 1];
-      ++arg_index;
     } else if (strcmp("-m", argv[arg_index]) == 0) {
-      enable_multiple_field = true;
+      extern bool g_mangle_names;
+      g_mangle_names = true;
+    } else if (strcmp("-o", argv[arg_index]) == 0) {
+      arg_index++;
+      ofs.open(argv[arg_index], std::ofstream::out);
+      if (ofs.is_open()) {
+        os = ofs.rdbuf();
+      }
+      else {
+        fprintf(stderr, "Failed to open file: %s\n", argv[arg_index]);
+      }
     } else {
       printf("2.4 %s\n", argv[arg_index]);
       return usage(argv[0]);
@@ -136,23 +171,16 @@ int main(int argc, char** argv) {
   }
 
   std::ostream out(os);
-
-  if (obj_name.empty())
-    obj_name = binary;
-
   if (header_only) {
-    if (!WriteSymbolFileHeader(binary, obj_name, obj_os, out)) {
+    if (!WriteSymbolFileHeader(binary, out)) {
       fprintf(saved_stderr, "Failed to process file.\n");
       ofs.close();
       return 1;
     }
   } else {
-    SymbolData symbol_data = (handle_inlines ? INLINES : NO_DATA) |
-                             (cfi ? CFI : NO_DATA) | SYMBOLS_AND_FILES;
-    google_breakpad::DumpOptions options(symbol_data, handle_inter_cu_refs,
-                                         enable_multiple_field);
-    if (!WriteSymbolFile(binary, obj_name, obj_os, debug_dirs, options,
-                         out)) {
+    SymbolData symbol_data = cfi ? ALL_SYMBOL_DATA : NO_CFI;
+    google_breakpad::DumpOptions options(symbol_data, handle_inter_cu_refs);
+    if (!WriteSymbolFile(binary, debug_dirs, options, out)) {
       fprintf(saved_stderr, "Failed to write symbol file.\n");
       ofs.close();
       return 1;

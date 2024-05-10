@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -26,37 +27,35 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// HTTPMultipartUpload: A multipart/form-data HTTP uploader.
+// Each parameter pair is sent as a boundary
+// Each file is sent with a name field in addition to the filename and data
+// The data will be sent synchronously.
+
 #import <Foundation/Foundation.h>
 
-#import "HTTPRequest.h"
-/**
- Represents a multipart/form-data HTTP upload (POST request).
- Each parameter pair is sent as a boundary.
- Each file is sent with a name field in addition to the filename and data.
- */
-@interface HTTPMultipartUpload : HTTPRequest {
+@interface HTTPMultipartUpload : NSObject {
  @protected
-  NSDictionary* parameters_;    // The key/value pairs for sending data (STRONG)
-  NSMutableDictionary* files_;  // Dictionary of name/file-path (STRONG)
-  NSString* boundary_;          // The boundary string (STRONG)
+  NSURL *url_;                  // The destination URL (STRONG)
+  NSDictionary *parameters_;    // The key/value pairs for sending data (STRONG)
+  NSMutableDictionary *files_;  // Dictionary of name/file-path (STRONG)
+  NSString *boundary_;          // The boundary string (STRONG)
+  NSHTTPURLResponse *response_; // The response from the send (STRONG)
 }
 
-/**
- Sets the parameters that will be sent in the multipart POST request.
- */
-- (void)setParameters:(NSDictionary*)parameters;
-- (NSDictionary*)parameters;
+- (id)initWithURL:(NSURL *)url;
 
-/**
- Adds a file to be uploaded in the multipart POST request, by its file path.
- */
-- (void)addFileAtPath:(NSString*)path name:(NSString*)name;
+- (NSURL *)URL;
 
-/**
- Adds a file to be uploaded in the multipart POST request, by its name and
- contents.
- */
-- (void)addFileContents:(NSData*)data name:(NSString*)name;
-- (NSDictionary*)files;
+- (void)setParameters:(NSDictionary *)parameters;
+- (NSDictionary *)parameters;
+
+- (void)addFileAtPath:(NSString *)path name:(NSString *)name;
+- (void)addFileContents:(NSData *)data name:(NSString *)name;
+- (NSDictionary *)files;
+
+// Set the data and return the response
+- (NSData *)send:(NSError **)error;
+- (NSHTTPURLResponse *)response;
 
 @end

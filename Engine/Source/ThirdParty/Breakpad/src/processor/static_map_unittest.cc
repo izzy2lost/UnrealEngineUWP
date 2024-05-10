@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -30,11 +31,6 @@
 //
 // Author: Siyang Xie (lambxsy@google.com)
 
-#include <cstdint>
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <climits>
 #include <map>
 
@@ -50,11 +46,11 @@ typedef std::map< KeyType, ValueType > StdMap;
 template<typename Key, typename Value>
 class SimpleMapSerializer {
  public:
-  static char* Serialize(const std::map<Key, Value>& stdmap,
+  static char* Serialize(const std::map<Key, Value> &stdmap,
                    unsigned int* size = NULL) {
     unsigned int size_per_node =
-        sizeof(uint64_t) + sizeof(Key) + sizeof(Value);
-    unsigned int memsize = sizeof(int64_t) + size_per_node * stdmap.size();
+        sizeof(uint32_t) + sizeof(Key) + sizeof(Value);
+    unsigned int memsize = sizeof(int32_t) + size_per_node * stdmap.size();
     if (size) *size = memsize;
 
     // Allocate memory for serialized data:
@@ -62,12 +58,12 @@ class SimpleMapSerializer {
     char* address = mem;
 
     // Writer the number of nodes:
-    new (address) uint64_t(static_cast<uint64_t>(stdmap.size()));
-    address += sizeof(uint64_t);
+    new (address) uint32_t(static_cast<uint32_t>(stdmap.size()));
+    address += sizeof(uint32_t);
 
     // Nodes' offset:
-    uint64_t* offsets = reinterpret_cast<uint64_t*>(address);
-    address += sizeof(uint64_t) * stdmap.size();
+    uint32_t* offsets = reinterpret_cast<uint32_t*>(address);
+    address += sizeof(uint32_t) * stdmap.size();
 
     // Keys:
     Key* keys = reinterpret_cast<Key*>(address);
@@ -99,16 +95,16 @@ class TestInvalidMap : public ::testing::Test {
 };
 
 TEST_F(TestInvalidMap, TestNegativeNumberNodes) {
-  memset(data, 0xff, sizeof(uint64_t));  // Set the number of nodes = -1
+  memset(data, 0xff, sizeof(uint32_t));  // Set the number of nodes = -1
   test_map = TestMap(data);
   ASSERT_FALSE(test_map.ValidateInMemoryStructure());
 }
 
 TEST_F(TestInvalidMap, TestWrongOffsets) {
-  uint64_t* header = reinterpret_cast<uint64_t*>(data);
-  const uint64_t kNumNodes = 2;
-  const uint64_t kHeaderOffset =
-        sizeof(uint64_t) + kNumNodes * (sizeof(uint64_t) + sizeof(KeyType));
+  uint32_t* header = reinterpret_cast<uint32_t*>(data);
+  const uint32_t kNumNodes = 2;
+  const uint32_t kHeaderOffset =
+        sizeof(uint32_t) + kNumNodes * (sizeof(uint32_t) + sizeof(KeyType));
 
   header[0] = kNumNodes;
   header[1] = kHeaderOffset + 3;   // Wrong offset for first node
@@ -122,16 +118,16 @@ TEST_F(TestInvalidMap, TestWrongOffsets) {
 }
 
 TEST_F(TestInvalidMap, TestUnSortedKeys) {
-  uint64_t* header = reinterpret_cast<uint64_t*>(data);
-  const uint64_t kNumNodes = 2;
-  const uint64_t kHeaderOffset =
-      sizeof(uint64_t) + kNumNodes * (sizeof(uint64_t) + sizeof(KeyType));
+  uint32_t* header = reinterpret_cast<uint32_t*>(data);
+  const uint32_t kNumNodes = 2;
+  const uint32_t kHeaderOffset =
+      sizeof(uint32_t) + kNumNodes * (sizeof(uint32_t) + sizeof(KeyType));
   header[0] = kNumNodes;
   header[1] = kHeaderOffset;
   header[2] = kHeaderOffset + sizeof(ValueType);
 
   KeyType* keys = reinterpret_cast<KeyType*>(
-      data + (kNumNodes + 1) * sizeof(uint64_t));
+      data + (kNumNodes + 1) * sizeof(uint32_t));
   // Set keys in non-increasing order.
   keys[0] = 10;
   keys[1] = 7;
@@ -175,10 +171,10 @@ class TestValidMap : public ::testing::Test {
 
     // Set correct size of memory allocation for each test case.
     unsigned int size_per_node =
-        sizeof(uint64_t) + sizeof(KeyType) + sizeof(ValueType);
+        sizeof(uint32_t) + sizeof(KeyType) + sizeof(ValueType);
     for (testcase = 0; testcase < kNumberTestCases; ++testcase) {
       correct_size[testcase] =
-          sizeof(uint64_t) + std_map[testcase].size() * size_per_node;
+          sizeof(uint32_t) + std_map[testcase].size() * size_per_node;
     }
   }
 
@@ -241,19 +237,19 @@ class TestValidMap : public ::testing::Test {
     }
   }
 
-  void FindTester(int test_case, const KeyType& key) {
+  void FindTester(int test_case, const KeyType &key) {
     iter_test = test_map[test_case].find(key);
     iter_std = std_map[test_case].find(key);
     CompareLookupResult(test_case);
   }
 
-  void LowerBoundTester(int test_case, const KeyType& key) {
+  void LowerBoundTester(int test_case, const KeyType &key) {
     iter_test = test_map[test_case].lower_bound(key);
     iter_std = std_map[test_case].lower_bound(key);
     CompareLookupResult(test_case);
   }
 
-  void UpperBoundTester(int test_case, const KeyType& key) {
+  void UpperBoundTester(int test_case, const KeyType &key) {
     iter_test = test_map[test_case].upper_bound(key);
     iter_std = std_map[test_case].upper_bound(key);
     CompareLookupResult(test_case);

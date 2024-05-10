@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -30,10 +31,6 @@
 
 // dwarf_cfi_to_module_unittest.cc: Tests for google_breakpad::DwarfCFIToModule.
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <string>
 #include <vector>
 
@@ -50,11 +47,11 @@ using testing::Test;
 using testing::_;
 
 struct MockCFIReporter: public DwarfCFIToModule::Reporter {
-  MockCFIReporter(const string& file, const string& section)
+  MockCFIReporter(const string &file, const string &section)
       : Reporter(file, section) { }
   MOCK_METHOD2(UnnamedRegister, void(size_t offset, int reg));
-  MOCK_METHOD2(UndefinedNotSupported, void(size_t offset, const string& reg));
-  MOCK_METHOD2(ExpressionsNotSupported, void(size_t offset, const string& reg));
+  MOCK_METHOD2(UndefinedNotSupported, void(size_t offset, const string &reg));
+  MOCK_METHOD2(ExpressionsNotSupported, void(size_t offset, const string &reg));
 };
 
 struct DwarfCFIToModuleFixture {
@@ -83,7 +80,7 @@ struct DwarfCFIToModuleFixture {
   vector<string> register_names;
   MockCFIReporter reporter;
   DwarfCFIToModule handler;
-  vector<Module::StackFrameEntry*> entries;
+  vector<Module::StackFrameEntry *> entries;
 };
 
 class Entry: public DwarfCFIToModuleFixture, public Test { };
@@ -128,7 +125,7 @@ struct RuleFixture: public DwarfCFIToModuleFixture {
     EXPECT_EQ(entry_address, entries[0]->address);
     EXPECT_EQ(entry_size, entries[0]->size);
   }
-  uint64_t entry_address, entry_size;
+  uint64 entry_address, entry_size;
   unsigned return_reg;
 };
 
@@ -307,15 +304,3 @@ TEST(RegisterNames, X86_64) {
   EXPECT_EQ("$rsp", names[7]);
   EXPECT_EQ("$rip", names[16]);
 }
-
-TEST(RegisterNames, RISCV) {
-  vector<string> names = DwarfCFIToModule::RegisterNames::RISCV();
-
-  EXPECT_EQ("pc", names[0]);
-  EXPECT_EQ("t6", names[31]);
-  EXPECT_EQ("f0", names[32]);
-  EXPECT_EQ("f31", names[63]);
-  EXPECT_EQ("v0", names[96]);
-  EXPECT_EQ("v31", names[127]);
-}
-

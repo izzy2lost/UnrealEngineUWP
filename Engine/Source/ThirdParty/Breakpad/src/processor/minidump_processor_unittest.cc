@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -28,10 +29,6 @@
 
 // Unit test for MinidumpProcessor.  Uses a pre-generated minidump and
 // corresponding symbol file, and checks the stack frames for correctness.
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include <stdlib.h>
 
@@ -130,16 +127,16 @@ class MockMinidumpMemoryRegion : public MinidumpMemoryRegion {
   uint64_t GetBase() const { return region_.GetBase(); }
   uint32_t GetSize() const { return region_.GetSize(); }
 
-  bool GetMemoryAtAddress(uint64_t address, uint8_t*  value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint8_t  *value) const {
     return region_.GetMemoryAtAddress(address, value);
   }
-  bool GetMemoryAtAddress(uint64_t address, uint16_t* value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint16_t *value) const {
     return region_.GetMemoryAtAddress(address, value);
   }
-  bool GetMemoryAtAddress(uint64_t address, uint32_t* value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint32_t *value) const {
     return region_.GetMemoryAtAddress(address, value);
   }
-  bool GetMemoryAtAddress(uint64_t address, uint64_t* value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint64_t *value) const {
     return region_.GetMemoryAtAddress(address, value);
   }
 
@@ -191,11 +188,11 @@ using ::testing::Property;
 using ::testing::Return;
 using ::testing::SetArgumentPointee;
 
-static const char* kSystemInfoOS = "Windows NT";
-static const char* kSystemInfoOSShort = "windows";
-static const char* kSystemInfoOSVersion = "5.1.2600 Service Pack 2";
-static const char* kSystemInfoCPU = "x86";
-static const char* kSystemInfoCPUInfo =
+static const char *kSystemInfoOS = "Windows NT";
+static const char *kSystemInfoOSShort = "windows";
+static const char *kSystemInfoOSVersion = "5.1.2600 Service Pack 2";
+static const char *kSystemInfoCPU = "x86";
+static const char *kSystemInfoCPUInfo =
     "GenuineIntel family 6 model 13 stepping 8";
 
 #define ASSERT_TRUE_ABORT(cond) \
@@ -206,45 +203,39 @@ static const char* kSystemInfoCPUInfo =
 
 #define ASSERT_EQ_ABORT(e1, e2) ASSERT_TRUE_ABORT((e1) == (e2))
 
-static string GetTestDataPath() {
-  char* srcdir = getenv("srcdir");
-
-  return string(srcdir ? srcdir : ".") + "/src/processor/testdata/";
-}
-
 class TestSymbolSupplier : public SymbolSupplier {
  public:
   TestSymbolSupplier() : interrupt_(false) {}
 
-  virtual SymbolResult GetSymbolFile(const CodeModule* module,
-                                     const SystemInfo* system_info,
-                                     string* symbol_file);
+  virtual SymbolResult GetSymbolFile(const CodeModule *module,
+                                     const SystemInfo *system_info,
+                                     string *symbol_file);
 
-  virtual SymbolResult GetSymbolFile(const CodeModule* module,
-                                     const SystemInfo* system_info,
-                                     string* symbol_file,
-                                     string* symbol_data);
+  virtual SymbolResult GetSymbolFile(const CodeModule *module,
+                                     const SystemInfo *system_info,
+                                     string *symbol_file,
+                                     string *symbol_data);
 
-  virtual SymbolResult GetCStringSymbolData(const CodeModule* module,
-                                            const SystemInfo* system_info,
-                                            string* symbol_file,
-                                            char** symbol_data,
-                                            size_t* symbol_data_size);
+  virtual SymbolResult GetCStringSymbolData(const CodeModule *module,
+                                            const SystemInfo *system_info,
+                                            string *symbol_file,
+                                            char **symbol_data,
+                                            size_t *symbol_data_size);
 
-  virtual void FreeSymbolData(const CodeModule* module);
+  virtual void FreeSymbolData(const CodeModule *module);
 
   // When set to true, causes the SymbolSupplier to return INTERRUPT
   void set_interrupt(bool interrupt) { interrupt_ = interrupt; }
 
  private:
   bool interrupt_;
-  map<string, char*> memory_buffers_;
+  map<string, char *> memory_buffers_;
 };
 
 SymbolSupplier::SymbolResult TestSymbolSupplier::GetSymbolFile(
-    const CodeModule* module,
-    const SystemInfo* system_info,
-    string* symbol_file) {
+    const CodeModule *module,
+    const SystemInfo *system_info,
+    string *symbol_file) {
   ASSERT_TRUE_ABORT(module);
   ASSERT_TRUE_ABORT(system_info);
   ASSERT_EQ_ABORT(system_info->cpu, kSystemInfoCPU);
@@ -258,8 +249,10 @@ SymbolSupplier::SymbolResult TestSymbolSupplier::GetSymbolFile(
   }
 
   if (module && module->code_file() == "c:\\test_app.exe") {
-      *symbol_file = GetTestDataPath() + "symbols/test_app.pdb/" +
-                     module->debug_identifier() + "/test_app.sym";
+      *symbol_file = string(getenv("srcdir") ? getenv("srcdir") : ".") +
+                     "/src/processor/testdata/symbols/test_app.pdb/" +
+                     module->debug_identifier() +
+                     "/test_app.sym";
     return FOUND;
   }
 
@@ -267,10 +260,10 @@ SymbolSupplier::SymbolResult TestSymbolSupplier::GetSymbolFile(
 }
 
 SymbolSupplier::SymbolResult TestSymbolSupplier::GetSymbolFile(
-    const CodeModule* module,
-    const SystemInfo* system_info,
-    string* symbol_file,
-    string* symbol_data) {
+    const CodeModule *module,
+    const SystemInfo *system_info,
+    string *symbol_file,
+    string *symbol_data) {
   SymbolSupplier::SymbolResult s = GetSymbolFile(module, system_info,
                                                  symbol_file);
   if (s == FOUND) {
@@ -284,11 +277,11 @@ SymbolSupplier::SymbolResult TestSymbolSupplier::GetSymbolFile(
 }
 
 SymbolSupplier::SymbolResult TestSymbolSupplier::GetCStringSymbolData(
-    const CodeModule* module,
-    const SystemInfo* system_info,
-    string* symbol_file,
-    char** symbol_data,
-    size_t* symbol_data_size) {
+    const CodeModule *module,
+    const SystemInfo *system_info,
+    string *symbol_file,
+    char **symbol_data,
+    size_t *symbol_data_size) {
   string symbol_data_string;
   SymbolSupplier::SymbolResult s = GetSymbolFile(module,
                                                  system_info,
@@ -310,8 +303,8 @@ SymbolSupplier::SymbolResult TestSymbolSupplier::GetCStringSymbolData(
   return s;
 }
 
-void TestSymbolSupplier::FreeSymbolData(const CodeModule* module) {
-  map<string, char*>::iterator it = memory_buffers_.find(module->code_file());
+void TestSymbolSupplier::FreeSymbolData(const CodeModule *module) {
+  map<string, char *>::iterator it = memory_buffers_.find(module->code_file());
   if (it != memory_buffers_.end()) {
     delete [] it->second;
     memory_buffers_.erase(it);
@@ -467,7 +460,8 @@ TEST_F(MinidumpProcessorTest, TestSymbolSupplierLookupCounts) {
   BasicSourceLineResolver resolver;
   MinidumpProcessor processor(&supplier, &resolver);
 
-  string minidump_file = GetTestDataPath() + "minidump2.dmp";
+  string minidump_file = string(getenv("srcdir") ? getenv("srcdir") : ".") +
+                         "/src/processor/testdata/minidump2.dmp";
   ProcessState state;
   EXPECT_CALL(supplier, GetCStringSymbolData(
       Property(&google_breakpad::CodeModule::code_file,
@@ -507,7 +501,8 @@ TEST_F(MinidumpProcessorTest, TestBasicProcessing) {
   BasicSourceLineResolver resolver;
   MinidumpProcessor processor(&supplier, &resolver);
 
-  string minidump_file = GetTestDataPath() + "minidump2.dmp";
+  string minidump_file = string(getenv("srcdir") ? getenv("srcdir") : ".") +
+                         "/src/processor/testdata/minidump2.dmp";
 
   ProcessState state;
   ASSERT_EQ(processor.Process(minidump_file, &state),
@@ -526,7 +521,7 @@ TEST_F(MinidumpProcessorTest, TestBasicProcessing) {
   EXPECT_EQ(1171480435U, state.time_date_stamp());
   EXPECT_EQ(1171480435U, state.process_create_time());
 
-  CallStack* stack = state.threads()->at(0);
+  CallStack *stack = state.threads()->at(0);
   ASSERT_TRUE(stack);
   ASSERT_EQ(stack->frames()->size(), 4U);
 
@@ -744,110 +739,9 @@ TEST_F(MinidumpProcessorTest, TestThreadMissingContext) {
   ASSERT_EQ(0U, state.threads()->at(0)->frames()->size());
 }
 
-TEST_F(MinidumpProcessorTest, Test32BitCrashingAddress) {
-  TestSymbolSupplier supplier;
-  BasicSourceLineResolver resolver;
-  MinidumpProcessor processor(&supplier, &resolver);
-
-  string minidump_file = GetTestDataPath() + "minidump_32bit_crash_addr.dmp";
-
-  ProcessState state;
-  ASSERT_EQ(processor.Process(minidump_file, &state),
-            google_breakpad::PROCESS_OK);
-  ASSERT_EQ(state.system_info()->os, kSystemInfoOS);
-  ASSERT_EQ(state.system_info()->os_short, kSystemInfoOSShort);
-  ASSERT_EQ(state.system_info()->os_version, kSystemInfoOSVersion);
-  ASSERT_EQ(state.system_info()->cpu, kSystemInfoCPU);
-  ASSERT_EQ(state.system_info()->cpu_info, kSystemInfoCPUInfo);
-  ASSERT_TRUE(state.crashed());
-  ASSERT_EQ(state.crash_reason(), "EXCEPTION_ACCESS_VIOLATION_WRITE");
-  ASSERT_EQ(state.crash_address(), 0x45U);
-}
-
-TEST_F(MinidumpProcessorTest, TestXStateX86ContextMinidump) {
-  // This tests if we can passively process a minidump with cet registers in its
-  // context. Dump is captured from a toy executable and is readable by windbg.
-  MinidumpProcessor processor(nullptr, nullptr /*&supplier, &resolver*/);
-
-  string minidump_file = GetTestDataPath()
-                         + "tiny-exe-with-cet-xsave-x86.dmp";
-
-  ProcessState state;
-  ASSERT_EQ(processor.Process(minidump_file, &state),
-            google_breakpad::PROCESS_OK);
-  ASSERT_EQ(state.system_info()->os, "Windows NT");
-  ASSERT_EQ(state.system_info()->os_version, "10.0.22631 ");
-  ASSERT_EQ(state.system_info()->cpu, "x86");
-  ASSERT_EQ(state.system_info()->cpu_info,
-            "GenuineIntel family 6 model 151 stepping 2");
-  ASSERT_FALSE(state.crashed());
-  ASSERT_EQ(state.threads()->size(), size_t(3));
-
-  // TODO: verify cetumsr and cetussp once these are supported by
-  // breakpad.
-}
-
-TEST_F(MinidumpProcessorTest, TestXStateAmd64ContextMinidump) {
-  // This tests if we can passively process a minidump with cet registers in its
-  // context. Dump is captured from a toy executable and is readable by windbg.
-  MinidumpProcessor processor(nullptr, nullptr /*&supplier, &resolver*/);
-
-  string minidump_file = GetTestDataPath()
-                         + "tiny-exe-with-cet-xsave.dmp";
-
-  ProcessState state;
-  ASSERT_EQ(processor.Process(minidump_file, &state),
-            google_breakpad::PROCESS_OK);
-  ASSERT_EQ(state.system_info()->os, "Windows NT");
-  ASSERT_EQ(state.system_info()->os_version, "10.0.22000 282");
-  ASSERT_EQ(state.system_info()->cpu, "amd64");
-  ASSERT_EQ(state.system_info()->cpu_info,
-            "family 6 model 140 stepping 1");
-  ASSERT_FALSE(state.crashed());
-  ASSERT_EQ(state.threads()->size(), size_t(1));
-
-  // TODO: verify cetumsr and cetussp once these are supported by
-  // breakpad.
-}
-
-TEST_F(MinidumpProcessorTest, TestFastFailException) {
-  // This tests if we can understand fastfail exception subcodes.
-  // Dump is captured from a toy executable and is readable by windbg.
-  MinidumpProcessor processor(nullptr, nullptr /*&supplier, &resolver*/);
-
-  string minidump_file = GetTestDataPath()
-                         + "tiny-exe-fastfail.dmp";
-
-  ProcessState state;
-  ASSERT_EQ(processor.Process(minidump_file, &state),
-            google_breakpad::PROCESS_OK);
-  ASSERT_TRUE(state.crashed());
-  ASSERT_EQ(state.threads()->size(), size_t(4));
-  ASSERT_EQ(state.crash_reason(), "FAST_FAIL_FATAL_APP_EXIT");
-}
-
-#ifdef __linux__
-TEST_F(MinidumpProcessorTest, TestNonCanonicalAddress) {
-  // This tests if we can correctly fixup non-canonical address GPF fault
-  // addresses.
-  // Dump is captured from a toy executable and is readable by windbg.
-  MinidumpProcessor processor(nullptr, nullptr /*&supplier, &resolver*/);
-  processor.set_enable_objdump(true);
-
-  string minidump_file = GetTestDataPath()
-                         + "write_av_non_canonical.dmp";
-
-  ProcessState state;
-  ASSERT_EQ(processor.Process(minidump_file, &state),
-            google_breakpad::PROCESS_OK);
-  ASSERT_TRUE(state.crashed());
-  ASSERT_EQ(state.crash_address(), 0xfefefefefefefefeU);
-}
-#endif // __linux__
-
 }  // namespace
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

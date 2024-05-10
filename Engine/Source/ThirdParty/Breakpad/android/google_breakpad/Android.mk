@@ -1,4 +1,5 @@
-# Copyright 2012 Google LLC
+# Copyright (c) 2012, Google Inc.
+# All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 # copyright notice, this list of conditions and the following disclaimer
 # in the documentation and/or other materials provided with the
 # distribution.
-#     * Neither the name of Google LLC nor the names of its
+#     * Neither the name of Google Inc. nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
 #
@@ -79,12 +80,11 @@ LOCAL_SRC_FILES := \
     src/client/linux/minidump_writer/linux_dumper.cc \
     src/client/linux/minidump_writer/linux_ptrace_dumper.cc \
     src/client/linux/minidump_writer/minidump_writer.cc \
-    src/client/linux/minidump_writer/pe_file.cc \
     src/client/minidump_file_writer.cc \
-    src/common/convert_UTF.cc \
+    src/common/android/breakpad_getcontext.S \
+    src/common/convert_UTF.c \
     src/common/md5.cc \
     src/common/string_conversion.cc \
-    src/common/linux/breakpad_getcontext.S \
     src/common/linux/elfutils.cc \
     src/common/linux/file_id.cc \
     src/common/linux/guid_creator.cc \
@@ -93,8 +93,7 @@ LOCAL_SRC_FILES := \
     src/common/linux/safe_readlink.cc
 
 LOCAL_C_INCLUDES        := $(LOCAL_PATH)/src/common/android/include \
-                           $(LOCAL_PATH)/src \
-                           $(LSS_PATH)
+                           $(LOCAL_PATH)/src
 
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_C_INCLUDES)
 LOCAL_EXPORT_LDLIBS     := -llog

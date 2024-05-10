@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -32,10 +33,6 @@
 //
 // Author: Mark Mentovai
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include "processor/simple_symbol_supplier.h"
 
 #include <assert.h>
@@ -55,14 +52,14 @@
 
 namespace google_breakpad {
 
-static bool file_exists(const string& file_name) {
+static bool file_exists(const string &file_name) {
   struct stat sb;
   return stat(file_name.c_str(), &sb) == 0;
 }
 
 SymbolSupplier::SymbolResult SimpleSymbolSupplier::GetSymbolFile(
-    const CodeModule* module, const SystemInfo* system_info,
-    string* symbol_file) {
+    const CodeModule *module, const SystemInfo *system_info,
+    string *symbol_file) {
   BPLOG_IF(ERROR, !symbol_file) << "SimpleSymbolSupplier::GetSymbolFile "
                                    "requires |symbol_file|";
   assert(symbol_file);
@@ -80,10 +77,10 @@ SymbolSupplier::SymbolResult SimpleSymbolSupplier::GetSymbolFile(
 }
 
 SymbolSupplier::SymbolResult SimpleSymbolSupplier::GetSymbolFile(
-    const CodeModule* module,
-    const SystemInfo* system_info,
-    string* symbol_file,
-    string* symbol_data) {
+    const CodeModule *module,
+    const SystemInfo *system_info,
+    string *symbol_file,
+    string *symbol_data) {
   assert(symbol_data);
   symbol_data->clear();
 
@@ -99,11 +96,11 @@ SymbolSupplier::SymbolResult SimpleSymbolSupplier::GetSymbolFile(
 }
 
 SymbolSupplier::SymbolResult SimpleSymbolSupplier::GetCStringSymbolData(
-    const CodeModule* module,
-    const SystemInfo* system_info,
-    string* symbol_file,
-    char** symbol_data,
-    size_t* symbol_data_size) {
+    const CodeModule *module,
+    const SystemInfo *system_info,
+    string *symbol_file,
+    char **symbol_data,
+    size_t *symbol_data_size) {
   assert(symbol_data);
   assert(symbol_data_size);
 
@@ -126,13 +123,13 @@ SymbolSupplier::SymbolResult SimpleSymbolSupplier::GetCStringSymbolData(
   return s;
 }
 
-void SimpleSymbolSupplier::FreeSymbolData(const CodeModule* module) {
+void SimpleSymbolSupplier::FreeSymbolData(const CodeModule *module) {
   if (!module) {
     BPLOG(INFO) << "Cannot free symbol data buffer for NULL module";
     return;
   }
 
-  map<string, char*>::iterator it = memory_buffers_.find(module->code_file());
+  map<string, char *>::iterator it = memory_buffers_.find(module->code_file());
   if (it == memory_buffers_.end()) {
     BPLOG(INFO) << "Cannot find symbol data buffer for module "
                 << module->code_file();
@@ -143,8 +140,8 @@ void SimpleSymbolSupplier::FreeSymbolData(const CodeModule* module) {
 }
 
 SymbolSupplier::SymbolResult SimpleSymbolSupplier::GetSymbolFileAtPathFromRoot(
-    const CodeModule* module, const SystemInfo* system_info,
-    const string& root_path, string* symbol_file) {
+    const CodeModule *module, const SystemInfo *system_info,
+    const string &root_path, string *symbol_file) {
   BPLOG_IF(ERROR, !symbol_file) << "SimpleSymbolSupplier::GetSymbolFileAtPath "
                                    "requires |symbol_file|";
   assert(symbol_file);

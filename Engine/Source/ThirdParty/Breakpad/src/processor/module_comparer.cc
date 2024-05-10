@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -30,10 +31,6 @@
 // See module_comparer.h for documentation.
 //
 // Author: lambxsy@google.com (Siyang Xie)
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include "processor/module_comparer.h"
 
@@ -55,7 +52,7 @@
 
 namespace google_breakpad {
 
-bool ModuleComparer::Compare(const string& symbol_data) {
+bool ModuleComparer::Compare(const string &symbol_data) {
   scoped_ptr<BasicModule> basic_module(new BasicModule("test_module"));
   scoped_ptr<FastModule> fast_module(new FastModule("test_module"));
 
@@ -68,7 +65,7 @@ bool ModuleComparer::Compare(const string& symbol_data) {
   buffer.reset();
 
   // Serialize BasicSourceLineResolver::Module.
-  size_t serialized_size = 0;
+  unsigned int serialized_size = 0;
   scoped_array<char> serialized_data(
       serializer_.Serialize(*(basic_module.get()), &serialized_size));
   ASSERT_TRUE(serialized_data.get());
@@ -287,7 +284,7 @@ bool ModuleComparer::CompareCRM(
     while (iter1 != basic_crm->map_->end()
         && iter2 != fast_crm->map_.end()) {
       ASSERT_TRUE(iter1->first == iter2.GetKey());
-      StaticContainedRangeMap<MemAddr, char>* child =
+      StaticContainedRangeMap<MemAddr, char> *child =
           new StaticContainedRangeMap<MemAddr, char>(
               reinterpret_cast<const char*>(iter2.GetValuePtr()));
       ASSERT_TRUE(CompareCRM(iter1->second, child));

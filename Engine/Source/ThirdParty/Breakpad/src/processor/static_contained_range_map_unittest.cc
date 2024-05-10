@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -30,11 +31,6 @@
 // StaticContainedRangeMap.
 //
 // Author: Siyang Xie (lambxsy@google.com)
-
-#include <cstdint>
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include "breakpad_googletest_includes.h"
 #include "common/scoped_ptr.h"
@@ -162,7 +158,7 @@ class TestStaticCRMMap : public ::testing::Test {
  protected:
   void SetUp();
 
-  // A reference map for testing StaticCRMMap.
+  // A referrence map for testing StaticCRMMap.
   google_breakpad::ContainedRangeMap<unsigned int, int> crm_map_;
 
   // Static version of crm_map using serialized data of crm_map.
@@ -178,7 +174,7 @@ class TestStaticCRMMap : public ::testing::Test {
 void TestStaticCRMMap::SetUp() {
   // First, do the StoreRange tests.  This validates the containment
   // rules.
-  // We confirm the reference map correctly stores data during setup.
+  // We confirm the referrence map correctly stores data during setup.
   ASSERT_TRUE (crm_map_.StoreRange(10, 10,  1));
   ASSERT_FALSE(crm_map_.StoreRange(10, 10,  2));  // exactly equal to 1
   ASSERT_FALSE(crm_map_.StoreRange(11, 10,  3));  // begins inside 1 and extends up
@@ -229,7 +225,7 @@ void TestStaticCRMMap::SetUp() {
   ASSERT_FALSE(crm_map_.StoreRange(86,  2, 48));
 
   // Serialize crm_map to generate serialized data.
-  uint64_t size;
+  unsigned int size;
   serialized_data_.reset(serializer_.Serialize(&crm_map_, &size));
   BPLOG(INFO) << "Serialized data size: " << size << " Bytes.";
 
@@ -240,12 +236,12 @@ void TestStaticCRMMap::SetUp() {
 TEST_F(TestStaticCRMMap, TestEmptyMap) {
   CRMMap empty_crm_map;
 
-  uint64_t size;
+  unsigned int size;
   scoped_array<char> serialized_data;
   serialized_data.reset(serializer_.Serialize(&empty_crm_map, &size));
   scoped_ptr<TestMap> test_map(new TestMap(serialized_data.get()));
 
-  const unsigned int kCorrectSizeForEmptyMap = 24;
+  const unsigned int kCorrectSizeForEmptyMap = 16;
   ASSERT_EQ(kCorrectSizeForEmptyMap, size);
 
   const int *entry_test;
@@ -260,12 +256,12 @@ TEST_F(TestStaticCRMMap, TestSingleElementMap) {
   int entry = 1;
   crm_map.StoreRange(10, 10,  entry);
 
-  uint64_t size;
+  unsigned int size;
   scoped_array<char> serialized_data;
   serialized_data.reset(serializer_.Serialize(&crm_map, &size));
   scoped_ptr<TestMap> test_map(new TestMap(serialized_data.get()));
 
-  const unsigned int kCorrectSizeForSingleElementMap = 60;
+  const unsigned int kCorrectSizeForSingleElementMap = 40;
   ASSERT_EQ(kCorrectSizeForSingleElementMap, size);
 
   const int *entry_test;
@@ -275,25 +271,6 @@ TEST_F(TestStaticCRMMap, TestSingleElementMap) {
   ASSERT_EQ(*entry_test, entry);
   ASSERT_TRUE(test_map->RetrieveRange(13, entry_test));
   ASSERT_EQ(*entry_test, entry);
-}
-
-TEST_F(TestStaticCRMMap, TestRetrieveRangeEntries) {
-  CRMMap crm_map;
-
-  crm_map.StoreRange(2, 5, 0);
-  crm_map.StoreRange(2, 6, 1);
-  crm_map.StoreRange(2, 7, 2);
-
-  uint64_t size;
-  scoped_array<char> serialized_data;
-  serialized_data.reset(serializer_.Serialize(&crm_map, &size));
-  scoped_ptr<TestMap> test_map(new TestMap(serialized_data.get()));
-
-  std::vector<const int*> entry_tests;
-  ASSERT_TRUE(test_map->RetrieveRanges(3, entry_tests));
-  ASSERT_EQ(*entry_tests[0], 0);
-  ASSERT_EQ(*entry_tests[1], 1);
-  ASSERT_EQ(*entry_tests[2], 2);
 }
 
 TEST_F(TestStaticCRMMap, RunTestData) {

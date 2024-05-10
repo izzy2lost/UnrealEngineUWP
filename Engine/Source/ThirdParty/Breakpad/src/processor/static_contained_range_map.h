@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -41,7 +42,6 @@
 #ifndef PROCESSOR_STATIC_CONTAINED_RANGE_MAP_H__
 #define PROCESSOR_STATIC_CONTAINED_RANGE_MAP_H__
 
-#include <vector>
 #include "processor/static_map-inl.h"
 
 namespace google_breakpad {
@@ -57,12 +57,7 @@ class StaticContainedRangeMap {
   // child ranges, and not the entry contained by |this|.  This is necessary
   // to support a sparsely-populated root range.  If no descendant range
   // encompasses the address, returns false.
-  bool RetrieveRange(const AddressType& address, const EntryType*& entry) const;
-
-  // Retrieves the vector of entries encompassing the specified address from the
-  // innermost entry to the outermost entry.
-  bool RetrieveRanges(const AddressType& address,
-                      std::vector<const EntryType*>& entry) const;
+  bool RetrieveRange(const AddressType &address, const EntryType *&entry) const;
 
  private:
   friend class ModuleComparer;
@@ -86,7 +81,7 @@ class StaticContainedRangeMap {
   // actually contain an entry, so its entry_ field is meaningless.  For
   // this reason, the entry_ field should only be accessed on child
   // ContainedRangeMap objects, and never on |this|.
-  uint64_t entry_size_;
+  uint32_t entry_size_;
   const EntryType *entry_ptr_;
 
   // The map containing child ranges, keyed by each child range's high

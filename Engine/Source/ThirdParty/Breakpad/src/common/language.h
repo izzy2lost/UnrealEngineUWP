@@ -1,6 +1,7 @@
 // -*- mode: c++ -*-
 
-// Copyright 2010 Google LLC
+// Copyright (c) 2010 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -12,7 +13,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -73,8 +74,8 @@ class Language {
   // take into account the parent and child DIE types, allow languages
   // to use their own data type for complex parent names, etc. But if
   // C++ doesn't need all that, who would?
-  virtual string MakeQualifiedName (const string& parent_name,
-                                    const string& name) const = 0;
+  virtual string MakeQualifiedName (const string &parent_name,
+                                    const string &name) const = 0;
 
   enum DemangleResult {
     // Demangling was not performed because it’s not appropriate to attempt.

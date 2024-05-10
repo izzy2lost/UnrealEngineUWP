@@ -1,9 +1,8 @@
-// Copyright 2007 Google LLC
+// Copyright 2007 Google Inc. All Rights Reserved.
 // Author: liuli@google.com (Liu Li)
 #ifndef COMMON_MD5_H__
 #define COMMON_MD5_H__
 
-#include <stddef.h>
 #include <stdint.h>
 
 namespace google_breakpad {

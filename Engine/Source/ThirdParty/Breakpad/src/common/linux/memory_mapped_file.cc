@@ -1,4 +1,5 @@
-// Copyright 2011 Google LLC
+// Copyright (c) 2011, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -28,10 +29,6 @@
 
 // memory_mapped_file.cc: Implement google_breakpad::MemoryMappedFile.
 // See memory_mapped_file.h for details.
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include "common/linux/memory_mapped_file.h"
 
@@ -63,11 +60,7 @@ bool MemoryMappedFile::Map(const char* path, size_t offset) {
   Unmap();
 
 #if defined(__linux__)
-  // Based on https://pubs.opengroup.org/onlinepubs/7908799/xsh/open.html
-  // If O_NONBLOCK is set: The open() function will return without blocking
-  // for the device to be ready or available. Setting this value will provent
-  // hanging if file is not avilable.
-  OSHandle fd = sys_open(path, O_RDONLY | O_NONBLOCK, 0);
+  OSHandle fd = sys_open(path, O_RDONLY, 0);
 #else
   OSHandle fd = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 #endif
@@ -78,8 +71,7 @@ bool MemoryMappedFile::Map(const char* path, size_t offset) {
 
 #if defined(__linux__)
 #if defined(__x86_64__) || defined(__aarch64__) || \
-   (defined(__mips__) && _MIPS_SIM == _ABI64) || \
-   (defined(__riscv) && __riscv_xlen == 64)
+   (defined(__mips__) && _MIPS_SIM == _ABI64)
 
   struct kernel_stat st;
   if (sys_fstat(fd, &st) == -1 || st.st_size < 0) {
@@ -100,8 +92,7 @@ bool MemoryMappedFile::Map(const char* path, size_t offset) {
     return true;
   }
 
-  size_t content_len = file_len - offset;
-  void* data = sys_mmap(NULL, content_len, PROT_READ, MAP_PRIVATE, fd, offset);
+  void* data = sys_mmap(NULL, file_len, PROT_READ, MAP_PRIVATE, fd, offset);
   sys_close(fd);
   if (data == MAP_FAILED) {
     return false;
@@ -112,8 +103,6 @@ bool MemoryMappedFile::Map(const char* path, size_t offset) {
     return false;
   }
 
-  size_t content_len = file_len;
-
   // Not sure the *proper* way to do this on windows
   void* data = CreateOSMapping(NULL, file_len, PAGE_EXECUTE_READWRITE, FILE_MAP_READ, fd, 0);
 
@@ -123,7 +112,7 @@ bool MemoryMappedFile::Map(const char* path, size_t offset) {
     return false;
   }
 
-  content_.Set(data, content_len);
+  content_.Set(data, file_len - offset);
   return true;
 }
 

@@ -1,4 +1,5 @@
-// Copyright 2014 Google LLC
+// Copyright (c) 2014, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -33,7 +34,6 @@
 #include <sys/user.h>
 
 #include "client/linux/dump_writer_common/raw_context_cpu.h"
-#include "client/linux/minidump_writer/minidump_writer.h"
 #include "common/memory_allocator.h"
 #include "google_breakpad/common/minidump_format.h"
 
@@ -49,13 +49,13 @@ struct UContextReader {
   //   out: the minidump structure
   //   info: the collection of register structures.
 #if defined(__i386__) || defined(__x86_64)
-  static void FillCPUContext(RawContextCPU* out, const ucontext_t* uc,
-                             const fpstate_t* fp);
+  static void FillCPUContext(RawContextCPU *out, const ucontext_t *uc,
+                             const struct _libc_fpstate* fp);
 #elif defined(__aarch64__)
-  static void FillCPUContext(RawContextCPU* out, const ucontext_t* uc,
+  static void FillCPUContext(RawContextCPU *out, const ucontext_t *uc,
                              const struct fpsimd_context* fpregs);
 #else
-  static void FillCPUContext(RawContextCPU* out, const ucontext_t* uc);
+  static void FillCPUContext(RawContextCPU *out, const ucontext_t *uc);
 #endif
 };
 

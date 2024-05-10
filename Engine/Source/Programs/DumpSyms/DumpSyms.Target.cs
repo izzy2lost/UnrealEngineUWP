@@ -2,10 +2,8 @@
 
 using UnrealBuildTool;
 using System.Collections.Generic;
-using System.IO;
-using UnrealBuildBase;
 
-[SupportedPlatforms("Win64", "Linux")]
+[SupportedPlatforms("Win64")]
 public class DumpSymsTarget : TargetRules
 {
 	public DumpSymsTarget(TargetInfo Target) : base(Target)
@@ -31,9 +29,5 @@ public class DumpSymsTarget : TargetRules
 		bIsBuildingConsoleApplication = true;
 
 		bUseUnityBuild = false;
-
-		var BinaryExt = Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ? ".exe" : "";
-
-		OutputFile = Path.Combine("Binaries", "Linux", $"dump_syms{BinaryExt}");
 	}
 }

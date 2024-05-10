@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -25,10 +26,6 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include <mach/exc.h>
 #include <mach/mig.h>
@@ -223,7 +220,7 @@ kern_return_t catch_exception_raise(mach_port_t port, mach_port_t failed_thread,
 }
 #endif
 
-ExceptionHandler::ExceptionHandler(const string& dump_path,
+ExceptionHandler::ExceptionHandler(const string &dump_path,
                                    FilterCallback filter,
                                    MinidumpCallback callback,
                                    void* callback_context,
@@ -307,7 +304,7 @@ bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
 }
 
 // static
-bool ExceptionHandler::WriteMinidump(const string& dump_path,
+bool ExceptionHandler::WriteMinidump(const string &dump_path,
                                      bool write_exception_stream,
                                      MinidumpCallback callback,
                                      void* callback_context) {
@@ -319,7 +316,7 @@ bool ExceptionHandler::WriteMinidump(const string& dump_path,
 // static
 bool ExceptionHandler::WriteMinidumpForChild(mach_port_t child,
                                              mach_port_t child_blamed_thread,
-                                             const string& dump_path,
+                                             const string &dump_path,
                                              MinidumpCallback callback,
                                              void* callback_context) {
   ScopedTaskSuspend suspend(child);

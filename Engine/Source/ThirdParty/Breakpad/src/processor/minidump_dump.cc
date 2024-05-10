@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -31,15 +32,10 @@
 //
 // Author: Mark Mentovai
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
-#include "common/path_helper.h"
 #include "common/scoped_ptr.h"
 #include "google_breakpad/processor/minidump.h"
 #include "processor/logging.h"
@@ -48,7 +44,6 @@ namespace {
 
 using google_breakpad::Minidump;
 using google_breakpad::MinidumpThreadList;
-using google_breakpad::MinidumpThreadNameList;
 using google_breakpad::MinidumpModuleList;
 using google_breakpad::MinidumpMemoryInfoList;
 using google_breakpad::MinidumpMemoryList;
@@ -96,7 +91,7 @@ static void DumpRawStream(Minidump *minidump,
     // in compatibility warnings.
     uint32_t int_remaining = remaining;
     printf("%.*s", int_remaining, &contents[current_offset]);
-    char *next_null = reinterpret_cast<char*>(
+    char *next_null = reinterpret_cast<char *>(
         memchr(&contents[current_offset], 0, remaining));
     if (next_null == NULL)
       break;
@@ -126,14 +121,6 @@ static bool PrintMinidumpDump(const Options& options) {
     thread_list->Print();
   }
 
-  MinidumpThreadNameList *thread_name_list = minidump.GetThreadNameList();
-  if (thread_name_list) {
-    thread_name_list->Print();
-  }
-
-  // It's useful to be able to see the full list of modules here even if it
-  // would cause minidump_stackwalk to fail.
-  MinidumpModuleList::set_max_modules(UINT32_MAX);
   MinidumpModuleList *module_list = minidump.GetModuleList();
   if (!module_list) {
     ++errors;
@@ -243,7 +230,7 @@ Usage(int argc, char *argv[], bool error) {
           "  <minidump> should be a minidump.\n"
           "  -x:\t Display memory in a hexdump like format\n"
           "  -h:\t Usage\n",
-          google_breakpad::BaseName(argv[0]).c_str());
+          argv[0]);
 }
 
 //=============================================================================
@@ -251,7 +238,7 @@ static void
 SetupOptions(int argc, char *argv[], Options *options) {
   int ch;
 
-  while ((ch = getopt(argc, (char * const*)argv, "xh")) != -1) {
+  while ((ch = getopt(argc, (char * const *)argv, "xh")) != -1) {
     switch (ch) {
       case 'x':
         options->hexdump = true;

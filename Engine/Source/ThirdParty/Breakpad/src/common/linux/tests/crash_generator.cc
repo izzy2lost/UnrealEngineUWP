@@ -1,4 +1,5 @@
-// Copyright 2011 Google LLC
+// Copyright (c) 2011, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -29,14 +30,9 @@
 // crash_generator.cc: Implement google_breakpad::CrashGenerator.
 // See crash_generator.h for details.
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include "common/linux/tests/crash_generator.h"
 
 #include <pthread.h>
-#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <sys/mman.h>
@@ -82,7 +78,7 @@ int tkill(pid_t tid, int sig) {
 // Core file size limit set to 1 MB, which is big enough for test purposes.
 const rlim_t kCoreSizeLimit = 1024 * 1024;
 
-void* thread_function(void* data) {
+void *thread_function(void *data) {
   ThreadData* thread_data = reinterpret_cast<ThreadData*>(data);
   volatile pid_t thread_id = gettid();
   *(thread_data->thread_id_ptr) = thread_id;
@@ -92,7 +88,7 @@ void* thread_function(void* data) {
     exit(1);
   }
   while (true) {
-    sched_yield();
+    pthread_yield();
   }
 }
 
@@ -172,15 +168,6 @@ bool CrashGenerator::SetCoreFileSizeLimit(rlim_t limit) const {
   return true;
 }
 
-bool CrashGenerator::HasResourceLimitsAmenableToCrashCollection() const {
-  struct rlimit limits;
-  if (getrlimit(RLIMIT_CORE, &limits) == -1) {
-    perror("CrashGenerator: Failed to get core file size limit");
-    return false;
-  }
-  return limits.rlim_max >= kCoreSizeLimit;
-}
-
 bool CrashGenerator::CreateChildCrash(
     unsigned num_threads, unsigned crash_thread, int crash_signal,
     pid_t* child_pid) {
@@ -197,12 +184,6 @@ bool CrashGenerator::CreateChildCrash(
 
   pid_t pid = fork();
   if (pid == 0) {
-    // Custom signal handlers, which may have been installed by a test launcher,
-    // are undesirable in this child.
-    if (signal(crash_signal, SIG_DFL) == SIG_ERR) {
-      perror("CrashGenerator: signal");
-      exit(1);
-    }
     if (chdir(temp_dir_.path().c_str()) == -1) {
       perror("CrashGenerator: Failed to change directory");
       exit(1);

@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -29,6 +30,8 @@
 #ifndef CLIENT_LINUX_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H_
 #define CLIENT_LINUX_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H_
 
+#include "common/basictypes.h"
+
 #include <stddef.h>
 
 namespace google_breakpad {
@@ -39,10 +42,8 @@ namespace google_breakpad {
 // via a remote process.
 class CrashGenerationClient {
  public:
-  CrashGenerationClient() = default;
-  CrashGenerationClient(const CrashGenerationClient&) = delete;
-  void operator=(const CrashGenerationClient&) = delete;
-  virtual ~CrashGenerationClient() = default;
+  CrashGenerationClient() {}
+  virtual ~CrashGenerationClient() {}
 
   // Request the crash server to generate a dump.  |blob| is an opaque
   // CrashContext pointer from exception_handler.h.
@@ -54,6 +55,9 @@ class CrashGenerationClient {
   // The returned CrashGenerationClient* is owned by the caller of
   // this function.
   static CrashGenerationClient* TryCreate(int server_fd);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CrashGenerationClient);
 };
 
 }  // namespace google_breakpad

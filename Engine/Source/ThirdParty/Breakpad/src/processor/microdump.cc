@@ -1,4 +1,5 @@
-// Copyright 2014 Google LLC
+// Copyright (c) 2014 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -30,10 +31,6 @@
 //
 // See microdump.h for documentation.
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include "google_breakpad/processor/microdump.h"
 
 #include <stdio.h>
@@ -47,7 +44,6 @@
 #include "google_breakpad/common/minidump_cpu_arm.h"
 #include "google_breakpad/processor/code_module.h"
 #include "processor/basic_code_module.h"
-#include "processor/convert_old_arm64_context.h"
 #include "processor/linked_ptr.h"
 #include "processor/logging.h"
 #include "processor/range_map-inl.h"
@@ -116,8 +112,7 @@ void MicrodumpModules::Add(const CodeModule* module) {
 }
 
 void MicrodumpModules::SetEnableModuleShrink(bool is_enabled) {
-  map_.SetMergeStrategy(is_enabled ? MergeRangeStrategy::kTruncateUpper
-                                   : MergeRangeStrategy::kExclusiveRanges);
+  map_.SetEnableShrinkDown(is_enabled);
 }
 
 //
@@ -316,22 +311,15 @@ Microdump::Microdump(const string& contents)
         memcpy(arm, &cpu_state_raw[0], cpu_state_raw.size());
         context_->SetContextARM(arm);
       } else if (strcmp(arch.c_str(), kArm64Architecture) == 0) {
-        if (cpu_state_raw.size() == sizeof(MDRawContextARM64)) {
-          MDRawContextARM64* arm = new MDRawContextARM64();
-          memcpy(arm, &cpu_state_raw[0], cpu_state_raw.size());
-          context_->SetContextARM64(arm);
-        } else if (cpu_state_raw.size() == sizeof(MDRawContextARM64_Old)) {
-          MDRawContextARM64_Old old_arm;
-          memcpy(&old_arm, &cpu_state_raw[0], cpu_state_raw.size());
-          MDRawContextARM64* new_arm = new MDRawContextARM64();
-          ConvertOldARM64Context(old_arm, new_arm);
-          context_->SetContextARM64(new_arm);
-        } else {
+        if (cpu_state_raw.size() != sizeof(MDRawContextARM64)) {
           std::cerr << "Malformed CPU context. Got " << cpu_state_raw.size()
                     << " bytes instead of " << sizeof(MDRawContextARM64)
                     << std::endl;
           continue;
         }
+        MDRawContextARM64* arm = new MDRawContextARM64();
+        memcpy(arm, &cpu_state_raw[0], cpu_state_raw.size());
+        context_->SetContextARM64(arm);
       } else if (strcmp(arch.c_str(), kX86Architecture) == 0) {
         if (cpu_state_raw.size() != sizeof(MDRawContextX86)) {
           std::cerr << "Malformed CPU context. Got " << cpu_state_raw.size()

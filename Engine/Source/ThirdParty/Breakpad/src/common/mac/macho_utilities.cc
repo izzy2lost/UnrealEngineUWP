@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -29,10 +30,6 @@
 // macho_utilties.cc: Utilities for dealing with mach-o files
 //
 // Author: Dave Camp
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
 
 #include "common/mac/byteswap.h"
 #include "common/mac/macho_utilities.h"
@@ -104,6 +101,7 @@ void breakpad_swap_fat_arch(struct fat_arch *fa, uint32_t narchs) {
   }
 }
 
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
 void breakpad_swap_fat_arch_64(struct fat_arch_64 *fa, uint32_t narchs) {
   for (uint32_t i = 0; i < narchs; ++i) {
     fa[i].cputype = ByteSwap(fa[i].cputype);
@@ -113,6 +111,7 @@ void breakpad_swap_fat_arch_64(struct fat_arch_64 *fa, uint32_t narchs) {
     fa[i].align = ByteSwap(fa[i].align);
   }
 }
+#endif
 
 void breakpad_swap_mach_header(struct mach_header *mh) {
   mh->magic = ByteSwap(mh->magic);

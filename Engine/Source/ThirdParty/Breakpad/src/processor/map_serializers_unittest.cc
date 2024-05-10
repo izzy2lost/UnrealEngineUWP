@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -31,11 +32,6 @@
 //
 // Author: Siyang Xie (lambxsy@google.com)
 
-#include <cstdint>
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <climits>
 #include <map>
 #include <string>
@@ -50,8 +46,8 @@
 #include "processor/range_map-inl.h"
 #include "processor/contained_range_map-inl.h"
 
-typedef int64_t AddrType;
-typedef int64_t EntryType;
+typedef int32_t AddrType;
+typedef int32_t EntryType;
 
 class TestStdMapSerializer : public ::testing::Test {
  protected:
@@ -66,13 +62,13 @@ class TestStdMapSerializer : public ::testing::Test {
 
   std::map<AddrType, EntryType> std_map_;
   google_breakpad::StdMapSerializer<AddrType, EntryType> serializer_;
-  uint64_t serialized_size_;
-  char* serialized_data_;
+  uint32_t serialized_size_;
+  char *serialized_data_;
 };
 
 TEST_F(TestStdMapSerializer, EmptyMapTestCase) {
-  const int64_t correct_data[] = { 0 };
-  uint64_t correct_size = sizeof(correct_data);
+  const int32_t correct_data[] = { 0 };
+  uint32_t correct_size = sizeof(correct_data);
 
   // std_map_ is empty.
   serialized_data_ = serializer_.Serialize(std_map_, &serialized_size_);
@@ -82,17 +78,17 @@ TEST_F(TestStdMapSerializer, EmptyMapTestCase) {
 }
 
 TEST_F(TestStdMapSerializer, MapWithTwoElementsTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       // # of nodes
       2,
       // Offsets
-      40, 48,
+      20, 24,
       // Keys
       1, 3,
       // Values
       2, 6
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   std_map_.insert(std::make_pair(1, 2));
   std_map_.insert(std::make_pair(3, 6));
@@ -104,17 +100,17 @@ TEST_F(TestStdMapSerializer, MapWithTwoElementsTestCase) {
 }
 
 TEST_F(TestStdMapSerializer, MapWithFiveElementsTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       // # of nodes
       5,
       // Offsets
-      88, 96, 104, 112, 120,
+      44, 48, 52, 56, 60,
       // Keys
       1, 2, 3, 4, 5,
       // Values
       11, 12, 13, 14, 15
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   for (int i = 1; i < 6; ++i)
     std_map_.insert(std::make_pair(i, 10 + i));
@@ -138,13 +134,13 @@ class TestAddressMapSerializer : public ::testing::Test {
 
   google_breakpad::AddressMap<AddrType, EntryType> address_map_;
   google_breakpad::AddressMapSerializer<AddrType, EntryType> serializer_;
-  uint64_t serialized_size_;
-  char* serialized_data_;
+  uint32_t serialized_size_;
+  char *serialized_data_;
 };
 
 TEST_F(TestAddressMapSerializer, EmptyMapTestCase) {
-  const int64_t correct_data[] = { 0 };
-  uint64_t correct_size = sizeof(correct_data);
+  const int32_t correct_data[] = { 0 };
+  uint32_t correct_size = sizeof(correct_data);
 
   // std_map_ is empty.
   serialized_data_ = serializer_.Serialize(address_map_, &serialized_size_);
@@ -154,17 +150,17 @@ TEST_F(TestAddressMapSerializer, EmptyMapTestCase) {
 }
 
 TEST_F(TestAddressMapSerializer, MapWithTwoElementsTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       // # of nodes
       2,
       // Offsets
-      40, 48,
+      20, 24,
       // Keys
       1, 3,
       // Values
       2, 6
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   address_map_.Store(1, 2);
   address_map_.Store(3, 6);
@@ -176,17 +172,17 @@ TEST_F(TestAddressMapSerializer, MapWithTwoElementsTestCase) {
 }
 
 TEST_F(TestAddressMapSerializer, MapWithFourElementsTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       // # of nodes
       4,
       // Offsets
-      72, 80, 88, 96,
+      36, 40, 44, 48,
       // Keys
       -6, -4, 8, 123,
       // Values
       2, 3, 5, 8
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   address_map_.Store(-6, 2);
   address_map_.Store(-4, 3);
@@ -213,13 +209,13 @@ class TestRangeMapSerializer : public ::testing::Test {
 
   google_breakpad::RangeMap<AddrType, EntryType> range_map_;
   google_breakpad::RangeMapSerializer<AddrType, EntryType> serializer_;
-  uint64_t serialized_size_;
-  char* serialized_data_;
+  uint32_t serialized_size_;
+  char *serialized_data_;
 };
 
 TEST_F(TestRangeMapSerializer, EmptyMapTestCase) {
-  const int64_t correct_data[] = { 0 };
-  uint64_t correct_size = sizeof(correct_data);
+  const int32_t correct_data[] = { 0 };
+  uint32_t correct_size = sizeof(correct_data);
 
   // range_map_ is empty.
   serialized_data_ = serializer_.Serialize(range_map_, &serialized_size_);
@@ -229,17 +225,17 @@ TEST_F(TestRangeMapSerializer, EmptyMapTestCase) {
 }
 
 TEST_F(TestRangeMapSerializer, MapWithOneRangeTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       // # of nodes
       1,
       // Offsets
-      24,
+      12,
       // Keys: high address
       10,
       // Values: (low address, entry) pairs
       1, 6
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   range_map_.StoreRange(1, 10, 6);
 
@@ -250,17 +246,17 @@ TEST_F(TestRangeMapSerializer, MapWithOneRangeTestCase) {
 }
 
 TEST_F(TestRangeMapSerializer, MapWithThreeRangesTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       // # of nodes
       3,
       // Offsets
-      56, 72, 88,
+      28,    36,    44,
       // Keys: high address
-      5, 9, 20,
+      5,     9,     20,
       // Values: (low address, entry) pairs
-      2, 1, 6, 2, 10, 3
+      2, 1,  6, 2,  10, 3
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   ASSERT_TRUE(range_map_.StoreRange(2, 4, 1));
   ASSERT_TRUE(range_map_.StoreRange(6, 4, 2));
@@ -286,18 +282,18 @@ class TestContainedRangeMapSerializer : public ::testing::Test {
 
   google_breakpad::ContainedRangeMap<AddrType, EntryType> crm_map_;
   google_breakpad::ContainedRangeMapSerializer<AddrType, EntryType> serializer_;
-  uint64_t serialized_size_;
-  char* serialized_data_;
+  uint32_t serialized_size_;
+  char *serialized_data_;
 };
 
 TEST_F(TestContainedRangeMapSerializer, EmptyMapTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       0,  // base address of root
-      8,  // size of entry
+      4,  // size of entry
       0,  // entry stored at root
       0   // empty map stored at root
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   // crm_map_ is empty.
   serialized_data_ = serializer_.Serialize(&crm_map_, &serialized_size_);
@@ -307,21 +303,21 @@ TEST_F(TestContainedRangeMapSerializer, EmptyMapTestCase) {
 }
 
 TEST_F(TestContainedRangeMapSerializer, MapWithOneRangeTestCase) {
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       0,  // base address of root
-      8,  // size of entry
+      4,  // size of entry
       0,  // entry stored at root
       // Map stored at root node:
       1,  // # of nodes
-      24,  // offset
+      12, // offset
       9,  // key
       // value: a child ContainedRangeMap
       3,  // base address of child CRM
-      8,  // size of entry
+      4,  // size of entry
       -1, // entry stored in child CRM
       0   // empty sub-map stored in child CRM
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   crm_map_.StoreRange(3, 7, -1);
 
@@ -343,27 +339,27 @@ TEST_F(TestContainedRangeMapSerializer, MapWithTwoLevelsTestCase) {
   //     /   \       |
   //    3~4 6~7    16-20         level 2: grandchild1, grandchild2, grandchild3
 
-  const int64_t correct_data[] = {
+  const int32_t correct_data[] = {
       // root: base, entry_size, entry
-      0, 8, 0,
+      0, 4, 0,
       // root's map: # of nodes, offset1, offset2, key1, key2
-      2, 40, 168, 8, 20,
+      2, 20, 84, 8, 20,
       // child1: base, entry_size, entry:
-      2, 8, -1,
+      2, 4, -1,
       // child1's map: # of nodes, offset1, offset2, key1, key2
-      2, 40, 72, 4, 7,
+      2, 20, 36, 4, 7,
         // grandchild1: base, entry_size, entry, empty_map
-        3, 8, -1, 0,
+        3, 4, -1, 0,
         // grandchild2: base, entry_size, entry, empty_map
-        6, 8, -1, 0,
+        6, 4, -1, 0,
       // child2: base, entry_size, entry:
-      10, 8, -1,
+      10, 4, -1,
       // child2's map: # of nodes, offset1, key1
-      1, 24, 20,
+      1, 12, 20,
         // grandchild3: base, entry_size, entry, empty_map
-        16, 8, -1, 0
+        16, 4, -1, 0
   };
-  uint64_t correct_size = sizeof(correct_data);
+  uint32_t correct_size = sizeof(correct_data);
 
   // Store child1.
   ASSERT_TRUE(crm_map_.StoreRange(2, 7, -1));
@@ -383,7 +379,7 @@ TEST_F(TestContainedRangeMapSerializer, MapWithTwoLevelsTestCase) {
 }
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
 
   return RUN_ALL_TESTS();

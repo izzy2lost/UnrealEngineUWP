@@ -1,4 +1,5 @@
-// Copyright 2009 Google LLC
+// Copyright (c) 2009, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -70,12 +71,12 @@ class PageAllocator {
     FreeAll();
   }
 
-  void* Alloc(size_t bytes) {
+  void *Alloc(size_t bytes) {
     if (!bytes)
       return NULL;
 
     if (current_page_ && page_size_ - page_offset_ >= bytes) {
-      uint8_t* const ret = current_page_ + page_offset_;
+      uint8_t *const ret = current_page_ + page_offset_;
       page_offset_ += bytes;
       if (page_offset_ == page_size_) {
         page_offset_ = 0;
@@ -87,7 +88,7 @@ class PageAllocator {
 
     const size_t pages =
         (bytes + sizeof(PageHeader) + page_size_ - 1) / page_size_;
-    uint8_t* const ret = GetNPages(pages);
+    uint8_t *const ret = GetNPages(pages);
     if (!ret)
       return NULL;
 
@@ -134,7 +135,7 @@ class PageAllocator {
     __msan_unpoison(a, page_size_ * num_pages);
 #endif
 
-    struct PageHeader* header = reinterpret_cast<PageHeader*>(a);
+    struct PageHeader *header = reinterpret_cast<PageHeader*>(a);
     header->next = last_;
     header->num_pages = num_pages;
     last_ = header;
@@ -145,9 +146,9 @@ class PageAllocator {
   }
 
   void FreeAll() {
-    PageHeader* next;
+    PageHeader *next;
 
-    for (PageHeader* cur = last_; cur; cur = next) {
+    for (PageHeader *cur = last_; cur; cur = next) {
       next = cur->next;
 #if defined(_WIN32) || defined(_WIN64)
       CloseOSMapping(cur);
@@ -158,13 +159,13 @@ class PageAllocator {
   }
 
   struct PageHeader {
-    PageHeader* next;  // pointer to the start of the next set of pages.
+    PageHeader *next;  // pointer to the start of the next set of pages.
     size_t num_pages;  // the number of pages in this set.
   };
 
   const size_t page_size_;
-  PageHeader* last_;
-  uint8_t* current_page_;
+  PageHeader *last_;
+  uint8_t *current_page_;
   size_t page_offset_;
   unsigned long pages_allocated_;
 };

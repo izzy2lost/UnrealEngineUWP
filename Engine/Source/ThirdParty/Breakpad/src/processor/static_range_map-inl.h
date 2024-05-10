@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010 Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -42,8 +43,8 @@ namespace google_breakpad {
 
 template<typename AddressType, typename EntryType>
 bool StaticRangeMap<AddressType, EntryType>::RetrieveRange(
-    const AddressType& address, const EntryType*& entry,
-    AddressType* entry_base, AddressType* entry_size) const {
+    const AddressType &address, const EntryType *&entry,
+    AddressType *entry_base, AddressType *entry_size) const {
   MapConstIterator iterator = map_.lower_bound(address);
   if (iterator == map_.end())
     return false;
@@ -54,7 +55,7 @@ bool StaticRangeMap<AddressType, EntryType>::RetrieveRange(
   // be below the range's low address, though.  When that happens, address
   // references something not within any range, so return false.
 
-  const Range* range = iterator.GetValuePtr();
+  const Range *range = iterator.GetValuePtr();
 
   // Make sure AddressType and EntryType are copyable basic types
   // e.g.: integer types, pointers etc
@@ -73,8 +74,8 @@ bool StaticRangeMap<AddressType, EntryType>::RetrieveRange(
 
 template<typename AddressType, typename EntryType>
 bool StaticRangeMap<AddressType, EntryType>::RetrieveNearestRange(
-    const AddressType& address, const EntryType*& entry,
-    AddressType* entry_base, AddressType* entry_size) const {
+    const AddressType &address, const EntryType *&entry,
+    AddressType *entry_base, AddressType *entry_size) const {
   // If address is within a range, RetrieveRange can handle it.
   if (RetrieveRange(address, entry, entry_base, entry_size))
     return true;
@@ -90,7 +91,7 @@ bool StaticRangeMap<AddressType, EntryType>::RetrieveNearestRange(
     return false;
   --iterator;
 
-  const Range* range = iterator.GetValuePtr();
+  const Range *range = iterator.GetValuePtr();
   entry = range->entryptr();
   if (entry_base)
     *entry_base = range->base();
@@ -102,8 +103,8 @@ bool StaticRangeMap<AddressType, EntryType>::RetrieveNearestRange(
 
 template<typename AddressType, typename EntryType>
 bool StaticRangeMap<AddressType, EntryType>::RetrieveRangeAtIndex(
-    int64_t index, const EntryType*& entry,
-    AddressType* entry_base, AddressType* entry_size) const {
+    int index, const EntryType *&entry,
+    AddressType *entry_base, AddressType *entry_size) const {
 
   if (index >= GetCount()) {
     BPLOG(ERROR) << "Index out of range: " << index << "/" << GetCount();
@@ -112,7 +113,7 @@ bool StaticRangeMap<AddressType, EntryType>::RetrieveRangeAtIndex(
 
   MapConstIterator iterator = map_.IteratorAtIndex(index);
 
-  const Range* range = iterator.GetValuePtr();
+  const Range *range = iterator.GetValuePtr();
 
   entry = range->entryptr();
   if (entry_base)

@@ -1,4 +1,5 @@
-// Copyright 2010 Google LLC
+// Copyright (c) 2010, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -28,11 +29,7 @@
 
 // Original author: Jim Blandy <jimb@mozilla.com> <jimb@red-bean.com>
 
-// bytereader_unittest.cc: Unit tests for google_breakpad::ByteReader
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
+// bytereader_unittest.cc: Unit tests for dwarf2reader::ByteReader
 
 #include <stdint.h>
 
@@ -44,10 +41,10 @@
 #include "common/dwarf/cfi_assembler.h"
 #include "common/using_std_string.h"
 
-using google_breakpad::ByteReader;
-using google_breakpad::DwarfPointerEncoding;
-using google_breakpad::ENDIANNESS_BIG;
-using google_breakpad::ENDIANNESS_LITTLE;
+using dwarf2reader::ByteReader;
+using dwarf2reader::DwarfPointerEncoding;
+using dwarf2reader::ENDIANNESS_BIG;
+using dwarf2reader::ENDIANNESS_LITTLE;
 using google_breakpad::CFISection;
 using google_breakpad::test_assembler::Label;
 using google_breakpad::test_assembler::kBigEndian;
@@ -76,7 +73,7 @@ TEST_F(Reader, SimpleConstructor) {
     .LEB128(-0x4f337badf4483f83LL)
     .D32(0xfec319c9);
   ASSERT_TRUE(section.GetContents(&contents));
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(contents.data());
+  const uint8_t *data = reinterpret_cast<const uint8_t *>(contents.data());
   EXPECT_EQ(0xc0U, reader.ReadOneByte(data));
   EXPECT_EQ(0xcf0dU, reader.ReadTwoBytes(data + 1));
   EXPECT_EQ(0x96fdd219U, reader.ReadFourBytes(data + 3));
@@ -94,279 +91,279 @@ TEST_F(Reader, SimpleConstructor) {
 TEST_F(Reader, ValidEncodings) {
   ByteReader reader(ENDIANNESS_LITTLE);
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_absptr)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_absptr)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_omit)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_omit)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_aligned)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_aligned)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_uleb128)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_uleb128)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata2)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata2)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata4)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata4)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata8)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata8)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sleb128)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sleb128)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata2)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata2)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata4)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata4)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata8)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata8)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_pcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_pcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_textrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_textrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_datarel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_datarel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_absptr |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_absptr |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_uleb128 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_uleb128 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata2 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata2 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata4 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata4 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_udata8 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_udata8 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sleb128 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sleb128 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata2 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata2 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata4 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata4 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
   EXPECT_TRUE(reader.ValidEncoding(
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_indirect |
-                           google_breakpad::DW_EH_PE_sdata8 |
-                           google_breakpad::DW_EH_PE_funcrel)));
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_indirect |
+                           dwarf2reader::DW_EH_PE_sdata8 |
+                           dwarf2reader::DW_EH_PE_funcrel)));
 
   EXPECT_FALSE(reader.ValidEncoding(DwarfPointerEncoding(0x05)));
   EXPECT_FALSE(reader.ValidEncoding(DwarfPointerEncoding(0x07)));
@@ -383,7 +380,7 @@ TEST_F(ReaderDeathTest, DW_EH_PE_omit) {
   static const uint8_t data[] = { 42 };
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetAddressSize(4);
-  EXPECT_DEATH(reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_omit,
+  EXPECT_DEATH(reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_omit,
                                          &pointer_size),
                "encoding != DW_EH_PE_omit");
 }
@@ -393,7 +390,7 @@ TEST_F(Reader, DW_EH_PE_absptr4) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(4);
   EXPECT_EQ(0x40ea5727U,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_absptr,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_absptr,
                                       &pointer_size));
   EXPECT_EQ(4U, pointer_size);
 }
@@ -405,7 +402,7 @@ TEST_F(Reader, DW_EH_PE_absptr8) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(8);
   EXPECT_EQ(0x010598c240ea5727ULL,
-            reader.ReadEncodedPointer(data + 1, google_breakpad::DW_EH_PE_absptr,
+            reader.ReadEncodedPointer(data + 1, dwarf2reader::DW_EH_PE_absptr,
                                       &pointer_size));
   EXPECT_EQ(8U, pointer_size);
 }
@@ -415,7 +412,7 @@ TEST_F(Reader, DW_EH_PE_uleb128) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(4);
   EXPECT_EQ(0x130201U,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_uleb128,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_uleb128,
                                       &pointer_size));
   EXPECT_EQ(3U, pointer_size);
 }
@@ -425,7 +422,7 @@ TEST_F(Reader, DW_EH_PE_udata2) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetAddressSize(4);
   EXPECT_EQ(0xf48dU,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_udata2,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_udata2,
                                       &pointer_size));
   EXPECT_EQ(2U, pointer_size);
 }
@@ -435,7 +432,7 @@ TEST_F(Reader, DW_EH_PE_udata4) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetAddressSize(8);
   EXPECT_EQ(0xa5628f8b,
-            reader.ReadEncodedPointer(data + 2, google_breakpad::DW_EH_PE_udata4,
+            reader.ReadEncodedPointer(data + 2, dwarf2reader::DW_EH_PE_udata4,
                                       &pointer_size));
   EXPECT_EQ(4U, pointer_size);
 }
@@ -447,7 +444,7 @@ TEST_F(Reader, DW_EH_PE_udata8Addr8) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(8);
   EXPECT_EQ(0x8fed199f69047304ULL,
-            reader.ReadEncodedPointer(data + 1, google_breakpad::DW_EH_PE_udata8,
+            reader.ReadEncodedPointer(data + 1, dwarf2reader::DW_EH_PE_udata8,
                                         &pointer_size));
   EXPECT_EQ(8U, pointer_size);
 }
@@ -459,7 +456,7 @@ TEST_F(Reader, DW_EH_PE_udata8Addr4) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(4);
   EXPECT_EQ(0x69047304ULL,
-            reader.ReadEncodedPointer(data + 1, google_breakpad::DW_EH_PE_udata8,
+            reader.ReadEncodedPointer(data + 1, dwarf2reader::DW_EH_PE_udata8,
                                         &pointer_size));
   EXPECT_EQ(8U, pointer_size);
 }
@@ -469,7 +466,7 @@ TEST_F(Reader, DW_EH_PE_sleb128) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetAddressSize(4);
   EXPECT_EQ(-0x030201U & 0xffffffff,
-            reader.ReadEncodedPointer(data + 1, google_breakpad::DW_EH_PE_sleb128,
+            reader.ReadEncodedPointer(data + 1, dwarf2reader::DW_EH_PE_sleb128,
                                         &pointer_size));
   EXPECT_EQ(3U, pointer_size);
 }
@@ -479,7 +476,7 @@ TEST_F(Reader, DW_EH_PE_sdata2) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(8);
   EXPECT_EQ(0xffffffffffffbfb9ULL,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_sdata2,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_sdata2,
                                         &pointer_size));
   EXPECT_EQ(2U, pointer_size);
 }
@@ -489,7 +486,7 @@ TEST_F(Reader, DW_EH_PE_sdata4) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(8);
   EXPECT_EQ(0xffffffffadc2b8f2ULL,
-            reader.ReadEncodedPointer(data + 2, google_breakpad::DW_EH_PE_sdata4,
+            reader.ReadEncodedPointer(data + 2, dwarf2reader::DW_EH_PE_sdata4,
                                         &pointer_size));
   EXPECT_EQ(4U, pointer_size);
 }
@@ -501,7 +498,7 @@ TEST_F(Reader, DW_EH_PE_sdata8) {
   ByteReader reader(ENDIANNESS_LITTLE);
   reader.SetAddressSize(8);
   EXPECT_EQ(0x87269b0ce0795766ULL,
-            reader.ReadEncodedPointer(data + 1, google_breakpad::DW_EH_PE_sdata8,
+            reader.ReadEncodedPointer(data + 1, dwarf2reader::DW_EH_PE_sdata8,
                                         &pointer_size));
   EXPECT_EQ(8U, pointer_size);
 }
@@ -513,8 +510,8 @@ TEST_F(Reader, DW_EH_PE_pcrel) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetAddressSize(4);
   DwarfPointerEncoding encoding =
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_pcrel
-                           | google_breakpad::DW_EH_PE_absptr);
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_pcrel
+                           | dwarf2reader::DW_EH_PE_absptr);
   reader.SetCFIDataBase(0x89951377, data);
   EXPECT_EQ(0x89951377 + 3 + 0x14c8c402,
             reader.ReadEncodedPointer(data + 3, encoding, &pointer_size));
@@ -529,8 +526,8 @@ TEST_F(Reader, DW_EH_PE_textrel) {
   reader.SetAddressSize(4);
   reader.SetTextBase(0xb91beaf0);
   DwarfPointerEncoding encoding =
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_textrel
-                           | google_breakpad::DW_EH_PE_sdata2);
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_textrel
+                           | dwarf2reader::DW_EH_PE_sdata2);
   EXPECT_EQ((0xb91beaf0 + 0xffffc917) & 0xffffffff,
             reader.ReadEncodedPointer(data + 3, encoding, &pointer_size));
   EXPECT_EQ(2U, pointer_size);
@@ -544,8 +541,8 @@ TEST_F(Reader, DW_EH_PE_datarel) {
   reader.SetAddressSize(8);
   reader.SetDataBase(0xbef308bd25ce74f0ULL);
   DwarfPointerEncoding encoding =
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_datarel
-                           | google_breakpad::DW_EH_PE_sleb128);
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_datarel
+                           | dwarf2reader::DW_EH_PE_sleb128);
   EXPECT_EQ(0xbef308bd25ce74f0ULL + 0xfffffffffffa013bULL,
             reader.ReadEncodedPointer(data + 2, encoding, &pointer_size));
   EXPECT_EQ(3U, pointer_size);
@@ -559,8 +556,8 @@ TEST_F(Reader, DW_EH_PE_funcrel) {
   reader.SetAddressSize(4);
   reader.SetFunctionBase(0x823c3520);
   DwarfPointerEncoding encoding =
-      DwarfPointerEncoding(google_breakpad::DW_EH_PE_funcrel
-                           | google_breakpad::DW_EH_PE_udata2);
+      DwarfPointerEncoding(dwarf2reader::DW_EH_PE_funcrel
+                           | dwarf2reader::DW_EH_PE_udata2);
   EXPECT_EQ(0x823c3520 + 0xd148,
             reader.ReadEncodedPointer(data + 5, encoding, &pointer_size));
   EXPECT_EQ(2U, pointer_size);
@@ -570,48 +567,48 @@ TEST(UsableBase, CFI) {
   static const uint8_t data[] = { 0x42 };
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetCFIDataBase(0xb31cbd20, data);
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_absptr));
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_pcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_textrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_datarel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_funcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_omit));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_absptr));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_pcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_textrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_datarel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_funcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_omit));
   EXPECT_FALSE(reader.UsableEncoding(DwarfPointerEncoding(0x60)));
 }
 
 TEST(UsableBase, Text) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetTextBase(0xa899ccb9);
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_absptr));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_pcrel));
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_textrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_datarel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_funcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_omit));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_absptr));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_pcrel));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_textrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_datarel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_funcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_omit));
   EXPECT_FALSE(reader.UsableEncoding(DwarfPointerEncoding(0x60)));
 }
 
 TEST(UsableBase, Data) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetDataBase(0xf7b10bcd);
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_absptr));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_pcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_textrel));
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_datarel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_funcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_omit));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_absptr));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_pcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_textrel));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_datarel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_funcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_omit));
   EXPECT_FALSE(reader.UsableEncoding(DwarfPointerEncoding(0x60)));
 }
 
 TEST(UsableBase, Function) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetFunctionBase(0xc2c0ed81);
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_absptr));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_pcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_textrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_datarel));
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_funcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_omit));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_absptr));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_pcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_textrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_datarel));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_funcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_omit));
   EXPECT_FALSE(reader.UsableEncoding(DwarfPointerEncoding(0x60)));
 }
 
@@ -619,12 +616,12 @@ TEST(UsableBase, ClearFunction) {
   ByteReader reader(ENDIANNESS_BIG);
   reader.SetFunctionBase(0xc2c0ed81);
   reader.ClearFunctionBase();
-  EXPECT_TRUE(reader.UsableEncoding(google_breakpad::DW_EH_PE_absptr));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_pcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_textrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_datarel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_funcrel));
-  EXPECT_FALSE(reader.UsableEncoding(google_breakpad::DW_EH_PE_omit));
+  EXPECT_TRUE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_absptr));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_pcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_textrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_datarel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_funcrel));
+  EXPECT_FALSE(reader.UsableEncoding(dwarf2reader::DW_EH_PE_omit));
   EXPECT_FALSE(reader.UsableEncoding(DwarfPointerEncoding(0x60)));
 }
 
@@ -644,7 +641,7 @@ class Aligned: public AlignedFixture, public Test { };
 TEST_F(Aligned, DW_EH_PE_aligned0) {
   reader.SetCFIDataBase(0xb440305c, data);
   EXPECT_EQ(0xfe6e93d8U,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_aligned,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(4U, pointer_size);
 }
@@ -652,7 +649,7 @@ TEST_F(Aligned, DW_EH_PE_aligned0) {
 TEST_F(Aligned, DW_EH_PE_aligned1) {
   reader.SetCFIDataBase(0xb440305d, data);
   EXPECT_EQ(0xd834d51cU,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_aligned,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(7U, pointer_size);
 }
@@ -660,7 +657,7 @@ TEST_F(Aligned, DW_EH_PE_aligned1) {
 TEST_F(Aligned, DW_EH_PE_aligned2) {
   reader.SetCFIDataBase(0xb440305e, data);
   EXPECT_EQ(0x93d834d5U,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_aligned,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(6U, pointer_size);
 }
@@ -668,7 +665,7 @@ TEST_F(Aligned, DW_EH_PE_aligned2) {
 TEST_F(Aligned, DW_EH_PE_aligned3) {
   reader.SetCFIDataBase(0xb440305f, data);
   EXPECT_EQ(0x6e93d834U,
-            reader.ReadEncodedPointer(data, google_breakpad::DW_EH_PE_aligned,
+            reader.ReadEncodedPointer(data, dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(5U, pointer_size);
 }
@@ -677,7 +674,7 @@ TEST_F(Aligned, DW_EH_PE_aligned11) {
   reader.SetCFIDataBase(0xb4403061, data);
   EXPECT_EQ(0xd834d51cU,
             reader.ReadEncodedPointer(data + 1,
-                                      google_breakpad::DW_EH_PE_aligned,
+                                      dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(6U, pointer_size);
 }
@@ -686,7 +683,7 @@ TEST_F(Aligned, DW_EH_PE_aligned30) {
   reader.SetCFIDataBase(0xb4403063, data);
   EXPECT_EQ(0x6e93d834U,
             reader.ReadEncodedPointer(data + 1,
-                                      google_breakpad::DW_EH_PE_aligned,
+                                      dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(4U, pointer_size);
 }
@@ -695,7 +692,7 @@ TEST_F(Aligned, DW_EH_PE_aligned23) {
   reader.SetCFIDataBase(0xb4403062, data);
   EXPECT_EQ(0x1cd3ac2bU,
             reader.ReadEncodedPointer(data + 3,
-                                      google_breakpad::DW_EH_PE_aligned,
+                                      dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(7U, pointer_size);
 }
@@ -704,7 +701,7 @@ TEST_F(Aligned, DW_EH_PE_aligned03) {
   reader.SetCFIDataBase(0xb4403064, data);
   EXPECT_EQ(0x34d51cd3U,
             reader.ReadEncodedPointer(data + 3,
-                                      google_breakpad::DW_EH_PE_aligned,
+                                      dwarf2reader::DW_EH_PE_aligned,
                                       &pointer_size));
   EXPECT_EQ(5U, pointer_size);
 }  

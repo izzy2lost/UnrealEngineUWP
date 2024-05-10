@@ -1,4 +1,5 @@
-// Copyright 2013 Google LLC
+// Copyright (c) 2013, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -26,10 +27,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>  // Must come first
-#endif
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -39,31 +36,45 @@
 
 #include "client/linux/minidump_writer/proc_cpuinfo_reader.h"
 #include "breakpad_googletest_includes.h"
-#include "common/linux/scoped_tmpfile.h"
+#include "common/linux/tests/auto_testfile.h"
 
 using namespace google_breakpad;
+
+#if !defined(__ANDROID__)
+#define TEMPDIR "/tmp"
+#else
+#define TEMPDIR "/data/local/tmp"
+#endif
+
 
 namespace {
 
 typedef testing::Test ProcCpuInfoReaderTest;
 
+class ScopedTestFile : public AutoTestFile {
+public:
+  explicit ScopedTestFile(const char* text)
+    : AutoTestFile("proc_cpuinfo_reader", text) {
+  }
+};
+
 }
 
 TEST(ProcCpuInfoReaderTest, EmptyFile) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString(""));
+  ScopedTestFile file("");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
-  const char* field;
+  const char *field;
   ASSERT_FALSE(reader.GetNextField(&field));
 }
 
 TEST(ProcCpuInfoReaderTest, OneLineTerminated) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("foo : bar\n"));
+  ScopedTestFile file("foo : bar\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
-  const char* field;
+  const char *field;
   ASSERT_TRUE(reader.GetNextField(&field));
   ASSERT_STREQ("foo", field);
   ASSERT_STREQ("bar", reader.GetValue());
@@ -72,11 +83,11 @@ TEST(ProcCpuInfoReaderTest, OneLineTerminated) {
 }
 
 TEST(ProcCpuInfoReaderTest, OneLine) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("foo : bar"));
+  ScopedTestFile file("foo : bar");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
-  const char* field;
+  const char *field;
   size_t value_len;
   ASSERT_TRUE(reader.GetNextField(&field));
   ASSERT_STREQ("foo", field);
@@ -87,8 +98,8 @@ TEST(ProcCpuInfoReaderTest, OneLine) {
 }
 
 TEST(ProcCpuInfoReaderTest, TwoLinesTerminated) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("foo : bar\nzoo : tut\n"));
+  ScopedTestFile file("foo : bar\nzoo : tut\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
   const char* field;
@@ -104,8 +115,8 @@ TEST(ProcCpuInfoReaderTest, TwoLinesTerminated) {
 }
 
 TEST(ProcCpuInfoReaderTest, SkipMalformedLine) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("this line should have a column\nfoo : bar\n"));
+  ScopedTestFile file("this line should have a column\nfoo : bar\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
   const char* field;
@@ -117,8 +128,8 @@ TEST(ProcCpuInfoReaderTest, SkipMalformedLine) {
 }
 
 TEST(ProcCpuInfoReaderTest, SkipOneEmptyLine) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("\n\nfoo : bar\n"));
+  ScopedTestFile file("\n\nfoo : bar\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
   const char* field;
@@ -130,8 +141,8 @@ TEST(ProcCpuInfoReaderTest, SkipOneEmptyLine) {
 }
 
 TEST(ProcCpuInfoReaderTest, SkipEmptyField) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString(" : bar\nzoo : tut\n"));
+  ScopedTestFile file(" : bar\nzoo : tut\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
   const char* field;
@@ -143,8 +154,8 @@ TEST(ProcCpuInfoReaderTest, SkipEmptyField) {
 }
 
 TEST(ProcCpuInfoReaderTest, SkipTwoEmptyLines) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("foo : bar\n\n\nfoo : bar\n"));
+  ScopedTestFile file("foo : bar\n\n\nfoo : bar\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
   const char* field;
@@ -160,8 +171,8 @@ TEST(ProcCpuInfoReaderTest, SkipTwoEmptyLines) {
 }
 
 TEST(ProcCpuInfoReaderTest, FieldWithSpaces) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("foo bar    : zoo\n"));
+  ScopedTestFile file("foo bar    : zoo\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
   const char* field;
@@ -173,8 +184,8 @@ TEST(ProcCpuInfoReaderTest, FieldWithSpaces) {
 }
 
 TEST(ProcCpuInfoReaderTest, EmptyValue) {
-  ScopedTmpFile file;
-  ASSERT_TRUE(file.InitString("foo :\n"));
+  ScopedTestFile file("foo :\n");
+  ASSERT_TRUE(file.IsOk());
   ProcCpuInfoReader reader(file.GetFd());
 
   const char* field;

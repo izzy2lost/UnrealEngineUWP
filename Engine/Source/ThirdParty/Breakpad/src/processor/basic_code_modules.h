@@ -1,4 +1,5 @@
-// Copyright 2006 Google LLC
+// Copyright (c) 2006, Google Inc.
+// All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -10,7 +11,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google LLC nor the names of its
+//     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -57,7 +58,7 @@ class BasicCodeModules : public CodeModules {
   // the CodeModules and CodeModule interfaces without requiring all of the
   // resources that other implementations may require.  A copy will be
   // made of each contained CodeModule using CodeModule::Copy.
-  BasicCodeModules(const CodeModules *that, MergeRangeStrategy strategy);
+  explicit BasicCodeModules(const CodeModules *that);
 
   virtual ~BasicCodeModules();
 
@@ -70,6 +71,7 @@ class BasicCodeModules : public CodeModules {
   virtual const CodeModules* Copy() const;
   virtual std::vector<linked_ptr<const CodeModule> >
   GetShrunkRangeModules() const;
+  virtual bool IsModuleShrinkEnabled() const;
 
  protected:
   BasicCodeModules();
@@ -87,8 +89,8 @@ class BasicCodeModules : public CodeModules {
 
  private:
   // Disallow copy constructor and assignment operator.
-  BasicCodeModules(const BasicCodeModules& that);
-  void operator=(const BasicCodeModules& that);
+  BasicCodeModules(const BasicCodeModules &that);
+  void operator=(const BasicCodeModules &that);
 };
 
 }  // namespace google_breakpad
