@@ -1642,7 +1642,10 @@ public:
 	SLATECORE_API void UnRegisterActiveTimer( const TSharedRef<FActiveTimerHandle>& ActiveTimerHandle );
 	
 	/** Does this widget have any active timers? */
-	bool HasActiveTimers() const { return ActiveTimers.Num() > 0; }
+	bool HasActiveTimers() const
+	{
+		return bHasActiveTimers;
+	}
 
 private:
 
@@ -1728,6 +1731,9 @@ private:
 	/** Is the attribute IsHovered is set? */
 	uint8 bIsHoveredAttributeSet : 1;
 
+	/** Is there at least one ActiveTimer currently registered. */
+	uint8 bHasActiveTimers : 1;
+
 protected:
 	uint8 bHasCustomPrepass : 1;
 
@@ -1781,9 +1787,6 @@ private:
 	EWidgetUpdateFlags UpdateFlags;
 
 	mutable FSlateWidgetPersistentState PersistentState;
-
-	/** The list of active timer handles for this widget. */
-	TArray<TSharedRef<FActiveTimerHandle>> ActiveTimers;
 
 	/** Stores the ideal size this widget wants to be. */
 	TOptional<FVector2f> DesiredSize;

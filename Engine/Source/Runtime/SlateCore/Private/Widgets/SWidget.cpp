@@ -20,6 +20,7 @@
 #include "Widgets/SWindow.h"
 #include "Trace/SlateTrace.h"
 #include "Types/SlateAttributeMetaData.h"
+#include "Types/SlateActiveTimersMetaData.h"
 #include "Types/SlateCursorMetaData.h"
 #include "Types/SlateMouseEventsMetaData.h"
 #include "Types/ReflectionMetadata.h"
@@ -224,6 +225,7 @@ SWidget::SWidget()
 	, bEnabledAttributesUpdate(true)
 	, bIsDeclarativeSyntaxConstructionCompleted(false)
 	, bIsHoveredAttributeSet(false)
+	, bHasActiveTimers(false)
 	, bHasCustomPrepass(false)
 	, bHasRelativeLayoutScale(false)
 	, bVolatilityAlwaysInvalidatesPrepass(false)
@@ -284,30 +286,36 @@ SWidget::~SWidget()
 	// Unregister all ActiveTimers so they aren't left stranded in the Application's list.
 	if (FSlateApplicationBase::IsInitialized())
 	{
-		for (const auto& ActiveTimerHandle : ActiveTimers)
+		FSlateApplicationBase& SlateApplication = FSlateApplicationBase::Get();
+		if (bHasActiveTimers)
 		{
-			FSlateApplicationBase::Get().UnRegisterActiveTimer(ActiveTimerHandle);
+			TSharedPtr<UE::Slate::FActiveTimersMetaData> ActiveTimersMetaData = GetMetaData<UE::Slate::FActiveTimersMetaData>();
+			check(ActiveTimersMetaData);
+			for (const TSharedRef<FActiveTimerHandle>& ActiveTimerHandle : ActiveTimersMetaData->ActiveTimers)
+			{
+				SlateApplication.UnRegisterActiveTimer(ActiveTimerHandle);
+			}
 		}
-
-		// Warn the invalidation root
-		if (FSlateInvalidationRoot* InvalidationRoot = FastPathProxyHandle.GetInvalidationRootHandle().GetInvalidationRoot())
-		{
-			InvalidationRoot->OnWidgetDestroyed(this);
-		}
-
-		// Reset handle
-		FastPathProxyHandle = FWidgetProxyHandle();
-
-		// Note: this would still be valid if a widget was painted and then destroyed in the same frame.  
-		// In that case invalidation hasn't taken place for added widgets so the invalidation panel doesn't know about their cached element data to clean it up
-		PersistentState.CachedElementHandle.RemoveFromCache();
 
 #if WITH_ACCESSIBILITY
-		FSlateApplicationBase::Get().GetAccessibleMessageHandler()->OnWidgetRemoved(this);
+		SlateApplication.GetAccessibleMessageHandler()->OnWidgetRemoved(this);
 #endif
 		// Only clear if initialized because SNullWidget's destructor may be called after annotations are deleted
 		ClearSparseAnnotationsForWidget(this);
 	}
+
+	// Warn the invalidation root
+	if (FSlateInvalidationRoot* InvalidationRoot = FastPathProxyHandle.GetInvalidationRootHandle().GetInvalidationRoot())
+	{
+		InvalidationRoot->OnWidgetDestroyed(this);
+	}
+
+	// Reset handle
+	FastPathProxyHandle = FWidgetProxyHandle();
+
+	// Note: this would still be valid if a widget was painted and then destroyed in the same frame.  
+	// In that case invalidation hasn't taken place for added widgets so the invalidation panel doesn't know about their cached element data to clean it up
+	PersistentState.CachedElementHandle.RemoveFromCache();
 
 #if ENABLE_STATNAMEDEVENTS
 	delete[] StatIDStringStorage;
@@ -345,7 +353,10 @@ void SWidget::SWidgetConstruct(const FSlateBaseNamedArgs& Args)
 		SetToolTipText(Args._ToolTipText);
 	}
 
-	SetCursor(Args._Cursor);
+	if (Args._Cursor.IsSet())
+	{
+		SetCursor(Args._Cursor);
+	}
 
 #if WITH_ACCESSIBILITY
 	// If custom text is provided, force behavior to custom. Otherwise, use the passed-in behavior and set their default text.
@@ -355,7 +366,7 @@ void SWidget::SWidgetConstruct(const FSlateBaseNamedArgs& Args)
 		{
 			SetCanChildrenBeAccessible(AccessibleParams.bCanChildrenBeAccessible);
 			SetAccessibleBehavior(AccessibleParams.AccessibleText.IsSet() ? EAccessibleBehavior::Custom : AccessibleParams.AccessibleBehavior, AccessibleParams.AccessibleText, EAccessibleType::Main);
-		SetAccessibleBehavior(AccessibleParams.AccessibleSummaryText.IsSet() ? EAccessibleBehavior::Custom : AccessibleParams.AccessibleSummaryBehavior, AccessibleParams.AccessibleSummaryText, EAccessibleType::Summary);
+			SetAccessibleBehavior(AccessibleParams.AccessibleSummaryText.IsSet() ? EAccessibleBehavior::Custom : AccessibleParams.AccessibleSummaryBehavior, AccessibleParams.AccessibleSummaryText, EAccessibleType::Summary);
 		};
 		if (Args._AccessibleText.IsSet())
 		{
@@ -1416,7 +1427,6 @@ int32 SWidget::Paint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, 
 		UE_TRACE_SCOPED_SLATE_WIDGET_UPDATE(this);
 		if (HasAnyUpdateFlags(EWidgetUpdateFlags::NeedsActiveTimerUpdate))
 		{
-
 			SCOPE_CYCLE_COUNTER(STAT_SlateExecuteActiveTimers);
 			MutableThis->ExecuteActiveTimers(Args.GetCurrentTime(), Args.GetDeltaTime());
 		}
@@ -1797,7 +1807,18 @@ TSharedRef<FActiveTimerHandle> SWidget::RegisterActiveTimer(float TickPeriod, FW
 {
 	TSharedRef<FActiveTimerHandle> ActiveTimerHandle = MakeShared<FActiveTimerHandle>(TickPeriod, TickFunction, FSlateApplicationBase::Get().GetCurrentTime() + TickPeriod);
 	FSlateApplicationBase::Get().RegisterActiveTimer(ActiveTimerHandle);
-	ActiveTimers.Add(ActiveTimerHandle);
+
+	if (bHasActiveTimers)
+	{
+		GetMetaData<UE::Slate::FActiveTimersMetaData>()->ActiveTimers.Add(ActiveTimerHandle);
+	}
+	else
+	{
+		TSharedRef<UE::Slate::FActiveTimersMetaData> NewActiveTimers = MakeShared<UE::Slate::FActiveTimersMetaData>();
+		NewActiveTimers->ActiveTimers.Add(ActiveTimerHandle);
+		AddMetadata(NewActiveTimers);
+		bHasActiveTimers = true;
+	}	
 
 	AddUpdateFlags(EWidgetUpdateFlags::NeedsActiveTimerUpdate);
 
@@ -1806,44 +1827,56 @@ TSharedRef<FActiveTimerHandle> SWidget::RegisterActiveTimer(float TickPeriod, FW
 
 void SWidget::UnRegisterActiveTimer(const TSharedRef<FActiveTimerHandle>& ActiveTimerHandle)
 {
+	if (bHasActiveTimers)
+	{
+		TSharedRef<UE::Slate::FActiveTimersMetaData> ActiveTimersMetaData = GetMetaData<UE::Slate::FActiveTimersMetaData>().ToSharedRef();
+		ActiveTimersMetaData->ActiveTimers.RemoveSingle(ActiveTimerHandle);
+		if (ActiveTimersMetaData->ActiveTimers.Num() == 0)
+		{
+			RemoveMetaData(ActiveTimersMetaData);
+			bHasActiveTimers = false;
+			RemoveUpdateFlags(EWidgetUpdateFlags::NeedsActiveTimerUpdate);
+		}
+	}
+
 	if (FSlateApplicationBase::IsInitialized())
 	{
 		FSlateApplicationBase::Get().UnRegisterActiveTimer(ActiveTimerHandle);
-		ActiveTimers.Remove(ActiveTimerHandle);
-
-		if (ActiveTimers.Num() == 0)
-		{
-			RemoveUpdateFlags(EWidgetUpdateFlags::NeedsActiveTimerUpdate);
-		}
 	}
 }
 
 void SWidget::ExecuteActiveTimers(double CurrentTime, float DeltaTime)
 {
+	checkf(bHasActiveTimers, TEXT("The flag EWidgetUpdateFlags::NeedsActiveTimerUpdate should match with the bHasActiveTimers flag"));
+
 	// loop over the registered tick handles and execute them, removing them if necessary.
-	for (int32 i = 0; i < ActiveTimers.Num();)
+	TSharedRef<UE::Slate::FActiveTimersMetaData> ActiveTimersMetaData = GetMetaData<UE::Slate::FActiveTimersMetaData>().ToSharedRef();
+	for (int32 Index = 0; Index < ActiveTimersMetaData->ActiveTimers.Num();)
 	{
-		EActiveTimerReturnType Result = ActiveTimers[i]->ExecuteIfPending(CurrentTime, DeltaTime);
+		TWeakPtr<FActiveTimerHandle> WeakActiveTimerHandle = ActiveTimersMetaData->ActiveTimers[Index];
+		EActiveTimerReturnType Result = ActiveTimersMetaData->ActiveTimers[Index]->ExecuteIfPending(CurrentTime, DeltaTime);
 		if (Result == EActiveTimerReturnType::Continue)
 		{
-			++i;
+			++Index;
 		}
 		else
 		{
-			// Possible that execution unregistered the timer 
-			if (ActiveTimers.IsValidIndex(i))
+			// Possible that execution unregistered the timer
+			if (TSharedPtr<FActiveTimerHandle> ActiveTimerHandle = WeakActiveTimerHandle.Pin())
 			{
 				if (FSlateApplicationBase::IsInitialized())
 				{
-					FSlateApplicationBase::Get().UnRegisterActiveTimer(ActiveTimers[i]);
+					FSlateApplicationBase::Get().UnRegisterActiveTimer(ActiveTimerHandle.ToSharedRef());
 				}
-				ActiveTimers.RemoveAt(i);
+				ActiveTimersMetaData->ActiveTimers.RemoveSingle(ActiveTimerHandle.ToSharedRef());
 			}
 		}
 	}
 
-	if (ActiveTimers.Num() == 0)
+	if (ActiveTimersMetaData->ActiveTimers.Num() == 0)
 	{
+		RemoveMetaData(ActiveTimersMetaData);
+		bHasActiveTimers = false;
 		RemoveUpdateFlags(EWidgetUpdateFlags::NeedsActiveTimerUpdate);
 	}
 }

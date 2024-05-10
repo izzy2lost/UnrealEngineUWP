@@ -33,15 +33,16 @@ TArray<const SWidget*> FWidgetList::AllWidgets;
 
 struct FLogAllWidgetsDebugInfoFlags
 {
-	bool bDebug;
-	bool bPaint;
-	bool bProxy;
-	bool bChildren;
-	bool bParent;
-	bool bToolTip;
-	bool bCursor;
-	bool bSlateAttribute;
-	bool bMouseEventsHandler;
+	bool bDebug = false;
+	bool bPaint = false;
+	bool bProxy = false;
+	bool bChildren = false;
+	bool bParent = false;
+	bool bToolTip = false;
+	bool bCursor = false;
+	bool bSlateAttribute = false;
+	bool bMouseEventsHandler = false;
+	bool bActiveTimers = false;
 
 	void Parse(const FString& Arg)
 	{
@@ -89,6 +90,11 @@ struct FLogAllWidgetsDebugInfoFlags
 		{
 			return;
 		}
+		
+		if (FParse::Bool(*Arg, TEXT("ActiveTimers="), bActiveTimers))
+		{
+			return;
+		}
 	}
 };
 
@@ -133,6 +139,11 @@ void LogAllWidgetsDebugInfoImpl(FOutputDevice& Ar, const FLogAllWidgetsDebugInfo
 	{
 		MessageBuilder << TEXT(";MouseButtonDown;MouseButtonUp;MouseMove;MouseDblClick;MouseEnter;MouseLeave");
 	}
+	if (DebugInfoFlags.bActiveTimers)
+	{
+		MessageBuilder << TEXT(";HasActiveTimers");
+	}
+
 	Ar.Log(MessageBuilder.ToString());
 
 	const TArray<const SWidget*>& WidgetList = FWidgetList::GetAllWidgets();
@@ -282,6 +293,11 @@ void LogAllWidgetsDebugInfoImpl(FOutputDevice& Ar, const FLogAllWidgetsDebugInfo
 			}
 		}
 
+		if (DebugInfoFlags.bActiveTimers)
+		{
+			MessageBuilder << (Widget->HasActiveTimers() ? TEXT(";true") : TEXT(";false"));
+		}
+
 		Ar.Log(MessageBuilder.ToString());
 	}
 }
@@ -337,6 +353,7 @@ void FWidgetList::ExportToCSV(FStringView OutputFilename)
 	Flags.bCursor = true;
 	Flags.bSlateAttribute = true;
 	Flags.bMouseEventsHandler = true;
+	Flags.bActiveTimers = true;
 
 	FOutputDeviceFile OutputDeviceFile(*WriteToString<256>(OutputFilename), true /*bDisableBackup*/);
 	OutputDeviceFile.SetSuppressEventTag(true);
