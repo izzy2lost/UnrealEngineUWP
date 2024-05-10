@@ -20,6 +20,9 @@ namespace TraceServices
 class SWidget;
 class SDockTab;
 
+struct FObjectInfo;
+class IGameplayProvider;
+
 // Singleton class that handles the logic for the Rewind Debugger
 // handles:
 //  Playback/Scrubbing state
@@ -139,6 +142,8 @@ public:
 	virtual void OpenDetailsPanel() override;
 	void SetIsDetailsPanelOpen(bool bIsOpen) { bIsDetailsPanelOpen = bIsOpen; }
 	bool IsDetailsPanelOpen(bool bIsOpen) { return bIsDetailsPanelOpen; }
+	
+	static const FObjectInfo* FindOwningActorInfo(const IGameplayProvider* GameplayProvider, uint64 ObjectId);
 
 	TArrayView<RewindDebugger::FRewindDebuggerTrackType> GetTrackTypes() { return TrackTypes; };
 
@@ -201,11 +206,13 @@ private:
 
 	TArray<uint64> TargetObjectIds;
 
-	mutable class IUnrealInsightsModule *UnrealInsightsModule;
+	mutable class IUnrealInsightsModule *UnrealInsightsModule = 0;
 	FTSTicker::FDelegateHandle TickerHandle;
 
 	bool bTargetActorPositionValid = false;
 	FVector TargetActorPosition;
+	uint64 TargetActorMeshId = 0;
+	uint64 TargetActorIdForMesh = 0;
 
 	TArray<RewindDebugger::FRewindDebuggerTrackType> TrackTypes;
 

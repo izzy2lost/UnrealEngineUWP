@@ -8,7 +8,7 @@
 #include "IAnimationProvider.h"
 #include "IGameplayProvider.h"
 #include "Insights/IUnrealInsightsModule.h"
-#include "IRewindDebugger.h"
+#include "RewindDebugger.h"
 #include "LevelEditor.h"
 #include "Modules/ModuleManager.h"
 #include "SLevelViewport.h"
@@ -193,34 +193,9 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 	}
 }
 
-const FObjectInfo* FindOwningActorInfo(const IGameplayProvider* GameplayProvider, uint64 ObjectId)
-{
-	const FClassInfo* ActorClassInfo = GameplayProvider->FindClassInfo(*AActor::StaticClass()->GetPathName());
-	
-	while(true)
-	{
-		const FObjectInfo& ObjectInfo = GameplayProvider->GetObjectInfo(ObjectId);
-		if (GameplayProvider->IsSubClassOf(ObjectInfo.ClassId, ActorClassInfo->Id))
-		{
-			return &ObjectInfo;
-		}
-		else
-		{
-			if (ObjectInfo.OuterId != 0)
-			{
-				ObjectId = ObjectInfo.OuterId;
-			}
-			else
-			{
-				return nullptr;
-			}
-		}
-	}
-}
-
 FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::SpawnMesh(uint64 ObjectId, const IGameplayProvider* GameplayProvider)
 {
-	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
+	const IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 	check(RewindDebugger);
 	if (UWorld* World = RewindDebugger->GetWorldToVisualize())
 	{
@@ -232,7 +207,7 @@ FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::S
 
 		MeshComponentInfo->Actor = World->SpawnActor<AActor>(ActorSpawnParameters);
 
-		if(const FObjectInfo* ActorInfo = FindOwningActorInfo(GameplayProvider, ObjectId))
+		if(const FObjectInfo* ActorInfo = FRewindDebugger::FindOwningActorInfo(GameplayProvider, ObjectId))
 		{
 			MeshComponentInfo->Actor->SetActorLabel(FString(TEXT("RewindDebugger: ") + FString(ActorInfo->Name)));
 		}

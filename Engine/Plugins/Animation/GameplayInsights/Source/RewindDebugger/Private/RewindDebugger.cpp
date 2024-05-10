@@ -946,6 +946,31 @@ const TraceServices::IAnalysisSession* FRewindDebugger::GetAnalysisSession() con
 	return UnrealInsightsModule ? UnrealInsightsModule->GetAnalysisSession().Get() : nullptr;
 }
 
+const FObjectInfo* FRewindDebugger::FindOwningActorInfo(const IGameplayProvider* GameplayProvider, uint64 ObjectId)
+{
+	const FClassInfo* ActorClassInfo = GameplayProvider->FindClassInfo(*AActor::StaticClass()->GetPathName());
+	
+	while(true)
+	{
+		const FObjectInfo& ObjectInfo = GameplayProvider->GetObjectInfo(ObjectId);
+		if (GameplayProvider->IsSubClassOf(ObjectInfo.ClassId, ActorClassInfo->Id))
+		{
+			return &ObjectInfo;
+		}
+		else
+		{
+			if (ObjectInfo.OuterId != 0)
+			{
+				ObjectId = ObjectInfo.OuterId;
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
+	}
+}
+
 void FRewindDebugger::Tick(float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick);
@@ -953,6 +978,7 @@ void FRewindDebugger::Tick(float DeltaTime)
 	if (bTraceJustConnected)
 	{
 		bTraceJustConnected = false;
+		bTargetActorPositionValid = false;
 		
 		UE::Trace::ToggleChannel(TEXT("Object"), true);
 		UE::Trace::ToggleChannel(TEXT("ObjectProperties"), true);
@@ -1017,6 +1043,7 @@ void FRewindDebugger::Tick(float DeltaTime)
 					SetCurrentScrubTime(RecordingDurationValue);
 					TrackCursorDelegate.ExecuteIfBound(false);
 				}
+				bTargetActorPositionValid = false;
 			}
 			else
 			{
@@ -1042,55 +1069,54 @@ void FRewindDebugger::Tick(float DeltaTime)
 					const double CurrentTraceTime = TraceTime.Get();
 					if (CurrentTraceTime != PreviousTraceTime)
 					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateActorPosition);
 						PreviousTraceTime = CurrentTraceTime;
-						
+
 						const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*Session);
 						TraceServices::FFrame Frame;
 						if (FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, Frame))
 						{
+							bool bNewActor = false;
+							if (!TargetObjectIds.Contains(TargetActorIdForMesh))
 							{
-								TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateActorPosition);
-								// until we have actor transforms traced out, the first skeletal mesh component transform on the target actor be used as as the actor position
-
-								for(uint64 TargetActorId : TargetObjectIds)
+								AnimationProvider->EnumerateSkeletalMeshPoseTimelines([this, &bNewActor, GameplayProvider](uint64 ObjectId, const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData)
 								{
-#if OBJECT_TRACE_ENABLED
-									if(UObject* ObjectInstance = FObjectTrace::GetObjectFromId(TargetActorId))
+									// until we have actor transforms traced out, the first skeletal mesh component transform on the target actor be used as as the actor position
+
+									if (const FObjectInfo* ActorInfo = FindOwningActorInfo(GameplayProvider, ObjectId))
 									{
-										if (AActor* TargetActor = Cast<AActor>(ObjectInstance))
+										if (TargetObjectIds.Contains(ActorInfo->Id))
 										{
-											TInlineComponentArray<USkeletalMeshComponent*> SkeletalMeshComponents;
-											TargetActor->GetComponents(SkeletalMeshComponents);
-
-											if (SkeletalMeshComponents.Num() > 0)
-											{
-												int64 ObjectId = FObjectTrace::GetObjectId(SkeletalMeshComponents[0]);
-
-												AnimationProvider->ReadSkeletalMeshPoseTimeline(ObjectId, [this, Frame, ObjectId, AnimationProvider](const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, bool bHasCurves)
-												{
-													const FSkeletalMeshPoseMessage * PoseMessage = nullptr;
-
-													// Get last pose in frame
-													TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
-														[&PoseMessage](double InStartTime, double InEndTime, uint32 InDepth, const FSkeletalMeshPoseMessage& InPoseMessage)
-														{
-															PoseMessage = &InPoseMessage;
-															return TraceServices::EEventEnumerate::Continue;
-														});
-
-													// Update position based on pose
-													if (PoseMessage)
-													{
-														bTargetActorPositionValid = true;
-														TargetActorPosition = PoseMessage->ComponentToWorld.GetTranslation();
-													}
-												});
-											}
+											bNewActor = true;
+											TargetActorIdForMesh = ActorInfo->Id;
+											TargetActorMeshId = ObjectId;
 										}
 									}
-#endif // OBJECT_TRACE_ENABLED
-								}
+									
+								});
 							}
+						
+						
+							AnimationProvider->ReadSkeletalMeshPoseTimeline(TargetActorMeshId, [this, &Frame, bNewActor](const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, bool bHasCurves)
+							{
+								const FSkeletalMeshPoseMessage * PoseMessage = nullptr;
+
+								// Get last pose in frame
+								TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
+									[&PoseMessage](double InStartTime, double InEndTime, uint32 InDepth, const FSkeletalMeshPoseMessage& InPoseMessage)
+									{
+										PoseMessage = &InPoseMessage;
+										return TraceServices::EEventEnumerate::Continue;
+									});
+
+								// Update position based on pose
+								if (PoseMessage)
+								{
+									// mark the target position as invalid for a frame when the actor changes, so it will be treated as a teleport by the camera system
+									bTargetActorPositionValid = !bNewActor;
+									TargetActorPosition = PoseMessage->ComponentToWorld.GetTranslation();
+								}
+							});
 						}
 					}
 				}

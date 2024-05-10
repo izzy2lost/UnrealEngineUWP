@@ -17,7 +17,7 @@
 #define LOCTEXT_NAMESPACE "RewindDebuggerCamera"
 
 FRewindDebuggerCamera::FRewindDebuggerCamera()
-	: LastPositionValid(false)
+	: bLastPositionValid(false)
 {
 }
 
@@ -98,9 +98,10 @@ void FRewindDebuggerCamera::Update(float DeltaTime, IRewindDebugger* RewindDebug
 {
 	if (RewindDebugger->IsPIESimulating() || RewindDebugger->GetRecordingDuration() == 0.0)
 	{
+		bLastPositionValid = false;
 		return;
 	}
-
+	
 	if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
@@ -125,7 +126,7 @@ void FRewindDebuggerCamera::Update(float DeltaTime, IRewindDebugger* RewindDebug
 					// Follow Actor mode: apply position changes from the target actor to the camera
 					if (bTargetActorPositionValid)
 					{
-						if(LastPositionValid)
+						if(bLastPositionValid)
 						{
 							LevelViewportClient.SetViewLocation(LevelViewportClient.GetViewLocation() + TargetActorPosition - LastPosition);
 						}
@@ -180,7 +181,7 @@ void FRewindDebuggerCamera::Update(float DeltaTime, IRewindDebugger* RewindDebug
 				}
 
 				LastPosition = TargetActorPosition;
-				LastPositionValid = bTargetActorPositionValid;
+				bLastPositionValid = bTargetActorPositionValid;
 
 				if (bCameraTraceDataFound) // don't update this if there was no trace data found, because when first pausing, it can take a few frames for latest data to get processed
 				{
