@@ -3307,6 +3307,24 @@ bool FBlueprintEditorUtils::CanClassGenerateEvents(const UClass* InClass)
 	return false;
 }
 
+bool FBlueprintEditorUtils::CanCreateChildBlueprint(const UBlueprint* BP)
+{
+	if (!BP)
+	{
+		return false;
+	}
+	
+	// BP function libraries cannot have child BP's created of them. You will only ever get compilation
+	// errors if you made one.
+	if (BP->BlueprintType == EBlueprintType::BPTYPE_FunctionLibrary)
+	{
+		return false;
+	}
+
+	// Do not allow child classes to be created from deprecated BPs
+	return BP->GeneratedClass && !BP->GeneratedClass->HasAnyClassFlags(CLASS_Deprecated);
+}
+
 UEdGraph* FBlueprintEditorUtils::FindUserConstructionScript(const UBlueprint* Blueprint)
 {
 	for (UEdGraph* CurrentGraph : Blueprint->FunctionGraphs)

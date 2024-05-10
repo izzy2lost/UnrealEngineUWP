@@ -224,9 +224,7 @@ FText FAssetTypeActions_Blueprint::GetNewDerivedBlueprintTooltip(TWeakObjectPtr<
 
 bool FAssetTypeActions_Blueprint::CanExecuteNewDerivedBlueprint(TWeakObjectPtr<UBlueprint> InObject)
 {
-	UBlueprint* BP = InObject.Get();
-	UClass* BPGC = BP ? BP->GeneratedClass : nullptr;
-	return BPGC && !BPGC->HasAnyClassFlags(CLASS_Deprecated);
+	return FBlueprintEditorUtils::CanCreateChildBlueprint(InObject.Get());
 }
 
 bool FAssetTypeActions_Blueprint::ShouldUseDataOnlyEditor( const UBlueprint* Blueprint ) const

@@ -619,6 +619,11 @@ public:
 	static UNREALED_API bool CanClassGenerateEvents(const UClass* Class);
 
 	/**
+	 * Returns true if this blueprint can have a child class created based on it
+	 */
+	static UNREALED_API bool CanCreateChildBlueprint(const UBlueprint* BP);
+
+	/**
 	 * If a blueprint is directly tied to a level (level script and anonymous blueprints), this will return a pointer to that level
 	 *
 	 * @return	The level, if any, tied to this blueprint
