@@ -49,9 +49,9 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		PathName.Push({CountName});
 		FPropertyPathNameTree Tree;
 		Tree.Add(PathName);
-		FPropertyPathNameTree* SubTree = &Tree;
-		CHECK(Tree.Find(&SubTree, PathName));
-		CHECK_FALSE(SubTree);
+		FPropertyPathNameTree::FNode Node = Tree.Find(PathName);
+		CHECK(Node);
+		CHECK_FALSE(Node.GetSubTree());
 		const FPropertyPathNameTree::FConstIterator First = Tree.CreateConstIterator();
 		FPropertyPathNameTree::FConstIterator It = Tree.CreateConstIterator();
 		CHECK(First == It);
@@ -60,7 +60,9 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		{
 			CHECK(It.GetName() == CountName);
 			CHECK(It.GetType().IsEmpty());
-			CHECK_FALSE(It.GetSubTree());
+			CHECK(It.GetNode());
+			CHECK_FALSE(It.GetNode().GetSubTree());
+			CHECK_FALSE(It.GetNode().GetTag());
 			++It;
 			CHECK_FALSE(It);
 			CHECK_FALSE(First == It);
@@ -74,9 +76,9 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		PathName.Push({CountName, IntType});
 		FPropertyPathNameTree Tree;
 		Tree.Add(PathName);
-		FPropertyPathNameTree* SubTree = &Tree;
-		CHECK(Tree.Find(&SubTree, PathName));
-		CHECK_FALSE(SubTree);
+		FPropertyPathNameTree::FNode Node = Tree.Find(PathName);
+		CHECK(Node);
+		CHECK_FALSE(Node.GetSubTree());
 		const FPropertyPathNameTree::FConstIterator First = Tree.CreateConstIterator();
 		FPropertyPathNameTree::FConstIterator It = Tree.CreateConstIterator();
 		CHECK(First == It);
@@ -85,7 +87,8 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		{
 			CHECK(It.GetName() == CountName);
 			CHECK(It.GetType() == IntType);
-			CHECK_FALSE(It.GetSubTree());
+			CHECK(It.GetNode());
+			CHECK_FALSE(It.GetNode().GetSubTree());
 			++It;
 			CHECK_FALSE(It);
 			CHECK_FALSE(First == It);
@@ -99,15 +102,15 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		PathName.Push({CountName, IntType, 7});
 		FPropertyPathNameTree Tree;
 		Tree.Add(PathName);
-		CHECK(Tree.Find(nullptr, PathName));
+		CHECK(Tree.Find(PathName));
 		PathName.SetIndex(5);
-		CHECK(Tree.Find(nullptr, PathName));
+		CHECK(Tree.Find(PathName));
 		PathName.SetIndex(3);
 		Tree.Add(PathName);
 		PathName.SetIndex(INDEX_NONE);
-		const FPropertyPathNameTree* SubTree = &Tree;
-		CHECK(Tree.Find(&SubTree, PathName));
-		CHECK_FALSE(SubTree);
+		FPropertyPathNameTree::FConstNode Node = Tree.Find(PathName);
+		CHECK(Node);
+		CHECK_FALSE(Node.GetSubTree());
 		const FPropertyPathNameTree::FConstIterator First = Tree.CreateConstIterator();
 		FPropertyPathNameTree::FConstIterator It = Tree.CreateConstIterator();
 		CHECK(First == It);
@@ -116,7 +119,8 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		{
 			CHECK(It.GetName() == CountName);
 			CHECK(It.GetType() == IntType);
-			CHECK_FALSE(It.GetSubTree());
+			CHECK(It.GetNode());
+			CHECK_FALSE(It.GetNode().GetSubTree());
 			++It;
 			CHECK_FALSE(It);
 			CHECK_FALSE(First == It);
@@ -133,19 +137,21 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		FPropertyPathNameTree Tree;
 		Tree.Add(PathNameInt);
 		Tree.Add(PathNameFloat);
-		CHECK(Tree.Find(nullptr, PathNameInt));
-		CHECK(Tree.Find(nullptr, PathNameFloat));
+		CHECK(Tree.Find(PathNameInt));
+		CHECK(Tree.Find(PathNameFloat));
 
 		FPropertyPathNameTree::FConstIterator It = Tree.CreateConstIterator();
 		CHECKED_IF(It)
 		{
 			CHECK(It.GetType() == IntType);
-			CHECK_FALSE(It.GetSubTree());
+			CHECK(It.GetNode());
+			CHECK_FALSE(It.GetNode().GetSubTree());
 			++It;
 			CHECKED_IF(It)
 			{
 				CHECK(It.GetType() == FloatType);
-				CHECK_FALSE(It.GetSubTree());
+				CHECK(It.GetNode());
+				CHECK_FALSE(It.GetNode().GetSubTree());
 				++It;
 				CHECK_FALSE(It);
 			}
@@ -161,19 +167,21 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		FPropertyPathNameTree Tree;
 		Tree.Add(PathNameCount);
 		Tree.Add(PathNameSize);
-		CHECK(Tree.Find(nullptr, PathNameCount));
-		CHECK(Tree.Find(nullptr, PathNameSize));
+		CHECK(Tree.Find(PathNameCount));
+		CHECK(Tree.Find(PathNameSize));
 
 		FPropertyPathNameTree::FConstIterator It = Tree.CreateConstIterator();
 		CHECKED_IF(It)
 		{
 			CHECK(It.GetName() == CountName);
-			CHECK_FALSE(It.GetSubTree());
+			CHECK(It.GetNode());
+			CHECK_FALSE(It.GetNode().GetSubTree());
 			++It;
 			CHECKED_IF(It)
 			{
 				CHECK(It.GetName() == SizeName);
-				CHECK_FALSE(It.GetSubTree());
+				CHECK(It.GetNode());
+				CHECK_FALSE(It.GetNode().GetSubTree());
 				++It;
 				CHECK_FALSE(It);
 			}
@@ -191,16 +199,16 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 		FPropertyPathNameTree Tree;
 		Tree.Add(PathNameA);
 		Tree.Add(PathNameB);
-		CHECK(Tree.Find(nullptr, ParentPathName));
-		CHECK(Tree.Find(nullptr, PathNameA));
-		CHECK(Tree.Find(nullptr, PathNameB));
+		CHECK(Tree.Find(ParentPathName));
+		CHECK(Tree.Find(PathNameA));
+		CHECK(Tree.Find(PathNameB));
 
 		FPropertyPathNameTree::FConstIterator ParentIt = Tree.CreateConstIterator();
 		CHECKED_IF(ParentIt)
 		{
 			CHECK(ParentIt.GetName() == NAME_Vector);
 			CHECK(ParentIt.GetType() == VectorType);
-			const FPropertyPathNameTree* ChildTree = ParentIt.GetSubTree();
+			const FPropertyPathNameTree* ChildTree = ParentIt.GetNode().GetSubTree();
 			++ParentIt;
 			CHECK_FALSE(ParentIt);
 			CHECKED_IF(ChildTree)
@@ -209,12 +217,14 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 				CHECKED_IF(ChildIt)
 				{
 					CHECK(ChildIt.GetName() == CountName);
-					CHECK_FALSE(ChildIt.GetSubTree());
+					CHECK(ChildIt.GetNode());
+					CHECK_FALSE(ChildIt.GetNode().GetSubTree());
 					++ChildIt;
 					CHECKED_IF(ChildIt)
 					{
 						CHECK(ChildIt.GetName() == SizeName);
-						CHECK_FALSE(ChildIt.GetSubTree());
+						CHECK(ChildIt.GetNode());
+						CHECK_FALSE(ChildIt.GetNode().GetSubTree());
 						++ChildIt;
 						CHECK_FALSE(ChildIt);
 					}
@@ -222,17 +232,16 @@ TEST_CASE_NAMED(FPropertyPathNameTreeTest, "CoreUObject::PropertyPathNameTree", 
 			}
 		}
 
-		FPropertyPathNameTree* ChildTree = nullptr;
-		CHECK(Tree.Find(&ChildTree, ParentPathName));
+		FPropertyPathNameTree::FNode ChildNode = Tree.Find(ParentPathName);
+		CHECK(ChildNode);
+		const FPropertyPathNameTree* ChildTree = ChildNode.GetSubTree();
 		CHECKED_IF(ChildTree)
 		{
-			CHECK(ChildTree->Find(nullptr, PathNameA, 1));
-			CHECK(ChildTree->Find(nullptr, PathNameB, 1));
+			CHECK(ChildTree->Find(PathNameA, 1));
+			CHECK(ChildTree->Find(PathNameB, 1));
 		}
 
-		FPropertyPathNameTree* MissingTree = &Tree;
-		CHECK_FALSE(Tree.Find(&MissingTree, PathNameA, 1));
-		CHECK(MissingTree == &Tree);
+		CHECK_FALSE(Tree.Find(PathNameA, 1));
 	}
 }
 

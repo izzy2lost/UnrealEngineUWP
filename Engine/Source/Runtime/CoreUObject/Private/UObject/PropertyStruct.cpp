@@ -571,9 +571,22 @@ bool FStructProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTa
 		{
 			return true;
 		}
-		// TODO: Look up the struct based on the guid.
-		// TODO: Use the fallback struct if allowed.
 	}
+
+	// TODO: Look up the struct based on the guid.
+	//const FName StructGuidName = Type.GetParameterName(1);
+	//if (FGuid StructGuid; !StructGuidName.IsNone() && FGuid::Parse(StructGuidName.ToString(), StructGuid) && StructGuid.IsValid())
+	//{
+	//}
+
+#if WITH_EDITORONLY_DATA
+	if (Tag && Tag->SerializeType == EPropertyTagSerializeType::Property)
+	{
+		Struct = GetFallbackStruct();
+		SetMetaData(UE::NAME_OriginalType, *WriteToString<256>(Type.GetParameter(0)));
+		return true;
+	}
+#endif // WITH_EDITORONLY_DATA
 
 	return false;
 }

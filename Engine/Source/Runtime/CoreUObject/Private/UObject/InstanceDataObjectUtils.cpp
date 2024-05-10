@@ -269,10 +269,10 @@ namespace UE
 			{
 				FPropertyPathName Path;
 				Path.Push({NAME_IDOMapKey});
-				PropertyTree->Find(&KeyTree, Path);
+				KeyTree = PropertyTree->Find(Path).GetSubTree();
 				Path.Pop();
 				Path.Push({NAME_IDOMapValue});
-				PropertyTree->Find(&ValueTree, Path);
+				ValueTree = PropertyTree->Find(Path).GetSubTree();
 				Path.Pop();
 			}
 
@@ -363,8 +363,9 @@ namespace UE
 				{
 					FPropertyPathName Path;
 					Path.Push({TemplateProperty->GetFName(), Type});
-					if (PropertyTree->Find(&SubTree, Path))
+					if (FPropertyPathNameTree::FConstNode Node = PropertyTree->Find(Path))
 					{
+						SubTree = Node.GetSubTree();
 						SuperPropertyPathsFromTree.Add(MoveTemp(Path));
 					}
 				}
@@ -399,10 +400,10 @@ namespace UE
 				{
 					// Construct a property from the type and try to use it to serialize the value.
 					FField* Field = FField::TryConstruct(Type.GetName(), Result, Name, RF_NoFlags);
-					if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(Type))
+					if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(Type, It.GetNode().GetTag()))
 					{
 						MarkPropertyAsLoose(Property);
-						ConvertToInstanceDataObjectProperty(Property, Type, Result, It.GetSubTree());
+						ConvertToInstanceDataObjectProperty(Property, Type, Result, It.GetNode().GetSubTree());
 						LooseInstanceDataObjectProperties.Add(Property);
 						continue;
 					}

@@ -6,6 +6,7 @@
 #include "Containers/Map.h"
 #include "Templates/TypeHash.h"
 #include "UObject/PropertyPathName.h"
+#include "UObject/PropertyTag.h"
 #include "UObject/PropertyTypeName.h"
 
 #define UE_API COREUOBJECT_API
@@ -46,7 +47,30 @@ class FPropertyPathNameTree
 		}
 	};
 
+	struct FValue
+	{
+		TUniquePtr<FPropertyPathNameTree> SubTree;
+		FPropertyTag Tag;
+	};
+
 public:
+	struct FConstNode
+	{
+		const FValue* Value = nullptr;
+		inline explicit operator bool() const { return !!Value; }
+		inline const FPropertyPathNameTree* GetSubTree() const { return Value ? Value->SubTree.Get() : nullptr; }
+		inline const FPropertyTag* GetTag() const { return Value && !Value->Tag.Name.IsNone() ? &Value->Tag : nullptr; }
+	};
+
+	struct FNode : FConstNode
+	{
+		using FConstNode::GetSubTree;
+		using FConstNode::GetTag;
+		inline FPropertyPathNameTree* GetSubTree() { return const_cast<FPropertyPathNameTree*>(FConstNode::GetSubTree()); }
+		inline FPropertyTag* GetTag() { return const_cast<FPropertyTag*>(FConstNode::GetTag()); }
+		UE_API void SetTag(const FPropertyTag& Tag);
+	};
+
 	FPropertyPathNameTree() = default;
 	FPropertyPathNameTree(FPropertyPathNameTree&&) = default;
 	FPropertyPathNameTree(const FPropertyPathNameTree&) = delete;
@@ -60,7 +84,7 @@ public:
 	UE_API void Empty();
 
 	/** Adds the path to the tree. Keeps any existing nodes that match both name and type. */
-	UE_API void Add(const FPropertyPathName& Path, int32 StartIndex = 0);
+	UE_API FNode Add(const FPropertyPathName& Path, int32 StartIndex = 0);
 
 	/**
 	 * Finds the path within the tree.
@@ -68,18 +92,18 @@ public:
 	 * @param OutSubTree   If non-null, this is set to the maybe-null sub-tree at the path if the path is found.
 	 * @param Path         Path to search within the tree.
 	 * @param StartIndex   Index of the segment within Path at which to start searching.
-	 * @return true if the path exists within the tree, otherwise false.
+	 * @return An accessor for the node at the path if it exists.
 	 */
-	UE_API bool Find(FPropertyPathNameTree** OutSubTree, const FPropertyPathName& Path, int32 StartIndex = 0);
-	inline bool Find(const FPropertyPathNameTree** OutSubTree, const FPropertyPathName& Path, int32 StartIndex = 0) const
+	UE_API FNode Find(const FPropertyPathName& Path, int32 StartIndex = 0);
+	inline FConstNode Find(const FPropertyPathName& Path, int32 StartIndex = 0) const
 	{
-		return const_cast<FPropertyPathNameTree*>(this)->Find(const_cast<FPropertyPathNameTree**>(OutSubTree), Path, StartIndex);
+		return {const_cast<FPropertyPathNameTree*>(this)->Find(Path, StartIndex).Value};
 	}
 
 	class FConstIterator
 	{
 	public:
-		inline explicit FConstIterator(const TMap<FKey, TUniquePtr<FPropertyPathNameTree>>::TConstIterator& InNodeIt)
+		inline explicit FConstIterator(const TMap<FKey, FValue>::TConstIterator& InNodeIt)
 			: NodeIt(InNodeIt)
 		{
 		}
@@ -93,16 +117,16 @@ public:
 
 		inline FName GetName() const { return NodeIt.Key().Name; }
 		inline FPropertyTypeName GetType() const { return NodeIt.Key().Type; }
-		inline const FPropertyPathNameTree* GetSubTree() const { return NodeIt.Value().Get(); }
+		inline FConstNode GetNode() const { return {&NodeIt.Value()}; }
 
 	private:
-		TMap<FKey, TUniquePtr<FPropertyPathNameTree>>::TConstIterator NodeIt;
+		TMap<FKey, FValue>::TConstIterator NodeIt;
 	};
 
 	inline FConstIterator CreateConstIterator() const { return FConstIterator(Nodes.CreateConstIterator()); }
 
 private:
-	TMap<FKey, TUniquePtr<FPropertyPathNameTree>> Nodes;
+	TMap<FKey, FValue> Nodes;
 };
 
 } // UE

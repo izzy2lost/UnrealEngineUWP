@@ -1766,7 +1766,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 					if (UnknownPropertyTree)
 					{
-						UnknownPropertyTree->Add(SerializeContext->SerializedPropertyPath);
+						UnknownPropertyTree->Add(SerializeContext->SerializedPropertyPath).SetTag(Tag);
 
 						const bool bSerializeValue = PropertyTypeContainsStructOrEnum(Tag.GetType());
 						const bool bRestoreOverrideOperation = Tag.OverrideOperation != EOverriddenPropertyOperation:: None && !Property && !UnderlyingArchive.IsTransacting();
@@ -1775,7 +1775,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						if (bSerializeValue || bRestoreOverrideOperation)
 						{
 							TUniquePtr<FField> TempField(FField::TryConstruct(Tag.Type, {}, Tag.Name, RF_NoFlags));
-							if (FProperty* TempProperty = CastField<FProperty>(TempField.Get()); TempProperty && TempProperty->LoadTypeName(Tag.GetType()))
+							if (FProperty* TempProperty = CastField<FProperty>(TempField.Get()); TempProperty && TempProperty->LoadTypeName(Tag.GetType(), &Tag))
 							{
 								TempProperty->Link(UnderlyingArchive);
 

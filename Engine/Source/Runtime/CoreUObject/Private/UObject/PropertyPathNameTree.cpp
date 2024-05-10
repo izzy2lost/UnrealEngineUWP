@@ -2,6 +2,7 @@
 
 #include "UObject/PropertyPathNameTree.h"
 
+#include "Misc/StringBuilder.h"
 #include "Templates/TypeHash.h"
 
 namespace UE
@@ -12,45 +13,65 @@ void FPropertyPathNameTree::Empty()
 	Nodes.Empty();
 }
 
-void FPropertyPathNameTree::Add(const FPropertyPathName& Path, int32 StartIndex)
+FPropertyPathNameTree::FNode FPropertyPathNameTree::Add(const FPropertyPathName& Path, int32 StartIndex)
 {
 	if (const int32 SegmentCount = Path.GetSegmentCount(); StartIndex < SegmentCount)
 	{
 		FPropertyPathNameSegment Segment = Path.GetSegment(StartIndex);
-		TUniquePtr<FPropertyPathNameTree>& Child = Nodes.FindOrAdd({Segment.Name, Segment.Type});
+		FValue& Child = Nodes.FindOrAdd({Segment.Name, Segment.Type});
 		if (++StartIndex < SegmentCount)
 		{
-			if (!Child)
+			if (!Child.SubTree)
 			{
-				Child = MakeUnique<FPropertyPathNameTree>();
+				Child.SubTree = MakeUnique<FPropertyPathNameTree>();
 			}
-			Child->Add(Path, StartIndex);
+			return Child.SubTree->Add(Path, StartIndex);
 		}
+		return {&Child};
 	}
+	return {};
 }
 
-bool FPropertyPathNameTree::Find(FPropertyPathNameTree** OutSubTree, const FPropertyPathName& Path, int32 StartIndex)
+FPropertyPathNameTree::FNode FPropertyPathNameTree::Find(const FPropertyPathName& Path, int32 StartIndex)
 {
 	if (const int32 SegmentCount = Path.GetSegmentCount(); StartIndex < SegmentCount)
 	{
 		FPropertyPathNameSegment Segment = Path.GetSegment(StartIndex);
-		if (TUniquePtr<FPropertyPathNameTree>* Child = Nodes.Find({Segment.Name, Segment.Type}))
+		if (FValue* Child = Nodes.Find({Segment.Name, Segment.Type}))
 		{
 			if (++StartIndex >= SegmentCount)
 			{
-				if (OutSubTree)
-				{
-					*OutSubTree = Child->Get();
-				}
-				return true;
+				return {Child};
 			}
-			if (*Child)
+			if (Child->SubTree)
 			{
-				return (*Child)->Find(OutSubTree, Path, StartIndex);
+				return Child->SubTree->Find(Path, StartIndex);
 			}
 		}
 	}
-	return false;
+	return {};
+}
+
+void FPropertyPathNameTree::FNode::SetTag(const FPropertyTag& Tag)
+{
+	if (FValue* LocalValue = const_cast<FValue*>(Value))
+	{
+		if (LocalValue->Tag.Name.IsNone())
+		{
+			// Copy the tag and reset values that may vary between tags with the same path.
+			LocalValue->Tag = Tag;
+			LocalValue->Tag.Size = 0;
+			LocalValue->Tag.ArrayIndex = INDEX_NONE;
+			LocalValue->Tag.SizeOffset = INDEX_NONE;
+			LocalValue->Tag.BoolVal = 0;
+		}
+		else
+		{
+			ensureMsgf(LocalValue->Tag.GetType() == Tag.GetType() && LocalValue->Tag.SerializeType == Tag.SerializeType,
+				TEXT("Tag mismatch in property path name tree for property %s of type %s."),
+				*WriteToString<32>(Tag.Name), *WriteToString<64>(Tag.GetType()));
+		}
+	}
 }
 
 } // UE
