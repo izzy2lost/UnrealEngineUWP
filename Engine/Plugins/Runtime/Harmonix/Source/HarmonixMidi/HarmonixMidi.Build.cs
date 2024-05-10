@@ -20,21 +20,14 @@ public class HarmonixMidi : ModuleRules
 			new string[]
 			{
 				"AudioExtensions",
+				"Engine",
 				"Harmonix",
 			});
+
 		if (Target.bBuildEditor == true)
 		{
 			PrivateDependencyModuleNames.Add("AssetRegistry");
 			PrivateDependencyModuleNames.Add("UnrealEd");
-			PrivateDependencyModuleNames.Add("Engine");
-		}
-		else
-		{
-			// This next little gem is needed because when this module is built without
-			// an Engine dependency the MidiFile.gen.cpp file has an UNUSED forward declaration
-			// at the top of it that is prefixed by "ENGINE_API", so the compiler sees an undefined
-			// symbol. :-( - Buzz
-			PrivateDefinitions.Add("ENGINE_API=");
 		}
 	}
 }

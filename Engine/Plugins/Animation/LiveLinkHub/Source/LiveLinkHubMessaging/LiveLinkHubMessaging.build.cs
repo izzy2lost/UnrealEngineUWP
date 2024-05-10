@@ -19,7 +19,8 @@ namespace UnrealBuildTool.Rules
 				"CoreUObject",
 				"Engine",
 				"LiveLink",
-				"LiveLinkInterface"
+				"LiveLinkInterface",
+				"SlateCore",
 			});
 
 			if (Target.bCompileAgainstEditor)
@@ -28,7 +29,6 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Slate",
-					"SlateCore",
 					"UnrealEd"
 				});
 			}

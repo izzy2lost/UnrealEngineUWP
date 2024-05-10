@@ -13,6 +13,7 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"CoreUObject",
 					"Engine",
+					"InputCore",
 					"StructUtils",
 					"MassEntity",
 					"SlateCore",
@@ -27,7 +28,6 @@ namespace UnrealBuildTool.Rules
 			{
 				PublicDependencyModuleNames.AddRange(
 					new string[] {
-						"InputCore",
 						"UnrealEd"
 					}
 				);
