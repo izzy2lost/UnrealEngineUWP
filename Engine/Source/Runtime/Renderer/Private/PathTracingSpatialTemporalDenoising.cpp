@@ -1762,7 +1762,7 @@ void PathTracingSpatialTemporalDenoisingPrePass(FRDGBuilder& GraphBuilder, const
 				PassParameters->OutputTexture = GraphBuilder.CreateUAV(SpatialTemporalDenoisingContext.VarianceTexture);
 				PassParameters->VarianceMap	  = GraphBuilder.CreateSRV(VarianceBuffer, EPixelFormat::PF_R32_FLOAT);
 				PassParameters->TargetViewport = TargetViewportParameters;
-				PassParameters->Iteration = IterationNumber;
+				PassParameters->Iteration = FMath::Min(IterationNumber, MaxSPP - 1);
 			}
 
 			SHADER::FPermutationDomain ComputeShaderPermutationVector;

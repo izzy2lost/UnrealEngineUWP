@@ -875,7 +875,7 @@ void PrepassGenerateTextureCS(uint3 DT_ID : SV_DispatchThreadID)
 
 		// VarianceInfo.Var = sigma^2 * n.
 		// Std of mean = sqrt(sigma^2/n) = sqrt(VarianceInfo.Var/n^2)
-		float4 StandDerivation= sqrt(VarianceInfo.Var) / Iteration;
+		float4 StandDerivation= sqrt(VarianceInfo.Var) / (Iteration + 1);
 
 		OutputTexture[Position] = StandDerivation;
 	}
