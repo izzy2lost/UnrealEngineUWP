@@ -39,6 +39,12 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 			continue;
 		}
 
+		// skip deprecated units
+		if(Function.Struct->HasMetaData(FRigVMStruct::DeprecatedMetaName))
+		{
+			continue;
+		}
+
 		FString CategoryMetadata, DisplayNameMetadata, MenuDescSuffixMetadata;
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::CategoryMetaName, &CategoryMetadata);
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::DisplayNameMetaName, &DisplayNameMetadata);
@@ -68,6 +74,12 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 
 		const FRigVMTemplate* Template = Factory->GetTemplate();
 		if (Template == nullptr)
+		{
+			continue;
+		}
+
+		// skip deprecated factories
+		if(Factory->GetScriptStruct()->HasMetaData(FRigVMStruct::DeprecatedMetaName))
 		{
 			continue;
 		}
