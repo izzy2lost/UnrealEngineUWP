@@ -607,7 +607,7 @@ namespace UE::Interchange::GLTFMaterials
 					//IridescenceTexture_Rotation
 					//IridescenceTexture_TexCoord
 					//IridescenceTexture_TilingMethod
-					bool bHasIridescenceTexture = SetMap(Inputs::IridescenceTexture, GltfMaterial.Iridescence.Texture);
+					SetMap(Inputs::IridescenceTexture, GltfMaterial.Iridescence.Texture);
 
 					//IridescenceFactor
 					SetScalar(Inputs::IridescenceFactor, GltfMaterial.Iridescence.Factor, 0.0f);
@@ -617,7 +617,7 @@ namespace UE::Interchange::GLTFMaterials
 					//IridescenceThicknessTexture_Rotation
 					//IridescenceThicknessTexture_TexCoord
 					//IridescenceThicknessTexture_TilingMethod
-					bHasIridescenceTexture = SetMap(Inputs::IridescenceThicknessTexture, GltfMaterial.Iridescence.Thickness.Texture) || bHasIridescenceTexture;
+					SetMap(Inputs::IridescenceThicknessTexture, GltfMaterial.Iridescence.Thickness.Texture);
 
 					//IridescenceThicknessMinimum
 					SetScalar(Inputs::IridescenceThicknessMinimum, GltfMaterial.Iridescence.Thickness.Minimum, 100.0f);
@@ -625,12 +625,12 @@ namespace UE::Interchange::GLTFMaterials
 					SetScalar(Inputs::IridescenceThicknessMaximum, GltfMaterial.Iridescence.Thickness.Maximum, 400.0f);
 
 					//Configuration
-					SetBool(Inputs::Configuration::bHasIridescenceTexture, bHasIridescenceTexture);
+					SetBool(Inputs::Configuration::bHasIridescence, true);
 				}
 				else
 				{
 					//Configuration
-					SetBool(Inputs::Configuration::bHasIridescenceTexture, false);
+					SetBool(Inputs::Configuration::bHasIridescence, false);
 				}
 
 				if (GltfMaterial.Anisotropy.bHasAnisotropy)

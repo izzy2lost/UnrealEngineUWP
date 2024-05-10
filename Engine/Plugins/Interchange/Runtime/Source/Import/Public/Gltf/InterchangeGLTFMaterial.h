@@ -145,7 +145,7 @@ namespace UE::Interchange::GLTFMaterials
 			const FString bHasClearCoatTexture = TEXT("bHasClearCoatTexture");
 			const FString bHasSheenTexture = TEXT("bHasSheenTexture");
 			const FString bHasTransmissionTexture = TEXT("bHasTransmissionTexture");
-			const FString bHasIridescenceTexture = TEXT("bHasIridescenceTexture");
+			const FString bHasIridescence = TEXT("bHasIridescence");
 			const FString bHasAnisotropyTextureAndOrRotation = TEXT("bHasAnisotropyTextureAndOrRotation"); //AnistropyRotation can affect the Tangents so we check
 		}
 	}
