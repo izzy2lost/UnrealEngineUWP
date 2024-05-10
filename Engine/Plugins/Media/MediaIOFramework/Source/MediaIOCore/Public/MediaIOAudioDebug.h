@@ -7,6 +7,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Logging/LogVerbosity.h"
+#include "Misc/Paths.h"
 
 /**
  * Single header drop in file to help diagnose audio issues
