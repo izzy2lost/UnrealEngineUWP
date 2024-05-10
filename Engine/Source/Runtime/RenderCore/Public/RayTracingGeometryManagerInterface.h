@@ -53,6 +53,8 @@ public:
 
 	RENDERCORE_API virtual void RequestUpdateCachedRenderState(RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle) = 0;
 
+	RENDERCORE_API virtual void RefreshRegisteredGeometry(RayTracingGeometryHandle Handle) = 0;
+
 	RENDERCORE_API virtual void PreRender() = 0;
 	RENDERCORE_API virtual void Tick(FRHICommandList& RHICmdList) = 0;
 };

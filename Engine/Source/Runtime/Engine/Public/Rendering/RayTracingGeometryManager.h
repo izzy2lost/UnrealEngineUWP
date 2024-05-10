@@ -30,6 +30,8 @@ public:
 	ENGINE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup(uint32 NumLODs) override;
 	ENGINE_API virtual void ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle) override;
 
+	ENGINE_API virtual void RefreshRegisteredGeometry(RayTracingGeometryHandle Handle) override;
+
 	ENGINE_API virtual void PreRender() override;
 	ENGINE_API virtual void Tick(FRHICommandList& RHICmdList) override;
 
@@ -86,10 +88,19 @@ private:
 		// TODO: Implement use-after-free checks in RayTracing::GeometryGroupHandle using some bits to identify generation
 	};
 
+	struct FRegisteredGeometry
+	{
+		FRayTracingGeometry* Geometry = nullptr;
+		uint32 Size = 0;
+	};
+
 	TSparseArray<FRayTracingGeometryGroup> RegisteredGroups;
 
 	// Used for keeping track of geometries when ray tracing is dynamic
-	TSparseArray<FRayTracingGeometry*> RegisteredGeometries;
+	TSparseArray<FRegisteredGeometry> RegisteredGeometries;
+
+	TSet<FRayTracingGeometry*> ResidentGeometries;
+	uint64 TotalResidentSize = 0;
 
 	TSet<RayTracingGeometryHandle> ReferencedGeometryHandles;
 	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;

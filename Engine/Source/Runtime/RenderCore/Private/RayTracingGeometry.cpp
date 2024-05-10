@@ -39,6 +39,8 @@ void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* Intermedia
 	{
 		Batcher.EnqueueReplace(RayTracingGeometryRHI, IntermediateGeometry);
 		EnumAddFlags(GeometryState, EGeometryStateFlags::Valid);
+
+		GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
 	}
 	else
 	{
@@ -59,6 +61,8 @@ void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Bat
 	{
 		Batcher.EnqueueReplace(RayTracingGeometryRHI, nullptr);
 	}
+
+	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
 }
 
 void FRayTracingGeometry::RequestBuildIfNeeded(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
@@ -130,7 +134,9 @@ void FRayTracingGeometry::Evict()
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
 	EnumAddFlags(GeometryState, EGeometryStateFlags::Evicted);
-		
+	
+	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
+	
 	if (GroupHandle != INDEX_NONE)
 	{
 		GRayTracingGeometryManager->RequestUpdateCachedRenderState(GroupHandle);
@@ -212,6 +218,8 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdLi
 			Initializer.OfflineData = nullptr;
 		}
 	}
+
+	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
 }
 
 bool FRayTracingGeometry::IsValid() const
