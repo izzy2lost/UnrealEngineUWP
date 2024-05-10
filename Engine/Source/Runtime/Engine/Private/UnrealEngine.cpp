@@ -5982,6 +5982,10 @@ bool UEngine::HandleGPUDebugCrashCommand(const TCHAR* Cmd, FOutputDevice& Ar)
 	{
 		GRHIGlobals.TriggerGPUCrash = ERequestedGPUCrash::Type_PlatformBreak;
 	}
+	if (FParse::Command(&Cmd, TEXT("assert")) && bSupportsPageFaultsAndPlatformBreak)
+	{
+		GRHIGlobals.TriggerGPUCrash = ERequestedGPUCrash::Type_Assert;
+	}
 	if (FParse::Command(&Cmd, TEXT("hang")) || !bSupportsPageFaultsAndPlatformBreak)
 	{
 		if (!bSupportsPageFaultsAndPlatformBreak)

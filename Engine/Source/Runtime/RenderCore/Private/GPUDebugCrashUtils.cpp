@@ -18,8 +18,9 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FGPUDebugCrashUtilsCS, FGlobalShader)
 
 	class FPlatformBreakRequested : SHADER_PERMUTATION_BOOL("PLATFORM_BREAK_REQUESTED");
+	class FAssertRequested : SHADER_PERMUTATION_BOOL("ASSERT_REQUESTED");
 	class FHangRequested : SHADER_PERMUTATION_BOOL("HANG_REQUESTED");
-	using FPermutationDomain = TShaderPermutationDomain<FPlatformBreakRequested, FHangRequested>;
+	using FPermutationDomain = TShaderPermutationDomain<FPlatformBreakRequested, FAssertRequested, FHangRequested>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, PageFaultUAV)
@@ -39,6 +40,7 @@ void ScheduleGPUDebugCrash(FRDGBuilder& GraphBuilder)
 {
 	FGPUDebugCrashUtilsCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FGPUDebugCrashUtilsCS::FPlatformBreakRequested>(EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Type_PlatformBreak));
+	PermutationVector.Set<FGPUDebugCrashUtilsCS::FAssertRequested>(EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Type_Assert));
 	PermutationVector.Set<FGPUDebugCrashUtilsCS::FHangRequested>(EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Type_Hang));
 
 	auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FGPUDebugCrashUtilsCS>(PermutationVector);

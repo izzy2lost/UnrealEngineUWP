@@ -1310,9 +1310,10 @@ enum class ERequestedGPUCrash : uint8
 	Type_Hang = 1 << 0,
 	Type_PageFault = 1 << 1,
 	Type_PlatformBreak = 1 << 2,
+	Type_Assert = 1 << 3,
 
-	Queue_Direct = 1 << 3,
-	Queue_Compute = 1 << 4
+	Queue_Direct = 1 << 4,
+	Queue_Compute = 1 << 5,
 };
 ENUM_CLASS_FLAGS(ERequestedGPUCrash);
 
