@@ -14,7 +14,6 @@ namespace UE::CommandUtils
 	// For errors that we can't continue through -- immediately exits the program 
 	inline void Fail()
 	{
-		check(false);
 		FPlatformMisc::RequestExit(true);
 	}
 
