@@ -28,19 +28,17 @@ struct FMeshConversionContext
 	TArray<int32> VertexIds;
 	TArray<int32> SymmetricVertexIds;
 	TSet<int32> PatchesToMesh;
-	double GeometricTolerance = 0.001;
 
-	FMeshConversionContext(const FImportParameters& InImportParams, const FMeshParameters& InMeshParameters, double InGeometricTolerance = 0.001)
+	FMeshConversionContext(const FImportParameters& InImportParams, const FMeshParameters& InMeshParameters)
 		: ImportParameters(InImportParams)
 		, MeshParameters(InMeshParameters)
-		, GeometricTolerance(InGeometricTolerance)
 	{
 	}
 };
 
 /**
  * Macro data of MeshDescription.
- * Needed to update a MeshDesction after a conversion of a DynamicMesh To a MeshDescription.
+ * Needed to updata a MeshDesction after a convertion of a DynamicMesh To a MeshDescription.
  * Indeed, PolygonGroupId can be modify during the process of DynamicMesh and material slot names are not saved in a DynamicMesh.
  * The only persistent data is the patchGroupId
  * 

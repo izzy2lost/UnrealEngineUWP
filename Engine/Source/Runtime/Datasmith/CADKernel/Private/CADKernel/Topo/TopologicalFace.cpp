@@ -25,24 +25,20 @@ namespace UE::CADKernel
 
 void FTopologicalFace::ComputeBoundary() const
 {
-	Boundary = CarrierSurface->GetBoundary();
-
+	Boundary->Init();
 	TArray<TArray<FPoint2D>> TmpLoops;
 	Get2DLoopSampling(TmpLoops);
 
-	if (TmpLoops.Num() > 0)
+	for (const TArray<FPoint2D>& Loop : TmpLoops)
 	{
-		for (const TArray<FPoint2D>& Loop : TmpLoops)
+		for (const FPoint2D& Point : Loop)
 		{
-			for (const FPoint2D& Point : Loop)
-			{
-				Boundary->ExtendTo(Point);
-			}
+			Boundary->ExtendTo(Point);
 		}
-
-		// Check with the carrier surface bounds
-		CarrierSurface->ExtendBoundaryTo(Boundary);
 	}
+
+	// Check with the carrier surface bounds
+	CarrierSurface->ExtendBoundaryTo(Boundary);
 
 	Boundary->WidenIfDegenerated();
 	Boundary.SetReady();
@@ -84,7 +80,8 @@ void FTopologicalFace::UpdateBBox(int32 IsoCount, const double ApproximationFact
 			FindLoopIntersectionsWithIso(IsoType, Coordinate, BoundaryApproximation, Intersections);
 			int32 IntersectionCount = Intersections.Num();
 			// #cadkernel_check: Why IntersectionCount can be less than 2 or Intersections has same extremities
-			if (IntersectionCount < 2 || FMath::IsNearlyEqual(Intersections[0], Intersections.Last(), UE_DOUBLE_SMALL_NUMBER))
+			//if (IntersectionCount < 2 || FMath::IsNearlyEqual(Intersections[0], Intersections.Last(), UE_DOUBLE_SMALL_NUMBER))
+			if (IntersectionCount == 0)
 			{
 				continue;
 			}
@@ -227,11 +224,7 @@ void FTopologicalFace::ApplyNaturalLoops(const FSurfacicBoundary& Boundaries)
 
 	const bool bIsExternalLoop = true;
 	TSharedPtr<FTopologicalLoop> Loop = FTopologicalLoop::Make(Edges, Orientations, bIsExternalLoop, CarrierSurface->Get3DTolerance());
-	if (Loop)
-	{
-		Loop->SetSurface(this);
-		Loops.Add(Loop);
-	}
+	AddLoop(Loop);
 }
 
 void FTopologicalFace::AddLoops(const TArray<TSharedPtr<FTopologicalLoop>>& InLoops, int32& DoubtfulLoopOrientationCount)
@@ -240,10 +233,9 @@ void FTopologicalFace::AddLoops(const TArray<TSharedPtr<FTopologicalLoop>>& InLo
 	{
 		if (Loop)
 		{
-			Loop->SetSurface(this);
-			Loops.Add(Loop);
+			AddLoop(Loop);
 
-			if (Loop->Orient())
+			if (!Loop->Orient())
 			{
 				DoubtfulLoopOrientationCount++;
 			}
@@ -251,22 +243,13 @@ void FTopologicalFace::AddLoops(const TArray<TSharedPtr<FTopologicalLoop>>& InLo
 	}
 }
 
-void FTopologicalFace::AddLoop(const TSharedPtr<FTopologicalLoop>& InLoop)
-{
-	if (InLoop.IsValid())
-	{
-		InLoop->SetSurface(this);
-		Loops.Add(InLoop);
-	}
-}
-
 void FTopologicalFace::RemoveLoop(const TSharedPtr<FTopologicalLoop>& Loop)
 {
-	int32 Index = Loops.Find(Loop);
+	const int32 Index = Loops.Find(Loop);
 	if (Index != INDEX_NONE)
 	{
 		Loop->ResetSurface();
-		Loops.RemoveAt(Index);
+		Loops.RemoveAt(Index, EAllowShrinking::No);
 	}
 
 	if (Loops.Num() == 0)

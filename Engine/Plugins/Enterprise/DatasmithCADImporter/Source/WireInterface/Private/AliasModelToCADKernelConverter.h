@@ -35,7 +35,10 @@ class FAliasModelToCADKernelConverter : public FCADModelToCADKernelConverterBase
 {
 
 public:
-	FAliasModelToCADKernelConverter(const FDatasmithTessellationOptions& Options, CADLibrary::FImportParameters InImportParameters);
+	FAliasModelToCADKernelConverter(CADLibrary::FImportParameters InImportParameters)
+		: FCADModelToCADKernelConverterBase(InImportParameters)
+	{
+	}
 
 	// Begin FCADModelToCADKernelConverterBase overrides
 	virtual bool Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription) override;
@@ -65,7 +68,6 @@ protected:
 protected:
 	int32 LastFaceId = 1;
 	TMap<void*, TSharedPtr<UE::CADKernel::FTopologicalEdge>>  AlEdge2CADKernelEdge;
-	double StitchingTolerance;
 };
 
 }

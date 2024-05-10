@@ -183,7 +183,14 @@ public:
 	// ======   Loop Functions   ======
 
 	void RemoveLoop(const TSharedPtr<FTopologicalLoop>& Loop);
-	void AddLoop(const TSharedPtr<FTopologicalLoop>& Loop);
+	void AddLoop(const TSharedPtr<FTopologicalLoop>& Loop)
+	{
+		if (Loop.IsValid())
+		{
+			Loop->SetSurface(this);
+			Loops.Add(Loop);
+		}
+	}
 
 	/**
 	 * Trimmed the face with an outer boundary (first boundary of the array) and inners boundaries

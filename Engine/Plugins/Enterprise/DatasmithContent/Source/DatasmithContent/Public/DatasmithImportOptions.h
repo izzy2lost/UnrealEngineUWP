@@ -263,23 +263,10 @@ struct DATASMITHCONTENT_API FDatasmithTessellationOptions
 	 * Sewing : Connects surfaces which physically share a boundary but not topologically within a set of objects.
 	 *          This technique can modify the structure of the model by removing and adding objects.
 	 * Healing : Connects surfaces which physically share a boundary but not topologically within an object.
+	 * The techniques are using the chord tolerance to determine if two surfaces should be stitched.
 	 */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Geometry & Tessellation Options", meta = (ToolTip = "Stitching technique applied on model before tessellation. Sewing could impact number of objects."))
 	EDatasmithCADStitchingTechnique StitchingTechnique;
-
-	/**
-	 * Tolerance used to determine if a surface should be tessellate or not.
-	 * Any surface which is narrower than the geometric tolerance
-	 * in one of the iso direction will not be tessellated
-	 */
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Geometry & Tessellation Options", meta = (Units = cm, ToolTip = "Tolerance used to determine if a surface should be tessellated or not."))
-	double GeometricTolerance = 0.001;
-
-	/**
-	 * Tolerance used to determine if two surfaces should be stitched.
-	 */
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Geometry & Tessellation Options", meta = (Units = cm, ToolTip = "Tolerance used to determine if two surfaces should be stitched.", editCondition = "StitchingTechnique!=EDatasmithCADStitchingTechnique::StitchingNone"))
-	double StitchingTolerance = 0.001;
 
 	bool bUseCADKernel = false;
 

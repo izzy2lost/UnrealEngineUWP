@@ -113,15 +113,6 @@ namespace AliasToCADKernelUtils
 	}
 }
 
-FAliasModelToCADKernelConverter::FAliasModelToCADKernelConverter(const FDatasmithTessellationOptions& Options, CADLibrary::FImportParameters InImportParameters)
-	: FCADModelToCADKernelConverterBase(InImportParameters)
-{
-	GeometricTolerance = Options.GeometricTolerance;
-	SquareTolerance = GeometricTolerance * GeometricTolerance;
-	CADKernelSession.SetGeometricTolerance(GeometricTolerance);
-	StitchingTolerance = Options.StitchingTolerance;
-}
-
 TSharedPtr<UE::CADKernel::FTopologicalEdge> FAliasModelToCADKernelConverter::AddEdge(const AlTrimCurve& AliasTrimCurve, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface)
 {
 	UE::CADKernel::FNurbsCurveData NurbsCurveData;
@@ -376,7 +367,7 @@ bool FAliasModelToCADKernelConverter::Tessellate(const CADLibrary::FMeshParamete
 {
 	UE::CADKernel::FModel& Model = CADKernelSession.GetModel();
 
-	CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters, GeometricTolerance);
+	CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters);
 
 	return CADLibrary::FCADKernelTools::Tessellate(Model, Context, OutMeshDescription);
 }
@@ -387,11 +378,15 @@ bool FAliasModelToCADKernelConverter::RepairTopology()
 	// Apply stitching if applicable
 	if (ImportParameters.GetStitchingTechnique() != StitchingNone)
 	{
+		const double StitchingTolerance = FImportParameters::GStitchingTolerance * 10.; //CM to MM
 		UE::CADKernel::ESewOption SewOptionValue = (UE::CADKernel::ESewOption)SewOption::GetFromImportParameters();
 
-#if !THINFACE_ENABLED
-		SewOptionValue = UE::CADKernel::ESewOption((uint8)SewOptionValue & (uint8)~ESewOption::RemoveThinFaces);
-#endif
+		const IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("ds.WireTranslator.SkipThinZoneMeshing"));
+		bool bSkipThinZoneMeshing = ConsoleVariable ? ConsoleVariable->GetBool() : false;
+		if (bSkipThinZoneMeshing)
+		{
+			SewOptionValue = UE::CADKernel::ESewOption((uint8)SewOptionValue & (uint8)~ESewOption::RemoveThinFaces);
+		}
 
 		UE::CADKernel::FTopomakerOptions TopomakerOptions(SewOptionValue, StitchingTolerance, FImportParameters::GStitchingForceFactor);
 
