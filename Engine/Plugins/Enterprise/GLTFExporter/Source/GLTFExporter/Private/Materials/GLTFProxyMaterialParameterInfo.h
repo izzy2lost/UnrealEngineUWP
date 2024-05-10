@@ -62,6 +62,7 @@ public:
 		, UVOffset(ParameterName + TEXT(" UV Offset"))
 		, UVScale(ParameterName + TEXT(" UV Scale"))
 		, UVRotation(ParameterName + TEXT(" UV Rotation"))
+		, TilingMethod(ParameterName + TEXT(" Tiling Method"))
 	{
 	}
 
@@ -80,4 +81,5 @@ public:
 	TGLTFProxyMaterialParameterInfo<FLinearColor> UVOffset;
 	TGLTFProxyMaterialParameterInfo<FLinearColor> UVScale;
 	TGLTFProxyMaterialParameterInfo<float> UVRotation;
+	TGLTFProxyMaterialParameterInfo<FLinearColor> TilingMethod;
 };

@@ -193,6 +193,7 @@ void FGLTFMaterialProxyFactory::SetProxyParameter(UMaterialInstanceConstant* Pro
 	ParameterInfo.UVOffset.Set(ProxyMaterial, FLinearColor(TextureInfo.Transform.Offset.X, TextureInfo.Transform.Offset.Y, 0, 0), true);
 	ParameterInfo.UVScale.Set(ProxyMaterial, FLinearColor(TextureInfo.Transform.Scale.X, TextureInfo.Transform.Scale.Y, 0, 0), true);
 	ParameterInfo.UVRotation.Set(ProxyMaterial, TextureInfo.Transform.Rotation, true);
+	ParameterInfo.TilingMethod.Set(ProxyMaterial, FLinearColor(FGLTFMaterialUtilities::FromTextureWrap(TextureInfo.Index->Sampler->WrapS), FGLTFMaterialUtilities::FromTextureWrap(TextureInfo.Index->Sampler->WrapT), 0, 0), true);
 }
 
 UTexture2D* FGLTFMaterialProxyFactory::FindOrCreateTexture(FGLTFJsonTexture* JsonTexture, const FGLTFProxyMaterialTextureParameterInfo& ParameterInfo)

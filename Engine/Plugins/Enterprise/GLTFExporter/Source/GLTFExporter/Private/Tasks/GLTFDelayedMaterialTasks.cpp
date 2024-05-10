@@ -418,8 +418,18 @@ void FGLTFDelayedMaterialTask::GetProxyParameter(const FGLTFProxyMaterialTexture
 		return;
 	}
 
+	TextureAddress TextureAddressX = TextureAddress::TA_Wrap;
+	TextureAddress TextureAddressY = TextureAddress::TA_Wrap;
+
+	FLinearColor TilingMethod;
+	if (ParameterInfo.TilingMethod.Get(Material, TilingMethod, true))
+	{
+		TextureAddressX = FGLTFMaterialUtilities::ToTextureAddress(TilingMethod.R);
+		TextureAddressY = FGLTFMaterialUtilities::ToTextureAddress(TilingMethod.G);
+	}
+
 	const bool bSRGB = ParameterInfo == FGLTFProxyMaterialInfo::BaseColor || ParameterInfo == FGLTFProxyMaterialInfo::Emissive;
-	OutValue.Index = Builder.AddUniqueTexture(Texture, bSRGB);
+	OutValue.Index = Builder.AddUniqueTexture(Texture, bSRGB, TextureAddressX, TextureAddressY);
 
 	float UVIndex;
 	if (ParameterInfo.UVIndex.Get(Material, UVIndex, true))

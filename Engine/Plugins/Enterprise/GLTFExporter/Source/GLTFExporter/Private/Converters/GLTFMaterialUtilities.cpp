@@ -611,6 +611,38 @@ EMaterialShadingModel FGLTFMaterialUtilities::GetShadingModel(const UMaterialInt
 	return Possibilities.GetFirstShadingModel();
 }
 
+//To acquire TextureAddress from glTF Imported material TilingMethod values:
+TextureAddress FGLTFMaterialUtilities::ToTextureAddress(float Value)
+{
+	//0: wrap
+	//1: clamp
+	//2: mirror
+	int ValueInt = FMath::RoundToInt(Value);
+
+	switch (ValueInt)
+	{
+		case 0:     return TextureAddress::TA_Wrap;
+		case 1:     return TextureAddress::TA_Clamp;
+		case 2:	    return TextureAddress::TA_Mirror;
+		default:    return TextureAddress::TA_MAX;
+	}
+}
+float FGLTFMaterialUtilities::FromTextureWrap(EGLTFJsonTextureWrap Value)
+{
+	//0: wrap
+	//1: clamp
+	//2: mirror
+
+	switch (Value)
+	{
+		case EGLTFJsonTextureWrap::Repeat:           return 0;
+		case EGLTFJsonTextureWrap::ClampToEdge:      return 1;
+		case EGLTFJsonTextureWrap::MirroredRepeat:   return 2;
+	}
+
+	return 1;
+}
+
 FGLTFImportMaterialMatchMakingHelper::FGLTFImportMaterialMatchMakingHelper(FGLTFConvertBuilder& InBuilder,
 	const UMaterialInterface* InMaterial,
 	FGLTFJsonMaterial& InJsonMaterial)
@@ -833,23 +865,6 @@ bool FGLTFImportMaterialMatchMakingHelper::GetValue(const FString& InputKey, FGL
 #endif
 }
 
-//To acquire TextureAddress from glTF Imported material TilingMethod values:
-TextureAddress GetTextureAddress(float Value)
-{
-	//0: wrap
-	//1: clamp
-	//2: mirror
-	int ValueInt = FMath::RoundToInt(Value);
-
-	switch (ValueInt)
-	{
-		case 0:     return TextureAddress::TA_Wrap;
-		case 1:     return TextureAddress::TA_Clamp;
-		case 2:	    return TextureAddress::TA_Mirror;
-		default:    return TextureAddress::TA_MAX;
-	}
-}
-
 bool FGLTFImportMaterialMatchMakingHelper::GetValue(const FString& InputKey, FGLTFJsonTextureInfo& OutValue)
 {
 #if GLTF_EXPORT_ENABLE
@@ -892,14 +907,14 @@ bool FGLTFImportMaterialMatchMakingHelper::GetValue(const FString& InputKey, FGL
 		return false;
 	}
 
-	TextureAddress TextureAddressX = TextureAddress::TA_Wrap; //glTF Importer's default tiling method is Wrap
-	TextureAddress TextureAddressY = TextureAddress::TA_Wrap; //glTF Importer's default tiling method is Wrap
+	TextureAddress TextureAddressX = TextureAddress::TA_Wrap;
+	TextureAddress TextureAddressY = TextureAddress::TA_Wrap;
 
 	FGLTFJsonColor4 TilingMethod = FGLTFColor4{ 0.f, 0.f, 0.f, 0.f };
 	if (GetValue(InputKey + PostFix::TilingMethod, TilingMethod, false))
 	{
-		TextureAddressX = GetTextureAddress(TilingMethod.R);
-		TextureAddressY = GetTextureAddress(TilingMethod.G);
+		TextureAddressX = FGLTFMaterialUtilities::ToTextureAddress(TilingMethod.R);
+		TextureAddressY = FGLTFMaterialUtilities::ToTextureAddress(TilingMethod.G);
 	}
 
 	const bool bSRGB = InputKey == BaseColorTexture || InputKey == EmissiveTexture;
