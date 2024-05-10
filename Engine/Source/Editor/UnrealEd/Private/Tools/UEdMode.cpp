@@ -8,11 +8,12 @@
 #include "EdModeInteractiveToolsContext.h"
 #include "Toolkits/ToolkitManager.h"
 #include "InteractiveToolManager.h"
+#include "InteractiveToolQueryInterfaces.h"
 #include "GameFramework/Actor.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Elements/Interfaces/TypedElementObjectInterface.h"
 #include "Settings/LevelEditorViewportSettings.h"
-
+#include "EditorViewportCommands.h"
 
 //////////////////////////////////
 // UEdMode
@@ -280,3 +281,55 @@ bool UEdMode::IsSnapRotationEnabled()
 {
 	return GetDefault<ULevelEditorViewportSettings>()->RotGridEnabled;
 }
+
+void UEdMode::BindCommands()
+{
+	if (Toolkit)
+	{
+		const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
+		const FEditorViewportCommands& ViewportCommands = FEditorViewportCommands::Get();
+		CommandList->MapAction(
+			ViewportCommands.FocusViewportToSelection,
+			FExecuteAction::CreateLambda([this]() 
+			{
+				FBox FocusBox = ComputeCustomViewportFocus();
+				if (FocusBox.IsValid)
+				{
+					GEditor->MoveViewportCamerasToBox(FocusBox, true);
+				}
+				}),
+			FCanExecuteAction::CreateLambda([this]() { return HasCustomViewportFocus(); })
+		);
+	}
+
+}
+
+FBox UEdMode::GetFocusBoxFromActiveToolFocusAPI() const
+{
+	UInteractiveToolManager* ToolManager = GetToolManager();
+	if (ToolManager && ToolManager->HasAnyActiveTool())
+	{
+		UInteractiveTool* Tool = ToolManager->GetActiveTool(EToolSide::Mouse);
+		IInteractiveToolCameraFocusAPI* FocusAPI = Cast<IInteractiveToolCameraFocusAPI>(Tool);
+		if (FocusAPI && FocusAPI->SupportsWorldSpaceFocusBox())
+		{
+			return FocusAPI->GetWorldSpaceFocusBox();
+		}
+	}
+	return FBox();
+}
+
+bool UEdMode::HasCustomViewportFocus() const
+{
+	// Support ITF Focus API
+	FBox FocusBox = GetFocusBoxFromActiveToolFocusAPI();
+	return (bool)FocusBox.IsValid;
+}
+
+FBox UEdMode::ComputeCustomViewportFocus() const
+{
+	// Support ITF Focus API
+	return GetFocusBoxFromActiveToolFocusAPI();
+}
+
+

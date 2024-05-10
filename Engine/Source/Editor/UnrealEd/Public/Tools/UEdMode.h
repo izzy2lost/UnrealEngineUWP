@@ -169,7 +169,8 @@ public:
 	virtual void SelectionChanged() {}
 
 	/**
-	 * Allows an editor mode to override the bounding box used to focus the viewport on a selection
+	 * Allows an editor mode to override the bounding box used to focus the viewport on an editor selection.
+	 * Note: Not used when HasCustomViewportFocus() returns true.
 	 *
 	 * @param Actor			The selected actor that is being considered for focus
 	 * @param PrimitiveComponent	The component in the actor being considered for focus
@@ -177,6 +178,18 @@ public:
 	 * @return bool			true if the mode overrides the box and populated InOutBox, false if it did not populate InOutBox
 	 */
 	virtual bool ComputeBoundingBoxForViewportFocus(AActor* Actor, UPrimitiveComponent* PrimitiveComponent, FBox& InOutBox) const { return false; }
+
+	// Allows an editor mode to override the viewport focus logic, regardless of editor selection.
+	// @return true if the mode wants to control viewport focus
+	UNREALED_API virtual bool HasCustomViewportFocus() const;
+
+	// If HasCustomViewportFocus() returns true, this is called to apply the desired viewport focus
+	UNREALED_API virtual FBox ComputeCustomViewportFocus() const;
+
+private:
+	// @return the active focus box from the active tool's ITF focus api, if applicable, or an invalid box otherwise
+	FBox GetFocusBoxFromActiveToolFocusAPI() const;
+public:
 
 	/** Handling SelectActor */
 	virtual bool Select(AActor* InActor, bool bInSelected) { return 0; }
@@ -265,7 +278,7 @@ protected:
 	virtual void OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool) {}
 	virtual void OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool) {}
 	virtual void ActivateDefaultTool() {}
-	virtual void BindCommands() {}
+	UNREALED_API virtual void BindCommands();
 	UNREALED_API void OnModeActivated(const FEditorModeID& InID, bool bIsActive);
 
 private:
