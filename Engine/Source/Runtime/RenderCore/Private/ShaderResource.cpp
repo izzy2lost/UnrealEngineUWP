@@ -422,7 +422,8 @@ void FShaderMapResourceCode::NotifyShadersCompiled(FName FormatName)
 #endif // WITH_EDITORONLY_DATA
 
 FShaderMapResource::FShaderMapResource(EShaderPlatform InPlatform, int32 NumShaders)
-	: NumRHIShaders(NumShaders)
+	: NumRHIShaders(static_cast<uint32>(NumShaders))
+	, bAtLeastOneRHIShaderCreated(0)
 	, Platform(InPlatform)
 	, NumRefs(0)
 {
@@ -466,16 +467,23 @@ void FShaderMapResource::ReleaseShaders()
 {
 	if (RHIShaders)
 	{
-		for (int32 Idx = 0; Idx < NumRHIShaders; ++Idx)
+		FScopeLock ScopeLock(&RHIShadersCreationGuard);
+
+		for (uint32 Idx = 0; Idx < NumRHIShaders; ++Idx)
 		{
 			if (FRHIShader* Shader = RHIShaders[Idx].load(std::memory_order_acquire))
 			{
 				Shader->Release();
-				DEC_DWORD_STAT(STAT_Shaders_NumShadersUsedForRendering);
+				DEC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
 			}
 		}
 		RHIShaders = nullptr;
 		NumRHIShaders = 0;
+		if (bAtLeastOneRHIShaderCreated)
+		{
+			DEC_DWORD_STAT(STAT_Shaders_NumShaderMapsUsedForRendering);
+		}
+		bAtLeastOneRHIShaderCreated = false;
 	}
 }
 
@@ -485,9 +493,9 @@ void FShaderMapResource::ReleaseRHI()
 #if RHI_RAYTRACING
 	if (GRHISupportsRayTracing && GRHISupportsRayTracingShaders)
 	{
-		check(NumRHIShaders == RayTracingLibraryIndices.Num());
+		check(NumRHIShaders == static_cast<uint32>(RayTracingLibraryIndices.Num()));
 
-		for (int32 Idx = 0; Idx < NumRHIShaders; ++Idx)
+		for (uint32 Idx = 0; Idx < NumRHIShaders; ++Idx)
 		{
 			if (FRHIShader* Shader = RHIShaders[Idx].load(std::memory_order_acquire))
 			{
@@ -542,7 +550,7 @@ FRHIShader* FShaderMapResource::CreateShaderOrCrash(int32 ShaderIndex, bool bReq
 
 	{
 		// Most shadermaps have <100 shaders, and less than a half of them can be created. 
-		// However, if this path is often contended, you can slice this lock
+		// However, if this path is often contended, you can slice this lock (but remember to take care of STAT_Shaders_NumShaderMapsUsedForRendering!)
 		FScopeLock ScopeLock(&RHIShadersCreationGuard);
 
 		Shader = RHIShaders[ShaderIndex].load(std::memory_order_relaxed);
@@ -551,6 +559,12 @@ FRHIShader* FShaderMapResource::CreateShaderOrCrash(int32 ShaderIndex, bool bReq
 			Shader = CreatedShader;
 			CreatedShader = nullptr;
 			RHIShaders[ShaderIndex].store(Shader, std::memory_order_release);
+
+			if (!bAtLeastOneRHIShaderCreated)
+			{
+				INC_DWORD_STAT(STAT_Shaders_NumShaderMapsUsedForRendering);
+				bAtLeastOneRHIShaderCreated = 1;
+			}
 
 #if RHI_RAYTRACING
 			// Registers RT shaders in global "libraries" that track all shaders potentially usable in a scene for adding to RTPSO
@@ -601,14 +615,6 @@ FSHAHash FShaderMapResource_InlineCode::GetShaderHash(int32 ShaderIndex)
 FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderMapResource_InlineCode::CreateRHIShaderOrCrash);
-#if STATS
-	double TimeFunctionEntered = FPlatformTime::Seconds();
-	ON_SCOPE_EXIT
-	{
-		double ShaderCreationTime = FPlatformTime::Seconds() - TimeFunctionEntered;
-		INC_FLOAT_STAT_BY(STAT_Shaders_TotalRTShaderInitForRenderingTime, ShaderCreationTime);
-	};
-#endif
 
 	// we can't have this called on the wrong platform's shaders
 	if (!ArePlatformsCompatible(GMaxRHIShaderPlatform, GetPlatform()))
@@ -668,7 +674,7 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 		return nullptr;
 	}
 
-	INC_DWORD_STAT(STAT_Shaders_NumShadersUsedForRendering);
+	INC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
 	RHIShader->SetHash(ShaderHash);
 
 	// contract of this function is to return a shader with an already held reference

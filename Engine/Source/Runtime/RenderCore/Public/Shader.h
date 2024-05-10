@@ -351,7 +351,7 @@ public:
 
 	inline bool IsValidShaderIndex(int32 ShaderIndex) const
 	{
-		return ShaderIndex >= 0 && ShaderIndex < NumRHIShaders;
+		return static_cast<uint32>(ShaderIndex) < NumRHIShaders;
 	}
 
 	inline bool HasShader(int32 ShaderIndex) const
@@ -451,19 +451,22 @@ private:
 	/** This lock is to prevent two threads creating the same RHIShaders element. It is only taken if the element is to be created. */
 	FCriticalSection RHIShadersCreationGuard;
 
-	/** An array of shader pointers (refcount is managed manually). */
-	TUniquePtr<std::atomic<FRHIShader*>[]> RHIShaders;
-
-	/** Since the shaders are no longer a TArray, this is their count (the size of the RHIShaders array). */
-	int32 NumRHIShaders;
-
 #if RHI_RAYTRACING
 	TArray<uint32> RayTracingLibraryIndices;
 #endif // RHI_RAYTRACING
 
+	/** An array of shader pointers (refcount is managed manually). */
+	TUniquePtr<std::atomic<FRHIShader*>[]> RHIShaders;
+
+	/** Since the shaders are no longer a TArray, this is their count (the size of the RHIShaders array). This does not count actually created RHI shaders, just the size of the above array of pointers to them. */
+	uint32 NumRHIShaders : 31;
+
+	/** Whether we have at least one RHI shader created. */
+	uint32 bAtLeastOneRHIShaderCreated : 1;
+
 	EShaderPlatform Platform;
 
-	/** The number of references to this shader. */
+	/** The number of references to this shader map. */
 	std::atomic<int32> NumRefs;
 };
 

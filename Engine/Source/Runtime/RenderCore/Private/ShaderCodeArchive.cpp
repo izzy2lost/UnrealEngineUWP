@@ -1257,17 +1257,6 @@ void FShaderCodeArchive::ReleasePreloadedShader(int32 ShaderIndex)
 TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
-#if STATS
-	double TimeFunctionEntered = FPlatformTime::Seconds();
-	ON_SCOPE_EXIT
-	{
-		if (IsInRenderingThread())
-		{
-			double ShaderCreationTime = FPlatformTime::Seconds() - TimeFunctionEntered;
-			INC_FLOAT_STAT_BY(STAT_Shaders_TotalRTShaderInitForRenderingTime, ShaderCreationTime);
-		}
-	};
-#endif
 
 	TRefCountPtr<FRHIShader> Shader;
 
@@ -1337,7 +1326,7 @@ TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
 
 	if (Shader)
 	{
-		INC_DWORD_STAT(STAT_Shaders_NumShadersUsedForRendering);
+		INC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
 		Shader->SetHash(ShaderHash);
 	}
 
@@ -2161,17 +2150,6 @@ int32 FIoStoreShaderCodeArchive::FindShaderIndex(const FSHAHash& Hash)
 TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderIndex)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
-#if STATS
-	double TimeFunctionEntered = FPlatformTime::Seconds();
-	ON_SCOPE_EXIT
-	{
-		if (IsInRenderingThread())
-		{
-			double ShaderCreationTime = FPlatformTime::Seconds() - TimeFunctionEntered;
-			INC_FLOAT_STAT_BY(STAT_Shaders_TotalRTShaderInitForRenderingTime, ShaderCreationTime);
-		}
-	};
-#endif
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FIoStoreShaderCodeArchive::CreateShader);
 
@@ -2277,7 +2255,7 @@ TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderInd
 
 	if (Shader)
 	{
-		INC_DWORD_STAT(STAT_Shaders_NumShadersUsedForRendering);
+		INC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
 		Shader->SetHash(ShaderHash);
 	}
 

@@ -93,19 +93,20 @@ DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Transparent Material Shaders"),S
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Opaque Material Shaders"),STAT_ShaderCompiling_NumOpaqueMaterialShaders,STATGROUP_ShaderCompiling, RENDERCORE_API);
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Masked Material Shaders"),STAT_ShaderCompiling_NumMaskedMaterialShaders,STATGROUP_ShaderCompiling, RENDERCORE_API);
 
+// Shaders that have been loaded in memory (in a compressed form). Can also be called "preloaded" shaders.
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Loaded"),STAT_Shaders_NumShadersLoaded,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shader Resources Loaded"),STAT_Shaders_NumShaderResourcesLoaded,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shader Maps Registered"),STAT_Shaders_NumShaderMaps,STATGROUP_Shaders, RENDERCORE_API);
+// Shaders that have been created as an RHI shader (i.e. exist in terms of underlying graphics API). Can also be called "used" shaders, although in theory some code may create but not use.
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Created"), STAT_Shaders_NumShadersCreated, STATGROUP_Shaders, RENDERCORE_API);
+// Shaders maps (essentially, material assets) that have been loaded in memory. This squarely correlates with the number of assets in memory (but assets can share SMs or have more than one SM - e.g. diff quality levels).
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num ShaderMaps Loaded"), STAT_Shaders_NumShaderMaps,STATGROUP_Shaders, RENDERCORE_API);
+// Shaders maps that has had RHI shaders created for them. This usually means that the asset referencing this shadermap was rendered at least in some pass.
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num ShaderMaps Used"), STAT_Shaders_NumShaderMapsUsedForRendering, STATGROUP_Shaders, RENDERCORE_API);
+
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT Shader Load Time"),STAT_Shaders_RTShaderLoadTime,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Used"),STAT_Shaders_NumShadersUsedForRendering,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_FLOAT_ACCUMULATOR_STAT_EXTERN(TEXT("Total RT Shader Init Time"),STAT_Shaders_TotalRTShaderInitForRenderingTime,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_CYCLE_STAT_EXTERN(TEXT("Frame RT Shader Init Time"),STAT_Shaders_FrameRTShaderInitForRenderingTime,STATGROUP_Shaders, RENDERCORE_API);
+
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Shader Memory"),STAT_Shaders_ShaderMemory,STATGROUP_Shaders, RENDERCORE_API);
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Shader Resource Mem"),STAT_Shaders_ShaderResourceMemory,STATGROUP_Shaders, RENDERCORE_API);
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Shader Preload Mem"), STAT_Shaders_ShaderPreloadMemory, STATGROUP_Shaders, RENDERCORE_API);
-
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Registered"), STAT_Shaders_NumShadersRegistered, STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Duplicated"), STAT_Shaders_NumShadersDuplicated, STATGROUP_Shaders, RENDERCORE_API);
 
 inline TStatId GetMemoryStatType(EShaderFrequency ShaderFrequency)
 {

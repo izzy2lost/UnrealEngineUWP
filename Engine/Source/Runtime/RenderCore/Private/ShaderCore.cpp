@@ -107,18 +107,13 @@ DEFINE_STAT(STAT_ShaderCompiling_NumMaskedMaterialShaders);
 
 
 DEFINE_STAT(STAT_Shaders_NumShadersLoaded);
-DEFINE_STAT(STAT_Shaders_NumShaderResourcesLoaded);
+DEFINE_STAT(STAT_Shaders_NumShadersCreated);
 DEFINE_STAT(STAT_Shaders_NumShaderMaps);
+DEFINE_STAT(STAT_Shaders_NumShaderMapsUsedForRendering);
 DEFINE_STAT(STAT_Shaders_RTShaderLoadTime);
-DEFINE_STAT(STAT_Shaders_NumShadersUsedForRendering);
-DEFINE_STAT(STAT_Shaders_TotalRTShaderInitForRenderingTime);
-DEFINE_STAT(STAT_Shaders_FrameRTShaderInitForRenderingTime);
 DEFINE_STAT(STAT_Shaders_ShaderMemory);
 DEFINE_STAT(STAT_Shaders_ShaderResourceMemory);
 DEFINE_STAT(STAT_Shaders_ShaderPreloadMemory);
-
-DEFINE_STAT(STAT_Shaders_NumShadersRegistered);
-DEFINE_STAT(STAT_Shaders_NumShadersDuplicated);
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 

@@ -1210,14 +1210,6 @@ FSHAHash FShaderMapResource_SharedCode::GetShaderHash(int32 ShaderIndex)
 FRHIShader* FShaderMapResource_SharedCode::CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired)
 {
 	SCOPED_LOADTIMER(FShaderMapResource_SharedCode_InitRHI);
-#if STATS
-	double TimeFunctionEntered = FPlatformTime::Seconds();
-	ON_SCOPE_EXIT
-	{
-		double ShaderCreationTime = FPlatformTime::Seconds() - TimeFunctionEntered;
-		INC_FLOAT_STAT_BY(STAT_Shaders_TotalRTShaderInitForRenderingTime, ShaderCreationTime);
-	};
-#endif
 
 	const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
 	TRefCountPtr<FRHIShader> CreatedShader = LibraryInstance->GetOrCreateShader(LibraryShaderIndex);
