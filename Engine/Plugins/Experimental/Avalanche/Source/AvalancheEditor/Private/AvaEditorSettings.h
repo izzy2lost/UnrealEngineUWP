@@ -42,6 +42,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Behavior")
 	float CameraDistance = 500.0f;
 
+	/**
+	 * Whether to automatically switch to the Motion Design viewport when the mode is activated
+	 * or a Motion Design level is opened. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Behavior")
+	bool bAutoActivateMotionDesignViewport = true;
+
 	/** Default viewport quality settings for all newly created Motion Design blueprints. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Quality")
 	FAvaViewportQualitySettings DefaultViewportQualitySettings = FAvaViewportQualitySettings(true);

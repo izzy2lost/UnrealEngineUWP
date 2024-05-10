@@ -2,6 +2,7 @@
 
 #include "AvaLevelViewportExtension.h"
 #include "AvaEditorCommands.h"
+#include "AvaEditorSettings.h"
 #include "AvaLevelViewportCommands.h"
 #include "AvaLevelViewportLayoutEntity.h"
 #include "AvaViewportUtils.h"
@@ -410,7 +411,11 @@ void FAvaLevelViewportExtension::CheckValidViewportType()
 	// Set the active viewport to Motion Design if there is a valid scene object (not all the viewports)
 	if (Editor.IsValid() && Editor->IsActive() && GetSceneObject())
 	{
-		SetMotionDesignViewportType();
+		if (GetDefault<UAvaEditorSettings>()->bAutoActivateMotionDesignViewport)
+		{
+			SetMotionDesignViewportType();
+		}
+
 		return;
 	}
 
