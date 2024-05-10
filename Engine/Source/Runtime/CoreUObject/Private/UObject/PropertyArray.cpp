@@ -1370,3 +1370,13 @@ EPropertyVisitorControlFlow FArrayProperty::Visit(FPropertyVisitorPath& Path, vo
 	}
 	return RetVal;
 }
+
+void* FArrayProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (Info.PropertyInfo == EPropertyVisitorInfoType::ContainerIndex && Info.Property == Inner)
+	{
+		return GetValueAddressAtIndex_Direct(Info.Property, Data, Info.Index);
+	}
+
+	return nullptr;
+}

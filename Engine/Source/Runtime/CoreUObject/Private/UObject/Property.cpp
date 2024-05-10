@@ -1350,6 +1350,12 @@ EPropertyVisitorControlFlow FProperty::Visit(FPropertyVisitorPath& Path, void* D
 	return InFunc(Path, Data);
 }
 
+void* FProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	FPropertyVisitorPath Path(FPropertyVisitorInfo(this));
+	return PropertyVisitorHelpers::ResolveVisitedPathInfo_Generic(this, Path, Data, Info);
+}
+
 int32 FProperty::SetupOffset()
 {
 	UObject* OwnerUObject = GetOwner<UObject>();

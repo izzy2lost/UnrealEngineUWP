@@ -765,8 +765,18 @@ EPropertyVisitorControlFlow FObjectPropertyBase::Visit(FPropertyVisitorPath& Pat
 	{
 		if (const TObjectPtr<UObject> Object = GetObjectPropertyValue(Data))
 		{
-			RetVal = Object->GetClass()->Visit(Path, Object, InFunc);
+			RetVal = Object.GetClass()->Visit(Path, Object.Get(), InFunc);
 		}
 	}
 	return RetVal;
+}
+
+void* FObjectPropertyBase::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (const TObjectPtr<UObject> Object = GetObjectPropertyValue(Data))
+	{
+		return Object.GetClass()->ResolveVisitedPathInfo(Object.Get(), Info);
+	}
+
+	return nullptr;
 }

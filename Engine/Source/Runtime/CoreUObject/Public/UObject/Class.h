@@ -749,6 +749,12 @@ public:
 	 */
 	COREUOBJECT_API virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const;
 
+	/**
+	 * Attempt to resolve the given inner path info against this outer struct to get the inner property value.
+	 * @return The inner property value, or null if the path info is incompatible/missing on this struct.
+	 */
+	COREUOBJECT_API virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const;
+
 protected:
 
 	/** Returns the property name from the guid */
@@ -1252,6 +1258,7 @@ public:
 		}
 		/** Structs property visitor signature */
 		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const = 0;
+		virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const = 0;
 
 	private:
 		/** sizeof() of the structure **/
@@ -1650,6 +1657,18 @@ public:
 				return EPropertyVisitorControlFlow::StepOver;
 			}
 		}
+
+		virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const override
+		{
+			if constexpr (TStructOpsTypeTraits<CPPSTRUCT>::WithVisitor)
+			{
+				return ((CPPSTRUCT*)Data)->ResolveVisitedPathInfo(Info);
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
 	};
 
 	/** Template for noexport classes to autoregister before main starts **/
@@ -1899,7 +1918,9 @@ public:
 	virtual COREUOBJECT_API bool FindInnerPropertyInstance(FName PropertyName, const void* Data, const FProperty*& OutProp, const void*& OutData) const;
 
 	/* Custom visit implementation for structs */
+	using Super::Visit;
 	virtual COREUOBJECT_API EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const override;
+	virtual COREUOBJECT_API void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const override;
 };
 
 /*-----------------------------------------------------------------------------

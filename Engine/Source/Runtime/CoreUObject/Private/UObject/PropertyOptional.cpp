@@ -708,3 +708,13 @@ EPropertyVisitorControlFlow FOptionalProperty::Visit(FPropertyVisitorPath& Path,
 	}
 	return RetVal;
 }
+
+void* FOptionalProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (Info.Property == ValueProperty && IsSet(Data))
+	{
+		return Data;
+	}
+
+	return nullptr;
+}

@@ -117,7 +117,7 @@ public:
 
 	/**
 	 * Is this property path contained in the specified one
-	 * @param OtherPath property path to check if it is contianed in
+	 * @param OtherPath property path to check if it is contained in
 	 * @param bIsEqual optional parameter to know if it fully match
 	 * @return true if it is contained in the specified path
 	 */
@@ -165,3 +165,70 @@ public:
 protected:
 	FPropertyVisitorPath& Path;
 };
+
+namespace PropertyVisitorHelpers
+{
+
+namespace Private
+{
+
+template <typename Type>
+void* ResolveVisitedPathInfo(const Type* This, void* Data, const FPropertyVisitorInfo& Info)
+{
+	return This->ResolveVisitedPathInfo(Data, Info);
+}
+
+} // namespace Private
+
+/**
+ * Given a FPropertyVisitorPath, attempt to resolve that to a valid data pointer.
+ * RootObject is required to implement ResolveVisitedPathInfo to provide the resolver logic.
+ */
+template <typename Type>
+void* ResolveVisitedPath(const Type* RootObject, void* RootData, const FPropertyVisitorPath& Path)
+{
+	void* FoundPropertyData = nullptr;
+	if (const TArray<FPropertyVisitorInfo>& PathArray = Path.GetPath();
+		PathArray.Num() > 0)
+	{
+		FoundPropertyData = Private::ResolveVisitedPathInfo(RootObject, RootData, PathArray[0]);
+		for (int32 PathIndex = 1; FoundPropertyData && PathIndex < PathArray.Num(); ++PathIndex)
+		{
+			const FPropertyVisitorInfo& PreviousInfo = PathArray[PathIndex - 1];
+			FoundPropertyData = Private::ResolveVisitedPathInfo(PreviousInfo.Property, FoundPropertyData, PathArray[PathIndex]);
+		}
+	}
+	return FoundPropertyData;
+}
+
+/**
+ * A generic implementation of ResolveVisitedPathInfo that uses Visit to find the property data pointer.
+ * This may be used as the ResolveVisitedPathInfo implementation for your type if it doesn't have a more optimized version.
+ */
+template <typename Type>
+void* ResolveVisitedPathInfo_Generic(Type* This, FPropertyVisitorPath& Path, void* Data, const FPropertyVisitorInfo& Info)
+{
+	void* FoundInnerData = nullptr;
+	This->Visit(Path, Data, [&FoundInnerData, &Info, InnerPathDepth = Path.Num() + 1](const FPropertyVisitorPath& InnerPath, void* InnerData)
+	{
+		if (InnerPath.Num() < InnerPathDepth)
+		{
+			return EPropertyVisitorControlFlow::StepInto;
+		}
+		if (Info.Property == InnerPath.Top().Property && Info.PropertyInfo == InnerPath.Top().PropertyInfo && Info.Index == InnerPath.Top().Index)
+		{
+			FoundInnerData = InnerData;
+			return EPropertyVisitorControlFlow::Stop;
+		}
+		return EPropertyVisitorControlFlow::StepOver;
+	});
+	return FoundInnerData;
+}
+template <typename Type>
+void* ResolveVisitedPathInfo_Generic(Type* This, void* Data, const FPropertyVisitorInfo& Info)
+{
+	FPropertyVisitorPath Path;
+	return ResolveVisitedPathInfo_Generic(This, Path, Data, Info);
+}
+
+} // namespace PropertyVisitorHelpers

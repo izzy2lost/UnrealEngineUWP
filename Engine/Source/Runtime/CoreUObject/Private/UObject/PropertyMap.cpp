@@ -1859,3 +1859,13 @@ EPropertyVisitorControlFlow FMapProperty::Visit(FPropertyVisitorPath& Path, void
 	}
 	return RetVal;
 }
+
+void* FMapProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if ((Info.PropertyInfo == EPropertyVisitorInfoType::MapKey && Info.Property == KeyProp) || (Info.PropertyInfo == EPropertyVisitorInfoType::MapValue && Info.Property == ValueProp))
+	{
+		return GetValueAddressAtIndex_Direct(Info.Property, Data, Info.Index);
+	}
+
+	return nullptr;
+}

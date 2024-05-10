@@ -812,6 +812,20 @@ EPropertyVisitorControlFlow UStruct::Visit(FPropertyVisitorPath& Path, void* Dat
 	return RetVal;
 }
 
+void* UStruct::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (Info.ParentStructType) // We don't care if this matches, but we do care that it's set as it identifies a UStruct info
+	{
+		if (const UStruct* PropertyOwnerStruct = Info.Property->GetOwnerStruct();
+			PropertyOwnerStruct && IsChildOf(PropertyOwnerStruct))
+		{
+			return Info.Property->ContainerPtrToValuePtr<void>(Data, Info.PropertyInfo == EPropertyVisitorInfoType::StaticArrayIndex ? Info.Index : 0);
+		}
+	}
+
+	return nullptr;
+}
+
 void UStruct::PreloadChildren(FArchive& Ar)
 {
 	for (UField* Field = Children; Field; Field = Field->Next)
@@ -3542,6 +3556,22 @@ EPropertyVisitorControlFlow UScriptStruct::Visit(FPropertyVisitorPath& Path, voi
 		return CppStructOps->Visit(Path, Data, InFunc);
 	}
 	return RetVal;
+}
+
+void* UScriptStruct::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (void* InnerData = Super::ResolveVisitedPathInfo(Data, Info))
+	{
+		return InnerData;
+	}
+
+	if (StructFlags & STRUCT_Visitor)
+	{
+		checkf(CppStructOps && CppStructOps->HasVisitor(), TEXT("Expecting to have a visitor implementation when STRUCT_Visitor is set"));
+		return CppStructOps->ResolveVisitedPathInfo(Data, Info);
+	}
+
+	return nullptr;
 }
 
 void UScriptStruct::ClearScriptStruct(void* Dest, int32 ArrayDim) const

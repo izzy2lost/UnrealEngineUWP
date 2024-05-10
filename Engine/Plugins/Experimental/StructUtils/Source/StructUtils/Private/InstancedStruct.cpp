@@ -602,3 +602,13 @@ EPropertyVisitorControlFlow FInstancedStruct::Visit(FPropertyVisitorPath& Path, 
 
 	return ScriptStruct->Visit(Path, StructMemory, InFunc);
 }
+
+void* FInstancedStruct::ResolveVisitedPathInfo(const FPropertyVisitorInfo& Info)
+{
+	if (!ScriptStruct || !StructMemory)
+	{
+		return nullptr;
+	}
+
+	return ScriptStruct->ResolveVisitedPathInfo(StructMemory, Info);
+}

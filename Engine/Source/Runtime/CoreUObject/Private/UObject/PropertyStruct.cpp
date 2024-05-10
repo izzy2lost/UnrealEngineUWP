@@ -648,3 +648,8 @@ EPropertyVisitorControlFlow FStructProperty::Visit(FPropertyVisitorPath& Path, v
 	}
 	return RetVal;
 }
+
+void* FStructProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	return Struct->ResolveVisitedPathInfo(Data, Info);
+}

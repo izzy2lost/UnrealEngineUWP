@@ -157,6 +157,7 @@ public:
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 	bool FindInnerPropertyInstance(FName PropertyName, const FProperty*& OutProp, const void*& OutData) const;
 	EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc);
+	void* ResolveVisitedPathInfo(const FPropertyVisitorInfo& Info);
 
 	/** Returns struct type. */
 	const UScriptStruct* GetScriptStruct() const

@@ -1160,3 +1160,13 @@ EPropertyVisitorControlFlow FSetProperty::Visit(FPropertyVisitorPath& Path, void
 	}
 	return RetVal;
 }
+
+void* FSetProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (Info.PropertyInfo == EPropertyVisitorInfoType::ContainerIndex && Info.Property == ElementProp)
+	{
+		return GetValueAddressAtIndex_Direct(Info.Property, Data, Info.Index);
+	}
+
+	return nullptr;
+}
