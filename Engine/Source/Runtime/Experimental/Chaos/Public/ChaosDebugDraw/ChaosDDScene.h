@@ -20,7 +20,7 @@ namespace ChaosDD::Private
 	class CHAOS_API FChaosDDScene : public TSharedFromThis<FChaosDDScene>
 	{
 	public:
-		FChaosDDScene(const FString& InName);
+		FChaosDDScene(const FString& InName, bool bIsServer);
 		~FChaosDDScene();
 
 		const FString& GetName() const
@@ -28,28 +28,41 @@ namespace ChaosDD::Private
 			return Name;
 		}
 
+		bool IsServer() const;
+		void SetRenderEnabled(bool bInRenderEnabled);
+		bool IsRenderEnabled() const;
+
 		// Specify the region of in which we wish to enable debug draw. A radius of zero means everywhere.
 		void SetDrawRegion(const FSphere3d& InDrawRegion);
 
+		// The region of interest
+		const FSphere3d& GetDrawRegion() const;
+
 		// Set the line budget for debug draw
 		void SetCommandBudget(int32 InCommandBudget);
+
+		// The number of commands we can draw (also max number of lines for now)
+		int32 GetCommandBudget() const;
 
 		// Create a new timeline. E.g., PT, GT, RBAN
 		// The caller must hold a shared pointer to the timeline to keep it alive.
 		FChaosDDTimelinePtr CreateTimeline(const FString& Name);
 
-		// Render the most recent frame from each timeline
-		void RenderLatestFrames(IChaosDDRenderer& Renderer, bool bIncludeGlobalFrame);
+		// Collect all the latest complete frames for rendering
+		TArray<FChaosDDFramePtr> GetLatestFrames();
 
 	private:
 		TArray<FChaosDDFramePtr> GetFrames();
 		void PruneTimelines();
 
+		mutable FCriticalSection TimelinesCS;
+
 		FString Name;
-		FCriticalSection TimelinesCS;
 		TArray<FChaosDDTimelineWeakPtr> Timelines;
 		FSphere3d DrawRegion;
 		int32 CommandBudget;
+		bool bIsServer;
+		bool bRenderEnabled;
 	};
 }
 

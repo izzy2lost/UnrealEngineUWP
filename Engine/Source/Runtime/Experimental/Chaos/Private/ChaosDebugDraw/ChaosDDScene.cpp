@@ -22,15 +22,36 @@ namespace ChaosDD::Private
 		}
 	}
 
-	FChaosDDScene::FChaosDDScene(const FString& InName)
+	FChaosDDScene::FChaosDDScene(const FString& InName, bool bInIsServer)
 		: Name(InName)
 		, DrawRegion(FVector::Zero(), 0.0)
 		, CommandBudget(20000)
+		, bIsServer(bInIsServer)
+		, bRenderEnabled(true)
 	{
 	}
 
 	FChaosDDScene::~FChaosDDScene()
 	{
+	}
+
+	bool FChaosDDScene::IsServer() const
+	{
+		return bIsServer;
+	}
+
+	void FChaosDDScene::SetRenderEnabled(bool bInRenderEnabled)
+	{
+		FScopeLock Lock(&TimelinesCS);
+
+		bRenderEnabled = bInRenderEnabled;
+	}
+
+	bool FChaosDDScene::IsRenderEnabled() const
+	{
+		FScopeLock Lock(&TimelinesCS);
+
+		return bRenderEnabled;
 	}
 
 	void FChaosDDScene::SetDrawRegion(const FSphere3d& InDrawRegion)
@@ -50,6 +71,13 @@ namespace ChaosDD::Private
 		//FChaosDDContext::SetGlobalDrawRegion(InDrawRegion);
 	}
 
+	const FSphere3d& FChaosDDScene::GetDrawRegion() const
+	{
+		FScopeLock Lock(&TimelinesCS);
+
+		return DrawRegion;
+	}
+
 	void FChaosDDScene::SetCommandBudget(int32 InCommandBudget)
 	{
 		FScopeLock Lock(&TimelinesCS);
@@ -65,6 +93,13 @@ namespace ChaosDD::Private
 		FChaosDDContext::SetGlobalCommandBudget(InCommandBudget);
 	}
 
+	int32 FChaosDDScene::GetCommandBudget() const
+	{
+		FScopeLock Lock(&TimelinesCS);
+
+		return CommandBudget;
+	}
+
 	FChaosDDTimelinePtr FChaosDDScene::CreateTimeline(const FString& InName)
 	{
 		FScopeLock Lock(&TimelinesCS);
@@ -76,36 +111,9 @@ namespace ChaosDD::Private
 		return Timeline;
 	}
 
-	void FChaosDDScene::RenderLatestFrames(IChaosDDRenderer& Renderer, bool bIncludeGlobalFrame)
+	TArray<FChaosDDFramePtr> FChaosDDScene::GetLatestFrames()
 	{
-		TArray<FChaosDDFramePtr> Frames = GetFrames();
-
-		if (bIncludeGlobalFrame)
-		{
-			Frames.Add(FChaosDDContext::ExtractGlobalFrame());
-		}
-
-		for (const FChaosDDFramePtr& Frame : Frames)
-		{
-			if (Frame.IsValid())
-			{
-				UE_LOG(LogChaosDD, VeryVerbose, TEXT("Render %s %d %d Commands"), *Frame->GetTimeline()->GetName(), Frame->GetFrameIndex(), Frame->GetNumCommands());
-
-				// Render the legacy commands
-				Frame->VisitLatentCommands(
-					[&Renderer](const Chaos::FLatentDrawCommand& Command)
-					{
-						Renderer.RenderLatentCommand(Command);
-					});
-
-				// Render the commands
-				Frame->VisitCommands(
-					[&Renderer](const FChaosDDCommand& Command)
-					{
-						Command(Renderer);
-					});
-			}
-		}
+		return GetFrames();
 	}
 
 	TArray<FChaosDDFramePtr> FChaosDDScene::GetFrames()

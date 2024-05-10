@@ -23,12 +23,15 @@ namespace ChaosDD::Private
 	class FChaosDDGlobalFrame;
 	class FChaosDDScene;
 	class FChaosDDTimeline;
+	class FChaosDDTimelineContext;
+	class FChaosDDTaskContext;
 
 	class IChaosDDRenderer;
 
 	using FChaosDDFramePtr = TSharedPtr<FChaosDDFrame, ESPMode::ThreadSafe>;
 	using FChaosDDGlobalFramePtr = TSharedPtr<FChaosDDGlobalFrame, ESPMode::ThreadSafe>;
 	using FChaosDDScenePtr = TSharedPtr<FChaosDDScene, ESPMode::ThreadSafe>;
+	using FChaosDDSceneWeakPtr = TWeakPtr<FChaosDDScene, ESPMode::ThreadSafe>;
 	using FChaosDDTimelinePtr = TSharedPtr<FChaosDDTimeline, ESPMode::ThreadSafe>;
 	using FChaosDDTimelineWeakPtr = TWeakPtr<FChaosDDTimeline, ESPMode::ThreadSafe>;
 }

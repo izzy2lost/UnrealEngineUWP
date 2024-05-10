@@ -249,29 +249,29 @@ public:
 		RadiusOfInterest = InRadius;
 	}
 
-	const FVector& GetCenterOfInterest() const
+	FVector GetCenterOfInterest() const
 	{
-		return CenterOfInterest;
+		return GetCenterOfInterestImpl();
 	}
 
 	FReal GetRadiusOfInterest() const
 	{
-		return RadiusOfInterest;
+		return GetRadiusOfInterestImpl();
 	}
 
 	bool IsInRegionOfInterest(FVector Pos) const
 	{
-		return (RadiusOfInterest <= 0.0f) || ((Pos - CenterOfInterest).SizeSquared() < RadiusOfInterest * RadiusOfInterest);
+		return IsInRegionOfInterestImpl(Pos);
 	}
 
 	bool IsInRegionOfInterest(FVector Pos, FReal Radius) const
 	{
-		return (RadiusOfInterest <= 0.0f) || ((Pos - CenterOfInterest).SizeSquared() < (RadiusOfInterest + Radius) * (RadiusOfInterest + Radius));
+		return IsInRegionOfInterestImpl(Pos, Radius);
 	}
 
 	bool IsInRegionOfInterest(FAABB3 Bounds) const
 	{
-		return Bounds.ThickenSymmetrically(FVec3(RadiusOfInterest)).Contains(CenterOfInterest);
+		return IsInRegionOfInterestImpl(Bounds);
 	}
 
 	CHAOS_API void SetConsumerActive(void* Consumer, bool bConsumerActive);
@@ -293,6 +293,60 @@ private:
 		, bEnableDebugDrawing(false)
 	{}
 	~FDebugDrawQueue() {}
+
+	FVector GetCenterOfInterestImpl() const
+	{
+		if (bChaosDebugDraw_UseNewQueue)
+		{
+			ChaosDD::Private::FChaosDDFrameWriter DDWriter = ChaosDD::Private::FChaosDDContext::Get().GetWriter();
+			return DDWriter.GetDrawRegion().Center;
+		}
+
+		return CenterOfInterest;
+	}
+
+	FReal GetRadiusOfInterestImpl() const
+	{
+		if (bChaosDebugDraw_UseNewQueue)
+		{
+			ChaosDD::Private::FChaosDDFrameWriter DDWriter = ChaosDD::Private::FChaosDDContext::Get().GetWriter();
+			return DDWriter.GetDrawRegion().W;
+		}
+
+		return RadiusOfInterest;
+	}
+
+	bool IsInRegionOfInterestImpl(FVector Pos) const
+	{
+		if (bChaosDebugDraw_UseNewQueue)
+		{
+			ChaosDD::Private::FChaosDDFrameWriter DDWriter = ChaosDD::Private::FChaosDDContext::Get().GetWriter();
+			return DDWriter.IsInDrawRegion(Pos);
+		}
+
+		return (RadiusOfInterest <= 0.0f) || ((Pos - CenterOfInterest).SizeSquared() < RadiusOfInterest * RadiusOfInterest);
+	}
+
+	bool IsInRegionOfInterestImpl(FVector Pos, FReal Radius) const
+	{
+		if (bChaosDebugDraw_UseNewQueue)
+		{
+			ChaosDD::Private::FChaosDDFrameWriter DDWriter = ChaosDD::Private::FChaosDDContext::Get().GetWriter();
+			return DDWriter.IsInDrawRegion(FSphere3d(Pos, Radius));
+		}
+
+		return (RadiusOfInterest <= 0.0f) || ((Pos - CenterOfInterest).SizeSquared() < (RadiusOfInterest + Radius) * (RadiusOfInterest + Radius));
+	}
+
+	bool IsInRegionOfInterestImpl(FAABB3 Bounds) const
+	{
+		if (bChaosDebugDraw_UseNewQueue)
+		{
+			ChaosDD::Private::FChaosDDFrameWriter DDWriter = ChaosDD::Private::FChaosDDContext::Get().GetWriter();
+			return DDWriter.IsInDrawRegion(FBox3d(Bounds.Min(), Bounds.Max()));
+		}
+		return Bounds.ThickenSymmetrically(FVec3(RadiusOfInterest)).Contains(CenterOfInterest);
+	}
 
 	bool AcceptCommand(int Cost, const FVec3& Position)
 	{
