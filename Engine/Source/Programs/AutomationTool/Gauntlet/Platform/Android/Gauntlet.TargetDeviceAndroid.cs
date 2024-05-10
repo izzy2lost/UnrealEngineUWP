@@ -367,14 +367,13 @@ namespace Gauntlet
 			string Package = Build.AndroidPackageName;
 			KillRunningProcess(Package);
 
-			EnablePermissions(Package);
-
-
 			// Install apk
 			string APK = Globals.IsRunningDev && AppConfig.OverlayExecutable.GetOverlay(Build.SourceApkPath, out string OverlayAPK)
 				? OverlayAPK
 				: Build.SourceApkPath;
 			CopyFileToDevice(Package, APK, string.Empty);
+
+			EnablePermissions(Package);
 
 			// Copy obbs from bulk builds
 			bool bSkipOBBInstall = Globals.Params.ParseParam("SkipOBBCopy"); // useful when iterating on dev executables
@@ -956,6 +955,8 @@ namespace Gauntlet
 				Log.Verbose(string.Format("Enabling permission: {0} {1}", AndroidPackageName, Permission));
 				RunAdbDeviceCommand(CommandLine, true, false, true);
 			});
+			Log.Verbose($"Enabling permission: {AndroidPackageName} MANAGE_EXTERNAL_STORAGE");
+			RunAdbDeviceCommand($"shell appops set {AndroidPackageName} MANAGE_EXTERNAL_STORAGE allow");
 		}
 
 		public void KillRunningProcess(string AndroidPackageName)
