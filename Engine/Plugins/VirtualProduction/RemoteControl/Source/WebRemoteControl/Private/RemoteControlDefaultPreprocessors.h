@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "HttpResultCallback.h"
+#include "IPAddress.h"
 #include "HttpServerRequest.h"
 #include "Misc/WildcardString.h"
 #include "RemoteControlSettings.h"
