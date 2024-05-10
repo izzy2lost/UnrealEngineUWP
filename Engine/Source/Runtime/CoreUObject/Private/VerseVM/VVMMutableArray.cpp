@@ -56,7 +56,7 @@ void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 	}
 }
 
-VValue VMutableArray::FreezeImpl(FRunningContext Context)
+VValue VMutableArray::FreezeImpl(FAllocationContext Context)
 {
 	EArrayType ArrayType = GetArrayType();
 	VArray& FrozenArray = VArray::New(Context, Num(), ArrayType);

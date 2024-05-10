@@ -34,7 +34,7 @@ struct VObject : VHeapValue
 	void SetIsStruct() { SetIsDeeplyMutable(); };
 
 protected:
-	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	COREUOBJECT_API bool EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
@@ -45,8 +45,8 @@ protected:
 
 	static std::byte* AllocateFastCell(FAllocationContext Context, VEmergentType& EmergentType);
 
-	VValue MeltImpl(FRunningContext Context);
-	VValue FreezeImpl(FRunningContext Context);
+	VValue MeltImpl(FAllocationContext Context);
+	VValue FreezeImpl(FAllocationContext Context);
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.

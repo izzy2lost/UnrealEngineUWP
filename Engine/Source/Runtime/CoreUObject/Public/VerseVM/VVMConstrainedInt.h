@@ -35,7 +35,7 @@ struct VConstrainedInt : VType
 		return Max.Get();
 	}
 
-	bool SubsumesImpl(FRunningContext, VValue);
+	bool SubsumesImpl(FAllocationContext Context, VValue);
 
 private:
 	explicit VConstrainedInt(FAllocationContext& Context, VInt InMin, VInt InMax)

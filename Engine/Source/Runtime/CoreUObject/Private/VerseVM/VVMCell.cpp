@@ -50,22 +50,22 @@ void VCell::RunDestructor()
 	CppClassInfo->RunDestructor(this);
 }
 
-bool VCell::Equal(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
+bool VCell::Equal(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	return GetEmergentType()->CppClassInfo->Equal(Context, this, Other, HandlePlaceholder);
 }
 
-VValue VCell::Melt(FRunningContext Context)
+VValue VCell::Melt(FAllocationContext Context)
 {
 	return GetEmergentType()->CppClassInfo->Melt(Context, this);
 }
 
-VValue VCell::Freeze(FRunningContext Context)
+VValue VCell::Freeze(FAllocationContext Context)
 {
 	return GetEmergentType()->CppClassInfo->Freeze(Context, this);
 }
 
-bool VCell::Subsumes(FRunningContext Context, VValue Value)
+bool VCell::Subsumes(FAllocationContext Context, VValue Value)
 {
 	return GetEmergentType()->CppClassInfo->Subsumes(Context, this, Value);
 }
@@ -74,21 +74,21 @@ void VCell::ConductCensusImpl()
 {
 }
 
-bool VCell::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
+bool VCell::EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	V_DIE("VCell subtype without `EqualImpl` override called! Either this type should have an override "
 		  "if comparable OR a non-comparable type is being compared which is an error.");
 	return false;
 }
 
-VValue VCell::MeltImpl(FRunningContext Context)
+VValue VCell::MeltImpl(FAllocationContext Context)
 {
 	V_DIE("VCell subtype without `MeltImpl` override called! Either this type should have an override "
 		  "or an invalid subtype is being melted.");
 	return VValue();
 }
 
-VValue VCell::FreezeImpl(FRunningContext Context)
+VValue VCell::FreezeImpl(FAllocationContext Context)
 {
 	V_DIE("VCell subtype '%s' without `FreezeImpl` override called! Either this type should have an override "
 		  "or an invalid subtype is being frozen.",
@@ -96,7 +96,7 @@ VValue VCell::FreezeImpl(FRunningContext Context)
 	return VValue();
 }
 
-bool VCell::SubsumesImpl(FRunningContext, VValue)
+bool VCell::SubsumesImpl(FAllocationContext, VValue)
 {
 	V_DIE("VCell subtype without `SubsumesImpl` override called!");
 	return false;

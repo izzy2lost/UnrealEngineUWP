@@ -457,7 +457,7 @@ static VHeapInt* Zero(FAllocationContext Context)
 	return VHeapInt::CreateZero(Context);
 }
 
-VHeapInt* VHeapInt::Multiply(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
+VHeapInt* VHeapInt::Multiply(FAllocationContext Context, VHeapInt& X, VHeapInt& Y)
 {
 	if (X.IsZero())
 	{
@@ -482,7 +482,7 @@ VHeapInt* VHeapInt::Multiply(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 	return Result->RightTrim(Context);
 }
 
-VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder /*= nullptr*/)
+VHeapInt* VHeapInt::Divide(FAllocationContext Context, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder /*= nullptr*/)
 {
 	// Division by 0 is a failure
 	if (Y.IsZero())
@@ -547,7 +547,7 @@ VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y, bo
 // allocated for it; otherwise the caller must ensure that it is big enough.
 // {quotient} can be the same as {x} for an in-place division. {quotient} can
 // also be nullptr if the caller is only interested in the remainder.
-bool VHeapInt::AbsoluteDivWithDigitDivisor(FRunningContext Context, const VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder)
+bool VHeapInt::AbsoluteDivWithDigitDivisor(FAllocationContext Context, const VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder)
 {
 	Remainder = 0;
 	if (Divisor == 1)
@@ -593,7 +593,7 @@ bool VHeapInt::AbsoluteDivWithDigitDivisor(FRunningContext Context, const VHeapI
 // Both {quotient} and {remainder} are optional, for callers that are only
 // interested in one of them.
 // See Knuth, Volume 2, section 4.3.1, Algorithm D.
-void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, const VHeapInt& Dividend, const VHeapInt& Divisor, VHeapInt** Quotient, VHeapInt** Remainder, bool* bOutHasNonZeroRemainder /*= nullptr*/)
+void VHeapInt::AbsoluteDivWithHeapIntDivisor(FAllocationContext Context, const VHeapInt& Dividend, const VHeapInt& Divisor, VHeapInt** Quotient, VHeapInt** Remainder, bool* bOutHasNonZeroRemainder /*= nullptr*/)
 {
 	check(Divisor.GetLength() >= 2);
 	check(Dividend.GetLength() >= Divisor.GetLength());
@@ -708,7 +708,7 @@ void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, const VHea
 	}
 }
 
-VHeapInt* VHeapInt::Modulo(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
+VHeapInt* VHeapInt::Modulo(FAllocationContext Context, VHeapInt& X, VHeapInt& Y)
 {
 	if (Y.IsZero())
 	{
@@ -852,7 +852,7 @@ void VHeapInt::InternalMultiplyAdd(const VHeapInt& Source, Digit Factor, Digit S
 }
 
 // Always copies the input, even when {shift} == 0.
-VHeapInt* VHeapInt::AbsoluteLeftShiftAlwaysCopy(FRunningContext Context, const VHeapInt& X, uint32 Shift, LeftShiftMode Mode)
+VHeapInt* VHeapInt::AbsoluteLeftShiftAlwaysCopy(FAllocationContext Context, const VHeapInt& X, uint32 Shift, LeftShiftMode Mode)
 {
 	check(Shift < DigitBits);
 	check(!X.IsZero());
@@ -949,7 +949,7 @@ VHeapInt::Digit VHeapInt::DigitDiv(Digit High, Digit Low, Digit Divisor, Digit& 
 	return Q1 * HalfDigitBase + Q0;
 }
 
-VHeapInt* VHeapInt::Copy(FRunningContext Context, const VHeapInt& X)
+VHeapInt* VHeapInt::Copy(FAllocationContext Context, const VHeapInt& X)
 {
 	check(!X.IsZero());
 
@@ -963,7 +963,7 @@ VHeapInt* VHeapInt::Copy(FRunningContext Context, const VHeapInt& X)
 	return Result;
 }
 
-VHeapInt* VHeapInt::UnaryMinus(FRunningContext Context, VHeapInt& X)
+VHeapInt* VHeapInt::UnaryMinus(FAllocationContext Context, VHeapInt& X)
 {
 	if (X.IsZero())
 	{
@@ -975,7 +975,7 @@ VHeapInt* VHeapInt::UnaryMinus(FRunningContext Context, VHeapInt& X)
 	return Result;
 }
 
-VHeapInt* VHeapInt::Add(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
+VHeapInt* VHeapInt::Add(FAllocationContext Context, VHeapInt& X, VHeapInt& Y)
 {
 	bool XSign = X.GetSign();
 
@@ -997,7 +997,7 @@ VHeapInt* VHeapInt::Add(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 	return AbsoluteSub(Context, Y, X, !XSign);
 }
 
-VHeapInt* VHeapInt::Sub(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
+VHeapInt* VHeapInt::Sub(FAllocationContext Context, VHeapInt& X, VHeapInt& Y)
 {
 	bool XSign = X.GetSign();
 	if (XSign != Y.GetSign())
@@ -1159,7 +1159,7 @@ VHeapInt::ComparisonResult VHeapInt::Compare(VHeapInt& X, VHeapInt& Y)
 	return ComparisonResult::Equal;
 }
 
-VHeapInt* VHeapInt::AbsoluteAdd(FRunningContext Context,
+VHeapInt* VHeapInt::AbsoluteAdd(FAllocationContext Context,
 	VHeapInt& X,
 	VHeapInt& Y,
 	bool ResultSign)
@@ -1211,7 +1211,7 @@ VHeapInt* VHeapInt::AbsoluteAdd(FRunningContext Context,
 	return Result->RightTrim(Context);
 }
 
-VHeapInt* VHeapInt::AbsoluteSub(FRunningContext Context,
+VHeapInt* VHeapInt::AbsoluteSub(FAllocationContext Context,
 	VHeapInt& X, VHeapInt& Y, bool ResultSign)
 {
 	ComparisonResult ComparisonResult = AbsoluteCompare(X, Y);
@@ -1264,7 +1264,7 @@ VHeapInt* VHeapInt::AbsoluteSub(FRunningContext Context,
 	return Result->RightTrim(Context);
 }
 
-VHeapInt* VHeapInt::RightTrim(FRunningContext Context)
+VHeapInt* VHeapInt::RightTrim(FAllocationContext Context)
 {
 	if (IsZero())
 	{

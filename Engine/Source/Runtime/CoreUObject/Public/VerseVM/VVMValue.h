@@ -81,14 +81,12 @@ struct VValue
 
 	// Note: This is what you want if you want a deep equality check.
 	// This will return true if left and/or right are placeholders.
-	template <typename ContextType, typename HandlePlaceholderFunction>
-	static bool Equal(ContextType Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder);
+	template <typename HandlePlaceholderFunction>
+	static bool Equal(FAllocationContext Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder);
 
 	// This may return a placeholder which is suspended upon as a FOpResult::Block result would be.
-	template <typename ContextType>
-	static VValue Melt(ContextType Context, VValue Value);
-	template <typename ContextType>
-	static VValue Freeze(ContextType Context, VValue Value);
+	static VValue Melt(FAllocationContext Context, VValue Value);
+	static VValue Freeze(FAllocationContext Context, VValue Value);
 
 	static VValue Decode(uint64 EncodedBits)
 	{

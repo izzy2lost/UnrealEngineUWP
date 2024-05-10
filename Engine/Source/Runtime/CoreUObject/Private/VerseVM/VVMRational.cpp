@@ -16,7 +16,7 @@ namespace Verse
 DEFINE_DERIVED_VCPPCLASSINFO(VRational);
 TGlobalTrivialEmergentTypePtr<&VRational::StaticCppClassInfo> VRational::GlobalTrivialEmergentType;
 
-VRational& VRational::Add(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+VRational& VRational::Add(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
@@ -33,7 +33,7 @@ VRational& VRational::Add(FRunningContext Context, VRational& Lhs, VRational& Rh
 		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()));
 }
 
-VRational& VRational::Sub(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+VRational& VRational::Sub(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
@@ -50,26 +50,26 @@ VRational& VRational::Sub(FRunningContext Context, VRational& Lhs, VRational& Rh
 		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()));
 }
 
-VRational& VRational::Mul(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+VRational& VRational::Mul(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	return VRational::New(Context,
 		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Numerator.Get()),
 		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()));
 }
 
-VRational& VRational::Div(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+VRational& VRational::Div(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	return VRational::New(Context,
 		VInt::Mul(Context, Lhs.Numerator.Get(), Rhs.Denominator.Get()),
 		VInt::Mul(Context, Lhs.Denominator.Get(), Rhs.Numerator.Get()));
 }
 
-VRational& VRational::Neg(FRunningContext Context, VRational& N)
+VRational& VRational::Neg(FAllocationContext Context, VRational& N)
 {
 	return VRational::New(Context, VInt::Neg(Context, N.Numerator.Get()), N.Denominator.Get());
 }
 
-bool VRational::Eq(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+bool VRational::Eq(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	Lhs.Reduce(Context);
 	Lhs.NormalizeSigns(Context);
@@ -80,7 +80,7 @@ bool VRational::Eq(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 		&& VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get());
 }
 
-bool VRational::Gt(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+bool VRational::Gt(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
@@ -92,7 +92,7 @@ bool VRational::Gt(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
-bool VRational::Lt(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+bool VRational::Lt(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
@@ -104,7 +104,7 @@ bool VRational::Lt(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
-bool VRational::Gte(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+bool VRational::Gte(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
@@ -116,7 +116,7 @@ bool VRational::Gte(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
-bool VRational::Lte(FRunningContext Context, VRational& Lhs, VRational& Rhs)
+bool VRational::Lte(FAllocationContext Context, VRational& Lhs, VRational& Rhs)
 {
 	if (VInt::Eq(Context, Lhs.Denominator.Get(), Rhs.Denominator.Get()))
 	{
@@ -128,7 +128,7 @@ bool VRational::Lte(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 		VInt::Mul(Context, Rhs.Numerator.Get(), Lhs.Denominator.Get()));
 }
 
-VInt VRational::Floor(FRunningContext Context) const
+VInt VRational::Floor(FAllocationContext Context) const
 {
 	VInt IntNumerator(Numerator.Get());
 	VInt IntDenominator(Denominator.Get());
@@ -141,7 +141,7 @@ VInt VRational::Floor(FRunningContext Context) const
 	return IntQuotient;
 }
 
-VInt VRational::Ceil(FRunningContext Context) const
+VInt VRational::Ceil(FAllocationContext Context) const
 {
 	VInt IntNumerator(Numerator.Get());
 	VInt IntDenominator(Denominator.Get());
@@ -154,7 +154,7 @@ VInt VRational::Ceil(FRunningContext Context) const
 	return IntQuotient;
 }
 
-void VRational::Reduce(FRunningContext Context)
+void VRational::Reduce(FAllocationContext Context)
 {
 	if (bIsReduced)
 	{
@@ -178,7 +178,7 @@ void VRational::Reduce(FRunningContext Context)
 	bIsReduced = true;
 }
 
-void VRational::NormalizeSigns(FRunningContext Context)
+void VRational::NormalizeSigns(FAllocationContext Context)
 {
 	VInt Denom = Denominator.Get();
 	if (VInt::Lt(Context, Denom, VInt(0)))
@@ -215,7 +215,7 @@ void VRational::SerializeImpl(VRational*& This, FAllocationContext Context, FAbs
 	}
 }
 
-bool VRational::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
+bool VRational::EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	if (!Other->IsA<VRational>())
 	{

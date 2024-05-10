@@ -217,7 +217,7 @@ private:
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
 
-	bool SubsumesImpl(FRunningContext, VValue);
+	bool SubsumesImpl(FAllocationContext, VValue);
 
 	TWriteBarrier<VArray> ClassName;
 	TWriteBarrier<VArray> UEMangledName;

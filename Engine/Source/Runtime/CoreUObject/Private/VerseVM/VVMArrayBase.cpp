@@ -16,7 +16,7 @@ namespace Verse
 {
 DEFINE_DERIVED_VCPPCLASSINFO(VArrayBase);
 
-bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
+bool VArrayBase::EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	if (!Other->IsA<VArrayBase>())
 	{
@@ -46,7 +46,7 @@ bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunctio
 	return true;
 }
 
-VValue VArrayBase::MeltImpl(FRunningContext Context)
+VValue VArrayBase::MeltImpl(FAllocationContext Context)
 {
 	EArrayType ArrayType = GetArrayType();
 	if (ArrayType != EArrayType::VValue)

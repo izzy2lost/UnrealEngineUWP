@@ -23,22 +23,22 @@ struct VRational : VHeapValue
 	TWriteBarrier<VInt> Numerator;
 	TWriteBarrier<VInt> Denominator;
 
-	static VRational& Add(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static VRational& Sub(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static VRational& Mul(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static VRational& Div(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static VRational& Neg(FRunningContext Context, VRational& N);
-	static bool Eq(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static bool Gt(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static bool Lt(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static bool Gte(FRunningContext Context, VRational& Lhs, VRational& Rhs);
-	static bool Lte(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Add(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Sub(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Mul(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Div(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Neg(FAllocationContext Context, VRational& N);
+	static bool Eq(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Gt(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Lt(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Gte(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Lte(FAllocationContext Context, VRational& Lhs, VRational& Rhs);
 
-	VInt Floor(FRunningContext Context) const;
-	VInt Ceil(FRunningContext Context) const;
+	VInt Floor(FAllocationContext Context) const;
+	VInt Ceil(FAllocationContext Context) const;
 
-	void Reduce(FRunningContext Context);
-	void NormalizeSigns(FRunningContext Context);
+	void Reduce(FAllocationContext Context);
+	void NormalizeSigns(FAllocationContext Context);
 	bool IsZero() const { return Numerator.Get().IsZero(); }
 	bool IsReduced() const { return bIsReduced; }
 
@@ -47,7 +47,7 @@ struct VRational : VHeapValue
 		return *new (Context.AllocateFastCell(sizeof(VRational))) VRational(Context, InNumerator, InDenominator);
 	}
 
-	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	COREUOBJECT_API bool EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 

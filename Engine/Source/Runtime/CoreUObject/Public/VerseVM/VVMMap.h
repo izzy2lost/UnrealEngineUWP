@@ -31,75 +31,130 @@ namespace Verse
  * A tuple if all elements in the tuple are comparable
  */
 
-struct VMapBaseInternalKeyFuncs : TDefaultMapKeyFuncs<TWriteBarrier<VValue>, TWriteBarrier<VValue>, false>
-{
-	static FORCEINLINE bool Matches(KeyInitType A, KeyInitType B)
-	{
-		return VValue::Equal(FRunningContextPromise(), A.Get(), B.Get(), [](VValue Left, VValue Right) {
-			checkSlow(!Left.IsPlaceholder());
-			checkSlow(!Right.IsPlaceholder());
-		});
-	}
-
-	static FORCEINLINE bool Matches(KeyInitType A, VValue B)
-	{
-		return VValue::Equal(FRunningContextPromise(), A.Get(), B, [](VValue Left, VValue Right) {
-			checkSlow(!Left.IsPlaceholder());
-			checkSlow(!Right.IsPlaceholder());
-		});
-	}
-
-	COREUOBJECT_API static uint32 GetKeyHash(KeyInitType Key);
-	COREUOBJECT_API static uint32 GetKeyHash(VValue Key);
-};
-using VMapBaseInternal = TMap<TWriteBarrier<VValue>, TWriteBarrier<VValue>, FDefaultSetAllocator, VMapBaseInternalKeyFuncs>;
-
 struct VMapBase : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
+	using KeyType = TWriteBarrier<VValue>;
+	using ValType = TWriteBarrier<VValue>;
+	using PairType = TPair<KeyType, ValType>;
+	using SequenceType = uint32;
+
+	struct RangedForIterator
+	{
+		RangedForIterator(const VMapBase* Map, uint32 Index)
+			: Map(Map)
+			, Index(Index) {}
+		TPair<VValue, VValue> operator*() const
+		{
+			const PairType* PairTable = Map->GetPairTable();
+			const SequenceType* SequenceTable = Map->GetSequenceTable();
+			return {PairTable[SequenceTable[Index]].Key.Get(), PairTable[SequenceTable[Index]].Value.Get()};
+		}
+		bool operator==(const RangedForIterator& Rhs) const { return Index == Rhs.Index; }
+		bool operator!=(const RangedForIterator& Rhs) const { return Index != Rhs.Index; }
+		RangedForIterator& operator++()
+		{
+			++Index;
+			return *this;
+		}
+
+		const VMapBase* Map;
+		uint32 Index;
+	};
 
 protected:
-	// TODO: Create an allocator for this map which uses the GC's Aux allocation so we don't have to count external memory
-	// NB: Right now, we rely on nothing being removed from this map because we look things up by index.
-	VMapBaseInternal InternalMap;
-
-	VMapBase(FAllocationContext Context, uint32 InitialCapacity, VEmergentType* Type)
-		: VHeapValue(Context, Type)
-	{
-		SetIsDeeplyMutable();
-		InternalMap.Reserve(InitialCapacity);
-		FHeap::ReportAllocatedNativeBytes(InternalMap.GetAllocatedSize());
-	}
-
+	VMapBase(FAllocationContext Context, uint32 InitialCapacity, VEmergentType* Type);
 	template <typename GetEntryByIndex>
 	VMapBase(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry, VEmergentType* Type);
-
 	~VMapBase();
 
+	TPair<uint32, bool> AddWithoutLocking(FAllocationContext Context, uint32 KeyHash, VValue Key, VValue Value);
+
 public:
-	int32 Num() const
+	uint32 Num() const
 	{
-		return InternalMap.Num();
+		return NumElements;
 	}
 
-	VValue Find(const VValue Key);
+	VValue FindByHashWithSlot(FAllocationContext Context, uint32 Hash, VValue Key, uint32* OutSlot);
+	VValue FindWithSlot(FAllocationContext Context, VValue Key, SequenceType* OutSlot)
+	{
+		uint32 Hash = GetTypeHash(Key);
+		return FindByHashWithSlot(Context, Hash, Key, OutSlot);
+	}
+	VValue FindByHash(FAllocationContext Context, uint32 Hash, VValue Key)
+	{
+		SequenceType Slot;
+		return FindByHashWithSlot(Context, Hash, Key, &Slot);
+	}
+	VValue Find(FAllocationContext Context, VValue Key)
+	{
+		uint32 Hash = GetTypeHash(Key);
+		return FindByHash(Context, Hash, Key);
+	}
 
 	// GetKey/GetValue doesn't verify that Index is within limits and
 	// only works as long as nothing is removed from the map.
-	VValue GetKey(const int32 Index);
-	VValue GetValue(const int32 Index);
-	void Add(FAllocationContext Context, VValue Key, VValue Value);
+	VValue GetKey(uint32 Index)
+	{
+		check(Index < Capacity);
+		PairType* PairTable = GetPairTable();
+		SequenceType* SequenceTable = GetSequenceTable();
+		return PairTable[SequenceTable[Index]].Key.Follow();
+	}
 
+	VValue GetValue(uint32 Index)
+	{
+		check(Index < Capacity);
+		PairType* PairTable = GetPairTable();
+		SequenceType* SequenceTable = GetSequenceTable();
+		return PairTable[SequenceTable[Index]].Value.Follow();
+	}
+	void Add(FAllocationContext Context, VValue Key, VValue Value);
+	void Reserve(FAllocationContext Context, uint32 InCapacity);
+
+	size_t GetPairTableSizeForCapacity(uint32 InCapacity) const
+	{
+		return sizeof(PairType) * InCapacity;
+	}
+	size_t GetSequenceTableSizeForCapacity(uint32 InCapacity) const
+	{
+		return sizeof(SequenceType) * InCapacity;
+	}
+	size_t GetPairTableSize() const
+	{
+		return GetPairTableSizeForCapacity(Capacity);
+	}
+	size_t GetSequenceTableSize() const
+	{
+		return GetSequenceTableSizeForCapacity(Capacity);
+	}
 	size_t GetAllocatedSize() const
 	{
-		return InternalMap.GetAllocatedSize();
+		return GetPairTableSize() + GetSequenceTableSize();
+	}
+	const PairType* GetPairTable() const
+	{
+		return static_cast<PairType*>(Data.Get().GetPtr());
+	}
+	const SequenceType* GetSequenceTable() const
+	{
+		return static_cast<SequenceType*>(SequenceData.Get().GetPtr());
+	}
+	PairType* GetPairTable()
+	{
+		return static_cast<PairType*>(Data.Get().GetPtr());
+	}
+	SequenceType* GetSequenceTable()
+	{
+		return static_cast<SequenceType*>(SequenceData.Get().GetPtr());
 	}
 
 	// These `new` calls are templated so as to avoid boilerplate News/Ctors in VMapBase's subclasses.
 	template <typename MapType>
 	static VMapBase& New(FAllocationContext Context, uint32 InitialCapacity = 0)
 	{
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMapBase))) VMapBase(Context, InitialCapacity, &MapType::GlobalTrivialEmergentType.Get(Context));
+		return *new (FAllocationContext(Context).Allocate(Verse::FHeap::DestructorSpace, sizeof(VMapBase))) VMapBase(Context, InitialCapacity, &MapType::GlobalTrivialEmergentType.Get(Context));
 	}
 
 	template <typename MapType, typename GetEntryByIndex>
@@ -109,37 +164,31 @@ public:
 	static void Serialize(MapType*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 	template <typename MapType, typename TranslationFunc>
-	VValue FreezeMeltImpl(FRunningContext Context, TranslationFunc&& Func);
+	VValue FreezeMeltImpl(FAllocationContext Context, TranslationFunc&& Func);
 
-	COREUOBJECT_API VValue MeltImpl(FRunningContext Context);
+	COREUOBJECT_API VValue MeltImpl(FAllocationContext Context);
 
-	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	COREUOBJECT_API bool EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
-
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
-	// C++ ranged-based iteration
-	class FConstIterator
+	RangedForIterator begin() const
 	{
-	public:
-		FORCEINLINE TPair<VValue, VValue> operator*() const { return {CurrentValue->Key.Get(), CurrentValue->Value.Get()}; }
-		FORCEINLINE bool operator==(const FConstIterator& Rhs) const { return CurrentValue == Rhs.CurrentValue; }
-		FORCEINLINE bool operator!=(const FConstIterator& Rhs) const { return CurrentValue != Rhs.CurrentValue; }
-		FORCEINLINE FConstIterator& operator++()
-		{
-			++CurrentValue;
-			return *this;
-		}
+		RangedForIterator it(this, 0);
+		return it;
+	}
 
-	private:
-		friend struct VMapBase;
-		FORCEINLINE FConstIterator(VMapBaseInternal::TRangedForConstIterator InCurrentValue)
-			: CurrentValue(InCurrentValue) {}
-		VMapBaseInternal::TRangedForConstIterator CurrentValue;
-	};
-	FORCEINLINE FConstIterator begin() const { return InternalMap.begin(); }
-	FORCEINLINE FConstIterator end() const { return InternalMap.end(); }
+	RangedForIterator end() const
+	{
+		RangedForIterator it(this, NumElements);
+		return it;
+	}
+
+	TWriteBarrier<TAux<void>> Data;
+	TWriteBarrier<TAux<SequenceType>> SequenceData; // initial insert sequence only.  Overwritten values will stay in their original sequence
+	uint32 NumElements;
+	uint32 Capacity;
 };
 
 struct VMap : VMapBase
@@ -153,7 +202,7 @@ struct VMutableMap : VMapBase
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VMapBase);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	COREUOBJECT_API VValue FreezeImpl(FRunningContext Context);
+	COREUOBJECT_API VValue FreezeImpl(FAllocationContext Context);
 	static void SerializeImpl(VMutableMap*& This, FAllocationContext Context, FAbstractVisitor& Visitor) { Super::Serialize<VMutableMap>(This, Context, Visitor); }
 };
 

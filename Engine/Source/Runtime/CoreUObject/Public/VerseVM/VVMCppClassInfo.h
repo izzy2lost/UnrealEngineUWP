@@ -66,42 +66,42 @@ public:                                                                         
 	using Super = SuperClass;                                                              \
 	API static ::Verse::VCppClassInfo StaticCppClassInfo;
 
-#define DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, SuperClassInfoPtr)                                                                                                       \
-	::Verse::VCppClassInfo CellType::StaticCppClassInfo = {                                                                                                                     \
-		TEXT(#CellType),                                                                                                                                                        \
-		(SuperClassInfoPtr),                                                                                                                                                    \
-		sizeof(CellType),                                                                                                                                                       \
-		[](::Verse::VCell* This, ::Verse::FMarkStackVisitor& Visitor) -> void {                                                                                                 \
-			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
-		},                                                                                                                                                                      \
-		[](::Verse::VCell* This, ::Verse::FAbstractVisitor& Visitor) -> void {                                                                                                  \
-			::Verse::FAbstractVisitor::FReferrerContext Context(Visitor, This);                                                                                                 \
-			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
-		},                                                                                                                                                                      \
-		[](::Verse::VCell* This) -> void {                                                                                                                                      \
-			This->StaticCast<CellType>().ConductCensusImpl();                                                                                                                   \
-		},                                                                                                                                                                      \
-		std::is_trivially_destructible_v<CellType> ? nullptr : [](::Verse::VCell* This) -> void {                                                                               \
-			This->StaticCast<CellType>().~CellType();                                                                                                                           \
-		},                                                                                                                                                                      \
-		[](::Verse::FRunningContext Context, ::Verse::VCell* This, ::Verse::VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder) -> bool { \
-			return This->StaticCast<CellType>().EqualImpl(Context, Other, HandlePlaceholder);                                                                                   \
-		},                                                                                                                                                                      \
-		[](::Verse::VCell* This) -> uint32 {                                                                                                                                    \
-			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                              \
-		},                                                                                                                                                                      \
-		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::VValue {                                                                                         \
-			return This->StaticCast<CellType>().MeltImpl(Context);                                                                                                              \
-		},                                                                                                                                                                      \
-		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::VValue {                                                                                         \
-			return This->StaticCast<CellType>().FreezeImpl(Context);                                                                                                            \
-		},                                                                                                                                                                      \
-		[](::Verse::FRunningContext Context, ::Verse::VCell* This, ::Verse::VValue InputValue) -> bool {                                                                        \
-			return This->StaticCast<CellType>().SubsumesImpl(Context, InputValue);                                                                                              \
-		},                                                                                                                                                                      \
-		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                        \
-		::Verse::Details::GetSerializeMethod<CellType>(),                                                                                                                       \
-		::Verse::Details::GetSerializeNewMethod<CellType>()};                                                                                                                   \
+#define DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, SuperClassInfoPtr)                                                                                                          \
+	::Verse::VCppClassInfo CellType::StaticCppClassInfo = {                                                                                                                        \
+		TEXT(#CellType),                                                                                                                                                           \
+		(SuperClassInfoPtr),                                                                                                                                                       \
+		sizeof(CellType),                                                                                                                                                          \
+		[](::Verse::VCell* This, ::Verse::FMarkStackVisitor& Visitor) -> void {                                                                                                    \
+			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                         \
+		},                                                                                                                                                                         \
+		[](::Verse::VCell* This, ::Verse::FAbstractVisitor& Visitor) -> void {                                                                                                     \
+			::Verse::FAbstractVisitor::FReferrerContext Context(Visitor, This);                                                                                                    \
+			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                         \
+		},                                                                                                                                                                         \
+		[](::Verse::VCell* This) -> void {                                                                                                                                         \
+			This->StaticCast<CellType>().ConductCensusImpl();                                                                                                                      \
+		},                                                                                                                                                                         \
+		std::is_trivially_destructible_v<CellType> ? nullptr : [](::Verse::VCell* This) -> void {                                                                                  \
+			This->StaticCast<CellType>().~CellType();                                                                                                                              \
+		},                                                                                                                                                                         \
+		[](::Verse::FAllocationContext Context, ::Verse::VCell* This, ::Verse::VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder) -> bool { \
+			return This->StaticCast<CellType>().EqualImpl(Context, Other, HandlePlaceholder);                                                                                      \
+		},                                                                                                                                                                         \
+		[](::Verse::VCell* This) -> uint32 {                                                                                                                                       \
+			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                                 \
+		},                                                                                                                                                                         \
+		[](::Verse::FAllocationContext Context, ::Verse::VCell* This) -> ::Verse::VValue {                                                                                         \
+			return This->StaticCast<CellType>().MeltImpl(Context);                                                                                                                 \
+		},                                                                                                                                                                         \
+		[](::Verse::FAllocationContext Context, ::Verse::VCell* This) -> ::Verse::VValue {                                                                                         \
+			return This->StaticCast<CellType>().FreezeImpl(Context);                                                                                                               \
+		},                                                                                                                                                                         \
+		[](::Verse::FAllocationContext Context, ::Verse::VCell* This, ::Verse::VValue InputValue) -> bool {                                                                        \
+			return This->StaticCast<CellType>().SubsumesImpl(Context, InputValue);                                                                                                 \
+		},                                                                                                                                                                         \
+		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                           \
+		::Verse::Details::GetSerializeMethod<CellType>(),                                                                                                                          \
+		::Verse::Details::GetSerializeNewMethod<CellType>()};                                                                                                                      \
 	::Verse::VCppClassInfoRegister CellType##_Register(&CellType::StaticCppClassInfo);
 
 #define DEFINE_BASE_VCPPCLASSINFO(CellType)                                                     \
@@ -150,11 +150,11 @@ struct VCppClassInfo
 	void (*VisitReferencesImpl)(VCell* This, FAbstractVisitor&);
 	void (*ConductCensus)(VCell* This);
 	void (*RunDestructor)(VCell* This);
-	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	bool (*Equal)(FAllocationContext Context, VCell* This, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	uint32 (*GetTypeHash)(VCell* This);
-	VValue (*Melt)(FRunningContext Context, VCell* This);
-	VValue (*Freeze)(FRunningContext Context, VCell* This);
-	bool (*Subsumes)(FRunningContext Context, VCell* This, VValue);
+	VValue (*Melt)(FAllocationContext Context, VCell* This);
+	VValue (*Freeze)(FAllocationContext Context, VCell* This);
+	bool (*Subsumes)(FAllocationContext Context, VCell* This, VValue);
 	void (*ToString)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 	void (*Serialize)(VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 	VCell& (*SerializeNew)(FAllocationContext Context);

@@ -1453,7 +1453,7 @@ class FInterpreter
 			{
 				// TODO SOL-5621: We need to ensure the entire Key structure is concrete, not just the top-level.
 				REQUIRE_CONCRETE(Argument);
-				if (VValue Result = Map->Find(Argument))
+				if (VValue Result = Map->Find(Context, Argument))
 				{
 					DEF(Op.Dest, Result);
 				}
@@ -2673,6 +2673,41 @@ class FInterpreter
 								VFailureContext& FailureContext = *CurrentSuspension->FailureContext;
 								VTask& TaskContext = *CurrentSuspension->Task;
 
+								FInterpreter Interpreter(
+									Context,
+									FExecutionState(Function->GetProcedure().GetOpsBegin(), &NewFrame),
+									&FailureContext,
+									Task,
+									GetOperand(Op.EffectToken));
+								Interpreter.Execute();
+							}
+							else
+							{
+								OP_IMPL_HELPER(Call, Callee, CurrentSuspension->Task.Get());
+								DEF(Op.ReturnEffectToken, GetOperand(Op.EffectToken));
+							}
+						}
+						END_OP_CASE()
+
+						BEGIN_OP_CASE(CallNamed)
+						{
+							VValue Callee = GetOperand(Op.Callee);
+							REQUIRE_CONCRETE(Callee);
+							if (VFunction* Function = Callee.DynamicCast<VFunction>())
+							{
+								FOp* CallerPC = nullptr;
+								VFrame* CallerFrame = nullptr;
+								VValue ReturnSlot = MakeReturnSlot(Op);
+
+								TArrayView<TWriteBarrier<VUniqueString>> NamedArguments(Op.NamedArguments);
+								VFrame& NewFrame = MakeFrameForCallee(Context, CallerPC, CallerFrame, ReturnSlot, *Function, Op.Arguments.Num(), &NamedArguments,
+									[&](uint32 Arg) {
+										return GetOperand(Op.Arguments[Arg]);
+									});
+								NewFrame.ReturnSlot.EffectToken.Set(Context, GetOperand(Op.ReturnEffectToken));
+								// TODO SOL-4435: Enact some recursion limit here since we're using the machine stack.
+								VFailureContext& FailureContext = *CurrentSuspension->FailureContext;
+								VTask& TaskContext = *CurrentSuspension->Task;
 								FInterpreter Interpreter(
 									Context,
 									FExecutionState(Function->GetProcedure().GetOpsBegin(), &NewFrame),

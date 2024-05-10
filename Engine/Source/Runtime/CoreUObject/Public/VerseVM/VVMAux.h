@@ -62,14 +62,14 @@ public:
 };
 
 template <typename T>
-static constexpr inline bool IsTAux = false;
+constexpr inline bool IsTAux = false;
 
 template <typename T>
-static constexpr inline bool IsTAux<TAux<T>> = true;
+constexpr inline bool IsTAux<TAux<T>> = true;
 
 struct VBuffer;
 template <>
-static constexpr inline bool IsTAux<VBuffer> = true;
+constexpr inline bool IsTAux<VBuffer> = true;
 
 } // namespace Verse
 #endif // WITH_VERSE_VM

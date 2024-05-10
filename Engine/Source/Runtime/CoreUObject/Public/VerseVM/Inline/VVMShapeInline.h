@@ -54,7 +54,7 @@ inline bool VShape::VEntry::operator==(const VShape::VEntry& Other) const
 		case EFieldType::FProperty:
 			return UProperty == Other.UProperty;
 		case EFieldType::Constant:
-			return VValue::Equal(FRunningContextPromise(), Value.Get(), Other.Value.Get(),
+			return VValue::Equal(FAllocationContext(FRunningContextPromise()), Value.Get(), Other.Value.Get(),
 				[](VValue Left, VValue Right) {
 					checkSlow(!Left.IsPlaceholder());
 					checkSlow(!Right.IsPlaceholder());

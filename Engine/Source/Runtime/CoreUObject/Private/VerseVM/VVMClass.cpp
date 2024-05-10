@@ -292,7 +292,7 @@ UClass* VClass::CreateUClass(FAllocationContext Context)
 	return NewClass;
 }
 
-bool VClass::SubsumesImpl(FRunningContext Context, VValue Value)
+bool VClass::SubsumesImpl(FAllocationContext Context, VValue Value)
 {
 	VClass* InputType = nullptr;
 	if (VObject* Object = Value.DynamicCast<VObject>())

@@ -37,7 +37,7 @@ void VObject::VisitReferencesImpl(TVisitor& Visitor)
 	}
 }
 
-bool VObject::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
+bool VObject::EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	if (!IsStruct())
 	{
@@ -108,7 +108,7 @@ uint32 VObject::GetTypeHashImpl()
 	return Result;
 }
 
-VValue VObject::MeltImpl(FRunningContext Context)
+VValue VObject::MeltImpl(FAllocationContext Context)
 {
 	V_DIE_UNLESS(IsStruct());
 
@@ -150,7 +150,7 @@ VValue VObject::MeltImpl(FRunningContext Context)
 	return VValue(NewObject);
 }
 
-VValue VObject::FreezeImpl(FRunningContext Context)
+VValue VObject::FreezeImpl(FAllocationContext Context)
 {
 	V_DIE_UNLESS(IsStruct());
 

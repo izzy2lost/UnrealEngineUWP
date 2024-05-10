@@ -13,8 +13,8 @@
 
 namespace Verse
 {
-template <typename ContextType, typename HandlePlaceholderFunction>
-inline bool VValue::Equal(ContextType Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder)
+template <typename HandlePlaceholderFunction>
+inline bool VValue::Equal(FAllocationContext Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder)
 {
 	if (Left.IsPlaceholder() || Right.IsPlaceholder())
 	{
@@ -52,9 +52,7 @@ inline bool VValue::Equal(ContextType Context, VValue Left, VValue Right, Handle
 			return RightCell->IsA<VOption>()
 				&& Equal(Context, LeftCell->StaticCast<VOption>().GetValue(), RightCell->StaticCast<VOption>().GetValue(), HandlePlaceholder);
 		}
-
-		// This call may do a TLS lookup for the context, calls not requiring one should be inlined above.
-		return LeftCell->Equal(FRunningContext(Context), RightCell, HandlePlaceholder);
+		return LeftCell->Equal(Context, RightCell, HandlePlaceholder);
 	}
 
 	return false;

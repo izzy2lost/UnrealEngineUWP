@@ -187,18 +187,16 @@ inline uint32 GetTypeHash(VRestValue RestValue)
 	return GetTypeHash(RestValue.Value.Get());
 }
 
-template <typename ContextType>
-inline VValue VValue::Melt(ContextType Context, VValue Value)
+inline VValue VValue::Melt(FAllocationContext Context, VValue Value)
 {
 	if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
 	{
-		return Value.AsCell().Melt(FRunningContext(Context));
+		return Value.AsCell().Melt(Context);
 	}
 	return Value;
 }
 
-template <typename ContextType>
-inline VValue VValue::Freeze(ContextType Context, VValue Value)
+inline VValue VValue::Freeze(FAllocationContext Context, VValue Value)
 {
 	if (Value.IsPlaceholder())
 	{
@@ -206,7 +204,7 @@ inline VValue VValue::Freeze(ContextType Context, VValue Value)
 	}
 	else if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
 	{
-		return Value.AsCell().Freeze(FRunningContext(Context));
+		return Value.AsCell().Freeze(Context);
 	}
 	return Value;
 }

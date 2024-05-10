@@ -12,7 +12,7 @@ DEFINE_DERIVED_VCPPCLASSINFO(VConstrainedFloat);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VConstrainedFloat);
 TGlobalTrivialEmergentTypePtr<&VConstrainedFloat::StaticCppClassInfo> VConstrainedFloat::GlobalTrivialEmergentType;
 
-bool VConstrainedFloat::SubsumesImpl(FRunningContext Context, VValue Value)
+bool VConstrainedFloat::SubsumesImpl(FAllocationContext Context, VValue Value)
 {
 	if (!Value.IsFloat())
 	{

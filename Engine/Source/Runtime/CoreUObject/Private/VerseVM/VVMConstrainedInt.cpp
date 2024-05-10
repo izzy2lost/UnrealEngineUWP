@@ -15,7 +15,7 @@ inline void VConstrainedInt::VisitReferencesImpl(TVisitor& Visitor)
 	Visitor.Visit(Max, TEXT("Max"));
 }
 
-bool VConstrainedInt::SubsumesImpl(FRunningContext Context, VValue Value)
+bool VConstrainedInt::SubsumesImpl(FAllocationContext Context, VValue Value)
 {
 	if (!Value.IsInt())
 	{

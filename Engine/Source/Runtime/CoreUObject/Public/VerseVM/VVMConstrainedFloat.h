@@ -42,7 +42,7 @@ struct VConstrainedFloat : VType
 		return Max;
 	}
 
-	bool SubsumesImpl(FRunningContext, VValue);
+	bool SubsumesImpl(FAllocationContext Context, VValue);
 
 private:
 	explicit VConstrainedFloat(FAllocationContext& Context, VFloat InMin, VFloat InMax)
