@@ -89,8 +89,6 @@ void USplitMeshesTool::Setup()
 
 	UpdateSplitMeshes();
 
-	UpdatePreviewVisibility(BasicProperties->bShowPreview);
-
 	SetToolDisplayName(LOCTEXT("ToolName", "Split"));
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartTool", "Split Meshes into parts"),
@@ -99,9 +97,11 @@ void USplitMeshesTool::Setup()
 
 void USplitMeshesTool::UpdatePreviewVisibility(bool bShowPreview)
 {
+	checkSlow(Targets.Num() == SplitMeshes.Num());
 	for (int32 PreviewIdx = 0; PreviewIdx < PerTargetPreviews.Num(); ++PreviewIdx)
 	{
 		PerTargetPreviews[PreviewIdx]->SetAllVisible(bShowPreview);
+		UE::ToolTarget::SetSourceObjectVisible(Targets[PreviewIdx], !bShowPreview || SplitMeshes[PreviewIdx].bNoComponents);
 	}
 }
 
@@ -115,6 +115,12 @@ void USplitMeshesTool::OnShutdown(EToolShutdownType ShutdownType)
 	for (UPreviewGeometry* PreviewGeom : PerTargetPreviews)
 	{
 		PreviewGeom->Disconnect();
+	}
+
+	// make sure source objects are visible
+	for (int32 ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
+	{
+		UE::ToolTarget::ShowSourceObject(Targets[ComponentIdx]);
 	}
 
 	OutputTypeProperties->SaveProperties(this, TEXT("OutputTypeFromInputTool"));
@@ -384,6 +390,8 @@ void USplitMeshesTool::UpdateSplitMeshes()
 	{
 		GetToolManager()->DisplayMessage(FText(), EToolMessageLevel::UserWarning);
 	}
+
+	UpdatePreviewVisibility(BasicProperties->bShowPreview);
 
 }
 

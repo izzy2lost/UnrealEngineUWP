@@ -43,15 +43,20 @@ class MESHMODELINGTOOLSEXP_API USplitMeshesToolProperties : public UInteractiveT
 {
 	GENERATED_BODY()
 public:
+
+	// Method to use to split the input(s) into output meshes
 	UPROPERTY(EditAnywhere, Category = Options, meta = (EditCondition = "!bIsInSelectionMode", EditConditionHides, HideEditConditionToggle))
 	ESplitMeshesMethod SplitMethod = ESplitMeshesMethod::ByMeshTopology;
 
+	// Vertices as close as this distance will be treated as overlapping, and kept in the same output mesh
 	UPROPERTY(EditAnywhere, Category = Options, meta = (ClampMin = .0001, UIMax = 1.0, EditCondition = "!bIsInSelectionMode && SplitMethod == ESplitMeshesMethod::ByVertexOverlap", EditConditionHides, HideEditConditionToggle))
 	double ConnectVerticesThreshold = 0.01;
 
+	// Whether to transfer materials to the output meshes
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bTransferMaterials = true;
 
+	// Whether to color mesh faces based on how they will be split into output meshes
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bShowPreview = true;
 
