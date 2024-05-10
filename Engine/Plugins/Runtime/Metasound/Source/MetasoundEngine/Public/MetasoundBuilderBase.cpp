@@ -34,14 +34,34 @@
 
 void UMetaSoundBuilderBase::BeginDestroy()
 {
-	using namespace Metasound::Engine;
+	using namespace Metasound::Frontend;
 
-	FDocumentBuilderRegistry::GetChecked().FinishBuilding(ClassName);
+	// Need to finish building before destroying UPROPERTYs (Super::BeginDestroy)
+	// as the Builder often holds a TScriptInterface<IMetaSoundDocumentInterface>
+	// of a UPROPERTY that lives on this or derived objects. BuilderRegistry may get
+	// destroyed prior to some builder objects, so for safety don't use checked registry
+	// getter.
+	if (Builder.IsValid())
+	{
+		if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+		{
+			constexpr bool bForceUnregister = true;
+			const FMetasoundFrontendClassName& MetaSoundClassName = Builder.GetConstDocument().RootGraph.Metadata.GetClassName();
+			BuilderRegistry->FinishBuilding(MetaSoundClassName, bForceUnregister);
 
-	// Need to detach before destroying UPROPERTYs as the Builder 
-	// often holds a TScriptInterface<IMetaSoundDocumentInterface> of
-	// a UPROPERTY that lives on this or derived objects. 
-	Builder.FinishBuilding();
+			if(Builder.IsValid())
+			{
+				UE_LOG(LogMetaSound, Error, TEXT("Failed to destroy MetaSound builder of asset with class name '%s'. \n"
+					"Registry is likely corrupt (i.e. a different builder instance was registered with the same ClassName). \n"
+					"Duplicate assets with the same ClassName/Guid should be removed"));
+				Builder.FinishBuilding();
+			}
+		}
+		else
+		{
+			Builder.FinishBuilding();
+		}
+	}
 	Super::BeginDestroy();
 }
 
@@ -765,7 +785,6 @@ void UMetaSoundBuilderBase::Initialize()
 	InitDelegates(*DocumentDelegates);
 	Builder = FMetaSoundFrontendDocumentBuilder(DocObject, DocumentDelegates);
 	Builder.InitDocument();
-	ClassName = DocObject->GetConstDocument().RootGraph.Metadata.GetClassName();
 }
 
 void UMetaSoundBuilderBase::InitNodeLocations()

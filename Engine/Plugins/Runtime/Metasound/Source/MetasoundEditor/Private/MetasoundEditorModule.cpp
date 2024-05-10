@@ -439,11 +439,15 @@ namespace Metasound
 					if (bIsRegisteredClass)
 					{
 						// Use the editor version of UnregisterWithFrontend so it refreshes any open MetaSound editors
-						IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
-						if (UObject* AssetObject = InAssetData.GetAsset())
+						// Doesn't use AssetData::GetAsset() as this can result in attempting to reload the object.
+						// If this call is hit after the asset is removed, the assumption is unregistration already
+						// occurred on object destroy.
+						if (UObject* AssetObject = InAssetData.GetSoftObjectPath().ResolveObject())
 						{
 							FGraphBuilder::UnregisterGraphWithFrontend(*AssetObject);
 						}
+
+						IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
 					}
 				}
 			}
@@ -457,14 +461,29 @@ namespace Metasound
 					const bool bIsRegisteredClass = IMetasoundUObjectRegistry::Get().IsRegisteredClass(*AssetClass);
 					if (bIsRegisteredClass)
 					{
-						constexpr bool bReregisterWithFrontend = false;
-						IMetaSoundAssetManager::GetChecked().RenameAsset(InAssetData, bReregisterWithFrontend);
+						IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
 
-						// Use the FGraphBuilder Register call instead of registering via the
-						// MetaSoundAssetSubsystem so as to properly refresh respective open editors.
-						constexpr bool bForceViewSynchronization = true;
+						// Unregister using the new asset data even though the old object was last to be registered
+						// as the old asset is no longer accessible by the time rename is called. The asset at this
+						// point is identical however to its prior counterpart.
 						UObject* AssetObject = InAssetData.GetAsset();
-						FGraphBuilder::RegisterGraphWithFrontend(*AssetObject, bForceViewSynchronization);
+						check(AssetObject);
+
+						FMetasoundAssetBase* AssetBase = AssetManager.GetAsAsset(*AssetObject);
+						check(AssetBase);
+						bool bIsRegistered = AssetBase->IsRegistered();
+						if (bIsRegistered)
+						{
+							FGraphBuilder::UnregisterGraphWithFrontend(*AssetObject);
+						}
+
+						IMetaSoundAssetManager::GetChecked().RenameAsset(InAssetData, InOldObjectPath);
+
+						if (bIsRegistered)
+						{
+							constexpr bool bForceViewSynchronization = true;
+							FGraphBuilder::RegisterGraphWithFrontend(*AssetObject, bForceViewSynchronization);
+						}
 					}
 				}
 			}

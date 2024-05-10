@@ -90,7 +90,7 @@ namespace Metasound::Frontend
 		virtual FMetaSoundFrontendDocumentBuilder& FindOrBeginBuilding(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) = 0;
 #endif // WITH_EDITORONLY_DATA
 
-		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName) const = 0;
+		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregister = false) const = 0;
 
 		UE_DEPRECATED(5.5, "Document cache can now be invalidated by retrieving an asset builder and calling 'Reload'")
 		virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const { }
