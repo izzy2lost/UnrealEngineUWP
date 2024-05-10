@@ -67,16 +67,6 @@ public:
 		/** A handler to activate when the mouse is pressed. */
 		SLATE_EVENT(FPointerEventHandler, OnMouseButtonDown)
 
-		UE_DEPRECATED(5.0, "IgnoreAlpha is deprecated. Set AlphaDisplayMode to EColorBlockAlphaDisplayMode::Ignore instead")
-		FArguments& IgnoreAlpha(bool bInIgnoreAlpha)
-		{
-			if (bInIgnoreAlpha)
-			{
-				_AlphaDisplayMode = EColorBlockAlphaDisplayMode::Ignore;
-			}
-			return Me();
-		}
-
 	SLATE_END_ARGS()
 
 public:

@@ -24,12 +24,6 @@ class SBox : public SPanel
 	SLATE_DECLARE_WIDGET_API(SBox, SPanel, SLATE_API)
 
 public:
-	class UE_DEPRECATED(5.0, "FBoxSlot is deprecated. Use FSingleWidgetChildrenWithBasicLayoutSlot or FOneSimpleMemberChild")
-	FBoxSlot : public FSingleWidgetChildrenWithBasicLayoutSlot
-	{
-		using FSingleWidgetChildrenWithBasicLayoutSlot::FSingleWidgetChildrenWithBasicLayoutSlot;
-	};
-
 	SLATE_BEGIN_ARGS(SBox)
 		: _HAlign(HAlign_Fill)
 		, _VAlign(VAlign_Fill)

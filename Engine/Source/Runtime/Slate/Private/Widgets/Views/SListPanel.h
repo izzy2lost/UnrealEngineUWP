@@ -121,21 +121,6 @@ protected:
 
 	/** @return true if this panel should arrange items as tiles placed alongside one another in each line */
 	SLATE_API bool ShouldArrangeAsTiles() const;
-	
-protected:
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.5, "Direct access to ItemWidth is now deprecated. Use the setter or getter.")
-	FInvalidatableBrushAttribute ItemWidth;
-	
-	UE_DEPRECATED(5.5, "Direct access to ItemHeight is now deprecated. Use the setter or getter.")
-	FInvalidatableBrushAttribute ItemHeight;
-	
-	UE_DEPRECATED(5.5, "Direct access to NumDesiredItems is now deprecated. Use the setter or getter.")
-	FInvalidatableBrushAttribute NumDesiredItems;
-	
-	UE_DEPRECATED(5.5, "Direct access to ItemAlignment is now deprecated. Use the setter or getter.")
-	FInvalidatableBrushAttribute ItemAlignment;
-#endif
 
 protected:
 	/** The children being arranged by this panel */

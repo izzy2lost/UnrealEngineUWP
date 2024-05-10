@@ -44,7 +44,7 @@ void SDMXChannelsMonitor::Construct(const FArguments& InArgs)
 			[
 				SNew(SWrapBox)
 				.InnerSlotPadding(FVector2D(36.0f, 10.0f))
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 		
 				// Source Selector
 				+ SWrapBox::Slot()
@@ -121,7 +121,7 @@ void SDMXChannelsMonitor::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Fill)
 				[
 					SAssignNew(ChannelValuesBox, SWrapBox)
-					.UseAllottedWidth(true)
+					.UseAllottedSize(true)
 					.InnerSlotPadding(FVector2D(1.0f, 1.0f))
 				]
 			]

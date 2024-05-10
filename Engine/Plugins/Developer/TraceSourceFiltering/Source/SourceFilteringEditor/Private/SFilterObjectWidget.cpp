@@ -10,7 +10,7 @@ void SFilterObjectRowWidget::Construct(const FArguments& InArgs, const TSharedRe
 	Object = InObject;
 
 	TSharedRef<SWrapBox> WrapBox = SNew(SWrapBox)
-		.UseAllottedWidth(true);
+		.UseAllottedSize(true);
 
 	TAttribute<bool> FilterEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(Object.Get(), &IFilterObject::IsFilterEnabled));
 	WrapBox->SetEnabled(FilterEnabled);

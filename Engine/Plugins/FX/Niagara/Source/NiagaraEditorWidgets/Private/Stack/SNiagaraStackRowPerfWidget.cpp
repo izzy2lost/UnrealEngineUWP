@@ -72,7 +72,7 @@ void SNiagaraStackRowPerfWidget::Construct(const FArguments& InArgs, UNiagaraSta
             .VAlign(VAlign_Bottom)
             [
 				SNew(SWrapBox)
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 			    +SWrapBox::Slot()
                 [
                     // Placeholder brush to fill the remaining space

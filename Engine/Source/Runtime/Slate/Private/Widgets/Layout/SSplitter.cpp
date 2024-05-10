@@ -5,7 +5,6 @@
 #include "Rendering/DrawElements.h"
 #include "Framework/Application/SlateApplication.h"
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void SSplitter::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& InArgs)
 {
 	TSlotBase<FSlot>::Construct(SlotOwner, MoveTemp(InArgs));
@@ -131,14 +130,14 @@ TArray<FLayoutGeometry> SSplitter::ArrangeChildrenForLayout(const FGeometry& All
 
 		++NumNonCollapsedChildren;
 
-		if (CurSlot.SizingRule.Get() == SSplitter::SizeToContent)
+		if (CurSlot.GetSizingRule() == SSplitter::SizeToContent)
 		{
 			NonResizableSpace += CurSlot.GetWidget()->GetDesiredSize()[AxisIndex];
 		}
 		else // SizingRule == SSplitter::FractionOfParent
 		{
 			MinResizableSpace += FMath::Max(MinSplitterChildLength, CurSlot.GetMinSize());
-			CoefficientTotal += CurSlot.SizeValue.Get();
+			CoefficientTotal += CurSlot.GetSizeValue();
 		}
 	}
 
@@ -165,13 +164,13 @@ TArray<FLayoutGeometry> SSplitter::ArrangeChildrenForLayout(const FGeometry& All
 
 		float ChildSpace;
 		
-		if (CurSlot.SizingRule.Get() == SSplitter::SizeToContent)
+		if (CurSlot.GetSizingRule() == SSplitter::SizeToContent)
 		{
 			ChildSpace = CurSlot.GetWidget()->GetDesiredSize()[AxisIndex];
 		}
 		else
 		{
-			ChildSpace = ResizableSpace * CurSlot.SizeValue.Get() / CoefficientTotal  - ExtraRequiredSpace;
+			ChildSpace = ResizableSpace * CurSlot.GetSizeValue() / CoefficientTotal  - ExtraRequiredSpace;
 			ExtraRequiredSpace = 0;
 		}
 
@@ -184,7 +183,7 @@ TArray<FLayoutGeometry> SSplitter::ArrangeChildrenForLayout(const FGeometry& All
 
 			for (int32 PrevIndex = ChildIndex - 1; PrevIndex >= 0 && CurrentRequiredSpace > 0; --PrevIndex)
 			{
-				if (Children[PrevIndex].SizingRule.Get() == SSplitter::FractionOfParent && !IsSlotCollapsed(CurSlot))
+				if (Children[PrevIndex].GetSizingRule() == SSplitter::FractionOfParent && !IsSlotCollapsed(CurSlot))
 				{
 					const float MinChildSize = FMath::Max(MinSplitterChildLength, Children[PrevIndex].GetMinSize());
 					const float AvailableSpace = SlotSizes[PrevIndex] - MinChildSize;
@@ -280,8 +279,8 @@ int32 SSplitter::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeome
 		const float HalfHitDetectionSplitterHandleSize = FMath::RoundToFloat(HitDetectionSplitterHandleSize / 2.0f);
 		const float HalfPhysicalSplitterHandleSize = PhysicalSplitterHandleSize;// FMath::RoundToInt(PhysicalSplitterHandleSize / 2.0f);
 
-		FVector2D HandleSize;
-		FVector2D HandlePosition;
+		FVector2f HandleSize;
+		FVector2f HandlePosition;
 		if (Orientation == Orient_Horizontal)
 		{
 			HandleSize.Set( PhysicalSplitterHandleSize, GeometryAfterSplitter.Size.Y );
@@ -299,7 +298,7 @@ int32 SSplitter::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeome
 			FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				MaxLayerId,
-				GeometryAfterSplitter.ToPaintGeometry( HandlePosition, HandleSize, 1.0f ),
+				GeometryAfterSplitter.ToPaintGeometry(HandleSize, FSlateLayoutTransform(1.0f, TransformPoint(1.0f, HandlePosition))),
 				NormalHandleBrush,
 				ShouldBeEnabled(bParentEnabled) ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect,
 				InWidgetStyle.GetColorAndOpacityTint() * Style->HandleHighlightBrush.TintColor.GetSpecifiedColor()
@@ -310,7 +309,7 @@ int32 SSplitter::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeome
 			FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				MaxLayerId,
-				GeometryAfterSplitter.ToPaintGeometry( HandlePosition, HandleSize, 1.0f ),
+				GeometryAfterSplitter.ToPaintGeometry(HandleSize, FSlateLayoutTransform(1.0f, TransformPoint(1.0f, HandlePosition))),
 				&Style->HandleHighlightBrush,
 				ShouldBeEnabled(bParentEnabled) ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect,
 				InWidgetStyle.GetColorAndOpacityTint() * NormalHandleBrush->TintColor.GetSpecifiedColor()
@@ -724,41 +723,41 @@ void SSplitter::HandleResizingDelta(EOrientation SplitterOrientation, const floa
 			float TotalStretchLength = 0.f;
 			float TotalStretchCoefficients = 0.f;
 			
-			if (PrevChild.SizingRule.Get() == ESizeRule::FractionOfParent)
+			if (PrevChild.GetSizingRule() == ESizeRule::FractionOfParent)
 			{
 				TotalStretchLength = NewPrevChildLength;
-				TotalStretchCoefficients = PrevChild.SizeValue.Get();
+				TotalStretchCoefficients = PrevChild.GetSizeValue();
 			}
 
 			for (int32 SlotIndex = 0; SlotIndex < NumSlotsAfterDragHandle; SlotIndex++)
 			{
 				const FSlotInfo& SlotInfo = SlotsAfterDragHandle[SlotIndex];
 
-				if (SlotInfo.Slot->SizingRule.Get() == ESizeRule::FractionOfParent)
+				if (SlotInfo.Slot->GetSizingRule() == ESizeRule::FractionOfParent)
 				{
 					TotalStretchLength += SlotInfo.NewSize;
-					TotalStretchCoefficients += SlotInfo.Slot->SizeValue.Get();
+					TotalStretchCoefficients += SlotInfo.Slot->GetSizeValue();
 				}
 			}
 
 			auto SetSize = [](FSlot& Slot, float TotalStretchCoefficients, float NewLength, float TotalLength)
 			{
-				if (Slot.SizingRule.Get() == ESizeRule::FractionOfParent)
+				if (Slot.GetSizingRule() == ESizeRule::FractionOfParent)
 				{
 					float NewFillSize = TotalLength > 0.f ? (TotalStretchCoefficients * (NewLength / TotalLength)) : TotalStretchCoefficients;
-					if (Slot.OnSlotResized_Handler.IsBound())
+					if (Slot.OnSlotResized().IsBound())
 					{
-						Slot.OnSlotResized_Handler.Execute(NewFillSize);
+						Slot.OnSlotResized().Execute(NewFillSize);
 					}
 					else
 					{
-						Slot.SizeValue = NewFillSize;
+						Slot.SetSizeValue(NewFillSize);
 					}
 				}
 				else
 				{
-					ensure(Slot.OnSlotResized_Handler.IsBound());
-					Slot.OnSlotResized_Handler.ExecuteIfBound(NewLength);
+					ensure(Slot.OnSlotResized().IsBound());
+					Slot.OnSlotResized().ExecuteIfBound(NewLength);
 				}
 			};
 
@@ -828,7 +827,6 @@ int32 SSplitter::GetHandleBeingResizedFromMousePosition( float InPhysicalSplitte
 
 	return INDEX_NONE;
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /********************************************************************
 * SSplitter2x2														*

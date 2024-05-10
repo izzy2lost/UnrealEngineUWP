@@ -55,7 +55,7 @@ void FNetworkAddressCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> S
 		.VAlign(VAlign_Center)
 		[
 			SNew(SWrapBox)
-			.UseAllottedWidth(bUseAllottedWidth)
+			.UseAllottedSize(bUseAllottedWidth)
 
 			+ SWrapBox::Slot()
 			.Padding(2.f, 0.f)

@@ -342,7 +342,7 @@ void SSequencerEntityComponentSystemDebugSlot::Construct(const FArguments& InArg
 	SetBorderImage(SectionBackgroundBrush);
 
 	TSharedRef<SWrapBox> Container = SNew(SWrapBox)
-		.UseAllottedWidth(true)
+		.UseAllottedSize(true)
 		+SWrapBox::Slot()
 		[
 			SNew(SBorder)

@@ -77,7 +77,7 @@ void SLinkParametersDialog::Construct(const FArguments& InArgs)
 					.Padding(5.0f)
 					[
 						SAssignNew(QueuedParametersBox, SWrapBox)
-						.UseAllottedWidth(true)
+						.UseAllottedSize(true)
 					]
 				]
 				+SVerticalBox::Slot()

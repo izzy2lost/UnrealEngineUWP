@@ -41,7 +41,7 @@ void SDMXMVRFixtureListToolbar::Construct(const FArguments& InArgs, TWeakPtr<FDM
 			[
 				SNew(SWrapBox)
 				.InnerSlotPadding(FVector2D(14.f, 8.f))
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 
 				// Add Fixture Button
 				+ SWrapBox::Slot()

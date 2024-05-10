@@ -100,10 +100,6 @@ public:
 
 	SLATE_API void SetUseAllottedWidth(bool bInUseAllottedWidth);
 
-	/** Mods the angle so it's between 0-360 */
-	UE_DEPRECATED(5.0, "NormalizeAngle is deprecated. You should use the FRotator::NormalizeAxis.")
-	SLATE_API int32 NormalizeAngle(int32 Angle) const;
-
 private:
 
 	/** Mods the angle so it's between 0-360 */

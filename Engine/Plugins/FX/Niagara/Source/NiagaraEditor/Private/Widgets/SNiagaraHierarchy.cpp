@@ -643,7 +643,7 @@ void SNiagaraHierarchy::Construct(const FArguments& InArgs, TObjectPtr<UNiagaraH
 				.Padding(2.f)
 				[
 					SAssignNew(SourceSectionBox, SWrapBox)
-					.UseAllottedWidth(true)
+					.UseAllottedSize(true)
 				]
 				+ SVerticalBox::Slot()
 				.Padding(1.f, 2.f)
@@ -681,7 +681,7 @@ void SNiagaraHierarchy::Construct(const FArguments& InArgs, TObjectPtr<UNiagaraH
 					.Padding(1.f)
 					[
 						SAssignNew(HierarchySectionBox, SWrapBox)
-						.UseAllottedWidth(true)
+						.UseAllottedSize(true)
 					]				
 				]
 				+ SVerticalBox::Slot()

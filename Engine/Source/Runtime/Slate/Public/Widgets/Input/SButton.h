@@ -124,15 +124,6 @@ protected:
 		SLATE_API SButton();
 
 public:
-	/**
-	 * @return An image that represents this button's border
-	 */
-	UE_DEPRECATED(5.0, "GetBorder is deprecated. Use SetBorderImage or GetBorderImage")
-	virtual const FSlateBrush* GetBorder() const
-	{
-		return GetBorderImage();
-	}
-
 	/** @return the Foreground color that this widget sets; unset options if the widget does not set a foreground color */
 	virtual FSlateColor GetForegroundColor() const final
 	{
@@ -272,30 +263,6 @@ private:
 	SLATE_API void UpdateBorderImage();
 	SLATE_API void UpdateForegroundColor();
 	SLATE_API void UpdateDisabledForegroundColor();
-
-protected:
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to ContentPadding is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FMargin> ContentPadding;
-	/** Brush resource that represents a button */
-	UE_DEPRECATED(5.0, "NormalImage is now deprecated. Use the ButtonStyle.")
-	const FSlateBrush* NormalImage;
-	/** Brush resource that represents a button when it is hovered */
-	UE_DEPRECATED(5.0, "HoverImage is now deprecated. Use the ButtonStyle.")
-	const FSlateBrush* HoverImage;
-	/** Brush resource that represents a button when it is pressed */
-	UE_DEPRECATED(5.0, "PressedImage is now deprecated. Use the ButtonStyle.")
-	const FSlateBrush* PressedImage;
-	/** Brush resource that represents a button when it is disabled */
-	UE_DEPRECATED(5.0, "DisabledImage is now deprecated. Use the ButtonStyle.")
-	const FSlateBrush* DisabledImage;
-	/** Padding that accounts for the button border */
-	UE_DEPRECATED(5.0, "BorderPadding is now deprecated. Use the ButtonStyle.")
-	FMargin BorderPadding;
-	/** Padding that accounts for the button border when pressed */
-	UE_DEPRECATED(5.0, "PressedBorderPadding is now deprecated. Use the ButtonStyle.")
-	FMargin PressedBorderPadding;
-#endif
 
 private:
 	/** The location in screenspace the button was pressed */

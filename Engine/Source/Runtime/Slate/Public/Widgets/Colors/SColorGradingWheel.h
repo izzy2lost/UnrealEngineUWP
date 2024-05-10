@@ -119,15 +119,6 @@ protected:
 	/** Invoked when a new value is selected on the color wheel. */
 	FOnColorGradingWheelValueChanged OnValueChanged;
 
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to SelectedColor is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FLinearColor> SelectedColor;
-	UE_DEPRECATED(5.0, "Direct access to DesiredWheelSize is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<int32> DesiredWheelSize;
-	UE_DEPRECATED(5.0, "Direct access to DesiredSizeOverride is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<float> ExponentDisplacement;
-#endif
-
 private:
 	/** The current color selected by the user. */
 	TSlateAttribute<FLinearColor> SelectedColorAttribute;

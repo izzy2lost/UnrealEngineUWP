@@ -477,8 +477,7 @@ TSharedRef<SWidget> SDMSlot::CreateHeaderPropertyListWidget()
 	TSharedRef<SWrapBox> PropertyContainer = SNew(SWrapBox)
 		.InnerSlotPadding(FVector2D(2.f, 2.f))
 		.Orientation(EOrientation::Orient_Horizontal)
-		.UseAllottedSize(true)
-		.UseAllottedWidth(true);
+		.UseAllottedSize(true);
 
 	const TArray<EDMMaterialPropertyType> Properties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(Slot);
 

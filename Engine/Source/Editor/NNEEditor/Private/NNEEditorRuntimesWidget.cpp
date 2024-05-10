@@ -48,7 +48,7 @@ void SRuntimesWidget::Construct(const FArguments& InArgs)
 			.Padding(4.0)
 			[
 				SAssignNew(WrapBox, SWrapBox)
-				.PreferredWidth(300.0f)
+				.PreferredSize(300.0f)
 			]
 		]
 	];

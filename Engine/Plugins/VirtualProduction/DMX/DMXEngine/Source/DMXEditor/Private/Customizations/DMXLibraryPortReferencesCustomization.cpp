@@ -379,7 +379,7 @@ TSharedRef<SWidget> FDMXLibraryPortReferencesCustomization::GeneratePortInfoWidg
 			return
 				SNew(SWrapBox)
 				.InnerSlotPadding(FVector2D(4.f, 4.f))
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 
 				// Protocol Name
 				+ SWrapBox::Slot()

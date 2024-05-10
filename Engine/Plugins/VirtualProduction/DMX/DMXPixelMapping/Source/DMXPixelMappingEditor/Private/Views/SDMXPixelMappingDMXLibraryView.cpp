@@ -140,7 +140,7 @@ void SDMXPixelMappingDMXLibraryView::Construct(const FArguments& InArgs, const T
 			.AutoHeight()
 			[
 				SAssignNew(AddPatchesWrapBox, SWrapBox)
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 
 				+ SWrapBox::Slot()
 				.Padding(4.f)

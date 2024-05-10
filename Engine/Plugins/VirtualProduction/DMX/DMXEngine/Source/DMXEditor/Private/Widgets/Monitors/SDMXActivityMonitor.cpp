@@ -65,7 +65,7 @@ void SDMXActivityMonitor::Construct(const FArguments& InArgs)
 			[
 				SNew(SWrapBox)
 				.InnerSlotPadding(FVector2D(35.0f, 10.0f))
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 
 				// Source Selector
 				+ SWrapBox::Slot()
