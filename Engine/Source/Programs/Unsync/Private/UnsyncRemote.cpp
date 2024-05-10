@@ -178,7 +178,9 @@ FRemoteDesc::FromUrl(std::string_view Url)
 	{
 		TlsRequirement = ETlsRequirement::Required;
 	}
-	else if (Result.Protocol == EProtocolFlavor::Unsync && TlsRequirement < ETlsRequirement::Required)
+	else if (Result.Protocol == EProtocolFlavor::Unsync
+		&& TlsRequirement < ETlsRequirement::Required
+		&& Transport == ETransportProtocol::Unsync)
 	{
 		TlsRequirement = ETlsRequirement::Preferred;
 	}

@@ -374,4 +374,8 @@ std::string GetAnonymizedMachineIdString(std::string_view Salt = {});
 // Returns string in format 'Error code 123: Some description.`
 std::string FormatSystemErrorMessage(int32 ErrorCode);
 
+bool LooksLikeUrl(std::string_view Str);
+bool LooksLikeHash160(const std::string_view Str);
+bool LooksLikeHash160(const std::wstring_view Str);
+
 }  // namespace unsync

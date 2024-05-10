@@ -537,21 +537,36 @@ InnerMain(int Argc, char** Argv)
 	FRemoteDesc RemoteDesc;
 	FAuthDesc	AuthDesc;
 
-	if (RemoteAddressUtf8.empty())
+	bool bFilesystemSource = true;
+
+	std::string_view PossibleUrl;
+
+	if (Cli.got_subcommand(SubSync))
 	{
-		// Derive remote server address from source name if explicit --proxy or --remote option is not provided for sync command.
+		PossibleUrl = SourceFilenameUtf8;
+	}
+	else if (Cli.got_subcommand(SubQuery) && !QueryArgsUtf8.empty())
+	{
+		PossibleUrl = QueryArgsUtf8[0];
+	}
 
-		if (Cli.got_subcommand(SubSync) && !PathExists(SourceFilenameUtf8))
+	if (RemoteAddressUtf8.empty() && LooksLikeUrl(PossibleUrl) && (Cli.got_subcommand(SubSync) || Cli.got_subcommand(SubQuery)))
+	{
+		// Derive remote server address from source name if explicit --proxy or --remote option is not provided for sync or query
+
+		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(PossibleUrl);
+
+		if (ParsedRemoteDesc.IsOk())
 		{
-			TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(SourceFilenameUtf8);
-			if (ParsedRemoteDesc.IsOk())
-			{
-				RemoteDesc = *ParsedRemoteDesc;
+			RemoteDesc = *ParsedRemoteDesc;
+			bFilesystemSource = false;
 
+			if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
+			{
 				size_t SlashPos = RemoteDesc.StorageNamespace.find_first_of('/');
 				if (SlashPos == std::string::npos)
 				{
-					UNSYNC_ERROR(L"URL source is expected to follow [transport://]address[:port]#namespace/object format");
+					UNSYNC_ERROR(L"Jupiter URL source is expected to follow [transport://]address[:port]#namespace/object format");
 					return 1;
 				}
 				else
@@ -560,13 +575,26 @@ InnerMain(int Argc, char** Argv)
 					RemoteDesc.StorageNamespace = RemoteDesc.StorageNamespace.substr(0, SlashPos);
 				}
 			}
-			else
+			else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 			{
-				UNSYNC_ERROR(L"Failed to parse remote address '%hs': %ls",
-							 RemoteAddressUtf8.c_str(),
-							 ParsedRemoteDesc.TryError()->Context.c_str());
-				return 1;
+				bShouldLogin = true; // Try to authenticate by default when source is a valid URL
+
+				if (Cli.got_subcommand(SubQuery))
+				{
+					QueryArgsUtf8[0] = RemoteDesc.RequestPath;
+				}
+				else if (Cli.got_subcommand(SubSync))
+				{
+					SourceFilenameUtf8 = RemoteDesc.RequestPath;
+				}
 			}
+		}
+		else
+		{
+			UNSYNC_ERROR(L"Failed to parse remote address '%hs': %ls",
+							RemoteAddressUtf8.c_str(),
+							ParsedRemoteDesc.TryError()->Context.c_str());
+			return 1;
 		}
 	}
 	else
@@ -589,11 +617,12 @@ InnerMain(int Argc, char** Argv)
 	FPath InputFilename2		 = NormalizeFilenameUtf8(InputFilename2Utf8);
 	FPath OutputFilename		 = NormalizeFilenameUtf8(OutputFilenameUtf8);
 	FPath BaseFilename			 = NormalizeFilenameUtf8(BaseFilenameUtf8);
-	FPath SourceFilename		 = NormalizeFilenameUtf8(SourceFilenameUtf8);
 	FPath TargetFilename		 = NormalizeFilenameUtf8(TargetFilenameUtf8);
 	FPath PatchFilename			 = NormalizeFilenameUtf8(PatchFilenameUtf8);
 	FPath ScavengeRoot			 = NormalizeFilenameUtf8(ScavengeRootUtf8);
 	FPath SourceManifestFilename = NormalizeFilenameUtf8(SourceManifestFilenameUtf8);
+
+	FPath SourceFilename = bFilesystemSource ? NormalizeFilenameUtf8(SourceFilenameUtf8) : FPath(SourceFilenameUtf8);
 
 	if (GLogVeryVerbose)
 	{

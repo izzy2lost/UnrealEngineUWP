@@ -307,9 +307,6 @@ FGenericHash ComputeHash(const uint8* Data, uint64 Size, EStrongHashAlgorithmID 
 FGenericHash ComputeHash(const FBuffer& Buffer, EStrongHashAlgorithmID Algorithm);
 FGenericHash ComputeHash(const FBufferView& Buffer, EStrongHashAlgorithmID Algorithm);
 
-bool LooksLikeHash160(const std::string_view Str);
-bool LooksLikeHash160(const std::wstring_view Str);
-
 }  // namespace unsync
 
 namespace std {

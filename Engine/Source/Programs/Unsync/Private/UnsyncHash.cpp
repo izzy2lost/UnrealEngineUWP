@@ -90,40 +90,6 @@ ComputeHash(const FBuffer& Buffer, EStrongHashAlgorithmID Algorithm)
 	return ComputeHash(Buffer.Data(), Buffer.Size(), Algorithm);
 }
 
-bool
-LooksLikeHash160(const std::string_view Str)
-{
-	if (Str.length() != 40)
-	{
-		return false;
-	}
-
-	const char* PossibleChars = "0123456789abcdefABCDEF";
-	if (Str.find_first_not_of(PossibleChars) != std::string::npos)
-	{
-		return false;
-	}
-
-	return true;
-}
-
-bool
-LooksLikeHash160(const std::wstring_view Str)
-{
-	if (Str.length() != 40)
-	{
-		return false;
-	}
-
-	const wchar_t* PossibleChars = L"0123456789abcdefABCDEF";
-	if (Str.find_first_not_of(PossibleChars) != std::wstring::npos)
-	{
-		return false;
-	}
-
-	return true;
-}
-
 FGenericHash
 ComputeHash(const FBufferView& Buffer, EStrongHashAlgorithmID Algorithm)
 {

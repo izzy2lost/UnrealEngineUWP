@@ -634,4 +634,63 @@ GetAnonymizedMachineIdString(std::string_view Seed)
 	return Result;
 }
 
+bool
+LooksLikeHash160(const std::string_view Str)
+{
+	if (Str.length() != 40)
+	{
+		return false;
+	}
+
+	const char* PossibleChars = "0123456789abcdefABCDEF";
+	if (Str.find_first_not_of(PossibleChars) != std::string::npos)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool
+LooksLikeHash160(const std::wstring_view Str)
+{
+	if (Str.length() != 40)
+	{
+		return false;
+	}
+
+	const wchar_t* PossibleChars = L"0123456789abcdefABCDEF";
+	if (Str.find_first_not_of(PossibleChars) != std::wstring::npos)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool
+LooksLikeUrl(std::string_view Str)
+{
+	std::string_view Prefixes[] = {
+		"http://",
+		"https://",
+		"unsync://",
+		"unsync+tls://",
+		"unsync+http://",
+		"unsync+https://",
+		"jupiter+http://",
+		"jupiter+https://",
+	};
+
+	for (std::string_view Prefix : Prefixes)
+	{
+		if (Str.starts_with(Prefix))
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
+
 }  // namespace unsync

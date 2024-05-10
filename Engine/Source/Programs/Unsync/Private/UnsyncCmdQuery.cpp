@@ -498,6 +498,12 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 int32
 CmdQuery(const FCmdQueryOptions& Options)
 {
+	if (!Options.Remote.IsValid())
+	{
+		UNSYNC_ERROR(L"Server address is not specified or is invalid");
+		return 1;
+	}
+
 	if (Options.Query == "mirrors")
 	{
 		return CmdQueryMirrors(Options);
@@ -506,7 +512,7 @@ CmdQuery(const FCmdQueryOptions& Options)
 	{
 		return CmdQueryList(Options);
 	}
-	else if (Options.Query == "search")
+	else if (Options.Query == "search" || Options.Query == "explore")
 	{
 		return CmdQuerySearch(Options);
 	}

@@ -128,15 +128,15 @@ template<typename IT, typename FT>
 inline void
 ParallelForEach(IT ItBegin, IT ItEnd, FT F)
 {
-	FTaskGroup CreateTaskGroup = GScheduler->CreateTaskGroup();
+	FTaskGroup TaskGroup = GScheduler->CreateTaskGroup();
 
 	for (; ItBegin != ItEnd; ++ItBegin)
 	{
 		auto* It = &(*ItBegin);
-		CreateTaskGroup.run([&F, It]() { F(*It); });
+		TaskGroup.run([&F, It]() { F(*It); });
 	}
 
-	CreateTaskGroup.wait();
+	TaskGroup.wait();
 }
 
 #endif // UNSYNC_USE_CONCRT
