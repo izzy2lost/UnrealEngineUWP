@@ -195,7 +195,7 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 						SNew(SImage)
 						.ColorAndOpacity(FSlateColor::UseForeground())
 						.Image(FAppStyle::GetBrush("Level.VisibleIcon16x"))
-						.ToolTipText(LOCTEXT("AccessSpecifierTooltip", "Access level of this entry"))
+						.ToolTipText(LOCTEXT("AccessSpecifierAccessLevelTooltip", "Access level of this entry"))
 					]
 				]
 
@@ -636,7 +636,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 								FText AccessSpecifierDesc = Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ?
 									LOCTEXT("PublicSpecifierDesc", "This means that the entry is usable from gameplay and from other AnimNext assets") :
 									LOCTEXT("PrivateSpecifierDesc", "This means that the entry is only usable inside this asset");
-								return FText::Format(LOCTEXT("AccessSpecifierTooltip", "This entry is {0}.\n{1}"), AccessSpecifier, AccessSpecifierDesc);
+								return FText::Format(LOCTEXT("AccessSpecifierEntryTooltip", "This entry is {0}.\n{1}"), AccessSpecifier, AccessSpecifierDesc);
 							}
 							return FText::GetEmpty();
 						})

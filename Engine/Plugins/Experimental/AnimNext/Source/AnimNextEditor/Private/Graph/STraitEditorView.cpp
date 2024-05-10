@@ -432,8 +432,8 @@ TSharedRef<SWidget> STraitEditorView::GetOptionsMenuWidget()
 		EUserInterfaceActionType::Check
 	);
 	DetailViewOptions.AddMenuEntry(
-		LOCTEXT("TraitEditor_ShowTraitInterfaces", "Show Trait Interfaces If Warnings / Errors"),
-		LOCTEXT("TraitEditor_ShowTraitInterfaces_ToolTip", "Displays Trait Implemented and Required interfaces if is there any Warning or Error on the Stack"),
+		LOCTEXT("TraitEditor_ShowTraitInterfaces_Errors", "Show Trait Interfaces If Warnings / Errors"),
+		LOCTEXT("TraitEditor_ShowTraitInterfaces_Errors_ToolTip", "Displays Trait Implemented and Required interfaces if is there any Warning or Error on the Stack"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda([this, TraitEditorSharedDataLocal]()
