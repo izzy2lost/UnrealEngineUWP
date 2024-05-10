@@ -11,6 +11,12 @@ DEFINE_LOG_CATEGORY_STATIC(LogMetasoundParamPack, Log, All);
 
 REGISTER_METASOUND_DATATYPE(FMetasoundParameterStorageWrapper, "MetasoundParameterPack", Metasound::ELiteralType::UObjectProxy, UMetasoundParameterPack);
 
+template<>
+struct Metasound::TEnableArrayNodes<FMetasoundParameterStorageWrapper>
+{
+	static constexpr bool Value = false;
+};
+
 namespace MetasoundParameterPack
 {
 	FName RoutingName("ParamPack");
