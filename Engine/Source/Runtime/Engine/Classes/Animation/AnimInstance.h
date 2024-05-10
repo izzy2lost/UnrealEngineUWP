@@ -370,7 +370,7 @@ class UAnimInstance : public UObject
 
 private:
 	// Should UpdateAnimation be called
-	uint8 bUpdateAnimationEnabled : 1 = true;
+	uint8 bUpdateAnimationEnabled;
 
 	/** True when Montages are being ticked, and Montage Events should be queued. 
 	 * When Montage are being ticked, we queue AnimNotifies and Events. We trigger notifies first, then Montage events. */
@@ -1312,7 +1312,7 @@ public:
 
 	// Enable / Disable animation update. This is provided as an optimization to disable linked instances that aren't relevant. Disabling an instance whose graph is still evaluated will assert and causes issues.
 	void EnableUpdateAnimation(bool bEnable) { bUpdateAnimationEnabled = bEnable; }
-	bool IsUpdateAnimationEnabled() const { return bUpdateAnimationEnabled; }
+	bool IsUpdateAnimationEnabled() const { return bUpdateAnimationEnabled != 0; }
 
 	// Executed when begin play is called on the owning component
 	ENGINE_API virtual void NativeBeginPlay();

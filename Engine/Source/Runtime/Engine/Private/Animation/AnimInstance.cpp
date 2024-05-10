@@ -119,7 +119,8 @@ UAnimInstance::UAnimInstance(const FObjectInitializer& ObjectInitializer)
 	bReceiveNotifiesFromLinkedInstances = false;
 	bPropagateNotifiesToLinkedInstances = false;
 	bUseMainInstanceMontageEvaluationData = false;
-
+	
+	bUpdateAnimationEnabled = true;
 #if DO_CHECK
 	bInitializing = false;
 #endif
