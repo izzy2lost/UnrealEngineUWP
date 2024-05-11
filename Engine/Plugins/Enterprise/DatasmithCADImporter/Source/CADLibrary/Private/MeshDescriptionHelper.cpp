@@ -139,8 +139,7 @@ void FillVertexPosition(const FMeshConversionContext& MeshConversionContext, FBo
 		VertexIdSet[VertexIndex] = VertexID;
 	}
 
-	const float GeometricTolerance = 0.001f; // cm
-	MergeCoincidents(VertexArray, FVector3f::OneVector, GeometricTolerance, VertexIdSet);
+	MergeCoincidents(VertexArray, FVector3f::OneVector, (float)MeshConversionContext.GeometricTolerance, VertexIdSet);
 
 	// if Symmetric mesh, the symmetric side of the mesh have to be generated
 	if (MeshConversionContext.MeshParameters.bIsSymmetric)

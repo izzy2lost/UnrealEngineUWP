@@ -71,6 +71,12 @@ DEFINE_LOG_CATEGORY_STATIC(LogWireInterface, Log, All);
 
 #define WRONG_VERSION_TEXT "Unsupported version of Alias detected. Please upgrade to Alias 2021.3 (or later version)."
 
+#define TRACK_MESHELEMENT 0
+
+#if TRACK_MESHELEMENT
+#include "CompGeom/FitOrientedBox3.h"
+#endif
+
 #ifdef OPEN_MODEL_2023_0
 
 static bool bGAliasSewByMaterial = false;
@@ -85,6 +91,9 @@ ECVF_Default);
 
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
+#if TRACK_MESHELEMENT
+	void MakeMeshVisible(FMeshDescription& MeshDescription);
+#endif
 
 	static bool bGSewByMaterial = false;
 
@@ -238,7 +247,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			}
 			else
 			{
-				CADModelConverter = MakeShared<FAliasModelToCADKernelConverter>(ImportParameters);
+				CADModelConverter = MakeShared<FAliasModelToCADKernelConverter>(WireSettings, ImportParameters);
 			}
 		}
 		else
@@ -759,7 +768,17 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		MeshElement->SetLabel(*GeomNode.GetName());
 		MeshElement->SetLightmapSourceUV(-1);
-
+#if TRACK_MESHELEMENT
+		{
+			//static const FString ToTrack(TEXT("shell_30181"));
+			//static const FString ToTrack(TEXT("Blend_srf_1395"));
+			static const FString ToTrack(TEXT("M0047942"));
+			if (!ToTrack.Equals(MeshElement->GetLabel()))
+			{
+				return TSharedPtr<IDatasmithMeshElement>();
+			}
+		}
+#endif
 		auto ApplyMaterial = [this, &MeshElement](const TAlObjectPtr<AlShader>& Shader, int32 SlotIndex)
 			{
 				if (TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = this->FindOrAddMaterial(Shader))
@@ -834,6 +853,17 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		MeshElement->SetLabel(*BodyNode->GetName());
 		MeshElement->SetLightmapSourceUV(-1);
+#if TRACK_MESHELEMENT
+		{
+			//static const FString ToTrack(TEXT("shell_30181"));
+			//static const FString ToTrack(TEXT("Blend_srf_1395"));
+			static const FString ToTrack(TEXT("M0047942"));
+			if (!ToTrack.Equals(MeshElement->GetLabel()))
+			{
+				return TSharedPtr<IDatasmithMeshElement>();
+			}
+		}
+#endif
 
 		auto ApplyMaterial = [this, &MeshElement](int32 SlotIndex, const TAlObjectPtr<AlShader>& Shader)
 			{
@@ -946,29 +976,18 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 	// Geometry retrieval
 
-#define TRACK_MESH 0
-
 	bool FWireTranslatorImpl::LoadStaticMesh(const TSharedPtr<IDatasmithMeshElement> MeshElement, FDatasmithMeshElementPayload& OutMeshPayload, const FDatasmithTessellationOptions& InTessellationOptions)
 	{
-#if TRACK_MESH
-		static const FString MeshName(TEXT("shell_30181"));
-		bool bSkip = true;
-		if (MeshName.Equals(MeshElement->GetLabel()))
-		{
-			bSkip = false;
-		}
-		if (bSkip)
-		{
-			return false;
-		}
-
-		uint64 StartTime = FPlatformTime::Cycles64();
-#endif
 		CADLibrary::FMeshParameters MeshParameters;
 
 		if (TOptional<FMeshDescription> Mesh = GetMeshDescription(MeshElement, MeshParameters))
 		{
+#if TRACK_MESHELEMENT
+			FMeshDescription& MeshDescription = OutMeshPayload.LodMeshes.Add_GetRef(MoveTemp(Mesh.GetValue()));
+			//MakeMeshVisible(MeshDescription);
+#else
 			OutMeshPayload.LodMeshes.Add(MoveTemp(Mesh.GetValue()));
+#endif
 			const TCHAR* MeshFilename = MeshElement->GetFile();
 			if (!WireSettings.bAliasUseNative && FPaths::FileExists(MeshFilename))
 			{
@@ -980,15 +999,11 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 					IFileManager::Get().Delete(MeshFilename);
 				}
 			}
+
+			return true;
 		}
 
-#if TRACK_MESH
-		double ElapsedSeconds = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - StartTime);
-
-		UE_LOG(LogWireInterface, Display, TEXT("Mesh description of %s retrieved in %.3f s"), MeshElement->GetLabel(), ElapsedSeconds);
-#endif
-
-		return OutMeshPayload.LodMeshes.Num() > 0;
+		return false;
 	}
 
 	TOptional<FMeshDescription> FWireTranslatorImpl::GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters)
@@ -1227,7 +1242,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		}
 		else
 		{
-			ModelConverter = MakeShared<FAliasModelToCADKernelConverter>(ImportParameters);
+			ModelConverter = MakeShared<FAliasModelToCADKernelConverter>(WireSettings, ImportParameters);
 		}
 
 		if (ModelConverter)
@@ -2174,6 +2189,39 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		{
 		}
 	};
+
+#if TRACK_MESHELEMENT
+#pragma optimize("", off)
+	void MakeMeshVisible(FMeshDescription& MeshDescription)
+	{
+		using namespace UE::Geometry;
+
+		TVertexAttributesRef<FVector3f> VertexPositions = MeshDescription.GetVertexPositions();
+		
+		TArrayView<FVector3f> Positions = VertexPositions.GetRawArray();
+		TOrientedBox3<float> OBox = FitOrientedBox3Points<float>(Positions);
+		
+		FVertexArray& Vertices = MeshDescription.Vertices();
+		const TMatrix3<float> Matrix = OBox.Frame.Rotation.ToRotationMatrix();
+
+		constexpr float MinSize = 1.f;
+		constexpr float MaxSize = 20.f;
+
+		const float ScaleX = OBox.Extents.X < MinSize ? 2.f / OBox.Extents.X : OBox.Extents.X > MaxSize ? MaxSize / OBox.Extents.X : 1.f;
+		const float ScaleY = OBox.Extents.Y < MinSize ? 2.f / OBox.Extents.Y : OBox.Extents.Y > MaxSize ? MaxSize / OBox.Extents.Y : 1.f;
+		const float ScaleZ = OBox.Extents.Z < MinSize ? 2.f / OBox.Extents.Z : OBox.Extents.Z > MaxSize ? MaxSize / OBox.Extents.Z : 1.f;
+		UE_LOG(LogWireInterface, Warning, TEXT("Scaling factor: %.3f %.3f %.3f"), ScaleX, ScaleY, ScaleZ);
+		const FVector3f AxisX = OBox.AxisX();
+		const FVector3f AxisY = OBox.AxisY();
+		const FVector3f AxisZ = OBox.AxisZ();
+
+		for (const FVertexID& VertexID : MeshDescription.Vertices().GetElementIDs())
+		{
+			FVector3f P = VertexPositions[VertexID] - OBox.Frame.Origin;
+			VertexPositions[VertexID] = ((P | AxisX) * ScaleX) * AxisX + ((P | AxisY) * ScaleY) * AxisY + ((P | AxisZ) * ScaleZ) * AxisZ;
+		}
+	}
+#endif
 
 } // namespace
 

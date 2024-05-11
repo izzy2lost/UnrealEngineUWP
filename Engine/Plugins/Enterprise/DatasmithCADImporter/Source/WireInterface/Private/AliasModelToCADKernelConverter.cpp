@@ -104,13 +104,23 @@ namespace AliasToCADKernelUtils
 		double* Poles = NURBSData.HomogeneousPoles.GetData();
 		for (int32 Index = 0; Index < NURBSData.HomogeneousPoles.Num(); Index +=4)
 		{
-			Poles[Index + 0] *= 10.;
-			Poles[Index + 1] *= 10.;
-			Poles[Index + 2] *= 10.;
+			Poles[Index + 0] *= UNIT_CONVERSION_CM_TO_MM;
+			Poles[Index + 1] *= UNIT_CONVERSION_CM_TO_MM;
+			Poles[Index + 2] *= UNIT_CONVERSION_CM_TO_MM;
 		}
 
 		return UE::CADKernel::FSurface::MakeNurbsSurface(GeometricTolerance, NURBSData);
 	}
+}
+
+FAliasModelToCADKernelConverter::FAliasModelToCADKernelConverter(const FDatasmithTessellationOptions& Options, CADLibrary::FImportParameters InImportParameters)
+	: FCADModelToCADKernelConverterBase(InImportParameters)
+{
+	GeometricTolerance = UE_TO_CADKERNEL(Options.GeometricTolerance);
+	SquareTolerance = GeometricTolerance * GeometricTolerance;
+	CADKernelSession.SetGeometricTolerance(GeometricTolerance);
+	StitchingTolerance = UE_TO_CADKERNEL(Options.StitchingTolerance);
+	EdgeLengthTolerance = 2. * GeometricTolerance;
 }
 
 TSharedPtr<UE::CADKernel::FTopologicalEdge> FAliasModelToCADKernelConverter::AddEdge(const AlTrimCurve& AliasTrimCurve, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface)
@@ -367,7 +377,7 @@ bool FAliasModelToCADKernelConverter::Tessellate(const CADLibrary::FMeshParamete
 {
 	UE::CADKernel::FModel& Model = CADKernelSession.GetModel();
 
-	CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters);
+	CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters, GeometricTolerance);
 
 	return CADLibrary::FCADKernelTools::Tessellate(Model, Context, OutMeshDescription);
 }
@@ -378,15 +388,11 @@ bool FAliasModelToCADKernelConverter::RepairTopology()
 	// Apply stitching if applicable
 	if (ImportParameters.GetStitchingTechnique() != StitchingNone)
 	{
-		const double StitchingTolerance = FImportParameters::GStitchingTolerance * 10.; //CM to MM
 		UE::CADKernel::ESewOption SewOptionValue = (UE::CADKernel::ESewOption)SewOption::GetFromImportParameters();
 
-		const IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("ds.WireTranslator.SkipThinZoneMeshing"));
-		bool bSkipThinZoneMeshing = ConsoleVariable ? ConsoleVariable->GetBool() : false;
-		if (bSkipThinZoneMeshing)
-		{
-			SewOptionValue = UE::CADKernel::ESewOption((uint8)SewOptionValue & (uint8)~ESewOption::RemoveThinFaces);
-		}
+#if !THINFACE_ENABLED
+		SewOptionValue = UE::CADKernel::ESewOption((uint8)SewOptionValue & (uint8)~ESewOption::RemoveThinFaces);
+#endif
 
 		UE::CADKernel::FTopomakerOptions TopomakerOptions(SewOptionValue, StitchingTolerance, FImportParameters::GStitchingForceFactor);
 

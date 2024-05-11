@@ -39,6 +39,10 @@ struct FMeshDescription;
 #define SURFACE_TYPE        TEXT("Surface")
 #define SURFACENODE_TYPE    TEXT("SurfaceNode")
 
+// Convert distance from UE (in cm) to CADKernel (in mm)
+#define UNIT_CONVERSION_CM_TO_MM		10.
+#define UE_TO_CADKERNEL(Distance)		(Distance * 10.)
+
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 	typedef double AlMatrix4x4[4][4];

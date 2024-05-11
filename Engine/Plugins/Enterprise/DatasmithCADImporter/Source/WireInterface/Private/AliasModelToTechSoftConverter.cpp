@@ -132,9 +132,9 @@ A3DSurfBase* AddNURBSSurface(const Surface_T& AliasSurface, EAliasObjectReferenc
 	
 	TFunction<void(const double*, A3DVector3dData&, A3DDouble&)> SetA3DPole = [](const double* HomogeneousPole, A3DVector3dData & OutTSPoint, A3DDouble & OutWeight)
 	{
-		OutTSPoint.m_dX = HomogeneousPole[0] * 10.;  // cm (Alias MetricUnit) to mm
-		OutTSPoint.m_dY = HomogeneousPole[1] * 10.;
-		OutTSPoint.m_dZ = HomogeneousPole[2] * 10.;
+		OutTSPoint.m_dX = UE_TO_CADKERNEL(HomogeneousPole[0]);  // cm (Alias MetricUnit) to mm
+		OutTSPoint.m_dY = UE_TO_CADKERNEL(HomogeneousPole[1]);
+		OutTSPoint.m_dZ = UE_TO_CADKERNEL(HomogeneousPole[2]);
 		OutWeight = HomogeneousPole[3];
 	};
 
