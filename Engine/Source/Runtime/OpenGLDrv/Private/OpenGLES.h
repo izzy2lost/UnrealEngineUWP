@@ -59,7 +59,7 @@ struct FOpenGLES : public FOpenGLBase
 	static FORCEINLINE bool SupportsMultisampledRenderToTexture() { return bSupportsMultisampledRenderToTexture; }
 	static FORCEINLINE bool SupportsVertexArrayBGRA() { return false; }
 	static FORCEINLINE bool SupportsBGRA8888() { return bSupportsBGRA8888; }
-	static FORCEINLINE bool SupportsDXT() { return bSupportsDXT; }
+	static FORCEINLINE bool SupportsDXT() { return false; }
 	static FORCEINLINE bool SupportsETC2() { return bSupportsETC2; }
 	static FORCEINLINE GLenum GetDepthFormat() { return GL_DEPTH_COMPONENT24; }
 	static FORCEINLINE GLenum GetShadowDepthFormat() { return GL_DEPTH_COMPONENT16; }
@@ -641,9 +641,6 @@ protected:
 
 	/** GL_APPLE_texture_format_BGRA8888 */
 	static bool bSupportsBGRA8888;
-
-	/** GL_NV_texture_compression_s3tc, GL_EXT_texture_compression_s3tc */
-	static bool bSupportsDXT;
 
 	/** OpenGL ES 3.0 profile */
 	static bool bSupportsETC2;

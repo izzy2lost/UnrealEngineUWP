@@ -44,9 +44,6 @@ bool FOpenGLES::bSupportsShaderDepthStencilFetch = false;
 /** GL_EXT_multisampled_render_to_texture */
 bool FOpenGLES::bSupportsMultisampledRenderToTexture = false;
 
-/** GL_NV_texture_compression_s3tc, GL_EXT_texture_compression_s3tc */
-bool FOpenGLES::bSupportsDXT = false;
-
 /** OpenGL ES 3.0 profile */
 bool FOpenGLES::bSupportsETC2 = false;
 
@@ -179,7 +176,6 @@ void FOpenGLES::ProcessExtensions(const FString& ExtensionsString)
 	bSupportsPixelLocalStorage = ExtensionsString.Contains(TEXT("GL_EXT_shader_pixel_local_storage"));
 	bSupportsShaderDepthStencilFetch = ExtensionsString.Contains(TEXT("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
 	bSupportsMultisampledRenderToTexture = ExtensionsString.Contains(TEXT("GL_EXT_multisampled_render_to_texture"));
-	bSupportsDXT = ExtensionsString.Contains(TEXT("GL_NV_texture_compression_s3tc")) || ExtensionsString.Contains(TEXT("GL_EXT_texture_compression_s3tc"));
 	bSupportsNVFrameBufferBlit = ExtensionsString.Contains(TEXT("GL_NV_framebuffer_blit"));
 	bSupportsBufferStorage = ExtensionsString.Contains(TEXT("GL_EXT_buffer_storage"));
 	bSupportsDepthClamp = ExtensionsString.Contains(TEXT("GL_EXT_depth_clamp"));
