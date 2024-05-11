@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GeometryCacheEdModule.h"
-#include "AssetTypeActions_GeometryCache.h"
+
 #include "GeometryCache.h"
 #include "GeometryCacheAssetBroker.h"
 #include "GeometryCacheComponent.h"
@@ -9,18 +9,13 @@
 #include "GeometryCacheThumbnailRenderer.h"
 #include "NiagaraEditorModule.h"
 #include "NiagaraGeometryCacheRendererProperties.h"
+#include "ThumbnailRendering/ThumbnailManager.h"
 
 IMPLEMENT_MODULE(FGeometryCacheEdModule, GeometryCacheEd)
 
 void FGeometryCacheEdModule::StartupModule()
 {
 	LLM_SCOPE_BYTAG(GeometryCache);
-
-	FAssetToolsModule& AssetToolsModule = FAssetToolsModule::GetModule();
-
-	IAssetTools& AssetTools = AssetToolsModule.Get();
-	AssetAction = new FAssetTypeActions_GeometryCache();
-	AssetTools.RegisterAssetTypeActions(MakeShareable(AssetAction));
 
 	AssetBroker = new FGeometryCacheAssetBroker();
 	FComponentAssetBrokerage::RegisterBroker(MakeShareable(AssetBroker), UGeometryCacheComponent::StaticClass(), true, true);
@@ -48,9 +43,6 @@ void FGeometryCacheEdModule::ShutdownModule()
 {
 	if (UObjectInitialized())
 	{
-		FAssetToolsModule& AssetToolsModule = FAssetToolsModule::GetModule();
-		IAssetTools& AssetTools = AssetToolsModule.Get();
-		AssetTools.UnregisterAssetTypeActions(AssetAction->AsShared());
 		FComponentAssetBrokerage::UnregisterBroker(MakeShareable(AssetBroker));
 		UThumbnailManager::Get().UnregisterCustomRenderer(UGeometryCache::StaticClass());
 	}

@@ -8,6 +8,7 @@ public class GeometryCacheEd : ModuleRules
 	{
         PublicDependencyModuleNames.AddRange(
 			new string[] {
+				"AssetDefinition",
 				"Core",
 				"CoreUObject",
 				"Engine",
