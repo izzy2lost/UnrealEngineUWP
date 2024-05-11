@@ -509,7 +509,11 @@ public:
 
 	friend FORCEINLINE uint32 GetTypeHash(const FMetasoundParameterStorageWrapper& InParameterStorageWrapper)
 	{
-		return GetTypeHash(InParameterStorageWrapper->Storage);
+		if (InParameterStorageWrapper.IsPackValid())
+		{
+			return GetTypeHash(InParameterStorageWrapper->Storage);
+		}
+		return INDEX_NONE;
 	}
 };
 

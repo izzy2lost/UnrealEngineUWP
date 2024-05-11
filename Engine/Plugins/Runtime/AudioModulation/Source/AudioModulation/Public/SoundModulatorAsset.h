@@ -72,7 +72,11 @@ namespace AudioModulation
 				
 		friend FORCEINLINE uint32 GetTypeHash(const AudioModulation::FSoundModulatorAsset& InModulatorAsset)
 		{
-			return InModulatorAsset->GetModulatorId();
+			if (InModulatorAsset.IsValid())
+			{
+				return InModulatorAsset->GetModulatorId();
+			}
+			return INDEX_NONE;
 		}
 	};
 
@@ -111,7 +115,11 @@ namespace AudioModulation
 
 		friend FORCEINLINE uint32 GetTypeHash(const AudioModulation::FSoundModulationParameterAsset& InModulationParameterAsset)
 		{
-			return GetTypeHash(InModulationParameterAsset->GetParameter());
+			if (InModulationParameterAsset.IsValid())
+			{
+				return GetTypeHash(InModulationParameterAsset->GetParameter());
+			}
+			return INDEX_NONE;
 		}
 	};
 } // namespace AudioModulation
