@@ -333,13 +333,13 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 		Request.Method		= EHttpMethod::GET;
 		Request.BearerToken = BearerToken;
 
-		GScheduler->NetworkSempahore.Acquire();
+		GScheduler->NetworkSemaphore.Acquire(false);
 
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 		FHttpResponse					 Response	= HttpRequest(*Connection, Request);
 		ConnectionPool.Release(std::move(Connection));
 
-		GScheduler->NetworkSempahore.Release();
+		GScheduler->NetworkSemaphore.Release();
 
 		if (!Response.Success())
 		{

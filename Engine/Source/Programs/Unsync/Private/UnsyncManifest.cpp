@@ -178,7 +178,9 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 
 	uint32 NumProcessedFiles = 0;
 
-	FTaskGroup TaskGroup = GScheduler->CreateTaskGroup();
+	const uint32		MaxConcurrentFiles = 8;	 // quickly diminishing returns past 8 concurrent files
+	FSchedulerSemaphore Semaphore(*GScheduler, MaxConcurrentFiles);
+	FTaskGroup			TaskGroup = GScheduler->CreateTaskGroup(&Semaphore);
 
 	uint64 NumSkippedBlocks = 0;
 	uint64 NumSkippedBytes	= 0;
@@ -200,8 +202,6 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 
 		FPath FilePath = Root / It.first;
 
-		GScheduler->NetworkSempahore.Acquire();
-
 		UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), SizeMb(It.second.Size));
 		auto BlockTask = [&FileManifest, &Params, FilePath = std::move(FilePath)]()
 		{
@@ -220,8 +220,6 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 							 FilePath.wstring().c_str(),
 							 FormatSystemErrorMessage(File.GetError()).c_str());
 			}
-
-			GScheduler->NetworkSempahore.Release();
 		};
 
 		if (Params.bAllowThreading)
@@ -286,11 +284,9 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 
 	FTimePoint TimeBegin = TimePointNow();
 
-	FTaskGroup TaskGroup = GScheduler->CreateTaskGroup();
-
-	const uint32 MaxConcurrentFiles = 8;  // quickly diminishing returns past 8 concurrent files
-
+	const uint32		MaxConcurrentFiles = 8;	 // quickly diminishing returns past 8 concurrent files
 	FSchedulerSemaphore Semaphore(*GScheduler, MaxConcurrentFiles);
+	FTaskGroup			TaskGroup = GScheduler->CreateTaskGroup(&Semaphore);
 
 	std::mutex ResultMutex;
 	FPath	   UnsyncDirName = ".unsync";
@@ -334,9 +330,8 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 			{
 				UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), double(File->GetSize()) / (1 << 20));
 
-				Semaphore.Acquire();
 				TaskGroup.run(
-					[&Semaphore, &ResultMutex, &Result, File = std::move(File), Key = std::move(PathKey), &Params]()
+					[&ResultMutex, &Result, File = std::move(File), Key = std::move(PathKey), &Params]()
 					{
 						FComputeBlocksResult ComputedBlocks = ComputeBlocks(*File, Params);
 
@@ -344,8 +339,6 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 
 						std::swap(Result.Files[Key].Blocks, ComputedBlocks.Blocks);
 						std::swap(Result.Files[Key].MacroBlocks, ComputedBlocks.MacroBlocks);
-
-						Semaphore.Release();
 					});
 			}
 			else

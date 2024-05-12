@@ -81,12 +81,11 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 
 		UNSYNC_VERBOSE2(L"Download batches: %lld", Batches.size());
 
-		FTaskGroup DownloadTasks = GScheduler->CreateTaskGroup();
+		FTaskGroup DownloadTasks = GScheduler->CreateTaskGroup(&GScheduler->NetworkSemaphore);
 		std::mutex DownloadedBlocksMutex;
 
 		for (FDownloadBatch Batch : Batches)
 		{
-			GScheduler->NetworkSempahore.Acquire();
 			DownloadTasks.run(
 				[NeedBlocks,
 				 Batch,
@@ -101,7 +100,6 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 				{
 					if (bGotError)
 					{
-						GScheduler->NetworkSempahore.Release();
 						return;
 					}
 
@@ -137,7 +135,6 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 							ProxyPool.Invalidate();
 						}
 					}
-					GScheduler->NetworkSempahore.Release();
 				});
 		}
 
@@ -196,7 +193,10 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 	};
 	FStats Stats;
 
-	FTaskGroup WriteTasks = GScheduler->CreateTaskGroup();
+	const uint32 MaxWriteTasks = 64;
+
+	FSchedulerSemaphore WriteSemaphore(*GScheduler, MaxWriteTasks); // // throttle writing tasks to avoid memory bloat
+	FTaskGroup			WriteTasks = GScheduler->CreateTaskGroup(&WriteSemaphore);
 
 	// Remember if parent thread has verbose logging and indentation
 	const bool	 bAllowVerboseLog = GLogVerbose;
@@ -331,7 +331,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 																													 uint64	   CmdReadSize,
 																													 uint64	   CmdUserData)
 			{
-				GScheduler->FilesystemSemaphore.Acquire();
 				WriteTasks.run(
 					[Buffer = MakeShared(std::move(CmdBuffer)), CmdReadSize, Block, &Output, &Error, &Stats, ListType]()
 					{
@@ -349,8 +348,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 						{
 							UNSYNC_FATAL(L"Unexpected block list type");
 						}
-
-						GScheduler->FilesystemSemaphore.Release();
 
 						if (WrittenBytes != CmdReadSize)
 						{
@@ -381,8 +378,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 											  (bAllowVerboseLog && (ListType == EBlockListType::Base && bWaitingForBaseData)));
 
 			ProgressLogger.Add(ReadBytes);
-
-			SchedulerYield();
 		}
 
 		DataProvider.FlushAll();
@@ -477,13 +472,13 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 			}
 		}
 
-		FTaskGroup DecompressTasks = GScheduler->CreateTaskGroup();
+		// limit how many decompression tasks can be queued up to avoid memory bloat
+		const uint64		MaxConcurrentDecompressionTasks = 64;
+		FSchedulerSemaphore DecompressionSemaphore(*GScheduler, MaxConcurrentDecompressionTasks);
+
+		FTaskGroup DecompressTasks = GScheduler->CreateTaskGroup(&DecompressionSemaphore);
 
 		FLogProgressScope DownloadProgressLogger(EstimatedDownloadSize, ELogProgressUnits::MB);
-
-		// limit how many decompression tasks can be queued up to avoid memory bloat
-		const uint64 MaxConcurrentDecompressionTasks = 64;
-		FSchedulerSemaphore	 DecompressionSemaphore(*GScheduler, MaxConcurrentDecompressionTasks);
 
 		const bool			bParentThreadVerbose = GLogVerbose;
 		const uint32		ParentThreadIndent	 = GLogIndent;
@@ -529,8 +524,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 
 					memcpy(DownloadedData.GetData(), Block.Data, DownloadedSize);
 
-					DecompressionSemaphore.Acquire();
-
 					DecompressTasks.run(
 						[&Output,
 						 BlockHashUnaligned = BlockHash,
@@ -543,7 +536,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 						 &BlockScatterMap,
 						 &DownloadedBlocksMutex,
 						 &DownloadedBlocks,
-						 &DecompressionSemaphore,
 						 &Error,
 						 &NumHashMismatches,
 						 &Stats]()
@@ -634,8 +626,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 								std::lock_guard<std::mutex> LockGuard(DownloadedBlocksMutex);
 								DownloadedBlocks.insert(BlockHash);
 							}
-
-							DecompressionSemaphore.Release();
 						});
 				}
 			});

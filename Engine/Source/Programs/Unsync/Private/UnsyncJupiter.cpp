@@ -334,7 +334,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 
 	for (uint64 ManifestChunkIndex = 0; ManifestChunkIndex < ChunkedRefManifestCb.size(); ++ManifestChunkIndex)
 	{
-		GScheduler->NetworkSempahore.Acquire();	 // must be acquired before task is spawned
+		GScheduler->NetworkSemaphore.Acquire();	 // must be acquired before task is spawned
 
 		ManifestPutTask&	 Context	   = TaskContexts[ManifestChunkIndex];
 		const FMiniCbWriter& RefManifestCb = ChunkedRefManifestCb[ManifestChunkIndex];
@@ -380,7 +380,7 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 			}
 
 			ConnectionPool.Release(std::move(Connection));
-			GScheduler->NetworkSempahore.Release();
+			GScheduler->NetworkSemaphore.Release();
 
 			if (Response.Success())
 			{
@@ -517,7 +517,7 @@ JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, c
 
 	std::atomic<int32>	NumUploadedBlocks = {};
 	std::atomic<uint64> ProcessedBytes	  = {};
-	FTaskGroup			UploadTasks		  = GScheduler->CreateTaskGroup(EWorkloadType::Upload);
+	FTaskGroup			UploadTasks		  = GScheduler->CreateTaskGroup();
 	std::atomic<bool>	bGotError		  = false;
 
 	for (const auto& It : Manifest.Files)
@@ -558,7 +558,7 @@ JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, c
 				// Buffer compressed_buffer = compress(read_buffer.GetData(), read_buffer.GetSize());
 				// jupiter_put_compressed_blob(connection, compressed_blob_base_url, compressed_buffer, block.HashStrong);
 
-				GScheduler->NetworkSempahore.Acquire();	 // must be acquired before task is spawned
+				GScheduler->NetworkSemaphore.Acquire();	 // must be acquired before task is spawned
 				auto Task = [Block,
 							 &ProcessedBytes,
 							 &ConnectionPool,
@@ -594,7 +594,7 @@ JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, c
 					}
 
 					ConnectionPool.Release(std::move(Connection));
-					GScheduler->NetworkSempahore.Release();
+					GScheduler->NetworkSemaphore.Release();
 
 						if (bPutSucceeded)
 						{

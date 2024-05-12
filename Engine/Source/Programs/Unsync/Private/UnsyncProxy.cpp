@@ -717,7 +717,7 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 			return;
 		}
 
-		GScheduler->NetworkSempahore.Acquire();
+		GScheduler->NetworkSemaphore.Acquire();
 
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
@@ -747,7 +747,7 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 
 		ConnectionPool.Release(std::move(Connection));
 
-		GScheduler->NetworkSempahore.Release();
+		GScheduler->NetworkSemaphore.Release();
 	};
 
 	ParallelForEach(Chunks, ProcessChunk);

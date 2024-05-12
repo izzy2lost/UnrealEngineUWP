@@ -159,7 +159,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	target_compile_definitions(unsync PRIVATE
 		UNSYNC_PLATFORM_WINDOWS=1
 		UNSYNC_PLATFORM_UNIX=0
-		UNSYNC_USE_CONCRT=0
 		WIN32_LEAN_AND_MEAN=1
 		NOMINMAX=1
 	)
@@ -167,7 +166,6 @@ else()
 	target_compile_definitions(unsync PRIVATE 
 		UNSYNC_PLATFORM_UNIX=1
 		UNSYNC_PLATFORM_WINDOWS=0
-		UNSYNC_USE_CONCRT=0
 	)
 endif()
 

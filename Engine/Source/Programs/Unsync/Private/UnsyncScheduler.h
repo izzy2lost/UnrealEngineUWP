@@ -12,79 +12,53 @@ struct FTaskGroup;
 
 extern FScheduler* GScheduler;
 
-enum class EWorkloadType : uint8
-{
-	Foreground,
-	Background,
-	Download,
-	Upload,
-	FileIO,
-};
-
-#if UNSYNC_USE_CONCRT
-struct FSchedulerSemaphore : FNativeSemaphore
-{
-	explicit FSchedulerSemaphore(FScheduler& InScheduler, uint32 MaxCount) : FNativeSemaphore(MaxCount) { UNSYNC_UNUSED(InScheduler); }
-};
-#else
 struct FSchedulerSemaphore
 {
 	UNSYNC_DISALLOW_COPY_ASSIGN(FSchedulerSemaphore)
 
 	FSchedulerSemaphore(FScheduler& InScheduler, uint32 MaxCount);
 
-	void Acquire();
+	bool TryAcquire() { return Native.try_acquire(); }
+
+	void Acquire(bool bAllowTaskExecution = true);
 	void Release();
 
 	FScheduler& Scheduler;
 
 	std::counting_semaphore<UNSYNC_MAX_TOTAL_THREADS> Native;
 };
-#endif
 
 class FScheduler
 {
 public:
 	UNSYNC_DISALLOW_COPY_ASSIGN(FScheduler)
 
-	static constexpr uint32 MAX_NETWORK_TASKS	 = 8;
-	static constexpr uint32 MAX_FILESYSTEM_TASKS = 64;
+	static constexpr uint32 MAX_NETWORK_TASKS = 8;
 
 	FScheduler(uint32 InNumWorkerThreads);
 	~FScheduler();
 
 	const uint32 NumWorkerThreads;
 
-	FSchedulerSemaphore NetworkSempahore;
-	FSchedulerSemaphore FilesystemSemaphore;
+	FSchedulerSemaphore NetworkSemaphore;
 
-	FTaskGroup CreateTaskGroup(EWorkloadType Type = EWorkloadType::Foreground);
+	FTaskGroup CreateTaskGroup(FSchedulerSemaphore* ConcurrencyLimiter = nullptr);
 
 	void TryExecuteTask() { ThreadPool.TryExecuteTask(); }
+
+	bool ExecuteTasksUntilIdle()
+	{
+		uint64 NumExecuted = 0;
+		while (ThreadPool.TryExecuteTask())
+		{
+			NumExecuted++;
+		}
+		return NumExecuted != 0;
+	}
 
 private:
 	FThreadPool ThreadPool;
 };
-
-#if UNSYNC_USE_CONCRT
-
-struct FTaskGroup : concurrency::task_group
-{
-	UNSYNC_DISALLOW_COPY_ASSIGN(FTaskGroup)
-
-private:
-	friend FScheduler;
-	FTaskGroup() : concurrency::task_group() {}
-};
-
-template<typename IT, typename FT>
-inline void
-ParallelForEach(IT ItBegin, IT ItEnd, FT F)
-{
-	concurrency::parallel_for_each(ItBegin, ItEnd, F);
-}
-
-#else // UNSYNC_USE_CONCRT
 
 struct FTaskGroup
 {
@@ -95,14 +69,30 @@ struct FTaskGroup
 	{
 		++NumStartedTasks;
 
-		ThreadPool.PushTask(
-			[&NumStartedTasks  = this->NumStartedTasks,
-			 &NumFinishedTasks = this->NumFinishedTasks,
-			 Function		   = std::forward<F>(InFunction)]() -> void
-			{
-				Function();
-				++NumFinishedTasks;
-			});
+		const bool bAcquired = Semaphore && Semaphore->TryAcquire();
+
+		if (!Semaphore || bAcquired)
+		{
+			ThreadPool.PushTask(
+				[Semaphore = this->Semaphore,
+				 bAcquired,
+				 &NumStartedTasks  = this->NumStartedTasks,
+				 &NumFinishedTasks = this->NumFinishedTasks,
+				 Function		   = std::forward<F>(InFunction)]() -> void
+				{
+					Function();
+					if (Semaphore && bAcquired)
+					{
+						Semaphore->Release();
+					}
+					++NumFinishedTasks;
+				});
+		}
+		else
+		{
+			InFunction();
+			++NumFinishedTasks;
+		}
 	}
 
 	void wait()
@@ -116,12 +106,13 @@ struct FTaskGroup
 	FThreadPool&		ThreadPool;
 	std::atomic<uint64> NumStartedTasks;
 	std::atomic<uint64> NumFinishedTasks;
+	FSchedulerSemaphore* Semaphore = nullptr;
 
 	~FTaskGroup() { wait(); };
 
 private:
 	friend FScheduler;
-	FTaskGroup(FThreadPool& InThreadPool) : ThreadPool(InThreadPool) {}
+	FTaskGroup(FThreadPool& InThreadPool, FSchedulerSemaphore* InSemaphore) : ThreadPool(InThreadPool), Semaphore(InSemaphore) {}
 };
 
 template<typename IT, typename FT>
@@ -138,8 +129,6 @@ ParallelForEach(IT ItBegin, IT ItEnd, FT F)
 
 	TaskGroup.wait();
 }
-
-#endif // UNSYNC_USE_CONCRT
 
 template<typename T, typename FT>
 inline void

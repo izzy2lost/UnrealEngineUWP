@@ -8,34 +8,20 @@ FScheduler* GScheduler = nullptr;
 
 FScheduler::FScheduler(uint32 InNumWorkerThreads)
 : NumWorkerThreads(InNumWorkerThreads)
-, NetworkSempahore(*this, MAX_NETWORK_TASKS)
-, FilesystemSemaphore(*this, MAX_FILESYSTEM_TASKS)
+, NetworkSemaphore(*this, MAX_NETWORK_TASKS)
 {
-#if UNSYNC_USE_CONCRT
-	UNSYNC_VERBOSE(L"Scheduler: PPL");
-#else
-	UNSYNC_VERBOSE(L"Scheduler: Custom");
 	ThreadPool.StartWorkers(NumWorkerThreads);
-#endif
 }
 
 FScheduler::~FScheduler()
 {
 }
 
-FTaskGroup FScheduler::CreateTaskGroup(EWorkloadType Type)
+FTaskGroup
+FScheduler::CreateTaskGroup(FSchedulerSemaphore* ConcurrencyLimiter)
 {
-	// TODO: use separate thread pools for tasks of different types
-	UNSYNC_UNUSED(Type);
-
-#if UNSYNC_USE_CONCRT
-	return FTaskGroup();
-#else
-	return FTaskGroup(ThreadPool);
-#endif
+	return FTaskGroup(ThreadPool, ConcurrencyLimiter);
 }
-
-#if !UNSYNC_USE_CONCRT
 
 FSchedulerSemaphore::FSchedulerSemaphore(FScheduler& InScheduler, uint32 MaxCount)
 : Scheduler(InScheduler)
@@ -44,11 +30,18 @@ FSchedulerSemaphore::FSchedulerSemaphore(FScheduler& InScheduler, uint32 MaxCoun
 }
 
 void
-FSchedulerSemaphore::Acquire()
+FSchedulerSemaphore::Acquire(bool bAllowTaskExecution)
 {
-	while (!Native.try_acquire())
+	if (bAllowTaskExecution)
 	{
-		Scheduler.TryExecuteTask();
+		while (!Native.try_acquire())
+		{
+			Scheduler.TryExecuteTask();
+		}
+	}
+	else
+	{
+		Native.acquire();
 	}
 }
 
@@ -57,7 +50,5 @@ FSchedulerSemaphore::Release()
 {
 	Native.release();
 }
-
-#endif
 
 }  // namespace unsync

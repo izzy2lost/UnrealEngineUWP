@@ -654,8 +654,6 @@ InnerMain(int Argc, char** Argv)
 	UNSYNC_ASSERT(GScheduler == nullptr);
 	GScheduler = &MainScheduler;
 
-	FConcurrencyPolicyScope ConcurrencyLimitScope(GMaxThreads);
-
 	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubPack))
 	{
 		UNSYNC_VERBOSE(L"Using block size: %d KB", HashOrSyncBlockSize / 1024);

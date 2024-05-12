@@ -895,8 +895,6 @@ RunTests(const std::string& Preset)
 
 	if (Preset == "perf" || Preset == "all")
 	{
-		FConcurrencyPolicyScope SingleThreadedScope(1);
-
 		TestPerfComputeBlocksVariable(EWeakHashAlgorithmID::Naive, EStrongHashAlgorithmID::Blake3_128);
 		TestPerfComputeBlocksVariable(EWeakHashAlgorithmID::BuzHash, EStrongHashAlgorithmID::Blake3_128);
 		TestPerfComputeBlocksVariable(EWeakHashAlgorithmID::BuzHash, EStrongHashAlgorithmID::Blake3_160);
