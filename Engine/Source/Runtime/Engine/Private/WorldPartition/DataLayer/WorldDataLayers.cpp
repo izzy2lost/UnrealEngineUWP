@@ -1376,7 +1376,8 @@ bool AWorldDataLayers::CanReferenceDataLayerAsset(const UDataLayerAsset* InDataL
 	{
 		return false;
 	}
-	else if (InDataLayerAsset)
+	// Validate that AWorldDataLayers and its EDL Asset are part of the same plugin
+	else if (InDataLayerAsset && (RootExternalDataLayerAsset == InDataLayerAsset))
 	{
 		IPluginManager& PluginManager = IPluginManager::Get();
 		const FString AssetMountPoint = FPackageName::GetPackageMountPoint(InDataLayerAsset->GetPackage()->GetName()).ToString();
