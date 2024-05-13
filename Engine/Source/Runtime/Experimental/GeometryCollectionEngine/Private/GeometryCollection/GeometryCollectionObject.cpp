@@ -1014,7 +1014,7 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 			EnsureDataIsCooked(false /*bInitResources*/, Ar.IsTransacting(), Ar.IsPersistent(), false /*bAllowCopyFromDDC*/);
 		}
 #endif
-		if (Ar.IsLoading())
+		if (Ar.IsLoading() || Ar.IsCountingMemory())
 		{
 			GeometryCollection->Serialize(ChaosAr);
 		}

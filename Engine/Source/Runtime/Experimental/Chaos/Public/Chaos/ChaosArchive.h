@@ -379,6 +379,8 @@ private:
 template <typename T, typename TAllocator>
 FChaosArchive& operator<<(FChaosArchive& Ar, TArray<T, TAllocator>& Array)
 {
+	Array.CountBytes(Ar);
+
 	int32 ArrayNum = Array.Num();
 	Ar << ArrayNum;
 	Array.Reserve(ArrayNum);

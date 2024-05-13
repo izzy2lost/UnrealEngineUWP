@@ -653,7 +653,12 @@ void FManagedArrayCollection::Serialize(Chaos::FChaosArchive& Ar)
 
 	Ar << Version;
 
-	if (Ar.IsLoading())
+	if (Ar.IsCountingMemory())
+	{
+		Ar << GroupInfo;
+		Ar << Map;
+	}
+	else if (Ar.IsLoading())
 	{
 		//We can't serialize entire tmap in place because we may have new groups. todo(ocohen): baked data should be simpler since all entries exist
 		TMap< FName, FGroupInfo> TmpGroupInfo;
