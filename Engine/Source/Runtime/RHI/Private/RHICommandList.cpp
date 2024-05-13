@@ -2161,6 +2161,9 @@ void FRHICommandListExecutor::CleanupGraphEvents()
 	LastMutate.SafeRelease();
 	LastSubmit.SafeRelease();
 	CompletionEvent.SafeRelease();
+
+	DispatchPipe.CleanupGraphEvents();
+	RHIThreadPipe.CleanupGraphEvents();
 }
 
 UE_DEPRECATED(5.5, "GenerateMips on RHI command lists is deprecated and no longer functions. Use the FGenerateMips helper class from the RenderCore module to generate mips on textures.")

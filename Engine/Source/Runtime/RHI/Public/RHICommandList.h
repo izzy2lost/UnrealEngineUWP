@@ -5096,6 +5096,11 @@ private:
 
 		// Returns a graph event that will be signalled once all work submitted prior to calling Close() has completed.
 		FGraphEventRef Close();
+
+		void CleanupGraphEvents()
+		{
+			LastEvent = nullptr;
+		}
 	};
 
 	FTaskPipe DispatchPipe;
