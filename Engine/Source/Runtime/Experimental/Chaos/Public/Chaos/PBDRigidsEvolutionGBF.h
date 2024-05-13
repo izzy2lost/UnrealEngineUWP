@@ -178,13 +178,14 @@ namespace Chaos
 		 * NOTE: must be called prior to Integrate() to be effective.
 		 * NOTE: be careful with bApplyToConnectedBodies - only one particle in the connected graph should have ApplyParticleTransformCorrectionDelta called on 
 		 * it, otherwise you will get multiple particles trying to recorrect each other leading to very strange behaviour.
+		 * Use @param ExcludeConnections to exclude particles from being corrected, this includes particles connected to the excluded particle as long as they are not connected to a non-excluded particle.
 		 */
-		CHAOS_API void ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies = true);
+		CHAOS_API void ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies = true, const TArray<FParticleID>& ExcludeConnections = TArray<FParticleID>());
 
 		/*
 		 * [EXPERIMENTAL] Similar to SetParticleTransformCorrectionDelta, but supplied an absolute transform to jump to. This is used for snaps.
 		 */
-		CHAOS_API void ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies = true);
+		CHAOS_API void ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies = true, const TArray<FParticleID>& ExcludeConnections = TArray<FParticleID>());
 
 		/*
 		* [EXPERIMENTAL] Apply sleep state on connected particles that are dynamic
@@ -274,8 +275,9 @@ namespace Chaos
 		// Update the particle transform and fix collision anchors (used by client corrections)
 		void ApplyParticleTransformCorrectionImpl(FGeometryParticleHandle* InParticle, const FRigidTransform3& InTransform, const bool bInRecalculateFriction = true);
 
-		// Get all the particles that are connected to InParticle by a joint with locked position limits
-		TArray<FGeometryParticleHandle*> GetConnectedParticles(FGeometryParticleHandle* InParticle);
+		/* Get all the particles that are connected to InParticle by a joint with locked position limits
+		 * Use @param ExcludeConnections to exclude particles, this includes particles connected to the excluded particle as long as they are not connected to a non-excluded particle. */
+		TArray<FGeometryParticleHandle*> GetConnectedParticles(FGeometryParticleHandle* InParticle, const TArray<FParticleID>& ExcludeConnections = TArray<FParticleID>());
 
 		void UpdateInertiaConditioning();
 

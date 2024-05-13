@@ -737,7 +737,7 @@ bool FPhysicsReplication::ApplyRigidBodyState(float DeltaSeconds, FBodyInstance*
 								
 									// Set XRVW to hard snap dynamic object and force recalculation of friction
 									Solver->GetEvolution()->ApplyParticleTransformCorrection(Proxy->GetHandle_LowLevel(), IdealWorldTM.GetLocation(), IdealWorldTM.GetRotation(), bCorrectConnectedBodies, bCorrectConnectedBodiesFriction);
-								
+
 									Handle->SetV(NewState.LinVel);
 									Handle->SetW(FMath::DegreesToRadians(NewState.AngVel));
 								});
@@ -840,7 +840,9 @@ void FPhysicsReplication::PrepareAsyncData_External(const FRigidBodyErrorCorrect
 #pragma region FPhysicsReplicationAsync
 void FPhysicsReplicationAsync::OnPhysicsObjectUnregistered_Internal(Chaos::FConstPhysicsObjectHandle PhysicsObject)
 {
-	ObjectToTarget.Remove(PhysicsObject);
+	RemoveObjectFromReplication(PhysicsObject);
+
+	// Only clear Settings when PhysicsObject unregister (not when it stops replicating, hence why it's not baked into RemoveObjectFromReplication())
 	ObjectToSettings.Remove(PhysicsObject);
 }
 
@@ -909,8 +911,8 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 		{
 			if (Input.TargetState.Flags == ERigidBodyFlags::None)
 			{
-				// Remove replication target 
-				ObjectToTarget.Remove(Input.PhysicsObject);
+				// Remove replication target
+				RemoveObjectFromReplication(Input.PhysicsObject);
 				continue;
 			}
 
@@ -934,6 +936,41 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 		}
 
 		ApplyTargetStatesAsync(GetDeltaTime_Internal(), AsyncInput->ErrorCorrection, AsyncInput->InputData);
+	}
+}
+
+FReplicatedPhysicsTargetAsync* FPhysicsReplicationAsync::AddObjectToReplication(Chaos::FConstPhysicsObjectHandle PhysicsObject)
+{
+	if (ensure(PhysicsObject))
+	{
+		// Cache ParticleID in array of replicated objects
+		Chaos::FReadPhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetRead();
+		if (Chaos::FGeometryParticleHandle* Handle = Interface.GetParticle(PhysicsObject))
+		{
+			ReplicatedParticleIDs.Add(Handle->ParticleID());
+		}
+
+		// Add to Object-Target map
+		return &ObjectToTarget.Add(PhysicsObject, FReplicatedPhysicsTargetAsync());
+	}
+	return nullptr;
+}
+
+void FPhysicsReplicationAsync::RemoveObjectFromReplication(Chaos::FConstPhysicsObjectHandle PhysicsObject)
+{
+	if (PhysicsObject == nullptr)
+	{
+		return;
+	}
+
+	// Remove from Object-Target map
+	ObjectToTarget.Remove(PhysicsObject);
+
+	// Remove cached replicated ParticleID
+	Chaos::FReadPhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetRead();
+	if (Chaos::FGeometryParticleHandle* Handle = Interface.GetParticle(PhysicsObject))
+	{
+		ReplicatedParticleIDs.Remove(Handle->ParticleID());
 	}
 }
 
@@ -979,7 +1016,7 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 	if (bFirstTarget)
 	{
 		// First time we add a target, set previous state to current input
-		Target = &ObjectToTarget.Add(Input.PhysicsObject, FReplicatedPhysicsTargetAsync());
+		Target = AddObjectToReplication(Input.PhysicsObject);
 		Target->PrevPos = Input.TargetState.Position;
 		Target->PrevPosTarget = Input.TargetState.Position;
 		Target->PrevRotTarget = Input.TargetState.Quaternion;
@@ -1173,6 +1210,7 @@ void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, 
 	for (auto Itr = ObjectToTarget.CreateIterator(); Itr; ++Itr)
 	{
 		bool bRemoveItr = true; // Remove current cached replication target unless replication logic tells us to store it for next tick
+		FParticleID ParticleID;
 
 		Chaos::FConstPhysicsObjectHandle& POHandle = Itr.Key();
 		if (FGeometryParticleHandle* Handle = Interface.GetParticle(POHandle))
@@ -1181,6 +1219,8 @@ void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, 
 
 			if (FPBDRigidParticleHandle* RigidHandle = Handle->CastToRigidParticle())
 			{
+				ParticleID = RigidHandle->ParticleID();
+
 				// Cache custom settings for this object if there are any
 				FetchObjectSettings(POHandle);
 
@@ -1205,6 +1245,7 @@ void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, 
 
 		if (bRemoveItr)
 		{
+			ReplicatedParticleIDs.Remove(ParticleID);
 			Itr.RemoveCurrent();
 		}
 	}
@@ -1475,8 +1516,7 @@ bool FPhysicsReplicationAsync::DefaultReplication(Chaos::FPBDRigidParticleHandle
 			// Set XRVW to hard snap dynamic object and force recalculation of friction
 			const bool bCorrectConnectedBodies = SettingsCurrent.DefaultReplicationSettings.GetCorrectConnectedBodies();
 			const bool bCorrectConnectedBodiesFriction = SettingsCurrent.DefaultReplicationSettings.GetCorrectConnectedBodiesFriction();
-			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, TargetPos, TargetQuat, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction);
-
+			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, TargetPos, TargetQuat, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction, ReplicatedParticleIDs);
 			Handle->SetV(NewState.LinVel);
 			Handle->SetW(FMath::DegreesToRadians(NewState.AngVel));
 		}
@@ -1686,7 +1726,7 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		{
 			// Set XRVW to hard snap dynamic object and force recalculation of friction
 			const bool bCorrectConnectedBodies = SettingsCurrent.PredictiveInterpolationSettings.GetCorrectConnectedBodies();
-			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, Target.PrevPosTarget, Target.PrevRotTarget, bCorrectConnectedBodies, /*bInRecalculateFrictionOnConnectedBodies*/ true);
+			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, Target.PrevPosTarget, Target.PrevRotTarget, bCorrectConnectedBodies, /*bInRecalculateFrictionOnConnectedBodies*/ true, ReplicatedParticleIDs);
 			Handle->SetV(TargetLinVel);
 			Handle->SetW(TargetAngVel);
 		}
@@ -1885,7 +1925,7 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		{	
 			const bool bCorrectConnectedBodies = SettingsCurrent.PredictiveInterpolationSettings.GetCorrectConnectedBodies();
 			const bool bCorrectConnectedBodiesFriction = SettingsCurrent.PredictiveInterpolationSettings.GetCorrectConnectedBodiesFriction();
-			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, CorrectionX, CorrectionR, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction);
+			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, CorrectionX, CorrectionR, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction, ReplicatedParticleIDs);
 		}
 
 		if (bSoftSnap)
@@ -1901,7 +1941,7 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 			// Apply correction as a transform shift
 			const bool bCorrectConnectedBodies = SettingsCurrent.PredictiveInterpolationSettings.GetCorrectConnectedBodies();
 			const bool bCorrectConnectedBodiesFriction = SettingsCurrent.PredictiveInterpolationSettings.GetCorrectConnectedBodiesFriction();
-			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, SoftSnapPos, SoftSnapRot, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction);
+			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, SoftSnapPos, SoftSnapRot, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction, ReplicatedParticleIDs);
 		}
 	}
 
@@ -2042,7 +2082,7 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 				}
 #endif
 				// Apply correction to position and rotation
-				RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, CorrectedX, CorrectedR, SettingsCurrent.ResimulationSettings.GetRuntimeCorrectConnectedBodies());
+				RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, CorrectedX, CorrectedR, SettingsCurrent.ResimulationSettings.GetRuntimeCorrectConnectedBodies(), /*bInRecalculateFrictionOnConnectedBodies*/true, ReplicatedParticleIDs);
 			}
 
 			// Keep target for NumPredictedFrames time to perform runtime corrections with until a new target is received
@@ -2057,6 +2097,7 @@ FName FPhysicsReplicationAsync::GetFNameForStatId() const
 	const static FLazyName StaticName("FPhysicsReplicationAsyncCallback");
 	return StaticName;
 }
+
 #pragma endregion // FPhysicsReplicationAsync
 
 

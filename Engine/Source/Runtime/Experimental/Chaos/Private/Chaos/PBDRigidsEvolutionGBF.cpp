@@ -1480,16 +1480,16 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 	}
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies, const TArray<FParticleID>& ExcludeConnections)
 {
 	ApplyParticleTransformCorrection(
 		InParticle, 
 		InParticle->GetX() + InPosDelta, 
 		FRotation3::IntegrateRotationWithAngularVelocity(InParticle->GetR(), InRotDelta, FReal(1.0)),
-		bApplyToConnectedBodies, bInRecalculateFrictionOnConnectedBodies);
+		bApplyToConnectedBodies, bInRecalculateFrictionOnConnectedBodies, ExcludeConnections);
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies, const TArray<FParticleID>& ExcludeConnections)
 {
 	const FRigidTransform3 OldParticleTransform = InParticle->GetTransformXR();
 	const FRigidTransform3 NewParticleTransform = FRigidTransform3(InPos, InRot);
@@ -1501,7 +1501,7 @@ void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleH
 	{
 		// Find all the connected particles and move them to retain their relative transform
 		// NOTE: ConnectedParticles will not include InParticle
-		TArray<FGeometryParticleHandle*> ConnectedParticles = GetConnectedParticles(InParticle);
+		TArray<FGeometryParticleHandle*> ConnectedParticles = GetConnectedParticles(InParticle, ExcludeConnections);
 		for (FGeometryParticleHandle* ConnectedParticle : ConnectedParticles)
 		{
 			if (FGenericParticleHandle(ConnectedParticle)->IsDynamic())
@@ -1550,7 +1550,7 @@ void FPBDRigidsEvolutionGBF::ApplySleepOnConnectedParticles(FGeometryParticleHan
 	}
 }
 
-TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(FGeometryParticleHandle* InParticle)
+TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(FGeometryParticleHandle* InParticle, const TArray<FParticleID>& ExcludeConnections)
 {
 	if (InParticle->ParticleConstraints().IsEmpty())
 	{
@@ -1579,7 +1579,7 @@ TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(F
 				{
 					FParticlePair JointParticles = Joint->GetConstrainedParticles();
 					FGeometryParticleHandle* OtherParticle = (JointParticles[0] != NextParticle) ? JointParticles[0] : JointParticles[1];
-					if ((OtherParticle != InParticle) && (ConnectedParticles.Find(OtherParticle) == nullptr))
+					if ((OtherParticle != InParticle) && (ConnectedParticles.Find(OtherParticle) == nullptr) && !ExcludeConnections.Contains(OtherParticle->ParticleID()))
 					{
 						ConnectedParticles.Add(OtherParticle, OtherParticle);
 					}

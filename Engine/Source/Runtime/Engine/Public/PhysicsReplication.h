@@ -13,6 +13,7 @@
 #include "Physics/PhysicsInterfaceDeclares.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 #include "Chaos/PhysicsObject.h"
+#include "Chaos/ParticleDirtyFlags.h"
 #include "Chaos/SimCallbackObject.h"
 #include "Physics/PhysicsInterfaceUtils.h"
 #include "Physics/NetworkPhysicsSettingsComponent.h"
@@ -44,9 +45,6 @@ namespace PhysicsReplicationCVars
 	extern ENGINE_API int32 LogPhysicsReplicationHardSnaps;
 }
 #endif
-
-class FPhysScene_PhysX;
-
 
 #pragma region FPhysicsReplicationAsync
 
@@ -224,8 +222,11 @@ private:
 	TMap<Chaos::FConstPhysicsObjectHandle, FReplicatedPhysicsTargetAsync> ObjectToTarget;
 	TMap<Chaos::FConstPhysicsObjectHandle, FNetworkPhysicsSettingsAsync> ObjectToSettings;
 	TArray<int32> ParticlesInResimIslands;
+	TArray<Chaos::FParticleID> ReplicatedParticleIDs;
 
 private:
+	FReplicatedPhysicsTargetAsync* AddObjectToReplication(Chaos::FConstPhysicsObjectHandle PhysicsObject);
+	void RemoveObjectFromReplication(Chaos::FConstPhysicsObjectHandle PhysicsObject);
 	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input, Chaos::FPBDRigidsSolver* RigidsSolver);
 	void UpdateRewindDataTarget(const FPhysicsRepAsyncInputData& Input);
 	void CacheResimInteractions();
