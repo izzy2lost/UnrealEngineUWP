@@ -6,23 +6,31 @@
 #include "InteractiveTool.h" //UInteractiveToolPropertySet
 #include "InteractiveToolBuilder.h" //UInteractiveToolBuilder
 #include "InteractiveToolChange.h" //FToolCommandChange
-#include "SingleSelectionTool.h" //USingleSelectionTool
+#include "BaseTools/MultiTargetWithSelectionTool.h" // UMultiTargetWithSelectionTool
+#include "DynamicMesh/MeshSharingUtil.h"
 #include "Operations/FFDLattice.h"
-#include "BaseTools/SingleSelectionMeshEditingTool.h"
 #include "Solvers/ConstrainedMeshDeformer.h"
 
 #include "LatticeDeformerTool.generated.h"
+
+namespace UE::Geometry
+{
+	struct FDynamicSubmesh3;
+}
 
 class ULatticeControlPointsMechanic;
 class UMeshOpPreviewWithBackgroundCompute;
 
 UCLASS()
-class MESHMODELINGTOOLSEXP_API ULatticeDeformerToolBuilder : public USingleSelectionMeshEditingToolBuilder
+class MESHMODELINGTOOLSEXP_API ULatticeDeformerToolBuilder : public UMultiTargetWithSelectionToolBuilder
 {
 	GENERATED_BODY()
 
 public:
-	virtual USingleSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+	virtual UMultiTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+
+	virtual bool RequiresInputSelection() const override { return false; }
 };
 
 
@@ -127,7 +135,7 @@ public:
 
 /** Deform a mesh using a regular hexahedral lattice */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API ULatticeDeformerTool : public USingleSelectionMeshEditingTool, public IInteractiveToolManageGeometrySelectionAPI
+class MESHMODELINGTOOLSEXP_API ULatticeDeformerTool : public UMultiTargetWithSelectionTool, public IInteractiveToolManageGeometrySelectionAPI
 {
 	GENERATED_BODY()
 
@@ -160,6 +168,10 @@ protected:
 	// Input mesh
 	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> OriginalMesh;
 
+	TSharedPtr<UE::Geometry::FDynamicSubmesh3, ESPMode::ThreadSafe> Submesh = nullptr;
+
+	FTransform3d WorldTransform;
+
 	TSharedPtr<UE::Geometry::FFFDLattice, ESPMode::ThreadSafe> Lattice;
 
 	UPROPERTY()
@@ -175,6 +187,8 @@ protected:
 	bool bLatticeDeformed = false;
 
 	bool bShouldRebuild = false;
+
+	bool bHasSelection = false;
 
 	// Create and store an FFFDLattice. Pass out the lattice's positions and edges.
 	void InitializeLattice(TArray<FVector3d>& OutLatticePoints, TArray<UE::Geometry::FVector2i>& OutLatticeEdges);
