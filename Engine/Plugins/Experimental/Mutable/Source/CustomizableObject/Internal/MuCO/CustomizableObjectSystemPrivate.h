@@ -26,6 +26,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "ContentStreaming.h"
 #include "Animation/MorphTarget.h"
+#include "UObject/StrongObjectPtr.h"
 
 #include "Tasks/Task.h"
 
@@ -470,16 +471,13 @@ struct FInstanceUpdateData
 /** Update Context.
  *
  * Alive from the start to the end of the update (both API and LOD update). */
-class FUpdateContextPrivate : public FGCObject
+class FUpdateContextPrivate
 {
 public:
 	FUpdateContextPrivate(UCustomizableObjectInstance& InInstance, const FCustomizableObjectInstanceDescriptor& Descriptor);
 
 	FUpdateContextPrivate(UCustomizableObjectInstance& InInstance);
-	virtual ~FUpdateContextPrivate() override;
-
-	virtual FString GetReferencerName() const override;
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	~FUpdateContextPrivate();
 
 	int32 GetMinLOD() const;
 
@@ -588,7 +586,7 @@ public:
 	uint32 MutableRuntimeCycles = 0;
 
 	/** Hard references to objects. Avoids GC to collect them. */
-	TArray<TObjectPtr<const UObject>> Objects;
+	TArray<TStrongObjectPtr<const UObject>> Objects;
 };
 
 

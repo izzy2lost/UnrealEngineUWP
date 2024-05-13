@@ -149,6 +149,7 @@ static FAutoConsoleVariableSink CVarMutableSink(FConsoleCommandDelegate::CreateS
 
 FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInstance, const FCustomizableObjectInstanceDescriptor& Descriptor)
 {
+	check(IsInGameThread());
 	check(InInstance.GetPrivate());
 	check(InInstance.GetCustomizableObject());
 
@@ -178,23 +179,13 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 
 FUpdateContextPrivate::~FUpdateContextPrivate()
 {
+	check(IsInGameThread());
+
 	if (UCustomizableObjectSystem::IsCreated())
 	{
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 		System->GetPrivate()->UnCacheTextureParameters(CapturedDescriptor.GetTextureParameters());
 	}
-}
-
-
-FString FUpdateContextPrivate::GetReferencerName() const
-{
-	return TEXT("FUpdateContextPrivate");
-}
-
-
-void FUpdateContextPrivate::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	Collector.AddReferencedObjects(Objects);
 }
 
 
@@ -2680,23 +2671,19 @@ namespace impl
 
 
 	// This runs in a worker thread.
-	void Task_Mutable_ReleaseInstance(const TSharedRef<FUpdateContextPrivate>& OperationData, mu::Ptr<mu::System> MutableSystem)
+	void Task_Mutable_ReleaseInstance(mu::Instance::ID InstanceID, mu::Ptr<mu::System> MutableSystem, bool bLiveUpdateMode)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_ReleaseInstance)
 
 		check(MutableSystem);
 
-		if (OperationData->InstanceID > 0)
+		if (InstanceID > 0)
 		{
-			MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
-			MutableSystem->EndUpdate(OperationData->InstanceID);
-			OperationData->InstanceUpdateData.Clear();
+			MutableSystem->EndUpdate(InstanceID);
 
-			if (!OperationData->bLiveUpdateMode)
+			if (!bLiveUpdateMode)
 			{
-				MutableSystem->ReleaseInstance(OperationData->InstanceID);
-				OperationData->InstanceID = 0;
-				OperationData->MutableInstance = nullptr;
+				MutableSystem->ReleaseInstance(InstanceID);
 			}
 		}
 
@@ -2867,7 +2854,7 @@ namespace impl
 			const mu::Ptr<mu::System> MutableSystem = CustomizableObjectSystemPrivateData->MutableSystem;
 			CustomizableObjectSystemPrivateData->MutableTaskGraph.AddMutableThreadTask(
 				TEXT("Task_Mutable_ReleaseInstance"),
-				[OperationData, MutableSystem]() {Task_Mutable_ReleaseInstance(OperationData, MutableSystem); });
+				[OperationData, MutableSystem]() {Task_Mutable_ReleaseInstance(OperationData->InstanceID, MutableSystem, OperationData->bLiveUpdateMode); });
 		}
 
 
@@ -3088,7 +3075,7 @@ namespace impl
 		{
 			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(MeshId))
 			{
-				Operation->Objects.Add(CachedMesh);
+				Operation->Objects.Emplace(CachedMesh);
 			}
 		}
 
