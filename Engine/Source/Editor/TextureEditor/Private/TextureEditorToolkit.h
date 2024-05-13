@@ -15,6 +15,7 @@
 
 class SMenuAnchor;
 class STextBlock;
+class SButton;
 class STextureEditorViewport;
 class UFactory;
 class UTexture;
@@ -415,6 +416,7 @@ private:
 	TSharedPtr<STextBlock> LODBiasText;
 	TSharedPtr<STextBlock> HasAlphaChannelText;
 	TSharedPtr<STextBlock> SourceMipsAlphaDetectedText;
+	TSharedPtr<SButton> DetectSourceAlphaButton;
 	TSharedPtr<STextBlock> NumMipsText;
 	TSharedPtr<STextBlock> MipLevelTextBlock;
 	TSharedPtr<STextBlock> EncodeSpeedText;
@@ -513,6 +515,9 @@ private:
 	TSharedPtr<class SCheckBox> OodleOverrideCheck;
 	void OnUseEditorOodleSettingsChanged(ECheckBoxState NewState);
 	ECheckBoxState UseEditorOodleSettingsChecked() const;
+
+	FReply DetectSourceAlphaButton_Clicked();
+	bool CanPlatformPreview() const;
 
 	// callback for enabling custom encoding sub-controls
 	bool EditorOodleSettingsEnabled() const;
