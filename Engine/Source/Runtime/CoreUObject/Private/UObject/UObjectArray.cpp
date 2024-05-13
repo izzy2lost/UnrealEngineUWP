@@ -203,6 +203,7 @@ void FUObjectArray::DisableDisregardForGC()
 	}
 
 	MaxObjectsNotConsideredByGC = 0;
+	GUObjectAllocator.DisablePersistentAllocator();
 	ObjFirstGCIndex = 0;
 	ObjLastNonGCIndex = -1;
 	if (IsOpenForDisregardForGC())

@@ -950,14 +950,6 @@ static FAutoConsoleVariableRef CMaxObjectsNotConsideredByGC(
 	ECVF_Default
 	);
 
-static int32 GSizeOfPermanentObjectPool;
-static FAutoConsoleVariableRef CSizeOfPermanentObjectPool(
-	TEXT("gc.SizeOfPermanentObjectPool"),
-	GSizeOfPermanentObjectPool,
-	TEXT("Placeholder console variable, currently not used in runtime."),
-	ECVF_Default
-	);
-
 static int32 GMaxObjectsInEditor;
 static FAutoConsoleVariableRef CMaxObjectsInEditor(
 	TEXT("gc.MaxObjectsInEditor"),
@@ -1021,7 +1013,7 @@ void UObjectBaseInit()
 #endif
 	}
 
-	if (!MaxObjectsNotConsideredByGC)
+	if (MaxObjectsNotConsideredByGC == 0)
 	{
 		//Disable persistent UObjects pool if there are 0 objects not considered by GC
 		GUObjectAllocator.DisablePersistentAllocator();
