@@ -391,9 +391,10 @@ public:
 	/**
 	 * Adds a curve metadata entry with the specified name
 	 * @param	InCurveName			The name of the curve to find
+	 * @param   bTransact           If true record a new transaction
 	 * @return true if an entry was added, false if an entry already existed
 	 */
-	ENGINE_API bool AddCurveMetaData(FName CurveName);
+	ENGINE_API bool AddCurveMetaData(FName CurveName, bool bTransact = true);
 
 	/**
 	 * Get an array of all curve metadata names

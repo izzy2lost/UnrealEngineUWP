@@ -5,6 +5,7 @@
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #include "UObject/AssetRegistryTagsContext.h"
+#include "Editor.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "AnimCurveMetaData" 
@@ -78,12 +79,15 @@ const FCurveMetaData* UAnimCurveMetaData::GetCurveMetaData(FName InCurveName) co
 	return CurveMetaData.Find(InCurveName);
 }
 
-bool UAnimCurveMetaData::AddCurveMetaData(FName InCurveName)
+bool UAnimCurveMetaData::AddCurveMetaData(FName InCurveName, bool bInTransact)
 {
 	if(!CurveMetaData.Contains(InCurveName))
 	{
 #if WITH_EDITOR
-		FScopedTransaction Transaction(LOCTEXT("AddCurveMetaData", "Add Curve Metadata"));
+		if (bInTransact)
+		{
+			GEditor->BeginTransaction(LOCTEXT("AddCurveMetaData", "Add Curve Metadata"));
+		}
 		Modify();
 #endif
 
@@ -91,6 +95,13 @@ bool UAnimCurveMetaData::AddCurveMetaData(FName InCurveName)
 
 		IncreaseVersionNumber();
 		OnCurveMetaDataChanged.Broadcast();
+
+#if WITH_EDITOR
+		if (bInTransact)
+		{
+			GEditor->EndTransaction();
+		}
+#endif
 		return true;
 	}
 	return false;

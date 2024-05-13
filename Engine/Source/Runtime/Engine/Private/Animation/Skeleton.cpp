@@ -1766,10 +1766,10 @@ void USkeleton::RenameSlotName(const FName& OldName, const FName& NewName)
 	SetSlotGroupName(NewName, GroupName);
 }
 
-bool USkeleton::AddCurveMetaData(FName CurveName)
+bool USkeleton::AddCurveMetaData(FName CurveName, bool bTransact)
 {
 	UAnimCurveMetaData* AnimCurveMetaData = GetOrCreateCurveMetaDataObject();
-	return AnimCurveMetaData->AddCurveMetaData(CurveName);
+	return AnimCurveMetaData->AddCurveMetaData(CurveName, bTransact);
 }
 
 #if WITH_EDITOR

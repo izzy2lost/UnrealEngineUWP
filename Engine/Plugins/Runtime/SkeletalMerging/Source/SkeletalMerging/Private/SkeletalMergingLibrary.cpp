@@ -332,7 +332,7 @@ void USkeletalMergingLibrary::AddCurveNames(USkeleton* InSkeleton, const TMap<FN
 	{
 		if (CurveMetaDataPair.Value)
 		{
-			InSkeleton->AddCurveMetaData(CurveMetaDataPair.Key);
+			InSkeleton->AddCurveMetaData(CurveMetaDataPair.Key, false);
 
 			FCurveMetaData& SkeletonCurveMetaData = *InSkeleton->GetCurveMetaData(CurveMetaDataPair.Key);
 			SkeletonCurveMetaData = *CurveMetaDataPair.Value;
