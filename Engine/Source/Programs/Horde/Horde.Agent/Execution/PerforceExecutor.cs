@@ -31,7 +31,7 @@ namespace Horde.Agent.Execution
 		{
 			_workspaceInfo = workspaceInfo;
 			_autoSdkWorkspaceInfo = autoSdkWorkspaceInfo;
-			_rootDir = options.Session.WorkingDir;
+			_rootDir = options.WorkingDir;
 
 			_workspace = null!;
 		}

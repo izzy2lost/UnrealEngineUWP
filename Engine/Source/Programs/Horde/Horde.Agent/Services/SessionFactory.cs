@@ -58,12 +58,9 @@ namespace Horde.Agent.Services
 		DirectoryReference WorkingDir { get; }
 
 		/// <summary>
-		/// Terminate all processes in running in the working directory
+		/// List of process names to terminate
 		/// </summary>
-		/// <param name="condition">Flags indicating which processes to terminate</param>
-		/// <param name="logger">Logger for any diagnostic messages</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task TerminateProcessesAsync(TerminateCondition condition, ILogger logger, CancellationToken cancellationToken);
+		IReadOnlyDictionary<string, TerminateCondition> ProcessNamesToTerminate { get; }
 	}
 
 	/// <summary>
@@ -102,12 +99,11 @@ namespace Horde.Agent.Services
 		/// <inheritdoc/>
 		public GrpcChannel GrpcChannel { get; }
 
-		/// <summary>
-		/// Working directory for sandboxes etc..
-		/// </summary>
+		/// <inheritdoc/>
 		public DirectoryReference WorkingDir { get; }
 
-		readonly IReadOnlyDictionary<string, TerminateCondition> _processNamesToTerminate;
+		/// <inheritdoc/>
+		public IReadOnlyDictionary<string, TerminateCondition> ProcessNamesToTerminate { get; }
 
 		/// <summary>
 		/// Constructor
@@ -121,8 +117,7 @@ namespace Horde.Agent.Services
 			RpcConnection = rpcConnection;
 			GrpcChannel = grpcChannel;
 			WorkingDir = workingDir;
-
-			_processNamesToTerminate = processNamesToTerminate;
+			ProcessNamesToTerminate = processNamesToTerminate;
 		}
 
 		public class AgentRegistrationList
@@ -362,36 +357,6 @@ namespace Horde.Agent.Services
 			}
 			return null;
 		}
-
-		/// <inheritdoc/>
-		public Task TerminateProcessesAsync(TerminateCondition condition, ILogger logger, CancellationToken cancellationToken)
-		{
-			// Terminate child processes from any previous runs
-			ProcessUtils.TerminateProcesses(x => ShouldTerminateProcess(x, condition), logger, cancellationToken);
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Callback for determining whether a process should be terminated
-		/// </summary>
-		bool ShouldTerminateProcess(FileReference imageFile, TerminateCondition condition)
-		{
-			if (imageFile.IsUnderDirectory(WorkingDir))
-			{
-				return true;
-			}
-
-			string fileName = imageFile.GetFileName();
-			if (_processNamesToTerminate.TryGetValue(fileName, out TerminateCondition terminateFlags))
-			{
-				if (terminateFlags == TerminateCondition.None || (terminateFlags & condition) != 0)
-				{
-					return true;
-				}
-			}
-
-			return false;
-		}
 	}
 
 	/// <summary>
@@ -419,5 +384,15 @@ namespace Horde.Agent.Services
 
 		/// <inheritdoc/>
 		public async Task<ISession> CreateAsync(CancellationToken cancellationToken) => await Session.CreateAsync(_capabilitiesService, _grpcService, _statusService, _settings, _logger, cancellationToken);
+	}
+
+	/// <summary>
+	/// Extension methods
+	/// </summary>
+	static class SessionExtensions
+	{
+		/// <inheritdoc cref="TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition, DirectoryReference, IReadOnlyDictionary{string, TerminateCondition}, ILogger, CancellationToken)"/>
+		public static Task TerminateProcessesAsync(this ISession session, TerminateCondition condition, ILogger logger, CancellationToken cancellationToken)
+			=> TerminateProcessHelper.TerminateProcessesAsync(condition, session.WorkingDir, session.ProcessNamesToTerminate, logger, cancellationToken);
 	}
 }

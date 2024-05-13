@@ -173,8 +173,8 @@ class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 		{
 			case WorkspaceMaterializerType.ManagedWorkspace:
 				return forAutoSdk
-					? new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, true)
-					: new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, false);
+					? new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, true)
+					: new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, false);
 
 			default:
 				throw new Exception("Unhandled materializer option: " + type);

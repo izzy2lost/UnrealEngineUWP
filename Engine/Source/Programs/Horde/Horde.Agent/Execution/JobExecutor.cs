@@ -60,7 +60,10 @@ namespace Horde.Agent.Execution
 
 	class JobExecutorOptions
 	{
-		public ISession Session { get; }
+		public Uri ServerUrl { get; }
+		public DirectoryReference WorkingDir { get; }
+		public IRpcConnection RpcConnection { get; }
+		public IReadOnlyDictionary<string, TerminateCondition> ProcessNamesToTerminate { get; }
 		public HttpStorageClientFactory StorageFactory { get; }
 		public JobId JobId { get; }
 		public JobStepBatchId BatchId { get; }
@@ -68,15 +71,23 @@ namespace Horde.Agent.Execution
 		public string Token { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
+		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, IRpcConnection rpcConnection, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
 		{
-			Session = session;
+			ServerUrl = serverUrl;
+			WorkingDir = workingDir;
+			RpcConnection = rpcConnection;
+			ProcessNamesToTerminate = processNamesToTerminate;
 			StorageFactory = storageFactory;
 			JobId = jobId;
 			BatchId = batchId;
 			Batch = batch;
 			Token = token;
 			JobOptions = jobOptions;
+		}
+
+		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
+			: this(session.ServerUrl, session.WorkingDir, session.RpcConnection, session.ProcessNamesToTerminate, storageFactory, jobId, batchId, batch, token, jobOptions)
+		{
 		}
 	}
 
@@ -229,18 +240,18 @@ namespace Horde.Agent.Execution
 
 		protected bool _compileAutomationTool = true;
 
-		protected ISession Session { get; }
+		protected JobExecutorOptions Options { get; }
 		protected HttpStorageClientFactory StorageFactory { get; }
 		protected RpcJobOptions JobOptions { get; }
 
-		protected IRpcConnection RpcConnection => Session.RpcConnection;
+		protected IRpcConnection RpcConnection => Options.RpcConnection;
 		protected Dictionary<string, string> _remapAgentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		protected Dictionary<string, string> _envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		protected JobExecutor(JobExecutorOptions options, ILogger logger)
 		{
-			Session = options.Session;
+			Options = options;
 			StorageFactory = options.StorageFactory;
 
 			JobId = options.JobId;
@@ -249,7 +260,7 @@ namespace Horde.Agent.Execution
 
 			JobOptions = options.JobOptions;
 
-			_envVars[HordeHttpClient.HordeUrlEnvVarName] = options.Session.ServerUrl.ToString();
+			_envVars[HordeHttpClient.HordeUrlEnvVarName] = options.ServerUrl.ToString();
 			_envVars[HordeHttpClient.HordeTokenEnvVarName] = options.Token;
 
 			Logger = logger;
@@ -830,7 +841,7 @@ namespace Horde.Agent.Execution
 
 				RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
-				Logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({Link})", artifactId, name, type, artifact.RefName, $"{Session.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+				Logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({Link})", artifactId, name, type, artifact.RefName, $"{Options.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
@@ -1032,7 +1043,7 @@ namespace Horde.Agent.Execution
 
 				RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
-				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Session.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Options.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
@@ -1111,7 +1122,7 @@ namespace Horde.Agent.Execution
 
 					RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
-					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Session.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Options.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 					using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
@@ -1274,7 +1285,7 @@ namespace Horde.Agent.Execution
 		{
 			try
 			{
-				await Session.TerminateProcessesAsync(condition, logger, CancellationToken.None);
+				await TerminateProcessHelper.TerminateProcessesAsync(condition, Options.WorkingDir, Options.ProcessNamesToTerminate, logger, CancellationToken.None);
 			}
 			catch (Exception ex)
 			{
@@ -1502,7 +1513,7 @@ namespace Horde.Agent.Execution
 			newEnvVars["UE_HORDE_LEASE_CLEANUP"] = leaseCleanupScript.FullName;
 
 			// Set up the shared working dir
-			newEnvVars["UE_HORDE_SHARED_DIR"] = DirectoryReference.Combine(Session.WorkingDir, "Saved").FullName;
+			newEnvVars["UE_HORDE_SHARED_DIR"] = DirectoryReference.Combine(Options.WorkingDir, "Saved").FullName;
 
 			// Disable the S3DDC. This is technically a Fortnite-specific setting, but affects a large number of branches and is hard to retrofit. 
 			// Setting here for now, since it's likely to be temporary.

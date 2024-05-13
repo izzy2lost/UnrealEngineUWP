@@ -3,6 +3,7 @@
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde;
+using Horde.Agent.Utility;
 using Microsoft.Extensions.Configuration;
 
 namespace Horde.Agent
@@ -104,43 +105,6 @@ namespace Horde.Agent
 		/// Whether to run conform jobs
 		/// </summary>
 		public bool RunConform { get; set; } = true;
-	}
-
-	/// <summary>
-	/// Flags for processes to terminate
-	/// </summary>
-	[Flags]
-	public enum TerminateCondition
-	{
-		/// <summary>
-		/// Not specified; terminate in all circumstances
-		/// </summary>
-		None = 0,
-
-		/// <summary>
-		/// When a session starts
-		/// </summary>
-		BeforeSession = 1,
-
-		/// <summary>
-		/// Before running a conform
-		/// </summary>
-		BeforeConform = 2,
-
-		/// <summary>
-		/// Before executing a batch
-		/// </summary>
-		BeforeBatch = 4,
-
-		/// <summary>
-		/// Terminate at the end of a batch
-		/// </summary>
-		AfterBatch = 8,
-
-		/// <summary>
-		/// After a step completes
-		/// </summary>
-		AfterStep = 16,
 	}
 
 	/// <summary>
