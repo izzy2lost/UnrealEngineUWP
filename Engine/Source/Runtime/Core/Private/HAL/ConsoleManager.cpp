@@ -4277,6 +4277,16 @@ static TAutoConsoleVariable<int32> CVarMobileDBuffer(
 		" 1: on"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarMobileForwardDecalLighting(
+	TEXT("r.Mobile.Forward.DecalLighting"),
+	1,
+	TEXT("Enables lit decals when using the mobile forward renderer without DBuffer.\n"
+		" 0: off\n"
+		" 1: on, lighting channel 1 is used for decal lighting\n"
+		" 2: on, lighting channel 2 is used for decal lighting\n"
+		" 3: on, lighting channel 3 is used for decal lighting"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 static TAutoConsoleVariable<float> CVarSkeletalMeshLODRadiusScale(
 	TEXT("r.SkeletalMeshLODRadiusScale"),
 	1.0f,

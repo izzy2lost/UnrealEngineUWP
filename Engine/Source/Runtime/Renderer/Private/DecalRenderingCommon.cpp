@@ -27,6 +27,7 @@ namespace DecalRendering
 		const bool bIsSubstrateEnabled = Substrate::IsSubstrateEnabled();
 		const bool bIsMobilePlatform = IsMobilePlatform(Platform);
 		const bool bIsMobileDeferredPlatform = bIsMobilePlatform && IsMobileDeferredShadingEnabled(Platform);
+		const bool bIsMobileLitDecalPlatform = bIsMobilePlatform && FReadOnlyCVARCache::MobileForwardDecalLighting();
 		const bool bIsDBufferPlatform = IsUsingDBuffers(Platform);
 		const bool bIsDBufferMaskPlatform = bIsDBufferPlatform && FDataDrivenShaderPlatformInfo::GetSupportsPerPixelDBufferMask(Platform);
 
@@ -43,7 +44,7 @@ namespace DecalRendering
 		}
 
 		// Enforce platform output limitations.
-		if (bIsMobilePlatform && !bIsMobileDeferredPlatform && !bIsDBufferPlatform)
+		if (bIsMobilePlatform && !bIsMobileDeferredPlatform && !bIsDBufferPlatform && !bIsMobileLitDecalPlatform)
 		{
 			Desc.bWriteNormal = false;
 			Desc.bWriteRoughnessSpecularMetallic = false;

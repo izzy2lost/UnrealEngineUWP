@@ -301,7 +301,7 @@ void AccumulateDirectionalLighting(FGBufferData GBuffer, float3 TranslatedWorldP
 	Mobile Reflection.
 ------------------------------------------------------------------------------*/
 
-#if IS_MOBILE_BASE_PASS
+#if IS_MOBILE_BASE_PASS || IS_DECAL
 /** Prenormalized capture of the scene that's closest to the object being rendered. */
 half3 GetMobileSkyLightReflection(half3 ReflectionVector, half Roughness, half CubemapMaxMip)
 {
@@ -678,3 +678,34 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 	}
 }
 #endif
+
+/*------------------------------------------------------------------------------
+	Mobile Forward Decal Lighting
+------------------------------------------------------------------------------*/
+
+half3 ForwardDecalLighting(float3 TranslatedWorldPosition, half3 EmissiveColor, half Opacity, float2 ScreenPosition, float SceneDepth, FGBufferData GBuffer, half3 CameraVector, half3 VertexNormal, half3 ReflectionVector)
+{
+	float ShadowPositionZ = 0;
+	half ShadowMap = MobileDirectionalLightCSM(ScreenPosition.xy, SceneDepth, ShadowPositionZ);
+	half3 DirectionalLightDirection = MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.xyz;
+	half NoL = saturate(dot(half3(GBuffer.WorldNormal), DirectionalLightDirection));
+	
+	half3 SpecularColor = ComputeF0(GBuffer.Specular, GBuffer.BaseColor, GBuffer.Metallic);
+	half3 DiffuseColor = GBuffer.BaseColor - GBuffer.BaseColor * GBuffer.Metallic;
+
+	half3 OutColor = EmissiveColor;
+	OutColor += MobileDirectionalLight.DirectionalLightColor.rgb * NoL * SimpleShading(DiffuseColor, SpecularColor, max(GBuffer.Roughness, .04f), DirectionalLightDirection, -CameraVector, GBuffer.WorldNormal) * ShadowMap;
+
+	half3 SkyDiffuse = GetSkySHDiffuseSimple(GBuffer.WorldNormal) * ResolvedView.SkyLightColor.rgb;
+	OutColor += DiffuseColor * SkyDiffuse;
+
+	half3 SpecularIBL = GetImageBasedReflectionSpecular(ReflectionVector, GBuffer.Roughness, TranslatedWorldPosition, GBuffer.WorldNormal, 1.0, Luminance(SkyDiffuse), 0);
+	half NoV = saturate(abs(dot(GBuffer.WorldNormal, -CameraVector)) + 1e-5);
+	OutColor += SpecularIBL * EnvBRDFApprox(SpecularColor, GBuffer.Roughness, NoV);
+
+#if MATERIALBLENDING_MODULATE
+	OutColor *= Opacity;
+#endif
+
+	return OutColor;
+}

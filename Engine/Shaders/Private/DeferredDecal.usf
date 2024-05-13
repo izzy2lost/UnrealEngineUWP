@@ -28,6 +28,10 @@
 #include "Substrate/Substrate.ush"
 #include "DecalCommon.ush"
 
+#if DECAL_RENDERSTAGE == DECAL_RENDERSTAGE_MOBILE
+#include "MobileLightingCommon.ush"
+#endif
+
 #endif // PIXELSHADER
 
 // large world coordinate tile position
@@ -136,7 +140,8 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	In.SvPosition.z = LookupDeviceZ(ScreenUV);
 	float4x4 SvPositionToDecalForSlice = SvPositionToDecal;
 #endif
-	
+	In.SvPosition.w = ConvertFromDeviceZ(In.SvPosition.z);
+
 	float4 DecalVectorHom = mul(float4(In.SvPosition.xyz,1), SvPositionToDecalForSlice);
 	float3 OSPosition = DecalVectorHom.xyz / DecalVectorHom.w;
 
@@ -169,7 +174,7 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	MaterialParameters.VertexColor = 1;
 	MaterialParameters.CameraVector = CameraVector;
 	MaterialParameters.SvPosition = In.SvPosition;
-	MaterialParameters.ScreenPosition = SvPositionToScreenPosition(In.SvPosition);
+	MaterialParameters.ScreenPosition = SvPositionToResolvedScreenPosition(In.SvPosition);
 	MaterialParameters.LightVector = SwizzlePos;
 
 	MaterialParameters.AbsoluteWorldPosition = MaterialParameters.WorldPosition_NoOffsets = DFFastSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
@@ -232,6 +237,13 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 
 	DecalCommonOutput(In, Out, Color, Opacity, GBufferData);
 #endif // SUBSTRATE_ENABLED
+
+#if DECAL_RENDERSTAGE == DECAL_RENDERSTAGE_MOBILE
+	#if DECAL_MOBILE_FORWARD_LIT
+		Out.MRT[0].rgb = ForwardDecalLighting(TranslatedWorldPosition, Color, Opacity, MaterialParameters.ScreenPosition.xy, MaterialParameters.ScreenPosition.w,
+			GBufferData, CameraVector, MaterialParameters.TangentToWorld[2], ReflectionAboutCustomWorldNormal(MaterialParameters, MaterialParameters.WorldNormal, false));
+	#endif
+#endif
 
 #if MATERIAL_VIRTUALTEXTURE_FEEDBACK
 	FinalizeVirtualTextureFeedback(

@@ -92,6 +92,11 @@ struct FReadOnlyCVARCache
 		return bMobileEnableNoPrecomputedLightingCSMShader;
 	}
 
+	static inline int32 MobileForwardDecalLighting()
+	{
+		return MobileForwardDecalLightingValue;
+	}
+
 	static inline int32 MobileEarlyZPass(EShaderPlatform Platform)
 	{
 		#if WITH_EDITOR
@@ -163,6 +168,7 @@ private:
 	RENDERCORE_API static int32 MobileEarlyZPassValue;
 	RENDERCORE_API static int32 MobileForwardLocalLightsValue;
 	RENDERCORE_API static bool bMobileForwardParticleLights;
+	RENDERCORE_API static int32 MobileForwardDecalLightingValue;
 	RENDERCORE_API static bool bMobileEnableNoPrecomputedLightingCSMShader;
 	RENDERCORE_API static bool bMobileDeferredShadingValue;
 	RENDERCORE_API static bool bMobileEnableMovableSpotlightsShadowValue;

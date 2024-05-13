@@ -95,9 +95,11 @@ public:
 		DecalParams.Bind(Initializer.ParameterMap, TEXT("DecalParams"));
 		DecalColorParam.Bind(Initializer.ParameterMap, TEXT("DecalColorParam"));
 		MobileBasePassUniformBuffer.Bind(Initializer.ParameterMap, FMobileBasePassUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
+		MobileDirectionLightBufferParam.Bind(Initializer.ParameterMap, FMobileDirectionalLightShaderParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
+		MobileReflectionCaptureParam.Bind(Initializer.ParameterMap, FMobileReflectionCaptureShaderParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
 	}
 
-	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FViewInfo& View, const FDeferredDecalProxy& DecalProxy, const FMaterialRenderProxy* MaterialProxy, const FMaterial* MaterialResource, const float FadeAlphaValue = 1.0f)
+	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FViewInfo& View, const FDeferredDecalProxy& DecalProxy, const FMaterialRenderProxy* MaterialProxy, const FMaterial* MaterialResource, const float FadeAlphaValue = 1.0f, const FScene* Scene = nullptr)
 	{
 		auto& PrimitivePS = GetUniformBufferParameter<FPrimitiveUniformShaderParameters>();
 		SetUniformBufferParameter(BatchedParameters, PrimitivePS, GIdentityPrimitiveUniformBuffer);
@@ -175,6 +177,24 @@ public:
  
 		SetShaderValue(BatchedParameters, DecalParams, FVector2f(FadeAlphaValue, LifetimeAlpha));
 		SetShaderValue(BatchedParameters, DecalColorParam, DecalProxy.DecalColor);
+
+		if (MobileDirectionLightBufferParam.IsBound() && Scene)
+		{
+			const int UniformBufferIndex = FMath::Clamp(FReadOnlyCVARCache::MobileForwardDecalLighting(), 1, 3);
+			SetUniformBufferParameter(BatchedParameters, MobileDirectionLightBufferParam, Scene->UniformBuffers.MobileDirectionalLightUniformBuffers[UniformBufferIndex]);
+		}
+
+		if (MobileReflectionCaptureParam.IsBound())
+		{
+			if (Scene && Scene->SkyLight && Scene->SkyLight->ProcessedTexture && Scene->SkyLight->ProcessedTexture->TextureRHI)
+			{
+				SetUniformBufferParameter(BatchedParameters, MobileReflectionCaptureParam, Scene->UniformBuffers.MobileSkyReflectionUniformBuffer);
+			}
+			else
+			{
+				SetUniformBufferParameter(BatchedParameters, MobileReflectionCaptureParam, GDefaultMobileReflectionCaptureUniformBuffer.GetUniformBufferRHI());
+			}
+		}
 	}
 
 private:
@@ -187,6 +207,8 @@ private:
 	LAYOUT_FIELD(FShaderParameter, DecalParams);
 	LAYOUT_FIELD(FShaderParameter, DecalColorParam);
 	LAYOUT_FIELD(FShaderUniformBufferParameter, MobileBasePassUniformBuffer);
+	LAYOUT_FIELD(FShaderUniformBufferParameter, MobileDirectionLightBufferParam);	
+	LAYOUT_FIELD(FShaderUniformBufferParameter, MobileReflectionCaptureParam);
 };
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FDeferredDecalPS,TEXT("/Engine/Private/DeferredDecal.usf"),TEXT("MainPS"),SF_Pixel);
@@ -238,6 +260,32 @@ public:
 };
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FDeferredDecalAmbientOcclusionPS, TEXT("/Engine/Private/DeferredDecal.usf"), TEXT("MainPS"), SF_Pixel);
+
+
+class FDeferredDecalMobilePS : public FDeferredDecalPS
+{
+	DECLARE_SHADER_TYPE(FDeferredDecalMobilePS, Material);
+
+public:
+	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+	{
+		return (Parameters.MaterialParameters.MaterialDomain == MD_DeferredDecal) &&
+			DecalRendering::IsCompatibleWithRenderStage(DecalRendering::ComputeDecalBlendDesc(Parameters.Platform, Parameters.MaterialParameters), EDecalRenderStage::Mobile);
+	}
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		DecalRendering::ModifyCompilationEnvironment(Parameters.Platform, DecalRendering::ComputeDecalBlendDesc(Parameters.Platform, Parameters.MaterialParameters), EDecalRenderStage::Mobile, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("DECAL_MOBILE_FORWARD_LIT"), FReadOnlyCVARCache::MobileForwardDecalLighting() != 0 ? 1u : 0u);
+	}
+
+	FDeferredDecalMobilePS() {}
+	FDeferredDecalMobilePS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FDeferredDecalPS(Initializer)
+	{}
+};
+
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FDeferredDecalMobilePS, TEXT("/Engine/Private/DeferredDecal.usf"), TEXT("MainPS"), SF_Pixel);
 
 namespace DecalRendering
 {
@@ -504,6 +552,10 @@ namespace DecalRendering
 		{
 			ShaderTypes.AddShaderType<FDeferredDecalAmbientOcclusionPS>();
 		}
+		else if (DecalRenderStage == EDecalRenderStage::Mobile)
+		{
+			ShaderTypes.AddShaderType<FDeferredDecalMobilePS>();
+		}
 		else
 		{
 			ShaderTypes.AddShaderType<FDeferredDecalPS>();
@@ -566,7 +618,7 @@ namespace DecalRendering
 	}
 
 	void SetShader(FRHICommandList& RHICmdList, FGraphicsPipelineStateInitializer& GraphicsPSOInit, uint32 StencilRef, const FViewInfo& View,
-		const FTransientDecalRenderData& DecalData, EDecalRenderStage DecalRenderStage, const FMatrix& FrustumComponentToClip)
+		const FTransientDecalRenderData& DecalData, EDecalRenderStage DecalRenderStage, const FMatrix& FrustumComponentToClip, const FScene* Scene)
 	{
 		FMaterial const* MaterialResource = nullptr;
 		TShaderRef<FDeferredDecalPS> PixelShader;
@@ -591,7 +643,7 @@ namespace DecalRendering
 
 		// Set pixel shader parameters.
 		{
-			SetShaderParametersLegacyPS(RHICmdList, PixelShader, View, *DecalData.Proxy, MaterialProxy, MaterialResource, DecalData.FadeAlpha);
+			SetShaderParametersLegacyPS(RHICmdList, PixelShader, View, *DecalData.Proxy, MaterialProxy, MaterialResource, DecalData.FadeAlpha, Scene);
 		}
 
 		// Set stream source after updating cached strides
