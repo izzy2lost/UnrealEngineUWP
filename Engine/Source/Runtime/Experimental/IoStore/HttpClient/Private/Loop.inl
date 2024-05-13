@@ -535,7 +535,7 @@ private:
 	FPeerType			Peer;
 	uint32				LastUseMs = 0;
 	uint8				IsKeepAlive = 0;
-	uint8				bNegotiating = 0;
+	bool				bNegotiating = false;
 	bool				bWaiting = false;
 
 	UE_NONCOPYABLE(FPeerGroup);
