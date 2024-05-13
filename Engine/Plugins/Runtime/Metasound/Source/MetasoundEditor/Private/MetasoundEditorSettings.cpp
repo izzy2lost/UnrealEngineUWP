@@ -3,12 +3,16 @@
 
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioWidgetsStyle.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Internationalization/Text.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "UObject/UnrealType.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundEditorSettings)
 
+#define LOCTEXT_NAMESPACE "MetasoundEditorSettings"
 
 UMetasoundEditorSettings::UMetasoundEditorSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -32,6 +36,22 @@ UMetasoundEditorSettings::UMetasoundEditorSettings(const FObjectInitializer& Obj
 	OutputNodeTitleColor = FLinearColor(1.0f, 0.878f, 0.1686f);					// yellow
 	VariableNodeTitleColor = FLinearColor(0.211f, 0.513f, 0.035f);				// copper
 }
+
+#if WITH_EDITOR
+void UMetasoundEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	FName PropertyName = PropertyChangedEvent.Property->GetFName();
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UMetasoundEditorSettings, bPinMetaSoundPatchInAssetMenu)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UMetasoundEditorSettings, bPinMetaSoundSourceInAssetMenu))
+	{
+		FNotificationInfo Info(LOCTEXT("MetasoundEditorSettings_ChangeRequiresEditorRestart", "Change to Asset Menu Settings requires editor restart in order for changes to take effect."));
+		Info.bFireAndForget = true;
+		Info.ExpireDuration = 2.0f;
+		Info.bUseThrobber = true;
+		FSlateNotificationManager::Get().AddNotification(Info);
+	}
+}
+#endif // WITH_EDITOR
 
 const FAudioMaterialKnobStyle* UMetasoundEditorSettings::GetKnobStyle() const
 {
@@ -84,3 +104,4 @@ const FAudioMaterialMeterStyle* UMetasoundEditorSettings::GetMeterStyle() const
 
 	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
 }
+#undef LOCTEXT_NAMESPACE // "MetaSoundEditor"

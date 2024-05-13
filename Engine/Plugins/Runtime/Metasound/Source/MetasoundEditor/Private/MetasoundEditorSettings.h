@@ -86,11 +86,13 @@ class METASOUNDEDITOR_API UMetasoundEditorSettings : public UObject
 	GENERATED_UCLASS_BODY()
 
 public:
-	/** Whether to pin the MetaSound Patch asset type when creating new assets. */
+	/** Whether to pin the MetaSound Patch asset type when creating new assets.
+	  * Requires editor restart for change to take effect.*/
 	UPROPERTY(EditAnywhere, config, DisplayName = "Pin MetaSound Patch in Asset Menu", Category = AssetMenu)
 	bool bPinMetaSoundPatchInAssetMenu = false;
 
-	/** Whether to pin the MetaSound Source asset type when creating new assets. */
+	/** Whether to pin the MetaSound Source asset type when creating new assets. 
+	  * Requires editor restart for change to take effect.*/
 	UPROPERTY(EditAnywhere, config, DisplayName = "Pin MetaSound Source in Asset Menu", Category = AssetMenu)
 	bool bPinMetaSoundSourceInAssetMenu = true;
 
@@ -198,6 +200,12 @@ public:
 	/**Override the Meter Style used in the Metasound Editor.*/
 	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Meter Style"))
 	FSoftObjectPath MeterStyleOverride;	
+
+	//UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif // WITH_EDITOR
+	//~UObject
 		
 	/** Get the AudioMaterialKnob Style. If KnobStyleOverride is not set, returns default style.*/
 	const FAudioMaterialKnobStyle* GetKnobStyle() const;	
