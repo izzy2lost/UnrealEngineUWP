@@ -63,7 +63,7 @@ public:
 	// End IDetailCustomization interface
 
 private:
-	void MakeCustomAssetSearch(IDetailLayoutBuilder& DetailBuilder, IDetailCategoryBuilder& DetailCategory, TSharedRef<IPropertyHandle> PropertyHandle, UClass* ObjRefClass, TFunction<bool& ()> GetEditBool);
+	void MakeCustomAssetSearch(IDetailLayoutBuilder& DetailBuilder, IDetailCategoryBuilder& DetailCategory, TSharedRef<IPropertyHandle> PropertyHandle, UClass* ObjRefClass, TFunction<bool& ()> GetEditBool, TFunction<bool ()> GetVisibleBool, bool bShowInlineCheckbox = true);
 
 private:
 	TWeakObjectPtr<UNiagaraDebugHUDSettings> WeakSettings = nullptr;

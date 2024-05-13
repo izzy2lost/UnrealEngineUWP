@@ -131,6 +131,7 @@ namespace NiagaraDebugLocal
 				#endif
 			}
 		),
+		MakeTuple(TEXT("ValidationEnabled="), TEXT("Enable or disable validation features in general"), [](FString Arg) {Settings.bValidationEnabled = FCString::Atoi(*Arg) != 0; }),
 		MakeTuple(TEXT("ValidateSystemSimulationDataBuffers="), TEXT("Enable or disable validation on system data buffers"), [](FString Arg) {Settings.bValidateSystemSimulationDataBuffers = FCString::Atoi(*Arg) != 0; }),
 		MakeTuple(TEXT("ValidateParticleDataBuffers="), TEXT("Enable or disable validation on particle data buffers"), [](FString Arg) {Settings.bValidateParticleDataBuffers = FCString::Atoi(*Arg) != 0; }),
 		MakeTuple(TEXT("ValidationLogErrors="), TEXT("When enabled validation errors will be logged as we as on screen"), [](FString Arg) {Settings.bValidationLogErrors = FCString::Atoi(*Arg) != 0; }),
@@ -157,7 +158,6 @@ namespace NiagaraDebugLocal
 		MakeTuple(TEXT("SystemEmitterVerbosity="), TEXT("Set the in world system emitter debug verbosity"), [](FString Arg) {Settings.SystemEmitterVerbosity = FMath::Clamp(ENiagaraDebugHudVerbosity(FCString::Atoi(*Arg)), ENiagaraDebugHudVerbosity::None, ENiagaraDebugHudVerbosity::Verbose); }),
 		MakeTuple(TEXT("DataInterfaceVerbosity="), TEXT("Set the in world system data interface debug verbosity"), [](FString Arg) {Settings.DataInterfaceVerbosity = FMath::Clamp(ENiagaraDebugHudVerbosity(FCString::Atoi(*Arg)), ENiagaraDebugHudVerbosity::None, ENiagaraDebugHudVerbosity::Verbose); }),
 		MakeTuple(TEXT("SystemVariables="), TEXT("Set the system variables to display"), [](FString Arg) {Settings.SystemVariables.Empty(); FNiagaraDebugHUDVariable::InitFromString(Arg, Settings.SystemVariables); GCachedSystemVariables.Empty(); }),
-		MakeTuple(TEXT("ShowSystemVariables="), TEXT("Set system variables visibility"), [](FString Arg) {Settings.bShowSystemVariables = FCString::Atoi(*Arg) != 0; GCachedSystemVariables.Empty(); }),
 
 		// Particle commands
 		MakeTuple(TEXT("EnableGpuParticleReadback="), TEXT("Enables GPU readback support for particle attributes"), [](FString Arg) {Settings.bEnableGpuParticleReadback = FCString::Atoi(*Arg) != 0;}),
@@ -489,7 +489,7 @@ namespace NiagaraDebugLocal
 			CachedVariables->CompiledDelegate = NiagaraSystem->OnSystemCompiled().AddLambda([](UNiagaraSystem* NiagaraSystem) { GCachedSystemVariables.Remove(NiagaraSystem); });
 #endif
 
-			if (Settings.bShowSystemVariables && Settings.SystemVariables.Num() > 0)
+			if (Settings.SystemVariables.Num() > 0)
 			{
 				FindSystemVariablesByWildcard(NiagaraSystem, Settings.SystemVariables, CachedVariables);
 				
@@ -520,7 +520,7 @@ namespace NiagaraDebugLocal
 						continue;
 					}
 
-					if (Settings.bEmitterFilterEnabled && !EmitterHandle.GetUniqueInstanceName().MatchesWildcard(Settings.EmitterFilter))
+					if (Settings.bEmitterFilterEnabled && !Settings.EmitterFilter.IsEmpty() && !EmitterHandle.GetUniqueInstanceName().MatchesWildcard(Settings.EmitterFilter))
 					{
 						continue;
 					}
@@ -998,7 +998,7 @@ void FNiagaraDebugHud::GatherSystemInfo()
 	// If the overview is not enabled and we don't have any filters we can skip everything below as nothing will be displayed
 	if (!Settings.bOverviewEnabled)
 	{
-		if ( !Settings.bActorFilterEnabled && !Settings.bComponentFilterEnabled && !Settings.bSystemFilterEnabled )
+		if ( !Settings.bActorFilterEnabled && !Settings.bComponentFilterEnabled )
 		{
 			return;
 		}
@@ -1085,8 +1085,8 @@ void FNiagaraDebugHud::GatherSystemInfo()
 		SystemDebugInfo.bCompileForEdit = NiagaraComponent ? NiagaraComponent->GetAsset()->GetCompileForEdit() : false;
 	#endif
 		SystemDebugInfo.bSystemStateFastPath = NiagaraComponent ? NiagaraComponent->GetAsset()->SystemStateFastPathEnabled() : false;
-		SystemDebugInfo.bShowInWorld = Settings.bSystemFilterEnabled && SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter);
-		SystemDebugInfo.bPassesSystemFilter = !Settings.bSystemFilterEnabled || SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter);
+		SystemDebugInfo.bShowInWorld = !Settings.bSystemFilterEnabled || Settings.SystemFilter.IsEmpty() || SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter);
+		SystemDebugInfo.bPassesSystemFilter = SystemDebugInfo.bShowInWorld;
 
 		const bool bCanShowInWorld = 
 			SystemDebugInfo.bShowInWorld &&
@@ -1098,14 +1098,14 @@ void FNiagaraDebugHud::GatherSystemInfo()
 			bool bIsMatch = true;
 
 			// Filter by actor
-			if ( Settings.bActorFilterEnabled )
+			if ( Settings.bActorFilterEnabled && !Settings.ActorFilter.IsEmpty())
 			{
 				AActor* Actor = FXComponent->GetOwner();
 				bIsMatch &= (Actor != nullptr) && Actor->GetActorNameOrLabel().MatchesWildcard(Settings.ActorFilter);
 			}
 
 			// Filter by component
-			if ( bIsMatch && Settings.bComponentFilterEnabled )
+			if ( bIsMatch && Settings.bComponentFilterEnabled && !Settings.ComponentFilter.IsEmpty())
 			{
 				bIsMatch &= FXComponent->GetName().MatchesWildcard(Settings.ComponentFilter);
 			}
@@ -2163,7 +2163,7 @@ void FNiagaraDebugHud::DrawOverview(class FNiagaraWorldManager* WorldManager, FC
 						SysInfo.PerfStats->History.GetHistoryFrames_GPU(Frames);
 					}
 
-					if (Settings.bEnableSmoothing)
+					if (Settings.SmoothingWidth > 0)
 					{
 						TArray<double> Smoothed;
 						Smoothed.Reserve(Frames.Num());
@@ -2347,7 +2347,7 @@ void FNiagaraDebugHud::DrawGpuComputeOverriew(class FNiagaraWorldManager* WorldM
 			}
 		}
 
-		const bool bShowDetailed = Settings.bSystemFilterEnabled && OwnerSystem->GetName().MatchesWildcard(Settings.SystemFilter);
+		const bool bShowDetailed = !Settings.bSystemFilterEnabled || Settings.SystemFilter.IsEmpty() || OwnerSystem->GetName().MatchesWildcard(Settings.SystemFilter);
 		SystemIt.Value().bShowDetailed = bShowDetailed;
 #if WITH_EDITORONLY_DATA
 		SystemIt.Value().bCompileForEdit = OwnerSystem->GetCompileForEdit();
@@ -2578,7 +2578,7 @@ void FNiagaraDebugHud::DrawGlobalBudgetInfo(class FNiagaraWorldManager* WorldMan
 		DrawCanvas->DrawTile(TextLocation.X - 1.0f, TextLocation.Y - 1.0f, GuessWidth + 1.0f, 2.0f + (float(NumLines) * fAdvanceHeight), 0.0f, 0.0f, 0.0f, 0.0f, BackgroundColor);
 		DrawCanvas->DrawShadowedString(TextLocation.X, TextLocation.Y, TEXT("Global Budget Info"), Font, HeadingColor);
 		TextLocation.Y += fAdvanceHeight;
-		DrawCanvas->DrawShadowedString(TextLocation.X, TextLocation.Y, TEXT("Global budget tracking is disabled."), Font, DetailHighlightColor);
+		DrawCanvas->DrawShadowedString(TextLocation.X, TextLocation.Y, TEXT("Global budget tracking is disabled. Can be enabled by setting cvars fx.Budget.Enabled and fx.Budget.EnabledInEditor to true."), Font, DetailHighlightColor);
 		TextLocation.Y += fAdvanceHeight;
 	}
 }
@@ -2587,7 +2587,7 @@ void FNiagaraDebugHud::DrawValidation(class FNiagaraWorldManager* WorldManager, 
 {
 	using namespace NiagaraDebugLocal;
 
-	if (!Settings.bValidateSystemSimulationDataBuffers && !Settings.bValidateParticleDataBuffers)
+	if (!Settings.bValidationEnabled || (!Settings.bValidateSystemSimulationDataBuffers && !Settings.bValidateParticleDataBuffers))
 	{
 		return;
 	}
@@ -2755,7 +2755,7 @@ void FNiagaraDebugHud::DrawValidation(class FNiagaraWorldManager* WorldManager, 
 
 			DrawCanvas->DrawShadowedString(TextLocation.X, TextLocation.Y, ErrorString.ToString(), Font, Settings.MessageErrorTextColor);
 
-			if (Settings.bValidationLogErrors)
+			if (Settings.bValidationEnabled && Settings.bValidationLogErrors)
 			{
 				UE_LOG(LogNiagara, Warning, TEXT("Validation Errors - %s"), ErrorString.ToString());
 			}

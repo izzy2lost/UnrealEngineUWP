@@ -21,8 +21,9 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SNumericDropDown.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/SBoxPanel.h"
@@ -75,6 +76,7 @@ namespace NiagaraDebugHudTab
 		StructureViewArgs.bShowClasses = true;
 		StructureViewArgs.bShowInterfaces = true;
 
+		// we set the struct data after we create the details view, otherwise the custom details layout won't be picked up
 		TSharedRef<IStructureDetailsView> StructureDetailsView = PropertyModule.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, nullptr);
 		StructureDetailsView->GetDetailsView()->SetGenericLayoutDetailsDelegate(FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraDebugHUDSettingsDetailsCustomization::MakeInstance, DebugHudSettings));
 
@@ -1047,7 +1049,6 @@ void SNiagaraDebugger::InvokeDebugger(UNiagaraSystem* InSystem, TArray<FNiagaraE
 
 			if (bHasSystemAttributes)
 			{
-				HudSettings->Data.bShowSystemVariables = true;
 				for (const FString& Var : SystemAttribNames)
 				{
 					FNiagaraDebugHUDVariable NewVar;
@@ -1141,17 +1142,50 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 
 	FSlimHorizontalToolBarBuilder ToolbarBuilder(MakeShareable(new FUICommandList), FMultiBoxCustomization::None);
 	UNiagaraDebugHUDSettings* Settings = GetMutableDefault<UNiagaraDebugHUDSettings>();
+	FCanExecuteAction HudEnabledAction = FCanExecuteAction::CreateLambda([=]() { return Settings->Data.bHudEnabled; });
 	
 	ToolbarBuilder.BeginStyleOverride("CalloutToolbar");
 	ToolbarBuilder.BeginSection("Main");
-	// Refresh button
+
+	// Enabled modes Button
 	{
 		ToolbarBuilder.AddToolBarButton(
-			FUIAction(FExecuteAction::CreateLambda([Owner=Debugger]() { Owner->UpdateDebugHUDSettings(); })),
+			FUIAction(
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bHudEnabled = !Settings->Data.bHudEnabled; Settings->NotifyPropertyChanged(); }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bHudEnabled; })
+			),
 			NAME_None,
-			LOCTEXT("Refresh", "Refresh"),
-			LOCTEXT("RefreshTooltip", "Refesh the settings on the target device.  Used if we get out of sync."),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Refresh")
+			LOCTEXT("HudEnableLabel", "HUD"),
+			LOCTEXT("HudEnableTooltip", "Enables or disables the debug hud completely."),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Debug"),
+			EUserInterfaceActionType::ToggleButton
+		);
+
+		// Additional options
+		ToolbarBuilder.AddComboButton(
+			FUIAction(),
+			FOnGetContent::CreateSP(this, &SNiagaraDebugger::MakeModeOptionsMenu),
+			FText(),
+			LOCTEXT("ModeOptionsTooltip", "Additional options to show or hide debug features."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "MaterialEditor.ToggleMaterialStats"),
+			true
+		);
+	}
+
+	// Show bounds button
+	{
+		ToolbarBuilder.AddToolBarButton(
+			FUIAction(
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bSystemShowBounds = !Settings->Data.bSystemShowBounds; Settings->NotifyPropertyChanged(); }),
+				HudEnabledAction,
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bSystemShowBounds; })
+			),
+			NAME_None,
+			LOCTEXT("BoundsLabel", "Bounds"),
+			LOCTEXT("BoundsTooltip", "Show system bounding boxes"),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.ToggleShowBounds"),
+			EUserInterfaceActionType::ToggleButton
 		);
 	}
 
@@ -1164,7 +1198,7 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 			ToolbarBuilder.AddToolBarButton(
 				FUIAction(
 					FExecuteAction::CreateLambda([=]() {Settings->Data.PlaybackMode = ENiagaraDebugPlaybackMode::Play; Settings->NotifyPropertyChanged(); }),
-					FCanExecuteAction(),
+					HudEnabledAction,
 					FIsActionChecked::CreateLambda([=]() { return Settings->Data.PlaybackMode == ENiagaraDebugPlaybackMode::Play; })
 				),
 				NAME_None,
@@ -1179,7 +1213,7 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 			ToolbarBuilder.AddToolBarButton(
 				FUIAction(
 					FExecuteAction::CreateLambda([=]() {Settings->Data.PlaybackMode = ENiagaraDebugPlaybackMode::Paused; Settings->NotifyPropertyChanged(); }),
-					FCanExecuteAction(),
+					HudEnabledAction,
 					FIsActionChecked::CreateLambda([=]() { return Settings->Data.PlaybackMode == ENiagaraDebugPlaybackMode::Paused; })
 				),
 				NAME_None,
@@ -1202,7 +1236,7 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 						FNiagaraSystemUpdateContext UpdateContext;
 						UpdateContext.AddAll(false);
 					}),
-					FCanExecuteAction(),
+					HudEnabledAction,
 					FIsActionChecked::CreateLambda([=]() { return Settings->Data.PlaybackMode == ENiagaraDebugPlaybackMode::Loop; })
 				),
 				NAME_None,
@@ -1217,7 +1251,7 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 			ToolbarBuilder.AddToolBarButton(
 				FUIAction(
 					FExecuteAction::CreateLambda([=]() {Settings->Data.PlaybackMode = ENiagaraDebugPlaybackMode::Step; Settings->NotifyPropertyChanged(); Settings->Data.PlaybackMode = ENiagaraDebugPlaybackMode::Paused; }),
-					FCanExecuteAction(),
+					HudEnabledAction,
 					FIsActionChecked::CreateLambda([=]() { return Settings->Data.PlaybackMode == ENiagaraDebugPlaybackMode::Step; })
 				),
 				NAME_None,
@@ -1232,7 +1266,7 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 			ToolbarBuilder.AddToolBarButton(
 				FUIAction(
 					FExecuteAction::CreateLambda([=]() {Settings->Data.bPlaybackRateEnabled = !Settings->Data.bPlaybackRateEnabled; Settings->NotifyPropertyChanged(); }),
-					FCanExecuteAction(),
+					HudEnabledAction,
 					FIsActionChecked::CreateLambda([=]() { return Settings->Data.bPlaybackRateEnabled; })
 				),
 				NAME_None,
@@ -1241,16 +1275,30 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 				FSlateIcon(FNiagaraEditorStyle::Get().GetStyleSetName(), "NiagaraEditor.Debugger.SpeedIcon"),
 				EUserInterfaceActionType::ToggleButton
 			);
+
+			// Additional options
+			ToolbarBuilder.AddComboButton(
+				FUIAction(),
+				FOnGetContent::CreateSP(this, &SNiagaraDebugger::MakePlaybackOptionsMenu),
+				FText(),
+				LOCTEXT("PlaybackOptionsTooltip", "Additional options to control playback."),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "MaterialEditor.ToggleMaterialStats"),
+				true
+			);
 		}
-		// Additional options
-		ToolbarBuilder.AddComboButton(
-			FUIAction(),
-			FOnGetContent::CreateSP(this, &SNiagaraDebugger::MakePlaybackOptionsMenu),
-			FText(),
-			LOCTEXT("PlaybackOptionsTooltip", "Additional options to control playback."),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "MaterialEditor.ToggleMaterialStats"),
-			true
-		);
+
+		ToolbarBuilder.AddSeparator();
+	
+		// Refresh button
+		{
+			ToolbarBuilder.AddToolBarButton(
+				FUIAction(FExecuteAction::CreateLambda([Owner=Debugger]() { Owner->UpdateDebugHUDSettings(); })),
+				NAME_None,
+				LOCTEXT("Refresh", "Refresh"),
+				LOCTEXT("RefreshTooltip", "Refesh the settings on the target device.  Used if we get out of sync."),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Refresh")
+			);
+		}
 	}
 
 	ToolbarBuilder.EndSection();
@@ -1358,6 +1406,49 @@ TSharedRef<SWidget> SNiagaraDebugger::MakePlaybackOptionsMenu()
 		);
 	}
 	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> SNiagaraDebugger::MakeModeOptionsMenu()
+{
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+	UNiagaraDebugHUDSettings* Settings = GetMutableDefault<UNiagaraDebugHUDSettings>();
+
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("EnableUIRendering", "Viewport UI"),
+			LOCTEXT("EnableUIRenderingTooltip", "When disabled, nothing will be drawn in the viewport. This is useful when you only want to use things like single frame stepping or data validation."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bHudRenderingEnabled = !Settings->Data.bHudRenderingEnabled; Settings->NotifyPropertyChanged(); }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bHudRenderingEnabled; })
+			),
+			NAME_None, EUserInterfaceActionType::ToggleButton);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("EnableOverviewUI", "Show Overview"),
+			LOCTEXT("EnableOverviewUITooltip", "When enabled, the debug overview of all active and filtered systems is drawn to the viewport."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bOverviewEnabled = !Settings->Data.bOverviewEnabled; Settings->NotifyPropertyChanged(); }),
+				FCanExecuteAction::CreateLambda([=]() { return Settings->Data.bHudRenderingEnabled; }),
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bOverviewEnabled; })
+			),
+			NAME_None, EUserInterfaceActionType::ToggleButton);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("EnableValidation", "Data Validation"),
+			LOCTEXT("EnableValidationTooltip", "Will allow you to validate system and particle data buffers when enabled."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bValidationEnabled = !Settings->Data.bValidationEnabled; Settings->NotifyPropertyChanged(); }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bValidationEnabled; })
+			),
+			NAME_None, EUserInterfaceActionType::ToggleButton);
+	}
 
 	return MenuBuilder.MakeWidget();
 }

@@ -697,6 +697,18 @@ void FNiagaraEditorStyle::InitDebuggerStyle()
 		.SetNormalPadding(FMargin(0, 0, 0, 1))
 		.SetPressedPadding(FMargin(0, 1, 0, 0));
 	Set("NiagaraEditor.Debugger.Outliner.Toolbar", OutlinerToolBarButton);
+
+	FTextBlockStyle NormalText = FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText");
+	FEditableTextBoxStyle DefaultTextBoxStyle = FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox");
+	const FEditableTextBoxStyle EditableTextBoxStyle = DefaultTextBoxStyle
+			.SetTextStyle(NormalText.SetFont(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont")))
+			.SetPadding(0)
+			.SetBackgroundImageNormal( FSlateNoResource() )
+			.SetBackgroundImageHovered( FSlateNoResource() )
+			.SetBackgroundImageFocused( FSlateNoResource() )
+			.SetBackgroundImageReadOnly( FSlateNoResource() );
+	
+	Set("NiagaraEditor.Debugger.SuggestionDropdownInput", EditableTextBoxStyle);
 }
 
 void FNiagaraEditorStyle::InitBakerStyle()

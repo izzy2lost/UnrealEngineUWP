@@ -9,21 +9,18 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "Framework/Application/SlateApplication.h"
-#include "IDetailChildrenBuilder.h"
 //Widgets
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNiagaraDebugger.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Views/STreeView.h"
 #include "Widgets/Input/SMenuAnchor.h"
-#include "Widgets/Input/SSearchBox.h"
-#include "Widgets/Input/SSuggestionTextBox.h"
-#include "Widgets/Layout/SScrollBorder.h"
-#include "Widgets/Input/SMultiLineEditableTextBox.h"
 ///Niagara
 #include "NiagaraEditorModule.h"
 #include "NiagaraComponent.h"
+#include "NiagaraEditorStyle.h"
 
 #if WITH_NIAGARA_DEBUGGER
 
@@ -34,7 +31,7 @@
 namespace NiagaraDebugHUDSettingsDetailsCustomizationInternal
 {
 
-class SDebuggerSuggestionTextBox : public SSuggestionTextBox
+class SDebuggerSuggestionTextBox : public SComboButton
 {
 public:
 	SLATE_BEGIN_ARGS(SDebuggerSuggestionTextBox) {}
@@ -63,14 +60,22 @@ public:
 
 		FText CurrentValue;
 		PropertyHandle->GetValueAsFormattedText(CurrentValue);
-
-		SSuggestionTextBox::Construct(
-			SSuggestionTextBox::FArguments()
-			.ForegroundColor(FSlateColor::UseForeground())
-			.Font(IDetailLayoutBuilder::GetDetailFont())
+		 Textbox = SNew(SEditableTextBox)
+			.Padding(0)
+			.Style(FNiagaraEditorStyle::Get(), "NiagaraEditor.Debugger.SuggestionDropdownInput")
+			.MinDesiredWidth(20)
+			.RevertTextOnEscape(true)
+			.SelectAllTextWhenFocused(true)
 			.Text(CurrentValue)
-			.OnTextCommitted(this, &SDebuggerSuggestionTextBox::OnDebuggerTextCommitted)
-			.OnShowingSuggestions(this, &SDebuggerSuggestionTextBox::GetDebuggerSuggestions)
+			.OnTextCommitted(this, &SDebuggerSuggestionTextBox::OnDebuggerTextCommitted);
+		
+		SComboButton::Construct(
+			SComboButton::FArguments()
+			.OnGetMenuContent(this, &SDebuggerSuggestionTextBox::GetDebuggerSuggestions)
+			.ButtonContent()
+			[
+				Textbox.ToSharedRef()
+			]
 		);
 	}
 
@@ -82,37 +87,56 @@ public:
 		}
 	}
 
-	void GetDebuggerSuggestions(const FString& CurrText, TArray<FString>& OutSuggestions)
+	void SelectDropdownValue(FString NewValue)
 	{
+		if (Textbox)
+		{
+			Textbox->SetText(FText::FromString(NewValue));
+		}
+	}
+
+	TSharedRef<SWidget> GetDebuggerSuggestions()
+	{
+		FMenuBuilder MenuBuilder( true, NULL );
+		
 		if (!Debugger.IsValid() || !ObjectClass)
 		{
-			return;
+			return MenuBuilder.MakeWidget();
 		}
 
 		const FNiagaraSimpleClientInfo& SimpleClientInfo = Debugger->GetSimpleClientInfo();
+		TArray<FString> Options;
 		if (ObjectClass == UNiagaraSystem::StaticClass())
 		{
-			OutSuggestions.Append(SimpleClientInfo.Systems);
+			Options = SimpleClientInfo.Systems;
 		}
 		else if (ObjectClass == UNiagaraEmitter::StaticClass())
 		{
-			OutSuggestions.Append(SimpleClientInfo.Emitters);
+			Options = SimpleClientInfo.Emitters;
 		}
 		else if (ObjectClass == AActor::StaticClass())
 		{
-			OutSuggestions.Append(SimpleClientInfo.Actors);
+			Options = SimpleClientInfo.Actors;
 		}
 		else if (ObjectClass == UNiagaraComponent::StaticClass())
 		{
-			OutSuggestions.Append(SimpleClientInfo.Components);
+			Options = SimpleClientInfo.Components;
 		}
+		Options.Sort();
+
+		for (const FString& Option : Options)
+		{
+			FUIAction MenuAction(FExecuteAction::CreateSP(this, &SDebuggerSuggestionTextBox::SelectDropdownValue, Option));
+			MenuBuilder.AddMenuEntry(FText::FromString(Option), FText(), FSlateIcon(), MenuAction);
+		}
+		return MenuBuilder.MakeWidget();
 	}
 
 	void OnHUDSettingsChanged()
 	{
 		FText CurrentValue;
 		PropertyHandle->GetValueAsFormattedText(CurrentValue);
-		SetText(CurrentValue);
+		Textbox->SetText(CurrentValue);
 	}
 
 	void OnSimpleClientInfoChanged(const FNiagaraSimpleClientInfo& ClientInfo)
@@ -122,7 +146,7 @@ public:
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override
 	{
-		SSuggestionTextBox::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+		SComboButton::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
 		if (Debugger)
 		{
@@ -135,11 +159,12 @@ public:
 		}
 	}
 
-	TSharedPtr<FNiagaraDebugger>				Debugger;
-	TSharedPtr<IPropertyHandle>					PropertyHandle;
 	TWeakObjectPtr<UNiagaraDebugHUDSettings>	WeakHUDSettings;
-	UClass*										ObjectClass = nullptr;
-	bool										bWaitingUpdate = false;
+	TSharedPtr<FNiagaraDebugger>	Debugger;
+	TSharedPtr<IPropertyHandle>		PropertyHandle;
+	TSharedPtr<SEditableTextBox>	Textbox;
+	UClass*							ObjectClass = nullptr;
+	bool							bWaitingUpdate = false;
 };
 
 } // namespace
@@ -218,39 +243,36 @@ FNiagaraDebugHUDSettingsDetailsCustomization::FNiagaraDebugHUDSettingsDetailsCus
 
 void FNiagaraDebugHUDSettingsDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	// Customize General
-	{
-		IDetailCategoryBuilder& GeneralCategory = DetailBuilder.EditCategory("Debug General");
-	}
-
-	// Customize Overview
 	{
 		IDetailCategoryBuilder& OverviewCategory = DetailBuilder.EditCategory("Debug Overview");
+		DetailBuilder.HideProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bValidationEnabled), FNiagaraDebugHUDSettingsData::StaticStruct()));
+		DetailBuilder.HideProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bOverviewEnabled), FNiagaraDebugHUDSettingsData::StaticStruct()));
+		DetailBuilder.HideProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bSystemShowBounds), FNiagaraDebugHUDSettingsData::StaticStruct()));
 	}
-
+	
 	// Customize Filters
 	{
 		IDetailCategoryBuilder& FilterCategory = DetailBuilder.EditCategory("Debug Filter");
-		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, SystemFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), UNiagaraSystem::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bSystemFilterEnabled; });
-		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, EmitterFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), UNiagaraEmitter::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bEmitterFilterEnabled; });
-		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, ActorFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), AActor::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bActorFilterEnabled; });
-		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, ComponentFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), UNiagaraComponent::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bComponentFilterEnabled; });
+		
+		FilterCategory.AddProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bSystemFilterEnabled), FNiagaraDebugHUDSettingsData::StaticStruct()));
+		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, SystemFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), UNiagaraSystem::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bSystemFilterEnabled; }, [&]() -> bool { return true; }, false);
+		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, EmitterFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), UNiagaraEmitter::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bEmitterFilterEnabled; }, [&]() -> bool { return WeakSettings.Get()->Data.bSystemFilterEnabled; });
+		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, ActorFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), AActor::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bActorFilterEnabled; }, [&]() -> bool { return WeakSettings.Get()->Data.bSystemFilterEnabled; });
+		MakeCustomAssetSearch(DetailBuilder, FilterCategory, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, ComponentFilter), FNiagaraDebugHUDSettingsData::StaticStruct()), UNiagaraComponent::StaticClass(), [&]() -> bool& { return WeakSettings.Get()->Data.bComponentFilterEnabled; }, [&]() -> bool { return WeakSettings.Get()->Data.bSystemFilterEnabled; });
 	}
 }
 
-void FNiagaraDebugHUDSettingsDetailsCustomization::MakeCustomAssetSearch(IDetailLayoutBuilder& DetailBuilder, IDetailCategoryBuilder& DetailCategory, TSharedRef<IPropertyHandle> PropertyHandle, UClass* ObjRefClass, TFunction<bool&()> GetEditBool)
+void FNiagaraDebugHUDSettingsDetailsCustomization::MakeCustomAssetSearch(IDetailLayoutBuilder& DetailBuilder, IDetailCategoryBuilder& DetailCategory, TSharedRef<IPropertyHandle> PropertyHandle, UClass* ObjRefClass, TFunction<bool&()> GetEditBool, TFunction<bool ()> GetVisibleBool, bool bShowInlineCheckbox)
 {
 	if ( !PropertyHandle->IsValidHandle() || (ObjRefClass == nullptr) )
 	{
 		return;
 	}
-
-	FText CurrentValue;
-	PropertyHandle->GetValueAsFormattedText(CurrentValue);
-
+	
 	DetailBuilder.HideProperty(PropertyHandle);
-
+	
 	DetailCategory.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
+	.Visibility(TAttribute<EVisibility>::CreateLambda([GetVisibleBool]() -> EVisibility { return GetVisibleBool() ? EVisibility::Visible : EVisibility::Collapsed; }))
 	.NameContent()
 	[
 		SNew(SHorizontalBox)
@@ -258,6 +280,7 @@ void FNiagaraDebugHUDSettingsDetailsCustomization::MakeCustomAssetSearch(IDetail
 		.AutoWidth()
 		[
 			SNew(SCheckBox)
+			.Visibility(bShowInlineCheckbox ? EVisibility::Visible : EVisibility::Collapsed)
 			.IsChecked_Lambda([GetEditBool]() -> ECheckBoxState { return GetEditBool() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; } )
 			.OnCheckStateChanged_Lambda([this, GetEditBool](ECheckBoxState NewState) { GetEditBool() = NewState == ECheckBoxState::Checked; WeakSettings.Get()->NotifyPropertyChanged(); })
 		]
