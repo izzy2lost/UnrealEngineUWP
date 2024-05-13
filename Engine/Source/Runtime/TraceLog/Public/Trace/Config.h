@@ -19,3 +19,9 @@
 #if UE_TRACE_ENABLED
 #	define TRACE_PRIVATE_PROTOCOL_7
 #endif
+
+// Enable packet verification. Only useful when looking for transmission bugs. Note that in order to avoid making a new protocol version, enabling
+// this makes existing version 7 traces incompatible.
+#ifndef UE_TRACE_PACKET_VERIFICATION
+#define UE_TRACE_PACKET_VERIFICATION 0
+#endif

@@ -73,8 +73,14 @@ FTidPacketTransport::EReadPacketResult FTidPacketTransport::ReadPacket()
 													// chance to sample the world at each known sync point.
 	}
 
+#if UE_TRACE_PACKET_VERIFICATION
+	const bool bHasPacketSerial = !!(PacketBase->ThreadId & FTidPacketBase::Verification);
+	FThreadStream* Thread = FindOrAddThread(ThreadId, true);
+#else
 	bool bIsPartial = !!(PacketBase->ThreadId & FTidPacketBase::PartialMarker);
 	FThreadStream* Thread = FindOrAddThread(ThreadId, !bIsPartial);
+#endif
+	
 	if (Thread == nullptr)
 	{
 		return EReadPacketResult::Continue;
@@ -149,6 +155,20 @@ FTidPacketTransport::EReadPacketResult FTidPacketTransport::ReadPacket()
 #endif // UE_TRACE_ANALYSIS_DEBUG
 	}
 
+#if UE_TRACE_PACKET_VERIFICATION
+	if(bHasPacketSerial)
+	{
+		uint64 PacketSerial = *GetPointer<uint64>();
+		if ((LastPacketSerial + 1) != PacketSerial)
+		{
+			UE_LOG(LogCore, Error, TEXT("Found packet with index '%llu' when '%llu` was expected."), PacketSerial, LastPacketSerial);
+			return EReadPacketResult::ReadError;
+		}
+		LastPacketSerial = PacketSerial;
+		FTransport::Advance(sizeof(uint64));
+	}
+#endif
+	
 	return EReadPacketResult::Continue;
 }
 

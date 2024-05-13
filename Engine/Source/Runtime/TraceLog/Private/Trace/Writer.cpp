@@ -85,6 +85,9 @@ TRACELOG_API uint64				GStartCycle;		// = 0;
 TRACELOG_API uint32 volatile	GLogSerial;			// = 0;
 // Counter of calls to Writer_WorkerUpdate to enable regular flushing of output buffers
 static uint32					GUpdateCounter;		// = 0;
+#if UE_TRACE_PACKET_VERIFICATION
+uint64							GPacketSerial = 1;
+#endif
 
 
 
@@ -392,9 +395,17 @@ void Writer_SendData(uint32 ThreadId, uint8* __restrict Data, uint32 Size)
 		Size += sizeof(FTidPacket);
 		auto* Packet = (FTidPacket*)Data;
 		Packet->ThreadId = uint16(ThreadId & FTidPacketBase::ThreadIdMask);
+#if UE_TRACE_PACKET_VERIFICATION
+		Packet->ThreadId |= FTidPacketBase::Verification;
+#endif
 		Packet->PacketSize = uint16(Size);
 
 		Writer_SendDataImpl(Data, Size);
+
+#if UE_TRACE_PACKET_VERIFICATION
+		const uint64 Serial = GPacketSerial++;
+		Writer_SendDataImpl(&Serial, sizeof(uint64));
+#endif
 		return;
 	}
 
@@ -405,11 +416,18 @@ void Writer_SendData(uint32 ThreadId, uint8* __restrict Data, uint32 Size)
 
 	Packet.ThreadId = FTidPacketBase::EncodedMarker;
 	Packet.ThreadId |= uint16(ThreadId & FTidPacketBase::ThreadIdMask);
+#if UE_TRACE_PACKET_VERIFICATION
+	Packet.ThreadId |= FTidPacketBase::Verification;
+#endif
 	Packet.DecodedSize = uint16(Size);
 	Packet.PacketSize = uint16(Encode(Data, Packet.DecodedSize, Packet.Data, sizeof(Packet.Data)));
 	Packet.PacketSize += sizeof(FTidPacketEncoded);
 
 	Writer_SendDataImpl(&Packet, Packet.PacketSize);
+#if UE_TRACE_PACKET_VERIFICATION
+	const uint64 Serial = GPacketSerial++;
+	Writer_SendDataImpl(&Serial, sizeof(uint64));
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

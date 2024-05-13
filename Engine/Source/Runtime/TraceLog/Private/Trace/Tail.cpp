@@ -26,6 +26,10 @@ void		Writer_MemoryFree(void*, uint32);
 void		Writer_SendData(uint32, uint8* __restrict, uint32);
 void		Writer_SendDataRaw(const void*, uint32);
 
+#if UE_TRACE_PACKET_VERIFICATION	
+extern uint64 GPacketSerial;
+#endif
+	
 ////////////////////////////////////////////////////////////////////////////////
 // ** See the bottom of this file for an explanation of FPacketRing
 class FPacketRing
@@ -223,9 +227,16 @@ void Writer_TailAppend(uint32 ThreadId, uint8* __restrict Data, uint32 Size)
 	{
 		auto* Packet = GPacketRing.Append<FTidPacket>(Size);
 		Packet->ThreadId = uint16(ThreadId);
+#if UE_TRACE_PACKET_VERIFICATION
+		Packet->ThreadId |= FTidPacketBase::Verification;
+#endif
 		::memcpy(Packet->Data, Data, Size);
 
 		Writer_SendDataRaw(Packet, Packet->PacketSize);
+#if UE_TRACE_PACKET_VERIFICATION
+		const uint64 Serial = GPacketSerial++;
+		Writer_SendDataRaw(&Serial, sizeof(uint64));
+#endif
 		return;
 	}
 
@@ -233,6 +244,9 @@ void Writer_TailAppend(uint32 ThreadId, uint8* __restrict Data, uint32 Size)
 	auto* Packet = GPacketRing.Append<FTidPacketEncoded>(EncodeMaxSize);
 	Packet->ThreadId = uint16(ThreadId);
 	Packet->ThreadId |= FTidPacketBase::EncodedMarker;
+#if UE_TRACE_PACKET_VERIFICATION
+	Packet->ThreadId |= FTidPacketBase::Verification;
+#endif
 	Packet->DecodedSize = uint16(Size);
 
 	uint32 EncodeSize = Encode(Data, Size, Packet->Data, EncodeMaxSize);
@@ -241,6 +255,10 @@ void Writer_TailAppend(uint32 ThreadId, uint8* __restrict Data, uint32 Size)
 	Packet->PacketSize -= uint16(BackUp);
 
 	Writer_SendDataRaw(Packet, Packet->PacketSize);
+#if UE_TRACE_PACKET_VERIFICATION
+	const uint64 Serial = GPacketSerial++;
+	Writer_SendDataRaw(&Serial, sizeof(uint64));
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
