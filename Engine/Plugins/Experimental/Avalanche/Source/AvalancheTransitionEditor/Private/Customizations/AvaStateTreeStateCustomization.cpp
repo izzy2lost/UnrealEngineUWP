@@ -17,6 +17,14 @@ TSharedRef<IDetailCustomization> FAvaStateTreeStateCustomization::MakeInstance()
 	return MakeShared<FAvaStateTreeStateCustomization>();
 }
 
+bool FAvaStateTreeStateCustomization::IsPropertyVisible(const FPropertyAndParent& InPropertyAndParent)
+{
+	const FName PropertyName = InPropertyAndParent.Property.GetFName();
+
+	return PropertyName != GET_MEMBER_NAME_CHECKED(UStateTreeState, bCheckPrerequisitesWhenActivatingChildDirectly)
+		&& PropertyName != GET_MEMBER_NAME_CHECKED(UStateTreeState, RequiredEventToEnter);
+}
+
 void FAvaStateTreeStateCustomization::CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder)
 {
 	if (TSharedPtr<IDetailCustomization> Customization = GetDefaultCustomization())
@@ -26,6 +34,7 @@ void FAvaStateTreeStateCustomization::CustomizeDetails(IDetailLayoutBuilder& InD
 
 	InDetailBuilder.HideCategory(TEXT("State"));
 	InDetailBuilder.HideCategory(TEXT("Transitions"));
+	InDetailBuilder.HideCategory(TEXT("Parameters"));
 
 	InDetailBuilder.EditCategory(TEXT("Enter Conditions")).InitiallyCollapsed(false);
 	InDetailBuilder.EditCategory(TEXT("Task")).InitiallyCollapsed(false);

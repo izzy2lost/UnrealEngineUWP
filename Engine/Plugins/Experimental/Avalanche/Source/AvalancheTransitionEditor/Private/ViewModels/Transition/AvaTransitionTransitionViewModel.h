@@ -9,6 +9,7 @@
 class UAvaTransitionTreeEditorData;
 class UStateTreeState;
 struct EVisibility;
+struct FSlateBrush;
 struct FStateTreeTransition;
 
 /** View Model for a State Tree Transition */
@@ -25,7 +26,7 @@ public:
 
 	FStateTreeTransition* GetTransition() const;
 
-	FText GetIcon() const;
+	const FSlateBrush* GetIcon() const;
 
 	FText GetDescription() const;
 

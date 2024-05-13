@@ -27,6 +27,8 @@ void SAvaTransitionSelectionDetails::Construct(const FArguments& InArgs, const T
 	{
 		DetailsView->RegisterInstancedCustomPropertyLayout(UStateTreeState::StaticClass()
 			, FOnGetDetailCustomizationInstance::CreateStatic(&FAvaStateTreeStateCustomization::MakeInstance));
+
+		DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateStatic(&FAvaStateTreeStateCustomization::IsPropertyVisible));
 	}
 
 	// Read-only

@@ -31,8 +31,8 @@ public:
 
 	const FInstancedStruct* GetNode() const;
 
-	template<typename T UE_REQUIRES(TIsDerivedFrom<T, FStateTreeNodeBase>::Value)>
-	const T* GetNodeOfType() const
+	template<typename T = FStateTreeNodeBase UE_REQUIRES(TIsDerivedFrom<T, FStateTreeNodeBase>::Value)>
+	const T* GetTypedNode() const
 	{
 		if (const FInstancedStruct* Node = GetNode())
 		{

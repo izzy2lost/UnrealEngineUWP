@@ -53,12 +53,12 @@ FStateTreeTransition* FAvaTransitionTransitionViewModel::GetTransition() const
 	return nullptr;
 }
 
-FText FAvaTransitionTransitionViewModel::GetIcon() const
+const FSlateBrush* FAvaTransitionTransitionViewModel::GetIcon() const
 {
 	const FStateTreeTransition* Transition = GetTransition();
 	if (!Transition)
 	{
-		return FText::GetEmpty();
+		return nullptr;
 	}
 
 	switch (Transition->State.LinkType)
@@ -68,7 +68,7 @@ FText FAvaTransitionTransitionViewModel::GetIcon() const
 			const UStateTreeState* State = GetState();
 			if (State && State->Children.IsEmpty() && State->Type == EStateTreeStateType::State && EnumHasAnyFlags(Transition->Trigger, EStateTreeTransitionTrigger::OnStateCompleted))
 			{
-				return FEditorFontGlyphs::Level_Up;
+				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Parent");
 			}
 		}
 		// falls through
@@ -76,18 +76,18 @@ FText FAvaTransitionTransitionViewModel::GetIcon() const
 	case EStateTreeTransitionType::Succeeded:
 	case EStateTreeTransitionType::Failed:
 	case EStateTreeTransitionType::GotoState:
-		return FEditorFontGlyphs::Long_Arrow_Right;
+		return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Goto");
 
 	case EStateTreeTransitionType::NextState:
 	case EStateTreeTransitionType::NextSelectableState:
-		return FEditorFontGlyphs::Long_Arrow_Down;
+		return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Next");
 
 	default:
 		ensureMsgf(false, TEXT("Unhandled transition type."));
 		break;
 	}
 
-	return FText::GetEmpty();
+	return nullptr;
 }
 
 FText FAvaTransitionTransitionViewModel::GetDescription() const
@@ -101,19 +101,19 @@ FText FAvaTransitionTransitionViewModel::GetDescription() const
 	switch (Transition->State.LinkType)
 	{
 	case EStateTreeTransitionType::None:
-		return LOCTEXT("TransitionNone", "[None]");
+		return LOCTEXT("TransitionNone", "None");
 
 	case EStateTreeTransitionType::Succeeded:
-		return LOCTEXT("TransitionSucceed", "[Succeed]");
+		return LOCTEXT("TransitionSucceed", "Succeed");
 
 	case EStateTreeTransitionType::Failed:
-		return LOCTEXT("TransitionFail", "[Fail]");
+		return LOCTEXT("TransitionFail", "Fail");
 
 	case EStateTreeTransitionType::NextState:
-		return LOCTEXT("TransitionNext", "[Next]");
+		return LOCTEXT("TransitionNext", "Next");
 
 	case EStateTreeTransitionType::NextSelectableState:
-		return LOCTEXT("TransitionNextSelectable", "[Next Selectable]");
+		return LOCTEXT("TransitionNextSelectable", "Next Selectable");
 
 	case EStateTreeTransitionType::GotoState:
 		return FText::FromName(Transition->State.Name);
@@ -161,9 +161,9 @@ TSharedRef<SWidget> FAvaTransitionTransitionViewModel::CreateWidget()
 			SNew(SOverlay)
 			+ SOverlay::Slot()
 			[
-				SNew(STextBlock)
-				.Text(this, &FAvaTransitionTransitionViewModel::GetIcon)
-				.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Icon")
+				SNew(SImage)
+				.Image(this, &FAvaTransitionTransitionViewModel::GetIcon)
+				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.5f))
 			]
 			// Breakpoint box
 			+ SOverlay::Slot()

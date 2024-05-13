@@ -4,6 +4,8 @@
 
 #include "Styling/SlateStyle.h"
 
+struct FSlateIcon;
+
 class FAvaTransitionEditorStyle final : public FSlateStyleSet
 {
 public:
@@ -17,4 +19,6 @@ public:
 	virtual ~FAvaTransitionEditorStyle() override;
 
 	static FLinearColor LerpColorSRGB(const FLinearColor& InA, const FLinearColor& InB, float InAlpha);
+
+	static FSlateIcon ParseIcon(FName InIconName);
 };

@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionTaskViewModel.h"
+#include "AvaTransitionEditorStyle.h"
 #include "AvaTransitionNodeContext.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreeState.h"
 #include "Tasks/AvaTransitionTask.h"
+#include "Textures/SlateIcon.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/AvaTransitionViewModelUtils.h"
 #include "Widgets/Images/SImage.h"
@@ -26,6 +28,42 @@ FAvaTransitionTaskViewModel::FAvaTransitionTaskViewModel(const FStateTreeEditorN
 FText FAvaTransitionTaskViewModel::GetTaskDescription() const
 {
 	return TaskDescription;
+}
+
+FSlateColor FAvaTransitionTaskViewModel::GetTaskColor() const
+{
+	FLinearColor TaskColor = FAvaTransitionEditorStyle::LerpColorSRGB(GetStateColor().GetSpecifiedColor(), FColor::White, 0.25f);
+	return TaskColor.CopyWithNewOpacity(0.25f);
+}
+
+EVisibility FAvaTransitionTaskViewModel::GetTaskIconVisibility() const
+{
+	if (const FStateTreeNodeBase* Node = GetTypedNode<>())
+	{
+		if (!Node->GetIconName().IsNone())
+		{
+			return EVisibility::SelfHitTestInvisible;
+		}
+	}
+	return EVisibility::Collapsed;
+}
+
+const FSlateBrush* FAvaTransitionTaskViewModel::GetTaskIcon() const
+{
+	if (const FStateTreeNodeBase* Node = GetTypedNode<>())
+	{
+		return FAvaTransitionEditorStyle::ParseIcon(Node->GetIconName()).GetIcon();
+	}
+	return nullptr;	
+}
+
+FSlateColor FAvaTransitionTaskViewModel::GetTaskIconColor() const
+{
+	if (const FStateTreeNodeBase* Node = GetTypedNode<>())
+	{
+		return FLinearColor(Node->GetIconColor());
+	}
+	return FSlateColor::UseForeground();
 }
 
 void FAvaTransitionTaskViewModel::UpdateTaskDescription()
@@ -63,7 +101,7 @@ void FAvaTransitionTaskViewModel::UpdateTaskDescription()
 
 bool FAvaTransitionTaskViewModel::IsEnabled() const
 {
-	const FStateTreeTaskBase* Task = GetNodeOfType<FStateTreeTaskBase>();
+	const FStateTreeTaskBase* Task = GetTypedNode<FStateTreeTaskBase>();
 	return Task && Task->bTaskEnabled;
 }
 
@@ -122,20 +160,41 @@ TSharedRef<SWidget> FAvaTransitionTaskViewModel::CreateWidget()
 		.VAlign(VAlign_Fill)
 		.Padding(0)
 		.IsEnabled(this, &FAvaTransitionTaskViewModel::IsEnabled)
-		.BorderImage(FStateTreeEditorStyle::Get().GetBrush("StateTree.Task.Rect"))
-		.BorderBackgroundColor(this, &FAvaTransitionTaskViewModel::GetStateColor)
+		.BorderBackgroundColor(this, &FAvaTransitionTaskViewModel::GetTaskColor)
+		.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
 		[
 			SNew(SOverlay)
 			// Task Description
 			+ SOverlay::Slot()
-			.VAlign(VAlign_Center)
+			.Padding(6.f, 0.f)
 			[
-				SNew(STextBlock)
-				.Margin(FMargin(4.f, 0.f))
-				.Text(this, &FAvaTransitionTaskViewModel::GetTaskDescription)
-				.ToolTipText(this, &FAvaTransitionTaskViewModel::GetTaskDescription)
-				.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Task.Title")
-				.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				.AutoWidth()
+				[
+					SNew(SBox)
+					.Padding(FMargin(0.f, 0.f, 2.f, 0.f))
+					.Visibility(this, &FAvaTransitionTaskViewModel::GetTaskIconVisibility)
+					[
+						SNew(SImage)
+						.Image(this, &FAvaTransitionTaskViewModel::GetTaskIcon)
+						.ColorAndOpacity(this, &FAvaTransitionTaskViewModel::GetTaskIconColor)
+					]
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				[
+					SNew(STextBlock)
+					.Margin(FMargin(4.f, 0.f))
+					.Text(this, &FAvaTransitionTaskViewModel::GetTaskDescription)
+					.ToolTipText(this, &FAvaTransitionTaskViewModel::GetTaskDescription)
+					.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Task.Title")
+					.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+				]
 			]
 			// Task Breakpoint
 			+ SOverlay::Slot()

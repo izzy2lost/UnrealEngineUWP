@@ -8,6 +8,7 @@
 #include "Misc/Paths.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
+#include "Textures/SlateIcon.h"
 
 FAvaTransitionEditorStyle::FAvaTransitionEditorStyle()
 	: FSlateStyleSet(TEXT("AvaTransitionEditor"))
@@ -56,4 +57,37 @@ FLinearColor FAvaTransitionEditorStyle::LerpColorSRGB(const FLinearColor& InA, c
 		static_cast<uint8>(FMath::RoundToInt(static_cast<float>(A.G) * (1.f - InAlpha) + static_cast<float>(B.G) * InAlpha)),
 		static_cast<uint8>(FMath::RoundToInt(static_cast<float>(A.B) * (1.f - InAlpha) + static_cast<float>(B.B) * InAlpha)),
 		static_cast<uint8>(FMath::RoundToInt(static_cast<float>(A.A) * (1.f - InAlpha) + static_cast<float>(B.A) * InAlpha))));
+}
+
+FSlateIcon FAvaTransitionEditorStyle::ParseIcon(FName InIconName)
+{
+	FString IconPath = InIconName.ToString();
+
+	constexpr int32 NumOfIconPathNames = 4;
+
+	FName IconPathNames[NumOfIconPathNames] = {
+		NAME_None, // StyleSetName
+		NAME_None, // StyleName
+		NAME_None, // SmallStyleName
+		NAME_None  // StatusOverlayStyleName
+	};
+
+	int32 NameIndex = 0;
+	while (!IconPath.IsEmpty() && NameIndex < NumOfIconPathNames)
+	{
+		FString Left;
+		FString Right;
+
+		if (!IconPath.Split(TEXT("|"), &Left, &Right))
+		{
+			Left = IconPath;
+		}
+
+		IconPathNames[NameIndex] = FName(*Left);
+
+		NameIndex++;
+		IconPath = Right;
+	}
+
+	return FSlateIcon(IconPathNames[0], IconPathNames[1], IconPathNames[2], IconPathNames[3]);
 }
