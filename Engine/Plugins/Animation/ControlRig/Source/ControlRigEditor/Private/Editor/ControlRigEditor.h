@@ -68,6 +68,7 @@ public:
 	virtual const FName GetEditorAppName() const override;
 	virtual const FName GetEditorModeName() const override;
 	virtual TSharedPtr<FApplicationMode> CreateEditorMode() override;
+	virtual const FSlateBrush* GetDefaultTabIcon() const override;
 
 public:
 	FControlRigEditor();

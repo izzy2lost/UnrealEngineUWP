@@ -450,6 +450,12 @@ TSharedPtr<FApplicationMode> FControlRigEditor::CreateEditorMode()
 	return MakeShareable(new FControlRigEditorMode(SharedThis(this)));
 }
 
+const FSlateBrush* FControlRigEditor::GetDefaultTabIcon() const
+{
+	static const FSlateIcon TabIcon = FSlateIcon(FControlRigEditorStyle::Get().GetStyleSetName(), "ControlRig.Editor.TabIcon");
+	return TabIcon.GetIcon();
+}
+
 FText FControlRigEditor::GetTestAssetName() const
 {
 	if(TestDataStrongPtr.IsValid())

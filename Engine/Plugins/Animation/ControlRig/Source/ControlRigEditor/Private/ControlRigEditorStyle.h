@@ -64,6 +64,11 @@ public:
 			Set("ClassIcon.ControlRigPose", new IMAGE_BRUSH("Slate/ControlRigPose_16", Icon16x16));
 		}
 
+		// Editor Icons
+		{
+			Set("ControlRig.Editor.TabIcon", new IMAGE_BRUSH_SVG("Slate/ControlRigEditorTabIcon_16x", Icon16x16));
+		}
+
 		// Sequencer styles
 		{
 			Set("ControlRig.ExportAnimSequence", new IMAGE_BRUSH("Slate/ExportAnimSequence_24x", Icon24x24));
