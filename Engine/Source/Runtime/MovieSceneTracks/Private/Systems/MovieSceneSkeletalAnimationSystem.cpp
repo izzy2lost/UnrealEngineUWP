@@ -135,12 +135,15 @@ struct FPreAnimatedSkeletalAnimationTraits : FBoundObjectPreAnimatedStateTraits
 		Component->SetUpdateClothInEditor(true);
 		Component->TickAnimation(0.f, false);
 
-		Component->RefreshBoneTransforms();
-		Component->RefreshFollowerComponents();
-		Component->UpdateComponentToWorld();
-		Component->FinalizeBoneTransform();
-		Component->MarkRenderTransformDirty();
-		Component->MarkRenderDynamicDataDirty();
+		if (!Component->IsPostEvaluatingAnimation())
+		{
+			Component->RefreshBoneTransforms();
+			Component->RefreshFollowerComponents();
+			Component->UpdateComponentToWorld();
+			Component->FinalizeBoneTransform();
+			Component->MarkRenderTransformDirty();
+			Component->MarkRenderDynamicDataDirty();
+		}
 
 		// Reset the mesh component update flag and animation mode to what they were before we animated the object
 		InOutCachedValue.SkeletalMeshRestoreState.RestoreState(Component);
