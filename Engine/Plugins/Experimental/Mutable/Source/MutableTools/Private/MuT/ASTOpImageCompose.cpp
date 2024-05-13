@@ -50,7 +50,7 @@ bool ASTOpImageCompose::IsEqual(const ASTOp& otherUntyped) const
 			Base ==other->Base &&
 			BlockImage == other->BlockImage &&
 			Mask == other->Mask &&
-			BlockIndex == other->BlockIndex;
+			BlockId == other->BlockId;
     }
     return false;
 }
@@ -64,7 +64,7 @@ uint64 ASTOpImageCompose::Hash() const
 	hash_combine(res, Base.child().get());
 	hash_combine(res, BlockImage.child().get());
 	hash_combine(res, Mask.child().get());
-	hash_combine(res, BlockIndex);
+	hash_combine(res, BlockId);
 	return res;
 }
 
@@ -77,7 +77,7 @@ mu::Ptr<ASTOp> ASTOpImageCompose::Clone(MapChildFuncRef mapChild) const
 	n->Base = mapChild(Base.child());
 	n->BlockImage = mapChild(BlockImage.child());
 	n->Mask = mapChild(Mask.child());
-	n->BlockIndex = BlockIndex;
+	n->BlockId = BlockId;
     return n;
 }
 
@@ -105,7 +105,7 @@ void ASTOpImageCompose::Link( FProgram& program, FLinkerOptions*)
 		if (Base) args.base = Base->linkedAddress;
 		if (BlockImage) args.blockImage = BlockImage->linkedAddress;
 		if (Mask) args.mask = Mask->linkedAddress;
-        args.blockIndex = BlockIndex;
+        args.BlockId = BlockId;
 
         linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
         program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
@@ -189,32 +189,39 @@ bool ASTOpImageCompose::IsImagePlainConstant(FVector4f& colour) const
 }
 
 
-void ASTOpImageCompose::GetLayoutBlockSize(int* pBlockX, int* pBlockY)
+void ASTOpImageCompose::GetLayoutBlockSize(int32* pBlockX, int32* pBlockY)
 {
-	// We can find out in two ways: following the block image, or following the base image.
-	// Let's try the block approach: We need the block size and the layout blocks
-	int layoutBlocksX = 0;
-	int layoutBlocksY = 0;
-	if (Layout.child())
+	// Try to follow the base image of the compose, which is the most stable.
+	if (Base)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(GetLayoutBlockSize_GetBlockLayoutSize);
-		FBlockLayoutSizeCache cache;
-		Layout->GetBlockLayoutSizeCached(BlockIndex,
-			&layoutBlocksX, &layoutBlocksY,
-			&cache);
+		Base->GetLayoutBlockSize(pBlockX,pBlockY);
 	}
 
-	if (layoutBlocksX > 0 && layoutBlocksY > 0 && BlockImage.child())
+	// We can only follow the block if the base is empty, since the first block will set the block size.	
+	if (*pBlockX == 0)
 	{
-		FImageDesc blockDesc = BlockImage->GetImageDesc();
+		// Let's try the block approach: We need the block size and the layout blocks
+		int32 layoutBlocksX = 0;
+		int32 layoutBlocksY = 0;
+		if (Layout.child())
+		{
+			MUTABLE_CPUPROFILER_SCOPE(GetLayoutBlockSize_GetBlockLayoutSize);
+			FBlockLayoutSizeCache cache;
+			Layout->GetBlockLayoutSizeCached(BlockId, &layoutBlocksX, &layoutBlocksY, &cache);
+		}
 
-		*pBlockX = blockDesc.m_size[0] / layoutBlocksX;
-		*pBlockY = blockDesc.m_size[1] / layoutBlocksY;
-	}
-	else
-	{
-		*pBlockX = 0;
-		*pBlockY = 0;
+		if (layoutBlocksX > 0 && layoutBlocksY > 0 && BlockImage.child())
+		{
+			FImageDesc blockDesc = BlockImage->GetImageDesc();
+
+			*pBlockX = blockDesc.m_size[0] / layoutBlocksX;
+			*pBlockY = blockDesc.m_size[1] / layoutBlocksY;
+		}
+		else
+		{
+			*pBlockX = 0;
+			*pBlockY = 0;
+		}
 	}
 }
 
@@ -223,9 +230,9 @@ mu::Ptr<ASTOp> ASTOpImageCompose::OptimiseSemantic(const FModelOptimizationOptio
 {
 	mu::Ptr<ASTOp> at;
 
-	auto baseAt = Base.child();
-	auto blockAt = BlockImage.child();
-	auto layoutAt = Layout.child();
+	mu::Ptr<ASTOp> baseAt = Base.child();
+	mu::Ptr<ASTOp> blockAt = BlockImage.child();
+	mu::Ptr<ASTOp> layoutAt = Layout.child();
 	if (layoutAt
 		&&
 		layoutAt->GetOpType() == OP_TYPE::LA_CONSTANT
@@ -240,17 +247,17 @@ mu::Ptr<ASTOp> ASTOpImageCompose::OptimiseSemantic(const FModelOptimizationOptio
 		// Constant single-block full layout?
 		if (pLayout->GetBlockCount() == 1
 			&&
-			pLayout->m_blocks[0].m_min == UE::Math::TIntVector2<uint16>(0, 0)
+			pLayout->Blocks[0].Min == UE::Math::TIntVector2<uint16>(0, 0)
 			&&
-			pLayout->m_blocks[0].m_size == pLayout->m_size
+			pLayout->Blocks[0].Size == pLayout->Size
 			&&
-			pLayout->m_blocks[0].m_id == int(BlockIndex)
+			pLayout->Blocks[0].Id == BlockId
 			)
 		{
 			// We could only take the block, but we must make sure it will have the format
 			// and size of the base.
-			auto baseDesc = baseAt->GetImageDesc(true);
-			auto blockDesc = blockAt->GetImageDesc(true);
+			mu::FImageDesc baseDesc = baseAt->GetImageDesc(true);
+			mu::FImageDesc blockDesc = blockAt->GetImageDesc(true);
 
 			at = blockAt;
 

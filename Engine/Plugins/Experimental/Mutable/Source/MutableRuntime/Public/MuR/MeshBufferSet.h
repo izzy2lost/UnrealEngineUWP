@@ -394,6 +394,9 @@ namespace mu
 
 		//!
 		void UpdateOffsets(int32 b);
+		
+		/** Check that all channels of a specific semantic use the provided format. */
+		bool HasAnySemanticWithDifferentFormat(EMeshBufferSemantic Semantic, EMeshBufferFormat ExpectedFormat) const;
 	};	
 
 	

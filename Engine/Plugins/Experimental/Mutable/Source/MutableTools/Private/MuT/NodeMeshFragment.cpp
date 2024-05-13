@@ -44,60 +44,60 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    NodeMeshPtr NodeMeshFragment::GetMesh() const
+    Ptr<NodeMesh> NodeMeshFragment::GetMesh() const
 	{
 		return m_pD->m_pMesh.get();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshFragment::SetMesh( NodeMeshPtr pNode )
+	void NodeMeshFragment::SetMesh(Ptr<NodeMesh> pNode )
 	{
 		m_pD->m_pMesh = pNode;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    int NodeMeshFragment::GetLayoutOrGroup() const
+    int32 NodeMeshFragment::GetLayoutOrGroup() const
 	{
-        return m_pD->m_layoutOrGroup;
+        return m_pD->LayoutOrGroup;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    void NodeMeshFragment::SetLayoutOrGroup( int l )
+    void NodeMeshFragment::SetLayoutOrGroup( int32 l )
 	{
-        m_pD->m_layoutOrGroup = l;
+        m_pD->LayoutOrGroup = l;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshFragment::SetBlockCount( int t )
+	void NodeMeshFragment::SetBlockCount( int32 t )
 	{
-		m_pD->m_blocks.SetNum(t);
+		m_pD->Blocks.SetNum(t);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeMeshFragment::GetBlock( int t ) const
+	int32 NodeMeshFragment::GetBlock( int32 t ) const
 	{
-		check( t>=0 && t<m_pD->m_blocks.Num() );
-		return m_pD->m_blocks[t];
+		check( t>=0 && t<m_pD->Blocks.Num() );
+		return m_pD->Blocks[t];
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshFragment::SetBlock( int t, int b )
+	void NodeMeshFragment::SetBlock( int32 t, int32 b )
 	{
-		check( t>=0 && t<m_pD->m_blocks.Num() );
-		m_pD->m_blocks[t] = b;
+		check( t>=0 && t<m_pD->Blocks.Num() );
+		m_pD->Blocks[t] = b;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshFragment::Private::GetLayout( int index ) const
+	Ptr<NodeLayout> NodeMeshFragment::Private::GetLayout( int32 index ) const
 	{
-		NodeLayoutPtr pResult;
+		Ptr<NodeLayout> pResult;
 
 		if ( m_pMesh )
 		{

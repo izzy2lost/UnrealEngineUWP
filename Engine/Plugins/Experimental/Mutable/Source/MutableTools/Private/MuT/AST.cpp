@@ -881,30 +881,29 @@ bool ASTOp::IsColourConstant(FVector4f&) const
 }
 
 
-void ASTOp::GetBlockLayoutSize( int, int*, int*, FBlockLayoutSizeCache* )
+void ASTOp::GetBlockLayoutSize( uint64, int32*, int32*, FBlockLayoutSizeCache* )
 {
     check(false);
 }
 
-void ASTOp::GetBlockLayoutSizeCached( int blockIndex, int* pBlockX, int* pBlockY,
-                               FBlockLayoutSizeCache* cache )
+void ASTOp::GetBlockLayoutSizeCached(uint64 blockId, int32* BlockX, int32* BlockY, FBlockLayoutSizeCache* cache)
 {
-	FBlockLayoutSizeCache::KeyType key(this,blockIndex);
+	FBlockLayoutSizeCache::KeyType key(this,blockId);
 	FBlockLayoutSizeCache::ValueType* ValuePtr = cache->Find( key );
     if (ValuePtr)
     {
-        *pBlockX = ValuePtr->Key;
-        *pBlockY = ValuePtr->Value;
+        *BlockX = ValuePtr->Key;
+        *BlockY = ValuePtr->Value;
         return;
     }
 
-    GetBlockLayoutSize( blockIndex, pBlockX, pBlockY, cache );
+    GetBlockLayoutSize( blockId, BlockX, BlockY, cache );
 
-	cache->Add(key, FBlockLayoutSizeCache::ValueType( *pBlockX, *pBlockY) );
+	cache->Add(key, FBlockLayoutSizeCache::ValueType( *BlockX, *BlockY) );
 }
 
 
-void ASTOp::GetLayoutBlockSize( int*, int* )
+void ASTOp::GetLayoutBlockSize( int32*, int32* )
 {
     check(false);
 }

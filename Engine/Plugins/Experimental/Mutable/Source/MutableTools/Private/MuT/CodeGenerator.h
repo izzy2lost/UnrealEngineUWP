@@ -205,8 +205,6 @@ namespace mu
         /** List of image resources for every image formats that have been generated so far as palceholders for missing images. */
         Ptr<Image> m_missingImage[size_t(EImageFormat::IF_COUNT)];
 
-        //! First free index for a layout block
-        int32 m_absoluteLayoutIndex = 0;
 
         //! List of already used vertex ID groups that must be unique.
         TSet<uint32> UniqueVertexIDGroups;
@@ -331,7 +329,7 @@ namespace mu
 			UE::Math::TIntVector2<int32> RectSize = {0, 0};
 
 			/** Layout block that we are trying to generate if any. */
-			int32 LayoutBlockId = -1;
+			uint64 LayoutBlockId = Layout::InvalidBlockId;
 			Ptr<const Layout> LayoutToApply;
 
 			friend FORCEINLINE uint32 GetTypeHash(const FImageGenerationOptions& InKey)
@@ -569,10 +567,11 @@ namespace mu
 			Ptr<Mesh> currentLayoutMesh,
 			int32 currentLayoutChannel,
 			const void* errorContext,
-			const FMeshGenerationOptions& MeshOptions);
+			const FMeshGenerationOptions& MeshOptions,
+			bool bUseAbsoluteBlockIds);
 
 		//!
-		Ptr<const Layout> AddLayout(Ptr<const Layout> SourceLayout);
+		Ptr<const Layout> AddLayout(Ptr<const Layout> SourceLayout, uint32 MeshIDPrefix);
 
 		struct FExtensionDataGenerationResult
 		{

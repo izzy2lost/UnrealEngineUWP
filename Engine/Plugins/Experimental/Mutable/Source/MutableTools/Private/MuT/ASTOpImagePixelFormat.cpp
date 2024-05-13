@@ -370,7 +370,7 @@ namespace mu
 		case OP_TYPE::IM_CONDITIONAL:
 		{
 			// We move the op down the two paths
-			auto newOp = mu::Clone<ASTOpConditional>(at);
+			Ptr<ASTOpConditional> newOp = mu::Clone<ASTOpConditional>(at);
 			newOp->yes = Visit(newOp->yes.child(), currentFormatOp);
 			newOp->no = Visit(newOp->no.child(), currentFormatOp);
 			newAt = newOp;
@@ -380,7 +380,7 @@ namespace mu
 		case OP_TYPE::IM_SWITCH:
 		{
 			// We move the op down all the paths
-			auto newOp = mu::Clone<ASTOpSwitch>(at);
+			Ptr<ASTOpSwitch> newOp = mu::Clone<ASTOpSwitch>(at);
 			newOp->def = Visit(newOp->def.child(), currentFormatOp);
 			for (auto& c : newOp->cases)
 			{
@@ -394,45 +394,21 @@ namespace mu
 		{
 			if (isBlockFormat)
 			{
-				// We can only optimise if the layout grid blocks size in pixels is
-				// a multiple of the image format block size.
-				int imageFormatBlockSizeX = GetImageFormatData(format).PixelsPerBlockX;
-				int imageFormatBlockSizeY = GetImageFormatData(format).PixelsPerBlockY;
-				bool acceptable = imageFormatBlockSizeX == 1 && imageFormatBlockSizeY == 1;
+				// Since blocks can be resized at runtime anyway, push the format down and rely on reformatting on the fly if necessary.
 
-				if (!acceptable)
-				{
-					const ASTOpImageCompose* typedAt = static_cast<const ASTOpImageCompose*>(at.get());
-					auto originalBaseOp = typedAt->Base.child();
+				// We move the format down the two paths
+				Ptr<ASTOpImageCompose> newOp = mu::Clone<ASTOpImageCompose>(at);
 
-					int layoutBlockPixelsX = 0;
-					int layoutBlockPixelsY = 0;
-					originalBaseOp->GetLayoutBlockSize(&layoutBlockPixelsX, &layoutBlockPixelsY);
+				// TODO: We have to make sure we don't end up with two different formats if
+				// there is an formatIfAlpha
 
-					acceptable =
-						(layoutBlockPixelsX != 0 && layoutBlockPixelsY != 0)
-						&&
-						(layoutBlockPixelsX % imageFormatBlockSizeX) == 0
-						&&
-						(layoutBlockPixelsY % imageFormatBlockSizeY) == 0;
-				}
+				Ptr<ASTOp> baseOp = newOp->Base.child();
+				newOp->Base = Visit(baseOp, currentFormatOp);
 
-				if (acceptable)
-				{
-					// We move the format down the two paths
-					Ptr<ASTOpImageCompose> newOp = mu::Clone<ASTOpImageCompose>(at);
+				Ptr<ASTOp> blockOp = newOp->BlockImage.child();
+				newOp->BlockImage = Visit(blockOp, currentFormatOp);
 
-					// TODO: We have to make sure we don't end up with two different formats if
-					// there is an formatIfAlpha
-
-					auto baseOp = newOp->Base.child();
-					newOp->Base = Visit(baseOp, currentFormatOp);
-
-					auto blockOp = newOp->BlockImage.child();
-					newOp->BlockImage = Visit(blockOp, currentFormatOp);
-
-					newAt = newOp;
-				}
+				newAt = newOp;
 			}
 
 			break;
@@ -462,9 +438,9 @@ namespace mu
 			// generate the tail. To avoid optimization loop.
 			if (!bIsCompressedFormat || typedSource->bOnlyTail)
 			{
-				auto newOp = mu::Clone<ASTOpImageMipmap>(typedSource);
+				Ptr<ASTOpImageMipmap> newOp = mu::Clone<ASTOpImageMipmap>(typedSource);
 
-				auto baseOp = newOp->Source.child();
+				Ptr<ASTOp> baseOp = newOp->Source.child();
 				newOp->Source = Visit(baseOp, currentFormatOp);
 
 				newAt = newOp;
@@ -478,12 +454,12 @@ namespace mu
 			if (!bIsCompressedFormat)
 			{
 				// Move the format down all the paths
-				auto newOp = mu::Clone<ASTOpFixed>(at);
+				Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(at);
 
 				for (int v = 0; v < MUTABLE_OP_MAX_INTERPOLATE_COUNT; ++v)
 				{
-					auto child = newOp->children[newOp->op.args.ImageInterpolate.targets[v]].child();
-					auto bOp = Visit(child, currentFormatOp);
+					Ptr<ASTOp> child = newOp->children[newOp->op.args.ImageInterpolate.targets[v]].child();
+					Ptr<ASTOp> bOp = Visit(child, currentFormatOp);
 					newOp->SetChild(newOp->op.args.ImageInterpolate.targets[v], bOp);
 				}
 

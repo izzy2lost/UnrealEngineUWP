@@ -286,8 +286,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpSwitch::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY,
-		FBlockLayoutSizeCache* cache)
+	void ASTOpSwitch::GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache)
 	{
 		switch (type)
 		{
@@ -301,7 +300,7 @@ namespace mu
 
 			if (child)
 			{
-				child->GetBlockLayoutSizeCached(blockIndex, pBlockX, pBlockY, cache);
+				child->GetBlockLayoutSizeCached(BlockId, pBlockX, pBlockY, cache);
 			}
 			else
 			{
@@ -319,7 +318,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpSwitch::GetLayoutBlockSize(int* pBlockX, int* pBlockY)
+	void ASTOpSwitch::GetLayoutBlockSize(int32* pBlockX, int32* pBlockY)
 	{
 		switch (type)
 		{

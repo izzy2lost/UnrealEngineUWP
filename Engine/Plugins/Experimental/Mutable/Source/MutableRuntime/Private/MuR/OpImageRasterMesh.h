@@ -27,23 +27,29 @@ namespace mu
 	};
 
 
-	inline void ImageRasterMesh( const Mesh* pMesh, Image* pImage, int32 LayoutIndex, int32 BlockId,
+	inline void ImageRasterMesh( const Mesh* pMesh, Image* pImage, int32 LayoutIndex, uint64 BlockId,
 		UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(ImageRasterMesh)
 
 		check( pImage->GetFormat()== EImageFormat::IF_L_UBYTE );
 
-		int sizeX = pImage->GetSizeX();
-		int sizeY = pImage->GetSizeY();
+		int32 sizeX = pImage->GetSizeX();
+		int32 sizeY = pImage->GetSizeY();
 
 		// Get the vertices
-		int vertexCount = pMesh->GetVertexCount();
+		int32 vertexCount = pMesh->GetVertexCount();
 		TArray< RasterVertex<1> > vertices;
 		vertices.SetNumZeroed(vertexCount);
 
 		UntypedMeshBufferIteratorConst texIt( pMesh->GetVertexBuffers(), MBS_TEXCOORDS, 0 );
-		for ( int v=0; v<vertexCount; ++v )
+		if (!texIt.ptr())
+		{
+			ensure(false);
+			return;
+		}
+
+		for ( int32 v=0; v<vertexCount; ++v )
 		{
             float uv[2] = {0.0f,0.0f};
 			ConvertData( 0, uv, MBF_FLOAT32, texIt.ptr(), texIt.GetFormat() );
@@ -69,7 +75,7 @@ namespace mu
 		indices.SetNumZeroed(faceCount * 3);
 
 		UntypedMeshBufferIteratorConst indIt( pMesh->GetIndexBuffers(), MBS_VERTEXINDEX, 0 );
-		for ( int i=0; i<faceCount*3; ++i )
+		for ( int32 i=0; i<faceCount*3; ++i )
 		{
             uint32_t index=0;
 			ConvertData( 0, &index, MBF_UINT32, indIt.ptr(), indIt.GetFormat() );
@@ -80,7 +86,7 @@ namespace mu
 
         UntypedMeshBufferIteratorConst bloIt( pMesh->GetVertexBuffers(), MBS_LAYOUTBLOCK, LayoutIndex );
 
-        if (BlockId <0 || bloIt.GetElementSize()==0 )
+        if (BlockId==Layout::InvalidBlockId || bloIt.GetElementSize()==0 )
 		{
 			// Raster all the faces
             WhitePixelProcessor pixelProc;
@@ -107,31 +113,49 @@ namespace mu
 		else
 		{
 			// Raster only the faces in the selected block
+			check(bloIt.GetComponents() == 1);
 
-			// Get the block per face
-			TArray<uint16> blocks;
-			blocks.SetNumZeroed(vertexCount);
+			// Get the block per vertex
+			TArray<uint64> VertexBlockIds;
+			VertexBlockIds.SetNumZeroed(vertexCount);
 
-			for ( int i=0; i<vertexCount; ++i )
+			if (bloIt.GetFormat() == MBF_UINT16)
 			{
-                uint16 index=0;
-				ConvertData( 0, &index, MBF_UINT16, bloIt.ptr(), bloIt.GetFormat() );
-
-				blocks[i] = index;
-				++bloIt;
+				// Relative blocks.
+				const uint16* SourceIds = reinterpret_cast<const uint16*>(bloIt.ptr());
+				for (int32 i = 0; i < vertexCount; ++i)
+				{
+					uint64 Id = SourceIds[i];
+					Id = Id | (uint64(pMesh->MeshIDPrefix)<<32);
+					VertexBlockIds[i] = Id;
+				}
+			}
+			else if (bloIt.GetFormat() == MBF_UINT64)
+			{
+				// Absolute blocks.
+				const uint64* SourceIds = reinterpret_cast<const uint64*>(bloIt.ptr());
+				for (int32 i = 0; i < vertexCount; ++i)
+				{
+					uint64 Id = SourceIds[i];
+					VertexBlockIds[i] = Id;
+				}
+			}
+			else
+			{
+				// Format not supported
+				check(false);
 			}
 
             WhitePixelProcessor pixelProc;
 
 			const TArrayView<uint8> ImageData = pImage->DataStorage.GetLOD(0); 
 
-			//for (int f = 0; f < faceCount; ++f)
 			const auto& ProcessFace = [
-				vertices, indices, blocks, BlockId, ImageData, sizeX, sizeY, pixelProc
+				vertices, indices, VertexBlockIds, BlockId, ImageData, sizeX, sizeY, pixelProc
 			] (int32 f)
 			{
 				// TODO: Select faces outside for loop?
-				if (blocks[indices[f * 3 + 0]] == BlockId)
+				if (VertexBlockIds[indices[f * 3 + 0]] == BlockId)
 				{
 					constexpr int32 NumInterpolators = 1;
 					Triangle<NumInterpolators>(ImageData.GetData(), ImageData.Num(),

@@ -26,8 +26,8 @@ namespace mu
 		/** Layout to use to select the blocks. */
 		uint16 Layout = 0;
 
-		/** Blocks to include in the resulting mesh. */
-		TArray<uint32> Blocks;
+		/** Block Ids to include in the resulting mesh. */
+		TArray<uint64> Blocks;
 
 	public:
 

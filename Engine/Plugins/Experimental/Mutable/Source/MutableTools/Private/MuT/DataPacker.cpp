@@ -26,6 +26,7 @@
 #include "MuT/ASTOpMeshDifference.h"
 #include "MuT/ASTOpMeshMorph.h"
 #include "MuT/ASTOpLayoutFromMesh.h"
+#include "MuT/ASTOpImageRasterMesh.h"
 #include "MuT/CompilerPrivate.h"
 
 
@@ -588,7 +589,6 @@ namespace mu
                 break;
              }
 
-
             case OP_TYPE::ME_APPLYLAYOUT:
             {
                 recurse = false;
@@ -602,6 +602,37 @@ namespace mu
                 RecurseWithState( op->children[op->op.args.MeshApplyLayout.layout].child(), currentSemantics );
                 break;
             }
+
+			case OP_TYPE::ME_PROJECT:
+			{
+				recurse = false;
+
+				const ASTOpFixed* op = static_cast<const ASTOpFixed*>(node.get());
+
+				uint64 newState = currentSemantics;
+				newState |= (UINT64_C(1) << MBS_LAYOUTBLOCK);
+				RecurseWithState(op->children[op->op.args.MeshProject.mesh].child(), newState);
+
+				RecurseWithState(op->children[op->op.args.MeshProject.projector].child(), currentSemantics);
+				break;
+			}
+
+			case OP_TYPE::IM_RASTERMESH:
+			{
+				recurse = false;
+
+				const ASTOpImageRasterMesh* op = static_cast<const ASTOpImageRasterMesh*>(node.get());
+
+				uint64 newState = currentSemantics;
+				newState |= (UINT64_C(1) << MBS_LAYOUTBLOCK);
+				RecurseWithState(op->mesh.child(), newState);
+
+				RecurseWithState(op->image.child(), currentSemantics);
+				RecurseWithState(op->angleFadeProperties.child(), currentSemantics);
+				RecurseWithState(op->mask.child(), currentSemantics);
+				RecurseWithState(op->projector.child(), currentSemantics);
+				break;
+			}
 
             case OP_TYPE::ME_EXTRACTLAYOUTBLOCK:
             {

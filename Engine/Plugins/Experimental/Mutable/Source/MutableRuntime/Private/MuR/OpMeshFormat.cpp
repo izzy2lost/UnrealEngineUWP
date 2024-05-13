@@ -299,22 +299,22 @@ namespace mu
 		{
 			// Remove from the result the channels that are not present in the source, and re-pack the
 			// offsets.
-			for (int b = 0; b < Result.GetBufferCount(); ++b)
+			for (int32 b = 0; b < Result.GetBufferCount(); ++b)
 			{
 				TArray<EMeshBufferSemantic> resultSemantics;
-				TArray<int> resultSemanticIndexs;
+				TArray<int32> resultSemanticIndexs;
 				TArray<EMeshBufferFormat> resultFormats;
-				TArray<int> resultComponentss;
-				TArray<int> resultOffsets;
-				int offset = 0;
+				TArray<int32> resultComponentss;
+				TArray<int32> resultOffsets;
+				int32 offset = 0;
 
 				// For every channel in this buffer
-				for (int c = 0; c < Result.GetBufferChannelCount(b); ++c)
+				for (int32 c = 0; c < Result.GetBufferChannelCount(b); ++c)
 				{
 					EMeshBufferSemantic resultSemantic;
-					int resultSemanticIndex;
+					int32 resultSemanticIndex;
 					EMeshBufferFormat resultFormat;
-					int resultComponents;
+					int32 resultComponents;
 
 					// Find this channel in the source mesh
 					Result.GetChannel
@@ -325,8 +325,8 @@ namespace mu
 						nullptr
 					);
 
-					int sourceBuffer;
-					int sourceChannel;
+					int32 sourceBuffer;
+					int32 sourceChannel;
 					Source.FindChannel
 					(resultSemantic, resultSemanticIndex, &sourceBuffer, &sourceChannel);
 
@@ -373,8 +373,6 @@ namespace mu
 		{
 			for (int32 b = 0; b < Source.GetBufferCount(); ++b)
 			{
-				bool bIsSystemBuffer = false;
-
 				// Detect system buffers and clone them unmodified.
 				if (Source.GetBufferChannelCount(b) == 1)
 				{
@@ -395,13 +393,21 @@ namespace mu
 						||
 						(bIsVertexBuffer && sourceSemantic == MBS_VERTEXINDEX))
 					{
-						bIsSystemBuffer = true;
+						// Add it if it wasn't already there, which could happen if it was included in the format mesh.
+						int32 AlreadyExistingBufIndex = -1;
+						int32 AlreadyExistingChannelIndex = -1;
+						Result.FindChannel(sourceSemantic, sourceSemanticIndex, &AlreadyExistingBufIndex, &AlreadyExistingChannelIndex);
+						if (AlreadyExistingBufIndex==-1)
+						{
+							Result.AddBuffer(Source, b);
+						}
+						else
+						{
+							// Replace the buffer
+							check(Result.m_buffers[AlreadyExistingBufIndex].m_channels.Num()==1);
+							Result.m_buffers[AlreadyExistingBufIndex] = Source.m_buffers[b];
+						}
 					}
-				}
-
-				if (bIsSystemBuffer)
-				{
-					Result.AddBuffer(Source, b);
 				}
 			}
 		}
@@ -443,7 +449,7 @@ namespace mu
 		Ptr<const Mesh> Source = PureSource;
 
 		Result->CopyFrom(*Format);
-		Result->VertexIDPrefix = Source->VertexIDPrefix;
+		Result->MeshIDPrefix = Source->MeshIDPrefix;
 
 		// Make sure that the bone indices will fit in this format, or extend it.
 		if (formatVertices)

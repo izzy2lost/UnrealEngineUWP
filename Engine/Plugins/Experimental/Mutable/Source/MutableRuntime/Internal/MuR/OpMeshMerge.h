@@ -333,7 +333,7 @@ namespace mu
 			MUTABLE_CPUPROFILER_SCOPE(Layouts);
 
 			Result->Layouts.SetNum(pFirst->Layouts.Num());
-			for (int i = 0; i < pFirst->Layouts.Num(); ++i)
+			for (int32 i = 0; i < pFirst->Layouts.Num(); ++i)
 			{
 				const Layout* pF = pFirst->Layouts[i].get();
 				LayoutPtr pR = pF->Clone();
@@ -342,7 +342,7 @@ namespace mu
 				{
 					const Layout* pS = pSecond->Layouts[i].get();
 
-					pR->m_blocks.Append(pS->m_blocks);
+					pR->Blocks.Append(pS->Blocks);
 				}
 
 				Result->Layouts[i] = pR;
@@ -679,6 +679,14 @@ namespace mu
 			}
 		}
 
+		// This affects both vertex IDs and layout block ids.
+		bool bNeedsExplicitIds = pFirst->MeshIDPrefix != pSecond->MeshIDPrefix;
+		if (!bNeedsExplicitIds)
+		{
+			// This is needed in case a mesh merges with itself.
+			Result->MeshIDPrefix = pFirst->MeshIDPrefix;
+		}
+
 		// Vertices
 		//-----------------
 		{
@@ -688,16 +696,9 @@ namespace mu
 			const int32 SecondCount = pSecond->GetVertexBuffers().GetElementCount();
 
 			// TODO: fast path should be per-buffer
-			// TODO: when formats match, which at runtime should be always.
+			// TODO: when formats match, which at runtime should be often.
 			bool bFastPath = pFirst->GetVertexBuffers().HasSameFormat( pSecond->GetVertexBuffers() );
-
-			bool bNeedsExplicitVertexIds = pFirst->VertexIDPrefix != pSecond->VertexIDPrefix;
-			if (!bNeedsExplicitVertexIds)
-			{
-				Result->VertexIDPrefix = pFirst->VertexIDPrefix;
-			}
-
-			bFastPath = bFastPath && !bNeedsExplicitVertexIds;
+			bFastPath = bFastPath && !bNeedsExplicitIds;
 
 			// Check if the format of the BoneIndex buffer has to change
 			bool bChangeBoneIndicesFormat = false;
@@ -705,49 +706,10 @@ namespace mu
 
 			// Iterate all vertex buffers to check if we need to format bone indices
 			{
-				// TODO: deduplicate code. move all to cpp.
+				bChangeBoneIndicesFormat = pFirst->GetVertexBuffers().HasAnySemanticWithDifferentFormat(MBS_BONEINDICES, BoneIndexFormat);
+				if (!bChangeBoneIndicesFormat)
 				{
-					// Check if pFirst requires a reformat of the bone index buffers
-					const FMeshBufferSet& VertexBuffers = pFirst->GetVertexBuffers();
-					for (int32 VertexBufferIndex = 0; !bChangeBoneIndicesFormat && VertexBufferIndex < VertexBuffers.m_buffers.Num(); ++VertexBufferIndex)
-					{
-						const FMeshBuffer& Buffer = VertexBuffers.m_buffers[VertexBufferIndex];
-
-						const int32 elemSize = VertexBuffers.GetElementSize(VertexBufferIndex);
-						const int32 firstSize = FirstCount * elemSize;
-
-						const int32 ChannelsCount = VertexBuffers.GetBufferChannelCount(VertexBufferIndex);
-						for (int32 ChannelIndex = 0; ChannelIndex < ChannelsCount; ++ChannelIndex)
-						{
-							if (Buffer.m_channels[ChannelIndex].m_semantic == MBS_BONEINDICES)
-							{
-								bChangeBoneIndicesFormat = Buffer.m_channels[ChannelIndex].m_format != BoneIndexFormat;
-								break;
-							}
-						}
-					}
-				}
-
-				{
-					// Check if pSecond requires a reformat of the bone index buffers
-					const FMeshBufferSet& VertexBuffers = pSecond->GetVertexBuffers();
-					for (int32 VertexBufferIndex = 0; !bChangeBoneIndicesFormat && VertexBufferIndex < VertexBuffers.m_buffers.Num(); ++VertexBufferIndex)
-					{
-						const FMeshBuffer& Buffer = VertexBuffers.m_buffers[VertexBufferIndex];
-
-						const int32 elemSize = VertexBuffers.GetElementSize(VertexBufferIndex);
-						const int32 firstSize = FirstCount * elemSize;
-
-						const int32 ChannelsCount = VertexBuffers.GetBufferChannelCount(VertexBufferIndex);
-						for (int32 ChannelIndex = 0; ChannelIndex < ChannelsCount; ++ChannelIndex)
-						{
-							if (Buffer.m_channels[ChannelIndex].m_semantic == MBS_BONEINDICES)
-							{
-								bChangeBoneIndicesFormat = Buffer.m_channels[ChannelIndex].m_format != BoneIndexFormat;
-								break;
-							}
-						}
-					}
+					pSecond->GetVertexBuffers().HasAnySemanticWithDifferentFormat(MBS_BONEINDICES, BoneIndexFormat);
 				}
 
 				bFastPath = bFastPath && !bChangeBoneIndicesFormat;
@@ -775,7 +737,7 @@ namespace mu
 					result.m_elementSize = first.m_elementSize;
 
 					// See if we need to enlarge the components of any of the result channels
-					bool resetOffsets = false;
+					bool bResetOffsets = false;
 					for ( int32 c=0; c<result.m_channels.Num(); ++c )
 					{
 						int32 sb = -1;
@@ -794,25 +756,16 @@ namespace mu
 								 >
 								 result.m_channels[c].m_componentCount )
 							{
-								result.m_channels[c].m_componentCount =
-										second.m_channels[sc].m_componentCount;
-								resetOffsets = true;
+								result.m_channels[c].m_componentCount = second.m_channels[sc].m_componentCount;
+								bResetOffsets = true;
 							}
 						}
 					}
 
 					// Reset the channel offsets if necessary
-					if (resetOffsets)
+					if (bResetOffsets)
 					{
-						int32 offset = 0;
-						for ( int32 c=0; c<result.m_channels.Num(); ++c )
-						{
-                            result.m_channels[c].m_offset = (uint8_t)offset;
-							offset += result.m_channels[c].m_componentCount
-									*
-									GetMeshFormatData(result.m_channels[c].m_format).SizeInBytes;
-						}
-						result.m_elementSize = offset;
+						Result->GetVertexBuffers().UpdateOffsets(vb);
 					}
 				}
 
@@ -858,16 +811,7 @@ namespace mu
 								FMeshBuffer& Buffer = VertexBuffers.m_buffers[foundBuffer];
 								Buffer.m_channels.Insert(chan, foundChannel + 1);
 
-								// Update offsets
-								int32 Offset = Buffer.m_channels[foundChannel].m_offset;
-								for (int32 c = foundChannel; c < Buffer.m_channels.Num(); ++c)
-								{
-									Buffer.m_channels[c].m_offset = (uint8)Offset;
-									Offset += Buffer.m_channels[c].m_componentCount
-										*
-										GetMeshFormatData(Buffer.m_channels[c].m_format).SizeInBytes;
-								}
-								Buffer.m_elementSize = Offset;
+								VertexBuffers.UpdateOffsets(foundBuffer);
 							}
 						}
 					}
@@ -908,27 +852,41 @@ namespace mu
 						}
 					}
 				}
-				
+
+				if (bNeedsExplicitIds)
+				{
+					// Make sure the result format is suitable for the explicit IDs
+
+					// Set to a dummy prefix, to ensure conversion happens
+					Result->MeshIDPrefix = 1;
+					Result->MakeIdsExplicit();
+				}
+
 				// Convert the source meshes to the new format
-                if (!bNeedsExplicitVertexIds && pFirst->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
+                if (!bNeedsExplicitIds && pFirst->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
                 {
-                    pVFirst = pFirst;
-                }
+					Result->VertexBuffers = pVFirst->VertexBuffers;
+				}
                 else
                 {
 					check(ScratchMeshes.FirstReformat);
 
 					bool bOutSuccess = false;
-					MeshFormat(ScratchMeshes.FirstReformat.get(), pFirst, Result, false, true, false, false, bOutSuccess);
 
-					if (bNeedsExplicitVertexIds)
+					if (bNeedsExplicitIds)
 					{
-						ScratchMeshes.FirstReformat->MakeVertexIndicesExplicit();
+						Ptr<Mesh> TempMesh = pFirst->Clone(EMeshCopyFlags::WithVertexBuffers);
+						TempMesh->MakeIdsExplicit();
+						MeshFormat(ScratchMeshes.FirstReformat.get(), TempMesh.get(), Result, false, true, false, false, bOutSuccess);
+					}
+					else
+					{
+						MeshFormat(ScratchMeshes.FirstReformat.get(), pFirst, Result, false, true, false, false, bOutSuccess);
 					}
 
 					if (bOutSuccess)
 					{
-						pVFirst = ScratchMeshes.FirstReformat;
+						Result->VertexBuffers = ScratchMeshes.FirstReformat->VertexBuffers;
 					}
 					else
 					{
@@ -938,7 +896,7 @@ namespace mu
                 }
 
 
-                if (!bNeedsExplicitVertexIds && pSecond->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
+                if (!bNeedsExplicitIds && pSecond->GetVertexBuffers().HasSameFormat(Result->GetVertexBuffers()))
                 {
                     pVSecond = pSecond;
                 }
@@ -947,11 +905,16 @@ namespace mu
 					check(ScratchMeshes.SecondReformat);
 
 					bool bOutSuccess = false;
-                    MeshFormat(ScratchMeshes.SecondReformat.get(), pSecond, Result, false, true, false, false, bOutSuccess);
 
-					if (bNeedsExplicitVertexIds)
+					if (bNeedsExplicitIds)
 					{
-						ScratchMeshes.SecondReformat->MakeVertexIndicesExplicit();
+						Ptr<Mesh> TempMesh = pSecond->Clone(EMeshCopyFlags::WithVertexBuffers);
+						TempMesh->MakeIdsExplicit();
+						MeshFormat(ScratchMeshes.SecondReformat.get(), TempMesh.get(), Result, false, true, false, false, bOutSuccess);
+					}
+					else
+					{
+						MeshFormat(ScratchMeshes.SecondReformat.get(), pSecond, Result, false, true, false, false, bOutSuccess);
 					}
 
 					if (bOutSuccess)
@@ -964,17 +927,16 @@ namespace mu
 					}
 				}
 
-				check(pVFirst->GetVertexBuffers().HasSameFormat(pVSecond->GetVertexBuffers()));
+				check(Result->GetVertexBuffers().HasSameFormat(pVSecond->GetVertexBuffers()));
 			}
 			else
 			{
                 MUTABLE_CPUPROFILER_SCOPE(FastPath);
 
-                pVFirst = pFirst;
+				Result->VertexBuffers = pFirst->VertexBuffers;
 				pVSecond = pSecond;
 			}
 
-			Result->VertexBuffers = pVFirst->VertexBuffers;
 
 			// Allocate additional vertices
 			Result->VertexBuffers.SetElementCount( FirstCount + SecondCount );

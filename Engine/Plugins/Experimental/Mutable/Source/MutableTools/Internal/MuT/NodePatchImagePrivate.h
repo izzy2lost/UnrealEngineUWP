@@ -20,7 +20,8 @@ namespace mu
         NodeImagePtr m_pImage;
         NodeImagePtr m_pMask;
 
-        TArray<int> m_blocks;
+		// These are the indices of the blocks in the layout being patched (not the Ids)
+        TArray<int32> BlockIndices;
 
         EBlendType m_blendType = EBlendType::BT_BLEND;
 
