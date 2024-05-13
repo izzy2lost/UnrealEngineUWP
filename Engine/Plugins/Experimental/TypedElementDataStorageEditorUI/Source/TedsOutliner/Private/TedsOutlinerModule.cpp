@@ -10,10 +10,13 @@
 #include "WorkspaceMenuStructure.h"
 #include "Elements/Columns/TypedElementAlertColumns.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
+#include "Elements/Columns/TypedElementLabelColumns.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Modules/ModuleManager.h"
+#include "Widgets/TedsOutlinerRowHandleColumn.h"
 #include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "TedsOutlinerModule"
@@ -74,6 +77,17 @@ TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneO
 		
 		return new FTypedElementOutlinerMode(InitTedsOptions);
 	});
+
+	// Add the custom column that displays row handles
+	InitOptions.ColumnMap.Add(FTedsOutlinerRowHandleColumn::GetID(),
+		FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 2,
+			FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner)
+			{
+				return MakeShareable(new FTedsOutlinerRowHandleColumn(InSceneOutliner));
+			})));
+	
+	InitOptions.ColumnMap.Add(FSceneOutlinerBuiltInColumnTypes::Label(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 10));
+
 	
 	TSharedRef<ISceneOutliner> TedsOutlinerShared = SNew(SSceneOutliner, InitOptions);
 	
@@ -105,7 +119,7 @@ TypedElementDataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutl
 
 	static TypedElementDataStorage::QueryHandle ColumnQuery = Storage->RegisterQuery(
 		Select()
-			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
+			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementAlertColumn, FTypedElementChildAlertColumn, FTypedElementRowReferenceColumn>()
 		.Compile());
 
 	// Query to also include SCC info

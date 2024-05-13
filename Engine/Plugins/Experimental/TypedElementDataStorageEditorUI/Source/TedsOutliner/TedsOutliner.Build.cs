@@ -30,6 +30,8 @@ public class TedsOutliner : ModuleRules
 				{
 					"WorkspaceMenuStructure",
 					"UnrealEd", // FEditorUndoClient used by SSceneOutliner
+					"ToolMenus",
+					"ApplicationCore",
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

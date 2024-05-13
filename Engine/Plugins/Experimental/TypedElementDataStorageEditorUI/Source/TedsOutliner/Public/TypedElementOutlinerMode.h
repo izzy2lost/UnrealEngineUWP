@@ -7,6 +7,8 @@
 #include "Compatibility/TedsCompatibilityUtils.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 
+#include "TypedElementOutlinerMode.generated.h"
+
 // TEDS-Outliner TODO: This can probably be moved to a more generic location for all TEDS related drag drops?
 class FTEDSDragDropOp : public FDecoratedDragDropOp
 {
@@ -116,6 +118,16 @@ struct FTypedElementOutlinerModeParams
 	TOptional<FTypedElementOutlinerHierarchyData> HierarchyData;
 };
 
+// Class to hold the owning scene outliner for a menu
+// TEDS-Outliner TODO: Once menus go through TEDS UI this can be done using the FTableViewerColumn on the widget row instead
+UCLASS()
+class UTEDSOutlinerMenuContext : public UObject
+{
+	GENERATED_BODY()
+public:
+	SSceneOutliner* OwningSceneOutliner = nullptr;
+};
+
 /*
  * TEDS driven Outliner mode where the Outliner is populated using the results of the RowHandleQueries passed in.
  * See CreateGenericTEDSOutliner() for example usage
@@ -137,6 +149,7 @@ public:
 	virtual bool ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const override;
 	virtual FSceneOutlinerDragValidationInfo ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const override;
 	virtual void OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const override;
+	virtual TSharedPtr<SWidget> CreateContextMenu() override;
 	/* end ISceneOutlinerMode interface */
 
 	// Set the final query used to populate row handles

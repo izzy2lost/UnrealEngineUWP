@@ -13,15 +13,16 @@
 #include "FolderTreeItem.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "TEDSOutlinerMode"
-
 
 namespace UE::TEDSOutliner::Local
 {
 	// Drag drop currently disabled as we are missing data marshalling for hierarchies from TEDS to the world
 	static bool TEDSOutlinerDragDropEnabled = false;
 	static FAutoConsoleVariableRef TEDSOutlinerDragDropEnabledCvar(TEXT("TEDS.UI.EnableTEDSOutlinerDragDrop"), TEDSOutlinerDragDropEnabled, TEXT("Enable drag/drop for the generic TEDS Outliner."));
+	static FName ContextMenuName("TEDSOutlinerContextMenu");
 }
 
 
@@ -354,6 +355,40 @@ void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const
 			Storage->AddColumn<FTypedElementSyncBackToWorldTag>(RowHandle);
 		}
 	}
+}
+
+TSharedPtr<SWidget> FTypedElementOutlinerMode::CreateContextMenu()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+
+	if (!ToolMenus->IsMenuRegistered(UE::TEDSOutliner::Local::ContextMenuName))
+	{
+		UToolMenu* Menu = ToolMenus->RegisterMenu((UE::TEDSOutliner::Local::ContextMenuName));
+		Menu->AddDynamicSection("DynamicHierarchySection", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
+		{
+			if(UTEDSOutlinerMenuContext* TEDSOutlinerMenuContext = InMenu->FindContext<UTEDSOutlinerMenuContext>())
+			{
+				if(SSceneOutliner* SceneOutliner = TEDSOutlinerMenuContext->OwningSceneOutliner)
+				{
+					TArray<FSceneOutlinerTreeItemPtr> Selection = SceneOutliner->GetTree().GetSelectedItems();
+
+					if(Selection.Num() == 1)
+					{
+						Selection[0]->GenerateContextMenu(InMenu, *SceneOutliner);
+					}
+				}
+			}
+			
+		}));
+	}
+
+	UTEDSOutlinerMenuContext* TEDSOutlinerMenuContext = NewObject<UTEDSOutlinerMenuContext>();
+	TEDSOutlinerMenuContext->OwningSceneOutliner = SceneOutliner;
+	
+	FToolMenuContext MenuContext;
+	MenuContext.AddObject(TEDSOutlinerMenuContext);
+
+	return UToolMenus::Get()->GenerateWidget(UE::TEDSOutliner::Local::ContextMenuName, MenuContext);
 }
 
 TUniquePtr<ISceneOutlinerHierarchy> FTypedElementOutlinerMode::CreateHierarchy()

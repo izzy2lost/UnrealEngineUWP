@@ -141,7 +141,7 @@ TSharedRef<SWidget> FBaseTEDSOutlinerMode::CreateLabelWidgetForItem(TypedElement
 		{
 			CombinedWidget->AddSlot()
 					.AutoWidth()
-					.HAlign(HAlign_Center)
+					.HAlign(HAlign_Left)
 					.VAlign(VAlign_Center)
 					.Padding(2.0f, 0.0f, 4.0f, 0.0f)
 					[

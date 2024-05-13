@@ -34,6 +34,8 @@ public:
 	virtual FString GetDisplayString() const override;
 	virtual bool CanInteract() const override;
 	virtual TSharedRef<SWidget> GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) override;
+	/** Generate a context menu for this item. Only called if *only* this item is selected. */
+	virtual void GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner);
 	/* End ISceneOutlinerTreeItem Implementation */
 
 	TEDSOUTLINER_API static const FSceneOutlinerTreeItemType Type;

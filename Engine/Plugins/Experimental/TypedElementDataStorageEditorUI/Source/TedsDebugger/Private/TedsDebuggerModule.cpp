@@ -160,7 +160,6 @@ TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 
 	FSceneOutlinerInitializationOptions InitOptions;
 	InitOptions.bShowHeaderRow = true;
-	InitOptions.bShowSearchBox = false; // TEDS-Debugger TODO: Enable after search support
 	InitOptions.FilterBarOptions.bHasFilterBar = true;
 	InitOptions.OutlinerIdentifier = "TedsDebugger";
 
