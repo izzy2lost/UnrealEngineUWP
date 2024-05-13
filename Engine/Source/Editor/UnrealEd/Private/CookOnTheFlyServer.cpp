@@ -8089,8 +8089,8 @@ bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FS
 	const FConfigSection* CookSettings = ConfigFile.FindSection(TEXT_CookSettings);
 	if (CookSettings == nullptr)
 	{
-		UE_LOG(LogCook, Display, TEXT("Cook invalidated for CookSettings file %s is invalid. Clearing previously cooked packages."),
-			*GetCookSettingsFileName(TargetPlatform));
+		UE_LOG(LogCook, Display, TEXT("Cook invalidated for platform %s because CookSettings file %s is invalid. Clearing previously cooked packages."),
+			*TargetPlatform->PlatformName(), *GetCookSettingsFileName(TargetPlatform));
 		return false;
 	}
 

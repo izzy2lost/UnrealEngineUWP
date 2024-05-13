@@ -349,10 +349,20 @@ void FIterativeValidatePackageWriter::BeginCook(const FCookInfo& Info)
 			UE_LOG(LogIterativeValidate, Display,
 				TEXT("-IterativeValidateAllowWrite is present, writable mode. Resaving packages as in a normal cook, but also running -diffonly on all packages that were found to be iteratively unmodified."));
 		}
+		if (Info.bFullBuild)
+		{
+			UE_LOG(LogIterativeValidate, Error,
+				TEXT("IterativeValidate was bypassed on this run; it is a full cook and all packages are marked iteratively modified."));
+		}
 		break;
 	case EPhase::Phase1:
 		UE_LOG(LogIterativeValidate, Display,
 			TEXT("Phase1: running -diffonly and a resave on all packages discovered to be iteratively unmodified."));
+		if (Info.bFullBuild)
+		{
+			UE_LOG(LogIterativeValidate, Error,
+				TEXT("IterativeValidate was bypassed on this run; it is a full cook and all packages are marked iteratively modified."));
+		}
 		break;
 	case EPhase::Phase2:
 		Load();
