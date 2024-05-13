@@ -11,7 +11,12 @@ class UInputAction;
 class UCharacterMoverComponent;
 struct FInputActionValue;
 
-UCLASS()
+/** 
+ * MoverExamplesCharacter: the base pawn class used by the MoverExamples plugin. Handles coalescing of input events.
+ * Cannot be instantiated on its own.
+ */ 
+
+UCLASS(Abstract)
 class MOVEREXAMPLES_API AMoverExamplesCharacter : public APawn, public IMoverInputProducerInterface
 {
 	GENERATED_BODY()
