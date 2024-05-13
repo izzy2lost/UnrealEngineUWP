@@ -116,6 +116,15 @@ enum class ERHIBindlessSupport : uint8
 	NumBits = 2
 };
 
+enum class ERHIStaticShaderBindingLayoutSupport : uint8
+{
+	Unsupported,
+	RayTracingOnly,
+	AllShaderTypes,
+
+	NumBits = 2
+};
+
 enum EShaderFrequency : uint8
 {
 	SF_Vertex				= 0,

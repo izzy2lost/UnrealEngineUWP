@@ -93,11 +93,11 @@ public:
 	void Init(const FD3D12QuantizedBoundShaderState& InQBSS);
 	void Init(const D3D12_VERSIONED_ROOT_SIGNATURE_DESC& InDesc, uint32 BindingSpace = 0);
 
-	void InitStaticGraphicsRootSignature(ED3D12RootSignatureFlags InFlags);
-	void InitStaticComputeRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
+	void InitStaticGraphicsRootSignature(EShaderBindingLayoutFlags InFlags);
+	void InitStaticComputeRootSignatureDesc(EShaderBindingLayoutFlags InFlags);
 #if D3D12_RHI_RAYTRACING
-	void InitStaticRayTracingGlobalRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
-	void InitStaticRayTracingLocalRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
+	void InitStaticRayTracingGlobalRootSignatureDesc(EShaderBindingLayoutFlags InFlags);
+	void InitStaticRayTracingLocalRootSignatureDesc(EShaderBindingLayoutFlags InFlags);
 #endif
 
 	ID3D12RootSignature* GetRootSignature() const { return RootSignature.GetReference(); }

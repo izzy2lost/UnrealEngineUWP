@@ -401,13 +401,13 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 
 }
 
-void FD3D12RootSignature::InitStaticGraphicsRootSignature(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticGraphicsRootSignature(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateGfxRootSignature(Creator, InFlags);
 	Init(Creator.Finalize());
 
-	if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+	if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::RootConstants))
 	{
 		for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
 		{
@@ -424,13 +424,13 @@ void FD3D12RootSignature::InitStaticGraphicsRootSignature(ED3D12RootSignatureFla
 	}
 }
 
-void FD3D12RootSignature::InitStaticComputeRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticComputeRootSignatureDesc(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateComputeRootSignature(Creator, InFlags);
 	Init(Creator.Finalize());
 
-	if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+	if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::RootConstants))
 	{
 		for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
 		{
@@ -448,14 +448,14 @@ void FD3D12RootSignature::InitStaticComputeRootSignatureDesc(ED3D12RootSignature
 }
 
 #if D3D12_RHI_RAYTRACING
-void FD3D12RootSignature::InitStaticRayTracingGlobalRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticRayTracingGlobalRootSignatureDesc(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateRayTracingSignature(Creator, false, FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE, InFlags);
 	Init(Creator.Finalize(), UE_HLSL_SPACE_RAY_TRACING_GLOBAL);
 }
 
-void FD3D12RootSignature::InitStaticRayTracingLocalRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticRayTracingLocalRootSignatureDesc(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateRayTracingSignature(Creator, true, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE, InFlags);

@@ -9,21 +9,11 @@
 #include "Misc/StringBuilder.h"
 #include "RayTracingBuiltInResources.h"
 #include "RHIDefinitions.h"
+#include "RHIShaderBindingLayout.h"
 
 #if !defined(D3D12_MAJOR_VERSION)
 	#include "D3D12ThirdParty.h"
 #endif
-
-enum class ED3D12RootSignatureFlags
-{
-	None = 0,
-	AllowMeshShaders = 1 << 0,
-	InputAssembler = 1 << 1,
-	BindlessResources = 1 << 2,
-	BindlessSamplers = 1 << 3,
-	RootConstants = 1 << 4,
-};
-ENUM_CLASS_FLAGS(ED3D12RootSignatureFlags)
 
 namespace D3D12ShaderUtils
 {
@@ -183,7 +173,7 @@ namespace D3D12ShaderUtils
 	// Simple base class to help write out a root signature (subclass to generate either to a binary struct or a #define)
 	struct FRootSignatureCreator
 	{
-		ED3D12RootSignatureFlags Flags = ED3D12RootSignatureFlags::None;
+		EShaderBindingLayoutFlags Flags = EShaderBindingLayoutFlags::None;
 		uint32 RegisterSpace = 0;
 
 		virtual ~FRootSignatureCreator() = default;
@@ -194,27 +184,27 @@ namespace D3D12ShaderUtils
 		virtual void AddTable(ERootSignatureVisibility Visibility, ERootSignatureRangeType Type, int32 NumDescriptors, D3D12_DESCRIPTOR_RANGE_FLAGS FlagsOverride = D3D12_DESCRIPTOR_RANGE_FLAG_NONE) = 0;
 		virtual void AddConstantsParameter(uint32 Num32BitValues, uint32 Register, uint32 Space) = 0;
 
-		void SetFlags(ED3D12RootSignatureFlags InFlags)
+		void SetFlags(EShaderBindingLayoutFlags InFlags)
 		{
 			Flags = InFlags;
 
-			if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::InputAssembler))
+			if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::InputAssembler))
 			{
 				AddRootFlag(D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 			}
 
-			if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::BindlessResources))
+			if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::BindlessResources))
 			{
 				AddRootFlag(D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED);
 			}
 
-			if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::BindlessSamplers))
+			if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::BindlessSamplers))
 			{
 				AddRootFlag(D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED);
 			}
 		}
 
-		bool HasFlags(ED3D12RootSignatureFlags InFlags) const
+		bool HasFlags(EShaderBindingLayoutFlags InFlags) const
 		{
 			return EnumHasAllFlags(Flags, InFlags);
 		}
@@ -233,12 +223,12 @@ namespace D3D12ShaderUtils
 		{
 			if (Type == ERootSignatureRangeType::SRV || Type == ERootSignatureRangeType::UAV)
 			{
-				return EnumHasAnyFlags(Flags, ED3D12RootSignatureFlags::BindlessResources);
+				return EnumHasAnyFlags(Flags, EShaderBindingLayoutFlags::BindlessResources);
 			}
 
 			if (Type == ERootSignatureRangeType::Sampler)
 			{
-				return EnumHasAnyFlags(Flags, ED3D12RootSignatureFlags::BindlessSamplers);
+				return EnumHasAnyFlags(Flags, EShaderBindingLayoutFlags::BindlessSamplers);
 			}
 
 			return false;
@@ -397,17 +387,17 @@ namespace D3D12ShaderUtils
 	}
 
 	// Fat/Static Gfx Root Signature
-	inline void CreateGfxRootSignature(FRootSignatureCreator& Creator, ED3D12RootSignatureFlags InFlags)
+	inline void CreateGfxRootSignature(FRootSignatureCreator& Creator, EShaderBindingLayoutFlags InFlags)
 	{
 		// Ensure the creator starts in a clean state (in cases of creator reuse, etc.).
-		Creator.SetFlags(InFlags | ED3D12RootSignatureFlags::InputAssembler);
+		Creator.SetFlags(InFlags | EShaderBindingLayoutFlags::InputAssembler);
 
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Pixel);
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Vertex);
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Geometry);
 
 #if !defined(D3D12RHI_TOOLS_MESH_SHADERS_UNSUPPORTED)
-		if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::AllowMeshShaders))
+		if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::AllowMeshShaders))
 		{
 			AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Mesh);
 			AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Amplification);
@@ -417,7 +407,7 @@ namespace D3D12ShaderUtils
 		Creator.AddTable(ERootSignatureVisibility::Pixel, ERootSignatureRangeType::UAV, MAX_UAVS);
 		Creator.AddTable(ERootSignatureVisibility::Vertex, ERootSignatureRangeType::UAV, MAX_UAVS);
 
-		if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+		if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::RootConstants))
 		{
 			const uint32 NumConstants = 4u;
 			Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
@@ -425,14 +415,14 @@ namespace D3D12ShaderUtils
 	}
 
 	// Fat/Static Compute Root Signature
-	inline void CreateComputeRootSignature(FRootSignatureCreator& Creator, ED3D12RootSignatureFlags InFlags)
+	inline void CreateComputeRootSignature(FRootSignatureCreator& Creator, EShaderBindingLayoutFlags InFlags)
 	{
 		// Ensure the creator starts in a clean state (in cases of creator reuse, etc.).
 		Creator.SetFlags(InFlags);
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::All);
 		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS);
 
-		if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+		if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::RootConstants))
 		{
 			const uint32 NumConstants = 4u;
 			Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
@@ -440,7 +430,7 @@ namespace D3D12ShaderUtils
 	}
 
 #if !defined(D3D12RHI_TOOLS_RAYTRACING_SHADERS_UNSUPPORTED)
-	inline void CreateRayTracingSignature(FRootSignatureCreator& Creator, bool bLocalRootSignature, D3D12_ROOT_SIGNATURE_FLAGS BaseRootFlags, ED3D12RootSignatureFlags InFlags)
+	inline void CreateRayTracingSignature(FRootSignatureCreator& Creator, bool bLocalRootSignature, D3D12_ROOT_SIGNATURE_FLAGS BaseRootFlags, EShaderBindingLayoutFlags InFlags)
 	{
 		Creator.SetFlags(InFlags);
 		Creator.AddRootFlag(BaseRootFlags);
@@ -455,7 +445,7 @@ namespace D3D12ShaderUtils
 			Creator.AddConstantsParameter(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
 		}
 
-		if (Creator.HasFlags(ED3D12RootSignatureFlags::BindlessResources))
+		if (Creator.HasFlags(EShaderBindingLayoutFlags::BindlessResources))
 		{
 			for (uint32 Index = 0; Index < MAX_CBS; Index++)
 			{
@@ -470,7 +460,7 @@ namespace D3D12ShaderUtils
 		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
 	}
 
-	inline FString GenerateRayTracingSignatureString(bool bLocalRootSignature, D3D12_ROOT_SIGNATURE_FLAGS BaseRootFlags, ED3D12RootSignatureFlags InFlags)
+	inline FString GenerateRayTracingSignatureString(bool bLocalRootSignature, D3D12_ROOT_SIGNATURE_FLAGS BaseRootFlags, EShaderBindingLayoutFlags InFlags)
 	{
 		FTextRootSignatureCreator Creator;
 		CreateRayTracingSignature(Creator, bLocalRootSignature, BaseRootFlags, InFlags);
@@ -478,7 +468,7 @@ namespace D3D12ShaderUtils
 	}
 #endif //!defined(D3D12RHI_TOOLS_RAYTRACING_SHADERS_UNSUPPORTED)
 
-	inline FString GenerateRootSignatureString(EShaderFrequency InFrequency, ED3D12RootSignatureFlags InFlags)
+	inline FString GenerateRootSignatureString(EShaderFrequency InFrequency, EShaderBindingLayoutFlags InFlags)
 	{
 		FTextRootSignatureCreator Creator;
 

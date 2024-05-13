@@ -1237,33 +1237,33 @@ void FD3D12Adapter::InitializeDevices()
 #endif
 
 #if USE_STATIC_ROOT_SIGNATURE
-		ED3D12RootSignatureFlags GraphicsFlags{};
+		EShaderBindingLayoutFlags GraphicsFlags{};
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-		EnumAddFlags(GraphicsFlags, ED3D12RootSignatureFlags::AllowMeshShaders);
+		EnumAddFlags(GraphicsFlags, EShaderBindingLayoutFlags::AllowMeshShaders);
 #endif
 		if (BindlessResourcesConfig == ERHIBindlessConfiguration::AllShaders)
 		{
-			EnumAddFlags(GraphicsFlags, ED3D12RootSignatureFlags::BindlessResources);
+			EnumAddFlags(GraphicsFlags, EShaderBindingLayoutFlags::BindlessResources);
 		}
 		if (BindlessSamplersConfig == ERHIBindlessConfiguration::AllShaders)
 		{
-			EnumAddFlags(GraphicsFlags, ED3D12RootSignatureFlags::BindlessSamplers);
+			EnumAddFlags(GraphicsFlags, EShaderBindingLayoutFlags::BindlessSamplers);
 		}
 
 		StaticGraphicsRootSignature.InitStaticGraphicsRootSignature(GraphicsFlags);
-		StaticGraphicsWithConstantsRootSignature.InitStaticGraphicsRootSignature(GraphicsFlags | ED3D12RootSignatureFlags::RootConstants);
+		StaticGraphicsWithConstantsRootSignature.InitStaticGraphicsRootSignature(GraphicsFlags | EShaderBindingLayoutFlags::RootConstants);
 		StaticComputeRootSignature.InitStaticComputeRootSignatureDesc(GraphicsFlags);
-		StaticComputeWithConstantsRootSignature.InitStaticComputeRootSignatureDesc(GraphicsFlags | ED3D12RootSignatureFlags::RootConstants);
+		StaticComputeWithConstantsRootSignature.InitStaticComputeRootSignatureDesc(GraphicsFlags | EShaderBindingLayoutFlags::RootConstants);
 
 #if D3D12_RHI_RAYTRACING
-		ED3D12RootSignatureFlags RayTracingFlags{};
+		EShaderBindingLayoutFlags RayTracingFlags{};
 		if (BindlessResourcesConfig != ERHIBindlessConfiguration::Disabled)
 		{
-			EnumAddFlags(RayTracingFlags, ED3D12RootSignatureFlags::BindlessResources);
+			EnumAddFlags(RayTracingFlags, EShaderBindingLayoutFlags::BindlessResources);
 		}
 		if (BindlessSamplersConfig != ERHIBindlessConfiguration::Disabled)
 		{
-			EnumAddFlags(RayTracingFlags, ED3D12RootSignatureFlags::BindlessSamplers);
+			EnumAddFlags(RayTracingFlags, EShaderBindingLayoutFlags::BindlessSamplers);
 		}
 
 		StaticRayTracingGlobalRootSignature.InitStaticRayTracingGlobalRootSignatureDesc(RayTracingFlags);

@@ -108,6 +108,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsRayTracingShaders : 1;
 	uint32 bSupportsVertexShaderLayer : 1;
 	uint32 BindlessSupport : int32(ERHIBindlessSupport::NumBits);
+	uint32 StaticShaderBindingLayoutSupport : int32(ERHIStaticShaderBindingLayoutSupport::NumBits);
 	uint32 bSupportsVolumeTextureAtomics : 1;
 	uint32 bSupportsROV : 1;
 	uint32 bSupportsOIT : 1;
@@ -720,6 +721,12 @@ public:
 		return static_cast<ERHIBindlessSupport>(Infos[Platform].BindlessSupport);
 	}
 
+	static FORCEINLINE_DEBUGGABLE const ERHIStaticShaderBindingLayoutSupport GetStaticShaderBindingLayoutSupport(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return static_cast<ERHIStaticShaderBindingLayoutSupport>(Infos[Platform].StaticShaderBindingLayoutSupport);
+	}
+
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsVolumeTextureAtomics(const FStaticShaderPlatform Platform)
 	{
 		return Infos[Platform].bSupportsVolumeTextureAtomics;
@@ -1193,6 +1200,12 @@ inline bool RHISupportsConservativeRasterization(const FStaticShaderPlatform Pla
 inline ERHIBindlessSupport RHIGetBindlessSupport(const FStaticShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetBindlessSupport(Platform);
+}
+
+/** True if the given shader platform supports static shader resource tables. */
+inline ERHIStaticShaderBindingLayoutSupport RHIGetStaticShaderBindingLayoutSupport(const FStaticShaderPlatform Platform)
+{
+	return FDataDrivenShaderPlatformInfo::GetStaticShaderBindingLayoutSupport(Platform);
 }
 
 inline bool RHISupportsVolumeTextureAtomics(EShaderPlatform Platform)

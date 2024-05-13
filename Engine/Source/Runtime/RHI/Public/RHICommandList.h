@@ -244,6 +244,8 @@ struct FRayTracingShaderBindings
 	FRHIUniformBuffer* UniformBuffers[16] = {};
 	FRHISamplerState* Samplers[32] = {};
 	FRHIUnorderedAccessView* UAVs[16] = {};
+
+	FUniformBufferStaticBindings StaticUniformBuffers;
 };
 
 struct FRayTracingLocalShaderBindings

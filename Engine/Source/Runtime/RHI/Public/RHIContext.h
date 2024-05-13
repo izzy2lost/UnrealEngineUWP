@@ -23,6 +23,7 @@
 class FRHIDepthRenderTargetView;
 class FRHIRenderTargetView;
 class FRHISetRenderTargetsInfo;
+class FRHIShaderBindingLayout;
 struct FViewportBounds;
 struct FRayTracingGeometryInstance;
 struct FRayTracingShaderBindings;
@@ -58,24 +59,9 @@ public:
 		}
 	}
 
-	inline void AddUniformBuffer(FRHIUniformBuffer* UniformBuffer)
-	{
-		checkf(UniformBuffer, TEXT("Attemped to assign a null uniform buffer to the global uniform buffer bindings."));
-		const FRHIUniformBufferLayout& Layout = UniformBuffer->GetLayout();
-		const FUniformBufferStaticSlot Slot = Layout.StaticSlot;
-		checkf(IsUniformBufferStaticSlotValid(Slot), TEXT("Attempted to set a global uniform buffer %s with an invalid slot."), *Layout.GetDebugName());
+	RHI_API FUniformBufferStaticBindings(const FRHIShaderBindingLayout* InSRTDesc);
 
-#if VALIDATE_UNIFORM_BUFFER_STATIC_BINDINGS
-		if (int32 SlotIndex = Slots.Find(Slot); SlotIndex != INDEX_NONE)
-		{
-			checkf(UniformBuffers[SlotIndex] == UniformBuffer, TEXT("Uniform Buffer %s was added multiple times to the binding array but with different values."), *Layout.GetDebugName());
-		}
-#endif
-
-		Slots.Add(Slot);
-		UniformBuffers.Add(UniformBuffer);
-		SlotCount = FMath::Max(SlotCount, Slot + 1);
-	}
+	RHI_API void AddUniformBuffer(FRHIUniformBuffer* UniformBuffer);
 
 	inline void TryAddUniformBuffer(FRHIUniformBuffer* UniformBuffer)
 	{
@@ -105,6 +91,11 @@ public:
 		return SlotCount;
 	}
 
+	const FRHIShaderBindingLayout* GetShaderBindingLayout() const
+	{
+		return ShaderBindingLayout;
+	}
+
 	void Bind(TArray<FRHIUniformBuffer*>& Bindings) const
 	{
 		Bindings.Reset();
@@ -121,6 +112,9 @@ private:
 	TArray<FUniformBufferStaticSlot, TInlineAllocator<InlineUniformBufferCount>> Slots;
 	TArray<FRHIUniformBuffer*, TInlineAllocator<InlineUniformBufferCount>> UniformBuffers;
 	int32 SlotCount = 0;
+
+	// Shader binding layout used during shader generation to validate runtime bindings and know where uniform buffers need to be bound
+	const FRHIShaderBindingLayout* ShaderBindingLayout = nullptr;
 };
 
 struct FTransferResourceFenceData

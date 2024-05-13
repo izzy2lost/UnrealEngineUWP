@@ -30,6 +30,8 @@ class FHazardPointerCollection;
 class FRHIComputeCommandList;
 class FRHICommandListImmediate;
 class FRHITextureReference;
+class FRHIShaderBindingLayout;
+
 struct FClearValueBinding;
 struct FRHIResourceInfo;
 struct FGenerateMipsStruct;
@@ -4413,6 +4415,10 @@ public:
 	// Base pipeline will be extended by adding new shaders into it, potentially saving substantial amount of CPU time.
 	// Depends on GRHISupportsRayTracingPSOAdditions support at runtime (base pipeline is simply ignored if it is unsupported).
 	FRayTracingPipelineStateRHIRef BasePipeline;
+
+	// Shader binding table layout used during shader compilation which needs to be the same for all shaders in the RTPSO and defines
+	// how uniform buffers needs to be bound at runtime (global(RayGen) vs local(miss/hit/callable) data)
+	const FRHIShaderBindingLayout* ShaderBindingLayout = nullptr;
 
 	const TArrayView<FRHIRayTracingShader*>& GetRayGenTable()   const { return RayGenTable; }
 	const TArrayView<FRHIRayTracingShader*>& GetMissTable()     const { return MissTable; }

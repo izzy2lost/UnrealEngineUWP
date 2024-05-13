@@ -4,6 +4,7 @@
 #include "DynamicRHI.h"
 #include "RHI.h"
 #include "RHIStats.h"
+#include "RHIShaderBindingLayout.h"
 
 void RHIGenerateCrossGPUPreTransferFences(const TArrayView<const FTransferResourceParams> Params, TArray<FCrossGPUTransferFence*>& OutPreTransfer)
 {
@@ -44,6 +45,41 @@ void RHIGenerateCrossGPUPreTransferFences(const TArrayView<const FTransferResour
 
 			DestGPUMask &= ~(1u << DestGPUIndex);
 		}
+	}
+}
+
+FUniformBufferStaticBindings::FUniformBufferStaticBindings(const FRHIShaderBindingLayout* InShaderBindingLayout) : ShaderBindingLayout(InShaderBindingLayout) 
+{
+	UniformBuffers.SetNum(ShaderBindingLayout ? ShaderBindingLayout->GetNumUniformBufferEntries() : 0);
+}
+
+void FUniformBufferStaticBindings::AddUniformBuffer(FRHIUniformBuffer* UniformBuffer)
+{
+	checkf(UniformBuffer, TEXT("Attemped to assign a null uniform buffer to the global uniform buffer bindings."));		
+	const FRHIUniformBufferLayout& Layout = UniformBuffer->GetLayout();
+
+	// Only care about the static slots if no shader desc is used, otherwise the desc is used to validate that it contains the uniform buffer
+	if (ShaderBindingLayout)
+	{
+		const FRHIUniformBufferShaderBindingLayout* UniformBufferEntry = ShaderBindingLayout->FindEntry(Layout.GetHash());
+		checkf(UniformBufferEntry, TEXT("Attempted to set a static uniform buffer %s which is not defined in the ShaderBindingLayout provided."), *Layout.GetDebugName());
+		UniformBuffers[UniformBufferEntry->CBVResourceIndex] = UniformBuffer;
+	}
+	else
+	{
+		const FUniformBufferStaticSlot Slot = Layout.StaticSlot;
+		checkf(IsUniformBufferStaticSlotValid(Slot), TEXT("Attempted to set a global uniform buffer %s with an invalid slot."), *Layout.GetDebugName());
+
+		#if VALIDATE_UNIFORM_BUFFER_STATIC_BINDINGS
+		if (int32 SlotIndex = Slots.Find(Slot); SlotIndex != INDEX_NONE)
+		{
+			checkf(UniformBuffers[SlotIndex] == UniformBuffer, TEXT("Uniform Buffer %s was added multiple times to the binding array but with different values."), *Layout.GetDebugName());
+		}
+		#endif
+
+		Slots.Add(Slot);
+		UniformBuffers.Add(UniformBuffer);
+		SlotCount = FMath::Max(SlotCount, Slot + 1);
 	}
 }
 
