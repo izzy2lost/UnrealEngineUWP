@@ -9,7 +9,7 @@
 class FPerforceConnection;
 class FPerforceSourceControlProvider;
 
-class FPerforceSourceControlRevision final : public ISourceControlRevision, public TSharedFromThis<FPerforceSourceControlRevision, ESPMode::ThreadSafe>
+class FPerforceSourceControlRevision final : public ISourceControlRevision
 {
 public:
 

@@ -93,7 +93,7 @@ FString KeyString;
 };
 
 /** Represents one Tool Element, and is responsible for displaying the UI for that element  */
-class WIDGETREGISTRATION_API FToolElement : public FToolElementRegistrationKey, public TSharedFromThis<FToolElement>
+class WIDGETREGISTRATION_API FToolElement : public FToolElementRegistrationKey
 {
 
 public:

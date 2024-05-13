@@ -833,25 +833,41 @@ namespace SharedPointerInternals
 		/** Pointer to the reference controller for the object a TWeakPtr is referencing */
 		TReferenceControllerBase<Mode>* ReferenceController;
 	};
+}
 
 
-	/** Templated helper function (const) that creates a shared pointer from an object instance */
-	template< class SharedPtrType, class ObjectType, class OtherType, ESPMode Mode >
-	FORCEINLINE void EnableSharedFromThis( SharedPtrType* InSharedPtrOrRef, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
+namespace UE::Core::Private
+{
+	// This base class only exists to implement IsDerivedFromSharedFromThis
+	struct FSharedFromThisBase
 	{
-		if constexpr (SharedPtrType::Mode == Mode)
+	};
+}
+
+template <typename T>
+constexpr bool IsDerivedFromSharedFromThis()
+{
+	return std::is_base_of_v<UE::Core::Private::FSharedFromThisBase, T>;
+}
+
+
+namespace SharedPointerInternals
+{
+	/** Templated helper function (const) that creates a shared pointer from an object instance */
+	template< class SharedPtrType, class ObjectType >
+	FORCEINLINE void EnableSharedFromThis( SharedPtrType* InSharedPtrOrRef, ObjectType const* InObject )
+	{
+		///////////////////////////////////////////////////////////////////////////////////////////////
+		// If you get an 'ambiguous call' compile error in this function, it means you have multiple //
+		// TSharedFromThis bases in your inheritance hierarchy.  This is not supported.              //
+		///////////////////////////////////////////////////////////////////////////////////////////////
+
+		if constexpr (IsDerivedFromSharedFromThis<ObjectType>())
 		{
-			if( InShareable != nullptr )
+			if( InObject != nullptr )
 			{
-				InShareable->UpdateWeakReferenceInternal( InSharedPtrOrRef, const_cast< ObjectType* >( InObject ) );
+				InObject->UpdateWeakReferenceInternal( InSharedPtrOrRef, const_cast< ObjectType* >( InObject ) );
 			}
 		}
-		else
-		{
-			static_assert(sizeof(ObjectType) == 0, "You cannot use a TSharedPtr of one mode with a type which inherits TSharedFromThis of another mode.");
-		}
 	}
-
-	/** Templated helper catch-all function, accomplice to the above helper function */
-	constexpr void EnableSharedFromThis( ... ) { }
 }

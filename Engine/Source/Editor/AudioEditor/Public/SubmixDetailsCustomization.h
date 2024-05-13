@@ -21,7 +21,7 @@ class IDetailLayoutBuilder;
 class SWidget;
 
 // Utility class to build combo boxes out of arrays of names.
-class FNameSelectorGenerator : public TSharedFromThis<FNameSelectorGenerator>
+class FNameSelectorGenerator
 {
 
 public:
@@ -35,9 +35,13 @@ public:
 	// Use this to generate a combo box widget.
 	TSharedRef<SWidget> MakeNameSelectorWidget(TArray<FName>& InNameArray, FNameSelectorCallbacks&& InCallbacks);
 
-	
+	// Makes a new instance of the name selector generator class
+	static TSharedRef<FNameSelectorGenerator> MakeInstance();
 
 protected:
+	// This needs to be called after construction and after it has been bound to a TSharedPtr
+	void SetWeakThis(TWeakPtr<FNameSelectorGenerator>&& InWeakThis);
+
 	void OnSelectionChanged(TSharedPtr<FName> NameItem, ESelectInfo::Type SelectInfo);
 	TSharedRef<SWidget> HandleResponseComboBoxGenerateWidget(TSharedPtr<FName> StringItem);
 	FText GetComboBoxToolTip() const;
@@ -45,6 +49,9 @@ protected:
 
 	TArray<TSharedPtr<FName>> CachedNameArray;
 	FNameSelectorCallbacks CachedCallbacks;
+
+private:
+	TWeakPtr<FNameSelectorGenerator> WeakThis;
 };
 
 class AUDIOEDITOR_API FSoundfieldSubmixDetailsCustomization : public IDetailCustomization
@@ -61,7 +68,7 @@ private:
 	TSharedPtr<FNameSelectorGenerator> SoundfieldFormatNameSelectorGenerator;
 };
 
-class AUDIOEDITOR_API FEndpointSubmixDetailsCustomization : public IDetailCustomization, FNameSelectorGenerator
+class AUDIOEDITOR_API FEndpointSubmixDetailsCustomization : public IDetailCustomization, public FNameSelectorGenerator
 {
 public:
 	// Makes a new instance of this detail layout class
@@ -75,7 +82,7 @@ private:
 	TSharedPtr<FNameSelectorGenerator> EndpointTypeNameSelectorGenerator;
 };
 
-class AUDIOEDITOR_API FSoundfieldEndpointSubmixDetailsCustomization : public IDetailCustomization, FNameSelectorGenerator
+class AUDIOEDITOR_API FSoundfieldEndpointSubmixDetailsCustomization : public IDetailCustomization, public FNameSelectorGenerator
 {
 public:
 	// Makes a new instance of this detail layout class

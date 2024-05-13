@@ -227,7 +227,7 @@ public:
 
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object, InRawPtrProxy.Object );
+		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object );
 	}
 
 	/**
@@ -252,7 +252,7 @@ public:
 
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object, InRawPtrProxy.Object );
+		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object );
 	}
 
 	/**
@@ -277,7 +277,7 @@ public:
 
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object, InRawPtrProxy.Object );
+		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object );
 	}
 
 	/**
@@ -556,7 +556,7 @@ private:
 
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis(this, InObject, InObject);
+		SharedPointerInternals::EnableSharedFromThis(this, InObject);
 	}
 
 	/**
@@ -693,7 +693,7 @@ public:
 	{
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InObject, InObject );
+		SharedPointerInternals::EnableSharedFromThis( this, InObject );
 	}
 
 	/**
@@ -714,7 +714,7 @@ public:
 	{
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InObject, InObject );
+		SharedPointerInternals::EnableSharedFromThis( this, InObject );
 	}
 
 	/**
@@ -733,7 +733,7 @@ public:
 	{
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object, InRawPtrProxy.Object );
+		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object );
 	}
 
 	/**
@@ -753,7 +753,7 @@ public:
 	{
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object, InRawPtrProxy.Object );
+		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object );
 	}
 
 	/**
@@ -773,7 +773,7 @@ public:
 	{
 		// If the object happens to be derived from TSharedFromThis, the following method
 		// will prime the object with a weak pointer to itself.
-		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object, InRawPtrProxy.Object );
+		SharedPointerInternals::EnableSharedFromThis( this, InRawPtrProxy.Object );
 	}
 
 	/**
@@ -1567,7 +1567,7 @@ struct TCallTraits<TWeakPtr<ObjectType, Mode>> : public TCallTraitsBase<TWeakPtr
  * instance that's already been allocated.  Use the optional Mode template argument for thread-safety.
  */
 template< class ObjectType, ESPMode Mode >
-class TSharedFromThis
+class TSharedFromThis : private UE::Core::Private::FSharedFromThisBase
 {
 public:
 
@@ -1734,9 +1734,11 @@ public:		// @todo: Ideally this would be private, but template sharing problems 
 	 * the supplied object pointer along with the authoritative shared reference to the object.
 	 * Note that until this function is called, calls to AsShared() will result in an empty pointer.
 	 */
-	template< class SharedPtrType, class OtherType >
-	FORCEINLINE void UpdateWeakReferenceInternal( TSharedPtr< SharedPtrType, Mode > const* InSharedPtr, OtherType* InObject ) const
+	template< class SharedPtrType, ESPMode SharedPtrMode, class OtherType >
+	FORCEINLINE void UpdateWeakReferenceInternal( TSharedPtr< SharedPtrType, SharedPtrMode > const* InSharedPtr, OtherType* InObject ) const
 	{
+		static_assert(SharedPtrMode == Mode, "You cannot use a TSharedPtr of one mode with a type which inherits TSharedFromThis of another mode.");
+
 		if( !WeakThis.IsValid() )
 		{
 			WeakThis = TSharedPtr< ObjectType, Mode >( *InSharedPtr, InObject );
@@ -1748,9 +1750,11 @@ public:		// @todo: Ideally this would be private, but template sharing problems 
 	 * the supplied object pointer along with the authoritative shared reference to the object.
 	 * Note that until this function is called, calls to AsShared() will result in an empty pointer.
 	 */
-	template< class SharedRefType, class OtherType >
-	FORCEINLINE void UpdateWeakReferenceInternal( TSharedRef< SharedRefType, Mode > const* InSharedRef, OtherType* InObject ) const
+	template< class SharedRefType, ESPMode SharedPtrMode, class OtherType >
+	FORCEINLINE void UpdateWeakReferenceInternal( TSharedRef< SharedRefType, SharedPtrMode > const* InSharedRef, OtherType* InObject ) const
 	{
+		static_assert(SharedPtrMode == Mode, "You cannot use a TSharedPtr of one mode with a type which inherits TSharedFromThis of another mode.");
+
 		if( !WeakThis.IsValid() )
 		{
 			WeakThis = TSharedRef< ObjectType, Mode >( *InSharedRef, InObject );
@@ -1790,7 +1794,9 @@ protected:
 	}
 
 	/** Hidden destructor */
-	~TSharedFromThis() { }
+	~TSharedFromThis()
+	{
+	}
 
 private:
 
@@ -1798,27 +1804,6 @@ private:
 	    with ourselves.  Note this is declared mutable only so that UpdateWeakReferenceInternal() can update it. */
 	mutable TWeakPtr< ObjectType, Mode > WeakThis;	
 };
-
-
-namespace UE::Core::Private
-{
-	template <typename T>
-	constexpr bool IsDerivedFromSharedFromThisImpl(const TSharedFromThis<T>*)
-	{
-		return true;
-	}
-
-	constexpr bool IsDerivedFromSharedFromThisImpl(...)
-	{
-		return false;
-	}
-}
-
-template <typename T>
-constexpr bool IsDerivedFromSharedFromThis()
-{
-	return UE::Core::Private::IsDerivedFromSharedFromThisImpl((const T*)nullptr);
-}
 
 
 /**
@@ -2202,6 +2187,11 @@ template< class CastToType, class CastFromType, ESPMode Mode >
 template< class ObjectType >
 [[nodiscard]] FORCEINLINE SharedPointerInternals::TRawPtrProxy< ObjectType > MakeShareable( ObjectType* InObject )
 {
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// If you get an 'ambiguous call' compile error in this function, it means you have multiple //
+	// TSharedFromThis bases in your inheritance hierarchy.  This is not supported.              //
+	///////////////////////////////////////////////////////////////////////////////////////////////
+
 	if constexpr (IsDerivedFromSharedFromThis<ObjectType>())
 	{
 		// If this goes off, you should probably be using Ptr->AsShared() or Ptr->AsWeak() instead.
@@ -2221,6 +2211,11 @@ template< class ObjectType >
 template< class ObjectType, class DeleterType >
 [[nodiscard]] FORCEINLINE SharedPointerInternals::TRawPtrProxyWithDeleter< ObjectType, DeleterType > MakeShareable( ObjectType* InObject, DeleterType&& InDeleter )
 {
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// If you get an 'ambiguous call' compile error in this function, it means you have multiple //
+	// TSharedFromThis bases in your inheritance hierarchy.  This is not supported.              //
+	///////////////////////////////////////////////////////////////////////////////////////////////
+
 	if constexpr (IsDerivedFromSharedFromThis<ObjectType>())
 	{
 		// If this goes off, you should probably be using Ptr->AsShared() or Ptr->AsWeak() instead.

@@ -5,7 +5,7 @@
 #include "ITraceObject.h"
 #include "EventFilterStyle.h"
 
-class FSetFilteringDragDropOp : public FDragDropOperation, public TSharedFromThis<FSetFilteringDragDropOp>
+class FSetFilteringDragDropOp : public FDragDropOperation
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FSetFilteringDragDropOp, FDragDropOperation)
