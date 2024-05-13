@@ -982,42 +982,47 @@ void SContentBrowser::OnFilterBarLayoutChanging(EFilterBarLayout NewLayout)
 
 			/* Filters in an SScrollBox */
 			+ SSplitter::Slot()
-			.Value(0.12f)
 			.MinSize(95.f)
+			.Resizable(true)
+			.SizeRule(SSplitter::SizeToContent)
+			.OnSlotResized(this, &SContentBrowser::OnFilterBoxColumnResized)
 			[
-				SNew(SVerticalBox)
+				SNew(SBox)
+				.WidthOverride(this, &SContentBrowser::GetFilterViewBoxWidthOverride)
 				// Don't take up space when there are no filters
 				.Visibility_Lambda([this]
 				{
 					return FilterListPtr->HasAnyFilters() ? EVisibility::Visible : EVisibility::Collapsed;
 				})
-
-				// Header
-				+ SVerticalBox::Slot()
-				.Padding(0.0f, 2.0f)
-				.AutoHeight()
 				[
-					
-					SNew(SBorder)
-					.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
-					.Padding(FMargin(8.0f, 6.0f))
-					.Content()
+					SNew(SVerticalBox)
+
+					// Header
+					+ SVerticalBox::Slot()
+					.Padding(0.0f, 2.0f)
+					.AutoHeight()
 					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("FilterListVerticalHeader", "Filters"))
-						.TextStyle(FAppStyle::Get(), "ButtonText")
-						.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
+						
+						SNew(SBorder)
+						.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
+						.Padding(FMargin(8.0f, 6.0f))
+						.Content()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("FilterListVerticalHeader", "Filters"))
+							.TextStyle(FAppStyle::Get(), "ButtonText")
+							.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
+						]
+					]
+
+					// Filter List
+					+ SVerticalBox::Slot()
+					.Padding(0.0f)
+					.FillHeight(1.0f)
+					[
+						FilterListPtr.ToSharedRef()
 					]
 				]
-
-				// Filter List
-				+ SVerticalBox::Slot()
-				.Padding(0.0f)
-				.FillHeight(1.0f)
-				[
-					FilterListPtr.ToSharedRef()
-				]
-				
 			]
 		
 			+ SSplitter::Slot()
@@ -1555,6 +1560,16 @@ void SContentBrowser::OnPathViewBoxColumnResized(float InSize)
 FOptionalSize SContentBrowser::GetPathViewBoxWidthOverride() const
 {
 	return FOptionalSize(PathViewBoxWidth);
+}
+
+void SContentBrowser::OnFilterBoxColumnResized(float InSize)
+{
+	FilterBoxWidth = InSize;
+}
+
+FOptionalSize SContentBrowser::GetFilterViewBoxWidthOverride() const
+{
+	return FOptionalSize(FilterBoxWidth);
 }
 
 float SContentBrowser::GetFavoritesAreaMinSize() const
