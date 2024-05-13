@@ -50,6 +50,27 @@ using	FPemCert	= FMemoryView;
 struct	FActivity;
 
 ////////////////////////////////////////////////////////////////////////////////
+class UE_API FCertRoots
+{
+public:
+							FCertRoots()					= default;
+							~FCertRoots();
+							FCertRoots(FMemoryView PemData);
+							FCertRoots(FCertRoots&& Rhs)	{ *this = MoveTemp(Rhs); }
+	FCertRoots&				operator = (FCertRoots&& Rhs)	{ Swap(Handle, Rhs.Handle); return *this; }
+	bool					IsValid() const					{ return Handle != 0; }
+	int32					Num() const;
+	static void				SetDefault(FCertRoots&& CertRoots);
+
+private:
+	UPTRINT					Handle = 0;
+
+private:
+							FCertRoots(const FCertRoots&)	= delete;
+	FCertRoots&				operator = (const FCertRoots&)	= delete;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class UE_API FConnectionPool
 {
 public:
