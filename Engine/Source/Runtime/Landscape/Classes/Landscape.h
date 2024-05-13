@@ -459,8 +459,7 @@ public:
 
 	LANDSCAPE_API void SetDisableRuntimeGrassMapGeneration(bool bInDisableRuntimeGrassMapGeneration);
 
-protected:
-	FName GenerateUniqueLayerName(FName InName = NAME_None) const;
+	LANDSCAPE_API FName GenerateUniqueLayerName(FName InName = NAME_None) const;
 
 private:
 	FLandscapeLayer* GetLayerInternal(int32 InLayerIndex);
@@ -475,6 +474,8 @@ private:
 	void MonitorShaderCompilation();
 	void MonitorLandscapeEdModeChanges();
 	
+	FLandscapeBrushParameters BuildLandscapeBrushParameters(bool bInIsHeightmapMerge, const FIntRect& InRenderAreaExtents, UTextureRenderTarget2D* InRenderTarget, FName InWeightmapLayerName = NAME_None);
+
 	int32 RegenerateLayersHeightmaps(const FUpdateLayersContentContext& InUpdateLayersContentContext);
 	int32 PerformLayersHeightmapsLocalMerge(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams);
 	int32 PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams);

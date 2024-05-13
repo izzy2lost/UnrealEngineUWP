@@ -72,6 +72,11 @@ public:
 	};
 
 public:
+
+	// TODO: This might be removed once the guid is stored here and subclasses have a way to request landscape updates.
+	// Otherwise, it might be better made private and then we friend ALandscape?
+	void SetBackPointer(ALandscape* Landscape);
+
 	/**
 	 * @return true if the this edit layer has support for the target type (heightmap, weightmap, visibility)
 	 */
@@ -132,6 +137,19 @@ public:
 	//  settings, on property change, the event would be triggered and the landscape layers would be updated as a result), instead of providing ad-hoc functions on 
 	//  ALandscape, like we do currently (e.g. SetLayerAlpha, SetLayerVisibility, SetLayerName, etc.) on both the runtime code (ALandscape) and the UI code (FEdModeLandscape)
 	virtual void OnLayerCreated(FLandscapeLayer& Layer) {}
+
+	// Called by landscape after removing this layer from its list so that the layer can do
+	// any cleanup that it might need to do.
+	// TODO: Should this be protected and then we friend ALandscape?
+	virtual void OnLayerRemoved() {}
+
+	// UObject
+	LANDSCAPE_API virtual void PostLoad() override;
+protected:
+
+	// TODO: This might be removed once more things are moved from FLandscapeLayer to ULandscapeLayer
+	UPROPERTY()
+	TWeakObjectPtr<ALandscape> OwningLandscape;
 };
 
 /** 

@@ -6,6 +6,19 @@
 
 #define LOCTEXT_NAMESPACE "LandscapeEditLayer"
 
+void ULandscapeEditLayerBase::SetBackPointer(ALandscape* Landscape)
+{
+	OwningLandscape = Landscape;
+}
+
+void ULandscapeEditLayerBase::PostLoad()
+{
+	Super::PostLoad();
+
+	// TODO[jonathan.bard] Remove
+	// Needed because we might have saved some layers before we realized we were missing this flag
+	SetFlags(RF_Transactional);
+}
 
 // ----------------------------------------------------------------------------------
 

@@ -55,6 +55,7 @@ LandscapeEditLayers.cpp: Landscape editing layers mode
 #include "LandscapeRender.h"
 #include "LandscapeInfoMap.h"
 #include "Misc/MessageDialog.h"
+#include "GlobalMergeLegacySupportUtil.h" // ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport
 #include "GameFramework/WorldSettings.h"
 #include "UObject/UObjectThreadContext.h"
 #include "LandscapeSplinesComponent.h"
@@ -4967,6 +4968,29 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 					PrintLayersDebugRT(FString::Printf(TEXT("LS Height: %s Component %s += -> CombinedNonAtlas %s"), *Layer.Name.ToString(), *BrushOutputNonAtlasRT->GetName(), *CombinedHeightmapNonAtlasRT->GetName()), CombinedHeightmapNonAtlasRT);
 				}
 			}
+
+			// Legacy global merge support for non-blueprint-brush renderers: allow edit layer to act as blueprint brush.
+			ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport* RenderCallAdapter = Cast<ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport>(Layer.EditLayer);
+			if (RenderCallAdapter)
+			{
+				FLandscapeBrushParameters BrushParameters = BuildLandscapeBrushParameters(
+					/*bIsHeightmapMerge = */true, LandscapeExtent, CombinedHeightmapNonAtlasRT);
+
+				UTextureRenderTarget2D* BrushOutputNonAtlasRT = RenderCallAdapter->RenderAsBlueprintBrush(BrushParameters, GetTransform(), 
+					// TODO: Someday this will be part of BrushParameters
+					LandscapeExtent.Max - LandscapeExtent.Min);
+
+				// Do the same conditional copy that we do for blueprint brushes
+				if (BrushOutputNonAtlasRT != CombinedHeightmapNonAtlasRT
+					&& BrushOutputNonAtlasRT
+					&& BrushOutputNonAtlasRT->SizeX == CombinedHeightmapNonAtlasRT->SizeX
+					&& BrushOutputNonAtlasRT->SizeY == CombinedHeightmapNonAtlasRT->SizeY)
+				{
+					ExecuteCopyLayersTexture({ FLandscapeLayersCopyTextureParams(BrushOutputNonAtlasRT, CombinedHeightmapNonAtlasRT) });
+					PrintLayersDebugRT(FString::Printf(TEXT("LS Height: %s Component %s += -> CombinedNonAtlas %s"), *Layer.Name.ToString(), 
+						*BrushOutputNonAtlasRT->GetName(), *CombinedHeightmapNonAtlasRT->GetName()), CombinedHeightmapNonAtlasRT);
+				}
+			}
 		}
 
 		// copy CombinedHeightmapNonAtlasRT to LandscapeScratchRT3 (as a source for later layers... this is wasted on the last layer I think...)
@@ -5077,6 +5101,24 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 	ExecuteCopyToReadbackTexture(DeferredCopyReadbackTextures);
 
 	return InMergeParams.HeightmapUpdateModes;
+}
+
+FLandscapeBrushParameters ALandscape::BuildLandscapeBrushParameters(bool bInIsHeightmapMerge, 
+	const FIntRect& InRenderAreaExtents, UTextureRenderTarget2D* InRenderTarget, FName InWeightmapLayerName)
+{
+	FTransform RenderAreaWorldTransform = GetTransform();
+	FVector OffsetVector(InRenderAreaExtents.Min.X, InRenderAreaExtents.Min.Y, 0.f);
+	FVector Translation = RenderAreaWorldTransform.TransformFVector4(OffsetVector);
+	RenderAreaWorldTransform.SetTranslation(Translation);
+	FIntPoint RenderAreaSize = InRenderAreaExtents.Max - InRenderAreaExtents.Min;
+
+	// TODO: Someday we will build the final return struct like this:
+	// return FLandscapeBrushParameters(bInIsHeightmapMerge, RenderAreaWorldTransform, RenderAreaSize, InRenderTarget, InWeightmapLayerName);
+
+	return FLandscapeBrushParameters(bInIsHeightmapMerge ? ELandscapeToolTargetType::Heightmap 
+		: (InWeightmapLayerName == UMaterialExpressionLandscapeVisibilityMask::ParameterName) ? ELandscapeToolTargetType::Visibility 
+		: ELandscapeToolTargetType::Weightmap,
+		InRenderTarget, InWeightmapLayerName);
 }
 
 int32 ALandscape::RegenerateLayersHeightmaps(const FUpdateLayersContentContext& InUpdateLayersContentContext)
@@ -7162,6 +7204,27 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 								bHasWeightmapData = true;
 							}
 						}
+
+						// Legacy global merge support for non-blueprint-brush renderers: allow edit layer to act as blueprint brush.
+						ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport* RenderCallAdapter = Cast<ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport>(Layer.EditLayer);
+						if (RenderCallAdapter && !LayerInfoObjects.Contains(InfoLayerSettings.LayerInfoObj))
+						{
+							TOptional<int32> LayerInfoSettingsAllocatedIndex;
+							if (RenderCallAdapter->AffectsWeightmapLayerAsBlueprintBrush(InfoLayerSettings.GetLayerName()))
+							{
+								LayerInfoSettingsAllocatedIndex = LayerInfoSettingsIndex + 1; // due to visibility layer that is at 0
+							}
+							else if (RenderCallAdapter->AffectsVisibilityLayerAsBlueprintBrush() && UE::Landscape::IsVisibilityLayer(InfoLayerSettings.LayerInfoObj))
+							{
+								LayerInfoSettingsAllocatedIndex = GetVisibilityLayerAllocationIndex();
+							}
+
+							if (LayerInfoSettingsAllocatedIndex.IsSet())
+							{
+								LayerInfoObjects.Add(InfoLayerSettings.LayerInfoObj, LayerInfoSettingsAllocatedIndex.GetValue());
+								bHasWeightmapData = true;
+							}
+						}
 					}
 				}
 			}
@@ -7339,6 +7402,33 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 								DestDebugName = LandscapeScratchRT3->GetName();
 								ExecuteCopyLayersTexture({ FLandscapeLayersCopyTextureParams(SourceDebugName, BrushOutputRT->GameThread_GetRenderTargetResource(), DestDebugName, LandscapeScratchRT3->GameThread_GetRenderTargetResource()) });
 								PrintLayersDebugRT(FString::Printf(TEXT("LS Weight: %s Component %s += -> Combined %s"), *Layer.Name.ToString(), *BrushOutputRT->GetName(), *LandscapeScratchRT3->GetName()), LandscapeScratchRT3);
+							}
+						}
+
+						// Legacy global merge support for non-blueprint-brush renderers: allow edit layer to act as blueprint brush.
+						ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport* RenderCallAdapter = Cast<ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport>(Layer.EditLayer);
+						if (RenderCallAdapter)
+						{
+							FLandscapeBrushParameters BrushParameters = BuildLandscapeBrushParameters(
+								/*bIsHeightmapMerge = */false, LandscapeExtent, LandscapeScratchRT3, LayerInfoObj->LayerName);
+							
+							UTextureRenderTarget2D* BrushOutputRT = RenderCallAdapter->RenderAsBlueprintBrush(BrushParameters, GetTransform(),
+								// TODO: Someday this will be part of BrushParameters
+								LandscapeExtent.Max - LandscapeExtent.Min);
+
+							if (BrushOutputRT != nullptr && BrushOutputRT->SizeX == LandscapeScratchRT3->SizeX 
+								&& BrushOutputRT->SizeY == LandscapeScratchRT3->SizeY)
+							{
+								BrushRequiredAllocations.AddUnique(LayerInfoObj);
+
+								// Same conditional copy as for blueprint brushes
+								if (BrushOutputRT != LandscapeScratchRT3)
+								{
+									SourceDebugName = FString::Printf(TEXT("Weight: %s PaintLayer: %s Brush: %s"), *Layer.Name.ToString(), *LayerInfoObj->LayerName.ToString(), *BrushOutputRT->GetName());
+									DestDebugName = LandscapeScratchRT3->GetName();
+									ExecuteCopyLayersTexture({ FLandscapeLayersCopyTextureParams(SourceDebugName, BrushOutputRT->GameThread_GetRenderTargetResource(), DestDebugName, LandscapeScratchRT3->GameThread_GetRenderTargetResource()) });
+									PrintLayersDebugRT(FString::Printf(TEXT("LS Weight: %s Component %s += -> Combined %s"), *Layer.Name.ToString(), *BrushOutputRT->GetName(), *LandscapeScratchRT3->GetName()), LandscapeScratchRT3);
+								}
 							}
 						}
 
@@ -9327,14 +9417,14 @@ void ALandscape::DeleteLayer(int32 InLayerIndex)
 	ensure(HasLayersContent());
 
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
-	const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex);
-	if (!LandscapeInfo || !Layer)
+	const FLandscapeLayer* LayerStruct = GetLayerConst(InLayerIndex);
+	if (!LandscapeInfo || !LayerStruct)
 	{
 		return;
 	}
 
 	Modify();
-	FGuid LayerGuid = Layer->Guid;
+	FGuid LayerGuid = LayerStruct->Guid;
 
 	// Clean up Weightmap usage in LandscapeProxies
 	LandscapeInfo->ForEachLandscapeProxy([&LayerGuid](ALandscapeProxy* Proxy)
@@ -9343,8 +9433,18 @@ void ALandscape::DeleteLayer(int32 InLayerIndex)
 		return true;
 	});
 
+	// We're about to remove the layer from our list, which will invalidate our LayerStruct pointer.
+	// We'll need to call OnLayerRemoved afterward, though, so keep pointer to the UObject.
+	ULandscapeEditLayerBase* Layer = LayerStruct->EditLayer;
+
 	// Remove layer from list
 	LandscapeEditLayers.RemoveAt(InLayerIndex);
+	LayerStruct = nullptr;
+
+	if (Layer)
+	{
+		Layer->OnLayerRemoved();
+	}
 
 	// Request Update
 	RequestLayersContentUpdateForceAll();
@@ -9917,6 +10017,12 @@ void ALandscape::OnLayerCreatedInternal(FLandscapeLayer& Layer)
 {
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 	check(LandscapeInfo != nullptr); 
+
+	// TODO: Might not be necessary eventually, if EditLayer has ability to trigger landscape updates
+	// and has access to its guid.
+	Layer.EditLayer->SetBackPointer(this);
+	
+	Layer.EditLayer->SetFlags(RF_Transactional);
 
 	Layer.EditLayer->OnLayerCreated(Layer);
 

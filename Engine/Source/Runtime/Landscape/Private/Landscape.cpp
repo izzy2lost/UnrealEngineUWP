@@ -2875,8 +2875,12 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			}
 			check(Layer.EditLayer == nullptr);
 			Layer.EditLayer = NewObject<ULandscapeEditLayerBase>(this, EditLayerClass, MakeUniqueObjectName(this, EditLayerClass));
+			Layer.EditLayer->SetBackPointer(this);
 			Layer.EditLayer->OnLayerCreated(Layer);
 		}
+
+		// Empty the old property now that we've moved them over, else we'll accidentally keep references to brushes etc.
+		LandscapeLayers_DEPRECATED.Empty();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 

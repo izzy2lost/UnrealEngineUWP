@@ -19,16 +19,10 @@ class LANDSCAPEPATCH_API ULandscapeCircleHeightPatch : public ULandscapePatchCom
 
 public:
 
-	//TODO: For now the height patches have a similar interface to blueprint brushes, but this is likely to
-	// change. We are likely to pass a graph builder to the patches instead, along with an area that
-	// we want affected.
-	virtual void Initialize_Native(const FTransform& InLandscapeTransform, 
-		const FIntPoint& InLandscapeSize, 
-		const FIntPoint& InLandscapeRenderTargetSize) override;
+	virtual UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters, const FTransform& HeightmapToWorld) override;
 
-	virtual UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters) override;
-
-	virtual bool AffectsVisibilityLayer() const override { return bEditVisibility; }
+	virtual bool CanAffectHeightmap() const override { return !bEditVisibility; }
+	virtual bool CanAffectVisibilityLayer() const override { return bEditVisibility; }
 
 	// UActorComponent
 	virtual void OnComponentCreated() override;

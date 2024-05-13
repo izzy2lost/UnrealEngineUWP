@@ -201,8 +201,6 @@ protected:
 	// TODO: We could support having different per-layer falloff modes and falloff amounts as well, as
 	// additional override members. But probably better to wait to see if that is actually desired.
 
-	// TODO: Like the similar flag for the height patch, this might not work once local merge works
-	// with landscape brushes...
 	bool bReinitializeOnNextRender = false;
 
 	void SetSourceMode(ELandscapeTexturePatchSourceMode NewMode);
@@ -223,12 +221,14 @@ class LANDSCAPEPATCH_API ULandscapeTexturePatch : public ULandscapePatchComponen
 public:
 
 #if WITH_EDITOR
-	UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters);
 
 	// ULandscapePatchComponent
-	virtual bool AffectsWeightmapLayer(const FName& InLayerName) const override;
-	virtual bool AffectsVisibilityLayer() const override;
-	virtual bool IsEnabled() const override;
+	UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters, const FTransform& HeightmapToWorld) override;
+	virtual bool CanAffectHeightmap() const override;
+	virtual bool CanAffectWeightmap() const override;
+	virtual bool CanAffectWeightmapLayer(const FName& InLayerName) const override;
+	virtual bool CanAffectVisibilityLayer() const override;
+	virtual void GetRenderDependencies(TSet<UObject*>& OutDependencies) const override;
 
 	// UActorComponent
 	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
@@ -319,8 +319,9 @@ public:
 	virtual ELandscapeTexturePatchSourceMode GetHeightSourceMode() const { return HeightSourceMode; }
 
 	/**
-	 * Changes source mode. When changing between sources, existing data is copied from one to the other
-	 * when possible.
+	 * Changes source mode. There are currently no API guarantees regarding the initialization of the
+	 * new source data. E.g. when first switching to use an internal render target, the data in that
+	 * render target may not be initialized.
 	 */
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	virtual void SetHeightSourceMode(ELandscapeTexturePatchSourceMode NewMode);
@@ -560,11 +561,11 @@ protected:
 	/**
 	 * Given the current initialization settings, reinitialize the height patch.
 	 */
-	UFUNCTION(CallInEditor, Category = HeightPatch)
-	void ReinitializeHeight();
+	UFUNCTION(CallInEditor, Category = HeightPatch, meta = (DisplayName= "Reinitialize Height"))
+	void RequestReinitializeHeight();
 
-	UFUNCTION(CallInEditor, Category = WeightPatches)
-	void ReinitializeWeights();
+	UFUNCTION(CallInEditor, Category = WeightPatches, meta = (DisplayName = "Reinitialize Weights"))
+	void RequestReinitializeWeights();
 
 	bool bReinitializeHeightOnNextRender = false;
 
@@ -611,22 +612,27 @@ private:
 #if WITH_EDITOR
 	void TransitionHeightSourceModeInternal(ELandscapeTexturePatchSourceMode OldMode, ELandscapeTexturePatchSourceMode NewMode);
 	FLandscapeHeightPatchConvertToNativeParams GetHeightConvertToNativeParams() const;
-	UTextureRenderTarget2D* ApplyToHeightmap(UTextureRenderTarget2D* InCombinedResult);
-	UTextureRenderTarget2D* ApplyToWeightmap(ULandscapeWeightPatchTextureInfo* PatchInfo, UTextureRenderTarget2D* InCombinedResult);
+	UTextureRenderTarget2D* ApplyToHeightmap(UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
+	UTextureRenderTarget2D* ApplyToWeightmap(ULandscapeWeightPatchTextureInfo* PatchInfo, 
+		UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
 
-	void GetCommonShaderParams(const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn, 
+	void GetCommonShaderParams(const FTransform& LandscapeHeightmapToWorldIn, 
+		const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
 		FTransform& PatchToWorldOut, FVector2f& PatchWorldDimensionsOut, FMatrix44f& HeightmapToPatchOut, 
 		FIntRect& DestinationBoundsOut, FVector2f& EdgeUVDeadBorderOut, float& FalloffWorldMarginOut) const;
-	void GetHeightShaderParams(const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
+	void GetHeightShaderParams(const FTransform& LandscapeHeightmapToWorldIn, 
+		const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
 		UE::Landscape::FApplyLandscapeTextureHeightPatchPS::FParameters& ParamsOut, FIntRect& DestinationBoundsOut) const;
-	void GetWeightShaderParams(const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
-		const ULandscapeWeightPatchTextureInfo* WeightPatchInfo, 
+	void GetWeightShaderParams(const FTransform& LandscapeHeightmapToWorldIn, const FIntPoint& SourceResolutionIn, 
+		const FIntPoint& DestinationResolutionIn, const ULandscapeWeightPatchTextureInfo* WeightPatchInfo, 
 		UE::Landscape::FApplyLandscapeTextureWeightPatchPS::FParameters& ParamsOut, FIntRect& DestinationBoundsOut) const;
-	FMatrix44f GetPatchToHeightmapUVs(int32 PatchSizeX, int32 PatchSizeY, int32 HeightmapSizeX, int32 HeightmapSizeY) const;
-	void ReinitializeHeight(UTextureRenderTarget2D* InCombinedResult);
-	void ReinitializeWeightPatch(ULandscapeWeightPatchTextureInfo* PatchInfo, UTextureRenderTarget2D* InCombinedResult);
+	FMatrix44f GetPatchToHeightmapUVs(const FTransform& LandscapeHeightmapToWorld, int32 PatchSizeX, int32 PatchSizeY, int32 HeightmapSizeX, int32 HeightmapSizeY) const;
+	void ReinitializeHeight(UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
+	void ReinitializeWeightPatch(ULandscapeWeightPatchTextureInfo* PatchInfo, UTextureRenderTarget2D* InCombinedResult, 
+		const FTransform& LandscapeHeightmapToWorld);
 
 	void MakeSureInternalDataIsAllocated();
+	void ResetHeightRenderTargetFormat();
 #endif // WITH_EDITOR
 
 	UPROPERTY(EditDefaultsOnly, Category = Settings)

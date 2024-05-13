@@ -40,26 +40,14 @@ void ULandscapeCircleHeightPatch::OnComponentCreated()
 	}
 }
 
-void ULandscapeCircleHeightPatch::Initialize_Native(const FTransform & InLandscapeTransform,
-	const FIntPoint& InLandscapeSize,
-	const FIntPoint& InLandscapeRenderTargetSize)
+UTextureRenderTarget2D* ULandscapeCircleHeightPatch::RenderLayer_Native(const FLandscapeBrushParameters& InParameters, const FTransform& HeightmapCoordsToWorld)
 {
-}
-
-UTextureRenderTarget2D* ULandscapeCircleHeightPatch::RenderLayer_Native(const FLandscapeBrushParameters& InParameters)
-{
-	if (!ensure(PatchManager.IsValid()))
-	{
-		return InParameters.CombinedResult;
-	}
-
 	// Circle height patch doesn't affect regular weightmap layers.
 	if ((bEditVisibility && (InParameters.LayerType != ELandscapeToolTargetType::Visibility)) || (!bEditVisibility && (InParameters.LayerType != ELandscapeToolTargetType::Heightmap)))
 	{
 		return InParameters.CombinedResult;
 	}
 
-	FTransform HeightmapCoordsToWorld = PatchManager->GetHeightmapCoordsToWorld();
 	double ToHeightmapRadiusScale = GetComponentTransform().GetScale3D().X / HeightmapCoordsToWorld.GetScale3D().X;
 	FVector3d CircleCenterWorld = GetComponentTransform().GetTranslation();
 	FVector3d CenterInHeightmapCoordinates = HeightmapCoordsToWorld.InverseTransformPosition(CircleCenterWorld);

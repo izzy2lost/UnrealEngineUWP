@@ -2,19 +2,19 @@
 
 #pragma once
 
-#include "HAL/Platform.h"
+#include "Math/MathFwd.h" // FTransform
 
 class FRHICommandListImmediate;
 class FTextureResource;
 
-namespace UE {
-namespace Landscape {
-namespace PatchUtil {
+namespace UE:: Landscape::PatchUtil 
+{
+	void CopyTextureOnRenderThread(FRHICommandListImmediate& RHICmdList, const FTextureResource& Source, FTextureResource& Destination);
 
-	void LANDSCAPEPATCH_API CopyTextureOnRenderThread(FRHICommandListImmediate& RHICmdList, const FTextureResource& Source, FTextureResource& Destination);
+	/**
+	 * Given a landscape transform, gives a transform from heightmap coordinates (where the Z value is the
+	 * two byte integer value stored as the height) to world coordinates.
+	 */
+	FTransform GetHeightmapToWorld(const FTransform& InLandscapeTransform);
 
-}}}//end UE::Landscape::PatchUtil
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif
+}//end UE::Landscape::PatchUtil
