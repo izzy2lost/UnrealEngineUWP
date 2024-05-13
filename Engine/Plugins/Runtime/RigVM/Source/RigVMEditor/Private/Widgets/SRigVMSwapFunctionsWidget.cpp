@@ -557,7 +557,7 @@ void SRigVMSwapFunctionsWidget::Construct(const FArguments& InArgs)
 		Phase->GetContext()->Filters.Add(FRigVMTreeSourceFunctionFilter::Create());
 
 		Phase->SetNodes(GetFunctionRefNodes(InArgs));
-		Phase->PrimaryButtonText().Set(LOCTEXT("SwapFunctions", "SwapFunctions"));
+		Phase->PrimaryButtonText().Set(LOCTEXT("SwapFunctions", "Swap Functions"));
 		Phase->IsPrimaryButtonVisible().BindLambda([this]()
 		{
 			return true;
