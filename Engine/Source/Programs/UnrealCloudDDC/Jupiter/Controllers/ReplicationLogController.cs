@@ -123,6 +123,7 @@ namespace Jupiter.Controllers
 				return BadRequest(new ProblemDetails
 				{
 					Title = $"No snapshot or bucket found for namespace \"{ns}\"",
+					Type = ProblemTypes.NoDataFound,
 				});
 			}
 			catch (NamespaceNotFoundException)

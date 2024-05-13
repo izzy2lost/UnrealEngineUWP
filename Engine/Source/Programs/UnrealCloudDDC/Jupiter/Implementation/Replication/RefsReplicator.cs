@@ -694,6 +694,10 @@ namespace Jupiter.Implementation
 						throw new UseSnapshotException(snapshotBlob, blobNamespace!.Value);
 					}
 
+					if (problemDetails.Type == ProblemTypes.NoDataFound)
+					{
+						yield break;
+					}
 					throw new Exception($"Unknown bad request response. Body: {body}");
 				}
 
