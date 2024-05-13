@@ -2033,7 +2033,7 @@ void UAssetRegistryImpl::WaitForCompletion()
 		{
 			if (Status == EGatherStatus::UnableToProgress)
 			{
-				UE_LOG(LogAssetRegistry, Warning,
+				UE_LOG(LogAssetRegistry, Display,
 					TEXT("UAssetRegistryImpl::WaitForCompletion exiting without completing because TickGatherer returned UnableToProgress. IsInGameThread() == %s"),
 					IsInGameThread() ? TEXT("TRUE") : TEXT("FALSE"));
 			}
