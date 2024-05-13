@@ -39,7 +39,6 @@ inline FString ToLogString(double Value);
 template <typename T> std::enable_if_t<!TModels_V<Meta::COnlineMetadataAvailable, T>, FString> ToLogString(const T& Value);
 template <typename T> std::enable_if_t<TModels_V<Meta::COnlineMetadataAvailable, T>, FString> ToLogString(const T& Value);
 ONLINESERVICESINTERFACE_API FString ToLogString(const FDateTime& Time);
-ONLINESERVICESINTERFACE_API void LexFromString(FDateTime& Result, const TCHAR* Input);
 
 template <typename T>
 FString ToLogString(const TArray<T>& Array)

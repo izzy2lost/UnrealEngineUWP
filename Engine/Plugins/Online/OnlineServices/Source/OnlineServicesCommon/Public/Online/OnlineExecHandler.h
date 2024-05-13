@@ -3,6 +3,7 @@
 #pragma once
 
 #include "HAL/IConsoleManager.h"
+#include "Misc/DateTime.h"
 #include "Online/OnlineAsyncOpHandle.h"
 #include "Online/OnlineServicesLog.h"
 #include "Online/OnlineResult.h"
@@ -115,6 +116,7 @@ inline bool ParseOnlineExecParams(const TCHAR*& Cmd, uint32& Value, IOnlineServi
 inline bool ParseOnlineExecParams(const TCHAR*& Cmd, int64& Value, IOnlineServices* Services = nullptr);
 inline bool ParseOnlineExecParams(const TCHAR*& Cmd, uint64& Value, IOnlineServices* Services = nullptr);
 inline bool ParseOnlineExecParams(const TCHAR*& Cmd, bool& Value, IOnlineServices* Services = nullptr);
+inline bool ParseOnlineExecParams(const TCHAR*& Cmd, FDateTime& Value, IOnlineServices* Services = nullptr);
 template <typename T> inline bool ParseOnlineExecParams(const TCHAR*& Cmd, TArray<T>& Array, IOnlineServices* Services = nullptr);
 template <typename T, typename U> inline bool ParseOnlineExecParams(const TCHAR*& Cmd, TMap<T, U>& Map, IOnlineServices* Services = nullptr);
 template <typename T> inline bool ParseOnlineExecParams(const TCHAR*& Cmd, TSet<T>& Set, IOnlineServices* Services = nullptr);
@@ -368,6 +370,19 @@ inline bool ParseOnlineExecParams(const TCHAR*& Cmd, bool& Value, IOnlineService
 	}
 
 	return true;
+}
+
+inline bool ParseOnlineExecParams(const TCHAR*& Cmd, FDateTime& Value, IOnlineServices* Services)
+{
+	FString Token;
+	if (FParse::Token(Cmd, Token, true))
+	{
+		return FDateTime::Parse(Token, Value);
+	}
+	else
+	{
+		return false;
+	}
 }
 
 inline bool ParseOnlineExecParams(const TCHAR*& Cmd, FPlatformUserId& Value, IOnlineServices* Services)

@@ -11,9 +11,4 @@ FString ToLogString(const FDateTime& Time)
 	return Time.ToString();
 }
 
-void LexFromString(FDateTime& Result, const TCHAR* Input)
-{
-	FDateTime::Parse(Input, Result);
-}
-
 }
