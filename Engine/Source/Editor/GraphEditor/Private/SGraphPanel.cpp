@@ -1506,7 +1506,7 @@ void SGraphPanel::MoveNodesToAnchorPinAtGraphPosition(TArrayView<UEdGraphNode* c
 				if (bNodeNeedsPrepass || bNoDesiredSize)
 				{
 					const int32 ChildIndex = Panel->Children.Find(OwningNodeWidget.ToSharedRef());
-					const float SelfLayoutScaleMultiplier = Panel->PrepassLayoutScaleMultiplier.Get(1.f);
+					const float SelfLayoutScaleMultiplier = Panel->GetPrepassLayoutScaleMultiplier();
 					const float ChildLayoutScaleMultiplier = Panel->bHasRelativeLayoutScale
 								? SelfLayoutScaleMultiplier * Panel->GetRelativeLayoutScale(ChildIndex, SelfLayoutScaleMultiplier)
 								: SelfLayoutScaleMultiplier;
@@ -2148,7 +2148,7 @@ void SGraphPanel::AddNode(UEdGraphNode* Node, AddNodeBehavior Behavior)
 	// We also need to take a bit of care to pass through the same layout scale multiplier as Prepass_ChildLoop() would have so that the zoom level
 	// scale is used, otherwise you'd still get a single frame of jitter while the graph is zoomed out.
 	const int32 ChildIndex = Children.Num() - 1;
-	const float SelfLayoutScaleMultiplier = PrepassLayoutScaleMultiplier.Get(1.f);
+	const float SelfLayoutScaleMultiplier = GetPrepassLayoutScaleMultiplier();
 	const float ChildLayoutScaleMultiplier = bHasRelativeLayoutScale
 		? SelfLayoutScaleMultiplier * GetRelativeLayoutScale(ChildIndex, SelfLayoutScaleMultiplier)
 		: SelfLayoutScaleMultiplier;

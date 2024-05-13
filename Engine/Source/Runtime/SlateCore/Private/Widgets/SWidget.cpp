@@ -226,6 +226,8 @@ SWidget::SWidget()
 	, bIsDeclarativeSyntaxConstructionCompleted(false)
 	, bIsHoveredAttributeSet(false)
 	, bHasActiveTimers(false)
+	, bDesiredSizeSet(false)
+	, bPrepassLayoutScaleMultiplierSet(false)
 	, bHasCustomPrepass(false)
 	, bHasRelativeLayoutScale(false)
 	, bVolatilityAlwaysInvalidatesPrepass(false)
@@ -239,10 +241,11 @@ SWidget::SWidget()
 	, FlowDirectionPreference(EFlowDirectionPreference::Inherit)
 	// Note we are defaulting to tick for backwards compatibility
 	, UpdateFlags(EWidgetUpdateFlags::NeedsTick)
-	, DesiredSize()
 	, VisibilityAttribute(*this, EVisibility::Visible)
 	, EnabledStateAttribute(*this, true)
 	, HoveredAttribute(*this, false)
+	, PrepassLayoutScaleMultiplierValue(1.0f)
+	, DesiredSize(FVector2f(0.0f, 0.0f))
 	, RenderTransformPivotAttribute(*this, FVector2D::ZeroVector)
 	, RenderTransformAttribute(*this)
 	, CullingBoundsExtension()
@@ -267,6 +270,7 @@ SWidget::SWidget()
 	UE_TRACE_SLATE_WIDGET_ADDED(this);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 SWidget::~SWidget()
 {
 #if WITH_SLATE_DEBUGGING
@@ -327,6 +331,7 @@ SWidget::~SWidget()
 	DEC_DWORD_STAT(STAT_SlateTotalWidgets);
 	DEC_MEMORY_STAT_BY(STAT_SlateSWidgetAllocSize, AllocSize);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void SWidget::SWidgetConstruct(const FSlateBaseNamedArgs& Args)
 {
@@ -712,7 +717,7 @@ void SWidget::InvalidateChildRemovedFromTree(SWidget& Child)
 
 UE::Slate::FDeprecateVector2DResult SWidget::GetDesiredSize() const
 {
-	return UE::Slate::FDeprecateVector2DResult(DesiredSize.Get(FVector2f::ZeroVector));
+	return bDesiredSizeSet ? UE::Slate::FDeprecateVector2DResult(DesiredSize) : FVector2f::ZeroVector;
 }
 
 void SWidget::AssignParentWidget(TSharedPtr<SWidget> InParent)
@@ -1268,7 +1273,7 @@ void SWidget::Invalidate(EInvalidateWidgetReason InvalidateReason)
 		InvalidateReason |= EInvalidateWidgetReason::Layout;
 	}
 
-	if (EnumHasAnyFlags(InvalidateReason, EInvalidateWidgetReason::ChildOrder) || !PrepassLayoutScaleMultiplier.IsSet())
+	if (EnumHasAnyFlags(InvalidateReason, EInvalidateWidgetReason::ChildOrder) || !bPrepassLayoutScaleMultiplierSet)
 	{
 		MarkPrepassAsDirty();
 		InvalidateReason |= EInvalidateWidgetReason::Prepass;
@@ -1726,7 +1731,8 @@ void SWidget::ArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildr
 
 void SWidget::Prepass_Internal(float InLayoutScaleMultiplier)
 {
-	PrepassLayoutScaleMultiplier = InLayoutScaleMultiplier;
+	PrepassLayoutScaleMultiplierValue = InLayoutScaleMultiplier;
+	bPrepassLayoutScaleMultiplierSet = true;
 
 	bool bShouldPrepassChildren = true;
 	if (bHasCustomPrepass)
@@ -1746,7 +1752,7 @@ void SWidget::Prepass_Internal(float InLayoutScaleMultiplier)
 
 	{
 		// Cache this widget's desired size.
-		CacheDesiredSize(PrepassLayoutScaleMultiplier.Get(1.0f));
+		CacheDesiredSize(GetPrepassLayoutScaleMultiplier());
 		bNeedsPrepass = false;
 	}
 }
@@ -1793,9 +1799,10 @@ void SWidget::Prepass_ChildLoop(float InLayoutScaleMultiplier, FChildren* MyChil
 			// it is finally visible and invalidate it's prepass so that it gets that when its visibility
 			// is finally invalidated.
 			Child.MarkPrepassAsDirty();
-			Child.PrepassLayoutScaleMultiplier = Self->bHasRelativeLayoutScale
+			Child.PrepassLayoutScaleMultiplierValue = Self->bHasRelativeLayoutScale
 				? InLayoutScaleMultiplier * Self->GetRelativeLayoutScale(ChildIndex, InLayoutScaleMultiplier)
 				: InLayoutScaleMultiplier;
+			Child.bPrepassLayoutScaleMultiplierSet = true;
 		}
 		++ChildIndex;
 	};

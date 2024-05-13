@@ -43,6 +43,7 @@ struct FLogAllWidgetsDebugInfoFlags
 	bool bSlateAttribute = false;
 	bool bMouseEventsHandler = false;
 	bool bActiveTimers = false;
+	bool bRenderTransform = false;
 
 	void Parse(const FString& Arg)
 	{
@@ -95,6 +96,11 @@ struct FLogAllWidgetsDebugInfoFlags
 		{
 			return;
 		}
+		
+		if (FParse::Bool(*Arg, TEXT("RenderTransform="), bRenderTransform))
+		{
+			return;
+		}
 	}
 };
 
@@ -142,6 +148,10 @@ void LogAllWidgetsDebugInfoImpl(FOutputDevice& Ar, const FLogAllWidgetsDebugInfo
 	if (DebugInfoFlags.bActiveTimers)
 	{
 		MessageBuilder << TEXT(";HasActiveTimers");
+	}
+	if (DebugInfoFlags.bRenderTransform)
+	{
+		MessageBuilder << TEXT(";RenderTransformSet;RenderTransformPivot");
 	}
 
 	Ar.Log(MessageBuilder.ToString());
@@ -296,6 +306,12 @@ void LogAllWidgetsDebugInfoImpl(FOutputDevice& Ar, const FLogAllWidgetsDebugInfo
 		if (DebugInfoFlags.bActiveTimers)
 		{
 			MessageBuilder << (Widget->HasActiveTimers() ? TEXT(";true") : TEXT(";false"));
+		}
+		
+		if (DebugInfoFlags.bRenderTransform)
+		{
+			MessageBuilder << (Widget->GetRenderTransform().IsSet() ? TEXT(";true") : TEXT(";false"));
+			MessageBuilder.Appendf(TEXT("%f,%f;"), Widget->GetRenderTransformPivot().X, Widget->GetRenderTransformPivot().Y);
 		}
 
 		Ar.Log(MessageBuilder.ToString());

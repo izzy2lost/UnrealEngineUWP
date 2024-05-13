@@ -141,11 +141,11 @@ void FWidgetProxy::ProcessLayoutInvalidation(FSlateInvalidationWidgetPostHeap& U
 	{
 		if (WidgetPtr->NeedsPrepass())
 		{
-			WidgetPtr->SlatePrepass(WidgetPtr->PrepassLayoutScaleMultiplier.Get(1.0f));
+			WidgetPtr->SlatePrepass(WidgetPtr->GetPrepassLayoutScaleMultiplier());
 		}
 		else
 		{
-			WidgetPtr->CacheDesiredSize(WidgetPtr->PrepassLayoutScaleMultiplier.Get(1.0f));
+			WidgetPtr->CacheDesiredSize(WidgetPtr->GetPrepassLayoutScaleMultiplier());
 		}
 
 		NewDesiredSize = WidgetPtr->GetDesiredSize();
@@ -191,7 +191,7 @@ bool FWidgetProxy::ProcessPostInvalidation(FSlateInvalidationWidgetPostHeap& Upd
 	bool bWidgetNeedsRepaint = false;
 	SWidget* WidgetPtr = GetWidget();
 
-	if (Visibility.IsVisible() && ParentIndex != FSlateInvalidationWidgetIndex::Invalid && !WidgetPtr->PrepassLayoutScaleMultiplier.IsSet())
+	if (Visibility.IsVisible() && ParentIndex != FSlateInvalidationWidgetIndex::Invalid && !WidgetPtr->bPrepassLayoutScaleMultiplierSet)
 	{
 		SCOPE_CYCLE_SWIDGET(WidgetPtr);
 		// If this widget has never been prepassed make sure the parent prepasses it to set the correct multiplier

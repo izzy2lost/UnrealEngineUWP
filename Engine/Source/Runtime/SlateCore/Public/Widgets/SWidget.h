@@ -738,6 +738,7 @@ private:
 	void SetDesiredSize(const FVector2D& InDesiredSize)
 	{
 		DesiredSize = FVector2f(InDesiredSize);
+		bDesiredSizeSet = true;
 	}
 
 #if STATS || ENABLE_STATNAMEDEVENTS
@@ -1272,8 +1273,29 @@ public:
 	}
 
 	/** Gets the desired flow direction for the layout. */
-	EFlowDirectionPreference GetFlowDirectionPreference() const { return FlowDirectionPreference; }
+	EFlowDirectionPreference GetFlowDirectionPreference() const
+	{
+		return FlowDirectionPreference;
+	}
 
+protected:
+	/** Establishes a new flow direction potentially, if this widget has a particular preference for it and all its children. */
+	EFlowDirection ComputeFlowDirection() const
+	{
+		switch (FlowDirectionPreference)
+		{
+		case EFlowDirectionPreference::Culture:
+			return FLayoutLocalization::GetLocalizedLayoutDirection();
+		case EFlowDirectionPreference::LeftToRight:
+			return EFlowDirection::LeftToRight;
+		case EFlowDirectionPreference::RightToLeft:
+			return EFlowDirection::RightToLeft;
+		}
+
+		return GSlateFlowDirection;
+	}
+
+public:
 	/** Set the tool tip that should appear when this widget is hovered. */
 	SLATECORE_API void SetToolTipText(const TAttribute<FText>& ToolTipText);
 
@@ -1295,7 +1317,6 @@ protected:
 	SLATECORE_API virtual TOptional<EMouseCursor::Type> GetCursor() const;
 
 public:
-
 	/**
 	 * Get the metadata of the type provided.
 	 * @return the first metadata of the type supplied that we encounter
@@ -1605,8 +1626,10 @@ private:
 	SLATECORE_API void Prepass_Internal(float LayoutScaleMultiplier);
 
 protected:
-
-	float GetPrepassLayoutScaleMultiplier() const { return PrepassLayoutScaleMultiplier.Get(1.0f); }
+	float GetPrepassLayoutScaleMultiplier() const
+	{
+		return bPrepassLayoutScaleMultiplierSet ? PrepassLayoutScaleMultiplierValue : 1.0f;
+	}
 	
 	SLATECORE_API void Prepass_ChildLoop(float InLayoutScaleMultiplier, FChildren* MyChildren);
 
@@ -1734,6 +1757,12 @@ private:
 	/** Is there at least one ActiveTimer currently registered. */
 	uint8 bHasActiveTimers : 1;
 
+	/** Is the DesiredSize set. */
+	uint8 bDesiredSizeSet : 1;
+
+	/** Is the PrepassLayoutScaleMultiplier set. */
+	uint8 bPrepassLayoutScaleMultiplierSet : 1;
+
 protected:
 	uint8 bHasCustomPrepass : 1;
 
@@ -1761,35 +1790,12 @@ protected:
 	 */
 	EWidgetPixelSnapping PixelSnappingMethod;
 
-protected:
-	/** Establishes a new flow direction potentially, if this widget has a particular preference for it and all its children. */
-	EFlowDirection ComputeFlowDirection() const
-	{
-		switch (FlowDirectionPreference)
-		{
-		case EFlowDirectionPreference::Culture:
-			return FLayoutLocalization::GetLocalizedLayoutDirection();
-		case EFlowDirectionPreference::LeftToRight:
-			return EFlowDirection::LeftToRight;
-		case EFlowDirectionPreference::RightToLeft:
-			return EFlowDirection::RightToLeft;
-		}
-
-		return GSlateFlowDirection;
-	}
-
 private:
-
 	/** Flow direction preference */
 	EFlowDirectionPreference FlowDirectionPreference;
 
 	/** The different updates this widget needs next frame. */
 	EWidgetUpdateFlags UpdateFlags;
-
-	mutable FSlateWidgetPersistentState PersistentState;
-
-	/** Stores the ideal size this widget wants to be. */
-	TOptional<FVector2f> DesiredSize;
 
 	/** Is this widget visible, hidden or collapsed */
 	TSlateAttribute<EVisibility> VisibilityAttribute;
@@ -1800,6 +1806,14 @@ private:
 	/** Whether or not this widget is hovered */
 	TSlateAttribute<bool> HoveredAttribute;
 
+	//~ See PrepassLayoutScaleMultiplier
+	float PrepassLayoutScaleMultiplierValue;
+
+	mutable FSlateWidgetPersistentState PersistentState;
+
+	/** Stores the ideal size this widget wants to be. See bDesiredSizeSet. */
+	FVector2f DesiredSize;
+
 	/** Render transform pivot of this widget (in normalized local space) */
 	TSlateAttribute<FVector2D> RenderTransformPivotAttribute;
 
@@ -1807,8 +1821,6 @@ private:
 	TSlateAttribute<TOptional<FSlateRenderTransform>> RenderTransformAttribute;
 
 protected:
-
-	TOptional<float> PrepassLayoutScaleMultiplier;
 	/**
 	* Can be used to enlarge the culling bounds of this widget (pre-intersection), this can be useful if you've got
 	* children that you know are using rendering transforms to render outside their standard bounds, if that happens
@@ -1833,12 +1845,24 @@ private:
 	/** Debugging information on the type of widget we're creating for the Widget Reflector. */
 	FName TypeOfWidget;
 
-private: 
+protected:
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Direct access to PrepassLayoutScaleMultiplier is deprecated. Use the GetPrepassLayoutScaleMultiplier. The scale multitplier can only be set in the prepass.")
+	TOptional<float> PrepassLayoutScaleMultiplier;
+#endif
 
+private: 
 #if !UE_BUILD_SHIPPING
 	/** Full file path (and line) in which this widget was created */
 	FName CreatedInLocation;
 #endif
+
+#if WITH_SLATE_DEBUGGING
+	/** The last time this widget got painted. */
+	uint32 LastPaintFrame = 0;
+	/** Flag to help detect when we access an invalid Widget. */
+	uint8 Debug_DestroyedTag = 0xDC;
+#endif // WITH_SLATE_DEBUGGING
 
 #if UE_SLATE_TRACE_ENABLED
 	/**
@@ -1848,13 +1872,6 @@ private:
 	 */
 	mutable uint8 Debug_LastTraceInfoSent = 0;
 #endif // UE_SLATE_TRACE_ENABLED
-
-#if WITH_SLATE_DEBUGGING
-	/** The last time this widget got painted. */
-	uint32 LastPaintFrame = 0;
-	/** Flag to help detect when we access an invalid Widget. */
-	uint8 Debug_DestroyedTag = 0xDC;
-#endif // WITH_SLATE_DEBUGGING
 
 #if UE_SLATE_WITH_WIDGET_UNIQUE_IDENTIFIER
 	/** The widget's id */
