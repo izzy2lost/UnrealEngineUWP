@@ -1019,14 +1019,13 @@ void UObjectBaseInit()
 		// Maximum number of UObjects in the editor
 		GConfig->GetInt(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.MaxObjectsInEditor"), MaxUObjects, GEngineIni);
 #endif
-
-		GUObjectAllocator.DisablePersistentAllocator();
 	}
 
-#if IS_PROGRAM
-	// always disable peristent allocator for programs even if they require cooked data
-	GUObjectAllocator.DisablePersistentAllocator();
-#endif
+	if (!MaxObjectsNotConsideredByGC)
+	{
+		//Disable persistent UObjects pool if there are 0 objects not considered by GC
+		GUObjectAllocator.DisablePersistentAllocator();
+	}
 
 	// Log what we're doing to track down what really happens as log in LaunchEngineLoop doesn't report those settings in pristine form.
 	UE_LOG(LogInit, Log, TEXT("%s for max %d objects, including %i objects not considered by GC."), 
