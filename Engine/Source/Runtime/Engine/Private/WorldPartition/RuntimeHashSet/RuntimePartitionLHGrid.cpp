@@ -73,6 +73,20 @@ struct FCellCoord
 
 FCellCoord FCellCoord::Invalid(0, 0, 0, -1);
 
+bool URuntimePartitionLHGrid::CanEditChange(const FProperty* InProperty) const
+{
+	if (InProperty)
+	{
+		const FString PropertyName = InProperty->GetName();
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(URuntimePartitionLHGrid, bIs2D))
+		{
+			return HLODIndex == INDEX_NONE;
+		}
+	}
+
+	return Super::CanEditChange(InProperty);
+}
+
 static bool GPackageWasDirty = false;
 void URuntimePartitionLHGrid::PreEditChange(FProperty* InPropertyAboutToChange)
 {
@@ -124,6 +138,14 @@ void URuntimePartitionLHGrid::InitHLODRuntimePartitionFrom(const URuntimePartiti
 	Super::InitHLODRuntimePartitionFrom(InRuntimePartition, InHLODIndex);
 	const URuntimePartitionLHGrid* RuntimePartitionLHGrid = CastChecked<const URuntimePartitionLHGrid>(InRuntimePartition);
 	CellSize = RuntimePartitionLHGrid->CellSize * 2;
+	bIs2D = RuntimePartitionLHGrid->bIs2D;
+}
+
+void URuntimePartitionLHGrid::UpdateHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition)
+{
+	Super::UpdateHLODRuntimePartitionFrom(InRuntimePartition);
+	const URuntimePartitionLHGrid* RuntimePartitionLHGrid = CastChecked<const URuntimePartitionLHGrid>(InRuntimePartition);
+	bIs2D = RuntimePartitionLHGrid->bIs2D;
 }
 
 void URuntimePartitionLHGrid::SetDefaultValues()

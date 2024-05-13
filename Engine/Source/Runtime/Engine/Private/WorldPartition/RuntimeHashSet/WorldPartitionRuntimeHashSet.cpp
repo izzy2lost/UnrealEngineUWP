@@ -971,6 +971,20 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 			}
 		}
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FRuntimePartitionDesc, MainLayer))
+	{
+		int32 RuntimePartitionIndex = PropertyChangedEvent.GetArrayIndex(NAME_RuntimePartitions.ToString());
+		if (RuntimePartitions.IsValidIndex(RuntimePartitionIndex))
+		{
+			for (const FRuntimePartitionHLODSetup& HLODSetup : RuntimePartitions[RuntimePartitionIndex].HLODSetups)
+			{
+				if (HLODSetup.PartitionLayer)
+				{
+					HLODSetup.PartitionLayer->UpdateHLODRuntimePartitionFrom(RuntimePartitions[RuntimePartitionIndex].MainLayer);
+				}
+			}
+		}
+	}
 }
 
 void UWorldPartitionRuntimeHashSet::PostDuplicate(EDuplicateMode::Type DuplicateMode)
