@@ -160,8 +160,8 @@ FOutcome FHost::Connect(FTlsPeer& Peer)
 		return Outcome;
 	}
 
-	FSslContext SslContext(HostName, VerifyCert);
-	Peer = FTlsPeer(MoveTemp(Socket), &SslContext);
+	FSslContext SslContext(VerifyCert);
+	Peer = FTlsPeer(MoveTemp(Socket), &SslContext, HostName);
 	return Outcome;
 }
 
