@@ -704,7 +704,7 @@ void FUnrealMutableImageProvider::CacheRuntimeReferencedImages(const TSharedRef<
 			continue;
 		}
 
-		ModelImages.SourceTextures.Emplace(*Texture);
+		ModelImages.SourceTextures.Emplace(*Texture); // Perform a CopyTornOff. Once done, we no longer need the texture loaded.
 	}
 }
 #endif
