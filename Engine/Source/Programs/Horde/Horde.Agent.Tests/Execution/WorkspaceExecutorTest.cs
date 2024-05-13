@@ -10,6 +10,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
 using Horde.Agent.Execution;
 using Horde.Agent.Services;
+using Horde.Agent.Utility;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
@@ -53,7 +54,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 		_workspace.SetFile(1, "foo/bar/baz.h", "baz");
 
 		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, _jobId, _batchId, batch, null!, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, null, null!, _jobId, _batchId, batch, null!, new RpcJobOptions());
 		_executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 	}
 

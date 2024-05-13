@@ -50,7 +50,7 @@ namespace Horde.Agent.Utility
 		/// <summary>
 		/// Terminate processes matching certain criteria
 		/// </summary>
-		public static Task TerminateProcessesAsync(TerminateCondition condition, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate, ILogger logger, CancellationToken cancellationToken)
+		public static Task TerminateProcessesAsync(TerminateCondition condition, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition>? processNamesToTerminate, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Terminate child processes from any previous runs
 			ProcessUtils.TerminateProcesses(x => ShouldTerminateProcess(x, condition, workingDir, processNamesToTerminate), logger, cancellationToken);
@@ -60,19 +60,22 @@ namespace Horde.Agent.Utility
 		/// <summary>
 		/// Callback for determining whether a process should be terminated
 		/// </summary>
-		static bool ShouldTerminateProcess(FileReference imageFile, TerminateCondition condition, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
+		static bool ShouldTerminateProcess(FileReference imageFile, TerminateCondition condition, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition>? processNamesToTerminate)
 		{
 			if (imageFile.IsUnderDirectory(workingDir))
 			{
 				return true;
 			}
 
-			string fileName = imageFile.GetFileName();
-			if (processNamesToTerminate.TryGetValue(fileName, out TerminateCondition terminateFlags))
+			if (processNamesToTerminate != null)
 			{
-				if (terminateFlags == TerminateCondition.None || (terminateFlags & condition) != 0)
+				string fileName = imageFile.GetFileName();
+				if (processNamesToTerminate.TryGetValue(fileName, out TerminateCondition terminateFlags))
 				{
-					return true;
+					if (terminateFlags == TerminateCondition.None || (terminateFlags & condition) != 0)
+					{
+						return true;
+					}
 				}
 			}
 

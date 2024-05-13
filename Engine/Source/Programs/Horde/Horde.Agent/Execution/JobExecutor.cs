@@ -63,7 +63,7 @@ namespace Horde.Agent.Execution
 		public Uri ServerUrl { get; }
 		public DirectoryReference WorkingDir { get; }
 		public IRpcConnection RpcConnection { get; }
-		public IReadOnlyDictionary<string, TerminateCondition> ProcessNamesToTerminate { get; }
+		public IReadOnlyDictionary<string, TerminateCondition>? ProcessNamesToTerminate { get; }
 		public HttpStorageClientFactory StorageFactory { get; }
 		public JobId JobId { get; }
 		public JobStepBatchId BatchId { get; }
@@ -71,7 +71,7 @@ namespace Horde.Agent.Execution
 		public string Token { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, IRpcConnection rpcConnection, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
+		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, IRpcConnection rpcConnection, IReadOnlyDictionary<string, TerminateCondition>? processNamesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
 		{
 			ServerUrl = serverUrl;
 			WorkingDir = workingDir;
