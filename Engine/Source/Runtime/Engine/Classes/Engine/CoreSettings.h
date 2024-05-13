@@ -245,11 +245,6 @@ protected:
 	int32 MaxObjectsNotConsideredByGC;
 
 	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
-		ConsoleVariable = "gc.SizeOfPermanentObjectPool", DisplayName = "Size Of Permanent Object Pool",
-		ToolTip = "Size Of Permanent Object Pool (bytes). Works only in cooked builds."))
-	int32 SizeOfPermanentObjectPool;
-
-	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
 		ConsoleVariable = "gc.MaxObjectsInGame", DisplayName = "Maximum number of UObjects that can exist in cooked game",
 		ToolTip = "Maximum number of UObjects that can exist in cooked game. Keep this as small as possible."))
 	int32 MaxObjectsInGame;
